@@ -1,0 +1,1023 @@
+<!DOCTYPE html>
+<html lang="de" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Covey — Oberfläche (Mockup)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Lora:ital@0;1&display=swap" rel="stylesheet">
+<style>
+:root{
+  --surface-0:#EFEDE4; --surface-1:#F5F3EC; --surface-2:#FDFCF9;
+  --text-primary:#1E1C17; --text-secondary:#6B675E; --text-muted:#9C978B;
+  --border:rgba(30,28,23,.10); --border-strong:rgba(30,28,23,.18);
+  --bg-accent:#E6F1FB; --text-accent:#185FA5;
+  --bg-warning:#FAEEDA; --text-warning:#8A5310;
+  --bg-success:#EAF3DE; --text-success:#3B6D11;
+  --bg-pro:#EDEBFB; --text-pro:#534AB7;
+  --text-danger:#A32D2D; --border-danger:rgba(163,45,45,.35);
+  --clay:#CC7A5B;
+  --radius:8px; --sans:'Inter',ui-sans-serif,-apple-system,'Segoe UI',Roboto,sans-serif;
+  --voice:'Lora',Georgia,'Times New Roman',serif; --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+}
+[data-theme="dark"]{
+  --surface-0:#211F1C; --surface-1:#2A2825; --surface-2:#302E2A;
+  --text-primary:#ECEAE2; --text-secondary:#A8A399; --text-muted:#78746B;
+  --border:rgba(255,255,255,.10); --border-strong:rgba(255,255,255,.18);
+  --bg-accent:#0E2C46; --text-accent:#8FBDE9;
+  --bg-warning:#3A2B11; --text-warning:#E3AC52;
+  --bg-success:#20370F; --text-success:#9AC961;
+  --bg-pro:#282160; --text-pro:#B3ADEE;
+  --text-danger:#E88; --border-danger:rgba(230,120,120,.4);
+  --clay:#D9866A;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--surface-0);color:var(--text-primary);font-family:var(--sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-weight:500;margin:0}
+:focus-visible{outline:2px solid var(--text-accent);outline-offset:2px;border-radius:4px}
+.ic{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;vertical-align:-3px}
+.app{display:none;min-height:100vh}
+body.authed .app{display:flex}
+.login{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--surface-0);padding:20px;z-index:100}
+body.authed .login{display:none}
+.login-card{width:100%;max-width:360px;background:var(--surface-2);border:.5px solid var(--border);border-radius:16px;padding:28px 26px}
+.login-card .brand{font-size:20px;margin-bottom:4px;justify-content:center;padding:0}
+.login-sub{text-align:center;color:var(--text-muted);font-size:13px;margin-bottom:22px}
+.login-card label{display:block;font-size:12px;color:var(--text-secondary);margin:0 0 6px}
+.login-card input{margin-bottom:14px}
+.login-note{text-align:center;color:var(--text-muted);font-size:11px;margin-top:16px}
+.suser{display:flex;align-items:center;gap:8px;min-width:0}
+.suser .nm{font-weight:500;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.suser .rl{font-size:11px;color:var(--text-muted)}
+.sidebar{width:212px;flex-shrink:0;border-right:.5px solid var(--border);display:flex;flex-direction:column;padding:16px 12px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:8px;padding:6px 8px 18px;font-weight:500;font-size:16px}
+.brand .bdot{width:7px;height:7px;border-radius:50%;background:var(--clay)}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--radius);color:var(--text-secondary);cursor:pointer;font-size:14px;margin-bottom:2px;transition:background .12s}
+.nav-item:hover{background:var(--surface-1)}
+.nav-item.active{background:var(--surface-2);color:var(--text-primary);border:.5px solid var(--border)}
+.nav-item .ic{width:18px;height:18px}
+.nav-item .count{margin-left:auto;font-size:11px;background:var(--bg-warning);color:var(--text-warning);padding:1px 7px;border-radius:20px}
+.side-foot{margin-top:auto;border-top:.5px solid var(--border);padding-top:12px;display:flex;align-items:center;justify-content:space-between;color:var(--text-muted);font-size:12px}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border:.5px solid var(--border-strong);border-radius:var(--radius);background:transparent;color:var(--text-secondary);cursor:pointer}
+.icon-btn:hover{background:var(--surface-1)}
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 26px;border-bottom:.5px solid var(--border);position:sticky;top:0;background:var(--surface-0);z-index:5}
+.crumb{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--text-secondary)}
+.crumb b{color:var(--text-primary);font-weight:500}
+.content{padding:22px 26px 60px;max-width:960px;width:100%}
+.btn{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border:.5px solid var(--border-strong);border-radius:var(--radius);background:transparent;color:var(--text-primary);font-size:13px;font-family:inherit;cursor:pointer;transition:background .12s}
+.btn:hover{background:var(--surface-1)}
+.btn.danger{color:var(--text-danger);border-color:var(--border-danger)}
+.btn.primary{background:var(--text-accent);color:#fff;border-color:transparent}
+.btn.primary:hover{opacity:.92}
+.btn.sm{padding:5px 10px;font-size:12px}
+.view{display:none;animation:fade .18s ease}
+.view.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+@keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.view-head{display:flex;align-items:baseline;gap:10px;margin-bottom:16px}
+.view-head h1{font-size:22px}
+.view-head .sub{color:var(--text-muted);font-size:14px}
+.view-head .spacer{margin-left:auto}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:12px}
+.card{background:var(--surface-2);border:.5px solid var(--border);border-radius:12px;padding:15px 17px}
+.agent-card{cursor:pointer;transition:border-color .12s,transform .12s}
+.agent-card:hover{border-color:var(--border-strong);transform:translateY(-1px)}
+.ac-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.who{display:flex;align-items:center;gap:10px}
+.avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:500;font-size:13px;background:var(--bg-accent);color:var(--text-accent)}
+.who .nm{font-weight:500;font-size:14px}
+.who .rl{color:var(--text-muted);font-size:12px}
+.badge{font-size:12px;padding:3px 10px;border-radius:20px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.st-working{background:var(--bg-accent);color:var(--text-accent)}
+.st-blocked{background:var(--bg-warning);color:var(--text-warning)}
+.st-done{background:var(--bg-success);color:var(--text-success)}
+.st-triage{background:var(--bg-pro);color:var(--text-pro)}
+.st-sleeping{background:var(--surface-1);color:var(--text-secondary);border:.5px solid var(--border)}
+.st-setup{background:var(--surface-1);color:var(--clay);border:.5px dashed var(--clay)}
+.tpl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.tpl-card{background:var(--surface-2);border:.5px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:border-color .12s,transform .12s}
+.tpl-card:hover{border-color:var(--border-strong);transform:translateY(-1px)}
+.tpl-top{display:flex;gap:11px;align-items:center;margin-bottom:12px}
+.tpl-ic{width:40px;height:40px;border-radius:10px;background:var(--bg-accent);color:var(--text-accent);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.tpl-ic .ic{width:20px;height:20px}
+.tpl-top .nm{font-weight:500;font-size:14px}
+.tpl-top .rl{color:var(--text-muted);font-size:12px}
+.tpl-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--text-secondary);background:var(--surface-1);border:.5px solid var(--border);border-radius:20px;padding:3px 9px}
+.chip .ic{width:13px;height:13px}
+.tpl-actions{display:flex;gap:8px}
+.soul-preview{background:var(--surface-1);border:.5px solid var(--border);border-radius:var(--radius);padding:12px 14px;font-family:var(--voice);font-size:13px;line-height:1.6;white-space:pre-wrap;color:var(--text-secondary)}
+.checklist{border:.5px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px}
+.cl-item{display:flex;align-items:center;gap:9px;padding:10px 13px;border-bottom:.5px solid var(--border);font-size:13px}
+.cl-item:last-child{border-bottom:none}
+.cl-item .ic{width:16px;height:16px}
+.cl-done{color:var(--text-success)}
+.cl-todo{color:var(--clay)}
+.mem{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;background:var(--surface-2);border:.5px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:8px}
+.mem-main{min-width:0;flex:1}
+.mem-fact{font-family:var(--voice);font-size:14.5px;margin-bottom:3px}
+.mem-meta{color:var(--text-muted);font-size:12px}
+.mem-actions{display:flex;gap:6px;flex-shrink:0}
+.mem-old{opacity:.6}
+.mem-old .mem-fact{text-decoration:line-through}
+.mem input{margin-bottom:6px}
+.gtypes{display:flex;flex-wrap:wrap;gap:8px}
+.gtype{display:inline-flex;align-items:center;gap:6px;padding:7px 11px;border:.5px solid var(--border-strong);border-radius:20px;font-size:12px;cursor:pointer;background:transparent;color:var(--text-secondary)}
+.gtype.active{background:var(--bg-accent);color:var(--text-accent);border-color:transparent}
+.gtype .ic{width:15px;height:15px}
+.guard-off{opacity:.55}
+.cond-row{display:flex;gap:6px;margin-bottom:6px}
+.cond-row select,.cond-row input{height:34px;padding:6px 8px}
+.cond-row .c-attr{flex:1.2;min-width:0}
+.cond-row .c-op{width:104px;flex-shrink:0}
+.cond-row .c-val{flex:1;min-width:0}
+.cond-row .rm{width:34px;height:34px;flex-shrink:0}
+.live-dot{width:7px;height:7px;border-radius:50%;background:currentColor;animation:pulse 1.1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.task{display:flex;align-items:center;gap:6px;color:var(--text-secondary);font-size:13px;margin-bottom:12px}
+.ac-foot{display:flex;align-items:center;justify-content:space-between;border-top:.5px solid var(--border);padding-top:10px;color:var(--text-muted);font-size:12px}
+.ac-foot .ic{color:var(--text-muted);cursor:pointer}
+.dhead{display:flex;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:.5px solid var(--border)}
+.back{display:inline-flex;align-items:center;gap:6px;color:var(--text-secondary);font-size:13px;cursor:pointer;margin-bottom:14px}
+.tabs{display:flex;gap:22px;border-bottom:.5px solid var(--border);margin:14px 0 22px}
+.tab{font-size:14px;color:var(--text-secondary);padding-bottom:9px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.active{color:var(--text-primary);border-bottom-color:var(--text-accent)}
+.tabpanel{display:none}
+.tabpanel.active{display:block}
+.act-bar{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+.act-bar .spacer{margin-left:auto}
+.evt{display:flex;align-items:center;gap:8px;color:var(--text-muted);font-size:12px;margin-bottom:18px}
+.turn{margin-bottom:22px;animation:pop .3s ease}
+.turn-h{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.turn-h .ic{color:var(--text-secondary)}
+.turn-h .lbl{font-size:13px;color:var(--text-secondary)}
+.voice{font-family:var(--voice);font-size:15.5px;line-height:1.6;margin:0 0 9px}
+details.tool{border:.5px solid var(--border);border-radius:var(--radius);margin-bottom:7px;overflow:hidden;animation:pop .3s ease}
+details.tool>summary{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;cursor:pointer;list-style:none;font-family:var(--mono);font-size:12px;color:var(--text-secondary)}
+details.tool>summary::-webkit-details-marker{display:none}
+details.tool>summary .lft{display:inline-flex;align-items:center;gap:6px}
+.chev{transition:transform .15s}
+details.tool[open]>summary .chev{transform:rotate(90deg)}
+.tool-body{border-top:.5px solid var(--border);padding:9px 12px;background:var(--surface-1);font-family:var(--mono);font-size:12px;color:var(--text-secondary);line-height:1.6}
+.pill{font-size:11px;padding:1px 8px;border-radius:20px}
+.pill.ok{background:var(--bg-success);color:var(--text-success)}
+.pill.mut{color:var(--text-muted)}
+.gate{display:flex;align-items:center;gap:8px;color:var(--text-secondary);font-size:12px;margin-bottom:22px;animation:pop .3s ease}
+.gate .ic{color:var(--text-success)}
+.approve-inline{border:.5px solid var(--border-strong);border-radius:12px;padding:14px 16px;margin-bottom:22px;background:var(--surface-2);animation:pop .3s ease}
+.approve-inline .ah{display:flex;align-items:center;gap:8px;font-weight:500;margin-bottom:6px}
+.approve-inline .ah .ic{color:var(--text-warning)}
+.parked{background:var(--bg-warning);border-radius:12px;padding:15px 17px;margin-bottom:16px;animation:pop .3s ease}
+.parked .ph{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.parked .ph .ic{width:17px;height:17px;color:var(--text-warning)}
+.parked .ph b{font-weight:500;font-size:14px;color:var(--text-warning)}
+.parked p{margin:0;font-size:13px;color:var(--text-warning);line-height:1.5}
+.done-line{display:flex;align-items:center;gap:8px;color:var(--text-success);font-size:13px;font-weight:500;margin-bottom:18px;animation:pop .3s ease}
+.empty{text-align:center;color:var(--text-muted);padding:60px 20px}
+.empty .ic{width:30px;height:30px;margin-bottom:10px}
+.kanban{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.kcol .kh{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-secondary);margin-bottom:10px}
+.kcol .kh .n{margin-left:auto;color:var(--text-muted)}
+.kc{background:var(--surface-2);border:.5px solid var(--border);border-radius:var(--radius);padding:10px 12px;margin-bottom:8px;font-size:13px}
+.kc .t{color:var(--text-muted);font-size:11px;margin-top:5px;display:flex;align-items:center;gap:5px}
+.kc .t .ic{width:13px;height:13px}
+.dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.field{margin-bottom:20px}
+.field label{display:block;font-size:12px;color:var(--text-secondary);margin-bottom:7px}
+textarea,select,input{width:100%;font-family:inherit;font-size:13px;color:var(--text-primary);background:var(--surface-2);border:.5px solid var(--border-strong);border-radius:var(--radius);padding:10px 12px}
+textarea{font-family:var(--voice);line-height:1.6;resize:vertical;min-height:240px}
+select{height:38px;cursor:pointer;width:auto}
+.rowlist{border:.5px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.row{display:flex;align-items:center;gap:10px;padding:11px 14px;border-bottom:.5px solid var(--border);font-size:13px}
+.row:last-child{border-bottom:none}
+.row .ic.lead{width:18px;height:18px;color:var(--text-secondary)}
+.row .rt{font-weight:500}
+.row .rs{color:var(--text-muted);font-size:12px}
+.row .right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.scope{font-size:11px;padding:1px 8px;border-radius:20px;background:var(--surface-1);color:var(--text-secondary);border:.5px solid var(--border)}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:22px}
+.metric{background:var(--surface-1);border-radius:var(--radius);padding:14px 16px}
+.metric .ml{font-size:12px;color:var(--text-secondary)}
+.metric .mv{font-size:24px;font-weight:500;margin-top:4px}
+.bar{height:8px;border-radius:20px;background:var(--surface-1);overflow:hidden;margin-top:6px}
+.bar>span{display:block;height:100%;background:var(--text-accent);border-radius:20px;transition:width .4s}
+.note{color:var(--text-muted);font-size:12px;margin-top:8px;display:flex;align-items:center;gap:6px}
+.note .ic{width:14px;height:14px}
+.section-t{font-size:13px;color:var(--text-secondary);margin:0 0 10px;font-weight:500}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;align-items:center;justify-content:center;z-index:50;padding:20px}
+.modal-bg.open{display:flex}
+.modal{background:var(--surface-0);border:.5px solid var(--border-strong);border-radius:14px;padding:22px;width:100%;max-width:440px;max-height:88vh;overflow:auto;animation:pop .2s ease}
+.modal h3{font-size:17px;margin-bottom:16px}
+.modal .field{margin-bottom:14px}
+.modal input,.modal select{width:100%}
+.modal-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:20px}
+.toast-wrap{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;gap:8px;align-items:center}
+.toast{background:var(--text-primary);color:var(--surface-0);padding:9px 16px;border-radius:20px;font-size:13px;display:flex;align-items:center;gap:8px;animation:pop .2s ease;box-shadow:0 4px 16px rgba(0,0,0,.18)}
+.toast .ic{width:15px;height:15px}
+.org-legend{display:flex;gap:16px;margin-bottom:18px;font-size:12px;color:var(--text-secondary)}
+.org-legend span{display:inline-flex;align-items:center;gap:6px}
+.org-legend .sw{width:10px;height:10px;border-radius:50%}
+.tree{overflow-x:auto;padding:6px 4px 20px}
+.tree ul{display:flex;justify-content:center;padding-top:22px;position:relative;margin:0;list-style:none}
+.tree>ul{padding-top:0}
+.tree li{position:relative;padding:22px 10px 0;display:flex;flex-direction:column;align-items:center}
+.tree li::before,.tree li::after{content:'';position:absolute;top:0;right:50%;width:50%;height:22px;border-top:1.5px solid var(--border-strong)}
+.tree li::after{right:auto;left:50%;border-left:1.5px solid var(--border-strong)}
+.tree li:only-child::before,.tree li:only-child::after{display:none}
+.tree li:first-child::before,.tree li:last-child::after{border:0}
+.tree li:last-child::before{border-right:1.5px solid var(--border-strong);border-radius:0 6px 0 0}
+.tree li:first-child::after{border-radius:6px 0 0 0}
+.tree ul ul::before{content:'';position:absolute;top:0;left:50%;height:22px;border-left:1.5px solid var(--border-strong)}
+.node{display:inline-flex;align-items:center;gap:9px;background:var(--surface-2);border:.5px solid var(--border);border-radius:10px;padding:9px 13px;min-width:158px;position:relative}
+.node.agent{cursor:pointer;transition:border-color .12s,transform .12s}
+.node.agent:hover{border-color:var(--border-strong);transform:translateY(-1px)}
+.node .avatar{width:32px;height:32px;font-size:12px}
+.node .avatar.hum{background:var(--surface-1);color:var(--text-secondary)}
+.node .nm{font-weight:500;font-size:13px;text-align:left}
+.node .rl{color:var(--text-muted);font-size:11px;text-align:left}
+.node .ntag{margin-left:auto;font-size:10px;padding:2px 8px;border-radius:20px}
+.node .ntag.hum{background:var(--surface-1);color:var(--text-secondary);border:.5px solid var(--border)}
+@media(max-width:820px){
+  .app{flex-direction:column}
+  .sidebar{width:100%;height:auto;position:static;flex-direction:row;align-items:center;overflow-x:auto;padding:10px}
+  .brand{padding:6px 10px 6px 4px}
+  .nav-item{margin-bottom:0;white-space:nowrap}
+  .nav-item .lbl,.side-foot .org{display:none}
+  .side-foot{margin:0 0 0 auto;border:none;padding:0}
+  .kanban{grid-template-columns:1fr 1fr}
+  .content{padding:18px 16px 50px}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-robot" viewBox="0 0 24 24"><rect x="5" y="8" width="14" height="11" rx="2"/><path d="M12 4v4"/><circle cx="12" cy="3.5" r="1"/><circle cx="9.5" cy="13" r="1"/><circle cx="14.5" cy="13" r="1"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 20a2 2 0 0 0 4 0"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3 8-7 10c-4-2-7-5-7-10V6z"/></symbol>
+<symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3 8-7 10c-4-2-7-5-7-10V6z"/><path d="M9 12l2 2l4-4"/></symbol>
+<symbol id="i-coins" viewBox="0 0 24 24"><circle cx="9" cy="9" r="5"/><circle cx="15" cy="15" r="5"/></symbol>
+<symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 6h8M16 6h4M4 12h4M12 12h8M4 18h10M18 18h2"/><circle cx="14" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="16" cy="18" r="2"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M17 17A8 8 0 1 1 11 5a6 6 0 0 0 6 12z"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M18.4 5.6L17 7M7 17l-1.4 1.4"/></symbol>
+<symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-ticket" viewBox="0 0 24 24"><path d="M4 8a2 2 0 0 1 2-2h7l7 7-7 7H6a2 2 0 0 1-2-2z"/><circle cx="8.5" cy="10.5" r="1"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></symbol>
+<symbol id="i-list-check" viewBox="0 0 24 24"><path d="M4 6h10M4 12h10M4 18h6"/><path d="M15 16l2 2l4-4"/></symbol>
+<symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5M11 18l-6-6l6-6"/></symbol>
+<symbol id="i-bolt" viewBox="0 0 24 24"><path d="M13 3L5 14h6l-1 7l9-11h-6z"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="M20 20l-4.5-4.5"/></symbol>
+<symbol id="i-message" viewBox="0 0 24 24"><path d="M20 15a2 2 0 0 1-2 2H8l-4 3V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/></symbol>
+<symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="M9 6l6 6l-6 6"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12l4 4l10-10"/></symbol>
+<symbol id="i-git-branch" viewBox="0 0 24 24"><circle cx="7" cy="6" r="2"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="9" r="2"/><path d="M7 8v8"/><path d="M9 7h4a3 3 0 0 1 3 3v0"/></symbol>
+<symbol id="i-book" viewBox="0 0 24 24"><path d="M6 4h11a1 1 0 0 1 1 1v13a1 1 0 0 0-1-1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M18 18H6"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-6 8-6s8 2 8 6"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7s10 7 10 7s-3.5 7-10 7s-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6l9-6"/></symbol>
+<symbol id="i-terminal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 10l3 2l-3 2"/><path d="M13 15h4"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M6 7l1 12h10l1-12"/></symbol>
+<symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="8" r="3.5"/><path d="M10.5 10.5L20 20M17 17l2-2M14 14l2 2"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+<symbol id="i-database" viewBox="0 0 24 24"><path d="M5 6c0-1.7 3.1-3 7-3s7 1.3 7 3s-3.1 3-7 3s-7-1.3-7-3z"/><path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6"/><path d="M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6"/></symbol>
+<symbol id="i-cpu" viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="1.5"/><rect x="10" y="10" width="4" height="4"/><path d="M10 3v3M14 3v3M10 18v3M14 18v3M3 10h3M3 14h3M18 10h3M18 14h3"/></symbol>
+<symbol id="i-box" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5l8-4.5M12 12v9"/></symbol>
+<symbol id="i-sitemap" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="5" rx="1"/><rect x="3" y="16" width="6" height="5" rx="1"/><rect x="15" y="16" width="6" height="5" rx="1"/><path d="M12 8v4M6 16v-2h12v2M12 12v2"/></symbol>
+<symbol id="i-user-plus" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M3 20c0-3.5 3-5.5 6-5.5s6 2 6 5.5"/><path d="M17 8h5M19.5 5.5v5"/></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24"><path d="M5 4h4l2 5l-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/></symbol>
+<symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3l2.6 5.3l5.8.8l-4.2 4.1l1 5.8l-5.2-2.7l-5.2 2.7l1-5.8L3.4 9.1l5.8-.8z"/></symbol>
+<symbol id="i-stack" viewBox="0 0 24 24"><path d="M12 3l9 5l-9 5l-9-5z"/><path d="M3 12l9 5l9-5"/><path d="M3 16l9 5l9-5"/></symbol>
+<symbol id="i-logout" viewBox="0 0 24 24"><path d="M14 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-2"/><path d="M9 12h11M17 9l3 3l-3 3"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="M7 5l12 7l-12 7z"/></symbol>
+<symbol id="i-send" viewBox="0 0 24 24"><path d="M4 12l16-7l-7 16l-2-7z"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2 6"/><path d="M20 5v6h-6"/></symbol>
+<symbol id="i-moon2" viewBox="0 0 24 24"><path d="M17 17A8 8 0 1 1 11 5a6 6 0 0 0 6 12z"/></symbol>
+</defs></svg>
+
+<div class="login" id="login">
+  <div class="login-card">
+    <div class="brand">covey <span class="bdot"></span></div>
+    <div class="login-sub">Control-Plane für KI-Agenten</div>
+    <label>E-Mail</label><input id="loginEmail" value="benni@digitallearning.gmbh" autocomplete="username">
+    <label>Passwort</label><input id="loginPw" type="password" value="demo" autocomplete="current-password" onkeydown="if(event.key==='Enter')login()">
+    <button class="btn primary" onclick="login()" style="width:100%;justify-content:center">Anmelden</button>
+    <div class="login-note">Demo-Oberfläche · beliebige Zugangsdaten</div>
+  </div>
+</div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">covey <span class="bdot"></span></div>
+    <div class="nav-item active" data-view="agents"><svg class="ic"><use href="#i-robot"/></svg><span class="lbl">Agenten</span></div>
+    <div class="nav-item" data-view="org"><svg class="ic"><use href="#i-sitemap"/></svg><span class="lbl">Organisation</span></div>
+    <div class="nav-item" data-view="templates"><svg class="ic"><use href="#i-stack"/></svg><span class="lbl">Vorlagen</span></div>
+    <div class="nav-item" data-view="approvals"><svg class="ic"><use href="#i-bell"/></svg><span class="lbl">Freigaben</span><span class="count" id="apprCount">1</span></div>
+    <div class="nav-item" data-view="guardrails"><svg class="ic"><use href="#i-shield"/></svg><span class="lbl">Guard-Rails</span></div>
+    <div class="nav-item" data-view="cost"><svg class="ic"><use href="#i-coins"/></svg><span class="lbl">Kosten</span></div>
+    <div class="nav-item" data-view="settings"><svg class="ic"><use href="#i-settings"/></svg><span class="lbl">Einstellungen</span></div>
+    <div class="side-foot">
+      <div class="suser"><div class="avatar hum" style="width:30px;height:30px;font-size:11px">Be</div><div style="min-width:0"><div class="nm">Benni</div><div class="rl">Admin</div></div></div>
+      <div style="display:flex;gap:6px;margin-left:auto">
+        <button class="icon-btn" id="theme" aria-label="Hell/Dunkel"><svg class="ic"><use href="#i-moon"/></svg></button>
+        <button class="icon-btn" onclick="logout()" aria-label="Abmelden" title="Abmelden"><svg class="ic"><use href="#i-logout"/></svg></button>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="topbar">
+      <div class="crumb" id="crumb"><b>Agenten</b></div>
+      <button class="btn danger" onclick="toast('Alle Agenten gestoppt','i-stop')"><svg class="ic"><use href="#i-stop"/></svg> Alle stoppen</button>
+    </header>
+    <div class="content">
+      <section id="view-agents" class="view active">
+        <div class="view-head"><h1>Agenten</h1><span class="sub" id="agentCount">4 aktiv</span><span class="spacer"></span>
+          <button class="btn" onclick="openModal()"><svg class="ic"><use href="#i-plus"/></svg> Neuer Agent</button></div>
+        <div class="grid" id="roster"></div>
+      </section>
+      <section id="view-detail" class="view"></section>
+      <section id="view-approvals" class="view"></section>
+
+      <section id="view-org" class="view">
+        <div class="view-head"><h1>Organisation</h1><span class="sub">Menschen &amp; Agenten</span><span class="spacer"></span>
+          <button class="btn" onclick="openModalP()"><svg class="ic"><use href="#i-user-plus"/></svg> Mitarbeiter hinterlegen</button>
+          <button class="btn" onclick="openModal()" style="margin-left:8px"><svg class="ic"><use href="#i-plus"/></svg> Neuer Agent</button></div>
+        <div class="org-legend">
+          <span><span class="sw" style="background:var(--text-secondary)"></span> Mensch</span>
+          <span><span class="sw" style="background:var(--text-accent)"></span> Agent</span>
+          <span style="color:var(--text-muted)">Tipp: Agenten-Knoten anklickbar</span></div>
+        <div class="tree" id="tree"></div>
+      </section>
+
+      <section id="view-person" class="view"></section>
+
+      <section id="view-templates" class="view">
+        <div class="view-head"><h1>Vorlagen</h1><span class="sub">Baupläne für Agenten</span></div>
+        <p style="color:var(--text-secondary);font-size:13px;margin:0 0 18px;max-width:640px">Eine Vorlage bringt alles mit, was ein Agent braucht: eine Start-SOUL.md, empfohlene Zugänge, Guard-Rails, ein Ziel-System samt Trigger, Tools und ein Budget. So ist ein neuer Agent in Minuten eingerichtet statt von Grund auf konfiguriert.</p>
+        <div class="tpl-grid" id="tplgrid"></div>
+      </section>
+      <section id="view-tpldetail" class="view"></section>
+
+      <section id="view-guardrails" class="view">
+        <div class="view-head"><h1>Guard-Rails</h1><span class="sub">zentral · plattform-erzwungen</span><span class="spacer"></span>
+          <button class="btn" onclick="openModalG()"><svg class="ic"><use href="#i-plus"/></svg> Neue Guard-Rail</button></div>
+        <div class="rowlist" id="guardlist" style="margin-bottom:14px"></div>
+        <div class="note"><svg class="ic"><use href="#i-shield"/></svg> Verwaltet von Security/Compliance · von Agent-Ownern nicht überschreibbar · fail-closed.</div>
+      </section>
+
+      <section id="view-cost" class="view">
+        <div class="view-head"><h1>Kosten</h1><span class="sub">Organisation · heute</span></div>
+        <div class="metrics">
+          <div class="metric"><div class="ml">Heute gesamt</div><div class="mv">€4.91</div></div>
+          <div class="metric"><div class="ml">Diese Woche</div><div class="mv">€38.20</div></div>
+          <div class="metric"><div class="ml">Aktive Agenten</div><div class="mv" id="costAgents">4</div></div>
+        </div>
+        <div class="section-t">Pro Agent · heute</div>
+        <div class="rowlist" id="costList"></div>
+      </section>
+
+      <section id="view-settings" class="view">
+        <div class="view-head"><h1>Einstellungen</h1><span class="sub">Batteries included, but swappable</span></div>
+        <div class="section-t">Plattform-Dienste</div>
+        <div class="rowlist" style="margin-bottom:22px">
+          <div class="row"><svg class="ic lead"><use href="#i-key"/></svg><div><div class="rt">Identität &amp; IdM</div><div class="rs">Agenten-Identität und Login</div></div><div class="right"><select onchange="toast('Gespeichert','i-check')"><option>Eingebaut (Standard)</option><option>Keycloak (OIDC)</option></select></div></div>
+          <div class="row"><svg class="ic lead"><use href="#i-lock"/></svg><div><div class="rt">Secrets</div><div class="rs">Zugangsdaten für Zielsysteme</div></div><div class="right"><select onchange="toast('Gespeichert','i-check')"><option>Eingebaut (Postgres)</option><option>Vault</option><option>Infisical</option></select></div></div>
+          <div class="row"><svg class="ic lead"><use href="#i-database"/></svg><div><div class="rt">Observability</div><div class="rs">Recording und Auswertung</div></div><div class="right"><select onchange="toast('Gespeichert','i-check')"><option>Eingebaut (Postgres)</option><option>Langfuse</option></select></div></div>
+        </div>
+        <div class="section-t">Runtime &amp; Sandbox</div>
+        <div class="rowlist">
+          <div class="row"><svg class="ic lead"><use href="#i-cpu"/></svg><div><div class="rt">Runtime</div><div class="rs">Claude Code · headless via <span style="font-family:var(--mono)">claude -p</span></div></div><div class="right"><span class="badge st-done">verbunden</span></div></div>
+          <div class="row"><svg class="ic lead"><use href="#i-box"/></svg><div><div class="rt">Sandbox</div><div class="rs">isolierter Arbeitsplatz pro Agent</div></div><div class="right"><select onchange="toast('Gespeichert','i-check')"><option>Beam (gVisor)</option><option>E2B (Firecracker)</option></select></div></div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <h3>Neuer Agent</h3>
+    <div class="field"><label>Name</label><input id="mName" placeholder="z. B. Iris"></div>
+    <div class="field"><label>Vorlage</label><select id="mTemplate" onchange="updateTplSum()"></select>
+      <div class="note" id="mTplSum" style="margin-top:8px"></div></div>
+    <div class="field"><label>Berichtet an</label><select id="mReports"></select></div>
+    <div class="note" style="margin-top:2px"><svg class="ic"><use href="#i-git-branch"/></svg> SOUL.md und Zugänge richtest du danach beim Onboarding ein.</div>
+    <div class="modal-foot"><button class="btn" onclick="closeModal()">Abbrechen</button><button class="btn primary" onclick="createAgent()"><svg class="ic"><use href="#i-plus"/></svg> Agent anlegen</button></div>
+  </div>
+</div>
+<div class="modal-bg" id="modalP">
+  <div class="modal">
+    <h3>Mitarbeiter hinterlegen</h3>
+    <div class="field"><label>Name</label><input id="pName" placeholder="z. B. Mario"></div>
+    <div class="field"><label>Titel / Rolle</label><input id="pTitle" placeholder="z. B. Team-Lead Support"></div>
+    <div class="field"><label>Berichtet an</label><select id="pReports"></select></div>
+    <div class="field"><label>E-Mail</label><input id="pEmail" placeholder="name@digitallearning.gmbh"></div>
+    <div class="field"><label>Telefon</label><input id="pPhone" placeholder="+49 …"></div>
+    <div class="field"><label>Teams / Slack</label><input id="pTeams" placeholder="@handle"></div>
+    <div class="field"><label>Bevorzugter Kanal</label><select id="pChannel"><option>Teams</option><option>E-Mail</option><option>Telefon</option><option>Slack</option></select></div>
+    <div class="field"><label>Erreichbarkeit</label><input id="pHours" placeholder="z. B. Mo–Fr 9–17"></div>
+    <div class="modal-foot"><button class="btn" onclick="closeModalP()">Abbrechen</button><button class="btn primary" onclick="createEmployee()"><svg class="ic"><use href="#i-user-plus"/></svg> Hinterlegen</button></div>
+  </div>
+</div>
+<div class="modal-bg" id="modalG">
+  <div class="modal">
+    <h3 style="display:flex;align-items:center;justify-content:space-between">Neue Guard-Rail
+      <span id="advToggle" style="font-size:12px;color:var(--text-accent);cursor:pointer;font-weight:400" onclick="toggleAdvanced()">Erweitert ›</span></h3>
+    <div id="gSimple">
+      <div class="field"><label>Typ</label><div class="gtypes" id="gTypes"></div></div>
+      <div class="field"><label>Name</label><input id="gName" placeholder="z. B. Externe E-Mail nur mit Freigabe"></div>
+      <div class="field"><label>Wenn (Bedingung)</label><select id="gCond"></select></div>
+      <div class="field"><label>Dann (Aktion)</label><select id="gAct"><option>Freigabe verlangen</option><option>Blockieren</option><option>Nur protokollieren</option><option>Pausieren</option><option>Redigieren</option></select></div>
+      <div class="field"><label>Geltungsbereich</label><select id="gScope"><option>Global</option><option>Rolle: Support</option><option>Rolle: Onboarding</option><option>Rolle: IT</option></select></div>
+    </div>
+    <div id="gAdvanced" style="display:none">
+      <div class="field"><label>Name</label><input id="gNameA" placeholder="Regelname"></div>
+      <div class="field"><label>Ereignis (Hook)</label><select id="gHook" onchange="hookChanged()"></select></div>
+      <div class="field"><label>Bedingungen</label><div id="gConds"></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px"><button class="btn sm" onclick="addCond()"><svg class="ic"><use href="#i-plus"/></svg> Bedingung</button>
+          <span style="font-size:12px;color:var(--text-secondary);margin-left:auto">verknüpfen</span><select id="gJoin" onchange="buildPreview()" style="height:32px;width:auto"><option>UND</option><option>ODER</option></select></div></div>
+      <div class="field"><label>Effekt</label><select id="gEffect" onchange="buildPreview()"><option value="require_approval">Freigabe verlangen</option><option value="deny">Blockieren</option><option value="allow">Erlauben</option><option value="redact">Redigieren</option><option value="pause">Pausieren</option><option value="log">Nur protokollieren</option></select></div>
+      <div class="field" style="display:flex;gap:12px"><div style="flex:1"><label>Geltungsbereich</label><select id="gScopeA" style="width:100%"><option>Global</option><option>Rolle: Support</option><option>Rolle: Onboarding</option><option>Rolle: IT</option></select></div>
+        <div style="width:100px"><label>Priorität</label><input id="gPrio" value="50" oninput="buildPreview()"></div></div>
+      <div class="field"><label>Kompilierte Policy</label><pre class="soul-preview" id="gPreview" style="font-family:var(--mono);font-size:12px;margin:0"></pre></div>
+    </div>
+    <div class="note"><svg class="ic"><use href="#i-shield"/></svg> Wird plattformweit erzwungen, sobald aktiv.</div>
+    <div class="modal-foot"><button class="btn" onclick="closeModalG()">Abbrechen</button><button class="btn primary" onclick="createGuard()"><svg class="ic"><use href="#i-plus"/></svg> Guard-Rail anlegen</button></div>
+  </div>
+</div>
+<div class="toast-wrap" id="toasts"></div>
+
+<script>
+const ST={working:'st-working',blocked:'st-blocked',sleeping:'st-sleeping',triage:'st-triage',done:'st-done',triggered:'st-triage',setup:'st-setup'};
+const AV={accent:'',muted:'background:var(--surface-1);color:var(--text-secondary)',pro:'background:var(--bg-pro);color:var(--text-pro)'};
+function icon(n){return '<svg class="ic"><use href="#i-'+n+'"/></svg>'}
+
+let humans=[
+ {id:'benni',ini:'Be',name:'Benni',title:'Gründer · IT',reportsTo:null,email:'benni@digitallearning.gmbh',phone:'+49 551 100 200',teams:'@benni',channel:'Teams',hours:'Mo–Fr 9–18',note:'Infrastruktur & technische Eskalationen.'},
+ {id:'mario',ini:'Ma',name:'Mario',title:'Team-Lead Support',reportsTo:'benni',email:'mario@digitallearning.gmbh',phone:'+49 551 100 210',teams:'@mario',channel:'Teams',hours:'Mo–Fr 8–16',note:'Erster Kontakt für Support-Eskalationen.'},
+ {id:'lina',ini:'Li',name:'Lina',title:'Team-Lead Onboarding',reportsTo:'benni',email:'lina@digitallearning.gmbh',phone:'+49 551 100 220',teams:'@lina',channel:'E-Mail',hours:'Mo–Do 9–15',note:'Onboarding- und Schulungsthemen.'}
+];
+function humanName(id){const h=humans.find(x=>x.id===id);return h?h.name:id;}
+let agents=[
+ {id:'nova',ini:'No',name:'Nova',role:'Support',reportsTo:'mario',onboarded:true,state:'working',task:'#4821 · Passwort-Reset',taskIcon:'ticket',cost:0.12,foot:'läuft gerade',av:'accent'},
+ {id:'atlas',ini:'At',name:'Atlas',role:'Support',reportsTo:'mario',onboarded:true,state:'blocked',task:'Wartet auf Kunde · #4790',taskIcon:'clock',cost:0.34,foot:'seit 14:32',av:'accent'},
+ {id:'echo',ini:'Ec',name:'Echo',role:'Support',reportsTo:'mario',onboarded:true,state:'sleeping',task:'Kein Vorgang',taskIcon:'moon',cost:1.20,foot:'heute',av:'muted'},
+ {id:'sol',ini:'So',name:'Sol',role:'Onboarding',reportsTo:'lina',onboarded:true,state:'triage',task:'Prüft Backlog (3)',taskIcon:'list-check',cost:0.05,foot:'gerade eben',av:'pro'}
+];
+let approvals=[{id:'a1',agent:'Nova',ini:'No',ticket:'#4821',to:'a.weber@example.com',ago:'vor 1 Min'}];
+
+/* templates (blueprints) */
+let templates=[
+ {id:'support',name:'Support-Agent',icon:'ticket',tag:'First-Level-Support in Zammad',role:'Support',
+  access:[['ticket','Zammad','lesen · antworten · Status setzen'],['book','Confluence','nur lesen']],
+  guards:['Externe E-Mail nur mit Freigabe','Tool-Allowlist'],target:'Zammad · Trigger „neues Ticket"',tools:'Read · Edit · Bash',budget:'€5 / Tag',
+  soul:'# {name} — Support-Agent\n\n## Rolle\nFirst-Level-Support für Kundenanfragen in Zammad.\n\n## Ton\nFreundlich, knapp, lösungsorientiert. Deutsch, Sie-Form.\n\n## Grenzen\n- Keine Zusagen zu Preisen oder Verträgen.\n- Bei rechtlichen Fragen immer eskalieren.'},
+ {id:'onboarding',name:'Onboarding-Agent',icon:'user-plus',tag:'Begleitet neue Nutzer',role:'Onboarding',
+  access:[['book','Confluence','lesen'],['mail','E-Mail','senden (mit Freigabe)']],
+  guards:['Externe E-Mail nur mit Freigabe'],target:'Zeitplan · werktags 9:00',tools:'Read · Edit',budget:'€3 / Tag',
+  soul:'# {name} — Onboarding-Agent\n\n## Rolle\nBegleitet neue Nutzer durch die ersten Schritte.\n\n## Ton\nFreundlich, geduldig, klar. Deutsch, Sie-Form.\n\n## Grenzen\n- Keine vertraglichen Zusagen.\n- Technische Probleme an die IT eskalieren.'},
+ {id:'helpdesk',name:'IT-Helpdesk',icon:'cpu',tag:'Interne IT-Anfragen & Zugänge',role:'IT',
+  access:[['ticket','Zammad','lesen · antworten'],['key','Keycloak','Nutzer lesen']],
+  guards:['Löschen braucht Freigabe','Tool-Allowlist'],target:'Zammad · Gruppe „IT"',tools:'Read · Edit · Bash',budget:'€5 / Tag',
+  soul:'# {name} — IT-Helpdesk\n\n## Rolle\nBeantwortet interne IT-Anfragen und richtet Zugänge ein.\n\n## Ton\nSachlich, hilfsbereit, präzise.\n\n## Grenzen\n- Keine Änderungen an Produktionssystemen ohne Freigabe.'},
+ {id:'billing',name:'Buchhaltung',icon:'coins',tag:'Rechnungen & Belege',role:'Buchhaltung',
+  access:[['mail','Postfach','lesen'],['database','DATEV','lesen']],
+  guards:['Löschen braucht Freigabe','Budget-Deckel'],target:'Postfach · „neue Rechnung"',tools:'Read',budget:'€2 / Tag',
+  soul:'# {name} — Buchhaltung\n\n## Rolle\nErfasst und ordnet eingehende Rechnungen und Belege zu.\n\n## Ton\nGenau, knapp, nachvollziehbar.\n\n## Grenzen\n- Keine Zahlungen auslösen.\n- Bei Unstimmigkeiten eskalieren.'},
+ {id:'research',name:'Recherche',icon:'search',tag:'Wissen sammeln & aufbereiten',role:'Research',
+  access:[['book','Confluence','lesen · schreiben'],['database','Web','lesen']],
+  guards:['Egress-Allowlist'],target:'Manuell · auf Zuruf',tools:'Read · Edit',budget:'€4 / Tag',
+  soul:'# {name} — Recherche-Agent\n\n## Rolle\nRecherchiert Themen und bereitet Ergebnisse strukturiert auf.\n\n## Ton\nNeutral, quellenbasiert, strukturiert.\n\n## Grenzen\n- Nur freigegebene Quellen nutzen.'},
+ {id:'blank',name:'Leer',icon:'plus',tag:'Von Grund auf konfigurieren',role:'Allgemein',
+  access:[],guards:[],target:'—',tools:'—',budget:'€5 / Tag',
+  soul:'# {name}\n\n## Rolle\n<!-- TODO: Wofür ist dieser Agent zuständig? -->\n\n## Ton\n<!-- TODO -->\n\n## Grenzen\n<!-- TODO -->'}
+];
+function tplById(id){return templates.find(t=>t.id===id)||templates[0];}
+function renderTemplates(){
+  document.getElementById('tplgrid').innerHTML=templates.map(t=>`
+   <div class="tpl-card" onclick="openTemplate('${t.id}')">
+     <div class="tpl-top"><div class="tpl-ic">${icon(t.icon)}</div><div><div class="nm">${t.name}</div><div class="rl">${t.tag}</div></div></div>
+     <div class="tpl-chips"><span class="chip">${icon('key')} ${t.access.length} Zugänge</span><span class="chip">${icon('shield')} ${t.guards.length} Guard-Rails</span><span class="chip">${icon('bolt')} ${t.target}</span></div>
+     <div class="tpl-actions"><button class="btn sm" onclick="event.stopPropagation();openTemplate('${t.id}')">Details</button><button class="btn primary sm" onclick="event.stopPropagation();useTemplate('${t.id}')">${icon('plus')} Vorlage nutzen</button></div>
+   </div>`).join('');
+}
+function openTemplate(id){
+  const t=tplById(id);
+  const acc = t.access.length ? '<div class="rowlist">'+t.access.map(a=>`<div class="row">${icon2(a[0])}<div><div class="rt">${a[1]}</div><div class="rs">${a[2]}</div></div><div class="right"><span class="scope">Least Privilege</span></div></div>`).join('')+'</div>' : '<div class="note">Keine — beim Onboarding selbst vergeben.</div>';
+  const grd = t.guards.length ? '<div class="rowlist">'+t.guards.map(g=>`<div class="row">${icon2('shield')}<div><div class="rt" style="font-weight:400">${g}</div></div><div class="right"><span class="badge st-done">aktiv</span></div></div>`).join('')+'</div>' : '<div class="note">Keine spezifischen.</div>';
+  document.getElementById('view-tpldetail').innerHTML=`
+   <div class="back" onclick="show('templates')">${icon('arrow-left')} Vorlagen</div>
+   <div class="dhead"><div class="who"><div class="tpl-ic">${icon(t.icon)}</div>
+     <div><div class="nm" style="font-size:15px;font-weight:500">${t.name}</div><div class="rl" style="color:var(--text-muted);font-size:12px">${t.tag}</div></div></div>
+     <button class="btn primary" onclick="useTemplate('${t.id}')">${icon('plus')} Vorlage nutzen</button></div>
+   <div class="section-t" style="margin-top:22px">Start-SOUL.md</div>
+   <div class="soul-preview">${t.soul.replace('{name}','‹Name›')}</div>
+   <div class="section-t" style="margin-top:22px">Empfohlene Zugänge</div>${acc}
+   <div class="section-t" style="margin-top:22px">Guard-Rails</div>${grd}
+   <div class="section-t" style="margin-top:22px">Ziel &amp; Betrieb</div>
+   <div class="rowlist">
+     <div class="row">${icon2('bolt')}<div><div class="rt">Ziel-System &amp; Trigger</div><div class="rs">${t.target}</div></div></div>
+     <div class="row">${icon2('terminal')}<div><div class="rt">Tools</div><div class="rs">${t.tools}</div></div></div>
+     <div class="row">${icon2('coins')}<div><div class="rt">Budget-Deckel</div><div class="rs">${t.budget}</div></div></div>
+   </div>`;
+  show('tpldetail',t.name); setHash('tpl/'+id);
+}
+function useTemplate(id){openModal(id);}
+function saveAsTemplate(id){
+  const a=agents.find(x=>x.id===id); if(!a) return;
+  templates.push({id:'tpl'+Date.now(),name:a.role+' (aus '+a.name+')',icon:'robot',tag:'Eigene Vorlage aus '+a.name,role:a.role,
+    access:[['ticket','Zammad','lesen · antworten · Status setzen'],['book','Confluence','nur lesen']],
+    guards:['Externe E-Mail nur mit Freigabe','Tool-Allowlist'],target:'wie '+a.name,tools:'Read · Edit · Bash',budget:'€5 / Tag',soul:soulTemplate(a)});
+  toast('Als Vorlage gespeichert','i-stack');
+}
+
+/* memory (knowledge graph, per agent) */
+let MEM={
+ nova:[
+  {id:'m1',subject:'a.weber@example.com',fact:'Bevorzugt Passwort-Reset per E-Mail-Link',learned:'08.07.2026',source:'Ticket #4802',until:null},
+  {id:'m2',subject:'a.weber@example.com',fact:'Login-Problem am 08.07. per Reset-Link gelöst',learned:'08.07.2026',source:'Ticket #4802',until:null},
+  {id:'m3',subject:'Firmenkunde k.mueller',fact:'Priorität hoch, Reaktionszeit unter zwei Stunden',learned:'30.06.2026',source:'Ticket #4711',until:null},
+  {id:'m4',subject:'Allgemein',fact:'Passwort-Resets sind auch über das Self-Service-Portal möglich',learned:'12.05.2026',source:'Confluence',until:null},
+  {id:'m5',subject:'a.weber@example.com',fact:'Nutzt Zweitadresse weber@old.example',learned:'02.06.2026',source:'Ticket #4655',until:'08.07.2026'}
+ ],
+ atlas:[
+  {id:'a1',subject:'Rückerstattungen',fact:'Bestellnummer immer zuerst erfragen',learned:'05.07.2026',source:'Ticket #4790',until:null}
+ ]
+};
+let memEditId=null;
+function memListHTML(agentId,q,editId){
+  const all=MEM[agentId]||[];
+  if(!all.length) return `<div class="empty">${icon('search')}<div>Noch keine Erinnerungen.</div><div style="font-size:12px;margin-top:4px">Der Agent lernt beim Arbeiten und schreibt Gelerntes hierher zurück.</div></div>`;
+  const items=all.filter(m=>!q||(m.subject+' '+m.fact).toLowerCase().includes(q.toLowerCase()));
+  if(!items.length) return `<div class="empty">${icon('search')}<div>Keine Treffer.</div></div>`;
+  return items.map(m=>{
+    if(m.id===editId) return `<div class="mem"><div class="mem-main"><input id="memEdit" value="${m.fact}"><div class="mem-meta">${m.subject} · gelernt ${m.learned} · Quelle: ${m.source}</div></div><div class="mem-actions"><button class="btn sm primary" onclick="saveMem('${agentId}','${m.id}')">Speichern</button><button class="btn sm" onclick="cancelMem('${agentId}')">Abbrechen</button></div></div>`;
+    return `<div class="mem${m.until?' mem-old':''}"><div class="mem-main"><div class="mem-fact">${m.fact}</div><div class="mem-meta">${m.subject} · gelernt ${m.learned} · Quelle: ${m.source}${m.until?` · abgelöst am ${m.until}`:''}</div></div><div class="mem-actions"><button class="btn sm" onclick="correctMem('${agentId}','${m.id}')">berichtigen</button><button class="btn sm danger" onclick="forgetMem('${agentId}','${m.id}')">vergessen</button></div></div>`;
+  }).join('');
+}
+function memoryHTML(a){
+  const n=(MEM[a.id]||[]).length;
+  return `<div class="act-bar" style="margin-bottom:14px"><span style="color:var(--text-muted);font-size:12px">${n} Erinnerungen · Wissensgraph</span></div>
+   <input id="memSearch" placeholder="Gedächtnis durchsuchen …" oninput="renderMem('${a.id}')" style="margin-bottom:14px">
+   <div id="memlist">${memListHTML(a.id,'',null)}</div>
+   <div class="note" style="margin-top:12px">${icon('shield')} Enthält personenbezogene Daten · rollen-gescopt · Änderungen werden im Audit-Log vermerkt.</div>`;
+}
+function renderMem(agentId){const q=(document.getElementById('memSearch')||{}).value||'';document.getElementById('memlist').innerHTML=memListHTML(agentId,q,memEditId);}
+function correctMem(agentId,id){memEditId=id;renderMem(agentId);}
+function cancelMem(agentId){memEditId=null;renderMem(agentId);}
+function saveMem(agentId,id){const v=(document.getElementById('memEdit')||{}).value;const m=(MEM[agentId]||[]).find(x=>x.id===id);if(m&&v)m.fact=v.trim();memEditId=null;renderMem(agentId);toast('Berichtigt · im Audit-Log vermerkt','i-check');}
+function forgetMem(agentId,id){MEM[agentId]=(MEM[agentId]||[]).filter(x=>x.id!==id);renderMem(agentId);toast('Vergessen · im Audit-Log vermerkt','i-trash');}
+
+/* guard-rails */
+const GT={egress:['mail','Egress'],tool:['terminal','Tool-Allowlist'],approval:['shield','Freigabe-Gate'],budget:['coins','Budget / Rate'],data:['lock','Daten / PII']};
+const GCOND={egress:['Antwort an nicht-interne Adresse','Zugriff auf externe Domain'],tool:['Tool nicht in Allowlist','Bash-Befehl mit sudo'],approval:['Destruktive Aktion (Löschen)','Externe Aktion','Zahlung / Transaktion'],budget:['Kosten > €5 / Tag','Aktionen/Minute > 30'],data:['PII in Ausgabe erkannt','Anhang > 10 MB']};
+const GACT_DEFAULT={egress:'Freigabe verlangen',tool:'Blockieren',approval:'Freigabe verlangen',budget:'Pausieren',data:'Redigieren'};
+let guards=[
+ {id:'g1',type:'egress',name:'Externe E-Mail nur mit Freigabe',cond:'Antwort an nicht-interne Adresse',act:'Freigabe verlangen',scope:'Global',active:true},
+ {id:'g2',type:'tool',name:'Tool-Allowlist',cond:'Tool nicht in Allowlist',act:'Blockieren',scope:'Rolle: Support',active:true},
+ {id:'g3',type:'approval',name:'Löschen braucht Freigabe',cond:'Destruktive Aktion (Löschen)',act:'Freigabe verlangen',scope:'Global',active:true},
+ {id:'g4',type:'budget',name:'Budget-Deckel',cond:'Kosten > €5 / Tag',act:'Pausieren',scope:'Global',active:true}
+];
+function renderGuards(){
+  document.getElementById('guardlist').innerHTML=guards.map(g=>{const ic=g.icon||(GT[g.type]&&GT[g.type][0])||'shield';return `
+   <div class="row${g.active?'':' guard-off'}">${icon2(ic)}
+     <div><div class="rt">${g.name}${g.prio?` <span style="color:var(--text-muted);font-weight:400;font-size:11px">· Prio ${g.prio}</span>`:''}</div><div class="rs">Wenn ${g.cond} → ${g.act}</div></div>
+     <div class="right"><span class="scope">${g.scope}</span>
+       <span class="badge ${g.active?'st-done':'st-sleeping'}" style="cursor:pointer" onclick="toggleGuard('${g.id}')">${g.active?'aktiv':'inaktiv'}</span>
+       <svg class="ic" style="width:16px;height:16px;color:var(--text-muted);cursor:pointer" onclick="deleteGuard('${g.id}')"><use href="#i-trash"/></svg></div></div>`;}).join('')
+   || `<div class="empty">${icon('shield')}<div>Noch keine Guard-Rails.</div></div>`;
+}
+function toggleGuard(id){const g=guards.find(x=>x.id===id);if(!g)return;g.active=!g.active;renderGuards();toast(g.name+(g.active?' aktiv':' deaktiviert'),'i-'+(g.active?'check':'x'));}
+function deleteGuard(id){guards=guards.filter(x=>x.id!==id);renderGuards();toast('Guard-Rail entfernt','i-trash');}
+function selectGType(t){
+  document.querySelectorAll('#gTypes .gtype').forEach(el=>el.classList.toggle('active',el.dataset.t===t));
+  document.getElementById('gCond').innerHTML=GCOND[t].map(c=>`<option>${c}</option>`).join('');
+  document.getElementById('gAct').value=GACT_DEFAULT[t];
+  const nm=document.getElementById('gName');
+  if(!nm.value||nm.dataset.auto==='1'){nm.value=GT[t][1]+' — '+GCOND[t][0];nm.dataset.auto='1';}
+}
+
+/* generic policy builder */
+const HOOKS={
+ tool_call:{label:'Tool-Aufruf',icon:'terminal',attrs:['tool.name','tool.args','tool.risk']},
+ outbound:{label:'Ausgehende Aktion',icon:'mail',attrs:['action.channel','recipient.domain','recipient.internal','action.amount']},
+ output:{label:'LLM-Ausgabe',icon:'message',attrs:['output.contains_pii','output.length','output.language']},
+ state:{label:'Zustandswechsel',icon:'bolt',attrs:['state.to','task.priority']},
+ resource:{label:'Ressourcen',icon:'coins',attrs:['cost.today','cost.per_task','rate.per_min','runtime.minutes']}
+};
+const OPS=['==','≠','>','<','enthält','in','nicht in','ist wahr','ist falsch'];
+const EFFECTS={allow:'Erlauben',deny:'Blockieren',require_approval:'Freigabe verlangen',redact:'Redigieren',pause:'Pausieren',log:'Nur protokollieren'};
+let gAdv=false;
+function toggleAdvanced(){
+  gAdv=!gAdv;
+  document.getElementById('gSimple').style.display=gAdv?'none':'';
+  document.getElementById('gAdvanced').style.display=gAdv?'':'none';
+  document.getElementById('advToggle').textContent=gAdv?'‹ Einfach':'Erweitert ›';
+  if(gAdv&&!document.getElementById('gHook').options.length){
+    document.getElementById('gHook').innerHTML=Object.keys(HOOKS).map(h=>`<option value="${h}">${HOOKS[h].label}</option>`).join('');
+    hookChanged();
+  } else buildPreview();
+}
+function condRowHTML(hook){
+  return `<div class="cond-row">
+    <select class="c-attr" onchange="buildPreview()">${HOOKS[hook].attrs.map(a=>`<option>${a}</option>`).join('')}</select>
+    <select class="c-op" onchange="buildPreview()">${OPS.map(o=>`<option>${o}</option>`).join('')}</select>
+    <input class="c-val" oninput="buildPreview()" placeholder="Wert">
+    <button class="icon-btn rm" onclick="this.closest('.cond-row').remove();buildPreview()">✕</button></div>`;
+}
+function hookChanged(){document.getElementById('gConds').innerHTML=condRowHTML(document.getElementById('gHook').value);buildPreview();}
+function addCond(){document.getElementById('gConds').insertAdjacentHTML('beforeend',condRowHTML(document.getElementById('gHook').value));buildPreview();}
+function scopeSel(s){return s==='Global'?'*':'role == "'+s.replace('Rolle: ','')+'"';}
+function readAdv(){
+  const hook=document.getElementById('gHook').value;
+  const rows=[...document.querySelectorAll('#gConds .cond-row')].map(r=>`${r.querySelector('.c-attr').value} ${r.querySelector('.c-op').value} ${r.querySelector('.c-val').value||'…'}`);
+  const join=' '+document.getElementById('gJoin').value+' ';
+  return {hook,cond:rows.join(join)||'—',effect:document.getElementById('gEffect').value,scope:document.getElementById('gScopeA').value,prio:document.getElementById('gPrio').value||'50'};
+}
+function buildPreview(){
+  if(!document.getElementById('gHook').value)return;
+  const a=readAdv();
+  document.getElementById('gPreview').textContent=`ON   ${a.hook}\nWHEN ${a.cond}\nTHEN ${a.effect}\nFOR  ${scopeSel(a.scope)}   ·   priority ${a.prio}`;
+  const nm=document.getElementById('gNameA');
+  if(!nm.value||nm.dataset.auto==='1'){nm.value=HOOKS[a.hook].label+' → '+EFFECTS[a.effect];nm.dataset.auto='1';}
+}
+
+function openModalG(){
+  document.getElementById('gTypes').innerHTML=Object.keys(GT).map((t,i)=>`<span class="gtype${i===0?' active':''}" data-t="${t}" onclick="selectGType('${t}')">${icon(GT[t][0])} ${GT[t][1]}</span>`).join('');
+  const nm=document.getElementById('gName');nm.value='';nm.dataset.auto='1';
+  selectGType('egress');document.getElementById('gScope').value='Global';
+  gAdv=false;
+  document.getElementById('gSimple').style.display='';
+  document.getElementById('gAdvanced').style.display='none';
+  document.getElementById('advToggle').textContent='Erweitert ›';
+  document.getElementById('gNameA').value='';document.getElementById('gNameA').dataset.auto='1';
+  document.getElementById('modalG').classList.add('open');
+}
+function closeModalG(){document.getElementById('modalG').classList.remove('open');}
+function createGuard(){
+  let g;
+  if(gAdv){const a=readAdv();
+    g={id:'g'+Date.now(),name:document.getElementById('gNameA').value.trim()||'Regel',cond:HOOKS[a.hook].label+': '+a.cond,act:EFFECTS[a.effect],scope:a.scope,prio:a.prio,icon:HOOKS[a.hook].icon,active:true};
+  } else {
+    const type=(document.querySelector('#gTypes .gtype.active')||{dataset:{t:'egress'}}).dataset.t;
+    g={id:'g'+Date.now(),type,name:document.getElementById('gName').value.trim()||GT[type][1],cond:document.getElementById('gCond').value,act:document.getElementById('gAct').value,scope:document.getElementById('gScope').value,active:true};
+  }
+  guards.push(g);closeModalG();renderGuards();toast('Guard-Rail angelegt','i-shield');
+}
+
+function renderRoster(){
+  document.getElementById('roster').innerHTML=agents.map(a=>`
+   <div class="card agent-card" onclick="openAgent('${a.id}')">
+     <div class="ac-top"><div class="who"><div class="avatar" style="${AV[a.av]}">${a.ini}</div>
+       <div><div class="nm">${a.name}</div><div class="rl">${a.role}</div></div></div>
+       <span class="badge ${ST[a.state]}">${a.state}</span></div>
+     <div class="task" ${a.state==='sleeping'?'style="color:var(--text-muted)"':''}>${icon(a.taskIcon)} ${a.task}</div>
+     <div class="ac-foot"><span>€${a.cost.toFixed(2)} · ${a.foot}</span>${icon('stop')}</div>
+   </div>`).join('');
+  document.getElementById('agentCount').textContent=agents.length+' Agenten';
+  document.getElementById('costAgents').textContent=agents.length;
+  const mx=Math.max(...agents.map(a=>a.cost));
+  document.getElementById('costList').innerHTML=agents.map(a=>`
+   <div class="row"><div class="avatar" style="width:28px;height:28px;font-size:11px;${AV[a.av]}">${a.ini}</div>
+     <div style="flex:1"><div class="rt" style="margin-bottom:4px">${a.name} <span style="color:var(--text-muted);font-weight:400">· €${a.cost.toFixed(2)}</span></div>
+     <div class="bar"><span style="width:${Math.round(a.cost/mx*100)}%"></span></div></div></div>`).join('');
+}
+
+/* ---- Detail ---- */
+function backlogHTML(a){
+  const blocked = a.state==='blocked' ? `<div class="kc">${a.task.replace('Wartet auf Kunde · ','')} · offen<div class="t">${icon('clock')} wartet auf Kundin</div></div>` : (a.id==='nova'?`<div class="kc">#4821 · Passwort-Reset<div class="t">${icon('clock')} wartet auf Kundin</div></div>`:'');
+  return `<div class="kanban">
+   <div class="kcol"><div class="kh"><span class="dot" style="background:var(--text-muted)"></span> Offen <span class="n">1</span></div>
+     <div class="kc">#4835 · Rechnung fehlt<div class="t">${icon('clock')} vor 4 Min</div></div></div>
+   <div class="kcol"><div class="kh"><span class="dot" style="background:var(--text-accent)"></span> In Arbeit <span class="n">${a.state==='working'?1:0}</span></div>
+     ${a.state==='working'?`<div class="kc">${a.task}<div class="t">${icon('bolt')} gerade</div></div>`:''}</div>
+   <div class="kcol"><div class="kh"><span class="dot" style="background:var(--text-warning)"></span> Blockiert <span class="n">${blocked?1:0}</span></div>${blocked}</div>
+   <div class="kcol"><div class="kh"><span class="dot" style="background:var(--text-success)"></span> Erledigt <span class="n">2</span></div>
+     <div class="kc">#4802 · Login-Frage<div class="t">${icon('check')} 13:58</div></div>
+     <div class="kc">#4799 · Zugang neu<div class="t">${icon('check')} 11:20</div></div></div></div>`;
+}
+function soulTemplate(a){
+  const t=a.tpl?tplById(a.tpl):null;
+  if(t&&t.soul) return t.soul.replace('{name}',a.name);
+  if(a.role==='Onboarding') return `# ${a.name} — Onboarding-Agent\n\n## Rolle\nBegleitet neue Nutzer durch die ersten Schritte.\n\n## Ton\nFreundlich, geduldig, klar. Deutsch, Sie-Form.\n\n## Grenzen\n- Keine vertraglichen Zusagen.\n- Technische Probleme an die IT eskalieren.`;
+  return `# ${a.name} — Support-Agent\n\n## Rolle\nFirst-Level-Support für Kundenanfragen in Zammad.\n\n## Ton\nFreundlich, knapp, lösungsorientiert. Deutsch, Sie-Form.\n\n## Grenzen\n- Keine Zusagen zu Preisen oder Verträgen.\n- Bei rechtlichen Fragen immer eskalieren.`;
+}
+function configHTML(a){
+  const onb=!a.onboarded;
+  const t=a.tpl?tplById(a.tpl):null;
+  const tplAccess = (t&&t.access.length)?t.access:[['ticket','Zammad','lesen · antworten · Status setzen'],['book','Confluence','nur lesen']];
+  const checklist = onb ? `<div class="approve-inline" style="background:var(--surface-1);border:.5px dashed var(--clay);margin-bottom:16px"><div class="ah" style="color:var(--clay)">${icon('settings')} ${a.name} ist in Einrichtung${t?` · Vorlage „${t.name}"`:''}</div>
+     <div style="color:var(--text-secondary);font-size:13px">Die Vorlage hat das meiste vorbereitet. Prüfe die Punkte und aktiviere den Agenten.</div></div>
+   <div class="checklist">
+     <div class="cl-item"><svg class="ic cl-done"><use href="#i-check"/></svg> SOUL.md — Start-Version${t?` aus „${t.name}"`:''} geladen</div>
+     <div class="cl-item"><svg class="ic ${tplAccess.length?'cl-todo':'cl-done'}"><use href="#i-${tplAccess.length?'chevron-right':'check'}"/></svg> Zugänge — ${tplAccess.length?tplAccess.length+' vorgeschlagen, bitte prüfen':'keine nötig'}</div>
+     <div class="cl-item"><svg class="ic cl-done"><use href="#i-check"/></svg> Guard-Rails — ${(t?t.guards.length:2)} angewandt</div>
+     <div class="cl-item"><svg class="ic cl-done"><use href="#i-check"/></svg> Ziel &amp; Trigger — ${t?t.target:'gesetzt'}</div>
+   </div>` : '';
+  const access = tplAccess.map(x=>`<div class="row">${icon2(x[0])}<div><div class="rt">${x[1]}</div><div class="rs">${x[2]}</div></div><div class="right"><span class="scope">${onb?'vorgeschlagen':'Least Privilege'}</span></div></div>`).join('');
+  const actions = onb
+    ? `<button class="btn primary" onclick="activate('${a.id}')">${icon('check')} Agent aktivieren</button><button class="btn" onclick="toast('Entwurf gespeichert','i-check')">Entwurf speichern</button>`
+    : `<button class="btn primary" onclick="toast('Konfiguration gespeichert','i-check')">${icon('check')} Speichern</button><button class="btn" onclick="saveAsTemplate('${a.id}')">${icon('stack')} Als Vorlage speichern</button>`;
+  return `${checklist}<div class="field"><label>SOUL.md · Persönlichkeit (versioniert in Git)</label>
+    <textarea spellcheck="false">${soulTemplate(a)}</textarea>
+    <div class="note">${icon('git-branch')} ${onb?'Neu — wird beim Aktivieren als erste Version committet.':'Änderungen laufen über Pull-Request · zuletzt geändert vor 2 Tagen'}</div></div>
+   <div class="field"><label>Zugänge</label><div class="rowlist">${access}</div>
+     <div class="note">Zugänge werden zur Laufzeit gebrokert — keine Secrets in der Sandbox.</div></div>
+   <div class="field"><label>Organisation</label><div class="rowlist">
+     <div class="row" style="cursor:pointer" onclick="openPerson('${a.reportsTo}')">${icon2('user')}<div><div class="rt">Berichtet an ${humanName(a.reportsTo)}</div><div class="rs">Eskalation via ${(humans.find(x=>x.id===a.reportsTo)||{}).channel||'—'} · Kontakt hinterlegt</div></div><div class="right">${icon('chevron-right')}</div></div></div></div>
+   <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">${actions}</div>`;
+}
+function icon2(n){return '<svg class="ic lead"><use href="#i-'+n+'"/></svg>'}
+function dcostHTML(a){
+  return `<div class="metrics">
+   <div class="metric"><div class="ml">Heute</div><div class="mv">€${(a.cost*1.5).toFixed(2)}</div></div>
+   <div class="metric"><div class="ml">Diese Woche</div><div class="mv">€${(a.cost*9).toFixed(2)}</div></div>
+   <div class="metric"><div class="ml">Ø pro Vorgang</div><div class="mv">€0.17</div></div>
+   <div class="metric"><div class="ml">Budget-Deckel</div><div class="mv">€5 / Tag</div></div></div>
+   <div class="section-t">Auslastung heute</div>
+   <div class="bar"><span style="width:${Math.min(100,Math.round(a.cost*1.5/5*100))}%"></span></div>
+   <div class="note">€${(a.cost*1.5).toFixed(2)} von €5.00 · deckelt automatisch bei Erreichen.</div>`;
+}
+
+/* activity: static per state, Nova gets live replay */
+function toolHTML(name,status,cls,body){
+  return `<details class="tool"><summary><span class="lft">${icon('chevron-right')}<span class="chev-wrap"></span> ${name}</span><span class="pill ${cls}">${status}</span></summary><div class="tool-body">${body}</div></details>`;
+}
+function novaStatic(){
+  return `<div class="evt">${icon('bolt')} Geweckt · neues Ticket #4821 aus Zammad · 14:28</div>
+   <div class="turn"><div class="turn-h">${icon('search')}<span class="lbl">Triage · 14:28</span></div>
+     <p class="voice">Ticket gelesen: Kundin kann sich nicht einloggen, vermutet ein Passwort-Problem. Ein ähnlicher Fall von letzter Woche wurde per Reset-Link gelöst.</p>
+     ${toolHTML('Zammad · GET /tickets/4821','200','ok','title: "Kein Login möglich"<br>state: "open" · priority: "2 normal"<br>customer: a.weber@example.com')}
+     ${toolHTML('Memory · query("a.weber login")','1 Treffer','mut','2026-07-08 · Login-Problem · gelöst via Reset-Link')}</div>
+   <div class="turn"><div class="turn-h">${icon('message')}<span class="lbl">Antwort an Kundin · 14:29</span></div>
+     <p class="voice">Ich sende einen Passwort-Reset-Link und frage nach, an welche Adresse er gehen soll, um die richtige zu bestätigen.</p>
+     ${toolHTML('Zammad · POST /ticket_articles','201','ok','internal: false · type: email<br>body: "Hallo, hier ist Ihr Reset-Link …"')}</div>
+   <div class="gate">${icon('shield-check')} Freigabe erteilt · externe Antwort an a.weber@example.com · von dir · 14:29</div>
+   <div class="parked"><div class="ph">${icon('clock')}<b>Wartet auf Kundenantwort</b></div>
+     <p>Ticket #4821 auf „pending" gesetzt. Nova schläft und wacht automatisch auf, sobald die Kundin antwortet. Geparkt seit 14:29.</p></div>
+   <div style="margin-top:14px"><button class="btn" onclick="customerReply('nova')">${icon('send')} Kundin antwortet (simulieren)</button></div>`;
+}
+function activityHTML(a){
+  if(a.state==='setup') return `<div class="empty">${icon('settings')}<div>${a.name} ist in Einrichtung.</div><div style="font-size:12px;margin-top:4px">Richte SOUL.md und Zugänge im Config-Tab ein und aktiviere den Agenten.</div></div>`;
+  if(a.state==='sleeping') return `<div class="empty">${icon('moon')}<div>${a.name} schläft — kein laufender Vorgang.</div><div style="font-size:12px;margin-top:4px">Wacht automatisch auf, sobald ein Ticket eintrifft.</div></div>`;
+  if(a.id==='nova') return novaStatic();
+  if(a.state==='blocked') return `<div class="evt">${icon('bolt')} Geweckt · Ticket #4790 · 14:20</div>
+     <div class="turn"><div class="turn-h">${icon('message')}<span class="lbl">Antwort an Kunde · 14:32</span></div>
+       <p class="voice">Ich habe um die Bestellnummer gebeten, um die Rückerstattung zuzuordnen.</p>
+       ${toolHTML('Zammad · POST /ticket_articles','201','ok','internal: false · type: email')}</div>
+     <div class="parked"><div class="ph">${icon('clock')}<b>Wartet auf Kundenantwort</b></div>
+       <p>Ticket #4790 auf „pending" gesetzt. Geparkt seit 14:32.</p></div>
+     <div style="margin-top:14px"><button class="btn" onclick="customerReply('atlas')">${icon('send')} Kunde antwortet (simulieren)</button></div>`;
+  return `<div class="evt">${icon('bolt')} Geweckt · Scheduler-Tick · gerade eben</div>
+     <div class="turn"><div class="turn-h">${icon('list-check')}<span class="lbl">Triage · gerade</span></div>
+       <p class="voice">Ich prüfe das Backlog: drei neue Onboarding-Anfragen. Ich beginne mit der ältesten.</p></div>`;
+}
+
+function openAgent(id,initialTab){
+  const a=agents.find(x=>x.id===id); if(!a) return;
+  const T=initialTab||'activity';
+  const tab=n=>`class="tab${T===n?' active':''}" data-tab="${n}"`;
+  const pan=n=>`class="tabpanel${T===n?' active':''}" data-panel="${n}"`;
+  const liveBtn = (a.id==='nova'&&a.onboarded) ? `<button class="btn sm" id="liveBtn" onclick="playLive()">${icon('play')} Live ansehen</button>` : '';
+  document.getElementById('view-detail').innerHTML=`
+   <div class="back" onclick="show('agents')">${icon('arrow-left')} Alle Agenten</div>
+   <div class="dhead"><div class="who"><div class="avatar" style="${AV[a.av]}">${a.ini}</div>
+     <div><div class="nm" style="font-size:15px">${a.name}</div><div class="rl">${a.role} · berichtet an ${humanName(a.reportsTo)}</div></div>
+     <span class="badge ${ST[a.state]}" id="hState" style="margin-left:6px">${a.state}</span></div>
+     <div style="display:flex;align-items:center;gap:12px"><span style="color:var(--text-muted);font-size:13px" id="hCost">€${a.cost.toFixed(2)}</span>
+     <button class="btn danger" onclick="toast('${a.name} gestoppt','i-stop')">${icon('stop')} Stoppen</button></div></div>
+   <div class="tabs">
+     <div ${tab('activity')}>Activity</div>
+     <div ${tab('backlog')}>Backlog</div>
+     <div ${tab('memory')}>Gedächtnis</div>
+     <div ${tab('config')}>Config</div>
+     <div ${tab('dcost')}>Cost</div></div>
+   <div ${pan('activity')}><div class="act-bar"><span style="color:var(--text-muted);font-size:12px">Aktivität</span><span class="spacer"></span>${liveBtn}</div><div id="feed">${activityHTML(a)}</div></div>
+   <div ${pan('backlog')}>${backlogHTML(a)}</div>
+   <div ${pan('memory')}>${memoryHTML(a)}</div>
+   <div ${pan('config')}>${configHTML(a)}</div>
+   <div ${pan('dcost')}>${dcostHTML(a)}</div>`;
+  document.querySelectorAll('#view-detail .tab').forEach(t=>t.addEventListener('click',()=>{
+    document.querySelectorAll('#view-detail .tab').forEach(x=>x.classList.toggle('active',x===t));
+    document.querySelectorAll('#view-detail .tabpanel').forEach(p=>p.classList.toggle('active',p.dataset.panel===t.dataset.tab));
+  }));
+  currentAgent=id; show('detail',a.name); setHash('agent/'+id);
+}
+function activate(id){const a=agents.find(x=>x.id===id);if(!a)return;a.onboarded=true;a.state='sleeping';a.task='Kein Vorgang';a.taskIcon='moon';a.foot='eben aktiviert';renderRoster();renderOrg();openAgent(id,'activity');toast(a.name+' aktiviert','i-check');}
+
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let currentAgent='nova';
+function setHead(state,cost){const b=document.getElementById('hState');if(b){b.className='badge '+ST[state];b.textContent=state;}if(cost!=null){document.getElementById('hCost').textContent='€'+cost.toFixed(2);}}
+
+async function playLive(){
+  const btn=document.getElementById('liveBtn'); if(btn){btn.disabled=true;btn.style.opacity=.5;btn.innerHTML=icon('refresh')+' Läuft …';}
+  const feed=document.getElementById('feed'); feed.innerHTML=''; let cost=0;
+  const add=h=>{feed.insertAdjacentHTML('beforeend',h);window.scrollTo(0,document.body.scrollHeight);};
+  setHead('triggered',0);
+  add(`<div class="evt">${icon('bolt')} Geweckt · neues Ticket #4821 aus Zammad · 14:28</div>`); await sleep(800);
+  setHead('triage',cost+=0.02);
+  add(`<div class="turn"><div class="turn-h">${icon('search')}<span class="lbl">Triage · 14:28</span></div><p class="voice">Ticket gelesen: Kundin kann sich nicht einloggen, vermutet ein Passwort-Problem. Ein ähnlicher Fall von letzter Woche wurde per Reset-Link gelöst.</p></div>`); await sleep(900);
+  const t=feed.querySelector('.turn:last-child');
+  t.insertAdjacentHTML('beforeend',toolHTML('Zammad · GET /tickets/4821','200','ok','title: "Kein Login möglich"<br>customer: a.weber@example.com')); setHead('triage',cost+=0.02); await sleep(700);
+  t.insertAdjacentHTML('beforeend',toolHTML('Memory · query("a.weber login")','1 Treffer','mut','2026-07-08 · gelöst via Reset-Link')); await sleep(900);
+  setHead('working',cost+=0.03);
+  add(`<div class="turn"><div class="turn-h">${icon('message')}<span class="lbl">Antwort an Kundin · 14:29</span></div><p class="voice">Ich sende einen Passwort-Reset-Link und frage nach der genutzten Adresse.</p></div>`); await sleep(700);
+  feed.querySelector('.turn:last-child').insertAdjacentHTML('beforeend',toolHTML('Zammad · POST /ticket_articles','201','ok','internal: false · type: email')); await sleep(800);
+  add(`<div class="approve-inline" id="appr"><div class="ah">${icon('shield')} Freigabe erforderlich</div>
+     <div style="color:var(--text-secondary);font-size:13px;margin-bottom:12px">Externe Antwort an <b style="color:var(--text-primary);font-weight:500">a.weber@example.com</b> — Guard-Rail: externe E-Mail braucht Freigabe.</div>
+     <div style="display:flex;gap:8px"><button class="btn primary sm" id="apprYes">${icon('check')} Freigeben</button><button class="btn danger sm" id="apprNo">${icon('x')} Ablehnen</button></div></div>`);
+  window.scrollTo(0,document.body.scrollHeight);
+  const yes=await new Promise(res=>{document.getElementById('apprYes').onclick=()=>res(true);document.getElementById('apprNo').onclick=()=>res(false);});
+  document.getElementById('appr').outerHTML = yes
+    ? `<div class="gate">${icon('shield-check')} Freigabe erteilt · externe Antwort an a.weber@example.com · von dir · 14:29</div>`
+    : `<div class="gate" style="color:var(--text-danger)">${icon('x')} Abgelehnt · Antwort nicht gesendet.</div>`;
+  toast(yes?'Freigegeben':'Abgelehnt','i-'+(yes?'check':'x'));
+  if(!yes){setHead('done',cost);resetLive();return;}
+  await sleep(700); setHead('blocked',cost+=0.05);
+  add(`<div class="parked"><div class="ph">${icon('clock')}<b>Wartet auf Kundenantwort</b></div><p>Ticket #4821 auf „pending" gesetzt. Nova schläft und wacht automatisch auf, sobald die Kundin antwortet.</p></div>
+     <div style="margin-top:14px"><button class="btn" id="replyBtn">${icon('send')} Kundin antwortet (simulieren)</button></div>`);
+  window.scrollTo(0,document.body.scrollHeight);
+  await new Promise(res=>{document.getElementById('replyBtn').onclick=res;});
+  document.getElementById('replyBtn').parentElement.remove();
+  add(`<div class="evt">${icon('bolt')} Aufgeweckt · Kundenantwort korreliert über Ticket #4821 · 15:40</div>`); await sleep(700);
+  setHead('working',cost+=0.02);
+  add(`<div class="turn"><div class="turn-h">${icon('refresh')}<span class="lbl">Fortsetzung via --resume · 15:41</span></div><p class="voice">Die Kundin bestätigt die Adresse; der Reset-Link hat funktioniert. Ich schließe das Ticket als gelöst und halte die Lösung im Gedächtnis fest.</p></div>`); await sleep(800);
+  feed.querySelector('.turn:last-child').insertAdjacentHTML('beforeend',toolHTML('Memory · ingest("a.weber · Reset-Link")','ok','ok','gespeichert'));
+  await sleep(700); setHead('done',cost);
+  add(`<div class="done-line">${icon('check')} Vorgang abgeschlossen · Ticket #4821 gelöst · €${cost.toFixed(2)}</div>`);
+  window.scrollTo(0,document.body.scrollHeight);
+  toast('Vorgang abgeschlossen','i-check'); resetLive();
+}
+function resetLive(){const b=document.getElementById('liveBtn');if(b){b.disabled=false;b.style.opacity=1;b.innerHTML=icon('play')+' Nochmal ansehen';}}
+function customerReply(id){
+  const feed=document.getElementById('feed');
+  feed.querySelectorAll('button').forEach(b=>{if(b.textContent.includes('antwortet'))b.parentElement.remove();});
+  feed.insertAdjacentHTML('beforeend',`<div class="evt">${icon('bolt')} Aufgeweckt · Kundenantwort korreliert über Ticket · gerade</div>
+    <div class="turn"><div class="turn-h">${icon('refresh')}<span class="lbl">Fortsetzung via --resume</span></div><p class="voice">Die Rückmeldung ist da — ich schließe den Vorgang ab und halte die Lösung im Gedächtnis fest.</p></div>
+    <div class="done-line">${icon('check')} Vorgang abgeschlossen</div>`);
+  setHead('done'); window.scrollTo(0,document.body.scrollHeight); toast('Vorgang abgeschlossen','i-check');
+}
+
+/* approvals */
+function renderApprovals(){
+  const v=document.getElementById('view-approvals');
+  const body = approvals.length? approvals.map(ap=>`
+   <div class="card" style="margin-bottom:12px" id="appr-${ap.id}">
+     <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><div class="avatar" style="width:32px;height:32px;font-size:12px">${ap.ini}</div>
+       <div><div style="font-weight:500">Externe Antwort an Kundin</div><div style="color:var(--text-muted);font-size:12px">${ap.agent} · Ticket ${ap.ticket} · ${ap.ago}</div></div>
+       <span class="badge st-blocked" style="margin-left:auto">wartet</span></div>
+     <div style="background:var(--surface-1);border-radius:var(--radius);padding:11px 13px;font-size:13px;color:var(--text-secondary);margin-bottom:12px">${ap.agent} möchte eine E-Mail an <b style="color:var(--text-primary);font-weight:500">${ap.to}</b> senden (externer Empfänger). Guard-Rail: externe Antworten brauchen Freigabe.</div>
+     <div style="display:flex;gap:8px"><button class="btn primary" onclick="resolveAppr('${ap.id}',true)">${icon('check')} Freigeben</button>
+       <button class="btn danger" onclick="resolveAppr('${ap.id}',false)">${icon('x')} Ablehnen</button>
+       <button class="btn" style="margin-left:auto" onclick="toast('Vorschau geöffnet','i-eye')">${icon('eye')} Vorschau</button></div></div>`).join('')
+   : `<div class="empty">${icon('check')}<div>Keine offenen Freigaben.</div><div style="font-size:12px;margin-top:4px">Alles freigegeben — nichts wartet auf dich.</div></div>`;
+  v.innerHTML=`<div class="view-head"><h1>Freigaben</h1><span class="sub">${approvals.length} offen</span></div>${body}
+   ${approvals.length?'<div class="note">Freigaben schützen riskante Aktionen. Alles hier wird aufgezeichnet.</div>':''}`;
+  const c=document.getElementById('apprCount'); c.textContent=approvals.length; c.style.display=approvals.length?'':'none';
+}
+function resolveAppr(id,ok){approvals=approvals.filter(a=>a.id!==id);renderApprovals();toast(ok?'Freigegeben':'Abgelehnt','i-'+(ok?'check':'x'));}
+
+/* org chart */
+function orgNode(type,o){
+  if(type==='human') return `<div class="node person" onclick="openPerson('${o.id}')"><div class="avatar hum">${o.ini}</div><div><div class="nm">${o.name}</div><div class="rl">${o.title}</div></div><span class="ntag hum">Mensch</span></div>`;
+  return `<div class="node agent" onclick="openAgent('${o.id}')"><div class="avatar" style="${AV[o.av]}">${o.ini}</div><div><div class="nm">${o.name}</div><div class="rl">${o.role}</div></div><span class="badge ${ST[o.state]}" style="font-size:10px;padding:2px 8px;margin-left:auto">${o.state}</span></div>`;
+}
+function orgLi(type,o){
+  let kids='';
+  if(type==='human'){
+    const parts=[...humans.filter(h=>h.reportsTo===o.id).map(h=>orgLi('human',h)),
+                 ...agents.filter(a=>a.reportsTo===o.id).map(a=>orgLi('agent',a))];
+    if(parts.length) kids='<ul>'+parts.join('')+'</ul>';
+  }
+  return '<li>'+orgNode(type,o)+kids+'</li>';
+}
+function renderOrg(){
+  const root=humans.find(h=>h.reportsTo===null);
+  document.getElementById('tree').innerHTML='<ul>'+orgLi('human',root)+'</ul>';
+}
+function crow(ic,label,val,copy){
+  if(!val) return '';
+  return `<div class="row"><svg class="ic lead"><use href="#i-${ic}"/></svg><div><div class="rs">${label}</div><div class="rt" style="font-weight:400">${val}</div></div>${copy?`<div class="right"><span class="scope" style="cursor:pointer" onclick="event.stopPropagation();toast('Kopiert: ${val}','i-check')">kopieren</span></div>`:''}</div>`;
+}
+function openPerson(id){
+  const h=humans.find(x=>x.id===id); if(!h) return;
+  const reports=[...humans.filter(x=>x.reportsTo===id),...agents.filter(a=>a.reportsTo===id)];
+  const teamHTML = reports.length ? `<div class="section-t" style="margin-top:22px">Team (${reports.length})</div><div class="rowlist">`+
+    reports.map(r=>{const ag=agents.includes(r);
+      return `<div class="row" style="cursor:pointer" onclick="${ag?`openAgent('${r.id}')`:`openPerson('${r.id}')`}">
+        <div class="avatar" style="width:28px;height:28px;font-size:11px;${ag?AV[r.av]:'background:var(--surface-1);color:var(--text-secondary)'}">${r.ini}</div>
+        <div><div class="rt">${r.name}</div><div class="rs">${ag?r.role:r.title}</div></div>
+        <div class="right">${ag?`<span class="badge ${ST[r.state]}" style="font-size:10px;padding:2px 8px">${r.state}</span>`:'<span class="ntag hum">Mensch</span>'}</div></div>`;}).join('')+'</div>' : '';
+  document.getElementById('view-person').innerHTML=`
+   <div class="back" onclick="show('org')">${icon('arrow-left')} Organisation</div>
+   <div class="dhead"><div class="who"><div class="avatar hum">${h.ini}</div>
+     <div><div class="nm" style="font-size:15px">${h.name}</div><div class="rl">${h.title}</div></div>
+     <span class="ntag hum" style="margin-left:6px">Mensch</span></div>
+     <button class="btn" onclick="toast('Bearbeiten (Demo)','i-user-plus')">${icon('user-plus')} Bearbeiten</button></div>
+   <div class="approve-inline" style="margin-top:20px;background:var(--bg-accent)"><div class="ah" style="color:var(--text-accent)">${icon('star')} So erreichen Agenten ${h.name}</div>
+     <div style="color:var(--text-secondary);font-size:13px">Bevorzugt via <b style="color:var(--text-primary);font-weight:500">${h.channel}</b> · erreichbar ${h.hours}. Diese Angaben stehen den Agenten bei einer Eskalation zur Verfügung.</div></div>
+   <div class="section-t" style="margin-top:22px">Kontakt</div>
+   <div class="rowlist">
+     ${crow('star','Bevorzugter Kanal',h.channel)}
+     ${crow('mail','E-Mail',h.email,true)}
+     ${crow('phone','Telefon',h.phone,true)}
+     ${crow('message','Teams / Slack',h.teams,true)}
+     ${crow('clock','Erreichbarkeit',h.hours)}
+   </div>
+   ${h.note?`<div class="note" style="margin-top:12px">${icon('shield')} ${h.note}</div>`:''}
+   ${teamHTML}`;
+  show('person',h.name); setHash('person/'+id);
+}
+function fillReports(sel){document.getElementById(sel).innerHTML=humans.map(h=>`<option value="${h.id}">${h.name} — ${h.title}</option>`).join('');}
+
+/* employee modal */
+function openModalP(){fillReports('pReports');document.getElementById('modalP').classList.add('open');document.getElementById('pName').focus();}
+function closeModalP(){document.getElementById('modalP').classList.remove('open');}
+function createEmployee(){
+  const g=id=>document.getElementById(id).value.trim();
+  const n=g('pName')||'Neu';
+  humans.push({id:n.toLowerCase().replace(/\s/g,'')+Date.now(),ini:n.slice(0,2),name:n,title:g('pTitle')||'Mitarbeiter',reportsTo:document.getElementById('pReports').value,
+    email:g('pEmail'),phone:g('pPhone'),teams:g('pTeams'),channel:document.getElementById('pChannel').value,hours:g('pHours')||'—',note:''});
+  ['pName','pTitle','pEmail','pPhone','pTeams','pHours'].forEach(i=>document.getElementById(i).value='');
+  closeModalP();renderOrg();show('org');toast(n+' hinterlegt','i-user-plus');
+}
+
+/* modal */
+function fillTemplates(sel){document.getElementById(sel).innerHTML=templates.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');}
+function updateTplSum(){const t=tplById(document.getElementById('mTemplate').value);
+  document.getElementById('mTplSum').innerHTML=`${icon('stack')} Enthält: ${t.access.length} Zugänge · ${t.guards.length} Guard-Rails · Ziel: ${t.target}`;}
+function openModal(tplId){fillReports('mReports');fillTemplates('mTemplate');if(tplId)document.getElementById('mTemplate').value=tplId;updateTplSum();document.getElementById('modal').classList.add('open');document.getElementById('mName').focus();}
+function closeModal(){document.getElementById('modal').classList.remove('open');}
+function createAgent(){
+  const n=document.getElementById('mName').value.trim()||'Iris';
+  const tid=document.getElementById('mTemplate').value;
+  const t=tplById(tid);
+  const reportsTo=document.getElementById('mReports').value||'benni';
+  const id=n.toLowerCase().replace(/\s/g,'')+Date.now();
+  agents.push({id,ini:n.slice(0,2),name:n,role:t.role,reportsTo,onboarded:false,tpl:tid,state:'setup',task:'In Einrichtung',taskIcon:'settings',cost:0,foot:'neu',av:'pro'});
+  document.getElementById('mName').value='';
+  closeModal();renderRoster();renderOrg();openAgent(id,'config');toast(n+' angelegt — jetzt einrichten','i-user-plus');
+}
+
+/* nav + shell */
+const views=document.querySelectorAll('.view'),navs=document.querySelectorAll('.nav-item'),crumb=document.getElementById('crumb');
+const titles={agents:'Agenten',org:'Organisation',templates:'Vorlagen',approvals:'Freigaben',guardrails:'Guard-Rails',cost:'Kosten',settings:'Einstellungen'};
+function show(v,detailName){
+  views.forEach(s=>s.classList.toggle('active',s.id==='view-'+v));
+  navs.forEach(n=>n.classList.toggle('active',n.dataset.view===v));
+  if(v==='approvals')renderApprovals();
+  if(v==='org')renderOrg();
+  if(v==='guardrails')renderGuards();
+  if(v==='templates')renderTemplates();
+  crumb.innerHTML = v==='detail' ? '<span style="color:var(--text-secondary);cursor:pointer" onclick="show(\'agents\')">Agenten</span> › <b>'+(detailName||'Nova')+'</b>'
+    : v==='person' ? '<span style="color:var(--text-secondary);cursor:pointer" onclick="show(\'org\')">Organisation</span> › <b>'+(detailName||'')+'</b>'
+    : v==='tpldetail' ? '<span style="color:var(--text-secondary);cursor:pointer" onclick="show(\'templates\')">Vorlagen</span> › <b>'+(detailName||'')+'</b>'
+    : '<b>'+titles[v]+'</b>';
+  if(['agents','org','templates','approvals','guardrails','cost','settings'].includes(v)) setHash(v);
+  window.scrollTo(0,0);
+}
+navs.forEach(n=>n.addEventListener('click',()=>show(n.dataset.view)));
+
+/* toast */
+function toast(msg,ic){
+  const w=document.getElementById('toasts');
+  const el=document.createElement('div');el.className='toast';el.innerHTML=(ic?'<svg class="ic"><use href="#'+ic+'"/></svg>':'')+msg;
+  w.appendChild(el);setTimeout(()=>{el.style.opacity=0;el.style.transition='opacity .3s';setTimeout(()=>el.remove(),300);},2200);
+}
+
+/* theme */
+const root=document.documentElement,tb=document.getElementById('theme');
+function setIcon(){tb.innerHTML='<svg class="ic"><use href="#i-'+(root.dataset.theme==='dark'?'sun':'moon')+'"/></svg>';}
+if(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches){root.dataset.theme='dark';}
+setIcon();
+tb.addEventListener('click',()=>{root.dataset.theme=root.dataset.theme==='dark'?'light':'dark';setIcon();});
+document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();});
+document.getElementById('modalP').addEventListener('click',e=>{if(e.target.id==='modalP')closeModalP();});
+document.getElementById('modalG').addEventListener('click',e=>{if(e.target.id==='modalG')closeModalG();});
+
+/* auth */
+function login(){document.body.classList.add('authed');router();}
+function logout(){document.body.classList.remove('authed');document.getElementById('loginPw').value='demo';}
+
+/* hash routing — jede Ansicht ist eine adressierbare Seite */
+let skipRoute=false;
+function setHash(h){if(location.hash==='#'+h)return;skipRoute=true;location.hash=h;}
+function router(){
+  const h=(location.hash||'').replace(/^#/,''); const [a,b]=h.split('/');
+  if(a==='agent'&&b&&agents.find(x=>x.id===b)) return openAgent(b);
+  if(a==='person'&&b&&humans.find(x=>x.id===b)) return openPerson(b);
+  if(a==='tpl'&&b&&templates.find(x=>x.id===b)) return openTemplate(b);
+  if(['org','templates','approvals','guardrails','cost','settings'].includes(a)) return show(a);
+  return show('agents');
+}
+window.addEventListener('hashchange',()=>{if(skipRoute){skipRoute=false;return;}if(document.body.classList.contains('authed'))router();});
+
+renderRoster();
+</script>
+</body>
+</html>
