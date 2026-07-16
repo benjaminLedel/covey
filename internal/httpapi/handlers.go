@@ -574,13 +574,19 @@ func (s *Server) handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 	}
 	p := principalFrom(r)
 	var in struct {
-		Approve bool `json:"approve"`
+		Approve *bool `json:"approve"`
 	}
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "ungültiger request")
 		return
 	}
-	appr, err := s.Obs.DecideApproval(r.Context(), p.OrgID, id, in.Approve, &p.ID)
+	// Pflichtfeld: ein fehlendes approve darf nicht still als Ablehnung
+	// durchgehen — die Entscheidung muss explizit sein.
+	if in.Approve == nil {
+		writeErr(w, http.StatusBadRequest, "feld approve (true|false) fehlt")
+		return
+	}
+	appr, err := s.Obs.DecideApproval(r.Context(), p.OrgID, id, *in.Approve, &p.ID)
 	if err != nil {
 		mapErr(w, err)
 		return
