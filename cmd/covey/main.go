@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -21,6 +22,7 @@ import (
 	"covey/internal/backlog"
 	"covey/internal/config"
 	"covey/internal/db"
+	"covey/internal/egress"
 	"covey/internal/guardrails"
 	"covey/internal/httpapi"
 	identbuiltin "covey/internal/identity/builtin"
@@ -252,6 +254,31 @@ func getenvDefault(key, fallback string) string {
 	return fallback
 }
 
+// defaultEgressAllow sind die fest erlaubten Egress-Hosts — der LLM-Endpunkt
+// der Runtime. Zielsysteme (Zammad usw.) kommen über COVEY_EGRESS_ALLOW dazu.
+var defaultEgressAllow = []string{"api.anthropic.com"}
+
+// startEgressProxy bindet den Allowlist-Proxy auf einem freien Port (alle
+// Interfaces, damit der Container ihn via host.docker.internal erreicht) und
+// liefert die container-seitige Proxy-URL plus eine Close-Funktion.
+func startEgressProxy(cfg config.Config, log *slog.Logger) (string, func(), error) {
+	allow := egress.NewAllowlist(append(append([]string{}, defaultEgressAllow...), cfg.EgressAllow...))
+	proxy := egress.New(allow, log)
+	addr, err := proxy.Start(":0")
+	if err != nil {
+		return "", nil, err
+	}
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		_ = proxy.Close()
+		return "", nil, err
+	}
+	containerURL := "http://host.docker.internal:" + port
+	log.Info("egress-enforcement aktiv", "proxy", containerURL,
+		"allow", append(append([]string{}, defaultEgressAllow...), cfg.EgressAllow...))
+	return containerURL, func() { _ = proxy.Close() }, nil
+}
+
 func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	if cfg.MasterKeyHex == "" {
 		return fmt.Errorf("COVEY_MASTER_KEY fehlt (mit `covey genkey` erzeugen)")
@@ -285,9 +312,21 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	var provider orchestrator.SandboxProvider
 	switch cfg.SandboxProvider {
 	case "local":
+		if cfg.EgressEnforce {
+			log.Warn("COVEY_EGRESS_ENFORCE ignoriert: der local-Provider teilt das Host-Netz, Egress ist nicht durchsetzbar — docker-Provider nutzen")
+		}
 		provider = &orchestrator.LocalProvider{CoveydPath: cfg.CoveydPath, DataDir: cfg.DataDir}
 	case "docker":
-		provider = &orchestrator.DockerProvider{Image: cfg.SandboxImage, DataDir: cfg.DataDir}
+		dp := &orchestrator.DockerProvider{Image: cfg.SandboxImage, DataDir: cfg.DataDir}
+		if cfg.EgressEnforce {
+			proxyURL, closeProxy, err := startEgressProxy(cfg, log)
+			if err != nil {
+				return err
+			}
+			defer closeProxy()
+			dp.EgressProxyURL = proxyURL
+		}
+		provider = dp
 	default:
 		return fmt.Errorf("sandbox provider %q: implementiert sind 'local' und 'docker'", cfg.SandboxProvider)
 	}

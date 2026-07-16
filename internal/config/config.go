@@ -40,6 +40,13 @@ type Config struct {
 	SessionTTL time.Duration
 	// DaemonTokenTTL für die kurzlebigen Sandbox-Daemon-JWTs.
 	DaemonTokenTTL time.Duration
+	// EgressEnforce schaltet den Egress-Allowlist-Proxy ein (nur docker-Provider):
+	// Sandbox-Verkehr geht dann über einen Proxy, der nur Allowlist-Hosts durchlässt.
+	EgressEnforce bool
+	// EgressAllow sind zusätzliche erlaubte Egress-Hosts (Zielsysteme wie das
+	// Zammad-Host), zusätzlich zu den fest erlaubten Anthropic-Hosts.
+	// COVEY_EGRESS_ALLOW="helpdesk.example.com,*.internal.example.com".
+	EgressAllow []string
 }
 
 func FromEnv() (Config, error) {
@@ -58,6 +65,8 @@ func FromEnv() (Config, error) {
 		TickInterval:        getenvDuration("COVEY_TICK_INTERVAL", 30*time.Second),
 		SessionTTL:          getenvDuration("COVEY_SESSION_TTL", 12*time.Hour),
 		DaemonTokenTTL:      getenvDuration("COVEY_DAEMON_TOKEN_TTL", 15*time.Minute),
+		EgressEnforce:       getenvBool("COVEY_EGRESS_ENFORCE", false),
+		EgressAllow:         splitList(os.Getenv("COVEY_EGRESS_ALLOW")),
 	}
 	if c.IdentityProvider != "builtin" {
 		return c, fmt.Errorf("identity provider %q: nur 'builtin' ist im MVP implementiert", c.IdentityProvider)
@@ -92,6 +101,31 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func getenvBool(key string, fallback bool) bool {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return fallback
+	}
+	switch strings.ToLower(v) {
+	case "1", "true", "yes", "on":
+		return true
+	case "0", "false", "no", "off":
+		return false
+	}
+	return fallback
+}
+
+// splitList zerlegt eine kommaseparierte ENV-Liste in getrimmte, nicht-leere Werte.
+func splitList(raw string) []string {
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		if v := strings.TrimSpace(part); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 func getenvDuration(key string, fallback time.Duration) time.Duration {

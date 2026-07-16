@@ -25,6 +25,13 @@ type DockerProvider struct {
 	DataDir string
 	// DockerBin überschreibt den CLI-Pfad (Default "docker") — für Tests.
 	DockerBin string
+	// EgressProxyURL leitet den ausgehenden HTTP(S)-Verkehr des Containers über
+	// den Covey-Egress-Allowlist-Proxy (leer = kein Proxy). Der Wert ist die
+	// container-seitige URL (i. d. R. http://host.docker.internal:<port>).
+	// Kooperativ: die Control-Plane-Verbindung (host.docker.internal) und
+	// Loopback bleiben via NO_PROXY am Proxy vorbei. Harte Netz-Isolation
+	// (internes Netz ohne Internet) ist der Folgeschritt — siehe internal/egress.
+	EgressProxyURL string
 }
 
 // sandboxHome ist der feste Home-Pfad im Container (User `agent` im Image).
@@ -69,6 +76,20 @@ func (p *DockerProvider) Start(ctx context.Context, spec SandboxSpec) (Sandbox, 
 			v = rewriteLoopbackForDocker(v)
 		}
 		args = append(args, "-e", k+"="+v)
+	}
+	if p.EgressProxyURL != "" {
+		// Ausgehender Verkehr über den Allowlist-Proxy; die Control Plane und
+		// Loopback bleiben direkt (NO_PROXY), sonst würde die Daemon-WS-Verbindung
+		// mitgeleitet. Groß- und Kleinschreibung beider Varianten setzen, weil
+		// Tools mal HTTP_PROXY, mal http_proxy lesen.
+		noProxy := "host.docker.internal,localhost,127.0.0.1,::1"
+		for _, e := range []string{
+			"HTTP_PROXY=" + p.EgressProxyURL, "http_proxy=" + p.EgressProxyURL,
+			"HTTPS_PROXY=" + p.EgressProxyURL, "https_proxy=" + p.EgressProxyURL,
+			"NO_PROXY=" + noProxy, "no_proxy=" + noProxy,
+		} {
+			args = append(args, "-e", e)
+		}
 	}
 	args = append(args, p.Image)
 

@@ -193,6 +193,23 @@ feuert — sonst wacht ein geblockter Agent nie wieder auf.
 | `COVEY_ZAMMAD_INTAKE_GROUPS` | *(leer = alle)* | Allowlist der Gruppen, die Tickets aufnehmen |
 | `COVEY_ZAMMAD_REPLY_TYPE` | `email` | Artikel-Typ externer Antworten (`email`/`web`) |
 | `COVEY_DAEMON_TOKEN_TTL` | `15m` | TTL des in die Sandbox gereichten Credentials |
+| `COVEY_EGRESS_ENFORCE` | `false` | Egress-Allowlist-Proxy einschalten (nur `docker`-Provider) |
+| `COVEY_EGRESS_ALLOW` | *(leer)* | zusätzliche erlaubte Egress-Hosts, z. B. der Zammad-Host (`*.suffix` erlaubt) |
+
+> **Egress:** Mit `COVEY_SANDBOX_PROVIDER=docker` und `COVEY_EGRESS_ENFORCE=true`
+> läuft der Sandbox-Verkehr über einen Allowlist-Proxy. Fest erlaubt ist
+> `api.anthropic.com` (die Runtime); **den Zammad-Host musst du in
+> `COVEY_EGRESS_ALLOW` aufnehmen**, sonst kann der Agent nicht antworten:
+>
+> ```bash
+> COVEY_SANDBOX_PROVIDER=docker
+> COVEY_EGRESS_ENFORCE=true
+> COVEY_EGRESS_ALLOW="helpdesk.example.com"
+> ```
+>
+> Aktueller Stand: kooperativ (HTTP(S)_PROXY im Container) — verhindert naives/
+> versehentliches Ausleiten, ist aber vom Agenten über direkte IPs umgehbar. Die
+> harte Netz-Isolation ist der nächste Schritt (siehe Checkliste Punkt 1).
 
 Secrets (pro Agent, im SecretStore, **nicht** als Env): `zammad_url`,
 `zammad_token`, `anthropic_api_key`/`claude_code_oauth_token`.
@@ -209,11 +226,14 @@ zu beachten (Details und Dateiverweise siehe unten). Priorisiert:
 
 **Blocker für Produktivbetrieb mit echten Kundendaten:**
 
-1. **Kein Egress-Enforcement.** Die Sandbox hat unbeschränkten Netzwerk-Ausgang;
-   da das Tool `Bash` erlaubt ist, kann die Runtime am Action-Proxy vorbei
-   beliebig nach außen reden (inkl. Exfiltration des als Env gesetzten
-   LLM-Keys). Widerspricht Designprinzip #7. → Docker-Netz auf Default-Deny +
-   Allowlist-Proxy, LLM-Traffic über erzwungenen Egress-Proxy.
+1. **Egress-Enforcement (teilweise umgesetzt).** Mit `docker`-Provider +
+   `COVEY_EGRESS_ENFORCE=true` geht der Sandbox-Verkehr über einen fail-closed
+   Allowlist-Proxy (`internal/egress`). **Noch offen — der harte Teil:** heute
+   kooperativ (HTTP(S)_PROXY), vom Agenten über direkte IPs umgehbar, und der
+   `local`-Provider kann prinzipiell nicht isolieren. → Sandbox auf ein internes
+   Docker-Netz ohne Internet legen, den Proxy als einzigen Ausgang erzwingen
+   (inkl. Lösung fürs WS-Routing zur Control Plane) und den LLM-Key nicht mehr
+   als Env-Var in die Sandbox geben, sondern über den Proxy injizieren.
 2. **Verbindungsverlust = verlorenes Ticket.** Jeder Fehler (auch ein
    Netzwerk-Blip) setzt die Aufgabe hart auf `failed`; kein Retry/Backoff, kein
    Daemon-Reconnect, einseitiger Heartbeat ohne Timeout. → transiente Fehler auf
