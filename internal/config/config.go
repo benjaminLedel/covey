@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -29,8 +30,10 @@ type Config struct {
 	CoveydPath string
 	// SandboxImage ist das Container-Image des docker-Providers (Dockerfile.sandbox).
 	SandboxImage string
-	// ZammadWebhookSecret verifiziert HMAC-SHA1-Signaturen eingehender Zammad-Webhooks.
-	ZammadWebhookSecret string
+	// WebhookSecrets verifizieren Signaturen eingehender Zielsystem-Webhooks:
+	// COVEY_<SYSTEM>_WEBHOOK_SECRET → Eintrag unter dem kleingeschriebenen
+	// System-Namen (z. B. COVEY_ZAMMAD_WEBHOOK_SECRET → "zammad").
+	WebhookSecrets map[string]string
 	// TickInterval ist der periodische "was liegt an?"-Impuls des Dispatch-Loops.
 	TickInterval time.Duration
 	// SessionTTL für menschliche Logins.
@@ -51,7 +54,7 @@ func FromEnv() (Config, error) {
 		DataDir:             getenv("COVEY_DATA_DIR", "./data"),
 		CoveydPath:          getenv("COVEY_COVEYD_PATH", "./coveyd"),
 		SandboxImage:        getenv("COVEY_SANDBOX_IMAGE", "covey-sandbox:latest"),
-		ZammadWebhookSecret: os.Getenv("COVEY_ZAMMAD_WEBHOOK_SECRET"),
+		WebhookSecrets:      webhookSecretsFromEnv(),
 		TickInterval:        getenvDuration("COVEY_TICK_INTERVAL", 30*time.Second),
 		SessionTTL:          getenvDuration("COVEY_SESSION_TTL", 12*time.Hour),
 		DaemonTokenTTL:      getenvDuration("COVEY_DAEMON_TOKEN_TTL", 15*time.Minute),
@@ -63,6 +66,25 @@ func FromEnv() (Config, error) {
 		return c, fmt.Errorf("secret store %q: nur 'builtin' ist im MVP implementiert", c.SecretStore)
 	}
 	return c, nil
+}
+
+// webhookSecretsFromEnv sammelt COVEY_<SYSTEM>_WEBHOOK_SECRET-Variablen ein —
+// ein neues Zielsystem-Plugin braucht keinen neuen Config-Code.
+func webhookSecretsFromEnv() map[string]string {
+	out := map[string]string{}
+	for _, kv := range os.Environ() {
+		k, v, _ := strings.Cut(kv, "=")
+		name, ok := strings.CutPrefix(k, "COVEY_")
+		if !ok {
+			continue
+		}
+		name, ok = strings.CutSuffix(name, "_WEBHOOK_SECRET")
+		if !ok || name == "" || v == "" {
+			continue
+		}
+		out[strings.ToLower(name)] = v
+	}
+	return out
 }
 
 func getenv(key, fallback string) string {

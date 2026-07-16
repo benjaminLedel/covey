@@ -22,6 +22,7 @@ const (
 	TypeAssignTask        = "assign_task"
 	TypeInjectCredentials = "inject_credentials"
 	TypeApprovalDecision  = "approval_decision"
+	TypeInjectTarget      = "inject_target"
 	TypeKill              = "kill"
 	TypeSleep             = "sleep"
 )
@@ -32,6 +33,7 @@ const (
 	TypeEvent             = "event"
 	TypeRequestCredential = "request_credential"
 	TypeRequestApproval   = "request_approval"
+	TypeRequestTarget     = "request_target"
 	TypeBlocked           = "blocked"
 	TypeTaskDone          = "task_done"
 	TypeCost              = "cost"
@@ -90,6 +92,23 @@ type Event struct {
 	TaskID  string          `json:"task_id,omitempty"`
 	Kind    string          `json:"kind"` // runtime | action | tool_use ...
 	Payload json.RawMessage `json:"payload"`
+}
+
+// RequestTarget/InjectTarget brokern die Definition eines Manifest-Plugins
+// (kind=custom) in die Sandbox: Der Daemon kennt kompilierte Plugins selbst,
+// hochgeladene Manifeste holt er sich von der Control Plane — nur wenn das
+// System für die Organisation aktiviert ist (fail-closed).
+type RequestTarget struct {
+	RequestID string `json:"request_id"`
+	System    string `json:"system"`
+}
+
+type InjectTarget struct {
+	RequestID string          `json:"request_id"`
+	System    string          `json:"system"`
+	Granted   bool            `json:"granted"`
+	Reason    string          `json:"reason,omitempty"`
+	Manifest  json.RawMessage `json:"manifest,omitempty"`
 }
 
 type RequestCredential struct {

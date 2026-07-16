@@ -2,6 +2,8 @@
 
 Konkretisiert das „eine Zielsystem" aus M5 in [`11-mvp-plan.md`](11-mvp-plan.md) als **Zammad** (Open-Source-Helpdesk, self-hostbar, REST/JSON-API, Trigger + Webhooks). Zammad berührt drei MVP-Meilensteine: den Event-Wake (M3), die Event-Korrelation (M4) und Broker + API-Aktionen (M5).
 
+Architektonisch ist Zammad das **erste kompilierte Zielsystem-Plugin** (`internal/target/zammad`, per Blank-Import eingebunden — siehe [`10-architektur-stack.md`](10-architektur-stack.md), „Zielsysteme als Plugins"): Covey lässt sich ohne Zammad schlank bauen, und weitere Zielsysteme kommen als weitere Plugins oder als hochgeladene JSON-Manifeste dazu, ohne diesen Kern anzufassen.
+
 Passt gut, weil Zammad im DACH-Raum verbreitet und wie Covey self-hostbar ist — beides läuft auf derselben Infra.
 
 ## Drei Integrationsflächen

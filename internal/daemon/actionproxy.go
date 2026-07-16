@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"covey/internal/zammad"
+	"covey/internal/target"
 )
 
 // actionProxy ist der lokale Tool-Layer der Sandbox: die Runtime spricht
@@ -61,7 +61,7 @@ func (p *actionProxy) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	subject := actionSubject(system, action, params)
+	subject := p.actionSubject(r.Context(), system, action, params)
 
 	dec, err := p.client.checkAction(r.Context(), p.taskID, subject, params)
 	if err != nil {
@@ -123,65 +123,35 @@ func (p *actionProxy) handleControlPlane(w http.ResponseWriter, action string, p
 	}
 }
 
-// actionSubject bildet die Aktion auf das Guard-Rail-Subjekt ab. Externe
-// Antworten (internal=false) sind ein eigenes, schärfer regelbares Subjekt.
-func actionSubject(system, action string, params json.RawMessage) string {
-	if system == "zammad" && action == "reply" {
-		var p struct {
-			Internal *bool `json:"internal"`
-		}
-		json.Unmarshal(params, &p)
-		if p.Internal != nil && !*p.Internal {
-			return "zammad:reply_external"
-		}
-		return "zammad:reply_internal"
+// actionSubject bildet die Aktion auf das Guard-Rail-Subjekt ab — das
+// jeweilige Plugin kennt seine schärfer regelbaren Sonderfälle (z. B.
+// zammad:reply_external). Unbekannte Systeme fallen auf system:aktion zurück.
+func (p *actionProxy) actionSubject(ctx context.Context, system, action string, params json.RawMessage) string {
+	if sys, ok := p.resolveSystem(ctx, system); ok {
+		return sys.ActionSubject(action, params)
 	}
 	return system + ":" + action
 }
 
-// execute führt die Aktion mit gebrokerten Credentials aus. Im MVP ist Zammad
-// das eine Zielsystem; weitere Systeme kommen als weitere Zweige/Adapter dazu.
+// resolveSystem findet das Zielsystem: zuerst die kompilierte Plugin-Registry,
+// dann die von der Control Plane gebrokerten Manifest-Plugins (custom).
+func (p *actionProxy) resolveSystem(ctx context.Context, system string) (target.System, bool) {
+	if sys, ok := target.Get(system); ok {
+		return sys, true
+	}
+	return p.client.manifestSystem(ctx, system)
+}
+
+// execute führt die Aktion mit gebrokerten Credentials aus. Welche Systeme es
+// gibt, entscheidet die Plugin-Registry (bzw. das Manifest) — nicht dieser Code.
 func (p *actionProxy) execute(ctx context.Context, system, action string, params json.RawMessage) (any, error) {
-	if system != "zammad" {
+	sys, ok := p.resolveSystem(ctx, system)
+	if !ok {
 		return nil, fmt.Errorf("unbekanntes zielsystem %q", system)
 	}
 	cred, err := p.client.credential(ctx, system, p.taskID)
 	if err != nil {
 		return nil, err
 	}
-	zc := zammad.NewClient(cred.BaseURL, cred.Token)
-
-	var in struct {
-		TicketID int    `json:"ticket_id"`
-		Body     string `json:"body"`
-		Internal *bool  `json:"internal"`
-		State    string `json:"state"`
-		Note     string `json:"note"`
-	}
-	if err := json.Unmarshal(params, &in); err != nil {
-		return nil, fmt.Errorf("params: %w", err)
-	}
-
-	switch action {
-	case "get_ticket":
-		return zc.GetTicket(ctx, in.TicketID)
-	case "list_articles":
-		return zc.ListArticles(ctx, in.TicketID)
-	case "reply":
-		internal := in.Internal == nil || *in.Internal
-		return zc.Reply(ctx, in.TicketID, in.Body, internal)
-	case "set_state":
-		if in.State == "" {
-			return nil, fmt.Errorf("state fehlt")
-		}
-		return nil, zc.SetState(ctx, in.TicketID, in.State)
-	case "escalate":
-		note := in.Note
-		if note == "" {
-			note = "Eskalation durch Covey-Agent."
-		}
-		return nil, zc.Escalate(ctx, in.TicketID, note)
-	default:
-		return nil, fmt.Errorf("unbekannte aktion %q", strings.TrimSpace(action))
-	}
+	return sys.Execute(ctx, action, params, target.Credential{BaseURL: cred.BaseURL, Token: cred.Token})
 }

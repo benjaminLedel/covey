@@ -55,6 +55,7 @@ covey/                    ← Repo-Wurzel = Go-Modul-Wurzel (go.mod hier)
     backlog/              Backlog-Store, Zustandsübergänge
     identity/             IdentityProvider — builtin/ (JWT/Argon2id) + oidc/
     secrets/              SecretStore — builtin/ (AES-GCM) + vault/
+    target/               Zielsystem-Plugins — Registry + Manifest-Engine, zammad/ als erstes Built-in
     guardrails/           Policy-Engine, Enforcement-Punkte
     observability/        Recording, Cost, Alerts
     http/                 API/BFF-Handler, RBAC-Middleware

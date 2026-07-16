@@ -32,7 +32,10 @@ import (
 	"covey/internal/orchestrator"
 	"covey/internal/org"
 	secbuiltin "covey/internal/secrets/builtin"
+	targetstore "covey/internal/target/store"
 	"covey/migrations"
+
+	_ "covey/internal/target/zammad"
 )
 
 const adminDBURL = "postgres://covey:covey@localhost:5433/covey?sslmode=disable"
@@ -81,6 +84,7 @@ type stack struct {
 	rails    *guardrails.Store
 	secrets  *secbuiltin.Store
 	mem      *memory.Store
+	targets  *targetstore.Store
 	orch     *orchestrator.Orchestrator
 	http     *httptest.Server
 	orgID    uuid.UUID
@@ -137,9 +141,12 @@ func newStack(t *testing.T) *stack {
 		mem:      memory.NewStore(pool, memory.HashEmbedder{}),
 	}
 
+	s.targets = targetstore.NewStore(pool)
+
 	s.orch = orchestrator.New(orchestrator.Options{
 		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
 		Rails: s.rails, Secrets: secretStore, Identity: idp, Memory: s.mem,
+		Targets:        s.targets,
 		Provider:       &inprocProvider{homeBase: t.TempDir(), log: log},
 		DaemonTokenTTL: 5 * time.Minute,
 		TickInterval:   300 * time.Millisecond,
@@ -150,10 +157,10 @@ func newStack(t *testing.T) *stack {
 	srv := &httpapi.Server{
 		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
 		Rails: s.rails, Secrets: secretStore, Identity: idp, Memory: s.mem,
-		Org:  org.NewStore(pool),
+		Org: org.NewStore(pool), Targets: s.targets,
 		Orch: s.orch, Log: log,
-		ZammadWebhookSecret: webhookSecret,
-		SessionTTL:          time.Hour,
+		WebhookSecrets: map[string]string{"zammad": webhookSecret},
+		SessionTTL:     time.Hour,
 	}
 	s.http = httptest.NewServer(srv.Handler())
 	t.Cleanup(s.http.Close)

@@ -117,6 +117,7 @@ covey/
     backlog/          Backlog-Store, Zustandsübergänge
     identity/         IdentityProvider — builtin/ + oidc/
     secrets/          SecretStore — builtin/ + vault/
+    target/           Zielsystem-Plugins — Registry + Manifest-Engine, zammad/ + …
     guardrails/       Policy-Engine, Enforcement-Punkte
     observability/    Recording, Cost, Alerts
     http/             API/BFF-Handler, RBAC-Middleware
@@ -147,6 +148,15 @@ type SecretStore interface {
 ```
 
 Welche Implementierung geladen wird, entscheidet die Config beim Start (`identity.provider = builtin|oidc`, `secrets.store = builtin|vault`). Der übrige Code kennt nur das Interface.
+
+### Zielsysteme als Plugins
+
+**Zielsysteme** (Zammad, GitLab, …) folgen demselben Muster wie die Runtimes: eine selbstregistrierende Plugin-Registry statt hartkodierter Listen. `internal/target` definiert das Interface (`System`: Webhook-Verifikation/-Parsing, Aktions-Ausführung, Guard-Rail-Subjekte, Prompt-Doku); jedes Zielsystem ist ein Unterpackage, das sich in `init()` einträgt. Es gibt zwei Plugin-Arten:
+
+- **Kompilierte Built-ins** (`internal/target/zammad`, …): per Blank-Import in `cmd/covey` und `cmd/coveyd` eingebunden. Wer Covey **schlank ausliefern** will, lässt den Import weg — der Rest des Systems bleibt unverändert. Nötig für alles, was über simple REST-Aufrufe hinausgeht (OAuth-Flows, Spezial-Protokolle).
+- **Manifest-Plugins** (kind=`custom`): ein Admin lädt zur Laufzeit eine **JSON-Plugin-Datei** hoch (UI „Zielsysteme" bzw. `POST /api/v1/targets`), die Webhook-Mapping, Aktionen (Methode + Pfad mit `{param}`-Platzhaltern) und Auth-Header deklariert. Eine generische REST-Engine interpretiert das Manifest — kein Neukompilieren, kein Deploy. Der Daemon holt sich Manifeste über das Daemon-Protokoll (`request_target`/`inject_target`), nur für aktivierte Systeme.
+
+Beide Arten sind **pro Organisation aktivierbar** (Tabelle `target_plugins`); die Aktivierung greift fail-closed an zwei zentralen Enforcement-Punkten: der Webhook-Eingang lehnt deaktivierte Systeme ab, der Secrets-Broker gibt ihnen keine Credentials. Credentials folgen der Konvention `<system>_token`/`<system>_url` im SecretStore.
 
 ## Auslieferung: ein Binary (Frontend eingebettet)
 

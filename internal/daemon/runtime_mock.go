@@ -109,6 +109,17 @@ func (Mock) Run(ctx context.Context, spec RunSpec, onEvent func(kind string, pay
 			if status == "denied" {
 				emit("Aktion durch Guard-Rail verboten, wähle anderen Weg.")
 			}
+			if status == "error" {
+				// Ausführungsfehler (unbekanntes System, Credential verweigert …)
+				// sind ein harter Fehlschlag — wie bei einer echten Runtime.
+				var e struct {
+					Error string `json:"error"`
+				}
+				json.Unmarshal(body, &e)
+				res.Status = "failed"
+				res.Error = fmt.Sprintf("action %s: %s", path, e.Error)
+				return res, nil
+			}
 		case "block":
 			if spec.ResumeSessionID != "" {
 				continue // beim Resume nicht erneut blocken

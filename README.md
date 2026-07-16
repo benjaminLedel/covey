@@ -75,7 +75,7 @@ Ein **Support-Agent**, der ein **Zammad**-Ticket triagiert, selbst beantwortet o
 | [`spec/`](spec/) | Die vollständige Spezifikation (Einstieg: [`spec/README.md`](spec/README.md)) |
 | `cmd/covey/` | Control-Plane-Binary: `serve`, `migrate`, `bootstrap`, `genkey` |
 | `cmd/coveyd/` | Sandbox-Daemon (spricht das Daemon-Protokoll, bootstrappt die Runtime) |
-| `internal/` | Orchestrator, Agents, Backlog, Identity/Secrets (builtin), Guard-Rails, Observability, Memory, Zammad, HTTP-API |
+| `internal/` | Orchestrator, Agents, Backlog, Identity/Secrets (builtin), Guard-Rails, Observability, Memory, Zielsystem-Plugins (`target/`, Zammad als erstes Built-in), HTTP-API |
 | `migrations/` | Versionierte SQL-Migrationen (via `//go:embed` ins Binary gebacken) |
 | `web/` | React/Vite/Tailwind-Admin-UI (dist/ wird ins Binary eingebettet) |
 | `demo/fakezammad/` | Minimales Zammad-Double für lokale Demos |

@@ -29,8 +29,13 @@ import (
 	"covey/internal/orchestrator"
 	"covey/internal/org"
 	secbuiltin "covey/internal/secrets/builtin"
+	targetstore "covey/internal/target/store"
 	"covey/migrations"
 	"covey/web"
+
+	// Kompilierte Zielsystem-Plugins: Blank-Import = ausgeliefert. Wer Covey
+	// ohne Zammad bauen will, entfernt diese Zeile — der Rest bleibt gleich.
+	_ "covey/internal/target/zammad"
 )
 
 func main() {
@@ -275,6 +280,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	obs := observability.NewStore(pool)
 	rails := guardrails.NewStore(pool)
 	mem := memory.NewStore(pool, memory.HashEmbedder{})
+	targets := targetstore.NewStore(pool)
 
 	var provider orchestrator.SandboxProvider
 	switch cfg.SandboxProvider {
@@ -290,6 +296,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	orch := orchestrator.New(orchestrator.Options{
 		Pool: pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Identity: idp, Memory: mem,
+		Targets:        targets,
 		Provider:       provider,
 		PublicWSURL:    wsURL,
 		DaemonTokenTTL: cfg.DaemonTokenTTL,
@@ -304,10 +311,10 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	srv := &httpapi.Server{
 		Pool: pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Identity: idp, Memory: mem,
-		Org:  org.NewStore(pool),
+		Org: org.NewStore(pool), Targets: targets,
 		Orch: orch, WebFS: dist, Log: log,
-		ZammadWebhookSecret: cfg.ZammadWebhookSecret,
-		SessionTTL:          cfg.SessionTTL,
+		WebhookSecrets: cfg.WebhookSecrets,
+		SessionTTL:     cfg.SessionTTL,
 	}
 
 	httpServer := &http.Server{Addr: cfg.ListenAddr, Handler: srv.Handler()}

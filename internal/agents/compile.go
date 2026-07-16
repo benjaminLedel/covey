@@ -21,9 +21,7 @@ Du bist ein Agent auf der Covey-Plattform. Es gelten folgende Regeln:
 1. **Zielsysteme:** Du greifst auf Zielsysteme (z. B. das Ticketsystem) NIE direkt zu,
    sondern ausschließlich über den lokalen Action-Proxy. Aktionen führst du mit curl aus:
    ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/<system>/<aktion> -d '<json-params>'`" + `
-   Verfügbare Zammad-Aktionen: get_ticket {"ticket_id":N}, list_articles {"ticket_id":N},
-   reply {"ticket_id":N,"body":"...","internal":true|false}, set_state {"ticket_id":N,"state":"..."},
-   escalate {"ticket_id":N,"note":"..."}.
+   Die verfügbaren Systeme und Aktionen stehen im Abschnitt "Angebundene Zielsysteme".
    Antwortet der Proxy mit {"status":"denied"...}, ist die Aktion durch eine Guard-Rail
    verboten — akzeptiere das und wähle einen anderen Weg oder eskaliere.
    Antwortet er mit {"status":"pending_approval"...}, wartet die Aktion auf menschliche
@@ -48,6 +46,23 @@ Du bist ein Agent auf der Covey-Plattform. Es gelten folgende Regeln:
    Das memory-Feld ist für konkrete, wiederverwendbare Erkenntnisse (Kunde, Lösung,
    Zusammenhang). Hast du nichts Neues gelernt, lass es leer oder weg — schreibe
    NIE Floskeln wie "keine neuen Erkenntnisse" hinein.`
+
+// TargetDocs baut den Abschnitt "Angebundene Zielsysteme" aus den Aktions-
+// Dokus der Zielsystem-Plugins. Er wird zur Dispatch-Zeit an den System-
+// Prompt gehängt (nicht einkompiliert), damit er Aktivierung und Manifest-
+// Plugins der Organisation widerspiegelt.
+func TargetDocs(docs []string) string {
+	var clean []string
+	for _, d := range docs {
+		if d = strings.TrimSpace(d); d != "" {
+			clean = append(clean, d)
+		}
+	}
+	if len(clean) == 0 {
+		return ""
+	}
+	return "## Angebundene Zielsysteme\n\n" + strings.Join(clean, "\n\n")
+}
 
 // CompilePrompt macht aus den Config-Dateien den System-Prompt.
 // Bekannte Dateien in definierter Reihenfolge, unbekannte alphabetisch dahinter.

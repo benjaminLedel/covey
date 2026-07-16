@@ -28,6 +28,7 @@ import (
 	"covey/internal/orchestrator"
 	"covey/internal/org"
 	"covey/internal/secrets"
+	targetstore "covey/internal/target/store"
 )
 
 type Server struct {
@@ -40,12 +41,15 @@ type Server struct {
 	Identity identity.Provider
 	Memory   *memory.Store
 	Org      *org.Store
+	Targets  *targetstore.Store
 	Orch     *orchestrator.Orchestrator
 	WebFS    fs.FS // dist der SPA; nil = nur API
 	Log      *slog.Logger
 
-	ZammadWebhookSecret string
-	SessionTTL          time.Duration
+	// WebhookSecrets: Zielsystem-Name → Signatur-Secret
+	// (ENV COVEY_<SYSTEM>_WEBHOOK_SECRET, z. B. COVEY_ZAMMAD_WEBHOOK_SECRET).
+	WebhookSecrets map[string]string
+	SessionTTL     time.Duration
 }
 
 func (s *Server) Handler() http.Handler {
@@ -94,6 +98,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/agents/{id}/supervisor", s.rbac(manage, s.handleSetSupervisor))
 	mux.Handle("GET /api/v1/org/chart", s.rbac(anyRole, s.handleOrgChart))
 	mux.Handle("GET /api/v1/runtimes", s.rbac(anyRole, s.handleListRuntimes))
+	mux.Handle("GET /api/v1/targets", s.rbac(anyRole, s.handleListTargets))
+	mux.Handle("POST /api/v1/targets", s.rbac(securityRoles, s.handleUploadTarget))
+	mux.Handle("PATCH /api/v1/targets/{name}", s.rbac(securityRoles, s.handleToggleTarget))
+	mux.Handle("DELETE /api/v1/targets/{name}", s.rbac(securityRoles, s.handleDeleteTarget))
 	mux.Handle("GET /api/v1/agents/{id}/recording", s.rbac(anyRole, s.handleRecording))
 	mux.Handle("GET /api/v1/agents/{id}/cost", s.rbac(anyRole, s.handleCost))
 	mux.Handle("GET /api/v1/agents/{id}/memories", s.rbac(anyRole, s.handleMemories))
@@ -147,7 +155,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/events", s.auth(s.handleSSE))
 
 	// Maschinen-Endpunkte (eigene Auth: HMAC bzw. Daemon-JWT).
-	mux.HandleFunc("POST /api/webhooks/zammad/{slug}", s.handleZammadWebhook)
+	mux.HandleFunc("POST /api/webhooks/{system}/{slug}", s.handleTargetWebhook)
 	mux.HandleFunc("GET /api/daemon/ws", s.handleDaemonWS)
 
 	// Eingebettete SPA mit Fallback auf index.html (client-seitiges Routing).

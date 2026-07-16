@@ -12,6 +12,10 @@ import (
 	"syscall"
 
 	"covey/internal/daemon"
+
+	// Kompilierte Zielsystem-Plugins: Blank-Import = ausgeliefert (analog
+	// cmd/covey). Manifest-Plugins kommen zur Laufzeit über das Protokoll.
+	_ "covey/internal/target/zammad"
 )
 
 func main() {

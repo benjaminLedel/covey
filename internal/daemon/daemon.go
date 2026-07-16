@@ -13,6 +13,8 @@ import (
 
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
+
+	"covey/internal/target"
 )
 
 // Client ist die Daemon-Seite des Protokolls: verbindet sich zur Control
@@ -32,6 +34,7 @@ type Client struct {
 	mu        sync.Mutex
 	cfg       InjectConfig
 	creds     map[string]InjectCredentials // System → gebrokertes Credential (nur RAM)
+	targets   map[string]target.System     // System → gebrokertes Manifest-Plugin (nur RAM)
 	pending   map[string]chan Message      // request_id → Antwortkanal
 	cancelRun context.CancelFunc
 
@@ -49,6 +52,7 @@ func NewClient(wsURL, token, agentID, homeDir string, log *slog.Logger) *Client 
 		homeDir:  homeDir,
 		runtimes: newRuntimes(),
 		creds:    map[string]InjectCredentials{},
+		targets:  map[string]target.System{},
 		pending:  map[string]chan Message{},
 		log:      log,
 	}
@@ -165,6 +169,12 @@ func (c *Client) Run(ctx context.Context) error {
 				continue
 			}
 			c.route(dec.RequestID, msg)
+		case TypeInjectTarget:
+			inj, err := DecodePayload[InjectTarget](msg)
+			if err != nil {
+				continue
+			}
+			c.route(inj.RequestID, msg)
 		case TypeAssignTask:
 			task, err := DecodePayload[AssignTask](msg)
 			if err != nil {
@@ -224,6 +234,41 @@ func (c *Client) credential(ctx context.Context, system, taskID string) (InjectC
 	c.creds[system] = cred
 	c.mu.Unlock()
 	return cred, nil
+}
+
+// manifestSystem holt die Definition eines Manifest-Plugins von der Control
+// Plane (RAM-Cache pro Verbindung). Nicht gewährt (unbekannt/deaktiviert)
+// wird NICHT gecacht — die Aktivierung kann sich während der Session ändern.
+func (c *Client) manifestSystem(ctx context.Context, system string) (target.System, bool) {
+	c.mu.Lock()
+	if sys, ok := c.targets[system]; ok {
+		c.mu.Unlock()
+		return sys, true
+	}
+	c.mu.Unlock()
+
+	reqID := uuid.NewString()
+	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	msg, err := c.request(reqCtx, TypeRequestTarget, reqID,
+		RequestTarget{RequestID: reqID, System: system})
+	if err != nil {
+		return nil, false
+	}
+	inj, err := DecodePayload[InjectTarget](msg)
+	if err != nil || !inj.Granted {
+		return nil, false
+	}
+	m, err := target.ParseManifest(inj.Manifest)
+	if err != nil {
+		c.log.Warn("gebrokertes manifest unlesbar", "system", system, "err", err)
+		return nil, false
+	}
+	sys := target.NewManifestSystem(m)
+	c.mu.Lock()
+	c.targets[system] = sys
+	c.mu.Unlock()
+	return sys, true
 }
 
 // checkAction holt die zentrale Policy-Entscheidung für eine Aktion.

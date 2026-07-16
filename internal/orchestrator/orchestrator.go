@@ -24,6 +24,8 @@ import (
 	"covey/internal/memory"
 	"covey/internal/observability"
 	"covey/internal/secrets"
+	"covey/internal/target"
+	targetstore "covey/internal/target/store"
 )
 
 // DaemonLink abstrahiert die bidirektionale Verbindung zu einem Sandbox-Daemon.
@@ -43,6 +45,7 @@ type Options struct {
 	Secrets        secrets.Store
 	Identity       identity.Provider
 	Memory         *memory.Store
+	Targets        *targetstore.Store
 	Provider       SandboxProvider
 	PublicWSURL    string // ws://…/api/daemon/ws — von Sandboxen erreichbar
 	DaemonTokenTTL time.Duration
@@ -397,6 +400,16 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	if compiled == "" {
 		compiled = agents.CompilePrompt(nil)
 	}
+	// Zielsystem-Doku zur Dispatch-Zeit anhängen — sie spiegelt die aktuell
+	// aktivierten Plugins der Organisation (inkl. Manifest-Uploads), nicht
+	// den Stand beim Kompilieren der Config.
+	if o.Targets != nil {
+		if docs, err := o.Targets.EnabledDocs(ctx, agent.OrgID); err == nil {
+			if section := agents.TargetDocs(docs); section != "" {
+				compiled += "\n\n" + section
+			}
+		}
+	}
 
 	if err := o.sendMsg(ctx, link, daemon.TypeInjectConfig, daemon.InjectConfig{
 		SystemPrompt: compiled,
@@ -484,6 +497,14 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		}
 		resp := o.decideAction(ctx, agent, taskID, req)
 		return false, o.sendMsg(ctx, link, daemon.TypeApprovalDecision, resp)
+
+	case daemon.TypeRequestTarget:
+		req, err := daemon.DecodePayload[daemon.RequestTarget](msg)
+		if err != nil {
+			return false, nil
+		}
+		resp := o.brokerTarget(ctx, agent, req)
+		return false, o.sendMsg(ctx, link, daemon.TypeInjectTarget, resp)
 
 	case daemon.TypeBlocked:
 		b, err := daemon.DecodePayload[daemon.Blocked](msg)
@@ -598,6 +619,13 @@ func (o *Orchestrator) brokerCredential(ctx context.Context, agent agents.Agent,
 	if err != nil || !ok {
 		return deny("kein Zugang laut ACCESS.md")
 	}
+	// Plugin-Aktivierung ist ein zentraler Enforcement-Punkt (fail-closed):
+	// ein deaktiviertes oder unbekanntes Zielsystem bekommt keine Credentials.
+	if o.Targets != nil {
+		if _, err := o.Targets.System(ctx, agent.OrgID, req.System); err != nil {
+			return deny("zielsystem nicht aktiviert: " + req.System)
+		}
+	}
 	rules, err := o.Rails.List(ctx, agent.OrgID)
 	if err != nil {
 		return deny("guard-rails nicht lesbar (fail-closed)")
@@ -619,6 +647,27 @@ func (o *Orchestrator) brokerCredential(ctx context.Context, agent agents.Agent,
 		map[string]any{"system": req.System, "granted": true, "ttl_secs": int(o.DaemonTokenTTL.Seconds())})
 	return daemon.InjectCredentials{RequestID: req.RequestID, System: req.System,
 		Granted: true, Token: token, BaseURL: baseURL, TTLSecs: int(o.DaemonTokenTTL.Seconds())}
+}
+
+// brokerTarget reicht die Definition eines Manifest-Plugins in die Sandbox —
+// nur für aktivierte Custom-Systeme der Organisation (fail-closed). Kompilierte
+// Plugins kennt der Daemon selbst und fragt hier gar nicht erst an.
+func (o *Orchestrator) brokerTarget(ctx context.Context, agent agents.Agent, req daemon.RequestTarget) daemon.InjectTarget {
+	deny := func(reason string) daemon.InjectTarget {
+		return daemon.InjectTarget{RequestID: req.RequestID, System: req.System, Granted: false, Reason: reason}
+	}
+	if o.Targets == nil {
+		return deny("kein zielsystem-store konfiguriert")
+	}
+	m, err := o.Targets.Manifest(ctx, agent.OrgID, req.System)
+	if err != nil {
+		return deny("zielsystem nicht verfügbar: " + err.Error())
+	}
+	raw, err := json.Marshal(m)
+	if err != nil {
+		return deny(err.Error())
+	}
+	return daemon.InjectTarget{RequestID: req.RequestID, System: req.System, Granted: true, Manifest: raw}
 }
 
 // decideAction ist die zentrale Policy-Entscheidung für eine Aktion:
@@ -746,30 +795,30 @@ func (o *Orchestrator) shutdown() {
 	}
 }
 
-// HandleZammadWebhook verarbeitet ein eingehendes Zammad-Event (M3/M4):
-// idempotent; korreliert zuerst gegen geblockte Aufgaben (Ticket-id, dann ist
-// resumeInput die Fortsetzungs-Eingabe), sonst neue Backlog-Aufgabe (taskBody).
-func (o *Orchestrator) HandleZammadWebhook(ctx context.Context, agent agents.Agent, dedupKey, correlationKey, title, taskBody, resumeInput string, isCustomer bool) (string, error) {
+// HandleWebhook verarbeitet ein eingehendes Zielsystem-Event (M3/M4):
+// idempotent; korreliert zuerst gegen geblockte Aufgaben (dann ist
+// ResumeInput die Fortsetzungs-Eingabe), sonst neue Backlog-Aufgabe (TaskBody).
+func (o *Orchestrator) HandleWebhook(ctx context.Context, agent agents.Agent, source string, ev target.WebhookEvent) (string, error) {
 	tag, err := o.Pool.Exec(ctx, `INSERT INTO webhook_events (dedup_key, source)
-		VALUES ($1,'zammad') ON CONFLICT (dedup_key) DO NOTHING`, dedupKey)
+		VALUES ($1,$2) ON CONFLICT (dedup_key) DO NOTHING`, ev.DedupKey, source)
 	if err != nil {
 		return "", err
 	}
 	if tag.RowsAffected() == 0 {
-		return "duplicate", nil // Zammad-Retry — schon verarbeitet
+		return "duplicate", nil // Retry des Zielsystems — schon verarbeitet
 	}
-	if !isCustomer {
-		return "ignored", nil // eigene Agent-Artikel erzeugen keinen Wake (Echo-Schleife)
+	if !ev.Wake {
+		return "ignored", nil // z. B. das Echo der eigenen Agent-Antwort
 	}
-	if task, err := o.Backlog.CorrelateWake(ctx, correlationKey, resumeInput); err == nil {
+	if task, err := o.Backlog.CorrelateWake(ctx, ev.CorrelationKey, ev.ResumeInput); err == nil {
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &task.ID, observability.KindLifecycle,
-			map[string]string{"status": "wake_on_correlation", "correlation_key": correlationKey})
+			map[string]string{"status": "wake_on_correlation", "correlation_key": ev.CorrelationKey})
 		o.publishTask(task.ID, agent.ID)
 		return "correlated", nil
 	} else if !errors.Is(err, backlog.ErrNotFound) {
 		return "", err
 	}
-	task, err := o.Backlog.Create(ctx, agent.OrgID, agent.ID, title, taskBody, "webhook:zammad", 3)
+	task, err := o.Backlog.Create(ctx, agent.OrgID, agent.ID, ev.Title, ev.TaskBody, "webhook:"+source, 3)
 	if err != nil {
 		return "", err
 	}
