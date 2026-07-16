@@ -281,6 +281,57 @@ func (s *Store) Reopen(ctx context.Context, id uuid.UUID, note string) (Task, er
 	return s.transition(ctx, id, StateOpen, note, "")
 }
 
+// RequeueOrphaned setzt beim Start alle in_progress-Aufgaben zurück auf open.
+// Ein frisch gestarteter Control-Plane-Prozess hat keine lebenden Daemon-
+// Sessions — eine Aufgabe in in_progress hing also an einer Sandbox, die mit dem
+// letzten Prozess (Crash/Deploy) verschwunden ist. Ohne dies bliebe sie dauerhaft
+// hängen, weil tick/ClaimNext nur state='open' sehen. blocked-Aufgaben bleiben
+// unberührt (sie wachen per Korrelation auf).
+//
+// HA-Hinweis: korrekt für Single-Node (aktueller Stand). Liefen mehrere aktive
+// Control-Plane-Prozesse, würde ein Neustart laufende Aufgaben anderer Nodes
+// zurücksetzen — das bräuchte node-übergreifende Session-Liveness.
+func (s *Store) RequeueOrphaned(ctx context.Context) (int64, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback(ctx)
+
+	rows, err := tx.Query(ctx,
+		`UPDATE backlog_tasks SET state='open', updated_at=now()
+		 WHERE state='in_progress' RETURNING id`)
+	if err != nil {
+		return 0, err
+	}
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	for _, id := range ids {
+		if _, err := tx.Exec(ctx, `INSERT INTO task_transitions (task_id, from_state, to_state, note)
+			VALUES ($1,'in_progress','open','reconcile: control plane neu gestartet')`, id); err != nil {
+			return 0, err
+		}
+		if err := syncStage(ctx, tx, id, StateOpen); err != nil {
+			return 0, err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+	return int64(len(ids)), nil
+}
+
 // Retry plant eine gescheiterte oder verworfene Aufgabe erneut ein: zurück auf
 // open, altes Ergebnis/Fehler geleert (die Historie steht in task_transitions),
 // und der Agent wird geweckt.

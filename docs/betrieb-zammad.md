@@ -280,9 +280,10 @@ zu beachten (Details und Dateiverweise siehe unten). Priorisiert:
    Netzwerk-Blip) setzt die Aufgabe hart auf `failed`; kein Retry/Backoff, kein
    Daemon-Reconnect, einseitiger Heartbeat ohne Timeout. → transiente Fehler auf
    `open`/`blocked` zurücksetzen, Reconnect + beidseitiger Heartbeat.
-3. **Kein Startup-Reconcile.** Tasks, die bei Crash/Deploy in `in_progress`
-   stehen, bleiben dauerhaft hängen. → beim `serve`-Start verwaiste
-   `in_progress`-Tasks ohne lebende Session auf `open` requeuen.
+3. **Startup-Reconcile (umgesetzt).** Beim `serve`-Start werden verwaiste
+   `in_progress`-Tasks (Sandbox mit dem letzten Prozess verschwunden) auf `open`
+   zurückgesetzt, sodass sie nach Crash/Deploy sofort wieder greifen. Gilt für
+   Single-Node; node-übergreifende Session-Liveness bleibt für echtes HA offen.
 4. **Budget deckelt nur reaktiv.** Kosten kommen erst *nach* dem Lauf; eine
    entlaufene Aufgabe kann das Budget sprengen, gebremst wird erst die nächste. →
    Streaming-Cost + `MaxBudgetUSD` an die CLI durchreichen.

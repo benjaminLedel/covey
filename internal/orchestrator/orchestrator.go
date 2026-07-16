@@ -95,6 +95,14 @@ type session struct {
 // Run startet den Dispatch-Loop: billig, dauerhaft, kein LLM (spec/03).
 // Wake-Quellen: NOTIFY (Event) und der periodische Tick.
 func (o *Orchestrator) Run(ctx context.Context) error {
+	// Startup-Reconcile: verwaiste in_progress-Aufgaben (Sandbox mit dem letzten
+	// Prozess verschwunden) zurück auf open, sonst hingen sie nach Crash/Deploy
+	// dauerhaft. Muss vor dem ersten tick laufen, damit sie sofort neu greifen.
+	if n, err := o.Backlog.RequeueOrphaned(ctx); err != nil {
+		o.Log.Warn("startup-reconcile fehlgeschlagen", "err", err)
+	} else if n > 0 {
+		o.Log.Info("startup-reconcile: verwaiste Aufgaben requeued", "count", n)
+	}
 	go o.listenLoop(ctx)
 	ticker := time.NewTicker(o.TickInterval)
 	defer ticker.Stop()
