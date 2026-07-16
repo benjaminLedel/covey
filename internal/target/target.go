@@ -6,9 +6,17 @@
 //
 // Schlanke Auslieferung: Ein kompiliertes Plugin wird nur eingebunden, wenn
 // ein Binary es blank-importiert (cmd/covey, cmd/coveyd). Wer Covey ohne
-// Zammad ausliefern will, lässt den Import weg. Daneben gibt es deklarative
-// Manifest-Plugins (JSON-Upload zur Laufzeit, siehe manifest.go), die eine
-// generische REST-Engine interpretiert — ganz ohne Neukompilieren.
+// Zammad ausliefern will, lässt den Import weg. Daneben gibt es zwei
+// Laufzeit-Plugin-Typen ganz ohne Neukompilieren:
+//
+//   - Manifest-Plugins (kind=custom, JSON-Upload, siehe manifest.go): eine
+//     generische REST-Engine interpretiert das Manifest.
+//   - MCP-Plugins (kind=mcp, siehe Unterpaket mcp): ein angebundener
+//     MCP-Server, dessen Tools entdeckt (tools/list) und über den Action-Proxy
+//     aufgerufen (tools/call) werden.
+//
+// Alle drei erfüllen dieselbe System-Schnittstelle — Broker, Guard-Rails und
+// Recording greifen identisch, egal woher das Plugin stammt.
 package target
 
 import (
