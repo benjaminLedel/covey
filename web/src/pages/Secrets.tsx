@@ -53,8 +53,8 @@ export default function Secrets({ me }: { me: Principal }) {
         <span className="mono">anthropic_api_key</span> für die Runtime (Abo-Accounts stattdessen:{" "}
         <span className="mono">claude_code_oauth_token</span> aus <span className="mono">claude setup-token</span>).
         Ein Secret erreicht einen Agenten nur, wenn es ihm <strong>explizit zugewiesen</strong> ist —
-        ohne Zuweisung bleibt es wirkungslos. Agent-eigene Secrets pflegst du direkt auf der
-        Agenten-Seite — sie haben Vorrang.
+        ohne Zuweisung bleibt es wirkungslos. Zuweisen und agent-eigene Secrets pflegst du auf der
+        Agenten-Seite (Tab „Secrets"); hier ist nur der zentrale Vault.
       </p>
 
       {canEdit(me.Role) && (
@@ -115,7 +115,7 @@ export default function Secrets({ me }: { me: Principal }) {
               </button>
             )}
           </div>
-          <Assignments secret={s} agents={agents.data ?? []} editable={canEdit(me.Role)} />
+          <Assignments secret={s} agents={agents.data ?? []} />
         </div>
       ))}
       {keys.data?.length === 0 && <p className="muted">Noch keine Secrets hinterlegt.</p>}
@@ -123,22 +123,11 @@ export default function Secrets({ me }: { me: Principal }) {
   );
 }
 
-// Assignments: die explizite Zuweisung eines Org-Secrets an Agenten.
-// Ohne Zuweisung erreicht das Secret keinen Agenten.
-function Assignments({ secret, agents, editable }: { secret: SecretPreview; agents: Agent[]; editable: boolean }) {
-  const qc = useQueryClient();
-  const inval = () => qc.invalidateQueries({ queryKey: ["secrets"] });
-  const assign = useMutation({
-    mutationFn: (agentId: string) => put(`/secrets/${encodeURIComponent(secret.key)}/agents/${agentId}`, {}),
-    onSuccess: inval,
-  });
-  const unassign = useMutation({
-    mutationFn: (agentId: string) => del(`/secrets/${encodeURIComponent(secret.key)}/agents/${agentId}`),
-    onSuccess: inval,
-  });
+// Assignments: rein passive Anzeige, wem ein Org-Secret zugewiesen ist.
+// Gepflegt wird die Zuweisung auf der Agenten-Seite (Tab „Secrets").
+function Assignments({ secret, agents }: { secret: SecretPreview; agents: Agent[] }) {
   const assigned = secret.agent_ids ?? [];
   const name = (id: string) => agents.find((a) => a.id === id)?.display_name ?? id.slice(0, 8);
-  const unassignedAgents = agents.filter((a) => !assigned.includes(a.id));
 
   return (
     <div className="flex items-center gap-2 flex-wrap mt-2 text-xs">
@@ -149,37 +138,10 @@ function Assignments({ secret, agents, editable }: { secret: SecretPreview; agen
         </span>
       )}
       {assigned.map((id) => (
-        <span key={id} className="badge st-triage flex items-center gap-1">
+        <span key={id} className="badge st-triage">
           {name(id)}
-          {editable && (
-            <button
-              type="button"
-              title="Zuweisung entfernen"
-              onClick={() => unassign.mutate(id)}
-              style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "inherit" }}
-            >
-              ×
-            </button>
-          )}
         </span>
       ))}
-      {editable && unassignedAgents.length > 0 && (
-        <select
-          value=""
-          onChange={(e) => {
-            if (e.target.value) assign.mutate(e.target.value);
-          }}
-          disabled={assign.isPending}
-          style={{ width: "auto", padding: "3px 8px", fontSize: 12 }}
-        >
-          <option value="">— Agent zuweisen —</option>
-          {unassignedAgents.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.display_name}
-            </option>
-          ))}
-        </select>
-      )}
     </div>
   );
 }

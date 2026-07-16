@@ -855,17 +855,79 @@ function AgentSecrets({ agentId }: { agentId: string }) {
     mutationFn: (k: string) => del(`/agents/${agentId}/secrets/${encodeURIComponent(k)}`),
     onSuccess: inval,
   });
+  const invalOrg = () => qc.invalidateQueries({ queryKey: ["secrets"] });
+  const assign = useMutation({
+    mutationFn: (k: string) => put(`/secrets/${encodeURIComponent(k)}/agents/${agentId}`, {}),
+    onSuccess: invalOrg,
+  });
+  const unassign = useMutation({
+    mutationFn: (k: string) => del(`/secrets/${encodeURIComponent(k)}/agents/${agentId}`),
+    onSuccess: invalOrg,
+  });
 
   const ownKeys = new Set((own.data ?? []).map((s) => s.key));
   // Org-Secrets, die diesen Agenten erreichen: nur explizit zugewiesene.
   const inherited = (org.data ?? []).filter((s) => s.agent_ids.includes(agentId));
+  const assignable = (org.data ?? []).filter((s) => !s.agent_ids.includes(agentId));
 
   return (
     <div>
       <p className="muted text-xs mb-3" style={{ maxWidth: 640 }}>
-        Agent-eigene Secrets gelten nur für diesen Agenten und haben Vorrang vor gleichnamigen
-        Org-Secrets. Zuweisungen von Org-Secrets pflegst du unter <Link to="/secrets">Secrets</Link>.
+        Hier weist du dem Agenten Secrets aus dem zentralen Vault (<Link to="/secrets">Secrets</Link>) zu
+        und legst agent-eigene an. Agent-eigene Secrets gelten nur für diesen Agenten und haben
+        Vorrang vor gleichnamigen zugewiesenen Org-Secrets.
       </p>
+
+      <div className="card mb-4 flex gap-3 items-end flex-wrap">
+        <div className="min-w-64">
+          <label>Org-Secret zuweisen</label>
+          <select
+            value=""
+            onChange={(e) => {
+              if (e.target.value) assign.mutate(e.target.value);
+            }}
+            disabled={assign.isPending || assignable.length === 0}
+          >
+            <option value="">
+              {assignable.length === 0 ? "— keine weiteren Org-Secrets —" : "— Secret auswählen —"}
+            </option>
+            {assignable.map((s) => (
+              <option key={s.key} value={s.key}>
+                {s.key}
+              </option>
+            ))}
+          </select>
+        </div>
+        {assign.isError && <span className="danger-text text-xs">{(assign.error as Error).message}</span>}
+      </div>
+
+      {inherited.length > 0 && (
+        <>
+          <label>Zugewiesene Org-Secrets</label>
+          {inherited.map((s) => (
+            <div key={s.key} className="card mb-2 flex items-center gap-4" style={{ padding: "11px 15px", opacity: ownKeys.has(s.key) ? 0.55 : 1 }}>
+              <span className="mono text-sm flex-1">{s.key}</span>
+              {ownKeys.has(s.key) && (
+                <span className="muted text-xs">durch agent-eigenes Secret überdeckt</span>
+              )}
+              <span className="mono muted text-xs">
+                {s.prefix ? <span style={{ color: "var(--text-secondary)" }}>{s.prefix}</span> : null}
+                ••••••••
+              </span>
+              <button className="btn sm" disabled={unassign.isPending} onClick={() => unassign.mutate(s.key)}>
+                Zuweisung entfernen
+              </button>
+            </div>
+          ))}
+        </>
+      )}
+      {inherited.length === 0 && (
+        <p className="muted mb-3" style={{ color: "var(--text-warning, #b45309)" }}>
+          Kein Org-Secret zugewiesen — der Agent erreicht den Vault nicht.
+        </p>
+      )}
+
+      <label className="mt-4">Agent-eigene Secrets</label>
 
       <form
         className="card mb-4 flex gap-3 items-end flex-wrap"
@@ -923,24 +985,6 @@ function AgentSecrets({ agentId }: { agentId: string }) {
         </div>
       ))}
       {own.data?.length === 0 && <p className="muted mb-3">Noch keine agent-eigenen Secrets.</p>}
-
-      {inherited.length > 0 && (
-        <>
-          <label className="mt-4">Aus der Organisation zugewiesen</label>
-          {inherited.map((s) => (
-            <div key={s.key} className="card mb-2 flex items-center gap-4" style={{ padding: "11px 15px", opacity: ownKeys.has(s.key) ? 0.55 : 1 }}>
-              <span className="mono text-sm flex-1">{s.key}</span>
-              <span className="muted text-xs">
-                {ownKeys.has(s.key) ? "durch agent-eigenes Secret überdeckt" : "explizit zugewiesen"}
-              </span>
-              <span className="mono muted text-xs">
-                {s.prefix ? <span style={{ color: "var(--text-secondary)" }}>{s.prefix}</span> : null}
-                ••••••••
-              </span>
-            </div>
-          ))}
-        </>
-      )}
     </div>
   );
 }
