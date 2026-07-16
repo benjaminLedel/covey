@@ -15,3 +15,4 @@ web/dist/
 
 # macOS
 .DS_Store
+web/tsconfig.tsbuildinfo
