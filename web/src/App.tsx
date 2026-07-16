@@ -13,6 +13,7 @@ import Users from "./pages/Users";
 import Organizations from "./pages/Organizations";
 import Org from "./pages/Org";
 import Runtimes from "./pages/Runtimes";
+import Targets from "./pages/Targets";
 import Profile from "./pages/Profile";
 
 // useLiveEvents hält die UI über SSE aktuell: jedes Server-Event invalidiert
@@ -102,6 +103,13 @@ const icons: Record<string, JSX.Element> = {
       <path d="M10 3v3M14 3v3M10 18v3M14 18v3M3 10h3M3 14h3M18 10h3M18 14h3" />
     </>
   ),
+  plug: (
+    <>
+      <path d="M9 3v5M15 3v5" />
+      <path d="M6 8h12v3a6 6 0 0 1-6 6a6 6 0 0 1-6-6z" />
+      <path d="M12 17v4" />
+    </>
+  ),
   book: (
     <>
       <path d="M6 4h11a1 1 0 0 1 1 1v13a1 1 0 0 0-1-1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
@@ -186,6 +194,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
         <NavItem to="/approvals" icon="bell" label="Freigaben" count={pending} />
         <NavItem to="/guardrails" icon="shield" label="Guard-Rails" />
         <NavItem to="/secrets" icon="key" label="Secrets" />
+        <NavItem to="/targets" icon="plug" label="Zielsysteme" />
         <div className="mt-auto">
           {me.Role === "platform_admin" && (
             <>
@@ -236,6 +245,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
             <Route path="/users" element={<Users me={me} />} />
             <Route path="/orgs" element={<Organizations me={me} />} />
             <Route path="/runtimes" element={<Runtimes me={me} />} />
+            <Route path="/targets" element={<Targets me={me} />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </div>

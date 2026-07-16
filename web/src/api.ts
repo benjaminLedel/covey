@@ -127,6 +127,18 @@ export type RuntimeInfo = {
   setup: SetupStep[];
 };
 
+// Zielsystem-Plugin: kompiliertes Built-in (Registry) oder hochgeladenes
+// JSON-Manifest (kind=custom), pro Organisation aktivierbar.
+export type TargetPlugin = {
+  name: string;
+  label: string;
+  description: string;
+  kind: "builtin" | "custom";
+  enabled: boolean;
+  manifest?: unknown;
+  updated_at?: string;
+};
+
 export type MemoryEntry = {
   id: string;
   content: string;
