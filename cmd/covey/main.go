@@ -255,28 +255,48 @@ func getenvDefault(key, fallback string) string {
 }
 
 // defaultEgressAllow sind die fest erlaubten Egress-Hosts — der LLM-Endpunkt
-// der Runtime. Zielsysteme (Zammad usw.) kommen über COVEY_EGRESS_ALLOW dazu.
+// der Runtime. Zielsysteme (Zammad usw.) kommen über COVEY_EGRESS_ALLOW (ENV)
+// und über die UI-verwaltete Allowlist (egress_allow-Tabelle) dazu.
 var defaultEgressAllow = []string{"api.anthropic.com"}
 
+// egressBaseAllow sind die nicht über die UI löschbaren Muster: Code-Defaults
+// plus die per ENV gesetzten. Sie werden im UI als „fest" angezeigt.
+func egressBaseAllow(cfg config.Config) []string {
+	return append(append([]string{}, defaultEgressAllow...), cfg.EgressAllow...)
+}
+
 // startEgressProxy bindet den Allowlist-Proxy auf einem freien Port (alle
-// Interfaces, damit der Container ihn via host.docker.internal erreicht) und
-// liefert die container-seitige Proxy-URL plus eine Close-Funktion.
-func startEgressProxy(cfg config.Config, log *slog.Logger) (string, func(), error) {
-	allow := egress.NewAllowlist(append(append([]string{}, defaultEgressAllow...), cfg.EgressAllow...))
-	proxy := egress.New(allow, log)
+// Interfaces, damit der Container ihn via host.docker.internal erreicht). Die
+// Allowlist ist Basis (Code+ENV) plus die UI-verwalteten DB-Muster; reload()
+// baut sie nach einer UI-Änderung neu. Rückgabe: container-seitige Proxy-URL,
+// reload-Funktion, Close-Funktion.
+func startEgressProxy(ctx context.Context, cfg config.Config, store *egress.Store, log *slog.Logger) (string, func(context.Context) error, func(), error) {
+	build := func(ctx context.Context) *egress.Allowlist {
+		patterns := egressBaseAllow(cfg)
+		if dbPatterns, err := store.Patterns(ctx); err != nil {
+			log.Warn("egress-allowlist aus DB laden fehlgeschlagen — nur Basis aktiv", "err", err)
+		} else {
+			patterns = append(patterns, dbPatterns...)
+		}
+		return egress.NewAllowlist(patterns)
+	}
+	proxy := egress.New(build(ctx), log)
 	addr, err := proxy.Start(":0")
 	if err != nil {
-		return "", nil, err
+		return "", nil, nil, err
 	}
 	_, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		_ = proxy.Close()
-		return "", nil, err
+		return "", nil, nil, err
 	}
 	containerURL := "http://host.docker.internal:" + port
-	log.Info("egress-enforcement aktiv", "proxy", containerURL,
-		"allow", append(append([]string{}, defaultEgressAllow...), cfg.EgressAllow...))
-	return containerURL, func() { _ = proxy.Close() }, nil
+	log.Info("egress-enforcement aktiv", "proxy", containerURL, "basis", egressBaseAllow(cfg))
+	reload := func(ctx context.Context) error {
+		proxy.SetAllowlist(build(ctx))
+		return nil
+	}
+	return containerURL, reload, func() { _ = proxy.Close() }, nil
 }
 
 func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
@@ -308,6 +328,11 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	rails := guardrails.NewStore(pool)
 	mem := memory.NewStore(pool, memory.HashEmbedder{})
 	targets := targetstore.NewStore(pool)
+	egressStore := egress.NewStore(pool)
+
+	// Egress-Enforcement ist nur mit echter Netz-Isolation (docker) durchsetzbar.
+	egressEnforced := cfg.EgressEnforce && cfg.SandboxProvider == "docker"
+	var reloadEgress func(context.Context) error
 
 	var provider orchestrator.SandboxProvider
 	switch cfg.SandboxProvider {
@@ -318,13 +343,14 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		provider = &orchestrator.LocalProvider{CoveydPath: cfg.CoveydPath, DataDir: cfg.DataDir}
 	case "docker":
 		dp := &orchestrator.DockerProvider{Image: cfg.SandboxImage, DataDir: cfg.DataDir}
-		if cfg.EgressEnforce {
-			proxyURL, closeProxy, err := startEgressProxy(cfg, log)
+		if egressEnforced {
+			proxyURL, reload, closeProxy, err := startEgressProxy(ctx, cfg, egressStore, log)
 			if err != nil {
 				return err
 			}
 			defer closeProxy()
 			dp.EgressProxyURL = proxyURL
+			reloadEgress = reload
 		}
 		provider = dp
 	default:
@@ -354,6 +380,10 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Orch: orch, WebFS: dist, Log: log,
 		WebhookSecrets: cfg.WebhookSecrets,
 		SessionTTL:     cfg.SessionTTL,
+		EgressStore:    egressStore,
+		EgressEnforced: egressEnforced,
+		EgressDefaults: egressBaseAllow(cfg),
+		ReloadEgress:   reloadEgress,
 	}
 
 	httpServer := &http.Server{Addr: cfg.ListenAddr, Handler: srv.Handler()}

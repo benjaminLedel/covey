@@ -14,6 +14,7 @@ import Organizations from "./pages/Organizations";
 import Org from "./pages/Org";
 import Runtimes from "./pages/Runtimes";
 import Targets from "./pages/Targets";
+import Egress from "./pages/Egress";
 import Profile from "./pages/Profile";
 
 // useLiveEvents hält die UI über SSE aktuell: jedes Server-Event invalidiert
@@ -110,13 +111,26 @@ const icons: Record<string, JSX.Element> = {
       <path d="M12 17v4" />
     </>
   ),
-  book: (
+  globe: (
     <>
-      <path d="M6 4h11a1 1 0 0 1 1 1v13a1 1 0 0 0-1-1H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
-      <path d="M18 18H6" />
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3c2.5 2.5 3.8 5.7 3.8 9s-1.3 6.5-3.8 9c-2.5-2.5-3.8-5.7-3.8-9S9.5 5.5 12 3z" />
+    </>
+  ),
+  help: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.6 9.4a2.5 2.5 0 1 1 3.2 2.4c-.7.3-1 .8-1 1.5v.2" />
+      <path d="M12 16.4v.01" />
     </>
   ),
   chevron: <path d="M9 6l6 6l-6 6" />,
+  logout: (
+    <>
+      <path d="M9 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3" />
+      <path d="M16 17l5-5l-5-5M21 12H9" />
+    </>
+  ),
 };
 
 function NavIcon({ name }: { name: string }) {
@@ -135,6 +149,14 @@ function NavItem({ to, icon, label, end, count }: { to: string; icon: string; la
       {count != null && count > 0 && <span className="count">{count}</span>}
     </NavLink>
   );
+}
+
+// Monogramm aus dem Anzeigenamen: erste Buchstaben der ersten zwei Wörter.
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
@@ -180,21 +202,30 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
 
   return (
     <div className="flex min-h-screen">
-      <aside
-        className="flex flex-col sticky top-0 h-screen shrink-0"
-        style={{ width: 212, borderRight: "0.5px solid var(--border)", padding: "16px 12px" }}
-      >
-        <div className="flex items-center gap-2 px-2 pb-4 text-base font-medium">
-          <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--clay)" }} />
+      <aside className="sidebar">
+        <div className="brand">
+          <span className="mark" aria-hidden="true">
+            {/* Covey = ein Schwarm — drei Vögel in Flugformation als Wortmarke. */}
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path d="M7 15 Q9.75 11.8 12.5 15 Q15.25 11.8 18 15" />
+              <path d="M3.5 10 Q5.5 7.7 7.5 10 Q9.5 7.7 11.5 10" />
+              <path d="M13 8 Q14.5 6.3 16 8 Q17.5 6.3 19 8" />
+            </svg>
+          </span>
           Covey
         </div>
-        <NavItem to="/" end icon="robot" label="Agenten" />
-        <NavItem to="/org" icon="sitemap" label="Organigramm" />
+        <div className="nav-group">
+          <NavItem to="/" end icon="robot" label="Agenten" />
+          <NavItem to="/org" icon="sitemap" label="Organigramm" />
+        </div>
         <div className="nav-sec">Vertrauen</div>
-        <NavItem to="/approvals" icon="bell" label="Freigaben" count={pending} />
-        <NavItem to="/guardrails" icon="shield" label="Guard-Rails" />
-        <NavItem to="/secrets" icon="key" label="Secrets" />
-        <NavItem to="/targets" icon="plug" label="Zielsysteme" />
+        <div className="nav-group">
+          <NavItem to="/approvals" icon="bell" label="Freigaben" count={pending} />
+          <NavItem to="/guardrails" icon="shield" label="Guard-Rails" />
+          <NavItem to="/secrets" icon="key" label="Secrets" />
+          <NavItem to="/targets" icon="plug" label="Zielsysteme" />
+          <NavItem to="/egress" icon="globe" label="Egress" />
+        </div>
         <div className="mt-auto">
           {me.Role === "platform_admin" && (
             <>
@@ -203,32 +234,30 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
                 <NavIcon name="chevron" />
               </button>
               {showPlatform && (
-                <>
+                <div className="nav-group">
                   <NavItem to="/users" icon="user" label="Benutzer" />
                   <NavItem to="/orgs" icon="box" label="Organisationen" />
                   <NavItem to="/runtimes" icon="cpu" label="Runtimes" />
-                </>
+                </div>
               )}
             </>
           )}
-          <button className="nav-item" onClick={() => setHelpOpen(true)} style={{ background: "none", border: "none", width: "100%", textAlign: "left" }}>
-            <NavIcon name="book" />
-            Hilfe
-            <kbd className="ml-auto">?</kbd>
-          </button>
-          <div
-            className="mt-2 pt-3 flex items-center justify-between text-xs muted"
-            style={{ borderTop: "0.5px solid var(--border)" }}
-          >
-            <NavLink to="/profile" className="min-w-0" style={{ textDecoration: "none", color: "inherit" }} title="Profil & Einstellungen">
-              <div className="font-medium truncate" style={{ color: "var(--text-secondary)" }}>
-                {me.DisplayName}
-              </div>
-              <div>{me.Role}</div>
+          <div className="side-foot">
+            <NavLink to="/profile" className="suser" title="Profil & Einstellungen">
+              <span className="avatar">{initials(me.DisplayName)}</span>
+              <span className="min-w-0">
+                <span className="nm truncate block">{me.DisplayName}</span>
+                <span className="rl block">{me.Role}</span>
+              </span>
             </NavLink>
-            <button className="btn sm" onClick={logout}>
-              Abmelden
-            </button>
+            <div className="foot-actions">
+              <button className="icon-btn" onClick={() => setHelpOpen(true)} title="Hilfe (Taste ?)" aria-label="Hilfe">
+                <NavIcon name="help" />
+              </button>
+              <button className="icon-btn danger" onClick={logout} title="Abmelden" aria-label="Abmelden">
+                <NavIcon name="logout" />
+              </button>
+            </div>
           </div>
         </div>
       </aside>
@@ -246,6 +275,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
             <Route path="/orgs" element={<Organizations me={me} />} />
             <Route path="/runtimes" element={<Runtimes me={me} />} />
             <Route path="/targets" element={<Targets me={me} />} />
+            <Route path="/egress" element={<Egress me={me} />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </div>

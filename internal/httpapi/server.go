@@ -21,6 +21,7 @@ import (
 
 	"covey/internal/agents"
 	"covey/internal/backlog"
+	"covey/internal/egress"
 	"covey/internal/guardrails"
 	"covey/internal/identity"
 	"covey/internal/memory"
@@ -45,6 +46,14 @@ type Server struct {
 	Orch     *orchestrator.Orchestrator
 	WebFS    fs.FS // dist der SPA; nil = nur API
 	Log      *slog.Logger
+
+	// Egress-Allowlist (UI-verwaltet). EgressStore ist immer gesetzt;
+	// EgressEnforced/EgressDefaults spiegeln die Prozess-Config. ReloadEgress
+	// tauscht die aktive Allowlist des laufenden Proxy aus (nil = kein Proxy).
+	EgressStore    *egress.Store
+	EgressEnforced bool
+	EgressDefaults []string
+	ReloadEgress   func(context.Context) error
 
 	// WebhookSecrets: Zielsystem-Name → Signatur-Secret
 	// (ENV COVEY_<SYSTEM>_WEBHOOK_SECRET, z. B. COVEY_ZAMMAD_WEBHOOK_SECRET).
@@ -128,6 +137,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/guardrails", s.rbac(anyRole, s.handleListGuardrails))
 	mux.Handle("POST /api/v1/guardrails", s.rbac(securityRoles, s.handleCreateGuardrail))
 	mux.Handle("DELETE /api/v1/guardrails/{id}", s.rbac(securityRoles, s.handleDeleteGuardrail))
+	mux.Handle("GET /api/v1/egress", s.rbac(anyRole, s.handleListEgress))
+	mux.Handle("POST /api/v1/egress", s.rbac(securityRoles, s.handleAddEgress))
+	mux.Handle("DELETE /api/v1/egress/{id}", s.rbac(securityRoles, s.handleDeleteEgress))
 	mux.Handle("GET /api/v1/secrets", s.rbac(securityRoles, s.handleListSecrets))
 	mux.Handle("PUT /api/v1/secrets/{key}", s.rbac(securityRoles, s.handlePutSecret))
 	mux.Handle("DELETE /api/v1/secrets/{key}", s.rbac(securityRoles, s.handleDeleteSecret))

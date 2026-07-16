@@ -23,7 +23,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -90,14 +90,15 @@ func (a *Allowlist) Empty() bool {
 	return len(a.exact) == 0 && len(a.suffixes) == 0
 }
 
-// Proxy ist ein HTTP/HTTPS-Forward-Proxy mit Host-Allowlist.
+// Proxy ist ein HTTP/HTTPS-Forward-Proxy mit Host-Allowlist. Die Allowlist ist
+// zur Laufzeit austauschbar (atomarer Swap), damit die UI sie ohne Neustart
+// aktualisieren kann.
 type Proxy struct {
-	allow *Allowlist
+	allow atomic.Pointer[Allowlist]
 	log   *slog.Logger
 
-	ln   net.Listener
-	srv  *http.Server
-	once sync.Once
+	ln  net.Listener
+	srv *http.Server
 }
 
 // New erstellt den Proxy mit einer Allowlist. log darf nil sein.
@@ -105,7 +106,16 @@ func New(allow *Allowlist, log *slog.Logger) *Proxy {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Proxy{allow: allow, log: log}
+	p := &Proxy{log: log}
+	p.allow.Store(allow)
+	return p
+}
+
+// SetAllowlist tauscht die aktive Allowlist atomar aus (Live-Reload nach einer
+// Änderung über die UI). Laufende Tunnel bleiben unberührt; neue Verbindungen
+// gelten sofort die neue Liste.
+func (p *Proxy) SetAllowlist(allow *Allowlist) {
+	p.allow.Store(allow)
 }
 
 // Start bindet den Proxy an addr (z. B. ":0" für einen freien Port) und
@@ -147,7 +157,7 @@ func (p *Proxy) serve(w http.ResponseWriter, r *http.Request) {
 // werden getunnelt; alles andere → 403.
 func (p *Proxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 	host := r.Host // "host:port"
-	if !p.allow.Allows(host) {
+	if !p.allow.Load().Allows(host) {
 		p.deny(host, "CONNECT")
 		http.Error(w, "egress verweigert (nicht auf allowlist)", http.StatusForbidden)
 		return
@@ -182,7 +192,7 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "nur Proxy-Anfragen (absolute URL)", http.StatusBadRequest)
 		return
 	}
-	if !p.allow.Allows(r.URL.Host) {
+	if !p.allow.Load().Allows(r.URL.Host) {
 		p.deny(r.URL.Host, r.Method)
 		http.Error(w, "egress verweigert (nicht auf allowlist)", http.StatusForbidden)
 		return

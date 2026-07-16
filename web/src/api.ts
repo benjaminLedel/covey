@@ -139,6 +139,21 @@ export type TargetPlugin = {
   updated_at?: string;
 };
 
+// Egress-Allowlist: erlaubte Ziel-Hosts für ausgehenden Sandbox-Verkehr.
+// defaults sind fest (Code/ENV, nicht löschbar), entries sind UI-verwaltet.
+export type EgressEntry = {
+  id: string;
+  pattern: string;
+  note: string;
+  created_at: string;
+};
+
+export type EgressConfig = {
+  enforced: boolean;
+  defaults: string[];
+  entries: EgressEntry[];
+};
+
 export type MemoryEntry = {
   id: string;
   content: string;

@@ -198,18 +198,23 @@ feuert — sonst wacht ein geblockter Agent nie wieder auf.
 
 > **Egress:** Mit `COVEY_SANDBOX_PROVIDER=docker` und `COVEY_EGRESS_ENFORCE=true`
 > läuft der Sandbox-Verkehr über einen Allowlist-Proxy. Fest erlaubt ist
-> `api.anthropic.com` (die Runtime); **den Zammad-Host musst du in
-> `COVEY_EGRESS_ALLOW` aufnehmen**, sonst kann der Agent nicht antworten:
+> `api.anthropic.com` (die Runtime); **den Zammad-Host musst du ergänzen**, sonst
+> kann der Agent nicht antworten. Zwei Wege:
 >
-> ```bash
-> COVEY_SANDBOX_PROVIDER=docker
-> COVEY_EGRESS_ENFORCE=true
-> COVEY_EGRESS_ALLOW="helpdesk.example.com"
-> ```
+> - **In der Oberfläche** (empfohlen): Seite *Egress* → Host hinzufügen. Wirkt
+>   sofort (der laufende Proxy lädt neu), kein Neustart. Rechte: `security` oder
+>   `platform_admin`.
+> - **Per ENV/Compose** (config-as-code, nicht in der UI löschbar):
+>   ```bash
+>   COVEY_SANDBOX_PROVIDER=docker
+>   COVEY_EGRESS_ENFORCE=true
+>   COVEY_EGRESS_ALLOW="helpdesk.example.com"
+>   ```
 >
-> Aktueller Stand: kooperativ (HTTP(S)_PROXY im Container) — verhindert naives/
-> versehentliches Ausleiten, ist aber vom Agenten über direkte IPs umgehbar. Die
-> harte Netz-Isolation ist der nächste Schritt (siehe Checkliste Punkt 1).
+> Muster: exakter Host oder `*.suffix`. Aktueller Stand: kooperativ (HTTP(S)_PROXY
+> im Container) — verhindert naives/versehentliches Ausleiten, ist aber vom
+> Agenten über direkte IPs umgehbar. Die harte Netz-Isolation ist der nächste
+> Schritt (siehe Checkliste Punkt 1).
 
 Secrets (pro Agent, im SecretStore, **nicht** als Env): `zammad_url`,
 `zammad_token`, `anthropic_api_key`/`claude_code_oauth_token`.
