@@ -47,6 +47,13 @@ type Config struct {
 	// Zammad-Host), zusätzlich zu den fest erlaubten Anthropic-Hosts.
 	// COVEY_EGRESS_ALLOW="helpdesk.example.com,*.internal.example.com".
 	EgressAllow []string
+	// EgressIsolation wählt die Durchsetzungs-Stärke des Egress (docker-Provider):
+	// "proxy" (Default, kooperativ via HTTP_PROXY) | "network" (hart: Sandbox auf
+	// internem Netz ohne Internet, Proxy-Container als einziger Ausgang).
+	EgressIsolation string
+	// EgressProxyAddr ist die Bind-Adresse des standalone Egress-Proxy
+	// (Subcommand `covey egress-proxy`, im network-Modus als Container).
+	EgressProxyAddr string
 }
 
 func FromEnv() (Config, error) {
@@ -67,6 +74,8 @@ func FromEnv() (Config, error) {
 		DaemonTokenTTL:      getenvDuration("COVEY_DAEMON_TOKEN_TTL", 15*time.Minute),
 		EgressEnforce:       getenvBool("COVEY_EGRESS_ENFORCE", false),
 		EgressAllow:         splitList(os.Getenv("COVEY_EGRESS_ALLOW")),
+		EgressIsolation:     getenv("COVEY_EGRESS_ISOLATION", "proxy"),
+		EgressProxyAddr:     getenv("COVEY_EGRESS_PROXY_ADDR", ":8888"),
 	}
 	if c.IdentityProvider != "builtin" {
 		return c, fmt.Errorf("identity provider %q: nur 'builtin' ist im MVP implementiert", c.IdentityProvider)

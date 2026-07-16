@@ -28,11 +28,28 @@ type DockerProvider struct {
 	// EgressProxyURL leitet den ausgehenden HTTP(S)-Verkehr des Containers über
 	// den Covey-Egress-Allowlist-Proxy (leer = kein Proxy). Der Wert ist die
 	// container-seitige URL (i. d. R. http://host.docker.internal:<port>).
-	// Kooperativ: die Control-Plane-Verbindung (host.docker.internal) und
-	// Loopback bleiben via NO_PROXY am Proxy vorbei. Harte Netz-Isolation
-	// (internes Netz ohne Internet) ist der Folgeschritt — siehe internal/egress.
+	// Kooperativ ("proxy"-Modus): die Control-Plane-Verbindung
+	// (host.docker.internal) und Loopback bleiben via NO_PROXY am Proxy vorbei.
 	EgressProxyURL string
+	// EgressIsolation: "proxy" (kooperativ, Default) oder "network" (hart).
+	// Im network-Modus läuft die Sandbox auf einem internen Docker-Netz ohne
+	// Internet; ein Proxy-Container ist der einzige Ausgang und erzwingt die
+	// Allowlist — nicht mehr vom Agenten umgehbar. Die Control-Plane-WS läuft
+	// dann per HTTP-CONNECT durch den Proxy (erfordert TLS/wss, siehe Doku).
+	EgressIsolation string
+	// EgressProxyImage ist das Proxy-Image für den network-Modus (make egress-image).
+	EgressProxyImage string
+	// EgressProxyEnv sind die ENV-Variablen des Proxy-Containers (DB-URL,
+	// COVEY_EGRESS_ALLOW inkl. Control-Plane-Host, COVEY_EGRESS_PROXY_ADDR).
+	EgressProxyEnv map[string]string
 }
+
+// Namen der Bausteine des harten Isolationsmodus.
+const (
+	egressNetwork    = "covey-egress-internal" // internes Netz ohne Internet
+	egressProxyName  = "covey-egress-proxy"    // der Proxy-Container
+	egressProxyAlias = "covey-egress"          // DNS-Alias im internen Netz
+)
 
 // sandboxHome ist der feste Home-Pfad im Container (User `agent` im Image).
 const sandboxHome = "/home/agent"
@@ -62,34 +79,47 @@ func (p *DockerProvider) Start(ctx context.Context, spec SandboxSpec) (Sandbox, 
 
 	// --init: die Runtime spawnt Kindprozesse; tini als PID 1 erbt und reapt
 	// sie, coveyd bekommt SIGTERM trotzdem sauber durchgereicht.
-	// --add-host: macht die Control Plane auf dem Host auch unter Linux als
-	// host.docker.internal erreichbar (Docker Desktop bringt das von sich aus mit).
 	args := []string{"run", "-d", "--rm", "--init",
 		"--name", name,
-		"--add-host", "host.docker.internal:host-gateway",
 		"-v", home + ":" + sandboxHome,
 		"-e", "HOME=" + sandboxHome,
 		"-e", "COVEY_HOME=" + sandboxHome,
 	}
+
+	switch p.EgressIsolation {
+	case "network":
+		// Harte Isolation: Sandbox nur im internen Netz (kein Internet). Der
+		// einzige Ausgang ist der Proxy-Container; auch die Control-Plane-WS
+		// läuft per CONNECT durch ihn — deshalb hier KEIN host.docker.internal-
+		// add-host, sondern der Proxy als HTTP(S)_PROXY. Loopback (Action-Proxy
+		// des Daemons) bleibt direkt.
+		if err := p.ensureNetworkIsolation(ctx); err != nil {
+			return nil, fmt.Errorf("egress-netz vorbereiten: %w", err)
+		}
+		proxyURL := "http://" + egressProxyAlias + ":8888"
+		args = append(args, "--network", egressNetwork)
+		for _, e := range proxyEnvVars(proxyURL, "localhost,127.0.0.1,::1") {
+			args = append(args, "-e", e)
+		}
+	default:
+		// Kooperativ oder ohne Egress: --add-host macht die Control Plane als
+		// host.docker.internal erreichbar (Docker Desktop bringt das mit).
+		args = append(args, "--add-host", "host.docker.internal:host-gateway")
+		if p.EgressProxyURL != "" {
+			// Ausgehender Verkehr über den Allowlist-Proxy; Control Plane und
+			// Loopback bleiben direkt (NO_PROXY), sonst würde die Daemon-WS
+			// mitgeleitet.
+			for _, e := range proxyEnvVars(p.EgressProxyURL, "host.docker.internal,localhost,127.0.0.1,::1") {
+				args = append(args, "-e", e)
+			}
+		}
+	}
+
 	for k, v := range spec.Env {
 		if k == "COVEY_WS_URL" {
 			v = rewriteLoopbackForDocker(v)
 		}
 		args = append(args, "-e", k+"="+v)
-	}
-	if p.EgressProxyURL != "" {
-		// Ausgehender Verkehr über den Allowlist-Proxy; die Control Plane und
-		// Loopback bleiben direkt (NO_PROXY), sonst würde die Daemon-WS-Verbindung
-		// mitgeleitet. Groß- und Kleinschreibung beider Varianten setzen, weil
-		// Tools mal HTTP_PROXY, mal http_proxy lesen.
-		noProxy := "host.docker.internal,localhost,127.0.0.1,::1"
-		for _, e := range []string{
-			"HTTP_PROXY=" + p.EgressProxyURL, "http_proxy=" + p.EgressProxyURL,
-			"HTTPS_PROXY=" + p.EgressProxyURL, "https_proxy=" + p.EgressProxyURL,
-			"NO_PROXY=" + noProxy, "no_proxy=" + noProxy,
-		} {
-			args = append(args, "-e", e)
-		}
 	}
 	args = append(args, p.Image)
 
@@ -126,6 +156,81 @@ func (s *dockerSandbox) Stop(ctx context.Context) error {
 // Agent-ID ab — pro Agent existiert höchstens eine Sandbox (seriell, spec/03).
 func containerName(agentID string) string {
 	return "covey-sandbox-" + agentID
+}
+
+// proxyEnvVars liefert die HTTP(S)_PROXY/NO_PROXY-Variablen (Groß- und
+// Kleinschreibung, weil Tools mal die eine, mal die andere lesen).
+func proxyEnvVars(proxyURL, noProxy string) []string {
+	return []string{
+		"HTTP_PROXY=" + proxyURL, "http_proxy=" + proxyURL,
+		"HTTPS_PROXY=" + proxyURL, "https_proxy=" + proxyURL,
+		"NO_PROXY=" + noProxy, "no_proxy=" + noProxy,
+	}
+}
+
+// ensureNetworkIsolation stellt idempotent das interne Netz und den laufenden
+// Proxy-Container her — die beiden Bausteine des harten Egress-Modus.
+func (p *DockerProvider) ensureNetworkIsolation(ctx context.Context) error {
+	if err := p.ensureEgressNetwork(ctx); err != nil {
+		return err
+	}
+	return p.ensureEgressProxy(ctx)
+}
+
+// ensureEgressNetwork legt das interne Netz an (kein Gateway nach außen).
+func (p *DockerProvider) ensureEgressNetwork(ctx context.Context) error {
+	if err := exec.CommandContext(ctx, p.docker(), "network", "inspect", egressNetwork).Run(); err == nil {
+		return nil // existiert bereits
+	}
+	out, err := exec.CommandContext(ctx, p.docker(), "network", "create", "--internal", egressNetwork).CombinedOutput()
+	if err != nil && !strings.Contains(string(out), "already exists") {
+		return fmt.Errorf("internes netz anlegen: %v: %s", err, strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// ensureEgressProxy startet den Proxy-Container, falls er nicht läuft: am
+// internen Netz (Alias covey-egress) als einziger Ausgang, plus das Default-
+// Bridge-Netz für den Internet-Zugang.
+func (p *DockerProvider) ensureEgressProxy(ctx context.Context) error {
+	// Läuft er schon?
+	out, _ := exec.CommandContext(ctx, p.docker(), "inspect", "-f", "{{.State.Running}}", egressProxyName).Output()
+	if strings.TrimSpace(string(out)) == "true" {
+		return nil
+	}
+	// Reste wegräumen, damit der Name frei ist.
+	_ = exec.CommandContext(ctx, p.docker(), "rm", "-f", egressProxyName).Run()
+
+	image := p.EgressProxyImage
+	if image == "" {
+		image = "covey-egress:latest"
+	}
+	args := []string{"run", "-d", "--restart", "unless-stopped",
+		"--name", egressProxyName,
+		"--network", egressNetwork,
+		"--network-alias", egressProxyAlias,
+		"--add-host", "host.docker.internal:host-gateway",
+	}
+	for k, v := range p.EgressProxyEnv {
+		args = append(args, "-e", k+"="+v)
+	}
+	args = append(args, image)
+	if runOut, err := exec.CommandContext(ctx, p.docker(), args...).CombinedOutput(); err != nil {
+		msg := strings.TrimSpace(string(runOut))
+		if strings.Contains(msg, "No such image") || strings.Contains(msg, "Unable to find image") {
+			return fmt.Errorf("egress-proxy-image %q fehlt — mit `make egress-image` bauen: %s", image, msg)
+		}
+		return fmt.Errorf("egress-proxy starten: %v: %s", err, msg)
+	}
+	// Internet-Seite: das Default-Bridge-Netz dranhängen, damit der Proxy nach
+	// außen (und via host-gateway zur DB/Control Plane) kommt.
+	if connOut, err := exec.CommandContext(ctx, p.docker(), "network", "connect", "bridge", egressProxyName).CombinedOutput(); err != nil {
+		msg := strings.TrimSpace(string(connOut))
+		if !strings.Contains(msg, "already exists") && !strings.Contains(msg, "already connected") {
+			return fmt.Errorf("egress-proxy ans bridge-netz hängen: %v: %s", err, msg)
+		}
+	}
+	return nil
 }
 
 // rewriteLoopbackForDocker biegt eine Loopback-URL der Control Plane auf

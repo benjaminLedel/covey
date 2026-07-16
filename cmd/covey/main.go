@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -64,6 +65,8 @@ func main() {
 		err = runMigrate(ctx, cfg, os.Args[2:], log)
 	case "bootstrap":
 		err = runBootstrap(ctx, cfg, log)
+	case "egress-proxy":
+		err = runEgressProxy(ctx, cfg, log)
 	case "genkey":
 		var key string
 		if key, err = secbuiltin.GenerateMasterKey(); err == nil {
@@ -85,6 +88,7 @@ func usage() {
   covey migrate up|down   Migrationen anwenden / eine zurückrollen
   covey bootstrap         Organisation + Admin + Demo-Agent anlegen (idempotent)
   covey serve             API + Orchestrator + Admin-UI starten
+  covey egress-proxy      Egress-Allowlist-Proxy (network-Isolationsmodus, im Container)
   covey genkey            neuen COVEY_MASTER_KEY erzeugen
 
 Konfiguration über ENV: COVEY_DATABASE_URL, COVEY_LISTEN_ADDR, COVEY_PUBLIC_URL,
@@ -265,6 +269,77 @@ func egressBaseAllow(cfg config.Config) []string {
 	return append(append([]string{}, defaultEgressAllow...), cfg.EgressAllow...)
 }
 
+// rewriteDBForContainer biegt eine Loopback-DB-URL auf host.docker.internal um,
+// damit der Egress-Proxy-Container die Postgres-Instanz auf dem Host erreicht.
+// Nicht-Loopback-Hosts (echtes DB-Deployment) bleiben unangetastet.
+func rewriteDBForContainer(dsn string) string {
+	u, err := url.Parse(dsn)
+	if err != nil {
+		return dsn
+	}
+	switch u.Hostname() {
+	case "localhost", "127.0.0.1", "::1":
+	default:
+		return dsn
+	}
+	host := "host.docker.internal"
+	if port := u.Port(); port != "" {
+		host += ":" + port
+	}
+	u.Host = host
+	return u.String()
+}
+
+// runEgressProxy fährt den Egress-Allowlist-Proxy als eigenständigen Prozess
+// (network-Isolationsmodus: läuft im Proxy-Container als einziger Ausgang der
+// isolierten Sandbox). Die Allowlist kommt aus DB + ENV + Code-Default und wird
+// periodisch neu geladen, damit UI-Änderungen ohne Neustart greifen.
+func runEgressProxy(ctx context.Context, cfg config.Config, log *slog.Logger) error {
+	// Sofort mit der Basis-Allowlist (Code + ENV) serven — die DB kann beim Start
+	// noch nicht erreichbar sein: im network-Modus wird das interne Netz erst
+	// NACH dem Start ans Bridge-Netz gehängt, erst dann geht der Weg zur DB auf.
+	// Die UI-gepflegten Muster kommen anschließend per Poll dazu.
+	proxy := egress.New(egress.NewAllowlist(egressBaseAllow(cfg)), log)
+	addr, err := proxy.Start(cfg.EgressProxyAddr)
+	if err != nil {
+		return err
+	}
+	defer proxy.Close()
+	log.Info("covey egress-proxy", "addr", addr, "basis", egressBaseAllow(cfg))
+
+	var store *egress.Store
+	refresh := func() {
+		if store == nil {
+			pool, err := db.Connect(ctx, cfg.DatabaseURL)
+			if err != nil {
+				log.Warn("egress-proxy: DB noch nicht erreichbar, nur Basis-Allowlist aktiv", "err", err)
+				return
+			}
+			store = egress.NewStore(pool)
+			log.Info("egress-proxy: DB verbunden, Allowlist wird live nachgeladen")
+		}
+		patterns := egressBaseAllow(cfg)
+		if dbPatterns, err := store.Patterns(ctx); err != nil {
+			log.Warn("egress-proxy: DB-Muster laden fehlgeschlagen", "err", err)
+		} else {
+			patterns = append(patterns, dbPatterns...)
+		}
+		proxy.SetAllowlist(egress.NewAllowlist(patterns))
+	}
+
+	refresh()
+	t := time.NewTicker(15 * time.Second)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-t.C:
+			refresh()
+		}
+	}
+}
+
 // startEgressProxy bindet den Allowlist-Proxy auf einem freien Port (alle
 // Interfaces, damit der Container ihn via host.docker.internal erreicht). Die
 // Allowlist ist Basis (Code+ENV) plus die UI-verwalteten DB-Muster; reload()
@@ -344,13 +419,29 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	case "docker":
 		dp := &orchestrator.DockerProvider{Image: cfg.SandboxImage, DataDir: cfg.DataDir}
 		if egressEnforced {
-			proxyURL, reload, closeProxy, err := startEgressProxy(ctx, cfg, egressStore, log)
-			if err != nil {
-				return err
+			switch cfg.EgressIsolation {
+			case "network":
+				// Harte Isolation: Sandbox ohne Internet, Proxy-Container als
+				// einziger Ausgang. Der Proxy liest die Allowlist selbst aus der DB
+				// (Live-Reload per Poll) — deshalb kein host-seitiger Reload nötig.
+				dp.EgressIsolation = "network"
+				dp.EgressProxyImage = "covey-egress:latest"
+				dp.EgressProxyEnv = map[string]string{
+					"COVEY_DATABASE_URL":      rewriteDBForContainer(cfg.DatabaseURL),
+					"COVEY_EGRESS_ALLOW":      strings.Join(append(append([]string{}, cfg.EgressAllow...), "host.docker.internal"), ","),
+					"COVEY_EGRESS_PROXY_ADDR": ":8888",
+				}
+				log.Info("egress-enforcement: harte netz-isolation aktiv", "proxy-image", dp.EgressProxyImage)
+			default:
+				// Kooperativ: Proxy im Control-Plane-Prozess, Container via HTTP_PROXY.
+				proxyURL, reload, closeProxy, err := startEgressProxy(ctx, cfg, egressStore, log)
+				if err != nil {
+					return err
+				}
+				defer closeProxy()
+				dp.EgressProxyURL = proxyURL
+				reloadEgress = reload
 			}
-			defer closeProxy()
-			dp.EgressProxyURL = proxyURL
-			reloadEgress = reload
 		}
 		provider = dp
 	default:

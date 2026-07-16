@@ -195,6 +195,8 @@ feuert — sonst wacht ein geblockter Agent nie wieder auf.
 | `COVEY_DAEMON_TOKEN_TTL` | `15m` | TTL des in die Sandbox gereichten Credentials |
 | `COVEY_EGRESS_ENFORCE` | `false` | Egress-Allowlist-Proxy einschalten (nur `docker`-Provider) |
 | `COVEY_EGRESS_ALLOW` | *(leer)* | zusätzliche erlaubte Egress-Hosts, z. B. der Zammad-Host (`*.suffix` erlaubt) |
+| `COVEY_EGRESS_ISOLATION` | `proxy` | `proxy` (kooperativ) oder `network` (harte Isolation, siehe 6.1) |
+| `COVEY_EGRESS_PROXY_ADDR` | `:8888` | Bind-Adresse des Proxy (network-Modus, im Container) |
 
 > **Egress:** Mit `COVEY_SANDBOX_PROVIDER=docker` und `COVEY_EGRESS_ENFORCE=true`
 > läuft der Sandbox-Verkehr über einen Allowlist-Proxy. Fest erlaubt ist
@@ -211,10 +213,39 @@ feuert — sonst wacht ein geblockter Agent nie wieder auf.
 >   COVEY_EGRESS_ALLOW="helpdesk.example.com"
 >   ```
 >
-> Muster: exakter Host oder `*.suffix`. Aktueller Stand: kooperativ (HTTP(S)_PROXY
-> im Container) — verhindert naives/versehentliches Ausleiten, ist aber vom
-> Agenten über direkte IPs umgehbar. Die harte Netz-Isolation ist der nächste
-> Schritt (siehe Checkliste Punkt 1).
+> Muster: exakter Host oder `*.suffix`. Standardmodus ist kooperativ
+> (HTTP(S)_PROXY im Container) — verhindert naives Ausleiten, ist aber vom Agenten
+> über direkte IPs umgehbar. Für harte Isolation siehe unten.
+
+### 6.1 Harte Netz-Isolation (`COVEY_EGRESS_ISOLATION=network`)
+
+Im network-Modus läuft die Sandbox auf einem **internen Docker-Netz ohne
+Internet**; ein Proxy-Container ist der **einzige Ausgang** und erzwingt die
+Allowlist. Ein direkter Bypass (direkte IP, `--noproxy`) ist damit unmöglich —
+der Container hat schlicht keine Route nach draußen.
+
+```bash
+make egress-image          # baut covey-egress:latest (Proxy-Container)
+COVEY_SANDBOX_PROVIDER=docker
+COVEY_EGRESS_ENFORCE=true
+COVEY_EGRESS_ISOLATION=network
+COVEY_EGRESS_ALLOW="helpdesk.example.com"   # Zielsystem-Hosts (UI-Hosts kommen dazu)
+```
+
+Die Control Plane richtet Netz und Proxy-Container automatisch ein
+(`covey-egress-internal`, `covey-egress-proxy`). Der Proxy liest die Allowlist
+aus der DB (UI) + ENV + Default und lädt sie alle 15 s neu.
+
+**Voraussetzung:** Die Control Plane muss über **TLS/wss** erreichbar sein. Im
+network-Modus läuft auch die Daemon↔Control-Plane-WebSocket per HTTP-CONNECT
+durch den Proxy — das funktioniert nur mit `wss://` (TLS-Tunnel), nicht mit
+Klartext-`ws://`. `host.docker.internal` ist dafür automatisch auf der Allowlist.
+
+**Verifiziert:** Netz-Topologie (erlaubter Host via Proxy ✓, gesperrter Host 403
+✓, direkter Bypass scheitert ✓, DB-Live-Reload ✓). **Nicht** end-to-end im
+Repo verifiziert: der vollständige Agent-Lauf (coveyd-WS durch den Proxy +
+Runtime) — das braucht das Sandbox-Image, eine wss-Control-Plane und echte
+Creds; auf der Zielumgebung gegenchecken.
 
 Secrets (pro Agent, im SecretStore, **nicht** als Env): `zammad_url`,
 `zammad_token`, `anthropic_api_key`/`claude_code_oauth_token`.
@@ -231,14 +262,20 @@ zu beachten (Details und Dateiverweise siehe unten). Priorisiert:
 
 **Blocker für Produktivbetrieb mit echten Kundendaten:**
 
-1. **Egress-Enforcement (teilweise umgesetzt).** Mit `docker`-Provider +
+1. **Egress-Enforcement (umgesetzt, zwei Stufen).** Mit `docker`-Provider +
    `COVEY_EGRESS_ENFORCE=true` geht der Sandbox-Verkehr über einen fail-closed
-   Allowlist-Proxy (`internal/egress`). **Noch offen — der harte Teil:** heute
-   kooperativ (HTTP(S)_PROXY), vom Agenten über direkte IPs umgehbar, und der
-   `local`-Provider kann prinzipiell nicht isolieren. → Sandbox auf ein internes
-   Docker-Netz ohne Internet legen, den Proxy als einzigen Ausgang erzwingen
-   (inkl. Lösung fürs WS-Routing zur Control Plane) und den LLM-Key nicht mehr
-   als Env-Var in die Sandbox geben, sondern über den Proxy injizieren.
+   Allowlist-Proxy (`internal/egress`). Zwei Modi (`COVEY_EGRESS_ISOLATION`):
+   - `proxy` (Default): kooperativ via HTTP(S)_PROXY — verhindert naives
+     Ausleiten, aber vom Agenten über direkte IPs umgehbar.
+   - `network`: **harte Isolation** — Sandbox auf internem Docker-Netz ohne
+     Internet, Proxy-Container als einziger Ausgang. Direkter Bypass ist damit
+     unmöglich (verifiziert). Setup siehe unten.
+
+   **Noch offen:** (a) network-Modus erfordert die Control Plane über TLS/wss
+   (die WS läuft per CONNECT durch den Proxy); (b) der LLM-Key wird weiterhin als
+   Env-Var in die Sandbox gereicht — ihn stattdessen am Proxy zu injizieren (Key
+   nie in der Sandbox) bleibt der nächste Härtungsschritt; (c) der `local`-Provider
+   kann prinzipiell nicht isolieren.
 2. **Verbindungsverlust = verlorenes Ticket.** Jeder Fehler (auch ein
    Netzwerk-Blip) setzt die Aufgabe hart auf `failed`; kein Retry/Backoff, kein
    Daemon-Reconnect, einseitiger Heartbeat ohne Timeout. → transiente Fehler auf

@@ -3,7 +3,7 @@
 GO ?= go
 DB_URL ?= postgres://covey:covey@localhost:5433/covey?sslmode=disable
 
-.PHONY: build web test test-integration run bootstrap dev-db sandbox-image clean
+.PHONY: build web test test-integration run bootstrap dev-db sandbox-image egress-image clean
 
 web:
 	cd web && npm install && npm run build
@@ -28,6 +28,10 @@ run: build
 # Sandbox-Image für COVEY_SANDBOX_PROVIDER=docker (coveyd + Claude Code).
 sandbox-image:
 	docker build -f Dockerfile.sandbox -t covey-sandbox:latest .
+
+# Egress-Proxy-Image für COVEY_EGRESS_ISOLATION=network (harte Netz-Isolation).
+egress-image:
+	docker build -f Dockerfile.egress -t covey-egress:latest .
 
 # Unit-Tests (ohne DB) + Integrationstests (brauchen dev-db).
 test:

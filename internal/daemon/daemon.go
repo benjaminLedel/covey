@@ -98,8 +98,14 @@ func (c *Client) request(ctx context.Context, msgType string, requestID string, 
 
 // Run verbindet, meldet ready und verarbeitet Nachrichten bis sleep/kill.
 func (c *Client) Run(ctx context.Context) error {
+	// Proxy-bewusst: im harten Egress-Modus (COVEY_EGRESS_ISOLATION=network) hat
+	// die Sandbox keinen direkten Weg zur Control Plane — die WS läuft per
+	// HTTP-CONNECT durch den Egress-Proxy (setzt wss/TLS voraus). Im kooperativen
+	// Modus steht die Control Plane in NO_PROXY, ProxyFromEnvironment liefert dann
+	// nil und die Verbindung geht direkt — kein Verhalten ändert sich.
 	conn, _, err := websocket.Dial(ctx, c.wsURL, &websocket.DialOptions{
 		HTTPHeader: http.Header{"Authorization": {"Bearer " + c.token}},
+		HTTPClient: &http.Client{Transport: &http.Transport{Proxy: http.ProxyFromEnvironment}},
 	})
 	if err != nil {
 		return fmt.Errorf("control plane nicht erreichbar: %w", err)
