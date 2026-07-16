@@ -22,6 +22,8 @@ make run          # covey serve auf http://localhost:8494
 
 Login: `admin@covey.local` / `covey-admin` (überschreibbar via `COVEY_ADMIN_EMAIL`/`COVEY_ADMIN_PASSWORD` beim Bootstrap). Tests: `make test` (Unit) und `make test-integration` (voller Durchstich gegen die Dev-DB, mit Mock-Runtime und Fake-Zammad). Für Demos ohne echtes Zammad: `go run ./demo/fakezammad` und die Secrets `zammad_url` = `http://localhost:9999`, `zammad_token` beliebig setzen. Damit die Claude-Code-Runtime in der Sandbox arbeiten kann, das Secret `anthropic_api_key` (API-Key) oder alternativ `claude_code_oauth_token` (Abo-Account: Token einmalig mit `claude setup-token` erzeugen) hinterlegen — ohne eines der beiden scheitern Aufgaben mit „Not logged in · Please run /login", weil die Sandbox ein eigenes, leeres `HOME` hat und die lokale `claude`-Anmeldung dort nicht sichtbar ist.
 
+**Anschluss an ein echtes Zammad:** Schritt-für-Schritt-Runbook (API-Token, Webhook + Trigger, Ticket-Auswahl steuern, kundensichtbare Antworten, Produktions-Checkliste) in [`docs/betrieb-zammad.md`](docs/betrieb-zammad.md).
+
 ## Die Leitmetapher
 
 Die Plattform ist die **IT- und HR-Abteilung für KI-Agenten**. Fast jede Komponente hat ein Gegenstück im echten Unternehmen — daraus folgt der Bauplan:

@@ -43,7 +43,7 @@ func (System) ParseWebhook(body []byte) (target.WebhookEvent, error) {
 		TaskBody: fmt.Sprintf("Neues Ticket im Zammad (id=%d, nummer=%s).\nTitel: %s\n\nNachricht des Kunden:\n%s\n\nBearbeite das Ticket über den Action-Proxy (system zammad, ticket_id=%d).",
 			p.Ticket.ID, p.Ticket.Number, p.Ticket.Title, p.Article.Body, p.Ticket.ID),
 		ResumeInput: fmt.Sprintf("Kundenantwort auf Ticket #%d:\n%s", p.Ticket.ID, p.Article.Body),
-		Wake:        p.IsCustomerMessage(),
+		Wake:        p.ShouldWake(),
 	}, nil
 }
 

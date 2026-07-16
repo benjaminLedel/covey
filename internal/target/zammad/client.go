@@ -101,15 +101,22 @@ func (c *Client) ListArticles(ctx context.Context, ticketID int) ([]Article, err
 	return out, err
 }
 
-// Reply — POST /ticket_articles. internal=true ist eine interne Notiz,
-// internal=false geht sichtbar an den Kunden raus.
+// Reply — POST /ticket_articles. internal=true ist eine interne Notiz
+// (type "note", nur für Agenten sichtbar). internal=false geht kundensichtbar
+// raus — als type "email" (Default), damit die Antwort tatsächlich beim Kunden
+// ankommt; für Web-/Chat-Instanzen via COVEY_ZAMMAD_REPLY_TYPE überschreibbar.
+// (Eine externe "note" wäre im Ticket sichtbar, würde aber keine Mail auslösen.)
 func (c *Client) Reply(ctx context.Context, ticketID int, body string, internal bool) (Article, error) {
+	articleType := "note"
+	if !internal {
+		articleType = externalReplyType()
+	}
 	var out Article
 	err := c.do(ctx, http.MethodPost, "/ticket_articles", map[string]any{
 		"ticket_id":    ticketID,
 		"body":         body,
 		"content_type": "text/plain",
-		"type":         "note",
+		"type":         articleType,
 		"internal":     internal,
 	}, &out)
 	return out, err

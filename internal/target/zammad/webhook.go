@@ -16,6 +16,7 @@ type WebhookPayload struct {
 		Number     string `json:"number"`
 		Title      string `json:"title"`
 		State      string `json:"state"`
+		Group      string `json:"group"`
 		ArticleIDs []int  `json:"article_ids"`
 	} `json:"ticket"`
 	Article struct {
@@ -71,4 +72,22 @@ func (p WebhookPayload) DedupKey() string {
 // Antwort des Agenten (Sender=Agent) darf keinen Wake-Zyklus erzeugen.
 func (p WebhookPayload) IsCustomerMessage() bool {
 	return strings.EqualFold(p.Article.Sender, "Customer") && !p.Article.Internal
+}
+
+// InIntakeScope prüft den konfigurierbaren Intake-Filter: Ist eine
+// Gruppen-Allowlist (COVEY_ZAMMAD_INTAKE_GROUPS) gesetzt, wird nur ein Ticket
+// aus einer dieser Gruppen (Queues) aufgenommen. Ohne Allowlist: alle Gruppen.
+func (p WebhookPayload) InIntakeScope() bool {
+	groups := intakeGroups()
+	if len(groups) == 0 {
+		return true
+	}
+	return groups[strings.ToLower(strings.TrimSpace(p.Ticket.Group))]
+}
+
+// ShouldWake ist die vollständige Aufnahme-Entscheidung: eine Kundennachricht
+// aus einer zugelassenen Gruppe. Nur dann entsteht eine Aufgabe bzw. wird eine
+// geblockte Aufgabe geweckt (orchestrator.HandleWebhook gated auf diesem Flag).
+func (p WebhookPayload) ShouldWake() bool {
+	return p.IsCustomerMessage() && p.InIntakeScope()
 }
