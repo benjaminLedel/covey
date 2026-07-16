@@ -431,7 +431,7 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	// aktivierten Plugins der Organisation (inkl. Manifest-Uploads), nicht
 	// den Stand beim Kompilieren der Config.
 	if o.Targets != nil {
-		if docs, err := o.Targets.EnabledDocs(ctx, agent.OrgID); err == nil {
+		if docs, err := o.Targets.EnabledDocsForAgent(ctx, agent.OrgID, agent.ID); err == nil {
 			if section := agents.TargetDocs(docs); section != "" {
 				compiled += "\n\n" + section
 			}
@@ -648,10 +648,12 @@ func (o *Orchestrator) brokerCredential(ctx context.Context, agent agents.Agent,
 	}
 	// Plugin-Aktivierung ist ein zentraler Enforcement-Punkt (fail-closed):
 	// ein deaktiviertes oder unbekanntes Zielsystem bekommt keine Credentials.
+	var kind string
 	if o.Targets != nil {
 		if _, err := o.Targets.System(ctx, agent.OrgID, req.System); err != nil {
 			return deny("zielsystem nicht aktiviert: " + req.System)
 		}
+		kind, _ = o.Targets.Kind(ctx, agent.OrgID, req.System)
 	}
 	rules, err := o.Rails.List(ctx, agent.OrgID)
 	if err != nil {
@@ -661,6 +663,18 @@ func (o *Orchestrator) brokerCredential(ctx context.Context, agent agents.Agent,
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindGuardrail,
 			map[string]any{"rule": "deny_system", "system": req.System, "pattern": v.Rule.Pattern})
 		return deny("durch Guard-Rail verboten")
+	}
+	// MCP-Server tragen ihren Endpoint in der Config; Auth ist optional. Ein
+	// fehlendes Token verweigert daher NICHT — der Server kann ohne Auth
+	// erreichbar sein. URL-Secret bleibt optionaler Override.
+	if kind == "mcp" {
+		token, _ := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_token")
+		baseURL, _ := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_url")
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
+			map[string]any{"system": req.System, "granted": true, "kind": "mcp",
+				"ttl_secs": int(o.DaemonTokenTTL.Seconds())})
+		return daemon.InjectCredentials{RequestID: req.RequestID, System: req.System,
+			Granted: true, Token: token, BaseURL: baseURL, TTLSecs: int(o.DaemonTokenTTL.Seconds())}
 	}
 	token, err := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_token")
 	if err != nil {
@@ -686,21 +700,38 @@ func (o *Orchestrator) brokerTarget(ctx context.Context, agent agents.Agent, req
 	if o.Targets == nil {
 		return deny("kein zielsystem-store konfiguriert")
 	}
-	m, err := o.Targets.Manifest(ctx, agent.OrgID, req.System)
+	kind, raw, err := o.Targets.BrokeredDefinition(ctx, agent.OrgID, req.System)
 	if err != nil {
 		return deny("zielsystem nicht verfügbar: " + err.Error())
 	}
-	raw, err := json.Marshal(m)
-	if err != nil {
-		return deny(err.Error())
-	}
-	return daemon.InjectTarget{RequestID: req.RequestID, System: req.System, Granted: true, Manifest: raw}
+	return daemon.InjectTarget{RequestID: req.RequestID, System: req.System, Granted: true,
+		Kind: kind, Manifest: raw}
 }
 
 // decideAction ist die zentrale Policy-Entscheidung für eine Aktion:
 // allow (auto), deny (Guard-Rail) oder pending (Approval-Gate, spec/06).
 // Eine bereits erteilte, unverbrauchte Freigabe wird konsumiert.
 func (o *Orchestrator) decideAction(ctx context.Context, agent agents.Agent, taskID uuid.UUID, req daemon.RequestApproval) daemon.ApprovalDecision {
+	// Per-Agent-Tool-Zuweisung (fail-closed, sobald eine Allowlist existiert):
+	// das Subjekt ist system:tool. Ohne Zuweisung für das System greift dies
+	// nicht — Built-ins/Manifeste bleiben unberührt.
+	if o.Targets != nil {
+		if system, tool, ok := strings.Cut(req.Action, ":"); ok {
+			allowed, err := o.Targets.AgentToolAllowed(ctx, agent.ID, system, tool)
+			if err != nil {
+				return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied",
+					Reason: "tool-zuweisung nicht lesbar (fail-closed)"}
+			}
+			if !allowed {
+				_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindGuardrail,
+					map[string]any{"rule": "tool_not_assigned", "action": req.Action, "decision": "denied"})
+				o.events.Publish(Event{Type: "guardrail", AgentID: agent.ID.String(),
+					Data: map[string]string{"action": req.Action, "decision": "denied"}})
+				return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied",
+					Reason: "tool " + tool + " ist diesem Agenten nicht zugewiesen"}
+			}
+		}
+	}
 	rules, err := o.Rails.List(ctx, agent.OrgID)
 	if err != nil {
 		return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied",

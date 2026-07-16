@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 
 	"covey/internal/target"
+	"covey/internal/target/mcp"
 )
 
 // Client ist die Daemon-Seite des Protokolls: verbindet sich zur Control
@@ -265,12 +266,23 @@ func (c *Client) manifestSystem(ctx context.Context, system string) (target.Syst
 	if err != nil || !inj.Granted {
 		return nil, false
 	}
-	m, err := target.ParseManifest(inj.Manifest)
-	if err != nil {
-		c.log.Warn("gebrokertes manifest unlesbar", "system", system, "err", err)
-		return nil, false
+	var sys target.System
+	switch inj.Kind {
+	case "mcp":
+		cfg, err := mcp.ParseConfig(inj.Manifest)
+		if err != nil {
+			c.log.Warn("gebrokerte mcp-config unlesbar", "system", system, "err", err)
+			return nil, false
+		}
+		sys = mcp.NewSystem(cfg)
+	default:
+		m, err := target.ParseManifest(inj.Manifest)
+		if err != nil {
+			c.log.Warn("gebrokertes manifest unlesbar", "system", system, "err", err)
+			return nil, false
+		}
+		sys = target.NewManifestSystem(m)
 	}
-	sys := target.NewManifestSystem(m)
 	c.mu.Lock()
 	c.targets[system] = sys
 	c.mu.Unlock()

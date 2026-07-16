@@ -1,10 +1,14 @@
 package httpapi
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net/http"
+	"strings"
+	"time"
 
+	"covey/internal/target/mcp"
 	targetstore "covey/internal/target/store"
 )
 
@@ -59,6 +63,149 @@ func (s *Server) handleToggleTarget(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"name": name, "enabled": *in.Enabled})
+}
+
+// --- MCP-Server als Zielsystem-Plugins ---
+
+// mcpInput ist der Anlege-/Aktualisieren-Body eines MCP-Plugins. token dient
+// nur der sofortigen Tool-Discovery und wird NICHT gespeichert — zur Laufzeit
+// brokert der Daemon <name>_token aus dem Vault.
+type mcpInput struct {
+	Name        string   `json:"name"`
+	Label       string   `json:"label"`
+	Description string   `json:"description"`
+	URL         string   `json:"url"`
+	Auth        mcp.Auth `json:"auth"`
+	Token       string   `json:"token"`
+}
+
+// handleCreateMCP legt ein MCP-Zielsystem an (oder aktualisiert es) und
+// versucht direkt, die Tool-Liste zu entdecken. Scheitert die Discovery
+// (Server nicht erreichbar, Auth falsch), bleibt die Config trotzdem gespeichert
+// und der Fehler wird als discover_error zurückgemeldet.
+func (s *Server) handleCreateMCP(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	var in mcpInput
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "body nicht lesbar")
+		return
+	}
+	cfg := mcp.Config{Name: in.Name, Label: in.Label, Description: in.Description, URL: in.URL, Auth: in.Auth}
+	saved, err := s.Targets.PutMCP(r.Context(), p.OrgID, cfg)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	tools, derr := s.discoverMCP(r.Context(), saved, in.Token)
+	resp := map[string]any{"name": saved.Name, "kind": "mcp", "tools": tools}
+	if derr != nil {
+		resp["discover_error"] = derr.Error()
+	} else {
+		_ = s.Targets.SetMCPTools(r.Context(), p.OrgID, saved.Name, tools)
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleDiscoverMCP verbindet sich erneut zum MCP-Server und aktualisiert die
+// gespeicherte Tool-Liste. Optionaler token nur für diesen Aufruf.
+func (s *Server) handleDiscoverMCP(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	name := r.PathValue("name")
+	cfg, err := s.Targets.MCPConfig(r.Context(), p.OrgID, name)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	var in struct {
+		Token string `json:"token"`
+	}
+	_ = readJSON(r, &in)
+	tools, derr := s.discoverMCP(r.Context(), cfg, in.Token)
+	if derr != nil {
+		writeErr(w, http.StatusBadGateway, "discovery fehlgeschlagen: "+derr.Error())
+		return
+	}
+	if err := s.Targets.SetMCPTools(r.Context(), p.OrgID, name, tools); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"name": name, "tools": tools})
+}
+
+// handleListMCPTools liefert die zuletzt entdeckte Tool-Liste eines MCP-Plugins.
+func (s *Server) handleListMCPTools(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	cfg, err := s.Targets.MCPConfig(r.Context(), p.OrgID, r.PathValue("name"))
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, cfg.Tools)
+}
+
+// discoverMCP führt den tools/list-Handshake gegen einen MCP-Server aus.
+// Der token gilt nur für diesen Aufruf (Discovery), nicht persistiert.
+func (s *Server) discoverMCP(ctx context.Context, cfg mcp.Config, token string) ([]mcp.Tool, error) {
+	dctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	var hdr, val string
+	if token != "" {
+		hdr = cfg.Auth.Header
+		if hdr == "" {
+			hdr = "Authorization"
+		}
+		format := cfg.Auth.Format
+		if format == "" {
+			format = "Bearer {token}"
+		}
+		val = strings.ReplaceAll(format, "{token}", token)
+	}
+	conn, err := mcp.Dial(dctx, cfg.URL, hdr, val, nil)
+	if err != nil {
+		return nil, err
+	}
+	return conn.ListTools(dctx)
+}
+
+// --- Per-Agent-Tool-Zuweisung ---
+
+// handleGetAgentTools liefert die einem Agenten für ein System zugewiesenen
+// Tools. Leere Liste = keine Einschränkung (alle Tools erlaubt).
+func (s *Server) handleGetAgentTools(w http.ResponseWriter, r *http.Request) {
+	agentID, ok := s.agentInOrg(w, r)
+	if !ok {
+		return
+	}
+	tools, err := s.Targets.AgentTools(r.Context(), agentID, r.PathValue("system"))
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	if tools == nil {
+		tools = []string{}
+	}
+	writeJSON(w, http.StatusOK, tools)
+}
+
+// handleSetAgentTools ersetzt die Tool-Zuweisung eines Agenten für ein System.
+func (s *Server) handleSetAgentTools(w http.ResponseWriter, r *http.Request) {
+	agentID, ok := s.agentInOrg(w, r)
+	if !ok {
+		return
+	}
+	var in struct {
+		Tools []string `json:"tools"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "feld tools (liste) fehlt")
+		return
+	}
+	system := r.PathValue("system")
+	if err := s.Targets.SetAgentTools(r.Context(), agentID, system, in.Tools); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"system": system, "tools": in.Tools})
 }
 
 // handleDeleteTarget entfernt ein Custom-Plugin (Built-ins sind nicht löschbar).

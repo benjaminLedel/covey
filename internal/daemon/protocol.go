@@ -108,7 +108,10 @@ type InjectTarget struct {
 	System    string          `json:"system"`
 	Granted   bool            `json:"granted"`
 	Reason    string          `json:"reason,omitempty"`
-	Manifest  json.RawMessage `json:"manifest,omitempty"`
+	// Kind unterscheidet die Definition in Manifest: "custom" (REST-Manifest)
+	// oder "mcp" (MCP-Server-Config). Leer = custom (Rückwärtskompatibilität).
+	Kind     string          `json:"kind,omitempty"`
+	Manifest json.RawMessage `json:"manifest,omitempty"`
 }
 
 type RequestCredential struct {
