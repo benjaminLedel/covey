@@ -239,6 +239,49 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
 .kind-action { background: var(--bg-accent); color: var(--text-accent); }
 .kind-lifecycle { background: var(--bg-success); color: var(--text-success); }
 
+/* Daten-Tabellen (Egress-Log u. a.) */
+.tbl { width: 100%; font-size: 12.5px; border-collapse: collapse; }
+.tbl th {
+  text-align: left;
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  padding: 9px 14px 7px;
+  border-bottom: 0.5px solid var(--border);
+  white-space: nowrap;
+}
+.tbl td { padding: 7px 14px; border-top: 0.5px solid var(--border); vertical-align: top; }
+.tbl tbody tr:first-child td { border-top: none; }
+.tbl tbody tr:hover td { background: var(--surface-1); }
+
+/* Host-Muster-Chip (Egress-Allowlisten) */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--surface-1);
+  border: 0.5px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 9px;
+  color: var(--text-primary);
+}
+.chip.fixed { border-style: dashed; color: var(--text-secondary); }
+.chip .src { font-family: var(--sans); font-size: 10.5px; color: var(--text-muted); }
+.chip button {
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0 0 0 2px;
+  font-size: 13px;
+  line-height: 1;
+}
+.chip button:hover { color: var(--text-danger); }
+
 @keyframes fade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 .fade { animation: fade 0.18s ease; }
 

@@ -199,12 +199,14 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	p.resolve.Log(agent, r.URL.Host, r.Method, true)
 	outReq := r.Clone(r.Context())
 	outReq.RequestURI = ""
+	stripHopByHop(outReq.Header)
 	resp, err := http.DefaultTransport.RoundTrip(outReq)
 	if err != nil {
 		http.Error(w, "upstream fehler", http.StatusBadGateway)
 		return
 	}
 	defer resp.Body.Close()
+	stripHopByHop(resp.Header)
 	for k, vs := range resp.Header {
 		for _, v := range vs {
 			w.Header().Add(k, v)
@@ -212,6 +214,23 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(resp.StatusCode)
 	_, _ = io.Copy(w, resp.Body)
+}
+
+// stripHopByHop entfernt Proxy- und Hop-by-Hop-Header vor dem Weiterreichen —
+// insbesondere die Proxy-Authorization: das per-Sandbox-Token darf den
+// Ziel-Host nie erreichen.
+func stripHopByHop(h http.Header) {
+	for _, f := range strings.Split(h.Get("Connection"), ",") {
+		if f = strings.TrimSpace(f); f != "" {
+			h.Del(f)
+		}
+	}
+	for _, k := range []string{
+		"Proxy-Authorization", "Proxy-Connection", "Connection",
+		"Keep-Alive", "Te", "Trailer", "Transfer-Encoding", "Upgrade",
+	} {
+		h.Del(k)
+	}
 }
 
 // parseProxyAuth zerlegt "Basic base64(user:pass)" in user/pass.

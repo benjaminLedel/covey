@@ -65,8 +65,36 @@ func (s *stubResolver) Log(_ uuid.UUID, host, _ string, allowed bool) {
 	s.logs = append(s.logs, verb+" "+host)
 }
 
+func TestNormalizePattern(t *testing.T) {
+	cases := []struct {
+		in, want string
+		ok       bool
+	}{
+		{"Example.COM", "example.com", true},
+		{" example.com ", "example.com", true},
+		{"*.Example.com", "*.example.com", true},
+		{"example.com:8080", "example.com", true},
+		{"*.example.com:443", "*.example.com", true},
+		{"https://example.com", "", false},
+		{"example.com/pfad", "", false},
+		{"localhost", "", false},
+		{"", "", false},
+	}
+	for _, c := range cases {
+		got, err := NormalizePattern(c.in)
+		if c.ok && (err != nil || got != c.want) {
+			t.Errorf("NormalizePattern(%q) = %q, %v — erwartet %q", c.in, got, err, c.want)
+		}
+		if !c.ok && err == nil {
+			t.Errorf("NormalizePattern(%q) = %q — erwartet Fehler", c.in, got)
+		}
+	}
+}
+
 func TestProxyPerAgentAllowDenyAndAuth(t *testing.T) {
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	var gotProxyAuth string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotProxyAuth = r.Header.Get("Proxy-Authorization")
 		_, _ = io.WriteString(w, "ok")
 	}))
 	defer upstream.Close()
@@ -93,6 +121,9 @@ func TestProxyPerAgentAllowDenyAndAuth(t *testing.T) {
 	resp.Body.Close()
 	if resp.StatusCode != 200 || string(body) != "ok" {
 		t.Fatalf("erlaubt: status=%d body=%q", resp.StatusCode, body)
+	}
+	if gotProxyAuth != "" {
+		t.Errorf("Proxy-Authorization darf den Upstream nicht erreichen, kam an: %q", gotProxyAuth)
 	}
 
 	// Verweigert: anderer Host.

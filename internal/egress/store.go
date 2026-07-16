@@ -293,15 +293,15 @@ func (s *Store) LogDecision(ctx context.Context, agentID uuid.UUID, host, method
 	return err
 }
 
-// ListLog liefert die jüngsten Entscheidungen, optional nur blockierte bzw.
-// eines Agenten, mit Agent-Slug für die Anzeige.
-func (s *Store) ListLog(ctx context.Context, agentID uuid.UUID, onlyBlocked bool, limit int) ([]LogEntry, error) {
+// ListLog liefert die jüngsten Entscheidungen der Organisation, optional nur
+// blockierte bzw. eines Agenten, mit Agent-Slug für die Anzeige.
+func (s *Store) ListLog(ctx context.Context, orgID, agentID uuid.UUID, onlyBlocked bool, limit int) ([]LogEntry, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
 	q := `SELECT l.id, l.agent_id, COALESCE(a.slug,''), l.host, l.method, l.allowed, l.created_at
-	      FROM egress_log l LEFT JOIN agents a ON a.id=l.agent_id WHERE 1=1`
-	args := []any{}
+	      FROM egress_log l JOIN agents a ON a.id=l.agent_id WHERE a.org_id=$1`
+	args := []any{orgID}
 	if agentID != uuid.Nil {
 		args = append(args, agentID)
 		q += fmt.Sprintf(" AND l.agent_id=$%d", len(args))
@@ -341,8 +341,10 @@ func (s *Store) CleanupLog(ctx context.Context, olderThan time.Duration) (int64,
 	return tag.RowsAffected(), nil
 }
 
-// NormalizePattern validiert und normalisiert ein Host-Muster:
-// klein geschrieben, getrimmt, ohne Schema/Pfad, optional "*."-Präfix.
+// NormalizePattern validiert und normalisiert ein Host-Muster: klein
+// geschrieben, getrimmt, ohne Schema/Pfad/Port, optional "*."-Präfix. Ein
+// mitgegebener Port wird entfernt — die Allowlist matcht nur den Host, und
+// gespeichert wird genau das, was durchgesetzt wird.
 func NormalizePattern(raw string) (string, error) {
 	p := strings.ToLower(strings.TrimSpace(raw))
 	if p == "" {
@@ -351,15 +353,16 @@ func NormalizePattern(raw string) (string, error) {
 	if strings.ContainsAny(p, " \t/") || strings.Contains(p, "://") {
 		return "", fmt.Errorf("%w: nur Host (ohne Schema/Pfad/Leerzeichen)", ErrInvalidPattern)
 	}
-	host := p
-	if strings.HasPrefix(host, "*.") {
-		host = host[2:]
-	}
+	wildcard := strings.HasPrefix(p, "*.")
+	host := strings.TrimPrefix(p, "*.")
 	if h, _, err := net.SplitHostPort(host); err == nil {
 		host = h
 	}
 	if host == "" || !strings.Contains(host, ".") {
 		return "", fmt.Errorf("%w: kein gültiger Host", ErrInvalidPattern)
 	}
-	return p, nil
+	if wildcard {
+		return "*." + host, nil
+	}
+	return host, nil
 }

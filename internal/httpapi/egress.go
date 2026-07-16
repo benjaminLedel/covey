@@ -181,6 +181,7 @@ func (s *Server) handleDeleteAgentEgressHost(w http.ResponseWriter, r *http.Requ
 // --- Log ---
 
 func (s *Server) handleEgressLog(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
 	var agentID uuid.UUID
 	if a := r.URL.Query().Get("agent"); a != "" {
 		id, err := uuid.Parse(a)
@@ -197,7 +198,7 @@ func (s *Server) handleEgressLog(w http.ResponseWriter, r *http.Request) {
 	}
 	blocked := r.URL.Query().Get("blocked") == "true"
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
-	entries, err := s.EgressStore.ListLog(r.Context(), agentID, blocked, limit)
+	entries, err := s.EgressStore.ListLog(r.Context(), p.OrgID, agentID, blocked, limit)
 	if err != nil {
 		mapErr(w, err)
 		return

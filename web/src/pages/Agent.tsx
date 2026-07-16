@@ -12,7 +12,7 @@ import {
   type AgentEgress as AgentEgressCfg,
   type ConfigVersion,
   type CostSummary,
-  type EgressLogEntry,
+  type EgressStatus,
   type EgressTemplate,
   type MCPTool,
   type MemoryEntry,
@@ -25,6 +25,7 @@ import {
   type TargetPlugin,
   type Task,
 } from "../api";
+import { AddHostForm, EgressLogTable, HostChips } from "../components/EgressBits";
 
 const canManage = (role: string) => role === "platform_admin" || role === "agent_owner";
 const canKill = (role: string) => canManage(role) || role === "security";
@@ -1104,20 +1105,14 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
 }
 
 // AgentEgress: der Egress-Reiter auf der Agenten-Seite — welche Ziel-Hosts
-// darf DIESER Agent erreichen? Templates zuweisen, eigene Hosts pflegen, und
-// die jüngsten Egress-Entscheidungen dieses Agenten einsehen.
+// darf DIESER Agent erreichen? Oben die effektive Allowlist auf einen Blick,
+// darunter Templates zuweisen, eigene Hosts pflegen und das Entscheidungs-Log.
 function AgentEgress({ agentId, canEdit }: { agentId: string; canEdit: boolean }) {
   const qc = useQueryClient();
-  const [pattern, setPattern] = useState("");
-  const [err, setErr] = useState<string | null>(null);
 
+  const status = useQuery({ queryKey: ["egress", "status"], queryFn: () => api<EgressStatus>("/egress") });
   const templates = useQuery({ queryKey: ["egress", "templates"], queryFn: () => api<EgressTemplate[]>("/egress/templates") });
   const cfg = useQuery({ queryKey: ["egress", "agent", agentId], queryFn: () => api<AgentEgressCfg>(`/agents/${agentId}/egress`) });
-  const log = useQuery({
-    queryKey: ["egress", "log", agentId],
-    queryFn: () => api<EgressLogEntry[]>(`/egress/log?agent=${agentId}&limit=50`),
-    refetchInterval: 10000,
-  });
   const invalidate = () => qc.invalidateQueries({ queryKey: ["egress", "agent", agentId] });
 
   const toggleTpl = useMutation({
@@ -1125,75 +1120,79 @@ function AgentEgress({ agentId, canEdit }: { agentId: string; canEdit: boolean }
       on ? put(`/agents/${agentId}/egress/templates/${tid}`, {}) : del(`/agents/${agentId}/egress/templates/${tid}`),
     onSuccess: invalidate,
   });
-  const addHost = useMutation({
-    mutationFn: () => post(`/agents/${agentId}/egress/hosts`, { pattern }),
-    onSuccess: () => { setPattern(""); setErr(null); invalidate(); },
-    onError: (e: Error) => setErr(e.message),
-  });
   const delHost = useMutation({ mutationFn: (id: string) => del(`/agents/${agentId}/egress/hosts/${id}`), onSuccess: invalidate });
 
   const assigned = new Set(cfg.data?.template_ids ?? []);
-  const rows = log.data ?? [];
+  const assignedTemplates = (templates.data ?? []).filter((t) => assigned.has(t.id));
+
+  // Effektive Allowlist: Defaults + Hosts der zugewiesenen Templates + eigene
+  // Hosts, dedupliziert; die Quelle steht am Chip.
+  const effective = new Map<string, string>();
+  for (const d of status.data?.defaults ?? []) effective.set(d, "fest");
+  for (const t of assignedTemplates) for (const h of t.hosts) if (!effective.has(h.pattern)) effective.set(h.pattern, t.name);
+  for (const h of cfg.data?.hosts ?? []) if (!effective.has(h.pattern)) effective.set(h.pattern, "eigener Host");
 
   return (
-    <div style={{ maxWidth: 760 }}>
+    <div style={{ maxWidth: 780 }}>
       <p className="muted text-xs mb-4">
-        Dieser Agent darf nur zu Hosts auf seiner Allowlist ausgehend verbinden (fest erlaubte Hosts
-        + zugewiesene Templates + eigene Hosts unten). Alles andere blockt der Egress-Proxy. Templates
-        werden zentral unter <span className="mono">Egress</span> gepflegt.
+        Dieser Agent darf ausgehend nur die Hosts unten erreichen — alles andere blockt der
+        Egress-Proxy fail-closed. Templates werden zentral unter <span className="mono">Egress</span>{" "}
+        gepflegt und hier zugewiesen; eigene Hosts sind für Ausnahmen dieses Agenten.
       </p>
 
-      <p className="muted text-xs mb-1">Zugewiesene Templates</p>
-      <div className="flex flex-wrap gap-3 mb-4">
+      <div className="card mb-5" style={{ padding: "13px 15px" }}>
+        <p className="text-xs font-medium mb-2">Effektive Allowlist</p>
+        <div className="flex flex-wrap gap-1">
+          {[...effective.entries()].map(([pattern, source]) => (
+            <span key={pattern} className={`chip${source === "fest" ? " fixed" : ""}`}>
+              {pattern}
+              <span className="src">{source}</span>
+            </span>
+          ))}
+          {effective.size === 0 && <span className="muted text-xs">leer — jede ausgehende Verbindung wird blockiert</span>}
+        </div>
+      </div>
+
+      <p className="text-xs font-medium mb-2">Templates</p>
+      <div className="grid gap-2 mb-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}>
         {(templates.data ?? []).map((t) => (
-          <label key={t.id} className="flex items-center gap-1 text-sm" title={t.hosts.map((h) => h.pattern).join(", ")}>
-            <input type="checkbox" checked={assigned.has(t.id)} disabled={!canEdit || toggleTpl.isPending}
-              onChange={(e) => toggleTpl.mutate({ tid: t.id, on: e.target.checked })} />
-            {t.name} <span className="muted text-xs">({t.hosts.length})</span>
+          <label
+            key={t.id}
+            className="card flex items-start gap-2"
+            style={{ padding: "10px 12px", margin: 0, cursor: canEdit ? "pointer" : "default", opacity: assigned.has(t.id) ? 1 : 0.75 }}
+          >
+            <input
+              type="checkbox"
+              style={{ width: "auto", marginTop: 2 }}
+              checked={assigned.has(t.id)}
+              disabled={!canEdit || toggleTpl.isPending}
+              onChange={(e) => toggleTpl.mutate({ tid: t.id, on: e.target.checked })}
+            />
+            <span style={{ minWidth: 0 }}>
+              <span className="block text-sm font-medium" style={{ color: "var(--text-primary)" }}>{t.name}</span>
+              <span className="block mono text-[11px] muted" style={{ overflowWrap: "anywhere" }}>
+                {t.hosts.length === 0 ? "keine Hosts" : t.hosts.map((h) => h.pattern).join(", ")}
+              </span>
+            </span>
           </label>
         ))}
-        {(templates.data ?? []).length === 0 && <span className="muted text-xs">keine Templates — zuerst unter „Egress" anlegen</span>}
+        {(templates.data ?? []).length === 0 && (
+          <span className="muted text-xs">Noch keine Templates — zuerst auf der Seite „Egress" anlegen.</span>
+        )}
       </div>
 
-      <p className="muted text-xs mb-1">Eigene Hosts</p>
+      <p className="text-xs font-medium mb-2">Eigene Hosts</p>
       <div className="flex flex-wrap gap-1 mb-2">
-        {(cfg.data?.hosts ?? []).map((h) => (
-          <span key={h.id} className="mono text-xs" style={{ background: "var(--surface-2,#f2efe9)", padding: "2px 8px", borderRadius: 6 }}>
-            {h.pattern}{canEdit && <button className="ml-1" style={{ color: "var(--clay)" }} onClick={() => delHost.mutate(h.id)}>×</button>}
-          </span>
-        ))}
-        {(cfg.data?.hosts ?? []).length === 0 && <span className="muted text-xs">keine</span>}
+        <HostChips hosts={cfg.data?.hosts ?? []} canEdit={canEdit} onDelete={(id) => delHost.mutate(id)} emptyText="keine" />
       </div>
       {canEdit && (
-        <div className="flex items-center gap-1 mb-1" style={{ maxWidth: 440 }}>
-          <input className="mono" style={{ flex: 1, fontSize: 12 }} placeholder="host.example.com / *.example.com"
-            value={pattern} onChange={(e) => setPattern(e.target.value)} />
-          <button className="btn sm" disabled={addHost.isPending || !pattern.trim()} onClick={() => addHost.mutate()}>Hinzufügen</button>
+        <div className="mb-5" style={{ maxWidth: 560 }}>
+          <AddHostForm onAdd={(pattern, note) => post(`/agents/${agentId}/egress/hosts`, { pattern, note }).then(invalidate)} />
         </div>
       )}
-      {err && <p className="text-xs mb-2" style={{ color: "var(--clay)" }}>{err}</p>}
 
-      <p className="muted text-xs mt-5 mb-1">Letzte Egress-Entscheidungen</p>
-      <div className="card" style={{ padding: 0, overflowX: "auto" }}>
-        <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ textAlign: "left", color: "var(--text-secondary)" }}>
-              <th style={{ padding: "6px 10px" }}>Zeit</th><th>Host</th><th>Methode</th><th style={{ paddingRight: 10 }}>Ergebnis</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((e) => (
-              <tr key={e.id} style={{ borderTop: "1px solid var(--border,#e6e1d8)" }}>
-                <td style={{ padding: "5px 10px", whiteSpace: "nowrap" }}>{new Date(e.created_at).toLocaleTimeString()}</td>
-                <td className="mono">{e.host}</td>
-                <td>{e.method}</td>
-                <td style={{ paddingRight: 10, color: e.allowed ? "var(--text-secondary)" : "var(--clay)" }}>{e.allowed ? "erlaubt" : "blockiert"}</td>
-              </tr>
-            ))}
-            {rows.length === 0 && <tr><td colSpan={4} className="muted" style={{ padding: 10 }}>Noch keine Egress-Ereignisse für diesen Agenten.</td></tr>}
-          </tbody>
-        </table>
-      </div>
+      <p className="text-xs font-medium mt-5 mb-2">Letzte Egress-Entscheidungen</p>
+      <EgressLogTable agentId={agentId} />
     </div>
   );
 }

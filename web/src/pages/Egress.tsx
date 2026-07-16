@@ -2,12 +2,14 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   api, del, post,
-  type EgressLogEntry, type EgressStatus, type EgressTemplate, type Principal,
+  type EgressStatus, type EgressTemplate, type Principal,
 } from "../api";
+import { AddHostForm, EgressLogTable, HostChips } from "../components/EgressBits";
 
-// Egress-Seite: per-Agent-Allowlist über Templates + eigene Hosts, plus
-// Monitoring. Der Egress-Proxy lässt pro Agent nur Verbindungen zu dessen
-// effektiver Allowlist zu (Anthropic-Default + Templates + eigene Hosts).
+// Egress-Seite: wiederverwendbare Host-Templates und globales Monitoring.
+// Die Zuweisung (Templates + eigene Hosts) geschieht pro Agent im Egress-
+// Reiter der Agenten-Seite; der Proxy erzwingt die effektive Allowlist
+// fail-closed.
 export default function Egress({ me }: { me: Principal }) {
   const canEdit = me.Role === "platform_admin" || me.Role === "security";
   const status = useQuery({ queryKey: ["egress", "status"], queryFn: () => api<EgressStatus>("/egress") });
@@ -19,143 +21,155 @@ export default function Egress({ me }: { me: Principal }) {
         <span className="muted">Netzwerk-Ausgang der Sandboxen — pro Agent erlaubte Ziel-Hosts</span>
       </div>
       <p className="muted text-xs mb-4" style={{ maxWidth: 660 }}>
-        Jeder Agent darf nur zu Hosts auf seiner Allowlist ausgehend verbinden — alles andere blockt
-        der Proxy fail-closed. Hier verwaltest du die wiederverwendbaren <b>Templates</b> und siehst
-        das globale <b>Monitoring</b>. Die Zuweisung pro Agent (Templates + eigene Hosts) sitzt im
-        Reiter <span className="mono">Egress</span> der jeweiligen Agenten-Seite.
+        Jeder Agent darf ausgehend nur Hosts auf seiner Allowlist erreichen — alles andere blockt der
+        Proxy fail-closed. Hier pflegst du die wiederverwendbaren <b>Templates</b> (Host-Sets) und
+        siehst das <b>Monitoring</b> über alle Agenten. Zugewiesen wird pro Agent im Reiter{" "}
+        <span className="mono">Egress</span> der jeweiligen Agenten-Seite.
       </p>
 
-      {status.data && (
-        <div
-          className="card mb-6"
-          style={{ padding: "10px 14px", borderLeft: `3px solid ${status.data.enforced ? "var(--moss,#5a7d5a)" : "var(--clay)"}` }}
-        >
-          {status.data.enforced ? (
-            <span className="text-xs">● Egress-Enforcement <b>aktiv</b> (docker). Fest erlaubt: {status.data.defaults.map((d) => <span key={d} className="mono">{d} </span>)}</span>
-          ) : (
-            <span className="text-xs">○ Egress-Enforcement <b>nicht aktiv</b> — Einträge werden gespeichert, greifen mit <span className="mono">COVEY_SANDBOX_PROVIDER=docker</span> + <span className="mono">COVEY_EGRESS_ENFORCE=true</span>.</span>
-          )}
-        </div>
-      )}
+      {status.data && <StatusBanner status={status.data} />}
 
       <Templates canEdit={canEdit} />
-      <Monitoring />
+
+      <section>
+        <h2 className="text-base font-medium mb-2">Monitoring</h2>
+        <p className="muted text-xs mb-3" style={{ maxWidth: 620 }}>
+          Jede Egress-Entscheidung über alle Agenten. Häufungen von „blockiert" deuten auf fehlende
+          Allowlist-Einträge — oder auf einen Agenten, der wohin will, wo er nicht hingehört.
+        </p>
+        <EgressLogTable />
+      </section>
+    </div>
+  );
+}
+
+function StatusBanner({ status }: { status: EgressStatus }) {
+  return (
+    <div
+      className="card mb-6 text-xs"
+      style={{
+        padding: "10px 14px",
+        borderLeft: `3px solid ${status.enforced ? "var(--text-success)" : "var(--text-warning)"}`,
+      }}
+    >
+      {status.enforced ? (
+        <span>
+          <b>Enforcement aktiv</b> (docker) — fest erlaubt für alle Agenten:{" "}
+          {status.defaults.map((d) => (
+            <span key={d} className="chip fixed" style={{ marginRight: 4 }}>{d}</span>
+          ))}
+        </span>
+      ) : (
+        <span>
+          <b>Enforcement nicht aktiv</b> — Einträge werden gespeichert und greifen, sobald der Server
+          mit <span className="mono">COVEY_SANDBOX_PROVIDER=docker</span> und{" "}
+          <span className="mono">COVEY_EGRESS_ENFORCE=true</span> läuft.
+        </span>
+      )}
     </div>
   );
 }
 
 // --- Templates ---
+
 function Templates({ canEdit }: { canEdit: boolean }) {
   const qc = useQueryClient();
-  const [name, setName] = useState("");
-  const [desc, setDesc] = useState("");
-  const [err, setErr] = useState<string | null>(null);
   const templates = useQuery({ queryKey: ["egress", "templates"], queryFn: () => api<EgressTemplate[]>("/egress/templates") });
   const invalidate = () => qc.invalidateQueries({ queryKey: ["egress"] });
-
-  const create = useMutation({
-    mutationFn: () => post("/egress/templates", { name, description: desc }),
-    onSuccess: () => { setName(""); setDesc(""); setErr(null); invalidate(); },
-    onError: (e: Error) => setErr(e.message),
-  });
   const remove = useMutation({ mutationFn: (id: string) => del(`/egress/templates/${id}`), onSuccess: invalidate });
 
   const list = templates.data ?? [];
   return (
     <section className="mb-8">
       <h2 className="text-base font-medium mb-2">Templates</h2>
-      <p className="muted text-xs mb-3" style={{ maxWidth: 620 }}>Wiederverwendbare Host-Sets, die du Agenten zuweist (z.&nbsp;B. „Zammad-Prod").</p>
-      <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
-        {list.map((t) => <TemplateCard key={t.id} tpl={t} canEdit={canEdit} onChange={invalidate} onDelete={() => remove.mutate(t.id)} />)}
-        {list.length === 0 && !templates.isLoading && <p className="muted text-xs">Noch keine Templates.</p>}
+      <p className="muted text-xs mb-3" style={{ maxWidth: 620 }}>
+        Wiederverwendbare Host-Sets, z.&nbsp;B. „Zammad-Prod" oder „Paket-Registries". Ein Template
+        mehreren Agenten zuzuweisen ist der Normalfall — Einzel-Hosts nur für Ausnahmen direkt am
+        Agenten pflegen.
+      </p>
+      <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))" }}>
+        {list.map((t) => (
+          <TemplateCard key={t.id} tpl={t} canEdit={canEdit} onChange={invalidate} onDelete={() => remove.mutate(t.id)} />
+        ))}
+        {list.length === 0 && !templates.isLoading && (
+          <p className="muted text-xs">
+            Noch keine Templates — lege unten das erste an{canEdit ? "" : " (Rolle platform_admin oder security nötig)"}.
+          </p>
+        )}
       </div>
-      {canEdit && (
-        <div className="flex flex-wrap items-end gap-2">
-          <label className="block"><span className="muted text-xs block mb-1">Name</span>
-            <input placeholder="Zammad-Prod" value={name} onChange={(e) => setName(e.target.value)} /></label>
-          <label className="block flex-1" style={{ minWidth: 180 }}><span className="muted text-xs block mb-1">Beschreibung</span>
-            <input placeholder="optional" value={desc} onChange={(e) => setDesc(e.target.value)} /></label>
-          <button className="btn primary" disabled={create.isPending || !name.trim()} onClick={() => create.mutate()}>Template anlegen</button>
-        </div>
-      )}
-      {err && <p className="text-xs mt-2" style={{ color: "var(--clay)" }}>{err}</p>}
+      {canEdit && <CreateTemplate onCreated={invalidate} />}
     </section>
   );
 }
 
-function TemplateCard({ tpl, canEdit, onChange, onDelete }: { tpl: EgressTemplate; canEdit: boolean; onChange: () => void; onDelete: () => void }) {
-  const [pattern, setPattern] = useState("");
-  const [err, setErr] = useState<string | null>(null);
-  const addHost = useMutation({
-    mutationFn: () => post(`/egress/templates/${tpl.id}/hosts`, { pattern }),
-    onSuccess: () => { setPattern(""); setErr(null); onChange(); },
-    onError: (e: Error) => setErr(e.message),
-  });
+function TemplateCard({
+  tpl, canEdit, onChange, onDelete,
+}: {
+  tpl: EgressTemplate; canEdit: boolean; onChange: () => void; onDelete: () => void;
+}) {
   const delHost = useMutation({ mutationFn: (id: string) => del(`/egress/template-hosts/${id}`), onSuccess: onChange });
   return (
-    <div className="card" style={{ padding: "12px 14px" }}>
-      <div className="flex items-center gap-2 mb-1">
+    <div className="card fade" style={{ padding: "13px 15px" }}>
+      <div className="flex items-baseline gap-2 mb-1">
         <span className="font-medium">{tpl.name}</span>
-        {canEdit && <button className="btn sm danger ml-auto" onClick={() => { if (confirm(`Template „${tpl.name}" löschen?`)) onDelete(); }}>Löschen</button>}
+        <span className="muted text-xs">{tpl.hosts.length} Host{tpl.hosts.length === 1 ? "" : "s"}</span>
+        {canEdit && (
+          <button
+            className="btn sm danger ml-auto"
+            onClick={() => { if (confirm(`Template „${tpl.name}" löschen? Agenten verlieren die zugehörigen Hosts.`)) onDelete(); }}
+          >
+            Löschen
+          </button>
+        )}
       </div>
       {tpl.description && <p className="muted text-xs mb-2">{tpl.description}</p>}
-      <div className="flex flex-wrap gap-1 mb-2">
-        {tpl.hosts.map((h) => (
-          <span key={h.id} className="mono text-xs" style={{ background: "var(--surface-2,#f2efe9)", padding: "2px 8px", borderRadius: 6 }}>
-            {h.pattern}{canEdit && <button className="ml-1" style={{ color: "var(--clay)" }} onClick={() => delHost.mutate(h.id)} title="entfernen">×</button>}
-          </span>
-        ))}
-        {tpl.hosts.length === 0 && <span className="muted text-xs">keine Hosts</span>}
+      <div className="flex flex-wrap gap-1 mb-3">
+        <HostChips
+          hosts={tpl.hosts}
+          canEdit={canEdit}
+          onDelete={(id) => delHost.mutate(id)}
+          emptyText="noch keine Hosts — unten hinzufügen"
+        />
       </div>
-      {canEdit && (
-        <div className="flex items-center gap-1">
-          <input className="mono" style={{ flex: 1, fontSize: 12 }} placeholder="host.example.com / *.example.com" value={pattern} onChange={(e) => setPattern(e.target.value)} />
-          <button className="btn sm" disabled={addHost.isPending || !pattern.trim()} onClick={() => addHost.mutate()}>+</button>
-        </div>
-      )}
-      {err && <p className="text-xs mt-1" style={{ color: "var(--clay)" }}>{err}</p>}
+      {canEdit && <AddHostForm onAdd={(pattern, note) => post(`/egress/templates/${tpl.id}/hosts`, { pattern, note }).then(onChange)} />}
     </div>
   );
 }
 
-// --- Monitoring ---
-function Monitoring() {
-  const [onlyBlocked, setOnlyBlocked] = useState(false);
-  const log = useQuery({
-    queryKey: ["egress", "log", onlyBlocked],
-    queryFn: () => api<EgressLogEntry[]>(`/egress/log?limit=100${onlyBlocked ? "&blocked=true" : ""}`),
-    refetchInterval: 10000,
+// CreateTemplate: erst ein Button, aufgeklappt eine Karte (Muster wie beim
+// Manifest-Upload auf der Zielsysteme-Seite).
+function CreateTemplate({ onCreated }: { onCreated: () => void }) {
+  const [show, setShow] = useState(false);
+  const [name, setName] = useState("");
+  const [desc, setDesc] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+
+  const create = useMutation({
+    mutationFn: () => post("/egress/templates", { name: name.trim(), description: desc.trim() }),
+    onSuccess: () => { setName(""); setDesc(""); setErr(null); setShow(false); onCreated(); },
+    onError: (e: Error) => setErr(e.message),
   });
-  const rows = log.data ?? [];
+
+  if (!show) return <button className="btn" onClick={() => setShow(true)}>Template anlegen…</button>;
   return (
-    <section>
-      <div className="flex items-center gap-3 mb-2">
-        <h2 className="text-base font-medium">Monitoring</h2>
-        <label className="flex items-center gap-1 text-xs muted">
-          <input type="checkbox" checked={onlyBlocked} onChange={(e) => setOnlyBlocked(e.target.checked)} /> nur blockierte
+    <div className="card" style={{ padding: "14px 16px", maxWidth: 560 }}>
+      <div className="grid gap-2 mb-2" style={{ gridTemplateColumns: "1fr 2fr" }}>
+        <label className="text-xs">
+          Name
+          <input placeholder="Zammad-Prod" value={name} autoFocus onChange={(e) => setName(e.target.value)} />
+        </label>
+        <label className="text-xs">
+          Beschreibung (optional)
+          <input placeholder="Helpdesk-Produktion + Wissensdatenbank" value={desc} onChange={(e) => setDesc(e.target.value)} />
         </label>
       </div>
-      <div className="card" style={{ padding: 0, overflowX: "auto" }}>
-        <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ textAlign: "left", color: "var(--text-secondary)" }}>
-              <th style={{ padding: "6px 10px" }}>Zeit</th><th>Agent</th><th>Host</th><th>Methode</th><th style={{ paddingRight: 10 }}>Ergebnis</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((e) => (
-              <tr key={e.id} style={{ borderTop: "1px solid var(--border,#e6e1d8)" }}>
-                <td style={{ padding: "5px 10px", whiteSpace: "nowrap" }}>{new Date(e.created_at).toLocaleTimeString()}</td>
-                <td className="mono">{e.agent_slug || "—"}</td>
-                <td className="mono">{e.host}</td>
-                <td>{e.method}</td>
-                <td style={{ paddingRight: 10, color: e.allowed ? "var(--text-secondary)" : "var(--clay)" }}>{e.allowed ? "erlaubt" : "blockiert"}</td>
-              </tr>
-            ))}
-            {rows.length === 0 && <tr><td colSpan={5} className="muted" style={{ padding: "10px" }}>Noch keine Egress-Ereignisse.</td></tr>}
-          </tbody>
-        </table>
+      {err && <p className="text-xs mb-2" style={{ color: "var(--text-danger)" }}>{err}</p>}
+      <div className="flex items-center gap-2">
+        <button className="btn sm primary" disabled={create.isPending || !name.trim()} onClick={() => create.mutate()}>
+          Anlegen
+        </button>
+        <button className="btn sm" onClick={() => { setShow(false); setErr(null); }}>Abbrechen</button>
       </div>
-    </section>
+    </div>
   );
 }

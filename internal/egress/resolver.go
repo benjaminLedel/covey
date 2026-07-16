@@ -2,11 +2,13 @@ package egress
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 )
 
 // DBResolver löst die per-Agent-Allowlist aus dem Store auf (mit kurzem Cache),
@@ -29,6 +31,7 @@ type DBResolver struct {
 type cachedEntry struct {
 	allow     *Allowlist
 	tokenHash string
+	loaded    time.Time
 	expires   time.Time
 }
 
@@ -72,35 +75,61 @@ func (r *DBResolver) Resolve(ctx context.Context, agentID, token string) (*Allow
 	r.mu.Unlock()
 
 	if !ok || time.Now().After(entry.expires) {
-		entry, err = r.load(ctx, id)
-		if err != nil {
-			r.log.Warn("egress-resolver: laden fehlgeschlagen", "agent", id, "err", err)
+		if entry, err = r.reload(ctx, id); err != nil {
 			return nil, uuid.Nil, false
 		}
-		r.mu.Lock()
-		r.cache[id] = entry
-		r.mu.Unlock()
 	}
 
 	if entry.tokenHash == "" || HashToken(token) != entry.tokenHash {
-		return nil, uuid.Nil, false
+		// Beim Sandbox-Wake rotiert das Token — ein gecachter, alter Hash darf
+		// die frische Sandbox nicht bis zum TTL-Ablauf mit 407 aussperren.
+		// Einmal neu laden und erneut prüfen; die Mindest-Frische begrenzt,
+		// wie oft falsche Tokens einen DB-Zugriff auslösen können.
+		if time.Since(entry.loaded) < 2*time.Second {
+			return nil, uuid.Nil, false
+		}
+		if entry, err = r.reload(ctx, id); err != nil {
+			return nil, uuid.Nil, false
+		}
+		if entry.tokenHash == "" || HashToken(token) != entry.tokenHash {
+			return nil, uuid.Nil, false
+		}
 	}
 	return entry.allow, id, true
 }
 
-func (r *DBResolver) load(ctx context.Context, id uuid.UUID) (cachedEntry, error) {
-	hash, err := r.store.AgentTokenHash(ctx, id)
+// reload lädt den Cache-Eintrag eines Agenten frisch aus der DB und ersetzt
+// ihn im Cache. Fehler werden geloggt und propagiert (fail-closed, ohne den
+// Fehlzustand zu cachen).
+func (r *DBResolver) reload(ctx context.Context, id uuid.UUID) (cachedEntry, error) {
+	entry, err := r.load(ctx, id)
 	if err != nil {
+		r.log.Warn("egress-resolver: laden fehlgeschlagen", "agent", id, "err", err)
+		return cachedEntry{}, err
+	}
+	r.mu.Lock()
+	r.cache[id] = entry
+	r.mu.Unlock()
+	return entry, nil
+}
+
+func (r *DBResolver) load(ctx context.Context, id uuid.UUID) (cachedEntry, error) {
+	now := time.Now()
+	hash, err := r.store.AgentTokenHash(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
 		// Kein Token hinterlegt → kein gültiger Zugang (fail-closed). Trotzdem
 		// mit leerem Hash cachen, damit nicht jede Anfrage die DB trifft.
-		return cachedEntry{allow: NewAllowlist(r.defaults), tokenHash: "", expires: time.Now().Add(r.ttl)}, nil
+		return cachedEntry{allow: NewAllowlist(r.defaults), tokenHash: "", loaded: now, expires: now.Add(r.ttl)}, nil
+	}
+	if err != nil {
+		return cachedEntry{}, err
 	}
 	patterns, err := r.store.EffectiveAllowlist(ctx, id)
 	if err != nil {
 		return cachedEntry{}, err
 	}
 	all := append(append([]string{}, r.defaults...), patterns...)
-	return cachedEntry{allow: NewAllowlist(all), tokenHash: hash, expires: time.Now().Add(r.ttl)}, nil
+	return cachedEntry{allow: NewAllowlist(all), tokenHash: hash, loaded: now, expires: now.Add(r.ttl)}, nil
 }
 
 // Log reiht eine Entscheidung nicht-blockierend ein; bei vollem Puffer wird
