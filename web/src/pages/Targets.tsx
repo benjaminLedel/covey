@@ -1,6 +1,11 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, del, patch, type Principal, type TargetPlugin } from "../api";
+import { api, del, patch, post, type MCPTool, type Principal, type TargetPlugin } from "../api";
+
+const kindLabel = (k: TargetPlugin["kind"]) =>
+  k === "custom" ? "Manifest" : k === "mcp" ? "MCP" : "eingebaut";
+const kindColor = (k: TargetPlugin["kind"]) =>
+  k === "builtin" ? "var(--text-secondary)" : "var(--clay)";
 
 const exampleManifest = `{
   "name": "helpdesk",
@@ -62,6 +67,12 @@ export default function Targets({ me }: { me: Principal }) {
     onError: (e: Error) => setError(e.message),
   });
 
+  const discover = useMutation({
+    mutationFn: ({ name, token }: { name: string; token?: string }) =>
+      post(`/targets/${name}/discover`, token ? { token } : {}),
+    onSuccess: invalidate,
+  });
+
   const readFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => setManifestText(String(reader.result ?? ""));
@@ -91,14 +102,14 @@ export default function Targets({ me }: { me: Principal }) {
             <div className="flex items-center gap-2 mb-1">
               <span className="font-medium">{p.label || p.name}</span>
               <span className="mono text-xs muted">{p.name}</span>
-              <span
-                className="text-[11px] ml-auto"
-                style={{ color: p.kind === "custom" ? "var(--clay)" : "var(--text-secondary)" }}
-              >
-                {p.kind === "custom" ? "Manifest" : "eingebaut"}
+              <span className="text-[11px] ml-auto" style={{ color: kindColor(p.kind) }}>
+                {kindLabel(p.kind)}
               </span>
             </div>
             <p className="muted text-xs mb-3">{p.description || "—"}</p>
+            {p.kind === "mcp" && (
+              <MCPTools plugin={p} canEdit={canEdit} onDiscover={(token) => discover.mutate({ name: p.name, token })} pending={discover.isPending} />
+            )}
             <div className="flex items-center gap-2">
               <span className="text-[11px]" style={{ color: p.enabled ? "var(--text-secondary)" : "var(--clay)" }}>
                 {p.enabled ? "● aktiv" : "○ deaktiviert"}
@@ -112,12 +123,12 @@ export default function Targets({ me }: { me: Principal }) {
                   {p.enabled ? "Deaktivieren" : "Aktivieren"}
                 </button>
               )}
-              {canEdit && p.kind === "custom" && (
+              {canEdit && (p.kind === "custom" || p.kind === "mcp") && (
                 <button
                   className="btn sm danger"
                   disabled={remove.isPending}
                   onClick={() => {
-                    if (confirm(`Manifest-Plugin „${p.name}" wirklich löschen?`)) remove.mutate(p.name);
+                    if (confirm(`Plugin „${p.name}" wirklich löschen?`)) remove.mutate(p.name);
                   }}
                 >
                   Löschen
@@ -190,12 +201,177 @@ export default function Targets({ me }: { me: Principal }) {
               </div>
             </div>
           )}
+          <AddMCP onDone={invalidate} />
         </>
       )}
       {!canEdit && (
         <p className="muted text-xs mt-3">
           Ihre Rolle ({me.Role}) kann Zielsysteme ansehen, aber nicht verwalten.
         </p>
+      )}
+    </div>
+  );
+}
+
+// MCPTools zeigt die entdeckte Tool-Liste eines MCP-Servers und erlaubt eine
+// erneute Discovery (optional mit Token, falls der Server Auth verlangt).
+function MCPTools({
+  plugin,
+  canEdit,
+  onDiscover,
+  pending,
+}: {
+  plugin: TargetPlugin;
+  canEdit: boolean;
+  onDiscover: (token?: string) => void;
+  pending: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [token, setToken] = useState("");
+  const tools: MCPTool[] = plugin.manifest?.tools ?? [];
+  const url = plugin.manifest?.url;
+  return (
+    <div className="mb-3">
+      {url && <p className="mono text-[11px] muted mb-1" style={{ wordBreak: "break-all" }}>{url}</p>}
+      <button className="btn sm mb-2" onClick={() => setOpen((o) => !o)}>
+        {tools.length} Tool{tools.length === 1 ? "" : "s"} {open ? "▲" : "▼"}
+      </button>
+      {open && (
+        <div className="mb-2">
+          {tools.length === 0 && <p className="muted text-xs">Noch keine Tools entdeckt.</p>}
+          <ul className="text-xs" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {tools.map((t) => (
+              <li key={t.name} className="mb-1">
+                <span className="mono">{t.name}</span>
+                {t.description && <span className="muted"> — {t.description.split("\n")[0]}</span>}
+              </li>
+            ))}
+          </ul>
+          {canEdit && (
+            <div className="flex items-center gap-2 mt-2">
+              <input
+                type="password"
+                placeholder="Token (falls Auth nötig)"
+                className="mono"
+                style={{ fontSize: 11, flex: 1 }}
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+              />
+              <button className="btn sm" disabled={pending} onClick={() => onDiscover(token || undefined)}>
+                Tools aktualisieren
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// AddMCP ist das Formular zum Anbinden eines MCP-Servers. Der Token dient nur
+// der sofortigen Tool-Discovery und wird nicht gespeichert — zur Laufzeit
+// brokert Covey <name>_token aus den Secrets.
+function AddMCP({ onDone }: { onDone: () => void }) {
+  const [show, setShow] = useState(false);
+  const [f, setF] = useState({ name: "", label: "", description: "", url: "", header: "", format: "", token: "" });
+  const [msg, setMsg] = useState<string | null>(null);
+  const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
+
+  const create = useMutation({
+    mutationFn: () =>
+      post<{ name: string; tools?: MCPTool[]; discover_error?: string }>("/targets/mcp", {
+        name: f.name.trim(),
+        label: f.label.trim(),
+        description: f.description.trim(),
+        url: f.url.trim(),
+        auth: f.header || f.format ? { header: f.header.trim(), format: f.format.trim() } : {},
+        token: f.token,
+      }),
+    onSuccess: (res) => {
+      onDone();
+      if (res.discover_error) {
+        setMsg(`Angelegt, aber Tool-Discovery fehlgeschlagen: ${res.discover_error}`);
+      } else {
+        setMsg(`„${res.name}" angebunden — ${res.tools?.length ?? 0} Tool(s) entdeckt.`);
+        setF({ name: "", label: "", description: "", url: "", header: "", format: "", token: "" });
+        setShow(false);
+      }
+    },
+    onError: (e: Error) => setMsg(e.message),
+  });
+
+  return (
+    <div className="mt-6">
+      <h2 className="text-base font-medium mb-2">MCP-Server anbinden</h2>
+      {!show ? (
+        <button className="btn" onClick={() => setShow(true)}>
+          MCP-Server hinzufügen…
+        </button>
+      ) : (
+        <div className="card" style={{ padding: "14px 16px", maxWidth: 720 }}>
+          <p className="muted text-xs mb-3">
+            Covey verbindet sich per Streamable-HTTP zum MCP-Server, entdeckt die Tool-Liste
+            (<span className="mono">tools/list</span>) und zeigt sie hier an. Die Tools laufen wie
+            jedes Zielsystem über den Action-Proxy — Guard-Rails und Broker greifen unverändert.
+            Verlangt der Server Auth, geben Sie hier den Token für die Discovery an; für die Laufzeit
+            hinterlegen Sie ihn als Secret <span className="mono">&lt;name&gt;_token</span>.
+          </p>
+          <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+            <label className="text-xs">
+              Name (Slug)
+              <input className="mono" value={f.name} onChange={set("name")} placeholder="weather" />
+            </label>
+            <label className="text-xs">
+              Label
+              <input value={f.label} onChange={set("label")} placeholder="Wetterdienst" />
+            </label>
+          </div>
+          <label className="text-xs">
+            Endpoint-URL
+            <input className="mono" value={f.url} onChange={set("url")} placeholder="https://mcp.example.com/mcp" />
+          </label>
+          <label className="text-xs">
+            Beschreibung
+            <input value={f.description} onChange={set("description")} placeholder="optional" />
+          </label>
+          <div className="grid gap-2 mt-1" style={{ gridTemplateColumns: "1fr 1fr" }}>
+            <label className="text-xs">
+              Auth-Header (optional)
+              <input className="mono" value={f.header} onChange={set("header")} placeholder="Authorization" />
+            </label>
+            <label className="text-xs">
+              Header-Format (optional)
+              <input className="mono" value={f.format} onChange={set("format")} placeholder="Bearer {token}" />
+            </label>
+          </div>
+          <label className="text-xs">
+            Token für Discovery (optional, wird nicht gespeichert)
+            <input type="password" className="mono" value={f.token} onChange={set("token")} />
+          </label>
+          {msg && (
+            <p className="text-xs mt-2" style={{ color: "var(--clay)" }}>
+              {msg}
+            </p>
+          )}
+          <div className="flex items-center gap-2 mt-3">
+            <button
+              className="btn sm primary ml-auto"
+              disabled={create.isPending || !f.name.trim() || !f.url.trim()}
+              onClick={() => {
+                setMsg(null);
+                create.mutate();
+              }}
+            >
+              Anbinden & Tools entdecken
+            </button>
+            <button className="btn sm" onClick={() => { setShow(false); setMsg(null); }}>
+              Abbrechen
+            </button>
+          </div>
+        </div>
+      )}
+      {!show && msg && (
+        <p className="text-xs mt-2 muted">{msg}</p>
       )}
     </div>
   );

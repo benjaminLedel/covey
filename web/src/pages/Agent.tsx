@@ -14,6 +14,7 @@ import {
   type CostSummary,
   type EgressLogEntry,
   type EgressTemplate,
+  type MCPTool,
   type MemoryEntry,
   type OrgChart,
   type Principal,
@@ -21,6 +22,7 @@ import {
   type SecretCheck,
   type SecretPreview,
   type Stage,
+  type TargetPlugin,
   type Task,
 } from "../api";
 
@@ -32,7 +34,7 @@ export default function AgentPage({ me }: { me: Principal }) {
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const agent = useQuery({ queryKey: ["agent", id], queryFn: () => api<Agent>(`/agents/${id}`) });
-  const [tab, setTab] = useState<"backlog" | "recording" | "config" | "memory" | "secrets" | "egress">("backlog");
+  const [tab, setTab] = useState<"backlog" | "recording" | "config" | "memory" | "secrets" | "egress" | "tools">("backlog");
   const [recTask, setRecTask] = useState<{ id: string; title: string } | null>(null);
 
   const act = useMutation({
@@ -93,6 +95,7 @@ export default function AgentPage({ me }: { me: Principal }) {
             ["recording", "Recording"],
             ["config", "Config"],
             ["memory", "Gedächtnis"],
+            ["tools", "Tools"],
             ["egress", "Egress"],
             ...(canSecrets(me.Role) ? ([["secrets", "Secrets"]] as const) : []),
           ] as const
@@ -132,6 +135,7 @@ export default function AgentPage({ me }: { me: Principal }) {
       {tab === "config" && <Config agentId={a.id} canManage={canManage(me.Role)} />}
       {tab === "memory" && <Memories agentId={a.id} canManage={canManage(me.Role)} />}
       {tab === "egress" && <AgentEgress agentId={a.id} canEdit={canSecrets(me.Role)} />}
+      {tab === "tools" && <AgentTools agentId={a.id} canEdit={canSecrets(me.Role)} />}
       {tab === "secrets" && canSecrets(me.Role) && <AgentSecrets agentId={a.id} />}
     </div>
   );
@@ -1190,6 +1194,145 @@ function AgentEgress({ agentId, canEdit }: { agentId: string; canEdit: boolean }
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+// AgentTools: welche Tools der angebundenen MCP-Server dieser Agent nutzen darf.
+// Keine Auswahl (leere Allowlist) = alle Tools des Systems erlaubt; sobald ein
+// System auf "nur ausgewählte" steht, greift die Allowlist fail-closed — die
+// Control Plane weist nicht zugewiesene Tool-Aufrufe zentral ab.
+function AgentTools({ agentId, canEdit }: { agentId: string; canEdit: boolean }) {
+  const targets = useQuery({
+    queryKey: ["targets"],
+    queryFn: () => api<TargetPlugin[] | null>("/targets"),
+  });
+  const mcp = (targets.data ?? []).filter((t) => t.kind === "mcp");
+
+  return (
+    <div>
+      <p className="muted text-xs mb-4" style={{ maxWidth: 640 }}>
+        Weise diesem Agenten gezielt Tools der angebundenen{" "}
+        <Link to="/targets">MCP-Server</Link> zu. Ohne Auswahl darf der Agent alle Tools eines
+        aktivierten Servers nutzen; wählst du einzelne aus, sind nur diese erlaubt — alle anderen
+        Aufrufe weist die Control Plane ab.
+      </p>
+      {mcp.length === 0 && (
+        <p className="muted">
+          Keine MCP-Server angebunden. Binde unter <Link to="/targets">Zielsysteme</Link> einen an.
+        </p>
+      )}
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+        {mcp.map((p) => (
+          <MCPToolAssign key={p.name} agentId={agentId} plugin={p} canEdit={canEdit} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MCPToolAssign({
+  agentId,
+  plugin,
+  canEdit,
+}: {
+  agentId: string;
+  plugin: TargetPlugin;
+  canEdit: boolean;
+}) {
+  const qc = useQueryClient();
+  const tools: MCPTool[] = plugin.manifest?.tools ?? [];
+  const assigned = useQuery({
+    queryKey: ["agent-tools", agentId, plugin.name],
+    queryFn: () => api<string[]>(`/agents/${agentId}/tools/${plugin.name}`),
+  });
+
+  const [restrict, setRestrict] = useState<boolean | null>(null);
+  const [sel, setSel] = useState<Set<string>>(new Set());
+
+  // Serverzustand → lokaler Entwurf, sobald geladen (einmalig pro Fetch).
+  const loaded = assigned.data;
+  const effectiveRestrict = restrict ?? (loaded ? loaded.length > 0 : false);
+  const effectiveSel = restrict === null && loaded ? new Set(loaded) : sel;
+
+  const save = useMutation({
+    mutationFn: (tools: string[]) => put(`/agents/${agentId}/tools/${plugin.name}`, { tools }),
+    onSuccess: () => {
+      setRestrict(null);
+      qc.invalidateQueries({ queryKey: ["agent-tools", agentId, plugin.name] });
+    },
+  });
+
+  const toggleSel = (name: string) => {
+    const next = new Set(effectiveSel);
+    next.has(name) ? next.delete(name) : next.add(name);
+    setRestrict(true);
+    setSel(next);
+  };
+  const setMode = (r: boolean) => {
+    setRestrict(r);
+    if (r && effectiveSel.size === 0) setSel(new Set(tools.map((t) => t.name)));
+    else setSel(new Set(effectiveSel));
+  };
+
+  const dirty = restrict !== null;
+
+  return (
+    <div className="card" style={{ padding: "14px 16px", opacity: plugin.enabled ? 1 : 0.6 }}>
+      <div className="flex items-center gap-2 mb-2">
+        <span className="font-medium">{plugin.label || plugin.name}</span>
+        <span className="mono text-xs muted">{plugin.name}</span>
+        {!plugin.enabled && <span className="text-[11px] ml-auto" style={{ color: "var(--clay)" }}>deaktiviert</span>}
+      </div>
+      {tools.length === 0 ? (
+        <p className="muted text-xs">Noch keine Tools entdeckt — unter Zielsysteme „Tools aktualisieren".</p>
+      ) : (
+        <>
+          <div className="flex gap-3 text-xs mb-2">
+            <label className="flex items-center gap-1">
+              <input type="radio" checked={!effectiveRestrict} disabled={!canEdit} onChange={() => setMode(false)} />
+              Alle Tools
+            </label>
+            <label className="flex items-center gap-1">
+              <input type="radio" checked={effectiveRestrict} disabled={!canEdit} onChange={() => setMode(true)} />
+              Nur ausgewählte
+            </label>
+          </div>
+          <ul className="text-xs" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+            {tools.map((t) => (
+              <li key={t.name} className="mb-1">
+                <label className="flex items-start gap-2" style={{ opacity: effectiveRestrict ? 1 : 0.5 }}>
+                  <input
+                    type="checkbox"
+                    style={{ marginTop: 2 }}
+                    disabled={!canEdit || !effectiveRestrict}
+                    checked={effectiveRestrict ? effectiveSel.has(t.name) : true}
+                    onChange={() => toggleSel(t.name)}
+                  />
+                  <span>
+                    <span className="mono">{t.name}</span>
+                    {t.description && <span className="muted"> — {t.description.split("\n")[0]}</span>}
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+          {canEdit && (
+            <div className="flex items-center gap-2 mt-3">
+              <span className="text-[11px] muted">
+                {effectiveRestrict ? `${effectiveSel.size} von ${tools.length} erlaubt` : "alle erlaubt"}
+              </span>
+              <button
+                className="btn sm primary ml-auto"
+                disabled={!dirty || save.isPending || (effectiveRestrict && effectiveSel.size === 0)}
+                onClick={() => save.mutate(effectiveRestrict ? [...effectiveSel] : [])}
+              >
+                Speichern
+              </button>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

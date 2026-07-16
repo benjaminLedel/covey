@@ -127,16 +127,24 @@ export type RuntimeInfo = {
   setup: SetupStep[];
 };
 
-// Zielsystem-Plugin: kompiliertes Built-in (Registry) oder hochgeladenes
-// JSON-Manifest (kind=custom), pro Organisation aktivierbar.
+// Zielsystem-Plugin: kompiliertes Built-in (Registry), hochgeladenes
+// JSON-Manifest (kind=custom) oder angebundener MCP-Server (kind=mcp),
+// pro Organisation aktivierbar.
 export type TargetPlugin = {
   name: string;
   label: string;
   description: string;
-  kind: "builtin" | "custom";
+  kind: "builtin" | "custom" | "mcp";
   enabled: boolean;
-  manifest?: unknown;
+  manifest?: { url?: string; tools?: MCPTool[]; auth?: { header?: string; format?: string } };
   updated_at?: string;
+};
+
+// Ein vom MCP-Server angebotenes Werkzeug (aus tools/list entdeckt).
+export type MCPTool = {
+  name: string;
+  description?: string;
+  input_schema?: unknown;
 };
 
 // Egress: per-Agent-Allowlist über wiederverwendbare Templates + eigene Hosts,
