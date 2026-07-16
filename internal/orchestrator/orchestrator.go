@@ -5,6 +5,8 @@ package orchestrator
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -19,6 +21,7 @@ import (
 	"covey/internal/agents"
 	"covey/internal/backlog"
 	"covey/internal/daemon"
+	"covey/internal/egress"
 	"covey/internal/guardrails"
 	"covey/internal/identity"
 	"covey/internal/memory"
@@ -46,6 +49,7 @@ type Options struct {
 	Identity       identity.Provider
 	Memory         *memory.Store
 	Targets        *targetstore.Store
+	Egress         *egress.Store
 	Provider       SandboxProvider
 	PublicWSURL    string // ws://…/api/daemon/ws — von Sandboxen erreichbar
 	DaemonTokenTTL time.Duration
@@ -314,8 +318,23 @@ func (o *Orchestrator) wake(ctx context.Context, agent agents.Agent) (DaemonLink
 		o.mu.Unlock()
 	}()
 
+	// Per-Sandbox-Egress-Token: der Proxy identifiziert den Agenten darüber.
+	// Rotiert bei jedem Wake; nur der Hash wird gespeichert.
+	egressToken := ""
+	if o.Egress != nil {
+		buf := make([]byte, 32)
+		if _, err := rand.Read(buf); err == nil {
+			egressToken = hex.EncodeToString(buf)
+			if err := o.Egress.SetAgentToken(ctx, agent.ID, egress.HashToken(egressToken)); err != nil {
+				o.Log.Warn("egress-token setzen fehlgeschlagen", "agent", agent.ID, "err", err)
+				egressToken = ""
+			}
+		}
+	}
+
 	sandbox, err := o.Provider.Start(ctx, SandboxSpec{
-		AgentID: agent.ID,
+		AgentID:     agent.ID,
+		EgressToken: egressToken,
 		Env: map[string]string{
 			"COVEY_WS_URL":       o.PublicWSURL,
 			"COVEY_DAEMON_TOKEN": tok.Value,

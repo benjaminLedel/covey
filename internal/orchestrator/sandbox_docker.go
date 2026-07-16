@@ -96,7 +96,7 @@ func (p *DockerProvider) Start(ctx context.Context, spec SandboxSpec) (Sandbox, 
 		if err := p.ensureNetworkIsolation(ctx); err != nil {
 			return nil, fmt.Errorf("egress-netz vorbereiten: %w", err)
 		}
-		proxyURL := "http://" + egressProxyAlias + ":8888"
+		proxyURL := egressURLWithCreds("http://"+egressProxyAlias+":8888", spec.AgentID.String(), spec.EgressToken)
 		args = append(args, "--network", egressNetwork)
 		for _, e := range proxyEnvVars(proxyURL, "localhost,127.0.0.1,::1") {
 			args = append(args, "-e", e)
@@ -108,8 +108,10 @@ func (p *DockerProvider) Start(ctx context.Context, spec SandboxSpec) (Sandbox, 
 		if p.EgressProxyURL != "" {
 			// Ausgehender Verkehr über den Allowlist-Proxy; Control Plane und
 			// Loopback bleiben direkt (NO_PROXY), sonst würde die Daemon-WS
-			// mitgeleitet.
-			for _, e := range proxyEnvVars(p.EgressProxyURL, "host.docker.internal,localhost,127.0.0.1,::1") {
+			// mitgeleitet. Die Proxy-URL trägt das per-Sandbox-Token, über das
+			// der Proxy den Agenten identifiziert.
+			proxyURL := egressURLWithCreds(p.EgressProxyURL, spec.AgentID.String(), spec.EgressToken)
+			for _, e := range proxyEnvVars(proxyURL, "host.docker.internal,localhost,127.0.0.1,::1") {
 				args = append(args, "-e", e)
 			}
 		}
@@ -156,6 +158,21 @@ func (s *dockerSandbox) Stop(ctx context.Context) error {
 // Agent-ID ab — pro Agent existiert höchstens eine Sandbox (seriell, spec/03).
 func containerName(agentID string) string {
 	return "covey-sandbox-" + agentID
+}
+
+// egressURLWithCreds hängt das per-Sandbox-Token als Proxy-Credentials an die
+// Proxy-URL (agentID:token). Der Proxy identifiziert den Agenten daraus. Ohne
+// Token bleibt die URL unverändert (der Proxy antwortet dann fail-closed 407).
+func egressURLWithCreds(base, agentID, token string) string {
+	if token == "" {
+		return base
+	}
+	u, err := url.Parse(base)
+	if err != nil {
+		return base
+	}
+	u.User = url.UserPassword(agentID, token)
+	return u.String()
 }
 
 // proxyEnvVars liefert die HTTP(S)_PROXY/NO_PROXY-Variablen (Groß- und

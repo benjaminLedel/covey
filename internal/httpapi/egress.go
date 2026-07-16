@@ -3,82 +3,237 @@ package httpapi
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 
 	"covey/internal/egress"
 )
 
-// --- Egress-Allowlist: von der Oberfläche gepflegte erlaubte Ziel-Hosts ---
+// --- Egress: per-Agent-Allowlist über Templates + eigene Hosts, plus Monitoring ---
 //
-// Der Egress-Proxy (spec/06, Designprinzip #7) lässt nur Verbindungen zu
-// Hosts auf der Allowlist zu. Fest im Code erlaubt sind die Anthropic-Hosts
-// (die Runtime), hier verwaltet der Betrieb die Zielsystem-Hosts (Zammad usw.).
-// Änderungen wirken sofort — der laufende Proxy lädt die Liste neu.
+// Der Egress-Proxy (spec/06, Prinzip #7) lässt pro Agent nur Verbindungen zu
+// Hosts auf DESSEN effektiver Allowlist zu (Anthropic-Default + zugewiesene
+// Templates + agent-eigene Hosts). Änderungen greifen innerhalb der Cache-TTL
+// des Proxy (~15 s). Jede Entscheidung wird protokolliert (egress_log).
 
-type egressView struct {
-	Enforced bool           `json:"enforced"`
-	Defaults []string       `json:"defaults"`
-	Entries  []egress.Entry `json:"entries"`
+// handleEgressStatus liefert Enforcement-Status + fest erlaubte Hosts.
+func (s *Server) handleEgressStatus(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"enforced": s.EgressEnforced,
+		"defaults": s.EgressDefaults,
+	})
 }
 
-func (s *Server) handleListEgress(w http.ResponseWriter, r *http.Request) {
-	entries, err := s.EgressStore.List(r.Context())
+// --- Templates ---
+
+func (s *Server) handleListEgressTemplates(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	list, err := s.EgressStore.ListTemplates(r.Context(), p.OrgID)
 	if err != nil {
 		mapErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, egressView{
-		Enforced: s.EgressEnforced,
-		Defaults: s.EgressDefaults,
-		Entries:  entries,
-	})
+	writeJSON(w, http.StatusOK, list)
 }
 
-func (s *Server) handleAddEgress(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleCreateEgressTemplate(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
 	var in struct {
-		Pattern string `json:"pattern"`
-		Note    string `json:"note"`
+		Name        string `json:"name"`
+		Description string `json:"description"`
 	}
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "ungültiger request")
 		return
 	}
-	e, err := s.EgressStore.Add(r.Context(), in.Pattern, in.Note)
+	t, err := s.EgressStore.CreateTemplate(r.Context(), p.OrgID, in.Name, in.Description)
 	if err != nil {
-		if errors.Is(err, egress.ErrInvalidPattern) {
-			writeErr(w, http.StatusBadRequest, err.Error())
-			return
-		}
-		mapErr(w, err)
+		egressBadOrErr(w, err)
 		return
 	}
-	s.reloadEgress(r)
-	writeJSON(w, http.StatusOK, e)
+	writeJSON(w, http.StatusOK, t)
 }
 
-func (s *Server) handleDeleteEgress(w http.ResponseWriter, r *http.Request) {
+func (s *Server) handleDeleteEgressTemplate(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "ungültige id")
 		return
 	}
-	if err := s.EgressStore.Delete(r.Context(), id); err != nil {
+	if err := s.EgressStore.DeleteTemplate(r.Context(), p.OrgID, id); err != nil {
 		mapErr(w, err)
 		return
 	}
-	s.reloadEgress(r)
 	writeJSON(w, http.StatusOK, map[string]string{"deleted": id.String()})
 }
 
-// reloadEgress aktualisiert den laufenden Proxy (falls einer läuft). Fehler
-// werden nur geloggt — die Änderung ist in der DB persistiert und greift
-// spätestens beim nächsten Start.
-func (s *Server) reloadEgress(r *http.Request) {
-	if s.ReloadEgress == nil {
+func (s *Server) handleAddEgressTemplateHost(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	tid, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
 		return
 	}
-	if err := s.ReloadEgress(r.Context()); err != nil {
-		s.Log.Warn("egress-allowlist neu laden fehlgeschlagen", "err", err)
+	var in struct{ Pattern, Note string }
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		return
 	}
+	h, err := s.EgressStore.AddTemplateHost(r.Context(), p.OrgID, tid, in.Pattern, in.Note)
+	if err != nil {
+		egressBadOrErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, h)
+}
+
+func (s *Server) handleDeleteEgressTemplateHost(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	if err := s.EgressStore.DeleteTemplateHost(r.Context(), p.OrgID, id); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"deleted": id.String()})
+}
+
+// --- Zuweisung + agent-eigene Hosts ---
+
+func (s *Server) handleAgentEgress(w http.ResponseWriter, r *http.Request) {
+	agentID, ok := s.agentInOrg(w, r)
+	if !ok {
+		return
+	}
+	cfg, err := s.EgressStore.AgentConfig(r.Context(), agentID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, cfg)
+}
+
+func (s *Server) handleAssignEgressTemplate(w http.ResponseWriter, r *http.Request) {
+	s.setAgentTemplate(w, r, true)
+}
+
+func (s *Server) handleUnassignEgressTemplate(w http.ResponseWriter, r *http.Request) {
+	s.setAgentTemplate(w, r, false)
+}
+
+func (s *Server) setAgentTemplate(w http.ResponseWriter, r *http.Request, assigned bool) {
+	agentID, ok := s.agentInOrg(w, r)
+	if !ok {
+		return
+	}
+	tid, err := uuid.Parse(r.PathValue("tid"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige template-id")
+		return
+	}
+	if err := s.EgressStore.SetAgentTemplate(r.Context(), agentID, tid, assigned); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"template_id": tid, "assigned": assigned})
+}
+
+func (s *Server) handleAddAgentEgressHost(w http.ResponseWriter, r *http.Request) {
+	agentID, ok := s.agentInOrg(w, r)
+	if !ok {
+		return
+	}
+	var in struct{ Pattern, Note string }
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		return
+	}
+	h, err := s.EgressStore.AddAgentHost(r.Context(), agentID, in.Pattern, in.Note)
+	if err != nil {
+		egressBadOrErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, h)
+}
+
+func (s *Server) handleDeleteAgentEgressHost(w http.ResponseWriter, r *http.Request) {
+	agentID, ok := s.agentInOrg(w, r)
+	if !ok {
+		return
+	}
+	hid, err := uuid.Parse(r.PathValue("hid"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige host-id")
+		return
+	}
+	if err := s.EgressStore.DeleteAgentHost(r.Context(), agentID, hid); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"deleted": hid.String()})
+}
+
+// --- Log ---
+
+func (s *Server) handleEgressLog(w http.ResponseWriter, r *http.Request) {
+	var agentID uuid.UUID
+	if a := r.URL.Query().Get("agent"); a != "" {
+		id, err := uuid.Parse(a)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "ungültige agent-id")
+			return
+		}
+		// Nur Agenten der eigenen Org.
+		if !s.agentBelongsToOrg(r, id) {
+			writeErr(w, http.StatusNotFound, "nicht gefunden")
+			return
+		}
+		agentID = id
+	}
+	blocked := r.URL.Query().Get("blocked") == "true"
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	entries, err := s.EgressStore.ListLog(r.Context(), agentID, blocked, limit)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, entries)
+}
+
+// --- Helfer ---
+
+// agentInOrg parst {id} und stellt sicher, dass der Agent zur Org des Aufrufers
+// gehört. Bei Fehlschlag ist bereits eine Antwort geschrieben (ok=false).
+func (s *Server) agentInOrg(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige agent-id")
+		return uuid.Nil, false
+	}
+	if !s.agentBelongsToOrg(r, id) {
+		writeErr(w, http.StatusNotFound, "nicht gefunden")
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
+func (s *Server) agentBelongsToOrg(r *http.Request, agentID uuid.UUID) bool {
+	p := principalFrom(r)
+	var one int
+	err := s.Pool.QueryRow(r.Context(),
+		`SELECT 1 FROM agents WHERE id=$1 AND org_id=$2`, agentID, p.OrgID).Scan(&one)
+	return err == nil
+}
+
+func egressBadOrErr(w http.ResponseWriter, err error) {
+	if errors.Is(err, egress.ErrInvalidPattern) {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	mapErr(w, err)
 }

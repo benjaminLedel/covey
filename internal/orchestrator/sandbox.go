@@ -26,6 +26,10 @@ type SandboxSpec struct {
 	AgentID uuid.UUID
 	HomeDir string
 	Env     map[string]string // COVEY_WS_URL, COVEY_DAEMON_TOKEN, …
+	// EgressToken ist das per-Sandbox-Token, mit dem sich die Sandbox am
+	// Egress-Proxy als dieser Agent ausweist (Proxy-Authorization). Leer =
+	// kein Egress-Enforcement für diese Sandbox.
+	EgressToken string
 }
 
 type Sandbox interface {

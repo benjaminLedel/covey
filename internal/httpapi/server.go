@@ -47,13 +47,12 @@ type Server struct {
 	WebFS    fs.FS // dist der SPA; nil = nur API
 	Log      *slog.Logger
 
-	// Egress-Allowlist (UI-verwaltet). EgressStore ist immer gesetzt;
-	// EgressEnforced/EgressDefaults spiegeln die Prozess-Config. ReloadEgress
-	// tauscht die aktive Allowlist des laufenden Proxy aus (nil = kein Proxy).
+	// Egress (UI-verwaltet). EgressStore ist immer gesetzt; EgressEnforced/
+	// EgressDefaults spiegeln die Prozess-Config. Der Proxy lädt Änderungen
+	// selbst nach (Resolver-Cache mit TTL) — kein Reload-Hook nötig.
 	EgressStore    *egress.Store
 	EgressEnforced bool
 	EgressDefaults []string
-	ReloadEgress   func(context.Context) error
 
 	// WebhookSecrets: Zielsystem-Name → Signatur-Secret
 	// (ENV COVEY_<SYSTEM>_WEBHOOK_SECRET, z. B. COVEY_ZAMMAD_WEBHOOK_SECRET).
@@ -137,9 +136,19 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/guardrails", s.rbac(anyRole, s.handleListGuardrails))
 	mux.Handle("POST /api/v1/guardrails", s.rbac(securityRoles, s.handleCreateGuardrail))
 	mux.Handle("DELETE /api/v1/guardrails/{id}", s.rbac(securityRoles, s.handleDeleteGuardrail))
-	mux.Handle("GET /api/v1/egress", s.rbac(anyRole, s.handleListEgress))
-	mux.Handle("POST /api/v1/egress", s.rbac(securityRoles, s.handleAddEgress))
-	mux.Handle("DELETE /api/v1/egress/{id}", s.rbac(securityRoles, s.handleDeleteEgress))
+	// Egress: Status, Templates, Zuweisung pro Agent, Entscheidungs-Log.
+	mux.Handle("GET /api/v1/egress", s.rbac(anyRole, s.handleEgressStatus))
+	mux.Handle("GET /api/v1/egress/templates", s.rbac(anyRole, s.handleListEgressTemplates))
+	mux.Handle("POST /api/v1/egress/templates", s.rbac(securityRoles, s.handleCreateEgressTemplate))
+	mux.Handle("DELETE /api/v1/egress/templates/{id}", s.rbac(securityRoles, s.handleDeleteEgressTemplate))
+	mux.Handle("POST /api/v1/egress/templates/{id}/hosts", s.rbac(securityRoles, s.handleAddEgressTemplateHost))
+	mux.Handle("DELETE /api/v1/egress/template-hosts/{id}", s.rbac(securityRoles, s.handleDeleteEgressTemplateHost))
+	mux.Handle("GET /api/v1/egress/log", s.rbac(anyRole, s.handleEgressLog))
+	mux.Handle("GET /api/v1/agents/{id}/egress", s.rbac(anyRole, s.handleAgentEgress))
+	mux.Handle("PUT /api/v1/agents/{id}/egress/templates/{tid}", s.rbac(securityRoles, s.handleAssignEgressTemplate))
+	mux.Handle("DELETE /api/v1/agents/{id}/egress/templates/{tid}", s.rbac(securityRoles, s.handleUnassignEgressTemplate))
+	mux.Handle("POST /api/v1/agents/{id}/egress/hosts", s.rbac(securityRoles, s.handleAddAgentEgressHost))
+	mux.Handle("DELETE /api/v1/agents/{id}/egress/hosts/{hid}", s.rbac(securityRoles, s.handleDeleteAgentEgressHost))
 	mux.Handle("GET /api/v1/secrets", s.rbac(securityRoles, s.handleListSecrets))
 	mux.Handle("PUT /api/v1/secrets/{key}", s.rbac(securityRoles, s.handlePutSecret))
 	mux.Handle("DELETE /api/v1/secrets/{key}", s.rbac(securityRoles, s.handleDeleteSecret))

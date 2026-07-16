@@ -295,83 +295,58 @@ func rewriteDBForContainer(dsn string) string {
 // isolierten Sandbox). Die Allowlist kommt aus DB + ENV + Code-Default und wird
 // periodisch neu geladen, damit UI-Änderungen ohne Neustart greifen.
 func runEgressProxy(ctx context.Context, cfg config.Config, log *slog.Logger) error {
-	// Sofort mit der Basis-Allowlist (Code + ENV) serven — die DB kann beim Start
-	// noch nicht erreichbar sein: im network-Modus wird das interne Netz erst
-	// NACH dem Start ans Bridge-Netz gehängt, erst dann geht der Weg zur DB auf.
-	// Die UI-gepflegten Muster kommen anschließend per Poll dazu.
-	proxy := egress.New(egress.NewAllowlist(egressBaseAllow(cfg)), log)
+	// DB kann beim Start noch nicht erreichbar sein: im network-Modus wird das
+	// interne Netz erst NACH dem Container-Start ans Bridge-Netz gehängt. Bis
+	// dahin retryen — der Prozess bleibt am Leben (Container „running"), damit
+	// `docker network connect` greift.
+	var store *egress.Store
+	for store == nil {
+		pool, err := db.Connect(ctx, cfg.DatabaseURL)
+		if err != nil {
+			log.Warn("egress-proxy: DB noch nicht erreichbar, retry", "err", err)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(3 * time.Second):
+			}
+			continue
+		}
+		defer pool.Close()
+		store = egress.NewStore(pool)
+	}
+
+	resolver := egress.NewDBResolver(ctx, store, egressBaseAllow(cfg), 15*time.Second, log)
+	proxy := egress.New(resolver, log)
 	addr, err := proxy.Start(cfg.EgressProxyAddr)
 	if err != nil {
 		return err
 	}
 	defer proxy.Close()
 	log.Info("covey egress-proxy", "addr", addr, "basis", egressBaseAllow(cfg))
-
-	var store *egress.Store
-	refresh := func() {
-		if store == nil {
-			pool, err := db.Connect(ctx, cfg.DatabaseURL)
-			if err != nil {
-				log.Warn("egress-proxy: DB noch nicht erreichbar, nur Basis-Allowlist aktiv", "err", err)
-				return
-			}
-			store = egress.NewStore(pool)
-			log.Info("egress-proxy: DB verbunden, Allowlist wird live nachgeladen")
-		}
-		patterns := egressBaseAllow(cfg)
-		if dbPatterns, err := store.Patterns(ctx); err != nil {
-			log.Warn("egress-proxy: DB-Muster laden fehlgeschlagen", "err", err)
-		} else {
-			patterns = append(patterns, dbPatterns...)
-		}
-		proxy.SetAllowlist(egress.NewAllowlist(patterns))
-	}
-
-	refresh()
-	t := time.NewTicker(15 * time.Second)
-	defer t.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case <-t.C:
-			refresh()
-		}
-	}
+	<-ctx.Done()
+	return nil
 }
 
-// startEgressProxy bindet den Allowlist-Proxy auf einem freien Port (alle
-// Interfaces, damit der Container ihn via host.docker.internal erreicht). Die
-// Allowlist ist Basis (Code+ENV) plus die UI-verwalteten DB-Muster; reload()
-// baut sie nach einer UI-Änderung neu. Rückgabe: container-seitige Proxy-URL,
-// reload-Funktion, Close-Funktion.
-func startEgressProxy(ctx context.Context, cfg config.Config, store *egress.Store, log *slog.Logger) (string, func(context.Context) error, func(), error) {
-	build := func(ctx context.Context) *egress.Allowlist {
-		patterns := egressBaseAllow(cfg)
-		if dbPatterns, err := store.Patterns(ctx); err != nil {
-			log.Warn("egress-allowlist aus DB laden fehlgeschlagen — nur Basis aktiv", "err", err)
-		} else {
-			patterns = append(patterns, dbPatterns...)
-		}
-		return egress.NewAllowlist(patterns)
-	}
-	proxy := egress.New(build(ctx), log)
+// startEgressProxy bindet den kooperativen Proxy (im Control-Plane-Prozess) auf
+// einem freien Port (alle Interfaces, damit der Container ihn via
+// host.docker.internal erreicht). Rückgabe: container-seitige Basis-Proxy-URL
+// (ohne Credentials — der Provider hängt pro Agent das per-Sandbox-Token an),
+// plus Close-Funktion.
+func startEgressProxy(ctx context.Context, cfg config.Config, store *egress.Store, log *slog.Logger) (string, func(), error) {
+	resolver := egress.NewDBResolver(ctx, store, egressBaseAllow(cfg), 15*time.Second, log)
+	proxy := egress.New(resolver, log)
 	addr, err := proxy.Start(":0")
 	if err != nil {
-		return "", nil, nil, err
+		return "", nil, err
 	}
 	_, port, err := net.SplitHostPort(addr)
 	if err != nil {
 		_ = proxy.Close()
-		return "", nil, nil, err
+		return "", nil, err
 	}
 	containerURL := "http://host.docker.internal:" + port
-	log.Info("egress-enforcement aktiv", "proxy", containerURL, "basis", egressBaseAllow(cfg))
-	reload := func(ctx context.Context) error {
-		proxy.SetAllowlist(build(ctx))
-		return nil
-	}
-	return containerURL, reload, func() { _ = proxy.Close() }, nil
+	log.Info("egress-enforcement aktiv (kooperativ)", "proxy", containerURL, "basis", egressBaseAllow(cfg))
+	return containerURL, func() { _ = proxy.Close() }, nil
 }
 
 func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
@@ -407,7 +382,6 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 
 	// Egress-Enforcement ist nur mit echter Netz-Isolation (docker) durchsetzbar.
 	egressEnforced := cfg.EgressEnforce && cfg.SandboxProvider == "docker"
-	var reloadEgress func(context.Context) error
 
 	var provider orchestrator.SandboxProvider
 	switch cfg.SandboxProvider {
@@ -434,13 +408,12 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 				log.Info("egress-enforcement: harte netz-isolation aktiv", "proxy-image", dp.EgressProxyImage)
 			default:
 				// Kooperativ: Proxy im Control-Plane-Prozess, Container via HTTP_PROXY.
-				proxyURL, reload, closeProxy, err := startEgressProxy(ctx, cfg, egressStore, log)
+				proxyURL, closeProxy, err := startEgressProxy(ctx, cfg, egressStore, log)
 				if err != nil {
 					return err
 				}
 				defer closeProxy()
 				dp.EgressProxyURL = proxyURL
-				reloadEgress = reload
 			}
 		}
 		provider = dp
@@ -453,6 +426,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Pool: pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Identity: idp, Memory: mem,
 		Targets:        targets,
+		Egress:         egressStore,
 		Provider:       provider,
 		PublicWSURL:    wsURL,
 		DaemonTokenTTL: cfg.DaemonTokenTTL,
@@ -474,7 +448,6 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		EgressStore:    egressStore,
 		EgressEnforced: egressEnforced,
 		EgressDefaults: egressBaseAllow(cfg),
-		ReloadEgress:   reloadEgress,
 	}
 
 	httpServer := &http.Server{Addr: cfg.ListenAddr, Handler: srv.Handler()}
@@ -482,6 +455,21 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	go func() {
 		if err := orch.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 			log.Error("orchestrator", "err", err)
+		}
+	}()
+	// Egress-Log-Retention: alte Entscheidungen periodisch wegräumen.
+	go func() {
+		t := time.NewTicker(6 * time.Hour)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				if n, err := egressStore.CleanupLog(ctx, 30*24*time.Hour); err == nil && n > 0 {
+					log.Info("egress-log aufgeräumt", "gelöscht", n)
+				}
+			}
 		}
 	}()
 	go func() {

@@ -1,44 +1,38 @@
 // Package egress ist der Enforcement-Punkt für ausgehenden Netzwerk-Verkehr
 // der Sandboxen (spec/06, Designprinzip #7: Guard-Rails zentral und außerhalb
-// der Runtime, fail-closed). Der Forward-Proxy lässt nur Verbindungen zu Hosts
-// auf einer Allowlist zu — alles andere wird abgewiesen.
+// der Runtime, fail-closed). Der Forward-Proxy identifiziert pro Verbindung den
+// anfragenden Agenten (Proxy-Authorization) und lässt nur Verbindungen zu Hosts
+// auf DESSEN Allowlist zu — alles andere wird abgewiesen und protokolliert.
 //
-// Enforcement-Stärke: Der Proxy ist der Durchsetzungs-Mechanismus. Ob eine
-// Sandbox ihn zwingend benutzen MUSS, hängt vom Sandbox-Provider ab:
-//   - docker: Container bekommt HTTP_PROXY/HTTPS_PROXY (kooperativ — ein
-//     naiver/versehentlicher Ausleit-Versuch scheitert, ein bewusster über
-//     direkte IPs kann den Proxy heute noch umgehen).
+// Enforcement-Stärke hängt vom Sandbox-Provider ab:
+//   - docker + network-Isolation: die Sandbox hat keinen anderen Ausgang, der
+//     Proxy ist zwingend — nicht umgehbar.
+//   - docker + proxy (kooperativ): via HTTP_PROXY, über direkte IPs umgehbar.
 //   - local: keine Netz-Isolation möglich (teilt das Host-Netz).
-//
-// Die harte, manipulationssichere Bindung (internes Docker-Netz ohne Internet,
-// Proxy als einziger Ausgang) ist der dokumentierte Folgeschritt — siehe
-// docs/betrieb-zammad.md und spec/06.
 package egress
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"strings"
-	"sync/atomic"
 	"time"
+
+	"github.com/google/uuid"
 )
 
-// Allowlist entscheidet, welche Ziel-Hosts der Proxy durchlässt. Fail-closed:
-// ist die Liste leer, wird alles abgewiesen. Muster:
-//   - exakter Host:            "api.anthropic.com"
-//   - Wildcard-Subdomain:      "*.example.com" (matcht auch "example.com")
+// Allowlist entscheidet, welche Ziel-Hosts durchgelassen werden. Fail-closed:
+// leere Liste → alles abgewiesen. Muster: exakter Host oder "*.suffix".
 type Allowlist struct {
 	exact    map[string]bool
-	suffixes []string // ".example.com" für *.example.com
-	roots    []string // "example.com" für *.example.com (Apex mit erlaubt)
+	suffixes []string
+	roots    []string
 }
 
-// NewAllowlist baut die Allowlist aus Host-Mustern. Einträge werden getrimmt,
-// kleingeschrieben und (falls vorhanden) um den Port bereinigt.
 func NewAllowlist(patterns []string) *Allowlist {
 	a := &Allowlist{exact: map[string]bool{}}
 	for _, p := range patterns {
@@ -84,58 +78,44 @@ func (a *Allowlist) Allows(hostPort string) bool {
 	return false
 }
 
-// Empty meldet, ob die Allowlist keinerlei Muster enthält (dann blockt der
-// Proxy fail-closed jeden Verkehr).
-func (a *Allowlist) Empty() bool {
-	return len(a.exact) == 0 && len(a.suffixes) == 0
+// Resolver validiert die Proxy-Credentials eines Verbindungsversuchs und liefert
+// die Allowlist des zugehörigen Agenten. Zusätzlich protokolliert er die
+// Entscheidungen (Monitoring).
+type Resolver interface {
+	// Resolve prüft (agentID, token) aus der Proxy-Authorization. ok=false →
+	// die Verbindung wird mit 407 abgewiesen (keine/ungültige Credentials).
+	Resolve(ctx context.Context, agentID, token string) (allow *Allowlist, agent uuid.UUID, ok bool)
+	// Log hält eine Entscheidung fest (host, erlaubt/blockiert).
+	Log(agent uuid.UUID, host, method string, allowed bool)
 }
 
-// Proxy ist ein HTTP/HTTPS-Forward-Proxy mit Host-Allowlist. Die Allowlist ist
-// zur Laufzeit austauschbar (atomarer Swap), damit die UI sie ohne Neustart
-// aktualisieren kann.
+// Proxy ist ein HTTP/HTTPS-Forward-Proxy mit per-Agent-Allowlist.
 type Proxy struct {
-	allow atomic.Pointer[Allowlist]
-	log   *slog.Logger
-
-	ln  net.Listener
-	srv *http.Server
+	resolve Resolver
+	log     *slog.Logger
+	ln      net.Listener
+	srv     *http.Server
 }
 
-// New erstellt den Proxy mit einer Allowlist. log darf nil sein.
-func New(allow *Allowlist, log *slog.Logger) *Proxy {
+func New(resolver Resolver, log *slog.Logger) *Proxy {
 	if log == nil {
 		log = slog.Default()
 	}
-	p := &Proxy{log: log}
-	p.allow.Store(allow)
-	return p
+	return &Proxy{resolve: resolver, log: log}
 }
 
-// SetAllowlist tauscht die aktive Allowlist atomar aus (Live-Reload nach einer
-// Änderung über die UI). Laufende Tunnel bleiben unberührt; neue Verbindungen
-// gelten sofort die neue Liste.
-func (p *Proxy) SetAllowlist(allow *Allowlist) {
-	p.allow.Store(allow)
-}
-
-// Start bindet den Proxy an addr (z. B. ":0" für einen freien Port) und
-// bedient Anfragen im Hintergrund. Gibt die tatsächliche Listen-Adresse zurück.
+// Start bindet den Proxy an addr (z. B. ":0") und bedient Anfragen im Hintergrund.
 func (p *Proxy) Start(addr string) (string, error) {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		return "", fmt.Errorf("egress-proxy binden: %w", err)
 	}
 	p.ln = ln
-	p.srv = &http.Server{
-		Handler:      http.HandlerFunc(p.serve),
-		ReadTimeout:  0, // Tunnel laufen lange (SSE/Streaming) — kein Read-Timeout
-		WriteTimeout: 0,
-	}
+	p.srv = &http.Server{Handler: http.HandlerFunc(p.serve)}
 	go func() { _ = p.srv.Serve(ln) }()
 	return ln.Addr().String(), nil
 }
 
-// Close fährt den Proxy herunter.
 func (p *Proxy) Close() error {
 	if p.srv == nil {
 		return nil
@@ -143,6 +123,16 @@ func (p *Proxy) Close() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return p.srv.Shutdown(ctx)
+}
+
+// authorize liest die Proxy-Authorization und löst den Agenten + seine Allowlist
+// auf. Fehlt/ungültig → (nil, Nil, false) und der Aufrufer antwortet mit 407.
+func (p *Proxy) authorize(r *http.Request) (*Allowlist, uuid.UUID, bool) {
+	user, pass, ok := parseProxyAuth(r.Header.Get("Proxy-Authorization"))
+	if !ok {
+		return nil, uuid.Nil, false
+	}
+	return p.resolve.Resolve(r.Context(), user, pass)
 }
 
 func (p *Proxy) serve(w http.ResponseWriter, r *http.Request) {
@@ -153,22 +143,26 @@ func (p *Proxy) serve(w http.ResponseWriter, r *http.Request) {
 	p.handleHTTP(w, r)
 }
 
-// handleConnect bedient HTTPS-Tunnel (CONNECT host:port). Nur erlaubte Hosts
-// werden getunnelt; alles andere → 403.
 func (p *Proxy) handleConnect(w http.ResponseWriter, r *http.Request) {
-	host := r.Host // "host:port"
-	if !p.allow.Load().Allows(host) {
-		p.deny(host, "CONNECT")
+	allow, agent, ok := p.authorize(r)
+	if !ok {
+		w.Header().Set("Proxy-Authenticate", `Basic realm="covey-egress"`)
+		http.Error(w, "proxy-authentifizierung erforderlich", http.StatusProxyAuthRequired)
+		return
+	}
+	host := r.Host
+	if !allow.Allows(host) {
+		p.resolve.Log(agent, host, "CONNECT", false)
 		http.Error(w, "egress verweigert (nicht auf allowlist)", http.StatusForbidden)
 		return
 	}
 	dstConn, err := net.DialTimeout("tcp", host, 15*time.Second)
 	if err != nil {
+		p.resolve.Log(agent, host, "CONNECT", false)
 		http.Error(w, "upstream nicht erreichbar", http.StatusBadGateway)
 		return
 	}
 	defer dstConn.Close()
-
 	hj, ok := w.(http.Hijacker)
 	if !ok {
 		http.Error(w, "hijack nicht unterstützt", http.StatusInternalServerError)
@@ -179,24 +173,30 @@ func (p *Proxy) handleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer clientConn.Close()
-
 	if _, err := clientConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n")); err != nil {
 		return
 	}
+	p.resolve.Log(agent, host, "CONNECT", true)
 	tunnel(clientConn, dstConn)
 }
 
-// handleHTTP bedient Klartext-HTTP-Proxy-Anfragen (absolute URL).
 func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Host == "" {
 		http.Error(w, "nur Proxy-Anfragen (absolute URL)", http.StatusBadRequest)
 		return
 	}
-	if !p.allow.Load().Allows(r.URL.Host) {
-		p.deny(r.URL.Host, r.Method)
+	allow, agent, ok := p.authorize(r)
+	if !ok {
+		w.Header().Set("Proxy-Authenticate", `Basic realm="covey-egress"`)
+		http.Error(w, "proxy-authentifizierung erforderlich", http.StatusProxyAuthRequired)
+		return
+	}
+	if !allow.Allows(r.URL.Host) {
+		p.resolve.Log(agent, r.URL.Host, r.Method, false)
 		http.Error(w, "egress verweigert (nicht auf allowlist)", http.StatusForbidden)
 		return
 	}
+	p.resolve.Log(agent, r.URL.Host, r.Method, true)
 	outReq := r.Clone(r.Context())
 	outReq.RequestURI = ""
 	resp, err := http.DefaultTransport.RoundTrip(outReq)
@@ -214,12 +214,23 @@ func (p *Proxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, resp.Body)
 }
 
-func (p *Proxy) deny(host, method string) {
-	p.log.Warn("egress blockiert", "host", host, "method", method)
+// parseProxyAuth zerlegt "Basic base64(user:pass)" in user/pass.
+func parseProxyAuth(header string) (user, pass string, ok bool) {
+	const prefix = "Basic "
+	if len(header) < len(prefix) || !strings.EqualFold(header[:len(prefix)], prefix) {
+		return "", "", false
+	}
+	raw, err := base64.StdEncoding.DecodeString(header[len(prefix):])
+	if err != nil {
+		return "", "", false
+	}
+	user, pass, found := strings.Cut(string(raw), ":")
+	if !found {
+		return "", "", false
+	}
+	return user, pass, true
 }
 
-// tunnel kopiert bidirektional zwischen Client und Upstream, bis eine Seite
-// schließt.
 func tunnel(a, b net.Conn) {
 	done := make(chan struct{}, 2)
 	cp := func(dst, src net.Conn) {

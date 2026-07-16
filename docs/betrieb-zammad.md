@@ -203,10 +203,14 @@ feuert — sonst wacht ein geblockter Agent nie wieder auf.
 > `api.anthropic.com` (die Runtime); **den Zammad-Host musst du ergänzen**, sonst
 > kann der Agent nicht antworten. Zwei Wege:
 >
-> - **In der Oberfläche** (empfohlen): Seite *Egress* → Host hinzufügen. Wirkt
->   sofort (der laufende Proxy lädt neu), kein Neustart. Rechte: `security` oder
->   `platform_admin`.
-> - **Per ENV/Compose** (config-as-code, nicht in der UI löschbar):
+> Die Allowlist ist **pro Agent**: effektiv = fest erlaubte Hosts + zugewiesene
+> Templates + agent-eigene Hosts.
+> - **In der Oberfläche** (empfohlen): *Egress* (Seitenmenü) pflegt die
+>   wiederverwendbaren **Templates** und zeigt das globale Monitoring; die
+>   **Zuweisung pro Agent** (Templates + eigene Hosts) sitzt im Reiter *Egress*
+>   der Agenten-Seite. Wirkt innerhalb ~15 s, kein Neustart. Rechte: `security`
+>   oder `platform_admin`.
+> - **Per ENV/Compose** (gilt für ALLE Agenten, nicht in der UI löschbar):
 >   ```bash
 >   COVEY_SANDBOX_PROVIDER=docker
 >   COVEY_EGRESS_ENFORCE=true
@@ -233,19 +237,22 @@ COVEY_EGRESS_ALLOW="helpdesk.example.com"   # Zielsystem-Hosts (UI-Hosts kommen 
 ```
 
 Die Control Plane richtet Netz und Proxy-Container automatisch ein
-(`covey-egress-internal`, `covey-egress-proxy`). Der Proxy liest die Allowlist
-aus der DB (UI) + ENV + Default und lädt sie alle 15 s neu.
+(`covey-egress-internal`, `covey-egress-proxy`, Image `make egress-image`). Der
+Proxy identifiziert den anfragenden Agenten über ein per-Sandbox-Token
+(Proxy-Authorization, beim Wake gesetzt) und wendet dessen effektive Allowlist an
+(DB + ENV + Default), Cache ~15 s.
 
 **Voraussetzung:** Die Control Plane muss über **TLS/wss** erreichbar sein. Im
 network-Modus läuft auch die Daemon↔Control-Plane-WebSocket per HTTP-CONNECT
 durch den Proxy — das funktioniert nur mit `wss://` (TLS-Tunnel), nicht mit
 Klartext-`ws://`. `host.docker.internal` ist dafür automatisch auf der Allowlist.
 
-**Verifiziert:** Netz-Topologie (erlaubter Host via Proxy ✓, gesperrter Host 403
-✓, direkter Bypass scheitert ✓, DB-Live-Reload ✓). **Nicht** end-to-end im
-Repo verifiziert: der vollständige Agent-Lauf (coveyd-WS durch den Proxy +
-Runtime) — das braucht das Sandbox-Image, eine wss-Control-Plane und echte
-Creds; auf der Zielumgebung gegenchecken.
+**Verifiziert** (echte Container): per-Agent-Durchsetzung (Agent A erreicht nur
+seine Hosts, Agent B nur seine), gesperrter Host 403, falsches/fehlendes Token
+407, direkter Bypass scheitert, Entscheidungs-Log korrekt pro Agent. **Nicht**
+end-to-end im Repo verifiziert: der vollständige Agent-Lauf (coveyd-WS durch den
+Proxy + Runtime) — das braucht das Sandbox-Image, eine wss-Control-Plane und
+echte Creds; auf der Zielumgebung gegenchecken.
 
 Secrets (pro Agent, im SecretStore, **nicht** als Env): `zammad_url`,
 `zammad_token`, `anthropic_api_key`/`claude_code_oauth_token`.
