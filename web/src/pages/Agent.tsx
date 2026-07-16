@@ -1,0 +1,1051 @@
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link, useParams } from "react-router-dom";
+import {
+  api,
+  post,
+  patch,
+  del,
+  put,
+  statusLabel,
+  type Agent,
+  type ConfigVersion,
+  type CostSummary,
+  type MemoryEntry,
+  type OrgChart,
+  type Principal,
+  type RecordingEvent,
+  type SecretCheck,
+  type SecretPreview,
+  type Stage,
+  type Task,
+} from "../api";
+
+const canManage = (role: string) => role === "platform_admin" || role === "agent_owner";
+const canKill = (role: string) => canManage(role) || role === "security";
+const canSecrets = (role: string) => role === "platform_admin" || role === "security";
+
+export default function AgentPage({ me }: { me: Principal }) {
+  const { id } = useParams<{ id: string }>();
+  const qc = useQueryClient();
+  const agent = useQuery({ queryKey: ["agent", id], queryFn: () => api<Agent>(`/agents/${id}`) });
+  const [tab, setTab] = useState<"backlog" | "recording" | "config" | "memory" | "secrets">("backlog");
+  const [recTask, setRecTask] = useState<{ id: string; title: string } | null>(null);
+
+  const act = useMutation({
+    mutationFn: (action: string) => post(`/agents/${id}/${action}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agent", id] });
+      qc.invalidateQueries({ queryKey: ["agents"] });
+    },
+  });
+
+  if (agent.isLoading) return null;
+  if (agent.isError || !agent.data) return <p className="danger-text">Agent nicht gefunden.</p>;
+  const a = agent.data;
+
+  return (
+    <div>
+      <div className="text-sm secondary mb-3">
+        <Link to="/" style={{ color: "inherit" }}>
+          Agenten
+        </Link>{" "}
+        / <b style={{ color: "var(--text-primary)", fontWeight: 500 }}>{a.display_name}</b>
+      </div>
+
+      <div className="flex items-center gap-3 mb-5 flex-wrap">
+        <h1 className="text-[22px]">{a.display_name}</h1>
+        <span className={`badge st-${a.killed ? "killed" : a.status}`}>
+          {a.killed ? "gestoppt" : statusLabel[a.status] ?? a.status}
+        </span>
+        {(a.status === "working" || a.status === "triage" || a.status === "triggered") && (
+          <span className="live-dot" title="Sandbox aktiv" />
+        )}
+        <span className="muted text-xs mono">runtime: {a.runtime}</span>
+        <Supervisor agent={a} editable={canManage(me.Role)} />
+        <span className="ml-auto" />
+        {canManage(me.Role) && (
+          <button className="btn sm" onClick={() => act.mutate("wake")}>
+            Wecken
+          </button>
+        )}
+        {canKill(me.Role) &&
+          (a.killed ? (
+            <button className="btn sm" onClick={() => act.mutate("resume")}>
+              Fortsetzen
+            </button>
+          ) : (
+            <button className="btn sm danger" onClick={() => act.mutate("kill")} title="Kill-Switch">
+              Stoppen
+            </button>
+          ))}
+      </div>
+
+      <CostBar agentId={a.id} budget={a.budget_usd} />
+
+      <div className="flex gap-1 mb-4 mt-5" style={{ borderBottom: "0.5px solid var(--border)" }}>
+        {(
+          [
+            ["backlog", "Backlog"],
+            ["recording", "Recording"],
+            ["config", "Config"],
+            ["memory", "Gedächtnis"],
+            ...(canSecrets(me.Role) ? ([["secrets", "Secrets"]] as const) : []),
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => {
+              if (key === "recording") setRecTask(null);
+              setTab(key);
+            }}
+            className="btn sm"
+            style={{
+              border: "none",
+              borderRadius: "8px 8px 0 0",
+              borderBottom: tab === key ? "2px solid var(--text-accent)" : "2px solid transparent",
+              color: tab === key ? "var(--text-primary)" : "var(--text-secondary)",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "backlog" && (
+        <Backlog
+          agentId={a.id}
+          canManage={canManage(me.Role)}
+          onShowRecording={(id, title) => {
+            setRecTask({ id, title });
+            setTab("recording");
+          }}
+        />
+      )}
+      {tab === "recording" && (
+        <Recording agentId={a.id} taskFilter={recTask} onClearFilter={() => setRecTask(null)} />
+      )}
+      {tab === "config" && <Config agentId={a.id} canManage={canManage(me.Role)} />}
+      {tab === "memory" && <Memories agentId={a.id} canManage={canManage(me.Role)} />}
+      {tab === "secrets" && canSecrets(me.Role) && <AgentSecrets agentId={a.id} />}
+    </div>
+  );
+}
+
+// Supervisor: der Platz des Agenten im Org-Chart (spec/02) — an wen er
+// berichtet und eskaliert. Manager-Rollen ordnen hier direkt zu.
+function Supervisor({ agent, editable }: { agent: Agent; editable: boolean }) {
+  const qc = useQueryClient();
+  const chart = useQuery({ queryKey: ["orgchart"], queryFn: () => api<OrgChart>("/org/chart") });
+  const mut = useMutation({
+    mutationFn: (supervisorId: string) => patch(`/agents/${agent.id}/supervisor`, { supervisor_id: supervisorId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agent", agent.id] });
+      qc.invalidateQueries({ queryKey: ["agents"] });
+      qc.invalidateQueries({ queryKey: ["orgchart"] });
+    },
+  });
+  const humans = chart.data?.humans ?? [];
+  const current = humans.find((h) => h.id === agent.supervisor_id);
+
+  if (!editable) {
+    return (
+      <span className="muted text-xs">
+        berichtet an: {current ? current.display_name : "—"}
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-2 text-xs muted">
+      berichtet an:
+      <select
+        value={agent.supervisor_id ?? ""}
+        onChange={(e) => mut.mutate(e.target.value)}
+        disabled={mut.isPending || chart.isLoading}
+        style={{ width: "auto", padding: "3px 8px", fontSize: 12 }}
+      >
+        <option value="">— niemanden —</option>
+        {humans.map((h) => (
+          <option key={h.id} value={h.id}>
+            {h.display_name}
+          </option>
+        ))}
+      </select>
+    </span>
+  );
+}
+
+function CostBar({ agentId, budget }: { agentId: string; budget: number }) {
+  const cost = useQuery({
+    queryKey: ["cost", agentId],
+    queryFn: () => api<CostSummary>(`/agents/${agentId}/cost`),
+  });
+  const c = cost.data;
+  if (!c) return null;
+  return (
+    <div className="card flex gap-8 text-sm">
+      <div>
+        <div className="muted text-xs">Kosten gesamt</div>
+        <div className="font-medium">{c.total_usd.toFixed(4)} $</div>
+      </div>
+      <div>
+        <div className="muted text-xs">Tokens (in / out)</div>
+        <div className="font-medium">
+          {c.input_tokens.toLocaleString("de-DE")} / {c.output_tokens.toLocaleString("de-DE")}
+        </div>
+      </div>
+      <div>
+        <div className="muted text-xs">LLM-Läufe</div>
+        <div className="font-medium">{c.entries}</div>
+      </div>
+      <div>
+        <div className="muted text-xs">Budget</div>
+        <div className="font-medium">{budget > 0 ? `${budget.toFixed(2)} $` : "kein Deckel"}</div>
+      </div>
+    </div>
+  );
+}
+
+function Backlog({
+  agentId,
+  canManage,
+  onShowRecording,
+}: {
+  agentId: string;
+  canManage: boolean;
+  onShowRecording: (taskId: string, title: string) => void;
+}) {
+  const qc = useQueryClient();
+  const [showArchive, setShowArchive] = useState(false);
+  const tasks = useQuery({
+    queryKey: ["backlog", agentId, showArchive],
+    queryFn: () => api<Task[]>(`/agents/${agentId}/backlog${showArchive ? "?archived=1" : ""}`),
+  });
+  const invalBacklog = () => qc.invalidateQueries({ queryKey: ["backlog", agentId] });
+  const cleanup = useMutation({
+    mutationFn: () => post<{ archived: number }>(`/agents/${agentId}/backlog/cleanup`),
+    onSuccess: invalBacklog,
+  });
+  const cleanupCount = (tasks.data ?? []).filter(
+    (t) => terminalStates.includes(t.state) && !t.archived_at,
+  ).length;
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const create = useMutation({
+    mutationFn: () => post(`/agents/${agentId}/tasks`, { title, body }),
+    onSuccess: () => {
+      setTitle("");
+      setBody("");
+      qc.invalidateQueries({ queryKey: ["backlog", agentId] });
+    },
+  });
+
+  const stages = useQuery({
+    queryKey: ["stages", agentId],
+    queryFn: () => api<Stage[]>(`/agents/${agentId}/stages`),
+  });
+  const move = useMutation({
+    mutationFn: ({ taskId, stageId }: { taskId: string; stageId: string | null }) =>
+      post(`/tasks/${taskId}/stage`, { stage_id: stageId }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["backlog", agentId] }),
+  });
+  const [dragTask, setDragTask] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+
+  const stageList = stages.data ?? [];
+  const known = new Set(stageList.map((s) => s.id));
+  const inStage = (t: Task, id: string | null) =>
+    id === null ? !t.stage_id || !known.has(t.stage_id) : t.stage_id === id;
+  const orphans = (tasks.data ?? []).filter((t) => inStage(t, null));
+  // Spalten: optionale „Ohne Stage" zuerst, dann die definierten Stages.
+  const columns: { id: string | null; name: string; color: string }[] = [
+    ...(orphans.length ? [{ id: null, name: "Ohne Stage", color: "var(--text-muted)" }] : []),
+    ...stageList.map((s) => ({ id: s.id, name: s.name, color: s.color || "var(--text-secondary)" })),
+  ];
+
+  const drop = (stageId: string | null) => {
+    if (dragTask) move.mutate({ taskId: dragTask, stageId });
+    setDragTask(null);
+  };
+
+  return (
+    <div>
+      {canManage && (
+        <form
+          className="card mb-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            create.mutate();
+          }}
+        >
+          <label>Neue Aufgabe</label>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Titel"
+            className="mb-2"
+            required
+          />
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="Beschreibung / Kontext"
+            rows={2}
+            className="mb-2"
+          />
+          <button className="btn primary sm" disabled={create.isPending}>
+            Ins Backlog
+          </button>
+        </form>
+      )}
+      {tasks.data && stages.data && (
+        <>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="muted text-xs">
+              {stageList.length === 0
+                ? "Noch keine Stages — der Agent legt sie beim Arbeiten selbst an, oder du hier."
+                : canManage
+                  ? "Der Zustands-Badge kommt vom Agenten; die Spalten sind deine Organisation — ziehe Aufgaben frei."
+                  : "Stages werden vom Agenten und von Verwaltern gepflegt."}
+            </span>
+            <button className="btn sm" style={{ marginLeft: "auto" }} onClick={() => setShowArchive((v) => !v)}>
+              {showArchive ? "Archiv ausblenden" : "Archiv anzeigen"}
+            </button>
+            {canManage && (
+              <>
+                <button
+                  className="btn sm"
+                  disabled={cleanupCount === 0 || cleanup.isPending}
+                  title="Archiviert alle erledigten, fehlgeschlagenen und verworfenen Aufgaben — nichts wird gelöscht."
+                  onClick={() => cleanup.mutate()}
+                >
+                  Aufräumen{cleanupCount > 0 ? ` (${cleanupCount})` : ""}
+                </button>
+                <button className="btn sm" onClick={() => setEditing((v) => !v)}>
+                  {editing ? "Fertig" : "Spalten bearbeiten"}
+                </button>
+              </>
+            )}
+          </div>
+
+          {editing && canManage && <StageEditor agentId={agentId} stages={stageList} />}
+
+          {columns.length === 0 ? (
+            <p className="muted">Backlog ist leer.</p>
+          ) : (
+            <div className="kanban" style={{ ["--kcols" as string]: columns.length }}>
+              {columns.map((col) => {
+                const all = (tasks.data ?? [])
+                  .filter((t) => inStage(t, col.id))
+                  .sort((a, b) => b.created_at.localeCompare(a.created_at));
+                const items = all.slice(0, COLUMN_LIMIT);
+                const hidden = all.length - items.length;
+                return (
+                  <div
+                    className={`kcol${dragTask ? " droppable" : ""}`}
+                    key={col.id ?? "__none"}
+                    onDragOver={(e) => {
+                      if (dragTask) e.preventDefault();
+                    }}
+                    onDrop={() => drop(col.id)}
+                  >
+                    <div className="kh">
+                      <span className="dot" style={{ background: col.color }} />
+                      {col.name}
+                      <span className="n">{all.length}</span>
+                    </div>
+                    {items.map((t) => (
+                      <TaskCard
+                        key={t.id}
+                        task={t}
+                        agentId={agentId}
+                        canManage={canManage}
+                        onShowRecording={onShowRecording}
+                        onDragStart={() => setDragTask(t.id)}
+                        onDragEnd={() => setDragTask(null)}
+                      />
+                    ))}
+                    {all.length === 0 && <div className="kc-empty">—</div>}
+                    {hidden > 0 && (
+                      <div className="kc-empty">+{hidden} ältere ausgeblendet</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+const STAGE_PALETTE = [
+  "var(--text-muted)",
+  "var(--text-accent)",
+  "var(--text-warning)",
+  "var(--text-success)",
+  "var(--text-danger)",
+  "var(--text-pro)",
+];
+
+function StageEditor({ agentId, stages }: { agentId: string; stages: Stage[] }) {
+  const qc = useQueryClient();
+  const inval = () => qc.invalidateQueries({ queryKey: ["stages", agentId] });
+  const invalBoth = () => {
+    inval();
+    qc.invalidateQueries({ queryKey: ["backlog", agentId] });
+  };
+  const [name, setName] = useState("");
+  const create = useMutation({
+    mutationFn: () =>
+      post(`/agents/${agentId}/stages`, {
+        name,
+        color: STAGE_PALETTE[stages.length % STAGE_PALETTE.length],
+      }),
+    onSuccess: () => {
+      setName("");
+      inval();
+    },
+  });
+  const update = useMutation({
+    mutationFn: (s: Stage) => patch(`/stages/${s.id}`, { name: s.name, color: s.color, position: s.position }),
+    onSuccess: inval,
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => del(`/stages/${id}`),
+    onSuccess: invalBoth,
+  });
+  const reorder = useMutation({
+    mutationFn: (order: string[]) => post(`/agents/${agentId}/stages/reorder`, { order }),
+    onSuccess: inval,
+  });
+
+  const swap = (i: number, j: number) => {
+    if (j < 0 || j >= stages.length) return;
+    const ids = stages.map((s) => s.id);
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+    reorder.mutate(ids);
+  };
+  const cycleColor = (s: Stage) => {
+    const idx = STAGE_PALETTE.indexOf(s.color);
+    update.mutate({ ...s, color: STAGE_PALETTE[(idx + 1) % STAGE_PALETTE.length] });
+  };
+
+  return (
+    <div className="card mb-4">
+      <label>Spalten (Stages)</label>
+      {stages.map((s, i) => (
+        <div key={s.id} className="flex items-center gap-2 mb-2">
+          <button
+            type="button"
+            className="dot-btn"
+            title="Farbe wechseln"
+            onClick={() => cycleColor(s)}
+          >
+            <span className="dot" style={{ background: s.color || "var(--text-secondary)" }} />
+          </button>
+          <input
+            className="flex-1"
+            defaultValue={s.name}
+            onBlur={(e) => {
+              if (e.target.value && e.target.value !== s.name) update.mutate({ ...s, name: e.target.value });
+            }}
+          />
+          <button type="button" className="btn sm" onClick={() => swap(i, i - 1)} disabled={i === 0}>
+            ↑
+          </button>
+          <button
+            type="button"
+            className="btn sm"
+            onClick={() => swap(i, i + 1)}
+            disabled={i === stages.length - 1}
+          >
+            ↓
+          </button>
+          <button type="button" className="btn sm danger" onClick={() => remove.mutate(s.id)}>
+            Löschen
+          </button>
+        </div>
+      ))}
+      <form
+        className="flex gap-2 mt-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          create.mutate();
+        }}
+      >
+        <input
+          className="flex-1"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Neue Spalte …"
+          required
+        />
+        <button className="btn primary sm" disabled={create.isPending}>
+          Hinzufügen
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function relTime(iso: string): string {
+  const min = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (min < 1) return "gerade eben";
+  if (min < 60) return `vor ${min} Min`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `vor ${h} Std`;
+  return new Date(iso).toLocaleDateString("de-DE");
+}
+
+const terminalStates = ["done", "failed", "cancelled"];
+
+// Pro Spalte nur die neuesten Aufgaben zeigen — hält lange Backlogs übersichtlich.
+const COLUMN_LIMIT = 7;
+
+function TaskCard({
+  task,
+  agentId,
+  canManage,
+  onShowRecording,
+  onDragStart,
+  onDragEnd,
+}: {
+  task: Task;
+  agentId: string;
+  canManage: boolean;
+  onShowRecording: (taskId: string, title: string) => void;
+  onDragStart?: () => void;
+  onDragEnd?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const qc = useQueryClient();
+  const invalBacklog = () => qc.invalidateQueries({ queryKey: ["backlog", agentId] });
+  const cancel = useMutation({
+    mutationFn: () => post(`/tasks/${task.id}/cancel`),
+    onSuccess: invalBacklog,
+  });
+  const retry = useMutation({
+    mutationFn: () => post(`/tasks/${task.id}/retry`),
+    onSuccess: invalBacklog,
+  });
+  const archive = useMutation({
+    mutationFn: () => post(`/tasks/${task.id}/archive`),
+    onSuccess: invalBacklog,
+  });
+  const archived = !!task.archived_at;
+  const terminal = terminalStates.includes(task.state);
+  const subtitle =
+    task.state === "blocked"
+      ? task.correlation_key
+        ? `wartet auf ${task.correlation_key}`
+        : "blockiert"
+      : relTime(task.updated_at);
+  return (
+    <div
+      className={`kc${open ? " expanded" : ""}${canManage && !archived ? " draggable" : ""}`}
+      draggable={canManage && !archived}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onClick={() => setOpen((v) => !v)}
+      style={archived ? { opacity: 0.55 } : undefined}
+    >
+      <div className="kc-title">
+        <span className={`badge st-${task.state} kc-state`}>{statusLabel[task.state] ?? task.state}</span>
+        <span className="font-medium min-w-0 truncate">{task.title}</span>
+        {archived && <span className="muted text-[11px] shrink-0">archiviert</span>}
+        <span className="kc-prio">P{task.priority}</span>
+      </div>
+      <div className="t">{subtitle} · {task.origin}</div>
+      {open && (
+        <div className="kc-detail fade">
+          {task.body && (
+            <pre className="voice whitespace-pre-wrap m-0 mb-2 secondary" style={{ fontFamily: "var(--voice)" }}>{task.body}</pre>
+          )}
+          {task.correlation_key && (
+            <p>
+              <span className="muted">wartet auf:</span> <span className="mono">{task.correlation_key}</span>
+            </p>
+          )}
+          {task.runtime_session_id && (
+            <p>
+              <span className="muted">runtime-session:</span> <span className="mono">{task.runtime_session_id}</span>
+            </p>
+          )}
+          {task.result && <p style={{ color: "var(--text-success)" }}>{task.result}</p>}
+          {task.error && <p className="danger-text">{task.error}</p>}
+          <div className="flex gap-2 mt-1">
+            <button
+              className="btn sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                onShowRecording(task.id, task.title);
+              }}
+            >
+              Aufzeichnung dieser Aufgabe
+            </button>
+            {canManage && (task.state === "failed" || task.state === "cancelled") && (
+              <button
+                className="btn sm"
+                disabled={retry.isPending}
+                title="Setzt die Aufgabe zurück auf „offen“ — der Agent nimmt sie sich erneut vor."
+                onClick={(e) => {
+                  e.stopPropagation();
+                  retry.mutate();
+                }}
+              >
+                Erneut einplanen
+              </button>
+            )}
+            {canManage && terminal && !archived && (
+              <button
+                className="btn sm"
+                disabled={archive.isPending}
+                title="Blendet die Aufgabe aus dem aktiven Backlog aus — Historie und Recording bleiben erhalten."
+                onClick={(e) => {
+                  e.stopPropagation();
+                  archive.mutate();
+                }}
+              >
+                Archivieren
+              </button>
+            )}
+            {canManage && !terminal && (
+              <button
+                className="btn sm danger"
+                disabled={cancel.isPending}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (confirm(`Aufgabe „${task.title}“ verwerfen?`)) cancel.mutate();
+                }}
+              >
+                Verwerfen
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Recording({
+  agentId,
+  taskFilter,
+  onClearFilter,
+}: {
+  agentId: string;
+  taskFilter?: { id: string; title: string } | null;
+  onClearFilter?: () => void;
+}) {
+  const events = useQuery({
+    queryKey: ["recording", agentId, taskFilter?.id ?? null],
+    queryFn: () =>
+      api<RecordingEvent[] | null>(
+        `/agents/${agentId}/recording${taskFilter ? `?task_id=${taskFilter.id}` : ""}`,
+      ),
+    refetchInterval: 5000,
+  });
+  const list = events.data ?? [];
+  return (
+    <div>
+      {taskFilter && (
+        <div className="flex items-center gap-2 mb-3">
+          <span className="badge st-triage">Aufgabe: {taskFilter.title}</span>
+          <button className="btn sm" onClick={onClearFilter}>
+            Alle Ereignisse
+          </button>
+        </div>
+      )}
+      <div className="card">
+        {list.length === 0 && (
+          <p className="muted m-0">
+            {taskFilter ? "Keine Aufzeichnung für diese Aufgabe." : "Noch keine Aufzeichnung."}
+          </p>
+        )}
+      {[...list].reverse().map((e) => (
+          <RecordingItem key={e.id} event={e} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// summarize übersetzt ein Recording-Event in eine menschenlesbare Zeile.
+// Die Rohdaten bleiben pro Eintrag aufklappbar — lückenlos, aber lesbar.
+function summarize(e: RecordingEvent): { text: string; mono?: boolean; muted?: boolean; danger?: boolean } {
+  const p = (typeof e.payload === "object" && e.payload !== null ? e.payload : {}) as Record<string, any>;
+  switch (e.kind) {
+    case "lifecycle": {
+      if (p.status === "task_done") return { text: "Aufgabe abgeschlossen" };
+      const label = statusLabel[p.status as string] ?? p.status;
+      return { text: `Status → ${label}`, muted: p.status === "sleeping" };
+    }
+    case "credential": {
+      const ttl = p.ttl_secs ? `, gültig ${Math.round(p.ttl_secs / 60)} min` : "";
+      if (p.granted) return { text: `Zugang zu ${p.system} kurzlebig ausgestellt${p.proactive ? " (proaktiv)" : ""}${ttl}` };
+      return { text: `Zugang zu ${p.system} verweigert${p.reason ? ` — ${p.reason}` : ""}`, danger: true };
+    }
+    case "approval": {
+      const decision =
+        p.decision === "auto-allow" ? "automatisch erlaubt" : (statusLabel[p.decision as string] ?? p.decision);
+      return { text: `${p.action} — ${decision}`, danger: p.decision === "denied" };
+    }
+    case "guardrail":
+      return {
+        text: `Guard-Rail ${p.rule ?? ""}: ${p.action ?? p.system ?? ""}${p.pattern ? ` (Muster ${p.pattern})` : ""}`,
+        danger: true,
+      };
+    case "action":
+      return { text: `${p.action ?? "Aktion"} im Zielsystem`, mono: true };
+    case "runtime":
+      return summarizeRuntime(p);
+  }
+  return { text: JSON.stringify(e.payload), mono: true };
+}
+
+// summarizeRuntime versteht die stream-json-Zeilen von Claude Code sowie die
+// simplen {type,text}-Events der Mock-Runtime.
+function summarizeRuntime(p: Record<string, any>): { text: string; mono?: boolean; muted?: boolean; danger?: boolean } {
+  if (typeof p.text === "string" && !p.message) return { text: p.text };
+  switch (p.type) {
+    case "system":
+      return { text: `Runtime gestartet${p.model ? ` — Modell ${p.model}` : ""}`, muted: true };
+    case "rate_limit_event":
+      return { text: "Rate-Limit-Status der API aktualisiert", muted: true };
+    case "assistant": {
+      const blocks: any[] = Array.isArray(p.message?.content) ? p.message.content : [];
+      const parts: string[] = [];
+      for (const b of blocks) {
+        if (b.type === "text" && b.text) parts.push(truncate(b.text, 400));
+        if (b.type === "tool_use") parts.push(`⚙ ${b.name}(${truncate(compactInput(b.input), 120)})`);
+      }
+      return parts.length ? { text: parts.join("  ·  ") } : { text: "Antwort der Runtime", muted: true };
+    }
+    case "user": {
+      const blocks: any[] = Array.isArray(p.message?.content) ? p.message.content : [];
+      const res = blocks.find((b) => b.type === "tool_result");
+      if (res) {
+        const body = typeof res.content === "string" ? res.content : JSON.stringify(res.content);
+        return { text: `Tool-Ergebnis: ${truncate(body, 200)}`, mono: true, muted: true };
+      }
+      return { text: "Eingabe an die Runtime", muted: true };
+    }
+    case "result": {
+      const cost = p.total_cost_usd ? ` · $${Number(p.total_cost_usd).toFixed(4)}` : "";
+      const tok = p.usage?.input_tokens ? ` · ${p.usage.input_tokens}→${p.usage.output_tokens} Tokens` : "";
+      if (p.is_error) return { text: `Fehlgeschlagen: ${truncate(p.result ?? "", 300)}`, danger: true };
+      return { text: `Ergebnis: ${truncate(p.result ?? "", 400)}${cost}${tok}` };
+    }
+  }
+  return { text: JSON.stringify(p), mono: true };
+}
+
+const truncate = (s: string, n: number) => (s.length > n ? s.slice(0, n) + "…" : s);
+
+const compactInput = (input: unknown) => {
+  if (!input || typeof input !== "object") return "";
+  return Object.entries(input as Record<string, unknown>)
+    .map(([k, v]) => `${k}: ${typeof v === "string" ? v : JSON.stringify(v)}`)
+    .join(", ");
+};
+
+function RecordingItem({ event }: { event: RecordingEvent }) {
+  const s = summarize(event);
+  const raw = typeof event.payload === "string" ? event.payload : JSON.stringify(event.payload, null, 2);
+  return (
+    <div className="timeline-item">
+      <span className={`kind-tag kind-${event.kind}`}>{event.kind}</span>
+      <details className="flex-1 min-w-0 rec-details">
+        <summary
+          className={`rec-summary break-words ${s.mono ? "mono" : ""}`}
+          style={{
+            color: s.danger ? "var(--text-warning, #b45309)" : s.muted ? "var(--text-secondary)" : undefined,
+            whiteSpace: "pre-wrap",
+          }}
+        >
+          {s.text}
+        </summary>
+        <pre className="rec-raw">{raw}</pre>
+      </details>
+      <span className="muted shrink-0 text-[11px]">
+        {new Date(event.created_at).toLocaleTimeString("de-DE")}
+      </span>
+    </div>
+  );
+}
+
+function Config({ agentId, canManage }: { agentId: string; canManage: boolean }) {
+  const qc = useQueryClient();
+  const cfg = useQuery({
+    queryKey: ["config", agentId],
+    queryFn: () => api<ConfigVersion>(`/agents/${agentId}/config`),
+    retry: false,
+  });
+  const [draft, setDraft] = useState<Record<string, string> | null>(null);
+  const files = draft ?? cfg.data?.files ?? { "SOUL.md": "", "ACCESS.md": "" };
+
+  const save = useMutation({
+    mutationFn: () => put(`/agents/${agentId}/config`, { files }),
+    onSuccess: () => {
+      setDraft(null);
+      qc.invalidateQueries({ queryKey: ["config", agentId] });
+    },
+  });
+
+  return (
+    <div>
+      <p className="muted text-xs mb-3">
+        Config-as-Code: jede Änderung erzeugt eine neue Version
+        {cfg.data && <> — aktuell v{cfg.data.version}</>}. ACCESS.md hält Referenzen, nie Secrets.
+      </p>
+      {Object.entries(files)
+        .sort(([x], [y]) => x.localeCompare(y))
+        .map(([name, content]) => (
+          <div key={name} className="mb-3">
+            <label className="mono">{name}</label>
+            <textarea
+              className="code"
+              rows={Math.min(14, Math.max(4, content.split("\n").length + 1))}
+              value={content}
+              readOnly={!canManage}
+              onChange={(e) => setDraft({ ...files, [name]: e.target.value })}
+            />
+          </div>
+        ))}
+      {canManage && (
+        <button className="btn primary sm" disabled={!draft || save.isPending} onClick={() => save.mutate()}>
+          Neue Version speichern
+        </button>
+      )}
+    </div>
+  );
+}
+
+// AgentSecrets: agent-eigene Secrets (haben Vorrang) plus die Sicht darauf,
+// welche Org-Secrets diesen Agenten erreichen. Werte bleiben write-only.
+function AgentSecrets({ agentId }: { agentId: string }) {
+  const qc = useQueryClient();
+  const own = useQuery({
+    queryKey: ["agent-secrets", agentId],
+    queryFn: () => api<SecretPreview[]>(`/agents/${agentId}/secrets`),
+    retry: false,
+  });
+  const org = useQuery({ queryKey: ["secrets"], queryFn: () => api<SecretPreview[]>("/secrets"), retry: false });
+  const [key, setKey] = useState("");
+  const [value, setValue] = useState("");
+  const [check, setCheck] = useState<({ key: string } & SecretCheck) | null>(null);
+  const inval = () => qc.invalidateQueries({ queryKey: ["agent-secrets", agentId] });
+
+  const save = useMutation({
+    mutationFn: () =>
+      put<{ ok: boolean; check: SecretCheck }>(
+        `/agents/${agentId}/secrets/${encodeURIComponent(key)}`,
+        { value },
+      ),
+    onSuccess: (res) => {
+      setCheck({ key, ...res.check });
+      setKey("");
+      setValue("");
+      inval();
+    },
+  });
+  const remove = useMutation({
+    mutationFn: (k: string) => del(`/agents/${agentId}/secrets/${encodeURIComponent(k)}`),
+    onSuccess: inval,
+  });
+
+  const ownKeys = new Set((own.data ?? []).map((s) => s.key));
+  // Org-Secrets, die diesen Agenten erreichen: nur explizit zugewiesene.
+  const inherited = (org.data ?? []).filter((s) => s.agent_ids.includes(agentId));
+
+  return (
+    <div>
+      <p className="muted text-xs mb-3" style={{ maxWidth: 640 }}>
+        Agent-eigene Secrets gelten nur für diesen Agenten und haben Vorrang vor gleichnamigen
+        Org-Secrets. Zuweisungen von Org-Secrets pflegst du unter <Link to="/secrets">Secrets</Link>.
+      </p>
+
+      <form
+        className="card mb-4 flex gap-3 items-end flex-wrap"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save.mutate();
+        }}
+      >
+        <div className="min-w-48">
+          <label>Key</label>
+          <input value={key} onChange={(e) => setKey(e.target.value)} className="mono" placeholder="zammad_token" required />
+        </div>
+        <div className="flex-1 min-w-52">
+          <label>Wert</label>
+          <input type="password" value={value} onChange={(e) => setValue(e.target.value)} required />
+        </div>
+        <button className="btn primary" disabled={save.isPending}>
+          Speichern
+        </button>
+        {check && (
+          <p
+            className="text-xs w-full m-0"
+            style={{ color: check.checked && !check.valid ? "var(--danger, #b91c1c)" : check.valid ? "var(--success, #15803d)" : "var(--text-secondary)" }}
+          >
+            {check.checked && check.valid && (
+              <>
+                <span className="mono">{check.key}</span> gespeichert — Credential live geprüft, gültig. ✓
+              </>
+            )}
+            {check.checked && !check.valid && (
+              <>
+                <span className="mono">{check.key}</span> gespeichert, aber das Credential ist <strong>ungültig</strong>: {check.hint}
+              </>
+            )}
+            {!check.checked && (
+              <>
+                <span className="mono">{check.key}</span> gespeichert.{check.hint ? ` ${check.hint}` : ""}
+              </>
+            )}
+          </p>
+        )}
+      </form>
+
+      {(own.data ?? []).map((s) => (
+        <div key={s.key} className="card mb-2 flex items-center gap-4" style={{ padding: "11px 15px" }}>
+          <span className="mono text-sm flex-1">{s.key}</span>
+          <span className="badge st-triage">agent-eigen</span>
+          <span className="mono muted text-xs">
+            {s.prefix ? <span style={{ color: "var(--text-secondary)" }}>{s.prefix}</span> : null}
+            ••••••••
+          </span>
+          <button className="btn sm" onClick={() => remove.mutate(s.key)}>
+            Löschen
+          </button>
+        </div>
+      ))}
+      {own.data?.length === 0 && <p className="muted mb-3">Noch keine agent-eigenen Secrets.</p>}
+
+      {inherited.length > 0 && (
+        <>
+          <label className="mt-4">Aus der Organisation zugewiesen</label>
+          {inherited.map((s) => (
+            <div key={s.key} className="card mb-2 flex items-center gap-4" style={{ padding: "11px 15px", opacity: ownKeys.has(s.key) ? 0.55 : 1 }}>
+              <span className="mono text-sm flex-1">{s.key}</span>
+              <span className="muted text-xs">
+                {ownKeys.has(s.key) ? "durch agent-eigenes Secret überdeckt" : "explizit zugewiesen"}
+              </span>
+              <span className="mono muted text-xs">
+                {s.prefix ? <span style={{ color: "var(--text-secondary)" }}>{s.prefix}</span> : null}
+                ••••••••
+              </span>
+            </div>
+          ))}
+        </>
+      )}
+    </div>
+  );
+}
+
+function Memories({ agentId, canManage }: { agentId: string; canManage: boolean }) {
+  const qc = useQueryClient();
+  const mems = useQuery({
+    queryKey: ["memories", agentId],
+    queryFn: () => api<MemoryEntry[] | null>(`/agents/${agentId}/memories`),
+  });
+  const [draft, setDraft] = useState("");
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editText, setEditText] = useState("");
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["memories", agentId] });
+
+  const add = useMutation({
+    mutationFn: () => post(`/agents/${agentId}/memories`, { content: draft }),
+    onSuccess: () => {
+      setDraft("");
+      invalidate();
+    },
+  });
+  const save = useMutation({
+    mutationFn: () => patch(`/memories/${editId}`, { content: editText }),
+    onSuccess: () => {
+      setEditId(null);
+      invalidate();
+    },
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => del(`/memories/${id}`),
+    onSuccess: invalidate,
+  });
+
+  const list = mems.data ?? [];
+  return (
+    <div>
+      {canManage && (
+        <div className="card mb-3" style={{ padding: "12px 14px" }}>
+          <textarea
+            rows={2}
+            placeholder="Wissen mitgeben, z. B. „Kunde Meier ist Bestandskunde und wird geduzt“ …"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+          />
+          <div className="flex items-center gap-2 mt-2">
+            <button
+              className="btn primary sm"
+              disabled={!draft.trim() || add.isPending}
+              onClick={() => add.mutate()}
+            >
+              Merken
+            </button>
+            {add.isError && <span className="danger-text text-xs">{(add.error as Error).message}</span>}
+          </div>
+        </div>
+      )}
+      {list.length === 0 && <p className="muted">Noch nichts gelernt.</p>}
+      {list.map((m) =>
+        editId === m.id ? (
+          <div key={m.id} className="card mb-2" style={{ padding: "12px 14px" }}>
+            <textarea rows={2} value={editText} onChange={(e) => setEditText(e.target.value)} />
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                className="btn primary sm"
+                disabled={!editText.trim() || save.isPending}
+                onClick={() => save.mutate()}
+              >
+                Speichern
+              </button>
+              <button className="btn sm" onClick={() => setEditId(null)}>
+                Abbrechen
+              </button>
+              {save.isError && <span className="danger-text text-xs">{(save.error as Error).message}</span>}
+            </div>
+          </div>
+        ) : (
+          <div key={m.id} className="card mb-2 flex justify-between gap-3" style={{ padding: "12px 14px" }}>
+            <span className="voice text-[14.5px]">{m.content}</span>
+            <span className="muted text-[11px] shrink-0 flex items-center gap-2">
+              {new Date(m.created_at).toLocaleDateString("de-DE")}
+              {canManage && (
+                <>
+                  <button
+                    className="btn sm"
+                    onClick={() => {
+                      setEditId(m.id);
+                      setEditText(m.content);
+                    }}
+                  >
+                    Ändern
+                  </button>
+                  <button
+                    className="btn sm danger"
+                    disabled={remove.isPending}
+                    onClick={() => remove.mutate(m.id)}
+                  >
+                    Vergessen
+                  </button>
+                </>
+              )}
+            </span>
+          </div>
+        ),
+      )}
+    </div>
+  );
+}

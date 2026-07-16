@@ -1,0 +1,27 @@
+# Sandbox-Image für den docker-SandboxProvider: coveyd + Claude-Code-Runtime.
+# Bauen: `make sandbox-image`. Die Control Plane startet daraus pro Wake einen
+# Container; das persistente Agenten-Home wird nach /home/agent gemountet.
+FROM golang:1.26 AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY cmd/coveyd ./cmd/coveyd
+COPY internal ./internal
+RUN CGO_ENABLED=0 go build -o /coveyd ./cmd/coveyd
+
+FROM node:22-slim
+# Werkzeuge, die die Runtime in der Praxis braucht: git für Repos,
+# ca-certificates + curl für HTTPS-Zugriffe auf gebrokerte Zielsysteme.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git ca-certificates curl ripgrep \
+    && rm -rf /var/lib/apt/lists/*
+RUN npm install -g @anthropic-ai/claude-code
+
+# Nicht-root: Claude Code verweigert --dangerously-skip-permissions als root,
+# und die Sandbox soll auch im Container kein Root-Prozess sein.
+RUN useradd --create-home --uid 1001 agent
+COPY --from=build /coveyd /usr/local/bin/coveyd
+
+USER agent
+WORKDIR /home/agent
+ENTRYPOINT ["coveyd"]

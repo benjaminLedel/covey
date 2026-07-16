@@ -1,0 +1,87 @@
+// Package config lädt die Prozess-Konfiguration aus ENV (12-Factor).
+package config
+
+import (
+	"fmt"
+	"os"
+	"strconv"
+	"time"
+)
+
+type Config struct {
+	// DatabaseURL ist die Postgres-DSN, z. B. postgres://covey:covey@localhost:5433/covey
+	DatabaseURL string
+	// ListenAddr ist die HTTP-Bind-Adresse des Binaries (API + eingebettetes Frontend).
+	ListenAddr string
+	// PublicURL ist die von Sandboxen erreichbare Basis-URL der Control Plane.
+	PublicURL string
+	// MasterKeyHex ist der 32-Byte-AES-Schlüssel (hex) des Built-in SecretStore.
+	MasterKeyHex string
+	// IdentityProvider wählt die Implementierung: builtin | oidc (post-MVP).
+	IdentityProvider string
+	// SecretStore wählt die Implementierung: builtin | vault (post-MVP).
+	SecretStore string
+	// SandboxProvider wählt die Data-Plane: local (Subprozess) | docker (Container) | e2b (post-MVP).
+	SandboxProvider string
+	// DataDir hält persistente Sandbox-Homes (local- und docker-Provider).
+	DataDir string
+	// CoveydPath ist der Pfad zum Daemon-Binary für den local-Provider.
+	CoveydPath string
+	// SandboxImage ist das Container-Image des docker-Providers (Dockerfile.sandbox).
+	SandboxImage string
+	// ZammadWebhookSecret verifiziert HMAC-SHA1-Signaturen eingehender Zammad-Webhooks.
+	ZammadWebhookSecret string
+	// TickInterval ist der periodische "was liegt an?"-Impuls des Dispatch-Loops.
+	TickInterval time.Duration
+	// SessionTTL für menschliche Logins.
+	SessionTTL time.Duration
+	// DaemonTokenTTL für die kurzlebigen Sandbox-Daemon-JWTs.
+	DaemonTokenTTL time.Duration
+}
+
+func FromEnv() (Config, error) {
+	c := Config{
+		DatabaseURL:         getenv("COVEY_DATABASE_URL", "postgres://covey:covey@localhost:5433/covey?sslmode=disable"),
+		ListenAddr:          getenv("COVEY_LISTEN_ADDR", ":8494"),
+		PublicURL:           getenv("COVEY_PUBLIC_URL", "http://localhost:8494"),
+		MasterKeyHex:        os.Getenv("COVEY_MASTER_KEY"),
+		IdentityProvider:    getenv("COVEY_IDENTITY_PROVIDER", "builtin"),
+		SecretStore:         getenv("COVEY_SECRET_STORE", "builtin"),
+		SandboxProvider:     getenv("COVEY_SANDBOX_PROVIDER", "local"),
+		DataDir:             getenv("COVEY_DATA_DIR", "./data"),
+		CoveydPath:          getenv("COVEY_COVEYD_PATH", "./coveyd"),
+		SandboxImage:        getenv("COVEY_SANDBOX_IMAGE", "covey-sandbox:latest"),
+		ZammadWebhookSecret: os.Getenv("COVEY_ZAMMAD_WEBHOOK_SECRET"),
+		TickInterval:        getenvDuration("COVEY_TICK_INTERVAL", 30*time.Second),
+		SessionTTL:          getenvDuration("COVEY_SESSION_TTL", 12*time.Hour),
+		DaemonTokenTTL:      getenvDuration("COVEY_DAEMON_TOKEN_TTL", 15*time.Minute),
+	}
+	if c.IdentityProvider != "builtin" {
+		return c, fmt.Errorf("identity provider %q: nur 'builtin' ist im MVP implementiert", c.IdentityProvider)
+	}
+	if c.SecretStore != "builtin" {
+		return c, fmt.Errorf("secret store %q: nur 'builtin' ist im MVP implementiert", c.SecretStore)
+	}
+	return c, nil
+}
+
+func getenv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+func getenvDuration(key string, fallback time.Duration) time.Duration {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	if d, err := time.ParseDuration(v); err == nil {
+		return d
+	}
+	if secs, err := strconv.Atoi(v); err == nil {
+		return time.Duration(secs) * time.Second
+	}
+	return fallback
+}

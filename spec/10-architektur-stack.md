@@ -104,6 +104,7 @@ Agenten-Identität ausstellen, Menschen authentifizieren, scoped/kurzlebige Toke
 | Queue / PubSub | `SKIP LOCKED` + `LISTEN/NOTIFY` | Redis / NATS |
 | Observability | Postgres-Tabelle | Langfuse / OpenObserve |
 | Memory | pgvector | Graphiti (temporal) |
+| Sandbox / Data Plane | Subprozess (`local`) · Container (`docker`) | E2B / Beam (MicroVMs) |
 
 ## Projekt-Layout
 

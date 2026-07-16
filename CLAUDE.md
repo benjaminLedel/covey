@@ -8,13 +8,18 @@ Enterprise-Plattform, die **KI-Agenten wie Mitarbeiter** behandelt: Identität, 
 
 ## Aktueller Zustand
 
-**Design-Phase — noch kein Produktivcode.** Das Repo enthält:
+**MVP implementiert (M0–M7).** Das Repo enthält:
 
 - `spec/` — die vollständige Spezifikation (13 Dokumente, **deutschsprachig**). Einstieg: `spec/README.md`.
-- `mockup/covey-ui-mockup.html` — statischer HTML-Mockup der Admin-UI.
+- Den Code gemäß dem Layout aus `spec/10-architektur-stack.md`: `cmd/covey` (Control Plane), `cmd/coveyd` (Sandbox-Daemon), `internal/…`, `web/` (React-SPA, eingebettet), `migrations/` (eingebettet).
+- `internal/integration/` — die Abnahme-Checkliste aus `spec/11-mvp-plan.md` als Integrationstest-Suite (echtes Postgres auf Port 5433, In-Process-Daemon über echten WebSocket, Mock-Runtime, Fake-Zammad).
+- `demo/fakezammad/` — Zammad-Double für lokale Demos.
+- `mockup/covey-ui-mockup.html` — statischer HTML-Mockup; die React-UI übernimmt seine Design-Sprache (CSS-Variablen, Inter/Lora).
 - `praesentationen/*.pptx` — Pitch-/Investor-Material (nicht editieren, sofern nicht ausdrücklich gewünscht).
 
-Wenn du nach „dem Code" suchst: es gibt noch keinen. Die Bau-Reihenfolge steht in `spec/11-mvp-plan.md` (Meilensteine M0–M7). Das in `spec/10-architektur-stack.md` beschriebene Projekt-Layout (`cmd/covey`, `internal/…`, `web/`, `migrations/`) ist **geplant**, nicht angelegt.
+Entwicklungs-Workflow: `make dev-db && make bootstrap && make run` (siehe README). Tests: `make test`, Integrationstests: `make test-integration` (brauchen die Dev-DB; sie skippen, wenn Port 5433 nicht erreichbar ist). Vor dem Go-Build muss `web/dist` existieren (`cd web && npm run build`) — `//go:embed` zieht es ins Binary.
+
+**Server nach Änderungen neu bauen und durchstarten.** `go build ./...` ist nur ein Kompilier-Check — es schreibt das `./covey`-Binary *nicht* neu. Damit Änderungen (Backend wie Web-UI) live sind: `make build` (baut `web/dist` + `covey` + `coveyd`), dann den laufenden `covey serve`-Prozess beenden (`pgrep -fl "covey serve"`) und via `make run` bzw. `COVEY_MASTER_KEY=$(cat .covey.key) COVEY_COVEYD_PATH=$PWD/coveyd ./covey serve` neu starten. Migrationen laufen beim `serve`-Start automatisch (Auto-Migrate mit advisory lock).
 
 ## Sprache & Konventionen
 
@@ -80,4 +85,5 @@ Begründung: ein Binary → `go.mod` in der Wurzel, `web/` + `migrations/` als G
 ## Git
 
 - Branch `main`, Remote ist GitLab (`gitlab.lapco.legal`).
-- Commit/Push nur auf ausdrückliche Bitte. Nicht auf `main` committen ohne Rückfrage — vorher Branch anlegen.
+- **Regelmäßig committen:** abgeschlossene, zusammengehörige Arbeitsschritte (Feature fertig, Tests grün) als eigenen Commit festhalten — nicht alles in einem Riesen-Commit sammeln. Commit-Messages auf Deutsch, im Stil der bestehenden Historie.
+- Nicht auf `main` committen ohne Rückfrage — vorher Branch anlegen. Push weiterhin nur auf ausdrückliche Bitte.

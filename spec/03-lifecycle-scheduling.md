@@ -69,11 +69,29 @@ Sauberes `blocked`-Handling ist der Unterschied zwischen „Agent" und „Angest
 
 Das Backlog ist **kein flüchtiger Queue**, sondern ein persistentes, inspizierbares Objekt in der Control Plane. Jede Aufgabe trägt:
 
-- **State** (`open`, `in_progress`, `blocked`, `done`),
+- **State** (`open`, `in_progress`, `blocked`, `done`, `failed`, `cancelled`),
 - **Priorität**,
 - **Herkunft** (wer/was hat sie zugewiesen — Mensch, anderer Agent, Zeitplan),
 - **Historie** (Zustandsübergänge, Zeitstempel),
-- ggf. **Korrelations-Key** (wenn `blocked`).
+- ggf. **Korrelations-Key** (wenn `blocked`),
+- ggf. **Stage** (frei definierbare Kanban-Spalte, siehe unten).
+
+**Terminale States sind keine Sackgassen, und das Backlog wächst nicht ins Unendliche:**
+
+- **Retry:** `failed → open` und `cancelled → open` sind zulässige Übergänge — eine gescheiterte oder verworfene Aufgabe lässt sich manuell **erneut einplanen** (Ergebnis/Fehler werden geleert, die Historie bleibt in den Transitions, der Agent wird geweckt). `done` bleibt final.
+- **Archivieren statt löschen:** Terminale Aufgaben (`done`/`failed`/`cancelled`) lassen sich einzeln oder gesammelt („Aufräumen") **archivieren** (`archived_at`). Archiviert heißt: aus dem aktiven Backlog ausgeblendet, aber vollständig erhalten — Historie und Recording-Verweise bleiben gültig, das UI zeigt das Archiv auf Wunsch ein. Aktive Aufgaben (`open`/`in_progress`/`blocked`) sind bewusst nicht archivierbar.
+
+### Stages: Kanban-Overlay über dem State
+
+Der **State** ist die Maschinen-Wahrheit — an ihm hängen Scheduler (`ClaimNext` greift `open`), `blocked`-Suspendierung und Abschluss. Er ist fest und darf nicht frei werden, sonst verliert der Orchestrator seinen Halt.
+
+Darüber liegt eine zweite, **rein anzeigende** Dimension: die **Stage**. Stages sind frei benennbare Kanban-Spalten, **pro Agent** definiert (z. B. `Triage → Recherche → Warten → Antwort → Erledigt`). Sie tragen keine Semantik für den Scheduler — sie machen sichtbar, *wo im eigenen Workflow* eine Aufgabe steht.
+
+- **Der Agent bewegt sich selbst.** Über den Action-Proxy (`covey/set_stage`, siehe [`01-architektur.md`](01-architektur.md)) schiebt der Agent seine laufende Aufgabe in eine Stage; existiert sie nicht, wird sie automatisch als neue Spalte angelegt — der Agent „erfindet" seine Spalten also im Arbeiten.
+- **Menschen ebenso.** Verwalter ziehen Aufgaben im Board per Drag & Drop und pflegen die Spalten (anlegen, umbenennen, umsortieren, färben, löschen).
+- **Persistenz:** Tabelle `agent_stages` (pro Agent, mit `position`/`color`), Aufgabe referenziert `stage_id` (nullable → „Ohne Stage"). Löschen einer Stage setzt betroffene Aufgaben auf `NULL` zurück, nie Datenverlust.
+- **Overlay, nicht Ersatz:** Eine Aufgabe hat gleichzeitig einen `state` (z. B. `blocked`) und eine `stage` (z. B. `Warten`). Die Kanban-Spalten des UI kommen aus den Stages; der State steht als Badge auf der Karte.
+- **Auto-Follow der Standard-Spalten:** Jeder Agent startet mit `Backlog → In Arbeit → Erledigt`. Solange eine Aufgabe in einer dieser Standard-Spalten (oder in keiner) liegt, führt der Store die Spalte beim Zustandsübergang automatisch nach (`open`→Backlog, `in_progress`/`blocked`→In Arbeit, terminal→Erledigt). Sobald Agent oder Mensch die Aufgabe bewusst in eine **eigene** Spalte legt, gilt manuelle Platzierung — Auto-Follow fasst sie nicht mehr an. Fehlt eine Standard-Spalte (umbenannt/gelöscht), entfällt das Nachführen ersatzlos.
 
 ### Ironie/Chance: Backlog = Ticketsystem für Agenten
 

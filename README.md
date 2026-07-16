@@ -8,7 +8,19 @@ Eine zentrale Plattform, die KI-Agenten wie Mitarbeiter behandelt — mit Identi
 
 ## Status
 
-**Design-Phase.** Dieses Repository enthält derzeit die **Spezifikation**, einen **UI-Mockup** und **Pitch-Material** — noch keinen Produktivcode. Die Bau-Reihenfolge (Meilensteine M0–M7) steht in [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md).
+**MVP implementiert.** Das Repository enthält neben der **Spezifikation** den vollständigen MVP-Durchstich (Meilensteine M0–M7 aus [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md)): das `covey`-Binary (Control Plane, API, eingebettete Admin-UI), den Sandbox-Daemon `coveyd`, den Claude-Code-Adapter, die Zammad-Integration und die Vertrauensschicht (Guard-Rails, Recording, Kill-Switch, Cost, RBAC). Die Abnahme-Checkliste läuft als Integrationstest-Suite (`internal/integration/`).
+
+## Schnellstart (Entwicklung)
+
+```bash
+make dev-db       # Postgres (pgvector) via Docker auf Port 5433
+make bootstrap    # Frontend + Binaries bauen, migrieren, Org/Admin/Agent anlegen
+make run          # covey serve auf http://localhost:8494
+```
+
+**Sandbox-Isolation:** Standardmäßig startet die Control Plane Sandboxen als lokale Subprozesse (`COVEY_SANDBOX_PROVIDER=local`) — ehrlich, aber nur Prozess-Isolation. Für echte Container-Isolation `make sandbox-image` (baut `covey-sandbox:latest` aus [`Dockerfile.sandbox`](Dockerfile.sandbox), coveyd + Claude Code) und mit `COVEY_SANDBOX_PROVIDER=docker` starten. Das persistente Agenten-Home wird als Volume gemountet; der Container erbt nichts von der Host-Umgebung. Image überschreibbar via `COVEY_SANDBOX_IMAGE`.
+
+Login: `admin@covey.local` / `covey-admin` (überschreibbar via `COVEY_ADMIN_EMAIL`/`COVEY_ADMIN_PASSWORD` beim Bootstrap). Tests: `make test` (Unit) und `make test-integration` (voller Durchstich gegen die Dev-DB, mit Mock-Runtime und Fake-Zammad). Für Demos ohne echtes Zammad: `go run ./demo/fakezammad` und die Secrets `zammad_url` = `http://localhost:9999`, `zammad_token` beliebig setzen. Damit die Claude-Code-Runtime in der Sandbox arbeiten kann, das Secret `anthropic_api_key` (API-Key) oder alternativ `claude_code_oauth_token` (Abo-Account: Token einmalig mit `claude setup-token` erzeugen) hinterlegen — ohne eines der beiden scheitern Aufgaben mit „Not logged in · Please run /login", weil die Sandbox ein eigenes, leeres `HOME` hat und die lokale `claude`-Anmeldung dort nicht sichtbar ist.
 
 ## Die Leitmetapher
 
@@ -61,6 +73,12 @@ Ein **Support-Agent**, der ein **Zammad**-Ticket triagiert, selbst beantwortet o
 | Pfad | Inhalt |
 |---|---|
 | [`spec/`](spec/) | Die vollständige Spezifikation (Einstieg: [`spec/README.md`](spec/README.md)) |
+| `cmd/covey/` | Control-Plane-Binary: `serve`, `migrate`, `bootstrap`, `genkey` |
+| `cmd/coveyd/` | Sandbox-Daemon (spricht das Daemon-Protokoll, bootstrappt die Runtime) |
+| `internal/` | Orchestrator, Agents, Backlog, Identity/Secrets (builtin), Guard-Rails, Observability, Memory, Zammad, HTTP-API |
+| `migrations/` | Versionierte SQL-Migrationen (via `//go:embed` ins Binary gebacken) |
+| `web/` | React/Vite/Tailwind-Admin-UI (dist/ wird ins Binary eingebettet) |
+| `demo/fakezammad/` | Minimales Zammad-Double für lokale Demos |
 | `mockup/covey-ui-mockup.html` | Statischer HTML-Mockup der Admin-Oberfläche |
 | `praesentationen/` | Pitch- und Investor-Decks (`.pptx`) |
 

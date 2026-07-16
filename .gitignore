@@ -1,0 +1,17 @@
+# Binaries
+/covey
+/coveyd
+
+# Secrets & Logs — der Master-Key darf nie ins Repo
+.covey.key
+serve.log
+
+# Laufzeitdaten (Sandbox-Homes des local-Providers)
+/data/
+
+# Frontend
+web/node_modules/
+web/dist/
+
+# macOS
+.DS_Store

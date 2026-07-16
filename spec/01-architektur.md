@@ -95,8 +95,11 @@ Bidirektional (WebSocket oder gRPC-Stream) zwischen Control Plane und Daemon. Da
 | `request_approval` | Riskante Aktion wartet auf Freigabe |
 | `blocked` | Agent parkt Aufgabe, wartet auf externes Ereignis (mit Korrelations-Key) |
 | `task_done` | Aufgabe abgeschlossen (mit Ergebnis + Gedächtnis-Update) |
+| `set_stage` | Agent schiebt die Aufgabe in eine (ggf. neue) Kanban-Stage — rein anzeigend, kein Lifecycle-Übergang (siehe [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)) |
 | `cost` | Verbrauchte Tokens/Compute für Budget-Tracking |
 | `heartbeat` | Lebenszeichen |
+
+Die `set_stage`-Nachricht entsteht aus einer Meta-Aktion des Agenten am Action-Proxy (`POST /actions/covey/set_stage`): Der Proxy behandelt das System `covey` nicht als externes Zielsystem (keine Credentials, keine Egress-Guard-Rail), sondern reicht sie als Steuersignal an die Control Plane durch.
 
 Alle `event`-Nachrichten fließen in die Observability-Pipeline (siehe [`06-observability-control.md`](06-observability-control.md)). **Jeder Credential-, Egress- und Approval-Request wird von der Control Plane gegen die Guard-Rails geprüft, nie vom Daemon selbst entschieden.** Der Daemon setzt zusätzlich die tool-/action-seitigen Rails lokal durch (welche Tools/Kommandos erlaubt sind), aber die verbindliche Policy-Entscheidung liegt zentral — der Daemon ist ausführendes Organ, nicht Entscheider.
 

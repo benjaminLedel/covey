@@ -49,3 +49,8 @@ done:    memory.ingest(episode)  → neue Fakten/Beziehungen in den Graph
 ```
 
 Damit wird das Gedächtnis kein separates Feature, sondern ein fester Bestandteil jedes Arbeitszyklus.
+
+Zwei Qualitätsregeln am Ingest-Punkt:
+
+- **Kein Noise:** Floskeln ohne Informationswert („keine neuen Erkenntnisse", „n/a") werden verworfen — der Prompt weist den Agenten an, das `memory`-Feld dann leer zu lassen; die Memory-Schicht filtert als Sicherheitsnetz zusätzlich selbst.
+- **Manuelle Pflege:** Menschen mit manage-Rolle können Episoden über API und UI einspeisen, ändern und löschen (Onboarding-Wissen mitgeben, Veraltetes oder Falsches korrigieren) — das Einarbeitungsgespräch für den neuen Mitarbeiter. Manuell eingespeiste Episoden tragen `source: manual` in den Metadaten und bleiben so von Agent-Gelerntem unterscheidbar.

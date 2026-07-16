@@ -43,6 +43,15 @@ Kernpunkte:
 - Der Broker entscheidet, **nie der Daemon**. Berechtigung wird zentral geprüft (gegen `ACCESS.md` + Policies).
 - Langzeit-Credentials der Zielsysteme bleiben im Secret-Store, unsichtbar für den Agenten.
 
+## Scope: Organisation vs. Agent
+
+Secrets im Store haben zwei Ebenen; der Broker löst pro Agent auf:
+
+- **Org-weite Secrets** werden zentral hinterlegt, wirken aber erst durch **explizite Zuweisung** an einzelne Agenten (Least Privilege auf Secret-Ebene). Ein Org-Secret ohne Zuweisung erreicht **keinen** Agenten.
+- **Agent-eigene Secrets** hängen an genau einem Agenten und haben bei gleichem Key **Vorrang** vor dem zugewiesenen Org-Secret — z. B. ein eigener Zielsystem-Account oder ein eigenes Anthropic-Credential pro Agent.
+
+Auflösungsreihenfolge des Brokers: agent-eigenes Secret → explizit zugewiesenes Org-Secret → sonst Ablehnung (`kein Secret hinterlegt oder zugewiesen`). Die Regel „write-only, nur Präfix-Vorschau" gilt auf beiden Ebenen; in der Built-in-Implementierung bindet die AES-GCM-AAD das Chiffrat zusätzlich an Org, Agent und Key.
+
 ## Threat-Model
 
 Agenten mit echten Zugängen sind eine Angriffsfläche. Das ist von Anfang an mitzudenken, sonst baut man eine wunderbare Exfiltrations-Maschine.
