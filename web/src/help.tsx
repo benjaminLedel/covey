@@ -141,9 +141,10 @@ export const helpTopics: HelpTopic[] = [
             Credential-Entscheidungen, Lifecycle.
           </li>
           <li>
-            <b>Config</b> — Config-as-Code: <Term>SOUL.md</Term> (Verhalten) und{" "}
-            <Term>ACCESS.md</Term> (Zugriffs-Referenzen, nie Secrets). Jede Änderung erzeugt eine
-            neue Version.
+            <b>Config</b> — Config-as-Code: <Term>SOUL.md</Term> (Verhalten),{" "}
+            <Term>ACCESS.md</Term> (Zugriffs-Referenzen, nie Secrets) und{" "}
+            <Term>HEARTBEAT.md</Term> (wiederkehrende Aufgaben, die nach Zeitplan automatisch im
+            Backlog landen). Jede Änderung erzeugt eine neue Version.
           </li>
           <li>
             <b>Gedächtnis</b> — Episoden, die der Agent aus erledigten Aufgaben gelernt hat; sie

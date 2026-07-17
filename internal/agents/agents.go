@@ -200,6 +200,10 @@ func (r *Registry) SetSupervisor(ctx context.Context, id uuid.UUID, supervisorID
 func (r *Registry) SaveConfig(ctx context.Context, agentID uuid.UUID, files map[string]string, createdBy *uuid.UUID) (ConfigVersion, error) {
 	compiled := CompilePrompt(files)
 	accesses := ParseAccess(files["ACCESS.md"])
+	heartbeats, err := ParseHeartbeat(files["HEARTBEAT.md"])
+	if err != nil {
+		return ConfigVersion{}, fmt.Errorf("HEARTBEAT.md: %w", err)
+	}
 
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -231,6 +235,32 @@ func (r *Registry) SaveConfig(ctx context.Context, agentID uuid.UUID, files map[
 			agentID, acc.System, acc.Scopes); err != nil {
 			return ConfigVersion{}, err
 		}
+	}
+
+	// Heartbeats materialisieren: Upsert je titel, damit last_fired_at über
+	// Config-Versionen hinweg erhalten bleibt; entfernte Einträge löschen.
+	names := make([]string, 0, len(heartbeats))
+	for _, hb := range heartbeats {
+		names = append(names, hb.Name)
+		var everySeconds *int64
+		var dailyAt *string
+		if hb.Every > 0 {
+			s := int64(hb.Every / time.Second)
+			everySeconds = &s
+		} else {
+			dailyAt = &hb.DailyAt
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO agent_heartbeats (agent_id, name, task_body, every_seconds, daily_at)
+			VALUES ($1,$2,$3,$4,$5)
+			ON CONFLICT (agent_id, name) DO UPDATE
+			SET task_body=EXCLUDED.task_body, every_seconds=EXCLUDED.every_seconds, daily_at=EXCLUDED.daily_at`,
+			agentID, hb.Name, hb.Task, everySeconds, dailyAt); err != nil {
+			return ConfigVersion{}, err
+		}
+	}
+	if _, err := tx.Exec(ctx, "DELETE FROM agent_heartbeats WHERE agent_id=$1 AND NOT (name = ANY($2))",
+		agentID, names); err != nil {
+		return ConfigVersion{}, err
 	}
 	return cv, tx.Commit(ctx)
 }

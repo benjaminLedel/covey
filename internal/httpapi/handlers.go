@@ -85,7 +85,7 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	if errors.Is(err, agents.ErrNotFound) {
 		// Noch keine Version: leere Dateien, damit ACCESS.md/EGRESS.md
 		// (live gerendert) trotzdem sichtbar sind.
-		cv = agents.ConfigVersion{AgentID: id, Files: map[string]string{"SOUL.md": ""}}
+		cv = agents.ConfigVersion{AgentID: id, Files: map[string]string{"SOUL.md": "", "HEARTBEAT.md": ""}}
 	} else if err != nil {
 		mapErr(w, err)
 		return
@@ -122,6 +122,12 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, ok := in.Files["TOOLS.md"]; ok {
 		writeErr(w, http.StatusBadRequest, "TOOLS.md ist in ACCESS.md aufgegangen (Attribut tools: je System)")
+		return
+	}
+	// HEARTBEAT.md vorab validieren: ein Parse-Fehler soll als 400 mit
+	// verständlicher Meldung zurückkommen, nicht erst in SaveConfig scheitern.
+	if _, err := agents.ParseHeartbeat(in.Files["HEARTBEAT.md"]); err != nil {
+		writeErr(w, http.StatusBadRequest, "HEARTBEAT.md: "+err.Error())
 		return
 	}
 	// Write-Through in die UI-Stores (Tools, Egress) — erst validieren und

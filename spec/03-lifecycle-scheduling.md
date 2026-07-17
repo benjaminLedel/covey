@@ -16,9 +16,27 @@ Pro Agent läuft ein dauerhafter, **billiger** Dispatch-Loop — **kein LLM**, r
 |---|---|
 | **Event** | neues Ticket, Webhook, eingehende Mail (falls der Agent eine hat), Delegation von einem anderen Agenten |
 | **Scheduler-Tick** | alle N Minuten „was liegt an?" |
-| **Zeitplan (cron)** | „Montag 9 Uhr Wochenreport" |
+| **Zeitplan (cron)** | „Montag 9 Uhr Wochenreport" — konfiguriert je Agent in `HEARTBEAT.md`, siehe unten |
 
 Erst wenn eine dieser Quellen feuert, wird die teure Agent-Runtime in der Sandbox geweckt (`wake` → `assign_task`, siehe [`01-architektur.md`](01-architektur.md)).
+
+### Heartbeat: wiederkehrende Aufgaben (`HEARTBEAT.md`)
+
+Die Zeitplan-Quelle ist Config-as-Code: jede Zeile in `HEARTBEAT.md` ([`02-agenten-modell.md`](02-agenten-modell.md)) definiert eine wiederkehrende Aufgabe.
+
+```markdown
+- alle: 30m      titel: Posteingang sichten   aufgabe: Prüfe neue Tickets und triagiere sie.
+- täglich: 09:00 titel: Tagesbericht          aufgabe: Fasse den gestrigen Tag zusammen.
+```
+
+Zwei Zeitplan-Formen, genau eine je Eintrag:
+
+- **`alle:`** — Intervall (`30m`, `2h`, `1d`). Fällig, sobald seit dem letzten Lauf das Intervall verstrichen ist.
+- **`täglich:`** — feste Tageszeit (`HH:MM`, Serverzeit). Fällig einmal pro Tag ab dieser Uhrzeit.
+
+Mechanik: Beim Speichern der Config werden die Einträge in `agent_heartbeats` materialisiert (`titel:` ist der Schlüssel; `last_fired_at` überlebt Config-Versionen und startet bei *jetzt* — ein frisch angelegter Heartbeat feuert also erst nach Ablauf seines Zeitplans, nicht sofort). Der periodische Tick des Dispatch-Loops prüft fällige Einträge per SQL und legt sie als reguläre Backlog-Aufgabe mit `origin='heartbeat'` an — ab dort greift der normale Lifecycle (wake, triage, working). Kill-Switch und Flotten-Notaus unterdrücken das Feuern.
+
+**Kein Aufstauen:** Ist die Aufgabe des letzten Laufs noch nicht terminal (open/in_progress/blocked), wird kein Duplikat angelegt; der Lauf gilt trotzdem als gefeuert, damit nach Abschluss der reguläre Zeitplan weiterläuft statt sofort nachzuschlagen. Verpasste Läufe (Control Plane down) werden nicht nachgeholt — es feuert höchstens der nächste fällige Lauf.
 
 **Gestaffelte Kosten beim Tick:** Der Tick darf nicht jedes Mal Opus anwerfen. Ein kleines, billiges Modell entscheidet zuerst „gibt es überhaupt etwas zu tun?" — bei „nein" schläft der Agent weiter. Erst bei „ja" wird die volle Runtime geweckt. Der Tick ist das, was Proaktivität erzeugt: Ohne externen Trigger merkt der Support-Agent selbst „Ticket #42 wartet seit zwei Tagen auf Kundenantwort, ich hake nach."
 

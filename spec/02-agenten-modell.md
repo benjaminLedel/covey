@@ -56,10 +56,13 @@ Das Verhalten eines Agenten ist als Satz von Markdown-Dateien in Git definiert �
 | `ACCESS.md` | **Referenzen** auf benötigte Zugänge (Systemnamen + Scopes) und die Tool-Allowlist je System (`tools:`-Attribut) — niemals Secrets selbst. |
 | `ORG.md` | Position im Org-Chart, Vorgesetzter, an wen eskaliert wird. |
 | `EGRESS.md` | Egress-Konfiguration des Agenten: zugewiesene Templates + eigene Hosts. |
+| `HEARTBEAT.md` | Wiederkehrende Aufgaben nach Zeitplan (Intervall oder feste Tageszeit) — die Control Plane legt sie automatisch ins Backlog, siehe [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md). |
 
 Die genaue Dateiliste ist bewusst erweiterbar — weitere sinnvolle MD-Dateien (z. B. `TONE.md`, `ESCALATION.md`) können hinzukommen. Kernregel: **`ACCESS.md` enthält Referenzen, keine Geheimnisse.**
 
 `ACCESS.md` und `EGRESS.md` sind die **Text-Sicht auf Zustand, der auch über die Oberfläche gepflegt wird** (Reiter *Tools* bzw. *Egress*). Damit Text- und UI-Config nie divergieren, gibt es jede Datei genau einmal und beide Richtungen schreiben denselben Store: Lesen rendert die Datei live aus der Datenbank, Speichern parst sie und wendet sie an (Write-Through). Text-Edits an Tools/Egress unterliegen derselben RBAC wie die Reiter (nur `platform_admin`/`security`); in den System-Prompt kompiliert werden beide Dateien nicht.
+
+Auch `HEARTBEAT.md` ist Plattform-Config, kein Prompt-Material: Sie wird beim Speichern geparst und materialisiert (Tabelle `agent_heartbeats`), die Aufgabe selbst erreicht den Agenten als reguläre Backlog-Aufgabe. Format und Zeitplan-Semantik stehen in [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md).
 
 ### Beispiel: `SOUL.md` (Skizze)
 

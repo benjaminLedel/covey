@@ -846,7 +846,9 @@ function Config({ agentId, canManage }: { agentId: string; canManage: boolean })
     retry: false,
   });
   const [draft, setDraft] = useState<Record<string, string> | null>(null);
-  const files = draft ?? cfg.data?.files ?? { "SOUL.md": "", "ACCESS.md": "" };
+  // HEARTBEAT.md immer anbieten, auch wenn ältere Configs sie nicht kennen —
+  // sonst gäbe es keinen Weg, sie über die UI anzulegen.
+  const files = { "SOUL.md": "", "HEARTBEAT.md": "", ...(draft ?? cfg.data?.files ?? { "ACCESS.md": "" }) };
 
   const save = useMutation({
     mutationFn: () => put(`/agents/${agentId}/config`, { files }),
@@ -867,7 +869,9 @@ function Config({ agentId, canManage }: { agentId: string; canManage: boolean })
         {cfg.data && cfg.data.version > 0 && <> — aktuell v{cfg.data.version}</>}. ACCESS.md hält
         Zugänge und Tool-Zuweisung, EGRESS.md die Egress-Konfiguration — beide sind synchron mit
         den Reitern Tools und Egress: Änderungen hier wirken dort und umgekehrt. Referenzen, nie
-        Secrets.
+        Secrets. HEARTBEAT.md definiert wiederkehrende Aufgaben, die automatisch im Backlog
+        landen — je Zeile <span className="mono">- alle: 30m titel: … aufgabe: …</span> oder{" "}
+        <span className="mono">- täglich: 09:00 titel: … aufgabe: …</span>.
       </p>
       {Object.entries(files)
         .sort(([x], [y]) => x.localeCompare(y))

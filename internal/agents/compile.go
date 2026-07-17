@@ -70,7 +70,9 @@ func TargetDocs(docs []string) string {
 // Bekannte Dateien in definierter Reihenfolge, unbekannte alphabetisch dahinter.
 func CompilePrompt(files map[string]string) string {
 	var b strings.Builder
-	seen := map[string]bool{"ACCESS.md": true, "TOOLS.md": true, "EGRESS.md": true}
+	// ACCESS/EGRESS/HEARTBEAT sind Plattform-Config, kein Prompt-Material:
+	// Zugänge prüft der Broker, Heartbeat-Aufgaben kommen als Backlog-Task.
+	seen := map[string]bool{"ACCESS.md": true, "TOOLS.md": true, "EGRESS.md": true, "HEARTBEAT.md": true}
 	for _, name := range promptOrder {
 		if content, ok := files[name]; ok && strings.TrimSpace(content) != "" {
 			b.WriteString(strings.TrimSpace(content))

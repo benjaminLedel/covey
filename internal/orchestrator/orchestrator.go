@@ -155,6 +155,7 @@ func (o *Orchestrator) listenOnce(ctx context.Context) error {
 // tick ist der periodische "was liegt an?"-Impuls: findet Agenten mit
 // offener Arbeit und weckt sie — reine SQL-Entscheidung, kein Modell.
 func (o *Orchestrator) tick(ctx context.Context) {
+	o.fireHeartbeats(ctx)
 	rows, err := o.Pool.Query(ctx, `SELECT DISTINCT a.id FROM agents a
 		JOIN backlog_tasks t ON t.agent_id=a.id AND t.state='open'
 		JOIN organizations org ON org.id=a.org_id
@@ -173,6 +174,83 @@ func (o *Orchestrator) tick(ctx context.Context) {
 	}
 	for _, id := range ids {
 		o.EnsureRunning(id)
+	}
+}
+
+// fireHeartbeats legt fällige Heartbeat-Einträge (HEARTBEAT.md, materialisiert
+// in agent_heartbeats) als Backlog-Aufgabe an. Fällig ist die Intervall-Form
+// nach Ablauf des Intervalls seit last_fired_at, die Tageszeit-Form einmal pro
+// Tag ab der konfigurierten Uhrzeit (Serverzeit). Kill-Switches greifen wie
+// beim Wake. Dedup: solange eine nicht-terminale Aufgabe gleichen Titels mit
+// origin='heartbeat' existiert, wird keine neue angelegt — der Lauf gilt
+// trotzdem als "gefeuert", damit nach deren Abschluss kein sofortiger
+// Nachschlag kommt, sondern der reguläre Zeitplan weiterläuft.
+func (o *Orchestrator) fireHeartbeats(ctx context.Context) {
+	tx, err := o.Pool.Begin(ctx)
+	if err != nil {
+		o.Log.Warn("heartbeat tx", "err", err)
+		return
+	}
+	defer tx.Rollback(ctx)
+
+	rows, err := tx.Query(ctx, `SELECT h.agent_id, a.org_id, h.name, h.task_body,
+			EXISTS (SELECT 1 FROM backlog_tasks t
+				WHERE t.agent_id=h.agent_id AND t.origin='heartbeat' AND t.title=h.name
+				  AND t.state NOT IN ('done','failed','cancelled')) AS pending
+		FROM agent_heartbeats h
+		JOIN agents a ON a.id=h.agent_id
+		JOIN organizations org ON org.id=a.org_id
+		WHERE NOT a.killed AND NOT org.fleet_killed
+		  AND ((h.every_seconds IS NOT NULL
+		        AND h.last_fired_at + make_interval(secs => h.every_seconds) <= now())
+		    OR (h.daily_at IS NOT NULL AND CURRENT_TIME >= h.daily_at
+		        AND h.last_fired_at::date < CURRENT_DATE))
+		FOR UPDATE OF h SKIP LOCKED`)
+	if err != nil {
+		o.Log.Warn("heartbeat query", "err", err)
+		return
+	}
+	type due struct {
+		agentID, orgID uuid.UUID
+		name, body     string
+		pending        bool
+	}
+	var dues []due
+	for rows.Next() {
+		var d due
+		if err := rows.Scan(&d.agentID, &d.orgID, &d.name, &d.body, &d.pending); err != nil {
+			rows.Close()
+			o.Log.Warn("heartbeat scan", "err", err)
+			return
+		}
+		dues = append(dues, d)
+	}
+	rows.Close()
+	if rows.Err() != nil || len(dues) == 0 {
+		return
+	}
+	for _, d := range dues {
+		if _, err := tx.Exec(ctx,
+			"UPDATE agent_heartbeats SET last_fired_at=now() WHERE agent_id=$1 AND name=$2",
+			d.agentID, d.name); err != nil {
+			o.Log.Warn("heartbeat fortschreiben", "agent", d.agentID, "name", d.name, "err", err)
+			return
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		o.Log.Warn("heartbeat commit", "err", err)
+		return
+	}
+	// Aufgaben erst nach dem Commit anlegen — Create feuert NOTIFY und weckt
+	// den Agenten. Schlägt ein Create fehl, entfällt genau ein Lauf (best-effort).
+	for _, d := range dues {
+		if d.pending {
+			o.Log.Info("heartbeat übersprungen: aufgabe noch offen", "agent", d.agentID, "name", d.name)
+			continue
+		}
+		if _, err := o.Backlog.Create(ctx, d.orgID, d.agentID, d.name, d.body, "heartbeat", 0); err != nil {
+			o.Log.Warn("heartbeat-aufgabe anlegen", "agent", d.agentID, "name", d.name, "err", err)
+		}
 	}
 }
 
