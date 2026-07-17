@@ -107,6 +107,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/agents/{id}/kill", s.rbac(append(manage, identity.RoleSecurity), s.handleKill))
 	mux.Handle("POST /api/v1/agents/{id}/resume", s.rbac(append(manage, identity.RoleSecurity), s.handleResumeAgent))
 	mux.Handle("POST /api/v1/agents/{id}/budget", s.rbac(manage, s.handleSetBudget))
+	mux.Handle("PATCH /api/v1/agents/{id}/name", s.rbac(manage, s.handleRename))
 	mux.Handle("PATCH /api/v1/agents/{id}/runtime", s.rbac(manage, s.handleSetRuntime))
 	mux.Handle("PATCH /api/v1/agents/{id}/supervisor", s.rbac(manage, s.handleSetSupervisor))
 	mux.Handle("GET /api/v1/org/chart", s.rbac(anyRole, s.handleOrgChart))

@@ -163,6 +163,16 @@ func (r *Registry) SetRuntime(ctx context.Context, id uuid.UUID, runtime string)
 	return err
 }
 
+// Rename ändert den Anzeigenamen. Der Slug bleibt bewusst unveränderlich —
+// er ist der stabile Anker für Korrelation, Home-Verzeichnis und Referenzen.
+func (r *Registry) Rename(ctx context.Context, id uuid.UUID, displayName string) error {
+	tag, err := r.pool.Exec(ctx, "UPDATE agents SET display_name=$2, updated_at=now() WHERE id=$1", id, displayName)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
 // SupervisorName liefert den Anzeigenamen des Vorgesetzten aus dem Org-Chart —
 // für Eskalations-Texte. Leer, wenn kein Vorgesetzter zugeordnet ist.
 func (r *Registry) SupervisorName(ctx context.Context, agentID uuid.UUID) (string, error) {

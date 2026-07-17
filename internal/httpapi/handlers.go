@@ -450,6 +450,27 @@ func (s *Server) handleListRuntimes(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, daemon.Runtimes())
 }
 
+// handleRename ändert den Anzeigenamen eines Agenten. Der Slug bleibt stabil.
+func (s *Server) handleRename(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	var in struct {
+		DisplayName string `json:"display_name"`
+	}
+	if err := readJSON(r, &in); err != nil || strings.TrimSpace(in.DisplayName) == "" {
+		writeErr(w, http.StatusBadRequest, "display_name fehlt")
+		return
+	}
+	if err := s.Registry.Rename(r.Context(), id, strings.TrimSpace(in.DisplayName)); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // handleSetRuntime schaltet die Runtime eines Agenten um (Umschalten z. B. auf
 // 'mock' für kostenlose Demos). Wirkt beim nächsten Task-Dispatch.
 func (s *Server) handleSetRuntime(w http.ResponseWriter, r *http.Request) {

@@ -60,7 +60,7 @@ export default function AgentPage({ me }: { me: Principal }) {
       </div>
 
       <div className="flex items-center gap-3 mb-5 flex-wrap">
-        <h1 className="text-[22px]">{a.display_name}</h1>
+        <AgentName agent={a} editable={canManage(me.Role)} />
         <span className={`badge st-${a.killed ? "killed" : a.status}`}>
           {a.killed ? "gestoppt" : statusLabel[a.status] ?? a.status}
         </span>
@@ -144,6 +144,58 @@ export default function AgentPage({ me }: { me: Principal }) {
 
 // Supervisor: der Platz des Agenten im Org-Chart (spec/02) — an wen er
 // berichtet und eskaliert. Manager-Rollen ordnen hier direkt zu.
+// Anzeigename mit Inline-Umbenennen (Stift-Klick). Der Slug bleibt unverändert.
+function AgentName({ agent, editable }: { agent: Agent; editable: boolean }) {
+  const qc = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState(agent.display_name);
+  const mut = useMutation({
+    mutationFn: () => patch(`/agents/${agent.id}/name`, { display_name: name.trim() }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agent", agent.id] });
+      qc.invalidateQueries({ queryKey: ["agents"] });
+      setEditing(false);
+    },
+  });
+  if (!editing) {
+    return (
+      <>
+        <h1 className="text-[22px]">{agent.display_name}</h1>
+        {editable && (
+          <button
+            className="btn sm"
+            title="Agent umbenennen"
+            onClick={() => {
+              setName(agent.display_name);
+              setEditing(true);
+            }}
+          >
+            ✎
+          </button>
+        )}
+      </>
+    );
+  }
+  return (
+    <form
+      className="flex items-center gap-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (name.trim()) mut.mutate();
+      }}
+    >
+      <input value={name} onChange={(e) => setName(e.target.value)} autoFocus style={{ width: 220 }} />
+      <button className="btn sm primary" disabled={mut.isPending || !name.trim()}>
+        Speichern
+      </button>
+      <button type="button" className="btn sm" onClick={() => setEditing(false)}>
+        Abbrechen
+      </button>
+      {mut.isError && <span className="danger-text text-xs">{String(mut.error)}</span>}
+    </form>
+  );
+}
+
 function Supervisor({ agent, editable }: { agent: Agent; editable: boolean }) {
   const qc = useQueryClient();
   const chart = useQuery({ queryKey: ["orgchart"], queryFn: () => api<OrgChart>("/org/chart") });
