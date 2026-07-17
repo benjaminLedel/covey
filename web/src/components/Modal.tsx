@@ -23,8 +23,9 @@ export function Modal({
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
-    // Fokus in den Dialog holen, damit Escape/Tab dort landen.
-    ref.current?.focus();
+    // Fokus in den Dialog holen, damit Escape/Tab dort landen — aber ein
+    // autoFocus-Feld im Inhalt nicht überschreiben.
+    if (!ref.current?.contains(document.activeElement)) ref.current?.focus();
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 

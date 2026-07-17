@@ -150,6 +150,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/egress/template-hosts/{id}", s.rbac(securityRoles, s.handleDeleteEgressTemplateHost))
 	mux.Handle("GET /api/v1/egress/log", s.rbac(anyRole, s.handleEgressLog))
 	mux.Handle("GET /api/v1/egress/stats", s.rbac(anyRole, s.handleEgressStats))
+	mux.Handle("GET /api/v1/egress/builtin", s.rbac(anyRole, s.handleListEgressBuiltins))
+	mux.Handle("POST /api/v1/egress/builtin/{slug}", s.rbac(securityRoles, s.handleImportEgressBuiltin))
 	mux.Handle("GET /api/v1/agents/{id}/egress", s.rbac(anyRole, s.handleAgentEgress))
 	mux.Handle("PUT /api/v1/agents/{id}/egress/templates/{tid}", s.rbac(securityRoles, s.handleAssignEgressTemplate))
 	mux.Handle("DELETE /api/v1/agents/{id}/egress/templates/{tid}", s.rbac(securityRoles, s.handleUnassignEgressTemplate))

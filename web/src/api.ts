@@ -162,6 +162,17 @@ export type EgressTemplate = {
 
 export type EgressStatus = { enforced: boolean; defaults: string[] };
 
+// Built-in-Katalog: kuratierte Host-Sets aus dem Code, per Klick als
+// org-eigenes Template übernehmbar.
+export type EgressBuiltin = {
+  slug: string;
+  name: string;
+  description: string;
+  hosts: { pattern: string; note: string }[];
+  imported: boolean;
+  template_id?: string;
+};
+
 export type EgressStats = {
   allowed_24h: number;
   blocked_24h: number;

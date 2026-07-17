@@ -11,11 +11,15 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // ErrInvalidPattern meldet ein syntaktisch unbrauchbares Allowlist-Muster.
 var ErrInvalidPattern = errors.New("ungültiges egress-muster")
+
+// ErrTemplateExists meldet eine Namenskollision beim Anlegen/Übernehmen.
+var ErrTemplateExists = errors.New("template mit diesem namen existiert bereits")
 
 // Store hält die Egress-Konfiguration (Templates, Zuweisungen pro Agent,
 // Einzel-Hosts), die per-Sandbox-Tokens und das Entscheidungs-Log in Postgres.
@@ -148,14 +152,59 @@ func (s *Store) CreateTemplate(ctx context.Context, orgID uuid.UUID, name, descr
 	var created time.Time
 	err := s.pool.QueryRow(ctx,
 		`INSERT INTO egress_templates (org_id, name, description) VALUES ($1,$2,$3)
+		 ON CONFLICT (org_id, name) DO NOTHING
 		 RETURNING id, name, description, created_at`,
 		orgID, name, strings.TrimSpace(description)).Scan(&t.ID, &t.Name, &t.Description, &created)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Template{}, ErrTemplateExists
+	}
 	if err != nil {
 		return Template{}, err
 	}
 	t.CreatedAt = created.Format(time.RFC3339)
 	t.Hosts = []Host{}
+	t.Agents = []AgentRef{}
 	return t, nil
+}
+
+// ImportBuiltin übernimmt einen Katalog-Eintrag als org-eigenes Template
+// (Kopie samt Hosts). Kollidiert der Name mit einem bestehenden Template,
+// kommt ErrTemplateExists — nichts wird angelegt.
+func (s *Store) ImportBuiltin(ctx context.Context, orgID uuid.UUID, b BuiltinTemplate) (Template, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Template{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	var t Template
+	var created time.Time
+	err = tx.QueryRow(ctx,
+		`INSERT INTO egress_templates (org_id, name, description) VALUES ($1,$2,$3)
+		 ON CONFLICT (org_id, name) DO NOTHING
+		 RETURNING id, name, description, created_at`,
+		orgID, b.Name, b.Description).Scan(&t.ID, &t.Name, &t.Description, &created)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Template{}, ErrTemplateExists
+	}
+	if err != nil {
+		return Template{}, err
+	}
+	t.CreatedAt = created.Format(time.RFC3339)
+	t.Hosts = []Host{}
+	t.Agents = []AgentRef{}
+	for _, h := range b.Hosts {
+		var host Host
+		err := tx.QueryRow(ctx,
+			`INSERT INTO egress_template_hosts (template_id, pattern, note) VALUES ($1,$2,$3)
+			 RETURNING id, pattern, note`,
+			t.ID, h.Pattern, h.Note).Scan(&host.ID, &host.Pattern, &host.Note)
+		if err != nil {
+			return Template{}, err
+		}
+		t.Hosts = append(t.Hosts, host)
+	}
+	return t, tx.Commit(ctx)
 }
 
 func (s *Store) DeleteTemplate(ctx context.Context, orgID, id uuid.UUID) error {

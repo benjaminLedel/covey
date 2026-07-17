@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import {
   api, del, post,
-  type EgressStats, type EgressStatus, type EgressTemplate, type Principal,
+  type EgressBuiltin, type EgressStats, type EgressStatus, type EgressTemplate, type Principal,
 } from "../api";
 import { AddHostForm, EgressLogTable, HostChips } from "../components/EgressBits";
 import { ConfirmDialog, Modal } from "../components/Modal";
@@ -119,8 +119,8 @@ function HowItWorks() {
           <span>
             <b>Template anlegen</b>
             <p>
-              Unter <Link to="/egress/templates">Templates</Link> ein wiederverwendbares Host-Set
-              pflegen, z. B. „Zammad-Prod" oder „Paket-Registries".
+              Unter <Link to="/egress/templates">Templates</Link> ein Host-Set aus dem Katalog
+              übernehmen (z. B. „GitHub", „Python / PyPI") oder ein eigenes anlegen.
             </p>
           </span>
         </div>
@@ -238,6 +238,8 @@ function TemplatesPage({ canEdit }: { canEdit: boolean }) {
         )}
       </div>
 
+      <BuiltinCatalog canEdit={canEdit} />
+
       {showCreate && (
         <CreateTemplateModal
           onClose={() => setShowCreate(false)}
@@ -245,6 +247,64 @@ function TemplatesPage({ canEdit }: { canEdit: boolean }) {
         />
       )}
     </div>
+  );
+}
+
+// BuiltinCatalog: kuratierte Host-Sets aus dem Code. „Übernehmen" kopiert den
+// Eintrag als org-eigenes Template — danach frei editierbar wie jedes andere.
+function BuiltinCatalog({ canEdit }: { canEdit: boolean }) {
+  const qc = useQueryClient();
+  const builtins = useQuery({ queryKey: ["egress", "builtin"], queryFn: () => api<EgressBuiltin[]>("/egress/builtin") });
+  const [err, setErr] = useState<string | null>(null);
+
+  const importTpl = useMutation({
+    mutationFn: (slug: string) => post<EgressTemplate>(`/egress/builtin/${slug}`),
+    onSuccess: () => { setErr(null); qc.invalidateQueries({ queryKey: ["egress"] }); },
+    onError: (e: Error) => setErr(e.message),
+  });
+
+  const list = builtins.data ?? [];
+  if (list.length === 0) return null;
+  return (
+    <section className="mt-8">
+      <h2 className="text-base font-medium mb-2">Katalog</h2>
+      <p className="muted text-xs mb-3" style={{ maxWidth: 560 }}>
+        Mitgelieferte Host-Sets für die üblichen Fälle — Paket-Registries, Code-Hosting,
+        Container-Images. „Übernehmen" legt eine org-eigene Kopie an, die du danach frei anpassen
+        kannst.
+      </p>
+      {err && <p className="text-xs mb-2" style={{ color: "var(--text-danger)" }}>{err}</p>}
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
+        {list.map((b) => (
+          <div key={b.slug} className="card" style={{ padding: "13px 15px", opacity: b.imported ? 0.7 : 1 }}>
+            <div className="flex items-baseline gap-2 mb-1">
+              <span className="font-medium">{b.name}</span>
+              <span className="ml-auto" style={{ flexShrink: 0 }}>
+                {b.imported ? (
+                  b.template_id ? (
+                    <Link to={`/egress/templates/${b.template_id}`} className="badge st-done" style={{ textDecoration: "none" }}>
+                      übernommen
+                    </Link>
+                  ) : (
+                    <span className="badge st-done">übernommen</span>
+                  )
+                ) : canEdit ? (
+                  <button className="btn sm" disabled={importTpl.isPending} onClick={() => importTpl.mutate(b.slug)}>
+                    Übernehmen
+                  </button>
+                ) : null}
+              </span>
+            </div>
+            <p className="muted text-xs" style={{ margin: "0 0 8px" }}>{b.description}</p>
+            <div className="flex flex-wrap gap-1">
+              {b.hosts.map((h) => (
+                <span key={h.pattern} className="chip" title={h.note}>{h.pattern}</span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

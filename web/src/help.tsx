@@ -251,8 +251,9 @@ export const helpTopics: HelpTopic[] = [
         </p>
         <ol>
           <li>
-            Unter <b>Templates</b> wiederverwendbare Host-Sets pflegen, z. B. „Zammad-Prod" mit{" "}
-            <Term>helpdesk.example.com</Term>.
+            Unter <b>Templates</b> wiederverwendbare Host-Sets pflegen — entweder aus dem
+            mitgelieferten <b>Katalog</b> übernehmen (GitHub, npm, PyPI, Container-Registries …)
+            oder eigene anlegen, z. B. „Zammad-Prod" mit <Term>helpdesk.example.com</Term>.
           </li>
           <li>
             Auf der Agenten-Seite im Reiter <b>Egress</b> Templates zuweisen — dort sind auch

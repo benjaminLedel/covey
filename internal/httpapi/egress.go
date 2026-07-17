@@ -48,6 +48,10 @@ func (s *Server) handleCreateEgressTemplate(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	t, err := s.EgressStore.CreateTemplate(r.Context(), p.OrgID, in.Name, in.Description)
+	if errors.Is(err, egress.ErrTemplateExists) {
+		writeErr(w, http.StatusConflict, err.Error())
+		return
+	}
 	if err != nil {
 		egressBadOrErr(w, err)
 		return
@@ -101,6 +105,59 @@ func (s *Server) handleDeleteEgressTemplateHost(w http.ResponseWriter, r *http.R
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"deleted": id.String()})
+}
+
+// --- Built-in-Katalog ---
+
+// handleListEgressBuiltins liefert den Katalog samt Kennzeichnung, welche
+// Einträge die Org (per Namensgleichheit) schon übernommen hat.
+func (s *Server) handleListEgressBuiltins(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	existing, err := s.EgressStore.ListTemplates(r.Context(), p.OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	byName := map[string]uuid.UUID{}
+	for _, t := range existing {
+		byName[t.Name] = t.ID
+	}
+	type entry struct {
+		egress.BuiltinTemplate
+		Imported   bool       `json:"imported"`
+		TemplateID *uuid.UUID `json:"template_id,omitempty"`
+	}
+	out := make([]entry, 0, len(egress.Builtins))
+	for _, b := range egress.Builtins {
+		e := entry{BuiltinTemplate: b}
+		if id, ok := byName[b.Name]; ok {
+			e.Imported = true
+			e.TemplateID = &id
+		}
+		out = append(out, e)
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// handleImportEgressBuiltin übernimmt einen Katalog-Eintrag als org-eigenes
+// Template.
+func (s *Server) handleImportEgressBuiltin(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	b, ok := egress.BuiltinBySlug(r.PathValue("slug"))
+	if !ok {
+		writeErr(w, http.StatusNotFound, "unbekanntes built-in-template")
+		return
+	}
+	t, err := s.EgressStore.ImportBuiltin(r.Context(), p.OrgID, b)
+	if errors.Is(err, egress.ErrTemplateExists) {
+		writeErr(w, http.StatusConflict, err.Error())
+		return
+	}
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, t)
 }
 
 // --- Zuweisung + agent-eigene Hosts ---
