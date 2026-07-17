@@ -64,11 +64,18 @@ func TargetDocs(docs []string) string {
 	return "## Angebundene Zielsysteme\n\n" + strings.Join(clean, "\n\n")
 }
 
+// GeneratedFiles sind reservierte Dateinamen für die aus der Oberfläche
+// generierten Config-Teile (Tool-Zuweisung, Egress-Allowlist). Sie werden
+// zur Lesezeit live aus den UI-Stores berechnet — nie als Datei gespeichert
+// und nie in den Prompt kompiliert (Tools fließen über die Zielsystem-Doku
+// ein, Egress ist Enforcement, kein Prompt).
+var GeneratedFiles = map[string]bool{"TOOLS.md": true, "EGRESS.md": true}
+
 // CompilePrompt macht aus den Config-Dateien den System-Prompt.
 // Bekannte Dateien in definierter Reihenfolge, unbekannte alphabetisch dahinter.
 func CompilePrompt(files map[string]string) string {
 	var b strings.Builder
-	seen := map[string]bool{"ACCESS.md": true}
+	seen := map[string]bool{"ACCESS.md": true, "TOOLS.md": true, "EGRESS.md": true}
 	for _, name := range promptOrder {
 		if content, ok := files[name]; ok && strings.TrimSpace(content) != "" {
 			b.WriteString(strings.TrimSpace(content))

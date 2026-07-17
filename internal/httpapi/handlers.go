@@ -77,12 +77,26 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "ungültige id")
 		return
 	}
+	p := principalFrom(r)
 	cv, err := s.Registry.CurrentConfig(r.Context(), id)
-	if err != nil {
+	if errors.Is(err, agents.ErrNotFound) {
+		// Noch keine Version: leere Dateien liefern, damit die generierten
+		// Config-Teile (TOOLS.md, EGRESS.md) trotzdem sichtbar sind.
+		cv = agents.ConfigVersion{AgentID: id, Files: map[string]string{"SOUL.md": "", "ACCESS.md": ""}}
+	} else if err != nil {
 		mapErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, cv)
+	// Generierte Dateien: live aus den UI-Stores — Text- und UI-Config bleiben
+	// per Konstruktion synchron (siehe configsync.go).
+	generated, err := s.generatedConfigFiles(r.Context(), p.OrgID, id)
+	if err != nil {
+		s.Log.Warn("generierte config-dateien", "agent", id, "err", err)
+	}
+	writeJSON(w, http.StatusOK, struct {
+		agents.ConfigVersion
+		Generated map[string]string `json:"generated,omitempty"`
+	}{cv, generated})
 }
 
 func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
@@ -98,6 +112,13 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 	if err := readJSON(r, &in); err != nil || len(in.Files) == 0 {
 		writeErr(w, http.StatusBadRequest, "files fehlt")
 		return
+	}
+	for name := range in.Files {
+		if agents.GeneratedFiles[name] {
+			writeErr(w, http.StatusBadRequest,
+				name+" wird aus der Oberfläche generiert (Reiter Tools/Egress) und kann nicht als Datei gespeichert werden")
+			return
+		}
 	}
 	cv, err := s.Registry.SaveConfig(r.Context(), id, in.Files, &p.ID)
 	if err != nil {

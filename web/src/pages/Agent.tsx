@@ -839,110 +839,59 @@ function Config({
           Neue Version speichern
         </button>
       )}
-      <UIConfigSummary agentId={agentId} onOpenTab={onOpenTab} />
+      <GeneratedConfigFiles generated={cfg.data?.generated} onOpenTab={onOpenTab} />
     </div>
   );
 }
 
-// UIConfigSummary: die über die Oberfläche gepflegten Teile der Agenten-Config
-// (Tool-Zuweisung, Egress-Allowlist), read-only im Config-Reiter gespiegelt.
-// Nutzt dieselben Query-Keys wie die jeweiligen Reiter — bleibt dadurch
-// automatisch in Sync mit dem, was dort gespeichert wird.
-function UIConfigSummary({
-  agentId,
+// Reiter, in dem eine generierte Config-Datei gepflegt wird.
+const generatedFileTab: Record<string, "tools" | "egress"> = {
+  "TOOLS.md": "tools",
+  "EGRESS.md": "egress",
+};
+
+// GeneratedConfigFiles: die über die Oberfläche gepflegten Teile der Config
+// (Tool-Zuweisung, Egress-Allowlist) als generierte, read-only Text-Dateien.
+// Der Server berechnet sie bei jedem Lesen live aus den UI-Stores — Text-
+// und UI-Config sind damit per Konstruktion synchron.
+function GeneratedConfigFiles({
+  generated,
   onOpenTab,
 }: {
-  agentId: string;
+  generated?: Record<string, string>;
   onOpenTab: (tab: "tools" | "egress" | "memory") => void;
 }) {
-  const targets = useQuery({
-    queryKey: ["targets"],
-    queryFn: () => api<TargetPlugin[] | null>("/targets"),
-  });
-  const status = useQuery({ queryKey: ["egress", "status"], queryFn: () => api<EgressStatus>("/egress") });
-  const templates = useQuery({ queryKey: ["egress", "templates"], queryFn: () => api<EgressTemplate[]>("/egress/templates") });
-  const egressCfg = useQuery({ queryKey: ["egress", "agent", agentId], queryFn: () => api<AgentEgressCfg>(`/agents/${agentId}/egress`) });
-
-  const enabled = (targets.data ?? []).filter((t) => t.enabled);
-  const effective = effectiveEgress(status.data, templates.data ?? [], egressCfg.data);
-
-  const linkStyle = { marginLeft: "auto" } as const;
-
+  const entries = Object.entries(generated ?? {}).sort(([x], [y]) => x.localeCompare(y));
+  if (entries.length === 0) return null;
   return (
     <div className="mt-6" style={{ borderTop: "0.5px solid var(--border)", paddingTop: 16 }}>
-      <label>Über die Oberfläche gepflegt</label>
+      <label>Generiert — synchron mit der Oberfläche</label>
       <p className="muted text-xs mb-3" style={{ maxWidth: 640 }}>
-        Diese Teile der Config pflegst du in den anderen Reitern; sie fließen zur Dispatch-Zeit in
-        Prompt und Enforcement ein und sind hier nur zusammengefasst — immer auf dem Stand der
-        jeweiligen Reiter.
+        Diese Dateien erzeugt die Control Plane live aus dem, was in den Reitern Tools und Egress
+        konfiguriert ist — sie sind immer der aktuelle Stand und hier nicht editierbar.
       </p>
-
-      <div className="card mb-3" style={{ padding: "13px 15px" }}>
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-xs font-medium">Zielsysteme &amp; Tools</span>
-          <button className="btn sm" style={linkStyle} onClick={() => onOpenTab("tools")}>
-            Im Reiter „Tools“ bearbeiten
-          </button>
-        </div>
-        {enabled.length === 0 ? (
-          <p className="muted text-xs m-0">
-            Keine Zielsysteme aktiviert — der Prompt bekommt keinen Abschnitt „Angebundene Zielsysteme“.
-          </p>
-        ) : (
-          enabled.map((p) =>
-            p.kind === "mcp" ? (
-              <ToolSyncRow key={p.name} agentId={agentId} plugin={p} />
-            ) : (
-              <div key={p.name} className="flex items-center gap-2 text-xs mb-1">
-                <span className="mono">{p.name}</span>
-                <span className="muted">{p.label || ""}</span>
-                <span className="muted" style={{ marginLeft: "auto" }}>alle Aktionen (kein MCP)</span>
-              </div>
-            ),
-          )
-        )}
-      </div>
-
-      <div className="card mb-3" style={{ padding: "13px 15px" }}>
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-xs font-medium">Egress-Allowlist (effektiv)</span>
-          <button className="btn sm" style={linkStyle} onClick={() => onOpenTab("egress")}>
-            Im Reiter „Egress“ bearbeiten
-          </button>
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {[...effective.entries()].map(([pattern, source]) => (
-            <span key={pattern} className={`chip${source === "ENV" ? " fixed" : ""}`}>
-              {pattern}
-              <span className="src">{source}</span>
-            </span>
-          ))}
-          {effective.size === 0 && (
-            <span className="muted text-xs">leer — jede ausgehende Verbindung wird blockiert</span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ToolSyncRow: eine Zeile pro MCP-Server — welche Tools dieser Agent nutzen
-// darf. Gleicher Query-Key wie im Tools-Reiter (MCPToolAssign).
-function ToolSyncRow({ agentId, plugin }: { agentId: string; plugin: TargetPlugin }) {
-  const assigned = useQuery({
-    queryKey: ["agent-tools", agentId, plugin.name],
-    queryFn: () => api<string[]>(`/agents/${agentId}/tools/${plugin.name}`),
-  });
-  const total = plugin.manifest?.tools?.length ?? 0;
-  const list = assigned.data ?? [];
-  return (
-    <div className="flex items-start gap-2 text-xs mb-1">
-      <span className="mono shrink-0">{plugin.name}</span>
-      <span className="muted" style={{ marginLeft: "auto", textAlign: "right", overflowWrap: "anywhere" }}>
-        {list.length === 0
-          ? `alle Tools erlaubt${total ? ` (${total})` : ""}`
-          : `${list.length} von ${total} erlaubt: ${list.join(", ")}`}
-      </span>
+      {entries.map(([name, content]) => {
+        const tab = generatedFileTab[name];
+        return (
+          <div key={name} className="mb-3">
+            <div className="flex items-center gap-2">
+              <label className="mono">{name}</label>
+              <span className="badge st-triage">generiert</span>
+              {tab && (
+                <button className="btn sm" style={{ marginLeft: "auto" }} onClick={() => onOpenTab(tab)}>
+                  Im Reiter „{tab === "tools" ? "Tools" : "Egress"}“ bearbeiten
+                </button>
+              )}
+            </div>
+            <textarea
+              className="code"
+              rows={Math.min(14, Math.max(4, content.split("\n").length + 1))}
+              value={content}
+              readOnly
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1246,7 +1195,11 @@ function AgentEgress({ agentId, canEdit }: { agentId: string; canEdit: boolean }
   const status = useQuery({ queryKey: ["egress", "status"], queryFn: () => api<EgressStatus>("/egress") });
   const templates = useQuery({ queryKey: ["egress", "templates"], queryFn: () => api<EgressTemplate[]>("/egress/templates") });
   const cfg = useQuery({ queryKey: ["egress", "agent", agentId], queryFn: () => api<AgentEgressCfg>(`/agents/${agentId}/egress`) });
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["egress", "agent", agentId] });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["egress", "agent", agentId] });
+    // Auch die Config: EGRESS.md wird daraus generiert (Config-Reiter).
+    qc.invalidateQueries({ queryKey: ["config", agentId] });
+  };
 
   const toggleTpl = useMutation({
     mutationFn: ({ tid, on }: { tid: string; on: boolean }) =>
@@ -1399,6 +1352,8 @@ function MCPToolAssign({
     onSuccess: () => {
       setRestrict(null);
       qc.invalidateQueries({ queryKey: ["agent-tools", agentId, plugin.name] });
+      // Auch die Config: TOOLS.md wird daraus generiert (Config-Reiter).
+      qc.invalidateQueries({ queryKey: ["config", agentId] });
     },
   });
 

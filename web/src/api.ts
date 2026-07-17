@@ -52,6 +52,9 @@ export type ConfigVersion = {
   files: Record<string, string>;
   compiled_prompt: string;
   created_at: string;
+  // Aus der Oberfläche generierte Dateien (TOOLS.md, EGRESS.md) — live vom
+  // Server berechnet, read-only, immer synchron mit den UI-Stores.
+  generated?: Record<string, string>;
 };
 
 export type RecordingEvent = {
