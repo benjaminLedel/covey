@@ -84,6 +84,11 @@ type Descriptor struct {
 	// Kind: "builtin" (kompiliert) oder "custom" (Manifest-Upload).
 	Kind   string `json:"kind"`
 	System System `json:"-"`
+	// SetupDoc ist die Einrichtungs-Anleitung fürs UI (Plain Text, nummerierte
+	// Schritte). Platzhalter: {public_url} wird von der API durch die
+	// konfigurierte COVEY_PUBLIC_URL ersetzt; <agent-slug> bleibt stehen und
+	// meint den Slug des zuständigen Agenten.
+	SetupDoc string `json:"setup_doc,omitempty"`
 }
 
 var (

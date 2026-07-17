@@ -107,6 +107,7 @@ export default function Targets({ me }: { me: Principal }) {
               </span>
             </div>
             <p className="muted text-xs mb-3">{p.description || "—"}</p>
+            {p.setup_doc && <SetupInfo doc={p.setup_doc} />}
             {p.kind === "mcp" && (
               <MCPTools plugin={p} canEdit={canEdit} onDiscover={(token) => discover.mutate({ name: p.name, token })} pending={discover.isPending} />
             )}
@@ -208,6 +209,38 @@ export default function Targets({ me }: { me: Principal }) {
         <p className="muted text-xs mt-3">
           Ihre Rolle ({me.Role}) kann Zielsysteme ansehen, aber nicht verwalten.
         </p>
+      )}
+    </div>
+  );
+}
+
+// SetupInfo ist der Info-Button einer Zielsystem-Karte: klappt die vom Plugin
+// mitgelieferte Einrichtungs-Anleitung auf (setup_doc, Plain Text mit
+// nummerierten Schritten; {public_url} hat die API bereits ersetzt).
+function SetupInfo({ doc }: { doc: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mb-3">
+      <button className="btn sm" onClick={() => setOpen((o) => !o)} title="Einrichtungs-Anleitung">
+        ⓘ Einrichtung {open ? "▲" : "▼"}
+      </button>
+      {open && (
+        <pre
+          className="text-[11px] mt-2"
+          style={{
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+            background: "var(--surface-1)",
+            border: "1px solid var(--border)",
+            borderRadius: "var(--radius)",
+            padding: "10px 12px",
+            margin: 0,
+            fontFamily: "inherit",
+            lineHeight: 1.5,
+          }}
+        >
+          {doc}
+        </pre>
       )}
     </div>
   );

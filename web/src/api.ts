@@ -152,6 +152,7 @@ export type TargetPlugin = {
   enabled: boolean;
   manifest?: { url?: string; tools?: MCPTool[]; auth?: { header?: string; format?: string } };
   updated_at?: string;
+  setup_doc?: string;
 };
 
 // Ein vom MCP-Server angebotenes Werkzeug (aus tools/list entdeckt).

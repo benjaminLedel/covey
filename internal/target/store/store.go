@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -36,6 +37,9 @@ type Plugin struct {
 	Enabled     bool            `json:"enabled"`
 	Manifest    json.RawMessage `json:"manifest,omitempty"` // custom: Manifest, mcp: Config
 	UpdatedAt   *time.Time      `json:"updated_at,omitempty"`
+	// SetupDoc ist die Einrichtungs-Anleitung fürs UI: bei Built-ins aus dem
+	// Plugin-Descriptor, bei Manifest-/MCP-Plugins generisch erzeugt.
+	SetupDoc string `json:"setup_doc,omitempty"`
 }
 
 // List mergt die kompilierte Registry mit den DB-Zeilen der Organisation.
@@ -63,7 +67,7 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 
 	var out []Plugin
 	for _, d := range target.All() {
-		p := Plugin{Name: d.Name, Label: d.Label, Description: d.Description, Kind: "builtin", Enabled: true}
+		p := Plugin{Name: d.Name, Label: d.Label, Description: d.Description, Kind: "builtin", Enabled: true, SetupDoc: d.SetupDoc}
 		if row, ok := stored[d.Name]; ok {
 			p.Enabled = row.Enabled
 			p.UpdatedAt = row.UpdatedAt
@@ -80,6 +84,7 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 					p.Label = m.Name
 				}
 			}
+			p.SetupDoc = customSetupDoc(p.Name)
 		case "mcp":
 			if c, err := mcp.ParseConfig(p.Manifest); err == nil {
 				p.Label, p.Description = c.Label, c.Description
@@ -87,12 +92,48 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 					p.Label = c.Name
 				}
 			}
+			p.SetupDoc = mcpSetupDoc(p.Name)
 		default:
 			continue // Zeile eines Built-ins, das dieses Binary nicht mitkompiliert hat
 		}
 		out = append(out, p)
 	}
 	return out, nil
+}
+
+// customSetupDoc ist die generische Einrichtungs-Anleitung eines
+// Manifest-Plugins — Webhook-Route und Secret-Namen folgen der Konvention,
+// die Details (Auth-Header, Aktionen) stehen im Manifest selbst.
+func customSetupDoc(name string) string {
+	return fmt.Sprintf(`1. Unter Secrets hinterlegen und dem Agenten zuweisen:
+   %[1]s_url   = Basis-URL des Systems
+   %[1]s_token = API-Token (wird über den im Manifest definierten Auth-Header gesendet)
+
+2. In der ACCESS.md des Agenten freischalten:
+   - system: %[1]s scope: read,write
+
+3. Im Zielsystem einen Webhook auf diese URL einrichten:
+   {public_url}/api/webhooks/%[1]s/<agent-slug>
+   Signatur-Secret: Wert von COVEY_%[2]s_WEBHOOK_SECRET (Prozess-Env, leer = Prüfung aus)
+
+Das Feld-Mapping des Webhooks und die verfügbaren Aktionen definiert das
+hochgeladene JSON-Manifest.`, name, strings.ToUpper(name))
+}
+
+// mcpSetupDoc ist die generische Einrichtungs-Anleitung eines MCP-Plugins —
+// kein Webhook-Eingang; die Tools laufen über den Action-Proxy.
+func mcpSetupDoc(name string) string {
+	return fmt.Sprintf(`1. Unter Secrets hinterlegen und dem Agenten zuweisen (falls der Server Auth verlangt):
+   %[1]s_token = Token für den MCP-Server
+
+2. In der ACCESS.md des Agenten freischalten (optional mit Tool-Allowlist):
+   - system: %[1]s scope: read,write   tools: alle
+
+3. Tool-Liste aktuell halten: "Tools aktualisieren" auf dieser Karte führt die
+   Discovery (tools/list) erneut aus.
+
+MCP-Systeme haben keinen Webhook-Eingang — Aufgaben entstehen über Backlog
+oder andere Zielsysteme; die Tools ruft der Agent über den Action-Proxy auf.`, name)
 }
 
 // SetEnabled schaltet ein Plugin für die Organisation an/aus. Für Built-ins

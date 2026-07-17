@@ -22,6 +22,27 @@ func init() {
 		Description: "Open-Source-Helpdesk (spec/13): Tickets lesen, antworten, Status setzen, eskalieren. Webhook-Wake über Trigger, Auth per API-Token (Secrets zammad_token + zammad_url).",
 		Kind:        "builtin",
 		System:      System{},
+		SetupDoc: `1. In Zammad einen Agenten-User mit Least-Privilege-Rolle (ticket.agent für
+   die Zielgruppen) anlegen und als dieser ein API-Token erzeugen
+   (Token Access unter Admin → System → API aktivieren).
+
+2. Unter Secrets hinterlegen und dem Agenten zuweisen:
+   zammad_url   = https://helpdesk.example.com   (ohne /api/v1)
+   zammad_token = das Token aus Schritt 1
+
+3. In der ACCESS.md des Agenten freischalten:
+   - system: zammad scope: read,write,comment
+
+4. In Zammad Webhook + Trigger anlegen (Admin → Manage):
+   Webhook-Endpoint: {public_url}/api/webhooks/zammad/<agent-slug>
+   HMAC-Token:       Wert von COVEY_ZAMMAD_WEBHOOK_SECRET (Prozess-Env)
+   Trigger:          bei Ticket erstellt/aktualisiert + Absender Kunde → Webhook
+
+5. Optionale Prozess-Env:
+   COVEY_ZAMMAD_INTAKE_GROUPS="Support L1"   (leer = alle Gruppen)
+   COVEY_ZAMMAD_REPLY_TYPE=email             (web für Chat-Instanzen)
+
+Details: docs/betrieb-zammad.md im Repository.`,
 	})
 }
 

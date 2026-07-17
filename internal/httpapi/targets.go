@@ -23,6 +23,9 @@ func (s *Server) handleListTargets(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
+	for i := range list {
+		list[i].SetupDoc = strings.ReplaceAll(list[i].SetupDoc, "{public_url}", strings.TrimRight(s.PublicURL, "/"))
+	}
 	writeJSON(w, http.StatusOK, list)
 }
 

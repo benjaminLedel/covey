@@ -22,6 +22,27 @@ func init() {
 		Description: "GitLab-Issues als Arbeitsvorrat: Issues lesen, kommentieren, schließen, eskalieren. Webhook-Wake über Issue-/Note-Hooks, Auth per API-Token (Secrets gitlab_token + gitlab_url).",
 		Kind:        "builtin",
 		System:      System{},
+		SetupDoc: `1. In GitLab einen eigenen Bot-Nutzer anlegen (z. B. covey-bot), den
+   Zielprojekten als Reporter/Developer hinzufügen und als dieser Nutzer ein
+   Access Token mit Scope "api" erzeugen.
+
+2. Unter Secrets hinterlegen und dem Agenten zuweisen:
+   gitlab_url   = https://gitlab.example.com   (ohne /api/v4)
+   gitlab_token = das Token aus Schritt 1
+
+3. In der ACCESS.md des Agenten freischalten:
+   - system: gitlab scope: read,write,comment
+
+4. Im GitLab-Zielprojekt einen Webhook anlegen (Settings → Webhooks):
+   URL:          {public_url}/api/webhooks/gitlab/<agent-slug>
+   Secret token: Wert von COVEY_GITLAB_WEBHOOK_SECRET (Prozess-Env)
+   Trigger:      "Issues events" und "Comments" ankreuzen
+
+5. Prozess-Env setzen (Echo-Schutz und optionaler Intake-Filter):
+   COVEY_GITLAB_AGENT_USERNAMES="covey-bot"
+   COVEY_GITLAB_INTAKE_PROJECTS="gruppe/support"   (optional, leer = alle)
+
+Details: docs/betrieb-gitlab.md im Repository.`,
 	})
 }
 

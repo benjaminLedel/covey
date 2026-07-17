@@ -60,6 +60,9 @@ type Server struct {
 	// (ENV COVEY_<SYSTEM>_WEBHOOK_SECRET, z. B. COVEY_ZAMMAD_WEBHOOK_SECRET).
 	WebhookSecrets map[string]string
 	SessionTTL     time.Duration
+	// PublicURL füllt den {public_url}-Platzhalter in den Einrichtungs-
+	// Anleitungen der Zielsystem-Plugins (Webhook-Endpunkte).
+	PublicURL string
 }
 
 func (s *Server) Handler() http.Handler {
