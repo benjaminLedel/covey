@@ -57,6 +57,26 @@ type Credential struct {
 	Token   string
 }
 
+// workdirKey trägt das Sandbox-Arbeitsverzeichnis durch den Context zu
+// Execute. Aktionen, die Dateien in der Sandbox materialisieren (z. B.
+// gitlab checkout), entpacken dorthin — der Daemon setzt den Wert, weil nur
+// er weiß, wo der Workspace der Runtime liegt.
+type ctxKey int
+
+const workdirKey ctxKey = iota
+
+// WithWorkdir hängt das Sandbox-Arbeitsverzeichnis an den Context.
+func WithWorkdir(ctx context.Context, dir string) context.Context {
+	return context.WithValue(ctx, workdirKey, dir)
+}
+
+// Workdir liest das Sandbox-Arbeitsverzeichnis aus dem Context. Leer, wenn
+// die Aktion außerhalb einer Sandbox läuft (z. B. Control-Plane-Kontext).
+func Workdir(ctx context.Context) string {
+	dir, _ := ctx.Value(workdirKey).(string)
+	return dir
+}
+
 // WebhookEvent ist das normalisierte Ergebnis eines Webhook-Payloads —
 // alles, was der Orchestrator für Idempotenz, Korrelation und Task-Anlage braucht.
 type WebhookEvent struct {

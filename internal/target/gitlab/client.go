@@ -164,6 +164,34 @@ func (c *Client) Comment(ctx context.Context, projectID, issueIID int, body stri
 	return out, err
 }
 
+// DownloadArchive streamt das Repository-Archiv (tar.gz) —
+// GET /projects/{id}/repository/archive.tar.gz, optional auf einen Ref
+// (Branch, Tag, SHA) eingeschränkt. Bewusst nicht über do(): der Body ist
+// binär und kann groß sein; der Aufrufer schließt den Reader.
+func (c *Client) DownloadArchive(ctx context.Context, projectID int, ref string) (io.ReadCloser, error) {
+	path := fmt.Sprintf("/projects/%d/repository/archive.tar.gz", projectID)
+	if ref != "" {
+		path += "?sha=" + url.QueryEscape(ref)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/api/v4"+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("PRIVATE-TOKEN", c.Token)
+	// Eigener HTTP-Client ohne das knappe API-Timeout — der Download eines
+	// großen Repos darf länger dauern; die Grenze setzt der Aufruf-Context.
+	resp, err := (&http.Client{}).Do(req)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		data, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
+		resp.Body.Close()
+		return nil, fmt.Errorf("gitlab GET %s: HTTP %d: %.300s", path, resp.StatusCode, data)
+	}
+	return resp.Body, nil
+}
+
 // SetState — PUT /projects/{id}/issues/{iid} mit state_event ("close"|"reopen").
 func (c *Client) SetState(ctx context.Context, projectID, issueIID int, stateEvent string) error {
 	if stateEvent != "close" && stateEvent != "reopen" {

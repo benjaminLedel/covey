@@ -1,10 +1,15 @@
 package gitlab
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -270,6 +275,100 @@ func TestListActionsRespectIntakeScope(t *testing.T) {
 	}
 	if issues := res.([]Issue); len(issues) != 1 || issues[0].IID != 23 {
 		t.Fatalf("list_issues muss die Allowlist anwenden: %+v", issues)
+	}
+}
+
+// tarGz baut ein GitLab-artiges Repository-Archiv aus name→inhalt-Paaren.
+func tarGz(t *testing.T, entries map[string]string) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	// pax_global_header wie im echten GitLab-Archiv — muss ignoriert werden.
+	if err := tw.WriteHeader(&tar.Header{Name: "pax_global_header", Typeflag: tar.TypeXGlobalHeader}); err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range entries {
+		hdr := &tar.Header{Name: name, Mode: 0o644, Size: int64(len(content)), Typeflag: tar.TypeReg}
+		if strings.HasSuffix(name, "/") {
+			hdr = &tar.Header{Name: name, Mode: 0o755, Typeflag: tar.TypeDir}
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			t.Fatal(err)
+		}
+		if hdr.Typeflag == tar.TypeReg {
+			if _, err := tw.Write([]byte(content)); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	tw.Close()
+	gz.Close()
+	return buf.Bytes()
+}
+
+func TestCheckout(t *testing.T) {
+	archive := tarGz(t, map[string]string{
+		"support-main-abc123/":            "",
+		"support-main-abc123/README.md":   "# Support",
+		"support-main-abc123/pkg/auth.go": "package auth // hier wohnt der Bug",
+	})
+	var gotPath, gotAuth, gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotAuth, gotQuery = r.URL.Path, r.Header.Get("PRIVATE-TOKEN"), r.URL.RawQuery
+		w.Write(archive)
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	workdir := t.TempDir()
+	ctx := target.WithWorkdir(context.Background(), workdir)
+
+	res, err := sys.Execute(ctx, "checkout", []byte(`{"project_id":15,"ref":"main"}`), cred)
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+	if gotPath != "/api/v4/projects/15/repository/archive.tar.gz" || gotAuth != "test-token" {
+		t.Fatalf("falscher API-Aufruf: %s (auth %q)", gotPath, gotAuth)
+	}
+	if !strings.Contains(gotQuery, "sha=main") {
+		t.Fatalf("ref muss als sha-Parameter laufen: %s", gotQuery)
+	}
+	co := res.(CheckoutResult)
+	if co.Files != 2 {
+		t.Fatalf("erwartet 2 Dateien, war %d", co.Files)
+	}
+	data, err := os.ReadFile(filepath.Join(co.Path, "pkg", "auth.go"))
+	if err != nil || !strings.Contains(string(data), "Bug") {
+		t.Fatalf("entpackte Datei fehlt/falsch: %v %q", err, data)
+	}
+	if !strings.HasPrefix(co.Path, filepath.Join(workdir, "repos")) {
+		t.Fatalf("checkout muss unter <workdir>/repos landen: %s", co.Path)
+	}
+
+	// Zweiter Checkout desselben Stands ersetzt den alten (kein Fehler).
+	if _, err := sys.Execute(ctx, "checkout", []byte(`{"project_id":15}`), cred); err != nil {
+		t.Fatalf("wiederholter checkout: %v", err)
+	}
+
+	// Ohne Sandbox-Workdir (z. B. Control-Plane-Kontext) klare Ablehnung.
+	if _, err := sys.Execute(context.Background(), "checkout", []byte(`{"project_id":15}`), cred); err == nil {
+		t.Fatal("checkout ohne workdir muss fehlschlagen")
+	}
+	// Ohne project_id klare Ablehnung.
+	if _, err := sys.Execute(ctx, "checkout", []byte(`{}`), cred); err == nil {
+		t.Fatal("checkout ohne project_id muss fehlschlagen")
+	}
+}
+
+func TestExtractTarGzRejectsTraversal(t *testing.T) {
+	archive := tarGz(t, map[string]string{
+		"repo-main/":          "",
+		"../../etc/evil.conf": "böse",
+	})
+	if _, _, err := extractTarGz(bytes.NewReader(archive), t.TempDir()); err == nil {
+		t.Fatal("pfad-traversal im archiv muss abgelehnt werden")
 	}
 }
 

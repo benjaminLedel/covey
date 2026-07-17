@@ -153,5 +153,8 @@ func (p *actionProxy) execute(ctx context.Context, system, action string, params
 	if err != nil {
 		return nil, err
 	}
+	// Workdir für Aktionen, die Dateien in die Sandbox materialisieren
+	// (z. B. gitlab checkout) — das Credential selbst bleibt im Daemon.
+	ctx = target.WithWorkdir(ctx, p.client.homeDir)
 	return sys.Execute(ctx, action, params, target.Credential{BaseURL: cred.BaseURL, Token: cred.Token})
 }

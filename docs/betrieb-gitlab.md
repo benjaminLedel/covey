@@ -8,7 +8,9 @@ Aufbau und Datenfluss folgen dem Zammad-Adapter
 > Kurzfassung: Token-Auth gegen die REST-API (`/api/v4`). Der Agent findet
 > seine Issues **selbst** (`list_issues`), getrieben von einem
 > `HEARTBEAT.md`-Eintrag — ein Webhook ist optional und nur für sofortige
-> Wakes nötig. Es sind **Konfigurationsschritte**, kein Umbau.
+> Wakes nötig. Bug-Reports beantwortet er **code-basiert**: `checkout` holt
+> den Quelltext in die Sandbox, bestätigt wird nur mit Fundstelle
+> (Abschnitt 4). Es sind **Konfigurationsschritte**, kein Umbau.
 
 ---
 
@@ -26,7 +28,7 @@ Covey  ──(Heartbeat-Tick)──►  Backlog-Task „GitLab-Issues sichten"
                                  ▼
                               Agent (Sandbox, Claude Code)
                                  │  Aktionen über Action-Proxy
-GitLab  ◄──(REST /api/v4)────────┘  list_issues → get_issue/list_notes → comment/set_state/escalate
+GitLab  ◄──(REST /api/v4)────────┘  list_issues → get_issue/list_notes → checkout → comment/set_state/escalate
 ```
 
 Kein eingehender Traffic, keine öffentliche URL, kein Webhook-Secret —
@@ -84,7 +86,7 @@ die Guard-Rails dürfen `gitlab` / `gitlab:comment_external` nicht verbieten.
 In der `HEARTBEAT.md` des Agenten einen Sichtungs-Eintrag anlegen:
 
 ```
-- alle: 15m titel: GitLab-Issues sichten aufgabe: Finde offene Issues (list_issues state=opened), bearbeite neue und prüfe per list_notes, ob auf deine Rückfragen geantwortet wurde.
+- alle: 15m titel: GitLab-Issues sichten aufgabe: Finde offene Issues (list_issues state=opened), bearbeite neue und prüfe per list_notes, ob auf deine Rückfragen geantwortet wurde. Bei Bugs: Code per checkout holen und die Behauptung am Quelltext verifizieren.
 ```
 
 Der Agent entdeckt seinen Arbeitsvorrat dann selbst: `list_projects` liefert
@@ -176,7 +178,41 @@ Webhooks) nur in den Zielprojekten eintragen.
 
 ---
 
-## 4. Interne vs. öffentliche Kommentare
+## 4. Code-basierte Antworten: `checkout`
+
+Der Agent soll Bug-Reports nicht „aus dem Gedächtnis" beantworten, sondern die
+Behauptung **am Quelltext** prüfen. Dafür gibt es die Aktion
+
+```
+checkout {"project_id":15, "ref":"main"}     # ref optional, Default: Default-Branch
+```
+
+Ablauf und Sicherheitsmodell:
+
+- Der **Daemon** (nicht die Runtime) lädt das Repository-Archiv über die API
+  (`GET /projects/:id/repository/archive.tar.gz`) mit dem gebrokerten Token —
+  das Token bleibt im Daemon-RAM und landet **nie** im Dateisystem der Sandbox
+  (anders als bei einem `git clone` mit Credential-Remote, das das Token in
+  `.git/config` persistieren würde).
+- Entpackt wird nach `<home>/repos/<projekt>-<ref>-<sha>/`; die Aktion liefert
+  den Pfad zurück, der Agent arbeitet dann lokal mit Grep/Read/Bash. Ein
+  erneuter Checkout ersetzt den alten Stand (immer frischer Code).
+- Schutzmaßnahmen: Pfad-Traversal wird abgelehnt, Symlinks werden
+  übersprungen, die entpackte Größe ist auf 512 MB begrenzt.
+- Guard-Rail-Subjekt: `gitlab:checkout` (read-only gegenüber GitLab; wer es
+  einschränken will, legt eine Regel darauf).
+
+Die Prompt-Doku des Plugins verpflichtet den Agenten auf diese Arbeitsweise:
+Bug **bestätigen** nur mit Fundstelle (Datei:Zeile) im ausgecheckten Code;
+findet er die Stelle nicht, beschreibt er, was er geprüft hat, und stellt eine
+gezielte Rückfrage. Antworten ohne Code-Beleg sind nur bei rein
+organisatorischen Issues zulässig. Voraussetzung: Das Token aus 2.1 braucht
+Lesezugriff aufs Repository (Scope `api` deckt das ab; Reporter-Rolle genügt
+bei privaten Projekten für den Archiv-Download).
+
+---
+
+## 5. Interne vs. öffentliche Kommentare
 
 Der Adapter unterscheidet — analog `reply` bei Zammad:
 
@@ -192,7 +228,7 @@ damit ein Mensch übernimmt. `set_state` kennt `close` und `reopen`
 
 ---
 
-## 5. Env-Referenz (GitLab-relevant)
+## 6. Env-Referenz (GitLab-relevant)
 
 | Variable | Default | Bedeutung |
 |---|---|---|
