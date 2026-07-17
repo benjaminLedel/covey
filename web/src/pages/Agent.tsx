@@ -94,11 +94,11 @@ export default function AgentPage({ me }: { me: Principal }) {
           [
             ["backlog", "Backlog"],
             ["recording", "Recording"],
-            ["config", "Config"],
             ["memory", "Gedächtnis"],
             ["tools", "Tools"],
             ["egress", "Egress"],
             ...(canSecrets(me.Role) ? ([["secrets", "Secrets"]] as const) : []),
+            ["config", "Config"],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -133,7 +133,9 @@ export default function AgentPage({ me }: { me: Principal }) {
       {tab === "recording" && (
         <Recording agentId={a.id} taskFilter={recTask} onClearFilter={() => setRecTask(null)} />
       )}
-      {tab === "config" && <Config agentId={a.id} canManage={canManage(me.Role)} />}
+      {tab === "config" && (
+        <Config agentId={a.id} canManage={canManage(me.Role)} onOpenTab={(t) => setTab(t)} />
+      )}
       {tab === "memory" && <Memories agentId={a.id} canManage={canManage(me.Role)} />}
       {tab === "egress" && <AgentEgress agentId={a.id} canEdit={canSecrets(me.Role)} />}
       {tab === "tools" && <AgentTools agentId={a.id} canEdit={canSecrets(me.Role)} />}
@@ -786,7 +788,15 @@ function RecordingItem({ event }: { event: RecordingEvent }) {
   );
 }
 
-function Config({ agentId, canManage }: { agentId: string; canManage: boolean }) {
+function Config({
+  agentId,
+  canManage,
+  onOpenTab,
+}: {
+  agentId: string;
+  canManage: boolean;
+  onOpenTab: (tab: "tools" | "egress" | "memory") => void;
+}) {
   const qc = useQueryClient();
   const cfg = useQuery({
     queryKey: ["config", agentId],
@@ -829,8 +839,131 @@ function Config({ agentId, canManage }: { agentId: string; canManage: boolean })
           Neue Version speichern
         </button>
       )}
+      <UIConfigSummary agentId={agentId} onOpenTab={onOpenTab} />
     </div>
   );
+}
+
+// UIConfigSummary: die über die Oberfläche gepflegten Teile der Agenten-Config
+// (Tool-Zuweisung, Egress-Allowlist), read-only im Config-Reiter gespiegelt.
+// Nutzt dieselben Query-Keys wie die jeweiligen Reiter — bleibt dadurch
+// automatisch in Sync mit dem, was dort gespeichert wird.
+function UIConfigSummary({
+  agentId,
+  onOpenTab,
+}: {
+  agentId: string;
+  onOpenTab: (tab: "tools" | "egress" | "memory") => void;
+}) {
+  const targets = useQuery({
+    queryKey: ["targets"],
+    queryFn: () => api<TargetPlugin[] | null>("/targets"),
+  });
+  const status = useQuery({ queryKey: ["egress", "status"], queryFn: () => api<EgressStatus>("/egress") });
+  const templates = useQuery({ queryKey: ["egress", "templates"], queryFn: () => api<EgressTemplate[]>("/egress/templates") });
+  const egressCfg = useQuery({ queryKey: ["egress", "agent", agentId], queryFn: () => api<AgentEgressCfg>(`/agents/${agentId}/egress`) });
+
+  const enabled = (targets.data ?? []).filter((t) => t.enabled);
+  const effective = effectiveEgress(status.data, templates.data ?? [], egressCfg.data);
+
+  const linkStyle = { marginLeft: "auto" } as const;
+
+  return (
+    <div className="mt-6" style={{ borderTop: "0.5px solid var(--border)", paddingTop: 16 }}>
+      <label>Über die Oberfläche gepflegt</label>
+      <p className="muted text-xs mb-3" style={{ maxWidth: 640 }}>
+        Diese Teile der Config pflegst du in den anderen Reitern; sie fließen zur Dispatch-Zeit in
+        Prompt und Enforcement ein und sind hier nur zusammengefasst — immer auf dem Stand der
+        jeweiligen Reiter.
+      </p>
+
+      <div className="card mb-3" style={{ padding: "13px 15px" }}>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-xs font-medium">Zielsysteme &amp; Tools</span>
+          <button className="btn sm" style={linkStyle} onClick={() => onOpenTab("tools")}>
+            Im Reiter „Tools“ bearbeiten
+          </button>
+        </div>
+        {enabled.length === 0 ? (
+          <p className="muted text-xs m-0">
+            Keine Zielsysteme aktiviert — der Prompt bekommt keinen Abschnitt „Angebundene Zielsysteme“.
+          </p>
+        ) : (
+          enabled.map((p) =>
+            p.kind === "mcp" ? (
+              <ToolSyncRow key={p.name} agentId={agentId} plugin={p} />
+            ) : (
+              <div key={p.name} className="flex items-center gap-2 text-xs mb-1">
+                <span className="mono">{p.name}</span>
+                <span className="muted">{p.label || ""}</span>
+                <span className="muted" style={{ marginLeft: "auto" }}>alle Aktionen (kein MCP)</span>
+              </div>
+            ),
+          )
+        )}
+      </div>
+
+      <div className="card mb-3" style={{ padding: "13px 15px" }}>
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-xs font-medium">Egress-Allowlist (effektiv)</span>
+          <button className="btn sm" style={linkStyle} onClick={() => onOpenTab("egress")}>
+            Im Reiter „Egress“ bearbeiten
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {[...effective.entries()].map(([pattern, source]) => (
+            <span key={pattern} className={`chip${source === "ENV" ? " fixed" : ""}`}>
+              {pattern}
+              <span className="src">{source}</span>
+            </span>
+          ))}
+          {effective.size === 0 && (
+            <span className="muted text-xs">leer — jede ausgehende Verbindung wird blockiert</span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ToolSyncRow: eine Zeile pro MCP-Server — welche Tools dieser Agent nutzen
+// darf. Gleicher Query-Key wie im Tools-Reiter (MCPToolAssign).
+function ToolSyncRow({ agentId, plugin }: { agentId: string; plugin: TargetPlugin }) {
+  const assigned = useQuery({
+    queryKey: ["agent-tools", agentId, plugin.name],
+    queryFn: () => api<string[]>(`/agents/${agentId}/tools/${plugin.name}`),
+  });
+  const total = plugin.manifest?.tools?.length ?? 0;
+  const list = assigned.data ?? [];
+  return (
+    <div className="flex items-start gap-2 text-xs mb-1">
+      <span className="mono shrink-0">{plugin.name}</span>
+      <span className="muted" style={{ marginLeft: "auto", textAlign: "right", overflowWrap: "anywhere" }}>
+        {list.length === 0
+          ? `alle Tools erlaubt${total ? ` (${total})` : ""}`
+          : `${list.length} von ${total} erlaubt: ${list.join(", ")}`}
+      </span>
+    </div>
+  );
+}
+
+// effectiveEgress: Basis-Allowlist der Org + ENV-Zusätze + Hosts der
+// zugewiesenen Templates + eigene Hosts, dedupliziert — Muster → Quelle.
+// Von AgentEgress (Egress-Reiter) und UIConfigSummary (Config-Reiter) geteilt,
+// damit beide Ansichten dieselbe Wahrheit zeigen.
+function effectiveEgress(
+  status: EgressStatus | undefined,
+  templates: EgressTemplate[],
+  cfg: AgentEgressCfg | undefined,
+): Map<string, string> {
+  const assigned = new Set(cfg?.template_ids ?? []);
+  const effective = new Map<string, string>();
+  for (const d of status?.defaults ?? []) effective.set(d.pattern, "Basis");
+  for (const p of status?.env ?? []) if (!effective.has(p)) effective.set(p, "ENV");
+  for (const t of templates.filter((t) => assigned.has(t.id)))
+    for (const h of t.hosts) if (!effective.has(h.pattern)) effective.set(h.pattern, t.name);
+  for (const h of cfg?.hosts ?? []) if (!effective.has(h.pattern)) effective.set(h.pattern, "eigener Host");
+  return effective;
 }
 
 // AgentSecrets: agent-eigene Secrets (haben Vorrang) plus die Sicht darauf,
@@ -1123,15 +1256,10 @@ function AgentEgress({ agentId, canEdit }: { agentId: string; canEdit: boolean }
   const delHost = useMutation({ mutationFn: (id: string) => del(`/agents/${agentId}/egress/hosts/${id}`), onSuccess: invalidate });
 
   const assigned = new Set(cfg.data?.template_ids ?? []);
-  const assignedTemplates = (templates.data ?? []).filter((t) => assigned.has(t.id));
 
-  // Effektive Allowlist: Basis-Allowlist der Org + ENV-Zusätze + Hosts der
-  // zugewiesenen Templates + eigene Hosts, dedupliziert; die Quelle steht am Chip.
-  const effective = new Map<string, string>();
-  for (const d of status.data?.defaults ?? []) effective.set(d.pattern, "Basis");
-  for (const p of status.data?.env ?? []) if (!effective.has(p)) effective.set(p, "ENV");
-  for (const t of assignedTemplates) for (const h of t.hosts) if (!effective.has(h.pattern)) effective.set(h.pattern, t.name);
-  for (const h of cfg.data?.hosts ?? []) if (!effective.has(h.pattern)) effective.set(h.pattern, "eigener Host");
+  // Effektive Allowlist: geteilte Logik mit dem Config-Reiter (UIConfigSummary);
+  // die Quelle steht am Chip.
+  const effective = effectiveEgress(status.data, templates.data ?? [], cfg.data);
 
   return (
     <div style={{ maxWidth: 780 }}>
