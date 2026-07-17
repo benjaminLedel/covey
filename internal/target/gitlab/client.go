@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -74,6 +75,18 @@ type Issue struct {
 	State       string   `json:"state"`
 	Labels      []string `json:"labels"`
 	WebURL      string   `json:"web_url"`
+	// References.Full ist die volle Referenz "gruppe/projekt#iid" — daraus
+	// lässt sich der Projektpfad für den Intake-Filter ableiten.
+	References struct {
+		Full string `json:"full"`
+	} `json:"references"`
+}
+
+type Project struct {
+	ID                int    `json:"id"`
+	PathWithNamespace string `json:"path_with_namespace"`
+	Description       string `json:"description"`
+	WebURL            string `json:"web_url"`
 }
 
 type Note struct {
@@ -85,6 +98,45 @@ type Note struct {
 		Username string `json:"username"`
 	} `json:"author"`
 	CreatedAt string `json:"created_at"`
+}
+
+// ListProjects — GET /projects?membership=true: alle Projekte, in denen der
+// Bot-Nutzer Mitglied ist. Der Einstieg für Agenten, die ihre project_ids
+// noch nicht kennen.
+func (c *Client) ListProjects(ctx context.Context) ([]Project, error) {
+	var out []Project
+	err := c.do(ctx, http.MethodGet,
+		"/projects?membership=true&simple=true&archived=false&order_by=last_activity_at&per_page=100", nil, &out)
+	return out, err
+}
+
+// ListIssues findet Issues — mit projectID über GET /projects/{id}/issues,
+// ohne (projectID=0) über das globale GET /issues mit scope=all: alle Issues,
+// die das Token sehen darf. state ist "opened" (Default), "closed" oder "all";
+// labels (kommasepariert) und search schränken optional ein.
+func (c *Client) ListIssues(ctx context.Context, projectID int, state, labels, search string) ([]Issue, error) {
+	q := url.Values{}
+	if state == "" {
+		state = "opened"
+	}
+	if state != "all" {
+		q.Set("state", state)
+	}
+	if labels != "" {
+		q.Set("labels", labels)
+	}
+	if search != "" {
+		q.Set("search", search)
+	}
+	q.Set("order_by", "updated_at")
+	q.Set("per_page", "100")
+	path := "/issues?scope=all&" + q.Encode()
+	if projectID != 0 {
+		path = fmt.Sprintf("/projects/%d/issues?%s", projectID, q.Encode())
+	}
+	var out []Issue
+	err := c.do(ctx, http.MethodGet, path, nil, &out)
+	return out, err
 }
 
 // GetIssue — GET /projects/{id}/issues/{iid}

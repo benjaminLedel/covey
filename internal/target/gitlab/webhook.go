@@ -4,7 +4,6 @@ import (
 	"crypto/hmac"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 )
 
@@ -124,12 +123,7 @@ func (p WebhookPayload) IsWakeEvent() bool {
 // aus einem dieser Projekte (Pfad oder numerische id) aufgenommen. Ohne
 // Allowlist: alle Projekte.
 func (p WebhookPayload) InIntakeScope() bool {
-	projects := intakeProjects()
-	if len(projects) == 0 {
-		return true
-	}
-	return projects[strings.ToLower(strings.TrimSpace(p.Project.PathWithNamespace))] ||
-		projects[strconv.Itoa(p.Project.ID)]
+	return projectInScope(p.Project.ID, p.Project.PathWithNamespace)
 }
 
 // ShouldWake ist die vollständige Aufnahme-Entscheidung: ein Wake-Ereignis

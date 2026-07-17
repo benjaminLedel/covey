@@ -5,30 +5,47 @@ Aufbau und Datenfluss folgen dem Zammad-Adapter
 ([`betrieb-zammad.md`](betrieb-zammad.md)) — die Einheit der Arbeit ist hier das
 **Issue** statt des Tickets.
 
-> Kurzfassung: Token-Auth gegen die REST-API (`/api/v4`), Webhook-Verifikation
-> über `X-Gitlab-Token` (GitLab signiert nicht per HMAC, sondern schickt das
-> konfigurierte Secret mit — Vergleich in konstanter Zeit). Es sind
-> **Konfigurationsschritte**, kein Umbau.
+> Kurzfassung: Token-Auth gegen die REST-API (`/api/v4`). Der Agent findet
+> seine Issues **selbst** (`list_issues`), getrieben von einem
+> `HEARTBEAT.md`-Eintrag — ein Webhook ist optional und nur für sofortige
+> Wakes nötig. Es sind **Konfigurationsschritte**, kein Umbau.
 
 ---
 
 ## 1. Überblick des Datenflusses
 
+Es gibt **zwei Intake-Wege**, kombinierbar:
+
+**A) Heartbeat (empfohlen, Standard):** Ein `HEARTBEAT.md`-Eintrag legt dem
+Agenten periodisch die Aufgabe „Issues sichten" ins Backlog. Der Agent findet
+seinen Arbeitsvorrat selbst über die Discovery-Aktionen:
+
+```
+Covey  ──(Heartbeat-Tick)──►  Backlog-Task „GitLab-Issues sichten"
+                                 │
+                                 ▼
+                              Agent (Sandbox, Claude Code)
+                                 │  Aktionen über Action-Proxy
+GitLab  ◄──(REST /api/v4)────────┘  list_issues → get_issue/list_notes → comment/set_state/escalate
+```
+
+Kein eingehender Traffic, keine öffentliche URL, kein Webhook-Secret —
+funktioniert auch, wenn Covey hinter NAT/Firewall läuft.
+
+**B) Webhook (optional):** Issue-/Note-Hooks wecken sofort — und nur dieser
+Weg weckt eine `blocked`-Aufgabe automatisch über den Korrelations-Key:
+
 ```
 GitLab  ──(Issue-/Note-Hook, X-Gitlab-Token)──►  Covey  /api/webhooks/gitlab/<agent-slug>
-                                                   │  Token prüfen → Intake-Filter → Backlog-Task
-                                                   ▼
-                                                 Agent (Sandbox, Claude Code)
-                                                   │  Aktionen über Action-Proxy
-GitLab  ◄──(REST /api/v4, PRIVATE-TOKEN)───────────┘  get_issue, comment, set_state, escalate
+                                                   │  Token prüfen → Intake-Filter → Backlog-Task/Wake
 ```
 
 Zwei Richtungen, zwei Auth-Wege:
 
-- **Inbound** (GitLab → Covey): Webhook, verifiziert per Secret-Token
-  (`COVEY_GITLAB_WEBHOOK_SECRET` ↔ „Secret token" des GitLab-Webhooks).
 - **Outbound** (Covey → GitLab): REST mit einem gebrokerten API-Token
   (Secret `gitlab_token`), das nie in der Sandbox persistiert wird.
+- **Inbound** (GitLab → Covey, nur Weg B): Webhook, verifiziert per
+  Secret-Token (`COVEY_GITLAB_WEBHOOK_SECRET` ↔ „Secret token" des Webhooks).
 
 ---
 
@@ -62,17 +79,40 @@ Das Zielsystem `gitlab` muss für die Org **aktiviert** sein (UI: Zielsysteme).
 Zusätzlich muss der Agent laut `ACCESS.md` auf `gitlab` zugreifen dürfen, und
 die Guard-Rails dürfen `gitlab` / `gitlab:comment_external` nicht verbieten.
 
-### 2.4 In Covey: Prozess-Env setzen
+### 2.4 Intake per Heartbeat einrichten (empfohlen)
+
+In der `HEARTBEAT.md` des Agenten einen Sichtungs-Eintrag anlegen:
+
+```
+- alle: 15m titel: GitLab-Issues sichten aufgabe: Finde offene Issues (list_issues state=opened), bearbeite neue und prüfe per list_notes, ob auf deine Rückfragen geantwortet wurde.
+```
+
+Der Agent entdeckt seinen Arbeitsvorrat dann selbst: `list_projects` liefert
+die Projekte, in denen der Bot-Nutzer Mitglied ist, `list_issues` die offenen
+Issues (ohne `project_id`: alle, die das Token sehen darf). Damit
+wiederkehrende Läufe nichts doppelt bearbeiten, prüft der Agent per
+`list_notes`, ob sein eigener Kommentar bereits der letzte Stand ist — die
+Prompt-Doku des Plugins weist ihn darauf hin.
+
+Optionaler Projekt-Filter (greift für **beide** Intake-Wege, auch für
+`list_issues`/`list_projects`):
+
+```bash
+COVEY_GITLAB_INTAKE_PROJECTS="gruppe/support"   # leer = alle Projekte
+```
+
+### 2.5 Optional: Webhook für sofortige Wakes
+
+Nur nötig, wenn Issues ohne Heartbeat-Wartezeit aufgenommen und geblockte
+Aufgaben **automatisch** geweckt werden sollen (Abschnitt 2.6, Punkt 3).
+
+Prozess-Env:
 
 ```bash
 COVEY_PUBLIC_URL=https://covey.example.com        # von GitLab erreichbar, NICHT localhost
 COVEY_GITLAB_WEBHOOK_SECRET=<langes-zufalls-secret>
-COVEY_GITLAB_AGENT_USERNAMES="covey-bot"
-# optional, siehe Abschnitt 3:
-COVEY_GITLAB_INTAKE_PROJECTS="gruppe/support"
+COVEY_GITLAB_AGENT_USERNAMES="covey-bot"          # Echo-Schutz, Abschnitt 3.2
 ```
-
-### 2.5 In GitLab: Webhook einrichten
 
 Pro Zielprojekt (*Settings → Webhooks*):
 
@@ -85,18 +125,26 @@ Pro Zielprojekt (*Settings → Webhooks*):
 
 ### 2.6 Testen
 
-1. Im Zielprojekt ein Issue anlegen → in Covey erscheint eine Backlog-Aufgabe.
+1. Im Zielprojekt ein Issue anlegen → beim nächsten Heartbeat-Lauf nimmt der
+   Agent es auf (bzw. sofort, wenn ein Webhook eingerichtet ist).
 2. Antwortet der Agent, muss sein Kommentar unter dem `covey-bot`-Nutzer
-   erscheinen — und darf **keinen neuen Wake** auslösen (2.4 gesetzt?).
-3. Bei einer Rückfrage: Agent `blocked` → Kommentar eines Menschen am Issue →
-   Agent wird über den Korrelations-Key `gitlab:issue:<project_id>:<iid>`
-   geweckt und via `claude -p --resume` fortgesetzt.
+   erscheinen — und darf bei Webhook-Betrieb **keinen neuen Wake** auslösen
+   (`COVEY_GITLAB_AGENT_USERNAMES` gesetzt?).
+3. Bei einer Rückfrage: **Mit Webhook** geht der Agent `blocked`, ein
+   Kommentar eines Menschen weckt ihn über den Korrelations-Key
+   `gitlab:issue:<project_id>:<iid>` und er wird via `claude -p --resume`
+   fortgesetzt. **Ohne Webhook** gibt es diesen Wake nicht — der Agent stellt
+   die Rückfrage als Kommentar, schließt seinen Lauf ab und prüft beim
+   nächsten Heartbeat per `list_notes`, ob eine Antwort da ist.
 
 ---
 
 ## 3. Welche Issues nimmt der Agent auf?
 
-Die Aufnahme-Entscheidung (`ShouldWake` in `internal/target/gitlab/webhook.go`):
+Beim **Heartbeat-Weg** entscheidet der Agent selbst: `list_issues` liefert nur
+offene Issues, und die Projekt-Allowlist (3.3) filtert die Ergebnisse von
+`list_issues`/`list_projects` serverseitig. Beim **Webhook-Weg** gilt die
+Aufnahme-Entscheidung (`ShouldWake` in `internal/target/gitlab/webhook.go`):
 
 ### 3.1 Wake-Ereignisse
 
@@ -120,8 +168,11 @@ COVEY_GITLAB_INTAKE_PROJECTS="gruppe/support, 42"
 
 Ist die Variable gesetzt, wird nur ein Issue aus diesen Projekten aufgenommen
 (Projektpfad `path_with_namespace` case-insensitiv oder numerische Projekt-id).
-Leer/ungesetzt → keine Einschränkung. Primärer Filter bleibt aber die
-Webhook-Konfiguration selbst: Webhooks nur in den Zielprojekten anlegen.
+Leer/ungesetzt → keine Einschränkung. Der Filter greift an beiden
+Intake-Wegen: Webhook-Payloads außerhalb der Allowlist wecken nicht, und
+`list_issues`/`list_projects` liefern nur Treffer aus der Allowlist. Primärer
+Filter bleibt trotzdem das GitLab-seitige Setup: den Bot-Nutzer (und ggf.
+Webhooks) nur in den Zielprojekten eintragen.
 
 ---
 
@@ -145,11 +196,11 @@ damit ein Mensch übernimmt. `set_state` kennt `close` und `reopen`
 
 | Variable | Default | Bedeutung |
 |---|---|---|
-| `COVEY_PUBLIC_URL` | `http://localhost:8494` | Basis-URL, die GitLab für den Webhook erreicht |
-| `COVEY_GITLAB_WEBHOOK_SECRET` | *(leer = Prüfung aus)* | Secret-Token, identisch zum „Secret token" des GitLab-Webhooks |
-| `COVEY_GITLAB_AGENT_USERNAMES` | *(leer)* | GitLab-Nutzernamen der Agenten — deren Kommentare wecken nicht |
-| `COVEY_GITLAB_INTAKE_PROJECTS` | *(leer = alle)* | Allowlist der Projekte (Pfad oder id), die Issues aufnehmen |
+| `COVEY_GITLAB_INTAKE_PROJECTS` | *(leer = alle)* | Allowlist der Projekte (Pfad oder id) — filtert Webhook-Intake **und** `list_issues`/`list_projects` |
 | `COVEY_EGRESS_ALLOW` | *(leer)* | zusätzliche erlaubte Egress-Hosts, z. B. das GitLab-Host |
+| `COVEY_PUBLIC_URL` | `http://localhost:8494` | nur Webhook-Betrieb: Basis-URL, die GitLab für den Webhook erreicht |
+| `COVEY_GITLAB_WEBHOOK_SECRET` | *(leer = Prüfung aus)* | nur Webhook-Betrieb: Secret-Token, identisch zum „Secret token" des GitLab-Webhooks |
+| `COVEY_GITLAB_AGENT_USERNAMES` | *(leer)* | nur Webhook-Betrieb: GitLab-Nutzernamen der Agenten — deren Kommentare wecken nicht (Echo-Schutz) |
 
 Die allgemeinen Variablen (Egress, Daemon-Token-TTL, …) stehen in
 [`betrieb-zammad.md`](betrieb-zammad.md), Abschnitt 6.

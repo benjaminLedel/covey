@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+
+	"covey/internal/target"
 )
 
 func TestVerifyToken(t *testing.T) {
@@ -180,6 +183,93 @@ func TestClientActions(t *testing.T) {
 	}
 	if gotMethod != http.MethodPut || gotBody["assignee_ids"] == nil {
 		t.Fatalf("Escalate muss die Zuweisung entfernen: %s %+v", gotMethod, gotBody)
+	}
+}
+
+func TestClientDiscovery(t *testing.T) {
+	var gotPath, gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotQuery = r.URL.RawQuery
+		switch r.URL.Path {
+		case "/api/v4/projects":
+			json.NewEncoder(w).Encode([]Project{{ID: 15, PathWithNamespace: "gruppe/support"}})
+		default:
+			json.NewEncoder(w).Encode([]Issue{{IID: 23, ProjectID: 15, Title: "Login kaputt", State: "opened"}})
+		}
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, "test-token")
+	ctx := context.Background()
+
+	ps, err := c.ListProjects(ctx)
+	if err != nil || len(ps) != 1 || ps[0].ID != 15 {
+		t.Fatalf("ListProjects: %v %+v", err, ps)
+	}
+	if !strings.Contains(gotQuery, "membership=true") {
+		t.Fatalf("ListProjects muss auf Mitgliedschaft filtern: %s", gotQuery)
+	}
+
+	issues, err := c.ListIssues(ctx, 15, "", "", "")
+	if err != nil || len(issues) != 1 || issues[0].IID != 23 {
+		t.Fatalf("ListIssues (Projekt): %v %+v", err, issues)
+	}
+	if gotPath != "/api/v4/projects/15/issues" || !strings.Contains(gotQuery, "state=opened") {
+		t.Fatalf("ListIssues muss projektbezogen und mit Default state=opened laufen: %s?%s", gotPath, gotQuery)
+	}
+
+	if _, err := c.ListIssues(ctx, 0, "all", "bug,support", "login"); err != nil {
+		t.Fatalf("ListIssues (global): %v", err)
+	}
+	if gotPath != "/api/v4/issues" || !strings.Contains(gotQuery, "scope=all") {
+		t.Fatalf("ohne project_id muss das globale /issues mit scope=all laufen: %s?%s", gotPath, gotQuery)
+	}
+	if strings.Contains(gotQuery, "state=") {
+		t.Fatalf("state=all darf keinen state-Parameter senden: %s", gotQuery)
+	}
+	if !strings.Contains(gotQuery, "labels=bug%2Csupport") || !strings.Contains(gotQuery, "search=login") {
+		t.Fatalf("labels/search müssen durchgereicht werden: %s", gotQuery)
+	}
+}
+
+func TestListActionsRespectIntakeScope(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v4/projects":
+			json.NewEncoder(w).Encode([]Project{
+				{ID: 15, PathWithNamespace: "gruppe/support"},
+				{ID: 99, PathWithNamespace: "gruppe/geheim"},
+			})
+		default:
+			issueIn := Issue{IID: 23, ProjectID: 15}
+			issueIn.References.Full = "gruppe/support#23"
+			issueOut := Issue{IID: 7, ProjectID: 99}
+			issueOut.References.Full = "gruppe/geheim#7"
+			json.NewEncoder(w).Encode([]Issue{issueIn, issueOut})
+		}
+	}))
+	defer srv.Close()
+
+	t.Setenv("COVEY_GITLAB_INTAKE_PROJECTS", "gruppe/support")
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	res, err := sys.Execute(ctx, "list_projects", []byte(`{}`), cred)
+	if err != nil {
+		t.Fatalf("list_projects: %v", err)
+	}
+	if ps := res.([]Project); len(ps) != 1 || ps[0].ID != 15 {
+		t.Fatalf("list_projects muss die Allowlist anwenden: %+v", ps)
+	}
+
+	res, err = sys.Execute(ctx, "list_issues", []byte(`{}`), cred)
+	if err != nil {
+		t.Fatalf("list_issues: %v", err)
+	}
+	if issues := res.([]Issue); len(issues) != 1 || issues[0].IID != 23 {
+		t.Fatalf("list_issues muss die Allowlist anwenden: %+v", issues)
 	}
 }
 

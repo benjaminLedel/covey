@@ -19,7 +19,7 @@ func init() {
 	target.Register(target.Descriptor{
 		Name:        "gitlab",
 		Label:       "GitLab",
-		Description: "GitLab-Issues als Arbeitsvorrat: Issues lesen, kommentieren, schließen, eskalieren. Webhook-Wake über Issue-/Note-Hooks, Auth per API-Token (Secrets gitlab_token + gitlab_url).",
+		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues), lesen, kommentieren, schließen, eskalieren. Intake per HEARTBEAT.md (Polling) oder optionalem Webhook, Auth per API-Token (Secrets gitlab_token + gitlab_url).",
 		Kind:        "builtin",
 		System:      System{},
 		SetupDoc: `1. In GitLab einen eigenen Bot-Nutzer anlegen (z. B. covey-bot), den
@@ -33,14 +33,21 @@ func init() {
 3. In der ACCESS.md des Agenten freischalten:
    - system: gitlab scope: read,write,comment
 
-4. Im GitLab-Zielprojekt einen Webhook anlegen (Settings → Webhooks):
+4. Intake per Heartbeat (empfohlen, kein Webhook nötig) — in der
+   HEARTBEAT.md des Agenten:
+   - alle: 15m titel: GitLab-Issues sichten aufgabe: Finde offene Issues
+     (list_issues state=opened), bearbeite neue und prüfe per list_notes,
+     ob auf deine Rückfragen geantwortet wurde.
+   Optionaler Projekt-Filter (gilt für Webhook UND list_issues/list_projects):
+   COVEY_GITLAB_INTAKE_PROJECTS="gruppe/support"   (leer = alle)
+
+5. Optional statt/zusätzlich zu 4 — Webhook für sofortige Wakes und das
+   automatische Wecken geblockter Aufgaben. Im Zielprojekt (Settings →
+   Webhooks):
    URL:          {public_url}/api/webhooks/gitlab/<agent-slug>
    Secret token: Wert von COVEY_GITLAB_WEBHOOK_SECRET (Prozess-Env)
    Trigger:      "Issues events" und "Comments" ankreuzen
-
-5. Prozess-Env setzen (Echo-Schutz und optionaler Intake-Filter):
-   COVEY_GITLAB_AGENT_USERNAMES="covey-bot"
-   COVEY_GITLAB_INTAKE_PROJECTS="gruppe/support"   (optional, leer = alle)
+   Dazu Echo-Schutz setzen: COVEY_GITLAB_AGENT_USERNAMES="covey-bot"
 
 Details: docs/betrieb-gitlab.md im Repository.`,
 	})
@@ -80,6 +87,17 @@ func (System) ParseWebhook(body []byte) (target.WebhookEvent, error) {
 	return ev, nil
 }
 
+// issueProjectPath leitet den Projektpfad aus der vollen Referenz
+// ("gruppe/support#23") ab — die Issue-API liefert path_with_namespace nicht
+// direkt. Leerer Rückgabewert, wenn keine Referenz vorhanden ist; der
+// Intake-Filter matcht dann nur noch über die numerische Projekt-id.
+func issueProjectPath(i Issue) string {
+	if idx := strings.LastIndex(i.References.Full, "#"); idx > 0 {
+		return i.References.Full[:idx]
+	}
+	return ""
+}
+
 // ActionSubject: öffentliche Kommentare (internal=false) sind ein eigenes,
 // schärfer regelbares Guard-Rail-Subjekt — analog zammad:reply_external.
 func (System) ActionSubject(action string, params json.RawMessage) string {
@@ -106,12 +124,38 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		Internal  *bool  `json:"internal"`
 		State     string `json:"state"`
 		Note      string `json:"note"`
+		Labels    string `json:"labels"`
+		Search    string `json:"search"`
 	}
 	if err := json.Unmarshal(params, &in); err != nil {
 		return nil, fmt.Errorf("params: %w", err)
 	}
 
 	switch action {
+	case "list_projects":
+		ps, err := gc.ListProjects(ctx)
+		if err != nil {
+			return nil, err
+		}
+		out := []Project{}
+		for _, p := range ps {
+			if projectInScope(p.ID, p.PathWithNamespace) {
+				out = append(out, p)
+			}
+		}
+		return out, nil
+	case "list_issues":
+		issues, err := gc.ListIssues(ctx, in.ProjectID, in.State, in.Labels, in.Search)
+		if err != nil {
+			return nil, err
+		}
+		out := []Issue{}
+		for _, i := range issues {
+			if projectInScope(i.ProjectID, issueProjectPath(i)) {
+				out = append(out, i)
+			}
+		}
+		return out, nil
 	case "get_issue":
 		return gc.GetIssue(ctx, in.ProjectID, in.IssueIID)
 	case "list_notes":
@@ -136,8 +180,12 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 }
 
 func (System) PromptDoc() string {
-	return `Verfügbare GitLab-Aktionen: get_issue {"project_id":N,"issue_iid":N}, list_notes {"project_id":N,"issue_iid":N},
-   comment {"project_id":N,"issue_iid":N,"body":"...","internal":true|false}, set_state {"project_id":N,"issue_iid":N,"state":"close"|"reopen"},
-   escalate {"project_id":N,"issue_iid":N,"note":"..."}.
+	return `Verfügbare GitLab-Aktionen: list_projects {}, list_issues {"project_id":N,"state":"opened"|"closed"|"all","labels":"...","search":"..."}
+   (alle Felder optional; ohne project_id alle für dich sichtbaren Issues), get_issue {"project_id":N,"issue_iid":N},
+   list_notes {"project_id":N,"issue_iid":N}, comment {"project_id":N,"issue_iid":N,"body":"...","internal":true|false},
+   set_state {"project_id":N,"issue_iid":N,"state":"close"|"reopen"}, escalate {"project_id":N,"issue_iid":N,"note":"..."}.
+   Deinen Arbeitsvorrat findest du selbst: list_issues {"state":"opened"} liefert die offenen Issues.
+   Prüfe vor dem Kommentieren mit list_notes, ob du (dein Bot-Nutzer) schon geantwortet hast und ob seitdem
+   eine neue Antwort kam — so bearbeitest du bei wiederkehrenden Läufen nichts doppelt.
    Korrelations-Key für Status blocked: gitlab:issue:<project_id>:<issue_iid>.`
 }

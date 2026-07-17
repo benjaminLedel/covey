@@ -2,6 +2,7 @@ package gitlab
 
 import (
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -28,6 +29,18 @@ func intakeProjects() map[string]bool {
 //	COVEY_GITLAB_AGENT_USERNAMES="covey-bot, support-agent"
 func agentUsernames() map[string]bool {
 	return parseSet(os.Getenv("COVEY_GITLAB_AGENT_USERNAMES"))
+}
+
+// projectInScope prüft ein Projekt (numerische id + Pfad) gegen die Allowlist
+// aus COVEY_GITLAB_INTAKE_PROJECTS. Leere Allowlist → alles im Scope. Genutzt
+// vom Webhook-Intake und von den Discovery-Aktionen (list_projects,
+// list_issues) — der Filter greift damit unabhängig vom Aufnahme-Weg.
+func projectInScope(projectID int, path string) bool {
+	projects := intakeProjects()
+	if len(projects) == 0 {
+		return true
+	}
+	return projects[strings.ToLower(strings.TrimSpace(path))] || projects[strconv.Itoa(projectID)]
 }
 
 // parseSet zerlegt eine kommaseparierte ENV-Liste in ein Set kleingeschriebener,
