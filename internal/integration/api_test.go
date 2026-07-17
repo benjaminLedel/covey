@@ -262,3 +262,61 @@ func TestMemoryAdministration(t *testing.T) {
 		t.Fatalf("gedächtnis sollte leer sein, got %d", len(entries))
 	}
 }
+
+// TestGuardrailAdministration: Regeln validieren, pausieren, trocken testen —
+// der Regel-Tester und das Ereignis-Feed sind Teil der Policy-Oberfläche.
+func TestGuardrailAdministration(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+
+	// Validierung: fail-closed heißt auch, keine wirkungslosen Regeln speichern.
+	admin.expect(http.MethodPost, "/api/v1/guardrails",
+		map[string]any{"rule_type": "budget_limit"}, http.StatusBadRequest)
+	admin.expect(http.MethodPost, "/api/v1/guardrails",
+		map[string]any{"rule_type": "yolo", "pattern": "*"}, http.StatusBadRequest)
+	admin.expect(http.MethodPost, "/api/v1/guardrails",
+		map[string]any{"rule_type": "deny_action", "pattern": "x", "scope_level": "agent"}, http.StatusBadRequest)
+
+	// Budget-Deckel braucht kein Muster — Default ist "*".
+	budget := admin.expect(http.MethodPost, "/api/v1/guardrails",
+		map[string]any{"rule_type": "budget_limit", "params": map[string]any{"usd": 12.5}}, http.StatusCreated)
+	if budget["pattern"] != "*" {
+		t.Fatalf("budget-regel sollte pattern * bekommen, got %v", budget["pattern"])
+	}
+
+	created := admin.expect(http.MethodPost, "/api/v1/guardrails",
+		map[string]any{"rule_type": "deny_action", "pattern": "zammad:close_ticket"}, http.StatusCreated)
+	ruleID := created["id"].(string)
+
+	// Regel-Tester: Deny greift, Budget-Deckel wird mitgemeldet.
+	verdict := admin.expect(http.MethodPost, "/api/v1/guardrails/test",
+		map[string]any{"subject": "zammad:close_ticket"}, http.StatusOK)
+	if verdict["decision"] != "deny" {
+		t.Fatalf("tester sollte deny liefern, got %v", verdict["decision"])
+	}
+	if verdict["budget_limit_usd"] != 12.5 {
+		t.Fatalf("tester sollte budget-deckel 12.5 melden, got %v", verdict["budget_limit_usd"])
+	}
+
+	// Pausieren statt löschen: Regel bleibt, greift aber nicht mehr.
+	updated := admin.expect(http.MethodPatch, "/api/v1/guardrails/"+ruleID,
+		map[string]any{"enabled": false}, http.StatusOK)
+	if updated["enabled"] != false {
+		t.Fatalf("regel sollte pausiert sein, got %v", updated["enabled"])
+	}
+	verdict = admin.expect(http.MethodPost, "/api/v1/guardrails/test",
+		map[string]any{"subject": "zammad:close_ticket"}, http.StatusOK)
+	if verdict["decision"] != "allow" {
+		t.Fatalf("pausierte regel darf nicht greifen, got %v", verdict["decision"])
+	}
+
+	// Ereignis-Feed antwortet (leer ist ok — noch nichts ausgelöst).
+	resp := admin.do(http.MethodGet, "/api/v1/guardrails/events", nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("events-feed: HTTP %d", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	// Nur Security-Rollen dürfen schalten; PATCH fehlt das Pflichtfeld → 400.
+	admin.expect(http.MethodPatch, "/api/v1/guardrails/"+ruleID, map[string]any{}, http.StatusBadRequest)
+}

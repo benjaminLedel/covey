@@ -98,6 +98,31 @@ func (s *Store) Events(ctx context.Context, agentID uuid.UUID, taskID *uuid.UUID
 	return out, rows.Err()
 }
 
+// OrgEventsByKind liefert die jüngsten Ereignisse einer Art org-weit,
+// neueste zuerst — z. B. alle ausgelösten Guard-Rails für das Audit-Feed.
+func (s *Store) OrgEventsByKind(ctx context.Context, orgID uuid.UUID, kind string, limit int) ([]RecordingEvent, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 50
+	}
+	rows, err := s.pool.Query(ctx, `SELECT id, org_id, agent_id, task_id, kind, payload, created_at
+		FROM recording_events
+		WHERE org_id=$1 AND kind=$2
+		ORDER BY id DESC LIMIT $3`, orgID, kind, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []RecordingEvent
+	for rows.Next() {
+		var e RecordingEvent
+		if err := rows.Scan(&e.ID, &e.OrgID, &e.AgentID, &e.TaskID, &e.Kind, &e.Payload, &e.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
 // AddCost verbucht Kosten aus einem cost-Event des Daemons.
 func (s *Store) AddCost(ctx context.Context, agentID uuid.UUID, taskID *uuid.UUID, usd float64, inputTokens, outputTokens int64, model string) error {
 	_, err := s.pool.Exec(ctx, `INSERT INTO cost_entries (agent_id, task_id, usd, input_tokens, output_tokens, model)

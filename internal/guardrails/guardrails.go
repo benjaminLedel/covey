@@ -6,6 +6,7 @@ package guardrails
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
@@ -46,6 +47,39 @@ type Rule struct {
 type Verdict struct {
 	Decision Decision
 	Rule     *Rule
+}
+
+// Validate prüft eine Regel vor dem Persistieren — fail-closed heißt auch:
+// keine Regeln speichern, die nie greifen oder mehrdeutig wären.
+func Validate(r Rule) error {
+	switch r.RuleType {
+	case RuleDenySystem, RuleDenyAction, RuleRequireApproval:
+		if strings.TrimSpace(r.Pattern) == "" {
+			return errors.New("pattern ist Pflicht")
+		}
+	case RuleBudgetLimit:
+		var p struct {
+			USD float64 `json:"usd"`
+		}
+		if err := json.Unmarshal(r.Params, &p); err != nil || p.USD <= 0 {
+			return errors.New("budget_limit braucht params.usd > 0")
+		}
+	default:
+		return errors.New("unbekannter rule_type: " + r.RuleType)
+	}
+	switch r.ScopeLevel {
+	case "global", "team":
+		if r.AgentID != nil {
+			return errors.New("agent_id nur bei scope_level=agent")
+		}
+	case "agent":
+		if r.AgentID == nil {
+			return errors.New("scope_level=agent braucht agent_id")
+		}
+	default:
+		return errors.New("unbekanntes scope_level: " + r.ScopeLevel)
+	}
+	return nil
 }
 
 // matches prüft ein Muster wie "zammad:reply_external", "zammad:*" oder "*"
@@ -145,9 +179,22 @@ func (s *Store) Create(ctx context.Context, r Rule) (Rule, error) {
 	if len(r.Params) == 0 {
 		r.Params = json.RawMessage(`{}`)
 	}
+	if err := Validate(r); err != nil {
+		return Rule{}, err
+	}
 	err := s.pool.QueryRow(ctx, `INSERT INTO guardrails (id, org_id, scope_level, agent_id, rule_type, pattern, params, enabled)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING created_at`,
 		r.ID, r.OrgID, r.ScopeLevel, r.AgentID, r.RuleType, r.Pattern, r.Params, r.Enabled).Scan(&r.CreatedAt)
+	return r, err
+}
+
+// SetEnabled schaltet eine Regel scharf oder pausiert sie — Pausieren statt
+// Löschen erhält die Regel-Historie und macht Experimente reversibel.
+func (s *Store) SetEnabled(ctx context.Context, orgID, id uuid.UUID, enabled bool) (Rule, error) {
+	var r Rule
+	err := s.pool.QueryRow(ctx, `UPDATE guardrails SET enabled=$3 WHERE org_id=$1 AND id=$2
+		RETURNING id, org_id, scope_level, agent_id, rule_type, pattern, params, enabled, created_at`,
+		orgID, id, enabled).Scan(&r.ID, &r.OrgID, &r.ScopeLevel, &r.AgentID, &r.RuleType, &r.Pattern, &r.Params, &r.Enabled, &r.CreatedAt)
 	return r, err
 }
 

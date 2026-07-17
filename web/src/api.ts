@@ -58,6 +58,7 @@ export type ConfigVersion = {
 
 export type RecordingEvent = {
   id: number;
+  agent_id: string;
   task_id?: string;
   kind: string;
   payload: unknown;
@@ -80,7 +81,18 @@ export type Guardrail = {
   agent_id?: string;
   rule_type: string;
   pattern: string;
+  params: { usd?: number } & Record<string, unknown>;
   enabled: boolean;
+  created_at: string;
+};
+
+// Ergebnis des Regel-Testers (POST /guardrails/test): trocken ausgewertet,
+// nichts wird ausgeführt.
+export type GuardrailVerdict = {
+  subject: string;
+  decision: "allow" | "deny" | "require_approval";
+  rule?: Guardrail;
+  budget_limit_usd?: number;
 };
 
 export type CostSummary = {

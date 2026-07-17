@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -14,6 +15,7 @@ import (
 	"covey/internal/guardrails"
 	"covey/internal/identity"
 	"covey/internal/memory"
+	"covey/internal/observability"
 	"covey/internal/secrets"
 )
 
@@ -657,17 +659,30 @@ func (s *Server) handleCreateGuardrail(w http.ResponseWriter, r *http.Request) {
 		Pattern    string          `json:"pattern"`
 		Params     json.RawMessage `json:"params"`
 	}
-	if err := readJSON(r, &in); err != nil || in.RuleType == "" || in.Pattern == "" {
-		writeErr(w, http.StatusBadRequest, "rule_type und pattern sind Pflicht")
+	if err := readJSON(r, &in); err != nil || in.RuleType == "" {
+		writeErr(w, http.StatusBadRequest, "rule_type ist Pflicht")
 		return
 	}
 	if in.ScopeLevel == "" {
 		in.ScopeLevel = "global"
 	}
-	rule, err := s.Rails.Create(r.Context(), guardrails.Rule{
+	// Budget-Deckel gelten pro Scope, nicht pro Aktion — ohne Muster auf alles.
+	in.Pattern = strings.TrimSpace(in.Pattern)
+	if in.RuleType == guardrails.RuleBudgetLimit && in.Pattern == "" {
+		in.Pattern = "*"
+	}
+	draft := guardrails.Rule{
 		OrgID: p.OrgID, ScopeLevel: in.ScopeLevel, AgentID: in.AgentID,
-		RuleType: in.RuleType, Pattern: in.Pattern, Params: in.Params,
-	})
+		RuleType: in.RuleType, Pattern: in.Pattern, Params: in.Params, Enabled: true,
+	}
+	if len(draft.Params) == 0 {
+		draft.Params = json.RawMessage(`{}`)
+	}
+	if err := guardrails.Validate(draft); err != nil {
+		writeErr(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	rule, err := s.Rails.Create(r.Context(), draft)
 	if err != nil {
 		mapErr(w, err)
 		return
@@ -687,6 +702,77 @@ func (s *Server) handleDeleteGuardrail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handleUpdateGuardrail schaltet eine Regel scharf/pausiert sie (enabled).
+func (s *Server) handleUpdateGuardrail(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	p := principalFrom(r)
+	var in struct {
+		Enabled *bool `json:"enabled"`
+	}
+	if err := readJSON(r, &in); err != nil || in.Enabled == nil {
+		writeErr(w, http.StatusBadRequest, "feld enabled (true|false) fehlt")
+		return
+	}
+	rule, err := s.Rails.SetEnabled(r.Context(), p.OrgID, id, *in.Enabled)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, rule)
+}
+
+// handleTestGuardrail ist der Regel-Tester: wertet ein Subjekt (System oder
+// system:aktion) gegen die aktuellen Regeln aus, ohne etwas auszuführen —
+// so lässt sich eine Policy vor dem Scharfschalten verifizieren.
+func (s *Server) handleTestGuardrail(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	var in struct {
+		Subject string     `json:"subject"`
+		AgentID *uuid.UUID `json:"agent_id"`
+	}
+	if err := readJSON(r, &in); err != nil || strings.TrimSpace(in.Subject) == "" {
+		writeErr(w, http.StatusBadRequest, "feld subject ist Pflicht")
+		return
+	}
+	rules, err := s.Rails.List(r.Context(), p.OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	agentID := uuid.Nil
+	if in.AgentID != nil {
+		agentID = *in.AgentID
+	}
+	verdict := guardrails.Evaluate(rules, agentID, strings.TrimSpace(in.Subject))
+	out := map[string]any{
+		"subject":  strings.TrimSpace(in.Subject),
+		"decision": verdict.Decision,
+	}
+	if verdict.Rule != nil {
+		out["rule"] = verdict.Rule
+	}
+	if limit := guardrails.BudgetLimit(rules, agentID); limit > 0 {
+		out["budget_limit_usd"] = limit
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// handleGuardrailEvents liefert die jüngsten ausgelösten Guard-Rails org-weit.
+func (s *Server) handleGuardrailEvents(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	events, err := s.Obs.OrgEventsByKind(r.Context(), p.OrgID, observability.KindGuardrail, limit)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, events)
 }
 
 // --- Secrets (write-only API) ---

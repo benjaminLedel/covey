@@ -142,7 +142,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/approvals/{id}/decide", s.rbac(append(manage, identity.RoleSecurity), s.handleDecideApproval))
 	mux.Handle("GET /api/v1/guardrails", s.rbac(anyRole, s.handleListGuardrails))
 	mux.Handle("POST /api/v1/guardrails", s.rbac(securityRoles, s.handleCreateGuardrail))
+	mux.Handle("PATCH /api/v1/guardrails/{id}", s.rbac(securityRoles, s.handleUpdateGuardrail))
 	mux.Handle("DELETE /api/v1/guardrails/{id}", s.rbac(securityRoles, s.handleDeleteGuardrail))
+	mux.Handle("POST /api/v1/guardrails/test", s.rbac(anyRole, s.handleTestGuardrail))
+	mux.Handle("GET /api/v1/guardrails/events", s.rbac(anyRole, s.handleGuardrailEvents))
 	// Egress: Status, Templates, Zuweisung pro Agent, Entscheidungs-Log.
 	mux.Handle("GET /api/v1/egress", s.rbac(anyRole, s.handleEgressStatus))
 	mux.Handle("POST /api/v1/egress/defaults", s.rbac(securityRoles, s.handleAddEgressDefaultHost))

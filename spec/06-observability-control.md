@@ -48,6 +48,11 @@ Regeln sind **additiv-restriktiv**: Eine engere Ebene kann verschärfen, aber ei
 
 Guard-Rails sind selbst **Config-as-Code**: zentral, versioniert, per Review geändert (analog zur Agent-Config in [`02-agenten-modell.md`](02-agenten-modell.md)). Sie werden von der Rolle **Security/Compliance** verwaltet — bewusst getrennt von den Agent-Ownern, damit ein einzelner Team-Lead die org-weiten Grenzen nicht aufweichen kann (siehe Rollen & RBAC in [`09-enterprise-modell.md`](09-enterprise-modell.md)). Jede Auslösung einer Guard-Rail (geblockt/gegated) fließt ins Recording und kann Alerts erzeugen. So sind sie nicht nur Schutz, sondern auch Signal: Häufig anschlagende Rails deuten auf einen fehlkonfigurierten — oder kompromittierten — Agenten hin.
 
+Zwei Werkzeuge machen die Verwaltung praktikabel:
+
+- **Pausieren statt Löschen** — eine Regel lässt sich deaktivieren, ohne sie zu verlieren. Das hält die Regel-Historie intakt und macht Experimente reversibel; eine pausierte Regel greift nicht, bleibt aber sicht- und reaktivierbar.
+- **Regel-Tester (Dry-Run)** — ein Subjekt (System oder `system:aktion`, optional im Kontext eines Agenten) wird trocken gegen die aktuellen Regeln ausgewertet: Ergebnis ist die Entscheidung (allow / deny / require_approval) samt auslösender Regel und anwendbarem Budget-Deckel. So lässt sich eine Policy verifizieren, *bevor* ein Agent hineinläuft — ausgeführt wird nichts.
+
 ## Session-Recording
 
 Lückenlose Aufzeichnung jeder Agenten-Aktivität, gespeist aus den `event`-Nachrichten des Daemons (siehe [`01-architektur.md`](01-architektur.md)):

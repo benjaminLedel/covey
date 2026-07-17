@@ -65,6 +65,40 @@ func TestEvaluateRequireApproval(t *testing.T) {
 	}
 }
 
+func TestValidate(t *testing.T) {
+	agent := uuid.New()
+	valid := func(r Rule) Rule {
+		if len(r.Params) == 0 {
+			r.Params = json.RawMessage(`{}`)
+		}
+		return r
+	}
+	cases := []struct {
+		name    string
+		rule    Rule
+		wantErr bool
+	}{
+		{"deny global ok", valid(rule("global", nil, RuleDenyAction, "zammad:*")), false},
+		{"approval agent ok", valid(rule("agent", &agent, RuleRequireApproval, "zammad:reply_external")), false},
+		{"pattern fehlt", valid(rule("global", nil, RuleDenyAction, "  ")), true},
+		{"unbekannter typ", valid(rule("global", nil, "yolo", "*")), true},
+		{"unbekanntes scope", valid(rule("planet", nil, RuleDenyAction, "*")), true},
+		{"agent-scope ohne agent_id", valid(rule("agent", nil, RuleDenyAction, "*")), true},
+		{"global mit agent_id", valid(rule("global", &agent, RuleDenyAction, "*")), true},
+		{"budget ohne usd", valid(rule("global", nil, RuleBudgetLimit, "*")), true},
+	}
+	for _, c := range cases {
+		if err := Validate(c.rule); (err != nil) != c.wantErr {
+			t.Errorf("%s: err=%v, wantErr=%v", c.name, err, c.wantErr)
+		}
+	}
+	budget := rule("global", nil, RuleBudgetLimit, "*")
+	budget.Params, _ = json.Marshal(map[string]float64{"usd": 5})
+	if err := Validate(budget); err != nil {
+		t.Errorf("budget mit usd>0 muss valide sein: %v", err)
+	}
+}
+
 func TestBudgetLimitTightestWins(t *testing.T) {
 	agent := uuid.New()
 	mk := func(scope string, aid *uuid.UUID, usd float64) Rule {
