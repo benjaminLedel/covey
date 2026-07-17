@@ -275,7 +275,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
             <Route path="/orgs" element={<Organizations me={me} />} />
             <Route path="/runtimes" element={<Runtimes me={me} />} />
             <Route path="/targets" element={<Targets me={me} />} />
-            <Route path="/egress" element={<Egress me={me} />} />
+            <Route path="/egress/*" element={<Egress me={me} />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </div>

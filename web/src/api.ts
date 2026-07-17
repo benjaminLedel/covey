@@ -156,10 +156,17 @@ export type EgressTemplate = {
   name: string;
   description: string;
   hosts: EgressHost[];
+  agents: { id: string; slug: string; display_name: string }[];
   created_at: string;
 };
 
 export type EgressStatus = { enforced: boolean; defaults: string[] };
+
+export type EgressStats = {
+  allowed_24h: number;
+  blocked_24h: number;
+  top_blocked: { host: string; count: number }[];
+};
 
 export type AgentEgress = { template_ids: string[]; hosts: EgressHost[] };
 

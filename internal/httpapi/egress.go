@@ -206,6 +206,17 @@ func (s *Server) handleEgressLog(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, entries)
 }
 
+// handleEgressStats liefert die 24h-Zusammenfassung für die Monitoring-Kacheln.
+func (s *Server) handleEgressStats(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	st, err := s.EgressStore.LogStats(r.Context(), p.OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, st)
+}
+
 // --- Helfer ---
 
 // agentInOrg parst {id} und stellt sicher, dass der Agent zur Org des Aufrufers

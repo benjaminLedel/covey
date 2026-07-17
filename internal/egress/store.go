@@ -37,11 +37,20 @@ type Host struct {
 
 // Template ist ein wiederverwendbares Host-Set.
 type Template struct {
+	ID          uuid.UUID  `json:"id"`
+	Name        string     `json:"name"`
+	Description string     `json:"description"`
+	Hosts       []Host     `json:"hosts"`
+	Agents      []AgentRef `json:"agents"`
+	CreatedAt   string     `json:"created_at"`
+}
+
+// AgentRef benennt einen Agenten, der ein Template zugewiesen hat — für die
+// „Verwendet von"-Anzeige in der UI.
+type AgentRef struct {
 	ID          uuid.UUID `json:"id"`
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	Hosts       []Host    `json:"hosts"`
-	CreatedAt   string    `json:"created_at"`
+	Slug        string    `json:"slug"`
+	DisplayName string    `json:"display_name"`
 }
 
 // LogEntry ist eine protokollierte Egress-Entscheidung.
@@ -76,6 +85,7 @@ func (s *Store) ListTemplates(ctx context.Context, orgID uuid.UUID) ([]Template,
 		}
 		t.CreatedAt = created.Format(time.RFC3339)
 		t.Hosts = []Host{}
+		t.Agents = []AgentRef{}
 		byID[t.ID] = len(tpls)
 		tpls = append(tpls, t)
 	}
@@ -104,7 +114,29 @@ func (s *Store) ListTemplates(ctx context.Context, orgID uuid.UUID) ([]Template,
 			tpls[idx].Hosts = append(tpls[idx].Hosts, h)
 		}
 	}
-	return tpls, hrows.Err()
+	if err := hrows.Err(); err != nil {
+		return nil, err
+	}
+	// Zuweisungen nachladen: welche Agenten nutzen welches Template?
+	arows, err := s.pool.Query(ctx,
+		`SELECT at.template_id, a.id, a.slug, a.display_name
+		 FROM agent_egress_templates at JOIN agents a ON a.id=at.agent_id
+		 WHERE a.org_id=$1 ORDER BY a.slug`, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer arows.Close()
+	for arows.Next() {
+		var ref AgentRef
+		var tid uuid.UUID
+		if err := arows.Scan(&tid, &ref.ID, &ref.Slug, &ref.DisplayName); err != nil {
+			return nil, err
+		}
+		if idx, ok := byID[tid]; ok {
+			tpls[idx].Agents = append(tpls[idx].Agents, ref)
+		}
+	}
+	return tpls, arows.Err()
 }
 
 func (s *Store) CreateTemplate(ctx context.Context, orgID uuid.UUID, name, description string) (Template, error) {
@@ -328,6 +360,49 @@ func (s *Store) ListLog(ctx context.Context, orgID, agentID uuid.UUID, onlyBlock
 		out = append(out, e)
 	}
 	return out, rows.Err()
+}
+
+// Stats fasst das Egress-Geschehen der letzten 24 Stunden zusammen — für die
+// Übersichtskacheln im Monitoring.
+type Stats struct {
+	Allowed24h int         `json:"allowed_24h"`
+	Blocked24h int         `json:"blocked_24h"`
+	TopBlocked []HostCount `json:"top_blocked"`
+}
+
+// HostCount zählt blockierte Zugriffe pro Host.
+type HostCount struct {
+	Host  string `json:"host"`
+	Count int    `json:"count"`
+}
+
+// LogStats liefert die 24h-Zusammenfassung der Organisation.
+func (s *Store) LogStats(ctx context.Context, orgID uuid.UUID) (Stats, error) {
+	st := Stats{TopBlocked: []HostCount{}}
+	err := s.pool.QueryRow(ctx,
+		`SELECT COUNT(*) FILTER (WHERE l.allowed), COUNT(*) FILTER (WHERE NOT l.allowed)
+		 FROM egress_log l JOIN agents a ON a.id=l.agent_id
+		 WHERE a.org_id=$1 AND l.created_at > now() - interval '24 hours'`,
+		orgID).Scan(&st.Allowed24h, &st.Blocked24h)
+	if err != nil {
+		return st, err
+	}
+	rows, err := s.pool.Query(ctx,
+		`SELECT l.host, COUNT(*) FROM egress_log l JOIN agents a ON a.id=l.agent_id
+		 WHERE a.org_id=$1 AND NOT l.allowed AND l.created_at > now() - interval '24 hours'
+		 GROUP BY l.host ORDER BY COUNT(*) DESC, l.host LIMIT 5`, orgID)
+	if err != nil {
+		return st, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var hc HostCount
+		if err := rows.Scan(&hc.Host, &hc.Count); err != nil {
+			return st, err
+		}
+		st.TopBlocked = append(st.TopBlocked, hc)
+	}
+	return st, rows.Err()
 }
 
 // CleanupLog löscht Log-Einträge älter als das angegebene Alter.

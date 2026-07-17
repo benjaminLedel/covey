@@ -240,6 +240,39 @@ export const helpTopics: HelpTopic[] = [
     ),
   },
   {
+    id: "egress",
+    title: "Egress (Netzwerk-Ausgang)",
+    match: (p) => p.startsWith("/egress"),
+    body: (
+      <>
+        <p>
+          Jede Sandbox darf ausgehend nur Hosts erreichen, die auf der Allowlist ihres Agenten
+          stehen — alles andere blockt der Egress-Proxy <b>fail-closed</b>. Der Arbeitsablauf:
+        </p>
+        <ol>
+          <li>
+            Unter <b>Templates</b> wiederverwendbare Host-Sets pflegen, z. B. „Zammad-Prod" mit{" "}
+            <Term>helpdesk.example.com</Term>.
+          </li>
+          <li>
+            Auf der Agenten-Seite im Reiter <b>Egress</b> Templates zuweisen — dort sind auch
+            agent-eigene Einzel-Hosts für Ausnahmen möglich.
+          </li>
+          <li>
+            Die <b>Übersicht</b> zeigt Enforcement-Status, Kennzahlen der letzten 24 Stunden und
+            jede einzelne Entscheidung des Proxy.
+          </li>
+        </ol>
+        <p>
+          Muster: exakter Host (<Term>api.example.com</Term>) oder Wildcard für Subdomains
+          (<Term>*.example.com</Term>), ohne Schema, Pfad oder Port. Änderungen greifen innerhalb
+          von ~15 Sekunden (Cache des Proxy). Viele „blockiert"-Einträge bedeuten fehlende
+          Allowlist-Einträge — oder einen Agenten, der wohin will, wo er nicht hingehört.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "rollen",
     title: "Benutzer & Rollen",
     match: (p) => p.startsWith("/users") || p.startsWith("/orgs"),

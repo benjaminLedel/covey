@@ -1136,8 +1136,9 @@ function AgentEgress({ agentId, canEdit }: { agentId: string; canEdit: boolean }
     <div style={{ maxWidth: 780 }}>
       <p className="muted text-xs mb-4">
         Dieser Agent darf ausgehend nur die Hosts unten erreichen — alles andere blockt der
-        Egress-Proxy fail-closed. Templates werden zentral unter <span className="mono">Egress</span>{" "}
-        gepflegt und hier zugewiesen; eigene Hosts sind für Ausnahmen dieses Agenten.
+        Egress-Proxy fail-closed. Templates werden zentral unter{" "}
+        <Link to="/egress/templates">Egress → Templates</Link> gepflegt und hier zugewiesen;
+        eigene Hosts sind für Ausnahmen dieses Agenten.
       </p>
 
       <div className="card mb-5" style={{ padding: "13px 15px" }}>
@@ -1169,7 +1170,15 @@ function AgentEgress({ agentId, canEdit }: { agentId: string; canEdit: boolean }
               onChange={(e) => toggleTpl.mutate({ tid: t.id, on: e.target.checked })}
             />
             <span style={{ minWidth: 0 }}>
-              <span className="block text-sm font-medium" style={{ color: "var(--text-primary)" }}>{t.name}</span>
+              <Link
+                to={`/egress/templates/${t.id}`}
+                className="block text-sm font-medium"
+                style={{ color: "var(--text-primary)", textDecoration: "none" }}
+                title="Template-Detailseite öffnen"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {t.name}
+              </Link>
               <span className="block mono text-[11px] muted" style={{ overflowWrap: "anywhere" }}>
                 {t.hosts.length === 0 ? "keine Hosts" : t.hosts.map((h) => h.pattern).join(", ")}
               </span>
@@ -1177,7 +1186,9 @@ function AgentEgress({ agentId, canEdit }: { agentId: string; canEdit: boolean }
           </label>
         ))}
         {(templates.data ?? []).length === 0 && (
-          <span className="muted text-xs">Noch keine Templates — zuerst auf der Seite „Egress" anlegen.</span>
+          <span className="muted text-xs">
+            Noch keine Templates — zuerst unter <Link to="/egress/templates">Egress → Templates</Link> anlegen.
+          </span>
         )}
       </div>
 

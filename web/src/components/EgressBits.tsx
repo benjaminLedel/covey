@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api, type EgressHost, type EgressLogEntry } from "../api";
+import { api, type Agent, type EgressHost, type EgressLogEntry } from "../api";
 
 // Gemeinsame Bausteine der Egress-Verwaltung — genutzt von der Egress-Seite
 // (Templates + globales Monitoring) und dem Egress-Reiter der Agenten-Seite.
@@ -89,15 +89,24 @@ export function AddHostForm({ onAdd }: { onAdd: (pattern: string, note: string) 
 }
 
 // EgressLogTable zeigt die jüngsten Egress-Entscheidungen — global (mit
-// Agent-Spalte) oder für einen Agenten. Aktualisiert sich alle 10 s selbst.
-export function EgressLogTable({ agentId }: { agentId?: string }) {
+// Agent-Spalte, optional nach Agent filterbar) oder fest für einen Agenten.
+// Aktualisiert sich alle 10 s selbst.
+export function EgressLogTable({ agentId, withAgentFilter = false }: { agentId?: string; withAgentFilter?: boolean }) {
   const [onlyBlocked, setOnlyBlocked] = useState(false);
+  const [filterAgent, setFilterAgent] = useState("");
+  const agents = useQuery({
+    queryKey: ["agents"],
+    queryFn: () => api<Agent[]>("/agents"),
+    enabled: withAgentFilter,
+  });
+
+  const effectiveAgent = agentId ?? (filterAgent || undefined);
   const params = new URLSearchParams({ limit: agentId ? "50" : "100" });
-  if (agentId) params.set("agent", agentId);
+  if (effectiveAgent) params.set("agent", effectiveAgent);
   if (onlyBlocked) params.set("blocked", "true");
 
   const log = useQuery({
-    queryKey: ["egress", "log", agentId ?? "all", onlyBlocked],
+    queryKey: ["egress", "log", effectiveAgent ?? "all", onlyBlocked],
     queryFn: () => api<EgressLogEntry[]>(`/egress/log?${params.toString()}`),
     refetchInterval: 10000,
   });
@@ -111,6 +120,19 @@ export function EgressLogTable({ agentId }: { agentId?: string }) {
           <input type="checkbox" style={{ width: "auto" }} checked={onlyBlocked} onChange={(e) => setOnlyBlocked(e.target.checked)} />
           nur blockierte
         </label>
+        {withAgentFilter && (
+          <select
+            value={filterAgent}
+            onChange={(e) => setFilterAgent(e.target.value)}
+            style={{ width: "auto", padding: "4px 8px", fontSize: 12 }}
+            aria-label="Nach Agent filtern"
+          >
+            <option value="">alle Agenten</option>
+            {(agents.data ?? []).map((a) => (
+              <option key={a.id} value={a.id}>{a.display_name || a.slug}</option>
+            ))}
+          </select>
+        )}
         <span className="muted text-xs ml-auto">
           {rows.length} Einträge{!onlyBlocked && blockedCount > 0 ? `, davon ${blockedCount} blockiert` : ""} · aktualisiert alle 10 s
         </span>
