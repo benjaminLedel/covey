@@ -44,6 +44,21 @@ func TestHeartbeat(t *testing.T) {
 		return false
 	})
 
+	// Monitoring-Sicht: Zeitplan und nächster Lauf sind konsistent.
+	hbs, err := s.registry.Heartbeats(ctx, agent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hbs) != 1 || hbs[0].Name != "Puls" {
+		t.Fatalf("ein Heartbeat 'Puls' erwartet: %+v", hbs)
+	}
+	if hbs[0].EverySeconds == nil || *hbs[0].EverySeconds != 1 {
+		t.Fatalf("every_seconds=1 erwartet: %+v", hbs[0])
+	}
+	if !hbs[0].NextRun.After(hbs[0].LastFiredAt) {
+		t.Fatalf("next_run muss nach last_fired liegen: %+v", hbs[0])
+	}
+
 	// Kaputte HEARTBEAT.md erzeugt keine neue Version.
 	if _, err := s.registry.SaveConfig(ctx, agent.ID, map[string]string{
 		"SOUL.md":      "# Puls-Agent",

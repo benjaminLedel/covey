@@ -137,6 +137,10 @@ export const helpTopics: HelpTopic[] = [
             <b>Backlog</b> — Aufgaben anlegen und verfolgen. „Wecken" startet die Abarbeitung sofort.
           </li>
           <li>
+            <b>Heartbeat</b> — die wiederkehrenden Aufgaben aus <Term>HEARTBEAT.md</Term> grafisch:
+            Zeitplan, letzter Lauf und die nächsten Läufe auf einer 24-Stunden-Zeitachse.
+          </li>
+          <li>
             <b>Recording</b> — lückenlose Aufzeichnung: Runtime-Events, Aktionen, Guard-Rail- und
             Credential-Entscheidungen, Lifecycle.
           </li>

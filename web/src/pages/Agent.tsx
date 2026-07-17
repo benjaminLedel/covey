@@ -14,6 +14,7 @@ import {
   type CostSummary,
   type EgressStatus,
   type EgressTemplate,
+  type HeartbeatStatus,
   type MCPTool,
   type MemoryEntry,
   type OrgChart,
@@ -35,7 +36,9 @@ export default function AgentPage({ me }: { me: Principal }) {
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const agent = useQuery({ queryKey: ["agent", id], queryFn: () => api<Agent>(`/agents/${id}`) });
-  const [tab, setTab] = useState<"backlog" | "recording" | "config" | "memory" | "secrets" | "egress" | "tools">("backlog");
+  const [tab, setTab] = useState<
+    "backlog" | "heartbeat" | "recording" | "config" | "memory" | "secrets" | "egress" | "tools"
+  >("backlog");
   const [recTask, setRecTask] = useState<{ id: string; title: string } | null>(null);
 
   const act = useMutation({
@@ -93,6 +96,7 @@ export default function AgentPage({ me }: { me: Principal }) {
         {(
           [
             ["backlog", "Backlog"],
+            ["heartbeat", "Heartbeat"],
             ["recording", "Recording"],
             ["memory", "Gedächtnis"],
             ["tools", "Tools"],
@@ -130,6 +134,7 @@ export default function AgentPage({ me }: { me: Principal }) {
           }}
         />
       )}
+      {tab === "heartbeat" && <Heartbeats agentId={a.id} />}
       {tab === "recording" && (
         <Recording agentId={a.id} taskFilter={recTask} onClearFilter={() => setRecTask(null)} />
       )}
@@ -838,6 +843,163 @@ function RecordingItem({ event }: { event: RecordingEvent }) {
   );
 }
 
+// --- Heartbeat: grafische Sicht auf HEARTBEAT.md (Zeitplan + nächste Läufe) ---
+
+// fmtDelta: kompakte deutsche Relativdauer ("42 s", "12 min", "3 h 20 min", "2 d 4 h").
+function fmtDelta(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 60) return `${s} s`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return m % 60 ? `${h} h ${m % 60} min` : `${h} h`;
+  const d = Math.floor(h / 24);
+  return h % 24 ? `${d} d ${h % 24} h` : `${d} d`;
+}
+
+function scheduleLabel(hb: HeartbeatStatus): string {
+  if (hb.every_seconds) return `alle ${fmtDelta(hb.every_seconds * 1000)}`;
+  return `täglich ${hb.daily_at}`;
+}
+
+// fmtRunChip: "14:30" heute, sonst "Mo 09:00".
+function fmtRunChip(d: Date): string {
+  const time = d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  if (d.toDateString() === new Date().toDateString()) return time;
+  return `${d.toLocaleDateString("de-DE", { weekday: "short" })} ${time}`;
+}
+
+// upcomingRuns projiziert die nächsten Läufe eines Heartbeats in die Zukunft:
+// ab next_run im Zeitplan-Raster weiter (Intervall bzw. 24 h). Ein überfälliger
+// next_run kollabiert zu einem "jetzt fällig"-Lauf. Rein anzeigend — die
+// Wahrheit entsteht serverseitig beim Tick.
+function upcomingRuns(hb: HeartbeatStatus, horizonMs: number): Date[] {
+  const now = Date.now();
+  const step = (hb.every_seconds ?? 24 * 3600) * 1000;
+  let t = new Date(hb.next_run).getTime();
+  const runs: Date[] = [];
+  if (t <= now) {
+    runs.push(new Date(now));
+    while (t <= now) t += step;
+  }
+  while (t <= now + horizonMs && runs.length < 48) {
+    runs.push(new Date(t));
+    t += step;
+  }
+  return runs;
+}
+
+// HeartbeatTimeline: die nächsten Läufe als Punkte auf einer Zeitachse jetzt → Horizont.
+function HeartbeatTimeline({ runs, horizonMs }: { runs: Date[]; horizonMs: number }) {
+  const now = Date.now();
+  return (
+    <div>
+      <div style={{ position: "relative", height: 14 }}>
+        <div
+          style={{
+            position: "absolute",
+            top: 6,
+            left: 0,
+            right: 0,
+            height: 2,
+            background: "var(--border)",
+            borderRadius: 1,
+          }}
+        />
+        {runs.map((r, i) => (
+          <span
+            key={i}
+            title={r.toLocaleString("de-DE")}
+            style={{
+              position: "absolute",
+              top: 3,
+              left: `calc(${Math.min(99, Math.max(0, ((r.getTime() - now) / horizonMs) * 100))}% - 4px)`,
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              background: "var(--text-accent)",
+            }}
+          />
+        ))}
+      </div>
+      <div className="flex muted" style={{ fontSize: 10, justifyContent: "space-between" }}>
+        <span>jetzt</span>
+        <span>+{Math.round(horizonMs / 3600000)} h</span>
+      </div>
+    </div>
+  );
+}
+
+function HeartbeatCard({ hb, horizonMs }: { hb: HeartbeatStatus; horizonMs: number }) {
+  const runs = upcomingRuns(hb, horizonMs);
+  const next = new Date(hb.next_run);
+  const overdue = next.getTime() <= Date.now();
+  return (
+    <div className="card mb-4">
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <span className="font-medium">{hb.name}</span>
+        <span className="badge">{scheduleLabel(hb)}</span>
+        {hb.pending && (
+          <span className="badge st-blocked" title="Die Aufgabe des letzten Laufs ist noch nicht abgeschlossen — solange wird kein neuer Lauf angelegt.">
+            Aufgabe offen
+          </span>
+        )}
+        <span className="ml-auto muted text-xs">
+          letzter Lauf vor {fmtDelta(Date.now() - new Date(hb.last_fired_at).getTime())}
+        </span>
+      </div>
+      <p className="muted text-xs mb-2" style={{ maxWidth: 680 }}>
+        {hb.task}
+      </p>
+      <p className="text-xs font-medium mb-2">
+        {overdue
+          ? hb.pending
+            ? "fällig — wartet auf Abschluss der offenen Aufgabe"
+            : "fällig — der nächste Tick legt die Aufgabe an"
+          : `nächster Lauf in ${fmtDelta(next.getTime() - Date.now())}`}
+        {runs.length > 0 && (
+          <span className="muted font-normal">
+            {" "}
+            ({runs.slice(0, 3).map(fmtRunChip).join(" · ")}
+            {runs.length > 3 ? " · …" : ""})
+          </span>
+        )}
+      </p>
+      <HeartbeatTimeline runs={runs} horizonMs={horizonMs} />
+    </div>
+  );
+}
+
+function Heartbeats({ agentId }: { agentId: string }) {
+  const horizonMs = 24 * 3600 * 1000;
+  const hbs = useQuery({
+    queryKey: ["heartbeats", agentId],
+    queryFn: () => api<HeartbeatStatus[]>(`/agents/${agentId}/heartbeats`),
+    refetchInterval: 15000,
+  });
+  if (hbs.isLoading) return null;
+  const list = hbs.data ?? [];
+  return (
+    <div>
+      <p className="muted text-xs mb-3" style={{ maxWidth: 680 }}>
+        Wiederkehrende Aufgaben aus <span className="mono">HEARTBEAT.md</span> (Tab Config). Die
+        Control Plane legt fällige Läufe automatisch als Backlog-Aufgabe an — die Zeitachse zeigt
+        die nächsten 24 Stunden. Tageszeiten gelten in Serverzeit.
+      </p>
+      {list.length === 0 && (
+        <div className="kc-empty">
+          Keine Heartbeats definiert. Im Tab Config in der Datei{" "}
+          <span className="mono">HEARTBEAT.md</span> z.&nbsp;B.{" "}
+          <span className="mono">- alle: 30m titel: Posteingang sichten aufgabe: …</span> anlegen.
+        </div>
+      )}
+      {list.map((hb) => (
+        <HeartbeatCard key={hb.name} hb={hb} horizonMs={horizonMs} />
+      ))}
+    </div>
+  );
+}
+
 function Config({ agentId, canManage }: { agentId: string; canManage: boolean }) {
   const qc = useQueryClient();
   const cfg = useQuery({
@@ -859,6 +1021,7 @@ function Config({ agentId, canManage }: { agentId: string; canManage: boolean })
       // die Reiter Tools und Egress sofort nachziehen.
       qc.invalidateQueries({ queryKey: ["agent-tools", agentId] });
       qc.invalidateQueries({ queryKey: ["egress", "agent", agentId] });
+      qc.invalidateQueries({ queryKey: ["heartbeats", agentId] });
     },
   });
 

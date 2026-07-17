@@ -56,6 +56,19 @@ export type ConfigVersion = {
   created_at: string;
 };
 
+// Monitoring-Sicht auf einen HEARTBEAT.md-Eintrag: Zeitplan, letzter und
+// nächster Lauf (Serverzeit-Semantik, ISO-Timestamps), pending = Aufgabe des
+// letzten Laufs noch nicht terminal (dann wird nicht neu gefeuert).
+export type HeartbeatStatus = {
+  name: string;
+  task: string;
+  every_seconds?: number;
+  daily_at?: string;
+  last_fired_at: string;
+  next_run: string;
+  pending: boolean;
+};
+
 export type RecordingEvent = {
   id: number;
   agent_id: string;

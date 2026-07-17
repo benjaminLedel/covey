@@ -1,10 +1,13 @@
 package agents
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // Heartbeat ist ein Eintrag aus HEARTBEAT.md: eine wiederkehrende Aufgabe,
@@ -82,6 +85,52 @@ func ParseHeartbeat(content string) ([]Heartbeat, error) {
 		out = append(out, hb)
 	}
 	return out, nil
+}
+
+// HeartbeatStatus ist die Monitoring-Sicht auf einen materialisierten
+// Heartbeat: Zeitplan, letzter Lauf, berechneter nächster Lauf und ob gerade
+// noch eine Aufgabe des letzten Laufs offen ist (dann wird nicht neu gefeuert).
+type HeartbeatStatus struct {
+	Name         string    `json:"name"`
+	Task         string    `json:"task"`
+	EverySeconds *int64    `json:"every_seconds,omitempty"`
+	DailyAt      *string   `json:"daily_at,omitempty"` // "HH:MM", Serverzeit
+	LastFiredAt  time.Time `json:"last_fired_at"`
+	NextRun      time.Time `json:"next_run"`
+	Pending      bool      `json:"pending"`
+}
+
+// Heartbeats liefert die materialisierten Heartbeats eines Agenten inklusive
+// nächstem Lauf. Die Berechnung spiegelt fireHeartbeats: Intervall-Form läuft
+// bei last_fired + Intervall, Tageszeit-Form heute um daily_at (falls heute
+// noch nicht gefeuert), sonst morgen. Liegt next_run in der Vergangenheit,
+// ist der Eintrag fällig und der nächste Tick nimmt ihn mit.
+func (r *Registry) Heartbeats(ctx context.Context, agentID uuid.UUID) ([]HeartbeatStatus, error) {
+	rows, err := r.pool.Query(ctx, `SELECT h.name, h.task_body, h.every_seconds,
+			to_char(h.daily_at, 'HH24:MI'), h.last_fired_at,
+			CASE WHEN h.every_seconds IS NOT NULL
+			     THEN h.last_fired_at + make_interval(secs => h.every_seconds)
+			     WHEN h.last_fired_at::date < CURRENT_DATE
+			     THEN (CURRENT_DATE + h.daily_at)::timestamptz
+			     ELSE (CURRENT_DATE + 1 + h.daily_at)::timestamptz END,
+			EXISTS (SELECT 1 FROM backlog_tasks t
+				WHERE t.agent_id=h.agent_id AND t.origin='heartbeat' AND t.title=h.name
+				  AND t.state NOT IN ('done','failed','cancelled'))
+		FROM agent_heartbeats h WHERE h.agent_id=$1 ORDER BY h.name`, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []HeartbeatStatus{}
+	for rows.Next() {
+		var hb HeartbeatStatus
+		if err := rows.Scan(&hb.Name, &hb.Task, &hb.EverySeconds, &hb.DailyAt,
+			&hb.LastFiredAt, &hb.NextRun, &hb.Pending); err != nil {
+			return nil, err
+		}
+		out = append(out, hb)
+	}
+	return out, rows.Err()
 }
 
 // parseEvery parst das Intervall der alle:-Form. Zusätzlich zu Go-Dauern

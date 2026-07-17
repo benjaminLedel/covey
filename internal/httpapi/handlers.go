@@ -155,6 +155,22 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, cv)
 }
 
+// handleHeartbeats liefert die materialisierten Heartbeats des Agenten
+// inklusive berechnetem nächstem Lauf — die Monitoring-Sicht auf HEARTBEAT.md.
+func (s *Server) handleHeartbeats(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	hbs, err := s.Registry.Heartbeats(r.Context(), id)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, hbs)
+}
+
 // --- Backlog (M3) ---
 
 func (s *Server) handleBacklog(w http.ResponseWriter, r *http.Request) {
