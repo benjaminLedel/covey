@@ -117,5 +117,6 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 func (System) PromptDoc() string {
 	return `Verfügbare GitLab-Aktionen: get_issue {"project_id":N,"issue_iid":N}, list_notes {"project_id":N,"issue_iid":N},
    comment {"project_id":N,"issue_iid":N,"body":"...","internal":true|false}, set_state {"project_id":N,"issue_iid":N,"state":"close"|"reopen"},
-   escalate {"project_id":N,"issue_iid":N,"note":"..."}.`
+   escalate {"project_id":N,"issue_iid":N,"note":"..."}.
+   Korrelations-Key für Status blocked: gitlab:issue:<project_id>:<issue_iid>.`
 }

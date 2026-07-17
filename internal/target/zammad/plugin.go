@@ -104,5 +104,6 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 func (System) PromptDoc() string {
 	return `Verfügbare Zammad-Aktionen: get_ticket {"ticket_id":N}, list_articles {"ticket_id":N},
    reply {"ticket_id":N,"body":"...","internal":true|false}, set_state {"ticket_id":N,"state":"..."},
-   escalate {"ticket_id":N,"note":"..."}.`
+   escalate {"ticket_id":N,"note":"..."}.
+   Korrelations-Key für Status blocked: zammad:ticket:<ticket_id>.`
 }
