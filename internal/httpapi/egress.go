@@ -17,12 +17,51 @@ import (
 // Templates + agent-eigene Hosts). Änderungen greifen innerhalb der Cache-TTL
 // des Proxy (~15 s). Jede Entscheidung wird protokolliert (egress_log).
 
-// handleEgressStatus liefert Enforcement-Status + fest erlaubte Hosts.
+// handleEgressStatus liefert Enforcement-Status, die konfigurierbare
+// Basis-Allowlist der Org und die nur per Config änderbaren ENV-Zusätze.
 func (s *Server) handleEgressStatus(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	defaults, err := s.EgressStore.ListDefaultHosts(r.Context(), p.OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"enforced": s.EgressEnforced,
-		"defaults": s.EgressDefaults,
+		"defaults": defaults,
+		"env":      s.EgressDefaults,
 	})
+}
+
+// --- Basis-Allowlist (org-weit) ---
+
+func (s *Server) handleAddEgressDefaultHost(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	var in struct{ Pattern, Note string }
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		return
+	}
+	h, err := s.EgressStore.AddDefaultHost(r.Context(), p.OrgID, in.Pattern, in.Note)
+	if err != nil {
+		egressBadOrErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, h)
+}
+
+func (s *Server) handleDeleteEgressDefaultHost(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	if err := s.EgressStore.DeleteDefaultHost(r.Context(), p.OrgID, id); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"deleted": id.String()})
 }
 
 // --- Templates ---

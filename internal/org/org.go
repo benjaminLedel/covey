@@ -271,6 +271,12 @@ func (s *Store) CreateOrg(ctx context.Context, name, adminEmail, adminName, admi
 	if err != nil {
 		return Organization{}, err
 	}
+	// Basis-Allowlist seeden: der LLM-Endpunkt der Runtime muss erreichbar
+	// sein, sonst kann kein Agent arbeiten. Über die Egress-UI änderbar.
+	if _, err := tx.Exec(ctx, `INSERT INTO egress_default_hosts (org_id, pattern, note)
+		VALUES ($1, 'api.anthropic.com', 'LLM-Endpunkt der Claude-Runtime')`, o.ID); err != nil {
+		return Organization{}, err
+	}
 	return o, tx.Commit(ctx)
 }
 

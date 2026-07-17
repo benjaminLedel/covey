@@ -1125,10 +1125,11 @@ function AgentEgress({ agentId, canEdit }: { agentId: string; canEdit: boolean }
   const assigned = new Set(cfg.data?.template_ids ?? []);
   const assignedTemplates = (templates.data ?? []).filter((t) => assigned.has(t.id));
 
-  // Effektive Allowlist: Defaults + Hosts der zugewiesenen Templates + eigene
-  // Hosts, dedupliziert; die Quelle steht am Chip.
+  // Effektive Allowlist: Basis-Allowlist der Org + ENV-Zusätze + Hosts der
+  // zugewiesenen Templates + eigene Hosts, dedupliziert; die Quelle steht am Chip.
   const effective = new Map<string, string>();
-  for (const d of status.data?.defaults ?? []) effective.set(d, "fest");
+  for (const d of status.data?.defaults ?? []) effective.set(d.pattern, "Basis");
+  for (const p of status.data?.env ?? []) if (!effective.has(p)) effective.set(p, "ENV");
   for (const t of assignedTemplates) for (const h of t.hosts) if (!effective.has(h.pattern)) effective.set(h.pattern, t.name);
   for (const h of cfg.data?.hosts ?? []) if (!effective.has(h.pattern)) effective.set(h.pattern, "eigener Host");
 
@@ -1145,7 +1146,7 @@ function AgentEgress({ agentId, canEdit }: { agentId: string; canEdit: boolean }
         <p className="text-xs font-medium mb-2">Effektive Allowlist</p>
         <div className="flex flex-wrap gap-1">
           {[...effective.entries()].map(([pattern, source]) => (
-            <span key={pattern} className={`chip${source === "fest" ? " fixed" : ""}`}>
+            <span key={pattern} className={`chip${source === "ENV" ? " fixed" : ""}`}>
               {pattern}
               <span className="src">{source}</span>
             </span>

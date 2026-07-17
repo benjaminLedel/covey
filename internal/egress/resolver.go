@@ -17,7 +17,7 @@ import (
 // den standalone Proxy-Container (network-Modus) — beide sprechen dieselbe DB.
 type DBResolver struct {
 	store    *Store
-	defaults []string // immer erlaubt (z. B. api.anthropic.com)
+	defaults []string // immer erlaubte ENV-Zusätze (COVEY_EGRESS_ALLOW, z. B. host.docker.internal)
 	ttl      time.Duration
 	log      *slog.Logger
 

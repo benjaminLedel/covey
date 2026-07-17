@@ -16,7 +16,7 @@ export default function Egress({ me }: { me: Principal }) {
   const canEdit = me.Role === "platform_admin" || me.Role === "security";
   return (
     <Routes>
-      <Route index element={<Overview />} />
+      <Route index element={<Overview canEdit={canEdit} />} />
       <Route path="templates" element={<TemplatesPage canEdit={canEdit} />} />
       <Route path="templates/:id" element={<TemplateDetail canEdit={canEdit} />} />
     </Routes>
@@ -45,7 +45,7 @@ function Header() {
 
 // --- Übersicht: Status, 24h-Kennzahlen, Monitoring-Log ---
 
-function Overview() {
+function Overview({ canEdit }: { canEdit: boolean }) {
   const status = useQuery({ queryKey: ["egress", "status"], queryFn: () => api<EgressStatus>("/egress") });
   const stats = useQuery({
     queryKey: ["egress", "stats"],
@@ -61,6 +61,8 @@ function Overview() {
       <HowItWorks />
 
       {status.data && <StatusBanner status={status.data} />}
+
+      {status.data && <DefaultsCard status={status.data} canEdit={canEdit} />}
 
       <div className="stat-grid mb-6">
         <div className="card stat">
@@ -167,10 +169,8 @@ function StatusBanner({ status }: { status: EgressStatus }) {
     >
       {status.enforced ? (
         <span>
-          <b>Enforcement aktiv</b> (docker) — fest erlaubt für alle Agenten:{" "}
-          {status.defaults.map((d) => (
-            <span key={d} className="chip fixed" style={{ marginRight: 4 }}>{d}</span>
-          ))}
+          <b>Enforcement aktiv</b> (docker) — der Proxy erzwingt die Allowlists aller Agenten
+          fail-closed.
         </span>
       ) : (
         <span>
@@ -178,6 +178,52 @@ function StatusBanner({ status }: { status: EgressStatus }) {
           mit <span className="mono">COVEY_SANDBOX_PROVIDER=docker</span> und{" "}
           <span className="mono">COVEY_EGRESS_ENFORCE=true</span> läuft.
         </span>
+      )}
+    </div>
+  );
+}
+
+// DefaultsCard: die Basis-Allowlist der Organisation — Hosts, die JEDER Agent
+// erreichen darf. Vollständig konfigurierbar; dazu die nur per Config
+// änderbaren ENV-Zusätze.
+function DefaultsCard({ status, canEdit }: { status: EgressStatus; canEdit: boolean }) {
+  const qc = useQueryClient();
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["egress"] });
+  const delHost = useMutation({ mutationFn: (id: string) => del(`/egress/defaults/${id}`), onSuccess: invalidate });
+  const hasLLM = status.defaults.some((h) => h.pattern.endsWith("anthropic.com"));
+
+  return (
+    <div className="card mb-4" style={{ padding: "13px 15px" }}>
+      <p className="text-xs font-medium" style={{ margin: "0 0 4px" }}>Basis-Allowlist</p>
+      <p className="muted text-xs" style={{ margin: "0 0 8px", maxWidth: 620 }}>
+        Diese Hosts darf <b>jeder Agent</b> der Organisation erreichen — zusätzlich zu seinen
+        Templates und eigenen Hosts.
+      </p>
+      <div className="flex flex-wrap gap-1 mb-2">
+        <HostChips
+          hosts={status.defaults}
+          canEdit={canEdit}
+          onDelete={(id) => delHost.mutate(id)}
+          emptyText="leer — Agenten erreichen nur Hosts aus Templates und eigenen Einträgen"
+        />
+        {status.env.map((p) => (
+          <span key={p} className="chip fixed" title="aus COVEY_EGRESS_ALLOW — nur per Config änderbar">
+            {p}
+            <span className="src">ENV</span>
+          </span>
+        ))}
+      </div>
+      {canEdit && (
+        <div style={{ maxWidth: 560 }}>
+          <AddHostForm onAdd={(pattern, note) => post("/egress/defaults", { pattern, note }).then(invalidate)} />
+        </div>
+      )}
+      {!hasLLM && (
+        <p className="text-xs mt-2" style={{ color: "var(--text-warning)", margin: "8px 0 0" }}>
+          Hinweis: Ohne den LLM-Endpunkt der Runtime (z. B.{" "}
+          <span className="mono">api.anthropic.com</span>) können Agenten bei aktivem Enforcement
+          nicht arbeiten.
+        </p>
       )}
     </div>
   );

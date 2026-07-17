@@ -47,9 +47,11 @@ type Server struct {
 	WebFS    fs.FS // dist der SPA; nil = nur API
 	Log      *slog.Logger
 
-	// Egress (UI-verwaltet). EgressStore ist immer gesetzt; EgressEnforced/
-	// EgressDefaults spiegeln die Prozess-Config. Der Proxy lädt Änderungen
-	// selbst nach (Resolver-Cache mit TTL) — kein Reload-Hook nötig.
+	// Egress (UI-verwaltet). EgressStore ist immer gesetzt; EgressEnforced
+	// spiegelt die Prozess-Config, EgressDefaults sind die ENV-Zusätze aus
+	// COVEY_EGRESS_ALLOW (nur per Config änderbar). Die fachliche Basis-
+	// Allowlist liegt konfigurierbar in der DB (egress_default_hosts). Der
+	// Proxy lädt Änderungen selbst nach (Resolver-Cache mit TTL).
 	EgressStore    *egress.Store
 	EgressEnforced bool
 	EgressDefaults []string
@@ -143,6 +145,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/guardrails/{id}", s.rbac(securityRoles, s.handleDeleteGuardrail))
 	// Egress: Status, Templates, Zuweisung pro Agent, Entscheidungs-Log.
 	mux.Handle("GET /api/v1/egress", s.rbac(anyRole, s.handleEgressStatus))
+	mux.Handle("POST /api/v1/egress/defaults", s.rbac(securityRoles, s.handleAddEgressDefaultHost))
+	mux.Handle("DELETE /api/v1/egress/defaults/{id}", s.rbac(securityRoles, s.handleDeleteEgressDefaultHost))
 	mux.Handle("GET /api/v1/egress/templates", s.rbac(anyRole, s.handleListEgressTemplates))
 	mux.Handle("POST /api/v1/egress/templates", s.rbac(securityRoles, s.handleCreateEgressTemplate))
 	mux.Handle("DELETE /api/v1/egress/templates/{id}", s.rbac(securityRoles, s.handleDeleteEgressTemplate))

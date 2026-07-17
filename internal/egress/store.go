@@ -312,16 +312,64 @@ func (s *Store) DeleteAgentHost(ctx context.Context, agentID, hostID uuid.UUID) 
 	return err
 }
 
+// --- Basis-Allowlist (org-weit, für alle Agenten) ---
+
+// ListDefaultHosts liefert die Basis-Allowlist der Organisation — Hosts, die
+// jeder Agent erreichen darf. Konfigurierbar; geseedet mit dem LLM-Endpunkt.
+func (s *Store) ListDefaultHosts(ctx context.Context, orgID uuid.UUID) ([]Host, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT id, pattern, note FROM egress_default_hosts WHERE org_id=$1 ORDER BY pattern`, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Host{}
+	for rows.Next() {
+		var h Host
+		if err := rows.Scan(&h.ID, &h.Pattern, &h.Note); err != nil {
+			return nil, err
+		}
+		out = append(out, h)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) AddDefaultHost(ctx context.Context, orgID uuid.UUID, pattern, note string) (Host, error) {
+	norm, err := NormalizePattern(pattern)
+	if err != nil {
+		return Host{}, err
+	}
+	var h Host
+	err = s.pool.QueryRow(ctx,
+		`INSERT INTO egress_default_hosts (org_id, pattern, note) VALUES ($1,$2,$3)
+		 ON CONFLICT (org_id, pattern) DO UPDATE SET note=EXCLUDED.note
+		 RETURNING id, pattern, note`,
+		orgID, norm, strings.TrimSpace(note)).Scan(&h.ID, &h.Pattern, &h.Note)
+	if err != nil {
+		return Host{}, err
+	}
+	return h, nil
+}
+
+func (s *Store) DeleteDefaultHost(ctx context.Context, orgID, hostID uuid.UUID) error {
+	_, err := s.pool.Exec(ctx,
+		`DELETE FROM egress_default_hosts WHERE id=$1 AND org_id=$2`, hostID, orgID)
+	return err
+}
+
 // EffectiveAllowlist löst die vollständige Muster-Liste eines Agenten auf:
-// Hosts aller zugewiesenen Templates plus agent-eigene Hosts. Der Anthropic-
-// Default kommt im Proxy dazu.
+// Basis-Allowlist der Org + Hosts aller zugewiesenen Templates + agent-eigene
+// Hosts. Nur ENV-Zusätze (COVEY_EGRESS_ALLOW) kommen im Proxy dazu.
 func (s *Store) EffectiveAllowlist(ctx context.Context, agentID uuid.UUID) ([]string, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT th.pattern FROM agent_egress_templates at
 		  JOIN egress_template_hosts th ON th.template_id=at.template_id
 		  WHERE at.agent_id=$1
 		UNION
-		SELECT pattern FROM agent_egress_hosts WHERE agent_id=$1`, agentID)
+		SELECT pattern FROM agent_egress_hosts WHERE agent_id=$1
+		UNION
+		SELECT d.pattern FROM egress_default_hosts d
+		  JOIN agents a ON a.org_id=d.org_id WHERE a.id=$1`, agentID)
 	if err != nil {
 		return nil, err
 	}

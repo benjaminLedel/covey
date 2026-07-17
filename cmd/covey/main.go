@@ -141,6 +141,12 @@ func runBootstrap(ctx context.Context, cfg config.Config, log *slog.Logger) erro
 			orgID, "Demo-Organisation"); err != nil {
 			return err
 		}
+		// Basis-Allowlist seeden (konfigurierbar über die Egress-UI).
+		if _, err := pool.Exec(ctx, `INSERT INTO egress_default_hosts (org_id, pattern, note)
+			VALUES ($1, 'api.anthropic.com', 'LLM-Endpunkt der Claude-Runtime')
+			ON CONFLICT DO NOTHING`, orgID); err != nil {
+			return err
+		}
 		log.Info("organisation angelegt", "id", orgID)
 	}
 
@@ -258,15 +264,14 @@ func getenvDefault(key, fallback string) string {
 	return fallback
 }
 
-// defaultEgressAllow sind die fest erlaubten Egress-Hosts — der LLM-Endpunkt
-// der Runtime. Zielsysteme (Zammad usw.) kommen über COVEY_EGRESS_ALLOW (ENV)
-// und über die UI-verwaltete Allowlist (egress_allow-Tabelle) dazu.
-var defaultEgressAllow = []string{"api.anthropic.com"}
-
-// egressBaseAllow sind die nicht über die UI löschbaren Muster: Code-Defaults
-// plus die per ENV gesetzten. Sie werden im UI als „fest" angezeigt.
+// egressBaseAllow sind die Infrastruktur-Zusätze aus COVEY_EGRESS_ALLOW (ENV) —
+// nur per Config änderbar, im UI als „ENV" ausgewiesen (z. B.
+// host.docker.internal für den Proxy-Container). Alles Fachliche — auch der
+// LLM-Endpunkt — liegt konfigurierbar in der DB: Basis-Allowlist der Org
+// (egress_default_hosts, geseedet mit api.anthropic.com), Templates und
+// agent-eigene Hosts.
 func egressBaseAllow(cfg config.Config) []string {
-	return append(append([]string{}, defaultEgressAllow...), cfg.EgressAllow...)
+	return append([]string{}, cfg.EgressAllow...)
 }
 
 // rewriteDBForContainer biegt eine Loopback-DB-URL auf host.docker.internal um,

@@ -261,7 +261,9 @@ export const helpTopics: HelpTopic[] = [
           </li>
           <li>
             Die <b>Übersicht</b> zeigt Enforcement-Status, Kennzahlen der letzten 24 Stunden und
-            jede einzelne Entscheidung des Proxy.
+            jede einzelne Entscheidung des Proxy. Dort liegt auch die <b>Basis-Allowlist</b>:
+            Hosts, die jeder Agent der Organisation erreichen darf — vorbelegt mit dem
+            LLM-Endpunkt (<Term>api.anthropic.com</Term>), vollständig konfigurierbar.
           </li>
         </ol>
         <p>

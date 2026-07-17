@@ -160,7 +160,9 @@ export type EgressTemplate = {
   created_at: string;
 };
 
-export type EgressStatus = { enforced: boolean; defaults: string[] };
+// Status: Enforcement-Flag, konfigurierbare Basis-Allowlist der Org (gilt für
+// alle Agenten) und nur per Config änderbare ENV-Zusätze.
+export type EgressStatus = { enforced: boolean; defaults: EgressHost[]; env: string[] };
 
 // Built-in-Katalog: kuratierte Host-Sets aus dem Code, per Klick als
 // org-eigenes Template übernehmbar.

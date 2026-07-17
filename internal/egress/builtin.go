@@ -6,9 +6,9 @@ package egress
 // Übernehmen erzeugt ein normales org-eigenes Template (Kopie), das danach
 // frei editierbar ist; der Katalog selbst bleibt unverändert.
 //
-// Bewusst NICHT enthalten: api.anthropic.com (fest erlaubter Default des
-// Proxy) und org-spezifische Systeme wie das eigene Zammad oder GitLab —
-// dafür sind eigene Templates da.
+// Bewusst NICHT enthalten: api.anthropic.com (liegt in der konfigurierbaren
+// Basis-Allowlist der Org, dort geseedet) und org-spezifische Systeme wie das
+// eigene Zammad oder GitLab — dafür sind eigene Templates da.
 
 // BuiltinHost ist ein Host-Muster des Katalogs samt Begründung.
 type BuiltinHost struct {
