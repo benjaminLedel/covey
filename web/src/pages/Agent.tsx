@@ -10,6 +10,7 @@ import {
   statusLabel,
   type Agent,
   type AgentEgress as AgentEgressCfg,
+  type AgentWebhook,
   type ConfigVersion,
   type CostSummary,
   type EgressStatus,
@@ -37,7 +38,7 @@ export default function AgentPage({ me }: { me: Principal }) {
   const qc = useQueryClient();
   const agent = useQuery({ queryKey: ["agent", id], queryFn: () => api<Agent>(`/agents/${id}`) });
   const [tab, setTab] = useState<
-    "backlog" | "heartbeat" | "recording" | "config" | "memory" | "secrets" | "egress" | "tools"
+    "backlog" | "heartbeat" | "webhook" | "recording" | "config" | "memory" | "secrets" | "egress" | "tools"
   >("backlog");
   const [recTask, setRecTask] = useState<{ id: string; title: string } | null>(null);
 
@@ -97,6 +98,7 @@ export default function AgentPage({ me }: { me: Principal }) {
           [
             ["backlog", "Backlog"],
             ["heartbeat", "Heartbeat"],
+            ...(canManage(me.Role) ? ([["webhook", "Webhook"]] as const) : []),
             ["recording", "Recording"],
             ["memory", "Gedächtnis"],
             ["tools", "Tools"],
@@ -135,6 +137,7 @@ export default function AgentPage({ me }: { me: Principal }) {
         />
       )}
       {tab === "heartbeat" && <Heartbeats agentId={a.id} />}
+      {tab === "webhook" && canManage(me.Role) && <WebhookTrigger agentId={a.id} />}
       {tab === "recording" && (
         <Recording agentId={a.id} taskFilter={recTask} onClearFilter={() => setRecTask(null)} />
       )}
@@ -996,6 +999,82 @@ function Heartbeats({ agentId }: { agentId: string }) {
       {list.map((hb) => (
         <HeartbeatCard key={hb.name} hb={hb} horizonMs={horizonMs} />
       ))}
+    </div>
+  );
+}
+
+// --- Webhook: optionaler generischer Trigger je Agent (spec/03) ---
+// POST /api/trigger/{token} legt eine Backlog-Aufgabe an und weckt den
+// Agenten — für Systeme ohne Zielsystem-Plugin (CI, Cron, Zapier, Monitoring).
+function WebhookTrigger({ agentId }: { agentId: string }) {
+  const qc = useQueryClient();
+  const [copied, setCopied] = useState(false);
+  const wh = useQuery({
+    queryKey: ["webhook", agentId],
+    queryFn: () => api<AgentWebhook>(`/agents/${agentId}/webhook`),
+  });
+  const refresh = () => qc.invalidateQueries({ queryKey: ["webhook", agentId] });
+  const enable = useMutation({ mutationFn: () => post<AgentWebhook>(`/agents/${agentId}/webhook`), onSuccess: refresh });
+  const disable = useMutation({ mutationFn: () => del(`/agents/${agentId}/webhook`), onSuccess: refresh });
+
+  if (wh.isLoading) return null;
+  const data = wh.data;
+  const url = data?.url?.startsWith("/") ? window.location.origin + data.url : data?.url;
+
+  return (
+    <div>
+      <p className="muted text-xs mb-3" style={{ maxWidth: 680 }}>
+        Optionaler Webhook-Trigger: ein <span className="mono">POST</span> auf die URL legt eine
+        Backlog-Aufgabe an und weckt den Agenten — für Fremdsysteme ohne Zielsystem-Plugin (CI,
+        Cron, Zapier, Monitoring). Payload optional als JSON{" "}
+        <span className="mono">{'{"title", "body", "priority", "dedup_key"}'}</span>; alles andere
+        landet als Text im Aufgaben-Body. Das Token in der URL ist das Geheimnis — Rotation macht
+        die alte URL ungültig.
+      </p>
+      {!data?.enabled && (
+        <div className="kc-empty">
+          <p className="mb-3">Kein Webhook aktiv.</p>
+          <button className="btn primary sm" disabled={enable.isPending} onClick={() => enable.mutate()}>
+            Webhook aktivieren
+          </button>
+        </div>
+      )}
+      {data?.enabled && url && (
+        <div>
+          <label>Trigger-URL</label>
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <span className="mono text-xs" style={{ wordBreak: "break-all" }}>
+              {url}
+            </span>
+            <button
+              className="btn sm"
+              onClick={() => {
+                navigator.clipboard.writeText(url).then(() => {
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 1500);
+                });
+              }}
+            >
+              {copied ? "Kopiert ✓" : "Kopieren"}
+            </button>
+          </div>
+          <label>Beispiel</label>
+          <pre className="code text-xs mb-3" style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+            {`curl -X POST ${url} \\\n  -H 'Content-Type: application/json' \\\n  -d '{"title": "Build fehlgeschlagen", "body": "Pipeline #123 ist rot.", "dedup_key": "pipeline-123"}'`}
+          </pre>
+          <div className="flex items-center gap-3">
+            <button className="btn sm" disabled={enable.isPending} onClick={() => enable.mutate()} title="Neues Token, alte URL wird ungültig">
+              Token rotieren
+            </button>
+            <button className="btn sm danger" disabled={disable.isPending} onClick={() => disable.mutate()}>
+              Deaktivieren
+            </button>
+          </div>
+        </div>
+      )}
+      {(enable.isError || disable.isError) && (
+        <p className="danger-text text-xs mt-3">{((enable.error ?? disable.error) as Error).message}</p>
+      )}
     </div>
   );
 }

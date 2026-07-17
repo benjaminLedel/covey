@@ -111,6 +111,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/agents/{id}/name", s.rbac(manage, s.handleRename))
 	mux.Handle("PATCH /api/v1/agents/{id}/runtime", s.rbac(manage, s.handleSetRuntime))
 	mux.Handle("PATCH /api/v1/agents/{id}/supervisor", s.rbac(manage, s.handleSetSupervisor))
+	mux.Handle("GET /api/v1/agents/{id}/webhook", s.rbac(manage, s.handleGetAgentWebhook))
+	mux.Handle("POST /api/v1/agents/{id}/webhook", s.rbac(manage, s.handleEnableAgentWebhook))
+	mux.Handle("DELETE /api/v1/agents/{id}/webhook", s.rbac(manage, s.handleDisableAgentWebhook))
 	mux.Handle("GET /api/v1/org/chart", s.rbac(anyRole, s.handleOrgChart))
 	mux.Handle("GET /api/v1/runtimes", s.rbac(anyRole, s.handleListRuntimes))
 	mux.Handle("GET /api/v1/targets", s.rbac(anyRole, s.handleListTargets))
@@ -195,8 +198,9 @@ func (s *Server) Handler() http.Handler {
 	// Live-Updates.
 	mux.Handle("GET /api/v1/events", s.auth(s.handleSSE))
 
-	// Maschinen-Endpunkte (eigene Auth: HMAC bzw. Daemon-JWT).
+	// Maschinen-Endpunkte (eigene Auth: HMAC, Trigger-Token bzw. Daemon-JWT).
 	mux.HandleFunc("POST /api/webhooks/{system}/{slug}", s.handleTargetWebhook)
+	mux.HandleFunc("POST /api/trigger/{token}", s.handleAgentTrigger)
 	mux.HandleFunc("GET /api/daemon/ws", s.handleDaemonWS)
 
 	// Eingebettete SPA mit Fallback auf index.html (client-seitiges Routing).

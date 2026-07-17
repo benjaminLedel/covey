@@ -40,6 +40,16 @@ Mechanik: Beim Speichern der Config werden die Einträge in `agent_heartbeats` m
 
 **Gestaffelte Kosten beim Tick:** Der Tick darf nicht jedes Mal Opus anwerfen. Ein kleines, billiges Modell entscheidet zuerst „gibt es überhaupt etwas zu tun?" — bei „nein" schläft der Agent weiter. Erst bei „ja" wird die volle Runtime geweckt. Der Tick ist das, was Proaktivität erzeugt: Ohne externen Trigger merkt der Support-Agent selbst „Ticket #42 wartet seit zwei Tagen auf Kundenantwort, ich hake nach."
 
+### Generischer Webhook-Trigger (optional je Agent)
+
+Neben den Zielsystem-Webhooks (Plugin, Signatur-Prüfung, Korrelation — siehe [`13-zammad-integration.md`](13-zammad-integration.md)) kann jeder Agent **optional** einen generischen Webhook als Wake-Quelle bekommen — für Fremdsysteme ohne eigenes Plugin (CI-Pipelines, Cron-Jobs, Zapier, Monitoring):
+
+- **Aktivierung** über die API/UI (`POST /api/v1/agents/{id}/webhook`, Manager-Rollen) erzeugt ein geheimes Token; erneutes Aktivieren rotiert es (alte URL wird ungültig), `DELETE` deaktiviert. Default ist **aus** — das Token liegt als nullable Spalte am Agenten (`webhook_token`), nicht in der Sandbox.
+- **Auslösen:** `POST /api/trigger/{token}` — das Token in der URL ist die gesamte Authentifizierung. Payload optional als JSON `{"title", "body", "priority", "dedup_key"}`; jeder andere Body wird als Roh-Text in den Aufgaben-Body übernommen (nichts geht verloren, auch fremde Payload-Formate nicht).
+- **Wirkung:** legt eine reguläre Backlog-Aufgabe mit `origin='webhook:trigger'` an und stößt den Dispatch sofort an — ab dort greift der normale Lifecycle. Kein Plugin, keine Korrelation: Wer korrelierte Wakes braucht, nimmt ein Zielsystem-Plugin.
+- **Idempotenz:** optional über `dedup_key` (je Agent gescopt, gleiche `webhook_events`-Tabelle wie der Event-Router) — Retries des Fremdsystems erzeugen keine Duplikate.
+- **Fail-closed:** ein gestoppter Agent (Kill-Switch) lehnt den Trigger ab; ein unbekanntes Token liefert 404.
+
 ## Zustandsmaschine
 
 ```

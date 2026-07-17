@@ -961,3 +961,30 @@ func (o *Orchestrator) HandleWebhook(ctx context.Context, agent agents.Agent, so
 	o.publishTask(task.ID, agent.ID)
 	return "created", nil
 }
+
+// HandleAgentTrigger verarbeitet den generischen, per Token authentifizierten
+// Webhook-Trigger eines Agenten (spec/03, Wake-Quelle Event): optional
+// idempotent über einen dedup_key, legt eine Backlog-Aufgabe an und stößt den
+// Dispatch sofort an. Anders als HandleWebhook gibt es kein Zielsystem-Plugin
+// und keine Korrelation — der Absender ist ein beliebiges Fremdsystem.
+func (o *Orchestrator) HandleAgentTrigger(ctx context.Context, agent agents.Agent, title, body string, priority int, dedupKey string) (string, error) {
+	if dedupKey != "" {
+		// Global eindeutige Tabelle — je Agent scopen, damit sich Fremdsysteme
+		// verschiedener Agenten nicht gegenseitig deduplizieren.
+		tag, err := o.Pool.Exec(ctx, `INSERT INTO webhook_events (dedup_key, source)
+			VALUES ($1,'agent-trigger') ON CONFLICT (dedup_key) DO NOTHING`,
+			"trigger:"+agent.ID.String()+":"+dedupKey)
+		if err != nil {
+			return "", err
+		}
+		if tag.RowsAffected() == 0 {
+			return "duplicate", nil
+		}
+	}
+	task, err := o.Backlog.Create(ctx, agent.OrgID, agent.ID, title, body, "webhook:trigger", priority)
+	if err != nil {
+		return "", err
+	}
+	o.publishTask(task.ID, agent.ID)
+	return "created", nil
+}

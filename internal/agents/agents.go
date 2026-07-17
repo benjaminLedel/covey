@@ -38,6 +38,10 @@ type Agent struct {
 	SupervisorID *uuid.UUID `json:"supervisor_id,omitempty"`
 	Killed      bool       `json:"killed"`
 	BudgetUSD   float64    `json:"budget_usd"`
+	// WebhookToken ist das Geheimnis des optionalen generischen Webhook-
+	// Triggers (nil = deaktiviert). Bewusst nicht im JSON — lesbar nur über
+	// den dedizierten Webhook-Endpoint (Manager-Rollen).
+	WebhookToken *string   `json:"-"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
 }
@@ -68,12 +72,12 @@ type Registry struct {
 
 func NewRegistry(pool *pgxpool.Pool) *Registry { return &Registry{pool: pool} }
 
-const agentCols = "id, org_id, slug, display_name, runtime, status, owner_id, supervisor_id, killed, budget_usd, created_at, updated_at"
+const agentCols = "id, org_id, slug, display_name, runtime, status, owner_id, supervisor_id, killed, budget_usd, webhook_token, created_at, updated_at"
 
 func scanAgent(row pgx.Row) (Agent, error) {
 	var a Agent
 	err := row.Scan(&a.ID, &a.OrgID, &a.Slug, &a.DisplayName, &a.Runtime, &a.Status,
-		&a.OwnerID, &a.SupervisorID, &a.Killed, &a.BudgetUSD, &a.CreatedAt, &a.UpdatedAt)
+		&a.OwnerID, &a.SupervisorID, &a.Killed, &a.BudgetUSD, &a.WebhookToken, &a.CreatedAt, &a.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, ErrNotFound
 	}
@@ -171,6 +175,22 @@ func (r *Registry) Rename(ctx context.Context, id uuid.UUID, displayName string)
 		return ErrNotFound
 	}
 	return err
+}
+
+// SetWebhookToken setzt bzw. rotiert das Token des generischen Webhook-
+// Triggers; nil deaktiviert den Webhook (spec/03, Wake-Quelle Event).
+func (r *Registry) SetWebhookToken(ctx context.Context, id uuid.UUID, token *string) error {
+	tag, err := r.pool.Exec(ctx, "UPDATE agents SET webhook_token=$2, updated_at=now() WHERE id=$1", id, token)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+// GetByWebhookToken löst das Trigger-Token auf den Agenten auf —
+// die Authentifizierung des öffentlichen Webhook-Endpoints.
+func (r *Registry) GetByWebhookToken(ctx context.Context, token string) (Agent, error) {
+	return scanAgent(r.pool.QueryRow(ctx, "SELECT "+agentCols+" FROM agents WHERE webhook_token=$1", token))
 }
 
 // SupervisorName liefert den Anzeigenamen des Vorgesetzten aus dem Org-Chart —

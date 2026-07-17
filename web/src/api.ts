@@ -69,6 +69,15 @@ export type HeartbeatStatus = {
   pending: boolean;
 };
 
+// Optionaler generischer Webhook-Trigger des Agenten (Wake-Quelle Event):
+// POST auf die URL legt eine Backlog-Aufgabe an und weckt den Agenten.
+// Nur für Manager-Rollen abrufbar — das Token ist das Geheimnis.
+export type AgentWebhook = {
+  enabled: boolean;
+  token?: string;
+  url?: string;
+};
+
 export type RecordingEvent = {
   id: number;
   agent_id: string;
