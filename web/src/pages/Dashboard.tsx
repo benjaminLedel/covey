@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api, post, statusLabel, type Agent, type Principal } from "../api";
+import { generateAgentName } from "../names";
 
 const canManage = (role: string) => role === "platform_admin" || role === "agent_owner";
 const canSecurity = (role: string) => role === "platform_admin" || role === "security";
@@ -122,7 +123,21 @@ function CreateAgent({ onDone }: { onDone: () => void }) {
     >
       <div className="flex-1 min-w-40">
         <label>Name</label>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Support-Agent" required />
+        <div className="flex gap-2">
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Support-Agent" required />
+          <button
+            type="button"
+            className="btn"
+            title="Lustigen Namen würfeln"
+            onClick={() => {
+              const g = generateAgentName();
+              setName(g.name);
+              setSlug(g.slug);
+            }}
+          >
+            🎲
+          </button>
+        </div>
       </div>
       <div className="flex-1 min-w-40">
         <label>Slug</label>
