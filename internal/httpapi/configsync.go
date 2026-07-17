@@ -2,135 +2,336 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/google/uuid"
+
+	"covey/internal/agents"
+	"covey/internal/egress"
 )
 
-// Generierte Config-Dateien: die über die Oberfläche gepflegten Teile der
-// Agenten-Config (Tool-Zuweisung, Egress-Allowlist) als Text-Dateien im Stil
-// von ACCESS.md. Sie werden bei jedem Lesen live aus den UI-Stores berechnet —
-// Text-Config und UI-Config sind damit per Konstruktion synchron. Als
-// speicherbare Dateien sind die Namen reserviert (agents.GeneratedFiles):
-// Tools und Egress ändern nur Security-Rollen über ihre Reiter, Config-
-// Versionen darf auch der Agent-Owner schreiben.
+// Config-Sync: ACCESS.md und EGRESS.md sind die Text-Sicht auf Zustand, der
+// auch über die Oberfläche gepflegt wird (Zugänge + Tool-Zuweisung bzw.
+// Egress-Templates + eigene Hosts). Damit Text- und UI-Config nie divergieren,
+// gibt es jede Datei genau einmal und beide Richtungen schreiben denselben
+// Store: GET rendert die Dateien live aus der DB, PUT parst sie und wendet
+// sie an. Die Config-Version speichert den eingereichten Text als Snapshot.
 
-// generatedConfigFiles berechnet TOOLS.md und EGRESS.md für einen Agenten.
-func (s *Server) generatedConfigFiles(ctx context.Context, orgID, agentID uuid.UUID) (map[string]string, error) {
-	out := map[string]string{}
+// errNeedsSecurityRole: der Principal will per Text-Edit etwas ändern, das
+// über die Oberfläche nur Security-Rollen dürfen (Tools, Egress).
+var errNeedsSecurityRole = errors.New("tool-zuweisung und egress ändern nur platform_admin oder security")
 
-	tools, err := s.generatedToolsFile(ctx, orgID, agentID)
-	if err != nil {
-		return nil, fmt.Errorf("TOOLS.md generieren: %w", err)
-	}
-	out["TOOLS.md"] = tools
-
-	eg, err := s.generatedEgressFile(ctx, orgID, agentID)
-	if err != nil {
-		return nil, fmt.Errorf("EGRESS.md generieren: %w", err)
-	}
-	out["EGRESS.md"] = eg
-	return out, nil
-}
-
-// generatedToolsFile listet pro aktiviertem Zielsystem die Tool-Zuweisung des
-// Agenten — leere Allowlist heißt „alle Tools erlaubt" (wie AgentToolAllowed).
-func (s *Server) generatedToolsFile(ctx context.Context, orgID, agentID uuid.UUID) (string, error) {
-	var b strings.Builder
-	b.WriteString("# Tools — generiert aus der Oberfläche (Reiter „Tools“)\n")
-	b.WriteString("# Zuweisung ändern Security-Rollen dort; diese Datei ist immer der Live-Stand.\n\n")
-
-	plugins, err := s.Targets.List(ctx, orgID)
+// renderAccessFile baut ACCESS.md aus den materialisierten Zugängen und der
+// Tool-Zuweisung — eine Zeile pro System, Attribute wie von ParseAccess gelesen.
+func (s *Server) renderAccessFile(ctx context.Context, agentID uuid.UUID) (string, error) {
+	accs, err := s.Registry.Accesses(ctx, agentID)
 	if err != nil {
 		return "", err
 	}
-	sort.Slice(plugins, func(i, j int) bool { return plugins[i].Name < plugins[j].Name })
-	n := 0
-	for _, p := range plugins {
-		if !p.Enabled {
-			continue
-		}
-		n++
-		if p.Kind != "mcp" {
-			fmt.Fprintf(&b, "- system: %s   tools: alle\n", p.Name)
-			continue
-		}
-		allowed, err := s.Targets.AgentTools(ctx, agentID, p.Name)
-		if err != nil {
-			return "", err
-		}
-		if len(allowed) == 0 {
-			fmt.Fprintf(&b, "- system: %s   tools: alle\n", p.Name)
-		} else {
-			fmt.Fprintf(&b, "- system: %s   tools: %s\n", p.Name, strings.Join(allowed, ", "))
-		}
+	sort.Slice(accs, func(i, j int) bool { return accs[i].System < accs[j].System })
+
+	var b strings.Builder
+	b.WriteString("# Zugänge — welche Zielsysteme dieser Agent nutzen darf (Referenzen, nie Secrets).\n")
+	b.WriteString("# scope: gebrokerte Berechtigungen · tools: Tool-Allowlist des Agenten („alle“ = keine Einschränkung).\n")
+	b.WriteString("# Synchron mit dem Reiter „Tools“ — Änderungen hier wirken dort und umgekehrt.\n\n")
+	if len(accs) == 0 {
+		b.WriteString("# (keine Systeme — der Broker verweigert jede Credential-Anfrage)\n")
 	}
-	if n == 0 {
-		b.WriteString("# (keine Zielsysteme aktiviert)\n")
+	for _, a := range accs {
+		fmt.Fprintf(&b, "- system: %s", a.System)
+		if len(a.Scopes) > 0 {
+			fmt.Fprintf(&b, "   scope: %s", strings.Join(a.Scopes, ","))
+		}
+		var tools []string
+		if s.Targets != nil {
+			if tools, err = s.Targets.AgentTools(ctx, agentID, a.System); err != nil {
+				return "", err
+			}
+		}
+		if len(tools) > 0 {
+			fmt.Fprintf(&b, "   tools: %s", strings.Join(tools, ", "))
+		} else {
+			b.WriteString("   tools: alle")
+		}
+		b.WriteString("\n")
 	}
 	return b.String(), nil
 }
 
-// generatedEgressFile listet die effektive Egress-Allowlist des Agenten mit
-// Quelle je Muster — dieselbe Auflösung wie der Egress-Reiter: Basis-Allowlist
-// der Org, ENV-Zusätze, zugewiesene Templates, eigene Hosts (dedupliziert).
-func (s *Server) generatedEgressFile(ctx context.Context, orgID, agentID uuid.UUID) (string, error) {
-	var b strings.Builder
-	b.WriteString("# Egress-Allowlist — generiert aus der Oberfläche (Reiter „Egress“)\n")
-	b.WriteString("# Alles andere blockt der Egress-Proxy fail-closed.\n\n")
+// egressSpec ist der agent-editierbare Teil von EGRESS.md: Template-Namen
+// und eigene Hosts. Basis-Allowlist/ENV sind org-weit und nur informativ.
+type egressSpec struct {
+	Templates []string
+	Hosts     []hostSpec
+}
 
-	type entry struct{ pattern, source string }
-	var list []entry
-	seen := map[string]bool{}
-	add := func(pattern, source string) {
-		if !seen[pattern] {
-			seen[pattern] = true
-			list = append(list, entry{pattern, source})
+type hostSpec struct{ Pattern, Note string }
+
+func (e *egressSpec) hasHost(pattern string) bool {
+	for _, h := range e.Hosts {
+		if h.Pattern == pattern {
+			return true
 		}
 	}
+	return false
+}
 
-	defaults, err := s.EgressStore.ListDefaultHosts(ctx, orgID)
-	if err != nil {
-		return "", err
-	}
-	for _, h := range defaults {
-		add(h.Pattern, "Basis")
-	}
-	for _, p := range s.EgressDefaults {
-		add(p, "ENV")
-	}
-
+// renderEgressFile baut EGRESS.md aus dem Egress-Store des Agenten.
+func (s *Server) renderEgressFile(ctx context.Context, orgID, agentID uuid.UUID) (string, error) {
 	cfg, err := s.EgressStore.AgentConfig(ctx, agentID)
 	if err != nil {
 		return "", err
-	}
-	assigned := map[uuid.UUID]bool{}
-	for _, id := range cfg.TemplateIDs {
-		assigned[id] = true
 	}
 	templates, err := s.EgressStore.ListTemplates(ctx, orgID)
 	if err != nil {
 		return "", err
 	}
-	for _, t := range templates {
-		if !assigned[t.ID] {
-			continue
-		}
-		for _, h := range t.Hosts {
-			add(h.Pattern, t.Name)
-		}
-	}
-	for _, h := range cfg.Hosts {
-		add(h.Pattern, "eigener Host")
+	defaults, err := s.EgressStore.ListDefaultHosts(ctx, orgID)
+	if err != nil {
+		return "", err
 	}
 
-	if len(list) == 0 {
-		b.WriteString("# (leer — jede ausgehende Verbindung wird blockiert)\n")
+	assigned := map[uuid.UUID]bool{}
+	for _, id := range cfg.TemplateIDs {
+		assigned[id] = true
 	}
-	for _, e := range list {
-		fmt.Fprintf(&b, "- host: %s   quelle: %s\n", e.pattern, e.source)
+	var assignedNames, allNames []string
+	for _, t := range templates {
+		allNames = append(allNames, t.Name)
+		if assigned[t.ID] {
+			assignedNames = append(assignedNames, t.Name)
+		}
+	}
+
+	var b strings.Builder
+	b.WriteString("# Egress — welche Hosts dieser Agent ausgehend erreichen darf; alles andere\n")
+	b.WriteString("# blockt der Proxy fail-closed. Gepflegt werden hier Templates + eigene Hosts;\n")
+	b.WriteString("# synchron mit dem Reiter „Egress“ — Änderungen hier wirken dort und umgekehrt.\n")
+	var basis []string
+	for _, h := range defaults {
+		basis = append(basis, h.Pattern)
+	}
+	basis = append(basis, s.EgressDefaults...)
+	if len(basis) > 0 {
+		fmt.Fprintf(&b, "# Basis der Organisation (zentral gepflegt): %s\n", strings.Join(basis, ", "))
+	}
+	if len(allNames) > 0 {
+		fmt.Fprintf(&b, "# Verfügbare Templates: %s\n", strings.Join(allNames, ", "))
+	}
+	b.WriteString("\n")
+
+	if len(assignedNames) == 0 {
+		b.WriteString("templates: keine\n")
+	} else {
+		fmt.Fprintf(&b, "templates: %s\n", strings.Join(assignedNames, ", "))
+		for _, t := range templates {
+			if !assigned[t.ID] {
+				continue
+			}
+			var hosts []string
+			for _, h := range t.Hosts {
+				hosts = append(hosts, h.Pattern)
+			}
+			fmt.Fprintf(&b, "#   %s → %s\n", t.Name, strings.Join(hosts, ", "))
+		}
+	}
+	b.WriteString("\n")
+	for _, h := range cfg.Hosts {
+		fmt.Fprintf(&b, "- host: %s", h.Pattern)
+		if h.Note != "" {
+			fmt.Fprintf(&b, "   notiz: %s", h.Note)
+		}
+		b.WriteString("\n")
 	}
 	return b.String(), nil
+}
+
+// parseEgressFile liest EGRESS.md: eine "templates:"-Zeile (kommasepariert,
+// "keine" = leer) und "- host:"-Zeilen mit optionaler notiz. Kommentare (#)
+// und alles Übrige werden ignoriert.
+func parseEgressFile(content string) egressSpec {
+	var spec egressSpec
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if rest, ok := strings.CutPrefix(line, "templates:"); ok {
+			for _, name := range strings.Split(rest, ",") {
+				name = strings.TrimSpace(name)
+				if name == "" || strings.EqualFold(name, "keine") || name == "-" {
+					continue
+				}
+				spec.Templates = append(spec.Templates, name)
+			}
+			continue
+		}
+		line = strings.TrimSpace(strings.TrimPrefix(line, "-"))
+		if rest, ok := strings.CutPrefix(line, "host:"); ok {
+			var h hostSpec
+			if pattern, note, found := strings.Cut(rest, "notiz:"); found {
+				h.Pattern, h.Note = strings.TrimSpace(pattern), strings.TrimSpace(note)
+			} else {
+				h.Pattern = strings.TrimSpace(rest)
+			}
+			if h.Pattern != "" && !spec.hasHost(h.Pattern) {
+				spec.Hosts = append(spec.Hosts, h)
+			}
+		}
+	}
+	return spec
+}
+
+// prepareConfigApply validiert ACCESS.md/EGRESS.md und liefert den Write-
+// Through in die UI-Stores. Ohne Security-Rolle sind Text-Edits an Tools und
+// Egress verboten (dieselbe RBAC wie die Reiter) — unveränderte Dateien
+// dürfen aber jederzeit mitgespeichert werden.
+func (s *Server) prepareConfigApply(ctx context.Context, orgID, agentID uuid.UUID, files map[string]string, canSecurity bool) (func(context.Context) error, error) {
+	// Fehlt eine Datei im Request ganz, bleibt ihr Bereich unangetastet —
+	// eine ausgelassene EGRESS.md ist „keine Änderung", nicht „alles löschen".
+	accessContent, hasAccess := files["ACCESS.md"]
+	egressContent, hasEgress := files["EGRESS.md"]
+
+	// Nicht verdrahtete Stores (z. B. Test-Setups) → der Bereich entfällt.
+	if s.Targets == nil {
+		hasAccess = false
+	}
+	if s.EgressStore == nil {
+		hasEgress = false
+	}
+
+	var accs []agents.SystemAccess
+	if hasAccess {
+		accs = agents.ParseAccess(accessContent)
+	}
+
+	// Egress: Template-Namen auflösen, bevor irgendetwas gespeichert wird.
+	var spec egressSpec
+	var cfg egress.AgentEgress
+	wantTemplates := map[uuid.UUID]bool{}
+	if hasEgress {
+		spec = parseEgressFile(egressContent)
+		templates, err := s.EgressStore.ListTemplates(ctx, orgID)
+		if err != nil {
+			return nil, err
+		}
+		byName := map[string]egress.Template{}
+		var names []string
+		for _, t := range templates {
+			byName[t.Name] = t
+			names = append(names, t.Name)
+		}
+		for _, name := range spec.Templates {
+			t, ok := byName[name]
+			if !ok {
+				return nil, fmt.Errorf("EGRESS.md: unbekanntes Template %q (verfügbar: %s)", name, strings.Join(names, ", "))
+			}
+			wantTemplates[t.ID] = true
+		}
+		if cfg, err = s.EgressStore.AgentConfig(ctx, agentID); err != nil {
+			return nil, err
+		}
+	}
+
+	// Änderungs-Erkennung für RBAC: was würde der Write-Through umstellen?
+	egressChanged := hasEgress && len(wantTemplates) != len(cfg.TemplateIDs)
+	for _, id := range cfg.TemplateIDs {
+		if hasEgress && !wantTemplates[id] {
+			egressChanged = true
+		}
+	}
+	haveHosts := map[string]string{}
+	for _, h := range cfg.Hosts {
+		haveHosts[h.Pattern] = h.Note
+	}
+	if hasEgress && len(spec.Hosts) != len(cfg.Hosts) {
+		egressChanged = true
+	}
+	for _, h := range spec.Hosts {
+		if note, ok := haveHosts[h.Pattern]; !ok || note != h.Note {
+			egressChanged = true
+		}
+	}
+
+	toolsChanged := false
+	for _, a := range accs {
+		current, err := s.Targets.AgentTools(ctx, agentID, a.System)
+		if err != nil {
+			return nil, err
+		}
+		if !equalSet(current, a.Tools) {
+			toolsChanged = true
+		}
+	}
+	if (egressChanged || toolsChanged) && !canSecurity {
+		return nil, errNeedsSecurityRole
+	}
+
+	return func(ctx context.Context) error {
+		for _, a := range accs {
+			if err := s.Targets.SetAgentTools(ctx, agentID, a.System, a.Tools); err != nil {
+				return fmt.Errorf("tools für %s: %w", a.System, err)
+			}
+		}
+		if !hasEgress {
+			return nil
+		}
+		have := map[uuid.UUID]bool{}
+		for _, id := range cfg.TemplateIDs {
+			have[id] = true
+		}
+		for id := range wantTemplates {
+			if !have[id] {
+				if err := s.EgressStore.SetAgentTemplate(ctx, agentID, id, true); err != nil {
+					return err
+				}
+			}
+		}
+		for id := range have {
+			if !wantTemplates[id] {
+				if err := s.EgressStore.SetAgentTemplate(ctx, agentID, id, false); err != nil {
+					return err
+				}
+			}
+		}
+		want := map[string]string{}
+		for _, h := range spec.Hosts {
+			want[h.Pattern] = h.Note
+		}
+		for _, h := range cfg.Hosts {
+			if note, ok := want[h.Pattern]; !ok || note != h.Note {
+				if err := s.EgressStore.DeleteAgentHost(ctx, agentID, h.ID); err != nil {
+					return err
+				}
+			}
+		}
+		for _, h := range spec.Hosts {
+			if note, ok := haveHosts[h.Pattern]; ok && note == h.Note {
+				continue
+			}
+			if _, err := s.EgressStore.AddAgentHost(ctx, agentID, h.Pattern, h.Note); err != nil {
+				return fmt.Errorf("EGRESS.md: host %s: %w", h.Pattern, err)
+			}
+		}
+		return nil
+	}, nil
+}
+
+func equalSet(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	set := map[string]bool{}
+	for _, s := range a {
+		set[s] = true
+	}
+	for _, s := range b {
+		if !set[s] {
+			return false
+		}
+	}
+	return true
 }

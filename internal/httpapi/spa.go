@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"io/fs"
+	"mime"
 	"net/http"
 	"strings"
 
@@ -9,6 +10,11 @@ import (
 
 	"covey/internal/agents"
 )
+
+func init() {
+	// Go kennt .webmanifest nicht ab Werk — sonst liefert der FileServer text/plain.
+	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
+}
 
 // spaHandler liefert die eingebettete SPA aus; unbekannte Pfade fallen auf
 // index.html zurück (client-seitiges Routing, spec/10).

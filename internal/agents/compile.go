@@ -64,13 +64,6 @@ func TargetDocs(docs []string) string {
 	return "## Angebundene Zielsysteme\n\n" + strings.Join(clean, "\n\n")
 }
 
-// GeneratedFiles sind reservierte Dateinamen für die aus der Oberfläche
-// generierten Config-Teile (Tool-Zuweisung, Egress-Allowlist). Sie werden
-// zur Lesezeit live aus den UI-Stores berechnet — nie als Datei gespeichert
-// und nie in den Prompt kompiliert (Tools fließen über die Zielsystem-Doku
-// ein, Egress ist Enforcement, kein Prompt).
-var GeneratedFiles = map[string]bool{"TOOLS.md": true, "EGRESS.md": true}
-
 // CompilePrompt macht aus den Config-Dateien den System-Prompt.
 // Bekannte Dateien in definierter Reihenfolge, unbekannte alphabetisch dahinter.
 func CompilePrompt(files map[string]string) string {
@@ -98,11 +91,16 @@ func CompilePrompt(files map[string]string) string {
 	return b.String()
 }
 
+// accessKeywords sind die Attribut-Schlüssel einer ACCESS.md-Systemzeile.
+var accessKeywords = map[string]bool{"system:": true, "scope:": true, "scopes:": true, "tools:": true}
+
 // ParseAccess liest ACCESS.md-Zeilen der Form
 //
-//   - system: ticketing   scope: read,write,comment
+//   - system: ticketing   scope: read,write,comment   tools: get_ticket, reply
 //
 // Referenzen auf Systeme + Scopes — niemals Secrets (spec/02-agenten-modell.md).
+// tools ist die Tool-Allowlist des Agenten für das System (MCP): fehlt das
+// Attribut oder steht dort "alle", sind alle Tools des Systems erlaubt.
 func ParseAccess(content string) []SystemAccess {
 	var out []SystemAccess
 	for _, line := range strings.Split(content, "\n") {
@@ -112,20 +110,42 @@ func ParseAccess(content string) []SystemAccess {
 		}
 		fields := strings.Fields(line)
 		var acc SystemAccess
-		for i := 0; i < len(fields)-1; i++ {
+		for i := 0; i < len(fields); i++ {
+			if !accessKeywords[fields[i]] {
+				continue
+			}
+			// Wert: alle Tokens bis zum nächsten Schlüssel, kommasepariert —
+			// erlaubt sowohl "a,b" als auch "a, b".
+			var val []string
+			for j := i + 1; j < len(fields) && !accessKeywords[fields[j]]; j++ {
+				val = append(val, fields[j])
+			}
+			list := splitCSV(strings.Join(val, " "))
 			switch fields[i] {
 			case "system:":
-				acc.System = fields[i+1]
+				if len(list) > 0 {
+					acc.System = list[0]
+				}
 			case "scope:", "scopes:":
-				for _, s := range strings.Split(fields[i+1], ",") {
-					if s = strings.TrimSpace(s); s != "" {
-						acc.Scopes = append(acc.Scopes, s)
-					}
+				acc.Scopes = list
+			case "tools:":
+				if !(len(list) == 1 && strings.EqualFold(list[0], "alle")) {
+					acc.Tools = list
 				}
 			}
 		}
 		if acc.System != "" {
 			out = append(out, acc)
+		}
+	}
+	return out
+}
+
+func splitCSV(s string) []string {
+	var out []string
+	for _, part := range strings.Split(s, ",") {
+		if part = strings.TrimSpace(part); part != "" {
+			out = append(out, part)
 		}
 	}
 	return out

@@ -54,6 +54,10 @@ type ConfigVersion struct {
 type SystemAccess struct {
 	System string   `json:"system"`
 	Scopes []string `json:"scopes"`
+	// Tools ist die Tool-Allowlist des Agenten für dieses System (MCP);
+	// leer = alle Tools erlaubt. Materialisiert wird sie nicht hier, sondern
+	// im target-Store (agent_target_tools) — ACCESS.md ist die Text-Sicht.
+	Tools []string `json:"tools,omitempty"`
 }
 
 var ErrNotFound = errors.New("agent nicht gefunden")

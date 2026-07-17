@@ -49,12 +49,11 @@ export type Stage = {
 
 export type ConfigVersion = {
   version: number;
+  // ACCESS.md und EGRESS.md rendert der Server live aus den UI-Stores
+  // (Tools/Egress); Speichern schreibt sie dorthin zurück — eine Quelle.
   files: Record<string, string>;
   compiled_prompt: string;
   created_at: string;
-  // Aus der Oberfläche generierte Dateien (TOOLS.md, EGRESS.md) — live vom
-  // Server berechnet, read-only, immer synchron mit den UI-Stores.
-  generated?: Record<string, string>;
 };
 
 export type RecordingEvent = {

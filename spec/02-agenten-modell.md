@@ -53,10 +53,13 @@ Das Verhalten eines Agenten ist als Satz von Markdown-Dateien in Git definiert �
 | `SOUL.md` | Kern-Persönlichkeit: Rolle, Auftrag, Ton, Werte, Grenzen. Der Charakter des Agenten. |
 | `CAPABILITIES.md` | Was der Agent darf/soll: Aufgabentypen, Zuständigkeiten, Nicht-Zuständigkeiten. |
 | `PLAYBOOKS.md` | Konkrete Abläufe für wiederkehrende Aufgaben (Schritt-für-Schritt-Anleitungen). |
-| `ACCESS.md` | **Referenzen** auf benötigte Zugänge (Systemnamen + Scopes) — niemals Secrets selbst. |
+| `ACCESS.md` | **Referenzen** auf benötigte Zugänge (Systemnamen + Scopes) und die Tool-Allowlist je System (`tools:`-Attribut) — niemals Secrets selbst. |
 | `ORG.md` | Position im Org-Chart, Vorgesetzter, an wen eskaliert wird. |
+| `EGRESS.md` | Egress-Konfiguration des Agenten: zugewiesene Templates + eigene Hosts. |
 
 Die genaue Dateiliste ist bewusst erweiterbar — weitere sinnvolle MD-Dateien (z. B. `TONE.md`, `ESCALATION.md`) können hinzukommen. Kernregel: **`ACCESS.md` enthält Referenzen, keine Geheimnisse.**
+
+`ACCESS.md` und `EGRESS.md` sind die **Text-Sicht auf Zustand, der auch über die Oberfläche gepflegt wird** (Reiter *Tools* bzw. *Egress*). Damit Text- und UI-Config nie divergieren, gibt es jede Datei genau einmal und beide Richtungen schreiben denselben Store: Lesen rendert die Datei live aus der Datenbank, Speichern parst sie und wendet sie an (Write-Through). Text-Edits an Tools/Egress unterliegen derselben RBAC wie die Reiter (nur `platform_admin`/`security`); in den System-Prompt kompiliert werden beide Dateien nicht.
 
 ### Beispiel: `SOUL.md` (Skizze)
 
@@ -84,10 +87,14 @@ Freundlich, knapp, lösungsorientiert. Deutsch, Sie-Form.
 ```markdown
 # Zugänge
 
-- system: ticketing      scope: read,write,comment
-- system: confluence     scope: read
+- system: ticketing      scope: read,write,comment   tools: alle
+- system: confluence     scope: read                  tools: search, get_page
 - system: teams          scope: send-message
 ```
+
+`tools:` ist die Tool-Allowlist des Agenten für das System: fehlt das Attribut oder steht dort
+`alle`, sind alle Tools erlaubt; eine Liste schaltet fail-closed nur die genannten frei
+(Enforcement zentral in der Control Plane, siehe [`01-architektur.md`](01-architektur.md)).
 
 ## Org-Chart & Inter-Agent-Kommunikation
 

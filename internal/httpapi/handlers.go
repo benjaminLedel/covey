@@ -12,6 +12,7 @@ import (
 	"covey/internal/backlog"
 	"covey/internal/daemon"
 	"covey/internal/guardrails"
+	"covey/internal/identity"
 	"covey/internal/memory"
 	"covey/internal/secrets"
 )
@@ -80,23 +81,27 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	cv, err := s.Registry.CurrentConfig(r.Context(), id)
 	if errors.Is(err, agents.ErrNotFound) {
-		// Noch keine Version: leere Dateien liefern, damit die generierten
-		// Config-Teile (TOOLS.md, EGRESS.md) trotzdem sichtbar sind.
-		cv = agents.ConfigVersion{AgentID: id, Files: map[string]string{"SOUL.md": "", "ACCESS.md": ""}}
+		// Noch keine Version: leere Dateien, damit ACCESS.md/EGRESS.md
+		// (live gerendert) trotzdem sichtbar sind.
+		cv = agents.ConfigVersion{AgentID: id, Files: map[string]string{"SOUL.md": ""}}
 	} else if err != nil {
 		mapErr(w, err)
 		return
 	}
-	// Generierte Dateien: live aus den UI-Stores — Text- und UI-Config bleiben
-	// per Konstruktion synchron (siehe configsync.go).
-	generated, err := s.generatedConfigFiles(r.Context(), p.OrgID, id)
-	if err != nil {
-		s.Log.Warn("generierte config-dateien", "agent", id, "err", err)
+	// ACCESS.md und EGRESS.md sind die Text-Sicht auf die UI-Stores und werden
+	// live gerendert — nie aus dem Version-Snapshot serviert (configsync.go).
+	if access, err := s.renderAccessFile(r.Context(), id); err != nil {
+		s.Log.Warn("ACCESS.md rendern", "agent", id, "err", err)
+	} else {
+		cv.Files["ACCESS.md"] = access
 	}
-	writeJSON(w, http.StatusOK, struct {
-		agents.ConfigVersion
-		Generated map[string]string `json:"generated,omitempty"`
-	}{cv, generated})
+	if eg, err := s.renderEgressFile(r.Context(), p.OrgID, id); err != nil {
+		s.Log.Warn("EGRESS.md rendern", "agent", id, "err", err)
+	} else {
+		cv.Files["EGRESS.md"] = eg
+	}
+	delete(cv.Files, "TOOLS.md") // Legacy: in ACCESS.md aufgegangen
+	writeJSON(w, http.StatusOK, cv)
 }
 
 func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
@@ -113,16 +118,30 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "files fehlt")
 		return
 	}
-	for name := range in.Files {
-		if agents.GeneratedFiles[name] {
-			writeErr(w, http.StatusBadRequest,
-				name+" wird aus der Oberfläche generiert (Reiter Tools/Egress) und kann nicht als Datei gespeichert werden")
-			return
+	if _, ok := in.Files["TOOLS.md"]; ok {
+		writeErr(w, http.StatusBadRequest, "TOOLS.md ist in ACCESS.md aufgegangen (Attribut tools: je System)")
+		return
+	}
+	// Write-Through in die UI-Stores (Tools, Egress) — erst validieren und
+	// RBAC prüfen, damit eine fehlerhafte Datei keine Version erzeugt.
+	canSecurity := p.Role == identity.RolePlatformAdmin || p.Role == identity.RoleSecurity
+	apply, err := s.prepareConfigApply(r.Context(), p.OrgID, id, in.Files, canSecurity)
+	if err != nil {
+		if errors.Is(err, errNeedsSecurityRole) {
+			writeErr(w, http.StatusForbidden, err.Error())
+		} else {
+			writeErr(w, http.StatusBadRequest, err.Error())
 		}
+		return
 	}
 	cv, err := s.Registry.SaveConfig(r.Context(), id, in.Files, &p.ID)
 	if err != nil {
 		mapErr(w, err)
+		return
+	}
+	if err := apply(r.Context()); err != nil {
+		s.Log.Error("config write-through", "agent", id, "err", err)
+		writeErr(w, http.StatusInternalServerError, "Version gespeichert, aber Übernahme in Tools/Egress fehlgeschlagen: "+err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, cv)

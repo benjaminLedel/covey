@@ -133,9 +133,7 @@ export default function AgentPage({ me }: { me: Principal }) {
       {tab === "recording" && (
         <Recording agentId={a.id} taskFilter={recTask} onClearFilter={() => setRecTask(null)} />
       )}
-      {tab === "config" && (
-        <Config agentId={a.id} canManage={canManage(me.Role)} onOpenTab={(t) => setTab(t)} />
-      )}
+      {tab === "config" && <Config agentId={a.id} canManage={canManage(me.Role)} />}
       {tab === "memory" && <Memories agentId={a.id} canManage={canManage(me.Role)} />}
       {tab === "egress" && <AgentEgress agentId={a.id} canEdit={canSecrets(me.Role)} />}
       {tab === "tools" && <AgentTools agentId={a.id} canEdit={canSecrets(me.Role)} />}
@@ -788,15 +786,7 @@ function RecordingItem({ event }: { event: RecordingEvent }) {
   );
 }
 
-function Config({
-  agentId,
-  canManage,
-  onOpenTab,
-}: {
-  agentId: string;
-  canManage: boolean;
-  onOpenTab: (tab: "tools" | "egress" | "memory") => void;
-}) {
+function Config({ agentId, canManage }: { agentId: string; canManage: boolean }) {
   const qc = useQueryClient();
   const cfg = useQuery({
     queryKey: ["config", agentId],
@@ -811,14 +801,21 @@ function Config({
     onSuccess: () => {
       setDraft(null);
       qc.invalidateQueries({ queryKey: ["config", agentId] });
+      // ACCESS.md (tools) und EGRESS.md schreiben in die UI-Stores durch —
+      // die Reiter Tools und Egress sofort nachziehen.
+      qc.invalidateQueries({ queryKey: ["agent-tools", agentId] });
+      qc.invalidateQueries({ queryKey: ["egress", "agent", agentId] });
     },
   });
 
   return (
     <div>
-      <p className="muted text-xs mb-3">
+      <p className="muted text-xs mb-3" style={{ maxWidth: 680 }}>
         Config-as-Code: jede Änderung erzeugt eine neue Version
-        {cfg.data && <> — aktuell v{cfg.data.version}</>}. ACCESS.md hält Referenzen, nie Secrets.
+        {cfg.data && cfg.data.version > 0 && <> — aktuell v{cfg.data.version}</>}. ACCESS.md hält
+        Zugänge und Tool-Zuweisung, EGRESS.md die Egress-Konfiguration — beide sind synchron mit
+        den Reitern Tools und Egress: Änderungen hier wirken dort und umgekehrt. Referenzen, nie
+        Secrets.
       </p>
       {Object.entries(files)
         .sort(([x], [y]) => x.localeCompare(y))
@@ -835,63 +832,13 @@ function Config({
           </div>
         ))}
       {canManage && (
-        <button className="btn primary sm" disabled={!draft || save.isPending} onClick={() => save.mutate()}>
-          Neue Version speichern
-        </button>
+        <div className="flex items-center gap-3">
+          <button className="btn primary sm" disabled={!draft || save.isPending} onClick={() => save.mutate()}>
+            Neue Version speichern
+          </button>
+          {save.isError && <span className="danger-text text-xs">{(save.error as Error).message}</span>}
+        </div>
       )}
-      <GeneratedConfigFiles generated={cfg.data?.generated} onOpenTab={onOpenTab} />
-    </div>
-  );
-}
-
-// Reiter, in dem eine generierte Config-Datei gepflegt wird.
-const generatedFileTab: Record<string, "tools" | "egress"> = {
-  "TOOLS.md": "tools",
-  "EGRESS.md": "egress",
-};
-
-// GeneratedConfigFiles: die über die Oberfläche gepflegten Teile der Config
-// (Tool-Zuweisung, Egress-Allowlist) als generierte, read-only Text-Dateien.
-// Der Server berechnet sie bei jedem Lesen live aus den UI-Stores — Text-
-// und UI-Config sind damit per Konstruktion synchron.
-function GeneratedConfigFiles({
-  generated,
-  onOpenTab,
-}: {
-  generated?: Record<string, string>;
-  onOpenTab: (tab: "tools" | "egress" | "memory") => void;
-}) {
-  const entries = Object.entries(generated ?? {}).sort(([x], [y]) => x.localeCompare(y));
-  if (entries.length === 0) return null;
-  return (
-    <div className="mt-6" style={{ borderTop: "0.5px solid var(--border)", paddingTop: 16 }}>
-      <label>Generiert — synchron mit der Oberfläche</label>
-      <p className="muted text-xs mb-3" style={{ maxWidth: 640 }}>
-        Diese Dateien erzeugt die Control Plane live aus dem, was in den Reitern Tools und Egress
-        konfiguriert ist — sie sind immer der aktuelle Stand und hier nicht editierbar.
-      </p>
-      {entries.map(([name, content]) => {
-        const tab = generatedFileTab[name];
-        return (
-          <div key={name} className="mb-3">
-            <div className="flex items-center gap-2">
-              <label className="mono">{name}</label>
-              <span className="badge st-triage">generiert</span>
-              {tab && (
-                <button className="btn sm" style={{ marginLeft: "auto" }} onClick={() => onOpenTab(tab)}>
-                  Im Reiter „{tab === "tools" ? "Tools" : "Egress"}“ bearbeiten
-                </button>
-              )}
-            </div>
-            <textarea
-              className="code"
-              rows={Math.min(14, Math.max(4, content.split("\n").length + 1))}
-              value={content}
-              readOnly
-            />
-          </div>
-        );
-      })}
     </div>
   );
 }
