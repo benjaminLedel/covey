@@ -31,7 +31,7 @@ const ruleTypeHint: Record<string, string> = {
 };
 
 // Muster-Vorschläge für den Schnellstart — Klick übernimmt sie ins Feld.
-const patternSuggestions = ["zammad:reply_external", "zammad:*", "mail:*", "hr*", "*"];
+const patternSuggestions = ["zammad:reply_external", "zammad:*", "gitlab:comment_external", "gitlab:*", "mail:*", "hr*", "*"];
 
 const decisionBadge: Record<string, { cls: string; label: string }> = {
   allow: { cls: "st-done", label: "erlaubt" },

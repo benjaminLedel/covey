@@ -37,7 +37,8 @@ import (
 	"covey/web"
 
 	// Kompilierte Zielsystem-Plugins: Blank-Import = ausgeliefert. Wer Covey
-	// ohne Zammad bauen will, entfernt diese Zeile — der Rest bleibt gleich.
+	// ohne ein System bauen will, entfernt dessen Zeile — der Rest bleibt gleich.
+	_ "covey/internal/target/gitlab"
 	_ "covey/internal/target/zammad"
 )
 
