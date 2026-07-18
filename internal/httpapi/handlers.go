@@ -171,6 +171,36 @@ func (s *Server) handleHeartbeats(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, hbs)
 }
 
+// handleFireHeartbeat feuert einen Heartbeat sofort, unabhängig vom Zeitplan
+// (Button in der UI). Legt die Backlog-Aufgabe an und weckt den Agenten;
+// last_fired_at wird fortgeschrieben, der reguläre Zeitplan rechnet ab jetzt.
+func (s *Server) handleFireHeartbeat(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	name := r.PathValue("name")
+	orgID, body, err := s.Registry.FireHeartbeat(r.Context(), id, name)
+	switch {
+	case errors.Is(err, agents.ErrHeartbeatPending):
+		writeErr(w, http.StatusConflict, "Die Aufgabe des letzten Laufs ist noch offen — erst abschließen oder abbrechen.")
+		return
+	case errors.Is(err, agents.ErrAgentKilled):
+		writeErr(w, http.StatusConflict, "Agent oder Flotte ist gestoppt — erst fortsetzen.")
+		return
+	case err != nil:
+		mapErr(w, err)
+		return
+	}
+	t, err := s.Backlog.Create(r.Context(), orgID, id, name, body, "heartbeat", 0)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, t)
+}
+
 // --- Backlog (M3) ---
 
 func (s *Server) handleBacklog(w http.ResponseWriter, r *http.Request) {

@@ -102,6 +102,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/agents/{id}/config", s.rbac(anyRole, s.handleGetConfig))
 	mux.Handle("PUT /api/v1/agents/{id}/config", s.rbac(manage, s.handlePutConfig))
 	mux.Handle("GET /api/v1/agents/{id}/heartbeats", s.rbac(anyRole, s.handleHeartbeats))
+	mux.Handle("POST /api/v1/agents/{id}/heartbeats/{name}/fire", s.rbac(manage, s.handleFireHeartbeat))
 	mux.Handle("GET /api/v1/agents/{id}/backlog", s.rbac(anyRole, s.handleBacklog))
 	mux.Handle("POST /api/v1/agents/{id}/tasks", s.rbac(manage, s.handleCreateTask))
 	mux.Handle("POST /api/v1/agents/{id}/wake", s.rbac(manage, s.handleWake))

@@ -2,6 +2,7 @@ package agents
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -131,6 +132,54 @@ func (r *Registry) Heartbeats(ctx context.Context, agentID uuid.UUID) ([]Heartbe
 		out = append(out, hb)
 	}
 	return out, rows.Err()
+}
+
+// Sentinel-Fehler des manuellen Triggers (POST …/heartbeats/{name}/fire).
+var (
+	ErrHeartbeatPending = errors.New("aufgabe des letzten laufs ist noch offen")
+	ErrAgentKilled      = errors.New("agent oder flotte ist gestoppt")
+)
+
+// FireHeartbeat feuert einen Heartbeat manuell, unabhängig vom Zeitplan
+// (Button in der UI). Semantik wie fireHeartbeats im Orchestrator: gekillte
+// Agenten/Flotten feuern nicht, und solange die Aufgabe des letzten Laufs
+// offen ist, wird nicht erneut gefeuert. Schreibt last_fired_at fort — der
+// Zeitplan rechnet ab jetzt weiter — und liefert Org und Aufgabentext; die
+// Backlog-Aufgabe legt der Aufrufer an (Create feuert NOTIFY und weckt den
+// Agenten). FOR UPDATE OF h serialisiert gegen den Scheduler-Tick, damit
+// nicht beide denselben Lauf anlegen.
+func (r *Registry) FireHeartbeat(ctx context.Context, agentID uuid.UUID, name string) (orgID uuid.UUID, taskBody string, err error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return uuid.Nil, "", err
+	}
+	defer tx.Rollback(ctx)
+	var killed, pending bool
+	err = tx.QueryRow(ctx, `SELECT a.org_id, h.task_body,
+			a.killed OR org.fleet_killed,
+			EXISTS (SELECT 1 FROM backlog_tasks t
+				WHERE t.agent_id=h.agent_id AND t.origin='heartbeat' AND t.title=h.name
+				  AND t.state NOT IN ('done','failed','cancelled'))
+		FROM agent_heartbeats h
+		JOIN agents a ON a.id=h.agent_id
+		JOIN organizations org ON org.id=a.org_id
+		WHERE h.agent_id=$1 AND h.name=$2
+		FOR UPDATE OF h`, agentID, name).Scan(&orgID, &taskBody, &killed, &pending)
+	if err != nil {
+		return uuid.Nil, "", err
+	}
+	if killed {
+		return uuid.Nil, "", ErrAgentKilled
+	}
+	if pending {
+		return uuid.Nil, "", ErrHeartbeatPending
+	}
+	if _, err := tx.Exec(ctx,
+		"UPDATE agent_heartbeats SET last_fired_at=now() WHERE agent_id=$1 AND name=$2",
+		agentID, name); err != nil {
+		return uuid.Nil, "", err
+	}
+	return orgID, taskBody, tx.Commit(ctx)
 }
 
 // parseEvery parst das Intervall der alle:-Form. Zusätzlich zu Go-Dauern

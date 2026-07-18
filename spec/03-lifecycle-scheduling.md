@@ -38,6 +38,8 @@ Mechanik: Beim Speichern der Config werden die Einträge in `agent_heartbeats` m
 
 **Kein Aufstauen:** Ist die Aufgabe des letzten Laufs noch nicht terminal (open/in_progress/blocked), wird kein Duplikat angelegt; der Lauf gilt trotzdem als gefeuert, damit nach Abschluss der reguläre Zeitplan weiterläuft statt sofort nachzuschlagen. Verpasste Läufe (Control Plane down) werden nicht nachgeholt — es feuert höchstens der nächste fällige Lauf.
 
+**Manueller Trigger:** `POST /api/v1/agents/{id}/heartbeats/{name}/fire` (Rollen: platform_admin, agent_owner — in der UI der Button „Jetzt ausführen" im Heartbeat-Tab) feuert einen Heartbeat sofort, unabhängig vom Zeitplan. Es gelten dieselben Regeln wie beim Tick: Kill-Switch/Notaus und eine noch offene Aufgabe des letzten Laufs lehnen ab (409), und `last_fired_at` wird fortgeschrieben — der reguläre Zeitplan rechnet ab dem manuellen Lauf weiter.
+
 **Gestaffelte Kosten beim Tick:** Der Tick darf nicht jedes Mal Opus anwerfen. Ein kleines, billiges Modell entscheidet zuerst „gibt es überhaupt etwas zu tun?" — bei „nein" schläft der Agent weiter. Erst bei „ja" wird die volle Runtime geweckt. Der Tick ist das, was Proaktivität erzeugt: Ohne externen Trigger merkt der Support-Agent selbst „Ticket #42 wartet seit zwei Tagen auf Kundenantwort, ich hake nach."
 
 ### Generischer Webhook-Trigger (optional je Agent)

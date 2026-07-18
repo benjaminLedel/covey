@@ -136,7 +136,7 @@ export default function AgentPage({ me }: { me: Principal }) {
           }}
         />
       )}
-      {tab === "heartbeat" && <Heartbeats agentId={a.id} />}
+      {tab === "heartbeat" && <Heartbeats agentId={a.id} canManage={canManage(me.Role)} />}
       {tab === "webhook" && canManage(me.Role) && <WebhookTrigger agentId={a.id} />}
       {tab === "recording" && (
         <Recording agentId={a.id} taskFilter={recTask} onClearFilter={() => setRecTask(null)} />
@@ -933,7 +933,25 @@ function HeartbeatTimeline({ runs, horizonMs }: { runs: Date[]; horizonMs: numbe
   );
 }
 
-function HeartbeatCard({ hb, horizonMs }: { hb: HeartbeatStatus; horizonMs: number }) {
+function HeartbeatCard({
+  hb,
+  horizonMs,
+  agentId,
+  canManage,
+}: {
+  hb: HeartbeatStatus;
+  horizonMs: number;
+  agentId: string;
+  canManage: boolean;
+}) {
+  const qc = useQueryClient();
+  const fire = useMutation({
+    mutationFn: () => post<Task>(`/agents/${agentId}/heartbeats/${encodeURIComponent(hb.name)}/fire`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["heartbeats", agentId] });
+      qc.invalidateQueries({ queryKey: ["backlog", agentId] });
+    },
+  });
   const runs = upcomingRuns(hb, horizonMs);
   const next = new Date(hb.next_run);
   const overdue = next.getTime() <= Date.now();
@@ -950,7 +968,26 @@ function HeartbeatCard({ hb, horizonMs }: { hb: HeartbeatStatus; horizonMs: numb
         <span className="ml-auto muted text-xs">
           letzter Lauf vor {fmtDelta(Date.now() - new Date(hb.last_fired_at).getTime())}
         </span>
+        {canManage && (
+          <button
+            className="btn sm"
+            disabled={fire.isPending || hb.pending}
+            title={
+              hb.pending
+                ? "Die Aufgabe des letzten Laufs ist noch offen — erst abschließen oder abbrechen."
+                : "Legt die Aufgabe sofort im Backlog an und weckt den Agenten. Der Zeitplan rechnet ab jetzt weiter."
+            }
+            onClick={() => fire.mutate()}
+          >
+            {fire.isPending ? "läuft …" : "Jetzt ausführen"}
+          </button>
+        )}
       </div>
+      {fire.isError && (
+        <p className="text-xs mb-2" style={{ color: "var(--text-danger)" }}>
+          {(fire.error as Error).message}
+        </p>
+      )}
       <p className="muted text-xs mb-2" style={{ maxWidth: 680 }}>
         {hb.task}
       </p>
@@ -973,7 +1010,7 @@ function HeartbeatCard({ hb, horizonMs }: { hb: HeartbeatStatus; horizonMs: numb
   );
 }
 
-function Heartbeats({ agentId }: { agentId: string }) {
+function Heartbeats({ agentId, canManage }: { agentId: string; canManage: boolean }) {
   const horizonMs = 24 * 3600 * 1000;
   const hbs = useQuery({
     queryKey: ["heartbeats", agentId],
@@ -997,7 +1034,7 @@ function Heartbeats({ agentId }: { agentId: string }) {
         </div>
       )}
       {list.map((hb) => (
-        <HeartbeatCard key={hb.name} hb={hb} horizonMs={horizonMs} />
+        <HeartbeatCard key={hb.name} hb={hb} horizonMs={horizonMs} agentId={agentId} canManage={canManage} />
       ))}
     </div>
   );
