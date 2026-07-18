@@ -8,33 +8,42 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
-// maxCheckoutBytes begrenzt die entpackte Gesamtgröße eines Checkouts —
-// Schutz der Sandbox vor Riesen-Repos und Zip-Bomben.
-const maxCheckoutBytes = 512 << 20 // 512 MB
+// checkoutMaxBytes begrenzt die entpackte Gesamtgröße eines Checkouts —
+// Schutz der Sandbox vor Riesen-Repos und Zip-Bomben. Default 512 MB,
+// überschreibbar via COVEY_GITLAB_CHECKOUT_MAX_MB (Prozess-Env des Daemons).
+func checkoutMaxBytes() int64 {
+	if mb, err := strconv.Atoi(strings.TrimSpace(os.Getenv("COVEY_GITLAB_CHECKOUT_MAX_MB"))); err == nil && mb > 0 {
+		return int64(mb) << 20
+	}
+	return 512 << 20
+}
 
 // CheckoutResult ist die Antwort der checkout-Aktion an den Agenten: wo der
 // Code liegt und wie er damit weiterarbeitet.
 type CheckoutResult struct {
-	Path  string `json:"path"`
-	Ref   string `json:"ref,omitempty"`
-	Files int    `json:"files"`
-	Hint  string `json:"hint"`
+	Path    string `json:"path"`
+	Ref     string `json:"ref,omitempty"`
+	SubPath string `json:"sub_path,omitempty"`
+	Files   int    `json:"files"`
+	Hint    string `json:"hint"`
 }
 
 // Checkout materialisiert den Quellcode eines Projekts in der Sandbox: lädt
 // das Repository-Archiv über die API (das gebrokerte Token bleibt im Daemon,
 // es landet nie im Dateisystem — anders als bei einem git clone mit
-// Credential-Remote) und entpackt es unter <workdir>/repos/. Ein vorhandener
-// Stand desselben Archivs wird ersetzt — der Agent arbeitet immer auf dem
-// aktuellen Code.
-func Checkout(ctx context.Context, gc *Client, projectID int, ref, workdir string) (CheckoutResult, error) {
+// Credential-Remote) und entpackt es unter <workdir>/repos/. subPath schränkt
+// auf ein Unterverzeichnis ein (Teil-Checkout für große Repos). Ein
+// vorhandener Stand desselben Archivs wird ersetzt — der Agent arbeitet
+// immer auf dem aktuellen Code.
+func Checkout(ctx context.Context, gc *Client, projectID int, ref, subPath, workdir string) (CheckoutResult, error) {
 	if workdir == "" {
 		return CheckoutResult{}, fmt.Errorf("checkout braucht eine Sandbox (kein Arbeitsverzeichnis im Kontext)")
 	}
-	body, err := gc.DownloadArchive(ctx, projectID, ref)
+	body, err := gc.DownloadArchive(ctx, projectID, ref, subPath)
 	if err != nil {
 		return CheckoutResult{}, err
 	}
@@ -49,10 +58,11 @@ func Checkout(ctx context.Context, gc *Client, projectID int, ref, workdir strin
 		return CheckoutResult{}, err
 	}
 	return CheckoutResult{
-		Path:  filepath.Join(destRoot, topDir),
-		Ref:   ref,
-		Files: files,
-		Hint:  "Quellcode liegt lokal — durchsuche und lies ihn direkt (Grep/Read/Bash), um die Frage am Code zu prüfen.",
+		Path:    filepath.Join(destRoot, topDir),
+		Ref:     ref,
+		SubPath: subPath,
+		Files:   files,
+		Hint:    "Quellcode liegt lokal — durchsuche und lies ihn direkt (Grep/Read/Bash), um die Frage am Code zu prüfen.",
 	}, nil
 }
 
@@ -67,6 +77,7 @@ func extractTarGz(r io.Reader, destRoot string) (topDir string, files int, err e
 	}
 	defer gz.Close()
 
+	maxBytes := checkoutMaxBytes()
 	var total int64
 	tr := tar.NewReader(gz)
 	for {
@@ -99,8 +110,8 @@ func extractTarGz(r io.Reader, destRoot string) (topDir string, files int, err e
 			}
 		case tar.TypeReg:
 			total += hdr.Size
-			if total > maxCheckoutBytes {
-				return "", 0, fmt.Errorf("archiv größer als %d MB — Repo zu groß für einen Sandbox-Checkout", maxCheckoutBytes>>20)
+			if total > maxBytes {
+				return "", 0, fmt.Errorf("archiv größer als %d MB — nutze checkout mit \"path\" (Unterverzeichnis) oder navigiere mit list_tree und lies gezielt per read_file; das Limit setzt COVEY_GITLAB_CHECKOUT_MAX_MB", maxBytes>>20)
 			}
 			if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 				return "", 0, err
@@ -109,7 +120,7 @@ func extractTarGz(r io.Reader, destRoot string) (topDir string, files int, err e
 			if err != nil {
 				return "", 0, err
 			}
-			if _, err := io.Copy(f, io.LimitReader(tr, maxCheckoutBytes)); err != nil {
+			if _, err := io.Copy(f, io.LimitReader(tr, maxBytes)); err != nil {
 				f.Close()
 				return "", 0, err
 			}

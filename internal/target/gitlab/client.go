@@ -179,12 +179,21 @@ func (c *Client) Comment(ctx context.Context, projectID, issueIID int, body stri
 
 // DownloadArchive streamt das Repository-Archiv (tar.gz) —
 // GET /projects/{id}/repository/archive.tar.gz, optional auf einen Ref
-// (Branch, Tag, SHA) eingeschränkt. Bewusst nicht über do(): der Body ist
-// binär und kann groß sein; der Aufrufer schließt den Reader.
-func (c *Client) DownloadArchive(ctx context.Context, projectID int, ref string) (io.ReadCloser, error) {
+// (Branch, Tag, SHA) und ein Unterverzeichnis (subPath) eingeschränkt —
+// Letzteres macht große Repos per Teil-Checkout handhabbar. Bewusst nicht
+// über do(): der Body ist binär und kann groß sein; der Aufrufer schließt
+// den Reader.
+func (c *Client) DownloadArchive(ctx context.Context, projectID int, ref, subPath string) (io.ReadCloser, error) {
 	path := fmt.Sprintf("/projects/%d/repository/archive.tar.gz", projectID)
+	q := url.Values{}
 	if ref != "" {
-		path += "?sha=" + url.QueryEscape(ref)
+		q.Set("sha", ref)
+	}
+	if subPath != "" {
+		q.Set("path", subPath)
+	}
+	if len(q) > 0 {
+		path += "?" + q.Encode()
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/api/v4"+path, nil)
 	if err != nil {
@@ -203,6 +212,68 @@ func (c *Client) DownloadArchive(ctx context.Context, projectID int, ref string)
 		return nil, fmt.Errorf("gitlab GET %s: HTTP %d: %.300s", path, resp.StatusCode, data)
 	}
 	return resp.Body, nil
+}
+
+// TreeEntry ist ein Eintrag des Repository-Baums (Datei oder Verzeichnis).
+type TreeEntry struct {
+	Name string `json:"name"`
+	Type string `json:"type"` // "blob" (Datei) | "tree" (Verzeichnis)
+	Path string `json:"path"`
+}
+
+// ListTree — GET /projects/{id}/repository/tree: den Repository-Baum
+// durchblättern, ohne etwas herunterzuladen. Für Repos, die zu groß für
+// einen Checkout sind: erst navigieren, dann gezielt Dateien lesen.
+func (c *Client) ListTree(ctx context.Context, projectID int, path, ref string, recursive bool) ([]TreeEntry, error) {
+	q := url.Values{}
+	if path != "" {
+		q.Set("path", path)
+	}
+	if ref != "" {
+		q.Set("ref", ref)
+	}
+	if recursive {
+		q.Set("recursive", "true")
+	}
+	q.Set("per_page", "100")
+	var out []TreeEntry
+	err := c.do(ctx, http.MethodGet,
+		fmt.Sprintf("/projects/%d/repository/tree?%s", projectID, q.Encode()), nil, &out)
+	return out, err
+}
+
+// maxReadFileBytes begrenzt eine einzelne per read_file gelesene Datei.
+const maxReadFileBytes = 512 << 10 // 512 KB
+
+// ReadFile — GET /projects/{id}/repository/files/{path}/raw: eine einzelne
+// Datei lesen, ohne Checkout. Der Dateipfad wird komplett URL-kodiert
+// (inkl. "/"), wie die GitLab-API es verlangt.
+func (c *Client) ReadFile(ctx context.Context, projectID int, filePath, ref string) (content string, truncated bool, err error) {
+	path := fmt.Sprintf("/projects/%d/repository/files/%s/raw", projectID, url.QueryEscape(filePath))
+	if ref != "" {
+		path += "?ref=" + url.QueryEscape(ref)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/api/v4"+path, nil)
+	if err != nil {
+		return "", false, err
+	}
+	req.Header.Set("PRIVATE-TOKEN", c.Token)
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return "", false, err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxReadFileBytes+1))
+	if err != nil {
+		return "", false, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", false, fmt.Errorf("gitlab GET %s: HTTP %d: %.300s", path, resp.StatusCode, data)
+	}
+	if len(data) > maxReadFileBytes {
+		return string(data[:maxReadFileBytes]), true, nil
+	}
+	return string(data), false, nil
 }
 
 // SetState — PUT /projects/{id}/issues/{iid} mit state_event ("close"|"reopen").

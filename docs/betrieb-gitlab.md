@@ -203,9 +203,21 @@ Ablauf und Sicherheitsmodell:
   den Pfad zurück, der Agent arbeitet dann lokal mit Grep/Read/Bash. Ein
   erneuter Checkout ersetzt den alten Stand (immer frischer Code).
 - Schutzmaßnahmen: Pfad-Traversal wird abgelehnt, Symlinks werden
-  übersprungen, die entpackte Größe ist auf 512 MB begrenzt.
-- Guard-Rail-Subjekt: `gitlab:checkout` (read-only gegenüber GitLab; wer es
-  einschränken will, legt eine Regel darauf).
+  übersprungen, die entpackte Größe ist begrenzt (Default 512 MB,
+  `COVEY_GITLAB_CHECKOUT_MAX_MB`).
+- Guard-Rail-Subjekte: `gitlab:checkout`, `gitlab:list_tree`,
+  `gitlab:read_file` (alle read-only gegenüber GitLab; wer sie einschränken
+  will, legt Regeln darauf).
+
+**Große Repos:** Sprengt das Archiv das Limit, gibt es zwei Auswege — beide
+stehen auch in der Fehlermeldung, die der Agent sieht:
+
+- **Teil-Checkout**: `checkout {"project_id":N, "path":"web/upload"}` lädt nur
+  das Unterverzeichnis (der `path`-Parameter der GitLab-Archiv-API).
+- **Browsen ohne Checkout**: `list_tree {"project_id":N, "path":"...",
+  "recursive":true}` listet den Repository-Baum (max. 100 Einträge pro
+  Aufruf), `read_file {"project_id":N, "file_path":"pfad/zur/datei"}` liest
+  eine einzelne Datei (bis 512 KB, darüber `truncated:true`).
 
 Die Prompt-Doku des Plugins verpflichtet den Agenten auf diese Arbeitsweise:
 Bug **bestätigen** nur mit Fundstelle (Datei:Zeile) im ausgecheckten Code;
@@ -238,6 +250,7 @@ damit ein Mensch übernimmt. `set_state` kennt `close` und `reopen`
 | Variable | Default | Bedeutung |
 |---|---|---|
 | `COVEY_GITLAB_INTAKE_PROJECTS` | *(leer = alle)* | Allowlist der Projekte (Pfad oder id) — filtert Webhook-Intake **und** `list_issues`/`list_projects` |
+| `COVEY_GITLAB_CHECKOUT_MAX_MB` | `512` | Obergrenze der entpackten Größe eines `checkout` (Abschnitt 4) |
 | `COVEY_EGRESS_ALLOW` | *(leer)* | zusätzliche erlaubte Egress-Hosts, z. B. das GitLab-Host |
 | `COVEY_PUBLIC_URL` | `http://localhost:8494` | nur Webhook-Betrieb: Basis-URL, die GitLab für den Webhook erreicht |
 | `COVEY_GITLAB_WEBHOOK_SECRET` | *(leer = Prüfung aus)* | nur Webhook-Betrieb: Secret-Token, identisch zum „Secret token" des GitLab-Webhooks |

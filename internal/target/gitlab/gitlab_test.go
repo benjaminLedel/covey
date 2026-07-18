@@ -375,6 +375,91 @@ func TestCheckout(t *testing.T) {
 	}
 }
 
+func TestCheckoutSubPathAndLimit(t *testing.T) {
+	archive := tarGz(t, map[string]string{
+		"support-main-abc123/":                   "",
+		"support-main-abc123/web/upload/form.js": "const maxSize = 5", // Teil-Checkout-Inhalt
+	})
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		w.Write(archive)
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := target.WithWorkdir(context.Background(), t.TempDir())
+
+	if _, err := sys.Execute(ctx, "checkout", []byte(`{"project_id":15,"path":"web/upload"}`), cred); err != nil {
+		t.Fatalf("teil-checkout: %v", err)
+	}
+	if !strings.Contains(gotQuery, "path=web%2Fupload") {
+		t.Fatalf("path muss als Archiv-Parameter laufen: %s", gotQuery)
+	}
+
+	// Limit per Env drücken: 2-MB-Datei gegen 1-MB-Limit → klarer Fehler
+	// mit Hinweis auf die Auswege (path / list_tree / read_file).
+	big := tarGz(t, map[string]string{
+		"support-main-abc123/":         "",
+		"support-main-abc123/blob.bin": strings.Repeat("x", 2<<20),
+	})
+	archive = big
+	t.Setenv("COVEY_GITLAB_CHECKOUT_MAX_MB", "1")
+	_, err := sys.Execute(ctx, "checkout", []byte(`{"project_id":15}`), cred)
+	if err == nil || !strings.Contains(err.Error(), "list_tree") {
+		t.Fatalf("größen-limit muss mit Auswegen fehlschlagen: %v", err)
+	}
+}
+
+func TestTreeAndReadFile(t *testing.T) {
+	var gotPath, gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotQuery = r.URL.EscapedPath(), r.URL.RawQuery
+		if strings.Contains(r.URL.Path, "/repository/tree") {
+			json.NewEncoder(w).Encode([]TreeEntry{{Name: "upload", Type: "tree", Path: "web/upload"}})
+			return
+		}
+		w.Write([]byte("const maxSize = 5 * 1024 * 1024"))
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	res, err := sys.Execute(ctx, "list_tree", []byte(`{"project_id":15,"path":"web","recursive":true}`), cred)
+	if err != nil {
+		t.Fatalf("list_tree: %v", err)
+	}
+	if entries := res.([]TreeEntry); len(entries) != 1 || entries[0].Path != "web/upload" {
+		t.Fatalf("tree falsch: %+v", entries)
+	}
+	if !strings.Contains(gotQuery, "recursive=true") || !strings.Contains(gotQuery, "path=web") {
+		t.Fatalf("tree-parameter fehlen: %s", gotQuery)
+	}
+
+	res, err = sys.Execute(ctx, "read_file", []byte(`{"project_id":15,"file_path":"web/upload/form.js","ref":"main"}`), cred)
+	if err != nil {
+		t.Fatalf("read_file: %v", err)
+	}
+	out := res.(map[string]any)
+	if !strings.Contains(out["content"].(string), "maxSize") || out["truncated"].(bool) {
+		t.Fatalf("read_file-inhalt falsch: %+v", out)
+	}
+	// GitLab verlangt den komplett URL-kodierten Dateipfad (inkl. "/").
+	if !strings.Contains(gotPath, "/repository/files/web%2Fupload%2Fform.js/raw") {
+		t.Fatalf("file_path muss URL-kodiert sein: %s", gotPath)
+	}
+	if !strings.Contains(gotQuery, "ref=main") {
+		t.Fatalf("ref muss durchgereicht werden: %s", gotQuery)
+	}
+
+	if _, err := sys.Execute(ctx, "read_file", []byte(`{"project_id":15}`), cred); err == nil {
+		t.Fatal("read_file ohne file_path muss fehlschlagen")
+	}
+}
+
 func TestExtractTarGzRejectsTraversal(t *testing.T) {
 	archive := tarGz(t, map[string]string{
 		"repo-main/":          "",

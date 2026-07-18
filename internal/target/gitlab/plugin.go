@@ -129,6 +129,9 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		Search    string `json:"search"`
 		Ref       string `json:"ref"`
 		Assigned  bool   `json:"assigned"`
+		Path      string `json:"path"`
+		FilePath  string `json:"file_path"`
+		Recursive bool   `json:"recursive"`
 	}
 	if err := json.Unmarshal(params, &in); err != nil {
 		return nil, fmt.Errorf("params: %w", err)
@@ -165,7 +168,22 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		if in.ProjectID == 0 {
 			return nil, fmt.Errorf("project_id fehlt")
 		}
-		return Checkout(ctx, gc, in.ProjectID, in.Ref, target.Workdir(ctx))
+		return Checkout(ctx, gc, in.ProjectID, in.Ref, in.Path, target.Workdir(ctx))
+	case "list_tree":
+		if in.ProjectID == 0 {
+			return nil, fmt.Errorf("project_id fehlt")
+		}
+		return gc.ListTree(ctx, in.ProjectID, in.Path, in.Ref, in.Recursive)
+	case "read_file":
+		if in.ProjectID == 0 || in.FilePath == "" {
+			return nil, fmt.Errorf("project_id oder file_path fehlt")
+		}
+		content, truncated, err := gc.ReadFile(ctx, in.ProjectID, in.FilePath, in.Ref)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"file_path": in.FilePath, "ref": in.Ref,
+			"content": content, "truncated": truncated}, nil
 	case "list_notes":
 		return gc.ListNotes(ctx, in.ProjectID, in.IssueIID)
 	case "comment":
@@ -191,8 +209,11 @@ func (System) PromptDoc() string {
 	return `Verfügbare GitLab-Aktionen: list_projects {}, list_issues {"project_id":N,"state":"opened"|"closed"|"all","labels":"...","search":"...","assigned":true|false}
    (alle Felder optional; ohne project_id alle für dich sichtbaren Issues; assigned=true nur die deinem
    Bot-Nutzer zugewiesenen — nutze das, wenn dein Playbook nur zugewiesene Issues vorsieht), get_issue {"project_id":N,"issue_iid":N},
-   checkout {"project_id":N,"ref":"branch|tag|sha (optional, Default: Default-Branch)"} — lädt den Quellcode des
-   Projekts in deine Sandbox und liefert den lokalen Pfad,
+   checkout {"project_id":N,"ref":"branch|tag|sha (optional, Default: Default-Branch)","path":"unterverzeichnis (optional)"} —
+   lädt den Quellcode des Projekts in deine Sandbox und liefert den lokalen Pfad; schlägt er wegen Repo-Größe fehl,
+   checke gezielt ein Unterverzeichnis aus (path) oder arbeite ohne Checkout:
+   list_tree {"project_id":N,"path":"...","ref":"...","recursive":true|false} listet den Repository-Baum (max. 100 Einträge —
+   mit path eingrenzen), read_file {"project_id":N,"file_path":"pfad/zur/datei","ref":"..."} liest eine einzelne Datei,
    list_notes {"project_id":N,"issue_iid":N}, comment {"project_id":N,"issue_iid":N,"body":"...","internal":true|false},
    set_state {"project_id":N,"issue_iid":N,"state":"close"|"reopen"}, escalate {"project_id":N,"issue_iid":N,"note":"..."}.
    Deinen Arbeitsvorrat findest du selbst: list_issues {"state":"opened"} liefert die offenen Issues.
