@@ -128,6 +128,7 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		Labels    string `json:"labels"`
 		Search    string `json:"search"`
 		Ref       string `json:"ref"`
+		Assigned  bool   `json:"assigned"`
 	}
 	if err := json.Unmarshal(params, &in); err != nil {
 		return nil, fmt.Errorf("params: %w", err)
@@ -147,7 +148,7 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		}
 		return out, nil
 	case "list_issues":
-		issues, err := gc.ListIssues(ctx, in.ProjectID, in.State, in.Labels, in.Search)
+		issues, err := gc.ListIssues(ctx, in.ProjectID, in.State, in.Labels, in.Search, in.Assigned)
 		if err != nil {
 			return nil, err
 		}
@@ -187,8 +188,9 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 }
 
 func (System) PromptDoc() string {
-	return `Verfügbare GitLab-Aktionen: list_projects {}, list_issues {"project_id":N,"state":"opened"|"closed"|"all","labels":"...","search":"..."}
-   (alle Felder optional; ohne project_id alle für dich sichtbaren Issues), get_issue {"project_id":N,"issue_iid":N},
+	return `Verfügbare GitLab-Aktionen: list_projects {}, list_issues {"project_id":N,"state":"opened"|"closed"|"all","labels":"...","search":"...","assigned":true|false}
+   (alle Felder optional; ohne project_id alle für dich sichtbaren Issues; assigned=true nur die deinem
+   Bot-Nutzer zugewiesenen — nutze das, wenn dein Playbook nur zugewiesene Issues vorsieht), get_issue {"project_id":N,"issue_iid":N},
    checkout {"project_id":N,"ref":"branch|tag|sha (optional, Default: Default-Branch)"} — lädt den Quellcode des
    Projekts in deine Sandbox und liefert den lokalen Pfad,
    list_notes {"project_id":N,"issue_iid":N}, comment {"project_id":N,"issue_iid":N,"body":"...","internal":true|false},

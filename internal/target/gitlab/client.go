@@ -75,6 +75,11 @@ type Issue struct {
 	State       string   `json:"state"`
 	Labels      []string `json:"labels"`
 	WebURL      string   `json:"web_url"`
+	// Assignees macht die Zuweisung für den Agenten sichtbar — Playbooks wie
+	// „bearbeite nur dir zugewiesene Issues" brauchen diese Information.
+	Assignees []struct {
+		Username string `json:"username"`
+	} `json:"assignees"`
 	// References.Full ist die volle Referenz "gruppe/projekt#iid" — daraus
 	// lässt sich der Projektpfad für den Intake-Filter ableiten.
 	References struct {
@@ -113,8 +118,11 @@ func (c *Client) ListProjects(ctx context.Context) ([]Project, error) {
 // ListIssues findet Issues — mit projectID über GET /projects/{id}/issues,
 // ohne (projectID=0) über das globale GET /issues mit scope=all: alle Issues,
 // die das Token sehen darf. state ist "opened" (Default), "closed" oder "all";
-// labels (kommasepariert) und search schränken optional ein.
-func (c *Client) ListIssues(ctx context.Context, projectID int, state, labels, search string) ([]Issue, error) {
+// labels (kommasepariert) und search schränken optional ein. assigned=true
+// liefert nur Issues, die dem Bot-Nutzer des Tokens zugewiesen sind
+// (scope=assigned_to_me) — für Agenten, die laut Playbook nur ihre eigene
+// Zuweisung bearbeiten.
+func (c *Client) ListIssues(ctx context.Context, projectID int, state, labels, search string, assigned bool) ([]Issue, error) {
 	q := url.Values{}
 	if state == "" {
 		state = "opened"
@@ -128,11 +136,16 @@ func (c *Client) ListIssues(ctx context.Context, projectID int, state, labels, s
 	if search != "" {
 		q.Set("search", search)
 	}
+	if assigned {
+		q.Set("scope", "assigned_to_me")
+	}
 	q.Set("order_by", "updated_at")
 	q.Set("per_page", "100")
-	path := "/issues?scope=all&" + q.Encode()
+	path := "/issues?" + q.Encode()
 	if projectID != 0 {
 		path = fmt.Sprintf("/projects/%d/issues?%s", projectID, q.Encode())
+	} else if !assigned {
+		path = "/issues?scope=all&" + q.Encode()
 	}
 	var out []Issue
 	err := c.do(ctx, http.MethodGet, path, nil, &out)

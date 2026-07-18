@@ -145,7 +145,12 @@ Pro Zielprojekt (*Settings → Webhooks*):
 
 Beim **Heartbeat-Weg** entscheidet der Agent selbst: `list_issues` liefert nur
 offene Issues, und die Projekt-Allowlist (3.3) filtert die Ergebnisse von
-`list_issues`/`list_projects` serverseitig. Beim **Webhook-Weg** gilt die
+`list_issues`/`list_projects` serverseitig. Soll der Agent **nur direkt ihm
+zugewiesene Issues** bearbeiten, gibt es `list_issues {"assigned":true}`
+(GitLab-`scope=assigned_to_me`, bezogen auf den Bot-Nutzer des Tokens) — die
+Regel selbst gehört in `PLAYBOOKS.md`/`HEARTBEAT.md` des Agenten; zusätzlich
+liefert jedes Issue seine `assignees` mit, sodass der Agent die Zuweisung auch
+im Einzelfall prüfen kann. Beim **Webhook-Weg** gilt die
 Aufnahme-Entscheidung (`ShouldWake` in `internal/target/gitlab/webhook.go`):
 
 ### 3.1 Wake-Ereignisse

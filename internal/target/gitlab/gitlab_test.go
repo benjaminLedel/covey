@@ -216,7 +216,7 @@ func TestClientDiscovery(t *testing.T) {
 		t.Fatalf("ListProjects muss auf Mitgliedschaft filtern: %s", gotQuery)
 	}
 
-	issues, err := c.ListIssues(ctx, 15, "", "", "")
+	issues, err := c.ListIssues(ctx, 15, "", "", "", false)
 	if err != nil || len(issues) != 1 || issues[0].IID != 23 {
 		t.Fatalf("ListIssues (Projekt): %v %+v", err, issues)
 	}
@@ -224,7 +224,7 @@ func TestClientDiscovery(t *testing.T) {
 		t.Fatalf("ListIssues muss projektbezogen und mit Default state=opened laufen: %s?%s", gotPath, gotQuery)
 	}
 
-	if _, err := c.ListIssues(ctx, 0, "all", "bug,support", "login"); err != nil {
+	if _, err := c.ListIssues(ctx, 0, "all", "bug,support", "login", false); err != nil {
 		t.Fatalf("ListIssues (global): %v", err)
 	}
 	if gotPath != "/api/v4/issues" || !strings.Contains(gotQuery, "scope=all") {
@@ -235,6 +235,19 @@ func TestClientDiscovery(t *testing.T) {
 	}
 	if !strings.Contains(gotQuery, "labels=bug%2Csupport") || !strings.Contains(gotQuery, "search=login") {
 		t.Fatalf("labels/search müssen durchgereicht werden: %s", gotQuery)
+	}
+
+	if _, err := c.ListIssues(ctx, 0, "", "", "", true); err != nil {
+		t.Fatalf("ListIssues (assigned, global): %v", err)
+	}
+	if !strings.Contains(gotQuery, "scope=assigned_to_me") || strings.Contains(gotQuery, "scope=all") {
+		t.Fatalf("assigned=true muss scope=assigned_to_me statt scope=all senden: %s", gotQuery)
+	}
+	if _, err := c.ListIssues(ctx, 15, "", "", "", true); err != nil {
+		t.Fatalf("ListIssues (assigned, Projekt): %v", err)
+	}
+	if gotPath != "/api/v4/projects/15/issues" || !strings.Contains(gotQuery, "scope=assigned_to_me") {
+		t.Fatalf("assigned=true muss auch projektbezogen scope=assigned_to_me senden: %s?%s", gotPath, gotQuery)
 	}
 }
 
