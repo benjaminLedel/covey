@@ -35,6 +35,7 @@ import (
 	targetstore "covey/internal/target/store"
 
 	_ "covey/internal/target/dev"
+	_ "covey/internal/target/email"
 	"covey/migrations"
 
 	_ "covey/internal/target/zammad"
