@@ -396,6 +396,20 @@ export function buildFeed(events: RecordingEvent[]): FeedItem[] {
   return items;
 }
 
+// newestFirst dreht die chronologisch gebauten Items für die Anzeige um:
+// jüngster Tag zuerst, innerhalb eines Tages jüngster Eintrag zuerst. Die
+// Tageszeile bleibt dabei über ihren Einträgen stehen.
+function newestFirst(items: FeedItem[]): FeedItem[] {
+  const groups: FeedItem[][] = [];
+  for (const it of items) {
+    if (it.kind === "day" || groups.length === 0) groups.push([]);
+    groups[groups.length - 1].push(it);
+  }
+  return groups
+    .reverse()
+    .flatMap((g) => (g[0]?.kind === "day" ? [g[0], ...g.slice(1).reverse()] : g.reverse()));
+}
+
 // --- Rendering ---
 
 function ToolRow({ call }: { call: ToolCall }) {
@@ -438,15 +452,9 @@ function ToolRow({ call }: { call: ToolCall }) {
 }
 
 export function ActivityFeed({ events, truncated }: { events: RecordingEvent[]; truncated?: boolean }) {
-  const items = buildFeed(events);
+  const items = newestFirst(buildFeed(events));
   return (
     <div className="act-feed">
-      {truncated && (
-        <div className="evt muted">
-          <Icon name="info" /> Ältere Ereignisse ausgeblendet — der Feed zeigt die jüngsten{" "}
-          {events.length} Einträge.
-        </div>
-      )}
       {items.map((it) => {
         switch (it.kind) {
           case "day":
@@ -518,6 +526,12 @@ export function ActivityFeed({ events, truncated }: { events: RecordingEvent[]; 
             return null;
         }
       })}
+      {truncated && (
+        <div className="evt muted">
+          <Icon name="info" /> Ältere Ereignisse ausgeblendet — der Feed zeigt die jüngsten{" "}
+          {events.length} Einträge.
+        </div>
+      )}
     </div>
   );
 }

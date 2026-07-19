@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import {
@@ -859,21 +859,8 @@ function Recording({
     refetchInterval: 5000,
   });
   const list = events.data ?? [];
-  // Der Feed erzählt chronologisch (Neuestes unten). Beim Öffnen und bei
-  // neuen Events springt die Ansicht ans Ende — außer man hat bewusst
-  // hochgescrollt, um Älteres zu lesen.
-  const endRef = useRef<HTMLDivElement>(null);
-  const didInitialScroll = useRef(false);
-  const lastID = list.length > 0 ? list[list.length - 1].id : 0;
-  useEffect(() => {
-    if (view !== "feed" || lastID === 0) return;
-    const nearBottom =
-      window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 400;
-    if (!didInitialScroll.current || nearBottom) {
-      endRef.current?.scrollIntoView({ block: "end" });
-      didInitialScroll.current = true;
-    }
-  }, [view, lastID]);
+  // Beide Ansichten zeigen das Neueste oben — kein Scrollen nötig, neue
+  // Events erscheinen direkt am Kopf der Liste.
   return (
     <div>
       <div className="flex items-center gap-2 mb-3">
@@ -915,7 +902,6 @@ function Recording({
           ) : (
             [...list].reverse().map((e) => <RecordingItem key={e.id} event={e} />)
           ))}
-        <div ref={endRef} />
       </div>
     </div>
   );
