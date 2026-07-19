@@ -396,6 +396,9 @@ func (System) PromptDoc() string {
    Befund in den MR-Kommentar. Ist so eine externe Ursache später behoben (z. B. Zugriff nachträglich erteilt),
    starte den Lauf mit retry_pipeline {"project_id":N,"pipeline_id":N} neu und prüfe danach das Ergebnis —
    melde grün gewordene Pipelines kurz per comment_mr.
+   WICHTIG — kein Busy-Waiting auf CI: Läuft eine Pipeline noch, prüfe ihren Status höchstens zweimal.
+   Ist sie dann immer noch nicht fertig, beende deinen Lauf regulär mit done (Zwischenstand als add_note) —
+   dein nächster Heartbeat-Lauf prüft das Ergebnis. Minutenlanges Status-Polling verschwendet dein Turn-Budget.
    Schreibende Entwickler-Aktionen:
    commit {"project_id":N,"branch":"fix/…","start_branch":"main (optional, Default: Default-Branch)","message":"...",
    "checkout_path":"<Pfad aus dem checkout-Ergebnis>","files":["repo/relativer/pfad.go",...],"deleted":["alt.go",...]} —
