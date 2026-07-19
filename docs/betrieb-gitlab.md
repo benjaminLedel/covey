@@ -219,13 +219,31 @@ stehen auch in der Fehlermeldung, die der Agent sieht:
   Aufruf), `read_file {"project_id":N, "file_path":"pfad/zur/datei"}` liest
   eine einzelne Datei (bis 512 KB, darüber `truncated:true`).
 
+**Historie und MRs — „ist das schon gefixt?":** Ein Checkout ist ein Archiv
+ohne `.git` — Historie sieht der Agent darüber nicht. Dafür gibt es vier
+weitere read-only-Aktionen (Guard-Rail-Subjekte `gitlab:list_commits`,
+`gitlab:get_commit`, `gitlab:list_merge_requests`, `gitlab:list_branches`):
+
+```
+list_branches       {"project_id":N, "search":"..."}          # Default-Branch ist markiert
+list_commits        {"project_id":N, "ref":"...", "path":"...", "since":"2026-07-15T00:00:00Z"}
+get_commit          {"project_id":N, "sha":"..."}             # Diff, pro Datei auf 16 KB gekürzt
+list_merge_requests {"project_id":N, "state":"merged", "search":"...", "target_branch":"..."}
+```
+
 Die Prompt-Doku des Plugins verpflichtet den Agenten auf diese Arbeitsweise:
-Bug **bestätigen** nur mit Fundstelle (Datei:Zeile) im ausgecheckten Code;
-findet er die Stelle nicht, beschreibt er, was er geprüft hat, und stellt eine
-gezielte Rückfrage. Antworten ohne Code-Beleg sind nur bei rein
-organisatorischen Issues zulässig. Voraussetzung: Das Token aus 2.1 braucht
-Lesezugriff aufs Repository (Scope `api` deckt das ab; Reporter-Rolle genügt
-bei privaten Projekten für den Archiv-Download).
+**Zuerst** prüfen, ob der gemeldete Fehler seit Erstellung des Issues bereits
+behoben wurde (`list_commits` mit `since`, `list_merge_requests`; verdächtige
+Commits per `get_commit` verifizieren) — ist das der Fall, meldet er genau
+das mit Commit-Referenz, statt den Bug erneut zu bestätigen. Erst danach:
+Bug **bestätigen** nur mit Fundstelle (Datei:Zeile) im ausgecheckten Code,
+und nur, nachdem der gemeldete Weg vollständig verfolgt wurde (UI →
+Endpoint → Verarbeitung — der Fehler kann im Frontend liegen, auch wenn das
+Backend verdächtig aussieht); findet er die Stelle nicht, beschreibt er, was
+er geprüft hat, und stellt eine gezielte Rückfrage. Antworten ohne Code-Beleg
+sind nur bei rein organisatorischen Issues zulässig. Voraussetzung: Das Token
+aus 2.1 braucht Lesezugriff aufs Repository (Scope `api` deckt das ab;
+Reporter-Rolle genügt bei privaten Projekten für den Archiv-Download).
 
 ---
 

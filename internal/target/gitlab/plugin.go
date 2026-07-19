@@ -11,7 +11,7 @@ import (
 )
 
 // System bindet GitLab als Zielsystem-Plugin an die target-Registry:
-// Webhook-Eingang (Token-Prüfung, Idempotenz, Korrelation), die fünf
+// Webhook-Eingang (Token-Prüfung, Idempotenz, Korrelation), die
 // Agent-Aktionen und die Aktions-Doku für den System-Prompt.
 type System struct{}
 
@@ -132,6 +132,9 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		Path      string `json:"path"`
 		FilePath  string `json:"file_path"`
 		Recursive bool   `json:"recursive"`
+		Sha       string `json:"sha"`
+		Since     string `json:"since"`
+		Target    string `json:"target_branch"`
 	}
 	if err := json.Unmarshal(params, &in); err != nil {
 		return nil, fmt.Errorf("params: %w", err)
@@ -184,6 +187,26 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		}
 		return map[string]any{"file_path": in.FilePath, "ref": in.Ref,
 			"content": content, "truncated": truncated}, nil
+	case "list_commits":
+		if in.ProjectID == 0 {
+			return nil, fmt.Errorf("project_id fehlt")
+		}
+		return gc.ListCommits(ctx, in.ProjectID, in.Ref, in.Path, in.Since)
+	case "get_commit":
+		if in.ProjectID == 0 || in.Sha == "" {
+			return nil, fmt.Errorf("project_id oder sha fehlt")
+		}
+		return gc.GetCommitDiff(ctx, in.ProjectID, in.Sha)
+	case "list_merge_requests":
+		if in.ProjectID == 0 {
+			return nil, fmt.Errorf("project_id fehlt")
+		}
+		return gc.ListMergeRequests(ctx, in.ProjectID, in.State, in.Search, in.Target)
+	case "list_branches":
+		if in.ProjectID == 0 {
+			return nil, fmt.Errorf("project_id fehlt")
+		}
+		return gc.ListBranches(ctx, in.ProjectID, in.Search)
 	case "list_notes":
 		return gc.ListNotes(ctx, in.ProjectID, in.IssueIID)
 	case "comment":
@@ -215,14 +238,27 @@ func (System) PromptDoc() string {
    list_tree {"project_id":N,"path":"...","ref":"...","recursive":true|false} listet den Repository-Baum (max. 100 Einträge —
    mit path eingrenzen), read_file {"project_id":N,"file_path":"pfad/zur/datei","ref":"..."} liest eine einzelne Datei,
    list_notes {"project_id":N,"issue_iid":N}, comment {"project_id":N,"issue_iid":N,"body":"...","internal":true|false},
-   set_state {"project_id":N,"issue_iid":N,"state":"close"|"reopen"}, escalate {"project_id":N,"issue_iid":N,"note":"..."}.
+   set_state {"project_id":N,"issue_iid":N,"state":"close"|"reopen"}, escalate {"project_id":N,"issue_iid":N,"note":"..."},
+   list_branches {"project_id":N,"search":"..."} listet Branches (Default-Branch ist markiert — rate keine Branch-Namen),
+   list_commits {"project_id":N,"ref":"...","path":"datei/oder/verzeichnis","since":"ISO-Datum"} listet die Commit-Historie
+   (alle Filter optional), get_commit {"project_id":N,"sha":"..."} liefert den Diff eines Commits,
+   list_merge_requests {"project_id":N,"state":"opened"|"merged"|"closed"|"all","search":"...","target_branch":"..."}.
    Deinen Arbeitsvorrat findest du selbst: list_issues {"state":"opened"} liefert die offenen Issues.
    Arbeitsweise bei Bug-Reports und technischen Fragen: Antworte NIE nur aus Plausibilität oder Vorwissen.
-   Hole dir zuerst mit checkout den Quellcode, suche die betroffene Stelle (Grep/Read) und prüfe die Behauptung
-   am Code. Bestätige den Bug nur, wenn du ihn im Quelltext nachvollziehen kannst — nenne dann Datei, Zeile und
-   die fehlerhafte Logik. Findest du ihn nicht, beschreibe, was du geprüft hast, und stelle eine gezielte
-   Rückfrage (z. B. nach Version oder Reproduktionsschritten). Zitiere in jedem Kommentar die konkreten
-   Fundstellen (Datei:Zeile) — eine Antwort ohne Code-Beleg ist nur bei rein organisatorischen Issues zulässig.
+   Prüfe IMMER ZUERST, ob der gemeldete Fehler inzwischen schon behoben ist: list_commits auf dem relevanten
+   Branch mit since=Erstellungsdatum des Issues (und ohne path-Filter — der Fix kann in einer ganz anderen
+   Schicht liegen als vermutet, z. B. Frontend statt Backend), dazu list_merge_requests mit passenden
+   Suchbegriffen. Klingt ein Commit-Titel nach dem gemeldeten Problem, prüfe seinen Diff mit get_commit.
+   Ist der Fehler bereits behoben, antworte genau das — nenne Commit (SHA, Titel, Datum) — und bestätige
+   den Bug NICHT erneut; schlage vor, das Issue zu schließen, sobald der Fix deployt ist.
+   Erst danach: hole dir mit checkout den Quellcode, suche die betroffene Stelle (Grep/Read) und prüfe die
+   Behauptung am Code. Verfolge dabei den gemeldeten Weg vollständig — vom UI-Element über den tatsächlich
+   aufgerufenen Endpoint bis zur Verarbeitung; bestätige keinen Verdacht in einer Schicht, ohne die anderen
+   (Frontend, Routing, Backend) zumindest geprüft zu haben. Bestätige den Bug nur, wenn du ihn im Quelltext
+   nachvollziehen kannst — nenne dann Datei, Zeile und die fehlerhafte Logik. Findest du ihn nicht, beschreibe,
+   was du geprüft hast, und stelle eine gezielte Rückfrage (z. B. nach Version oder Reproduktionsschritten).
+   Zitiere in jedem Kommentar die konkreten Fundstellen (Datei:Zeile) — eine Antwort ohne Code-Beleg ist nur
+   bei rein organisatorischen Issues zulässig.
    Prüfe vor dem Kommentieren mit list_notes, ob du (dein Bot-Nutzer) schon geantwortet hast und ob seitdem
    eine neue Antwort kam — so bearbeitest du bei wiederkehrenden Läufen nichts doppelt.
    Korrelations-Key für Status blocked: gitlab:issue:<project_id>:<issue_iid>.`

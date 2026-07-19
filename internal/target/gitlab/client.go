@@ -276,6 +276,134 @@ func (c *Client) ReadFile(ctx context.Context, projectID int, filePath, ref stri
 	return string(data), false, nil
 }
 
+// Commit ist ein Eintrag der Commit-Historie — genug Kontext, um zu erkennen,
+// ob ein gemeldeter Bug inzwischen behoben wurde (Titel, Autor, Datum).
+type Commit struct {
+	ID         string `json:"id"`
+	ShortID    string `json:"short_id"`
+	Title      string `json:"title"`
+	AuthorName string `json:"author_name"`
+	CreatedAt  string `json:"created_at"`
+	WebURL     string `json:"web_url"`
+}
+
+// ListCommits — GET /projects/{id}/repository/commits: die Historie eines
+// Refs, optional auf einen Pfad (Datei/Verzeichnis) und ein Startdatum
+// (since, ISO 8601) eingeschränkt. Damit prüft ein Agent, ob es seit dem
+// Erstellen eines Issues Commits gibt, die den gemeldeten Fehler bereits
+// beheben.
+func (c *Client) ListCommits(ctx context.Context, projectID int, ref, path, since string) ([]Commit, error) {
+	q := url.Values{}
+	if ref != "" {
+		q.Set("ref_name", ref)
+	}
+	if path != "" {
+		q.Set("path", path)
+	}
+	if since != "" {
+		q.Set("since", since)
+	}
+	q.Set("per_page", "50")
+	var out []Commit
+	err := c.do(ctx, http.MethodGet,
+		fmt.Sprintf("/projects/%d/repository/commits?%s", projectID, q.Encode()), nil, &out)
+	return out, err
+}
+
+// maxDiffBytesPerFile begrenzt den Diff einer einzelnen Datei in GetCommitDiff.
+const maxDiffBytesPerFile = 16 << 10 // 16 KB
+
+// CommitDiff ist der Diff einer Datei innerhalb eines Commits.
+type CommitDiff struct {
+	OldPath     string `json:"old_path"`
+	NewPath     string `json:"new_path"`
+	NewFile     bool   `json:"new_file"`
+	DeletedFile bool   `json:"deleted_file"`
+	Diff        string `json:"diff"`
+	Truncated   bool   `json:"truncated,omitempty"`
+}
+
+// GetCommitDiff — GET /projects/{id}/repository/commits/{sha}/diff: was ein
+// Commit tatsächlich ändert. Einzelne Datei-Diffs werden auf
+// maxDiffBytesPerFile gekürzt, damit Riesen-Commits den Kontext des Agenten
+// nicht sprengen.
+func (c *Client) GetCommitDiff(ctx context.Context, projectID int, sha string) ([]CommitDiff, error) {
+	var out []CommitDiff
+	err := c.do(ctx, http.MethodGet,
+		fmt.Sprintf("/projects/%d/repository/commits/%s/diff?per_page=100", projectID, url.PathEscape(sha)), nil, &out)
+	for i := range out {
+		if len(out[i].Diff) > maxDiffBytesPerFile {
+			out[i].Diff = out[i].Diff[:maxDiffBytesPerFile]
+			out[i].Truncated = true
+		}
+	}
+	return out, err
+}
+
+// MergeRequest ist ein Eintrag der MR-Liste — genug, um offene oder gemergte
+// Fixes zu einem Thema zu finden.
+type MergeRequest struct {
+	IID          int    `json:"iid"`
+	Title        string `json:"title"`
+	State        string `json:"state"`
+	SourceBranch string `json:"source_branch"`
+	TargetBranch string `json:"target_branch"`
+	MergedAt     string `json:"merged_at"`
+	UpdatedAt    string `json:"updated_at"`
+	WebURL       string `json:"web_url"`
+	Author       struct {
+		Username string `json:"username"`
+	} `json:"author"`
+}
+
+// ListMergeRequests — GET /projects/{id}/merge_requests. state ist "opened",
+// "merged", "closed" oder "all" (Default: all); search filtert auf Titel und
+// Beschreibung, targetBranch auf den Ziel-Branch.
+func (c *Client) ListMergeRequests(ctx context.Context, projectID int, state, search, targetBranch string) ([]MergeRequest, error) {
+	q := url.Values{}
+	if state != "" && state != "all" {
+		q.Set("state", state)
+	}
+	if search != "" {
+		q.Set("search", search)
+	}
+	if targetBranch != "" {
+		q.Set("target_branch", targetBranch)
+	}
+	q.Set("order_by", "updated_at")
+	q.Set("per_page", "50")
+	var out []MergeRequest
+	err := c.do(ctx, http.MethodGet,
+		fmt.Sprintf("/projects/%d/merge_requests?%s", projectID, q.Encode()), nil, &out)
+	return out, err
+}
+
+// Branch ist ein Eintrag der Branch-Liste. Default markiert den
+// Default-Branch des Projekts.
+type Branch struct {
+	Name    string `json:"name"`
+	Default bool   `json:"default"`
+	Commit  struct {
+		ShortID   string `json:"short_id"`
+		CreatedAt string `json:"created_at"`
+	} `json:"commit"`
+}
+
+// ListBranches — GET /projects/{id}/repository/branches, optional mit
+// Namenssuche. Damit findet ein Agent den richtigen Ref, statt Branch-Namen
+// zu raten.
+func (c *Client) ListBranches(ctx context.Context, projectID int, search string) ([]Branch, error) {
+	q := url.Values{}
+	if search != "" {
+		q.Set("search", search)
+	}
+	q.Set("per_page", "100")
+	var out []Branch
+	err := c.do(ctx, http.MethodGet,
+		fmt.Sprintf("/projects/%d/repository/branches?%s", projectID, q.Encode()), nil, &out)
+	return out, err
+}
+
 // SetState — PUT /projects/{id}/issues/{iid} mit state_event ("close"|"reopen").
 func (c *Client) SetState(ctx context.Context, projectID, issueIID int, stateEvent string) error {
 	if stateEvent != "close" && stateEvent != "reopen" {

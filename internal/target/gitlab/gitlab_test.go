@@ -460,6 +460,87 @@ func TestTreeAndReadFile(t *testing.T) {
 	}
 }
 
+func TestHistoryActions(t *testing.T) {
+	var gotPath, gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotQuery = r.URL.EscapedPath(), r.URL.RawQuery
+		switch {
+		case strings.Contains(r.URL.Path, "/repository/commits/") && strings.HasSuffix(r.URL.Path, "/diff"):
+			json.NewEncoder(w).Encode([]CommitDiff{{NewPath: "web/upload/form.js",
+				Diff: "@@ -1 +1 @@\n-alt\n+" + strings.Repeat("x", maxDiffBytesPerFile)}})
+		case strings.Contains(r.URL.Path, "/repository/commits"):
+			json.NewEncoder(w).Encode([]Commit{{ID: "abc123", ShortID: "abc123",
+				Title: "Upload-Button wiederherstellen", AuthorName: "alke"}})
+		case strings.Contains(r.URL.Path, "/repository/branches"):
+			json.NewEncoder(w).Encode([]Branch{{Name: "educa-x-bugfix", Default: true}})
+		case strings.Contains(r.URL.Path, "/merge_requests"):
+			json.NewEncoder(w).Encode([]MergeRequest{{IID: 7, Title: "Fix Upload", State: "merged"}})
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	res, err := sys.Execute(ctx, "list_commits",
+		[]byte(`{"project_id":15,"ref":"main","path":"web","since":"2026-07-15T00:00:00Z"}`), cred)
+	if err != nil {
+		t.Fatalf("list_commits: %v", err)
+	}
+	if cs := res.([]Commit); len(cs) != 1 || cs[0].Title != "Upload-Button wiederherstellen" {
+		t.Fatalf("commits falsch: %+v", cs)
+	}
+	if !strings.Contains(gotQuery, "ref_name=main") || !strings.Contains(gotQuery, "path=web") ||
+		!strings.Contains(gotQuery, "since=2026-07-15") {
+		t.Fatalf("commit-filter fehlen: %s", gotQuery)
+	}
+
+	res, err = sys.Execute(ctx, "get_commit", []byte(`{"project_id":15,"sha":"abc123"}`), cred)
+	if err != nil {
+		t.Fatalf("get_commit: %v", err)
+	}
+	diffs := res.([]CommitDiff)
+	if len(diffs) != 1 || !diffs[0].Truncated || len(diffs[0].Diff) != maxDiffBytesPerFile {
+		t.Fatalf("diff muss auf maxDiffBytesPerFile gekürzt und markiert sein: len=%d truncated=%v",
+			len(diffs[0].Diff), diffs[0].Truncated)
+	}
+	if !strings.Contains(gotPath, "/repository/commits/abc123/diff") {
+		t.Fatalf("diff-pfad falsch: %s", gotPath)
+	}
+
+	res, err = sys.Execute(ctx, "list_merge_requests", []byte(`{"project_id":15,"state":"merged","search":"upload"}`), cred)
+	if err != nil {
+		t.Fatalf("list_merge_requests: %v", err)
+	}
+	if mrs := res.([]MergeRequest); len(mrs) != 1 || mrs[0].State != "merged" {
+		t.Fatalf("mrs falsch: %+v", mrs)
+	}
+	if !strings.Contains(gotQuery, "state=merged") || !strings.Contains(gotQuery, "search=upload") {
+		t.Fatalf("mr-filter fehlen: %s", gotQuery)
+	}
+
+	res, err = sys.Execute(ctx, "list_branches", []byte(`{"project_id":15,"search":"bugfix"}`), cred)
+	if err != nil {
+		t.Fatalf("list_branches: %v", err)
+	}
+	if bs := res.([]Branch); len(bs) != 1 || !bs[0].Default {
+		t.Fatalf("branches falsch: %+v", bs)
+	}
+	if !strings.Contains(gotQuery, "search=bugfix") {
+		t.Fatalf("branch-suche fehlt: %s", gotQuery)
+	}
+
+	for _, call := range [][2]string{
+		{"list_commits", `{}`}, {"get_commit", `{"project_id":15}`},
+		{"list_merge_requests", `{}`}, {"list_branches", `{}`},
+	} {
+		if _, err := sys.Execute(ctx, call[0], []byte(call[1]), cred); err == nil {
+			t.Fatalf("%s ohne Pflichtfelder muss fehlschlagen", call[0])
+		}
+	}
+}
+
 func TestExtractTarGzRejectsTraversal(t *testing.T) {
 	archive := tarGz(t, map[string]string{
 		"repo-main/":          "",
