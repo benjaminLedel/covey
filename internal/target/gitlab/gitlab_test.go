@@ -87,17 +87,96 @@ func TestNoWakeCases(t *testing.T) {
 	}
 
 	p = WebhookPayload{ObjectKind: "note"}
-	p.ObjectAttributes.NoteableType = "MergeRequest"
+	p.ObjectAttributes.NoteableType = "Snippet"
 	if p.IsWakeEvent() {
-		t.Fatal("Kommentare auf Merge Requests dürfen nicht wecken")
+		t.Fatal("Kommentare auf anderen Objekten (Snippets etc.) dürfen nicht wecken")
+	}
+
+	p = WebhookPayload{ObjectKind: "merge_request"}
+	for _, action := range []string{"open", "update", "approved"} {
+		p.ObjectAttributes.Action = action
+		if p.IsWakeEvent() {
+			t.Fatalf("MR-Hook mit action=%s darf nicht wecken", action)
+		}
 	}
 
 	t.Setenv("COVEY_GITLAB_AGENT_USERNAMES", "covey-bot")
-	p = WebhookPayload{ObjectKind: "note"}
-	p.ObjectAttributes.NoteableType = "Issue"
-	p.User.Username = "Covey-Bot"
-	if p.IsWakeEvent() {
-		t.Fatal("Agent-Kommentar darf keinen Wake auslösen (Echo-Schleife)")
+	for _, noteable := range []string{"Issue", "MergeRequest"} {
+		p = WebhookPayload{ObjectKind: "note"}
+		p.ObjectAttributes.NoteableType = noteable
+		p.User.Username = "Covey-Bot"
+		if p.IsWakeEvent() {
+			t.Fatalf("Agent-Kommentar auf %s darf keinen Wake auslösen (Echo-Schleife)", noteable)
+		}
+	}
+}
+
+func TestParseWebhookMRNote(t *testing.T) {
+	body := []byte(`{"object_kind":"note","user":{"username":"leaddev"},
+		"project":{"id":15,"path_with_namespace":"gruppe/support"},
+		"object_attributes":{"id":120,"note":"Bitte noch einen Test ergänzen","noteable_type":"MergeRequest"},
+		"merge_request":{"iid":9,"title":"Fix Login","source_branch":"fix/issue-23-login","state":"opened"}}`)
+	p, err := ParseWebhook(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.IsMergeRequestEvent() || p.MRIID() != 9 || p.MRTitle() != "Fix Login" ||
+		p.MRSourceBranch() != "fix/issue-23-login" {
+		t.Fatalf("mr-note falsch geparst: %+v", p)
+	}
+	if !p.IsWakeEvent() {
+		t.Fatal("Review-Kommentar eines Menschen muss wecken")
+	}
+	if p.DedupKey() != "gitlab:15:note:120" {
+		t.Fatalf("dedup-key: %s", p.DedupKey())
+	}
+
+	ev, err := System{}.ParseWebhook(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ev.CorrelationKey != "gitlab:mr:15:9" {
+		t.Fatalf("korrelations-key: %s", ev.CorrelationKey)
+	}
+	if ev.CorrelateOnly {
+		t.Fatal("Review-Kommentar muss auch ohne geblockte Aufgabe Arbeit anlegen dürfen")
+	}
+	if !ev.Wake || !strings.Contains(ev.ResumeInput, "Bitte noch einen Test ergänzen") ||
+		!strings.Contains(ev.TaskBody, "comment_mr") {
+		t.Fatalf("event unvollständig: %+v", ev)
+	}
+}
+
+func TestParseWebhookMergeRequest(t *testing.T) {
+	body := []byte(`{"object_kind":"merge_request","user":{"username":"leaddev"},
+		"project":{"id":15,"path_with_namespace":"gruppe/support"},
+		"object_attributes":{"iid":9,"title":"Fix Login","state":"merged","action":"merge",
+		"source_branch":"fix/issue-23-login","target_branch":"main","updated_at":"2026-07-19 10:00:00 UTC"}}`)
+	p, err := ParseWebhook(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.IsWakeEvent() {
+		t.Fatal("Merge des MR muss die geblockte Aufgabe wecken")
+	}
+	if p.DedupKey() != "gitlab:15:mr:9:merge:2026-07-19 10:00:00 UTC" {
+		t.Fatalf("dedup-key: %s", p.DedupKey())
+	}
+
+	ev, err := System{}.ParseWebhook(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ev.CorrelationKey != "gitlab:mr:15:9" || !ev.CorrelateOnly {
+		t.Fatalf("merge muss correlate-only auf gitlab:mr:15:9 sein: %+v", ev)
+	}
+	if !strings.Contains(ev.ResumeInput, "gemergt") {
+		t.Fatalf("resume-input muss den Merge nennen: %s", ev.ResumeInput)
+	}
+
+	// MR-Hook ohne iid muss abgelehnt werden.
+	if _, err := ParseWebhook([]byte(`{"object_kind":"merge_request","project":{"id":15}}`)); err == nil {
+		t.Fatal("mr-payload ohne iid muss abgelehnt werden")
 	}
 }
 
@@ -721,6 +800,79 @@ func TestCreateMergeRequestAction(t *testing.T) {
 	} {
 		if _, err := sys.Execute(ctx, "create_merge_request", []byte(p), cred); err == nil {
 			t.Fatalf("create_merge_request muss fehlschlagen: %s", name)
+		}
+	}
+}
+
+func TestMRReviewActions(t *testing.T) {
+	var commentBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v4/projects/15/merge_requests/9" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode(MergeRequestDetail{IID: 9, Title: "Fix Login", State: "opened",
+				SourceBranch: "fix/issue-23-login", DetailedMergeStatus: "mergeable",
+				HeadPipeline: &Pipeline{ID: 4, Status: "success", Ref: "fix/issue-23-login"}})
+		case r.URL.Path == "/api/v4/projects/15/merge_requests/9/notes" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode([]Note{{ID: 120, Body: "Bitte noch einen Test ergänzen"}})
+		case r.URL.Path == "/api/v4/projects/15/merge_requests/9/notes" && r.Method == http.MethodPost:
+			json.NewDecoder(r.Body).Decode(&commentBody)
+			json.NewEncoder(w).Encode(Note{ID: 121, Body: "Erledigt"})
+		case r.URL.Path == "/api/v4/projects/15/pipelines":
+			if r.URL.Query().Get("ref") != "fix/issue-23-login" {
+				t.Errorf("ref-filter fehlt: %s", r.URL.RawQuery)
+			}
+			json.NewEncoder(w).Encode([]Pipeline{{ID: 4, Status: "success", Ref: "fix/issue-23-login"}})
+		default:
+			t.Errorf("unerwarteter request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	res, err := sys.Execute(ctx, "get_merge_request", []byte(`{"project_id":15,"mr_iid":9}`), cred)
+	if err != nil {
+		t.Fatalf("get_merge_request: %v", err)
+	}
+	if mr := res.(MergeRequestDetail); mr.DetailedMergeStatus != "mergeable" ||
+		mr.HeadPipeline == nil || mr.HeadPipeline.Status != "success" {
+		t.Fatalf("mr-detail falsch: %+v", mr)
+	}
+
+	res, err = sys.Execute(ctx, "list_mr_notes", []byte(`{"project_id":15,"mr_iid":9}`), cred)
+	if err != nil {
+		t.Fatalf("list_mr_notes: %v", err)
+	}
+	if notes := res.([]Note); len(notes) != 1 || notes[0].ID != 120 {
+		t.Fatalf("mr-notes falsch: %+v", notes)
+	}
+
+	if _, err = sys.Execute(ctx, "comment_mr", []byte(`{"project_id":15,"mr_iid":9,"body":"Erledigt"}`), cred); err != nil {
+		t.Fatalf("comment_mr: %v", err)
+	}
+	if commentBody["body"] != "Erledigt" {
+		t.Fatalf("comment-body falsch: %+v", commentBody)
+	}
+
+	res, err = sys.Execute(ctx, "list_pipelines", []byte(`{"project_id":15,"ref":"fix/issue-23-login"}`), cred)
+	if err != nil {
+		t.Fatalf("list_pipelines: %v", err)
+	}
+	if ps := res.([]Pipeline); len(ps) != 1 || ps[0].Status != "success" {
+		t.Fatalf("pipelines falsch: %+v", ps)
+	}
+
+	// Pflichtparameter fehlen → Fehler statt stiller Leerlauf.
+	for name, call := range map[string][2]string{
+		"get_merge_request ohne mr_iid": {"get_merge_request", `{"project_id":15}`},
+		"list_mr_notes ohne mr_iid":     {"list_mr_notes", `{"project_id":15}`},
+		"comment_mr ohne body":          {"comment_mr", `{"project_id":15,"mr_iid":9}`},
+		"list_pipelines ohne project":   {"list_pipelines", `{}`},
+	} {
+		if _, err := sys.Execute(ctx, call[0], []byte(call[1]), cred); err == nil {
+			t.Fatalf("%s muss fehlschlagen", name)
 		}
 	}
 }

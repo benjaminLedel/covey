@@ -19,7 +19,7 @@ func init() {
 	target.Register(target.Descriptor{
 		Name:        "gitlab",
 		Label:       "GitLab",
-		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues), Quellcode auschecken und Bugs am Code verifizieren (checkout), Fixes entwickeln — auf Feature-Branch committen (commit) und Merge Request an den Vorgesetzten eröffnen (create_merge_request) —, kommentieren, schließen, eskalieren. Intake per HEARTBEAT.md (Polling) oder optionalem Webhook, Auth per API-Token (Secrets gitlab_token + gitlab_url).",
+		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues), Quellcode auschecken, Projekt aufsetzen und Bugs am Code verifizieren (checkout + Sandbox-Shell), Fixes entwickeln — auf Feature-Branch committen (commit), Merge Request an den Vorgesetzten eröffnen (create_merge_request) und den Review-Loop leben: auf Review warten (blocked), Feedback einarbeiten (list_mr_notes/comment_mr), CI prüfen (list_pipelines), auf den Merge reagieren. Intake per HEARTBEAT.md (Polling) oder optionalem Webhook, Auth per API-Token (Secrets gitlab_token + gitlab_url).",
 		Kind:        "builtin",
 		System:      System{},
 		SetupDoc: `1. In GitLab einen eigenen Bot-Nutzer anlegen (z. B. covey-bot), den
@@ -49,7 +49,9 @@ func init() {
    Webhooks):
    URL:          {public_url}/api/webhooks/gitlab/<agent-slug>
    Secret token: Wert von COVEY_GITLAB_WEBHOOK_SECRET (Prozess-Env)
-   Trigger:      "Issues events" und "Comments" ankreuzen
+   Trigger:      "Issues events", "Comments" und "Merge request events" ankreuzen
+                 (Letzteres trägt den Review-Loop: Review-Kommentare und der
+                 Merge/Close wecken den Agenten auf seinem MR)
    Dazu Echo-Schutz setzen: COVEY_GITLAB_AGENT_USERNAMES="covey-bot"
 
 Details: docs/betrieb-gitlab.md im Repository.`,
@@ -66,6 +68,9 @@ func (System) ParseWebhook(body []byte) (target.WebhookEvent, error) {
 	p, err := ParseWebhook(body)
 	if err != nil {
 		return target.WebhookEvent{}, err
+	}
+	if p.IsMergeRequestEvent() {
+		return parseMRWebhook(p), nil
 	}
 	ev := target.WebhookEvent{
 		DedupKey:       p.DedupKey(),
@@ -88,6 +93,40 @@ func (System) ParseWebhook(body []byte) (target.WebhookEvent, error) {
 			p.Project.PathWithNamespace, p.IssueIID(), p.ObjectAttributes.Action, p.IssueTitle())
 	}
 	return ev, nil
+}
+
+// parseMRWebhook baut das Wake-Event für Merge-Request-Ereignisse — das
+// Rückgrat des Review-Loops: Der Agent blockt nach create_merge_request auf
+// gitlab:mr:<project>:<iid>; ein Review-Kommentar setzt seine Session mit dem
+// Feedback fort, Merge/Close schließen den Kreis. Merge/Close sind
+// correlate-only: wartet keine geblockte Aufgabe, entsteht keine neue Arbeit.
+func parseMRWebhook(p WebhookPayload) target.WebhookEvent {
+	ev := target.WebhookEvent{
+		DedupKey:       p.DedupKey(),
+		CorrelationKey: MRCorrelationKey(p.Project.ID, p.MRIID()),
+		Title: fmt.Sprintf("GitLab-MR %s!%d: %s",
+			p.Project.PathWithNamespace, p.MRIID(), p.MRTitle()),
+		Wake: p.ShouldWake(),
+	}
+	if p.ObjectKind == "note" {
+		ev.TaskBody = fmt.Sprintf("Review-Kommentar zu Merge Request %s!%d (project_id=%d, source_branch=%s).\nTitel: %s\n\nKommentar von @%s:\n%s\n\nBearbeite das Review über den Action-Proxy (system gitlab): Lies mit list_mr_notes den ganzen Diskussionsstand. Ist es dein MR und verlangt das Feedback Änderungen: hole dir mit checkout (ref=%q) den Branch, arbeite das Feedback ein, führe die Tests aus und pushe mit commit auf denselben Branch; antworte danach mit comment_mr und blocke wieder auf gitlab:mr:%d:%d. Ist keine Änderung nötig, genügt eine Antwort per comment_mr.",
+			p.Project.PathWithNamespace, p.MRIID(), p.Project.ID, p.MRSourceBranch(), p.MRTitle(),
+			p.User.Username, p.ObjectAttributes.Note, p.MRSourceBranch(), p.Project.ID, p.MRIID())
+		ev.ResumeInput = fmt.Sprintf("Review-Kommentar von @%s zu deinem Merge Request %s!%d:\n%s",
+			p.User.Username, p.Project.PathWithNamespace, p.MRIID(), p.ObjectAttributes.Note)
+		return ev
+	}
+	// MR-Hook: nur Merge/Close wecken (IsWakeEvent) — und ausschließlich eine
+	// darauf geblockte Aufgabe; unkorreliert ist das Ereignis keine Arbeit.
+	ev.CorrelateOnly = true
+	verb := "gemergt"
+	if p.ObjectAttributes.Action == "close" {
+		verb = "geschlossen (ohne Merge)"
+	}
+	ev.ResumeInput = fmt.Sprintf("Dein Merge Request %s!%d (%s) wurde von @%s %s. Schließe deine Aufgabe ab: kommentiere im zugehörigen Issue kurz das Ergebnis; wurde der MR ohne Merge geschlossen, prüfe per list_mr_notes warum und eskaliere, wenn unklar.",
+		p.Project.PathWithNamespace, p.MRIID(), p.MRTitle(), p.User.Username, verb)
+	ev.TaskBody = ev.ResumeInput
+	return ev
 }
 
 // issueProjectPath leitet den Projektpfad aus der vollen Referenz
@@ -123,6 +162,7 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 	var in struct {
 		ProjectID int    `json:"project_id"`
 		IssueIID  int    `json:"issue_iid"`
+		MRIID     int    `json:"mr_iid"`
 		Body      string `json:"body"`
 		Internal  *bool  `json:"internal"`
 		State     string `json:"state"`
@@ -216,6 +256,26 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, fmt.Errorf("project_id fehlt")
 		}
 		return gc.ListMergeRequests(ctx, in.ProjectID, in.State, in.Search, in.Target)
+	case "get_merge_request":
+		if in.ProjectID == 0 || in.MRIID == 0 {
+			return nil, fmt.Errorf("project_id oder mr_iid fehlt")
+		}
+		return gc.GetMergeRequest(ctx, in.ProjectID, in.MRIID)
+	case "list_mr_notes":
+		if in.ProjectID == 0 || in.MRIID == 0 {
+			return nil, fmt.Errorf("project_id oder mr_iid fehlt")
+		}
+		return gc.ListMRNotes(ctx, in.ProjectID, in.MRIID)
+	case "comment_mr":
+		if in.ProjectID == 0 || in.MRIID == 0 || strings.TrimSpace(in.Body) == "" {
+			return nil, fmt.Errorf("project_id, mr_iid oder body fehlt")
+		}
+		return gc.CommentMR(ctx, in.ProjectID, in.MRIID, in.Body)
+	case "list_pipelines":
+		if in.ProjectID == 0 {
+			return nil, fmt.Errorf("project_id fehlt")
+		}
+		return gc.ListPipelines(ctx, in.ProjectID, in.Ref)
 	case "list_branches":
 		if in.ProjectID == 0 {
 			return nil, fmt.Errorf("project_id fehlt")
@@ -303,7 +363,12 @@ func (System) PromptDoc() string {
    list_branches {"project_id":N,"search":"..."} listet Branches (Default-Branch ist markiert — rate keine Branch-Namen),
    list_commits {"project_id":N,"ref":"...","path":"datei/oder/verzeichnis","since":"ISO-Datum"} listet die Commit-Historie
    (alle Filter optional), get_commit {"project_id":N,"sha":"..."} liefert den Diff eines Commits,
-   list_merge_requests {"project_id":N,"state":"opened"|"merged"|"closed"|"all","search":"...","target_branch":"..."}.
+   list_merge_requests {"project_id":N,"state":"opened"|"merged"|"closed"|"all","search":"...","target_branch":"..."},
+   get_merge_request {"project_id":N,"mr_iid":N} liefert einen einzelnen MR mit Review-Zustand (detailed_merge_status,
+   has_conflicts) und CI-Ergebnis (head_pipeline), list_mr_notes {"project_id":N,"mr_iid":N} den Diskussionsstand eines MR
+   (Review-Kommentare), comment_mr {"project_id":N,"mr_iid":N,"body":"..."} antwortet im Review-Dialog,
+   list_pipelines {"project_id":N,"ref":"branch (optional)"} listet CI-Läufe — prüfe damit nach jedem Push, ob die
+   Pipeline deines Branches grün ist.
    Schreibende Entwickler-Aktionen:
    commit {"project_id":N,"branch":"fix/…","start_branch":"main (optional, Default: Default-Branch)","message":"...",
    "checkout_path":"<Pfad aus dem checkout-Ergebnis>","files":["repo/relativer/pfad.go",...],"deleted":["alt.go",...]} —
@@ -315,14 +380,28 @@ func (System) PromptDoc() string {
    Merge automatisch entfernt.
    Arbeitsweise als Entwickler — wenn du einen Bug nicht nur bestätigst, sondern behebst:
    1. checkout des Projekts, den Fehler am Code nachvollziehen (Datei:Zeile).
-   2. Fix lokal im Checkout editieren — minimal-invasiv, Stil der Umgebung übernehmen.
-   3. VERIFIZIEREN, bevor du pushst: die Tests des Projekts im Checkout ausführen (bzw. Build/Kompilier-Check,
+   2. Projekt AUFSETZEN wie ein neuer Kollege: README/CONTRIBUTING lesen, Abhängigkeiten installieren
+      (npm install / pip install / go mod download …), einmal Build und Tests laufen lassen, BEVOR du etwas
+      änderst — so kennst du den grünen Ausgangszustand und siehst, ob ein Fehlschlag von dir kommt.
+   3. Fix lokal im Checkout editieren — minimal-invasiv, Stil der Umgebung übernehmen.
+   4. VERIFIZIEREN, bevor du pushst: die Tests des Projekts im Checkout ausführen (bzw. Build/Kompilier-Check,
       wenn es keine Tests gibt) und für den Fix möglichst einen Test ergänzen. Schlagen Tests fehl, pushe NICHT.
-   4. commit auf einen sprechenden Feature-Branch (z. B. fix/issue-<iid>-kurzbeschreibung).
-   5. create_merge_request an deinen Vorgesetzten; verweise in der description auf das Issue (#<iid>),
-      beschreibe Ursache, Fix und wie du ihn verifiziert hast (welche Tests liefen).
-   6. Im Issue kommentieren: Link zum MR, kurze Zusammenfassung. Das Issue NICHT selbst schließen —
+   5. commit auf einen sprechenden Feature-Branch (z. B. fix/issue-<iid>-kurzbeschreibung).
+   6. create_merge_request an deinen Vorgesetzten; verweise in der description auf das Issue (#<iid>),
+      beschreibe Ursache, Fix und wie du ihn verifiziert hast (welche Tests liefen). Hat das Projekt CI,
+      prüfe mit get_merge_request bzw. list_pipelines, ob die Pipeline deines Branches grün wird.
+   7. Im Issue kommentieren: Link zum MR, kurze Zusammenfassung. Das Issue NICHT selbst schließen —
       das passiert beim Merge bzw. durch deinen Vorgesetzten.
+   8. Auf das Review WARTEN statt die Aufgabe zu schließen: beende mit
+      COVEY_STATUS: {"status":"blocked","correlation_key":"gitlab:mr:<project_id>:<mr_iid>","question":"Warte auf Review von MR !<mr_iid>"}
+      Du wirst geweckt, wenn ein Review-Kommentar kommt oder der MR gemergt/geschlossen wird.
+   Review-Feedback einarbeiten — wenn du zu einem Kommentar auf deinem MR geweckt wirst:
+   list_mr_notes für den ganzen Diskussionsstand; verlangt das Feedback Änderungen, hole dir mit checkout
+   (ref=source_branch) den Branch, arbeite JEDEN Punkt ein, führe die Tests erneut aus und pushe mit commit
+   auf denselben Branch (ohne start_branch — der Branch existiert). Antworte mit comment_mr, was du geändert
+   hast, und blocke wieder auf gitlab:mr:<project_id>:<mr_iid>. Bist du anderer Meinung, begründe das im
+   comment_mr am Code statt blind zu ändern. Wird dein MR gemergt, kommentiere im Issue das Ergebnis und
+   schließe die Aufgabe mit done; wird er ohne Merge geschlossen, prüfe warum und eskaliere, wenn unklar.
    Deinen Arbeitsvorrat findest du selbst: list_issues {"state":"opened"} liefert die offenen Issues.
    Arbeitsweise bei Bug-Reports und technischen Fragen: Antworte NIE nur aus Plausibilität oder Vorwissen.
    Prüfe IMMER ZUERST, ob der gemeldete Fehler inzwischen schon behoben ist: list_commits auf dem relevanten
@@ -341,5 +420,6 @@ func (System) PromptDoc() string {
    bei rein organisatorischen Issues zulässig.
    Prüfe vor dem Kommentieren mit list_notes, ob du (dein Bot-Nutzer) schon geantwortet hast und ob seitdem
    eine neue Antwort kam — so bearbeitest du bei wiederkehrenden Läufen nichts doppelt.
-   Korrelations-Key für Status blocked: gitlab:issue:<project_id>:<issue_iid>.`
+   Korrelations-Keys für Status blocked: gitlab:issue:<project_id>:<issue_iid> (warten auf Antwort im Issue),
+   gitlab:mr:<project_id>:<mr_iid> (warten auf Review/Merge deines MR).`
 }

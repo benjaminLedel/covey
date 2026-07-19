@@ -378,6 +378,81 @@ func (c *Client) ListMergeRequests(ctx context.Context, projectID int, state, se
 	return out, err
 }
 
+// MergeRequestDetail ist der volle Blick auf einen einzelnen MR — inklusive
+// Review-Zustand (Merge-Status, Konflikte) und CI-Ergebnis (head_pipeline),
+// damit ein Agent seinen eigenen MR wie ein Entwickler betreuen kann.
+type MergeRequestDetail struct {
+	IID          int    `json:"iid"`
+	Title        string `json:"title"`
+	Description  string `json:"description"`
+	State        string `json:"state"`
+	SourceBranch string `json:"source_branch"`
+	TargetBranch string `json:"target_branch"`
+	MergedAt     string `json:"merged_at"`
+	WebURL       string `json:"web_url"`
+	HasConflicts bool   `json:"has_conflicts"`
+	// DetailedMergeStatus, z. B. "mergeable", "ci_still_running",
+	// "conflict" — GitLabs eigene Zusammenfassung, warum ein MR (nicht) mergebar ist.
+	DetailedMergeStatus string `json:"detailed_merge_status"`
+	Author              struct {
+		Username string `json:"username"`
+	} `json:"author"`
+	HeadPipeline *Pipeline `json:"head_pipeline"`
+}
+
+// Pipeline ist der CI-Lauf eines Refs/MRs — Status "success", "failed",
+// "running" etc.
+type Pipeline struct {
+	ID        int    `json:"id"`
+	Status    string `json:"status"`
+	Ref       string `json:"ref"`
+	SHA       string `json:"sha"`
+	WebURL    string `json:"web_url"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+// GetMergeRequest — GET /projects/{id}/merge_requests/{iid}
+func (c *Client) GetMergeRequest(ctx context.Context, projectID, mrIID int) (MergeRequestDetail, error) {
+	var out MergeRequestDetail
+	err := c.do(ctx, http.MethodGet,
+		fmt.Sprintf("/projects/%d/merge_requests/%d", projectID, mrIID), nil, &out)
+	return out, err
+}
+
+// ListMRNotes — GET /projects/{id}/merge_requests/{iid}/notes (chronologisch):
+// der Diskussionsstand eines MR inklusive Review-Kommentaren auf dem Diff.
+func (c *Client) ListMRNotes(ctx context.Context, projectID, mrIID int) ([]Note, error) {
+	var out []Note
+	err := c.do(ctx, http.MethodGet,
+		fmt.Sprintf("/projects/%d/merge_requests/%d/notes?sort=asc&order_by=created_at", projectID, mrIID), nil, &out)
+	return out, err
+}
+
+// CommentMR — POST /projects/{id}/merge_requests/{iid}/notes: die Antwort des
+// Agenten im Review-Dialog seines MR.
+func (c *Client) CommentMR(ctx context.Context, projectID, mrIID int, body string) (Note, error) {
+	var out Note
+	err := c.do(ctx, http.MethodPost,
+		fmt.Sprintf("/projects/%d/merge_requests/%d/notes", projectID, mrIID),
+		map[string]any{"body": body}, &out)
+	return out, err
+}
+
+// ListPipelines — GET /projects/{id}/pipelines, optional auf einen Ref
+// eingeschränkt: Lief die CI auf meinem Branch durch, bevor ich den MR zum
+// Review gebe bzw. nach dem Nacharbeiten?
+func (c *Client) ListPipelines(ctx context.Context, projectID int, ref string) ([]Pipeline, error) {
+	q := url.Values{}
+	if ref != "" {
+		q.Set("ref", ref)
+	}
+	q.Set("per_page", "20")
+	var out []Pipeline
+	err := c.do(ctx, http.MethodGet,
+		fmt.Sprintf("/projects/%d/pipelines?%s", projectID, q.Encode()), nil, &out)
+	return out, err
+}
+
 // Branch ist ein Eintrag der Branch-Liste. Default markiert den
 // Default-Branch des Projekts.
 type Branch struct {

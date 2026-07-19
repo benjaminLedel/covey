@@ -9,11 +9,12 @@ import (
 
 // WebhookPayload ist der relevante Ausschnitt des GitLab-Webhook-JSON.
 // GitLab schickt je nach Ereignis unterschiedliche Formen; hier interessieren
-// Issue Hooks (object_kind=issue) und Note Hooks auf Issues (object_kind=note,
-// noteable_type=Issue). Beide tragen project.id + issue-iid — den natürlichen
-// Korrelations-Key.
+// Issue Hooks (object_kind=issue), Merge-Request-Hooks (object_kind=
+// merge_request) und Note Hooks auf beiden (object_kind=note, noteable_type=
+// Issue|MergeRequest). Alle tragen project.id + die jeweilige iid — den
+// natürlichen Korrelations-Key.
 type WebhookPayload struct {
-	ObjectKind string `json:"object_kind"` // "issue" | "note"
+	ObjectKind string `json:"object_kind"` // "issue" | "note" | "merge_request"
 	User       struct {
 		Username string `json:"username"`
 	} `json:"user"`
@@ -22,13 +23,16 @@ type WebhookPayload struct {
 		PathWithNamespace string `json:"path_with_namespace"`
 	} `json:"project"`
 	ObjectAttributes struct {
-		// Issue Hook
+		// Issue- und Merge-Request-Hook
 		IID         int    `json:"iid"`
 		Title       string `json:"title"`
 		Description string `json:"description"`
 		State       string `json:"state"`
-		Action      string `json:"action"` // "open" | "reopen" | "update" | "close"
+		Action      string `json:"action"` // "open" | "reopen" | "update" | "close" | "merge"
 		UpdatedAt   string `json:"updated_at"`
+		// Merge-Request-Hook
+		SourceBranch string `json:"source_branch"`
+		TargetBranch string `json:"target_branch"`
 		// Note Hook
 		ID           int    `json:"id"`
 		Note         string `json:"note"`
@@ -39,6 +43,13 @@ type WebhookPayload struct {
 		IID   int    `json:"iid"`
 		Title string `json:"title"`
 	} `json:"issue"`
+	// Note Hooks auf Merge Requests tragen den MR separat.
+	MergeRequest struct {
+		IID          int    `json:"iid"`
+		Title        string `json:"title"`
+		SourceBranch string `json:"source_branch"`
+		State        string `json:"state"`
+	} `json:"merge_request"`
 }
 
 // VerifyToken prüft das Webhook-Secret aus dem Header X-Gitlab-Token —
@@ -60,10 +71,51 @@ func ParseWebhook(body []byte) (WebhookPayload, error) {
 	if p.Project.ID == 0 {
 		return p, fmt.Errorf("webhook payload: project.id fehlt")
 	}
+	if p.IsMergeRequestEvent() {
+		if p.MRIID() == 0 {
+			return p, fmt.Errorf("webhook payload: mr-iid fehlt (object_kind=%s)", p.ObjectKind)
+		}
+		return p, nil
+	}
 	if p.IssueIID() == 0 {
 		return p, fmt.Errorf("webhook payload: issue-iid fehlt (object_kind=%s)", p.ObjectKind)
 	}
 	return p, nil
+}
+
+// IsMergeRequestEvent: das Ereignis betrifft einen Merge Request — entweder
+// der MR-Hook selbst oder ein Kommentar darauf.
+func (p WebhookPayload) IsMergeRequestEvent() bool {
+	if p.ObjectKind == "merge_request" {
+		return true
+	}
+	return p.ObjectKind == "note" && strings.EqualFold(p.ObjectAttributes.NoteableType, "MergeRequest")
+}
+
+// MRIID liefert die MR-IID unabhängig von der Hook-Form: MR-Hooks tragen sie
+// in object_attributes, Note Hooks im merge_request-Objekt.
+func (p WebhookPayload) MRIID() int {
+	if p.ObjectKind == "note" {
+		return p.MergeRequest.IID
+	}
+	return p.ObjectAttributes.IID
+}
+
+// MRTitle analog zu MRIID.
+func (p WebhookPayload) MRTitle() string {
+	if p.ObjectKind == "note" {
+		return p.MergeRequest.Title
+	}
+	return p.ObjectAttributes.Title
+}
+
+// MRSourceBranch analog zu MRIID — der Branch, auf dem der Agent bei
+// Review-Nacharbeit weiterarbeitet.
+func (p WebhookPayload) MRSourceBranch() string {
+	if p.ObjectKind == "note" {
+		return p.MergeRequest.SourceBranch
+	}
+	return p.ObjectAttributes.SourceBranch
 }
 
 // IssueIID liefert die Issue-IID unabhängig von der Hook-Form: Issue Hooks
@@ -89,27 +141,45 @@ func CorrelationKey(projectID, issueIID int) string {
 	return fmt.Sprintf("gitlab:issue:%d:%d", projectID, issueIID)
 }
 
-// DedupKey macht die Webhook-Verarbeitung idempotent — GitLab wiederholt
-// Zustellungen bei Fehlern. Notes haben eine eindeutige id; Issue-Ereignisse
-// werden über Aktion + Änderungszeitpunkt unterschieden.
-func (p WebhookPayload) DedupKey() string {
-	if p.ObjectKind == "note" {
-		return fmt.Sprintf("gitlab:%d:note:%d", p.Project.ID, p.ObjectAttributes.ID)
-	}
-	return fmt.Sprintf("gitlab:%d:issue:%d:%s:%s",
-		p.Project.ID, p.ObjectAttributes.IID, p.ObjectAttributes.Action, p.ObjectAttributes.UpdatedAt)
+// MRCorrelationKey ist der Korrelations-Key für Merge Requests — darauf
+// blockt ein Agent, der nach create_merge_request auf Review wartet.
+func MRCorrelationKey(projectID, mrIID int) string {
+	return fmt.Sprintf("gitlab:mr:%d:%d", projectID, mrIID)
 }
 
-// IsWakeEvent: nur ein neu eröffnetes (oder wiedereröffnetes) Issue bzw. ein
-// Issue-Kommentar eines fremden Nutzers weckt — der eigene Kommentar des
-// Agenten (COVEY_GITLAB_AGENT_USERNAMES) darf keinen Wake-Zyklus erzeugen,
-// und Update-/Close-Ereignisse (Label-Änderungen etc.) lösen keine Arbeit aus.
+// DedupKey macht die Webhook-Verarbeitung idempotent — GitLab wiederholt
+// Zustellungen bei Fehlern. Notes haben eine eindeutige id; Issue- und
+// MR-Ereignisse werden über Aktion + Änderungszeitpunkt unterschieden.
+func (p WebhookPayload) DedupKey() string {
+	switch p.ObjectKind {
+	case "note":
+		return fmt.Sprintf("gitlab:%d:note:%d", p.Project.ID, p.ObjectAttributes.ID)
+	case "merge_request":
+		return fmt.Sprintf("gitlab:%d:mr:%d:%s:%s",
+			p.Project.ID, p.ObjectAttributes.IID, p.ObjectAttributes.Action, p.ObjectAttributes.UpdatedAt)
+	default:
+		return fmt.Sprintf("gitlab:%d:issue:%d:%s:%s",
+			p.Project.ID, p.ObjectAttributes.IID, p.ObjectAttributes.Action, p.ObjectAttributes.UpdatedAt)
+	}
+}
+
+// IsWakeEvent: ein neu eröffnetes (oder wiedereröffnetes) Issue, ein
+// Kommentar eines fremden Nutzers (auf Issue ODER Merge Request — Letzteres
+// ist das Review-Feedback des Entwickler-Workflows) sowie Merge/Close eines
+// MR wecken. Der eigene Kommentar des Agenten (COVEY_GITLAB_AGENT_USERNAMES)
+// darf keinen Wake-Zyklus erzeugen, und Update-Ereignisse (Label-Änderungen
+// etc.) lösen keine Arbeit aus.
 func (p WebhookPayload) IsWakeEvent() bool {
 	switch p.ObjectKind {
 	case "issue":
 		return p.ObjectAttributes.Action == "open" || p.ObjectAttributes.Action == "reopen"
+	case "merge_request":
+		// Nur der Abschluss des Reviews (Merge bzw. Ablehnung) ist relevant —
+		// er weckt die darauf geblockte Aufgabe des MR-Autors.
+		return p.ObjectAttributes.Action == "merge" || p.ObjectAttributes.Action == "close"
 	case "note":
-		if !strings.EqualFold(p.ObjectAttributes.NoteableType, "Issue") {
+		if !strings.EqualFold(p.ObjectAttributes.NoteableType, "Issue") &&
+			!strings.EqualFold(p.ObjectAttributes.NoteableType, "MergeRequest") {
 			return false
 		}
 		return !agentUsernames()[strings.ToLower(strings.TrimSpace(p.User.Username))]

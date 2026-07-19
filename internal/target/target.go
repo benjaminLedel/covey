@@ -93,6 +93,10 @@ type WebhookEvent struct {
 	// Wake: false → Event wird registriert (Dedup), weckt aber nicht —
 	// z. B. das Echo der eigenen Agent-Antwort.
 	Wake bool
+	// CorrelateOnly: das Event weckt nur eine bereits geblockte Aufgabe
+	// (Wake-on-correlation), legt aber KEINE neue an — z. B. der Merge eines
+	// MR: wartet niemand darauf, ist er keine Arbeit.
+	CorrelateOnly bool
 }
 
 // Descriptor ist die Plugin-Einheit eines Zielsystems: Metadaten fürs UI

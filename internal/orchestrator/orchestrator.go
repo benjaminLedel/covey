@@ -1060,6 +1060,9 @@ func (o *Orchestrator) HandleWebhook(ctx context.Context, agent agents.Agent, so
 	} else if !errors.Is(err, backlog.ErrNotFound) {
 		return "", err
 	}
+	if ev.CorrelateOnly {
+		return "ignored", nil // wartet niemand auf das Event, entsteht keine Arbeit
+	}
 	task, err := o.Backlog.Create(ctx, agent.OrgID, agent.ID, ev.Title, ev.TaskBody, "webhook:"+source, 3)
 	if err != nil {
 		return "", err

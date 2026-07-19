@@ -122,8 +122,10 @@ Pro Zielprojekt (*Settings → Webhooks*):
   (`<agent-slug>` = der Slug des zuständigen Agenten; die URL ordnet das Issue
   dem Agenten zu — analog Zammad, Abschnitt 3.3 dort).
 - Secret token: **derselbe Wert** wie `COVEY_GITLAB_WEBHOOK_SECRET`.
-- Trigger: **Issues events** und **Comments** (Note Hooks) ankreuzen. Andere
-  Ereignisse (Push, MR, …) verwirft der Adapter, schaden aber nicht.
+- Trigger: **Issues events**, **Comments** (Note Hooks) und **Merge request
+  events** ankreuzen. Die MR-Ereignisse tragen den Review-Loop des
+  Entwickler-Workflows (Abschnitt 2.7); andere Ereignisse (Push, Pipeline, …)
+  verwirft der Adapter, schaden aber nicht.
 
 ### 2.6 Testen
 
@@ -138,6 +140,32 @@ Pro Zielprojekt (*Settings → Webhooks*):
    fortgesetzt. **Ohne Webhook** gibt es diesen Wake nicht — der Agent stellt
    die Rückfrage als Kommentar, schließt seinen Lauf ab und prüft beim
    nächsten Heartbeat per `list_notes`, ob eine Antwort da ist.
+
+### 2.7 Der Review-Loop: der Agent als Entwickler
+
+Behebt der Agent einen Bug selbst, arbeitet er wie ein Entwickler aus
+Fleisch und Blut — inklusive Warten auf Review:
+
+1. `checkout` des Projekts in die Sandbox, **Projekt aufsetzen** (Dependencies
+   installieren, Build und Tests einmal im Ausgangszustand laufen lassen —
+   die nötigen Paket-Registries gibt der Egress über die Built-in-Templates
+   frei, z. B. npm/PyPI/Go).
+2. Fix entwickeln, Tests ausführen, per `commit` auf einen Feature-Branch
+   pushen, `create_merge_request` an den Vorgesetzten.
+3. Der Agent geht `blocked` auf den Korrelations-Key
+   `gitlab:mr:<project_id>:<mr_iid>` — er **wartet auf Review**.
+4. Ein **Review-Kommentar** (Note Hook auf den MR) weckt ihn mit dem
+   Feedback: Er checkt den Source-Branch erneut aus, arbeitet die Punkte ein,
+   lässt die Tests laufen, pusht auf denselben Branch, antwortet per
+   `comment_mr` und blockt wieder.
+5. **Merge oder Close** des MR (Merge-Request-Hook, `action=merge|close`)
+   weckt ihn ein letztes Mal: Er kommentiert das Ergebnis im Issue und
+   schließt seine Aufgabe ab. Diese Hooks sind *correlate-only* — wartet
+   keine geblockte Aufgabe auf den MR, entsteht auch keine neue.
+
+Ohne Webhook funktioniert der Workflow ebenfalls, nur langsamer: Der Agent
+prüft dann beim nächsten Heartbeat per `list_mr_notes`/`get_merge_request`,
+ob Feedback oder der Merge vorliegt.
 
 ---
 
@@ -158,7 +186,13 @@ Aufnahme-Entscheidung (`ShouldWake` in `internal/target/gitlab/webhook.go`):
 - **Issue Hook** mit `action` `open` oder `reopen` → neue Aufgabe. `update`
   (Label-/Assignee-Änderungen) und `close` wecken nicht.
 - **Note Hook** auf ein Issue → weckt eine geblockte Aufgabe bzw. legt eine
-  neue an. Kommentare auf Merge Requests o. ä. wecken nicht.
+  neue an.
+- **Note Hook** auf einen Merge Request → Review-Feedback: weckt die auf
+  `gitlab:mr:…` geblockte Aufgabe des MR-Autors bzw. legt eine neue an
+  (Abschnitt 2.7).
+- **Merge-Request-Hook** mit `action` `merge` oder `close` → weckt
+  ausschließlich eine geblockte Aufgabe (*correlate-only*); `open`/`update`
+  wecken nicht.
 
 ### 3.2 Echo-Schutz
 
