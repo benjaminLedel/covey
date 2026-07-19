@@ -38,6 +38,7 @@ import (
 
 	// Kompilierte Zielsystem-Plugins: Blank-Import = ausgeliefert. Wer Covey
 	// ohne ein System bauen will, entfernt dessen Zeile — der Rest bleibt gleich.
+	_ "covey/internal/target/dev"
 	_ "covey/internal/target/gitlab"
 	_ "covey/internal/target/zammad"
 )

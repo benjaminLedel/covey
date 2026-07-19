@@ -848,6 +848,16 @@ func (o *Orchestrator) brokerCredential(ctx context.Context, agent agents.Agent,
 			map[string]any{"rule": "deny_system", "system": req.System, "pattern": v.Rule.Pattern})
 		return deny("durch Guard-Rail verboten")
 	}
+	// Lokale Systeme (NoCredentials, z. B. das dev-Plugin) brauchen keine
+	// Secrets — die Aktionen laufen komplett in der Sandbox. Die Prüfungen
+	// oben (ACCESS.md, Aktivierung, Guard-Rails) gelten trotzdem; gewährt
+	// wird ein leeres Credential.
+	if d, ok := target.Describe(req.System); ok && d.NoCredentials {
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
+			map[string]any{"system": req.System, "granted": true, "local": true})
+		return daemon.InjectCredentials{RequestID: req.RequestID, System: req.System,
+			Granted: true, TTLSecs: int(o.DaemonTokenTTL.Seconds())}
+	}
 	// MCP-Server tragen ihren Endpoint in der Config; Auth ist optional. Ein
 	// fehlendes Token verweigert daher NICHT — der Server kann ohne Auth
 	// erreichbar sein. URL-Secret bleibt optionaler Override.

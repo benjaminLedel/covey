@@ -12,9 +12,11 @@ import (
 	"syscall"
 
 	"covey/internal/daemon"
+	"covey/internal/target"
 
 	// Kompilierte Zielsystem-Plugins: Blank-Import = ausgeliefert (analog
 	// cmd/covey). Manifest-Plugins kommen zur Laufzeit über das Protokoll.
+	_ "covey/internal/target/dev"
 	_ "covey/internal/target/gitlab"
 	_ "covey/internal/target/zammad"
 )
@@ -43,6 +45,9 @@ func main() {
 
 	client := daemon.NewClient(wsURL, token, agentID, homeDir, log)
 	err := client.Run(ctx)
+	// Lokalen Plugin-Zustand abräumen (z. B. Prozesse des dev-Supervisors) —
+	// sonst überlebten gestartete Dev-Server/Browser die Sandbox.
+	target.Shutdown()
 	switch {
 	case err == nil:
 		log.Info("sleep — daemon fährt herunter")

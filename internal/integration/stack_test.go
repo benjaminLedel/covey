@@ -33,6 +33,8 @@ import (
 	"covey/internal/org"
 	secbuiltin "covey/internal/secrets/builtin"
 	targetstore "covey/internal/target/store"
+
+	_ "covey/internal/target/dev"
 	"covey/migrations"
 
 	_ "covey/internal/target/zammad"

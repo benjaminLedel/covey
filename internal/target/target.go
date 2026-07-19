@@ -108,6 +108,10 @@ type Descriptor struct {
 	// Kind: "builtin" (kompiliert) oder "custom" (Manifest-Upload).
 	Kind   string `json:"kind"`
 	System System `json:"-"`
+	// NoCredentials: das System braucht keine gebrokerten Secrets (kein
+	// <name>_token/_url) — es arbeitet rein lokal in der Sandbox (z. B. das
+	// dev-Plugin). ACCESS.md, Aktivierung und Guard-Rails gelten trotzdem.
+	NoCredentials bool `json:"-"`
 	// SetupDoc ist die Einrichtungs-Anleitung fürs UI (Plain Text, nummerierte
 	// Schritte). Platzhalter: {public_url} wird von der API durch die
 	// konfigurierte COVEY_PUBLIC_URL ersetzt; <agent-slug> bleibt stehen und
@@ -141,6 +145,14 @@ func Get(name string) (System, bool) {
 	return d.System, true
 }
 
+// Describe liefert den Deskriptor eines kompilierten Zielsystems — für
+// Entscheidungen der Control Plane, die Metadaten statt der Implementierung
+// brauchen (z. B. NoCredentials im Broker).
+func Describe(name string) (Descriptor, bool) {
+	d, ok := registry[name]
+	return d, ok
+}
+
 // All liefert alle registrierten Deskriptoren in Registrierungs-Reihenfolge.
 func All() []Descriptor {
 	out := make([]Descriptor, 0, len(order))
@@ -148,4 +160,22 @@ func All() []Descriptor {
 		out = append(out, registry[name])
 	}
 	return out
+}
+
+// Shutdown-Hooks: Plugins mit lokalem Zustand in der Sandbox (z. B. der
+// Prozess-Supervisor des dev-Plugins) registrieren hier ihren Aufräum-Code.
+// Der Daemon ruft Shutdown() beim Herunterfahren — sonst überlebten
+// gestartete Prozesse (Chrome, Dev-Server) die Sandbox.
+var shutdownHooks []func()
+
+// OnShutdown registriert einen Aufräum-Hook (Aufruf aus init() bzw. bei
+// erster Nutzung; nicht nebenläufig zur Registrierung).
+func OnShutdown(fn func()) { shutdownHooks = append(shutdownHooks, fn) }
+
+// Shutdown führt alle Aufräum-Hooks aus (idempotent, Reihenfolge der
+// Registrierung).
+func Shutdown() {
+	for _, fn := range shutdownHooks {
+		fn()
+	}
 }
