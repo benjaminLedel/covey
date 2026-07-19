@@ -34,10 +34,22 @@ Du bist ein Agent auf der Covey-Plattform. Es gelten folgende Regeln:
    frei benennbare Stage schieben, um deinen Fortschritt sichtbar zu machen:
    ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/set_stage -d '{\"stage\":\"Recherche\"}'`" + `
    Existiert die Stage noch nicht, wird sie automatisch als neue Spalte angelegt.
+   Nutze Spalten frei als Arbeitszustände — leere Spalten, die du selbst angelegt
+   hast, räumt die Plattform automatisch wieder ab.
    Das ist rein anzeigend und ändert deinen Aufgaben-Status NICHT — schließe
    trotzdem regulär mit COVEY_STATUS ab.
 
-4. **Abschluss-Protokoll:** Beende deine finale Antwort IMMER mit exakt einer Zeile:
+4. **Notizen:** Mache dir proaktiv Notizen, während du arbeitest — nicht erst am Ende.
+   Aufgabenbezogenes (Zwischenstände, Befunde, was du schon versucht hast) gehört
+   als Notiz an die Aufgabe:
+   ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/add_note -d '{\"content\":\"<notiz>\"}'`" + `
+   Allgemeingültiges (Erkenntnisse über Kunden, Systeme, wiederkehrende Lösungen)
+   gehört sofort in dein Gedächtnis:
+   ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/remember -d '{\"content\":\"<erkenntnis>\"}'`" + `
+   Faustregel: Hilft es nur bei dieser Aufgabe → add_note. Hilft es auch bei
+   künftigen Aufgaben → remember. Schreibe in beide NIE Floskeln ohne Substanz.
+
+5. **Abschluss-Protokoll:** Beende deine finale Antwort IMMER mit exakt einer Zeile:
    COVEY_STATUS: {"status":"done","result":"<kurze Zusammenfassung>","memory":"<was du für die Zukunft gelernt hast>"}
    oder, wenn du auf ein externes Ereignis warten musst (z. B. Kundenantwort, Freigabe):
    COVEY_STATUS: {"status":"blocked","correlation_key":"<korrelations-key>","question":"<worauf du wartest>"}
@@ -64,6 +76,85 @@ func TargetDocs(docs []string) string {
 		return ""
 	}
 	return "## Angebundene Zielsysteme\n\n" + strings.Join(clean, "\n\n")
+}
+
+// TeamMember ist ein menschlicher Mitarbeiter der Organisation, wie er im
+// System-Prompt des Agenten erscheint. Die Felder kommen aus dem
+// Mitarbeiter-Profil (humans-Tabelle); leere Felder werden weggelassen.
+type TeamMember struct {
+	Name     string
+	JobTitle string
+	Email    string
+	// Identities sind die Plattform-Kennungen der Person (generisch, ein
+	// Eintrag je Zielsystem), mit Anzeige-Label aus der Plugin-Registry.
+	Identities []TeamIdentity
+	// Fields sind die Werte der org-weit konfigurierbaren Profilfelder
+	// (profile_fields), bereits mit Anzeige-Label aufgelöst.
+	Fields           []TeamIdentity
+	Responsibilities string
+	// Supervisor markiert den Vorgesetzten des Agenten (Org-Chart,
+	// agents.supervisor_id): an diese Person gehen Merge Requests zum
+	// Review und Eskalationen.
+	Supervisor bool
+}
+
+// TeamIdentity ist eine Zielsystem-Kennung fürs Team-Verzeichnis,
+// z. B. {Label: "GitLab", Value: "maxm"}.
+type TeamIdentity struct {
+	Label string
+	Value string
+}
+
+// TeamSection baut den Abschnitt "Team" für den System-Prompt: das
+// Mitarbeiterverzeichnis der Organisation. Damit weiß ein Agent, wer wofür
+// zuständig ist und unter welcher Kennung er eine Person in einem Zielsystem
+// erreicht (z. B. GitLab-Issue zum Testen zuweisen). Wird wie TargetDocs zur
+// Dispatch-Zeit angehängt, damit Profil-Änderungen sofort wirken.
+func TeamSection(members []TeamMember) string {
+	var lines []string
+	for _, m := range members {
+		if strings.TrimSpace(m.Name) == "" {
+			continue
+		}
+		line := "- " + m.Name
+		if m.JobTitle != "" {
+			line += " — " + m.JobTitle
+		}
+		if m.Supervisor {
+			line += " — DEIN VORGESETZTER"
+		}
+		var contact []string
+		if m.Email != "" {
+			contact = append(contact, "E-Mail: "+m.Email)
+		}
+		for _, id := range append(append([]TeamIdentity{}, m.Identities...), m.Fields...) {
+			if id.Label != "" && id.Value != "" {
+				contact = append(contact, id.Label+": "+id.Value)
+			}
+		}
+		if len(contact) > 0 {
+			line += " (" + strings.Join(contact, ", ") + ")"
+		}
+		if m.Responsibilities != "" {
+			line += " — zuständig für: " + m.Responsibilities
+		}
+		lines = append(lines, line)
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	return `## Team (menschliche Mitarbeiter)
+
+Diese Menschen gehören zu deiner Organisation. Wenn du in einem Zielsystem
+etwas an eine Person übergibst — z. B. ein GitLab-Issue zum Testen zuweist
+oder jemanden in einem Kommentar erwähnst — verwende exakt die hier
+hinterlegten Kennungen und wähle die Person anhand ihrer Zuständigkeit.
+Rate niemals Benutzernamen oder E-Mail-Adressen.
+Ist eine Person als DEIN VORGESETZTER markiert, ist sie deine Anlaufstelle
+für Eskalationen — und der Empfänger (Assignee/Reviewer) deiner Merge
+Requests.
+
+` + strings.Join(lines, "\n")
 }
 
 // CompilePrompt macht aus den Config-Dateien den System-Prompt.

@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -71,12 +72,25 @@ type Task struct {
 
 // Stage ist eine frei definierbare Kanban-Spalte eines Agenten (Overlay über
 // den Lifecycle-State). Reihenfolge über position, Farbe optional (CSS-Token).
+// CreatedBy unterscheidet die Herkunft: 'agent'-Spalten (per set_stage
+// „erfunden") werden automatisch abgeräumt, sobald sie leer sind.
 type Stage struct {
 	ID        uuid.UUID `json:"id"`
 	AgentID   uuid.UUID `json:"agent_id"`
 	Name      string    `json:"name"`
 	Position  int       `json:"position"`
 	Color     string    `json:"color"`
+	CreatedBy string    `json:"created_by"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// Note ist eine proaktive Notiz an einer Aufgabe: Zwischenstände, Befunde,
+// Versuchtes — aufgabenbezogen, im Gegensatz zum Gedächtnis (allgemeingültig).
+type Note struct {
+	ID        uuid.UUID `json:"id"`
+	TaskID    uuid.UUID `json:"task_id"`
+	Author    string    `json:"author"`
+	Content   string    `json:"content"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -361,7 +375,12 @@ func (s *Store) Archive(ctx context.Context, id uuid.UUID) (Task, error) {
 		return t, fmt.Errorf("%w: nur abgeschlossene Aufgaben lassen sich archivieren (Zustand %s)",
 			ErrInvalidTransition, t.State)
 	}
-	return s.Get(ctx, id)
+	t, err := s.Get(ctx, id)
+	if err == nil {
+		// Archivieren kann eine Agenten-Spalte geleert haben.
+		_, _ = cleanupEmptyAgentStages(ctx, s.pool, t.AgentID)
+	}
+	return t, err
 }
 
 // ArchiveTerminal räumt auf: archiviert alle terminalen Aufgaben eines Agenten.
@@ -371,6 +390,8 @@ func (s *Store) ArchiveTerminal(ctx context.Context, agentID uuid.UUID) (int64, 
 	if err != nil {
 		return 0, err
 	}
+	// Archivieren kann Agenten-Spalten geleert haben — abräumen.
+	_, _ = cleanupEmptyAgentStages(ctx, s.pool, agentID)
 	return tag.RowsAffected(), nil
 }
 
@@ -425,11 +446,11 @@ func (s *Store) HasOpen(ctx context.Context, agentID uuid.UUID) (bool, error) {
 
 // --- Stages (Kanban-Overlay, pro Agent) ---
 
-const stageCols = "id, agent_id, name, position, color, created_at"
+const stageCols = "id, agent_id, name, position, color, created_by, created_at"
 
 func scanStage(row pgx.Row) (Stage, error) {
 	var st Stage
-	err := row.Scan(&st.ID, &st.AgentID, &st.Name, &st.Position, &st.Color, &st.CreatedAt)
+	err := row.Scan(&st.ID, &st.AgentID, &st.Name, &st.Position, &st.Color, &st.CreatedBy, &st.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return st, ErrNotFound
 	}
@@ -455,12 +476,24 @@ func (s *Store) ListStages(ctx context.Context, agentID uuid.UUID) ([]Stage, err
 	return out, rows.Err()
 }
 
-// CreateStage hängt eine neue Spalte hinten an (position = max+1).
+// querier abstrahiert Pool und Transaktion, damit Stage-Operationen auch
+// innerhalb einer Transaktion laufen können (SetTaskStageByName).
+type querier interface {
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+}
+
+// CreateStage hängt eine neue Spalte hinten an (position = max+1) — der
+// menschliche Pfad (UI/API); Agenten-Spalten entstehen über EnsureStage.
 func (s *Store) CreateStage(ctx context.Context, agentID uuid.UUID, name, color string) (Stage, error) {
-	return scanStage(s.pool.QueryRow(ctx, `INSERT INTO agent_stages (id, agent_id, name, color, position)
+	return createStage(ctx, s.pool, agentID, name, color, "human")
+}
+
+func createStage(ctx context.Context, q querier, agentID uuid.UUID, name, color, createdBy string) (Stage, error) {
+	return scanStage(q.QueryRow(ctx, `INSERT INTO agent_stages (id, agent_id, name, color, position, created_by)
 		VALUES ($1,$2,$3,$4,
-			(SELECT COALESCE(MAX(position),-1)+1 FROM agent_stages WHERE agent_id=$2))
-		RETURNING `+stageCols, uuid.New(), agentID, name, color))
+			(SELECT COALESCE(MAX(position),-1)+1 FROM agent_stages WHERE agent_id=$2),$5)
+		RETURNING `+stageCols, uuid.New(), agentID, name, color, createdBy))
 }
 
 // DefaultStages sind die Spalten, die jeder Agent von Beginn an haben soll —
@@ -527,9 +560,14 @@ func (s *Store) ReorderStages(ctx context.Context, agentID uuid.UUID, ordered []
 }
 
 // EnsureStage liefert die gleichnamige Stage oder legt sie an — der Weg, über
-// den der Agent per set_stage eine neue Spalte „erfindet".
+// den der Agent per set_stage eine neue Spalte „erfindet". Solche Spalten
+// tragen created_by='agent' und werden automatisch abgeräumt, wenn sie leeren.
 func (s *Store) EnsureStage(ctx context.Context, agentID uuid.UUID, name string) (Stage, error) {
-	st, err := scanStage(s.pool.QueryRow(ctx, "SELECT "+stageCols+
+	return ensureStage(ctx, s.pool, agentID, name)
+}
+
+func ensureStage(ctx context.Context, q querier, agentID uuid.UUID, name string) (Stage, error) {
+	st, err := scanStage(q.QueryRow(ctx, "SELECT "+stageCols+
 		" FROM agent_stages WHERE agent_id=$1 AND name=$2", agentID, name))
 	if err == nil {
 		return st, nil
@@ -537,13 +575,93 @@ func (s *Store) EnsureStage(ctx context.Context, agentID uuid.UUID, name string)
 	if !errors.Is(err, ErrNotFound) {
 		return Stage{}, err
 	}
-	return s.CreateStage(ctx, agentID, name, "")
+	return createStage(ctx, q, agentID, name, "", "agent")
 }
 
 // SetTaskStage verschiebt eine Aufgabe in eine Stage (nil = ohne Stage). Rein
-// anzeigend — kein Lifecycle-Übergang, kein NOTIFY.
+// anzeigend — kein Lifecycle-Übergang, kein NOTIFY. Räumt danach leere
+// Agenten-Spalten ab (die Aufgabe könnte die letzte in einer gewesen sein).
 func (s *Store) SetTaskStage(ctx context.Context, taskID uuid.UUID, stageID *uuid.UUID) (Task, error) {
-	return scanTask(s.pool.QueryRow(ctx,
+	t, err := scanTask(s.pool.QueryRow(ctx,
 		"UPDATE backlog_tasks SET stage_id=$2, updated_at=now() WHERE id=$1 RETURNING "+taskCols,
 		taskID, stageID))
+	if err == nil {
+		_, _ = cleanupEmptyAgentStages(ctx, s.pool, t.AgentID)
+	}
+	return t, err
+}
+
+// SetTaskStageByName ist der Agenten-Pfad (set_stage) in einer Transaktion:
+// Stage sicherstellen, Aufgabe verschieben, leere Agenten-Spalten abräumen.
+// Eine Transaktion, damit kein nebenläufiges Cleanup die frisch angelegte
+// Spalte zwischen Anlegen und Zuweisen wegräumt.
+func (s *Store) SetTaskStageByName(ctx context.Context, agentID, taskID uuid.UUID, name string) (Stage, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Stage{}, err
+	}
+	defer tx.Rollback(ctx)
+	st, err := ensureStage(ctx, tx, agentID, name)
+	if err != nil {
+		return Stage{}, err
+	}
+	if _, err := tx.Exec(ctx,
+		"UPDATE backlog_tasks SET stage_id=$2, updated_at=now() WHERE id=$1", taskID, st.ID); err != nil {
+		return Stage{}, err
+	}
+	if _, err := cleanupEmptyAgentStages(ctx, tx, agentID); err != nil {
+		return Stage{}, err
+	}
+	return st, tx.Commit(ctx)
+}
+
+// CleanupEmptyAgentStages räumt Spalten ab, die der Agent selbst angelegt hat
+// (created_by='agent') und in denen keine aktive (unarchivierte) Aufgabe mehr
+// liegt — die Spalten „erfindet" der Agent im Arbeiten, also verschwinden sie
+// auch wieder von selbst. Menschlich angelegte Spalten bleiben unberührt.
+func (s *Store) CleanupEmptyAgentStages(ctx context.Context, agentID uuid.UUID) (int64, error) {
+	return cleanupEmptyAgentStages(ctx, s.pool, agentID)
+}
+
+func cleanupEmptyAgentStages(ctx context.Context, q querier, agentID uuid.UUID) (int64, error) {
+	tag, err := q.Exec(ctx, `DELETE FROM agent_stages s
+		WHERE s.agent_id=$1 AND s.created_by='agent'
+		  AND NOT EXISTS (SELECT 1 FROM backlog_tasks t
+		      WHERE t.stage_id=s.id AND t.archived_at IS NULL)`, agentID)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
+// --- Notizen (proaktive Zwischenstände an der Aufgabe) ---
+
+// AddNote hängt eine Notiz an die Aufgabe. Leerer Inhalt ist kein Fehler,
+// aber auch keine Notiz.
+func (s *Store) AddNote(ctx context.Context, taskID uuid.UUID, author, content string) (Note, error) {
+	var n Note
+	err := s.pool.QueryRow(ctx, `INSERT INTO task_notes (id, task_id, author, content)
+		VALUES ($1,$2,$3,$4) RETURNING id, task_id, author, content, created_at`,
+		uuid.New(), taskID, author, content).
+		Scan(&n.ID, &n.TaskID, &n.Author, &n.Content, &n.CreatedAt)
+	return n, err
+}
+
+// ListNotes liefert die Notizen einer Aufgabe in zeitlicher Reihenfolge.
+func (s *Store) ListNotes(ctx context.Context, taskID uuid.UUID) ([]Note, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id, task_id, author, content, created_at
+		FROM task_notes WHERE task_id=$1 ORDER BY created_at, id`, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Note
+	for rows.Next() {
+		var n Note
+		if err := rows.Scan(&n.ID, &n.TaskID, &n.Author, &n.Content, &n.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
 }

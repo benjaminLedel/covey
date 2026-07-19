@@ -26,24 +26,30 @@ const (
 )
 
 type Agent struct {
-	ID          uuid.UUID  `json:"id"`
-	OrgID       uuid.UUID  `json:"org_id"`
-	Slug        string     `json:"slug"`
-	DisplayName string     `json:"display_name"`
-	Runtime     string     `json:"runtime"`
-	Status      string     `json:"status"`
-	OwnerID     *uuid.UUID `json:"owner_id,omitempty"`
+	ID          uuid.UUID `json:"id"`
+	OrgID       uuid.UUID `json:"org_id"`
+	Slug        string    `json:"slug"`
+	DisplayName string    `json:"display_name"`
+	Runtime     string    `json:"runtime"`
+	// Model wählt das LLM innerhalb der Runtime (z. B. claude-opus-4-8);
+	// leer = die Runtime nutzt ihren eigenen Default.
+	Model string `json:"model"`
+	// MaxTurns begrenzt die Turns eines Runtime-Laufs (Runaway-Guard);
+	// 0 = Default des Orchestrators.
+	MaxTurns int        `json:"max_turns"`
+	Status   string     `json:"status"`
+	OwnerID  *uuid.UUID `json:"owner_id,omitempty"`
 	// SupervisorID ist der Platz im Org-Chart: der Mensch, an den der Agent
 	// berichtet und eskaliert (spec/02).
 	SupervisorID *uuid.UUID `json:"supervisor_id,omitempty"`
-	Killed      bool       `json:"killed"`
-	BudgetUSD   float64    `json:"budget_usd"`
+	Killed       bool       `json:"killed"`
+	BudgetUSD    float64    `json:"budget_usd"`
 	// WebhookToken ist das Geheimnis des optionalen generischen Webhook-
 	// Triggers (nil = deaktiviert). Bewusst nicht im JSON — lesbar nur über
 	// den dedizierten Webhook-Endpoint (Manager-Rollen).
 	WebhookToken *string   `json:"-"`
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 type ConfigVersion struct {
@@ -72,11 +78,11 @@ type Registry struct {
 
 func NewRegistry(pool *pgxpool.Pool) *Registry { return &Registry{pool: pool} }
 
-const agentCols = "id, org_id, slug, display_name, runtime, status, owner_id, supervisor_id, killed, budget_usd, webhook_token, created_at, updated_at"
+const agentCols = "id, org_id, slug, display_name, runtime, model, max_turns, status, owner_id, supervisor_id, killed, budget_usd, webhook_token, created_at, updated_at"
 
 func scanAgent(row pgx.Row) (Agent, error) {
 	var a Agent
-	err := row.Scan(&a.ID, &a.OrgID, &a.Slug, &a.DisplayName, &a.Runtime, &a.Status,
+	err := row.Scan(&a.ID, &a.OrgID, &a.Slug, &a.DisplayName, &a.Runtime, &a.Model, &a.MaxTurns, &a.Status,
 		&a.OwnerID, &a.SupervisorID, &a.Killed, &a.BudgetUSD, &a.WebhookToken, &a.CreatedAt, &a.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, ErrNotFound
@@ -161,6 +167,26 @@ func (r *Registry) SetBudget(ctx context.Context, id uuid.UUID, budgetUSD float6
 // Task-Dispatch — laufende Sessions bleiben unberührt.
 func (r *Registry) SetRuntime(ctx context.Context, id uuid.UUID, runtime string) error {
 	tag, err := r.pool.Exec(ctx, "UPDATE agents SET runtime=$2, updated_at=now() WHERE id=$1", id, runtime)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+// SetModel legt das Modell des Agenten fest (leer = Runtime-Default).
+// Greift wie SetRuntime beim nächsten Task-Dispatch.
+func (r *Registry) SetModel(ctx context.Context, id uuid.UUID, model string) error {
+	tag, err := r.pool.Exec(ctx, "UPDATE agents SET model=$2, updated_at=now() WHERE id=$1", id, model)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+// SetMaxTurns legt das Turn-Limit je Runtime-Lauf fest (0 = Default des
+// Orchestrators). Greift wie SetModel beim nächsten Task-Dispatch.
+func (r *Registry) SetMaxTurns(ctx context.Context, id uuid.UUID, maxTurns int) error {
+	tag, err := r.pool.Exec(ctx, "UPDATE agents SET max_turns=$2, updated_at=now() WHERE id=$1", id, maxTurns)
 	if err == nil && tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}

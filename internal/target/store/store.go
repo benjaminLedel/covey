@@ -43,7 +43,10 @@ type Plugin struct {
 }
 
 // List mergt die kompilierte Registry mit den DB-Zeilen der Organisation.
-// Built-ins ohne Zeile gelten als aktiviert (Bestandsschutz).
+// Aktivierung ist opt-in (fail-closed): ein Built-in ohne Zeile ist
+// deaktiviert — es zählt nur eine explizite Zeile mit enabled=TRUE.
+// (Bestandsorganisationen wurden per Migration 0020 auf ihren bisherigen
+// Stand gesetzt.)
 func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT name, kind, enabled, manifest, updated_at FROM target_plugins WHERE org_id=$1`, orgID)
@@ -67,7 +70,7 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 
 	var out []Plugin
 	for _, d := range target.All() {
-		p := Plugin{Name: d.Name, Label: d.Label, Description: d.Description, Kind: "builtin", Enabled: true, SetupDoc: d.SetupDoc}
+		p := Plugin{Name: d.Name, Label: d.Label, Description: d.Description, Kind: "builtin", Enabled: false, SetupDoc: d.SetupDoc}
 		if row, ok := stored[d.Name]; ok {
 			p.Enabled = row.Enabled
 			p.UpdatedAt = row.UpdatedAt
@@ -203,9 +206,9 @@ func (s *Store) System(ctx context.Context, orgID uuid.UUID, name string) (targe
 		WHERE org_id=$1 AND name=$2`, orgID, name).Scan(&kind, &enabled, &manifest)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
-		// Keine Zeile: Built-ins gelten als aktiviert, alles andere gibt es nicht.
-		if sys, ok := target.Get(name); ok {
-			return sys, nil
+		// Keine Zeile = nicht aktiviert (fail-closed, auch für Built-ins).
+		if _, ok := target.Get(name); ok {
+			return nil, fmt.Errorf("%w: %s ist nicht aktiviert", ErrNotFound, name)
 		}
 		return nil, ErrNotFound
 	case err != nil:
@@ -365,7 +368,7 @@ func (s *Store) EnabledDocs(ctx context.Context, orgID uuid.UUID) ([]string, err
 		return nil, err
 	}
 	defer rows.Close()
-	disabled := map[string]bool{}
+	enabledBuiltin := map[string]bool{}
 	var docs []string
 	for rows.Next() {
 		var name, kind string
@@ -375,10 +378,12 @@ func (s *Store) EnabledDocs(ctx context.Context, orgID uuid.UUID) ([]string, err
 			return nil, err
 		}
 		if !enabled {
-			disabled[name] = true
 			continue
 		}
-		if kind == "custom" {
+		switch kind {
+		case "builtin":
+			enabledBuiltin[name] = true
+		case "custom":
 			if m, err := target.ParseManifest(manifest); err == nil {
 				docs = append(docs, target.NewManifestSystem(m).PromptDoc())
 			}
@@ -387,8 +392,9 @@ func (s *Store) EnabledDocs(ctx context.Context, orgID uuid.UUID) ([]string, err
 	if rows.Err() != nil {
 		return nil, rows.Err()
 	}
+	// Built-ins nur mit expliziter Aktivierung (opt-in, fail-closed).
 	for _, d := range target.All() {
-		if !disabled[d.Name] && d.System != nil {
+		if enabledBuiltin[d.Name] && d.System != nil {
 			docs = append(docs, d.System.PromptDoc())
 		}
 	}
@@ -405,7 +411,7 @@ func (s *Store) EnabledDocsForAgent(ctx context.Context, orgID, agentID uuid.UUI
 		return nil, err
 	}
 	defer rows.Close()
-	disabled := map[string]bool{}
+	enabledBuiltin := map[string]bool{}
 	var docs []string
 	for rows.Next() {
 		var name, kind string
@@ -415,10 +421,11 @@ func (s *Store) EnabledDocsForAgent(ctx context.Context, orgID, agentID uuid.UUI
 			return nil, err
 		}
 		if !enabled {
-			disabled[name] = true
 			continue
 		}
 		switch kind {
+		case "builtin":
+			enabledBuiltin[name] = true
 		case "custom":
 			if m, err := target.ParseManifest(manifest); err == nil {
 				docs = append(docs, target.NewManifestSystem(m).PromptDoc())
@@ -438,8 +445,9 @@ func (s *Store) EnabledDocsForAgent(ctx context.Context, orgID, agentID uuid.UUI
 	if rows.Err() != nil {
 		return nil, rows.Err()
 	}
+	// Built-ins nur mit expliziter Aktivierung (opt-in, fail-closed).
 	for _, d := range target.All() {
-		if !disabled[d.Name] && d.System != nil {
+		if enabledBuiltin[d.Name] && d.System != nil {
 			docs = append(docs, d.System.PromptDoc())
 		}
 	}

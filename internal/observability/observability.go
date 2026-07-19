@@ -79,10 +79,22 @@ func (s *Store) Events(ctx context.Context, agentID uuid.UUID, taskID *uuid.UUID
 	if limit <= 0 || limit > 1000 {
 		limit = 500
 	}
-	rows, err := s.pool.Query(ctx, `SELECT id, org_id, agent_id, task_id, kind, payload, created_at
+	// Ohne after-Cursor interessiert das jüngste Geschehen: die letzten N
+	// Events, chronologisch sortiert. Mit Cursor (Live-Follow) weiterhin
+	// vorwärts ab der bekannten ID.
+	query := `SELECT id, org_id, agent_id, task_id, kind, payload, created_at
 		FROM recording_events
 		WHERE agent_id=$1 AND ($2::uuid IS NULL OR task_id=$2) AND id > $3
-		ORDER BY id LIMIT $4`, agentID, taskID, afterID, limit)
+		ORDER BY id LIMIT $4`
+	if afterID <= 0 {
+		query = `SELECT id, org_id, agent_id, task_id, kind, payload, created_at FROM (
+			SELECT id, org_id, agent_id, task_id, kind, payload, created_at
+			FROM recording_events
+			WHERE agent_id=$1 AND ($2::uuid IS NULL OR task_id=$2) AND id > $3
+			ORDER BY id DESC LIMIT $4
+		) sub ORDER BY id`
+	}
+	rows, err := s.pool.Query(ctx, query, agentID, taskID, afterID, limit)
 	if err != nil {
 		return nil, err
 	}

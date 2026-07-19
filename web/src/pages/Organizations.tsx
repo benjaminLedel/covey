@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, del, patch, post, type Organization, type Principal } from "../api";
+import { api, del, patch, post, type Organization, type Principal, type ProfileField } from "../api";
 
 // Mandanten-Verwaltung (nur platform_admin): Organisationen der Installation
 // anlegen, umbenennen, löschen. Jede neue Organisation braucht einen
@@ -39,6 +39,125 @@ export default function Organizations({ me }: { me: Principal }) {
       {(orgs.data ?? []).map((o) => (
         <OrgRow key={o.id} org={o} isOwn={o.id === me.OrgID} />
       ))}
+
+      <ProfileFieldsSettings />
+    </div>
+  );
+}
+
+// Konfigurierbare Profilfelder der eigenen Organisation: der Admin definiert
+// hier beliebige Zusatzfelder (z. B. Standort, Abteilung, Slack-Handle) —
+// sie erscheinen sofort in jedem Mitarbeiter-Profil und im Team-Verzeichnis,
+// das die Agenten im Prompt sehen. Umbenennen behält den Feld-Schlüssel und
+// damit die bereits erfassten Werte; Löschen entfernt auch die Werte.
+function ProfileFieldsSettings() {
+  const qc = useQueryClient();
+  const fields = useQuery({
+    queryKey: ["profileFields"],
+    queryFn: () => api<ProfileField[]>("/org/profile-fields"),
+  });
+  const [label, setLabel] = useState("");
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["profileFields"] });
+
+  const create = useMutation({
+    mutationFn: () => post("/org/profile-fields", { label }),
+    onSuccess: () => {
+      setLabel("");
+      invalidate();
+    },
+  });
+
+  return (
+    <>
+      <h2 className="text-sm secondary mt-6 mb-2">Profilfelder Ihrer Organisation</h2>
+      <p className="muted text-xs mb-3" style={{ maxWidth: 640 }}>
+        Zusätzliche Felder für alle Mitarbeiter-Profile — z. B. Standort, Abteilung oder Slack-Handle.
+        Sie erscheinen sofort im Profil-Editor jeder Person und im Team-Verzeichnis, das die Agenten sehen.
+        Löschen entfernt auch die bereits erfassten Werte.
+      </p>
+
+      <form
+        className="card mb-3 flex gap-3 items-end flex-wrap"
+        onSubmit={(e) => {
+          e.preventDefault();
+          create.mutate();
+        }}
+      >
+        <div className="flex-1 min-w-52">
+          <label>Neues Profilfeld</label>
+          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="z. B. Standort" required />
+        </div>
+        <button className="btn primary" disabled={create.isPending}>
+          Hinzufügen
+        </button>
+        {create.isError && <p className="text-xs m-0" style={{ color: "var(--text-danger)" }}>{(create.error as Error).message}</p>}
+      </form>
+
+      {(fields.data ?? []).map((f) => (
+        <FieldRow key={f.id} field={f} onChanged={invalidate} />
+      ))}
+      {fields.data?.length === 0 && <p className="muted text-xs">Noch keine zusätzlichen Profilfelder definiert.</p>}
+    </>
+  );
+}
+
+function FieldRow({ field, onChanged }: { field: ProfileField; onChanged: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [label, setLabel] = useState(field.label);
+  const rename = useMutation({
+    mutationFn: () => patch(`/org/profile-fields/${field.id}`, { label }),
+    onSuccess: () => {
+      setEditing(false);
+      onChanged();
+    },
+  });
+  const remove = useMutation({
+    mutationFn: () => del(`/org/profile-fields/${field.id}`),
+    onSuccess: onChanged,
+  });
+  const error = rename.error ?? remove.error;
+
+  return (
+    <div className="card mb-2" style={{ padding: "9px 15px" }}>
+      <div className="flex items-center gap-4 flex-wrap">
+        {editing ? (
+          <form
+            className="flex gap-2 items-center flex-1 min-w-52"
+            onSubmit={(e) => {
+              e.preventDefault();
+              rename.mutate();
+            }}
+          >
+            <input value={label} onChange={(e) => setLabel(e.target.value)} required autoFocus />
+            <button className="btn sm primary" disabled={rename.isPending}>
+              Speichern
+            </button>
+            <button type="button" className="btn sm" onClick={() => setEditing(false)}>
+              Abbrechen
+            </button>
+          </form>
+        ) : (
+          <div className="flex-1 min-w-44">
+            <span className="text-sm font-medium">{field.label}</span>
+            <span className="muted text-xs mono"> · {field.key}</span>
+          </div>
+        )}
+        {!editing && (
+          <button className="btn sm" onClick={() => setEditing(true)}>
+            Umbenennen
+          </button>
+        )}
+        <button
+          className="btn sm danger"
+          onClick={() => {
+            if (window.confirm(`Profilfeld „${field.label}" samt aller erfassten Werte löschen?`)) remove.mutate();
+          }}
+          disabled={remove.isPending}
+        >
+          Löschen
+        </button>
+      </div>
+      {error && <p className="text-xs mt-2" style={{ color: "var(--text-danger)" }}>{(error as Error).message}</p>}
     </div>
   );
 }

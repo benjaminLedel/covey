@@ -62,3 +62,46 @@ func TestParseAccessEmpty(t *testing.T) {
 		t.Fatalf("leere ACCESS.md soll leer parsen, got %+v", accs)
 	}
 }
+
+func TestTeamSection(t *testing.T) {
+	s := TeamSection([]TeamMember{
+		{Name: "Max Mustermann", JobTitle: "QA Engineer", Email: "max@example.com",
+			Identities:       []TeamIdentity{{Label: "GitLab", Value: "maxm"}, {Label: "Zammad", Value: "max@firma.de"}},
+			Responsibilities: "testet Bugfixes im Projekt educa"},
+		{Name: "Erika Beispiel"}, // nur Name — keine leeren Klammern/Bindestriche
+		{Name: "  "},             // ohne Name: überspringen
+	})
+	if !strings.Contains(s, "## Team (menschliche Mitarbeiter)") {
+		t.Fatalf("Überschrift fehlt: %q", s)
+	}
+	if !strings.Contains(s, "- Max Mustermann — QA Engineer (E-Mail: max@example.com, GitLab: maxm, Zammad: max@firma.de) — zuständig für: testet Bugfixes im Projekt educa") {
+		t.Fatalf("Vollprofil-Zeile falsch: %q", s)
+	}
+	if !strings.Contains(s, "- Erika Beispiel\n") && !strings.HasSuffix(s, "- Erika Beispiel") {
+		t.Fatalf("Minimalprofil-Zeile falsch: %q", s)
+	}
+	if strings.Contains(s, "()") || strings.Contains(s, "Erika Beispiel —") {
+		t.Fatalf("leere Felder dürfen keine Artefakte hinterlassen: %q", s)
+	}
+
+	if TeamSection(nil) != "" || TeamSection([]TeamMember{{Name: " "}}) != "" {
+		t.Fatal("ohne Mitglieder muss der Abschnitt leer sein")
+	}
+}
+
+func TestTeamSectionSupervisor(t *testing.T) {
+	s := TeamSection([]TeamMember{
+		{Name: "Lena Lead", JobTitle: "Engineering Lead", Supervisor: true,
+			Identities: []TeamIdentity{{Label: "GitLab", Value: "leaddev"}}},
+		{Name: "Max Mustermann"},
+	})
+	if !strings.Contains(s, "- Lena Lead — Engineering Lead — DEIN VORGESETZTER (GitLab: leaddev)") {
+		t.Fatalf("Vorgesetzten-Markierung fehlt oder falsch platziert: %q", s)
+	}
+	if strings.Contains(s, "Max Mustermann — DEIN VORGESETZTER") {
+		t.Fatalf("nur der Vorgesetzte darf markiert sein: %q", s)
+	}
+	if !strings.Contains(s, "Merge\nRequests") && !strings.Contains(s, "Merge Requests") {
+		t.Fatalf("Hinweis auf Merge Requests an den Vorgesetzten fehlt: %q", s)
+	}
+}

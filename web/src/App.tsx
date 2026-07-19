@@ -12,10 +12,10 @@ import Secrets from "./pages/Secrets";
 import Users from "./pages/Users";
 import Organizations from "./pages/Organizations";
 import Org from "./pages/Org";
+import PersonPage from "./pages/Person";
 import Runtimes from "./pages/Runtimes";
 import Targets from "./pages/Targets";
 import Egress from "./pages/Egress";
-import Profile from "./pages/Profile";
 
 // useLiveEvents hält die UI über SSE aktuell: jedes Server-Event invalidiert
 // die betroffenen Queries — TanStack Query lädt gezielt nach.
@@ -267,13 +267,14 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
             <Route path="/" element={<Dashboard me={me} />} />
             <Route path="/agents/:id" element={<AgentPage me={me} />} />
             <Route path="/org" element={<Org />} />
-            <Route path="/profile" element={<Profile me={me} />} />
+            <Route path="/people/:id" element={<PersonPage me={me} />} />
+            <Route path="/profile" element={<Navigate to={`/people/${me.ID}`} replace />} />
             <Route path="/approvals" element={<Approvals />} />
             <Route path="/guardrails" element={<Guardrails me={me} />} />
             <Route path="/secrets" element={<Secrets me={me} />} />
             <Route path="/users" element={<Users me={me} />} />
             <Route path="/orgs" element={<Organizations me={me} />} />
-            <Route path="/runtimes" element={<Runtimes me={me} />} />
+            <Route path="/runtimes" element={<Runtimes />} />
             <Route path="/targets" element={<Targets me={me} />} />
             <Route path="/egress/*" element={<Egress me={me} />} />
             <Route path="*" element={<Navigate to="/" />} />

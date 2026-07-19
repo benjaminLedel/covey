@@ -7,6 +7,18 @@ import (
 	"strings"
 )
 
+// DefaultAllowedTools ist der Standard-Tool-Umfang eines Laufs, solange keine
+// Agent-Config etwas anderes vorgibt: Dateien lesen/schreiben/suchen, Shell,
+// Webseiten abrufen und durchsuchen, Aufgaben strukturieren. Die harte Grenze
+// bleibt außerhalb der Runtime (Broker, Egress, Guard-Rails) — diese Liste ist
+// die weiche Innen-Grenze aus spec/12.
+var DefaultAllowedTools = []string{
+	"Bash", "BashOutput", "KillShell",
+	"Read", "Write", "Edit", "Glob", "Grep", "NotebookEdit",
+	"WebFetch", "WebSearch",
+	"Task", "TodoWrite",
+}
+
 // RunSpec ist alles, was ein Runtime-Adapter für einen Lauf braucht.
 type RunSpec struct {
 	TaskID          string
@@ -14,6 +26,7 @@ type RunSpec struct {
 	Body            string
 	SystemPrompt    string
 	MemoryContext   string
+	Model           string // gewünschtes LLM; leer = Default der Runtime
 	AllowedTools    []string
 	MaxTurns        int
 	MaxBudgetUSD    float64

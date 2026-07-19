@@ -39,11 +39,13 @@ const (
 	TypeCost              = "cost"
 	TypeHeartbeat         = "heartbeat"
 	TypeSetStage          = "set_stage"
+	TypeNote              = "note"
 )
 
 type InjectConfig struct {
 	SystemPrompt string   `json:"system_prompt"`
 	Runtime      string   `json:"runtime"`
+	Model        string   `json:"model,omitempty"` // leer = Runtime-Default
 	AllowedTools []string `json:"allowed_tools,omitempty"`
 	MaxTurns     int      `json:"max_turns,omitempty"`
 	MaxBudgetUSD float64  `json:"max_budget_usd,omitempty"`
@@ -150,6 +152,16 @@ type TaskDone struct {
 type SetStage struct {
 	TaskID string `json:"task_id,omitempty"`
 	Stage  string `json:"stage"`
+}
+
+// Note ist eine proaktive Notiz des Agenten mitten im Lauf. Scope "task" hängt
+// sie an die Aufgabe (Zwischenstände, Befunde — aufgabenbezogen), Scope
+// "memory" speist sie sofort ins Gedächtnis (allgemeingültige Erkenntnisse) —
+// ohne auf das memory-Feld von task_done zu warten. TaskID leer = aktuelle Aufgabe.
+type Note struct {
+	TaskID  string `json:"task_id,omitempty"`
+	Scope   string `json:"scope"` // task | memory
+	Content string `json:"content"`
 }
 
 type Cost struct {

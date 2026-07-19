@@ -1,10 +1,14 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, del, patch, post, roleLabel, type Human, type Principal } from "../api";
+import { Avatar, PersonLink } from "../components/person";
 
 // Benutzerverwaltung (nur platform_admin): Nutzer der eigenen Organisation
-// anlegen, Rolle/Name ändern, Passwort zurücksetzen, entfernen. Schutzregeln
-// (letzter Admin, eigenes Konto) erzwingt der Server — die UI zeigt sie nur an.
+// anlegen, Rolle/Vorgesetzte ändern, Passwort zurücksetzen, entfernen.
+// Schutzregeln (letzter Admin, eigenes Konto) erzwingt der Server — die UI
+// zeigt sie nur an. Das Profil (Funktion, Kennungen, Zuständigkeiten) wird
+// auf der Profil-Seite der Person gepflegt — Name und Avatar verlinken dorthin.
 export default function Users({ me }: { me: Principal }) {
   const qc = useQueryClient();
   const users = useQuery({
@@ -91,6 +95,9 @@ function CreateUser({ onDone }: { onDone: () => void }) {
           Anlegen
         </button>
       </div>
+      <p className="muted text-xs mt-2 mb-0">
+        Funktion, Plattform-Kennungen und Zuständigkeiten werden nach dem Anlegen auf der Profil-Seite der Person gepflegt.
+      </p>
       {mut.isError && <p className="text-xs mt-2" style={{ color: "var(--text-danger)" }}>{(mut.error as Error).message}</p>}
     </form>
   );
@@ -102,8 +109,7 @@ function UserRow({ user, me, all }: { user: Human; me: Principal; all: Human[] }
   const [resetting, setResetting] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ["users"] });
-    qc.invalidateQueries({ queryKey: ["orgchart"] });
+    for (const key of ["users", "orgchart", "human"]) qc.invalidateQueries({ queryKey: [key] });
   };
 
   const setRole = useMutation({
@@ -128,15 +134,26 @@ function UserRow({ user, me, all }: { user: Human; me: Principal; all: Human[] }
   });
   const error = setRole.error ?? setManager.error ?? resetPassword.error ?? remove.error;
 
+  const identities = Object.entries(user.identities ?? {});
+
   return (
     <div className="card mb-2" style={{ padding: "11px 15px" }}>
       <div className="flex items-center gap-4 flex-wrap">
+        <Link to={`/people/${user.id}`} title="Profil-Seite öffnen" style={{ color: "inherit", textDecoration: "none" }}>
+          <Avatar name={user.display_name} human />
+        </Link>
         <div className="flex-1 min-w-44">
           <div className="text-sm font-medium">
-            {user.display_name}
+            <PersonLink human={user} />
+            {user.job_title && <span className="muted text-xs"> · {user.job_title}</span>}
             {isSelf && <span className="muted text-xs"> — Sie</span>}
           </div>
-          <div className="muted text-xs mono">{user.email}</div>
+          <div className="muted text-xs mono">
+            {user.email}
+            {identities.map(([system, id]) => (
+              <span key={system}> · {system}: {id}</span>
+            ))}
+          </div>
         </div>
         <select
           value={user.role}

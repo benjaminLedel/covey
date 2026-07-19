@@ -35,6 +35,7 @@ EOF`)
 	res, err := adapter.Run(context.Background(), RunSpec{
 		TaskID: "t1", Title: "Ticket 42", Body: "Bitte prüfen",
 		SystemPrompt: "Du bist der Support-Agent.",
+		Model:        "claude-opus-4-8",
 		AllowedTools: []string{"Bash", "Read"},
 		MaxTurns:     30,
 		HomeDir:      dir,
@@ -64,7 +65,7 @@ EOF`)
 	got := string(args)
 	for _, want := range []string{"-p", "Ticket 42", "--output-format", "stream-json",
 		"--append-system-prompt", "Du bist der Support-Agent.", "--allowedTools", "Bash,Read",
-		"--max-turns", "30", "--dangerously-skip-permissions"} {
+		"--max-turns", "30", "--model", "claude-opus-4-8", "--dangerously-skip-permissions"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("flag %q fehlt in args:\n%s", want, got)
 		}
@@ -102,6 +103,9 @@ EOF`)
 	}
 	if strings.Contains(got, "ursprünglicher text") {
 		t.Fatalf("beim Resume darf der alte Body nicht erneut gesendet werden:\n%s", got)
+	}
+	if strings.Contains(got, "--model") {
+		t.Fatalf("ohne Model-Feld darf --model nicht gesetzt sein:\n%s", got)
 	}
 }
 

@@ -176,6 +176,12 @@ func newStack(t *testing.T) *stack {
 	if _, err := pool.Exec(ctx, "INSERT INTO organizations (id, name) VALUES ($1,'Test-Org')", s.orgID); err != nil {
 		t.Fatal(err)
 	}
+	// Zielsystem-Aktivierung ist opt-in (fail-closed) — die Test-Org aktiviert
+	// ihre Built-ins explizit, wie es eine echte Organisation im UI täte.
+	if _, err := pool.Exec(ctx, `INSERT INTO target_plugins (org_id, name, kind, enabled)
+		VALUES ($1,'zammad','builtin',TRUE), ($1,'gitlab','builtin',TRUE)`, s.orgID); err != nil {
+		t.Fatal(err)
+	}
 	hash, _ := identbuiltin.HashPassword("admin-passwort")
 	s.adminID = uuid.New()
 	if _, err := pool.Exec(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)

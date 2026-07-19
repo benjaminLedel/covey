@@ -11,6 +11,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +32,10 @@ import (
 	"covey/internal/target"
 	targetstore "covey/internal/target/store"
 )
+
+// defaultMaxTurns ist der Runaway-Guard je Runtime-Lauf, wenn der Agent
+// kein eigenes Turn-Limit gesetzt hat (agents.max_turns = 0).
+const defaultMaxTurns = 30
 
 // DaemonLink abstrahiert die bidirektionale Verbindung zu einem Sandbox-Daemon.
 // Der HTTP-Layer implementiert sie über WebSocket; Tests in-process.
@@ -482,6 +488,70 @@ func (o *Orchestrator) isKilled(ctx context.Context, agent agents.Agent) (bool, 
 	return killed || fleet, err
 }
 
+// teamSection lädt die Mitarbeiter-Profile der Organisation und baut daraus
+// den Team-Abschnitt des System-Prompts. Fehler sind nicht fatal — dann
+// arbeitet der Agent ohne Mitarbeiterverzeichnis. Die Plattform-Kennungen
+// sind generisch (Map system → kennung); Anzeige-Labels kommen aus den
+// Zielsystem-Plugins der Organisation, unbekannte Systeme behalten ihren
+// Schlüssel. supervisorID (agents.supervisor_id, nil = keiner) markiert den
+// Vorgesetzten — der Empfänger von Merge Requests und Eskalationen.
+func (o *Orchestrator) teamSection(ctx context.Context, orgID uuid.UUID, supervisorID *uuid.UUID) string {
+	labels := map[string]string{}
+	if o.Targets != nil {
+		if plugins, err := o.Targets.List(ctx, orgID); err == nil {
+			for _, p := range plugins {
+				if p.Label != "" {
+					labels[p.Name] = p.Label
+				}
+			}
+		}
+	}
+	// Org-weit konfigurierte Profilfelder: key → Label, in Definitions-
+	// Reihenfolge — nur definierte Felder erscheinen im Verzeichnis.
+	type fieldDef struct{ key, label string }
+	var fieldDefs []fieldDef
+	if fr, err := o.Pool.Query(ctx, `SELECT key, label FROM profile_fields
+		WHERE org_id=$1 ORDER BY created_at`, orgID); err == nil {
+		for fr.Next() {
+			var d fieldDef
+			if fr.Scan(&d.key, &d.label) == nil {
+				fieldDefs = append(fieldDefs, d)
+			}
+		}
+		fr.Close()
+	}
+	rows, err := o.Pool.Query(ctx, `SELECT id, display_name, job_title, email, identities, responsibilities, custom
+		FROM humans WHERE org_id=$1 ORDER BY created_at`, orgID)
+	if err != nil {
+		return ""
+	}
+	defer rows.Close()
+	var members []agents.TeamMember
+	for rows.Next() {
+		var m agents.TeamMember
+		var id uuid.UUID
+		var ids, custom map[string]string
+		if err := rows.Scan(&id, &m.Name, &m.JobTitle, &m.Email, &ids, &m.Responsibilities, &custom); err != nil {
+			return ""
+		}
+		m.Supervisor = supervisorID != nil && *supervisorID == id
+		for _, system := range slices.Sorted(maps.Keys(ids)) {
+			label := labels[system]
+			if label == "" {
+				label = system
+			}
+			m.Identities = append(m.Identities, agents.TeamIdentity{Label: label, Value: ids[system]})
+		}
+		for _, d := range fieldDefs {
+			if v := custom[d.key]; v != "" {
+				m.Fields = append(m.Fields, agents.TeamIdentity{Label: d.label, Value: v})
+			}
+		}
+		members = append(members, m)
+	}
+	return agents.TeamSection(members)
+}
+
 func (o *Orchestrator) publishTask(taskID, agentID uuid.UUID) {
 	o.events.Publish(Event{Type: "task", AgentID: agentID.String(), Data: map[string]string{"task_id": taskID.String()}})
 }
@@ -515,12 +585,23 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 			}
 		}
 	}
+	// Team-Verzeichnis ebenfalls zur Dispatch-Zeit: die Mitarbeiter-Profile
+	// (Zuständigkeiten, GitLab-Usernames) sagen dem Agenten, wem er in
+	// Zielsystemen etwas übergibt — z. B. ein Issue zum Testen zuweist.
+	if section := o.teamSection(ctx, agent.OrgID, agent.SupervisorID); section != "" {
+		compiled += "\n\n" + section
+	}
 
+	maxTurns := agent.MaxTurns
+	if maxTurns <= 0 {
+		maxTurns = defaultMaxTurns
+	}
 	if err := o.sendMsg(ctx, link, daemon.TypeInjectConfig, daemon.InjectConfig{
 		SystemPrompt: compiled,
 		Runtime:      agent.Runtime,
-		AllowedTools: []string{"Bash", "Read", "Write"},
-		MaxTurns:     30,
+		Model:        agent.Model,
+		AllowedTools: daemon.DefaultAllowedTools,
+		MaxTurns:     maxTurns,
 	}); err != nil {
 		return err
 	}
@@ -663,17 +744,42 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 				target = tid
 			}
 		}
-		stage, err := o.Backlog.EnsureStage(ctx, agent.ID, ss.Stage)
+		// Ensure + Move + Cleanup leerer Agenten-Spalten in einer Transaktion.
+		stage, err := o.Backlog.SetTaskStageByName(ctx, agent.ID, target, ss.Stage)
 		if err != nil {
-			o.Log.Warn("set_stage: stage konnte nicht sichergestellt werden", "err", err)
-			return false, nil
-		}
-		if _, err := o.Backlog.SetTaskStage(ctx, target, &stage.ID); err != nil {
 			o.Log.Warn("set_stage: task konnte nicht verschoben werden", "err", err)
 			return false, nil
 		}
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &target, observability.KindLifecycle,
 			map[string]string{"status": "stage", "stage": stage.Name})
+		o.publishTask(target, agent.ID)
+		return false, nil
+
+	case daemon.TypeNote:
+		n, err := daemon.DecodePayload[daemon.Note](msg)
+		if err != nil || strings.TrimSpace(n.Content) == "" {
+			return false, nil
+		}
+		target := taskID
+		if n.TaskID != "" {
+			if tid, err := uuid.Parse(n.TaskID); err == nil {
+				target = tid
+			}
+		}
+		if n.Scope == "memory" {
+			// Allgemeingültige Erkenntnis: sofort ins Gedächtnis, nicht erst
+			// über das memory-Feld beim Abschluss (M7).
+			_ = o.Memory.Ingest(ctx, agent.ID, n.Content, map[string]string{
+				"task_id": target.String(), "origin": "proactive"})
+		} else {
+			// Aufgabenbezogene Notiz: an die Aufgabe selbst.
+			if _, err := o.Backlog.AddNote(ctx, target, "agent", n.Content); err != nil {
+				o.Log.Warn("note: konnte nicht gespeichert werden", "err", err)
+				return false, nil
+			}
+		}
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &target, observability.KindLifecycle,
+			map[string]string{"status": "note", "scope": n.Scope})
 		o.publishTask(target, agent.ID)
 		return false, nil
 

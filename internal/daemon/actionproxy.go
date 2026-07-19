@@ -94,10 +94,35 @@ func (p *actionProxy) handle(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleControlPlane bedient Meta-Aktionen (system="covey"), die die Control
-// Plane statt eines Zielsystems betreffen. Derzeit: set_stage — der Agent
-// schiebt seine Aufgabe auf dem Board in eine (ggf. neue) Stage.
+// Plane statt eines Zielsystems betreffen: set_stage (Aufgabe auf dem Board in
+// eine ggf. neue Stage schieben), add_note (Notiz an die Aufgabe) und
+// remember (Erkenntnis sofort ins Gedächtnis).
 func (p *actionProxy) handleControlPlane(w http.ResponseWriter, action string, params json.RawMessage) {
 	switch action {
+	case "add_note", "remember":
+		var in struct {
+			Content string `json:"content"`
+			TaskID  string `json:"task_id"`
+		}
+		if err := json.Unmarshal(params, &in); err != nil || strings.TrimSpace(in.Content) == "" {
+			writeJSON(w, map[string]string{"status": "error", "error": "content fehlt"})
+			return
+		}
+		taskID := in.TaskID
+		if taskID == "" {
+			taskID = p.taskID
+		}
+		scope := "task"
+		if action == "remember" {
+			scope = "memory"
+		}
+		if err := p.client.send(TypeNote, Note{TaskID: taskID, Scope: scope, Content: in.Content}); err != nil {
+			writeJSON(w, map[string]string{"status": "error", "error": err.Error()})
+			return
+		}
+		audit, _ := json.Marshal(map[string]any{"action": "covey:" + action, "scope": scope, "content": in.Content})
+		_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
+		writeJSON(w, map[string]string{"status": "ok", "scope": scope})
 	case "set_stage":
 		var in struct {
 			Stage  string `json:"stage"`

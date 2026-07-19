@@ -1,14 +1,6 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  api,
-  patch,
-  statusLabel,
-  type Agent,
-  type Principal,
-  type RuntimeInfo,
-  type SetupStep,
-} from "../api";
+import { useQuery } from "@tanstack/react-query";
+import { api, type RuntimeInfo, type SetupStep } from "../api";
 
 // Backtick-`code`-Spannen monospaced rendern — hält die Anleitungstexte
 // datengetrieben (aus dem Runtime-Plugin), ohne HTML im Backend.
@@ -44,30 +36,15 @@ function Steps({ steps }: { steps: SetupStep[] }) {
 }
 
 // Runtimes-Seite (nav nur für platform_admin): Übersicht der im Daemon
-// registrierten Runtime-Plugins plus Umschalten der Runtime je Agent. Metadaten
-// und Einrichtungs-Anleitung kommen aus der Plugin-Registry (GET /runtimes) —
-// eine neue Runtime erscheint hier automatisch.
-export default function Runtimes({ me }: { me: Principal }) {
-  const qc = useQueryClient();
+// registrierten Runtime-Plugins samt Einrichtungs-Anleitung. Metadaten kommen
+// aus der Plugin-Registry (GET /runtimes) — eine neue Runtime erscheint hier
+// automatisch. Runtime, Modell und Turn-Limit je Agent werden auf der
+// Agenten-Seite im Reiter Einstellungen umgeschaltet.
+export default function Runtimes() {
   const [openInfo, setOpenInfo] = useState<string | null>(null);
   const runtimes = useQuery({
     queryKey: ["runtimes"],
     queryFn: () => api<RuntimeInfo[]>("/runtimes"),
-  });
-  const agents = useQuery({
-    queryKey: ["agents"],
-    queryFn: () => api<Agent[] | null>("/agents"),
-  });
-
-  const canEdit = me.Role === "platform_admin" || me.Role === "agent_owner";
-
-  const setRuntime = useMutation({
-    mutationFn: ({ id, runtime }: { id: string; runtime: string }) =>
-      patch(`/agents/${id}/runtime`, { runtime }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["agents"] });
-      qc.invalidateQueries({ queryKey: ["agent"] });
-    },
   });
 
   const list = runtimes.data ?? [];
@@ -76,17 +53,16 @@ export default function Runtimes({ me }: { me: Principal }) {
     <div>
       <div className="flex items-baseline gap-3 mb-2">
         <h1 className="text-[22px]">Runtimes</h1>
-        <span className="muted">im Daemon registriert, pro Agent umschaltbar</span>
+        <span className="muted">im Daemon registrierte Plugins</span>
       </div>
       <p className="muted text-xs mb-5" style={{ maxWidth: 640 }}>
         Runtimes sind die austauschbare Naht zwischen Control Plane und Sandbox — im Code
-        selbstbeschreibende Plugins. Die Runtime eines Agenten greift beim nächsten Task-Dispatch,
-        laufende Sessions bleiben unberührt. Das <span className="mono">ⓘ</span> je Runtime zeigt die
-        Einrichtung Schritt für Schritt.
+        selbstbeschreibende Plugins. Das <span className="mono">ⓘ</span> je Runtime zeigt die
+        Einrichtung Schritt für Schritt. Welche Runtime (und welches Modell) ein Agent nutzt,
+        stellen Sie auf der Agenten-Seite im Reiter <b>Einstellungen</b> um.
       </p>
 
-      {/* Übersicht mit Info-Button je Runtime */}
-      <div className="grid gap-3 mb-6" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
         {list.map((rt) => (
           <div key={rt.name} className="card" style={{ padding: "14px 16px" }}>
             <div className="flex items-center gap-2 mb-1">
@@ -119,38 +95,6 @@ export default function Runtimes({ me }: { me: Principal }) {
           </div>
         ))}
       </div>
-
-      {/* Umschalten je Agent */}
-      <h2 className="text-base font-medium mb-2">Agenten</h2>
-      {(agents.data ?? []).map((a) => (
-        <div key={a.id} className="card mb-2 flex items-center gap-4" style={{ padding: "11px 15px" }}>
-          <div className="flex-1 min-w-0">
-            <span className="font-medium">{a.display_name}</span>{" "}
-            <span className="mono text-xs muted">{a.slug}</span>
-          </div>
-          <span className="muted text-xs">{statusLabel[a.status] ?? a.status}</span>
-          <select
-            value={a.runtime}
-            disabled={!canEdit || setRuntime.isPending}
-            onChange={(e) => setRuntime.mutate({ id: a.id, runtime: e.target.value })}
-            className="mono"
-            style={{ width: 160 }}
-          >
-            {list.length === 0 && <option value={a.runtime}>{a.runtime}</option>}
-            {list.map((rt) => (
-              <option key={rt.name} value={rt.name}>
-                {rt.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      ))}
-      {agents.data?.length === 0 && <p className="muted">Noch keine Agenten angelegt.</p>}
-      {!canEdit && (
-        <p className="muted text-xs mt-3">
-          Ihre Rolle ({me.Role}) kann Runtimes ansehen, aber nicht umschalten.
-        </p>
-      )}
     </div>
   );
 }

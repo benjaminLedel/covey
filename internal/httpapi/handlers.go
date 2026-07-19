@@ -437,6 +437,24 @@ func (s *Server) handleTransitions(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, trs)
 }
 
+// handleTaskNotes liefert die proaktiven Notizen des Agenten an einer Aufgabe.
+func (s *Server) handleTaskNotes(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	notes, err := s.Backlog.ListNotes(r.Context(), id)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	if notes == nil {
+		notes = []backlog.Note{}
+	}
+	writeJSON(w, http.StatusOK, notes)
+}
+
 // --- Lifecycle-Steuerung ---
 
 func (s *Server) handleWake(w http.ResponseWriter, r *http.Request) {
@@ -543,6 +561,56 @@ func (s *Server) handleSetRuntime(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.Registry.SetRuntime(r.Context(), id, in.Runtime); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handleSetModel legt das LLM eines Agenten fest (z. B. claude-opus-4-8).
+// Leerer Wert setzt zurück auf den Runtime-Default. Wirkt beim nächsten
+// Task-Dispatch; die Runtime meldet das tatsächlich genutzte Modell über
+// das Cost-Event zurück.
+func (s *Server) handleSetModel(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	var in struct {
+		Model string `json:"model"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "model fehlt")
+		return
+	}
+	if err := s.Registry.SetModel(r.Context(), id, strings.TrimSpace(in.Model)); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handleSetMaxTurns legt das Turn-Limit je Runtime-Lauf fest (Runaway-Guard).
+// 0 setzt zurück auf den Orchestrator-Default. Wirkt beim nächsten Task-Dispatch.
+func (s *Server) handleSetMaxTurns(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	var in struct {
+		MaxTurns int `json:"max_turns"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "max_turns fehlt")
+		return
+	}
+	if in.MaxTurns < 0 {
+		writeErr(w, http.StatusBadRequest, "max_turns darf nicht negativ sein")
+		return
+	}
+	if err := s.Registry.SetMaxTurns(r.Context(), id, in.MaxTurns); err != nil {
 		mapErr(w, err)
 		return
 	}

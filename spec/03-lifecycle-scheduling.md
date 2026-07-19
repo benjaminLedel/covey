@@ -104,7 +104,8 @@ Das Backlog ist **kein flüchtiger Queue**, sondern ein persistentes, inspizierb
 - **Herkunft** (wer/was hat sie zugewiesen — Mensch, anderer Agent, Zeitplan),
 - **Historie** (Zustandsübergänge, Zeitstempel),
 - ggf. **Korrelations-Key** (wenn `blocked`),
-- ggf. **Stage** (frei definierbare Kanban-Spalte, siehe unten).
+- ggf. **Stage** (frei definierbare Kanban-Spalte, siehe unten),
+- ggf. **Notizen** (proaktive Zwischenstände des Agenten, siehe unten).
 
 **Terminale States sind keine Sackgassen, und das Backlog wächst nicht ins Unendliche:**
 
@@ -118,10 +119,15 @@ Der **State** ist die Maschinen-Wahrheit — an ihm hängen Scheduler (`ClaimNex
 Darüber liegt eine zweite, **rein anzeigende** Dimension: die **Stage**. Stages sind frei benennbare Kanban-Spalten, **pro Agent** definiert (z. B. `Triage → Recherche → Warten → Antwort → Erledigt`). Sie tragen keine Semantik für den Scheduler — sie machen sichtbar, *wo im eigenen Workflow* eine Aufgabe steht.
 
 - **Der Agent bewegt sich selbst.** Über den Action-Proxy (`covey/set_stage`, siehe [`01-architektur.md`](01-architektur.md)) schiebt der Agent seine laufende Aufgabe in eine Stage; existiert sie nicht, wird sie automatisch als neue Spalte angelegt — der Agent „erfindet" seine Spalten also im Arbeiten.
+- **Auto-Cleanup der Agenten-Spalten.** Spalten, die der Agent selbst angelegt hat (`created_by='agent'`), werden automatisch wieder abgeräumt, sobald keine aktive (unarchivierte) Aufgabe mehr darin liegt — geprüft nach jedem Stage-Move und nach dem Archivieren. So bleibt das Board frei von verwaisten Arbeitszuständen. Menschlich angelegte Spalten (UI, Default-Stages) bleiben stehen, auch wenn sie leer sind.
 - **Menschen ebenso.** Verwalter ziehen Aufgaben im Board per Drag & Drop und pflegen die Spalten (anlegen, umbenennen, umsortieren, färben, löschen).
 - **Persistenz:** Tabelle `agent_stages` (pro Agent, mit `position`/`color`), Aufgabe referenziert `stage_id` (nullable → „Ohne Stage"). Löschen einer Stage setzt betroffene Aufgaben auf `NULL` zurück, nie Datenverlust.
 - **Overlay, nicht Ersatz:** Eine Aufgabe hat gleichzeitig einen `state` (z. B. `blocked`) und eine `stage` (z. B. `Warten`). Die Kanban-Spalten des UI kommen aus den Stages; der State steht als Badge auf der Karte.
 - **Auto-Follow der Standard-Spalten:** Jeder Agent startet mit `Backlog → In Arbeit → Erledigt`. Solange eine Aufgabe in einer dieser Standard-Spalten (oder in keiner) liegt, führt der Store die Spalte beim Zustandsübergang automatisch nach (`open`→Backlog, `in_progress`/`blocked`→In Arbeit, terminal→Erledigt). Sobald Agent oder Mensch die Aufgabe bewusst in eine **eigene** Spalte legt, gilt manuelle Platzierung — Auto-Follow fasst sie nicht mehr an. Fehlt eine Standard-Spalte (umbenannt/gelöscht), entfällt das Nachführen ersatzlos.
+
+### Notizen: Zwischenstände an der Aufgabe
+
+Neben Stage und State trägt eine Aufgabe **Notizen** (`task_notes`): proaktive Zwischenstände, die der Agent mitten im Lauf über den Action-Proxy anhängt (`covey/add_note`, siehe [`01-architektur.md`](01-architektur.md)) — Befunde, Versuchtes, Arbeitsstand. Die Abgrenzung ist bewusst einfach: **Hilft es nur dieser Aufgabe, ist es eine Notiz an der Aufgabe; hilft es auch künftigen Aufgaben, gehört es ins Gedächtnis** (`covey/remember`, siehe [`05-gedaechtnis.md`](05-gedaechtnis.md)). Notizen hängen an der Aufgabe (Cascade beim Löschen, sichtbar in der Karte im Board) und fließen nicht in die Memory-Abfrage künftiger Aufgaben ein.
 
 ### Ironie/Chance: Backlog = Ticketsystem für Agenten
 

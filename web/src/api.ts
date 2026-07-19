@@ -13,6 +13,8 @@ export type Agent = {
   slug: string;
   display_name: string;
   runtime: string;
+  model: string;
+  max_turns: number;
   status: string;
   supervisor_id?: string;
   killed: boolean;
@@ -44,6 +46,19 @@ export type Stage = {
   name: string;
   position: number;
   color: string;
+  // 'agent'-Spalten legt der Agent selbst an; sie verschwinden automatisch,
+  // sobald sie leer sind. 'human'-Spalten bleiben stehen.
+  created_by: string;
+  created_at: string;
+};
+
+// TaskNote ist eine proaktive Notiz des Agenten an einer Aufgabe
+// (Zwischenstände, Befunde) — GET /tasks/{id}/notes.
+export type TaskNote = {
+  id: string;
+  task_id: string;
+  author: string;
+  content: string;
   created_at: string;
 };
 
@@ -132,6 +147,22 @@ export type Human = {
   display_name: string;
   role: string;
   manager_id?: string;
+  // Mitarbeiter-Profil: Funktion, Kontakt, Zuständigkeiten und die
+  // Plattform-Kennungen (generisch: system → kennung, z. B. {"gitlab": "maxm"}).
+  job_title: string;
+  identities: Record<string, string>;
+  phone: string;
+  responsibilities: string;
+  // Werte der org-weit konfigurierbaren Profilfelder (key → wert).
+  custom: Record<string, string>;
+  created_at: string;
+};
+
+// Definition eines org-weit konfigurierbaren Profilfelds (Organisationen-Seite).
+export type ProfileField = {
+  id: string;
+  key: string;
+  label: string;
   created_at: string;
 };
 

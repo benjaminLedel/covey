@@ -308,6 +308,7 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   color: var(--text-accent);
   flex-shrink: 0;
 }
+.avatar.hum { background: var(--surface-1); color: var(--text-secondary); border: 0.5px solid var(--border); }
 .voice { font-family: var(--voice); }
 .mono { font-family: var(--mono); }
 .muted { color: var(--text-muted); }
@@ -369,6 +370,221 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
 .kind-credential { background: var(--bg-pro); color: var(--text-pro); }
 .kind-action { background: var(--bg-accent); color: var(--text-accent); }
 .kind-lifecycle { background: var(--bg-success); color: var(--text-success); }
+
+/* Segment-Umschalter (Lesbar | Rohdaten) */
+.seg {
+  display: inline-flex;
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--surface-1);
+}
+.seg button {
+  border: 0;
+  background: transparent;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+}
+.seg button.active {
+  background: var(--surface-2);
+  color: var(--text-primary);
+  box-shadow: 0 0 0 0.5px var(--border);
+}
+
+/* Activity-Feed: erzählende Recording-Ansicht im Stil des Mockups. */
+.act-feed { padding: 4px 2px; }
+.act-ic {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+.act-day {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 16px;
+  color: var(--text-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.act-day::before,
+.act-day::after {
+  content: "";
+  flex: 1;
+  border-top: 0.5px solid var(--border);
+}
+.act-feed .evt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  margin-bottom: 16px;
+}
+.act-feed .evt.muted { color: var(--text-muted); }
+.act-feed .turn { margin-bottom: 22px; }
+.act-feed .turn-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+.act-feed .turn-h .lbl {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-family: var(--mono);
+}
+.act-feed .turn-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--clay, var(--text-accent));
+  flex-shrink: 0;
+}
+.act-feed .voice {
+  font-family: var(--voice);
+  font-size: 15px;
+  line-height: 1.6;
+  margin: 0 0 9px;
+  overflow-wrap: anywhere;
+}
+.act-feed details.tool {
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 7px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.act-feed details.tool > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 12px;
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.act-feed details.tool > summary::-webkit-details-marker { display: none; }
+.act-feed details.tool > summary .lft {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.act-feed .tool-name { flex-shrink: 0; color: var(--text-primary); }
+.act-feed .tool-detail {
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.act-feed .chev {
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform 0.12s ease;
+}
+.act-feed details.tool[open] > summary .chev { transform: rotate(90deg); }
+.act-feed .tool-body {
+  border-top: 0.5px solid var(--border);
+  padding: 9px 12px;
+  background: var(--surface-1);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--text-secondary);
+  line-height: 1.55;
+}
+.act-feed .tool-sec { margin-bottom: 8px; }
+.act-feed .tool-sec:last-child { margin-bottom: 0; }
+.act-feed .tool-sec-l {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+.act-feed .tool-sec pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.pill {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+.pill.ok { background: var(--bg-success); color: var(--text-success); }
+.pill.mut { color: var(--text-muted); }
+.pill.err { background: var(--bg-danger, var(--bg-warning)); color: var(--text-danger); }
+.act-feed .gate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  margin-bottom: 16px;
+}
+.act-feed .gate.ok .act-ic { color: var(--text-success); }
+.act-feed .gate.warn .act-ic { color: var(--text-warning); }
+.act-feed .gate.danger { color: var(--text-danger); }
+/* Gate innerhalb eines Turns: kleiner, eingerückt in den Fluss der Tool-Zeilen. */
+.act-feed .gate.in-turn {
+  margin: 2px 0 8px;
+  font-size: 12px;
+  padding-left: 2px;
+}
+.act-feed .parked,
+.act-feed .act-result {
+  background: var(--bg-warning);
+  border-radius: 12px;
+  padding: 13px 16px;
+  margin-bottom: 16px;
+}
+.act-feed .act-result { background: var(--bg-success); }
+.act-feed .act-result.err { background: var(--bg-warning); }
+.act-feed .parked .ph,
+.act-feed .act-result .ph {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.act-feed .parked .ph b,
+.act-feed .act-result .ph b {
+  font-weight: 500;
+  font-size: 13.5px;
+}
+.act-feed .parked { color: var(--text-warning); }
+.act-feed .act-result { color: var(--text-success); }
+.act-feed .act-result.err { color: var(--text-warning); }
+.act-feed .parked p,
+.act-feed .act-result p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.act-feed .act-result p.voice { font-size: 14.5px; }
+.act-feed .act-meta {
+  margin-left: auto;
+  font-size: 11px;
+  font-family: var(--mono);
+  opacity: 0.8;
+}
 
 /* Daten-Tabellen (Egress-Log u. a.) */
 .tbl { width: 100%; font-size: 12.5px; border-collapse: collapse; }
@@ -615,6 +831,8 @@ kbd {
 .node { display: inline-flex; align-items: center; gap: 9px; background: var(--surface-2); border: 0.5px solid var(--border); border-radius: 10px; padding: 9px 13px; min-width: 158px; text-decoration: none; color: inherit; }
 .node.agent { cursor: pointer; transition: border-color 0.12s, transform 0.12s; }
 .node.agent:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+.node.human { cursor: pointer; transition: border-color 0.12s, transform 0.12s; }
+.node.human:hover { border-color: var(--border-strong); transform: translateY(-1px); }
 .node .avatar { width: 32px; height: 32px; font-size: 12px; }
 .node .avatar.hum { background: var(--surface-1); color: var(--text-secondary); }
 .node .nm { font-weight: 500; font-size: 13px; text-align: left; }

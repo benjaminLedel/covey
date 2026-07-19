@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
 import {
@@ -21,13 +21,18 @@ import {
   type OrgChart,
   type Principal,
   type RecordingEvent,
+  type RuntimeInfo,
   type SecretCheck,
   type SecretPreview,
   type Stage,
   type TargetPlugin,
   type Task,
+  type TaskNote,
 } from "../api";
+import { ActivityFeed } from "../components/ActivityFeed";
+import { PersonLink } from "../components/person";
 import { AddHostForm, EgressLogTable, HostChips } from "../components/EgressBits";
+import { generateAgentName } from "../names";
 
 const canManage = (role: string) => role === "platform_admin" || role === "agent_owner";
 const canKill = (role: string) => canManage(role) || role === "security";
@@ -38,7 +43,7 @@ export default function AgentPage({ me }: { me: Principal }) {
   const qc = useQueryClient();
   const agent = useQuery({ queryKey: ["agent", id], queryFn: () => api<Agent>(`/agents/${id}`) });
   const [tab, setTab] = useState<
-    "backlog" | "heartbeat" | "webhook" | "recording" | "config" | "memory" | "secrets" | "egress" | "tools"
+    "backlog" | "heartbeat" | "webhook" | "recording" | "config" | "memory" | "secrets" | "egress" | "tools" | "einstellungen"
   >("backlog");
   const [recTask, setRecTask] = useState<{ id: string; title: string } | null>(null);
 
@@ -64,14 +69,17 @@ export default function AgentPage({ me }: { me: Principal }) {
       </div>
 
       <div className="flex items-center gap-3 mb-5 flex-wrap">
-        <AgentName agent={a} editable={canManage(me.Role)} />
+        <h1 className="text-[22px]">{a.display_name}</h1>
         <span className={`badge st-${a.killed ? "killed" : a.status}`}>
           {a.killed ? "gestoppt" : statusLabel[a.status] ?? a.status}
         </span>
         {(a.status === "working" || a.status === "triage" || a.status === "triggered") && (
           <span className="live-dot" title="Sandbox aktiv" />
         )}
-        <span className="muted text-xs mono">runtime: {a.runtime}</span>
+        <span className="muted text-xs mono">
+          runtime: {a.runtime}
+          {a.model && ` · ${a.model}`}
+        </span>
         <Supervisor agent={a} editable={canManage(me.Role)} />
         <span className="ml-auto" />
         {canManage(me.Role) && (
@@ -105,6 +113,7 @@ export default function AgentPage({ me }: { me: Principal }) {
             ["egress", "Egress"],
             ...(canSecrets(me.Role) ? ([["secrets", "Secrets"]] as const) : []),
             ["config", "Config"],
+            ["einstellungen", "Einstellungen"],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -146,64 +155,176 @@ export default function AgentPage({ me }: { me: Principal }) {
       {tab === "egress" && <AgentEgress agentId={a.id} canEdit={canSecrets(me.Role)} />}
       {tab === "tools" && <AgentTools agentId={a.id} canEdit={canSecrets(me.Role)} />}
       {tab === "secrets" && canSecrets(me.Role) && <AgentSecrets agentId={a.id} />}
+      {tab === "einstellungen" && <AgentSettings agent={a} editable={canManage(me.Role)} />}
+    </div>
+  );
+}
+
+// Einstellungen-Reiter: die Stammdaten des Agenten an einem Ort — Name,
+// Runtime, Modell, Turn-Limit, Budget. Änderungen greifen beim nächsten
+// Task-Dispatch; laufende Sessions bleiben unberührt (spec/12).
+function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean }) {
+  const qc = useQueryClient();
+  const runtimes = useQuery({
+    queryKey: ["runtimes"],
+    queryFn: () => api<RuntimeInfo[]>("/runtimes"),
+  });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["agent", agent.id] });
+    qc.invalidateQueries({ queryKey: ["agents"] });
+  };
+  const setName = useMutation({
+    mutationFn: (displayName: string) => patch(`/agents/${agent.id}/name`, { display_name: displayName }),
+    onSuccess: invalidate,
+  });
+  const setRuntime = useMutation({
+    mutationFn: (runtime: string) => patch(`/agents/${agent.id}/runtime`, { runtime }),
+    onSuccess: invalidate,
+  });
+  const setModel = useMutation({
+    mutationFn: (model: string) => patch(`/agents/${agent.id}/model`, { model }),
+    onSuccess: invalidate,
+  });
+  const setMaxTurns = useMutation({
+    mutationFn: (maxTurns: number) => patch(`/agents/${agent.id}/max-turns`, { max_turns: maxTurns }),
+    onSuccess: invalidate,
+  });
+  const setBudget = useMutation({
+    mutationFn: (budgetUSD: number) => post(`/agents/${agent.id}/budget`, { budget_usd: budgetUSD }),
+    onSuccess: invalidate,
+  });
+  const anyError = [setName, setRuntime, setModel, setMaxTurns, setBudget].find((m) => m.isError);
+
+  const rtList = runtimes.data ?? [];
+  const row: CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "180px minmax(200px, 320px) 1fr",
+    alignItems: "center",
+    gap: 12,
+    padding: "10px 0",
+    borderBottom: "0.5px solid var(--border)",
+  };
+
+  return (
+    <div className="card" style={{ maxWidth: 760, padding: "6px 18px 14px" }}>
+      <div style={row}>
+        <span className="text-sm">Name</span>
+        <span className="flex items-center gap-2">
+          <input
+            key={`name:${agent.display_name}`}
+            defaultValue={agent.display_name}
+            disabled={!editable || setName.isPending}
+            onBlur={(e) => {
+              const v = e.target.value.trim();
+              if (v && v !== agent.display_name) setName.mutate(v);
+            }}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+            style={{ flex: 1 }}
+          />
+          {editable && (
+            <button
+              className="btn sm"
+              title="Zufälligen Namen würfeln"
+              disabled={setName.isPending}
+              onClick={() => setName.mutate(generateAgentName().name)}
+            >
+              🎲
+            </button>
+          )}
+        </span>
+        <span className="muted text-xs">Anzeigename — der Slug bleibt unveränderlich.</span>
+      </div>
+      <div style={row}>
+        <span className="text-sm">Slug</span>
+        <span className="mono text-sm">{agent.slug}</span>
+        <span className="muted text-xs">Stabiler Anker für Korrelation, Home-Verzeichnis und Referenzen.</span>
+      </div>
+      <div style={row}>
+        <span className="text-sm">Runtime</span>
+        <select
+          value={agent.runtime}
+          disabled={!editable || setRuntime.isPending}
+          onChange={(e) => setRuntime.mutate(e.target.value)}
+          className="mono"
+        >
+          {rtList.length === 0 && <option value={agent.runtime}>{agent.runtime}</option>}
+          {rtList.map((rt) => (
+            <option key={rt.name} value={rt.name}>
+              {rt.name}
+            </option>
+          ))}
+        </select>
+        <span className="muted text-xs">
+          Greift beim nächsten Task-Dispatch. Einrichtung je Runtime: Seite „Runtimes".
+        </span>
+      </div>
+      <div style={row}>
+        <span className="text-sm">Modell</span>
+        <input
+          key={`model:${agent.model}`}
+          defaultValue={agent.model}
+          placeholder="leer = Runtime-Default"
+          disabled={!editable || setModel.isPending}
+          onBlur={(e) => {
+            const v = e.target.value.trim();
+            if (v !== agent.model) setModel.mutate(v);
+          }}
+          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+          className="mono"
+        />
+        <span className="muted text-xs">Modell-ID oder Alias, z. B. claude-opus-4-8 oder sonnet.</span>
+      </div>
+      <div style={row}>
+        <span className="text-sm">Max. Turns je Lauf</span>
+        <input
+          key={`turns:${agent.max_turns}`}
+          type="number"
+          min={0}
+          defaultValue={agent.max_turns || ""}
+          placeholder="0 = Default (30)"
+          disabled={!editable || setMaxTurns.isPending}
+          onBlur={(e) => {
+            const v = Math.max(0, Math.trunc(Number(e.target.value) || 0));
+            if (v !== agent.max_turns) setMaxTurns.mutate(v);
+          }}
+          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+          className="mono"
+        />
+        <span className="muted text-xs">
+          Runaway-Guard: bricht einen Lauf nach n Turns ab. Für Aufgaben mit Repo-Checkout großzügig wählen.
+        </span>
+      </div>
+      <div style={{ ...row, borderBottom: "none" }}>
+        <span className="text-sm">Budget (USD)</span>
+        <input
+          key={`budget:${agent.budget_usd}`}
+          type="number"
+          min={0}
+          step="0.01"
+          defaultValue={agent.budget_usd || ""}
+          placeholder="0 = kein Deckel"
+          disabled={!editable || setBudget.isPending}
+          onBlur={(e) => {
+            const v = Math.max(0, Number(e.target.value) || 0);
+            if (v !== agent.budget_usd) setBudget.mutate(v);
+          }}
+          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+          className="mono"
+        />
+        <span className="muted text-xs">
+          Kill-Switch bei Überschreitung — die Aufgabe geht zurück ins Backlog.
+        </span>
+      </div>
+      {!editable && (
+        <p className="muted text-xs mt-2">Ihre Rolle kann Einstellungen ansehen, aber nicht ändern.</p>
+      )}
+      {anyError && <p className="danger-text text-xs mt-2">{String(anyError.error)}</p>}
     </div>
   );
 }
 
 // Supervisor: der Platz des Agenten im Org-Chart (spec/02) — an wen er
 // berichtet und eskaliert. Manager-Rollen ordnen hier direkt zu.
-// Anzeigename mit Inline-Umbenennen (Stift-Klick). Der Slug bleibt unverändert.
-function AgentName({ agent, editable }: { agent: Agent; editable: boolean }) {
-  const qc = useQueryClient();
-  const [editing, setEditing] = useState(false);
-  const [name, setName] = useState(agent.display_name);
-  const mut = useMutation({
-    mutationFn: () => patch(`/agents/${agent.id}/name`, { display_name: name.trim() }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["agent", agent.id] });
-      qc.invalidateQueries({ queryKey: ["agents"] });
-      setEditing(false);
-    },
-  });
-  if (!editing) {
-    return (
-      <>
-        <h1 className="text-[22px]">{agent.display_name}</h1>
-        {editable && (
-          <button
-            className="btn sm"
-            title="Agent umbenennen"
-            onClick={() => {
-              setName(agent.display_name);
-              setEditing(true);
-            }}
-          >
-            ✎
-          </button>
-        )}
-      </>
-    );
-  }
-  return (
-    <form
-      className="flex items-center gap-2"
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (name.trim()) mut.mutate();
-      }}
-    >
-      <input value={name} onChange={(e) => setName(e.target.value)} autoFocus style={{ width: 220 }} />
-      <button className="btn sm primary" disabled={mut.isPending || !name.trim()}>
-        Speichern
-      </button>
-      <button type="button" className="btn sm" onClick={() => setEditing(false)}>
-        Abbrechen
-      </button>
-      {mut.isError && <span className="danger-text text-xs">{String(mut.error)}</span>}
-    </form>
-  );
-}
-
 function Supervisor({ agent, editable }: { agent: Agent; editable: boolean }) {
   const qc = useQueryClient();
   const chart = useQuery({ queryKey: ["orgchart"], queryFn: () => api<OrgChart>("/org/chart") });
@@ -221,7 +342,7 @@ function Supervisor({ agent, editable }: { agent: Agent; editable: boolean }) {
   if (!editable) {
     return (
       <span className="muted text-xs">
-        berichtet an: {current ? current.display_name : "—"}
+        berichtet an: {current ? <PersonLink human={current} /> : "—"}
       </span>
     );
   }
@@ -592,6 +713,12 @@ function TaskCard({
   const [open, setOpen] = useState(false);
   const qc = useQueryClient();
   const invalBacklog = () => qc.invalidateQueries({ queryKey: ["backlog", agentId] });
+  // Notizen erst laden, wenn die Karte aufgeklappt ist.
+  const notes = useQuery({
+    queryKey: ["task-notes", task.id],
+    queryFn: () => api<TaskNote[]>(`/tasks/${task.id}/notes`),
+    enabled: open,
+  });
   const cancel = useMutation({
     mutationFn: () => post(`/tasks/${task.id}/cancel`),
     onSuccess: invalBacklog,
@@ -645,6 +772,17 @@ function TaskCard({
           )}
           {task.result && <p style={{ color: "var(--text-success)" }}>{task.result}</p>}
           {task.error && <p className="danger-text">{task.error}</p>}
+          {(notes.data?.length ?? 0) > 0 && (
+            <div className="mt-2 mb-2">
+              <div className="muted text-xs mb-1">Notizen des Agenten</div>
+              {notes.data!.map((n) => (
+                <div key={n.id} className="text-xs mb-1" style={{ borderLeft: "2px solid var(--border)", paddingLeft: 8 }}>
+                  <span className="secondary">{n.content}</span>{" "}
+                  <span className="muted">· {relTime(n.created_at)}</span>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex gap-2 mt-1">
             <button
               className="btn sm"
@@ -709,6 +847,9 @@ function Recording({
   taskFilter?: { id: string; title: string } | null;
   onClearFilter?: () => void;
 }) {
+  // Lesbare Erzählansicht (Mockup-Stil) als Standard; die Rohdaten-Liste
+  // bleibt als lückenloser Audit-Blick umschaltbar erhalten.
+  const [view, setView] = useState<"feed" | "raw">("feed");
   const events = useQuery({
     queryKey: ["recording", agentId, taskFilter?.id ?? null],
     queryFn: () =>
@@ -718,25 +859,63 @@ function Recording({
     refetchInterval: 5000,
   });
   const list = events.data ?? [];
+  // Der Feed erzählt chronologisch (Neuestes unten). Beim Öffnen und bei
+  // neuen Events springt die Ansicht ans Ende — außer man hat bewusst
+  // hochgescrollt, um Älteres zu lesen.
+  const endRef = useRef<HTMLDivElement>(null);
+  const didInitialScroll = useRef(false);
+  const lastID = list.length > 0 ? list[list.length - 1].id : 0;
+  useEffect(() => {
+    if (view !== "feed" || lastID === 0) return;
+    const nearBottom =
+      window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 400;
+    if (!didInitialScroll.current || nearBottom) {
+      endRef.current?.scrollIntoView({ block: "end" });
+      didInitialScroll.current = true;
+    }
+  }, [view, lastID]);
   return (
     <div>
-      {taskFilter && (
-        <div className="flex items-center gap-2 mb-3">
-          <span className="badge st-triage">Aufgabe: {taskFilter.title}</span>
-          <button className="btn sm" onClick={onClearFilter}>
-            Alle Ereignisse
+      <div className="flex items-center gap-2 mb-3">
+        {taskFilter && (
+          <>
+            <span className="badge st-triage">Aufgabe: {taskFilter.title}</span>
+            <button className="btn sm" onClick={onClearFilter}>
+              Alle Ereignisse
+            </button>
+          </>
+        )}
+        <span className="flex-1" />
+        <div className="seg" role="tablist" aria-label="Ansicht">
+          <button
+            className={view === "feed" ? "active" : ""}
+            onClick={() => setView("feed")}
+            title="Erzählende Ansicht: Gedanken, Tool-Aufrufe und Gates"
+          >
+            Lesbar
+          </button>
+          <button
+            className={view === "raw" ? "active" : ""}
+            onClick={() => setView("raw")}
+            title="Alle Ereignisse einzeln, mit Roh-JSON — lückenlos"
+          >
+            Rohdaten
           </button>
         </div>
-      )}
+      </div>
       <div className="card">
         {list.length === 0 && (
           <p className="muted m-0">
             {taskFilter ? "Keine Aufzeichnung für diese Aufgabe." : "Noch keine Aufzeichnung."}
           </p>
         )}
-      {[...list].reverse().map((e) => (
-          <RecordingItem key={e.id} event={e} />
-        ))}
+        {list.length > 0 &&
+          (view === "feed" ? (
+            <ActivityFeed events={list} truncated={list.length >= 500} />
+          ) : (
+            [...list].reverse().map((e) => <RecordingItem key={e.id} event={e} />)
+          ))}
+        <div ref={endRef} />
       </div>
     </div>
   );

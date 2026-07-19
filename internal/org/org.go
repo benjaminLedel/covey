@@ -8,6 +8,7 @@ package org
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -45,7 +46,58 @@ type Human struct {
 	// ManagerID ist die Vorgesetzten-Beziehung im Org-Chart (spec/09);
 	// nil = Wurzel (berichtet an niemanden).
 	ManagerID *uuid.UUID `json:"manager_id,omitempty"`
-	CreatedAt time.Time  `json:"created_at"`
+	Profile
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// Profile sind die Mitarbeiter-Stammdaten jenseits von Login und RBAC:
+// Funktion, Kontakt und die Kennungen in Zielsystemen. Agenten bekommen sie
+// als Team-Verzeichnis in den Prompt — der GitLab-Username ist z. B. das,
+// womit ein Bot ein Issue der richtigen Person zum Testen zuweist.
+//
+// Identities ist bewusst eine generische Map system → kennung (z. B.
+// {"gitlab": "maxm", "zammad": "max@firma.de"}): Zielsysteme sind Plugins
+// ohne hartkodierte Liste, die Profile folgen demselben Prinzip — eine neue
+// Plattform braucht keinen Schema- oder Code-Change am Profil.
+type Profile struct {
+	JobTitle         string            `json:"job_title"`
+	Identities       map[string]string `json:"identities"`
+	Phone            string            `json:"phone"`
+	Responsibilities string            `json:"responsibilities"`
+	// Custom sind die Werte der org-weit konfigurierbaren Profilfelder
+	// (profile_fields): key → wert, z. B. {"standort": "Berlin"}.
+	Custom map[string]string `json:"custom"`
+}
+
+// NormalizeIdentities bereinigt eine Kennungen-Map: System-Schlüssel
+// kleingeschrieben und getrimmt, Werte getrimmt und ohne führendes "@"
+// (Copy-&-Paste aus GitLab/Slack), leere Einträge entfernt. Nie nil —
+// die JSONB-Spalte ist NOT NULL.
+func NormalizeIdentities(in map[string]string) map[string]string {
+	out := map[string]string{}
+	for k, v := range in {
+		k = strings.ToLower(strings.TrimSpace(k))
+		v = strings.TrimPrefix(strings.TrimSpace(v), "@")
+		if k != "" && v != "" {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+// NormalizeCustom bereinigt die Werte der konfigurierbaren Profilfelder:
+// getrimmt, leere Einträge entfernt. Schlüssel sind die stabilen Feld-Keys
+// aus profile_fields. Nie nil — die JSONB-Spalte ist NOT NULL.
+func NormalizeCustom(in map[string]string) map[string]string {
+	out := map[string]string{}
+	for k, v := range in {
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
+		if k != "" && v != "" {
+			out[k] = v
+		}
+	}
+	return out
 }
 
 // HumanUpdate ist ein partielles Update — nil-Felder bleiben unverändert.
@@ -56,6 +108,14 @@ type HumanUpdate struct {
 	Role         *string
 	PasswordHash *string
 	ManagerID    *uuid.NullUUID
+
+	JobTitle         *string
+	Phone            *string
+	Responsibilities *string
+	// Identities/Custom: nil = unverändert, sonst vollständiger Ersatz der
+	// jeweiligen Map (vor dem Schreiben normalisiert).
+	Identities map[string]string
+	Custom     map[string]string
 }
 
 type Store struct {
@@ -69,7 +129,8 @@ func NewStore(pool *pgxpool.Pool) *Store {
 // --- Menschen (org-gescopt) ---
 
 func (s *Store) ListHumans(ctx context.Context, orgID uuid.UUID) ([]Human, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, org_id, email, display_name, role, manager_id, created_at
+	rows, err := s.pool.Query(ctx, `SELECT id, org_id, email, display_name, role, manager_id,
+			job_title, identities, phone, responsibilities, custom, created_at
 		FROM humans WHERE org_id=$1 ORDER BY created_at`, orgID)
 	if err != nil {
 		return nil, err
@@ -80,20 +141,26 @@ func (s *Store) ListHumans(ctx context.Context, orgID uuid.UUID) ([]Human, error
 
 func (s *Store) GetHuman(ctx context.Context, orgID, id uuid.UUID) (Human, error) {
 	var h Human
-	err := s.pool.QueryRow(ctx, `SELECT id, org_id, email, display_name, role, manager_id, created_at
+	err := s.pool.QueryRow(ctx, `SELECT id, org_id, email, display_name, role, manager_id,
+			job_title, identities, phone, responsibilities, custom, created_at
 		FROM humans WHERE id=$1 AND org_id=$2`, id, orgID).
-		Scan(&h.ID, &h.OrgID, &h.Email, &h.DisplayName, &h.Role, &h.ManagerID, &h.CreatedAt)
+		Scan(&h.ID, &h.OrgID, &h.Email, &h.DisplayName, &h.Role, &h.ManagerID,
+			&h.JobTitle, &h.Identities, &h.Phone, &h.Responsibilities, &h.Custom, &h.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Human{}, ErrNotFound
 	}
 	return h, err
 }
 
-func (s *Store) CreateHuman(ctx context.Context, orgID uuid.UUID, email, displayName, role, passwordHash string) (Human, error) {
-	h := Human{ID: uuid.New(), OrgID: orgID, Email: email, DisplayName: displayName, Role: role}
-	err := s.pool.QueryRow(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
-		VALUES ($1,$2,$3,$4,$5,$6) RETURNING created_at`,
-		h.ID, orgID, email, displayName, passwordHash, role).Scan(&h.CreatedAt)
+func (s *Store) CreateHuman(ctx context.Context, orgID uuid.UUID, email, displayName, role, passwordHash string, profile Profile) (Human, error) {
+	profile.Identities = NormalizeIdentities(profile.Identities)
+	profile.Custom = NormalizeCustom(profile.Custom)
+	h := Human{ID: uuid.New(), OrgID: orgID, Email: email, DisplayName: displayName, Role: role, Profile: profile}
+	err := s.pool.QueryRow(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role,
+			job_title, identities, phone, responsibilities, custom)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING created_at`,
+		h.ID, orgID, email, displayName, passwordHash, role,
+		profile.JobTitle, profile.Identities, profile.Phone, profile.Responsibilities, profile.Custom).Scan(&h.CreatedAt)
 	if isUniqueViolation(err) {
 		return Human{}, ErrEmailTaken
 	}
@@ -111,9 +178,11 @@ func (s *Store) UpdateHuman(ctx context.Context, orgID, id uuid.UUID, upd HumanU
 	defer tx.Rollback(ctx)
 
 	var h Human
-	err = tx.QueryRow(ctx, `SELECT id, org_id, email, display_name, role, manager_id, created_at
+	err = tx.QueryRow(ctx, `SELECT id, org_id, email, display_name, role, manager_id,
+			job_title, identities, phone, responsibilities, custom, created_at
 		FROM humans WHERE id=$1 AND org_id=$2 FOR UPDATE`, id, orgID).
-		Scan(&h.ID, &h.OrgID, &h.Email, &h.DisplayName, &h.Role, &h.ManagerID, &h.CreatedAt)
+		Scan(&h.ID, &h.OrgID, &h.Email, &h.DisplayName, &h.Role, &h.ManagerID,
+			&h.JobTitle, &h.Identities, &h.Phone, &h.Responsibilities, &h.Custom, &h.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Human{}, ErrNotFound
 	}
@@ -142,8 +211,31 @@ func (s *Store) UpdateHuman(ctx context.Context, orgID, id uuid.UUID, upd HumanU
 			h.ManagerID = nil
 		}
 	}
-	if _, err := tx.Exec(ctx, `UPDATE humans SET display_name=$1, role=$2, manager_id=$3 WHERE id=$4`,
-		h.DisplayName, h.Role, h.ManagerID, id); err != nil {
+	if upd.JobTitle != nil {
+		h.JobTitle = *upd.JobTitle
+	}
+	if upd.Identities != nil {
+		h.Identities = NormalizeIdentities(upd.Identities)
+	}
+	if upd.Phone != nil {
+		h.Phone = *upd.Phone
+	}
+	if upd.Responsibilities != nil {
+		h.Responsibilities = *upd.Responsibilities
+	}
+	if upd.Custom != nil {
+		h.Custom = NormalizeCustom(upd.Custom)
+	}
+	if h.Identities == nil {
+		h.Identities = map[string]string{}
+	}
+	if h.Custom == nil {
+		h.Custom = map[string]string{}
+	}
+	if _, err := tx.Exec(ctx, `UPDATE humans SET display_name=$1, role=$2, manager_id=$3,
+			job_title=$4, identities=$5, phone=$6, responsibilities=$7, custom=$8 WHERE id=$9`,
+		h.DisplayName, h.Role, h.ManagerID,
+		h.JobTitle, h.Identities, h.Phone, h.Responsibilities, h.Custom, id); err != nil {
 		return Human{}, err
 	}
 	if upd.PasswordHash != nil {
@@ -310,7 +402,8 @@ func scanHumans(rows pgx.Rows) ([]Human, error) {
 	var list []Human
 	for rows.Next() {
 		var h Human
-		if err := rows.Scan(&h.ID, &h.OrgID, &h.Email, &h.DisplayName, &h.Role, &h.ManagerID, &h.CreatedAt); err != nil {
+		if err := rows.Scan(&h.ID, &h.OrgID, &h.Email, &h.DisplayName, &h.Role, &h.ManagerID,
+			&h.JobTitle, &h.Identities, &h.Phone, &h.Responsibilities, &h.Custom, &h.CreatedAt); err != nil {
 			return nil, err
 		}
 		list = append(list, h)

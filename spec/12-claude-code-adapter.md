@@ -25,6 +25,8 @@ Die Steuerung mappt fast 1:1 auf das Daemon-Protokoll:
 |---|---|
 | `-p "<task>"` | `assign_task` — Aufgabe aus dem Backlog ([`03`](03-lifecycle-scheduling.md)) |
 | `--append-system-prompt` / `--system-prompt` | `inject_config` — kompilierte `SOUL.md` ([`02`](02-agenten-modell.md)) |
+| `--model <id\|alias>` | `inject_config.model` — Modell je Agent (Registry-Feld, PATCH `/agents/{id}/model`); leer = Default des Binaries/Accounts |
+| `--max-turns <n>` | `inject_config.max_turns` — Turn-Limit je Agent (Registry-Feld, PATCH `/agents/{id}/max-turns`); 0 = Orchestrator-Default (30) |
 | `--output-format stream-json` | `event`-Strom → Recording ([`06`](06-observability-control.md)) |
 | `--output-format json` → `total_cost_usd` | `cost` → Kostenkontrolle ([`06`](06-observability-control.md)) |
 | `--resume <session_id>` | `blocked → working` — Wiederaufnahme ([`03`](03-lifecycle-scheduling.md)) |
@@ -64,7 +66,7 @@ Headless braucht nicht-interaktive Credentials: `ANTHROPIC_API_KEY` als ENV, ein
 
 Für den vollen nicht-interaktiven Betrieb braucht es `--dangerously-skip-permissions` (überspringt die interaktiven Freigabe-Prompts). Das ist in Covey **vertretbar, weil die Sandbox isoliert ist und die harten Grenzen ohnehin extern erzwungen werden** — am Broker, am Egress, im Tool-Layer ([`06-observability-control.md`](06-observability-control.md)). Die interaktive Freigabe von Claude Code wäre innerhalb der Sandbox redundant; Coveys Guard-Rails sitzen eine Ebene darüber.
 
-Als **Defense-in-Depth** bleibt `--allowedTools` (und `--permission-mode`) trotzdem gesetzt, um den Tool-Umfang schon im Subprozess zu beschneiden — die weiche Innen-Grenze zusätzlich zur harten Außen-Grenze.
+Als **Defense-in-Depth** bleibt `--allowedTools` (und `--permission-mode`) trotzdem gesetzt, um den Tool-Umfang schon im Subprozess zu beschneiden — die weiche Innen-Grenze zusätzlich zur harten Außen-Grenze. Der Standard-Umfang (`daemon.DefaultAllowedTools`) deckt die produktive Grundausstattung ab: Dateien lesen/schreiben/bearbeiten/suchen (`Read`, `Write`, `Edit`, `Glob`, `Grep`, `NotebookEdit`), Shell (`Bash`, `BashOutput`, `KillShell`), Web (`WebFetch`, `WebSearch`) sowie `Task`/`TodoWrite`. Web-Zugriffe laufen dabei weiterhin durch den Egress-Proxy — die Allowlist bleibt die harte Grenze.
 
 ## CLI (`-p`) vs. Agent SDK
 

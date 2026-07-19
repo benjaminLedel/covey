@@ -13,7 +13,7 @@ Das persistente Home reicht für Dateien, aber **nicht** für Wissen über Aufga
 
 ## Memory-Schicht: Knowledge-Graph statt Vektorsuche
 
-Der Agent fragt die Memory-Schicht im **`triage`**-Schritt ab (was weiß ich über diese Aufgabe / diesen Kunden?) und füttert sie im **`done`**-Schritt (was habe ich gelernt / entschieden?).
+Der Agent fragt die Memory-Schicht im **`triage`**-Schritt ab (was weiß ich über diese Aufgabe / diesen Kunden?) und füttert sie im **`done`**-Schritt (was habe ich gelernt / entschieden?). Zusätzlich kann er **proaktiv mitten im Lauf** einspeisen (`covey/remember` am Action-Proxy, siehe [`01-architektur.md`](01-architektur.md)) — für allgemeingültige Erkenntnisse, die nicht bis zum Abschluss warten sollen. Die Abgrenzung zu aufgabenbezogenen Zwischenständen (Notizen an der Aufgabe, `covey/add_note`) steht in [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md): Hilft es nur dieser Aufgabe → Notiz; hilft es auch künftigen → Gedächtnis.
 
 Der entscheidende Design-Punkt: **ein Knowledge-Graph zahlt sich hier gegenüber platter Vektorsuche aus**, weil es genau die *Beziehungen* sind, die einen Agenten kompetent machen:
 

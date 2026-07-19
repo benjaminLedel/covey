@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, del, patch, roleLabel, type Principal } from "../api";
+import { api, del, patch, type Principal } from "../api";
 
 type Session = { created_at: string; expires_at: string; current: boolean };
 
-// Persönliche Einstellungen des angemeldeten Nutzers: Anzeigename, Passwort,
-// Sitzungen. Rolle und Manager verwaltet der Admin unter „Benutzer".
-export default function Profile({ me }: { me: Principal }) {
+// Konto-Einstellungen des angemeldeten Nutzers: Anzeigename, Passwort,
+// Sitzungen. Erscheint nur auf der eigenen Profil-Seite — Rolle und
+// Org-Zuordnung verwaltet ein Admin unter „Benutzer".
+export default function AccountSettings({ me }: { me: Principal }) {
   const qc = useQueryClient();
   const [name, setName] = useState(me.DisplayName);
   const [currentPw, setCurrentPw] = useState("");
@@ -22,7 +23,7 @@ export default function Profile({ me }: { me: Principal }) {
     mutationFn: () => patch("/auth/me", { display_name: name.trim() }),
     onSuccess: () => {
       setNote("Anzeigename gespeichert.");
-      qc.invalidateQueries({ queryKey: ["me"] });
+      for (const key of ["me", "users", "orgchart", "human"]) qc.invalidateQueries({ queryKey: [key] });
     },
     onError: (e) => setNote(String(e)),
   });
@@ -46,11 +47,8 @@ export default function Profile({ me }: { me: Principal }) {
   const others = (sessions.data ?? []).filter((s) => !s.current).length;
 
   return (
-    <div style={{ maxWidth: 560 }}>
-      <h1 className="text-[22px] mb-1">Profil</h1>
-      <p className="muted text-xs mb-4">
-        {me.Email} · {roleLabel[me.Role] ?? me.Role} — Rolle und Org-Zuordnung verwaltet ein Admin unter „Benutzer".
-      </p>
+    <>
+      <h2 className="text-sm secondary mt-6 mb-2">Konto</h2>
       {note && <p className="text-xs mb-3" style={{ color: "var(--text-secondary)" }}>{note}</p>}
 
       <form
@@ -113,6 +111,6 @@ export default function Profile({ me }: { me: Principal }) {
         ))}
         {sessions.data?.length === 0 && <p className="muted text-xs m-0">Keine aktiven Sitzungen.</p>}
       </div>
-    </div>
+    </>
   );
 }

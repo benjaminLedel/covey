@@ -30,7 +30,8 @@ func TestTargetActivation(t *testing.T) {
 
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 
-	// Das Built-in erscheint in der Liste, ohne Zeile gilt es als aktiviert.
+	// Das Built-in erscheint in der Liste; die Test-Org hat es (wie eine echte
+	// Organisation im UI) explizit aktiviert — Aktivierung ist opt-in.
 	var plugins []map[string]any
 	respList := admin.do(http.MethodGet, "/api/v1/targets", nil)
 	json.NewDecoder(respList.Body).Decode(&plugins)
@@ -80,6 +81,23 @@ func TestTargetActivation(t *testing.T) {
 	admin.expect(http.MethodPatch, "/api/v1/targets/zammad", map[string]any{"enabled": true}, http.StatusOK)
 	if outcome := postWebhookRaw(t, s, "support", body); !strings.Contains(outcome, "created") {
 		t.Fatalf("nach reaktivierung erwarte ich created, got %s", outcome)
+	}
+
+	// Opt-in-Semantik: eine frische Organisation startet ohne aktivierte
+	// Zielsysteme — Built-ins sind erst nach expliziter Aktivierung an.
+	admin.expect(http.MethodPost, "/api/v1/orgs", map[string]any{
+		"name": "Frisch-Org", "admin_email": "frisch@test.local",
+		"admin_name": "Frisch-Admin", "admin_password": "frisch-passwort",
+	}, http.StatusCreated)
+	fresh := login(t, s, "frisch@test.local", "frisch-passwort")
+	var freshPlugins []map[string]any
+	respFresh := fresh.do(http.MethodGet, "/api/v1/targets", nil)
+	json.NewDecoder(respFresh.Body).Decode(&freshPlugins)
+	respFresh.Body.Close()
+	for _, p := range freshPlugins {
+		if p["kind"] == "builtin" && p["enabled"] == true {
+			t.Fatalf("frische Organisation darf kein aktiviertes Built-in haben: %v", p)
+		}
 	}
 }
 

@@ -262,6 +262,73 @@ func TestAgentSetsStage(t *testing.T) {
 	}
 }
 
+// TestAgentNotesAndStageCleanup prüft proaktive Notizen und Auto-Aufräumen:
+// covey/add_note hängt einen Zwischenstand an die Aufgabe, covey/remember
+// speist Allgemeingültiges sofort ins Gedächtnis, und eine vom Agenten
+// „erfundene" Spalte verschwindet automatisch, sobald sie leert — die vom
+// Weiterschieben geleerte sofort, die letzte beim Archivieren der Aufgabe.
+func TestAgentNotesAndStageCleanup(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+
+	agent := s.newSupportAgent("notiz-agent")
+	task, _ := s.backlog.Create(ctx, s.orgID, agent.ID, "Notiz-Test",
+		`[mock:action covey/add_note {"content":"Logs zeigen einen Timeout im Payment-Service"}]
+[mock:action covey/remember {"content":"Kunde ACME erreicht man nur telefonisch"}]
+[mock:action covey/set_stage {"stage":"Recherche"}]
+[mock:action covey/set_stage {"stage":"Warten auf Kunde"}]
+[mock:result fertig]`, "manual", 3)
+
+	waitFor(t, "aufgabe done", 15*time.Second, func() bool {
+		return s.taskState(task.ID) == backlog.StateDone
+	})
+
+	// Aufgabenbezogener Zwischenstand hängt als Notiz an der Aufgabe.
+	notes, err := s.backlog.ListNotes(ctx, task.ID)
+	if err != nil || len(notes) != 1 {
+		t.Fatalf("erwartet genau eine Notiz an der Aufgabe, got %+v (err=%v)", notes, err)
+	}
+	if notes[0].Author != "agent" || !strings.Contains(notes[0].Content, "Timeout") {
+		t.Fatalf("unerwartete Notiz: %+v", notes[0])
+	}
+
+	// Allgemeingültiges landet sofort im Gedächtnis — nicht erst beim Abschluss.
+	mems, _ := s.mem.List(ctx, agent.ID, 10)
+	foundMem := false
+	for _, m := range mems {
+		if strings.Contains(m.Content, "ACME") {
+			foundMem = true
+		}
+	}
+	if !foundMem {
+		t.Fatalf("remember muss sofort im Gedächtnis landen, got %+v", mems)
+	}
+
+	// „Recherche" leerte beim Weiterschieben → automatisch abgeräumt;
+	// „Warten auf Kunde" hält die Aufgabe und bleibt stehen.
+	stages, _ := s.backlog.ListStages(ctx, agent.ID)
+	if len(stages) != 1 || stages[0].Name != "Warten auf Kunde" {
+		t.Fatalf("leere Agenten-Spalte muss abgeräumt sein, got %+v", stages)
+	}
+	if stages[0].CreatedBy != "agent" {
+		t.Fatalf("vom Agenten erfundene Spalte muss created_by=agent tragen, got %q", stages[0].CreatedBy)
+	}
+
+	// Menschlich angelegte Spalten überleben das Aufräumen — auch leer.
+	if _, err := s.backlog.CreateStage(ctx, agent.ID, "Manuell", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	// Archivieren leert die letzte Agenten-Spalte → sie verschwindet mit.
+	if _, err := s.backlog.ArchiveTerminal(ctx, agent.ID); err != nil {
+		t.Fatal(err)
+	}
+	stages, _ = s.backlog.ListStages(ctx, agent.ID)
+	if len(stages) != 1 || stages[0].Name != "Manuell" {
+		t.Fatalf("nach dem Archivieren darf nur die menschliche Spalte bleiben, got %+v", stages)
+	}
+}
+
 // TestBacklogCleanupAndRetry prüft die Aufräum-Logik: terminale Aufgaben
 // lassen sich archivieren (ausgeblendet, nicht gelöscht), gescheiterte
 // Aufgaben per Retry erneut einplanen — der Agent nimmt sie wirklich wieder auf.

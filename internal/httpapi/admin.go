@@ -47,6 +47,7 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		DisplayName string `json:"display_name"`
 		Role        string `json:"role"`
 		Password    string `json:"password"`
+		org.Profile
 	}
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "ungültiger request")
@@ -70,7 +71,7 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	h, err := s.Org.CreateHuman(r.Context(), p.OrgID, in.Email, in.DisplayName, in.Role, hash)
+	h, err := s.Org.CreateHuman(r.Context(), p.OrgID, in.Email, in.DisplayName, in.Role, hash, trimProfile(in.Profile))
 	if err != nil {
 		mapErr(w, err)
 		return
@@ -91,12 +92,14 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		Password    *string `json:"password"`
 		// ManagerID: nil = unverändert, "" = Zuordnung lösen, sonst UUID.
 		ManagerID *string `json:"manager_id"`
+		profilePatch
 	}
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "ungültiger request")
 		return
 	}
 	upd := org.HumanUpdate{DisplayName: in.DisplayName, Role: in.Role}
+	in.profilePatch.apply(&upd)
 	if in.ManagerID != nil {
 		nu := uuid.NullUUID{}
 		if *in.ManagerID != "" {

@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api, roleLabel, statusLabel, type Agent, type Human, type OrgChart } from "../api";
+import { Avatar } from "../components/person";
 
 // Organigramm (spec/02, spec/09): der unternehmensweite Org-Chart über Menschen
 // und Agenten. Menschen berichten an Menschen (manager_id), Agenten an ihren
-// Vorgesetzten (supervisor_id). Sichtbar für alle Rollen — Zuordnungen werden
-// in der Benutzerverwaltung bzw. auf der Agenten-Seite gepflegt.
+// Vorgesetzten (supervisor_id). Sichtbar für alle Rollen — jeder Knoten führt
+// auf seine Detail-Seite (Mensch → Profil, Agent → Agenten-Seite).
 export default function Org() {
   const chart = useQuery({
     queryKey: ["orgchart"],
@@ -39,7 +40,7 @@ export default function Org() {
         <span>
           <span className="sw" style={{ background: "var(--text-accent)" }} /> Agent
         </span>
-        <span className="muted">Agenten-Knoten sind anklickbar</span>
+        <span className="muted">Knoten sind anklickbar — Menschen öffnen ihre Profil-Seite</span>
       </div>
 
       {roots.length === 0 ? (
@@ -71,15 +72,6 @@ export default function Org() {
   );
 }
 
-const initials = (name: string) =>
-  name
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((p) => p[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase() || "?";
-
 // seen schützt gegen Zyklen in Altdaten — der Server verhindert neue.
 function TreeNode({
   human,
@@ -99,14 +91,14 @@ function TreeNode({
 
   return (
     <li>
-      <div className="node">
-        <div className="avatar hum">{initials(human.display_name)}</div>
+      <Link to={`/people/${human.id}`} className="node human" title="Profil-Seite öffnen">
+        <Avatar name={human.display_name} human />
         <div>
           <div className="nm">{human.display_name}</div>
-          <div className="rl">{roleLabel[human.role] ?? human.role}</div>
+          <div className="rl">{human.job_title || (roleLabel[human.role] ?? human.role)}</div>
         </div>
         <span className="ntag">Mensch</span>
-      </div>
+      </Link>
       {hasKids && (
         <ul>
           {childHumans.map((h) => (
@@ -127,7 +119,7 @@ function AgentNode({ agent }: { agent: Agent }) {
   const status = agent.killed ? "killed" : agent.status;
   return (
     <Link to={`/agents/${agent.id}`} className="node agent">
-      <div className="avatar">{initials(agent.display_name)}</div>
+      <Avatar name={agent.display_name} />
       <div>
         <div className="nm">{agent.display_name}</div>
         <div className="rl mono">{agent.slug}</div>

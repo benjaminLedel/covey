@@ -38,6 +38,12 @@ Covey trennt sauber zwischen **Mensch-Identität** und **Agent-Identität**:
 
 Beide Ebenen sind getrennt, aber verknüpft: Wenn ein Agent im Auftrag eines Menschen handelt, bleibt die Delegationskette (welcher Mensch hat welchen Agenten wofür autorisiert) im Audit-Trail erhalten.
 
+## Mitarbeiter-Profil & Team-Verzeichnis
+
+Jeder Mensch hat über Login und RBAC-Rolle hinaus ein **Profil**: Funktion (Job-Titel), Telefon, Zuständigkeiten (Freitext), seine **Kennungen in Zielsystemen** und die Werte der **org-weit konfigurierbaren Zusatzfelder**. Letztere definiert der Admin unter *Organisationen* frei (z. B. Standort, Abteilung, Slack-Handle; Tabelle `profile_fields`, Werte als `custom`-Map am Profil) — ein neues Feld ist reine Konfiguration und erscheint sofort in jedem Profil-Editor und im Team-Verzeichnis. Die Kennungen sind generisch als Map *System → Kennung* modelliert (`identities`, z. B. `{"gitlab": "maxm", "zammad": "max@firma.de"}`) — Zielsysteme sind Plugins ohne hartkodierte Liste, und die Profile folgen demselben Prinzip: Ein neues Plugin bekommt in der UI automatisch ein Eingabefeld, ohne Schema- oder Code-Change am Profil. Gepflegt wird das Profil vom Admin unter *Benutzer* oder per Self-Service unter *Profil*.
+
+Der Zweck ist nicht Adressbuch-Kosmetik, sondern **Übergaben Agent → Mensch**: Die Profile werden zur Dispatch-Zeit als Abschnitt *„Team (menschliche Mitarbeiter)"* an den System-Prompt jedes Agenten gehängt (analog zur Zielsystem-Doku, damit Profil-Änderungen sofort wirken, ohne die Agent-Config neu zu kompilieren). Ein Agent wählt die Person anhand ihrer Zuständigkeit und verwendet exakt die hinterlegte Kennung — er rät niemals Benutzernamen. So weiß z. B. der GitLab-Bot, wem er ein Issue nach einem Fix zum Testen zuweist (`assign`-Aktion des GitLab-Plugins: Username → User-ID → `assignee_ids`).
+
 ## Organisationsstruktur: Abteilungen, Cost-Center, Mandanten
 
 - **Abteilungen / Teams** — Agenten werden Organisationseinheiten zugeordnet. Der Org-Chart bildet die reale Struktur ab (Team-Lead → seine Agenten), und Guard-Rails wie Budgets können **pro Abteilung** gescopt werden (siehe Guard-Rail-Scope in [`06-observability-control.md`](06-observability-control.md)).

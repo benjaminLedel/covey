@@ -100,6 +100,9 @@ func (c *ClaudeCode) buildArgs(spec RunSpec) ([]string, string) {
 	if spec.MaxTurns > 0 {
 		args = append(args, "--max-turns", strconv.Itoa(spec.MaxTurns))
 	}
+	if spec.Model != "" {
+		args = append(args, "--model", spec.Model)
+	}
 	return args, prompt
 }
 
