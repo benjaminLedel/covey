@@ -173,7 +173,12 @@ func (System) PromptDoc() string {
    3. Dagegen testen: exec {"cmd":"curl -s http://localhost:PORT/..."} — oder mit einem headless
       Browser, z. B. start {"name":"chrome","cmd":"chromium --headless=new --remote-debugging-port=9222 --no-sandbox"}
       und dann per DevTools-Protokoll bzw. einem selbst installierten Playwright/Puppeteer steuern.
-   4. Befunde aus logs ziehen, am Ende stop für alles, was du gestartet hast.
+   4. Die App auch ANSEHEN, nicht nur ancurlen — Screenshot mit headless Chrome/Chromium:
+      exec {"cmd":"chromium --headless=new --disable-gpu --screenshot=shot.png --window-size=1280,900 http://localhost:PORT/"}
+      (der Binary-Name variiert: chromium, google-chrome oder der volle Pfad — prüfe mit exec, was da ist).
+      Das PNG liegt danach in deinem Home: öffne es mit deinem Read-Tool — du kannst Bilder sehen und so
+      Layout-Fehler, leere Seiten oder Fehlermeldungen im UI selbst erkennen.
+   5. Befunde aus logs ziehen, am Ende stop für alles, was du gestartet hast.
    Prozesse leben nur bis zum Ende deiner Wach-Phase — die Plattform räumt sie beim Einschlafen ab;
    starte sie in einer neuen Wach-Phase neu, statt dich auf alte zu verlassen.`
 }
