@@ -19,7 +19,7 @@ func init() {
 	target.Register(target.Descriptor{
 		Name:        "gitlab",
 		Label:       "GitLab",
-		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues), Quellcode auschecken, Projekt aufsetzen und Bugs am Code verifizieren (checkout + Sandbox-Shell), Fixes entwickeln — auf Feature-Branch committen (commit), Merge Request an den Vorgesetzten eröffnen (create_merge_request) und den Review-Loop leben: auf Review warten (blocked), Feedback einarbeiten (list_mr_notes/comment_mr), CI prüfen (list_pipelines), auf den Merge reagieren. Intake per HEARTBEAT.md (Polling) oder optionalem Webhook, Auth per API-Token (Secrets gitlab_token + gitlab_url).",
+		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues), Quellcode auschecken, Projekt aufsetzen und Bugs am Code verifizieren (checkout + Sandbox-Shell), Fixes entwickeln — auf Feature-Branch committen (commit), Merge Request an den Vorgesetzten eröffnen (create_merge_request) und den Review-Loop leben: auf Review warten (blocked), Feedback einarbeiten (list_mr_notes/comment_mr), rote CI selbst diagnostizieren (list_pipelines/list_pipeline_jobs/get_job_log) und auf den Merge reagieren. Intake per HEARTBEAT.md (Polling) oder optionalem Webhook, Auth per API-Token (Secrets gitlab_token + gitlab_url).",
 		Kind:        "builtin",
 		System:      System{},
 		SetupDoc: `1. In GitLab einen eigenen Bot-Nutzer anlegen (z. B. covey-bot), den
@@ -160,24 +160,26 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 	gc := NewClient(cred.BaseURL, cred.Token)
 
 	var in struct {
-		ProjectID int    `json:"project_id"`
-		IssueIID  int    `json:"issue_iid"`
-		MRIID     int    `json:"mr_iid"`
-		Body      string `json:"body"`
-		Internal  *bool  `json:"internal"`
-		State     string `json:"state"`
-		Note      string `json:"note"`
-		Labels    string `json:"labels"`
-		Search    string `json:"search"`
-		Ref       string `json:"ref"`
-		Assigned  bool   `json:"assigned"`
-		Path      string `json:"path"`
-		FilePath  string `json:"file_path"`
-		Recursive bool   `json:"recursive"`
-		Sha       string `json:"sha"`
-		Since     string `json:"since"`
-		Target    string `json:"target_branch"`
-		Username  string `json:"username"`
+		ProjectID  int    `json:"project_id"`
+		IssueIID   int    `json:"issue_iid"`
+		MRIID      int    `json:"mr_iid"`
+		PipelineID int    `json:"pipeline_id"`
+		JobID      int    `json:"job_id"`
+		Body       string `json:"body"`
+		Internal   *bool  `json:"internal"`
+		State      string `json:"state"`
+		Note       string `json:"note"`
+		Labels     string `json:"labels"`
+		Search     string `json:"search"`
+		Ref        string `json:"ref"`
+		Assigned   bool   `json:"assigned"`
+		Path       string `json:"path"`
+		FilePath   string `json:"file_path"`
+		Recursive  bool   `json:"recursive"`
+		Sha        string `json:"sha"`
+		Since      string `json:"since"`
+		Target     string `json:"target_branch"`
+		Username   string `json:"username"`
 		// Entwickler-Workflow: commit + create_merge_request.
 		Branch       string   `json:"branch"`
 		StartBranch  string   `json:"start_branch"`
@@ -276,6 +278,20 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, fmt.Errorf("project_id fehlt")
 		}
 		return gc.ListPipelines(ctx, in.ProjectID, in.Ref)
+	case "list_pipeline_jobs":
+		if in.ProjectID == 0 || in.PipelineID == 0 {
+			return nil, fmt.Errorf("project_id oder pipeline_id fehlt")
+		}
+		return gc.ListPipelineJobs(ctx, in.ProjectID, in.PipelineID)
+	case "get_job_log":
+		if in.ProjectID == 0 || in.JobID == 0 {
+			return nil, fmt.Errorf("project_id oder job_id fehlt")
+		}
+		logText, truncated, err := gc.GetJobLog(ctx, in.ProjectID, in.JobID)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"job_id": in.JobID, "log": logText, "truncated": truncated}, nil
 	case "list_branches":
 		if in.ProjectID == 0 {
 			return nil, fmt.Errorf("project_id fehlt")
@@ -368,7 +384,10 @@ func (System) PromptDoc() string {
    has_conflicts) und CI-Ergebnis (head_pipeline), list_mr_notes {"project_id":N,"mr_iid":N} den Diskussionsstand eines MR
    (Review-Kommentare), comment_mr {"project_id":N,"mr_iid":N,"body":"..."} antwortet im Review-Dialog,
    list_pipelines {"project_id":N,"ref":"branch (optional)"} listet CI-Läufe — prüfe damit nach jedem Push, ob die
-   Pipeline deines Branches grün ist.
+   Pipeline deines Branches grün ist. Ist sie ROT, diagnostiziere selbst statt zu raten oder zu fragen:
+   list_pipeline_jobs {"project_id":N,"pipeline_id":N} zeigt die Jobs mit Status, get_job_log {"project_id":N,"job_id":N}
+   liefert das Log-Ende des fehlgeschlagenen Jobs — Ursache beheben, erneut committen, Pipeline erneut prüfen.
+   Scheitert ein Job an Infrastruktur (Runner fehlt, Registry down), gehört das als Befund in den MR-Kommentar.
    Schreibende Entwickler-Aktionen:
    commit {"project_id":N,"branch":"fix/…","start_branch":"main (optional, Default: Default-Branch)","message":"...",
    "checkout_path":"<Pfad aus dem checkout-Ergebnis>","files":["repo/relativer/pfad.go",...],"deleted":["alt.go",...]} —

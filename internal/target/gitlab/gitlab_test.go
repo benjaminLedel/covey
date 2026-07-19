@@ -866,14 +866,63 @@ func TestMRReviewActions(t *testing.T) {
 
 	// Pflichtparameter fehlen → Fehler statt stiller Leerlauf.
 	for name, call := range map[string][2]string{
-		"get_merge_request ohne mr_iid": {"get_merge_request", `{"project_id":15}`},
-		"list_mr_notes ohne mr_iid":     {"list_mr_notes", `{"project_id":15}`},
-		"comment_mr ohne body":          {"comment_mr", `{"project_id":15,"mr_iid":9}`},
-		"list_pipelines ohne project":   {"list_pipelines", `{}`},
+		"get_merge_request ohne mr_iid":       {"get_merge_request", `{"project_id":15}`},
+		"list_mr_notes ohne mr_iid":           {"list_mr_notes", `{"project_id":15}`},
+		"comment_mr ohne body":                {"comment_mr", `{"project_id":15,"mr_iid":9}`},
+		"list_pipelines ohne project":         {"list_pipelines", `{}`},
+		"list_pipeline_jobs ohne pipeline_id": {"list_pipeline_jobs", `{"project_id":15}`},
+		"get_job_log ohne job_id":             {"get_job_log", `{"project_id":15}`},
 	} {
 		if _, err := sys.Execute(ctx, call[0], []byte(call[1]), cred); err == nil {
 			t.Fatalf("%s muss fehlschlagen", name)
 		}
+	}
+}
+
+func TestPipelineDiagnosisActions(t *testing.T) {
+	bigLog := strings.Repeat("x", maxJobLogBytes) + "FEHLER: assertion failed\n"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v4/projects/15/pipelines/4/jobs":
+			json.NewEncoder(w).Encode([]Job{
+				{ID: 41, Name: "build", Stage: "build", Status: "success"},
+				{ID: 42, Name: "test", Stage: "test", Status: "failed"},
+			})
+		case "/api/v4/projects/15/jobs/42/trace":
+			w.Write([]byte(bigLog))
+		default:
+			t.Errorf("unerwarteter request: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	res, err := sys.Execute(ctx, "list_pipeline_jobs", []byte(`{"project_id":15,"pipeline_id":4}`), cred)
+	if err != nil {
+		t.Fatalf("list_pipeline_jobs: %v", err)
+	}
+	jobs := res.([]Job)
+	if len(jobs) != 2 || jobs[1].Status != "failed" {
+		t.Fatalf("jobs falsch: %+v", jobs)
+	}
+
+	res, err = sys.Execute(ctx, "get_job_log", []byte(`{"project_id":15,"job_id":42}`), cred)
+	if err != nil {
+		t.Fatalf("get_job_log: %v", err)
+	}
+	out := res.(map[string]any)
+	logText := out["log"].(string)
+	// Das ENDE des Logs muss erhalten bleiben (dort steht der Fehler), der
+	// Anfang darf der Kappung zum Opfer fallen.
+	if !strings.Contains(logText, "FEHLER: assertion failed") {
+		t.Fatal("log-ende muss erhalten bleiben")
+	}
+	if out["truncated"] != true || len(logText) > maxJobLogBytes {
+		t.Fatalf("log muss auf %d bytes gekappt sein: len=%d truncated=%v",
+			maxJobLogBytes, len(logText), out["truncated"])
 	}
 }
 

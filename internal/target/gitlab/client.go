@@ -453,6 +453,57 @@ func (c *Client) ListPipelines(ctx context.Context, projectID int, ref string) (
 	return out, err
 }
 
+// Job ist ein CI-Job eines Pipeline-Laufs — genug, um den fehlgeschlagenen
+// Job zu finden und sein Log zu ziehen.
+type Job struct {
+	ID           int    `json:"id"`
+	Name         string `json:"name"`
+	Stage        string `json:"stage"`
+	Status       string `json:"status"`
+	AllowFailure bool   `json:"allow_failure"`
+	WebURL       string `json:"web_url"`
+}
+
+// ListPipelineJobs — GET /projects/{id}/pipelines/{pipeline_id}/jobs: die Jobs
+// eines CI-Laufs mit Status. Der Einstieg in die Diagnose einer roten Pipeline.
+func (c *Client) ListPipelineJobs(ctx context.Context, projectID, pipelineID int) ([]Job, error) {
+	var out []Job
+	err := c.do(ctx, http.MethodGet,
+		fmt.Sprintf("/projects/%d/pipelines/%d/jobs?per_page=100", projectID, pipelineID), nil, &out)
+	return out, err
+}
+
+// maxJobLogBytes begrenzt das zurückgegebene Job-Log; behalten wird das ENDE —
+// dort stehen Fehlermeldungen und Test-Zusammenfassungen.
+const maxJobLogBytes = 48 << 10
+
+// GetJobLog — GET /projects/{id}/jobs/{job_id}/trace: das Log eines CI-Jobs.
+// Traces können riesig sein; gelesen wird gedeckelt, geliefert das Log-Ende.
+func (c *Client) GetJobLog(ctx context.Context, projectID, jobID int) (string, bool, error) {
+	path := fmt.Sprintf("/projects/%d/jobs/%d/trace", projectID, jobID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/api/v4"+path, nil)
+	if err != nil {
+		return "", false, err
+	}
+	req.Header.Set("PRIVATE-TOKEN", c.Token)
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return "", false, err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if err != nil {
+		return "", false, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", false, fmt.Errorf("gitlab GET %s: HTTP %d: %.300s", path, resp.StatusCode, data)
+	}
+	if len(data) > maxJobLogBytes {
+		return string(data[len(data)-maxJobLogBytes:]), true, nil
+	}
+	return string(data), false, nil
+}
+
 // Branch ist ein Eintrag der Branch-Liste. Default markiert den
 // Default-Branch des Projekts.
 type Branch struct {
