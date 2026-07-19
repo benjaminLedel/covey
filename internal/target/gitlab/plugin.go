@@ -19,12 +19,14 @@ func init() {
 	target.Register(target.Descriptor{
 		Name:        "gitlab",
 		Label:       "GitLab",
-		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues), Quellcode auschecken und Bugs am Code verifizieren (checkout), kommentieren, schließen, eskalieren. Intake per HEARTBEAT.md (Polling) oder optionalem Webhook, Auth per API-Token (Secrets gitlab_token + gitlab_url).",
+		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues), Quellcode auschecken und Bugs am Code verifizieren (checkout), Fixes entwickeln — auf Feature-Branch committen (commit) und Merge Request an den Vorgesetzten eröffnen (create_merge_request) —, kommentieren, schließen, eskalieren. Intake per HEARTBEAT.md (Polling) oder optionalem Webhook, Auth per API-Token (Secrets gitlab_token + gitlab_url).",
 		Kind:        "builtin",
 		System:      System{},
 		SetupDoc: `1. In GitLab einen eigenen Bot-Nutzer anlegen (z. B. covey-bot), den
-   Zielprojekten als Reporter/Developer hinzufügen und als dieser Nutzer ein
-   Access Token mit Scope "api" erzeugen.
+   Zielprojekten hinzufügen und als dieser Nutzer ein Access Token mit
+   Scope "api" erzeugen. Rolle: Reporter reicht fürs Lesen/Kommentieren;
+   soll der Agent Fixes pushen und Merge Requests eröffnen (commit /
+   create_merge_request), braucht er Developer.
 
 2. Unter Secrets hinterlegen und dem Agenten zuweisen:
    gitlab_url   = https://gitlab.example.com   (ohne /api/v4)
@@ -135,6 +137,18 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		Sha       string `json:"sha"`
 		Since     string `json:"since"`
 		Target    string `json:"target_branch"`
+		Username  string `json:"username"`
+		// Entwickler-Workflow: commit + create_merge_request.
+		Branch       string   `json:"branch"`
+		StartBranch  string   `json:"start_branch"`
+		Message      string   `json:"message"`
+		CheckoutPath string   `json:"checkout_path"`
+		Files        []string `json:"files"`
+		Deleted      []string `json:"deleted"`
+		SourceBranch string   `json:"source_branch"`
+		Title        string   `json:"title"`
+		Description  string   `json:"description"`
+		Assignee     string   `json:"assignee"`
 	}
 	if err := json.Unmarshal(params, &in); err != nil {
 		return nil, fmt.Errorf("params: %w", err)
@@ -207,6 +221,38 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, fmt.Errorf("project_id fehlt")
 		}
 		return gc.ListBranches(ctx, in.ProjectID, in.Search)
+	case "commit":
+		if in.ProjectID == 0 {
+			return nil, fmt.Errorf("project_id fehlt")
+		}
+		return CommitFromCheckout(ctx, gc, in.ProjectID, in.Branch, in.StartBranch,
+			in.Message, in.CheckoutPath, in.Files, in.Deleted, target.Workdir(ctx))
+	case "create_merge_request":
+		if in.ProjectID == 0 || strings.TrimSpace(in.SourceBranch) == "" || strings.TrimSpace(in.Title) == "" {
+			return nil, fmt.Errorf("project_id, source_branch oder title fehlt")
+		}
+		targetBranch := strings.TrimSpace(in.Target)
+		if targetBranch == "" {
+			proj, err := gc.GetProject(ctx, in.ProjectID)
+			if err != nil {
+				return nil, err
+			}
+			targetBranch = proj.DefaultBranch
+		}
+		if in.SourceBranch == targetBranch {
+			return nil, fmt.Errorf("source_branch und target_branch sind identisch (%q)", targetBranch)
+		}
+		// Der Reviewer (idR der Vorgesetzte) muss auflösbar sein — ein MR
+		// ohne benannten Menschen als Empfänger ist hier nicht vorgesehen.
+		if strings.TrimSpace(in.Assignee) == "" {
+			return nil, fmt.Errorf("assignee fehlt — trage den GitLab-Username deines Vorgesetzten aus dem Team-Verzeichnis ein")
+		}
+		u, err := gc.LookupUser(ctx, in.Assignee)
+		if err != nil {
+			return nil, err
+		}
+		return gc.CreateMergeRequest(ctx, in.ProjectID, in.SourceBranch, targetBranch,
+			in.Title, in.Description, u.ID, u.ID)
 	case "list_notes":
 		return gc.ListNotes(ctx, in.ProjectID, in.IssueIID)
 	case "comment":
@@ -217,6 +263,18 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, fmt.Errorf("state fehlt")
 		}
 		return nil, gc.SetState(ctx, in.ProjectID, in.IssueIID, in.State)
+	case "assign":
+		if in.ProjectID == 0 || in.IssueIID == 0 {
+			return nil, fmt.Errorf("project_id oder issue_iid fehlt")
+		}
+		u, err := gc.LookupUser(ctx, in.Username)
+		if err != nil {
+			return nil, err
+		}
+		if err := gc.AssignIssue(ctx, in.ProjectID, in.IssueIID, []int{u.ID}); err != nil {
+			return nil, err
+		}
+		return map[string]any{"assigned_to": u.Username, "user_id": u.ID}, nil
 	case "escalate":
 		note := in.Note
 		if note == "" {
@@ -239,10 +297,32 @@ func (System) PromptDoc() string {
    mit path eingrenzen), read_file {"project_id":N,"file_path":"pfad/zur/datei","ref":"..."} liest eine einzelne Datei,
    list_notes {"project_id":N,"issue_iid":N}, comment {"project_id":N,"issue_iid":N,"body":"...","internal":true|false},
    set_state {"project_id":N,"issue_iid":N,"state":"close"|"reopen"}, escalate {"project_id":N,"issue_iid":N,"note":"..."},
+   assign {"project_id":N,"issue_iid":N,"username":"gitlab-username"} weist das Issue einer Person zu — z. B. nach einem
+   Fix dem Teammitglied, das laut Team-Verzeichnis fürs Testen zuständig ist; nimm den GitLab-Username exakt aus dem
+   Abschnitt "Team (menschliche Mitarbeiter)" deines Prompts und erkläre die Übergabe in einem Kommentar,
    list_branches {"project_id":N,"search":"..."} listet Branches (Default-Branch ist markiert — rate keine Branch-Namen),
    list_commits {"project_id":N,"ref":"...","path":"datei/oder/verzeichnis","since":"ISO-Datum"} listet die Commit-Historie
    (alle Filter optional), get_commit {"project_id":N,"sha":"..."} liefert den Diff eines Commits,
    list_merge_requests {"project_id":N,"state":"opened"|"merged"|"closed"|"all","search":"...","target_branch":"..."}.
+   Schreibende Entwickler-Aktionen:
+   commit {"project_id":N,"branch":"fix/…","start_branch":"main (optional, Default: Default-Branch)","message":"...",
+   "checkout_path":"<Pfad aus dem checkout-Ergebnis>","files":["repo/relativer/pfad.go",...],"deleted":["alt.go",...]} —
+   pusht deine lokal editierten Dateien als EINEN Commit auf den Branch; existiert der Branch nicht, wird er vom
+   start_branch abgezweigt. Direkte Commits auf den Default-Branch sind verboten — der Weg dorthin führt über:
+   create_merge_request {"project_id":N,"source_branch":"fix/…","target_branch":"main (optional, Default: Default-Branch)",
+   "title":"...","description":"...","assignee":"gitlab-username"} — eröffnet den Merge Request; als assignee trägst du
+   deinen Vorgesetzten aus dem Team-Verzeichnis ein (er wird Assignee UND Reviewer), der Source-Branch wird nach dem
+   Merge automatisch entfernt.
+   Arbeitsweise als Entwickler — wenn du einen Bug nicht nur bestätigst, sondern behebst:
+   1. checkout des Projekts, den Fehler am Code nachvollziehen (Datei:Zeile).
+   2. Fix lokal im Checkout editieren — minimal-invasiv, Stil der Umgebung übernehmen.
+   3. VERIFIZIEREN, bevor du pushst: die Tests des Projekts im Checkout ausführen (bzw. Build/Kompilier-Check,
+      wenn es keine Tests gibt) und für den Fix möglichst einen Test ergänzen. Schlagen Tests fehl, pushe NICHT.
+   4. commit auf einen sprechenden Feature-Branch (z. B. fix/issue-<iid>-kurzbeschreibung).
+   5. create_merge_request an deinen Vorgesetzten; verweise in der description auf das Issue (#<iid>),
+      beschreibe Ursache, Fix und wie du ihn verifiziert hast (welche Tests liefen).
+   6. Im Issue kommentieren: Link zum MR, kurze Zusammenfassung. Das Issue NICHT selbst schließen —
+      das passiert beim Merge bzw. durch deinen Vorgesetzten.
    Deinen Arbeitsvorrat findest du selbst: list_issues {"state":"opened"} liefert die offenen Issues.
    Arbeitsweise bei Bug-Reports und technischen Fragen: Antworte NIE nur aus Plausibilität oder Vorwissen.
    Prüfe IMMER ZUERST, ob der gemeldete Fehler inzwischen schon behoben ist: list_commits auf dem relevanten

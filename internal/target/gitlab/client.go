@@ -404,6 +404,100 @@ func (c *Client) ListBranches(ctx context.Context, projectID int, search string)
 	return out, err
 }
 
+// ProjectDetail liefert die Projekt-Metadaten, die der Entwickler-Workflow
+// braucht — vor allem den Default-Branch als Basis für Feature-Branches und
+// als Ziel von Merge Requests.
+type ProjectDetail struct {
+	ID                int    `json:"id"`
+	PathWithNamespace string `json:"path_with_namespace"`
+	DefaultBranch     string `json:"default_branch"`
+	WebURL            string `json:"web_url"`
+}
+
+// GetProject — GET /projects/{id}
+func (c *Client) GetProject(ctx context.Context, projectID int) (ProjectDetail, error) {
+	var p ProjectDetail
+	err := c.do(ctx, http.MethodGet, fmt.Sprintf("/projects/%d", projectID), nil, &p)
+	return p, err
+}
+
+// FileExists — HEAD /projects/{id}/repository/files/{path}?ref=…: entscheidet,
+// ob ein Commit die Datei anlegt (create) oder ändert (update) — die
+// Commits-API verlangt die richtige Aktion und lehnt die falsche ab.
+func (c *Client) FileExists(ctx context.Context, projectID int, filePath, ref string) (bool, error) {
+	path := fmt.Sprintf("/projects/%d/repository/files/%s?ref=%s",
+		projectID, url.QueryEscape(filePath), url.QueryEscape(ref))
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, c.BaseURL+"/api/v4"+path, nil)
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("PRIVATE-TOKEN", c.Token)
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return false, err
+	}
+	resp.Body.Close()
+	switch {
+	case resp.StatusCode == http.StatusNotFound:
+		return false, nil
+	case resp.StatusCode >= 200 && resp.StatusCode < 300:
+		return true, nil
+	default:
+		return false, fmt.Errorf("gitlab HEAD %s: HTTP %d", path, resp.StatusCode)
+	}
+}
+
+// CommitAction ist ein Eintrag im actions-Array der Commits-API: eine Datei
+// anlegen, ändern oder löschen. Inhalte laufen base64-kodiert — so überleben
+// auch Binärdateien und Sonderzeichen den JSON-Transport.
+type CommitAction struct {
+	Action   string `json:"action"` // "create" | "update" | "delete"
+	FilePath string `json:"file_path"`
+	Content  string `json:"content,omitempty"`
+	Encoding string `json:"encoding,omitempty"`
+}
+
+// CommitFiles — POST /projects/{id}/repository/commits: ein Commit mit allen
+// Datei-Änderungen in einem API-Aufruf. startBranch != "" legt den Branch als
+// Kopie davon an (der Push-Weg des Agenten: das Token bleibt im Daemon, ein
+// git-Remote mit Credentials existiert nie).
+func (c *Client) CommitFiles(ctx context.Context, projectID int, branch, startBranch, message string, actions []CommitAction) (Commit, error) {
+	body := map[string]any{
+		"branch":         branch,
+		"commit_message": message,
+		"actions":        actions,
+	}
+	if startBranch != "" {
+		body["start_branch"] = startBranch
+	}
+	var out Commit
+	err := c.do(ctx, http.MethodPost, fmt.Sprintf("/projects/%d/repository/commits", projectID), body, &out)
+	return out, err
+}
+
+// CreateMergeRequest — POST /projects/{id}/merge_requests: eröffnet den MR
+// für einen gepushten Feature-Branch. assigneeID/reviewerID (idR der
+// Vorgesetzte des Agenten) sind optional (0 = nicht setzen); der
+// Source-Branch wird nach dem Merge automatisch entfernt.
+func (c *Client) CreateMergeRequest(ctx context.Context, projectID int, sourceBranch, targetBranch, title, description string, assigneeID, reviewerID int) (MergeRequest, error) {
+	body := map[string]any{
+		"source_branch":        sourceBranch,
+		"target_branch":        targetBranch,
+		"title":                title,
+		"description":          description,
+		"remove_source_branch": true,
+	}
+	if assigneeID != 0 {
+		body["assignee_ids"] = []int{assigneeID}
+	}
+	if reviewerID != 0 {
+		body["reviewer_ids"] = []int{reviewerID}
+	}
+	var out MergeRequest
+	err := c.do(ctx, http.MethodPost, fmt.Sprintf("/projects/%d/merge_requests", projectID), body, &out)
+	return out, err
+}
+
 // SetState — PUT /projects/{id}/issues/{iid} mit state_event ("close"|"reopen").
 func (c *Client) SetState(ctx context.Context, projectID, issueIID int, stateEvent string) error {
 	if stateEvent != "close" && stateEvent != "reopen" {
@@ -411,6 +505,39 @@ func (c *Client) SetState(ctx context.Context, projectID, issueIID int, stateEve
 	}
 	return c.do(ctx, http.MethodPut, fmt.Sprintf("/projects/%d/issues/%d", projectID, issueIID),
 		map[string]any{"state_event": stateEvent}, nil)
+}
+
+// User ist das Minimalprofil eines GitLab-Nutzers für die Zuweisung.
+type User struct {
+	ID       int    `json:"id"`
+	Username string `json:"username"`
+	Name     string `json:"name"`
+	State    string `json:"state"`
+}
+
+// LookupUser — GET /users?username=…: löst einen GitLab-Username in die
+// numerische User-ID auf (die Issue-API kennt nur assignee_ids). Der
+// Username-Filter der API matcht exakt, liefert aber eine Liste.
+func (c *Client) LookupUser(ctx context.Context, username string) (User, error) {
+	username = strings.TrimPrefix(strings.TrimSpace(username), "@")
+	if username == "" {
+		return User{}, fmt.Errorf("username fehlt")
+	}
+	var out []User
+	if err := c.do(ctx, http.MethodGet, "/users?username="+url.QueryEscape(username), nil, &out); err != nil {
+		return User{}, err
+	}
+	if len(out) == 0 {
+		return User{}, fmt.Errorf("gitlab-nutzer %q nicht gefunden", username)
+	}
+	return out[0], nil
+}
+
+// AssignIssue — PUT /projects/{id}/issues/{iid} mit assignee_ids: weist das
+// Issue einer Person zu (z. B. zum Testen einer Bugfix-Antwort).
+func (c *Client) AssignIssue(ctx context.Context, projectID, issueIID int, userIDs []int) error {
+	return c.do(ctx, http.MethodPut, fmt.Sprintf("/projects/%d/issues/%d", projectID, issueIID),
+		map[string]any{"assignee_ids": userIDs}, nil)
 }
 
 // Escalate setzt eine interne Notiz und entfernt die Zuweisung

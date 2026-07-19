@@ -541,6 +541,190 @@ func TestHistoryActions(t *testing.T) {
 	}
 }
 
+func TestCommitAction(t *testing.T) {
+	var commitBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v4/projects/15" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode(ProjectDetail{ID: 15, DefaultBranch: "main"})
+		case strings.Contains(r.URL.Path, "/repository/branches"):
+			json.NewEncoder(w).Encode([]Branch{}) // Feature-Branch existiert noch nicht
+		case strings.Contains(r.URL.Path, "/repository/files/") && r.Method == http.MethodHead:
+			// pkg/auth.go existiert im Repo, pkg/auth_test.go ist neu.
+			if strings.Contains(r.URL.EscapedPath(), "auth_test") {
+				w.WriteHeader(http.StatusNotFound)
+			}
+		case strings.HasSuffix(r.URL.Path, "/repository/commits") && r.Method == http.MethodPost:
+			json.NewDecoder(r.Body).Decode(&commitBody)
+			json.NewEncoder(w).Encode(Commit{ID: "def456", ShortID: "def456", Title: "Fix"})
+		default:
+			w.Write([]byte(`{}`))
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	workdir := t.TempDir()
+	ctx := target.WithWorkdir(context.Background(), workdir)
+
+	// Lokal editierter Checkout-Stand in der Sandbox.
+	co := filepath.Join(workdir, "repos", "support-main-abc123")
+	if err := os.MkdirAll(filepath.Join(co, "pkg"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(co, "pkg", "auth.go"), []byte("package auth // gefixt"), 0o644)
+	os.WriteFile(filepath.Join(co, "pkg", "auth_test.go"), []byte("package auth // neuer Test"), 0o644)
+
+	params := `{"project_id":15,"branch":"fix/issue-23-login","message":"Login-Bug beheben",
+		"checkout_path":"` + co + `","files":["pkg/auth.go","pkg/auth_test.go"],"deleted":["pkg/alt.go"]}`
+	res, err := sys.Execute(ctx, "commit", []byte(params), cred)
+	if err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	cr := res.(CommitResult)
+	if !cr.BranchCreated || cr.Branch != "fix/issue-23-login" || cr.Commit.ID != "def456" {
+		t.Fatalf("commit-Ergebnis falsch: %+v", cr)
+	}
+	if commitBody["start_branch"] != "main" || commitBody["branch"] != "fix/issue-23-login" {
+		t.Fatalf("neuer Branch muss vom Default-Branch abzweigen: %+v", commitBody)
+	}
+	actions := commitBody["actions"].([]any)
+	if len(actions) != 3 {
+		t.Fatalf("erwartet 3 actions, war %d", len(actions))
+	}
+	byPath := map[string]map[string]any{}
+	for _, a := range actions {
+		m := a.(map[string]any)
+		byPath[m["file_path"].(string)] = m
+	}
+	if byPath["pkg/auth.go"]["action"] != "update" || byPath["pkg/auth.go"]["encoding"] != "base64" {
+		t.Fatalf("existierende Datei muss als base64-update laufen: %+v", byPath["pkg/auth.go"])
+	}
+	if byPath["pkg/auth_test.go"]["action"] != "create" {
+		t.Fatalf("neue Datei muss als create laufen: %+v", byPath["pkg/auth_test.go"])
+	}
+	if byPath["pkg/alt.go"]["action"] != "delete" {
+		t.Fatalf("deleted muss als delete laufen: %+v", byPath["pkg/alt.go"])
+	}
+
+	// Fail-closed-Fälle.
+	for name, p := range map[string]string{
+		"Default-Branch":  `{"project_id":15,"branch":"main","message":"x","checkout_path":"` + co + `","files":["pkg/auth.go"]}`,
+		"ohne Dateien":    `{"project_id":15,"branch":"fix/x","message":"x","checkout_path":"` + co + `"}`,
+		"ohne message":    `{"project_id":15,"branch":"fix/x","checkout_path":"` + co + `","files":["pkg/auth.go"]}`,
+		"Pfad-Traversal":  `{"project_id":15,"branch":"fix/x","message":"x","checkout_path":"` + co + `","files":["../../etc/passwd"]}`,
+		"fremder Pfad":    `{"project_id":15,"branch":"fix/x","message":"x","checkout_path":"/etc","files":["passwd"]}`,
+		"ohne project_id": `{"branch":"fix/x","message":"x","checkout_path":"` + co + `","files":["pkg/auth.go"]}`,
+	} {
+		if _, err := sys.Execute(ctx, "commit", []byte(p), cred); err == nil {
+			t.Fatalf("commit muss fehlschlagen: %s", name)
+		}
+	}
+	// Ohne Sandbox-Workdir (Control-Plane-Kontext) klare Ablehnung.
+	if _, err := sys.Execute(context.Background(), "commit", []byte(params), cred); err == nil {
+		t.Fatal("commit ohne workdir muss fehlschlagen")
+	}
+}
+
+func TestCommitOnExistingBranch(t *testing.T) {
+	var commitBody map[string]any
+	var existsRef string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v4/projects/15":
+			json.NewEncoder(w).Encode(ProjectDetail{ID: 15, DefaultBranch: "main"})
+		case strings.Contains(r.URL.Path, "/repository/branches"):
+			json.NewEncoder(w).Encode([]Branch{{Name: "fix/issue-23-login"}})
+		case r.Method == http.MethodHead:
+			existsRef = r.URL.Query().Get("ref")
+		case strings.HasSuffix(r.URL.Path, "/repository/commits"):
+			json.NewDecoder(r.Body).Decode(&commitBody)
+			json.NewEncoder(w).Encode(Commit{ID: "def457"})
+		}
+	}))
+	defer srv.Close()
+
+	workdir := t.TempDir()
+	co := filepath.Join(workdir, "repos", "support")
+	os.MkdirAll(co, 0o755)
+	os.WriteFile(filepath.Join(co, "fix.go"), []byte("package fix"), 0o644)
+	ctx := target.WithWorkdir(context.Background(), workdir)
+
+	res, err := System{}.Execute(ctx, "commit", []byte(`{"project_id":15,"branch":"fix/issue-23-login",
+		"message":"Nachbesserung","checkout_path":"`+co+`","files":["fix.go"]}`),
+		target.Credential{BaseURL: srv.URL, Token: "t"})
+	if err != nil {
+		t.Fatalf("commit auf bestehendem Branch: %v", err)
+	}
+	if cr := res.(CommitResult); cr.BranchCreated {
+		t.Fatalf("bestehender Branch darf nicht als neu gemeldet werden: %+v", cr)
+	}
+	if _, hasStart := commitBody["start_branch"]; hasStart {
+		t.Fatalf("bestehender Branch darf kein start_branch senden: %+v", commitBody)
+	}
+	if existsRef != "fix/issue-23-login" {
+		t.Fatalf("Existenz-Prüfung muss gegen den bestehenden Branch laufen: %q", existsRef)
+	}
+}
+
+func TestCreateMergeRequestAction(t *testing.T) {
+	var mrBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v4/projects/15":
+			json.NewEncoder(w).Encode(ProjectDetail{ID: 15, DefaultBranch: "main"})
+		case r.URL.Path == "/api/v4/users":
+			if r.URL.Query().Get("username") == "leaddev" {
+				json.NewEncoder(w).Encode([]User{{ID: 7, Username: "leaddev"}})
+			} else {
+				json.NewEncoder(w).Encode([]User{})
+			}
+		case r.URL.Path == "/api/v4/projects/15/merge_requests" && r.Method == http.MethodPost:
+			json.NewDecoder(r.Body).Decode(&mrBody)
+			json.NewEncoder(w).Encode(MergeRequest{IID: 9, Title: "Fix Login", State: "opened",
+				SourceBranch: "fix/issue-23-login", TargetBranch: "main", WebURL: "https://git.example.com/mr/9"})
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	res, err := sys.Execute(ctx, "create_merge_request", []byte(`{"project_id":15,
+		"source_branch":"fix/issue-23-login","title":"Fix Login","description":"Closes #23","assignee":"@leaddev"}`), cred)
+	if err != nil {
+		t.Fatalf("create_merge_request: %v", err)
+	}
+	if mr := res.(MergeRequest); mr.IID != 9 || mr.TargetBranch != "main" {
+		t.Fatalf("mr falsch: %+v", mr)
+	}
+	// Ohne target_branch muss der Default-Branch des Projekts gezogen werden,
+	// der Vorgesetzte wird Assignee UND Reviewer, der Branch nach Merge entfernt.
+	if mrBody["target_branch"] != "main" || mrBody["remove_source_branch"] != true {
+		t.Fatalf("mr-body falsch: %+v", mrBody)
+	}
+	for _, key := range []string{"assignee_ids", "reviewer_ids"} {
+		ids, _ := mrBody[key].([]any)
+		if len(ids) != 1 || ids[0] != float64(7) {
+			t.Fatalf("%s muss der Vorgesetzte sein: %+v", key, mrBody)
+		}
+	}
+
+	for name, p := range map[string]string{
+		"ohne assignee":      `{"project_id":15,"source_branch":"fix/x","title":"Fix"}`,
+		"unbekannter Nutzer": `{"project_id":15,"source_branch":"fix/x","title":"Fix","assignee":"gibtsnicht"}`,
+		"ohne source_branch": `{"project_id":15,"title":"Fix","assignee":"leaddev"}`,
+		"ohne title":         `{"project_id":15,"source_branch":"fix/x","assignee":"leaddev"}`,
+		"source gleich ziel": `{"project_id":15,"source_branch":"main","title":"Fix","assignee":"leaddev"}`,
+	} {
+		if _, err := sys.Execute(ctx, "create_merge_request", []byte(p), cred); err == nil {
+			t.Fatalf("create_merge_request muss fehlschlagen: %s", name)
+		}
+	}
+}
+
 func TestExtractTarGzRejectsTraversal(t *testing.T) {
 	archive := tarGz(t, map[string]string{
 		"repo-main/":          "",
@@ -575,5 +759,54 @@ func TestActionSubject(t *testing.T) {
 	}
 	if got := sys.ActionSubject("set_state", nil); got != "gitlab:set_state" {
 		t.Fatalf("set_state: %s", got)
+	}
+}
+
+func TestAssignAction(t *testing.T) {
+	var gotPath, gotMethod, gotQuery string
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotMethod, gotQuery = r.URL.Path, r.Method, r.URL.RawQuery
+		gotBody = nil
+		if r.Body != nil {
+			json.NewDecoder(r.Body).Decode(&gotBody)
+		}
+		switch r.URL.Path {
+		case "/api/v4/users":
+			if r.URL.Query().Get("username") == "maxm" {
+				json.NewEncoder(w).Encode([]User{{ID: 42, Username: "maxm", Name: "Max Mustermann"}})
+			} else {
+				json.NewEncoder(w).Encode([]User{})
+			}
+		default:
+			w.Write([]byte(`{}`))
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	out, err := sys.Execute(ctx, "assign", []byte(`{"project_id":15,"issue_iid":23,"username":"@maxm"}`), cred)
+	if err != nil {
+		t.Fatalf("assign: %v", err)
+	}
+	if m := out.(map[string]any); m["assigned_to"] != "maxm" || m["user_id"] != 42 {
+		t.Fatalf("assign-Ergebnis falsch: %+v", out)
+	}
+	if gotMethod != http.MethodPut || gotPath != "/api/v4/projects/15/issues/23" {
+		t.Fatalf("assign muss PUT /projects/15/issues/23 sein: %s %s (query %s)", gotMethod, gotPath, gotQuery)
+	}
+	ids, _ := gotBody["assignee_ids"].([]any)
+	if len(ids) != 1 || ids[0] != float64(42) {
+		t.Fatalf("assignee_ids falsch: %+v", gotBody)
+	}
+
+	if _, err := sys.Execute(ctx, "assign", []byte(`{"project_id":15,"issue_iid":23,"username":"gibtsnicht"}`), cred); err == nil {
+		t.Fatal("unbekannter Username muss einen Fehler liefern (nie raten)")
+	}
+	if _, err := sys.Execute(ctx, "assign", []byte(`{"username":"maxm"}`), cred); err == nil {
+		t.Fatal("assign ohne project_id/issue_iid muss abgelehnt werden")
 	}
 }
