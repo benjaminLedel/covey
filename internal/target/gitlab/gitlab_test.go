@@ -890,6 +890,11 @@ func TestPipelineDiagnosisActions(t *testing.T) {
 			})
 		case "/api/v4/projects/15/jobs/42/trace":
 			w.Write([]byte(bigLog))
+		case "/api/v4/projects/15/pipelines/4/retry":
+			if r.Method != http.MethodPost {
+				t.Errorf("retry muss POST sein, got %s", r.Method)
+			}
+			json.NewEncoder(w).Encode(Pipeline{ID: 5, Status: "pending", Ref: "fix/x"})
 		default:
 			t.Errorf("unerwarteter request: %s", r.URL.Path)
 		}
@@ -923,6 +928,17 @@ func TestPipelineDiagnosisActions(t *testing.T) {
 	if out["truncated"] != true || len(logText) > maxJobLogBytes {
 		t.Fatalf("log muss auf %d bytes gekappt sein: len=%d truncated=%v",
 			maxJobLogBytes, len(logText), out["truncated"])
+	}
+
+	res, err = sys.Execute(ctx, "retry_pipeline", []byte(`{"project_id":15,"pipeline_id":4}`), cred)
+	if err != nil {
+		t.Fatalf("retry_pipeline: %v", err)
+	}
+	if p := res.(Pipeline); p.ID != 5 || p.Status != "pending" {
+		t.Fatalf("retry-ergebnis falsch: %+v", p)
+	}
+	if _, err := sys.Execute(ctx, "retry_pipeline", []byte(`{"project_id":15}`), cred); err == nil {
+		t.Fatal("retry_pipeline ohne pipeline_id muss fehlschlagen")
 	}
 }
 

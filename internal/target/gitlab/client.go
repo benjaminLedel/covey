@@ -504,6 +504,17 @@ func (c *Client) GetJobLog(ctx context.Context, projectID, jobID int) (string, b
 	return string(data), false, nil
 }
 
+// RetryPipeline — POST /projects/{id}/pipelines/{pipeline_id}/retry: startet
+// die fehlgeschlagenen Jobs eines CI-Laufs neu — für den Fall, dass die
+// Ursache außerhalb des Codes lag und inzwischen behoben ist (z. B.
+// nachträglich erteilter Repo-Zugriff, Runner wieder da).
+func (c *Client) RetryPipeline(ctx context.Context, projectID, pipelineID int) (Pipeline, error) {
+	var out Pipeline
+	err := c.do(ctx, http.MethodPost,
+		fmt.Sprintf("/projects/%d/pipelines/%d/retry", projectID, pipelineID), nil, &out)
+	return out, err
+}
+
 // Branch ist ein Eintrag der Branch-Liste. Default markiert den
 // Default-Branch des Projekts.
 type Branch struct {

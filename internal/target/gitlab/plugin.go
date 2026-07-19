@@ -283,6 +283,11 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, fmt.Errorf("project_id oder pipeline_id fehlt")
 		}
 		return gc.ListPipelineJobs(ctx, in.ProjectID, in.PipelineID)
+	case "retry_pipeline":
+		if in.ProjectID == 0 || in.PipelineID == 0 {
+			return nil, fmt.Errorf("project_id oder pipeline_id fehlt")
+		}
+		return gc.RetryPipeline(ctx, in.ProjectID, in.PipelineID)
 	case "get_job_log":
 		if in.ProjectID == 0 || in.JobID == 0 {
 			return nil, fmt.Errorf("project_id oder job_id fehlt")
@@ -387,7 +392,10 @@ func (System) PromptDoc() string {
    Pipeline deines Branches grün ist. Ist sie ROT, diagnostiziere selbst statt zu raten oder zu fragen:
    list_pipeline_jobs {"project_id":N,"pipeline_id":N} zeigt die Jobs mit Status, get_job_log {"project_id":N,"job_id":N}
    liefert das Log-Ende des fehlgeschlagenen Jobs — Ursache beheben, erneut committen, Pipeline erneut prüfen.
-   Scheitert ein Job an Infrastruktur (Runner fehlt, Registry down), gehört das als Befund in den MR-Kommentar.
+   Scheitert ein Job an Infrastruktur (Runner fehlt, Registry down, fehlender Repo-Zugriff), gehört das als
+   Befund in den MR-Kommentar. Ist so eine externe Ursache später behoben (z. B. Zugriff nachträglich erteilt),
+   starte den Lauf mit retry_pipeline {"project_id":N,"pipeline_id":N} neu und prüfe danach das Ergebnis —
+   melde grün gewordene Pipelines kurz per comment_mr.
    Schreibende Entwickler-Aktionen:
    commit {"project_id":N,"branch":"fix/…","start_branch":"main (optional, Default: Default-Branch)","message":"...",
    "checkout_path":"<Pfad aus dem checkout-Ergebnis>","files":["repo/relativer/pfad.go",...],"deleted":["alt.go",...]} —
