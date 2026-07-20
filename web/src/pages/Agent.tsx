@@ -82,16 +82,6 @@ export default function AgentPage({ me }: { me: Principal }) {
         </span>
         <Supervisor agent={a} editable={canManage(me.Role)} />
         <span className="ml-auto" />
-        {(canManage(me.Role) || me.Role === "security") && (
-          <a
-            className="btn sm no-underline"
-            href={`/api/v1/agents/${a.id}/export`}
-            download={`${a.slug}-config.json`}
-            title="Komplette Konfiguration als JSON-Bundle herunterladen"
-          >
-            Export
-          </a>
-        )}
         {canManage(me.Role) && (
           <button className="btn sm" onClick={() => act.mutate("wake")}>
             Wecken
@@ -160,7 +150,14 @@ export default function AgentPage({ me }: { me: Principal }) {
       {tab === "recording" && (
         <Recording agentId={a.id} taskFilter={recTask} onClearFilter={() => setRecTask(null)} />
       )}
-      {tab === "config" && <Config agentId={a.id} canManage={canManage(me.Role)} />}
+      {tab === "config" && (
+        <Config
+          agentId={a.id}
+          slug={a.slug}
+          canManage={canManage(me.Role)}
+          canExport={canManage(me.Role) || me.Role === "security"}
+        />
+      )}
       {tab === "memory" && <Memories agentId={a.id} canManage={canManage(me.Role)} />}
       {tab === "egress" && <AgentEgress agentId={a.id} canEdit={canSecrets(me.Role)} />}
       {tab === "tools" && <AgentTools agentId={a.id} canEdit={canSecrets(me.Role)} />}
@@ -1291,7 +1288,17 @@ function WebhookTrigger({ agentId }: { agentId: string }) {
   );
 }
 
-function Config({ agentId, canManage }: { agentId: string; canManage: boolean }) {
+function Config({
+  agentId,
+  slug,
+  canManage,
+  canExport,
+}: {
+  agentId: string;
+  slug: string;
+  canManage: boolean;
+  canExport: boolean;
+}) {
   const qc = useQueryClient();
   const cfg = useQuery({
     queryKey: ["config", agentId],
@@ -1318,6 +1325,18 @@ function Config({ agentId, canManage }: { agentId: string; canManage: boolean })
 
   return (
     <div>
+      {canExport && (
+        <div className="flex mb-2">
+          <a
+            className="btn sm no-underline ml-auto"
+            href={`/api/v1/agents/${agentId}/export`}
+            download={`${slug}-config.json`}
+            title="Komplette Konfiguration (inkl. Stages, Guard-Rails, Egress, Secret-Namen) als JSON-Bundle herunterladen — Import auf der Agenten-Übersicht"
+          >
+            Als Bundle exportieren
+          </a>
+        </div>
+      )}
       <p className="muted text-xs mb-3" style={{ maxWidth: 680 }}>
         Config-as-Code: jede Änderung erzeugt eine neue Version
         {cfg.data && cfg.data.version > 0 && <> — aktuell v{cfg.data.version}</>}. ACCESS.md hält
