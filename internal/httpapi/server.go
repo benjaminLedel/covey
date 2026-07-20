@@ -101,6 +101,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/agents", s.rbac(manage, s.handleCreateAgent))
 	mux.Handle("GET /api/v1/agents/{id}", s.rbac(anyRole, s.handleGetAgent))
 	mux.Handle("GET /api/v1/agents/{id}/config", s.rbac(anyRole, s.handleGetConfig))
+	mux.Handle("GET /api/v1/agents/{id}/export", s.rbac(append(manage, identity.RoleSecurity), s.handleExportAgent))
+	mux.Handle("POST /api/v1/agents/import", s.rbac(manage, s.handleImportAgent))
 	mux.Handle("PUT /api/v1/agents/{id}/config", s.rbac(manage, s.handlePutConfig))
 	mux.Handle("GET /api/v1/agents/{id}/heartbeats", s.rbac(anyRole, s.handleHeartbeats))
 	mux.Handle("POST /api/v1/agents/{id}/heartbeats/{name}/fire", s.rbac(manage, s.handleFireHeartbeat))

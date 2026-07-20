@@ -24,6 +24,7 @@ import (
 	"covey/internal/backlog"
 	"covey/internal/daemon"
 	"covey/internal/db"
+	"covey/internal/egress"
 	"covey/internal/guardrails"
 	"covey/internal/httpapi"
 	identbuiltin "covey/internal/identity/builtin"
@@ -88,6 +89,7 @@ type stack struct {
 	secrets  *secbuiltin.Store
 	mem      *memory.Store
 	targets  *targetstore.Store
+	egress   *egress.Store
 	orch     *orchestrator.Orchestrator
 	http     *httptest.Server
 	orgID    uuid.UUID
@@ -145,6 +147,7 @@ func newStack(t *testing.T) *stack {
 	}
 
 	s.targets = targetstore.NewStore(pool)
+	s.egress = egress.NewStore(pool)
 
 	s.orch = orchestrator.New(orchestrator.Options{
 		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
@@ -161,7 +164,8 @@ func newStack(t *testing.T) *stack {
 		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
 		Rails: s.rails, Secrets: secretStore, Identity: idp, Memory: s.mem,
 		Org: org.NewStore(pool), Targets: s.targets,
-		Orch: s.orch, Log: log,
+		EgressStore: s.egress,
+		Orch:        s.orch, Log: log,
 		WebhookSecrets: map[string]string{"zammad": webhookSecret},
 		SessionTTL:     time.Hour,
 	}

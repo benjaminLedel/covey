@@ -64,6 +64,12 @@ Die genaue Dateiliste ist bewusst erweiterbar — weitere sinnvolle MD-Dateien (
 
 Auch `HEARTBEAT.md` ist Plattform-Config, kein Prompt-Material: Sie wird beim Speichern geparst und materialisiert (Tabelle `agent_heartbeats`), die Aufgabe selbst erreicht den Agenten als reguläre Backlog-Aufgabe. Format und Zeitplan-Semantik stehen in [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md).
 
+### Export & Import
+
+Die komplette Konfiguration eines Agenten ist als **JSON-Bundle** portabel (`GET /api/v1/agents/{id}/export`, `POST /api/v1/agents/import`, in der UI als *Export*-Button am Agenten und *Import* auf der Agenten-Übersicht). Das Bundle (`kind: covey.agent-config`, versioniert) umfasst Stammdaten (Runtime, Modell, Turn-Limit, Budget, Vorgesetzter per E-Mail), alle Config-Dateien inklusive der live gerenderten `ACCESS.md`/`EGRESS.md`, Board-Spalten, agent-scoped Guard-Rails, die zugewiesenen Egress-Templates **samt Definition** (fehlende legt der Import an) und die **Namen** zugewiesener Secrets.
+
+Grenzen bleiben dabei erhalten: **Secret-Werte und Webhook-Tokens verlassen die Plattform nie** — der Import weist vorhandene Org-Secrets per Name neu zu, meldet fehlende als Warnung und erzeugt bei aktiviertem Webhook ein frisches Token. Der Import legt stets einen **neuen** Agenten an (Slug-Kollision → `409`, `?slug=` überschreibt) und unterliegt derselben RBAC wie die Einzel-Endpunkte: Bundles mit Guard-Rails, Egress oder Tool-Allowlists importiert nur `platform_admin`/`security` (fail-closed).
+
 ### Beispiel: `SOUL.md` (Skizze)
 
 ```markdown

@@ -82,6 +82,16 @@ export default function AgentPage({ me }: { me: Principal }) {
         </span>
         <Supervisor agent={a} editable={canManage(me.Role)} />
         <span className="ml-auto" />
+        {(canManage(me.Role) || me.Role === "security") && (
+          <a
+            className="btn sm no-underline"
+            href={`/api/v1/agents/${a.id}/export`}
+            download={`${a.slug}-config.json`}
+            title="Komplette Konfiguration als JSON-Bundle herunterladen"
+          >
+            Export
+          </a>
+        )}
         {canManage(me.Role) && (
           <button className="btn sm" onClick={() => act.mutate("wake")}>
             Wecken

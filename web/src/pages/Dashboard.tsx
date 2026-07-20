@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { api, post, statusLabel, type Agent, type Principal } from "../api";
+import { api, post, ApiError, statusLabel, type Agent, type Principal } from "../api";
 import { generateAgentName } from "../names";
 
 const canManage = (role: string) => role === "platform_admin" || role === "agent_owner";
@@ -15,6 +15,7 @@ export default function Dashboard({ me }: { me: Principal }) {
     queryFn: () => api<{ fleet_killed: boolean }>("/fleet"),
   });
   const [showCreate, setShowCreate] = useState(false);
+  const [showImport, setShowImport] = useState(false);
 
   const fleetMut = useMutation({
     mutationFn: (kill: boolean) => post(kill ? "/fleet/kill" : "/fleet/resume"),
@@ -35,6 +36,11 @@ export default function Dashboard({ me }: { me: Principal }) {
         {canManage(me.Role) && (
           <button className="btn" onClick={() => setShowCreate((v) => !v)}>
             + Agent anlegen
+          </button>
+        )}
+        {canManage(me.Role) && (
+          <button className="btn" onClick={() => setShowImport((v) => !v)} title="Agent aus JSON-Bundle importieren">
+            Import
           </button>
         )}
         {canSecurity(me.Role) &&
@@ -59,6 +65,7 @@ export default function Dashboard({ me }: { me: Principal }) {
       )}
 
       {showCreate && <CreateAgent onDone={() => setShowCreate(false)} />}
+      {showImport && <ImportAgent />}
 
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))" }}>
         {agents.data?.map((a) => (
@@ -155,5 +162,120 @@ function CreateAgent({ onDone }: { onDone: () => void }) {
       </button>
       {mut.isError && <span className="danger-text text-xs">{String(mut.error)}</span>}
     </form>
+  );
+}
+
+// Import eines Agenten aus einem Export-Bundle (JSON). Bei Slug-Kollision
+// fragt die Karte nach einem neuen Slug und importiert erneut (?slug=).
+function ImportAgent() {
+  const qc = useQueryClient();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [bundle, setBundle] = useState<{ agent?: { slug?: string } } | null>(null);
+  const [fileName, setFileName] = useState("");
+  const [slugOverride, setSlugOverride] = useState("");
+  const [conflict, setConflict] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState<{ agent: Agent; warnings: string[] } | null>(null);
+
+  const mut = useMutation({
+    mutationFn: (args: { bundle: unknown; slug?: string }) =>
+      post<{ agent: Agent; warnings: string[] }>(
+        `/agents/import${args.slug ? `?slug=${encodeURIComponent(args.slug)}` : ""}`,
+        args.bundle,
+      ),
+    onSuccess: (res) => {
+      setResult(res);
+      setConflict(false);
+      setError("");
+      qc.invalidateQueries({ queryKey: ["agents"] });
+    },
+    onError: (err) => {
+      if (err instanceof ApiError && err.status === 409) {
+        setConflict(true);
+        setError(err.message);
+      } else {
+        setConflict(false);
+        setError(String(err instanceof ApiError ? err.message : err));
+      }
+    },
+  });
+
+  const pick = async (f: File | undefined) => {
+    if (!f) return;
+    setResult(null);
+    setConflict(false);
+    setError("");
+    setSlugOverride("");
+    setFileName(f.name);
+    try {
+      const parsed = JSON.parse(await f.text());
+      setBundle(parsed);
+      mut.mutate({ bundle: parsed });
+    } catch {
+      setBundle(null);
+      setError("Datei ist kein gültiges JSON-Bundle.");
+    }
+  };
+
+  return (
+    <div className="card mb-4">
+      <div className="flex gap-3 items-center flex-wrap">
+        <button className="btn" type="button" onClick={() => fileRef.current?.click()} disabled={mut.isPending}>
+          Bundle wählen …
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="application/json,.json"
+          style={{ display: "none" }}
+          onChange={(e) => {
+            pick(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+        {fileName && <span className="muted text-xs mono">{fileName}</span>}
+        {mut.isPending && <span className="muted text-xs">Importiere …</span>}
+      </div>
+      {conflict && bundle && (
+        <form
+          className="flex gap-2 items-end mt-3 flex-wrap"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (slugOverride) mut.mutate({ bundle, slug: slugOverride });
+          }}
+        >
+          <div className="min-w-40">
+            <label>Neuer Slug</label>
+            <input
+              value={slugOverride}
+              onChange={(e) => setSlugOverride(e.target.value)}
+              placeholder={`${bundle.agent?.slug ?? "agent"}-2`}
+              required
+            />
+          </div>
+          <button className="btn primary" disabled={mut.isPending || !slugOverride}>
+            Erneut importieren
+          </button>
+        </form>
+      )}
+      {error && <p className="danger-text text-xs mt-2 mb-0">{error}</p>}
+      {result && (
+        <div className="mt-3">
+          <p className="text-sm mb-1">
+            Importiert:{" "}
+            <Link to={`/agents/${result.agent.id}`}>
+              <b>{result.agent.display_name}</b> ({result.agent.slug})
+            </Link>
+          </p>
+          {result.warnings.length > 0 && (
+            <ul className="text-xs mb-0" style={{ color: "var(--text-warning, #b58900)", paddingLeft: "1.2em" }}>
+              {result.warnings.map((wtext, i) => (
+                <li key={i}>{wtext}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
