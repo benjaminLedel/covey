@@ -268,11 +268,14 @@ export type MemoryEntry = {
   created_at: string;
 };
 
-// Secret-Vorschau (write-only API): Name + kurzes Wert-Präfix. agent_ids sind
-// die expliziten Zuweisungen eines Org-Secrets — leer heißt: alle Agenten.
+// Secret-Vorschau: Name + kurzes Wert-Präfix. Bei revealed=true enthält value
+// den vollständigen Klartext (z. B. Servernamen, URLs). agent_ids sind die
+// expliziten Zuweisungen eines Org-Secrets — leer heißt: alle Agenten.
 export type SecretPreview = {
   key: string;
   prefix: string;
+  revealed: boolean;
+  value?: string;
   agent_ids: string[];
 };
 

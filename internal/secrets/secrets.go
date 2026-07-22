@@ -14,11 +14,15 @@ var ErrNotFound = errors.New("secret nicht gefunden")
 // KeyPreview ist der Name plus ein kurzes, absichtlich begrenztes Präfix des
 // Werts (Wiedererkennungshilfe wie bei GitHub/Stripe). Prefix ist leer, wenn
 // der Wert zu kurz ist, um ihn ohne nennenswerte Offenlegung anzureißen.
+// Ist Revealed=true, enthält Value den vollständigen Klartext — gedacht für
+// nicht-sensible Werte wie Servernamen oder URLs.
 // AgentIDs sind die expliziten Zuweisungen eines org-weiten Secrets — leer
 // heißt: noch keinem Agenten zugewiesen, das Secret erreicht niemanden.
 type KeyPreview struct {
 	Key      string   `json:"key"`
 	Prefix   string   `json:"prefix"`
+	Revealed bool     `json:"revealed"`
+	Value    string   `json:"value,omitempty"` // nur gesetzt wenn Revealed=true
 	AgentIDs []string `json:"agent_ids"`
 }
 
@@ -62,4 +66,8 @@ type Store interface {
 	// Assign/Unassign pflegen die explizite Zuweisung org-weiter Secrets.
 	Assign(ctx context.Context, orgID uuid.UUID, key string, agentID uuid.UUID) error
 	Unassign(ctx context.Context, orgID uuid.UUID, key string, agentID uuid.UUID) error
+	// SetRevealed markiert ein org-weites Secret als einsehbar (true) oder
+	// wieder geschützt (false). Einsehbare Secrets geben den vollen Klartext
+	// in Previews zurück — gedacht für Servernamen, URLs, nicht für Tokens.
+	SetRevealed(ctx context.Context, orgID uuid.UUID, key string, revealed bool) error
 }

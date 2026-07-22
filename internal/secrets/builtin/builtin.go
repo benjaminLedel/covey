@@ -183,16 +183,16 @@ func (s *Store) Keys(ctx context.Context, orgID uuid.UUID) ([]string, error) {
 	return out, rows.Err()
 }
 
-// Previews entschlüsselt jeden Wert nur, um sein begrenztes Präfix zu bilden —
-// das Klartext-Präfix verlässt die Control Plane, der Rest nie.
+// Previews entschlüsselt jeden Wert, um sein begrenztes Präfix zu bilden.
+// Bei revealed=true wird der vollständige Klartext zurückgegeben.
 func (s *Store) Previews(ctx context.Context, orgID uuid.UUID) ([]secrets.KeyPreview, error) {
-	rows, err := s.pool.Query(ctx, `SELECT s.key, s.nonce, s.ciphertext,
+	rows, err := s.pool.Query(ctx, `SELECT s.key, s.nonce, s.ciphertext, s.revealed,
 			COALESCE(array_agg(a.agent_id::text ORDER BY a.created_at)
 				FILTER (WHERE a.agent_id IS NOT NULL), '{}')
 		FROM secrets s
 		LEFT JOIN secret_assignments a ON a.org_id=s.org_id AND a.key=s.key
 		WHERE s.org_id=$1 AND s.agent_id IS NULL
-		GROUP BY s.key, s.nonce, s.ciphertext ORDER BY s.key`, orgID)
+		GROUP BY s.key, s.nonce, s.ciphertext, s.revealed ORDER BY s.key`, orgID)
 	if err != nil {
 		return nil, err
 	}
@@ -202,16 +202,41 @@ func (s *Store) Previews(ctx context.Context, orgID uuid.UUID) ([]secrets.KeyPre
 		var (
 			k         string
 			nonce, ct []byte
+			revealed  bool
 			agentIDs  []string
 		)
-		if err := rows.Scan(&k, &nonce, &ct, &agentIDs); err != nil {
+		if err := rows.Scan(&k, &nonce, &ct, &revealed, &agentIDs); err != nil {
 			return nil, err
 		}
-		out = append(out, secrets.KeyPreview{
-			Key: k, Prefix: s.preview(k, aad(orgID, nil, k), nonce, ct), AgentIDs: agentIDs,
-		})
+		kp := secrets.KeyPreview{
+			Key:      k,
+			Revealed: revealed,
+			AgentIDs: agentIDs,
+		}
+		plain, err := s.open(k, aad(orgID, nil, k), nonce, ct)
+		if err == nil {
+			if revealed {
+				kp.Value = plain
+			} else {
+				kp.Prefix = secrets.Preview(plain)
+			}
+		}
+		out = append(out, kp)
 	}
 	return out, rows.Err()
+}
+
+func (s *Store) SetRevealed(ctx context.Context, orgID uuid.UUID, key string, revealed bool) error {
+	tag, err := s.pool.Exec(ctx,
+		"UPDATE secrets SET revealed=$3 WHERE org_id=$1 AND key=$2 AND agent_id IS NULL",
+		orgID, key, revealed)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return secrets.ErrNotFound
+	}
+	return nil
 }
 
 func (s *Store) AgentPreviews(ctx context.Context, orgID, agentID uuid.UUID) ([]secrets.KeyPreview, error) {

@@ -985,6 +985,22 @@ func (s *Server) handleDeleteSecret(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+func (s *Server) handlePatchSecret(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	var in struct {
+		Revealed *bool `json:"revealed"`
+	}
+	if err := readJSON(r, &in); err != nil || in.Revealed == nil {
+		writeErr(w, http.StatusBadRequest, "revealed fehlt")
+		return
+	}
+	if err := s.Secrets.SetRevealed(r.Context(), p.OrgID, r.PathValue("key"), *in.Revealed); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // --- Secrets mit Agent-Scope: explizite Zuweisungen + agent-eigene Secrets ---
 
 func (s *Server) handleAssignSecret(w http.ResponseWriter, r *http.Request) {

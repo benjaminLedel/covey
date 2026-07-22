@@ -190,6 +190,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/agents/{id}/egress/hosts/{hid}", s.rbac(securityRoles, s.handleDeleteAgentEgressHost))
 	mux.Handle("GET /api/v1/secrets", s.rbac(securityRoles, s.handleListSecrets))
 	mux.Handle("PUT /api/v1/secrets/{key}", s.rbac(securityRoles, s.handlePutSecret))
+	mux.Handle("PATCH /api/v1/secrets/{key}", s.rbac(securityRoles, s.handlePatchSecret))
 	mux.Handle("DELETE /api/v1/secrets/{key}", s.rbac(securityRoles, s.handleDeleteSecret))
 	mux.Handle("PUT /api/v1/secrets/{key}/agents/{agentID}", s.rbac(securityRoles, s.handleAssignSecret))
 	mux.Handle("DELETE /api/v1/secrets/{key}/agents/{agentID}", s.rbac(securityRoles, s.handleUnassignSecret))

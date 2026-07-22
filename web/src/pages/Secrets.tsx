@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api, del, put, type Agent, type Principal, type SecretCheck, type SecretPreview } from "../api";
+import { api, del, put, patch, type Agent, type Principal, type SecretCheck, type SecretPreview } from "../api";
 
 const canEdit = (role: string) => role === "platform_admin" || role === "security";
 
@@ -26,11 +26,6 @@ export default function Secrets({ me }: { me: Principal }) {
       qc.invalidateQueries({ queryKey: ["secrets"] });
     },
   });
-  const remove = useMutation({
-    mutationFn: (k: string) => del(`/secrets/${encodeURIComponent(k)}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["secrets"] }),
-  });
-
   if (keys.isError) {
     return (
       <div>
@@ -102,23 +97,52 @@ export default function Secrets({ me }: { me: Principal }) {
       )}
 
       {(keys.data ?? []).map((s) => (
-        <div key={s.key} className="card mb-2" style={{ padding: "11px 15px" }}>
-          <div className="flex items-center gap-4">
-            <span className="mono text-sm flex-1">{s.key}</span>
-            <span className="mono muted text-xs">
-              {s.prefix ? <span style={{ color: "var(--text-secondary)" }}>{s.prefix}</span> : null}
-              ••••••••
-            </span>
-            {canEdit(me.Role) && (
-              <button className="btn sm" onClick={() => remove.mutate(s.key)}>
-                Löschen
-              </button>
-            )}
-          </div>
-          <Assignments secret={s} agents={agents.data ?? []} />
-        </div>
+        <SecretCard key={s.key} secret={s} agents={agents.data ?? []} canEdit={canEdit(me.Role)} />
       ))}
       {keys.data?.length === 0 && <p className="muted">Noch keine Secrets hinterlegt.</p>}
+    </div>
+  );
+}
+
+function SecretCard({ secret, agents, canEdit }: { secret: SecretPreview; agents: Agent[]; canEdit: boolean }) {
+  const qc = useQueryClient();
+  const toggle = useMutation({
+    mutationFn: (revealed: boolean) =>
+      patch<{ ok: boolean }>(`/secrets/${encodeURIComponent(secret.key)}`, { revealed }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["secrets"] }),
+  });
+  const remove = useMutation({
+    mutationFn: () => del(`/secrets/${encodeURIComponent(secret.key)}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["secrets"] }),
+  });
+
+  return (
+    <div className="card mb-2" style={{ padding: "11px 15px" }}>
+      <div className="flex items-center gap-4">
+        <span className="mono text-sm flex-1">{secret.key}</span>
+        <span className="mono text-xs" style={{ color: secret.revealed ? "var(--text-primary)" : "var(--text-secondary)" }}>
+          {secret.revealed && secret.value
+            ? secret.value
+            : <>{secret.prefix ? <span style={{ color: "var(--text-secondary)" }}>{secret.prefix}</span> : null}••••••••</>}
+        </span>
+        {canEdit && (
+          <>
+            <button
+              className="btn sm"
+              title={secret.revealed ? "Wert verbergen" : "Wert anzeigen erlauben"}
+              disabled={toggle.isPending}
+              onClick={() => toggle.mutate(!secret.revealed)}
+              style={{ color: secret.revealed ? "var(--primary, #2563eb)" : undefined }}
+            >
+              {secret.revealed ? "Verbergen" : "Einsehbar"}
+            </button>
+            <button className="btn sm" onClick={() => remove.mutate()}>
+              Löschen
+            </button>
+          </>
+        )}
+      </div>
+      <Assignments secret={secret} agents={agents} />
     </div>
   );
 }
