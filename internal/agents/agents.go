@@ -7,12 +7,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+var slugRe = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
 // Agent-Status der Zustandsmaschine aus spec/03-lifecycle-scheduling.md.
 // 'blocked' lebt auf der Aufgabe, nicht auf dem Agenten: ein Agent mit einer
@@ -193,14 +197,33 @@ func (r *Registry) SetMaxTurns(ctx context.Context, id uuid.UUID, maxTurns int) 
 	return err
 }
 
-// Rename ändert den Anzeigenamen. Der Slug bleibt bewusst unveränderlich —
-// er ist der stabile Anker für Korrelation, Home-Verzeichnis und Referenzen.
+// Rename ändert den Anzeigenamen. Slug separat über SetSlug änderbar.
 func (r *Registry) Rename(ctx context.Context, id uuid.UUID, displayName string) error {
 	tag, err := r.pool.Exec(ctx, "UPDATE agents SET display_name=$2, updated_at=now() WHERE id=$1", id, displayName)
 	if err == nil && tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
 	return err
+}
+
+// SetSlug ändert den Slug eines Agenten. Der neue Slug muss innerhalb der Org
+// eindeutig sein — die DB-Unique-Constraint (org_id, slug) sorgt dafür.
+// Erlaubtes Format: nur Kleinbuchstaben, Ziffern und Bindestriche.
+func (r *Registry) SetSlug(ctx context.Context, id uuid.UUID, slug string) error {
+	if !slugRe.MatchString(slug) {
+		return fmt.Errorf("slug darf nur Kleinbuchstaben, Ziffern und Bindestriche enthalten")
+	}
+	tag, err := r.pool.Exec(ctx, "UPDATE agents SET slug=$2, updated_at=now() WHERE id=$1", id, slug)
+	if err != nil {
+		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
+			return fmt.Errorf("slug bereits vergeben")
+		}
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // SetWebhookToken setzt bzw. rotiert das Token des generischen Webhook-

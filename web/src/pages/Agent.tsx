@@ -154,6 +154,7 @@ export default function AgentPage({ me }: { me: Principal }) {
         <Config
           agentId={a.id}
           slug={a.slug}
+          displayName={a.display_name}
           canManage={canManage(me.Role)}
           canExport={canManage(me.Role) || me.Role === "security"}
         />
@@ -184,6 +185,10 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
     mutationFn: (displayName: string) => patch(`/agents/${agent.id}/name`, { display_name: displayName }),
     onSuccess: invalidate,
   });
+  const setSlug = useMutation({
+    mutationFn: (slug: string) => patch(`/agents/${agent.id}/slug`, { slug }),
+    onSuccess: invalidate,
+  });
   const setRuntime = useMutation({
     mutationFn: (runtime: string) => patch(`/agents/${agent.id}/runtime`, { runtime }),
     onSuccess: invalidate,
@@ -200,7 +205,7 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
     mutationFn: (budgetUSD: number) => post(`/agents/${agent.id}/budget`, { budget_usd: budgetUSD }),
     onSuccess: invalidate,
   });
-  const anyError = [setName, setRuntime, setModel, setMaxTurns, setBudget].find((m) => m.isError);
+  const anyError = [setName, setSlug, setRuntime, setModel, setMaxTurns, setBudget].find((m) => m.isError);
 
   const rtList = runtimes.data ?? [];
   const row: CSSProperties = {
@@ -243,8 +248,25 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
       </div>
       <div style={row}>
         <span className="text-sm">Slug</span>
-        <span className="mono text-sm">{agent.slug}</span>
-        <span className="muted text-xs">Stabiler Anker für Korrelation, Home-Verzeichnis und Referenzen.</span>
+        <span className="flex items-center gap-2">
+          <input
+            key={`slug:${agent.slug}`}
+            defaultValue={agent.slug}
+            disabled={!editable || setSlug.isPending}
+            className="mono"
+            onBlur={(e) => {
+              const v = e.target.value.trim();
+              if (v && v !== agent.slug) setSlug.mutate(v);
+              else e.target.value = agent.slug;
+            }}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+            style={{ flex: 1 }}
+          />
+        </span>
+        <span className="muted text-xs">
+          {setSlug.isError ? <span style={{ color: "var(--error)" }}>{String((setSlug.error as Error)?.message ?? "Slug bereits vergeben")}</span>
+            : "Nur Kleinbuchstaben, Ziffern, Bindestriche. Muss eindeutig sein."}
+        </span>
       </div>
       <div style={row}>
         <span className="text-sm">Runtime</span>
@@ -1291,11 +1313,13 @@ function WebhookTrigger({ agentId }: { agentId: string }) {
 function Config({
   agentId,
   slug,
+  displayName,
   canManage,
   canExport,
 }: {
   agentId: string;
   slug: string;
+  displayName: string;
   canManage: boolean;
   canExport: boolean;
 }) {
@@ -1306,6 +1330,9 @@ function Config({
     retry: false,
   });
   const [draft, setDraft] = useState<Record<string, string> | null>(null);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [templateDesc, setTemplateDesc] = useState("");
   // HEARTBEAT.md immer anbieten, auch wenn ältere Configs sie nicht kennen —
   // sonst gäbe es keinen Weg, sie über die UI anzulegen.
   const files = { "SOUL.md": "", "HEARTBEAT.md": "", ...(draft ?? cfg.data?.files ?? { "ACCESS.md": "" }) };
@@ -1323,12 +1350,62 @@ function Config({
     },
   });
 
+  const saveTemplate = useMutation({
+    mutationFn: () =>
+      post("/templates", { name: templateName.trim(), description: templateDesc.trim(), from_agent_id: agentId }),
+    onSuccess: () => {
+      setSavingTemplate(false);
+      setTemplateName("");
+      setTemplateDesc("");
+      qc.invalidateQueries({ queryKey: ["templates"] });
+    },
+  });
+
   return (
     <div>
       {canExport && (
-        <div className="flex mb-2">
+        <div className="flex gap-2 mb-2 justify-end">
+          {canManage && !savingTemplate && (
+            <button
+              className="btn sm"
+              onClick={() => { setTemplateName(displayName); setSavingTemplate(true); }}
+              title="Aktuelle Konfiguration als wiederverwendbare Vorlage speichern"
+            >
+              Als Vorlage speichern
+            </button>
+          )}
+          {savingTemplate && (
+            <form
+              className="flex gap-2 items-center"
+              onSubmit={(e) => { e.preventDefault(); saveTemplate.mutate(); }}
+            >
+              <input
+                autoFocus
+                placeholder="Vorlagenname"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                style={{ width: 180 }}
+                required
+              />
+              <input
+                placeholder="Beschreibung (optional)"
+                value={templateDesc}
+                onChange={(e) => setTemplateDesc(e.target.value)}
+                style={{ width: 180 }}
+              />
+              <button className="btn sm primary" disabled={saveTemplate.isPending} type="submit">
+                {saveTemplate.isPending ? "…" : "Speichern"}
+              </button>
+              <button className="btn sm" type="button" onClick={() => setSavingTemplate(false)}>
+                Abbrechen
+              </button>
+              {saveTemplate.isError && (
+                <span className="danger-text text-xs">{String((saveTemplate.error as Error)?.message)}</span>
+              )}
+            </form>
+          )}
           <a
-            className="btn sm no-underline ml-auto"
+            className="btn sm no-underline"
             href={`/api/v1/agents/${agentId}/export`}
             download={`${slug}-config.json`}
             title="Komplette Konfiguration (inkl. Stages, Guard-Rails, Egress, Secret-Namen) als JSON-Bundle herunterladen — Import auf der Agenten-Übersicht"

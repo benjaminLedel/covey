@@ -33,6 +33,7 @@ import (
 	"covey/internal/org"
 	secbuiltin "covey/internal/secrets/builtin"
 	targetstore "covey/internal/target/store"
+	"covey/internal/templates"
 	"covey/migrations"
 	"covey/web"
 
@@ -387,6 +388,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	mem := memory.NewStore(pool, memory.HashEmbedder{})
 	targets := targetstore.NewStore(pool)
 	egressStore := egress.NewStore(pool)
+	templateStore := templates.NewStore(pool)
 
 	// Egress-Enforcement ist nur mit echter Netz-Isolation (docker) durchsetzbar.
 	egressEnforced := cfg.EgressEnforce && cfg.SandboxProvider == "docker"
@@ -449,7 +451,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	srv := &httpapi.Server{
 		Pool: pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Identity: idp, Memory: mem,
-		Org: org.NewStore(pool), Targets: targets,
+		Org: org.NewStore(pool), Targets: targets, Templates: templateStore,
 		Orch: orch, WebFS: dist, Log: log,
 		WebhookSecrets: cfg.WebhookSecrets,
 		SessionTTL:     cfg.SessionTTL,

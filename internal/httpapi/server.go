@@ -30,6 +30,7 @@ import (
 	"covey/internal/org"
 	"covey/internal/secrets"
 	targetstore "covey/internal/target/store"
+	"covey/internal/templates"
 )
 
 type Server struct {
@@ -55,6 +56,8 @@ type Server struct {
 	EgressStore    *egress.Store
 	EgressEnforced bool
 	EgressDefaults []string
+
+	Templates *templates.Store
 
 	// WebhookSecrets: Zielsystem-Name → Signatur-Secret
 	// (ENV COVEY_<SYSTEM>_WEBHOOK_SECRET, z. B. COVEY_ZAMMAD_WEBHOOK_SECRET).
@@ -113,6 +116,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/agents/{id}/resume", s.rbac(append(manage, identity.RoleSecurity), s.handleResumeAgent))
 	mux.Handle("POST /api/v1/agents/{id}/budget", s.rbac(manage, s.handleSetBudget))
 	mux.Handle("PATCH /api/v1/agents/{id}/name", s.rbac(manage, s.handleRename))
+	mux.Handle("PATCH /api/v1/agents/{id}/slug", s.rbac(manage, s.handleSetSlug))
 	mux.Handle("PATCH /api/v1/agents/{id}/runtime", s.rbac(manage, s.handleSetRuntime))
 	mux.Handle("PATCH /api/v1/agents/{id}/model", s.rbac(manage, s.handleSetModel))
 	mux.Handle("PATCH /api/v1/agents/{id}/max-turns", s.rbac(manage, s.handleSetMaxTurns))
@@ -195,6 +199,13 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/fleet/kill", s.rbac(securityRoles, s.handleFleetKill))
 	mux.Handle("POST /api/v1/fleet/resume", s.rbac(securityRoles, s.handleFleetResume))
 	mux.Handle("GET /api/v1/fleet", s.rbac(anyRole, s.handleFleetStatus))
+
+	// Vorlagen-Bibliothek.
+	mux.Handle("GET /api/v1/templates", s.rbac(anyRole, s.handleListTemplates))
+	mux.Handle("GET /api/v1/templates/{id}", s.rbac(anyRole, s.handleGetTemplate))
+	mux.Handle("POST /api/v1/templates", s.rbac(manage, s.handleSaveTemplate))
+	mux.Handle("DELETE /api/v1/templates/{id}", s.rbac(manage, s.handleDeleteTemplate))
+	mux.Handle("POST /api/v1/templates/{id}/instantiate", s.rbac(manage, s.handleInstantiateTemplate))
 
 	// Administration: Benutzer- und Mandanten-Verwaltung (nur platform_admin).
 	adminOnly := []string{identity.RolePlatformAdmin}

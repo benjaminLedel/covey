@@ -16,6 +16,7 @@ import PersonPage from "./pages/Person";
 import Runtimes from "./pages/Runtimes";
 import Targets from "./pages/Targets";
 import Egress from "./pages/Egress";
+import Templates from "./pages/Templates";
 
 // useLiveEvents hält die UI über SSE aktuell: jedes Server-Event invalidiert
 // die betroffenen Queries — TanStack Query lädt gezielt nach.
@@ -124,6 +125,12 @@ const icons: Record<string, JSX.Element> = {
       <path d="M12 16.4v.01" />
     </>
   ),
+  copy: (
+    <>
+      <rect x="9" y="9" width="12" height="13" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </>
+  ),
   chevron: <path d="M9 6l6 6l-6 6" />,
   logout: (
     <>
@@ -216,6 +223,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
         </div>
         <div className="nav-group">
           <NavItem to="/" end icon="robot" label="Agenten" />
+          <NavItem to="/templates" icon="copy" label="Vorlagen" />
           <NavItem to="/org" icon="sitemap" label="Organigramm" />
         </div>
         <div className="nav-sec">Vertrauen</div>
@@ -266,6 +274,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
           <Routes>
             <Route path="/" element={<Dashboard me={me} />} />
             <Route path="/agents/:id" element={<AgentPage me={me} />} />
+            <Route path="/templates" element={<Templates me={me} />} />
             <Route path="/org" element={<Org />} />
             <Route path="/people/:id" element={<PersonPage me={me} />} />
             <Route path="/profile" element={<Navigate to={`/people/${me.ID}`} replace />} />

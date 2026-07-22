@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -93,24 +94,16 @@ func canReadSecretKeys(role string) bool {
 	return role == identity.RolePlatformAdmin || role == identity.RoleSecurity
 }
 
-// handleExportAgent — GET /api/v1/agents/{id}/export: die komplette
-// Konfiguration eines Agenten als herunterladbares JSON-Bundle.
-func (s *Server) handleExportAgent(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
+// buildBundle baut das agentBundle für einen Agenten. includeSecrets steuert,
+// ob Secret-Namen mitgeliefert werden (nur für berechtigte Rollen aufrufen).
+func (s *Server) buildBundle(ctx context.Context, orgID, agentID uuid.UUID, includeSecrets bool) (agentBundle, error) {
+	a, err := s.Registry.Get(ctx, agentID)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
-		return
-	}
-	p := principalFrom(r)
-	a, err := s.Registry.Get(r.Context(), id)
-	if err != nil {
-		mapErr(w, err)
-		return
+		return agentBundle{}, err
 	}
 
-	now := time.Now().UTC().Truncate(time.Second)
 	b := agentBundle{
-		Kind: bundleKind, Version: bundleVersion, ExportedAt: &now,
+		Kind: bundleKind, Version: bundleVersion,
 		Agent: bundleAgent{
 			Slug: a.Slug, DisplayName: a.DisplayName, Runtime: a.Runtime,
 			Model: a.Model, MaxTurns: a.MaxTurns, BudgetUSD: a.BudgetUSD,
@@ -118,49 +111,44 @@ func (s *Server) handleExportAgent(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 	if a.SupervisorID != nil {
-		if h, err := s.Org.GetHuman(r.Context(), p.OrgID, *a.SupervisorID); err == nil {
+		if h, err := s.Org.GetHuman(ctx, orgID, *a.SupervisorID); err == nil {
 			b.Agent.SupervisorEmail = h.Email
 		}
 	}
 
-	// Config-Dateien: Version-Snapshot plus die live gerenderten Text-Sichten
-	// ACCESS.md/EGRESS.md — exakt das, was auch der Config-Editor zeigt.
-	cv, err := s.Registry.CurrentConfig(r.Context(), id)
+	cv, err := s.Registry.CurrentConfig(ctx, agentID)
 	if errors.Is(err, agents.ErrNotFound) {
 		cv = agents.ConfigVersion{Files: map[string]string{"SOUL.md": "", "HEARTBEAT.md": ""}}
 	} else if err != nil {
-		mapErr(w, err)
-		return
+		return agentBundle{}, err
 	}
 	b.Files = cv.Files
 	if s.Targets != nil {
-		if access, err := s.renderAccessFile(r.Context(), id); err == nil {
+		if access, err := s.renderAccessFile(ctx, agentID); err == nil {
 			b.Files["ACCESS.md"] = access
 		}
 	}
 	if s.EgressStore != nil {
-		if eg, err := s.renderEgressFile(r.Context(), p.OrgID, id); err == nil {
+		if eg, err := s.renderEgressFile(ctx, orgID, agentID); err == nil {
 			b.Files["EGRESS.md"] = eg
 		}
 	}
-	delete(b.Files, "TOOLS.md") // Legacy: in ACCESS.md aufgegangen
+	delete(b.Files, "TOOLS.md")
 
-	stages, err := s.Backlog.ListStages(r.Context(), id)
+	stages, err := s.Backlog.ListStages(ctx, agentID)
 	if err != nil {
-		mapErr(w, err)
-		return
+		return agentBundle{}, err
 	}
 	for _, st := range stages {
 		b.Stages = append(b.Stages, bundleStage{Name: st.Name, Color: st.Color})
 	}
 
-	rules, err := s.Rails.List(r.Context(), p.OrgID)
+	rules, err := s.Rails.List(ctx, orgID)
 	if err != nil {
-		mapErr(w, err)
-		return
+		return agentBundle{}, err
 	}
 	for _, rule := range rules {
-		if rule.ScopeLevel != "agent" || rule.AgentID == nil || *rule.AgentID != id {
+		if rule.ScopeLevel != "agent" || rule.AgentID == nil || *rule.AgentID != agentID {
 			continue
 		}
 		b.Guardrails = append(b.Guardrails, bundleGuardrail{
@@ -169,24 +157,20 @@ func (s *Server) handleExportAgent(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Zugewiesene Egress-Templates samt Definition mitgeben, damit der Import
-	// sie auf einer anderen Instanz anlegen kann, falls sie dort fehlen.
 	if s.EgressStore != nil {
-		cfg, err := s.EgressStore.AgentConfig(r.Context(), id)
+		cfg, err := s.EgressStore.AgentConfig(ctx, agentID)
 		if err != nil {
-			mapErr(w, err)
-			return
+			return agentBundle{}, err
 		}
-		templates, err := s.EgressStore.ListTemplates(r.Context(), p.OrgID)
+		tmplList, err := s.EgressStore.ListTemplates(ctx, orgID)
 		if err != nil {
-			mapErr(w, err)
-			return
+			return agentBundle{}, err
 		}
 		assigned := map[uuid.UUID]bool{}
 		for _, tid := range cfg.TemplateIDs {
 			assigned[tid] = true
 		}
-		for _, t := range templates {
+		for _, t := range tmplList {
 			if !assigned[t.ID] {
 				continue
 			}
@@ -198,26 +182,22 @@ func (s *Server) handleExportAgent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Secret-Namen nur für Rollen, die sie auch über die Secrets-Endpunkte
-	// sehen dürften — Werte nie.
-	if canReadSecretKeys(p.Role) {
+	if includeSecrets {
 		sec := &bundleSecrets{OrgKeys: []string{}, AgentKeys: []string{}}
-		previews, err := s.Secrets.Previews(r.Context(), p.OrgID)
+		previews, err := s.Secrets.Previews(ctx, orgID)
 		if err != nil {
-			mapErr(w, err)
-			return
+			return agentBundle{}, err
 		}
 		for _, kp := range previews {
 			for _, aid := range kp.AgentIDs {
-				if aid == id.String() {
+				if aid == agentID.String() {
 					sec.OrgKeys = append(sec.OrgKeys, kp.Key)
 				}
 			}
 		}
-		agentPrev, err := s.Secrets.AgentPreviews(r.Context(), p.OrgID, id)
+		agentPrev, err := s.Secrets.AgentPreviews(ctx, orgID, agentID)
 		if err != nil {
-			mapErr(w, err)
-			return
+			return agentBundle{}, err
 		}
 		for _, kp := range agentPrev {
 			sec.AgentKeys = append(sec.AgentKeys, kp.Key)
@@ -226,8 +206,26 @@ func (s *Server) handleExportAgent(w http.ResponseWriter, r *http.Request) {
 		sort.Strings(sec.AgentKeys)
 		b.Secrets = sec
 	}
+	return b, nil
+}
 
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", a.Slug+"-config.json"))
+// handleExportAgent — GET /api/v1/agents/{id}/export: die komplette
+// Konfiguration eines Agenten als herunterladbares JSON-Bundle.
+func (s *Server) handleExportAgent(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	p := principalFrom(r)
+	b, err := s.buildBundle(r.Context(), p.OrgID, id, canReadSecretKeys(p.Role))
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	b.ExportedAt = &now
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", b.Agent.Slug+"-config.json"))
 	writeJSON(w, http.StatusOK, b)
 }
 

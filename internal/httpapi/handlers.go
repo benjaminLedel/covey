@@ -541,6 +541,31 @@ func (s *Server) handleRename(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// handleSetSlug ändert den Slug eines Agenten. Muss innerhalb der Org eindeutig sein.
+func (s *Server) handleSetSlug(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	var in struct {
+		Slug string `json:"slug"`
+	}
+	if err := readJSON(r, &in); err != nil || strings.TrimSpace(in.Slug) == "" {
+		writeErr(w, http.StatusBadRequest, "slug fehlt")
+		return
+	}
+	if err := s.Registry.SetSlug(r.Context(), id, strings.TrimSpace(in.Slug)); err != nil {
+		if strings.Contains(err.Error(), "bereits vergeben") || strings.Contains(err.Error(), "Format") {
+			writeErr(w, http.StatusConflict, err.Error())
+			return
+		}
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // handleSetRuntime schaltet die Runtime eines Agenten um (Umschalten z. B. auf
 // 'mock' für kostenlose Demos). Wirkt beim nächsten Task-Dispatch.
 func (s *Server) handleSetRuntime(w http.ResponseWriter, r *http.Request) {
