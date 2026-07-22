@@ -29,33 +29,55 @@ export default function Dashboard({ me }: { me: Principal }) {
 
   return (
     <div>
-      <div className="flex items-baseline gap-3 mb-4">
+      <div className="flex items-center gap-3 mb-4">
         <h1 className="text-[22px]">Agenten</h1>
-        <span className="muted">{agents.data?.length ?? 0} in der Organisation</span>
+        <span className="muted text-sm">{agents.data?.length ?? 0} in der Organisation</span>
         <span className="ml-auto" />
         {canManage(me.Role) && (
           <button className="btn primary" onClick={() => setShowCreate(true)}>
             + Neuer Agent
           </button>
         )}
-        {canSecurity(me.Role) &&
-          (fleetKilled ? (
-            <button className="btn" onClick={() => fleetMut.mutate(false)}>
-              Notaus lösen
-            </button>
-          ) : (
-            <button className="btn danger" onClick={() => fleetMut.mutate(true)} title="Alle Agenten sofort stoppen">
-              Notaus (Flotte)
-            </button>
-          ))}
+        {canSecurity(me.Role) && !fleetKilled && (
+          <button
+            className="icon-btn"
+            onClick={() => fleetMut.mutate(true)}
+            title="Flottenweiter Notaus — alle Agenten sofort stoppen"
+            style={{ color: "var(--text-secondary)" }}
+            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--error)")}
+            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--text-secondary)")}
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="9" />
+              <line x1="12" y1="7" x2="12" y2="12" />
+              <line x1="12" y1="15" x2="12" y2="15.5" strokeWidth="2.2" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {fleetKilled && (
         <div
           className="card mb-4"
-          style={{ borderColor: "var(--border-danger)", color: "var(--text-danger)" }}
+          style={{
+            borderColor: "var(--border-danger)",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            padding: "12px 16px",
+          }}
         >
-          Flottenweiter Kill-Switch aktiv — kein Agent wird geweckt, bis der Notaus gelöst wird.
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="var(--error)" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <circle cx="12" cy="12" r="9" />
+            <line x1="12" y1="7" x2="12" y2="12" />
+            <line x1="12" y1="15" x2="12" y2="15.5" strokeWidth="2.2" />
+          </svg>
+          <span style={{ color: "var(--error)", flex: 1, fontSize: 13 }}>
+            Flottenweiter Notaus aktiv — kein Agent wird geweckt.
+          </span>
+          <button className="btn sm" onClick={() => fleetMut.mutate(false)} disabled={fleetMut.isPending}>
+            Notaus lösen
+          </button>
         </div>
       )}
 
