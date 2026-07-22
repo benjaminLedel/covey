@@ -10,6 +10,22 @@ Eine zentrale Plattform, die KI-Agenten wie Mitarbeiter behandelt — mit Identi
 
 **MVP implementiert.** Das Repository enthält neben der **Spezifikation** den vollständigen MVP-Durchstich (Meilensteine M0–M7 aus [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md)): das `covey`-Binary (Control Plane, API, eingebettete Admin-UI), den Sandbox-Daemon `coveyd`, den Claude-Code-Adapter, die Zammad-Integration und die Vertrauensschicht (Guard-Rails, Recording, Kill-Switch, Cost, RBAC). Die Abnahme-Checkliste läuft als Integrationstest-Suite (`internal/integration/`).
 
+## Schnellstart mit Docker Compose (empfohlen zum Ausprobieren)
+
+Covey in Minuten starten — **ohne Go, Node oder lokale Postgres**. Nur Docker nötig:
+
+```bash
+cp .env.example .env
+echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env   # 32-Byte-Schlüssel
+docker compose up -d --build                              # Postgres + Covey starten
+```
+
+Dann [http://localhost:8494](http://localhost:8494) öffnen — Login `admin@covey.local` / `covey-admin`.
+Das mitgelieferte [`docker-compose.yml`](docker-compose.yml) bringt Postgres (pgvector) und das
+covey-Binary mit eingebetteter Admin-UI; `bootstrap` legt Organisation, Admin und einen Demo-Agenten
+an, Migrationen laufen automatisch. Vollständige Anleitung inkl. erstem Agenten und Produktions-Checkliste:
+[`docs/schnellstart-docker.md`](docs/schnellstart-docker.md).
+
 ## Schnellstart (Entwicklung)
 
 ```bash

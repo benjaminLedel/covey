@@ -4,6 +4,7 @@
 
 # Secrets & Logs — der Master-Key darf nie ins Repo
 .covey.key
+.env
 serve.log
 
 # Laufzeitdaten (Sandbox-Homes des local-Providers)
