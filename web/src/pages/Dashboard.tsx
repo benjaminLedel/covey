@@ -148,31 +148,54 @@ function CreateAgentModal({ onClose, onDone }: { onClose: () => void; onDone: (i
   );
 }
 
+const pathIcons: Record<string, JSX.Element> = {
+  template: (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="9" y="9" width="12" height="13" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+      <path d="M13 13h4M13 17h4" />
+    </svg>
+  ),
+  manual: (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="5" y="8" width="14" height="11" rx="2" />
+      <path d="M12 4v4" />
+      <circle cx="12" cy="3.5" r="1" />
+      <circle cx="9.5" cy="13" r="1" />
+      <circle cx="14.5" cy="13" r="1" />
+    </svg>
+  ),
+  import: (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  ),
+};
+
 // Pfad-Auswahl: drei Kacheln
 function ChoosePath({ onPick }: { onPick: (p: CreatePath) => void }) {
-  const paths: { key: CreatePath; icon: string; title: string; desc: string }[] = [
+  const paths: { key: CreatePath; title: string; desc: string }[] = [
     {
       key: "template",
-      icon: "📋",
       title: "Aus Vorlage",
       desc: "Vorkonfigurierter Agent aus der Vorlagen-Bibliothek",
     },
     {
       key: "manual",
-      icon: "✏️",
       title: "Manuell",
       desc: "Leerer Agent mit selbst gewähltem Namen und Slug",
     },
     {
       key: "import",
-      icon: "📦",
       title: "Bundle importieren",
       desc: "Vollständige Konfiguration aus einer JSON-Export-Datei",
     },
   ];
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
+    <div style={{ display: "grid", gap: 10 }}>
       {paths.map((p) => (
         <button
           key={p.key}
@@ -181,30 +204,26 @@ function ChoosePath({ onPick }: { onPick: (p: CreatePath) => void }) {
             display: "flex",
             alignItems: "center",
             gap: 16,
-            padding: "16px 18px",
+            padding: "14px 16px",
             border: "1.5px solid var(--border)",
             borderRadius: 8,
             background: "var(--surface)",
             cursor: "pointer",
             textAlign: "left",
             width: "100%",
-            transition: "border-color 0.15s, background 0.15s",
+            transition: "border-color 0.15s",
           }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.borderColor = "var(--clay)";
-            (e.currentTarget as HTMLElement).style.background = "var(--surface-hover, var(--surface))";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.borderColor = "var(--border)";
-            (e.currentTarget as HTMLElement).style.background = "var(--surface)";
-          }}
+          onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.borderColor = "var(--clay)")}
+          onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.borderColor = "var(--border)")}
         >
-          <span style={{ fontSize: 26, lineHeight: 1 }}>{p.icon}</span>
+          <span style={{ color: "var(--text-secondary)", flexShrink: 0 }}>{pathIcons[p.key]}</span>
           <div>
-            <div style={{ fontWeight: 500, fontSize: 15, color: "var(--text-primary)" }}>{p.title}</div>
+            <div style={{ fontWeight: 500, fontSize: 14, color: "var(--text-primary)" }}>{p.title}</div>
             <div className="muted text-xs" style={{ marginTop: 2 }}>{p.desc}</div>
           </div>
-          <span className="muted" style={{ marginLeft: "auto", fontSize: 18 }}>›</span>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: "auto", color: "var(--text-secondary)", flexShrink: 0 }}>
+            <path d="M9 6l6 6-6 6" />
+          </svg>
         </button>
       ))}
     </div>
