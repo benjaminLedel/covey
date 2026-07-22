@@ -46,6 +46,8 @@ type Human struct {
 	// ManagerID ist die Vorgesetzten-Beziehung im Org-Chart (spec/09);
 	// nil = Wurzel (berichtet an niemanden).
 	ManagerID *uuid.UUID `json:"manager_id,omitempty"`
+	// DepartmentID ordnet den Menschen einer Abteilung zu; nil = keiner.
+	DepartmentID *uuid.UUID `json:"department_id,omitempty"`
 	Profile
 	CreatedAt time.Time `json:"created_at"`
 }
@@ -130,7 +132,7 @@ func NewStore(pool *pgxpool.Pool) *Store {
 
 func (s *Store) ListHumans(ctx context.Context, orgID uuid.UUID) ([]Human, error) {
 	rows, err := s.pool.Query(ctx, `SELECT id, org_id, email, display_name, role, manager_id,
-			job_title, identities, phone, responsibilities, custom, created_at
+			department_id, job_title, identities, phone, responsibilities, custom, created_at
 		FROM humans WHERE org_id=$1 ORDER BY created_at`, orgID)
 	if err != nil {
 		return nil, err
@@ -142,10 +144,10 @@ func (s *Store) ListHumans(ctx context.Context, orgID uuid.UUID) ([]Human, error
 func (s *Store) GetHuman(ctx context.Context, orgID, id uuid.UUID) (Human, error) {
 	var h Human
 	err := s.pool.QueryRow(ctx, `SELECT id, org_id, email, display_name, role, manager_id,
-			job_title, identities, phone, responsibilities, custom, created_at
+			department_id, job_title, identities, phone, responsibilities, custom, created_at
 		FROM humans WHERE id=$1 AND org_id=$2`, id, orgID).
 		Scan(&h.ID, &h.OrgID, &h.Email, &h.DisplayName, &h.Role, &h.ManagerID,
-			&h.JobTitle, &h.Identities, &h.Phone, &h.Responsibilities, &h.Custom, &h.CreatedAt)
+			&h.DepartmentID, &h.JobTitle, &h.Identities, &h.Phone, &h.Responsibilities, &h.Custom, &h.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Human{}, ErrNotFound
 	}
@@ -179,10 +181,10 @@ func (s *Store) UpdateHuman(ctx context.Context, orgID, id uuid.UUID, upd HumanU
 
 	var h Human
 	err = tx.QueryRow(ctx, `SELECT id, org_id, email, display_name, role, manager_id,
-			job_title, identities, phone, responsibilities, custom, created_at
+			department_id, job_title, identities, phone, responsibilities, custom, created_at
 		FROM humans WHERE id=$1 AND org_id=$2 FOR UPDATE`, id, orgID).
 		Scan(&h.ID, &h.OrgID, &h.Email, &h.DisplayName, &h.Role, &h.ManagerID,
-			&h.JobTitle, &h.Identities, &h.Phone, &h.Responsibilities, &h.Custom, &h.CreatedAt)
+			&h.DepartmentID, &h.JobTitle, &h.Identities, &h.Phone, &h.Responsibilities, &h.Custom, &h.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Human{}, ErrNotFound
 	}
@@ -403,7 +405,7 @@ func scanHumans(rows pgx.Rows) ([]Human, error) {
 	for rows.Next() {
 		var h Human
 		if err := rows.Scan(&h.ID, &h.OrgID, &h.Email, &h.DisplayName, &h.Role, &h.ManagerID,
-			&h.JobTitle, &h.Identities, &h.Phone, &h.Responsibilities, &h.Custom, &h.CreatedAt); err != nil {
+			&h.DepartmentID, &h.JobTitle, &h.Identities, &h.Phone, &h.Responsibilities, &h.Custom, &h.CreatedAt); err != nil {
 			return nil, err
 		}
 		list = append(list, h)

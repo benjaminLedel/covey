@@ -26,15 +26,24 @@ func (s *Server) handleOrgChart(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
+	departments, err := s.Org.ListDepartments(r.Context(), p.OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
 	if humans == nil {
 		humans = []org.Human{}
 	}
 	if agentList == nil {
 		agentList = []agents.Agent{}
 	}
+	if departments == nil {
+		departments = []org.Department{}
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"humans": humans,
-		"agents": agentList,
+		"humans":      humans,
+		"agents":      agentList,
+		"departments": departments,
 	})
 }
 

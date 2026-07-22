@@ -122,6 +122,12 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/agents/{id}/model", s.rbac(manage, s.handleSetModel))
 	mux.Handle("PATCH /api/v1/agents/{id}/max-turns", s.rbac(manage, s.handleSetMaxTurns))
 	mux.Handle("PATCH /api/v1/agents/{id}/supervisor", s.rbac(manage, s.handleSetSupervisor))
+	mux.Handle("PATCH /api/v1/agents/{id}/department", s.rbac(manage, s.handleSetAgentDepartment))
+	mux.Handle("PATCH /api/v1/org/humans/{id}/department", s.rbac(manage, s.handleSetHumanDepartment))
+	mux.Handle("GET /api/v1/departments", s.rbac(anyRole, s.handleListDepartments))
+	mux.Handle("POST /api/v1/departments", s.rbac(manage, s.handleCreateDepartment))
+	mux.Handle("PATCH /api/v1/departments/{id}/name", s.rbac(manage, s.handleRenameDepartment))
+	mux.Handle("DELETE /api/v1/departments/{id}", s.rbac(manage, s.handleDeleteDepartment))
 	mux.Handle("GET /api/v1/agents/{id}/webhook", s.rbac(manage, s.handleGetAgentWebhook))
 	mux.Handle("POST /api/v1/agents/{id}/webhook", s.rbac(manage, s.handleEnableAgentWebhook))
 	mux.Handle("DELETE /api/v1/agents/{id}/webhook", s.rbac(manage, s.handleDisableAgentWebhook))
@@ -255,7 +261,8 @@ func mapErr(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, agents.ErrNotFound), errors.Is(err, backlog.ErrNotFound),
 		errors.Is(err, observability.ErrNotFound), errors.Is(err, secrets.ErrNotFound),
-		errors.Is(err, org.ErrNotFound), errors.Is(err, pgx.ErrNoRows):
+		errors.Is(err, org.ErrNotFound), errors.Is(err, org.ErrDeptNotFound),
+		errors.Is(err, pgx.ErrNoRows):
 		writeErr(w, http.StatusNotFound, "nicht gefunden")
 	case errors.Is(err, backlog.ErrInvalidTransition),
 		errors.Is(err, org.ErrLastAdmin), errors.Is(err, org.ErrEmailTaken),

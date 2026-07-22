@@ -17,6 +17,7 @@ export type Agent = {
   max_turns: number;
   status: string;
   supervisor_id?: string;
+  department_id?: string;
   killed: boolean;
   budget_usd: number;
   created_at: string;
@@ -147,6 +148,7 @@ export type Human = {
   display_name: string;
   role: string;
   manager_id?: string;
+  department_id?: string;
   // Mitarbeiter-Profil: Funktion, Kontakt, Zuständigkeiten und die
   // Plattform-Kennungen (generisch: system → kennung, z. B. {"gitlab": "maxm"}).
   job_title: string;
@@ -155,6 +157,14 @@ export type Human = {
   responsibilities: string;
   // Werte der org-weit konfigurierbaren Profilfelder (key → wert).
   custom: Record<string, string>;
+  created_at: string;
+};
+
+export type Department = {
+  id: string;
+  org_id: string;
+  name: string;
+  description: string;
   created_at: string;
 };
 
@@ -170,7 +180,23 @@ export type ProfileField = {
 export type OrgChart = {
   humans: Human[];
   agents: Agent[];
+  departments: Department[];
 };
+
+export const createDepartment = (name: string, description = "") =>
+  post<Department>("/departments", { name, description });
+
+export const renameDepartment = (id: string, name: string) =>
+  patch<{ ok: boolean }>(`/departments/${id}/name`, { name });
+
+export const deleteDepartment = (id: string) =>
+  del<{ ok: boolean }>(`/departments/${id}`);
+
+export const setAgentDepartment = (agentId: string, departmentId: string | null) =>
+  patch<{ ok: boolean }>(`/agents/${agentId}/department`, { department_id: departmentId ?? "" });
+
+export const setHumanDepartment = (humanId: string, departmentId: string | null) =>
+  patch<{ ok: boolean }>(`/org/humans/${humanId}/department`, { department_id: departmentId ?? "" });
 
 export type Organization = {
   id: string;

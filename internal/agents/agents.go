@@ -46,6 +46,8 @@ type Agent struct {
 	// SupervisorID ist der Platz im Org-Chart: der Mensch, an den der Agent
 	// berichtet und eskaliert (spec/02).
 	SupervisorID *uuid.UUID `json:"supervisor_id,omitempty"`
+	// DepartmentID ordnet den Agenten einer Abteilung zu; nil = keiner.
+	DepartmentID *uuid.UUID `json:"department_id,omitempty"`
 	Killed       bool       `json:"killed"`
 	BudgetUSD    float64    `json:"budget_usd"`
 	// WebhookToken ist das Geheimnis des optionalen generischen Webhook-
@@ -82,12 +84,12 @@ type Registry struct {
 
 func NewRegistry(pool *pgxpool.Pool) *Registry { return &Registry{pool: pool} }
 
-const agentCols = "id, org_id, slug, display_name, runtime, model, max_turns, status, owner_id, supervisor_id, killed, budget_usd, webhook_token, created_at, updated_at"
+const agentCols = "id, org_id, slug, display_name, runtime, model, max_turns, status, owner_id, supervisor_id, department_id, killed, budget_usd, webhook_token, created_at, updated_at"
 
 func scanAgent(row pgx.Row) (Agent, error) {
 	var a Agent
 	err := row.Scan(&a.ID, &a.OrgID, &a.Slug, &a.DisplayName, &a.Runtime, &a.Model, &a.MaxTurns, &a.Status,
-		&a.OwnerID, &a.SupervisorID, &a.Killed, &a.BudgetUSD, &a.WebhookToken, &a.CreatedAt, &a.UpdatedAt)
+		&a.OwnerID, &a.SupervisorID, &a.DepartmentID, &a.Killed, &a.BudgetUSD, &a.WebhookToken, &a.CreatedAt, &a.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, ErrNotFound
 	}
@@ -272,6 +274,15 @@ func (r *Registry) SupervisorName(ctx context.Context, agentID uuid.UUID) (strin
 // SetSupervisor hängt den Agenten im Org-Chart um; nil löst die Zuordnung.
 func (r *Registry) SetSupervisor(ctx context.Context, id uuid.UUID, supervisorID *uuid.UUID) error {
 	tag, err := r.pool.Exec(ctx, "UPDATE agents SET supervisor_id=$2, updated_at=now() WHERE id=$1", id, supervisorID)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+// SetDepartment weist den Agenten einer Abteilung zu; nil löst die Zuordnung.
+func (r *Registry) SetDepartment(ctx context.Context, id uuid.UUID, deptID *uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx, "UPDATE agents SET department_id=$2, updated_at=now() WHERE id=$1", id, deptID)
 	if err == nil && tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
