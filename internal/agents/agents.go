@@ -198,6 +198,20 @@ func (r *Registry) SetMaxTurns(ctx context.Context, id uuid.UUID, maxTurns int) 
 }
 
 // Rename ändert den Anzeigenamen. Slug separat über SetSlug änderbar.
+// Delete löscht einen Agenten endgültig. Alle abhängigen Daten (Config,
+// Backlog, Secrets, Zuweisungen) werden per ON DELETE CASCADE mitgelöscht.
+// orgID verhindert Cross-Org-Löschung über geratene IDs.
+func (r *Registry) Delete(ctx context.Context, orgID, id uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx, "DELETE FROM agents WHERE id=$1 AND org_id=$2", id, orgID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (r *Registry) Rename(ctx context.Context, id uuid.UUID, displayName string) error {
 	tag, err := r.pool.Exec(ctx, "UPDATE agents SET display_name=$2, updated_at=now() WHERE id=$1", id, displayName)
 	if err == nil && tag.RowsAffected() == 0 {

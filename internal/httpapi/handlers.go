@@ -72,6 +72,20 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, a)
 }
 
+func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	if err := s.Registry.Delete(r.Context(), p.OrgID, id); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // --- Config-as-Code (M2) ---
 
 func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {

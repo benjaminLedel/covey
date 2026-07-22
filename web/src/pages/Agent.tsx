@@ -1,6 +1,6 @@
 import { useState, type CSSProperties } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   api,
   post,
@@ -173,6 +173,7 @@ export default function AgentPage({ me }: { me: Principal }) {
 // Task-Dispatch; laufende Sessions bleiben unberührt (spec/12).
 function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean }) {
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const runtimes = useQuery({
     queryKey: ["runtimes"],
     queryFn: () => api<RuntimeInfo[]>("/runtimes"),
@@ -205,6 +206,15 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
     mutationFn: (budgetUSD: number) => post(`/agents/${agent.id}/budget`, { budget_usd: budgetUSD }),
     onSuccess: invalidate,
   });
+  const deleteAgent = useMutation({
+    mutationFn: () => del(`/agents/${agent.id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agents"] });
+      navigate("/");
+    },
+  });
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
   const anyError = [setName, setSlug, setRuntime, setModel, setMaxTurns, setBudget].find((m) => m.isError);
 
   const rtList = runtimes.data ?? [];
@@ -348,6 +358,35 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
         <p className="muted text-xs mt-2">Ihre Rolle kann Einstellungen ansehen, aber nicht ändern.</p>
       )}
       {anyError && <p className="danger-text text-xs mt-2">{String(anyError.error)}</p>}
+      {editable && (
+        <div style={{ marginTop: 24, paddingTop: 14, borderTop: "0.5px solid var(--border)" }}>
+          <p className="text-xs muted mb-2">Gefahrenzone — diese Aktion ist nicht rückgängig zu machen.</p>
+          {!confirmDelete ? (
+            <button className="btn sm danger" onClick={() => setConfirmDelete(true)}>
+              Agenten löschen
+            </button>
+          ) : (
+            <div className="flex items-center gap-3">
+              <span className="text-xs" style={{ color: "var(--danger, #b91c1c)" }}>
+                <strong>{agent.display_name}</strong> unwiderruflich löschen?
+              </span>
+              <button
+                className="btn sm danger"
+                disabled={deleteAgent.isPending}
+                onClick={() => deleteAgent.mutate()}
+              >
+                Ja, endgültig löschen
+              </button>
+              <button className="btn sm" onClick={() => setConfirmDelete(false)}>
+                Abbrechen
+              </button>
+            </div>
+          )}
+          {deleteAgent.isError && (
+            <p className="danger-text text-xs mt-2">{String((deleteAgent.error as Error)?.message ?? "Fehler")}</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
