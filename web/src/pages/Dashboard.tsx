@@ -40,18 +40,12 @@ export default function Dashboard({ me }: { me: Principal }) {
         )}
         {canSecurity(me.Role) && !fleetKilled && (
           <button
-            className="icon-btn"
+            className="btn"
             onClick={() => fleetMut.mutate(true)}
-            title="Flottenweiter Notaus — alle Agenten sofort stoppen"
-            style={{ color: "var(--text-secondary)" }}
-            onMouseEnter={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--error)")}
-            onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.color = "var(--text-secondary)")}
+            title="Alle Agenten sofort stoppen"
+            style={{ color: "var(--error)", borderColor: "var(--border-danger, var(--border))" }}
           >
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="9" />
-              <line x1="12" y1="7" x2="12" y2="12" />
-              <line x1="12" y1="15" x2="12" y2="15.5" strokeWidth="2.2" />
-            </svg>
+            Notaus
           </button>
         )}
       </div>
