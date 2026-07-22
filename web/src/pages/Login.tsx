@@ -1,10 +1,7 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { post } from "../api";
 
-// Demo-Login nur lokal anbieten (localhost-Host — auch der Vite-Dev-Server läuft
-// dort). Nutzt die Default-Bootstrap-Zugangsdaten (admin@covey.local /
-// covey-admin, siehe cmd/covey bootstrap). In einem echten Deployment (anderer
-// Host) erscheint der Button nicht.
 const DEMO_EMAIL = "admin@covey.local";
 const DEMO_PASSWORD = "covey-admin";
 const isLocal = ["localhost", "127.0.0.1", "[::1]"].includes(
@@ -12,6 +9,7 @@ const isLocal = ["localhost", "127.0.0.1", "[::1]"].includes(
 );
 
 export default function Login({ onLogin }: { onLogin: () => void }) {
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -24,7 +22,7 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
       await post("/auth/login", { email: mail, password: pass });
       onLogin();
     } catch {
-      setError("Anmeldung fehlgeschlagen — E-Mail oder Passwort falsch.");
+      setError(t("login.error"));
     } finally {
       setBusy(false);
     }
@@ -52,8 +50,8 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
           <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--clay)" }} />
           Covey
         </div>
-        <p className="text-center muted text-[13px] mb-5">Die Control Plane für Ihre Agenten-Belegschaft.</p>
-        <label htmlFor="email">E-Mail</label>
+        <p className="text-center muted text-[13px] mb-5">{t("login.subtitle")}</p>
+        <label htmlFor="email">{t("login.email")}</label>
         <input
           id="email"
           type="email"
@@ -63,7 +61,7 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
           className="mb-3"
           required
         />
-        <label htmlFor="password">Passwort</label>
+        <label htmlFor="password">{t("login.password")}</label>
         <input
           id="password"
           type="password"
@@ -75,7 +73,7 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
         />
         {error && <p className="danger-text text-xs mb-3">{error}</p>}
         <button className="btn primary w-full justify-center" disabled={busy}>
-          {busy ? "Anmelden…" : "Anmelden"}
+          {busy ? t("login.submitting") : t("login.submit")}
         </button>
         {isLocal && (
           <>
@@ -84,7 +82,7 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
               aria-hidden
             >
               <span style={{ flex: 1, height: 0.5, background: "var(--border)" }} />
-              nur lokal
+              {t("login.localOnly")}
               <span style={{ flex: 1, height: 0.5, background: "var(--border)" }} />
             </div>
             <button
@@ -93,7 +91,7 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
               disabled={busy}
               onClick={() => login(DEMO_EMAIL, DEMO_PASSWORD)}
             >
-              Demo-Login (Admin)
+              {t("login.demoLogin")}
             </button>
           </>
         )}

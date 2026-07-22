@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { api, post, type Approval, type Principal } from "./api";
+import i18n from "./i18n";
 import HelpDrawer from "./components/HelpDrawer";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -167,6 +169,7 @@ function initials(name: string): string {
 }
 
 function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
+  const { t } = useTranslation();
   const location = useLocation();
   const [helpOpen, setHelpOpen] = useState(false);
 
@@ -207,6 +210,12 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
     onLogout();
   };
 
+  const toggleLang = () => {
+    const next = i18n.language === "de" ? "en" : "de";
+    i18n.changeLanguage(next);
+    localStorage.setItem("covey.lang", next);
+  };
+
   return (
     <div className="flex min-h-screen">
       <aside className="sidebar">
@@ -222,36 +231,36 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
           Covey
         </div>
         <div className="nav-group">
-          <NavItem to="/" end icon="robot" label="Agenten" />
-          <NavItem to="/templates" icon="copy" label="Vorlagen" />
-          <NavItem to="/org" icon="sitemap" label="Organigramm" />
+          <NavItem to="/" end icon="robot" label={t("nav.agents")} />
+          <NavItem to="/templates" icon="copy" label={t("nav.templates")} />
+          <NavItem to="/org" icon="sitemap" label={t("nav.org")} />
         </div>
-        <div className="nav-sec">Vertrauen</div>
+        <div className="nav-sec">{t("nav.trust")}</div>
         <div className="nav-group">
-          <NavItem to="/approvals" icon="bell" label="Freigaben" count={pending} />
-          <NavItem to="/guardrails" icon="shield" label="Guard-Rails" />
-          <NavItem to="/secrets" icon="key" label="Secrets" />
-          <NavItem to="/targets" icon="plug" label="Zielsysteme" />
-          <NavItem to="/egress" icon="globe" label="Egress" />
+          <NavItem to="/approvals" icon="bell" label={t("nav.approvals")} count={pending} />
+          <NavItem to="/guardrails" icon="shield" label={t("nav.guardrails")} />
+          <NavItem to="/secrets" icon="key" label={t("nav.secrets")} />
+          <NavItem to="/targets" icon="plug" label={t("nav.targets")} />
+          <NavItem to="/egress" icon="globe" label={t("nav.egress")} />
         </div>
         <div className="mt-auto">
           {me.Role === "platform_admin" && (
             <>
               <button className={`nav-sec toggle ${showPlatform ? "open" : ""}`} onClick={togglePlatform} disabled={inPlatform}>
-                Plattform
+                {t("nav.platform")}
                 <NavIcon name="chevron" />
               </button>
               {showPlatform && (
                 <div className="nav-group">
-                  <NavItem to="/users" icon="user" label="Benutzer" />
-                  <NavItem to="/orgs" icon="box" label="Organisationen" />
-                  <NavItem to="/runtimes" icon="cpu" label="Runtimes" />
+                  <NavItem to="/users" icon="user" label={t("nav.users")} />
+                  <NavItem to="/orgs" icon="box" label={t("nav.organizations")} />
+                  <NavItem to="/runtimes" icon="cpu" label={t("nav.runtimes")} />
                 </div>
               )}
             </>
           )}
           <div className="side-foot">
-            <NavLink to="/profile" className="suser" title="Profil & Einstellungen">
+            <NavLink to="/profile" className="suser" title={t("nav.profile")}>
               <span className="avatar">{initials(me.DisplayName)}</span>
               <span className="min-w-0">
                 <span className="nm truncate block">{me.DisplayName}</span>
@@ -259,10 +268,13 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
               </span>
             </NavLink>
             <div className="foot-actions">
-              <button className="icon-btn" onClick={() => setHelpOpen(true)} title="Hilfe (Taste ?)" aria-label="Hilfe">
+              <button className="icon-btn" onClick={toggleLang} title={t("lang.toggle")} aria-label={t("lang.toggle")} style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.03em" }}>
+                {t("lang.toggle")}
+              </button>
+              <button className="icon-btn" onClick={() => setHelpOpen(true)} title={t("nav.help")} aria-label={t("help.title")}>
                 <NavIcon name="help" />
               </button>
-              <button className="icon-btn danger" onClick={logout} title="Abmelden" aria-label="Abmelden">
+              <button className="icon-btn danger" onClick={logout} title={t("nav.logout")} aria-label={t("nav.logout")}>
                 <NavIcon name="logout" />
               </button>
             </div>

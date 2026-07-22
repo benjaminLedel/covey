@@ -1,15 +1,12 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { api, del, patch, post, roleLabel, type Human, type Principal } from "../api";
 import { Avatar, PersonLink } from "../components/person";
 
-// Benutzerverwaltung (nur platform_admin): Nutzer der eigenen Organisation
-// anlegen, Rolle/Vorgesetzte ändern, Passwort zurücksetzen, entfernen.
-// Schutzregeln (letzter Admin, eigenes Konto) erzwingt der Server — die UI
-// zeigt sie nur an. Das Profil (Funktion, Kennungen, Zuständigkeiten) wird
-// auf der Profil-Seite der Person gepflegt — Name und Avatar verlinken dorthin.
 export default function Users({ me }: { me: Principal }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const users = useQuery({
     queryKey: ["users"],
@@ -20,8 +17,8 @@ export default function Users({ me }: { me: Principal }) {
   if (users.isError) {
     return (
       <div>
-        <h1 className="text-[22px] mb-3">Benutzer</h1>
-        <p className="muted">Ihre Rolle ({me.Role}) hat auf die Benutzerverwaltung keinen Zugriff.</p>
+        <h1 className="text-[22px] mb-3">{t("users.title")}</h1>
+        <p className="muted">{t("users.noAccess", { role: me.Role })}</p>
       </div>
     );
   }
@@ -29,12 +26,11 @@ export default function Users({ me }: { me: Principal }) {
   return (
     <div>
       <div className="flex items-baseline gap-3 mb-2">
-        <h1 className="text-[22px]">Benutzer</h1>
-        <span className="muted">Menschen &amp; Rollen dieser Organisation (RBAC)</span>
+        <h1 className="text-[22px]">{t("users.title")}</h1>
+        <span className="muted">{t("users.subtitle")}</span>
       </div>
       <p className="muted text-xs mb-4" style={{ maxWidth: 640 }}>
-        Rollen wirken sofort auf laufende Sessions. Ein Passwort-Reset meldet den Nutzer überall ab.
-        Der letzte Plattform-Admin einer Organisation kann weder gelöscht noch herabgestuft werden.
+        {t("users.desc")}
       </p>
 
       <CreateUser onDone={() => qc.invalidateQueries({ queryKey: ["users"] })} />
@@ -47,6 +43,7 @@ export default function Users({ me }: { me: Principal }) {
 }
 
 function CreateUser({ onDone }: { onDone: () => void }) {
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [role, setRole] = useState("agent_owner");
@@ -70,15 +67,15 @@ function CreateUser({ onDone }: { onDone: () => void }) {
     >
       <div className="flex gap-3 items-end flex-wrap">
         <div className="flex-1 min-w-48">
-          <label>E-Mail</label>
+          <label>{t("users.email")}</label>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         </div>
         <div className="flex-1 min-w-40">
-          <label>Name</label>
+          <label>{t("users.name")}</label>
           <input value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
         <div className="min-w-40">
-          <label>Rolle</label>
+          <label>{t("users.role")}</label>
           <select value={role} onChange={(e) => setRole(e.target.value)}>
             {Object.entries(roleLabel).map(([value, label]) => (
               <option key={value} value={value}>
@@ -88,15 +85,15 @@ function CreateUser({ onDone }: { onDone: () => void }) {
           </select>
         </div>
         <div className="min-w-44">
-          <label>Passwort (min. 8 Zeichen)</label>
+          <label>{t("users.password")}</label>
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} minLength={8} required />
         </div>
         <button className="btn primary" disabled={mut.isPending}>
-          Anlegen
+          {t("users.create")}
         </button>
       </div>
       <p className="muted text-xs mt-2 mb-0">
-        Funktion, Plattform-Kennungen und Zuständigkeiten werden nach dem Anlegen auf der Profil-Seite der Person gepflegt.
+        {t("users.profileHint")}
       </p>
       {mut.isError && <p className="text-xs mt-2" style={{ color: "var(--text-danger)" }}>{(mut.error as Error).message}</p>}
     </form>
@@ -104,6 +101,7 @@ function CreateUser({ onDone }: { onDone: () => void }) {
 }
 
 function UserRow({ user, me, all }: { user: Human; me: Principal; all: Human[] }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const isSelf = user.id === me.ID;
   const [resetting, setResetting] = useState(false);
@@ -139,14 +137,14 @@ function UserRow({ user, me, all }: { user: Human; me: Principal; all: Human[] }
   return (
     <div className="card mb-2" style={{ padding: "11px 15px" }}>
       <div className="flex items-center gap-4 flex-wrap">
-        <Link to={`/people/${user.id}`} title="Profil-Seite öffnen" style={{ color: "inherit", textDecoration: "none" }}>
+        <Link to={`/people/${user.id}`} title={t("org.openProfile")} style={{ color: "inherit", textDecoration: "none" }}>
           <Avatar name={user.display_name} human />
         </Link>
         <div className="flex-1 min-w-44">
           <div className="text-sm font-medium">
             <PersonLink human={user} />
             {user.job_title && <span className="muted text-xs"> · {user.job_title}</span>}
-            {isSelf && <span className="muted text-xs"> — Sie</span>}
+            {isSelf && <span className="muted text-xs"> {t("users.self")}</span>}
           </div>
           <div className="muted text-xs mono">
             {user.email}
@@ -168,15 +166,14 @@ function UserRow({ user, me, all }: { user: Human; me: Principal; all: Human[] }
           ))}
         </select>
         <div>
-          <label style={{ margin: 0, fontSize: 10 }}>berichtet an</label>
+          <label style={{ margin: 0, fontSize: 10 }}>{t("users.reportsTo")}</label>
           <select
             value={user.manager_id ?? ""}
             onChange={(e) => setManager.mutate(e.target.value)}
             disabled={setManager.isPending}
             style={{ width: "auto" }}
-            title="Vorgesetzte(r) im Org-Chart"
           >
-            <option value="">— niemanden —</option>
+            <option value="">{t("users.nobody")}</option>
             {all
               .filter((h) => h.id !== user.id)
               .map((h) => (
@@ -187,10 +184,15 @@ function UserRow({ user, me, all }: { user: Human; me: Principal; all: Human[] }
           </select>
         </div>
         <button className="btn sm" onClick={() => setResetting(!resetting)}>
-          Passwort
+          {t("users.passwordReset")}
         </button>
-        <button className="btn sm danger" onClick={() => remove.mutate()} disabled={isSelf || remove.isPending} title={isSelf ? "Das eigene Konto kann nicht gelöscht werden" : undefined}>
-          Löschen
+        <button
+          className="btn sm danger"
+          onClick={() => remove.mutate()}
+          disabled={isSelf || remove.isPending}
+          title={isSelf ? t("users.cantDeleteSelf") : undefined}
+        >
+          {t("users.delete")}
         </button>
       </div>
       {resetting && (
@@ -202,11 +204,11 @@ function UserRow({ user, me, all }: { user: Human; me: Principal; all: Human[] }
           }}
         >
           <div className="flex-1 min-w-52">
-            <label>Neues Passwort (min. 8 Zeichen) — meldet den Nutzer überall ab</label>
+            <label>{t("users.newPasswordLabel")}</label>
             <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} minLength={8} required autoFocus />
           </div>
           <button className="btn sm primary" disabled={resetPassword.isPending}>
-            Setzen
+            {t("users.setPassword")}
           </button>
         </form>
       )}

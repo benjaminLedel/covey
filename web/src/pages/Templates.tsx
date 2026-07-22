@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { api, del, post, type AgentTemplate, type Agent, type Principal } from "../api";
 import { slugify } from "../names";
 import { Modal } from "../components/Modal";
 
 export default function Templates({ me }: { me: Principal }) {
+  const { t, i18n } = useTranslation();
   const qc = useQueryClient();
   const canManage = me.Role === "platform_admin" || me.Role === "agent_owner";
 
@@ -19,38 +21,39 @@ export default function Templates({ me }: { me: Principal }) {
   });
 
   const [instantiating, setInstantiating] = useState<AgentTemplate | null>(null);
-
+  const locale = i18n.language === "de" ? "de-DE" : "en-US";
   const list = templates.data ?? [];
 
   return (
     <div style={{ maxWidth: 860 }}>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-[22px]">Vorlagen</h1>
+        <h1 className="text-[22px]">{t("templates.title")}</h1>
       </div>
 
-      {templates.isLoading && <p className="muted text-sm">Lade…</p>}
-      {templates.isError && <p className="danger-text text-sm">Fehler beim Laden.</p>}
+      {templates.isLoading && <p className="muted text-sm">{t("templates.loading")}</p>}
+      {templates.isError && <p className="danger-text text-sm">{t("templates.loadError")}</p>}
 
       {list.length === 0 && !templates.isLoading && (
         <div className="card" style={{ padding: "32px 24px", textAlign: "center" }}>
           <p className="muted text-sm" style={{ marginBottom: 8 }}>
-            Noch keine Vorlagen vorhanden.
+            {t("templates.noTemplates")}
           </p>
           <p className="muted text-xs">
-            Öffne einen Agenten → Konfiguration → „Als Vorlage speichern".
+            {t("templates.noTemplatesHint")}
           </p>
         </div>
       )}
 
       <div style={{ display: "grid", gap: 12 }}>
-        {list.map((t) => (
+        {list.map((tpl) => (
           <TemplateCard
-            key={t.id}
-            template={t}
+            key={tpl.id}
+            template={tpl}
             canManage={canManage}
-            onInstantiate={() => setInstantiating(t)}
+            locale={locale}
+            onInstantiate={() => setInstantiating(tpl)}
             onDelete={() => {
-              if (confirm(`Vorlage „${t.name}" löschen?`)) deleteTemplate.mutate(t.id);
+              if (confirm(t("templates.deleteConfirm", { name: tpl.name }))) deleteTemplate.mutate(tpl.id);
             }}
           />
         ))}
@@ -63,7 +66,6 @@ export default function Templates({ me }: { me: Principal }) {
           onDone={(agent) => {
             setInstantiating(null);
             qc.invalidateQueries({ queryKey: ["agents"] });
-            // Browser-Navigation zum neuen Agenten
             window.location.href = `/agents/${agent.id}`;
           }}
         />
@@ -75,14 +77,17 @@ export default function Templates({ me }: { me: Principal }) {
 function TemplateCard({
   template,
   canManage,
+  locale,
   onInstantiate,
   onDelete,
 }: {
   template: AgentTemplate;
   canManage: boolean;
+  locale: string;
   onInstantiate: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation();
   const bundle = template.bundle as { agent?: { runtime?: string; model?: string } };
   const runtime = bundle?.agent?.runtime ?? "—";
   const model = bundle?.agent?.model;
@@ -97,17 +102,17 @@ function TemplateCard({
           )}
           <div className="muted text-xs" style={{ marginTop: 6 }}>
             Runtime: <span className="mono">{runtime}</span>
-            {model && <> · Modell: <span className="mono">{model}</span></>}
-            <> · gespeichert {new Date(template.created_at).toLocaleDateString("de-DE")}</>
+            {model && <> · {t("templates.modelLabel")} <span className="mono">{model}</span></>}
+            <> · {t("templates.savedDate", { date: new Date(template.created_at).toLocaleDateString(locale) })}</>
           </div>
         </div>
         {canManage && (
           <div className="flex gap-2 shrink-0">
             <button className="btn sm primary" onClick={onInstantiate}>
-              Verwenden
+              {t("templates.use")}
             </button>
             <button className="btn sm" style={{ color: "var(--error)" }} onClick={onDelete}>
-              Löschen
+              {t("templates.delete")}
             </button>
           </div>
         )}
@@ -125,6 +130,7 @@ function InstantiateModal({
   onClose: () => void;
   onDone: (agent: Agent) => void;
 }) {
+  const { t } = useTranslation();
   const suggestedSlug = slugify(template.name);
   const [slug, setSlug] = useState(suggestedSlug);
   const [displayName, setDisplayName] = useState(template.name);
@@ -141,7 +147,7 @@ function InstantiateModal({
   });
 
   return (
-    <Modal title={`Vorlage verwenden: ${template.name}`} onClose={onClose} size="sm">
+    <Modal title={t("templates.useTemplate", { name: template.name })} onClose={onClose} size="sm">
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -150,7 +156,7 @@ function InstantiateModal({
         style={{ display: "flex", flexDirection: "column", gap: 12 }}
       >
         <div>
-          <label>Anzeigename</label>
+          <label>{t("templates.displayName")}</label>
           <input
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
@@ -159,7 +165,7 @@ function InstantiateModal({
           />
         </div>
         <div>
-          <label>Slug</label>
+          <label>{t("templates.slug")}</label>
           <input
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
@@ -167,7 +173,7 @@ function InstantiateModal({
             required
           />
           <div className="muted text-xs" style={{ marginTop: 4 }}>
-            Eindeutiger Bezeichner — nur Kleinbuchstaben, Ziffern, Bindestriche.
+            {t("templates.slugHint")}
           </div>
         </div>
         {mut.isError && (
@@ -175,10 +181,10 @@ function InstantiateModal({
         )}
         <div className="flex gap-2 justify-end" style={{ marginTop: 8 }}>
           <button type="button" className="btn" onClick={onClose}>
-            Abbrechen
+            {t("templates.cancel")}
           </button>
           <button type="submit" className="btn primary" disabled={mut.isPending}>
-            {mut.isPending ? "Erstelle…" : "Erstellen"}
+            {mut.isPending ? t("templates.creating") : t("templates.create")}
           </button>
         </div>
       </form>

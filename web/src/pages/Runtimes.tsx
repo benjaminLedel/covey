@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { api, type RuntimeInfo, type SetupStep } from "../api";
 
-// Backtick-`code`-Spannen monospaced rendern — hält die Anleitungstexte
-// datengetrieben (aus dem Runtime-Plugin), ohne HTML im Backend.
 function renderText(text: string) {
   return text.split(/(`[^`]+`)/g).map((part, i) =>
     part.startsWith("`") && part.endsWith("`") ? (
@@ -35,12 +34,8 @@ function Steps({ steps }: { steps: SetupStep[] }) {
   );
 }
 
-// Runtimes-Seite (nav nur für platform_admin): Übersicht der im Daemon
-// registrierten Runtime-Plugins samt Einrichtungs-Anleitung. Metadaten kommen
-// aus der Plugin-Registry (GET /runtimes) — eine neue Runtime erscheint hier
-// automatisch. Runtime, Modell und Turn-Limit je Agent werden auf der
-// Agenten-Seite im Reiter Einstellungen umgeschaltet.
 export default function Runtimes() {
+  const { t } = useTranslation();
   const [openInfo, setOpenInfo] = useState<string | null>(null);
   const runtimes = useQuery({
     queryKey: ["runtimes"],
@@ -52,14 +47,11 @@ export default function Runtimes() {
   return (
     <div>
       <div className="flex items-baseline gap-3 mb-2">
-        <h1 className="text-[22px]">Runtimes</h1>
-        <span className="muted">im Daemon registrierte Plugins</span>
+        <h1 className="text-[22px]">{t("runtimes.title")}</h1>
+        <span className="muted">{t("runtimes.subtitle")}</span>
       </div>
       <p className="muted text-xs mb-5" style={{ maxWidth: 640 }}>
-        Runtimes sind die austauschbare Naht zwischen Control Plane und Sandbox — im Code
-        selbstbeschreibende Plugins. Das <span className="mono">ⓘ</span> je Runtime zeigt die
-        Einrichtung Schritt für Schritt. Welche Runtime (und welches Modell) ein Agent nutzt,
-        stellen Sie auf der Agenten-Seite im Reiter <b>Einstellungen</b> um.
+        {t("runtimes.desc")}
       </p>
 
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
@@ -72,7 +64,7 @@ export default function Runtimes() {
                 <button
                   className="btn sm ml-auto"
                   aria-expanded={openInfo === rt.name}
-                  title="Einrichtung anzeigen"
+                  title={t("runtimes.showInfo")}
                   onClick={() => setOpenInfo((cur) => (cur === rt.name ? null : rt.name))}
                 >
                   ⓘ Info
@@ -84,11 +76,11 @@ export default function Runtimes() {
               className="text-[11px]"
               style={{ color: rt.needs_credential ? "var(--clay)" : "var(--text-secondary)" }}
             >
-              {rt.needs_credential ? "● braucht Credential (Secrets)" : "● keine Credentials"}
+              {rt.needs_credential ? t("runtimes.needsCredential") : t("runtimes.noCredential")}
             </span>
             {openInfo === rt.name && (
               <div className="mt-3 pt-3" style={{ borderTop: "0.5px solid var(--border)" }}>
-                <div className="text-xs font-medium mb-1">Einrichtung — {rt.label}</div>
+                <div className="text-xs font-medium mb-1">{t("runtimes.setup", { label: rt.label })}</div>
                 <Steps steps={rt.setup} />
               </div>
             )}

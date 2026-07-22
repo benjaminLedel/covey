@@ -1,13 +1,14 @@
 import { useState, type CSSProperties } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import i18n from "../i18n";
 import {
   api,
   post,
   patch,
   del,
   put,
-  statusLabel,
   type Agent,
   type AgentEgress as AgentEgressCfg,
   type AgentWebhook,
@@ -39,6 +40,7 @@ const canKill = (role: string) => canManage(role) || role === "security";
 const canSecrets = (role: string) => role === "platform_admin" || role === "security";
 
 export default function AgentPage({ me }: { me: Principal }) {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const agent = useQuery({ queryKey: ["agent", id], queryFn: () => api<Agent>(`/agents/${id}`) });
@@ -56,14 +58,14 @@ export default function AgentPage({ me }: { me: Principal }) {
   });
 
   if (agent.isLoading) return null;
-  if (agent.isError || !agent.data) return <p className="danger-text">Agent nicht gefunden.</p>;
+  if (agent.isError || !agent.data) return <p className="danger-text">{t("agent.notFound")}</p>;
   const a = agent.data;
 
   return (
     <div>
       <div className="text-sm secondary mb-3">
         <Link to="/" style={{ color: "inherit" }}>
-          Agenten
+          {t("agent.breadcrumb")}
         </Link>{" "}
         / <b style={{ color: "var(--text-primary)", fontWeight: 500 }}>{a.display_name}</b>
       </div>
@@ -71,10 +73,10 @@ export default function AgentPage({ me }: { me: Principal }) {
       <div className="flex items-center gap-3 mb-5 flex-wrap">
         <h1 className="text-[22px]">{a.display_name}</h1>
         <span className={`badge st-${a.killed ? "killed" : a.status}`}>
-          {a.killed ? "gestoppt" : statusLabel[a.status] ?? a.status}
+          {t(`status.${a.killed ? "killed" : a.status}`, a.status)}
         </span>
         {(a.status === "working" || a.status === "triage" || a.status === "triggered") && (
-          <span className="live-dot" title="Sandbox aktiv" />
+          <span className="live-dot" title={t("agent.sandbox")} />
         )}
         <span className="muted text-xs mono">
           runtime: {a.runtime}
@@ -84,17 +86,17 @@ export default function AgentPage({ me }: { me: Principal }) {
         <span className="ml-auto" />
         {canManage(me.Role) && (
           <button className="btn sm" onClick={() => act.mutate("wake")}>
-            Wecken
+            {t("agent.wake")}
           </button>
         )}
         {canKill(me.Role) &&
           (a.killed ? (
             <button className="btn sm" onClick={() => act.mutate("resume")}>
-              Fortsetzen
+              {t("agent.resume")}
             </button>
           ) : (
             <button className="btn sm danger" onClick={() => act.mutate("kill")} title="Kill-Switch">
-              Stoppen
+              {t("agent.stop")}
             </button>
           ))}
       </div>
@@ -104,16 +106,16 @@ export default function AgentPage({ me }: { me: Principal }) {
       <div className="flex gap-1 mb-4 mt-5" style={{ borderBottom: "0.5px solid var(--border)" }}>
         {(
           [
-            ["backlog", "Backlog"],
-            ["heartbeat", "Heartbeat"],
-            ...(canManage(me.Role) ? ([["webhook", "Webhook"]] as const) : []),
-            ["recording", "Recording"],
-            ["memory", "Gedächtnis"],
-            ["tools", "Tools"],
-            ["egress", "Egress"],
-            ...(canSecrets(me.Role) ? ([["secrets", "Secrets"]] as const) : []),
-            ["config", "Config"],
-            ["einstellungen", "Einstellungen"],
+            ["backlog", t("agent.tabs.backlog")],
+            ["heartbeat", t("agent.tabs.heartbeat")],
+            ...(canManage(me.Role) ? ([["webhook", t("agent.tabs.webhook")]] as const) : []),
+            ["recording", t("agent.tabs.recording")],
+            ["memory", t("agent.tabs.memory")],
+            ["tools", t("agent.tabs.tools")],
+            ["egress", t("agent.tabs.egress")],
+            ...(canSecrets(me.Role) ? ([["secrets", t("agent.tabs.secrets")]] as const) : []),
+            ["config", t("agent.tabs.config")],
+            ["einstellungen", t("agent.tabs.settings")],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -168,10 +170,8 @@ export default function AgentPage({ me }: { me: Principal }) {
   );
 }
 
-// Einstellungen-Reiter: die Stammdaten des Agenten an einem Ort — Name,
-// Runtime, Modell, Turn-Limit, Budget. Änderungen greifen beim nächsten
-// Task-Dispatch; laufende Sessions bleiben unberührt (spec/12).
 function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const navigate = useNavigate();
   const runtimes = useQuery({
@@ -230,7 +230,7 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
   return (
     <div className="card" style={{ maxWidth: 760, padding: "6px 18px 14px" }}>
       <div style={row}>
-        <span className="text-sm">Name</span>
+        <span className="text-sm">{t("agent.settings.name")}</span>
         <span className="flex items-center gap-2">
           <input
             key={`name:${agent.display_name}`}
@@ -246,7 +246,7 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
           {editable && (
             <button
               className="btn sm"
-              title="Zufälligen Namen würfeln"
+              title={t("agent.settings.rollDice")}
               disabled={setName.isPending}
               onClick={() => setName.mutate(generateAgentName().name)}
             >
@@ -254,10 +254,10 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
             </button>
           )}
         </span>
-        <span className="muted text-xs">Anzeigename — der Slug bleibt unveränderlich.</span>
+        <span className="muted text-xs">{t("agent.settings.nameHint")}</span>
       </div>
       <div style={row}>
-        <span className="text-sm">Slug</span>
+        <span className="text-sm">{t("agent.settings.slug")}</span>
         <span className="flex items-center gap-2">
           <input
             key={`slug:${agent.slug}`}
@@ -274,12 +274,13 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
           />
         </span>
         <span className="muted text-xs">
-          {setSlug.isError ? <span style={{ color: "var(--error)" }}>{String((setSlug.error as Error)?.message ?? "Slug bereits vergeben")}</span>
-            : "Nur Kleinbuchstaben, Ziffern, Bindestriche. Muss eindeutig sein."}
+          {setSlug.isError
+            ? <span style={{ color: "var(--error)" }}>{String((setSlug.error as Error)?.message ?? t("agent.settings.slugError"))}</span>
+            : t("agent.settings.slugHint")}
         </span>
       </div>
       <div style={row}>
-        <span className="text-sm">Runtime</span>
+        <span className="text-sm">{t("agent.settings.runtime")}</span>
         <select
           value={agent.runtime}
           disabled={!editable || setRuntime.isPending}
@@ -293,16 +294,14 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
             </option>
           ))}
         </select>
-        <span className="muted text-xs">
-          Greift beim nächsten Task-Dispatch. Einrichtung je Runtime: Seite „Runtimes".
-        </span>
+        <span className="muted text-xs">{t("agent.settings.runtimeHint")}</span>
       </div>
       <div style={row}>
-        <span className="text-sm">Modell</span>
+        <span className="text-sm">{t("agent.settings.model")}</span>
         <input
           key={`model:${agent.model}`}
           defaultValue={agent.model}
-          placeholder="leer = Runtime-Default"
+          placeholder={t("agent.settings.modelPlaceholder")}
           disabled={!editable || setModel.isPending}
           onBlur={(e) => {
             const v = e.target.value.trim();
@@ -311,16 +310,16 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           className="mono"
         />
-        <span className="muted text-xs">Modell-ID oder Alias, z. B. claude-opus-4-8 oder sonnet.</span>
+        <span className="muted text-xs">{t("agent.settings.modelHint")}</span>
       </div>
       <div style={row}>
-        <span className="text-sm">Max. Turns je Lauf</span>
+        <span className="text-sm">{t("agent.settings.maxTurns")}</span>
         <input
           key={`turns:${agent.max_turns}`}
           type="number"
           min={0}
           defaultValue={agent.max_turns || ""}
-          placeholder="0 = Default (30)"
+          placeholder={t("agent.settings.maxTurnsPlaceholder")}
           disabled={!editable || setMaxTurns.isPending}
           onBlur={(e) => {
             const v = Math.max(0, Math.trunc(Number(e.target.value) || 0));
@@ -329,19 +328,17 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           className="mono"
         />
-        <span className="muted text-xs">
-          Runaway-Guard: bricht einen Lauf nach n Turns ab. Für Aufgaben mit Repo-Checkout großzügig wählen.
-        </span>
+        <span className="muted text-xs">{t("agent.settings.maxTurnsHint")}</span>
       </div>
       <div style={{ ...row, borderBottom: "none" }}>
-        <span className="text-sm">Budget (USD)</span>
+        <span className="text-sm">{t("agent.settings.budget")}</span>
         <input
           key={`budget:${agent.budget_usd}`}
           type="number"
           min={0}
           step="0.01"
           defaultValue={agent.budget_usd || ""}
-          placeholder="0 = kein Deckel"
+          placeholder={t("agent.settings.budgetPlaceholder")}
           disabled={!editable || setBudget.isPending}
           onBlur={(e) => {
             const v = Math.max(0, Number(e.target.value) || 0);
@@ -350,35 +347,33 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
           onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
           className="mono"
         />
-        <span className="muted text-xs">
-          Kill-Switch bei Überschreitung — die Aufgabe geht zurück ins Backlog.
-        </span>
+        <span className="muted text-xs">{t("agent.settings.budgetHint")}</span>
       </div>
       {!editable && (
-        <p className="muted text-xs mt-2">Ihre Rolle kann Einstellungen ansehen, aber nicht ändern.</p>
+        <p className="muted text-xs mt-2">{t("agent.settings.readOnly")}</p>
       )}
       {anyError && <p className="danger-text text-xs mt-2">{String(anyError.error)}</p>}
       {editable && (
         <div style={{ marginTop: 24, paddingTop: 14, borderTop: "0.5px solid var(--border)" }}>
-          <p className="text-xs muted mb-2">Gefahrenzone — diese Aktion ist nicht rückgängig zu machen.</p>
+          <p className="text-xs muted mb-2">{t("agent.settings.dangerZone")}</p>
           {!confirmDelete ? (
             <button className="btn sm danger" onClick={() => setConfirmDelete(true)}>
-              Agenten löschen
+              {t("agent.settings.deleteAgent")}
             </button>
           ) : (
             <div className="flex items-center gap-3">
               <span className="text-xs" style={{ color: "var(--danger, #b91c1c)" }}>
-                <strong>{agent.display_name}</strong> unwiderruflich löschen?
+                {t("agent.settings.deleteConfirm", { name: agent.display_name })}
               </span>
               <button
                 className="btn sm danger"
                 disabled={deleteAgent.isPending}
                 onClick={() => deleteAgent.mutate()}
               >
-                Ja, endgültig löschen
+                {t("agent.settings.deleteYes")}
               </button>
               <button className="btn sm" onClick={() => setConfirmDelete(false)}>
-                Abbrechen
+                {t("agent.settings.cancel")}
               </button>
             </div>
           )}
@@ -391,9 +386,8 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
   );
 }
 
-// Supervisor: der Platz des Agenten im Org-Chart (spec/02) — an wen er
-// berichtet und eskaliert. Manager-Rollen ordnen hier direkt zu.
 function Supervisor({ agent, editable }: { agent: Agent; editable: boolean }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const chart = useQuery({ queryKey: ["orgchart"], queryFn: () => api<OrgChart>("/org/chart") });
   const mut = useMutation({
@@ -410,20 +404,20 @@ function Supervisor({ agent, editable }: { agent: Agent; editable: boolean }) {
   if (!editable) {
     return (
       <span className="muted text-xs">
-        berichtet an: {current ? <PersonLink human={current} /> : "—"}
+        {t("agent.supervisor.reportsTo")} {current ? <PersonLink human={current} /> : "—"}
       </span>
     );
   }
   return (
     <span className="flex items-center gap-2 text-xs muted">
-      berichtet an:
+      {t("agent.supervisor.reportsTo")}
       <select
         value={agent.supervisor_id ?? ""}
         onChange={(e) => mut.mutate(e.target.value)}
         disabled={mut.isPending || chart.isLoading}
         style={{ width: "auto", padding: "3px 8px", fontSize: 12 }}
       >
-        <option value="">— niemanden —</option>
+        <option value="">{t("agent.supervisor.nobody")}</option>
         {humans.map((h) => (
           <option key={h.id} value={h.id}>
             {h.display_name}
@@ -435,31 +429,33 @@ function Supervisor({ agent, editable }: { agent: Agent; editable: boolean }) {
 }
 
 function CostBar({ agentId, budget }: { agentId: string; budget: number }) {
+  const { t } = useTranslation();
   const cost = useQuery({
     queryKey: ["cost", agentId],
     queryFn: () => api<CostSummary>(`/agents/${agentId}/cost`),
   });
   const c = cost.data;
   if (!c) return null;
+  const locale = i18n.language === "de" ? "de-DE" : "en-US";
   return (
     <div className="card flex gap-8 text-sm">
       <div>
-        <div className="muted text-xs">Kosten gesamt</div>
+        <div className="muted text-xs">{t("agent.cost.total")}</div>
         <div className="font-medium">{c.total_usd.toFixed(4)} $</div>
       </div>
       <div>
-        <div className="muted text-xs">Tokens (in / out)</div>
+        <div className="muted text-xs">{t("agent.cost.tokens")}</div>
         <div className="font-medium">
-          {c.input_tokens.toLocaleString("de-DE")} / {c.output_tokens.toLocaleString("de-DE")}
+          {c.input_tokens.toLocaleString(locale)} / {c.output_tokens.toLocaleString(locale)}
         </div>
       </div>
       <div>
-        <div className="muted text-xs">LLM-Läufe</div>
+        <div className="muted text-xs">{t("agent.cost.runs")}</div>
         <div className="font-medium">{c.entries}</div>
       </div>
       <div>
-        <div className="muted text-xs">Budget</div>
-        <div className="font-medium">{budget > 0 ? `${budget.toFixed(2)} $` : "kein Deckel"}</div>
+        <div className="muted text-xs">{t("agent.cost.budget")}</div>
+        <div className="font-medium">{budget > 0 ? `${budget.toFixed(2)} $` : t("agent.cost.noCap")}</div>
       </div>
     </div>
   );
@@ -474,6 +470,7 @@ function Backlog({
   canManage: boolean;
   onShowRecording: (taskId: string, title: string) => void;
 }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [showArchive, setShowArchive] = useState(false);
   const tasks = useQuery({
@@ -513,12 +510,11 @@ function Backlog({
 
   const stageList = stages.data ?? [];
   const known = new Set(stageList.map((s) => s.id));
-  const inStage = (t: Task, id: string | null) =>
-    id === null ? !t.stage_id || !known.has(t.stage_id) : t.stage_id === id;
-  const orphans = (tasks.data ?? []).filter((t) => inStage(t, null));
-  // Spalten: optionale „Ohne Stage" zuerst, dann die definierten Stages.
+  const inStage = (tk: Task, id: string | null) =>
+    id === null ? !tk.stage_id || !known.has(tk.stage_id) : tk.stage_id === id;
+  const orphans = (tasks.data ?? []).filter((tk) => inStage(tk, null));
   const columns: { id: string | null; name: string; color: string }[] = [
-    ...(orphans.length ? [{ id: null, name: "Ohne Stage", color: "var(--text-muted)" }] : []),
+    ...(orphans.length ? [{ id: null, name: t("agent.backlog.noStageColumn"), color: "var(--text-muted)" }] : []),
     ...stageList.map((s) => ({ id: s.id, name: s.name, color: s.color || "var(--text-secondary)" })),
   ];
 
@@ -537,23 +533,23 @@ function Backlog({
             create.mutate();
           }}
         >
-          <label>Neue Aufgabe</label>
+          <label>{t("agent.backlog.newTask")}</label>
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="Titel"
+            placeholder={t("agent.backlog.titlePlaceholder")}
             className="mb-2"
             required
           />
           <textarea
             value={body}
             onChange={(e) => setBody(e.target.value)}
-            placeholder="Beschreibung / Kontext"
+            placeholder={t("agent.backlog.descPlaceholder")}
             rows={2}
             className="mb-2"
           />
           <button className="btn primary sm" disabled={create.isPending}>
-            Ins Backlog
+            {t("agent.backlog.addToBacklog")}
           </button>
         </form>
       )}
@@ -562,13 +558,13 @@ function Backlog({
           <div className="flex items-center gap-2 mb-3">
             <span className="muted text-xs">
               {stageList.length === 0
-                ? "Noch keine Stages — der Agent legt sie beim Arbeiten selbst an, oder du hier."
+                ? t("agent.backlog.noStages")
                 : canManage
-                  ? "Der Zustands-Badge kommt vom Agenten; die Spalten sind deine Organisation — ziehe Aufgaben frei."
-                  : "Stages werden vom Agenten und von Verwaltern gepflegt."}
+                  ? t("agent.backlog.stagesInfo")
+                  : t("agent.backlog.stagesReadonly")}
             </span>
             <button className="btn sm" style={{ marginLeft: "auto" }} onClick={() => setShowArchive((v) => !v)}>
-              {showArchive ? "Archiv ausblenden" : "Archiv anzeigen"}
+              {showArchive ? t("agent.backlog.hideArchive") : t("agent.backlog.showArchive")}
             </button>
             {canManage && (
               <>
@@ -578,10 +574,10 @@ function Backlog({
                   title="Archiviert alle erledigten, fehlgeschlagenen und verworfenen Aufgaben — nichts wird gelöscht."
                   onClick={() => cleanup.mutate()}
                 >
-                  Aufräumen{cleanupCount > 0 ? ` (${cleanupCount})` : ""}
+                  {t("agent.backlog.cleanup")}{cleanupCount > 0 ? ` (${cleanupCount})` : ""}
                 </button>
                 <button className="btn sm" onClick={() => setEditing((v) => !v)}>
-                  {editing ? "Fertig" : "Spalten bearbeiten"}
+                  {editing ? t("agent.backlog.doneEditing") : t("agent.backlog.editColumns")}
                 </button>
               </>
             )}
@@ -590,12 +586,12 @@ function Backlog({
           {editing && canManage && <StageEditor agentId={agentId} stages={stageList} />}
 
           {columns.length === 0 ? (
-            <p className="muted">Backlog ist leer.</p>
+            <p className="muted">{t("agent.backlog.empty")}</p>
           ) : (
             <div className="kanban" style={{ ["--kcols" as string]: columns.length }}>
               {columns.map((col) => {
                 const all = (tasks.data ?? [])
-                  .filter((t) => inStage(t, col.id))
+                  .filter((tk) => inStage(tk, col.id))
                   .sort((a, b) => b.created_at.localeCompare(a.created_at));
                 const items = all.slice(0, COLUMN_LIMIT);
                 const hidden = all.length - items.length;
@@ -613,20 +609,20 @@ function Backlog({
                       {col.name}
                       <span className="n">{all.length}</span>
                     </div>
-                    {items.map((t) => (
+                    {items.map((tk) => (
                       <TaskCard
-                        key={t.id}
-                        task={t}
+                        key={tk.id}
+                        task={tk}
                         agentId={agentId}
                         canManage={canManage}
                         onShowRecording={onShowRecording}
-                        onDragStart={() => setDragTask(t.id)}
+                        onDragStart={() => setDragTask(tk.id)}
                         onDragEnd={() => setDragTask(null)}
                       />
                     ))}
                     {all.length === 0 && <div className="kc-empty">—</div>}
                     {hidden > 0 && (
-                      <div className="kc-empty">+{hidden} ältere ausgeblendet</div>
+                      <div className="kc-empty">{t("agent.backlog.hiddenOlder", { count: hidden })}</div>
                     )}
                   </div>
                 );
@@ -649,6 +645,7 @@ const STAGE_PALETTE = [
 ];
 
 function StageEditor({ agentId, stages }: { agentId: string; stages: Stage[] }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const inval = () => qc.invalidateQueries({ queryKey: ["stages", agentId] });
   const invalBoth = () => {
@@ -693,13 +690,13 @@ function StageEditor({ agentId, stages }: { agentId: string; stages: Stage[] }) 
 
   return (
     <div className="card mb-4">
-      <label>Spalten (Stages)</label>
+      <label>{t("agent.stageEditor.title")}</label>
       {stages.map((s, i) => (
         <div key={s.id} className="flex items-center gap-2 mb-2">
           <button
             type="button"
             className="dot-btn"
-            title="Farbe wechseln"
+            title={t("agent.stageEditor.changeColor")}
             onClick={() => cycleColor(s)}
           >
             <span className="dot" style={{ background: s.color || "var(--text-secondary)" }} />
@@ -723,7 +720,7 @@ function StageEditor({ agentId, stages }: { agentId: string; stages: Stage[] }) 
             ↓
           </button>
           <button type="button" className="btn sm danger" onClick={() => remove.mutate(s.id)}>
-            Löschen
+            {t("agent.stageEditor.delete")}
           </button>
         </div>
       ))}
@@ -738,11 +735,11 @@ function StageEditor({ agentId, stages }: { agentId: string; stages: Stage[] }) 
           className="flex-1"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="Neue Spalte …"
+          placeholder={t("agent.stageEditor.newColumn")}
           required
         />
         <button className="btn primary sm" disabled={create.isPending}>
-          Hinzufügen
+          {t("agent.stageEditor.add")}
         </button>
       </form>
     </div>
@@ -751,16 +748,16 @@ function StageEditor({ agentId, stages }: { agentId: string; stages: Stage[] }) 
 
 function relTime(iso: string): string {
   const min = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
-  if (min < 1) return "gerade eben";
-  if (min < 60) return `vor ${min} Min`;
+  if (min < 1) return i18n.t("activity.timeJustNow");
+  if (min < 60) return i18n.t("activity.timeMinutes", { n: min });
   const h = Math.round(min / 60);
-  if (h < 24) return `vor ${h} Std`;
-  return new Date(iso).toLocaleDateString("de-DE");
+  if (h < 24) return i18n.t("activity.timeHours", { n: h });
+  const locale = i18n.language === "de" ? "de-DE" : "en-US";
+  return new Date(iso).toLocaleDateString(locale);
 }
 
 const terminalStates = ["done", "failed", "cancelled"];
 
-// Pro Spalte nur die neuesten Aufgaben zeigen — hält lange Backlogs übersichtlich.
 const COLUMN_LIMIT = 7;
 
 function TaskCard({
@@ -778,10 +775,10 @@ function TaskCard({
   onDragStart?: () => void;
   onDragEnd?: () => void;
 }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const qc = useQueryClient();
   const invalBacklog = () => qc.invalidateQueries({ queryKey: ["backlog", agentId] });
-  // Notizen erst laden, wenn die Karte aufgeklappt ist.
   const notes = useQuery({
     queryKey: ["task-notes", task.id],
     queryFn: () => api<TaskNote[]>(`/tasks/${task.id}/notes`),
@@ -804,8 +801,8 @@ function TaskCard({
   const subtitle =
     task.state === "blocked"
       ? task.correlation_key
-        ? `wartet auf ${task.correlation_key}`
-        : "blockiert"
+        ? t("agent.backlog.waitingOn", { key: task.correlation_key })
+        : t("agent.backlog.blocked")
       : relTime(task.updated_at);
   return (
     <div
@@ -817,9 +814,9 @@ function TaskCard({
       style={archived ? { opacity: 0.55 } : undefined}
     >
       <div className="kc-title">
-        <span className={`badge st-${task.state} kc-state`}>{statusLabel[task.state] ?? task.state}</span>
+        <span className={`badge st-${task.state} kc-state`}>{t(`status.${task.state}`, task.state)}</span>
         <span className="font-medium min-w-0 truncate">{task.title}</span>
-        {archived && <span className="muted text-[11px] shrink-0">archiviert</span>}
+        {archived && <span className="muted text-[11px] shrink-0">{t("agent.backlog.archived")}</span>}
         <span className="kc-prio">P{task.priority}</span>
       </div>
       <div className="t">{subtitle} · {task.origin}</div>
@@ -830,7 +827,8 @@ function TaskCard({
           )}
           {task.correlation_key && (
             <p>
-              <span className="muted">wartet auf:</span> <span className="mono">{task.correlation_key}</span>
+              <span className="muted">{t("agent.backlog.waitingOn", { key: "" }).replace(" ", "")}:</span>{" "}
+              <span className="mono">{task.correlation_key}</span>
             </p>
           )}
           {task.runtime_session_id && (
@@ -842,7 +840,7 @@ function TaskCard({
           {task.error && <p className="danger-text">{task.error}</p>}
           {(notes.data?.length ?? 0) > 0 && (
             <div className="mt-2 mb-2">
-              <div className="muted text-xs mb-1">Notizen des Agenten</div>
+              <div className="muted text-xs mb-1">{t("agent.backlog.agentNotes")}</div>
               {notes.data!.map((n) => (
                 <div key={n.id} className="text-xs mb-1" style={{ borderLeft: "2px solid var(--border)", paddingLeft: 8 }}>
                   <span className="secondary">{n.content}</span>{" "}
@@ -859,19 +857,19 @@ function TaskCard({
                 onShowRecording(task.id, task.title);
               }}
             >
-              Aufzeichnung dieser Aufgabe
+              {t("agent.backlog.showRecording")}
             </button>
             {canManage && (task.state === "failed" || task.state === "cancelled") && (
               <button
                 className="btn sm"
                 disabled={retry.isPending}
-                title="Setzt die Aufgabe zurück auf „offen“ — der Agent nimmt sie sich erneut vor."
+                title={t("agent.backlog.rescheduleHint")}
                 onClick={(e) => {
                   e.stopPropagation();
                   retry.mutate();
                 }}
               >
-                Erneut einplanen
+                {t("agent.backlog.reschedule")}
               </button>
             )}
             {canManage && terminal && !archived && (
@@ -884,7 +882,7 @@ function TaskCard({
                   archive.mutate();
                 }}
               >
-                Archivieren
+                {t("agent.backlog.archive")}
               </button>
             )}
             {canManage && !terminal && (
@@ -893,10 +891,10 @@ function TaskCard({
                 disabled={cancel.isPending}
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (confirm(`Aufgabe „${task.title}“ verwerfen?`)) cancel.mutate();
+                  if (confirm(t("agent.backlog.discardConfirm", { title: task.title }))) cancel.mutate();
                 }}
               >
-                Verwerfen
+                {t("agent.backlog.discard")}
               </button>
             )}
           </div>
@@ -915,8 +913,7 @@ function Recording({
   taskFilter?: { id: string; title: string } | null;
   onClearFilter?: () => void;
 }) {
-  // Lesbare Erzählansicht (Mockup-Stil) als Standard; die Rohdaten-Liste
-  // bleibt als lückenloser Audit-Blick umschaltbar erhalten.
+  const { t } = useTranslation();
   const [view, setView] = useState<"feed" | "raw">("feed");
   const events = useQuery({
     queryKey: ["recording", agentId, taskFilter?.id ?? null],
@@ -927,16 +924,14 @@ function Recording({
     refetchInterval: 5000,
   });
   const list = events.data ?? [];
-  // Beide Ansichten zeigen das Neueste oben — kein Scrollen nötig, neue
-  // Events erscheinen direkt am Kopf der Liste.
   return (
     <div>
       <div className="flex items-center gap-2 mb-3">
         {taskFilter && (
           <>
-            <span className="badge st-triage">Aufgabe: {taskFilter.title}</span>
+            <span className="badge st-triage">{t("agent.recording.taskFilter", { title: taskFilter.title })}</span>
             <button className="btn sm" onClick={onClearFilter}>
-              Alle Ereignisse
+              {t("agent.recording.allEvents")}
             </button>
           </>
         )}
@@ -945,23 +940,23 @@ function Recording({
           <button
             className={view === "feed" ? "active" : ""}
             onClick={() => setView("feed")}
-            title="Erzählende Ansicht: Gedanken, Tool-Aufrufe und Gates"
+            title={t("agent.recording.readableTitle")}
           >
-            Lesbar
+            {t("agent.recording.readableView")}
           </button>
           <button
             className={view === "raw" ? "active" : ""}
             onClick={() => setView("raw")}
-            title="Alle Ereignisse einzeln, mit Roh-JSON — lückenlos"
+            title={t("agent.recording.rawTitle")}
           >
-            Rohdaten
+            {t("agent.recording.rawView")}
           </button>
         </div>
       </div>
       <div className="card">
         {list.length === 0 && (
           <p className="muted m-0">
-            {taskFilter ? "Keine Aufzeichnung für diese Aufgabe." : "Noch keine Aufzeichnung."}
+            {taskFilter ? t("agent.recording.emptyFiltered") : t("agent.recording.emptyAll")}
           </p>
         )}
         {list.length > 0 &&
@@ -975,48 +970,67 @@ function Recording({
   );
 }
 
-// summarize übersetzt ein Recording-Event in eine menschenlesbare Zeile.
-// Die Rohdaten bleiben pro Eintrag aufklappbar — lückenlos, aber lesbar.
 function summarize(e: RecordingEvent): { text: string; mono?: boolean; muted?: boolean; danger?: boolean } {
   const p = (typeof e.payload === "object" && e.payload !== null ? e.payload : {}) as Record<string, any>;
   switch (e.kind) {
     case "lifecycle": {
-      if (p.status === "task_done") return { text: "Aufgabe abgeschlossen" };
-      const label = statusLabel[p.status as string] ?? p.status;
-      return { text: `Status → ${label}`, muted: p.status === "sleeping" };
+      if (p.status === "task_done") return { text: i18n.t("activity.taskDone") };
+      const label = i18n.t(`status.${p.status as string}`, p.status as string);
+      return { text: i18n.t("activity.statusChange", { label }), muted: p.status === "sleeping" };
     }
     case "credential": {
-      const ttl = p.ttl_secs ? `, gültig ${Math.round(p.ttl_secs / 60)} min` : "";
-      if (p.granted) return { text: `Zugang zu ${p.system} kurzlebig ausgestellt${p.proactive ? " (proaktiv)" : ""}${ttl}` };
-      return { text: `Zugang zu ${p.system} verweigert${p.reason ? ` — ${p.reason}` : ""}`, danger: true };
+      const ttl = p.ttl_secs ? i18n.t("activity.credentialTtl", { min: Math.round(p.ttl_secs / 60) }) : "";
+      if (p.granted) return {
+        text: i18n.t("activity.credentialGranted", {
+          system: p.system,
+          proactive: p.proactive ? i18n.t("activity.credentialProactive") : "",
+          ttl,
+        })
+      };
+      return {
+        text: i18n.t("activity.credentialDenied", {
+          system: p.system,
+          reason: p.reason ? i18n.t("activity.credentialDeniedReason", { reason: p.reason }) : "",
+        }),
+        danger: true,
+      };
     }
     case "approval": {
       const decision =
-        p.decision === "auto-allow" ? "automatisch erlaubt" : (statusLabel[p.decision as string] ?? p.decision);
+        p.decision === "auto-allow"
+          ? i18n.t("activity.approvalAuto")
+          : i18n.t(`status.${p.decision as string}`, p.decision as string);
       return { text: `${p.action} — ${decision}`, danger: p.decision === "denied" };
     }
     case "guardrail":
       return {
-        text: `Guard-Rail ${p.rule ?? ""}: ${p.action ?? p.system ?? ""}${p.pattern ? ` (Muster ${p.pattern})` : ""}`,
+        text: i18n.t("activity.guardrailTriggered", {
+          rule: p.rule ?? "",
+          what: (p.action ?? p.system) ? i18n.t("activity.guardrailWhat", { what: p.action ?? p.system ?? "" }) : "",
+          pattern: p.pattern ? i18n.t("activity.guardrailPattern", { pattern: p.pattern }) : "",
+        }),
         danger: true,
       };
     case "action":
-      return { text: `${p.action ?? "Aktion"} im Zielsystem`, mono: true };
+      return { text: i18n.t("activity.targetAction", { action: p.action ?? "?" }), mono: true };
     case "runtime":
       return summarizeRuntime(p);
   }
   return { text: JSON.stringify(e.payload), mono: true };
 }
 
-// summarizeRuntime versteht die stream-json-Zeilen von Claude Code sowie die
-// simplen {type,text}-Events der Mock-Runtime.
 function summarizeRuntime(p: Record<string, any>): { text: string; mono?: boolean; muted?: boolean; danger?: boolean } {
   if (typeof p.text === "string" && !p.message) return { text: p.text };
   switch (p.type) {
     case "system":
-      return { text: `Runtime gestartet${p.model ? ` — Modell ${p.model}` : ""}`, muted: true };
+      return {
+        text: i18n.t("activity.sessionStarted", {
+          model: p.model ? i18n.t("activity.withModel", { model: p.model }) : "",
+        }),
+        muted: true,
+      };
     case "rate_limit_event":
-      return { text: "Rate-Limit-Status der API aktualisiert", muted: true };
+      return { text: i18n.t("activity.rateLimitUpdated"), muted: true };
     case "assistant": {
       const blocks: any[] = Array.isArray(p.message?.content) ? p.message.content : [];
       const parts: string[] = [];
@@ -1024,22 +1038,22 @@ function summarizeRuntime(p: Record<string, any>): { text: string; mono?: boolea
         if (b.type === "text" && b.text) parts.push(truncate(b.text, 400));
         if (b.type === "tool_use") parts.push(`⚙ ${b.name}(${truncate(compactInput(b.input), 120)})`);
       }
-      return parts.length ? { text: parts.join("  ·  ") } : { text: "Antwort der Runtime", muted: true };
+      return parts.length ? { text: parts.join("  ·  ") } : { text: i18n.t("activity.runtimeResponse"), muted: true };
     }
     case "user": {
       const blocks: any[] = Array.isArray(p.message?.content) ? p.message.content : [];
       const res = blocks.find((b) => b.type === "tool_result");
       if (res) {
         const body = typeof res.content === "string" ? res.content : JSON.stringify(res.content);
-        return { text: `Tool-Ergebnis: ${truncate(body, 200)}`, mono: true, muted: true };
+        return { text: i18n.t("activity.toolResultText", { text: truncate(body, 200) }), mono: true, muted: true };
       }
-      return { text: "Eingabe an die Runtime", muted: true };
+      return { text: i18n.t("activity.runtimeInput"), muted: true };
     }
     case "result": {
       const cost = p.total_cost_usd ? ` · $${Number(p.total_cost_usd).toFixed(4)}` : "";
       const tok = p.usage?.input_tokens ? ` · ${p.usage.input_tokens}→${p.usage.output_tokens} Tokens` : "";
-      if (p.is_error) return { text: `Fehlgeschlagen: ${truncate(p.result ?? "", 300)}`, danger: true };
-      return { text: `Ergebnis: ${truncate(p.result ?? "", 400)}${cost}${tok}` };
+      if (p.is_error) return { text: i18n.t("activity.runFailedText", { text: truncate(p.result ?? "", 300) }), danger: true };
+      return { text: i18n.t("activity.runResultText", { text: truncate(p.result ?? "", 400), cost, tokens: tok }) };
     }
   }
   return { text: JSON.stringify(p), mono: true };
@@ -1057,6 +1071,7 @@ const compactInput = (input: unknown) => {
 function RecordingItem({ event }: { event: RecordingEvent }) {
   const s = summarize(event);
   const raw = typeof event.payload === "string" ? event.payload : JSON.stringify(event.payload, null, 2);
+  const locale = i18n.language === "de" ? "de-DE" : "en-US";
   return (
     <div className="timeline-item">
       <span className={`kind-tag kind-${event.kind}`}>{event.kind}</span>
@@ -1073,15 +1088,12 @@ function RecordingItem({ event }: { event: RecordingEvent }) {
         <pre className="rec-raw">{raw}</pre>
       </details>
       <span className="muted shrink-0 text-[11px]">
-        {new Date(event.created_at).toLocaleTimeString("de-DE")}
+        {new Date(event.created_at).toLocaleTimeString(locale)}
       </span>
     </div>
   );
 }
 
-// --- Heartbeat: grafische Sicht auf HEARTBEAT.md (Zeitplan + nächste Läufe) ---
-
-// fmtDelta: kompakte deutsche Relativdauer ("42 s", "12 min", "3 h 20 min", "2 d 4 h").
 function fmtDelta(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));
   if (s < 60) return `${s} s`;
@@ -1094,21 +1106,17 @@ function fmtDelta(ms: number): string {
 }
 
 function scheduleLabel(hb: HeartbeatStatus): string {
-  if (hb.every_seconds) return `alle ${fmtDelta(hb.every_seconds * 1000)}`;
-  return `täglich ${hb.daily_at}`;
+  if (hb.every_seconds) return i18n.t("agent.heartbeat.schedule_interval", { delta: fmtDelta(hb.every_seconds * 1000) });
+  return i18n.t("agent.heartbeat.schedule_daily", { time: hb.daily_at });
 }
 
-// fmtRunChip: "14:30" heute, sonst "Mo 09:00".
 function fmtRunChip(d: Date): string {
-  const time = d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  const locale = i18n.language === "de" ? "de-DE" : "en-US";
+  const time = d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
   if (d.toDateString() === new Date().toDateString()) return time;
-  return `${d.toLocaleDateString("de-DE", { weekday: "short" })} ${time}`;
+  return `${d.toLocaleDateString(locale, { weekday: "short" })} ${time}`;
 }
 
-// upcomingRuns projiziert die nächsten Läufe eines Heartbeats in die Zukunft:
-// ab next_run im Zeitplan-Raster weiter (Intervall bzw. 24 h). Ein überfälliger
-// next_run kollabiert zu einem "jetzt fällig"-Lauf. Rein anzeigend — die
-// Wahrheit entsteht serverseitig beim Tick.
 function upcomingRuns(hb: HeartbeatStatus, horizonMs: number): Date[] {
   const now = Date.now();
   const step = (hb.every_seconds ?? 24 * 3600) * 1000;
@@ -1125,8 +1133,9 @@ function upcomingRuns(hb: HeartbeatStatus, horizonMs: number): Date[] {
   return runs;
 }
 
-// HeartbeatTimeline: die nächsten Läufe als Punkte auf einer Zeitachse jetzt → Horizont.
 function HeartbeatTimeline({ runs, horizonMs }: { runs: Date[]; horizonMs: number }) {
+  const { t } = useTranslation();
+  const locale = i18n.language === "de" ? "de-DE" : "en-US";
   const now = Date.now();
   return (
     <div>
@@ -1145,7 +1154,7 @@ function HeartbeatTimeline({ runs, horizonMs }: { runs: Date[]; horizonMs: numbe
         {runs.map((r, i) => (
           <span
             key={i}
-            title={r.toLocaleString("de-DE")}
+            title={r.toLocaleString(locale)}
             style={{
               position: "absolute",
               top: 3,
@@ -1159,7 +1168,7 @@ function HeartbeatTimeline({ runs, horizonMs }: { runs: Date[]; horizonMs: numbe
         ))}
       </div>
       <div className="flex muted" style={{ fontSize: 10, justifyContent: "space-between" }}>
-        <span>jetzt</span>
+        <span>{t("agent.heartbeat.now")}</span>
         <span>+{Math.round(horizonMs / 3600000)} h</span>
       </div>
     </div>
@@ -1177,6 +1186,7 @@ function HeartbeatCard({
   agentId: string;
   canManage: boolean;
 }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const fire = useMutation({
     mutationFn: () => post<Task>(`/agents/${agentId}/heartbeats/${encodeURIComponent(hb.name)}/fire`),
@@ -1194,25 +1204,21 @@ function HeartbeatCard({
         <span className="font-medium">{hb.name}</span>
         <span className="badge">{scheduleLabel(hb)}</span>
         {hb.pending && (
-          <span className="badge st-blocked" title="Die Aufgabe des letzten Laufs ist noch nicht abgeschlossen — solange wird kein neuer Lauf angelegt.">
-            Aufgabe offen
+          <span className="badge st-blocked" title={t("agent.heartbeat.taskOpenHint")}>
+            {t("agent.heartbeat.taskOpen")}
           </span>
         )}
         <span className="ml-auto muted text-xs">
-          letzter Lauf vor {fmtDelta(Date.now() - new Date(hb.last_fired_at).getTime())}
+          {t("agent.heartbeat.lastRun", { delta: fmtDelta(Date.now() - new Date(hb.last_fired_at).getTime()) })}
         </span>
         {canManage && (
           <button
             className="btn sm"
             disabled={fire.isPending || hb.pending}
-            title={
-              hb.pending
-                ? "Die Aufgabe des letzten Laufs ist noch offen — erst abschließen oder abbrechen."
-                : "Legt die Aufgabe sofort im Backlog an und weckt den Agenten. Der Zeitplan rechnet ab jetzt weiter."
-            }
+            title={hb.pending ? t("agent.heartbeat.firePendingHint") : t("agent.heartbeat.fireHint")}
             onClick={() => fire.mutate()}
           >
-            {fire.isPending ? "läuft …" : "Jetzt ausführen"}
+            {fire.isPending ? t("agent.heartbeat.running") : t("agent.heartbeat.fireNow")}
           </button>
         )}
       </div>
@@ -1227,9 +1233,9 @@ function HeartbeatCard({
       <p className="text-xs font-medium mb-2">
         {overdue
           ? hb.pending
-            ? "fällig — wartet auf Abschluss der offenen Aufgabe"
-            : "fällig — der nächste Tick legt die Aufgabe an"
-          : `nächster Lauf in ${fmtDelta(next.getTime() - Date.now())}`}
+            ? t("agent.heartbeat.overdueWithPending")
+            : t("agent.heartbeat.overdue")
+          : t("agent.heartbeat.nextRun", { delta: fmtDelta(next.getTime() - Date.now()) })}
         {runs.length > 0 && (
           <span className="muted font-normal">
             {" "}
@@ -1244,6 +1250,7 @@ function HeartbeatCard({
 }
 
 function Heartbeats({ agentId, canManage }: { agentId: string; canManage: boolean }) {
+  const { t } = useTranslation();
   const horizonMs = 24 * 3600 * 1000;
   const hbs = useQuery({
     queryKey: ["heartbeats", agentId],
@@ -1255,15 +1262,11 @@ function Heartbeats({ agentId, canManage }: { agentId: string; canManage: boolea
   return (
     <div>
       <p className="muted text-xs mb-3" style={{ maxWidth: 680 }}>
-        Wiederkehrende Aufgaben aus <span className="mono">HEARTBEAT.md</span> (Tab Config). Die
-        Control Plane legt fällige Läufe automatisch als Backlog-Aufgabe an — die Zeitachse zeigt
-        die nächsten 24 Stunden. Tageszeiten gelten in Serverzeit.
+        {t("agent.heartbeat.desc")}
       </p>
       {list.length === 0 && (
         <div className="kc-empty">
-          Keine Heartbeats definiert. Im Tab Config in der Datei{" "}
-          <span className="mono">HEARTBEAT.md</span> z.&nbsp;B.{" "}
-          <span className="mono">- alle: 30m titel: Posteingang sichten aufgabe: …</span> anlegen.
+          {t("agent.heartbeat.noHeartbeats")}
         </div>
       )}
       {list.map((hb) => (
@@ -1273,10 +1276,8 @@ function Heartbeats({ agentId, canManage }: { agentId: string; canManage: boolea
   );
 }
 
-// --- Webhook: optionaler generischer Trigger je Agent (spec/03) ---
-// POST /api/trigger/{token} legt eine Backlog-Aufgabe an und weckt den
-// Agenten — für Systeme ohne Zielsystem-Plugin (CI, Cron, Zapier, Monitoring).
 function WebhookTrigger({ agentId }: { agentId: string }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [copied, setCopied] = useState(false);
   const wh = useQuery({
@@ -1294,24 +1295,19 @@ function WebhookTrigger({ agentId }: { agentId: string }) {
   return (
     <div>
       <p className="muted text-xs mb-3" style={{ maxWidth: 680 }}>
-        Optionaler Webhook-Trigger: ein <span className="mono">POST</span> auf die URL legt eine
-        Backlog-Aufgabe an und weckt den Agenten — für Fremdsysteme ohne Zielsystem-Plugin (CI,
-        Cron, Zapier, Monitoring). Payload optional als JSON{" "}
-        <span className="mono">{'{"title", "body", "priority", "dedup_key"}'}</span>; alles andere
-        landet als Text im Aufgaben-Body. Das Token in der URL ist das Geheimnis — Rotation macht
-        die alte URL ungültig.
+        {t("agent.webhook.desc")}
       </p>
       {!data?.enabled && (
         <div className="kc-empty">
-          <p className="mb-3">Kein Webhook aktiv.</p>
+          <p className="mb-3">{t("agent.webhook.noWebhook")}</p>
           <button className="btn primary sm" disabled={enable.isPending} onClick={() => enable.mutate()}>
-            Webhook aktivieren
+            {t("agent.webhook.activate")}
           </button>
         </div>
       )}
       {data?.enabled && url && (
         <div>
-          <label>Trigger-URL</label>
+          <label>{t("agent.webhook.triggerUrl")}</label>
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <span className="mono text-xs" style={{ wordBreak: "break-all" }}>
               {url}
@@ -1325,19 +1321,19 @@ function WebhookTrigger({ agentId }: { agentId: string }) {
                 });
               }}
             >
-              {copied ? "Kopiert ✓" : "Kopieren"}
+              {copied ? t("agent.webhook.copied") : t("agent.webhook.copy")}
             </button>
           </div>
-          <label>Beispiel</label>
+          <label>{t("agent.webhook.example")}</label>
           <pre className="code text-xs mb-3" style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
             {`curl -X POST ${url} \\\n  -H 'Content-Type: application/json' \\\n  -d '{"title": "Build fehlgeschlagen", "body": "Pipeline #123 ist rot.", "dedup_key": "pipeline-123"}'`}
           </pre>
           <div className="flex items-center gap-3">
             <button className="btn sm" disabled={enable.isPending} onClick={() => enable.mutate()} title="Neues Token, alte URL wird ungültig">
-              Token rotieren
+              {t("agent.webhook.rotate")}
             </button>
             <button className="btn sm danger" disabled={disable.isPending} onClick={() => disable.mutate()}>
-              Deaktivieren
+              {t("agent.webhook.deactivate")}
             </button>
           </div>
         </div>
@@ -1362,6 +1358,7 @@ function Config({
   canManage: boolean;
   canExport: boolean;
 }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const cfg = useQuery({
     queryKey: ["config", agentId],
@@ -1372,8 +1369,6 @@ function Config({
   const [savingTemplate, setSavingTemplate] = useState(false);
   const [templateName, setTemplateName] = useState("");
   const [templateDesc, setTemplateDesc] = useState("");
-  // HEARTBEAT.md immer anbieten, auch wenn ältere Configs sie nicht kennen —
-  // sonst gäbe es keinen Weg, sie über die UI anzulegen.
   const files = { "SOUL.md": "", "HEARTBEAT.md": "", ...(draft ?? cfg.data?.files ?? { "ACCESS.md": "" }) };
 
   const save = useMutation({
@@ -1381,8 +1376,6 @@ function Config({
     onSuccess: () => {
       setDraft(null);
       qc.invalidateQueries({ queryKey: ["config", agentId] });
-      // ACCESS.md (tools) und EGRESS.md schreiben in die UI-Stores durch —
-      // die Reiter Tools und Egress sofort nachziehen.
       qc.invalidateQueries({ queryKey: ["agent-tools", agentId] });
       qc.invalidateQueries({ queryKey: ["egress", "agent", agentId] });
       qc.invalidateQueries({ queryKey: ["heartbeats", agentId] });
@@ -1410,7 +1403,7 @@ function Config({
               onClick={() => { setTemplateName(displayName); setSavingTemplate(true); }}
               title="Aktuelle Konfiguration als wiederverwendbare Vorlage speichern"
             >
-              Als Vorlage speichern
+              {t("agent.config.saveTemplate")}
             </button>
           )}
           {savingTemplate && (
@@ -1420,23 +1413,23 @@ function Config({
             >
               <input
                 autoFocus
-                placeholder="Vorlagenname"
+                placeholder={t("agent.config.templateName")}
                 value={templateName}
                 onChange={(e) => setTemplateName(e.target.value)}
                 style={{ width: 180 }}
                 required
               />
               <input
-                placeholder="Beschreibung (optional)"
+                placeholder={t("agent.config.templateDesc")}
                 value={templateDesc}
                 onChange={(e) => setTemplateDesc(e.target.value)}
                 style={{ width: 180 }}
               />
               <button className="btn sm primary" disabled={saveTemplate.isPending} type="submit">
-                {saveTemplate.isPending ? "…" : "Speichern"}
+                {saveTemplate.isPending ? "…" : t("agent.config.saveBtn")}
               </button>
               <button className="btn sm" type="button" onClick={() => setSavingTemplate(false)}>
-                Abbrechen
+                {t("agent.config.cancel")}
               </button>
               {saveTemplate.isError && (
                 <span className="danger-text text-xs">{String((saveTemplate.error as Error)?.message)}</span>
@@ -1449,18 +1442,16 @@ function Config({
             download={`${slug}-config.json`}
             title="Komplette Konfiguration (inkl. Stages, Guard-Rails, Egress, Secret-Namen) als JSON-Bundle herunterladen — Import auf der Agenten-Übersicht"
           >
-            Als Bundle exportieren
+            {t("agent.config.exportBundle")}
           </a>
         </div>
       )}
       <p className="muted text-xs mb-3" style={{ maxWidth: 680 }}>
-        Config-as-Code: jede Änderung erzeugt eine neue Version
-        {cfg.data && cfg.data.version > 0 && <> — aktuell v{cfg.data.version}</>}. ACCESS.md hält
-        Zugänge und Tool-Zuweisung, EGRESS.md die Egress-Konfiguration — beide sind synchron mit
-        den Reitern Tools und Egress: Änderungen hier wirken dort und umgekehrt. Referenzen, nie
-        Secrets. HEARTBEAT.md definiert wiederkehrende Aufgaben, die automatisch im Backlog
-        landen — je Zeile <span className="mono">- alle: 30m titel: … aufgabe: …</span> oder{" "}
-        <span className="mono">- täglich: 09:00 titel: … aufgabe: …</span>.
+        {t("agent.config.versionInfo", {
+          version: cfg.data && cfg.data.version > 0
+            ? t("agent.config.currentVersion", { v: cfg.data.version })
+            : "",
+        })}
       </p>
       {Object.entries(files)
         .sort(([x], [y]) => x.localeCompare(y))
@@ -1479,7 +1470,7 @@ function Config({
       {canManage && (
         <div className="flex items-center gap-3">
           <button className="btn primary sm" disabled={!draft || save.isPending} onClick={() => save.mutate()}>
-            Neue Version speichern
+            {t("agent.config.newVersion")}
           </button>
           {save.isError && <span className="danger-text text-xs">{(save.error as Error).message}</span>}
         </div>
@@ -1488,10 +1479,6 @@ function Config({
   );
 }
 
-// effectiveEgress: Basis-Allowlist der Org + ENV-Zusätze + Hosts der
-// zugewiesenen Templates + eigene Hosts, dedupliziert — Muster → Quelle.
-// Von AgentEgress (Egress-Reiter) und UIConfigSummary (Config-Reiter) geteilt,
-// damit beide Ansichten dieselbe Wahrheit zeigen.
 function effectiveEgress(
   status: EgressStatus | undefined,
   templates: EgressTemplate[],
@@ -1501,15 +1488,14 @@ function effectiveEgress(
   const effective = new Map<string, string>();
   for (const d of status?.defaults ?? []) effective.set(d.pattern, "Basis");
   for (const p of status?.env ?? []) if (!effective.has(p)) effective.set(p, "ENV");
-  for (const t of templates.filter((t) => assigned.has(t.id)))
-    for (const h of t.hosts) if (!effective.has(h.pattern)) effective.set(h.pattern, t.name);
+  for (const tpl of templates.filter((tpl) => assigned.has(tpl.id)))
+    for (const h of tpl.hosts) if (!effective.has(h.pattern)) effective.set(h.pattern, tpl.name);
   for (const h of cfg?.hosts ?? []) if (!effective.has(h.pattern)) effective.set(h.pattern, "eigener Host");
   return effective;
 }
 
-// AgentSecrets: agent-eigene Secrets (haben Vorrang) plus die Sicht darauf,
-// welche Org-Secrets diesen Agenten erreichen. Werte bleiben write-only.
 function AgentSecrets({ agentId }: { agentId: string }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const own = useQuery({
     queryKey: ["agent-secrets", agentId],
@@ -1550,21 +1536,18 @@ function AgentSecrets({ agentId }: { agentId: string }) {
   });
 
   const ownKeys = new Set((own.data ?? []).map((s) => s.key));
-  // Org-Secrets, die diesen Agenten erreichen: nur explizit zugewiesene.
   const inherited = (org.data ?? []).filter((s) => s.agent_ids.includes(agentId));
   const assignable = (org.data ?? []).filter((s) => !s.agent_ids.includes(agentId));
 
   return (
     <div>
       <p className="muted text-xs mb-3" style={{ maxWidth: 640 }}>
-        Hier weist du dem Agenten Secrets aus dem zentralen Vault (<Link to="/secrets">Secrets</Link>) zu
-        und legst agent-eigene an. Agent-eigene Secrets gelten nur für diesen Agenten und haben
-        Vorrang vor gleichnamigen zugewiesenen Org-Secrets.
+        {t("agent.secrets.desc")}
       </p>
 
       <div className="card mb-4 flex gap-3 items-end flex-wrap">
         <div className="min-w-64">
-          <label>Org-Secret zuweisen</label>
+          <label>{t("agent.secrets.assignOrg")}</label>
           <select
             value=""
             onChange={(e) => {
@@ -1573,7 +1556,7 @@ function AgentSecrets({ agentId }: { agentId: string }) {
             disabled={assign.isPending || assignable.length === 0}
           >
             <option value="">
-              {assignable.length === 0 ? "— keine weiteren Org-Secrets —" : "— Secret auswählen —"}
+              {assignable.length === 0 ? t("agent.secrets.noMoreOrg") : t("agent.secrets.selectSecret")}
             </option>
             {assignable.map((s) => (
               <option key={s.key} value={s.key}>
@@ -1587,19 +1570,19 @@ function AgentSecrets({ agentId }: { agentId: string }) {
 
       {inherited.length > 0 && (
         <>
-          <label>Zugewiesene Org-Secrets</label>
+          <label>{t("agent.secrets.assignedOrg")}</label>
           {inherited.map((s) => (
             <div key={s.key} className="card mb-2 flex items-center gap-4" style={{ padding: "11px 15px", opacity: ownKeys.has(s.key) ? 0.55 : 1 }}>
               <span className="mono text-sm flex-1">{s.key}</span>
               {ownKeys.has(s.key) && (
-                <span className="muted text-xs">durch agent-eigenes Secret überdeckt</span>
+                <span className="muted text-xs">{t("agent.secrets.shadowed")}</span>
               )}
               <span className="mono muted text-xs">
                 {s.prefix ? <span style={{ color: "var(--text-secondary)" }}>{s.prefix}</span> : null}
                 ••••••••
               </span>
               <button className="btn sm" disabled={unassign.isPending} onClick={() => unassign.mutate(s.key)}>
-                Zuweisung entfernen
+                {t("agent.secrets.removeAssignment")}
               </button>
             </div>
           ))}
@@ -1607,11 +1590,11 @@ function AgentSecrets({ agentId }: { agentId: string }) {
       )}
       {inherited.length === 0 && (
         <p className="muted mb-3" style={{ color: "var(--text-warning, #b45309)" }}>
-          Kein Org-Secret zugewiesen — der Agent erreicht den Vault nicht.
+          {t("agent.secrets.noAssigned")}
         </p>
       )}
 
-      <label className="mt-4">Agent-eigene Secrets</label>
+      <label className="mt-4">{t("agent.secrets.ownSecrets")}</label>
 
       <form
         className="card mb-4 flex gap-3 items-end flex-wrap"
@@ -1621,36 +1604,24 @@ function AgentSecrets({ agentId }: { agentId: string }) {
         }}
       >
         <div className="min-w-48">
-          <label>Key</label>
+          <label>{t("agent.secrets.key")}</label>
           <input value={key} onChange={(e) => setKey(e.target.value)} className="mono" placeholder="zammad_token" required />
         </div>
         <div className="flex-1 min-w-52">
-          <label>Wert</label>
+          <label>{t("agent.secrets.value")}</label>
           <input type="password" value={value} onChange={(e) => setValue(e.target.value)} required />
         </div>
         <button className="btn primary" disabled={save.isPending}>
-          Speichern
+          {t("agent.secrets.save")}
         </button>
         {check && (
           <p
             className="text-xs w-full m-0"
             style={{ color: check.checked && !check.valid ? "var(--danger, #b91c1c)" : check.valid ? "var(--success, #15803d)" : "var(--text-secondary)" }}
           >
-            {check.checked && check.valid && (
-              <>
-                <span className="mono">{check.key}</span> gespeichert — Credential live geprüft, gültig. ✓
-              </>
-            )}
-            {check.checked && !check.valid && (
-              <>
-                <span className="mono">{check.key}</span> gespeichert, aber das Credential ist <strong>ungültig</strong>: {check.hint}
-              </>
-            )}
-            {!check.checked && (
-              <>
-                <span className="mono">{check.key}</span> gespeichert.{check.hint ? ` ${check.hint}` : ""}
-              </>
-            )}
+            {check.checked && check.valid && t("agent.secrets.savedValid", { key: check.key })}
+            {check.checked && !check.valid && t("agent.secrets.savedInvalid", { key: check.key, hint: check.hint })}
+            {!check.checked && t("agent.secrets.savedOk", { key: check.key })}
           </p>
         )}
       </form>
@@ -1658,22 +1629,23 @@ function AgentSecrets({ agentId }: { agentId: string }) {
       {(own.data ?? []).map((s) => (
         <div key={s.key} className="card mb-2 flex items-center gap-4" style={{ padding: "11px 15px" }}>
           <span className="mono text-sm flex-1">{s.key}</span>
-          <span className="badge st-triage">agent-eigen</span>
+          <span className="badge st-triage">{t("agent.secrets.agentOwn")}</span>
           <span className="mono muted text-xs">
             {s.prefix ? <span style={{ color: "var(--text-secondary)" }}>{s.prefix}</span> : null}
             ••••••••
           </span>
           <button className="btn sm" onClick={() => remove.mutate(s.key)}>
-            Löschen
+            {t("agent.secrets.delete")}
           </button>
         </div>
       ))}
-      {own.data?.length === 0 && <p className="muted mb-3">Noch keine agent-eigenen Secrets.</p>}
+      {own.data?.length === 0 && <p className="muted mb-3">{t("agent.secrets.noOwn")}</p>}
     </div>
   );
 }
 
 function Memories({ agentId, canManage }: { agentId: string; canManage: boolean }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const mems = useQuery({
     queryKey: ["memories", agentId],
@@ -1704,13 +1676,14 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
   });
 
   const list = mems.data ?? [];
+  const locale = i18n.language === "de" ? "de-DE" : "en-US";
   return (
     <div>
       {canManage && (
         <div className="card mb-3" style={{ padding: "12px 14px" }}>
           <textarea
             rows={2}
-            placeholder="Wissen mitgeben, z. B. „Kunde Meier ist Bestandskunde und wird geduzt“ …"
+            placeholder={t("agent.memory.addPlaceholder")}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
           />
@@ -1720,13 +1693,13 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
               disabled={!draft.trim() || add.isPending}
               onClick={() => add.mutate()}
             >
-              Merken
+              {t("agent.memory.remember")}
             </button>
             {add.isError && <span className="danger-text text-xs">{(add.error as Error).message}</span>}
           </div>
         </div>
       )}
-      {list.length === 0 && <p className="muted">Noch nichts gelernt.</p>}
+      {list.length === 0 && <p className="muted">{t("agent.memory.nothingLearned")}</p>}
       {list.map((m) =>
         editId === m.id ? (
           <div key={m.id} className="card mb-2" style={{ padding: "12px 14px" }}>
@@ -1737,10 +1710,10 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
                 disabled={!editText.trim() || save.isPending}
                 onClick={() => save.mutate()}
               >
-                Speichern
+                {t("agent.memory.save")}
               </button>
               <button className="btn sm" onClick={() => setEditId(null)}>
-                Abbrechen
+                {t("agent.memory.cancel")}
               </button>
               {save.isError && <span className="danger-text text-xs">{(save.error as Error).message}</span>}
             </div>
@@ -1749,7 +1722,7 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
           <div key={m.id} className="card mb-2 flex justify-between gap-3" style={{ padding: "12px 14px" }}>
             <span className="voice text-[14.5px]">{m.content}</span>
             <span className="muted text-[11px] shrink-0 flex items-center gap-2">
-              {new Date(m.created_at).toLocaleDateString("de-DE")}
+              {new Date(m.created_at).toLocaleDateString(locale)}
               {canManage && (
                 <>
                   <button
@@ -1759,14 +1732,14 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
                       setEditText(m.content);
                     }}
                   >
-                    Ändern
+                    {t("agent.memory.change")}
                   </button>
                   <button
                     className="btn sm danger"
                     disabled={remove.isPending}
                     onClick={() => remove.mutate(m.id)}
                   >
-                    Vergessen
+                    {t("agent.memory.forget")}
                   </button>
                 </>
               )}
@@ -1778,10 +1751,8 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
   );
 }
 
-// AgentEgress: der Egress-Reiter auf der Agenten-Seite — welche Ziel-Hosts
-// darf DIESER Agent erreichen? Oben die effektive Allowlist auf einen Blick,
-// darunter Templates zuweisen, eigene Hosts pflegen und das Entscheidungs-Log.
 function AgentEgress({ agentId, canEdit }: { agentId: string; canEdit: boolean }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
 
   const status = useQuery({ queryKey: ["egress", "status"], queryFn: () => api<EgressStatus>("/egress") });
@@ -1789,7 +1760,6 @@ function AgentEgress({ agentId, canEdit }: { agentId: string; canEdit: boolean }
   const cfg = useQuery({ queryKey: ["egress", "agent", agentId], queryFn: () => api<AgentEgressCfg>(`/agents/${agentId}/egress`) });
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["egress", "agent", agentId] });
-    // Auch die Config: EGRESS.md wird daraus generiert (Config-Reiter).
     qc.invalidateQueries({ queryKey: ["config", agentId] });
   };
 
@@ -1801,22 +1771,16 @@ function AgentEgress({ agentId, canEdit }: { agentId: string; canEdit: boolean }
   const delHost = useMutation({ mutationFn: (id: string) => del(`/agents/${agentId}/egress/hosts/${id}`), onSuccess: invalidate });
 
   const assigned = new Set(cfg.data?.template_ids ?? []);
-
-  // Effektive Allowlist: geteilte Logik mit dem Config-Reiter (UIConfigSummary);
-  // die Quelle steht am Chip.
   const effective = effectiveEgress(status.data, templates.data ?? [], cfg.data);
 
   return (
     <div style={{ maxWidth: 780 }}>
       <p className="muted text-xs mb-4">
-        Dieser Agent darf ausgehend nur die Hosts unten erreichen — alles andere blockt der
-        Egress-Proxy fail-closed. Templates werden zentral unter{" "}
-        <Link to="/egress/templates">Egress → Templates</Link> gepflegt und hier zugewiesen;
-        eigene Hosts sind für Ausnahmen dieses Agenten.
+        {t("agent.egress.desc")}
       </p>
 
       <div className="card mb-5" style={{ padding: "13px 15px" }}>
-        <p className="text-xs font-medium mb-2">Effektive Allowlist</p>
+        <p className="text-xs font-medium mb-2">{t("agent.egress.effectiveAllowlist")}</p>
         <div className="flex flex-wrap gap-1">
           {[...effective.entries()].map(([pattern, source]) => (
             <span key={pattern} className={`chip${source === "ENV" ? " fixed" : ""}`}>
@@ -1824,51 +1788,56 @@ function AgentEgress({ agentId, canEdit }: { agentId: string; canEdit: boolean }
               <span className="src">{source}</span>
             </span>
           ))}
-          {effective.size === 0 && <span className="muted text-xs">leer — jede ausgehende Verbindung wird blockiert</span>}
+          {effective.size === 0 && <span className="muted text-xs">{t("agent.egress.allBlocked")}</span>}
         </div>
       </div>
 
-      <p className="text-xs font-medium mb-2">Templates</p>
+      <p className="text-xs font-medium mb-2">{t("agent.egress.templates")}</p>
       <div className="grid gap-2 mb-5" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))" }}>
-        {(templates.data ?? []).map((t) => (
+        {(templates.data ?? []).map((tpl) => (
           <label
-            key={t.id}
+            key={tpl.id}
             className="card flex items-start gap-2"
-            style={{ padding: "10px 12px", margin: 0, cursor: canEdit ? "pointer" : "default", opacity: assigned.has(t.id) ? 1 : 0.75 }}
+            style={{ padding: "10px 12px", margin: 0, cursor: canEdit ? "pointer" : "default", opacity: assigned.has(tpl.id) ? 1 : 0.75 }}
           >
             <input
               type="checkbox"
               style={{ width: "auto", marginTop: 2 }}
-              checked={assigned.has(t.id)}
+              checked={assigned.has(tpl.id)}
               disabled={!canEdit || toggleTpl.isPending}
-              onChange={(e) => toggleTpl.mutate({ tid: t.id, on: e.target.checked })}
+              onChange={(e) => toggleTpl.mutate({ tid: tpl.id, on: e.target.checked })}
             />
             <span style={{ minWidth: 0 }}>
               <Link
-                to={`/egress/templates/${t.id}`}
+                to={`/egress/templates/${tpl.id}`}
                 className="block text-sm font-medium"
                 style={{ color: "var(--text-primary)", textDecoration: "none" }}
                 title="Template-Detailseite öffnen"
                 onClick={(e) => e.stopPropagation()}
               >
-                {t.name}
+                {tpl.name}
               </Link>
               <span className="block mono text-[11px] muted" style={{ overflowWrap: "anywhere" }}>
-                {t.hosts.length === 0 ? "keine Hosts" : t.hosts.map((h) => h.pattern).join(", ")}
+                {tpl.hosts.length === 0 ? t("agent.egress.none") : tpl.hosts.map((h) => h.pattern).join(", ")}
               </span>
             </span>
           </label>
         ))}
         {(templates.data ?? []).length === 0 && (
           <span className="muted text-xs">
-            Noch keine Templates — zuerst unter <Link to="/egress/templates">Egress → Templates</Link> anlegen.
+            {t("agent.egress.noTemplates")}
           </span>
         )}
       </div>
 
-      <p className="text-xs font-medium mb-2">Eigene Hosts</p>
+      <p className="text-xs font-medium mb-2">{t("agent.egress.ownHosts")}</p>
       <div className="flex flex-wrap gap-1 mb-2">
-        <HostChips hosts={cfg.data?.hosts ?? []} canEdit={canEdit} onDelete={(id) => delHost.mutate(id)} emptyText="keine" />
+        <HostChips
+          hosts={cfg.data?.hosts ?? []}
+          canEdit={canEdit}
+          onDelete={(id) => delHost.mutate(id)}
+          emptyText={t("agent.egress.none")}
+        />
       </div>
       {canEdit && (
         <div className="mb-5" style={{ maxWidth: 560 }}>
@@ -1876,34 +1845,28 @@ function AgentEgress({ agentId, canEdit }: { agentId: string; canEdit: boolean }
         </div>
       )}
 
-      <p className="text-xs font-medium mt-5 mb-2">Letzte Egress-Entscheidungen</p>
+      <p className="text-xs font-medium mt-5 mb-2">{t("agent.egress.lastDecisions")}</p>
       <EgressLogTable agentId={agentId} />
     </div>
   );
 }
 
-// AgentTools: welche Tools der angebundenen MCP-Server dieser Agent nutzen darf.
-// Keine Auswahl (leere Allowlist) = alle Tools des Systems erlaubt; sobald ein
-// System auf "nur ausgewählte" steht, greift die Allowlist fail-closed — die
-// Control Plane weist nicht zugewiesene Tool-Aufrufe zentral ab.
 function AgentTools({ agentId, canEdit }: { agentId: string; canEdit: boolean }) {
+  const { t } = useTranslation();
   const targets = useQuery({
     queryKey: ["targets"],
     queryFn: () => api<TargetPlugin[] | null>("/targets"),
   });
-  const mcp = (targets.data ?? []).filter((t) => t.kind === "mcp");
+  const mcp = (targets.data ?? []).filter((tgt) => tgt.kind === "mcp");
 
   return (
     <div>
       <p className="muted text-xs mb-4" style={{ maxWidth: 640 }}>
-        Weise diesem Agenten gezielt Tools der angebundenen{" "}
-        <Link to="/targets">MCP-Server</Link> zu. Ohne Auswahl darf der Agent alle Tools eines
-        aktivierten Servers nutzen; wählst du einzelne aus, sind nur diese erlaubt — alle anderen
-        Aufrufe weist die Control Plane ab.
+        {t("agent.tools.desc")}
       </p>
       {mcp.length === 0 && (
         <p className="muted">
-          Keine MCP-Server angebunden. Binde unter <Link to="/targets">Zielsysteme</Link> einen an.
+          {t("agent.tools.noMcp")}
         </p>
       )}
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
@@ -1924,6 +1887,7 @@ function MCPToolAssign({
   plugin: TargetPlugin;
   canEdit: boolean;
 }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const tools: MCPTool[] = plugin.manifest?.tools ?? [];
   const assigned = useQuery({
@@ -1934,17 +1898,15 @@ function MCPToolAssign({
   const [restrict, setRestrict] = useState<boolean | null>(null);
   const [sel, setSel] = useState<Set<string>>(new Set());
 
-  // Serverzustand → lokaler Entwurf, sobald geladen (einmalig pro Fetch).
   const loaded = assigned.data;
   const effectiveRestrict = restrict ?? (loaded ? loaded.length > 0 : false);
   const effectiveSel = restrict === null && loaded ? new Set(loaded) : sel;
 
   const save = useMutation({
-    mutationFn: (tools: string[]) => put(`/agents/${agentId}/tools/${plugin.name}`, { tools }),
+    mutationFn: (toolList: string[]) => put(`/agents/${agentId}/tools/${plugin.name}`, { tools: toolList }),
     onSuccess: () => {
       setRestrict(null);
       qc.invalidateQueries({ queryKey: ["agent-tools", agentId, plugin.name] });
-      // Auch die Config: TOOLS.md wird daraus generiert (Config-Reiter).
       qc.invalidateQueries({ queryKey: ["config", agentId] });
     },
   });
@@ -1957,7 +1919,7 @@ function MCPToolAssign({
   };
   const setMode = (r: boolean) => {
     setRestrict(r);
-    if (r && effectiveSel.size === 0) setSel(new Set(tools.map((t) => t.name)));
+    if (r && effectiveSel.size === 0) setSel(new Set(tools.map((tl) => tl.name)));
     else setSel(new Set(effectiveSel));
   };
 
@@ -1968,36 +1930,36 @@ function MCPToolAssign({
       <div className="flex items-center gap-2 mb-2">
         <span className="font-medium">{plugin.label || plugin.name}</span>
         <span className="mono text-xs muted">{plugin.name}</span>
-        {!plugin.enabled && <span className="text-[11px] ml-auto" style={{ color: "var(--clay)" }}>deaktiviert</span>}
+        {!plugin.enabled && <span className="text-[11px] ml-auto" style={{ color: "var(--clay)" }}>{t("agent.tools.deactivated")}</span>}
       </div>
       {tools.length === 0 ? (
-        <p className="muted text-xs">Noch keine Tools entdeckt — unter Zielsysteme „Tools aktualisieren".</p>
+        <p className="muted text-xs">{t("agent.tools.noTools")}</p>
       ) : (
         <>
           <div className="flex gap-3 text-xs mb-2">
             <label className="flex items-center gap-1">
               <input type="radio" checked={!effectiveRestrict} disabled={!canEdit} onChange={() => setMode(false)} />
-              Alle Tools
+              {t("agent.tools.allTools")}
             </label>
             <label className="flex items-center gap-1">
               <input type="radio" checked={effectiveRestrict} disabled={!canEdit} onChange={() => setMode(true)} />
-              Nur ausgewählte
+              {t("agent.tools.selectedOnly")}
             </label>
           </div>
           <ul className="text-xs" style={{ listStyle: "none", padding: 0, margin: 0 }}>
-            {tools.map((t) => (
-              <li key={t.name} className="mb-1">
+            {tools.map((tl) => (
+              <li key={tl.name} className="mb-1">
                 <label className="flex items-start gap-2" style={{ opacity: effectiveRestrict ? 1 : 0.5 }}>
                   <input
                     type="checkbox"
                     style={{ marginTop: 2 }}
                     disabled={!canEdit || !effectiveRestrict}
-                    checked={effectiveRestrict ? effectiveSel.has(t.name) : true}
-                    onChange={() => toggleSel(t.name)}
+                    checked={effectiveRestrict ? effectiveSel.has(tl.name) : true}
+                    onChange={() => toggleSel(tl.name)}
                   />
                   <span>
-                    <span className="mono">{t.name}</span>
-                    {t.description && <span className="muted"> — {t.description.split("\n")[0]}</span>}
+                    <span className="mono">{tl.name}</span>
+                    {tl.description && <span className="muted"> — {tl.description.split("\n")[0]}</span>}
                   </span>
                 </label>
               </li>
@@ -2006,14 +1968,16 @@ function MCPToolAssign({
           {canEdit && (
             <div className="flex items-center gap-2 mt-3">
               <span className="text-[11px] muted">
-                {effectiveRestrict ? `${effectiveSel.size} von ${tools.length} erlaubt` : "alle erlaubt"}
+                {effectiveRestrict
+                  ? t("agent.tools.allowedOf", { sel: effectiveSel.size, total: tools.length })
+                  : t("agent.tools.allAllowed")}
               </span>
               <button
                 className="btn sm primary ml-auto"
                 disabled={!dirty || save.isPending || (effectiveRestrict && effectiveSel.size === 0)}
                 onClick={() => save.mutate(effectiveRestrict ? [...effectiveSel] : [])}
               >
-                Speichern
+                {t("agent.tools.save")}
               </button>
             </div>
           )}

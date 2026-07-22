@@ -1,12 +1,9 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { api, patch, type Human, type ProfileField } from "../api";
 import IdentityFields from "./IdentityFields";
 
-// Gemeinsamer Editor für das Mitarbeiter-Profil (Funktion, Plattform-
-// Kennungen, Telefon, Zuständigkeiten). Wird an drei Stellen verwendet:
-// Benutzerverwaltung (Admin, /users/{id}), eigene Profil-Seite (/auth/me)
-// und Organigramm (je nach Rolle einer der beiden Endpunkte, sonst readOnly).
 export default function ProfileForm({
   human,
   endpoint,
@@ -18,9 +15,8 @@ export default function ProfileForm({
   readOnly?: boolean;
   onSaved?: () => void;
 }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
-  // Org-weit konfigurierte Zusatzfelder (Organisationen-Seite) — bestimmen,
-  // welche Eingaben über die Basisfelder hinaus angeboten werden.
   const fields = useQuery({
     queryKey: ["profileFields"],
     queryFn: () => api<ProfileField[]>("/org/profile-fields"),
@@ -33,7 +29,7 @@ export default function ProfileForm({
     responsibilities: human.responsibilities,
     custom: human.custom ?? {},
   });
-  // Beim Wechsel auf eine andere Person (Organigramm) neu initialisieren.
+
   useEffect(() => {
     setP({
       job_title: human.job_title,
@@ -55,14 +51,14 @@ export default function ProfileForm({
   if (readOnly) {
     const identities = Object.entries(human.identities ?? {});
     const rows: [string, string][] = [
-      ["Funktion", human.job_title],
-      ["Telefon", human.phone],
-      ["Zuständig für", human.responsibilities],
-      ...identities.map(([system, id]) => [`${system}-Kennung`, id] as [string, string]),
+      [t("profile.jobTitle"), human.job_title],
+      [t("profile.phone"), human.phone],
+      [t("profile.responsibilities"), human.responsibilities],
+      ...identities.map(([system, id]) => [t("profile.identityLabel", { system }), id] as [string, string]),
       ...fieldDefs.map((f) => [f.label, human.custom?.[f.key] ?? ""] as [string, string]),
     ];
     const filled = rows.filter(([, v]) => v);
-    if (filled.length === 0) return <p className="muted text-xs m-0">Kein Profil hinterlegt.</p>;
+    if (filled.length === 0) return <p className="muted text-xs m-0">{t("profile.noProfile")}</p>;
     return (
       <div className="text-xs">
         {filled.map(([label, value]) => (
@@ -84,11 +80,11 @@ export default function ProfileForm({
     >
       <div className="flex gap-3 items-end flex-wrap">
         <div className="min-w-40">
-          <label>Funktion</label>
-          <input value={p.job_title} onChange={(e) => setP({ ...p, job_title: e.target.value })} placeholder="z. B. QA Engineer" />
+          <label>{t("profile.jobTitle")}</label>
+          <input value={p.job_title} onChange={(e) => setP({ ...p, job_title: e.target.value })} placeholder={t("profile.jobTitlePlaceholder")} />
         </div>
         <div className="min-w-40">
-          <label>Telefon</label>
+          <label>{t("profile.phone")}</label>
           <input value={p.phone} onChange={(e) => setP({ ...p, phone: e.target.value })} />
         </div>
         <IdentityFields value={p.identities} onChange={(identities) => setP({ ...p, identities })} />
@@ -104,20 +100,19 @@ export default function ProfileForm({
       </div>
       <div className="flex gap-3 items-end flex-wrap mt-3">
         <div className="flex-1 min-w-52">
-          <label>Zuständigkeiten (sehen die Agenten)</label>
+          <label>{t("profile.responsibilities")}</label>
           <input
             value={p.responsibilities}
             onChange={(e) => setP({ ...p, responsibilities: e.target.value })}
-            placeholder="z. B. testet Bugfixes im Projekt educa"
+            placeholder={t("profile.responsibilitiesPlaceholder")}
           />
         </div>
         <button className="btn sm primary" disabled={save.isPending}>
-          Speichern
+          {t("profile.save")}
         </button>
       </div>
       <p className="muted text-xs mt-2 mb-0">
-        Profil und Zuständigkeiten gehen als Team-Verzeichnis in den Prompt der Agenten — so weiß z. B. der
-        GitLab-Bot, wem er ein Issue zum Testen zuweist.
+        {t("profile.responsibilitiesHint")}
       </p>
       {save.isError && <p className="text-xs mt-2" style={{ color: "var(--text-danger)" }}>{(save.error as Error).message}</p>}
     </form>

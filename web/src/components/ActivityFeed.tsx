@@ -1,4 +1,6 @@
-import { statusLabel, type RecordingEvent } from "../api";
+import { useTranslation } from "react-i18next";
+import i18n from "../i18n";
+import { type RecordingEvent } from "../api";
 
 // ActivityFeed: übersetzt das lückenlose Recording in eine erzählende
 // Aktivitätsansicht im Stil des Mockups — Turns mit der Stimme des Agenten
@@ -22,15 +24,8 @@ type ToolCall = {
 
 type GateData = { icon: IconName; text: string; time: string; tone: Tone };
 
-// Ein Turn besteht aus der Stimme des Agenten plus einer chronologischen
-// Folge von Tool-Aufrufen und Gate-Zeilen (Freigaben, Credentials) — so
-// bleibt ein Arbeitsschritt als zusammenhängender Block lesbar, statt an
-// jeder Freigabe zu zerfallen.
 type TurnRow = { type: "tool"; call: ToolCall } | { type: "gate"; gate: GateData };
 
-// key: stabile Identität aus der Event-ID — das Fenster der letzten N Events
-// verschiebt sich beim Live-Follow, mit Index-Keys würde React dann alles
-// neu mounten (Scroll springt, aufgeklappte Details schließen sich).
 type FeedItem = { key: string } & (
   | { kind: "day"; text: string }
   | { kind: "evt"; icon: IconName; text: string; time: string; tone?: Tone; count?: number }
@@ -67,10 +62,10 @@ function Icon({ name }: { name: IconName }) {
 // --- Feed-Aufbau aus den chronologischen Recording-Events ---
 
 const fmtTime = (iso: string) =>
-  new Date(iso).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  new Date(iso).toLocaleTimeString(i18n.language === "de" ? "de-DE" : "en-US", { hour: "2-digit", minute: "2-digit" });
 
 const fmtDay = (iso: string) =>
-  new Date(iso).toLocaleDateString("de-DE", { day: "numeric", month: "long", year: "numeric" });
+  new Date(iso).toLocaleDateString(i18n.language === "de" ? "de-DE" : "en-US", { day: "numeric", month: "long", year: "numeric" });
 
 const truncate = (s: string, n: number) => (s.length > n ? s.slice(0, n) + " …" : s);
 
@@ -127,14 +122,10 @@ export function buildFeed(events: RecordingEvent[]): FeedItem[] {
     }
     return turn;
   };
-  // Gate-Zeilen laufen in den offenen Turn hinein, damit ein Arbeitsschritt
-  // nicht an jeder Freigabe auseinanderbricht; ohne Turn stehen sie einzeln.
   const pushGate = (gate: GateData, key: string) => {
     if (turn) turn.rows.push({ type: "gate", gate });
     else items.push({ key, kind: "gate", ...gate });
   };
-  // pushEvt fasst direkt aufeinanderfolgende identische Zeilen zusammen
-  // ("Sitzung gestartet ×3") — Wiederanläufe erzeugen sonst Rauschen.
   const pushEvt = (evt: Extract<FeedItem, { kind: "evt" }>) => {
     const last = items[items.length - 1];
     if (last?.kind === "evt" && last.text === evt.text && last.tone === evt.tone) {
@@ -161,7 +152,6 @@ export function buildFeed(events: RecordingEvent[]): FeedItem[] {
 
     switch (e.kind) {
       case "runtime": {
-        // Mock-Runtime: schlichte {text}-Events als Stimme des Agenten.
         if (typeof p.text === "string" && !p.message && !p.type) {
           ensureTurn(time, k).voice.push(p.text);
           break;
@@ -173,19 +163,19 @@ export function buildFeed(events: RecordingEvent[]): FeedItem[] {
               key: k,
               kind: "evt",
               icon: "info",
-              text: `Sitzung gestartet${p.model ? ` · Modell ${p.model}` : ""}`,
+              text: i18n.t("activity.sessionStarted", {
+                model: p.model ? i18n.t("activity.withModel", { model: p.model }) : "",
+              }),
               time,
               tone: "muted",
             });
             break;
           case "rate_limit_event":
-            break; // Rauschen — im Rohmodus weiter sichtbar
+            break;
           case "assistant": {
             const blocks: any[] = Array.isArray(p.message?.content) ? p.message.content : [];
             for (const b of blocks) {
               if (b.type === "text" && b.text) {
-                // Ein neuer Gedanke beginnt einen neuen Turn, sobald der
-                // aktuelle schon Inhalt trägt.
                 const cur = turn as TurnItem | null;
                 if (cur && (cur.voice.length > 0 || cur.rows.length > 0)) closeTurn();
                 ensureTurn(time, k).voice.push(b.text);
@@ -232,14 +222,13 @@ export function buildFeed(events: RecordingEvent[]): FeedItem[] {
               key: k,
               kind: "result",
               ok: !p.is_error,
-              text: String(p.result ?? (p.is_error ? "Lauf fehlgeschlagen" : "Lauf beendet")),
+              text: String(p.result ?? (p.is_error ? i18n.t("activity.runFailed") : i18n.t("activity.runEnded"))),
               meta,
               time,
             });
             break;
           }
           default:
-            // Unbekannte Runtime-Zeile: nicht verschlucken, aber leise.
             items.push({
               key: k,
               kind: "evt",
@@ -259,10 +248,14 @@ export function buildFeed(events: RecordingEvent[]): FeedItem[] {
           items.push({
             key: k,
             kind: "parked",
-            title: "Wartet auf externes Ereignis",
-            text: `${p.question ? `${p.question} ` : ""}${
-              p.correlation_key ? `Wacht auf bei „${p.correlation_key}". ` : ""
-            }Geparkt seit ${time}.`,
+            title: i18n.t("activity.waitingForEvent"),
+            text: i18n.t("activity.parkedSince", {
+              question: p.question ? i18n.t("activity.parkedQuestion", { question: p.question }) : "",
+              correlation: p.correlation_key
+                ? i18n.t("activity.parkedCorrelation", { key: p.correlation_key })
+                : "",
+              time,
+            }),
             time,
           });
         } else if (status === "wake_on_correlation") {
@@ -270,45 +263,45 @@ export function buildFeed(events: RecordingEvent[]): FeedItem[] {
             key: k,
             kind: "evt",
             icon: "bolt",
-            text: `Geweckt — das erwartete Ereignis ist eingetreten${
-              p.correlation_key ? ` („${p.correlation_key}")` : ""
-            }`,
+            text: i18n.t("activity.wokeOnEvent", {
+              key: p.correlation_key ? i18n.t("activity.wokeOnEventKey", { key: p.correlation_key }) : "",
+            }),
             time,
           });
         } else if (status === "working" || status === "triggered" || status === "triage") {
-          items.push({ key: k, kind: "evt", icon: "bolt", text: "Geweckt — beginnt zu arbeiten", time });
+          items.push({ key: k, kind: "evt", icon: "bolt", text: i18n.t("activity.woke"), time });
         } else if (status === "sleeping") {
           items.push({
             key: k,
             kind: "evt",
             icon: "moon",
-            text: "Schläft — wartet auf neue Arbeit",
+            text: i18n.t("activity.sleeping"),
             time,
             tone: "muted",
           });
         } else if (status === "task_done") {
-          items.push({ key: k, kind: "gate", icon: "check", text: "Aufgabe abgeschlossen", time, tone: "ok" });
+          items.push({ key: k, kind: "gate", icon: "check", text: i18n.t("activity.taskDone"), time, tone: "ok" });
         } else if (status === "task_failed") {
-          items.push({ key: k, kind: "gate", icon: "x", text: "Aufgabe fehlgeschlagen", time, tone: "danger" });
+          items.push({ key: k, kind: "gate", icon: "x", text: i18n.t("activity.taskFailed"), time, tone: "danger" });
         } else if (status === "task_blocked") {
           items.push({
             key: k,
             kind: "gate",
             icon: "clock",
-            text: "Aufgabe wartet auf ein externes Ereignis",
+            text: i18n.t("activity.taskBlocked"),
             time,
             tone: "warn",
           });
         } else if (status === "stage") {
-          items.push({ key: k, kind: "evt", icon: "flag", text: `Etappe erreicht: ${p.stage}`, time });
+          items.push({ key: k, kind: "evt", icon: "flag", text: i18n.t("activity.stage", { stage: p.stage }), time });
         } else if (status === "killed") {
-          items.push({ key: k, kind: "gate", icon: "x", text: "Agent gestoppt (Kill-Switch)", time, tone: "danger" });
+          items.push({ key: k, kind: "gate", icon: "x", text: i18n.t("activity.killed"), time, tone: "danger" });
         } else {
           items.push({
             key: k,
             kind: "evt",
             icon: "info",
-            text: `Status → ${statusLabel[status] ?? status}`,
+            text: i18n.t("activity.statusChange", { label: i18n.t(`status.${status}`, status) }),
             time,
           });
         }
@@ -317,17 +310,23 @@ export function buildFeed(events: RecordingEvent[]): FeedItem[] {
 
       case "credential": {
         if (p.granted) {
-          const ttl = p.ttl_secs ? ` · gültig ${Math.round(p.ttl_secs / 60)} min` : "";
           pushGate({
             icon: "key",
-            text: `Zugang zu ${p.system} kurzlebig ausgestellt${p.proactive ? " (proaktiv)" : ""}${ttl}`,
+            text: i18n.t("activity.credentialGranted", {
+              system: p.system,
+              proactive: p.proactive ? i18n.t("activity.credentialProactive") : "",
+              ttl: p.ttl_secs ? i18n.t("activity.credentialTtl", { min: Math.round(p.ttl_secs / 60) }) : "",
+            }),
             time,
             tone: "ok",
           }, k);
         } else {
           pushGate({
             icon: "key",
-            text: `Zugang zu ${p.system} verweigert${p.reason ? ` — ${p.reason}` : ""}`,
+            text: i18n.t("activity.credentialDenied", {
+              system: p.system,
+              reason: p.reason ? i18n.t("activity.credentialDeniedReason", { reason: p.reason }) : "",
+            }),
             time,
             tone: "danger",
           }, k);
@@ -340,15 +339,15 @@ export function buildFeed(events: RecordingEvent[]): FeedItem[] {
         if (d === "pending") {
           pushGate({
             icon: "clock",
-            text: `Freigabe angefragt: ${p.action} — wartet auf Entscheidung`,
+            text: i18n.t("activity.approvalPending", { action: p.action }),
             time,
             tone: "warn",
           }, k);
         } else if (d === "denied") {
-          pushGate({ icon: "x", text: `Freigabe verweigert: ${p.action}`, time, tone: "danger" }, k);
+          pushGate({ icon: "x", text: i18n.t("activity.approvalDenied", { action: p.action }), time, tone: "danger" }, k);
         } else {
-          const how = d === "auto-allow" ? "automatisch erlaubt" : "erteilt";
-          pushGate({ icon: "shield", text: `Freigabe ${how}: ${p.action}`, time, tone: "ok" }, k);
+          const how = d === "auto-allow" ? i18n.t("activity.approvalAuto") : i18n.t("activity.approvalManual");
+          pushGate({ icon: "shield", text: i18n.t("activity.approvalGranted", { how, action: p.action }), time, tone: "ok" }, k);
         }
         break;
       }
@@ -357,9 +356,11 @@ export function buildFeed(events: RecordingEvent[]): FeedItem[] {
         const what = p.action ?? p.system ?? "";
         pushGate({
           icon: "shield",
-          text: `Guard-Rail ${p.rule ?? ""} ausgelöst${what ? `: ${what}` : ""}${
-            p.pattern ? ` (Muster „${p.pattern}")` : ""
-          }`,
+          text: i18n.t("activity.guardrailTriggered", {
+            rule: p.rule ?? "",
+            what: what ? i18n.t("activity.guardrailWhat", { what }) : "",
+            pattern: p.pattern ? i18n.t("activity.guardrailPattern", { pattern: p.pattern }) : "",
+          }),
           time,
           tone: "danger",
         }, k);
@@ -367,10 +368,9 @@ export function buildFeed(events: RecordingEvent[]): FeedItem[] {
       }
 
       case "action": {
-        // Aktion im Zielsystem über den Action-Proxy — als Tool-Zeile.
         const call: ToolCall = {
           key: `action-${e.id}`,
-          name: `Zielsystem · ${p.action ?? "Aktion"}`,
+          name: i18n.t("activity.targetAction", { action: p.action ?? "" }),
           detail: toolDetail("", p.params ?? p),
           input: p,
           pending: false,
@@ -396,9 +396,6 @@ export function buildFeed(events: RecordingEvent[]): FeedItem[] {
   return items;
 }
 
-// newestFirst dreht die chronologisch gebauten Items für die Anzeige um:
-// jüngster Tag zuerst, innerhalb eines Tages jüngster Eintrag zuerst. Die
-// Tageszeile bleibt dabei über ihren Einträgen stehen.
 function newestFirst(items: FeedItem[]): FeedItem[] {
   const groups: FeedItem[][] = [];
   for (const it of items) {
@@ -413,12 +410,13 @@ function newestFirst(items: FeedItem[]): FeedItem[] {
 // --- Rendering ---
 
 function ToolRow({ call }: { call: ToolCall }) {
+  const { t } = useTranslation();
   const pill = call.pending ? (
-    <span className="pill mut">läuft …</span>
+    <span className="pill mut">{t("activity.toolPending")}</span>
   ) : call.isError ? (
-    <span className="pill err">Fehler</span>
+    <span className="pill err">{t("activity.toolError")}</span>
   ) : (
-    <span className="pill ok">ok</span>
+    <span className="pill ok">{t("activity.toolOk")}</span>
   );
   const hasBody = call.detail || call.result || call.input != null;
   return (
@@ -435,13 +433,13 @@ function ToolRow({ call }: { call: ToolCall }) {
         <div className="tool-body">
           {call.input != null && (
             <div className="tool-sec">
-              <span className="tool-sec-l">Aufruf</span>
+              <span className="tool-sec-l">{t("activity.toolCall")}</span>
               <pre>{truncate(JSON.stringify(call.input, null, 2), 2000)}</pre>
             </div>
           )}
           {call.result != null && (
             <div className="tool-sec">
-              <span className="tool-sec-l">{call.isError ? "Fehler" : "Ergebnis"}</span>
+              <span className="tool-sec-l">{call.isError ? t("activity.toolError") : t("activity.toolResult")}</span>
               <pre>{truncate(call.result, 2000)}</pre>
             </div>
           )}
@@ -452,6 +450,7 @@ function ToolRow({ call }: { call: ToolCall }) {
 }
 
 export function ActivityFeed({ events, truncated }: { events: RecordingEvent[]; truncated?: boolean }) {
+  const { t } = useTranslation();
   const items = newestFirst(buildFeed(events));
   return (
     <div className="act-feed">
@@ -490,7 +489,7 @@ export function ActivityFeed({ events, truncated }: { events: RecordingEvent[]; 
               <div key={it.key} className={`act-result ${it.ok ? "" : "err"}`}>
                 <div className="ph">
                   <Icon name={it.ok ? "check" : "x"} />
-                  <b>{it.ok ? "Ergebnis" : "Fehlgeschlagen"}</b>
+                  <b>{it.ok ? t("activity.result") : t("activity.failed")}</b>
                   <span className="act-meta">
                     {it.meta && `${it.meta} · `}
                     {it.time}
@@ -528,8 +527,7 @@ export function ActivityFeed({ events, truncated }: { events: RecordingEvent[]; 
       })}
       {truncated && (
         <div className="evt muted">
-          <Icon name="info" /> Ältere Ereignisse ausgeblendet — der Feed zeigt die jüngsten{" "}
-          {events.length} Einträge.
+          <Icon name="info" /> {t("activity.truncatedFeed", { count: events.length })}
         </div>
       )}
     </div>

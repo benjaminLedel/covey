@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { api, del, put, patch, type Agent, type Principal, type SecretCheck, type SecretPreview } from "../api";
 
 const canEdit = (role: string) => role === "platform_admin" || role === "security";
 
 export default function Secrets({ me }: { me: Principal }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const keys = useQuery({
     queryKey: ["secrets"],
@@ -26,11 +28,12 @@ export default function Secrets({ me }: { me: Principal }) {
       qc.invalidateQueries({ queryKey: ["secrets"] });
     },
   });
+
   if (keys.isError) {
     return (
       <div>
-        <h1 className="text-[22px] mb-3">Secrets</h1>
-        <p className="muted">Ihre Rolle ({me.Role}) hat auf den Secret-Store keinen Zugriff.</p>
+        <h1 className="text-[22px] mb-3">{t("secrets.title")}</h1>
+        <p className="muted">{t("secrets.noAccess", { role: me.Role })}</p>
       </div>
     );
   }
@@ -38,18 +41,11 @@ export default function Secrets({ me }: { me: Principal }) {
   return (
     <div>
       <div className="flex items-baseline gap-3 mb-2">
-        <h1 className="text-[22px]">Secrets</h1>
-        <span className="muted">AES-GCM-verschlüsselt in Postgres, write-only</span>
+        <h1 className="text-[22px]">{t("secrets.title")}</h1>
+        <span className="muted">{t("secrets.subtitle")}</span>
       </div>
       <p className="muted text-xs mb-4" style={{ maxWidth: 640 }}>
-        Der Broker reicht Secrets zur Laufzeit kurzlebig an Sandboxen durch — der volle Wert ist über
-        die API nie wieder lesbar, nur die ersten Zeichen dienen als Wiedererkennungshilfe. Konvention: <span className="mono">&lt;system&gt;_token</span> und{" "}
-        <span className="mono">&lt;system&gt;_url</span> (z. B. zammad), plus{" "}
-        <span className="mono">anthropic_api_key</span> für die Runtime (Abo-Accounts stattdessen:{" "}
-        <span className="mono">claude_code_oauth_token</span> aus <span className="mono">claude setup-token</span>).
-        Ein Secret erreicht einen Agenten nur, wenn es ihm <strong>explizit zugewiesen</strong> ist —
-        ohne Zuweisung bleibt es wirkungslos. Zuweisen und agent-eigene Secrets pflegst du auf der
-        Agenten-Seite (Tab „Secrets"); hier ist nur der zentrale Vault.
+        {t("secrets.desc")}
       </p>
 
       {canEdit(me.Role) && (
@@ -61,36 +57,24 @@ export default function Secrets({ me }: { me: Principal }) {
           }}
         >
           <div className="min-w-48">
-            <label>Key</label>
+            <label>{t("secrets.key")}</label>
             <input value={key} onChange={(e) => setKey(e.target.value)} className="mono" placeholder="zammad_token" required />
           </div>
           <div className="flex-1 min-w-52">
-            <label>Wert</label>
+            <label>{t("secrets.value")}</label>
             <input type="password" value={value} onChange={(e) => setValue(e.target.value)} required />
           </div>
           <button className="btn primary" disabled={save.isPending}>
-            Speichern
+            {t("secrets.save")}
           </button>
           {check && (
             <p
               className="text-xs w-full m-0"
               style={{ color: check.checked && !check.valid ? "var(--danger, #b91c1c)" : check.valid ? "var(--success, #15803d)" : "var(--text-secondary)" }}
             >
-              {check.checked && check.valid && (
-                <>
-                  <span className="mono">{check.key}</span> gespeichert — Credential live geprüft, gültig. ✓
-                </>
-              )}
-              {check.checked && !check.valid && (
-                <>
-                  <span className="mono">{check.key}</span> gespeichert, aber das Credential ist <strong>ungültig</strong>: {check.hint}
-                </>
-              )}
-              {!check.checked && (
-                <>
-                  <span className="mono">{check.key}</span> gespeichert.{check.hint ? ` ${check.hint}` : ""}
-                </>
-              )}
+              {check.checked && check.valid && t("secrets.savedValid", { key: check.key })}
+              {check.checked && !check.valid && t("secrets.savedInvalid", { key: check.key, hint: check.hint })}
+              {!check.checked && t("secrets.savedOk", { key: check.key })}
             </p>
           )}
         </form>
@@ -99,12 +83,13 @@ export default function Secrets({ me }: { me: Principal }) {
       {(keys.data ?? []).map((s) => (
         <SecretCard key={s.key} secret={s} agents={agents.data ?? []} canEdit={canEdit(me.Role)} />
       ))}
-      {keys.data?.length === 0 && <p className="muted">Noch keine Secrets hinterlegt.</p>}
+      {keys.data?.length === 0 && <p className="muted">{t("secrets.noSecrets")}</p>}
     </div>
   );
 }
 
 function SecretCard({ secret, agents, canEdit }: { secret: SecretPreview; agents: Agent[]; canEdit: boolean }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const toggle = useMutation({
     mutationFn: (revealed: boolean) =>
@@ -129,15 +114,14 @@ function SecretCard({ secret, agents, canEdit }: { secret: SecretPreview; agents
           <>
             <button
               className="btn sm"
-              title={secret.revealed ? "Wert verbergen" : "Wert anzeigen erlauben"}
               disabled={toggle.isPending}
               onClick={() => toggle.mutate(!secret.revealed)}
               style={{ color: secret.revealed ? "var(--primary, #2563eb)" : undefined }}
             >
-              {secret.revealed ? "Verbergen" : "Einsehbar"}
+              {secret.revealed ? t("secrets.hide") : t("secrets.reveal")}
             </button>
             <button className="btn sm" onClick={() => remove.mutate()}>
-              Löschen
+              {t("secrets.delete")}
             </button>
           </>
         )}
@@ -147,18 +131,17 @@ function SecretCard({ secret, agents, canEdit }: { secret: SecretPreview; agents
   );
 }
 
-// Assignments: rein passive Anzeige, wem ein Org-Secret zugewiesen ist.
-// Gepflegt wird die Zuweisung auf der Agenten-Seite (Tab „Secrets").
 function Assignments({ secret, agents }: { secret: SecretPreview; agents: Agent[] }) {
+  const { t } = useTranslation();
   const assigned = secret.agent_ids ?? [];
   const name = (id: string) => agents.find((a) => a.id === id)?.display_name ?? id.slice(0, 8);
 
   return (
     <div className="flex items-center gap-2 flex-wrap mt-2 text-xs">
-      <span className="muted">zugewiesen an:</span>
+      <span className="muted">{t("secrets.assignedTo")}</span>
       {assigned.length === 0 && (
         <span style={{ color: "var(--text-warning, #b45309)" }}>
-          niemanden — erreicht keinen Agenten
+          {t("secrets.nobody")}
         </span>
       )}
       {assigned.map((id) => (

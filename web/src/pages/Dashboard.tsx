@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
-import { api, post, ApiError, statusLabel, type Agent, type AgentTemplate, type Principal, type RuntimeInfo } from "../api";
+import { useTranslation } from "react-i18next";
+import { api, post, ApiError, type Agent, type AgentTemplate, type Principal, type RuntimeInfo } from "../api";
 import { generateAgentName, slugify } from "../names";
 import { Modal } from "../components/Modal";
 
@@ -9,6 +10,7 @@ const canManage = (role: string) => role === "platform_admin" || role === "agent
 const canSecurity = (role: string) => role === "platform_admin" || role === "security";
 
 export default function Dashboard({ me }: { me: Principal }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const agents = useQuery({ queryKey: ["agents"], queryFn: () => api<Agent[]>("/agents") });
   const fleet = useQuery({
@@ -30,22 +32,22 @@ export default function Dashboard({ me }: { me: Principal }) {
   return (
     <div>
       <div className="flex items-center gap-3 mb-4">
-        <h1 className="text-[22px]">Agenten</h1>
-        <span className="muted text-sm">{agents.data?.length ?? 0} in der Organisation</span>
+        <h1 className="text-[22px]">{t("dashboard.title")}</h1>
+        <span className="muted text-sm">{t("dashboard.count", { count: agents.data?.length ?? 0 })}</span>
         <span className="ml-auto" />
         {canManage(me.Role) && (
           <button className="btn primary" onClick={() => setShowCreate(true)}>
-            + Neuer Agent
+            {t("dashboard.newAgent")}
           </button>
         )}
         {canSecurity(me.Role) && !fleetKilled && (
           <button
             className="btn"
             onClick={() => fleetMut.mutate(true)}
-            title="Alle Agenten sofort stoppen"
+            title={t("dashboard.emergencyStopTitle")}
             style={{ color: "var(--error)", borderColor: "var(--border-danger, var(--border))" }}
           >
-            Notaus
+            {t("dashboard.emergencyStop")}
           </button>
         )}
       </div>
@@ -67,10 +69,10 @@ export default function Dashboard({ me }: { me: Principal }) {
             <line x1="12" y1="15" x2="12" y2="15.5" strokeWidth="2.2" />
           </svg>
           <span style={{ color: "var(--error)", flex: 1, fontSize: 13 }}>
-            Flottenweiter Notaus aktiv — kein Agent wird geweckt.
+            {t("dashboard.fleetKilledBanner")}
           </span>
           <button className="btn sm" onClick={() => fleetMut.mutate(false)} disabled={fleetMut.isPending}>
-            Notaus lösen
+            {t("dashboard.releaseStop")}
           </button>
         </div>
       )}
@@ -80,7 +82,7 @@ export default function Dashboard({ me }: { me: Principal }) {
           <AgentCard key={a.id} agent={a} />
         ))}
         {agents.data?.length === 0 && (
-          <p className="muted">Noch keine Agenten — legen Sie den ersten an.</p>
+          <p className="muted">{t("dashboard.noAgents")}</p>
         )}
       </div>
 
@@ -98,6 +100,7 @@ export default function Dashboard({ me }: { me: Principal }) {
 }
 
 function AgentCard({ agent }: { agent: Agent }) {
+  const { t } = useTranslation();
   const initials = agent.display_name
     .split(/\s+/)
     .map((w) => w[0])
@@ -115,12 +118,12 @@ function AgentCard({ agent }: { agent: Agent }) {
           </div>
         </div>
         <span className={`badge st-${agent.killed ? "killed" : agent.status}`}>
-          {agent.killed ? "gestoppt" : statusLabel[agent.status] ?? agent.status}
+          {t(`status.${agent.killed ? "killed" : agent.status}`, agent.killed ? "gestoppt" : agent.status)}
         </span>
       </div>
       <div className="muted text-xs">
         Runtime: <span className="mono">{agent.runtime}</span>
-        {agent.budget_usd > 0 && <> · Budget {agent.budget_usd.toFixed(2)} $</>}
+        {agent.budget_usd > 0 && <> · {t("dashboard.budget")} {agent.budget_usd.toFixed(2)} $</>}
       </div>
     </Link>
   );
@@ -133,6 +136,7 @@ function AgentCard({ agent }: { agent: Agent }) {
 type CreatePath = "choose" | "template" | "manual" | "import";
 
 function CreateAgentModal({ onClose, onDone }: { onClose: () => void; onDone: (id: string) => void }) {
+  const { t } = useTranslation();
   const [path, setPath] = useState<CreatePath>("choose");
   const navigate = useNavigate();
 
@@ -142,10 +146,10 @@ function CreateAgentModal({ onClose, onDone }: { onClose: () => void; onDone: (i
   };
 
   const titles: Record<CreatePath, string> = {
-    choose: "Neuen Agenten anlegen",
-    template: "Aus Vorlage erstellen",
-    manual: "Agent manuell anlegen",
-    import: "Bundle importieren",
+    choose: t("dashboard.createAgent"),
+    template: t("dashboard.fromTemplate"),
+    manual: t("dashboard.manualCreate"),
+    import: t("dashboard.importBundle"),
   };
 
   return (
@@ -190,23 +194,23 @@ const pathIcons: Record<string, JSX.Element> = {
   ),
 };
 
-// Pfad-Auswahl: drei Kacheln
 function ChoosePath({ onPick }: { onPick: (p: CreatePath) => void }) {
+  const { t } = useTranslation();
   const paths: { key: CreatePath; title: string; desc: string }[] = [
     {
       key: "template",
-      title: "Aus Vorlage",
-      desc: "Vorkonfigurierter Agent aus der Vorlagen-Bibliothek",
+      title: t("dashboard.pathTemplate"),
+      desc: t("dashboard.pathTemplateDesc"),
     },
     {
       key: "manual",
-      title: "Manuell",
-      desc: "Leerer Agent mit selbst gewähltem Namen und Slug",
+      title: t("dashboard.pathManual"),
+      desc: t("dashboard.pathManualDesc"),
     },
     {
       key: "import",
-      title: "Bundle importieren",
-      desc: "Vollständige Konfiguration aus einer JSON-Export-Datei",
+      title: t("dashboard.pathImport"),
+      desc: t("dashboard.pathImportDesc"),
     },
   ];
 
@@ -246,8 +250,8 @@ function ChoosePath({ onPick }: { onPick: (p: CreatePath) => void }) {
   );
 }
 
-// Schritt: Vorlage auswählen
 function TemplateStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agent) => void }) {
+  const { t } = useTranslation();
   const [selected, setSelected] = useState<AgentTemplate | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [slug, setSlug] = useState("");
@@ -272,23 +276,23 @@ function TemplateStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agen
     return (
       <div>
         <BackLink onBack={onBack} />
-        {templates.isLoading && <p className="muted text-sm">Lade Vorlagen…</p>}
+        {templates.isLoading && <p className="muted text-sm">{t("dashboard.loadingTemplates")}</p>}
         {!templates.isLoading && list.length === 0 && (
           <div style={{ padding: "32px 0", textAlign: "center" }}>
-            <p className="muted text-sm" style={{ marginBottom: 4 }}>Noch keine Vorlagen vorhanden.</p>
-            <p className="muted text-xs">Öffne einen Agenten → Konfiguration → „Als Vorlage speichern".</p>
+            <p className="muted text-sm" style={{ marginBottom: 4 }}>{t("dashboard.noTemplates")}</p>
+            <p className="muted text-xs">{t("dashboard.noTemplatesHint")}</p>
           </div>
         )}
         <div style={{ display: "grid", gap: 8, marginTop: 8, maxHeight: 380, overflowY: "auto" }}>
-          {list.map((t) => {
-            const bundle = t.bundle as { agent?: { runtime?: string } };
+          {list.map((tpl) => {
+            const bundle = tpl.bundle as { agent?: { runtime?: string } };
             return (
               <button
-                key={t.id}
+                key={tpl.id}
                 onClick={() => {
-                  setSelected(t);
-                  setDisplayName(t.name);
-                  setSlug(slugify(t.name));
+                  setSelected(tpl);
+                  setDisplayName(tpl.name);
+                  setSlug(slugify(tpl.name));
                 }}
                 style={{
                   display: "flex",
@@ -306,8 +310,8 @@ function TemplateStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agen
                 onMouseLeave={(e) => ((e.currentTarget as HTMLElement).style.borderColor = "var(--border)")}
               >
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 500, fontSize: 14 }}>{t.name}</div>
-                  {t.description && <div className="muted text-xs" style={{ marginTop: 2 }}>{t.description}</div>}
+                  <div style={{ fontWeight: 500, fontSize: 14 }}>{tpl.name}</div>
+                  {tpl.description && <div className="muted text-xs" style={{ marginTop: 2 }}>{tpl.description}</div>}
                   <div className="muted text-xs" style={{ marginTop: 4 }}>
                     Runtime: <span className="mono">{bundle?.agent?.runtime ?? "—"}</span>
                   </div>
@@ -329,7 +333,7 @@ function TemplateStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agen
         style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 8 }}
       >
         <div>
-          <label>Anzeigename</label>
+          <label>{t("dashboard.displayName")}</label>
           <div className="flex gap-2">
             <input
               value={displayName}
@@ -341,7 +345,7 @@ function TemplateStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agen
             <button
               type="button"
               className="btn"
-              title="Zufälligen Namen würfeln"
+              title={t("dashboard.rollDice")}
               onClick={() => {
                 const g = generateAgentName();
                 setDisplayName(g.name);
@@ -353,22 +357,22 @@ function TemplateStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agen
           </div>
         </div>
         <div>
-          <label>Slug</label>
+          <label>{t("dashboard.slug")}</label>
           <input
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
             className="mono"
             required
           />
-          <div className="muted text-xs" style={{ marginTop: 3 }}>Eindeutig, nur Kleinbuchstaben, Ziffern, Bindestriche.</div>
+          <div className="muted text-xs" style={{ marginTop: 3 }}>{t("dashboard.slugHint")}</div>
         </div>
         {mut.isError && (
           <div className="danger-text text-xs">{String((mut.error as Error)?.message ?? mut.error)}</div>
         )}
         <div className="flex gap-2 justify-end" style={{ marginTop: 4 }}>
-          <button type="button" className="btn" onClick={() => setSelected(null)}>Zurück</button>
+          <button type="button" className="btn" onClick={() => setSelected(null)}>{t("dashboard.back")}</button>
           <button type="submit" className="btn primary" disabled={mut.isPending}>
-            {mut.isPending ? "Erstelle…" : "Agent anlegen"}
+            {mut.isPending ? t("dashboard.creating") : t("dashboard.createAgentBtn")}
           </button>
         </div>
       </form>
@@ -376,8 +380,8 @@ function TemplateStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agen
   );
 }
 
-// Schritt: Manuell anlegen
 function ManualStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agent) => void }) {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [runtime, setRuntime] = useState("claude-code");
@@ -402,7 +406,7 @@ function ManualStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agent)
         style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 8 }}
       >
         <div>
-          <label>Name</label>
+          <label>{t("dashboard.displayName")}</label>
           <div className="flex gap-2">
             <input
               value={name}
@@ -410,7 +414,6 @@ function ManualStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agent)
                 setName(e.target.value);
                 setSlug(slugify(e.target.value));
               }}
-              placeholder="Support-Agent"
               autoFocus
               required
               style={{ flex: 1 }}
@@ -418,7 +421,7 @@ function ManualStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agent)
             <button
               type="button"
               className="btn"
-              title="Zufälligen Namen würfeln"
+              title={t("dashboard.rollDice")}
               onClick={() => {
                 const g = generateAgentName();
                 setName(g.name);
@@ -430,18 +433,17 @@ function ManualStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agent)
           </div>
         </div>
         <div>
-          <label>Slug</label>
+          <label>{t("dashboard.slug")}</label>
           <input
             value={slug}
             onChange={(e) => setSlug(e.target.value)}
-            placeholder="support-agent"
             className="mono"
             required
           />
-          <div className="muted text-xs" style={{ marginTop: 3 }}>Eindeutig, nur Kleinbuchstaben, Ziffern, Bindestriche.</div>
+          <div className="muted text-xs" style={{ marginTop: 3 }}>{t("dashboard.slugHint")}</div>
         </div>
         <div>
-          <label>Runtime</label>
+          <label>{t("dashboard.selectRuntime")}</label>
           <select value={runtime} onChange={(e) => setRuntime(e.target.value)}>
             {rtList.length === 0 && (
               <>
@@ -458,9 +460,9 @@ function ManualStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agent)
           <div className="danger-text text-xs">{String((mut.error as Error)?.message ?? mut.error)}</div>
         )}
         <div className="flex gap-2 justify-end" style={{ marginTop: 4 }}>
-          <button type="button" className="btn" onClick={onBack}>Zurück</button>
+          <button type="button" className="btn" onClick={onBack}>{t("dashboard.back")}</button>
           <button type="submit" className="btn primary" disabled={mut.isPending}>
-            {mut.isPending ? "Anlegen…" : "Agent anlegen"}
+            {mut.isPending ? t("dashboard.creatingAgent") : t("dashboard.createAgentBtn")}
           </button>
         </div>
       </form>
@@ -468,8 +470,8 @@ function ManualStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agent)
   );
 }
 
-// Schritt: Bundle-Import
 function ImportStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agent) => void }) {
+  const { t } = useTranslation();
   const fileRef = useRef<HTMLInputElement>(null);
   const [bundle, setBundle] = useState<{ agent?: { slug?: string } } | null>(null);
   const [fileName, setFileName] = useState("");
@@ -495,7 +497,7 @@ function ImportStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agent)
     onError: (err) => {
       if (err instanceof ApiError && err.status === 409) {
         setConflict(true);
-        setParseError(err.message);
+        setParseError((err as Error).message);
       } else {
         setConflict(false);
         setParseError(String(err instanceof ApiError ? err.message : err));
@@ -516,11 +518,10 @@ function ImportStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agent)
       mut.mutate({ bundle: parsed });
     } catch {
       setBundle(null);
-      setParseError("Datei ist kein gültiges JSON-Bundle.");
+      setParseError(t("dashboard.invalidJson"));
     }
   };
 
-  // Wenn Warnungen, aber kein Fehler: Ergebnis anzeigen mit "Trotzdem öffnen"
   const importResult = mut.isSuccess ? mut.data : null;
 
   return (
@@ -534,7 +535,7 @@ function ImportStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agent)
           disabled={mut.isPending}
           style={{ marginBottom: 8 }}
         >
-          {fileName ? "Andere Datei wählen …" : "JSON-Bundle auswählen …"}
+          {fileName ? t("dashboard.changeFile") : t("dashboard.selectJson")}
         </button>
         <input
           ref={fileRef}
@@ -544,7 +545,7 @@ function ImportStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agent)
           onChange={(e) => { pick(e.target.files?.[0]); e.target.value = ""; }}
         />
         {fileName && <span className="muted text-xs mono" style={{ marginLeft: 8 }}>{fileName}</span>}
-        {mut.isPending && <p className="muted text-xs" style={{ marginTop: 6 }}>Importiere…</p>}
+        {mut.isPending && <p className="muted text-xs" style={{ marginTop: 6 }}>{t("dashboard.importing")}</p>}
 
         {conflict && bundle && (
           <form
@@ -552,7 +553,7 @@ function ImportStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agent)
             onSubmit={(e) => { e.preventDefault(); if (slugOverride) mut.mutate({ bundle, slug: slugOverride }); }}
           >
             <div style={{ flex: 1 }}>
-              <label>Neuer Slug (der bisherige ist bereits vergeben)</label>
+              <label>{t("dashboard.newSlug")}</label>
               <input
                 value={slugOverride}
                 onChange={(e) => setSlugOverride(e.target.value)}
@@ -563,7 +564,7 @@ function ImportStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agent)
               />
             </div>
             <button className="btn primary" disabled={mut.isPending || !slugOverride}>
-              Erneut importieren
+              {t("dashboard.reimport")}
             </button>
           </form>
         )}
@@ -578,13 +579,13 @@ function ImportStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agent)
         {importResult && warnings.length > 0 && (
           <div style={{ marginTop: 12 }}>
             <p className="text-sm" style={{ marginBottom: 6 }}>
-              Importiert: <strong>{importResult.agent.display_name}</strong> — mit Hinweisen:
+              {t("dashboard.importedWith", { name: importResult.agent.display_name })}
             </p>
             <ul style={{ fontSize: 12, color: "var(--text-warning, #b58900)", paddingLeft: "1.4em", marginBottom: 12 }}>
               {warnings.map((w, i) => <li key={i}>{w}</li>)}
             </ul>
             <button className="btn primary" onClick={() => onDone(importResult.agent)}>
-              Agent öffnen
+              {t("dashboard.openAgent")}
             </button>
           </div>
         )}
@@ -593,7 +594,8 @@ function ImportStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agent)
   );
 }
 
-function BackLink({ onBack, label = "← Zurück" }: { onBack: () => void; label?: string }) {
+function BackLink({ onBack, label }: { onBack: () => void; label?: string }) {
+  const { t } = useTranslation();
   return (
     <button
       type="button"
@@ -608,7 +610,7 @@ function BackLink({ onBack, label = "← Zurück" }: { onBack: () => void; label
         marginBottom: 12,
       }}
     >
-      {label}
+      {label ?? `← ${t("dashboard.back")}`}
     </button>
   );
 }

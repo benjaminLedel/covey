@@ -1,7 +1,5 @@
 import type { ReactNode } from "react";
 
-// Inline-Doku: ein Thema pro Seite, kontextsensitiv über `match` an die Route
-// gebunden. Inhalte hier pflegen — der HelpDrawer rendert sie nur.
 export type HelpTopic = {
   id: string;
   title: string;
@@ -17,11 +15,11 @@ const Badge = ({ st, children }: { st: string; children: ReactNode }) => (
 
 const Term = ({ children }: { children: ReactNode }) => <span className="mono text-[12px]">{children}</span>;
 
-export const helpTopics: HelpTopic[] = [
+const deTopics: HelpTopic[] = [
   {
     id: "erste-schritte",
     title: "Erste Schritte",
-    match: () => false, // nie kontextgebunden, steht immer oben
+    match: () => false,
     body: (
       <>
         <p>
@@ -304,5 +302,296 @@ export const helpTopics: HelpTopic[] = [
   },
 ];
 
+const enTopics: HelpTopic[] = [
+  {
+    id: "erste-schritte",
+    title: "Getting Started",
+    match: () => false,
+    body: (
+      <>
+        <p>
+          Covey treats AI agents like employees: each has an identity, its own backlog, an isolated
+          sandbox, and gets credentials brokered only for short lifetimes. The fastest path to your
+          first working agent:
+        </p>
+        <ol>
+          <li>
+            Under <b>Secrets</b>, store the runtime credential: <Term>anthropic_api_key</Term>{" "}
+            (API key) or <Term>claude_code_oauth_token</Term> (subscription account, token from{" "}
+            <Term>claude setup-token</Term>). Without this secret, tasks will fail.
+          </li>
+          <li>
+            Under <b>Agents</b>, create an agent (Runtime <Term>claude-code</Term>).
+          </li>
+          <li>
+            On the agent page in the <b>Config</b> tab, write <Term>SOUL.md</Term> — the agent's
+            role, tone, and working style.
+          </li>
+          <li>
+            In the <b>Backlog</b> tab, create a task and start the agent with <b>Wake</b>.
+          </li>
+          <li>
+            Watch what happens in the <b>Recording</b> tab — every action is recorded.
+          </li>
+        </ol>
+      </>
+    ),
+  },
+  {
+    id: "agenten",
+    title: "Agents (Overview)",
+    match: (p) => p === "/",
+    body: (
+      <>
+        <p>
+          The overview shows all agents in the organization with their lifecycle status. Agents are
+          event-driven: they sleep until there is work, costing nothing in the meantime.
+        </p>
+        <dl>
+          <dt><Badge st="sleeping">sleeping</Badge></dt>
+          <dd>No sandbox active. Open tasks or "Wake" will start the agent.</dd>
+          <dt><Badge st="triggered">triggered</Badge></dt>
+          <dd>Sandbox starting up, the daemon connects to the control plane.</dd>
+          <dt><Badge st="working">working</Badge></dt>
+          <dd>The runtime is processing a task from the backlog.</dd>
+          <dt><Badge st="killed">stopped</Badge></dt>
+          <dd>Kill switch active — the agent will not be woken until resumed.</dd>
+        </dl>
+        <p>
+          <b>Kill Switch (Fleet)</b> stops all agents in the organization immediately and prevents
+          any wake-up until released. Visible to Platform Admins and Security roles.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "organisation",
+    title: "Org Chart",
+    match: (p) => p === "/org",
+    body: (
+      <>
+        <p>
+          The org chart is the company-wide map of <b>people and agents</b>: agents report to their
+          supervisor (who they escalate to), people report to their manager.
+        </p>
+        <ul>
+          <li>
+            <b>Assign agents:</b> on the agent page via "reports to" (Platform Admin and Agent
+            Owner).
+          </li>
+          <li>
+            <b>Assign people:</b> in user management (Platform Admin only).
+          </li>
+          <li>
+            Agents without a supervisor appear below the tree until assigned.
+          </li>
+        </ul>
+        <p>
+          The relationship is more than decoration: on escalation, Covey records the supervisor in
+          the task result.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "agent",
+    title: "Agent Page & Backlog",
+    match: (p) => p.startsWith("/agents/"),
+    body: (
+      <>
+        <p>
+          Each agent works through its backlog sequentially. Tasks pass through states:
+        </p>
+        <dl>
+          <dt><Badge st="open">open</Badge></dt>
+          <dd>Waiting in the backlog; the agent's next run will pick it up.</dd>
+          <dt><Badge st="in_progress">in progress</Badge></dt>
+          <dd>The runtime is currently processing this task in the sandbox.</dd>
+          <dt><Badge st="blocked">waiting</Badge></dt>
+          <dd>
+            The agent needs something external (customer reply, approval). The sandbox shuts down —
+            no costs accrue. The "waiting on" entry shows the correlation key; when the event
+            arrives, the agent is woken and resumes the runtime session.
+          </dd>
+          <dt><Badge st="done">done</Badge> / <Badge st="failed">failed</Badge></dt>
+          <dd>Completed; result or error are shown in the expanded task.</dd>
+        </dl>
+        <p>Overview of tabs:</p>
+        <ul>
+          <li>
+            <b>Backlog</b> — Create and track tasks. "Wake" starts processing immediately.
+          </li>
+          <li>
+            <b>Heartbeat</b> — Recurring tasks from <Term>HEARTBEAT.md</Term> shown graphically:
+            schedule, last run, and next runs on a 24-hour timeline.
+          </li>
+          <li>
+            <b>Recording</b> — Complete audit trail: runtime events, actions, guard-rail and
+            credential decisions, lifecycle.
+          </li>
+          <li>
+            <b>Config</b> — Config-as-Code: <Term>SOUL.md</Term> (behavior),{" "}
+            <Term>ACCESS.md</Term> (access references, never secrets) and{" "}
+            <Term>HEARTBEAT.md</Term> (recurring tasks automatically added to the backlog on
+            schedule). Each change creates a new version.
+          </li>
+          <li>
+            <b>Memory</b> — Episodes the agent learned from completed tasks; they feed into future
+            runs.
+          </li>
+        </ul>
+        <p>
+          The cost bar shows LLM costs and tokens. If a budget is set, the agent pauses when
+          exceeded (budget cap is a guard rail).
+        </p>
+        <p>
+          <b>Stop</b> is the kill switch for this agent: the sandbox is terminated immediately,
+          running tasks go back to the backlog.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "freigaben",
+    title: "Approvals",
+    match: (p) => p.startsWith("/approvals"),
+    body: (
+      <>
+        <p>
+          When a guard rail requires an approval for an action (e.g.{" "}
+          <Term>zammad:reply_external</Term>), the task pauses as{" "}
+          <Badge st="blocked">waiting</Badge> and the request appears here — with the action and
+          its parameters.
+        </p>
+        <ul>
+          <li><b>Approve</b> — the agent is woken and executes the action.</li>
+          <li><b>Deny</b> — the agent is woken and must continue without the action.</li>
+        </ul>
+        <p>
+          Decisions are part of the recording and thus auditable. The "Approvals" count in the
+          navigation shows pending requests.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "guardrails",
+    title: "Guard Rails",
+    match: (p) => p.startsWith("/guardrails"),
+    body: (
+      <>
+        <p>
+          Guard rails are centrally enforced — at the broker and in the tool layer, outside the
+          runtime. They are fail-closed: what no rule allows, the broker decides — not the agent
+          prompt. Patterns allow wildcards (<Term>hr*</Term>).
+        </p>
+        <dl>
+          <dt><Badge st="failed">System denied</Badge></dt>
+          <dd>No credential for this system — requests are rejected at the broker.</dd>
+          <dt><Badge st="failed">Action denied</Badge></dt>
+          <dd>The action is blocked in the tool layer before it reaches the target system.</dd>
+          <dt><Badge st="blocked">Approval required</Badge></dt>
+          <dd>The action pauses until a person decides under "Approvals".</dd>
+          <dt><Badge st="blocked">Budget cap</Badge></dt>
+          <dd>If an agent exceeds its cost limit, it pauses.</dd>
+        </dl>
+        <p>
+          A narrower scope can tighten rules; a global deny rule can never be loosened.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "secrets",
+    title: "Secrets",
+    match: (p) => p.startsWith("/secrets"),
+    body: (
+      <>
+        <p>
+          Secrets are AES-GCM encrypted in the database and are write-only: values are never
+          readable again via the API. The broker passes them to sandboxes at runtime for short
+          lifetimes only — never permanently.
+        </p>
+        <p>Conventions:</p>
+        <ul>
+          <li>
+            <Term>anthropic_api_key</Term> — API key for the Claude Code runtime, <i>or</i>{" "}
+            <Term>claude_code_oauth_token</Term> — OAuth token for subscription accounts (generate
+            once with <Term>claude setup-token</Term>). Without one of these, tasks fail with a
+            credential error.
+          </li>
+          <li>
+            <Term>&lt;system&gt;_url</Term> and <Term>&lt;system&gt;_token</Term> — target systems,
+            e.g. <Term>zammad_url</Term> / <Term>zammad_token</Term>.
+          </li>
+        </ul>
+        <p>Platform Admins and Security roles may edit secrets.</p>
+      </>
+    ),
+  },
+  {
+    id: "egress",
+    title: "Egress (Network Outbound)",
+    match: (p) => p.startsWith("/egress"),
+    body: (
+      <>
+        <p>
+          Each sandbox may only reach hosts that are on its agent's allowlist outbound — everything
+          else is blocked by the egress proxy <b>fail-closed</b>. The workflow:
+        </p>
+        <ol>
+          <li>
+            Under <b>Templates</b>, maintain reusable host sets — either adopt from the built-in{" "}
+            <b>catalog</b> (GitHub, npm, PyPI, container registries …) or create your own, e.g.
+            "Zammad-Prod" with <Term>helpdesk.example.com</Term>.
+          </li>
+          <li>
+            On the agent page in the <b>Egress</b> tab, assign templates — agent-specific single
+            hosts for exceptions are also possible there.
+          </li>
+          <li>
+            The <b>Overview</b> shows enforcement status, metrics for the last 24 hours, and every
+            individual proxy decision. The <b>Base Allowlist</b> is also there: hosts every agent
+            in the organization may reach — pre-populated with the LLM endpoint (
+            <Term>api.anthropic.com</Term>), fully configurable.
+          </li>
+        </ol>
+        <p>
+          Patterns: exact host (<Term>api.example.com</Term>) or wildcard for subdomains (
+          <Term>*.example.com</Term>), without scheme, path, or port. Changes take effect within
+          ~15 seconds (proxy cache). Many "blocked" entries mean missing allowlist entries — or an
+          agent trying to reach somewhere it shouldn't.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "rollen",
+    title: "Users & Roles",
+    match: (p) => p.startsWith("/users") || p.startsWith("/orgs"),
+    body: (
+      <>
+        <p>Access follows roles (RBAC), the unit is the organization:</p>
+        <dl>
+          <dt><b>Platform Admin</b></dt>
+          <dd>Everything — including user and organization management.</dd>
+          <dt><b>Agent Owner</b></dt>
+          <dd>Create, configure, wake, and stop agents; add tasks to the backlog.</dd>
+          <dt><b>Security</b></dt>
+          <dd>Manage guard rails and secrets, stop agents, fleet kill switch.</dd>
+          <dt><b>Auditor</b></dt>
+          <dd>Read-only access, especially to recordings and decisions.</dd>
+          <dt><b>Controlling</b></dt>
+          <dd>Read-only access to costs and budgets.</dd>
+        </dl>
+      </>
+    ),
+  },
+];
+
+export function getHelpTopics(lang: string): HelpTopic[] {
+  return lang === "en" ? enTopics : deTopics;
+}
+
 export const topicForPath = (path: string): string =>
-  helpTopics.find((t) => t.match(path))?.id ?? "erste-schritte";
+  deTopics.find((t) => t.match(path))?.id ?? "erste-schritte";

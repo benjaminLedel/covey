@@ -1,8 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 
-// Modal: zentrierter Dialog mit Backdrop in vernünftigen Maßen — Breite nach
-// size, nie breiter als der Viewport, Inhalt scrollt ab 85vh. Schließt per
-// Escape und Klick auf den Backdrop; der Fokus startet im Dialog.
 export function Modal({
   title,
   onClose,
@@ -16,6 +14,7 @@ export function Modal({
   size?: "sm" | "md" | "lg";
   footer?: ReactNode;
 }) {
+  const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -23,8 +22,6 @@ export function Modal({
       if (e.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
-    // Fokus in den Dialog holen, damit Escape/Tab dort landen — aber ein
-    // autoFocus-Feld im Inhalt nicht überschreiben.
     if (!ref.current?.contains(document.activeElement)) ref.current?.focus();
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
@@ -41,7 +38,7 @@ export function Modal({
       >
         <div className="modal-head">
           <h2>{title}</h2>
-          <button className="icon-btn" onClick={onClose} aria-label="Schließen" title="Schließen (Esc)">
+          <button className="icon-btn" onClick={onClose} aria-label={t("modal.close")} title={`${t("modal.close")} (Esc)`}>
             <svg viewBox="0 0 24 24" className="ic" aria-hidden="true">
               <path d="M6 6l12 12M18 6L6 18" />
             </svg>
@@ -54,12 +51,10 @@ export function Modal({
   );
 }
 
-// ConfirmDialog: Bestätigung für destruktive Aktionen — ersetzt window.confirm
-// durch einen Dialog in der Design-Sprache der App.
 export function ConfirmDialog({
   title,
   children,
-  confirmLabel = "Löschen",
+  confirmLabel,
   onConfirm,
   onClose,
   pending = false,
@@ -71,6 +66,7 @@ export function ConfirmDialog({
   onClose: () => void;
   pending?: boolean;
 }) {
+  const { t } = useTranslation();
   return (
     <Modal
       title={title}
@@ -78,9 +74,9 @@ export function ConfirmDialog({
       size="sm"
       footer={
         <>
-          <button className="btn sm" onClick={onClose}>Abbrechen</button>
+          <button className="btn sm" onClick={onClose}>{t("modal.cancel")}</button>
           <button className="btn sm danger" disabled={pending} onClick={onConfirm}>
-            {confirmLabel}
+            {confirmLabel ?? t("modal.delete")}
           </button>
         </>
       }

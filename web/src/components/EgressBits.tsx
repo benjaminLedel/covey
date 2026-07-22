@@ -1,31 +1,29 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { api, type Agent, type EgressHost, type EgressLogEntry } from "../api";
 
-// Gemeinsame Bausteine der Egress-Verwaltung — genutzt von der Egress-Seite
-// (Templates + globales Monitoring) und dem Egress-Reiter der Agenten-Seite.
-
-// HostChips zeigt Allowlist-Einträge als Chips; die Notiz erscheint als
-// Tooltip, optional mit Entfernen-Knopf.
 export function HostChips({
   hosts,
   canEdit,
   onDelete,
-  emptyText = "keine Hosts",
+  emptyText,
 }: {
   hosts: EgressHost[];
   canEdit: boolean;
   onDelete: (id: string) => void;
   emptyText?: string;
 }) {
-  if (hosts.length === 0) return <span className="muted text-xs">{emptyText}</span>;
+  const { t } = useTranslation();
+  const empty = emptyText ?? t("egress.log.noEvents");
+  if (hosts.length === 0) return <span className="muted text-xs">{empty}</span>;
   return (
     <>
       {hosts.map((h) => (
         <span key={h.id} className="chip" title={h.note || undefined}>
           {h.pattern}
           {canEdit && (
-            <button onClick={() => onDelete(h.id)} title="entfernen" aria-label={`${h.pattern} entfernen`}>
+            <button onClick={() => onDelete(h.id)} title={t("egress.log.removeHost")} aria-label={`${h.pattern} ${t("egress.log.removeHost")}`}>
               ×
             </button>
           )}
@@ -35,10 +33,8 @@ export function HostChips({
   );
 }
 
-// AddHostForm ist die Eingabezeile für ein neues Host-Muster (+ Notiz).
-// onAdd liefert das Promise des API-Aufrufs; das Formular leert sich bei
-// Erfolg selbst und zeigt Fehler (z. B. „ungültiges Muster") inline an.
 export function AddHostForm({ onAdd }: { onAdd: (pattern: string, note: string) => Promise<unknown> }) {
+  const { t } = useTranslation();
   const [pattern, setPattern] = useState("");
   const [note, setNote] = useState("");
   const [pending, setPending] = useState(false);
@@ -63,20 +59,20 @@ export function AddHostForm({ onAdd }: { onAdd: (pattern: string, note: string) 
         <input
           className="mono"
           style={{ flex: 2, minWidth: 0, fontSize: 12 }}
-          placeholder="host.example.com oder *.example.com"
+          placeholder={t("egress.log.hostPlaceholder")}
           value={pattern}
           onChange={(e) => setPattern(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submit()}
         />
         <input
           style={{ flex: 1, minWidth: 0, fontSize: 12 }}
-          placeholder="Notiz (optional)"
+          placeholder={t("egress.log.notePlaceholder")}
           value={note}
           onChange={(e) => setNote(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submit()}
         />
         <button className="btn sm" disabled={pending || !pattern.trim()} onClick={submit}>
-          Hinzufügen
+          {t("egress.log.addHost")}
         </button>
       </div>
       {err && (
@@ -88,10 +84,8 @@ export function AddHostForm({ onAdd }: { onAdd: (pattern: string, note: string) 
   );
 }
 
-// EgressLogTable zeigt die jüngsten Egress-Entscheidungen — global (mit
-// Agent-Spalte, optional nach Agent filterbar) oder fest für einen Agenten.
-// Aktualisiert sich alle 10 s selbst.
 export function EgressLogTable({ agentId, withAgentFilter = false }: { agentId?: string; withAgentFilter?: boolean }) {
+  const { t } = useTranslation();
   const [onlyBlocked, setOnlyBlocked] = useState(false);
   const [filterAgent, setFilterAgent] = useState("");
   const agents = useQuery({
@@ -118,34 +112,36 @@ export function EgressLogTable({ agentId, withAgentFilter = false }: { agentId?:
       <div className="flex items-center gap-3 mb-2">
         <label className="flex items-center gap-1 text-xs secondary" style={{ margin: 0 }}>
           <input type="checkbox" style={{ width: "auto" }} checked={onlyBlocked} onChange={(e) => setOnlyBlocked(e.target.checked)} />
-          nur blockierte
+          {t("egress.log.onlyBlocked")}
         </label>
         {withAgentFilter && (
           <select
             value={filterAgent}
             onChange={(e) => setFilterAgent(e.target.value)}
             style={{ width: "auto", padding: "4px 8px", fontSize: 12 }}
-            aria-label="Nach Agent filtern"
+            aria-label={t("egress.log.filterByAgent")}
           >
-            <option value="">alle Agenten</option>
+            <option value="">{t("egress.log.allAgents")}</option>
             {(agents.data ?? []).map((a) => (
               <option key={a.id} value={a.id}>{a.display_name || a.slug}</option>
             ))}
           </select>
         )}
         <span className="muted text-xs ml-auto">
-          {rows.length} Einträge{!onlyBlocked && blockedCount > 0 ? `, davon ${blockedCount} blockiert` : ""} · aktualisiert alle 10 s
+          {t("egress.log.entries", { count: rows.length })}
+          {!onlyBlocked && blockedCount > 0 ? t("egress.log.withBlocked", { blocked: blockedCount }) : ""}
+          {" · "}{t("egress.log.refresh")}
         </span>
       </div>
       <div className="card" style={{ padding: 0, overflowX: "auto" }}>
         <table className="tbl">
           <thead>
             <tr>
-              <th>Zeit</th>
-              {!agentId && <th>Agent</th>}
-              <th>Host</th>
-              <th>Methode</th>
-              <th>Ergebnis</th>
+              <th>{t("egress.log.colTime")}</th>
+              {!agentId && <th>{t("egress.log.colAgent")}</th>}
+              <th>{t("egress.log.colHost")}</th>
+              <th>{t("egress.log.colMethod")}</th>
+              <th>{t("egress.log.colResult")}</th>
             </tr>
           </thead>
           <tbody>
@@ -157,7 +153,7 @@ export function EgressLogTable({ agentId, withAgentFilter = false }: { agentId?:
                 <td className="secondary">{e.method}</td>
                 <td>
                   <span className={`badge ${e.allowed ? "st-done" : "st-failed"}`}>
-                    {e.allowed ? "erlaubt" : "blockiert"}
+                    {e.allowed ? t("egress.log.allowed") : t("egress.log.blocked")}
                   </span>
                 </td>
               </tr>
@@ -165,7 +161,7 @@ export function EgressLogTable({ agentId, withAgentFilter = false }: { agentId?:
             {rows.length === 0 && (
               <tr>
                 <td colSpan={agentId ? 4 : 5} className="muted" style={{ padding: "14px" }}>
-                  {onlyBlocked ? "Keine blockierten Egress-Ereignisse." : "Noch keine Egress-Ereignisse."}
+                  {onlyBlocked ? t("egress.log.noBlockedEvents") : t("egress.log.noEvents")}
                 </td>
               </tr>
             )}
@@ -176,7 +172,6 @@ export function EgressLogTable({ agentId, withAgentFilter = false }: { agentId?:
   );
 }
 
-// formatLogTime: heutige Einträge nur als Uhrzeit, ältere mit Datum.
 function formatLogTime(iso: string) {
   const d = new Date(iso);
   const today = new Date();

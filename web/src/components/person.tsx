@@ -1,9 +1,6 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import type { Human } from "../api";
-
-// Gemeinsame Bausteine rund um Personen: Initialen-Avatar und der
-// einheitliche Link auf die Profil-Seite (/people/{id}). Überall verwenden,
-// wo ein Mensch angezeigt wird — Organigramm, Benutzerliste, Profil-Seite.
 
 export const initials = (name: string) =>
   name
@@ -23,8 +20,9 @@ export function Avatar({ name, size = 32, human }: { name: string; size?: number
 }
 
 export function PersonLink({ human }: { human: Pick<Human, "id" | "display_name"> }) {
+  const { t } = useTranslation();
   return (
-    <Link to={`/people/${human.id}`} style={{ color: "inherit" }} title="Profil-Seite öffnen">
+    <Link to={`/people/${human.id}`} style={{ color: "inherit" }} title={t("org.openProfile")}>
       {human.display_name}
     </Link>
   );

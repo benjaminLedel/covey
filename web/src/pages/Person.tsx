@@ -1,23 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router-dom";
-import { api, roleLabel, statusLabel, type Human, type OrgChart, type Principal } from "../api";
+import { useTranslation } from "react-i18next";
+import { api, roleLabel, type Human, type OrgChart, type Principal } from "../api";
 import AccountSettings from "../components/AccountSettings";
 import { Avatar, PersonLink } from "../components/person";
 import ProfileForm from "../components/ProfileForm";
 
-// Die Profil-Seite eines Menschen — das Gegenstück zur Agenten-Seite und
-// zugleich die eigene Profil-Seite (/profile leitet hierher). Erreichbar aus
-// Organigramm und Benutzerverwaltung. Profil editierbar für Admins
-// (/users/{id}) und die eigene Person (/auth/me), sonst read-only; dazu die
-// Einbettung in den Org-Chart und — nur bei der eigenen Person — die
-// Konto-Einstellungen (Anzeigename, Passwort, Sitzungen).
 export default function PersonPage({ me }: { me: Principal }) {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const person = useQuery({ queryKey: ["human", id], queryFn: () => api<Human>(`/org/humans/${id}`) });
   const chart = useQuery({ queryKey: ["orgchart"], queryFn: () => api<OrgChart>("/org/chart") });
 
   if (person.isLoading) return null;
-  if (person.isError || !person.data) return <p className="danger-text">Person nicht gefunden.</p>;
+  if (person.isError || !person.data) return <p className="danger-text">{t("person.notFound")}</p>;
   const h = person.data;
 
   const humans = chart.data?.humans ?? [];
@@ -33,7 +29,7 @@ export default function PersonPage({ me }: { me: Principal }) {
     <div style={{ maxWidth: 720 }}>
       <div className="text-sm secondary mb-3">
         <Link to="/org" style={{ color: "inherit" }}>
-          Organigramm
+          {t("person.breadcrumb")}
         </Link>{" "}
         / <b style={{ color: "var(--text-primary)", fontWeight: 500 }}>{h.display_name}</b>
       </div>
@@ -43,7 +39,7 @@ export default function PersonPage({ me }: { me: Principal }) {
         <div>
           <h1 className="text-[22px] m-0">
             {h.display_name}
-            {isSelf && <span className="muted text-sm"> — Sie</span>}
+            {isSelf && <span className="muted text-sm"> {t("person.self")}</span>}
           </h1>
           <div className="muted text-xs">
             {h.job_title || (roleLabel[h.role] ?? h.role)} · <span className="mono">{h.email}</span>
@@ -55,24 +51,24 @@ export default function PersonPage({ me }: { me: Principal }) {
       </div>
 
       <div className="card mb-4">
-        <div className="text-sm font-medium mb-2">Profil</div>
+        <div className="text-sm font-medium mb-2">{t("person.profile")}</div>
         <ProfileForm human={h} endpoint={isAdmin ? `/users/${h.id}` : "/auth/me"} readOnly={!isAdmin && !isSelf} />
         {!isAdmin && !isSelf && (
-          <p className="muted text-xs mt-2 mb-0">Profile anderer Personen pflegt ein Admin unter „Benutzer".</p>
+          <p className="muted text-xs mt-2 mb-0">{t("person.readOnlyHint")}</p>
         )}
       </div>
 
       <div className="card">
-        <div className="text-sm font-medium mb-2">Im Org-Chart</div>
+        <div className="text-sm font-medium mb-2">{t("person.orgChart")}</div>
         <div className="text-xs">
           <div className="flex gap-2 py-0.5">
-            <span className="muted" style={{ minWidth: 110 }}>berichtet an</span>
-            {manager ? <PersonLink human={manager} /> : <span className="muted">niemanden</span>}
+            <span className="muted" style={{ minWidth: 110 }}>{t("person.reportsTo")}</span>
+            {manager ? <PersonLink human={manager} /> : <span className="muted">{t("person.nobody")}</span>}
           </div>
           <div className="flex gap-2 py-0.5">
-            <span className="muted" style={{ minWidth: 110 }}>direkte Berichte</span>
+            <span className="muted" style={{ minWidth: 110 }}>{t("person.directReports")}</span>
             {reports.length === 0 ? (
-              <span className="muted">keine</span>
+              <span className="muted">{t("person.noDirect")}</span>
             ) : (
               <span className="flex gap-2 flex-wrap">
                 {reports.map((r) => (
@@ -82,16 +78,19 @@ export default function PersonPage({ me }: { me: Principal }) {
             )}
           </div>
           <div className="flex gap-2 py-0.5">
-            <span className="muted" style={{ minWidth: 110 }}>betreute Agenten</span>
+            <span className="muted" style={{ minWidth: 110 }}>{t("person.supervisedAgents")}</span>
             {ownAgents.length === 0 ? (
-              <span className="muted">keine</span>
+              <span className="muted">{t("person.noAgents")}</span>
             ) : (
               <span className="flex gap-2 flex-wrap items-center">
                 {ownAgents.map((a) => (
                   <Link key={a.id} to={`/agents/${a.id}`}>
                     {a.display_name}
-                    <span className={`badge st-${a.killed ? "killed" : a.status}`} style={{ marginLeft: 4 }}>
-                      {a.killed ? "gestoppt" : statusLabel[a.status] ?? a.status}
+                    <span
+                      className={`badge st-${a.killed ? "killed" : a.status}`}
+                      style={{ marginLeft: 4 }}
+                    >
+                      {t(`status.${a.killed ? "killed" : a.status}`, a.killed ? "killed" : a.status)}
                     </span>
                   </Link>
                 ))}

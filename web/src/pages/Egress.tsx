@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { Link, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
 import {
   api, del, post,
@@ -23,29 +24,28 @@ export default function Egress({ me }: { me: Principal }) {
   );
 }
 
-// Kopf mit Titel + Sub-Navigation, auf allen Egress-Seiten gleich.
 function Header() {
+  const { t } = useTranslation();
   return (
     <>
       <div className="flex items-baseline gap-3 mb-1">
-        <h1 className="text-[22px]">Egress</h1>
-        <span className="muted">Netzwerk-Ausgang der Sandboxen</span>
+        <h1 className="text-[22px]">{t("egress.title")}</h1>
+        <span className="muted">{t("egress.subtitle")}</span>
       </div>
       <nav className="subnav">
         <NavLink to="/egress" end className={({ isActive }) => (isActive ? "active" : "")}>
-          Übersicht
+          {t("egress.overview")}
         </NavLink>
         <NavLink to="/egress/templates" className={({ isActive }) => (isActive ? "active" : "")}>
-          Templates
+          {t("egress.templates")}
         </NavLink>
       </nav>
     </>
   );
 }
 
-// --- Übersicht: Status, 24h-Kennzahlen, Monitoring-Log ---
-
 function Overview({ canEdit }: { canEdit: boolean }) {
+  const { t } = useTranslation();
   const status = useQuery({ queryKey: ["egress", "status"], queryFn: () => api<EgressStatus>("/egress") });
   const stats = useQuery({
     queryKey: ["egress", "stats"],
@@ -67,28 +67,28 @@ function Overview({ canEdit }: { canEdit: boolean }) {
       <div className="stat-grid mb-6">
         <div className="card stat">
           <div className="v" style={{ color: "var(--text-success)" }}>{stats.data?.allowed_24h ?? "–"}</div>
-          <div className="l">erlaubt, letzte 24 h</div>
+          <div className="l">{t("egress.allowed24h")}</div>
         </div>
         <div className="card stat">
           <div className="v" style={{ color: stats.data?.blocked_24h ? "var(--text-danger)" : undefined }}>
             {stats.data?.blocked_24h ?? "–"}
           </div>
-          <div className="l">blockiert, letzte 24 h</div>
+          <div className="l">{t("egress.blocked24h")}</div>
         </div>
         <div className="card stat">
           <div className="v">{templates.data?.length ?? "–"}</div>
           <div className="l">
-            <Link to="/egress/templates" style={{ color: "inherit" }}>Templates</Link>
+            <Link to="/egress/templates" style={{ color: "inherit" }}>{t("egress.templates")}</Link>
           </div>
         </div>
         {(stats.data?.top_blocked.length ?? 0) > 0 && (
           <div className="card stat" style={{ gridColumn: "span 2" }}>
-            <div className="l" style={{ marginTop: 0, marginBottom: 6 }}>am häufigsten blockiert (24 h)</div>
+            <div className="l" style={{ marginTop: 0, marginBottom: 6 }}>{t("egress.topBlocked")}</div>
             <div className="flex flex-wrap gap-1">
-              {stats.data!.top_blocked.map((t) => (
-                <span key={t.host} className="chip" title={`${t.count}× blockiert`}>
-                  {t.host}
-                  <span className="src">{t.count}×</span>
+              {stats.data!.top_blocked.map((entry) => (
+                <span key={entry.host} className="chip" title={t("egress.blockedCount", { count: entry.count })}>
+                  {entry.host}
+                  <span className="src">{entry.count}×</span>
                 </span>
               ))}
             </div>
@@ -97,10 +97,9 @@ function Overview({ canEdit }: { canEdit: boolean }) {
       </div>
 
       <section>
-        <h2 className="text-base font-medium mb-2">Monitoring</h2>
+        <h2 className="text-base font-medium mb-2">{t("egress.monitoring")}</h2>
         <p className="muted text-xs mb-3" style={{ maxWidth: 620 }}>
-          Jede Egress-Entscheidung über alle Agenten. Häufungen von „blockiert" deuten auf fehlende
-          Allowlist-Einträge — oder auf einen Agenten, der wohin will, wo er nicht hingehört.
+          {t("egress.monitoringDesc")}
         </p>
         <EgressLogTable withAgentFilter />
       </section>
@@ -108,9 +107,8 @@ function Overview({ canEdit }: { canEdit: boolean }) {
   );
 }
 
-// HowItWorks erklärt das Modell in drei Schritten — einmal verstanden, per
-// Klick dauerhaft ausblendbar.
 function HowItWorks() {
+  const { t } = useTranslation();
   const [hidden, setHidden] = useState(() => localStorage.getItem("covey.egress.howto") === "1");
   if (hidden) return null;
   return (
@@ -119,31 +117,22 @@ function HowItWorks() {
         <div className="card step">
           <span className="n">1</span>
           <span>
-            <b>Template anlegen</b>
-            <p>
-              Unter <Link to="/egress/templates">Templates</Link> ein Host-Set aus dem Katalog
-              übernehmen (z. B. „GitHub", „Python / PyPI") oder ein eigenes anlegen.
-            </p>
+            <b>{t("egress.step1title")}</b>
+            <p>{t("egress.step1body")}</p>
           </span>
         </div>
         <div className="card step">
           <span className="n">2</span>
           <span>
-            <b>Agenten zuweisen</b>
-            <p>
-              Auf der Agenten-Seite im Reiter <span className="mono">Egress</span> Templates
-              ankreuzen — Einzel-Hosts dort nur für Ausnahmen.
-            </p>
+            <b>{t("egress.step2title")}</b>
+            <p>{t("egress.step2body")}</p>
           </span>
         </div>
         <div className="card step">
           <span className="n">3</span>
           <span>
-            <b>Proxy erzwingt</b>
-            <p>
-              Jeder Agent erreicht nur Hosts seiner Allowlist, alles andere blockt der Proxy
-              fail-closed — hier im Monitoring sichtbar.
-            </p>
+            <b>{t("egress.step3title")}</b>
+            <p>{t("egress.step3body")}</p>
           </span>
         </div>
       </div>
@@ -152,13 +141,14 @@ function HowItWorks() {
         style={{ border: "none", color: "var(--text-muted)", padding: "2px 4px" }}
         onClick={() => { localStorage.setItem("covey.egress.howto", "1"); setHidden(true); }}
       >
-        Verstanden, ausblenden
+        {t("egress.howToHide")}
       </button>
     </div>
   );
 }
 
 function StatusBanner({ status }: { status: EgressStatus }) {
+  const { t } = useTranslation();
   return (
     <div
       className="card mb-4 text-xs"
@@ -167,26 +157,13 @@ function StatusBanner({ status }: { status: EgressStatus }) {
         borderLeft: `3px solid ${status.enforced ? "var(--text-success)" : "var(--text-warning)"}`,
       }}
     >
-      {status.enforced ? (
-        <span>
-          <b>Enforcement aktiv</b> (docker) — der Proxy erzwingt die Allowlists aller Agenten
-          fail-closed.
-        </span>
-      ) : (
-        <span>
-          <b>Enforcement nicht aktiv</b> — Einträge werden gespeichert und greifen, sobald der Server
-          mit <span className="mono">COVEY_SANDBOX_PROVIDER=docker</span> und{" "}
-          <span className="mono">COVEY_EGRESS_ENFORCE=true</span> läuft.
-        </span>
-      )}
+      <span>{status.enforced ? t("egress.enforced") : t("egress.notEnforced")}</span>
     </div>
   );
 }
 
-// DefaultsCard: die Basis-Allowlist der Organisation — Hosts, die JEDER Agent
-// erreichen darf. Vollständig konfigurierbar; dazu die nur per Config
-// änderbaren ENV-Zusätze.
 function DefaultsCard({ status, canEdit }: { status: EgressStatus; canEdit: boolean }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: ["egress"] });
   const delHost = useMutation({ mutationFn: (id: string) => del(`/egress/defaults/${id}`), onSuccess: invalidate });
@@ -194,20 +171,19 @@ function DefaultsCard({ status, canEdit }: { status: EgressStatus; canEdit: bool
 
   return (
     <div className="card mb-4" style={{ padding: "13px 15px" }}>
-      <p className="text-xs font-medium" style={{ margin: "0 0 4px" }}>Basis-Allowlist</p>
+      <p className="text-xs font-medium" style={{ margin: "0 0 4px" }}>{t("egress.baseAllowlist")}</p>
       <p className="muted text-xs" style={{ margin: "0 0 8px", maxWidth: 620 }}>
-        Diese Hosts darf <b>jeder Agent</b> der Organisation erreichen — zusätzlich zu seinen
-        Templates und eigenen Hosts.
+        {t("egress.baseAllowlistDesc")}
       </p>
       <div className="flex flex-wrap gap-1 mb-2">
         <HostChips
           hosts={status.defaults}
           canEdit={canEdit}
           onDelete={(id) => delHost.mutate(id)}
-          emptyText="leer — Agenten erreichen nur Hosts aus Templates und eigenen Einträgen"
+          emptyText={t("egress.baseEmpty")}
         />
         {status.env.map((p) => (
-          <span key={p} className="chip fixed" title="aus COVEY_EGRESS_ALLOW — nur per Config änderbar">
+          <span key={p} className="chip fixed" title={t("egress.envChipTitle")}>
             {p}
             <span className="src">ENV</span>
           </span>
@@ -220,18 +196,15 @@ function DefaultsCard({ status, canEdit }: { status: EgressStatus; canEdit: bool
       )}
       {!hasLLM && (
         <p className="text-xs mt-2" style={{ color: "var(--text-warning)", margin: "8px 0 0" }}>
-          Hinweis: Ohne den LLM-Endpunkt der Runtime (z. B.{" "}
-          <span className="mono">api.anthropic.com</span>) können Agenten bei aktivem Enforcement
-          nicht arbeiten.
+          {t("egress.llmHint")}
         </p>
       )}
     </div>
   );
 }
 
-// --- Templates: Liste ---
-
 function TemplatesPage({ canEdit }: { canEdit: boolean }) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const templates = useQuery({ queryKey: ["egress", "templates"], queryFn: () => api<EgressTemplate[]>("/egress/templates") });
   const [showCreate, setShowCreate] = useState(false);
@@ -242,44 +215,46 @@ function TemplatesPage({ canEdit }: { canEdit: boolean }) {
       <Header />
       <div className="flex items-start gap-3 mb-4">
         <p className="muted text-xs" style={{ maxWidth: 560, margin: 0 }}>
-          Wiederverwendbare Host-Sets. Ein Template mehreren Agenten zuzuweisen ist der Normalfall —
-          Einzel-Hosts nur für Ausnahmen direkt am Agenten pflegen. Ein Klick öffnet die Detailseite
-          mit Hosts und Verwendung.
+          {t("egress.catalogDesc")}
         </p>
         {canEdit && (
           <button className="btn primary ml-auto" style={{ flexShrink: 0 }} onClick={() => setShowCreate(true)}>
-            Neues Template
+            {t("egress.newTemplate")}
           </button>
         )}
       </div>
 
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
-        {list.map((t) => (
+        {list.map((tpl) => (
           <Link
-            key={t.id}
-            to={`/egress/templates/${t.id}`}
+            key={tpl.id}
+            to={`/egress/templates/${tpl.id}`}
             className="card fade block"
             style={{ padding: "13px 15px", textDecoration: "none", color: "inherit" }}
           >
             <div className="flex items-baseline gap-2 mb-1">
-              <span className="font-medium">{t.name}</span>
+              <span className="font-medium">{tpl.name}</span>
               <span className="muted text-xs ml-auto">
-                {t.agents.length === 0 ? "nicht zugewiesen" : `${t.agents.length} Agent${t.agents.length === 1 ? "" : "en"}`}
+                {tpl.agents.length === 0
+                  ? t("egress.notAssigned")
+                  : tpl.agents.length === 1
+                    ? t("egress.assignedToAgent", { count: 1 })
+                    : t("egress.assignedToAgents", { count: tpl.agents.length })}
               </span>
             </div>
-            {t.description && <p className="muted text-xs mb-2" style={{ margin: "0 0 8px" }}>{t.description}</p>}
+            {tpl.description && <p className="muted text-xs mb-2" style={{ margin: "0 0 8px" }}>{tpl.description}</p>}
             <div className="flex flex-wrap gap-1">
-              {t.hosts.slice(0, 4).map((h) => (
+              {tpl.hosts.slice(0, 4).map((h) => (
                 <span key={h.id} className="chip">{h.pattern}</span>
               ))}
-              {t.hosts.length > 4 && <span className="muted text-xs" style={{ alignSelf: "center" }}>+{t.hosts.length - 4} weitere</span>}
-              {t.hosts.length === 0 && <span className="muted text-xs">noch keine Hosts</span>}
+              {tpl.hosts.length > 4 && <span className="muted text-xs" style={{ alignSelf: "center" }}>{t("egress.moreHosts", { count: tpl.hosts.length - 4 })}</span>}
+              {tpl.hosts.length === 0 && <span className="muted text-xs">{t("egress.noHosts")}</span>}
             </div>
           </Link>
         ))}
         {list.length === 0 && !templates.isLoading && (
           <p className="muted text-xs">
-            Noch keine Templates{canEdit ? ' — lege mit „Neues Template" das erste an.' : " (Anlegen erfordert Rolle platform_admin oder security)."}
+            {canEdit ? t("egress.noTemplatesHint") : t("egress.noTemplatesAdmin")}
           </p>
         )}
       </div>
@@ -296,9 +271,8 @@ function TemplatesPage({ canEdit }: { canEdit: boolean }) {
   );
 }
 
-// BuiltinCatalog: kuratierte Host-Sets aus dem Code. „Übernehmen" kopiert den
-// Eintrag als org-eigenes Template — danach frei editierbar wie jedes andere.
 function BuiltinCatalog({ canEdit }: { canEdit: boolean }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const builtins = useQuery({ queryKey: ["egress", "builtin"], queryFn: () => api<EgressBuiltin[]>("/egress/builtin") });
   const [err, setErr] = useState<string | null>(null);
@@ -313,11 +287,9 @@ function BuiltinCatalog({ canEdit }: { canEdit: boolean }) {
   if (list.length === 0) return null;
   return (
     <section className="mt-8">
-      <h2 className="text-base font-medium mb-2">Katalog</h2>
+      <h2 className="text-base font-medium mb-2">{t("egress.catalog")}</h2>
       <p className="muted text-xs mb-3" style={{ maxWidth: 560 }}>
-        Mitgelieferte Host-Sets für die üblichen Fälle — Paket-Registries, Code-Hosting,
-        Container-Images. „Übernehmen" legt eine org-eigene Kopie an, die du danach frei anpassen
-        kannst.
+        {t("egress.catalogDesc")}
       </p>
       {err && <p className="text-xs mb-2" style={{ color: "var(--text-danger)" }}>{err}</p>}
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))" }}>
@@ -329,14 +301,14 @@ function BuiltinCatalog({ canEdit }: { canEdit: boolean }) {
                 {b.imported ? (
                   b.template_id ? (
                     <Link to={`/egress/templates/${b.template_id}`} className="badge st-done" style={{ textDecoration: "none" }}>
-                      übernommen
+                      {t("egress.adopted")}
                     </Link>
                   ) : (
-                    <span className="badge st-done">übernommen</span>
+                    <span className="badge st-done">{t("egress.adopted")}</span>
                   )
                 ) : canEdit ? (
                   <button className="btn sm" disabled={importTpl.isPending} onClick={() => importTpl.mutate(b.slug)}>
-                    Übernehmen
+                    {t("egress.adopt")}
                   </button>
                 ) : null}
               </span>
@@ -354,9 +326,8 @@ function BuiltinCatalog({ canEdit }: { canEdit: boolean }) {
   );
 }
 
-// CreateTemplateModal legt ein Template an und führt direkt auf dessen
-// Detailseite, wo die Hosts gepflegt werden.
 function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
@@ -364,29 +335,28 @@ function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCr
 
   const create = useMutation({
     mutationFn: () => post<EgressTemplate>("/egress/templates", { name: name.trim(), description: desc.trim() }),
-    onSuccess: (t) => { qc.invalidateQueries({ queryKey: ["egress"] }); onCreated(t.id); },
+    onSuccess: (result) => { qc.invalidateQueries({ queryKey: ["egress"] }); onCreated(result.id); },
     onError: (e: Error) => setErr(e.message),
   });
 
   return (
     <Modal
-      title="Neues Template"
+      title={t("egress.newTemplate")}
       onClose={onClose}
       footer={
         <>
-          <button className="btn sm" onClick={onClose}>Abbrechen</button>
+          <button className="btn sm" onClick={onClose}>{t("egress.cancel")}</button>
           <button className="btn sm primary" disabled={create.isPending || !name.trim()} onClick={() => create.mutate()}>
-            Anlegen
+            {t("egress.createTemplateCreate")}
           </button>
         </>
       }
     >
       <p className="muted text-xs" style={{ margin: "0 0 12px" }}>
-        Ein Template bündelt Ziel-Hosts, die zusammengehören — die Hosts pflegst du gleich auf der
-        Detailseite.
+        {t("egress.createTemplateDesc")}
       </p>
       <label>
-        Name
+        {t("egress.createTemplateName")}
         <input
           placeholder="Zammad-Prod"
           value={name}
@@ -396,7 +366,7 @@ function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCr
         />
       </label>
       <label style={{ marginTop: 10 }}>
-        Beschreibung (optional)
+        {t("egress.createTemplateOptDesc")}
         <input
           placeholder="Helpdesk-Produktion + Wissensdatenbank"
           value={desc}
@@ -409,9 +379,8 @@ function CreateTemplateModal({ onClose, onCreated }: { onClose: () => void; onCr
   );
 }
 
-// --- Templates: Detailseite ---
-
 function TemplateDetail({ canEdit }: { canEdit: boolean }) {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -425,15 +394,13 @@ function TemplateDetail({ canEdit }: { canEdit: boolean }) {
   });
   const delHost = useMutation({ mutationFn: (hid: string) => del(`/egress/template-hosts/${hid}`), onSuccess: invalidate });
 
-  const tpl = (templates.data ?? []).find((t) => t.id === id);
+  const tpl = (templates.data ?? []).find((item) => item.id === id);
   if (templates.isLoading) return <Header />;
   if (!tpl) {
     return (
       <div>
         <Header />
-        <p className="muted text-sm">
-          Template nicht gefunden — <Link to="/egress/templates">zurück zur Liste</Link>.
-        </p>
+        <p className="muted text-sm">{t("egress.notFound")}</p>
       </div>
     );
   }
@@ -442,43 +409,36 @@ function TemplateDetail({ canEdit }: { canEdit: boolean }) {
     <div>
       <Header />
       <p className="text-xs mb-3">
-        <Link to="/egress/templates" className="muted" style={{ textDecoration: "none" }}>← Alle Templates</Link>
+        <Link to="/egress/templates" className="muted" style={{ textDecoration: "none" }}>{t("egress.backToList")}</Link>
       </p>
 
       <div className="flex items-baseline gap-3 mb-1">
         <h2 className="text-lg font-medium">{tpl.name}</h2>
         {canEdit && (
-          <button className="btn sm danger ml-auto" onClick={() => setConfirmDelete(true)}>Löschen</button>
+          <button className="btn sm danger ml-auto" onClick={() => setConfirmDelete(true)}>{t("egress.deleteTemplate")}</button>
         )}
       </div>
       {tpl.description && <p className="muted text-xs mb-4">{tpl.description}</p>}
 
       <section className="card mb-5" style={{ padding: "14px 16px", maxWidth: 640 }}>
-        <p className="text-xs font-medium mb-2" style={{ margin: "0 0 8px" }}>Erlaubte Hosts</p>
+        <p className="text-xs font-medium mb-2" style={{ margin: "0 0 8px" }}>{t("egress.allowedHosts")}</p>
         <div className="flex flex-wrap gap-1 mb-3">
           <HostChips
             hosts={tpl.hosts}
             canEdit={canEdit}
             onDelete={(hid) => delHost.mutate(hid)}
-            emptyText="noch keine Hosts — unten hinzufügen"
+            emptyText={t("egress.emptyHosts")}
           />
         </div>
         {canEdit && (
           <AddHostForm onAdd={(pattern, note) => post(`/egress/templates/${tpl.id}/hosts`, { pattern, note }).then(invalidate)} />
         )}
-        <p className="muted text-xs mt-2" style={{ margin: "8px 0 0" }}>
-          Exakter Host (<span className="mono">api.example.com</span>) oder Wildcard für alle
-          Subdomains (<span className="mono">*.example.com</span>) — ohne Schema, Pfad oder Port.
-        </p>
       </section>
 
       <section className="mb-5">
-        <p className="text-xs font-medium mb-2">Verwendet von</p>
+        <p className="text-xs font-medium mb-2">{t("egress.usedBy")}</p>
         {tpl.agents.length === 0 ? (
-          <p className="muted text-xs">
-            Noch keinem Agenten zugewiesen — das geschieht auf der Agenten-Seite im Reiter{" "}
-            <span className="mono">Egress</span>.
-          </p>
+          <p className="muted text-xs">{t("egress.notUsed")}</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {tpl.agents.map((a) => (
@@ -493,21 +453,17 @@ function TemplateDetail({ canEdit }: { canEdit: boolean }) {
 
       {confirmDelete && (
         <ConfirmDialog
-          title={`Template „${tpl.name}" löschen?`}
+          title={t("egress.deleteTemplateTitle", { name: tpl.name })}
           onClose={() => setConfirmDelete(false)}
           onConfirm={() => remove.mutate()}
           pending={remove.isPending}
         >
           <p style={{ margin: 0 }}>
-            {tpl.agents.length > 0 ? (
-              <>
-                Das Template ist <b>{tpl.agents.length} Agent{tpl.agents.length === 1 ? "en" : "en"}</b>{" "}
-                zugewiesen — sie verlieren die zugehörigen Hosts und der Proxy blockt diese Ziele
-                künftig.
-              </>
-            ) : (
-              <>Das Template ist keinem Agenten zugewiesen; es gehen nur die gepflegten Hosts verloren.</>
-            )}
+            {tpl.agents.length > 0
+              ? (tpl.agents.length === 1
+                  ? t("egress.deleteWithAgentsOne", { count: 1 })
+                  : t("egress.deleteWithAgentsOther", { count: tpl.agents.length }))
+              : t("egress.deleteNoAgents")}
           </p>
         </ConfirmDialog>
       )}

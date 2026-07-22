@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { helpTopics, topicForPath } from "../help";
+import { useTranslation } from "react-i18next";
+import { getHelpTopics, topicForPath } from "../help";
 
-// Kontextsensitive Inline-Hilfe: öffnet als Slide-Over rechts, das Thema zur
-// aktuellen Route ist vorausgeklappt. Schließen via ✕, Escape oder Backdrop.
 export default function HelpDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
   const location = useLocation();
+  const { t, i18n } = useTranslation();
   const [active, setActive] = useState<string>(topicForPath(location.pathname));
 
   useEffect(() => {
@@ -23,38 +23,38 @@ export default function HelpDrawer({ open, onClose }: { open: boolean; onClose: 
 
   if (!open) return null;
 
+  const topics = getHelpTopics(i18n.language);
+
   return (
     <>
       <div className="help-backdrop" onClick={onClose} />
-      <aside className="help-drawer" role="dialog" aria-label="Hilfe">
+      <aside className="help-drawer" role="dialog" aria-label={t("help.title")}>
         <div className="flex items-center gap-3 mb-4">
-          <h2 className="text-[17px]">Hilfe</h2>
+          <h2 className="text-[17px]">{t("help.title")}</h2>
           <span className="muted text-xs">
-            öffnen mit <kbd>?</kbd>
+            {t("help.openHint")} <kbd>?</kbd>
           </span>
-          <button className="btn sm ml-auto" onClick={onClose} aria-label="Hilfe schließen">
+          <button className="btn sm ml-auto" onClick={onClose} aria-label={t("help.close")}>
             ✕
           </button>
         </div>
-        {helpTopics.map((t) => {
-          const isOpen = active === t.id;
+        {topics.map((topic) => {
+          const isOpen = active === topic.id;
           return (
-            <section key={t.id} className="help-topic">
+            <section key={topic.id} className="help-topic">
               <button
                 className={`help-topic-head ${isOpen ? "open" : ""}`}
-                onClick={() => setActive(isOpen ? "" : t.id)}
+                onClick={() => setActive(isOpen ? "" : topic.id)}
                 aria-expanded={isOpen}
               >
-                <span>{t.title}</span>
+                <span>{topic.title}</span>
                 <span className="muted">{isOpen ? "−" : "+"}</span>
               </button>
-              {isOpen && <div className="help-body fade">{t.body}</div>}
+              {isOpen && <div className="help-body fade">{topic.body}</div>}
             </section>
           );
         })}
-        <p className="muted text-xs mt-4">
-          Vertiefung: die Spezifikation im Repository unter <span className="mono">spec/</span>.
-        </p>
+        <p className="muted text-xs mt-4">{t("help.spec")}</p>
       </aside>
     </>
   );

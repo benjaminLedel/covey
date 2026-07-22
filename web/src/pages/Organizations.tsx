@@ -1,11 +1,10 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { api, del, patch, post, type Organization, type Principal, type ProfileField } from "../api";
 
-// Mandanten-Verwaltung (nur platform_admin): Organisationen der Installation
-// anlegen, umbenennen, löschen. Jede neue Organisation braucht einen
-// initialen Plattform-Admin — sonst wäre sie unerreichbar.
 export default function Organizations({ me }: { me: Principal }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const orgs = useQuery({
     queryKey: ["orgs"],
@@ -16,8 +15,8 @@ export default function Organizations({ me }: { me: Principal }) {
   if (orgs.isError) {
     return (
       <div>
-        <h1 className="text-[22px] mb-3">Organisationen</h1>
-        <p className="muted">Ihre Rolle ({me.Role}) hat auf die Mandanten-Verwaltung keinen Zugriff.</p>
+        <h1 className="text-[22px] mb-3">{t("orgs.title")}</h1>
+        <p className="muted">{t("orgs.noAccess", { role: me.Role })}</p>
       </div>
     );
   }
@@ -25,13 +24,11 @@ export default function Organizations({ me }: { me: Principal }) {
   return (
     <div>
       <div className="flex items-baseline gap-3 mb-2">
-        <h1 className="text-[22px]">Organisationen</h1>
-        <span className="muted">Mandanten dieser Covey-Installation</span>
+        <h1 className="text-[22px]">{t("orgs.title")}</h1>
+        <span className="muted">{t("orgs.subtitle")}</span>
       </div>
       <p className="muted text-xs mb-4" style={{ maxWidth: 640 }}>
-        Die Organisation ist die Einheit von Covey: Agenten, Nutzer, Secrets und Guard-Rails hängen
-        an ihr. Löschen entfernt den Mandanten mit allem Inhalt — die eigene Organisation ist davon
-        ausgenommen.
+        {t("orgs.desc")}
       </p>
 
       <CreateOrg onDone={() => qc.invalidateQueries({ queryKey: ["orgs"] })} />
@@ -45,12 +42,8 @@ export default function Organizations({ me }: { me: Principal }) {
   );
 }
 
-// Konfigurierbare Profilfelder der eigenen Organisation: der Admin definiert
-// hier beliebige Zusatzfelder (z. B. Standort, Abteilung, Slack-Handle) —
-// sie erscheinen sofort in jedem Mitarbeiter-Profil und im Team-Verzeichnis,
-// das die Agenten im Prompt sehen. Umbenennen behält den Feld-Schlüssel und
-// damit die bereits erfassten Werte; Löschen entfernt auch die Werte.
 function ProfileFieldsSettings() {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const fields = useQuery({
     queryKey: ["profileFields"],
@@ -69,11 +62,9 @@ function ProfileFieldsSettings() {
 
   return (
     <>
-      <h2 className="text-sm secondary mt-6 mb-2">Profilfelder Ihrer Organisation</h2>
+      <h2 className="text-sm secondary mt-6 mb-2">{t("orgs.profileFields")}</h2>
       <p className="muted text-xs mb-3" style={{ maxWidth: 640 }}>
-        Zusätzliche Felder für alle Mitarbeiter-Profile — z. B. Standort, Abteilung oder Slack-Handle.
-        Sie erscheinen sofort im Profil-Editor jeder Person und im Team-Verzeichnis, das die Agenten sehen.
-        Löschen entfernt auch die bereits erfassten Werte.
+        {t("orgs.profileFieldsDesc")}
       </p>
 
       <form
@@ -84,11 +75,11 @@ function ProfileFieldsSettings() {
         }}
       >
         <div className="flex-1 min-w-52">
-          <label>Neues Profilfeld</label>
-          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="z. B. Standort" required />
+          <label>{t("orgs.newField")}</label>
+          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("orgs.newFieldPlaceholder")} required />
         </div>
         <button className="btn primary" disabled={create.isPending}>
-          Hinzufügen
+          {t("orgs.addField")}
         </button>
         {create.isError && <p className="text-xs m-0" style={{ color: "var(--text-danger)" }}>{(create.error as Error).message}</p>}
       </form>
@@ -96,12 +87,13 @@ function ProfileFieldsSettings() {
       {(fields.data ?? []).map((f) => (
         <FieldRow key={f.id} field={f} onChanged={invalidate} />
       ))}
-      {fields.data?.length === 0 && <p className="muted text-xs">Noch keine zusätzlichen Profilfelder definiert.</p>}
+      {fields.data?.length === 0 && <p className="muted text-xs">{t("orgs.noFields")}</p>}
     </>
   );
 }
 
 function FieldRow({ field, onChanged }: { field: ProfileField; onChanged: () => void }) {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState(false);
   const [label, setLabel] = useState(field.label);
   const rename = useMutation({
@@ -130,10 +122,10 @@ function FieldRow({ field, onChanged }: { field: ProfileField; onChanged: () => 
           >
             <input value={label} onChange={(e) => setLabel(e.target.value)} required autoFocus />
             <button className="btn sm primary" disabled={rename.isPending}>
-              Speichern
+              {t("orgs.save")}
             </button>
             <button type="button" className="btn sm" onClick={() => setEditing(false)}>
-              Abbrechen
+              {t("orgs.cancel")}
             </button>
           </form>
         ) : (
@@ -144,17 +136,17 @@ function FieldRow({ field, onChanged }: { field: ProfileField; onChanged: () => 
         )}
         {!editing && (
           <button className="btn sm" onClick={() => setEditing(true)}>
-            Umbenennen
+            {t("orgs.rename")}
           </button>
         )}
         <button
           className="btn sm danger"
           onClick={() => {
-            if (window.confirm(`Profilfeld „${field.label}" samt aller erfassten Werte löschen?`)) remove.mutate();
+            if (window.confirm(t("orgs.deleteFieldConfirm", { label: field.label }))) remove.mutate();
           }}
           disabled={remove.isPending}
         >
-          Löschen
+          {t("orgs.delete")}
         </button>
       </div>
       {error && <p className="text-xs mt-2" style={{ color: "var(--text-danger)" }}>{(error as Error).message}</p>}
@@ -163,6 +155,7 @@ function FieldRow({ field, onChanged }: { field: ProfileField; onChanged: () => 
 }
 
 function CreateOrg({ onDone }: { onDone: () => void }) {
+  const { t } = useTranslation();
   const [name, setName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [adminName, setAdminName] = useState("");
@@ -188,23 +181,23 @@ function CreateOrg({ onDone }: { onDone: () => void }) {
     >
       <div className="flex gap-3 items-end flex-wrap">
         <div className="flex-1 min-w-44">
-          <label>Name der Organisation</label>
+          <label>{t("orgs.orgName")}</label>
           <input value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
         <div className="flex-1 min-w-48">
-          <label>Admin E-Mail</label>
+          <label>{t("orgs.adminEmail")}</label>
           <input type="email" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} required />
         </div>
         <div className="min-w-40">
-          <label>Admin Name</label>
+          <label>{t("orgs.adminName")}</label>
           <input value={adminName} onChange={(e) => setAdminName(e.target.value)} required />
         </div>
         <div className="min-w-44">
-          <label>Admin Passwort (min. 8)</label>
+          <label>{t("orgs.adminPassword")}</label>
           <input type="password" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} minLength={8} required />
         </div>
         <button className="btn primary" disabled={mut.isPending}>
-          Anlegen
+          {t("orgs.createOrg")}
         </button>
       </div>
       {mut.isError && <p className="text-xs mt-2" style={{ color: "var(--text-danger)" }}>{(mut.error as Error).message}</p>}
@@ -213,6 +206,7 @@ function CreateOrg({ onDone }: { onDone: () => void }) {
 }
 
 function OrgRow({ org, isOwn }: { org: Organization; isOwn: boolean }) {
+  const { t } = useTranslation();
   const qc = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(org.name);
@@ -244,38 +238,38 @@ function OrgRow({ org, isOwn }: { org: Organization; isOwn: boolean }) {
           >
             <input value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
             <button className="btn sm primary" disabled={rename.isPending}>
-              Speichern
+              {t("orgs.save")}
             </button>
             <button type="button" className="btn sm" onClick={() => setEditing(false)}>
-              Abbrechen
+              {t("orgs.cancel")}
             </button>
           </form>
         ) : (
           <div className="flex-1 min-w-44">
             <div className="text-sm font-medium">
               {org.name}
-              {isOwn && <span className="muted text-xs"> — Ihre Organisation</span>}
+              {isOwn && <span className="muted text-xs"> {t("orgs.ownOrg")}</span>}
             </div>
             <div className="muted text-xs">
-              {org.human_count} Nutzer · {org.agent_count} Agenten
+              {t("orgs.users", { count: org.human_count })} · {t("orgs.agents", { count: org.agent_count })}
             </div>
           </div>
         )}
-        {org.fleet_killed && <span className="badge st-killed">Flotte gestoppt</span>}
+        {org.fleet_killed && <span className="badge st-killed">{t("orgs.fleetStopped")}</span>}
         {!editing && (
           <button className="btn sm" onClick={() => setEditing(true)}>
-            Umbenennen
+            {t("orgs.rename")}
           </button>
         )}
         <button
           className="btn sm danger"
           onClick={() => {
-            if (window.confirm(`Organisation „${org.name}" mit allen Agenten und Nutzern löschen?`)) remove.mutate();
+            if (window.confirm(t("orgs.deleteConfirm", { name: org.name }))) remove.mutate();
           }}
           disabled={isOwn || remove.isPending}
-          title={isOwn ? "Die eigene Organisation kann nicht gelöscht werden" : undefined}
+          title={isOwn ? t("orgs.cantDeleteOwn") : undefined}
         >
-          Löschen
+          {t("orgs.delete")}
         </button>
       </div>
       {error && <p className="text-xs mt-2" style={{ color: "var(--text-danger)" }}>{(error as Error).message}</p>}

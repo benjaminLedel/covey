@@ -1,50 +1,46 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { api, roleLabel, statusLabel, type Agent, type Human, type OrgChart } from "../api";
+import { useTranslation } from "react-i18next";
+import { api, roleLabel, type Agent, type Human, type OrgChart } from "../api";
 import { Avatar } from "../components/person";
 
-// Organigramm (spec/02, spec/09): der unternehmensweite Org-Chart über Menschen
-// und Agenten. Menschen berichten an Menschen (manager_id), Agenten an ihren
-// Vorgesetzten (supervisor_id). Sichtbar für alle Rollen — jeder Knoten führt
-// auf seine Detail-Seite (Mensch → Profil, Agent → Agenten-Seite).
 export default function Org() {
+  const { t } = useTranslation();
   const chart = useQuery({
     queryKey: ["orgchart"],
     queryFn: () => api<OrgChart>("/org/chart"),
   });
 
   if (chart.isLoading) return null;
-  if (chart.isError) return <p className="danger-text">Org-Chart konnte nicht geladen werden.</p>;
+  if (chart.isError) return <p className="danger-text">{t("org.loadError")}</p>;
   const { humans, agents } = chart.data!;
 
   const humanIds = new Set(humans.map((h) => h.id));
-  // Wurzeln: ohne Vorgesetzte — oder mit Verweis auf jemanden außerhalb der Liste.
   const roots = humans.filter((h) => !h.manager_id || !humanIds.has(h.manager_id));
   const orphanAgents = agents.filter((a) => !a.supervisor_id || !humanIds.has(a.supervisor_id));
 
   return (
     <div>
       <div className="flex items-baseline gap-3 mb-2">
-        <h1 className="text-[22px]">Organigramm</h1>
-        <span className="muted">Menschen &amp; Agenten</span>
+        <h1 className="text-[22px]">{t("org.title")}</h1>
+        <span className="muted">{t("org.subtitle")}</span>
       </div>
       <p className="muted text-xs mb-4" style={{ maxWidth: 640 }}>
-        Der Org-Chart strukturiert Eskalation und Delegation: Agenten berichten an ihren Vorgesetzten,
-        Menschen an ihre Führungskraft. Zuordnungen pflegen Sie auf der Agenten-Seite bzw. in der Benutzerverwaltung.
+        {t("org.desc")}
       </p>
 
       <div className="org-legend">
         <span>
-          <span className="sw" style={{ background: "var(--text-secondary)" }} /> Mensch
+          <span className="sw" style={{ background: "var(--text-secondary)" }} /> {t("org.legendHuman")}
         </span>
         <span>
-          <span className="sw" style={{ background: "var(--text-accent)" }} /> Agent
+          <span className="sw" style={{ background: "var(--text-accent)" }} /> {t("org.legendAgent")}
         </span>
-        <span className="muted">Knoten sind anklickbar — Menschen öffnen ihre Profil-Seite</span>
+        <span className="muted">{t("org.legendHint")}</span>
       </div>
 
       {roots.length === 0 ? (
-        <p className="muted">Keine Personen in dieser Organisation.</p>
+        <p className="muted">{t("org.noPersons")}</p>
       ) : (
         <div className="tree">
           <ul>
@@ -57,9 +53,9 @@ export default function Org() {
 
       {orphanAgents.length > 0 && (
         <>
-          <h2 className="text-sm secondary mt-6 mb-2">Ohne Vorgesetzten ({orphanAgents.length})</h2>
+          <h2 className="text-sm secondary mt-6 mb-2">{t("org.withoutSupervisor", { count: orphanAgents.length })}</h2>
           <p className="muted text-xs mb-3">
-            Diese Agenten hängen noch nicht im Org-Chart — auf der Agenten-Seite lässt sich ein Vorgesetzter zuordnen.
+            {t("org.withoutSupervisorHint")}
           </p>
           <div className="flex gap-2 flex-wrap">
             {orphanAgents.map((a) => (
@@ -72,7 +68,6 @@ export default function Org() {
   );
 }
 
-// seen schützt gegen Zyklen in Altdaten — der Server verhindert neue.
 function TreeNode({
   human,
   humans,
@@ -84,6 +79,7 @@ function TreeNode({
   agents: Agent[];
   seen: Set<string>;
 }) {
+  const { t } = useTranslation();
   const nextSeen = new Set(seen).add(human.id);
   const childHumans = humans.filter((h) => h.manager_id === human.id && !nextSeen.has(h.id));
   const childAgents = agents.filter((a) => a.supervisor_id === human.id);
@@ -91,13 +87,13 @@ function TreeNode({
 
   return (
     <li>
-      <Link to={`/people/${human.id}`} className="node human" title="Profil-Seite öffnen">
+      <Link to={`/people/${human.id}`} className="node human" title={t("org.openProfile")}>
         <Avatar name={human.display_name} human />
         <div>
           <div className="nm">{human.display_name}</div>
           <div className="rl">{human.job_title || (roleLabel[human.role] ?? human.role)}</div>
         </div>
-        <span className="ntag">Mensch</span>
+        <span className="ntag">{t("org.nodeHuman")}</span>
       </Link>
       {hasKids && (
         <ul>
@@ -116,6 +112,7 @@ function TreeNode({
 }
 
 function AgentNode({ agent }: { agent: Agent }) {
+  const { t } = useTranslation();
   const status = agent.killed ? "killed" : agent.status;
   return (
     <Link to={`/agents/${agent.id}`} className="node agent">
@@ -124,7 +121,7 @@ function AgentNode({ agent }: { agent: Agent }) {
         <div className="nm">{agent.display_name}</div>
         <div className="rl mono">{agent.slug}</div>
       </div>
-      <span className={`badge st-${status}`}>{agent.killed ? "gestoppt" : statusLabel[agent.status] ?? agent.status}</span>
+      <span className={`badge st-${status}`}>{t(`status.${status}`, status)}</span>
     </Link>
   );
 }
