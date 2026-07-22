@@ -139,8 +139,9 @@ func (s *Server) handleDeleteProfileField(w http.ResponseWriter, r *http.Request
 }
 
 // handleSetSupervisor hängt einen Agenten im Org-Chart um. Leere supervisor_id
-// löst die Zuordnung. Der Vorgesetzte muss ein Mensch der eigenen Organisation
-// sein — Agenten berichten an Menschen, nicht an andere Agenten.
+// löst die Zuordnung. Der Vorgesetzte darf ein Mensch ODER ein anderer Agent
+// derselben Organisation sein — Agenten lassen sich damit auch anderen Agenten
+// unterordnen. Selbst- und zyklische Zuordnungen werden abgewiesen.
 func (s *Server) handleSetSupervisor(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
@@ -162,9 +163,29 @@ func (s *Server) handleSetSupervisor(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusBadRequest, "ungültige supervisor_id")
 			return
 		}
-		if _, err := s.Org.GetHuman(r.Context(), p.OrgID, sid); err != nil {
-			mapErr(w, err)
-			return
+		// Vorgesetzter = Mensch der eigenen Org …
+		_, herr := s.Org.GetHuman(r.Context(), p.OrgID, sid)
+		if herr != nil {
+			// … oder ein Agent der eigenen Org.
+			sup, aerr := s.Registry.Get(r.Context(), sid)
+			if aerr != nil || sup.OrgID != p.OrgID {
+				writeErr(w, http.StatusNotFound, "vorgesetzter nicht gefunden")
+				return
+			}
+			// Zyklus-Schutz: den Vorgesetzten-Pfad von sid aufwärts verfolgen —
+			// stößt er auf id, entstünde ein Kreis (A→B→…→A).
+			cur := sid
+			for hops := 0; hops < 64; hops++ {
+				if cur == id {
+					writeErr(w, http.StatusBadRequest, "zyklische Unterstellung nicht erlaubt")
+					return
+				}
+				a, gerr := s.Registry.Get(r.Context(), cur)
+				if gerr != nil || a.SupervisorID == nil {
+					break
+				}
+				cur = *a.SupervisorID
+			}
 		}
 		supervisorID = &sid
 	}

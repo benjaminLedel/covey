@@ -195,6 +195,9 @@ export const deleteDepartment = (id: string) =>
 export const setAgentDepartment = (agentId: string, departmentId: string | null) =>
   patch<{ ok: boolean }>(`/agents/${agentId}/department`, { department_id: departmentId ?? "" });
 
+export const setAgentSupervisor = (agentId: string, supervisorId: string | null) =>
+  patch<{ ok: boolean }>(`/agents/${agentId}/supervisor`, { supervisor_id: supervisorId ?? "" });
+
 export const setHumanDepartment = (humanId: string, departmentId: string | null) =>
   patch<{ ok: boolean }>(`/org/humans/${humanId}/department`, { department_id: departmentId ?? "" });
 

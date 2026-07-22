@@ -211,6 +211,9 @@ func (r *Registry) Delete(ctx context.Context, orgID, id uuid.UUID) error {
 	if tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
+	// supervisor_id trägt keinen DB-Fremdschlüssel mehr (Migration 0025):
+	// verweisende Untergebene hier lösen, damit keine Referenz ins Leere zeigt.
+	_, _ = r.pool.Exec(ctx, "UPDATE agents SET supervisor_id=NULL WHERE supervisor_id=$1 AND org_id=$2", id, orgID)
 	return nil
 }
 
@@ -262,8 +265,10 @@ func (r *Registry) GetByWebhookToken(ctx context.Context, token string) (Agent, 
 // für Eskalations-Texte. Leer, wenn kein Vorgesetzter zugeordnet ist.
 func (r *Registry) SupervisorName(ctx context.Context, agentID uuid.UUID) (string, error) {
 	var name string
-	err := r.pool.QueryRow(ctx, `SELECT COALESCE(h.display_name, '')
-		FROM agents a LEFT JOIN humans h ON h.id = a.supervisor_id
+	err := r.pool.QueryRow(ctx, `SELECT COALESCE(h.display_name, sa.display_name, '')
+		FROM agents a
+		LEFT JOIN humans h ON h.id = a.supervisor_id
+		LEFT JOIN agents sa ON sa.id = a.supervisor_id
 		WHERE a.id=$1`, agentID).Scan(&name)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", ErrNotFound

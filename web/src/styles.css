@@ -1086,3 +1086,68 @@ kbd {
   border-color: var(--text-accent);
   background: rgba(var(--accent-rgb, 122,131,204),0.06);
 }
+
+/* ── Diagramm-Ansicht: klassischer Org-Chart-Baum ────────────────────── */
+.tree { overflow-x: auto; padding: 6px 4px 20px; }
+.tree ul { display: flex; justify-content: center; padding: 22px 0 0; position: relative; margin: 0; list-style: none; }
+.tree > ul { padding-top: 0; }
+.tree li { position: relative; padding: 22px 10px 0; display: flex; flex-direction: column; align-items: center; }
+.tree li::before, .tree li::after { content: ""; position: absolute; top: 0; right: 50%; width: 50%; height: 22px; border-top: 1.5px solid var(--border-strong); }
+.tree li::after { right: auto; left: 50%; border-left: 1.5px solid var(--border-strong); }
+.tree li:only-child::before, .tree li:only-child::after { display: none; }
+.tree li:first-child::before, .tree li:last-child::after { border: 0; }
+.tree li:last-child::before { border-right: 1.5px solid var(--border-strong); border-radius: 0 6px 0 0; }
+.tree li:first-child::after { border-radius: 6px 0 0 0; }
+.tree ul ul::before { content: ""; position: absolute; top: 0; left: 50%; height: 22px; border-left: 1.5px solid var(--border-strong); }
+
+/* Org-Wurzel- und Abteilungs-Knoten im Baum */
+.node.org, .node.dept { flex-direction: column; align-items: flex-start; gap: 2px; cursor: default; min-width: 168px; }
+.node.org {
+  background: var(--surface-1); border-color: var(--border-strong);
+  align-items: center; text-align: center;
+}
+.node.org .nm { font-size: 13px; font-weight: 600; }
+.node.dept {
+  background: var(--surface-2); transition: border-color 0.15s, box-shadow 0.15s;
+  box-shadow: inset 3px 0 0 var(--text-accent);
+  padding-left: 15px;
+}
+.node.dept .nm { font-size: 13px; font-weight: 600; }
+.node.dept .rl { color: var(--text-muted); font-size: 11px; }
+.node.dept.unassigned {
+  border-style: dashed; background: var(--surface-1);
+  box-shadow: inset 3px 0 0 var(--border-strong);
+}
+.node.dept.unassigned .nm { color: var(--text-secondary); font-weight: 500; }
+
+/* Kopfzeile eines Abteilungs-Knotens: Name + Umbenennen/Löschen */
+.dept-tree-hdr { display: flex; align-items: center; gap: 4px; width: 100%; }
+.dept-tree-hdr .nm { margin-right: auto; }
+.dept-tree-hdr .icon-btn { opacity: 0; transition: opacity 0.12s; }
+.node.dept:hover .dept-tree-hdr .icon-btn { opacity: 0.7; }
+.dept-tree-hdr .icon-btn:hover { opacity: 1; }
+.dept-tree-rename { display: flex; gap: 4px; align-items: center; width: 100%; }
+.dept-tree-rename input { flex: 1; min-width: 0; height: 26px; font-size: 12px; }
+
+/* Einheitliche Mitglieds-Karte (Mensch wie Agent); Agenten sind ziehbar */
+.orgmember {
+  display: inline-flex; align-items: stretch;
+  border: 0.5px solid var(--border); border-radius: 10px;
+  background: var(--surface-2); overflow: hidden;
+  transition: opacity 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.orgmember:hover { border-color: var(--border-strong); box-shadow: 0 1px 4px rgba(30,28,23,0.07); }
+.orgmember[draggable="true"] { cursor: grab; }
+.orgmember[draggable="true"]:active { cursor: grabbing; }
+.orgmember.orgmember-out { opacity: 0.35; }
+.orgmember > .node { border: none; background: transparent; border-radius: 0; }
+.orgmember > .node:hover { transform: none; border: none; }
+.orgmember > .node.human { padding-left: 13px; }
+.orgmember:hover .agent-grip { color: var(--text-secondary); background: var(--surface-0); }
+
+/* Drop-Ziel-Hervorhebung (Abteilung wie Mitglied) */
+.orgmember.node-drop-over, .node.dept.node-drop-over {
+  border-color: var(--text-accent);
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb, 122,131,204),0.20);
+}
+.node.dept.node-drop-over { box-shadow: inset 3px 0 0 var(--text-accent), 0 0 0 2px rgba(var(--accent-rgb, 122,131,204),0.20); }

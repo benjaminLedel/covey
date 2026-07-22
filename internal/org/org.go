@@ -271,6 +271,12 @@ func (s *Store) DeleteHuman(ctx context.Context, orgID, id uuid.UUID) error {
 			return err
 		}
 	}
+	// agents.supervisor_id trägt seit Migration 0025 keinen DB-Fremdschlüssel
+	// mehr auf humans — Agenten, die an diesen Menschen berichteten, hier lösen
+	// (früher via ON DELETE SET NULL).
+	if _, err := tx.Exec(ctx, `UPDATE agents SET supervisor_id=NULL WHERE supervisor_id=$1 AND org_id=$2`, id, orgID); err != nil {
+		return err
+	}
 	// Sessions fallen per ON DELETE CASCADE mit weg.
 	if _, err := tx.Exec(ctx, `DELETE FROM humans WHERE id=$1`, id); err != nil {
 		return err
