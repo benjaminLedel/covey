@@ -66,9 +66,17 @@ type Server struct {
 	// PublicURL füllt den {public_url}-Platzhalter in den Einrichtungs-
 	// Anleitungen der Zielsystem-Plugins (Webhook-Endpunkte).
 	PublicURL string
+	// CookieSecure setzt das Secure-Flag auf dem Session-Cookie (HTTPS-only).
+	CookieSecure bool
+
+	// loginLimiter bremst Brute-Force auf /auth/login (lazy in Handler init.).
+	loginLimiter *loginLimiter
 }
 
 func (s *Server) Handler() http.Handler {
+	if s.loginLimiter == nil {
+		s.loginLimiter = newLoginLimiter()
+	}
 	mux := http.NewServeMux()
 
 	// Health/Readiness (ohne Auth).
@@ -332,11 +340,19 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "ungültiger request")
 		return
 	}
+	now := time.Now()
+	key := loginKey(r, in.Email)
+	if s.loginLimiter.blocked(key, now) {
+		writeErr(w, http.StatusTooManyRequests, "zu viele Fehlversuche — bitte später erneut versuchen")
+		return
+	}
 	p, err := s.Identity.AuthenticateHuman(r.Context(), identity.Credentials{Email: in.Email, Password: in.Password})
 	if err != nil {
+		s.loginLimiter.fail(key, now)
 		writeErr(w, http.StatusUnauthorized, "ungültige Zugangsdaten")
 		return
 	}
+	s.loginLimiter.reset(key)
 	buf := make([]byte, 32)
 	rand.Read(buf)
 	token := hex.EncodeToString(buf)
@@ -346,7 +362,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.SetCookie(w, &http.Cookie{Name: "covey_session", Value: token, Path: "/",
-		HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: int(s.SessionTTL.Seconds())})
+		HttpOnly: true, Secure: s.CookieSecure, SameSite: http.SameSiteLaxMode, MaxAge: int(s.SessionTTL.Seconds())})
 	writeJSON(w, http.StatusOK, p)
 }
 
@@ -354,7 +370,8 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie("covey_session"); err == nil {
 		s.Pool.Exec(r.Context(), "DELETE FROM http_sessions WHERE token_hash=$1", hashToken(cookie.Value))
 	}
-	http.SetCookie(w, &http.Cookie{Name: "covey_session", Value: "", Path: "/", MaxAge: -1})
+	http.SetCookie(w, &http.Cookie{Name: "covey_session", Value: "", Path: "/",
+		HttpOnly: true, Secure: s.CookieSecure, SameSite: http.SameSiteLaxMode, MaxAge: -1})
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 

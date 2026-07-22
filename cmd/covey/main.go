@@ -96,7 +96,8 @@ func usage() {
   covey genkey            neuen COVEY_MASTER_KEY erzeugen
 
 Konfiguration über ENV: COVEY_DATABASE_URL, COVEY_LISTEN_ADDR, COVEY_PUBLIC_URL,
-COVEY_MASTER_KEY, COVEY_COVEYD_PATH, COVEY_DATA_DIR, COVEY_ZAMMAD_WEBHOOK_SECRET …`)
+COVEY_MASTER_KEY, COVEY_COVEYD_PATH, COVEY_DATA_DIR, COVEY_ZAMMAD_WEBHOOK_SECRET,
+COVEY_ADMIN_EMAIL, COVEY_ADMIN_PASSWORD (bootstrap), COVEY_COOKIE_SECURE …`)
 }
 
 func runMigrate(ctx context.Context, cfg config.Config, args []string, log *slog.Logger) error {
@@ -156,7 +157,11 @@ func runBootstrap(ctx context.Context, cfg config.Config, log *slog.Logger) erro
 
 	// Admin-Mensch.
 	adminEmail := strings.ToLower(getenvDefault("COVEY_ADMIN_EMAIL", "admin@covey.local"))
-	adminPass := getenvDefault("COVEY_ADMIN_PASSWORD", "covey-admin")
+	adminPass := os.Getenv("COVEY_ADMIN_PASSWORD")
+	if adminPass == "" {
+		adminPass = "covey-admin"
+		log.Warn("bootstrap: COVEY_ADMIN_PASSWORD nicht gesetzt — verwende das bekannte Default-Passwort 'covey-admin'. Vor jeder nicht-lokalen Nutzung ändern (COVEY_ADMIN_PASSWORD setzen oder Passwort in der UI ändern).")
+	}
 	var adminID uuid.UUID
 	err = pool.QueryRow(ctx, "SELECT id FROM humans WHERE email=$1", adminEmail).Scan(&adminID)
 	if err != nil {
@@ -362,6 +367,10 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	if cfg.MasterKeyHex == "" {
 		return fmt.Errorf("COVEY_MASTER_KEY fehlt (mit `covey genkey` erzeugen)")
 	}
+	// Härtungs-Hinweise für nicht-lokale Deployments sichtbar machen.
+	for _, warn := range cfg.SecurityWarnings() {
+		log.Warn("sicherheit: " + warn)
+	}
 	pool, err := db.Connect(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err
@@ -456,6 +465,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		WebhookSecrets: cfg.WebhookSecrets,
 		SessionTTL:     cfg.SessionTTL,
 		PublicURL:      cfg.PublicURL,
+		CookieSecure:   cfg.CookieSecure,
 		EgressStore:    egressStore,
 		EgressEnforced: egressEnforced,
 		EgressDefaults: egressBaseAllow(cfg),
