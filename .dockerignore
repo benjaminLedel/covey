@@ -1,0 +1,23 @@
+# Build-Kontext klein halten: nur Quellcode + go.mod/sum + web/-Quellen werden
+# gebraucht (das Dockerfile baut Frontend und Binaries selbst im Image).
+.git
+.gitignore
+
+# Lokal vorgebaute Binaries — werden im Image ohnehin neu gebaut.
+/covey
+/coveyd
+
+# Laufzeit-/lokale Artefakte.
+data/
+*.log
+.covey.key
+.DS_Store
+
+# Frontend-Artefakte: Quellen bleiben, Build passiert im Image.
+web/node_modules/
+web/dist/
+
+# Nicht build-relevantes Material.
+praesentationen/
+mockup/
+docs/
