@@ -1151,3 +1151,132 @@ kbd {
   box-shadow: 0 0 0 2px rgba(var(--accent-rgb, 122,131,204),0.20);
 }
 .node.dept.node-drop-over { box-shadow: inset 3px 0 0 var(--text-accent), 0 0 0 2px rgba(var(--accent-rgb, 122,131,204),0.20); }
+
+/* ── Login-Screen ─────────────────────────────────────────────────────
+   Warmes Papier-Theme mit dezentem Lehm-Schein und einem stillen Schwarm
+   im Hintergrund. Bewegung ist zurückhaltend und respektiert
+   prefers-reduced-motion. */
+.login-bg {
+  position: fixed;
+  inset: 0;
+  overflow: auto;
+  background: radial-gradient(
+    120% 90% at 50% -8%,
+    var(--surface-2) 0%,
+    var(--surface-1) 44%,
+    var(--surface-0) 100%
+  );
+}
+.login-bg::before {
+  content: "";
+  position: absolute;
+  top: 8%;
+  left: 50%;
+  width: 560px;
+  height: 560px;
+  max-width: 90vw;
+  transform: translateX(-50%);
+  background: radial-gradient(
+    circle,
+    rgba(204, 122, 91, 0.18) 0%,
+    rgba(204, 122, 91, 0) 68%
+  );
+  pointer-events: none;
+}
+.login-flock {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.login-flock svg {
+  position: absolute;
+  stroke: var(--clay);
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.09;
+  animation: login-float 8s ease-in-out infinite alternate;
+}
+.login-inner {
+  position: relative;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 20px;
+}
+.login-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 34px;
+}
+.login-wordmark {
+  margin-top: 22px;
+  font-family: var(--voice);
+  font-size: 44px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.login-subtitle {
+  margin-top: 12px;
+  max-width: 330px;
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.login-card {
+  width: 100%;
+  max-width: 350px;
+  background: var(--surface-2);
+  border: 0.5px solid var(--border);
+  border-radius: 18px;
+  padding: 28px 26px;
+  box-shadow:
+    0 24px 48px -24px rgba(30, 28, 23, 0.22),
+    0 2px 6px rgba(30, 28, 23, 0.04);
+}
+.login-card input:focus {
+  border-color: var(--clay);
+  box-shadow: 0 0 0 3px rgba(204, 122, 91, 0.15);
+  outline: none;
+}
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.login-divider span {
+  flex: 1;
+  height: 0.5px;
+  background: var(--border);
+}
+.login-mark {
+  animation: login-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both,
+    login-float 7s ease-in-out 0.7s infinite alternate;
+}
+.login-rise {
+  animation: login-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes login-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes login-float {
+  from { transform: translateY(0); }
+  to { transform: translateY(-7px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-mark, .login-rise, .login-flock svg { animation: none !important; }
+  .login-mark, .login-rise { opacity: 1; transform: none; }
+}
