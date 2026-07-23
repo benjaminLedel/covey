@@ -1,9 +1,10 @@
 // covey ist das eine Binary der Control Plane (spec/10): API/BFF +
 // Orchestration-Core + eingebettetes Frontend + eingebettete Migrationen.
-// Subcommands: serve, migrate (up|down), bootstrap.
+// Subcommands: serve, migrate (up|down), bootstrap, passwd.
 package main
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/term"
 
 	"covey/internal/agents"
 	"covey/internal/backlog"
@@ -69,6 +71,8 @@ func main() {
 		err = runMigrate(ctx, cfg, os.Args[2:], log)
 	case "bootstrap":
 		err = runBootstrap(ctx, cfg, log)
+	case "passwd":
+		err = runPasswd(ctx, cfg, os.Args[2:], log)
 	case "egress-proxy":
 		err = runEgressProxy(ctx, cfg, log)
 	case "genkey":
@@ -91,6 +95,7 @@ func usage() {
 
   covey migrate up|down   Migrationen anwenden / eine zurückrollen
   covey bootstrap         Organisation + Admin + Demo-Agent anlegen (idempotent)
+  covey passwd <email>    Passwort eines Nutzers neu setzen (Notfall-Reset)
   covey serve             API + Orchestrator + Admin-UI starten
   covey egress-proxy      Egress-Allowlist-Proxy (network-Isolationsmodus, im Container)
   covey genkey            neuen COVEY_MASTER_KEY erzeugen
@@ -223,6 +228,78 @@ func runBootstrap(ctx context.Context, cfg config.Config, log *slog.Logger) erro
 	}
 	log.Info("bootstrap fertig", "login", adminEmail)
 	return nil
+}
+
+// runPasswd setzt das Passwort eines Nutzers neu — der Notfall-Weg, wenn auch
+// der Platform-Admin ausgesperrt ist (der Builtin-Provider hat bewusst keinen
+// Self-Service-Reset). Das Passwort kommt nie aus argv (Prozessliste!),
+// sondern ohne Echo vom Terminal oder als Zeile von stdin. Alle laufenden
+// Sessions des Nutzers werden invalidiert.
+func runPasswd(ctx context.Context, cfg config.Config, args []string, log *slog.Logger) error {
+	if len(args) != 1 {
+		return errors.New("aufruf: covey passwd <email>")
+	}
+	email := strings.ToLower(strings.TrimSpace(args[0]))
+
+	pw, err := readNewPassword()
+	if err != nil {
+		return err
+	}
+	if len(pw) < 8 {
+		return errors.New("passwort braucht mindestens 8 Zeichen")
+	}
+
+	pool, err := db.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+
+	var id uuid.UUID
+	if err := pool.QueryRow(ctx, "SELECT id FROM humans WHERE email=$1", email).Scan(&id); err != nil {
+		return fmt.Errorf("kein Nutzer mit E-Mail %q", email)
+	}
+	hash, err := identbuiltin.HashPassword(pw)
+	if err != nil {
+		return err
+	}
+	if _, err := pool.Exec(ctx, "UPDATE humans SET password_hash=$1 WHERE id=$2", hash, id); err != nil {
+		return err
+	}
+	if _, err := pool.Exec(ctx, "DELETE FROM http_sessions WHERE human_id=$1", id); err != nil {
+		return err
+	}
+	log.Info("passwort neu gesetzt, alle sessions invalidiert", "email", email)
+	return nil
+}
+
+// readNewPassword liest das neue Passwort: interaktiv zweimal ohne Echo,
+// nicht-interaktiv (Pipe) als einzelne Zeile von stdin.
+func readNewPassword() (string, error) {
+	fd := int(os.Stdin.Fd())
+	if term.IsTerminal(fd) {
+		fmt.Fprint(os.Stderr, "Neues Passwort: ")
+		first, err := term.ReadPassword(fd)
+		fmt.Fprintln(os.Stderr)
+		if err != nil {
+			return "", err
+		}
+		fmt.Fprint(os.Stderr, "Wiederholen: ")
+		second, err := term.ReadPassword(fd)
+		fmt.Fprintln(os.Stderr)
+		if err != nil {
+			return "", err
+		}
+		if string(first) != string(second) {
+			return "", errors.New("passwörter stimmen nicht überein")
+		}
+		return string(first), nil
+	}
+	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil && line == "" {
+		return "", fmt.Errorf("passwort von stdin lesen: %w", err)
+	}
+	return strings.TrimRight(line, "\r\n"), nil
 }
 
 func defaultSupportConfig() map[string]string {

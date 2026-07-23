@@ -54,6 +54,14 @@ const (
 // sandboxHome ist der feste Home-Pfad im Container (User `agent` im Image).
 const sandboxHome = "/home/agent"
 
+// sandboxUID/GID ist der User `agent` aus Dockerfile.sandbox. Das Home wird
+// darauf gechownt: legt die Control Plane (als root im Container) das
+// Verzeichnis an, könnte der Sandbox-User sonst nicht hineinschreiben.
+const (
+	sandboxUID = 1001
+	sandboxGID = 1001
+)
+
 func (p *DockerProvider) docker() string {
 	if p.DockerBin != "" {
 		return p.DockerBin
@@ -72,6 +80,9 @@ func (p *DockerProvider) Start(ctx context.Context, spec SandboxSpec) (Sandbox, 
 	if err := os.MkdirAll(home, 0o700); err != nil {
 		return nil, err
 	}
+	// Best effort: gelingt nur als root (Deployment-Container); lokal läuft
+	// der Prozess als normaler User und Docker Desktop mappt die Ownership.
+	_ = os.Chown(home, sandboxUID, sandboxGID)
 
 	name := containerName(spec.AgentID.String())
 	// Reste einer abgestürzten Vorgänger-Sandbox wegräumen — der Name muss frei sein.
