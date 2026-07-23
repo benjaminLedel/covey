@@ -234,40 +234,81 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
 }
 .nav-sec.toggle.open .ic { transform: rotate(90deg); }
 
-/* Fuß der Sidebar: Nutzer + Aktionen als eigenständige Konto-Karte */
+/* Fuß der Sidebar: Nutzer + Aktionen, leicht und ohne Kasten — nur eine
+   Haarlinie trennt den Fuß von der Navigation. */
 .side-foot {
   margin-top: 12px;
-  padding: 8px;
+  padding-top: 10px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  border: 0.5px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface-2);
-  box-shadow: 0 1px 2px rgba(30, 28, 23, 0.04);
+  gap: 4px;
+  border-top: 0.5px solid var(--border);
 }
 .side-foot .suser {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 10px;
   min-width: 0;
-  padding: 2px 3px;
+  padding: 6px 7px;
   border-radius: var(--radius);
   text-decoration: none;
   color: inherit;
   transition: background 0.12s;
 }
-.side-foot .suser:hover { background: var(--surface-1); }
+.side-foot .suser:hover { background: var(--surface-2); }
 .side-foot .suser .avatar { width: 30px; height: 30px; font-size: 11px; }
 .side-foot .suser .nm { font-weight: 500; font-size: 12.5px; color: var(--text-primary); }
-.side-foot .suser .rl { font-size: 11px; color: var(--text-muted); font-family: var(--mono); }
-.foot-actions {
+.side-foot .suser .rl { font-size: 11px; color: var(--text-muted); }
+/* Eine Zeile: Nutzer + ⋯-Button; das Menü öffnet darüber. */
+.suser-row { position: relative; display: flex; align-items: center; gap: 2px; }
+.suser-row .suser { flex: 1; min-width: 0; }
+.foot-menu-btn { flex-shrink: 0; border: none; color: var(--text-muted); }
+.foot-menu-btn:hover, .foot-menu-btn.open { background: var(--surface-2); color: var(--text-primary); }
+.foot-menu-backdrop { position: fixed; inset: 0; z-index: 40; }
+.foot-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  z-index: 41;
+  min-width: 190px;
+  padding: 5px;
+  background: var(--surface-0);
+  border: 0.5px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(30, 28, 23, 0.14), 0 2px 8px rgba(30, 28, 23, 0.08);
   display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-  padding-top: 8px;
-  border-top: 0.5px solid var(--border);
+  flex-direction: column;
+  gap: 1px;
 }
+.foot-menu button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 9px;
+  border: none;
+  background: none;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s, color 0.1s;
+}
+.foot-menu button:hover { background: var(--surface-2); color: var(--text-primary); }
+.foot-menu button.danger { color: var(--text-danger); }
+.foot-menu button.danger:hover { background: rgba(220, 50, 47, 0.08); color: var(--text-danger); }
+.foot-menu .ic {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+}
+.foot-menu .sep { height: 0.5px; background: var(--border); margin: 3px 6px; }
 .icon-btn {
   display: inline-flex;
   align-items: center;
@@ -1069,6 +1110,59 @@ kbd {
   padding: 4px 0;
 }
 
+/* Farbwahl für Abteilungen: runde Swatches, erster Punkt = Standard.
+   Abstand > Ringbreite + Hover-Zoom, damit sich nichts überlappt. */
+.dept-colors { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; padding: 3px 2px; }
+.dept-swatch {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 1px solid rgba(30, 28, 23, 0.15);
+  cursor: pointer; padding: 0; flex-shrink: 0;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+.dept-swatch:hover { transform: scale(1.1); }
+.dept-swatch.sel { box-shadow: 0 0 0 2px var(--surface-0), 0 0 0 3px var(--text-secondary); }
+.dept-swatch.none { background: var(--surface-2); position: relative; overflow: hidden; }
+.dept-swatch.none::after {
+  content: ""; position: absolute; left: -2px; right: -2px; top: 50%;
+  height: 1.5px; background: var(--text-muted); transform: rotate(-45deg);
+}
+
+/* Leitung einer Abteilung: Chips im Abteilungsknoten + Drop-Zone beim Ziehen */
+.dept-leads {
+  display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+  margin-top: 6px; padding-top: 6px;
+  border-top: 0.5px dashed var(--border);
+}
+.dept-leads-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+.dept-lead-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 1px 3px 1px 2px; border-radius: 999px;
+  border: 0.5px solid var(--border); background: var(--surface-1);
+  font-size: 11px; color: var(--text-secondary);
+}
+.dept-lead-chip a {
+  display: inline-flex; align-items: center; gap: 4px;
+  color: inherit; text-decoration: none;
+}
+.dept-lead-chip .icon-btn { font-size: 10px; padding: 0 3px; }
+/* Während eines Drag-Vorgangs: zwei großzügige, klar getrennte Drop-Zonen
+   („Als Mitglied" / „Als Leitung") statt der kleinen Kartenfläche. */
+.dept-dropzones { display: flex; flex-direction: column; gap: 5px; width: 100%; margin-top: 8px; }
+.dept-dz {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 34px; padding: 4px 10px;
+  border: 1.5px dashed var(--border-strong); border-radius: 8px;
+  font-size: 11.5px; color: var(--text-muted); text-align: center;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
+}
+.dept-dz.over {
+  border-color: var(--text-accent); color: var(--text-accent);
+  background: rgba(var(--accent-rgb, 122,131,204),0.08);
+}
+
 .dept-delete-confirm {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   padding: 8px 12px; font-size: 12px;
@@ -1090,8 +1184,10 @@ kbd {
 /* ── Diagramm-Ansicht: klassischer Org-Chart-Baum ────────────────────── */
 .tree { overflow-x: auto; padding: 6px 4px 20px; }
 .tree ul { display: flex; justify-content: center; padding: 22px 0 0; position: relative; margin: 0; list-style: none; }
-.tree > ul { padding-top: 0; }
-.tree li { position: relative; padding: 22px 10px 0; display: flex; flex-direction: column; align-items: center; }
+/* width: max-content — sonst zentriert flex breiteren Inhalt über den
+   Scroll-Ursprung hinaus nach links, wo er unerreichbar abgeschnitten wird. */
+.tree > ul { padding-top: 0; width: max-content; min-width: 100%; margin: 0 auto; }
+.tree li { position: relative; padding: 22px 6px 0; display: flex; flex-direction: column; align-items: center; }
 .tree li::before, .tree li::after { content: ""; position: absolute; top: 0; right: 50%; width: 50%; height: 22px; border-top: 1.5px solid var(--border-strong); }
 .tree li::after { right: auto; left: 50%; border-left: 1.5px solid var(--border-strong); }
 .tree li:only-child::before, .tree li:only-child::after { display: none; }
@@ -1199,22 +1295,6 @@ kbd {
   opacity: 0.09;
   animation: login-float 8s ease-in-out infinite alternate;
 }
-.login-inner {
-  position: relative;
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 20px;
-}
-.login-head {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  margin-bottom: 34px;
-}
 .login-wordmark {
   margin-top: 22px;
   font-family: var(--voice);
@@ -1223,13 +1303,510 @@ kbd {
   letter-spacing: -0.02em;
   line-height: 1;
 }
-.login-subtitle {
-  margin-top: 12px;
-  max-width: 330px;
-  font-size: 14px;
-  line-height: 1.55;
+/* ── Öffentliche Landing-Page ────────────────────────────────────────
+   Hero (Beschreibung + Login-Karte nebeneinander), darunter eine
+   Feature-Sektion. Auf schmalen Screens stapelt sich alles. */
+.landing {
+  position: relative;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 64px 24px 40px;
+}
+.landing-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 350px;
+  gap: 56px;
+  align-items: center;
+  min-height: min(72vh, 640px);
+}
+.landing-brand {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.landing-brand .login-wordmark { margin-top: 0; }
+.landing-tagline {
+  margin-top: 20px;
+  font-family: var(--voice);
+  font-size: 23px;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  max-width: 480px;
+}
+.landing-pitch {
+  margin-top: 14px;
+  max-width: 500px;
+  font-size: 14.5px;
+  line-height: 1.65;
   color: var(--text-secondary);
 }
+.landing-points {
+  margin: 22px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 500px;
+}
+.landing-points li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+.landing-points svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  align-self: flex-start;
+  margin-top: 2px;
+  stroke: var(--clay);
+  stroke-width: 2.4;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.login-card-title {
+  font-family: var(--voice);
+  font-size: 19px;
+  margin-bottom: 18px;
+}
+.landing-features {
+  margin-top: 40px;
+  padding-top: 48px;
+  border-top: 0.5px solid var(--border);
+  text-align: center;
+}
+.landing-features h2 {
+  font-family: var(--voice);
+  font-size: 26px;
+  letter-spacing: -0.01em;
+}
+.landing-lead {
+  margin: 12px auto 0;
+  max-width: 560px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.landing-grid {
+  margin-top: 36px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  text-align: left;
+}
+.landing-feature {
+  background: var(--surface-2);
+  border: 0.5px solid var(--border);
+  border-radius: 14px;
+  padding: 20px 20px 22px;
+  box-shadow: 0 1px 3px rgba(30, 28, 23, 0.04);
+  transition: transform 0.18s ease, box-shadow 0.18s ease,
+    opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.landing-feature:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 30px -18px rgba(30, 28, 23, 0.3), 0 2px 6px rgba(30, 28, 23, 0.05);
+}
+.landing-feature:hover .landing-feature-icon { transform: scale(1.08) rotate(-4deg); }
+.landing-feature-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(204, 122, 91, 0.12);
+  transition: transform 0.2s ease;
+}
+.landing-feature-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke: var(--clay);
+  stroke-width: 1.6;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.landing-feature h3 {
+  margin-top: 13px;
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.landing-feature p {
+  margin: 7px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+/* Scroll-Reveal: unsichtbar starten, beim Eintritt in den Viewport
+   sanft aufsteigen. JS setzt .in (IntersectionObserver in Login.tsx). */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal.in { opacity: 1; transform: none; }
+
+/* Sprachumschalter oben rechts auf der öffentlichen Seite. */
+.lang-switch {
+  position: fixed;
+  top: 18px;
+  right: 20px;
+  z-index: 10;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+  border: 0.5px solid var(--border);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 10px rgba(30, 28, 23, 0.08);
+}
+.lang-switch button {
+  border: none;
+  background: none;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.lang-switch button:hover { color: var(--text-primary); }
+.lang-switch button.on {
+  background: var(--clay);
+  color: #fff;
+}
+
+/* Lebender Boid-Schwarm auf Canvas — fix hinter allem Inhalt. */
+.boids {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+}
+
+/* Aurora: drei weiche, warme Farbschleier, die sehr langsam treiben.
+   Blur + Screen-Blend halten es papieren statt neonig. */
+.aurora {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  filter: blur(70px) saturate(1.05);
+}
+.aurora i {
+  position: absolute;
+  border-radius: 50%;
+  will-change: transform;
+}
+.aurora i:nth-child(1) {
+  width: 46vw;
+  height: 46vw;
+  left: -10vw;
+  top: -14vw;
+  background: radial-gradient(circle, rgba(204, 122, 91, 0.22), rgba(204, 122, 91, 0) 70%);
+  animation: aurora-a 26s ease-in-out infinite alternate;
+}
+.aurora i:nth-child(2) {
+  width: 38vw;
+  height: 38vw;
+  right: -8vw;
+  top: 4vw;
+  background: radial-gradient(circle, rgba(224, 176, 92, 0.18), rgba(224, 176, 92, 0) 70%);
+  animation: aurora-b 32s ease-in-out infinite alternate;
+}
+.aurora i:nth-child(3) {
+  width: 34vw;
+  height: 34vw;
+  left: 28vw;
+  bottom: -18vw;
+  background: radial-gradient(circle, rgba(24, 95, 165, 0.10), rgba(24, 95, 165, 0) 70%);
+  animation: aurora-c 38s ease-in-out infinite alternate;
+}
+@keyframes aurora-a {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(9vw, 7vw) scale(1.15); }
+}
+@keyframes aurora-b {
+  from { transform: translate(0, 0) scale(1.1); }
+  to { transform: translate(-11vw, 9vw) scale(0.92); }
+}
+@keyframes aurora-c {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(6vw, -8vw) scale(1.2); }
+}
+
+/* Warmer Glanz, der gelegentlich über die Wortmarke streicht. */
+.login-wordmark {
+  background: linear-gradient(
+    100deg,
+    var(--text-primary) 0%,
+    var(--text-primary) 38%,
+    var(--clay) 50%,
+    #e0b05c 56%,
+    var(--text-primary) 68%,
+    var(--text-primary) 100%
+  );
+  background-size: 320% 100%;
+  background-position: 100% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: wordmark-sheen 7s ease-in-out infinite;
+}
+@keyframes wordmark-sheen {
+  0%, 55% { background-position: 100% 0; }
+  85%, 100% { background-position: 0% 0; }
+}
+
+/* Rotierendes Wort: serif, clay-Verlauf, kippt bei jedem Wechsel herein. */
+.landing-rot {
+  margin-top: 16px;
+  font-family: var(--voice);
+  font-size: 17px;
+  color: var(--text-secondary);
+}
+.rot-word {
+  display: inline-block;
+  font-style: italic;
+  background: linear-gradient(90deg, var(--clay), #b25f41);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: rot-in 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes rot-in {
+  from { opacity: 0; transform: translateY(9px) rotateX(45deg); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Umlaufender Gradient-Rand für Karten (Hover) und Login (Fokus). */
+@property --ga {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.landing-feature, .login-card { position: relative; }
+.landing-feature::before, .login-card::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--ga),
+    rgba(204, 122, 91, 0) 0%,
+    rgba(204, 122, 91, 0.65) 12%,
+    rgba(224, 176, 92, 0.55) 22%,
+    rgba(204, 122, 91, 0) 38%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.3s;
+  animation: ga-spin 3s linear infinite paused;
+  pointer-events: none;
+}
+.landing-feature:hover::before,
+.login-card:focus-within::before {
+  opacity: 1;
+  animation-play-state: running;
+}
+@keyframes ga-spin { to { --ga: 360deg; } }
+
+/* Breites Schwarm-Bild mit langsamem Ken-Burns-Zoom und Bildunterschrift. */
+.landing-band {
+  position: relative;
+  margin: 26px 0 0;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 30px 60px -30px rgba(30, 28, 23, 0.35), 0 2px 8px rgba(30, 28, 23, 0.06);
+}
+.landing-band img {
+  display: block;
+  width: 100%;
+  height: clamp(220px, 34vw, 380px);
+  object-fit: cover;
+  animation: band-zoom 26s ease-in-out infinite alternate;
+}
+@keyframes band-zoom {
+  from { transform: scale(1); }
+  to { transform: scale(1.07); }
+}
+.landing-band figcaption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 40px 26px 18px;
+  font-family: var(--voice);
+  font-size: clamp(16px, 2.2vw, 21px);
+  color: #fff;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.45);
+  background: linear-gradient(to top, rgba(20, 14, 10, 0.55), rgba(20, 14, 10, 0));
+}
+
+/* „Wie Covey arbeitet" — drei Schritte neben der Vogelformation. */
+.landing-how {
+  margin-top: 72px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 48px;
+  align-items: center;
+}
+.landing-how h2 {
+  font-family: var(--voice);
+  font-size: 26px;
+  letter-spacing: -0.01em;
+}
+.landing-how ol {
+  margin: 26px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.landing-how li { display: flex; gap: 16px; }
+.landing-step-num {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--voice);
+  font-size: 15px;
+  color: var(--clay);
+  background: rgba(204, 122, 91, 0.12);
+  border: 0.5px solid rgba(204, 122, 91, 0.3);
+}
+.landing-how li h3 { font-size: 14.5px; font-weight: 600; margin-top: 5px; }
+.landing-how li p {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.landing-how-img img {
+  display: block;
+  width: 100%;
+  border-radius: 18px;
+  border: 0.5px solid var(--border);
+  box-shadow: 0 24px 48px -28px rgba(30, 28, 23, 0.3);
+}
+
+.landing-foot {
+  margin-top: 64px;
+  padding-top: 20px;
+  border-top: 0.5px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.landing-foot nav { display: flex; align-items: center; gap: 10px; }
+.landing-foot-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--border-strong);
+  cursor: pointer;
+}
+.landing-foot-link:hover { color: var(--text-primary); }
+.landing-foot-sep { color: var(--text-muted); }
+
+/* Impressum-/Datenschutz-Modal */
+.imprint-body p { margin: 0 0 10px; }
+.imprint-body p:last-child { margin-bottom: 0; }
+.imprint-law { color: var(--text-muted); font-size: 12px; }
+.imprint-name { font-family: var(--voice); font-size: 17px; }
+.imprint-addr { color: var(--text-secondary); }
+
+@media (max-width: 900px) {
+  /* Platz für den fixen Sprachumschalter oben rechts. */
+  .landing { padding-top: 68px; }
+  .landing-hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 36px;
+    min-height: 0;
+    justify-items: center;
+    text-align: center;
+  }
+  .landing-intro {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .landing-points li { text-align: left; }
+  .landing-grid { grid-template-columns: minmax(0, 1fr); }
+  .landing-how {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+  .landing-how-img { order: -1; }
+  .landing-how-img img { max-height: 320px; object-fit: cover; }
+  .landing-foot { justify-content: center; text-align: center; }
+}
+
+/* Kompakte Telefon-Ansicht. */
+@media (max-width: 640px) {
+  .landing { padding: 64px 16px 28px; }
+  .lang-switch { top: 12px; right: 12px; }
+  .landing-brand { gap: 13px; }
+  .landing-brand > span:first-child {
+    width: 52px !important;
+    height: 52px !important;
+  }
+  .login-wordmark { font-size: 34px; }
+  .landing-tagline { margin-top: 14px; font-size: 19px; }
+  .landing-pitch { font-size: 13.5px; }
+  .landing-rot { font-size: 15px; }
+  .landing-points { gap: 8px; }
+  .landing-points li { font-size: 13px; }
+  .login-card { max-width: 100%; padding: 22px 18px; }
+  .landing-band { border-radius: 14px; }
+  .landing-band img { height: 220px; }
+  .landing-band figcaption { padding: 26px 14px 12px; font-size: 15px; }
+  .landing-features { margin-top: 30px; padding-top: 34px; }
+  .landing-features h2, .landing-how h2 { font-size: 21px; }
+  .landing-lead { font-size: 13px; }
+  .landing-grid { margin-top: 24px; gap: 12px; }
+  .landing-feature { padding: 16px 16px 18px; }
+  .landing-how { margin-top: 44px; }
+  .landing-how li { gap: 12px; }
+  .landing-how-img img { max-height: 240px; }
+  .landing-foot {
+    margin-top: 40px;
+    flex-direction: column;
+    gap: 8px;
+  }
+  /* Aurora dezenter halten, sonst dominiert sie den kleinen Screen. */
+  .aurora { filter: blur(52px); opacity: 0.8; }
+}
+@media (min-width: 901px) and (max-width: 1100px) {
+  .landing-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 .login-card {
   width: 100%;
   max-width: 350px;
@@ -1277,6 +1854,11 @@ kbd {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .login-mark, .login-rise, .login-flock svg { animation: none !important; }
+  .login-mark, .login-rise, .login-flock svg, .landing-band img,
+  .aurora i, .login-wordmark, .rot-word,
+  .landing-feature::before, .login-card::before { animation: none !important; }
   .login-mark, .login-rise { opacity: 1; transform: none; }
+  .reveal { opacity: 1; transform: none; transition: none; }
+  .landing-feature, .landing-feature-icon { transition: none; }
+  .boids { display: none; }
 }

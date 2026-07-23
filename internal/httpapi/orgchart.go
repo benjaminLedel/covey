@@ -138,6 +138,39 @@ func (s *Server) handleDeleteProfileField(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// handleSetHumanManager hängt einen Menschen im Org-Chart um. Leere manager_id
+// löst die Zuordnung. Der Vorgesetzte muss ein Mensch derselben Organisation
+// sein; Selbst- und zyklische Zuordnungen weist der Store ab (ErrManagerCycle).
+func (s *Server) handleSetHumanManager(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	p := principalFrom(r)
+	var in struct {
+		ManagerID string `json:"manager_id"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		return
+	}
+	upd := org.HumanUpdate{ManagerID: &uuid.NullUUID{}}
+	if in.ManagerID != "" {
+		mid, err := uuid.Parse(in.ManagerID)
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "ungültige manager_id")
+			return
+		}
+		upd.ManagerID = &uuid.NullUUID{UUID: mid, Valid: true}
+	}
+	if _, err := s.Org.UpdateHuman(r.Context(), p.OrgID, id, upd); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // handleSetSupervisor hängt einen Agenten im Org-Chart um. Leere supervisor_id
 // löst die Zuordnung. Der Vorgesetzte darf ein Mensch ODER ein anderer Agent
 // derselben Organisation sein — Agenten lassen sich damit auch anderen Agenten

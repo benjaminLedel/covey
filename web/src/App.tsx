@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { api, post, type Approval, type Principal } from "./api";
+import { api, post, roleLabel, type Approval, type Principal } from "./api";
 import i18n from "./i18n";
 import HelpDrawer from "./components/HelpDrawer";
 import Login from "./pages/Login";
@@ -140,6 +140,13 @@ const icons: Record<string, JSX.Element> = {
       <path d="M16 17l5-5l-5-5M21 12H9" />
     </>
   ),
+  dots: (
+    <>
+      <circle cx="12" cy="5.5" r="0.9" />
+      <circle cx="12" cy="12" r="0.9" />
+      <circle cx="12" cy="18.5" r="0.9" />
+    </>
+  ),
 };
 
 function NavIcon({ name }: { name: string }) {
@@ -172,6 +179,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
   const { t } = useTranslation();
   const location = useLocation();
   const [helpOpen, setHelpOpen] = useState(false);
+  const [userMenu, setUserMenu] = useState(false);
 
   // Plattform-Administration ist selten gebraucht — standardmäßig eingeklappt,
   // Zustand wird gemerkt; auf einer Plattform-Seite ist die Gruppe immer offen.
@@ -259,30 +267,54 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
               )}
             </>
           )}
+          {/* Fuß: eine Zeile — Nutzer (Link zum Profil) + ⋯-Menü mit
+              Sprache, Hilfe und Abmelden. */}
           <div className="side-foot">
-            <NavLink to="/profile" className="suser" title={t("nav.profile")}>
-              <span className="avatar">{initials(me.DisplayName)}</span>
-              <span className="min-w-0">
-                <span className="nm truncate block">{me.DisplayName}</span>
-                <span className="rl block">{me.Role}</span>
-              </span>
-            </NavLink>
-            <div className="foot-actions">
-              <button className="icon-btn" onClick={toggleLang} title={t("lang.toggle")} aria-label={t("lang.toggle")} style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.03em" }}>
-                {t("lang.toggle")}
+            <div className="suser-row">
+              <NavLink to="/profile" className="suser" title={t("nav.profile")}>
+                <span className="avatar">{initials(me.DisplayName)}</span>
+                <span className="min-w-0">
+                  <span className="nm truncate block">{me.DisplayName}</span>
+                  <span className="rl block truncate">{roleLabel[me.Role] || me.Role}</span>
+                </span>
+              </NavLink>
+              <button
+                className={`icon-btn foot-menu-btn${userMenu ? " open" : ""}`}
+                onClick={() => setUserMenu(v => !v)}
+                title={t("nav.userMenu")}
+                aria-label={t("nav.userMenu")}
+                aria-expanded={userMenu}
+              >
+                <NavIcon name="dots" />
               </button>
-              <button className="icon-btn" onClick={() => setHelpOpen(true)} title={t("nav.help")} aria-label={t("help.title")}>
-                <NavIcon name="help" />
-              </button>
-              <button className="icon-btn danger" onClick={logout} title={t("nav.logout")} aria-label={t("nav.logout")}>
-                <NavIcon name="logout" />
-              </button>
+              {userMenu && (
+                <>
+                  <div className="foot-menu-backdrop" onClick={() => setUserMenu(false)} />
+                  <div className="foot-menu">
+                    <button onClick={toggleLang}>
+                      <NavIcon name="globe" />
+                      {t("lang.switchTo")}
+                    </button>
+                    <button onClick={() => { setUserMenu(false); setHelpOpen(true); }}>
+                      <NavIcon name="help" />
+                      {t("nav.help")}
+                    </button>
+                    <div className="sep" />
+                    <button className="danger" onClick={logout}>
+                      <NavIcon name="logout" />
+                      {t("nav.logout")}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
       </aside>
       <main className="flex-1 min-w-0">
-        <div key={location.pathname} className="fade" style={{ padding: "22px 26px 60px", maxWidth: 1080 }}>
+        {/* Das Organigramm nutzt die volle Breite — alle anderen Seiten
+            bleiben auf Lesebreite begrenzt. */}
+        <div key={location.pathname} className="fade" style={{ padding: "22px 26px 60px", maxWidth: location.pathname === "/org" ? undefined : 1080 }}>
           <Routes>
             <Route path="/" element={<Dashboard me={me} />} />
             <Route path="/agents/:id" element={<AgentPage me={me} />} />

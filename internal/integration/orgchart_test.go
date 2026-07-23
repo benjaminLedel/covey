@@ -28,6 +28,18 @@ func TestOrgChart(t *testing.T) {
 	admin.expect(http.MethodPatch, "/api/v1/users/"+s.adminID.String(),
 		map[string]string{"manager_id": leadID}, http.StatusConflict)
 
+	// Der Org-Chart-Endpunkt (Drag & Drop im UI) kann Menschen ebenso umhängen:
+	// Zyklen werden abgewiesen, leere manager_id löst die Zuordnung.
+	admin.expect(http.MethodPatch, "/api/v1/org/humans/"+leadID+"/manager",
+		map[string]string{"manager_id": leadID}, http.StatusConflict)
+	admin.expect(http.MethodPatch, "/api/v1/org/humans/"+leadID+"/manager",
+		map[string]string{"manager_id": ""}, http.StatusOK)
+	if h := admin.expect(http.MethodGet, "/api/v1/org/humans/"+leadID, nil, http.StatusOK); h["manager_id"] != nil {
+		t.Fatalf("manager_id muss gelöst sein, got %v", h["manager_id"])
+	}
+	admin.expect(http.MethodPatch, "/api/v1/org/humans/"+leadID+"/manager",
+		map[string]string{"manager_id": s.adminID.String()}, http.StatusOK)
+
 	// Agent anlegen und dem Lead zuordnen.
 	created := admin.expect(http.MethodPost, "/api/v1/agents",
 		map[string]string{"slug": "nova", "display_name": "Nova"}, http.StatusCreated)
@@ -67,6 +79,43 @@ func TestOrgChart(t *testing.T) {
 		t.Fatalf("supervisor_id muss gelöst sein, got %v", got["supervisor_id"])
 	}
 
+	// Abteilungen können ein oder mehrere Leitungen haben — Menschen wie
+	// Agenten. Zuweisen ist idempotent, die Leitungen stehen in der
+	// Abteilungs-Antwort, Entfernen löscht genau die eine Zuordnung.
+	dept := admin.expect(http.MethodPost, "/api/v1/departments",
+		map[string]string{"name": "Support", "color": "#7d9471"}, http.StatusCreated)
+	deptID := dept["id"].(string)
+	if dept["color"] != "#7d9471" {
+		t.Fatalf("abteilung muss die farbe tragen, got %v", dept["color"])
+	}
+
+	// Farbe ändern und zurücksetzen; kaputte Werte werden abgewiesen.
+	admin.expect(http.MethodPatch, "/api/v1/departments/"+deptID+"/color",
+		map[string]string{"color": "#c9a227"}, http.StatusOK)
+	admin.expect(http.MethodPatch, "/api/v1/departments/"+deptID+"/color",
+		map[string]string{"color": "rot"}, http.StatusBadRequest)
+	admin.expect(http.MethodPatch, "/api/v1/departments/"+deptID+"/color",
+		map[string]string{"color": ""}, http.StatusOK)
+	admin.expect(http.MethodPost, "/api/v1/departments/"+deptID+"/leads",
+		map[string]string{"kind": "human", "member_id": leadID}, http.StatusOK)
+	admin.expect(http.MethodPost, "/api/v1/departments/"+deptID+"/leads",
+		map[string]string{"kind": "human", "member_id": leadID}, http.StatusOK)
+	admin.expect(http.MethodPost, "/api/v1/departments/"+deptID+"/leads",
+		map[string]string{"kind": "agent", "member_id": agentID}, http.StatusOK)
+
+	deptsResp := admin.do(http.MethodGet, "/api/v1/departments", nil)
+	var depts []struct {
+		Leads []map[string]any `json:"leads"`
+	}
+	json.NewDecoder(deptsResp.Body).Decode(&depts)
+	deptsResp.Body.Close()
+	if len(depts) != 1 || len(depts[0].Leads) != 2 {
+		t.Fatalf("erwartet 1 abteilung mit 2 leitungen, got %+v", depts)
+	}
+
+	admin.expect(http.MethodDelete, "/api/v1/departments/"+deptID+"/leads/"+agentID, nil, http.StatusOK)
+	admin.expect(http.MethodDelete, "/api/v1/departments/"+deptID+"/leads/"+agentID, nil, http.StatusNotFound)
+
 	// Org-Scoping: ein Mensch einer fremden Organisation ist kein gültiger
 	// Vorgesetzter — weder für Agenten noch für Menschen.
 	admin.expect(http.MethodPost, "/api/v1/orgs", map[string]string{
@@ -84,4 +133,8 @@ func TestOrgChart(t *testing.T) {
 		map[string]string{"supervisor_id": fremdID}, http.StatusNotFound)
 	admin.expect(http.MethodPatch, "/api/v1/users/"+leadID,
 		map[string]string{"manager_id": fremdID}, http.StatusNotFound)
+	admin.expect(http.MethodPatch, "/api/v1/org/humans/"+leadID+"/manager",
+		map[string]string{"manager_id": fremdID}, http.StatusNotFound)
+	admin.expect(http.MethodPost, "/api/v1/departments/"+deptID+"/leads",
+		map[string]string{"kind": "human", "member_id": fremdID}, http.StatusNotFound)
 }

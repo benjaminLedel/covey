@@ -160,11 +160,17 @@ export type Human = {
   created_at: string;
 };
 
+// Leitung einer Abteilung: ein Mensch oder ein Agent — eine Abteilung kann
+// mehrere Leitungen haben, eine Leitung mehrere Abteilungen.
+export type DeptLead = { kind: "human" | "agent"; id: string };
+
 export type Department = {
   id: string;
   org_id: string;
   name: string;
   description: string;
+  color: string; // Hex-Akzentfarbe, leer = Standard
+  leads: DeptLead[];
   created_at: string;
 };
 
@@ -183,14 +189,23 @@ export type OrgChart = {
   departments: Department[];
 };
 
-export const createDepartment = (name: string, description = "") =>
-  post<Department>("/departments", { name, description });
+export const createDepartment = (name: string, description = "", color = "") =>
+  post<Department>("/departments", { name, description, color });
 
 export const renameDepartment = (id: string, name: string) =>
   patch<{ ok: boolean }>(`/departments/${id}/name`, { name });
 
+export const setDepartmentColor = (id: string, color: string) =>
+  patch<{ ok: boolean }>(`/departments/${id}/color`, { color });
+
 export const deleteDepartment = (id: string) =>
   del<{ ok: boolean }>(`/departments/${id}`);
+
+export const addDepartmentLead = (deptId: string, kind: "human" | "agent", memberId: string) =>
+  post<{ ok: boolean }>(`/departments/${deptId}/leads`, { kind, member_id: memberId });
+
+export const removeDepartmentLead = (deptId: string, memberId: string) =>
+  del<{ ok: boolean }>(`/departments/${deptId}/leads/${memberId}`);
 
 export const setAgentDepartment = (agentId: string, departmentId: string | null) =>
   patch<{ ok: boolean }>(`/agents/${agentId}/department`, { department_id: departmentId ?? "" });
@@ -200,6 +215,9 @@ export const setAgentSupervisor = (agentId: string, supervisorId: string | null)
 
 export const setHumanDepartment = (humanId: string, departmentId: string | null) =>
   patch<{ ok: boolean }>(`/org/humans/${humanId}/department`, { department_id: departmentId ?? "" });
+
+export const setHumanManager = (humanId: string, managerId: string | null) =>
+  patch<{ ok: boolean }>(`/org/humans/${humanId}/manager`, { manager_id: managerId ?? "" });
 
 export type Organization = {
   id: string;

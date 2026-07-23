@@ -4,9 +4,11 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   api, roleLabel,
-  createDepartment, renameDepartment, deleteDepartment,
+  createDepartment, renameDepartment, deleteDepartment, setDepartmentColor,
   setAgentDepartment, setAgentSupervisor,
-  type Agent, type Human, type OrgChart, type Department,
+  setHumanDepartment, setHumanManager,
+  addDepartmentLead, removeDepartmentLead,
+  type Agent, type Human, type OrgChart, type Department, type DeptLead,
 } from "../api";
 import { Avatar } from "../components/person";
 import { ConfirmDialog } from "../components/Modal";
@@ -17,13 +19,53 @@ type DropTarget =
   | { deptId: string | null; supervisorId: null }        // direktes Mitglied einer Abteilung
   | { deptId: string | null; supervisorId: string };     // Untergebener eines Mitglieds
 
+// Vorgegebene Akzentfarben für Abteilungen, abgestimmt auf das Papier-Theme.
+// Leer = Standard-Akzent (var(--text-accent)).
+const DEPT_COLORS = [
+  "#7a83cc", "#b25f41", "#7d9471", "#c9a227",
+  "#5e9b94", "#9a6b8f", "#6b87a8", "#8a8577",
+];
+
+// Farbwahl als Swatch-Reihe: erster Punkt = Standard, danach die Palette.
+function ColorSwatches({ value, onPick }: { value: string; onPick: (c: string) => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className="dept-colors" role="radiogroup" aria-label={t("org.deptColor")}>
+      <button
+        type="button"
+        className={`dept-swatch none${value === "" ? " sel" : ""}`}
+        onClick={() => onPick("")}
+        title={t("org.colorDefault")}
+      />
+      {DEPT_COLORS.map(c => (
+        <button
+          type="button"
+          key={c}
+          className={`dept-swatch${value === c ? " sel" : ""}`}
+          style={{ background: c }}
+          onClick={() => onPick(c)}
+          title={c}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Gezogen werden Agenten und Menschen. Der Typ entscheidet über die API-Aufrufe
+// und die erlaubten Ziele: Menschen können nur Menschen unterstellt werden
+// (manager_id verweist auf humans), Agenten Menschen wie Agenten.
+type DragItem =
+  | { kind: "agent"; member: Agent }
+  | { kind: "human"; member: Human };
+
 export default function Org() {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const [dragging, setDragging] = useState<Agent | null>(null);
+  const [dragging, setDragging] = useState<DragItem | null>(null);
   const [showNewDept, setShowNewDept] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
+  const [newColor, setNewColor] = useState("");
 
   const chart = useQuery({
     queryKey: ["orgchart"],
@@ -31,28 +73,34 @@ export default function Org() {
   });
 
   const createMut = useMutation({
-    mutationFn: ({ name, desc }: { name: string; desc: string }) =>
-      createDepartment(name, desc),
+    mutationFn: ({ name, desc, color }: { name: string; desc: string; color: string }) =>
+      createDepartment(name, desc, color),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["orgchart"] });
       setNewName("");
       setNewDesc("");
+      setNewColor("");
       setShowNewDept(false);
     },
   });
 
   // Ein Drop setzt Vorgesetzten und Abteilung gemeinsam, damit ein
-  // untergeordneter Agent in derselben Abteilung wie sein Vorgesetzter landet.
+  // untergeordnetes Mitglied in derselben Abteilung wie sein Vorgesetzter landet.
   const moveMut = useMutation({
-    mutationFn: async ({ agentId, deptId, supervisorId }: { agentId: string } & DropTarget) => {
-      await setAgentSupervisor(agentId, supervisorId);
-      await setAgentDepartment(agentId, deptId);
+    mutationFn: async ({ item, deptId, supervisorId }: { item: DragItem } & DropTarget) => {
+      if (item.kind === "agent") {
+        await setAgentSupervisor(item.member.id, supervisorId);
+        await setAgentDepartment(item.member.id, deptId);
+      } else {
+        await setHumanManager(item.member.id, supervisorId);
+        await setHumanDepartment(item.member.id, deptId);
+      }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["orgchart"] }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["orgchart"] }),
   });
 
   const drop = (target: DropTarget) => {
-    if (dragging) moveMut.mutate({ agentId: dragging.id, ...target });
+    if (dragging) moveMut.mutate({ item: dragging, ...target });
     setDragging(null);
   };
 
@@ -94,7 +142,7 @@ export default function Org() {
           className="dept-create-form"
           onSubmit={e => {
             e.preventDefault();
-            createMut.mutate({ name: newName, desc: newDesc });
+            createMut.mutate({ name: newName, desc: newDesc, color: newColor });
           }}
         >
           <input
@@ -111,6 +159,7 @@ export default function Org() {
             placeholder={t("org.deptDescPlaceholder")}
             style={{ flex: "2 1 220px", minWidth: 0 }}
           />
+          <ColorSwatches value={newColor} onPick={setNewColor} />
           <button className="btn sm primary" type="submit" disabled={createMut.isPending}>
             {t("org.createDept")}
           </button>
@@ -145,8 +194,8 @@ function DiagramView({
   humans: Human[];
   agents: Agent[];
   departments: Department[];
-  dragging: Agent | null;
-  onDragStart: (a: Agent) => void;
+  dragging: DragItem | null;
+  onDragStart: (d: DragItem) => void;
   onDragEnd: () => void;
   onDrop: (t: DropTarget) => void;
   onUpdate: () => void;
@@ -167,6 +216,11 @@ function DiagramView({
 
   const memberHandlers = { dragging, onDragStart, onDragEnd, onDrop };
 
+  // Leitungen sind org-weit referenziert — eine Leitung muss nicht Mitglied
+  // ihrer Abteilung sein, daher gegen die vollen Listen auflösen.
+  const resolveLead = (l: DeptLead): Human | Agent | undefined =>
+    l.kind === "human" ? humans.find(h => h.id === l.id) : agents.find(a => a.id === l.id);
+
   return (
     <div className="tree mt-4">
       <ul>
@@ -181,6 +235,7 @@ function DiagramView({
                 key={dept.id}
                 dept={dept}
                 members={inDept(dept.id)}
+                resolveLead={resolveLead}
                 {...memberHandlers}
                 onUpdate={onUpdate}
               />
@@ -216,8 +271,8 @@ function MemberBranch({
   members: Members;
   parentId?: string;      // undefined = roots der Abteilung
   seen: Set<string>;
-  dragging: Agent | null;
-  onDragStart: (a: Agent) => void;
+  dragging: DragItem | null;
+  onDragStart: (d: DragItem) => void;
   onDragEnd: () => void;
   onDrop: (t: DropTarget) => void;
 }) {
@@ -269,8 +324,8 @@ function MemberNode({
   kind: "human" | "agent";
   members: Members;
   seen: Set<string>;
-  dragging: Agent | null;
-  onDragStart: (a: Agent) => void;
+  dragging: DragItem | null;
+  onDragStart: (d: DragItem) => void;
   onDragEnd: () => void;
   onDrop: (t: DropTarget) => void;
 }) {
@@ -280,8 +335,11 @@ function MemberNode({
   const agent = isAgent ? (member as Agent) : null;
   const human = !isAgent ? (member as Human) : null;
 
-  const beingDragged = !!agent && dragging?.id === agent.id;
-  const canDrop = !!dragging && dragging.id !== member.id;
+  const beingDragged = dragging?.member.id === member.id;
+  // Menschen können nur Menschen unterstellt werden (manager_id → humans);
+  // Agenten dürfen auf beides fallen.
+  const canDrop = !!dragging && dragging.member.id !== member.id
+    && (dragging.kind === "agent" || !isAgent);
   const status = agent ? (agent.killed ? "killed" : agent.status) : "";
   const nextSeen = new Set(seen).add(member.id);
   const deptId = (member.department_id ?? null) as string | null;
@@ -290,23 +348,24 @@ function MemberNode({
     <li>
       <div
         className={`orgmember${beingDragged ? " orgmember-out" : ""}${isOver && canDrop ? " node-drop-over" : ""}`}
-        draggable={isAgent}
-        onDragStart={isAgent ? e => { e.dataTransfer.effectAllowed = "move"; onDragStart(agent!); } : undefined}
-        onDragEnd={isAgent ? onDragEnd : undefined}
+        draggable
+        onDragStart={e => {
+          e.dataTransfer.effectAllowed = "move";
+          onDragStart(isAgent ? { kind: "agent", member: agent! } : { kind: "human", member: human! });
+        }}
+        onDragEnd={onDragEnd}
         onDragOver={e => { if (canDrop) { e.preventDefault(); e.stopPropagation(); setIsOver(true); } }}
         onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsOver(false); }}
         onDrop={e => { if (canDrop) { e.preventDefault(); e.stopPropagation(); setIsOver(false); onDrop({ deptId, supervisorId: member.id }); } }}
         title={canDrop ? t("org.dropOnMember") : undefined}
       >
-        {isAgent && (
-          <span className="agent-grip" title={t("org.dragAgent")}>
-            <svg viewBox="0 0 10 16" fill="currentColor">
-              <circle cx="3" cy="3" r="1.2" /><circle cx="7" cy="3" r="1.2" />
-              <circle cx="3" cy="8" r="1.2" /><circle cx="7" cy="8" r="1.2" />
-              <circle cx="3" cy="13" r="1.2" /><circle cx="7" cy="13" r="1.2" />
-            </svg>
-          </span>
-        )}
+        <span className="agent-grip" title={t("org.dragAgent")}>
+          <svg viewBox="0 0 10 16" fill="currentColor">
+            <circle cx="3" cy="3" r="1.2" /><circle cx="7" cy="3" r="1.2" />
+            <circle cx="3" cy="8" r="1.2" /><circle cx="7" cy="8" r="1.2" />
+            <circle cx="3" cy="13" r="1.2" /><circle cx="7" cy="13" r="1.2" />
+          </svg>
+        </span>
         <Link
           to={isAgent ? `/agents/${member.id}` : `/people/${member.id}`}
           className={`node ${kind}`}
@@ -339,18 +398,20 @@ function MemberNode({
 }
 
 function DeptTreeNode({
-  dept, members, dragging, onDragStart, onDragEnd, onDrop, onUpdate,
+  dept, members, resolveLead, dragging, onDragStart, onDragEnd, onDrop, onUpdate,
 }: {
   dept: Department;
   members: Members;
-  dragging: Agent | null;
-  onDragStart: (a: Agent) => void;
+  resolveLead: (l: DeptLead) => Human | Agent | undefined;
+  dragging: DragItem | null;
+  onDragStart: (d: DragItem) => void;
   onDragEnd: () => void;
   onDrop: (t: DropTarget) => void;
   onUpdate: () => void;
 }) {
   const { t } = useTranslation();
   const [isOver, setIsOver] = useState(false);
+  const [leadOver, setLeadOver] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [editName, setEditName] = useState(dept.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -363,24 +424,49 @@ function DeptTreeNode({
     mutationFn: () => deleteDepartment(dept.id),
     onSuccess: () => { onUpdate(); setConfirmDelete(false); },
   });
+  const addLeadMut = useMutation({
+    mutationFn: (item: DragItem) => addDepartmentLead(dept.id, item.kind, item.member.id),
+    onSettled: onUpdate,
+  });
+  const removeLeadMut = useMutation({
+    mutationFn: (memberId: string) => removeDepartmentLead(dept.id, memberId),
+    onSettled: onUpdate,
+  });
+  const colorMut = useMutation({
+    mutationFn: (color: string) => setDepartmentColor(dept.id, color),
+    onSettled: onUpdate,
+  });
 
   const total = members.humans.length + members.agents.length;
+
+  // Akzentfarbe der Abteilung: Streifen + dezente Flächentönung. Inline, weil
+  // die Farbe aus den Daten kommt; der Drop-Ring wird mitkomponiert, da die
+  // Inline-Box-Shadow die der .node-drop-over-Klasse überdeckt.
+  const accentStyle = dept.color ? {
+    boxShadow: `inset 3px 0 0 ${dept.color}${isOver && dragging ? ", 0 0 0 2px rgba(var(--accent-rgb, 122,131,204),0.20)" : ""}`,
+    background: `color-mix(in srgb, ${dept.color} 6%, var(--surface-2))`,
+  } : undefined;
 
   return (
     <li>
       <div
         className={`node dept${isOver && dragging ? " node-drop-over" : ""}`}
+        style={accentStyle}
         title={dept.description || undefined}
         onDragOver={e => { if (dragging) { e.preventDefault(); e.stopPropagation(); setIsOver(true); } }}
         onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsOver(false); }}
         onDrop={e => { e.preventDefault(); e.stopPropagation(); setIsOver(false); onDrop({ deptId: dept.id, supervisorId: null }); }}
       >
         {renaming ? (
-          <form className="dept-tree-rename" onSubmit={e => { e.preventDefault(); renameMut.mutate(); }}>
-            <input value={editName} onChange={e => setEditName(e.target.value)} autoFocus required />
-            <button className="btn sm primary" type="submit" disabled={renameMut.isPending} style={{ padding: "3px 8px" }}>✓</button>
-            <button type="button" className="btn sm" style={{ padding: "3px 8px" }} onClick={() => { setRenaming(false); setEditName(dept.name); }}>✕</button>
-          </form>
+          <>
+            <form className="dept-tree-rename" onSubmit={e => { e.preventDefault(); renameMut.mutate(); }}>
+              <input value={editName} onChange={e => setEditName(e.target.value)} autoFocus required />
+              <button className="btn sm primary" type="submit" disabled={renameMut.isPending} style={{ padding: "3px 8px" }}>✓</button>
+              <button type="button" className="btn sm" style={{ padding: "3px 8px" }} onClick={() => { setRenaming(false); setEditName(dept.name); }}>✕</button>
+            </form>
+            {/* Farbwahl wirkt sofort — kein eigener Speichern-Schritt nötig. */}
+            <ColorSwatches value={dept.color} onPick={c => colorMut.mutate(c)} />
+          </>
         ) : (
           <>
             <div className="dept-tree-hdr">
@@ -390,6 +476,57 @@ function DeptTreeNode({
             </div>
             <div className="rl">{total}&thinsp;{total === 1 ? t("org.member") : t("org.members")}</div>
           </>
+        )}
+
+        {/* Leitung: Chips der aktuellen Leitungen. */}
+        {dept.leads.length > 0 && (
+          <div className="dept-leads">
+            <span className="dept-leads-label">{t("org.leadLabel")}</span>
+            {dept.leads.map(l => {
+              const m = resolveLead(l);
+              if (!m) return null;
+              return (
+                <span key={l.id} className="dept-lead-chip">
+                  <Link
+                    to={l.kind === "agent" ? `/agents/${l.id}` : `/people/${l.id}`}
+                    draggable={false}
+                    title={t("org.openProfile")}
+                  >
+                    <Avatar name={m.display_name} size={16} human={l.kind === "human"} />
+                    {m.display_name}
+                  </Link>
+                  <button
+                    className="icon-btn danger"
+                    onClick={() => removeLeadMut.mutate(l.id)}
+                    title={t("org.removeLead")}
+                  >✕</button>
+                </span>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Während eines Drag-Vorgangs: zwei großzügige Drop-Zonen. Mitglied
+            setzt die Abteilung, Leitung lässt die Zugehörigkeit unberührt. */}
+        {dragging && !renaming && (
+          <div className="dept-dropzones">
+            <div
+              className={`dept-dz${isOver ? " over" : ""}`}
+              onDragOver={e => { e.preventDefault(); e.stopPropagation(); setIsOver(true); setLeadOver(false); }}
+              onDragLeave={() => setIsOver(false)}
+              onDrop={e => { e.preventDefault(); e.stopPropagation(); setIsOver(false); onDrop({ deptId: dept.id, supervisorId: null }); }}
+            >
+              {t("org.dropAsMember")}
+            </div>
+            <div
+              className={`dept-dz${leadOver ? " over" : ""}`}
+              onDragOver={e => { e.preventDefault(); e.stopPropagation(); setLeadOver(true); setIsOver(false); }}
+              onDragLeave={() => setLeadOver(false)}
+              onDrop={e => { e.preventDefault(); e.stopPropagation(); setLeadOver(false); if (dragging) addLeadMut.mutate(dragging); }}
+            >
+              {t("org.dropAsLead")}
+            </div>
+          </div>
         )}
       </div>
 
@@ -422,8 +559,8 @@ function UnassignedTreeNode({
   members, dragging, onDragStart, onDragEnd, onDrop,
 }: {
   members: Members;
-  dragging: Agent | null;
-  onDragStart: (a: Agent) => void;
+  dragging: DragItem | null;
+  onDragStart: (d: DragItem) => void;
   onDragEnd: () => void;
   onDrop: (t: DropTarget) => void;
 }) {
