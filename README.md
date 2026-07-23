@@ -26,6 +26,11 @@ covey-Binary mit eingebetteter Admin-UI; `bootstrap` legt Organisation, Admin un
 an, Migrationen laufen automatisch. Vollständige Anleitung inkl. erstem Agenten und Produktions-Checkliste:
 [`docs/schnellstart-docker.md`](docs/schnellstart-docker.md).
 
+**Automatisches Deployment (main → Host):** Jeder Push auf `main` rollt Covey über die
+GitLab-Pipeline (`test → build → deploy`) auf einen Zielhost aus — das gebaute Image auf den
+Commit-Tag gepinnt, via [`docker-compose.deploy.yml`](docker-compose.deploy.yml) auf einem
+Shell-Runner am Host gestartet. Einrichtung und Betrieb: [`docs/betrieb-deployment.md`](docs/betrieb-deployment.md).
+
 ## Schnellstart (Entwicklung)
 
 ```bash
