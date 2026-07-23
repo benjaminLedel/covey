@@ -84,6 +84,58 @@ func (s *Server) handleDeleteDepartment(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// handleAddDepartmentLead nimmt ein Mitglied (Mensch oder Agent) in die
+// Leitung einer Abteilung auf — eine Abteilung kann mehrere Leitungen haben.
+func (s *Server) handleAddDepartmentLead(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	p := principalFrom(r)
+	var in struct {
+		Kind     string `json:"kind"`
+		MemberID string `json:"member_id"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		return
+	}
+	if in.Kind != "human" && in.Kind != "agent" {
+		writeErr(w, http.StatusBadRequest, "kind muss human oder agent sein")
+		return
+	}
+	memberID, err := uuid.Parse(in.MemberID)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige member_id")
+		return
+	}
+	if err := s.Org.AddDepartmentLead(r.Context(), p.OrgID, id, in.Kind, memberID); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+func (s *Server) handleRemoveDepartmentLead(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	memberID, err := uuid.Parse(r.PathValue("member"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige member-id")
+		return
+	}
+	p := principalFrom(r)
+	if err := s.Org.RemoveDepartmentLead(r.Context(), p.OrgID, id, memberID); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 func (s *Server) handleSetAgentDepartment(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {

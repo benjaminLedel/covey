@@ -79,6 +79,32 @@ func TestOrgChart(t *testing.T) {
 		t.Fatalf("supervisor_id muss gelöst sein, got %v", got["supervisor_id"])
 	}
 
+	// Abteilungen können ein oder mehrere Leitungen haben — Menschen wie
+	// Agenten. Zuweisen ist idempotent, die Leitungen stehen in der
+	// Abteilungs-Antwort, Entfernen löscht genau die eine Zuordnung.
+	dept := admin.expect(http.MethodPost, "/api/v1/departments",
+		map[string]string{"name": "Support"}, http.StatusCreated)
+	deptID := dept["id"].(string)
+	admin.expect(http.MethodPost, "/api/v1/departments/"+deptID+"/leads",
+		map[string]string{"kind": "human", "member_id": leadID}, http.StatusOK)
+	admin.expect(http.MethodPost, "/api/v1/departments/"+deptID+"/leads",
+		map[string]string{"kind": "human", "member_id": leadID}, http.StatusOK)
+	admin.expect(http.MethodPost, "/api/v1/departments/"+deptID+"/leads",
+		map[string]string{"kind": "agent", "member_id": agentID}, http.StatusOK)
+
+	deptsResp := admin.do(http.MethodGet, "/api/v1/departments", nil)
+	var depts []struct {
+		Leads []map[string]any `json:"leads"`
+	}
+	json.NewDecoder(deptsResp.Body).Decode(&depts)
+	deptsResp.Body.Close()
+	if len(depts) != 1 || len(depts[0].Leads) != 2 {
+		t.Fatalf("erwartet 1 abteilung mit 2 leitungen, got %+v", depts)
+	}
+
+	admin.expect(http.MethodDelete, "/api/v1/departments/"+deptID+"/leads/"+agentID, nil, http.StatusOK)
+	admin.expect(http.MethodDelete, "/api/v1/departments/"+deptID+"/leads/"+agentID, nil, http.StatusNotFound)
+
 	// Org-Scoping: ein Mensch einer fremden Organisation ist kein gültiger
 	// Vorgesetzter — weder für Agenten noch für Menschen.
 	admin.expect(http.MethodPost, "/api/v1/orgs", map[string]string{
@@ -98,4 +124,6 @@ func TestOrgChart(t *testing.T) {
 		map[string]string{"manager_id": fremdID}, http.StatusNotFound)
 	admin.expect(http.MethodPatch, "/api/v1/org/humans/"+leadID+"/manager",
 		map[string]string{"manager_id": fremdID}, http.StatusNotFound)
+	admin.expect(http.MethodPost, "/api/v1/departments/"+deptID+"/leads",
+		map[string]string{"kind": "human", "member_id": fremdID}, http.StatusNotFound)
 }

@@ -7,7 +7,8 @@ import {
   createDepartment, renameDepartment, deleteDepartment,
   setAgentDepartment, setAgentSupervisor,
   setHumanDepartment, setHumanManager,
-  type Agent, type Human, type OrgChart, type Department,
+  addDepartmentLead, removeDepartmentLead,
+  type Agent, type Human, type OrgChart, type Department, type DeptLead,
 } from "../api";
 import { Avatar } from "../components/person";
 import { ConfirmDialog } from "../components/Modal";
@@ -180,6 +181,11 @@ function DiagramView({
 
   const memberHandlers = { dragging, onDragStart, onDragEnd, onDrop };
 
+  // Leitungen sind org-weit referenziert — eine Leitung muss nicht Mitglied
+  // ihrer Abteilung sein, daher gegen die vollen Listen auflösen.
+  const resolveLead = (l: DeptLead): Human | Agent | undefined =>
+    l.kind === "human" ? humans.find(h => h.id === l.id) : agents.find(a => a.id === l.id);
+
   return (
     <div className="tree mt-4">
       <ul>
@@ -194,6 +200,7 @@ function DiagramView({
                 key={dept.id}
                 dept={dept}
                 members={inDept(dept.id)}
+                resolveLead={resolveLead}
                 {...memberHandlers}
                 onUpdate={onUpdate}
               />
@@ -356,10 +363,11 @@ function MemberNode({
 }
 
 function DeptTreeNode({
-  dept, members, dragging, onDragStart, onDragEnd, onDrop, onUpdate,
+  dept, members, resolveLead, dragging, onDragStart, onDragEnd, onDrop, onUpdate,
 }: {
   dept: Department;
   members: Members;
+  resolveLead: (l: DeptLead) => Human | Agent | undefined;
   dragging: DragItem | null;
   onDragStart: (d: DragItem) => void;
   onDragEnd: () => void;
@@ -368,6 +376,7 @@ function DeptTreeNode({
 }) {
   const { t } = useTranslation();
   const [isOver, setIsOver] = useState(false);
+  const [leadOver, setLeadOver] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [editName, setEditName] = useState(dept.name);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -379,6 +388,14 @@ function DeptTreeNode({
   const deleteMut = useMutation({
     mutationFn: () => deleteDepartment(dept.id),
     onSuccess: () => { onUpdate(); setConfirmDelete(false); },
+  });
+  const addLeadMut = useMutation({
+    mutationFn: (item: DragItem) => addDepartmentLead(dept.id, item.kind, item.member.id),
+    onSettled: onUpdate,
+  });
+  const removeLeadMut = useMutation({
+    mutationFn: (memberId: string) => removeDepartmentLead(dept.id, memberId),
+    onSettled: onUpdate,
   });
 
   const total = members.humans.length + members.agents.length;
@@ -407,6 +424,46 @@ function DeptTreeNode({
             </div>
             <div className="rl">{total}&thinsp;{total === 1 ? t("org.member") : t("org.members")}</div>
           </>
+        )}
+
+        {/* Leitung: Chips der aktuellen Leitungen + Drop-Zone während eines
+            Drag-Vorgangs. Drop hier macht das Mitglied zur Leitung, ohne seine
+            Abteilungszugehörigkeit zu ändern. */}
+        {(dept.leads.length > 0 || (dragging && !renaming)) && (
+          <div className="dept-leads">
+            <span className="dept-leads-label">{t("org.leadLabel")}</span>
+            {dept.leads.map(l => {
+              const m = resolveLead(l);
+              if (!m) return null;
+              return (
+                <span key={l.id} className="dept-lead-chip">
+                  <Link
+                    to={l.kind === "agent" ? `/agents/${l.id}` : `/people/${l.id}`}
+                    draggable={false}
+                    title={t("org.openProfile")}
+                  >
+                    <Avatar name={m.display_name} size={16} human={l.kind === "human"} />
+                    {m.display_name}
+                  </Link>
+                  <button
+                    className="icon-btn danger"
+                    onClick={() => removeLeadMut.mutate(l.id)}
+                    title={t("org.removeLead")}
+                  >✕</button>
+                </span>
+              );
+            })}
+            {dragging && !renaming && (
+              <span
+                className={`dept-lead-drop${leadOver ? " over" : ""}`}
+                onDragOver={e => { e.preventDefault(); e.stopPropagation(); setLeadOver(true); setIsOver(false); }}
+                onDragLeave={() => setLeadOver(false)}
+                onDrop={e => { e.preventDefault(); e.stopPropagation(); setLeadOver(false); if (dragging) addLeadMut.mutate(dragging); }}
+              >
+                {t("org.dropAsLead")}
+              </span>
+            )}
+          </div>
         )}
       </div>
 

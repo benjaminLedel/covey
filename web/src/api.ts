@@ -160,11 +160,16 @@ export type Human = {
   created_at: string;
 };
 
+// Leitung einer Abteilung: ein Mensch oder ein Agent — eine Abteilung kann
+// mehrere Leitungen haben, eine Leitung mehrere Abteilungen.
+export type DeptLead = { kind: "human" | "agent"; id: string };
+
 export type Department = {
   id: string;
   org_id: string;
   name: string;
   description: string;
+  leads: DeptLead[];
   created_at: string;
 };
 
@@ -191,6 +196,12 @@ export const renameDepartment = (id: string, name: string) =>
 
 export const deleteDepartment = (id: string) =>
   del<{ ok: boolean }>(`/departments/${id}`);
+
+export const addDepartmentLead = (deptId: string, kind: "human" | "agent", memberId: string) =>
+  post<{ ok: boolean }>(`/departments/${deptId}/leads`, { kind, member_id: memberId });
+
+export const removeDepartmentLead = (deptId: string, memberId: string) =>
+  del<{ ok: boolean }>(`/departments/${deptId}/leads/${memberId}`);
 
 export const setAgentDepartment = (agentId: string, departmentId: string | null) =>
   patch<{ ok: boolean }>(`/agents/${agentId}/department`, { department_id: departmentId ?? "" });
