@@ -1453,6 +1453,39 @@ kbd {
 }
 .reveal.in { opacity: 1; transform: none; }
 
+/* Sprachumschalter oben rechts auf der öffentlichen Seite. */
+.lang-switch {
+  position: fixed;
+  top: 18px;
+  right: 20px;
+  z-index: 10;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+  border: 0.5px solid var(--border);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 10px rgba(30, 28, 23, 0.08);
+}
+.lang-switch button {
+  border: none;
+  background: none;
+  padding: 4px 11px;
+  border-radius: 999px;
+  font: inherit;
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.lang-switch button:hover { color: var(--text-primary); }
+.lang-switch button.on {
+  background: var(--clay);
+  color: #fff;
+}
+
 /* Lebender Boid-Schwarm auf Canvas — fix hinter allem Inhalt. */
 .boids {
   position: fixed;

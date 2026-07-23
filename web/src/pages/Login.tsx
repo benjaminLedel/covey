@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import i18n from "../i18n";
 import { post } from "../api";
 
 const DEMO_EMAIL = "admin@covey.local";
@@ -319,8 +320,26 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
     login(email, password);
   };
 
+  const setLang = (l: "de" | "en") => {
+    i18n.changeLanguage(l);
+    localStorage.setItem("covey.lang", l);
+  };
+
   return (
     <div className="login-bg">
+      {/* Sprachwahl — öffentlich sichtbar, gleiche Persistenz wie im Shell. */}
+      <div className="lang-switch" role="group" aria-label="Sprache / Language">
+        {(["de", "en"] as const).map((l) => (
+          <button
+            key={l}
+            className={i18n.language === l ? "on" : ""}
+            aria-pressed={i18n.language === l}
+            onClick={() => setLang(l)}
+          >
+            {l.toUpperCase()}
+          </button>
+        ))}
+      </div>
       {/* Weiche Farbschleier hinter dem Hero — langsam treibend. */}
       <div className="aurora" aria-hidden="true">
         <i /><i /><i />
