@@ -90,7 +90,7 @@ function useBoids(ref: React.RefObject<HTMLCanvasElement>) {
     resize();
     window.addEventListener("resize", resize);
 
-    const N = 110;
+    const N = window.innerWidth < 700 ? 55 : 110;
     const boids = Array.from({ length: N }, () => ({
       x: Math.random() * window.innerWidth * DPR,
       y: Math.random() * window.innerHeight * DPR,
@@ -256,7 +256,15 @@ function useReveal() {
   }, []);
 }
 
-function Imprint({ onClose }: { onClose: () => void }) {
+/* Impressum & Datenschutz — Anschrift/E-Mail sind Platzhalter, die der
+   Betreiber der jeweiligen Installation ausfüllen muss (§ 5 DDG). */
+function LegalModal({
+  kind,
+  onClose,
+}: {
+  kind: "imprint" | "privacy";
+  onClose: () => void;
+}) {
   const { t } = useTranslation();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -269,23 +277,37 @@ function Imprint({ onClose }: { onClose: () => void }) {
         className="modal sm"
         role="dialog"
         aria-modal="true"
-        aria-label={t("landing.imprint")}
+        aria-label={t(`landing.${kind}`)}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="modal-head">
-          <h2>{t("landing.imprint")}</h2>
+          <h2>{t(`landing.${kind}`)}</h2>
           <button className="icon-btn" onClick={onClose} aria-label={t("landing.close")}>
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
               <path d="M6 6l12 12M18 6L6 18" />
             </svg>
           </button>
         </div>
-        <div className="modal-body imprint-body">
-          <p className="imprint-law">{t("landing.imprintLaw")}</p>
-          <p className="imprint-name">Benjamin Ledel</p>
-          <p>{t("landing.imprintResp")}</p>
-          <p className="imprint-note">{t("landing.imprintContact")}</p>
-        </div>
+        {kind === "imprint" ? (
+          <div className="modal-body imprint-body">
+            <p className="imprint-law">{t("landing.imprintLaw")}</p>
+            <p className="imprint-name">Benjamin Ledel</p>
+            <p className="imprint-addr">
+              {t("landing.imprintAddr1")}
+              <br />
+              {t("landing.imprintAddr2")}
+            </p>
+            <p>{t("landing.imprintMail")}</p>
+            <p>{t("landing.imprintResp")}</p>
+            <p className="imprint-note">{t("landing.imprintNote")}</p>
+          </div>
+        ) : (
+          <div className="modal-body imprint-body">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <p key={n}>{t(`landing.priv${n}`)}</p>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -297,7 +319,7 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [imprint, setImprint] = useState(false);
+  const [legal, setLegal] = useState<"imprint" | "privacy" | null>(null);
   const boidsRef = useRef<HTMLCanvasElement>(null);
   useReveal();
   useBoids(boidsRef);
@@ -481,8 +503,12 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
         <footer className="landing-foot">
           <span>{t("landing.foot")}</span>
           <nav>
-            <button className="landing-foot-link" onClick={() => setImprint(true)}>
+            <button className="landing-foot-link" onClick={() => setLegal("imprint")}>
               {t("landing.imprint")}
+            </button>
+            <span className="landing-foot-sep" aria-hidden="true">·</span>
+            <button className="landing-foot-link" onClick={() => setLegal("privacy")}>
+              {t("landing.privacy")}
             </button>
             <span className="landing-foot-sep" aria-hidden="true">·</span>
             <span className="landing-foot-credit">{t("landing.photoCredit")}</span>
@@ -490,7 +516,7 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
         </footer>
       </div>
 
-      {imprint && <Imprint onClose={() => setImprint(false)} />}
+      {legal && <LegalModal kind={legal} onClose={() => setLegal(null)} />}
     </div>
   );
 }

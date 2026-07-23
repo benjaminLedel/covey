@@ -1735,14 +1735,23 @@ kbd {
 .landing-foot-link:hover { color: var(--text-primary); }
 .landing-foot-sep { color: var(--text-muted); }
 
-/* Impressum-Modal */
+/* Impressum-/Datenschutz-Modal */
 .imprint-body p { margin: 0 0 10px; }
+.imprint-body p:last-child { margin-bottom: 0; }
 .imprint-law { color: var(--text-muted); font-size: 12px; }
 .imprint-name { font-family: var(--voice); font-size: 17px; }
-.imprint-note { color: var(--text-secondary); }
+.imprint-addr { color: var(--text-secondary); }
+.imprint-note {
+  color: var(--text-warning);
+  background: var(--bg-warning);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
 
 @media (max-width: 900px) {
-  .landing { padding-top: 48px; }
+  /* Platz für den fixen Sprachumschalter oben rechts. */
+  .landing { padding-top: 68px; }
   .landing-hero {
     grid-template-columns: minmax(0, 1fr);
     gap: 36px;
@@ -1762,7 +1771,44 @@ kbd {
     gap: 28px;
   }
   .landing-how-img { order: -1; }
+  .landing-how-img img { max-height: 320px; object-fit: cover; }
   .landing-foot { justify-content: center; text-align: center; }
+}
+
+/* Kompakte Telefon-Ansicht. */
+@media (max-width: 640px) {
+  .landing { padding: 64px 16px 28px; }
+  .lang-switch { top: 12px; right: 12px; }
+  .landing-brand { gap: 13px; }
+  .landing-brand > span:first-child {
+    width: 52px !important;
+    height: 52px !important;
+  }
+  .login-wordmark { font-size: 34px; }
+  .landing-tagline { margin-top: 14px; font-size: 19px; }
+  .landing-pitch { font-size: 13.5px; }
+  .landing-rot { font-size: 15px; }
+  .landing-points { gap: 8px; }
+  .landing-points li { font-size: 13px; }
+  .login-card { max-width: 100%; padding: 22px 18px; }
+  .landing-band { border-radius: 14px; }
+  .landing-band img { height: 220px; }
+  .landing-band figcaption { padding: 26px 14px 12px; font-size: 15px; }
+  .landing-features { margin-top: 30px; padding-top: 34px; }
+  .landing-features h2, .landing-how h2 { font-size: 21px; }
+  .landing-lead { font-size: 13px; }
+  .landing-grid { margin-top: 24px; gap: 12px; }
+  .landing-feature { padding: 16px 16px 18px; }
+  .landing-how { margin-top: 44px; }
+  .landing-how li { gap: 12px; }
+  .landing-how-img img { max-height: 240px; }
+  .landing-foot {
+    margin-top: 40px;
+    flex-direction: column;
+    gap: 8px;
+  }
+  /* Aurora dezenter halten, sonst dominiert sie den kleinen Screen. */
+  .aurora { filter: blur(52px); opacity: 0.8; }
 }
 @media (min-width: 901px) and (max-width: 1100px) {
   .landing-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
