@@ -207,6 +207,20 @@ deploy:
     - docker pull "$COVEY_SANDBOX_IMAGE"
     - echo "Deploye $COVEY_IMAGE (Sandbox $COVEY_SANDBOX_IMAGE) nach $DEPLOY_DIR"
     - cd "$DEPLOY_DIR"
+    # Die aktuellen Image-Tags zusätzlich in der .env persistieren: nur so
+    # funktionieren manuelle Compose-Befehle auf dem Host (z. B.
+    # `docker compose run --rm covey passwd …`) ohne exportierte Variablen.
+    # Die Secrets in der .env bleiben unberührt; beim CI-Lauf selbst gewinnt
+    # weiterhin die Shell-Umgebung über die .env-Interpolation.
+    - |
+      for var in COVEY_IMAGE COVEY_SANDBOX_IMAGE; do
+        val=$(printenv "$var")
+        if grep -q "^$var=" .env; then
+          sed -i "s|^$var=.*|$var=$val|" .env
+        else
+          echo "$var=$val" >> .env
+        fi
+      done
     # COVEY_IMAGE kommt aus der Shell-Umgebung (überschreibt .env-Interpolation),
     # alle Secrets liest Compose automatisch aus der .env im Ordner.
     - docker compose pull
