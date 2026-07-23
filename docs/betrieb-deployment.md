@@ -111,6 +111,20 @@ Jeder weitere main-Push zieht die neuen Images und startet neu. Das DB-Volume
 (`covey-db`), die Agenten-Homes (`/opt/covey/data/homes/…`) und die `.env`
 bleiben erhalten.
 
+### Passwort-Notfall-Reset
+
+Eigenes Passwort ändert man in der UI (Account-Einstellungen), fremde setzt
+der Platform-Admin über die Nutzer-Seite zurück. Ist der **Admin selbst**
+ausgesperrt, hilft `covey passwd` direkt auf dem Host — es setzt das Passwort
+in der DB neu und invalidiert alle laufenden Sessions des Nutzers:
+
+```bash
+cd /opt/covey
+docker compose run --rm covey passwd admin@covey.local
+# → fragt das neue Passwort interaktiv ab (ohne Echo);
+#   nicht-interaktiv: echo 'neues-passwort' | docker compose run --rm -T covey passwd admin@covey.local
+```
+
 ### Rollback
 
 Auf einen früheren Commit-Tag zurück (Tags stehen in der Registry):
