@@ -1453,13 +1453,144 @@ kbd {
 }
 .reveal.in { opacity: 1; transform: none; }
 
-/* Zwei Vögel driften langsam quer über den Screen. */
-.login-flock svg.drift { animation: login-drift 38s linear infinite; }
-@keyframes login-drift {
-  from { transform: translateX(0) translateY(0); }
-  50% { transform: translateX(55vw) translateY(-24px); }
-  to { transform: translateX(112vw) translateY(6px); }
+/* Lebender Boid-Schwarm auf Canvas — fix hinter allem Inhalt. */
+.boids {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
 }
+
+/* Aurora: drei weiche, warme Farbschleier, die sehr langsam treiben.
+   Blur + Screen-Blend halten es papieren statt neonig. */
+.aurora {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  filter: blur(70px) saturate(1.05);
+}
+.aurora i {
+  position: absolute;
+  border-radius: 50%;
+  will-change: transform;
+}
+.aurora i:nth-child(1) {
+  width: 46vw;
+  height: 46vw;
+  left: -10vw;
+  top: -14vw;
+  background: radial-gradient(circle, rgba(204, 122, 91, 0.22), rgba(204, 122, 91, 0) 70%);
+  animation: aurora-a 26s ease-in-out infinite alternate;
+}
+.aurora i:nth-child(2) {
+  width: 38vw;
+  height: 38vw;
+  right: -8vw;
+  top: 4vw;
+  background: radial-gradient(circle, rgba(224, 176, 92, 0.18), rgba(224, 176, 92, 0) 70%);
+  animation: aurora-b 32s ease-in-out infinite alternate;
+}
+.aurora i:nth-child(3) {
+  width: 34vw;
+  height: 34vw;
+  left: 28vw;
+  bottom: -18vw;
+  background: radial-gradient(circle, rgba(24, 95, 165, 0.10), rgba(24, 95, 165, 0) 70%);
+  animation: aurora-c 38s ease-in-out infinite alternate;
+}
+@keyframes aurora-a {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(9vw, 7vw) scale(1.15); }
+}
+@keyframes aurora-b {
+  from { transform: translate(0, 0) scale(1.1); }
+  to { transform: translate(-11vw, 9vw) scale(0.92); }
+}
+@keyframes aurora-c {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(6vw, -8vw) scale(1.2); }
+}
+
+/* Warmer Glanz, der gelegentlich über die Wortmarke streicht. */
+.login-wordmark {
+  background: linear-gradient(
+    100deg,
+    var(--text-primary) 0%,
+    var(--text-primary) 38%,
+    var(--clay) 50%,
+    #e0b05c 56%,
+    var(--text-primary) 68%,
+    var(--text-primary) 100%
+  );
+  background-size: 320% 100%;
+  background-position: 100% 0;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: wordmark-sheen 7s ease-in-out infinite;
+}
+@keyframes wordmark-sheen {
+  0%, 55% { background-position: 100% 0; }
+  85%, 100% { background-position: 0% 0; }
+}
+
+/* Rotierendes Wort: serif, clay-Verlauf, kippt bei jedem Wechsel herein. */
+.landing-rot {
+  margin-top: 16px;
+  font-family: var(--voice);
+  font-size: 17px;
+  color: var(--text-secondary);
+}
+.rot-word {
+  display: inline-block;
+  font-style: italic;
+  background: linear-gradient(90deg, var(--clay), #b25f41);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: rot-in 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes rot-in {
+  from { opacity: 0; transform: translateY(9px) rotateX(45deg); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Umlaufender Gradient-Rand für Karten (Hover) und Login (Fokus). */
+@property --ga {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+.landing-feature, .login-card { position: relative; }
+.landing-feature::before, .login-card::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(
+    from var(--ga),
+    rgba(204, 122, 91, 0) 0%,
+    rgba(204, 122, 91, 0.65) 12%,
+    rgba(224, 176, 92, 0.55) 22%,
+    rgba(204, 122, 91, 0) 38%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.3s;
+  animation: ga-spin 3s linear infinite paused;
+  pointer-events: none;
+}
+.landing-feature:hover::before,
+.login-card:focus-within::before {
+  opacity: 1;
+  animation-play-state: running;
+}
+@keyframes ga-spin { to { --ga: 360deg; } }
 
 /* Breites Schwarm-Bild mit langsamem Ken-Burns-Zoom und Bildunterschrift. */
 .landing-band {
@@ -1651,9 +1782,11 @@ kbd {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .login-mark, .login-rise, .login-flock svg, .landing-band img { animation: none !important; }
+  .login-mark, .login-rise, .login-flock svg, .landing-band img,
+  .aurora i, .login-wordmark, .rot-word,
+  .landing-feature::before, .login-card::before { animation: none !important; }
   .login-mark, .login-rise { opacity: 1; transform: none; }
   .reveal { opacity: 1; transform: none; transition: none; }
   .landing-feature, .landing-feature-icon { transition: none; }
-  .login-flock svg.drift { display: none; }
+  .boids { display: none; }
 }

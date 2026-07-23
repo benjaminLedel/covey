@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { post } from "../api";
 
@@ -50,24 +50,148 @@ function Bird({
   left,
   size,
   delay,
-  drift,
 }: {
   top: string;
   left: string;
   size: number;
   delay: string;
-  drift?: boolean;
 }) {
   return (
     <svg
       viewBox="0 0 18 6"
       width={size}
       height={size / 3}
-      className={drift ? "drift" : undefined}
       style={{ top, left, animationDelay: delay }}
     >
       <path d="M1 5 Q4.5 0.5 8 5 Q11.5 0.5 15 5" />
     </svg>
+  );
+}
+
+/* Lebender Schwarm (Boids) auf Canvas: Kohäsion, Ausrichtung, Abstand —
+   und sanftes Ausweichen vor dem Mauszeiger. Läuft nicht bei
+   prefers-reduced-motion. */
+function useBoids(ref: React.RefObject<HTMLCanvasElement>) {
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const DPR = Math.min(window.devicePixelRatio || 1, 2);
+    let w = 0;
+    let h = 0;
+    const resize = () => {
+      w = canvas.width = window.innerWidth * DPR;
+      h = canvas.height = window.innerHeight * DPR;
+    };
+    resize();
+    window.addEventListener("resize", resize);
+
+    const N = 110;
+    const boids = Array.from({ length: N }, () => ({
+      x: Math.random() * window.innerWidth * DPR,
+      y: Math.random() * window.innerHeight * DPR,
+      vx: (Math.random() - 0.5) * 2 * DPR,
+      vy: (Math.random() - 0.5) * 2 * DPR,
+    }));
+    const mouse = { x: -1e9, y: -1e9 };
+    const onMove = (e: PointerEvent) => {
+      mouse.x = e.clientX * DPR;
+      mouse.y = e.clientY * DPR;
+    };
+    const onLeave = () => {
+      mouse.x = -1e9;
+      mouse.y = -1e9;
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerleave", onLeave);
+
+    const SEE = (85 * DPR) ** 2;
+    const NEAR = (24 * DPR) ** 2;
+    let raf = 0;
+    const step = () => {
+      ctx.clearRect(0, 0, w, h);
+      for (const b of boids) {
+        let cx = 0, cy = 0, ax = 0, ay = 0, sx = 0, sy = 0, n = 0;
+        for (const o of boids) {
+          if (o === b) continue;
+          const dx = o.x - b.x;
+          const dy = o.y - b.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < SEE) {
+            cx += o.x; cy += o.y; ax += o.vx; ay += o.vy; n++;
+            if (d2 < NEAR) { sx -= dx; sy -= dy; }
+          }
+        }
+        if (n) {
+          b.vx += (cx / n - b.x) * 0.0004 + (ax / n - b.vx) * 0.045 + sx * 0.004;
+          b.vy += (cy / n - b.y) * 0.0004 + (ay / n - b.vy) * 0.045 + sy * 0.004;
+        }
+        const mdx = b.x - mouse.x;
+        const mdy = b.y - mouse.y;
+        const md2 = mdx * mdx + mdy * mdy;
+        if (md2 < (150 * DPR) ** 2) {
+          const md = Math.sqrt(md2) || 1;
+          b.vx += (mdx / md) * 0.5 * DPR;
+          b.vy += (mdy / md) * 0.5 * DPR;
+        }
+        const sp = Math.hypot(b.vx, b.vy) || 1;
+        const max = 1.7 * DPR;
+        const min = 0.6 * DPR;
+        if (sp > max) { b.vx = (b.vx / sp) * max; b.vy = (b.vy / sp) * max; }
+        else if (sp < min) { b.vx = (b.vx / sp) * min; b.vy = (b.vy / sp) * min; }
+        b.x += b.vx;
+        b.y += b.vy;
+        const m = 24 * DPR;
+        if (b.x < -m) b.x = w + m;
+        if (b.x > w + m) b.x = -m;
+        if (b.y < -m) b.y = h + m;
+        if (b.y > h + m) b.y = -m;
+
+        const ang = Math.atan2(b.vy, b.vx);
+        const s = 3.4 * DPR;
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(ang);
+        ctx.strokeStyle = "rgba(178, 95, 65, 0.30)";
+        ctx.lineWidth = 1.1 * DPR;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(-s, -s * 0.65);
+        ctx.lineTo(0, 0);
+        ctx.lineTo(-s, s * 0.65);
+        ctx.stroke();
+        ctx.restore();
+      }
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", resize);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerleave", onLeave);
+    };
+  }, [ref]);
+}
+
+/* Rotierendes Wort im Hero — bei jedem Wechsel remountet der key die
+   CSS-Einblendanimation. */
+function RotatingWord() {
+  const { t } = useTranslation();
+  const words = [1, 2, 3, 4, 5].map((n) => t(`landing.rot${n}`));
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setI((v) => (v + 1) % 5), 2400);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <span className="rot-word" key={i}>
+      {words[i]}
+    </span>
   );
 }
 
@@ -173,7 +297,9 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [imprint, setImprint] = useState(false);
+  const boidsRef = useRef<HTMLCanvasElement>(null);
   useReveal();
+  useBoids(boidsRef);
 
   const login = async (mail: string, pass: string) => {
     setBusy(true);
@@ -195,14 +321,17 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
 
   return (
     <div className="login-bg">
+      {/* Weiche Farbschleier hinter dem Hero — langsam treibend. */}
+      <div className="aurora" aria-hidden="true">
+        <i /><i /><i />
+      </div>
+      <canvas ref={boidsRef} className="boids" aria-hidden="true" />
       <div className="login-flock" aria-hidden="true">
         <Bird top="10%" left="12%" size={44} delay="0s" />
         <Bird top="18%" left="78%" size={62} delay="1.4s" />
         <Bird top="42%" left="6%" size={54} delay="0.7s" />
         <Bird top="52%" left="88%" size={38} delay="2.1s" />
         <Bird top="30%" left="92%" size={30} delay="1.1s" />
-        <Bird top="8%" left="-6%" size={36} delay="0s" drift />
-        <Bird top="22%" left="-6%" size={26} delay="9s" drift />
       </div>
 
       <div className="landing">
@@ -217,6 +346,9 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
             </p>
             <p className="landing-pitch login-rise" style={{ animationDelay: "0.16s" }}>
               {t("landing.pitch")}
+            </p>
+            <p className="landing-rot login-rise" style={{ animationDelay: "0.2s" }}>
+              {t("landing.rotPrefix")} <RotatingWord />
             </p>
             <ul className="landing-points login-rise" style={{ animationDelay: "0.24s" }}>
               {[1, 2, 3].map((n) => (
