@@ -1129,7 +1129,7 @@ kbd {
 /* width: max-content — sonst zentriert flex breiteren Inhalt über den
    Scroll-Ursprung hinaus nach links, wo er unerreichbar abgeschnitten wird. */
 .tree > ul { padding-top: 0; width: max-content; min-width: 100%; margin: 0 auto; }
-.tree li { position: relative; padding: 22px 10px 0; display: flex; flex-direction: column; align-items: center; }
+.tree li { position: relative; padding: 22px 6px 0; display: flex; flex-direction: column; align-items: center; }
 .tree li::before, .tree li::after { content: ""; position: absolute; top: 0; right: 50%; width: 50%; height: 22px; border-top: 1.5px solid var(--border-strong); }
 .tree li::after { right: auto; left: 50%; border-left: 1.5px solid var(--border-strong); }
 .tree li:only-child::before, .tree li:only-child::after { display: none; }

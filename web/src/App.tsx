@@ -282,7 +282,9 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
         </div>
       </aside>
       <main className="flex-1 min-w-0">
-        <div key={location.pathname} className="fade" style={{ padding: "22px 26px 60px", maxWidth: 1080 }}>
+        {/* Das Organigramm nutzt die volle Breite — alle anderen Seiten
+            bleiben auf Lesebreite begrenzt. */}
+        <div key={location.pathname} className="fade" style={{ padding: "22px 26px 60px", maxWidth: location.pathname === "/org" ? undefined : 1080 }}>
           <Routes>
             <Route path="/" element={<Dashboard me={me} />} />
             <Route path="/agents/:id" element={<AgentPage me={me} />} />
