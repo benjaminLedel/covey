@@ -13,17 +13,32 @@ passiert.
 
 Die Pipeline (`.gitlab-ci.yml`) hat drei Stages: `test → build → deploy`.
 
-1. **build** baut das Docker-Image und pusht es in die Registry, u. a. auf den
-   **unveränderlichen Commit-Tag** `:$CI_COMMIT_SHORT_SHA` — das ist der
-   „spezielle Tag", auf den das Deployment pinnt.
+1. **build** baut zwei Docker-Images und pusht sie in die Registry, u. a. auf
+   den **unveränderlichen Commit-Tag** `:$CI_COMMIT_SHORT_SHA` — das ist der
+   „spezielle Tag", auf den das Deployment pinnt:
+   - `…/covey` (Control Plane, [`Dockerfile`](../Dockerfile)),
+   - `…/covey/sandbox` (coveyd + Claude-Code-Runtime,
+     [`Dockerfile.sandbox`](../Dockerfile.sandbox)).
 2. **deploy** läuft auf einem **Shell-Runner direkt auf dem Zielhost**
    (Runner-Tag `covey-deploy`). Der Job:
    - kopiert [`docker-compose.deploy.yml`](../docker-compose.deploy.yml) nach
      `$DEPLOY_DIR/docker-compose.yml` (Default `/opt/covey`),
    - erzeugt beim **ersten** Deploy einmalig eine `.env` mit zufälligem
      Master-Key + Passwörtern (danach nie wieder angefasst),
-   - setzt `COVEY_IMAGE` auf `…/covey:$CI_COMMIT_SHORT_SHA`,
+   - setzt `COVEY_IMAGE` auf `…/covey:$CI_COMMIT_SHORT_SHA`, pullt das
+     Sandbox-Image auf den Host und pinnt es via `COVEY_SANDBOX_IMAGE`,
    - `docker compose pull && docker compose up -d`.
+
+### Sandbox-Isolation im Deployment
+
+Das Deployment nutzt den **docker-SandboxProvider**: pro Agenten-Wake startet
+die Control Plane einen Sibling-Container aus dem Sandbox-Image. Dafür ist im
+Compose der Docker-Socket des Hosts in den covey-Container gemountet, und das
+Datenverzeichnis (`COVEY_DATA_DIR`, Default `/opt/covey/data`) liegt als
+Bind-Mount unter **identischem Pfad** auf Host und im Container — nur so
+stimmen die `-v`-Pfade der Agenten-Homes, die der covey-Container an den
+Host-Daemon übergibt. Das Sandbox-Image wird im Deploy-Job gepullt (dort
+existiert der Registry-Login); die Control Plane selbst pullt nie.
 
 Migrationen laufen beim `serve`-Start automatisch (Advisory-Lock). Der
 `bootstrap`-Service legt Organisation/Admin idempotent an und blockiert den
@@ -92,8 +107,9 @@ docker compose logs -f covey      # Live-Logs
 docker compose down               # Stoppen (Daten bleiben in den Volumes)
 ```
 
-Jeder weitere main-Push zieht das neue Image und startet neu. Die Volumes
-(`covey-db`, `covey-data`) und die `.env` bleiben erhalten.
+Jeder weitere main-Push zieht die neuen Images und startet neu. Das DB-Volume
+(`covey-db`), die Agenten-Homes (`/opt/covey/data/homes/…`) und die `.env`
+bleiben erhalten.
 
 ### Rollback
 
@@ -115,5 +131,6 @@ Das Setup ist bewusst schlank. Für echten Betrieb zusätzlich (vgl.
   `https://…` — das Secure-Cookie schaltet sich dann automatisch an.
 - **DB-TLS:** `sslmode=require` in der DB-URL (dann in `docker-compose.deploy.yml`
   bzw. per eigener DB-Instanz).
-- **Egress & Isolation:** docker-Sandbox-Provider + `COVEY_EGRESS_ENFORCE=true`.
+- **Egress:** `COVEY_EGRESS_ENFORCE=true` (der docker-Sandbox-Provider ist
+  bereits aktiv), damit Sandboxen nur Allowlist-Hosts erreichen.
 - Admin-Passwort aus der generierten `.env` durch ein eigenes ersetzen.

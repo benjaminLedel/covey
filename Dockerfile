@@ -19,6 +19,9 @@ RUN CGO_ENABLED=0 go build -o /covey ./cmd/covey && \
 FROM gcr.io/distroless/static
 COPY --from=build /covey /covey
 COPY --from=build /coveyd /coveyd
+# Statische docker-CLI für den docker-SandboxProvider: er startet Sandboxen
+# via `docker run` über den gemounteten Host-Socket (Sibling-Container).
+COPY --from=docker:27-cli /usr/local/bin/docker /usr/local/bin/docker
 ENV COVEY_COVEYD_PATH=/coveyd
 ENTRYPOINT ["/covey"]
 CMD ["serve"]

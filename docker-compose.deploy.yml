@@ -15,6 +15,15 @@
 # Deploy einmalig erzeugt und danach NIE wieder überschrieben — der Master-Key
 # ver-/entschlüsselt alle hinterlegten Secrets, ein Wechsel würde sie unlesbar
 # machen. Deshalb: `.env` sichern.
+#
+# Sandboxen laufen als Sibling-Container (docker-SandboxProvider): der
+# covey-Container bekommt den Docker-Socket des Hosts und startet pro Wake
+# einen Container aus COVEY_SANDBOX_IMAGE (Dockerfile.sandbox, gepusht von der
+# CI, im Deploy-Job auf den Commit gepinnt). Damit die `-v`-Pfade der
+# Sandbox-Homes für den Host-Daemon stimmen, ist das Datenverzeichnis ein
+# Bind-Mount unter IDENTISCHEM Pfad auf Host und im Container (COVEY_DATA_DIR,
+# Default /opt/covey/data) — ein benanntes Volume wäre für `docker run -v`
+# vom Container aus nicht adressierbar.
 
 x-covey-base: &covey-base
   image: ${COVEY_IMAGE:?COVEY_IMAGE muss gesetzt sein, z. B. registry/…/covey:<sha>}
@@ -23,11 +32,13 @@ x-covey-base: &covey-base
     COVEY_MASTER_KEY: ${COVEY_MASTER_KEY:?in .env setzen — 64 Hex-Zeichen, openssl rand -hex 32}
     COVEY_PUBLIC_URL: ${COVEY_PUBLIC_URL:-http://localhost:8494}
     COVEY_LISTEN_ADDR: ":8494"
-    COVEY_DATA_DIR: /data
+    COVEY_DATA_DIR: ${COVEY_DATA_DIR:-/opt/covey/data}
     COVEY_ADMIN_EMAIL: ${COVEY_ADMIN_EMAIL:-admin@covey.local}
     COVEY_ADMIN_PASSWORD: ${COVEY_ADMIN_PASSWORD:?in .env setzen}
+    COVEY_SANDBOX_PROVIDER: docker
+    COVEY_SANDBOX_IMAGE: ${COVEY_SANDBOX_IMAGE:-covey-sandbox:latest}
   volumes:
-    - covey-data:/data
+    - ${COVEY_DATA_DIR:-/opt/covey/data}:${COVEY_DATA_DIR:-/opt/covey/data}
 
 services:
   db:
@@ -67,8 +78,12 @@ services:
         condition: service_completed_successfully
     ports:
       - "${COVEY_PORT:-8494}:8494"
+    # YAML-Merge ersetzt Listen komplett — deshalb hier beide Mounts explizit:
+    # Datenverzeichnis (wie Base) plus Docker-Socket für den Sandbox-Provider.
+    volumes:
+      - ${COVEY_DATA_DIR:-/opt/covey/data}:${COVEY_DATA_DIR:-/opt/covey/data}
+      - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
 
 volumes:
   covey-db:
-  covey-data:
