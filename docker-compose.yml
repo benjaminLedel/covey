@@ -1,0 +1,73 @@
+# Covey — Beispiel-Setup zum Ausprobieren.
+#
+#   1. cp .env.example .env
+#   2. echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env   # 32-Byte-Schlüssel
+#   3. docker compose up -d --build
+#   4. http://localhost:8494  →  admin@covey.local / covey-admin
+#
+# Enthält alles, was Covey braucht: Postgres (pgvector) + das covey-Binary mit
+# eingebetteter Admin-UI. `bootstrap` legt einmalig Organisation, Admin und einen
+# Demo-Agenten an; danach startet `covey serve` (Migrationen laufen automatisch).
+#
+# Sandbox-Isolation: Default ist COVEY_SANDBOX_PROVIDER=local (Prozess-Isolation
+# im covey-Container) — perfekt zum Ausprobieren. Für echte Container-Isolation
+# siehe docs/schnellstart-docker.md.
+
+# Gemeinsame Basis für bootstrap + covey (gleiches Image, gleiche Config).
+x-covey-base: &covey-base
+  build: .
+  # Alternativ statt `build: .` ein fertiges Image nutzen (Zugriff auf die
+  # Registry vorausgesetzt):
+  # image: registry.lapco.legal/private_bl/covey:latest
+  environment:
+    COVEY_DATABASE_URL: postgres://covey:covey@db:5432/covey?sslmode=disable
+    COVEY_MASTER_KEY: ${COVEY_MASTER_KEY:?Bitte in .env setzen — z. B. echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env}
+    COVEY_PUBLIC_URL: ${COVEY_PUBLIC_URL:-http://localhost:8494}
+    COVEY_LISTEN_ADDR: ":8494"
+    COVEY_DATA_DIR: /data
+    COVEY_ADMIN_EMAIL: ${COVEY_ADMIN_EMAIL:-admin@covey.local}
+    COVEY_ADMIN_PASSWORD: ${COVEY_ADMIN_PASSWORD:-covey-admin}
+  volumes:
+    - covey-data:/data
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: covey
+      POSTGRES_PASSWORD: covey
+      POSTGRES_DB: covey
+    volumes:
+      - covey-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U covey -d covey"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
+  # Einmaliger Init: Organisation + Admin + Demo-Agent (idempotent, läuft bei
+  # jedem `up` harmlos durch). Beendet sich danach.
+  bootstrap:
+    <<: *covey-base
+    command: ["bootstrap"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Die Control Plane: API + Orchestrator + eingebettete Admin-UI.
+  covey:
+    <<: *covey-base
+    command: ["serve"]
+    depends_on:
+      db:
+        condition: service_healthy
+      bootstrap:
+        condition: service_completed_successfully
+    ports:
+      - "8494:8494"
+    restart: unless-stopped
+
+volumes:
+  covey-db:
+  covey-data:

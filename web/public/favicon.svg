@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Covey">
+  <defs>
+    <linearGradient id="clay" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d98a6a"/>
+      <stop offset="0.55" stop-color="#cc7a5b"/>
+      <stop offset="1" stop-color="#b25f41"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#clay)"/>
+  <!-- Covey = ein Schwarm: drei Vögel in Flugformation (wie die Wortmarke). -->
+  <g transform="translate(3.9,5.4) scale(2.5)" fill="none" stroke="#fff" stroke-width="2"
+     stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7 15 Q9.75 11.8 12.5 15 Q15.25 11.8 18 15"/>
+    <path d="M3.5 10 Q5.5 7.7 7.5 10 Q9.5 7.7 11.5 10"/>
+    <path d="M13 8 Q14.5 6.3 16 8 Q17.5 6.3 19 8"/>
+  </g>
+</svg>

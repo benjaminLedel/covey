@@ -1,0 +1,450 @@
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import {
+  api, roleLabel,
+  createDepartment, renameDepartment, deleteDepartment,
+  setAgentDepartment, setAgentSupervisor,
+  type Agent, type Human, type OrgChart, type Department,
+} from "../api";
+import { Avatar } from "../components/person";
+import { ConfirmDialog } from "../components/Modal";
+
+// Ziel eines Drop-Vorgangs: eine Abteilung (dann direktes Mitglied) oder ein
+// Mitglied (dann Unterstellung an dieses Mitglied, in dessen Abteilung).
+type DropTarget =
+  | { deptId: string | null; supervisorId: null }        // direktes Mitglied einer Abteilung
+  | { deptId: string | null; supervisorId: string };     // Untergebener eines Mitglieds
+
+export default function Org() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const [dragging, setDragging] = useState<Agent | null>(null);
+  const [showNewDept, setShowNewDept] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+
+  const chart = useQuery({
+    queryKey: ["orgchart"],
+    queryFn: () => api<OrgChart>("/org/chart"),
+  });
+
+  const createMut = useMutation({
+    mutationFn: ({ name, desc }: { name: string; desc: string }) =>
+      createDepartment(name, desc),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["orgchart"] });
+      setNewName("");
+      setNewDesc("");
+      setShowNewDept(false);
+    },
+  });
+
+  // Ein Drop setzt Vorgesetzten und Abteilung gemeinsam, damit ein
+  // untergeordneter Agent in derselben Abteilung wie sein Vorgesetzter landet.
+  const moveMut = useMutation({
+    mutationFn: async ({ agentId, deptId, supervisorId }: { agentId: string } & DropTarget) => {
+      await setAgentSupervisor(agentId, supervisorId);
+      await setAgentDepartment(agentId, deptId);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["orgchart"] }),
+  });
+
+  const drop = (target: DropTarget) => {
+    if (dragging) moveMut.mutate({ agentId: dragging.id, ...target });
+    setDragging(null);
+  };
+
+  if (chart.isLoading) return null;
+  if (chart.isError) return <p className="danger-text">{t("org.loadError")}</p>;
+  const { humans, agents, departments } = chart.data!;
+
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["orgchart"] });
+
+  return (
+    <div>
+      <div className="flex items-baseline gap-3 mb-2">
+        <h1 className="text-[22px]">{t("org.title")}</h1>
+        <span className="muted">{t("org.subtitle")}</span>
+      </div>
+      <p className="muted text-xs mb-4" style={{ maxWidth: 640 }}>
+        {t("org.desc")}
+      </p>
+
+      {/* Legende + Aktionsleiste */}
+      <div className="org-legend">
+        <span>
+          <span className="sw" style={{ background: "var(--text-secondary)" }} />
+          {t("org.legendHuman")}
+        </span>
+        <span>
+          <span className="sw" style={{ background: "var(--text-accent)" }} />
+          {t("org.legendAgent")}
+        </span>
+        <span className="muted">{t("org.legendHint")}</span>
+        <button className="btn sm" style={{ marginLeft: "auto" }} onClick={() => setShowNewDept(v => !v)}>
+          {t("org.newDept")}
+        </button>
+      </div>
+
+      {/* Formular: neue Abteilung */}
+      {showNewDept && (
+        <form
+          className="dept-create-form"
+          onSubmit={e => {
+            e.preventDefault();
+            createMut.mutate({ name: newName, desc: newDesc });
+          }}
+        >
+          <input
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            placeholder={t("org.deptNamePlaceholder")}
+            required
+            autoFocus
+            style={{ flex: "1 1 160px", minWidth: 0 }}
+          />
+          <input
+            value={newDesc}
+            onChange={e => setNewDesc(e.target.value)}
+            placeholder={t("org.deptDescPlaceholder")}
+            style={{ flex: "2 1 220px", minWidth: 0 }}
+          />
+          <button className="btn sm primary" type="submit" disabled={createMut.isPending}>
+            {t("org.createDept")}
+          </button>
+          <button type="button" className="btn sm" onClick={() => setShowNewDept(false)}>
+            {t("modal.cancel")}
+          </button>
+        </form>
+      )}
+
+      <DiagramView
+        humans={humans}
+        agents={agents}
+        departments={departments}
+        dragging={dragging}
+        onDragStart={setDragging}
+        onDragEnd={() => setDragging(null)}
+        onDrop={drop}
+        onUpdate={invalidate}
+      />
+    </div>
+  );
+}
+
+/* ── Diagramm: Organisation → Abteilungen → Berichtsbaum ───────────────
+   Innerhalb einer Abteilung wird die Vorgesetzten-Hierarchie abgebildet
+   (Menschen via manager_id, Agenten via supervisor_id). Agenten lassen sich
+   per Drag & Drop auf eine Abteilung (→ direktes Mitglied) oder auf ein
+   Mitglied (→ dessen Untergebener) ziehen. */
+function DiagramView({
+  humans, agents, departments, dragging, onDragStart, onDragEnd, onDrop, onUpdate,
+}: {
+  humans: Human[];
+  agents: Agent[];
+  departments: Department[];
+  dragging: Agent | null;
+  onDragStart: (a: Agent) => void;
+  onDragEnd: () => void;
+  onDrop: (t: DropTarget) => void;
+  onUpdate: () => void;
+}) {
+  const { t } = useTranslation();
+
+  const inDept = (deptId: string | null) => ({
+    humans: humans.filter(h => (h.department_id ?? null) === deptId),
+    agents: agents.filter(a => (a.department_id ?? null) === deptId),
+  });
+
+  const unassigned = inDept(null);
+  const hasUnassigned = unassigned.humans.length + unassigned.agents.length > 0;
+
+  if (departments.length === 0 && !hasUnassigned) {
+    return <p className="muted mt-4">{t("org.noDepts")}</p>;
+  }
+
+  const memberHandlers = { dragging, onDragStart, onDragEnd, onDrop };
+
+  return (
+    <div className="tree mt-4">
+      <ul>
+        <li>
+          <div className="node org">
+            <div className="nm">{t("org.rootOrg")}</div>
+            <div className="rl">{t("org.rootOrgSub", { count: humans.length + agents.length })}</div>
+          </div>
+          <ul>
+            {departments.map(dept => (
+              <DeptTreeNode
+                key={dept.id}
+                dept={dept}
+                members={inDept(dept.id)}
+                {...memberHandlers}
+                onUpdate={onUpdate}
+              />
+            ))}
+            {hasUnassigned && (
+              <UnassignedTreeNode members={unassigned} {...memberHandlers} />
+            )}
+          </ul>
+        </li>
+      </ul>
+    </div>
+  );
+}
+
+type Members = { humans: Human[]; agents: Agent[] };
+
+// roots einer Abteilung = Mitglieder, deren Vorgesetzter nicht in derselben
+// Abteilung sitzt (oder keiner). Kinder werden nur innerhalb der Abteilung
+// aufgelöst.
+function rootsOf(members: Members) {
+  const humanIds = new Set(members.humans.map(h => h.id));
+  const agentIds = new Set(members.agents.map(a => a.id));
+  const parentInside = (pid?: string) => !!pid && (humanIds.has(pid) || agentIds.has(pid));
+  return {
+    humans: members.humans.filter(h => !parentInside(h.manager_id)),
+    agents: members.agents.filter(a => !parentInside(a.supervisor_id)),
+  };
+}
+
+function MemberBranch({
+  members, parentId, seen, dragging, onDragStart, onDragEnd, onDrop,
+}: {
+  members: Members;
+  parentId?: string;      // undefined = roots der Abteilung
+  seen: Set<string>;
+  dragging: Agent | null;
+  onDragStart: (a: Agent) => void;
+  onDragEnd: () => void;
+  onDrop: (t: DropTarget) => void;
+}) {
+  const childHumans = parentId === undefined
+    ? rootsOf(members).humans
+    : members.humans.filter(h => h.manager_id === parentId && !seen.has(h.id));
+  const childAgents = parentId === undefined
+    ? rootsOf(members).agents
+    : members.agents.filter(a => a.supervisor_id === parentId && !seen.has(a.id));
+
+  if (childHumans.length + childAgents.length === 0) return null;
+
+  return (
+    <ul>
+      {childHumans.map(h => (
+        <MemberNode
+          key={h.id}
+          member={h}
+          kind="human"
+          members={members}
+          seen={seen}
+          dragging={dragging}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+          onDrop={onDrop}
+        />
+      ))}
+      {childAgents.map(a => (
+        <MemberNode
+          key={a.id}
+          member={a}
+          kind="agent"
+          members={members}
+          seen={seen}
+          dragging={dragging}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+          onDrop={onDrop}
+        />
+      ))}
+    </ul>
+  );
+}
+
+function MemberNode({
+  member, kind, members, seen, dragging, onDragStart, onDragEnd, onDrop,
+}: {
+  member: Human | Agent;
+  kind: "human" | "agent";
+  members: Members;
+  seen: Set<string>;
+  dragging: Agent | null;
+  onDragStart: (a: Agent) => void;
+  onDragEnd: () => void;
+  onDrop: (t: DropTarget) => void;
+}) {
+  const { t } = useTranslation();
+  const [isOver, setIsOver] = useState(false);
+  const isAgent = kind === "agent";
+  const agent = isAgent ? (member as Agent) : null;
+  const human = !isAgent ? (member as Human) : null;
+
+  const beingDragged = !!agent && dragging?.id === agent.id;
+  const canDrop = !!dragging && dragging.id !== member.id;
+  const status = agent ? (agent.killed ? "killed" : agent.status) : "";
+  const nextSeen = new Set(seen).add(member.id);
+  const deptId = (member.department_id ?? null) as string | null;
+
+  return (
+    <li>
+      <div
+        className={`orgmember${beingDragged ? " orgmember-out" : ""}${isOver && canDrop ? " node-drop-over" : ""}`}
+        draggable={isAgent}
+        onDragStart={isAgent ? e => { e.dataTransfer.effectAllowed = "move"; onDragStart(agent!); } : undefined}
+        onDragEnd={isAgent ? onDragEnd : undefined}
+        onDragOver={e => { if (canDrop) { e.preventDefault(); e.stopPropagation(); setIsOver(true); } }}
+        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsOver(false); }}
+        onDrop={e => { if (canDrop) { e.preventDefault(); e.stopPropagation(); setIsOver(false); onDrop({ deptId, supervisorId: member.id }); } }}
+        title={canDrop ? t("org.dropOnMember") : undefined}
+      >
+        {isAgent && (
+          <span className="agent-grip" title={t("org.dragAgent")}>
+            <svg viewBox="0 0 10 16" fill="currentColor">
+              <circle cx="3" cy="3" r="1.2" /><circle cx="7" cy="3" r="1.2" />
+              <circle cx="3" cy="8" r="1.2" /><circle cx="7" cy="8" r="1.2" />
+              <circle cx="3" cy="13" r="1.2" /><circle cx="7" cy="13" r="1.2" />
+            </svg>
+          </span>
+        )}
+        <Link
+          to={isAgent ? `/agents/${member.id}` : `/people/${member.id}`}
+          className={`node ${kind}`}
+          draggable={false}
+          title={t("org.openProfile")}
+        >
+          <Avatar name={member.display_name} human={!isAgent} />
+          <div>
+            <div className="nm">{member.display_name}</div>
+            <div className={`rl${isAgent ? " mono" : ""}`}>
+              {isAgent ? agent!.slug : (human!.job_title || roleLabel[human!.role] || human!.role)}
+            </div>
+          </div>
+          {isAgent
+            ? <span className={`badge st-${status}`}>{t(`status.${status}`, status)}</span>
+            : <span className="ntag">{t("org.nodeHuman")}</span>}
+        </Link>
+      </div>
+      <MemberBranch
+        members={members}
+        parentId={member.id}
+        seen={nextSeen}
+        dragging={dragging}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onDrop={onDrop}
+      />
+    </li>
+  );
+}
+
+function DeptTreeNode({
+  dept, members, dragging, onDragStart, onDragEnd, onDrop, onUpdate,
+}: {
+  dept: Department;
+  members: Members;
+  dragging: Agent | null;
+  onDragStart: (a: Agent) => void;
+  onDragEnd: () => void;
+  onDrop: (t: DropTarget) => void;
+  onUpdate: () => void;
+}) {
+  const { t } = useTranslation();
+  const [isOver, setIsOver] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [editName, setEditName] = useState(dept.name);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const renameMut = useMutation({
+    mutationFn: () => renameDepartment(dept.id, editName),
+    onSuccess: () => { onUpdate(); setRenaming(false); },
+  });
+  const deleteMut = useMutation({
+    mutationFn: () => deleteDepartment(dept.id),
+    onSuccess: () => { onUpdate(); setConfirmDelete(false); },
+  });
+
+  const total = members.humans.length + members.agents.length;
+
+  return (
+    <li>
+      <div
+        className={`node dept${isOver && dragging ? " node-drop-over" : ""}`}
+        title={dept.description || undefined}
+        onDragOver={e => { if (dragging) { e.preventDefault(); e.stopPropagation(); setIsOver(true); } }}
+        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsOver(false); }}
+        onDrop={e => { e.preventDefault(); e.stopPropagation(); setIsOver(false); onDrop({ deptId: dept.id, supervisorId: null }); }}
+      >
+        {renaming ? (
+          <form className="dept-tree-rename" onSubmit={e => { e.preventDefault(); renameMut.mutate(); }}>
+            <input value={editName} onChange={e => setEditName(e.target.value)} autoFocus required />
+            <button className="btn sm primary" type="submit" disabled={renameMut.isPending} style={{ padding: "3px 8px" }}>✓</button>
+            <button type="button" className="btn sm" style={{ padding: "3px 8px" }} onClick={() => { setRenaming(false); setEditName(dept.name); }}>✕</button>
+          </form>
+        ) : (
+          <>
+            <div className="dept-tree-hdr">
+              <span className="nm">{dept.name}</span>
+              <button className="icon-btn" onClick={() => setRenaming(true)} title={t("org.renameDept")} style={{ fontSize: 12 }}>✎</button>
+              <button className="icon-btn danger" onClick={() => setConfirmDelete(true)} title={t("org.deleteDept")} style={{ fontSize: 12 }}>✕</button>
+            </div>
+            <div className="rl">{total}&thinsp;{total === 1 ? t("org.member") : t("org.members")}</div>
+          </>
+        )}
+      </div>
+
+      {confirmDelete && (
+        <ConfirmDialog
+          title={t("org.deleteDept")}
+          confirmLabel={t("org.deleteDept")}
+          onConfirm={() => deleteMut.mutate()}
+          onClose={() => setConfirmDelete(false)}
+          pending={deleteMut.isPending}
+        >
+          {t("org.deleteDeptConfirm", { name: dept.name })}
+        </ConfirmDialog>
+      )}
+
+      {total > 0 ? (
+        <MemberBranch members={members} seen={new Set()} dragging={dragging} onDragStart={onDragStart} onDragEnd={onDragEnd} onDrop={onDrop} />
+      ) : (
+        <ul>
+          <li>
+            <span className="dept-drop-hint">{dragging ? t("org.dropHere") : t("org.dragHint")}</span>
+          </li>
+        </ul>
+      )}
+    </li>
+  );
+}
+
+function UnassignedTreeNode({
+  members, dragging, onDragStart, onDragEnd, onDrop,
+}: {
+  members: Members;
+  dragging: Agent | null;
+  onDragStart: (a: Agent) => void;
+  onDragEnd: () => void;
+  onDrop: (t: DropTarget) => void;
+}) {
+  const { t } = useTranslation();
+  const [isOver, setIsOver] = useState(false);
+  const total = members.humans.length + members.agents.length;
+
+  return (
+    <li>
+      <div
+        className={`node dept unassigned${isOver && dragging ? " node-drop-over" : ""}`}
+        onDragOver={e => { if (dragging) { e.preventDefault(); e.stopPropagation(); setIsOver(true); } }}
+        onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsOver(false); }}
+        onDrop={e => { e.preventDefault(); e.stopPropagation(); setIsOver(false); onDrop({ deptId: null, supervisorId: null }); }}
+      >
+        <div className="nm">{t("org.diagramUnassigned")}</div>
+        <div className="rl">{total}&thinsp;{total === 1 ? t("org.member") : t("org.members")}</div>
+      </div>
+      {total > 0 && (
+        <MemberBranch members={members} seen={new Set()} dragging={dragging} onDragStart={onDragStart} onDragEnd={onDragEnd} onDrop={onDrop} />
+      )}
+    </li>
+  );
+}

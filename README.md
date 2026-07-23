@@ -1,93 +1,123 @@
-# covey
+# Covey
 
+> **Codename: Covey.** Ein „covey" ist ein kleiner, koordinierter Schwarm — eine abgestimmte Gruppe, die zusammen unterwegs ist. Genau das ist die Plattform: viele Agenten, zentral orchestriert.
 
+Eine zentrale Plattform, die KI-Agenten wie Mitarbeiter behandelt — mit Identität, Arbeitsplatz, Zugängen, Backlog und Vorgesetztem — und dem IT-Admin die Werkzeuge gibt, sie zu führen und zu überwachen.
 
-## Getting started
+**Coveys Einheit ist die Organisation, nicht der einzelne Nutzer.** Das ist die tragende Abgrenzung zu den Single-User-„AI-Employee"-Apps: Covey ist die Plattform, die ein *Unternehmen* betreibt, um seine gesamte Agenten-Belegschaft zu verwalten und zu governen — mit vielen menschlichen Stakeholdern (IT, Team-Leads, Security/Compliance, Audit, Controlling), zentraler Governance und unternehmensweitem Org-Chart.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+## Status
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+**MVP implementiert.** Das Repository enthält neben der **Spezifikation** den vollständigen MVP-Durchstich (Meilensteine M0–M7 aus [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md)): das `covey`-Binary (Control Plane, API, eingebettete Admin-UI), den Sandbox-Daemon `coveyd`, den Claude-Code-Adapter, die Zammad-Integration und die Vertrauensschicht (Guard-Rails, Recording, Kill-Switch, Cost, RBAC). Die Abnahme-Checkliste läuft als Integrationstest-Suite (`internal/integration/`).
 
-## Add your files
+## Schnellstart mit Docker Compose (empfohlen zum Ausprobieren)
 
-* [Create](https://docs.gitlab.com/user/project/repository/web_editor/#create-a-file) or [upload](https://docs.gitlab.com/user/project/repository/web_editor/#upload-a-file) files
-* [Add files using the command line](https://docs.gitlab.com/topics/git/add_files/#add-files-to-a-git-repository) or push an existing Git repository with the following command:
+Covey in Minuten starten — **ohne Go, Node oder lokale Postgres**. Nur Docker nötig:
 
+```bash
+cp .env.example .env
+echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env   # 32-Byte-Schlüssel
+docker compose up -d --build                              # Postgres + Covey starten
 ```
-cd existing_repo
-git remote add origin https://gitlab.lapco.legal/private_bl/covey.git
-git branch -M main
-git push -uf origin main
+
+Dann [http://localhost:8494](http://localhost:8494) öffnen — Login `admin@covey.local` / `covey-admin`.
+Das mitgelieferte [`docker-compose.yml`](docker-compose.yml) bringt Postgres (pgvector) und das
+covey-Binary mit eingebetteter Admin-UI; `bootstrap` legt Organisation, Admin und einen Demo-Agenten
+an, Migrationen laufen automatisch. Vollständige Anleitung inkl. erstem Agenten und Produktions-Checkliste:
+[`docs/schnellstart-docker.md`](docs/schnellstart-docker.md).
+
+## Schnellstart (Entwicklung)
+
+```bash
+make dev-db       # Postgres (pgvector) via Docker auf Port 5433
+make bootstrap    # Frontend + Binaries bauen, migrieren, Org/Admin/Agent anlegen
+make run          # covey serve auf http://localhost:8494
 ```
 
-## Integrate with your tools
+**Sandbox-Isolation:** Standardmäßig startet die Control Plane Sandboxen als lokale Subprozesse (`COVEY_SANDBOX_PROVIDER=local`) — ehrlich, aber nur Prozess-Isolation. Für echte Container-Isolation `make sandbox-image` (baut `covey-sandbox:latest` aus [`Dockerfile.sandbox`](Dockerfile.sandbox), coveyd + Claude Code) und mit `COVEY_SANDBOX_PROVIDER=docker` starten. Das persistente Agenten-Home wird als Volume gemountet; der Container erbt nichts von der Host-Umgebung. Image überschreibbar via `COVEY_SANDBOX_IMAGE`.
 
-* [Set up project integrations](https://gitlab.lapco.legal/private_bl/covey/-/settings/integrations)
+Login: `admin@covey.local` / `covey-admin` (überschreibbar via `COVEY_ADMIN_EMAIL`/`COVEY_ADMIN_PASSWORD` beim Bootstrap). Tests: `make test` (Unit) und `make test-integration` (voller Durchstich gegen die Dev-DB, mit Mock-Runtime und Fake-Zammad). Für Demos ohne echtes Zammad: `go run ./demo/fakezammad` und die Secrets `zammad_url` = `http://localhost:9999`, `zammad_token` beliebig setzen. Damit die Claude-Code-Runtime in der Sandbox arbeiten kann, das Secret `anthropic_api_key` (API-Key) oder alternativ `claude_code_oauth_token` (Abo-Account: Token einmalig mit `claude setup-token` erzeugen) hinterlegen — ohne eines der beiden scheitern Aufgaben mit „Not logged in · Please run /login", weil die Sandbox ein eigenes, leeres `HOME` hat und die lokale `claude`-Anmeldung dort nicht sichtbar ist.
 
-## Collaborate with your team
+**Anschluss an ein echtes Zammad:** Schritt-für-Schritt-Runbook (API-Token, Webhook + Trigger, Ticket-Auswahl steuern, kundensichtbare Antworten, Produktions-Checkliste) in [`docs/betrieb-zammad.md`](docs/betrieb-zammad.md).
 
-* [Invite team members and collaborators](https://docs.gitlab.com/user/project/members/)
-* [Create a new merge request](https://docs.gitlab.com/user/project/merge_requests/creating_merge_requests/)
-* [Automatically close issues from merge requests](https://docs.gitlab.com/user/project/issues/managing_issues/#closing-issues-automatically)
-* [Enable merge request approvals](https://docs.gitlab.com/user/project/merge_requests/approvals/)
-* [Set auto-merge](https://docs.gitlab.com/user/project/merge_requests/auto_merge/)
+## Die Leitmetapher
 
-## Test and Deploy
+Die Plattform ist die **IT- und HR-Abteilung für KI-Agenten**. Fast jede Komponente hat ein Gegenstück im echten Unternehmen — daraus folgt der Bauplan:
 
-Use the built-in continuous integration in GitLab.
+| Im Unternehmen | Auf der Plattform |
+|---|---|
+| Identität / Active Directory | Agent-Identität (E-Mail optional) |
+| Arbeitsplatz / PC | Isolierte, persistente Sandbox |
+| Onboarding / Org-Chart | `SOUL.md` + Org-Struktur |
+| Belegschaft & Abteilungen | Org-eigene Agenten, Teams, Cost-Center |
+| Personalabteilung / IT-Verwaltung | Menschliche Rollen + RBAC + SSO |
+| Passwort-Tresor / PAM | Secrets-Broker (kurzlebige Tokens) |
+| Aufgabenliste / Ticket | Backlog (First-Class-Objekt) |
+| Betriebshandbuch / Compliance | Zentrale Guard-Rails (plattform-erzwungen) |
+| SIEM / EDR | Session-Recording + Alerts + Kill-Switch |
 
-* [Get started with GitLab CI/CD](https://docs.gitlab.com/ci/quick_start/)
-* [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/user/application_security/sast/)
-* [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/topics/autodevops/requirements/)
-* [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/user/clusters/agent/)
-* [Set up protected environments](https://docs.gitlab.com/ci/environments/protected_environments/)
+## Architektur in einem Absatz
 
-***
+Das System zerfällt in eine **Control Plane** (zustandsführend, immer aktiv: Scheduler, Agent-Registry, Backlog-Store, Identitäts- & Secrets-Broker, Guard-Rail-Engine, Observability) und eine **Data Plane** aus isolierten, ephemeren **Sandboxen** mit persistentem Home. In jeder Sandbox läuft ein schlanker **Daemon**, der ein einheitliches Protokoll spricht und die konkrete **Runtime** (Claude Code, OpenHands, …) über einen dünnen **Adapter** bootstrappt. Die Plattform managt die Sandbox, nicht das Framework — dadurch bleibt die Runtime austauschbar. Details in [`spec/01-architektur.md`](spec/01-architektur.md).
 
-# Editing this README
+## Designprinzipien
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+1. **Organisation als Einheit, nicht der Nutzer.**
+2. **Die Control Plane ist das Produkt.** Sandboxen sind Commodity, Runtimes austauschbar.
+3. **Runtime-agnostisch.** Einheitlicher Daemon + dünne Adapter statt Framework-Lock-in.
+4. **Immer erreichbar, Compute nur bei Bedarf.** Idle muss wirklich idle sein.
+5. **Config-as-Code.** Agentenverhalten versioniert in Git, Änderung via PR/Review.
+6. **Niemals langlebige Secrets in die Sandbox.** Zugriff wird zur Laufzeit gebrokert, kurzlebig, gescopt.
+7. **Guard-Rails zentral und plattform-erzwungen.** Fail-closed, außerhalb der Runtime durchgesetzt.
+8. **Trust by design.** Recording, Freigaben und Kill-Switch sind Grundvoraussetzung, kein Add-on.
+9. **Seriell vor parallel.** Ein Agent, eine Aufgabe zur Zeit; Parallelität = mehr Agenten.
+10. **Batteries included, but swappable.** Jede Fähigkeit hat einen simplen, DB-gestützten Built-in-Default und ein schmales Interface für einen externen Provider.
 
-## Suggestions for a good README
+## Geplanter Stack
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+- **Backend:** ein einziges Go-Binary (Tendenz Go, siehe D10) — API/BFF + Orchestration-Core in einem Prozess, sauber getrennt.
+- **Frontend:** TypeScript-SPA (React), Tailwind + shadcn/ui, TanStack Query, WebSocket/SSE für Live-Updates — ins Binary eingebettet.
+- **Datenhaltung:** PostgreSQL als Anker — State, Backlog, RBAC, Job-Queue (`SKIP LOCKED`), Pub/Sub (`LISTEN/NOTIFY`), Memory (`pgvector`), verschlüsselte Secret-Spalten.
+- **MVP-Default:** `builtin` überall — faktisch **Binary + Postgres + Sandbox-Infra, sonst nichts**. Keycloak/Vault/Redis/Langfuse/Graphiti sind optional zuschaltbar, nicht Voraussetzung.
 
-## Name
-Choose a self-explaining name for your project.
+Deployment-Ziel: eine Datei kopieren, `covey migrate up`, `covey serve` — kein separates Frontend-Hosting, kein nginx. Details in [`spec/10-architektur-stack.md`](spec/10-architektur-stack.md).
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+## MVP — der eine Durchstich
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+Ein **Support-Agent**, der ein **Zammad**-Ticket triagiert, selbst beantwortet oder eskaliert, bei einer Rückfrage sauber `blocked` geht, durch die eingehende Antwort korrekt wieder aufwacht und die Lösung ins Gedächtnis schreibt — **vollständig aufgezeichnet, durch zentrale Guard-Rails eingehegt und mit Kill-Switch**. Läuft dieser Durchstich, steht Coveys Kern. Abnahme-Checkliste in [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md).
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+## Repository-Inhalt
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+| Pfad | Inhalt |
+|---|---|
+| [`spec/`](spec/) | Die vollständige Spezifikation (Einstieg: [`spec/README.md`](spec/README.md)) |
+| `cmd/covey/` | Control-Plane-Binary: `serve`, `migrate`, `bootstrap`, `genkey` |
+| `cmd/coveyd/` | Sandbox-Daemon (spricht das Daemon-Protokoll, bootstrappt die Runtime) |
+| `internal/` | Orchestrator, Agents, Backlog, Identity/Secrets (builtin), Guard-Rails, Observability, Memory, Zielsystem-Plugins (`target/`, Zammad als erstes Built-in), HTTP-API |
+| `migrations/` | Versionierte SQL-Migrationen (via `//go:embed` ins Binary gebacken) |
+| `web/` | React/Vite/Tailwind-Admin-UI (dist/ wird ins Binary eingebettet) |
+| `demo/fakezammad/` | Minimales Zammad-Double für lokale Demos |
+| `mockup/covey-ui-mockup.html` | Statischer HTML-Mockup der Admin-Oberfläche |
+| `praesentationen/` | Pitch- und Investor-Decks (`.pptx`) |
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+### Spec-Dokumente
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+| Datei | Inhalt |
+|---|---|
+| [`spec/01-architektur.md`](spec/01-architektur.md) | System-Übersicht, Control/Data Plane, Runtime-Abstraktion, Daemon-Protokoll |
+| [`spec/02-agenten-modell.md`](spec/02-agenten-modell.md) | Der Agent als Entität: Identität, Sandbox, Zugänge, Config-as-Code, Org-Chart |
+| [`spec/03-lifecycle-scheduling.md`](spec/03-lifecycle-scheduling.md) | Zustandsmaschine, Dispatch-Loop, Wake-Quellen, Backlog, Blocking, Korrelation |
+| [`spec/04-identitaet-secrets.md`](spec/04-identitaet-secrets.md) | Keycloak, RFC 8693 Token Exchange, Secrets-Broker, Threat-Model |
+| [`spec/05-gedaechtnis.md`](spec/05-gedaechtnis.md) | Memory-Schichten, Knowledge-Graph (Graphiti), persistentes Home |
+| [`spec/06-observability-control.md`](spec/06-observability-control.md) | Guard-Rails, Session-Recording, Approval-Gates, Kill-Switch, Kosten, Supervisor |
+| [`spec/07-offene-entscheidungen.md`](spec/07-offene-entscheidungen.md) | Offene Fragen, Build-vs-Buy, MVP-Scope |
+| [`spec/08-marktumfeld.md`](spec/08-marktumfeld.md) | Marktrecherche: Konkurrenz, Open-Source-Bausteine, Build-vs-Adopt |
+| [`spec/09-enterprise-modell.md`](spec/09-enterprise-modell.md) | Organisation als Einheit: Rollen & RBAC, SSO, Mandanten, Cost-Center, Compliance |
+| [`spec/10-architektur-stack.md`](spec/10-architektur-stack.md) | Frontend, Backend-Sprache, „batteries included, but swappable", Postgres-Anker |
+| [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md) | Bau-Reihenfolge M0–M7, kritischer Pfad, Abnahme-Checkliste |
+| [`spec/12-claude-code-adapter.md`](spec/12-claude-code-adapter.md) | Erster Runtime-Adapter: Claude Code headless via `claude -p` |
+| [`spec/13-zammad-integration.md`](spec/13-zammad-integration.md) | MVP-Zielsystem Zammad: Wake via Webhook, REST-Aktionen, `blocked`↔`pending` |
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+## Mitwirken
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Solange das Repository in der Design-Phase ist, gehen Änderungen an Konzept und Architektur über die Spec: Vorschläge als Merge Request gegen `spec/`, Diskussion offener Punkte in [`spec/07-offene-entscheidungen.md`](spec/07-offene-entscheidungen.md).

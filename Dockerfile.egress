@@ -1,0 +1,21 @@
+# Egress-Proxy-Image für den harten Isolationsmodus (COVEY_EGRESS_ISOLATION=network).
+# Bauen: `make egress-image`. Die Control Plane startet daraus einen Proxy-
+# Container, der auf dem internen Sandbox-Netz als EINZIGER Ausgang sitzt und
+# nur Allowlist-Hosts durchlässt (Allowlist aus DB + ENV, live nachgeladen).
+FROM golang:1.26 AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY cmd/covey ./cmd/covey
+COPY internal ./internal
+COPY migrations ./migrations
+COPY web ./web
+# Der Proxy-Container liefert die SPA nie aus; ein Placeholder-dist genügt, damit
+# die //go:embed all:dist-Direktive des web-Pakets baut (kein npm-Build nötig).
+RUN mkdir -p web/dist && [ -e web/dist/index.html ] || echo "egress-proxy" > web/dist/index.html
+RUN CGO_ENABLED=0 go build -o /covey ./cmd/covey
+
+FROM alpine:3.20
+RUN apk add --no-cache ca-certificates
+COPY --from=build /covey /usr/local/bin/covey
+ENTRYPOINT ["covey", "egress-proxy"]

@@ -1,0 +1,1029 @@
+package gitlab
+
+import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"covey/internal/target"
+)
+
+func TestVerifyToken(t *testing.T) {
+	if !VerifyToken("webhook-geheim", "webhook-geheim") {
+		t.Fatal("korrektes Token muss akzeptiert werden")
+	}
+	if VerifyToken("webhook-geheim", "falsch") {
+		t.Fatal("falsches Token muss abgelehnt werden")
+	}
+	if VerifyToken("webhook-geheim", "") {
+		t.Fatal("fehlender Header muss abgelehnt werden")
+	}
+	if !VerifyToken("", "") {
+		t.Fatal("leeres Secret deaktiviert die Prüfung (Dev-Modus)")
+	}
+}
+
+func TestParseWebhookIssue(t *testing.T) {
+	body := []byte(`{"object_kind":"issue","user":{"username":"kunde"},
+		"project":{"id":15,"path_with_namespace":"gruppe/support"},
+		"object_attributes":{"iid":23,"title":"Login kaputt","state":"opened","action":"open","description":"Es geht nicht"}}`)
+	p, err := ParseWebhook(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Project.ID != 15 || p.IssueIID() != 23 || p.IssueTitle() != "Login kaputt" {
+		t.Fatalf("payload falsch geparst: %+v", p)
+	}
+	if !p.IsWakeEvent() {
+		t.Fatal("neu eröffnetes Issue muss wecken")
+	}
+	if CorrelationKey(p.Project.ID, p.IssueIID()) != "gitlab:issue:15:23" {
+		t.Fatalf("korrelations-key: %s", CorrelationKey(p.Project.ID, p.IssueIID()))
+	}
+}
+
+func TestParseWebhookNote(t *testing.T) {
+	body := []byte(`{"object_kind":"note","user":{"username":"kunde"},
+		"project":{"id":15,"path_with_namespace":"gruppe/support"},
+		"object_attributes":{"id":99,"note":"Geht immer noch nicht","noteable_type":"Issue"},
+		"issue":{"iid":23,"title":"Login kaputt"}}`)
+	p, err := ParseWebhook(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.IssueIID() != 23 || p.ObjectAttributes.Note != "Geht immer noch nicht" {
+		t.Fatalf("note-payload falsch geparst: %+v", p)
+	}
+	if !p.IsWakeEvent() {
+		t.Fatal("fremder Issue-Kommentar muss wecken")
+	}
+	if p.DedupKey() != "gitlab:15:note:99" {
+		t.Fatalf("dedup-key: %s", p.DedupKey())
+	}
+}
+
+func TestParseWebhookRejectsMissingIssue(t *testing.T) {
+	if _, err := ParseWebhook([]byte(`{"object_kind":"issue","project":{"id":15}}`)); err == nil {
+		t.Fatal("payload ohne issue-iid muss abgelehnt werden")
+	}
+	if _, err := ParseWebhook([]byte(`{"object_kind":"issue","object_attributes":{"iid":1}}`)); err == nil {
+		t.Fatal("payload ohne project.id muss abgelehnt werden")
+	}
+}
+
+func TestNoWakeCases(t *testing.T) {
+	p := WebhookPayload{ObjectKind: "issue"}
+	p.ObjectAttributes.Action = "update"
+	if p.IsWakeEvent() {
+		t.Fatal("Issue-Update (Labels etc.) darf nicht wecken")
+	}
+
+	p = WebhookPayload{ObjectKind: "note"}
+	p.ObjectAttributes.NoteableType = "Snippet"
+	if p.IsWakeEvent() {
+		t.Fatal("Kommentare auf anderen Objekten (Snippets etc.) dürfen nicht wecken")
+	}
+
+	p = WebhookPayload{ObjectKind: "merge_request"}
+	for _, action := range []string{"open", "update", "approved"} {
+		p.ObjectAttributes.Action = action
+		if p.IsWakeEvent() {
+			t.Fatalf("MR-Hook mit action=%s darf nicht wecken", action)
+		}
+	}
+
+	t.Setenv("COVEY_GITLAB_AGENT_USERNAMES", "covey-bot")
+	for _, noteable := range []string{"Issue", "MergeRequest"} {
+		p = WebhookPayload{ObjectKind: "note"}
+		p.ObjectAttributes.NoteableType = noteable
+		p.User.Username = "Covey-Bot"
+		if p.IsWakeEvent() {
+			t.Fatalf("Agent-Kommentar auf %s darf keinen Wake auslösen (Echo-Schleife)", noteable)
+		}
+	}
+}
+
+func TestParseWebhookMRNote(t *testing.T) {
+	body := []byte(`{"object_kind":"note","user":{"username":"leaddev"},
+		"project":{"id":15,"path_with_namespace":"gruppe/support"},
+		"object_attributes":{"id":120,"note":"Bitte noch einen Test ergänzen","noteable_type":"MergeRequest"},
+		"merge_request":{"iid":9,"title":"Fix Login","source_branch":"fix/issue-23-login","state":"opened"}}`)
+	p, err := ParseWebhook(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.IsMergeRequestEvent() || p.MRIID() != 9 || p.MRTitle() != "Fix Login" ||
+		p.MRSourceBranch() != "fix/issue-23-login" {
+		t.Fatalf("mr-note falsch geparst: %+v", p)
+	}
+	if !p.IsWakeEvent() {
+		t.Fatal("Review-Kommentar eines Menschen muss wecken")
+	}
+	if p.DedupKey() != "gitlab:15:note:120" {
+		t.Fatalf("dedup-key: %s", p.DedupKey())
+	}
+
+	ev, err := System{}.ParseWebhook(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ev.CorrelationKey != "gitlab:mr:15:9" {
+		t.Fatalf("korrelations-key: %s", ev.CorrelationKey)
+	}
+	if ev.CorrelateOnly {
+		t.Fatal("Review-Kommentar muss auch ohne geblockte Aufgabe Arbeit anlegen dürfen")
+	}
+	if !ev.Wake || !strings.Contains(ev.ResumeInput, "Bitte noch einen Test ergänzen") ||
+		!strings.Contains(ev.TaskBody, "comment_mr") {
+		t.Fatalf("event unvollständig: %+v", ev)
+	}
+}
+
+func TestParseWebhookMergeRequest(t *testing.T) {
+	body := []byte(`{"object_kind":"merge_request","user":{"username":"leaddev"},
+		"project":{"id":15,"path_with_namespace":"gruppe/support"},
+		"object_attributes":{"iid":9,"title":"Fix Login","state":"merged","action":"merge",
+		"source_branch":"fix/issue-23-login","target_branch":"main","updated_at":"2026-07-19 10:00:00 UTC"}}`)
+	p, err := ParseWebhook(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.IsWakeEvent() {
+		t.Fatal("Merge des MR muss die geblockte Aufgabe wecken")
+	}
+	if p.DedupKey() != "gitlab:15:mr:9:merge:2026-07-19 10:00:00 UTC" {
+		t.Fatalf("dedup-key: %s", p.DedupKey())
+	}
+
+	ev, err := System{}.ParseWebhook(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ev.CorrelationKey != "gitlab:mr:15:9" || !ev.CorrelateOnly {
+		t.Fatalf("merge muss correlate-only auf gitlab:mr:15:9 sein: %+v", ev)
+	}
+	if !strings.Contains(ev.ResumeInput, "gemergt") {
+		t.Fatalf("resume-input muss den Merge nennen: %s", ev.ResumeInput)
+	}
+
+	// MR-Hook ohne iid muss abgelehnt werden.
+	if _, err := ParseWebhook([]byte(`{"object_kind":"merge_request","project":{"id":15}}`)); err == nil {
+		t.Fatal("mr-payload ohne iid muss abgelehnt werden")
+	}
+}
+
+func TestIntakeScope(t *testing.T) {
+	p := WebhookPayload{}
+	p.Project.ID = 15
+	p.Project.PathWithNamespace = "Gruppe/Support"
+	if !p.InIntakeScope() {
+		t.Fatal("ohne Allowlist sind alle Projekte im Scope")
+	}
+	t.Setenv("COVEY_GITLAB_INTAKE_PROJECTS", "gruppe/support")
+	if !p.InIntakeScope() {
+		t.Fatal("Projektpfad-Vergleich muss case-insensitiv sein")
+	}
+	t.Setenv("COVEY_GITLAB_INTAKE_PROJECTS", "15")
+	if !p.InIntakeScope() {
+		t.Fatal("numerische Projekt-id muss matchen")
+	}
+	t.Setenv("COVEY_GITLAB_INTAKE_PROJECTS", "anderes/projekt")
+	if p.InIntakeScope() {
+		t.Fatal("Projekt außerhalb der Allowlist darf nicht im Scope sein")
+	}
+}
+
+func TestClientActions(t *testing.T) {
+	var gotAuth, gotPath, gotMethod string
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("PRIVATE-TOKEN")
+		gotPath = r.URL.Path
+		gotMethod = r.Method
+		gotBody = nil
+		if r.Body != nil {
+			json.NewDecoder(r.Body).Decode(&gotBody)
+		}
+		switch {
+		case r.URL.Path == "/api/v4/projects/15/issues/23" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode(Issue{IID: 23, ProjectID: 15, Title: "Login kaputt", State: "opened"})
+		case r.URL.Path == "/api/v4/projects/15/issues/23/notes" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode([]Note{{ID: 1, Body: "Hilfe"}})
+		case r.URL.Path == "/api/v4/projects/15/issues/23/notes" && r.Method == http.MethodPost:
+			json.NewEncoder(w).Encode(Note{ID: 2})
+		default:
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{}`))
+		}
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, "test-token")
+	ctx := context.Background()
+
+	issue, err := c.GetIssue(ctx, 15, 23)
+	if err != nil || issue.Title != "Login kaputt" {
+		t.Fatalf("GetIssue: %v %+v", err, issue)
+	}
+	if gotAuth != "test-token" {
+		t.Fatalf("PRIVATE-TOKEN-Header falsch: %q", gotAuth)
+	}
+
+	notes, err := c.ListNotes(ctx, 15, 23)
+	if err != nil || len(notes) != 1 {
+		t.Fatalf("ListNotes: %v %+v", err, notes)
+	}
+
+	if _, err := c.Comment(ctx, 15, 23, "Bitte Screenshot schicken", false); err != nil {
+		t.Fatalf("Comment: %v", err)
+	}
+	if gotBody["internal"] != false || gotBody["body"] != "Bitte Screenshot schicken" {
+		t.Fatalf("Comment-Body falsch: %+v", gotBody)
+	}
+
+	if err := c.SetState(ctx, 15, 23, "close"); err != nil {
+		t.Fatalf("SetState: %v", err)
+	}
+	if gotMethod != http.MethodPut || gotPath != "/api/v4/projects/15/issues/23" {
+		t.Fatalf("SetState muss PUT /projects/15/issues/23 sein: %s %s", gotMethod, gotPath)
+	}
+	if gotBody["state_event"] != "close" {
+		t.Fatalf("SetState-Body falsch: %+v", gotBody)
+	}
+	if err := c.SetState(ctx, 15, 23, "opened"); err == nil {
+		t.Fatal("ungültiger state_event muss abgelehnt werden")
+	}
+
+	if err := c.Escalate(ctx, 15, 23, "Bitte übernehmen"); err != nil {
+		t.Fatalf("Escalate: %v", err)
+	}
+	if gotMethod != http.MethodPut || gotBody["assignee_ids"] == nil {
+		t.Fatalf("Escalate muss die Zuweisung entfernen: %s %+v", gotMethod, gotBody)
+	}
+}
+
+func TestClientDiscovery(t *testing.T) {
+	var gotPath, gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotQuery = r.URL.RawQuery
+		switch r.URL.Path {
+		case "/api/v4/projects":
+			json.NewEncoder(w).Encode([]Project{{ID: 15, PathWithNamespace: "gruppe/support"}})
+		default:
+			json.NewEncoder(w).Encode([]Issue{{IID: 23, ProjectID: 15, Title: "Login kaputt", State: "opened"}})
+		}
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, "test-token")
+	ctx := context.Background()
+
+	ps, err := c.ListProjects(ctx)
+	if err != nil || len(ps) != 1 || ps[0].ID != 15 {
+		t.Fatalf("ListProjects: %v %+v", err, ps)
+	}
+	if !strings.Contains(gotQuery, "membership=true") {
+		t.Fatalf("ListProjects muss auf Mitgliedschaft filtern: %s", gotQuery)
+	}
+
+	issues, err := c.ListIssues(ctx, 15, "", "", "", false)
+	if err != nil || len(issues) != 1 || issues[0].IID != 23 {
+		t.Fatalf("ListIssues (Projekt): %v %+v", err, issues)
+	}
+	if gotPath != "/api/v4/projects/15/issues" || !strings.Contains(gotQuery, "state=opened") {
+		t.Fatalf("ListIssues muss projektbezogen und mit Default state=opened laufen: %s?%s", gotPath, gotQuery)
+	}
+
+	if _, err := c.ListIssues(ctx, 0, "all", "bug,support", "login", false); err != nil {
+		t.Fatalf("ListIssues (global): %v", err)
+	}
+	if gotPath != "/api/v4/issues" || !strings.Contains(gotQuery, "scope=all") {
+		t.Fatalf("ohne project_id muss das globale /issues mit scope=all laufen: %s?%s", gotPath, gotQuery)
+	}
+	if strings.Contains(gotQuery, "state=") {
+		t.Fatalf("state=all darf keinen state-Parameter senden: %s", gotQuery)
+	}
+	if !strings.Contains(gotQuery, "labels=bug%2Csupport") || !strings.Contains(gotQuery, "search=login") {
+		t.Fatalf("labels/search müssen durchgereicht werden: %s", gotQuery)
+	}
+
+	if _, err := c.ListIssues(ctx, 0, "", "", "", true); err != nil {
+		t.Fatalf("ListIssues (assigned, global): %v", err)
+	}
+	if !strings.Contains(gotQuery, "scope=assigned_to_me") || strings.Contains(gotQuery, "scope=all") {
+		t.Fatalf("assigned=true muss scope=assigned_to_me statt scope=all senden: %s", gotQuery)
+	}
+	if _, err := c.ListIssues(ctx, 15, "", "", "", true); err != nil {
+		t.Fatalf("ListIssues (assigned, Projekt): %v", err)
+	}
+	if gotPath != "/api/v4/projects/15/issues" || !strings.Contains(gotQuery, "scope=assigned_to_me") {
+		t.Fatalf("assigned=true muss auch projektbezogen scope=assigned_to_me senden: %s?%s", gotPath, gotQuery)
+	}
+}
+
+func TestListActionsRespectIntakeScope(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v4/projects":
+			json.NewEncoder(w).Encode([]Project{
+				{ID: 15, PathWithNamespace: "gruppe/support"},
+				{ID: 99, PathWithNamespace: "gruppe/geheim"},
+			})
+		default:
+			issueIn := Issue{IID: 23, ProjectID: 15}
+			issueIn.References.Full = "gruppe/support#23"
+			issueOut := Issue{IID: 7, ProjectID: 99}
+			issueOut.References.Full = "gruppe/geheim#7"
+			json.NewEncoder(w).Encode([]Issue{issueIn, issueOut})
+		}
+	}))
+	defer srv.Close()
+
+	t.Setenv("COVEY_GITLAB_INTAKE_PROJECTS", "gruppe/support")
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	res, err := sys.Execute(ctx, "list_projects", []byte(`{}`), cred)
+	if err != nil {
+		t.Fatalf("list_projects: %v", err)
+	}
+	if ps := res.([]Project); len(ps) != 1 || ps[0].ID != 15 {
+		t.Fatalf("list_projects muss die Allowlist anwenden: %+v", ps)
+	}
+
+	res, err = sys.Execute(ctx, "list_issues", []byte(`{}`), cred)
+	if err != nil {
+		t.Fatalf("list_issues: %v", err)
+	}
+	if issues := res.([]Issue); len(issues) != 1 || issues[0].IID != 23 {
+		t.Fatalf("list_issues muss die Allowlist anwenden: %+v", issues)
+	}
+}
+
+// tarGz baut ein GitLab-artiges Repository-Archiv aus name→inhalt-Paaren.
+func tarGz(t *testing.T, entries map[string]string) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+	// pax_global_header wie im echten GitLab-Archiv — muss ignoriert werden.
+	if err := tw.WriteHeader(&tar.Header{Name: "pax_global_header", Typeflag: tar.TypeXGlobalHeader}); err != nil {
+		t.Fatal(err)
+	}
+	for name, content := range entries {
+		hdr := &tar.Header{Name: name, Mode: 0o644, Size: int64(len(content)), Typeflag: tar.TypeReg}
+		if strings.HasSuffix(name, "/") {
+			hdr = &tar.Header{Name: name, Mode: 0o755, Typeflag: tar.TypeDir}
+		}
+		if err := tw.WriteHeader(hdr); err != nil {
+			t.Fatal(err)
+		}
+		if hdr.Typeflag == tar.TypeReg {
+			if _, err := tw.Write([]byte(content)); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	tw.Close()
+	gz.Close()
+	return buf.Bytes()
+}
+
+func TestCheckout(t *testing.T) {
+	archive := tarGz(t, map[string]string{
+		"support-main-abc123/":            "",
+		"support-main-abc123/README.md":   "# Support",
+		"support-main-abc123/pkg/auth.go": "package auth // hier wohnt der Bug",
+	})
+	var gotPath, gotAuth, gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotAuth, gotQuery = r.URL.Path, r.Header.Get("PRIVATE-TOKEN"), r.URL.RawQuery
+		w.Write(archive)
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	workdir := t.TempDir()
+	ctx := target.WithWorkdir(context.Background(), workdir)
+
+	res, err := sys.Execute(ctx, "checkout", []byte(`{"project_id":15,"ref":"main"}`), cred)
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+	if gotPath != "/api/v4/projects/15/repository/archive.tar.gz" || gotAuth != "test-token" {
+		t.Fatalf("falscher API-Aufruf: %s (auth %q)", gotPath, gotAuth)
+	}
+	if !strings.Contains(gotQuery, "sha=main") {
+		t.Fatalf("ref muss als sha-Parameter laufen: %s", gotQuery)
+	}
+	co := res.(CheckoutResult)
+	if co.Files != 2 {
+		t.Fatalf("erwartet 2 Dateien, war %d", co.Files)
+	}
+	data, err := os.ReadFile(filepath.Join(co.Path, "pkg", "auth.go"))
+	if err != nil || !strings.Contains(string(data), "Bug") {
+		t.Fatalf("entpackte Datei fehlt/falsch: %v %q", err, data)
+	}
+	if !strings.HasPrefix(co.Path, filepath.Join(workdir, "repos")) {
+		t.Fatalf("checkout muss unter <workdir>/repos landen: %s", co.Path)
+	}
+
+	// Zweiter Checkout desselben Stands ersetzt den alten (kein Fehler).
+	if _, err := sys.Execute(ctx, "checkout", []byte(`{"project_id":15}`), cred); err != nil {
+		t.Fatalf("wiederholter checkout: %v", err)
+	}
+
+	// Ohne Sandbox-Workdir (z. B. Control-Plane-Kontext) klare Ablehnung.
+	if _, err := sys.Execute(context.Background(), "checkout", []byte(`{"project_id":15}`), cred); err == nil {
+		t.Fatal("checkout ohne workdir muss fehlschlagen")
+	}
+	// Ohne project_id klare Ablehnung.
+	if _, err := sys.Execute(ctx, "checkout", []byte(`{}`), cred); err == nil {
+		t.Fatal("checkout ohne project_id muss fehlschlagen")
+	}
+}
+
+func TestCheckoutSubPathAndLimit(t *testing.T) {
+	archive := tarGz(t, map[string]string{
+		"support-main-abc123/":                   "",
+		"support-main-abc123/web/upload/form.js": "const maxSize = 5", // Teil-Checkout-Inhalt
+	})
+	var gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotQuery = r.URL.RawQuery
+		w.Write(archive)
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := target.WithWorkdir(context.Background(), t.TempDir())
+
+	if _, err := sys.Execute(ctx, "checkout", []byte(`{"project_id":15,"path":"web/upload"}`), cred); err != nil {
+		t.Fatalf("teil-checkout: %v", err)
+	}
+	if !strings.Contains(gotQuery, "path=web%2Fupload") {
+		t.Fatalf("path muss als Archiv-Parameter laufen: %s", gotQuery)
+	}
+
+	// Limit per Env drücken: 2-MB-Datei gegen 1-MB-Limit → klarer Fehler
+	// mit Hinweis auf die Auswege (path / list_tree / read_file).
+	big := tarGz(t, map[string]string{
+		"support-main-abc123/":         "",
+		"support-main-abc123/blob.bin": strings.Repeat("x", 2<<20),
+	})
+	archive = big
+	t.Setenv("COVEY_GITLAB_CHECKOUT_MAX_MB", "1")
+	_, err := sys.Execute(ctx, "checkout", []byte(`{"project_id":15}`), cred)
+	if err == nil || !strings.Contains(err.Error(), "list_tree") {
+		t.Fatalf("größen-limit muss mit Auswegen fehlschlagen: %v", err)
+	}
+}
+
+func TestTreeAndReadFile(t *testing.T) {
+	var gotPath, gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotQuery = r.URL.EscapedPath(), r.URL.RawQuery
+		if strings.Contains(r.URL.Path, "/repository/tree") {
+			json.NewEncoder(w).Encode([]TreeEntry{{Name: "upload", Type: "tree", Path: "web/upload"}})
+			return
+		}
+		w.Write([]byte("const maxSize = 5 * 1024 * 1024"))
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	res, err := sys.Execute(ctx, "list_tree", []byte(`{"project_id":15,"path":"web","recursive":true}`), cred)
+	if err != nil {
+		t.Fatalf("list_tree: %v", err)
+	}
+	if entries := res.([]TreeEntry); len(entries) != 1 || entries[0].Path != "web/upload" {
+		t.Fatalf("tree falsch: %+v", entries)
+	}
+	if !strings.Contains(gotQuery, "recursive=true") || !strings.Contains(gotQuery, "path=web") {
+		t.Fatalf("tree-parameter fehlen: %s", gotQuery)
+	}
+
+	res, err = sys.Execute(ctx, "read_file", []byte(`{"project_id":15,"file_path":"web/upload/form.js","ref":"main"}`), cred)
+	if err != nil {
+		t.Fatalf("read_file: %v", err)
+	}
+	out := res.(map[string]any)
+	if !strings.Contains(out["content"].(string), "maxSize") || out["truncated"].(bool) {
+		t.Fatalf("read_file-inhalt falsch: %+v", out)
+	}
+	// GitLab verlangt den komplett URL-kodierten Dateipfad (inkl. "/").
+	if !strings.Contains(gotPath, "/repository/files/web%2Fupload%2Fform.js/raw") {
+		t.Fatalf("file_path muss URL-kodiert sein: %s", gotPath)
+	}
+	if !strings.Contains(gotQuery, "ref=main") {
+		t.Fatalf("ref muss durchgereicht werden: %s", gotQuery)
+	}
+
+	if _, err := sys.Execute(ctx, "read_file", []byte(`{"project_id":15}`), cred); err == nil {
+		t.Fatal("read_file ohne file_path muss fehlschlagen")
+	}
+}
+
+func TestHistoryActions(t *testing.T) {
+	var gotPath, gotQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotQuery = r.URL.EscapedPath(), r.URL.RawQuery
+		switch {
+		case strings.Contains(r.URL.Path, "/repository/commits/") && strings.HasSuffix(r.URL.Path, "/diff"):
+			json.NewEncoder(w).Encode([]CommitDiff{{NewPath: "web/upload/form.js",
+				Diff: "@@ -1 +1 @@\n-alt\n+" + strings.Repeat("x", maxDiffBytesPerFile)}})
+		case strings.Contains(r.URL.Path, "/repository/commits"):
+			json.NewEncoder(w).Encode([]Commit{{ID: "abc123", ShortID: "abc123",
+				Title: "Upload-Button wiederherstellen", AuthorName: "alke"}})
+		case strings.Contains(r.URL.Path, "/repository/branches"):
+			json.NewEncoder(w).Encode([]Branch{{Name: "educa-x-bugfix", Default: true}})
+		case strings.Contains(r.URL.Path, "/merge_requests"):
+			json.NewEncoder(w).Encode([]MergeRequest{{IID: 7, Title: "Fix Upload", State: "merged"}})
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	res, err := sys.Execute(ctx, "list_commits",
+		[]byte(`{"project_id":15,"ref":"main","path":"web","since":"2026-07-15T00:00:00Z"}`), cred)
+	if err != nil {
+		t.Fatalf("list_commits: %v", err)
+	}
+	if cs := res.([]Commit); len(cs) != 1 || cs[0].Title != "Upload-Button wiederherstellen" {
+		t.Fatalf("commits falsch: %+v", cs)
+	}
+	if !strings.Contains(gotQuery, "ref_name=main") || !strings.Contains(gotQuery, "path=web") ||
+		!strings.Contains(gotQuery, "since=2026-07-15") {
+		t.Fatalf("commit-filter fehlen: %s", gotQuery)
+	}
+
+	res, err = sys.Execute(ctx, "get_commit", []byte(`{"project_id":15,"sha":"abc123"}`), cred)
+	if err != nil {
+		t.Fatalf("get_commit: %v", err)
+	}
+	diffs := res.([]CommitDiff)
+	if len(diffs) != 1 || !diffs[0].Truncated || len(diffs[0].Diff) != maxDiffBytesPerFile {
+		t.Fatalf("diff muss auf maxDiffBytesPerFile gekürzt und markiert sein: len=%d truncated=%v",
+			len(diffs[0].Diff), diffs[0].Truncated)
+	}
+	if !strings.Contains(gotPath, "/repository/commits/abc123/diff") {
+		t.Fatalf("diff-pfad falsch: %s", gotPath)
+	}
+
+	res, err = sys.Execute(ctx, "list_merge_requests", []byte(`{"project_id":15,"state":"merged","search":"upload"}`), cred)
+	if err != nil {
+		t.Fatalf("list_merge_requests: %v", err)
+	}
+	if mrs := res.([]MergeRequest); len(mrs) != 1 || mrs[0].State != "merged" {
+		t.Fatalf("mrs falsch: %+v", mrs)
+	}
+	if !strings.Contains(gotQuery, "state=merged") || !strings.Contains(gotQuery, "search=upload") {
+		t.Fatalf("mr-filter fehlen: %s", gotQuery)
+	}
+
+	res, err = sys.Execute(ctx, "list_branches", []byte(`{"project_id":15,"search":"bugfix"}`), cred)
+	if err != nil {
+		t.Fatalf("list_branches: %v", err)
+	}
+	if bs := res.([]Branch); len(bs) != 1 || !bs[0].Default {
+		t.Fatalf("branches falsch: %+v", bs)
+	}
+	if !strings.Contains(gotQuery, "search=bugfix") {
+		t.Fatalf("branch-suche fehlt: %s", gotQuery)
+	}
+
+	for _, call := range [][2]string{
+		{"list_commits", `{}`}, {"get_commit", `{"project_id":15}`},
+		{"list_merge_requests", `{}`}, {"list_branches", `{}`},
+	} {
+		if _, err := sys.Execute(ctx, call[0], []byte(call[1]), cred); err == nil {
+			t.Fatalf("%s ohne Pflichtfelder muss fehlschlagen", call[0])
+		}
+	}
+}
+
+func TestCommitAction(t *testing.T) {
+	var commitBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v4/projects/15" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode(ProjectDetail{ID: 15, DefaultBranch: "main"})
+		case strings.Contains(r.URL.Path, "/repository/branches"):
+			json.NewEncoder(w).Encode([]Branch{}) // Feature-Branch existiert noch nicht
+		case strings.Contains(r.URL.Path, "/repository/files/") && r.Method == http.MethodHead:
+			// pkg/auth.go existiert im Repo, pkg/auth_test.go ist neu.
+			if strings.Contains(r.URL.EscapedPath(), "auth_test") {
+				w.WriteHeader(http.StatusNotFound)
+			}
+		case strings.HasSuffix(r.URL.Path, "/repository/commits") && r.Method == http.MethodPost:
+			json.NewDecoder(r.Body).Decode(&commitBody)
+			json.NewEncoder(w).Encode(Commit{ID: "def456", ShortID: "def456", Title: "Fix"})
+		default:
+			w.Write([]byte(`{}`))
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	workdir := t.TempDir()
+	ctx := target.WithWorkdir(context.Background(), workdir)
+
+	// Lokal editierter Checkout-Stand in der Sandbox.
+	co := filepath.Join(workdir, "repos", "support-main-abc123")
+	if err := os.MkdirAll(filepath.Join(co, "pkg"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(co, "pkg", "auth.go"), []byte("package auth // gefixt"), 0o644)
+	os.WriteFile(filepath.Join(co, "pkg", "auth_test.go"), []byte("package auth // neuer Test"), 0o644)
+
+	params := `{"project_id":15,"branch":"fix/issue-23-login","message":"Login-Bug beheben",
+		"checkout_path":"` + co + `","files":["pkg/auth.go","pkg/auth_test.go"],"deleted":["pkg/alt.go"]}`
+	res, err := sys.Execute(ctx, "commit", []byte(params), cred)
+	if err != nil {
+		t.Fatalf("commit: %v", err)
+	}
+	cr := res.(CommitResult)
+	if !cr.BranchCreated || cr.Branch != "fix/issue-23-login" || cr.Commit.ID != "def456" {
+		t.Fatalf("commit-Ergebnis falsch: %+v", cr)
+	}
+	if commitBody["start_branch"] != "main" || commitBody["branch"] != "fix/issue-23-login" {
+		t.Fatalf("neuer Branch muss vom Default-Branch abzweigen: %+v", commitBody)
+	}
+	actions := commitBody["actions"].([]any)
+	if len(actions) != 3 {
+		t.Fatalf("erwartet 3 actions, war %d", len(actions))
+	}
+	byPath := map[string]map[string]any{}
+	for _, a := range actions {
+		m := a.(map[string]any)
+		byPath[m["file_path"].(string)] = m
+	}
+	if byPath["pkg/auth.go"]["action"] != "update" || byPath["pkg/auth.go"]["encoding"] != "base64" {
+		t.Fatalf("existierende Datei muss als base64-update laufen: %+v", byPath["pkg/auth.go"])
+	}
+	if byPath["pkg/auth_test.go"]["action"] != "create" {
+		t.Fatalf("neue Datei muss als create laufen: %+v", byPath["pkg/auth_test.go"])
+	}
+	if byPath["pkg/alt.go"]["action"] != "delete" {
+		t.Fatalf("deleted muss als delete laufen: %+v", byPath["pkg/alt.go"])
+	}
+
+	// Fail-closed-Fälle.
+	for name, p := range map[string]string{
+		"Default-Branch":  `{"project_id":15,"branch":"main","message":"x","checkout_path":"` + co + `","files":["pkg/auth.go"]}`,
+		"ohne Dateien":    `{"project_id":15,"branch":"fix/x","message":"x","checkout_path":"` + co + `"}`,
+		"ohne message":    `{"project_id":15,"branch":"fix/x","checkout_path":"` + co + `","files":["pkg/auth.go"]}`,
+		"Pfad-Traversal":  `{"project_id":15,"branch":"fix/x","message":"x","checkout_path":"` + co + `","files":["../../etc/passwd"]}`,
+		"fremder Pfad":    `{"project_id":15,"branch":"fix/x","message":"x","checkout_path":"/etc","files":["passwd"]}`,
+		"ohne project_id": `{"branch":"fix/x","message":"x","checkout_path":"` + co + `","files":["pkg/auth.go"]}`,
+	} {
+		if _, err := sys.Execute(ctx, "commit", []byte(p), cred); err == nil {
+			t.Fatalf("commit muss fehlschlagen: %s", name)
+		}
+	}
+	// Ohne Sandbox-Workdir (Control-Plane-Kontext) klare Ablehnung.
+	if _, err := sys.Execute(context.Background(), "commit", []byte(params), cred); err == nil {
+		t.Fatal("commit ohne workdir muss fehlschlagen")
+	}
+}
+
+func TestCommitOnExistingBranch(t *testing.T) {
+	var commitBody map[string]any
+	var existsRef string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v4/projects/15":
+			json.NewEncoder(w).Encode(ProjectDetail{ID: 15, DefaultBranch: "main"})
+		case strings.Contains(r.URL.Path, "/repository/branches"):
+			json.NewEncoder(w).Encode([]Branch{{Name: "fix/issue-23-login"}})
+		case r.Method == http.MethodHead:
+			existsRef = r.URL.Query().Get("ref")
+		case strings.HasSuffix(r.URL.Path, "/repository/commits"):
+			json.NewDecoder(r.Body).Decode(&commitBody)
+			json.NewEncoder(w).Encode(Commit{ID: "def457"})
+		}
+	}))
+	defer srv.Close()
+
+	workdir := t.TempDir()
+	co := filepath.Join(workdir, "repos", "support")
+	os.MkdirAll(co, 0o755)
+	os.WriteFile(filepath.Join(co, "fix.go"), []byte("package fix"), 0o644)
+	ctx := target.WithWorkdir(context.Background(), workdir)
+
+	res, err := System{}.Execute(ctx, "commit", []byte(`{"project_id":15,"branch":"fix/issue-23-login",
+		"message":"Nachbesserung","checkout_path":"`+co+`","files":["fix.go"]}`),
+		target.Credential{BaseURL: srv.URL, Token: "t"})
+	if err != nil {
+		t.Fatalf("commit auf bestehendem Branch: %v", err)
+	}
+	if cr := res.(CommitResult); cr.BranchCreated {
+		t.Fatalf("bestehender Branch darf nicht als neu gemeldet werden: %+v", cr)
+	}
+	if _, hasStart := commitBody["start_branch"]; hasStart {
+		t.Fatalf("bestehender Branch darf kein start_branch senden: %+v", commitBody)
+	}
+	if existsRef != "fix/issue-23-login" {
+		t.Fatalf("Existenz-Prüfung muss gegen den bestehenden Branch laufen: %q", existsRef)
+	}
+}
+
+func TestCreateMergeRequestAction(t *testing.T) {
+	var mrBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v4/projects/15":
+			json.NewEncoder(w).Encode(ProjectDetail{ID: 15, DefaultBranch: "main"})
+		case r.URL.Path == "/api/v4/users":
+			if r.URL.Query().Get("username") == "leaddev" {
+				json.NewEncoder(w).Encode([]User{{ID: 7, Username: "leaddev"}})
+			} else {
+				json.NewEncoder(w).Encode([]User{})
+			}
+		case r.URL.Path == "/api/v4/projects/15/merge_requests" && r.Method == http.MethodPost:
+			json.NewDecoder(r.Body).Decode(&mrBody)
+			json.NewEncoder(w).Encode(MergeRequest{IID: 9, Title: "Fix Login", State: "opened",
+				SourceBranch: "fix/issue-23-login", TargetBranch: "main", WebURL: "https://git.example.com/mr/9"})
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	res, err := sys.Execute(ctx, "create_merge_request", []byte(`{"project_id":15,
+		"source_branch":"fix/issue-23-login","title":"Fix Login","description":"Closes #23","assignee":"@leaddev"}`), cred)
+	if err != nil {
+		t.Fatalf("create_merge_request: %v", err)
+	}
+	if mr := res.(MergeRequest); mr.IID != 9 || mr.TargetBranch != "main" {
+		t.Fatalf("mr falsch: %+v", mr)
+	}
+	// Ohne target_branch muss der Default-Branch des Projekts gezogen werden,
+	// der Vorgesetzte wird Assignee UND Reviewer, der Branch nach Merge entfernt.
+	if mrBody["target_branch"] != "main" || mrBody["remove_source_branch"] != true {
+		t.Fatalf("mr-body falsch: %+v", mrBody)
+	}
+	for _, key := range []string{"assignee_ids", "reviewer_ids"} {
+		ids, _ := mrBody[key].([]any)
+		if len(ids) != 1 || ids[0] != float64(7) {
+			t.Fatalf("%s muss der Vorgesetzte sein: %+v", key, mrBody)
+		}
+	}
+
+	for name, p := range map[string]string{
+		"ohne assignee":      `{"project_id":15,"source_branch":"fix/x","title":"Fix"}`,
+		"unbekannter Nutzer": `{"project_id":15,"source_branch":"fix/x","title":"Fix","assignee":"gibtsnicht"}`,
+		"ohne source_branch": `{"project_id":15,"title":"Fix","assignee":"leaddev"}`,
+		"ohne title":         `{"project_id":15,"source_branch":"fix/x","assignee":"leaddev"}`,
+		"source gleich ziel": `{"project_id":15,"source_branch":"main","title":"Fix","assignee":"leaddev"}`,
+	} {
+		if _, err := sys.Execute(ctx, "create_merge_request", []byte(p), cred); err == nil {
+			t.Fatalf("create_merge_request muss fehlschlagen: %s", name)
+		}
+	}
+}
+
+func TestMRReviewActions(t *testing.T) {
+	var commentBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v4/projects/15/merge_requests/9" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode(MergeRequestDetail{IID: 9, Title: "Fix Login", State: "opened",
+				SourceBranch: "fix/issue-23-login", DetailedMergeStatus: "mergeable",
+				HeadPipeline: &Pipeline{ID: 4, Status: "success", Ref: "fix/issue-23-login"}})
+		case r.URL.Path == "/api/v4/projects/15/merge_requests/9/notes" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode([]Note{{ID: 120, Body: "Bitte noch einen Test ergänzen"}})
+		case r.URL.Path == "/api/v4/projects/15/merge_requests/9/notes" && r.Method == http.MethodPost:
+			json.NewDecoder(r.Body).Decode(&commentBody)
+			json.NewEncoder(w).Encode(Note{ID: 121, Body: "Erledigt"})
+		case r.URL.Path == "/api/v4/projects/15/pipelines":
+			if r.URL.Query().Get("ref") != "fix/issue-23-login" {
+				t.Errorf("ref-filter fehlt: %s", r.URL.RawQuery)
+			}
+			json.NewEncoder(w).Encode([]Pipeline{{ID: 4, Status: "success", Ref: "fix/issue-23-login"}})
+		default:
+			t.Errorf("unerwarteter request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	res, err := sys.Execute(ctx, "get_merge_request", []byte(`{"project_id":15,"mr_iid":9}`), cred)
+	if err != nil {
+		t.Fatalf("get_merge_request: %v", err)
+	}
+	if mr := res.(MergeRequestDetail); mr.DetailedMergeStatus != "mergeable" ||
+		mr.HeadPipeline == nil || mr.HeadPipeline.Status != "success" {
+		t.Fatalf("mr-detail falsch: %+v", mr)
+	}
+
+	res, err = sys.Execute(ctx, "list_mr_notes", []byte(`{"project_id":15,"mr_iid":9}`), cred)
+	if err != nil {
+		t.Fatalf("list_mr_notes: %v", err)
+	}
+	if notes := res.([]Note); len(notes) != 1 || notes[0].ID != 120 {
+		t.Fatalf("mr-notes falsch: %+v", notes)
+	}
+
+	if _, err = sys.Execute(ctx, "comment_mr", []byte(`{"project_id":15,"mr_iid":9,"body":"Erledigt"}`), cred); err != nil {
+		t.Fatalf("comment_mr: %v", err)
+	}
+	if commentBody["body"] != "Erledigt" {
+		t.Fatalf("comment-body falsch: %+v", commentBody)
+	}
+
+	res, err = sys.Execute(ctx, "list_pipelines", []byte(`{"project_id":15,"ref":"fix/issue-23-login"}`), cred)
+	if err != nil {
+		t.Fatalf("list_pipelines: %v", err)
+	}
+	if ps := res.([]Pipeline); len(ps) != 1 || ps[0].Status != "success" {
+		t.Fatalf("pipelines falsch: %+v", ps)
+	}
+
+	// Pflichtparameter fehlen → Fehler statt stiller Leerlauf.
+	for name, call := range map[string][2]string{
+		"get_merge_request ohne mr_iid":       {"get_merge_request", `{"project_id":15}`},
+		"list_mr_notes ohne mr_iid":           {"list_mr_notes", `{"project_id":15}`},
+		"comment_mr ohne body":                {"comment_mr", `{"project_id":15,"mr_iid":9}`},
+		"list_pipelines ohne project":         {"list_pipelines", `{}`},
+		"list_pipeline_jobs ohne pipeline_id": {"list_pipeline_jobs", `{"project_id":15}`},
+		"get_job_log ohne job_id":             {"get_job_log", `{"project_id":15}`},
+	} {
+		if _, err := sys.Execute(ctx, call[0], []byte(call[1]), cred); err == nil {
+			t.Fatalf("%s muss fehlschlagen", name)
+		}
+	}
+}
+
+func TestPipelineDiagnosisActions(t *testing.T) {
+	bigLog := strings.Repeat("x", maxJobLogBytes) + "FEHLER: assertion failed\n"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v4/projects/15/pipelines/4/jobs":
+			json.NewEncoder(w).Encode([]Job{
+				{ID: 41, Name: "build", Stage: "build", Status: "success"},
+				{ID: 42, Name: "test", Stage: "test", Status: "failed"},
+			})
+		case "/api/v4/projects/15/jobs/42/trace":
+			w.Write([]byte(bigLog))
+		case "/api/v4/projects/15/pipelines/4/retry":
+			if r.Method != http.MethodPost {
+				t.Errorf("retry muss POST sein, got %s", r.Method)
+			}
+			json.NewEncoder(w).Encode(Pipeline{ID: 5, Status: "pending", Ref: "fix/x"})
+		default:
+			t.Errorf("unerwarteter request: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	res, err := sys.Execute(ctx, "list_pipeline_jobs", []byte(`{"project_id":15,"pipeline_id":4}`), cred)
+	if err != nil {
+		t.Fatalf("list_pipeline_jobs: %v", err)
+	}
+	jobs := res.([]Job)
+	if len(jobs) != 2 || jobs[1].Status != "failed" {
+		t.Fatalf("jobs falsch: %+v", jobs)
+	}
+
+	res, err = sys.Execute(ctx, "get_job_log", []byte(`{"project_id":15,"job_id":42}`), cred)
+	if err != nil {
+		t.Fatalf("get_job_log: %v", err)
+	}
+	out := res.(map[string]any)
+	logText := out["log"].(string)
+	// Das ENDE des Logs muss erhalten bleiben (dort steht der Fehler), der
+	// Anfang darf der Kappung zum Opfer fallen.
+	if !strings.Contains(logText, "FEHLER: assertion failed") {
+		t.Fatal("log-ende muss erhalten bleiben")
+	}
+	if out["truncated"] != true || len(logText) > maxJobLogBytes {
+		t.Fatalf("log muss auf %d bytes gekappt sein: len=%d truncated=%v",
+			maxJobLogBytes, len(logText), out["truncated"])
+	}
+
+	res, err = sys.Execute(ctx, "retry_pipeline", []byte(`{"project_id":15,"pipeline_id":4}`), cred)
+	if err != nil {
+		t.Fatalf("retry_pipeline: %v", err)
+	}
+	if p := res.(Pipeline); p.ID != 5 || p.Status != "pending" {
+		t.Fatalf("retry-ergebnis falsch: %+v", p)
+	}
+	if _, err := sys.Execute(ctx, "retry_pipeline", []byte(`{"project_id":15}`), cred); err == nil {
+		t.Fatal("retry_pipeline ohne pipeline_id muss fehlschlagen")
+	}
+}
+
+func TestExtractTarGzRejectsTraversal(t *testing.T) {
+	archive := tarGz(t, map[string]string{
+		"repo-main/":          "",
+		"../../etc/evil.conf": "böse",
+	})
+	if _, _, err := extractTarGz(bytes.NewReader(archive), t.TempDir()); err == nil {
+		t.Fatal("pfad-traversal im archiv muss abgelehnt werden")
+	}
+}
+
+func TestClientErrorSurface(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, `{"message":"401 Unauthorized"}`, http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+	c := NewClient(srv.URL, "falsch")
+	if _, err := c.GetIssue(context.Background(), 15, 23); err == nil {
+		t.Fatal("HTTP-Fehler muss als error auftauchen")
+	}
+}
+
+func TestActionSubject(t *testing.T) {
+	sys := System{}
+	if got := sys.ActionSubject("comment", []byte(`{"internal":false}`)); got != "gitlab:comment_external" {
+		t.Fatalf("externer Kommentar: %s", got)
+	}
+	if got := sys.ActionSubject("comment", []byte(`{"internal":true}`)); got != "gitlab:comment_internal" {
+		t.Fatalf("interner Kommentar: %s", got)
+	}
+	if got := sys.ActionSubject("comment", []byte(`{}`)); got != "gitlab:comment_internal" {
+		t.Fatalf("Default muss intern (sicher) sein: %s", got)
+	}
+	if got := sys.ActionSubject("set_state", nil); got != "gitlab:set_state" {
+		t.Fatalf("set_state: %s", got)
+	}
+}
+
+func TestAssignAction(t *testing.T) {
+	var gotPath, gotMethod, gotQuery string
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotMethod, gotQuery = r.URL.Path, r.Method, r.URL.RawQuery
+		gotBody = nil
+		if r.Body != nil {
+			json.NewDecoder(r.Body).Decode(&gotBody)
+		}
+		switch r.URL.Path {
+		case "/api/v4/users":
+			if r.URL.Query().Get("username") == "maxm" {
+				json.NewEncoder(w).Encode([]User{{ID: 42, Username: "maxm", Name: "Max Mustermann"}})
+			} else {
+				json.NewEncoder(w).Encode([]User{})
+			}
+		default:
+			w.Write([]byte(`{}`))
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	out, err := sys.Execute(ctx, "assign", []byte(`{"project_id":15,"issue_iid":23,"username":"@maxm"}`), cred)
+	if err != nil {
+		t.Fatalf("assign: %v", err)
+	}
+	if m := out.(map[string]any); m["assigned_to"] != "maxm" || m["user_id"] != 42 {
+		t.Fatalf("assign-Ergebnis falsch: %+v", out)
+	}
+	if gotMethod != http.MethodPut || gotPath != "/api/v4/projects/15/issues/23" {
+		t.Fatalf("assign muss PUT /projects/15/issues/23 sein: %s %s (query %s)", gotMethod, gotPath, gotQuery)
+	}
+	ids, _ := gotBody["assignee_ids"].([]any)
+	if len(ids) != 1 || ids[0] != float64(42) {
+		t.Fatalf("assignee_ids falsch: %+v", gotBody)
+	}
+
+	if _, err := sys.Execute(ctx, "assign", []byte(`{"project_id":15,"issue_iid":23,"username":"gibtsnicht"}`), cred); err == nil {
+		t.Fatal("unbekannter Username muss einen Fehler liefern (nie raten)")
+	}
+	if _, err := sys.Execute(ctx, "assign", []byte(`{"username":"maxm"}`), cred); err == nil {
+		t.Fatal("assign ohne project_id/issue_iid muss abgelehnt werden")
+	}
+}

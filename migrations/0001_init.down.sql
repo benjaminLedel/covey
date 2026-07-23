@@ -1,0 +1,14 @@
+DROP TABLE IF EXISTS webhook_events;
+DROP TABLE IF EXISTS approvals;
+DROP TABLE IF EXISTS guardrails;
+DROP TABLE IF EXISTS secrets;
+DROP TABLE IF EXISTS cost_entries;
+DROP TABLE IF EXISTS recording_events;
+DROP TABLE IF EXISTS task_transitions;
+DROP TABLE IF EXISTS backlog_tasks;
+DROP TABLE IF EXISTS system_accesses;
+DROP TABLE IF EXISTS agent_config_versions;
+DROP TABLE IF EXISTS agents;
+DROP TABLE IF EXISTS http_sessions;
+DROP TABLE IF EXISTS humans;
+DROP TABLE IF EXISTS organizations;
