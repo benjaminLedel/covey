@@ -6,6 +6,7 @@ import {
   api, roleLabel,
   createDepartment, renameDepartment, deleteDepartment,
   setAgentDepartment, setAgentSupervisor,
+  setHumanDepartment, setHumanManager,
   type Agent, type Human, type OrgChart, type Department,
 } from "../api";
 import { Avatar } from "../components/person";
@@ -17,10 +18,17 @@ type DropTarget =
   | { deptId: string | null; supervisorId: null }        // direktes Mitglied einer Abteilung
   | { deptId: string | null; supervisorId: string };     // Untergebener eines Mitglieds
 
+// Gezogen werden Agenten und Menschen. Der Typ entscheidet über die API-Aufrufe
+// und die erlaubten Ziele: Menschen können nur Menschen unterstellt werden
+// (manager_id verweist auf humans), Agenten Menschen wie Agenten.
+type DragItem =
+  | { kind: "agent"; member: Agent }
+  | { kind: "human"; member: Human };
+
 export default function Org() {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const [dragging, setDragging] = useState<Agent | null>(null);
+  const [dragging, setDragging] = useState<DragItem | null>(null);
   const [showNewDept, setShowNewDept] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
@@ -42,17 +50,22 @@ export default function Org() {
   });
 
   // Ein Drop setzt Vorgesetzten und Abteilung gemeinsam, damit ein
-  // untergeordneter Agent in derselben Abteilung wie sein Vorgesetzter landet.
+  // untergeordnetes Mitglied in derselben Abteilung wie sein Vorgesetzter landet.
   const moveMut = useMutation({
-    mutationFn: async ({ agentId, deptId, supervisorId }: { agentId: string } & DropTarget) => {
-      await setAgentSupervisor(agentId, supervisorId);
-      await setAgentDepartment(agentId, deptId);
+    mutationFn: async ({ item, deptId, supervisorId }: { item: DragItem } & DropTarget) => {
+      if (item.kind === "agent") {
+        await setAgentSupervisor(item.member.id, supervisorId);
+        await setAgentDepartment(item.member.id, deptId);
+      } else {
+        await setHumanManager(item.member.id, supervisorId);
+        await setHumanDepartment(item.member.id, deptId);
+      }
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["orgchart"] }),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["orgchart"] }),
   });
 
   const drop = (target: DropTarget) => {
-    if (dragging) moveMut.mutate({ agentId: dragging.id, ...target });
+    if (dragging) moveMut.mutate({ item: dragging, ...target });
     setDragging(null);
   };
 
@@ -145,8 +158,8 @@ function DiagramView({
   humans: Human[];
   agents: Agent[];
   departments: Department[];
-  dragging: Agent | null;
-  onDragStart: (a: Agent) => void;
+  dragging: DragItem | null;
+  onDragStart: (d: DragItem) => void;
   onDragEnd: () => void;
   onDrop: (t: DropTarget) => void;
   onUpdate: () => void;
@@ -216,8 +229,8 @@ function MemberBranch({
   members: Members;
   parentId?: string;      // undefined = roots der Abteilung
   seen: Set<string>;
-  dragging: Agent | null;
-  onDragStart: (a: Agent) => void;
+  dragging: DragItem | null;
+  onDragStart: (d: DragItem) => void;
   onDragEnd: () => void;
   onDrop: (t: DropTarget) => void;
 }) {
@@ -269,8 +282,8 @@ function MemberNode({
   kind: "human" | "agent";
   members: Members;
   seen: Set<string>;
-  dragging: Agent | null;
-  onDragStart: (a: Agent) => void;
+  dragging: DragItem | null;
+  onDragStart: (d: DragItem) => void;
   onDragEnd: () => void;
   onDrop: (t: DropTarget) => void;
 }) {
@@ -280,8 +293,11 @@ function MemberNode({
   const agent = isAgent ? (member as Agent) : null;
   const human = !isAgent ? (member as Human) : null;
 
-  const beingDragged = !!agent && dragging?.id === agent.id;
-  const canDrop = !!dragging && dragging.id !== member.id;
+  const beingDragged = dragging?.member.id === member.id;
+  // Menschen können nur Menschen unterstellt werden (manager_id → humans);
+  // Agenten dürfen auf beides fallen.
+  const canDrop = !!dragging && dragging.member.id !== member.id
+    && (dragging.kind === "agent" || !isAgent);
   const status = agent ? (agent.killed ? "killed" : agent.status) : "";
   const nextSeen = new Set(seen).add(member.id);
   const deptId = (member.department_id ?? null) as string | null;
@@ -290,23 +306,24 @@ function MemberNode({
     <li>
       <div
         className={`orgmember${beingDragged ? " orgmember-out" : ""}${isOver && canDrop ? " node-drop-over" : ""}`}
-        draggable={isAgent}
-        onDragStart={isAgent ? e => { e.dataTransfer.effectAllowed = "move"; onDragStart(agent!); } : undefined}
-        onDragEnd={isAgent ? onDragEnd : undefined}
+        draggable
+        onDragStart={e => {
+          e.dataTransfer.effectAllowed = "move";
+          onDragStart(isAgent ? { kind: "agent", member: agent! } : { kind: "human", member: human! });
+        }}
+        onDragEnd={onDragEnd}
         onDragOver={e => { if (canDrop) { e.preventDefault(); e.stopPropagation(); setIsOver(true); } }}
         onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsOver(false); }}
         onDrop={e => { if (canDrop) { e.preventDefault(); e.stopPropagation(); setIsOver(false); onDrop({ deptId, supervisorId: member.id }); } }}
         title={canDrop ? t("org.dropOnMember") : undefined}
       >
-        {isAgent && (
-          <span className="agent-grip" title={t("org.dragAgent")}>
-            <svg viewBox="0 0 10 16" fill="currentColor">
-              <circle cx="3" cy="3" r="1.2" /><circle cx="7" cy="3" r="1.2" />
-              <circle cx="3" cy="8" r="1.2" /><circle cx="7" cy="8" r="1.2" />
-              <circle cx="3" cy="13" r="1.2" /><circle cx="7" cy="13" r="1.2" />
-            </svg>
-          </span>
-        )}
+        <span className="agent-grip" title={t("org.dragAgent")}>
+          <svg viewBox="0 0 10 16" fill="currentColor">
+            <circle cx="3" cy="3" r="1.2" /><circle cx="7" cy="3" r="1.2" />
+            <circle cx="3" cy="8" r="1.2" /><circle cx="7" cy="8" r="1.2" />
+            <circle cx="3" cy="13" r="1.2" /><circle cx="7" cy="13" r="1.2" />
+          </svg>
+        </span>
         <Link
           to={isAgent ? `/agents/${member.id}` : `/people/${member.id}`}
           className={`node ${kind}`}
@@ -343,8 +360,8 @@ function DeptTreeNode({
 }: {
   dept: Department;
   members: Members;
-  dragging: Agent | null;
-  onDragStart: (a: Agent) => void;
+  dragging: DragItem | null;
+  onDragStart: (d: DragItem) => void;
   onDragEnd: () => void;
   onDrop: (t: DropTarget) => void;
   onUpdate: () => void;
@@ -422,8 +439,8 @@ function UnassignedTreeNode({
   members, dragging, onDragStart, onDragEnd, onDrop,
 }: {
   members: Members;
-  dragging: Agent | null;
-  onDragStart: (a: Agent) => void;
+  dragging: DragItem | null;
+  onDragStart: (d: DragItem) => void;
   onDragEnd: () => void;
   onDrop: (t: DropTarget) => void;
 }) {

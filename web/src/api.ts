@@ -201,6 +201,9 @@ export const setAgentSupervisor = (agentId: string, supervisorId: string | null)
 export const setHumanDepartment = (humanId: string, departmentId: string | null) =>
   patch<{ ok: boolean }>(`/org/humans/${humanId}/department`, { department_id: departmentId ?? "" });
 
+export const setHumanManager = (humanId: string, managerId: string | null) =>
+  patch<{ ok: boolean }>(`/org/humans/${humanId}/manager`, { manager_id: managerId ?? "" });
+
 export type Organization = {
   id: string;
   name: string;

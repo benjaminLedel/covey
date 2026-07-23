@@ -132,6 +132,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/agents/{id}/supervisor", s.rbac(manage, s.handleSetSupervisor))
 	mux.Handle("PATCH /api/v1/agents/{id}/department", s.rbac(manage, s.handleSetAgentDepartment))
 	mux.Handle("PATCH /api/v1/org/humans/{id}/department", s.rbac(manage, s.handleSetHumanDepartment))
+	mux.Handle("PATCH /api/v1/org/humans/{id}/manager", s.rbac(manage, s.handleSetHumanManager))
 	mux.Handle("GET /api/v1/departments", s.rbac(anyRole, s.handleListDepartments))
 	mux.Handle("POST /api/v1/departments", s.rbac(manage, s.handleCreateDepartment))
 	mux.Handle("PATCH /api/v1/departments/{id}/name", s.rbac(manage, s.handleRenameDepartment))

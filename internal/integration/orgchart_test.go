@@ -28,6 +28,18 @@ func TestOrgChart(t *testing.T) {
 	admin.expect(http.MethodPatch, "/api/v1/users/"+s.adminID.String(),
 		map[string]string{"manager_id": leadID}, http.StatusConflict)
 
+	// Der Org-Chart-Endpunkt (Drag & Drop im UI) kann Menschen ebenso umhängen:
+	// Zyklen werden abgewiesen, leere manager_id löst die Zuordnung.
+	admin.expect(http.MethodPatch, "/api/v1/org/humans/"+leadID+"/manager",
+		map[string]string{"manager_id": leadID}, http.StatusConflict)
+	admin.expect(http.MethodPatch, "/api/v1/org/humans/"+leadID+"/manager",
+		map[string]string{"manager_id": ""}, http.StatusOK)
+	if h := admin.expect(http.MethodGet, "/api/v1/org/humans/"+leadID, nil, http.StatusOK); h["manager_id"] != nil {
+		t.Fatalf("manager_id muss gelöst sein, got %v", h["manager_id"])
+	}
+	admin.expect(http.MethodPatch, "/api/v1/org/humans/"+leadID+"/manager",
+		map[string]string{"manager_id": s.adminID.String()}, http.StatusOK)
+
 	// Agent anlegen und dem Lead zuordnen.
 	created := admin.expect(http.MethodPost, "/api/v1/agents",
 		map[string]string{"slug": "nova", "display_name": "Nova"}, http.StatusCreated)
@@ -83,5 +95,7 @@ func TestOrgChart(t *testing.T) {
 	admin.expect(http.MethodPatch, "/api/v1/agents/"+agentID+"/supervisor",
 		map[string]string{"supervisor_id": fremdID}, http.StatusNotFound)
 	admin.expect(http.MethodPatch, "/api/v1/users/"+leadID,
+		map[string]string{"manager_id": fremdID}, http.StatusNotFound)
+	admin.expect(http.MethodPatch, "/api/v1/org/humans/"+leadID+"/manager",
 		map[string]string{"manager_id": fremdID}, http.StatusNotFound)
 }
