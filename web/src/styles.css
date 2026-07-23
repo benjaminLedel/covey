@@ -1295,22 +1295,6 @@ kbd {
   opacity: 0.09;
   animation: login-float 8s ease-in-out infinite alternate;
 }
-.login-inner {
-  position: relative;
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 20px;
-}
-.login-head {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  margin-bottom: 34px;
-}
 .login-wordmark {
   margin-top: 22px;
   font-family: var(--voice);
@@ -1319,13 +1303,168 @@ kbd {
   letter-spacing: -0.02em;
   line-height: 1;
 }
-.login-subtitle {
-  margin-top: 12px;
-  max-width: 330px;
-  font-size: 14px;
-  line-height: 1.55;
+/* ── Öffentliche Landing-Page ────────────────────────────────────────
+   Hero (Beschreibung + Login-Karte nebeneinander), darunter eine
+   Feature-Sektion. Auf schmalen Screens stapelt sich alles. */
+.landing {
+  position: relative;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 64px 24px 40px;
+}
+.landing-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 350px;
+  gap: 56px;
+  align-items: center;
+  min-height: min(72vh, 640px);
+}
+.landing-brand {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+.landing-brand .login-wordmark { margin-top: 0; }
+.landing-tagline {
+  margin-top: 20px;
+  font-family: var(--voice);
+  font-size: 23px;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  max-width: 480px;
+}
+.landing-pitch {
+  margin-top: 14px;
+  max-width: 500px;
+  font-size: 14.5px;
+  line-height: 1.65;
   color: var(--text-secondary);
 }
+.landing-points {
+  margin: 22px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 500px;
+}
+.landing-points li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+.landing-points svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+  align-self: flex-start;
+  margin-top: 2px;
+  stroke: var(--clay);
+  stroke-width: 2.4;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.login-card-title {
+  font-family: var(--voice);
+  font-size: 19px;
+  margin-bottom: 18px;
+}
+.landing-features {
+  margin-top: 40px;
+  padding-top: 48px;
+  border-top: 0.5px solid var(--border);
+  text-align: center;
+}
+.landing-features h2 {
+  font-family: var(--voice);
+  font-size: 26px;
+  letter-spacing: -0.01em;
+}
+.landing-lead {
+  margin: 12px auto 0;
+  max-width: 560px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.landing-grid {
+  margin-top: 36px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  text-align: left;
+}
+.landing-feature {
+  background: var(--surface-2);
+  border: 0.5px solid var(--border);
+  border-radius: 14px;
+  padding: 20px 20px 22px;
+  box-shadow: 0 1px 3px rgba(30, 28, 23, 0.04);
+}
+.landing-feature-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(204, 122, 91, 0.12);
+}
+.landing-feature-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke: var(--clay);
+  stroke-width: 1.6;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.landing-feature h3 {
+  margin-top: 13px;
+  font-size: 14.5px;
+  font-weight: 600;
+}
+.landing-feature p {
+  margin: 7px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.landing-foot {
+  margin-top: 48px;
+  padding-top: 20px;
+  border-top: 0.5px solid var(--border);
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+@media (max-width: 900px) {
+  .landing { padding-top: 48px; }
+  .landing-hero {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 36px;
+    min-height: 0;
+    justify-items: center;
+    text-align: center;
+  }
+  .landing-intro {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .landing-points li { text-align: left; }
+  .landing-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (min-width: 901px) and (max-width: 1100px) {
+  .landing-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 .login-card {
   width: 100%;
   max-width: 350px;

@@ -52,6 +52,7 @@
     "cancel": "Cancel"
   },
   "login": {
+    "title": "Sign in",
     "subtitle": "The control plane for your AI agent workforce.",
     "email": "Email",
     "password": "Password",
@@ -60,6 +61,27 @@
     "error": "Login failed — email or password incorrect.",
     "localOnly": "local only",
     "demoLogin": "Demo Login (Admin)"
+  },
+  "landing": {
+    "pitch": "Covey treats AI agents like employees: with their own identity, an isolated sandbox, brokered access and a fixed place in the org chart — the IT & HR department for your AI agents.",
+    "point1": "Agents with an identity, a role and a place in the org chart",
+    "point2": "No long-lived secrets in the sandbox — access is brokered at runtime",
+    "point3": "Guard rails enforced centrally, fail-closed — not left to the prompt",
+    "featuresTitle": "A platform that treats agents like employees",
+    "featuresLead": "From onboarding to day-to-day work to oversight: Covey bundles what an organization needs to let AI agents work safely and accountably.",
+    "f1t": "Identity & org chart",
+    "f1d": "Every agent has an identity, a role and a department. The org chart shows people and agents side by side — who works where and who reports to whom.",
+    "f2t": "Isolated sandboxes",
+    "f2d": "Every agent works in its own ephemeral sandbox with a persistent home. If it is lost, it is simply rebuilt from config and home.",
+    "f3t": "Brokered access",
+    "f3d": "Secrets stay in the control plane. Access to target systems is brokered at runtime — short-lived and scoped to the task at hand.",
+    "f4t": "Guard rails & approvals",
+    "f4d": "Policies are enforced centrally, outside the runtime, fail-closed. Critical actions wait for human approval.",
+    "f5t": "Backlog & tasks",
+    "f5d": "Agents work through a backlog like a team: tasks with states, blockers with questions — humans stay in the loop.",
+    "f6t": "Observability & cost",
+    "f6d": "Every session is recorded: what the agent did, what it cost and where alerts are needed — transparent for the whole organization.",
+    "foot": "Covey — the IT & HR department for AI agents."
   },
   "dashboard": {
     "title": "Agents",

@@ -68,6 +68,45 @@ function Bird({
   );
 }
 
+/* Icon-Pfade im Stil der Sidebar-Nav (App.tsx / Mockup). */
+const featureIcons: Record<string, JSX.Element> = {
+  sitemap: (
+    <>
+      <rect x="9" y="3" width="6" height="5" rx="1" />
+      <rect x="3" y="16" width="6" height="5" rx="1" />
+      <rect x="15" y="16" width="6" height="5" rx="1" />
+      <path d="M12 8v4M6 16v-2h12v2M12 12v2" />
+    </>
+  ),
+  box: (
+    <>
+      <path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" />
+      <path d="M4 7.5l8 4.5l8-4.5M12 12v9" />
+    </>
+  ),
+  key: (
+    <>
+      <circle cx="8" cy="8" r="3.5" />
+      <path d="M10.5 10.5L20 20M17 17l2-2M14 14l2 2" />
+    </>
+  ),
+  shield: <path d="M12 3l7 3v5c0 5-3 8-7 10c-4-2-7-5-7-10V6z" />,
+  list: (
+    <>
+      <path d="M9 6h11M9 12h11M9 18h11" />
+      <path d="M4 6h.01M4 12h.01M4 18h.01" />
+    </>
+  ),
+  eye: (
+    <>
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+};
+
+const FEATURES = ["sitemap", "box", "key", "shield", "list", "eye"] as const;
+
 export default function Login({ onLogin }: { onLogin: () => void }) {
   const { t } = useTranslation();
   const [email, setEmail] = useState("");
@@ -96,73 +135,105 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
   return (
     <div className="login-bg">
       <div className="login-flock" aria-hidden="true">
-        <Bird top="16%" left="12%" size={44} delay="0s" />
-        <Bird top="26%" left="78%" size={62} delay="1.4s" />
-        <Bird top="68%" left="18%" size={54} delay="0.7s" />
-        <Bird top="74%" left="82%" size={38} delay="2.1s" />
-        <Bird top="46%" left="90%" size={30} delay="1.1s" />
+        <Bird top="10%" left="12%" size={44} delay="0s" />
+        <Bird top="18%" left="78%" size={62} delay="1.4s" />
+        <Bird top="42%" left="6%" size={54} delay="0.7s" />
+        <Bird top="52%" left="88%" size={38} delay="2.1s" />
+        <Bird top="30%" left="92%" size={30} delay="1.1s" />
       </div>
 
-      <div className="login-inner">
-        <div className="login-head">
-          <span className="login-mark">
-            <BirdMark />
-          </span>
-          <h1 className="login-wordmark login-rise" style={{ animationDelay: "0.08s" }}>
-            Covey
-          </h1>
-          <p className="login-subtitle login-rise" style={{ animationDelay: "0.16s" }}>
-            {t("login.subtitle")}
-          </p>
+      <div className="landing">
+        <div className="landing-hero">
+          <div className="landing-intro">
+            <div className="landing-brand login-rise">
+              <BirdMark size={64} />
+              <h1 className="login-wordmark">Covey</h1>
+            </div>
+            <p className="landing-tagline login-rise" style={{ animationDelay: "0.08s" }}>
+              {t("login.subtitle")}
+            </p>
+            <p className="landing-pitch login-rise" style={{ animationDelay: "0.16s" }}>
+              {t("landing.pitch")}
+            </p>
+            <ul className="landing-points login-rise" style={{ animationDelay: "0.24s" }}>
+              {[1, 2, 3].map((n) => (
+                <li key={n}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M5 12.5l4.5 4.5L19 7.5" />
+                  </svg>
+                  {t(`landing.point${n}`)}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <form
+            onSubmit={submit}
+            className="login-card login-rise"
+            style={{ animationDelay: "0.24s" }}
+          >
+            <h2 className="login-card-title">{t("login.title")}</h2>
+            <label htmlFor="email">{t("login.email")}</label>
+            <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="username"
+              className="mb-3"
+              required
+            />
+            <label htmlFor="password">{t("login.password")}</label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="current-password"
+              className="mb-4"
+              required
+            />
+            {error && <p className="danger-text text-xs mb-3">{error}</p>}
+            <button className="btn primary w-full justify-center" disabled={busy}>
+              {busy ? t("login.submitting") : t("login.submit")}
+            </button>
+            {isLocal && (
+              <>
+                <div className="login-divider" aria-hidden>
+                  <span />
+                  {t("login.localOnly")}
+                  <span />
+                </div>
+                <button
+                  type="button"
+                  className="btn w-full justify-center"
+                  disabled={busy}
+                  onClick={() => login(DEMO_EMAIL, DEMO_PASSWORD)}
+                >
+                  {t("login.demoLogin")}
+                </button>
+              </>
+            )}
+          </form>
         </div>
 
-        <form
-          onSubmit={submit}
-          className="login-card login-rise"
-          style={{ animationDelay: "0.24s" }}
-        >
-          <label htmlFor="email">{t("login.email")}</label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="username"
-            className="mb-3"
-            required
-          />
-          <label htmlFor="password">{t("login.password")}</label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            className="mb-4"
-            required
-          />
-          {error && <p className="danger-text text-xs mb-3">{error}</p>}
-          <button className="btn primary w-full justify-center" disabled={busy}>
-            {busy ? t("login.submitting") : t("login.submit")}
-          </button>
-          {isLocal && (
-            <>
-              <div className="login-divider" aria-hidden>
-                <span />
-                {t("login.localOnly")}
-                <span />
+        <section className="landing-features">
+          <h2>{t("landing.featuresTitle")}</h2>
+          <p className="landing-lead">{t("landing.featuresLead")}</p>
+          <div className="landing-grid">
+            {FEATURES.map((icon, i) => (
+              <div className="landing-feature" key={icon}>
+                <span className="landing-feature-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">{featureIcons[icon]}</svg>
+                </span>
+                <h3>{t(`landing.f${i + 1}t`)}</h3>
+                <p>{t(`landing.f${i + 1}d`)}</p>
               </div>
-              <button
-                type="button"
-                className="btn w-full justify-center"
-                disabled={busy}
-                onClick={() => login(DEMO_EMAIL, DEMO_PASSWORD)}
-              >
-                {t("login.demoLogin")}
-              </button>
-            </>
-          )}
-        </form>
+            ))}
+          </div>
+        </section>
+
+        <footer className="landing-foot">{t("landing.foot")}</footer>
       </div>
     </div>
   );

@@ -52,6 +52,7 @@
     "cancel": "Abbrechen"
   },
   "login": {
+    "title": "Anmelden",
     "subtitle": "Die Control Plane für Ihre Agenten-Belegschaft.",
     "email": "E-Mail",
     "password": "Passwort",
@@ -60,6 +61,27 @@
     "error": "Anmeldung fehlgeschlagen — E-Mail oder Passwort falsch.",
     "localOnly": "nur lokal",
     "demoLogin": "Demo-Login (Admin)"
+  },
+  "landing": {
+    "pitch": "Covey behandelt KI-Agenten wie Mitarbeiter: mit eigener Identität, isolierter Sandbox, gebrokerten Zugängen und einem festen Platz im Org-Chart — die IT- und HR-Abteilung für Ihre KI-Agenten.",
+    "point1": "Agenten mit Identität, Rolle und Platz im Org-Chart",
+    "point2": "Keine langlebigen Secrets in der Sandbox — Zugänge werden zur Laufzeit gebrokert",
+    "point3": "Guard-Rails zentral erzwungen, fail-closed — nicht dem Prompt überlassen",
+    "featuresTitle": "Eine Plattform, die Agenten wie Mitarbeiter behandelt",
+    "featuresLead": "Von der Einstellung über den Arbeitsalltag bis zur Kontrolle: Covey bündelt, was eine Organisation braucht, um KI-Agenten sicher und nachvollziehbar arbeiten zu lassen.",
+    "f1t": "Identität & Org-Chart",
+    "f1d": "Jeder Agent hat eine Identität, eine Rolle und eine Abteilung. Das Org-Chart zeigt Menschen und Agenten nebeneinander — wer wo arbeitet und wer wem zuarbeitet.",
+    "f2t": "Isolierte Sandboxen",
+    "f2d": "Jeder Agent arbeitet in einer eigenen, ephemeren Sandbox mit persistentem Home. Geht sie verloren, wird sie aus Config und Home einfach neu gebaut.",
+    "f3t": "Gebrokerte Zugänge",
+    "f3d": "Secrets bleiben in der Control Plane. Zugriffe auf Zielsysteme werden zur Laufzeit gebrokert — kurzlebig und auf die jeweilige Aufgabe gescopt.",
+    "f4t": "Guard-Rails & Freigaben",
+    "f4d": "Policies werden zentral und außerhalb der Runtime erzwungen, fail-closed. Kritische Aktionen warten auf eine menschliche Freigabe.",
+    "f5t": "Backlog & Aufgaben",
+    "f5d": "Agenten arbeiten ein Backlog ab wie ein Team: Aufgaben mit Zuständen, Blockaden mit Rückfragen — Menschen bleiben in der Schleife.",
+    "f6t": "Observability & Kosten",
+    "f6d": "Jede Sitzung wird aufgezeichnet: was der Agent getan hat, was es gekostet hat und wo Alerts nötig sind — nachvollziehbar für die ganze Organisation.",
+    "foot": "Covey — die IT- und HR-Abteilung für KI-Agenten."
   },
   "dashboard": {
     "title": "Agenten",
