@@ -299,7 +299,6 @@ function LegalModal({
             </p>
             <p>{t("landing.imprintMail")}</p>
             <p>{t("landing.imprintResp")}</p>
-            <p className="imprint-note">{t("landing.imprintNote")}</p>
           </div>
         ) : (
           <div className="modal-body imprint-body">

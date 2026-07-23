@@ -1741,13 +1741,6 @@ kbd {
 .imprint-law { color: var(--text-muted); font-size: 12px; }
 .imprint-name { font-family: var(--voice); font-size: 17px; }
 .imprint-addr { color: var(--text-secondary); }
-.imprint-note {
-  color: var(--text-warning);
-  background: var(--bg-warning);
-  border-radius: 8px;
-  padding: 8px 10px;
-  font-size: 12px;
-}
 
 @media (max-width: 900px) {
   /* Platz für den fixen Sprachumschalter oben rechts. */
