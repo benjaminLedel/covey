@@ -13,6 +13,13 @@
 #
 # dind läuft ohne TLS (DOCKER_TLS_CERTDIR="") auf tcp://docker:2375 — dieselbe
 # Konfiguration, die im feeval-Projekt auf demselben Runner funktioniert.
+#
+# - deploy: Nach jedem main-Push das gerade gebaute Image (auf den Commit-Tag
+#           :$CI_COMMIT_SHORT_SHA gepinnt) auf dem Zielhost ausrollen. Läuft auf
+#           einem Shell-Runner AM Host (Tag `covey-deploy`): kopiert
+#           docker-compose.deploy.yml in den Deploy-Ordner und startet
+#           `docker compose pull && up -d`. Secrets liegen in einer persistenten
+#           `.env` im Deploy-Ordner (einmalig erzeugt, nie überschrieben).
 
 workflow:
   rules:
@@ -26,6 +33,7 @@ workflow:
 stages:
   - test
   - build
+  - deploy
 
 build-web:
   stage: test
@@ -108,3 +116,55 @@ build-image:
       variables:
         PUSH_IMAGE: "false"
     - if: '$CI_COMMIT_BRANCH || $CI_COMMIT_TAG'
+
+# Rollt das gerade gebaute Image auf dem Zielhost aus. Voraussetzung: ein
+# GitLab-Runner mit Executor `shell` läuft AUF dem Zielhost und ist mit dem Tag
+# `covey-deploy` registriert; Docker + Compose-Plugin sind dort installiert.
+#
+# Konfigurierbar über CI/CD-Variablen (Settings → CI/CD → Variables):
+#   DEPLOY_DIR         Zielordner auf dem Host (Default /opt/covey)
+#   COVEY_PUBLIC_URL   öffentliche URL (nur beim ERSTEN Deploy in die .env
+#                      geschrieben; danach dort pflegen)
+deploy:
+  stage: deploy
+  tags:
+    - covey-deploy
+  needs:
+    - build-image
+  variables:
+    DEPLOY_DIR: /opt/covey
+    GIT_STRATEGY: fetch
+  script:
+    - mkdir -p "$DEPLOY_DIR"
+    # Compose-Datei ist versionierte Config → bei jedem Deploy aktualisieren.
+    - cp docker-compose.deploy.yml "$DEPLOY_DIR/docker-compose.yml"
+    # Secrets liegen in einer persistenten .env im Deploy-Ordner. Beim ersten
+    # Deploy einmalig erzeugen (Master-Key + Passwörter zufällig), danach NIE
+    # anfassen — ein Master-Key-Wechsel macht alle hinterlegten Secrets unlesbar.
+    - |
+      if [ ! -f "$DEPLOY_DIR/.env" ]; then
+        echo "Kein .env in $DEPLOY_DIR — erzeuge einmalig frische Konfiguration."
+        ( umask 077
+          {
+            echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)"
+            echo "COVEY_POSTGRES_PASSWORD=$(openssl rand -hex 16)"
+            echo "COVEY_ADMIN_EMAIL=admin@covey.local"
+            echo "COVEY_ADMIN_PASSWORD=$(openssl rand -hex 12)"
+            echo "COVEY_PUBLIC_URL=${COVEY_PUBLIC_URL:-http://localhost:8494}"
+          } > "$DEPLOY_DIR/.env" )
+        echo "WICHTIG: $DEPLOY_DIR/.env sichern — enthält den Master-Key. Admin-Passwort steht dort."
+      fi
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    # Image auf den unveränderlichen Commit-Tag pinnen ("spezieller Tag").
+    - export COVEY_IMAGE="$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
+    - echo "Deploye $COVEY_IMAGE nach $DEPLOY_DIR"
+    - cd "$DEPLOY_DIR"
+    # COVEY_IMAGE kommt aus der Shell-Umgebung (überschreibt .env-Interpolation),
+    # alle Secrets liest Compose automatisch aus der .env im Ordner.
+    - docker compose pull
+    - docker compose up -d --remove-orphans
+    - docker compose ps
+  environment:
+    name: production
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'

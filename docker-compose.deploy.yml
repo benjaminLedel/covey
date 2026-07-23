@@ -1,0 +1,74 @@
+# Covey — Produktions-Compose für das automatische Deployment.
+#
+# Im Unterschied zu docker-compose.yml (baut das Image lokal, für lokales
+# Ausprobieren) zieht diese Datei ein *fertiges* Image aus der Registry, pro
+# Deploy auf einen konkreten, unveränderlichen Tag gepinnt:
+#
+#   COVEY_IMAGE=registry.lapco.legal/private_bl/covey:<commit-sha>
+#
+# Der GitLab-Deploy-Job (siehe .gitlab-ci.yml, Job `deploy`) kopiert diese Datei
+# in den Deploy-Ordner auf dem Host, setzt COVEY_IMAGE auf den Tag des gerade
+# gebauten Commits und startet `docker compose pull && up -d`.
+#
+# Secrets (Master-Key, Passwörter, öffentliche URL) liegen NICHT hier, sondern
+# in einer persistenten `.env` im selben Ordner. Diese `.env` wird beim ersten
+# Deploy einmalig erzeugt und danach NIE wieder überschrieben — der Master-Key
+# ver-/entschlüsselt alle hinterlegten Secrets, ein Wechsel würde sie unlesbar
+# machen. Deshalb: `.env` sichern.
+
+x-covey-base: &covey-base
+  image: ${COVEY_IMAGE:?COVEY_IMAGE muss gesetzt sein, z. B. registry/…/covey:<sha>}
+  environment:
+    COVEY_DATABASE_URL: postgres://covey:${COVEY_POSTGRES_PASSWORD:?in .env setzen}@db:5432/covey?sslmode=disable
+    COVEY_MASTER_KEY: ${COVEY_MASTER_KEY:?in .env setzen — 64 Hex-Zeichen, openssl rand -hex 32}
+    COVEY_PUBLIC_URL: ${COVEY_PUBLIC_URL:-http://localhost:8494}
+    COVEY_LISTEN_ADDR: ":8494"
+    COVEY_DATA_DIR: /data
+    COVEY_ADMIN_EMAIL: ${COVEY_ADMIN_EMAIL:-admin@covey.local}
+    COVEY_ADMIN_PASSWORD: ${COVEY_ADMIN_PASSWORD:?in .env setzen}
+  volumes:
+    - covey-data:/data
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: covey
+      POSTGRES_PASSWORD: ${COVEY_POSTGRES_PASSWORD:?in .env setzen}
+      POSTGRES_DB: covey
+    volumes:
+      - covey-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U covey -d covey"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+    restart: unless-stopped
+
+  # Einmaliger Init pro Deploy: Organisation + Admin + Demo-Agent (idempotent).
+  # Beendet sich danach; blockiert den Start von `covey` bis erfolgreich durch.
+  bootstrap:
+    <<: *covey-base
+    command: ["bootstrap"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Control Plane: API + Orchestrator + eingebettete Admin-UI. Migrationen
+  # laufen beim `serve`-Start automatisch (Advisory-Lock).
+  covey:
+    <<: *covey-base
+    command: ["serve"]
+    depends_on:
+      db:
+        condition: service_healthy
+      bootstrap:
+        condition: service_completed_successfully
+    ports:
+      - "${COVEY_PORT:-8494}:8494"
+    restart: unless-stopped
+
+volumes:
+  covey-db:
+  covey-data:
