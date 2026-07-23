@@ -426,10 +426,8 @@ function DeptTreeNode({
           </>
         )}
 
-        {/* Leitung: Chips der aktuellen Leitungen + Drop-Zone während eines
-            Drag-Vorgangs. Drop hier macht das Mitglied zur Leitung, ohne seine
-            Abteilungszugehörigkeit zu ändern. */}
-        {(dept.leads.length > 0 || (dragging && !renaming)) && (
+        {/* Leitung: Chips der aktuellen Leitungen. */}
+        {dept.leads.length > 0 && (
           <div className="dept-leads">
             <span className="dept-leads-label">{t("org.leadLabel")}</span>
             {dept.leads.map(l => {
@@ -453,16 +451,29 @@ function DeptTreeNode({
                 </span>
               );
             })}
-            {dragging && !renaming && (
-              <span
-                className={`dept-lead-drop${leadOver ? " over" : ""}`}
-                onDragOver={e => { e.preventDefault(); e.stopPropagation(); setLeadOver(true); setIsOver(false); }}
-                onDragLeave={() => setLeadOver(false)}
-                onDrop={e => { e.preventDefault(); e.stopPropagation(); setLeadOver(false); if (dragging) addLeadMut.mutate(dragging); }}
-              >
-                {t("org.dropAsLead")}
-              </span>
-            )}
+          </div>
+        )}
+
+        {/* Während eines Drag-Vorgangs: zwei großzügige Drop-Zonen. Mitglied
+            setzt die Abteilung, Leitung lässt die Zugehörigkeit unberührt. */}
+        {dragging && !renaming && (
+          <div className="dept-dropzones">
+            <div
+              className={`dept-dz${isOver ? " over" : ""}`}
+              onDragOver={e => { e.preventDefault(); e.stopPropagation(); setIsOver(true); setLeadOver(false); }}
+              onDragLeave={() => setIsOver(false)}
+              onDrop={e => { e.preventDefault(); e.stopPropagation(); setIsOver(false); onDrop({ deptId: dept.id, supervisorId: null }); }}
+            >
+              {t("org.dropAsMember")}
+            </div>
+            <div
+              className={`dept-dz${leadOver ? " over" : ""}`}
+              onDragOver={e => { e.preventDefault(); e.stopPropagation(); setLeadOver(true); setIsOver(false); }}
+              onDragLeave={() => setLeadOver(false)}
+              onDrop={e => { e.preventDefault(); e.stopPropagation(); setLeadOver(false); if (dragging) addLeadMut.mutate(dragging); }}
+            >
+              {t("org.dropAsLead")}
+            </div>
           </div>
         )}
       </div>

@@ -378,6 +378,7 @@
     "dragAgent": "Ziehen, um die Abteilung zu wechseln",
     "dropHere": "Hier ablegen",
     "leadLabel": "Leitung",
+    "dropAsMember": "Als Mitglied ablegen",
     "dropAsLead": "Als Leitung ablegen",
     "removeLead": "Aus der Leitung entfernen",
     "newDept": "+ Abteilung",

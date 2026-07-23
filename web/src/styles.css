@@ -1090,12 +1090,20 @@ kbd {
   color: inherit; text-decoration: none;
 }
 .dept-lead-chip .icon-btn { font-size: 10px; padding: 0 3px; }
-.dept-lead-drop {
-  border: 1px dashed var(--border); border-radius: 999px;
-  padding: 2px 8px; font-size: 11px; color: var(--text-muted);
-  transition: border-color 0.15s, color 0.15s;
+/* Während eines Drag-Vorgangs: zwei großzügige, klar getrennte Drop-Zonen
+   („Als Mitglied" / „Als Leitung") statt der kleinen Kartenfläche. */
+.dept-dropzones { display: flex; flex-direction: column; gap: 5px; width: 100%; margin-top: 8px; }
+.dept-dz {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 34px; padding: 4px 10px;
+  border: 1.5px dashed var(--border-strong); border-radius: 8px;
+  font-size: 11.5px; color: var(--text-muted); text-align: center;
+  transition: border-color 0.12s, color 0.12s, background 0.12s;
 }
-.dept-lead-drop.over { border-color: var(--text-accent); color: var(--text-accent); }
+.dept-dz.over {
+  border-color: var(--text-accent); color: var(--text-accent);
+  background: rgba(var(--accent-rgb, 122,131,204),0.08);
+}
 
 .dept-delete-confirm {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -1118,7 +1126,9 @@ kbd {
 /* ── Diagramm-Ansicht: klassischer Org-Chart-Baum ────────────────────── */
 .tree { overflow-x: auto; padding: 6px 4px 20px; }
 .tree ul { display: flex; justify-content: center; padding: 22px 0 0; position: relative; margin: 0; list-style: none; }
-.tree > ul { padding-top: 0; }
+/* width: max-content — sonst zentriert flex breiteren Inhalt über den
+   Scroll-Ursprung hinaus nach links, wo er unerreichbar abgeschnitten wird. */
+.tree > ul { padding-top: 0; width: max-content; min-width: 100%; margin: 0 auto; }
 .tree li { position: relative; padding: 22px 10px 0; display: flex; flex-direction: column; align-items: center; }
 .tree li::before, .tree li::after { content: ""; position: absolute; top: 0; right: 50%; width: 50%; height: 22px; border-top: 1.5px solid var(--border-strong); }
 .tree li::after { right: auto; left: 50%; border-left: 1.5px solid var(--border-strong); }
