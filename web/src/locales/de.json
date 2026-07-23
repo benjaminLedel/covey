@@ -378,6 +378,8 @@
     "dragAgent": "Ziehen, um die Abteilung zu wechseln",
     "dropHere": "Hier ablegen",
     "leadLabel": "Leitung",
+    "deptColor": "Farbe der Abteilung",
+    "colorDefault": "Standardfarbe",
     "dropAsMember": "Als Mitglied ablegen",
     "dropAsLead": "Als Leitung ablegen",
     "removeLead": "Aus der Leitung entfernen",

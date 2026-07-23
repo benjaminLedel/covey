@@ -83,8 +83,19 @@ func TestOrgChart(t *testing.T) {
 	// Agenten. Zuweisen ist idempotent, die Leitungen stehen in der
 	// Abteilungs-Antwort, Entfernen löscht genau die eine Zuordnung.
 	dept := admin.expect(http.MethodPost, "/api/v1/departments",
-		map[string]string{"name": "Support"}, http.StatusCreated)
+		map[string]string{"name": "Support", "color": "#7d9471"}, http.StatusCreated)
 	deptID := dept["id"].(string)
+	if dept["color"] != "#7d9471" {
+		t.Fatalf("abteilung muss die farbe tragen, got %v", dept["color"])
+	}
+
+	// Farbe ändern und zurücksetzen; kaputte Werte werden abgewiesen.
+	admin.expect(http.MethodPatch, "/api/v1/departments/"+deptID+"/color",
+		map[string]string{"color": "#c9a227"}, http.StatusOK)
+	admin.expect(http.MethodPatch, "/api/v1/departments/"+deptID+"/color",
+		map[string]string{"color": "rot"}, http.StatusBadRequest)
+	admin.expect(http.MethodPatch, "/api/v1/departments/"+deptID+"/color",
+		map[string]string{"color": ""}, http.StatusOK)
 	admin.expect(http.MethodPost, "/api/v1/departments/"+deptID+"/leads",
 		map[string]string{"kind": "human", "member_id": leadID}, http.StatusOK)
 	admin.expect(http.MethodPost, "/api/v1/departments/"+deptID+"/leads",

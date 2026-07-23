@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { api, post, type Approval, type Principal } from "./api";
+import { api, post, roleLabel, type Approval, type Principal } from "./api";
 import i18n from "./i18n";
 import HelpDrawer from "./components/HelpDrawer";
 import Login from "./pages/Login";
@@ -264,17 +264,17 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
               <span className="avatar">{initials(me.DisplayName)}</span>
               <span className="min-w-0">
                 <span className="nm truncate block">{me.DisplayName}</span>
-                <span className="rl block">{me.Role}</span>
+                <span className="rl block truncate">{roleLabel[me.Role] || me.Role}</span>
               </span>
             </NavLink>
             <div className="foot-actions">
-              <button className="icon-btn" onClick={toggleLang} title={t("lang.toggle")} aria-label={t("lang.toggle")} style={{ fontSize: "11px", fontWeight: 600, letterSpacing: "0.03em" }}>
+              <button className="foot-btn" onClick={toggleLang} title={t("lang.toggle")} aria-label={t("lang.toggle")}>
                 {t("lang.toggle")}
               </button>
-              <button className="icon-btn" onClick={() => setHelpOpen(true)} title={t("nav.help")} aria-label={t("help.title")}>
+              <button className="foot-btn" onClick={() => setHelpOpen(true)} title={t("nav.help")} aria-label={t("help.title")}>
                 <NavIcon name="help" />
               </button>
-              <button className="icon-btn danger" onClick={logout} title={t("nav.logout")} aria-label={t("nav.logout")}>
+              <button className="foot-btn danger" onClick={logout} title={t("nav.logout")} aria-label={t("nav.logout")}>
                 <NavIcon name="logout" />
               </button>
             </div>

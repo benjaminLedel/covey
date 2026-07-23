@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   api, roleLabel,
-  createDepartment, renameDepartment, deleteDepartment,
+  createDepartment, renameDepartment, deleteDepartment, setDepartmentColor,
   setAgentDepartment, setAgentSupervisor,
   setHumanDepartment, setHumanManager,
   addDepartmentLead, removeDepartmentLead,
@@ -18,6 +18,38 @@ import { ConfirmDialog } from "../components/Modal";
 type DropTarget =
   | { deptId: string | null; supervisorId: null }        // direktes Mitglied einer Abteilung
   | { deptId: string | null; supervisorId: string };     // Untergebener eines Mitglieds
+
+// Vorgegebene Akzentfarben für Abteilungen, abgestimmt auf das Papier-Theme.
+// Leer = Standard-Akzent (var(--text-accent)).
+const DEPT_COLORS = [
+  "#7a83cc", "#b25f41", "#7d9471", "#c9a227",
+  "#5e9b94", "#9a6b8f", "#6b87a8", "#8a8577",
+];
+
+// Farbwahl als Swatch-Reihe: erster Punkt = Standard, danach die Palette.
+function ColorSwatches({ value, onPick }: { value: string; onPick: (c: string) => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className="dept-colors" role="radiogroup" aria-label={t("org.deptColor")}>
+      <button
+        type="button"
+        className={`dept-swatch none${value === "" ? " sel" : ""}`}
+        onClick={() => onPick("")}
+        title={t("org.colorDefault")}
+      />
+      {DEPT_COLORS.map(c => (
+        <button
+          type="button"
+          key={c}
+          className={`dept-swatch${value === c ? " sel" : ""}`}
+          style={{ background: c }}
+          onClick={() => onPick(c)}
+          title={c}
+        />
+      ))}
+    </div>
+  );
+}
 
 // Gezogen werden Agenten und Menschen. Der Typ entscheidet über die API-Aufrufe
 // und die erlaubten Ziele: Menschen können nur Menschen unterstellt werden
@@ -33,6 +65,7 @@ export default function Org() {
   const [showNewDept, setShowNewDept] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
+  const [newColor, setNewColor] = useState("");
 
   const chart = useQuery({
     queryKey: ["orgchart"],
@@ -40,12 +73,13 @@ export default function Org() {
   });
 
   const createMut = useMutation({
-    mutationFn: ({ name, desc }: { name: string; desc: string }) =>
-      createDepartment(name, desc),
+    mutationFn: ({ name, desc, color }: { name: string; desc: string; color: string }) =>
+      createDepartment(name, desc, color),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["orgchart"] });
       setNewName("");
       setNewDesc("");
+      setNewColor("");
       setShowNewDept(false);
     },
   });
@@ -108,7 +142,7 @@ export default function Org() {
           className="dept-create-form"
           onSubmit={e => {
             e.preventDefault();
-            createMut.mutate({ name: newName, desc: newDesc });
+            createMut.mutate({ name: newName, desc: newDesc, color: newColor });
           }}
         >
           <input
@@ -125,6 +159,7 @@ export default function Org() {
             placeholder={t("org.deptDescPlaceholder")}
             style={{ flex: "2 1 220px", minWidth: 0 }}
           />
+          <ColorSwatches value={newColor} onPick={setNewColor} />
           <button className="btn sm primary" type="submit" disabled={createMut.isPending}>
             {t("org.createDept")}
           </button>
@@ -397,24 +432,41 @@ function DeptTreeNode({
     mutationFn: (memberId: string) => removeDepartmentLead(dept.id, memberId),
     onSettled: onUpdate,
   });
+  const colorMut = useMutation({
+    mutationFn: (color: string) => setDepartmentColor(dept.id, color),
+    onSettled: onUpdate,
+  });
 
   const total = members.humans.length + members.agents.length;
+
+  // Akzentfarbe der Abteilung: Streifen + dezente Flächentönung. Inline, weil
+  // die Farbe aus den Daten kommt; der Drop-Ring wird mitkomponiert, da die
+  // Inline-Box-Shadow die der .node-drop-over-Klasse überdeckt.
+  const accentStyle = dept.color ? {
+    boxShadow: `inset 3px 0 0 ${dept.color}${isOver && dragging ? ", 0 0 0 2px rgba(var(--accent-rgb, 122,131,204),0.20)" : ""}`,
+    background: `color-mix(in srgb, ${dept.color} 6%, var(--surface-2))`,
+  } : undefined;
 
   return (
     <li>
       <div
         className={`node dept${isOver && dragging ? " node-drop-over" : ""}`}
+        style={accentStyle}
         title={dept.description || undefined}
         onDragOver={e => { if (dragging) { e.preventDefault(); e.stopPropagation(); setIsOver(true); } }}
         onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsOver(false); }}
         onDrop={e => { e.preventDefault(); e.stopPropagation(); setIsOver(false); onDrop({ deptId: dept.id, supervisorId: null }); }}
       >
         {renaming ? (
-          <form className="dept-tree-rename" onSubmit={e => { e.preventDefault(); renameMut.mutate(); }}>
-            <input value={editName} onChange={e => setEditName(e.target.value)} autoFocus required />
-            <button className="btn sm primary" type="submit" disabled={renameMut.isPending} style={{ padding: "3px 8px" }}>✓</button>
-            <button type="button" className="btn sm" style={{ padding: "3px 8px" }} onClick={() => { setRenaming(false); setEditName(dept.name); }}>✕</button>
-          </form>
+          <>
+            <form className="dept-tree-rename" onSubmit={e => { e.preventDefault(); renameMut.mutate(); }}>
+              <input value={editName} onChange={e => setEditName(e.target.value)} autoFocus required />
+              <button className="btn sm primary" type="submit" disabled={renameMut.isPending} style={{ padding: "3px 8px" }}>✓</button>
+              <button type="button" className="btn sm" style={{ padding: "3px 8px" }} onClick={() => { setRenaming(false); setEditName(dept.name); }}>✕</button>
+            </form>
+            {/* Farbwahl wirkt sofort — kein eigener Speichern-Schritt nötig. */}
+            <ColorSwatches value={dept.color} onPick={c => colorMut.mutate(c)} />
+          </>
         ) : (
           <>
             <div className="dept-tree-hdr">

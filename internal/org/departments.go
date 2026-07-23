@@ -23,13 +23,14 @@ type Department struct {
 	OrgID       uuid.UUID  `json:"org_id"`
 	Name        string     `json:"name"`
 	Description string     `json:"description"`
+	Color       string     `json:"color"` // Hex-Akzentfarbe, leer = Standard
 	Leads       []DeptLead `json:"leads"`
 	CreatedAt   time.Time  `json:"created_at"`
 }
 
 func (s *Store) ListDepartments(ctx context.Context, orgID uuid.UUID) ([]Department, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, org_id, name, description, created_at FROM departments WHERE org_id=$1 ORDER BY name`,
+		`SELECT id, org_id, name, description, color, created_at FROM departments WHERE org_id=$1 ORDER BY name`,
 		orgID)
 	if err != nil {
 		return nil, err
@@ -38,7 +39,7 @@ func (s *Store) ListDepartments(ctx context.Context, orgID uuid.UUID) ([]Departm
 	var list []Department
 	for rows.Next() {
 		var d Department
-		if err := rows.Scan(&d.ID, &d.OrgID, &d.Name, &d.Description, &d.CreatedAt); err != nil {
+		if err := rows.Scan(&d.ID, &d.OrgID, &d.Name, &d.Description, &d.Color, &d.CreatedAt); err != nil {
 			return nil, err
 		}
 		d.Leads = []DeptLead{}
@@ -85,24 +86,37 @@ func (s *Store) ListDepartments(ctx context.Context, orgID uuid.UUID) ([]Departm
 func (s *Store) GetDepartment(ctx context.Context, orgID, id uuid.UUID) (Department, error) {
 	var d Department
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, org_id, name, description, created_at FROM departments WHERE id=$1 AND org_id=$2`,
-		id, orgID).Scan(&d.ID, &d.OrgID, &d.Name, &d.Description, &d.CreatedAt)
+		`SELECT id, org_id, name, description, color, created_at FROM departments WHERE id=$1 AND org_id=$2`,
+		id, orgID).Scan(&d.ID, &d.OrgID, &d.Name, &d.Description, &d.Color, &d.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Department{}, ErrDeptNotFound
 	}
 	return d, err
 }
 
-func (s *Store) CreateDepartment(ctx context.Context, orgID uuid.UUID, name, description string) (Department, error) {
+func (s *Store) CreateDepartment(ctx context.Context, orgID uuid.UUID, name, description, color string) (Department, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return Department{}, errors.New("name ist Pflicht")
 	}
-	d := Department{OrgID: orgID, Name: name, Description: strings.TrimSpace(description)}
+	d := Department{OrgID: orgID, Name: name, Description: strings.TrimSpace(description), Color: color}
 	err := s.pool.QueryRow(ctx,
-		`INSERT INTO departments (org_id, name, description) VALUES ($1,$2,$3) RETURNING id, created_at`,
-		orgID, d.Name, d.Description).Scan(&d.ID, &d.CreatedAt)
+		`INSERT INTO departments (org_id, name, description, color) VALUES ($1,$2,$3,$4) RETURNING id, created_at`,
+		orgID, d.Name, d.Description, d.Color).Scan(&d.ID, &d.CreatedAt)
 	return d, err
+}
+
+// SetDepartmentColor setzt die Akzentfarbe; leer stellt den Standard wieder her.
+func (s *Store) SetDepartmentColor(ctx context.Context, orgID, id uuid.UUID, color string) error {
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE departments SET color=$1 WHERE id=$2 AND org_id=$3`, color, id, orgID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrDeptNotFound
+	}
+	return nil
 }
 
 func (s *Store) RenameDepartment(ctx context.Context, orgID, id uuid.UUID, name string) error {

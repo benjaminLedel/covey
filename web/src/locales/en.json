@@ -378,6 +378,8 @@
     "dragAgent": "Drag to change department",
     "dropHere": "Drop here",
     "leadLabel": "Lead",
+    "deptColor": "Department color",
+    "colorDefault": "Default color",
     "dropAsMember": "Drop as member",
     "dropAsLead": "Drop to make lead",
     "removeLead": "Remove from leadership",

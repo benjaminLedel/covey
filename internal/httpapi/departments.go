@@ -3,12 +3,16 @@ package httpapi
 import (
 	"errors"
 	"net/http"
+	"regexp"
 
 	"github.com/google/uuid"
 
 	"covey/internal/agents"
 	"covey/internal/org"
 )
+
+// deptColorRe erlaubt leere Farbe (Standard) oder 6-stelliges Hex.
+var deptColorRe = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
 func (s *Server) handleListDepartments(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
@@ -28,17 +32,47 @@ func (s *Server) handleCreateDepartment(w http.ResponseWriter, r *http.Request) 
 	var in struct {
 		Name        string `json:"name"`
 		Description string `json:"description"`
+		Color       string `json:"color"`
 	}
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "ungültiger request")
 		return
 	}
-	d, err := s.Org.CreateDepartment(r.Context(), p.OrgID, in.Name, in.Description)
+	if in.Color != "" && !deptColorRe.MatchString(in.Color) {
+		writeErr(w, http.StatusBadRequest, "ungültige farbe (erwartet #rrggbb)")
+		return
+	}
+	d, err := s.Org.CreateDepartment(r.Context(), p.OrgID, in.Name, in.Description, in.Color)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	writeJSON(w, http.StatusCreated, d)
+}
+
+func (s *Server) handleSetDepartmentColor(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	p := principalFrom(r)
+	var in struct {
+		Color string `json:"color"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		return
+	}
+	if in.Color != "" && !deptColorRe.MatchString(in.Color) {
+		writeErr(w, http.StatusBadRequest, "ungültige farbe (erwartet #rrggbb)")
+		return
+	}
+	if err := s.Org.SetDepartmentColor(r.Context(), p.OrgID, id, in.Color); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 func (s *Server) handleRenameDepartment(w http.ResponseWriter, r *http.Request) {

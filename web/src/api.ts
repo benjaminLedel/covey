@@ -169,6 +169,7 @@ export type Department = {
   org_id: string;
   name: string;
   description: string;
+  color: string; // Hex-Akzentfarbe, leer = Standard
   leads: DeptLead[];
   created_at: string;
 };
@@ -188,11 +189,14 @@ export type OrgChart = {
   departments: Department[];
 };
 
-export const createDepartment = (name: string, description = "") =>
-  post<Department>("/departments", { name, description });
+export const createDepartment = (name: string, description = "", color = "") =>
+  post<Department>("/departments", { name, description, color });
 
 export const renameDepartment = (id: string, name: string) =>
   patch<{ ok: boolean }>(`/departments/${id}/name`, { name });
+
+export const setDepartmentColor = (id: string, color: string) =>
+  patch<{ ok: boolean }>(`/departments/${id}/color`, { color });
 
 export const deleteDepartment = (id: string) =>
   del<{ ok: boolean }>(`/departments/${id}`);
