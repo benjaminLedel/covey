@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { post } from "../api";
 
@@ -50,17 +50,20 @@ function Bird({
   left,
   size,
   delay,
+  drift,
 }: {
   top: string;
   left: string;
   size: number;
   delay: string;
+  drift?: boolean;
 }) {
   return (
     <svg
       viewBox="0 0 18 6"
       width={size}
       height={size / 3}
+      className={drift ? "drift" : undefined}
       style={{ top, left, animationDelay: delay }}
     >
       <path d="M1 5 Q4.5 0.5 8 5 Q11.5 0.5 15 5" />
@@ -107,12 +110,70 @@ const featureIcons: Record<string, JSX.Element> = {
 
 const FEATURES = ["sitemap", "box", "key", "shield", "list", "eye"] as const;
 
+/* Scroll-Reveal: Elemente mit .reveal blenden ein, sobald sie sichtbar
+   werden. Bei prefers-reduced-motion greift die CSS-Abschaltung. */
+function useReveal() {
+  useEffect(() => {
+    const els = document.querySelectorAll<HTMLElement>(".reveal");
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const e of entries) {
+          if (e.isIntersecting) {
+            (e.target as HTMLElement).classList.add("in");
+            io.unobserve(e.target);
+          }
+        }
+      },
+      { threshold: 0.12 },
+    );
+    els.forEach((el) => io.observe(el));
+    return () => io.disconnect();
+  }, []);
+}
+
+function Imprint({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation();
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div
+        className="modal sm"
+        role="dialog"
+        aria-modal="true"
+        aria-label={t("landing.imprint")}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="modal-head">
+          <h2>{t("landing.imprint")}</h2>
+          <button className="icon-btn" onClick={onClose} aria-label={t("landing.close")}>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          </button>
+        </div>
+        <div className="modal-body imprint-body">
+          <p className="imprint-law">{t("landing.imprintLaw")}</p>
+          <p className="imprint-name">Benjamin Ledel</p>
+          <p>{t("landing.imprintResp")}</p>
+          <p className="imprint-note">{t("landing.imprintContact")}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Login({ onLogin }: { onLogin: () => void }) {
   const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [imprint, setImprint] = useState(false);
+  useReveal();
 
   const login = async (mail: string, pass: string) => {
     setBusy(true);
@@ -140,6 +201,8 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
         <Bird top="42%" left="6%" size={54} delay="0.7s" />
         <Bird top="52%" left="88%" size={38} delay="2.1s" />
         <Bird top="30%" left="92%" size={30} delay="1.1s" />
+        <Bird top="8%" left="-6%" size={36} delay="0s" drift />
+        <Bird top="22%" left="-6%" size={26} delay="9s" drift />
       </div>
 
       <div className="landing">
@@ -217,12 +280,22 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
           </form>
         </div>
 
+        {/* Schwarm-Bild als breites Band — die Leitmetapher wörtlich genommen. */}
+        <figure className="landing-band reveal">
+          <img src="/landing/murmuration.jpg" alt={t("landing.bandAlt")} loading="lazy" />
+          <figcaption>{t("landing.bandCaption")}</figcaption>
+        </figure>
+
         <section className="landing-features">
-          <h2>{t("landing.featuresTitle")}</h2>
-          <p className="landing-lead">{t("landing.featuresLead")}</p>
+          <h2 className="reveal">{t("landing.featuresTitle")}</h2>
+          <p className="landing-lead reveal">{t("landing.featuresLead")}</p>
           <div className="landing-grid">
             {FEATURES.map((icon, i) => (
-              <div className="landing-feature" key={icon}>
+              <div
+                className="landing-feature reveal"
+                style={{ transitionDelay: `${(i % 3) * 0.08}s` }}
+                key={icon}
+              >
                 <span className="landing-feature-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24">{featureIcons[icon]}</svg>
                 </span>
@@ -233,8 +306,40 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
           </div>
         </section>
 
-        <footer className="landing-foot">{t("landing.foot")}</footer>
+        {/* Ablauf in drei Schritten, daneben die Formation aus dem Schwarm. */}
+        <section className="landing-how">
+          <div className="landing-how-text">
+            <h2 className="reveal">{t("landing.howTitle")}</h2>
+            <ol>
+              {[1, 2, 3].map((n) => (
+                <li className="reveal" style={{ transitionDelay: `${(n - 1) * 0.1}s` }} key={n}>
+                  <span className="landing-step-num" aria-hidden="true">{n}</span>
+                  <div>
+                    <h3>{t(`landing.s${n}t`)}</h3>
+                    <p>{t(`landing.s${n}d`)}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+          <div className="landing-how-img reveal">
+            <img src="/landing/formation.jpg" alt={t("landing.howAlt")} loading="lazy" />
+          </div>
+        </section>
+
+        <footer className="landing-foot">
+          <span>{t("landing.foot")}</span>
+          <nav>
+            <button className="landing-foot-link" onClick={() => setImprint(true)}>
+              {t("landing.imprint")}
+            </button>
+            <span className="landing-foot-sep" aria-hidden="true">·</span>
+            <span className="landing-foot-credit">{t("landing.photoCredit")}</span>
+          </nav>
+        </footer>
       </div>
+
+      {imprint && <Imprint onClose={() => setImprint(false)} />}
     </div>
   );
 }

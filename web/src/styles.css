@@ -1405,7 +1405,14 @@ kbd {
   border-radius: 14px;
   padding: 20px 20px 22px;
   box-shadow: 0 1px 3px rgba(30, 28, 23, 0.04);
+  transition: transform 0.18s ease, box-shadow 0.18s ease,
+    opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1);
 }
+.landing-feature:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 30px -18px rgba(30, 28, 23, 0.3), 0 2px 6px rgba(30, 28, 23, 0.05);
+}
+.landing-feature:hover .landing-feature-icon { transform: scale(1.08) rotate(-4deg); }
 .landing-feature-icon {
   display: inline-flex;
   align-items: center;
@@ -1414,6 +1421,7 @@ kbd {
   height: 36px;
   border-radius: 10px;
   background: rgba(204, 122, 91, 0.12);
+  transition: transform 0.2s ease;
 }
 .landing-feature-icon svg {
   width: 18px;
@@ -1435,14 +1443,139 @@ kbd {
   line-height: 1.6;
   color: var(--text-secondary);
 }
+/* Scroll-Reveal: unsichtbar starten, beim Eintritt in den Viewport
+   sanft aufsteigen. JS setzt .in (IntersectionObserver in Login.tsx). */
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.reveal.in { opacity: 1; transform: none; }
+
+/* Zwei Vögel driften langsam quer über den Screen. */
+.login-flock svg.drift { animation: login-drift 38s linear infinite; }
+@keyframes login-drift {
+  from { transform: translateX(0) translateY(0); }
+  50% { transform: translateX(55vw) translateY(-24px); }
+  to { transform: translateX(112vw) translateY(6px); }
+}
+
+/* Breites Schwarm-Bild mit langsamem Ken-Burns-Zoom und Bildunterschrift. */
+.landing-band {
+  position: relative;
+  margin: 26px 0 0;
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 30px 60px -30px rgba(30, 28, 23, 0.35), 0 2px 8px rgba(30, 28, 23, 0.06);
+}
+.landing-band img {
+  display: block;
+  width: 100%;
+  height: clamp(220px, 34vw, 380px);
+  object-fit: cover;
+  animation: band-zoom 26s ease-in-out infinite alternate;
+}
+@keyframes band-zoom {
+  from { transform: scale(1); }
+  to { transform: scale(1.07); }
+}
+.landing-band figcaption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 40px 26px 18px;
+  font-family: var(--voice);
+  font-size: clamp(16px, 2.2vw, 21px);
+  color: #fff;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.45);
+  background: linear-gradient(to top, rgba(20, 14, 10, 0.55), rgba(20, 14, 10, 0));
+}
+
+/* „Wie Covey arbeitet" — drei Schritte neben der Vogelformation. */
+.landing-how {
+  margin-top: 72px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 48px;
+  align-items: center;
+}
+.landing-how h2 {
+  font-family: var(--voice);
+  font-size: 26px;
+  letter-spacing: -0.01em;
+}
+.landing-how ol {
+  margin: 26px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+.landing-how li { display: flex; gap: 16px; }
+.landing-step-num {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--voice);
+  font-size: 15px;
+  color: var(--clay);
+  background: rgba(204, 122, 91, 0.12);
+  border: 0.5px solid rgba(204, 122, 91, 0.3);
+}
+.landing-how li h3 { font-size: 14.5px; font-weight: 600; margin-top: 5px; }
+.landing-how li p {
+  margin: 6px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.landing-how-img img {
+  display: block;
+  width: 100%;
+  border-radius: 18px;
+  border: 0.5px solid var(--border);
+  box-shadow: 0 24px 48px -28px rgba(30, 28, 23, 0.3);
+}
+
 .landing-foot {
-  margin-top: 48px;
+  margin-top: 64px;
   padding-top: 20px;
   border-top: 0.5px solid var(--border);
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
   font-size: 12px;
   color: var(--text-muted);
 }
+.landing-foot nav { display: flex; align-items: center; gap: 10px; }
+.landing-foot-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--border-strong);
+  cursor: pointer;
+}
+.landing-foot-link:hover { color: var(--text-primary); }
+.landing-foot-sep { color: var(--text-muted); }
+
+/* Impressum-Modal */
+.imprint-body p { margin: 0 0 10px; }
+.imprint-law { color: var(--text-muted); font-size: 12px; }
+.imprint-name { font-family: var(--voice); font-size: 17px; }
+.imprint-note { color: var(--text-secondary); }
 
 @media (max-width: 900px) {
   .landing { padding-top: 48px; }
@@ -1460,6 +1593,12 @@ kbd {
   }
   .landing-points li { text-align: left; }
   .landing-grid { grid-template-columns: minmax(0, 1fr); }
+  .landing-how {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 28px;
+  }
+  .landing-how-img { order: -1; }
+  .landing-foot { justify-content: center; text-align: center; }
 }
 @media (min-width: 901px) and (max-width: 1100px) {
   .landing-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -1512,6 +1651,9 @@ kbd {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .login-mark, .login-rise, .login-flock svg { animation: none !important; }
+  .login-mark, .login-rise, .login-flock svg, .landing-band img { animation: none !important; }
   .login-mark, .login-rise { opacity: 1; transform: none; }
+  .reveal { opacity: 1; transform: none; transition: none; }
+  .landing-feature, .landing-feature-icon { transition: none; }
+  .login-flock svg.drift { display: none; }
 }
