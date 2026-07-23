@@ -15,11 +15,13 @@
     "runtimes": "Runtimes",
     "help": "Hilfe (Taste ?)",
     "logout": "Abmelden",
+    "userMenu": "Benutzermenü",
     "profile": "Profil & Einstellungen"
   },
   "lang": {
     "toggle": "EN",
-    "current": "DE"
+    "current": "DE",
+    "switchTo": "Sprache: English"
   },
   "status": {
     "sleeping": "schläft",

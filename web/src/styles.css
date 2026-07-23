@@ -259,31 +259,46 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
 .side-foot .suser .avatar { width: 30px; height: 30px; font-size: 11px; }
 .side-foot .suser .nm { font-weight: 500; font-size: 12.5px; color: var(--text-primary); }
 .side-foot .suser .rl { font-size: 11px; color: var(--text-muted); }
-.foot-actions {
+/* Eine Zeile: Nutzer + ⋯-Button; das Menü öffnet darüber. */
+.suser-row { position: relative; display: flex; align-items: center; gap: 2px; }
+.suser-row .suser { flex: 1; min-width: 0; }
+.foot-menu-btn { flex-shrink: 0; border: none; color: var(--text-muted); }
+.foot-menu-btn:hover, .foot-menu-btn.open { background: var(--surface-2); color: var(--text-primary); }
+.foot-menu-backdrop { position: fixed; inset: 0; z-index: 40; }
+.foot-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  z-index: 41;
+  min-width: 190px;
+  padding: 5px;
+  background: var(--surface-0);
+  border: 0.5px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(30, 28, 23, 0.14), 0 2px 8px rgba(30, 28, 23, 0.08);
   display: flex;
-  gap: 4px;
+  flex-direction: column;
+  gap: 1px;
 }
-/* Gleichmäßige, stille Aktionsleiste: Sprache, Hilfe, Abmelden */
-.foot-btn {
-  flex: 1;
-  display: inline-flex;
+.foot-menu button {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  height: 28px;
+  gap: 9px;
+  padding: 7px 9px;
   border: none;
-  background: transparent;
+  background: none;
   border-radius: 8px;
-  color: var(--text-muted);
-  cursor: pointer;
   font-family: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  transition: background 0.12s, color 0.12s;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s, color 0.1s;
 }
-.foot-btn:hover { background: var(--surface-2); color: var(--text-primary); }
-.foot-btn.danger:hover { background: rgba(220, 50, 47, 0.08); color: #b3403d; }
-.foot-btn .ic {
+.foot-menu button:hover { background: var(--surface-2); color: var(--text-primary); }
+.foot-menu button.danger { color: var(--text-danger); }
+.foot-menu button.danger:hover { background: rgba(220, 50, 47, 0.08); color: var(--text-danger); }
+.foot-menu .ic {
   width: 15px;
   height: 15px;
   stroke: currentColor;
@@ -291,7 +306,9 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   stroke-width: 1.9;
   stroke-linecap: round;
   stroke-linejoin: round;
+  flex-shrink: 0;
 }
+.foot-menu .sep { height: 0.5px; background: var(--border); margin: 3px 6px; }
 .icon-btn {
   display: inline-flex;
   align-items: center;
@@ -1093,16 +1110,17 @@ kbd {
   padding: 4px 0;
 }
 
-/* Farbwahl für Abteilungen: runde Swatches, erster Punkt = Standard */
-.dept-colors { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+/* Farbwahl für Abteilungen: runde Swatches, erster Punkt = Standard.
+   Abstand > Ringbreite + Hover-Zoom, damit sich nichts überlappt. */
+.dept-colors { display: flex; gap: 9px; align-items: center; flex-wrap: wrap; padding: 3px 2px; }
 .dept-swatch {
   width: 18px; height: 18px; border-radius: 50%;
   border: 1px solid rgba(30, 28, 23, 0.15);
   cursor: pointer; padding: 0; flex-shrink: 0;
   transition: transform 0.1s, box-shadow 0.1s;
 }
-.dept-swatch:hover { transform: scale(1.15); }
-.dept-swatch.sel { box-shadow: 0 0 0 2px var(--surface-0), 0 0 0 3.5px var(--text-secondary); }
+.dept-swatch:hover { transform: scale(1.1); }
+.dept-swatch.sel { box-shadow: 0 0 0 2px var(--surface-0), 0 0 0 3px var(--text-secondary); }
 .dept-swatch.none { background: var(--surface-2); position: relative; overflow: hidden; }
 .dept-swatch.none::after {
   content: ""; position: absolute; left: -2px; right: -2px; top: 50%;
