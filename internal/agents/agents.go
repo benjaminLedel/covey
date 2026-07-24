@@ -409,11 +409,12 @@ func (r *Registry) SaveConfig(ctx context.Context, agentID uuid.UUID, files map[
 		} else {
 			dailyAt = &hb.DailyAt
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO agent_heartbeats (agent_id, name, task_body, every_seconds, daily_at)
-			VALUES ($1,$2,$3,$4,$5)
+		if _, err := tx.Exec(ctx, `INSERT INTO agent_heartbeats (agent_id, name, task_body, every_seconds, daily_at, only_if)
+			VALUES ($1,$2,$3,$4,$5,$6)
 			ON CONFLICT (agent_id, name) DO UPDATE
-			SET task_body=EXCLUDED.task_body, every_seconds=EXCLUDED.every_seconds, daily_at=EXCLUDED.daily_at`,
-			agentID, hb.Name, hb.Task, everySeconds, dailyAt); err != nil {
+			SET task_body=EXCLUDED.task_body, every_seconds=EXCLUDED.every_seconds, daily_at=EXCLUDED.daily_at,
+			    only_if=EXCLUDED.only_if`,
+			agentID, hb.Name, hb.Task, everySeconds, dailyAt, hb.OnlyIf); err != nil {
 			return ConfigVersion{}, err
 		}
 	}

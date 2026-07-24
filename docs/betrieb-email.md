@@ -82,15 +82,25 @@ hängen: `smtp://smtp.example.com:587?from=support-agent@example.com`.
 
 ### 2.4 Intake per Heartbeat
 
-E-Mail hat keinen Webhook — der Posteingang wird per `HEARTBEAT.md` gepollt:
+E-Mail hat keinen Webhook — der Posteingang wird per `HEARTBEAT.md` gepollt.
+Mit `nur-wenn: email` prüft die **Control Plane** vor jedem Lauf selbst per
+IMAP, ob ungelesene Mails vorliegen, und weckt den Agenten nur dann — das
+Intervall kann damit kurz sein, ohne bei leerem Postfach Läufe (und Kosten)
+zu erzeugen:
 
 ```markdown
-- alle: 15m titel: Posteingang sichten aufgabe: Hole mit list_unread die
-  ungelesenen Mails. Bearbeite jede einzeln: get_message lesen, sachlich per
-  reply antworten; Mails ohne Antwortbedarf mit mark_seen abhaken oder mit
-  move ablegen. Antworte nie auf Automaten-Mails (Newsletter, Zustellfehler,
-  Abwesenheitsnotizen).
+- alle: 5m nur-wenn: email titel: Posteingang sichten aufgabe: Hole mit
+  list_unread die ungelesenen Mails. Bearbeite jede einzeln: get_message
+  lesen, sachlich per reply antworten; Mails ohne Antwortbedarf mit mark_seen
+  abhaken oder mit move ablegen. Antworte nie auf Automaten-Mails (Newsletter,
+  Zustellfehler, Abwesenheitsnotizen).
 ```
+
+Der Vorab-Check nutzt denselben Filterpfad wie `list_unread` (Echo-Schutz,
+`COVEY_EMAIL_INTAKE_ADDRESSES`) — was der Agent nicht sähe, weckt ihn auch
+nicht. Er ist fail-open: schlägt die IMAP-Prüfung fehl, feuert der Heartbeat
+regulär. Ohne `nur-wenn:` feuert jeder Lauf; der Agent stellt dann selbst
+fest, dass nichts vorliegt.
 
 Der Gelesen-Status ist das Arbeitsvorrats-Signal: `reply` markiert die Mail
 automatisch als gelesen, alles andere hakt der Agent explizit ab. Ein

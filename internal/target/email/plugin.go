@@ -43,9 +43,11 @@ func init() {
    - system: email scope: read,write
 
 4. Intake per Heartbeat — in der HEARTBEAT.md des Agenten:
-   - alle: 15m titel: Posteingang sichten aufgabe: Hole mit list_unread die
-     ungelesenen Mails, bearbeite jede einzeln (get_message, dann reply)
-     und markiere Bearbeitetes mit mark_seen.
+   - alle: 5m nur-wenn: email titel: Posteingang sichten aufgabe: Hole mit
+     list_unread die ungelesenen Mails, bearbeite jede einzeln (get_message,
+     dann reply) und markiere Bearbeitetes mit mark_seen.
+   (nur-wenn: email — die Control Plane prüft vor jedem Lauf selbst per
+    IMAP, ob ungelesene Mails vorliegen, und weckt den Agenten nur dann.)
 
 5. Optionale Prozess-Env:
    COVEY_EMAIL_SEND_DOMAINS="example.com, partner.de"   (Versand-Allowlist;
@@ -68,6 +70,23 @@ func (System) VerifyWebhook(string, []byte, http.Header) bool { return false }
 
 func (System) ParseWebhook([]byte) (target.WebhookEvent, error) {
 	return target.WebhookEvent{}, fmt.Errorf("email hat keinen webhook-eingang (intake per heartbeat)")
+}
+
+// HasWork (target.WorkChecker): billiger Vorab-Check der Control Plane für
+// nur-wenn:-Heartbeats — liegt mindestens eine ungelesene Mail im INBOX-
+// Arbeitsvorrat? Nutzt denselben Pfad wie list_unread, damit Echo-Schutz und
+// COVEY_EMAIL_INTAKE_ADDRESSES identisch greifen: was der Agent nicht sähe,
+// weckt ihn auch nicht.
+func (System) HasWork(_ context.Context, cred target.Credential) (bool, error) {
+	cfg, err := ParseConfig(cred)
+	if err != nil {
+		return false, err
+	}
+	msgs, err := listMessages(cfg, "INBOX", true, 100)
+	if err != nil {
+		return false, err
+	}
+	return len(msgs) > 0, nil
 }
 
 // ActionSubject: jeder SMTP-Versand verlässt die Organisation — send und

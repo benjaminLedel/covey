@@ -244,7 +244,9 @@
       "nextRun": "next run in {{delta}}",
       "now": "now",
       "schedule_interval": "every {{delta}}",
-      "schedule_daily": "daily at {{time}}"
+      "schedule_daily": "daily at {{time}}",
+      "onlyIf": "only if {{system}} reports work",
+      "onlyIfHint": "Before each run the control plane asks the target system {{system}} whether there is work (e.g. unread mail) — otherwise the run is skipped without waking the agent."
     },
     "webhook": {
       "desc": "Optional webhook trigger: a POST to the URL creates a backlog task and wakes the agent — for external systems without a target plugin (CI, cron, Zapier, monitoring).",

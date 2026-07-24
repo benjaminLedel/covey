@@ -57,6 +57,16 @@ type Credential struct {
 	Token   string
 }
 
+// WorkChecker ist ein optionales Plugin-Interface für Systeme ohne Webhook:
+// ein billiger Vorab-Check der Control Plane, ob überhaupt Arbeit vorliegt
+// (z. B. ungelesene Mails per IMAP). Heartbeat-Einträge mit nur-wenn: <system>
+// feuern nur, wenn HasWork true liefert — sonst entfällt der Lauf und damit
+// der (teure) Agenten-Wake. Der Check läuft in der Control Plane, das
+// Credential verlässt sie dabei nicht.
+type WorkChecker interface {
+	HasWork(ctx context.Context, cred Credential) (bool, error)
+}
+
 // workdirKey trägt das Sandbox-Arbeitsverzeichnis durch den Context zu
 // Execute. Aktionen, die Dateien in der Sandbox materialisieren (z. B.
 // gitlab checkout), entpacken dorthin — der Daemon setzt den Wert, weil nur

@@ -244,7 +244,9 @@
       "nextRun": "nächster Lauf in {{delta}}",
       "now": "jetzt",
       "schedule_interval": "alle {{delta}}",
-      "schedule_daily": "täglich {{time}}"
+      "schedule_daily": "täglich {{time}}",
+      "onlyIf": "nur wenn {{system}} Arbeit meldet",
+      "onlyIfHint": "Die Control Plane prüft vor jedem Lauf beim Zielsystem {{system}}, ob Arbeit vorliegt (z. B. ungelesene Mails) — sonst entfällt der Lauf ohne den Agenten zu wecken."
     },
     "webhook": {
       "desc": "Optionaler Webhook-Trigger: ein POST auf die URL legt eine Backlog-Aufgabe an und weckt den Agenten — für Fremdsysteme ohne Zielsystem-Plugin (CI, Cron, Zapier, Monitoring).",

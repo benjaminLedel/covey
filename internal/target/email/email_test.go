@@ -457,6 +457,38 @@ func TestExecuteEchoUndIntakeFilter(t *testing.T) {
 	}
 }
 
+func TestHasWork(t *testing.T) {
+	imapAddr := newMemIMAP(t, testUser, "pw")
+	smtp := newFakeSMTP(t)
+	cred := testCred(t, imapAddr, smtp.ln.Addr().String())
+
+	check := func(want bool, msg string) {
+		t.Helper()
+		has, err := (System{}).HasWork(context.Background(), cred)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if has != want {
+			t.Errorf("%s: has=%v, erwartet %v", msg, has, want)
+		}
+	}
+
+	check(false, "leeres postfach")
+	appendMail(t, imapAddr, testUser, "pw",
+		"From: alt@example.com\r\nTo: agent@example.com\r\nSubject: Erledigt\r\n\r\nx\r\n", true)
+	check(false, "nur gelesene mails")
+	appendMail(t, imapAddr, testUser, "pw",
+		"From: agent@example.com\r\nTo: agent@example.com\r\nSubject: Echo\r\n\r\nx\r\n", false)
+	check(false, "eigene mail zählt nicht (echo-schutz)")
+	appendMail(t, imapAddr, testUser, "pw",
+		"From: kunde@example.com\r\nTo: agent@example.com\r\nSubject: Frage\r\n\r\nx\r\n", false)
+	check(true, "ungelesene kundenmail")
+
+	// Intake-Allowlist greift auch im Vorab-Check.
+	t.Setenv("COVEY_EMAIL_INTAKE_ADDRESSES", "partner.de")
+	check(false, "kundenmail außerhalb der intake-allowlist")
+}
+
 func TestExecuteUnbekannteAktion(t *testing.T) {
 	cred := target.Credential{BaseURL: "imaps://a smtp://b", Token: "u@x.de:p"}
 	if _, err := (System{}).Execute(context.Background(), "kaboom", json.RawMessage(`{}`), cred); err == nil {
