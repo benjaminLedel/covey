@@ -306,6 +306,70 @@ func TestHasWork(t *testing.T) {
 	}
 }
 
+// TestHasWorkKind prüft, dass der nur-wenn:-Unterscope die Arbeits-Arten
+// getrennt gatet: gitlab:issues sieht nur Issues, gitlab:mr nur MR-Reviews,
+// ein leerer/unbekannter Scope beides (wie HasWork).
+func TestHasWorkKind(t *testing.T) {
+	var issues []Issue
+	var myMRs []MergeRequest
+	var mrNotes []Note
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v4/issues":
+			json.NewEncoder(w).Encode(issues)
+		case r.URL.Path == "/api/v4/merge_requests":
+			json.NewEncoder(w).Encode(myMRs)
+		case r.URL.Path == "/api/v4/user":
+			json.NewEncoder(w).Encode(User{ID: 1, Username: "covey-bot"})
+		case strings.HasSuffix(r.URL.Path, "/notes"):
+			json.NewEncoder(w).Encode(mrNotes)
+		default:
+			t.Errorf("unerwarteter request: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "t"}
+	ctx := context.Background()
+
+	issueIn := Issue{IID: 1, ProjectID: 15}
+	issueIn.References.Full = "gruppe/support#1"
+	mrIn := MergeRequest{IID: 9, ProjectID: 15}
+	mrIn.References.Full = "gruppe/support!9"
+	foreign := []Note{{ID: 1, Body: "Bitte ändern", Author: struct {
+		Username string `json:"username"`
+	}{Username: "leaddev"}}}
+
+	check := func(kind string, want bool) {
+		t.Helper()
+		has, err := sys.HasWorkKind(ctx, cred, kind)
+		if err != nil {
+			t.Fatalf("HasWorkKind(%q): %v", kind, err)
+		}
+		if has != want {
+			t.Fatalf("HasWorkKind(%q) = %v, erwartet %v", kind, has, want)
+		}
+	}
+
+	// Nur offenes Issue, keine MR-Arbeit.
+	issues, myMRs, mrNotes = []Issue{issueIn}, nil, nil
+	check("issues", true)
+	check("mr", false)
+	check("", true) // Fallback prüft beides
+
+	// Nur unbeantwortetes MR-Feedback, kein offenes Issue.
+	issues, myMRs, mrNotes = nil, []MergeRequest{mrIn}, foreign
+	check("issues", false)
+	check("mr", true)
+	check("unbekannt", true) // unbekannter Scope → wie HasWork (beides)
+
+	// Gar nichts offen.
+	issues, myMRs, mrNotes = nil, nil, nil
+	check("issues", false)
+	check("mr", false)
+}
+
 // tarGz baut ein GitLab-artiges Repository-Archiv aus name→inhalt-Paaren.
 func tarGz(t *testing.T, entries map[string]string) []byte {
 	t.Helper()
