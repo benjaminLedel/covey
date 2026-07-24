@@ -208,11 +208,27 @@ func TestListActionsRespectIntakeScope(t *testing.T) {
 
 func TestHasWork(t *testing.T) {
 	var issues []Issue
+	var myMRs []MergeRequest
+	var mrNotes []Note
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v4/issues" || r.URL.Query().Get("state") != "opened" {
+		switch {
+		case r.URL.Path == "/api/v4/issues":
+			if r.URL.Query().Get("state") != "opened" {
+				t.Errorf("issues muss state=opened filtern: %s", r.URL.RawQuery)
+			}
+			json.NewEncoder(w).Encode(issues)
+		case r.URL.Path == "/api/v4/merge_requests":
+			if r.URL.Query().Get("scope") != "created_by_me" || r.URL.Query().Get("state") != "opened" {
+				t.Errorf("mr-vorabcheck muss scope=created_by_me&state=opened sein: %s", r.URL.RawQuery)
+			}
+			json.NewEncoder(w).Encode(myMRs)
+		case r.URL.Path == "/api/v4/user":
+			json.NewEncoder(w).Encode(User{ID: 1, Username: "covey-bot"})
+		case strings.HasSuffix(r.URL.Path, "/notes"):
+			json.NewEncoder(w).Encode(mrNotes)
+		default:
 			t.Errorf("unerwarteter request: %s?%s", r.URL.Path, r.URL.RawQuery)
 		}
-		json.NewEncoder(w).Encode(issues)
 	}))
 	defer srv.Close()
 
@@ -220,10 +236,12 @@ func TestHasWork(t *testing.T) {
 	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
 	ctx := context.Background()
 
+	// Weder offene Issues noch offene MRs → keine Arbeit.
 	if has, err := sys.HasWork(ctx, cred); err != nil || has {
-		t.Fatalf("keine issues: has=%v err=%v", has, err)
+		t.Fatalf("nichts offen: has=%v err=%v", has, err)
 	}
 
+	// Offenes Issue im Scope weckt (und kurzschließt vor der MR-Prüfung).
 	issueIn := Issue{IID: 23, ProjectID: 15}
 	issueIn.References.Full = "gruppe/support#23"
 	issueOut := Issue{IID: 7, ProjectID: 99}
@@ -238,6 +256,53 @@ func TestHasWork(t *testing.T) {
 	issues = []Issue{issueOut}
 	if has, err := sys.HasWork(ctx, cred); err != nil || has {
 		t.Fatalf("issue außerhalb der allowlist: has=%v err=%v", has, err)
+	}
+
+	// --- MR-Review-Zweig (keine offenen Issues im Scope) ---
+	issues = nil
+	mrIn := MergeRequest{IID: 9, ProjectID: 15}
+	mrIn.References.Full = "gruppe/support!9"
+
+	// Offener MR ohne Kommentare: Review steht noch aus → keine Arbeit.
+	myMRs = []MergeRequest{mrIn}
+	mrNotes = nil
+	if has, err := sys.HasWork(ctx, cred); err != nil || has {
+		t.Fatalf("frischer MR ohne feedback: has=%v err=%v", has, err)
+	}
+
+	// Letzter Kommentar vom Bot selbst → schon beantwortet, keine Arbeit.
+	mrNotes = []Note{
+		{ID: 1, Body: "Bitte Test ergänzen", Author: struct {
+			Username string `json:"username"`
+		}{Username: "leaddev"}},
+		{ID: 2, Body: "Erledigt", Author: struct {
+			Username string `json:"username"`
+		}{Username: "covey-bot"}},
+	}
+	if has, err := sys.HasWork(ctx, cred); err != nil || has {
+		t.Fatalf("MR bereits beantwortet: has=%v err=%v", has, err)
+	}
+
+	// Neues fremdes Feedback nach der Bot-Antwort → Arbeit. Ein abschließender
+	// System-Kommentar (z. B. "changed the description") darf das nicht verdecken.
+	mrNotes = append(mrNotes,
+		Note{ID: 3, Body: "Noch ein Punkt", Author: struct {
+			Username string `json:"username"`
+		}{Username: "leaddev"}},
+		Note{ID: 4, System: true, Body: "changed the description", Author: struct {
+			Username string `json:"username"`
+		}{Username: "leaddev"}},
+	)
+	if has, err := sys.HasWork(ctx, cred); err != nil || !has {
+		t.Fatalf("unbeantwortetes review-feedback: has=%v err=%v", has, err)
+	}
+
+	// MR außerhalb der Allowlist → kein Notes-Abruf, keine Arbeit.
+	mrOut := MergeRequest{IID: 4, ProjectID: 99}
+	mrOut.References.Full = "gruppe/geheim!4"
+	myMRs = []MergeRequest{mrOut}
+	if has, err := sys.HasWork(ctx, cred); err != nil || has {
+		t.Fatalf("MR außerhalb der allowlist: has=%v err=%v", has, err)
 	}
 }
 

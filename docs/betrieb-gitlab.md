@@ -88,22 +88,31 @@ In der `HEARTBEAT.md` des Agenten einen Sichtungs-Eintrag anlegen:
 - alle: 15m nur-wenn: gitlab titel: GitLab-Issues sichten aufgabe: Finde offene Issues (list_issues state=opened), bearbeite neue und prüfe per list_notes, ob auf deine Rückfragen geantwortet wurde. Bei Bugs: Code per checkout holen und die Behauptung am Quelltext verifizieren. Prüfe außerdem deine offenen Merge Requests (list_merge_requests state=opened) auf neues Review-Feedback (list_mr_notes) und schließe die Aufgabe ab, sobald ein MR gemergt ist.
 ```
 
-Der Review-Loop läuft ohne Webhook mit: Weil der Agent nach `create_merge_request`
-**nicht blockt**, sondern seinen Lauf mit `done` beendet, muss ein Heartbeat
-seine offenen MRs erneut aufgreifen. Am robustesten ist dafür ein **zweiter,
-MR-loser Heartbeat ohne `nur-wenn:`** — so wird Review-Feedback auch dann
-geweckt, wenn gerade kein offenes Issue existiert:
+**Ein einziger Heartbeat deckt Issues UND den Review-Loop ab.** Weil der Agent
+nach `create_merge_request` **nicht blockt**, sondern mit `done` endet, muss ein
+Heartbeat seine offenen MRs erneut aufgreifen — die MR-Prüfung ist deshalb Teil
+der Sichtungs-Aufgabe (letzter Satz oben). Ein zweiter, MR-eigener Heartbeat ist
+**nicht** nötig.
 
-```
-- alle: 15m titel: GitLab-Reviews prüfen aufgabe: Prüfe deine offenen Merge Requests (list_merge_requests state=opened) auf neue Review-Kommentare (list_mr_notes) und arbeite Feedback ein; prüfe per list_merge_requests state=merged, ob einer gemergt wurde, und kommentiere dann das Ergebnis im zugehörigen Issue.
-```
+`nur-wenn: gitlab` verhindert, dass dieser Heartbeat den (teuren) Agenten-Lauf
+in jedem Intervall auslöst, auch wenn nichts zu tun ist: Die Control Plane prüft
+vorab per API und weckt nur, wenn **eines** zutrifft —
 
-`nur-wenn: gitlab` ist optional: die Control Plane prüft dann vor jedem Lauf
-selbst per API, ob überhaupt ein offenes Issue im Intake-Scope existiert, und
-weckt den Agenten nur dann. Beachte die Semantik: anders als das Gelesen-Flag
-bei E-Mail bleibt ein offenes Issue „Arbeit", bis es geschlossen ist — die
-Bedingung spart also nur die Leerlauf-Phasen ganz ohne offene Issues, nicht
-die Läufe, in denen ein Issue auf eine Kundenantwort wartet.
+- es gibt ein offenes Issue im Intake-Scope, **oder**
+- einer der vom Bot selbst eröffneten, offenen Merge Requests hat
+  **unbeantwortetes Review-Feedback** (der letzte Nicht-System-Kommentar im
+  Thread stammt nicht vom Bot).
+
+Der Merge-Abschluss braucht keinen eigenen Auslöser: Ist das zugehörige Issue
+noch offen, weckt es über den Issue-Zweig; wurde es beim Merge automatisch
+geschlossen, gibt es nichts mehr zu tun. Beachte die Semantik: anders als das
+Gelesen-Flag bei E-Mail bleiben offene Issues und offene MR-Threads „Arbeit",
+bis sie geschlossen bzw. beantwortet sind — die Bedingung spart die
+Leerlauf-Phasen ganz ohne offene Arbeit, nicht die Läufe, in denen ein Issue
+auf eine Kundenantwort oder ein MR auf deine Nacharbeit wartet.
+
+Der Vorab-Check ist billig (wenige REST-Aufrufe: offene Issues, die eigenen
+offenen MRs und deren Notes) — verglichen mit einem LLM-Turn vernachlässigbar.
 
 Der Agent entdeckt seinen Arbeitsvorrat dann selbst: `list_projects` liefert
 die Projekte, in denen der Bot-Nutzer Mitglied ist, `list_issues` die offenen
@@ -154,9 +163,11 @@ Fleisch und Blut — das Warten auf das Review läuft aber **per Polling**, nich
    kommentiert der Agent das Ergebnis im Issue; wurde er ohne Merge
    **geschlossen**, prüft er per `list_mr_notes` warum und eskaliert, wenn unklar.
 
-Damit dieser Loop zuverlässig läuft, gehört ein MR-prüfender Heartbeat in die
-`HEARTBEAT.md` (Abschnitt 2.4) — am besten ohne `nur-wenn:`, damit auch
-Review-Feedback ohne offenes Issue aufgegriffen wird.
+Damit dieser Loop zuverlässig läuft, muss die Sichtungs-Aufgabe in der
+`HEARTBEAT.md` (Abschnitt 2.4) auch die offenen MRs prüfen. Der
+`nur-wenn: gitlab`-Vorabcheck weckt den Agenten dafür auch dann, wenn kein
+Issue offen ist, aber einer seiner MRs unbeantwortetes Review-Feedback hat —
+ein separater Heartbeat ist nicht nötig.
 
 ---
 

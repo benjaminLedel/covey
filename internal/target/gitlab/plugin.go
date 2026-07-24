@@ -43,10 +43,11 @@ func init() {
      außerdem deine offenen Merge Requests (list_merge_requests state=opened):
      bearbeite neues Review-Feedback (list_mr_notes) und schließe die
      zugehörige Aufgabe ab, sobald ein MR gemergt ist.
-   (nur-wenn: gitlab ist optional — die Control Plane weckt den Agenten
-    dann nur, wenn mindestens ein offenes Issue im Intake-Scope existiert.
-    Prüfe offene MRs am besten in einem eigenen, MR-losen Heartbeat ohne
-    nur-wenn:, damit auch Review-Feedback ohne offenes Issue geweckt wird.)
+   (nur-wenn: gitlab spart den teuren Agenten-Lauf, wenn es nichts zu tun
+    gibt: die Control Plane weckt nur, wenn ein offenes Issue im Intake-Scope
+    existiert ODER einer deiner offenen Merge Requests unbeantwortetes
+    Review-Feedback hat. Ein einzelner Heartbeat deckt damit Issues UND den
+    Review-Loop ab — kein zweiter MR-Heartbeat nötig.)
    Optionaler Projekt-Filter (gilt für list_issues/list_projects):
    COVEY_GITLAB_INTAKE_PROJECTS="gruppe/support"   (leer = alle)
 
@@ -67,14 +68,32 @@ func issueProjectPath(i Issue) string {
 	return ""
 }
 
+// mrProjectPath leitet den Projektpfad aus der vollen MR-Referenz
+// ("gruppe/projekt!9") ab — analog issueProjectPath, aber getrennt am "!".
+func mrProjectPath(m MergeRequest) string {
+	if idx := strings.LastIndex(m.References.Full, "!"); idx > 0 {
+		return m.References.Full[:idx]
+	}
+	return ""
+}
+
 // HasWork (target.WorkChecker): billiger Vorab-Check der Control Plane für
-// nur-wenn:-Heartbeats — gibt es mindestens ein offenes Issue im Intake-Scope?
-// Nutzt denselben Pfad wie list_issues (globales GET /issues, danach
-// COVEY_GITLAB_INTAKE_PROJECTS-Filter): was der Agent nicht sähe, weckt ihn
-// auch nicht. Anders als das Gelesen-Flag bei E-Mail bleibt ein offenes Issue
-// so lange „Arbeit", bis es geschlossen ist — der Heartbeat feuert also in
-// jedem Intervall, solange irgendein Issue offen ist; gespart wird nur die
-// Leerlauf-Phase ohne offene Issues.
+// nur-wenn:-Heartbeats. Ohne Webhook nimmt GitLab rein per Polling auf; dieser
+// Check spart den (teuren) Agenten-Wake, wenn es gerade nichts zu tun gibt.
+// Arbeit liegt vor, wenn EINES gilt:
+//
+//   - Es gibt ein offenes Issue im Intake-Scope (globales GET /issues, danach
+//     COVEY_GITLAB_INTAKE_PROJECTS-Filter) — was der Agent nicht sähe, weckt
+//     ihn auch nicht.
+//   - Der Bot hat einen offenen, selbst eröffneten Merge Request mit
+//     unbeantwortetem Review-Feedback (der letzte Nicht-System-Kommentar stammt
+//     von jemand anderem als dem Bot). Das trägt den Review-Loop ohne Webhook.
+//
+// Der Merge-Abschluss braucht keinen eigenen Zweig: ist das zugehörige Issue
+// noch offen, weckt es über den Issue-Zweig; ist es beim Merge automatisch
+// geschlossen worden, gibt es nichts mehr zu tun. Anders als das Gelesen-Flag
+// bei E-Mail bleiben offene Issues/MR-Threads „Arbeit", bis sie geschlossen bzw.
+// beantwortet sind — gespart wird die Leerlauf-Phase ganz ohne offene Arbeit.
 func (System) HasWork(ctx context.Context, cred target.Credential) (bool, error) {
 	gc := NewClient(cred.BaseURL, cred.Token)
 	issues, err := gc.ListIssues(ctx, 0, "opened", "", "", false)
@@ -84,6 +103,50 @@ func (System) HasWork(ctx context.Context, cred target.Credential) (bool, error)
 	for _, i := range issues {
 		if projectInScope(i.ProjectID, issueProjectPath(i)) {
 			return true, nil
+		}
+	}
+	return mrReviewPending(ctx, gc)
+}
+
+// mrReviewPending prüft, ob einer der offenen, selbst eröffneten Merge Requests
+// des Bots auf eine Antwort wartet: Der letzte menschliche (Nicht-System-)
+// Kommentar im Thread stammt nicht vom Bot. Frische MRs ganz ohne Kommentare
+// (der Bot hat gerade eröffnet, das Review steht noch aus) zählen NICHT als
+// Arbeit — sonst würde jeder offene MR den Agenten in jedem Intervall wecken.
+func mrReviewPending(ctx context.Context, gc *Client) (bool, error) {
+	mrs, err := gc.ListMyOpenMergeRequests(ctx)
+	if err != nil {
+		return false, err
+	}
+	inScope := mrs[:0]
+	for _, m := range mrs {
+		if projectInScope(m.ProjectID, mrProjectPath(m)) {
+			inScope = append(inScope, m)
+		}
+	}
+	if len(inScope) == 0 {
+		return false, nil
+	}
+	me, err := gc.CurrentUser(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, m := range inScope {
+		notes, err := gc.ListMRNotes(ctx, m.ProjectID, m.IID)
+		if err != nil {
+			return false, err
+		}
+		// Notes kommen chronologisch (sort=asc); der letzte Nicht-System-
+		// Kommentar entscheidet. Ist er von jemand anderem als dem Bot, wartet
+		// Review-Feedback auf Bearbeitung.
+		for i := len(notes) - 1; i >= 0; i-- {
+			if notes[i].System {
+				continue
+			}
+			if notes[i].Author.Username != me.Username {
+				return true, nil
+			}
+			break // letzter menschlicher Kommentar ist vom Bot → schon beantwortet
 		}
 	}
 	return false, nil
