@@ -173,6 +173,89 @@ Damit dieser Loop zuverlässig läuft, gehört der MR-Heartbeat
 Agenten genau dann, wenn einer seiner offenen MRs unbeantwortetes
 Review-Feedback hat — unabhängig davon, ob gerade ein Issue offen ist.
 
+### 2.7 Der QA-/Test-Agent: fremde MRs end-to-end testen
+
+Der Review-Loop aus 2.6 wartet standardmäßig auf einen **Menschen** (den
+Vorgesetzten, der als MR-Assignee eingetragen ist). Man kann das Review aber
+auch an einen **zweiten Agenten** geben — einen QA-/Test-Agenten, der das
+Feature abnimmt und dem Entwickler-Agenten Feedback gibt. Beide sind normale
+Covey-Agenten; sie arbeiten über GitLab zusammen (Covey kennt keine direkte
+Agent-zu-Agent-Aufgabenübergabe — die Zusammenarbeit läuft über das gemeinsame
+Zielsystem). Der Clou: Der Entwickler-Agent hat den MR-Review-Loop bereits
+(2.6) — kommentiert der QA-Agent Mängel am MR, greift der Entwickler sie bei
+seinem nächsten `gitlab:mr`-Lauf **automatisch** auf. Es braucht also nur die
+Intake-Seite des QA-Agenten.
+
+**Ablauf:**
+
+1. Der Entwickler-Agent trägt beim `create_merge_request` den QA-Agenten als
+   `reviewer` ein (der Vorgesetzte bleibt `assignee`):
+   `create_merge_request {"project_id":N,"source_branch":"fix/…","title":"…","assignee":"leaddev","reviewer":"covey-qa"}`.
+   Alternativ übergibt er einen bestehenden MR mit
+   `set_reviewer {"project_id":N,"mr_iid":N,"username":"covey-qa"}` und erklärt
+   die Übergabe in einem `comment_mr`. Der QA-Username steht im Team-Verzeichnis
+   des Prompts (der QA-Agent ist selbst ein Mitarbeiter mit GitLab-Identität).
+2. Der QA-Agent findet seine Review-Warteschlange über den neuen Unterscope
+   **`nur-wenn: gitlab:review`**: er feuert nur, wenn ein MR, in dem der QA-Bot
+   als Reviewer eingetragen ist, auf sein Review wartet (kein Kommentar, oder der
+   letzte Nicht-System-Kommentar stammt nicht vom QA-Bot). Ein frisch
+   übergebener MR ohne Kommentar zählt hier **sehr wohl** als Arbeit — er wartet
+   ja auf das Erst-Review (anders als beim Entwickler-Loop, wo ein frischer MR
+   auf den Reviewer wartet).
+3. Der QA-Agent checkt den **Source-Branch** aus, setzt das Projekt auf, **startet
+   die Anwendung und spielt das Feature end-to-end durch** (nicht nur Diff lesen),
+   prüft es gegen die Abnahmekriterien aus Issue/MR und lässt die volle Testsuite
+   laufen.
+4. Ergebnis per `comment_mr`: bei Mängeln konkret mit Datei:Zeile und
+   Reproduktion (der Entwickler-Agent arbeitet sie über seinen `gitlab:mr`-Loop
+   ein); ist alles grün, sagt der QA-Agent das explizit und gibt mit
+   `approve_mr` frei. Gemergt wird **vom Menschen** — der QA-Agent merged nie
+   selbst.
+
+**Config des QA-Agenten** (neben Secrets `gitlab_token`/`gitlab_url` wie in 2.2):
+
+`HEARTBEAT.md`:
+
+```
+- alle: 15m nur-wenn: gitlab:review titel: Merge Requests testen aufgabe: Prüfe die MRs, in denen du als Reviewer eingetragen bist (list_merge_requests state=opened). Checke den Source-Branch aus, setze das Projekt auf, STARTE die Anwendung und teste das Feature end-to-end gegen die Abnahmekriterien aus Issue/MR, lass die Testsuite laufen. Melde das Ergebnis per comment_mr — Mängel konkret mit Datei:Zeile; ist alles grün, gib mit approve_mr frei. Merge nie selbst.
+```
+
+`ACCESS.md` — GitLab zum Kommentieren/Freigeben und die Sandbox-Shell zum
+tatsächlichen Ausführen des Features (der `dev`-Zugang erlaubt Build/Run und über
+`start`/`logs` das Hochfahren langlaufender Prozesse wie eines Dev-Servers in der
+isolierten Sandbox):
+
+```
+- system: gitlab scope: read,write,comment
+- system: dev scope: exec,processes
+```
+
+`SOUL.md` (Auszug) — die Konsistenz-Haltung gehört in den Prompt, nicht ins
+Plugin:
+
+```
+# QA-Agent
+
+## Rolle
+Du bist Software-Tester. Du entwickelst nicht selbst, du nimmst ab: Du prüfst
+die Merge Requests deiner Entwickler-Kollegen, bevor ein Mensch sie merged.
+
+## Auftrag
+Für jeden MR, in dem du als Reviewer eingetragen bist: das Feature end-to-end
+ausführen und gegen die Abnahmekriterien aus Issue/MR verifizieren — nicht nur
+den Diff lesen. Achte auf KONSISTENZ: Passt die Änderung zu Stil und
+Konventionen des Projekts? Bricht sie bestehende Tests oder andere Features?
+
+## Grenzen
+Du gibst umsetzbares Feedback (Datei:Zeile, Reproduktion), kein pauschales „sieht
+gut aus". Du mergst und schließt MRs nie selbst — das grüne Signal gibst du per
+approve_mr, das Mergen bleibt beim Vorgesetzten.
+```
+
+> **Egress:** Damit der QA-Agent die Anwendung wirklich starten kann, braucht
+> seine Sandbox dieselben Paket-Registries wie der Entwickler-Agent (npm/PyPI/Go
+> über die Built-in-Egress-Templates) — siehe `docs/betrieb-deployment.md`.
+
 ---
 
 ## 3. Welche Issues nimmt der Agent auf?
