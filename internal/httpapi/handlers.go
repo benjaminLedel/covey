@@ -555,6 +555,35 @@ func (s *Server) handleRename(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// handleUpdateAgentProfile schreibt die Mitarbeiter-Stammdaten eines Agenten —
+// dieselben Profilfelder wie bei den Menschen (profilePatch), Werte erscheinen
+// im Org-Chart und in der covey/org_chart-Abfrage der Agenten.
+func (s *Server) handleUpdateAgentProfile(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	p := principalFrom(r)
+	var in profilePatch
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		return
+	}
+	a, err := s.Registry.UpdateProfile(r.Context(), p.OrgID, id, agents.ProfileUpdate{
+		JobTitle:         trimPtr(in.JobTitle),
+		Identities:       in.Identities,
+		Phone:            trimPtr(in.Phone),
+		Responsibilities: trimPtr(in.Responsibilities),
+		Custom:           in.Custom,
+	})
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, a)
+}
+
 // handleSetSlug ändert den Slug eines Agenten. Muss innerhalb der Org eindeutig sein.
 func (s *Server) handleSetSlug(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)

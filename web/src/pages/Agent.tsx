@@ -32,6 +32,7 @@ import {
 } from "../api";
 import { ActivityFeed } from "../components/ActivityFeed";
 import { PersonLink } from "../components/person";
+import ProfileForm from "../components/ProfileForm";
 import { AddHostForm, EgressLogTable, HostChips } from "../components/EgressBits";
 import { generateAgentName } from "../names";
 
@@ -228,6 +229,17 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
   };
 
   return (
+    <>
+    <div className="card mb-4" style={{ maxWidth: 760 }}>
+      <div className="text-sm font-medium mb-1">{t("agent.settings.profile")}</div>
+      <p className="muted text-xs mt-0 mb-3">{t("agent.settings.profileHint")}</p>
+      <ProfileForm
+        human={agent}
+        endpoint={`/agents/${agent.id}/profile`}
+        readOnly={!editable}
+        onSaved={invalidate}
+      />
+    </div>
     <div className="card" style={{ maxWidth: 760, padding: "6px 18px 14px" }}>
       <div style={row}>
         <span className="text-sm">{t("agent.settings.name")}</span>
@@ -383,6 +395,7 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
         </div>
       )}
     </div>
+    </>
   );
 }
 

@@ -319,6 +319,8 @@
       "delete": "Delete"
     },
     "settings": {
+      "profile": "Profile",
+      "profileHint": "The same profile fields as for people — visible in the org chart and to other agents via the org chart query.",
       "name": "Name",
       "nameHint": "Display name — the slug cannot be changed.",
       "slug": "Slug",

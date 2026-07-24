@@ -4,13 +4,17 @@ import { useTranslation } from "react-i18next";
 import { api, patch, type Human, type ProfileField } from "../api";
 import IdentityFields from "./IdentityFields";
 
+// Die Profilfelder, die Menschen und Agenten teilen — das Formular bedient
+// beide (PATCH /users/{id}, /auth/me bzw. /agents/{id}/profile).
+export type ProfileData = Pick<Human, "id" | "job_title" | "identities" | "phone" | "responsibilities" | "custom">;
+
 export default function ProfileForm({
   human,
   endpoint,
   readOnly,
   onSaved,
 }: {
-  human: Human;
+  human: ProfileData;
   endpoint: string;
   readOnly?: boolean;
   onSaved?: () => void;
@@ -43,7 +47,7 @@ export default function ProfileForm({
   const save = useMutation({
     mutationFn: () => patch(endpoint, p),
     onSuccess: () => {
-      for (const key of ["users", "orgchart", "myProfile", "human"]) qc.invalidateQueries({ queryKey: [key] });
+      for (const key of ["users", "orgchart", "myProfile", "human", "agent", "agents"]) qc.invalidateQueries({ queryKey: [key] });
       onSaved?.();
     },
   });

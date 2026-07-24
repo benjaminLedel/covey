@@ -319,6 +319,8 @@
       "delete": "Löschen"
     },
     "settings": {
+      "profile": "Profil",
+      "profileHint": "Dieselben Profilfelder wie bei Menschen — sichtbar im Organigramm und für andere Agenten über die Organigramm-Abfrage.",
       "name": "Name",
       "nameHint": "Anzeigename — der Slug bleibt unveränderlich.",
       "slug": "Slug",

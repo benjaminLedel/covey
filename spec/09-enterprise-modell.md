@@ -11,7 +11,7 @@ Konkret heißt das:
 - **Agenten sind organisationseigene Ressourcen**, keine persönlichen Assistenten. Sie gehören dem Unternehmen, sind Abteilungen zugeordnet und werden zentral governt.
 - **Es gibt nicht „den Nutzer", sondern viele menschliche Rollen** — IT, Team-Leads, Security/Compliance, Audit, Controlling — mit unterschiedlichen Rechten.
 - **Governance ist zentral und org-weit**, nicht pro Einzelperson konfiguriert.
-- **Der Org-Chart ist unternehmensweit** und umfasst Menschen *und* Agenten.
+- **Der Org-Chart ist unternehmensweit** und umfasst Menschen *und* Agenten. Beide tragen **dieselben Profilfelder** (Funktion, Kontakt, Plattform-Kennungen, Zuständigkeiten sowie die org-weit konfigurierbaren Felder aus `profile_fields`) — und Agenten können das Organigramm zur Laufzeit selbst abfragen (Meta-Aktion `covey/org_chart` am Action-Proxy, siehe [`01-architektur.md`](01-architektur.md)), um Zuständigkeiten und Eskalationswege nachzuschlagen.
 
 Diese Abgrenzung ist bewusst die Antwort auf die Marktlage (siehe [`08-marktumfeld.md`](08-marktumfeld.md)): Die „AI-Coworker"-Kategorie existiert, aber die reifen Angebote sind entweder Single-User/No-Cloud-SaaS oder schwergewichtige Enterprise-Suiten. Coveys Platz ist die self-hostbare Enterprise-Plattform für einen technischen Betreiber.
 

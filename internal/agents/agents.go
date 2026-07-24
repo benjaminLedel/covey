@@ -14,6 +14,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"covey/internal/org"
 )
 
 var slugRe = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
@@ -48,8 +50,12 @@ type Agent struct {
 	SupervisorID *uuid.UUID `json:"supervisor_id,omitempty"`
 	// DepartmentID ordnet den Agenten einer Abteilung zu; nil = keiner.
 	DepartmentID *uuid.UUID `json:"department_id,omitempty"`
-	Killed       bool       `json:"killed"`
-	BudgetUSD    float64    `json:"budget_usd"`
+	// Profile sind dieselben Mitarbeiter-Stammdaten wie bei den Menschen
+	// (org.Profile): Funktion, Kontakt, Plattform-Kennungen und die Werte der
+	// org-weit konfigurierbaren Profilfelder — Agenten sind Mitarbeiter (spec/02).
+	org.Profile
+	Killed    bool    `json:"killed"`
+	BudgetUSD float64 `json:"budget_usd"`
 	// WebhookToken ist das Geheimnis des optionalen generischen Webhook-
 	// Triggers (nil = deaktiviert). Bewusst nicht im JSON — lesbar nur über
 	// den dedizierten Webhook-Endpoint (Manager-Rollen).
@@ -84,12 +90,13 @@ type Registry struct {
 
 func NewRegistry(pool *pgxpool.Pool) *Registry { return &Registry{pool: pool} }
 
-const agentCols = "id, org_id, slug, display_name, runtime, model, max_turns, status, owner_id, supervisor_id, department_id, killed, budget_usd, webhook_token, created_at, updated_at"
+const agentCols = "id, org_id, slug, display_name, runtime, model, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, webhook_token, created_at, updated_at"
 
 func scanAgent(row pgx.Row) (Agent, error) {
 	var a Agent
 	err := row.Scan(&a.ID, &a.OrgID, &a.Slug, &a.DisplayName, &a.Runtime, &a.Model, &a.MaxTurns, &a.Status,
-		&a.OwnerID, &a.SupervisorID, &a.DepartmentID, &a.Killed, &a.BudgetUSD, &a.WebhookToken, &a.CreatedAt, &a.UpdatedAt)
+		&a.OwnerID, &a.SupervisorID, &a.DepartmentID, &a.JobTitle, &a.Identities, &a.Phone, &a.Responsibilities, &a.Custom,
+		&a.Killed, &a.BudgetUSD, &a.WebhookToken, &a.CreatedAt, &a.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, ErrNotFound
 	}
@@ -283,6 +290,59 @@ func (r *Registry) SetSupervisor(ctx context.Context, id uuid.UUID, supervisorID
 		return ErrNotFound
 	}
 	return err
+}
+
+// ProfileUpdate ist ein partielles Profil-Update — nil-Felder bleiben
+// unverändert; die Maps ersetzen bei nicht-nil den kompletten Bestand
+// (der Store normalisiert). Spiegelbild der Profil-Felder von org.HumanUpdate.
+type ProfileUpdate struct {
+	JobTitle         *string
+	Identities       map[string]string
+	Phone            *string
+	Responsibilities *string
+	Custom           map[string]string
+}
+
+// UpdateProfile schreibt die Mitarbeiter-Stammdaten des Agenten. orgID
+// verhindert Cross-Org-Zugriff über geratene IDs.
+func (r *Registry) UpdateProfile(ctx context.Context, orgID, id uuid.UUID, upd ProfileUpdate) (Agent, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return Agent{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	a, err := scanAgent(tx.QueryRow(ctx, "SELECT "+agentCols+" FROM agents WHERE id=$1 AND org_id=$2 FOR UPDATE", id, orgID))
+	if err != nil {
+		return Agent{}, err
+	}
+	if upd.JobTitle != nil {
+		a.JobTitle = *upd.JobTitle
+	}
+	if upd.Identities != nil {
+		a.Identities = org.NormalizeIdentities(upd.Identities)
+	}
+	if upd.Phone != nil {
+		a.Phone = *upd.Phone
+	}
+	if upd.Responsibilities != nil {
+		a.Responsibilities = *upd.Responsibilities
+	}
+	if upd.Custom != nil {
+		a.Custom = org.NormalizeCustom(upd.Custom)
+	}
+	if a.Identities == nil {
+		a.Identities = map[string]string{}
+	}
+	if a.Custom == nil {
+		a.Custom = map[string]string{}
+	}
+	if _, err := tx.Exec(ctx, `UPDATE agents SET job_title=$2, identities=$3, phone=$4,
+			responsibilities=$5, custom=$6, updated_at=now() WHERE id=$1`,
+		id, a.JobTitle, a.Identities, a.Phone, a.Responsibilities, a.Custom); err != nil {
+		return Agent{}, err
+	}
+	return a, tx.Commit(ctx)
 }
 
 // SetDepartment weist den Agenten einer Abteilung zu; nil löst die Zuordnung.

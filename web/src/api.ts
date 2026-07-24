@@ -18,6 +18,13 @@ export type Agent = {
   status: string;
   supervisor_id?: string;
   department_id?: string;
+  // Mitarbeiter-Profil — dieselben Felder wie bei Human (Agenten sind
+  // Mitarbeiter): Funktion, Kontakt, Plattform-Kennungen, konfigurierbare Felder.
+  job_title: string;
+  identities: Record<string, string>;
+  phone: string;
+  responsibilities: string;
+  custom: Record<string, string>;
   killed: boolean;
   budget_usd: number;
   created_at: string;

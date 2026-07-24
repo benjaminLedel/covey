@@ -375,8 +375,8 @@ function MemberNode({
           <Avatar name={member.display_name} human={!isAgent} />
           <div>
             <div className="nm">{member.display_name}</div>
-            <div className={`rl${isAgent ? " mono" : ""}`}>
-              {isAgent ? agent!.slug : (human!.job_title || roleLabel[human!.role] || human!.role)}
+            <div className={`rl${isAgent && !agent!.job_title ? " mono" : ""}`}>
+              {isAgent ? (agent!.job_title || agent!.slug) : (human!.job_title || roleLabel[human!.role] || human!.role)}
             </div>
           </div>
           {isAgent

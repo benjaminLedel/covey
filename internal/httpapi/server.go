@@ -125,6 +125,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/agents/{id}/resume", s.rbac(append(manage, identity.RoleSecurity), s.handleResumeAgent))
 	mux.Handle("POST /api/v1/agents/{id}/budget", s.rbac(manage, s.handleSetBudget))
 	mux.Handle("PATCH /api/v1/agents/{id}/name", s.rbac(manage, s.handleRename))
+	mux.Handle("PATCH /api/v1/agents/{id}/profile", s.rbac(manage, s.handleUpdateAgentProfile))
 	mux.Handle("PATCH /api/v1/agents/{id}/slug", s.rbac(manage, s.handleSetSlug))
 	mux.Handle("PATCH /api/v1/agents/{id}/runtime", s.rbac(manage, s.handleSetRuntime))
 	mux.Handle("PATCH /api/v1/agents/{id}/model", s.rbac(manage, s.handleSetModel))
