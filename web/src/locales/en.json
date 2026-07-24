@@ -268,7 +268,17 @@
       "newVersion": "Save new version",
       "cancel": "Cancel",
       "versionInfo": "Config-as-code: every change creates a new version{{version}}.",
-      "currentVersion": " — current v{{v}}"
+      "currentVersion": " — current v{{v}}",
+      "assist": {
+        "title": "AI assistant",
+        "hint": "Describe what the agent should do or what feels off about its behaviour. The assistant proposes config changes as a draft — they only take effect once you save a new version.",
+        "placeholder": "e.g. “A support agent for billing questions, replies in German, escalates to accounting.”",
+        "send": "Send",
+        "thinking": "The assistant is thinking …",
+        "apply": "Apply to {{file}}",
+        "applied": "applied",
+        "reset": "New conversation"
+      }
     },
     "memory": {
       "addPlaceholder": "Share knowledge, e.g. \"Customer Smith is a long-time client on a first-name basis\" …",
