@@ -350,6 +350,38 @@ sind nur bei rein organisatorischen Issues zulässig. Voraussetzung: Das Token
 aus 2.1 braucht Lesezugriff aufs Repository (Scope `api` deckt das ab;
 Reporter-Rolle genügt bei privaten Projekten für den Archiv-Download).
 
+**Screenshots und Bild-Anhänge lesen:** Bug-Reports hängen oft einen Screenshot
+an — in der Issue-Beschreibung (oder einem Kommentar) steht er als Markdown-Upload:
+
+```
+![Fehlermeldung](/uploads/0123456789abcdef0123456789abcdef/login-fehler.png)
+```
+
+Der Agent bekommt nur diesen Text, **nicht** das Bild — aus der Referenz allein ist
+der Inhalt nicht erschließbar. Dafür gibt es die Aktion `download_upload`:
+
+```
+download_upload {"project_id":15, "url":"/uploads/0123…/login-fehler.png"}
+```
+
+- Der **Daemon** lädt den Upload gebrokert über
+  `GET /projects/:id/uploads/:secret/:filename` (das Token bleibt im Daemon,
+  landet nie im Dateisystem) und legt die Datei unter `<home>/uploads/` ab; die
+  Aktion liefert den lokalen Pfad zurück.
+- Der Agent sieht sich das Bild danach mit dem **Read-Tool an (Vision)** — er kann
+  den Screenshot also tatsächlich auswerten, statt ihn zu übergehen. Die
+  Prompt-Doku verpflichtet ihn darauf: sieht er einen Bild-Anhang im Markdown,
+  lädt er ihn **immer** erst herunter und schaut ihn an, bevor er ihn in seiner
+  Analyse berücksichtigt. Als `url` übergibt er die Referenz exakt so, wie sie
+  zwischen den Markdown-Klammern steht (nackter `/uploads/…`-Pfad oder volle
+  Web-URL — beides wird auf den Upload-Endpoint gemappt).
+- Schutzmaßnahmen: Der Dateiname wird auf den Basename festgenagelt (kein
+  Pfad-Traversal), die Größe ist auf 25 MB begrenzt. Guard-Rail-Subjekt:
+  `gitlab:download_upload` (read-only gegenüber GitLab).
+- Voraussetzung: Der Upload-API-Endpoint braucht **GitLab ≥ 16.6**; auf älteren
+  Instanzen liefert er `404`, was die Aktion mit einem entsprechenden Hinweis
+  meldet.
+
 ---
 
 ## 5. Interne vs. öffentliche Kommentare

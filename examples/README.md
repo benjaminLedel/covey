@@ -6,7 +6,7 @@ Importierbare Agenten-Konfigurationen (`kind: covey.agent-config`). Import über
 | Bundle | Slug | Rolle |
 |---|---|---|
 | `coding-agent.bundle.json` | `covey-dev` | Entwickler: Issues aufnehmen, Bugs am Code verifizieren, Fixes entwickeln, Merge Requests eröffnen und den Review-Loop leben. |
-| `qa-agent.bundle.json` | `covey-qa` | QA/Test: fremde Merge Requests als Reviewer end-to-end abnehmen und Feedback geben. |
+| `qa-agent.bundle.json` | `covey-qa` | QA/Test: fremde Merge Requests als Reviewer end-to-end abnehmen und Feedback geben; zusätzlich Bug-Reports per E-Mail annehmen und als GitLab-Ticket (`create_issue`) anlegen. |
 
 Zusammen bilden sie das Zwei-Agenten-Setup aus
 [`docs/betrieb-gitlab.md`](../docs/betrieb-gitlab.md) §2.7: Der Entwickler-Agent
@@ -25,3 +25,9 @@ noch nötig (siehe `docs/betrieb-gitlab.md` 2.2 und 2.7):
   `covey-qa`) und die **Zuständigkeit** eintragen.
 - Beide Agenten **derselben Abteilung** zuordnen — dann sieht der Entwickler den
   QA-Agenten als `DEIN TEAM` und wählt ihn bevorzugt als Reviewer.
+- **Für den Mail-Intake des QA-Agenten** zusätzlich ein eigenes Postfach
+  einrichten und die Secrets `email_url` + `email_token` zuweisen (siehe
+  `docs/betrieb-email.md`). Damit der Agent Bug-Reports dem richtigen GitLab-
+  Projekt zuordnen kann, im Profil des QA-Agenten die **Produkt→Projekt-Zuordnung**
+  hinterlegen (welches Postfach/Produkt gehört zu welchem GitLab-Projekt); ist die
+  Zuordnung unklar, fragt er beim Melder nach, statt ins falsche Projekt zu ticketen.
