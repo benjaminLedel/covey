@@ -23,6 +23,7 @@ const (
 	TypeInjectCredentials = "inject_credentials"
 	TypeApprovalDecision  = "approval_decision"
 	TypeInjectTarget      = "inject_target"
+	TypeInjectOrgChart    = "inject_org_chart"
 	TypeKill              = "kill"
 	TypeSleep             = "sleep"
 )
@@ -34,6 +35,7 @@ const (
 	TypeRequestCredential = "request_credential"
 	TypeRequestApproval   = "request_approval"
 	TypeRequestTarget     = "request_target"
+	TypeRequestOrgChart   = "request_org_chart"
 	TypeBlocked           = "blocked"
 	TypeTaskDone          = "task_done"
 	TypeCost              = "cost"
@@ -114,6 +116,21 @@ type InjectTarget struct {
 	// oder "mcp" (MCP-Server-Config). Leer = custom (Rückwärtskompatibilität).
 	Kind     string          `json:"kind,omitempty"`
 	Manifest json.RawMessage `json:"manifest,omitempty"`
+}
+
+// RequestOrgChart/InjectOrgChart brokern das Organigramm der Organisation in
+// die Sandbox: Menschen und Agenten samt Profilen (inkl. der konfigurierbaren
+// Profilfelder), Abteilungen und Vorgesetzten-Beziehungen. Read-only-Sicht auf
+// dieselben Daten wie GET /org/chart — der Agent fragt sie zur Laufzeit über
+// die Meta-Aktion covey/org_chart ab, statt einen veralteten Prompt-Stand zu
+// nutzen.
+type RequestOrgChart struct {
+	RequestID string `json:"request_id"`
+}
+
+type InjectOrgChart struct {
+	RequestID string          `json:"request_id"`
+	Chart     json.RawMessage `json:"chart"`
 }
 
 type RequestCredential struct {

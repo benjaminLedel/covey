@@ -52,6 +52,7 @@ func TestSecretScoping(t *testing.T) {
 	}
 
 	// Previews: das Org-Secret listet seine Zuweisung, bobs Secret bleibt agent-eigen.
+	// Ohne Sensibel-Markierung ist ein Secret eine Variable: voller Klartext.
 	previews, err := s.secrets.Previews(ctx, s.orgID)
 	if err != nil || len(previews) != 1 {
 		t.Fatalf("previews: %+v, %v", previews, err)
@@ -59,9 +60,49 @@ func TestSecretScoping(t *testing.T) {
 	if len(previews[0].AgentIDs) != 1 || previews[0].AgentIDs[0] != alice.ID.String() {
 		t.Fatalf("zuweisung fehlt in preview: %+v", previews[0])
 	}
+	if previews[0].Sensitive || previews[0].Value != "org-token" {
+		t.Fatalf("nicht-sensibles Org-Secret muss einsehbar sein: %+v", previews[0])
+	}
 	ownPreviews, err := s.secrets.AgentPreviews(ctx, s.orgID, bob.ID)
 	if err != nil || len(ownPreviews) != 1 || ownPreviews[0].Key != "zammad_token" {
 		t.Fatalf("agent-previews: %+v, %v", ownPreviews, err)
+	}
+	if ownPreviews[0].Sensitive || ownPreviews[0].Value != "bob-token" {
+		t.Fatalf("nicht-sensibles Agent-Secret muss einsehbar sein: %+v", ownPreviews[0])
+	}
+
+	// Als sensibel markiert: write-only, nur noch Präfix — auf beiden Ebenen.
+	if err := s.secrets.MarkSensitive(ctx, s.orgID, "zammad_token"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.secrets.MarkAgentSensitive(ctx, s.orgID, bob.ID, "zammad_token"); err != nil {
+		t.Fatal(err)
+	}
+	previews, err = s.secrets.Previews(ctx, s.orgID)
+	if err != nil || len(previews) != 1 || !previews[0].Sensitive || previews[0].Value != "" {
+		t.Fatalf("sensibles Org-Secret darf keinen Klartext liefern: %+v, %v", previews, err)
+	}
+	ownPreviews, err = s.secrets.AgentPreviews(ctx, s.orgID, bob.ID)
+	if err != nil || len(ownPreviews) != 1 || !ownPreviews[0].Sensitive || ownPreviews[0].Value != "" {
+		t.Fatalf("sensibles Agent-Secret darf keinen Klartext liefern: %+v, %v", ownPreviews, err)
+	}
+	// Der Broker löst sensible Secrets weiterhin auf — der Schutz gilt der UI/API.
+	if v, err := s.secrets.Resolve(ctx, s.orgID, alice.ID, "zammad_token"); err != nil || v != "org-token" {
+		t.Fatalf("resolve nach markSensitive: %q, %v", v, err)
+	}
+	// Überschreiben behält das Flag — einmal sensibel bleibt sensibel.
+	if err := s.secrets.Put(ctx, s.orgID, "zammad_token", "org-token-neu-lang"); err != nil {
+		t.Fatal(err)
+	}
+	previews, err = s.secrets.Previews(ctx, s.orgID)
+	if err != nil || len(previews) != 1 || !previews[0].Sensitive {
+		t.Fatalf("überschreiben darf sensitive nicht zurücksetzen: %+v, %v", previews, err)
+	}
+	if previews[0].Value != "" || previews[0].Prefix != "org-" {
+		t.Fatalf("sensibles Secret: nur Präfix erwartet: %+v", previews[0])
+	}
+	if err := s.secrets.MarkSensitive(ctx, s.orgID, "gibt_es_nicht"); !errors.Is(err, secrets.ErrNotFound) {
+		t.Fatalf("markSensitive auf unbekanntes Secret: %v", err)
 	}
 
 	// Zuweisung entfernen: alice verliert den Zugriff wieder; bob behält nur

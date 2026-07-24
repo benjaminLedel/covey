@@ -692,6 +692,15 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		resp := o.brokerTarget(ctx, agent, req)
 		return false, o.sendMsg(ctx, link, daemon.TypeInjectTarget, resp)
 
+	case daemon.TypeRequestOrgChart:
+		req, err := daemon.DecodePayload[daemon.RequestOrgChart](msg)
+		if err != nil {
+			return false, nil
+		}
+		chart := o.orgChartPayload(ctx, agent.OrgID, agent.ID)
+		return false, o.sendMsg(ctx, link, daemon.TypeInjectOrgChart,
+			daemon.InjectOrgChart{RequestID: req.RequestID, Chart: chart})
+
 	case daemon.TypeBlocked:
 		b, err := daemon.DecodePayload[daemon.Blocked](msg)
 		if err != nil {

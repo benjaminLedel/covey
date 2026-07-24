@@ -11,19 +11,20 @@ import (
 
 var ErrNotFound = errors.New("secret nicht gefunden")
 
-// KeyPreview ist der Name plus ein kurzes, absichtlich begrenztes Präfix des
-// Werts (Wiedererkennungshilfe wie bei GitHub/Stripe). Prefix ist leer, wenn
-// der Wert zu kurz ist, um ihn ohne nennenswerte Offenlegung anzureißen.
-// Ist Revealed=true, enthält Value den vollständigen Klartext — gedacht für
-// nicht-sensible Werte wie Servernamen oder URLs.
+// KeyPreview beschreibt ein Secret für die UI. Per Default ist ein Secret
+// eine einsehbare Variable (Servername, URL, Konfigwert): Value enthält den
+// vollständigen Klartext. Ist Sensitive=true, bleibt der Wert write-only —
+// dann trägt Prefix nur ein kurzes, absichtlich begrenztes Präfix als
+// Wiedererkennungshilfe (wie bei GitHub/Stripe); leer, wenn der Wert zu kurz
+// ist, um ihn ohne nennenswerte Offenlegung anzureißen.
 // AgentIDs sind die expliziten Zuweisungen eines org-weiten Secrets — leer
 // heißt: noch keinem Agenten zugewiesen, das Secret erreicht niemanden.
 type KeyPreview struct {
-	Key      string   `json:"key"`
-	Prefix   string   `json:"prefix"`
-	Revealed bool     `json:"revealed"`
-	Value    string   `json:"value,omitempty"` // nur gesetzt wenn Revealed=true
-	AgentIDs []string `json:"agent_ids"`
+	Key       string   `json:"key"`
+	Prefix    string   `json:"prefix"`
+	Sensitive bool     `json:"sensitive"`
+	Value     string   `json:"value,omitempty"` // nur gesetzt wenn Sensitive=false
+	AgentIDs  []string `json:"agent_ids"`
 }
 
 const (
@@ -66,8 +67,11 @@ type Store interface {
 	// Assign/Unassign pflegen die explizite Zuweisung org-weiter Secrets.
 	Assign(ctx context.Context, orgID uuid.UUID, key string, agentID uuid.UUID) error
 	Unassign(ctx context.Context, orgID uuid.UUID, key string, agentID uuid.UUID) error
-	// SetRevealed markiert ein org-weites Secret als einsehbar (true) oder
-	// wieder geschützt (false). Einsehbare Secrets geben den vollen Klartext
-	// in Previews zurück — gedacht für Servernamen, URLs, nicht für Tokens.
-	SetRevealed(ctx context.Context, orgID uuid.UUID, key string, revealed bool) error
+	// MarkSensitive/MarkAgentSensitive kennzeichnen ein Secret als besonders
+	// schützenswert (Token, Passwort): ab dann ist der Wert write-only, die
+	// Previews liefern nur noch das begrenzte Präfix. Bewusst einweg — den
+	// Schutz wieder aufheben hieße, den Wert doch offenzulegen. Zurück geht
+	// es nur durch Löschen und Neuanlegen; Überschreiben behält das Flag.
+	MarkSensitive(ctx context.Context, orgID uuid.UUID, key string) error
+	MarkAgentSensitive(ctx context.Context, orgID, agentID uuid.UUID, key string) error
 }

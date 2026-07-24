@@ -18,6 +18,13 @@ export type Agent = {
   status: string;
   supervisor_id?: string;
   department_id?: string;
+  // Mitarbeiter-Profil — dieselben Felder wie bei Human (Agenten sind
+  // Mitarbeiter): Funktion, Kontakt, Plattform-Kennungen, konfigurierbare Felder.
+  job_title: string;
+  identities: Record<string, string>;
+  phone: string;
+  responsibilities: string;
+  custom: Record<string, string>;
   killed: boolean;
   budget_usd: number;
   created_at: string;
@@ -315,13 +322,14 @@ export type MemoryEntry = {
   created_at: string;
 };
 
-// Secret-Vorschau: Name + kurzes Wert-Präfix. Bei revealed=true enthält value
-// den vollständigen Klartext (z. B. Servernamen, URLs). agent_ids sind die
-// expliziten Zuweisungen eines Org-Secrets — leer heißt: alle Agenten.
+// Secret-Vorschau: per Default eine einsehbare Variable — value trägt den
+// vollen Klartext. Bei sensitive=true bleibt der Wert write-only, prefix
+// zeigt nur die ersten Zeichen. agent_ids sind die expliziten Zuweisungen
+// eines Org-Secrets — leer heißt: erreicht keinen Agenten.
 export type SecretPreview = {
   key: string;
   prefix: string;
-  revealed: boolean;
+  sensitive: boolean;
   value?: string;
   agent_ids: string[];
 };

@@ -555,6 +555,35 @@ func (s *Server) handleRename(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// handleUpdateAgentProfile schreibt die Mitarbeiter-Stammdaten eines Agenten —
+// dieselben Profilfelder wie bei den Menschen (profilePatch), Werte erscheinen
+// im Org-Chart und in der covey/org_chart-Abfrage der Agenten.
+func (s *Server) handleUpdateAgentProfile(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	p := principalFrom(r)
+	var in profilePatch
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		return
+	}
+	a, err := s.Registry.UpdateProfile(r.Context(), p.OrgID, id, agents.ProfileUpdate{
+		JobTitle:         trimPtr(in.JobTitle),
+		Identities:       in.Identities,
+		Phone:            trimPtr(in.Phone),
+		Responsibilities: trimPtr(in.Responsibilities),
+		Custom:           in.Custom,
+	})
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, a)
+}
+
 // handleSetSlug ändert den Slug eines Agenten. Muss innerhalb der Org eindeutig sein.
 func (s *Server) handleSetSlug(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
@@ -974,7 +1003,8 @@ func (s *Server) handlePutSecret(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	key := r.PathValue("key")
 	var in struct {
-		Value string `json:"value"`
+		Value     string `json:"value"`
+		Sensitive bool   `json:"sensitive"`
 	}
 	if err := readJSON(r, &in); err != nil || key == "" || in.Value == "" {
 		writeErr(w, http.StatusBadRequest, "value fehlt")
@@ -983,6 +1013,12 @@ func (s *Server) handlePutSecret(w http.ResponseWriter, r *http.Request) {
 	if err := s.Secrets.Put(r.Context(), p.OrgID, key, in.Value); err != nil {
 		mapErr(w, err)
 		return
+	}
+	if in.Sensitive {
+		if err := s.Secrets.MarkSensitive(r.Context(), p.OrgID, key); err != nil {
+			mapErr(w, err)
+			return
+		}
 	}
 	// Bekannte Credentials sofort live prüfen — ein totes Token soll hier
 	// auffallen, nicht erst beim 401 in der Sandbox.
@@ -999,16 +1035,49 @@ func (s *Server) handleDeleteSecret(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// handlePatchSecret markiert ein Org-Secret als sensibel. Bewusst einweg:
+// sensitive=false wird abgelehnt — den Schutz aufheben hieße, den Wert doch
+// offenzulegen. Zurück nur durch Löschen und Neuanlegen.
 func (s *Server) handlePatchSecret(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	var in struct {
-		Revealed *bool `json:"revealed"`
+		Sensitive *bool `json:"sensitive"`
 	}
-	if err := readJSON(r, &in); err != nil || in.Revealed == nil {
-		writeErr(w, http.StatusBadRequest, "revealed fehlt")
+	if err := readJSON(r, &in); err != nil || in.Sensitive == nil {
+		writeErr(w, http.StatusBadRequest, "sensitive fehlt")
 		return
 	}
-	if err := s.Secrets.SetRevealed(r.Context(), p.OrgID, r.PathValue("key"), *in.Revealed); err != nil {
+	if !*in.Sensitive {
+		writeErr(w, http.StatusConflict, "einmal als sensibel markiert bleibt ein Secret geschützt — löschen und neu anlegen")
+		return
+	}
+	if err := s.Secrets.MarkSensitive(r.Context(), p.OrgID, r.PathValue("key")); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handlePatchAgentSecret — wie handlePatchSecret, für agent-eigene Secrets.
+func (s *Server) handlePatchAgentSecret(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	agentID, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	var in struct {
+		Sensitive *bool `json:"sensitive"`
+	}
+	if err := readJSON(r, &in); err != nil || in.Sensitive == nil {
+		writeErr(w, http.StatusBadRequest, "sensitive fehlt")
+		return
+	}
+	if !*in.Sensitive {
+		writeErr(w, http.StatusConflict, "einmal als sensibel markiert bleibt ein Secret geschützt — löschen und neu anlegen")
+		return
+	}
+	if err := s.Secrets.MarkAgentSensitive(r.Context(), p.OrgID, agentID, r.PathValue("key")); err != nil {
 		mapErr(w, err)
 		return
 	}
@@ -1072,7 +1141,8 @@ func (s *Server) handlePutAgentSecret(w http.ResponseWriter, r *http.Request) {
 	}
 	key := r.PathValue("key")
 	var in struct {
-		Value string `json:"value"`
+		Value     string `json:"value"`
+		Sensitive bool   `json:"sensitive"`
 	}
 	if err := readJSON(r, &in); err != nil || key == "" || in.Value == "" {
 		writeErr(w, http.StatusBadRequest, "value fehlt")
@@ -1081,6 +1151,12 @@ func (s *Server) handlePutAgentSecret(w http.ResponseWriter, r *http.Request) {
 	if err := s.Secrets.PutAgent(r.Context(), p.OrgID, agentID, key, in.Value); err != nil {
 		mapErr(w, err)
 		return
+	}
+	if in.Sensitive {
+		if err := s.Secrets.MarkAgentSensitive(r.Context(), p.OrgID, agentID, key); err != nil {
+			mapErr(w, err)
+			return
+		}
 	}
 	check := checkCredential(r.Context(), key, in.Value)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "check": check})

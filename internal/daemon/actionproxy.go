@@ -57,7 +57,7 @@ func (p *actionProxy) handle(w http.ResponseWriter, r *http.Request) {
 	// "covey" ist kein externes Zielsystem, sondern eine Meta-Aktion an die
 	// Control Plane selbst (keine Credentials, keine Guard-Rail-Prüfung).
 	if system == "covey" {
-		p.handleControlPlane(w, action, params)
+		p.handleControlPlane(r.Context(), w, action, params)
 		return
 	}
 
@@ -95,10 +95,19 @@ func (p *actionProxy) handle(w http.ResponseWriter, r *http.Request) {
 
 // handleControlPlane bedient Meta-Aktionen (system="covey"), die die Control
 // Plane statt eines Zielsystems betreffen: set_stage (Aufgabe auf dem Board in
-// eine ggf. neue Stage schieben), add_note (Notiz an die Aufgabe) und
-// remember (Erkenntnis sofort ins Gedächtnis).
-func (p *actionProxy) handleControlPlane(w http.ResponseWriter, action string, params json.RawMessage) {
+// eine ggf. neue Stage schieben), add_note (Notiz an die Aufgabe), remember
+// (Erkenntnis sofort ins Gedächtnis) und org_chart (Organigramm abfragen).
+func (p *actionProxy) handleControlPlane(ctx context.Context, w http.ResponseWriter, action string, params json.RawMessage) {
 	switch action {
+	case "org_chart":
+		chart, err := p.client.orgChart(ctx)
+		if err != nil {
+			writeJSON(w, map[string]string{"status": "error", "error": err.Error()})
+			return
+		}
+		audit, _ := json.Marshal(map[string]any{"action": "covey:org_chart"})
+		_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
+		writeJSON(w, map[string]any{"status": "ok", "data": chart})
 	case "add_note", "remember":
 		var in struct {
 			Content string `json:"content"`

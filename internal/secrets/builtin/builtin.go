@@ -183,16 +183,16 @@ func (s *Store) Keys(ctx context.Context, orgID uuid.UUID) ([]string, error) {
 	return out, rows.Err()
 }
 
-// Previews entschlüsselt jeden Wert, um sein begrenztes Präfix zu bilden.
-// Bei revealed=true wird der vollständige Klartext zurückgegeben.
+// Previews entschlüsselt jeden Wert: nicht-sensible Secrets sind Variablen
+// und liefern den vollständigen Klartext, sensible nur ihr begrenztes Präfix.
 func (s *Store) Previews(ctx context.Context, orgID uuid.UUID) ([]secrets.KeyPreview, error) {
-	rows, err := s.pool.Query(ctx, `SELECT s.key, s.nonce, s.ciphertext, s.revealed,
+	rows, err := s.pool.Query(ctx, `SELECT s.key, s.nonce, s.ciphertext, s.sensitive,
 			COALESCE(array_agg(a.agent_id::text ORDER BY a.created_at)
 				FILTER (WHERE a.agent_id IS NOT NULL), '{}')
 		FROM secrets s
 		LEFT JOIN secret_assignments a ON a.org_id=s.org_id AND a.key=s.key
 		WHERE s.org_id=$1 AND s.agent_id IS NULL
-		GROUP BY s.key, s.nonce, s.ciphertext, s.revealed ORDER BY s.key`, orgID)
+		GROUP BY s.key, s.nonce, s.ciphertext, s.sensitive ORDER BY s.key`, orgID)
 	if err != nil {
 		return nil, err
 	}
@@ -202,34 +202,41 @@ func (s *Store) Previews(ctx context.Context, orgID uuid.UUID) ([]secrets.KeyPre
 		var (
 			k         string
 			nonce, ct []byte
-			revealed  bool
+			sensitive bool
 			agentIDs  []string
 		)
-		if err := rows.Scan(&k, &nonce, &ct, &revealed, &agentIDs); err != nil {
+		if err := rows.Scan(&k, &nonce, &ct, &sensitive, &agentIDs); err != nil {
 			return nil, err
 		}
 		kp := secrets.KeyPreview{
-			Key:      k,
-			Revealed: revealed,
-			AgentIDs: agentIDs,
+			Key:       k,
+			Sensitive: sensitive,
+			AgentIDs:  agentIDs,
 		}
-		plain, err := s.open(k, aad(orgID, nil, k), nonce, ct)
-		if err == nil {
-			if revealed {
-				kp.Value = plain
-			} else {
-				kp.Prefix = secrets.Preview(plain)
-			}
-		}
+		kp.Value, kp.Prefix = s.expose(k, aad(orgID, nil, k), nonce, ct, sensitive)
 		out = append(out, kp)
 	}
 	return out, rows.Err()
 }
 
-func (s *Store) SetRevealed(ctx context.Context, orgID uuid.UUID, key string, revealed bool) error {
+// MarkSensitive ist bewusst einweg (siehe Port-Doku): nur false→true.
+func (s *Store) MarkSensitive(ctx context.Context, orgID uuid.UUID, key string) error {
 	tag, err := s.pool.Exec(ctx,
-		"UPDATE secrets SET revealed=$3 WHERE org_id=$1 AND key=$2 AND agent_id IS NULL",
-		orgID, key, revealed)
+		"UPDATE secrets SET sensitive=true WHERE org_id=$1 AND key=$2 AND agent_id IS NULL",
+		orgID, key)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return secrets.ErrNotFound
+	}
+	return nil
+}
+
+func (s *Store) MarkAgentSensitive(ctx context.Context, orgID, agentID uuid.UUID, key string) error {
+	tag, err := s.pool.Exec(ctx,
+		"UPDATE secrets SET sensitive=true WHERE org_id=$1 AND agent_id=$2 AND key=$3",
+		orgID, agentID, key)
 	if err != nil {
 		return err
 	}
@@ -241,7 +248,7 @@ func (s *Store) SetRevealed(ctx context.Context, orgID uuid.UUID, key string, re
 
 func (s *Store) AgentPreviews(ctx context.Context, orgID, agentID uuid.UUID) ([]secrets.KeyPreview, error) {
 	rows, err := s.pool.Query(ctx,
-		"SELECT key, nonce, ciphertext FROM secrets WHERE org_id=$1 AND agent_id=$2 ORDER BY key",
+		"SELECT key, nonce, ciphertext, sensitive FROM secrets WHERE org_id=$1 AND agent_id=$2 ORDER BY key",
 		orgID, agentID)
 	if err != nil {
 		return nil, err
@@ -252,25 +259,31 @@ func (s *Store) AgentPreviews(ctx context.Context, orgID, agentID uuid.UUID) ([]
 		var (
 			k         string
 			nonce, ct []byte
+			sensitive bool
 		)
-		if err := rows.Scan(&k, &nonce, &ct); err != nil {
+		if err := rows.Scan(&k, &nonce, &ct, &sensitive); err != nil {
 			return nil, err
 		}
-		out = append(out, secrets.KeyPreview{
-			Key: k, Prefix: s.preview(k, aad(orgID, &agentID, k), nonce, ct), AgentIDs: []string{},
-		})
+		kp := secrets.KeyPreview{Key: k, Sensitive: sensitive, AgentIDs: []string{}}
+		kp.Value, kp.Prefix = s.expose(k, aad(orgID, &agentID, k), nonce, ct, sensitive)
+		out = append(out, kp)
 	}
 	return out, rows.Err()
 }
 
-// preview entschlüsselt best-effort fürs Präfix: ein nicht entschlüsselbares
-// Secret (z. B. mit altem Master-Key) darf die Liste nicht kippen — dann
-// eben voll maskiert.
-func (s *Store) preview(key string, aad, nonce, ct []byte) string {
-	if plain, err := s.open(key, aad, nonce, ct); err == nil {
-		return secrets.Preview(plain)
+// expose entschlüsselt best-effort für die Anzeige: nicht-sensible Werte
+// vollständig, sensible nur als Präfix. Ein nicht entschlüsselbares Secret
+// (z. B. mit altem Master-Key) darf die Liste nicht kippen — dann eben
+// voll maskiert.
+func (s *Store) expose(key string, aad, nonce, ct []byte, sensitive bool) (value, prefix string) {
+	plain, err := s.open(key, aad, nonce, ct)
+	if err != nil {
+		return "", ""
 	}
-	return ""
+	if sensitive {
+		return "", secrets.Preview(plain)
+	}
+	return plain, ""
 }
 
 // Assign weist ein org-weites Secret einem Agenten explizit zu. Secret und

@@ -32,7 +32,9 @@ import {
 } from "../api";
 import { ActivityFeed } from "../components/ActivityFeed";
 import { PersonLink } from "../components/person";
+import ProfileForm from "../components/ProfileForm";
 import { AddHostForm, EgressLogTable, HostChips } from "../components/EgressBits";
+import { SecretValue } from "./Secrets";
 import { generateAgentName } from "../names";
 
 const canManage = (role: string) => role === "platform_admin" || role === "agent_owner";
@@ -228,6 +230,17 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
   };
 
   return (
+    <>
+    <div className="card mb-4" style={{ maxWidth: 760 }}>
+      <div className="text-sm font-medium mb-1">{t("agent.settings.profile")}</div>
+      <p className="muted text-xs mt-0 mb-3">{t("agent.settings.profileHint")}</p>
+      <ProfileForm
+        human={agent}
+        endpoint={`/agents/${agent.id}/profile`}
+        readOnly={!editable}
+        onSaved={invalidate}
+      />
+    </div>
     <div className="card" style={{ maxWidth: 760, padding: "6px 18px 14px" }}>
       <div style={row}>
         <span className="text-sm">{t("agent.settings.name")}</span>
@@ -383,6 +396,7 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
         </div>
       )}
     </div>
+    </>
   );
 }
 
@@ -1505,6 +1519,7 @@ function AgentSecrets({ agentId }: { agentId: string }) {
   const org = useQuery({ queryKey: ["secrets"], queryFn: () => api<SecretPreview[]>("/secrets"), retry: false });
   const [key, setKey] = useState("");
   const [value, setValue] = useState("");
+  const [sensitive, setSensitive] = useState(false);
   const [check, setCheck] = useState<({ key: string } & SecretCheck) | null>(null);
   const inval = () => qc.invalidateQueries({ queryKey: ["agent-secrets", agentId] });
 
@@ -1512,17 +1527,23 @@ function AgentSecrets({ agentId }: { agentId: string }) {
     mutationFn: () =>
       put<{ ok: boolean; check: SecretCheck }>(
         `/agents/${agentId}/secrets/${encodeURIComponent(key)}`,
-        { value },
+        { value, sensitive },
       ),
     onSuccess: (res) => {
       setCheck({ key, ...res.check });
       setKey("");
       setValue("");
+      setSensitive(false);
       inval();
     },
   });
   const remove = useMutation({
     mutationFn: (k: string) => del(`/agents/${agentId}/secrets/${encodeURIComponent(k)}`),
+    onSuccess: inval,
+  });
+  const protect = useMutation({
+    mutationFn: (k: string) =>
+      patch(`/agents/${agentId}/secrets/${encodeURIComponent(k)}`, { sensitive: true }),
     onSuccess: inval,
   });
   const invalOrg = () => qc.invalidateQueries({ queryKey: ["secrets"] });
@@ -1577,10 +1598,7 @@ function AgentSecrets({ agentId }: { agentId: string }) {
               {ownKeys.has(s.key) && (
                 <span className="muted text-xs">{t("agent.secrets.shadowed")}</span>
               )}
-              <span className="mono muted text-xs">
-                {s.prefix ? <span style={{ color: "var(--text-secondary)" }}>{s.prefix}</span> : null}
-                ••••••••
-              </span>
+              <SecretValue secret={s} />
               <button className="btn sm" disabled={unassign.isPending} onClick={() => unassign.mutate(s.key)}>
                 {t("agent.secrets.removeAssignment")}
               </button>
@@ -1609,8 +1627,12 @@ function AgentSecrets({ agentId }: { agentId: string }) {
         </div>
         <div className="flex-1 min-w-52">
           <label>{t("agent.secrets.value")}</label>
-          <input type="password" value={value} onChange={(e) => setValue(e.target.value)} required />
+          <input type={sensitive ? "password" : "text"} value={value} onChange={(e) => setValue(e.target.value)} required />
         </div>
+        <label className="flex items-center gap-2 text-xs" style={{ marginBottom: 7 }}>
+          <input type="checkbox" checked={sensitive} onChange={(e) => setSensitive(e.target.checked)} />
+          {t("agent.secrets.markSensitive")}
+        </label>
         <button className="btn primary" disabled={save.isPending}>
           {t("agent.secrets.save")}
         </button>
@@ -1630,10 +1652,23 @@ function AgentSecrets({ agentId }: { agentId: string }) {
         <div key={s.key} className="card mb-2 flex items-center gap-4" style={{ padding: "11px 15px" }}>
           <span className="mono text-sm flex-1">{s.key}</span>
           <span className="badge st-triage">{t("agent.secrets.agentOwn")}</span>
-          <span className="mono muted text-xs">
-            {s.prefix ? <span style={{ color: "var(--text-secondary)" }}>{s.prefix}</span> : null}
-            ••••••••
-          </span>
+          {s.sensitive && (
+            <span className="badge st-blocked" title={t("secrets.sensitiveHint")}>
+              {t("secrets.sensitive")}
+            </span>
+          )}
+          <SecretValue secret={s} />
+          {!s.sensitive && (
+            <button
+              className="btn sm"
+              disabled={protect.isPending}
+              onClick={() => {
+                if (confirm(t("secrets.protectConfirm", { key: s.key }))) protect.mutate(s.key);
+              }}
+            >
+              {t("secrets.protect")}
+            </button>
+          )}
           <button className="btn sm" onClick={() => remove.mutate(s.key)}>
             {t("agent.secrets.delete")}
           </button>

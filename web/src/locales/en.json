@@ -299,7 +299,7 @@
       "deactivated": "deactivated"
     },
     "secrets": {
-      "desc": "Assign org secrets to this agent and create agent-specific secrets.",
+      "desc": "Assign org secrets to this agent and create agent-specific secrets. Plain variables remain readable; values marked as sensitive are write-only.",
       "assignOrg": "Assign org secret",
       "noMoreOrg": "— no more org secrets —",
       "selectSecret": "— select secret —",
@@ -310,6 +310,7 @@
       "ownSecrets": "Agent-specific secrets",
       "key": "Key",
       "value": "Value",
+      "markSensitive": "sensitive — value no longer readable",
       "save": "Save",
       "savedValid": "{{key}} saved — credential verified live, valid. ✓",
       "savedInvalid": "{{key}} saved, but the credential is invalid: {{hint}}",
@@ -319,6 +320,8 @@
       "delete": "Delete"
     },
     "settings": {
+      "profile": "Profile",
+      "profileHint": "The same profile fields as for people — visible in the org chart and to other agents via the org chart query.",
       "name": "Name",
       "nameHint": "Display name — the slug cannot be changed.",
       "slug": "Slug",
@@ -504,9 +507,9 @@
   },
   "secrets": {
     "title": "Secrets",
-    "subtitle": "AES-GCM-encrypted in Postgres, write-only",
+    "subtitle": "AES-GCM-encrypted in Postgres",
     "noAccess": "Your role ({{role}}) does not have access to the secret store.",
-    "desc": "The broker passes secrets to sandboxes briefly at runtime — the full value is never readable again via the API; only the first characters serve as a recognition hint.",
+    "desc": "Secrets start out as plain variables (server names, URLs) and remain readable. Mark tokens and passwords as sensitive — then the value is write-only and never readable again via the API; only the first characters serve as a recognition hint.",
     "key": "Key",
     "value": "Value",
     "save": "Save",
@@ -516,8 +519,11 @@
     "savedOk": "{{key}} saved.",
     "assignedTo": "assigned to:",
     "nobody": "nobody — does not reach any agent",
-    "reveal": "Reveal",
-    "hide": "Hide",
+    "markSensitive": "sensitive — value no longer readable",
+    "sensitive": "sensitive",
+    "sensitiveHint": "Specially protected: the value is write-only and can never be viewed again.",
+    "protect": "Protect",
+    "protectConfirm": "Mark \"{{key}}\" as sensitive? The value can never be viewed again — to undo, delete and re-create it.",
     "delete": "Delete"
   },
   "targets": {

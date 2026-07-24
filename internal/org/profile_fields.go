@@ -88,7 +88,8 @@ func (s *Store) RenameProfileField(ctx context.Context, orgID, id uuid.UUID, lab
 }
 
 // DeleteProfileField entfernt die Definition und räumt die zugehörigen Werte
-// aus allen Profilen der Organisation — keine verwaisten Einträge.
+// aus allen Profilen der Organisation (Menschen wie Agenten) — keine
+// verwaisten Einträge.
 func (s *Store) DeleteProfileField(ctx context.Context, orgID, id uuid.UUID) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -105,6 +106,9 @@ func (s *Store) DeleteProfileField(ctx context.Context, orgID, id uuid.UUID) err
 		return err
 	}
 	if _, err := tx.Exec(ctx, `UPDATE humans SET custom = custom - $1 WHERE org_id=$2`, key, orgID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE agents SET custom = custom - $1 WHERE org_id=$2`, key, orgID); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

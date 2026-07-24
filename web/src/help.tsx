@@ -221,8 +221,10 @@ const deTopics: HelpTopic[] = [
     body: (
       <>
         <p>
-          Secrets liegen AES-GCM-verschlüsselt in der Datenbank und sind write-only: über die API
-          sind Werte nie wieder lesbar. Der Broker reicht sie zur Laufzeit kurzlebig an Sandboxen
+          Secrets liegen AES-GCM-verschlüsselt in der Datenbank. Per Default sind sie einfache
+          Variablen (Servernamen, URLs) und bleiben einsehbar; als <b>sensibel</b> markierte Werte
+          (Tokens, Passwörter) sind write-only — über die API nie wieder lesbar, und die Markierung
+          lässt sich nicht aufheben. Der Broker reicht sie zur Laufzeit kurzlebig an Sandboxen
           durch — nie dauerhaft.
         </p>
         <p>Konventionen:</p>
@@ -508,9 +510,11 @@ const enTopics: HelpTopic[] = [
     body: (
       <>
         <p>
-          Secrets are AES-GCM encrypted in the database and are write-only: values are never
-          readable again via the API. The broker passes them to sandboxes at runtime for short
-          lifetimes only — never permanently.
+          Secrets are AES-GCM encrypted in the database. By default they are plain variables
+          (server names, URLs) and remain readable; values marked as <b>sensitive</b> (tokens,
+          passwords) are write-only — never readable again via the API, and the mark cannot be
+          removed. The broker passes them to sandboxes at runtime for short lifetimes only —
+          never permanently.
         </p>
         <p>Conventions:</p>
         <ul>
