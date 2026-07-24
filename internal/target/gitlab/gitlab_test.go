@@ -1111,6 +1111,46 @@ func TestReviewerHandoff(t *testing.T) {
 	}
 }
 
+// TestHasWorkKindIssuesAssigned prüft, dass nur-wenn: gitlab:issues:assigned nur
+// die dem Bot ZUGEWIESENEN offenen Issues zählt (scope=assigned_to_me) — sonst
+// weckt jedes fremde offene Issue im Scope einen Agenten, der laut Playbook nur
+// zugewiesene Issues bearbeitet.
+func TestHasWorkKindIssuesAssigned(t *testing.T) {
+	var issues []Issue
+	var sawScope string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v4/issues" {
+			t.Errorf("unerwarteter request: %s", r.URL.Path)
+			return
+		}
+		sawScope = r.URL.Query().Get("scope")
+		json.NewEncoder(w).Encode(issues)
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "t"}
+	ctx := context.Background()
+
+	mine := Issue{IID: 23, ProjectID: 15}
+	mine.References.Full = "gruppe/support#23"
+
+	// Kein zugewiesenes Issue → keine Arbeit; der Check muss assigned_to_me sein.
+	issues = nil
+	if has, err := sys.HasWorkKind(ctx, cred, "issues:assigned"); err != nil || has {
+		t.Fatalf("ohne Zuweisung: has=%v err=%v", has, err)
+	}
+	if sawScope != "assigned_to_me" {
+		t.Fatalf("assigned-Subscope muss scope=assigned_to_me abfragen, war %q", sawScope)
+	}
+
+	// Ein zugewiesenes offenes Issue → Arbeit.
+	issues = []Issue{mine}
+	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || !has {
+		t.Fatalf("mit Zuweisung: has=%v err=%v", has, err)
+	}
+}
+
 // TestHasWorkKindReview prüft den Reviewer-seitigen Vorabcheck (nur-wenn:
 // gitlab:review): ein an mich zum Review übergebener MR ist Arbeit, solange nicht
 // ICH als Letzter kommentiert habe — inklusive des frischen MR ganz ohne Notiz.

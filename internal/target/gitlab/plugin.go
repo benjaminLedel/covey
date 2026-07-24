@@ -46,11 +46,16 @@ func init() {
      neues Review-Feedback (list_mr_notes), arbeite es ein und reagiere auf
      Merge/Close.
    (Der Unterscope nach dem Doppelpunkt spart den teuren Agenten-Lauf gezielt:
-    nur-wenn: gitlab:issues feuert nur bei offenem Issue im Intake-Scope,
+    nur-wenn: gitlab:issues feuert bei IRGENDEINEM offenen Issue im Intake-Scope
+    (für Agenten, die alle offenen Issues triagieren),
     nur-wenn: gitlab:mr nur, wenn einer deiner offenen MRs unbeantwortetes
     Review-Feedback hat. So laufen beide Tasks getrennt, ohne dass der eine
     für die Arbeit des anderen mit-feuert. nur-wenn: gitlab ohne Unterscope
     prüft beides gemeinsam — nur nötig, wenn du beide Jobs in EINEM Task willst.)
+    WICHTIG — bearbeitet dein Playbook nur DIR ZUGEWIESENE Issues (list_issues
+    assigned=true), nutze nur-wenn: gitlab:issues:assigned. Dann weckt dich nur
+    ein dir zugewiesenes offenes Issue — sonst würde jedes fremde offene Issue
+    im Scope deinen Agenten in jedem Intervall unnötig starten.
    Optionaler Projekt-Filter (gilt für list_issues/list_projects):
    COVEY_GITLAB_INTAKE_PROJECTS="gruppe/support"   (leer = alle)
 
@@ -99,7 +104,7 @@ func mrProjectPath(m MergeRequest) string {
 // beantwortet sind — gespart wird die Leerlauf-Phase ganz ohne offene Arbeit.
 func (System) HasWork(ctx context.Context, cred target.Credential) (bool, error) {
 	gc := NewClient(cred.BaseURL, cred.Token)
-	has, err := issueWorkPending(ctx, gc)
+	has, err := issueWorkPending(ctx, gc, false)
 	if err != nil || has {
 		return has, err
 	}
@@ -109,7 +114,12 @@ func (System) HasWork(ctx context.Context, cred target.Credential) (bool, error)
 // HasWorkKind (target.KindWorkChecker) gatet eine einzelne Arbeits-Art, damit
 // mehrere Heartbeats (nur-wenn: gitlab:issues, :mr, :review) getrennt feuern:
 //
-//   - "issues"/"issue"  → gibt es ein offenes Issue im Intake-Scope?
+//   - "issues"/"issue"  → gibt es IRGENDEIN offenes Issue im Intake-Scope (für
+//     Agenten, die alle offenen Issues triagieren)?
+//   - "issues:assigned"/"assigned" → gibt es ein offenes Issue, das dem Bot-
+//     Nutzer selbst ZUGEWIESEN ist (scope=assigned_to_me)? Genau das braucht ein
+//     Agent, dessen Playbook nur seine eigenen Issues bearbeitet (list_issues
+//     assigned=true) — sonst weckt ihn jedes fremde offene Issue im Scope.
 //   - "mr"/"mrs"        → wartet einer der SELBST eröffneten MRs des Bots auf
 //     Antwort (Autoren-Sicht, der Entwickler-Review-Loop)?
 //   - "review"/"reviews" → wartet einer der MRs, in denen der Bot als REVIEWER
@@ -119,7 +129,9 @@ func (System) HasWorkKind(ctx context.Context, cred target.Credential, kind stri
 	gc := NewClient(cred.BaseURL, cred.Token)
 	switch kind {
 	case "issues", "issue":
-		return issueWorkPending(ctx, gc)
+		return issueWorkPending(ctx, gc, false)
+	case "issues:assigned", "issue:assigned", "assigned":
+		return issueWorkPending(ctx, gc, true)
 	case "mr", "mrs":
 		return mrReviewPending(ctx, gc)
 	case "review", "reviews":
@@ -131,9 +143,12 @@ func (System) HasWorkKind(ctx context.Context, cred target.Credential, kind stri
 
 // issueWorkPending: gibt es mindestens ein offenes Issue im Intake-Scope?
 // Globales GET /issues, danach COVEY_GITLAB_INTAKE_PROJECTS-Filter — was der
-// Agent per list_issues nicht sähe, weckt ihn auch nicht.
-func issueWorkPending(ctx context.Context, gc *Client) (bool, error) {
-	issues, err := gc.ListIssues(ctx, 0, "opened", "", "", false)
+// Agent per list_issues nicht sähe, weckt ihn auch nicht. assignedOnly=true
+// zählt nur die dem Bot-Nutzer zugewiesenen Issues (scope=assigned_to_me) —
+// passend zu einem Playbook, das ausschließlich zugewiesene Issues bearbeitet;
+// sonst würde jedes fremde offene Issue im Scope den Agenten wecken.
+func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) (bool, error) {
+	issues, err := gc.ListIssues(ctx, 0, "opened", "", "", assignedOnly)
 	if err != nil {
 		return false, err
 	}
