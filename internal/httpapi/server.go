@@ -216,6 +216,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/secrets/{key}/agents/{agentID}", s.rbac(securityRoles, s.handleUnassignSecret))
 	mux.Handle("GET /api/v1/agents/{id}/secrets", s.rbac(securityRoles, s.handleListAgentSecrets))
 	mux.Handle("PUT /api/v1/agents/{id}/secrets/{key}", s.rbac(securityRoles, s.handlePutAgentSecret))
+	mux.Handle("PATCH /api/v1/agents/{id}/secrets/{key}", s.rbac(securityRoles, s.handlePatchAgentSecret))
 	mux.Handle("DELETE /api/v1/agents/{id}/secrets/{key}", s.rbac(securityRoles, s.handleDeleteAgentSecret))
 	mux.Handle("POST /api/v1/fleet/kill", s.rbac(securityRoles, s.handleFleetKill))
 	mux.Handle("POST /api/v1/fleet/resume", s.rbac(securityRoles, s.handleFleetResume))

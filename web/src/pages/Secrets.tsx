@@ -16,15 +16,17 @@ export default function Secrets({ me }: { me: Principal }) {
   const agents = useQuery({ queryKey: ["agents"], queryFn: () => api<Agent[]>("/agents") });
   const [key, setKey] = useState("");
   const [value, setValue] = useState("");
+  const [sensitive, setSensitive] = useState(false);
   const [check, setCheck] = useState<({ key: string } & SecretCheck) | null>(null);
 
   const save = useMutation({
     mutationFn: () =>
-      put<{ ok: boolean; check: SecretCheck }>(`/secrets/${encodeURIComponent(key)}`, { value }),
+      put<{ ok: boolean; check: SecretCheck }>(`/secrets/${encodeURIComponent(key)}`, { value, sensitive }),
     onSuccess: (res) => {
       setCheck({ key, ...res.check });
       setKey("");
       setValue("");
+      setSensitive(false);
       qc.invalidateQueries({ queryKey: ["secrets"] });
     },
   });
@@ -62,8 +64,12 @@ export default function Secrets({ me }: { me: Principal }) {
           </div>
           <div className="flex-1 min-w-52">
             <label>{t("secrets.value")}</label>
-            <input type="password" value={value} onChange={(e) => setValue(e.target.value)} required />
+            <input type={sensitive ? "password" : "text"} value={value} onChange={(e) => setValue(e.target.value)} required />
           </div>
+          <label className="flex items-center gap-2 text-xs" style={{ marginBottom: 7 }}>
+            <input type="checkbox" checked={sensitive} onChange={(e) => setSensitive(e.target.checked)} />
+            {t("secrets.markSensitive")}
+          </label>
           <button className="btn primary" disabled={save.isPending}>
             {t("secrets.save")}
           </button>
@@ -91,9 +97,9 @@ export default function Secrets({ me }: { me: Principal }) {
 function SecretCard({ secret, agents, canEdit }: { secret: SecretPreview; agents: Agent[]; canEdit: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const toggle = useMutation({
-    mutationFn: (revealed: boolean) =>
-      patch<{ ok: boolean }>(`/secrets/${encodeURIComponent(secret.key)}`, { revealed }),
+  const protect = useMutation({
+    mutationFn: () =>
+      patch<{ ok: boolean }>(`/secrets/${encodeURIComponent(secret.key)}`, { sensitive: true }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["secrets"] }),
   });
   const remove = useMutation({
@@ -105,21 +111,25 @@ function SecretCard({ secret, agents, canEdit }: { secret: SecretPreview; agents
     <div className="card mb-2" style={{ padding: "11px 15px" }}>
       <div className="flex items-center gap-4">
         <span className="mono text-sm flex-1">{secret.key}</span>
-        <span className="mono text-xs" style={{ color: secret.revealed ? "var(--text-primary)" : "var(--text-secondary)" }}>
-          {secret.revealed && secret.value
-            ? secret.value
-            : <>{secret.prefix ? <span style={{ color: "var(--text-secondary)" }}>{secret.prefix}</span> : null}••••••••</>}
-        </span>
+        {secret.sensitive && (
+          <span className="badge st-blocked" title={t("secrets.sensitiveHint")}>
+            {t("secrets.sensitive")}
+          </span>
+        )}
+        <SecretValue secret={secret} />
         {canEdit && (
           <>
-            <button
-              className="btn sm"
-              disabled={toggle.isPending}
-              onClick={() => toggle.mutate(!secret.revealed)}
-              style={{ color: secret.revealed ? "var(--primary, #2563eb)" : undefined }}
-            >
-              {secret.revealed ? t("secrets.hide") : t("secrets.reveal")}
-            </button>
+            {!secret.sensitive && (
+              <button
+                className="btn sm"
+                disabled={protect.isPending}
+                onClick={() => {
+                  if (confirm(t("secrets.protectConfirm", { key: secret.key }))) protect.mutate();
+                }}
+              >
+                {t("secrets.protect")}
+              </button>
+            )}
             <button className="btn sm" onClick={() => remove.mutate()}>
               {t("secrets.delete")}
             </button>
@@ -128,6 +138,19 @@ function SecretCard({ secret, agents, canEdit }: { secret: SecretPreview; agents
       </div>
       <Assignments secret={secret} agents={agents} />
     </div>
+  );
+}
+
+// SecretValue zeigt Variablen im Klartext, sensible Secrets nur als
+// Präfix + Maske.
+export function SecretValue({ secret }: { secret: SecretPreview }) {
+  if (!secret.sensitive && secret.value !== undefined) {
+    return <span className="mono text-xs">{secret.value}</span>;
+  }
+  return (
+    <span className="mono text-xs" style={{ color: "var(--text-secondary)" }}>
+      {secret.prefix || null}••••••••
+    </span>
   );
 }
 

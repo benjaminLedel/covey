@@ -299,7 +299,7 @@
       "deactivated": "deaktiviert"
     },
     "secrets": {
-      "desc": "Hier weist du dem Agenten Secrets aus dem zentralen Vault zu und legst agent-eigene an.",
+      "desc": "Hier weist du dem Agenten Secrets aus dem zentralen Vault zu und legst agent-eigene an. Einfache Variablen bleiben einsehbar; als sensibel markierte Werte sind write-only.",
       "assignOrg": "Org-Secret zuweisen",
       "noMoreOrg": "— keine weiteren Org-Secrets —",
       "selectSecret": "— Secret auswählen —",
@@ -310,6 +310,7 @@
       "ownSecrets": "Agent-eigene Secrets",
       "key": "Key",
       "value": "Wert",
+      "markSensitive": "sensibel — Wert nicht mehr einsehbar",
       "save": "Speichern",
       "savedValid": "{{key}} gespeichert — Credential live geprüft, gültig. ✓",
       "savedInvalid": "{{key}} gespeichert, aber das Credential ist ungültig: {{hint}}",
@@ -506,9 +507,9 @@
   },
   "secrets": {
     "title": "Secrets",
-    "subtitle": "AES-GCM-verschlüsselt in Postgres, write-only",
+    "subtitle": "AES-GCM-verschlüsselt in Postgres",
     "noAccess": "Ihre Rolle ({{role}}) hat auf den Secret-Store keinen Zugriff.",
-    "desc": "Der Broker reicht Secrets zur Laufzeit kurzlebig an Sandboxen durch — der volle Wert ist über die API nie wieder lesbar, nur die ersten Zeichen dienen als Wiedererkennungshilfe.",
+    "desc": "Secrets sind zunächst einfache Variablen (Servernamen, URLs) und bleiben einsehbar. Tokens und Passwörter markierst du als sensibel — dann ist der Wert write-only und über die API nie wieder lesbar, nur die ersten Zeichen dienen als Wiedererkennungshilfe.",
     "key": "Key",
     "value": "Wert",
     "save": "Speichern",
@@ -518,8 +519,11 @@
     "savedOk": "{{key}} gespeichert.",
     "assignedTo": "zugewiesen an:",
     "nobody": "niemanden — erreicht keinen Agenten",
-    "reveal": "Einsehbar",
-    "hide": "Verbergen",
+    "markSensitive": "sensibel — Wert nicht mehr einsehbar",
+    "sensitive": "sensibel",
+    "sensitiveHint": "Besonders geschützt: der Wert ist write-only und nie wieder einsehbar.",
+    "protect": "Schützen",
+    "protectConfirm": "„{{key}}“ als sensibel markieren? Der Wert ist danach nie wieder einsehbar — rückgängig nur durch Löschen und Neuanlegen.",
     "delete": "Löschen"
   },
   "targets": {
