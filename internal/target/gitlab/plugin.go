@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 
 	"covey/internal/target"
@@ -19,7 +18,7 @@ func init() {
 	target.Register(target.Descriptor{
 		Name:        "gitlab",
 		Label:       "GitLab",
-		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues), Quellcode auschecken, Projekt aufsetzen und Bugs am Code verifizieren (checkout + Sandbox-Shell), Fixes entwickeln — auf Feature-Branch committen (commit), Merge Request an den Vorgesetzten eröffnen (create_merge_request) und den Review-Loop leben: auf Review warten (blocked), Feedback einarbeiten (list_mr_notes/comment_mr), rote CI selbst diagnostizieren (list_pipelines/list_pipeline_jobs/get_job_log) und auf den Merge reagieren. Intake per HEARTBEAT.md (Polling) oder optionalem Webhook, Auth per API-Token (Secrets gitlab_token + gitlab_url).",
+		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues), Quellcode auschecken, Projekt aufsetzen und Bugs am Code verifizieren (checkout + Sandbox-Shell), Fixes entwickeln — auf Feature-Branch committen (commit), Merge Request an den Vorgesetzten eröffnen (create_merge_request) und den Review-Loop leben: bei jedem Heartbeat-Lauf offene MRs auf neues Review-Feedback prüfen (list_merge_requests/list_mr_notes/comment_mr), rote CI selbst diagnostizieren (list_pipelines/list_pipeline_jobs/get_job_log) und auf den Merge reagieren. Intake per HEARTBEAT.md (Polling), Auth per API-Token (Secrets gitlab_token + gitlab_url).",
 		Kind:        "builtin",
 		System:      System{},
 		SetupDoc: `1. In GitLab einen eigenen Bot-Nutzer anlegen (z. B. covey-bot), den
@@ -35,101 +34,27 @@ func init() {
 3. In der ACCESS.md des Agenten freischalten:
    - system: gitlab scope: read,write,comment
 
-4. Intake per Heartbeat (empfohlen, kein Webhook nötig) — in der
-   HEARTBEAT.md des Agenten:
+4. Intake per Heartbeat (GitLab hat keinen Webhook — der Agent nimmt Arbeit
+   ausschließlich per Polling auf) — in der HEARTBEAT.md des Agenten:
    - alle: 15m nur-wenn: gitlab titel: GitLab-Issues sichten aufgabe: Finde
      offene Issues (list_issues state=opened), bearbeite neue und prüfe per
      list_notes, ob auf deine Rückfragen geantwortet wurde. Bei Bugs: Code
-     per checkout holen und die Behauptung am Quelltext verifizieren.
+     per checkout holen und die Behauptung am Quelltext verifizieren. Prüfe
+     außerdem deine offenen Merge Requests (list_merge_requests state=opened):
+     bearbeite neues Review-Feedback (list_mr_notes) und schließe die
+     zugehörige Aufgabe ab, sobald ein MR gemergt ist.
    (nur-wenn: gitlab ist optional — die Control Plane weckt den Agenten
-    dann nur, wenn mindestens ein offenes Issue im Intake-Scope existiert.)
-   Optionaler Projekt-Filter (gilt für Webhook UND list_issues/list_projects):
+    dann nur, wenn mindestens ein offenes Issue im Intake-Scope existiert.
+    Prüfe offene MRs am besten in einem eigenen, MR-losen Heartbeat ohne
+    nur-wenn:, damit auch Review-Feedback ohne offenes Issue geweckt wird.)
+   Optionaler Projekt-Filter (gilt für list_issues/list_projects):
    COVEY_GITLAB_INTAKE_PROJECTS="gruppe/support"   (leer = alle)
-
-5. Optional statt/zusätzlich zu 4 — Webhook für sofortige Wakes und das
-   automatische Wecken geblockter Aufgaben. Im Zielprojekt (Settings →
-   Webhooks):
-   URL:          {public_url}/api/webhooks/gitlab/<agent-slug>
-   Secret token: Wert von COVEY_GITLAB_WEBHOOK_SECRET (Prozess-Env)
-   Trigger:      "Issues events", "Comments" und "Merge request events" ankreuzen
-                 (Letzteres trägt den Review-Loop: Review-Kommentare und der
-                 Merge/Close wecken den Agenten auf seinem MR)
-   Dazu Echo-Schutz setzen: COVEY_GITLAB_AGENT_USERNAMES="covey-bot"
 
 Details: docs/betrieb-gitlab.md im Repository.`,
 	})
 }
 
 func (System) Name() string { return "gitlab" }
-
-func (System) VerifyWebhook(secret string, body []byte, header http.Header) bool {
-	return VerifyToken(secret, header.Get("X-Gitlab-Token"))
-}
-
-func (System) ParseWebhook(body []byte) (target.WebhookEvent, error) {
-	p, err := ParseWebhook(body)
-	if err != nil {
-		return target.WebhookEvent{}, err
-	}
-	if p.IsMergeRequestEvent() {
-		return parseMRWebhook(p), nil
-	}
-	ev := target.WebhookEvent{
-		DedupKey:       p.DedupKey(),
-		CorrelationKey: CorrelationKey(p.Project.ID, p.IssueIID()),
-		Title: fmt.Sprintf("GitLab-Issue %s#%d: %s",
-			p.Project.PathWithNamespace, p.IssueIID(), p.IssueTitle()),
-		Wake: p.ShouldWake(),
-	}
-	if p.ObjectKind == "note" {
-		ev.TaskBody = fmt.Sprintf("Kommentar zu GitLab-Issue %s#%d (project_id=%d).\nTitel: %s\n\nKommentar von @%s:\n%s\n\nBearbeite das Issue über den Action-Proxy (system gitlab, project_id=%d, issue_iid=%d).\nGeht es um einen Bug oder eine technische Frage: hole dir zuerst mit checkout den Quellcode und prüfe die Aussage am Code, bevor du antwortest.",
-			p.Project.PathWithNamespace, p.IssueIID(), p.Project.ID, p.IssueTitle(),
-			p.User.Username, p.ObjectAttributes.Note, p.Project.ID, p.IssueIID())
-		ev.ResumeInput = fmt.Sprintf("Kommentar von @%s zu Issue %s#%d:\n%s",
-			p.User.Username, p.Project.PathWithNamespace, p.IssueIID(), p.ObjectAttributes.Note)
-	} else {
-		ev.TaskBody = fmt.Sprintf("Neues Issue im GitLab (project_id=%d, iid=%d).\nProjekt: %s\nTitel: %s\n\nBeschreibung:\n%s\n\nBearbeite das Issue über den Action-Proxy (system gitlab, project_id=%d, issue_iid=%d).\nGeht es um einen Bug oder eine technische Frage: hole dir zuerst mit checkout den Quellcode, bestätige oder widerlege die Behauptung am Code (Datei:Zeile) und antworte erst dann.",
-			p.Project.ID, p.IssueIID(), p.Project.PathWithNamespace, p.IssueTitle(),
-			p.ObjectAttributes.Description, p.Project.ID, p.IssueIID())
-		ev.ResumeInput = fmt.Sprintf("Issue %s#%d wurde %s: %s",
-			p.Project.PathWithNamespace, p.IssueIID(), p.ObjectAttributes.Action, p.IssueTitle())
-	}
-	return ev, nil
-}
-
-// parseMRWebhook baut das Wake-Event für Merge-Request-Ereignisse — das
-// Rückgrat des Review-Loops: Der Agent blockt nach create_merge_request auf
-// gitlab:mr:<project>:<iid>; ein Review-Kommentar setzt seine Session mit dem
-// Feedback fort, Merge/Close schließen den Kreis. Merge/Close sind
-// correlate-only: wartet keine geblockte Aufgabe, entsteht keine neue Arbeit.
-func parseMRWebhook(p WebhookPayload) target.WebhookEvent {
-	ev := target.WebhookEvent{
-		DedupKey:       p.DedupKey(),
-		CorrelationKey: MRCorrelationKey(p.Project.ID, p.MRIID()),
-		Title: fmt.Sprintf("GitLab-MR %s!%d: %s",
-			p.Project.PathWithNamespace, p.MRIID(), p.MRTitle()),
-		Wake: p.ShouldWake(),
-	}
-	if p.ObjectKind == "note" {
-		ev.TaskBody = fmt.Sprintf("Review-Kommentar zu Merge Request %s!%d (project_id=%d, source_branch=%s).\nTitel: %s\n\nKommentar von @%s:\n%s\n\nBearbeite das Review über den Action-Proxy (system gitlab): Lies mit list_mr_notes den ganzen Diskussionsstand. Ist es dein MR und verlangt das Feedback Änderungen: hole dir mit checkout (ref=%q) den Branch, arbeite das Feedback ein, führe die Tests aus und pushe mit commit auf denselben Branch; antworte danach mit comment_mr und blocke wieder auf gitlab:mr:%d:%d. Ist keine Änderung nötig, genügt eine Antwort per comment_mr.",
-			p.Project.PathWithNamespace, p.MRIID(), p.Project.ID, p.MRSourceBranch(), p.MRTitle(),
-			p.User.Username, p.ObjectAttributes.Note, p.MRSourceBranch(), p.Project.ID, p.MRIID())
-		ev.ResumeInput = fmt.Sprintf("Review-Kommentar von @%s zu deinem Merge Request %s!%d:\n%s",
-			p.User.Username, p.Project.PathWithNamespace, p.MRIID(), p.ObjectAttributes.Note)
-		return ev
-	}
-	// MR-Hook: nur Merge/Close wecken (IsWakeEvent) — und ausschließlich eine
-	// darauf geblockte Aufgabe; unkorreliert ist das Ereignis keine Arbeit.
-	ev.CorrelateOnly = true
-	verb := "gemergt"
-	if p.ObjectAttributes.Action == "close" {
-		verb = "geschlossen (ohne Merge)"
-	}
-	ev.ResumeInput = fmt.Sprintf("Dein Merge Request %s!%d (%s) wurde von @%s %s. Schließe deine Aufgabe ab: kommentiere im zugehörigen Issue kurz das Ergebnis; wurde der MR ohne Merge geschlossen, prüfe per list_mr_notes warum und eskaliere, wenn unklar.",
-		p.Project.PathWithNamespace, p.MRIID(), p.MRTitle(), p.User.Username, verb)
-	ev.TaskBody = ev.ResumeInput
-	return ev
-}
 
 // issueProjectPath leitet den Projektpfad aus der vollen Referenz
 // ("gruppe/support#23") ab — die Issue-API liefert path_with_namespace nicht
@@ -446,16 +371,20 @@ func (System) PromptDoc() string {
       prüfe mit get_merge_request bzw. list_pipelines, ob die Pipeline deines Branches grün wird.
    7. Im Issue kommentieren: Link zum MR, kurze Zusammenfassung. Das Issue NICHT selbst schließen —
       das passiert beim Merge bzw. durch deinen Vorgesetzten.
-   8. Auf das Review WARTEN statt die Aufgabe zu schließen: beende mit
-      COVEY_STATUS: {"status":"blocked","correlation_key":"gitlab:mr:<project_id>:<mr_iid>","question":"Warte auf Review von MR !<mr_iid>"}
-      Du wirst geweckt, wenn ein Review-Kommentar kommt oder der MR gemergt/geschlossen wird.
-   Review-Feedback einarbeiten — wenn du zu einem Kommentar auf deinem MR geweckt wirst:
-   list_mr_notes für den ganzen Diskussionsstand; verlangt das Feedback Änderungen, hole dir mit checkout
+   8. Aufgabe mit done beenden — NICHT blocken. GitLab hat keinen Webhook; auf Review wird per Polling
+      gewartet, nicht mit Status blocked. Dein nächster Heartbeat-Lauf prüft deine offenen MRs auf
+      Review-Feedback und den Merge-Zustand. (Ein blocked würde hier nie geweckt und blockierte deinen
+      Heartbeat dauerhaft.)
+   Review-Feedback einarbeiten — bei JEDEM Heartbeat-Lauf, nicht nur bei neuen Issues: hole mit
+   list_merge_requests {"state":"opened"} deine offenen MRs und prüfe jeden mit list_mr_notes auf neue
+   Review-Kommentare seit deiner letzten Antwort. Verlangt Feedback Änderungen, hole dir mit checkout
    (ref=source_branch) den Branch, arbeite JEDEN Punkt ein, führe die Tests erneut aus und pushe mit commit
    auf denselben Branch (ohne start_branch — der Branch existiert). Antworte mit comment_mr, was du geändert
-   hast, und blocke wieder auf gitlab:mr:<project_id>:<mr_iid>. Bist du anderer Meinung, begründe das im
-   comment_mr am Code statt blind zu ändern. Wird dein MR gemergt, kommentiere im Issue das Ergebnis und
-   schließe die Aufgabe mit done; wird er ohne Merge geschlossen, prüfe warum und eskaliere, wenn unklar.
+   hast. Bist du anderer Meinung, begründe das im comment_mr am Code statt blind zu ändern. Prüfe mit
+   list_merge_requests {"state":"merged"} bzw. get_merge_request, ob ein MR inzwischen gemergt wurde —
+   dann kommentiere im zugehörigen Issue das Ergebnis; wurde er ohne Merge geschlossen (state="closed"),
+   prüfe per list_mr_notes warum und eskaliere, wenn unklar. Prüfe vor jeder MR-Antwort mit list_mr_notes,
+   ob du auf den aktuellen Stand schon reagiert hast — so bearbeitest du bei wiederkehrenden Läufen nichts doppelt.
    Deinen Arbeitsvorrat findest du selbst: list_issues {"state":"opened"} liefert die offenen Issues.
    Arbeitsweise bei Bug-Reports und technischen Fragen: Antworte NIE nur aus Plausibilität oder Vorwissen.
    Prüfe IMMER ZUERST, ob der gemeldete Fehler inzwischen schon behoben ist: list_commits auf dem relevanten
@@ -474,6 +403,8 @@ func (System) PromptDoc() string {
    bei rein organisatorischen Issues zulässig.
    Prüfe vor dem Kommentieren mit list_notes, ob du (dein Bot-Nutzer) schon geantwortet hast und ob seitdem
    eine neue Antwort kam — so bearbeitest du bei wiederkehrenden Läufen nichts doppelt.
-   Korrelations-Keys für Status blocked: gitlab:issue:<project_id>:<issue_iid> (warten auf Antwort im Issue),
-   gitlab:mr:<project_id>:<mr_iid> (warten auf Review/Merge deines MR).`
+   WICHTIG — NIE mit Status blocked enden: GitLab nimmt Arbeit rein per Polling auf, es gibt keinen Webhook,
+   der eine geblockte Aufgabe wieder weckt. Warte weder auf eine Issue-Antwort noch auf ein MR-Review mit
+   blocked — beende jeden Lauf mit done und lass offene Issues/MRs von deinem nächsten Heartbeat-Lauf
+   erneut aufgreifen.`
 }

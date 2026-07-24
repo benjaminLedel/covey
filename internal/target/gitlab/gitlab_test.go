@@ -16,187 +16,23 @@ import (
 	"covey/internal/target"
 )
 
-func TestVerifyToken(t *testing.T) {
-	if !VerifyToken("webhook-geheim", "webhook-geheim") {
-		t.Fatal("korrektes Token muss akzeptiert werden")
-	}
-	if VerifyToken("webhook-geheim", "falsch") {
-		t.Fatal("falsches Token muss abgelehnt werden")
-	}
-	if VerifyToken("webhook-geheim", "") {
-		t.Fatal("fehlender Header muss abgelehnt werden")
-	}
-	if !VerifyToken("", "") {
-		t.Fatal("leeres Secret deaktiviert die Prüfung (Dev-Modus)")
-	}
-}
-
-func TestParseWebhookIssue(t *testing.T) {
-	body := []byte(`{"object_kind":"issue","user":{"username":"kunde"},
-		"project":{"id":15,"path_with_namespace":"gruppe/support"},
-		"object_attributes":{"iid":23,"title":"Login kaputt","state":"opened","action":"open","description":"Es geht nicht"}}`)
-	p, err := ParseWebhook(body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if p.Project.ID != 15 || p.IssueIID() != 23 || p.IssueTitle() != "Login kaputt" {
-		t.Fatalf("payload falsch geparst: %+v", p)
-	}
-	if !p.IsWakeEvent() {
-		t.Fatal("neu eröffnetes Issue muss wecken")
-	}
-	if CorrelationKey(p.Project.ID, p.IssueIID()) != "gitlab:issue:15:23" {
-		t.Fatalf("korrelations-key: %s", CorrelationKey(p.Project.ID, p.IssueIID()))
-	}
-}
-
-func TestParseWebhookNote(t *testing.T) {
-	body := []byte(`{"object_kind":"note","user":{"username":"kunde"},
-		"project":{"id":15,"path_with_namespace":"gruppe/support"},
-		"object_attributes":{"id":99,"note":"Geht immer noch nicht","noteable_type":"Issue"},
-		"issue":{"iid":23,"title":"Login kaputt"}}`)
-	p, err := ParseWebhook(body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if p.IssueIID() != 23 || p.ObjectAttributes.Note != "Geht immer noch nicht" {
-		t.Fatalf("note-payload falsch geparst: %+v", p)
-	}
-	if !p.IsWakeEvent() {
-		t.Fatal("fremder Issue-Kommentar muss wecken")
-	}
-	if p.DedupKey() != "gitlab:15:note:99" {
-		t.Fatalf("dedup-key: %s", p.DedupKey())
-	}
-}
-
-func TestParseWebhookRejectsMissingIssue(t *testing.T) {
-	if _, err := ParseWebhook([]byte(`{"object_kind":"issue","project":{"id":15}}`)); err == nil {
-		t.Fatal("payload ohne issue-iid muss abgelehnt werden")
-	}
-	if _, err := ParseWebhook([]byte(`{"object_kind":"issue","object_attributes":{"iid":1}}`)); err == nil {
-		t.Fatal("payload ohne project.id muss abgelehnt werden")
-	}
-}
-
-func TestNoWakeCases(t *testing.T) {
-	p := WebhookPayload{ObjectKind: "issue"}
-	p.ObjectAttributes.Action = "update"
-	if p.IsWakeEvent() {
-		t.Fatal("Issue-Update (Labels etc.) darf nicht wecken")
-	}
-
-	p = WebhookPayload{ObjectKind: "note"}
-	p.ObjectAttributes.NoteableType = "Snippet"
-	if p.IsWakeEvent() {
-		t.Fatal("Kommentare auf anderen Objekten (Snippets etc.) dürfen nicht wecken")
-	}
-
-	p = WebhookPayload{ObjectKind: "merge_request"}
-	for _, action := range []string{"open", "update", "approved"} {
-		p.ObjectAttributes.Action = action
-		if p.IsWakeEvent() {
-			t.Fatalf("MR-Hook mit action=%s darf nicht wecken", action)
-		}
-	}
-
-	t.Setenv("COVEY_GITLAB_AGENT_USERNAMES", "covey-bot")
-	for _, noteable := range []string{"Issue", "MergeRequest"} {
-		p = WebhookPayload{ObjectKind: "note"}
-		p.ObjectAttributes.NoteableType = noteable
-		p.User.Username = "Covey-Bot"
-		if p.IsWakeEvent() {
-			t.Fatalf("Agent-Kommentar auf %s darf keinen Wake auslösen (Echo-Schleife)", noteable)
-		}
-	}
-}
-
-func TestParseWebhookMRNote(t *testing.T) {
-	body := []byte(`{"object_kind":"note","user":{"username":"leaddev"},
-		"project":{"id":15,"path_with_namespace":"gruppe/support"},
-		"object_attributes":{"id":120,"note":"Bitte noch einen Test ergänzen","noteable_type":"MergeRequest"},
-		"merge_request":{"iid":9,"title":"Fix Login","source_branch":"fix/issue-23-login","state":"opened"}}`)
-	p, err := ParseWebhook(body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !p.IsMergeRequestEvent() || p.MRIID() != 9 || p.MRTitle() != "Fix Login" ||
-		p.MRSourceBranch() != "fix/issue-23-login" {
-		t.Fatalf("mr-note falsch geparst: %+v", p)
-	}
-	if !p.IsWakeEvent() {
-		t.Fatal("Review-Kommentar eines Menschen muss wecken")
-	}
-	if p.DedupKey() != "gitlab:15:note:120" {
-		t.Fatalf("dedup-key: %s", p.DedupKey())
-	}
-
-	ev, err := System{}.ParseWebhook(body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ev.CorrelationKey != "gitlab:mr:15:9" {
-		t.Fatalf("korrelations-key: %s", ev.CorrelationKey)
-	}
-	if ev.CorrelateOnly {
-		t.Fatal("Review-Kommentar muss auch ohne geblockte Aufgabe Arbeit anlegen dürfen")
-	}
-	if !ev.Wake || !strings.Contains(ev.ResumeInput, "Bitte noch einen Test ergänzen") ||
-		!strings.Contains(ev.TaskBody, "comment_mr") {
-		t.Fatalf("event unvollständig: %+v", ev)
-	}
-}
-
-func TestParseWebhookMergeRequest(t *testing.T) {
-	body := []byte(`{"object_kind":"merge_request","user":{"username":"leaddev"},
-		"project":{"id":15,"path_with_namespace":"gruppe/support"},
-		"object_attributes":{"iid":9,"title":"Fix Login","state":"merged","action":"merge",
-		"source_branch":"fix/issue-23-login","target_branch":"main","updated_at":"2026-07-19 10:00:00 UTC"}}`)
-	p, err := ParseWebhook(body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !p.IsWakeEvent() {
-		t.Fatal("Merge des MR muss die geblockte Aufgabe wecken")
-	}
-	if p.DedupKey() != "gitlab:15:mr:9:merge:2026-07-19 10:00:00 UTC" {
-		t.Fatalf("dedup-key: %s", p.DedupKey())
-	}
-
-	ev, err := System{}.ParseWebhook(body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if ev.CorrelationKey != "gitlab:mr:15:9" || !ev.CorrelateOnly {
-		t.Fatalf("merge muss correlate-only auf gitlab:mr:15:9 sein: %+v", ev)
-	}
-	if !strings.Contains(ev.ResumeInput, "gemergt") {
-		t.Fatalf("resume-input muss den Merge nennen: %s", ev.ResumeInput)
-	}
-
-	// MR-Hook ohne iid muss abgelehnt werden.
-	if _, err := ParseWebhook([]byte(`{"object_kind":"merge_request","project":{"id":15}}`)); err == nil {
-		t.Fatal("mr-payload ohne iid muss abgelehnt werden")
-	}
-}
-
-func TestIntakeScope(t *testing.T) {
-	p := WebhookPayload{}
-	p.Project.ID = 15
-	p.Project.PathWithNamespace = "Gruppe/Support"
-	if !p.InIntakeScope() {
+// TestProjectInScope prüft den Intake-Filter (COVEY_GITLAB_INTAKE_PROJECTS),
+// der ohne Webhook nur noch die Discovery-Aktionen (list_issues/list_projects)
+// und den nur-wenn:-Vorabcheck (HasWork) begrenzt.
+func TestProjectInScope(t *testing.T) {
+	if !projectInScope(15, "Gruppe/Support") {
 		t.Fatal("ohne Allowlist sind alle Projekte im Scope")
 	}
 	t.Setenv("COVEY_GITLAB_INTAKE_PROJECTS", "gruppe/support")
-	if !p.InIntakeScope() {
+	if !projectInScope(15, "Gruppe/Support") {
 		t.Fatal("Projektpfad-Vergleich muss case-insensitiv sein")
 	}
 	t.Setenv("COVEY_GITLAB_INTAKE_PROJECTS", "15")
-	if !p.InIntakeScope() {
+	if !projectInScope(15, "gruppe/support") {
 		t.Fatal("numerische Projekt-id muss matchen")
 	}
 	t.Setenv("COVEY_GITLAB_INTAKE_PROJECTS", "anderes/projekt")
-	if p.InIntakeScope() {
+	if projectInScope(15, "gruppe/support") {
 		t.Fatal("Projekt außerhalb der Allowlist darf nicht im Scope sein")
 	}
 }
