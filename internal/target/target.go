@@ -25,17 +25,12 @@ import (
 	"net/http"
 )
 
-// System ist ein angebundenes Zielsystem. Es bündelt die drei
-// Integrationsflächen (spec/13): Webhook-Eingang, Aktionen, Prompt-Doku.
+// System ist ein angebundenes Zielsystem. Es bündelt die
+// Integrationsflächen (spec/13): Aktionen und Prompt-Doku. Der
+// Webhook-Eingang ist optional (siehe Webhooker) — ein Zielsystem, das rein
+// per Polling/Heartbeat aufnimmt (z. B. GitLab), implementiert ihn nicht.
 type System interface {
 	Name() string
-
-	// VerifyWebhook prüft die Integrität eines rohen Webhook-Payloads
-	// (z. B. HMAC-Signatur). Leeres Secret = Prüfung deaktiviert (Dev).
-	VerifyWebhook(secret string, body []byte, header http.Header) bool
-
-	// ParseWebhook macht aus dem Payload das Wake-Event für den Orchestrator.
-	ParseWebhook(body []byte) (WebhookEvent, error)
 
 	// ActionSubject mappt Aktion+Params auf das Guard-Rail-Subjekt
 	// (z. B. reply mit internal=false → "zammad:reply_external").
@@ -49,6 +44,21 @@ type System interface {
 	// PromptDoc beschreibt die verfügbaren Aktionen für den System-Prompt
 	// des Agenten (wird in die Plattform-Protokoll-Sektion kompiliert).
 	PromptDoc() string
+}
+
+// Webhooker ist ein optionales Plugin-Interface für Zielsysteme mit
+// eingehendem Webhook (Zammad, Manifest-Plugins). Der Event-Router
+// (httpapi.handleTargetWebhook) prüft darauf; ein System ohne Webhooker
+// beantwortet Webhook-Posts fail-closed mit 404. Zielsysteme, die rein per
+// Polling aufnehmen, lassen dieses Interface weg — dann gibt es keinen
+// eingehenden Traffic, keine öffentliche URL und kein Webhook-Secret.
+type Webhooker interface {
+	// VerifyWebhook prüft die Integrität eines rohen Webhook-Payloads
+	// (z. B. HMAC-Signatur). Leeres Secret = Prüfung deaktiviert (Dev).
+	VerifyWebhook(secret string, body []byte, header http.Header) bool
+
+	// ParseWebhook macht aus dem Payload das Wake-Event für den Orchestrator.
+	ParseWebhook(body []byte) (WebhookEvent, error)
 }
 
 // Credential ist das gebrokerte Zugangs-Paar für ein Zielsystem.

@@ -9,6 +9,10 @@ import {
   patch,
   del,
   put,
+  assistStatus,
+  configAssist,
+  type AssistMessage,
+  type AssistProposal,
   type Agent,
   type AgentEgress as AgentEgressCfg,
   type AgentWebhook,
@@ -31,6 +35,7 @@ import {
   type TaskNote,
 } from "../api";
 import { ActivityFeed } from "../components/ActivityFeed";
+import { Markdown } from "../components/Markdown";
 import { PersonLink } from "../components/person";
 import ProfileForm from "../components/ProfileForm";
 import { AddHostForm, EgressLogTable, HostChips } from "../components/EgressBits";
@@ -1472,6 +1477,13 @@ function Config({
             : "",
         })}
       </p>
+      {canManage && (
+        <ConfigAssistant
+          agentId={agentId}
+          files={files}
+          onApply={(file, content) => setDraft({ ...files, [file]: content })}
+        />
+      )}
       {Object.entries(files)
         .sort(([x], [y]) => x.localeCompare(y))
         .map(([name, content]) => (
@@ -1492,6 +1504,121 @@ function Config({
             {t("agent.config.newVersion")}
           </button>
           {save.isError && <span className="danger-text text-xs">{(save.error as Error).message}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ConfigAssistant ist der KI-Assistent zum Anpassen von Agenten (FR-001).
+// Er erscheint nur, wenn org-weit ein Claude-Credential hinterlegt ist. Seine
+// Vorschläge werden in den Config-Draft übernommen (onApply) — wirksam werden
+// sie erst durch bewusstes Speichern einer neuen Version.
+type AssistTurn = { role: "user" | "assistant"; content: string; proposals?: AssistProposal[] };
+
+function ConfigAssistant({
+  agentId,
+  files,
+  onApply,
+}: {
+  agentId: string;
+  files: Record<string, string>;
+  onApply: (file: string, content: string) => void;
+}) {
+  const { t } = useTranslation();
+  const status = useQuery({ queryKey: ["assist-status"], queryFn: assistStatus, retry: false });
+  const [open, setOpen] = useState(false);
+  const [input, setInput] = useState("");
+  const [turns, setTurns] = useState<AssistTurn[]>([]);
+  const [applied, setApplied] = useState<Set<string>>(new Set());
+
+  const ask = useMutation({
+    mutationFn: (history: AssistTurn[]) => {
+      const msgs: AssistMessage[] = history.map((m) => ({ role: m.role, content: m.content }));
+      return configAssist(agentId, msgs, files);
+    },
+    onSuccess: (res) =>
+      setTurns((prev) => [...prev, { role: "assistant", content: res.reply, proposals: res.proposals }]),
+  });
+
+  if (!status.data?.available) return null; // Gating: kein Claude-Credential → keine UI.
+
+  const send = () => {
+    const text = input.trim();
+    if (!text || ask.isPending) return;
+    const next: AssistTurn[] = [...turns, { role: "user", content: text }];
+    setTurns(next);
+    setInput("");
+    ask.mutate(next);
+  };
+
+  return (
+    <div className="assist">
+      <div className="assist-head">
+        <button
+          className="assist-toggle"
+          aria-expanded={open}
+          onClick={() => setOpen((o) => !o)}
+        >
+          <span className="caret">▶</span>
+          {t("agent.config.assist.title")}
+        </button>
+        {open && turns.length > 0 && (
+          <button className="btn sm" onClick={() => { setTurns([]); setApplied(new Set()); }}>
+            {t("agent.config.assist.reset")}
+          </button>
+        )}
+      </div>
+      {open && (
+        <div className="assist-body">
+          <p className="muted text-xs mb-3" style={{ maxWidth: 620 }}>
+            {t("agent.config.assist.hint")}
+          </p>
+          {turns.length > 0 && (
+            <div className="assist-log mb-3">
+              {turns.map((m, i) => (
+                <div key={i} className={`assist-msg ${m.role === "user" ? "user" : "bot"}`}>
+                  {m.role === "user" ? m.content : <Markdown text={m.content} />}
+                  {m.proposals && m.proposals.length > 0 && (
+                    <div className="assist-proposals">
+                      {m.proposals.map((p) => {
+                        const key = `${i}:${p.file}`;
+                        const done = applied.has(key);
+                        return (
+                          <button
+                            key={p.file}
+                            className="btn sm primary"
+                            disabled={done}
+                            onClick={() => { onApply(p.file, p.content); setApplied((s) => new Set(s).add(key)); }}
+                          >
+                            {done
+                              ? `${p.file} · ${t("agent.config.assist.applied")}`
+                              : t("agent.config.assist.apply", { file: p.file })}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {ask.isPending && <div className="assist-status">{t("agent.config.assist.thinking")}</div>}
+              {ask.isError && (
+                <div className="assist-status danger-text">{(ask.error as Error).message}</div>
+              )}
+            </div>
+          )}
+          <div className="assist-input">
+            <textarea
+              rows={2}
+              placeholder={t("agent.config.assist.placeholder")}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); send(); } }}
+            />
+            <button className="btn primary sm" disabled={!input.trim() || ask.isPending} onClick={send}>
+              {t("agent.config.assist.send")}
+            </button>
+          </div>
         </div>
       )}
     </div>

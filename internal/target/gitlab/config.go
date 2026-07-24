@@ -22,19 +22,10 @@ func intakeProjects() map[string]bool {
 	return parseSet(os.Getenv("COVEY_GITLAB_INTAKE_PROJECTS"))
 }
 
-// agentUsernames liefert die GitLab-Nutzernamen der Covey-Agenten. Kommentare
-// dieser Nutzer wecken nicht — sonst würde die eigene Antwort des Agenten
-// einen neuen Wake-Zyklus auslösen (Echo-Schleife). Format:
-//
-//	COVEY_GITLAB_AGENT_USERNAMES="covey-bot, support-agent"
-func agentUsernames() map[string]bool {
-	return parseSet(os.Getenv("COVEY_GITLAB_AGENT_USERNAMES"))
-}
-
 // projectInScope prüft ein Projekt (numerische id + Pfad) gegen die Allowlist
 // aus COVEY_GITLAB_INTAKE_PROJECTS. Leere Allowlist → alles im Scope. Genutzt
-// vom Webhook-Intake und von den Discovery-Aktionen (list_projects,
-// list_issues) — der Filter greift damit unabhängig vom Aufnahme-Weg.
+// von den Discovery-Aktionen (list_projects, list_issues) und vom
+// nur-wenn:-Vorabcheck (HasWork) — GitLab nimmt Arbeit rein per Polling auf.
 func projectInScope(projectID int, path string) bool {
 	projects := intakeProjects()
 	if len(projects) == 0 {

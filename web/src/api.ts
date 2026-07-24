@@ -389,6 +389,16 @@ export const patch = <T>(path: string, body: unknown) =>
   api<T>(path, { method: "PATCH", body: JSON.stringify(body) });
 export const del = <T>(path: string) => api<T>(path, { method: "DELETE" });
 
+// KI-Assistent zum Anpassen von Agenten (Config-Copilot, FR-001).
+export type AssistMessage = { role: "user" | "assistant"; content: string };
+export type AssistProposal = { file: string; content: string };
+export type AssistReply = { reply: string; proposals: AssistProposal[] };
+
+export const assistStatus = () =>
+  api<{ available: boolean }>("/assist/status");
+export const configAssist = (agentId: string, messages: AssistMessage[], files: Record<string, string>) =>
+  post<AssistReply>(`/agents/${agentId}/config/assist`, { messages, files });
+
 export const roleLabel: Record<string, string> = {
   platform_admin: "Plattform-Admin",
   agent_owner: "Agent-Owner",

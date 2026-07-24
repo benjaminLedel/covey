@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"covey/internal/agents"
+	"covey/internal/target"
 	targetstore "covey/internal/target/store"
 )
 
@@ -37,17 +38,25 @@ func (s *Server) handleTargetWebhook(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
+	// Webhook ist eine optionale Zielsystem-Capability (target.Webhooker) —
+	// Systeme, die rein per Polling/Heartbeat aufnehmen (z. B. GitLab), haben
+	// keinen Webhook-Eingang; fail-closed mit 404.
+	hook, ok := sys.(target.Webhooker)
+	if !ok {
+		writeErr(w, http.StatusNotFound, "zielsystem "+systemName+" hat keinen webhook-eingang (aufnahme per polling/heartbeat)")
+		return
+	}
 
 	body, err := io.ReadAll(io.LimitReader(r.Body, 4<<20))
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "body nicht lesbar")
 		return
 	}
-	if !sys.VerifyWebhook(s.WebhookSecrets[systemName], body, r.Header) {
+	if !hook.VerifyWebhook(s.WebhookSecrets[systemName], body, r.Header) {
 		writeErr(w, http.StatusUnauthorized, "signatur ungültig")
 		return
 	}
-	ev, err := sys.ParseWebhook(body)
+	ev, err := hook.ParseWebhook(body)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return

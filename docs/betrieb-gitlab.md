@@ -7,20 +7,20 @@ Aufbau und Datenfluss folgen dem Zammad-Adapter
 
 > Kurzfassung: Token-Auth gegen die REST-API (`/api/v4`). Der Agent findet
 > seine Issues **selbst** (`list_issues`), getrieben von einem
-> `HEARTBEAT.md`-Eintrag — ein Webhook ist optional und nur für sofortige
-> Wakes nötig. Bug-Reports beantwortet er **code-basiert**: `checkout` holt
-> den Quelltext in die Sandbox, bestätigt wird nur mit Fundstelle
-> (Abschnitt 4). Es sind **Konfigurationsschritte**, kein Umbau.
+> `HEARTBEAT.md`-Eintrag — GitLab nimmt Arbeit **rein per Polling** auf, es
+> gibt keinen Webhook (bewusst: mit mehreren Agenten pro Projekt ist ein
+> Webhook-Setup aufwendig und fehleranfällig). Bug-Reports beantwortet er
+> **code-basiert**: `checkout` holt den Quelltext in die Sandbox, bestätigt
+> wird nur mit Fundstelle (Abschnitt 4). Es sind **Konfigurationsschritte**,
+> kein Umbau.
 
 ---
 
 ## 1. Überblick des Datenflusses
 
-Es gibt **zwei Intake-Wege**, kombinierbar:
-
-**A) Heartbeat (empfohlen, Standard):** Ein `HEARTBEAT.md`-Eintrag legt dem
-Agenten periodisch die Aufgabe „Issues sichten" ins Backlog. Der Agent findet
-seinen Arbeitsvorrat selbst über die Discovery-Aktionen:
+**Intake ausschließlich per Heartbeat (Polling).** Ein `HEARTBEAT.md`-Eintrag
+legt dem Agenten periodisch die Aufgabe „Issues sichten" ins Backlog. Der Agent
+findet seinen Arbeitsvorrat selbst über die Discovery-Aktionen:
 
 ```
 Covey  ──(Heartbeat-Tick)──►  Backlog-Task „GitLab-Issues sichten"
@@ -34,20 +34,18 @@ GitLab  ◄──(REST /api/v4)────────┘  list_issues → get_
 Kein eingehender Traffic, keine öffentliche URL, kein Webhook-Secret —
 funktioniert auch, wenn Covey hinter NAT/Firewall läuft.
 
-**B) Webhook (optional):** Issue-/Note-Hooks wecken sofort — und nur dieser
-Weg weckt eine `blocked`-Aufgabe automatisch über den Korrelations-Key:
+> **Kein Webhook für GitLab.** Anders als Zammad hat das GitLab-Plugin
+> **keinen** Webhook-Eingang (`/api/webhooks/gitlab/…` antwortet mit 404). Der
+> Grund: Ein Webhook müsste pro Zielprojekt eingerichtet werden und einen
+> einzelnen Agenten adressieren — mit mehreren Agenten auf denselben Projekten
+> wird das schnell mehrdeutig und schwer zu warten. GitLab wird deshalb
+> vollständig per Polling betrieben; der Review-Loop (Abschnitt 2.6) läuft
+> ebenfalls über den Heartbeat statt über `blocked`+Wake. (Der generische,
+> per-Agent-Trigger `/api/trigger/<token>` für Fremdsysteme bleibt davon
+> unberührt — er ist kein Zielsystem-Webhook.)
 
-```
-GitLab  ──(Issue-/Note-Hook, X-Gitlab-Token)──►  Covey  /api/webhooks/gitlab/<agent-slug>
-                                                   │  Token prüfen → Intake-Filter → Backlog-Task/Wake
-```
-
-Zwei Richtungen, zwei Auth-Wege:
-
-- **Outbound** (Covey → GitLab): REST mit einem gebrokerten API-Token
-  (Secret `gitlab_token`), das nie in der Sandbox persistiert wird.
-- **Inbound** (GitLab → Covey, nur Weg B): Webhook, verifiziert per
-  Secret-Token (`COVEY_GITLAB_WEBHOOK_SECRET` ↔ „Secret token" des Webhooks).
+Auth (nur outbound, Covey → GitLab): REST mit einem gebrokerten API-Token
+(Secret `gitlab_token`), das nie in der Sandbox persistiert wird.
 
 ---
 
@@ -56,8 +54,9 @@ Zwei Richtungen, zwei Auth-Wege:
 ### 2.1 In GitLab: Nutzer + Token anlegen
 
 1. Einen **eigenen Nutzer** für den Covey-Agenten anlegen (z. B. `covey-bot`) —
-   nicht das Token eines Menschen verwenden. Der Nutzername kommt später in
-   `COVEY_GITLAB_AGENT_USERNAMES` (Echo-Schutz, Abschnitt 3.2).
+   nicht das Token eines Menschen verwenden. Über diesen Nutzer laufen alle
+   Kommentare und Commits des Agenten; per `list_notes` erkennt er beim
+   nächsten Lauf seinen eigenen letzten Stand und bearbeitet nichts doppelt.
 2. Den Nutzer den Zielprojekten mit **Reporter**-Rolle hinzufügen (reicht für
    Kommentare inkl. interner Notizen; zum Schließen von Issues je nach
    Projekt-Setup Developer).
@@ -81,20 +80,39 @@ Das Zielsystem `gitlab` muss für die Org **aktiviert** sein (UI: Zielsysteme).
 Zusätzlich muss der Agent laut `ACCESS.md` auf `gitlab` zugreifen dürfen, und
 die Guard-Rails dürfen `gitlab` / `gitlab:comment_external` nicht verbieten.
 
-### 2.4 Intake per Heartbeat einrichten (empfohlen)
+### 2.4 Intake per Heartbeat einrichten
 
 In der `HEARTBEAT.md` des Agenten einen Sichtungs-Eintrag anlegen:
 
 ```
-- alle: 15m nur-wenn: gitlab titel: GitLab-Issues sichten aufgabe: Finde offene Issues (list_issues state=opened), bearbeite neue und prüfe per list_notes, ob auf deine Rückfragen geantwortet wurde. Bei Bugs: Code per checkout holen und die Behauptung am Quelltext verifizieren.
+- alle: 15m nur-wenn: gitlab titel: GitLab-Issues sichten aufgabe: Finde offene Issues (list_issues state=opened), bearbeite neue und prüfe per list_notes, ob auf deine Rückfragen geantwortet wurde. Bei Bugs: Code per checkout holen und die Behauptung am Quelltext verifizieren. Prüfe außerdem deine offenen Merge Requests (list_merge_requests state=opened) auf neues Review-Feedback (list_mr_notes) und schließe die Aufgabe ab, sobald ein MR gemergt ist.
 ```
 
-`nur-wenn: gitlab` ist optional: die Control Plane prüft dann vor jedem Lauf
-selbst per API, ob überhaupt ein offenes Issue im Intake-Scope existiert, und
-weckt den Agenten nur dann. Beachte die Semantik: anders als das Gelesen-Flag
-bei E-Mail bleibt ein offenes Issue „Arbeit", bis es geschlossen ist — die
-Bedingung spart also nur die Leerlauf-Phasen ganz ohne offene Issues, nicht
-die Läufe, in denen ein Issue auf eine Kundenantwort wartet.
+**Ein einziger Heartbeat deckt Issues UND den Review-Loop ab.** Weil der Agent
+nach `create_merge_request` **nicht blockt**, sondern mit `done` endet, muss ein
+Heartbeat seine offenen MRs erneut aufgreifen — die MR-Prüfung ist deshalb Teil
+der Sichtungs-Aufgabe (letzter Satz oben). Ein zweiter, MR-eigener Heartbeat ist
+**nicht** nötig.
+
+`nur-wenn: gitlab` verhindert, dass dieser Heartbeat den (teuren) Agenten-Lauf
+in jedem Intervall auslöst, auch wenn nichts zu tun ist: Die Control Plane prüft
+vorab per API und weckt nur, wenn **eines** zutrifft —
+
+- es gibt ein offenes Issue im Intake-Scope, **oder**
+- einer der vom Bot selbst eröffneten, offenen Merge Requests hat
+  **unbeantwortetes Review-Feedback** (der letzte Nicht-System-Kommentar im
+  Thread stammt nicht vom Bot).
+
+Der Merge-Abschluss braucht keinen eigenen Auslöser: Ist das zugehörige Issue
+noch offen, weckt es über den Issue-Zweig; wurde es beim Merge automatisch
+geschlossen, gibt es nichts mehr zu tun. Beachte die Semantik: anders als das
+Gelesen-Flag bei E-Mail bleiben offene Issues und offene MR-Threads „Arbeit",
+bis sie geschlossen bzw. beantwortet sind — die Bedingung spart die
+Leerlauf-Phasen ganz ohne offene Arbeit, nicht die Läufe, in denen ein Issue
+auf eine Kundenantwort oder ein MR auf deine Nacharbeit wartet.
+
+Der Vorab-Check ist billig (wenige REST-Aufrufe: offene Issues, die eigenen
+offenen MRs und deren Notes) — verglichen mit einem LLM-Turn vernachlässigbar.
 
 Der Agent entdeckt seinen Arbeitsvorrat dann selbst: `list_projects` liefert
 die Projekte, in denen der Bot-Nutzer Mitglied ist, `list_issues` die offenen
@@ -103,124 +121,85 @@ wiederkehrende Läufe nichts doppelt bearbeiten, prüft der Agent per
 `list_notes`, ob sein eigener Kommentar bereits der letzte Stand ist — die
 Prompt-Doku des Plugins weist ihn darauf hin.
 
-Optionaler Projekt-Filter (greift für **beide** Intake-Wege, auch für
-`list_issues`/`list_projects`):
+Optionaler Projekt-Filter (greift für `list_issues`/`list_projects` und den
+`nur-wenn:`-Vorabcheck):
 
 ```bash
 COVEY_GITLAB_INTAKE_PROJECTS="gruppe/support"   # leer = alle Projekte
 ```
 
-### 2.5 Optional: Webhook für sofortige Wakes
-
-Nur nötig, wenn Issues ohne Heartbeat-Wartezeit aufgenommen und geblockte
-Aufgaben **automatisch** geweckt werden sollen (Abschnitt 2.6, Punkt 3).
-
-Prozess-Env:
-
-```bash
-COVEY_PUBLIC_URL=https://covey.example.com        # von GitLab erreichbar, NICHT localhost
-COVEY_GITLAB_WEBHOOK_SECRET=<langes-zufalls-secret>
-COVEY_GITLAB_AGENT_USERNAMES="covey-bot"          # Echo-Schutz, Abschnitt 3.2
-```
-
-Pro Zielprojekt (*Settings → Webhooks*):
-
-- URL: `https://covey.example.com/api/webhooks/gitlab/<agent-slug>`
-  (`<agent-slug>` = der Slug des zuständigen Agenten; die URL ordnet das Issue
-  dem Agenten zu — analog Zammad, Abschnitt 3.3 dort).
-- Secret token: **derselbe Wert** wie `COVEY_GITLAB_WEBHOOK_SECRET`.
-- Trigger: **Issues events**, **Comments** (Note Hooks) und **Merge request
-  events** ankreuzen. Die MR-Ereignisse tragen den Review-Loop des
-  Entwickler-Workflows (Abschnitt 2.7); andere Ereignisse (Push, Pipeline, …)
-  verwirft der Adapter, schaden aber nicht.
-
-### 2.6 Testen
+### 2.5 Testen
 
 1. Im Zielprojekt ein Issue anlegen → beim nächsten Heartbeat-Lauf nimmt der
-   Agent es auf (bzw. sofort, wenn ein Webhook eingerichtet ist).
+   Agent es auf.
 2. Antwortet der Agent, muss sein Kommentar unter dem `covey-bot`-Nutzer
-   erscheinen — und darf bei Webhook-Betrieb **keinen neuen Wake** auslösen
-   (`COVEY_GITLAB_AGENT_USERNAMES` gesetzt?).
-3. Bei einer Rückfrage: **Mit Webhook** geht der Agent `blocked`, ein
-   Kommentar eines Menschen weckt ihn über den Korrelations-Key
-   `gitlab:issue:<project_id>:<iid>` und er wird via `claude -p --resume`
-   fortgesetzt. **Ohne Webhook** gibt es diesen Wake nicht — der Agent stellt
-   die Rückfrage als Kommentar, schließt seinen Lauf ab und prüft beim
+   erscheinen.
+3. Bei einer Rückfrage geht der Agent **nicht** `blocked`: Er stellt die
+   Rückfrage als Kommentar, schließt seinen Lauf mit `done` ab und prüft beim
    nächsten Heartbeat per `list_notes`, ob eine Antwort da ist.
 
-### 2.7 Der Review-Loop: der Agent als Entwickler
+### 2.6 Der Review-Loop: der Agent als Entwickler
 
 Behebt der Agent einen Bug selbst, arbeitet er wie ein Entwickler aus
-Fleisch und Blut — inklusive Warten auf Review:
+Fleisch und Blut — das Warten auf das Review läuft aber **per Polling**, nicht
+über `blocked`:
 
 1. `checkout` des Projekts in die Sandbox, **Projekt aufsetzen** (Dependencies
    installieren, Build und Tests einmal im Ausgangszustand laufen lassen —
    die nötigen Paket-Registries gibt der Egress über die Built-in-Templates
    frei, z. B. npm/PyPI/Go).
 2. Fix entwickeln, Tests ausführen, per `commit` auf einen Feature-Branch
-   pushen, `create_merge_request` an den Vorgesetzten.
-3. Der Agent geht `blocked` auf den Korrelations-Key
-   `gitlab:mr:<project_id>:<mr_iid>` — er **wartet auf Review**.
-4. Ein **Review-Kommentar** (Note Hook auf den MR) weckt ihn mit dem
-   Feedback: Er checkt den Source-Branch erneut aus, arbeitet die Punkte ein,
-   lässt die Tests laufen, pusht auf denselben Branch, antwortet per
-   `comment_mr` und blockt wieder.
-5. **Merge oder Close** des MR (Merge-Request-Hook, `action=merge|close`)
-   weckt ihn ein letztes Mal: Er kommentiert das Ergebnis im Issue und
-   schließt seine Aufgabe ab. Diese Hooks sind *correlate-only* — wartet
-   keine geblockte Aufgabe auf den MR, entsteht auch keine neue.
+   pushen, `create_merge_request` an den Vorgesetzten, Link im Issue
+   kommentieren.
+3. Der Agent beendet seinen Lauf mit `done` — **kein `blocked`**. (Ein
+   `blocked` würde ohne Webhook nie geweckt und die Heartbeat-Aufgabe dauerhaft
+   belegen, sodass keine neuen „Issues sichten"-Läufe mehr entstünden.)
+4. Beim nächsten Heartbeat-Lauf prüft der Agent seine offenen MRs
+   (`list_merge_requests state=opened` → `list_mr_notes`) auf neues
+   Review-Feedback. Verlangt es Änderungen, checkt er den Source-Branch erneut
+   aus, arbeitet die Punkte ein, lässt die Tests laufen, pusht auf denselben
+   Branch und antwortet per `comment_mr` — danach wieder `done`.
+5. Ist ein MR **gemergt** (`list_merge_requests state=merged` / `get_merge_request`),
+   kommentiert der Agent das Ergebnis im Issue; wurde er ohne Merge
+   **geschlossen**, prüft er per `list_mr_notes` warum und eskaliert, wenn unklar.
 
-Ohne Webhook funktioniert der Workflow ebenfalls, nur langsamer: Der Agent
-prüft dann beim nächsten Heartbeat per `list_mr_notes`/`get_merge_request`,
-ob Feedback oder der Merge vorliegt.
+Damit dieser Loop zuverlässig läuft, muss die Sichtungs-Aufgabe in der
+`HEARTBEAT.md` (Abschnitt 2.4) auch die offenen MRs prüfen. Der
+`nur-wenn: gitlab`-Vorabcheck weckt den Agenten dafür auch dann, wenn kein
+Issue offen ist, aber einer seiner MRs unbeantwortetes Review-Feedback hat —
+ein separater Heartbeat ist nicht nötig.
 
 ---
 
 ## 3. Welche Issues nimmt der Agent auf?
 
-Beim **Heartbeat-Weg** entscheidet der Agent selbst: `list_issues` liefert nur
-offene Issues, und die Projekt-Allowlist (3.3) filtert die Ergebnisse von
-`list_issues`/`list_projects` serverseitig. Soll der Agent **nur direkt ihm
-zugewiesene Issues** bearbeiten, gibt es `list_issues {"assigned":true}`
-(GitLab-`scope=assigned_to_me`, bezogen auf den Bot-Nutzer des Tokens) — die
-Regel selbst gehört in `PLAYBOOKS.md`/`HEARTBEAT.md` des Agenten; zusätzlich
-liefert jedes Issue seine `assignees` mit, sodass der Agent die Zuweisung auch
-im Einzelfall prüfen kann. Beim **Webhook-Weg** gilt die
-Aufnahme-Entscheidung (`ShouldWake` in `internal/target/gitlab/webhook.go`):
+Der Agent entscheidet selbst: `list_issues` liefert nur offene Issues, und die
+Projekt-Allowlist (3.2) filtert die Ergebnisse von `list_issues`/`list_projects`
+serverseitig. Soll der Agent **nur direkt ihm zugewiesene Issues** bearbeiten,
+gibt es `list_issues {"assigned":true}` (GitLab-`scope=assigned_to_me`, bezogen
+auf den Bot-Nutzer des Tokens) — die Regel selbst gehört in
+`PLAYBOOKS.md`/`HEARTBEAT.md` des Agenten; zusätzlich liefert jedes Issue seine
+`assignees` mit, sodass der Agent die Zuweisung auch im Einzelfall prüfen kann.
 
-### 3.1 Wake-Ereignisse
+### 3.1 Kein Doppelbearbeiten
 
-- **Issue Hook** mit `action` `open` oder `reopen` → neue Aufgabe. `update`
-  (Label-/Assignee-Änderungen) und `close` wecken nicht.
-- **Note Hook** auf ein Issue → weckt eine geblockte Aufgabe bzw. legt eine
-  neue an.
-- **Note Hook** auf einen Merge Request → Review-Feedback: weckt die auf
-  `gitlab:mr:…` geblockte Aufgabe des MR-Autors bzw. legt eine neue an
-  (Abschnitt 2.7).
-- **Merge-Request-Hook** mit `action` `merge` oder `close` → weckt
-  ausschließlich eine geblockte Aufgabe (*correlate-only*); `open`/`update`
-  wecken nicht.
+Weil der Intake per Polling läuft, sieht der Agent bei jedem Lauf denselben
+offenen Arbeitsvorrat erneut. Damit wiederkehrende Läufe nichts doppelt
+bearbeiten, prüft er per `list_notes` (bzw. `list_mr_notes` bei MRs), ob sein
+eigener Kommentar schon der letzte Stand ist, und reagiert nur auf seither neu
+hinzugekommene Antworten. Die Prompt-Doku des Plugins verpflichtet ihn darauf.
 
-### 3.2 Echo-Schutz
-
-Kommentare der Nutzer aus `COVEY_GITLAB_AGENT_USERNAMES` (die Agenten selbst)
-wecken nicht — sonst würde die eigene Antwort des Agenten einen neuen
-Wake-Zyklus auslösen. Anders als Zammad (`article.sender`) kennzeichnet GitLab
-Bot-Kommentare im Payload nicht zuverlässig; deshalb die explizite Liste.
-
-### 3.3 Projekt-Allowlist
+### 3.2 Projekt-Allowlist
 
 ```bash
 COVEY_GITLAB_INTAKE_PROJECTS="gruppe/support, 42"
 ```
 
-Ist die Variable gesetzt, wird nur ein Issue aus diesen Projekten aufgenommen
-(Projektpfad `path_with_namespace` case-insensitiv oder numerische Projekt-id).
-Leer/ungesetzt → keine Einschränkung. Der Filter greift an beiden
-Intake-Wegen: Webhook-Payloads außerhalb der Allowlist wecken nicht, und
-`list_issues`/`list_projects` liefern nur Treffer aus der Allowlist. Primärer
-Filter bleibt trotzdem das GitLab-seitige Setup: den Bot-Nutzer (und ggf.
-Webhooks) nur in den Zielprojekten eintragen.
+Ist die Variable gesetzt, liefern `list_issues`/`list_projects` und der
+`nur-wenn:`-Vorabcheck nur Treffer aus diesen Projekten (Projektpfad
+`path_with_namespace` case-insensitiv oder numerische Projekt-id).
+Leer/ungesetzt → keine Einschränkung. Primärer Filter bleibt trotzdem das
+GitLab-seitige Setup: den Bot-Nutzer nur in den Zielprojekten eintragen.
 
 ---
 
@@ -308,12 +287,13 @@ damit ein Mensch übernimmt. `set_state` kennt `close` und `reopen`
 
 | Variable | Default | Bedeutung |
 |---|---|---|
-| `COVEY_GITLAB_INTAKE_PROJECTS` | *(leer = alle)* | Allowlist der Projekte (Pfad oder id) — filtert Webhook-Intake **und** `list_issues`/`list_projects` |
+| `COVEY_GITLAB_INTAKE_PROJECTS` | *(leer = alle)* | Allowlist der Projekte (Pfad oder id) — filtert `list_issues`/`list_projects` und den `nur-wenn:`-Vorabcheck |
 | `COVEY_GITLAB_CHECKOUT_MAX_MB` | `512` | Obergrenze der entpackten Größe eines `checkout` (Abschnitt 4) |
 | `COVEY_EGRESS_ALLOW` | *(leer)* | zusätzliche erlaubte Egress-Hosts, z. B. das GitLab-Host |
-| `COVEY_PUBLIC_URL` | `http://localhost:8494` | nur Webhook-Betrieb: Basis-URL, die GitLab für den Webhook erreicht |
-| `COVEY_GITLAB_WEBHOOK_SECRET` | *(leer = Prüfung aus)* | nur Webhook-Betrieb: Secret-Token, identisch zum „Secret token" des GitLab-Webhooks |
-| `COVEY_GITLAB_AGENT_USERNAMES` | *(leer)* | nur Webhook-Betrieb: GitLab-Nutzernamen der Agenten — deren Kommentare wecken nicht (Echo-Schutz) |
+
+GitLab hat keinen Webhook-Eingang — die früheren Variablen `COVEY_PUBLIC_URL`
+(nur für GitLab), `COVEY_GITLAB_WEBHOOK_SECRET` und `COVEY_GITLAB_AGENT_USERNAMES`
+entfallen für dieses Plugin.
 
 Die allgemeinen Variablen (Egress, Daemon-Token-TTL, …) stehen in
 [`betrieb-zammad.md`](betrieb-zammad.md), Abschnitt 6.

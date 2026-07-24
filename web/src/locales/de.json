@@ -268,7 +268,17 @@
       "newVersion": "Neue Version speichern",
       "cancel": "Abbrechen",
       "versionInfo": "Config-as-Code: jede Änderung erzeugt eine neue Version{{version}}.",
-      "currentVersion": " — aktuell v{{v}}"
+      "currentVersion": " — aktuell v{{v}}",
+      "assist": {
+        "title": "KI-Assistent",
+        "hint": "Beschreibe, was der Agent tun soll oder was am Verhalten nicht stimmt. Der Assistent schlägt Config-Änderungen als Entwurf vor — wirksam werden sie erst, wenn du eine neue Version speicherst.",
+        "placeholder": "z. B. „Ein Support-Agent für Rechnungsfragen, antwortet auf Deutsch, eskaliert an die Buchhaltung.“",
+        "send": "Senden",
+        "thinking": "Der Assistent denkt nach …",
+        "apply": "In {{file}} übernehmen",
+        "applied": "übernommen",
+        "reset": "Neuer Verlauf"
+      }
     },
     "memory": {
       "addPlaceholder": "Wissen mitgeben, z. B. „Kunde Meier ist Bestandskunde und wird geduzt“ …",

@@ -344,6 +344,7 @@ func (c *Client) GetCommitDiff(ctx context.Context, projectID int, sha string) (
 // Fixes zu einem Thema zu finden.
 type MergeRequest struct {
 	IID          int    `json:"iid"`
+	ProjectID    int    `json:"project_id"`
 	Title        string `json:"title"`
 	State        string `json:"state"`
 	SourceBranch string `json:"source_branch"`
@@ -354,6 +355,11 @@ type MergeRequest struct {
 	Author       struct {
 		Username string `json:"username"`
 	} `json:"author"`
+	// References.Full ist die volle Referenz "gruppe/projekt!iid" — daraus
+	// lässt sich der Projektpfad für den Intake-Filter ableiten (analog Issue).
+	References struct {
+		Full string `json:"full"`
+	} `json:"references"`
 }
 
 // ListMergeRequests — GET /projects/{id}/merge_requests. state ist "opened",
@@ -376,6 +382,27 @@ func (c *Client) ListMergeRequests(ctx context.Context, projectID int, state, se
 	err := c.do(ctx, http.MethodGet,
 		fmt.Sprintf("/projects/%d/merge_requests?%s", projectID, q.Encode()), nil, &out)
 	return out, err
+}
+
+// ListMyOpenMergeRequests — GET /merge_requests?scope=created_by_me&state=opened:
+// die offenen Merge Requests, die der Bot-Nutzer des Tokens selbst eröffnet hat.
+// Der billige Vorab-Check für den Review-Loop (HasWork) — ohne project_id, also
+// projektübergreifend, wie ListIssues(0, …). Der Filter läuft über die Token-
+// Identität, es braucht keinen Username.
+func (c *Client) ListMyOpenMergeRequests(ctx context.Context) ([]MergeRequest, error) {
+	var out []MergeRequest
+	err := c.do(ctx, http.MethodGet,
+		"/merge_requests?scope=created_by_me&state=opened&order_by=updated_at&per_page=50", nil, &out)
+	return out, err
+}
+
+// CurrentUser — GET /user: das Profil des Token-Inhabers (der Bot-Nutzer).
+// Gebraucht, um in einem MR-Thread den eigenen letzten Kommentar von fremdem
+// Review-Feedback zu unterscheiden.
+func (c *Client) CurrentUser(ctx context.Context) (User, error) {
+	var u User
+	err := c.do(ctx, http.MethodGet, "/user", nil, &u)
+	return u, err
 }
 
 // MergeRequestDetail ist der volle Blick auf einen einzelnen MR — inklusive
