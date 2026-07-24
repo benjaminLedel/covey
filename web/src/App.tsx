@@ -19,6 +19,7 @@ import Runtimes from "./pages/Runtimes";
 import Targets from "./pages/Targets";
 import Egress from "./pages/Egress";
 import Templates from "./pages/Templates";
+import Costs from "./pages/Costs";
 
 // useLiveEvents hält die UI über SSE aktuell: jedes Server-Event invalidiert
 // die betroffenen Queries — TanStack Query lädt gezielt nach.
@@ -133,6 +134,14 @@ const icons: Record<string, JSX.Element> = {
       <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
     </>
   ),
+  chart: (
+    <>
+      <path d="M4 20V4M4 20h16" />
+      <rect x="7" y="12" width="3" height="5" rx="0.5" />
+      <rect x="12" y="8" width="3" height="9" rx="0.5" />
+      <rect x="17" y="5" width="3" height="12" rx="0.5" />
+    </>
+  ),
   chevron: <path d="M9 6l6 6l-6 6" />,
   logout: (
     <>
@@ -242,6 +251,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
           <NavItem to="/" end icon="robot" label={t("nav.agents")} />
           <NavItem to="/templates" icon="copy" label={t("nav.templates")} />
           <NavItem to="/org" icon="sitemap" label={t("nav.org")} />
+          <NavItem to="/costs" icon="chart" label={t("nav.costs")} />
         </div>
         <div className="nav-sec">{t("nav.trust")}</div>
         <div className="nav-group">
@@ -314,12 +324,13 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
       <main className="flex-1 min-w-0">
         {/* Das Organigramm nutzt die volle Breite — alle anderen Seiten
             bleiben auf Lesebreite begrenzt. */}
-        <div key={location.pathname} className="fade" style={{ padding: "22px 26px 60px", maxWidth: location.pathname === "/org" ? undefined : 1080 }}>
+        <div key={location.pathname} className="fade" style={{ padding: "22px 26px 60px", maxWidth: location.pathname === "/org" || location.pathname === "/costs" ? undefined : 1080 }}>
           <Routes>
             <Route path="/" element={<Dashboard me={me} />} />
             <Route path="/agents/:id" element={<AgentPage me={me} />} />
             <Route path="/templates" element={<Templates me={me} />} />
             <Route path="/org" element={<Org />} />
+            <Route path="/costs" element={<Costs />} />
             <Route path="/people/:id" element={<PersonPage me={me} />} />
             <Route path="/profile" element={<Navigate to={`/people/${me.ID}`} replace />} />
             <Route path="/approvals" element={<Approvals />} />

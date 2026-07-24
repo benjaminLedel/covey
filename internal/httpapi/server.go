@@ -168,6 +168,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PUT /api/v1/agents/{id}/tools/{system}", s.rbac(securityRoles, s.handleSetAgentTools))
 	mux.Handle("GET /api/v1/agents/{id}/recording", s.rbac(anyRole, s.handleRecording))
 	mux.Handle("GET /api/v1/agents/{id}/cost", s.rbac(anyRole, s.handleCost))
+	mux.Handle("GET /api/v1/agents/{id}/cost/series", s.rbac(anyRole, s.handleCostSeries))
+	mux.Handle("GET /api/v1/cost/org", s.rbac(anyRole, s.handleOrgCost))
 	mux.Handle("GET /api/v1/agents/{id}/memories", s.rbac(anyRole, s.handleMemories))
 	mux.Handle("POST /api/v1/agents/{id}/memories", s.rbac(manage, s.handleCreateMemory))
 	mux.Handle("PATCH /api/v1/memories/{id}", s.rbac(manage, s.handleUpdateMemory))

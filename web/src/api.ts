@@ -149,6 +149,43 @@ export type CostSummary = {
   entries: number;
 };
 
+export type CostBucket = {
+  period: string;
+  total_usd: number;
+  input_tokens: number;
+  output_tokens: number;
+  entries: number;
+};
+
+export type AgentCost = {
+  agent_id: string;
+  slug: string;
+  display_name: string;
+  total_usd: number;
+  input_tokens: number;
+  output_tokens: number;
+  entries: number;
+};
+
+export type ModelCost = {
+  model: string;
+  total_usd: number;
+  input_tokens: number;
+  output_tokens: number;
+  entries: number;
+};
+
+export type OrgCostReport = {
+  total_usd: number;
+  input_tokens: number;
+  output_tokens: number;
+  entries: number;
+  bucket: string;
+  series: CostBucket[] | null;
+  agents: AgentCost[] | null;
+  models: ModelCost[] | null;
+};
+
 export type Human = {
   id: string;
   org_id: string;
