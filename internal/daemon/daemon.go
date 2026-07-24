@@ -182,6 +182,12 @@ func (c *Client) Run(ctx context.Context) error {
 				continue
 			}
 			c.route(inj.RequestID, msg)
+		case TypeInjectOrgChart:
+			inj, err := DecodePayload[InjectOrgChart](msg)
+			if err != nil {
+				continue
+			}
+			c.route(inj.RequestID, msg)
 		case TypeAssignTask:
 			task, err := DecodePayload[AssignTask](msg)
 			if err != nil {
@@ -287,6 +293,24 @@ func (c *Client) manifestSystem(ctx context.Context, system string) (target.Syst
 	c.targets[system] = sys
 	c.mu.Unlock()
 	return sys, true
+}
+
+// orgChart holt das Organigramm der Organisation von der Control Plane.
+// Bewusst ungecacht — Profile und Zuordnungen können sich während der
+// Session ändern, der Agent soll immer den aktuellen Stand sehen.
+func (c *Client) orgChart(ctx context.Context) (json.RawMessage, error) {
+	reqID := uuid.NewString()
+	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	msg, err := c.request(reqCtx, TypeRequestOrgChart, reqID, RequestOrgChart{RequestID: reqID})
+	if err != nil {
+		return nil, err
+	}
+	inj, err := DecodePayload[InjectOrgChart](msg)
+	if err != nil {
+		return nil, err
+	}
+	return inj.Chart, nil
 }
 
 // checkAction holt die zentrale Policy-Entscheidung für eine Aktion.

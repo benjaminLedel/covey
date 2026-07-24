@@ -1,9 +1,14 @@
 package integration
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
+	"time"
+
+	"covey/internal/backlog"
 )
 
 // TestOrgChart deckt das Organigramm ab: Vorgesetzten-Beziehungen für Menschen
@@ -137,4 +142,82 @@ func TestOrgChart(t *testing.T) {
 		map[string]string{"manager_id": fremdID}, http.StatusNotFound)
 	admin.expect(http.MethodPost, "/api/v1/departments/"+deptID+"/leads",
 		map[string]string{"kind": "human", "member_id": fremdID}, http.StatusNotFound)
+}
+
+// TestAgentProfileAndOrgChartQuery deckt die Agenten-Profilfelder ab: Agenten
+// tragen dieselben Profilfelder wie Menschen (inkl. der org-weit konfigurierbaren
+// Felder), das Löschen einer Feld-Definition räumt auch die Agenten-Werte, und
+// ein Agent kann das Organigramm zur Laufzeit über die Meta-Aktion
+// covey/org_chart abfragen.
+func TestAgentProfileAndOrgChartQuery(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+
+	// Org-weit konfigurierbares Profilfeld (key wird aus dem Label abgeleitet).
+	field := admin.expect(http.MethodPost, "/api/v1/org/profile-fields",
+		map[string]string{"label": "Standort"}, http.StatusCreated)
+
+	agent := s.newSupportAgent("profil-agent")
+	agentID := agent.ID.String()
+
+	// Profil schreiben — dieselben Felder wie beim Menschen; Kennungen werden
+	// normalisiert (führendes "@" entfällt).
+	admin.expect(http.MethodPatch, "/api/v1/agents/"+agentID+"/profile", map[string]any{
+		"job_title":        "Support-Spezialist",
+		"identities":       map[string]string{"gitlab": "@nova"},
+		"responsibilities": "First-Level-Support",
+		"custom":           map[string]string{"standort": "Berlin"},
+	}, http.StatusOK)
+
+	got := admin.expect(http.MethodGet, "/api/v1/agents/"+agentID, nil, http.StatusOK)
+	if got["job_title"] != "Support-Spezialist" || got["responsibilities"] != "First-Level-Support" {
+		t.Fatalf("agenten-profil nicht gespeichert: %v", got)
+	}
+	if ids, _ := got["identities"].(map[string]any); ids["gitlab"] != "nova" {
+		t.Fatalf("identities müssen normalisiert sein (ohne @), got %v", got["identities"])
+	}
+	if custom, _ := got["custom"].(map[string]any); custom["standort"] != "Berlin" {
+		t.Fatalf("custom-wert fehlt, got %v", got["custom"])
+	}
+
+	// Die Chart-Sicht trägt das Agenten-Profil — dort lesen es Menschen und UI.
+	chart := admin.expect(http.MethodGet, "/api/v1/org/chart", nil, http.StatusOK)
+	agentsList, _ := chart["agents"].([]any)
+	if len(agentsList) != 1 {
+		t.Fatalf("erwartet 1 agent im chart, got %d", len(agentsList))
+	}
+	if a, _ := agentsList[0].(map[string]any); a["job_title"] != "Support-Spezialist" {
+		t.Fatalf("chart muss das agenten-profil tragen, got %v", agentsList[0])
+	}
+
+	// Der Agent selbst fragt das Organigramm über den Action-Proxy ab
+	// (request_org_chart → inject_org_chart) — die Aufgabe läuft nur durch,
+	// wenn die Control Plane antwortet.
+	task, _ := s.backlog.Create(ctx, s.orgID, agent.ID, "Orgchart-Test",
+		`[mock:action covey/org_chart {}]
+[mock:result Organigramm gelesen]`, "manual", 3)
+	waitFor(t, "aufgabe done", 15*time.Second, func() bool {
+		return s.taskState(task.ID) == backlog.StateDone
+	})
+	events, err := s.obs.Events(ctx, agent.ID, nil, 0, 500)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, e := range events {
+		if e.Kind == "action" && strings.Contains(string(e.Payload), "covey:org_chart") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("covey:org_chart muss als Aktion im Recording stehen")
+	}
+
+	// Feld-Definition löschen räumt den Wert auch aus dem Agenten-Profil.
+	admin.expect(http.MethodDelete, "/api/v1/org/profile-fields/"+field["id"].(string), nil, http.StatusOK)
+	got = admin.expect(http.MethodGet, "/api/v1/agents/"+agentID, nil, http.StatusOK)
+	if custom, _ := got["custom"].(map[string]any); len(custom) != 0 {
+		t.Fatalf("gelöschtes profilfeld muss aus agents.custom verschwinden, got %v", got["custom"])
+	}
 }

@@ -93,6 +93,7 @@ Bidirektional (WebSocket oder gRPC-Stream) zwischen Control Plane und Daemon. Da
 | `event` | Runtime-Event (LLM-Call, Tool-Call, Kommando) → Recording |
 | `request_credential` | Agent braucht Zugriff auf ein Zielsystem → Broker |
 | `request_approval` | Riskante Aktion wartet auf Freigabe |
+| `request_org_chart` | Agent fragt das Organigramm ab (Menschen & Agenten samt Profilen, Abteilungen, Vorgesetzten-Beziehungen) → Antwort `inject_org_chart` (siehe [`09-enterprise-modell.md`](09-enterprise-modell.md)) |
 | `blocked` | Agent parkt Aufgabe, wartet auf externes Ereignis (mit Korrelations-Key) |
 | `task_done` | Aufgabe abgeschlossen (mit Ergebnis + Gedächtnis-Update) |
 | `set_stage` | Agent schiebt die Aufgabe in eine (ggf. neue) Kanban-Stage — rein anzeigend, kein Lifecycle-Übergang (siehe [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)) |
@@ -100,7 +101,7 @@ Bidirektional (WebSocket oder gRPC-Stream) zwischen Control Plane und Daemon. Da
 | `cost` | Verbrauchte Tokens/Compute für Budget-Tracking |
 | `heartbeat` | Lebenszeichen |
 
-Die Nachrichten `set_stage` und `note` entstehen aus Meta-Aktionen des Agenten am Action-Proxy (`POST /actions/covey/set_stage`, `…/covey/add_note`, `…/covey/remember`): Der Proxy behandelt das System `covey` nicht als externes Zielsystem (keine Credentials, keine Egress-Guard-Rail), sondern reicht sie als Steuersignal an die Control Plane durch.
+Die Nachrichten `set_stage`, `note` und `request_org_chart` entstehen aus Meta-Aktionen des Agenten am Action-Proxy (`POST /actions/covey/set_stage`, `…/covey/add_note`, `…/covey/remember`, `…/covey/org_chart`): Der Proxy behandelt das System `covey` nicht als externes Zielsystem (keine Credentials, keine Egress-Guard-Rail), sondern reicht sie als Steuersignal an die Control Plane durch.
 
 Alle `event`-Nachrichten fließen in die Observability-Pipeline (siehe [`06-observability-control.md`](06-observability-control.md)). **Jeder Credential-, Egress- und Approval-Request wird von der Control Plane gegen die Guard-Rails geprüft, nie vom Daemon selbst entschieden.** Der Daemon setzt zusätzlich die tool-/action-seitigen Rails lokal durch (welche Tools/Kommandos erlaubt sind), aber die verbindliche Policy-Entscheidung liegt zentral — der Daemon ist ausführendes Organ, nicht Entscheider.
 
