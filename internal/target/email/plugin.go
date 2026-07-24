@@ -21,7 +21,7 @@ func init() {
 	target.Register(target.Descriptor{
 		Name:        "email",
 		Label:       "E-Mail (IMAP/SMTP)",
-		Description: "Ein eigenes Mail-Postfach für den Agenten: Posteingang per IMAP sichten (list_unread/get_message), per SMTP antworten oder senden (reply/send), Ablage per mark_seen/move. Intake per HEARTBEAT.md (Polling, kein Webhook). Auth per Secrets email_url (IMAP- + SMTP-Endpoint) und email_token (benutzer:passwort).",
+		Description: "Ein eigenes Mail-Postfach für den Agenten: Posteingang per IMAP sichten (list_unread/get_message), per SMTP antworten oder senden (reply/send), Ablage per mark_seen/move. Intake per HEARTBEAT.md (Polling, kein Webhook). Auth per Secrets email_url (Mailserver-Host, z. B. mail.example.com) und email_token (adresse:passwort).",
 		Kind:        "builtin",
 		System:      System{},
 		SetupDoc: `1. Beim Mail-Provider ein eigenes Postfach für den Agenten anlegen
@@ -29,11 +29,15 @@ func init() {
    niemals das Passwort eines menschlichen Kontos verwenden.
 
 2. Unter Secrets hinterlegen und dem Agenten zuweisen:
+   email_url   = mail.example.com          (der Mailserver-Host genügt:
+                 IMAP mit TLS auf 993, SMTP mit STARTTLS auf 587)
+   email_token = support-agent@example.com:app-passwort
+
+   Abweichende Hosts, Ports oder TLS-Modi als explizite URLs:
    email_url   = imaps://imap.example.com:993 smtp://smtp.example.com:587
                  (Schemata: imaps/smtps = TLS, imap/smtp = STARTTLS;
                   weicht der Login von der Mail-Adresse ab:
                   ?from=support-agent@example.com an die SMTP-URL hängen)
-   email_token = support-agent@example.com:app-passwort
 
 3. In der ACCESS.md des Agenten freischalten:
    - system: email scope: read,write

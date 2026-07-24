@@ -41,6 +41,25 @@ func TestParseConfig(t *testing.T) {
 	}
 }
 
+func TestParseConfigShorthand(t *testing.T) {
+	cfg, err := ParseConfig(target.Credential{
+		BaseURL: "  mail.example.com  ", // nur der Host → Standard-Setup
+		Token:   "agent@example.com:pw",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.IMAPAddr != "mail.example.com:993" || cfg.IMAPTLS != tlsImplicit {
+		t.Errorf("imap: %q/%q", cfg.IMAPAddr, cfg.IMAPTLS)
+	}
+	if cfg.SMTPAddr != "mail.example.com:587" || cfg.SMTPTLS != tlsStartTLS {
+		t.Errorf("smtp: %q/%q", cfg.SMTPAddr, cfg.SMTPTLS)
+	}
+	if cfg.From != "agent@example.com" {
+		t.Errorf("from: %q", cfg.From)
+	}
+}
+
 func TestParseConfigFromOverride(t *testing.T) {
 	cfg, err := ParseConfig(target.Credential{
 		BaseURL: "imap+insecure://h:1143; smtp+insecure://h:1025?from=bot@example.com",
@@ -61,6 +80,8 @@ func TestParseConfigErrors(t *testing.T) {
 		{BaseURL: "imaps://a smtp://b", Token: "ohne-doppelpunkt"},        // Token-Format
 		{BaseURL: "imaps://a smtp://b", Token: "login:pw"},                // From unbekannt
 		{BaseURL: "https://a smtp://b", Token: "u@x.de:p"},                // falsches Schema
+		{BaseURL: "mail.example.com:993", Token: "u@x.de:p"},              // Kurzform mit Port
+		{BaseURL: "imap.example.com smtp.example.com", Token: "u@x.de:p"}, // Kurzform mit zwei Hosts
 	}
 	for i, cred := range cases {
 		if _, err := ParseConfig(cred); err == nil {

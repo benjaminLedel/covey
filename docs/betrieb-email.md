@@ -36,18 +36,29 @@ entdeckt: der Heartbeat weckt ihn, `list_unread` liefert den Arbeitsvorrat.
    der Agent markiert Mails als gelesen und verschiebt sie.
 2. Ein **App-Passwort** erzeugen (bei Gmail/Office 365 Pflicht, da das
    Kontopasswort dort nicht für IMAP/SMTP-Basic-Auth gilt).
-3. IMAP- und SMTP-Zugang im Konto aktivieren, Endpunkte notieren
-   (z. B. `imap.example.com:993` und `smtp.example.com:587`).
+3. IMAP- und SMTP-Zugang im Konto aktivieren und den Mailserver-Host
+   notieren (z. B. `mail.example.com`; nur bei getrennten IMAP-/SMTP-Hosts
+   oder Sonder-Ports beide Endpunkte).
 
 ### 2.2 In Covey: Secrets hinterlegen
 
-Der Broker reicht pro System genau zwei Secrets durch — `email_url` kodiert
-deshalb **beide** Endpunkte als URLs (durch Leerzeichen getrennt):
+Der Broker reicht pro System genau zwei Secrets durch. Im Normalfall genügen
+Mailserver, Adresse und Passwort:
 
 | Secret | Wert | Zweck |
 |---|---|---|
-| `email_url` | `imaps://imap.example.com:993 smtp://smtp.example.com:587` | beide Endpunkte |
-| `email_token` | `support-agent@example.com:app-passwort` | Login (Benutzer `:` Passwort) |
+| `email_url` | `mail.example.com` | der Mailserver-Host |
+| `email_token` | `support-agent@example.com:app-passwort` | Login (Adresse `:` Passwort) |
+
+Die Kurzform expandiert zum Standard-Setup: IMAP mit TLS auf Port 993 und
+SMTP-Submission mit STARTTLS auf Port 587, beides auf demselben Host.
+
+Liegen IMAP und SMTP auf getrennten Hosts oder weichen Ports/TLS-Modi ab,
+kodiert `email_url` **beide** Endpunkte als URLs (durch Leerzeichen getrennt):
+
+| Secret | Wert |
+|---|---|
+| `email_url` | `imaps://imap.example.com:993 smtp://smtp.example.com:587` |
 
 Schemata und Default-Ports:
 
