@@ -20,17 +20,23 @@ type Heartbeat struct {
 	Task    string        `json:"task"`     // aufgabe: — Aufgabentext für das Backlog
 	Every   time.Duration `json:"every"`    // alle: — Intervall (0 bei Tageszeit-Form)
 	DailyAt string        `json:"daily_at"` // täglich: — "HH:MM" (leer bei Intervall-Form)
+	OnlyIf  string        `json:"only_if"`  // nur-wenn: — Zielsystem, das Arbeit melden muss (leer = immer feuern)
 }
 
 // heartbeatKeywords sind die Attribut-Schlüssel einer HEARTBEAT.md-Zeile.
 var heartbeatKeywords = map[string]bool{
-	"alle:": true, "täglich:": true, "taeglich:": true, "titel:": true, "aufgabe:": true,
+	"alle:": true, "täglich:": true, "taeglich:": true, "titel:": true, "aufgabe:": true, "nur-wenn:": true,
 }
 
 // ParseHeartbeat liest HEARTBEAT.md-Zeilen der Form
 //
 //   - alle: 30m      titel: Posteingang sichten   aufgabe: Prüfe neue Tickets und triagiere sie.
 //   - täglich: 09:00 titel: Tagesbericht          aufgabe: Fasse den gestrigen Tag zusammen.
+//   - alle: 5m nur-wenn: email titel: Posteingang aufgabe: Bearbeite die ungelesenen Mails.
+//
+// nur-wenn: <system> feuert den Eintrag nur, wenn das Zielsystem-Plugin beim
+// billigen Vorab-Check der Control Plane Arbeit meldet (target.WorkChecker,
+// z. B. ungelesene Mails) — sonst entfällt der Lauf ohne Agenten-Wake.
 //
 // Zeilen, die nicht mit einem der Schlüssel beginnen, sind Prosa und werden
 // ignoriert. Anders als ParseAccess ist der Parser hier streng: eine erkannte
@@ -72,6 +78,11 @@ func ParseHeartbeat(content string) ([]Heartbeat, error) {
 				hb.Name = v
 			case "aufgabe:":
 				hb.Task = v
+			case "nur-wenn:":
+				if len(val) != 1 {
+					return nil, fmt.Errorf("heartbeat %q: nur-wenn: braucht genau einen Zielsystem-Namen (z. B. email)", line)
+				}
+				hb.OnlyIf = v
 			}
 		}
 		if hb.Name == "" {
@@ -96,6 +107,7 @@ type HeartbeatStatus struct {
 	Task         string    `json:"task"`
 	EverySeconds *int64    `json:"every_seconds,omitempty"`
 	DailyAt      *string   `json:"daily_at,omitempty"` // "HH:MM", Serverzeit
+	OnlyIf       string    `json:"only_if,omitempty"`  // Zielsystem der Feuer-Bedingung
 	LastFiredAt  time.Time `json:"last_fired_at"`
 	NextRun      time.Time `json:"next_run"`
 	Pending      bool      `json:"pending"`
@@ -108,7 +120,7 @@ type HeartbeatStatus struct {
 // ist der Eintrag fällig und der nächste Tick nimmt ihn mit.
 func (r *Registry) Heartbeats(ctx context.Context, agentID uuid.UUID) ([]HeartbeatStatus, error) {
 	rows, err := r.pool.Query(ctx, `SELECT h.name, h.task_body, h.every_seconds,
-			to_char(h.daily_at, 'HH24:MI'), h.last_fired_at,
+			to_char(h.daily_at, 'HH24:MI'), h.only_if, h.last_fired_at,
 			CASE WHEN h.every_seconds IS NOT NULL
 			     THEN h.last_fired_at + make_interval(secs => h.every_seconds)
 			     WHEN h.last_fired_at::date < CURRENT_DATE
@@ -126,7 +138,7 @@ func (r *Registry) Heartbeats(ctx context.Context, agentID uuid.UUID) ([]Heartbe
 	for rows.Next() {
 		var hb HeartbeatStatus
 		if err := rows.Scan(&hb.Name, &hb.Task, &hb.EverySeconds, &hb.DailyAt,
-			&hb.LastFiredAt, &hb.NextRun, &hb.Pending); err != nil {
+			&hb.OnlyIf, &hb.LastFiredAt, &hb.NextRun, &hb.Pending); err != nil {
 			return nil, err
 		}
 		out = append(out, hb)

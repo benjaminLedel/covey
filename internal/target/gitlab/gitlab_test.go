@@ -370,6 +370,41 @@ func TestListActionsRespectIntakeScope(t *testing.T) {
 	}
 }
 
+func TestHasWork(t *testing.T) {
+	var issues []Issue
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v4/issues" || r.URL.Query().Get("state") != "opened" {
+			t.Errorf("unerwarteter request: %s?%s", r.URL.Path, r.URL.RawQuery)
+		}
+		json.NewEncoder(w).Encode(issues)
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	if has, err := sys.HasWork(ctx, cred); err != nil || has {
+		t.Fatalf("keine issues: has=%v err=%v", has, err)
+	}
+
+	issueIn := Issue{IID: 23, ProjectID: 15}
+	issueIn.References.Full = "gruppe/support#23"
+	issueOut := Issue{IID: 7, ProjectID: 99}
+	issueOut.References.Full = "gruppe/geheim#7"
+	issues = []Issue{issueOut, issueIn}
+	if has, err := sys.HasWork(ctx, cred); err != nil || !has {
+		t.Fatalf("offene issues: has=%v err=%v", has, err)
+	}
+
+	// Intake-Allowlist greift auch im Vorab-Check.
+	t.Setenv("COVEY_GITLAB_INTAKE_PROJECTS", "gruppe/support")
+	issues = []Issue{issueOut}
+	if has, err := sys.HasWork(ctx, cred); err != nil || has {
+		t.Fatalf("issue außerhalb der allowlist: has=%v err=%v", has, err)
+	}
+}
+
 // tarGz baut ein GitLab-artiges Repository-Archiv aus name→inhalt-Paaren.
 func tarGz(t *testing.T, entries map[string]string) []byte {
 	t.Helper()

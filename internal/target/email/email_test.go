@@ -41,6 +41,25 @@ func TestParseConfig(t *testing.T) {
 	}
 }
 
+func TestParseConfigShorthand(t *testing.T) {
+	cfg, err := ParseConfig(target.Credential{
+		BaseURL: "  mail.example.com  ", // nur der Host → Standard-Setup
+		Token:   "agent@example.com:pw",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.IMAPAddr != "mail.example.com:993" || cfg.IMAPTLS != tlsImplicit {
+		t.Errorf("imap: %q/%q", cfg.IMAPAddr, cfg.IMAPTLS)
+	}
+	if cfg.SMTPAddr != "mail.example.com:587" || cfg.SMTPTLS != tlsStartTLS {
+		t.Errorf("smtp: %q/%q", cfg.SMTPAddr, cfg.SMTPTLS)
+	}
+	if cfg.From != "agent@example.com" {
+		t.Errorf("from: %q", cfg.From)
+	}
+}
+
 func TestParseConfigFromOverride(t *testing.T) {
 	cfg, err := ParseConfig(target.Credential{
 		BaseURL: "imap+insecure://h:1143; smtp+insecure://h:1025?from=bot@example.com",
@@ -61,6 +80,8 @@ func TestParseConfigErrors(t *testing.T) {
 		{BaseURL: "imaps://a smtp://b", Token: "ohne-doppelpunkt"},        // Token-Format
 		{BaseURL: "imaps://a smtp://b", Token: "login:pw"},                // From unbekannt
 		{BaseURL: "https://a smtp://b", Token: "u@x.de:p"},                // falsches Schema
+		{BaseURL: "mail.example.com:993", Token: "u@x.de:p"},              // Kurzform mit Port
+		{BaseURL: "imap.example.com smtp.example.com", Token: "u@x.de:p"}, // Kurzform mit zwei Hosts
 	}
 	for i, cred := range cases {
 		if _, err := ParseConfig(cred); err == nil {
@@ -434,6 +455,38 @@ func TestExecuteEchoUndIntakeFilter(t *testing.T) {
 	if len(unread) != 1 || unread[0].From != "kunde@example.com" {
 		t.Fatalf("echo-/intake-filter: %+v", unread)
 	}
+}
+
+func TestHasWork(t *testing.T) {
+	imapAddr := newMemIMAP(t, testUser, "pw")
+	smtp := newFakeSMTP(t)
+	cred := testCred(t, imapAddr, smtp.ln.Addr().String())
+
+	check := func(want bool, msg string) {
+		t.Helper()
+		has, err := (System{}).HasWork(context.Background(), cred)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if has != want {
+			t.Errorf("%s: has=%v, erwartet %v", msg, has, want)
+		}
+	}
+
+	check(false, "leeres postfach")
+	appendMail(t, imapAddr, testUser, "pw",
+		"From: alt@example.com\r\nTo: agent@example.com\r\nSubject: Erledigt\r\n\r\nx\r\n", true)
+	check(false, "nur gelesene mails")
+	appendMail(t, imapAddr, testUser, "pw",
+		"From: agent@example.com\r\nTo: agent@example.com\r\nSubject: Echo\r\n\r\nx\r\n", false)
+	check(false, "eigene mail zählt nicht (echo-schutz)")
+	appendMail(t, imapAddr, testUser, "pw",
+		"From: kunde@example.com\r\nTo: agent@example.com\r\nSubject: Frage\r\n\r\nx\r\n", false)
+	check(true, "ungelesene kundenmail")
+
+	// Intake-Allowlist greift auch im Vorab-Check.
+	t.Setenv("COVEY_EMAIL_INTAKE_ADDRESSES", "partner.de")
+	check(false, "kundenmail außerhalb der intake-allowlist")
 }
 
 func TestExecuteUnbekannteAktion(t *testing.T) {

@@ -1217,6 +1217,11 @@ function HeartbeatCard({
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <span className="font-medium">{hb.name}</span>
         <span className="badge">{scheduleLabel(hb)}</span>
+        {hb.only_if && (
+          <span className="badge" title={t("agent.heartbeat.onlyIfHint", { system: hb.only_if })}>
+            {t("agent.heartbeat.onlyIf", { system: hb.only_if })}
+          </span>
+        )}
         {hb.pending && (
           <span className="badge st-blocked" title={t("agent.heartbeat.taskOpenHint")}>
             {t("agent.heartbeat.taskOpen")}

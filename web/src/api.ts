@@ -87,6 +87,7 @@ export type HeartbeatStatus = {
   task: string;
   every_seconds?: number;
   daily_at?: string;
+  only_if?: string;
   last_fired_at: string;
   next_run: string;
   pending: boolean;

@@ -14,13 +14,14 @@ Prosa-Zeilen wie diese werden ignoriert.
 - alle: 30m titel: Posteingang sichten aufgabe: Prüfe neue Tickets und triagiere sie.
 - täglich: 09:00 titel: Tagesbericht aufgabe: Fasse den gestrigen Tag zusammen.
 - alle: 1d titel: Wochenrückblick
+- alle: 5m nur-wenn: email titel: Postfach aufgabe: Bearbeite die ungelesenen Mails.
 `
 	hbs, err := ParseHeartbeat(content)
 	if err != nil {
 		t.Fatalf("ParseHeartbeat: %v", err)
 	}
-	if len(hbs) != 3 {
-		t.Fatalf("erwartet 3 Einträge, bekommen %d: %+v", len(hbs), hbs)
+	if len(hbs) != 4 {
+		t.Fatalf("erwartet 4 Einträge, bekommen %d: %+v", len(hbs), hbs)
 	}
 	if hbs[0].Name != "Posteingang sichten" || hbs[0].Every != 30*time.Minute {
 		t.Errorf("Eintrag 0 falsch: %+v", hbs[0])
@@ -37,6 +38,13 @@ Prosa-Zeilen wie diese werden ignoriert.
 	// Ohne aufgabe: fällt der Task auf den Titel zurück.
 	if hbs[2].Task != "Wochenrückblick" {
 		t.Errorf("Task-Fallback fehlt: %q", hbs[2].Task)
+	}
+	// Ohne nur-wenn: bleibt OnlyIf leer; mit nur-wenn: trägt es das Zielsystem.
+	if hbs[0].OnlyIf != "" || hbs[3].OnlyIf != "email" {
+		t.Errorf("OnlyIf falsch: %q / %q", hbs[0].OnlyIf, hbs[3].OnlyIf)
+	}
+	if hbs[3].Name != "Postfach" || hbs[3].Every != 5*time.Minute {
+		t.Errorf("Eintrag 3 falsch: %+v", hbs[3])
 	}
 }
 
@@ -55,6 +63,8 @@ func TestParseHeartbeatFehler(t *testing.T) {
 		"kaputtes intervall":  "- alle: dreißig titel: X",
 		"negatives intervall": "- alle: -5m titel: X",
 		"kaputte tageszeit":   "- täglich: 25:99 titel: X",
+		"nur-wenn ohne wert":  "- alle: 30m nur-wenn: titel: X",
+		"nur-wenn zwei werte": "- alle: 30m nur-wenn: email gitlab titel: X",
 	}
 	for name, content := range cases {
 		if _, err := ParseHeartbeat(content); err == nil {

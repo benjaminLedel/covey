@@ -11,11 +11,17 @@ import (
 )
 
 // Konfiguration des E-Mail-Plugins aus dem gebrokerten Secret-Paar. Der
-// Broker kennt pro System genau zwei Secrets (email_url + email_token),
-// deshalb kodiert email_url BEIDE Endpunkte (IMAP + SMTP) als URLs:
+// Broker kennt pro System genau zwei Secrets (email_url + email_token).
+// Der Normalfall ist die Kurzform — Mailserver, Adresse, Passwort:
+//
+//	email_url   = mail.example.com
+//	email_token = agent@example.com:app-passwort
+//
+// Die Kurzform expandiert zum Standard-Setup IMAP mit TLS auf 993 und
+// SMTP-Submission mit STARTTLS auf 587 auf demselben Host. Abweichende
+// Hosts, Ports oder TLS-Modi kodiert email_url als BEIDE Endpunkte:
 //
 //	email_url   = imaps://imap.example.com:993 smtp://smtp.example.com:587
-//	email_token = agent@example.com:app-passwort
 //
 // Schemata: imaps (TLS, Default-Port 993), imap (STARTTLS, 143), smtps
 // (TLS, 465), smtp (STARTTLS, 587). Für Tests/Demos zusätzlich
@@ -47,7 +53,17 @@ type Config struct {
 // ParseConfig zerlegt das gebrokerte Credential in die Mail-Konfiguration.
 func ParseConfig(cred target.Credential) (Config, error) {
 	var cfg Config
-	raw := strings.NewReplacer(";", " ", ",", " ").Replace(cred.BaseURL)
+	raw := strings.TrimSpace(strings.NewReplacer(";", " ", ",", " ").Replace(cred.BaseURL))
+	if raw != "" && !strings.Contains(raw, "://") {
+		// Kurzform: nur der Mailserver-Host → Standard-Setup auf demselben
+		// Host (IMAP-TLS 993 + SMTP-Submission/STARTTLS 587). Ports, TLS-Modi
+		// oder getrennte Hosts brauchen die explizite URL-Form.
+		if strings.ContainsAny(raw, ": /") {
+			return Config{}, fmt.Errorf("email_url: %q — die Kurzform ist NUR der Mailserver-Host (z. B. %q); abweichende Ports/TLS-Modi als URLs angeben (%q)",
+				raw, "mail.example.com", "imaps://imap.example.com:993 smtp://smtp.example.com:587")
+		}
+		raw = "imaps://" + raw + " smtp://" + raw
+	}
 	for _, part := range strings.Fields(raw) {
 		u, err := url.Parse(part)
 		if err != nil {

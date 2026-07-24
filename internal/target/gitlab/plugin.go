@@ -37,10 +37,12 @@ func init() {
 
 4. Intake per Heartbeat (empfohlen, kein Webhook nötig) — in der
    HEARTBEAT.md des Agenten:
-   - alle: 15m titel: GitLab-Issues sichten aufgabe: Finde offene Issues
-     (list_issues state=opened), bearbeite neue und prüfe per list_notes,
-     ob auf deine Rückfragen geantwortet wurde. Bei Bugs: Code per checkout
-     holen und die Behauptung am Quelltext verifizieren.
+   - alle: 15m nur-wenn: gitlab titel: GitLab-Issues sichten aufgabe: Finde
+     offene Issues (list_issues state=opened), bearbeite neue und prüfe per
+     list_notes, ob auf deine Rückfragen geantwortet wurde. Bei Bugs: Code
+     per checkout holen und die Behauptung am Quelltext verifizieren.
+   (nur-wenn: gitlab ist optional — die Control Plane weckt den Agenten
+    dann nur, wenn mindestens ein offenes Issue im Intake-Scope existiert.)
    Optionaler Projekt-Filter (gilt für Webhook UND list_issues/list_projects):
    COVEY_GITLAB_INTAKE_PROJECTS="gruppe/support"   (leer = alle)
 
@@ -138,6 +140,28 @@ func issueProjectPath(i Issue) string {
 		return i.References.Full[:idx]
 	}
 	return ""
+}
+
+// HasWork (target.WorkChecker): billiger Vorab-Check der Control Plane für
+// nur-wenn:-Heartbeats — gibt es mindestens ein offenes Issue im Intake-Scope?
+// Nutzt denselben Pfad wie list_issues (globales GET /issues, danach
+// COVEY_GITLAB_INTAKE_PROJECTS-Filter): was der Agent nicht sähe, weckt ihn
+// auch nicht. Anders als das Gelesen-Flag bei E-Mail bleibt ein offenes Issue
+// so lange „Arbeit", bis es geschlossen ist — der Heartbeat feuert also in
+// jedem Intervall, solange irgendein Issue offen ist; gespart wird nur die
+// Leerlauf-Phase ohne offene Issues.
+func (System) HasWork(ctx context.Context, cred target.Credential) (bool, error) {
+	gc := NewClient(cred.BaseURL, cred.Token)
+	issues, err := gc.ListIssues(ctx, 0, "opened", "", "", false)
+	if err != nil {
+		return false, err
+	}
+	for _, i := range issues {
+		if projectInScope(i.ProjectID, issueProjectPath(i)) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // ActionSubject: öffentliche Kommentare (internal=false) sind ein eigenes,

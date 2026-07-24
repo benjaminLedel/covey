@@ -199,7 +199,7 @@ func (o *Orchestrator) fireHeartbeats(ctx context.Context) {
 	}
 	defer tx.Rollback(ctx)
 
-	rows, err := tx.Query(ctx, `SELECT h.agent_id, a.org_id, h.name, h.task_body,
+	rows, err := tx.Query(ctx, `SELECT h.agent_id, a.org_id, h.name, h.task_body, h.only_if,
 			EXISTS (SELECT 1 FROM backlog_tasks t
 				WHERE t.agent_id=h.agent_id AND t.origin='heartbeat' AND t.title=h.name
 				  AND t.state NOT IN ('done','failed','cancelled')) AS pending
@@ -217,14 +217,14 @@ func (o *Orchestrator) fireHeartbeats(ctx context.Context) {
 		return
 	}
 	type due struct {
-		agentID, orgID uuid.UUID
-		name, body     string
-		pending        bool
+		agentID, orgID     uuid.UUID
+		name, body, onlyIf string
+		pending            bool
 	}
 	var dues []due
 	for rows.Next() {
 		var d due
-		if err := rows.Scan(&d.agentID, &d.orgID, &d.name, &d.body, &d.pending); err != nil {
+		if err := rows.Scan(&d.agentID, &d.orgID, &d.name, &d.body, &d.onlyIf, &d.pending); err != nil {
 			rows.Close()
 			o.Log.Warn("heartbeat scan", "err", err)
 			return
@@ -249,15 +249,63 @@ func (o *Orchestrator) fireHeartbeats(ctx context.Context) {
 	}
 	// Aufgaben erst nach dem Commit anlegen — Create feuert NOTIFY und weckt
 	// den Agenten. Schlägt ein Create fehl, entfällt genau ein Lauf (best-effort).
+	// Die nur-wenn:-Prüfung läuft ebenfalls nach dem Commit (Netzwerk-I/O gehört
+	// nicht in die Transaktion); last_fired_at ist dann schon fortgeschrieben —
+	// ein übersprungener Lauf zählt als gelaufen, der Zeitplan pollt regulär weiter.
 	for _, d := range dues {
 		if d.pending {
 			o.Log.Info("heartbeat übersprungen: aufgabe noch offen", "agent", d.agentID, "name", d.name)
+			continue
+		}
+		if d.onlyIf != "" && !o.heartbeatHasWork(ctx, d.agentID, d.orgID, d.onlyIf) {
+			o.Log.Info("heartbeat übersprungen: keine arbeit", "agent", d.agentID, "name", d.name, "system", d.onlyIf)
 			continue
 		}
 		if _, err := o.Backlog.Create(ctx, d.orgID, d.agentID, d.name, d.body, "heartbeat", 0); err != nil {
 			o.Log.Warn("heartbeat-aufgabe anlegen", "agent", d.agentID, "name", d.name, "err", err)
 		}
 	}
+}
+
+// heartbeatHasWork prüft die nur-wenn:-Bedingung eines fälligen Heartbeats:
+// das Zielsystem-Plugin meldet über target.WorkChecker, ob Arbeit vorliegt.
+// Die Secrets löst die Control Plane selbst auf — das Credential verlässt sie
+// nicht. Fail-open: lässt sich die Bedingung nicht prüfen (Plugin ohne
+// WorkChecker, fehlende Secrets, Verbindungsfehler), feuert der Heartbeat
+// regulär — eine kaputte Bedingung darf keine Arbeit liegen lassen.
+func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid.UUID, system string) bool {
+	sys, ok := target.Get(system)
+	if !ok {
+		o.Log.Warn("nur-wenn: unbekanntes zielsystem — feuere trotzdem", "system", system)
+		return true
+	}
+	checker, ok := sys.(target.WorkChecker)
+	if !ok {
+		o.Log.Warn("nur-wenn: zielsystem kann arbeit nicht vorab prüfen — feuere trotzdem", "system", system)
+		return true
+	}
+	var cred target.Credential
+	if d, _ := target.Describe(system); !d.NoCredentials {
+		token, err := o.Secrets.Resolve(ctx, orgID, agentID, system+"_token")
+		if err != nil {
+			o.Log.Warn("nur-wenn: secret fehlt — feuere trotzdem", "system", system, "err", err)
+			return true
+		}
+		baseURL, err := o.Secrets.Resolve(ctx, orgID, agentID, system+"_url")
+		if err != nil {
+			o.Log.Warn("nur-wenn: secret fehlt — feuere trotzdem", "system", system, "err", err)
+			return true
+		}
+		cred = target.Credential{BaseURL: baseURL, Token: token}
+	}
+	cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	has, err := checker.HasWork(cctx, cred)
+	if err != nil {
+		o.Log.Warn("nur-wenn: prüfung fehlgeschlagen — feuere trotzdem", "system", system, "err", err)
+		return true
+	}
+	return has
 }
 
 // EnsureRunning startet eine Agent-Session, falls keine läuft (idempotent).

@@ -27,6 +27,7 @@ Die Zeitplan-Quelle ist Config-as-Code: jede Zeile in `HEARTBEAT.md` ([`02-agent
 ```markdown
 - alle: 30m      titel: Posteingang sichten   aufgabe: Prüfe neue Tickets und triagiere sie.
 - täglich: 09:00 titel: Tagesbericht          aufgabe: Fasse den gestrigen Tag zusammen.
+- alle: 5m nur-wenn: email titel: Postfach    aufgabe: Bearbeite die ungelesenen Mails.
 ```
 
 Zwei Zeitplan-Formen, genau eine je Eintrag:
@@ -34,11 +35,15 @@ Zwei Zeitplan-Formen, genau eine je Eintrag:
 - **`alle:`** — Intervall (`30m`, `2h`, `1d`). Fällig, sobald seit dem letzten Lauf das Intervall verstrichen ist.
 - **`täglich:`** — feste Tageszeit (`HH:MM`, Serverzeit). Fällig einmal pro Tag ab dieser Uhrzeit.
 
+Optional je Eintrag:
+
+- **`nur-wenn:`** — Name eines Zielsystems, das beim Feuern erst Arbeit melden muss. Die Control Plane fragt das Plugin über das optionale `target.WorkChecker`-Interface (`HasWork`) mit selbst aufgelösten Secrets — für `email` etwa: „gibt es ungelesene Mails im Arbeitsvorrat?" Meldet das System keine Arbeit, entfällt der Lauf ohne Agenten-Wake; `last_fired_at` wird trotzdem fortgeschrieben, der Zeitplan pollt regulär weiter. Die Prüfung ist fail-open: lässt sich die Bedingung nicht auswerten (Plugin ohne `WorkChecker`, fehlende Secrets, Verbindungsfehler), feuert der Heartbeat regulär — eine kaputte Bedingung darf keine Arbeit liegen lassen. So wird aus dem Polling-Intake webhookloser Systeme ein billiger Control-Plane-Check; die teure Runtime startet nur, wenn wirklich etwas vorliegt.
+
 Mechanik: Beim Speichern der Config werden die Einträge in `agent_heartbeats` materialisiert (`titel:` ist der Schlüssel; `last_fired_at` überlebt Config-Versionen und startet bei *jetzt* — ein frisch angelegter Heartbeat feuert also erst nach Ablauf seines Zeitplans, nicht sofort). Der periodische Tick des Dispatch-Loops prüft fällige Einträge per SQL und legt sie als reguläre Backlog-Aufgabe mit `origin='heartbeat'` an — ab dort greift der normale Lifecycle (wake, triage, working). Kill-Switch und Flotten-Notaus unterdrücken das Feuern.
 
 **Kein Aufstauen:** Ist die Aufgabe des letzten Laufs noch nicht terminal (open/in_progress/blocked), wird kein Duplikat angelegt; der Lauf gilt trotzdem als gefeuert, damit nach Abschluss der reguläre Zeitplan weiterläuft statt sofort nachzuschlagen. Verpasste Läufe (Control Plane down) werden nicht nachgeholt — es feuert höchstens der nächste fällige Lauf.
 
-**Manueller Trigger:** `POST /api/v1/agents/{id}/heartbeats/{name}/fire` (Rollen: platform_admin, agent_owner — in der UI der Button „Jetzt ausführen" im Heartbeat-Tab) feuert einen Heartbeat sofort, unabhängig vom Zeitplan. Es gelten dieselben Regeln wie beim Tick: Kill-Switch/Notaus und eine noch offene Aufgabe des letzten Laufs lehnen ab (409), und `last_fired_at` wird fortgeschrieben — der reguläre Zeitplan rechnet ab dem manuellen Lauf weiter.
+**Manueller Trigger:** `POST /api/v1/agents/{id}/heartbeats/{name}/fire` (Rollen: platform_admin, agent_owner — in der UI der Button „Jetzt ausführen" im Heartbeat-Tab) feuert einen Heartbeat sofort, unabhängig vom Zeitplan. Es gelten dieselben Regeln wie beim Tick: Kill-Switch/Notaus und eine noch offene Aufgabe des letzten Laufs lehnen ab (409), und `last_fired_at` wird fortgeschrieben — der reguläre Zeitplan rechnet ab dem manuellen Lauf weiter. Eine `nur-wenn:`-Bedingung wird beim manuellen Trigger **nicht** geprüft: wer den Button drückt, will den Lauf.
 
 **Gestaffelte Kosten beim Tick:** Der Tick darf nicht jedes Mal Opus anwerfen. Ein kleines, billiges Modell entscheidet zuerst „gibt es überhaupt etwas zu tun?" — bei „nein" schläft der Agent weiter. Erst bei „ja" wird die volle Runtime geweckt. Der Tick ist das, was Proaktivität erzeugt: Ohne externen Trigger merkt der Support-Agent selbst „Ticket #42 wartet seit zwei Tagen auf Kundenantwort, ich hake nach."
 

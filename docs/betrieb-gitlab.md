@@ -86,8 +86,15 @@ die Guard-Rails dürfen `gitlab` / `gitlab:comment_external` nicht verbieten.
 In der `HEARTBEAT.md` des Agenten einen Sichtungs-Eintrag anlegen:
 
 ```
-- alle: 15m titel: GitLab-Issues sichten aufgabe: Finde offene Issues (list_issues state=opened), bearbeite neue und prüfe per list_notes, ob auf deine Rückfragen geantwortet wurde. Bei Bugs: Code per checkout holen und die Behauptung am Quelltext verifizieren.
+- alle: 15m nur-wenn: gitlab titel: GitLab-Issues sichten aufgabe: Finde offene Issues (list_issues state=opened), bearbeite neue und prüfe per list_notes, ob auf deine Rückfragen geantwortet wurde. Bei Bugs: Code per checkout holen und die Behauptung am Quelltext verifizieren.
 ```
+
+`nur-wenn: gitlab` ist optional: die Control Plane prüft dann vor jedem Lauf
+selbst per API, ob überhaupt ein offenes Issue im Intake-Scope existiert, und
+weckt den Agenten nur dann. Beachte die Semantik: anders als das Gelesen-Flag
+bei E-Mail bleibt ein offenes Issue „Arbeit", bis es geschlossen ist — die
+Bedingung spart also nur die Leerlauf-Phasen ganz ohne offene Issues, nicht
+die Läufe, in denen ein Issue auf eine Kundenantwort wartet.
 
 Der Agent entdeckt seinen Arbeitsvorrat dann selbst: `list_projects` liefert
 die Projekte, in denen der Bot-Nutzer Mitglied ist, `list_issues` die offenen
