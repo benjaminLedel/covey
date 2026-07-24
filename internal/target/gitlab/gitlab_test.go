@@ -454,6 +454,75 @@ func TestCheckout(t *testing.T) {
 	}
 }
 
+// TestDownloadUpload deckt den Kern des Screenshot-Lesens ab: die im
+// Issue-Markdown eingebettete Upload-Referenz ![...](/uploads/<secret>/<datei>)
+// wird gebrokert (Token bleibt im Daemon) in die Sandbox geladen, sodass der
+// Agent das Bild danach mit Read (Vision) ansehen kann.
+func TestDownloadUpload(t *testing.T) {
+	const secret = "0123456789abcdef0123456789abcdef"
+	png := []byte("\x89PNG\r\n\x1a\nFAKE-SCREENSHOT")
+	var gotPath, gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotAuth = r.URL.Path, r.Header.Get("PRIVATE-TOKEN")
+		w.Header().Set("Content-Type", "image/png")
+		w.Write(png)
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	workdir := t.TempDir()
+	ctx := target.WithWorkdir(context.Background(), workdir)
+
+	// So, wie die Referenz im Markdown einer Issue-Beschreibung steht.
+	params := []byte(`{"project_id":15,"url":"/uploads/` + secret + `/login-fehler.png"}`)
+	res, err := sys.Execute(ctx, "download_upload", params, cred)
+	if err != nil {
+		t.Fatalf("download_upload: %v", err)
+	}
+	if want := "/api/v4/projects/15/uploads/" + secret + "/login-fehler.png"; gotPath != want {
+		t.Fatalf("falscher API-Pfad: %s (erwartet %s)", gotPath, want)
+	}
+	if gotAuth != "test-token" {
+		t.Fatalf("Token muss als PRIVATE-TOKEN laufen, war %q", gotAuth)
+	}
+	up := res.(DownloadUploadResult)
+	if up.Filename != "login-fehler.png" || up.ContentType != "image/png" {
+		t.Fatalf("unerwartetes Ergebnis: %+v", up)
+	}
+	if !strings.HasPrefix(up.Path, filepath.Join(workdir, "uploads")) {
+		t.Fatalf("Upload muss unter <workdir>/uploads landen: %s", up.Path)
+	}
+	data, err := os.ReadFile(up.Path)
+	if err != nil || !bytes.Equal(data, png) {
+		t.Fatalf("heruntergeladenes Bild fehlt/falsch: %v", err)
+	}
+
+	// Auch die volle Web-URL als Referenz muss auf denselben Upload-Endpoint zeigen.
+	full := srv.URL + "/gruppe/projekt/uploads/" + secret + "/login-fehler.png"
+	if _, err := sys.Execute(ctx, "download_upload",
+		[]byte(`{"project_id":15,"url":"`+full+`"}`), cred); err != nil {
+		t.Fatalf("download_upload mit voller URL: %v", err)
+	}
+	if want := "/api/v4/projects/15/uploads/" + secret + "/login-fehler.png"; gotPath != want {
+		t.Fatalf("volle URL muss auf den Upload-Endpoint gemappt werden: %s", gotPath)
+	}
+
+	// Ohne project_id oder url klare Ablehnung.
+	if _, err := sys.Execute(ctx, "download_upload", []byte(`{"project_id":15}`), cred); err == nil {
+		t.Fatal("download_upload ohne url muss fehlschlagen")
+	}
+	// Referenz ohne gültiges Upload-Muster wird abgelehnt.
+	if _, err := sys.Execute(ctx, "download_upload",
+		[]byte(`{"project_id":15,"url":"/uploads/zu-kurz/x.png"}`), cred); err == nil {
+		t.Fatal("ungültige Upload-Referenz muss fehlschlagen")
+	}
+	// Ohne Sandbox-Workdir klare Ablehnung.
+	if _, err := sys.Execute(context.Background(), "download_upload", params, cred); err == nil {
+		t.Fatal("download_upload ohne workdir muss fehlschlagen")
+	}
+}
+
 func TestCheckoutSubPathAndLimit(t *testing.T) {
 	archive := tarGz(t, map[string]string{
 		"support-main-abc123/":                   "",

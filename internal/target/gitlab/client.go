@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -212,6 +213,55 @@ func (c *Client) DownloadArchive(ctx context.Context, projectID int, ref, subPat
 		return nil, fmt.Errorf("gitlab GET %s: HTTP %d: %.300s", path, resp.StatusCode, data)
 	}
 	return resp.Body, nil
+}
+
+// uploadRefRE zerlegt eine GitLab-Upload-Referenz in <secret>/<dateiname>.
+// GitLab bettet in Markdown angehängte Bilder als /uploads/<32-hex>/<name>
+// ein — projekt-relativ. Der Match funktioniert auf dem nackten Pfad
+// (/uploads/…), auf der vollen Web-URL (…/gruppe/projekt/uploads/…) und auf
+// der schon zerlegten Form <secret>/<name>.
+var uploadRefRE = regexp.MustCompile(`([0-9a-fA-F]{32})/([^/?#\s]+)$`)
+
+// maxUploadBytes begrenzt einen einzelnen heruntergeladenen Upload — ein
+// Screenshot ist klein, ein versehentlich verlinktes Riesen-Asset soll die
+// Sandbox nicht fluten.
+const maxUploadBytes = 25 << 20 // 25 MB
+
+// DownloadUpload lädt einen an ein Issue/MR angehängten Upload (Screenshot)
+// gebrokert herunter — GET /projects/{id}/uploads/{secret}/{filename}. Wie
+// DownloadArchive läuft er am JSON-do() vorbei (der Body ist binär), das Token
+// bleibt im Daemon. ref ist die Referenz aus dem Markdown: der nackte Pfad
+// "/uploads/<secret>/<datei>", die volle Web-URL oder schon "<secret>/<datei>".
+// Rückgabe: Dateiname, Content-Type und der Reader (vom Aufrufer zu schließen).
+func (c *Client) DownloadUpload(ctx context.Context, projectID int, ref string) (filename, contentType string, body io.ReadCloser, err error) {
+	m := uploadRefRE.FindStringSubmatch(strings.TrimSpace(ref))
+	if m == nil {
+		return "", "", nil, fmt.Errorf("keine gültige Upload-Referenz in %q — erwartet /uploads/<secret>/<datei> aus der Issue-Beschreibung", ref)
+	}
+	secret, name := m[1], m[2]
+	if decoded, derr := url.PathUnescape(name); derr == nil {
+		name = decoded
+	}
+	path := fmt.Sprintf("/projects/%d/uploads/%s/%s", projectID, secret, url.PathEscape(name))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/api/v4"+path, nil)
+	if err != nil {
+		return "", "", nil, err
+	}
+	req.Header.Set("PRIVATE-TOKEN", c.Token)
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return "", "", nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		data, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
+		resp.Body.Close()
+		hint := ""
+		if resp.StatusCode == http.StatusNotFound {
+			hint = " (der Upload-Endpoint braucht GitLab ≥ 16.6 bzw. Projekt-Zugriff)"
+		}
+		return "", "", nil, fmt.Errorf("gitlab GET %s: HTTP %d%s: %.200s", path, resp.StatusCode, hint, data)
+	}
+	return name, resp.Header.Get("Content-Type"), resp.Body, nil
 }
 
 // TreeEntry ist ein Eintrag des Repository-Baums (Datei oder Verzeichnis).
