@@ -1027,3 +1027,190 @@ func TestAssignAction(t *testing.T) {
 		t.Fatal("assign ohne project_id/issue_iid muss abgelehnt werden")
 	}
 }
+
+// TestReviewerHandoff deckt die Übergabe eines MR an einen QA-/Test-Agenten ab:
+// create_merge_request mit separatem reviewer, set_reviewer auf einen
+// bestehenden MR und approve_mr als Freigabe.
+func TestReviewerHandoff(t *testing.T) {
+	var mrBody, reviewerBody map[string]any
+	var approvePath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v4/projects/15":
+			json.NewEncoder(w).Encode(ProjectDetail{ID: 15, DefaultBranch: "main"})
+		case r.URL.Path == "/api/v4/users":
+			switch r.URL.Query().Get("username") {
+			case "leaddev":
+				json.NewEncoder(w).Encode([]User{{ID: 7, Username: "leaddev"}})
+			case "qa-bot":
+				json.NewEncoder(w).Encode([]User{{ID: 8, Username: "qa-bot"}})
+			default:
+				json.NewEncoder(w).Encode([]User{})
+			}
+		case r.URL.Path == "/api/v4/projects/15/merge_requests" && r.Method == http.MethodPost:
+			json.NewDecoder(r.Body).Decode(&mrBody)
+			json.NewEncoder(w).Encode(MergeRequest{IID: 9, State: "opened"})
+		case r.URL.Path == "/api/v4/projects/15/merge_requests/9" && r.Method == http.MethodPut:
+			json.NewDecoder(r.Body).Decode(&reviewerBody)
+			json.NewEncoder(w).Encode(MergeRequestDetail{IID: 9})
+		case r.URL.Path == "/api/v4/projects/15/merge_requests/9/approve" && r.Method == http.MethodPost:
+			approvePath = r.URL.Path
+			json.NewEncoder(w).Encode(map[string]any{"id": 9})
+		default:
+			t.Errorf("unerwarteter request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	// create_merge_request mit reviewer ≠ assignee: Vorgesetzter bleibt Assignee,
+	// QA-Agent wird Reviewer.
+	if _, err := sys.Execute(ctx, "create_merge_request", []byte(`{"project_id":15,
+		"source_branch":"fix/issue-23-login","title":"Fix Login","assignee":"leaddev","reviewer":"qa-bot"}`), cred); err != nil {
+		t.Fatalf("create_merge_request mit reviewer: %v", err)
+	}
+	if ids, _ := mrBody["assignee_ids"].([]any); len(ids) != 1 || ids[0] != float64(7) {
+		t.Fatalf("assignee muss der Vorgesetzte (7) sein: %+v", mrBody)
+	}
+	if ids, _ := mrBody["reviewer_ids"].([]any); len(ids) != 1 || ids[0] != float64(8) {
+		t.Fatalf("reviewer muss der QA-Agent (8) sein: %+v", mrBody)
+	}
+
+	// set_reviewer auf einen bestehenden MR.
+	out, err := sys.Execute(ctx, "set_reviewer", []byte(`{"project_id":15,"mr_iid":9,"username":"@qa-bot"}`), cred)
+	if err != nil {
+		t.Fatalf("set_reviewer: %v", err)
+	}
+	if m := out.(map[string]any); m["reviewer"] != "qa-bot" || m["user_id"] != 8 {
+		t.Fatalf("set_reviewer-Ergebnis falsch: %+v", out)
+	}
+	if ids, _ := reviewerBody["reviewer_ids"].([]any); len(ids) != 1 || ids[0] != float64(8) {
+		t.Fatalf("reviewer_ids falsch: %+v", reviewerBody)
+	}
+
+	// approve_mr als Freigabe.
+	if _, err := sys.Execute(ctx, "approve_mr", []byte(`{"project_id":15,"mr_iid":9}`), cred); err != nil {
+		t.Fatalf("approve_mr: %v", err)
+	}
+	if approvePath != "/api/v4/projects/15/merge_requests/9/approve" {
+		t.Fatalf("approve muss POST .../approve sein, war %q", approvePath)
+	}
+
+	// Pflichtparameter fehlen → Fehler.
+	for name, call := range map[string][2]string{
+		"set_reviewer ohne mr_iid":   {"set_reviewer", `{"project_id":15,"username":"qa-bot"}`},
+		"set_reviewer unbek. Nutzer": {"set_reviewer", `{"project_id":15,"mr_iid":9,"username":"gibtsnicht"}`},
+		"approve_mr ohne mr_iid":     {"approve_mr", `{"project_id":15}`},
+	} {
+		if _, err := sys.Execute(ctx, call[0], []byte(call[1]), cred); err == nil {
+			t.Fatalf("%s muss fehlschlagen", name)
+		}
+	}
+}
+
+// TestHasWorkKindIssuesAssigned prüft, dass nur-wenn: gitlab:issues:assigned nur
+// die dem Bot ZUGEWIESENEN offenen Issues zählt (scope=assigned_to_me) — sonst
+// weckt jedes fremde offene Issue im Scope einen Agenten, der laut Playbook nur
+// zugewiesene Issues bearbeitet.
+func TestHasWorkKindIssuesAssigned(t *testing.T) {
+	var issues []Issue
+	var sawScope string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v4/issues" {
+			t.Errorf("unerwarteter request: %s", r.URL.Path)
+			return
+		}
+		sawScope = r.URL.Query().Get("scope")
+		json.NewEncoder(w).Encode(issues)
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "t"}
+	ctx := context.Background()
+
+	mine := Issue{IID: 23, ProjectID: 15}
+	mine.References.Full = "gruppe/support#23"
+
+	// Kein zugewiesenes Issue → keine Arbeit; der Check muss assigned_to_me sein.
+	issues = nil
+	if has, err := sys.HasWorkKind(ctx, cred, "issues:assigned"); err != nil || has {
+		t.Fatalf("ohne Zuweisung: has=%v err=%v", has, err)
+	}
+	if sawScope != "assigned_to_me" {
+		t.Fatalf("assigned-Subscope muss scope=assigned_to_me abfragen, war %q", sawScope)
+	}
+
+	// Ein zugewiesenes offenes Issue → Arbeit.
+	issues = []Issue{mine}
+	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || !has {
+		t.Fatalf("mit Zuweisung: has=%v err=%v", has, err)
+	}
+}
+
+// TestHasWorkKindReview prüft den Reviewer-seitigen Vorabcheck (nur-wenn:
+// gitlab:review): ein an mich zum Review übergebener MR ist Arbeit, solange nicht
+// ICH als Letzter kommentiert habe — inklusive des frischen MR ganz ohne Notiz.
+func TestHasWorkKindReview(t *testing.T) {
+	var reviewMRs []MergeRequest
+	var mrNotes []Note
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v4/user":
+			json.NewEncoder(w).Encode(User{ID: 8, Username: "qa-bot"})
+		case r.URL.Path == "/api/v4/merge_requests":
+			if r.URL.Query().Get("reviewer_username") != "qa-bot" {
+				t.Errorf("reviewer_username-Filter fehlt: %s", r.URL.RawQuery)
+			}
+			json.NewEncoder(w).Encode(reviewMRs)
+		case strings.HasSuffix(r.URL.Path, "/notes"):
+			json.NewEncoder(w).Encode(mrNotes)
+		default:
+			t.Errorf("unerwarteter request: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "t"}
+	ctx := context.Background()
+
+	mrIn := MergeRequest{IID: 9, ProjectID: 15}
+	mrIn.References.Full = "gruppe/support!9"
+	author := []Note{{ID: 1, Body: "Habe nachgebessert", Author: struct {
+		Username string `json:"username"`
+	}{Username: "leaddev"}}}
+	mine := []Note{{ID: 2, Body: "Getestet, ein Mangel: …", Author: struct {
+		Username string `json:"username"`
+	}{Username: "qa-bot"}}}
+
+	check := func(want bool) {
+		t.Helper()
+		has, err := sys.HasWorkKind(ctx, cred, "review")
+		if err != nil {
+			t.Fatalf("HasWorkKind(review): %v", err)
+		}
+		if has != want {
+			t.Fatalf("HasWorkKind(review) = %v, erwartet %v", has, want)
+		}
+	}
+
+	// Kein MR mir zum Review zugewiesen → keine Arbeit.
+	reviewMRs, mrNotes = nil, nil
+	check(false)
+
+	// Frisch zugewiesener MR ohne Kommentar → Erst-Review steht aus (Arbeit).
+	reviewMRs, mrNotes = []MergeRequest{mrIn}, nil
+	check(true)
+
+	// Autor hat zuletzt geantwortet (nachgebessert) → erneut prüfen (Arbeit).
+	reviewMRs, mrNotes = []MergeRequest{mrIn}, author
+	check(true)
+
+	// Ich (qa-bot) habe zuletzt kommentiert → Runde beantwortet, keine Arbeit.
+	reviewMRs, mrNotes = []MergeRequest{mrIn}, mine
+	check(false)
+}

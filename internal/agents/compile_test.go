@@ -89,6 +89,42 @@ func TestTeamSection(t *testing.T) {
 	}
 }
 
+func TestTeamAgentsSection(t *testing.T) {
+	s := TeamAgentsSection([]AgentColleague{
+		{Name: "covey-qa", JobTitle: "QA-Agent", Department: "Engineering", SameTeam: true,
+			Identities:       []TeamIdentity{{Label: "GitLab", Value: "covey-qa"}},
+			Responsibilities: "testet Merge Requests"},
+		{Name: "covey-support", JobTitle: "Support-Agent", Department: "Support", SameTeam: false,
+			Identities: []TeamIdentity{{Label: "GitLab", Value: "covey-support"}}},
+		{Name: "  "}, // ohne Name: überspringen
+	})
+	if !strings.Contains(s, "## Team (KI-Kollegen)") {
+		t.Fatalf("Überschrift fehlt: %q", s)
+	}
+	if !strings.Contains(s, "- covey-qa — QA-Agent — DEIN TEAM (Engineering) (GitLab: covey-qa) — zuständig für: testet Merge Requests") {
+		t.Fatalf("Team-Kollege-Zeile falsch: %q", s)
+	}
+	if !strings.Contains(s, "- covey-support — Support-Agent — Team: Support (GitLab: covey-support)") {
+		t.Fatalf("Fremd-Team-Zeile falsch: %q", s)
+	}
+	if strings.Contains(s, "covey-support — DEIN TEAM") {
+		t.Fatalf("nur Kollegen aus dem eigenen Team dürfen als DEIN TEAM markiert sein: %q", s)
+	}
+	if TeamAgentsSection(nil) != "" || TeamAgentsSection([]AgentColleague{{Name: " "}}) != "" {
+		t.Fatal("ohne Kollegen muss der Abschnitt leer sein")
+	}
+}
+
+func TestTeamAgentsSectionSupervisor(t *testing.T) {
+	s := TeamAgentsSection([]AgentColleague{
+		{Name: "covey-lead", JobTitle: "Lead-Agent", Supervisor: true,
+			Identities: []TeamIdentity{{Label: "GitLab", Value: "covey-lead"}}},
+	})
+	if !strings.Contains(s, "- covey-lead — Lead-Agent — DEIN VORGESETZTER (GitLab: covey-lead)") {
+		t.Fatalf("Vorgesetzten-Markierung fehlt oder falsch platziert: %q", s)
+	}
+}
+
 func TestTeamSectionSupervisor(t *testing.T) {
 	s := TeamSection([]TeamMember{
 		{Name: "Lena Lead", JobTitle: "Engineering Lead", Supervisor: true,

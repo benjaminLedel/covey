@@ -18,7 +18,7 @@ func init() {
 	target.Register(target.Descriptor{
 		Name:        "gitlab",
 		Label:       "GitLab",
-		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues), Quellcode auschecken, Projekt aufsetzen und Bugs am Code verifizieren (checkout + Sandbox-Shell), Fixes entwickeln — auf Feature-Branch committen (commit), Merge Request an den Vorgesetzten eröffnen (create_merge_request) und den Review-Loop leben: bei jedem Heartbeat-Lauf offene MRs auf neues Review-Feedback prüfen (list_merge_requests/list_mr_notes/comment_mr), rote CI selbst diagnostizieren (list_pipelines/list_pipeline_jobs/get_job_log) und auf den Merge reagieren. Intake per HEARTBEAT.md (Polling), Auth per API-Token (Secrets gitlab_token + gitlab_url).",
+		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues), Quellcode auschecken, Projekt aufsetzen und Bugs am Code verifizieren (checkout + Sandbox-Shell), Fixes entwickeln — auf Feature-Branch committen (commit), Merge Request an den Vorgesetzten eröffnen (create_merge_request, optional mit QA-Agent als reviewer) und den Review-Loop leben: bei jedem Heartbeat-Lauf offene MRs auf neues Review-Feedback prüfen (list_merge_requests/list_mr_notes/comment_mr), rote CI selbst diagnostizieren (list_pipelines/list_pipeline_jobs/get_job_log) und auf den Merge reagieren. Auch als QA-/Test-Agent nutzbar: fremde MRs, in denen man als Reviewer eingetragen ist, end-to-end testen und Feedback geben (set_reviewer/approve_mr, nur-wenn: gitlab:review). Intake per HEARTBEAT.md (Polling), Auth per API-Token (Secrets gitlab_token + gitlab_url).",
 		Kind:        "builtin",
 		System:      System{},
 		SetupDoc: `1. In GitLab einen eigenen Bot-Nutzer anlegen (z. B. covey-bot), den
@@ -46,11 +46,16 @@ func init() {
      neues Review-Feedback (list_mr_notes), arbeite es ein und reagiere auf
      Merge/Close.
    (Der Unterscope nach dem Doppelpunkt spart den teuren Agenten-Lauf gezielt:
-    nur-wenn: gitlab:issues feuert nur bei offenem Issue im Intake-Scope,
+    nur-wenn: gitlab:issues feuert bei IRGENDEINEM offenen Issue im Intake-Scope
+    (für Agenten, die alle offenen Issues triagieren),
     nur-wenn: gitlab:mr nur, wenn einer deiner offenen MRs unbeantwortetes
     Review-Feedback hat. So laufen beide Tasks getrennt, ohne dass der eine
     für die Arbeit des anderen mit-feuert. nur-wenn: gitlab ohne Unterscope
     prüft beides gemeinsam — nur nötig, wenn du beide Jobs in EINEM Task willst.)
+    WICHTIG — bearbeitet dein Playbook nur DIR ZUGEWIESENE Issues (list_issues
+    assigned=true), nutze nur-wenn: gitlab:issues:assigned. Dann weckt dich nur
+    ein dir zugewiesenes offenes Issue — sonst würde jedes fremde offene Issue
+    im Scope deinen Agenten in jedem Intervall unnötig starten.
    Optionaler Projekt-Filter (gilt für list_issues/list_projects):
    COVEY_GITLAB_INTAKE_PROJECTS="gruppe/support"   (leer = alle)
 
@@ -99,7 +104,7 @@ func mrProjectPath(m MergeRequest) string {
 // beantwortet sind — gespart wird die Leerlauf-Phase ganz ohne offene Arbeit.
 func (System) HasWork(ctx context.Context, cred target.Credential) (bool, error) {
 	gc := NewClient(cred.BaseURL, cred.Token)
-	has, err := issueWorkPending(ctx, gc)
+	has, err := issueWorkPending(ctx, gc, false)
 	if err != nil || has {
 		return has, err
 	}
@@ -107,19 +112,30 @@ func (System) HasWork(ctx context.Context, cred target.Credential) (bool, error)
 }
 
 // HasWorkKind (target.KindWorkChecker) gatet eine einzelne Arbeits-Art, damit
-// zwei Heartbeats (nur-wenn: gitlab:issues und nur-wenn: gitlab:mr) getrennt
-// feuern:
+// mehrere Heartbeats (nur-wenn: gitlab:issues, :mr, :review) getrennt feuern:
 //
-//   - "issues"/"issue" → gibt es ein offenes Issue im Intake-Scope?
-//   - "mr"/"reviews"   → wartet einer der offenen MRs des Bots auf Antwort?
-//   - sonst            → beides (wie HasWork), fail-open bei unbekanntem Scope.
+//   - "issues"/"issue"  → gibt es IRGENDEIN offenes Issue im Intake-Scope (für
+//     Agenten, die alle offenen Issues triagieren)?
+//   - "issues:assigned"/"assigned" → gibt es ein offenes Issue, das dem Bot-
+//     Nutzer selbst ZUGEWIESEN ist (scope=assigned_to_me)? Genau das braucht ein
+//     Agent, dessen Playbook nur seine eigenen Issues bearbeitet (list_issues
+//     assigned=true) — sonst weckt ihn jedes fremde offene Issue im Scope.
+//   - "mr"/"mrs"        → wartet einer der SELBST eröffneten MRs des Bots auf
+//     Antwort (Autoren-Sicht, der Entwickler-Review-Loop)?
+//   - "review"/"reviews" → wartet einer der MRs, in denen der Bot als REVIEWER
+//     eingetragen ist, auf sein Review (QA-/Test-Sicht)?
+//   - sonst             → beides von HasWork, fail-open bei unbekanntem Scope.
 func (System) HasWorkKind(ctx context.Context, cred target.Credential, kind string) (bool, error) {
 	gc := NewClient(cred.BaseURL, cred.Token)
 	switch kind {
 	case "issues", "issue":
-		return issueWorkPending(ctx, gc)
-	case "mr", "mrs", "reviews", "review":
+		return issueWorkPending(ctx, gc, false)
+	case "issues:assigned", "issue:assigned", "assigned":
+		return issueWorkPending(ctx, gc, true)
+	case "mr", "mrs":
 		return mrReviewPending(ctx, gc)
+	case "review", "reviews":
+		return mrReviewAssignedPending(ctx, gc)
 	default:
 		return System{}.HasWork(ctx, cred)
 	}
@@ -127,9 +143,12 @@ func (System) HasWorkKind(ctx context.Context, cred target.Credential, kind stri
 
 // issueWorkPending: gibt es mindestens ein offenes Issue im Intake-Scope?
 // Globales GET /issues, danach COVEY_GITLAB_INTAKE_PROJECTS-Filter — was der
-// Agent per list_issues nicht sähe, weckt ihn auch nicht.
-func issueWorkPending(ctx context.Context, gc *Client) (bool, error) {
-	issues, err := gc.ListIssues(ctx, 0, "opened", "", "", false)
+// Agent per list_issues nicht sähe, weckt ihn auch nicht. assignedOnly=true
+// zählt nur die dem Bot-Nutzer zugewiesenen Issues (scope=assigned_to_me) —
+// passend zu einem Playbook, das ausschließlich zugewiesene Issues bearbeitet;
+// sonst würde jedes fremde offene Issue im Scope den Agenten wecken.
+func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) (bool, error) {
+	issues, err := gc.ListIssues(ctx, 0, "opened", "", "", assignedOnly)
 	if err != nil {
 		return false, err
 	}
@@ -180,6 +199,51 @@ func mrReviewPending(ctx context.Context, gc *Client) (bool, error) {
 				return true, nil
 			}
 			break // letzter menschlicher Kommentar ist vom Bot → schon beantwortet
+		}
+	}
+	return false, nil
+}
+
+// mrReviewAssignedPending ist das Spiegelbild von mrReviewPending aus der
+// Reviewer-Sicht: Wartet einer der offenen Merge Requests, in denen der Bot als
+// REVIEWER eingetragen ist, auf sein Review? Das trägt den Review-Loop für einen
+// QA-/Test-Agenten ohne Webhook, gegatet über nur-wenn: gitlab:review.
+//
+// Arbeit liegt vor, wenn der letzte Nicht-System-Kommentar NICHT vom Bot stammt —
+// oder wenn der MR noch gar keinen Kommentar hat. Anders als beim Autoren-Loop
+// zählt ein frischer, an mich zum Review übergebener MR (noch ohne Kommentar)
+// SEHR WOHL als Arbeit: genau er wartet auf mein Erst-Review. Hat der Bot als
+// letzter kommentiert, ist diese Review-Runde beantwortet und der MR ruht, bis
+// der Autor erneut reagiert.
+func mrReviewAssignedPending(ctx context.Context, gc *Client) (bool, error) {
+	me, err := gc.CurrentUser(ctx)
+	if err != nil {
+		return false, err
+	}
+	mrs, err := gc.ListReviewMergeRequests(ctx, me.Username)
+	if err != nil {
+		return false, err
+	}
+	for _, m := range mrs {
+		if !projectInScope(m.ProjectID, mrProjectPath(m)) {
+			continue
+		}
+		notes, err := gc.ListMRNotes(ctx, m.ProjectID, m.IID)
+		if err != nil {
+			return false, err
+		}
+		lastHumanIsMine := false
+		hasHuman := false
+		for i := len(notes) - 1; i >= 0; i-- {
+			if notes[i].System {
+				continue
+			}
+			hasHuman = true
+			lastHumanIsMine = notes[i].Author.Username == me.Username
+			break
+		}
+		if !hasHuman || !lastHumanIsMine {
+			return true, nil
 		}
 	}
 	return false, nil
@@ -236,6 +300,7 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		Title        string   `json:"title"`
 		Description  string   `json:"description"`
 		Assignee     string   `json:"assignee"`
+		Reviewer     string   `json:"reviewer"`
 	}
 	if err := json.Unmarshal(params, &in); err != nil {
 		return nil, fmt.Errorf("params: %w", err)
@@ -318,6 +383,26 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, fmt.Errorf("project_id, mr_iid oder body fehlt")
 		}
 		return gc.CommentMR(ctx, in.ProjectID, in.MRIID, in.Body)
+	case "set_reviewer":
+		if in.ProjectID == 0 || in.MRIID == 0 {
+			return nil, fmt.Errorf("project_id oder mr_iid fehlt")
+		}
+		u, err := gc.LookupUser(ctx, in.Username)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := gc.SetMRReviewer(ctx, in.ProjectID, in.MRIID, []int{u.ID}); err != nil {
+			return nil, err
+		}
+		return map[string]any{"reviewer": u.Username, "user_id": u.ID}, nil
+	case "approve_mr":
+		if in.ProjectID == 0 || in.MRIID == 0 {
+			return nil, fmt.Errorf("project_id oder mr_iid fehlt")
+		}
+		if err := gc.ApproveMR(ctx, in.ProjectID, in.MRIID); err != nil {
+			return nil, err
+		}
+		return map[string]any{"approved": true, "mr_iid": in.MRIID}, nil
 	case "list_pipelines":
 		if in.ProjectID == 0 {
 			return nil, fmt.Errorf("project_id fehlt")
@@ -368,7 +453,7 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		if in.SourceBranch == targetBranch {
 			return nil, fmt.Errorf("source_branch und target_branch sind identisch (%q)", targetBranch)
 		}
-		// Der Reviewer (idR der Vorgesetzte) muss auflösbar sein — ein MR
+		// Der Assignee (idR der Vorgesetzte) muss auflösbar sein — ein MR
 		// ohne benannten Menschen als Empfänger ist hier nicht vorgesehen.
 		if strings.TrimSpace(in.Assignee) == "" {
 			return nil, fmt.Errorf("assignee fehlt — trage den GitLab-Username deines Vorgesetzten aus dem Team-Verzeichnis ein")
@@ -377,8 +462,19 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		if err != nil {
 			return nil, err
 		}
+		// reviewer optional: ist ein QA-/Test-Agent zuständig, trägst du ihn als
+		// Reviewer ein (Assignee bleibt der Vorgesetzte). Ohne reviewer prüft der
+		// Assignee selbst — Reviewer = Assignee wie bisher.
+		reviewerID := u.ID
+		if r := strings.TrimSpace(in.Reviewer); r != "" && r != in.Assignee {
+			ru, err := gc.LookupUser(ctx, r)
+			if err != nil {
+				return nil, err
+			}
+			reviewerID = ru.ID
+		}
 		return gc.CreateMergeRequest(ctx, in.ProjectID, in.SourceBranch, targetBranch,
-			in.Title, in.Description, u.ID, u.ID)
+			in.Title, in.Description, u.ID, reviewerID)
 	case "list_notes":
 		return gc.ListNotes(ctx, in.ProjectID, in.IssueIID)
 	case "comment":
@@ -433,6 +529,10 @@ func (System) PromptDoc() string {
    get_merge_request {"project_id":N,"mr_iid":N} liefert einen einzelnen MR mit Review-Zustand (detailed_merge_status,
    has_conflicts) und CI-Ergebnis (head_pipeline), list_mr_notes {"project_id":N,"mr_iid":N} den Diskussionsstand eines MR
    (Review-Kommentare), comment_mr {"project_id":N,"mr_iid":N,"body":"..."} antwortet im Review-Dialog,
+   set_reviewer {"project_id":N,"mr_iid":N,"username":"gitlab-username"} trägt einen Reviewer in einen bestehenden MR ein —
+   z. B. übergibst du als Entwickler den MR damit an den QA-/Test-Agenten aus dem Team-Verzeichnis; erkläre die Übergabe in
+   einem comment_mr, approve_mr {"project_id":N,"mr_iid":N} gibt einen MR formell frei (als Reviewer/QA — das grüne Signal an
+   den Vorgesetzten; das Mergen selbst bleibt beim Menschen),
    list_pipelines {"project_id":N,"ref":"branch (optional)"} listet CI-Läufe — prüfe damit nach jedem Push, ob die
    Pipeline deines Branches grün ist. Ist sie ROT, diagnostiziere selbst statt zu raten oder zu fragen:
    list_pipeline_jobs {"project_id":N,"pipeline_id":N} zeigt die Jobs mit Status, get_job_log {"project_id":N,"job_id":N}
@@ -450,9 +550,13 @@ func (System) PromptDoc() string {
    pusht deine lokal editierten Dateien als EINEN Commit auf den Branch; existiert der Branch nicht, wird er vom
    start_branch abgezweigt. Direkte Commits auf den Default-Branch sind verboten — der Weg dorthin führt über:
    create_merge_request {"project_id":N,"source_branch":"fix/…","target_branch":"main (optional, Default: Default-Branch)",
-   "title":"...","description":"...","assignee":"gitlab-username"} — eröffnet den Merge Request; als assignee trägst du
-   deinen Vorgesetzten aus dem Team-Verzeichnis ein (er wird Assignee UND Reviewer), der Source-Branch wird nach dem
-   Merge automatisch entfernt.
+   "title":"...","description":"...","assignee":"gitlab-username","reviewer":"gitlab-username (optional)"} — eröffnet den
+   Merge Request; als assignee trägst du deinen Vorgesetzten aus dem Team-Verzeichnis ein. Ohne reviewer wird der Assignee
+   auch Reviewer (wie bisher). Gibt es im Abschnitt "Team (KI-Kollegen)" einen QA-/Test-Agenten, der fürs Testen zuständig
+   ist, trägst du IHN als reviewer ein (seinen GitLab-Username exakt aus dem Verzeichnis) — bevorzugt einen Kollegen aus
+   DEINEM TEAM (gleiche Abteilung); gibt es dort keinen, nimm den organisationsweit fürs Testen Zuständigen. Der Assignee
+   bleibt dabei der Vorgesetzte, der QA-Agent testet das Feature und gibt Feedback. Der Source-Branch wird nach dem Merge
+   automatisch entfernt.
    Arbeitsweise als Entwickler — wenn du einen Bug nicht nur bestätigst, sondern behebst:
    1. checkout des Projekts, den Fehler am Code nachvollziehen (Datei:Zeile).
    2. Projekt AUFSETZEN wie ein neuer Kollege: README/CONTRIBUTING lesen, Abhängigkeiten installieren
@@ -502,5 +606,25 @@ func (System) PromptDoc() string {
    WICHTIG — NIE mit Status blocked enden: GitLab nimmt Arbeit rein per Polling auf, es gibt keinen Webhook,
    der eine geblockte Aufgabe wieder weckt. Warte weder auf eine Issue-Antwort noch auf ein MR-Review mit
    blocked — beende jeden Lauf mit done und lass offene Issues/MRs von deinem nächsten Heartbeat-Lauf
-   erneut aufgreifen.`
+   erneut aufgreifen.
+   Arbeitsweise als QA-/Test-Agent (Reviewer) — wenn du fremde Merge Requests testest, statt selbst zu entwickeln:
+   Deinen Arbeitsvorrat findest du mit list_merge_requests {"state":"opened"} und, projektübergreifend, über die MRs, in
+   denen du als Reviewer eingetragen bist (dein nur-wenn: gitlab:review-Heartbeat feuert genau dann). Für JEDEN zu prüfenden MR:
+   1. get_merge_request lesen: Titel, Beschreibung, verlinktes Issue (#iid) — daraus die ABNAHMEKRITERIEN ableiten
+      (was soll das Feature können?). Fehlen sie, hol das Issue mit get_issue.
+   2. checkout {"ref":"<source_branch des MR>"} — den Branch in deine Sandbox holen, NICHT den Default-Branch.
+   3. Projekt wie ein neuer Kollege AUFSETZEN: README/CONTRIBUTING lesen, Abhängigkeiten installieren, einmal Build und die
+      vorhandenen Tests laufen lassen — so kennst du den Ausgangszustand.
+   4. Das Feature END-TO-END TESTEN, nicht nur den Diff lesen: die Anwendung bzw. den betroffenen Teil tatsächlich STARTEN
+      und ausführen (App/Server hochfahren, Endpoint/CLI/Skript aufrufen, den beschriebenen Ablauf durchspielen) und prüfen,
+      ob sie die Abnahmekriterien erfüllt. Fahre auch die Fehlerfälle und Ränder an, die die Beschreibung nahelegt.
+   5. KONSISTENZ prüfen: Passt die Änderung zum Stil und zu den Konventionen der Umgebung? Bricht sie bestehende Tests oder
+      andere Features? Gibt es Regressionen, fehlende Tests, offene Enden gegenüber dem Issue? Führe die volle Testsuite aus.
+   6. Ergebnis als comment_mr melden — konkret und umsetzbar: was du getestet hast (Schritte/Kommandos), was funktioniert,
+      und JEDEN Mangel mit Datei:Zeile und Reproduktion. Kein pauschales „sieht gut aus"; belege Befunde am Code/am Lauf.
+      Bei Mängeln: bleib Reviewer (der Entwickler-Agent sieht dein Feedback bei seinem nächsten gitlab:mr-Lauf und arbeitet es
+      ein). Ist alles grün und die Abnahmekriterien erfüllt: sag das explizit im comment_mr und gib mit approve_mr frei —
+      das Mergen überlässt du dem Vorgesetzten. Merge oder schließe den MR NIE selbst.
+   7. Prüfe vor jeder Antwort mit list_mr_notes, ob seit deinem letzten Review neue Commits/Antworten kamen — teste dann erneut,
+      statt eine schon gegebene Rückmeldung zu wiederholen. Beende auch als Reviewer jeden Lauf mit done, nie mit blocked.`
 }

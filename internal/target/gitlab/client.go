@@ -396,6 +396,19 @@ func (c *Client) ListMyOpenMergeRequests(ctx context.Context) ([]MergeRequest, e
 	return out, err
 }
 
+// ListReviewMergeRequests — GET /merge_requests?reviewer_username=<user>&state=opened:
+// die offenen Merge Requests, in denen der Bot-Nutzer als Reviewer eingetragen
+// ist — die Review-Warteschlange eines QA-/Test-Agenten, projektübergreifend
+// (wie ListMyOpenMergeRequests, nur aus Reviewer- statt Autoren-Sicht). Trägt
+// den Review-Loop von der anderen Seite: der Entwickler-Agent setzt den
+// QA-Agenten als Reviewer, dieser findet den MR hierüber.
+func (c *Client) ListReviewMergeRequests(ctx context.Context, reviewerUsername string) ([]MergeRequest, error) {
+	var out []MergeRequest
+	err := c.do(ctx, http.MethodGet,
+		"/merge_requests?reviewer_username="+url.QueryEscape(reviewerUsername)+"&state=opened&order_by=updated_at&per_page=50", nil, &out)
+	return out, err
+}
+
 // CurrentUser — GET /user: das Profil des Token-Inhabers (der Bot-Nutzer).
 // Gebraucht, um in einem MR-Thread den eigenen letzten Kommentar von fremdem
 // Review-Feedback zu unterscheiden.
@@ -463,6 +476,27 @@ func (c *Client) CommentMR(ctx context.Context, projectID, mrIID int, body strin
 		fmt.Sprintf("/projects/%d/merge_requests/%d/notes", projectID, mrIID),
 		map[string]any{"body": body}, &out)
 	return out, err
+}
+
+// SetMRReviewer — PUT /projects/{id}/merge_requests/{iid} mit reviewer_ids:
+// trägt den/die Reviewer eines bestehenden MR ein. So übergibt der
+// Entwickler-Agent seinen MR gezielt an den QA-Agenten (bzw. gibt ihn zurück),
+// ohne dass die Zuweisung an den Vorgesetzten verlorengeht.
+func (c *Client) SetMRReviewer(ctx context.Context, projectID, mrIID int, reviewerIDs []int) (MergeRequestDetail, error) {
+	var out MergeRequestDetail
+	err := c.do(ctx, http.MethodPut, fmt.Sprintf("/projects/%d/merge_requests/%d", projectID, mrIID),
+		map[string]any{"reviewer_ids": reviewerIDs}, &out)
+	return out, err
+}
+
+// ApproveMR — POST /projects/{id}/merge_requests/{iid}/approve: die formelle
+// Freigabe eines Reviewers. Der QA-Agent nutzt sie als grünes Signal an den
+// Vorgesetzten: „Feature getestet, alles grün" — das Mergen selbst bleibt beim
+// Menschen. Ist Approval im Projekt nicht aktiviert, meldet GitLab einen Fehler;
+// dann genügt der bestätigende comment_mr.
+func (c *Client) ApproveMR(ctx context.Context, projectID, mrIID int) error {
+	return c.do(ctx, http.MethodPost,
+		fmt.Sprintf("/projects/%d/merge_requests/%d/approve", projectID, mrIID), nil, nil)
 }
 
 // ListPipelines — GET /projects/{id}/pipelines, optional auf einen Ref

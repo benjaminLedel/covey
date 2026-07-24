@@ -165,6 +165,81 @@ Requests.
 ` + strings.Join(lines, "\n")
 }
 
+// AgentColleague ist ein KI-Agent derselben Organisation, wie er im
+// Team-Verzeichnis eines anderen Agenten erscheint. Anders als bei Menschen
+// zählt hier die Abteilung: ein Agent bevorzugt Kollegen aus dem EIGENEN Team,
+// wenn er Arbeit übergibt (z. B. einen Merge Request an einen QA-Agenten). Leere
+// Felder werden weggelassen.
+type AgentColleague struct {
+	Name       string
+	JobTitle   string
+	Department string // Abteilungsname; leer = keiner Abteilung zugeordnet
+	SameTeam   bool   // gleiche Abteilung wie der Agent, dessen Prompt das ist
+	Identities []TeamIdentity
+	// Responsibilities sagt, wofür der Kollege zuständig ist — die Grundlage der
+	// Auswahl (z. B. „Testen/QA").
+	Responsibilities string
+	// Supervisor markiert einen Agenten, der zugleich der Vorgesetzte ist
+	// (Org-Chart erlaubt Agent-Vorgesetzte).
+	Supervisor bool
+}
+
+// TeamAgentsSection baut den Abschnitt "Team (KI-Kollegen)": die anderen Agenten
+// der Organisation, damit ein Agent Arbeit an den passenden Kollegen übergeben
+// kann (z. B. der Entwickler-Agent seinen Merge Request an den QA-Agenten aus
+// seinem Team). Wird wie TeamSection zur Dispatch-Zeit angehängt. Kollegen aus
+// dem eigenen Team (SameTeam) sind die erste Wahl.
+func TeamAgentsSection(colleagues []AgentColleague) string {
+	var lines []string
+	for _, c := range colleagues {
+		if strings.TrimSpace(c.Name) == "" {
+			continue
+		}
+		line := "- " + c.Name
+		if c.JobTitle != "" {
+			line += " — " + c.JobTitle
+		}
+		if c.SameTeam {
+			team := "DEIN TEAM"
+			if c.Department != "" {
+				team += " (" + c.Department + ")"
+			}
+			line += " — " + team
+		} else if c.Department != "" {
+			line += " — Team: " + c.Department
+		}
+		if c.Supervisor {
+			line += " — DEIN VORGESETZTER"
+		}
+		var contact []string
+		for _, id := range c.Identities {
+			if id.Label != "" && id.Value != "" {
+				contact = append(contact, id.Label+": "+id.Value)
+			}
+		}
+		if len(contact) > 0 {
+			line += " (" + strings.Join(contact, ", ") + ")"
+		}
+		if c.Responsibilities != "" {
+			line += " — zuständig für: " + c.Responsibilities
+		}
+		lines = append(lines, line)
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	return `## Team (KI-Kollegen)
+
+Diese KI-Agenten gehören zu deiner Organisation — Kollegen wie du. Übergibst du
+in einem Zielsystem Arbeit an einen von ihnen (z. B. einen Merge Request zum
+Testen an einen QA-Agenten), nutze exakt die hinterlegte Kennung und wähle den
+Kollegen nach Abteilung und Zuständigkeit. Ein Kollege aus DEINEM TEAM ist die
+erste Wahl; gibt es dort keinen passenden, suche organisationsweit nach
+Zuständigkeit. Rate niemals Benutzernamen.
+
+` + strings.Join(lines, "\n")
+}
+
 // CompilePrompt macht aus den Config-Dateien den System-Prompt.
 // Bekannte Dateien in definierter Reihenfolge, unbekannte alphabetisch dahinter.
 func CompilePrompt(files map[string]string) string {
