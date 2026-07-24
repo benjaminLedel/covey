@@ -537,9 +537,11 @@ func (System) PromptDoc() string {
    create_merge_request {"project_id":N,"source_branch":"fix/…","target_branch":"main (optional, Default: Default-Branch)",
    "title":"...","description":"...","assignee":"gitlab-username","reviewer":"gitlab-username (optional)"} — eröffnet den
    Merge Request; als assignee trägst du deinen Vorgesetzten aus dem Team-Verzeichnis ein. Ohne reviewer wird der Assignee
-   auch Reviewer (wie bisher). Ist laut Team-Verzeichnis ein QA-/Test-Agent fürs Testen zuständig, trägst du IHN als
-   reviewer ein — dann testet er das Feature und gibt Feedback, während der Vorgesetzte Assignee bleibt. Der Source-Branch
-   wird nach dem Merge automatisch entfernt.
+   auch Reviewer (wie bisher). Gibt es im Abschnitt "Team (KI-Kollegen)" einen QA-/Test-Agenten, der fürs Testen zuständig
+   ist, trägst du IHN als reviewer ein (seinen GitLab-Username exakt aus dem Verzeichnis) — bevorzugt einen Kollegen aus
+   DEINEM TEAM (gleiche Abteilung); gibt es dort keinen, nimm den organisationsweit fürs Testen Zuständigen. Der Assignee
+   bleibt dabei der Vorgesetzte, der QA-Agent testet das Feature und gibt Feedback. Der Source-Branch wird nach dem Merge
+   automatisch entfernt.
    Arbeitsweise als Entwickler — wenn du einen Bug nicht nur bestätigst, sondern behebst:
    1. checkout des Projekts, den Fehler am Code nachvollziehen (Datei:Zeile).
    2. Projekt AUFSETZEN wie ein neuer Kollege: README/CONTRIBUTING lesen, Abhängigkeiten installieren

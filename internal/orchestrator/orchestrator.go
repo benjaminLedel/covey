@@ -617,6 +617,66 @@ func (o *Orchestrator) teamSection(ctx context.Context, orgID uuid.UUID, supervi
 	return agents.TeamSection(members)
 }
 
+// agentTeamSection baut das Verzeichnis der KI-Kollegen für den Prompt von
+// `self`: alle anderen (nicht gekillten) Agenten der Organisation, ihre
+// GitLab-/Zielsystem-Kennungen, Zuständigkeiten und Abteilung. Agenten aus
+// derselben Abteilung wie `self` werden als eigenes Team markiert — so findet
+// z. B. ein Entwickler-Agent den QA-Agenten seines Teams, um ihm den Merge
+// Request zum Review zu übergeben. Läuft wie teamSection zur Dispatch-Zeit.
+func (o *Orchestrator) agentTeamSection(ctx context.Context, self agents.Agent) string {
+	labels := map[string]string{}
+	if o.Targets != nil {
+		if plugins, err := o.Targets.List(ctx, self.OrgID); err == nil {
+			for _, p := range plugins {
+				if p.Label != "" {
+					labels[p.Name] = p.Label
+				}
+			}
+		}
+	}
+	deptNames := map[uuid.UUID]string{}
+	if dr, err := o.Pool.Query(ctx, `SELECT id, name FROM departments WHERE org_id=$1`, self.OrgID); err == nil {
+		for dr.Next() {
+			var id uuid.UUID
+			var name string
+			if dr.Scan(&id, &name) == nil {
+				deptNames[id] = name
+			}
+		}
+		dr.Close()
+	}
+	rows, err := o.Pool.Query(ctx, `SELECT id, display_name, job_title, identities, responsibilities, department_id
+		FROM agents WHERE org_id=$1 AND id<>$2 AND NOT killed ORDER BY created_at`, self.OrgID, self.ID)
+	if err != nil {
+		return ""
+	}
+	defer rows.Close()
+	var colleagues []agents.AgentColleague
+	for rows.Next() {
+		var c agents.AgentColleague
+		var id uuid.UUID
+		var deptID *uuid.UUID
+		var ids map[string]string
+		if err := rows.Scan(&id, &c.Name, &c.JobTitle, &ids, &c.Responsibilities, &deptID); err != nil {
+			return ""
+		}
+		if deptID != nil {
+			c.Department = deptNames[*deptID]
+			c.SameTeam = self.DepartmentID != nil && *self.DepartmentID == *deptID
+		}
+		c.Supervisor = self.SupervisorID != nil && *self.SupervisorID == id
+		for _, system := range slices.Sorted(maps.Keys(ids)) {
+			label := labels[system]
+			if label == "" {
+				label = system
+			}
+			c.Identities = append(c.Identities, agents.TeamIdentity{Label: label, Value: ids[system]})
+		}
+		colleagues = append(colleagues, c)
+	}
+	return agents.TeamAgentsSection(colleagues)
+}
+
 func (o *Orchestrator) publishTask(taskID, agentID uuid.UUID) {
 	o.events.Publish(Event{Type: "task", AgentID: agentID.String(), Data: map[string]string{"task_id": taskID.String()}})
 }
@@ -654,6 +714,13 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	// (Zuständigkeiten, GitLab-Usernames) sagen dem Agenten, wem er in
 	// Zielsystemen etwas übergibt — z. B. ein Issue zum Testen zuweist.
 	if section := o.teamSection(ctx, agent.OrgID, agent.SupervisorID); section != "" {
+		compiled += "\n\n" + section
+	}
+	// KI-Kollegen dazu: die anderen Agenten der Organisation, damit ein Agent
+	// Arbeit an den passenden Kollegen übergeben kann (z. B. der Entwickler
+	// seinen MR an den QA-Agenten aus seinem Team) — Abteilung markiert das
+	// eigene Team.
+	if section := o.agentTeamSection(ctx, agent); section != "" {
 		compiled += "\n\n" + section
 	}
 

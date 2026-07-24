@@ -188,13 +188,19 @@ Intake-Seite des QA-Agenten.
 
 **Ablauf:**
 
-1. Der Entwickler-Agent trägt beim `create_merge_request` den QA-Agenten als
-   `reviewer` ein (der Vorgesetzte bleibt `assignee`):
+1. Der Entwickler-Agent **findet den QA-Agenten selbst** — er muss keinen
+   Benutzernamen kennen. Sein Prompt enthält zur Dispatch-Zeit den Abschnitt
+   **„Team (KI-Kollegen)"** mit allen anderen Agenten der Organisation, ihrer
+   GitLab-Kennung, Zuständigkeit und Abteilung; Kollegen aus **seinem Team**
+   (gleiche Abteilung) sind als `DEIN TEAM` markiert. Er wählt daraus den fürs
+   Testen zuständigen Kollegen — bevorzugt aus dem eigenen Team — und trägt ihn
+   beim `create_merge_request` als `reviewer` ein (der Vorgesetzte bleibt
+   `assignee`):
    `create_merge_request {"project_id":N,"source_branch":"fix/…","title":"…","assignee":"leaddev","reviewer":"covey-qa"}`.
-   Alternativ übergibt er einen bestehenden MR mit
+   Einen bestehenden MR übergibt er mit
    `set_reviewer {"project_id":N,"mr_iid":N,"username":"covey-qa"}` und erklärt
-   die Übergabe in einem `comment_mr`. Der QA-Username steht im Team-Verzeichnis
-   des Prompts (der QA-Agent ist selbst ein Mitarbeiter mit GitLab-Identität).
+   die Übergabe in einem `comment_mr`. Gibt es keinen QA-Kollegen, bleibt es beim
+   bisherigen Verhalten (Vorgesetzter = Assignee und Reviewer).
 2. Der QA-Agent findet seine Review-Warteschlange über den neuen Unterscope
    **`nur-wenn: gitlab:review`**: er feuert nur, wenn ein MR, in dem der QA-Bot
    als Reviewer eingetragen ist, auf sein Review wartet (kein Kommentar, oder der
@@ -212,45 +218,37 @@ Intake-Seite des QA-Agenten.
    `approve_mr` frei. Gemergt wird **vom Menschen** — der QA-Agent merged nie
    selbst.
 
-**Config des QA-Agenten** (neben Secrets `gitlab_token`/`gitlab_url` wie in 2.2):
+**Einrichtung des QA-Agenten.** Ein fertiges Beispiel liegt unter
+`examples/qa-agent.bundle.json` (SOUL/CAPABILITIES/PLAYBOOKS/ACCESS/HEARTBEAT
+inklusive `nur-wenn: gitlab:review`). Damit die automatische Zuordnung aus
+Schritt 1 greift, sind fünf Schritte nötig — die ersten beiden liefert das
+Bundle, die restlichen drei sind **Stammdaten**, die das Bundle bewusst nicht
+trägt (Profil-Kennungen und Abteilung werden nie exportiert):
 
-`HEARTBEAT.md`:
+1. **Agent anlegen:** das Bundle importieren
+   (`POST /api/v1/agents/import`, oder in der UI „Agent aus Bundle") — legt den
+   Agenten `covey-qa` mit allen Config-Dateien an.
+2. **Secrets zuweisen:** `gitlab_token` + `gitlab_url` wie in 2.2 hinterlegen und
+   dem QA-Agenten zuweisen; GitLab- und `dev`-Zielsystem für ihn aktivieren.
+3. **GitLab-Identität setzen:** im Profil des QA-Agenten die GitLab-Kennung
+   eintragen (z. B. `gitlab: covey-qa`) — **erst damit** erscheint er im
+   „Team (KI-Kollegen)"-Verzeichnis der anderen Agenten mit einem Username, den
+   der Entwickler als `reviewer` eintragen kann. Ohne GitLab-Identität ist er
+   für die Kollegen nicht adressierbar.
+4. **Zuständigkeit setzen:** im Profil `Zuständigkeiten` = „testet Merge
+   Requests / QA" o. ä. — das ist das Kriterium, an dem der Entwickler-Agent den
+   QA-Kollegen erkennt (Job-Titel „QA-Agent" hilft zusätzlich).
+5. **Ins selbe Team stecken:** den QA-Agenten **derselben Abteilung** zuordnen
+   wie die Entwickler-Agenten (Org-Chart → Abteilung). Dann ist er in ihrem
+   Prompt als `DEIN TEAM` markiert und wird bevorzugt gewählt. (Steckt er in
+   keiner oder einer anderen Abteilung, wird er trotzdem organisationsweit nach
+   Zuständigkeit gefunden — nur eben nicht bevorzugt.)
 
-```
-- alle: 15m nur-wenn: gitlab:review titel: Merge Requests testen aufgabe: Prüfe die MRs, in denen du als Reviewer eingetragen bist (list_merge_requests state=opened). Checke den Source-Branch aus, setze das Projekt auf, STARTE die Anwendung und teste das Feature end-to-end gegen die Abnahmekriterien aus Issue/MR, lass die Testsuite laufen. Melde das Ergebnis per comment_mr — Mängel konkret mit Datei:Zeile; ist alles grün, gib mit approve_mr frei. Merge nie selbst.
-```
-
-`ACCESS.md` — GitLab zum Kommentieren/Freigeben und die Sandbox-Shell zum
-tatsächlichen Ausführen des Features (der `dev`-Zugang erlaubt Build/Run und über
-`start`/`logs` das Hochfahren langlaufender Prozesse wie eines Dev-Servers in der
-isolierten Sandbox):
-
-```
-- system: gitlab scope: read,write,comment
-- system: dev scope: exec,processes
-```
-
-`SOUL.md` (Auszug) — die Konsistenz-Haltung gehört in den Prompt, nicht ins
-Plugin:
-
-```
-# QA-Agent
-
-## Rolle
-Du bist Software-Tester. Du entwickelst nicht selbst, du nimmst ab: Du prüfst
-die Merge Requests deiner Entwickler-Kollegen, bevor ein Mensch sie merged.
-
-## Auftrag
-Für jeden MR, in dem du als Reviewer eingetragen bist: das Feature end-to-end
-ausführen und gegen die Abnahmekriterien aus Issue/MR verifizieren — nicht nur
-den Diff lesen. Achte auf KONSISTENZ: Passt die Änderung zu Stil und
-Konventionen des Projekts? Bricht sie bestehende Tests oder andere Features?
-
-## Grenzen
-Du gibst umsetzbares Feedback (Datei:Zeile, Reproduktion), kein pauschales „sieht
-gut aus". Du mergst und schließt MRs nie selbst — das grüne Signal gibst du per
-approve_mr, das Mergen bleibt beim Vorgesetzten.
-```
+Der eigene Bot-Nutzer in GitLab muss existieren (z. B. `covey-qa`, Rolle
+Reporter reicht zum Kommentieren; für `approve_mr` genügt Reporter ebenfalls,
+sofern das Projekt Approvals erlaubt). Sein Token liegt in `gitlab_token` des
+QA-Agenten — so schreiben Entwickler- und QA-Agent unter **verschiedenen**
+GitLab-Nutzern, und der Review-Loop unterscheidet „Autor" von „Reviewer" sauber.
 
 > **Egress:** Damit der QA-Agent die Anwendung wirklich starten kann, braucht
 > seine Sandbox dieselben Paket-Registries wie der Entwickler-Agent (npm/PyPI/Go
