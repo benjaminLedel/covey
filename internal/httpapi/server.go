@@ -116,6 +116,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/agents/{id}/export", s.rbac(append(manage, identity.RoleSecurity), s.handleExportAgent))
 	mux.Handle("POST /api/v1/agents/import", s.rbac(manage, s.handleImportAgent))
 	mux.Handle("PUT /api/v1/agents/{id}/config", s.rbac(manage, s.handlePutConfig))
+	// Bestehenden Agenten aus einem Bundle überschreiben — nur die Config-Dateien.
+	mux.Handle("POST /api/v1/agents/{id}/config/import", s.rbac(manage, s.handleImportConfig))
 	// KI-Assistent zum Anpassen von Agenten (Config-Copilot, FR-001): nur
 	// verfügbar, wenn org-weit ein Claude-Credential hinterlegt ist.
 	mux.Handle("GET /api/v1/assist/status", s.rbac(anyRole, s.handleAssistStatus))

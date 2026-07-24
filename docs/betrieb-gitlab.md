@@ -82,36 +82,41 @@ die Guard-Rails dürfen `gitlab` / `gitlab:comment_external` nicht verbieten.
 
 ### 2.4 Intake per Heartbeat einrichten
 
-In der `HEARTBEAT.md` des Agenten einen Sichtungs-Eintrag anlegen:
+In der `HEARTBEAT.md` des Agenten **zwei getrennte** Einträge anlegen — je ein
+Job (Issue-Triage, MR-Review), je eigen gegatet:
 
 ```
-- alle: 15m nur-wenn: gitlab titel: GitLab-Issues sichten aufgabe: Finde offene Issues (list_issues state=opened), bearbeite neue und prüfe per list_notes, ob auf deine Rückfragen geantwortet wurde. Bei Bugs: Code per checkout holen und die Behauptung am Quelltext verifizieren. Prüfe außerdem deine offenen Merge Requests (list_merge_requests state=opened) auf neues Review-Feedback (list_mr_notes) und schließe die Aufgabe ab, sobald ein MR gemergt ist.
+- alle: 15m nur-wenn: gitlab:issues titel: GitLab-Issues sichten aufgabe: Finde offene Issues (list_issues state=opened), bearbeite neue und prüfe per list_notes, ob auf deine Rückfragen geantwortet wurde. Bei Bugs: Code per checkout holen und die Behauptung am Quelltext verifizieren.
+- alle: 15m nur-wenn: gitlab:mr titel: Merge Requests betreuen aufgabe: Prüfe deine offenen Merge Requests (list_merge_requests state=opened) auf neues Review-Feedback (list_mr_notes), arbeite es ein und reagiere auf Merge bzw. Close.
 ```
 
-**Ein einziger Heartbeat deckt Issues UND den Review-Loop ab.** Weil der Agent
-nach `create_merge_request` **nicht blockt**, sondern mit `done` endet, muss ein
-Heartbeat seine offenen MRs erneut aufgreifen — die MR-Prüfung ist deshalb Teil
-der Sichtungs-Aufgabe (letzter Satz oben). Ein zweiter, MR-eigener Heartbeat ist
-**nicht** nötig.
+**Warum zwei Heartbeats mit Unterscope statt einem.** Weil der Agent nach
+`create_merge_request` **nicht blockt**, sondern mit `done` endet, muss ein
+Heartbeat seine offenen MRs per Polling erneut aufgreifen — der Review-Loop ist
+ein eigener Job. Der Unterscope nach dem Doppelpunkt (`gitlab:issues` bzw.
+`gitlab:mr`) sorgt dafür, dass jeder der beiden Heartbeats **nur für seine
+eigene Arbeit** feuert:
 
-`nur-wenn: gitlab` verhindert, dass dieser Heartbeat den (teuren) Agenten-Lauf
-in jedem Intervall auslöst, auch wenn nichts zu tun ist: Die Control Plane prüft
-vorab per API und weckt nur, wenn **eines** zutrifft —
+- `nur-wenn: gitlab:issues` → nur, wenn ein offenes Issue im Intake-Scope liegt.
+- `nur-wenn: gitlab:mr` → nur, wenn einer der vom Bot selbst eröffneten, offenen
+  Merge Requests **unbeantwortetes Review-Feedback** hat (der letzte
+  Nicht-System-Kommentar im Thread stammt nicht vom Bot).
 
-- es gibt ein offenes Issue im Intake-Scope, **oder**
-- einer der vom Bot selbst eröffneten, offenen Merge Requests hat
-  **unbeantwortetes Review-Feedback** (der letzte Nicht-System-Kommentar im
-  Thread stammt nicht vom Bot).
+Ohne Unterscope (`nur-wenn: gitlab`) prüft ein Heartbeat **beides gemeinsam** —
+dann würden zwei solche Heartbeats aber jeweils auch für die Arbeit des anderen
+mit-feuern (der MR-Task liefe bei reiner Issue-Arbeit und umgekehrt). Der
+Unterscope vermeidet genau diese Verschwendung; nutze `nur-wenn: gitlab` nur,
+wenn du beide Jobs bewusst in **einem** Task bündeln willst.
 
 Der Merge-Abschluss braucht keinen eigenen Auslöser: Ist das zugehörige Issue
-noch offen, weckt es über den Issue-Zweig; wurde es beim Merge automatisch
+noch offen, weckt es über den Issue-Heartbeat; wurde es beim Merge automatisch
 geschlossen, gibt es nichts mehr zu tun. Beachte die Semantik: anders als das
 Gelesen-Flag bei E-Mail bleiben offene Issues und offene MR-Threads „Arbeit",
 bis sie geschlossen bzw. beantwortet sind — die Bedingung spart die
 Leerlauf-Phasen ganz ohne offene Arbeit, nicht die Läufe, in denen ein Issue
 auf eine Kundenantwort oder ein MR auf deine Nacharbeit wartet.
 
-Der Vorab-Check ist billig (wenige REST-Aufrufe: offene Issues, die eigenen
+Der Vorab-Check ist billig (wenige REST-Aufrufe: offene Issues bzw. die eigenen
 offenen MRs und deren Notes) — verglichen mit einem LLM-Turn vernachlässigbar.
 
 Der Agent entdeckt seinen Arbeitsvorrat dann selbst: `list_projects` liefert
@@ -163,11 +168,10 @@ Fleisch und Blut — das Warten auf das Review läuft aber **per Polling**, nich
    kommentiert der Agent das Ergebnis im Issue; wurde er ohne Merge
    **geschlossen**, prüft er per `list_mr_notes` warum und eskaliert, wenn unklar.
 
-Damit dieser Loop zuverlässig läuft, muss die Sichtungs-Aufgabe in der
-`HEARTBEAT.md` (Abschnitt 2.4) auch die offenen MRs prüfen. Der
-`nur-wenn: gitlab`-Vorabcheck weckt den Agenten dafür auch dann, wenn kein
-Issue offen ist, aber einer seiner MRs unbeantwortetes Review-Feedback hat —
-ein separater Heartbeat ist nicht nötig.
+Damit dieser Loop zuverlässig läuft, gehört der MR-Heartbeat
+(`nur-wenn: gitlab:mr`, Abschnitt 2.4) in die `HEARTBEAT.md`. Er weckt den
+Agenten genau dann, wenn einer seiner offenen MRs unbeantwortetes
+Review-Feedback hat — unabhängig davon, ob gerade ein Issue offen ist.
 
 ---
 

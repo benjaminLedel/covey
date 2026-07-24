@@ -229,6 +229,45 @@ func (s *Server) handleExportAgent(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, b)
 }
 
+// handleImportConfig — POST /api/v1/agents/{id}/config/import: überschreibt die
+// Konfiguration eines BESTEHENDEN Agenten aus einem Bundle. Anders als
+// /agents/import (das einen neuen Agenten anlegt) übernimmt dieser Weg NUR die
+// Config-Dateien (SOUL.md, HEARTBEAT.md, ACCESS.md, EGRESS.md, …). Alles andere
+// im Bundle — Stammdaten, Board-Spalten, Guard-Rails, Egress-Templates,
+// Secret-Zuordnungen — wird bewusst ignoriert. Speicher- und Write-Through-Pfad
+// sind identisch zu PUT /config (neue Version, RBAC über prepareConfigApply):
+// enthält das Bundle Tool-Allowlists oder Egress, gilt dieselbe Security-Rollen-
+// Grenze wie am Text-Editor (403 statt stillem Weglassen).
+func (s *Server) handleImportConfig(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	if _, err := s.Registry.Get(r.Context(), id); err != nil {
+		mapErr(w, err)
+		return
+	}
+	var b agentBundle
+	if err := readJSON(r, &b); err != nil {
+		writeErr(w, http.StatusBadRequest, "bundle nicht lesbar: "+err.Error())
+		return
+	}
+	if b.Kind != bundleKind {
+		writeErr(w, http.StatusBadRequest, "kind muss "+bundleKind+" sein")
+		return
+	}
+	if b.Version != bundleVersion {
+		writeErr(w, http.StatusBadRequest, fmt.Sprintf("bundle-version %d wird nicht unterstützt (erwartet %d)", b.Version, bundleVersion))
+		return
+	}
+	if len(b.Files) == 0 {
+		writeErr(w, http.StatusBadRequest, "bundle enthält keine config-dateien (files)")
+		return
+	}
+	s.saveAndApplyConfig(w, r, id, b.Files)
+}
+
 // handleImportAgent — POST /api/v1/agents/import: legt aus einem Bundle einen
 // NEUEN Agenten an. Query-Param slug überschreibt den Slug aus dem Bundle
 // (für Kopien bzw. Kollisionen). Alles Sicherheitsrelevante bleibt bei den

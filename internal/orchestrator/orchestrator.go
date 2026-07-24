@@ -269,11 +269,17 @@ func (o *Orchestrator) fireHeartbeats(ctx context.Context) {
 
 // heartbeatHasWork prüft die nur-wenn:-Bedingung eines fälligen Heartbeats:
 // das Zielsystem-Plugin meldet über target.WorkChecker, ob Arbeit vorliegt.
+// Der Bedingungs-Wert ist "<system>" oder "<system>:<kind>" — Letzteres gatet
+// eine einzelne Arbeits-Art (z. B. gitlab:mr für den Review-Loop, gitlab:issues
+// für die Issue-Triage) über target.KindWorkChecker, sodass zwei Heartbeats
+// desselben Systems getrennt feuern statt über einen gemeinsamen Boolean.
+// Secrets und Plugin-Lookup laufen über den System-Namen (vor dem ":").
 // Die Secrets löst die Control Plane selbst auf — das Credential verlässt sie
 // nicht. Fail-open: lässt sich die Bedingung nicht prüfen (Plugin ohne
 // WorkChecker, fehlende Secrets, Verbindungsfehler), feuert der Heartbeat
 // regulär — eine kaputte Bedingung darf keine Arbeit liegen lassen.
-func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid.UUID, system string) bool {
+func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid.UUID, condition string) bool {
+	system, kind, _ := strings.Cut(condition, ":")
 	sys, ok := target.Get(system)
 	if !ok {
 		o.Log.Warn("nur-wenn: unbekanntes zielsystem — feuere trotzdem", "system", system)
@@ -300,9 +306,20 @@ func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid
 	}
 	cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	has, err := checker.HasWork(cctx, cred)
+	var (
+		has bool
+		err error
+	)
+	if kc, ok := checker.(target.KindWorkChecker); ok && kind != "" {
+		has, err = kc.HasWorkKind(cctx, cred, kind)
+	} else {
+		if kind != "" {
+			o.Log.Warn("nur-wenn: zielsystem kennt keinen unterscope — prüfe gesamt", "system", system, "kind", kind)
+		}
+		has, err = checker.HasWork(cctx, cred)
+	}
 	if err != nil {
-		o.Log.Warn("nur-wenn: prüfung fehlgeschlagen — feuere trotzdem", "system", system, "err", err)
+		o.Log.Warn("nur-wenn: prüfung fehlgeschlagen — feuere trotzdem", "system", system, "kind", kind, "err", err)
 		return true
 	}
 	return has

@@ -35,19 +35,22 @@ func init() {
    - system: gitlab scope: read,write,comment
 
 4. Intake per Heartbeat (GitLab hat keinen Webhook — der Agent nimmt Arbeit
-   ausschließlich per Polling auf) — in der HEARTBEAT.md des Agenten:
-   - alle: 15m nur-wenn: gitlab titel: GitLab-Issues sichten aufgabe: Finde
-     offene Issues (list_issues state=opened), bearbeite neue und prüfe per
-     list_notes, ob auf deine Rückfragen geantwortet wurde. Bei Bugs: Code
-     per checkout holen und die Behauptung am Quelltext verifizieren. Prüfe
-     außerdem deine offenen Merge Requests (list_merge_requests state=opened):
-     bearbeite neues Review-Feedback (list_mr_notes) und schließe die
-     zugehörige Aufgabe ab, sobald ein MR gemergt ist.
-   (nur-wenn: gitlab spart den teuren Agenten-Lauf, wenn es nichts zu tun
-    gibt: die Control Plane weckt nur, wenn ein offenes Issue im Intake-Scope
-    existiert ODER einer deiner offenen Merge Requests unbeantwortetes
-    Review-Feedback hat. Ein einzelner Heartbeat deckt damit Issues UND den
-    Review-Loop ab — kein zweiter MR-Heartbeat nötig.)
+   ausschließlich per Polling auf) — in der HEARTBEAT.md des Agenten zwei
+   getrennte, je eigen gegatete Einträge:
+   - alle: 15m nur-wenn: gitlab:issues titel: GitLab-Issues sichten aufgabe:
+     Finde offene Issues (list_issues state=opened), bearbeite neue und prüfe
+     per list_notes, ob auf deine Rückfragen geantwortet wurde. Bei Bugs: Code
+     per checkout holen und die Behauptung am Quelltext verifizieren.
+   - alle: 15m nur-wenn: gitlab:mr titel: Merge Requests betreuen aufgabe:
+     Prüfe deine offenen Merge Requests (list_merge_requests state=opened) auf
+     neues Review-Feedback (list_mr_notes), arbeite es ein und reagiere auf
+     Merge/Close.
+   (Der Unterscope nach dem Doppelpunkt spart den teuren Agenten-Lauf gezielt:
+    nur-wenn: gitlab:issues feuert nur bei offenem Issue im Intake-Scope,
+    nur-wenn: gitlab:mr nur, wenn einer deiner offenen MRs unbeantwortetes
+    Review-Feedback hat. So laufen beide Tasks getrennt, ohne dass der eine
+    für die Arbeit des anderen mit-feuert. nur-wenn: gitlab ohne Unterscope
+    prüft beides gemeinsam — nur nötig, wenn du beide Jobs in EINEM Task willst.)
    Optionaler Projekt-Filter (gilt für list_issues/list_projects):
    COVEY_GITLAB_INTAKE_PROJECTS="gruppe/support"   (leer = alle)
 
@@ -96,6 +99,36 @@ func mrProjectPath(m MergeRequest) string {
 // beantwortet sind — gespart wird die Leerlauf-Phase ganz ohne offene Arbeit.
 func (System) HasWork(ctx context.Context, cred target.Credential) (bool, error) {
 	gc := NewClient(cred.BaseURL, cred.Token)
+	has, err := issueWorkPending(ctx, gc)
+	if err != nil || has {
+		return has, err
+	}
+	return mrReviewPending(ctx, gc)
+}
+
+// HasWorkKind (target.KindWorkChecker) gatet eine einzelne Arbeits-Art, damit
+// zwei Heartbeats (nur-wenn: gitlab:issues und nur-wenn: gitlab:mr) getrennt
+// feuern:
+//
+//   - "issues"/"issue" → gibt es ein offenes Issue im Intake-Scope?
+//   - "mr"/"reviews"   → wartet einer der offenen MRs des Bots auf Antwort?
+//   - sonst            → beides (wie HasWork), fail-open bei unbekanntem Scope.
+func (System) HasWorkKind(ctx context.Context, cred target.Credential, kind string) (bool, error) {
+	gc := NewClient(cred.BaseURL, cred.Token)
+	switch kind {
+	case "issues", "issue":
+		return issueWorkPending(ctx, gc)
+	case "mr", "mrs", "reviews", "review":
+		return mrReviewPending(ctx, gc)
+	default:
+		return System{}.HasWork(ctx, cred)
+	}
+}
+
+// issueWorkPending: gibt es mindestens ein offenes Issue im Intake-Scope?
+// Globales GET /issues, danach COVEY_GITLAB_INTAKE_PROJECTS-Filter — was der
+// Agent per list_issues nicht sähe, weckt ihn auch nicht.
+func issueWorkPending(ctx context.Context, gc *Client) (bool, error) {
 	issues, err := gc.ListIssues(ctx, 0, "opened", "", "", false)
 	if err != nil {
 		return false, err
@@ -105,7 +138,7 @@ func (System) HasWork(ctx context.Context, cred target.Credential) (bool, error)
 			return true, nil
 		}
 	}
-	return mrReviewPending(ctx, gc)
+	return false, nil
 }
 
 // mrReviewPending prüft, ob einer der offenen, selbst eröffneten Merge Requests

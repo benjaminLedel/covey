@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from "react";
+import { useState, useRef, type CSSProperties } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -1417,6 +1417,33 @@ function Config({
     },
   });
 
+  // Bundle-Import: überschreibt NUR die Config dieses Agenten aus einer
+  // Bundle-JSON (Stammdaten, Secrets, Guard-Rails etc. bleiben unangetastet).
+  const importRef = useRef<HTMLInputElement>(null);
+  const [importError, setImportError] = useState("");
+  const importCfg = useMutation({
+    mutationFn: (bundle: unknown) => post<ConfigVersion>(`/agents/${agentId}/config/import`, bundle),
+    onSuccess: () => {
+      setDraft(null);
+      setImportError("");
+      qc.invalidateQueries({ queryKey: ["config", agentId] });
+      qc.invalidateQueries({ queryKey: ["agent-tools", agentId] });
+      qc.invalidateQueries({ queryKey: ["egress", "agent", agentId] });
+      qc.invalidateQueries({ queryKey: ["heartbeats", agentId] });
+    },
+    onError: (e) => setImportError(String((e as Error)?.message)),
+  });
+  const pickBundle = async (f: File | undefined) => {
+    if (!f) return;
+    setImportError("");
+    if (!window.confirm(t("agent.config.importConfirm"))) return;
+    try {
+      importCfg.mutate(JSON.parse(await f.text()));
+    } catch {
+      setImportError(t("agent.config.importInvalidJson"));
+    }
+  };
+
   return (
     <div>
       {canExport && (
@@ -1468,8 +1495,29 @@ function Config({
           >
             {t("agent.config.exportBundle")}
           </a>
+          {canManage && (
+            <>
+              <button
+                className="btn sm"
+                type="button"
+                disabled={importCfg.isPending}
+                onClick={() => importRef.current?.click()}
+                title="Ein JSON-Bundle einlesen und NUR dessen Config-Dateien in diesen Agenten übernehmen (überschreibt SOUL/HEARTBEAT/ACCESS/EGRESS/… als neue Version). Stammdaten, Secrets und Guard-Rails bleiben unangetastet."
+              >
+                {importCfg.isPending ? "…" : t("agent.config.importBundle")}
+              </button>
+              <input
+                ref={importRef}
+                type="file"
+                accept="application/json,.json"
+                style={{ display: "none" }}
+                onChange={(e) => { pickBundle(e.target.files?.[0]); e.target.value = ""; }}
+              />
+            </>
+          )}
         </div>
       )}
+      {importError && <p className="danger-text text-xs mb-2" style={{ textAlign: "right" }}>{importError}</p>}
       <p className="muted text-xs mb-3" style={{ maxWidth: 680 }}>
         {t("agent.config.versionInfo", {
           version: cfg.data && cfg.data.version > 0

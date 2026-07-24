@@ -77,6 +77,18 @@ type WorkChecker interface {
 	HasWork(ctx context.Context, cred Credential) (bool, error)
 }
 
+// KindWorkChecker verfeinert WorkChecker für Zielsysteme mit mehreren
+// Arbeits-Arten (z. B. GitLab: Issues vs. Merge-Request-Reviews). Ein
+// Heartbeat mit nur-wenn: <system>:<kind> (etwa nur-wenn: gitlab:mr) ruft
+// HasWorkKind(…, kind) — so lässt sich je Art getrennt gaten, statt beide
+// Heartbeats über einen gemeinsamen Boolean feuern zu lassen. Ohne Unterscope
+// (nur-wenn: <system>) greift weiter HasWork. Ein leerer/unbekannter kind darf
+// nicht weniger als HasWork melden (fail-open: im Zweifel Arbeit annehmen).
+type KindWorkChecker interface {
+	WorkChecker
+	HasWorkKind(ctx context.Context, cred Credential, kind string) (bool, error)
+}
+
 // workdirKey trägt das Sandbox-Arbeitsverzeichnis durch den Context zu
 // Execute. Aktionen, die Dateien in der Sandbox materialisieren (z. B.
 // gitlab checkout), entpacken dorthin — der Daemon setzt den Wert, weil nur
