@@ -150,3 +150,71 @@ func TestExportImportRoundtrip(t *testing.T) {
 		t.Error("webhook-token wurde kopiert statt neu erzeugt")
 	}
 }
+
+// TestImportConfigOverwrite prüft das Überschreiben eines BESTEHENDEN Agenten
+// aus einem Bundle, bei dem NUR die Config-Dateien übernommen werden: die
+// Config des Ziels wird die des Bundles, seine Stammdaten (Slug, Name, Model)
+// bleiben unangetastet.
+func TestImportConfigOverwrite(t *testing.T) {
+	s := newStack(t)
+	c := login(t, s, "admin@test.local", "admin-passwort")
+
+	// Quell-Agent mit einer bestimmten Config, dann exportieren.
+	src := c.expect(http.MethodPost, "/api/v1/agents",
+		map[string]string{"slug": "quelle", "display_name": "Quelle", "runtime": "mock"}, http.StatusCreated)
+	sid := src["id"].(string)
+	c.expect(http.MethodPut, "/api/v1/agents/"+sid+"/config", map[string]any{"files": map[string]string{
+		"SOUL.md":      "# Quelle\n\nGeteilte Basis-Config.",
+		"HEARTBEAT.md": "- alle: 10m titel: Ping aufgabe: Prüfe das Zielsystem.",
+	}}, http.StatusOK)
+
+	resp := c.do(http.MethodGet, "/api/v1/agents/"+sid+"/export", nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("export: HTTP %d", resp.StatusCode)
+	}
+	var bundle map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&bundle); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	// Ziel-Agent mit ANDERER Config und eigenen Stammdaten.
+	tgt := c.expect(http.MethodPost, "/api/v1/agents",
+		map[string]string{"slug": "ziel", "display_name": "Ziel", "runtime": "mock"}, http.StatusCreated)
+	tid := tgt["id"].(string)
+	c.expect(http.MethodPatch, "/api/v1/agents/"+tid+"/model", map[string]string{"model": "claude-test-9"}, http.StatusOK)
+	c.expect(http.MethodPut, "/api/v1/agents/"+tid+"/config", map[string]any{"files": map[string]string{
+		"SOUL.md": "# Ziel\n\nAlte Config, wird überschrieben.",
+	}}, http.StatusOK)
+
+	// Bundle-Config-Import auf den bestehenden Ziel-Agenten.
+	c.expect(http.MethodPost, "/api/v1/agents/"+tid+"/config/import", bundle, http.StatusOK)
+
+	// Config des Ziels ist jetzt die des Bundles ...
+	cfg := c.expect(http.MethodGet, "/api/v1/agents/"+tid+"/config", nil, http.StatusOK)
+	nfiles := cfg["files"].(map[string]any)
+	if nfiles["SOUL.md"] != "# Quelle\n\nGeteilte Basis-Config." {
+		t.Fatalf("SOUL.md nicht überschrieben: %q", nfiles["SOUL.md"])
+	}
+	// ... aber die Stammdaten des Ziels bleiben unangetastet (nur Config übernommen).
+	after := c.expect(http.MethodGet, "/api/v1/agents/"+tid, nil, http.StatusOK)
+	if after["slug"] != "ziel" || after["display_name"] != "Ziel" || after["model"] != "claude-test-9" {
+		t.Fatalf("Stammdaten des Ziels wurden verändert: %v", after)
+	}
+
+	// Heartbeat aus dem Bundle wurde materialisiert (Config-Write-Through).
+	var count int
+	if err := s.pool.QueryRow(t.Context(),
+		"SELECT COUNT(*) FROM agent_heartbeats WHERE agent_id=$1 AND name='Ping'", tid).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Errorf("heartbeat aus dem Bundle nicht materialisiert: %d", count)
+	}
+
+	// Fehlerfälle: unbekannter Agent → 404, kaputtes Bundle → 400.
+	c.expect(http.MethodPost, "/api/v1/agents/00000000-0000-0000-0000-000000000000/config/import",
+		bundle, http.StatusNotFound)
+	c.expect(http.MethodPost, "/api/v1/agents/"+tid+"/config/import",
+		map[string]any{"kind": "falsch", "version": 1, "files": map[string]string{"SOUL.md": "x"}}, http.StatusBadRequest)
+}

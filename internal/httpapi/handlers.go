@@ -126,7 +126,6 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "ungültige id")
 		return
 	}
-	p := principalFrom(r)
 	var in struct {
 		Files map[string]string `json:"files"`
 	}
@@ -134,20 +133,30 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "files fehlt")
 		return
 	}
-	if _, ok := in.Files["TOOLS.md"]; ok {
+	s.saveAndApplyConfig(w, r, id, in.Files)
+}
+
+// saveAndApplyConfig speichert files als neue Config-Version und übernimmt
+// ACCESS.md/EGRESS.md in die UI-Stores (Write-Through) — der gemeinsame Kern
+// von PUT /config und dem Bundle-Config-Import. Erst validieren und RBAC
+// prüfen, damit eine fehlerhafte Datei keine Version erzeugt; bei Erfolg wird
+// die neue ConfigVersion (200) geschrieben.
+func (s *Server) saveAndApplyConfig(w http.ResponseWriter, r *http.Request, id uuid.UUID, files map[string]string) {
+	p := principalFrom(r)
+	if _, ok := files["TOOLS.md"]; ok {
 		writeErr(w, http.StatusBadRequest, "TOOLS.md ist in ACCESS.md aufgegangen (Attribut tools: je System)")
 		return
 	}
 	// HEARTBEAT.md vorab validieren: ein Parse-Fehler soll als 400 mit
 	// verständlicher Meldung zurückkommen, nicht erst in SaveConfig scheitern.
-	if _, err := agents.ParseHeartbeat(in.Files["HEARTBEAT.md"]); err != nil {
+	if _, err := agents.ParseHeartbeat(files["HEARTBEAT.md"]); err != nil {
 		writeErr(w, http.StatusBadRequest, "HEARTBEAT.md: "+err.Error())
 		return
 	}
 	// Write-Through in die UI-Stores (Tools, Egress) — erst validieren und
 	// RBAC prüfen, damit eine fehlerhafte Datei keine Version erzeugt.
 	canSecurity := p.Role == identity.RolePlatformAdmin || p.Role == identity.RoleSecurity
-	apply, err := s.prepareConfigApply(r.Context(), p.OrgID, id, in.Files, canSecurity)
+	apply, err := s.prepareConfigApply(r.Context(), p.OrgID, id, files, canSecurity)
 	if err != nil {
 		if errors.Is(err, errNeedsSecurityRole) {
 			writeErr(w, http.StatusForbidden, err.Error())
@@ -156,7 +165,7 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	cv, err := s.Registry.SaveConfig(r.Context(), id, in.Files, &p.ID)
+	cv, err := s.Registry.SaveConfig(r.Context(), id, files, &p.ID)
 	if err != nil {
 		mapErr(w, err)
 		return

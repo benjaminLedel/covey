@@ -70,6 +70,8 @@ Die komplette Konfiguration eines Agenten ist als **JSON-Bundle** portabel (`GET
 
 Grenzen bleiben dabei erhalten: **Secret-Werte und Webhook-Tokens verlassen die Plattform nie** — der Import weist vorhandene Org-Secrets per Name neu zu, meldet fehlende als Warnung und erzeugt bei aktiviertem Webhook ein frisches Token. Der Import legt stets einen **neuen** Agenten an (Slug-Kollision → `409`, `?slug=` überschreibt) und unterliegt derselben RBAC wie die Einzel-Endpunkte: Bundles mit Guard-Rails, Egress oder Tool-Allowlists importiert nur `platform_admin`/`security` (fail-closed).
 
+Neben dem Neu-Anlegen gibt es das **Überschreiben eines bestehenden Agenten aus einem Bundle**, das **nur die Config-Dateien** übernimmt (`POST /api/v1/agents/{id}/config/import`, in der UI der Button *Bundle importieren (nur Config)* am Config-Tab). Alles andere im Bundle — Stammdaten, Board-Spalten, Guard-Rails, Egress-Templates, Secret-Zuordnungen — wird ignoriert; der Ziel-Agent behält Identität, Secrets und Zuweisungen. Speicher- und Write-Through-Pfad sind identisch zu `PUT /config` (neue Config-Version, dieselbe Security-Rollen-Grenze für Tool-Allowlists/Egress). So verteilt man eine gemeinsame Basis-Config auf mehrere bestehende Agenten, ohne sie neu anzulegen.
+
 ### Beispiel: `SOUL.md` (Skizze)
 
 ```markdown
