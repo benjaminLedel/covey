@@ -160,6 +160,27 @@ func (c *Client) GetIssue(ctx context.Context, projectID, issueIID int) (Issue, 
 	return i, err
 }
 
+// CreateIssue — POST /projects/{id}/issues: legt ein neues Issue (Ticket) an.
+// Für den Intake von Bug-Reports, die NICHT aus GitLab selbst kommen (z. B. per
+// E-Mail gemeldet) — der Agent überführt die Meldung in ein nachverfolgbares
+// Ticket. title ist Pflicht; description (Markdown), labels (kommagetrennt) und
+// assignee (User-ID, 0 = keine Zuweisung) sind optional.
+func (c *Client) CreateIssue(ctx context.Context, projectID int, title, description, labels string, assigneeID int) (Issue, error) {
+	body := map[string]any{"title": title}
+	if description != "" {
+		body["description"] = description
+	}
+	if labels != "" {
+		body["labels"] = labels
+	}
+	if assigneeID != 0 {
+		body["assignee_ids"] = []int{assigneeID}
+	}
+	var out Issue
+	err := c.do(ctx, http.MethodPost, fmt.Sprintf("/projects/%d/issues", projectID), body, &out)
+	return out, err
+}
+
 // ListNotes — GET /projects/{id}/issues/{iid}/notes (chronologisch)
 func (c *Client) ListNotes(ctx context.Context, projectID, issueIID int) ([]Note, error) {
 	var out []Note

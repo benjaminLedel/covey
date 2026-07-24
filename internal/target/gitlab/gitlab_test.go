@@ -523,6 +523,67 @@ func TestDownloadUpload(t *testing.T) {
 	}
 }
 
+// TestCreateIssueAction deckt den Intake extern gemeldeter Bugs ab: der Agent
+// überführt eine Meldung (z. B. per E-Mail) in ein GitLab-Ticket. Ohne title
+// bzw. project_id muss die Aktion klar ablehnen — das trägt das „erst nachfragen,
+// wenn das Projekt unklar ist"-Playbook (kein Ticket ins Blaue).
+func TestCreateIssueAction(t *testing.T) {
+	var gotPath, gotMethod string
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath, gotMethod = r.URL.Path, r.Method
+		gotBody = nil
+		if r.Body != nil {
+			json.NewDecoder(r.Body).Decode(&gotBody)
+		}
+		switch {
+		case r.URL.Path == "/api/v4/users" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode([]struct {
+				ID       int    `json:"id"`
+				Username string `json:"username"`
+			}{{ID: 77, Username: "qa-bot"}})
+		case r.URL.Path == "/api/v4/projects/15/issues" && r.Method == http.MethodPost:
+			json.NewEncoder(w).Encode(Issue{IID: 42, ProjectID: 15, Title: "Login kaputt", State: "opened", WebURL: "https://gl/…/issues/42"})
+		default:
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{}`))
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	res, err := sys.Execute(ctx, "create_issue",
+		[]byte(`{"project_id":15,"title":"Login kaputt","description":"Gemeldet per Mail von kunde@x.de","labels":"bug,intake","assignee":"qa-bot"}`), cred)
+	if err != nil {
+		t.Fatalf("create_issue: %v", err)
+	}
+	if gotMethod != http.MethodPost || gotPath != "/api/v4/projects/15/issues" {
+		t.Fatalf("falscher API-Aufruf: %s %s", gotMethod, gotPath)
+	}
+	if gotBody["title"] != "Login kaputt" || gotBody["labels"] != "bug,intake" {
+		t.Fatalf("Body falsch übertragen: %+v", gotBody)
+	}
+	if _, ok := gotBody["assignee_ids"]; !ok {
+		t.Fatalf("assignee muss zu assignee_ids aufgelöst werden: %+v", gotBody)
+	}
+	iss := res.(Issue)
+	if iss.IID != 42 {
+		t.Fatalf("unerwartetes Issue: %+v", iss)
+	}
+
+	// Ohne title (Projekt bekannt, aber keine Meldung) — Ablehnung.
+	if _, err := sys.Execute(ctx, "create_issue", []byte(`{"project_id":15}`), cred); err == nil {
+		t.Fatal("create_issue ohne title muss fehlschlagen")
+	}
+	// Ohne project_id (Projekt unklar) — Ablehnung; der Agent muss stattdessen nachfragen.
+	if _, err := sys.Execute(ctx, "create_issue", []byte(`{"title":"Irgendein Bug"}`), cred); err == nil {
+		t.Fatal("create_issue ohne project_id muss fehlschlagen")
+	}
+}
+
 func TestCheckoutSubPathAndLimit(t *testing.T) {
 	archive := tarGz(t, map[string]string{
 		"support-main-abc123/":                   "",

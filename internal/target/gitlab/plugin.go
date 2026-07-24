@@ -18,7 +18,7 @@ func init() {
 	target.Register(target.Descriptor{
 		Name:        "gitlab",
 		Label:       "GitLab",
-		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues), Quellcode auschecken, Projekt aufsetzen und Bugs am Code verifizieren (checkout + Sandbox-Shell), an Issues angehängte Screenshots/Bilder lesen (download_upload + Vision), Fixes entwickeln — auf Feature-Branch committen (commit), Merge Request an den Vorgesetzten eröffnen (create_merge_request, optional mit QA-Agent als reviewer) und den Review-Loop leben: bei jedem Heartbeat-Lauf offene MRs auf neues Review-Feedback prüfen (list_merge_requests/list_mr_notes/comment_mr), rote CI selbst diagnostizieren (list_pipelines/list_pipeline_jobs/get_job_log) und auf den Merge reagieren. Auch als QA-/Test-Agent nutzbar: fremde MRs, in denen man als Reviewer eingetragen ist, end-to-end testen und Feedback geben (set_reviewer/approve_mr, nur-wenn: gitlab:review). Intake per HEARTBEAT.md (Polling), Auth per API-Token (Secrets gitlab_token + gitlab_url).",
+		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues), extern gemeldete Bugs als Ticket anlegen (create_issue), Quellcode auschecken, Projekt aufsetzen und Bugs am Code verifizieren (checkout + Sandbox-Shell), an Issues angehängte Screenshots/Bilder lesen (download_upload + Vision), Fixes entwickeln — auf Feature-Branch committen (commit), Merge Request an den Vorgesetzten eröffnen (create_merge_request, optional mit QA-Agent als reviewer) und den Review-Loop leben: bei jedem Heartbeat-Lauf offene MRs auf neues Review-Feedback prüfen (list_merge_requests/list_mr_notes/comment_mr), rote CI selbst diagnostizieren (list_pipelines/list_pipeline_jobs/get_job_log) und auf den Merge reagieren. Auch als QA-/Test-Agent nutzbar: fremde MRs, in denen man als Reviewer eingetragen ist, end-to-end testen und Feedback geben (set_reviewer/approve_mr, nur-wenn: gitlab:review). Intake per HEARTBEAT.md (Polling), Auth per API-Token (Secrets gitlab_token + gitlab_url).",
 		Kind:        "builtin",
 		System:      System{},
 		SetupDoc: `1. In GitLab einen eigenen Bot-Nutzer anlegen (z. B. covey-bot), den
@@ -481,6 +481,19 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		}
 		return gc.CreateMergeRequest(ctx, in.ProjectID, in.SourceBranch, targetBranch,
 			in.Title, in.Description, u.ID, reviewerID)
+	case "create_issue":
+		if in.ProjectID == 0 || strings.TrimSpace(in.Title) == "" {
+			return nil, fmt.Errorf("project_id oder title fehlt")
+		}
+		assigneeID := 0
+		if a := strings.TrimSpace(in.Assignee); a != "" {
+			u, err := gc.LookupUser(ctx, a)
+			if err != nil {
+				return nil, err
+			}
+			assigneeID = u.ID
+		}
+		return gc.CreateIssue(ctx, in.ProjectID, in.Title, in.Description, in.Labels, assigneeID)
 	case "list_notes":
 		return gc.ListNotes(ctx, in.ProjectID, in.IssueIID)
 	case "comment":
@@ -529,6 +542,11 @@ func (System) PromptDoc() string {
    checke gezielt ein Unterverzeichnis aus (path) oder arbeite ohne Checkout:
    list_tree {"project_id":N,"path":"...","ref":"...","recursive":true|false} listet den Repository-Baum (max. 100 Einträge —
    mit path eingrenzen), read_file {"project_id":N,"file_path":"pfad/zur/datei","ref":"..."} liest eine einzelne Datei,
+   create_issue {"project_id":N,"title":"...","description":"... (Markdown)","labels":"bug,intake (optional)","assignee":"gitlab-username (optional)"} —
+   legt ein NEUES Ticket an; nutze es, um einen NICHT aus GitLab stammenden Bug-Report (z. B. per E-Mail gemeldet) in ein
+   nachverfolgbares Issue zu überführen. Braucht eine project_id — kennst du das Zielprojekt nicht sicher, RATE NICHT:
+   frag beim Melder nach, zu welchem Projekt der Fehler gehört (list_projects zeigt dir die dir zugänglichen Projekte),
+   und lege das Ticket erst an, wenn das Projekt feststeht,
    list_notes {"project_id":N,"issue_iid":N}, comment {"project_id":N,"issue_iid":N,"body":"...","internal":true|false},
    set_state {"project_id":N,"issue_iid":N,"state":"close"|"reopen"}, escalate {"project_id":N,"issue_iid":N,"note":"..."},
    assign {"project_id":N,"issue_iid":N,"username":"gitlab-username"} weist das Issue einer Person zu — z. B. nach einem
