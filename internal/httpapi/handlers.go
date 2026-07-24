@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -729,6 +730,49 @@ func (s *Server) handleCost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, c)
+}
+
+// costWindow liest bucket + days aus der Query und bildet daraus (bucket, since).
+// Defaults: Tages-Buckets über die letzten 30 Tage; days wird auf 1..365 begrenzt.
+func costWindow(r *http.Request) (string, time.Time) {
+	bucket := r.URL.Query().Get("bucket")
+	days := 30
+	if d, err := strconv.Atoi(r.URL.Query().Get("days")); err == nil && d > 0 {
+		days = d
+	}
+	if days > 365 {
+		days = 365
+	}
+	return bucket, time.Now().AddDate(0, 0, -days)
+}
+
+// handleCostSeries liefert die Kostenzeitreihe eines Agenten fürs Diagramm.
+func (s *Server) handleCostSeries(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	bucket, since := costWindow(r)
+	series, err := s.Obs.CostSeriesByAgent(r.Context(), id, bucket, since)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, series)
+}
+
+// handleOrgCost liefert den org-weiten Kostenbericht (Summen, Zeitreihe,
+// pro Agent, pro Modell) fürs Kosten-/Token-Diagramm.
+func (s *Server) handleOrgCost(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	bucket, since := costWindow(r)
+	rep, err := s.Obs.OrgCostReport(r.Context(), p.OrgID, bucket, since)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, rep)
 }
 
 func (s *Server) handleMemories(w http.ResponseWriter, r *http.Request) {

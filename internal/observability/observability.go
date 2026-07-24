@@ -55,6 +55,48 @@ type CostSummary struct {
 	Entries      int64     `json:"entries"`
 }
 
+// CostBucket ist ein Zeitfenster (Stunde/Tag/Woche) der Kostenzeitreihe.
+type CostBucket struct {
+	Period       time.Time `json:"period"`
+	TotalUSD     float64   `json:"total_usd"`
+	InputTokens  int64     `json:"input_tokens"`
+	OutputTokens int64     `json:"output_tokens"`
+	Entries      int64     `json:"entries"`
+}
+
+// AgentCost ist die Kostensumme eines Agenten für die Org-Aufschlüsselung.
+type AgentCost struct {
+	AgentID      uuid.UUID `json:"agent_id"`
+	Slug         string    `json:"slug"`
+	DisplayName  string    `json:"display_name"`
+	TotalUSD     float64   `json:"total_usd"`
+	InputTokens  int64     `json:"input_tokens"`
+	OutputTokens int64     `json:"output_tokens"`
+	Entries      int64     `json:"entries"`
+}
+
+// ModelCost ist die Kostensumme pro LLM-Modell.
+type ModelCost struct {
+	Model        string  `json:"model"`
+	TotalUSD     float64 `json:"total_usd"`
+	InputTokens  int64   `json:"input_tokens"`
+	OutputTokens int64   `json:"output_tokens"`
+	Entries      int64   `json:"entries"`
+}
+
+// OrgCostReport bündelt org-weite Kosten: Gesamtsummen, Zeitreihe,
+// Aufschlüsselung pro Agent und pro Modell — die Datenbasis fürs Diagramm.
+type OrgCostReport struct {
+	TotalUSD     float64      `json:"total_usd"`
+	InputTokens  int64        `json:"input_tokens"`
+	OutputTokens int64        `json:"output_tokens"`
+	Entries      int64        `json:"entries"`
+	Bucket       string       `json:"bucket"`
+	Series       []CostBucket `json:"series"`
+	Agents       []AgentCost  `json:"agents"`
+	Models       []ModelCost  `json:"models"`
+}
+
 var ErrNotFound = errors.New("nicht gefunden")
 
 type Store struct {
@@ -148,6 +190,117 @@ func (s *Store) CostByAgent(ctx context.Context, agentID uuid.UUID) (CostSummary
 		COALESCE(SUM(output_tokens),0), COUNT(*) FROM cost_entries WHERE agent_id=$1`, agentID).
 		Scan(&c.TotalUSD, &c.InputTokens, &c.OutputTokens, &c.Entries)
 	return c, err
+}
+
+// normalizeBucket beschränkt die Zeit-Granularität auf gültige date_trunc-Werte
+// (kein SQL-Injection-Vektor, sinnvoller Default).
+func normalizeBucket(bucket string) string {
+	switch bucket {
+	case "hour", "day", "week", "month":
+		return bucket
+	default:
+		return "day"
+	}
+}
+
+func scanBuckets(rows pgx.Rows) ([]CostBucket, error) {
+	defer rows.Close()
+	out := []CostBucket{}
+	for rows.Next() {
+		var b CostBucket
+		if err := rows.Scan(&b.Period, &b.TotalUSD, &b.InputTokens, &b.OutputTokens, &b.Entries); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
+// CostSeriesByAgent liefert die Kostenzeitreihe eines Agenten, in Zeitfenster
+// (bucket) gruppiert und ab since. Für das Kosten-/Token-Diagramm.
+func (s *Store) CostSeriesByAgent(ctx context.Context, agentID uuid.UUID, bucket string, since time.Time) ([]CostBucket, error) {
+	rows, err := s.pool.Query(ctx, `SELECT date_trunc($2, created_at) AS period,
+		COALESCE(SUM(usd),0), COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0), COUNT(*)
+		FROM cost_entries WHERE agent_id=$1 AND created_at >= $3
+		GROUP BY period ORDER BY period`, agentID, normalizeBucket(bucket), since)
+	if err != nil {
+		return nil, err
+	}
+	return scanBuckets(rows)
+}
+
+// OrgCostReport aggregiert die Kosten einer Organisation: Gesamtsummen,
+// Zeitreihe, Aufschlüsselung pro Agent und pro Modell. cost_entries hat keine
+// org_id — wir joinen deshalb über agents.
+func (s *Store) OrgCostReport(ctx context.Context, orgID uuid.UUID, bucket string, since time.Time) (OrgCostReport, error) {
+	rep := OrgCostReport{Bucket: normalizeBucket(bucket), Series: []CostBucket{}, Agents: []AgentCost{}, Models: []ModelCost{}}
+
+	// Gesamtsummen.
+	if err := s.pool.QueryRow(ctx, `SELECT COALESCE(SUM(ce.usd),0), COALESCE(SUM(ce.input_tokens),0),
+		COALESCE(SUM(ce.output_tokens),0), COUNT(*)
+		FROM cost_entries ce JOIN agents a ON a.id=ce.agent_id
+		WHERE a.org_id=$1 AND ce.created_at >= $2`, orgID, since).
+		Scan(&rep.TotalUSD, &rep.InputTokens, &rep.OutputTokens, &rep.Entries); err != nil {
+		return rep, err
+	}
+
+	// Zeitreihe.
+	rows, err := s.pool.Query(ctx, `SELECT date_trunc($2, ce.created_at) AS period,
+		COALESCE(SUM(ce.usd),0), COALESCE(SUM(ce.input_tokens),0), COALESCE(SUM(ce.output_tokens),0), COUNT(*)
+		FROM cost_entries ce JOIN agents a ON a.id=ce.agent_id
+		WHERE a.org_id=$1 AND ce.created_at >= $3
+		GROUP BY period ORDER BY period`, orgID, rep.Bucket, since)
+	if err != nil {
+		return rep, err
+	}
+	if rep.Series, err = scanBuckets(rows); err != nil {
+		return rep, err
+	}
+
+	// Pro Agent.
+	arows, err := s.pool.Query(ctx, `SELECT a.id, a.slug, a.display_name,
+		COALESCE(SUM(ce.usd),0), COALESCE(SUM(ce.input_tokens),0), COALESCE(SUM(ce.output_tokens),0), COUNT(ce.id)
+		FROM agents a LEFT JOIN cost_entries ce ON ce.agent_id=a.id AND ce.created_at >= $2
+		WHERE a.org_id=$1
+		GROUP BY a.id, a.slug, a.display_name
+		HAVING COUNT(ce.id) > 0
+		ORDER BY SUM(ce.usd) DESC NULLS LAST`, orgID, since)
+	if err != nil {
+		return rep, err
+	}
+	func() {
+		defer arows.Close()
+		for arows.Next() {
+			var ac AgentCost
+			if err = arows.Scan(&ac.AgentID, &ac.Slug, &ac.DisplayName, &ac.TotalUSD, &ac.InputTokens, &ac.OutputTokens, &ac.Entries); err != nil {
+				return
+			}
+			rep.Agents = append(rep.Agents, ac)
+		}
+		err = arows.Err()
+	}()
+	if err != nil {
+		return rep, err
+	}
+
+	// Pro Modell.
+	mrows, err := s.pool.Query(ctx, `SELECT COALESCE(NULLIF(ce.model,''),'unbekannt'),
+		COALESCE(SUM(ce.usd),0), COALESCE(SUM(ce.input_tokens),0), COALESCE(SUM(ce.output_tokens),0), COUNT(*)
+		FROM cost_entries ce JOIN agents a ON a.id=ce.agent_id
+		WHERE a.org_id=$1 AND ce.created_at >= $2
+		GROUP BY 1 ORDER BY SUM(ce.usd) DESC`, orgID, since)
+	if err != nil {
+		return rep, err
+	}
+	defer mrows.Close()
+	for mrows.Next() {
+		var mc ModelCost
+		if err := mrows.Scan(&mc.Model, &mc.TotalUSD, &mc.InputTokens, &mc.OutputTokens, &mc.Entries); err != nil {
+			return rep, err
+		}
+		rep.Models = append(rep.Models, mc)
+	}
+	return rep, mrows.Err()
 }
 
 // --- Approval-Queue ---
