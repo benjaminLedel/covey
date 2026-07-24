@@ -170,17 +170,27 @@ func runBootstrap(ctx context.Context, cfg config.Config, log *slog.Logger) erro
 	var adminID uuid.UUID
 	err = pool.QueryRow(ctx, "SELECT id FROM humans WHERE email=$1", adminEmail).Scan(&adminID)
 	if err != nil {
-		hash, err := identbuiltin.HashPassword(adminPass)
+		// Kein Human mit der Bootstrap-E-Mail. Existiert bereits ein
+		// Platform-Admin (umbenannt oder unter anderer Adresse angelegt),
+		// wird KEIN neuer angelegt — sonst würde jeder Deploy einen in der
+		// UI gelöschten oder geänderten Admin wiederbeleben. Neu angelegt
+		// wird nur, wenn die Organisation gar keinen Platform-Admin hat
+		// (frische Installation oder Lockout-Recovery).
+		err = pool.QueryRow(ctx, `SELECT id, email FROM humans WHERE org_id=$1 AND role='platform_admin'
+			ORDER BY created_at LIMIT 1`, orgID).Scan(&adminID, &adminEmail)
 		if err != nil {
-			return err
+			hash, err := identbuiltin.HashPassword(adminPass)
+			if err != nil {
+				return err
+			}
+			adminID = uuid.New()
+			if _, err := pool.Exec(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
+				VALUES ($1,$2,$3,'Platform Admin',$4,'platform_admin')`,
+				adminID, orgID, adminEmail, hash); err != nil {
+				return err
+			}
+			log.Info("admin angelegt", "email", adminEmail)
 		}
-		adminID = uuid.New()
-		if _, err := pool.Exec(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
-			VALUES ($1,$2,$3,'Platform Admin',$4,'platform_admin')`,
-			adminID, orgID, adminEmail, hash); err != nil {
-			return err
-		}
-		log.Info("admin angelegt", "email", adminEmail)
 	}
 
 	// Demo-Support-Agent inkl. SOUL.md & Co.
