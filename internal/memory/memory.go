@@ -127,15 +127,25 @@ func slugify(s string) string {
 	return s
 }
 
+// truncRunes kürzt rune-sicher auf n Zeichen (kein Schnitt mitten in einem
+// UTF-8-Rune — wichtig bei Umlauten).
+func truncRunes(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n])
+}
+
 // deriveTitle zieht einen Seitentitel aus einer freien Erkenntnis: erster Satz
 // bzw. die ersten ~80 Zeichen, einzeilig.
 func deriveTitle(content string) string {
 	t := strings.Join(strings.Fields(content), " ")
 	if i := strings.IndexAny(t, ".!?\n"); i > 0 && i < 80 {
-		t = t[:i]
+		t = t[:i] // Satzzeichen sind ASCII → Byte-Index ist Rune-Grenze
 	}
-	if len(t) > 80 {
-		t = strings.TrimSpace(t[:80])
+	if len([]rune(t)) > 80 {
+		t = strings.TrimSpace(truncRunes(t, 80))
 	}
 	return t
 }
@@ -467,8 +477,8 @@ func FormatForPrompt(entries []Entry) string {
 		b.WriteString(e.Slug)
 		b.WriteString("]]\n")
 		body := strings.TrimSpace(e.Content)
-		if len(body) > 600 {
-			body = strings.TrimSpace(body[:600]) + " …"
+		if len([]rune(body)) > 600 {
+			body = strings.TrimSpace(truncRunes(body, 600)) + " …"
 		}
 		b.WriteString(body)
 		b.WriteString("\n")
