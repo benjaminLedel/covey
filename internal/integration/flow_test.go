@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -369,6 +371,26 @@ func TestAgentWiki(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("Seite muss per Suche auffindbar sein, got %+v", hits)
+	}
+
+	// Home-Arbeitskopie (spec/05): eine zweite Aufgabe materialisiert die zuvor
+	// angelegte Seite zu Beginn als ~/wiki/<slug>.md ins persistente Home.
+	task2, _ := s.backlog.Create(ctx, s.orgID, agent.ID, "Zweite Aufgabe",
+		"[mock:result ok]", "manual", 3)
+	waitFor(t, "zweite aufgabe done", 15*time.Second, func() bool {
+		return s.taskState(task2.ID) == backlog.StateDone
+	})
+	wikiFile := filepath.Join(s.homeBase, agent.ID.String(), "wiki", "kunde-acme.md")
+	waitFor(t, "wiki-datei materialisiert", 5*time.Second, func() bool {
+		_, err := os.Stat(wikiFile)
+		return err == nil
+	})
+	raw, err := os.ReadFile(wikiFile)
+	if err != nil || !strings.Contains(string(raw), "telefonisch") {
+		t.Fatalf("materialisierte Wiki-Datei unerwartet: %q (err=%v)", raw, err)
+	}
+	if _, err := os.Stat(filepath.Join(s.homeBase, agent.ID.String(), "wiki", "index.md")); err != nil {
+		t.Fatalf("index.md muss materialisiert sein: %v", err)
 	}
 }
 

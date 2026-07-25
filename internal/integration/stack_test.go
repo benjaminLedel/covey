@@ -94,6 +94,7 @@ type stack struct {
 	http     *httptest.Server
 	orgID    uuid.UUID
 	adminID  uuid.UUID
+	homeBase string
 	cancel   context.CancelFunc
 }
 
@@ -148,12 +149,13 @@ func newStack(t *testing.T) *stack {
 
 	s.targets = targetstore.NewStore(pool)
 	s.egress = egress.NewStore(pool)
+	s.homeBase = t.TempDir()
 
 	s.orch = orchestrator.New(orchestrator.Options{
 		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
 		Rails: s.rails, Secrets: secretStore, Identity: idp, Memory: s.mem,
 		Targets:        s.targets,
-		Provider:       &inprocProvider{homeBase: t.TempDir(), log: log},
+		Provider:       &inprocProvider{homeBase: s.homeBase, log: log},
 		DaemonTokenTTL: 5 * time.Minute,
 		TickInterval:   300 * time.Millisecond,
 		ReadyTimeout:   10 * time.Second,

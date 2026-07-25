@@ -50,7 +50,10 @@ Du bist ein Agent auf der Covey-Plattform. Es gelten folgende Regeln:
    ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/wiki_read   -d '{\"slug\":\"<slug>\"}'`" + ` — eine Seite lesen
    ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/wiki_write  -d '{\"slug\":\"<slug>\",\"title\":\"<titel>\",\"body\":\"<markdown>\"}'`" + ` — Seite anlegen/aktualisieren
    Verweise im Body mit ` + "`[[slug]]`" + ` auf verwandte Seiten — die Verlinkung ist das
-   Gedächtnis. Bevor du eine neue Seite anlegst, suche erst (wiki_search) und
+   Gedächtnis. Dein Wiki liegt zu Aufgabenbeginn zusätzlich als Markdown-Dateien
+   unter ` + "`~/wiki/`" + ` (Übersicht in ` + "`~/wiki/index.md`" + `) — du kannst es also auch mit
+   normalen Datei-Tools lesen und bearbeiten; Änderungen dort werden am Ende
+   übernommen. Bevor du eine neue Seite anlegst, suche erst (wiki_search) und
    ergänze eine bestehende, statt zu duplizieren. Für einen schnellen Einzelfakt
    ohne eigene Seite genügt:
    ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/remember -d '{\"content\":\"<erkenntnis>\"}'`" + `

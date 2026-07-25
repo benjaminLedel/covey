@@ -405,12 +405,18 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 		HomeDir:         c.homeDir,
 		Env:             env,
 	}
+	// Wiki-Arbeitskopie ins Home materialisieren (spec/05), damit der Agent es
+	// mit normalen Datei-Tools lesen/bearbeiten kann.
+	wikiSnap := c.materializeWiki(runCtx)
+
 	res, err := runtime.Run(runCtx, spec, func(kind string, payload json.RawMessage) {
 		_ = c.send(TypeEvent, Event{TaskID: task.TaskID, Kind: kind, Payload: payload})
 	})
 	if runCtx.Err() != nil {
 		return // Kill-Pfad: die Control Plane hat übernommen
 	}
+	// Direkt bearbeitete/neu angelegte Seiten zurück in die Control Plane.
+	c.syncWikiBack(runCtx, wikiSnap)
 	if err != nil {
 		res.Status = "failed"
 		res.Error = err.Error()

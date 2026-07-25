@@ -982,6 +982,23 @@ func (o *Orchestrator) brokerWiki(ctx context.Context, agent agents.Agent, req d
 		return daemon.InjectWiki{RequestID: req.RequestID, OK: true, Data: data}
 	}
 	switch req.Op {
+	case "list":
+		// Alle Seiten für die Home-Arbeitskopie (spec/05).
+		entries, err := o.Memory.List(ctx, agent.ID, 1000)
+		if err != nil {
+			return fail(err.Error())
+		}
+		type page struct {
+			Slug  string   `json:"slug"`
+			Title string   `json:"title"`
+			Body  string   `json:"body"`
+			Links []string `json:"links"`
+		}
+		pages := make([]page, 0, len(entries))
+		for _, e := range entries {
+			pages = append(pages, page{e.Slug, e.Title, e.Content, e.Links})
+		}
+		return ok(pages)
 	case "search":
 		entries, err := o.Memory.Search(ctx, agent.ID, req.Query, 8)
 		if err != nil {
