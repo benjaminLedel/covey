@@ -96,7 +96,8 @@ func (p *actionProxy) handle(w http.ResponseWriter, r *http.Request) {
 // handleControlPlane bedient Meta-Aktionen (system="covey"), die die Control
 // Plane statt eines Zielsystems betreffen: set_stage (Aufgabe auf dem Board in
 // eine ggf. neue Stage schieben), add_note (Notiz an die Aufgabe), remember
-// (Erkenntnis sofort ins Gedächtnis) und org_chart (Organigramm abfragen).
+// (Erkenntnis sofort ins Gedächtnis), org_chart (Organigramm abfragen) und die
+// Wiki-Tools wiki_search/wiki_read/wiki_write (spec/05).
 func (p *actionProxy) handleControlPlane(ctx context.Context, w http.ResponseWriter, action string, params json.RawMessage) {
 	switch action {
 	case "org_chart":
@@ -152,6 +153,27 @@ func (p *actionProxy) handleControlPlane(ctx context.Context, w http.ResponseWri
 		audit, _ := json.Marshal(map[string]any{"action": "covey:set_stage", "stage": in.Stage})
 		_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
 		writeJSON(w, map[string]string{"status": "ok", "stage": in.Stage})
+	case "wiki_search", "wiki_read", "wiki_write":
+		var in struct {
+			Query string `json:"query"`
+			Slug  string `json:"slug"`
+			Title string `json:"title"`
+			Body  string `json:"body"`
+		}
+		_ = json.Unmarshal(params, &in)
+		op := strings.TrimPrefix(action, "wiki_")
+		resp, err := p.client.wiki(ctx, RequestWiki{Op: op, Query: in.Query, Slug: in.Slug, Title: in.Title, Body: in.Body})
+		if err != nil {
+			writeJSON(w, map[string]string{"status": "error", "error": err.Error()})
+			return
+		}
+		if !resp.OK {
+			writeJSON(w, map[string]string{"status": "error", "error": resp.Error})
+			return
+		}
+		audit, _ := json.Marshal(map[string]any{"action": "covey:" + action, "slug": in.Slug, "query": in.Query})
+		_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
+		writeJSON(w, map[string]any{"status": "ok", "data": resp.Data})
 	default:
 		writeJSON(w, map[string]string{"status": "error", "error": fmt.Sprintf("unbekannte covey-aktion %q", action)})
 	}

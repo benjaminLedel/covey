@@ -24,6 +24,7 @@ const (
 	TypeApprovalDecision  = "approval_decision"
 	TypeInjectTarget      = "inject_target"
 	TypeInjectOrgChart    = "inject_org_chart"
+	TypeInjectWiki        = "inject_wiki"
 	TypeKill              = "kill"
 	TypeSleep             = "sleep"
 )
@@ -42,6 +43,7 @@ const (
 	TypeHeartbeat         = "heartbeat"
 	TypeSetStage          = "set_stage"
 	TypeNote              = "note"
+	TypeRequestWiki       = "request_wiki"
 )
 
 type InjectConfig struct {
@@ -108,10 +110,10 @@ type RequestTarget struct {
 }
 
 type InjectTarget struct {
-	RequestID string          `json:"request_id"`
-	System    string          `json:"system"`
-	Granted   bool            `json:"granted"`
-	Reason    string          `json:"reason,omitempty"`
+	RequestID string `json:"request_id"`
+	System    string `json:"system"`
+	Granted   bool   `json:"granted"`
+	Reason    string `json:"reason,omitempty"`
 	// Kind unterscheidet die Definition in Manifest: "custom" (REST-Manifest)
 	// oder "mcp" (MCP-Server-Config). Leer = custom (Rückwärtskompatibilität).
 	Kind     string          `json:"kind,omitempty"`
@@ -187,6 +189,26 @@ type Cost struct {
 	InputTokens  int64   `json:"input_tokens"`
 	OutputTokens int64   `json:"output_tokens"`
 	Model        string  `json:"model,omitempty"`
+}
+
+// RequestWiki/InjectWiki brokern die Wiki-Tools des Agenten (covey/wiki_*) in
+// die Control Plane: search (Vektorsuche über die Seiten), read (eine Seite per
+// Slug) und write (Seite anlegen/aktualisieren, [[slug]]-Wikilinks im Body).
+// Das Wiki liegt in der Control Plane (Quelle der Wahrheit, spec/05).
+type RequestWiki struct {
+	RequestID string `json:"request_id"`
+	Op        string `json:"op"` // search | read | write
+	Query     string `json:"query,omitempty"`
+	Slug      string `json:"slug,omitempty"`
+	Title     string `json:"title,omitempty"`
+	Body      string `json:"body,omitempty"`
+}
+
+type InjectWiki struct {
+	RequestID string          `json:"request_id"`
+	OK        bool            `json:"ok"`
+	Error     string          `json:"error,omitempty"`
+	Data      json.RawMessage `json:"data,omitempty"`
 }
 
 // Encode baut einen Envelope; panict nie, weil alle Payloads marshalbar sind.

@@ -353,11 +353,18 @@ export type EgressLogEntry = {
   created_at: string;
 };
 
+// Eine Wiki-Seite (spec/05): title + body (content) + [[wikilinks]]. content
+// trägt weiter den Body (Rückwärtskompatibilität der manuellen Pflege).
 export type MemoryEntry = {
   id: string;
+  slug: string;
+  title: string;
   content: string;
+  links?: string[];
+  source?: string;
   score?: number;
   created_at: string;
+  updated_at: string;
 };
 
 // Secret-Vorschau: per Default eine einsehbare Variable — value trägt den

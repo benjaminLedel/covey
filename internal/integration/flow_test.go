@@ -99,19 +99,20 @@ func TestBlockedLoopEndToEnd(t *testing.T) {
 		t.Fatalf("ergebnis fehlt: %+v", done.Result)
 	}
 
-	// Memory-Ingest beim done-Schritt (M7).
+	// Wiki-Ingest beim done-Schritt (spec/05): die Erkenntnis landet als eigene
+	// Seite oder wird einer bestehenden angehängt — daher Contains, nicht ==.
 	entries, err := s.mem.Query(ctx, agent.ID, "Login-Problem Ticket", 5)
 	if err != nil {
 		t.Fatal(err)
 	}
 	found := false
 	for _, e := range entries {
-		if e.Content == "Ticket 42: Login-Problem, Browser erfragt" {
+		if strings.Contains(e.Content, "Ticket 42: Login-Problem, Browser erfragt") {
 			found = true
 		}
 	}
 	if !found {
-		t.Fatalf("memory-episode fehlt, got %+v", entries)
+		t.Fatalf("wiki-seite fehlt, got %+v", entries)
 	}
 
 	// Recording lückenlos: lifecycle + runtime + action + credential.
@@ -326,6 +327,48 @@ func TestAgentNotesAndStageCleanup(t *testing.T) {
 	stages, _ = s.backlog.ListStages(ctx, agent.ID)
 	if len(stages) != 1 || stages[0].Name != "Manuell" {
 		t.Fatalf("nach dem Archivieren darf nur die menschliche Spalte bleiben, got %+v", stages)
+	}
+}
+
+// TestAgentWiki prüft die Wiki-Tools (spec/05) end-to-end: der Agent legt über
+// covey/wiki_write eine Seite an (Daemon-Round-Trip → brokerWiki → Store), die
+// dann per Slug lesbar und per Vektorsuche auffindbar ist. (Die [[wikilink]]-
+// Extraktion prüft ein Store-Unit-Test — der Mock-Direktiven-Parser kann keine
+// ']' in Action-Params tragen.)
+func TestAgentWiki(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	agent := s.newSupportAgent("wiki-agent")
+
+	task, _ := s.backlog.Create(ctx, s.orgID, agent.ID, "Wiki-Test",
+		`[mock:action covey/wiki_write {"slug":"kunde-acme","title":"Kunde ACME","body":"Erreichbar nur telefonisch, reagiert nicht auf E-Mail."}]
+[mock:result fertig]`, "manual", 3)
+	waitFor(t, "aufgabe done", 15*time.Second, func() bool {
+		return s.taskState(task.ID) == backlog.StateDone
+	})
+
+	// Per Slug lesbar.
+	page, err := s.mem.Read(ctx, agent.ID, "kunde-acme")
+	if err != nil {
+		t.Fatalf("angelegte Wiki-Seite nicht lesbar: %v", err)
+	}
+	if page.Title != "Kunde ACME" || !strings.Contains(page.Content, "telefonisch") {
+		t.Fatalf("Seite unerwartet: %+v", page)
+	}
+
+	// Per Vektorsuche auffindbar.
+	hits, err := s.mem.Search(ctx, agent.ID, "ACME telefonisch erreichbar", 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, h := range hits {
+		if h.Slug == "kunde-acme" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("Seite muss per Suche auffindbar sein, got %+v", hits)
 	}
 }
 

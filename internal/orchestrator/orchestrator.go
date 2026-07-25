@@ -833,6 +833,14 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		return false, o.sendMsg(ctx, link, daemon.TypeInjectOrgChart,
 			daemon.InjectOrgChart{RequestID: req.RequestID, Chart: chart})
 
+	case daemon.TypeRequestWiki:
+		req, err := daemon.DecodePayload[daemon.RequestWiki](msg)
+		if err != nil {
+			return false, nil
+		}
+		resp := o.brokerWiki(ctx, agent, req)
+		return false, o.sendMsg(ctx, link, daemon.TypeInjectWiki, resp)
+
 	case daemon.TypeBlocked:
 		b, err := daemon.DecodePayload[daemon.Blocked](msg)
 		if err != nil {
@@ -865,9 +873,13 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		if _, err := o.Backlog.Complete(ctx, taskID, state, result, d.Error); err != nil {
 			return true, err
 		}
-		// done-Schritt: Gelerntes ins Gedächtnis einspeisen (M7).
+		// done-Schritt: Gelerntes ins Wiki einspeisen (spec/05) und den
+		// Konsolidierungs-Pass anstoßen (Beinahe-Duplikate verschmelzen).
 		if d.Memory != "" {
 			_ = o.Memory.Ingest(ctx, agent.ID, d.Memory, map[string]string{"task_id": taskID.String()})
+			if _, err := o.Memory.Consolidate(ctx, agent.ID); err != nil {
+				o.Log.Warn("wiki-konsolidierung fehlgeschlagen", "err", err)
+			}
 		}
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
 			map[string]string{"status": "task_" + d.Status})
@@ -958,6 +970,58 @@ func (o *Orchestrator) enforceBudget(ctx context.Context, agent agents.Agent, li
 // errBudgetExceeded markiert den Budget-Stopp: Aufgabe ist wieder offen,
 // der Agent pausiert — kein failed-Abschluss.
 var errBudgetExceeded = errors.New("budget überschritten")
+
+// brokerWiki bedient die Wiki-Tools des Agenten (covey/wiki_*, spec/05) gegen
+// den Memory-Store der Control Plane.
+func (o *Orchestrator) brokerWiki(ctx context.Context, agent agents.Agent, req daemon.RequestWiki) daemon.InjectWiki {
+	fail := func(m string) daemon.InjectWiki {
+		return daemon.InjectWiki{RequestID: req.RequestID, OK: false, Error: m}
+	}
+	ok := func(v any) daemon.InjectWiki {
+		data, _ := json.Marshal(v)
+		return daemon.InjectWiki{RequestID: req.RequestID, OK: true, Data: data}
+	}
+	switch req.Op {
+	case "search":
+		entries, err := o.Memory.Search(ctx, agent.ID, req.Query, 8)
+		if err != nil {
+			return fail(err.Error())
+		}
+		type hit struct {
+			Slug    string  `json:"slug"`
+			Title   string  `json:"title"`
+			Score   float64 `json:"score"`
+			Excerpt string  `json:"excerpt"`
+		}
+		hits := make([]hit, 0, len(entries))
+		for _, e := range entries {
+			hits = append(hits, hit{e.Slug, e.Title, e.Score, truncateRunes(e.Content, 200)})
+		}
+		return ok(map[string]any{"results": hits})
+	case "read":
+		e, err := o.Memory.Read(ctx, agent.ID, req.Slug)
+		if err != nil {
+			return fail("seite nicht gefunden")
+		}
+		return ok(e)
+	case "write":
+		e, err := o.Memory.Write(ctx, agent.ID, req.Slug, req.Title, req.Body, "agent")
+		if err != nil {
+			return fail(err.Error())
+		}
+		return ok(map[string]string{"slug": e.Slug, "title": e.Title})
+	default:
+		return fail("unbekannte wiki-operation: " + req.Op)
+	}
+}
+
+func truncateRunes(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return strings.TrimSpace(string(r[:n])) + " …"
+}
 
 // brokerCredential ist die Broker-Entscheidung (spec/04): Berechtigung laut
 // ACCESS.md, Guard-Rails, dann kurzlebige Durchreichung aus dem SecretStore.

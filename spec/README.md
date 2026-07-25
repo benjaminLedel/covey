@@ -28,7 +28,7 @@ Die Leitmetapher, aus der die gesamte Architektur folgt: Die Plattform ist die *
 | [`02-agenten-modell.md`](02-agenten-modell.md) | Der Agent als Entität: Identität, Sandbox, Zugänge, Config-as-Code, Org-Chart |
 | [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md) | Zustandsmaschine, Dispatch-Loop, Wake-Quellen, Backlog, Blocking, Event-Korrelation |
 | [`04-identitaet-secrets.md`](04-identitaet-secrets.md) | Keycloak, RFC 8693 Token Exchange, Secrets-Broker, Threat-Model |
-| [`05-gedaechtnis.md`](05-gedaechtnis.md) | Memory-Schichten, Knowledge-Graph (Graphiti), persistentes Home |
+| [`05-gedaechtnis.md`](05-gedaechtnis.md) | Memory-Schichten, LLM-Wiki (verlinkte Markdown-Seiten + pgvector-Index), persistentes Home |
 | [`06-observability-control.md`](06-observability-control.md) | Zentrale Guard-Rails, Session-Recording, Approval-Gates, Kill-Switch, Kostenkontrolle, Supervisor-Agent |
 | [`07-offene-entscheidungen.md`](07-offene-entscheidungen.md) | Offene Fragen, Build-vs-Buy, MVP-Scope |
 | [`08-marktumfeld.md`](08-marktumfeld.md) | Marktrecherche: Konkurrenz-Plattformen, Open-Source-Bausteine, Build-vs-Adopt-Matrix |

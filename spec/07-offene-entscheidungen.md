@@ -26,7 +26,7 @@ Bestehendes Ticketsystem zweckentfremden (gemeinsame Aufgaben-Realität mit Mens
 
 ### D5 — Gedächtnis-Scoping
 
-Pro Agent, pro Team oder geteilt (mit Zugriffsregeln auf dem Graph)? Wahrscheinlich pro-Agent-Kern + geteilter Org-Layer. Details in [`05-gedaechtnis.md`](05-gedaechtnis.md).
+Pro Agent, pro Team oder geteilt (mit Zugriffsregeln auf Wiki-Seitenebene, `scope`-Frontmatter)? Wahrscheinlich pro-Agent-Kern + geteilter Org-Layer. Details in [`05-gedaechtnis.md`](05-gedaechtnis.md).
 
 ### D6 — Erste Runtime(s)
 

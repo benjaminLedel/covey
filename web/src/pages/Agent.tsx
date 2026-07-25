@@ -1935,9 +1935,21 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
           </div>
         ) : (
           <div key={m.id} className="card mb-2 flex justify-between gap-3" style={{ padding: "12px 14px" }}>
-            <span className="voice text-[14.5px]">{m.content}</span>
+            <span className="flex flex-col gap-1 min-w-0">
+              {m.title && <span className="font-medium text-[14.5px]">{m.title}</span>}
+              <span className="voice text-[14.5px] whitespace-pre-wrap">{m.content}</span>
+              {m.links && m.links.length > 0 && (
+                <span className="muted text-[11px] flex flex-wrap gap-1 mt-0.5">
+                  {m.links.map((l) => (
+                    <span key={l} className="chip">
+                      [[{l}]]
+                    </span>
+                  ))}
+                </span>
+              )}
+            </span>
             <span className="muted text-[11px] shrink-0 flex items-center gap-2">
-              {new Date(m.created_at).toLocaleDateString(locale)}
+              {new Date(m.updated_at || m.created_at).toLocaleDateString(locale)}
               {canManage && (
                 <>
                   <button

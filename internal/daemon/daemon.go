@@ -188,6 +188,12 @@ func (c *Client) Run(ctx context.Context) error {
 				continue
 			}
 			c.route(inj.RequestID, msg)
+		case TypeInjectWiki:
+			inj, err := DecodePayload[InjectWiki](msg)
+			if err != nil {
+				continue
+			}
+			c.route(inj.RequestID, msg)
 		case TypeAssignTask:
 			task, err := DecodePayload[AssignTask](msg)
 			if err != nil {
@@ -311,6 +317,19 @@ func (c *Client) orgChart(ctx context.Context) (json.RawMessage, error) {
 		return nil, err
 	}
 	return inj.Chart, nil
+}
+
+// wiki brokert ein Wiki-Tool (search/read/write) an die Control Plane und gibt
+// die Antwort roh zurück. Ungecacht — das Wiki ändert sich während der Session.
+func (c *Client) wiki(ctx context.Context, req RequestWiki) (InjectWiki, error) {
+	req.RequestID = uuid.NewString()
+	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	msg, err := c.request(reqCtx, TypeRequestWiki, req.RequestID, req)
+	if err != nil {
+		return InjectWiki{}, err
+	}
+	return DecodePayload[InjectWiki](msg)
 }
 
 // checkAction holt die zentrale Policy-Entscheidung für eine Aktion.
