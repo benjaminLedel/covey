@@ -60,8 +60,11 @@ type Options struct {
 	PublicWSURL    string // ws://…/api/daemon/ws — von Sandboxen erreichbar
 	DaemonTokenTTL time.Duration
 	TickInterval   time.Duration
-	ReadyTimeout   time.Duration
-	Log            *slog.Logger
+	// WikiMaintenanceInterval taktet den Wiki-Konsolidierungs-Pass (spec/05:
+	// aufgabenunabhängig, nicht im Hot-Path). 0 → Default.
+	WikiMaintenanceInterval time.Duration
+	ReadyTimeout            time.Duration
+	Log                     *slog.Logger
 }
 
 type Orchestrator struct {
@@ -70,6 +73,9 @@ type Orchestrator struct {
 	mu       sync.Mutex
 	sessions map[uuid.UUID]*session
 	waiting  map[uuid.UUID]chan DaemonLink
+
+	wikiSweepMu   sync.Mutex
+	lastWikiSweep time.Time
 
 	events *Broadcaster
 }
@@ -80,6 +86,9 @@ func New(opts Options) *Orchestrator {
 	}
 	if opts.TickInterval == 0 {
 		opts.TickInterval = 30 * time.Second
+	}
+	if opts.WikiMaintenanceInterval == 0 {
+		opts.WikiMaintenanceInterval = 10 * time.Minute
 	}
 	if opts.Log == nil {
 		opts.Log = slog.Default()
@@ -114,6 +123,7 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 		o.Log.Info("startup-reconcile: verwaiste Aufgaben requeued", "count", n)
 	}
 	go o.listenLoop(ctx)
+	go o.wikiMaintenanceLoop(ctx)
 	ticker := time.NewTicker(o.TickInterval)
 	defer ticker.Stop()
 	o.tick(ctx)
@@ -181,6 +191,66 @@ func (o *Orchestrator) tick(ctx context.Context) {
 	for _, id := range ids {
 		o.EnsureRunning(id)
 	}
+}
+
+// wikiMaintenanceLoop taktet den Wiki-Konsolidierungs-Pass (spec/05): der
+// Lint-/Dedup-Pass ist aufgabenunabhängig und läuft nicht im Hot-Path des
+// done-Schritts, sondern hier gebündelt und gedrosselt.
+func (o *Orchestrator) wikiMaintenanceLoop(ctx context.Context) {
+	ticker := time.NewTicker(o.WikiMaintenanceInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if n, err := o.ConsolidateWikis(ctx); err != nil {
+				o.Log.Warn("wiki-wartung fehlgeschlagen", "err", err)
+			} else if n > 0 {
+				o.Log.Info("wiki-wartung: Duplikate verschmolzen", "count", n)
+			}
+		}
+	}
+}
+
+// ConsolidateWikis konsolidiert die Wikis aller Agenten, deren Seiten sich seit
+// dem letzten Durchlauf geändert haben (beim ersten Lauf: alle mit Seiten), und
+// gibt die Gesamtzahl der Verschmelzungen zurück. Vom Wartungs-Ticker und für
+// die manuelle Auslösung (UI) genutzt.
+func (o *Orchestrator) ConsolidateWikis(ctx context.Context) (int, error) {
+	o.wikiSweepMu.Lock()
+	since := o.lastWikiSweep
+	o.wikiSweepMu.Unlock()
+
+	rows, err := o.Pool.Query(ctx, `SELECT DISTINCT agent_id FROM wiki_pages WHERE updated_at > $1`, since)
+	if err != nil {
+		return 0, err
+	}
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if rows.Scan(&id) == nil {
+			ids = append(ids, id)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+
+	total := 0
+	for _, id := range ids {
+		n, err := o.Memory.Consolidate(ctx, id)
+		if err != nil {
+			o.Log.Warn("wiki-konsolidierung fehlgeschlagen", "agent", id, "err", err)
+			continue
+		}
+		total += n
+	}
+	o.wikiSweepMu.Lock()
+	o.lastWikiSweep = time.Now()
+	o.wikiSweepMu.Unlock()
+	return total, nil
 }
 
 // fireHeartbeats legt fällige Heartbeat-Einträge (HEARTBEAT.md, materialisiert
@@ -687,10 +757,19 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	o.setStatus(ctx, agent, &taskID, agents.StatusTriage)
 	o.publishTask(taskID, agent.ID)
 
-	// Triage: Gedächtnis prüfen (M7) und Config kompilieren (M2).
+	// Triage: Wiki prüfen (spec/05) und Config kompilieren (M2). Relevante
+	// Seiten (Vektor-Treffer) plus der kompakte Index des gesamten Wikis.
 	memCtx := ""
 	if entries, err := o.Memory.Query(ctx, agent.ID, task.Title+" "+task.Body, 5); err == nil {
 		memCtx = memory.FormatForPrompt(entries)
+	}
+	if idx, err := o.Memory.List(ctx, agent.ID, 40); err == nil {
+		if section := memory.FormatIndexForPrompt(idx); section != "" {
+			if memCtx != "" {
+				memCtx += "\n"
+			}
+			memCtx += section
+		}
 	}
 	cfg, err := o.Registry.CurrentConfig(ctx, agent.ID)
 	if err != nil && !errors.Is(err, agents.ErrNotFound) {
@@ -873,13 +952,11 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		if _, err := o.Backlog.Complete(ctx, taskID, state, result, d.Error); err != nil {
 			return true, err
 		}
-		// done-Schritt: Gelerntes ins Wiki einspeisen (spec/05) und den
-		// Konsolidierungs-Pass anstoßen (Beinahe-Duplikate verschmelzen).
+		// done-Schritt: Gelerntes ins Wiki einspeisen (spec/05). Die
+		// Konsolidierung (Beinahe-Duplikate verschmelzen) läuft aufgabenunabhängig
+		// im getakteten Wartungs-Job, nicht hier im Hot-Path.
 		if d.Memory != "" {
 			_ = o.Memory.Ingest(ctx, agent.ID, d.Memory, map[string]string{"task_id": taskID.String()})
-			if _, err := o.Memory.Consolidate(ctx, agent.ID); err != nil {
-				o.Log.Warn("wiki-konsolidierung fehlgeschlagen", "err", err)
-			}
 		}
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
 			map[string]string{"status": "task_" + d.Status})

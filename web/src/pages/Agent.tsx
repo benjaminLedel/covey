@@ -23,6 +23,7 @@ import {
   type HeartbeatStatus,
   type MCPTool,
   type MemoryEntry,
+  type WikiLogEntry,
   type OrgChart,
   type Principal,
   type RecordingEvent,
@@ -1862,24 +1863,37 @@ function AgentSecrets({ agentId }: { agentId: string }) {
 function Memories({ agentId, canManage }: { agentId: string; canManage: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const [view, setView] = useState<"pages" | "log">("pages");
   const mems = useQuery({
     queryKey: ["memories", agentId],
     queryFn: () => api<MemoryEntry[] | null>(`/agents/${agentId}/memories`),
   });
+  const log = useQuery({
+    queryKey: ["wiki-log", agentId],
+    queryFn: () => api<WikiLogEntry[] | null>(`/agents/${agentId}/wiki/log`),
+    enabled: view === "log",
+  });
   const [draft, setDraft] = useState("");
+  const [draftTitle, setDraftTitle] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
   const [editText, setEditText] = useState("");
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["memories", agentId] });
+  const [note, setNote] = useState("");
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["memories", agentId] });
+    qc.invalidateQueries({ queryKey: ["wiki-log", agentId] });
+  };
 
   const add = useMutation({
-    mutationFn: () => post(`/agents/${agentId}/memories`, { content: draft }),
+    mutationFn: () => post(`/agents/${agentId}/memories`, { content: draft, title: draftTitle }),
     onSuccess: () => {
       setDraft("");
+      setDraftTitle("");
       invalidate();
     },
   });
   const save = useMutation({
-    mutationFn: () => patch(`/memories/${editId}`, { content: editText }),
+    mutationFn: () => patch(`/memories/${editId}`, { content: editText, title: editTitle }),
     onSuccess: () => {
       setEditId(null);
       invalidate();
@@ -1889,90 +1903,147 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
     mutationFn: (id: string) => del(`/memories/${id}`),
     onSuccess: invalidate,
   });
+  const consolidate = useMutation({
+    mutationFn: () => post<{ merged: number }>(`/agents/${agentId}/wiki/consolidate`),
+    onSuccess: (r) => {
+      setNote(r.merged > 0 ? t("agent.memory.consolidateDone", { count: r.merged }) : t("agent.memory.consolidateNone"));
+      invalidate();
+    },
+  });
 
   const list = mems.data ?? [];
+  const logs = log.data ?? [];
   const locale = i18n.language === "de" ? "de-DE" : "en-US";
+  const opLabel = (op: string) =>
+    ({ ingest: t("agent.memory.opIngest"), write: t("agent.memory.opWrite"), merge: t("agent.memory.opMerge"), delete: t("agent.memory.opDelete") })[op] ?? op;
+
   return (
     <div>
-      {canManage && (
-        <div className="card mb-3" style={{ padding: "12px 14px" }}>
-          <textarea
-            rows={2}
-            placeholder={t("agent.memory.addPlaceholder")}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-          />
-          <div className="flex items-center gap-2 mt-2">
-            <button
-              className="btn primary sm"
-              disabled={!draft.trim() || add.isPending}
-              onClick={() => add.mutate()}
-            >
-              {t("agent.memory.remember")}
-            </button>
-            {add.isError && <span className="danger-text text-xs">{(add.error as Error).message}</span>}
-          </div>
+      <p className="muted text-[12.5px] mb-3">{t("agent.memory.hint")}</p>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="seg" role="tablist">
+          <button className={view === "pages" ? "active" : ""} onClick={() => setView("pages")}>
+            {t("agent.memory.pages")}
+            {list.length > 0 && ` (${list.length})`}
+          </button>
+          <button className={view === "log" ? "active" : ""} onClick={() => setView("log")}>
+            {t("agent.memory.log")}
+          </button>
         </div>
-      )}
-      {list.length === 0 && <p className="muted">{t("agent.memory.nothingLearned")}</p>}
-      {list.map((m) =>
-        editId === m.id ? (
-          <div key={m.id} className="card mb-2" style={{ padding: "12px 14px" }}>
-            <textarea rows={2} value={editText} onChange={(e) => setEditText(e.target.value)} />
-            <div className="flex items-center gap-2 mt-2">
-              <button
-                className="btn primary sm"
-                disabled={!editText.trim() || save.isPending}
-                onClick={() => save.mutate()}
-              >
-                {t("agent.memory.save")}
-              </button>
-              <button className="btn sm" onClick={() => setEditId(null)}>
-                {t("agent.memory.cancel")}
-              </button>
-              {save.isError && <span className="danger-text text-xs">{(save.error as Error).message}</span>}
+        <span className="flex-1" />
+        {canManage && (
+          <button
+            className="btn sm"
+            disabled={consolidate.isPending || list.length < 2}
+            onClick={() => consolidate.mutate()}
+          >
+            {consolidate.isPending ? t("agent.memory.consolidating") : t("agent.memory.consolidate")}
+          </button>
+        )}
+      </div>
+      {note && <p className="muted text-xs mb-2">{note}</p>}
+
+      {view === "log" ? (
+        <>
+          {logs.length === 0 && <p className="muted">{t("agent.memory.logEmpty")}</p>}
+          {logs.map((l) => (
+            <div key={l.id} className="flex items-baseline gap-2 py-1 border-b" style={{ borderColor: "var(--border)" }}>
+              <span className={`chip ${l.op === "merge" ? "" : "fixed"}`} style={{ fontSize: "10.5px" }}>
+                {opLabel(l.op)}
+              </span>
+              {l.page_slug && <span className="voice text-[13px]">[[{l.page_slug}]]</span>}
+              <span className="text-[13px] min-w-0 truncate">{l.summary}</span>
+              <span className="flex-1" />
+              <span className="muted text-[11px] shrink-0">{new Date(l.created_at).toLocaleString(locale)}</span>
             </div>
-          </div>
-        ) : (
-          <div key={m.id} className="card mb-2 flex justify-between gap-3" style={{ padding: "12px 14px" }}>
-            <span className="flex flex-col gap-1 min-w-0">
-              {m.title && <span className="font-medium text-[14.5px]">{m.title}</span>}
-              <span className="voice text-[14.5px] whitespace-pre-wrap">{m.content}</span>
-              {m.links && m.links.length > 0 && (
-                <span className="muted text-[11px] flex flex-wrap gap-1 mt-0.5">
-                  {m.links.map((l) => (
-                    <span key={l} className="chip">
-                      [[{l}]]
+          ))}
+        </>
+      ) : (
+        <>
+          {canManage && (
+            <div className="card mb-3" style={{ padding: "12px 14px" }}>
+              <input
+                className="mb-2"
+                placeholder={t("agent.memory.titlePlaceholder")}
+                value={draftTitle}
+                onChange={(e) => setDraftTitle(e.target.value)}
+              />
+              <textarea
+                rows={2}
+                placeholder={t("agent.memory.addPlaceholder")}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+              />
+              <div className="flex items-center gap-2 mt-2">
+                <button className="btn primary sm" disabled={!draft.trim() || add.isPending} onClick={() => add.mutate()}>
+                  {t("agent.memory.remember")}
+                </button>
+                {add.isError && <span className="danger-text text-xs">{(add.error as Error).message}</span>}
+              </div>
+            </div>
+          )}
+          {list.length === 0 && <p className="muted">{t("agent.memory.nothingLearned")}</p>}
+          {list.map((m) =>
+            editId === m.id ? (
+              <div key={m.id} className="card mb-2" style={{ padding: "12px 14px" }}>
+                <input className="mb-2" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder={t("agent.memory.titlePlaceholder")} />
+                <textarea rows={3} value={editText} onChange={(e) => setEditText(e.target.value)} />
+                <div className="flex items-center gap-2 mt-2">
+                  <button className="btn primary sm" disabled={!editText.trim() || save.isPending} onClick={() => save.mutate()}>
+                    {t("agent.memory.save")}
+                  </button>
+                  <button className="btn sm" onClick={() => setEditId(null)}>
+                    {t("agent.memory.cancel")}
+                  </button>
+                  {save.isError && <span className="danger-text text-xs">{(save.error as Error).message}</span>}
+                </div>
+              </div>
+            ) : (
+              <div key={m.id} className="card mb-2 flex justify-between gap-3" style={{ padding: "12px 14px" }}>
+                <span className="flex flex-col gap-1 min-w-0">
+                  <span className="flex items-center gap-2">
+                    {m.title && <span className="font-medium text-[14.5px]">{m.title}</span>}
+                    {m.source && (
+                      <span className="chip fixed" style={{ fontSize: "10px" }}>
+                        {m.source === "manual" ? t("agent.memory.sourceManual") : t("agent.memory.sourceAgent")}
+                      </span>
+                    )}
+                  </span>
+                  <span className="voice text-[14.5px] whitespace-pre-wrap">{m.content}</span>
+                  {m.links && m.links.length > 0 && (
+                    <span className="muted text-[11px] flex flex-wrap gap-1 mt-0.5">
+                      {m.links.map((l) => (
+                        <span key={l} className="chip">
+                          [[{l}]]
+                        </span>
+                      ))}
                     </span>
-                  ))}
+                  )}
                 </span>
-              )}
-            </span>
-            <span className="muted text-[11px] shrink-0 flex items-center gap-2">
-              {new Date(m.updated_at || m.created_at).toLocaleDateString(locale)}
-              {canManage && (
-                <>
-                  <button
-                    className="btn sm"
-                    onClick={() => {
-                      setEditId(m.id);
-                      setEditText(m.content);
-                    }}
-                  >
-                    {t("agent.memory.change")}
-                  </button>
-                  <button
-                    className="btn sm danger"
-                    disabled={remove.isPending}
-                    onClick={() => remove.mutate(m.id)}
-                  >
-                    {t("agent.memory.forget")}
-                  </button>
-                </>
-              )}
-            </span>
-          </div>
-        ),
+                <span className="muted text-[11px] shrink-0 flex items-center gap-2">
+                  {new Date(m.updated_at || m.created_at).toLocaleDateString(locale)}
+                  {canManage && (
+                    <>
+                      <button
+                        className="btn sm"
+                        onClick={() => {
+                          setEditId(m.id);
+                          setEditTitle(m.title ?? "");
+                          setEditText(m.content);
+                        }}
+                      >
+                        {t("agent.memory.change")}
+                      </button>
+                      <button className="btn sm danger" disabled={remove.isPending} onClick={() => remove.mutate(m.id)}>
+                        {t("agent.memory.forget")}
+                      </button>
+                    </>
+                  )}
+                </span>
+              </div>
+            ),
+          )}
+        </>
       )}
     </div>
   );

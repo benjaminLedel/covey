@@ -367,6 +367,15 @@ export type MemoryEntry = {
   updated_at: string;
 };
 
+// Ein Eintrag des Wiki-Protokolls (log.md-Äquivalent, spec/05).
+export type WikiLogEntry = {
+  id: number;
+  op: string; // ingest | write | merge | delete
+  page_slug?: string;
+  summary: string;
+  created_at: string;
+};
+
 // Secret-Vorschau: per Default eine einsehbare Variable — value trägt den
 // vollen Klartext. Bei sensitive=true bleibt der Wert write-only, prefix
 // zeigt nur die ersten Zeichen. agent_ids sind die expliziten Zuweisungen

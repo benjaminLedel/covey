@@ -313,12 +313,27 @@
     },
     "memory": {
       "addPlaceholder": "Share knowledge, e.g. \"Customer Smith is a long-time client on a first-name basis\" …",
+      "titlePlaceholder": "Title (optional) — creates a named page",
       "remember": "Remember",
       "save": "Save",
       "cancel": "Cancel",
       "nothingLearned": "Nothing learned yet.",
       "change": "Edit",
-      "forget": "Forget"
+      "forget": "Forget",
+      "pages": "Pages",
+      "log": "Activity",
+      "logEmpty": "No wiki activity yet.",
+      "consolidate": "Merge duplicates",
+      "consolidating": "Merging …",
+      "consolidateDone": "{{count}} merged",
+      "consolidateNone": "No duplicates found",
+      "sourceManual": "manual",
+      "sourceAgent": "agent",
+      "hint": "The wiki is the agent's long-term memory: linked pages, loaded at triage, maintained at done.",
+      "opIngest": "ingested",
+      "opWrite": "edited",
+      "opMerge": "merged",
+      "opDelete": "deleted"
     },
     "egress": {
       "desc": "This agent may only reach the hosts listed below — everything else is blocked by the egress proxy fail-closed.",

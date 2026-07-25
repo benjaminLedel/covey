@@ -313,12 +313,27 @@
     },
     "memory": {
       "addPlaceholder": "Wissen mitgeben, z. B. „Kunde Meier ist Bestandskunde und wird geduzt“ …",
+      "titlePlaceholder": "Titel (optional) — legt eine benannte Seite an",
       "remember": "Merken",
       "save": "Speichern",
       "cancel": "Abbrechen",
       "nothingLearned": "Noch nichts gelernt.",
       "change": "Ändern",
-      "forget": "Vergessen"
+      "forget": "Vergessen",
+      "pages": "Seiten",
+      "log": "Verlauf",
+      "logEmpty": "Noch keine Wiki-Aktivität.",
+      "consolidate": "Duplikate zusammenführen",
+      "consolidating": "Führe zusammen …",
+      "consolidateDone": "{{count}} zusammengeführt",
+      "consolidateNone": "Keine Duplikate gefunden",
+      "sourceManual": "manuell",
+      "sourceAgent": "Agent",
+      "hint": "Das Wiki ist das dauerhafte Gedächtnis des Agenten: verlinkte Seiten, im triage-Schritt geladen, im done-Schritt gepflegt.",
+      "opIngest": "eingespeist",
+      "opWrite": "bearbeitet",
+      "opMerge": "verschmolzen",
+      "opDelete": "gelöscht"
     },
     "egress": {
       "desc": "Dieser Agent darf ausgehend nur die Hosts unten erreichen — alles andere blockt der Egress-Proxy fail-closed.",

@@ -316,32 +316,43 @@ func (s *Store) Write(ctx context.Context, agentID uuid.UUID, slug, title, body,
 	return s.Read(ctx, agentID, slug)
 }
 
-// Update ersetzt den Body einer Seite per ID (manuelle Pflege / Tool-Edit) und
-// bettet neu ein. Liefert pgx.ErrNoRows, wenn die Seite nicht existiert.
-func (s *Store) Update(ctx context.Context, id uuid.UUID, content string) error {
+// UpdatePage ersetzt Titel und Body einer Seite per ID (manuelle Pflege /
+// Tool-Edit) und bettet neu ein. Leerer title behält den bestehenden Titel.
+// Liefert pgx.ErrNoRows, wenn die Seite nicht existiert.
+func (s *Store) UpdatePage(ctx context.Context, id uuid.UUID, title, content string) error {
 	content = strings.TrimSpace(content)
 	if content == "" || IsNoise(content) {
 		return ErrNoContent
 	}
-	var title string
-	if err := s.pool.QueryRow(ctx, `SELECT title FROM wiki_pages WHERE id=$1`, id).Scan(&title); err != nil {
+	var curTitle, slug string
+	var agentID uuid.UUID
+	if err := s.pool.QueryRow(ctx, `SELECT agent_id, title, slug FROM wiki_pages WHERE id=$1`, id).
+		Scan(&agentID, &curTitle, &slug); err != nil {
 		return err
+	}
+	if strings.TrimSpace(title) == "" {
+		title = curTitle
 	}
 	vec := s.embedder.Embed(title + " " + content)
 	tag, err := s.pool.Exec(ctx, `UPDATE wiki_pages
-		SET body=$2, links=$3, embedding=$4::vector, updated_at=now() WHERE id=$1`,
-		id, content, extractLinks(content), vectorLiteral(vec))
+		SET title=$2, body=$3, links=$4, embedding=$5::vector, updated_at=now() WHERE id=$1`,
+		id, title, content, extractLinks(content), vectorLiteral(vec))
 	if err != nil {
 		return err
 	}
 	if tag.RowsAffected() == 0 {
 		return pgx.ErrNoRows
 	}
+	s.logOp(ctx, agentID, "write", slug, "bearbeitet: "+title)
 	return nil
 }
 
 // Delete entfernt eine Seite endgültig (manuelle Pflege).
 func (s *Store) Delete(ctx context.Context, id uuid.UUID) error {
+	var agentID uuid.UUID
+	var slug, title string
+	_ = s.pool.QueryRow(ctx, `SELECT agent_id, slug, title FROM wiki_pages WHERE id=$1`, id).
+		Scan(&agentID, &slug, &title)
 	tag, err := s.pool.Exec(ctx, `DELETE FROM wiki_pages WHERE id=$1`, id)
 	if err != nil {
 		return err
@@ -349,7 +360,39 @@ func (s *Store) Delete(ctx context.Context, id uuid.UUID) error {
 	if tag.RowsAffected() == 0 {
 		return pgx.ErrNoRows
 	}
+	s.logOp(ctx, agentID, "delete", slug, "gelöscht: "+title)
 	return nil
+}
+
+// LogEntry ist ein Eintrag des Wiki-Protokolls (log.md-Äquivalent, spec/05).
+type LogEntry struct {
+	ID        int64     `json:"id"`
+	Op        string    `json:"op"`
+	PageSlug  string    `json:"page_slug,omitempty"`
+	Summary   string    `json:"summary"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// Log liefert das chronologische Wiki-Protokoll eines Agenten (neueste zuerst).
+func (s *Store) Log(ctx context.Context, agentID uuid.UUID, limit int) ([]LogEntry, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	rows, err := s.pool.Query(ctx, `SELECT id, op, coalesce(page_slug,''), summary, created_at
+		FROM wiki_log WHERE agent_id=$1 ORDER BY created_at DESC, id DESC LIMIT $2`, agentID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []LogEntry{}
+	for rows.Next() {
+		var e LogEntry
+		if err := rows.Scan(&e.ID, &e.Op, &e.PageSlug, &e.Summary, &e.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
 }
 
 // List liefert die zuletzt geänderten Seiten (index.md-Sicht, UI).
@@ -493,6 +536,23 @@ func FormatForPrompt(entries []Entry) string {
 			b.WriteString("\n")
 		}
 		b.WriteString("\n")
+	}
+	return b.String()
+}
+
+// FormatIndexForPrompt macht aus den Seiten den kompakten Wiki-Index (Titel +
+// Slug) für den triage-Kontext: der Agent sieht so seinen gesamten Wissens-
+// bestand auf einen Blick, nicht nur die Vektor-Treffer — das hilft ihm zu
+// navigieren und Duplikate zu vermeiden.
+func FormatIndexForPrompt(entries []Entry) string {
+	if len(entries) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("## Dein Wiki (Index)\n\n")
+	b.WriteString("Diese Seiten hast du schon — ergänze eine bestehende (covey/wiki_read + wiki_write), statt zu duplizieren:\n")
+	for _, e := range entries {
+		b.WriteString("- [[" + e.Slug + "]] — " + strings.TrimSpace(e.Title) + "\n")
 	}
 	return b.String()
 }

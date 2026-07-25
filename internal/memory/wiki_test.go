@@ -46,6 +46,21 @@ func TestSlugify(t *testing.T) {
 	}
 }
 
+func TestFormatIndexForPrompt(t *testing.T) {
+	if got := FormatIndexForPrompt(nil); got != "" {
+		t.Fatalf("leerer Index → leerer String, got %q", got)
+	}
+	got := FormatIndexForPrompt([]Entry{
+		{Slug: "kunde-acme", Title: "Kunde ACME"},
+		{Slug: "projekt-x", Title: "Projekt X"},
+	})
+	for _, want := range []string{"Dein Wiki (Index)", "- [[kunde-acme]] — Kunde ACME", "- [[projekt-x]] — Projekt X"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("Index enthält %q nicht: %q", want, got)
+		}
+	}
+}
+
 func TestUnionSlugs(t *testing.T) {
 	got := unionSlugs([]string{"a", "b"}, []string{"b", "c"}, nil, []string{"", "c", "d"})
 	want := []string{"a", "b", "c", "d"}

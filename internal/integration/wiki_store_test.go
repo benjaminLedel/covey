@@ -169,6 +169,42 @@ func TestWikiWriteUpsert(t *testing.T) {
 	}
 }
 
+// TestWikiMaintenanceConsolidation: der getaktete Wartungs-Job (spec/05,
+// aufgabenunabhängig) verschmilzt Duplikate über ConsolidateWikis; ein zweiter
+// Lauf lässt den bereits konsolidierten Bestand unangetastet.
+func TestWikiMaintenanceConsolidation(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	a := s.newSupportAgent("maint-agent")
+
+	const body = "Kunde ACME ist nur telefonisch erreichbar. Siehe [[projekt-x]]."
+	if _, err := s.mem.Write(ctx, a.ID, "p1", "ACME", body, "agent"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.mem.Write(ctx, a.ID, "p2", "ACME", body, "agent"); err != nil {
+		t.Fatal(err)
+	}
+
+	n, err := s.orch.ConsolidateWikis(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n < 1 {
+		t.Fatalf("Wartung muss mindestens 1 Duplikat verschmelzen, got %d", n)
+	}
+	if pages, _ := s.mem.List(ctx, a.ID, 10); len(pages) != 1 {
+		t.Fatalf("nach der Wartung muss 1 Seite bleiben, got %d", len(pages))
+	}
+
+	// Zweiter Lauf: der konsolidierte Bestand des Agenten bleibt bei 1 Seite.
+	if _, err := s.orch.ConsolidateWikis(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if pages, _ := s.mem.List(ctx, a.ID, 10); len(pages) != 1 {
+		t.Fatalf("zweiter Lauf darf nichts kaputtmachen, got %d Seiten", len(pages))
+	}
+}
+
 func pageSlugs(pages []memory.Entry) []string {
 	out := make([]string, len(pages))
 	for i, p := range pages {
