@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api, post, roleLabel, type Approval, type Principal } from "./api";
 import i18n from "./i18n";
 import HelpDrawer from "./components/HelpDrawer";
-import Login from "./pages/Login";
+import PublicSite from "./public/PublicSite";
 import Dashboard from "./pages/Dashboard";
 import AgentPage from "./pages/Agent";
 import Approvals from "./pages/Approvals";
@@ -53,7 +53,7 @@ export default function App() {
   useLiveEvents(me.isSuccess);
 
   if (me.isLoading) return null;
-  if (me.isError) return <Login onLogin={() => me.refetch()} />;
+  if (me.isError) return <PublicSite onLogin={() => me.refetch()} />;
   return <Shell me={me.data!} onLogout={() => me.refetch()} />;
 }
 

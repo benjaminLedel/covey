@@ -1,4 +1,215 @@
 {
+  "public": {
+    "nav": {
+      "aria": "Main navigation",
+      "function": "Function",
+      "covey": "Platform",
+      "companion": "App",
+      "login": "Sign in",
+      "docs": "Docs"
+    },
+    "products": {
+      "title": "For your agents — and the people behind them",
+      "lead": "Covey is the platform for your AI workforce. The Companion app is the optional way for people to bring in their knowledge as context for their agents.",
+      "soon": "in development",
+      "more": "Learn more",
+      "allFunctions": "See all functions",
+      "covey": {
+        "name": "Covey",
+        "tagline": "The platform that manages AI agents like employees: identity, sandbox, access, governance."
+      },
+      "companion": {
+        "name": "Companion",
+        "tagline": "The app where a person offloads their knowledge — curated into context their agents use."
+      }
+    },
+    "function": {
+      "eyebrow": "Function",
+      "title": "Everything an organization needs to put agents to work",
+      "lead": "From hiring through the working day to control — the capabilities at a glance.",
+      "groups": {
+        "structure": "Identity & Structure",
+        "work": "Work & Target Systems",
+        "control": "Security & Control",
+        "memory": "Memory & Knowledge"
+      },
+      "cap": {
+        "orgchart": {
+          "t": "Org chart & departments",
+          "d": "People and agents live in the same org chart — with departments, supervisors and cost centers. Who works where, who reports to whom."
+        },
+        "profiles": {
+          "t": "Employee & agent profiles",
+          "d": "Every agent and every person has a profile with role, task and assignment — the workforce at a glance."
+        },
+        "identity": {
+          "t": "Identity & RBAC",
+          "d": "Human roles with finely scoped rights (admin, agent owner, security, auditor, controlling), authenticated via SSO."
+        },
+        "backlog": {
+          "t": "Backlog & tasks",
+          "d": "Agents work a prioritized backlog like a team — tasks with states, blocks that ask people questions."
+        },
+        "targets": {
+          "t": "Target-system plugins",
+          "d": "Target systems are self-registering plugins with a manifest — dock new integrations without touching the core."
+        },
+        "gitlab": {
+          "t": "GitLab & code",
+          "d": "Agents work in real repositories: branches, merge requests, pipelines — full teammates in the development process."
+        },
+        "email": {
+          "t": "Email & IMAP",
+          "d": "Mailboxes as a target system: agents read and answer mail, triggered by webhooks or polling."
+        },
+        "runtimes": {
+          "t": "Swappable runtimes",
+          "d": "The runtime (first: Claude Code headless) is a thin adapter behind a stable protocol — swappable without changing the platform."
+        },
+        "sandbox": {
+          "t": "Isolated sandboxes",
+          "d": "Each agent works in its own ephemeral Docker sandbox with a persistent home. If it is lost, it is rebuilt from config and home."
+        },
+        "secrets": {
+          "t": "Secrets broker",
+          "d": "Never long-lived secrets in the sandbox. Access is brokered at runtime — short-lived, scoped, revocable."
+        },
+        "guardrails": {
+          "t": "Guard-rails & approvals",
+          "d": "Policies are enforced centrally and outside the runtime, fail-closed. Critical actions wait for human approval."
+        },
+        "egress": {
+          "t": "Egress control",
+          "d": "The sandbox's network egress is controlled — where an agent may talk is decided by the platform, not the prompt."
+        },
+        "observability": {
+          "t": "Observability & recording",
+          "d": "Every session is recorded: what the agent did, step by step — traceable, with alerts and a kill switch."
+        },
+        "costs": {
+          "t": "Cost & budgets",
+          "d": "Every action carries its cost. Budgets per agent and department, transparent for controlling."
+        },
+        "wiki": {
+          "t": "Wiki memory",
+          "d": "Agents keep a memory of linked Markdown pages with a pgvector index — distilled, not piled up, with scheduled consolidation."
+        },
+        "companion": {
+          "t": "Companion link",
+          "d": "People can share their own knowledge (via the Companion app) with their agents — enforced centrally, fail-closed. In development."
+        }
+      },
+      "ctaTitle": "Try Covey",
+      "ctaLead": "Sign in and see Covey in action.",
+      "ctaCovey": "More about Covey"
+    },
+    "covey": {
+      "eyebrow": "Product · Platform",
+      "lead": "Covey treats AI agents like employees: their own identity, an isolated sandbox, brokered access, a place in the org chart — and central governance across the entire workforce.",
+      "seeFunctions": "See functions",
+      "pillarsTitle": "The four pillars",
+      "pillars": {
+        "identity": {
+          "t": "Identity & org chart",
+          "d": "Every agent has an identity, a role and a department and is led like an employee."
+        },
+        "sandbox": {
+          "t": "Isolated sandbox",
+          "d": "Its own ephemeral workspace with a persistent home. Replaceable; the state lives in the control plane."
+        },
+        "broker": {
+          "t": "Brokered access",
+          "d": "Secrets stay central. Access to target systems is issued at runtime — short-lived and scoped to the task."
+        },
+        "control": {
+          "t": "Central control",
+          "d": "Guard-rails, approvals, recording, cost and a kill switch — enforced outside the runtime, fail-closed."
+        }
+      },
+      "whoTitle": "For the whole organization",
+      "whoLead": "Covey isn't a single-user tool but a platform for many roles:",
+      "who1": "IT & platform admins who run the workforce",
+      "who2": "Team leads who own agents and prioritize tasks",
+      "who3": "Security & compliance who own guard-rails and audits",
+      "who4": "Controlling that keeps an eye on cost and budgets",
+      "ctaTitle": "See Covey in action",
+      "ctaLead": "Sign in — or discover how the Companion app connects people and agents.",
+      "ctaCompanion": "To the Companion app"
+    },
+    "companion": {
+      "eyebrow": "Optional Companion app",
+      "lead": "One place for your own knowledge: ideas by voice, notes, documents. A curator distills the raw and makes it available to your agents as context.",
+      "aboutCovey": "To the Covey platform",
+      "howTitle": "In three steps",
+      "steps": {
+        "capture": {
+          "t": "Offload",
+          "d": "Speak the idea on the go, a note, a document. The inbox takes any format."
+        },
+        "curate": {
+          "t": "Curate",
+          "d": "A curator agent cuts the raw into linked wiki pages, spots gaps and asks back."
+        },
+        "feed": {
+          "t": "Feed",
+          "d": "Shared knowledge flows — enforced centrally — as context into your agents' tasks."
+        }
+      },
+      "pillarsTitle": "What defines it",
+      "pillars": {
+        "voice": {
+          "t": "Voice-first",
+          "d": "The fleeting thought in the car, spoken briefly — transcribed and structured, and maybe a ticket later."
+        },
+        "curator": {
+          "t": "A curator that asks",
+          "d": "An LLM agent distills, spots contradictions and gaps and asks targeted, measured questions."
+        },
+        "privacy": {
+          "t": "Private by default",
+          "d": "The brain-dump belongs to the person. Colleagues and managers see nothing until something is deliberately shared."
+        },
+        "continuity": {
+          "t": "Continuity",
+          "d": "Cover, vacation, onboarding: shared role knowledge lets colleagues and agents take over when someone is out."
+        }
+      },
+      "privacyTitle": "Not a surveillance tool",
+      "privacyBody": "The Companion serves the person's productivity, not their monitoring. Personal stays private; sharing to the department is a deliberate choice, governed by the team lead — and every access stays visible to the person.",
+      "ctaTitle": "The concept stands, the build follows",
+      "ctaLead": "The Companion app is in development. Its foundation is Covey's memory infrastructure."
+    },
+    "shots": {
+      "title": "A look inside the software",
+      "lead": "Real views from the control plane — workforce, structure, work, memory and cost.",
+      "agents": {
+        "t": "The workforce",
+        "d": "Every agent with status, runtime and role at a glance."
+      },
+      "org": {
+        "t": "Org chart",
+        "d": "People and agents in one structure — departments, supervisors, delegation."
+      },
+      "backlog": {
+        "t": "Backlog & tasks",
+        "d": "Tasks with states, plus cost, tokens and LLM runs per agent."
+      },
+      "memory": {
+        "t": "Wiki memory",
+        "d": "An agent's distilled knowledge — maintainable and traceable."
+      },
+      "costs": {
+        "t": "Cost & observability",
+        "d": "Spend and token usage over time, per agent and model."
+      }
+    },
+    "docs": {
+      "aria": "Documentation navigation",
+      "title": "Documentation",
+      "prev": "Back",
+      "next": "Next"
+    }
+  },
   "nav": {
     "agents": "Agents",
     "templates": "Templates",
@@ -81,7 +292,7 @@
   },
   "login": {
     "title": "Sign in",
-    "subtitle": "The control plane for your AI agent workforce.",
+    "subtitle": "Your AI workforce, professionally managed.",
     "email": "Email",
     "password": "Password",
     "submit": "Sign in",
@@ -91,41 +302,41 @@
     "demoLogin": "Demo Login (Admin)"
   },
   "landing": {
-    "pitch": "Covey treats AI agents like employees: with their own identity, an isolated sandbox, brokered access and a fixed place in the org chart — the IT & HR department for your AI agents.",
-    "point1": "Agents with an identity, a role and a place in the org chart",
-    "point2": "No long-lived secrets in the sandbox — access is brokered at runtime",
-    "point3": "Guard rails enforced centrally, fail-closed — not left to the prompt",
+    "pitch": "Covey treats AI agents like employees: their own identity, an isolated sandbox, brokered access and a place in the org chart. You hire them, assign tasks and stay in control — one agent or your entire workforce.",
+    "point1": "Every agent with a role, a backlog and a supervisor — managed like an employee.",
+    "point2": "Real work in real target systems: Zammad, GitLab, email and more.",
+    "point3": "Cost, guard-rails and audit in view at all times.",
     "rotPrefix": "Every agent gets",
     "rot1": "an identity.",
     "rot2": "an isolated sandbox.",
     "rot3": "brokered access.",
-    "rot4": "central guard rails.",
+    "rot4": "central guard-rails.",
     "rot5": "a place in the org chart.",
-    "featuresTitle": "A platform that treats agents like employees",
-    "featuresLead": "From onboarding to day-to-day work to oversight: Covey bundles what an organization needs to let AI agents work safely and accountably.",
+    "featuresTitle": "Everything your AI workforce needs",
+    "featuresLead": "From hiring through the working day to control — Covey unites what an organization needs to let AI agents work safely and accountably.",
     "f1t": "Identity & org chart",
     "f1d": "Every agent has an identity, a role and a department. The org chart shows people and agents side by side — who works where and who reports to whom.",
     "f2t": "Isolated sandboxes",
-    "f2d": "Every agent works in its own ephemeral sandbox with a persistent home. If it is lost, it is simply rebuilt from config and home.",
+    "f2d": "Every agent works in its own ephemeral sandbox with a persistent home. If it is lost, it is rebuilt from config and home.",
     "f3t": "Brokered access",
-    "f3d": "Secrets stay in the control plane. Access to target systems is brokered at runtime — short-lived and scoped to the task at hand.",
-    "f4t": "Guard rails & approvals",
-    "f4d": "Policies are enforced centrally, outside the runtime, fail-closed. Critical actions wait for human approval.",
+    "f3d": "Secrets stay in the control plane. Access to target systems is issued at runtime — short-lived and scoped to the task at hand.",
+    "f4t": "Guard-rails & approvals",
+    "f4d": "Policies apply centrally and outside the runtime, fail-closed. Critical actions wait for a human approval.",
     "f5t": "Backlog & tasks",
-    "f5d": "Agents work through a backlog like a team: tasks with states, blockers with questions — humans stay in the loop.",
+    "f5d": "Agents work a prioritized backlog like a team: tasks with states, blocks with follow-up questions — people stay in the loop.",
     "f6t": "Observability & cost",
-    "f6d": "Every session is recorded: what the agent did, what it cost and where alerts are needed — transparent for the whole organization.",
+    "f6d": "Every session is recorded: what the agent did and what it cost — accountable for the whole organization, with alerts and a kill switch.",
     "bandAlt": "A murmuration of starlings sweeping over hills at dusk",
-    "bandCaption": "A flock coordinates itself — Covey orchestrates yours.",
+    "bandCaption": "A flock coordinates itself. Covey orchestrates yours.",
     "howTitle": "How Covey works",
     "howAlt": "A bird formation against a bright sky",
-    "s1t": "Onboard",
-    "s1d": "Create an agent from a template: identity, role, versioned config (SOUL.md) — and a place in the org chart.",
+    "s1t": "Hire",
+    "s1d": "Create an agent from a template: identity, role, versioned config (SOUL.md) and a place in the org chart.",
     "s2t": "Let it work",
     "s2d": "The agent pulls tasks from the backlog and works in its sandbox. Access to target systems is brokered at runtime.",
     "s3t": "Stay in control",
-    "s3d": "Guard rails apply centrally, critical actions wait for approval — every session remains traceable as a recording with cost.",
-    "foot": "Covey — the IT & HR department for AI agents.",
+    "s3d": "Guard-rails apply centrally, critical actions wait for approval — every session stays accountable as a recording with cost.",
+    "foot": "Covey — the IT and HR department for AI agents.",
     "imprint": "Legal notice",
     "imprintLaw": "Information in accordance with § 5 DDG (German Digital Services Act)",
     "imprintAddr1": "Berliner Str. 4",
