@@ -1241,6 +1241,23 @@ kbd {
 .orgmember > .node.human { padding-left: 13px; }
 .orgmember:hover .agent-grip { color: var(--text-secondary); background: var(--surface-0); }
 
+/* Leitung: interne Abteilungsleitung als Baum-Knoten deutlich markieren —
+   Akzentrahmen plus „Leitung"-Pille mit Entfernen-Aktion. */
+.orgmember.orgmember-lead {
+  border-color: var(--text-accent);
+  box-shadow: inset 3px 0 0 var(--text-accent);
+}
+.lead-pill {
+  display: inline-flex; align-items: center; gap: 3px;
+  align-self: center; margin: 0 8px 0 -2px;
+  padding: 2px 4px 2px 8px; border-radius: 999px;
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--text-accent);
+  background: rgba(var(--accent-rgb, 122,131,204),0.12);
+}
+.lead-pill .icon-btn { font-size: 10px; padding: 0 3px; color: var(--text-accent); }
+.lead-pill .icon-btn:hover { color: var(--text-danger); }
+
 /* Drop-Ziel-Hervorhebung (Abteilung wie Mitglied) */
 .orgmember.node-drop-over, .node.dept.node-drop-over {
   border-color: var(--text-accent);

@@ -209,10 +209,6 @@
       "budget": "Budget",
       "noCap": "kein Deckel"
     },
-    "supervisor": {
-      "reportsTo": "berichtet an:",
-      "nobody": "— niemanden —"
-    },
     "backlog": {
       "newTask": "Neue Aufgabe",
       "titlePlaceholder": "Titel",
@@ -470,7 +466,7 @@
   "org": {
     "title": "Organigramm",
     "subtitle": "Menschen & Agenten",
-    "desc": "Der Org-Chart strukturiert Eskalation und Delegation: Agenten berichten an ihren Vorgesetzten, Menschen an ihre Führungskraft. Zuordnungen pflegen Sie auf der Agenten-Seite bzw. in der Benutzerverwaltung.",
+    "desc": "Der Org-Chart strukturiert Eskalation und Delegation: Agenten berichten an ihren Vorgesetzten, Menschen an ihre Führungskraft. Zuordnungen pflegen Sie hier per Drag & Drop.",
     "legendHuman": "Mensch",
     "legendAgent": "Agent",
     "legendHint": "Agenten und Menschen per Drag & Drop auf eine Abteilung oder auf ein Mitglied (Unterstellung) ziehen",
@@ -481,7 +477,7 @@
     "noPersons": "Keine Personen in dieser Organisation.",
     "loadError": "Org-Chart konnte nicht geladen werden.",
     "withoutSupervisor": "Ohne Vorgesetzten ({{count}})",
-    "withoutSupervisorHint": "Diese Agenten hängen noch nicht im Org-Chart — auf der Agenten-Seite lässt sich ein Vorgesetzter zuordnen.",
+    "withoutSupervisorHint": "Diese Agenten hängen noch nicht im Org-Chart — ziehen Sie sie per Drag & Drop unter einen Vorgesetzten oder in eine Abteilung.",
     "nodeHuman": "Mensch",
     "openProfile": "Profil-Seite öffnen",
     "member": "Mitglied",
@@ -732,8 +728,6 @@
     "password": "Passwort (min. 8 Zeichen)",
     "create": "Anlegen",
     "profileHint": "Funktion, Plattform-Kennungen und Zuständigkeiten werden nach dem Anlegen auf der Profil-Seite der Person gepflegt.",
-    "reportsTo": "berichtet an",
-    "nobody": "— niemanden —",
     "passwordReset": "Passwort",
     "delete": "Löschen",
     "cantDeleteSelf": "Das eigene Konto kann nicht gelöscht werden",

@@ -89,11 +89,8 @@ const deTopics: HelpTopic[] = [
         </p>
         <ul>
           <li>
-            <b>Agenten zuordnen:</b> auf der Agenten-Seite über „berichtet an" (Plattform-Admin und
-            Agent-Owner).
-          </li>
-          <li>
-            <b>Menschen zuordnen:</b> in der Benutzerverwaltung (nur Plattform-Admin).
+            <b>Zuordnen:</b> direkt im Org-Chart per Drag &amp; Drop — Menschen wie Agenten unter einen
+            Vorgesetzten oder in eine Abteilung ziehen (Plattform-Admin und Agent-Owner).
           </li>
           <li>
             Agenten ohne Vorgesetzten erscheinen unterhalb des Baums, bis sie zugeordnet sind.

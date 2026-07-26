@@ -36,7 +36,7 @@ export default function Users({ me }: { me: Principal }) {
       <CreateUser onDone={() => qc.invalidateQueries({ queryKey: ["users"] })} />
 
       {(users.data ?? []).map((u) => (
-        <UserRow key={u.id} user={u} me={me} all={users.data ?? []} />
+        <UserRow key={u.id} user={u} me={me} />
       ))}
     </div>
   );
@@ -100,7 +100,7 @@ function CreateUser({ onDone }: { onDone: () => void }) {
   );
 }
 
-function UserRow({ user, me, all }: { user: Human; me: Principal; all: Human[] }) {
+function UserRow({ user, me }: { user: Human; me: Principal }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const isSelf = user.id === me.ID;
@@ -112,10 +112,6 @@ function UserRow({ user, me, all }: { user: Human; me: Principal; all: Human[] }
 
   const setRole = useMutation({
     mutationFn: (role: string) => patch(`/users/${user.id}`, { role }),
-    onSuccess: invalidate,
-  });
-  const setManager = useMutation({
-    mutationFn: (managerId: string) => patch(`/users/${user.id}`, { manager_id: managerId }),
     onSuccess: invalidate,
   });
   const resetPassword = useMutation({
@@ -130,7 +126,7 @@ function UserRow({ user, me, all }: { user: Human; me: Principal; all: Human[] }
     mutationFn: () => del(`/users/${user.id}`),
     onSuccess: invalidate,
   });
-  const error = setRole.error ?? setManager.error ?? resetPassword.error ?? remove.error;
+  const error = setRole.error ?? resetPassword.error ?? remove.error;
 
   const identities = Object.entries(user.identities ?? {});
 
@@ -165,24 +161,6 @@ function UserRow({ user, me, all }: { user: Human; me: Principal; all: Human[] }
             </option>
           ))}
         </select>
-        <div>
-          <label style={{ margin: 0, fontSize: 10 }}>{t("users.reportsTo")}</label>
-          <select
-            value={user.manager_id ?? ""}
-            onChange={(e) => setManager.mutate(e.target.value)}
-            disabled={setManager.isPending}
-            style={{ width: "auto" }}
-          >
-            <option value="">{t("users.nobody")}</option>
-            {all
-              .filter((h) => h.id !== user.id)
-              .map((h) => (
-                <option key={h.id} value={h.id}>
-                  {h.display_name}
-                </option>
-              ))}
-          </select>
-        </div>
         <button className="btn sm" onClick={() => setResetting(!resetting)}>
           {t("users.passwordReset")}
         </button>

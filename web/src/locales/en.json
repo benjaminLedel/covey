@@ -209,10 +209,6 @@
       "budget": "Budget",
       "noCap": "no cap"
     },
-    "supervisor": {
-      "reportsTo": "reports to:",
-      "nobody": "— nobody —"
-    },
     "backlog": {
       "newTask": "New task",
       "titlePlaceholder": "Title",
@@ -470,7 +466,7 @@
   "org": {
     "title": "Org Chart",
     "subtitle": "People & Agents",
-    "desc": "The org chart structures escalation and delegation: agents report to their supervisor, people to their manager. Assignments are managed on the agent page or in user management.",
+    "desc": "The org chart structures escalation and delegation: agents report to their supervisor, people to their manager. Assignments are managed here via drag & drop.",
     "legendHuman": "Person",
     "legendAgent": "Agent",
     "legendHint": "Drag and drop agents and people onto a department, or onto a member to make them report to it",
@@ -481,7 +477,7 @@
     "noPersons": "No people in this organization.",
     "loadError": "Could not load org chart.",
     "withoutSupervisor": "Without supervisor ({{count}})",
-    "withoutSupervisorHint": "These agents are not yet in the org chart — a supervisor can be assigned on the agent page.",
+    "withoutSupervisorHint": "These agents are not yet in the org chart — drag them under a supervisor or into a department.",
     "nodeHuman": "Person",
     "openProfile": "Open profile page",
     "member": "member",
@@ -732,8 +728,6 @@
     "password": "Password (min. 8 characters)",
     "create": "Create",
     "profileHint": "Job title, platform identities and responsibilities are managed on the person's profile page after creation.",
-    "reportsTo": "reports to",
-    "nobody": "— nobody —",
     "passwordReset": "Password",
     "delete": "Delete",
     "cantDeleteSelf": "Your own account cannot be deleted",

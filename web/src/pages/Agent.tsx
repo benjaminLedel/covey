@@ -24,7 +24,6 @@ import {
   type MCPTool,
   type MemoryEntry,
   type WikiLogEntry,
-  type OrgChart,
   type Principal,
   type RecordingEvent,
   type RuntimeInfo,
@@ -37,7 +36,6 @@ import {
 } from "../api";
 import { ActivityFeed } from "../components/ActivityFeed";
 import { Markdown } from "../components/Markdown";
-import { PersonLink } from "../components/person";
 import ProfileForm from "../components/ProfileForm";
 import { AddHostForm, EgressLogTable, HostChips } from "../components/EgressBits";
 import { SecretValue } from "./Secrets";
@@ -90,7 +88,6 @@ export default function AgentPage({ me }: { me: Principal }) {
           runtime: {a.runtime}
           {a.model && ` · ${a.model}`}
         </span>
-        <Supervisor agent={a} editable={canManage(me.Role)} />
         <span className="ml-auto" />
         {canManage(me.Role) && (
           <button className="btn sm" onClick={() => act.mutate("wake")}>
@@ -403,48 +400,6 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
       )}
     </div>
     </>
-  );
-}
-
-function Supervisor({ agent, editable }: { agent: Agent; editable: boolean }) {
-  const { t } = useTranslation();
-  const qc = useQueryClient();
-  const chart = useQuery({ queryKey: ["orgchart"], queryFn: () => api<OrgChart>("/org/chart") });
-  const mut = useMutation({
-    mutationFn: (supervisorId: string) => patch(`/agents/${agent.id}/supervisor`, { supervisor_id: supervisorId }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["agent", agent.id] });
-      qc.invalidateQueries({ queryKey: ["agents"] });
-      qc.invalidateQueries({ queryKey: ["orgchart"] });
-    },
-  });
-  const humans = chart.data?.humans ?? [];
-  const current = humans.find((h) => h.id === agent.supervisor_id);
-
-  if (!editable) {
-    return (
-      <span className="muted text-xs">
-        {t("agent.supervisor.reportsTo")} {current ? <PersonLink human={current} /> : "—"}
-      </span>
-    );
-  }
-  return (
-    <span className="flex items-center gap-2 text-xs muted">
-      {t("agent.supervisor.reportsTo")}
-      <select
-        value={agent.supervisor_id ?? ""}
-        onChange={(e) => mut.mutate(e.target.value)}
-        disabled={mut.isPending || chart.isLoading}
-        style={{ width: "auto", padding: "3px 8px", fontSize: 12 }}
-      >
-        <option value="">{t("agent.supervisor.nobody")}</option>
-        {humans.map((h) => (
-          <option key={h.id} value={h.id}>
-            {h.display_name}
-          </option>
-        ))}
-      </select>
-    </span>
   );
 }
 
