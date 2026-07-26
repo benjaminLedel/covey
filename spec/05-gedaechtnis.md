@@ -92,3 +92,7 @@ Der MVP (M7) hat mit einem **flachen `pgvector`-Schnipsel-Store** begonnen (quer
 Damit **ersetzen die Wikilinks den früher geplanten Graphiti-Knowledge-Graph**: die Beziehungen leben in der Verlinkung, nicht in einem separaten temporalen Graph-Store. Braucht es später doch echtes temporales Reasoning, kann Graphiti über dasselbe Interface-Muster hinter dem Wiki nachrüsten — der Lifecycle-Kontrakt (query/ingest/consolidate) bleibt gleich.
 
 > **Hinweis:** Es gibt eine bewusste Nähe zum früher explorierten „Cruu"-Konzept (E-Mail als erste Datenquelle, Wissensextraktion aus dem laufenden Betrieb). Das Wiki hier kann konzeptionell davon erben.
+
+## Dasselbe Gedächtnis für Menschen: die Companion
+
+Dasselbe Wiki-Modell trägt auch das Gedächtnis der **menschlichen** Mitarbeiter: die **Companion-App** ([`14-companion-gedaechtnis.md`](14-companion-gedaechtnis.md)) lässt den Menschen seinen gesamten Brain-Load (Audio, Mail, Screen-Recording, Dokumente, Links) abladen; ein **Memory-Kurator** (selbst ein Agent) verdichtet ihn zum Wiki — dieselbe Infrastruktur (verlinkte Seiten, `pgvector`, Konsolidierung), nur mit `human_id` statt `agent_id` als Owner und Seiten, die **Medien** einbetten. Privat by default — und auf Wunsch **an die eigenen beaufsichtigten Agenten freigebbar**, sodass das Wissen des Vorgesetzten (zentral durchgesetzt, fail-closed) als Kontext in deren `triage` einfließt.
