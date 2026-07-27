@@ -36,20 +36,52 @@ Zwei Richtungen, zwei Auth-Wege:
 
 ---
 
-## 2. Schritt-für-Schritt-Anleitung
+## 2. Einrichtung — Schritt für Schritt
 
-### 2.1 In Azure: Bot-Registration + Secret anlegen
+Reihenfolge: **erst Azure** (Bot registrieren), **dann Teams** (App-Paket, damit
+Nutzer den Bot anschreiben können), **dann Covey** (Secrets, Zielsystem, Env).
+Rechne mit ~30 Minuten, wenn du die nötigen Rollen hast.
 
-1. Eine **Azure-Bot-Ressource** anlegen (Azure Portal → „Azure Bot"). Bot-Typ
-   „Multi Tenant" ist der einfachste Start.
-2. Die **Microsoft-App-ID** (Client-ID) der zugehörigen App-Registration notieren.
-3. Ein **Client Secret** (App-Passwort) erzeugen (App-Registration → Zertifikate
-   & Geheimnisse). Wert **sofort** notieren (wird nur einmal angezeigt).
-4. Den Kanal **Microsoft Teams** aktivieren (Bot-Ressource → Kanäle → Teams).
+### 2.0 Welche Rollen/Rechte brauche ich?
 
-### 2.2 In Azure: Messaging-Endpoint setzen
+| Schritt | Nötige Rolle |
+|---|---|
+| Azure-Bot-Ressource + App-Registration anlegen | **Application Administrator** (oder Cloud Application Administrator) in Entra ID **und** *Contributor* auf einem Azure-Abo/einer Resource Group |
+| Custom Teams-App hochladen (sideload) | Ein Nutzer, dessen **Teams-Setup-Policy** „Upload custom apps" erlaubt — freigeschaltet vom **Teams-Administrator** |
+| App org-weit veröffentlichen/genehmigen | **Teams Administrator** (Teams Admin Center → *Teams apps → Manage apps*) |
+| Covey konfigurieren (Secrets, Zielsystem, Env) | Covey **platform_admin**/**security** + der **Agent-Owner** |
 
-Bot-Ressource → Konfiguration → **Messaging endpoint**:
+> **Wichtig — kein Graph, kein Admin-Consent für den MVP.** Für reines
+> Senden/Empfangen **inklusive Datei-Anhängen in 1:1-Chats** braucht der Bot
+> **keine** Microsoft-Graph-API-Permissions und **keinen** Admin-Consent-Flow: Der
+> Bot-Framework-Kanal authentifiziert sich selbst über App-ID + Secret
+> (`client_credentials` gegen `botframework.com`). Graph-Permissions (und damit
+> Admin Consent durch einen Global/Cloud-App-Admin) werden erst für spätere
+> Szenarien relevant — Kanal-Nachrichten *ohne* @mention lesen (RSC), proaktives
+> Anschreiben per AAD-ID über Graph. Nicht für diese Integration.
+
+### 2.1 Azure: Bot-Registration + Secret anlegen
+
+1. Azure Portal → **„Azure Bot"** anlegen (Ressource „Azure Bot"). Als
+   *Microsoft App ID* „Create new" wählen, Typ **Multi-Tenant** (der einfachste
+   Start; Single-Tenant geht auch, dann in Covey `teams_url` tenant-spezifisch
+   setzen — siehe 2.4).
+2. Nach dem Anlegen die **Microsoft-App-ID** (Client-ID der zugehörigen
+   App-Registration) notieren — sie ist zugleich Bot-ID, Credential-Bestandteil
+   und JWT-Audience.
+3. **Client Secret** erzeugen: App-Registration (Entra ID → App registrations →
+   die App) → *Certificates & secrets* → *New client secret*. Den **Value**
+   **sofort** kopieren (wird nur einmal angezeigt) — das ist das App-Passwort.
+4. **Teams-Kanal aktivieren:** Bot-Ressource → *Channels* → **Microsoft Teams**
+   hinzufügen (Nutzungsbedingungen bestätigen).
+
+> Alternative zum Portal: das **Teams Developer Portal**
+> (`dev.teams.microsoft.com`) kann Bot-Registrierung, Messaging-Endpoint und
+> App-Manifest in einem Rutsch erledigen. Die Rollen aus 2.0 gelten trotzdem.
+
+### 2.2 Azure: Messaging-Endpoint setzen
+
+Bot-Ressource → *Configuration* → **Messaging endpoint**:
 
 ```
 https://covey.example.com/api/webhooks/teams/<agent-slug>
@@ -57,23 +89,85 @@ https://covey.example.com/api/webhooks/teams/<agent-slug>
 
 `<agent-slug>` = der Slug des zuständigen Agenten in Covey; über die URL wird die
 Nachricht dem Agenten zugeordnet. Die Basis muss **öffentlich erreichbar** sein,
-sonst kann der Bot Service nicht zustellen (kein `localhost`).
+sonst kann der Bot Service nicht zustellen (kein `localhost`; für lokale Tests
+z. B. ein Tunnel wie `ngrok`, oder das `faketeams`-Double aus Abschnitt 6).
 
-### 2.3 In Covey: Secrets hinterlegen
+### 2.3 Teams: App-Paket bauen und hochladen
+
+Damit Nutzer den Bot in Teams sehen und anschreiben können, braucht es ein
+**App-Paket**: eine `.zip` aus `manifest.json` + zwei Icons
+(`color.png` 192×192, `outline.png` 32×32 transparent).
+
+Minimales `manifest.json` (Schema 1.17). Ersetze `<BOT-APP-ID>` durch die App-ID
+aus 2.1 und die Domains/Namen:
+
+```json
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.17/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.17",
+  "version": "1.0.0",
+  "id": "<BOT-APP-ID>",
+  "developer": {
+    "name": "Meine Firma",
+    "websiteUrl": "https://covey.example.com",
+    "privacyUrl": "https://covey.example.com/privacy",
+    "termsOfUseUrl": "https://covey.example.com/terms"
+  },
+  "name": { "short": "Covey-Agent", "full": "Covey KI-Agent" },
+  "description": {
+    "short": "KI-Agent im Teams-Chat",
+    "full": "Ein Covey-Agent, der Nachrichten und Dateien im Teams-Chat bearbeitet."
+  },
+  "icons": { "color": "color.png", "outline": "outline.png" },
+  "accentColor": "#2A5B9E",
+  "bots": [
+    {
+      "botId": "<BOT-APP-ID>",
+      "scopes": ["personal", "team", "groupChat"],
+      "supportsFiles": true,
+      "isNotificationOnly": false
+    }
+  ],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": ["covey.example.com"]
+}
+```
+
+Die wichtigen Felder:
+
+- **`bots[].botId`** = die App-ID aus 2.1 (nicht verwechseln — `id` ganz oben ist
+  die Teams-App-ID; sie darf dieselbe GUID sein).
+- **`scopes`**: `personal` = 1:1-Chat, `team` = @mention in Kanälen, `groupChat`
+  = Gruppen-Chats. Nur einbauen, was du brauchst.
+- **`supportsFiles: true`** — **das ist der Schalter für Datei-Anhänge im
+  1:1-Chat.** Ohne ihn liefert Teams in Direktnachrichten keine
+  `file.download.info`-Anhänge, und `download_attachment` bekommt nichts zu laden.
+  (Inline-Bilder und Kanal-Anhänge kommen unabhängig davon.)
+
+**Hochladen (sideload)** — Teams → *Apps* → *Manage your apps* → *Upload an app*
+→ *Upload a custom app* → die `.zip` wählen → *Add*. Voraussetzung: Custom-App-
+Upload ist für dich erlaubt (2.0). Danach den Bot als 1:1-Chat öffnen oder in
+einem Kanal, in dem die App installiert ist, `@Covey-Agent …` schreiben.
+
+**Org-weit ausrollen** (statt pro Nutzer sideloaden): Teams Admin Center →
+*Teams apps → Manage apps* → *Upload new app*, dann über *Permission policies*
+freigeben. Braucht die Teams-Admin-Rolle.
+
+### 2.4 Covey: Secrets hinterlegen
 
 Pro Agent im SecretStore setzen (UI: Agenten-Seite → Secrets, oder via API):
 
 | Secret | Wert | Zweck |
 |---|---|---|
 | `teams_token` | `<app-id>:<app-passwort>` | Outbound-Auth (OAuth2 client_credentials) |
-| `teams_url` | *(optional)* Token-Endpoint | Default: `https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token`; für Single-Tenant-Bots der tenant-spezifische Endpoint |
+| `teams_url` | *(optional)* Token-Endpoint | Default: `https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token`; für **Single-Tenant**-Bots `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token` |
 | `anthropic_api_key` *oder* `claude_code_oauth_token` | API-Key bzw. `claude setup-token` | die Runtime in der Sandbox |
 
 App-ID steht **vor** dem ersten `:`, der Rest ist das Passwort (darf `:`
 enthalten). Ohne einen der Claude-Werte scheitern Aufgaben mit „Not logged in" —
 die Sandbox hat ein eigenes, leeres `HOME`.
 
-### 2.4 In Covey: Zielsystem aktivieren
+### 2.5 Covey: Zielsystem aktivieren + Zugriff freigeben
 
 Das Zielsystem `teams` muss für die Org **aktiviert** sein (UI: Zielsysteme →
 Microsoft Teams aktivieren). Ist es nicht aktiv, verweigert der Broker
@@ -81,15 +175,17 @@ fail-closed jede Credential-Freigabe und der Webhook-Endpunkt weist das Event ab
 
 Zusätzlich muss der Agent laut seiner `ACCESS.md` auf `teams` zugreifen dürfen
 (`- system: teams scope: read,write`), und die Guard-Rails dürfen `teams` /
-`teams:send` / `teams:reply` / `teams:create_conversation` nicht verbieten.
+`teams:send` / `teams:reply` / `teams:create_conversation` /
+`teams:download_attachment` nicht verbieten.
 
-### 2.5 In Covey: Prozess-Env setzen
+### 2.6 Covey: Prozess-Env setzen
 
 ```bash
 COVEY_PUBLIC_URL=https://covey.example.com        # vom Bot Service erreichbar, NICHT localhost
 COVEY_TEAMS_WEBHOOK_SECRET=<bot-app-id>           # die erwartete JWT-Audience
 # optional:
 COVEY_TEAMS_INTAKE_TENANTS="<tenant-id>"          # leer = alle Tenants
+COVEY_TEAMS_ATTACHMENT_MAX_MB=25                  # Größenlimit je Anhang
 ```
 
 > **Wichtig:** `COVEY_TEAMS_WEBHOOK_SECRET` trägt hier **nicht** ein HMAC-Secret,
@@ -97,21 +193,27 @@ COVEY_TEAMS_INTAKE_TENANTS="<tenant-id>"          # leer = alle Tenants
 > JWT validiert wird. Ein **leerer** Wert deaktiviert die Prüfung (nur Dev /
 > `faketeams`). Im Produktivbetrieb immer setzen.
 
-### 2.6 In Teams: App-Manifest hochladen
-
-Ein Teams-App-Manifest (`manifest.json` + Icons, als `.zip`) mit der **App-ID**
-als `bots[].botId` erstellen und in Teams **hochladen/seitwärts laden** (Teams →
-Apps → „Manage your apps" → „Upload an app"), damit Nutzer den Agenten
-anschreiben können. Für Kanal-@mentions den `scopes`-Eintrag `team` ergänzen.
-
 ### 2.7 Testen
 
 1. Dem Bot in Teams eine **1:1-Nachricht** schicken (oder ihn im Kanal
    @mentionen).
 2. In Covey: erscheint eine Backlog-Aufgabe beim Agenten? → Recording ansehen.
 3. Antwortet der Agent, prüfen: kommt die Antwort im Teams-Chat an?
-4. Bei einer Rückfrage: geht der Agent auf `blocked`? Folgenachricht des Nutzers
+4. Eine Datei anhängen: lädt der Agent sie (`download_attachment`) und geht
+   inhaltlich darauf ein?
+5. Bei einer Rückfrage: geht der Agent auf `blocked`? Folgenachricht des Nutzers
    → wacht der Agent über die `conversation.id` wieder auf? (Abschnitt 4)
+
+### 2.8 Häufige Stolpersteine
+
+| Symptom | Ursache / Fix |
+|---|---|
+| Bot taucht in Teams nicht auf | Custom-App-Upload nicht erlaubt (2.0) oder App nicht installiert. Org-weit ausrollen oder Setup-Policy anpassen. |
+| Nachricht kommt an, aber Covey reagiert nicht | Messaging-Endpoint falsch (`<agent-slug>`?), `COVEY_PUBLIC_URL` nicht öffentlich, oder Zielsystem `teams` nicht aktiviert (2.5). |
+| `signatur ungültig` / 401 am Webhook | `COVEY_TEAMS_WEBHOOK_SECRET` ≠ Bot-App-ID. Beide müssen die App-ID aus 2.1 sein. |
+| Agent antwortet nicht zurück | `teams_token` falsch (`appId:appPassword`?), Secret abgelaufen, oder Egress blockt `login.microsoftonline.com` / Connector-Host (Abschnitt 5). |
+| Datei-Anhänge fehlen im 1:1-Chat | `supportsFiles: true` im Manifest vergessen (2.3). |
+| `download_attachment` schlägt fehl | URL abgelaufen (zeitnah laden), Egress blockt `*.sharepoint.com`, oder Datei über dem Limit (`COVEY_TEAMS_ATTACHMENT_MAX_MB`). |
 
 ---
 
