@@ -39,6 +39,7 @@ Die Leitmetapher, aus der die gesamte Architektur folgt: Die Plattform ist die *
 | [`13-zammad-integration.md`](13-zammad-integration.md) | MVP-Zielsystem Zammad: Wake via Trigger/Webhook, REST-Aktionen, Broker-Token, `blocked`↔`pending`, Korrelation via Ticket-ID |
 | [`14-companion-gedaechtnis.md`](14-companion-gedaechtnis.md) | Companion-App: universeller Brain-Dump (Audio/Mail/Screen/Dokumente) → kuratiertes Wiki mit Medien → Kontext für Agenten; Memory-Kurator, Bearer-Auth, Datenschutz |
 | [`15-teams-integration.md`](15-teams-integration.md) | Zielsystem Microsoft Teams (Azure Bot Framework): Wake über Messaging-Endpoint (JWT-verifiziert), Bot-Connector-Aktionen, OAuth2-Broker, `blocked`↔Konversation, Korrelation via `conversation.id` |
+| [`16-computer-use-runtime.md`](16-computer-use-runtime.md) | Design-Spike: zweite Runtime für echtes Computer Use (voller Desktop, Maus/Tastatur/Screenshot) — Messages-API-Agenten-Loop mit `computer`-Tool, Sandbox-Desktop (Xvfb/xdotool/scrot, noVNC-Live-View), API-Key-Broker, Egress-/Guard-Rail-Spannung |
 
 ## Designprinzipien
 

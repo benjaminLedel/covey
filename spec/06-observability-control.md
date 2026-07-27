@@ -65,6 +65,26 @@ Lückenlose Aufzeichnung jeder Agenten-Aktivität, gespeist aus den `event`-Nach
 
 Recording ist die Grundlage für Audit, Debugging, Kostenanalyse und die Supervisor-Auswertung. Es ist unveränderlich und pro Agent/Aufgabe zeitlich navigierbar.
 
+### Recording-Profile (Aufzeichnungstiefe)
+
+Wie *tief* aufgezeichnet wird, ist keine Hardcodierung, sondern eine **Governance-Einstellung** — das Recording soll ein vollwertiges Monitoring-Werkzeug sein, das sich von der reinen Audit-Spur bis zum Bildschirm-Mitschnitt regeln lässt. Die primäre Stellschraube ist die **Tiefe**, in Stufen:
+
+- **`minimal`** — nur Lifecycle-Übergänge und Gates (Credential/Approval/Guardrail). Schlank für DB und Kosten; die Governance-Spur (wer bekam welchen Zugang, welche Rail schlug an) bleibt trotzdem lückenlos.
+- **`standard`** (Default) — zusätzlich jeder LLM-Call und jeder Tool-Call samt Parametern und Ergebnis als Text.
+- **`full`** — zusätzlich Artefakte und **Screenshots** (der visuelle Mitschnitt, v. a. für Browser-/Computer-Use-Läufe, siehe [`16-computer-use-runtime.md`](16-computer-use-runtime.md)) sowie vollständige Payloads.
+
+Unter `full` steuern orthogonale Knöpfe die Kosten: `capture_screenshots` (an/aus), `screenshot_retention_days` (Bild-Blobs werden gröber geprunt als die Text-Events), eine Auflösungs-/Qualitätsgrenze und eine Redaction-Option für sensible Regionen. **Screenshots liegen out-of-band** (referenzierter Blob-Store), nicht inline im Event-Payload — sonst bläht ein Browsing-Lauf die Recording-Tabelle auf.
+
+**Scope & Vererbung — analog zu den Guard-Rails und zu den Registry-Feldern `model`/`max_turns` ([`12`](12-claude-code-adapter.md)):**
+
+1. **Org-Ebene = Policy-Boden.** Die Rolle **Security/Compliance** ([`09`](09-enterprise-modell.md)) setzt die org-weite **Mindesttiefe**.
+2. **Agent-Ebene = Override, aber nur *tiefer*.** Ein Agent-Owner kann das Recording für einen einzelnen Agenten verschärfen (z. B. ein Hochrisiko-Computer-Use-Agent auf `full` mit Screenshots), aber **nie unter den Org-Boden fallen** — niemand kann das Monitoring unter das vorgeschriebene Maß drehen. Additiv-restriktiv, fail-closed, genau wie die Guard-Rail-Vererbung oben.
+
+**Erzwungen an zwei Punkten** (dieselbe Innen-/Außen-Grenze-Logik wie bei den Guard-Rails und `allowedTools`):
+
+- **Daemon-seitig (weiche Innen-Grenze):** Die effektive Tiefe reist in der `RunSpec` mit ([`01`](01-architektur.md)); ist `capture_screenshots` aus, wird das Bild gar nicht erst über die Naht geschickt — kein Blob-Traffic.
+- **Control-Plane-seitig (harte Außen-Grenze):** Beim Schreiben ins Recording filtert die Control Plane Events unterhalb der effektiven Tiefe fail-closed weg. Die Policy bleibt die letzte Instanz, auch wenn ein Daemon mehr meldete.
+
 ## Approval-Gates
 
 Approval-Gates sind der **interaktive** Guard-Rail-Typ: Riskante Aktionen laufen nicht durch, sondern warten auf **Freigabe**. Der Daemon meldet `request_approval`; die Control Plane hält die Aktion an, bis ein Mensch (oder eine Policy) `approve`/`deny` liefert.
