@@ -85,6 +85,13 @@ const en: NamePool = {
     "Manila-Folder", "Desk-Tidy", "Correction-Fluid", "Ballpoint", "Minutes",
     "Agenda", "Cubicle", "Kettle", "Lever-Arch", "Flip-Chart", "Name-Badge",
     "Jiffy-Bag", "Comb-Binding", "Hot-Desk", "Tea-Trolley", "Suggestion-Box",
+    // Neutralere / US-Büro-Begriffe für weniger UK-Schlagseite:
+    "Post-It", "Sharpie", "Legal-Pad", "Scotch-Tape", "Push-Pin", "Thumbtack",
+    "Cork-Board", "Dry-Erase", "Mouse-Pad", "File-Cabinet", "Paper-Shredder",
+    "Toner-Cartridge", "Notepad", "Cubicle-Wall", "Break-Room", "Standing-Desk",
+    "Coffee-Mug", "Desk-Calendar", "Time-Card", "Vending-Machine", "Wite-Out",
+    "Dictaphone", "Intercom", "Expense-Report", "Org-Chart", "Water-Cooler",
+    "Cubicle-Farm", "Trapper-Keeper", "Paper-Tray", "Rubber-Band", "Copy-Machine",
   ],
   titles: ["Dr.", "Prof.", "Sir", "Dame", "Rev."],
   noble: "of",
