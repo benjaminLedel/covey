@@ -74,6 +74,13 @@ var manifest = []struct {
 		NameEn:        "Log triage agent (email → GitLab)",
 		DescriptionEn: "Analyzes logs reported by email, checks for duplicates, files GitLab tickets for relevant findings and hands real code bugs to a developer agent.",
 	},
+	{
+		File:          "web-researcher.bundle.json",
+		Name:          "Web-Rechercheur (Browser)",
+		Description:   "Recherchiert Fragen im offenen Web mit einem echten Browser: sucht, öffnet und liest Quellen, hält Belege als Screenshot fest und liefert eine belegte, knappe Antwort mit Quellen.",
+		NameEn:        "Web researcher (browser)",
+		DescriptionEn: "Researches questions on the open web with a real browser: searches, opens and reads sources, captures evidence as screenshots and delivers a concise, sourced answer.",
+	},
 }
 
 // builtins wird einmalig beim Package-Load gebaut; malformte eingebettete
