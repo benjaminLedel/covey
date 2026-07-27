@@ -95,7 +95,32 @@ type KindWorkChecker interface {
 // er weiß, wo der Workspace der Runtime liegt.
 type ctxKey int
 
-const workdirKey ctxKey = iota
+const (
+	workdirKey ctxKey = iota
+	artifactSinkKey
+)
+
+// Artifact ist ein Binär-Nebenergebnis einer Aktion, das ins Recording gehört
+// (z. B. ein Screenshot), aber NICHT ins Aktions-Ergebnis der Runtime — sonst
+// landete es im LLM-Kontext. Plugins reichen es über EmitArtifact durch; der
+// Action-Proxy sammelt es getrennt vom zurückgegebenen Ergebnis ein.
+type Artifact struct {
+	MIME  string
+	Bytes []byte
+}
+
+// WithArtifactSink hängt eine Senke an den Context, die EmitArtifact-Aufrufe
+// eines Plugins entgegennimmt. Der Action-Proxy setzt sie pro Aktion.
+func WithArtifactSink(ctx context.Context, sink func(Artifact)) context.Context {
+	return context.WithValue(ctx, artifactSinkKey, sink)
+}
+
+// EmitArtifact meldet ein Artefakt an die Senke im Context (No-op ohne Senke).
+func EmitArtifact(ctx context.Context, a Artifact) {
+	if sink, ok := ctx.Value(artifactSinkKey).(func(Artifact)); ok && sink != nil {
+		sink(a)
+	}
+}
 
 // WithWorkdir hängt das Sandbox-Arbeitsverzeichnis an den Context.
 func WithWorkdir(ctx context.Context, dir string) context.Context {

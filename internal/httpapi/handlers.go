@@ -718,6 +718,28 @@ func (s *Server) handleRecording(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, events)
 }
 
+// handleRecordingBlob liefert ein Recording-Artefakt (Screenshot) org-gescopt.
+func (s *Server) handleRecordingBlob(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	mime, data, err := s.Obs.GetBlob(r.Context(), p.OrgID, id)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	if mime == "" {
+		mime = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", mime)
+	w.Header().Set("Cache-Control", "private, max-age=86400, immutable")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
+}
+
 func (s *Server) handleCost(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {

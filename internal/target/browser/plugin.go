@@ -134,6 +134,9 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		if err := os.WriteFile(local, buf, 0o644); err != nil {
 			return nil, err
 		}
+		// Screenshot zusätzlich ins Recording geben (out-of-band als Blob) —
+		// nicht ins Ergebnis, das an die Runtime zurückgeht.
+		target.EmitArtifact(ctx, target.Artifact{MIME: "image/png", Bytes: buf})
 		return map[string]any{"path": local, "size": len(buf),
 			"hint": "Screenshot liegt lokal — direkt lesen, um die Seite zu sehen."}, nil
 

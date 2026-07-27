@@ -112,6 +112,10 @@ export type RecordingEvent = {
   created_at: string;
 };
 
+// recordingBlobURL zeigt auf ein Recording-Artefakt (z. B. Screenshot). Same-
+// origin, deshalb trägt ein <img> das Session-Cookie automatisch mit.
+export const recordingBlobURL = (id: string) => `/api/v1/recordings/blobs/${id}`;
+
 export type Approval = {
   id: string;
   agent_id: string;

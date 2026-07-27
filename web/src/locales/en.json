@@ -1060,6 +1060,7 @@
     "toolOk": "ok",
     "toolCall": "Call",
     "toolResult": "Result",
+    "screenshot": "Screenshot",
     "truncatedFeed": "Older events hidden — the feed shows the most recent {{count}} entries.",
     "runEnded": "Run ended",
     "runFailed": "Run failed",

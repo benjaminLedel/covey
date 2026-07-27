@@ -6,6 +6,7 @@ package orchestrator
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -851,6 +852,40 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	}
 }
 
+// storeActionArtifact zieht ein base64-Bild aus einem action-Event, legt es als
+// Blob ab und ersetzt es im Payload durch die Referenz (screenshot=<blob-id>) —
+// so bleiben die Bytes aus dem JSONB der Recording-Timeline heraus (spec/06).
+// Bei jedem Fehler bleibt der Payload unverändert (fail-open fürs Recording).
+func (o *Orchestrator) storeActionArtifact(ctx context.Context, agent agents.Agent, taskID uuid.UUID, payload json.RawMessage) json.RawMessage {
+	var m map[string]any
+	if json.Unmarshal(payload, &m) != nil {
+		return payload
+	}
+	b64, ok := m["image_b64"].(string)
+	if !ok || b64 == "" {
+		return payload
+	}
+	data, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return payload
+	}
+	mime, _ := m["image_mime"].(string)
+	if mime == "" {
+		mime = "image/png"
+	}
+	id, err := o.Obs.PutBlob(ctx, agent.OrgID, agent.ID, &taskID, mime, data)
+	if err != nil {
+		return payload
+	}
+	delete(m, "image_b64")
+	delete(m, "image_mime")
+	m["screenshot"] = id.String()
+	if out, err := json.Marshal(m); err == nil {
+		return out
+	}
+	return payload
+}
+
 // handleDaemonMessage verarbeitet eine Daemon-Nachricht; true = Aufgabe beendet.
 func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Agent, link DaemonLink, taskID uuid.UUID, msg daemon.Message, s *session) (bool, error) {
 	switch msg.Type {
@@ -863,10 +898,12 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 			return false, nil
 		}
 		kind := observability.KindRuntime
+		payload := json.RawMessage(ev.Payload)
 		if ev.Kind == "action" {
 			kind = observability.KindAction
+			payload = o.storeActionArtifact(ctx, agent, taskID, payload)
 		}
-		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, kind, json.RawMessage(ev.Payload))
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, kind, payload)
 		o.events.Publish(Event{Type: "recording", AgentID: agent.ID.String(),
 			Data: map[string]any{"task_id": taskID.String(), "kind": kind}})
 		return false, nil

@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -81,14 +82,25 @@ func (p *actionProxy) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data, err := p.execute(r.Context(), system, action, params)
+	// Artefakt-Senke: ein Plugin (z. B. browser screenshot) kann ein Bild fürs
+	// Recording durchreichen, ohne es ins Runtime-Ergebnis zu legen.
+	var artifact *target.Artifact
+	ctx := target.WithArtifactSink(r.Context(), func(a target.Artifact) { artifact = &a })
+
+	data, err := p.execute(ctx, system, action, params)
 	result := map[string]any{"status": "ok", "data": data}
 	if err != nil {
 		result = map[string]any{"status": "error", "error": err.Error()}
 	}
-	// Aktion + Ausgang ins Recording (kind=action).
-	audit, _ := json.Marshal(map[string]any{"action": subject, "params": params,
-		"ok": err == nil})
+	// Aktion + Ausgang ins Recording (kind=action). Ein Artefakt reist base64
+	// mit; der Orchestrator legt es als Blob ab und ersetzt es durch eine
+	// Referenz (die Bytes landen nicht im JSONB).
+	auditMap := map[string]any{"action": subject, "params": params, "ok": err == nil}
+	if artifact != nil && len(artifact.Bytes) > 0 {
+		auditMap["image_b64"] = base64.StdEncoding.EncodeToString(artifact.Bytes)
+		auditMap["image_mime"] = artifact.MIME
+	}
+	audit, _ := json.Marshal(auditMap)
 	_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
 	writeJSON(w, result)
 }

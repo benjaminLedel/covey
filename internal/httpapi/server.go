@@ -167,6 +167,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/agents/{id}/tools/{system}", s.rbac(anyRole, s.handleGetAgentTools))
 	mux.Handle("PUT /api/v1/agents/{id}/tools/{system}", s.rbac(securityRoles, s.handleSetAgentTools))
 	mux.Handle("GET /api/v1/agents/{id}/recording", s.rbac(anyRole, s.handleRecording))
+	mux.Handle("GET /api/v1/recordings/blobs/{id}", s.rbac(anyRole, s.handleRecordingBlob))
 	mux.Handle("GET /api/v1/agents/{id}/cost", s.rbac(anyRole, s.handleCost))
 	mux.Handle("GET /api/v1/agents/{id}/cost/series", s.rbac(anyRole, s.handleCostSeries))
 	mux.Handle("GET /api/v1/cost/org", s.rbac(anyRole, s.handleOrgCost))

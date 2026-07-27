@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import i18n from "../i18n";
-import { type RecordingEvent } from "../api";
+import { type RecordingEvent, recordingBlobURL } from "../api";
 
 // ActivityFeed: übersetzt das lückenlose Recording in eine erzählende
 // Aktivitätsansicht im Stil des Mockups — Turns mit der Stimme des Agenten
@@ -18,6 +18,7 @@ type ToolCall = {
   detail: string; // kompakte Argument-Vorschau im Summary
   input?: unknown;
   result?: string;
+  imageURL?: string; // Screenshot-Artefakt (browser), inline gerendert
   isError?: boolean;
   pending: boolean;
 };
@@ -376,6 +377,7 @@ export function buildFeed(events: RecordingEvent[]): FeedItem[] {
           pending: false,
           isError: p.ok === false,
           result: p.result != null ? resultText(p.result) : undefined,
+          imageURL: typeof p.screenshot === "string" ? recordingBlobURL(p.screenshot) : undefined,
         };
         ensureTurn(time, k).rows.push({ type: "tool", call });
         break;
@@ -418,7 +420,7 @@ function ToolRow({ call }: { call: ToolCall }) {
   ) : (
     <span className="pill ok">{t("activity.toolOk")}</span>
   );
-  const hasBody = call.detail || call.result || call.input != null;
+  const hasBody = call.detail || call.result || call.input != null || call.imageURL;
   return (
     <details className="tool">
       <summary>
@@ -426,11 +428,20 @@ function ToolRow({ call }: { call: ToolCall }) {
           <span className="chev">▸</span>
           <span className="tool-name">{call.name}</span>
           {call.detail && <span className="tool-detail">{truncate(call.detail, 90)}</span>}
+          {call.imageURL && <span className="tool-shot-badge">◱</span>}
         </span>
         {pill}
       </summary>
       {hasBody && (
         <div className="tool-body">
+          {call.imageURL && (
+            <div className="tool-sec">
+              <span className="tool-sec-l">{t("activity.screenshot")}</span>
+              <a href={call.imageURL} target="_blank" rel="noopener noreferrer">
+                <img className="tool-shot" src={call.imageURL} alt={t("activity.screenshot")} loading="lazy" />
+              </a>
+            </div>
+          )}
           {call.input != null && (
             <div className="tool-sec">
               <span className="tool-sec-l">{t("activity.toolCall")}</span>
