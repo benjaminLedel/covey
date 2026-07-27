@@ -97,7 +97,7 @@ func (p *actionProxy) handle(w http.ResponseWriter, r *http.Request) {
 // Plane statt eines Zielsystems betreffen: set_stage (Aufgabe auf dem Board in
 // eine ggf. neue Stage schieben), add_note (Notiz an die Aufgabe), remember
 // (Erkenntnis sofort ins Gedächtnis), org_chart (Organigramm abfragen) und die
-// Wiki-Tools wiki_search/wiki_read/wiki_write (spec/05).
+// Wiki-Tools wiki_search/wiki_read/wiki_write/wiki_delete (spec/05).
 func (p *actionProxy) handleControlPlane(ctx context.Context, w http.ResponseWriter, action string, params json.RawMessage) {
 	switch action {
 	case "org_chart":
@@ -153,7 +153,7 @@ func (p *actionProxy) handleControlPlane(ctx context.Context, w http.ResponseWri
 		audit, _ := json.Marshal(map[string]any{"action": "covey:set_stage", "stage": in.Stage})
 		_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
 		writeJSON(w, map[string]string{"status": "ok", "stage": in.Stage})
-	case "wiki_search", "wiki_read", "wiki_write":
+	case "wiki_search", "wiki_read", "wiki_write", "wiki_delete":
 		var in struct {
 			Query string `json:"query"`
 			Slug  string `json:"slug"`

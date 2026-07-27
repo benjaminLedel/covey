@@ -481,7 +481,9 @@
       "schedule_interval": "alle {{delta}}",
       "schedule_daily": "täglich {{time}}",
       "onlyIf": "nur wenn {{system}} Arbeit meldet",
-      "onlyIfHint": "Die Control Plane prüft vor jedem Lauf beim Zielsystem {{system}}, ob Arbeit vorliegt (z. B. ungelesene Mails) — sonst entfällt der Lauf ohne den Agenten zu wecken."
+      "onlyIfHint": "Die Control Plane prüft vor jedem Lauf beim Zielsystem {{system}}, ob Arbeit vorliegt (z. B. ungelesene Mails) — sonst entfällt der Lauf ohne den Agenten zu wecken.",
+      "system": "Plattform",
+      "systemHint": "Plattformweiter Standard-Heartbeat (nicht aus HEARTBEAT.md) — pro Agent per HEARTBEAT.md-Eintrag gleichen Titels überschreibbar."
     },
     "webhook": {
       "desc": "Optionaler Webhook-Trigger: ein POST auf die URL legt eine Backlog-Aufgabe an und weckt den Agenten — für Fremdsysteme ohne Zielsystem-Plugin (CI, Cron, Zapier, Monitoring).",
@@ -540,7 +542,17 @@
       "opIngest": "eingespeist",
       "opWrite": "bearbeitet",
       "opMerge": "verschmolzen",
-      "opDelete": "gelöscht"
+      "opDelete": "gelöscht",
+      "allPages": "Alle Seiten",
+      "backlinks": "Verweist hierher",
+      "outgoing": "Verweist auf",
+      "noBacklinks": "Keine andere Seite verweist hierher.",
+      "missing": "Seite existiert noch nicht",
+      "preview": "Öffnen zum Lesen",
+      "searchPlaceholder": "Wiki durchsuchen …",
+      "searchEmpty": "Keine Treffer.",
+      "searchClear": "Suche zurücksetzen",
+      "searchResults": "Treffer"
     },
     "egress": {
       "desc": "Dieser Agent darf ausgehend nur die Hosts unten erreichen — alles andere blockt der Egress-Proxy fail-closed.",

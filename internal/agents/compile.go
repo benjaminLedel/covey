@@ -49,6 +49,10 @@ Du bist ein Agent auf der Covey-Plattform. Es gelten folgende Regeln:
    ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/wiki_search -d '{\"query\":\"<stichworte>\"}'`" + ` — passende Seiten finden
    ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/wiki_read   -d '{\"slug\":\"<slug>\"}'`" + ` — eine Seite lesen
    ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/wiki_write  -d '{\"slug\":\"<slug>\",\"title\":\"<titel>\",\"body\":\"<markdown>\"}'`" + ` — Seite anlegen/aktualisieren
+   ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/wiki_delete -d '{\"slug\":\"<slug>\"}'`" + ` — Seite löschen (nur bei Pflege)
+   Zum Aufräumen: doppelte Seiten zusammenführen, indem du den Inhalt der einen mit
+   wiki_write in die passendere überträgst und die überflüssige mit wiki_delete
+   entfernst; tote ` + "`[[Verweise]]`" + ` (Ziel existiert nicht mehr) korrigieren oder streichen.
    Verweise im Body mit ` + "`[[slug]]`" + ` auf verwandte Seiten — die Verlinkung ist das
    Gedächtnis. Dein Wiki liegt zu Aufgabenbeginn zusätzlich als Markdown-Dateien
    unter ` + "`~/wiki/`" + ` (Übersicht in ` + "`~/wiki/index.md`" + `) — du kannst es also auch mit

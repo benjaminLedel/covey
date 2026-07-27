@@ -108,6 +108,7 @@ type HeartbeatStatus struct {
 	EverySeconds *int64    `json:"every_seconds,omitempty"`
 	DailyAt      *string   `json:"daily_at,omitempty"` // "HH:MM", Serverzeit
 	OnlyIf       string    `json:"only_if,omitempty"`  // Zielsystem der Feuer-Bedingung
+	Source       string    `json:"source,omitempty"`   // "config" (HEARTBEAT.md) | "system" (Plattform-Default)
 	LastFiredAt  time.Time `json:"last_fired_at"`
 	NextRun      time.Time `json:"next_run"`
 	Pending      bool      `json:"pending"`
@@ -120,7 +121,7 @@ type HeartbeatStatus struct {
 // ist der Eintrag fällig und der nächste Tick nimmt ihn mit.
 func (r *Registry) Heartbeats(ctx context.Context, agentID uuid.UUID) ([]HeartbeatStatus, error) {
 	rows, err := r.pool.Query(ctx, `SELECT h.name, h.task_body, h.every_seconds,
-			to_char(h.daily_at, 'HH24:MI'), h.only_if, h.last_fired_at,
+			to_char(h.daily_at, 'HH24:MI'), h.only_if, h.source, h.last_fired_at,
 			CASE WHEN h.every_seconds IS NOT NULL
 			     THEN h.last_fired_at + make_interval(secs => h.every_seconds)
 			     WHEN h.last_fired_at::date < CURRENT_DATE
@@ -138,7 +139,7 @@ func (r *Registry) Heartbeats(ctx context.Context, agentID uuid.UUID) ([]Heartbe
 	for rows.Next() {
 		var hb HeartbeatStatus
 		if err := rows.Scan(&hb.Name, &hb.Task, &hb.EverySeconds, &hb.DailyAt,
-			&hb.OnlyIf, &hb.LastFiredAt, &hb.NextRun, &hb.Pending); err != nil {
+			&hb.OnlyIf, &hb.Source, &hb.LastFiredAt, &hb.NextRun, &hb.Pending); err != nil {
 			return nil, err
 		}
 		out = append(out, hb)
@@ -212,4 +213,41 @@ func parseEvery(v string) (time.Duration, error) {
 		return 0, fmt.Errorf("ungültiges Intervall %q (z. B. 30m, 2h, 1d)", v)
 	}
 	return d, nil
+}
+
+// WikiCleanupName ist der reservierte Titel des plattformweiten Wiki-Aufräum-
+// Heartbeats. Zugleich der Dedup-Anker: definiert ein Agent in HEARTBEAT.md
+// einen Eintrag gleichen Titels, gewinnt dieser (der System-Default wird für
+// den Agenten übersprungen).
+const WikiCleanupName = "Wiki aufräumen"
+
+// wikiCleanupTask ist der Aufgabentext des Aufräum-Heartbeats. Reine Pflege —
+// der Agent nutzt seine wiki_*-Tools (spec/05), legt keine neuen Inhalte an.
+const wikiCleanupTask = "Pflege dein Wiki-Gedächtnis — reine Aufräumarbeit, KEINE neuen Erkenntnisse anlegen. " +
+	"1) Suche mit wiki_search nach ähnlichen oder doppelten Seiten und führe sie zusammen: Inhalt der " +
+	"schwächeren Seite mit wiki_write in die passendere übertragen, dann die überflüssige mit wiki_delete " +
+	"entfernen. 2) Prüfe die [[Verweise]] auf tote Links (Zielseite existiert nicht mehr) und korrigiere oder " +
+	"streiche sie. 3) Fasse veraltete oder widersprüchliche Aussagen zusammen. Ist nichts aufzuräumen, " +
+	"schließe die Aufgabe zügig ab."
+
+// WikiCleanupHeartbeat baut aus einem Zeitplan-String den Default-Aufräum-
+// Heartbeat. Zeitplan-Formen: "HH:MM" (täglich, Serverzeit) oder ein Intervall
+// wie "24h"/"12h"/"1d" (siehe parseEvery). Leerer String -> enabled=false
+// (Feature aus). Ist der String gesetzt aber ungültig, ist err != nil.
+func WikiCleanupHeartbeat(schedule string) (hb Heartbeat, enabled bool, err error) {
+	schedule = strings.TrimSpace(schedule)
+	if schedule == "" {
+		return Heartbeat{}, false, nil
+	}
+	hb = Heartbeat{Name: WikiCleanupName, Task: wikiCleanupTask}
+	if t, e := time.Parse("15:04", schedule); e == nil {
+		hb.DailyAt = t.Format("15:04")
+		return hb, true, nil
+	}
+	every, e := parseEvery(schedule)
+	if e != nil {
+		return Heartbeat{}, false, fmt.Errorf("COVEY_WIKI_CLEANUP %q: erwartet HH:MM oder ein Intervall (z. B. 24h, 1d)", schedule)
+	}
+	hb.Every = every
+	return hb, true, nil
 }

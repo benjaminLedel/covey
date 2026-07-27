@@ -781,7 +781,15 @@ func (s *Server) handleMemories(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "ungültige id")
 		return
 	}
-	entries, err := s.Memory.List(r.Context(), id, 50)
+	// Mit ?q= liefert der Endpunkt die semantische Vektorsuche (spec/05,
+	// pgvector) statt der jüngsten Seiten — dieselbe Sicht, die der Agent im
+	// triage-Schritt bekommt. Ohne q: die letzten Seiten für den Index.
+	var entries []memory.Entry
+	if q := strings.TrimSpace(r.URL.Query().Get("q")); q != "" {
+		entries, err = s.Memory.Query(r.Context(), id, q, 20)
+	} else {
+		entries, err = s.Memory.List(r.Context(), id, 50)
+	}
 	if err != nil {
 		mapErr(w, err)
 		return

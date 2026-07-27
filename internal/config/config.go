@@ -58,6 +58,13 @@ type Config struct {
 	// EgressProxyAddr ist die Bind-Adresse des standalone Egress-Proxy
 	// (Subcommand `covey egress-proxy`, im network-Modus als Container).
 	EgressProxyAddr string
+	// WikiCleanup ist der Zeitplan des plattformweiten Wiki-Aufräum-Heartbeats:
+	// leer = aus. Sonst "HH:MM" (täglich, Serverzeit) oder eine Go-Dauer wie "24h"
+	// (Intervall). Die Control Plane legt daraus für jeden Agenten einen
+	// wiederkehrenden Backlog-Task an, in dem der Agent sein Wiki pflegt
+	// (Duplikate mergen, tote Links fixen). Pro Agent per HEARTBEAT.md
+	// überschreibbar. COVEY_WIKI_CLEANUP.
+	WikiCleanup string
 }
 
 func FromEnv() (Config, error) {
@@ -80,6 +87,7 @@ func FromEnv() (Config, error) {
 		EgressAllow:      splitList(os.Getenv("COVEY_EGRESS_ALLOW")),
 		EgressIsolation:  getenv("COVEY_EGRESS_ISOLATION", "proxy"),
 		EgressProxyAddr:  getenv("COVEY_EGRESS_PROXY_ADDR", ":8888"),
+		WikiCleanup:      strings.TrimSpace(os.Getenv("COVEY_WIKI_CLEANUP")),
 	}
 	// Secure-Cookie standardmäßig an, sobald die öffentliche URL HTTPS ist.
 	c.CookieSecure = getenvBool("COVEY_COOKIE_SECURE", strings.HasPrefix(c.PublicURL, "https://"))

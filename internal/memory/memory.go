@@ -364,6 +364,23 @@ func (s *Store) Delete(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
+// DeleteBySlug entfernt eine Seite des Agenten anhand ihres Slugs. Anders als
+// Delete ist die Operation agent-gescopt (WHERE agent_id) — sie ist der
+// Enforcement-Punkt für das Agenten-Tool wiki_delete, damit ein Agent nur im
+// eigenen Wiki löschen kann.
+func (s *Store) DeleteBySlug(ctx context.Context, agentID uuid.UUID, slug string) error {
+	slug = slugify(slug)
+	var title string
+	err := s.pool.QueryRow(ctx,
+		`DELETE FROM wiki_pages WHERE agent_id=$1 AND slug=$2 RETURNING title`,
+		agentID, slug).Scan(&title)
+	if err != nil {
+		return err // pgx.ErrNoRows, wenn keine Seite mit dem Slug existiert
+	}
+	s.logOp(ctx, agentID, "delete", slug, "gelöscht: "+title)
+	return nil
+}
+
 // LogEntry ist ein Eintrag des Wiki-Protokolls (log.md-Äquivalent, spec/05).
 type LogEntry struct {
 	ID        int64     `json:"id"`

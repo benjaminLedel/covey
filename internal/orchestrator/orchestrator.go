@@ -1104,6 +1104,13 @@ func (o *Orchestrator) brokerWiki(ctx context.Context, agent agents.Agent, req d
 			return fail(err.Error())
 		}
 		return ok(map[string]string{"slug": e.Slug, "title": e.Title})
+	case "delete":
+		// Wiki-Pflege: überflüssige/zusammengeführte Seite entfernen. Agent-gescopt
+		// im Store, der Agent kann also nur im eigenen Wiki löschen (spec/05).
+		if err := o.Memory.DeleteBySlug(ctx, agent.ID, req.Slug); err != nil {
+			return fail("seite nicht gefunden")
+		}
+		return ok(map[string]string{"slug": req.Slug, "deleted": "true"})
 	default:
 		return fail("unbekannte wiki-operation: " + req.Op)
 	}

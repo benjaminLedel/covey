@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
@@ -86,6 +87,12 @@ var ErrNotFound = errors.New("agent nicht gefunden")
 
 type Registry struct {
 	pool *pgxpool.Pool
+	// SystemHeartbeats sind plattformweite Default-Heartbeats (source='system' in
+	// agent_heartbeats), die die Control Plane für jeden Agenten materialisiert —
+	// sofern er nicht selbst einen HEARTBEAT.md-Eintrag gleichen Namens definiert.
+	// Aktuell: der konfigurierbare Wiki-Aufräum-Heartbeat (COVEY_WIKI_CLEANUP).
+	// Gesetzt beim Wiring in cmd/covey; leer = keine Defaults.
+	SystemHeartbeats []Heartbeat
 }
 
 func NewRegistry(pool *pgxpool.Pool) *Registry { return &Registry{pool: pool} }
@@ -409,20 +416,85 @@ func (r *Registry) SaveConfig(ctx context.Context, agentID uuid.UUID, files map[
 		} else {
 			dailyAt = &hb.DailyAt
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO agent_heartbeats (agent_id, name, task_body, every_seconds, daily_at, only_if)
-			VALUES ($1,$2,$3,$4,$5,$6)
+		if _, err := tx.Exec(ctx, `INSERT INTO agent_heartbeats (agent_id, name, task_body, every_seconds, daily_at, only_if, source)
+			VALUES ($1,$2,$3,$4,$5,$6,'config')
 			ON CONFLICT (agent_id, name) DO UPDATE
 			SET task_body=EXCLUDED.task_body, every_seconds=EXCLUDED.every_seconds, daily_at=EXCLUDED.daily_at,
-			    only_if=EXCLUDED.only_if`,
+			    only_if=EXCLUDED.only_if, source='config'`,
 			agentID, hb.Name, hb.Task, everySeconds, dailyAt, hb.OnlyIf); err != nil {
 			return ConfigVersion{}, err
 		}
 	}
-	if _, err := tx.Exec(ctx, "DELETE FROM agent_heartbeats WHERE agent_id=$1 AND NOT (name = ANY($2))",
+	// Nur die aus HEARTBEAT.md stammenden Einträge (source='config') aufräumen —
+	// plattformweite System-Defaults (source='system') bleiben unberührt.
+	if _, err := tx.Exec(ctx, "DELETE FROM agent_heartbeats WHERE agent_id=$1 AND source='config' AND NOT (name = ANY($2))",
 		agentID, names); err != nil {
 		return ConfigVersion{}, err
 	}
+	// System-Default-Heartbeats für diesen Agenten materialisieren (source='system'),
+	// sofern er nicht selbst einen gleichnamigen HEARTBEAT.md-Eintrag hat (Override).
+	// So bekommen auch frisch angelegte Agenten die Defaults beim ersten Config-Sync.
+	for _, hb := range r.SystemHeartbeats {
+		if slices.Contains(names, hb.Name) {
+			continue
+		}
+		var everySeconds *int64
+		var dailyAt *string
+		if hb.Every > 0 {
+			s := int64(hb.Every / time.Second)
+			everySeconds = &s
+		} else {
+			dailyAt = &hb.DailyAt
+		}
+		if _, err := tx.Exec(ctx, `INSERT INTO agent_heartbeats (agent_id, name, task_body, every_seconds, daily_at, only_if, source)
+			VALUES ($1,$2,$3,$4,$5,$6,'system')
+			ON CONFLICT (agent_id, name) DO UPDATE
+			SET task_body=EXCLUDED.task_body, every_seconds=EXCLUDED.every_seconds, daily_at=EXCLUDED.daily_at,
+			    only_if=EXCLUDED.only_if
+			WHERE agent_heartbeats.source='system'`,
+			agentID, hb.Name, hb.Task, everySeconds, dailyAt, hb.OnlyIf); err != nil {
+			return ConfigVersion{}, err
+		}
+	}
 	return cv, tx.Commit(ctx)
+}
+
+// ReconcileSystemHeartbeats gleicht die plattformweiten System-Default-Heartbeats
+// (r.SystemHeartbeats) über ALLE Agenten hinweg ab — beim Prozessstart aufgerufen,
+// damit bestehende Agenten die Defaults auch ohne erneuten Config-Sync erhalten und
+// entfernte Defaults verschwinden. Berührt ausschließlich source='system'-Zeilen;
+// agenteneigene HEARTBEAT.md-Heartbeats (source='config') bleiben unangetastet, und
+// ein Agent mit gleichnamigem eigenem Eintrag wird übersprungen (Override gewinnt).
+func (r *Registry) ReconcileSystemHeartbeats(ctx context.Context) error {
+	names := make([]string, 0, len(r.SystemHeartbeats))
+	for _, hb := range r.SystemHeartbeats {
+		names = append(names, hb.Name)
+		var everySeconds *int64
+		var dailyAt *string
+		if hb.Every > 0 {
+			s := int64(hb.Every / time.Second)
+			everySeconds = &s
+		} else {
+			dailyAt = &hb.DailyAt
+		}
+		if _, err := r.pool.Exec(ctx, `INSERT INTO agent_heartbeats (agent_id, name, task_body, every_seconds, daily_at, only_if, source)
+			SELECT a.id, $1, $2, $3, $4, '', 'system' FROM agents a
+			WHERE NOT EXISTS (SELECT 1 FROM agent_heartbeats h
+				WHERE h.agent_id=a.id AND h.name=$1 AND h.source='config')
+			ON CONFLICT (agent_id, name) DO UPDATE
+			SET task_body=EXCLUDED.task_body, every_seconds=EXCLUDED.every_seconds, daily_at=EXCLUDED.daily_at
+			WHERE agent_heartbeats.source='system'`,
+			hb.Name, hb.Task, everySeconds, dailyAt); err != nil {
+			return err
+		}
+	}
+	// Verwaiste System-Defaults entfernen (Zeitplan geändert -> Name gleich; Feature
+	// abgeschaltet -> names leer -> alle source='system'-Zeilen weg).
+	if _, err := r.pool.Exec(ctx,
+		"DELETE FROM agent_heartbeats WHERE source='system' AND NOT (name = ANY($1))", names); err != nil {
+		return err
+	}
+	return nil
 }
 
 // CurrentConfig liefert die jüngste Config-Version des Agenten.

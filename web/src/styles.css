@@ -673,6 +673,53 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
 @keyframes fade { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 .fade { animation: fade 0.18s ease; }
 
+/* Wiki-Gedächtnis: klickbare [[Wikilinks]], gerenderter Seiten-Body, Index. */
+.wikilink {
+  font-family: var(--sans);
+  color: var(--text-accent);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-thickness: 0.5px;
+  text-underline-offset: 2px;
+}
+.wikilink:hover { text-decoration-thickness: 1.5px; }
+.wikilink.missing {
+  color: var(--text-danger);
+  text-decoration-style: dashed;
+  cursor: default;
+}
+.wiki-body { line-height: 1.55; }
+.wiki-body p { margin: 0 0 8px; }
+.wiki-body p:last-child { margin-bottom: 0; }
+.wiki-body ul { margin: 0 0 8px; padding-left: 18px; list-style: disc; }
+.wiki-body li { margin: 1px 0; }
+.wiki-h { font-family: var(--sans); font-weight: 600; margin: 12px 0 5px; }
+.wiki-h:first-child { margin-top: 0; }
+.wiki-h1 { font-size: 15px; }
+.wiki-h2 { font-size: 13.5px; }
+.wiki-h3 { font-size: 12.5px; color: var(--text-secondary); }
+.wiki-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  border: none;
+  background: none;
+  border-bottom: 0.5px solid var(--border);
+  cursor: pointer;
+}
+.wiki-row:hover { background: var(--surface-1); }
+.wiki-row .t { font-weight: 500; font-size: 14px; color: var(--text-primary); }
+.wiki-row .p { color: var(--text-secondary); font-size: 12.5px; min-width: 0; }
+.wiki-refcount { font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); white-space: nowrap; }
+.wiki-search { display: flex; align-items: center; gap: 10px; }
+.wiki-search input { flex: 1; }
+
 /* Modal: zentrierter Dialog mit Backdrop, Maße pro Größe gedeckelt. */
 .modal-backdrop {
   position: fixed;

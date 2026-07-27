@@ -88,6 +88,7 @@ export type HeartbeatStatus = {
   every_seconds?: number;
   daily_at?: string;
   only_if?: string;
+  source?: string; // "config" (HEARTBEAT.md) | "system" (Plattform-Default, z.B. Wiki-Pflege)
   last_fired_at: string;
   next_run: string;
   pending: boolean;
