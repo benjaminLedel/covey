@@ -21,6 +21,7 @@ export default function Templates({ me }: { me: Principal }) {
   });
 
   const [instantiating, setInstantiating] = useState<AgentTemplate | null>(null);
+  const [previewing, setPreviewing] = useState<AgentTemplate | null>(null);
   const locale = i18n.language === "de" ? "de-DE" : "en-US";
   const list = templates.data ?? [];
 
@@ -51,6 +52,7 @@ export default function Templates({ me }: { me: Principal }) {
             template={tpl}
             canManage={canManage}
             locale={locale}
+            onPreview={() => setPreviewing(tpl)}
             onInstantiate={() => setInstantiating(tpl)}
             onDelete={() => {
               if (confirm(t("templates.deleteConfirm", { name: tpl.name }))) deleteTemplate.mutate(tpl.id);
@@ -58,6 +60,19 @@ export default function Templates({ me }: { me: Principal }) {
           />
         ))}
       </div>
+
+      {previewing && (
+        <PreviewModal
+          template={previewing}
+          canManage={canManage}
+          onClose={() => setPreviewing(null)}
+          onUse={() => {
+            const tpl = previewing;
+            setPreviewing(null);
+            setInstantiating(tpl);
+          }}
+        />
+      )}
 
       {instantiating && (
         <InstantiateModal
@@ -78,12 +93,14 @@ function TemplateCard({
   template,
   canManage,
   locale,
+  onPreview,
   onInstantiate,
   onDelete,
 }: {
   template: AgentTemplate;
   canManage: boolean;
   locale: string;
+  onPreview: () => void;
   onInstantiate: () => void;
   onDelete: () => void;
 }) {
@@ -115,20 +132,157 @@ function TemplateCard({
             )}
           </div>
         </div>
-        {canManage && (
-          <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2 shrink-0">
+          <button className="btn sm" onClick={onPreview}>
+            {t("templates.preview")}
+          </button>
+          {canManage && (
             <button className="btn sm primary" onClick={onInstantiate}>
               {t("templates.use")}
             </button>
-            {!template.builtin && (
-              <button className="btn sm" style={{ color: "var(--error)" }} onClick={onDelete}>
-                {t("templates.delete")}
-              </button>
-            )}
-          </div>
-        )}
+          )}
+          {canManage && !template.builtin && (
+            <button className="btn sm" style={{ color: "var(--error)" }} onClick={onDelete}>
+              {t("templates.delete")}
+            </button>
+          )}
+        </div>
       </div>
     </div>
+  );
+}
+
+// Bevorzugte Lesereihenfolge der Config-Dateien (Rest alphabetisch dahinter).
+const FILE_ORDER = [
+  "SOUL.md",
+  "CAPABILITIES.md",
+  "PLAYBOOKS.md",
+  "ORG.md",
+  "ACCESS.md",
+  "TOOLS.md",
+  "EGRESS.md",
+  "HEARTBEAT.md",
+];
+
+function orderedFileNames(files: Record<string, string>): string[] {
+  return Object.keys(files).sort((a, b) => {
+    const ia = FILE_ORDER.indexOf(a);
+    const ib = FILE_ORDER.indexOf(b);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.localeCompare(b);
+  });
+}
+
+// PreviewModal zeigt das Bundle einer Vorlage read-only an: Agenten-Eckdaten
+// plus die enthaltenen Config-Dateien (umschaltbar), damit man vor dem Anlegen
+// sieht, was die Vorlage mitbringt.
+function PreviewModal({
+  template,
+  canManage,
+  onClose,
+  onUse,
+}: {
+  template: AgentTemplate;
+  canManage: boolean;
+  onClose: () => void;
+  onUse: () => void;
+}) {
+  const { t } = useTranslation();
+  const bundle = template.bundle as {
+    agent?: { slug?: string; runtime?: string; model?: string };
+    files?: Record<string, string>;
+    stages?: unknown[];
+    guardrails?: unknown[];
+    egress_templates?: unknown[];
+    secrets?: { org_keys?: string[]; agent_keys?: string[] };
+  };
+  const files = bundle.files ?? {};
+  const names = orderedFileNames(files);
+  const [active, setActive] = useState(names[0] ?? "");
+  const current = active && files[active] !== undefined ? active : names[0] ?? "";
+
+  const meta: string[] = [];
+  if (bundle.agent?.slug) meta.push(bundle.agent.slug);
+  if (bundle.agent?.runtime) meta.push(bundle.agent.runtime);
+  if (bundle.agent?.model) meta.push(bundle.agent.model);
+  const secretKeys = [...(bundle.secrets?.org_keys ?? []), ...(bundle.secrets?.agent_keys ?? [])];
+
+  return (
+    <Modal
+      title={t("templates.previewTitle", { name: template.name })}
+      onClose={onClose}
+      size="lg"
+      footer={
+        <div className="flex gap-2 justify-end">
+          <button className="btn" onClick={onClose}>
+            {t("templates.close")}
+          </button>
+          {canManage && (
+            <button className="btn primary" onClick={onUse}>
+              {t("templates.use")}
+            </button>
+          )}
+        </div>
+      }
+    >
+      {template.description && (
+        <p className="text-sm" style={{ marginBottom: 10 }}>{template.description}</p>
+      )}
+      <div className="muted text-xs mono" style={{ marginBottom: 12 }}>
+        {meta.join(" · ") || "—"}
+      </div>
+
+      {(secretKeys.length > 0 ||
+        (bundle.stages?.length ?? 0) > 0 ||
+        (bundle.guardrails?.length ?? 0) > 0 ||
+        (bundle.egress_templates?.length ?? 0) > 0) && (
+        <div className="muted text-xs" style={{ marginBottom: 12 }}>
+          {(bundle.stages?.length ?? 0) > 0 && <>{t("templates.previewStages", { n: bundle.stages!.length })} · </>}
+          {(bundle.guardrails?.length ?? 0) > 0 && <>{t("templates.previewGuardrails", { n: bundle.guardrails!.length })} · </>}
+          {(bundle.egress_templates?.length ?? 0) > 0 && <>{t("templates.previewEgress", { n: bundle.egress_templates!.length })} · </>}
+          {secretKeys.length > 0 && (
+            <>{t("templates.previewSecrets")} <span className="mono">{secretKeys.join(", ")}</span></>
+          )}
+        </div>
+      )}
+
+      {names.length === 0 ? (
+        <p className="muted text-sm">{t("templates.previewNoFiles")}</p>
+      ) : (
+        <>
+          <div className="seg" role="tablist" aria-label={t("templates.previewFilesLabel")} style={{ flexWrap: "wrap", marginBottom: 10 }}>
+            {names.map((name) => (
+              <button
+                key={name}
+                role="tab"
+                aria-selected={name === current}
+                className={`mono ${name === current ? "active" : ""}`}
+                onClick={() => setActive(name)}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+          <pre
+            className="mono"
+            style={{
+              margin: 0,
+              padding: "10px 12px",
+              background: "var(--surface-1)",
+              border: "0.5px solid var(--border)",
+              borderRadius: 8,
+              fontSize: 12,
+              lineHeight: 1.55,
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              maxHeight: "52vh",
+              overflowY: "auto",
+            }}
+          >
+            {files[current]}
+          </pre>
+        </>
+      )}
+    </Modal>
   );
 }
 
