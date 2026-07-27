@@ -82,17 +82,28 @@ Optionaler Betriebs-Filter über ENV (12-Factor, wie bei Zammad):
 | `send` | `service_url`, `conversation_id`, `text` | Nachricht in eine bestehende Konversation. |
 | `reply` | `service_url`, `conversation_id`, `reply_to_activity_id`, `text` | Antwort auf eine Nachricht (ohne `reply_to_activity_id` → `send`). |
 | `create_conversation` | `service_url`, `tenant_id`, `user_id`, `text` | Proaktiver 1:1-Chat mit einem Nutzer. |
+| `download_attachment` | `url`, `name` | Lädt einen Datei-Anhang der Nachricht in die Sandbox. |
 
-`service_url` und `conversation_id` stammen aus der auslösenden Nachricht (stehen im Task-Body). Alle drei sind eigene Guard-Rail-Subjekte (`teams:send`, `teams:reply`, `teams:create_conversation`).
+`service_url` und `conversation_id` stammen aus der auslösenden Nachricht (stehen im Task-Body). Alle sind eigene Guard-Rail-Subjekte (`teams:send`, `teams:reply`, `teams:create_conversation`, `teams:download_attachment`).
+
+## Anhänge lesen
+
+Nachrichten tragen oft Dateien — Screenshots, PDFs, Logs. Eine eingehende Activity führt sie im Feld `attachments` (Name, `contentType`, Download-URL). Covey reicht **die Bytes nicht durch die Control Plane**, sondern nach dem etablierten Muster von GitLab (`download_upload`): Der Event-Router listet die Anhänge als Text im Task-Body (Name, Typ, fertiger `download_attachment`-Aufruf), und der Agent holt die Datei bei Bedarf über die Action in seine Sandbox.
+
+- **Materialisierung in die Sandbox:** `download_attachment` lädt die Bytes gebrokert (das Connector-Token bleibt im Daemon) nach `<workspace>/attachments/<datei>` und gibt Pfad + Content-Type zurück. Der Agent liest die Datei danach mit dem Read-Tool — Bilder per Vision. Pfad-Traversal wird auf den Basename reduziert, ein Größenlimit (`COVEY_TEAMS_ATTACHMENT_MAX_MB`, Default 25 MB) greift fail-closed.
+- **Zwei URL-Sorten:** geteilte Dateien kommen als `file.download.info` mit einer **vor-autorisierten** `content.downloadUrl` (kein Token); Inline-Bilder als `image/*` mit einer `contentUrl` auf dem Connector-Host (**Bearer-Token nötig**). `download_attachment` versucht erst ohne Auth und lädt bei `401/403` einmal mit dem Connector-Token nach — beide Sorten funktionieren so ohne Sonderfall im Prompt.
+- **Kurzlebige URLs:** Teams-Download-URLs laufen ab. Der Task-Body weist den Agenten an, Anhänge zeitnah zu laden; wacht ein `blocked`-Agent erst spät auf, kann eine URL ungültig sein — dann fordert der Agent die Datei erneut an.
+- Reine Anhang-Nachrichten (Datei ohne Text) lösen ebenfalls einen Wake aus.
 
 ## Scope dieser Integration
 
 - **Ein Bot / ein Agent**, App-ID + App-Passwort über den Built-in-`SecretStore`.
 - **Messaging-Endpoint** als Webhook, JWT-verifiziert, idempotent verarbeitet.
-- **Aktionen:** senden, antworten, 1:1-Chat eröffnen.
+- **Aktionen:** senden, antworten, 1:1-Chat eröffnen, Anhang in die Sandbox laden.
+- **Anhänge lesen** über `download_attachment` (Bytes in die Sandbox, nicht in die Control Plane).
 - **`blocked`** über die Konversation, Korrelation über die `conversation.id`.
 
-Später (nicht jetzt): Adaptive Cards statt Klartext, Kanal-/Team-Verwaltung über Microsoft Graph, delegierter Nutzer-Kontext (Graph mit On-Behalf-Of), Attachments, mehrere Bots pro Org.
+Später (nicht jetzt): Adaptive Cards statt Klartext, **ausgehende** Anhänge (Dateien senden), Kanal-/Team-Verwaltung über Microsoft Graph, delegierter Nutzer-Kontext (Graph mit On-Behalf-Of), mehrere Bots pro Org.
 
 ## Hinweise
 

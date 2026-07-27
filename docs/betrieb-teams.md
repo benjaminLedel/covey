@@ -133,6 +133,23 @@ anschreiben können. Für Kanal-@mentions den `scopes`-Eintrag `team` ergänzen.
    Leer/ungesetzt → keine Einschränkung.
 
 Nicht-`message`-Activities (`conversationUpdate`, `typing`, …) wecken nicht.
+Eine Nachricht **nur mit Anhang** (Datei ohne Text) weckt ebenfalls.
+
+### Anhänge
+
+Führt eine Nachricht Dateien, listet Covey sie im Task-Body (Name, Content-Type,
+fertiger `download_attachment`-Aufruf). Der Agent lädt sie über die Action
+`download_attachment {"url":"…","name":"…"}` in seine Sandbox (`attachments/`) und
+liest sie mit dem Read-Tool (Bilder per Vision). Details: spec/15, „Anhänge
+lesen". Betriebsrelevant:
+
+- **Egress:** Für geteilte Dateien lädt der Agent von SharePoint/OneDrive
+  (`*.sharepoint.com`), für Inline-Bilder vom Connector-Host. Beide müssen bei
+  aktiviertem Egress-Enforcement auf die Allowlist (siehe Abschnitt 5).
+- **Größenlimit:** `COVEY_TEAMS_ATTACHMENT_MAX_MB` (Default 25) deckelt jeden
+  Download fail-closed.
+- **Kurzlebige URLs:** Download-URLs laufen ab — der Agent sollte Anhänge zeitnah
+  laden. Wacht ein `blocked`-Agent spät auf, kann eine URL ungültig sein.
 
 ### Zuordnung Nachricht → Agent
 
@@ -159,6 +176,7 @@ Details: [`../spec/15-teams-integration.md`](../spec/15-teams-integration.md).
 | `COVEY_PUBLIC_URL` | `http://localhost:8494` | Basis-URL, die der Bot Service für den Messaging-Endpoint erreicht |
 | `COVEY_TEAMS_WEBHOOK_SECRET` | *(leer = JWT-Prüfung aus)* | erwartete Bot-App-ID (JWT-Audience) |
 | `COVEY_TEAMS_INTAKE_TENANTS` | *(leer = alle)* | Allowlist der Microsoft-365-Tenants |
+| `COVEY_TEAMS_ATTACHMENT_MAX_MB` | `25` | Größenlimit je in die Sandbox geladenem Anhang |
 | `COVEY_DAEMON_TOKEN_TTL` | `15m` | TTL des in die Sandbox gereichten Credentials |
 | `COVEY_EGRESS_ENFORCE` | `false` | Egress-Allowlist-Proxy einschalten (nur `docker`-Provider) |
 | `COVEY_EGRESS_ALLOW` | *(leer)* | zusätzliche erlaubte Egress-Hosts |
@@ -170,8 +188,11 @@ Details: [`../spec/15-teams-integration.md`](../spec/15-teams-integration.md).
 > (`*.botframework.com` bzw. `smba.trafficmanager.net`). Ergänzen z. B. via:
 >
 > ```bash
-> COVEY_EGRESS_ALLOW="login.microsoftonline.com, *.botframework.com, smba.trafficmanager.net"
+> COVEY_EGRESS_ALLOW="login.microsoftonline.com, *.botframework.com, smba.trafficmanager.net, *.sharepoint.com"
 > ```
+>
+> `*.sharepoint.com` nur nötig, wenn Agenten geteilte Datei-Anhänge laden
+> (`download_attachment`).
 >
 > Details und der harte network-Isolationsmodus wie im Zammad-Runbook
 > ([`betrieb-zammad.md`](betrieb-zammad.md), Abschnitt 6.1).
