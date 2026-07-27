@@ -35,6 +35,7 @@ import (
 	secbuiltin "covey/internal/secrets/builtin"
 	targetstore "covey/internal/target/store"
 
+	_ "covey/internal/target/browser"
 	_ "covey/internal/target/dev"
 	_ "covey/internal/target/email"
 	"covey/migrations"
