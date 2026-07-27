@@ -188,6 +188,12 @@ func (c *Client) Run(ctx context.Context) error {
 				continue
 			}
 			c.route(inj.RequestID, msg)
+		case TypeInjectWiki:
+			inj, err := DecodePayload[InjectWiki](msg)
+			if err != nil {
+				continue
+			}
+			c.route(inj.RequestID, msg)
 		case TypeAssignTask:
 			task, err := DecodePayload[AssignTask](msg)
 			if err != nil {
@@ -313,6 +319,19 @@ func (c *Client) orgChart(ctx context.Context) (json.RawMessage, error) {
 	return inj.Chart, nil
 }
 
+// wiki brokert ein Wiki-Tool (search/read/write) an die Control Plane und gibt
+// die Antwort roh zurück. Ungecacht — das Wiki ändert sich während der Session.
+func (c *Client) wiki(ctx context.Context, req RequestWiki) (InjectWiki, error) {
+	req.RequestID = uuid.NewString()
+	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	msg, err := c.request(reqCtx, TypeRequestWiki, req.RequestID, req)
+	if err != nil {
+		return InjectWiki{}, err
+	}
+	return DecodePayload[InjectWiki](msg)
+}
+
 // checkAction holt die zentrale Policy-Entscheidung für eine Aktion.
 func (c *Client) checkAction(ctx context.Context, taskID, action string, params json.RawMessage) (ApprovalDecision, error) {
 	reqID := uuid.NewString()
@@ -386,12 +405,18 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 		HomeDir:         c.homeDir,
 		Env:             env,
 	}
+	// Wiki-Arbeitskopie ins Home materialisieren (spec/05), damit der Agent es
+	// mit normalen Datei-Tools lesen/bearbeiten kann.
+	wikiSnap := c.materializeWiki(runCtx)
+
 	res, err := runtime.Run(runCtx, spec, func(kind string, payload json.RawMessage) {
 		_ = c.send(TypeEvent, Event{TaskID: task.TaskID, Kind: kind, Payload: payload})
 	})
 	if runCtx.Err() != nil {
 		return // Kill-Pfad: die Control Plane hat übernommen
 	}
+	// Direkt bearbeitete/neu angelegte Seiten zurück in die Control Plane.
+	c.syncWikiBack(runCtx, wikiSnap)
 	if err != nil {
 		res.Status = "failed"
 		res.Error = err.Error()

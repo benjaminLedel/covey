@@ -6,6 +6,7 @@
 .covey.key
 .env
 serve.log
+covey.log
 
 # Laufzeitdaten (Sandbox-Homes des local-Providers)
 /data/

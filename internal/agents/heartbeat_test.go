@@ -73,6 +73,46 @@ func TestParseHeartbeatFehler(t *testing.T) {
 	}
 }
 
+func TestWikiCleanupHeartbeat(t *testing.T) {
+	// Leerer Zeitplan -> Feature aus.
+	if _, enabled, err := WikiCleanupHeartbeat(""); enabled || err != nil {
+		t.Fatalf("leer: enabled=%v err=%v (erwartet: aus, kein Fehler)", enabled, err)
+	}
+	if _, enabled, err := WikiCleanupHeartbeat("   "); enabled || err != nil {
+		t.Fatalf("whitespace: enabled=%v err=%v", enabled, err)
+	}
+
+	// Tageszeit-Form.
+	hb, enabled, err := WikiCleanupHeartbeat("03:00")
+	if err != nil || !enabled {
+		t.Fatalf("03:00: enabled=%v err=%v", enabled, err)
+	}
+	if hb.Name != WikiCleanupName || hb.DailyAt != "03:00" || hb.Every != 0 || hb.Task == "" {
+		t.Fatalf("03:00: unerwarteter Heartbeat %+v", hb)
+	}
+
+	// Intervall-Formen (Go-Dauer und Tages-Suffix).
+	for _, in := range []string{"24h", "12h", "1d"} {
+		hb, enabled, err := WikiCleanupHeartbeat(in)
+		if err != nil || !enabled {
+			t.Fatalf("%s: enabled=%v err=%v", in, enabled, err)
+		}
+		if hb.Every <= 0 || hb.DailyAt != "" {
+			t.Fatalf("%s: erwartet Intervall-Form, bekam %+v", in, hb)
+		}
+	}
+	if hb, _, _ := WikiCleanupHeartbeat("1d"); hb.Every != 24*time.Hour {
+		t.Fatalf("1d: erwartet 24h, bekam %v", hb.Every)
+	}
+
+	// Ungültiger Zeitplan -> Fehler.
+	for _, bad := range []string{"dreißig", "25:99", "-5m", "morgens"} {
+		if _, enabled, err := WikiCleanupHeartbeat(bad); err == nil || enabled {
+			t.Errorf("%q: Fehler erwartet, bekam enabled=%v err=%v", bad, enabled, err)
+		}
+	}
+}
+
 func TestCompilePromptOhneHeartbeat(t *testing.T) {
 	prompt := CompilePrompt(map[string]string{
 		"SOUL.md":      "Du bist der Test-Agent.",

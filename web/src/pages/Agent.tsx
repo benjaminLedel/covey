@@ -1,6 +1,6 @@
-import { useState, useRef, type CSSProperties } from "react";
+import { useState, useRef, useEffect, type CSSProperties, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import i18n from "../i18n";
 import {
@@ -23,7 +23,7 @@ import {
   type HeartbeatStatus,
   type MCPTool,
   type MemoryEntry,
-  type OrgChart,
+  type WikiLogEntry,
   type Principal,
   type RecordingEvent,
   type RuntimeInfo,
@@ -36,7 +36,6 @@ import {
 } from "../api";
 import { ActivityFeed } from "../components/ActivityFeed";
 import { Markdown } from "../components/Markdown";
-import { PersonLink } from "../components/person";
 import ProfileForm from "../components/ProfileForm";
 import { AddHostForm, EgressLogTable, HostChips } from "../components/EgressBits";
 import { SecretValue } from "./Secrets";
@@ -51,9 +50,30 @@ export default function AgentPage({ me }: { me: Principal }) {
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const agent = useQuery({ queryKey: ["agent", id], queryFn: () => api<Agent>(`/agents/${id}`) });
-  const [tab, setTab] = useState<
-    "backlog" | "heartbeat" | "webhook" | "recording" | "config" | "memory" | "secrets" | "egress" | "tools" | "einstellungen"
-  >("backlog");
+  // Tab-Zustand lebt in der URL (?tab=…) — echte Navigation: teilbare Links,
+  // Browser-Vor/Zurück. Der memory-Tab führt zusätzlich ?page=<slug> mit.
+  const [sp, setSp] = useSearchParams();
+  const tab = ((sp.get("tab") as
+    | "backlog"
+    | "heartbeat"
+    | "webhook"
+    | "recording"
+    | "config"
+    | "memory"
+    | "secrets"
+    | "egress"
+    | "tools"
+    | "einstellungen") || "backlog");
+  const setTab = (key: typeof tab) =>
+    setSp(
+      (prev) => {
+        const n = new URLSearchParams(prev);
+        n.set("tab", key);
+        if (key !== "memory") n.delete("page"); // Wiki-Seite nur im memory-Tab
+        return n;
+      },
+      { replace: false },
+    );
   const [recTask, setRecTask] = useState<{ id: string; title: string } | null>(null);
 
   const act = useMutation({
@@ -89,7 +109,6 @@ export default function AgentPage({ me }: { me: Principal }) {
           runtime: {a.runtime}
           {a.model && ` · ${a.model}`}
         </span>
-        <Supervisor agent={a} editable={canManage(me.Role)} />
         <span className="ml-auto" />
         {canManage(me.Role) && (
           <button className="btn sm" onClick={() => act.mutate("wake")}>
@@ -402,48 +421,6 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
       )}
     </div>
     </>
-  );
-}
-
-function Supervisor({ agent, editable }: { agent: Agent; editable: boolean }) {
-  const { t } = useTranslation();
-  const qc = useQueryClient();
-  const chart = useQuery({ queryKey: ["orgchart"], queryFn: () => api<OrgChart>("/org/chart") });
-  const mut = useMutation({
-    mutationFn: (supervisorId: string) => patch(`/agents/${agent.id}/supervisor`, { supervisor_id: supervisorId }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["agent", agent.id] });
-      qc.invalidateQueries({ queryKey: ["agents"] });
-      qc.invalidateQueries({ queryKey: ["orgchart"] });
-    },
-  });
-  const humans = chart.data?.humans ?? [];
-  const current = humans.find((h) => h.id === agent.supervisor_id);
-
-  if (!editable) {
-    return (
-      <span className="muted text-xs">
-        {t("agent.supervisor.reportsTo")} {current ? <PersonLink human={current} /> : "—"}
-      </span>
-    );
-  }
-  return (
-    <span className="flex items-center gap-2 text-xs muted">
-      {t("agent.supervisor.reportsTo")}
-      <select
-        value={agent.supervisor_id ?? ""}
-        onChange={(e) => mut.mutate(e.target.value)}
-        disabled={mut.isPending || chart.isLoading}
-        style={{ width: "auto", padding: "3px 8px", fontSize: 12 }}
-      >
-        <option value="">{t("agent.supervisor.nobody")}</option>
-        {humans.map((h) => (
-          <option key={h.id} value={h.id}>
-            {h.display_name}
-          </option>
-        ))}
-      </select>
-    </span>
   );
 }
 
@@ -1222,6 +1199,11 @@ function HeartbeatCard({
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <span className="font-medium">{hb.name}</span>
         <span className="badge">{scheduleLabel(hb)}</span>
+        {hb.source === "system" && (
+          <span className="badge st-pro" title={t("agent.heartbeat.systemHint")}>
+            {t("agent.heartbeat.system")}
+          </span>
+        )}
         {hb.only_if && (
           <span className="badge" title={t("agent.heartbeat.onlyIfHint", { system: hb.only_if })}>
             {t("agent.heartbeat.onlyIf", { system: hb.only_if })}
@@ -1859,27 +1841,157 @@ function AgentSecrets({ agentId }: { agentId: string }) {
   );
 }
 
+// Inline-Parser für einen Text-Abschnitt: löst [[Wikilinks]] in klickbare
+// Links auf (rot & inert, wenn die Zielseite fehlt — Wiki-Konvention) und
+// rendert **fett**. Dependency-frei, deshalb nur diese zwei Marker.
+function wikiInline(
+  text: string,
+  key: string,
+  has: (slug: string) => boolean,
+  onNav: (slug: string) => void,
+  missingLabel: string,
+): ReactNode[] {
+  const out: ReactNode[] = [];
+  const re = /\[\[([^\]]+)\]\]|\*\*([^*]+)\*\*/g;
+  let last = 0;
+  let m: RegExpExecArray | null;
+  let i = 0;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    if (m[1] != null) {
+      const slug = m[1].trim();
+      const ok = has(slug);
+      out.push(
+        <button
+          key={`${key}-${i}`}
+          type="button"
+          className={`wikilink${ok ? "" : " missing"}`}
+          onClick={ok ? () => onNav(slug) : undefined}
+          title={ok ? undefined : missingLabel}
+        >
+          {slug}
+        </button>,
+      );
+    } else if (m[2] != null) {
+      out.push(<strong key={`${key}-${i}`}>{m[2]}</strong>);
+    }
+    last = re.lastIndex;
+    i++;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return out;
+}
+
+// Rendert einen Seiten-Body als leichtes Markdown (Überschriften #/##/###,
+// Aufzählungen -/*, Absätze) mit klickbaren [[Wikilinks]] — eine echte
+// Wiki-Seite statt Rohtext.
+function WikiBody({ text, has, onNav }: { text: string; has: (slug: string) => boolean; onNav: (slug: string) => void }) {
+  const { t } = useTranslation();
+  const missing = t("agent.memory.missing");
+  const blocks: ReactNode[] = [];
+  let bullets: ReactNode[] = [];
+  const flush = (k: string) => {
+    if (bullets.length) {
+      blocks.push(<ul key={`ul-${k}`}>{bullets}</ul>);
+      bullets = [];
+    }
+  };
+  text.split("\n").forEach((raw, idx) => {
+    const line = raw.trimEnd();
+    const li = /^\s*[-*]\s+(.*)$/.exec(line);
+    if (li) {
+      bullets.push(<li key={`li-${idx}`}>{wikiInline(li[1], `li${idx}`, has, onNav, missing)}</li>);
+      return;
+    }
+    flush(String(idx));
+    if (!line.trim()) return;
+    const h = /^(#{1,3})\s+(.*)$/.exec(line);
+    if (h) {
+      blocks.push(
+        <div key={idx} className={`wiki-h wiki-h${h[1].length}`}>
+          {wikiInline(h[2], `h${idx}`, has, onNav, missing)}
+        </div>,
+      );
+      return;
+    }
+    blocks.push(<p key={idx}>{wikiInline(line, `p${idx}`, has, onNav, missing)}</p>);
+  });
+  flush("end");
+  return <div className="wiki-body voice text-[14.5px]">{blocks}</div>;
+}
+
+// Kurzvorschau für die Index-Liste: Markup entfernen, [[slug]] → slug.
+function wikiPreview(text: string): string {
+  return text
+    .replace(/\[\[([^\]]+)\]\]/g, "$1")
+    .replace(/[*#>`]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
+}
+
 function Memories({ agentId, canManage }: { agentId: string; canManage: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const [view, setView] = useState<"pages" | "log">("pages");
+  // Offene Wiki-Seite lebt in der URL (?page=<slug>) — deep-linkbar, Browser-Zurück.
+  const [sp, setSp] = useSearchParams();
+  const selected = sp.get("page");
+  const setSelected = (slug: string | null) =>
+    setSp(
+      (prev) => {
+        const n = new URLSearchParams(prev);
+        if (slug) n.set("page", slug);
+        else n.delete("page");
+        n.set("tab", "memory");
+        return n;
+      },
+      { replace: false },
+    );
+  // Semantische Suche (spec/05, pgvector): Eingabe entprellt, dann Backend ?q=.
+  const [query, setQuery] = useState("");
+  const [debounced, setDebounced] = useState("");
+  useEffect(() => {
+    const h = setTimeout(() => setDebounced(query.trim()), 250);
+    return () => clearTimeout(h);
+  }, [query]);
+  // Volle Seitenliste — trägt Link-Auflösung (has), Backlinks und den Index.
   const mems = useQuery({
     queryKey: ["memories", agentId],
     queryFn: () => api<MemoryEntry[] | null>(`/agents/${agentId}/memories`),
   });
+  // Ranking-Treffer der Vektorsuche; nur aktiv, solange etwas gesucht wird.
+  const search = useQuery({
+    queryKey: ["memories-search", agentId, debounced],
+    queryFn: () => api<MemoryEntry[] | null>(`/agents/${agentId}/memories?q=${encodeURIComponent(debounced)}`),
+    enabled: debounced.length > 0,
+  });
+  const log = useQuery({
+    queryKey: ["wiki-log", agentId],
+    queryFn: () => api<WikiLogEntry[] | null>(`/agents/${agentId}/wiki/log`),
+    enabled: view === "log",
+  });
   const [draft, setDraft] = useState("");
+  const [draftTitle, setDraftTitle] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
   const [editText, setEditText] = useState("");
-  const invalidate = () => qc.invalidateQueries({ queryKey: ["memories", agentId] });
+  const [note, setNote] = useState("");
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["memories", agentId] });
+    qc.invalidateQueries({ queryKey: ["wiki-log", agentId] });
+  };
 
   const add = useMutation({
-    mutationFn: () => post(`/agents/${agentId}/memories`, { content: draft }),
+    mutationFn: () => post(`/agents/${agentId}/memories`, { content: draft, title: draftTitle }),
     onSuccess: () => {
       setDraft("");
+      setDraftTitle("");
       invalidate();
     },
   });
   const save = useMutation({
-    mutationFn: () => patch(`/memories/${editId}`, { content: editText }),
+    mutationFn: () => patch(`/memories/${editId}`, { content: editText, title: editTitle }),
     onSuccess: () => {
       setEditId(null);
       invalidate();
@@ -1889,78 +2001,258 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
     mutationFn: (id: string) => del(`/memories/${id}`),
     onSuccess: invalidate,
   });
+  const consolidate = useMutation({
+    mutationFn: () => post<{ merged: number }>(`/agents/${agentId}/wiki/consolidate`),
+    onSuccess: (r) => {
+      setNote(r.merged > 0 ? t("agent.memory.consolidateDone", { count: r.merged }) : t("agent.memory.consolidateNone"));
+      invalidate();
+    },
+  });
 
   const list = mems.data ?? [];
+  const logs = log.data ?? [];
   const locale = i18n.language === "de" ? "de-DE" : "en-US";
+  const opLabel = (op: string) =>
+    ({ ingest: t("agent.memory.opIngest"), write: t("agent.memory.opWrite"), merge: t("agent.memory.opMerge"), delete: t("agent.memory.opDelete") })[op] ?? op;
+
+  const has = (slug: string) => list.some((p) => p.slug === slug);
+  const openPage = (slug: string) => {
+    setView("pages");
+    setEditId(null);
+    setSelected(slug);
+  };
+  // Aktuell geöffnete Seite; verschwindet sie (z. B. nach Löschen/Merge), zurück zum Index.
+  const current = selected ? (list.find((p) => p.slug === selected) ?? null) : null;
+  const backlinks = current ? list.filter((p) => p.id !== current.id && (p.links ?? []).includes(current.slug)) : [];
+  const searching = debounced.length > 0;
+  const rows = searching ? (search.data ?? []) : list; // Index zeigt Voll-Liste oder Ranking-Treffer
+
   return (
     <div>
-      {canManage && (
-        <div className="card mb-3" style={{ padding: "12px 14px" }}>
-          <textarea
-            rows={2}
-            placeholder={t("agent.memory.addPlaceholder")}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-          />
-          <div className="flex items-center gap-2 mt-2">
-            <button
-              className="btn primary sm"
-              disabled={!draft.trim() || add.isPending}
-              onClick={() => add.mutate()}
-            >
-              {t("agent.memory.remember")}
-            </button>
-            {add.isError && <span className="danger-text text-xs">{(add.error as Error).message}</span>}
-          </div>
+      <p className="muted text-[12.5px] mb-3">{t("agent.memory.hint")}</p>
+      <div className="flex items-center gap-2 mb-3">
+        <div className="seg" role="tablist">
+          <button className={view === "pages" ? "active" : ""} onClick={() => setView("pages")}>
+            {t("agent.memory.pages")}
+            {list.length > 0 && ` (${list.length})`}
+          </button>
+          <button className={view === "log" ? "active" : ""} onClick={() => setView("log")}>
+            {t("agent.memory.log")}
+          </button>
         </div>
-      )}
-      {list.length === 0 && <p className="muted">{t("agent.memory.nothingLearned")}</p>}
-      {list.map((m) =>
-        editId === m.id ? (
-          <div key={m.id} className="card mb-2" style={{ padding: "12px 14px" }}>
-            <textarea rows={2} value={editText} onChange={(e) => setEditText(e.target.value)} />
-            <div className="flex items-center gap-2 mt-2">
-              <button
-                className="btn primary sm"
-                disabled={!editText.trim() || save.isPending}
-                onClick={() => save.mutate()}
-              >
-                {t("agent.memory.save")}
-              </button>
-              <button className="btn sm" onClick={() => setEditId(null)}>
-                {t("agent.memory.cancel")}
-              </button>
-              {save.isError && <span className="danger-text text-xs">{(save.error as Error).message}</span>}
+        <span className="flex-1" />
+        {canManage && (
+          <button
+            className="btn sm"
+            disabled={consolidate.isPending || list.length < 2}
+            onClick={() => consolidate.mutate()}
+          >
+            {consolidate.isPending ? t("agent.memory.consolidating") : t("agent.memory.consolidate")}
+          </button>
+        )}
+      </div>
+      {note && <p className="muted text-xs mb-2">{note}</p>}
+
+      {view === "log" ? (
+        <>
+          {logs.length === 0 && <p className="muted">{t("agent.memory.logEmpty")}</p>}
+          {logs.map((l) => (
+            <div key={l.id} className="flex items-baseline gap-2 py-1 border-b" style={{ borderColor: "var(--border)" }}>
+              <span className={`chip ${l.op === "merge" ? "" : "fixed"}`} style={{ fontSize: "10.5px" }}>
+                {opLabel(l.op)}
+              </span>
+              {l.page_slug &&
+                (has(l.page_slug) ? (
+                  <button type="button" className="wikilink text-[13px]" onClick={() => openPage(l.page_slug!)}>
+                    {l.page_slug}
+                  </button>
+                ) : (
+                  <span className="wikilink missing text-[13px]" title={t("agent.memory.missing")}>
+                    {l.page_slug}
+                  </span>
+                ))}
+              <span className="text-[13px] min-w-0 truncate">{l.summary}</span>
+              <span className="flex-1" />
+              <span className="muted text-[11px] shrink-0">{new Date(l.created_at).toLocaleString(locale)}</span>
             </div>
-          </div>
-        ) : (
-          <div key={m.id} className="card mb-2 flex justify-between gap-3" style={{ padding: "12px 14px" }}>
-            <span className="voice text-[14.5px]">{m.content}</span>
-            <span className="muted text-[11px] shrink-0 flex items-center gap-2">
-              {new Date(m.created_at).toLocaleDateString(locale)}
-              {canManage && (
-                <>
-                  <button
-                    className="btn sm"
-                    onClick={() => {
-                      setEditId(m.id);
-                      setEditText(m.content);
-                    }}
-                  >
-                    {t("agent.memory.change")}
-                  </button>
-                  <button
-                    className="btn sm danger"
-                    disabled={remove.isPending}
-                    onClick={() => remove.mutate(m.id)}
-                  >
-                    {t("agent.memory.forget")}
-                  </button>
-                </>
+          ))}
+        </>
+      ) : current ? (
+        // ── Seiten-Detail: gerenderte Wiki-Seite mit klickbaren Links + Backlinks ──
+        <>
+          <button type="button" className="btn sm mb-3" onClick={() => setSelected(null)}>
+            ← {t("agent.memory.allPages")}
+          </button>
+          {editId === current.id ? (
+            <div className="card" style={{ padding: "12px 14px" }}>
+              <input className="mb-2" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder={t("agent.memory.titlePlaceholder")} />
+              <textarea rows={6} value={editText} onChange={(e) => setEditText(e.target.value)} />
+              <div className="flex items-center gap-2 mt-2">
+                <button className="btn primary sm" disabled={!editText.trim() || save.isPending} onClick={() => save.mutate()}>
+                  {t("agent.memory.save")}
+                </button>
+                <button className="btn sm" onClick={() => setEditId(null)}>
+                  {t("agent.memory.cancel")}
+                </button>
+                {save.isError && <span className="danger-text text-xs">{(save.error as Error).message}</span>}
+              </div>
+            </div>
+          ) : (
+            <div className="card" style={{ padding: "16px 18px" }}>
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <span className="flex items-center gap-2 min-w-0">
+                  <span className="font-medium text-[16px]">{current.title || current.slug}</span>
+                  {current.source && (
+                    <span className="chip fixed" style={{ fontSize: "10px" }}>
+                      {current.source === "manual" ? t("agent.memory.sourceManual") : t("agent.memory.sourceAgent")}
+                    </span>
+                  )}
+                </span>
+                <span className="muted text-[11px] shrink-0 flex items-center gap-2">
+                  {new Date(current.updated_at || current.created_at).toLocaleDateString(locale)}
+                  {canManage && (
+                    <>
+                      <button
+                        className="btn sm"
+                        onClick={() => {
+                          setEditId(current.id);
+                          setEditTitle(current.title ?? "");
+                          setEditText(current.content);
+                        }}
+                      >
+                        {t("agent.memory.change")}
+                      </button>
+                      <button
+                        className="btn sm danger"
+                        disabled={remove.isPending}
+                        onClick={() => {
+                          remove.mutate(current.id);
+                          setSelected(null);
+                        }}
+                      >
+                        {t("agent.memory.forget")}
+                      </button>
+                    </>
+                  )}
+                </span>
+              </div>
+
+              <WikiBody text={current.content} has={has} onNav={openPage} />
+
+              {current.links && current.links.length > 0 && (
+                <div className="mt-4 pt-3" style={{ borderTop: "0.5px solid var(--border)" }}>
+                  <div className="muted text-[11px] mb-1.5">{t("agent.memory.outgoing")}</div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1">
+                    {current.links.map((l) =>
+                      has(l) ? (
+                        <button key={l} type="button" className="wikilink text-[13px]" onClick={() => openPage(l)}>
+                          {l}
+                        </button>
+                      ) : (
+                        <span key={l} className="wikilink missing text-[13px]" title={t("agent.memory.missing")}>
+                          {l}
+                        </span>
+                      ),
+                    )}
+                  </div>
+                </div>
               )}
-            </span>
-          </div>
-        ),
+
+              <div className="mt-4 pt-3" style={{ borderTop: "0.5px solid var(--border)" }}>
+                <div className="muted text-[11px] mb-1.5">{t("agent.memory.backlinks")}</div>
+                {backlinks.length === 0 ? (
+                  <p className="muted text-[12.5px]">{t("agent.memory.noBacklinks")}</p>
+                ) : (
+                  <div className="flex flex-wrap gap-x-3 gap-y-1">
+                    {backlinks.map((b) => (
+                      <button key={b.id} type="button" className="wikilink text-[13px]" onClick={() => openPage(b.slug)}>
+                        {b.title || b.slug}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        // ── Seiten-Index: navigierbarer Katalog (index.md-Äquivalent, spec/05) ──
+        <>
+          {canManage && (
+            <div className="card mb-3" style={{ padding: "12px 14px" }}>
+              <input
+                className="mb-2"
+                placeholder={t("agent.memory.titlePlaceholder")}
+                value={draftTitle}
+                onChange={(e) => setDraftTitle(e.target.value)}
+              />
+              <textarea
+                rows={2}
+                placeholder={t("agent.memory.addPlaceholder")}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+              />
+              <div className="flex items-center gap-2 mt-2">
+                <button className="btn primary sm" disabled={!draft.trim() || add.isPending} onClick={() => add.mutate()}>
+                  {t("agent.memory.remember")}
+                </button>
+                {add.isError && <span className="danger-text text-xs">{(add.error as Error).message}</span>}
+              </div>
+            </div>
+          )}
+          {(list.length > 0 || searching) && (
+            <div className="wiki-search mb-3">
+              <input
+                type="search"
+                placeholder={t("agent.memory.searchPlaceholder")}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+              />
+              {searching && (
+                <span className="muted text-[11px] shrink-0">
+                  {search.isFetching ? "…" : t("agent.memory.searchResults") + `: ${rows.length}`}
+                </span>
+              )}
+            </div>
+          )}
+          {!searching && list.length === 0 && <p className="muted">{t("agent.memory.nothingLearned")}</p>}
+          {searching && rows.length === 0 && !search.isFetching && <p className="muted">{t("agent.memory.searchEmpty")}</p>}
+          {rows.length > 0 && (
+            <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+              {rows.map((m) => {
+                const out = m.links?.length ?? 0;
+                const back = list.filter((p) => p.id !== m.id && (p.links ?? []).includes(m.slug)).length;
+                return (
+                  <button key={m.id} type="button" className="wiki-row" onClick={() => setSelected(m.slug)}>
+                    <span className="flex flex-col gap-0.5 min-w-0 flex-1">
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span className="t truncate">{m.title || m.slug}</span>
+                        {m.source === "manual" && (
+                          <span className="chip fixed shrink-0" style={{ fontSize: "10px" }}>
+                            {t("agent.memory.sourceManual")}
+                          </span>
+                        )}
+                        {searching && typeof m.score === "number" && (
+                          <span className="wiki-refcount shrink-0" title={t("agent.memory.searchResults")}>
+                            {Math.round(m.score * 100)}%
+                          </span>
+                        )}
+                      </span>
+                      <span className="p truncate">{wikiPreview(m.content)}</span>
+                    </span>
+                    {!searching && (
+                      <span className="wiki-refcount shrink-0">
+                        {out > 0 && <span title={t("agent.memory.outgoing")}>{out}→</span>}
+                        {out > 0 && back > 0 && " "}
+                        {back > 0 && <span title={t("agent.memory.backlinks")}>{back}←</span>}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
     </div>
   );

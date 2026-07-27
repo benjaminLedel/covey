@@ -1,4 +1,215 @@
 {
+  "public": {
+    "nav": {
+      "aria": "Hauptnavigation",
+      "function": "Funktion",
+      "covey": "Plattform",
+      "companion": "App",
+      "login": "Anmelden",
+      "docs": "Docs"
+    },
+    "products": {
+      "title": "Für Ihre Agenten — und die Menschen dahinter",
+      "lead": "Covey ist die Plattform für Ihre KI-Belegschaft. Die Companion-App ist der optionale Weg, über den Menschen ihr Wissen als Kontext für ihre Agenten einbringen.",
+      "soon": "in Entwicklung",
+      "more": "Mehr erfahren",
+      "allFunctions": "Alle Funktionen ansehen",
+      "covey": {
+        "name": "Covey",
+        "tagline": "Die Plattform, die KI-Agenten wie Mitarbeiter führt: Identität, Sandbox, Zugänge, Governance."
+      },
+      "companion": {
+        "name": "Companion",
+        "tagline": "Die App, in der ein Mensch sein Wissen ablädt — kuratiert zu Kontext, den seine Agenten nutzen."
+      }
+    },
+    "function": {
+      "eyebrow": "Funktion",
+      "title": "Alles, was eine Organisation braucht, um Agenten arbeiten zu lassen",
+      "lead": "Von der Einstellung über den Arbeitsalltag bis zur Kontrolle — die Fähigkeiten im Überblick.",
+      "groups": {
+        "structure": "Identität & Struktur",
+        "work": "Arbeit & Zielsysteme",
+        "control": "Sicherheit & Kontrolle",
+        "memory": "Gedächtnis & Wissen"
+      },
+      "cap": {
+        "orgchart": {
+          "t": "Org-Chart & Abteilungen",
+          "d": "Menschen und Agenten stehen im selben Org-Chart — mit Abteilungen, Vorgesetzten und Cost-Centern. Wer arbeitet wo, wer wem zu."
+        },
+        "profiles": {
+          "t": "Mitarbeiter- & Agenten-Profile",
+          "d": "Jeder Agent und jeder Mensch hat ein Profil mit Rolle, Aufgabe und Zuordnung — die Belegschaft auf einen Blick."
+        },
+        "identity": {
+          "t": "Identität & RBAC",
+          "d": "Menschliche Rollen mit fein gescopten Rechten (Admin, Agent-Owner, Security, Auditor, Controlling), per SSO authentifizierbar."
+        },
+        "backlog": {
+          "t": "Backlog & Aufgaben",
+          "d": "Agenten arbeiten ein priorisiertes Backlog ab wie ein Team — Aufgaben mit Zuständen, Blockaden mit Rückfragen an Menschen."
+        },
+        "targets": {
+          "t": "Zielsystem-Plugins",
+          "d": "Zielsysteme sind selbstregistrierende Plugins mit Manifest — neue Integrationen andocken, ohne den Kern anzufassen."
+        },
+        "gitlab": {
+          "t": "GitLab & Code",
+          "d": "Agenten arbeiten in echten Repositories: Branches, Merge Requests, Pipelines — als vollwertige Teammitglieder im Entwicklungsprozess."
+        },
+        "email": {
+          "t": "E-Mail & IMAP",
+          "d": "Postfächer als Zielsystem: Agenten lesen und beantworten Mails, ausgelöst über Webhooks oder Abruf."
+        },
+        "runtimes": {
+          "t": "Austauschbare Runtimes",
+          "d": "Die Runtime (erste: Claude Code headless) ist ein dünner Adapter hinter einem stabilen Protokoll — austauschbar, ohne die Plattform zu ändern."
+        },
+        "sandbox": {
+          "t": "Isolierte Sandboxen",
+          "d": "Jeder Agent arbeitet in einer eigenen, ephemeren Docker-Sandbox mit persistentem Home. Geht sie verloren, wird sie aus Config und Home neu gebaut."
+        },
+        "secrets": {
+          "t": "Secrets-Broker",
+          "d": "Niemals langlebige Secrets in der Sandbox. Zugänge werden zur Laufzeit gebrokert — kurzlebig, gescopt, widerrufbar."
+        },
+        "guardrails": {
+          "t": "Guard-Rails & Freigaben",
+          "d": "Policies greifen zentral und außerhalb der Runtime, fail-closed. Kritische Aktionen warten auf eine menschliche Freigabe."
+        },
+        "egress": {
+          "t": "Egress-Kontrolle",
+          "d": "Der Netzwerkausgang der Sandbox ist kontrolliert — wohin ein Agent sprechen darf, entscheidet die Plattform, nicht der Prompt."
+        },
+        "observability": {
+          "t": "Observability & Recording",
+          "d": "Jede Sitzung wird aufgezeichnet: was der Agent getan hat, Schritt für Schritt — nachvollziehbar, mit Alerts und Kill-Switch."
+        },
+        "costs": {
+          "t": "Kosten & Budgets",
+          "d": "Jede Aktion trägt ihre Kosten. Budgets pro Agent und Abteilung, transparent fürs Controlling."
+        },
+        "wiki": {
+          "t": "Wiki-Gedächtnis",
+          "d": "Agenten pflegen ein Gedächtnis aus verlinkten Markdown-Seiten mit pgvector-Index — verdichtet statt angehäuft, mit getakteter Konsolidierung."
+        },
+        "companion": {
+          "t": "Companion-Anbindung",
+          "d": "Menschen können ihr eigenes Wissen (über die Companion-App) an ihre Agenten freigeben — zentral durchgesetzt, fail-closed. In Entwicklung."
+        }
+      },
+      "ctaTitle": "Covey ausprobieren",
+      "ctaLead": "Melden Sie sich an und sehen Sie Covey in Aktion.",
+      "ctaCovey": "Mehr über Covey"
+    },
+    "covey": {
+      "eyebrow": "Produkt · Plattform",
+      "lead": "Covey behandelt KI-Agenten wie Mitarbeiter: eigene Identität, isolierte Sandbox, gebrokerte Zugänge, ein Platz im Org-Chart — und zentrale Governance über die gesamte Belegschaft.",
+      "seeFunctions": "Funktionen ansehen",
+      "pillarsTitle": "Die vier Säulen",
+      "pillars": {
+        "identity": {
+          "t": "Identität & Org-Chart",
+          "d": "Jeder Agent hat eine Identität, eine Rolle und eine Abteilung und wird wie ein Mitarbeiter geführt."
+        },
+        "sandbox": {
+          "t": "Isolierte Sandbox",
+          "d": "Ein eigener, ephemerer Arbeitsplatz mit persistentem Home. Ersetzbar; der Zustand liegt in der Control Plane."
+        },
+        "broker": {
+          "t": "Gebrokerte Zugänge",
+          "d": "Secrets bleiben zentral. Zugriffe auf Zielsysteme werden zur Laufzeit ausgestellt — kurzlebig und auf die Aufgabe gescopt."
+        },
+        "control": {
+          "t": "Zentrale Kontrolle",
+          "d": "Guard-Rails, Freigaben, Recording, Kosten und Kill-Switch — außerhalb der Runtime erzwungen, fail-closed."
+        }
+      },
+      "whoTitle": "Für die ganze Organisation",
+      "whoLead": "Covey ist kein Single-User-Tool, sondern eine Plattform für viele Rollen:",
+      "who1": "IT & Plattform-Admins, die die Belegschaft betreiben",
+      "who2": "Team-Leads, die Agenten verantworten und Aufgaben priorisieren",
+      "who3": "Security & Compliance, die Guard-Rails und Audits verantworten",
+      "who4": "Controlling, das Kosten und Budgets im Blick behält",
+      "ctaTitle": "Sehen Sie Covey in Aktion",
+      "ctaLead": "Melden Sie sich an — oder entdecken Sie, wie die Companion-App Menschen und Agenten verbindet.",
+      "ctaCompanion": "Zur Companion-App"
+    },
+    "companion": {
+      "eyebrow": "Optionale Companion-App",
+      "lead": "Ein Ort für das eigene Wissen: Ideen per Sprache, Notizen, Dokumente. Ein Kurator verdichtet das Rohe und stellt es Ihren Agenten als Kontext bereit.",
+      "aboutCovey": "Zur Plattform Covey",
+      "howTitle": "In drei Schritten",
+      "steps": {
+        "capture": {
+          "t": "Abladen",
+          "d": "Unterwegs die Idee einsprechen, eine Notiz, ein Dokument. Der Posteingang nimmt jedes Format."
+        },
+        "curate": {
+          "t": "Kuratieren",
+          "d": "Ein Kurator-Agent schneidet das Rohe in verlinkte Wiki-Seiten, erkennt Lücken und fragt nach."
+        },
+        "feed": {
+          "t": "Füttern",
+          "d": "Freigegebenes Wissen fließt — zentral durchgesetzt — als Kontext in die Aufgaben Ihrer Agenten."
+        }
+      },
+      "pillarsTitle": "Was sie ausmacht",
+      "pillars": {
+        "voice": {
+          "t": "Voice-first",
+          "d": "Der flüchtige Gedanke im Auto, kurz eingesprochen — transkribiert und strukturiert, später vielleicht ein Ticket."
+        },
+        "curator": {
+          "t": "Kurator, der nachfragt",
+          "d": "Ein LLM-Agent verdichtet, erkennt Widersprüche und Lücken und stellt gezielte, dosierte Rückfragen."
+        },
+        "privacy": {
+          "t": "Privat by default",
+          "d": "Der Brain-Dump gehört dem Menschen. Kollegen und Vorgesetzte sehen nichts, solange nichts bewusst freigegeben wird."
+        },
+        "continuity": {
+          "t": "Kontinuität",
+          "d": "Vertretung, Urlaub, Onboarding: freigegebenes Rollen-Wissen lässt Kolleg:innen und Agenten übernehmen, wenn jemand ausfällt."
+        }
+      },
+      "privacyTitle": "Kein Überwachungswerkzeug",
+      "privacyBody": "Die Companion dient der Produktivität des Menschen, nicht seiner Kontrolle. Persönliches ist privat, Freigabe an die Abteilung ist eine bewusste Entscheidung, gesteuert vom Team-Lead — und jeder Zugriff bleibt für den Menschen sichtbar.",
+      "ctaTitle": "Das Konzept steht, der Bau folgt",
+      "ctaLead": "Die Companion-App ist in Entwicklung. Ihr Fundament ist Coveys Gedächtnis-Infrastruktur."
+    },
+    "shots": {
+      "title": "Einblick in die Software",
+      "lead": "Echte Ansichten aus der Control Plane — Belegschaft, Struktur, Arbeit, Gedächtnis und Kosten.",
+      "agents": {
+        "t": "Die Belegschaft",
+        "d": "Alle Agenten mit Status, Runtime und Rolle auf einen Blick."
+      },
+      "org": {
+        "t": "Org-Chart",
+        "d": "Menschen und Agenten in einer Struktur — Abteilungen, Vorgesetzte, Delegation."
+      },
+      "backlog": {
+        "t": "Backlog & Aufgaben",
+        "d": "Aufgaben mit Zuständen, dazu Kosten, Tokens und LLM-Läufe je Agent."
+      },
+      "memory": {
+        "t": "Wiki-Gedächtnis",
+        "d": "Das verdichtete Wissen eines Agenten — pflegbar und nachvollziehbar."
+      },
+      "costs": {
+        "t": "Kosten & Observability",
+        "d": "Ausgaben und Token-Verbrauch über die Zeit, je Agent und Modell."
+      }
+    },
+    "docs": {
+      "aria": "Dokumentations-Navigation",
+      "title": "Dokumentation",
+      "prev": "Zurück",
+      "next": "Weiter"
+    }
+  },
   "nav": {
     "agents": "Agenten",
     "templates": "Vorlagen",
@@ -81,7 +292,7 @@
   },
   "login": {
     "title": "Anmelden",
-    "subtitle": "Die Control Plane für Ihre Agenten-Belegschaft.",
+    "subtitle": "Ihre KI-Belegschaft, professionell geführt.",
     "email": "E-Mail",
     "password": "Passwort",
     "submit": "Anmelden",
@@ -91,36 +302,36 @@
     "demoLogin": "Demo-Login (Admin)"
   },
   "landing": {
-    "pitch": "Covey behandelt KI-Agenten wie Mitarbeiter: mit eigener Identität, isolierter Sandbox, gebrokerten Zugängen und einem festen Platz im Org-Chart — die IT- und HR-Abteilung für Ihre KI-Agenten.",
-    "point1": "Agenten mit Identität, Rolle und Platz im Org-Chart",
-    "point2": "Keine langlebigen Secrets in der Sandbox — Zugänge werden zur Laufzeit gebrokert",
-    "point3": "Guard-Rails zentral erzwungen, fail-closed — nicht dem Prompt überlassen",
+    "pitch": "Covey behandelt KI-Agenten wie Mitarbeiter: eigene Identität, isolierte Sandbox, gebrokerte Zugänge und ein Platz im Org-Chart. Sie stellen ein, weisen Aufgaben zu und behalten die Kontrolle — über einen Agenten oder die gesamte Belegschaft.",
+    "point1": "Jeder Agent mit Rolle, Backlog und Vorgesetztem — geführt wie ein Mitarbeiter.",
+    "point2": "Echte Arbeit in echten Zielsystemen: Zammad, GitLab, E-Mail und mehr.",
+    "point3": "Kosten, Guard-Rails und Audit jederzeit im Blick.",
     "rotPrefix": "Jeder Agent bekommt",
     "rot1": "eine Identität.",
     "rot2": "eine isolierte Sandbox.",
     "rot3": "gebrokerte Zugänge.",
     "rot4": "zentrale Guard-Rails.",
     "rot5": "einen Platz im Org-Chart.",
-    "featuresTitle": "Eine Plattform, die Agenten wie Mitarbeiter behandelt",
-    "featuresLead": "Von der Einstellung über den Arbeitsalltag bis zur Kontrolle: Covey bündelt, was eine Organisation braucht, um KI-Agenten sicher und nachvollziehbar arbeiten zu lassen.",
+    "featuresTitle": "Alles, was Ihre KI-Belegschaft braucht",
+    "featuresLead": "Von der Einstellung über den Arbeitsalltag bis zur Kontrolle — Covey vereint, was eine Organisation braucht, um KI-Agenten sicher und nachvollziehbar arbeiten zu lassen.",
     "f1t": "Identität & Org-Chart",
     "f1d": "Jeder Agent hat eine Identität, eine Rolle und eine Abteilung. Das Org-Chart zeigt Menschen und Agenten nebeneinander — wer wo arbeitet und wer wem zuarbeitet.",
     "f2t": "Isolierte Sandboxen",
-    "f2d": "Jeder Agent arbeitet in einer eigenen, ephemeren Sandbox mit persistentem Home. Geht sie verloren, wird sie aus Config und Home einfach neu gebaut.",
+    "f2d": "Jeder Agent arbeitet in einer eigenen, ephemeren Sandbox mit persistentem Home. Geht sie verloren, wird sie aus Config und Home neu gebaut.",
     "f3t": "Gebrokerte Zugänge",
-    "f3d": "Secrets bleiben in der Control Plane. Zugriffe auf Zielsysteme werden zur Laufzeit gebrokert — kurzlebig und auf die jeweilige Aufgabe gescopt.",
+    "f3d": "Secrets bleiben in der Control Plane. Zugriffe auf Zielsysteme werden zur Laufzeit ausgestellt — kurzlebig und auf die jeweilige Aufgabe gescopt.",
     "f4t": "Guard-Rails & Freigaben",
-    "f4d": "Policies werden zentral und außerhalb der Runtime erzwungen, fail-closed. Kritische Aktionen warten auf eine menschliche Freigabe.",
+    "f4d": "Policies greifen zentral und außerhalb der Runtime, fail-closed. Kritische Aktionen warten auf eine menschliche Freigabe.",
     "f5t": "Backlog & Aufgaben",
-    "f5d": "Agenten arbeiten ein Backlog ab wie ein Team: Aufgaben mit Zuständen, Blockaden mit Rückfragen — Menschen bleiben in der Schleife.",
+    "f5d": "Agenten arbeiten ein priorisiertes Backlog ab wie ein Team: Aufgaben mit Zuständen, Blockaden mit Rückfragen — Menschen bleiben in der Schleife.",
     "f6t": "Observability & Kosten",
-    "f6d": "Jede Sitzung wird aufgezeichnet: was der Agent getan hat, was es gekostet hat und wo Alerts nötig sind — nachvollziehbar für die ganze Organisation.",
+    "f6d": "Jede Sitzung wird aufgezeichnet: was der Agent getan hat und was es gekostet hat — nachvollziehbar für die ganze Organisation, mit Alerts und Kill-Switch.",
     "bandAlt": "Ein Starenschwarm zieht im Abendlicht über die Hügel",
-    "bandCaption": "Ein Schwarm koordiniert sich selbst — Covey orchestriert Ihren.",
+    "bandCaption": "Ein Schwarm koordiniert sich selbst. Covey orchestriert Ihren.",
     "howTitle": "Wie Covey arbeitet",
     "howAlt": "Eine Vogelformation vor hellem Himmel",
     "s1t": "Einstellen",
-    "s1d": "Agent aus einem Template anlegen: Identität, Rolle, versionierte Config (SOUL.md) — und ein Platz im Org-Chart.",
+    "s1d": "Agent aus einem Template anlegen: Identität, Rolle, versionierte Config (SOUL.md) und ein Platz im Org-Chart.",
     "s2t": "Arbeiten lassen",
     "s2d": "Der Agent zieht Aufgaben aus dem Backlog und arbeitet in seiner Sandbox. Zugänge zu Zielsystemen werden zur Laufzeit gebrokert.",
     "s3t": "Kontrollieren",
@@ -209,10 +420,6 @@
       "budget": "Budget",
       "noCap": "kein Deckel"
     },
-    "supervisor": {
-      "reportsTo": "berichtet an:",
-      "nobody": "— niemanden —"
-    },
     "backlog": {
       "newTask": "Neue Aufgabe",
       "titlePlaceholder": "Titel",
@@ -274,7 +481,9 @@
       "schedule_interval": "alle {{delta}}",
       "schedule_daily": "täglich {{time}}",
       "onlyIf": "nur wenn {{system}} Arbeit meldet",
-      "onlyIfHint": "Die Control Plane prüft vor jedem Lauf beim Zielsystem {{system}}, ob Arbeit vorliegt (z. B. ungelesene Mails) — sonst entfällt der Lauf ohne den Agenten zu wecken."
+      "onlyIfHint": "Die Control Plane prüft vor jedem Lauf beim Zielsystem {{system}}, ob Arbeit vorliegt (z. B. ungelesene Mails) — sonst entfällt der Lauf ohne den Agenten zu wecken.",
+      "system": "Plattform",
+      "systemHint": "Plattformweiter Standard-Heartbeat (nicht aus HEARTBEAT.md) — pro Agent per HEARTBEAT.md-Eintrag gleichen Titels überschreibbar."
     },
     "webhook": {
       "desc": "Optionaler Webhook-Trigger: ein POST auf die URL legt eine Backlog-Aufgabe an und weckt den Agenten — für Fremdsysteme ohne Zielsystem-Plugin (CI, Cron, Zapier, Monitoring).",
@@ -313,12 +522,37 @@
     },
     "memory": {
       "addPlaceholder": "Wissen mitgeben, z. B. „Kunde Meier ist Bestandskunde und wird geduzt“ …",
+      "titlePlaceholder": "Titel (optional) — legt eine benannte Seite an",
       "remember": "Merken",
       "save": "Speichern",
       "cancel": "Abbrechen",
       "nothingLearned": "Noch nichts gelernt.",
       "change": "Ändern",
-      "forget": "Vergessen"
+      "forget": "Vergessen",
+      "pages": "Seiten",
+      "log": "Verlauf",
+      "logEmpty": "Noch keine Wiki-Aktivität.",
+      "consolidate": "Duplikate zusammenführen",
+      "consolidating": "Führe zusammen …",
+      "consolidateDone": "{{count}} zusammengeführt",
+      "consolidateNone": "Keine Duplikate gefunden",
+      "sourceManual": "manuell",
+      "sourceAgent": "Agent",
+      "hint": "Das Wiki ist das dauerhafte Gedächtnis des Agenten: verlinkte Seiten, im triage-Schritt geladen, im done-Schritt gepflegt.",
+      "opIngest": "eingespeist",
+      "opWrite": "bearbeitet",
+      "opMerge": "verschmolzen",
+      "opDelete": "gelöscht",
+      "allPages": "Alle Seiten",
+      "backlinks": "Verweist hierher",
+      "outgoing": "Verweist auf",
+      "noBacklinks": "Keine andere Seite verweist hierher.",
+      "missing": "Seite existiert noch nicht",
+      "preview": "Öffnen zum Lesen",
+      "searchPlaceholder": "Wiki durchsuchen …",
+      "searchEmpty": "Keine Treffer.",
+      "searchClear": "Suche zurücksetzen",
+      "searchResults": "Treffer"
     },
     "egress": {
       "desc": "Dieser Agent darf ausgehend nur die Hosts unten erreichen — alles andere blockt der Egress-Proxy fail-closed.",
@@ -455,7 +689,7 @@
   "org": {
     "title": "Organigramm",
     "subtitle": "Menschen & Agenten",
-    "desc": "Der Org-Chart strukturiert Eskalation und Delegation: Agenten berichten an ihren Vorgesetzten, Menschen an ihre Führungskraft. Zuordnungen pflegen Sie auf der Agenten-Seite bzw. in der Benutzerverwaltung.",
+    "desc": "Der Org-Chart strukturiert Eskalation und Delegation: Agenten berichten an ihren Vorgesetzten, Menschen an ihre Führungskraft. Zuordnungen pflegen Sie hier per Drag & Drop.",
     "legendHuman": "Mensch",
     "legendAgent": "Agent",
     "legendHint": "Agenten und Menschen per Drag & Drop auf eine Abteilung oder auf ein Mitglied (Unterstellung) ziehen",
@@ -466,7 +700,7 @@
     "noPersons": "Keine Personen in dieser Organisation.",
     "loadError": "Org-Chart konnte nicht geladen werden.",
     "withoutSupervisor": "Ohne Vorgesetzten ({{count}})",
-    "withoutSupervisorHint": "Diese Agenten hängen noch nicht im Org-Chart — auf der Agenten-Seite lässt sich ein Vorgesetzter zuordnen.",
+    "withoutSupervisorHint": "Diese Agenten hängen noch nicht im Org-Chart — ziehen Sie sie per Drag & Drop unter einen Vorgesetzten oder in eine Abteilung.",
     "nodeHuman": "Mensch",
     "openProfile": "Profil-Seite öffnen",
     "member": "Mitglied",
@@ -717,8 +951,6 @@
     "password": "Passwort (min. 8 Zeichen)",
     "create": "Anlegen",
     "profileHint": "Funktion, Plattform-Kennungen und Zuständigkeiten werden nach dem Anlegen auf der Profil-Seite der Person gepflegt.",
-    "reportsTo": "berichtet an",
-    "nobody": "— niemanden —",
     "passwordReset": "Passwort",
     "delete": "Löschen",
     "cantDeleteSelf": "Das eigene Konto kann nicht gelöscht werden",

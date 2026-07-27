@@ -83,6 +83,7 @@ export function Markdown({ text }: { text: string }) {
         : level === 2 ? <h5 key={key++} className="md-h">{content}</h5>
         : <h6 key={key++} className="md-h">{content}</h6>,
       );
+      i++; // Zeile konsumieren — sonst Endlosschleife bei Überschriften
       continue;
     }
 

@@ -2,6 +2,9 @@
 #
 # Pipeline: test → build.
 # - test:  Frontend bauen (web/dist muss für //go:embed existieren), dann go vet + go test.
+#          go test läuft mit -coverprofile: GitLab bekommt den Gesamt-Prozentwert
+#          als Badge (coverage-Regex) und einen Cobertura-Report für die
+#          MR-Diff-Coverage-Anzeige.
 #          Die Integrationstests skippen automatisch, weil in der CI kein Postgres
 #          auf localhost:5433 erreichbar ist (siehe internal/integration/stack_test.go).
 # - build: Docker-Image aus dem Multi-Stage-Dockerfile via docker:dind bauen
@@ -66,7 +69,24 @@ test-go:
       - .go/pkg/mod/
   script:
     - go vet ./...
-    - go test ./...
+    # Coverage über alle Pakete messen: -coverpkg=./... zählt auch Zeilen, die
+    # aus Tests anderer Pakete heraus abgedeckt werden (sonst nur paket-lokal).
+    - go test -coverprofile=coverage.out -coverpkg=./... ./...
+    # Gesamt-Prozentwert für den GitLab-Coverage-Badge (siehe coverage-Regex unten).
+    - go tool cover -func=coverage.out | tee coverage.txt
+    # Cobertura-Report für die MR-Diff-Coverage-Anzeige in GitLab.
+    - go run github.com/boumenot/gocover-cobertura@latest < coverage.out > coverage.xml
+  # GitLab liest den Gesamt-Coverage aus der Ausgabe von `go tool cover -func`
+  # (letzte Zeile "total: … 42.7%") und zeigt ihn als Badge/Trend an.
+  coverage: '/^total:\s+\(statements\)\s+(\d+(?:\.\d+)?)%/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
+    paths:
+      - coverage.txt
+    expire_in: 1 week
 
 build-image:
   stage: build

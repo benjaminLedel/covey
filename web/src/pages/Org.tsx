@@ -266,22 +266,31 @@ function rootsOf(members: Members) {
 }
 
 function MemberBranch({
-  members, parentId, seen, dragging, onDragStart, onDragEnd, onDrop,
+  members, parentId, seen, leadIds, onRemoveLead, dragging, onDragStart, onDragEnd, onDrop,
 }: {
   members: Members;
   parentId?: string;      // undefined = roots der Abteilung
   seen: Set<string>;
+  leadIds: Set<string>;   // Mitglieder, die Leitung der Abteilung sind
+  onRemoveLead: (memberId: string) => void;
   dragging: DragItem | null;
   onDragStart: (d: DragItem) => void;
   onDragEnd: () => void;
   onDrop: (t: DropTarget) => void;
 }) {
-  const childHumans = parentId === undefined
+  // Auf Wurzel-Ebene stehen die Leitungen zuerst — sie sind die Spitze der
+  // Abteilung, alles andere hängt darunter. Stabile Sortierung erhält sonst
+  // die Reihenfolge.
+  const leadFirst = <T extends { id: string }>(list: T[]) =>
+    parentId === undefined
+      ? [...list].sort((a, b) => Number(leadIds.has(b.id)) - Number(leadIds.has(a.id)))
+      : list;
+  const childHumans = leadFirst(parentId === undefined
     ? rootsOf(members).humans
-    : members.humans.filter(h => h.manager_id === parentId && !seen.has(h.id));
-  const childAgents = parentId === undefined
+    : members.humans.filter(h => h.manager_id === parentId && !seen.has(h.id)));
+  const childAgents = leadFirst(parentId === undefined
     ? rootsOf(members).agents
-    : members.agents.filter(a => a.supervisor_id === parentId && !seen.has(a.id));
+    : members.agents.filter(a => a.supervisor_id === parentId && !seen.has(a.id)));
 
   if (childHumans.length + childAgents.length === 0) return null;
 
@@ -294,6 +303,8 @@ function MemberBranch({
           kind="human"
           members={members}
           seen={seen}
+          leadIds={leadIds}
+          onRemoveLead={onRemoveLead}
           dragging={dragging}
           onDragStart={onDragStart}
           onDragEnd={onDragEnd}
@@ -307,6 +318,8 @@ function MemberBranch({
           kind="agent"
           members={members}
           seen={seen}
+          leadIds={leadIds}
+          onRemoveLead={onRemoveLead}
           dragging={dragging}
           onDragStart={onDragStart}
           onDragEnd={onDragEnd}
@@ -318,12 +331,14 @@ function MemberBranch({
 }
 
 function MemberNode({
-  member, kind, members, seen, dragging, onDragStart, onDragEnd, onDrop,
+  member, kind, members, seen, leadIds, onRemoveLead, dragging, onDragStart, onDragEnd, onDrop,
 }: {
   member: Human | Agent;
   kind: "human" | "agent";
   members: Members;
   seen: Set<string>;
+  leadIds: Set<string>;
+  onRemoveLead: (memberId: string) => void;
   dragging: DragItem | null;
   onDragStart: (d: DragItem) => void;
   onDragEnd: () => void;
@@ -334,6 +349,7 @@ function MemberNode({
   const isAgent = kind === "agent";
   const agent = isAgent ? (member as Agent) : null;
   const human = !isAgent ? (member as Human) : null;
+  const isLead = leadIds.has(member.id);
 
   const beingDragged = dragging?.member.id === member.id;
   // Menschen können nur Menschen unterstellt werden (manager_id → humans);
@@ -347,7 +363,7 @@ function MemberNode({
   return (
     <li>
       <div
-        className={`orgmember${beingDragged ? " orgmember-out" : ""}${isOver && canDrop ? " node-drop-over" : ""}`}
+        className={`orgmember${isLead ? " orgmember-lead" : ""}${beingDragged ? " orgmember-out" : ""}${isOver && canDrop ? " node-drop-over" : ""}`}
         draggable
         onDragStart={e => {
           e.dataTransfer.effectAllowed = "move";
@@ -383,11 +399,23 @@ function MemberNode({
             ? <span className={`badge st-${status}`}>{t(`status.${status}`, status)}</span>
             : <span className="ntag">{t("org.nodeHuman")}</span>}
         </Link>
+        {isLead && (
+          <span className="lead-pill" title={t("org.leadLabel")}>
+            {t("org.leadLabel")}
+            <button
+              className="icon-btn danger"
+              onClick={e => { e.preventDefault(); e.stopPropagation(); onRemoveLead(member.id); }}
+              title={t("org.removeLead")}
+            >✕</button>
+          </span>
+        )}
       </div>
       <MemberBranch
         members={members}
         parentId={member.id}
         seen={nextSeen}
+        leadIds={leadIds}
+        onRemoveLead={onRemoveLead}
         dragging={dragging}
         onDragStart={onDragStart}
         onDragEnd={onDragEnd}
@@ -439,6 +467,16 @@ function DeptTreeNode({
 
   const total = members.humans.length + members.agents.length;
 
+  // Leitungen: interne (Mitglied dieser Abteilung) werden als Baum-Wurzel mit
+  // „Leitung"-Badge gezeigt — daher kein doppelter Chip. Externe Leitungen
+  // (kein Mitglied) haben keinen Baum-Knoten und bleiben als Chip im Kopf.
+  const memberIds = new Set<string>([
+    ...members.humans.map(h => h.id),
+    ...members.agents.map(a => a.id),
+  ]);
+  const leadIds = new Set(dept.leads.map(l => l.id));
+  const externalLeads = dept.leads.filter(l => !memberIds.has(l.id));
+
   // Akzentfarbe der Abteilung: Streifen + dezente Flächentönung. Inline, weil
   // die Farbe aus den Daten kommt; der Drop-Ring wird mitkomponiert, da die
   // Inline-Box-Shadow die der .node-drop-over-Klasse überdeckt.
@@ -478,11 +516,12 @@ function DeptTreeNode({
           </>
         )}
 
-        {/* Leitung: Chips der aktuellen Leitungen. */}
-        {dept.leads.length > 0 && (
+        {/* Leitung: nur externe Leitungen als Chip — interne stehen als
+            Baum-Wurzel mit „Leitung"-Badge unten. */}
+        {externalLeads.length > 0 && (
           <div className="dept-leads">
             <span className="dept-leads-label">{t("org.leadLabel")}</span>
-            {dept.leads.map(l => {
+            {externalLeads.map(l => {
               const m = resolveLead(l);
               if (!m) return null;
               return (
@@ -543,7 +582,7 @@ function DeptTreeNode({
       )}
 
       {total > 0 ? (
-        <MemberBranch members={members} seen={new Set()} dragging={dragging} onDragStart={onDragStart} onDragEnd={onDragEnd} onDrop={onDrop} />
+        <MemberBranch members={members} seen={new Set()} leadIds={leadIds} onRemoveLead={id => removeLeadMut.mutate(id)} dragging={dragging} onDragStart={onDragStart} onDragEnd={onDragEnd} onDrop={onDrop} />
       ) : (
         <ul>
           <li>
@@ -580,8 +619,13 @@ function UnassignedTreeNode({
         <div className="rl">{total}&thinsp;{total === 1 ? t("org.member") : t("org.members")}</div>
       </div>
       {total > 0 && (
-        <MemberBranch members={members} seen={new Set()} dragging={dragging} onDragStart={onDragStart} onDragEnd={onDragEnd} onDrop={onDrop} />
+        <MemberBranch members={members} seen={new Set()} leadIds={EMPTY_LEADS} onRemoveLead={NOOP} dragging={dragging} onDragStart={onDragStart} onDragEnd={onDragEnd} onDrop={onDrop} />
       )}
     </li>
   );
 }
+
+// „Ohne Abteilung" kennt keine Leitung — konstante Leerwerte, damit sich die
+// Props nicht bei jedem Render neu bilden.
+const EMPTY_LEADS = new Set<string>();
+const NOOP = () => {};

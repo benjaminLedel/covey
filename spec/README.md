@@ -28,7 +28,7 @@ Die Leitmetapher, aus der die gesamte Architektur folgt: Die Plattform ist die *
 | [`02-agenten-modell.md`](02-agenten-modell.md) | Der Agent als Entität: Identität, Sandbox, Zugänge, Config-as-Code, Org-Chart |
 | [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md) | Zustandsmaschine, Dispatch-Loop, Wake-Quellen, Backlog, Blocking, Event-Korrelation |
 | [`04-identitaet-secrets.md`](04-identitaet-secrets.md) | Keycloak, RFC 8693 Token Exchange, Secrets-Broker, Threat-Model |
-| [`05-gedaechtnis.md`](05-gedaechtnis.md) | Memory-Schichten, Knowledge-Graph (Graphiti), persistentes Home |
+| [`05-gedaechtnis.md`](05-gedaechtnis.md) | Memory-Schichten, LLM-Wiki (verlinkte Markdown-Seiten + pgvector-Index), persistentes Home |
 | [`06-observability-control.md`](06-observability-control.md) | Zentrale Guard-Rails, Session-Recording, Approval-Gates, Kill-Switch, Kostenkontrolle, Supervisor-Agent |
 | [`07-offene-entscheidungen.md`](07-offene-entscheidungen.md) | Offene Fragen, Build-vs-Buy, MVP-Scope |
 | [`08-marktumfeld.md`](08-marktumfeld.md) | Marktrecherche: Konkurrenz-Plattformen, Open-Source-Bausteine, Build-vs-Adopt-Matrix |
@@ -37,6 +37,7 @@ Die Leitmetapher, aus der die gesamte Architektur folgt: Die Plattform ist die *
 | [`11-mvp-plan.md`](11-mvp-plan.md) | Bau-Reihenfolge: Meilensteine M0–M7, kritischer Pfad, Abnahme-Checkliste |
 | [`12-claude-code-adapter.md`](12-claude-code-adapter.md) | Erster Runtime-Adapter: Steuerung von Claude Code headless via `claude -p`, Flag-Mapping, `blocked`↔`--resume` |
 | [`13-zammad-integration.md`](13-zammad-integration.md) | MVP-Zielsystem Zammad: Wake via Trigger/Webhook, REST-Aktionen, Broker-Token, `blocked`↔`pending`, Korrelation via Ticket-ID |
+| [`14-companion-gedaechtnis.md`](14-companion-gedaechtnis.md) | Companion-App: universeller Brain-Dump (Audio/Mail/Screen/Dokumente) → kuratiertes Wiki mit Medien → Kontext für Agenten; Memory-Kurator, Bearer-Auth, Datenschutz |
 
 ## Designprinzipien
 
@@ -68,3 +69,5 @@ Die Leitmetapher, aus der die gesamte Architektur folgt: Die Plattform ist die *
 - **Organisation / Tenant** — Die Einheit, für die eine Covey-Instanz betrieben wird. Alle Agenten, Rollen, Guard-Rails, Budgets und Audits sind org-scoped.
 - **Menschliche Rolle** — Ein Mensch mit definierten Rechten auf der Plattform (z. B. Platform-Admin, Agent-Owner, Security/Compliance, Auditor, Controlling). Über RBAC gesteuert, per SSO authentifiziert.
 - **Agent-Owner** — Der Mensch (meist Team-Lead einer Abteilung), der einen bestimmten Agenten verantwortet: dessen Config, Backlog-Priorität, Freigaben.
+- **Companion** — Die eigene (mobile/Desktop-) App zum Abladen des gesamten Brain-Loads (Audio, Mail, Screen-Recording, Dokumente, Links) an einem Ort. Der Memory-Kurator verdichtet ihn zum Wiki mit Medien (verlinkte Seiten + `pgvector`); privat by default, auf Wunsch an die eigenen Agenten freigebbar — als deren Kontext. Siehe [`14-companion-gedaechtnis.md`](14-companion-gedaechtnis.md).
+- **Memory-Kurator** — Ein org-eigener Agent, der den rohen Brain-Dump eines Menschen (Captures) in verlinkte Wiki-Seiten schneidet — Config-as-Code statt hartkodierter LLM-Aufruf. Siehe [`14-companion-gedaechtnis.md`](14-companion-gedaechtnis.md).

@@ -478,6 +478,24 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	}
 
 	registry := agents.NewRegistry(pool)
+	// Plattformweiter Wiki-Aufräum-Heartbeat (COVEY_WIKI_CLEANUP): die Control Plane
+	// legt jedem Agenten periodisch einen Backlog-Task an, in dem er sein Wiki pflegt
+	// (Duplikate mergen, tote Links fixen — spec/05). Pro Agent per HEARTBEAT.md
+	// überschreibbar; leerer Zeitplan = aus.
+	if hb, enabled, err := agents.WikiCleanupHeartbeat(cfg.WikiCleanup); err != nil {
+		return err
+	} else if enabled {
+		registry.SystemHeartbeats = append(registry.SystemHeartbeats, hb)
+		sched := hb.DailyAt
+		if sched == "" {
+			sched = hb.Every.String()
+		}
+		log.Info("wiki-aufräum-heartbeat aktiv", "zeitplan", sched)
+	}
+	// Auch bei abgeschaltetem Feature aufrufen — räumt verwaiste System-Heartbeats weg.
+	if err := registry.ReconcileSystemHeartbeats(ctx); err != nil {
+		return err
+	}
 	backlogStore := backlog.NewStore(pool)
 	obs := observability.NewStore(pool)
 	rails := guardrails.NewStore(pool)

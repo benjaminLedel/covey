@@ -88,8 +88,8 @@ Reihenfolge ist nicht strikt linear: **M5** hängt an M2 (nicht an M4) und kann 
 
 **Ziel:** Der Agent kennt den Laden.
 
-- **Bauen:** Built-in-Memory über **pgvector**; Abfrage im `triage`-Schritt, Einspeisung im `done`-Schritt (siehe [`05-gedaechtnis.md`](05-gedaechtnis.md)).
-- **Adoptieren:** Graphiti erst post-MVP, wenn echtes temporales Reasoning gebraucht wird.
+- **Bauen:** Built-in-Memory über **pgvector**; Abfrage im `triage`-Schritt, Einspeisung im `done`-Schritt (siehe [`05-gedaechtnis.md`](05-gedaechtnis.md)). MVP-Baseline: flacher Schnipsel-Store; Weiterentwicklung zum **Wiki** (verlinkte Markdown-Seiten + pgvector-Index, Konsolidierungs-Pass) über dieselbe Naht.
+- **Adoptieren:** Graphiti erst post-MVP, falls echtes temporales Reasoning über das Wiki hinaus gebraucht wird.
 - **Ergebnis:** „Mit diesem Kunden hatte ich letzte Woche zu tun, die Lösung war Y."
 
 ---

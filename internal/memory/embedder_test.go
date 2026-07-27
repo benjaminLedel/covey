@@ -92,8 +92,18 @@ func TestFormatForPrompt(t *testing.T) {
 	if got := FormatForPrompt(nil); got != "" {
 		t.Fatalf("leere Treffer → leerer Block, got %q", got)
 	}
-	got := FormatForPrompt([]Entry{{Content: "Zeile1\nZeile2"}})
-	if !strings.Contains(got, "- Zeile1 Zeile2") {
-		t.Fatalf("Zeilenumbrüche müssen geglättet werden: %q", got)
+	// Der Wiki-Block rendert je Treffer eine Seite: Titel + [[slug]] als
+	// Überschrift, darunter den Body (Zeilenumbrüche bleiben — es ist Markdown),
+	// optional die verwandten Seiten.
+	got := FormatForPrompt([]Entry{{
+		Title:   "Kunde Meier",
+		Slug:    "kunde-meier",
+		Content: "Zeile1\nZeile2",
+		Links:   []string{"firefox"},
+	}})
+	for _, want := range []string{"### Kunde Meier [[kunde-meier]]", "Zeile1\nZeile2", "Verwandt: [[firefox]]"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("Wiki-Block enthält %q nicht: %q", want, got)
+		}
 	}
 }

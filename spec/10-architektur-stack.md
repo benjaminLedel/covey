@@ -103,7 +103,7 @@ Agenten-Identität ausstellen, Menschen authentifizieren, scoped/kurzlebige Toke
 | Secrets | AES-GCM-Spalte in Postgres | Vault / Infisical |
 | Queue / PubSub | `SKIP LOCKED` + `LISTEN/NOTIFY` | Redis / NATS |
 | Observability | Postgres-Tabelle | Langfuse / OpenObserve |
-| Memory | pgvector | Graphiti (temporal) |
+| Memory | Wiki (Markdown-Seiten) + pgvector-Index | Graphiti (temporal, post-Wiki) |
 | Sandbox / Data Plane | Subprozess (`local`) · Container (`docker`) | E2B / Beam (MicroVMs) |
 
 ## Projekt-Layout

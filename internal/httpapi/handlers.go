@@ -781,7 +781,15 @@ func (s *Server) handleMemories(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "ungültige id")
 		return
 	}
-	entries, err := s.Memory.List(r.Context(), id, 50)
+	// Mit ?q= liefert der Endpunkt die semantische Vektorsuche (spec/05,
+	// pgvector) statt der jüngsten Seiten — dieselbe Sicht, die der Agent im
+	// triage-Schritt bekommt. Ohne q: die letzten Seiten für den Index.
+	var entries []memory.Entry
+	if q := strings.TrimSpace(r.URL.Query().Get("q")); q != "" {
+		entries, err = s.Memory.Query(r.Context(), id, q, 20)
+	} else {
+		entries, err = s.Memory.List(r.Context(), id, 50)
+	}
 	if err != nil {
 		mapErr(w, err)
 		return
@@ -789,8 +797,10 @@ func (s *Server) handleMemories(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, entries)
 }
 
-// handleCreateMemory speist eine Episode manuell ein (Onboarding-Wissen,
-// Korrekturen) — Gegenstück zum automatischen Ingest im done-Schritt.
+// handleCreateMemory legt manuell Wiki-Wissen an (Onboarding, Korrekturen) —
+// Gegenstück zum automatischen Ingest im done-Schritt. Mit title (und optional
+// slug) entsteht eine benannte Seite; nur mit content wird die Erkenntnis in
+// die passende Seite geroutet (spec/05).
 func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
@@ -799,6 +809,8 @@ func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 	}
 	var in struct {
 		Content string `json:"content"`
+		Title   string `json:"title"`
+		Slug    string `json:"slug"`
 	}
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "ungültiger request")
@@ -813,7 +825,20 @@ func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := principalFrom(r)
-	if err := s.Memory.Ingest(r.Context(), id, in.Content,
+	if strings.TrimSpace(in.Title) != "" || strings.TrimSpace(in.Slug) != "" {
+		slug := in.Slug
+		if slug == "" {
+			slug = in.Title
+		}
+		if _, err := s.Memory.Write(r.Context(), id, slug, in.Title, in.Content, "manual"); err != nil {
+			if errors.Is(err, memory.ErrNoContent) {
+				writeErr(w, http.StatusBadRequest, "kein verwertbarer inhalt")
+				return
+			}
+			mapErr(w, err)
+			return
+		}
+	} else if err := s.Memory.Ingest(r.Context(), id, in.Content,
 		map[string]string{"source": "manual", "by": p.Email}); err != nil {
 		mapErr(w, err)
 		return
@@ -829,12 +854,13 @@ func (s *Server) handleUpdateMemory(w http.ResponseWriter, r *http.Request) {
 	}
 	var in struct {
 		Content string `json:"content"`
+		Title   string `json:"title"`
 	}
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "ungültiger request")
 		return
 	}
-	if err := s.Memory.Update(r.Context(), id, in.Content); err != nil {
+	if err := s.Memory.UpdatePage(r.Context(), id, in.Title, in.Content); err != nil {
 		if errors.Is(err, memory.ErrNoContent) {
 			writeErr(w, http.StatusBadRequest, "kein verwertbarer inhalt")
 			return
@@ -856,6 +882,43 @@ func (s *Server) handleDeleteMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handleWikiLog liefert das chronologische Wiki-Protokoll (log.md, spec/05) —
+// Transparenz über Ingests, Edits, Verschmelzungen und Löschungen.
+func (s *Server) handleWikiLog(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	entries, err := s.Memory.Log(r.Context(), id, limit)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, entries)
+}
+
+// handleWikiConsolidate stößt den Konsolidierungs-Pass für einen Agenten manuell
+// an (spec/05) und meldet die Zahl der Verschmelzungen.
+func (s *Server) handleWikiConsolidate(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	if _, err := s.Registry.Get(r.Context(), id); err != nil {
+		mapErr(w, err)
+		return
+	}
+	merged, err := s.Memory.Consolidate(r.Context(), id)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"merged": merged})
 }
 
 // --- Approvals (M6) ---

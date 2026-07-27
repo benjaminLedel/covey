@@ -88,6 +88,7 @@ export type HeartbeatStatus = {
   every_seconds?: number;
   daily_at?: string;
   only_if?: string;
+  source?: string; // "config" (HEARTBEAT.md) | "system" (Plattform-Default, z.B. Wiki-Pflege)
   last_fired_at: string;
   next_run: string;
   pending: boolean;
@@ -353,10 +354,26 @@ export type EgressLogEntry = {
   created_at: string;
 };
 
+// Eine Wiki-Seite (spec/05): title + body (content) + [[wikilinks]]. content
+// trägt weiter den Body (Rückwärtskompatibilität der manuellen Pflege).
 export type MemoryEntry = {
   id: string;
+  slug: string;
+  title: string;
   content: string;
+  links?: string[];
+  source?: string;
   score?: number;
+  created_at: string;
+  updated_at: string;
+};
+
+// Ein Eintrag des Wiki-Protokolls (log.md-Äquivalent, spec/05).
+export type WikiLogEntry = {
+  id: number;
+  op: string; // ingest | write | merge | delete
+  page_slug?: string;
+  summary: string;
   created_at: string;
 };
 
