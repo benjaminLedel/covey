@@ -57,6 +57,10 @@ type Agent struct {
 	org.Profile
 	Killed    bool    `json:"killed"`
 	BudgetUSD float64 `json:"budget_usd"`
+	// RecordingLevel ist der optionale Agent-Override der Aufzeichnungstiefe
+	// (spec/06); leer = erbt den Org-Boden. Wirkt nur verschärfend (max mit dem
+	// Boden), durchgesetzt in der Control Plane.
+	RecordingLevel string `json:"recording_level"`
 	// WebhookToken ist das Geheimnis des optionalen generischen Webhook-
 	// Triggers (nil = deaktiviert). Bewusst nicht im JSON — lesbar nur über
 	// den dedizierten Webhook-Endpoint (Manager-Rollen).
@@ -97,13 +101,13 @@ type Registry struct {
 
 func NewRegistry(pool *pgxpool.Pool) *Registry { return &Registry{pool: pool} }
 
-const agentCols = "id, org_id, slug, display_name, runtime, model, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, webhook_token, created_at, updated_at"
+const agentCols = "id, org_id, slug, display_name, runtime, model, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, webhook_token, COALESCE(recording_level,''), created_at, updated_at"
 
 func scanAgent(row pgx.Row) (Agent, error) {
 	var a Agent
 	err := row.Scan(&a.ID, &a.OrgID, &a.Slug, &a.DisplayName, &a.Runtime, &a.Model, &a.MaxTurns, &a.Status,
 		&a.OwnerID, &a.SupervisorID, &a.DepartmentID, &a.JobTitle, &a.Identities, &a.Phone, &a.Responsibilities, &a.Custom,
-		&a.Killed, &a.BudgetUSD, &a.WebhookToken, &a.CreatedAt, &a.UpdatedAt)
+		&a.Killed, &a.BudgetUSD, &a.WebhookToken, &a.RecordingLevel, &a.CreatedAt, &a.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, ErrNotFound
 	}
@@ -207,6 +211,17 @@ func (r *Registry) SetModel(ctx context.Context, id uuid.UUID, model string) err
 // Orchestrators). Greift wie SetModel beim nächsten Task-Dispatch.
 func (r *Registry) SetMaxTurns(ctx context.Context, id uuid.UUID, maxTurns int) error {
 	tag, err := r.pool.Exec(ctx, "UPDATE agents SET max_turns=$2, updated_at=now() WHERE id=$1", id, maxTurns)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+// SetRecordingLevel setzt den Agent-Override der Aufzeichnungstiefe (spec/06);
+// leer = zurück auf Erben des Org-Bodens (NULL). Der effektive Level ist stets
+// max(Org-Boden, Override) — control-plane-seitig durchgesetzt.
+func (r *Registry) SetRecordingLevel(ctx context.Context, id uuid.UUID, level string) error {
+	tag, err := r.pool.Exec(ctx, "UPDATE agents SET recording_level=NULLIF($2,''), updated_at=now() WHERE id=$1", id, level)
 	if err == nil && tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}

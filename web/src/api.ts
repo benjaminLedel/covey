@@ -15,6 +15,7 @@ export type Agent = {
   runtime: string;
   model: string;
   max_turns: number;
+  recording_level: string; // "" = erbt Org-Boden, sonst minimal|standard|full
   status: string;
   supervisor_id?: string;
   department_id?: string;

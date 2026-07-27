@@ -669,6 +669,62 @@ func (s *Server) handleSetModel(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// handleSetRecordingLevel setzt den Agent-Override der Aufzeichnungstiefe
+// (spec/06). Leer = zurück auf Erben des Org-Bodens. Wirkt beim nächsten
+// action-Event; der effektive Level bleibt max(Org-Boden, Override).
+func (s *Server) handleSetRecordingLevel(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	var in struct {
+		Level string `json:"level"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "level fehlt")
+		return
+	}
+	in.Level = strings.TrimSpace(in.Level)
+	if in.Level != "" && !observability.ValidLevel(in.Level) {
+		writeErr(w, http.StatusBadRequest, "level muss minimal|standard|full (oder leer) sein")
+		return
+	}
+	if err := s.Registry.SetRecordingLevel(r.Context(), id, in.Level); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handleOrgRecording liest (GET) bzw. setzt (PATCH) den Org-Boden der
+// Aufzeichnungstiefe — die org-weite Mindesttiefe (Security/Compliance).
+func (s *Server) handleGetOrgRecording(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	level, err := s.Obs.OrgRecordingLevel(r.Context(), p.OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"level": level})
+}
+
+func (s *Server) handleSetOrgRecording(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	var in struct {
+		Level string `json:"level"`
+	}
+	if err := readJSON(r, &in); err != nil || !observability.ValidLevel(strings.TrimSpace(in.Level)) {
+		writeErr(w, http.StatusBadRequest, "level muss minimal|standard|full sein")
+		return
+	}
+	if err := s.Obs.SetOrgRecordingLevel(r.Context(), p.OrgID, strings.TrimSpace(in.Level)); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // handleSetMaxTurns legt das Turn-Limit je Runtime-Lauf fest (Runaway-Guard).
 // 0 setzt zurück auf den Orchestrator-Default. Wirkt beim nächsten Task-Dispatch.
 func (s *Server) handleSetMaxTurns(w http.ResponseWriter, r *http.Request) {

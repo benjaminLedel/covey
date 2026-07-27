@@ -75,6 +75,11 @@ func TestBrowserPluginScreenshotRecording(t *testing.T) {
 	}, &s.adminID); err != nil {
 		t.Fatal(err)
 	}
+	// Aufzeichnungstiefe 'full' — sonst würde der Screenshot durch das Gating
+	// (Org-Boden 'standard') nicht gespeichert (spec/06).
+	if err := s.registry.SetRecordingLevel(ctx, agent.ID, "full"); err != nil {
+		t.Fatal(err)
+	}
 
 	body := fmt.Sprintf(`[mock:action browser/navigate {"url":%q}]`+
 		` [mock:action browser/content {"selector":"#h"}]`+
@@ -131,5 +136,41 @@ func TestBrowserPluginScreenshotRecording(t *testing.T) {
 	}
 	if size < 100 || mime != "image/png" {
 		t.Fatalf("blob unplausibel: size=%d mime=%q", size, mime)
+	}
+
+	// Gating: ein Agent auf dem Org-Boden 'standard' bekommt KEINEN Screenshot
+	// ins Recording — die Aktion wird aufgezeichnet, das Bild aber verworfen.
+	plain, err := s.registry.Create(ctx, s.orgID, "researcher-std", "Rechercheur (standard)", "mock", &s.adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.registry.SaveConfig(ctx, plain.ID, map[string]string{
+		"SOUL.md":   "# Rechercheur standard",
+		"ACCESS.md": "- system: browser scope: navigate,content,screenshot,click,type",
+	}, &s.adminID); err != nil {
+		t.Fatal(err)
+	}
+	body2 := fmt.Sprintf(`[mock:action browser/navigate {"url":%q}]`+
+		` [mock:action browser/screenshot {}]`+
+		` [mock:result standard-Lauf]`, srv.URL)
+	task2, err := s.backlog.Create(ctx, s.orgID, plain.ID, "Standard-Recherche", body2, "manual", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "standard-aufgabe done", 40*time.Second, func() bool {
+		return s.taskState(task2.ID) == backlog.StateDone
+	})
+	// Screenshot-Aktion aufgezeichnet, aber ohne Blob-Referenz und ohne Blob.
+	var withRef, blobs int
+	if err := s.pool.QueryRow(ctx, `SELECT
+		count(*) FILTER (WHERE payload ? 'screenshot'),
+		(SELECT count(*) FROM recording_blobs WHERE agent_id=$1)
+		FROM recording_events
+		WHERE agent_id=$1 AND kind='action' AND payload->>'action'='browser:screenshot'`,
+		plain.ID).Scan(&withRef, &blobs); err != nil {
+		t.Fatal(err)
+	}
+	if withRef != 0 || blobs != 0 {
+		t.Fatalf("gating verletzt: standard-Agent hat screenshot-ref=%d blobs=%d (erwartet 0/0)", withRef, blobs)
 	}
 }

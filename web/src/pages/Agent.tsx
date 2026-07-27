@@ -228,6 +228,10 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
     mutationFn: (maxTurns: number) => patch(`/agents/${agent.id}/max-turns`, { max_turns: maxTurns }),
     onSuccess: invalidate,
   });
+  const setRecordingLevel = useMutation({
+    mutationFn: (level: string) => patch(`/agents/${agent.id}/recording-level`, { level }),
+    onSuccess: invalidate,
+  });
   const setBudget = useMutation({
     mutationFn: (budgetUSD: number) => post(`/agents/${agent.id}/budget`, { budget_usd: budgetUSD }),
     onSuccess: invalidate,
@@ -241,7 +245,9 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
   });
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const anyError = [setName, setSlug, setRuntime, setModel, setMaxTurns, setBudget].find((m) => m.isError);
+  const anyError = [setName, setSlug, setRuntime, setModel, setMaxTurns, setRecordingLevel, setBudget].find(
+    (m) => m.isError,
+  );
 
   const rtList = runtimes.data ?? [];
   const row: CSSProperties = {
@@ -366,6 +372,23 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
           className="mono"
         />
         <span className="muted text-xs">{t("agent.settings.maxTurnsHint")}</span>
+      </div>
+      <div style={row}>
+        <span className="text-sm">{t("agent.settings.recordingLevel")}</span>
+        <select
+          key={`reclvl:${agent.recording_level}`}
+          defaultValue={agent.recording_level || ""}
+          disabled={!editable || setRecordingLevel.isPending}
+          onChange={(e) => {
+            if (e.target.value !== (agent.recording_level || "")) setRecordingLevel.mutate(e.target.value);
+          }}
+        >
+          <option value="">{t("agent.settings.recordingInherit")}</option>
+          <option value="minimal">{t("agent.settings.recordingMinimal")}</option>
+          <option value="standard">{t("agent.settings.recordingStandard")}</option>
+          <option value="full">{t("agent.settings.recordingFull")}</option>
+        </select>
+        <span className="muted text-xs">{t("agent.settings.recordingHint")}</span>
       </div>
       <div style={{ ...row, borderBottom: "none" }}>
         <span className="text-sm">{t("agent.settings.budget")}</span>

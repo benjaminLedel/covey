@@ -865,6 +865,18 @@ func (o *Orchestrator) storeActionArtifact(ctx context.Context, agent agents.Age
 	if !ok || b64 == "" {
 		return payload
 	}
+	// Aufzeichnungstiefe (spec/06): Screenshots nur bei 'full' speichern. Sonst
+	// das Bild verwerfen — die Aktion selbst bleibt im Recording. Control-Plane-
+	// seitige Durchsetzung ist die letzte Instanz (fail-closed: im Zweifel nicht
+	// speichern).
+	if lvl, err := o.Obs.EffectiveRecordingLevel(ctx, agent.ID); err != nil || lvl != observability.LevelFull {
+		delete(m, "image_b64")
+		delete(m, "image_mime")
+		if out, mErr := json.Marshal(m); mErr == nil {
+			return out
+		}
+		return payload
+	}
 	data, err := base64.StdEncoding.DecodeString(b64)
 	if err != nil {
 		return payload
