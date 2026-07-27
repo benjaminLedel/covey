@@ -1,0 +1,221 @@
+package browser
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/chromedp/chromedp"
+
+	"covey/internal/target"
+)
+
+// System bindet den headless Chrome an die target-Registry. Kein Webhook,
+// keine Credentials — der Browser lebt lokal in der Sandbox.
+type System struct{}
+
+func init() {
+	target.Register(target.Descriptor{
+		Name:          "browser",
+		Label:         "Browser (headless Chrome)",
+		Description:   "Ein vollwertiger headless Chrome als universeller Adapter für Web-Anwendungen ohne eigenes Plugin: Seiten öffnen (navigate), sichtbaren Text/DOM auslesen (content), Screenshots in die Sandbox schreiben (screenshot), klicken (click) und tippen (type). Läuft lokal im Daemon (chromedp/DevTools-Protokoll), braucht keine Secrets. Welche Seiten erreichbar sind, gatet die Egress-Allowlist.",
+		Kind:          "builtin",
+		System:        System{},
+		NoCredentials: true,
+		SetupDoc: `1. Plugin hier aktivieren — Secrets sind nicht nötig, alles läuft lokal
+   in der Sandbox (nichts auf der Control Plane).
+
+2. In der ACCESS.md des Agenten freischalten:
+   - system: browser scope: navigate,content,screenshot,click,type
+
+3. Egress ist entscheidend: der Browser ist das mächtigste Egress-Werkzeug.
+   Jeder Host, den der Agent aufrufen darf, muss in der Egress-Allowlist der
+   Org stehen — sonst lädt keine Seite. Eng führen.
+
+4. Guard-Rails: jede Aktion ist ein eigenes Subjekt (browser:navigate,
+   browser:click, …) und lässt sich gezielt auf Approval-Pflicht setzen.
+
+Hinweis: Der Browser bleibt über eine Wach-Phase bestehen (Cookies/Login
+bleiben erhalten) und wird beim Einschlafen der Sandbox beendet. Das
+Sandbox-Image muss chromium enthalten (COVEY_BROWSER_CHROME_PATH übersteuert
+den Pfad).`,
+	})
+}
+
+func (System) Name() string { return "browser" }
+
+// Kein Webhook-Eingang — der Browser nimmt keine externen Ereignisse an.
+func (System) VerifyWebhook(string, []byte, http.Header) bool { return false }
+
+func (System) ParseWebhook([]byte) (target.WebhookEvent, error) {
+	return target.WebhookEvent{}, fmt.Errorf("browser hat keinen webhook-eingang")
+}
+
+// ActionSubject: jede Aktion ihr eigenes Guard-Rail-Subjekt — navigate/click
+// lassen sich so schärfer regeln als das reine Lesen.
+func (System) ActionSubject(action string, _ json.RawMessage) string {
+	return "browser:" + action
+}
+
+func (System) Execute(ctx context.Context, action string, params json.RawMessage, _ target.Credential) (any, error) {
+	var in struct {
+		URL      string `json:"url"`
+		Selector string `json:"selector"`
+		Text     string `json:"text"`
+		To       string `json:"to"`
+		Full     bool   `json:"full"`
+	}
+	if len(params) > 0 {
+		if err := json.Unmarshal(params, &in); err != nil {
+			return nil, fmt.Errorf("params: %w", err)
+		}
+	}
+
+	switch action {
+	case "navigate":
+		u, err := cleanURL(in.URL)
+		if err != nil {
+			return nil, err
+		}
+		var title, loc string
+		if err := super.do(
+			chromedp.Navigate(u),
+			chromedp.Title(&title),
+			chromedp.Location(&loc),
+		); err != nil {
+			return nil, fmt.Errorf("navigate %q: %w", u, err)
+		}
+		return map[string]any{"url": loc, "title": title}, nil
+
+	case "content":
+		var text string
+		var task chromedp.Action
+		if sel := strings.TrimSpace(in.Selector); sel != "" {
+			task = chromedp.Text(sel, &text, chromedp.ByQuery, chromedp.NodeVisible)
+		} else {
+			task = chromedp.Evaluate(`document.body ? document.body.innerText : ""`, &text)
+		}
+		if err := super.do(task); err != nil {
+			return nil, fmt.Errorf("content: %w", err)
+		}
+		out := map[string]any{"text": text}
+		if len(text) > contentMax {
+			out["text"] = text[:contentMax]
+			out["truncated"] = true
+			out["hint"] = fmt.Sprintf("Inhalt über %d Zeichen — mit selector eingrenzen oder screenshot nutzen.", contentMax)
+		}
+		return out, nil
+
+	case "screenshot":
+		dest := in.To
+		if dest == "" {
+			dest = filepath.Join("browser", nextShotName())
+		}
+		local, err := localPath(ctx, dest)
+		if err != nil {
+			return nil, err
+		}
+		var buf []byte
+		shot := chromedp.CaptureScreenshot(&buf)
+		if in.Full {
+			shot = chromedp.FullScreenshot(&buf, 90)
+		}
+		if err := super.do(shot); err != nil {
+			return nil, fmt.Errorf("screenshot: %w", err)
+		}
+		if err := os.MkdirAll(filepath.Dir(local), 0o755); err != nil {
+			return nil, err
+		}
+		if err := os.WriteFile(local, buf, 0o644); err != nil {
+			return nil, err
+		}
+		return map[string]any{"path": local, "size": len(buf),
+			"hint": "Screenshot liegt lokal — direkt lesen, um die Seite zu sehen."}, nil
+
+	case "click":
+		sel := strings.TrimSpace(in.Selector)
+		if sel == "" {
+			return nil, fmt.Errorf("selector fehlt")
+		}
+		if err := super.do(chromedp.Click(sel, chromedp.ByQuery, chromedp.NodeVisible)); err != nil {
+			return nil, fmt.Errorf("click %q: %w", sel, err)
+		}
+		return map[string]any{"clicked": sel}, nil
+
+	case "type":
+		sel := strings.TrimSpace(in.Selector)
+		if sel == "" {
+			return nil, fmt.Errorf("selector fehlt")
+		}
+		if err := super.do(chromedp.SendKeys(sel, in.Text, chromedp.ByQuery, chromedp.NodeVisible)); err != nil {
+			return nil, fmt.Errorf("type in %q: %w", sel, err)
+		}
+		return map[string]any{"typed": sel}, nil
+
+	default:
+		return nil, fmt.Errorf("unbekannte aktion %q", strings.TrimSpace(action))
+	}
+}
+
+// cleanURL erzwingt ein http/https-Schema — file:// & Co. würden den Browser
+// zum lokalen Dateizugriff missbrauchen und werden abgewiesen.
+func cleanURL(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", fmt.Errorf("url fehlt")
+	}
+	if !strings.Contains(raw, "://") {
+		raw = "https://" + raw
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return "", fmt.Errorf("url %q ist ungültig", raw)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return "", fmt.Errorf("nur http/https erlaubt (nicht %q)", u.Scheme)
+	}
+	return u.String(), nil
+}
+
+// localPath löst einen Sandbox-Pfad sicher gegen das Arbeitsverzeichnis auf —
+// kein Ausbruch per ".." oder absolutem Pfad außerhalb.
+func localPath(ctx context.Context, p string) (string, error) {
+	workdir := target.Workdir(ctx)
+	if workdir == "" {
+		return "", fmt.Errorf("keine Sandbox (kein Arbeitsverzeichnis im Kontext)")
+	}
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return "", fmt.Errorf("lokaler pfad fehlt")
+	}
+	if !filepath.IsAbs(p) {
+		p = filepath.Join(workdir, p)
+	}
+	resolved := filepath.Clean(p)
+	if resolved != workdir && !strings.HasPrefix(resolved, workdir+string(filepath.Separator)) {
+		return "", fmt.Errorf("pfad %q liegt ausserhalb des Sandbox-Arbeitsverzeichnisses", p)
+	}
+	return resolved, nil
+}
+
+func (System) PromptDoc() string {
+	return `Verfügbare Browser-Aktionen (ein headless Chrome, den du wie ein Nutzer bedienst; die Sitzung bleibt
+   über mehrere Aktionen erhalten — Cookies/Login bleiben):
+   navigate {"url":"https://…"} öffnet eine Seite und liefert Titel + finale URL,
+   content {"selector":"CSS-Selektor (optional, leer = ganze Seite)"} liefert den sichtbaren Text (bis 20k Zeichen),
+   screenshot {"to":"lokaler/pfad (optional)","full":true} schreibt ein PNG in deine Sandbox (Default:
+   browser/shot-N.png) und liefert den Pfad — danach die Datei lesen, um die Seite zu sehen; full=true
+   nimmt die ganze scrollbare Seite statt nur den sichtbaren Bereich,
+   click {"selector":"CSS-Selektor"} klickt das Element,
+   type {"selector":"CSS-Selektor","text":"…"} tippt Text in ein Feld.
+   Arbeitsweise: erst navigate, dann mit content ODER screenshot orientieren, dann gezielt click/type. Für
+   visuelle Seiten (Dashboards, Canvas) screenshot + lesen; für Text-Extraktion content mit passendem
+   Selektor. WARTEN: der Browser hat keinen Webhook — nutze KEINEN blocked-Status; beende deinen Lauf mit done.
+   Erreichbarkeit: Seiten laden nur, wenn ihr Host in der Egress-Allowlist steht — schlägt eine Navigation
+   fehl, ist das oft die Ursache.`
+}

@@ -12,9 +12,14 @@ RUN CGO_ENABLED=0 go build -o /coveyd ./cmd/coveyd
 FROM node:22-slim
 # Werkzeuge, die die Runtime in der Praxis braucht: git für Repos,
 # ca-certificates + curl für HTTPS-Zugriffe auf gebrokerte Zielsysteme.
+# git für Repos, ca-certificates + curl für HTTPS auf gebrokerte Zielsysteme,
+# ripgrep für die Runtime, chromium für das browser-Plugin (headless Chrome
+# via chromedp; die nötigen Fonts/Libs zieht das chromium-Paket mit).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        git ca-certificates curl ripgrep \
+        git ca-certificates curl ripgrep chromium \
     && rm -rf /var/lib/apt/lists/*
+# Damit chromedp den Browser ohne Rätselraten findet.
+ENV COVEY_BROWSER_CHROME_PATH=/usr/bin/chromium
 RUN npm install -g @anthropic-ai/claude-code
 
 # Nicht-root: Claude Code verweigert --dangerously-skip-permissions als root,
