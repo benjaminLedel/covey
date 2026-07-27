@@ -23,7 +23,7 @@ bootstrap: build
 	COVEY_MASTER_KEY=$$(cat .covey.key) ./covey bootstrap
 
 run: build
-	COVEY_MASTER_KEY=$$(cat .covey.key) COVEY_COVEYD_PATH=$$PWD/coveyd ./covey serve
+	COVEY_MASTER_KEY=$$(cat .covey.key) ./covey serve
 
 # Sandbox-Image für COVEY_SANDBOX_PROVIDER=docker (coveyd + Claude Code).
 sandbox-image:

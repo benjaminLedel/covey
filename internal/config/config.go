@@ -26,12 +26,10 @@ type Config struct {
 	IdentityProvider string
 	// SecretStore wählt die Implementierung: builtin | vault (post-MVP).
 	SecretStore string
-	// SandboxProvider wählt die Data-Plane: local (Subprozess) | docker (Container) | e2b (post-MVP).
+	// SandboxProvider wählt die Data-Plane: docker (Container) | e2b (post-MVP).
 	SandboxProvider string
-	// DataDir hält persistente Sandbox-Homes (local- und docker-Provider).
+	// DataDir hält die persistenten Sandbox-Homes (docker-Provider).
 	DataDir string
-	// CoveydPath ist der Pfad zum Daemon-Binary für den local-Provider.
-	CoveydPath string
 	// SandboxImage ist das Container-Image des docker-Providers (Dockerfile.sandbox).
 	SandboxImage string
 	// WebhookSecrets verifizieren Signaturen eingehender Zielsystem-Webhooks:
@@ -75,9 +73,8 @@ func FromEnv() (Config, error) {
 		MasterKeyHex:     os.Getenv("COVEY_MASTER_KEY"),
 		IdentityProvider: getenv("COVEY_IDENTITY_PROVIDER", "builtin"),
 		SecretStore:      getenv("COVEY_SECRET_STORE", "builtin"),
-		SandboxProvider:  getenv("COVEY_SANDBOX_PROVIDER", "local"),
+		SandboxProvider:  getenv("COVEY_SANDBOX_PROVIDER", "docker"),
 		DataDir:          getenv("COVEY_DATA_DIR", "./data"),
-		CoveydPath:       getenv("COVEY_COVEYD_PATH", "./coveyd"),
 		SandboxImage:     getenv("COVEY_SANDBOX_IMAGE", "covey-sandbox:latest"),
 		WebhookSecrets:   webhookSecretsFromEnv(),
 		TickInterval:     getenvDuration("COVEY_TICK_INTERVAL", 30*time.Second),
@@ -118,9 +115,6 @@ func (c Config) SecurityWarnings() []string {
 	}
 	if strings.Contains(c.DatabaseURL, "sslmode=disable") {
 		w = append(w, "COVEY_DATABASE_URL nutzt sslmode=disable — im Betrieb TLS zur Datenbank erzwingen (sslmode=require o. höher)")
-	}
-	if c.SandboxProvider == "local" {
-		w = append(w, "COVEY_SANDBOX_PROVIDER=local bietet nur Prozess-Isolation — für nicht-vertrauenswürdigen Agenten-Code den docker-Provider nutzen")
 	}
 	if !c.EgressEnforce {
 		w = append(w, "Egress-Enforcement aus — für den Betrieb COVEY_EGRESS_ENFORCE=true (mit docker-Provider) setzen, damit Sandboxen nur Allowlist-Hosts erreichen")
