@@ -13,6 +13,7 @@ zur Vorlage, indem man es hier ablegt und im `manifest` in `builtin.go` einträg
 |---|---|---|
 | `coding-agent.bundle.json` | `covey-dev` | Entwickler: Issues aufnehmen, Bugs am Code verifizieren, Fixes entwickeln, Merge Requests eröffnen und den Review-Loop leben. |
 | `qa-agent.bundle.json` | `covey-qa` | QA/Test: fremde Merge Requests als Reviewer end-to-end abnehmen und Feedback geben; zusätzlich Bug-Reports per E-Mail annehmen und als GitLab-Ticket (`create_issue`) anlegen. |
+| `log-triage-agent.bundle.json` | `covey-logtriage` | Log-Triage: per E-Mail gemeldete Logs analysieren, vor dem Anlegen auf Duplikate prüfen (`list_issues search=…`, Vorfälle am bestehenden Ticket bündeln), für relevante Befunde Tickets anlegen und echte Code-Bugs per `assignee` an einen Entwickler-Agenten übergeben. |
 
 Zusammen bilden sie das Zwei-Agenten-Setup aus
 [`docs/betrieb-gitlab.md`](../docs/betrieb-gitlab.md) §2.7: Der Entwickler-Agent

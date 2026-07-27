@@ -67,6 +67,13 @@ var manifest = []struct {
 		NameEn:        "QA / test agent (GitLab + email)",
 		DescriptionEn: "Reviews others' merge requests end-to-end and turns emailed bug reports into GitLab tickets.",
 	},
+	{
+		File:          "log-triage-agent.bundle.json",
+		Name:          "Log-Triage-Agent (E-Mail → GitLab)",
+		Description:   "Analysiert per E-Mail gemeldete Logs, prüft auf Duplikate, legt für relevante Befunde GitLab-Tickets an und übergibt echte Code-Bugs an einen Entwickler-Agenten.",
+		NameEn:        "Log triage agent (email → GitLab)",
+		DescriptionEn: "Analyzes logs reported by email, checks for duplicates, files GitLab tickets for relevant findings and hands real code bugs to a developer agent.",
+	},
 }
 
 // builtins wird einmalig beim Package-Load gebaut; malformte eingebettete

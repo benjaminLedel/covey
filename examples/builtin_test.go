@@ -49,8 +49,9 @@ func TestBuiltinsLoad(t *testing.T) {
 // bestehende Instanziierungs-Links — bewusst als Regressionsschutz.
 func TestBuiltinIDsStable(t *testing.T) {
 	want := map[string]string{
-		"builtin:coding-agent": "",
-		"builtin:qa-agent":     "",
+		"builtin:coding-agent":     "",
+		"builtin:qa-agent":         "",
+		"builtin:log-triage-agent": "",
 	}
 	for _, b := range Builtins() {
 		if _, ok := want[b.Key]; !ok {
