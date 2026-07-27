@@ -44,6 +44,7 @@ import (
 	_ "covey/internal/target/dev"
 	_ "covey/internal/target/email"
 	_ "covey/internal/target/gitlab"
+	_ "covey/internal/target/teams"
 	_ "covey/internal/target/zammad"
 )
 
