@@ -28,6 +28,84 @@ type Activity struct {
 	From         ChannelAccount      `json:"from"`
 	Recipient    ChannelAccount      `json:"recipient"`
 	Conversation ConversationAccount `json:"conversation"`
+	Attachments  []Attachment        `json:"attachments"`
+}
+
+// Attachment ist ein Datei-Anhang einer Activity. Teams liefert Dateien je nach
+// Kanal unterschiedlich: geteilte Dateien als contentType
+// "application/vnd.microsoft.teams.file.download.info" mit einer
+// vor-autorisierten content.downloadUrl; Inline-Bilder als image/* mit einer
+// contentUrl auf dem Connector-Host (Bearer-Token nötig). DownloadURL()
+// vereinheitlicht beides.
+type Attachment struct {
+	ContentType string `json:"contentType"`
+	ContentURL  string `json:"contentUrl"`
+	Name        string `json:"name"`
+	// Content ist je nach Typ ein Objekt (file.download.info: {downloadUrl,…})
+	// oder ein String (text/html: die Rich-Text-Nachricht) — deshalb roh.
+	Content json.RawMessage `json:"content"`
+}
+
+// contentDownloadURL liest content.downloadUrl heraus, falls Content ein Objekt
+// ist. Ist Content ein String (text/html) oder leer, ergibt sich "".
+func (at Attachment) contentDownloadURL() string {
+	if len(at.Content) == 0 {
+		return ""
+	}
+	var c struct {
+		DownloadURL string `json:"downloadUrl"`
+	}
+	_ = json.Unmarshal(at.Content, &c) // Fehler ok: Content kann ein String sein
+	return c.DownloadURL
+}
+
+// DownloadURL ist die effektive URL, unter der die Bytes liegen: bevorzugt die
+// vor-autorisierte content.downloadUrl (geteilte Dateien), sonst die contentUrl
+// (Inline-Bilder).
+func (at Attachment) DownloadURL() string {
+	if u := at.contentDownloadURL(); u != "" {
+		return u
+	}
+	return at.ContentURL
+}
+
+// Filename ist der Anzeigename des Anhangs; fehlt er, wird der Basename aus der
+// Download-URL abgeleitet.
+func (at Attachment) Filename() string {
+	if at.Name != "" {
+		return at.Name
+	}
+	u := at.DownloadURL()
+	if i := strings.LastIndexAny(u, "/?"); i >= 0 && u[i] == '/' {
+		if base := u[i+1:]; base != "" {
+			return base
+		}
+	}
+	return "anhang"
+}
+
+// isDownloadable filtert die echten Datei-Anhänge heraus: solche mit einer
+// Download-URL, aber ohne die Rich-Text-Repräsentation der Nachricht (text/html)
+// und ohne Karten (adaptive cards).
+func (at Attachment) isDownloadable() bool {
+	if at.DownloadURL() == "" {
+		return false
+	}
+	if at.ContentType == "text/html" || strings.HasPrefix(at.ContentType, "application/vnd.microsoft.card") {
+		return false
+	}
+	return true
+}
+
+// Files liefert die herunterladbaren Datei-Anhänge der Activity.
+func (a Activity) Files() []Attachment {
+	var out []Attachment
+	for _, at := range a.Attachments {
+		if at.isDownloadable() {
+			out = append(out, at)
+		}
+	}
+	return out
 }
 
 // ChannelAccount identifiziert Absender bzw. Empfänger einer Activity.
@@ -109,14 +187,15 @@ func (a Activity) InIntakeScope() bool {
 }
 
 // ShouldWake ist die vollständige Aufnahme-Entscheidung: eine echte
-// Nutzer-Nachricht (type=message, mit Absender und Text, kein Echo) aus einem
-// zugelassenen Tenant. Nur dann entsteht eine Aufgabe bzw. wird eine geblockte
-// Aufgabe geweckt (orchestrator.HandleWebhook gated auf diesem Flag).
+// Nutzer-Nachricht (type=message, mit Absender, kein Echo) aus einem
+// zugelassenen Tenant, die Text oder mindestens einen Datei-Anhang trägt. Nur
+// dann entsteht eine Aufgabe bzw. wird eine geblockte Aufgabe geweckt
+// (orchestrator.HandleWebhook gated auf diesem Flag).
 func (a Activity) ShouldWake() bool {
 	return strings.EqualFold(a.Type, "message") &&
 		a.From.ID != "" &&
 		!a.IsEcho() &&
-		a.CleanText() != "" &&
+		(a.CleanText() != "" || len(a.Files()) > 0) &&
 		a.InIntakeScope()
 }
 

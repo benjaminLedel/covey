@@ -9,6 +9,8 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -173,6 +175,131 @@ func TestVerifyToken(t *testing.T) {
 	})
 	if VerifyToken("bot-app", "Bearer "+expired) {
 		t.Fatal("abgelaufenes Token muss abgelehnt werden")
+	}
+}
+
+func TestAttachmentsParsing(t *testing.T) {
+	body := []byte(`{"type":"message","id":"a2","text":"",
+		"from":{"id":"29:user"},"recipient":{"id":"28:bot"},
+		"conversation":{"id":"19:c"},
+		"attachments":[
+			{"contentType":"text/html","content":"<p>msg</p>"},
+			{"contentType":"application/vnd.microsoft.teams.file.download.info","name":"report.pdf",
+			 "content":{"downloadUrl":"https://share.example/dl/report.pdf","fileType":"pdf"}},
+			{"contentType":"image/png","name":"bild.png","contentUrl":"https://smba.example/v3/attachments/x"}
+		]}`)
+	a, err := ParseWebhook(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	files := a.Files()
+	if len(files) != 2 {
+		t.Fatalf("erwartet 2 Datei-Anhänge (text/html gefiltert), bekam %d: %+v", len(files), files)
+	}
+	if files[0].DownloadURL() != "https://share.example/dl/report.pdf" || files[0].Filename() != "report.pdf" {
+		t.Fatalf("file.download.info falsch: %+v", files[0])
+	}
+	if files[1].DownloadURL() != "https://smba.example/v3/attachments/x" {
+		t.Fatalf("inline-Bild-URL falsch: %+v", files[1])
+	}
+	// Nachricht ohne Text, aber mit Anhang muss wecken.
+	if !a.ShouldWake() {
+		t.Fatal("Nachricht nur mit Anhang muss wecken")
+	}
+}
+
+func TestDownloadAttachmentToSandbox(t *testing.T) {
+	// Server: /preauth liefert direkt (ohne Token), /connector verlangt Bearer.
+	var sawToken bool
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /token", func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{"access_token": "connector-token", "expires_in": 3600})
+	})
+	mux.HandleFunc("GET /preauth", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/pdf")
+		w.Write([]byte("%PDF-1.4 fake"))
+	})
+	mux.HandleFunc("GET /connector", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer connector-token" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		sawToken = true
+		w.Header().Set("Content-Type", "image/png")
+		w.Write([]byte("PNGDATA"))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	c, err := NewClient(target.Credential{BaseURL: srv.URL + "/token", Token: "app:secret"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	work := t.TempDir()
+	ctx := context.Background()
+
+	// Vor-autorisierte URL (kein Token nötig).
+	res, err := DownloadAttachmentToSandbox(ctx, c, srv.URL+"/preauth", "report.pdf", work)
+	if err != nil {
+		t.Fatalf("preauth-Download: %v", err)
+	}
+	if res.Filename != "report.pdf" || res.ContentType != "application/pdf" || res.Bytes == 0 {
+		t.Fatalf("preauth-Ergebnis falsch: %+v", res)
+	}
+	if data, _ := os.ReadFile(res.Path); string(data) != "%PDF-1.4 fake" {
+		t.Fatalf("preauth-Datei-Inhalt falsch: %q", data)
+	}
+
+	// Connector-URL: erst 401, dann Retry mit Bearer.
+	res, err = DownloadAttachmentToSandbox(ctx, c, srv.URL+"/connector", "bild.png", work)
+	if err != nil {
+		t.Fatalf("connector-Download: %v", err)
+	}
+	if !sawToken {
+		t.Fatal("Connector-URL muss mit Bearer-Token nachgeladen werden")
+	}
+	if res.ContentType != "image/png" {
+		t.Fatalf("connector-Ergebnis falsch: %+v", res)
+	}
+
+	// Pfad-Traversal im Namen wird auf den Basename reduziert.
+	res, err = DownloadAttachmentToSandbox(ctx, c, srv.URL+"/preauth", "../../etc/passwd", work)
+	if err != nil {
+		t.Fatalf("traversal-Download: %v", err)
+	}
+	if filepath.Dir(res.Path) != filepath.Join(work, "attachments") {
+		t.Fatalf("Pfad-Traversal nicht neutralisiert: %s", res.Path)
+	}
+
+	// Ohne Sandbox-Workdir → Fehler.
+	if _, err := DownloadAttachmentToSandbox(ctx, c, srv.URL+"/preauth", "x", ""); err == nil {
+		t.Fatal("ohne Workdir muss download_attachment scheitern")
+	}
+}
+
+func TestDownloadAttachmentDispatch(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /file", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.Write([]byte("hallo"))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	work := t.TempDir()
+	ctx := target.WithWorkdir(context.Background(), work)
+	cred := target.Credential{Token: "app:secret"}
+	out, err := (System{}).Execute(ctx, "download_attachment",
+		json.RawMessage(`{"url":"`+srv.URL+`/file","name":"notiz.txt"}`), cred)
+	if err != nil {
+		t.Fatalf("dispatch: %v", err)
+	}
+	if r, ok := out.(DownloadResult); !ok || r.Filename != "notiz.txt" {
+		t.Fatalf("dispatch-Ergebnis: %#v", out)
+	}
+	// Fehlende url → Validierungsfehler.
+	if _, err := (System{}).Execute(ctx, "download_attachment", json.RawMessage(`{}`), cred); err == nil {
+		t.Fatal("download_attachment ohne url muss Fehler sein")
 	}
 }
 

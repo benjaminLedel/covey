@@ -74,21 +74,42 @@ func (System) ParseWebhook(body []byte) (target.WebhookEvent, error) {
 		convKind = "chat"
 	}
 	text := a.CleanText()
+	if text == "" {
+		text = "(kein Text)"
+	}
 
 	replyHint := fmt.Sprintf(
 		"reply {\"service_url\":%q,\"conversation_id\":%q,\"reply_to_activity_id\":%q,\"text\":\"…\"}",
 		a.ServiceURL, a.Conversation.ID, a.ID)
+
+	attachSection := attachmentSection(a.Files())
 
 	return target.WebhookEvent{
 		DedupKey:       a.DedupKey(),
 		CorrelationKey: CorrelationKey(a.Conversation.ID),
 		Title:          fmt.Sprintf("Teams-Nachricht von %s", from),
 		TaskBody: fmt.Sprintf(
-			"Neue Microsoft-Teams-Nachricht von %s (%s).\n\nNachricht:\n%s\n\nAntworte über den Action-Proxy (system teams):\n%s",
-			from, convKind, text, replyHint),
-		ResumeInput: fmt.Sprintf("Antwort von %s in Teams:\n%s", from, text),
+			"Neue Microsoft-Teams-Nachricht von %s (%s).\n\nNachricht:\n%s%s\n\nAntworte über den Action-Proxy (system teams):\n%s",
+			from, convKind, text, attachSection, replyHint),
+		ResumeInput: fmt.Sprintf("Antwort von %s in Teams:\n%s%s", from, text, attachSection),
 		Wake:        a.ShouldWake(),
 	}, nil
+}
+
+// attachmentSection formatiert die Datei-Anhänge als Text-Block für den
+// Aufgaben-Body inkl. des fertigen download_attachment-Aufrufs je Anhang. Die
+// Download-URLs sind kurzlebig — der Agent sollte sie zeitnah laden.
+func attachmentSection(files []Attachment) string {
+	if len(files) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "\n\nAnhänge (%d) — lade sie mit download_attachment in die Sandbox und lies sie mit dem Read-Tool (URLs sind kurzlebig, zeitnah laden):", len(files))
+	for i, at := range files {
+		fmt.Fprintf(&b, "\n  %d. %s (%s)\n     download_attachment {\"url\":%q,\"name\":%q}",
+			i+1, at.Filename(), at.ContentType, at.DownloadURL(), at.Filename())
+	}
+	return b.String()
 }
 
 // ActionSubject: jede Aktion ist ein eigenes, separat regelbares
@@ -109,6 +130,8 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		TenantID          string `json:"tenant_id"`
 		UserID            string `json:"user_id"`
 		Text              string `json:"text"`
+		URL               string `json:"url"`
+		Name              string `json:"name"`
 	}
 	if err := json.Unmarshal(params, &in); err != nil {
 		return nil, fmt.Errorf("params: %w", err)
@@ -130,6 +153,11 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, err
 		}
 		return c.CreateConversation(ctx, in.ServiceURL, in.TenantID, in.UserID, in.Text)
+	case "download_attachment":
+		if err := requireFields("download_attachment", in.URL); err != nil {
+			return nil, err
+		}
+		return DownloadAttachmentToSandbox(ctx, c, in.URL, in.Name, target.Workdir(ctx))
 	default:
 		return nil, fmt.Errorf("unbekannte aktion %q", strings.TrimSpace(action))
 	}
@@ -149,6 +177,7 @@ func (System) PromptDoc() string {
    send {"service_url":"...","conversation_id":"...","text":"..."} — Nachricht in eine bestehende Konversation.
    reply {"service_url":"...","conversation_id":"...","reply_to_activity_id":"...","text":"..."} — Antwort auf eine Nachricht (ohne reply_to_activity_id → send).
    create_conversation {"service_url":"...","tenant_id":"...","user_id":"...","text":"..."} — proaktiver 1:1-Chat mit einem Nutzer.
+   download_attachment {"url":"...","name":"..."} — lädt einen Datei-Anhang der Nachricht in die Sandbox (unter attachments/); danach mit dem Read-Tool ansehen. url/name stehen im Task-Body.
    service_url und conversation_id stammen aus der auslösenden Nachricht (steht im Task-Body).
    Korrelations-Key für Status blocked: teams:conversation:<conversation_id>.`
 }

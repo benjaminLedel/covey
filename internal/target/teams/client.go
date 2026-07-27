@@ -209,3 +209,52 @@ func (c *Client) CreateConversation(ctx context.Context, serviceURL, tenantID, u
 func connectorURL(serviceURL, path string) string {
 	return strings.TrimRight(serviceURL, "/") + path
 }
+
+// DownloadAttachment holt die Bytes eines Anhangs. Teams liefert zwei Sorten
+// URLs: vor-autorisierte content.downloadUrl (SharePoint/OneDrive, ohne Token)
+// und Connector-contentUrl (Bearer-Token nötig). Deshalb wird zunächst ohne
+// Auth versucht; bei 401/403 einmal mit Connector-Token erneut. Der Body ist
+// auf limit+1 Bytes begrenzt, damit der Aufrufer eine Überschreitung erkennt.
+func (c *Client) DownloadAttachment(ctx context.Context, downloadURL string, limit int64) (contentType string, body []byte, err error) {
+	contentType, body, status, err := c.getBytes(ctx, downloadURL, "", limit)
+	if err != nil {
+		return "", nil, err
+	}
+	if status == http.StatusUnauthorized || status == http.StatusForbidden {
+		token, terr := c.accessToken(ctx)
+		if terr != nil {
+			return "", nil, fmt.Errorf("teams attachment: %d und Token-Abruf scheitert: %w", status, terr)
+		}
+		contentType, body, status, err = c.getBytes(ctx, downloadURL, token, limit)
+		if err != nil {
+			return "", nil, err
+		}
+	}
+	if status < 200 || status >= 300 {
+		return "", nil, fmt.Errorf("teams attachment: HTTP %d", status)
+	}
+	return contentType, body, nil
+}
+
+func (c *Client) getBytes(ctx context.Context, url, bearer string, limit int64) (contentType string, body []byte, status int, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", nil, 0, err
+	}
+	if bearer != "" {
+		req.Header.Set("Authorization", "Bearer "+bearer)
+	}
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return "", nil, 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return "", nil, resp.StatusCode, nil // Retry-Signal, Body verwerfen
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
+	if err != nil {
+		return "", nil, resp.StatusCode, err
+	}
+	return resp.Header.Get("Content-Type"), data, resp.StatusCode, nil
+}
