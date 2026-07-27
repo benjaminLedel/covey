@@ -927,6 +927,8 @@
     "loadError": "Fehler beim Laden.",
     "noTemplates": "Noch keine Vorlagen vorhanden.",
     "noTemplatesHint": "Öffne einen Agenten → Konfiguration → „Als Vorlage speichern“.",
+    "builtinBadge": "Mitgeliefert",
+    "builtinSource": "mitgelieferte Vorlage",
     "use": "Verwenden",
     "delete": "Löschen",
     "deleteConfirm": "Vorlage „{{name}}“ löschen?",

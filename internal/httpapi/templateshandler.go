@@ -12,6 +12,18 @@ import (
 	"covey/internal/templates"
 )
 
+// langFrom liest die UI-Sprache für lokalisierte (mitgelieferte) Vorlagen:
+// Query-Param ?lang= zuerst, sonst der Accept-Language-Header, sonst "de".
+func langFrom(r *http.Request) string {
+	if l := strings.TrimSpace(r.URL.Query().Get("lang")); l != "" {
+		return l
+	}
+	if l := strings.TrimSpace(r.Header.Get("Accept-Language")); l != "" {
+		return l
+	}
+	return "de"
+}
+
 func cloneRequestWithBody(r *http.Request, body []byte) (*http.Request, error) {
 	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, r.URL.String(), bytes.NewReader(body))
 	if err != nil {
@@ -24,7 +36,7 @@ func cloneRequestWithBody(r *http.Request, body []byte) (*http.Request, error) {
 // handleListTemplates — GET /api/v1/templates
 func (s *Server) handleListTemplates(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
-	list, err := s.Templates.List(r.Context(), p.OrgID)
+	list, err := s.Templates.List(r.Context(), p.OrgID, langFrom(r))
 	if err != nil {
 		mapErr(w, err)
 		return
@@ -43,7 +55,7 @@ func (s *Server) handleGetTemplate(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "ungültige id")
 		return
 	}
-	t, err := s.Templates.Get(r.Context(), p.OrgID, id)
+	t, err := s.Templates.Get(r.Context(), p.OrgID, id, langFrom(r))
 	if err != nil {
 		mapErr(w, err)
 		return
@@ -109,6 +121,10 @@ func (s *Server) handleDeleteTemplate(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusNotFound, "vorlage nicht gefunden")
 			return
 		}
+		if errors.Is(err, templates.ErrReadOnly) {
+			writeErr(w, http.StatusForbidden, "mitgelieferte vorlage kann nicht gelöscht werden")
+			return
+		}
 		mapErr(w, err)
 		return
 	}
@@ -139,7 +155,7 @@ func (s *Server) handleInstantiateTemplate(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	tmpl, err := s.Templates.Get(r.Context(), p.OrgID, id)
+	tmpl, err := s.Templates.Get(r.Context(), p.OrgID, id, langFrom(r))
 	if err != nil {
 		if errors.Is(err, templates.ErrNotFound) {
 			writeErr(w, http.StatusNotFound, "vorlage nicht gefunden")

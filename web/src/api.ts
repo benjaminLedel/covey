@@ -405,6 +405,8 @@ export type AgentTemplate = {
   created_by?: string;
   created_at: string;
   updated_at: string;
+  /** Mitgelieferte, schreibgeschützte Vorlage (fest ins Binary eingebettet). */
+  builtin?: boolean;
 };
 
 export class ApiError extends Error {

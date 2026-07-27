@@ -3,6 +3,12 @@
 Importierbare Agenten-Konfigurationen (`kind: covey.agent-config`). Import über
 `POST /api/v1/agents/import` oder in der UI („Agent aus Bundle").
 
+Diese Bundles sind zugleich die **mitgelieferte Vorlagen-Bibliothek**: `builtin.go`
+zieht sie per `//go:embed` ins Binary, sodass sie in der UI unter **Vorlagen**
+erscheinen (schreibgeschützt, org-übergreifend) und dort direkt instanziiert
+werden können — ohne vorher etwas zu importieren. Ein neues Beispiel-Bundle wird
+zur Vorlage, indem man es hier ablegt und im `manifest` in `builtin.go` einträgt.
+
 | Bundle | Slug | Rolle |
 |---|---|---|
 | `coding-agent.bundle.json` | `covey-dev` | Entwickler: Issues aufnehmen, Bugs am Code verifizieren, Fixes entwickeln, Merge Requests eröffnen und den Review-Loop leben. |

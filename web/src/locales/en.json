@@ -927,6 +927,8 @@
     "loadError": "Error loading.",
     "noTemplates": "No templates yet.",
     "noTemplatesHint": "Open an agent → Configuration → \"Save as template\".",
+    "builtinBadge": "Built-in",
+    "builtinSource": "built-in template",
     "use": "Use",
     "delete": "Delete",
     "deleteConfirm": "Delete template \"{{name}}\"?",

@@ -11,8 +11,8 @@ export default function Templates({ me }: { me: Principal }) {
   const canManage = me.Role === "platform_admin" || me.Role === "agent_owner";
 
   const templates = useQuery({
-    queryKey: ["templates"],
-    queryFn: () => api<AgentTemplate[]>("/templates"),
+    queryKey: ["templates", i18n.language],
+    queryFn: () => api<AgentTemplate[]>(`/templates?lang=${encodeURIComponent(i18n.language)}`),
   });
 
   const deleteTemplate = useMutation({
@@ -96,14 +96,23 @@ function TemplateCard({
     <div className="card" style={{ padding: "14px 18px" }}>
       <div className="flex items-start justify-between gap-4">
         <div style={{ flex: 1 }}>
-          <div className="font-medium" style={{ fontSize: 15 }}>{template.name}</div>
+          <div className="flex items-center gap-2">
+            <div className="font-medium" style={{ fontSize: 15 }}>{template.name}</div>
+            {template.builtin && (
+              <span className="badge" style={{ fontSize: 11 }}>{t("templates.builtinBadge")}</span>
+            )}
+          </div>
           {template.description && (
             <div className="muted text-xs" style={{ marginTop: 2 }}>{template.description}</div>
           )}
           <div className="muted text-xs" style={{ marginTop: 6 }}>
             Runtime: <span className="mono">{runtime}</span>
             {model && <> · {t("templates.modelLabel")} <span className="mono">{model}</span></>}
-            <> · {t("templates.savedDate", { date: new Date(template.created_at).toLocaleDateString(locale) })}</>
+            {template.builtin ? (
+              <> · {t("templates.builtinSource")}</>
+            ) : (
+              <> · {t("templates.savedDate", { date: new Date(template.created_at).toLocaleDateString(locale) })}</>
+            )}
           </div>
         </div>
         {canManage && (
@@ -111,9 +120,11 @@ function TemplateCard({
             <button className="btn sm primary" onClick={onInstantiate}>
               {t("templates.use")}
             </button>
-            <button className="btn sm" style={{ color: "var(--error)" }} onClick={onDelete}>
-              {t("templates.delete")}
-            </button>
+            {!template.builtin && (
+              <button className="btn sm" style={{ color: "var(--error)" }} onClick={onDelete}>
+                {t("templates.delete")}
+              </button>
+            )}
           </div>
         )}
       </div>
