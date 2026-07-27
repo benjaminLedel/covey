@@ -251,14 +251,14 @@ function ChoosePath({ onPick }: { onPick: (p: CreatePath) => void }) {
 }
 
 function TemplateStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agent) => void }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [selected, setSelected] = useState<AgentTemplate | null>(null);
   const [displayName, setDisplayName] = useState("");
   const [slug, setSlug] = useState("");
 
   const templates = useQuery({
-    queryKey: ["templates"],
-    queryFn: () => api<AgentTemplate[]>("/templates"),
+    queryKey: ["templates", i18n.language],
+    queryFn: () => api<AgentTemplate[]>(`/templates?lang=${encodeURIComponent(i18n.language)}`),
   });
 
   const mut = useMutation({

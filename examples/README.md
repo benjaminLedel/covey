@@ -3,10 +3,17 @@
 Importierbare Agenten-Konfigurationen (`kind: covey.agent-config`). Import über
 `POST /api/v1/agents/import` oder in der UI („Agent aus Bundle").
 
+Diese Bundles sind zugleich die **mitgelieferte Vorlagen-Bibliothek**: `builtin.go`
+zieht sie per `//go:embed` ins Binary, sodass sie in der UI unter **Vorlagen**
+erscheinen (schreibgeschützt, org-übergreifend) und dort direkt instanziiert
+werden können — ohne vorher etwas zu importieren. Ein neues Beispiel-Bundle wird
+zur Vorlage, indem man es hier ablegt und im `manifest` in `builtin.go` einträgt.
+
 | Bundle | Slug | Rolle |
 |---|---|---|
 | `coding-agent.bundle.json` | `covey-dev` | Entwickler: Issues aufnehmen, Bugs am Code verifizieren, Fixes entwickeln, Merge Requests eröffnen und den Review-Loop leben. |
 | `qa-agent.bundle.json` | `covey-qa` | QA/Test: fremde Merge Requests als Reviewer end-to-end abnehmen und Feedback geben; zusätzlich Bug-Reports per E-Mail annehmen und als GitLab-Ticket (`create_issue`) anlegen. |
+| `log-triage-agent.bundle.json` | `covey-logtriage` | Log-Triage: per E-Mail gemeldete Logs analysieren, vor dem Anlegen auf Duplikate prüfen (`list_issues search=…`, Vorfälle am bestehenden Ticket bündeln), für relevante Befunde Tickets anlegen und echte Code-Bugs per `assignee` an einen Entwickler-Agenten übergeben. |
 
 Zusammen bilden sie das Zwei-Agenten-Setup aus
 [`docs/betrieb-gitlab.md`](../docs/betrieb-gitlab.md) §2.7: Der Entwickler-Agent
