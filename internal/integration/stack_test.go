@@ -39,6 +39,7 @@ import (
 	_ "covey/internal/target/email"
 	"covey/migrations"
 
+	_ "covey/internal/target/teams"
 	_ "covey/internal/target/zammad"
 )
 
@@ -188,7 +189,7 @@ func newStack(t *testing.T) *stack {
 	// Zielsystem-Aktivierung ist opt-in (fail-closed) — die Test-Org aktiviert
 	// ihre Built-ins explizit, wie es eine echte Organisation im UI täte.
 	if _, err := pool.Exec(ctx, `INSERT INTO target_plugins (org_id, name, kind, enabled)
-		VALUES ($1,'zammad','builtin',TRUE), ($1,'gitlab','builtin',TRUE)`, s.orgID); err != nil {
+		VALUES ($1,'zammad','builtin',TRUE), ($1,'gitlab','builtin',TRUE), ($1,'teams','builtin',TRUE)`, s.orgID); err != nil {
 		t.Fatal(err)
 	}
 	hash, _ := identbuiltin.HashPassword("admin-passwort")
