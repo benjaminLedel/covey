@@ -85,6 +85,13 @@ Unter `full` steuern orthogonale Knöpfe die Kosten: `capture_screenshots` (an/a
 - **Daemon-seitig (weiche Innen-Grenze):** Die effektive Tiefe reist in der `RunSpec` mit ([`01`](01-architektur.md)); ist `capture_screenshots` aus, wird das Bild gar nicht erst über die Naht geschickt — kein Blob-Traffic.
 - **Control-Plane-seitig (harte Außen-Grenze):** Beim Schreiben ins Recording filtert die Control Plane Events unterhalb der effektiven Tiefe fail-closed weg. Die Policy bleibt die letzte Instanz, auch wenn ein Daemon mehr meldete.
 
+**Verwaltung — wer stellt was ein:**
+
+- **Org-Boden** wird wie die Guard-Rails behandelt: von der Rolle **Security/Compliance** ([`09`](09-enterprise-modell.md)) verwaltet, versioniert und per Review geändert — bewusst getrennt von den Agent-Ownern, damit kein Team-Lead das org-weite Mindest-Monitoring absenken kann.
+- **Agent-Override** ist ein Live-Feld der Agent-Registry (wie `model`/`max_turns`, [`12`](12-claude-code-adapter.md)): der **Agent-Owner** setzt es per PATCH höher (nie unter den Boden). Ein Wechsel der Aufzeichnungstiefe ist selbst ein Recording-Event — die Änderung des Monitorings ist damit ihrerseits auditiert.
+
+**Retention & Pruning:** Text-Events sind das Audit-Rückgrat und werden lange (bzw. unbefristet) gehalten. **Screenshot-Blobs** werden davon getrennt und gröber behandelt: ein periodischer Prune-Job löscht Bild-Blobs nach `screenshot_retention_days`, ohne die zugehörigen Text-Events anzutasten (die Blob-Referenz im Event bleibt, zeigt dann ins Leere — bewusst, damit die Timeline vollständig bleibt). So bleibt der teure visuelle Speicher beschränkt, während die Governance-Spur erhalten bleibt. Wo die Blobs liegen und welcher Default gilt, ist offen (D-CU6 in [`07`](07-offene-entscheidungen.md)).
+
 ## Approval-Gates
 
 Approval-Gates sind der **interaktive** Guard-Rail-Typ: Riskante Aktionen laufen nicht durch, sondern warten auf **Freigabe**. Der Daemon meldet `request_approval`; die Control Plane hält die Aktion an, bis ein Mensch (oder eine Policy) `approve`/`deny` liefert.
