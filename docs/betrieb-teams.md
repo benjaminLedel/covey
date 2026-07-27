@@ -336,9 +336,67 @@ Port 9998. So testet man Outbound ohne Azure-Registration:
   verschlüsselt und reicht es kurzlebig durch; der Laufzeit-Connector-Zugriff
   läuft dann bereits über ein kurzlebiges getauschtes Token. Secret regelmäßig
   rotieren.
-- **Nur Klartext-Nachrichten.** Adaptive Cards, Attachments und Kanal-/Team-
-  Verwaltung über Microsoft Graph sind bewusst noch nicht abgedeckt (spec/15,
-  Abschnitt „Scope").
+- **Klartext + eingehende Anhänge.** Eingehende Datei-Anhänge werden gelesen
+  (`download_attachment`, Abschnitt 3). Noch **nicht** abgedeckt: Adaptive Cards,
+  **ausgehende** Anhänge (Dateien senden) und Kanal-/Team-Verwaltung über
+  Microsoft Graph (spec/15, Abschnitt „Scope").
 - Die allgemeinen MVP-Grenzen (Egress-Härtung, Retry/Reconnect, Budget-Deckel,
   `webhook_events`-Retention) gelten wie im Zammad-Runbook
   ([`betrieb-zammad.md`](betrieb-zammad.md), Abschnitt 7).
+
+---
+
+## 8. Vorlage: Zugriffs-/Provisionierungs-Ticket (EN)
+
+Fertiger Text zum Kopieren an den Azure-/M365-Admin, wenn ein Bot in einem
+fremden Tenant (z. B. für einen Pilot in einer anderen GmbH) angelegt werden
+soll. `<…>` vor dem Senden ausfüllen. Bewusst auf Englisch, damit es 1:1 an
+IT/Provider gehen kann.
+
+```text
+Subject: Azure Bot (Bot Framework) for AI-agent pilot — <Company / Tenant>
+
+Context
+We are evaluating how to roll out AI agents across the organization (platform:
+Covey — it manages AI agents like employees). We want to connect Microsoft Teams
+as the human<->agent channel and therefore need an Azure Bot based on the
+Microsoft Bot Framework in the <Company> Microsoft 365 tenant.
+
+What we need — please pick ONE option
+  Option A (I set it up myself): grant me, for the pilot,
+    - role "Application Administrator" (or Cloud Application Administrator) in Entra ID,
+    - "Contributor" on <subscription / resource group>,
+    - a Teams setup policy that allows "Upload custom apps".
+  Option B (you provision — preferred): create and hand over to me
+    - an "Azure Bot" resource (Multi-Tenant) with the Microsoft Teams channel enabled,
+    - its App Registration incl. a Client Secret,
+    - and send me securely: Application (client) ID, Client Secret, Tenant ID.
+
+Messaging endpoint (enter when creating the bot resource)
+  https://<covey-host>/api/webhooks/teams/<agent-slug>
+  (I will provide the final URL once the pilot's Covey instance is up.)
+
+Teams side
+  Please either enable custom-app upload for me, or approve the app org-wide
+  later (Teams Admin Center -> Manage apps).
+
+No Graph / no admin consent required
+  For sending/receiving (including 1:1 file attachments) the bot authenticates
+  with App ID + Secret against the Bot Framework — it needs NO Microsoft Graph
+  API permissions and NO tenant admin consent.
+
+Pilot scope
+  <e.g. 1 bot / 1 agent, 1:1 chat only, test user group X>.
+
+Data protection
+  The bot receives chat messages and attached files from the test users; these
+  are processed by the AI agent. Data subjects / data types / retention:
+  <fill in>. Happy to align with <DPO / Security> if needed.
+
+Secret handling
+  Please deliver the Client Secret via <secure channel>; rotation interval
+  <e.g. 6 months>.
+```
+
+Nach der Bereitstellung folgt die Covey-Seite (Manifest mit
+`supportsFiles: true`, Secrets, Zielsystem aktivieren) gemäß Abschnitt 2.
