@@ -9,10 +9,13 @@
 Eine Plattform, die KI-Agenten wie Mitarbeiter führt — mit Identität, Arbeitsplatz,<br/>
 Zugängen, Backlog und Vorgesetztem. Und mit den Werkzeugen, sie zu überwachen.
 
+[![covey.work](https://img.shields.io/badge/live-covey.work-cc7a5b)](https://covey.work)
 [![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](go.mod)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-336791?logo=postgresql&logoColor=white)](migrations/)
 [![Deployment](https://img.shields.io/badge/Deployment-Single%20Binary-1f883d)](#stack)
 [![Runtime](https://img.shields.io/badge/Runtime-Claude%20Code-d97757)](spec/12-claude-code-adapter.md)
+
+**[covey.work](https://covey.work)** — die Plattform live
 
 **Deutsch** · [English](README.en.md)
 
@@ -39,7 +42,9 @@ Zugängen, Backlog und Vorgesetztem. Und mit den Werkzeugen, sie zu überwachen.
 
 ## In zwei Minuten starten
 
-Covey läuft **ohne Go, Node oder lokale Postgres** — nur Docker nötig:
+Lieber erst schauen? Die laufende Instanz steht unter **[covey.work](https://covey.work)** — sie wird bei jedem Push auf `main` automatisch neu ausgerollt.
+
+Selbst betreiben geht **ohne Go, Node oder lokale Postgres** — nur Docker nötig:
 
 ```bash
 cp .env.example .env
@@ -64,7 +69,7 @@ Das mitgelieferte [`docker-compose.yml`](docker-compose.yml) bringt Postgres (pg
 | 🎥 **Recording & Kill-Switch** | Jeder Lauf aufgezeichnet inkl. Screenshots; Kosten pro Agent und Modell; Notaus für die ganze Organisation. |
 | 📦 **Ein Binary** | Frontend und Migrationen sind einkompiliert. Kopieren, `covey serve` — kein nginx, kein separates Frontend-Hosting. |
 
-**Automatisches Deployment (main → Host):** Jeder Push auf `main` rollt Covey über die GitLab-Pipeline (`test → build → deploy`) auf einen Zielhost aus — das gebaute Image auf den Commit-Tag gepinnt, via [`docker-compose.deploy.yml`](docker-compose.deploy.yml) auf einem Shell-Runner am Host gestartet. Siehe [`docs/betrieb-deployment.md`](docs/betrieb-deployment.md).
+**Automatisches Deployment (main → Host):** Jeder Push auf `main` rollt Covey über die GitLab-Pipeline (`test → build → deploy`) auf einen Zielhost aus — so entsteht [covey.work](https://covey.work): das gebaute Image auf den Commit-Tag gepinnt, via [`docker-compose.deploy.yml`](docker-compose.deploy.yml) auf einem Shell-Runner am Host gestartet. Siehe [`docs/betrieb-deployment.md`](docs/betrieb-deployment.md).
 
 ## Die Leitmetapher
 
