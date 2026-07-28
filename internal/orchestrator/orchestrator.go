@@ -66,8 +66,12 @@ type Options struct {
 	// WikiMaintenanceInterval taktet den Wiki-Konsolidierungs-Pass (spec/05:
 	// aufgabenunabhängig, nicht im Hot-Path). 0 → Default.
 	WikiMaintenanceInterval time.Duration
-	ReadyTimeout            time.Duration
-	Log                     *slog.Logger
+	// BoardRetention ist das Alter, ab dem eine terminale Aufgabe automatisch
+	// archiviert wird — damit räumt sich das Board selbst auf, statt auf einen
+	// Menschen am „Aufräumen"-Knopf zu warten. 0 → Default.
+	BoardRetention time.Duration
+	ReadyTimeout   time.Duration
+	Log            *slog.Logger
 }
 
 type Orchestrator struct {
@@ -96,6 +100,9 @@ func New(opts Options) *Orchestrator {
 	}
 	if opts.WikiMaintenanceInterval == 0 {
 		opts.WikiMaintenanceInterval = 10 * time.Minute
+	}
+	if opts.BoardRetention == 0 {
+		opts.BoardRetention = 24 * time.Hour
 	}
 	if opts.Log == nil {
 		opts.Log = slog.Default()
@@ -225,6 +232,7 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 	go o.listenLoop(ctx)
 	go o.wikiMaintenanceLoop(ctx)
 	go o.warmReaperLoop(ctx)
+	go o.boardJanitorLoop(ctx)
 	ticker := time.NewTicker(o.TickInterval)
 	defer ticker.Stop()
 	o.tick(ctx)
@@ -791,6 +799,46 @@ func (o *Orchestrator) evictWarm(ctx context.Context, agentID uuid.UUID, kill bo
 	}
 	_ = o.sendMsg(ctx, ws.link, msg, map[string]string{})
 	ws.teardown()
+}
+
+// boardJanitorLoop hält das Backlog-Board auf den Arbeitszuständen, die es
+// wirklich gibt: terminale Aufgaben werden nach BoardRetention archiviert
+// (nicht gelöscht — sie bleiben im Archiv), und die damit leer gewordenen
+// Agenten-Spalten fallen weg.
+//
+// Warum die Plattform und nicht der Agent: Aufräumen ist Hygiene, keine
+// Entscheidung. Ein Agent, der es im Prompt tun soll, vergisst es unter Last
+// oder tut es zur falschen Zeit; hier passiert es für jede Installation gleich,
+// ohne dass jemand daran denken muss. Der „Aufräumen"-Knopf in der UI bleibt
+// für „und zwar jetzt".
+func (o *Orchestrator) boardJanitorLoop(ctx context.Context) {
+	if o.BoardRetention < 0 {
+		o.Log.Info("board-aufräumen ist abgeschaltet (COVEY_BOARD_RETENTION negativ)")
+		return
+	}
+	// Stündlich reicht: die Frist liegt in Stunden, nicht in Minuten.
+	t := time.NewTicker(time.Hour)
+	defer t.Stop()
+	o.sweepBoards(ctx)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			o.sweepBoards(ctx)
+		}
+	}
+}
+
+func (o *Orchestrator) sweepBoards(ctx context.Context) {
+	n, err := o.Backlog.ArchiveTerminalOlderThan(ctx, o.BoardRetention)
+	if err != nil {
+		o.Log.Warn("board-aufräumen fehlgeschlagen", "err", err)
+		return
+	}
+	if n > 0 {
+		o.Log.Info("board-aufräumen: terminale Aufgaben archiviert", "count", n, "älter_als", o.BoardRetention)
+	}
 }
 
 // warmReaperLoop baut geparkte warme Sandboxen ab, die zu lange idle waren.
