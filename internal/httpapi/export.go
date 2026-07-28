@@ -46,6 +46,8 @@ type bundleAgent struct {
 	// WebhookEnabled: beim Import wird ein FRISCHES Token erzeugt —
 	// das Token selbst ist ein Secret und steckt nie im Bundle.
 	WebhookEnabled bool `json:"webhook_enabled,omitempty"`
+	// WarmSandbox hält die Sandbox zwischen Wach-Phasen live (opt-in, z. B. QA).
+	WarmSandbox bool `json:"warm_sandbox,omitempty"`
 }
 
 type bundleStage struct {
@@ -108,6 +110,7 @@ func (s *Server) buildBundle(ctx context.Context, orgID, agentID uuid.UUID, incl
 			Slug: a.Slug, DisplayName: a.DisplayName, Runtime: a.Runtime,
 			Model: a.Model, MaxTurns: a.MaxTurns, BudgetUSD: a.BudgetUSD,
 			WebhookEnabled: a.WebhookToken != nil,
+			WarmSandbox:    a.WarmSandbox,
 		},
 	}
 	if a.SupervisorID != nil {
@@ -433,6 +436,12 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	if b.Agent.BudgetUSD > 0 {
 		if err := s.Registry.SetBudget(ctx, a.ID, b.Agent.BudgetUSD); err != nil {
+			mapErr(w, err)
+			return
+		}
+	}
+	if b.Agent.WarmSandbox {
+		if err := s.Registry.SetWarmSandbox(ctx, a.ID, true); err != nil {
 			mapErr(w, err)
 			return
 		}
