@@ -18,7 +18,7 @@ func init() {
 	target.Register(target.Descriptor{
 		Name:        "gitlab",
 		Label:       "GitLab",
-		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues), extern gemeldete Bugs als Ticket anlegen (create_issue), Quellcode auschecken, Projekt aufsetzen und Bugs am Code verifizieren (checkout + Sandbox-Shell), an Issues angehängte Screenshots/Bilder lesen (download_upload + Vision), Fixes entwickeln — auf Feature-Branch committen (commit), Merge Request an den Vorgesetzten eröffnen (create_merge_request, optional mit QA-Agent als reviewer) und den Review-Loop leben: bei jedem Heartbeat-Lauf offene MRs auf neues Review-Feedback prüfen (list_merge_requests/list_mr_notes/comment_mr), rote CI selbst diagnostizieren (list_pipelines/list_pipeline_jobs/get_job_log) und auf den Merge reagieren. Auch als QA-/Test-Agent nutzbar: fremde MRs, in denen man als Reviewer eingetragen ist, end-to-end testen und Feedback geben (set_reviewer/approve_mr, nur-wenn: gitlab:review). Intake per HEARTBEAT.md (Polling), Auth per API-Token (Secrets gitlab_token + gitlab_url).",
+		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues), extern gemeldete Bugs als Ticket anlegen (create_issue), Quellcode auschecken, Projekt aufsetzen und Bugs am Code verifizieren (checkout + Sandbox-Shell), an Issues angehängte Screenshots/Bilder lesen (download_upload + Vision), eigene Screenshots an einen MR/ein Issue anhängen (upload + comment_mr), Fixes entwickeln — auf Feature-Branch committen (commit), Merge Request an den Vorgesetzten eröffnen (create_merge_request, optional mit QA-Agent als reviewer) und den Review-Loop leben: bei jedem Heartbeat-Lauf offene MRs auf neues Review-Feedback prüfen (list_merge_requests/list_mr_notes/comment_mr), rote CI selbst diagnostizieren (list_pipelines/list_pipeline_jobs/get_job_log) und auf den Merge reagieren. Auch als QA-/Test-Agent nutzbar: fremde MRs, in denen man als Reviewer eingetragen ist, end-to-end testen und Feedback geben (set_reviewer/approve_mr, nur-wenn: gitlab:review). Intake per HEARTBEAT.md (Polling), Auth per API-Token (Secrets gitlab_token + gitlab_url).",
 		Kind:        "builtin",
 		System:      System{},
 		SetupDoc: `1. In GitLab einen eigenen Bot-Nutzer anlegen (z. B. covey-bot), den
@@ -339,6 +339,11 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, fmt.Errorf("project_id oder url fehlt")
 		}
 		return DownloadUploadToSandbox(ctx, gc, in.ProjectID, in.URL, target.Workdir(ctx))
+	case "upload":
+		if in.ProjectID == 0 || strings.TrimSpace(in.Path) == "" {
+			return nil, fmt.Errorf("project_id oder path fehlt")
+		}
+		return UploadFromSandbox(ctx, gc, in.ProjectID, in.Path, target.Workdir(ctx))
 	case "checkout":
 		if in.ProjectID == 0 {
 			return nil, fmt.Errorf("project_id fehlt")
@@ -537,6 +542,10 @@ func (System) PromptDoc() string {
    ![...](/uploads/<32-hex-secret>/<datei>) —, kannst du das Bild NICHT aus dem Text erschließen. Lade es IMMER erst
    mit download_upload herunter und SIEH ES DIR AN (Read), bevor du einen Screenshot/ein Bild in deiner Analyse
    berücksichtigst; übergib in "url" die Referenz exakt so, wie sie im Markdown zwischen den Klammern steht.
+   upload {"project_id":N,"path":"browser/shot.png"} — lädt eine Datei aus deiner Sandbox (z. B. einen Browser-
+   Screenshot) an das Projekt und liefert eine Markdown-Referenz (Feld "markdown", z. B. ![shot](/uploads/<secret>/shot.png)).
+   Diese Referenz baust du in den comment_mr-Body ein, damit der Screenshot direkt im Merge Request sichtbar ist — so
+   belegst du ein UI-Verhalten oder einen Mangel mit Bild, nicht nur mit Worten.
    checkout {"project_id":N,"ref":"branch|tag|sha (optional, Default: Default-Branch)","path":"unterverzeichnis (optional)"} —
    lädt den Quellcode des Projekts in deine Sandbox und liefert den lokalen Pfad; schlägt er wegen Repo-Größe fehl,
    checke gezielt ein Unterverzeichnis aus (path) oder arbeite ohne Checkout:
