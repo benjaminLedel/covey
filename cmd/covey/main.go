@@ -1,6 +1,6 @@
 // covey ist das eine Binary der Control Plane (spec/10): API/BFF +
 // Orchestration-Core + eingebettetes Frontend + eingebettete Migrationen.
-// Subcommands: serve, migrate (up|down), bootstrap, passwd.
+// Subcommands: serve, migrate (up|down), bootstrap, passwd, config lint.
 package main
 
 import (
@@ -79,6 +79,8 @@ func main() {
 		err = runPasswd(ctx, cfg, os.Args[2:], log)
 	case "egress-proxy":
 		err = runEgressProxy(ctx, cfg, log)
+	case "config":
+		err = runConfigLint(ctx, cfg, os.Args[2:])
 	case "genkey":
 		var key string
 		if key, err = secbuiltin.GenerateMasterKey(); err == nil {
@@ -102,6 +104,7 @@ func usage() {
   covey passwd <email>    Passwort eines Nutzers neu setzen (Notfall-Reset)
   covey serve             API + Orchestrator + Admin-UI starten
   covey egress-proxy      Egress-Allowlist-Proxy (network-Isolationsmodus, im Container)
+  covey config lint       Agenten-Configs auf bekannte Fallstricke prüfen (ändert nichts)
   covey genkey            neuen COVEY_MASTER_KEY erzeugen
 
 Konfiguration über ENV: COVEY_DATABASE_URL, COVEY_LISTEN_ADDR, COVEY_PUBLIC_URL,
