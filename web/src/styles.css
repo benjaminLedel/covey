@@ -894,15 +894,20 @@ kbd {
 .help-body dd { margin: 0 0 9px; }
 
 /* Backlog-Kanban (Design-Sprache aus dem Mockup) */
-.kanban { display: grid; grid-template-columns: repeat(var(--kcols, 4), minmax(0, 1fr)); gap: 12px; }
+/* Spalten haben eine Mindestbreite: passen sie nicht mehr nebeneinander, scrollt
+   das Board waagerecht, statt die Spuren so schmal zu quetschen, dass Kopfzeilen
+   und Karten in die Nachbarspalte laufen. */
+.kanban { display: grid; grid-template-columns: repeat(var(--kcols, 4), minmax(220px, 1fr)); gap: 12px; overflow-x: auto; padding-bottom: 4px; }
+.kcol { min-width: 0; }
 .kc.draggable { cursor: grab; }
 .kc.draggable:active { cursor: grabbing; }
 .kcol.droppable { outline: 1px dashed var(--border-strong); outline-offset: 2px; border-radius: var(--radius); }
 .kc-state { font-size: 10px; padding: 1px 6px; flex-shrink: 0; }
 .dot-btn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0.5px solid var(--border); border-radius: 6px; background: transparent; cursor: pointer; }
-.kcol .kh { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; }
-.kcol .kh .n { margin-left: auto; color: var(--text-muted); }
-.kc { background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 8px; font-size: 13px; cursor: pointer; }
+.kcol .kh { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text-secondary); margin-bottom: 10px; min-width: 0; }
+.kcol .kh .knm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kcol .kh .n { margin-left: auto; flex: none; color: var(--text-muted); }
+.kc { background: var(--surface-2); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 10px 12px; margin-bottom: 8px; font-size: 13px; cursor: pointer; min-width: 0; overflow-wrap: anywhere; }
 .kc.expanded { border-color: var(--border-strong); }
 .kc .kc-title { display: flex; align-items: center; gap: 8px; }
 .kc .kc-title .kc-prio { margin-left: auto; color: var(--text-muted); font-size: 11px; flex-shrink: 0; }
@@ -911,7 +916,7 @@ kbd {
 .kc .kc-detail p { margin: 0 0 5px; }
 .kanban .kc-empty { color: var(--text-muted); font-size: 12px; padding: 2px 0; }
 .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-@media (max-width: 900px) { .kanban { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 900px) { .kanban { grid-template-columns: repeat(var(--kcols, 4), minmax(200px, 1fr)); } }
 
 /* ── Org-Chart: gemeinsame Node-Stile ───────────────────────────── */
 .org-legend { display: flex; gap: 16px; margin-bottom: 18px; font-size: 12px; color: var(--text-secondary); }

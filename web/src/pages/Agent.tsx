@@ -653,7 +653,7 @@ function Backlog({
                   >
                     <div className="kh">
                       <span className="dot" style={{ background: col.color }} />
-                      {col.name}
+                      <span className="knm" title={col.name}>{col.name}</span>
                       <span className="n">{all.length}</span>
                     </div>
                     {items.map((tk) => (
