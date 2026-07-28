@@ -207,6 +207,27 @@ func (s *Store) AncestorsWithOrigin(ctx context.Context, id uuid.UUID, originPre
 	return n, err
 }
 
+// CountChildren zählt die direkt aus einer Aufgabe hervorgegangenen Aufgaben —
+// die Breite der Zerlegung.
+func (s *Store) CountChildren(ctx context.Context, parentID uuid.UUID) (int, error) {
+	var n int
+	err := s.pool.QueryRow(ctx,
+		"SELECT COUNT(*) FROM backlog_tasks WHERE parent_task_id=$1", parentID).Scan(&n)
+	return n, err
+}
+
+// OpenWithTitle sagt, ob der Agent bereits eine nicht-terminale Aufgabe mit
+// diesem Titel hat. Der Dublettenschutz für selbst angelegte Aufgaben: Ein
+// Agent, der in jedem Lauf dieselbe Aufgabe neu anlegt, baut sich sonst eine
+// Warteschlange, die nie leer wird.
+func (s *Store) OpenWithTitle(ctx context.Context, agentID uuid.UUID, title string) (bool, error) {
+	var exists bool
+	err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM backlog_tasks
+		WHERE agent_id=$1 AND title=$2 AND state NOT IN ('done','failed','cancelled'))`,
+		agentID, title).Scan(&exists)
+	return exists, err
+}
+
 func (s *Store) notify(ctx context.Context, agentID uuid.UUID) {
 	// Wake-Signal ist best-effort — der periodische Tick fängt Verluste ab.
 	_, _ = s.pool.Exec(ctx, "SELECT pg_notify($1,$2)", NotifyChannel, agentID.String())

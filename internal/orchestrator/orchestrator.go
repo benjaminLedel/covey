@@ -1215,6 +1215,14 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		resp := o.brokerWiki(ctx, agent, req)
 		return false, o.sendMsg(ctx, link, daemon.TypeInjectWiki, resp)
 
+	case daemon.TypeRequestCreateTask:
+		req, err := daemon.DecodePayload[daemon.RequestCreateTask](msg)
+		if err != nil {
+			return false, nil
+		}
+		resp := o.createAgentTask(ctx, agent, taskID, req)
+		return false, o.sendMsg(ctx, link, daemon.TypeInjectCreateTask, resp)
+
 	case daemon.TypeBlocked:
 		b, err := daemon.DecodePayload[daemon.Blocked](msg)
 		if err != nil {
@@ -1448,6 +1456,104 @@ func (o *Orchestrator) enforceBudget(ctx context.Context, agent agents.Agent, li
 // errBudgetExceeded markiert den Budget-Stopp: Aufgabe ist wieder offen,
 // der Agent pausiert — kein failed-Abschluss.
 var errBudgetExceeded = errors.New("budget überschritten")
+
+const (
+	// originAgentTask markiert eine Aufgabe, die ein Agent selbst angelegt hat
+	// (covey/create_task) — als Teilaufgabe oder per Delegation. Die volle Form
+	// ist "agent:<slug>", damit im Audit steht, wer sie erzeugt hat.
+	originAgentTask = "agent"
+
+	// maxAgentTaskDepth begrenzt die Kette selbst erzeugter Aufgaben: eine
+	// Teilaufgabe darf Teilaufgaben haben, aber nicht beliebig tief. Ohne diese
+	// Grenze zerlegt ein Agent seine Arbeit rekursiv, bis das Budget leer ist.
+	maxAgentTaskDepth = 3
+
+	// maxAgentTasksPerRun begrenzt die Breite: so viele Aufgaben darf ein
+	// einzelner Lauf abspalten. Ein Agent, der mehr braucht, hat seine Arbeit
+	// nicht zerlegt, sondern kopiert.
+	maxAgentTasksPerRun = 10
+)
+
+// createAgentTask bedient covey/create_task: Der Agent legt eine Teilaufgabe für
+// sich selbst an oder delegiert an einen Kollegen. Die neue Aufgabe hängt als
+// Kind an der laufenden — das trägt sowohl den Audit-Trail (wer hat sie erzeugt)
+// als auch den Loop-Schutz.
+//
+// Fail-closed in drei Richtungen, weil ein Agent, der Aufgaben anlegen kann,
+// sich selbst beschäftigen kann, bis das Budget leer ist:
+//
+//   - Tiefe (maxAgentTaskDepth) — keine unendliche Zerlegung.
+//   - Breite (maxAgentTasksPerRun) — ein Lauf spaltet begrenzt viel ab.
+//   - Dubletten — existiert bereits eine offene Aufgabe gleichen Titels beim
+//     Ziel-Agenten, entsteht keine zweite. Genau daran scheitern Schleifen, in
+//     denen jeder Lauf dieselbe Aufgabe neu anlegt.
+//
+// Die Delegation bleibt in der Organisation: der Ziel-Agent wird über seinen
+// Slug **innerhalb der Org des Absenders** aufgelöst.
+func (o *Orchestrator) createAgentTask(ctx context.Context, agent agents.Agent, taskID uuid.UUID, req daemon.RequestCreateTask) daemon.InjectCreateTask {
+	fail := func(m string) daemon.InjectCreateTask {
+		return daemon.InjectCreateTask{RequestID: req.RequestID, OK: false, Error: m}
+	}
+	title := strings.TrimSpace(req.Title)
+	if title == "" {
+		return fail("title fehlt")
+	}
+
+	// Ziel-Agent: leer = ich selbst, sonst ein Kollege aus derselben Org.
+	targetAgent := agent
+	if slug := strings.TrimSpace(req.Agent); slug != "" && slug != agent.Slug {
+		found, err := o.Registry.GetBySlug(ctx, agent.OrgID, slug)
+		if err != nil {
+			return fail(fmt.Sprintf("kein agent %q in dieser organisation", slug))
+		}
+		if found.Killed {
+			return fail(fmt.Sprintf("agent %q ist pausiert — keine delegation", slug))
+		}
+		targetAgent = found
+	}
+
+	depth, err := o.Backlog.AncestorsWithOrigin(ctx, taskID, originAgentTask+":")
+	if err != nil {
+		return fail("herkunftskette nicht prüfbar")
+	}
+	if depth >= maxAgentTaskDepth {
+		return fail(fmt.Sprintf("aufgaben-kette zu tief (%d) — zerlege nicht weiter, sondern schließe ab oder eskaliere", depth))
+	}
+	children, err := o.Backlog.CountChildren(ctx, taskID)
+	if err != nil {
+		return fail("teilaufgaben nicht zählbar")
+	}
+	if children >= maxAgentTasksPerRun {
+		return fail(fmt.Sprintf("dieser lauf hat bereits %d aufgaben angelegt — das ist das limit", children))
+	}
+	dup, err := o.Backlog.OpenWithTitle(ctx, targetAgent.ID, title)
+	if err != nil {
+		return fail("dublettenprüfung fehlgeschlagen")
+	}
+	if dup {
+		return fail(fmt.Sprintf("es gibt bereits eine offene aufgabe %q bei %s — keine zweite angelegt", title, targetAgent.Slug))
+	}
+
+	created, err := o.Backlog.CreateChild(ctx, taskID, backlog.ChildSpec{
+		AgentID:  targetAgent.ID,
+		Title:    title,
+		Body:     req.Body,
+		Origin:   originAgentTask + ":" + agent.Slug,
+		Priority: req.Priority,
+	})
+	if err != nil {
+		return fail(err.Error())
+	}
+	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
+		map[string]string{"status": "task_created", "created_task": created.ID.String(),
+			"target_agent": targetAgent.Slug, "title": title})
+	o.publishTask(created.ID, targetAgent.ID)
+	if targetAgent.ID != agent.ID {
+		o.EnsureRunning(targetAgent.ID) // Delegation weckt den Kollegen
+	}
+	return daemon.InjectCreateTask{RequestID: req.RequestID, OK: true,
+		TaskID: created.ID.String(), Agent: targetAgent.Slug}
+}
 
 // brokerWiki bedient die Wiki-Tools des Agenten (covey/wiki_*, spec/05) gegen
 // den Memory-Store der Control Plane.

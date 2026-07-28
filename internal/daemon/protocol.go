@@ -44,7 +44,11 @@ const (
 	TypeSetStage          = "set_stage"
 	TypeNote              = "note"
 	TypeRequestWiki       = "request_wiki"
+	TypeRequestCreateTask = "request_create_task"
 )
+
+// Control Plane → Daemon (Antwort auf request_create_task).
+const TypeInjectCreateTask = "inject_create_task"
 
 type InjectConfig struct {
 	SystemPrompt string   `json:"system_prompt"`
@@ -216,6 +220,32 @@ type InjectWiki struct {
 	OK        bool            `json:"ok"`
 	Error     string          `json:"error,omitempty"`
 	Data      json.RawMessage `json:"data,omitempty"`
+}
+
+// RequestCreateTask/InjectCreateTask sind die Meta-Aktion covey/create_task:
+// Der Agent legt eine Aufgabe an — entweder eine **Teilaufgabe** für sich
+// selbst (er zerlegt zu große Arbeit, statt ins Turn-Limit zu laufen) oder eine
+// **Delegation** an einen Kollegen (Agent = dessen Slug). Die neue Aufgabe hängt
+// als Kind an der laufenden Aufgabe; darüber zählt der Loop-Schutz.
+//
+// Anders als die übrigen covey-Meta-Aktionen läuft sie durch die Guard-Rails
+// (Subjekt covey:create_task bzw. covey:create_task:foreign bei Delegation) —
+// eine Aufgabe anzulegen erzeugt Arbeit und Kosten und muss regelbar sein.
+type RequestCreateTask struct {
+	RequestID string `json:"request_id"`
+	TaskID    string `json:"task_id,omitempty"` // laufende Aufgabe = Elternteil
+	Agent     string `json:"agent,omitempty"`   // Ziel-Agent (Slug); leer = ich selbst
+	Title     string `json:"title"`
+	Body      string `json:"body"`
+	Priority  int    `json:"priority,omitempty"`
+}
+
+type InjectCreateTask struct {
+	RequestID string `json:"request_id"`
+	OK        bool   `json:"ok"`
+	Error     string `json:"error,omitempty"`
+	TaskID    string `json:"task_id,omitempty"` // die angelegte Aufgabe
+	Agent     string `json:"agent,omitempty"`   // aufgelöster Ziel-Agent (Slug)
 }
 
 // Encode baut einen Envelope; panict nie, weil alle Payloads marshalbar sind.

@@ -194,6 +194,12 @@ func (c *Client) Run(ctx context.Context) error {
 				continue
 			}
 			c.route(inj.RequestID, msg)
+		case TypeInjectCreateTask:
+			inj, err := DecodePayload[InjectCreateTask](msg)
+			if err != nil {
+				continue
+			}
+			c.route(inj.RequestID, msg)
 		case TypeAssignTask:
 			task, err := DecodePayload[AssignTask](msg)
 			if err != nil {
@@ -330,6 +336,19 @@ func (c *Client) wiki(ctx context.Context, req RequestWiki) (InjectWiki, error) 
 		return InjectWiki{}, err
 	}
 	return DecodePayload[InjectWiki](msg)
+}
+
+// createTask lässt die Control Plane eine Aufgabe anlegen (covey/create_task):
+// Teilaufgabe für den Agenten selbst oder Delegation an einen Kollegen.
+func (c *Client) createTask(ctx context.Context, req RequestCreateTask) (InjectCreateTask, error) {
+	req.RequestID = uuid.NewString()
+	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	msg, err := c.request(reqCtx, TypeRequestCreateTask, req.RequestID, req)
+	if err != nil {
+		return InjectCreateTask{}, err
+	}
+	return DecodePayload[InjectCreateTask](msg)
 }
 
 // checkAction holt die zentrale Policy-Entscheidung für eine Aktion.

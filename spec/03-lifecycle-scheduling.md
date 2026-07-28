@@ -129,9 +129,10 @@ Das Backlog ist **kein flüchtiger Queue**, sondern ein persistentes, inspizierb
 
 - **State** (`open`, `in_progress`, `blocked`, `done`, `failed`, `cancelled`),
 - **Priorität**,
-- **Herkunft** (wer/was hat sie zugewiesen — Mensch, anderer Agent, Zeitplan),
+- **Herkunft** (wer/was hat sie zugewiesen — `manual:<email>`, `heartbeat`, `webhook:<system>`, `webhook:trigger`, `agent:<slug>` für vom Agenten selbst angelegte, `continuation:<task-id>` für die Fortsetzung eines abgebrochenen Laufs),
 - **Historie** (Zustandsübergänge, Zeitstempel),
 - ggf. **Korrelations-Key** (wenn `blocked`),
+- ggf. **Ursprungsaufgabe** (`parent_task_id` — Teilaufgabe, Delegation oder Fortsetzung; trägt zugleich den Loop-Schutz, siehe unten),
 - ggf. **Stage** (frei definierbare Kanban-Spalte, siehe unten),
 - ggf. **Notizen** (proaktive Zwischenstände des Agenten, siehe unten).
 
@@ -147,6 +148,7 @@ Der **State** ist die Maschinen-Wahrheit — an ihm hängen Scheduler (`ClaimNex
 Darüber liegt eine zweite, **rein anzeigende** Dimension: die **Stage**. Stages sind frei benennbare Kanban-Spalten, **pro Agent** definiert (z. B. `Triage → Recherche → Warten → Antwort → Erledigt`). Sie tragen keine Semantik für den Scheduler — sie machen sichtbar, *wo im eigenen Workflow* eine Aufgabe steht.
 
 - **Der Agent bewegt sich selbst.** Über den Action-Proxy (`covey/set_stage`, siehe [`01-architektur.md`](01-architektur.md)) schiebt der Agent seine laufende Aufgabe in eine Stage; existiert sie nicht, wird sie automatisch als neue Spalte angelegt — der Agent „erfindet" seine Spalten also im Arbeiten.
+- **Spalten sind Zustände, keine Überschriften.** Das automatische Anlegen ist bequem und verführt zum Wildwuchs: Ein Agent, der in jedem Lauf einen neuen Namen für dieselbe Tätigkeit prägt (`Issue-Triage`, `GitLab-Sichtung`) oder den Vorgang statt des Zustands benennt (`#83 CSV-Import`), baut sich in Tagen ein Board mit einem Dutzend toter Spalten. Der kompilierte System-Prompt hält deshalb drei Regeln fest: den *Zustand* benennen, bestehende Spalten wiederverwenden, mit einer Handvoll auskommen. Was darüber hinaus dokumentiert werden will, ist eine Notiz, keine Spalte.
 - **Auto-Cleanup der Agenten-Spalten.** Spalten, die der Agent selbst angelegt hat (`created_by='agent'`), werden automatisch wieder abgeräumt, sobald keine aktive (unarchivierte) Aufgabe mehr darin liegt — geprüft nach jedem Stage-Move und nach dem Archivieren. So bleibt das Board frei von verwaisten Arbeitszuständen. Menschlich angelegte Spalten (UI, Default-Stages) bleiben stehen, auch wenn sie leer sind.
 - **Menschen ebenso.** Verwalter ziehen Aufgaben im Board per Drag & Drop und pflegen die Spalten (anlegen, umbenennen, umsortieren, färben, löschen).
 - **Persistenz:** Tabelle `agent_stages` (pro Agent, mit `position`/`color`), Aufgabe referenziert `stage_id` (nullable → „Ohne Stage"). Löschen einer Stage setzt betroffene Aufgaben auf `NULL` zurück, nie Datenverlust.
@@ -156,6 +158,28 @@ Darüber liegt eine zweite, **rein anzeigende** Dimension: die **Stage**. Stages
 ### Notizen: Zwischenstände an der Aufgabe
 
 Neben Stage und State trägt eine Aufgabe **Notizen** (`task_notes`): proaktive Zwischenstände, die der Agent mitten im Lauf über den Action-Proxy anhängt (`covey/add_note`, siehe [`01-architektur.md`](01-architektur.md)) — Befunde, Versuchtes, Arbeitsstand. Die Abgrenzung ist bewusst einfach: **Hilft es nur dieser Aufgabe, ist es eine Notiz an der Aufgabe; hilft es auch künftigen Aufgaben, gehört es ins Gedächtnis** (`covey/remember`, siehe [`05-gedaechtnis.md`](05-gedaechtnis.md)). Notizen hängen an der Aufgabe (Cascade beim Löschen, sichtbar in der Karte im Board) und fließen nicht in die Memory-Abfrage künftiger Aufgaben ein.
+
+### Teilaufgaben und Delegation (`covey/create_task`)
+
+Aufgaben entstehen nicht nur von außen (Mensch, Heartbeat, Webhook, Trigger). Ein Agent kann selbst welche anlegen — über die Meta-Aktion `covey/create_task` am Action-Proxy (siehe [`01-architektur.md`](01-architektur.md)):
+
+- **Teilaufgabe** (ohne `agent`) — der Agent zerlegt Arbeit, die für einen Lauf zu groß ist. Das ist die gesunde Alternative zum Festfahren: Teilergebnis abschließen, Rest als Aufgabe hinterlegen, statt ins Turn-Limit zu laufen.
+- **Delegation** (`"agent": "<slug>"`) — die Aufgabe landet beim Kollegen aus derselben Organisation und weckt ihn. Damit wird der Org-Chart aus [`02-agenten-modell.md`](02-agenten-modell.md) operativ: Eskalation und Delegation brauchen kein Sonderprotokoll und keinen Umweg über ein externes Ticketsystem.
+
+Jede so erzeugte Aufgabe hängt über `parent_task_id` an der Aufgabe, aus der sie hervorging, und trägt die Herkunft `agent:<slug>` — im Audit steht also, wer sie erzeugt hat und woraus.
+
+**Ein Agent, der Aufgaben anlegen kann, kann sich selbst beschäftigen, bis das Budget leer ist.** Deshalb fail-closed in vier Richtungen:
+
+| Grenze | Regel |
+|---|---|
+| Policy | Guard-Rail-Subjekt `covey:create_task`, bei Delegation `covey:create_task:foreign` — getrennt regelbar, `denied`/`pending` wie bei jeder Zielsystem-Aktion |
+| Tiefe | Eine Kette selbst erzeugter Aufgaben endet nach `maxAgentTaskDepth` — keine unendliche Zerlegung |
+| Breite | Ein einzelner Lauf spaltet höchstens `maxAgentTasksPerRun` Aufgaben ab |
+| Dubletten | Existiert beim Ziel-Agenten bereits eine offene Aufgabe gleichen Titels, entsteht keine zweite |
+
+Der Dublettenschutz ist die wichtigste der vier: Ohne ihn baut ein wiederkehrender Lauf, der jedes Mal dieselbe Aufgabe anlegt, eine Warteschlange, die nie leer wird — dieselbe Klasse Fehler wie ein Heartbeat, der auf den Pegel statt auf die Flanke triggert.
+
+Die Delegation bleibt in der Organisation: Der Ziel-Agent wird über seinen Slug **innerhalb der Org des Absenders** aufgelöst, ein pausierter Agent nimmt nichts an. Inter-Agenten-Aufgaben unterliegen damit denselben Recording- und Policy-Regeln wie alles andere (vgl. das Risiko „Agent-zu-Agent-Missbrauch" in [`04-identitaet-secrets.md`](04-identitaet-secrets.md)).
 
 ### Ironie/Chance: Backlog = Ticketsystem für Agenten
 
