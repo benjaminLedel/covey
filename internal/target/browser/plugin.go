@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/chromedp/chromedp"
@@ -96,7 +97,11 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		var text string
 		var task chromedp.Action
 		if sel := strings.TrimSpace(in.Selector); sel != "" {
-			task = chromedp.Text(sel, &text, chromedp.ByQuery, chromedp.NodeVisible)
+			eff, err := resolveSelector(sel)
+			if err != nil {
+				return nil, fmt.Errorf("content: %w", err)
+			}
+			task = chromedp.Text(eff, &text, chromedp.ByQuery, chromedp.NodeVisible)
 		} else {
 			task = chromedp.Evaluate(`document.body ? document.body.innerText : ""`, &text)
 		}
@@ -145,7 +150,11 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		if sel == "" {
 			return nil, fmt.Errorf("selector fehlt")
 		}
-		if err := super.do(chromedp.Click(sel, chromedp.ByQuery, chromedp.NodeVisible)); err != nil {
+		eff, err := resolveSelector(sel)
+		if err != nil {
+			return nil, fmt.Errorf("click %q: %w", sel, err)
+		}
+		if err := super.do(chromedp.Click(eff, chromedp.ByQuery, chromedp.NodeVisible)); err != nil {
 			return nil, fmt.Errorf("click %q: %w", sel, err)
 		}
 		return map[string]any{"clicked": sel}, nil
@@ -155,7 +164,11 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		if sel == "" {
 			return nil, fmt.Errorf("selector fehlt")
 		}
-		if err := super.do(chromedp.SendKeys(sel, in.Text, chromedp.ByQuery, chromedp.NodeVisible)); err != nil {
+		eff, err := resolveSelector(sel)
+		if err != nil {
+			return nil, fmt.Errorf("type in %q: %w", sel, err)
+		}
+		if err := super.do(chromedp.SendKeys(eff, in.Text, chromedp.ByQuery, chromedp.NodeVisible)); err != nil {
 			return nil, fmt.Errorf("type in %q: %w", sel, err)
 		}
 		return map[string]any{"typed": sel}, nil
@@ -163,6 +176,67 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 	default:
 		return nil, fmt.Errorf("unbekannte aktion %q", strings.TrimSpace(action))
 	}
+}
+
+// hitAttr markiert den aufgelösten :has-text-Treffer im DOM, damit chromedp
+// ihn danach als reinen CSS-Selektor greifen kann.
+const hitAttr = "data-covey-hit"
+
+// hasTextRe erkennt das Playwright-artige :has-text("…")/:has-text('…') — kein
+// gültiges CSS, das querySelector kennt.
+var hasTextRe = regexp.MustCompile(`:has-text\(\s*(?:"([^"]*)"|'([^']*)')\s*\)`)
+
+// parseHasText zerlegt einen Selektor mit :has-text("…") in seinen CSS-Präfix
+// und den gesuchten Text. Ohne :has-text ist ok=false. Ein leerer Präfix wird
+// zu "*" (jedes Element).
+func parseHasText(sel string) (css, needle string, ok bool) {
+	m := hasTextRe.FindStringSubmatch(sel)
+	if m == nil {
+		return "", "", false
+	}
+	needle = m[1]
+	if needle == "" {
+		needle = m[2]
+	}
+	css = strings.TrimSpace(hasTextRe.ReplaceAllString(sel, ""))
+	if css == "" {
+		css = "*"
+	}
+	return css, needle, true
+}
+
+// resolveSelector übersetzt Playwright-artige :has-text("…")-Selektoren, die
+// reines CSS nicht kennt, in einen konkreten CSS-Selektor. Der CSS-Präfix vor
+// :has-text bleibt erhalten (button.primary:has-text("Anmelden") → nur Buttons
+// mit sichtbarem Text „Anmelden"), getroffen wird der *innerste* sichtbare
+// Treffer — wie bei Playwright. Reine CSS-Selektoren gehen unverändert durch.
+func resolveSelector(sel string) (string, error) {
+	css, needle, ok := parseHasText(sel)
+	if !ok {
+		return sel, nil
+	}
+	c, _ := json.Marshal(css)
+	n, _ := json.Marshal(needle)
+	js := fmt.Sprintf(`(() => {
+  const hits = Array.from(document.querySelectorAll(%s))
+    .filter(e => (e.innerText || e.textContent || '').includes(%s));
+  if (!hits.length) return 0;
+  const vis = hits.filter(e => e.offsetParent !== null || e.getClientRects().length);
+  const pool = vis.length ? vis : hits;
+  const inner = pool.filter(e => !pool.some(o => o !== e && e.contains(o)));
+  const el = inner[0] || pool[0];
+  document.querySelectorAll('[%s]').forEach(x => x.removeAttribute('%s'));
+  el.setAttribute('%s', '1');
+  return hits.length;
+})()`, c, n, hitAttr, hitAttr, hitAttr)
+	var count int
+	if err := super.do(chromedp.Evaluate(js, &count)); err != nil {
+		return "", fmt.Errorf(":has-text auflösen: %w", err)
+	}
+	if count == 0 {
+		return "", fmt.Errorf("kein Element mit Text %q gefunden", needle)
+	}
+	return fmt.Sprintf("[%s=\"1\"]", hitAttr), nil
 }
 
 // cleanURL erzwingt ein http/https-Schema — file:// & Co. würden den Browser
@@ -216,6 +290,9 @@ func (System) PromptDoc() string {
    nimmt die ganze scrollbare Seite statt nur den sichtbaren Bereich,
    click {"selector":"CSS-Selektor"} klickt das Element,
    type {"selector":"CSS-Selektor","text":"…"} tippt Text in ein Feld.
+   Selektoren: reines CSS plus die Erweiterung :has-text("…") — trifft den innersten sichtbaren
+   Treffer, dessen Text den String enthält (z. B. button:has-text("Anmelden"), a:has-text("Weiter")).
+   Nützlich, wenn ein Button keine stabile id/class hat. Funktioniert in click, type und content.
    Arbeitsweise: erst navigate, dann mit content ODER screenshot orientieren, dann gezielt click/type. Für
    visuelle Seiten (Dashboards, Canvas) screenshot + lesen; für Text-Extraktion content mit passendem
    Selektor. WARTEN: der Browser hat keinen Webhook — nutze KEINEN blocked-Status; beende deinen Lauf mit done.

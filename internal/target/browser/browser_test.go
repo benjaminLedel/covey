@@ -50,6 +50,26 @@ func TestActionSubjectAndDocs(t *testing.T) {
 	}
 }
 
+func TestParseHasText(t *testing.T) {
+	cases := []struct {
+		sel, css, needle string
+		ok               bool
+	}{
+		{`button:has-text("Anmelden")`, "button", "Anmelden", true},
+		{`a.btn:has-text('Weiter')`, "a.btn", "Weiter", true},
+		{`:has-text("Nur Text")`, "*", "Nur Text", true},
+		{`button:has-text(  "mit Spaces"  )`, "button", "mit Spaces", true},
+		{`button.primary`, "", "", false},
+		{`#id`, "", "", false},
+	}
+	for _, c := range cases {
+		css, needle, ok := parseHasText(c.sel)
+		if ok != c.ok || (ok && (css != c.css || needle != c.needle)) {
+			t.Errorf("parseHasText(%q) = (%q,%q,%v) — will (%q,%q,%v)", c.sel, css, needle, ok, c.css, c.needle, c.ok)
+		}
+	}
+}
+
 // findChromium sucht einen Chromium/Chrome für den End-to-End-Test; fehlt er,
 // werden die browser-treibenden Tests übersprungen (wie Integrationstests
 // ohne Dev-DB).
@@ -150,6 +170,25 @@ func TestBrowserEndToEnd(t *testing.T) {
 	out, _ = exec2(t, ctx, "content", `{"selector":"#echo"}`)
 	if txt := out.(map[string]any)["text"].(string); strings.TrimSpace(txt) != "covey" {
 		t.Errorf("nach type = %q", txt)
+	}
+
+	// :has-text — content greift den innersten Treffer per sichtbarem Text
+	out, err = exec2(t, ctx, "content", `{"selector":"div:has-text(\"covey\")"}`)
+	if err != nil {
+		t.Fatalf("has-text content: %v", err)
+	}
+	if txt := out.(map[string]any)["text"].(string); strings.TrimSpace(txt) != "covey" {
+		t.Errorf("has-text content = %q", txt)
+	}
+
+	// :has-text — click findet den Button über seinen Beschriftungstext
+	if _, err = exec2(t, ctx, "click", `{"selector":"button:has-text(\"Klick\")"}`); err != nil {
+		t.Fatalf("has-text click: %v", err)
+	}
+
+	// :has-text ohne Treffer → klarer Fehler
+	if _, err = exec2(t, ctx, "click", `{"selector":"button:has-text(\"gibtsnicht\")"}`); err == nil {
+		t.Error("has-text ohne Treffer: Fehler erwartet")
 	}
 
 	// screenshot ohne Sandbox-Workdir → Fehler
