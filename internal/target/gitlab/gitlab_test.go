@@ -584,6 +584,66 @@ func TestCreateIssueAction(t *testing.T) {
 	}
 }
 
+// TestCheckoutPreservesCaches sichert den Speed-Fix ab: ein erneuter Checkout
+// desselben Refs ersetzt den Quellcode, lässt aber Dependency-Caches
+// (node_modules) stehen — sonst müsste jeder QA-Lauf neu installieren.
+func TestCheckoutPreservesCaches(t *testing.T) {
+	archive1 := tarGz(t, map[string]string{
+		"support-main-aaa/":         "",
+		"support-main-aaa/main.go":  "package main // v1",
+		"support-main-aaa/stale.go": "wird beim nächsten Checkout entfernt",
+	})
+	archive2 := tarGz(t, map[string]string{
+		"support-main-bbb/":        "", // andere SHA → früher anderes Verzeichnis
+		"support-main-bbb/main.go": "package main // v2",
+	})
+	current := archive1
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(current)
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "t"}
+	ctx := target.WithWorkdir(context.Background(), t.TempDir())
+
+	res, err := sys.Execute(ctx, "checkout", []byte(`{"project_id":15,"ref":"main"}`), cred)
+	if err != nil {
+		t.Fatalf("checkout 1: %v", err)
+	}
+	path := res.(CheckoutResult).Path
+	// Der Agent installiert Dependencies + hinterlässt Build-Cache.
+	if err := os.MkdirAll(filepath.Join(path, "node_modules", "dep"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(path, "node_modules", "dep", "index.js"), []byte("cached"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Zweiter Checkout (neue SHA) desselben Refs.
+	current = archive2
+	res2, err := sys.Execute(ctx, "checkout", []byte(`{"project_id":15,"ref":"main"}`), cred)
+	if err != nil {
+		t.Fatalf("checkout 2: %v", err)
+	}
+	path2 := res2.(CheckoutResult).Path
+	if path2 != path {
+		t.Fatalf("stabiles Verzeichnis erwartet: %q != %q", path2, path)
+	}
+	// node_modules muss überlebt haben ...
+	if b, err := os.ReadFile(filepath.Join(path2, "node_modules", "dep", "index.js")); err != nil || string(b) != "cached" {
+		t.Fatalf("node_modules-Cache nicht erhalten: %v %q", err, b)
+	}
+	// ... Quellcode aktualisiert ...
+	if b, err := os.ReadFile(filepath.Join(path2, "main.go")); err != nil || !strings.Contains(string(b), "v2") {
+		t.Fatalf("Quellcode nicht aktualisiert: %v %q", err, b)
+	}
+	// ... veraltete Quelldatei entfernt.
+	if _, err := os.Stat(filepath.Join(path2, "stale.go")); !os.IsNotExist(err) {
+		t.Fatalf("veraltete Datei stale.go hätte entfernt sein müssen: %v", err)
+	}
+}
+
 func TestCheckoutSubPathAndLimit(t *testing.T) {
 	archive := tarGz(t, map[string]string{
 		"support-main-abc123/":                   "",
