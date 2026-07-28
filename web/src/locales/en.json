@@ -998,7 +998,15 @@
     "noSessions": "No active sessions.",
     "revokedOne": "1 other session ended.",
     "revokedMany": "{{count}} other sessions ended.",
-    "nameSaved": "Display name saved."
+    "nameSaved": "Display name saved.",
+    "skill": {
+      "title": "Claude skill: build agents",
+      "intro": "The Claude Code skill \"covey-agent\" lets you design, build and update Covey agents right in Claude Code — it knows the bundle conventions (SOUL/PLAYBOOKS/ACCESS/HEARTBEAT, loop protection) and can create the agent via the API.",
+      "step1": "The skill lives in the Covey repository under .claude/skills/covey-agent/. If you work with Claude Code inside the covey repo, it is already available.",
+      "step2": "To use it across projects, copy the folder into your personal Claude directory:",
+      "step3": "Invoke it in Claude Code with",
+      "hint": "After that, just saying \"build a Covey agent for …\" triggers it automatically. To share with others: export finished agents as a bundle (agent page → Config → Export) and import them into another Covey instance."
+    }
   },
   "profile": {
     "noProfile": "No profile stored.",
