@@ -115,6 +115,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/agents/{id}/config", s.rbac(anyRole, s.handleGetConfig))
 	mux.Handle("GET /api/v1/agents/{id}/export", s.rbac(append(manage, identity.RoleSecurity), s.handleExportAgent))
 	mux.Handle("GET /api/v1/agents/{id}/diagnostics", s.rbac(append(manage, identity.RoleSecurity), s.handleAgentDiagnostics))
+	mux.Handle("GET /api/v1/skills/covey-agent.zip", s.rbac(anyRole, s.handleDownloadSkill))
 	mux.Handle("POST /api/v1/agents/import", s.rbac(manage, s.handleImportAgent))
 	mux.Handle("PUT /api/v1/agents/{id}/config", s.rbac(manage, s.handlePutConfig))
 	// Bestehenden Agenten aus einem Bundle überschreiben — nur die Config-Dateien.

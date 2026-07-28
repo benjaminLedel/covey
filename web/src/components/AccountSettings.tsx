@@ -111,16 +111,21 @@ export default function AccountSettings({ me }: { me: Principal }) {
       </div>
 
       <div className="card mt-4">
-        <div className="text-sm font-medium mb-1">{t("account.skill.title")}</div>
+        <div className="flex items-center gap-3 mb-1">
+          <span className="text-sm font-medium">{t("account.skill.title")}</span>
+          <span className="spacer flex-1" />
+          <a className="btn sm primary" href="/api/v1/skills/covey-agent.zip" download="covey-agent-skill.zip">
+            {t("account.skill.download")}
+          </a>
+        </div>
         <p className="muted text-xs mt-0 mb-3">{t("account.skill.intro")}</p>
+        <p className="text-xs mb-2">{t("account.skill.downloadHint")}</p>
+        <pre className="mono text-[12px]" style={{ background: "var(--surface-2, rgba(0,0,0,.05))", padding: "6px 10px", borderRadius: 6, overflowX: "auto", margin: "4px 0" }}>
+{`unzip covey-agent-skill.zip -d ~/.claude/skills/`}
+        </pre>
+        <p className="muted text-xs mt-3 mb-1">{t("account.skill.repoNote")}</p>
         <ol className="text-xs" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
           <li>{t("account.skill.step1")}</li>
-          <li>
-            {t("account.skill.step2")}
-            <pre className="mono text-[12px]" style={{ background: "var(--surface-2, rgba(0,0,0,.05))", padding: "6px 10px", borderRadius: 6, overflowX: "auto", margin: "4px 0" }}>
-{`cp -r <covey-repo>/.claude/skills/covey-agent ~/.claude/skills/`}
-            </pre>
-          </li>
           <li>
             {t("account.skill.step3")} <span className="mono text-[12px]">/covey-agent</span>
           </li>
