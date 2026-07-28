@@ -18,7 +18,7 @@ func init() {
 	target.Register(target.Descriptor{
 		Name:        "gitlab",
 		Label:       "GitLab",
-		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues), extern gemeldete Bugs als Ticket anlegen (create_issue), Quellcode auschecken, Projekt aufsetzen und Bugs am Code verifizieren (checkout + Sandbox-Shell), an Issues angehängte Screenshots/Bilder lesen (download_upload + Vision), Fixes entwickeln — auf Feature-Branch committen (commit), Merge Request an den Vorgesetzten eröffnen (create_merge_request, optional mit QA-Agent als reviewer) und den Review-Loop leben: bei jedem Heartbeat-Lauf offene MRs auf neues Review-Feedback prüfen (list_merge_requests/list_mr_notes/comment_mr), rote CI selbst diagnostizieren (list_pipelines/list_pipeline_jobs/get_job_log) und auf den Merge reagieren. Auch als QA-/Test-Agent nutzbar: fremde MRs, in denen man als Reviewer eingetragen ist, end-to-end testen und Feedback geben (set_reviewer/approve_mr, nur-wenn: gitlab:review). Intake per HEARTBEAT.md (Polling), Auth per API-Token (Secrets gitlab_token + gitlab_url).",
+		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues), extern gemeldete Bugs als Ticket anlegen (create_issue), Quellcode auschecken, Projekt aufsetzen und Bugs am Code verifizieren (checkout + Sandbox-Shell), an Issues angehängte Screenshots/Bilder lesen (download_upload + Vision), eigene Screenshots an einen MR/ein Issue anhängen (upload + comment_mr), Fixes entwickeln — auf Feature-Branch committen (commit), Merge Request an den Vorgesetzten eröffnen (create_merge_request, optional mit QA-Agent als reviewer) und den Review-Loop leben: bei jedem Heartbeat-Lauf offene MRs auf neues Review-Feedback prüfen (list_merge_requests/list_mr_notes/comment_mr), rote CI selbst diagnostizieren (list_pipelines/list_pipeline_jobs/get_job_log) und auf den Merge reagieren. Auch als QA-/Test-Agent nutzbar: fremde MRs, in denen man als Reviewer eingetragen ist, end-to-end testen und Feedback geben (set_reviewer/approve_mr, nur-wenn: gitlab:review). Intake per HEARTBEAT.md (Polling), Auth per API-Token (Secrets gitlab_token + gitlab_url).",
 		Kind:        "builtin",
 		System:      System{},
 		SetupDoc: `1. In GitLab einen eigenen Bot-Nutzer anlegen (z. B. covey-bot), den
@@ -265,6 +265,28 @@ func (System) ActionSubject(action string, params json.RawMessage) string {
 	return "gitlab:" + action
 }
 
+// isDuplicateComment ist die Server-Bremse gegen Kommentar-Loops: ist der neue
+// Kommentar-Body identisch zum jüngsten EIGENEN (nicht-System-)Kommentar des
+// Bots, wird er nicht erneut gepostet. Fail-open: geht der Wer-bin-ich-Check
+// schief, wird normal kommentiert (kein legitimer Kommentar soll blockiert
+// werden). Nur die Wiederholung des eigenen letzten Kommentars wird unterdrückt.
+func isDuplicateComment(ctx context.Context, gc *Client, notes []Note, body string) bool {
+	me, err := gc.CurrentUser(ctx)
+	if err != nil || me.Username == "" {
+		return false
+	}
+	var lastOwn, lastAt string
+	for _, n := range notes {
+		if n.System || n.Author.Username != me.Username {
+			continue
+		}
+		if n.CreatedAt >= lastAt { // ISO8601 ist lexikografisch sortierbar
+			lastAt, lastOwn = n.CreatedAt, n.Body
+		}
+	}
+	return lastOwn != "" && strings.TrimSpace(lastOwn) == strings.TrimSpace(body)
+}
+
 func (System) Execute(ctx context.Context, action string, params json.RawMessage, cred target.Credential) (any, error) {
 	gc := NewClient(cred.BaseURL, cred.Token)
 
@@ -339,6 +361,11 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, fmt.Errorf("project_id oder url fehlt")
 		}
 		return DownloadUploadToSandbox(ctx, gc, in.ProjectID, in.URL, target.Workdir(ctx))
+	case "upload":
+		if in.ProjectID == 0 || strings.TrimSpace(in.Path) == "" {
+			return nil, fmt.Errorf("project_id oder path fehlt")
+		}
+		return UploadFromSandbox(ctx, gc, in.ProjectID, in.Path, target.Workdir(ctx))
 	case "checkout":
 		if in.ProjectID == 0 {
 			return nil, fmt.Errorf("project_id fehlt")
@@ -387,6 +414,10 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 	case "comment_mr":
 		if in.ProjectID == 0 || in.MRIID == 0 || strings.TrimSpace(in.Body) == "" {
 			return nil, fmt.Errorf("project_id, mr_iid oder body fehlt")
+		}
+		if notes, err := gc.ListMRNotes(ctx, in.ProjectID, in.MRIID); err == nil && isDuplicateComment(ctx, gc, notes, in.Body) {
+			return map[string]any{"skipped": "duplicate",
+				"reason": "identisch zum letzten eigenen Kommentar — nicht erneut gepostet"}, nil
 		}
 		return gc.CommentMR(ctx, in.ProjectID, in.MRIID, in.Body)
 	case "set_reviewer":
@@ -498,6 +529,10 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		return gc.ListNotes(ctx, in.ProjectID, in.IssueIID)
 	case "comment":
 		internal := in.Internal == nil || *in.Internal
+		if notes, err := gc.ListNotes(ctx, in.ProjectID, in.IssueIID); err == nil && isDuplicateComment(ctx, gc, notes, in.Body) {
+			return map[string]any{"skipped": "duplicate",
+				"reason": "identisch zum letzten eigenen Kommentar — nicht erneut gepostet"}, nil
+		}
 		return gc.Comment(ctx, in.ProjectID, in.IssueIID, in.Body, internal)
 	case "set_state":
 		if in.State == "" {
@@ -537,6 +572,10 @@ func (System) PromptDoc() string {
    ![...](/uploads/<32-hex-secret>/<datei>) —, kannst du das Bild NICHT aus dem Text erschließen. Lade es IMMER erst
    mit download_upload herunter und SIEH ES DIR AN (Read), bevor du einen Screenshot/ein Bild in deiner Analyse
    berücksichtigst; übergib in "url" die Referenz exakt so, wie sie im Markdown zwischen den Klammern steht.
+   upload {"project_id":N,"path":"browser/shot.png"} — lädt eine Datei aus deiner Sandbox (z. B. einen Browser-
+   Screenshot) an das Projekt und liefert eine Markdown-Referenz (Feld "markdown", z. B. ![shot](/uploads/<secret>/shot.png)).
+   Diese Referenz baust du in den comment_mr-Body ein, damit der Screenshot direkt im Merge Request sichtbar ist — so
+   belegst du ein UI-Verhalten oder einen Mangel mit Bild, nicht nur mit Worten.
    checkout {"project_id":N,"ref":"branch|tag|sha (optional, Default: Default-Branch)","path":"unterverzeichnis (optional)"} —
    lädt den Quellcode des Projekts in deine Sandbox und liefert den lokalen Pfad; schlägt er wegen Repo-Größe fehl,
    checke gezielt ein Unterverzeichnis aus (path) oder arbeite ohne Checkout:
@@ -547,7 +586,8 @@ func (System) PromptDoc() string {
    nachverfolgbares Issue zu überführen. Braucht eine project_id — kennst du das Zielprojekt nicht sicher, RATE NICHT:
    frag beim Melder nach, zu welchem Projekt der Fehler gehört (list_projects zeigt dir die dir zugänglichen Projekte),
    und lege das Ticket erst an, wenn das Projekt feststeht,
-   list_notes {"project_id":N,"issue_iid":N}, comment {"project_id":N,"issue_iid":N,"body":"...","internal":true|false},
+   list_notes {"project_id":N,"issue_iid":N}, comment {"project_id":N,"issue_iid":N,"body":"...","internal":true|false}
+   (ein Kommentar identisch zu deinem letzten eigenen wird NICHT erneut gepostet — Antwort {"skipped":"duplicate"} ist kein Fehler, sondern der Loop-Schutz),
    set_state {"project_id":N,"issue_iid":N,"state":"close"|"reopen"}, escalate {"project_id":N,"issue_iid":N,"note":"..."},
    assign {"project_id":N,"issue_iid":N,"username":"gitlab-username"} weist das Issue einer Person zu — z. B. nach einem
    Fix dem Teammitglied, das laut Team-Verzeichnis fürs Testen zuständig ist; nimm den GitLab-Username exakt aus dem

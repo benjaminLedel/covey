@@ -15,11 +15,12 @@ Enterprise-Plattform, die **KI-Agenten wie Mitarbeiter** behandelt: Identität, 
 - `internal/integration/` — die Abnahme-Checkliste aus `spec/11-mvp-plan.md` als Integrationstest-Suite (echtes Postgres auf Port 5433, In-Process-Daemon über echten WebSocket, Mock-Runtime, Fake-Zammad).
 - `demo/fakezammad/` — Zammad-Double für lokale Demos.
 - `mockup/covey-ui-mockup.html` — statischer HTML-Mockup; die React-UI übernimmt seine Design-Sprache (CSS-Variablen, Inter/Lora).
+- `.claude/skills/covey-agent/` — Claude-Code-Skill zum **Bauen/Designen/Aktualisieren von Covey-Agenten**: erzeugt ein `covey.agent-config`-Bundle nach den Repo-Konventionen (SOUL/PLAYBOOKS/ACCESS/HEARTBEAT, Loop-Schutz, warm_sandbox) und legt den Agenten optional per API an. Einstieg: die `SKILL.md` dort.
 - `praesentationen/*.pptx` — Pitch-/Investor-Material (nicht editieren, sofern nicht ausdrücklich gewünscht).
 
 Entwicklungs-Workflow: `make dev-db && make bootstrap && make run` (siehe README). Tests: `make test`, Integrationstests: `make test-integration` (brauchen die Dev-DB; sie skippen, wenn Port 5433 nicht erreichbar ist). Vor dem Go-Build muss `web/dist` existieren (`cd web && npm run build`) — `//go:embed` zieht es ins Binary.
 
-**Server nach Änderungen neu bauen und durchstarten.** `go build ./...` ist nur ein Kompilier-Check — es schreibt das `./covey`-Binary *nicht* neu. Damit Änderungen (Backend wie Web-UI) live sind: `make build` (baut `web/dist` + `covey` + `coveyd`), dann den laufenden `covey serve`-Prozess beenden (`pgrep -fl "covey serve"`) und via `make run` bzw. `COVEY_MASTER_KEY=$(cat .covey.key) COVEY_COVEYD_PATH=$PWD/coveyd ./covey serve` neu starten. Migrationen laufen beim `serve`-Start automatisch (Auto-Migrate mit advisory lock).
+**Server nach Änderungen neu bauen und durchstarten.** `go build ./...` ist nur ein Kompilier-Check — es schreibt das `./covey`-Binary *nicht* neu. Damit Änderungen (Backend wie Web-UI) live sind: `make build` (baut `web/dist` + `covey` + `coveyd`), dann den laufenden `covey serve`-Prozess beenden (`pgrep -fl "covey serve"`) und via `make run` bzw. `COVEY_MASTER_KEY=$(cat .covey.key) ./covey serve` neu starten. Die Data Plane läuft über den **docker-Provider** (Default); nach coveyd-relevanten Änderungen `make sandbox-image` neu bauen, damit die Sandbox das neue Binary + chromium hat. Migrationen laufen beim `serve`-Start automatisch (Auto-Migrate mit advisory lock).
 
 ## Sprache & Konventionen
 

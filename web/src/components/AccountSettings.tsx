@@ -109,6 +109,24 @@ export default function AccountSettings({ me }: { me: Principal }) {
         ))}
         {sessions.data?.length === 0 && <p className="muted text-xs m-0">{t("account.noSessions")}</p>}
       </div>
+
+      <div className="card mt-4">
+        <div className="text-sm font-medium mb-1">{t("account.skill.title")}</div>
+        <p className="muted text-xs mt-0 mb-3">{t("account.skill.intro")}</p>
+        <ol className="text-xs" style={{ margin: 0, paddingLeft: 18, lineHeight: 1.7 }}>
+          <li>{t("account.skill.step1")}</li>
+          <li>
+            {t("account.skill.step2")}
+            <pre className="mono text-[12px]" style={{ background: "var(--surface-2, rgba(0,0,0,.05))", padding: "6px 10px", borderRadius: 6, overflowX: "auto", margin: "4px 0" }}>
+{`cp -r <covey-repo>/.claude/skills/covey-agent ~/.claude/skills/`}
+            </pre>
+          </li>
+          <li>
+            {t("account.skill.step3")} <span className="mono text-[12px]">/covey-agent</span>
+          </li>
+        </ol>
+        <p className="muted text-xs mt-2 mb-0">{t("account.skill.hint")}</p>
+      </div>
     </>
   );
 }

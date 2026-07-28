@@ -8,9 +8,65 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 )
+
+// preserveDirs bleiben bei einem erneuten Checkout erhalten (nicht mit dem
+// Quellcode weggewischt): Dependency- und Build-Caches, die sonst jeden Lauf
+// neu aufgebaut werden müssten. So ist ein Folge-Checkout auf demselben Ref
+// inkrementell (npm/pip/go finden ihren Cache vor) statt kalt.
+var preserveDirs = map[string]bool{
+	"node_modules": true, ".venv": true, "venv": true, "vendor": true,
+	"target": true, ".gradle": true, ".next": true, ".cache": true,
+	".pnpm-store": true, ".yarn": true,
+}
+
+var refSanitize = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
+
+// stableCheckoutDir liefert einen über Commits stabilen Verzeichnisnamen pro
+// (Projekt, Ref, subPath) — anders als der GitLab-Archiv-Top-Level, der die SHA
+// enthält und sich mit jedem Commit ändert (dann käme node_modules nie mit).
+func stableCheckoutDir(projectID int, ref, subPath string) string {
+	slug := func(s string) string {
+		s = strings.Trim(refSanitize.ReplaceAllString(strings.TrimSpace(s), "-"), "-")
+		if len(s) > 48 {
+			s = strings.Trim(s[:48], "-")
+		}
+		return s
+	}
+	r := slug(ref)
+	if r == "" {
+		r = "default"
+	}
+	name := fmt.Sprintf("p%d-%s", projectID, r)
+	if sp := slug(subPath); sp != "" {
+		name += "-" + sp
+	}
+	return name
+}
+
+// pruneExceptPreserved leert ein Verzeichnis, lässt aber die Cache-Verzeichnisse
+// aus preserveDirs stehen — so wird der Quellcode ersetzt, der Cache bleibt.
+func pruneExceptPreserved(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	for _, e := range entries {
+		if e.IsDir() && preserveDirs[e.Name()] {
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(dir, e.Name())); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // checkoutMaxBytes begrenzt die entpackte Gesamtgröße eines Checkouts —
 // Schutz der Sandbox vor Riesen-Repos und Zip-Bomben. Default 512 MB,
@@ -49,20 +105,24 @@ func Checkout(ctx context.Context, gc *Client, projectID int, ref, subPath, work
 	}
 	defer body.Close()
 
-	destRoot := filepath.Join(workdir, "repos")
-	if err := os.MkdirAll(destRoot, 0o755); err != nil {
+	destDir := filepath.Join(workdir, "repos", stableCheckoutDir(projectID, ref, subPath))
+	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return CheckoutResult{}, err
 	}
-	topDir, files, err := extractTarGz(body, destRoot)
+	// Alten Quellcode entfernen, Caches (preserveDirs) stehen lassen.
+	if err := pruneExceptPreserved(destDir); err != nil {
+		return CheckoutResult{}, err
+	}
+	files, err := extractTarGzInto(body, destDir)
 	if err != nil {
 		return CheckoutResult{}, err
 	}
 	return CheckoutResult{
-		Path:    filepath.Join(destRoot, topDir),
+		Path:    destDir,
 		Ref:     ref,
 		SubPath: subPath,
 		Files:   files,
-		Hint:    "Quellcode liegt lokal — durchsuche und lies ihn direkt (Grep/Read/Bash), um die Frage am Code zu prüfen.",
+		Hint:    "Quellcode liegt lokal — durchsuche und lies ihn direkt (Grep/Read/Bash). Dependency-Caches (node_modules o. ä.) bleiben über Läufe erhalten, npm/pip/go install läuft dann inkrementell.",
 	}, nil
 }
 
@@ -135,4 +195,71 @@ func extractTarGz(r io.Reader, destRoot string) (topDir string, files int, err e
 		return "", 0, fmt.Errorf("leeres archiv")
 	}
 	return topDir, files, nil
+}
+
+// extractTarGzInto entpackt ein GitLab-Repository-Archiv in destDir und strippt
+// dabei das Top-Level-Verzeichnis (die SHA-behaftete Hülle), sodass der Inhalt
+// direkt in destDir liegt — Voraussetzung für ein stabiles, cache-erhaltendes
+// Zielverzeichnis. Anders als extractTarGz räumt es destDir NICHT ab (der Aufrufer
+// prunt cache-schonend). Sicherheit wie extractTarGz: Traversal-Schutz, Symlinks
+// übersprungen, Gesamtgröße begrenzt.
+func extractTarGzInto(r io.Reader, destDir string) (files int, err error) {
+	gz, err := gzip.NewReader(r)
+	if err != nil {
+		return 0, fmt.Errorf("archiv lesen: %w", err)
+	}
+	defer gz.Close()
+
+	maxBytes := checkoutMaxBytes()
+	var total int64
+	tr := tar.NewReader(gz)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return 0, fmt.Errorf("archiv lesen: %w", err)
+		}
+		name := filepath.Clean(hdr.Name)
+		if name == "." || name == "pax_global_header" {
+			continue
+		}
+		if strings.HasPrefix(name, "..") || filepath.IsAbs(name) {
+			return 0, fmt.Errorf("unsicherer pfad im archiv: %q", hdr.Name)
+		}
+		// Top-Level-Verzeichnis (projname-ref-sha) abstreifen.
+		rel := strings.SplitN(name, string(filepath.Separator), 2)
+		if len(rel) < 2 || rel[1] == "" {
+			continue // das Hüllverzeichnis selbst
+		}
+		dest := filepath.Join(destDir, rel[1])
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(dest, 0o755); err != nil {
+				return 0, err
+			}
+		case tar.TypeReg:
+			total += hdr.Size
+			if total > maxBytes {
+				return 0, fmt.Errorf("archiv größer als %d MB — nutze checkout mit \"path\" (Unterverzeichnis) oder navigiere mit list_tree und lies gezielt per read_file; das Limit setzt COVEY_GITLAB_CHECKOUT_MAX_MB", maxBytes>>20)
+			}
+			if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+				return 0, err
+			}
+			f, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(hdr.Mode)&0o777)
+			if err != nil {
+				return 0, err
+			}
+			if _, err := io.Copy(f, io.LimitReader(tr, maxBytes)); err != nil {
+				f.Close()
+				return 0, err
+			}
+			f.Close()
+			files++
+		default:
+			// Symlinks & Sonstiges bewusst überspringen.
+		}
+	}
+	return files, nil
 }

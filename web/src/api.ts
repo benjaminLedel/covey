@@ -15,6 +15,8 @@ export type Agent = {
   runtime: string;
   model: string;
   max_turns: number;
+  recording_level: string; // "" = erbt Org-Boden, sonst minimal|standard|full
+  warm_sandbox: boolean; // hält die Sandbox zwischen Wach-Phasen live (opt-in)
   status: string;
   supervisor_id?: string;
   department_id?: string;
@@ -111,6 +113,10 @@ export type RecordingEvent = {
   payload: unknown;
   created_at: string;
 };
+
+// recordingBlobURL zeigt auf ein Recording-Artefakt (z. B. Screenshot). Same-
+// origin, deshalb trägt ein <img> das Session-Cookie automatisch mit.
+export const recordingBlobURL = (id: string) => `/api/v1/recordings/blobs/${id}`;
 
 export type Approval = {
   id: string;

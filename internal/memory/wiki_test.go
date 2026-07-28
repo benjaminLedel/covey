@@ -80,4 +80,12 @@ func TestDeriveTitle(t *testing.T) {
 	if got := deriveTitle(long); utf8.RuneCountInString(got) > 80 {
 		t.Fatalf("deriveTitle muss auf 80 Zeichen kürzen, got %d: %q", utf8.RuneCountInString(got), got)
 	}
+	// Punkt in einer Domain darf den Titel nicht zum 1-Wort-Fragment zerhacken.
+	if got := deriveTitle("x.educa-portal.de ist ein LMS-Demo-System der Digital Learning GmbH. Rest egal."); got != "x.educa-portal.de ist ein LMS-Demo-System der Digital Learning GmbH" {
+		t.Fatalf("deriveTitle Domain-Punkt: %q", got)
+	}
+	// Abkürzung mit Punkt-vor-Buchstabe bricht ebenfalls nicht.
+	if got := deriveTitle("Antwort z.B. per Mail geht schneller als telefonisch. Ende."); got != "Antwort z.B. per Mail geht schneller als telefonisch" {
+		t.Fatalf("deriveTitle Abkürzung: %q", got)
+	}
 }

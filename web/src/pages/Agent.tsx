@@ -228,6 +228,14 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
     mutationFn: (maxTurns: number) => patch(`/agents/${agent.id}/max-turns`, { max_turns: maxTurns }),
     onSuccess: invalidate,
   });
+  const setRecordingLevel = useMutation({
+    mutationFn: (level: string) => patch(`/agents/${agent.id}/recording-level`, { level }),
+    onSuccess: invalidate,
+  });
+  const setWarmSandbox = useMutation({
+    mutationFn: (warm: boolean) => patch(`/agents/${agent.id}/warm-sandbox`, { warm }),
+    onSuccess: invalidate,
+  });
   const setBudget = useMutation({
     mutationFn: (budgetUSD: number) => post(`/agents/${agent.id}/budget`, { budget_usd: budgetUSD }),
     onSuccess: invalidate,
@@ -241,7 +249,9 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
   });
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const anyError = [setName, setSlug, setRuntime, setModel, setMaxTurns, setBudget].find((m) => m.isError);
+  const anyError = [setName, setSlug, setRuntime, setModel, setMaxTurns, setRecordingLevel, setBudget].find(
+    (m) => m.isError,
+  );
 
   const rtList = runtimes.data ?? [];
   const row: CSSProperties = {
@@ -367,7 +377,37 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
         />
         <span className="muted text-xs">{t("agent.settings.maxTurnsHint")}</span>
       </div>
-      <div style={{ ...row, borderBottom: "none" }}>
+      <div style={row}>
+        <span className="text-sm">{t("agent.settings.recordingLevel")}</span>
+        <select
+          key={`reclvl:${agent.recording_level}`}
+          defaultValue={agent.recording_level || ""}
+          disabled={!editable || setRecordingLevel.isPending}
+          onChange={(e) => {
+            if (e.target.value !== (agent.recording_level || "")) setRecordingLevel.mutate(e.target.value);
+          }}
+        >
+          <option value="">{t("agent.settings.recordingInherit")}</option>
+          <option value="minimal">{t("agent.settings.recordingMinimal")}</option>
+          <option value="standard">{t("agent.settings.recordingStandard")}</option>
+          <option value="full">{t("agent.settings.recordingFull")}</option>
+        </select>
+        <span className="muted text-xs">{t("agent.settings.recordingHint")}</span>
+      </div>
+      <div style={row}>
+        <span className="text-sm">{t("agent.settings.warmSandbox")}</span>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={agent.warm_sandbox}
+            disabled={!editable || setWarmSandbox.isPending}
+            onChange={(e) => setWarmSandbox.mutate(e.target.checked)}
+          />
+          {agent.warm_sandbox ? t("agent.settings.warmOn") : t("agent.settings.warmOff")}
+        </label>
+        <span className="muted text-xs">{t("agent.settings.warmHint")}</span>
+      </div>
+      <div style={row}>
         <span className="text-sm">{t("agent.settings.budget")}</span>
         <input
           key={`budget:${agent.budget_usd}`}
@@ -385,6 +425,17 @@ function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean })
           className="mono"
         />
         <span className="muted text-xs">{t("agent.settings.budgetHint")}</span>
+      </div>
+      <div style={{ ...row, borderBottom: "none" }}>
+        <span className="text-sm">{t("agent.settings.diagnostics")}</span>
+        <a
+          className="btn sm"
+          href={`/api/v1/agents/${agent.id}/diagnostics`}
+          download={`diagnostics-${agent.slug}.json`}
+        >
+          {t("agent.settings.diagnosticsExport")}
+        </a>
+        <span className="muted text-xs">{t("agent.settings.diagnosticsHint")}</span>
       </div>
       {!editable && (
         <p className="muted text-xs mt-2">{t("agent.settings.readOnly")}</p>

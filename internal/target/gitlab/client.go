@@ -9,8 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -283,6 +285,55 @@ func (c *Client) DownloadUpload(ctx context.Context, projectID int, ref string) 
 		return "", "", nil, fmt.Errorf("gitlab GET %s: HTTP %d%s: %.200s", path, resp.StatusCode, hint, data)
 	}
 	return name, resp.Header.Get("Content-Type"), resp.Body, nil
+}
+
+// UploadResult ist die Antwort von POST /projects/{id}/uploads: die Markdown-
+// Referenz, die man in einen Kommentar einbetten kann, plus die relative URL.
+type UploadResult struct {
+	Alt      string `json:"alt"`
+	URL      string `json:"url"`
+	FullPath string `json:"full_path"`
+	Markdown string `json:"markdown"`
+}
+
+// UploadFile lädt eine Datei (Screenshot) an ein Projekt — POST /projects/{id}/
+// uploads, multipart. Wie DownloadUpload läuft er am JSON-do() vorbei (der Body
+// ist multipart), das Token bleibt im Daemon. Das zurückgegebene "markdown"
+// (![alt](/uploads/<secret>/<datei>)) bettet man in einen comment_mr-Body ein.
+func (c *Client) UploadFile(ctx context.Context, projectID int, filename string, data []byte) (UploadResult, error) {
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	fw, err := mw.CreateFormFile("file", filepath.Base(filename))
+	if err != nil {
+		return UploadResult{}, err
+	}
+	if _, err := fw.Write(data); err != nil {
+		return UploadResult{}, err
+	}
+	if err := mw.Close(); err != nil {
+		return UploadResult{}, err
+	}
+	path := fmt.Sprintf("/projects/%d/uploads", projectID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.BaseURL+"/api/v4"+path, &buf)
+	if err != nil {
+		return UploadResult{}, err
+	}
+	req.Header.Set("PRIVATE-TOKEN", c.Token)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return UploadResult{}, err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return UploadResult{}, fmt.Errorf("gitlab POST %s: HTTP %d: %.200s", path, resp.StatusCode, body)
+	}
+	var out UploadResult
+	if err := json.Unmarshal(body, &out); err != nil {
+		return UploadResult{}, fmt.Errorf("upload-antwort: %w", err)
+	}
+	return out, nil
 }
 
 // TreeEntry ist ein Eintrag des Repository-Baums (Datei oder Verzeichnis).

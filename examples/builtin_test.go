@@ -52,6 +52,7 @@ func TestBuiltinIDsStable(t *testing.T) {
 		"builtin:coding-agent":     "",
 		"builtin:qa-agent":         "",
 		"builtin:log-triage-agent": "",
+		"builtin:web-researcher":   "",
 	}
 	for _, b := range Builtins() {
 		if _, ok := want[b.Key]; !ok {

@@ -24,6 +24,60 @@ const (
 	KindAction     = "action"     // Aktion im Zielsystem über den Action-Proxy
 )
 
+// Recording-Level (Aufzeichnungstiefe, spec/06): minimal < standard < full.
+// full schließt Screenshots/Artefakte ein; darunter werden sie nicht gespeichert.
+const (
+	LevelMinimal  = "minimal"
+	LevelStandard = "standard"
+	LevelFull     = "full"
+)
+
+var levelRank = map[string]int{LevelMinimal: 0, LevelStandard: 1, LevelFull: 2}
+
+// ValidLevel prüft einen Recording-Level-Wert.
+func ValidLevel(s string) bool { _, ok := levelRank[s]; return ok }
+
+// EffectiveRecordingLevel liefert die effektive Aufzeichnungstiefe eines Agenten:
+// das Maximum aus Org-Boden und (optionalem) Agent-Override — nie unter dem
+// Boden. Bei Fehler/Unbekanntem fällt es fail-safe auf standard.
+func (s *Store) EffectiveRecordingLevel(ctx context.Context, agentID uuid.UUID) (string, error) {
+	var orgLevel string
+	var agentLevel *string
+	err := s.pool.QueryRow(ctx, `SELECT o.recording_level, a.recording_level
+		FROM agents a JOIN organizations o ON o.id = a.org_id WHERE a.id = $1`, agentID).
+		Scan(&orgLevel, &agentLevel)
+	if err != nil {
+		return LevelStandard, err
+	}
+	eff := orgLevel
+	if agentLevel != nil && levelRank[*agentLevel] > levelRank[eff] {
+		eff = *agentLevel
+	}
+	if _, ok := levelRank[eff]; !ok {
+		eff = LevelStandard
+	}
+	return eff, nil
+}
+
+// SetOrgRecordingLevel setzt den Org-Boden (Security/Compliance).
+func (s *Store) SetOrgRecordingLevel(ctx context.Context, orgID uuid.UUID, level string) error {
+	tag, err := s.pool.Exec(ctx, `UPDATE organizations SET recording_level=$2 WHERE id=$1`, orgID, level)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+// OrgRecordingLevel liest den Org-Boden.
+func (s *Store) OrgRecordingLevel(ctx context.Context, orgID uuid.UUID) (string, error) {
+	var level string
+	err := s.pool.QueryRow(ctx, `SELECT recording_level FROM organizations WHERE id=$1`, orgID).Scan(&level)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return LevelStandard, ErrNotFound
+	}
+	return level, err
+}
+
 type RecordingEvent struct {
 	ID        int64           `json:"id"`
 	OrgID     uuid.UUID       `json:"org_id"`
@@ -114,6 +168,27 @@ func (s *Store) Record(ctx context.Context, orgID, agentID uuid.UUID, taskID *uu
 	_, err = s.pool.Exec(ctx, `INSERT INTO recording_events (org_id, agent_id, task_id, kind, payload)
 		VALUES ($1,$2,$3,$4,$5)`, orgID, agentID, taskID, kind, raw)
 	return err
+}
+
+// PutBlob legt ein Binär-Artefakt (z. B. Screenshot) out-of-band ab und liefert
+// dessen id — die kommt referenziert in den Event-Payload, nicht die Bytes.
+func (s *Store) PutBlob(ctx context.Context, orgID, agentID uuid.UUID, taskID *uuid.UUID, mime string, data []byte) (uuid.UUID, error) {
+	id := uuid.New()
+	_, err := s.pool.Exec(ctx, `INSERT INTO recording_blobs (id, org_id, agent_id, task_id, mime, bytes)
+		VALUES ($1,$2,$3,$4,$5,$6)`, id, orgID, agentID, taskID, mime, data)
+	return id, err
+}
+
+// GetBlob liefert ein Artefakt org-gescopt (mime + Bytes).
+func (s *Store) GetBlob(ctx context.Context, orgID, id uuid.UUID) (string, []byte, error) {
+	var mime string
+	var data []byte
+	err := s.pool.QueryRow(ctx, `SELECT mime, bytes FROM recording_blobs WHERE org_id=$1 AND id=$2`,
+		orgID, id).Scan(&mime, &data)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil, ErrNotFound
+	}
+	return mime, data, err
 }
 
 // Events liefert die Recording-Timeline, optional pro Aufgabe, seit einer ID (Live-Follow).

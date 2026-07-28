@@ -584,6 +584,66 @@ func TestCreateIssueAction(t *testing.T) {
 	}
 }
 
+// TestCheckoutPreservesCaches sichert den Speed-Fix ab: ein erneuter Checkout
+// desselben Refs ersetzt den Quellcode, lässt aber Dependency-Caches
+// (node_modules) stehen — sonst müsste jeder QA-Lauf neu installieren.
+func TestCheckoutPreservesCaches(t *testing.T) {
+	archive1 := tarGz(t, map[string]string{
+		"support-main-aaa/":         "",
+		"support-main-aaa/main.go":  "package main // v1",
+		"support-main-aaa/stale.go": "wird beim nächsten Checkout entfernt",
+	})
+	archive2 := tarGz(t, map[string]string{
+		"support-main-bbb/":        "", // andere SHA → früher anderes Verzeichnis
+		"support-main-bbb/main.go": "package main // v2",
+	})
+	current := archive1
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(current)
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "t"}
+	ctx := target.WithWorkdir(context.Background(), t.TempDir())
+
+	res, err := sys.Execute(ctx, "checkout", []byte(`{"project_id":15,"ref":"main"}`), cred)
+	if err != nil {
+		t.Fatalf("checkout 1: %v", err)
+	}
+	path := res.(CheckoutResult).Path
+	// Der Agent installiert Dependencies + hinterlässt Build-Cache.
+	if err := os.MkdirAll(filepath.Join(path, "node_modules", "dep"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(path, "node_modules", "dep", "index.js"), []byte("cached"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Zweiter Checkout (neue SHA) desselben Refs.
+	current = archive2
+	res2, err := sys.Execute(ctx, "checkout", []byte(`{"project_id":15,"ref":"main"}`), cred)
+	if err != nil {
+		t.Fatalf("checkout 2: %v", err)
+	}
+	path2 := res2.(CheckoutResult).Path
+	if path2 != path {
+		t.Fatalf("stabiles Verzeichnis erwartet: %q != %q", path2, path)
+	}
+	// node_modules muss überlebt haben ...
+	if b, err := os.ReadFile(filepath.Join(path2, "node_modules", "dep", "index.js")); err != nil || string(b) != "cached" {
+		t.Fatalf("node_modules-Cache nicht erhalten: %v %q", err, b)
+	}
+	// ... Quellcode aktualisiert ...
+	if b, err := os.ReadFile(filepath.Join(path2, "main.go")); err != nil || !strings.Contains(string(b), "v2") {
+		t.Fatalf("Quellcode nicht aktualisiert: %v %q", err, b)
+	}
+	// ... veraltete Quelldatei entfernt.
+	if _, err := os.Stat(filepath.Join(path2, "stale.go")); !os.IsNotExist(err) {
+		t.Fatalf("veraltete Datei stale.go hätte entfernt sein müssen: %v", err)
+	}
+}
+
 func TestCheckoutSubPathAndLimit(t *testing.T) {
 	archive := tarGz(t, map[string]string{
 		"support-main-abc123/":                   "",
@@ -934,6 +994,58 @@ func TestCreateMergeRequestAction(t *testing.T) {
 	}
 }
 
+// TestCommentDedup deckt die Server-Bremse gegen Kommentar-Loops ab: ein
+// Kommentar identisch zum letzten EIGENEN wird nicht erneut gepostet, ein
+// abweichender schon.
+func TestCommentDedup(t *testing.T) {
+	var posts int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v4/user":
+			json.NewEncoder(w).Encode(User{ID: 7, Username: "covey-dev"})
+		case r.URL.Path == "/api/v4/projects/15/issues/23/notes" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode([]Note{
+				{ID: 1, Body: "Fremd-Kommentar", Author: struct {
+					Username string `json:"username"`
+				}{Username: "mensch"}, CreatedAt: "2026-07-01T10:00:00Z"},
+				{ID: 2, Body: "MR eröffnet: !5", Author: struct {
+					Username string `json:"username"`
+				}{Username: "covey-dev"}, CreatedAt: "2026-07-02T10:00:00Z"},
+			})
+		case r.URL.Path == "/api/v4/projects/15/issues/23/notes" && r.Method == http.MethodPost:
+			posts++
+			json.NewEncoder(w).Encode(Note{ID: 3})
+		default:
+			t.Errorf("unerwarteter request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "t"}
+	ctx := context.Background()
+
+	// Identisch zum letzten eigenen Kommentar → übersprungen, kein POST.
+	res, err := sys.Execute(ctx, "comment", []byte(`{"project_id":15,"issue_iid":23,"body":"MR eröffnet: !5"}`), cred)
+	if err != nil {
+		t.Fatalf("comment (dup): %v", err)
+	}
+	if m, _ := res.(map[string]any); m["skipped"] != "duplicate" {
+		t.Fatalf("Duplikat hätte übersprungen werden müssen: %+v", res)
+	}
+	if posts != 0 {
+		t.Fatalf("kein POST erwartet, war %d", posts)
+	}
+
+	// Abweichender Kommentar → wird gepostet.
+	if _, err := sys.Execute(ctx, "comment", []byte(`{"project_id":15,"issue_iid":23,"body":"Neuer Stand"}`), cred); err != nil {
+		t.Fatalf("comment (neu): %v", err)
+	}
+	if posts != 1 {
+		t.Fatalf("neuer Kommentar hätte gepostet werden müssen, posts=%d", posts)
+	}
+}
+
 func TestMRReviewActions(t *testing.T) {
 	var commentBody map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -942,6 +1054,8 @@ func TestMRReviewActions(t *testing.T) {
 			json.NewEncoder(w).Encode(MergeRequestDetail{IID: 9, Title: "Fix Login", State: "opened",
 				SourceBranch: "fix/issue-23-login", DetailedMergeStatus: "mergeable",
 				HeadPipeline: &Pipeline{ID: 4, Status: "success", Ref: "fix/issue-23-login"}})
+		case r.URL.Path == "/api/v4/user" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode(User{ID: 7, Username: "covey-dev"})
 		case r.URL.Path == "/api/v4/projects/15/merge_requests/9/notes" && r.Method == http.MethodGet:
 			json.NewEncoder(w).Encode([]Note{{ID: 120, Body: "Bitte noch einen Test ergänzen"}})
 		case r.URL.Path == "/api/v4/projects/15/merge_requests/9/notes" && r.Method == http.MethodPost:

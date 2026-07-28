@@ -41,6 +41,7 @@ import (
 
 	// Kompilierte Zielsystem-Plugins: Blank-Import = ausgeliefert. Wer Covey
 	// ohne ein System bauen will, entfernt dessen Zeile — der Rest bleibt gleich.
+	_ "covey/internal/target/browser"
 	_ "covey/internal/target/dev"
 	_ "covey/internal/target/email"
 	_ "covey/internal/target/gitlab"
@@ -103,7 +104,7 @@ func usage() {
   covey genkey            neuen COVEY_MASTER_KEY erzeugen
 
 Konfiguration über ENV: COVEY_DATABASE_URL, COVEY_LISTEN_ADDR, COVEY_PUBLIC_URL,
-COVEY_MASTER_KEY, COVEY_COVEYD_PATH, COVEY_DATA_DIR, COVEY_ZAMMAD_WEBHOOK_SECRET,
+COVEY_MASTER_KEY, COVEY_SANDBOX_IMAGE, COVEY_DATA_DIR, COVEY_ZAMMAD_WEBHOOK_SECRET,
 COVEY_ADMIN_EMAIL, COVEY_ADMIN_PASSWORD (bootstrap), COVEY_COOKIE_SECURE …`)
 }
 
@@ -511,11 +512,6 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 
 	var provider orchestrator.SandboxProvider
 	switch cfg.SandboxProvider {
-	case "local":
-		if cfg.EgressEnforce {
-			log.Warn("COVEY_EGRESS_ENFORCE ignoriert: der local-Provider teilt das Host-Netz, Egress ist nicht durchsetzbar — docker-Provider nutzen")
-		}
-		provider = &orchestrator.LocalProvider{CoveydPath: cfg.CoveydPath, DataDir: cfg.DataDir}
 	case "docker":
 		dp := &orchestrator.DockerProvider{Image: cfg.SandboxImage, DataDir: cfg.DataDir}
 		if egressEnforced {
@@ -544,7 +540,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		}
 		provider = dp
 	default:
-		return fmt.Errorf("sandbox provider %q: implementiert sind 'local' und 'docker'", cfg.SandboxProvider)
+		return fmt.Errorf("sandbox provider %q: implementiert ist nur 'docker'", cfg.SandboxProvider)
 	}
 
 	wsURL := strings.Replace(cfg.PublicURL, "http", "ws", 1) + "/api/daemon/ws"

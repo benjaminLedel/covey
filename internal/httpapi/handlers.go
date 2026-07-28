@@ -669,6 +669,84 @@ func (s *Server) handleSetModel(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// handleSetRecordingLevel setzt den Agent-Override der Aufzeichnungstiefe
+// (spec/06). Leer = zurück auf Erben des Org-Bodens. Wirkt beim nächsten
+// action-Event; der effektive Level bleibt max(Org-Boden, Override).
+func (s *Server) handleSetRecordingLevel(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	var in struct {
+		Level string `json:"level"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "level fehlt")
+		return
+	}
+	in.Level = strings.TrimSpace(in.Level)
+	if in.Level != "" && !observability.ValidLevel(in.Level) {
+		writeErr(w, http.StatusBadRequest, "level muss minimal|standard|full (oder leer) sein")
+		return
+	}
+	if err := s.Registry.SetRecordingLevel(r.Context(), id, in.Level); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handleSetWarmSandbox schaltet die warme Sandbox eines Agenten (opt-in). Wirkt
+// ab dem nächsten Einschlafen — die Sandbox bleibt dann live (Dev-Server/Caches).
+func (s *Server) handleSetWarmSandbox(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	var in struct {
+		Warm bool `json:"warm"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "warm fehlt")
+		return
+	}
+	if err := s.Registry.SetWarmSandbox(r.Context(), id, in.Warm); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true, "warm_sandbox": in.Warm})
+}
+
+// handleOrgRecording liest (GET) bzw. setzt (PATCH) den Org-Boden der
+// Aufzeichnungstiefe — die org-weite Mindesttiefe (Security/Compliance).
+func (s *Server) handleGetOrgRecording(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	level, err := s.Obs.OrgRecordingLevel(r.Context(), p.OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"level": level})
+}
+
+func (s *Server) handleSetOrgRecording(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	var in struct {
+		Level string `json:"level"`
+	}
+	if err := readJSON(r, &in); err != nil || !observability.ValidLevel(strings.TrimSpace(in.Level)) {
+		writeErr(w, http.StatusBadRequest, "level muss minimal|standard|full sein")
+		return
+	}
+	if err := s.Obs.SetOrgRecordingLevel(r.Context(), p.OrgID, strings.TrimSpace(in.Level)); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // handleSetMaxTurns legt das Turn-Limit je Runtime-Lauf fest (Runaway-Guard).
 // 0 setzt zurück auf den Orchestrator-Default. Wirkt beim nächsten Task-Dispatch.
 func (s *Server) handleSetMaxTurns(w http.ResponseWriter, r *http.Request) {
@@ -716,6 +794,28 @@ func (s *Server) handleRecording(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, events)
+}
+
+// handleRecordingBlob liefert ein Recording-Artefakt (Screenshot) org-gescopt.
+func (s *Server) handleRecordingBlob(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	mime, data, err := s.Obs.GetBlob(r.Context(), p.OrgID, id)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	if mime == "" {
+		mime = "application/octet-stream"
+	}
+	w.Header().Set("Content-Type", mime)
+	w.Header().Set("Cache-Control", "private, max-age=86400, immutable")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(data)
 }
 
 func (s *Server) handleCost(w http.ResponseWriter, r *http.Request) {
