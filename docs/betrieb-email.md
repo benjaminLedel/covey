@@ -17,7 +17,8 @@ Gmail/Workspace mit App-Passwort, Office 365 mit Auth per App-Passwort, …).
 Postfach ◄──(IMAP, TLS)──────────  Agent (Sandbox, Claude Code)
              list_unread,            │ Aktionen über den Action-Proxy,
              get_message,            │ Credentials pro Aufruf gebrokert
-             mark_seen, move         │ (email_url + email_token)
+             get_attachment,         │ (email_url + email_token)
+             mark_seen, move         │
 Empfänger ◄──(SMTP, TLS)──────────── reply / send
 ```
 
@@ -159,6 +160,44 @@ Gegenübers erscheint beim nächsten Heartbeat als neue ungelesene Mail im
 selben Betreff-Thread; `reply` setzt die korrekten Threading-Header
 (`In-Reply-To`, `References`), damit Mail-Clients den Thread zusammenhalten.
 
+### 3.5 Anhänge lesen
+
+`get_message` listet Anhänge nur dem **Namen** nach — die Bytes bleiben aus dem
+Kontextfenster heraus. Braucht der Agent den Inhalt, holt er genau einen Anhang
+in seine Sandbox:
+
+```bash
+get_attachment {"uid":42, "mailbox":"INBOX", "name":"rechnung.pdf"}
+```
+
+Die Datei landet unter `<workspace>/attachments/<datei>`; die Antwort nennt
+`path`, `content_type` und `bytes`. Der Agent liest sie danach mit dem
+Read-Tool — Bilder per Vision, ZIP-Archive nach `unzip` (im Sandbox-Image
+enthalten). Wie bei GitLab (`download_upload`) und Teams
+(`download_attachment`) laufen die Bytes dabei **nicht** durch die Control
+Plane.
+
+- Der Dateiname wird auf den Basename festgenagelt — kein Ausbruch aus
+  `attachments/`. Tragen zwei Anhänge denselben Namen, gewinnt der erste in
+  MIME-Reihenfolge.
+- Das Größenlimit greift fail-closed, bevor etwas geschrieben wird — ein zu
+  großer Anhang hinterlässt keine angefangene Datei:
+
+```bash
+COVEY_EMAIL_ATTACHMENT_MAX_MB=25   # Default 25 MB, gilt je Anhang
+```
+
+- Geholt wird **nur der gefragte Anhang**, nicht die ganze Mail: die
+  BODYSTRUCTURE nennt Ort, Kodierung und Größe jedes Teils, ein zu großer
+  Anhang wird also abgelehnt, bevor seine Bytes überhaupt fließen. Nur wenn
+  der Server keine verwertbare Struktur liefert, wird die Mail komplett
+  gelesen — dann aber höchstens bis zum Vierfachen des Limits, sonst bricht
+  die Aktion ab. So kostet eine Mail mit riesigem Anhang keinen Speicher,
+  solange der Agent sie nicht anfordert.
+- `get_attachment` setzt wie `get_message` **kein** Gelesen-Flag (BODY.PEEK).
+- Guard-Rail-Subjekt: `email:get_attachment` — gegenüber dem Postfach rein
+  lesend.
+
 ---
 
 ## 4. Aktions-Referenz
@@ -169,6 +208,7 @@ selben Betreff-Thread; `reply` setzt die korrekten Threading-Header
 | `list_unread` | `mailbox` (Default `INBOX`), `limit` (Default 20, max 100) | ungelesene Mails, neueste zuerst |
 | `list_messages` | wie oben | neueste Mails unabhängig vom Status |
 | `get_message` | `uid`, `mailbox` | vollständige Mail (Text bevorzugt `text/plain`, max. 64 KiB, Attachment-Namen) |
+| `get_attachment` | `uid`, `mailbox`, `name` | lädt EINEN Anhang nach `<workspace>/attachments/<datei>` (Read-Tool, Bilder per Vision) |
 | `reply` | `uid`, `mailbox`, `body`, `reply_all` | Antwort per SMTP + `\Seen` setzen |
 | `send` | `to[]`, `cc[]`, `subject`, `body` | neue Mail per SMTP |
 | `mark_seen` / `mark_unseen` | `uid`, `mailbox` | Gelesen-Flag setzen/löschen |
@@ -181,9 +221,13 @@ Guard-Rail-Subjekte: `email:<aktion>` — Versand ist über `email:send` und
 
 ## 5. Grenzen des aktuellen Stands
 
-- **Nur Text:** `send`/`reply` verschicken `text/plain` (UTF-8,
-  quoted-printable). Kein HTML, keine Attachments im Versand; eingehende
-  Attachments werden nur dem Namen nach gelistet, nicht heruntergeladen.
+- **Nur Text im Versand:** `send`/`reply` verschicken `text/plain` (UTF-8,
+  quoted-printable). Kein HTML, keine Attachments im Versand. Eingehende
+  Attachments holt der Agent dagegen per `get_attachment` in seine Sandbox
+  (Abschnitt 3.5).
+- **Inline-Anhänge:** Teile mit `Content-Disposition: inline` — etwa in
+  HTML-Mails eingebettete Bilder — gelten nicht als Anhang: `get_message`
+  listet sie nicht, `get_attachment` holt sie nicht.
 - **Basic-Auth:** Login per Benutzer/Passwort (bzw. App-Passwort). OAuth2
   (XOAUTH2, z. B. Gmail ohne App-Passwörter) ist nicht implementiert.
 - **Polling-Latenz:** Reaktionszeit = Heartbeat-Intervall. Für Minuten-genaue
