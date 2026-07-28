@@ -26,6 +26,7 @@ import (
 //	[mock:memory <text>]
 //	[mock:maxturns <übergabe-stand>]         → Lauf endet am Turn-Limit
 //	[mock:maxturns-always <übergabe-stand>]  → dito, auch bei jeder Fortsetzung
+//	[mock:prompt]                            → liefert den System-Prompt als Ergebnis
 //
 // Ohne Direktiven: done mit generischem Ergebnis. Bei Resume: done mit dem
 // Resume-Input als Ergebnis. Liefert der Action-Proxy pending_approval, geht
@@ -49,7 +50,7 @@ func init() {
 	})
 }
 
-var mockDirective = regexp.MustCompile(`\[mock:(action|block|fail|result|memory|sleep|maxturns-always|maxturns)\s*([^\]]*)\]`)
+var mockDirective = regexp.MustCompile(`\[mock:(action|block|fail|result|memory|sleep|maxturns-always|maxturns|prompt)\s*([^\]]*)\]`)
 
 func (Mock) Run(ctx context.Context, spec RunSpec, onEvent func(kind string, payload json.RawMessage)) (RunResult, error) {
 	res := RunResult{
@@ -157,6 +158,11 @@ func (Mock) Run(ctx context.Context, spec RunSpec, onEvent func(kind string, pay
 				return res, ctx.Err()
 			case <-time.After(d):
 			}
+		case "prompt":
+			// Macht den zusammengesetzten System-Prompt prüfbar (Plattform-
+			// Protokoll, Zielsystem-Doku, Team-Verzeichnis) — sonst ist er von
+			// außen unsichtbar.
+			res.Result = spec.SystemPrompt
 		case "result":
 			res.Result = arg
 		case "memory":

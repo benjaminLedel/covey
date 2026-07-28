@@ -1022,10 +1022,19 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	if err != nil && !errors.Is(err, agents.ErrNotFound) {
 		return err
 	}
-	compiled := cfg.CompiledPrompt
-	if compiled == "" {
-		compiled = agents.CompilePrompt(nil)
-	}
+	// Prompt zur Dispatch-Zeit aus den Config-Dateien neu kompilieren, statt den
+	// beim Speichern eingefrorenen compiled_prompt zu nehmen. Der Plattform-
+	// Anteil (agents.ProtocolInstructions: Abschluss-Protokoll, Meta-Aktionen,
+	// Stage-Regeln) ist Code, nicht Config — er gehört zum Binary, nicht zur
+	// Config-Version. Sonst müsste nach jedem Deploy jede bestehende Agent-Config
+	// von Hand neu gespeichert werden, damit der Agent von neuen Aktionen
+	// überhaupt erfährt; ein produktiver Agent liefe sonst auf Jahre mit dem
+	// Plattform-Vertrag von seinem letzten Config-Edit.
+	//
+	// Der gespeicherte compiled_prompt bleibt als Momentaufnahme für Audit und
+	// Anzeige erhalten — Quelle der Wahrheit für den Lauf sind die Dateien.
+	// Zielsystem-Doku und Team-Verzeichnis unten folgen derselben Logik.
+	compiled := agents.CompilePrompt(cfg.Files)
 	// Zielsystem-Doku zur Dispatch-Zeit anhängen — sie spiegelt die aktuell
 	// aktivierten Plugins der Organisation (inkl. Manifest-Uploads), nicht
 	// den Stand beim Kompilieren der Config.
