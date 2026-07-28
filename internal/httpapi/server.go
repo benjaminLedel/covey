@@ -114,6 +114,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/agents/{id}", s.rbac(manage, s.handleDeleteAgent))
 	mux.Handle("GET /api/v1/agents/{id}/config", s.rbac(anyRole, s.handleGetConfig))
 	mux.Handle("GET /api/v1/agents/{id}/export", s.rbac(append(manage, identity.RoleSecurity), s.handleExportAgent))
+	mux.Handle("GET /api/v1/agents/{id}/diagnostics", s.rbac(append(manage, identity.RoleSecurity), s.handleAgentDiagnostics))
 	mux.Handle("POST /api/v1/agents/import", s.rbac(manage, s.handleImportAgent))
 	mux.Handle("PUT /api/v1/agents/{id}/config", s.rbac(manage, s.handlePutConfig))
 	// Bestehenden Agenten aus einem Bundle überschreiben — nur die Config-Dateien.

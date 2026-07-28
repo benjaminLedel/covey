@@ -16,6 +16,7 @@ export type Agent = {
   model: string;
   max_turns: number;
   recording_level: string; // "" = erbt Org-Boden, sonst minimal|standard|full
+  warm_sandbox: boolean; // hält die Sandbox zwischen Wach-Phasen live (opt-in)
   status: string;
   supervisor_id?: string;
   department_id?: string;
