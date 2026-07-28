@@ -62,7 +62,7 @@ Das mitgelieferte [`docker-compose.yml`](docker-compose.yml) bringt Postgres (pg
 |---|---|
 | 🧑‍💼 **Agenten mit Identität** | Eigene Sandbox, eigenes Home, eigene Zugänge — und ein Platz im Org-Chart neben den Menschen. |
 | 📥 **Backlog & Wake-Quellen** | Aufgaben als First-Class-Objekte; Agenten wachen per Webhook, Heartbeat oder Zuruf auf und schlafen danach wieder. |
-| 🔌 **Zielsysteme als Plugins** | Zammad, GitLab, Microsoft Teams, SharePoint, E-Mail (IMAP/SMTP), headless Browser, MCP — jedes über ein Manifest, kein Sonderweg im Kern. |
+| 🔌 **Zielsysteme als Plugins** | Zammad, GitLab, Microsoft Teams, SharePoint, Nextcloud, E-Mail (IMAP/SMTP), headless Browser, MCP — jedes über ein Manifest, kein Sonderweg im Kern. |
 | 🛡️ **Guard-Rails & Freigaben** | Zentral erzwungen, außerhalb der Runtime, fail-closed. Kritische Aktionen gehen an einen Menschen. |
 | 🔑 **Secrets-Broker** | Keine langlebigen Secrets in der Sandbox — Zugriff wird zur Laufzeit gebrokert, kurzlebig und gescopt. |
 | 🧠 **Wiki-Gedächtnis** | Verlinkte Markdown-Seiten mit pgvector-Index statt flacher Schnipsel — lesbar und von Hand korrigierbar. |
@@ -107,7 +107,7 @@ flowchart LR
     end
 
     CP <-->|Daemon-Protokoll| DP
-    CP --> TS["Zielsysteme: Zammad · GitLab · Teams · E-Mail · Browser · MCP"]
+    CP --> TS["Zielsysteme: Zammad · GitLab · Teams · SharePoint · Nextcloud · E-Mail · Browser · MCP"]
     CP --- DB[("PostgreSQL + pgvector")]
 ```
 
@@ -169,6 +169,7 @@ Ohne eines von beiden scheitern Aufgaben mit „Not logged in · Please run /log
 | [`docs/betrieb-email.md`](docs/betrieb-email.md) | E-Mail-Postfach als Wake-Quelle (IMAP/SMTP) |
 | [`docs/betrieb-teams.md`](docs/betrieb-teams.md) | Microsoft Teams als Kanal zwischen Mensch und Agent |
 | [`docs/betrieb-sharepoint.md`](docs/betrieb-sharepoint.md) | SharePoint/Teams-Dateien via Microsoft Graph |
+| [`docs/betrieb-nextcloud.md`](docs/betrieb-nextcloud.md) | Nextcloud-Dateien via WebDAV |
 | [`docs/betrieb-browser.md`](docs/betrieb-browser.md) | Headless Chrome: Web-UIs bedienen, Screenshots ins Recording |
 
 ## Repository-Inhalt
@@ -214,7 +215,7 @@ Ohne eines von beiden scheitern Aufgaben mit „Not logged in · Please run /log
 
 ## Status
 
-**Deutlich über den MVP hinaus.** Der Durchstich aus [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md) (M0–M7) steht; darauf aufgesetzt sind Org-Chart & Abteilungen, Mitarbeiter-Profile, weitere Zielsystem-Plugins (GitLab, Teams, SharePoint, E-Mail, Browser, MCP), Docker-Sandboxen, Egress-Kontrolle, Agenten-Vorlagen und das Wiki-Gedächtnis. Die Abnahme-Checkliste läuft als Integrationstest-Suite (`internal/integration/`).
+**Deutlich über den MVP hinaus.** Der Durchstich aus [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md) (M0–M7) steht; darauf aufgesetzt sind Org-Chart & Abteilungen, Mitarbeiter-Profile, weitere Zielsystem-Plugins (GitLab, Teams, SharePoint, Nextcloud, E-Mail, Browser, MCP), Docker-Sandboxen, Egress-Kontrolle, Agenten-Vorlagen und das Wiki-Gedächtnis. Die Abnahme-Checkliste läuft als Integrationstest-Suite (`internal/integration/`).
 
 ## Mitwirken
 

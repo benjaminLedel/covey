@@ -64,7 +64,7 @@ The bundled [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector
 |---|---|
 | 🧑‍💼 **Agents with an identity** | Their own sandbox, their own home directory, their own credentials — and a place on the org chart next to the humans. |
 | 📥 **Backlog & wake sources** | Tasks as first-class objects; agents wake on a webhook, a heartbeat or a nudge, then go back to sleep. |
-| 🔌 **Target systems as plugins** | Zammad, GitLab, Microsoft Teams, SharePoint, email (IMAP/SMTP), headless browser, MCP — each driven by a manifest, no special case in the core. |
+| 🔌 **Target systems as plugins** | Zammad, GitLab, Microsoft Teams, SharePoint, Nextcloud, email (IMAP/SMTP), headless browser, MCP — each driven by a manifest, no special case in the core. |
 | 🛡️ **Guard rails & approvals** | Enforced centrally, outside the runtime, fail-closed. Critical actions go to a human first. |
 | 🔑 **Secrets broker** | No long-lived secrets inside the sandbox — access is brokered at runtime, short-lived and scoped. |
 | 🧠 **Wiki memory** | Linked Markdown pages with a pgvector index instead of flat snippets — readable, and correctable by hand. |
@@ -109,7 +109,7 @@ flowchart LR
     end
 
     CP <-->|daemon protocol| DP
-    CP --> TS["Targets: Zammad · GitLab · Teams · Email · Browser · MCP"]
+    CP --> TS["Targets: Zammad · GitLab · Teams · SharePoint · Nextcloud · Email · Browser · MCP"]
     CP --- DB[("PostgreSQL + pgvector")]
 ```
 
@@ -173,6 +173,7 @@ All runbooks are in German.
 | [`docs/betrieb-email.md`](docs/betrieb-email.md) | An email mailbox as a wake source (IMAP/SMTP) |
 | [`docs/betrieb-teams.md`](docs/betrieb-teams.md) | Microsoft Teams as the channel between human and agent |
 | [`docs/betrieb-sharepoint.md`](docs/betrieb-sharepoint.md) | SharePoint / Teams files via Microsoft Graph |
+| [`docs/betrieb-nextcloud.md`](docs/betrieb-nextcloud.md) | Nextcloud files via WebDAV |
 | [`docs/betrieb-browser.md`](docs/betrieb-browser.md) | Headless Chrome: driving web UIs, screenshots into the recording |
 
 ## Repository layout
@@ -218,7 +219,7 @@ All runbooks are in German.
 
 ## Status
 
-**Well beyond the MVP.** The end-to-end path from [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md) (M0–M7) is in place; built on top of it are the org chart & departments, employee profiles, further target plugins (GitLab, Teams, SharePoint, email, browser, MCP), Docker sandboxes, egress control, agent templates and the wiki memory. The acceptance checklist runs as an integration test suite (`internal/integration/`).
+**Well beyond the MVP.** The end-to-end path from [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md) (M0–M7) is in place; built on top of it are the org chart & departments, employee profiles, further target plugins (GitLab, Teams, SharePoint, Nextcloud, email, browser, MCP), Docker sandboxes, egress control, agent templates and the wiki memory. The acceptance checklist runs as an integration test suite (`internal/integration/`).
 
 ## Contributing
 
