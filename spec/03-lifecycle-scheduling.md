@@ -100,6 +100,29 @@ Der Agent muss sagen können: **„Ich bin auf X geblockt, weck mich, wenn die A
 
 Sauberes `blocked`-Handling ist der Unterschied zwischen „Agent" und „Angestellter".
 
+## Der abgebrochene Lauf: Turn-Limit statt Ergebnis
+
+`blocked` ist das geplante Anhalten. Daneben steht das **ungeplante**: Ein Lauf stößt an sein Turn-Limit (`max_turns`), bevor er zu einem Ergebnis kommt. Er hat gearbeitet — geklont, gelesen, halb gefixt —, aber nichts davon steht in einem Ergebnis, und der Kontext stirbt mit der Sandbox.
+
+Naiv behandelt ist das ein stiller Fehlschlag, und aus ihm entsteht die teuerste Schleife des Systems: Der Heartbeat feuert erneut, ein frischer Lauf fängt dieselbe Arbeit von vorn an, läuft wieder ins Limit — beliebig oft.
+
+Der Runtime-Adapter meldet diesen Fall deshalb als eigenen Status **`incomplete`** (nicht `failed`) und legt zwei Dinge bei:
+
+1. **Den Übergabe-Stand.** Ein einziger zusätzlicher Turn auf der bereits abgebrochenen Session (`--resume`, ohne Werkzeuge) fragt den Agenten nach *Erledigt / Offen / Nächster Schritt*. Auf gecachtem Kontext kostet das fast nichts, verglichen mit dem Lauf, der sonst verloren wäre.
+2. **Die Runtime-Session** zum Wiederaufsetzen.
+
+Die Control Plane macht daraus:
+
+- eine **Notiz an der Aufgabe** mit dem Übergabe-Stand (im Board sichtbar, siehe [Notizen](#notizen-zwischenstände-an-der-aufgabe)),
+- den Abschluss der Aufgabe als `failed` — mit sprechendem Fehlertext statt leerem Feld — und dem Übergabe-Stand als Ergebnis,
+- eine **Folgeaufgabe** (`parent_task_id`, Herkunft `continuation:<task-id>`), die dieselbe Session wieder aufnimmt und dort weiterarbeitet, wo der Lauf abbrach.
+
+Die Folgeaufgabe trägt bewusst **denselben Titel** wie ihre Ursprungsaufgabe: Die Heartbeat-Dedup erkennt daran, dass diese Arbeit noch läuft, und feuert nicht daneben.
+
+**Loop-Schutz.** Eine Fortsetzung, die wieder ins Limit läuft, erzeugt die nächste — aber nicht endlos. Nach drei Fortsetzungen in Folge (`maxContinuations`) eskaliert die Aufgabe an den Vorgesetzten, statt weiterzulaufen. Wer nach vier vollen Läufen kein Ergebnis hat, braucht keinen fünften, sondern einen Menschen: Entweder ist der Auftrag zu groß geschnitten oder `max_turns` zu klein. Ohne diese Grenze ersetzte die Fortsetzung nur eine Endlosschleife durch eine andere.
+
+Der bessere Weg für den Agenten bleibt, gar nicht erst ins Limit zu laufen: Wird eine Aufgabe zu groß, zerlegt er sie selbst (`covey/create_task`, siehe [Teilaufgaben und Delegation](#teilaufgaben-und-delegation-coveycreate_task)) und schließt den laufenden Auftrag mit einem Teilergebnis ab.
+
 ## Backlog als First-Class-Objekt
 
 Das Backlog ist **kein flüchtiger Queue**, sondern ein persistentes, inspizierbares Objekt in der Control Plane. Jede Aufgabe trägt:

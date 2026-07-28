@@ -156,9 +156,15 @@ type Blocked struct {
 	SessionID      string `json:"session_id,omitempty"` // Runtime-Session für --resume
 }
 
+// TaskDone schließt eine Aufgabe ab. Status "incomplete" ist der Sonderfall des
+// am Turn-Limit abgebrochenen Laufs: Er hat gearbeitet, aber kein Ergebnis
+// erreicht. Result trägt dann den Übergabe-Stand („Erledigt / Offen / Nächster
+// Schritt"), den sich der Adapter aus der abgebrochenen Session geben lässt, und
+// SessionID die Session zum Wiederaufsetzen. Die Control Plane macht daraus eine
+// Folgeaufgabe statt eines stillen Fehlschlags (siehe orchestrator.handleIncomplete).
 type TaskDone struct {
 	TaskID    string `json:"task_id"`
-	Status    string `json:"status"` // done | failed | escalated
+	Status    string `json:"status"` // done | failed | escalated | incomplete
 	Result    string `json:"result,omitempty"`
 	Error     string `json:"error,omitempty"`
 	Memory    string `json:"memory,omitempty"` // Episode fürs Gedächtnis (M7)

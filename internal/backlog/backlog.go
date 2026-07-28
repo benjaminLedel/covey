@@ -65,6 +65,7 @@ type Task struct {
 	Result           *string    `json:"result,omitempty"`
 	Error            *string    `json:"error,omitempty"`
 	StageID          *uuid.UUID `json:"stage_id,omitempty"`
+	ParentTaskID     *uuid.UUID `json:"parent_task_id,omitempty"`
 	ArchivedAt       *time.Time `json:"archived_at,omitempty"`
 	CreatedAt        time.Time  `json:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at"`
@@ -108,12 +109,14 @@ type Store struct {
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
 const taskCols = `id, org_id, agent_id, title, body, state, priority, origin,
-	correlation_key, runtime_session_id, resume_input, result, error, stage_id, archived_at, created_at, updated_at`
+	correlation_key, runtime_session_id, resume_input, result, error, stage_id, parent_task_id,
+	archived_at, created_at, updated_at`
 
 func scanTask(row pgx.Row) (Task, error) {
 	var t Task
 	err := row.Scan(&t.ID, &t.OrgID, &t.AgentID, &t.Title, &t.Body, &t.State, &t.Priority, &t.Origin,
-		&t.CorrelationKey, &t.RuntimeSessionID, &t.ResumeInput, &t.Result, &t.Error, &t.StageID, &t.ArchivedAt, &t.CreatedAt, &t.UpdatedAt)
+		&t.CorrelationKey, &t.RuntimeSessionID, &t.ResumeInput, &t.Result, &t.Error, &t.StageID, &t.ParentTaskID,
+		&t.ArchivedAt, &t.CreatedAt, &t.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return t, ErrNotFound
 	}
@@ -137,6 +140,71 @@ func (s *Store) Create(ctx context.Context, orgID, agentID uuid.UUID, title, bod
 	}
 	s.notify(ctx, agentID)
 	return t, nil
+}
+
+// ChildSpec beschreibt eine Aufgabe, die aus einer anderen hervorgeht: die
+// Fortsetzung eines am Turn-Limit abgebrochenen Laufs oder eine vom Agenten
+// selbst abgespaltene Teilaufgabe. AgentID leer = derselbe Agent wie die
+// Ursprungsaufgabe (Delegation setzt sie auf einen Kollegen).
+//
+// SessionID/ResumeInput sind nur für die Fortsetzung gesetzt: mit ihnen nimmt
+// die Runtime die abgebrochene Session wieder auf, statt bei null anzufangen.
+type ChildSpec struct {
+	AgentID     uuid.UUID
+	Title       string
+	Body        string
+	Origin      string
+	Priority    int
+	SessionID   string
+	ResumeInput string
+}
+
+// CreateChild legt eine Aufgabe an, die an einer Ursprungsaufgabe hängt.
+// Organisation und (per Default) Agent erbt sie von ihr — eine Aufgabe kann
+// also nie aus der Org ihrer Elternaufgabe herausfallen.
+func (s *Store) CreateChild(ctx context.Context, parentID uuid.UUID, spec ChildSpec) (Task, error) {
+	parent, err := s.Get(ctx, parentID)
+	if err != nil {
+		return Task{}, err
+	}
+	agentID := spec.AgentID
+	if agentID == uuid.Nil {
+		agentID = parent.AgentID
+	}
+	if spec.Priority == 0 {
+		spec.Priority = 5
+	}
+	row := s.pool.QueryRow(ctx, `INSERT INTO backlog_tasks
+		(id, org_id, agent_id, title, body, origin, priority, parent_task_id,
+		 runtime_session_id, resume_input, stage_id)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8, NULLIF($9,''), NULLIF($10,''),
+			(SELECT id FROM agent_stages WHERE agent_id=$3 ORDER BY position, created_at LIMIT 1))
+		RETURNING `+taskCols,
+		uuid.New(), parent.OrgID, agentID, spec.Title, spec.Body, spec.Origin, spec.Priority,
+		parentID, spec.SessionID, spec.ResumeInput)
+	t, err := scanTask(row)
+	if err != nil {
+		return t, err
+	}
+	s.notify(ctx, agentID)
+	return t, nil
+}
+
+// AncestorsWithOrigin zählt, wie viele Vorfahren einer Aufgabe (inklusive ihrer
+// selbst) eine Herkunft mit dem gegebenen Präfix tragen. Das trägt den
+// Loop-Schutz: eine Fortsetzungs- oder Teilaufgaben-Kette darf nicht endlos
+// wachsen, und der einzige verlässliche Zähler ist die Kette selbst.
+func (s *Store) AncestorsWithOrigin(ctx context.Context, id uuid.UUID, originPrefix string) (int, error) {
+	var n int
+	err := s.pool.QueryRow(ctx, `
+		WITH RECURSIVE chain AS (
+			SELECT id, parent_task_id, origin FROM backlog_tasks WHERE id=$1
+			UNION ALL
+			SELECT t.id, t.parent_task_id, t.origin
+			FROM backlog_tasks t JOIN chain c ON t.id = c.parent_task_id
+		)
+		SELECT COUNT(*) FROM chain WHERE origin LIKE $2 || '%'`, id, originPrefix).Scan(&n)
+	return n, err
 }
 
 func (s *Store) notify(ctx context.Context, agentID uuid.UUID) {
