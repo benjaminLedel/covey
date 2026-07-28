@@ -697,6 +697,28 @@ func (s *Server) handleSetRecordingLevel(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// handleSetWarmSandbox schaltet die warme Sandbox eines Agenten (opt-in). Wirkt
+// ab dem nächsten Einschlafen — die Sandbox bleibt dann live (Dev-Server/Caches).
+func (s *Server) handleSetWarmSandbox(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	var in struct {
+		Warm bool `json:"warm"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "warm fehlt")
+		return
+	}
+	if err := s.Registry.SetWarmSandbox(r.Context(), id, in.Warm); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true, "warm_sandbox": in.Warm})
+}
+
 // handleOrgRecording liest (GET) bzw. setzt (PATCH) den Org-Boden der
 // Aufzeichnungstiefe — die org-weite Mindesttiefe (Security/Compliance).
 func (s *Server) handleGetOrgRecording(w http.ResponseWriter, r *http.Request) {

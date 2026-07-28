@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -74,6 +75,10 @@ type Orchestrator struct {
 	mu       sync.Mutex
 	sessions map[uuid.UUID]*session
 	waiting  map[uuid.UUID]chan DaemonLink
+	// warm hält geparkte Sandbox-Sessions warm-geschalteter Agenten am Leben,
+	// während der Agent schläft (Link offen, Container läuft weiter). Der nächste
+	// Wake übernimmt sie, statt kalt hochzufahren.
+	warm map[uuid.UUID]*warmSession
 
 	wikiSweepMu   sync.Mutex
 	lastWikiSweep time.Time
@@ -98,8 +103,101 @@ func New(opts Options) *Orchestrator {
 		Options:  opts,
 		sessions: map[uuid.UUID]*session{},
 		waiting:  map[uuid.UUID]chan DaemonLink{},
+		warm:     map[uuid.UUID]*warmSession{},
 		events:   NewBroadcaster(),
 	}
+}
+
+// warmIdleTTL: nach so langer Idle-Zeit wird eine geparkte warme Sandbox doch
+// abgebaut, damit sie nicht unbegrenzt Ressourcen hält.
+const warmIdleTTL = 30 * time.Minute
+
+// warmSession ist eine zwischen Wach-Phasen offen gehaltene Sandbox samt Daemon-
+// Link. Im Idle drained eine Goroutine die Heartbeats des Daemons (sonst würde
+// die WS als tot gelten). Der nächste Wake bricht den Drain ab und übernimmt.
+type warmSession struct {
+	link         DaemonLink
+	sandbox      Sandbox
+	lastUsed     time.Time
+	cancel       context.CancelFunc // stoppt den Drain
+	done         chan struct{}      // geschlossen, wenn der Drain beendet ist
+	dead         atomic.Bool        // Link während des Idle gestorben
+	teardownOnce sync.Once
+}
+
+func (ws *warmSession) teardown() {
+	ws.teardownOnce.Do(func() {
+		ws.link.Close()
+		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		_ = ws.sandbox.Stop(stopCtx)
+	})
+}
+
+// warmLink umschließt einen Daemon-Link für warme Sessions. Grund: bei
+// coder/websocket schließt ein Read, dessen Context gecancelt wird, die
+// Verbindung — der Idle-Drain (Cancel zum Handoff) würde den warmen Link also
+// killen. Eine Pump-Goroutine liest den inneren Link mit Hintergrund-Context und
+// verteilt die Nachrichten über einen Channel; Receive(ctx) liest nur aus dem
+// Channel, ein Cancel betrifft damit nie die eigentliche Verbindung.
+type warmLink struct {
+	inner     DaemonLink
+	incoming  chan daemon.Message
+	pumpErr   chan error
+	stopPump  context.CancelFunc
+	closeOnce sync.Once
+}
+
+func newWarmLink(inner DaemonLink) *warmLink {
+	ctx, cancel := context.WithCancel(context.Background())
+	wl := &warmLink{
+		inner:    inner,
+		incoming: make(chan daemon.Message, 64),
+		pumpErr:  make(chan error, 1),
+		stopPump: cancel,
+	}
+	go func() {
+		for {
+			msg, err := inner.Receive(ctx)
+			if err != nil {
+				wl.pumpErr <- err
+				close(wl.incoming)
+				return
+			}
+			select {
+			case wl.incoming <- msg:
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return wl
+}
+
+func (wl *warmLink) Send(ctx context.Context, msg daemon.Message) error {
+	return wl.inner.Send(ctx, msg)
+}
+
+func (wl *warmLink) Receive(ctx context.Context) (daemon.Message, error) {
+	select {
+	case msg, ok := <-wl.incoming:
+		if !ok {
+			select {
+			case err := <-wl.pumpErr:
+				return daemon.Message{}, err
+			default:
+				return daemon.Message{}, fmt.Errorf("daemon-link geschlossen")
+			}
+		}
+		return msg, nil
+	case <-ctx.Done():
+		return daemon.Message{}, ctx.Err()
+	}
+}
+
+func (wl *warmLink) Close() error {
+	wl.closeOnce.Do(wl.stopPump)
+	return wl.inner.Close()
 }
 
 // Events liefert den SSE-Broadcaster für Live-Updates der Admin-UI.
@@ -125,6 +223,7 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 	}
 	go o.listenLoop(ctx)
 	go o.wikiMaintenanceLoop(ctx)
+	go o.warmReaperLoop(ctx)
 	ticker := time.NewTicker(o.TickInterval)
 	defer ticker.Stop()
 	o.tick(ctx)
@@ -469,21 +568,27 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 
 	o.setStatus(ctx, agent, nil, agents.StatusTriggered)
 
-	// Wake: Sandbox starten und auf ready warten.
-	link, sandbox, err := o.wake(ctx, agent)
+	// Wake: warme Sandbox übernehmen, sonst kalt hochfahren und auf ready warten.
+	link, sandbox, err := o.acquireSandbox(ctx, agent)
 	if err != nil {
 		o.setStatus(ctx, agent, nil, agents.StatusSleeping)
 		return fmt.Errorf("wake: %w", err)
 	}
 	s.link = link
 	defer func() {
-		link.Close()
-		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		sandbox.Stop(stopCtx)
 		final := agents.StatusSleeping
 		if s.killed {
 			final = agents.StatusKilled
+		}
+		// Warm & sauber eingeschlafen: Sandbox + Link am Leben lassen (im Idle
+		// gedraint). Sonst — oder bei kill/Abbruch — Compute abbauen.
+		if agent.WarmSandbox && !s.killed && ctx.Err() == nil {
+			o.parkWarm(agent.ID, link, sandbox)
+		} else {
+			link.Close()
+			stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			sandbox.Stop(stopCtx)
+			cancel()
 		}
 		o.setStatus(context.WithoutCancel(ctx), agent, nil, final)
 	}()
@@ -499,7 +604,11 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 		}
 		task, err := o.Backlog.ClaimNext(ctx, agentID)
 		if errors.Is(err, backlog.ErrNotFound) {
-			_ = o.sendMsg(ctx, link, daemon.TypeSleep, map[string]string{})
+			// Warm: KEIN Sleep — sonst räumt coveyd Dev-Server/Browser ab und
+			// beendet sich. Der Daemon idlet in seiner Receive-Schleife weiter.
+			if !agent.WarmSandbox {
+				_ = o.sendMsg(ctx, link, daemon.TypeSleep, map[string]string{})
+			}
 			return nil
 		}
 		if err != nil {
@@ -583,6 +692,139 @@ func (o *Orchestrator) wake(ctx context.Context, agent agents.Agent) (DaemonLink
 	case <-ctx.Done():
 		sandbox.Stop(context.WithoutCancel(ctx))
 		return nil, nil, ctx.Err()
+	}
+}
+
+// acquireSandbox übernimmt für warm-geschaltete Agenten eine geparkte Sandbox
+// (kein kalter Start), sonst fährt es eine frische hoch (wake).
+func (o *Orchestrator) acquireSandbox(ctx context.Context, agent agents.Agent) (DaemonLink, Sandbox, error) {
+	if agent.WarmSandbox {
+		if ws := o.takeWarm(agent.ID); ws != nil {
+			o.Log.Info("warme sandbox übernommen", "agent", agent.ID)
+			return ws.link, ws.sandbox, nil
+		}
+	}
+	link, sandbox, err := o.wake(ctx, agent)
+	if err != nil {
+		return nil, nil, err
+	}
+	// Warm: den frischen Link in die Pump-Hülle wickeln, damit ihn der Idle-Drain
+	// später gefahrlos übernehmen kann.
+	if agent.WarmSandbox {
+		link = newWarmLink(link)
+	}
+	return link, sandbox, nil
+}
+
+// parkWarm hält Link + Sandbox nach dem Einschlafen offen und drained im
+// Hintergrund die Daemon-Heartbeats, bis der nächste Wake übernimmt oder der
+// Reaper abräumt. Stirbt der Link im Idle, wird die Sandbox sofort abgebaut.
+func (o *Orchestrator) parkWarm(agentID uuid.UUID, link DaemonLink, sandbox Sandbox) {
+	drainCtx, cancel := context.WithCancel(context.Background())
+	ws := &warmSession{link: link, sandbox: sandbox, lastUsed: time.Now(), cancel: cancel, done: make(chan struct{})}
+	o.mu.Lock()
+	// Eine evtl. noch registrierte Vorgänger-Session desselben Agenten weichen.
+	if old := o.warm[agentID]; old != nil {
+		old.cancel()
+	}
+	o.warm[agentID] = ws
+	o.mu.Unlock()
+
+	go func() {
+		defer close(ws.done)
+		for {
+			if _, err := link.Receive(drainCtx); err != nil {
+				if drainCtx.Err() != nil {
+					return // gesunder Handoff (takeWarm/Reaper) — Link nicht anfassen
+				}
+				// Link im Idle gestorben (Container-Crash o. ä.): abräumen.
+				ws.dead.Store(true)
+				o.mu.Lock()
+				if o.warm[agentID] == ws {
+					delete(o.warm, agentID)
+				}
+				o.mu.Unlock()
+				ws.teardown()
+				o.Log.Warn("warme sandbox im idle verloren", "agent", agentID, "err", err)
+				return
+			}
+			// Heartbeat/Idle-Nachricht verwerfen — es läuft keine Aufgabe.
+		}
+	}()
+}
+
+// takeWarm zieht eine geparkte Session aus dem Cache, stoppt ihren Drain und gibt
+// sie zurück. Ist der Link inzwischen gestorben, liefert es nil (→ kalter Start).
+func (o *Orchestrator) takeWarm(agentID uuid.UUID) *warmSession {
+	o.mu.Lock()
+	ws := o.warm[agentID]
+	if ws != nil {
+		delete(o.warm, agentID)
+	}
+	o.mu.Unlock()
+	if ws == nil {
+		return nil
+	}
+	ws.cancel()
+	<-ws.done
+	if ws.dead.Load() {
+		return nil
+	}
+	return ws
+}
+
+// evictWarm baut eine geparkte warme Sandbox sofort ab (Kill/Disable). kill=true
+// schickt vorher TypeKill (sofortiges Ende), sonst TypeSleep (sauber). No-op,
+// wenn der Agent keine geparkte Session hat.
+func (o *Orchestrator) evictWarm(ctx context.Context, agentID uuid.UUID, kill bool) {
+	ws := o.takeWarm(agentID)
+	if ws == nil {
+		return
+	}
+	msg := daemon.TypeSleep
+	if kill {
+		msg = daemon.TypeKill
+	}
+	_ = o.sendMsg(ctx, ws.link, msg, map[string]string{})
+	ws.teardown()
+}
+
+// warmReaperLoop baut geparkte warme Sandboxen ab, die zu lange idle waren.
+func (o *Orchestrator) warmReaperLoop(ctx context.Context) {
+	t := time.NewTicker(time.Minute)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			o.reapIdleWarm(ctx)
+		}
+	}
+}
+
+func (o *Orchestrator) reapIdleWarm(ctx context.Context) {
+	cutoff := time.Now().Add(-warmIdleTTL)
+	o.mu.Lock()
+	var expired []*warmSession
+	for id, ws := range o.warm {
+		if ws.lastUsed.Before(cutoff) {
+			expired = append(expired, ws)
+			delete(o.warm, id)
+		}
+	}
+	o.mu.Unlock()
+	for _, ws := range expired {
+		ws.cancel()
+		<-ws.done
+		if ws.dead.Load() {
+			continue
+		}
+		// Sauber einschlafen lassen (coveyd räumt Dev-Server ab und beendet sich),
+		// dann Compute abbauen.
+		_ = o.sendMsg(ctx, ws.link, daemon.TypeSleep, map[string]string{})
+		ws.teardown()
+		o.Log.Info("warme sandbox nach idle abgebaut", "ttl", warmIdleTTL)
 	}
 }
 
@@ -1357,6 +1599,9 @@ func (o *Orchestrator) Kill(ctx context.Context, agentID uuid.UUID) error {
 		}
 		s.cancel()
 	}
+	// Eine geparkte warme Sandbox (kein aktiver Lauf) sofort abbauen — ein
+	// gekillter Agent darf keinen laufenden Container behalten.
+	o.evictWarm(ctx, agentID, true)
 	// Angefangene Aufgabe wieder öffnen, damit nichts verloren geht.
 	_, _ = o.Pool.Exec(ctx, `UPDATE backlog_tasks SET state='open', updated_at=now()
 		WHERE agent_id=$1 AND state='in_progress'`, agentID)
@@ -1396,9 +1641,20 @@ func (o *Orchestrator) KillFleet(ctx context.Context, orgID uuid.UUID) error {
 
 func (o *Orchestrator) shutdown() {
 	o.mu.Lock()
-	defer o.mu.Unlock()
 	for _, s := range o.sessions {
 		s.cancel()
+	}
+	// Geparkte warme Sandboxen (kein aktiver Lauf) einsammeln und abbauen.
+	parked := make([]*warmSession, 0, len(o.warm))
+	for id, ws := range o.warm {
+		parked = append(parked, ws)
+		delete(o.warm, id)
+	}
+	o.mu.Unlock()
+	for _, ws := range parked {
+		ws.cancel()
+		<-ws.done
+		ws.teardown()
 	}
 }
 

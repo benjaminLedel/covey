@@ -137,6 +137,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/agents/{id}/model", s.rbac(manage, s.handleSetModel))
 	mux.Handle("PATCH /api/v1/agents/{id}/max-turns", s.rbac(manage, s.handleSetMaxTurns))
 	mux.Handle("PATCH /api/v1/agents/{id}/recording-level", s.rbac(manage, s.handleSetRecordingLevel))
+	mux.Handle("PATCH /api/v1/agents/{id}/warm-sandbox", s.rbac(manage, s.handleSetWarmSandbox))
 	mux.Handle("GET /api/v1/org/recording-level", s.rbac(anyRole, s.handleGetOrgRecording))
 	mux.Handle("PATCH /api/v1/org/recording-level", s.rbac(securityRoles, s.handleSetOrgRecording))
 	mux.Handle("PATCH /api/v1/agents/{id}/supervisor", s.rbac(manage, s.handleSetSupervisor))
