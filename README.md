@@ -10,6 +10,19 @@ Eine zentrale Plattform, die KI-Agenten wie Mitarbeiter behandelt — mit Identi
 
 **MVP implementiert.** Das Repository enthält neben der **Spezifikation** den vollständigen MVP-Durchstich (Meilensteine M0–M7 aus [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md)): das `covey`-Binary (Control Plane, API, eingebettete Admin-UI), den Sandbox-Daemon `coveyd`, den Claude-Code-Adapter, die Zammad-Integration und die Vertrauensschicht (Guard-Rails, Recording, Kill-Switch, Cost, RBAC). Die Abnahme-Checkliste läuft als Integrationstest-Suite (`internal/integration/`).
 
+## Die Oberfläche
+
+![Agenten-Übersicht](web/public/shots/agents.jpg)
+
+*Die Belegschaft einer Organisation auf einen Blick — Zustand (`gestoppt`, `schläft`), Runtime pro Agent und der Notaus für alle.*
+
+| | |
+|---|---|
+| ![Backlog eines Agenten](web/public/shots/backlog.jpg) | ![Organigramm](web/public/shots/org.jpg) |
+| **Backlog** — Aufgaben als First-Class-Objekte, Spalten frei konfigurierbar; Kosten, Token und Budget stehen im Kopf des Agenten. | **Organigramm** — Menschen und Agenten in derselben Struktur; Abteilung und Unterstellung per Drag & Drop. |
+| ![Gedächtnis eines Agenten](web/public/shots/memory.jpg) | ![Kosten & Token](web/public/shots/costs.jpg) |
+| **Gedächtnis** — was der Agent gelernt hat, lesbar und editierbar: Wissen von Hand ergänzen oder gezielt vergessen lassen. | **Kosten & Token** — Ausgaben über die Zeit, aufgeschlüsselt nach Agent und Modell, für die Organisation oder einen einzelnen Agenten. |
+
 ## Schnellstart mit Docker Compose (empfohlen zum Ausprobieren)
 
 Covey in Minuten starten — **ohne Go, Node oder lokale Postgres**. Nur Docker nötig:
