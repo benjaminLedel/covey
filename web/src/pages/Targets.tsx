@@ -1,10 +1,33 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, del, patch, post, type MCPTool, type Principal, type TargetPlugin } from "../api";
+import { ConfirmDialog, Modal } from "../components/Modal";
 
-const kindColor = (k: TargetPlugin["kind"]) =>
-  k === "builtin" ? "var(--text-secondary)" : "var(--clay)";
+const kindKey: Record<TargetPlugin["kind"], string> = {
+  builtin: "targets.kindBuiltin",
+  custom: "targets.kindCustom",
+  mcp: "targets.kindMcp",
+};
+
+// Monogramm fürs Karten-Kachelchen: Initialen aus Label bzw. Slug.
+function monogram(p: TargetPlugin): string {
+  const words = (p.label || p.name)
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+  if (words.length === 0) return "?";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+function hostOf(url?: string): string {
+  if (!url) return "";
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
 
 const exampleManifest = `{
   "name": "helpdesk",
@@ -25,13 +48,23 @@ const exampleManifest = `{
   "prompt_doc": "Verfügbare helpdesk-Aktionen: get_issue {\\"issue_id\\":N}, comment {\\"issue_id\\":N,\\"text\\":\\"...\\"}."
 }`;
 
+// Reihenfolge der Kategorie-Chips; alles Unbekannte landet hinten unter
+// "other". Welche Chips erscheinen, entscheiden die Daten — hier steht nur
+// die Sortierung, keine Plugin-Liste.
+const catOrder = ["ticketing", "code", "communication", "files", "web", "dev", "other"];
+const catLabelKey = (c: string) => (catOrder.includes(c) ? `targets.cat.${c}` : "targets.cat.other");
+
+type Tab = "store" | "active";
+
 export default function Targets({ me }: { me: Principal }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const [manifestText, setManifestText] = useState("");
-  const [showUpload, setShowUpload] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [tab, setTab] = useState<Tab>("store");
+  const [query, setQuery] = useState("");
+  const [cat, setCat] = useState("all");
+  const [detail, setDetail] = useState<string | null>(null);
+  const [confirmDel, setConfirmDel] = useState<TargetPlugin | null>(null);
+  const [form, setForm] = useState<null | "manifest" | "mcp">(null);
 
   const targets = useQuery({
     queryKey: ["targets"],
@@ -49,19 +82,11 @@ export default function Targets({ me }: { me: Principal }) {
 
   const remove = useMutation({
     mutationFn: (name: string) => del(`/targets/${name}`),
-    onSuccess: invalidate,
-  });
-
-  const upload = useMutation({
-    mutationFn: (raw: string) =>
-      api("/targets", { method: "POST", body: raw }),
     onSuccess: () => {
-      setManifestText("");
-      setShowUpload(false);
-      setError(null);
+      setConfirmDel(null);
+      setDetail(null);
       invalidate();
     },
-    onError: (e: Error) => setError(e.message),
   });
 
   const discover = useMutation({
@@ -70,13 +95,44 @@ export default function Targets({ me }: { me: Principal }) {
     onSuccess: invalidate,
   });
 
-  const readFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = () => setManifestText(String(reader.result ?? ""));
-    reader.readAsText(file);
-  };
-
   const list = targets.data ?? [];
+  const activeCount = list.filter((p) => p.enabled).length;
+
+  // Kategorien samt Anzahl aus den Daten ableiten, in fester Reihenfolge.
+  const cats = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const p of list) {
+      const c = p.category && catOrder.includes(p.category) ? p.category : "other";
+      counts.set(c, (counts.get(c) ?? 0) + 1);
+    }
+    return catOrder.filter((c) => counts.has(c)).map((c) => ({ cat: c, count: counts.get(c)! }));
+  }, [list]);
+
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return list
+      .filter((p) => tab === "store" || p.enabled)
+      .filter(
+        (p) =>
+          tab !== "store" ||
+          cat === "all" ||
+          (p.category && catOrder.includes(p.category) ? p.category : "other") === cat,
+      )
+      .filter(
+        (p) =>
+          !q ||
+          p.name.toLowerCase().includes(q) ||
+          (p.label || "").toLowerCase().includes(q) ||
+          (p.description || "").toLowerCase().includes(q),
+      )
+      .sort(
+        (a, b) =>
+          Number(b.enabled) - Number(a.enabled) ||
+          (a.label || a.name).localeCompare(b.label || b.name),
+      );
+  }, [list, query, cat, tab]);
+
+  const open = detail ? list.find((p) => p.name === detail) ?? null : null;
 
   return (
     <div>
@@ -84,213 +140,408 @@ export default function Targets({ me }: { me: Principal }) {
         <h1 className="text-[22px]">{t("targets.title")}</h1>
         <span className="muted">{t("targets.subtitle")}</span>
       </div>
-      <p className="muted text-xs mb-5" style={{ maxWidth: 640 }}>
+      <p className="muted text-xs mb-4" style={{ maxWidth: 640 }}>
         {t("targets.desc")}
       </p>
 
-      <div className="grid gap-3 mb-6" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
-        {list.map((p) => (
-          <div key={p.name} className="card" style={{ padding: "14px 16px", opacity: p.enabled ? 1 : 0.6 }}>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="font-medium">{p.label || p.name}</span>
-              <span className="mono text-xs muted">{p.name}</span>
-              <span className="text-[11px] ml-auto" style={{ color: kindColor(p.kind) }}>
-                {t(p.kind === "custom" ? "targets.kindCustom" : p.kind === "mcp" ? "targets.kindMcp" : "targets.kindBuiltin")}
-              </span>
-            </div>
-            <p className="muted text-xs mb-3">{p.description || "—"}</p>
-            {p.setup_doc && <SetupInfo doc={p.setup_doc} />}
-            {p.kind === "mcp" && (
-              <MCPTools plugin={p} canEdit={canEdit} onDiscover={(token) => discover.mutate({ name: p.name, token })} pending={discover.isPending} />
-            )}
-            <div className="flex items-center gap-2">
-              <span className="text-[11px]" style={{ color: p.enabled ? "var(--text-secondary)" : "var(--clay)" }}>
-                {p.enabled ? t("targets.active") : t("targets.inactive")}
-              </span>
-              {canEdit && (
-                <button
-                  className="btn sm ml-auto"
-                  disabled={toggle.isPending}
-                  onClick={() => toggle.mutate({ name: p.name, enabled: !p.enabled })}
-                >
-                  {p.enabled ? t("targets.deactivate") : t("targets.activate")}
-                </button>
-              )}
-              {canEdit && (p.kind === "custom" || p.kind === "mcp") && (
-                <button
-                  className="btn sm danger"
-                  disabled={remove.isPending}
-                  onClick={() => {
-                    if (confirm(t("targets.deleteConfirm", { name: p.name }))) remove.mutate(p.name);
-                  }}
-                >
-                  {t("targets.delete")}
-                </button>
-              )}
-            </div>
-          </div>
+      <nav className="subnav" role="tablist" aria-label={t("targets.title")}>
+        {(["store", "active"] as Tab[]).map((tb) => (
+          <button
+            key={tb}
+            role="tab"
+            aria-selected={tab === tb}
+            className={tab === tb ? "active" : ""}
+            onClick={() => setTab(tb)}
+          >
+            {tb === "store"
+              ? t("targets.tabStore")
+              : t("targets.tabActive", { count: activeCount })}
+          </button>
         ))}
-        {list.length === 0 && !targets.isLoading && (
-          <p className="muted">{t("targets.noTargets")}</p>
-        )}
-      </div>
+      </nav>
 
-      {canEdit && (
-        <>
-          <h2 className="text-base font-medium mb-2">{t("targets.ownTarget")}</h2>
-          {!showUpload ? (
-            <button className="btn" onClick={() => setShowUpload(true)}>
-              {t("targets.uploadManifest")}
-            </button>
-          ) : (
-            <div className="card" style={{ padding: "14px 16px", maxWidth: 720 }}>
-              <p className="muted text-xs mb-2">
-                {t("targets.manifestFormDesc")}
-              </p>
-              <textarea
-                className="mono"
-                style={{ width: "100%", minHeight: 220, fontSize: 12 }}
-                placeholder={exampleManifest}
-                value={manifestText}
-                onChange={(e) => setManifestText(e.target.value)}
-              />
-              {error && (
-                <p className="text-xs mb-2" style={{ color: "var(--clay)" }}>
-                  {error}
-                </p>
-              )}
-              <div className="flex items-center gap-2 mt-2">
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept=".json,application/json"
-                  style={{ display: "none" }}
-                  onChange={(e) => e.target.files?.[0] && readFile(e.target.files[0])}
-                />
-                <button className="btn sm" onClick={() => fileRef.current?.click()}>
-                  {t("targets.chooseFile")}
-                </button>
-                <button className="btn sm" onClick={() => setManifestText(exampleManifest)}>
-                  {t("targets.insertExample")}
-                </button>
+      {list.length > 0 && (
+        <div className="tgt-bar">
+          <input
+            className="tgt-search"
+            type="search"
+            placeholder={t("targets.search")}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            aria-label={t("targets.search")}
+          />
+          {tab === "store" && (
+            <div className="tgt-cats" role="group" aria-label={t("targets.filterLabel")}>
+              <button
+                className={`tgt-cat${cat === "all" ? " active" : ""}`}
+                onClick={() => setCat("all")}
+                aria-pressed={cat === "all"}
+              >
+                {t("targets.cat.all")} <span className="n">{list.length}</span>
+              </button>
+              {cats.map((c) => (
                 <button
-                  className="btn sm primary ml-auto"
-                  disabled={upload.isPending || !manifestText.trim()}
-                  onClick={() => upload.mutate(manifestText)}
+                  key={c.cat}
+                  className={`tgt-cat${cat === c.cat ? " active" : ""}`}
+                  onClick={() => setCat(c.cat)}
+                  aria-pressed={cat === c.cat}
                 >
-                  {t("targets.upload")}
+                  {t(catLabelKey(c.cat))} <span className="n">{c.count}</span>
                 </button>
-                <button
-                  className="btn sm"
-                  onClick={() => {
-                    setShowUpload(false);
-                    setError(null);
-                  }}
-                >
-                  {t("targets.cancel")}
-                </button>
-              </div>
+              ))}
             </div>
           )}
-          <AddMCP onDone={invalidate} />
-        </>
+          <span className="muted text-xs ml-auto">
+            {t("targets.summary", { total: list.length, active: activeCount })}
+          </span>
+        </div>
       )}
-      {!canEdit && (
-        <p className="muted text-xs mt-3">
-          {t("targets.noAccess", { role: me.Role })}
+
+      <div className="tgt-grid">
+        {shown.map((p) => (
+          <TargetCard
+            key={p.name}
+            plugin={p}
+            canEdit={canEdit}
+            store={tab === "store"}
+            busy={toggle.isPending}
+            onDetails={() => setDetail(p.name)}
+            onToggle={() => toggle.mutate({ name: p.name, enabled: !p.enabled })}
+          />
+        ))}
+      </div>
+      {list.length > 0 && shown.length === 0 && (
+        <p className="muted text-sm">
+          {tab === "active" && !query ? (
+            <>
+              {t("targets.noneActive")}{" "}
+              <button className="btn sm ml-2" onClick={() => setTab("store")}>
+                {t("targets.toStore")}
+              </button>
+            </>
+          ) : (
+            t("targets.noMatch")
+          )}
         </p>
       )}
-    </div>
-  );
-}
-
-function SetupInfo({ doc }: { doc: string }) {
-  const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="mb-3">
-      <button className="btn sm" onClick={() => setOpen((o) => !o)}>
-        ⓘ {t("targets.setup")} {open ? "▲" : "▼"}
-      </button>
-      {open && (
-        <pre
-          className="text-[11px] mt-2"
-          style={{
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-            background: "var(--surface-1)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius)",
-            padding: "10px 12px",
-            margin: 0,
-            fontFamily: "inherit",
-            lineHeight: 1.5,
-          }}
-        >
-          {doc}
-        </pre>
+      {list.length === 0 && !targets.isLoading && (
+        <p className="muted">{t("targets.noTargets")}</p>
       )}
+
+      {canEdit && tab === "store" && (
+        <div className="tgt-connect card">
+          <div>
+            <h2 className="text-base font-medium">{t("targets.ownTarget")}</h2>
+            <p className="muted text-xs mt-1" style={{ maxWidth: 560 }}>
+              {t("targets.connectHint")}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 ml-auto">
+            <button className="btn sm" onClick={() => setForm("manifest")}>
+              {t("targets.uploadManifest")}
+            </button>
+            <button className="btn sm" onClick={() => setForm("mcp")}>
+              {t("targets.addMcp")}
+            </button>
+          </div>
+        </div>
+      )}
+      {!canEdit && (
+        <p className="muted text-xs mt-4">{t("targets.noAccess", { role: me.Role })}</p>
+      )}
+
+      {open && (
+        <TargetDetail
+          plugin={open}
+          canEdit={canEdit}
+          onClose={() => setDetail(null)}
+          onToggle={() => toggle.mutate({ name: open.name, enabled: !open.enabled })}
+          togglePending={toggle.isPending}
+          onDelete={() => setConfirmDel(open)}
+          onDiscover={(token) => discover.mutate({ name: open.name, token })}
+          discoverPending={discover.isPending}
+        />
+      )}
+      {confirmDel && (
+        <ConfirmDialog
+          title={t("targets.delete")}
+          confirmLabel={t("targets.delete")}
+          pending={remove.isPending}
+          onClose={() => setConfirmDel(null)}
+          onConfirm={() => remove.mutate(confirmDel.name)}
+        >
+          <p className="text-sm">{t("targets.deleteConfirm", { name: confirmDel.name })}</p>
+        </ConfirmDialog>
+      )}
+      {form === "manifest" && <ManifestForm onClose={() => setForm(null)} onDone={invalidate} />}
+      {form === "mcp" && <AddMCP onClose={() => setForm(null)} onDone={invalidate} />}
     </div>
   );
 }
 
-function MCPTools({
-  plugin,
+function TargetCard({
+  plugin: p,
   canEdit,
-  onDiscover,
-  pending,
+  store,
+  busy,
+  onDetails,
+  onToggle,
 }: {
   plugin: TargetPlugin;
   canEdit: boolean;
-  onDiscover: (token?: string) => void;
-  pending: boolean;
+  store: boolean;
+  busy: boolean;
+  onDetails: () => void;
+  onToggle: () => void;
 }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
-  const [token, setToken] = useState("");
-  const tools: MCPTool[] = plugin.manifest?.tools ?? [];
-  const url = plugin.manifest?.url;
+  const tools = p.manifest?.tools?.length ?? 0;
+  const host = hostOf(p.manifest?.url);
   return (
-    <div className="mb-3">
-      {url && <p className="mono text-[11px] muted mb-1" style={{ wordBreak: "break-all" }}>{url}</p>}
-      <button className="btn sm mb-2" onClick={() => setOpen((o) => !o)}>
-        {tools.length} Tool{tools.length === 1 ? "" : "s"} {open ? "▲" : "▼"}
-      </button>
-      {open && (
-        <div className="mb-2">
+    <article className={`card tgt-card${p.enabled ? "" : " off"}`}>
+      <div className="tgt-head">
+        <span className={`tgt-mark k-${p.kind}`} aria-hidden="true">
+          {monogram(p)}
+        </span>
+        <div className="tgt-id">
+          <div className="tgt-name" title={p.label || p.name}>
+            {p.label || p.name}
+          </div>
+          <div className="tgt-slug mono">{p.name}</div>
+        </div>
+        <span className={`tgt-kind k-${p.kind}`}>{t(kindKey[p.kind])}</span>
+      </div>
+
+      <p className="tgt-desc">{p.description || "—"}</p>
+
+      <div className="tgt-meta">
+        <span>{t(catLabelKey(p.category && catOrder.includes(p.category) ? p.category : "other"))}</span>
+        {host && <span className="mono">{host}</span>}
+        {p.kind === "mcp" && <span>{t("targets.toolCount", { count: tools })}</span>}
+      </div>
+
+      <div className="tgt-foot">
+        <span className={`tgt-state${p.enabled ? " on" : ""}`}>
+          <i aria-hidden="true" />
+          {p.enabled ? t("targets.active") : t("targets.inactive")}
+        </span>
+        <button className="btn sm" onClick={onDetails}>
+          {t("targets.details")}
+        </button>
+        {canEdit && (
+          <button
+            className={`btn sm${store && !p.enabled ? " cta" : ""}`}
+            disabled={busy}
+            onClick={onToggle}
+          >
+            {p.enabled ? t("targets.deactivate") : t("targets.activate")}
+          </button>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function TargetDetail({
+  plugin: p,
+  canEdit,
+  onClose,
+  onToggle,
+  togglePending,
+  onDelete,
+  onDiscover,
+  discoverPending,
+}: {
+  plugin: TargetPlugin;
+  canEdit: boolean;
+  onClose: () => void;
+  onToggle: () => void;
+  togglePending: boolean;
+  onDelete: () => void;
+  onDiscover: (token?: string) => void;
+  discoverPending: boolean;
+}) {
+  const { t } = useTranslation();
+  const [token, setToken] = useState("");
+  const tools: MCPTool[] = p.manifest?.tools ?? [];
+  const deletable = p.kind === "custom" || p.kind === "mcp";
+
+  return (
+    <Modal
+      title={p.label || p.name}
+      size="lg"
+      onClose={onClose}
+      footer={
+        <>
+          {canEdit && deletable && (
+            <button className="btn sm danger" style={{ marginRight: "auto" }} onClick={onDelete}>
+              {t("targets.delete")}
+            </button>
+          )}
+          <button className="btn sm" onClick={onClose}>
+            {t("targets.close")}
+          </button>
+          {canEdit && (
+            <button className="btn sm primary" disabled={togglePending} onClick={onToggle}>
+              {p.enabled ? t("targets.deactivate") : t("targets.activate")}
+            </button>
+          )}
+        </>
+      }
+    >
+      <div className="tgt-dl-head">
+        <span className={`tgt-mark lg k-${p.kind}`} aria-hidden="true">
+          {monogram(p)}
+        </span>
+        <div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="mono text-xs muted">{p.name}</span>
+            <span className={`tgt-kind k-${p.kind}`}>{t(kindKey[p.kind])}</span>
+            <span className="tgt-kind">
+              {t(catLabelKey(p.category && catOrder.includes(p.category) ? p.category : "other"))}
+            </span>
+            <span className={`tgt-state${p.enabled ? " on" : ""}`}>
+              <i aria-hidden="true" />
+              {p.enabled ? t("targets.active") : t("targets.inactive")}
+            </span>
+          </div>
+          {p.manifest?.url && (
+            <div className="mono text-[11px] muted mt-1" style={{ wordBreak: "break-all" }}>
+              {p.manifest.url}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <section className="tgt-sec">
+        <h3 className="tgt-sec-h">{t("targets.about")}</h3>
+        <p className="text-xs secondary" style={{ lineHeight: 1.65 }}>
+          {p.description || "—"}
+        </p>
+      </section>
+
+      {p.setup_doc && (
+        <section className="tgt-sec">
+          <h3 className="tgt-sec-h">{t("targets.setup")}</h3>
+          <pre className="tgt-doc">{p.setup_doc}</pre>
+        </section>
+      )}
+
+      {p.kind === "mcp" && (
+        <section className="tgt-sec">
+          <h3 className="tgt-sec-h">{t("targets.toolCount", { count: tools.length })}</h3>
           {tools.length === 0 && <p className="muted text-xs">{t("targets.noTools")}</p>}
-          <ul className="text-xs" style={{ listStyle: "none", padding: 0, margin: 0 }}>
+          <ul className="tgt-tools">
             {tools.map((tool) => (
-              <li key={tool.name} className="mb-1">
+              <li key={tool.name}>
                 <span className="mono">{tool.name}</span>
-                {tool.description && <span className="muted"> — {tool.description.split("\n")[0]}</span>}
+                {tool.description && (
+                  <span className="muted"> — {tool.description.split("\n")[0]}</span>
+                )}
               </li>
             ))}
           </ul>
           {canEdit && (
-            <div className="flex items-center gap-2 mt-2">
+            <div className="flex items-center gap-2 mt-3">
               <input
                 type="password"
                 placeholder={t("targets.tokenPlaceholder")}
                 className="mono"
-                style={{ fontSize: 11, flex: 1 }}
+                style={{ fontSize: 11, flex: 1, maxWidth: 320 }}
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
               />
-              <button className="btn sm" disabled={pending} onClick={() => onDiscover(token || undefined)}>
+              <button
+                className="btn sm"
+                disabled={discoverPending}
+                onClick={() => onDiscover(token || undefined)}
+              >
                 {t("targets.updateTools")}
               </button>
             </div>
           )}
-        </div>
+        </section>
       )}
-    </div>
+    </Modal>
   );
 }
 
-function AddMCP({ onDone }: { onDone: () => void }) {
+function ManifestForm({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
   const { t } = useTranslation();
-  const [show, setShow] = useState(false);
+  const [manifestText, setManifestText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const upload = useMutation({
+    mutationFn: (raw: string) => api("/targets", { method: "POST", body: raw }),
+    onSuccess: () => {
+      onDone();
+      onClose();
+    },
+    onError: (e: Error) => setError(e.message),
+  });
+
+  const readFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => setManifestText(String(reader.result ?? ""));
+    reader.readAsText(file);
+  };
+
+  return (
+    <Modal
+      title={t("targets.uploadManifestTitle")}
+      size="lg"
+      onClose={onClose}
+      footer={
+        <>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".json,application/json"
+            style={{ display: "none" }}
+            onChange={(e) => e.target.files?.[0] && readFile(e.target.files[0])}
+          />
+          <button className="btn sm" style={{ marginRight: "auto" }} onClick={() => fileRef.current?.click()}>
+            {t("targets.chooseFile")}
+          </button>
+          <button className="btn sm" onClick={() => setManifestText(exampleManifest)}>
+            {t("targets.insertExample")}
+          </button>
+          <button className="btn sm" onClick={onClose}>
+            {t("targets.cancel")}
+          </button>
+          <button
+            className="btn sm primary"
+            disabled={upload.isPending || !manifestText.trim()}
+            onClick={() => {
+              setError(null);
+              upload.mutate(manifestText);
+            }}
+          >
+            {t("targets.upload")}
+          </button>
+        </>
+      }
+    >
+      <p className="muted text-xs mb-2">{t("targets.manifestFormDesc")}</p>
+      <textarea
+        className="code"
+        style={{ width: "100%", minHeight: 260 }}
+        placeholder={exampleManifest}
+        value={manifestText}
+        onChange={(e) => setManifestText(e.target.value)}
+      />
+      {error && (
+        <p className="text-xs mt-2" style={{ color: "var(--text-danger)" }}>
+          {error}
+        </p>
+      )}
+    </Modal>
+  );
+}
+
+function AddMCP({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const { t } = useTranslation();
   const [f, setF] = useState({ name: "", label: "", description: "", url: "", header: "", format: "", token: "" });
   const [msg, setMsg] = useState<string | null>(null);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });
@@ -310,83 +561,72 @@ function AddMCP({ onDone }: { onDone: () => void }) {
       if (res.discover_error) {
         setMsg(t("targets.discoverError", { err: res.discover_error }));
       } else {
-        setMsg(t("targets.discoverSuccess", { name: res.name, count: res.tools?.length ?? 0 }));
-        setF({ name: "", label: "", description: "", url: "", header: "", format: "", token: "" });
-        setShow(false);
+        onClose();
       }
     },
     onError: (e: Error) => setMsg(e.message),
   });
 
   return (
-    <div className="mt-6">
-      <h2 className="text-base font-medium mb-2">{t("targets.mcpSection")}</h2>
-      {!show ? (
-        <button className="btn" onClick={() => setShow(true)}>
-          {t("targets.addMcp")}
-        </button>
-      ) : (
-        <div className="card" style={{ padding: "14px 16px", maxWidth: 720 }}>
-          <p className="muted text-xs mb-3">
-            {t("targets.mcpFormDesc")}
-          </p>
-          <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
-            <label className="text-xs">
-              {t("targets.mcpNameSlug")}
-              <input className="mono" value={f.name} onChange={set("name")} placeholder="weather" />
-            </label>
-            <label className="text-xs">
-              {t("targets.mcpLabel")}
-              <input value={f.label} onChange={set("label")} placeholder="Wetterdienst" />
-            </label>
-          </div>
-          <label className="text-xs">
-            {t("targets.mcpUrl")}
-            <input className="mono" value={f.url} onChange={set("url")} placeholder="https://mcp.example.com/mcp" />
-          </label>
-          <label className="text-xs">
-            {t("targets.mcpDesc")}
-            <input value={f.description} onChange={set("description")} />
-          </label>
-          <div className="grid gap-2 mt-1" style={{ gridTemplateColumns: "1fr 1fr" }}>
-            <label className="text-xs">
-              {t("targets.mcpAuthHeader")}
-              <input className="mono" value={f.header} onChange={set("header")} placeholder="Authorization" />
-            </label>
-            <label className="text-xs">
-              {t("targets.mcpAuthFormat")}
-              <input className="mono" value={f.format} onChange={set("format")} placeholder="Bearer {token}" />
-            </label>
-          </div>
-          <label className="text-xs">
-            {t("targets.mcpToken")}
-            <input type="password" className="mono" value={f.token} onChange={set("token")} />
-          </label>
-          {msg && (
-            <p className="text-xs mt-2" style={{ color: "var(--clay)" }}>
-              {msg}
-            </p>
-          )}
-          <div className="flex items-center gap-2 mt-3">
-            <button
-              className="btn sm primary ml-auto"
-              disabled={create.isPending || !f.name.trim() || !f.url.trim()}
-              onClick={() => {
-                setMsg(null);
-                create.mutate();
-              }}
-            >
-              {t("targets.mcpConnect")}
-            </button>
-            <button className="btn sm" onClick={() => { setShow(false); setMsg(null); }}>
-              {t("targets.cancel")}
-            </button>
-          </div>
-        </div>
+    <Modal
+      title={t("targets.mcpSection")}
+      onClose={onClose}
+      footer={
+        <>
+          <button className="btn sm" onClick={onClose}>
+            {t("targets.cancel")}
+          </button>
+          <button
+            className="btn sm primary"
+            disabled={create.isPending || !f.name.trim() || !f.url.trim()}
+            onClick={() => {
+              setMsg(null);
+              create.mutate();
+            }}
+          >
+            {t("targets.mcpConnect")}
+          </button>
+        </>
+      }
+    >
+      <p className="muted text-xs mb-3">{t("targets.mcpFormDesc")}</p>
+      <div className="grid gap-2" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        <label className="text-xs">
+          {t("targets.mcpNameSlug")}
+          <input className="mono" value={f.name} onChange={set("name")} placeholder="weather" />
+        </label>
+        <label className="text-xs">
+          {t("targets.mcpLabel")}
+          <input value={f.label} onChange={set("label")} placeholder="Wetterdienst" />
+        </label>
+      </div>
+      <label className="text-xs">
+        {t("targets.mcpUrl")}
+        <input className="mono" value={f.url} onChange={set("url")} placeholder="https://mcp.example.com/mcp" />
+      </label>
+      <label className="text-xs">
+        {t("targets.mcpDesc")}
+        <input value={f.description} onChange={set("description")} />
+      </label>
+      <div className="grid gap-2 mt-1" style={{ gridTemplateColumns: "1fr 1fr" }}>
+        <label className="text-xs">
+          {t("targets.mcpAuthHeader")}
+          <input className="mono" value={f.header} onChange={set("header")} placeholder="Authorization" />
+        </label>
+        <label className="text-xs">
+          {t("targets.mcpAuthFormat")}
+          <input className="mono" value={f.format} onChange={set("format")} placeholder="Bearer {token}" />
+        </label>
+      </div>
+      <label className="text-xs">
+        {t("targets.mcpToken")}
+        <input type="password" className="mono" value={f.token} onChange={set("token")} />
+      </label>
+      {msg && (
+        <p className="text-xs mt-2" style={{ color: "var(--text-danger)" }}>
+          {msg}
+        </p>
       )}
-      {!show && msg && (
-        <p className="text-xs mt-2 muted">{msg}</p>
-      )}
-    </div>
+    </Modal>
   );
 }

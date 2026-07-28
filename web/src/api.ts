@@ -301,6 +301,9 @@ export type TargetPlugin = {
   label: string;
   description: string;
   kind: "builtin" | "custom" | "mcp";
+  // Kategorie fürs Store-Filter — vom Plugin selbst deklariert (siehe
+  // internal/target: CategoryTicketing …), leer/unbekannt = "other".
+  category?: string;
   enabled: boolean;
   manifest?: { url?: string; tools?: MCPTool[]; auth?: { header?: string; format?: string } };
   updated_at?: string;
