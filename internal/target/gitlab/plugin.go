@@ -265,6 +265,28 @@ func (System) ActionSubject(action string, params json.RawMessage) string {
 	return "gitlab:" + action
 }
 
+// isDuplicateComment ist die Server-Bremse gegen Kommentar-Loops: ist der neue
+// Kommentar-Body identisch zum jüngsten EIGENEN (nicht-System-)Kommentar des
+// Bots, wird er nicht erneut gepostet. Fail-open: geht der Wer-bin-ich-Check
+// schief, wird normal kommentiert (kein legitimer Kommentar soll blockiert
+// werden). Nur die Wiederholung des eigenen letzten Kommentars wird unterdrückt.
+func isDuplicateComment(ctx context.Context, gc *Client, notes []Note, body string) bool {
+	me, err := gc.CurrentUser(ctx)
+	if err != nil || me.Username == "" {
+		return false
+	}
+	var lastOwn, lastAt string
+	for _, n := range notes {
+		if n.System || n.Author.Username != me.Username {
+			continue
+		}
+		if n.CreatedAt >= lastAt { // ISO8601 ist lexikografisch sortierbar
+			lastAt, lastOwn = n.CreatedAt, n.Body
+		}
+	}
+	return lastOwn != "" && strings.TrimSpace(lastOwn) == strings.TrimSpace(body)
+}
+
 func (System) Execute(ctx context.Context, action string, params json.RawMessage, cred target.Credential) (any, error) {
 	gc := NewClient(cred.BaseURL, cred.Token)
 
@@ -393,6 +415,10 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		if in.ProjectID == 0 || in.MRIID == 0 || strings.TrimSpace(in.Body) == "" {
 			return nil, fmt.Errorf("project_id, mr_iid oder body fehlt")
 		}
+		if notes, err := gc.ListMRNotes(ctx, in.ProjectID, in.MRIID); err == nil && isDuplicateComment(ctx, gc, notes, in.Body) {
+			return map[string]any{"skipped": "duplicate",
+				"reason": "identisch zum letzten eigenen Kommentar — nicht erneut gepostet"}, nil
+		}
 		return gc.CommentMR(ctx, in.ProjectID, in.MRIID, in.Body)
 	case "set_reviewer":
 		if in.ProjectID == 0 || in.MRIID == 0 {
@@ -503,6 +529,10 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		return gc.ListNotes(ctx, in.ProjectID, in.IssueIID)
 	case "comment":
 		internal := in.Internal == nil || *in.Internal
+		if notes, err := gc.ListNotes(ctx, in.ProjectID, in.IssueIID); err == nil && isDuplicateComment(ctx, gc, notes, in.Body) {
+			return map[string]any{"skipped": "duplicate",
+				"reason": "identisch zum letzten eigenen Kommentar — nicht erneut gepostet"}, nil
+		}
 		return gc.Comment(ctx, in.ProjectID, in.IssueIID, in.Body, internal)
 	case "set_state":
 		if in.State == "" {
@@ -556,7 +586,8 @@ func (System) PromptDoc() string {
    nachverfolgbares Issue zu überführen. Braucht eine project_id — kennst du das Zielprojekt nicht sicher, RATE NICHT:
    frag beim Melder nach, zu welchem Projekt der Fehler gehört (list_projects zeigt dir die dir zugänglichen Projekte),
    und lege das Ticket erst an, wenn das Projekt feststeht,
-   list_notes {"project_id":N,"issue_iid":N}, comment {"project_id":N,"issue_iid":N,"body":"...","internal":true|false},
+   list_notes {"project_id":N,"issue_iid":N}, comment {"project_id":N,"issue_iid":N,"body":"...","internal":true|false}
+   (ein Kommentar identisch zu deinem letzten eigenen wird NICHT erneut gepostet — Antwort {"skipped":"duplicate"} ist kein Fehler, sondern der Loop-Schutz),
    set_state {"project_id":N,"issue_iid":N,"state":"close"|"reopen"}, escalate {"project_id":N,"issue_iid":N,"note":"..."},
    assign {"project_id":N,"issue_iid":N,"username":"gitlab-username"} weist das Issue einer Person zu — z. B. nach einem
    Fix dem Teammitglied, das laut Team-Verzeichnis fürs Testen zuständig ist; nimm den GitLab-Username exakt aus dem

@@ -994,6 +994,58 @@ func TestCreateMergeRequestAction(t *testing.T) {
 	}
 }
 
+// TestCommentDedup deckt die Server-Bremse gegen Kommentar-Loops ab: ein
+// Kommentar identisch zum letzten EIGENEN wird nicht erneut gepostet, ein
+// abweichender schon.
+func TestCommentDedup(t *testing.T) {
+	var posts int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v4/user":
+			json.NewEncoder(w).Encode(User{ID: 7, Username: "covey-dev"})
+		case r.URL.Path == "/api/v4/projects/15/issues/23/notes" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode([]Note{
+				{ID: 1, Body: "Fremd-Kommentar", Author: struct {
+					Username string `json:"username"`
+				}{Username: "mensch"}, CreatedAt: "2026-07-01T10:00:00Z"},
+				{ID: 2, Body: "MR eröffnet: !5", Author: struct {
+					Username string `json:"username"`
+				}{Username: "covey-dev"}, CreatedAt: "2026-07-02T10:00:00Z"},
+			})
+		case r.URL.Path == "/api/v4/projects/15/issues/23/notes" && r.Method == http.MethodPost:
+			posts++
+			json.NewEncoder(w).Encode(Note{ID: 3})
+		default:
+			t.Errorf("unerwarteter request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "t"}
+	ctx := context.Background()
+
+	// Identisch zum letzten eigenen Kommentar → übersprungen, kein POST.
+	res, err := sys.Execute(ctx, "comment", []byte(`{"project_id":15,"issue_iid":23,"body":"MR eröffnet: !5"}`), cred)
+	if err != nil {
+		t.Fatalf("comment (dup): %v", err)
+	}
+	if m, _ := res.(map[string]any); m["skipped"] != "duplicate" {
+		t.Fatalf("Duplikat hätte übersprungen werden müssen: %+v", res)
+	}
+	if posts != 0 {
+		t.Fatalf("kein POST erwartet, war %d", posts)
+	}
+
+	// Abweichender Kommentar → wird gepostet.
+	if _, err := sys.Execute(ctx, "comment", []byte(`{"project_id":15,"issue_iid":23,"body":"Neuer Stand"}`), cred); err != nil {
+		t.Fatalf("comment (neu): %v", err)
+	}
+	if posts != 1 {
+		t.Fatalf("neuer Kommentar hätte gepostet werden müssen, posts=%d", posts)
+	}
+}
+
 func TestMRReviewActions(t *testing.T) {
 	var commentBody map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1002,6 +1054,8 @@ func TestMRReviewActions(t *testing.T) {
 			json.NewEncoder(w).Encode(MergeRequestDetail{IID: 9, Title: "Fix Login", State: "opened",
 				SourceBranch: "fix/issue-23-login", DetailedMergeStatus: "mergeable",
 				HeadPipeline: &Pipeline{ID: 4, Status: "success", Ref: "fix/issue-23-login"}})
+		case r.URL.Path == "/api/v4/user" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode(User{ID: 7, Username: "covey-dev"})
 		case r.URL.Path == "/api/v4/projects/15/merge_requests/9/notes" && r.Method == http.MethodGet:
 			json.NewEncoder(w).Encode([]Note{{ID: 120, Body: "Bitte noch einen Test ergänzen"}})
 		case r.URL.Path == "/api/v4/projects/15/merge_requests/9/notes" && r.Method == http.MethodPost:
