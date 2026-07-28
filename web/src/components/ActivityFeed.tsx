@@ -421,8 +421,9 @@ function ToolRow({ call }: { call: ToolCall }) {
     <span className="pill ok">{t("activity.toolOk")}</span>
   );
   const hasBody = call.detail || call.result || call.input != null || call.imageURL;
+  // Screenshots standardmäßig aufgeklappt zeigen — das Bild ist der Kern der Aktion.
   return (
-    <details className="tool">
+    <details className="tool" open={Boolean(call.imageURL)}>
       <summary>
         <span className="lft">
           <span className="chev">▸</span>
