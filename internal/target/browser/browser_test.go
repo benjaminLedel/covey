@@ -191,6 +191,25 @@ func TestBrowserEndToEnd(t *testing.T) {
 		t.Error("has-text ohne Treffer: Fehler erwartet")
 	}
 
+	// screenshot mit Annotation (highlight + label) liefert ein gültiges PNG
+	out, err = exec2(t, ctx, "screenshot", `{"to":"annot.png","highlight":"button:has-text(\"Klick\")","label":"Button reagiert nicht"}`)
+	if err != nil {
+		t.Fatalf("annotierter screenshot: %v", err)
+	}
+	annot := out.(map[string]any)["path"].(string)
+	if fi, err := os.Stat(annot); err != nil || fi.Size() == 0 {
+		t.Errorf("annotierter screenshot leer/fehlt: %v", err)
+	}
+	// Overlay muss nach dem Screenshot wieder entfernt sein (#covey-annot weg)
+	if _, err = exec2(t, ctx, "content", `{"selector":"#covey-annot"}`); err == nil {
+		t.Error("Annotation-Overlay wurde nach dem Screenshot nicht entfernt")
+	}
+
+	// highlight ohne Treffer → klarer Fehler
+	if _, err = exec2(t, ctx, "screenshot", `{"to":"x.png","highlight":"button:has-text(\"gibtsnicht\")"}`); err == nil {
+		t.Error("highlight ohne Treffer: Fehler erwartet")
+	}
+
 	// screenshot ohne Sandbox-Workdir → Fehler
 	if _, err = exec2(t, context.Background(), "screenshot", `{}`); err == nil {
 		t.Error("screenshot ohne Workdir: Fehler erwartet")

@@ -65,11 +65,13 @@ func (System) ActionSubject(action string, _ json.RawMessage) string {
 
 func (System) Execute(ctx context.Context, action string, params json.RawMessage, _ target.Credential) (any, error) {
 	var in struct {
-		URL      string `json:"url"`
-		Selector string `json:"selector"`
-		Text     string `json:"text"`
-		To       string `json:"to"`
-		Full     bool   `json:"full"`
+		URL       string `json:"url"`
+		Selector  string `json:"selector"`
+		Text      string `json:"text"`
+		To        string `json:"to"`
+		Full      bool   `json:"full"`
+		Highlight string `json:"highlight"`
+		Label     string `json:"label"`
 	}
 	if len(params) > 0 {
 		if err := json.Unmarshal(params, &in); err != nil {
@@ -125,6 +127,13 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		if err != nil {
 			return nil, err
 		}
+		// Optionale visuelle Annotation: den highlight-Treffer mit rotem Rahmen
+		// (und optionalem Label) markieren, bevor der Screenshot fällt.
+		if hl := strings.TrimSpace(in.Highlight); hl != "" {
+			if err := annotate(hl, in.Label); err != nil {
+				return nil, fmt.Errorf("highlight %q: %w", hl, err)
+			}
+		}
 		var buf []byte
 		shot := chromedp.CaptureScreenshot(&buf)
 		if in.Full {
@@ -132,6 +141,10 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		}
 		if err := super.do(shot); err != nil {
 			return nil, fmt.Errorf("screenshot: %w", err)
+		}
+		// Annotation-Overlay wieder entfernen — die Seite bleibt bedienbar.
+		if strings.TrimSpace(in.Highlight) != "" {
+			_ = super.do(chromedp.Evaluate(`(()=>{const o=document.getElementById('covey-annot');if(o)o.remove();})()`, nil))
 		}
 		if err := os.MkdirAll(filepath.Dir(local), 0o755); err != nil {
 			return nil, err
@@ -239,6 +252,50 @@ func resolveSelector(sel string) (string, error) {
 	return fmt.Sprintf("[%s=\"1\"]", hitAttr), nil
 }
 
+// annotate zeichnet vor einem Screenshot einen roten Rahmen (und optional ein
+// Label) um den highlight-Treffer — so belegt der Agent visuell, WO ein Mangel
+// sitzt. highlight ist ein CSS-Selektor oder :has-text("…"). Das Overlay liegt
+// als #covey-annot über der Seite und wird nach dem Screenshot wieder entfernt.
+func annotate(highlight, label string) error {
+	eff, err := resolveSelector(highlight)
+	if err != nil {
+		return err
+	}
+	s, _ := json.Marshal(eff)
+	l, _ := json.Marshal(label)
+	js := fmt.Sprintf(`(() => {
+  const el = document.querySelector(%s);
+  if (!el) return false;
+  el.scrollIntoView({block:'center',inline:'center'});
+  const r = el.getBoundingClientRect();
+  const old = document.getElementById('covey-annot'); if (old) old.remove();
+  const c = document.createElement('div');
+  c.id = 'covey-annot';
+  c.style.cssText = 'position:fixed;inset:0;z-index:2147483647;pointer-events:none';
+  const box = document.createElement('div');
+  box.style.cssText = 'position:absolute;border:3px solid #e5484d;border-radius:4px;box-shadow:0 0 0 3px rgba(229,72,77,.35);left:'+(r.left-3)+'px;top:'+(r.top-3)+'px;width:'+(r.width+6)+'px;height:'+(r.height+6)+'px';
+  c.appendChild(box);
+  const text = %s;
+  if (text) {
+    const lab = document.createElement('div');
+    lab.textContent = text;
+    let top = r.top - 26; if (top < 2) top = r.bottom + 6;
+    lab.style.cssText = 'position:absolute;left:'+Math.max(2,r.left-3)+'px;top:'+top+'px;background:#e5484d;color:#fff;font:600 13px/1.4 system-ui,sans-serif;padding:2px 8px;border-radius:4px;white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis';
+    c.appendChild(lab);
+  }
+  document.body.appendChild(c);
+  return true;
+})()`, s, l)
+	var ok bool
+	if err := super.do(chromedp.Evaluate(js, &ok)); err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("element nicht gefunden")
+	}
+	return nil
+}
+
 // cleanURL erzwingt ein http/https-Schema — file:// & Co. würden den Browser
 // zum lokalen Dateizugriff missbrauchen und werden abgewiesen.
 func cleanURL(raw string) (string, error) {
@@ -285,9 +342,11 @@ func (System) PromptDoc() string {
    über mehrere Aktionen erhalten — Cookies/Login bleiben):
    navigate {"url":"https://…"} öffnet eine Seite und liefert Titel + finale URL,
    content {"selector":"CSS-Selektor (optional, leer = ganze Seite)"} liefert den sichtbaren Text (bis 20k Zeichen),
-   screenshot {"to":"lokaler/pfad (optional)","full":true} schreibt ein PNG in deine Sandbox (Default:
-   browser/shot-N.png) und liefert den Pfad — danach die Datei lesen, um die Seite zu sehen; full=true
-   nimmt die ganze scrollbare Seite statt nur den sichtbaren Bereich,
+   screenshot {"to":"lokaler/pfad (optional)","full":true,"highlight":"CSS-Selektor|:has-text(…) (optional)","label":"Text (optional)"}
+   schreibt ein PNG in deine Sandbox (Default: browser/shot-N.png) und liefert den Pfad — danach die Datei lesen,
+   um die Seite zu sehen; full=true nimmt die ganze scrollbare Seite statt nur den sichtbaren Bereich; highlight
+   umrahmt das getroffene Element rot (mit optionalem label als Beschriftung) — so markierst du visuell, WO ein
+   Mangel sitzt,
    click {"selector":"CSS-Selektor"} klickt das Element,
    type {"selector":"CSS-Selektor","text":"…"} tippt Text in ein Feld.
    Selektoren: reines CSS plus die Erweiterung :has-text("…") — trifft den innersten sichtbaren
