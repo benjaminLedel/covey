@@ -2,9 +2,12 @@ package integration
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 
 	"covey/internal/backlog"
 	"covey/internal/guardrails"
@@ -117,6 +120,98 @@ func TestCreateTaskLoopProtection(t *testing.T) {
 	}
 }
 
+// TestCreateTaskDepthLimit prüft die Tiefen-Bremse: Eine Aufgabe darf zerlegt
+// werden, ihre Teilaufgabe auch — aber die Kette endet. Ohne diese Grenze
+// zerlegt ein Agent seine Arbeit rekursiv weiter, bis das Budget leer ist.
+//
+// Der Test baut die Kette direkt im Store auf (so tief, wie sie ein Agent über
+// mehrere Läufe erzeugt hätte) und lässt erst die unterste Aufgabe laufen: Sie
+// darf keine weitere mehr abspalten.
+func TestCreateTaskDepthLimit(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	agent := s.newSupportAgent("tiefengraber")
+
+	split := `[mock:action covey/create_task {"title":"Noch eine Stufe","body":"weiter"}]
+[mock:result versucht]`
+
+	// Stufe 0 zerlegt sich noch — die Kette ist frisch.
+	root, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Stufe 0", split, "manual", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "wurzel done", 20*time.Second, func() bool {
+		return s.taskState(root.ID) == backlog.StateDone
+	})
+	if _, err := s.backlog.Get(ctx, childOf(t, s, agent.ID, root.ID).ID); err != nil {
+		t.Fatalf("die erste Zerlegung muss erlaubt sein: %v", err)
+	}
+
+	// Jetzt eine Kette, die das Limit bereits ausgeschöpft hat.
+	deep := root.ID
+	for i := 0; i < 3; i++ {
+		child, err := s.backlog.CreateChild(ctx, deep, backlog.ChildSpec{
+			Title: "Kettenglied " + strconv.Itoa(i), Body: split, Origin: "agent:tiefengraber",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		deep = child.ID
+	}
+	waitFor(t, "unterste stufe terminal", 30*time.Second, func() bool {
+		st := s.taskState(deep)
+		return st == backlog.StateDone || st == backlog.StateFailed
+	})
+
+	n, err := s.backlog.CountChildren(ctx, deep)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatalf("am Ende der Kette darf nicht weiter zerlegt werden, angelegt: %d", n)
+	}
+	// Und zwar sichtbar: der Agent bekommt die Ablehnung mit Begründung zurück,
+	// statt dass die Aufgabe stillschweigend im Nichts verschwindet.
+	if msg := taskError(t, s, deep); !strings.Contains(msg, "kette zu tief") {
+		t.Fatalf("Ablehnung muss die Tiefe nennen, war %q", msg)
+	}
+}
+
+// TestCreateTaskBreadthLimit prüft die Breiten-Bremse: Ein einzelner Lauf darf
+// nur begrenzt viele Aufgaben abspalten. Wer mehr braucht, hat seine Arbeit
+// nicht zerlegt, sondern kopiert.
+func TestCreateTaskBreadthLimit(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	agent := s.newSupportAgent("breitensaeer")
+
+	var b strings.Builder
+	for i := 0; i < 14; i++ {
+		b.WriteString(`[mock:action covey/create_task {"title":"Splitter ` + strconv.Itoa(i) + `","body":"x"}]` + "\n")
+	}
+	b.WriteString("[mock:result gestreut]")
+
+	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Streuer", b.String(), "manual", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "aufgabe terminal", 30*time.Second, func() bool {
+		st := s.taskState(task.ID)
+		return st == backlog.StateDone || st == backlog.StateFailed
+	})
+
+	n, err := s.backlog.CountChildren(ctx, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n == 0 {
+		t.Fatalf("die ersten Teilaufgaben müssen entstehen")
+	}
+	if n > 10 {
+		t.Fatalf("ein Lauf darf höchstens 10 Aufgaben abspalten, waren %d", n)
+	}
+}
+
 // TestCreateTaskGuardRail prüft, dass covey/create_task — anders als die
 // übrigen covey-Meta-Aktionen — durch die Guard-Rails läuft: Delegation
 // (covey:create_task:foreign) lässt sich verbieten, ohne dem Agenten die
@@ -156,4 +251,17 @@ func TestCreateTaskGuardRail(t *testing.T) {
 	if _, err := s.backlog.Get(ctx, childOf(t, s, sender.ID, task.ID).ID); err != nil {
 		t.Fatalf("Teilaufgabe für sich selbst muss weiterhin entstehen: %v", err)
 	}
+}
+
+// taskError liest den Fehlertext einer Aufgabe (leer, wenn keiner gesetzt ist).
+func taskError(t *testing.T, s *stack, id uuid.UUID) string {
+	t.Helper()
+	task, err := s.backlog.Get(context.Background(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task.Error == nil {
+		return ""
+	}
+	return *task.Error
 }
