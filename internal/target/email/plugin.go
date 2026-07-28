@@ -21,7 +21,7 @@ func init() {
 	target.Register(target.Descriptor{
 		Name:        "email",
 		Label:       "E-Mail (IMAP/SMTP)",
-		Description: "Ein eigenes Mail-Postfach für den Agenten: Posteingang per IMAP sichten (list_unread/get_message), per SMTP antworten oder senden (reply/send), Ablage per mark_seen/move. Intake per HEARTBEAT.md (Polling, kein Webhook). Auth per Secrets email_url (Mailserver-Host, z. B. mail.example.com) und email_token (adresse:passwort).",
+		Description: "Ein eigenes Mail-Postfach für den Agenten: Posteingang per IMAP sichten (list_unread/get_message), Anhänge in die Sandbox laden und lesen (get_attachment), per SMTP antworten oder senden (reply/send), Ablage per mark_seen/move. Intake per HEARTBEAT.md (Polling, kein Webhook). Auth per Secrets email_url (Mailserver-Host, z. B. mail.example.com) und email_token (adresse:passwort).",
 		Kind:        "builtin",
 		System:      System{},
 		SetupDoc: `1. Beim Mail-Provider ein eigenes Postfach für den Agenten anlegen
@@ -54,6 +54,8 @@ func init() {
                                                          leer = alle Empfänger)
    COVEY_EMAIL_INTAKE_ADDRESSES="example.com"           (nur diese Absender
                                                          im Arbeitsvorrat)
+   COVEY_EMAIL_ATTACHMENT_MAX_MB=25                     (Größenlimit je Anhang
+                                                         für get_attachment)
 
 6. Die IMAP-/SMTP-Hosts müssen aus der Sandbox erreichbar sein
    (Egress-Freigabe für beide Hosts).
@@ -111,6 +113,7 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		Subject   string   `json:"subject"`
 		Body      string   `json:"body"`
 		ReplyAll  bool     `json:"reply_all"`
+		Name      string   `json:"name"`
 	}
 	if err := json.Unmarshal(params, &in); err != nil {
 		return nil, fmt.Errorf("params: %w", err)
@@ -137,6 +140,14 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, fmt.Errorf("uid fehlt")
 		}
 		return getMessage(cfg, in.Mailbox, in.UID)
+	case "get_attachment":
+		if in.UID == 0 {
+			return nil, fmt.Errorf("uid fehlt")
+		}
+		if strings.TrimSpace(in.Name) == "" {
+			return nil, fmt.Errorf("name fehlt")
+		}
+		return getAttachmentToSandbox(cfg, in.Mailbox, in.UID, in.Name, target.Workdir(ctx))
 	case "mark_seen", "mark_unseen":
 		if in.UID == 0 {
 			return nil, fmt.Errorf("uid fehlt")
@@ -245,6 +256,9 @@ func (System) PromptDoc() string {
    list_messages {"mailbox":"INBOX","limit":20} listet die neuesten Mails unabhängig vom Gelesen-Status,
    get_message {"uid":N,"mailbox":"INBOX"} liefert eine Mail vollständig (Absender, Empfänger, Text,
    Attachment-Namen) — das Lesen setzt KEIN Gelesen-Flag,
+   get_attachment {"uid":N,"mailbox":"INBOX","name":"rechnung.pdf"} lädt EINEN Anhang dieser Mail in die
+   Sandbox (unter attachments/) und liefert seinen Pfad; danach mit dem Read-Tool ansehen (Bilder per
+   Vision). Der Name stammt aus der Attachment-Liste von get_message,
    reply {"uid":N,"mailbox":"INBOX","body":"...","reply_all":true|false} antwortet dem Absender per SMTP
    (korrekte Threading-Header, Betreff Re: …) und markiert die Mail danach als gelesen,
    send {"to":["a@example.com"],"cc":["..."],"subject":"...","body":"..."} sendet eine neue Mail,
