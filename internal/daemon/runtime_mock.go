@@ -24,6 +24,9 @@ import (
 //	[mock:fail <fehlertext>]
 //	[mock:result <text>]
 //	[mock:memory <text>]
+//	[mock:maxturns <übergabe-stand>]         → Lauf endet am Turn-Limit
+//	[mock:maxturns-always <übergabe-stand>]  → dito, auch bei jeder Fortsetzung
+//	[mock:prompt]                            → liefert den System-Prompt als Ergebnis
 //
 // Ohne Direktiven: done mit generischem Ergebnis. Bei Resume: done mit dem
 // Resume-Input als Ergebnis. Liefert der Action-Proxy pending_approval, geht
@@ -47,7 +50,7 @@ func init() {
 	})
 }
 
-var mockDirective = regexp.MustCompile(`\[mock:(action|block|fail|result|memory|sleep)\s*([^\]]*)\]`)
+var mockDirective = regexp.MustCompile(`\[mock:(action|block|fail|result|memory|sleep|maxturns-always|maxturns|prompt)\s*([^\]]*)\]`)
 
 func (Mock) Run(ctx context.Context, spec RunSpec, onEvent func(kind string, payload json.RawMessage)) (RunResult, error) {
 	res := RunResult{
@@ -132,6 +135,19 @@ func (Mock) Run(ctx context.Context, spec RunSpec, onEvent func(kind string, pay
 			res.Status = "failed"
 			res.Error = arg
 			return res, nil
+		case "maxturns", "maxturns-always":
+			// Lauf am Turn-Limit: Arbeit ist passiert, ein Ergebnis gibt es
+			// nicht — die echte Runtime holt sich hier den Übergabe-Stand aus
+			// der abgebrochenen Session, die Mock nimmt ihn aus der Direktive.
+			// "maxturns" läuft beim Resume durch (die Fortsetzung kommt zum
+			// Ergebnis), "maxturns-always" nicht (prüft den Abbruch der Kette).
+			if kind == "maxturns" && spec.ResumeSessionID != "" {
+				continue
+			}
+			res.Status = "incomplete"
+			res.Result = arg
+			res.Error = "Turn-Limit erreicht (mock) — Lauf abgebrochen, bevor er zu einem Ergebnis kam"
+			return res, nil
 		case "sleep":
 			d, err := time.ParseDuration(arg)
 			if err != nil {
@@ -142,6 +158,11 @@ func (Mock) Run(ctx context.Context, spec RunSpec, onEvent func(kind string, pay
 				return res, ctx.Err()
 			case <-time.After(d):
 			}
+		case "prompt":
+			// Macht den zusammengesetzten System-Prompt prüfbar (Plattform-
+			// Protokoll, Zielsystem-Doku, Team-Verzeichnis) — sonst ist er von
+			// außen unsichtbar.
+			res.Result = spec.SystemPrompt
 		case "result":
 			res.Result = arg
 		case "memory":

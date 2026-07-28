@@ -445,7 +445,11 @@
       "archive": "Archive",
       "discard": "Discard",
       "discardConfirm": "Discard task \"{{title}}\"?",
-      "hiddenOlder": "+{{count}} older hidden"
+      "hiddenOlder": "+{{count}} older hidden",
+      "originContinuation": "continuation",
+      "originAgent": "created by {{slug}}",
+      "originHeartbeat": "heartbeat",
+      "parentTask": "parent task"
     },
     "stageEditor": {
       "title": "Columns (Stages)",

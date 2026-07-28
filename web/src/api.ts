@@ -45,6 +45,10 @@ export type Task = {
   result?: string;
   error?: string;
   stage_id?: string;
+  // Aufgabe, aus der diese hervorging: Teilaufgabe/Delegation (origin
+  // "agent:<slug>") oder Fortsetzung eines am Turn-Limit abgebrochenen Laufs
+  // (origin "continuation:<id>").
+  parent_task_id?: string;
   archived_at?: string;
   created_at: string;
   updated_at: string;

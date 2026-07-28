@@ -93,6 +93,21 @@ immer berücksichtigen:
 - **Hand-off statt Horten:** Ist die Arbeit abgegeben (MR eröffnet), das Ticket **weiterreichen**
   (`assign` an den Vorgesetzten) und/oder `Closes #<iid>` in die MR-description, damit es beim Merge
   schließt — kein Ticket bleibt endlos beim Agenten liegen.
+- **Sichtbar arbeiten, sonst weckt es erneut.** Die `nur-wenn:`-Bedingung triggert auf die **Flanke**:
+  Ein Issue/MR gilt als erledigt, sobald der **letzte Nicht-System-Kommentar vom Bot** stammt. Ein
+  Lauf, der etwas tut, ohne zu kommentieren, hinterlässt keine Flanke — beim nächsten Intervall gilt
+  dieselbe Arbeit wieder als offen. Also: **wer arbeitet, kommentiert.**
+- **Intervall an der Lauf-Dauer bemessen, nicht am Wunsch nach Reaktionszeit.** Ein Issue end-to-end
+  (Checkout, Analyse, Fix, MR) dauert Minuten bis Viertelstunden — `alle: 15m` ist realistisch, alles
+  unter 5m für code-anfassende Agenten falsch.
+- **Zu große Aufträge zerlegen statt ins Turn-Limit laufen:** `covey/create_task` legt eine Teilaufgabe
+  an (ohne `agent`) oder delegiert an einen Kollegen (`"agent":"<slug>"`). Der Playbook-Schritt lautet:
+  Teilergebnis sauber abschließen, Rest als Aufgabe hinterlegen. Läuft ein Agent regelmäßig ins Limit,
+  ist der Auftrag zu groß geschnitten oder `max_turns` zu klein.
+- **Stages sind Zustände, keine Überschriften.** `covey/set_stage` legt fehlende Spalten automatisch an
+  — im Playbook eine **feste, kleine** Menge von Spaltennamen vorgeben (z. B. `Triage`, `Analyse`,
+  `Warten auf Review`). Nie den Vorgang in den Spaltennamen (`#83 CSV-Import`), nie Synonyme für
+  denselben Zustand; sonst wächst das Board in Tagen auf ein Dutzend toter Spalten.
 - **`ACCESS.md`-Syntax:** eine Zeile je System: `- system: <name> scope: <scope1>,<scope2>`.
   Nur freischalten, was der Agent wirklich braucht (least privilege).
 - **`HEARTBEAT.md`-Syntax:** eine Zeile je Auslöser:
@@ -117,5 +132,8 @@ immer berücksichtigen:
 - [ ] `ACCESS.md` deckt genau die im `PLAYBOOKS.md` genutzten Aktionen — nicht mehr?
 - [ ] `HEARTBEAT.md` endet-mit-`done`-Logik + Idempotenz/Skip beschrieben?
 - [ ] Loop-Schutz (Idempotenz, kein Doppel-Kommentar, Hand-off) im Prompt verankert?
+- [ ] Jeder Lauf hinterlässt eine sichtbare Spur (Kommentar) — sonst weckt die Flanke erneut?
+- [ ] Intervall passt zur Lauf-Dauer (Code-Agenten ≥ 5m, realistisch 15m)?
+- [ ] Feste, kleine Menge Stage-Namen im Playbook statt frei erfundener Spalten?
 - [ ] `warm_sandbox` bewusst gesetzt (nur bei Dev/Test)?
 - [ ] Nötige Secrets + Egress-Hosts dem Nutzer genannt?

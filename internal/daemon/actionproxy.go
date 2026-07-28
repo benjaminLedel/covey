@@ -108,10 +108,13 @@ func (p *actionProxy) handle(w http.ResponseWriter, r *http.Request) {
 // handleControlPlane bedient Meta-Aktionen (system="covey"), die die Control
 // Plane statt eines Zielsystems betreffen: set_stage (Aufgabe auf dem Board in
 // eine ggf. neue Stage schieben), add_note (Notiz an die Aufgabe), remember
-// (Erkenntnis sofort ins Gedächtnis), org_chart (Organigramm abfragen) und die
-// Wiki-Tools wiki_search/wiki_read/wiki_write/wiki_delete (spec/05).
+// (Erkenntnis sofort ins Gedächtnis), org_chart (Organigramm abfragen),
+// create_task (Teilaufgabe/Delegation) und die Wiki-Tools
+// wiki_search/wiki_read/wiki_write/wiki_delete (spec/05).
 func (p *actionProxy) handleControlPlane(ctx context.Context, w http.ResponseWriter, action string, params json.RawMessage) {
 	switch action {
+	case "create_task":
+		p.handleCreateTask(ctx, w, params)
 	case "org_chart":
 		chart, err := p.client.orgChart(ctx)
 		if err != nil {
@@ -189,6 +192,62 @@ func (p *actionProxy) handleControlPlane(ctx context.Context, w http.ResponseWri
 	default:
 		writeJSON(w, map[string]string{"status": "error", "error": fmt.Sprintf("unbekannte covey-aktion %q", action)})
 	}
+}
+
+// handleCreateTask legt eine Aufgabe an: ohne "agent" eine Teilaufgabe des
+// laufenden Agenten, mit "agent" eine Delegation an den Kollegen mit diesem
+// Slug. Anders als die übrigen covey-Aktionen läuft sie durch die Guard-Rails —
+// eine Aufgabe erzeugt Arbeit und Kosten, und Delegation (Subjekt
+// covey:create_task:foreign) muss sich getrennt verbieten lassen.
+func (p *actionProxy) handleCreateTask(ctx context.Context, w http.ResponseWriter, params json.RawMessage) {
+	var in struct {
+		Title    string `json:"title"`
+		Body     string `json:"body"`
+		Agent    string `json:"agent"`
+		Priority int    `json:"priority"`
+	}
+	if err := json.Unmarshal(params, &in); err != nil || strings.TrimSpace(in.Title) == "" {
+		writeJSON(w, map[string]string{"status": "error", "error": "title fehlt"})
+		return
+	}
+	subject := "covey:create_task"
+	if strings.TrimSpace(in.Agent) != "" {
+		subject += ":foreign"
+	}
+	dec, err := p.client.checkAction(ctx, p.taskID, subject, params)
+	if err != nil {
+		writeJSON(w, map[string]string{"status": "error", "error": err.Error()})
+		return
+	}
+	switch dec.Status {
+	case "denied":
+		writeJSON(w, map[string]string{"status": "denied", "reason": dec.Reason})
+		return
+	case "pending":
+		writeJSON(w, map[string]string{
+			"status":          "pending_approval",
+			"approval_id":     dec.ApprovalID,
+			"correlation_key": dec.CorrelationKey,
+		})
+		return
+	}
+
+	resp, err := p.client.createTask(ctx, RequestCreateTask{
+		TaskID: p.taskID, Agent: in.Agent, Title: in.Title, Body: in.Body, Priority: in.Priority,
+	})
+	if err != nil {
+		writeJSON(w, map[string]string{"status": "error", "error": err.Error()})
+		return
+	}
+	audit, _ := json.Marshal(map[string]any{"action": subject, "params": params,
+		"ok": resp.OK, "created_task": resp.TaskID, "agent": resp.Agent})
+	_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
+	if !resp.OK {
+		writeJSON(w, map[string]string{"status": "error", "error": resp.Error})
+		return
+	}
+	writeJSON(w, map[string]any{"status": "ok",
+		"data": map[string]string{"task_id": resp.TaskID, "agent": resp.Agent}})
 }
 
 // actionSubject bildet die Aktion auf das Guard-Rail-Subjekt ab — das

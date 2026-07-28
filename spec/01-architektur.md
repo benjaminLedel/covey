@@ -95,13 +95,16 @@ Bidirektional (WebSocket oder gRPC-Stream) zwischen Control Plane und Daemon. Da
 | `request_approval` | Riskante Aktion wartet auf Freigabe |
 | `request_org_chart` | Agent fragt das Organigramm ab (Menschen & Agenten samt Profilen, Abteilungen, Vorgesetzten-Beziehungen) → Antwort `inject_org_chart` (siehe [`09-enterprise-modell.md`](09-enterprise-modell.md)) |
 | `blocked` | Agent parkt Aufgabe, wartet auf externes Ereignis (mit Korrelations-Key) |
-| `task_done` | Aufgabe abgeschlossen (mit Ergebnis + Gedächtnis-Update) |
+| `task_done` | Aufgabe abgeschlossen (mit Ergebnis + Gedächtnis-Update). Status `incomplete` meldet den am Turn-Limit abgebrochenen Lauf — Übergabe-Stand statt Ergebnis (siehe [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)) |
+| `request_create_task` | Agent legt eine Aufgabe an: Teilaufgabe für sich selbst oder Delegation an einen Kollegen → Antwort `inject_create_task` (siehe [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)) |
 | `set_stage` | Agent schiebt die Aufgabe in eine (ggf. neue) Kanban-Stage — rein anzeigend, kein Lifecycle-Übergang (siehe [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)) |
 | `note` | Proaktive Notiz des Agenten mitten im Lauf: `scope=task` hängt sie an die Aufgabe, `scope=memory` speist sie sofort ins Gedächtnis (siehe [`05-gedaechtnis.md`](05-gedaechtnis.md)) |
 | `cost` | Verbrauchte Tokens/Compute für Budget-Tracking |
 | `heartbeat` | Lebenszeichen |
 
-Die Nachrichten `set_stage`, `note` und `request_org_chart` entstehen aus Meta-Aktionen des Agenten am Action-Proxy (`POST /actions/covey/set_stage`, `…/covey/add_note`, `…/covey/remember`, `…/covey/org_chart`): Der Proxy behandelt das System `covey` nicht als externes Zielsystem (keine Credentials, keine Egress-Guard-Rail), sondern reicht sie als Steuersignal an die Control Plane durch.
+Die Nachrichten `set_stage`, `note`, `request_org_chart` und `request_create_task` entstehen aus Meta-Aktionen des Agenten am Action-Proxy (`POST /actions/covey/set_stage`, `…/covey/add_note`, `…/covey/remember`, `…/covey/org_chart`, `…/covey/create_task`): Der Proxy behandelt das System `covey` nicht als externes Zielsystem (keine Credentials, keine Egress-Guard-Rail), sondern reicht sie als Steuersignal an die Control Plane durch.
+
+**Eine Ausnahme davon ist `create_task`:** Sie läuft trotzdem durch die Guard-Rails (Subjekt `covey:create_task`, bei Delegation `covey:create_task:foreign`). Die übrigen Meta-Aktionen beschreiben nur, was der Agent ohnehin gerade tut; eine Aufgabe anzulegen dagegen **erzeugt** Arbeit, Kosten und — bei Delegation — Arbeit für jemand anderen. Das muss regelbar bleiben, und zwar getrennt: Eine Organisation kann einem Agenten die Zerlegung der eigenen Arbeit erlauben und die Delegation verbieten.
 
 Alle `event`-Nachrichten fließen in die Observability-Pipeline (siehe [`06-observability-control.md`](06-observability-control.md)). **Jeder Credential-, Egress- und Approval-Request wird von der Control Plane gegen die Guard-Rails geprüft, nie vom Daemon selbst entschieden.** Der Daemon setzt zusätzlich die tool-/action-seitigen Rails lokal durch (welche Tools/Kommandos erlaubt sind), aber die verbindliche Policy-Entscheidung liegt zentral — der Daemon ist ausführendes Organ, nicht Entscheider.
 

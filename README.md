@@ -158,6 +158,23 @@ Ohne eines von beiden scheitern Aufgaben mit „Not logged in · Please run /log
 
 **Tests.** `make test` (Unit) und `make test-integration` (voller Durchstich gegen die Dev-DB, mit Mock-Runtime und Fake-Zammad; skippt, wenn Port 5433 nicht erreichbar ist). Für Demos ohne echtes Zammad: `go run ./demo/fakezammad`, dann die Secrets `zammad_url` = `http://localhost:9999` und `zammad_token` (beliebig) setzen.
 
+## Configs prüfen nach einem Update
+
+```bash
+covey config lint          # ändert nichts, meldet nur
+covey config lint --json   # maschinenlesbar
+```
+
+Der Plattform-Anteil des System-Prompts (Abschluss-Protokoll, `covey/`-Meta-Aktionen, Stage-Regeln) wird zur Dispatch-Zeit kompiliert und kommt mit dem Binary — dafür ist nach einem Update **nichts** zu tun. Die **Agenten-Config** dagegen ist von Menschen geschrieben und bleibt, wie sie ist. `covey config lint` sagt, welche Agenten davon nachgezogen werden sollten, und warum:
+
+- **Heartbeat-Intervall zu kurz** für die Zielsysteme des Agenten (ein Repo alle 2 Minuten zu klonen ist etwas anderes, als ein Postfach zu sichten).
+- **Keine sichtbare Spur:** GitLab-gegateter Heartbeat, aber kein Playbook-Schritt kommentiert — der Vorgang gilt beim nächsten Intervall wieder als unbearbeitet und weckt endlos erneut.
+- **`blocked` bei einem Polling-Zielsystem**, das keinen Webhook hat, der die Aufgabe je wieder weckt.
+- **Board-Spalten**, die einen Vorgang statt eines Arbeitszustands benennen (`#83 CSV-Import`), oder schlicht zu viele davon.
+- **Häufige Turn-Limit-Abbrüche** — Auftrag zu groß geschnitten oder `max_turns` zu klein.
+
+Exit-Code 1 bei Befunden, damit ein Upgrade-Skript darauf reagieren kann. Geändert wird im Config-Tab der Oberfläche oder per `POST /api/v1/agents/{id}/config/import` — beides versioniert.
+
 ## Betriebs-Doku
 
 | Dokument | Inhalt |

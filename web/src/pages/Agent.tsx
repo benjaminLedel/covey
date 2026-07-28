@@ -803,6 +803,17 @@ function relTime(iso: string): string {
   return new Date(iso).toLocaleDateString(locale);
 }
 
+// originLabel macht die Herkunft lesbar. Zwei Formen tragen eine ID bzw. einen
+// Slug im Text: "continuation:<task-id>" (Fortsetzung eines am Turn-Limit
+// abgebrochenen Laufs) und "agent:<slug>" (der Agent hat die Aufgabe selbst
+// angelegt oder sie wurde ihm delegiert). Alles andere bleibt, wie es ist.
+function originLabel(origin: string): string {
+  if (origin.startsWith("continuation:")) return i18n.t("agent.backlog.originContinuation");
+  if (origin.startsWith("agent:")) return i18n.t("agent.backlog.originAgent", { slug: origin.slice(6) });
+  if (origin === "heartbeat") return i18n.t("agent.backlog.originHeartbeat");
+  return origin;
+}
+
 const terminalStates = ["done", "failed", "cancelled"];
 
 const COLUMN_LIMIT = 7;
@@ -866,7 +877,7 @@ function TaskCard({
         {archived && <span className="muted text-[11px] shrink-0">{t("agent.backlog.archived")}</span>}
         <span className="kc-prio">P{task.priority}</span>
       </div>
-      <div className="t">{subtitle} · {task.origin}</div>
+      <div className="t">{subtitle} · {originLabel(task.origin)}</div>
       {open && (
         <div className="kc-detail fade">
           {task.body && (
@@ -881,6 +892,12 @@ function TaskCard({
           {task.runtime_session_id && (
             <p>
               <span className="muted">runtime-session:</span> <span className="mono">{task.runtime_session_id}</span>
+            </p>
+          )}
+          {task.parent_task_id && (
+            <p>
+              <span className="muted">{t("agent.backlog.parentTask")}:</span>{" "}
+              <span className="mono">{task.parent_task_id}</span>
             </p>
           )}
           {task.result && <p style={{ color: "var(--text-success)" }}>{task.result}</p>}

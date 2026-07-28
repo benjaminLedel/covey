@@ -14,6 +14,7 @@ import (
 	"log/slog"
 	"maps"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -357,10 +358,12 @@ func (o *Orchestrator) ConsolidateWikis(ctx context.Context) (int, error) {
 // in agent_heartbeats) als Backlog-Aufgabe an. Fällig ist die Intervall-Form
 // nach Ablauf des Intervalls seit last_fired_at, die Tageszeit-Form einmal pro
 // Tag ab der konfigurierten Uhrzeit (Serverzeit). Kill-Switches greifen wie
-// beim Wake. Dedup: solange eine nicht-terminale Aufgabe gleichen Titels mit
-// origin='heartbeat' existiert, wird keine neue angelegt — der Lauf gilt
+// beim Wake. Dedup: solange eine nicht-terminale Aufgabe gleichen Titels aus
+// diesem Heartbeat existiert, wird keine neue angelegt — der Lauf gilt
 // trotzdem als "gefeuert", damit nach deren Abschluss kein sofortiger
-// Nachschlag kommt, sondern der reguläre Zeitplan weiterläuft.
+// Nachschlag kommt, sondern der reguläre Zeitplan weiterläuft. Die Fortsetzung
+// eines am Turn-Limit abgebrochenen Laufs (origin continuation:…) zählt dabei
+// mit: sie trägt dieselbe Arbeit weiter und darf nicht danebenlaufen.
 func (o *Orchestrator) fireHeartbeats(ctx context.Context) {
 	tx, err := o.Pool.Begin(ctx)
 	if err != nil {
@@ -371,7 +374,8 @@ func (o *Orchestrator) fireHeartbeats(ctx context.Context) {
 
 	rows, err := tx.Query(ctx, `SELECT h.agent_id, a.org_id, h.name, h.task_body, h.only_if,
 			EXISTS (SELECT 1 FROM backlog_tasks t
-				WHERE t.agent_id=h.agent_id AND t.origin='heartbeat' AND t.title=h.name
+				WHERE t.agent_id=h.agent_id AND t.title=h.name
+				  AND (t.origin='heartbeat' OR t.origin LIKE 'continuation:%')
 				  AND t.state NOT IN ('done','failed','cancelled')) AS pending
 		FROM agent_heartbeats h
 		JOIN agents a ON a.id=h.agent_id
@@ -1018,10 +1022,19 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	if err != nil && !errors.Is(err, agents.ErrNotFound) {
 		return err
 	}
-	compiled := cfg.CompiledPrompt
-	if compiled == "" {
-		compiled = agents.CompilePrompt(nil)
-	}
+	// Prompt zur Dispatch-Zeit aus den Config-Dateien neu kompilieren, statt den
+	// beim Speichern eingefrorenen compiled_prompt zu nehmen. Der Plattform-
+	// Anteil (agents.ProtocolInstructions: Abschluss-Protokoll, Meta-Aktionen,
+	// Stage-Regeln) ist Code, nicht Config — er gehört zum Binary, nicht zur
+	// Config-Version. Sonst müsste nach jedem Deploy jede bestehende Agent-Config
+	// von Hand neu gespeichert werden, damit der Agent von neuen Aktionen
+	// überhaupt erfährt; ein produktiver Agent liefe sonst auf Jahre mit dem
+	// Plattform-Vertrag von seinem letzten Config-Edit.
+	//
+	// Der gespeicherte compiled_prompt bleibt als Momentaufnahme für Audit und
+	// Anzeige erhalten — Quelle der Wahrheit für den Lauf sind die Dateien.
+	// Zielsystem-Doku und Team-Verzeichnis unten folgen derselben Logik.
+	compiled := agents.CompilePrompt(cfg.Files)
 	// Zielsystem-Doku zur Dispatch-Zeit anhängen — sie spiegelt die aktuell
 	// aktivierten Plugins der Organisation (inkl. Manifest-Uploads), nicht
 	// den Stand beim Kompilieren der Config.
@@ -1211,6 +1224,14 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		resp := o.brokerWiki(ctx, agent, req)
 		return false, o.sendMsg(ctx, link, daemon.TypeInjectWiki, resp)
 
+	case daemon.TypeRequestCreateTask:
+		req, err := daemon.DecodePayload[daemon.RequestCreateTask](msg)
+		if err != nil {
+			return false, nil
+		}
+		resp := o.createAgentTask(ctx, agent, taskID, req)
+		return false, o.sendMsg(ctx, link, daemon.TypeInjectCreateTask, resp)
+
 	case daemon.TypeBlocked:
 		b, err := daemon.DecodePayload[daemon.Blocked](msg)
 		if err != nil {
@@ -1228,6 +1249,9 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		d, err := daemon.DecodePayload[daemon.TaskDone](msg)
 		if err != nil {
 			return true, err
+		}
+		if d.Status == statusIncomplete {
+			return true, o.handleIncomplete(ctx, agent, taskID, d)
 		}
 		state := backlog.StateDone
 		if d.Status == "failed" {
@@ -1310,6 +1334,109 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 	}
 }
 
+const (
+	// statusIncomplete meldet ein Runtime-Adapter, wenn ein Lauf am Turn-Limit
+	// endete: Arbeit ist passiert, ein Ergebnis gibt es nicht. Kein
+	// Backlog-State — die Control Plane übersetzt ihn in failed + Folgeaufgabe.
+	statusIncomplete = "incomplete"
+
+	// originContinuation markiert die Folgeaufgabe eines abgebrochenen Laufs.
+	// Über dieses Präfix zählt der Loop-Schutz die Länge der Kette.
+	originContinuation = "continuation"
+
+	// maxContinuations begrenzt, wie oft eine Aufgabe am Turn-Limit fortgesetzt
+	// wird, bevor sie eskaliert. Wer nach so vielen vollen Läufen kein Ergebnis
+	// hat, braucht keinen weiteren Lauf, sondern einen Menschen: entweder ist
+	// der Auftrag zu groß geschnitten oder max_turns zu klein.
+	maxContinuations = 3
+)
+
+// handleIncomplete verarbeitet den am Turn-Limit abgebrochenen Lauf (spec/03).
+// Vorher endete er als failed ohne Fehlertext und ohne Ergebnis — der nächste
+// Heartbeat fing dieselbe Arbeit bei null wieder an, in Endlosschleife.
+//
+// Jetzt gilt: Der Zwischenstand, den sich der Daemon aus der abgebrochenen
+// Session hat geben lassen, wird als Notiz an die Aufgabe gehängt (im Ticket
+// sichtbar) und als Ergebnis gespeichert; daraus entsteht eine **Folgeaufgabe**,
+// die die Runtime-Session wieder aufnimmt und dort weiterarbeitet. Nach
+// maxContinuations Fortsetzungen in Folge eskaliert die Aufgabe stattdessen.
+func (o *Orchestrator) handleIncomplete(ctx context.Context, agent agents.Agent, taskID uuid.UUID, d daemon.TaskDone) error {
+	handover := strings.TrimSpace(d.Result)
+	if handover != "" {
+		if _, err := o.Backlog.AddNote(ctx, taskID, "agent", "Zwischenstand (Lauf am Turn-Limit abgebrochen):\n\n"+handover); err != nil {
+			o.Log.Warn("zwischenstand konnte nicht als notiz gespeichert werden", "task", taskID, "err", err)
+		}
+	}
+
+	task, err := o.Backlog.Get(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	depth, err := o.Backlog.AncestorsWithOrigin(ctx, taskID, originContinuation)
+	if err != nil {
+		o.Log.Warn("fortsetzungs-tiefe nicht ermittelbar — behandle als letzte", "task", taskID, "err", err)
+		depth = maxContinuations
+	}
+
+	// Kette am Ende: nicht weiterlaufen lassen, sondern abgeben.
+	if depth >= maxContinuations || d.SessionID == "" {
+		reason := fmt.Sprintf("%s. Nach %d Fortsetzungen ohne Ergebnis abgegeben — Auftrag zu groß geschnitten oder max_turns zu klein.", d.Error, depth)
+		if d.SessionID == "" {
+			reason = d.Error + ". Ohne Runtime-Session ist keine Fortsetzung möglich."
+		}
+		result := "ESKALIERT: " + handover
+		if name, err := o.Registry.SupervisorName(ctx, agent.ID); err == nil && name != "" {
+			result += " (an " + name + ")"
+		}
+		if _, err := o.Backlog.Complete(ctx, taskID, backlog.StateFailed, result, reason); err != nil {
+			return err
+		}
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
+			map[string]string{"status": "task_escalated", "reason": "max_turns", "continuations": strconv.Itoa(depth)})
+		o.publishTask(taskID, agent.ID)
+		return nil
+	}
+
+	// Fortsetzung: gleicher Titel und gleiche Priorität wie die Ursprungsaufgabe.
+	// Der Titel bleibt bewusst unverändert — die Heartbeat-Dedup erkennt an ihm,
+	// dass diese Arbeit noch läuft, und feuert nicht daneben.
+	child, err := o.Backlog.CreateChild(ctx, taskID, backlog.ChildSpec{
+		Title:       task.Title,
+		Body:        task.Body,
+		Origin:      originContinuation + ":" + taskID.String(),
+		Priority:    task.Priority,
+		SessionID:   d.SessionID,
+		ResumeInput: continuationInput(handover),
+	})
+	if err != nil {
+		return err
+	}
+	if _, err := o.Backlog.Complete(ctx, taskID, backlog.StateFailed, handover,
+		fmt.Sprintf("%s. Fortsetzung als Folgeaufgabe %s eingeplant (%d/%d).", d.Error, child.ID, depth+1, maxContinuations)); err != nil {
+		return err
+	}
+	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
+		map[string]string{"status": "task_continued", "reason": "max_turns",
+			"continuation_task": child.ID.String(), "continuations": strconv.Itoa(depth + 1)})
+	o.publishTask(taskID, agent.ID)
+	return nil
+}
+
+// continuationInput ist die Eingabe, mit der die wiederaufgenommene Session
+// weiterarbeitet. Der Übergabe-Stand steht mit drin, weil die Session zwar den
+// Kontext hält, der Agent aber wissen muss, dass er beim Turn-Limit unterbrochen
+// wurde — sonst antwortet er auf seine eigene Zusammenfassung statt zu arbeiten.
+func continuationInput(handover string) string {
+	in := "Dein vorheriger Lauf wurde am Turn-Limit abgebrochen. Arbeite dort weiter, wo du aufgehört hast."
+	if handover != "" {
+		in += "\n\nDein eigener Übergabe-Stand:\n\n" + handover
+	}
+	in += "\n\nGeh zuerst den offenen Punkt an, den du selbst als nächsten Schritt notiert hast. " +
+		"Halte den Lauf kurz genug, um diesmal zu einem Ergebnis zu kommen — lieber ein Teilergebnis " +
+		"sauber abschließen und den Rest als eigene Aufgabe anlegen, als erneut ins Limit zu laufen."
+	return in
+}
+
 // enforceBudget prüft Budget-Deckel (Agent-Feld + budget_limit-Guard-Rails).
 // Überschreitung pausiert den Agenten (fail-closed) und stoppt den Lauf.
 func (o *Orchestrator) enforceBudget(ctx context.Context, agent agents.Agent, link DaemonLink, taskID uuid.UUID, s *session) error {
@@ -1338,6 +1465,104 @@ func (o *Orchestrator) enforceBudget(ctx context.Context, agent agents.Agent, li
 // errBudgetExceeded markiert den Budget-Stopp: Aufgabe ist wieder offen,
 // der Agent pausiert — kein failed-Abschluss.
 var errBudgetExceeded = errors.New("budget überschritten")
+
+const (
+	// originAgentTask markiert eine Aufgabe, die ein Agent selbst angelegt hat
+	// (covey/create_task) — als Teilaufgabe oder per Delegation. Die volle Form
+	// ist "agent:<slug>", damit im Audit steht, wer sie erzeugt hat.
+	originAgentTask = "agent"
+
+	// maxAgentTaskDepth begrenzt die Kette selbst erzeugter Aufgaben: eine
+	// Teilaufgabe darf Teilaufgaben haben, aber nicht beliebig tief. Ohne diese
+	// Grenze zerlegt ein Agent seine Arbeit rekursiv, bis das Budget leer ist.
+	maxAgentTaskDepth = 3
+
+	// maxAgentTasksPerRun begrenzt die Breite: so viele Aufgaben darf ein
+	// einzelner Lauf abspalten. Ein Agent, der mehr braucht, hat seine Arbeit
+	// nicht zerlegt, sondern kopiert.
+	maxAgentTasksPerRun = 10
+)
+
+// createAgentTask bedient covey/create_task: Der Agent legt eine Teilaufgabe für
+// sich selbst an oder delegiert an einen Kollegen. Die neue Aufgabe hängt als
+// Kind an der laufenden — das trägt sowohl den Audit-Trail (wer hat sie erzeugt)
+// als auch den Loop-Schutz.
+//
+// Fail-closed in drei Richtungen, weil ein Agent, der Aufgaben anlegen kann,
+// sich selbst beschäftigen kann, bis das Budget leer ist:
+//
+//   - Tiefe (maxAgentTaskDepth) — keine unendliche Zerlegung.
+//   - Breite (maxAgentTasksPerRun) — ein Lauf spaltet begrenzt viel ab.
+//   - Dubletten — existiert bereits eine offene Aufgabe gleichen Titels beim
+//     Ziel-Agenten, entsteht keine zweite. Genau daran scheitern Schleifen, in
+//     denen jeder Lauf dieselbe Aufgabe neu anlegt.
+//
+// Die Delegation bleibt in der Organisation: der Ziel-Agent wird über seinen
+// Slug **innerhalb der Org des Absenders** aufgelöst.
+func (o *Orchestrator) createAgentTask(ctx context.Context, agent agents.Agent, taskID uuid.UUID, req daemon.RequestCreateTask) daemon.InjectCreateTask {
+	fail := func(m string) daemon.InjectCreateTask {
+		return daemon.InjectCreateTask{RequestID: req.RequestID, OK: false, Error: m}
+	}
+	title := strings.TrimSpace(req.Title)
+	if title == "" {
+		return fail("title fehlt")
+	}
+
+	// Ziel-Agent: leer = ich selbst, sonst ein Kollege aus derselben Org.
+	targetAgent := agent
+	if slug := strings.TrimSpace(req.Agent); slug != "" && slug != agent.Slug {
+		found, err := o.Registry.GetBySlug(ctx, agent.OrgID, slug)
+		if err != nil {
+			return fail(fmt.Sprintf("kein agent %q in dieser organisation", slug))
+		}
+		if found.Killed {
+			return fail(fmt.Sprintf("agent %q ist pausiert — keine delegation", slug))
+		}
+		targetAgent = found
+	}
+
+	depth, err := o.Backlog.AncestorsWithOrigin(ctx, taskID, originAgentTask+":")
+	if err != nil {
+		return fail("herkunftskette nicht prüfbar")
+	}
+	if depth >= maxAgentTaskDepth {
+		return fail(fmt.Sprintf("aufgaben-kette zu tief (%d) — zerlege nicht weiter, sondern schließe ab oder eskaliere", depth))
+	}
+	children, err := o.Backlog.CountChildren(ctx, taskID)
+	if err != nil {
+		return fail("teilaufgaben nicht zählbar")
+	}
+	if children >= maxAgentTasksPerRun {
+		return fail(fmt.Sprintf("dieser lauf hat bereits %d aufgaben angelegt — das ist das limit", children))
+	}
+	dup, err := o.Backlog.OpenWithTitle(ctx, targetAgent.ID, title)
+	if err != nil {
+		return fail("dublettenprüfung fehlgeschlagen")
+	}
+	if dup {
+		return fail(fmt.Sprintf("es gibt bereits eine offene aufgabe %q bei %s — keine zweite angelegt", title, targetAgent.Slug))
+	}
+
+	created, err := o.Backlog.CreateChild(ctx, taskID, backlog.ChildSpec{
+		AgentID:  targetAgent.ID,
+		Title:    title,
+		Body:     req.Body,
+		Origin:   originAgentTask + ":" + agent.Slug,
+		Priority: req.Priority,
+	})
+	if err != nil {
+		return fail(err.Error())
+	}
+	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
+		map[string]string{"status": "task_created", "created_task": created.ID.String(),
+			"target_agent": targetAgent.Slug, "title": title})
+	o.publishTask(created.ID, targetAgent.ID)
+	if targetAgent.ID != agent.ID {
+		o.EnsureRunning(targetAgent.ID) // Delegation weckt den Kollegen
+	}
+	return daemon.InjectCreateTask{RequestID: req.RequestID, OK: true,
+		TaskID: created.ID.String(), Agent: targetAgent.Slug}
+}
 
 // brokerWiki bedient die Wiki-Tools des Agenten (covey/wiki_*, spec/05) gegen
 // den Memory-Store der Control Plane.

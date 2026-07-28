@@ -41,7 +41,7 @@ die restlichen Felder greifen nur beim Neu-Anlegen (`POST /agents/import`).
 
 - **SOUL.md** — Identität und Auftrag. Struktur der Vorlagen: `## Rolle`, `## Auftrag`,
   `## Ton`, `## Grenzen`. Hier gehören die Verhaltensregeln hinein (done-nicht-blocked,
-  Idempotenz, Hand-off).
+  Idempotenz, sichtbare Spur je Lauf, Zerlegen statt Turn-Limit, Hand-off).
 - **CAPABILITIES.md** — knappe Fähigkeitenliste + `## Nicht zuständig`.
 - **PLAYBOOKS.md** — nummerierte Abläufe je Auftrag; die konkreten Aktionsaufrufe.
 - **ACCESS.md** — Zugänge, eine Zeile je System: `- system: <name> scope: <a>,<b>`.
@@ -68,6 +68,35 @@ Registrierte Built-in-Systeme (Stand Repo): `gitlab`, `email`, `dev`, `browser`,
 Secrets, die ein System braucht (z. B. `gitlab_token` + `gitlab_url`, IMAP/SMTP-Zugang),
 stehen in dessen `SetupDoc()` — dem Nutzer nach dem Import zum Zuweisen nennen; Werte reisen
 nie im Bundle.
+
+## Plattform-Aktionen (`covey/…`)
+
+Neben den Zielsystemen kennt der Action-Proxy das Pseudo-System `covey` — Aktionen an die
+Control Plane selbst. Sie brauchen **keinen `ACCESS.md`-Eintrag** (kein Credential, kein
+Egress) und stehen jedem Agenten offen; der kompilierte System-Prompt erklärt sie ihm.
+Im `PLAYBOOKS.md` lohnt es trotzdem, sie an den richtigen Stellen zu verankern:
+
+| Aktion | Params | Wofür |
+|---|---|---|
+| `set_stage` | `{"stage":"<name>"}` | Kanban-Spalte der laufenden Aufgabe (rein anzeigend) |
+| `add_note` | `{"content":"<text>"}` | Zwischenstand an der Aufgabe |
+| `remember` | `{"content":"<fakt>"}` | Einzelfakt ins Gedächtnis |
+| `wiki_search/read/write/delete` | s. Prompt | verlinktes Langzeit-Gedächtnis (spec/05) |
+| `org_chart` | `{}` | Zuständigkeiten/Eskalationswege zur Laufzeit nachschlagen |
+| `create_task` | `{"title":…,"body":…,"agent":"<slug>","priority":1..9}` | Teilaufgabe (ohne `agent`) oder Delegation an einen Kollegen |
+
+Zwei davon brauchen Sorgfalt beim Entwerfen:
+
+- **`create_task`** ist der Ausweg aus zu großen Aufträgen: Teilergebnis abschließen, Rest als
+  Aufgabe hinterlegen — statt bis zum Turn-Limit weiterzumachen. Als einzige `covey`-Aktion
+  läuft sie durch die Guard-Rails (`covey:create_task`, bei Delegation
+  `covey:create_task:foreign`), kann also `denied`/`pending` liefern. Die Plattform lehnt
+  Dubletten gleichen Titels, zu tiefe Ketten und zu viele Aufgaben pro Lauf ab — das Playbook
+  sollte gar nicht erst dagegenlaufen.
+- **`set_stage`** legt fehlende Spalten automatisch an. Gib im Playbook eine **feste, kleine**
+  Menge von Namen vor, die Arbeits*zustände* benennen (`Triage`, `Analyse`, `Warten auf
+  Review`) — nie den Vorgang (`#83 CSV-Import`), nie Synonyme für denselben Zustand. Sonst
+  wächst das Board in Tagen auf ein Dutzend toter Spalten.
 
 ## API-Endpunkte
 

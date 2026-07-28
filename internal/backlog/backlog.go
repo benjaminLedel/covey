@@ -65,6 +65,7 @@ type Task struct {
 	Result           *string    `json:"result,omitempty"`
 	Error            *string    `json:"error,omitempty"`
 	StageID          *uuid.UUID `json:"stage_id,omitempty"`
+	ParentTaskID     *uuid.UUID `json:"parent_task_id,omitempty"`
 	ArchivedAt       *time.Time `json:"archived_at,omitempty"`
 	CreatedAt        time.Time  `json:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at"`
@@ -108,12 +109,14 @@ type Store struct {
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
 const taskCols = `id, org_id, agent_id, title, body, state, priority, origin,
-	correlation_key, runtime_session_id, resume_input, result, error, stage_id, archived_at, created_at, updated_at`
+	correlation_key, runtime_session_id, resume_input, result, error, stage_id, parent_task_id,
+	archived_at, created_at, updated_at`
 
 func scanTask(row pgx.Row) (Task, error) {
 	var t Task
 	err := row.Scan(&t.ID, &t.OrgID, &t.AgentID, &t.Title, &t.Body, &t.State, &t.Priority, &t.Origin,
-		&t.CorrelationKey, &t.RuntimeSessionID, &t.ResumeInput, &t.Result, &t.Error, &t.StageID, &t.ArchivedAt, &t.CreatedAt, &t.UpdatedAt)
+		&t.CorrelationKey, &t.RuntimeSessionID, &t.ResumeInput, &t.Result, &t.Error, &t.StageID, &t.ParentTaskID,
+		&t.ArchivedAt, &t.CreatedAt, &t.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return t, ErrNotFound
 	}
@@ -137,6 +140,92 @@ func (s *Store) Create(ctx context.Context, orgID, agentID uuid.UUID, title, bod
 	}
 	s.notify(ctx, agentID)
 	return t, nil
+}
+
+// ChildSpec beschreibt eine Aufgabe, die aus einer anderen hervorgeht: die
+// Fortsetzung eines am Turn-Limit abgebrochenen Laufs oder eine vom Agenten
+// selbst abgespaltene Teilaufgabe. AgentID leer = derselbe Agent wie die
+// Ursprungsaufgabe (Delegation setzt sie auf einen Kollegen).
+//
+// SessionID/ResumeInput sind nur für die Fortsetzung gesetzt: mit ihnen nimmt
+// die Runtime die abgebrochene Session wieder auf, statt bei null anzufangen.
+type ChildSpec struct {
+	AgentID     uuid.UUID
+	Title       string
+	Body        string
+	Origin      string
+	Priority    int
+	SessionID   string
+	ResumeInput string
+}
+
+// CreateChild legt eine Aufgabe an, die an einer Ursprungsaufgabe hängt.
+// Organisation und (per Default) Agent erbt sie von ihr — eine Aufgabe kann
+// also nie aus der Org ihrer Elternaufgabe herausfallen.
+func (s *Store) CreateChild(ctx context.Context, parentID uuid.UUID, spec ChildSpec) (Task, error) {
+	parent, err := s.Get(ctx, parentID)
+	if err != nil {
+		return Task{}, err
+	}
+	agentID := spec.AgentID
+	if agentID == uuid.Nil {
+		agentID = parent.AgentID
+	}
+	if spec.Priority == 0 {
+		spec.Priority = 5
+	}
+	row := s.pool.QueryRow(ctx, `INSERT INTO backlog_tasks
+		(id, org_id, agent_id, title, body, origin, priority, parent_task_id,
+		 runtime_session_id, resume_input, stage_id)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8, NULLIF($9,''), NULLIF($10,''),
+			(SELECT id FROM agent_stages WHERE agent_id=$3 ORDER BY position, created_at LIMIT 1))
+		RETURNING `+taskCols,
+		uuid.New(), parent.OrgID, agentID, spec.Title, spec.Body, spec.Origin, spec.Priority,
+		parentID, spec.SessionID, spec.ResumeInput)
+	t, err := scanTask(row)
+	if err != nil {
+		return t, err
+	}
+	s.notify(ctx, agentID)
+	return t, nil
+}
+
+// AncestorsWithOrigin zählt, wie viele Vorfahren einer Aufgabe (inklusive ihrer
+// selbst) eine Herkunft mit dem gegebenen Präfix tragen. Das trägt den
+// Loop-Schutz: eine Fortsetzungs- oder Teilaufgaben-Kette darf nicht endlos
+// wachsen, und der einzige verlässliche Zähler ist die Kette selbst.
+func (s *Store) AncestorsWithOrigin(ctx context.Context, id uuid.UUID, originPrefix string) (int, error) {
+	var n int
+	err := s.pool.QueryRow(ctx, `
+		WITH RECURSIVE chain AS (
+			SELECT id, parent_task_id, origin FROM backlog_tasks WHERE id=$1
+			UNION ALL
+			SELECT t.id, t.parent_task_id, t.origin
+			FROM backlog_tasks t JOIN chain c ON t.id = c.parent_task_id
+		)
+		SELECT COUNT(*) FROM chain WHERE origin LIKE $2 || '%'`, id, originPrefix).Scan(&n)
+	return n, err
+}
+
+// CountChildren zählt die direkt aus einer Aufgabe hervorgegangenen Aufgaben —
+// die Breite der Zerlegung.
+func (s *Store) CountChildren(ctx context.Context, parentID uuid.UUID) (int, error) {
+	var n int
+	err := s.pool.QueryRow(ctx,
+		"SELECT COUNT(*) FROM backlog_tasks WHERE parent_task_id=$1", parentID).Scan(&n)
+	return n, err
+}
+
+// OpenWithTitle sagt, ob der Agent bereits eine nicht-terminale Aufgabe mit
+// diesem Titel hat. Der Dublettenschutz für selbst angelegte Aufgaben: Ein
+// Agent, der in jedem Lauf dieselbe Aufgabe neu anlegt, baut sich sonst eine
+// Warteschlange, die nie leer wird.
+func (s *Store) OpenWithTitle(ctx context.Context, agentID uuid.UUID, title string) (bool, error) {
+	var exists bool
+	err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM backlog_tasks
+		WHERE agent_id=$1 AND title=$2 AND state NOT IN ('done','failed','cancelled'))`,
+		agentID, title).Scan(&exists)
+	return exists, err
 }
 
 func (s *Store) notify(ctx context.Context, agentID uuid.UUID) {
@@ -218,9 +307,22 @@ var stateStage = map[string]string{
 	StateCancelled:  "Erledigt",
 }
 
+// terminalState sagt, ob ein State das Ende der Aufgabe ist.
+func terminalState(state string) bool {
+	return state == StateDone || state == StateFailed || state == StateCancelled
+}
+
 // syncStage führt die Stage dem neuen State nach (innerhalb der Transaktion
 // des Zustandsübergangs). Fehlt die Ziel-Spalte (umbenannt/gelöscht), passiert
 // nichts — Auto-Follow ist Komfort, nie Zwang.
+//
+// Beim Übergang in einen terminalen State greift Auto-Follow zusätzlich für die
+// vom Agenten selbst angelegten Spalten: Eine erledigte Aufgabe gehört nicht in
+// „Recherche", sie gehört nach „Erledigt". Ohne das bliebe in jeder erfundenen
+// Spalte eine terminale Aufgabe liegen, die Spalte damit dauerhaft „nicht leer"
+// — und das Board sammelte über Wochen ein Dutzend toter Arbeitszustände an.
+// Von Menschen angelegte Spalten bleiben auch hier unangetastet: bewusste
+// Platzierung wird nie überschrieben.
 func syncStage(ctx context.Context, tx pgx.Tx, taskID uuid.UUID, newState string) error {
 	target, ok := stateStage[newState]
 	if !ok {
@@ -235,8 +337,9 @@ func syncStage(ctx context.Context, tx pgx.Tx, taskID uuid.UUID, newState string
 		WHERE t.id=$1 AND s.agent_id=t.agent_id AND s.name=$2
 		  AND (t.stage_id IS NULL OR t.stage_id IN (
 		      SELECT d.id FROM agent_stages d
-		      WHERE d.agent_id=t.agent_id AND d.name = ANY($3)))`,
-		taskID, target, names)
+		      WHERE d.agent_id=t.agent_id
+		        AND (d.name = ANY($3) OR ($4 AND d.created_by='agent'))))`,
+		taskID, target, names, terminalState(newState))
 	return err
 }
 
@@ -269,6 +372,14 @@ func (s *Store) transition(ctx context.Context, id uuid.UUID, to, note string, s
 	}
 	if err := syncStage(ctx, tx, id, to); err != nil {
 		return Task{}, err
+	}
+	// Die Aufgabe hat gerade eine Agenten-Spalte verlassen — steht die jetzt
+	// leer, verschwindet sie mit. Das hält das Board auf den Arbeitszuständen,
+	// die es wirklich gibt.
+	if terminalState(to) {
+		if _, err := cleanupEmptyAgentStages(ctx, tx, t.AgentID); err != nil {
+			return Task{}, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return Task{}, err

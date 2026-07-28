@@ -64,6 +64,19 @@ Die genaue Dateiliste ist bewusst erweiterbar — weitere sinnvolle MD-Dateien (
 
 Auch `HEARTBEAT.md` ist Plattform-Config, kein Prompt-Material: Sie wird beim Speichern geparst und materialisiert (Tabelle `agent_heartbeats`), die Aufgabe selbst erreicht den Agenten als reguläre Backlog-Aufgabe. Format und Zeitplan-Semantik stehen in [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md).
 
+### Was zur Config gehört — und was zum Binary
+
+Der System-Prompt eines Laufs hat zwei Herkünfte, und die Trennung entscheidet, wie Änderungen einen produktiven Bestand erreichen:
+
+- **Agenten-Anteil** (`SOUL.md`, `CAPABILITIES.md`, `PLAYBOOKS.md`, `ORG.md` …) — das ist Config. Er wird versioniert, per PR/UI geändert, ist rollback-fähig. Eine Änderung hier betrifft genau einen Agenten und ist eine bewusste Entscheidung eines Menschen.
+- **Plattform-Anteil** (Abschluss-Protokoll, die `covey/`-Meta-Aktionen, Stage-Regeln — `agents.ProtocolInstructions`) — das ist **Code**. Er beschreibt den Vertrag zwischen Agent und Plattform und ändert sich mit dem Binary, nicht mit einer Agenten-Config.
+
+Deshalb wird der Prompt **zur Dispatch-Zeit** aus den Config-Dateien plus dem aktuellen Plattform-Anteil zusammengesetzt, nicht aus der beim Speichern eingefrorenen Fassung. Sonst kennte ein Agent, den seit dem letzten Deploy niemand angefasst hat, die neu hinzugekommenen Aktionen nie — jedes Plattform-Update bräuchte einen manuellen Nachzug über den gesamten Bestand, und wer ihn vergisst, betreibt Agenten mit einem Vertrag, den die Plattform nicht mehr erfüllt.
+
+Dasselbe Prinzip trägt bereits die Zielsystem-Doku (spiegelt die aktuell aktivierten Plugins der Organisation) und das Team-Verzeichnis (spiegelt den aktuellen Org-Chart). Der gespeicherte `compiled_prompt` bleibt als **Momentaufnahme** für Audit und Anzeige erhalten.
+
+Praktische Folge für den Betrieb: **Ein Deploy rollt Plattform-Änderungen selbst aus.** Nachziehen muss man nur, was wirklich Config ist — etwa wenn ein Playbook eine neue Aktion nutzen soll.
+
 ### Export & Import
 
 Die komplette Konfiguration eines Agenten ist als **JSON-Bundle** portabel (`GET /api/v1/agents/{id}/export`, `POST /api/v1/agents/import`, in der UI als *Export*-Button am Agenten und *Import* auf der Agenten-Übersicht). Das Bundle (`kind: covey.agent-config`, versioniert) umfasst Stammdaten (Runtime, Modell, Turn-Limit, Budget, Vorgesetzter per E-Mail), alle Config-Dateien inklusive der live gerenderten `ACCESS.md`/`EGRESS.md`, Board-Spalten, agent-scoped Guard-Rails, die zugewiesenen Egress-Templates **samt Definition** (fehlende legt der Import an) und die **Namen** zugewiesener Secrets.

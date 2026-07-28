@@ -445,7 +445,11 @@
       "archive": "Archivieren",
       "discard": "Verwerfen",
       "discardConfirm": "Aufgabe „{{title}}“ verwerfen?",
-      "hiddenOlder": "+{{count}} ältere ausgeblendet"
+      "hiddenOlder": "+{{count}} ältere ausgeblendet",
+      "originContinuation": "Fortsetzung",
+      "originAgent": "angelegt von {{slug}}",
+      "originHeartbeat": "Heartbeat",
+      "parentTask": "Ursprungsaufgabe"
     },
     "stageEditor": {
       "title": "Spalten (Stages)",

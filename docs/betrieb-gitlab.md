@@ -39,7 +39,7 @@ funktioniert auch, wenn Covey hinter NAT/Firewall läuft.
 > Grund: Ein Webhook müsste pro Zielprojekt eingerichtet werden und einen
 > einzelnen Agenten adressieren — mit mehreren Agenten auf denselben Projekten
 > wird das schnell mehrdeutig und schwer zu warten. GitLab wird deshalb
-> vollständig per Polling betrieben; der Review-Loop (Abschnitt 2.6) läuft
+> vollständig per Polling betrieben; der Review-Loop (Abschnitt 2.7) läuft
 > ebenfalls über den Heartbeat statt über `blocked`+Wake. (Der generische,
 > per-Agent-Trigger `/api/trigger/<token>` für Fremdsysteme bleibt davon
 > unberührt — er ist kein Zielsystem-Webhook.)
@@ -97,10 +97,16 @@ ein eigener Job. Der Unterscope nach dem Doppelpunkt (`gitlab:issues` bzw.
 `gitlab:mr`) sorgt dafür, dass jeder der beiden Heartbeats **nur für seine
 eigene Arbeit** feuert:
 
-- `nur-wenn: gitlab:issues` → nur, wenn ein offenes Issue im Intake-Scope liegt.
+- `nur-wenn: gitlab:issues` → nur, wenn ein offenes Issue im Intake-Scope auf
+  eine Reaktion **wartet** (siehe „Flanke statt Pegel" unten).
+- `nur-wenn: gitlab:issues:assigned` → dasselbe, aber nur für die dem Bot-Nutzer
+  **zugewiesenen** Issues (`scope=assigned_to_me`) — für Agenten, deren Playbook
+  ausschließlich eigene Issues bearbeitet.
 - `nur-wenn: gitlab:mr` → nur, wenn einer der vom Bot selbst eröffneten, offenen
   Merge Requests **unbeantwortetes Review-Feedback** hat (der letzte
   Nicht-System-Kommentar im Thread stammt nicht vom Bot).
+- `nur-wenn: gitlab:review` → nur, wenn ein MR, in dem der Bot als **Reviewer**
+  eingetragen ist, auf sein Review wartet.
 
 Ohne Unterscope (`nur-wenn: gitlab`) prüft ein Heartbeat **beides gemeinsam** —
 dann würden zwei solche Heartbeats aber jeweils auch für die Arbeit des anderen
@@ -110,11 +116,20 @@ wenn du beide Jobs bewusst in **einem** Task bündeln willst.
 
 Der Merge-Abschluss braucht keinen eigenen Auslöser: Ist das zugehörige Issue
 noch offen, weckt es über den Issue-Heartbeat; wurde es beim Merge automatisch
-geschlossen, gibt es nichts mehr zu tun. Beachte die Semantik: anders als das
-Gelesen-Flag bei E-Mail bleiben offene Issues und offene MR-Threads „Arbeit",
-bis sie geschlossen bzw. beantwortet sind — die Bedingung spart die
-Leerlauf-Phasen ganz ohne offene Arbeit, nicht die Läufe, in denen ein Issue
-auf eine Kundenantwort oder ein MR auf deine Nacharbeit wartet.
+geschlossen, gibt es nichts mehr zu tun.
+
+**Flanke statt Pegel — und was das vom Agenten verlangt.** Ein offenes Issue
+oder ein offener MR ist *nicht* dauerhaft „Arbeit". Als Arbeit zählt ein Vorgang
+nur, solange der **letzte Nicht-System-Kommentar nicht vom Bot** stammt (oder es
+noch gar keinen gibt — dann steht die Erst-Triage aus). Hat der Bot zuletzt
+geschrieben, ruht der Vorgang, bis jemand antwortet.
+
+Daraus folgt ein Vertrag, den das Playbook einhalten muss: **wer an einem Issue
+gearbeitet hat, kommentiert dort.** Ein stiller Lauf hinterlässt keine Flanke,
+gilt beim nächsten Intervall wieder als unbearbeitet und weckt den Agenten
+erneut — bei `alle: 2m` sind das 30 Läufe pro Stunde auf denselben, längst
+erledigten Vorgang. Genau dieser Pegel-Trigger war die Ursache eines
+Endlos-Loops in der Praxis, siehe [Heartbeat-Intervalle](#25-intervalle-realistisch-wählen).
 
 Der Vorab-Check ist billig (wenige REST-Aufrufe: offene Issues bzw. die eigenen
 offenen MRs und deren Notes) — verglichen mit einem LLM-Turn vernachlässigbar.
@@ -133,7 +148,30 @@ Optionaler Projekt-Filter (greift für `list_issues`/`list_projects` und den
 COVEY_GITLAB_INTAKE_PROJECTS="gruppe/support"   # leer = alle Projekte
 ```
 
-### 2.5 Testen
+### 2.5 Intervalle realistisch wählen
+
+Das Intervall muss zur **Dauer eines Laufs** passen, nicht zur gewünschten
+Reaktionszeit. Ein Issue end-to-end zu bearbeiten (Repo klonen, Code lesen, Fix,
+MR) dauert Minuten bis Viertelstunden; `alle: 2m` heißt dann nicht „schneller",
+sondern „der nächste Lauf beginnt, bevor der vorige verstanden hat, worum es
+geht". **15m für Issue-Triage, 15m für den MR-Loop** sind ein guter Startwert;
+unter 5m sollte nichts liegen, das Code anfasst.
+
+Zwei eingebaute Bremsen dämpfen das, ersetzen aber kein sinnvolles Intervall:
+
+- Ein Heartbeat feuert nicht, solange die Aufgabe seines letzten Laufs noch
+  offen ist (kein Stapeln).
+- Die `nur-wenn:`-Bedingung prüft die Flanke, nicht den Pegel (siehe oben).
+
+Was beides **nicht** abfängt: ein Lauf, der ohne Ergebnis am Turn-Limit endet.
+Covey erkennt das (`max_turns`), lässt sich den Zwischenstand vom Lauf selbst
+zusammenfassen und legt daraus eine **Folgeaufgabe** an, die die Session
+fortsetzt — statt den nächsten Heartbeat bei null anfangen zu lassen. Nach
+mehreren Fortsetzungen in Folge eskaliert die Aufgabe an den Vorgesetzten,
+statt weiterzulaufen. Passiert das regelmäßig, ist der Auftrag zu groß
+geschnitten oder `max_turns` zu klein.
+
+### 2.6 Testen
 
 1. Im Zielprojekt ein Issue anlegen → beim nächsten Heartbeat-Lauf nimmt der
    Agent es auf.
@@ -143,7 +181,7 @@ COVEY_GITLAB_INTAKE_PROJECTS="gruppe/support"   # leer = alle Projekte
    Rückfrage als Kommentar, schließt seinen Lauf mit `done` ab und prüft beim
    nächsten Heartbeat per `list_notes`, ob eine Antwort da ist.
 
-### 2.6 Der Review-Loop: der Agent als Entwickler
+### 2.7 Der Review-Loop: der Agent als Entwickler
 
 Behebt der Agent einen Bug selbst, arbeitet er wie ein Entwickler aus
 Fleisch und Blut — das Warten auf das Review läuft aber **per Polling**, nicht
@@ -173,16 +211,16 @@ Damit dieser Loop zuverlässig läuft, gehört der MR-Heartbeat
 Agenten genau dann, wenn einer seiner offenen MRs unbeantwortetes
 Review-Feedback hat — unabhängig davon, ob gerade ein Issue offen ist.
 
-### 2.7 Der QA-/Test-Agent: fremde MRs end-to-end testen
+### 2.8 Der QA-/Test-Agent: fremde MRs end-to-end testen
 
-Der Review-Loop aus 2.6 wartet standardmäßig auf einen **Menschen** (den
+Der Review-Loop aus 2.7 wartet standardmäßig auf einen **Menschen** (den
 Vorgesetzten, der als MR-Assignee eingetragen ist). Man kann das Review aber
 auch an einen **zweiten Agenten** geben — einen QA-/Test-Agenten, der das
 Feature abnimmt und dem Entwickler-Agenten Feedback gibt. Beide sind normale
 Covey-Agenten; sie arbeiten über GitLab zusammen (Covey kennt keine direkte
 Agent-zu-Agent-Aufgabenübergabe — die Zusammenarbeit läuft über das gemeinsame
 Zielsystem). Der Clou: Der Entwickler-Agent hat den MR-Review-Loop bereits
-(2.6) — kommentiert der QA-Agent Mängel am MR, greift der Entwickler sie bei
+(2.7) — kommentiert der QA-Agent Mängel am MR, greift der Entwickler sie bei
 seinem nächsten `gitlab:mr`-Lauf **automatisch** auf. Es braucht also nur die
 Intake-Seite des QA-Agenten.
 
