@@ -93,16 +93,17 @@ func mrProjectPath(m MergeRequest) string {
 //
 //   - Es gibt ein offenes Issue im Intake-Scope (globales GET /issues, danach
 //     COVEY_GITLAB_INTAKE_PROJECTS-Filter) — was der Agent nicht sähe, weckt
-//     ihn auch nicht.
+//     ihn auch nicht —, auf das der Bot noch nicht als Letzter geantwortet hat.
 //   - Der Bot hat einen offenen, selbst eröffneten Merge Request mit
 //     unbeantwortetem Review-Feedback (der letzte Nicht-System-Kommentar stammt
 //     von jemand anderem als dem Bot). Das trägt den Review-Loop ohne Webhook.
 //
 // Der Merge-Abschluss braucht keinen eigenen Zweig: ist das zugehörige Issue
 // noch offen, weckt es über den Issue-Zweig; ist es beim Merge automatisch
-// geschlossen worden, gibt es nichts mehr zu tun. Anders als das Gelesen-Flag
-// bei E-Mail bleiben offene Issues/MR-Threads „Arbeit", bis sie geschlossen bzw.
-// beantwortet sind — gespart wird die Leerlauf-Phase ganz ohne offene Arbeit.
+// geschlossen worden, gibt es nichts mehr zu tun. Maßgeblich ist überall die
+// **Flanke** (hat sich seit dem letzten Zug des Bots etwas getan?), nicht der
+// Pegel (steht irgendwo etwas offen?) — sonst weckt derselbe unerledigte Vorgang
+// den Agenten in jedem Intervall erneut.
 func (System) HasWork(ctx context.Context, cred target.Credential) (bool, error) {
 	gc := NewClient(cred.BaseURL, cred.Token)
 	has, err := issueWorkPending(ctx, gc, false)
@@ -115,12 +116,14 @@ func (System) HasWork(ctx context.Context, cred target.Credential) (bool, error)
 // HasWorkKind (target.KindWorkChecker) gatet eine einzelne Arbeits-Art, damit
 // mehrere Heartbeats (nur-wenn: gitlab:issues, :mr, :review) getrennt feuern:
 //
-//   - "issues"/"issue"  → gibt es IRGENDEIN offenes Issue im Intake-Scope (für
-//     Agenten, die alle offenen Issues triagieren)?
-//   - "issues:assigned"/"assigned" → gibt es ein offenes Issue, das dem Bot-
+//   - "issues"/"issue"  → wartet IRGENDEIN offenes Issue im Intake-Scope auf
+//     eine Reaktion (für Agenten, die alle offenen Issues triagieren)?
+//   - "issues:assigned"/"assigned" → wartet ein offenes Issue, das dem Bot-
 //     Nutzer selbst ZUGEWIESEN ist (scope=assigned_to_me)? Genau das braucht ein
 //     Agent, dessen Playbook nur seine eigenen Issues bearbeitet (list_issues
 //     assigned=true) — sonst weckt ihn jedes fremde offene Issue im Scope.
+//     „Wartet" heißt in beiden Fällen: der Bot hat dort noch nicht als Letzter
+//     kommentiert (siehe issueWorkPending).
 //   - "mr"/"mrs"        → wartet einer der SELBST eröffneten MRs des Bots auf
 //     Antwort (Autoren-Sicht, der Entwickler-Review-Loop)?
 //   - "review"/"reviews" → wartet einer der MRs, in denen der Bot als REVIEWER
@@ -142,23 +145,76 @@ func (System) HasWorkKind(ctx context.Context, cred target.Credential, kind stri
 	}
 }
 
-// issueWorkPending: gibt es mindestens ein offenes Issue im Intake-Scope?
-// Globales GET /issues, danach COVEY_GITLAB_INTAKE_PROJECTS-Filter — was der
-// Agent per list_issues nicht sähe, weckt ihn auch nicht. assignedOnly=true
-// zählt nur die dem Bot-Nutzer zugewiesenen Issues (scope=assigned_to_me) —
-// passend zu einem Playbook, das ausschließlich zugewiesene Issues bearbeitet;
-// sonst würde jedes fremde offene Issue im Scope den Agenten wecken.
+// issueMaxNotesChecks begrenzt die Kommentar-Prüfung von issueWorkPending: der
+// Check läuft in jedem Heartbeat-Intervall und darf nicht mit der Zahl offener
+// Issues davonlaufen. Wer mehr offene Issues hat als das, wird geweckt — die
+// Zuordnung „was davon ist neu" trifft dann der Agent selbst.
+const issueMaxNotesChecks = 30
+
+// issueWorkPending: wartet mindestens ein offenes Issue im Intake-Scope auf den
+// Agenten? Globales GET /issues, danach COVEY_GITLAB_INTAKE_PROJECTS-Filter —
+// was der Agent per list_issues nicht sähe, weckt ihn auch nicht.
+// assignedOnly=true zählt nur die dem Bot-Nutzer zugewiesenen Issues
+// (scope=assigned_to_me) — passend zu einem Playbook, das ausschließlich
+// zugewiesene Issues bearbeitet; sonst würde jedes fremde offene Issue im Scope
+// den Agenten wecken.
+//
+// Entscheidend ist die Flanke, nicht der Pegel: Ein offenes Issue ist Arbeit,
+// solange der letzte Nicht-System-Kommentar NICHT vom Bot stammt (oder es noch
+// gar keinen gibt — dann steht die Erst-Triage aus). Hat der Bot zuletzt
+// geschrieben, ruht das Issue, bis jemand antwortet. Ohne diese Kante bliebe ein
+// dauerhaft zugewiesenes Issue „ewig Arbeit" und der Heartbeat weckte den
+// Agenten in jedem Intervall neu auf dieselbe, längst erledigte Sache — dieselbe
+// Logik trägt bereits mrReviewPending/mrReviewAssignedPending.
+//
+// Der Vertrag daraus: **Ein Agent, der an einem Issue gearbeitet hat, muss dort
+// kommentieren.** Ein stiller Lauf gilt als „noch nicht bearbeitet" und weckt
+// erneut. Das Playbook „Issue-Triage" hält das so.
 func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) (bool, error) {
 	issues, err := gc.ListIssues(ctx, 0, "opened", "", "", assignedOnly)
 	if err != nil {
 		return false, err
 	}
+	inScope := issues[:0]
 	for _, i := range issues {
 		if projectInScope(i.ProjectID, issueProjectPath(i)) {
-			return true, nil
+			inScope = append(inScope, i)
 		}
 	}
+	if len(inScope) == 0 {
+		return false, nil
+	}
+	if len(inScope) > issueMaxNotesChecks {
+		return true, nil
+	}
+	me, err := gc.CurrentUser(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, i := range inScope {
+		notes, err := gc.ListNotes(ctx, i.ProjectID, i.IID)
+		if err != nil {
+			return false, err
+		}
+		if lastHumanNoteIsMine(notes, me.Username) {
+			continue // schon beantwortet — ruht, bis jemand darauf antwortet
+		}
+		return true, nil
+	}
 	return false, nil
+}
+
+// lastHumanNoteIsMine sagt, ob der letzte Nicht-System-Kommentar eines Threads
+// vom Bot selbst stammt. Ohne jeden menschlichen Kommentar ist die Antwort
+// false: ein unkommentierter Thread wartet auf den ersten Zug.
+func lastHumanNoteIsMine(notes []Note, me string) bool {
+	for i := len(notes) - 1; i >= 0; i-- {
+		if notes[i].System {
+			continue
+		}
+		return notes[i].Author.Username == me
+	}
+	return false
 }
 
 // mrReviewPending prüft, ob einer der offenen, selbst eröffneten Merge Requests
@@ -233,17 +289,7 @@ func mrReviewAssignedPending(ctx context.Context, gc *Client) (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		lastHumanIsMine := false
-		hasHuman := false
-		for i := len(notes) - 1; i >= 0; i-- {
-			if notes[i].System {
-				continue
-			}
-			hasHuman = true
-			lastHumanIsMine = notes[i].Author.Username == me.Username
-			break
-		}
-		if !hasHuman || !lastHumanIsMine {
+		if !lastHumanNoteIsMine(notes, me.Username) {
 			return true, nil
 		}
 	}

@@ -1361,14 +1361,20 @@ func TestReviewerHandoff(t *testing.T) {
 // zugewiesene Issues bearbeitet.
 func TestHasWorkKindIssuesAssigned(t *testing.T) {
 	var issues []Issue
+	var notes []Note
 	var sawScope string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v4/issues" {
+		switch {
+		case r.URL.Path == "/api/v4/issues":
+			sawScope = r.URL.Query().Get("scope")
+			json.NewEncoder(w).Encode(issues)
+		case r.URL.Path == "/api/v4/user":
+			json.NewEncoder(w).Encode(User{ID: 1, Username: "covey-bot"})
+		case strings.HasSuffix(r.URL.Path, "/notes"):
+			json.NewEncoder(w).Encode(notes)
+		default:
 			t.Errorf("unerwarteter request: %s", r.URL.Path)
-			return
 		}
-		sawScope = r.URL.Query().Get("scope")
-		json.NewEncoder(w).Encode(issues)
 	}))
 	defer srv.Close()
 
@@ -1378,6 +1384,13 @@ func TestHasWorkKindIssuesAssigned(t *testing.T) {
 
 	mine := Issue{IID: 23, ProjectID: 15}
 	mine.References.Full = "gruppe/support#23"
+	by := func(user string) struct {
+		Username string `json:"username"`
+	} {
+		return struct {
+			Username string `json:"username"`
+		}{Username: user}
+	}
 
 	// Kein zugewiesenes Issue → keine Arbeit; der Check muss assigned_to_me sein.
 	issues = nil
@@ -1388,10 +1401,33 @@ func TestHasWorkKindIssuesAssigned(t *testing.T) {
 		t.Fatalf("assigned-Subscope muss scope=assigned_to_me abfragen, war %q", sawScope)
 	}
 
-	// Ein zugewiesenes offenes Issue → Arbeit.
-	issues = []Issue{mine}
+	// Frisch zugewiesenes Issue ohne Kommentar → Erst-Triage steht aus, Arbeit.
+	issues, notes = []Issue{mine}, nil
 	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || !has {
 		t.Fatalf("mit Zuweisung: has=%v err=%v", has, err)
+	}
+
+	// Der Bot hat zuletzt kommentiert → bearbeitet, ruht bis zur Antwort. Genau
+	// hier lief der Agent vorher in die Endlosschleife: das Issue blieb ihm
+	// zugewiesen, also galt es in jedem 2-Minuten-Intervall erneut als Arbeit.
+	notes = []Note{
+		{ID: 1, Body: "Bitte fixen", Author: by("leaddev")},
+		{ID: 2, Body: "Erledigt via MR !12", Author: by("covey-bot")},
+	}
+	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || has {
+		t.Fatalf("vom Bot beantwortetes Issue darf nicht wecken: has=%v err=%v", has, err)
+	}
+
+	// Ein System-Kommentar danach (Label geändert) ändert daran nichts …
+	notes = append(notes, Note{ID: 3, System: true, Body: "added label", Author: by("leaddev")})
+	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || has {
+		t.Fatalf("system-notiz darf nicht wecken: has=%v err=%v", has, err)
+	}
+
+	// … eine echte Antwort schon.
+	notes = append(notes, Note{ID: 4, Body: "Noch ein Fall", Author: by("leaddev")})
+	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || !has {
+		t.Fatalf("neue Antwort muss wecken: has=%v err=%v", has, err)
 	}
 }
 
