@@ -23,6 +23,7 @@ func init() {
 		Label:       "E-Mail (IMAP/SMTP)",
 		Description: "Ein eigenes Mail-Postfach für den Agenten: Posteingang per IMAP sichten (list_unread/get_message), per SMTP antworten oder senden (reply/send), Ablage per mark_seen/move. Intake per HEARTBEAT.md (Polling, kein Webhook). Auth per Secrets email_url (Mailserver-Host, z. B. mail.example.com) und email_token (adresse:passwort).",
 		Kind:        "builtin",
+		Category:    target.CategoryComms,
 		System:      System{},
 		SetupDoc: `1. Beim Mail-Provider ein eigenes Postfach für den Agenten anlegen
    (z. B. support-agent@example.com) und ein App-Passwort erzeugen —

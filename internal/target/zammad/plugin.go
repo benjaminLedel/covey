@@ -21,6 +21,7 @@ func init() {
 		Label:       "Zammad",
 		Description: "Open-Source-Helpdesk (spec/13): Tickets lesen, antworten, Status setzen, eskalieren. Webhook-Wake über Trigger, Auth per API-Token (Secrets zammad_token + zammad_url).",
 		Kind:        "builtin",
+		Category:    target.CategoryTicketing,
 		System:      System{},
 		SetupDoc: `1. In Zammad einen Agenten-User mit Least-Privilege-Rolle (ticket.agent für
    die Zielgruppen) anlegen und als dieser ein API-Token erzeugen

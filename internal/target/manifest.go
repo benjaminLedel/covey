@@ -26,6 +26,9 @@ type Manifest struct {
 	Name        string `json:"name"`
 	Label       string `json:"label,omitempty"`
 	Description string `json:"description,omitempty"`
+	// Category ordnet das Plugin im Zielsystem-Store ein (siehe Category…
+	// in target.go). Leer = "other".
+	Category string `json:"category,omitempty"`
 
 	// Auth beschreibt, wie das gebrokerte Token in Requests landet.
 	Auth ManifestAuth `json:"auth"`

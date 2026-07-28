@@ -34,7 +34,10 @@ type Plugin struct {
 	Label       string          `json:"label"`
 	Description string          `json:"description"`
 	Kind        string          `json:"kind"` // builtin | custom | mcp
-	Enabled     bool            `json:"enabled"`
+	// Category ordnet das Plugin im Store ein: bei Built-ins aus dem
+	// Descriptor, bei Manifest-Plugins aus dem Manifest-Feld "category".
+	Category string          `json:"category,omitempty"`
+	Enabled  bool            `json:"enabled"`
 	Manifest    json.RawMessage `json:"manifest,omitempty"` // custom: Manifest, mcp: Config
 	UpdatedAt   *time.Time      `json:"updated_at,omitempty"`
 	// SetupDoc ist die Einrichtungs-Anleitung fürs UI: bei Built-ins aus dem
@@ -70,7 +73,7 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 
 	var out []Plugin
 	for _, d := range target.All() {
-		p := Plugin{Name: d.Name, Label: d.Label, Description: d.Description, Kind: "builtin", Enabled: false, SetupDoc: d.SetupDoc}
+		p := Plugin{Name: d.Name, Label: d.Label, Description: d.Description, Kind: "builtin", Category: d.Category, Enabled: false, SetupDoc: d.SetupDoc}
 		if row, ok := stored[d.Name]; ok {
 			p.Enabled = row.Enabled
 			p.UpdatedAt = row.UpdatedAt
@@ -81,14 +84,19 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 	for _, p := range stored {
 		switch p.Kind {
 		case "custom":
+			p.Category = target.CategoryOther
 			if m, err := target.ParseManifest(p.Manifest); err == nil {
 				p.Label, p.Description = m.Label, m.Description
 				if p.Label == "" {
 					p.Label = m.Name
 				}
+				if m.Category != "" {
+					p.Category = m.Category
+				}
 			}
 			p.SetupDoc = customSetupDoc(p.Name)
 		case "mcp":
+			p.Category = target.CategoryOther
 			if c, err := mcp.ParseConfig(p.Manifest); err == nil {
 				p.Label, p.Description = c.Label, c.Description
 				if p.Label == "" {

@@ -27,6 +27,7 @@ func init() {
 		Label:       "Nextcloud-Dateien",
 		Description: "Eine Nextcloud-Dateiablage per Freigabelink oder Konto-Zugang: Dateien listen (list), lesen (read/download in die Sandbox), ablegen und bearbeiten (write/upload), Ordner anlegen (mkdir), löschen (delete). Zugriff über WebDAV; einem Bot genügt der Link. Secrets nextcloud_url (Freigabelink https://host/s/… ODER Server-URL) + nextcloud_token (Share-Passwort bzw. benutzer:app-passwort). Intake per HEARTBEAT.md (Polling, kein Webhook).",
 		Kind:        "builtin",
+		Category:    target.CategoryFiles,
 		System:      System{},
 		SetupDoc: `Zwei Wege — der einfachste zuerst:
 

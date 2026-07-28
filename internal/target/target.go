@@ -163,8 +163,12 @@ type Descriptor struct {
 	Label       string `json:"label"`
 	Description string `json:"description"`
 	// Kind: "builtin" (kompiliert) oder "custom" (Manifest-Upload).
-	Kind   string `json:"kind"`
-	System System `json:"-"`
+	Kind string `json:"kind"`
+	// Category ordnet das Plugin im Store ein (Konstanten Category…). Das
+	// Plugin deklariert sie selbst — die UI leitet ihre Filter aus den
+	// vorkommenden Kategorien ab, ohne eigene Liste. Leer = CategoryOther.
+	Category string `json:"category,omitempty"`
+	System   System `json:"-"`
 	// NoCredentials: das System braucht keine gebrokerten Secrets (kein
 	// <name>_token/_url) — es arbeitet rein lokal in der Sandbox (z. B. das
 	// dev-Plugin). ACCESS.md, Aktivierung und Guard-Rails gelten trotzdem.
@@ -176,6 +180,18 @@ type Descriptor struct {
 	SetupDoc string `json:"setup_doc,omitempty"`
 }
 
+// Kategorien für den Zielsystem-Store. Rein für die Einordnung im UI —
+// Verhalten hängt nie daran.
+const (
+	CategoryTicketing = "ticketing"     // Helpdesk, Service-Desk
+	CategoryCode      = "code"          // Repos, Merge Requests, CI
+	CategoryComms     = "communication" // E-Mail, Chat
+	CategoryFiles     = "files"         // Dateiablagen, Dokumente
+	CategoryWeb       = "web"           // Browser, Web-Anwendungen
+	CategoryDev       = "dev"           // Werkzeuge in der Sandbox selbst
+	CategoryOther     = "other"
+)
+
 var (
 	registry = map[string]Descriptor{}
 	order    []string
@@ -186,6 +202,9 @@ var (
 func Register(d Descriptor) {
 	if d.Kind == "" {
 		d.Kind = "builtin"
+	}
+	if d.Category == "" {
+		d.Category = CategoryOther
 	}
 	if _, ok := registry[d.Name]; !ok {
 		order = append(order, d.Name)

@@ -26,6 +26,7 @@ func init() {
 		Label:         "Browser (headless Chrome)",
 		Description:   "Ein vollwertiger headless Chrome als universeller Adapter für Web-Anwendungen ohne eigenes Plugin: Seiten öffnen (navigate), sichtbaren Text/DOM auslesen (content), Screenshots in die Sandbox schreiben (screenshot), klicken (click) und tippen (type). Läuft lokal im Daemon (chromedp/DevTools-Protokoll), braucht keine Secrets. Welche Seiten erreichbar sind, gatet die Egress-Allowlist.",
 		Kind:          "builtin",
+		Category:      target.CategoryWeb,
 		System:        System{},
 		NoCredentials: true,
 		SetupDoc: `1. Plugin hier aktivieren — Secrets sind nicht nötig, alles läuft lokal

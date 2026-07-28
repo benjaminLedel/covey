@@ -21,6 +21,7 @@ func init() {
 		Label:       "Microsoft Teams",
 		Description: "Chat-Kanal über den Azure Bot Service (spec/15): Nachrichten empfangen (Messaging-Endpoint, JWT-verifiziert) und senden (Bot Connector). Auth per OAuth2 (Secrets teams_token = appId:appPassword + optional teams_url).",
 		Kind:        "builtin",
+		Category:    target.CategoryComms,
 		System:      System{},
 		SetupDoc: `1. In Azure eine Bot-Registration (Azure Bot / Bot Channels Registration)
    anlegen und den Kanal "Microsoft Teams" aktivieren. Microsoft-App-ID

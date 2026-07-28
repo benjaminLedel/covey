@@ -25,6 +25,7 @@ func init() {
 		Label:         "Dev-Sandbox",
 		Description:   "Der eigene Computer des Agenten: Shell-Befehle in der Sandbox ausführen (exec) und langlaufende Prozesse verwalten (start/stop/logs/list) — Dev-Server, Datenbanken, headless Chrome. Läuft vollständig im Daemon der Sandbox; braucht keine Secrets.",
 		Kind:          "builtin",
+		Category:      target.CategoryDev,
 		System:        System{},
 		NoCredentials: true,
 		SetupDoc: `1. Plugin hier aktivieren — Secrets sind nicht nötig, alle Aktionen

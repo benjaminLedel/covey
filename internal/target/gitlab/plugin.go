@@ -20,6 +20,7 @@ func init() {
 		Label:       "GitLab",
 		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues), extern gemeldete Bugs als Ticket anlegen (create_issue), Quellcode auschecken, Projekt aufsetzen und Bugs am Code verifizieren (checkout + Sandbox-Shell), an Issues angehängte Screenshots/Bilder lesen (download_upload + Vision), eigene Screenshots an einen MR/ein Issue anhängen (upload + comment_mr), Fixes entwickeln — auf Feature-Branch committen (commit), Merge Request an den Vorgesetzten eröffnen (create_merge_request, optional mit QA-Agent als reviewer) und den Review-Loop leben: bei jedem Heartbeat-Lauf offene MRs auf neues Review-Feedback prüfen (list_merge_requests/list_mr_notes/comment_mr), rote CI selbst diagnostizieren (list_pipelines/list_pipeline_jobs/get_job_log) und auf den Merge reagieren. Auch als QA-/Test-Agent nutzbar: fremde MRs, in denen man als Reviewer eingetragen ist, end-to-end testen und Feedback geben (set_reviewer/approve_mr, nur-wenn: gitlab:review). Intake per HEARTBEAT.md (Polling), Auth per API-Token (Secrets gitlab_token + gitlab_url).",
 		Kind:        "builtin",
+		Category:    target.CategoryCode,
 		System:      System{},
 		SetupDoc: `1. In GitLab einen eigenen Bot-Nutzer anlegen (z. B. covey-bot), den
    Zielprojekten hinzufügen und als dieser Nutzer ein Access Token mit

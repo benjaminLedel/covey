@@ -29,6 +29,7 @@ func init() {
 		Label:       "SharePoint / Teams-Dateien",
 		Description: "Eine SharePoint-/Teams-Dokumentbibliothek per Freigabelink: Dateien listen (list), lesen (read/download in die Sandbox), ablegen und bearbeiten (write/upload), Ordner anlegen (mkdir), löschen (delete). Auth über eine Entra-ID-App-Registrierung (Client-Credentials), Secrets sharepoint_url (Freigabelink) + sharepoint_token (tenant:client:secret). Intake per HEARTBEAT.md (Polling, kein Webhook).",
 		Kind:        "builtin",
+		Category:    target.CategoryFiles,
 		System:      System{},
 		SetupDoc: `1. In Entra ID (Azure-Portal → App-Registrierungen) eine App für den
    Agenten registrieren. Unter API-Berechtigungen die Anwendungs-
