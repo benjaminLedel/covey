@@ -42,6 +42,12 @@ type Config struct {
 	SessionTTL time.Duration
 	// DaemonTokenTTL für die kurzlebigen Sandbox-Daemon-JWTs.
 	DaemonTokenTTL time.Duration
+	// BoardRetention ist das Alter, ab dem die Control Plane eine terminale
+	// Aufgabe selbst archiviert (nicht löscht) und die dadurch leere
+	// Agenten-Spalte abräumt — damit sich das Board ohne Zutun aufräumt.
+	// COVEY_BOARD_RETENTION (Default 24h); eine negative Dauer schaltet das
+	// Aufräumen ab und lässt das Board wachsen.
+	BoardRetention time.Duration
 	// EgressEnforce schaltet den Egress-Allowlist-Proxy ein (nur docker-Provider):
 	// Sandbox-Verkehr geht dann über einen Proxy, der nur Allowlist-Hosts durchlässt.
 	EgressEnforce bool
@@ -80,6 +86,7 @@ func FromEnv() (Config, error) {
 		TickInterval:     getenvDuration("COVEY_TICK_INTERVAL", 30*time.Second),
 		SessionTTL:       getenvDuration("COVEY_SESSION_TTL", 12*time.Hour),
 		DaemonTokenTTL:   getenvDuration("COVEY_DAEMON_TOKEN_TTL", 15*time.Minute),
+		BoardRetention:   getenvDuration("COVEY_BOARD_RETENTION", 24*time.Hour),
 		EgressEnforce:    getenvBool("COVEY_EGRESS_ENFORCE", false),
 		EgressAllow:      splitList(os.Getenv("COVEY_EGRESS_ALLOW")),
 		EgressIsolation:  getenv("COVEY_EGRESS_ISOLATION", "proxy"),

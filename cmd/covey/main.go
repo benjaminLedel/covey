@@ -557,6 +557,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		PublicWSURL:    wsURL,
 		DaemonTokenTTL: cfg.DaemonTokenTTL,
 		TickInterval:   cfg.TickInterval,
+		BoardRetention: cfg.BoardRetention,
 		Log:            log,
 	})
 
