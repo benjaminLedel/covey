@@ -138,11 +138,23 @@ func truncRunes(s string, n int) string {
 }
 
 // deriveTitle zieht einen Seitentitel aus einer freien Erkenntnis: erster Satz
-// bzw. die ersten ~80 Zeichen, einzeilig.
+// bzw. die ersten ~80 Zeichen, einzeilig. Ein Satzzeichen zählt nur als
+// Satzende, wenn ein Leerzeichen oder das Textende folgt — sonst würde ein
+// Punkt in einer Domain, Abkürzung oder Dezimalzahl (x.educa-portal.de, z.B.,
+// 3.5 GB) den Titel zum 1-Wort-Fragment zerhacken. Zusätzlich wird ein zu
+// kurzer erster „Satz" (< minTitleLen) übersprungen.
+const minTitleLen = 12
+
 func deriveTitle(content string) string {
 	t := strings.Join(strings.Fields(content), " ")
-	if i := strings.IndexAny(t, ".!?\n"); i > 0 && i < 80 {
-		t = t[:i] // Satzzeichen sind ASCII → Byte-Index ist Rune-Grenze
+	for i := 0; i < len(t) && i < 80; i++ {
+		if c := t[i]; c == '.' || c == '!' || c == '?' {
+			atBoundary := i+1 >= len(t) || t[i+1] == ' '
+			if atBoundary && i >= minTitleLen {
+				t = t[:i] // Satzzeichen sind ASCII → Byte-Index ist Rune-Grenze
+				break
+			}
+		}
 	}
 	if len([]rune(t)) > 80 {
 		t = strings.TrimSpace(truncRunes(t, 80))
