@@ -52,7 +52,12 @@ func DownloadAttachmentToSandbox(ctx context.Context, c *Client, downloadURL, na
 		return DownloadResult{}, err
 	}
 
-	hint := fmt.Sprintf("Datei liegt lokal unter %s (Content-Type %s). Ist es ein Bild, sieh es mit dem Read-Tool an (Vision); sonst öffne es passend.", dest, contentType)
+	// Content-Type nur nennen, wenn die Antwort einen brauchbaren mitgibt.
+	var ct string
+	if contentType != "" {
+		ct = " (Content-Type " + contentType + ")"
+	}
+	hint := fmt.Sprintf("Datei liegt lokal unter %s%s. Ist es ein Bild, sieh es mit dem Read-Tool an (Vision); sonst öffne es passend.", dest, ct)
 	if strings.HasPrefix(contentType, "image/") {
 		hint = fmt.Sprintf("Bild liegt lokal unter %s — sieh es dir mit dem Read-Tool an (Vision).", dest)
 	}
