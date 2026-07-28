@@ -307,9 +307,22 @@ var stateStage = map[string]string{
 	StateCancelled:  "Erledigt",
 }
 
+// terminalState sagt, ob ein State das Ende der Aufgabe ist.
+func terminalState(state string) bool {
+	return state == StateDone || state == StateFailed || state == StateCancelled
+}
+
 // syncStage führt die Stage dem neuen State nach (innerhalb der Transaktion
 // des Zustandsübergangs). Fehlt die Ziel-Spalte (umbenannt/gelöscht), passiert
 // nichts — Auto-Follow ist Komfort, nie Zwang.
+//
+// Beim Übergang in einen terminalen State greift Auto-Follow zusätzlich für die
+// vom Agenten selbst angelegten Spalten: Eine erledigte Aufgabe gehört nicht in
+// „Recherche", sie gehört nach „Erledigt". Ohne das bliebe in jeder erfundenen
+// Spalte eine terminale Aufgabe liegen, die Spalte damit dauerhaft „nicht leer"
+// — und das Board sammelte über Wochen ein Dutzend toter Arbeitszustände an.
+// Von Menschen angelegte Spalten bleiben auch hier unangetastet: bewusste
+// Platzierung wird nie überschrieben.
 func syncStage(ctx context.Context, tx pgx.Tx, taskID uuid.UUID, newState string) error {
 	target, ok := stateStage[newState]
 	if !ok {
@@ -324,8 +337,9 @@ func syncStage(ctx context.Context, tx pgx.Tx, taskID uuid.UUID, newState string
 		WHERE t.id=$1 AND s.agent_id=t.agent_id AND s.name=$2
 		  AND (t.stage_id IS NULL OR t.stage_id IN (
 		      SELECT d.id FROM agent_stages d
-		      WHERE d.agent_id=t.agent_id AND d.name = ANY($3)))`,
-		taskID, target, names)
+		      WHERE d.agent_id=t.agent_id
+		        AND (d.name = ANY($3) OR ($4 AND d.created_by='agent'))))`,
+		taskID, target, names, terminalState(newState))
 	return err
 }
 
@@ -358,6 +372,14 @@ func (s *Store) transition(ctx context.Context, id uuid.UUID, to, note string, s
 	}
 	if err := syncStage(ctx, tx, id, to); err != nil {
 		return Task{}, err
+	}
+	// Die Aufgabe hat gerade eine Agenten-Spalte verlassen — steht die jetzt
+	// leer, verschwindet sie mit. Das hält das Board auf den Arbeitszuständen,
+	// die es wirklich gibt.
+	if terminalState(to) {
+		if _, err := cleanupEmptyAgentStages(ctx, tx, t.AgentID); err != nil {
+			return Task{}, err
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return Task{}, err
