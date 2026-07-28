@@ -3,12 +3,17 @@
 GO ?= go
 DB_URL ?= postgres://covey:covey@localhost:5433/covey?sslmode=disable
 
-.PHONY: build web test test-integration run bootstrap dev-db sandbox-image egress-image clean
+.PHONY: build web test test-integration run bootstrap dev-db sandbox-image egress-image clean skill-sync
 
 web:
 	cd web && npm install && npm run build
 
-build: web
+# Skills: skills/ ist die Quelle (ins Binary eingebettet, per Download angeboten);
+# die Kopie unter .claude/skills/ hält Claude Code im Repo selbst aktuell.
+skill-sync:
+	@for d in skills/*/; do name=$$(basename $$d); mkdir -p .claude/skills/$$name && cp -f $$d/* .claude/skills/$$name/; done
+
+build: web skill-sync
 	$(GO) build -o covey ./cmd/covey
 	$(GO) build -o coveyd ./cmd/coveyd
 

@@ -1001,9 +1001,11 @@
     "nameSaved": "Anzeigename gespeichert.",
     "skill": {
       "title": "Claude-Skill: Agenten bauen",
+      "download": "Skill herunterladen (.zip)",
       "intro": "Mit dem Claude-Code-Skill „covey-agent“ entwirfst, baust und aktualisierst du Covey-Agenten direkt in Claude Code — er kennt die Bundle-Konventionen (SOUL/PLAYBOOKS/ACCESS/HEARTBEAT, Loop-Schutz) und legt den Agenten optional per API an.",
-      "step1": "Der Skill liegt im Covey-Repository unter .claude/skills/covey-agent/. Arbeitest du mit Claude Code direkt im covey-Repo, ist er schon verfügbar.",
-      "step2": "Für den projektübergreifenden Einsatz den Ordner in dein persönliches Claude-Verzeichnis kopieren:",
+      "downloadHint": "Kein Git-Zugriff nötig: lade den Skill als ZIP und entpacke ihn in dein persönliches Claude-Verzeichnis. Die URL dieser Covey-Instanz ist im Skill bereits hinterlegt.",
+      "repoNote": "Alternativ, wenn du mit Claude Code direkt im covey-Repo arbeitest:",
+      "step1": "Der Skill ist unter .claude/skills/covey-agent/ schon verfügbar — nichts zu tun.",
       "step3": "In Claude Code aufrufen mit",
       "hint": "Danach genügt auch „baue einen Covey-Agenten für …“ — der Skill greift automatisch. Zum Weitergeben an Dritte: exportiere fertige Agenten als Bundle (Agenten-Seite → Config → Export) und importiere sie in einer anderen Covey-Instanz."
     }
