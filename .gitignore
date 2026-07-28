@@ -15,6 +15,9 @@ covey.log
 web/node_modules/
 web/dist/
 
+# IDEs
+.idea/
+
 # macOS
 .DS_Store
 web/tsconfig.tsbuildinfo
