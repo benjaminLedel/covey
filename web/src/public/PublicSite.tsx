@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Routes, Route, Navigate, useLocation, Link } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { PublicBackground, useReveal, BirdMark } from "./chrome";
 import PublicNav from "./PublicNav";

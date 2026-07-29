@@ -68,7 +68,9 @@ export function Bird({
 /* Lebender Schwarm (Boids) auf Canvas: Kohäsion, Ausrichtung, Abstand —
    und sanftes Ausweichen vor dem Mauszeiger. Läuft nicht bei
    prefers-reduced-motion. */
-export function useBoids(ref: React.RefObject<HTMLCanvasElement>) {
+// Der Ref-Typ trägt seit React 19 das null aus useRef(null) mit — der Body
+// prüft es ohnehin ab, bevor er auf das Canvas geht.
+export function useBoids(ref: React.RefObject<HTMLCanvasElement | null>) {
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
@@ -316,7 +318,7 @@ export function useReveal(dep?: unknown) {
 
 /* Icon-Pfade im Stil der Sidebar-Nav (App.tsx / Mockup). Zentral, damit
    Home, Funktion und Produktseiten dieselben Glyphen teilen. */
-export const icons: Record<string, JSX.Element> = {
+export const icons: Record<string, React.JSX.Element> = {
   sitemap: (
     <>
       <rect x="9" y="3" width="6" height="5" rx="1" />
