@@ -1,11 +1,37 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
-
+# Dependabot-Konfiguration für den GitHub-Spiegel (die CI selbst läuft auf
+# GitLab). Covey wird von Dritten aus GitHub installiert — offene Advisories
+# sind dort sichtbar, also sollen Updates auch dort auflaufen.
+#
+# Drei Ökosysteme an drei Orten: das Frontend unter web/ (npm), das Go-Modul in
+# der Repo-Wurzel und die Basis-Images der Dockerfiles. Wöchentlich, damit es
+# Signal bleibt und nicht zum Rauschen wird.
 version: 2
 updates:
-  - package-ecosystem: "" # See documentation for possible values
-    directory: "/" # Location of package manifests
+  # Frontend: package.json/package-lock.json liegen unter web/.
+  - package-ecosystem: "npm"
+    directory: "/web"
     schedule:
       interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      # Ein PR je Woche für die harmlosen Sprünge; Majors kommen einzeln —
+      # sie sind eigene Arbeit (siehe den React-19-Schritt).
+      minor-und-patch:
+        update-types: ["minor", "patch"]
+
+  # Control Plane und Daemon: ein Go-Modul in der Repo-Wurzel.
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-und-patch:
+        update-types: ["minor", "patch"]
+
+  # Basis-Images der Dockerfiles (Endimage, Sandbox, Egress-Proxy).
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
