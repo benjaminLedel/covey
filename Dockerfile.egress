@@ -10,12 +10,17 @@ COPY cmd/covey ./cmd/covey
 COPY internal ./internal
 COPY migrations ./migrations
 COPY web ./web
+# examples/ und skills/ hängen an //go:embed (Agenten-Vorlagen bzw. der zum
+# Download angebotene Claude-Code-Skill). Der Proxy nutzt beides nie, aber es
+# ist dasselbe Binary — ohne die Verzeichnisse kompiliert es nicht.
+COPY examples ./examples
+COPY skills ./skills
 # Der Proxy-Container liefert die SPA nie aus; ein Placeholder-dist genügt, damit
 # die //go:embed all:dist-Direktive des web-Pakets baut (kein npm-Build nötig).
 RUN mkdir -p web/dist && [ -e web/dist/index.html ] || echo "egress-proxy" > web/dist/index.html
 RUN CGO_ENABLED=0 go build -o /covey ./cmd/covey
 
-FROM alpine:3.20
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates
 COPY --from=build /covey /usr/local/bin/covey
 ENTRYPOINT ["covey", "egress-proxy"]
