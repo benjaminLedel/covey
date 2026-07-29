@@ -15,7 +15,7 @@ COPY web ./web
 RUN mkdir -p web/dist && [ -e web/dist/index.html ] || echo "egress-proxy" > web/dist/index.html
 RUN CGO_ENABLED=0 go build -o /covey ./cmd/covey
 
-FROM alpine:3.20
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates
 COPY --from=build /covey /usr/local/bin/covey
 ENTRYPOINT ["covey", "egress-proxy"]
