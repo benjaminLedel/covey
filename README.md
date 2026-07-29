@@ -4,10 +4,10 @@
 
 # Covey
 
-**Die IT- und HR-Abteilung für KI-Agenten.**
+**The IT and HR department for AI agents.**
 
-Eine Plattform, die KI-Agenten wie Mitarbeiter führt — mit Identität, Arbeitsplatz,<br/>
-Zugängen, Backlog und Vorgesetztem. Und mit den Werkzeugen, sie zu überwachen.
+A platform that manages AI agents like employees — with an identity, a workplace,<br/>
+credentials, a backlog and a manager. Plus the tooling to supervise them.
 
 [![covey.work](https://img.shields.io/badge/live-covey.work-cc7a5b)](https://covey.work)
 [![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](go.mod)
@@ -15,225 +15,229 @@ Zugängen, Backlog und Vorgesetztem. Und mit den Werkzeugen, sie zu überwachen.
 [![Deployment](https://img.shields.io/badge/Deployment-Single%20Binary-1f883d)](#stack)
 [![Runtime](https://img.shields.io/badge/Runtime-Claude%20Code-d97757)](spec/12-claude-code-adapter.md)
 
-**[covey.work](https://covey.work)** — die Plattform live
+**[covey.work](https://covey.work)** — the platform, live
 
-**Deutsch** · [English](README.en.md)
+[Deutsch](README.de.md) · **English**
 
 </div>
 
 ---
 
-> **Codename: Covey.** Ein „covey" ist ein kleiner, koordinierter Schwarm — eine abgestimmte Gruppe, die zusammen unterwegs ist. Genau das ist die Plattform: viele Agenten, zentral orchestriert.
+> **Codename: Covey.** A *covey* is a small, coordinated flock — a group that moves together. That is exactly what this platform is: many agents, centrally orchestrated.
 
-**Coveys Einheit ist die Organisation, nicht der einzelne Nutzer.** Das ist die tragende Abgrenzung zu den Single-User-„AI-Employee"-Apps: Covey ist die Plattform, die ein *Unternehmen* betreibt, um seine gesamte Agenten-Belegschaft zu verwalten und zu governen — mit vielen menschlichen Stakeholdern (IT, Team-Leads, Security/Compliance, Audit, Controlling), zentraler Governance und unternehmensweitem Org-Chart.
+**Covey's unit is the organisation, not the individual user.** That is the load-bearing distinction from single-user "AI employee" apps: Covey is the platform a *company* operates to manage and govern its entire agent workforce — with many human stakeholders (IT, team leads, security/compliance, audit, controlling), central governance and a company-wide org chart.
 
-## Die Oberfläche
+> **A note on language:** the UI, the specification in [`spec/`](spec/) and the runbooks in [`docs/`](docs/) are written in **German**. This README is the English entry point; the German one lives at [`README.de.md`](README.de.md).
 
-![Agenten-Übersicht](web/public/shots/agents.jpg)
+## The interface
 
-*Die Belegschaft einer Organisation auf einen Blick — Zustand (`gestoppt`, `schläft`), Runtime pro Agent und der Notaus für alle.*
+![Agent overview](web/public/shots/agents.jpg)
+
+*An organisation's workforce at a glance — state (`gestoppt` = stopped, `schläft` = sleeping), the runtime per agent, and the kill switch for all of them.*
 
 | | |
 |---|---|
-| ![Backlog eines Agenten](web/public/shots/backlog.jpg) | ![Organigramm](web/public/shots/org.jpg) |
-| **Backlog** — Aufgaben als First-Class-Objekte, Spalten frei konfigurierbar; Kosten, Token und Budget stehen im Kopf des Agenten. | **Organigramm** — Menschen und Agenten in derselben Struktur; Abteilung und Unterstellung per Drag & Drop. |
-| ![Gedächtnis eines Agenten](web/public/shots/memory.jpg) | ![Kosten & Token](web/public/shots/costs.jpg) |
-| **Gedächtnis** — was der Agent gelernt hat, lesbar und editierbar: Wissen von Hand ergänzen oder gezielt vergessen lassen. | **Kosten & Token** — Ausgaben über die Zeit, aufgeschlüsselt nach Agent und Modell, für die Organisation oder einen einzelnen Agenten. |
+| ![An agent's backlog](web/public/shots/backlog.jpg) | ![Org chart](web/public/shots/org.jpg) |
+| **Backlog** — tasks as first-class objects with freely configurable columns; cost, tokens and budget sit in the agent's header. | **Org chart** — humans and agents in the same structure; department and reporting line via drag & drop. |
+| ![An agent's memory](web/public/shots/memory.jpg) | ![Cost & tokens](web/public/shots/costs.jpg) |
+| **Memory** — what the agent has learned, readable and editable: add knowledge by hand or make it forget selectively. | **Cost & tokens** — spend over time, broken down by agent and model, for the whole organisation or a single agent. |
 
-## In zwei Minuten starten
+## Up and running in two minutes
 
-Lieber erst schauen? Die laufende Instanz steht unter **[covey.work](https://covey.work)** — sie wird bei jedem Push auf `main` automatisch neu ausgerollt.
+Want a look first? The running instance lives at **[covey.work](https://covey.work)** — it is redeployed automatically on every push to `main`.
 
-Selbst betreiben geht **ohne Go, Node oder lokale Postgres** — nur Docker nötig:
+Running it yourself needs **no Go, no Node, no local Postgres** — Docker is all you need:
 
 ```bash
 cp .env.example .env
-echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env   # 32-Byte-Schlüssel
-docker compose up -d --build                              # Postgres + Covey starten
+echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env   # 32-byte key
+docker compose up -d --build                              # start Postgres + Covey
 ```
 
-Dann [http://localhost:8494](http://localhost:8494) öffnen — Login `admin@covey.local` / `covey-admin`.
+Then open [http://localhost:8494](http://localhost:8494) — log in with `admin@covey.local` / `covey-admin`.
 
-Das mitgelieferte [`docker-compose.yml`](docker-compose.yml) bringt Postgres (pgvector) und das covey-Binary mit eingebetteter Admin-UI; `bootstrap` legt Organisation, Admin und einen Demo-Agenten an, Migrationen laufen automatisch. Vollständige Anleitung inkl. erstem Agenten und Produktions-Checkliste: [`docs/schnellstart-docker.md`](docs/schnellstart-docker.md).
+The bundled [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector) and the covey binary with its embedded admin UI; `bootstrap` creates the organisation, the admin and a demo agent, and migrations run automatically. Full walkthrough including your first agent and a production checklist: [`docs/schnellstart-docker.md`](docs/schnellstart-docker.md) (German).
 
-## Was drin ist
+## What's inside
 
 | | |
 |---|---|
-| 🧑‍💼 **Agenten mit Identität** | Eigene Sandbox, eigenes Home, eigene Zugänge — und ein Platz im Org-Chart neben den Menschen. |
-| 📥 **Backlog & Wake-Quellen** | Aufgaben als First-Class-Objekte; Agenten wachen per Webhook, Heartbeat oder Zuruf auf und schlafen danach wieder. |
-| 🔌 **Zielsysteme als Plugins** | Zammad, GitLab, Microsoft Teams, SharePoint, Nextcloud, E-Mail (IMAP/SMTP), headless Browser, MCP — jedes über ein Manifest, kein Sonderweg im Kern. |
-| 🛡️ **Guard-Rails & Freigaben** | Zentral erzwungen, außerhalb der Runtime, fail-closed. Kritische Aktionen gehen an einen Menschen. |
-| 🔑 **Secrets-Broker** | Keine langlebigen Secrets in der Sandbox — Zugriff wird zur Laufzeit gebrokert, kurzlebig und gescopt. |
-| 🧠 **Wiki-Gedächtnis** | Verlinkte Markdown-Seiten mit pgvector-Index statt flacher Schnipsel — lesbar und von Hand korrigierbar. |
-| 🎥 **Recording & Kill-Switch** | Jeder Lauf aufgezeichnet inkl. Screenshots; Kosten pro Agent und Modell; Notaus für die ganze Organisation. |
-| 📦 **Ein Binary** | Frontend und Migrationen sind einkompiliert. Kopieren, `covey serve` — kein nginx, kein separates Frontend-Hosting. |
+| 🧑‍💼 **Agents with an identity** | Their own sandbox, their own home directory, their own credentials — and a place on the org chart next to the humans. |
+| 📥 **Backlog & wake sources** | Tasks as first-class objects; agents wake on a webhook, a heartbeat or a nudge, then go back to sleep. |
+| 🔌 **Target systems as plugins** | Zammad, GitLab, Microsoft Teams, SharePoint, Nextcloud, email (IMAP/SMTP), headless browser, MCP — each driven by a manifest, no special case in the core. |
+| 🛡️ **Guard rails & approvals** | Enforced centrally, outside the runtime, fail-closed. Critical actions go to a human first. |
+| 🔑 **Secrets broker** | No long-lived secrets inside the sandbox — access is brokered at runtime, short-lived and scoped. |
+| 🧠 **Wiki memory** | Linked Markdown pages with a pgvector index instead of flat snippets — readable, and correctable by hand. |
+| 🎥 **Recording & kill switch** | Every run recorded including screenshots; cost per agent and model; an emergency stop for the entire organisation. |
+| 📦 **One binary** | Frontend and migrations are compiled in. Copy it, run `covey serve` — no nginx, no separate frontend hosting. |
 
-**Automatisches Deployment (main → Host):** Jeder Push auf `main` rollt Covey über die GitLab-Pipeline (`test → build → deploy`) auf einen Zielhost aus — so entsteht [covey.work](https://covey.work): das gebaute Image auf den Commit-Tag gepinnt, via [`docker-compose.deploy.yml`](docker-compose.deploy.yml) auf einem Shell-Runner am Host gestartet. Siehe [`docs/betrieb-deployment.md`](docs/betrieb-deployment.md).
+**Automatic deployment (main → host):** every push to `main` rolls Covey out to a target host through the GitLab pipeline (`test → build → deploy`) — that is how [covey.work](https://covey.work) stays current: the built image pinned to the commit tag, started on a shell runner via [`docker-compose.deploy.yml`](docker-compose.deploy.yml). See [`docs/betrieb-deployment.md`](docs/betrieb-deployment.md).
 
-## Die Leitmetapher
+## The guiding metaphor
 
-Die Plattform ist die **IT- und HR-Abteilung für KI-Agenten**. Fast jede Komponente hat ein Gegenstück im echten Unternehmen — daraus folgt der Bauplan:
+The platform is the **IT and HR department for AI agents**. Nearly every component has a counterpart in a real company — and that gives you the blueprint:
 
-| Im Unternehmen | Auf der Plattform |
+| In a company | On the platform |
 |---|---|
-| Identität / Active Directory | Agent-Identität (E-Mail optional) |
-| Arbeitsplatz / PC | Isolierte, persistente Sandbox |
-| Onboarding / Org-Chart | `SOUL.md` + Org-Struktur |
-| Belegschaft & Abteilungen | Org-eigene Agenten, Teams, Cost-Center |
-| Personalabteilung / IT-Verwaltung | Menschliche Rollen + RBAC + SSO |
-| Passwort-Tresor / PAM | Secrets-Broker (kurzlebige Tokens) |
-| Aufgabenliste / Ticket | Backlog (First-Class-Objekt) |
-| Betriebshandbuch / Compliance | Zentrale Guard-Rails (plattform-erzwungen) |
-| SIEM / EDR | Session-Recording + Alerts + Kill-Switch |
+| Identity / Active Directory | Agent identity (email optional) |
+| Workplace / PC | Isolated, persistent sandbox |
+| Onboarding / org chart | `SOUL.md` + org structure |
+| Workforce & departments | Org-owned agents, teams, cost centres |
+| HR / IT administration | Human roles + RBAC + SSO |
+| Password vault / PAM | Secrets broker (short-lived tokens) |
+| Task list / ticket | Backlog (first-class object) |
+| Operations manual / compliance | Central guard rails (platform-enforced) |
+| SIEM / EDR | Session recording + alerts + kill switch |
 
-## Architektur
+## Architecture
 
 ```mermaid
 flowchart LR
-    UI["Admin-UI / API"] --> CP
+    UI["Admin UI / API"] --> CP
 
-    subgraph CP["Control Plane — zustandsführend, immer aktiv"]
+    subgraph CP["Control Plane — stateful, always on"]
         direction TB
-        SCHED["Scheduler · Backlog · Org-Chart"]
-        GUARD["Guard-Rails · Secrets-Broker"]
-        OBS["Recording · Kosten · Alerts"]
+        SCHED["Scheduler · Backlog · Org chart"]
+        GUARD["Guard rails · Secrets broker"]
+        OBS["Recording · Cost · Alerts"]
     end
 
-    subgraph DP["Data Plane — ephemer, persistentes Home"]
+    subgraph DP["Data Plane — ephemeral, persistent home"]
         direction TB
-        S1["Sandbox: coveyd + Runtime"]
-        S2["Sandbox: coveyd + Runtime"]
+        S1["Sandbox: coveyd + runtime"]
+        S2["Sandbox: coveyd + runtime"]
     end
 
-    CP <-->|Daemon-Protokoll| DP
-    CP --> TS["Zielsysteme: Zammad · GitLab · Teams · SharePoint · Nextcloud · E-Mail · Browser · MCP"]
+    CP <-->|daemon protocol| DP
+    CP --> TS["Targets: Zammad · GitLab · Teams · SharePoint · Nextcloud · Email · Browser · MCP"]
     CP --- DB[("PostgreSQL + pgvector")]
 ```
 
-Das System zerfällt in eine **Control Plane** (zustandsführend, immer aktiv: Scheduler, Agent-Registry, Backlog-Store, Identitäts- & Secrets-Broker, Guard-Rail-Engine, Observability) und eine **Data Plane** aus isolierten, ephemeren **Sandboxen** mit persistentem Home. In jeder Sandbox läuft ein schlanker **Daemon**, der ein einheitliches Protokoll spricht und die konkrete **Runtime** (Claude Code, …) über einen dünnen **Adapter** bootstrappt. Die Plattform managt die Sandbox, nicht das Framework — dadurch bleibt die Runtime austauschbar. Details in [`spec/01-architektur.md`](spec/01-architektur.md).
+The system splits into a **control plane** (stateful, always on: scheduler, agent registry, backlog store, identity & secrets broker, guard-rail engine, observability) and a **data plane** of isolated, ephemeral **sandboxes** with a persistent home. Each sandbox runs a slim **daemon** that speaks one uniform protocol and bootstraps the concrete **runtime** (Claude Code, …) through a thin **adapter**. The platform manages the sandbox, not the framework — which is what keeps the runtime swappable. Details in [`spec/01-architektur.md`](spec/01-architektur.md).
 
-## Designprinzipien
+## Design principles
 
-1. **Organisation als Einheit, nicht der Nutzer.**
-2. **Die Control Plane ist das Produkt.** Sandboxen sind Commodity, Runtimes austauschbar.
-3. **Runtime-agnostisch.** Einheitlicher Daemon + dünne Adapter statt Framework-Lock-in.
-4. **Immer erreichbar, Compute nur bei Bedarf.** Idle muss wirklich idle sein.
-5. **Config-as-Code.** Agentenverhalten versioniert in Git, Änderung via PR/Review.
-6. **Niemals langlebige Secrets in die Sandbox.** Zugriff wird zur Laufzeit gebrokert, kurzlebig, gescopt.
-7. **Guard-Rails zentral und plattform-erzwungen.** Fail-closed, außerhalb der Runtime durchgesetzt.
-8. **Trust by design.** Recording, Freigaben und Kill-Switch sind Grundvoraussetzung, kein Add-on.
-9. **Seriell vor parallel.** Ein Agent, eine Aufgabe zur Zeit; Parallelität = mehr Agenten.
-10. **Batteries included, but swappable.** Jede Fähigkeit hat einen simplen, DB-gestützten Built-in-Default und ein schmales Interface für einen externen Provider.
+1. **The organisation is the unit, not the user.**
+2. **The control plane is the product.** Sandboxes are commodity, runtimes are swappable.
+3. **Runtime-agnostic.** One daemon protocol + thin adapters instead of framework lock-in.
+4. **Always reachable, compute only on demand.** Idle has to mean idle.
+5. **Config as code.** Agent behaviour versioned in Git, changed via PR/review — not via deploy.
+6. **Never put long-lived secrets in the sandbox.** Access is brokered at runtime, short-lived and scoped.
+7. **Guard rails central and platform-enforced.** Fail-closed, enforced outside the runtime.
+8. **Trust by design.** Recording, approvals and the kill switch are prerequisites, not add-ons.
+9. **Serial before parallel.** One agent, one task at a time; parallelism means more agents.
+10. **Batteries included, but swappable.** Every capability has a simple DB-backed built-in default and a narrow interface for an external provider.
 
 ## Stack
 
-- **Backend:** ein einziges Go-Binary — API/BFF + Orchestration-Core in einem Prozess, sauber getrennt.
-- **Frontend:** React + Tailwind + shadcn/ui + TanStack Query, WebSocket/SSE für Live-Updates — via `//go:embed` ins Binary gebacken.
-- **Datenhaltung:** PostgreSQL als Anker — State, Backlog, RBAC, Job-Queue (`SKIP LOCKED`), Pub/Sub (`LISTEN/NOTIFY`), Memory (`pgvector`), verschlüsselte Secret-Spalten (AES-GCM).
-- **Default:** `builtin` überall — faktisch **Binary + Postgres + Docker, sonst nichts**. Keycloak/Vault/Redis sind optional zuschaltbar, nicht Voraussetzung.
+- **Backend:** a single Go binary — API/BFF + orchestration core in one process, cleanly separated.
+- **Frontend:** React + Tailwind + shadcn/ui + TanStack Query, WebSocket/SSE for live updates — baked into the binary via `//go:embed`.
+- **Storage:** PostgreSQL as the anchor — state, backlog, RBAC, job queue (`SKIP LOCKED`), pub/sub (`LISTEN/NOTIFY`), memory (`pgvector`), encrypted secret columns (AES-GCM).
+- **Default:** `builtin` everywhere — effectively **binary + Postgres + Docker, nothing else**. Keycloak/Vault/Redis are optional, never prerequisites.
 
 Details in [`spec/10-architektur-stack.md`](spec/10-architektur-stack.md).
 
-## Entwicklung
+## Development
 
 ```bash
-make dev-db       # Postgres (pgvector) via Docker auf Port 5433
-make bootstrap    # Frontend + Binaries bauen, migrieren, Org/Admin/Agent anlegen
-make run          # covey serve auf http://localhost:8494
+make dev-db       # Postgres (pgvector) via Docker on port 5433
+make bootstrap    # build frontend + binaries, migrate, create org/admin/agent
+make run          # covey serve on http://localhost:8494
 ```
 
-**Sandbox-Isolation.** Die Control Plane startet Sandboxen als Container (**docker-Provider**, Default) — echte Isolation auf Container-Ebene. Vor dem ersten Start `make sandbox-image` bauen ([`Dockerfile.sandbox`](Dockerfile.sandbox): coveyd + Claude Code + chromium für das `browser`-Plugin). Das persistente Agenten-Home wird als Volume gemountet; der Container erbt nichts von der Host-Umgebung. Image überschreibbar via `COVEY_SANDBOX_IMAGE`.
+**Sandbox isolation.** The control plane starts sandboxes as containers (**docker provider**, the default) — real isolation at the container level. Build the image once before the first start with `make sandbox-image` ([`Dockerfile.sandbox`](Dockerfile.sandbox): coveyd + Claude Code + chromium for the `browser` plugin). The persistent agent home is mounted as a volume; the container inherits nothing from the host environment. Override the image via `COVEY_SANDBOX_IMAGE`.
 
-**Anmeldung.** `admin@covey.local` / `covey-admin`, überschreibbar via `COVEY_ADMIN_EMAIL` / `COVEY_ADMIN_PASSWORD` beim Bootstrap.
+**Login.** `admin@covey.local` / `covey-admin`, overridable via `COVEY_ADMIN_EMAIL` / `COVEY_ADMIN_PASSWORD` at bootstrap time.
 
-**Runtime-Zugang.** Damit die Claude-Code-Runtime arbeiten kann, muss eines dieser Secrets hinterlegt sein:
+**Runtime access.** For the Claude Code runtime to do any work, one of these secrets must be set:
 
-| Secret | Wofür |
+| Secret | Purpose |
 |---|---|
-| `anthropic_api_key` | API-Key (Pay-as-you-go) |
-| `claude_code_oauth_token` | Abo-Account — Token einmalig mit `claude setup-token` erzeugen |
+| `anthropic_api_key` | API key (pay as you go) |
+| `claude_code_oauth_token` | Subscription account — generate the token once with `claude setup-token` |
 
-Ohne eines von beiden scheitern Aufgaben mit „Not logged in · Please run /login": die Sandbox hat ein eigenes, leeres `HOME`, die lokale `claude`-Anmeldung ist dort nicht sichtbar.
+Without either, tasks fail with "Not logged in · Please run /login": the sandbox has its own empty `HOME`, so your local `claude` login is not visible in there.
 
-**Tests.** `make test` (Unit) und `make test-integration` (voller Durchstich gegen die Dev-DB, mit Mock-Runtime und Fake-Zammad; skippt, wenn Port 5433 nicht erreichbar ist). Für Demos ohne echtes Zammad: `go run ./demo/fakezammad`, dann die Secrets `zammad_url` = `http://localhost:9999` und `zammad_token` (beliebig) setzen.
+**Tests.** `make test` (unit) and `make test-integration` (the full end-to-end path against the dev DB, with a mock runtime and a fake Zammad; it skips when port 5433 is unreachable). For demos without a real Zammad: run `go run ./demo/fakezammad`, then set the secrets `zammad_url` = `http://localhost:9999` and `zammad_token` (any value).
 
-## Configs prüfen nach einem Update
+## Checking configs after an update
 
 ```bash
-covey config lint          # ändert nichts, meldet nur
-covey config lint --json   # maschinenlesbar
+covey config lint          # changes nothing, only reports
+covey config lint --json   # machine-readable
 ```
 
-Der Plattform-Anteil des System-Prompts (Abschluss-Protokoll, `covey/`-Meta-Aktionen, Stage-Regeln) wird zur Dispatch-Zeit kompiliert und kommt mit dem Binary — dafür ist nach einem Update **nichts** zu tun. Die **Agenten-Config** dagegen ist von Menschen geschrieben und bleibt, wie sie ist. `covey config lint` sagt, welche Agenten davon nachgezogen werden sollten, und warum:
+The platform half of the system prompt (completion protocol, `covey/` meta actions, stage rules) is compiled at dispatch time and ships with the binary — **nothing** to do there after an update. The **agent config**, on the other hand, is written by humans and stays exactly as it is. `covey config lint` tells you which agents should be brought along, and why:
 
-- **Heartbeat-Intervall zu kurz** für die Zielsysteme des Agenten (ein Repo alle 2 Minuten zu klonen ist etwas anderes, als ein Postfach zu sichten).
-- **Keine sichtbare Spur:** GitLab-gegateter Heartbeat, aber kein Playbook-Schritt kommentiert — der Vorgang gilt beim nächsten Intervall wieder als unbearbeitet und weckt endlos erneut.
-- **`blocked` bei einem Polling-Zielsystem**, das keinen Webhook hat, der die Aufgabe je wieder weckt.
-- **Board-Spalten**, die einen Vorgang statt eines Arbeitszustands benennen (`#83 CSV-Import`), oder schlicht zu viele davon.
-- **Häufige Turn-Limit-Abbrüche** — Auftrag zu groß geschnitten oder `max_turns` zu klein.
+- **Heartbeat interval too short** for that agent's target systems (cloning a repository every two minutes is a different proposition from checking a mailbox).
+- **No visible trace:** a GitLab-gated heartbeat where no playbook step comments — the item counts as untouched at the next interval and keeps waking the agent forever.
+- **`blocked` on a polling target system** that has no webhook to ever wake the task again.
+- **Board columns** that name an item rather than a state of work (`#83 CSV import`), or simply too many of them.
+- **Frequent turn-limit aborts** — the assignment is cut too large, or `max_turns` is too small.
 
-Exit-Code 1 bei Befunden, damit ein Upgrade-Skript darauf reagieren kann. Geändert wird im Config-Tab der Oberfläche oder per `POST /api/v1/agents/{id}/config/import` — beides versioniert.
+Exit code 1 when there are findings, so an upgrade script can react to it. Changes go through the config tab in the UI or `POST /api/v1/agents/{id}/config/import` — both versioned.
 
-## Betriebs-Doku
+## Operations docs
 
-| Dokument | Inhalt |
+All runbooks are in German.
+
+| Document | Contents |
 |---|---|
-| [`docs/schnellstart-docker.md`](docs/schnellstart-docker.md) | Compose-Setup, erster Agent, Produktions-Checkliste |
-| [`docs/betrieb-deployment.md`](docs/betrieb-deployment.md) | CI-Pipeline, Auto-Deploy auf einen Zielhost |
-| [`docs/betrieb-zammad.md`](docs/betrieb-zammad.md) | Zammad anbinden: API-Token, Webhook + Trigger, kundensichtbare Antworten |
-| [`docs/betrieb-gitlab.md`](docs/betrieb-gitlab.md) | GitLab: Issues, Merge Requests, Checkout in der Sandbox |
-| [`docs/betrieb-email.md`](docs/betrieb-email.md) | E-Mail-Postfach als Wake-Quelle (IMAP/SMTP) |
-| [`docs/betrieb-teams.md`](docs/betrieb-teams.md) | Microsoft Teams als Kanal zwischen Mensch und Agent |
-| [`docs/betrieb-sharepoint.md`](docs/betrieb-sharepoint.md) | SharePoint/Teams-Dateien via Microsoft Graph |
-| [`docs/betrieb-nextcloud.md`](docs/betrieb-nextcloud.md) | Nextcloud-Dateien via WebDAV |
-| [`docs/betrieb-browser.md`](docs/betrieb-browser.md) | Headless Chrome: Web-UIs bedienen, Screenshots ins Recording |
+| [`docs/schnellstart-docker.md`](docs/schnellstart-docker.md) | Compose setup, first agent, production checklist |
+| [`docs/betrieb-deployment.md`](docs/betrieb-deployment.md) | CI pipeline, auto-deploy to a target host |
+| [`docs/betrieb-zammad.md`](docs/betrieb-zammad.md) | Connecting Zammad: API token, webhook + trigger, customer-visible replies |
+| [`docs/betrieb-gitlab.md`](docs/betrieb-gitlab.md) | GitLab: issues, merge requests, checkout inside the sandbox |
+| [`docs/betrieb-email.md`](docs/betrieb-email.md) | An email mailbox as a wake source (IMAP/SMTP) |
+| [`docs/betrieb-teams.md`](docs/betrieb-teams.md) | Microsoft Teams as the channel between human and agent |
+| [`docs/betrieb-sharepoint.md`](docs/betrieb-sharepoint.md) | SharePoint / Teams files via Microsoft Graph |
+| [`docs/betrieb-nextcloud.md`](docs/betrieb-nextcloud.md) | Nextcloud files via WebDAV |
+| [`docs/betrieb-browser.md`](docs/betrieb-browser.md) | Headless Chrome: driving web UIs, screenshots into the recording |
 
-## Repository-Inhalt
+## Repository layout
 
-| Pfad | Inhalt |
+| Path | Contents |
 |---|---|
-| [`spec/`](spec/) | Die vollständige Spezifikation (Einstieg: [`spec/README.md`](spec/README.md)) |
-| [`docs/`](docs/) | Betriebs- und Anbindungs-Runbooks |
-| `cmd/covey/` | Control-Plane-Binary: `serve`, `migrate`, `bootstrap`, `passwd`, `genkey` |
-| `cmd/coveyd/` | Sandbox-Daemon (spricht das Daemon-Protokoll, bootstrappt die Runtime) |
-| `internal/` | Orchestrator, Agents, Backlog, Identity/Secrets, Guard-Rails, Observability, Memory, Egress, Org, Vorlagen, Zielsystem-Plugins (`target/`), HTTP-API |
-| `migrations/` | Versionierte SQL-Migrationen (via `//go:embed` ins Binary gebacken) |
-| `web/` | React/Vite/Tailwind-Admin-UI (`dist/` wird eingebettet) |
-| `skills/covey-agent/` | Claude-Code-Skill zum Bauen und Aktualisieren von Covey-Agenten |
-| [`examples/`](examples/) | Fertige Agenten-Bundles: Coding-Agent, QA-Agent, Web-Rechercheur, Log-Triage |
-| `demo/fakezammad/` | Minimales Zammad-Double für lokale Demos |
-| `mockup/` | Statischer HTML-Mockup der Admin-Oberfläche |
+| [`spec/`](spec/) | The full specification, in German (start at [`spec/README.md`](spec/README.md)) |
+| [`docs/`](docs/) | Operations and integration runbooks |
+| `cmd/covey/` | Control-plane binary: `serve`, `migrate`, `bootstrap`, `passwd`, `genkey` |
+| `cmd/coveyd/` | Sandbox daemon (speaks the daemon protocol, bootstraps the runtime) |
+| `internal/` | Orchestrator, agents, backlog, identity/secrets, guard rails, observability, memory, egress, org, templates, target plugins (`target/`), HTTP API |
+| `migrations/` | Versioned SQL migrations (embedded via `//go:embed`) |
+| `web/` | React/Vite/Tailwind admin UI (`dist/` gets embedded) |
+| `skills/covey-agent/` | Claude Code skill for building and updating Covey agents |
+| [`examples/`](examples/) | Ready-made agent bundles: coding agent, QA agent, web researcher, log triage |
+| `demo/fakezammad/` | Minimal Zammad double for local demos |
+| `mockup/` | Static HTML mockup of the admin interface |
 
 <details>
-<summary><b>Die Spec-Dokumente im Einzelnen</b></summary>
+<summary><b>The specification documents in detail</b></summary>
 
 <br/>
 
-| Datei | Inhalt |
+| File | Contents |
 |---|---|
-| [`spec/01-architektur.md`](spec/01-architektur.md) | System-Übersicht, Control/Data Plane, Runtime-Abstraktion, Daemon-Protokoll |
-| [`spec/02-agenten-modell.md`](spec/02-agenten-modell.md) | Der Agent als Entität: Identität, Sandbox, Zugänge, Config-as-Code, Org-Chart |
-| [`spec/03-lifecycle-scheduling.md`](spec/03-lifecycle-scheduling.md) | Zustandsmaschine, Dispatch-Loop, Wake-Quellen, Backlog, Blocking, Korrelation |
-| [`spec/04-identitaet-secrets.md`](spec/04-identitaet-secrets.md) | Keycloak, RFC 8693 Token Exchange, Secrets-Broker, Threat-Model |
-| [`spec/05-gedaechtnis.md`](spec/05-gedaechtnis.md) | Memory-Schichten, LLM-Wiki (Markdown + pgvector), persistentes Home |
-| [`spec/06-observability-control.md`](spec/06-observability-control.md) | Guard-Rails, Session-Recording, Approval-Gates, Kill-Switch, Kosten, Supervisor |
-| [`spec/07-offene-entscheidungen.md`](spec/07-offene-entscheidungen.md) | Offene Fragen, Build-vs-Buy, MVP-Scope |
-| [`spec/08-marktumfeld.md`](spec/08-marktumfeld.md) | Marktrecherche: Konkurrenz, Open-Source-Bausteine, Build-vs-Adopt |
-| [`spec/09-enterprise-modell.md`](spec/09-enterprise-modell.md) | Organisation als Einheit: Rollen & RBAC, SSO, Mandanten, Cost-Center, Compliance |
-| [`spec/10-architektur-stack.md`](spec/10-architektur-stack.md) | Frontend, Backend-Sprache, „batteries included, but swappable", Postgres-Anker |
-| [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md) | Bau-Reihenfolge M0–M7, kritischer Pfad, Abnahme-Checkliste |
-| [`spec/12-claude-code-adapter.md`](spec/12-claude-code-adapter.md) | Erster Runtime-Adapter: Claude Code headless via `claude -p` |
-| [`spec/13-zammad-integration.md`](spec/13-zammad-integration.md) | Zielsystem Zammad: Wake via Webhook, REST-Aktionen, `blocked`↔`pending` |
-| [`spec/14-companion-gedaechtnis.md`](spec/14-companion-gedaechtnis.md) | Companion: Brain-Dump & Kontext aus dem Wissen der Menschen |
-| [`spec/15-teams-integration.md`](spec/15-teams-integration.md) | Microsoft Teams als Zielsystem: OAuth2/JWT, Chat als Kanal |
+| [`spec/01-architektur.md`](spec/01-architektur.md) | System overview, control/data plane, runtime abstraction, daemon protocol |
+| [`spec/02-agenten-modell.md`](spec/02-agenten-modell.md) | The agent as an entity: identity, sandbox, access, config as code, org chart |
+| [`spec/03-lifecycle-scheduling.md`](spec/03-lifecycle-scheduling.md) | State machine, dispatch loop, wake sources, backlog, blocking, correlation |
+| [`spec/04-identitaet-secrets.md`](spec/04-identitaet-secrets.md) | Keycloak, RFC 8693 token exchange, secrets broker, threat model |
+| [`spec/05-gedaechtnis.md`](spec/05-gedaechtnis.md) | Memory layers, LLM wiki (Markdown + pgvector), persistent home |
+| [`spec/06-observability-control.md`](spec/06-observability-control.md) | Guard rails, session recording, approval gates, kill switch, cost, supervisor |
+| [`spec/07-offene-entscheidungen.md`](spec/07-offene-entscheidungen.md) | Open questions, build vs. buy, MVP scope |
+| [`spec/08-marktumfeld.md`](spec/08-marktumfeld.md) | Market research: competitors, open-source building blocks, build vs. adopt |
+| [`spec/09-enterprise-modell.md`](spec/09-enterprise-modell.md) | The organisation as the unit: roles & RBAC, SSO, tenants, cost centres, compliance |
+| [`spec/10-architektur-stack.md`](spec/10-architektur-stack.md) | Frontend, backend language, "batteries included, but swappable", the Postgres anchor |
+| [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md) | Build order M0–M7, critical path, acceptance checklist |
+| [`spec/12-claude-code-adapter.md`](spec/12-claude-code-adapter.md) | First runtime adapter: Claude Code headless via `claude -p` |
+| [`spec/13-zammad-integration.md`](spec/13-zammad-integration.md) | Target system Zammad: wake via webhook, REST actions, `blocked`↔`pending` |
+| [`spec/14-companion-gedaechtnis.md`](spec/14-companion-gedaechtnis.md) | Companion: brain dump & context from what the humans know |
+| [`spec/15-teams-integration.md`](spec/15-teams-integration.md) | Microsoft Teams as a target system: OAuth2/JWT, chat as the channel |
 
 </details>
 
 ## Status
 
-**Deutlich über den MVP hinaus.** Der Durchstich aus [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md) (M0–M7) steht; darauf aufgesetzt sind Org-Chart & Abteilungen, Mitarbeiter-Profile, weitere Zielsystem-Plugins (GitLab, Teams, SharePoint, Nextcloud, E-Mail, Browser, MCP), Docker-Sandboxen, Egress-Kontrolle, Agenten-Vorlagen und das Wiki-Gedächtnis. Die Abnahme-Checkliste läuft als Integrationstest-Suite (`internal/integration/`).
+**Well beyond the MVP.** The end-to-end path from [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md) (M0–M7) is in place; built on top of it are the org chart & departments, employee profiles, further target plugins (GitLab, Teams, SharePoint, Nextcloud, email, browser, MCP), Docker sandboxes, egress control, agent templates and the wiki memory. The acceptance checklist runs as an integration test suite (`internal/integration/`).
 
-## Mitwirken
+## Contributing
 
-Änderungen an Konzept und Architektur gehen über die Spec: Vorschläge als Merge Request gegen [`spec/`](spec/), Diskussion offener Punkte in [`spec/07-offene-entscheidungen.md`](spec/07-offene-entscheidungen.md). Für Code gilt die Bau-Reihenfolge aus dem MVP-Plan — dünnster vertikaler Durchstich zuerst, `builtin` als Default, Interface vor Implementierung.
+Changes to concept and architecture go through the spec: proposals as a merge request against [`spec/`](spec/), open points discussed in [`spec/07-offene-entscheidungen.md`](spec/07-offene-entscheidungen.md). For code, the build order from the MVP plan applies — thinnest vertical slice first, `builtin` as the default, interface before implementation.
