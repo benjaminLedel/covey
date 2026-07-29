@@ -196,7 +196,8 @@ func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) (bool,
 		if err != nil {
 			return false, err
 		}
-		if lastHumanNoteIsMine(notes, me.Username) {
+		st := scanThread(notes, me.Username, target.Peers(ctx))
+		if st.Mine && !st.waitsForMe() {
 			continue // schon beantwortet — ruht, bis jemand darauf antwortet
 		}
 		return true, nil
@@ -204,17 +205,64 @@ func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) (bool,
 	return false, nil
 }
 
-// lastHumanNoteIsMine sagt, ob der letzte Nicht-System-Kommentar eines Threads
-// vom Bot selbst stammt. Ohne jeden menschlichen Kommentar ist die Antwort
-// false: ein unkommentierter Thread wartet auf den ersten Zug.
-func lastHumanNoteIsMine(notes []Note, me string) bool {
+// threadState fasst zusammen, was in einem Thread (Issue oder MR) SEIT dem
+// letzten eigenen Beitrag des Bots passiert ist — die Grundlage jeder
+// Feuer-Bedingung dieses Plugins.
+type threadState struct {
+	Human      bool // ein Mensch hat seither geschrieben
+	Peer       bool // ein Kollegen-Agent derselben Organisation hat seither geschrieben
+	NewCommits bool // GitLab hat seither neue Commits als System-Note vermerkt
+	Mine       bool // der Bot hat in diesem Thread überhaupt schon gesprochen
+}
+
+// waitsForMe ist die Entscheidung: wartet dort Arbeit auf den Bot?
+//
+// Ein Mensch, der schreibt, ist immer Arbeit. Ein KOLLEGEN-AGENT dagegen nur
+// dann, wenn seither auch neue Commits kamen — also wirklich etwas zu prüfen
+// oder einzuarbeiten ist. Ohne diese Unterscheidung wecken sich zwei Agenten
+// gegenseitig endlos: Jeder kommentiert, um sein eigenes Gate zu schließen, und
+// öffnet damit das des anderen (Bot-Ping-Pong). Reiner Text zwischen zwei
+// Agenten — Dank, Nachtrag, Statusmeldung — ist keine Arbeit.
+func (s threadState) waitsForMe() bool {
+	if s.Human {
+		return true
+	}
+	return s.Peer && s.NewCommits
+}
+
+// scanThread liest die Notes von hinten bis zum letzten eigenen Beitrag und
+// klassifiziert, was seither geschah. peers sind die GitLab-Usernames der
+// übrigen Agenten derselben Organisation (leer = alles Fremde gilt als Mensch).
+func scanThread(notes []Note, me string, peers map[string]bool) threadState {
+	var st threadState
 	for i := len(notes) - 1; i >= 0; i-- {
-		if notes[i].System {
+		n := notes[i]
+		if n.System {
+			if isCommitNote(n.Body) {
+				st.NewCommits = true
+			}
 			continue
 		}
-		return notes[i].Author.Username == me
+		if n.Author.Username == me {
+			st.Mine = true
+			break
+		}
+		if peers[n.Author.Username] {
+			st.Peer = true
+			continue
+		}
+		st.Human = true
 	}
-	return false
+	return st
+}
+
+// isCommitNote erkennt die System-Note, mit der GitLab einen Push am Thread
+// vermerkt („added 3 commits", „added 1 commit"). Sie ist das billigste
+// verfügbare Signal für „am Code hat sich etwas geändert" — sie liegt in den
+// ohnehin geladenen Notes, kostet also keinen zusätzlichen Request.
+func isCommitNote(body string) bool {
+	b := strings.ToLower(strings.TrimSpace(body))
+	return strings.HasPrefix(b, "added") && strings.Contains(b, "commit")
 }
 
 // mrReviewPending prüft, ob einer der offenen, selbst eröffneten Merge Requests
@@ -245,17 +293,12 @@ func mrReviewPending(ctx context.Context, gc *Client) (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		// Notes kommen chronologisch (sort=asc); der letzte Nicht-System-
-		// Kommentar entscheidet. Ist er von jemand anderem als dem Bot, wartet
-		// Review-Feedback auf Bearbeitung.
-		for i := len(notes) - 1; i >= 0; i-- {
-			if notes[i].System {
-				continue
-			}
-			if notes[i].Author.Username != me.Username {
-				return true, nil
-			}
-			break // letzter menschlicher Kommentar ist vom Bot → schon beantwortet
+		// Notes kommen chronologisch (sort=asc); entscheidend ist, was seit dem
+		// letzten eigenen Kommentar kam. Ein Mensch, der schreibt, wartet auf
+		// Bearbeitung; ein Kollegen-Agent nur mit neuen Commits — sonst
+		// antworten sich zwei Bots gegenseitig im Heartbeat-Takt.
+		if scanThread(notes, me.Username, target.Peers(ctx)).waitsForMe() {
+			return true, nil
 		}
 	}
 	return false, nil
@@ -266,12 +309,14 @@ func mrReviewPending(ctx context.Context, gc *Client) (bool, error) {
 // REVIEWER eingetragen ist, auf sein Review? Das trägt den Review-Loop für einen
 // QA-/Test-Agenten ohne Webhook, gegatet über nur-wenn: gitlab:review.
 //
-// Arbeit liegt vor, wenn der letzte Nicht-System-Kommentar NICHT vom Bot stammt —
-// oder wenn der MR noch gar keinen Kommentar hat. Anders als beim Autoren-Loop
-// zählt ein frischer, an mich zum Review übergebener MR (noch ohne Kommentar)
-// SEHR WOHL als Arbeit: genau er wartet auf mein Erst-Review. Hat der Bot als
-// letzter kommentiert, ist diese Review-Runde beantwortet und der MR ruht, bis
-// der Autor erneut reagiert.
+// Arbeit liegt vor, wenn seit dem letzten eigenen Kommentar ein Mensch
+// geschrieben hat oder der Autor NEUE COMMITS gepusht hat — oder wenn der Bot
+// hier noch gar nichts gesagt hat. Anders als beim Autoren-Loop zählt ein
+// frischer, an mich zum Review übergebener MR (noch ohne Kommentar) SEHR WOHL
+// als Arbeit: genau er wartet auf mein Erst-Review. Hat der Bot zuletzt
+// kommentiert, ruht der MR, bis der Autor mit Code reagiert — eine bloße
+// Textantwort des Autoren-Agenten („danke für das Review") ist kein Anlass für
+// eine neue Review-Runde, sonst schaukeln sich beide Agenten gegenseitig hoch.
 func mrReviewAssignedPending(ctx context.Context, gc *Client) (bool, error) {
 	me, err := gc.CurrentUser(ctx)
 	if err != nil {
@@ -289,7 +334,8 @@ func mrReviewAssignedPending(ctx context.Context, gc *Client) (bool, error) {
 		if err != nil {
 			return false, err
 		}
-		if !lastHumanNoteIsMine(notes, me.Username) {
+		st := scanThread(notes, me.Username, target.Peers(ctx))
+		if st.waitsForMe() || !st.Mine {
 			return true, nil
 		}
 	}
@@ -537,12 +583,24 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		if in.SourceBranch == targetBranch {
 			return nil, fmt.Errorf("source_branch und target_branch sind identisch (%q)", targetBranch)
 		}
-		// Der Assignee (idR der Vorgesetzte) muss auflösbar sein — ein MR
-		// ohne benannten Menschen als Empfänger ist hier nicht vorgesehen.
-		if strings.TrimSpace(in.Assignee) == "" {
-			return nil, fmt.Errorf("assignee fehlt — trage den GitLab-Username deines Vorgesetzten aus dem Team-Verzeichnis ein")
+		// Der Assignee muss auflösbar sein — ein MR ohne benannten Menschen als
+		// Empfänger ist hier nicht vorgesehen. Fehlt er, aber ist das
+		// zugrundeliegende Issue benannt, fällt der MR an dessen MELDER: Wer den
+		// Bedarf aufgeschrieben hat, entscheidet über den Merge. Pauschal den
+		// Vorgesetzten einzutragen macht ihn zum Flaschenhals für Arbeit, die er
+		// nie angefragt hat.
+		assignee := strings.TrimSpace(in.Assignee)
+		if assignee == "" && in.IssueIID != 0 {
+			iss, err := gc.GetIssue(ctx, in.ProjectID, in.IssueIID)
+			if err != nil {
+				return nil, err
+			}
+			assignee = iss.Author.Username
 		}
-		u, err := gc.LookupUser(ctx, in.Assignee)
+		if assignee == "" {
+			return nil, fmt.Errorf("assignee fehlt — trage den GitLab-Username des Issue-Melders ein (ersatzweise deinen Vorgesetzten) oder gib issue_iid mit")
+		}
+		u, err := gc.LookupUser(ctx, assignee)
 		if err != nil {
 			return nil, err
 		}
@@ -550,7 +608,7 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		// Reviewer ein (Assignee bleibt der Vorgesetzte). Ohne reviewer prüft der
 		// Assignee selbst — Reviewer = Assignee wie bisher.
 		reviewerID := u.ID
-		if r := strings.TrimSpace(in.Reviewer); r != "" && r != in.Assignee {
+		if r := strings.TrimSpace(in.Reviewer); r != "" && r != assignee {
 			ru, err := gc.LookupUser(ctx, r)
 			if err != nil {
 				return nil, err
@@ -667,12 +725,16 @@ func (System) PromptDoc() string {
    pusht deine lokal editierten Dateien als EINEN Commit auf den Branch; existiert der Branch nicht, wird er vom
    start_branch abgezweigt. Direkte Commits auf den Default-Branch sind verboten — der Weg dorthin führt über:
    create_merge_request {"project_id":N,"source_branch":"fix/…","target_branch":"main (optional, Default: Default-Branch)",
-   "title":"...","description":"...","assignee":"gitlab-username","reviewer":"gitlab-username (optional)"} — eröffnet den
-   Merge Request; als assignee trägst du deinen Vorgesetzten aus dem Team-Verzeichnis ein. Ohne reviewer wird der Assignee
-   auch Reviewer (wie bisher). Gibt es im Abschnitt "Team (KI-Kollegen)" einen QA-/Test-Agenten, der fürs Testen zuständig
-   ist, trägst du IHN als reviewer ein (seinen GitLab-Username exakt aus dem Verzeichnis) — bevorzugt einen Kollegen aus
-   DEINEM TEAM (gleiche Abteilung); gibt es dort keinen, nimm den organisationsweit fürs Testen Zuständigen. Der Assignee
-   bleibt dabei der Vorgesetzte, der QA-Agent testet das Feature und gibt Feedback. Der Source-Branch wird nach dem Merge
+   "title":"...","description":"...","assignee":"gitlab-username (optional)","issue_iid":N (optional),
+   "reviewer":"gitlab-username (optional)"} — eröffnet den Merge Request. Als assignee trägst du den MELDER des
+   zugrundeliegenden Issues ein (dessen author) — er hat den Bedarf angemeldet und entscheidet über den Merge. Gib
+   stattdessen einfach issue_iid mit, dann setzt Covey den Melder selbst ein. Nur wenn es kein Issue gibt oder der Melder
+   ein Kollegen-Agent ist (KI-Kollegen mergen nicht), trägst du deinen Vorgesetzten aus dem Team-Verzeichnis ein — NIE
+   pauschal: der Vorgesetzte wird sonst zum Flaschenhals für Arbeit, die er nie angefragt hat. Ohne reviewer wird der
+   Assignee auch Reviewer (wie bisher). Gibt es im Abschnitt "Team (KI-Kollegen)" einen QA-/Test-Agenten, der fürs Testen
+   zuständig ist, trägst du IHN als reviewer ein (seinen GitLab-Username exakt aus dem Verzeichnis) — bevorzugt einen
+   Kollegen aus DEINEM TEAM (gleiche Abteilung); gibt es dort keinen, nimm den organisationsweit fürs Testen Zuständigen.
+   Der QA-Agent testet das Feature und gibt Feedback, gemergt wird beim Assignee. Der Source-Branch wird nach dem Merge
    automatisch entfernt.
    Arbeitsweise als Entwickler — wenn du einen Bug nicht nur bestätigst, sondern behebst:
    1. checkout des Projekts, den Fehler am Code nachvollziehen (Datei:Zeile).

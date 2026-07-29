@@ -85,6 +85,11 @@ type Issue struct {
 	Assignees []struct {
 		Username string `json:"username"`
 	} `json:"assignees"`
+	// Author ist der Melder: Wer den Bedarf aufgeschrieben hat, ist der
+	// natürliche Empfänger des Merge Requests, der ihn erledigt.
+	Author struct {
+		Username string `json:"username"`
+	} `json:"author"`
 	// References.Full ist die volle Referenz "gruppe/projekt#iid" — daraus
 	// lässt sich der Projektpfad für den Intake-Filter ableiten.
 	References struct {

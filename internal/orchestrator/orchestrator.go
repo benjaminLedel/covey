@@ -499,6 +499,7 @@ func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid
 	if o.ReqLog != nil {
 		cctx = reqlog.WithSink(cctx, o.ReqLog.Sink(&orgID, &agentID, nil))
 	}
+	cctx = target.WithPeers(cctx, o.peerIdentities(ctx, orgID, agentID, system))
 	var (
 		has bool
 		err error
@@ -516,6 +517,33 @@ func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid
 		return true
 	}
 	return has
+}
+
+// peerIdentities sammelt die Identitäten der übrigen Agenten derselben
+// Organisation in diesem Zielsystem (z. B. GitLab-Usernames aus dem Profil).
+// Der Work-Check gewichtet damit den Beitrag eines Kollegen-Agenten anders als
+// den eines Menschen — sonst wecken sich zwei Agenten, die einander im selben
+// Thread antworten, gegenseitig im Heartbeat-Takt (siehe target.WithPeers).
+// Fehlschlag ist unkritisch: ohne Liste verhält sich der Check wie zuvor.
+func (o *Orchestrator) peerIdentities(ctx context.Context, orgID, agentID uuid.UUID, system string) []string {
+	if o.Registry == nil {
+		return nil
+	}
+	list, err := o.Registry.List(ctx, orgID)
+	if err != nil {
+		o.Log.Warn("nur-wenn: kollegen-identitäten nicht lesbar", "system", system, "err", err)
+		return nil
+	}
+	var peers []string
+	for _, a := range list {
+		if a.ID == agentID {
+			continue
+		}
+		if u := strings.TrimSpace(a.Identities[system]); u != "" {
+			peers = append(peers, u)
+		}
+	}
+	return peers
 }
 
 // EnsureRunning startet eine Agent-Session, falls keine läuft (idempotent).

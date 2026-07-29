@@ -1494,3 +1494,144 @@ func TestHasWorkKindReview(t *testing.T) {
 	reviewMRs, mrNotes = []MergeRequest{mrIn}, mine
 	check(false)
 }
+
+// note baut eine Note mit Autor — die anonyme Struktur macht Literale sonst
+// unlesbar.
+func note(author, body string) Note {
+	var n Note
+	n.Body = body
+	n.Author.Username = author
+	return n
+}
+
+// systemNote ist ein GitLab-Systemvermerk, z. B. der Push-Hinweis „added 2
+// commits", an dem die Feuer-Bedingung neue Commits erkennt.
+func systemNote(body string) Note {
+	n := note("gitlab", body)
+	n.System = true
+	return n
+}
+
+// TestPeerNotesDontWake deckt den Bot-Ping-Pong ab: Zwei Agenten derselben
+// Organisation, die einander im selben Thread antworten, dürfen sich NICHT
+// gegenseitig wecken — sonst kommentiert jeder im Heartbeat-Takt, nur um sein
+// eigenes Gate zu schließen. Ein Mensch weckt weiterhin immer, ein Kollege nur
+// mit neuen Commits.
+func TestPeerNotesDontWake(t *testing.T) {
+	var myMRs, reviewMRs []MergeRequest
+	var mrNotes []Note
+	meUser := "brunhilde"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v4/issues":
+			json.NewEncoder(w).Encode([]Issue{})
+		case r.URL.Path == "/api/v4/merge_requests":
+			if r.URL.Query().Get("reviewer_username") != "" {
+				json.NewEncoder(w).Encode(reviewMRs)
+				return
+			}
+			json.NewEncoder(w).Encode(myMRs)
+		case r.URL.Path == "/api/v4/user":
+			json.NewEncoder(w).Encode(User{ID: 1, Username: meUser})
+		case strings.HasSuffix(r.URL.Path, "/notes"):
+			json.NewEncoder(w).Encode(mrNotes)
+		default:
+			t.Errorf("unerwarteter request: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "t"}
+	// egon ist der QA-Agent derselben Organisation, mario ein Mensch.
+	ctx := target.WithPeers(context.Background(), []string{"egon"})
+
+	mr := MergeRequest{IID: 9, ProjectID: 15}
+	mr.References.Full = "gruppe/support!9"
+	myMRs, reviewMRs = []MergeRequest{mr}, []MergeRequest{mr}
+
+	check := func(what, kind string, want bool) {
+		t.Helper()
+		has, err := sys.HasWorkKind(ctx, cred, kind)
+		if err != nil {
+			t.Fatalf("%s: HasWorkKind(%q): %v", what, kind, err)
+		}
+		if has != want {
+			t.Fatalf("%s: HasWorkKind(%q) = %v, erwartet %v", what, kind, has, want)
+		}
+	}
+
+	// Autoren-Sicht: der QA-Agent hat nach mir kommentiert, aber nichts am Code
+	// geändert — Dank/Nachtrag ist keine Arbeit.
+	mrNotes = []Note{note("brunhilde", "MR ist offen"), note("egon", "Review grün, Freigabe")}
+	check("kollege ohne commits", "mr", false)
+
+	// Derselbe Kollegen-Kommentar, aber mit neuem Push davor → es gibt etwas
+	// einzuarbeiten.
+	mrNotes = []Note{
+		note("brunhilde", "MR ist offen"),
+		systemNote("added 2 commits"),
+		note("egon", "Mangel in foo.go:12"),
+	}
+	check("kollege mit commits", "mr", true)
+
+	// Ein Mensch weckt immer, auch ohne Push.
+	mrNotes = []Note{note("brunhilde", "MR ist offen"), note("mario", "bitte noch umbenennen")}
+	check("mensch", "mr", true)
+
+	// Reviewer-Sicht: die reine Textantwort des Autoren-Agenten löst keine neue
+	// Review-Runde aus …
+	meUser = "egon"
+	ctx = target.WithPeers(context.Background(), []string{"brunhilde"})
+	mrNotes = []Note{note("egon", "Review grün"), note("brunhilde", "danke für das Review")}
+	check("autor antwortet nur", "review", false)
+
+	// … neue Commits dagegen schon.
+	mrNotes = []Note{
+		note("egon", "Review grün"),
+		systemNote("added 1 commit"),
+		note("brunhilde", "nachgebessert"),
+	}
+	check("autor pusht", "review", true)
+
+	// Ein frisch zum Review übergebener MR ohne jeden Kommentar bleibt Arbeit.
+	mrNotes = nil
+	check("frischer mr", "review", true)
+}
+
+// TestCreateMergeRequestAssigneeFromIssue deckt ab, dass der MR ohne benannten
+// assignee an den MELDER des Issues geht statt pauschal an den Vorgesetzten.
+func TestCreateMergeRequestAssigneeFromIssue(t *testing.T) {
+	var mrBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v4/projects/15":
+			json.NewEncoder(w).Encode(ProjectDetail{ID: 15, DefaultBranch: "main"})
+		case r.URL.Path == "/api/v4/projects/15/issues/23":
+			iss := Issue{IID: 23, ProjectID: 15, Title: "Login kaputt"}
+			iss.Author.Username = "mario"
+			json.NewEncoder(w).Encode(iss)
+		case r.URL.Path == "/api/v4/users":
+			if u := r.URL.Query().Get("username"); u == "mario" {
+				json.NewEncoder(w).Encode([]User{{ID: 42, Username: "mario"}})
+			} else {
+				json.NewEncoder(w).Encode([]User{})
+			}
+		case r.URL.Path == "/api/v4/projects/15/merge_requests" && r.Method == http.MethodPost:
+			json.NewDecoder(r.Body).Decode(&mrBody)
+			json.NewEncoder(w).Encode(MergeRequest{IID: 9})
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	if _, err := sys.Execute(context.Background(), "create_merge_request", []byte(`{"project_id":15,
+		"source_branch":"fix/issue-23-login","title":"Fix Login","issue_iid":23}`), cred); err != nil {
+		t.Fatalf("create_merge_request: %v", err)
+	}
+	ids, _ := mrBody["assignee_ids"].([]any)
+	if len(ids) != 1 || ids[0] != float64(42) {
+		t.Fatalf("assignee muss der Issue-Melder sein: %+v", mrBody)
+	}
+}

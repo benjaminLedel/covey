@@ -98,6 +98,7 @@ type ctxKey int
 const (
 	workdirKey ctxKey = iota
 	artifactSinkKey
+	peersKey
 )
 
 // Artifact ist ein Binär-Nebenergebnis einer Aktion, das ins Recording gehört
@@ -120,6 +121,37 @@ func EmitArtifact(ctx context.Context, a Artifact) {
 	if sink, ok := ctx.Value(artifactSinkKey).(func(Artifact)); ok && sink != nil {
 		sink(a)
 	}
+}
+
+// WithPeers hinterlegt die Identitäten der ÜBRIGEN Agenten derselben
+// Organisation in diesem Zielsystem (z. B. GitLab-Usernames) im Context. Kein
+// Auth-Material — ein Work-Checker unterscheidet damit den Beitrag eines
+// Kollegen-Agenten vom Beitrag eines Menschen.
+//
+// Der Grund: Die Feuer-Bedingung eines Heartbeats fragt „wartet dort etwas auf
+// mich?", und die Antwort lautet klassisch „ja, wenn zuletzt jemand anderes
+// geschrieben hat". Zwischen zwei Agenten trägt das einen Ping-Pong: A
+// kommentiert, damit sein eigenes Gate schließt, öffnet damit das Gate von B,
+// B antwortet, öffnet A wieder — im Heartbeat-Takt, ohne dass Arbeit anfällt.
+// Wer die Kollegen kennt, kann deren Beiträge anders gewichten als die eines
+// Menschen.
+func WithPeers(ctx context.Context, peers []string) context.Context {
+	set := make(map[string]bool, len(peers))
+	for _, p := range peers {
+		if p != "" {
+			set[p] = true
+		}
+	}
+	return context.WithValue(ctx, peersKey, set)
+}
+
+// Peers liest die Identitäten der Kollegen-Agenten aus dem Context. Leere Menge,
+// wenn nichts hinterlegt ist — dann verhält sich ein Work-Checker wie zuvor und
+// hält jeden fremden Beitrag für den eines Menschen (fail-open: lieber einmal zu
+// viel wecken als Arbeit liegen lassen).
+func Peers(ctx context.Context) map[string]bool {
+	set, _ := ctx.Value(peersKey).(map[string]bool)
+	return set
 }
 
 // WithWorkdir hängt das Sandbox-Arbeitsverzeichnis an den Context.
