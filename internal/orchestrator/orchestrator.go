@@ -386,7 +386,7 @@ func (o *Orchestrator) fireHeartbeats(ctx context.Context) {
 	}
 	defer tx.Rollback(ctx)
 
-	rows, err := tx.Query(ctx, `SELECT h.agent_id, a.org_id, h.name, h.task_body, h.only_if,
+	rows, err := tx.Query(ctx, `SELECT h.agent_id, a.org_id, h.name, h.task_body, h.only_if, h.last_work_sig,
 			EXISTS (SELECT 1 FROM backlog_tasks t
 				WHERE t.agent_id=h.agent_id AND t.title=h.name
 				  AND (t.origin='heartbeat' OR t.origin LIKE 'continuation:%')
@@ -407,12 +407,13 @@ func (o *Orchestrator) fireHeartbeats(ctx context.Context) {
 	type due struct {
 		agentID, orgID     uuid.UUID
 		name, body, onlyIf string
+		lastSig            string
 		pending            bool
 	}
 	var dues []due
 	for rows.Next() {
 		var d due
-		if err := rows.Scan(&d.agentID, &d.orgID, &d.name, &d.body, &d.onlyIf, &d.pending); err != nil {
+		if err := rows.Scan(&d.agentID, &d.orgID, &d.name, &d.body, &d.onlyIf, &d.lastSig, &d.pending); err != nil {
 			rows.Close()
 			o.Log.Warn("heartbeat scan", "err", err)
 			return
@@ -445,9 +446,27 @@ func (o *Orchestrator) fireHeartbeats(ctx context.Context) {
 			o.Log.Info("heartbeat übersprungen: aufgabe noch offen", "agent", d.agentID, "name", d.name)
 			continue
 		}
-		if d.onlyIf != "" && !o.heartbeatHasWork(ctx, d.agentID, d.orgID, d.onlyIf) {
-			o.Log.Info("heartbeat übersprungen: keine arbeit", "agent", d.agentID, "name", d.name, "system", d.onlyIf)
-			continue
+		if d.onlyIf != "" {
+			has, sig := o.heartbeatHasWork(ctx, d.agentID, d.orgID, d.onlyIf)
+			if has && sig != "" && sig != d.lastSig {
+				o.rememberWorkSignature(ctx, d.agentID, d.name, sig)
+			} else if !has && d.lastSig != "" {
+				// Vorrat abgearbeitet — Signatur zurücksetzen, damit derselbe
+				// Zustand später wieder wecken darf.
+				o.rememberWorkSignature(ctx, d.agentID, d.name, "")
+			}
+			if !has {
+				o.Log.Info("heartbeat übersprungen: keine arbeit", "agent", d.agentID, "name", d.name, "system", d.onlyIf)
+				continue
+			}
+			// Unveränderter Vorrat: der Agent kennt diesen Stand schon und hat
+			// ihn bewusst so gelassen. Erst eine ÄNDERUNG weckt erneut — sonst
+			// müsste er kommentieren, nur um seinen eigenen Wecker abzustellen.
+			if sig != "" && sig == d.lastSig {
+				o.Log.Info("heartbeat übersprungen: arbeitsvorrat unverändert",
+					"agent", d.agentID, "name", d.name, "system", d.onlyIf)
+				continue
+			}
 		}
 		if _, err := o.Backlog.Create(ctx, d.orgID, d.agentID, d.name, d.body, "heartbeat", 0); err != nil {
 			o.Log.Warn("heartbeat-aufgabe anlegen", "agent", d.agentID, "name", d.name, "err", err)
@@ -466,29 +485,32 @@ func (o *Orchestrator) fireHeartbeats(ctx context.Context) {
 // nicht. Fail-open: lässt sich die Bedingung nicht prüfen (Plugin ohne
 // WorkChecker, fehlende Secrets, Verbindungsfehler), feuert der Heartbeat
 // regulär — eine kaputte Bedingung darf keine Arbeit liegen lassen.
-func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid.UUID, condition string) bool {
+// Rückgabe: (Arbeit vorhanden, Signatur des Vorrats). Die Signatur ist leer,
+// wenn das Plugin keine liefert — dann feuert der Heartbeat wie bisher bei
+// jedem Pegel.
+func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid.UUID, condition string) (bool, string) {
 	system, kind, _ := strings.Cut(condition, ":")
 	sys, ok := target.Get(system)
 	if !ok {
 		o.Log.Warn("nur-wenn: unbekanntes zielsystem — feuere trotzdem", "system", system)
-		return true
+		return true, ""
 	}
 	checker, ok := sys.(target.WorkChecker)
 	if !ok {
 		o.Log.Warn("nur-wenn: zielsystem kann arbeit nicht vorab prüfen — feuere trotzdem", "system", system)
-		return true
+		return true, ""
 	}
 	var cred target.Credential
 	if d, _ := target.Describe(system); !d.NoCredentials {
 		token, err := o.Secrets.Resolve(ctx, orgID, agentID, system+"_token")
 		if err != nil {
 			o.Log.Warn("nur-wenn: secret fehlt — feuere trotzdem", "system", system, "err", err)
-			return true
+			return true, ""
 		}
 		baseURL, err := o.Secrets.Resolve(ctx, orgID, agentID, system+"_url")
 		if err != nil {
 			o.Log.Warn("nur-wenn: secret fehlt — feuere trotzdem", "system", system, "err", err)
-			return true
+			return true, ""
 		}
 		cred = target.Credential{BaseURL: baseURL, Token: token}
 	}
@@ -499,14 +521,23 @@ func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid
 	if o.ReqLog != nil {
 		cctx = reqlog.WithSink(cctx, o.ReqLog.Sink(&orgID, &agentID, nil))
 	}
-	cctx = target.WithPeers(cctx, o.peerIdentities(ctx, orgID, agentID, system))
 	var (
 		has bool
+		sig string
 		err error
 	)
-	if kc, ok := checker.(target.KindWorkChecker); ok && kind != "" {
-		has, err = kc.HasWorkKind(cctx, cred, kind)
-	} else {
+	switch c := checker.(type) {
+	case target.SignedWorkChecker:
+		// Liefert zusätzlich die Signatur des Vorrats — damit unterdrückt der
+		// Dispatch den Wake auf einen bereits gesehenen Stand.
+		has, sig, err = c.HasWorkSigned(cctx, cred, kind)
+	case target.KindWorkChecker:
+		if kind == "" {
+			has, err = c.HasWork(cctx, cred)
+		} else {
+			has, err = c.HasWorkKind(cctx, cred, kind)
+		}
+	default:
 		if kind != "" {
 			o.Log.Warn("nur-wenn: zielsystem kennt keinen unterscope — prüfe gesamt", "system", system, "kind", kind)
 		}
@@ -514,36 +545,20 @@ func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid
 	}
 	if err != nil {
 		o.Log.Warn("nur-wenn: prüfung fehlgeschlagen — feuere trotzdem", "system", system, "kind", kind, "err", err)
-		return true
+		return true, ""
 	}
-	return has
+	return has, sig
 }
 
-// peerIdentities sammelt die Identitäten der übrigen Agenten derselben
-// Organisation in diesem Zielsystem (z. B. GitLab-Usernames aus dem Profil).
-// Der Work-Check gewichtet damit den Beitrag eines Kollegen-Agenten anders als
-// den eines Menschen — sonst wecken sich zwei Agenten, die einander im selben
-// Thread antworten, gegenseitig im Heartbeat-Takt (siehe target.WithPeers).
-// Fehlschlag ist unkritisch: ohne Liste verhält sich der Check wie zuvor.
-func (o *Orchestrator) peerIdentities(ctx context.Context, orgID, agentID uuid.UUID, system string) []string {
-	if o.Registry == nil {
-		return nil
+// rememberWorkSignature schreibt die Signatur fort, auf die zuletzt gefeuert
+// wurde. Best-effort: schlägt es fehl, weckt der nächste Tick höchstens einmal
+// zu viel — das ist harmloser als ein verpasster Lauf.
+func (o *Orchestrator) rememberWorkSignature(ctx context.Context, agentID uuid.UUID, name, sig string) {
+	if _, err := o.Pool.Exec(ctx,
+		"UPDATE agent_heartbeats SET last_work_sig=$3 WHERE agent_id=$1 AND name=$2",
+		agentID, name, sig); err != nil {
+		o.Log.Warn("heartbeat-signatur fortschreiben", "agent", agentID, "name", name, "err", err)
 	}
-	list, err := o.Registry.List(ctx, orgID)
-	if err != nil {
-		o.Log.Warn("nur-wenn: kollegen-identitäten nicht lesbar", "system", system, "err", err)
-		return nil
-	}
-	var peers []string
-	for _, a := range list {
-		if a.ID == agentID {
-			continue
-		}
-		if u := strings.TrimSpace(a.Identities[system]); u != "" {
-			peers = append(peers, u)
-		}
-	}
-	return peers
 }
 
 // EnsureRunning startet eine Agent-Session, falls keine läuft (idempotent).

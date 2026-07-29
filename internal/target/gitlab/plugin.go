@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"covey/internal/target"
@@ -105,12 +106,8 @@ func mrProjectPath(m MergeRequest) string {
 // Pegel (steht irgendwo etwas offen?) — sonst weckt derselbe unerledigte Vorgang
 // den Agenten in jedem Intervall erneut.
 func (System) HasWork(ctx context.Context, cred target.Credential) (bool, error) {
-	gc := NewClient(cred.BaseURL, cred.Token)
-	has, err := issueWorkPending(ctx, gc, false)
-	if err != nil || has {
-		return has, err
-	}
-	return mrReviewPending(ctx, gc)
+	has, _, err := System{}.HasWorkSigned(ctx, cred, "")
+	return has, err
 }
 
 // HasWorkKind (target.KindWorkChecker) gatet eine einzelne Arbeits-Art, damit
@@ -130,19 +127,48 @@ func (System) HasWork(ctx context.Context, cred target.Credential) (bool, error)
 //     eingetragen ist, auf sein Review (QA-/Test-Sicht)?
 //   - sonst             → beides von HasWork, fail-open bei unbekanntem Scope.
 func (System) HasWorkKind(ctx context.Context, cred target.Credential, kind string) (bool, error) {
+	has, _, err := System{}.HasWorkSigned(ctx, cred, kind)
+	return has, err
+}
+
+// HasWorkSigned (target.SignedWorkChecker) ist die eigentliche Prüfung: sie
+// liefert neben dem Ja/Nein die Signatur der wartenden Vorgänge, damit die
+// Control Plane nicht zweimal auf denselben Stand weckt. Ein Agent darf einen
+// Lauf dadurch schweigend beenden — die Rückmeldung des QA-Kollegen war eine
+// Freigabe, es gibt nichts zu tun — ohne im nächsten Intervall erneut geweckt
+// zu werden. Kommt dagegen ein neuer Beitrag oder ein Push dazu, ändert sich
+// die Signatur und der Agent wacht auf. Ob eine Rückmeldung Arbeit bedeutet
+// (gemeldete Mängel) oder nur Information (Freigabe), entscheidet damit der
+// Agent und nicht das Gate.
+func (System) HasWorkSigned(ctx context.Context, cred target.Credential, kind string) (bool, string, error) {
 	gc := NewClient(cred.BaseURL, cred.Token)
+	var (
+		waiting []string
+		err     error
+	)
 	switch kind {
 	case "issues", "issue":
-		return issueWorkPending(ctx, gc, false)
+		waiting, err = issueWorkPending(ctx, gc, false)
 	case "issues:assigned", "issue:assigned", "assigned":
-		return issueWorkPending(ctx, gc, true)
+		waiting, err = issueWorkPending(ctx, gc, true)
 	case "mr", "mrs":
-		return mrReviewPending(ctx, gc)
+		waiting, err = mrReviewPending(ctx, gc)
 	case "review", "reviews":
-		return mrReviewAssignedPending(ctx, gc)
+		waiting, err = mrReviewAssignedPending(ctx, gc)
 	default:
-		return System{}.HasWork(ctx, cred)
+		// Ohne Unterscope zählt beides — Issues UND der eigene Review-Loop.
+		waiting, err = issueWorkPending(ctx, gc, false)
+		if err == nil {
+			var mrs []string
+			if mrs, err = mrReviewPending(ctx, gc); err == nil {
+				waiting = append(waiting, mrs...)
+			}
+		}
 	}
+	if err != nil {
+		return false, "", err
+	}
+	return len(waiting) > 0, workSig(waiting), nil
 }
 
 // issueMaxNotesChecks begrenzt die Kommentar-Prüfung von issueWorkPending: der
@@ -170,10 +196,10 @@ const issueMaxNotesChecks = 30
 // Der Vertrag daraus: **Ein Agent, der an einem Issue gearbeitet hat, muss dort
 // kommentieren.** Ein stiller Lauf gilt als „noch nicht bearbeitet" und weckt
 // erneut. Das Playbook „Issue-Triage" hält das so.
-func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) (bool, error) {
+func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) ([]string, error) {
 	issues, err := gc.ListIssues(ctx, 0, "opened", "", "", assignedOnly)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	inScope := issues[:0]
 	for _, i := range issues {
@@ -182,87 +208,70 @@ func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) (bool,
 		}
 	}
 	if len(inScope) == 0 {
-		return false, nil
+		return nil, nil
 	}
 	if len(inScope) > issueMaxNotesChecks {
-		return true, nil
+		// Zu viele offene Issues für die Kommentar-Prüfung: wecken, ohne sie
+		// einzeln anzusehen. Die Signatur trägt dann nur die Anzahl — sie
+		// ändert sich, sobald ein Issue dazukommt oder wegfällt.
+		return []string{fmt.Sprintf("issues:many@%d", len(inScope))}, nil
 	}
 	me, err := gc.CurrentUser(ctx)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
+	var waiting []string
 	for _, i := range inScope {
 		notes, err := gc.ListNotes(ctx, i.ProjectID, i.IID)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
-		st := scanThread(notes, me.Username, target.Peers(ctx))
-		if st.Mine && !st.waitsForMe() {
+		if lastHumanNoteIsMine(notes, me.Username) {
 			continue // schon beantwortet — ruht, bis jemand darauf antwortet
 		}
-		return true, nil
+		waiting = append(waiting, threadSig("issue", i.ProjectID, i.IID, notes))
 	}
-	return false, nil
+	return waiting, nil
 }
 
-// threadState fasst zusammen, was in einem Thread (Issue oder MR) SEIT dem
-// letzten eigenen Beitrag des Bots passiert ist — die Grundlage jeder
-// Feuer-Bedingung dieses Plugins.
-type threadState struct {
-	Human      bool // ein Mensch hat seither geschrieben
-	Peer       bool // ein Kollegen-Agent derselben Organisation hat seither geschrieben
-	NewCommits bool // GitLab hat seither neue Commits als System-Note vermerkt
-	Mine       bool // der Bot hat in diesem Thread überhaupt schon gesprochen
-}
-
-// waitsForMe ist die Entscheidung: wartet dort Arbeit auf den Bot?
-//
-// Ein Mensch, der schreibt, ist immer Arbeit. Ein KOLLEGEN-AGENT dagegen nur
-// dann, wenn seither auch neue Commits kamen — also wirklich etwas zu prüfen
-// oder einzuarbeiten ist. Ohne diese Unterscheidung wecken sich zwei Agenten
-// gegenseitig endlos: Jeder kommentiert, um sein eigenes Gate zu schließen, und
-// öffnet damit das des anderen (Bot-Ping-Pong). Reiner Text zwischen zwei
-// Agenten — Dank, Nachtrag, Statusmeldung — ist keine Arbeit.
-func (s threadState) waitsForMe() bool {
-	if s.Human {
-		return true
+// threadSig beschreibt einen wartenden Vorgang so, dass sich die Beschreibung
+// genau dann ändert, wenn dort etwas Neues passiert ist: Projekt, Nummer und
+// die höchste Note-ID des Threads. GitLab vergibt Note-IDs monoton und
+// vermerkt auch Pushes als System-Note — neue Commits ändern die Signatur
+// also mit, ohne dass es einen zusätzlichen Request kostet.
+func threadSig(kind string, projectID, iid int, notes []Note) string {
+	last := 0
+	for _, n := range notes {
+		if n.ID > last {
+			last = n.ID
+		}
 	}
-	return s.Peer && s.NewCommits
+	return fmt.Sprintf("%s%d!%d@%d", kind, projectID, iid, last)
 }
 
-// scanThread liest die Notes von hinten bis zum letzten eigenen Beitrag und
-// klassifiziert, was seither geschah. peers sind die GitLab-Usernames der
-// übrigen Agenten derselben Organisation (leer = alles Fremde gilt als Mensch).
-func scanThread(notes []Note, me string, peers map[string]bool) threadState {
-	var st threadState
+// workSig fasst die wartenden Vorgänge zu einer stabilen Signatur zusammen.
+// Sortiert, weil GitLab nach updated_at liefert — sonst wechselte die Signatur
+// allein durch die Reihenfolge.
+func workSig(waiting []string) string {
+	if len(waiting) == 0 {
+		return ""
+	}
+	sorted := append([]string(nil), waiting...)
+	sort.Strings(sorted)
+	return strings.Join(sorted, ",")
+}
+
+// lastHumanNoteIsMine sagt, ob der letzte Nicht-System-Kommentar eines Threads
+// vom Bot selbst stammt. Ohne jeden menschlichen Kommentar ist die Antwort
+// false: ein unkommentierter Thread wartet auf den ersten Zug.
+func lastHumanNoteIsMine(notes []Note, me string) bool {
 	for i := len(notes) - 1; i >= 0; i-- {
-		n := notes[i]
-		if n.System {
-			if isCommitNote(n.Body) {
-				st.NewCommits = true
-			}
+		if notes[i].System {
 			continue
 		}
-		if n.Author.Username == me {
-			st.Mine = true
-			break
-		}
-		if peers[n.Author.Username] {
-			st.Peer = true
-			continue
-		}
-		st.Human = true
+		return notes[i].Author.Username == me
 	}
-	return st
-}
-
-// isCommitNote erkennt die System-Note, mit der GitLab einen Push am Thread
-// vermerkt („added 3 commits", „added 1 commit"). Sie ist das billigste
-// verfügbare Signal für „am Code hat sich etwas geändert" — sie liegt in den
-// ohnehin geladenen Notes, kostet also keinen zusätzlichen Request.
-func isCommitNote(body string) bool {
-	b := strings.ToLower(strings.TrimSpace(body))
-	return strings.HasPrefix(b, "added") && strings.Contains(b, "commit")
+	return false
 }
 
 // mrReviewPending prüft, ob einer der offenen, selbst eröffneten Merge Requests
@@ -270,10 +279,10 @@ func isCommitNote(body string) bool {
 // Kommentar im Thread stammt nicht vom Bot. Frische MRs ganz ohne Kommentare
 // (der Bot hat gerade eröffnet, das Review steht noch aus) zählen NICHT als
 // Arbeit — sonst würde jeder offene MR den Agenten in jedem Intervall wecken.
-func mrReviewPending(ctx context.Context, gc *Client) (bool, error) {
+func mrReviewPending(ctx context.Context, gc *Client) ([]string, error) {
 	mrs, err := gc.ListMyOpenMergeRequests(ctx)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	inScope := mrs[:0]
 	for _, m := range mrs {
@@ -282,26 +291,32 @@ func mrReviewPending(ctx context.Context, gc *Client) (bool, error) {
 		}
 	}
 	if len(inScope) == 0 {
-		return false, nil
+		return nil, nil
 	}
 	me, err := gc.CurrentUser(ctx)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
+	var waiting []string
 	for _, m := range inScope {
 		notes, err := gc.ListMRNotes(ctx, m.ProjectID, m.IID)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
-		// Notes kommen chronologisch (sort=asc); entscheidend ist, was seit dem
-		// letzten eigenen Kommentar kam. Ein Mensch, der schreibt, wartet auf
-		// Bearbeitung; ein Kollegen-Agent nur mit neuen Commits — sonst
-		// antworten sich zwei Bots gegenseitig im Heartbeat-Takt.
-		if scanThread(notes, me.Username, target.Peers(ctx)).waitsForMe() {
-			return true, nil
+		// Notes kommen chronologisch (sort=asc); der letzte Nicht-System-
+		// Kommentar entscheidet. Ist er von jemand anderem als dem Bot, wartet
+		// Review-Feedback auf Bearbeitung.
+		for i := len(notes) - 1; i >= 0; i-- {
+			if notes[i].System {
+				continue
+			}
+			if notes[i].Author.Username != me.Username {
+				waiting = append(waiting, threadSig("mr", m.ProjectID, m.IID, notes))
+			}
+			break // letzter menschlicher Kommentar ist vom Bot → schon beantwortet
 		}
 	}
-	return false, nil
+	return waiting, nil
 }
 
 // mrReviewAssignedPending ist das Spiegelbild von mrReviewPending aus der
@@ -317,29 +332,29 @@ func mrReviewPending(ctx context.Context, gc *Client) (bool, error) {
 // kommentiert, ruht der MR, bis der Autor mit Code reagiert — eine bloße
 // Textantwort des Autoren-Agenten („danke für das Review") ist kein Anlass für
 // eine neue Review-Runde, sonst schaukeln sich beide Agenten gegenseitig hoch.
-func mrReviewAssignedPending(ctx context.Context, gc *Client) (bool, error) {
+func mrReviewAssignedPending(ctx context.Context, gc *Client) ([]string, error) {
 	me, err := gc.CurrentUser(ctx)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	mrs, err := gc.ListReviewMergeRequests(ctx, me.Username)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
+	var waiting []string
 	for _, m := range mrs {
 		if !projectInScope(m.ProjectID, mrProjectPath(m)) {
 			continue
 		}
 		notes, err := gc.ListMRNotes(ctx, m.ProjectID, m.IID)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
-		st := scanThread(notes, me.Username, target.Peers(ctx))
-		if st.waitsForMe() || !st.Mine {
-			return true, nil
+		if !lastHumanNoteIsMine(notes, me.Username) {
+			waiting = append(waiting, threadSig("mr", m.ProjectID, m.IID, notes))
 		}
 	}
-	return false, nil
+	return waiting, nil
 }
 
 // ActionSubject: öffentliche Kommentare (internal=false) sind ein eigenes,

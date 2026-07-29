@@ -89,6 +89,33 @@ type KindWorkChecker interface {
 	HasWorkKind(ctx context.Context, cred Credential, kind string) (bool, error)
 }
 
+// SignedWorkChecker verfeinert WorkChecker um eine Signatur des gefundenen
+// Arbeitsvorrats — eine kurze, stabile Beschreibung dessen, WORAUF der Check
+// angeschlagen hat (bei GitLab etwa „mr!9@n1234": Merge Request 9, neuester
+// Beitrag 1234).
+//
+// Der Grund: Eine nur-wenn:-Bedingung ist pegelgesteuert. Sie meldet Arbeit,
+// solange der Zustand besteht — „im Thread hat zuletzt jemand anderes
+// geschrieben" bleibt wahr, bis der Agent selbst schreibt. Ein Agent, der einen
+// Lauf BEWUSST kommentarlos beendet (die Rückmeldung war eine Freigabe, es gibt
+// nichts zu tun), würde deshalb im nächsten Intervall erneut geweckt und
+// kommentiert am Ende nur noch, um seinen eigenen Wecker abzustellen.
+//
+// Die Control Plane merkt sich darum die Signatur, auf die zuletzt gefeuert
+// wurde, und feuert erst wieder, wenn sie sich ÄNDERT. Der Agent wird also
+// weiterhin zu jeder Neuigkeit geweckt — auch zu einer, die er nur zur Kenntnis
+// nimmt — aber nie zweimal zur selben. Ob eine Rückmeldung Arbeit ist (Mängel)
+// oder nicht (Freigabe), entscheidet damit der Agent, nicht das Gate.
+//
+// Eine leere Signatur schaltet die Unterdrückung ab: dann feuert der Heartbeat
+// wie bisher bei jedem Pegel (fail-open).
+type SignedWorkChecker interface {
+	WorkChecker
+	// HasWorkSigned prüft wie HasWorkKind (kind == "" → wie HasWork) und
+	// liefert zusätzlich die Signatur des gefundenen Vorrats.
+	HasWorkSigned(ctx context.Context, cred Credential, kind string) (bool, string, error)
+}
+
 // workdirKey trägt das Sandbox-Arbeitsverzeichnis durch den Context zu
 // Execute. Aktionen, die Dateien in der Sandbox materialisieren (z. B.
 // gitlab checkout), entpacken dorthin — der Daemon setzt den Wert, weil nur
@@ -98,7 +125,6 @@ type ctxKey int
 const (
 	workdirKey ctxKey = iota
 	artifactSinkKey
-	peersKey
 )
 
 // Artifact ist ein Binär-Nebenergebnis einer Aktion, das ins Recording gehört
@@ -121,37 +147,6 @@ func EmitArtifact(ctx context.Context, a Artifact) {
 	if sink, ok := ctx.Value(artifactSinkKey).(func(Artifact)); ok && sink != nil {
 		sink(a)
 	}
-}
-
-// WithPeers hinterlegt die Identitäten der ÜBRIGEN Agenten derselben
-// Organisation in diesem Zielsystem (z. B. GitLab-Usernames) im Context. Kein
-// Auth-Material — ein Work-Checker unterscheidet damit den Beitrag eines
-// Kollegen-Agenten vom Beitrag eines Menschen.
-//
-// Der Grund: Die Feuer-Bedingung eines Heartbeats fragt „wartet dort etwas auf
-// mich?", und die Antwort lautet klassisch „ja, wenn zuletzt jemand anderes
-// geschrieben hat". Zwischen zwei Agenten trägt das einen Ping-Pong: A
-// kommentiert, damit sein eigenes Gate schließt, öffnet damit das Gate von B,
-// B antwortet, öffnet A wieder — im Heartbeat-Takt, ohne dass Arbeit anfällt.
-// Wer die Kollegen kennt, kann deren Beiträge anders gewichten als die eines
-// Menschen.
-func WithPeers(ctx context.Context, peers []string) context.Context {
-	set := make(map[string]bool, len(peers))
-	for _, p := range peers {
-		if p != "" {
-			set[p] = true
-		}
-	}
-	return context.WithValue(ctx, peersKey, set)
-}
-
-// Peers liest die Identitäten der Kollegen-Agenten aus dem Context. Leere Menge,
-// wenn nichts hinterlegt ist — dann verhält sich ein Work-Checker wie zuvor und
-// hält jeden fremden Beitrag für den eines Menschen (fail-open: lieber einmal zu
-// viel wecken als Arbeit liegen lassen).
-func Peers(ctx context.Context) map[string]bool {
-	set, _ := ctx.Value(peersKey).(map[string]bool)
-	return set
 }
 
 // WithWorkdir hängt das Sandbox-Arbeitsverzeichnis an den Context.
