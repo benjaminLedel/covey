@@ -135,6 +135,14 @@ func Workdir(ctx context.Context) string {
 	return dir
 }
 
+// BaselineRef ist der git-Tag, den ein Checkout auf den frisch entpackten
+// Upstream-Stand setzt. Er ist der Anker zwischen Checkout und Sub-Lauf: Der
+// Sub-Lauf meldet seine Arbeit als Differenz zu diesem Commit, nicht als
+// Differenz zweier Status-Abbilder. Nur so bleibt die Arbeit sichtbar, wenn
+// der Sub-Agent im Checkout lokal committet — was viele Projekte in ihrer
+// CLAUDE.md ausdrücklich verlangen.
+const BaselineRef = "covey-baseline"
+
 // SubAgentRequest ist ein Arbeitsauftrag an einen geschachtelten Runtime-Lauf,
 // der IM angegebenen Verzeichnis startet — typischerweise ein Projekt-Checkout.
 // Damit greift dort der Claude-Code-Harness des Projekts selbst (CLAUDE.md,

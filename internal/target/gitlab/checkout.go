@@ -12,6 +12,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"covey/internal/target"
 )
 
 // preserveDirs bleiben bei einem erneuten Checkout erhalten (nicht mit dem
@@ -170,7 +172,15 @@ func initGitBaseline(ctx context.Context, dir string) {
 	if err := git("add", "-A"); err != nil {
 		return
 	}
-	_ = git("commit", "-q", "--allow-empty", "-m", "covey baseline")
+	if err := git("commit", "-q", "--allow-empty", "-m", "covey baseline"); err != nil {
+		return
+	}
+	// Der Tag macht den Upstream-Stand referenzierbar (target.BaselineRef): Der
+	// Sub-Lauf meldet seine Arbeit als Differenz zu diesem Commit. Damit zählt
+	// auch, was der Sub-Agent lokal committet hat — ein Vergleich zweier
+	// `git status`-Abbilder würde danach nichts mehr sehen. `-f`, weil ein
+	// erneuter Checkout in dasselbe Verzeichnis den Tag neu setzen muss.
+	_ = git("tag", "-f", target.BaselineRef)
 }
 
 // extractTarGz entpackt ein GitLab-Repository-Archiv nach destRoot und liefert

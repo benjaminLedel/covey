@@ -36,8 +36,9 @@ Die Konventionen dieses Projekts gelten: Halte dich an CLAUDE.md, CONTRIBUTING u
 Regeln, Skills und Subagenten, die das Projekt mitbringt.
 
 Rahmen deiner Arbeit:
-- Du hast KEINEN Zugang zu GitLab, E-Mail oder anderen Zielsystemen und kannst nicht committen
-  oder pushen. Ändere die Dateien lokal — das Einchecken übernimmt der Agent, der dich beauftragt hat.
+- Du hast KEINEN Zugang zu GitLab, E-Mail oder anderen Zielsystemen und kannst nicht pushen.
+  Lokale git-Commits im Checkout sind in Ordnung (halte dich an die Konventionen des Projekts);
+  das Einchecken ins Zielsystem übernimmt der Agent, der dich beauftragt hat.
 - Verifiziere deine Änderung, bevor du fertig meldest: Build bzw. Tests des Projekts ausführen,
   für einen Fix möglichst einen Test ergänzen.
 - Deine letzte Nachricht ist dein Bericht an den beauftragenden Agenten. Fasse darin zusammen:
@@ -91,9 +92,15 @@ func (c *Client) runSubAgent(ctx context.Context, taskID string, req target.SubA
 		model = cfg.Model
 	}
 
-	// Ausgangsstand festhalten, damit der Bericht die geänderten Dateien
-	// nennen kann — genau in der Form, die die commit-Aktion erwartet.
-	before := gitStatus(ctx, dir)
+	// Anker für den Bericht: der Upstream-Stand, den der Checkout als Tag
+	// festhält. Fehlt er (das Verzeichnis kommt nicht aus einem Checkout),
+	// dient der Stand unmittelbar vor dem Sub-Lauf als Anker — nie das
+	// Wurzel-Commit, sonst wäre in einem echten Klon die ganze Repo-Historie
+	// „Arbeit".
+	base := gitRev(ctx, dir, target.BaselineRef)
+	if base == "" {
+		base = gitRev(ctx, dir, "HEAD")
+	}
 
 	spec := RunSpec{
 		TaskID:       taskID,
@@ -110,13 +117,7 @@ func (c *Client) runSubAgent(ctx context.Context, taskID string, req target.SubA
 	}
 
 	res, err := runtime.Run(ctx, spec, func(kind string, payload json.RawMessage) {
-		// Als Sub-Lauf markieren, damit die Timeline äußeren und inneren Lauf
-		// auseinanderhalten kann.
-		wrapped, mErr := json.Marshal(map[string]any{"sub_agent": true, "dir": dir, "event": payload})
-		if mErr != nil {
-			wrapped = payload
-		}
-		_ = c.send(TypeEvent, Event{TaskID: taskID, Kind: kind, Payload: wrapped})
+		_ = c.send(TypeEvent, Event{TaskID: taskID, Kind: kind, Payload: markSubAgent(payload, dir)})
 	})
 	if err != nil {
 		return target.SubAgentResult{}, err
@@ -126,7 +127,7 @@ func (c *Client) runSubAgent(ctx context.Context, taskID string, req target.SubA
 			InputTokens: res.InputTokens, OutputTokens: res.OutputTokens, Model: res.Model})
 	}
 
-	changed, deleted := gitChanges(before, gitStatus(ctx, dir))
+	changed, deleted := gitChangesSince(ctx, dir, base)
 	return target.SubAgentResult{
 		// Beim Turn-Limit liefert der Adapter statt eines Ergebnisses den
 		// Übergabe-Stand der abgebrochenen Session (Status "incomplete",
@@ -142,39 +143,108 @@ func (c *Client) runSubAgent(ctx context.Context, taskID string, req target.SubA
 	}, nil
 }
 
-// gitStatus liest den Arbeitsstand des Checkouts als Pfad→Status-Abbild.
-// Der Checkout legt eine git-Baseline an (siehe target/gitlab/checkout.go) und
-// schließt die Cache-Verzeichnisse über .git/info/exclude aus — was hier
-// auftaucht, ist echte Arbeit. Ohne git (Verzeichnis ist kein Repo) leer:
-// dann meldet der Sub-Lauf eben keine Dateiliste, statt zu scheitern.
-func gitStatus(ctx context.Context, dir string) map[string]string {
-	out, err := exec.CommandContext(ctx, "git", "-C", dir, "status", "--porcelain", "-uall").Output()
-	if err != nil {
-		return nil
+// markSubAgent markiert eine Runtime-Zeile als Teil eines Sub-Laufs — als
+// zusätzlichen Schlüssel IM Objekt, nicht als Hülle darum. Der Unterschied ist
+// nicht kosmetisch: Aufzeichnung und Timeline lesen das Format der Runtime
+// (stream-json) direkt, und eine Hülle würde `type` verdecken. Der Sub-Lauf
+// stünde dann als JSON-Klumpen in der Aufzeichnung statt als Turn mit seinen
+// Tool-Aufrufen — ausgerechnet dort, wo die eigentliche Arbeit passiert.
+func markSubAgent(payload json.RawMessage, dir string) json.RawMessage {
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &obj); err != nil || obj == nil {
+		return payload // kein JSON-Objekt → unverändert durchreichen
 	}
-	state := map[string]string{}
-	for _, line := range strings.Split(string(out), "\n") {
+	mark, err := json.Marshal(map[string]string{"dir": dir})
+	if err != nil {
+		return payload
+	}
+	obj["covey_sub_agent"] = mark
+	marked, err := json.Marshal(obj)
+	if err != nil {
+		return payload
+	}
+	return marked
+}
+
+// gitRev löst eine Referenz zu einem Commit auf. Leer, wenn es sie nicht gibt
+// (kein Repo, kein Commit, kein Tag) — der Aufrufer entscheidet dann, ob er
+// einen anderen Anker nimmt oder gar keine Dateiliste meldet.
+func gitRev(ctx context.Context, dir, rev string) string {
+	out, err := exec.CommandContext(ctx, "git", "-C", dir,
+		"rev-parse", "--verify", "--quiet", rev+"^{commit}").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
+}
+
+// gitChangesSince liefert die Arbeit im Checkout als die beiden Listen, die die
+// commit-Aktion erwartet: geänderte/neue und gelöschte Dateien, jeweils
+// repo-relativ und gemessen gegen base.
+//
+// Gemessen wird gegen einen COMMIT, nicht gegen ein `git status`-Abbild von
+// vorher. Das ist der Punkt: Der Sub-Agent darf im Checkout lokal committen —
+// viele Projekte verlangen das in ihrer CLAUDE.md —, und nach einem Commit
+// zeigt `git status` nichts mehr an. Die Arbeit läge dann fertig auf Platte,
+// aber der Bericht wäre leer und die commit-Aktion bräche mit „nichts zu
+// committen" ab.
+//
+// Deshalb beide Hälften zusammen: was seit base committet wurde (git diff) und
+// was daneben im Arbeitsverzeichnis offen liegt (git status). Cache-
+// Verzeichnisse bleiben über .git/info/exclude des Checkouts außen vor.
+func gitChangesSince(ctx context.Context, dir, base string) (changed, deleted []string) {
+	if base == "" {
+		return nil, nil // kein Anker → lieber keine Liste als eine falsche
+	}
+	// Pfad → gelöscht? Die spätere Quelle gewinnt, weil sie den jüngeren Stand
+	// beschreibt: erst base→HEAD, dann HEAD→Arbeitsverzeichnis.
+	state := map[string]bool{}
+	mark := func(code, from, to string) {
+		switch {
+		case code == "" || from == "":
+			return
+		case strings.HasPrefix(code, "R"), strings.HasPrefix(code, "C"):
+			// Umbenennung/Kopie: das Ziel ist neu, bei R fällt die Quelle weg.
+			// Die Quelle muss mit, sonst bliebe sie im Zielsystem stehen.
+			if to != "" {
+				state[to] = false
+			}
+			if strings.HasPrefix(code, "R") {
+				state[from] = true
+			}
+		case strings.ContainsRune(code, 'D'):
+			state[from] = true
+		default:
+			state[from] = false
+		}
+	}
+	// Committet: --name-status trennt mit Tabs, Umbenennungen als "R100 alt neu".
+	for _, line := range gitLines(ctx, dir, "diff", "--name-status", base, "HEAD") {
+		f := strings.Split(line, "\t")
+		if len(f) < 2 {
+			continue
+		}
+		to := ""
+		if len(f) > 2 {
+			to = f[2]
+		}
+		mark(f[0], f[1], to)
+	}
+	// Offen im Arbeitsverzeichnis: --porcelain, Umbenennungen als "alt -> neu".
+	for _, line := range gitLines(ctx, dir, "status", "--porcelain", "-uall") {
 		if len(line) < 4 {
 			continue
 		}
 		code, path := strings.TrimSpace(line[:2]), strings.TrimSpace(line[3:])
-		// Umbenennungen meldet git als "alt -> neu"; uns interessiert das Ziel.
-		if idx := strings.Index(path, " -> "); idx >= 0 {
-			path = path[idx+4:]
+		from, to := path, ""
+		if i := strings.Index(path, " -> "); i >= 0 {
+			from, to = path[:i], path[i+4:]
 		}
-		state[strings.Trim(path, `"`)] = code
+		mark(code, strings.Trim(from, `"`), strings.Trim(to, `"`))
 	}
-	return state
-}
 
-// gitChanges bildet die Differenz zweier Statusabbilder auf die beiden Listen
-// der commit-Aktion ab: geänderte/neue Dateien und gelöschte.
-func gitChanges(before, after map[string]string) (changed, deleted []string) {
-	for path, code := range after {
-		if before[path] == code {
-			continue // stand schon vor dem Sub-Lauf so da
-		}
-		if strings.Contains(code, "D") {
+	for path, gone := range state {
+		if gone {
 			deleted = append(deleted, path)
 			continue
 		}
@@ -185,4 +255,19 @@ func gitChanges(before, after map[string]string) (changed, deleted []string) {
 	sort.Strings(changed)
 	sort.Strings(deleted)
 	return changed, deleted
+}
+
+// gitLines führt ein git-Kommando aus und liefert seine Ausgabezeilen. Ohne git
+// oder ohne Repository leer: Dann meldet der Sub-Lauf eben keine Dateiliste,
+// statt zu scheitern.
+func gitLines(ctx context.Context, dir string, args ...string) []string {
+	out, err := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...).Output()
+	if err != nil {
+		return nil
+	}
+	trimmed := strings.TrimRight(string(out), "\n")
+	if trimmed == "" {
+		return nil
+	}
+	return strings.Split(trimmed, "\n")
 }

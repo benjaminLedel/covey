@@ -1528,6 +1528,11 @@ func TestCheckoutGitBaseline(t *testing.T) {
 	if out := gitOut(t, dir, "status", "--porcelain", "-uall"); out != "" {
 		t.Fatalf("frischer Checkout muss sauber sein, war:\n%s", out)
 	}
+	// Der Tag ist der Anker, gegen den der Sub-Lauf seine Arbeit meldet — auch
+	// dann noch, wenn er zwischendurch lokal committet hat.
+	if out := gitOut(t, dir, "tag", "--list", target.BaselineRef); out != target.BaselineRef {
+		t.Fatalf("Checkout muss den Upstream-Stand als %q taggen, hatte: %q", target.BaselineRef, out)
+	}
 	// Nach einer Änderung meldet git genau diese Datei — das ist die Liste,
 	// die der Sub-Agent an die commit-Aktion zurückgibt.
 	if err := os.WriteFile(filepath.Join(dir, "pkg", "app.go"), []byte("package app // fix"), 0o644); err != nil {

@@ -1,7 +1,9 @@
 package daemon
 
 import (
+	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -10,35 +12,130 @@ import (
 	"covey/internal/target"
 )
 
-// TestGitChanges prüft die Abbildung des git-Status auf die beiden Listen der
-// commit-Aktion. Entscheidend ist die Differenz zum Stand VOR dem Sub-Lauf:
-// Was der Agent vorher schon geändert hatte (oder was ein abgebrochener
-// Vorlauf hinterlassen hat), darf der Bericht nicht als neue Arbeit ausgeben.
-func TestGitChanges(t *testing.T) {
-	before := map[string]string{"vorher.go": "M"}
-	after := map[string]string{
-		"vorher.go":    "M",  // unverändert seit vorher → nicht melden
-		"pkg/app.go":   "M",  // geändert
-		"pkg/neu.go":   "??", // neu angelegt
-		"alt.go":       "D",  // gelöscht
-		"umbenannt.go": "R",
-	}
-	changed, deleted := gitChanges(before, after)
+// TestGitChangesSince sichert den Kern des Berichts: Gemessen wird gegen den
+// Baseline-COMMIT des Checkouts, nicht gegen ein `git status`-Abbild von
+// vorher. Der Sub-Agent darf im Checkout lokal committen — viele Projekte
+// verlangen das in ihrer CLAUDE.md —, und genau dann sieht `git status`
+// nichts mehr. Ohne diesen Test fiele die halbe Arbeit lautlos aus der Liste,
+// die an die commit-Aktion geht.
+func TestGitChangesSince(t *testing.T) {
+	dir := gitRepo(t)
 
-	wantChanged := []string{"pkg/app.go", "pkg/neu.go", "umbenannt.go"}
+	// Baseline wie nach einem Checkout: Upstream-Stand committet und getaggt.
+	writeFile(t, dir, "app.go", "package app")
+	writeFile(t, dir, "alt.go", "package app")
+	runGit(t, dir, "add", "-A")
+	runGit(t, dir, "commit", "-q", "-m", "covey baseline")
+	runGit(t, dir, "tag", target.BaselineRef)
+
+	base := gitRev(t.Context(), dir, target.BaselineRef)
+	if base == "" {
+		t.Fatal("Baseline-Tag muss auflösbar sein")
+	}
+	if changed, deleted := gitChangesSince(t.Context(), dir, base); len(changed)+len(deleted) != 0 {
+		t.Fatalf("frische Baseline = keine Arbeit, war: %v / %v", changed, deleted)
+	}
+
+	// Der Sub-Agent committet einen Teil seiner Arbeit lokal …
+	writeFile(t, dir, "app.go", "package app // fix")
+	writeFile(t, dir, "committet.go", "package app")
+	runGit(t, dir, "rm", "-q", "alt.go")
+	runGit(t, dir, "add", "-A")
+	runGit(t, dir, "commit", "-q", "-m", "fix")
+	// … und lässt den Rest offen im Arbeitsverzeichnis liegen.
+	writeFile(t, dir, "offen.go", "package app")
+
+	changed, deleted := gitChangesSince(t.Context(), dir, base)
+	wantChanged := []string{"app.go", "committet.go", "offen.go"}
 	if !reflect.DeepEqual(changed, wantChanged) {
 		t.Fatalf("changed falsch: %v (erwartet %v)", changed, wantChanged)
 	}
 	if !reflect.DeepEqual(deleted, []string{"alt.go"}) {
-		t.Fatalf("deleted falsch: %v", deleted)
+		t.Fatalf("deleted falsch: %v (erwartet [alt.go])", deleted)
 	}
 }
 
-// Ohne git (Verzeichnis ist kein Repo) liefert gitStatus nichts, statt zu
-// scheitern — der Sub-Lauf meldet dann eben keine Dateiliste.
-func TestGitStatusWithoutRepo(t *testing.T) {
-	if got := gitStatus(t.Context(), t.TempDir()); len(got) != 0 {
-		t.Fatalf("ohne Repository darf nichts gemeldet werden: %v", got)
+// Gemeldet wird der GESAMTE Stand gegen die Baseline, nicht nur das, was
+// dieser eine Sub-Lauf angefasst hat. Das ist Absicht: Die Listen gehen
+// unverändert in die commit-Aktion, und was ein früherer Sub-Lauf derselben
+// Aufgabe geändert hat, gehört genauso in den Merge Request — sonst bliebe es
+// auf Platte liegen und käme nie im Zielsystem an.
+func TestGitChangesSinceIsCumulative(t *testing.T) {
+	dir := gitRepo(t)
+	writeFile(t, dir, "app.go", "package app")
+	runGit(t, dir, "add", "-A")
+	runGit(t, dir, "commit", "-q", "-m", "covey baseline")
+	runGit(t, dir, "tag", target.BaselineRef)
+	base := gitRev(t.Context(), dir, target.BaselineRef)
+
+	writeFile(t, dir, "frueher.go", "package app") // Vorlauf, noch nicht committet
+	writeFile(t, dir, "app.go", "package app // jetzt")
+
+	changed, _ := gitChangesSince(t.Context(), dir, base)
+	if !reflect.DeepEqual(changed, []string{"app.go", "frueher.go"}) {
+		t.Fatalf("changed falsch: %v (erwartet [app.go frueher.go])", changed)
+	}
+}
+
+// Ohne Repository gibt es keinen Anker. Dann meldet der Sub-Lauf lieber keine
+// Dateiliste, als eine falsche — scheitern darf er deswegen nicht.
+func TestGitChangesSinceWithoutRepo(t *testing.T) {
+	dir := t.TempDir()
+	if got := gitRev(t.Context(), dir, "HEAD"); got != "" {
+		t.Fatalf("ohne Repository gibt es keinen Anker: %q", got)
+	}
+	changed, deleted := gitChangesSince(t.Context(), dir, "")
+	if len(changed)+len(deleted) != 0 {
+		t.Fatalf("ohne Anker darf nichts gemeldet werden: %v / %v", changed, deleted)
+	}
+}
+
+// Die Markierung eines Sub-Lauf-Events darf das Format der Runtime nicht
+// verdecken: Aufzeichnung und Timeline lesen stream-json direkt und würden den
+// Sub-Lauf sonst als JSON-Klumpen statt als Turn mit Tool-Aufrufen zeigen.
+func TestMarkSubAgentKeepsStreamFormat(t *testing.T) {
+	got := markSubAgent(json.RawMessage(`{"type":"assistant","message":{"content":[]}}`), "/home/agent/repos/p")
+
+	var obj map[string]any
+	if err := json.Unmarshal(got, &obj); err != nil {
+		t.Fatal(err)
+	}
+	if obj["type"] != "assistant" {
+		t.Fatalf("type muss oben stehen bleiben: %s", got)
+	}
+	mark, ok := obj["covey_sub_agent"].(map[string]any)
+	if !ok || mark["dir"] != "/home/agent/repos/p" {
+		t.Fatalf("Sub-Lauf-Markierung fehlt oder ist unvollständig: %s", got)
+	}
+}
+
+// gitRepo legt ein leeres Repository an und überspringt den Test, wenn kein
+// git verfügbar ist (wie TestCheckoutGitBaseline im gitlab-Paket).
+func gitRepo(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	if err := exec.Command("git", "-C", dir, "init", "-q").Run(); err != nil {
+		t.Skipf("kein git verfügbar: %v", err)
+	}
+	return dir
+}
+
+func runGit(t *testing.T, dir string, args ...string) {
+	t.Helper()
+	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+	// Identität als ENV statt via git config — wie initGitBaseline im Checkout.
+	cmd.Env = append(os.Environ(),
+		"GIT_AUTHOR_NAME=Covey", "GIT_AUTHOR_EMAIL=covey@localhost",
+		"GIT_COMMITTER_NAME=Covey", "GIT_COMMITTER_EMAIL=covey@localhost")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("git %v: %v\n%s", args, err, out)
+	}
+}
+
+func writeFile(t *testing.T, dir, name, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 
