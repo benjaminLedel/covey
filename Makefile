@@ -5,8 +5,13 @@ DB_URL ?= postgres://covey:covey@localhost:5433/covey?sslmode=disable
 
 .PHONY: build web test test-integration run bootstrap dev-db sandbox-image egress-image clean skill-sync
 
+# npm ci statt npm install — bewusst: es installiert exakt den Lockfile und
+# schreibt ihn nie um. npm install auf macOS wirft die Linux-/wasm-Zweige
+# (@emnapi, tailwind-oxide-wasm) aus dem Lockfile, die der Container-Build
+# braucht; danach scheitert npm ci in CI und Dockerfile. Dieselbe Zeile wie
+# dort — was hier baut, baut auch da.
 web:
-	cd web && npm install && npm run build
+	cd web && npm ci && npm run build
 
 # Skills: skills/ ist die Quelle (ins Binary eingebettet, per Download angeboten);
 # die Kopie unter .claude/skills/ hält Claude Code im Repo selbst aktuell.
