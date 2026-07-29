@@ -200,10 +200,16 @@ type Descriptor struct {
 	// <name>_token/_url) — es arbeitet rein lokal in der Sandbox (z. B. das
 	// dev-Plugin). ACCESS.md, Aktivierung und Guard-Rails gelten trotzdem.
 	NoCredentials bool `json:"-"`
+	// BaseURLOptional: das Plugin kennt den Endpoint seines Zielsystems selbst
+	// (fester Default, z. B. der Bot-Framework-Token-Endpoint bei Teams).
+	// <name>_url ist dann ein Override für Sonderfälle, kein Pflicht-Secret —
+	// der Broker verweigert ohne es nicht. Ein <name>_token bleibt Pflicht.
+	BaseURLOptional bool `json:"-"`
 	// SetupDoc ist die Einrichtungs-Anleitung fürs UI (Plain Text, nummerierte
 	// Schritte). Platzhalter: {public_url} wird von der API durch die
 	// konfigurierte COVEY_PUBLIC_URL ersetzt; <agent-slug> bleibt stehen und
-	// meint den Slug des zuständigen Agenten.
+	// meint den Slug des zuständigen Agenten (ersatzweise akzeptiert der
+	// Webhook-Endpoint auch dessen ID).
 	SetupDoc string `json:"setup_doc,omitempty"`
 }
 

@@ -1819,9 +1819,16 @@ func (o *Orchestrator) brokerCredential(ctx context.Context, agent agents.Agent,
 	if err != nil {
 		return deny("kein Secret hinterlegt oder zugewiesen: " + req.System + "_token")
 	}
+	// Bringt das Plugin den Endpoint selbst mit (BaseURLOptional), ist
+	// <name>_url nur ein Override — ein fehlendes Secret verweigert dann
+	// nicht, sonst scheiterte ein sauber eingerichteter Agent an einem
+	// Wert, den die Control Plane gar nicht braucht.
 	baseURL, err := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_url")
 	if err != nil {
-		return deny("kein Secret hinterlegt oder zugewiesen: " + req.System + "_url")
+		if d, ok := target.Describe(req.System); !ok || !d.BaseURLOptional {
+			return deny("kein Secret hinterlegt oder zugewiesen: " + req.System + "_url")
+		}
+		baseURL = ""
 	}
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
 		map[string]any{"system": req.System, "granted": true, "ttl_secs": int(o.DaemonTokenTTL.Seconds())})
