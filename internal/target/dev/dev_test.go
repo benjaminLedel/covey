@@ -173,3 +173,51 @@ func TestLogBufferCapsAndTails(t *testing.T) {
 		t.Fatalf("tail: %q", got)
 	}
 }
+
+// TestSubAgentAction deckt die Übergabe der Programmierarbeit an einen
+// Sub-Agenten im Projekt-Checkout ab: Das Plugin selbst fährt keinen Lauf, es
+// reicht den Auftrag an den Runner durch, den der Daemon in den Context hängt.
+func TestSubAgentAction(t *testing.T) {
+	var got target.SubAgentRequest
+	ctx := target.WithSubAgent(target.WithWorkdir(context.Background(), t.TempDir()),
+		func(_ context.Context, req target.SubAgentRequest) (target.SubAgentResult, error) {
+			got = req
+			return target.SubAgentResult{Result: "Fix erledigt", ChangedFiles: []string{"pkg/auth.go"}}, nil
+		})
+
+	res, err := System{}.Execute(ctx, "agent",
+		json.RawMessage(`{"cwd":"repos/p1-main","task":"Behebe den Login-Bug","max_turns":40,"model":"claude-opus-5"}`),
+		target.Credential{})
+	if err != nil {
+		t.Fatalf("agent: %v", err)
+	}
+	if got.Dir != "repos/p1-main" || got.Task != "Behebe den Login-Bug" || got.MaxTurns != 40 || got.Model != "claude-opus-5" {
+		t.Fatalf("auftrag falsch durchgereicht: %+v", got)
+	}
+	out := res.(target.SubAgentResult)
+	if out.Result != "Fix erledigt" || len(out.ChangedFiles) != 1 {
+		t.Fatalf("ergebnis falsch: %+v", out)
+	}
+}
+
+func TestSubAgentActionValidation(t *testing.T) {
+	runner := func(_ context.Context, _ target.SubAgentRequest) (target.SubAgentResult, error) {
+		return target.SubAgentResult{}, nil
+	}
+	ctx := target.WithSubAgent(context.Background(), runner)
+	sys := System{}
+
+	// Ohne cwd bzw. ohne Auftrag: klare Ablehnung statt eines Laufs ins Leere.
+	if _, err := sys.Execute(ctx, "agent", json.RawMessage(`{"task":"x"}`), target.Credential{}); err == nil {
+		t.Fatal("agent ohne cwd muss fehlschlagen")
+	}
+	if _, err := sys.Execute(ctx, "agent", json.RawMessage(`{"cwd":"repos/p1"}`), target.Credential{}); err == nil {
+		t.Fatal("agent ohne task muss fehlschlagen")
+	}
+	// Ohne Runner im Context (Control-Plane-Kontext) gibt es keine Runtime,
+	// die sich schachteln ließe.
+	if _, err := sys.Execute(context.Background(), "agent",
+		json.RawMessage(`{"cwd":"repos/p1","task":"x"}`), target.Credential{}); err == nil {
+		t.Fatal("agent ohne Runner muss fehlschlagen")
+	}
+}

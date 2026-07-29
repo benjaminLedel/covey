@@ -161,7 +161,13 @@ func (c *ClaudeCode) buildArgs(spec RunSpec) ([]string, string) {
 // Recording weiter und sammelt daraus das Roh-Ergebnis ein.
 func (c *ClaudeCode) stream(ctx context.Context, spec RunSpec, args []string, onEvent func(kind string, payload json.RawMessage)) (outcome, error) {
 	cmd := exec.CommandContext(ctx, c.Binary, args...)
-	cmd.Dir = spec.HomeDir
+	// Arbeitsverzeichnis und Home sind getrennt: Claude Code sucht CLAUDE.md,
+	// .claude/agents, skills und commands relativ zum cwd — ein Sub-Run im
+	// Projekt-Checkout bekommt so dessen Harness, behält aber das Agenten-Home.
+	cmd.Dir = spec.WorkDir
+	if cmd.Dir == "" {
+		cmd.Dir = spec.HomeDir
+	}
 	cmd.Env = append(os.Environ(), spec.Env...)
 	cmd.Env = append(cmd.Env, "HOME="+spec.HomeDir)
 

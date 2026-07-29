@@ -60,6 +60,9 @@ func NewClient(wsURL, token, agentID, homeDir string, log *slog.Logger) *Client 
 }
 
 func (c *Client) send(msgType string, payload any) error {
+	if c.conn == nil {
+		return errors.New("keine verbindung zur control plane")
+	}
 	msg, err := Encode(msgType, payload)
 	if err != nil {
 		return err
@@ -364,6 +367,32 @@ func (c *Client) checkAction(ctx context.Context, taskID, action string, params 
 	return DecodePayload[ApprovalDecision](msg)
 }
 
+// runtimeKeyEnv liefert den gebrokerten LLM-Key als ENV-Zuweisung. Der Key ist
+// selbst ein gebrokertes Secret (spec/12 Auth): proaktiv injiziert, nie
+// dauerhaft in der Sandbox. Leer, solange nichts gebrokert wurde.
+func (c *Client) runtimeKeyEnv() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	cred, ok := c.creds["anthropic"]
+	if !ok || !cred.Granted {
+		return nil
+	}
+	token := strings.TrimSpace(cred.Token)
+	// Die Control Plane nennt die Ziel-Env (aus dem Secret-Namen). Fehlt sie,
+	// raten wir am Präfix: Abo-Accounts liefern OAuth-Tokens (`claude
+	// setup-token`, sk-ant-oat…), die Claude Code nur über
+	// CLAUDE_CODE_OAUTH_TOKEN nutzt.
+	envVar := cred.EnvVar
+	if envVar == "" {
+		if strings.HasPrefix(token, "sk-ant-oat") {
+			envVar = "CLAUDE_CODE_OAUTH_TOKEN"
+		} else {
+			envVar = "ANTHROPIC_API_KEY"
+		}
+	}
+	return []string{envVar + "=" + token}
+}
+
 // runTask fährt Action-Proxy + Runtime und meldet blocked/task_done + cost.
 func (c *Client) runTask(ctx context.Context, task AssignTask) {
 	runCtx, cancel := context.WithCancel(ctx)
@@ -380,27 +409,7 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 	}
 	defer proxy.Close()
 
-	env := []string{"COVEY_ACTION_PORT=" + proxy.Port()}
-	// Der Runtime-LLM-Key ist selbst ein gebrokertes Secret (spec/12 Auth):
-	// proaktiv injiziert, nie dauerhaft in der Sandbox.
-	c.mu.Lock()
-	if cred, ok := c.creds["anthropic"]; ok && cred.Granted {
-		token := strings.TrimSpace(cred.Token)
-		// Die Control Plane nennt die Ziel-Env (aus dem Secret-Namen). Fehlt
-		// sie, raten wir am Präfix: Abo-Accounts liefern OAuth-Tokens
-		// (`claude setup-token`, sk-ant-oat…), die Claude Code nur über
-		// CLAUDE_CODE_OAUTH_TOKEN nutzt.
-		envVar := cred.EnvVar
-		if envVar == "" {
-			if strings.HasPrefix(token, "sk-ant-oat") {
-				envVar = "CLAUDE_CODE_OAUTH_TOKEN"
-			} else {
-				envVar = "ANTHROPIC_API_KEY"
-			}
-		}
-		env = append(env, envVar+"="+token)
-	}
-	c.mu.Unlock()
+	env := append([]string{"COVEY_ACTION_PORT=" + proxy.Port()}, c.runtimeKeyEnv()...)
 
 	runtime := c.runtimes[cfg.Runtime]
 	if runtime == nil {

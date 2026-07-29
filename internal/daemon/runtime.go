@@ -33,7 +33,13 @@ type RunSpec struct {
 	ResumeSessionID string
 	ResumeInput     string
 	HomeDir         string
-	Env             []string // zusätzliche ENV (z. B. COVEY_ACTION_PORT, gebrokerte Keys)
+	// WorkDir ist das Arbeitsverzeichnis des Laufs. Leer = HomeDir. Getrennt
+	// vom Home, damit ein Sub-Run IM Projekt-Checkout starten kann (dort greift
+	// dessen eigener Claude-Code-Harness: CLAUDE.md, .claude/agents, skills),
+	// während HOME weiterhin auf das persistente Agenten-Home zeigt — dort
+	// liegen ~/.claude, die Wiki-Arbeitskopie und die Dependency-Caches.
+	WorkDir string
+	Env     []string // zusätzliche ENV (z. B. COVEY_ACTION_PORT, gebrokerte Keys)
 }
 
 // RunResult ist das normierte Ergebnis eines Runtime-Laufs.

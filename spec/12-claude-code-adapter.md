@@ -68,13 +68,36 @@ Für den vollen nicht-interaktiven Betrieb braucht es `--dangerously-skip-permis
 
 Als **Defense-in-Depth** bleibt `--allowedTools` (und `--permission-mode`) trotzdem gesetzt, um den Tool-Umfang schon im Subprozess zu beschneiden — die weiche Innen-Grenze zusätzlich zur harten Außen-Grenze. Der Standard-Umfang (`daemon.DefaultAllowedTools`) deckt die produktive Grundausstattung ab: Dateien lesen/schreiben/bearbeiten/suchen (`Read`, `Write`, `Edit`, `Glob`, `Grep`, `NotebookEdit`), Shell (`Bash`, `BashOutput`, `KillShell`), Web (`WebFetch`, `WebSearch`) sowie `Task`/`TodoWrite`. Web-Zugriffe laufen dabei weiterhin durch den Egress-Proxy — die Allowlist bleibt die harte Grenze.
 
+## Sub-Run im Projekt-Checkout
+
+Ein Lauf startet im **Agenten-Home** (`/home/agent`) — dort liegen `~/.claude`, die Wiki-Arbeitskopie und die Dependency-Caches. Der Quellcode eines Projekts landet dagegen unter `~/repos/<projekt>-<ref>/` ([`13-zammad-integration.md`](13-zammad-integration.md) beschreibt das Muster für Zielsysteme; die `checkout`-Aktion des GitLab-Plugins entpackt das Archiv dorthin). Claude Code sucht Projekt-Memory (`CLAUDE.md`), `.claude/agents`, Skills und Commands aber **relativ zum Arbeitsverzeichnis** — vom Home aus sieht ein Agent davon nichts.
+
+Das kostet doppelt: Der Agent leitet die Projektstruktur bei jedem Heartbeat-Lauf neu her (frischer Prozess, gedeckeltes Turn-Budget), und die Konventionen des Projekts wirken nicht auf das Ergebnis.
+
+Deshalb trennt `RunSpec` **Arbeitsverzeichnis und Home**: `WorkDir` setzt das cwd des Subprozesses, `HomeDir` bleibt `HOME`. Darauf setzt der **Sub-Run** auf — ein geschachtelter Lauf desselben Adapters, der im Checkout startet und dort den Harness des Projekts vollständig vorfindet. Der Agent stößt ihn über die Aktion `dev:agent` an; ausgeführt wird er vom Daemon (`SubAgentRunner`, per Context an das Plugin gereicht wie `Workdir` und die Artefakt-Senke).
+
+Die Rollenteilung ist der Kern:
+
+| | Äußerer Lauf | Sub-Run |
+|---|---|---|
+| Arbeitsverzeichnis | Agenten-Home | Projekt-Checkout |
+| Prompt | kompilierte Agenten-Config (`SOUL.md` …) | Harness des Projekts + knapper Auftragsrahmen |
+| Zielsysteme | über den Action-Proxy | **keine** — kein `COVEY_ACTION_PORT` |
+| Aufgabe | Triage, Kommunikation, `commit`, Merge Request, Gedächtnis | verstehen, ändern, bauen, testen |
+
+Der Sub-Run läuft **hermetisch**: Ohne Action-Proxy erreicht er weder Ticketsystem noch Mail und kann nicht einchecken. Das hält die Grenze scharf (die Kommunikation bleibt beim Agenten, der das Protokoll kennt) und nimmt zugleich Instruktionen aus fremdem Repo-Inhalt den Weg zu den gebrokerten Zugängen.
+
+Beobachtbarkeit und Kostenkontrolle bleiben erhalten, weil der Sub-Run dieselben Protokoll-Nachrichten benutzt: Seine stream-json-Zeilen fließen (als Sub-Lauf markiert) als `event` in dieselbe Aufzeichnung, seine `cost`-Meldung geht durch `AddCost` und die Budget-Prüfung — ein Sub-Run kann den Deckel also nicht umgehen. Das Guard-Rail-Subjekt `dev:agent` macht ihn zentral verbietbar oder freigabepflichtig.
+
+Damit der Agent hinterher weiß, **was** geändert wurde, legt der Checkout ein git-Repository mit dem Upstream-Stand als Baseline-Commit an (das Archiv bringt keine `.git` mit). Der Sub-Run meldet die Differenz als `changed_files`/`deleted` zurück — genau die Listen, die die `commit`-Aktion erwartet. Nebeneffekt: Projekt-Skripte, die `git` aufrufen, funktionieren.
+
 ## CLI (`-p`) vs. Agent SDK
 
 Anthropic bietet neben der CLI auch ein **Agent SDK** (Python/TypeScript) zum Einbetten als Bibliothek; die offizielle Empfehlung ist SDK für Produktions-Automatisierung, CLI für Skripte. Da Coveys Daemon in **Go** läuft und es kein offizielles Go-SDK gibt, ist der pragmatische Weg der **Subprozess-Aufruf von `claude -p`**: Prozess starten, stdin/stdout, Exit-Code — wie jedes andere CLI. Entstünde der Daemon-Teil je in Python/TS, wäre das SDK die reichere Alternative (native Message-Objekte, Tool-Approval-Callbacks).
 
 ## Hinweise / offene Punkte
 
-- **`--bare`** überspringt Auto-Discovery (Hooks/Skills/MCP/CLAUDE.md) und macht Läufe deterministisch — empfohlen für Skripte, wird künftig Default für `-p`. Trade-off: MCP-Server müssen dann explizit per `--mcp-config` übergeben werden. Für Covey sinnvoll, weil Reproduzierbarkeit über lokale Zufalls-Config zählt.
+- **`--bare`** überspringt Auto-Discovery (Hooks/Skills/MCP/CLAUDE.md) und macht Läufe deterministisch — empfohlen für Skripte, wird künftig Default für `-p`. Trade-off: MCP-Server müssen dann explizit per `--mcp-config` übergeben werden. Für den **äußeren** Lauf sinnvoll, weil Reproduzierbarkeit über lokale Zufalls-Config zählt. Für den **Sub-Run** wäre es das Gegenteil des Zwecks: Dort ist die Auto-Discovery des Projekt-Harness genau das, was gewollt ist (siehe oben) — falls `--bare` Default wird, muss der Sub-Run es explizit abwählen.
 - **Exit-Codes:** nicht-null bei Fehler (z. B. `--max-turns` erreicht), aber keine stabile globale Code-Tabelle — auf ≠ 0 prüfen, keine spezifischen Codes annehmen.
 - **Hintergrund-Tasks**, die Claude Code startet (z. B. Dev-Server), werden nach dem Ergebnis mit kurzer Gnadenfrist beendet; ein Deckel verhindert Blockieren. Für einen Support-Agenten selten relevant, für spätere Coding-Agenten zu beachten.
 - Geprüft gegen die Claude-Code-Headless-Doku (`code.claude.com/docs/en/headless`, Stand Juli 2026); die Flags entwickeln sich — vor Baubeginn kurz gegenchecken.

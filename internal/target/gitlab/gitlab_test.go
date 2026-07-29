@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -1493,4 +1494,71 @@ func TestHasWorkKindReview(t *testing.T) {
 	// Ich (qa-bot) habe zuletzt kommentiert → Runde beantwortet, keine Arbeit.
 	reviewMRs, mrNotes = []MergeRequest{mrIn}, mine
 	check(false)
+}
+
+// TestCheckoutGitBaseline sichert die Grundlage, auf der der Sub-Agent im
+// Checkout arbeitet: Das Archiv bringt keine .git mit, deshalb legt der
+// Checkout eine Baseline an. Nur dadurch funktionieren git-aufrufende
+// Projekt-Skripte, und nur dadurch lässt sich hinterher sagen, WAS der
+// Sub-Agent geändert hat (Dateiliste für die commit-Aktion).
+func TestCheckoutGitBaseline(t *testing.T) {
+	archive := tarGz(t, map[string]string{
+		"proj-main-abc/":           "",
+		"proj-main-abc/README.md":  "# Projekt",
+		"proj-main-abc/pkg/app.go": "package app",
+	})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(archive)
+	}))
+	defer srv.Close()
+
+	workdir := t.TempDir()
+	ctx := target.WithWorkdir(context.Background(), workdir)
+	res, err := System{}.Execute(ctx, "checkout", []byte(`{"project_id":7,"ref":"main"}`),
+		target.Credential{BaseURL: srv.URL, Token: "t"})
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+	dir := res.(CheckoutResult).Path
+
+	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
+		t.Skipf("kein git verfügbar: %v", err)
+	}
+	// Frischer Checkout = sauberer Baum: Alles Entpackte steckt im Baseline-Commit.
+	if out := gitOut(t, dir, "status", "--porcelain", "-uall"); out != "" {
+		t.Fatalf("frischer Checkout muss sauber sein, war:\n%s", out)
+	}
+	// Nach einer Änderung meldet git genau diese Datei — das ist die Liste,
+	// die der Sub-Agent an die commit-Aktion zurückgibt.
+	if err := os.WriteFile(filepath.Join(dir, "pkg", "app.go"), []byte("package app // fix"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "pkg", "app_test.go"), []byte("package app"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := gitOut(t, dir, "status", "--porcelain", "-uall")
+	if !strings.Contains(out, "pkg/app.go") || !strings.Contains(out, "pkg/app_test.go") {
+		t.Fatalf("geänderte und neue Datei müssen auftauchen:\n%s", out)
+	}
+
+	// Dependency-Caches gehören nicht zur Arbeit: Sie überleben den Checkout
+	// (preserveDirs) und bleiben über .git/info/exclude aus dem Status heraus.
+	if err := os.MkdirAll(filepath.Join(dir, "node_modules", "lib"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "node_modules", "lib", "index.js"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if out := gitOut(t, dir, "status", "--porcelain", "-uall"); strings.Contains(out, "node_modules") {
+		t.Fatalf("Cache-Verzeichnisse dürfen nicht als Arbeit gelten:\n%s", out)
+	}
+}
+
+func gitOut(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).Output()
+	if err != nil {
+		t.Fatalf("git %v: %v", args, err)
+	}
+	return strings.TrimSpace(string(out))
 }
