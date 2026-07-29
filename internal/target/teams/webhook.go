@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+
+	"covey/internal/reqlog"
 )
 
 // Activity ist der relevante Ausschnitt einer Bot-Framework-Aktivität, wie der
@@ -294,7 +296,7 @@ func (v *tokenVerifier) refreshLocked() error {
 	return nil
 }
 
-var jwksHTTP = &http.Client{Timeout: 10 * time.Second}
+var jwksHTTP = reqlog.Client("teams", 10*time.Second)
 
 // fetchJWKS holt die OpenID-Metadaten (jwks_uri) und daraus die
 // RSA-Signatur-Schlüssel des Bot Frameworks.

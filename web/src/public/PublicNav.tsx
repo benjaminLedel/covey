@@ -28,6 +28,9 @@ export default function PublicNav() {
           <NavLink to="/funktion" className={link}>
             {t("public.nav.function")}
           </NavLink>
+          <NavLink to="/integrationen" className={link}>
+            {t("public.nav.integrations")}
+          </NavLink>
           <NavLink to="/produkt/covey" className={link}>
             {t("public.nav.covey")}
           </NavLink>

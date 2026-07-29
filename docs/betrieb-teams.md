@@ -204,6 +204,15 @@ COVEY_TEAMS_ATTACHMENT_MAX_MB=25                  # Größenlimit je Anhang
 5. Bei einer Rückfrage: geht der Agent auf `blocked`? Folgenachricht des Nutzers
    → wacht der Agent über die `conversation.id` wieder auf? (Abschnitt 4)
 
+> **Wo man beim Fehlersuchen zuerst hinschaut:** *Plattform → Requests*. Dort
+> steht jeder eingehende Webhook des Bot Service — **auch der abgelehnte**, mit
+> Status und Antwort-Body ("signatur ungültig", "kein agent mit slug …",
+> "zielsystem teams unbekannt oder deaktiviert") — und jeder ausgehende
+> Connector-Call des Agenten samt Antwort von Microsoft. Zugangsdaten sind
+> darin redigiert, Bodies gekappt; Aufbewahrung 72 h
+> (`COVEY_REQUEST_LOG_RETENTION`). Kommt gar kein eingehender Eintrag an, endet
+> der Weg vor Covey: Messaging-Endpoint, `COVEY_PUBLIC_URL` oder Reverse-Proxy.
+
 ### 2.8 Häufige Stolpersteine
 
 | Symptom | Ursache / Fix |
@@ -282,6 +291,9 @@ Details: [`../spec/15-teams-integration.md`](../spec/15-teams-integration.md).
 | `COVEY_DAEMON_TOKEN_TTL` | `15m` | TTL des in die Sandbox gereichten Credentials |
 | `COVEY_EGRESS_ENFORCE` | `false` | Egress-Allowlist-Proxy einschalten (nur `docker`-Provider) |
 | `COVEY_EGRESS_ALLOW` | *(leer)* | zusätzliche erlaubte Egress-Hosts |
+| `COVEY_REQUEST_LOG` | `true` | Request-Log (Plattform → Requests): Webhooks rein, Connector-Calls raus |
+| `COVEY_REQUEST_LOG_BODIES` | `true` | Bodies mitschreiben (gekappt, redigiert); `false` = nur Metadaten |
+| `COVEY_REQUEST_LOG_RETENTION` | `72h` | Aufbewahrung der Log-Einträge |
 
 > **Egress:** Mit `COVEY_SANDBOX_PROVIDER=docker` und `COVEY_EGRESS_ENFORCE=true`
 > läuft der Sandbox-Verkehr über einen Allowlist-Proxy. Der Agent spricht für

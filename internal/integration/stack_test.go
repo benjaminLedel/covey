@@ -32,6 +32,7 @@ import (
 	"covey/internal/observability"
 	"covey/internal/orchestrator"
 	"covey/internal/org"
+	reqlogstore "covey/internal/reqlog/store"
 	secbuiltin "covey/internal/secrets/builtin"
 	targetstore "covey/internal/target/store"
 
@@ -92,6 +93,7 @@ type stack struct {
 	mem      *memory.Store
 	targets  *targetstore.Store
 	egress   *egress.Store
+	reqlog   *reqlogstore.Store
 	orch     *orchestrator.Orchestrator
 	http     *httptest.Server
 	orgID    uuid.UUID
@@ -151,12 +153,18 @@ func newStack(t *testing.T) *stack {
 
 	s.targets = targetstore.NewStore(pool)
 	s.egress = egress.NewStore(pool)
+	// Request-Log wie im Betrieb, aber ohne reqlog.SetDefault: die Senke ist
+	// prozessweit, und parallel laufende Stacks würden sich ihre Einträge
+	// gegenseitig zuschieben. Was über Orchestrator und HTTP-Server läuft
+	// (Sandbox-Requests, eingehende Webhooks), reicht für den Durchstich.
+	s.reqlog = reqlogstore.NewStore(pool, log, true, time.Hour)
 	s.homeBase = t.TempDir()
 
 	s.orch = orchestrator.New(orchestrator.Options{
 		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
 		Rails: s.rails, Secrets: secretStore, Identity: idp, Memory: s.mem,
 		Targets:        s.targets,
+		ReqLog:         s.reqlog,
 		Provider:       &inprocProvider{homeBase: s.homeBase, log: log},
 		DaemonTokenTTL: 5 * time.Minute,
 		TickInterval:   300 * time.Millisecond,
@@ -169,6 +177,7 @@ func newStack(t *testing.T) *stack {
 		Rails: s.rails, Secrets: secretStore, Identity: idp, Memory: s.mem,
 		Org: org.NewStore(pool), Targets: s.targets,
 		EgressStore: s.egress,
+		ReqLog:      s.reqlog,
 		Orch:        s.orch, Log: log,
 		WebhookSecrets: map[string]string{"zammad": webhookSecret},
 		SessionTTL:     time.Hour,
@@ -181,6 +190,7 @@ func newStack(t *testing.T) *stack {
 	s.cancel = cancel
 	t.Cleanup(cancel)
 	go s.orch.Run(orchCtx)
+	go s.reqlog.Run(orchCtx)
 
 	// Organisation + Admin.
 	s.orgID = uuid.New()

@@ -19,6 +19,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"covey/internal/reqlog"
 )
 
 // uploadMaxBytes begrenzt die Größe eines Simple-Uploads (PUT …/content).
@@ -49,7 +51,7 @@ func NewClient(graphBase, token string) *Client {
 	return &Client{
 		Graph: strings.TrimRight(graphBase, "/"),
 		Token: token,
-		HTTP:  &http.Client{Timeout: 60 * time.Second},
+		HTTP:  reqlog.Client("sharepoint", 60*time.Second),
 	}
 }
 

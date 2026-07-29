@@ -35,6 +35,7 @@ import {
   type TaskNote,
 } from "../api";
 import { ActivityFeed } from "../components/ActivityFeed";
+import { TargetIcon } from "../components/TargetIcon";
 import { Markdown } from "../components/Markdown";
 import ProfileForm from "../components/ProfileForm";
 import { AddHostForm, EgressLogTable, HostChips } from "../components/EgressBits";
@@ -2503,6 +2504,7 @@ function MCPToolAssign({
   return (
     <div className="card" style={{ padding: "14px 16px", opacity: plugin.enabled ? 1 : 0.6 }}>
       <div className="flex items-center gap-2 mb-2">
+        <TargetIcon name={plugin.name} kind={plugin.kind} category={plugin.category} size={16} />
         <span className="font-medium">{plugin.label || plugin.name}</span>
         <span className="mono text-xs muted">{plugin.name}</span>
         {!plugin.enabled && <span className="text-[11px] ml-auto" style={{ color: "var(--clay)" }}>{t("agent.tools.deactivated")}</span>}

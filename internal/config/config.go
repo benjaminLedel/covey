@@ -62,6 +62,21 @@ type Config struct {
 	// EgressProxyAddr ist die Bind-Adresse des standalone Egress-Proxy
 	// (Subcommand `covey egress-proxy`, im network-Modus als Container).
 	EgressProxyAddr string
+	// RequestLog schaltet das Request-Log ein (Default an): die HTTP-Requests
+	// an den Rändern der Plattform — eingehende Webhooks und ausgehende
+	// Zielsystem-Aufrufe — landen in der Tabelle request_log und sind unter
+	// Plattform → Requests einsehbar. COVEY_REQUEST_LOG=false schaltet ab.
+	RequestLog bool
+	// RequestLogBodies speichert zusätzlich zu den Metadaten die (gekappten,
+	// redigierten) Request-/Response-Bodies. Default an — ohne sie ist eine
+	// Fehlersuche an einer Zielsystem-API meist wertlos. Wer keine
+	// Nutzinhalte (Chat-Nachrichten, Ticket-Texte) in der Diagnose-Tabelle
+	// haben will, setzt COVEY_REQUEST_LOG_BODIES=false.
+	RequestLogBodies bool
+	// RequestLogRetention ist das Alter, ab dem Log-Einträge verschwinden
+	// (COVEY_REQUEST_LOG_RETENTION, Default 72h). Zusätzlich greift eine harte
+	// Zeilen-Obergrenze im Store.
+	RequestLogRetention time.Duration
 	// WikiCleanup ist der Zeitplan des plattformweiten Wiki-Aufräum-Heartbeats:
 	// leer = aus. Sonst "HH:MM" (täglich, Serverzeit) oder eine Go-Dauer wie "24h"
 	// (Intervall). Die Control Plane legt daraus für jeden Agenten einen
@@ -92,6 +107,10 @@ func FromEnv() (Config, error) {
 		EgressIsolation:  getenv("COVEY_EGRESS_ISOLATION", "proxy"),
 		EgressProxyAddr:  getenv("COVEY_EGRESS_PROXY_ADDR", ":8888"),
 		WikiCleanup:      strings.TrimSpace(os.Getenv("COVEY_WIKI_CLEANUP")),
+
+		RequestLog:          getenvBool("COVEY_REQUEST_LOG", true),
+		RequestLogBodies:    getenvBool("COVEY_REQUEST_LOG_BODIES", true),
+		RequestLogRetention: getenvDuration("COVEY_REQUEST_LOG_RETENTION", 72*time.Hour),
 	}
 	// Secure-Cookie standardmäßig an, sobald die öffentliche URL HTTPS ist.
 	c.CookieSecure = getenvBool("COVEY_COOKIE_SECURE", strings.HasPrefix(c.PublicURL, "https://"))

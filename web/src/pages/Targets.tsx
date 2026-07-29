@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, del, patch, post, type MCPTool, type Principal, type TargetPlugin } from "../api";
 import { ConfirmDialog, Modal } from "../components/Modal";
+import { TargetIcon, hasBrandMark } from "../components/TargetIcon";
 
 const kindKey: Record<TargetPlugin["kind"], string> = {
   builtin: "targets.kindBuiltin",
@@ -10,14 +11,17 @@ const kindKey: Record<TargetPlugin["kind"], string> = {
   mcp: "targets.kindMcp",
 };
 
-// Monogramm fürs Karten-Kachelchen: Initialen aus Label bzw. Slug.
-function monogram(p: TargetPlugin): string {
-  const words = (p.label || p.name)
-    .split(/[^\p{L}\p{N}]+/u)
-    .filter(Boolean);
-  if (words.length === 0) return "?";
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return (words[0][0] + words[1][0]).toUpperCase();
+// Kachelchen vor dem Namen: Logo bzw. Kategorie-Symbol des Zielsystems.
+// Trägt es ein echtes Marken-Signet, bleibt die Kachel neutral, damit die
+// Markenfarbe wirkt; sonst färbt sie wie bisher nach Plugin-Art.
+function TargetMark({ plugin: p, lg }: { plugin: TargetPlugin; lg?: boolean }) {
+  const brand = hasBrandMark(p.name);
+  const cls = `tgt-mark${lg ? " lg" : ""}${brand ? " brand" : ` k-${p.kind}`}`;
+  return (
+    <span className={cls} aria-hidden="true">
+      <TargetIcon name={p.name} kind={p.kind} category={p.category} size={lg ? 22 : 17} />
+    </span>
+  );
 }
 
 function hostOf(url?: string): string {
@@ -300,9 +304,7 @@ function TargetCard({
   return (
     <article className={`card tgt-card${p.enabled ? "" : " off"}`}>
       <div className="tgt-head">
-        <span className={`tgt-mark k-${p.kind}`} aria-hidden="true">
-          {monogram(p)}
-        </span>
+        <TargetMark plugin={p} />
         <div className="tgt-id">
           <div className="tgt-name" title={p.label || p.name}>
             {p.label || p.name}
@@ -390,9 +392,7 @@ function TargetDetail({
       }
     >
       <div className="tgt-dl-head">
-        <span className={`tgt-mark lg k-${p.kind}`} aria-hidden="true">
-          {monogram(p)}
-        </span>
+        <TargetMark plugin={p} lg />
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <span className="mono text-xs muted">{p.name}</span>

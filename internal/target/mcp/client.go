@@ -22,6 +22,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"covey/internal/reqlog"
 )
 
 // protocolVersion ist die MCP-Version, die Covey als Client anbietet.
@@ -73,7 +75,7 @@ type Conn struct {
 // authHeader/authValue sind optional (leer = kein Auth-Header).
 func Dial(ctx context.Context, url, authHeader, authValue string, hc *http.Client) (*Conn, error) {
 	if hc == nil {
-		hc = &http.Client{Timeout: 20 * time.Second}
+		hc = reqlog.Client("mcp", 20*time.Second)
 	}
 	c := &Conn{url: strings.TrimRight(url, "/"), authHdr: authHeader, authVal: authValue, http: hc, nextID: 1}
 	if err := c.initialize(ctx); err != nil {

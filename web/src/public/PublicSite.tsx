@@ -6,6 +6,7 @@ import PublicNav from "./PublicNav";
 import LoginCard from "./LoginCard";
 import Home from "./Home";
 import Funktion from "./Funktion";
+import Integrationen from "./Integrationen";
 import ProductCovey from "./ProductCovey";
 import ProductCompanion from "./ProductCompanion";
 import Docs from "./Docs";
@@ -105,6 +106,7 @@ export default function PublicSite({ onLogin }: { onLogin: () => void }) {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/funktion" element={<Funktion />} />
+          <Route path="/integrationen" element={<Integrationen />} />
           <Route path="/produkt/covey" element={<ProductCovey />} />
           <Route path="/produkt/companion" element={<ProductCompanion />} />
           <Route path="/docs" element={<Docs />} />

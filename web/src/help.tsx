@@ -278,6 +278,33 @@ const deTopics: HelpTopic[] = [
     ),
   },
   {
+    id: "requests",
+    title: "Requests (HTTP-Verkehr)",
+    match: (p) => p.startsWith("/requests"),
+    body: (
+      <>
+        <p>
+          Das Request-Log zeigt, was an den Rändern der Plattform über die Leitung ging: jeder
+          Aufruf, den ein Zielsystem-Plugin nach draußen stellt (<b>raus</b>), und jeder Webhook,
+          den Covey empfängt (<b>rein</b>) — <b>auch die abgelehnten</b>. Genau die sind beim
+          Anbinden eines Systems die interessanten: falscher Slug, nicht aktiviertes Zielsystem,
+          ungültige Signatur.
+        </p>
+        <p>
+          Das Recording auf der Agenten-Seite sagt, <i>was</i> ein Agent getan hat; hier steht,{" "}
+          <i>wie</i> es über die Schnittstelle ging — Status, Dauer und die (gekappten) Bodies.
+          Ein Klick auf eine Zeile öffnet das Detail.
+        </p>
+        <p>
+          Das Log ist <b>Diagnose, kein Audit-Trail</b>: kurze Aufbewahrung (Default 72 Stunden),
+          jederzeit leerbar. Zugangsdaten sind redigiert, Header werden gar nicht erst
+          gespeichert. Abschaltbar mit <Term>COVEY_REQUEST_LOG=false</Term>, Bodies allein mit{" "}
+          <Term>COVEY_REQUEST_LOG_BODIES=false</Term>.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "rollen",
     title: "Benutzer & Rollen",
     match: (p) => p.startsWith("/users") || p.startsWith("/orgs"),
@@ -562,6 +589,33 @@ const enTopics: HelpTopic[] = [
           <Term>*.example.com</Term>), without scheme, path, or port. Changes take effect within
           ~15 seconds (proxy cache). Many "blocked" entries mean missing allowlist entries — or an
           agent trying to reach somewhere it shouldn't.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "requests",
+    title: "Requests (HTTP Traffic)",
+    match: (p) => p.startsWith("/requests"),
+    body: (
+      <>
+        <p>
+          The request log shows what actually went over the wire at the edges of the platform:
+          every call a target-system plugin makes outbound (<b>out</b>) and every webhook Covey
+          receives (<b>in</b>) — <b>including the rejected ones</b>. Those are the interesting
+          ones while connecting a system: wrong slug, target system not enabled, invalid
+          signature.
+        </p>
+        <p>
+          The recording on the agent page tells you <i>what</i> an agent did; this tells you{" "}
+          <i>how</i> it went across the interface — status, duration and the (truncated) bodies.
+          Click a row to open the detail.
+        </p>
+        <p>
+          The log is <b>diagnostics, not an audit trail</b>: short retention (72 hours by
+          default), clearable at any time. Credentials are redacted, headers are never stored.
+          Switch it off with <Term>COVEY_REQUEST_LOG=false</Term>, bodies alone with{" "}
+          <Term>COVEY_REQUEST_LOG_BODIES=false</Term>.
         </p>
       </>
     ),

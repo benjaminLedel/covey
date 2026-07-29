@@ -2275,6 +2275,59 @@ kbd {
   margin-bottom: 26px;
 }
 
+/* Integrationen-Seite: Karten mit dem Signet des Zielsystems. Eigene Klasse
+   statt .landing-feature-icon, weil dessen CSS Strich und Füllung erzwingt —
+   das würde die mehrfarbigen Marken-Signets überschreiben. */
+.int-head { display: flex; align-items: center; gap: 10px; }
+.int-logo {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--surface-1);
+  border: 0.5px solid var(--border);
+  color: var(--clay);
+  transition: transform 0.2s ease;
+}
+.landing-feature:hover .int-logo { transform: scale(1.07); }
+.int-tag {
+  margin-left: auto;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  background: var(--surface-1);
+  border: 0.5px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+.int-note {
+  margin: -14px auto 26px;
+  max-width: 560px;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+.int-trust {
+  background: var(--surface-2);
+  border: 0.5px solid var(--border);
+  border-radius: 14px;
+  padding: 26px 28px;
+  text-align: center;
+}
+.int-trust h2 { font-family: var(--voice); font-size: 21px; letter-spacing: -0.01em; }
+.int-trust p {
+  margin: 10px auto 0;
+  max-width: 620px;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
 /* Produkt-Karten auf der Home-Seite. */
 .pub-products {
   margin-top: 32px;
@@ -2745,6 +2798,9 @@ kbd {
 .tgt-mark.lg { width: 40px; height: 40px; font-size: 14px; border-radius: 10px; }
 .tgt-mark.k-custom { background: var(--bg-accent); color: var(--text-accent); border-color: transparent; }
 .tgt-mark.k-mcp { background: var(--bg-pro); color: var(--text-pro); border-color: transparent; }
+/* Marken-Signet: neutrale Kachel, damit die Logo-Farbe für sich steht. */
+.tgt-mark.brand { background: var(--surface-2); color: var(--text-secondary); }
+.tgt-mark svg { display: block; }
 
 .tgt-id { min-width: 0; flex: 1; }
 .tgt-name {

@@ -24,7 +24,8 @@ Entwicklungs-Workflow: `make dev-db && make bootstrap && make run` (siehe README
 
 ## Sprache & Konventionen
 
-- **Spec und Doku sind auf Deutsch.** Schreibe README/Spec/Kommentare, die in dieses Repo gehen, auf Deutsch, im Ton der bestehenden Dokumente (nüchtern, präzise, Fachbegriffe englisch belassen: *Control Plane*, *Guard-Rail*, *Daemon*, *Backlog*, *blocked*).
+- **Spec und Doku sind auf Deutsch.** Schreibe Spec/Runbooks/Kommentare, die in dieses Repo gehen, auf Deutsch, im Ton der bestehenden Dokumente (nüchtern, präzise, Fachbegriffe englisch belassen: *Control Plane*, *Guard-Rail*, *Daemon*, *Backlog*, *blocked*).
+- **Ausnahme README:** `README.md` ist **englisch** — es ist die Visitenkarte für Dritte, die Covey von GitHub installieren. Die deutsche Fassung liegt daneben in `README.de.md`. Beide beim Ändern gleichziehen; sie sind Übersetzungen voneinander, keine getrennten Dokumente.
 - Spec-Dokumente verlinken sich gegenseitig relativ (`[`04-…`](04-identitaet-secrets.md)`). Diese Verlinkung beim Ändern konsistent halten.
 - Jede Datei in `spec/` hat einen klaren Zuständigkeitsbereich (siehe Tabelle in `spec/README.md`) — Inhalt in die richtige Datei schreiben, nicht duplizieren.
 

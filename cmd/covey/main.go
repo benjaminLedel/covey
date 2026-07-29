@@ -33,6 +33,8 @@ import (
 	"covey/internal/observability"
 	"covey/internal/orchestrator"
 	"covey/internal/org"
+	"covey/internal/reqlog"
+	reqlogstore "covey/internal/reqlog/store"
 	secbuiltin "covey/internal/secrets/builtin"
 	targetstore "covey/internal/target/store"
 	"covey/internal/templates"
@@ -547,12 +549,25 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		return fmt.Errorf("sandbox provider %q: implementiert ist nur 'docker'", cfg.SandboxProvider)
 	}
 
+	// Request-Log: die HTTP-Requests an den Rändern der Plattform (spec/06).
+	// Der Store ist zugleich die Default-Senke — damit protokollieren auch die
+	// Zielsystem-Aufrufe, die die Control Plane selbst stellt (Work-Checks,
+	// JWKS-Abruf), ohne dass jede Aufrufstelle davon weiß.
+	var reqLog *reqlogstore.Store
+	if cfg.RequestLog {
+		reqLog = reqlogstore.NewStore(pool, log, cfg.RequestLogBodies, cfg.RequestLogRetention)
+		reqlog.SetDefault(reqLog.Sink(nil, nil, nil))
+		go reqLog.Run(ctx)
+		log.Info("request-log aktiv", "retention", cfg.RequestLogRetention, "bodies", cfg.RequestLogBodies)
+	}
+
 	wsURL := strings.Replace(cfg.PublicURL, "http", "ws", 1) + "/api/daemon/ws"
 	orch := orchestrator.New(orchestrator.Options{
 		Pool: pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Identity: idp, Memory: mem,
 		Targets:        targets,
 		Egress:         egressStore,
+		ReqLog:         reqLog,
 		Provider:       provider,
 		PublicWSURL:    wsURL,
 		DaemonTokenTTL: cfg.DaemonTokenTTL,
@@ -577,6 +592,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		EgressStore:    egressStore,
 		EgressEnforced: egressEnforced,
 		EgressDefaults: egressBaseAllow(cfg),
+		ReqLog:         reqLog,
 	}
 
 	httpServer := &http.Server{Addr: cfg.ListenAddr, Handler: srv.Handler()}

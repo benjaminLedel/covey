@@ -18,6 +18,7 @@ import PersonPage from "./pages/Person";
 import Runtimes from "./pages/Runtimes";
 import Targets from "./pages/Targets";
 import Egress from "./pages/Egress";
+import Requests from "./pages/Requests";
 import Templates from "./pages/Templates";
 import Costs from "./pages/Costs";
 
@@ -143,6 +144,12 @@ const icons: Record<string, React.JSX.Element> = {
     </>
   ),
   chevron: <path d="M9 6l6 6l-6 6" />,
+  // Request-Log: zwei Pfeile, rein und raus.
+  exchange: (
+    <>
+      <path d="M4 8h14l-3.5-3.5M20 16H6l3.5 3.5" />
+    </>
+  ),
   logout: (
     <>
       <path d="M9 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3" />
@@ -192,7 +199,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
 
   // Plattform-Administration ist selten gebraucht — standardmäßig eingeklappt,
   // Zustand wird gemerkt; auf einer Plattform-Seite ist die Gruppe immer offen.
-  const inPlatform = ["/users", "/orgs", "/runtimes"].some((p) => location.pathname.startsWith(p));
+  const inPlatform = ["/users", "/orgs", "/runtimes", "/requests"].some((p) => location.pathname.startsWith(p));
   const [platformOpen, setPlatformOpen] = useState(() => localStorage.getItem("covey.nav.platform") === "1");
   const togglePlatform = () => {
     const next = !platformOpen;
@@ -273,6 +280,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
                   <NavItem to="/users" icon="user" label={t("nav.users")} />
                   <NavItem to="/orgs" icon="box" label={t("nav.organizations")} />
                   <NavItem to="/runtimes" icon="cpu" label={t("nav.runtimes")} />
+                  <NavItem to="/requests" icon="exchange" label={t("nav.requests")} />
                 </div>
               )}
             </>
@@ -339,6 +347,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
             <Route path="/users" element={<Users me={me} />} />
             <Route path="/orgs" element={<Organizations me={me} />} />
             <Route path="/runtimes" element={<Runtimes />} />
+            <Route path="/requests" element={<Requests me={me} />} />
             <Route path="/targets" element={<Targets me={me} />} />
             <Route path="/egress/*" element={<Egress me={me} />} />
             <Route path="*" element={<Navigate to="/" />} />
