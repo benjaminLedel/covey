@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { NavLink, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { NavLink, Navigate, Route, Routes, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
 import { api, post, roleLabel, type Approval, type Principal } from "./api";
 import i18n from "./i18n";
@@ -58,7 +58,7 @@ export default function App() {
 }
 
 // Icon-Pfade aus mockup/covey-ui-mockup.html — die Nav übernimmt die Design-Sprache des Mockups.
-const icons: Record<string, JSX.Element> = {
+const icons: Record<string, React.JSX.Element> = {
   robot: (
     <>
       <rect x="5" y="8" width="14" height="11" rx="2" />

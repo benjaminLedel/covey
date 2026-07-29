@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { api, roleLabel, type Human, type OrgChart, type Principal } from "../api";
 import AccountSettings from "../components/AccountSettings";

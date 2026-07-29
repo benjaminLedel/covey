@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { api, post, ApiError, type Agent, type AgentTemplate, type Principal, type RuntimeInfo } from "../api";
 import { generateAgentName, slugify } from "../names";
@@ -168,7 +168,7 @@ function CreateAgentModal({ onClose, onDone }: { onClose: () => void; onDone: (i
   );
 }
 
-const pathIcons: Record<string, JSX.Element> = {
+const pathIcons: Record<string, React.JSX.Element> = {
   template: (
     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
       <rect x="9" y="9" width="12" height="13" rx="2" />

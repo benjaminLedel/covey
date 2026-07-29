@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Markdown } from "../components/Markdown";
 import { DOC_SECTIONS, DOC_PAGES, FIRST_DOC, docLang } from "./docs/docsContent";
