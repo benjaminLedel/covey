@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/emersion/go-imap/v2"
 	"github.com/emersion/go-imap/v2/imapclient"
+	gomessage "github.com/emersion/go-message"
 	"github.com/emersion/go-message/charset" // registriert zudem die Charset-Decoder (ISO-8859-*, …)
 	gomail "github.com/emersion/go-message/mail"
 )
@@ -184,6 +186,217 @@ func getMessage(cfg Config, mailbox string, uid uint32) (*Message, error) {
 		return nil, err
 	}
 	return msg, nil
+}
+
+// getAttachment holt die Bytes EINES Anhangs einer Mail. BODY.PEEK wie in
+// getMessage — auch das Laden eines Anhangs setzt kein \Seen-Flag. Geliefert
+// werden der tatsächliche Dateiname aus der Mail, der Content-Type und die
+// (transfer-dekodierten) Bytes.
+//
+// Zwei Wege, damit für einen Anhang nicht die ganze Mail im Speicher landet:
+// Der Normalfall ist die BODYSTRUCTURE — sie nennt Dateiname, Kodierung und
+// Größe jedes Teils, also wird nur der gesuchte Teil geholt und ein zu großer
+// gar nicht erst. Findet sich der Name dort nicht (Server ohne erweiterte
+// BODYSTRUCTURE, RFC-2231-kodierte Dateinamen), entscheidet wie bisher der
+// Parser über die ganze Mail — dort deckelt RFC822.SIZE den Speicher.
+func getAttachment(cfg Config, mailbox string, uid uint32, name string, limit int64) (string, string, []byte, error) {
+	// Speicher-Budget für das, was für einen Anhang roh über die Leitung
+	// gehen darf. Kodiert ist ein Teil nie kleiner als sein Inhalt (base64
+	// ≈ +37 %, quoted-printable höchstens gut das Dreifache) — was roh über
+	// dem Vierfachen des Limits liegt, ist auch dekodiert sicher zu groß.
+	rawLimit := 4 * limit
+	var (
+		filename    string
+		contentType string
+		data        []byte
+	)
+	err := withIMAP(cfg, func(c *imapclient.Client) error {
+		if _, err := c.Select(mailbox, &imap.SelectOptions{ReadOnly: true}).Wait(); err != nil {
+			return fmt.Errorf("mailbox %q: %w", mailbox, err)
+		}
+		uids := imap.UIDSetNum(imap.UID(uid))
+		msgs, err := c.Fetch(uids, &imap.FetchOptions{
+			UID: true, RFC822Size: true,
+			BodyStructure: &imap.FetchItemBodyStructure{Extended: true},
+		}).Collect()
+		if err != nil {
+			return err
+		}
+		if len(msgs) == 0 {
+			return fmt.Errorf("keine mail mit uid %d in %q", uid, mailbox)
+		}
+
+		if part := findAttachmentPart(msgs[0].BodyStructure, name); part != nil {
+			if int64(part.size) > rawLimit {
+				return fmt.Errorf("anhang %q größer als %d MB — abgebrochen", part.filename, limit>>20)
+			}
+			filename, contentType, data, err = fetchAttachmentPart(c, uids, part, limit)
+			return err
+		}
+
+		// Fallback über die ganze Mail — aber nur, solange sie ins
+		// Speicher-Budget passt.
+		if msgs[0].RFC822Size > rawLimit {
+			return fmt.Errorf("mail mit uid %d ist %d MB groß — zu groß, um sie für einen Anhang komplett zu laden",
+				uid, msgs[0].RFC822Size>>20)
+		}
+		section := &imap.FetchItemBodySection{Peek: true}
+		full, err := c.Fetch(uids, &imap.FetchOptions{
+			UID: true, BodySection: []*imap.FetchItemBodySection{section},
+		}).Collect()
+		if err != nil {
+			return err
+		}
+		if len(full) == 0 {
+			return fmt.Errorf("keine mail mit uid %d in %q", uid, mailbox)
+		}
+		filename, contentType, data, err = findAttachment(full[0].FindBodySection(section), name, limit)
+		return err
+	})
+	if err != nil {
+		return "", "", nil, err
+	}
+	return filename, contentType, data, nil
+}
+
+// attachmentPart ist ein über die BODYSTRUCTURE gefundener Anhang: der
+// IMAP-Pfad des Teils, sein Dateiname und seine Größe in kodierten Bytes.
+type attachmentPart struct {
+	path     []int
+	filename string
+	size     uint32
+}
+
+// findAttachmentPart sucht den Anhang namens name in der BODYSTRUCTURE. Was als
+// Anhang gilt und wie der Dateiname zustande kommt, folgt derselben Regel wie
+// beim Parsen der ganzen Mail (go-message/mail) — sonst fände diese Abkürzung
+// Teile, die get_message nie gelistet hat. Kein Treffer heißt deshalb nicht
+// „gibt es nicht", sondern nur „hier nicht entscheidbar": der Aufrufer fällt
+// dann auf die ganze Mail zurück, die die Namen autoritativ liefert.
+func findAttachmentPart(bs imap.BodyStructure, name string) *attachmentPart {
+	if bs == nil {
+		return nil
+	}
+	want := filepath.Base(strings.TrimSpace(name))
+	dec := mime.WordDecoder{CharsetReader: charset.Reader}
+	var found *attachmentPart
+	bs.Walk(func(path []int, part imap.BodyStructure) bool {
+		sp, ok := part.(*imap.BodyStructureSinglePart)
+		if !ok || found != nil || !isAttachmentPart(sp) {
+			return true
+		}
+		fname := sp.Filename()
+		if decoded, err := dec.DecodeHeader(fname); err == nil {
+			fname = decoded
+		}
+		if fname == "" || !strings.EqualFold(filepath.Base(fname), want) {
+			return true
+		}
+		// Erster Treffer in MIME-Reihenfolge gewinnt — dieselbe Regel wie in
+		// findAttachment, damit beide Wege denselben Anhang liefern.
+		found = &attachmentPart{path: append([]int(nil), path...), filename: fname, size: sp.Size}
+		return true
+	})
+	return found
+}
+
+// isAttachmentPart spiegelt die Einordnung aus go-message/mail: Anhang ist
+// alles, was nicht inline ist und entweder ausdrücklich als attachment
+// ausgewiesen oder kein Text ist.
+func isAttachmentPart(sp *imap.BodyStructureSinglePart) bool {
+	var disp string
+	if d := sp.Disposition(); d != nil {
+		disp = strings.ToLower(d.Value)
+	}
+	if disp == "inline" {
+		return false
+	}
+	return disp == "attachment" || !strings.EqualFold(sp.Type, "text")
+}
+
+// fetchAttachmentPart holt genau einen MIME-Teil — dessen MIME-Header und
+// Rumpf — und lässt go-message dekodieren: dieselbe Dekodierung wie beim
+// Parsen der ganzen Mail, nur ohne den Rest der Mail zu übertragen.
+func fetchAttachmentPart(c *imapclient.Client, uids imap.UIDSet, part *attachmentPart, limit int64) (string, string, []byte, error) {
+	head := &imap.FetchItemBodySection{Part: part.path, Specifier: imap.PartSpecifierMIME, Peek: true}
+	body := &imap.FetchItemBodySection{Part: part.path, Peek: true}
+	msgs, err := c.Fetch(uids, &imap.FetchOptions{
+		UID: true, BodySection: []*imap.FetchItemBodySection{head, body},
+	}).Collect()
+	if err != nil {
+		return "", "", nil, err
+	}
+	if len(msgs) == 0 {
+		return "", "", nil, fmt.Errorf("anhang %q nicht mehr abrufbar", part.filename)
+	}
+	rawHead := msgs[0].FindBodySection(head)
+	if len(rawHead) == 0 {
+		return "", "", nil, fmt.Errorf("anhang %q: der server lieferte den MIME-Teil nicht", part.filename)
+	}
+	ent, err := gomessage.Read(io.MultiReader(bytes.NewReader(rawHead), bytes.NewReader(msgs[0].FindBodySection(body))))
+	if err != nil && !gomessage.IsUnknownEncoding(err) {
+		return "", "", nil, fmt.Errorf("anhang %q nicht parsebar: %w", part.filename, err)
+	}
+	// +1 Byte über dem Limit lesen, um Überschreitung sicher zu erkennen.
+	data, err := io.ReadAll(io.LimitReader(ent.Body, limit+1))
+	if err != nil {
+		return "", "", nil, fmt.Errorf("anhang %q lesen: %w", part.filename, err)
+	}
+	if int64(len(data)) > limit {
+		return "", "", nil, fmt.Errorf("anhang %q größer als %d MB — abgebrochen", part.filename, limit>>20)
+	}
+	ct, _, _ := ent.Header.ContentType()
+	return part.filename, ct, data, nil
+}
+
+// findAttachment sucht in einer Roh-Mail den Anhang namens name und liefert
+// Dateiname, Content-Type und Bytes. Verglichen wird der Basename (ohne
+// Beachtung der Groß-/Kleinschreibung); bei mehreren gleichnamigen Anhängen
+// gewinnt der erste in MIME-Reihenfolge — die Auswahl bleibt so
+// deterministisch. Die Bytes bleiben komplett im Speicher: erst wenn sie unter
+// dem Limit liegen, schreibt der Aufrufer sie in die Sandbox.
+func findAttachment(raw []byte, name string, limit int64) (string, string, []byte, error) {
+	want := filepath.Base(strings.TrimSpace(name))
+	if len(raw) == 0 {
+		return "", "", nil, fmt.Errorf("mail ohne inhalt — kein anhang lesbar")
+	}
+	mr, err := gomail.CreateReader(bytes.NewReader(raw))
+	if err != nil {
+		return "", "", nil, fmt.Errorf("mail nicht parsebar: %w", err)
+	}
+	var names []string
+	for {
+		p, err := mr.NextPart()
+		if err != nil {
+			break
+		}
+		h, ok := p.Header.(*gomail.AttachmentHeader)
+		if !ok {
+			continue
+		}
+		fname, err := h.Filename()
+		if err != nil || fname == "" {
+			continue
+		}
+		names = append(names, fname)
+		if !strings.EqualFold(filepath.Base(fname), want) {
+			continue
+		}
+		ct, _, _ := h.ContentType()
+		// +1 Byte über dem Limit lesen, um Überschreitung sicher zu erkennen.
+		data, err := io.ReadAll(io.LimitReader(p.Body, limit+1))
+		if err != nil {
+			return "", "", nil, fmt.Errorf("anhang %q lesen: %w", fname, err)
+		}
+		if int64(len(data)) > limit {
+			return "", "", nil, fmt.Errorf("anhang %q größer als %d MB — abgebrochen", fname, limit>>20)
+		}
+		return fname, ct, data, nil
+	}
+	if len(names) == 0 {
+		return "", "", nil, fmt.Errorf("diese mail hat keine anhänge")
+	}
+	return "", "", nil, fmt.Errorf("kein anhang %q an dieser mail (vorhanden: %s)", name, strings.Join(names, ", "))
 }
 
 // setSeen setzt bzw. löscht das \Seen-Flag einer Mail.
