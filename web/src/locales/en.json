@@ -3,6 +3,7 @@
     "nav": {
       "aria": "Main navigation",
       "function": "Function",
+      "integrations": "Integrations",
       "covey": "Platform",
       "companion": "App",
       "login": "Sign in",
@@ -102,6 +103,71 @@
       "ctaTitle": "Try Covey",
       "ctaLead": "Sign in and see Covey in action.",
       "ctaCovey": "More about Covey"
+    },
+    "integrations": {
+      "eyebrow": "Integrations",
+      "title": "Where your agents do the work",
+      "lead": "In Covey a target system isn't a connector someone wired up once — it's a plugin with a manifest: actions, webhook handling, prompt docs. Enable it, store the credentials, assign it to an agent. Done.",
+      "groups": {
+        "work": "Where the work comes from",
+        "files": "Files & documents",
+        "sandbox": "Web & sandbox",
+        "extend": "Missing one? Plug it in instead of waiting."
+      },
+      "tag": {
+        "webhook": "Woken by webhook",
+        "poll": "Polled by heartbeat",
+        "nosecret": "No credentials needed"
+      },
+      "sys": {
+        "zammad": {
+          "t": "Zammad",
+          "d": "Read tickets, reply, set state, escalate. A trigger wakes the agent the moment a customer answers — it doesn't wait around, it gets fetched."
+        },
+        "gitlab": {
+          "t": "GitLab",
+          "d": "Issues as the work queue, source checked out, a fix on a feature branch, a merge request to the supervisor — and the review loop afterwards, red CI included."
+        },
+        "email": {
+          "t": "Email (IMAP/SMTP)",
+          "d": "A mailbox of the agent's own: triage the inbox, reply, file things away. For everything that arrives without a portal and without an API."
+        },
+        "teams": {
+          "t": "Microsoft Teams",
+          "d": "A chat channel via the Azure Bot Service: receive and send messages, with every inbound call cryptographically verified."
+        },
+        "nextcloud": {
+          "t": "Nextcloud",
+          "d": "A file store via share link or account: list, read, write, create folders. Access over WebDAV — a bot only needs the link."
+        },
+        "sharepoint": {
+          "t": "SharePoint / Teams files",
+          "d": "The same file operations in the Microsoft stack: a document library through an Entra ID app registration, cleanly scoped."
+        },
+        "browser": {
+          "t": "Browser (headless Chrome)",
+          "d": "The universal adapter for web apps that have no plugin of their own: open pages, read text, click, type, save screenshots. Which pages are reachable is decided by the egress allowlist."
+        },
+        "dev": {
+          "t": "Dev sandbox",
+          "d": "The agent's own computer: run shell commands, start dev servers and databases, check them, tear them down again."
+        }
+      },
+      "extendLead": "Two ways to get there without waiting for a release — both in the UI, neither needs a deploy.",
+      "ext": {
+        "manifest": {
+          "t": "REST system via manifest",
+          "d": "A JSON manifest describes auth, actions and the fields of the webhook. Upload it, enable it, assign it — without a line of Go."
+        },
+        "mcp": {
+          "t": "MCP servers",
+          "d": "Any Model Context Protocol server can be registered as a target system. Covey discovers the tools; you decide per agent which of them it may use."
+        }
+      },
+      "brokerTitle": "The sandbox never sees the credentials",
+      "brokerLead": "No long-lived secret travels into the agent's workplace. Every access goes through the broker at runtime — short-lived, scoped to the target system it needs, and every call lands in the audit trail. What an agent is allowed to do is decided by the control plane's guard rails, not by its prompt.",
+      "ctaTitle": "And the rest of the platform?",
+      "ctaLead": "Target systems are one half. The other is everything around them that lets you trust an agent workforce in the first place."
     },
     "covey": {
       "eyebrow": "Product · Platform",

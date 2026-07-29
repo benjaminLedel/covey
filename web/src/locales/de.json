@@ -3,6 +3,7 @@
     "nav": {
       "aria": "Hauptnavigation",
       "function": "Funktion",
+      "integrations": "Integrationen",
       "covey": "Plattform",
       "companion": "App",
       "login": "Anmelden",
@@ -102,6 +103,71 @@
       "ctaTitle": "Covey ausprobieren",
       "ctaLead": "Melden Sie sich an und sehen Sie Covey in Aktion.",
       "ctaCovey": "Mehr über Covey"
+    },
+    "integrations": {
+      "eyebrow": "Integrationen",
+      "title": "Wo Ihre Agenten arbeiten",
+      "lead": "Ein Zielsystem ist bei Covey kein einmal verdrahteter Konnektor, sondern ein Plugin mit Manifest: Aktionen, Webhook-Verarbeitung, Prompt-Doku. Aktivieren, Zugang hinterlegen, dem Agenten zuweisen — fertig.",
+      "groups": {
+        "work": "Arbeit, die hereinkommt",
+        "files": "Dateien & Dokumente",
+        "sandbox": "Web & Sandbox",
+        "extend": "Fehlt eines? Andocken statt warten."
+      },
+      "tag": {
+        "webhook": "Webhook weckt",
+        "poll": "Heartbeat sichtet",
+        "nosecret": "Ohne Zugangsdaten"
+      },
+      "sys": {
+        "zammad": {
+          "t": "Zammad",
+          "d": "Tickets sichten, beantworten, Status setzen, eskalieren. Ein Trigger weckt den Agenten, sobald ein Kunde antwortet — er wartet nicht, er wird geholt."
+        },
+        "gitlab": {
+          "t": "GitLab",
+          "d": "Issues als Arbeitsvorrat, Quellcode auschecken, Fix auf einem Feature-Branch, Merge Request an den Vorgesetzten — und den Review-Loop danach leben, rote CI eingeschlossen."
+        },
+        "email": {
+          "t": "E-Mail (IMAP/SMTP)",
+          "d": "Ein eigenes Postfach für den Agenten: Posteingang sichten, antworten, ablegen. Für alles, was ohne Portal und ohne API hereinkommt."
+        },
+        "teams": {
+          "t": "Microsoft Teams",
+          "d": "Ein Chat-Kanal über den Azure Bot Service: Nachrichten empfangen und senden, jeder eingehende Aufruf kryptografisch geprüft."
+        },
+        "nextcloud": {
+          "t": "Nextcloud",
+          "d": "Eine Dateiablage per Freigabelink oder Konto: listen, lesen, schreiben, Ordner anlegen. Zugriff über WebDAV — einem Bot genügt der Link."
+        },
+        "sharepoint": {
+          "t": "SharePoint / Teams-Dateien",
+          "d": "Dieselben Dateioperationen im Microsoft-Stack: eine Dokumentbibliothek über eine Entra-ID-App-Registrierung, sauber gescopt."
+        },
+        "browser": {
+          "t": "Browser (headless Chrome)",
+          "d": "Der universelle Adapter für Web-Anwendungen ohne eigenes Plugin: Seiten öffnen, Text lesen, klicken, tippen, Screenshots ablegen. Welche Seiten erreichbar sind, entscheidet die Egress-Allowlist."
+        },
+        "dev": {
+          "t": "Dev-Sandbox",
+          "d": "Der eigene Computer des Agenten: Shell-Befehle ausführen, Dev-Server und Datenbanken starten, prüfen und wieder abräumen."
+        }
+      },
+      "extendLead": "Zwei Wege, ohne auf ein Release zu warten — beide in der Oberfläche, ohne Deploy.",
+      "ext": {
+        "manifest": {
+          "t": "REST-System per Manifest",
+          "d": "Ein JSON-Manifest beschreibt Auth, Aktionen und die Felder des Webhooks. Hochladen, aktivieren, zuweisen — ohne eine Zeile Go."
+        },
+        "mcp": {
+          "t": "MCP-Server",
+          "d": "Jeder Model-Context-Protocol-Server lässt sich als Zielsystem eintragen. Covey entdeckt die Werkzeuge; Sie geben je Agent frei, welche davon er benutzen darf."
+        }
+      },
+      "brokerTitle": "Die Zugangsdaten sieht die Sandbox nie",
+      "brokerLead": "Kein langlebiges Secret wandert in den Arbeitsplatz des Agenten. Jeder Zugriff läuft zur Laufzeit über den Broker — kurzlebig, auf das nötige Zielsystem gescopt, und jeder Aufruf steht im Protokoll. Was ein Agent darf, entscheiden die Guard-Rails der Control Plane, nicht sein Prompt.",
+      "ctaTitle": "Und der Rest der Plattform?",
+      "ctaLead": "Zielsysteme sind eine Hälfte. Die andere ist alles, was drumherum dafür sorgt, dass Sie einer Agenten-Belegschaft vertrauen können."
     },
     "covey": {
       "eyebrow": "Produkt · Plattform",
