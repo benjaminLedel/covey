@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"covey/internal/reqlog"
 	"covey/internal/target"
 )
 
@@ -50,7 +51,7 @@ func NewClient(cred target.Credential) (*Client, error) {
 		tokenEndpoint: endpoint,
 		appID:         appID,
 		appPassword:   appPassword,
-		HTTP:          &http.Client{Timeout: 15 * time.Second},
+		HTTP:          reqlog.Client("teams", 15*time.Second),
 		now:           time.Now,
 	}, nil
 }

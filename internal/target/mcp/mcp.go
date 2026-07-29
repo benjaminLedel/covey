@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"covey/internal/reqlog"
 	"covey/internal/target"
 )
 
@@ -88,7 +89,7 @@ type System struct {
 }
 
 func NewSystem(c Config) *System {
-	return &System{Cfg: c, HTTP: &http.Client{Timeout: 30 * time.Second}}
+	return &System{Cfg: c, HTTP: reqlog.Client("mcp", 30*time.Second)}
 }
 
 func (s *System) Name() string { return s.Cfg.Name }

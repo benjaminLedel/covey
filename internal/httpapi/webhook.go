@@ -28,6 +28,7 @@ func (s *Server) handleTargetWebhook(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, "kein agent mit slug "+slug)
 		return
 	}
+	noteWebhookAgent(r, agent) // Request-Log: Eintrag dem Agenten zuordnen
 
 	sys, err := s.Targets.System(r.Context(), agent.OrgID, systemName)
 	if err != nil {
@@ -155,6 +156,7 @@ func (s *Server) handleAgentTrigger(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
+	noteWebhookAgent(r, agent) // Request-Log: Eintrag dem Agenten zuordnen
 	if agent.Killed {
 		writeErr(w, http.StatusConflict, "agent ist gestoppt")
 		return

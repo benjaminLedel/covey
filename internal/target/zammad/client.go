@@ -11,6 +11,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"covey/internal/reqlog"
 )
 
 // Client spricht die Zammad-REST-API mit einem (gebrokerten) API-Token.
@@ -25,7 +27,7 @@ func NewClient(baseURL, token string) *Client {
 	return &Client{
 		BaseURL: strings.TrimRight(baseURL, "/"),
 		Token:   token,
-		HTTP:    &http.Client{Timeout: 15 * time.Second},
+		HTTP:    reqlog.Client("zammad", 15*time.Second),
 	}
 }
 

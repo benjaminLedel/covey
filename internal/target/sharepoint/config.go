@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"covey/internal/reqlog"
 )
 
 // Konfiguration des SharePoint-Plugins aus dem gebrokerten Secret-Paar. Der
@@ -128,7 +130,7 @@ func (cfg Config) AccessToken(ctx context.Context) (string, error) {
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	resp, err := (&http.Client{Timeout: 15 * time.Second}).Do(req)
+	resp, err := reqlog.Client("sharepoint", 15*time.Second).Do(req)
 	if err != nil {
 		return "", fmt.Errorf("entra-id token: %w", err)
 	}

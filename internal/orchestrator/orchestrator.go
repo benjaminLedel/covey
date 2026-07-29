@@ -31,6 +31,8 @@ import (
 	"covey/internal/identity"
 	"covey/internal/memory"
 	"covey/internal/observability"
+	"covey/internal/reqlog"
+	reqlogstore "covey/internal/reqlog/store"
 	"covey/internal/secrets"
 	"covey/internal/target"
 	targetstore "covey/internal/target/store"
@@ -59,6 +61,10 @@ type Options struct {
 	Memory         *memory.Store
 	Targets        *targetstore.Store
 	Egress         *egress.Store
+	// ReqLog nimmt die HTTP-Requests der Zielsystem-Plugins auf (Diagnose,
+	// spec/06). nil = Request-Log abgeschaltet; die Events der Sandbox werden
+	// dann verworfen.
+	ReqLog *reqlogstore.Store
 	Provider       SandboxProvider
 	PublicWSURL    string // ws://…/api/daemon/ws — von Sandboxen erreichbar
 	DaemonTokenTTL time.Duration
@@ -488,6 +494,11 @@ func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid
 	}
 	cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
+	// Der Work-Check ist ein Zielsystem-Request aus der Control Plane heraus —
+	// mit Agenten-Senke, damit er im Request-Log zuordenbar ist statt anonym.
+	if o.ReqLog != nil {
+		cctx = reqlog.WithSink(cctx, o.ReqLog.Sink(&orgID, &agentID, nil))
+	}
 	var (
 		has bool
 		err error
@@ -1201,6 +1212,21 @@ func (o *Orchestrator) storeActionArtifact(ctx context.Context, agent agents.Age
 	return payload
 }
 
+// recordHTTP legt einen aus der Sandbox gemeldeten HTTP-Request ins
+// Request-Log — mit dem Kontext, den nur die Control Plane hat (Org, Agent,
+// Aufgabe). Ohne konfiguriertes Log ist es ein No-op.
+func (o *Orchestrator) recordHTTP(ctx context.Context, agent agents.Agent, taskID uuid.UUID, payload []byte) {
+	if o.ReqLog == nil {
+		return
+	}
+	var e reqlog.Entry
+	if err := json.Unmarshal(payload, &e); err != nil {
+		return
+	}
+	orgID, agentID, tid := agent.OrgID, agent.ID, taskID
+	o.ReqLog.Enqueue(reqlogstore.Record{Entry: e, OrgID: &orgID, AgentID: &agentID, TaskID: &tid})
+}
+
 // handleDaemonMessage verarbeitet eine Daemon-Nachricht; true = Aufgabe beendet.
 func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Agent, link DaemonLink, taskID uuid.UUID, msg daemon.Message, s *session) (bool, error) {
 	switch msg.Type {
@@ -1212,9 +1238,15 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		if err != nil {
 			return false, nil
 		}
+		// HTTP-Requests der Plugins gehören ins Request-Log, nicht in die
+		// Recording-Timeline — eigene Retention, eigene Sicht (spec/06).
+		if ev.Kind == daemon.EventKindHTTP {
+			o.recordHTTP(ctx, agent, taskID, ev.Payload)
+			return false, nil
+		}
 		kind := observability.KindRuntime
 		payload := json.RawMessage(ev.Payload)
-		if ev.Kind == "action" {
+		if ev.Kind == daemon.EventKindAction {
 			kind = observability.KindAction
 			payload = o.storeActionArtifact(ctx, agent, taskID, payload)
 		}

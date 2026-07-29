@@ -100,9 +100,19 @@ type Ready struct {
 
 type Event struct {
 	TaskID  string          `json:"task_id,omitempty"`
-	Kind    string          `json:"kind"` // runtime | action | tool_use ...
+	Kind    string          `json:"kind"` // runtime | action | http | tool_use ...
 	Payload json.RawMessage `json:"payload"`
 }
+
+// Event-Kinds mit Sonderbehandlung in der Control Plane.
+const (
+	// EventKindAction ist eine ausgeführte Zielsystem-Aktion (→ Recording).
+	EventKindAction = "action"
+	// EventKindHTTP ist ein einzelner HTTP-Request, den ein Zielsystem-Plugin
+	// in der Sandbox gestellt hat (Payload: reqlog.Entry). Er geht nicht ins
+	// Recording, sondern ins Request-Log — Diagnose, kein Audit-Trail.
+	EventKindHTTP = "http"
+)
 
 // RequestTarget/InjectTarget brokern die Definition eines Manifest-Plugins
 // (kind=custom) in die Sandbox: Der Daemon kennt kompilierte Plugins selbst,
