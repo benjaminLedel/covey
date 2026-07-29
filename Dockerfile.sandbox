@@ -9,7 +9,7 @@ COPY cmd/coveyd ./cmd/coveyd
 COPY internal ./internal
 RUN CGO_ENABLED=0 go build -o /coveyd ./cmd/coveyd
 
-FROM node:22-slim
+FROM node:26-slim
 # Werkzeuge, die die Runtime in der Praxis braucht: git für Repos,
 # ca-certificates + curl für HTTPS auf gebrokerte Zielsysteme, ripgrep für die
 # Suche, unzip für ZIP-Archive (z. B. Mail-Anhänge, die der Agent in seine
