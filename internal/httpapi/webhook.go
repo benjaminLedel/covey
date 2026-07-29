@@ -17,15 +17,16 @@ import (
 // handleTargetWebhook ist der Event-Router-Eingang für Zielsysteme (spec/13):
 // Plugin-Lookup (nur aktivierte Systeme, fail-closed), Signatur-Prüfung,
 // idempotente Verarbeitung, Korrelation.
-// URL: POST /api/webhooks/{system}/{slug} — slug adressiert den Agenten.
+// URL: POST /api/webhooks/{system}/{agent} — der letzte Pfad-Teil adressiert
+// den Agenten (Slug oder, ersatzweise, seine ID).
 func (s *Server) handleTargetWebhook(w http.ResponseWriter, r *http.Request) {
 	systemName := r.PathValue("system")
 
-	// MVP: eine Organisation — der Agent wird org-übergreifend per Slug gefunden.
-	slug := r.PathValue("slug")
-	agent, err := s.findAgentBySlug(r, slug)
+	// MVP: eine Organisation — der Agent wird org-übergreifend aufgelöst.
+	ref := r.PathValue("agent")
+	agent, err := s.findWebhookAgent(r, ref)
 	if err != nil {
-		writeErr(w, http.StatusNotFound, "kein agent mit slug "+slug)
+		writeErr(w, http.StatusNotFound, "kein agent mit slug oder id "+ref)
 		return
 	}
 	noteWebhookAgent(r, agent) // Request-Log: Eintrag dem Agenten zuordnen

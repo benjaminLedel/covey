@@ -274,7 +274,7 @@ func (s *Server) Handler() http.Handler {
 	// Beide gehen durch logIncoming — auch (und gerade) wenn sie abgelehnt
 	// werden: ein Webhook, der an der Signatur scheitert, ist die häufigste
 	// Frage beim Anbinden eines Zielsystems.
-	mux.HandleFunc("POST /api/webhooks/{system}/{slug}", s.logIncoming(s.handleTargetWebhook))
+	mux.HandleFunc("POST /api/webhooks/{system}/{agent}", s.logIncoming(s.handleTargetWebhook))
 	mux.HandleFunc("POST /api/trigger/{token}", s.logIncoming(s.handleAgentTrigger))
 	mux.HandleFunc("GET /api/daemon/ws", s.handleDaemonWS)
 

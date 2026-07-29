@@ -88,7 +88,11 @@ https://covey.example.com/api/webhooks/teams/<agent-slug>
 ```
 
 `<agent-slug>` = der Slug des zuständigen Agenten in Covey; über die URL wird die
-Nachricht dem Agenten zugeordnet. Die Basis muss **öffentlich erreichbar** sein,
+Nachricht dem Agenten zugeordnet. Ersatzweise wird auch die **Agent-ID**
+akzeptiert (die UUID aus der URL der Agenten-Seite) — praktisch, wenn der
+Endpoint im Fremdsystem nachträglich nicht mehr änderbar ist. Der Slug ist
+trotzdem die bessere Wahl: er ist lesbar und übersteht einen Neuaufbau des
+Agenten. Die Basis muss **öffentlich erreichbar** sein,
 sonst kann der Bot Service nicht zustellen (kein `localhost`; für lokale Tests
 z. B. ein Tunnel wie `ngrok`, oder das `faketeams`-Double aus Abschnitt 6).
 
@@ -160,7 +164,7 @@ Pro Agent im SecretStore setzen (UI: Agenten-Seite → Secrets, oder via API):
 | Secret | Wert | Zweck |
 |---|---|---|
 | `teams_token` | `<app-id>:<app-passwort>` | Outbound-Auth (OAuth2 client_credentials) |
-| `teams_url` | *(optional)* Token-Endpoint | Default: `https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token`; für **Single-Tenant**-Bots `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token` |
+| `teams_url` | *(optional)* Token-Endpoint | Default: `https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token` (instanzweit per `COVEY_TEAMS_TOKEN_URL` verschiebbar); für **Single-Tenant**-Bots `https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token` |
 | `anthropic_api_key` *oder* `claude_code_oauth_token` | API-Key bzw. `claude setup-token` | die Runtime in der Sandbox |
 
 App-ID steht **vor** dem ersten `:`, der Rest ist das Passwort (darf `:`
@@ -220,7 +224,7 @@ COVEY_TEAMS_ATTACHMENT_MAX_MB=25                  # Größenlimit je Anhang
 | Bot taucht in Teams nicht auf | Custom-App-Upload nicht erlaubt (2.0) oder App nicht installiert. Org-weit ausrollen oder Setup-Policy anpassen. |
 | Nachricht kommt an, aber Covey reagiert nicht | Messaging-Endpoint falsch (`<agent-slug>`?), `COVEY_PUBLIC_URL` nicht öffentlich, oder Zielsystem `teams` nicht aktiviert (2.5). |
 | `signatur ungültig` / 401 am Webhook | `COVEY_TEAMS_WEBHOOK_SECRET` ≠ Bot-App-ID. Beide müssen die App-ID aus 2.1 sein. |
-| Agent antwortet nicht zurück | `teams_token` falsch (`appId:appPassword`?), Secret abgelaufen, oder Egress blockt `login.microsoftonline.com` / Connector-Host (Abschnitt 5). |
+| Agent antwortet nicht zurück | `teams_token` falsch (`appId:appPassword`?), Secret abgelaufen, oder Egress blockt `login.microsoftonline.com` / Connector-Host (Abschnitt 5). Im Recording steht die Ursache im Klartext — „Zugang zu teams verweigert" heißt Secret fehlt oder ist dem Agenten nicht zugewiesen. |
 | Datei-Anhänge fehlen im 1:1-Chat | `supportsFiles: true` im Manifest vergessen (2.3). |
 | `download_attachment` schlägt fehl | URL abgelaufen (zeitnah laden), Egress blockt `*.sharepoint.com`, oder Datei über dem Limit (`COVEY_TEAMS_ATTACHMENT_MAX_MB`). |
 
@@ -287,6 +291,7 @@ Details: [`../spec/15-teams-integration.md`](../spec/15-teams-integration.md).
 | `COVEY_PUBLIC_URL` | `http://localhost:8494` | Basis-URL, die der Bot Service für den Messaging-Endpoint erreicht |
 | `COVEY_TEAMS_WEBHOOK_SECRET` | *(leer = JWT-Prüfung aus)* | erwartete Bot-App-ID (JWT-Audience) |
 | `COVEY_TEAMS_INTAKE_TENANTS` | *(leer = alle)* | Allowlist der Microsoft-365-Tenants |
+| `COVEY_TEAMS_TOKEN_URL` | Bot-Framework-Endpoint | instanzweiter Token-Endpoint; pro Agent weiter per Secret `teams_url` überschreibbar |
 | `COVEY_TEAMS_ATTACHMENT_MAX_MB` | `25` | Größenlimit je in die Sandbox geladenem Anhang |
 | `COVEY_DAEMON_TOKEN_TTL` | `15m` | TTL des in die Sandbox gereichten Credentials |
 | `COVEY_EGRESS_ENFORCE` | `false` | Egress-Allowlist-Proxy einschalten (nur `docker`-Provider) |

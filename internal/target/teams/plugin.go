@@ -23,6 +23,10 @@ func init() {
 		Kind:        "builtin",
 		Category:    target.CategoryComms,
 		System:      System{},
+		// teams_url ist der Token-Endpoint — ohne ihn greift der
+		// Multi-Tenant-Default aus config.go. Nur Single-Tenant-Bots setzen
+		// ihn, deshalb kein Pflicht-Secret.
+		BaseURLOptional: true,
 		SetupDoc: `1. In Azure eine Bot-Registration (Azure Bot / Bot Channels Registration)
    anlegen und den Kanal "Microsoft Teams" aktivieren. Microsoft-App-ID
    notieren und ein Client Secret (App-Passwort) erzeugen.

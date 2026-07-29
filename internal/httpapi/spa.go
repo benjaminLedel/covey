@@ -32,12 +32,21 @@ func spaHandler(dist fs.FS) http.Handler {
 	})
 }
 
-// findAgentBySlug löst den Webhook-Slug auf (MVP: eine Organisation).
-func (s *Server) findAgentBySlug(r *http.Request, slug string) (agents.Agent, error) {
+// findWebhookAgent löst den Adress-Teil einer Webhook-URL auf (MVP: eine
+// Organisation). Gemeint ist der Slug; ersatzweise wird die Agent-ID
+// akzeptiert, weil sie in der UI-URL des Agenten steht und beim Einrichten
+// eines Zielsystems leicht statt des Slugs kopiert wird. Beides adressiert
+// denselben Agenten eindeutig — der Slug hat Vorrang, falls ein Slug wie eine
+// UUID aussieht.
+func (s *Server) findWebhookAgent(r *http.Request, ref string) (agents.Agent, error) {
 	var orgID uuid.UUID
 	if err := s.Pool.QueryRow(r.Context(),
-		"SELECT org_id FROM agents WHERE slug=$1 LIMIT 1", slug).Scan(&orgID); err != nil {
-		return agents.Agent{}, err
+		"SELECT org_id FROM agents WHERE slug=$1 LIMIT 1", ref).Scan(&orgID); err == nil {
+		return s.Registry.GetBySlug(r.Context(), orgID, ref)
 	}
-	return s.Registry.GetBySlug(r.Context(), orgID, slug)
+	id, err := uuid.Parse(ref)
+	if err != nil {
+		return agents.Agent{}, agents.ErrNotFound
+	}
+	return s.Registry.Get(r.Context(), id)
 }

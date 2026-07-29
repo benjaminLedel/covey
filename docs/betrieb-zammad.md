@@ -85,7 +85,8 @@ sonst kann Zammad den Webhook nicht zustellen.
 1. **Webhook** anlegen (*Admin → Manage → Webhooks*):
    - Endpoint: `https://covey.example.com/api/webhooks/zammad/<agent-slug>`
      (`<agent-slug>` = der Slug des zuständigen Agenten in Covey; über die URL
-     wird das Ticket dem Agenten zugeordnet — siehe Abschnitt 3.2).
+     wird das Ticket dem Agenten zugeordnet — siehe Abschnitt 3.2. Ersatzweise
+     wird auch die Agent-ID akzeptiert, die UUID aus der URL der Agenten-Seite.)
    - HMAC-Signatur-Token: **derselbe Wert** wie `COVEY_ZAMMAD_WEBHOOK_SECRET`.
    - Payload: Standard-Payload ist ok; sie muss `ticket` und `article` als
      Top-Level-Objekte enthalten. Wichtig: `article.sender` muss als String
