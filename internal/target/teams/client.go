@@ -180,6 +180,83 @@ func (c *Client) Reply(ctx context.Context, serviceURL, conversationID, activity
 	return out, err
 }
 
+// SendFileConsent postet die Zustimmungs-Karte für eine ausgehende Datei
+// (spec/15, „Dateien senden"). Teams zeigt sie als Karte mit „Annehmen" /
+// „Ablehnen"; erst der Klick des Empfängers erzeugt die Upload-URL, die per
+// invoke-Activity zurückkommt. consentKey wandert unverändert durch beide
+// Kontexte und ordnet die Antwort wieder der gemeinten Datei zu.
+func (c *Client) SendFileConsent(ctx context.Context, serviceURL, conversationID, filename, description string, sizeBytes int64, consentKey string) (ResourceResponse, error) {
+	var out ResourceResponse
+	activity := map[string]any{
+		"type": "message",
+		"attachments": []map[string]any{{
+			"contentType": consentCardContentType,
+			"name":        filename,
+			"content": map[string]any{
+				"description":    description,
+				"sizeInBytes":    sizeBytes,
+				"acceptContext":  map[string]any{"key": consentKey},
+				"declineContext": map[string]any{"key": consentKey},
+			},
+		}},
+	}
+	u := connectorURL(serviceURL, "/v3/conversations/"+url.PathEscape(conversationID)+"/activities")
+	err := c.post(ctx, u, activity, &out)
+	return out, err
+}
+
+// UploadFile schiebt die Bytes an die Upload-URL, die Teams nach der Zustimmung
+// geliefert hat. Das ist eine SharePoint-/OneDrive-Upload-Session: PUT mit
+// Content-Range, ohne Connector-Token — die URL trägt ihre Autorisierung
+// selbst. Deshalb hier bewusst kein Bearer-Header (er würde abgewiesen).
+func (c *Client) UploadFile(ctx context.Context, uploadURL string, data []byte) error {
+	if strings.TrimSpace(uploadURL) == "" {
+		return fmt.Errorf("teams upload: upload_url fehlt")
+	}
+	if len(data) == 0 {
+		return fmt.Errorf("teams upload: datei ist leer")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, uploadURL, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	req.ContentLength = int64(len(data))
+	req.Header.Set("Content-Length", fmt.Sprintf("%d", len(data)))
+	req.Header.Set("Content-Range", fmt.Sprintf("bytes 0-%d/%d", len(data)-1, len(data)))
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("teams upload: HTTP %d: %.300s", resp.StatusCode, body)
+	}
+	return nil
+}
+
+// SendFileInfo postet die Abschluss-Karte, die dem Empfänger die fertig
+// hochgeladene Datei im Chat anzeigt. Ohne sie bleibt nach dem Upload nur die
+// abgehakte Zustimmungs-Karte stehen.
+func (c *Client) SendFileInfo(ctx context.Context, serviceURL, conversationID, filename, contentURL, uniqueID, fileType string) (ResourceResponse, error) {
+	var out ResourceResponse
+	activity := map[string]any{
+		"type": "message",
+		"attachments": []map[string]any{{
+			"contentType": infoCardContentType,
+			"contentUrl":  contentURL,
+			"name":        filename,
+			"content": map[string]any{
+				"uniqueId": uniqueID,
+				"fileType": fileType,
+			},
+		}},
+	}
+	u := connectorURL(serviceURL, "/v3/conversations/"+url.PathEscape(conversationID)+"/activities")
+	err := c.post(ctx, u, activity, &out)
+	return out, err
+}
+
 // CreateConversation eröffnet einen proaktiven 1:1-Chat mit einem Nutzer und
 // sendet die erste Nachricht.
 func (c *Client) CreateConversation(ctx context.Context, serviceURL, tenantID, userID, text string) (ResourceResponse, error) {

@@ -401,3 +401,42 @@ func TestExecuteValidation(t *testing.T) {
 		t.Fatal("kaputtes Credential muss Fehler sein")
 	}
 }
+
+// TestResolveInWorkdir: ein Agent darf nur Dateien aus seinem eigenen
+// Arbeitsverzeichnis verschicken. Absolute Pfade und ".." führen nicht hinaus —
+// sonst könnte eine manipulierte Quelle ihn dazu bringen, /etc/passwd in einen
+// Chat zu schieben.
+func TestResolveInWorkdir(t *testing.T) {
+	work := t.TempDir()
+	if _, err := resolveInWorkdir(work, "bericht.pdf"); err != nil {
+		t.Fatalf("normaler Pfad muss gehen: %v", err)
+	}
+	if _, err := resolveInWorkdir(work, "unterordner/../bericht.pdf"); err != nil {
+		t.Fatalf("bereinigter Pfad innerhalb des Workdirs muss gehen: %v", err)
+	}
+	for _, bad := range []string{"../../etc/passwd", "/etc/passwd", "..", ""} {
+		if _, err := resolveInWorkdir(work, bad); err == nil {
+			t.Fatalf("pfad %q muss abgelehnt werden", bad)
+		}
+	}
+	if _, err := resolveInWorkdir("", "bericht.pdf"); err == nil {
+		t.Fatal("ohne Workdir muss die Aktion scheitern")
+	}
+}
+
+// TestSendFileBrauchtDatei: send_file/upload_file scheitern sauber, wenn die
+// genannte Datei fehlt — statt eine leere Karte in den Chat zu stellen.
+func TestSendFileBrauchtDatei(t *testing.T) {
+	work := t.TempDir()
+	c, err := NewClient(target.Credential{Token: "app:pass"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RequestFileConsent(context.Background(), c, "http://x", "19:c", "fehlt.pdf", "", work); err == nil {
+		t.Fatal("fehlende Datei muss Fehler sein")
+	}
+	if _, err := UploadConsentedFile(context.Background(), c,
+		UploadInput{UploadURL: "http://x/up", Path: "fehlt.pdf"}, work); err == nil {
+		t.Fatal("fehlende Datei muss Fehler sein")
+	}
+}
