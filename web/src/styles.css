@@ -2745,6 +2745,9 @@ kbd {
 .tgt-mark.lg { width: 40px; height: 40px; font-size: 14px; border-radius: 10px; }
 .tgt-mark.k-custom { background: var(--bg-accent); color: var(--text-accent); border-color: transparent; }
 .tgt-mark.k-mcp { background: var(--bg-pro); color: var(--text-pro); border-color: transparent; }
+/* Marken-Signet: neutrale Kachel, damit die Logo-Farbe für sich steht. */
+.tgt-mark.brand { background: var(--surface-2); color: var(--text-secondary); }
+.tgt-mark svg { display: block; }
 
 .tgt-id { min-width: 0; flex: 1; }
 .tgt-name {
