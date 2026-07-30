@@ -43,6 +43,17 @@ x-covey-base: &covey-base
     # damit nur Beinahe-Identisches an — das inhaltliche Aufräumen leistet erst
     # dieser Heartbeat. Kostet pro Agent einen LLM-Lauf pro Tag; leer = aus.
     COVEY_WIKI_CLEANUP: ${COVEY_WIKI_CLEANUP:-03:00}
+    # Embedding hinter der Wiki-Suche. Ohne Schlüssel bleibt es beim Built-in-
+    # Hash, der nur Wortüberlappung misst — damit findet ein Agent seine eigene
+    # Seite nicht wieder, sobald er anders formuliert. Für semantisches
+    # Retrieval in der .env setzen:
+    #   COVEY_EMBEDDING_PROVIDER=voyage   (oder openai)
+    #   COVEY_EMBEDDING_API_KEY=…
+    # Der Bestand wird beim nächsten Start automatisch neu eingebettet.
+    COVEY_EMBEDDING_PROVIDER: ${COVEY_EMBEDDING_PROVIDER:-builtin}
+    COVEY_EMBEDDING_MODEL: ${COVEY_EMBEDDING_MODEL:-}
+    COVEY_EMBEDDING_API_KEY: ${COVEY_EMBEDDING_API_KEY:-}
+    COVEY_EMBEDDING_URL: ${COVEY_EMBEDDING_URL:-}
   volumes:
     - ${COVEY_DATA_DIR:-/opt/covey/data}:${COVEY_DATA_DIR:-/opt/covey/data}
 

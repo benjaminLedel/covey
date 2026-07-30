@@ -34,12 +34,14 @@ const dupThreshold = 0.93
 // ErrNoContent: Inhalt ist leer oder eine Floskel (IsNoise) — nicht speicherbar.
 var ErrNoContent = errors.New("kein verwertbarer inhalt")
 
-// Embedder ist der Port für Text→Vektor. builtin ist ein deterministisches
-// Hash-Embedding (offline, dependency-frei) — ehrlich begrenzt, aber für den
-// MVP-Durchstich ausreichend und über dieses Interface durch einen echten
-// Embedding-Provider (API) austauschbar.
+// Embedder ist der Port für Text→Vektor ("batteries included, but swappable"):
+// builtin ist das Hash-Embedding (offline, aber nur lexikalisch), APIEmbedder
+// spricht einen echten Embedding-Provider. Name() ist der Fingerabdruck des
+// Modells — er landet in wiki_pages.embed_model, damit ReembedStale erkennt,
+// welche Seiten nach einem Wechsel neu eingebettet werden müssen.
 type Embedder interface {
-	Embed(text string) [Dim]float32
+	Embed(ctx context.Context, text string) ([Dim]float32, error)
+	Name() string
 }
 
 // Entry ist die Sicht auf eine Wiki-Seite (Content = Body, für Rückwärts-
@@ -206,7 +208,10 @@ func (s *Store) Ingest(ctx context.Context, agentID uuid.UUID, content string, m
 	if metadata != nil && metadata["source"] != "" {
 		source = metadata["source"]
 	}
-	vec := s.embedder.Embed(content)
+	vec, err := s.embedder.Embed(ctx, content)
+	if err != nil {
+		return fmt.Errorf("embedding: %w", err)
+	}
 
 	// Passende Seite suchen (nur diese Agenten-Seiten).
 	var (
@@ -215,17 +220,21 @@ func (s *Store) Ingest(ctx context.Context, agentID uuid.UUID, content string, m
 		body  string
 		score float64
 	)
-	err := s.pool.QueryRow(ctx, `SELECT id, slug, body, 1 - (embedding <=> $2::vector) AS score
-		FROM wiki_pages WHERE agent_id=$1 ORDER BY embedding <=> $2::vector LIMIT 1`,
-		agentID, vectorLiteral(vec)).Scan(&pid, &slug, &body, &score)
+	err = s.pool.QueryRow(ctx, `SELECT id, slug, body, 1 - (embedding <=> $2::vector) AS score
+		FROM wiki_pages WHERE agent_id=$1 AND embed_model=$3
+		ORDER BY embedding <=> $2::vector LIMIT 1`,
+		agentID, vectorLiteral(vec), s.embedder.Name()).Scan(&pid, &slug, &body, &score)
 	switch {
 	case err == nil && score >= mergeThreshold:
 		merged := strings.TrimSpace(body) + "\n\n" + content
 		links := extractLinks(merged)
-		mv := s.embedder.Embed(merged)
+		mv, err := s.embedder.Embed(ctx, merged)
+		if err != nil {
+			return fmt.Errorf("embedding: %w", err)
+		}
 		if _, err := s.pool.Exec(ctx, `UPDATE wiki_pages
-			SET body=$2, links=$3, embedding=$4::vector, updated_at=now() WHERE id=$1`,
-			pid, merged, links, vectorLiteral(mv)); err != nil {
+			SET body=$2, links=$3, embedding=$4::vector, embed_model=$5, updated_at=now() WHERE id=$1`,
+			pid, merged, links, vectorLiteral(mv), s.embedder.Name()); err != nil {
 			return err
 		}
 		s.logOp(ctx, agentID, "ingest", slug, "ergänzt: "+deriveTitle(content))
@@ -239,9 +248,10 @@ func (s *Store) Ingest(ctx context.Context, agentID uuid.UUID, content string, m
 	newSlug := s.uniqueSlug(ctx, agentID, title)
 	meta, _ := json.Marshal(orEmpty(metadata))
 	if _, err := s.pool.Exec(ctx, `INSERT INTO wiki_pages
-		(id, agent_id, slug, title, body, links, source, metadata, embedding)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::vector)`,
-		uuid.New(), agentID, newSlug, title, content, extractLinks(content), source, meta, vectorLiteral(vec)); err != nil {
+		(id, agent_id, slug, title, body, links, source, metadata, embedding, embed_model)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::vector,$10)`,
+		uuid.New(), agentID, newSlug, title, content, extractLinks(content), source, meta,
+		vectorLiteral(vec), s.embedder.Name()); err != nil {
 		return err
 	}
 	s.logOp(ctx, agentID, "ingest", newSlug, "neue Seite: "+title)
@@ -260,12 +270,15 @@ func (s *Store) Query(ctx context.Context, agentID uuid.UUID, query string, limi
 	if limit <= 0 {
 		limit = 5
 	}
-	vec := s.embedder.Embed(query)
+	vec, err := s.embedder.Embed(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("embedding: %w", err)
+	}
 	rows, err := s.pool.Query(ctx, `SELECT id, agent_id, slug, title, body, links, source, created_at, updated_at,
 		1 - (embedding <=> $2::vector) AS score
-		FROM wiki_pages WHERE agent_id=$1
+		FROM wiki_pages WHERE agent_id=$1 AND embed_model=$4
 		ORDER BY embedding <=> $2::vector LIMIT $3`,
-		agentID, vectorLiteral(vec), limit)
+		agentID, vectorLiteral(vec), limit, s.embedder.Name())
 	if err != nil {
 		return nil, err
 	}
@@ -313,14 +326,17 @@ func (s *Store) Write(ctx context.Context, agentID uuid.UUID, slug, title, body,
 		source = "agent"
 	}
 	links := extractLinks(body)
-	vec := s.embedder.Embed(title + " " + body)
-	_, err := s.pool.Exec(ctx, `INSERT INTO wiki_pages
-		(id, agent_id, slug, title, body, links, source, embedding)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8::vector)
+	vec, err := s.embedder.Embed(ctx, title+" "+body)
+	if err != nil {
+		return Entry{}, fmt.Errorf("embedding: %w", err)
+	}
+	_, err = s.pool.Exec(ctx, `INSERT INTO wiki_pages
+		(id, agent_id, slug, title, body, links, source, embedding, embed_model)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8::vector,$9)
 		ON CONFLICT (agent_id, slug) DO UPDATE
 		SET title=EXCLUDED.title, body=EXCLUDED.body, links=EXCLUDED.links,
-		    embedding=EXCLUDED.embedding, updated_at=now()`,
-		uuid.New(), agentID, slug, title, body, links, source, vectorLiteral(vec))
+		    embedding=EXCLUDED.embedding, embed_model=EXCLUDED.embed_model, updated_at=now()`,
+		uuid.New(), agentID, slug, title, body, links, source, vectorLiteral(vec), s.embedder.Name())
 	if err != nil {
 		return Entry{}, err
 	}
@@ -345,10 +361,13 @@ func (s *Store) UpdatePage(ctx context.Context, id uuid.UUID, title, content str
 	if strings.TrimSpace(title) == "" {
 		title = curTitle
 	}
-	vec := s.embedder.Embed(title + " " + content)
+	vec, err := s.embedder.Embed(ctx, title+" "+content)
+	if err != nil {
+		return fmt.Errorf("embedding: %w", err)
+	}
 	tag, err := s.pool.Exec(ctx, `UPDATE wiki_pages
-		SET title=$2, body=$3, links=$4, embedding=$5::vector, updated_at=now() WHERE id=$1`,
-		id, title, content, extractLinks(content), vectorLiteral(vec))
+		SET title=$2, body=$3, links=$4, embedding=$5::vector, embed_model=$6, updated_at=now() WHERE id=$1`,
+		id, title, content, extractLinks(content), vectorLiteral(vec), s.embedder.Name())
 	if err != nil {
 		return err
 	}
@@ -391,6 +410,74 @@ func (s *Store) DeleteBySlug(ctx context.Context, agentID uuid.UUID, slug string
 	}
 	s.logOp(ctx, agentID, "delete", slug, "gelöscht: "+title)
 	return nil
+}
+
+// EmbedderName ist der Fingerabdruck des aktiven Embedding-Modells.
+func (s *Store) EmbedderName() string { return s.embedder.Name() }
+
+// StaleCount zählt die Seiten, die noch mit einem anderen Modell eingebettet
+// sind als dem aktiven.
+func (s *Store) StaleCount(ctx context.Context) (int, error) {
+	var n int
+	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM wiki_pages WHERE embed_model <> $1`,
+		s.embedder.Name()).Scan(&n)
+	return n, err
+}
+
+// ReembedStale bettet Seiten neu ein, die noch von einem anderen Modell stammen
+// — der Umstieg auf einen anderen Embedder (oder der erste Umstieg weg vom
+// Hash-Embedding) macht den bestehenden Index sonst unbrauchbar, weil Seiten
+// verschiedener Modelle nicht miteinander verglichen werden können.
+//
+// Arbeitet in Häppchen und bricht beim ersten Provider-Fehler ab: bei einem
+// abgelaufenen Schlüssel oder Rate-Limit ist Weitermachen nur teuer. Der Aufruf
+// ist idempotent und kann jederzeit erneut laufen. Gibt zurück, wie viele
+// Seiten neu eingebettet wurden.
+func (s *Store) ReembedStale(ctx context.Context, batch int) (int, error) {
+	if batch <= 0 {
+		batch = 50
+	}
+	name := s.embedder.Name()
+	done := 0
+	for {
+		rows, err := s.pool.Query(ctx, `SELECT id, title, body FROM wiki_pages
+			WHERE embed_model <> $1 ORDER BY updated_at DESC LIMIT $2`, name, batch)
+		if err != nil {
+			return done, err
+		}
+		type page struct {
+			id          uuid.UUID
+			title, body string
+		}
+		var pages []page
+		for rows.Next() {
+			var p page
+			if err := rows.Scan(&p.id, &p.title, &p.body); err != nil {
+				rows.Close()
+				return done, err
+			}
+			pages = append(pages, p)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return done, err
+		}
+		if len(pages) == 0 {
+			return done, nil
+		}
+		for _, p := range pages {
+			vec, err := s.embedder.Embed(ctx, p.title+" "+p.body)
+			if err != nil {
+				return done, fmt.Errorf("embedding %q: %w", p.title, err)
+			}
+			if _, err := s.pool.Exec(ctx, `UPDATE wiki_pages
+				SET embedding=$2::vector, embed_model=$3 WHERE id=$1`,
+				p.id, vectorLiteral(vec), name); err != nil {
+				return done, err
+			}
+			done++
+		}
+	}
 }
 
 // LogEntry ist ein Eintrag des Wiki-Protokolls (log.md-Äquivalent, spec/05).
@@ -444,7 +531,8 @@ func (s *Store) Consolidate(ctx context.Context, agentID uuid.UUID) (int, error)
 		FROM wiki_pages a JOIN wiki_pages b
 		  ON a.agent_id=b.agent_id AND a.id < b.id
 		WHERE a.agent_id=$1 AND 1 - (a.embedding <=> b.embedding) >= $2
-		ORDER BY a.id`, agentID, dupThreshold)
+		  AND a.embed_model=$3 AND b.embed_model=$3
+		ORDER BY a.id`, agentID, dupThreshold, s.embedder.Name())
 	if err != nil {
 		return 0, err
 	}
@@ -494,10 +582,13 @@ func (s *Store) mergePages(ctx context.Context, agentID, keep, drop uuid.UUID) e
 		body = body + "\n\n" + extra
 	}
 	links := unionSlugs(keepLinks, dropLinks, extractLinks(body))
-	vec := s.embedder.Embed(body)
+	vec, err := s.embedder.Embed(ctx, body)
+	if err != nil {
+		return fmt.Errorf("embedding: %w", err)
+	}
 	if _, err := s.pool.Exec(ctx, `UPDATE wiki_pages
-		SET body=$2, links=$3, embedding=$4::vector, updated_at=now() WHERE id=$1`,
-		keep, body, links, vectorLiteral(vec)); err != nil {
+		SET body=$2, links=$3, embedding=$4::vector, embed_model=$5, updated_at=now() WHERE id=$1`,
+		keep, body, links, vectorLiteral(vec), s.embedder.Name()); err != nil {
 		return err
 	}
 	if _, err := s.pool.Exec(ctx, `DELETE FROM wiki_pages WHERE id=$1`, drop); err != nil {

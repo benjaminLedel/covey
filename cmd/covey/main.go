@@ -468,6 +468,46 @@ func startEgressProxy(ctx context.Context, cfg config.Config, store *egress.Stor
 	return containerURL, func() { _ = proxy.Close() }, nil
 }
 
+// buildEmbedder wählt das Embedding für das Wiki-Gedächtnis (spec/05).
+// "builtin" ist der Offline-Rückfall ohne API-Schlüssel; jeder andere Provider
+// wird strikt validiert — eine kaputte Konfiguration soll den Start abbrechen
+// und nicht unbemerkt zum schwächeren Hash-Embedding zurückfallen.
+func buildEmbedder(cfg config.Config, log *slog.Logger) (memory.Embedder, error) {
+	provider := strings.ToLower(strings.TrimSpace(cfg.EmbeddingProvider))
+	if provider == "" || provider == "builtin" {
+		log.Warn("wiki-embedding: built-in hash aktiv — die Vektorsuche misst nur Wortüberlappung; " +
+			"für semantisches Retrieval COVEY_EMBEDDING_PROVIDER=voyage|openai + COVEY_EMBEDDING_API_KEY setzen")
+		return memory.HashEmbedder{}, nil
+	}
+	e, err := memory.NewAPIEmbedder(provider, cfg.EmbeddingModel, cfg.EmbeddingAPIKey, cfg.EmbeddingURL)
+	if err != nil {
+		return nil, err
+	}
+	log.Info("wiki-embedding aktiv", "modell", e.Name())
+	return e, nil
+}
+
+// startReembed zieht Bestandsseiten im Hintergrund auf das aktive Embedding-
+// Modell nach. Im Hintergrund, weil der Serve-Start nicht auf hunderte
+// API-Aufrufe warten soll; die betroffenen Seiten sind bis dahin über die
+// Vektorsuche schlicht nicht auffindbar (Query filtert auf das aktive Modell),
+// gehen aber nicht verloren.
+func startReembed(ctx context.Context, mem *memory.Store, log *slog.Logger) {
+	stale, err := mem.StaleCount(ctx)
+	if err != nil || stale == 0 {
+		return
+	}
+	log.Info("wiki-embedding: Bestand wird nachgezogen", "seiten", stale, "modell", mem.EmbedderName())
+	go func() {
+		n, err := mem.ReembedStale(ctx, 50)
+		if err != nil {
+			log.Warn("wiki-embedding: Nachziehen abgebrochen", "neu_eingebettet", n, "err", err)
+			return
+		}
+		log.Info("wiki-embedding: Bestand nachgezogen", "seiten", n)
+	}()
+}
+
 func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	if cfg.MasterKeyHex == "" {
 		return fmt.Errorf("COVEY_MASTER_KEY fehlt (mit `covey genkey` erzeugen)")
@@ -517,7 +557,16 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	backlogStore := backlog.NewStore(pool)
 	obs := observability.NewStore(pool)
 	rails := guardrails.NewStore(pool)
-	mem := memory.NewStore(pool, memory.HashEmbedder{})
+	// Embedding hinter dem Wiki-Retrieval (spec/05). Der Built-in-Hash misst nur
+	// Wortüberlappung; ein echter Provider macht aus der Vektorsuche erst eine
+	// semantische. Fehlkonfiguration bricht den Start ab, statt still auf das
+	// schwächere Embedding zurückzufallen — sonst merkt es niemand.
+	embedder, err := buildEmbedder(cfg, log)
+	if err != nil {
+		return err
+	}
+	mem := memory.NewStore(pool, embedder)
+	startReembed(ctx, mem, log)
 	targets := targetstore.NewStore(pool)
 	egressStore := egress.NewStore(pool)
 	templateStore := templates.NewStore(pool)
