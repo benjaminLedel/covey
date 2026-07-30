@@ -792,7 +792,7 @@
     "openProfile": "Profil-Seite öffnen",
     "member": "Mitglied",
     "members": "Mitglieder",
-    "expand": "Aufklappen",
+    "expand": "Aufklappen ({{count}})",
     "collapse": "Zuklappen",
     "clickToExpand": "klicken zum Aufklappen",
     "dragHint": "Leer — ein Mitglied hierher ziehen",

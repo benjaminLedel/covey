@@ -261,6 +261,66 @@ function useTreeLayout() {
   return ref;
 }
 
+// Ab dieser Gruppengröße startet ein Knoten zugeklappt — sonst wird eine
+// Organisation mit ein paar Dutzend Leuten zur Tapete. Wer auf- oder zuklappt,
+// überschreibt das dauerhaft: die Wahl steht je Knoten im localStorage, der
+// Vorgabewert gilt nur, solange nichts dort steht.
+const AUTO_COLLAPSE_AT = 8;
+const COLLAPSE_KEY = "covey.org.collapsed";
+
+function useCollapse() {
+  const [choice, setChoice] = useState<Record<string, boolean>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(COLLAPSE_KEY) || "{}") as Record<string, boolean>;
+    } catch {
+      return {};
+    }
+  });
+  const isOpen = (id: string, size: number) => choice[id] ?? size < AUTO_COLLAPSE_AT;
+  const toggle = (id: string, size: number) =>
+    setChoice(prev => {
+      const next = { ...prev, [id]: !(prev[id] ?? size < AUTO_COLLAPSE_AT) };
+      localStorage.setItem(COLLAPSE_KEY, JSON.stringify(next));
+      return next;
+    });
+  return { isOpen, toggle };
+}
+type Collapse = ReturnType<typeof useCollapse>;
+
+// Aufklapper: zeigt zugeklappt, wie viele Knoten darunter verschwunden sind.
+// An der Abteilungs-Karte bleibt die Zahl weg — dort steht sie schon als
+// „N Mitglieder" unter dem Namen.
+function CollapseToggle({ open, count, onToggle, className = "subtree-toggle", showCount = true }: {
+  open: boolean; count: number; onToggle: () => void; className?: string; showCount?: boolean;
+}) {
+  const { t } = useTranslation();
+  return (
+    <button
+      className={`${className}${open ? "" : " closed"}`}
+      draggable={false}
+      title={open ? t("org.collapse") : t("org.expand", { count })}
+      aria-expanded={open}
+      onClick={e => { e.preventDefault(); e.stopPropagation(); onToggle(); }}
+      onMouseDown={e => e.stopPropagation()}
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 9l6 6 6-6" />
+      </svg>
+      {!open && showCount && <span className="n">{count}</span>}
+    </button>
+  );
+}
+
+// Zahl der Unterstellten unterhalb eines Mitglieds (transitiv, innerhalb der
+// Abteilung). Sie steht am Aufklapper, wenn der Zweig zu ist.
+function countBelow(members: Members, id: string, seen: Set<string>): number {
+  const kids: { id: string }[] = [
+    ...members.humans.filter(h => h.manager_id === id && !seen.has(h.id)),
+    ...members.agents.filter(a => a.supervisor_id === id && !seen.has(a.id)),
+  ];
+  return kids.reduce((n, k) => n + 1 + countBelow(members, k.id, new Set(seen).add(k.id)), 0);
+}
+
 /* ── Diagramm: Organisation → Abteilungen → Berichtsbaum ───────────────
    Innerhalb einer Abteilung wird die Vorgesetzten-Hierarchie abgebildet
    (Menschen via manager_id, Agenten via supervisor_id). Agenten lassen sich
@@ -279,6 +339,10 @@ function DiagramView({
   onUpdate: () => void;
 }) {
   const { t } = useTranslation();
+  // Hooks vor jeden frühen Ausstieg: sonst ändert sich ihre Zahl, sobald die
+  // erste Abteilung angelegt wird, und React bricht ab.
+  const collapse = useCollapse();
+  const treeRef = useTreeLayout();
 
   const inDept = (deptId: string | null) => ({
     humans: humans.filter(h => (h.department_id ?? null) === deptId),
@@ -292,8 +356,7 @@ function DiagramView({
     return <p className="muted mt-4">{t("org.noDepts")}</p>;
   }
 
-  const memberHandlers = { dragging, onDragStart, onDragEnd, onDrop };
-  const treeRef = useTreeLayout();
+  const memberHandlers = { dragging, onDragStart, onDragEnd, onDrop, collapse };
 
   // Leitungen sind org-weit referenziert — eine Leitung muss nicht Mitglied
   // ihrer Abteilung sein, daher gegen die vollen Listen auflösen.
@@ -354,7 +417,7 @@ function rootsOf(members: Members) {
 }
 
 function MemberBranch({
-  members, parentId, seen, leadIds, onRemoveLead, dragging, onDragStart, onDragEnd, onDrop,
+  members, parentId, seen, leadIds, onRemoveLead, dragging, onDragStart, onDragEnd, onDrop, collapse,
 }: {
   members: Members;
   parentId?: string;      // undefined = roots der Abteilung
@@ -365,6 +428,7 @@ function MemberBranch({
   onDragStart: (d: DragItem) => void;
   onDragEnd: () => void;
   onDrop: (t: DropTarget) => void;
+  collapse: Collapse;
 }) {
   // Auf Wurzel-Ebene stehen die Leitungen zuerst — sie sind die Spitze der
   // Abteilung, alles andere hängt darunter. Stabile Sortierung erhält sonst
@@ -398,6 +462,7 @@ function MemberBranch({
           onDragStart={onDragStart}
           onDragEnd={onDragEnd}
           onDrop={onDrop}
+          collapse={collapse}
         />
       ))}
       {childAgents.map(a => (
@@ -413,6 +478,7 @@ function MemberBranch({
           onDragStart={onDragStart}
           onDragEnd={onDragEnd}
           onDrop={onDrop}
+          collapse={collapse}
         />
       ))}
     </ul>
@@ -420,7 +486,7 @@ function MemberBranch({
 }
 
 function MemberNode({
-  member, kind, members, seen, leadIds, onRemoveLead, dragging, onDragStart, onDragEnd, onDrop,
+  member, kind, members, seen, leadIds, onRemoveLead, dragging, onDragStart, onDragEnd, onDrop, collapse,
 }: {
   member: Human | Agent;
   kind: "human" | "agent";
@@ -432,6 +498,7 @@ function MemberNode({
   onDragStart: (d: DragItem) => void;
   onDragEnd: () => void;
   onDrop: (t: DropTarget) => void;
+  collapse: Collapse;
 }) {
   const { t } = useTranslation();
   const [isOver, setIsOver] = useState(false);
@@ -448,6 +515,10 @@ function MemberNode({
   const status = agent ? (agent.killed ? "killed" : agent.status) : "";
   const nextSeen = new Set(seen).add(member.id);
   const deptId = (member.department_id ?? null) as string | null;
+
+  // Eigener Zweig: aufklappbar, wenn jemand darunter hängt.
+  const below = countBelow(members, member.id, nextSeen);
+  const open = below === 0 || collapse.isOpen(member.id, below);
 
   return (
     <li>
@@ -498,24 +569,30 @@ function MemberNode({
             >✕</button>
           </span>
         )}
+        {below > 0 && (
+          <CollapseToggle open={open} count={below} onToggle={() => collapse.toggle(member.id, below)} />
+        )}
       </div>
-      <MemberBranch
-        members={members}
-        parentId={member.id}
-        seen={nextSeen}
-        leadIds={leadIds}
-        onRemoveLead={onRemoveLead}
-        dragging={dragging}
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
-        onDrop={onDrop}
-      />
+      {open && (
+        <MemberBranch
+          members={members}
+          parentId={member.id}
+          seen={nextSeen}
+          leadIds={leadIds}
+          onRemoveLead={onRemoveLead}
+          dragging={dragging}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+          onDrop={onDrop}
+          collapse={collapse}
+        />
+      )}
     </li>
   );
 }
 
 function DeptTreeNode({
-  dept, members, resolveLead, dragging, onDragStart, onDragEnd, onDrop, onUpdate,
+  dept, members, resolveLead, dragging, onDragStart, onDragEnd, onDrop, onUpdate, collapse,
 }: {
   dept: Department;
   members: Members;
@@ -525,6 +602,7 @@ function DeptTreeNode({
   onDragEnd: () => void;
   onDrop: (t: DropTarget) => void;
   onUpdate: () => void;
+  collapse: Collapse;
 }) {
   const { t } = useTranslation();
   const [isOver, setIsOver] = useState(false);
@@ -555,6 +633,7 @@ function DeptTreeNode({
   });
 
   const total = members.humans.length + members.agents.length;
+  const open = collapse.isOpen(dept.id, total);
 
   // Leitungen: interne (Mitglied dieser Abteilung) werden als Baum-Wurzel mit
   // „Leitung"-Badge gezeigt — daher kein doppelter Chip. Externe Leitungen
@@ -597,6 +676,15 @@ function DeptTreeNode({
         ) : (
           <>
             <div className="dept-tree-hdr">
+              {total > 0 && (
+                <CollapseToggle
+                  open={open}
+                  count={total}
+                  onToggle={() => collapse.toggle(dept.id, total)}
+                  className="dept-toggle-btn"
+                  showCount={false}
+                />
+              )}
               <span className="nm">{dept.name}</span>
               <button className="icon-btn" onClick={() => setRenaming(true)} title={t("org.renameDept")} style={{ fontSize: 12 }}>✎</button>
               <button className="icon-btn danger" onClick={() => setConfirmDelete(true)} title={t("org.deleteDept")} style={{ fontSize: 12 }}>✕</button>
@@ -670,9 +758,9 @@ function DeptTreeNode({
         </ConfirmDialog>
       )}
 
-      {total > 0 ? (
-        <MemberBranch members={members} seen={new Set()} leadIds={leadIds} onRemoveLead={id => removeLeadMut.mutate(id)} dragging={dragging} onDragStart={onDragStart} onDragEnd={onDragEnd} onDrop={onDrop} />
-      ) : (
+      {total > 0 ? (open && (
+        <MemberBranch members={members} seen={new Set()} leadIds={leadIds} onRemoveLead={id => removeLeadMut.mutate(id)} dragging={dragging} onDragStart={onDragStart} onDragEnd={onDragEnd} onDrop={onDrop} collapse={collapse} />
+      )) : (
         <ul>
           <li>
             <span className="dept-drop-hint">{dragging ? t("org.dropHere") : t("org.dragHint")}</span>
@@ -684,17 +772,19 @@ function DeptTreeNode({
 }
 
 function UnassignedTreeNode({
-  members, dragging, onDragStart, onDragEnd, onDrop,
+  members, dragging, onDragStart, onDragEnd, onDrop, collapse,
 }: {
   members: Members;
   dragging: DragItem | null;
   onDragStart: (d: DragItem) => void;
   onDragEnd: () => void;
   onDrop: (t: DropTarget) => void;
+  collapse: Collapse;
 }) {
   const { t } = useTranslation();
   const [isOver, setIsOver] = useState(false);
   const total = members.humans.length + members.agents.length;
+  const open = collapse.isOpen(UNASSIGNED_ID, total);
 
   return (
     <li>
@@ -704,17 +794,30 @@ function UnassignedTreeNode({
         onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsOver(false); }}
         onDrop={e => { e.preventDefault(); e.stopPropagation(); setIsOver(false); onDrop({ deptId: null, supervisorId: null }); }}
       >
-        <div className="nm">{t("org.diagramUnassigned")}</div>
+        <div className="dept-tree-hdr">
+          {total > 0 && (
+            <CollapseToggle
+              open={open}
+              count={total}
+              onToggle={() => collapse.toggle(UNASSIGNED_ID, total)}
+              className="dept-toggle-btn"
+              showCount={false}
+            />
+          )}
+          <span className="nm">{t("org.diagramUnassigned")}</span>
+        </div>
         <div className="rl">{total}&thinsp;{total === 1 ? t("org.member") : t("org.members")}</div>
       </div>
-      {total > 0 && (
-        <MemberBranch members={members} seen={new Set()} leadIds={EMPTY_LEADS} onRemoveLead={NOOP} dragging={dragging} onDragStart={onDragStart} onDragEnd={onDragEnd} onDrop={onDrop} />
+      {total > 0 && open && (
+        <MemberBranch members={members} seen={new Set()} leadIds={EMPTY_LEADS} onRemoveLead={NOOP} dragging={dragging} onDragStart={onDragStart} onDragEnd={onDragEnd} onDrop={onDrop} collapse={collapse} />
       )}
     </li>
   );
 }
 
 // „Ohne Abteilung" kennt keine Leitung — konstante Leerwerte, damit sich die
-// Props nicht bei jedem Render neu bilden.
+// Props nicht bei jedem Render neu bilden. Für den Aufklapper braucht der
+// Pseudo-Knoten eine ID; sie kann mit keiner echten Abteilung kollidieren.
+const UNASSIGNED_ID = "unassigned";
 const EMPTY_LEADS = new Set<string>();
 const NOOP = () => {};

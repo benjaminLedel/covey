@@ -1100,17 +1100,36 @@ kbd {
 
 .dept-count { font-size: 10.5px; color: var(--text-muted); margin-left: auto; white-space: nowrap; flex-shrink: 0; }
 
+/* Aufklapper an Abteilungs- und Mitarbeiter-Knoten. Zugeklappt steht die Zahl
+   der verborgenen Knoten daneben — sonst verschwände sie spurlos. */
 .dept-toggle-btn {
-  width: 20px; height: 20px; flex-shrink: 0;
-  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 20px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center; gap: 3px;
   border: 0.5px solid var(--border); border-radius: 5px;
   background: var(--surface-2); color: var(--text-muted);
-  cursor: pointer; padding: 0;
+  cursor: pointer; padding: 0 4px;
   transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
-.dept-toggle-btn svg { width: 10px; height: 10px; }
+.dept-toggle-btn svg { width: 10px; height: 10px; flex-shrink: 0; transition: transform 0.12s; }
+.dept-toggle-btn .n { font-size: 10px; font-variant-numeric: tabular-nums; }
 .dept-toggle-btn:hover { background: var(--surface-0); color: var(--text-primary); border-color: var(--border-strong); }
 .dept-toggle-btn.closed svg { transform: rotate(-90deg); }
+
+/* Am Mitarbeiter-Chip: sitzt rechts im Chip, bleibt dezent bis zum Hover. */
+.subtree-toggle {
+  display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
+  align-self: center;   /* .orgmember streckt seine Kinder sonst auf Chip-Höhe */
+  margin: 0 8px 0 2px; padding: 2px 6px;
+  border: 0.5px solid var(--border); border-radius: 20px;
+  background: var(--surface-1); color: var(--text-muted);
+  font-size: 10px; font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.subtree-toggle svg { width: 10px; height: 10px; transition: transform 0.12s; }
+.subtree-toggle:hover { background: var(--surface-0); color: var(--text-primary); border-color: var(--border-strong); }
+.subtree-toggle.closed { border-color: var(--border-strong); color: var(--text-secondary); }
+.subtree-toggle.closed svg { transform: rotate(-90deg); }
 
 /* ── Body: Vorgesetzter + Baum-Kinder ── */
 .dept-body {

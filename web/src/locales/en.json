@@ -792,7 +792,7 @@
     "openProfile": "Open profile page",
     "member": "member",
     "members": "members",
-    "expand": "Expand",
+    "expand": "Expand ({{count}})",
     "collapse": "Collapse",
     "clickToExpand": "click to expand",
     "dragHint": "Empty — drag a member here",
