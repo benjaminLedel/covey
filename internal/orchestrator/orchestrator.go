@@ -1394,7 +1394,15 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		// Konsolidierung (Beinahe-Duplikate verschmelzen) läuft aufgabenunabhängig
 		// im getakteten Wartungs-Job, nicht hier im Hot-Path.
 		if d.Memory != "" {
-			_ = o.Memory.Ingest(ctx, agent.ID, d.Memory, map[string]string{"task_id": taskID.String()})
+			// Fehler nicht verschlucken: seit das Embedding über einen Dienst
+			// laufen kann, heißt ein Fehlschlag, dass eine Erkenntnis verloren
+			// geht. Der Aufgabenabschluss soll daran nicht scheitern, aber es
+			// muss im Log stehen.
+			if err := o.Memory.Ingest(ctx, agent.ID, d.Memory,
+				map[string]string{"task_id": taskID.String()}); err != nil {
+				o.Log.Warn("wiki: Erkenntnis konnte nicht gespeichert werden",
+					"agent", agent.Slug, "task", taskID, "err", err)
+			}
 		}
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
 			map[string]string{"status": "task_" + d.Status})
@@ -1437,8 +1445,11 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		if n.Scope == "memory" {
 			// Allgemeingültige Erkenntnis: sofort ins Gedächtnis, nicht erst
 			// über das memory-Feld beim Abschluss (M7).
-			_ = o.Memory.Ingest(ctx, agent.ID, n.Content, map[string]string{
-				"task_id": target.String(), "origin": "proactive"})
+			if err := o.Memory.Ingest(ctx, agent.ID, n.Content, map[string]string{
+				"task_id": target.String(), "origin": "proactive"}); err != nil {
+				o.Log.Warn("wiki: Erkenntnis (remember) konnte nicht gespeichert werden",
+					"agent", agent.Slug, "err", err)
+			}
 		} else {
 			// Aufgabenbezogene Notiz: an die Aufgabe selbst.
 			if _, err := o.Backlog.AddNote(ctx, target, "agent", n.Content); err != nil {
