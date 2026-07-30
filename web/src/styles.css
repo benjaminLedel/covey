@@ -1313,13 +1313,25 @@ kbd {
 }
 .dept-lead-chip .icon-btn { font-size: 10px; padding: 0 3px; }
 /* Während eines Drag-Vorgangs: zwei großzügige, klar getrennte Drop-Zonen
-   („Als Mitglied" / „Als Leitung") statt der kleinen Kartenfläche. */
-.dept-dropzones { display: flex; flex-direction: column; gap: 5px; width: 100%; margin-top: 8px; }
+   („Als Mitglied" / „Als Leitung") statt der kleinen Kartenfläche.
+   Sie legen sich ÜBER die Karte, statt sie auseinanderzuziehen: eine
+   wachsende Karte schiebt den Berichtsbaum darunter nach unten — also auch
+   die Karte, die man gerade angefasst hat. Rutscht die im selben Moment
+   unter dem Zeiger weg, bricht Chrome den Drag ab, und nichts lässt sich
+   mehr aufnehmen. */
+.dept-dropzones {
+  position: absolute; inset: 0; z-index: 3;
+  display: flex; flex-direction: column; gap: 4px;
+  margin: 0; padding: 5px;
+  border-radius: inherit;
+  background: var(--surface-2);
+}
 .dept-dz {
+  flex: 1; min-height: 0;
   display: flex; align-items: center; justify-content: center; gap: 6px;
-  min-height: 34px; padding: 4px 10px;
+  padding: 2px 8px;
   border: 1.5px dashed var(--border-strong); border-radius: 8px;
-  font-size: 11.5px; color: var(--text-muted); text-align: center;
+  font-size: 11px; line-height: 1.25; color: var(--text-muted); text-align: center;
   transition: border-color 0.12s, color 0.12s, background 0.12s;
 }
 .dept-dz.over {
@@ -1446,6 +1458,7 @@ kbd {
   background: var(--surface-2); transition: border-color 0.15s, box-shadow 0.15s;
   box-shadow: inset 3px 0 0 var(--text-accent);
   padding-left: 15px;
+  position: relative;   /* Bezug für die Drop-Zonen, die sich darüberlegen */
 }
 .node.dept .nm { font-size: 13px; font-weight: 600; }
 .node.dept .rl { color: var(--text-muted); font-size: 11px; }
