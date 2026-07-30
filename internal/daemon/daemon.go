@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -29,15 +30,22 @@ type Client struct {
 	homeDir  string
 	runtimes map[string]Runtime
 
+	// conn steht unter writeMu — der Mutex, der ohnehin jeden Write serialisiert.
+	// Gesetzt wird sie in Run(), gelesen aus jeder Goroutine, die sendet.
 	conn    *websocket.Conn
 	writeMu sync.Mutex
 
-	mu        sync.Mutex
-	cfg       InjectConfig
-	creds     map[string]InjectCredentials // System → gebrokertes Credential (nur RAM)
-	targets   map[string]target.System     // System → gebrokertes Manifest-Plugin (nur RAM)
-	pending   map[string]chan Message      // request_id → Antwortkanal
-	cancelRun context.CancelFunc
+	// subRuns zählt die Sub-Läufe dieses Daemons und gibt jedem eine Kennung,
+	// an der die Timeline seine Zeilen erkennt (siehe subagent.go).
+	subRuns atomic.Uint64
+
+	mu           sync.Mutex
+	cfg          InjectConfig
+	creds        map[string]InjectCredentials // System → gebrokertes Credential (nur RAM)
+	targets      map[string]target.System     // System → gebrokertes Manifest-Plugin (nur RAM)
+	pending      map[string]chan Message      // request_id → Antwortkanal
+	subAgentDirs map[string]bool              // Verzeichnisse mit laufendem Sub-Agent
+	cancelRun    context.CancelFunc
 
 	// ErrKilled signalisiert dem Prozess-Exit den Kill-Pfad.
 	log *slog.Logger
@@ -70,6 +78,11 @@ func (c *Client) send(msgType string, payload any) error {
 	}
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
+	// Vor Run() bzw. nach einem Verbindungsabbruch gibt es keine Verbindung.
+	// Die Prüfung steht unter writeMu, weil conn dort geschrieben wird.
+	if c.conn == nil {
+		return errors.New("keine verbindung zur control plane")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return c.conn.Write(ctx, websocket.MessageText, raw)
@@ -111,7 +124,9 @@ func (c *Client) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("control plane nicht erreichbar: %w", err)
 	}
+	c.writeMu.Lock()
 	c.conn = conn
+	c.writeMu.Unlock()
 	defer conn.Close(websocket.StatusNormalClosure, "bye")
 	conn.SetReadLimit(16 << 20)
 
@@ -364,6 +379,32 @@ func (c *Client) checkAction(ctx context.Context, taskID, action string, params 
 	return DecodePayload[ApprovalDecision](msg)
 }
 
+// runtimeKeyEnv liefert den gebrokerten LLM-Key als ENV-Zuweisung. Der Key ist
+// selbst ein gebrokertes Secret (spec/12 Auth): proaktiv injiziert, nie
+// dauerhaft in der Sandbox. Leer, solange nichts gebrokert wurde.
+func (c *Client) runtimeKeyEnv() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	cred, ok := c.creds["anthropic"]
+	if !ok || !cred.Granted {
+		return nil
+	}
+	token := strings.TrimSpace(cred.Token)
+	// Die Control Plane nennt die Ziel-Env (aus dem Secret-Namen). Fehlt sie,
+	// raten wir am Präfix: Abo-Accounts liefern OAuth-Tokens (`claude
+	// setup-token`, sk-ant-oat…), die Claude Code nur über
+	// CLAUDE_CODE_OAUTH_TOKEN nutzt.
+	envVar := cred.EnvVar
+	if envVar == "" {
+		if strings.HasPrefix(token, "sk-ant-oat") {
+			envVar = "CLAUDE_CODE_OAUTH_TOKEN"
+		} else {
+			envVar = "ANTHROPIC_API_KEY"
+		}
+	}
+	return []string{envVar + "=" + token}
+}
+
 // runTask fährt Action-Proxy + Runtime und meldet blocked/task_done + cost.
 func (c *Client) runTask(ctx context.Context, task AssignTask) {
 	runCtx, cancel := context.WithCancel(ctx)
@@ -380,27 +421,7 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 	}
 	defer proxy.Close()
 
-	env := []string{"COVEY_ACTION_PORT=" + proxy.Port()}
-	// Der Runtime-LLM-Key ist selbst ein gebrokertes Secret (spec/12 Auth):
-	// proaktiv injiziert, nie dauerhaft in der Sandbox.
-	c.mu.Lock()
-	if cred, ok := c.creds["anthropic"]; ok && cred.Granted {
-		token := strings.TrimSpace(cred.Token)
-		// Die Control Plane nennt die Ziel-Env (aus dem Secret-Namen). Fehlt
-		// sie, raten wir am Präfix: Abo-Accounts liefern OAuth-Tokens
-		// (`claude setup-token`, sk-ant-oat…), die Claude Code nur über
-		// CLAUDE_CODE_OAUTH_TOKEN nutzt.
-		envVar := cred.EnvVar
-		if envVar == "" {
-			if strings.HasPrefix(token, "sk-ant-oat") {
-				envVar = "CLAUDE_CODE_OAUTH_TOKEN"
-			} else {
-				envVar = "ANTHROPIC_API_KEY"
-			}
-		}
-		env = append(env, envVar+"="+token)
-	}
-	c.mu.Unlock()
+	env := append([]string{"COVEY_ACTION_PORT=" + proxy.Port()}, c.runtimeKeyEnv()...)
 
 	runtime := c.runtimes[cfg.Runtime]
 	if runtime == nil {

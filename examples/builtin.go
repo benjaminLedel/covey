@@ -56,9 +56,9 @@ var manifest = []struct {
 	{
 		File:          "coding-agent.bundle.json",
 		Name:          "Entwickler-Agent (GitLab)",
-		Description:   "Nimmt GitLab-Issues auf, verifiziert Bugs am Quelltext, entwickelt Fixes und eröffnet Merge Requests im Review-Loop.",
+		Description:   "Nimmt GitLab-Issues auf, verifiziert Bugs am Quelltext und lässt den Fix von einem Sub-Agenten im Projekt-Checkout entwickeln — dort gelten CLAUDE.md, Skills und Subagenten des Projekts. Checkt das Ergebnis ein und führt den Review-Loop.",
 		NameEn:        "Developer agent (GitLab)",
-		DescriptionEn: "Picks up GitLab issues, verifies bugs against the source, develops fixes and opens merge requests in the review loop.",
+		DescriptionEn: "Picks up GitLab issues, verifies bugs against the source and has a sub-agent develop the fix inside the project checkout — where the project's own CLAUDE.md, skills and subagents apply. Commits the result and runs the review loop.",
 	},
 	{
 		File:          "qa-agent.bundle.json",

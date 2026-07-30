@@ -307,5 +307,8 @@ func (p *actionProxy) execute(ctx context.Context, system, action string, params
 	// Workdir für Aktionen, die Dateien in die Sandbox materialisieren
 	// (z. B. gitlab checkout) — das Credential selbst bleibt im Daemon.
 	ctx = target.WithWorkdir(ctx, p.client.homeDir)
+	// Sub-Agent-Runner: erlaubt einem Plugin (dev:agent), einen geschachtelten
+	// Runtime-Lauf im Projekt-Checkout zu starten, ohne den Daemon zu kennen.
+	ctx = target.WithSubAgent(ctx, p.client.subAgentRunner(p.taskID))
 	return sys.Execute(ctx, action, params, target.Credential{BaseURL: cred.BaseURL, Token: cred.Token})
 }
