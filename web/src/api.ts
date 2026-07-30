@@ -409,9 +409,34 @@ export type MemoryEntry = {
   content: string;
   links?: string[];
   source?: string;
+  type?: string; // kunde | projekt | system | person | problem | thema; leer = nicht eingeordnet
+  tags?: string[];
   score?: number;
   created_at: string;
   updated_at: string;
+};
+
+// Ein Qualitätsbefund über das Wiki eines Agenten (spec/05).
+export type WikiFinding = {
+  kind: "orphan" | "dead_link" | "untyped" | "episodic" | "duplicate" | "stub";
+  slug: string;
+  title?: string;
+  detail?: string;
+  score?: number;
+  related?: string[];
+};
+
+// Kennzahlen plus Befunde — die Qualitätssicht auf ein Wiki.
+export type WikiHealth = {
+  pages: number;
+  links: number;
+  orphans: number;
+  dead_links: number;
+  untyped: number;
+  episodic: number;
+  duplicate: number;
+  stubs: number;
+  findings: WikiFinding[];
 };
 
 // Ein Eintrag des Wiki-Protokolls (log.md-Äquivalent, spec/05).

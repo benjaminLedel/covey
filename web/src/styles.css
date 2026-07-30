@@ -813,6 +813,127 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
 .wiki-search { display: flex; align-items: center; gap: 10px; }
 .wiki-search input { flex: 1; }
 
+/* Wiki-Arbeitsfläche: Baum | Seite | Kontext. Die Liste bleibt stehen, während
+   man Verweisen folgt — sonst verliert man bei jedem Sprung den Überblick. */
+.wiki-panes {
+  display: grid;
+  grid-template-columns: 258px minmax(0, 1fr) 278px;
+  gap: 12px;
+  align-items: start;
+}
+.wiki-pane { max-height: 68vh; overflow-y: auto; overflow-x: hidden; }
+@media (max-width: 1100px) {
+  .wiki-panes { grid-template-columns: 1fr; }
+  .wiki-pane { max-height: none; }
+}
+
+/* Navigationsbaum: erste Ebene Seitentyp, darunter die Seiten. */
+.wiki-tree { display: flex; flex-direction: column; gap: 1px; }
+.wiki-group + .wiki-group { margin-top: 7px; }
+.wiki-group-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.wiki-group-h .cnt { margin-left: auto; font-variant-numeric: tabular-nums; }
+.wiki-node {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 5px;
+  padding: 1px 4px;
+}
+.wiki-node:hover { background: var(--surface-1); }
+.wiki-node.sel { background: var(--bg-accent); }
+.wiki-node.sel .lbl { color: var(--text-accent); }
+.wiki-node.orphan .lbl { color: var(--text-muted); }
+.wiki-node .tw {
+  width: 13px;
+  flex: none;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.wiki-node .tw:disabled { cursor: default; opacity: 0.55; }
+.wiki-node .lbl {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  padding: 2px 0;
+  text-align: left;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-primary);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wiki-node .cnt {
+  flex: none;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.wiki-kids { margin-left: 13px; padding-left: 5px; border-left: 0.5px solid var(--border); }
+
+/* Qualitätsleiste: Zahlen, die zugleich Filter sind. */
+.wiki-quality { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.chip.q {
+  background: var(--bg-warning);
+  color: var(--text-warning);
+  border-color: transparent;
+  cursor: pointer;
+}
+.chip.q.on { outline: 1.5px solid var(--text-warning); outline-offset: 1px; }
+.chip.ok { background: var(--bg-success); color: var(--text-success); border-color: transparent; }
+
+/* Backlink mit dem Satz, in dem der Verweis steht. */
+.wiki-ctx { padding: 6px 0; border-bottom: 0.5px solid var(--border); }
+.wiki-ctx:last-child { border-bottom: none; }
+.wiki-quote {
+  font-family: var(--voice);
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 2px 0 0;
+}
+
+/* Graph */
+.wiki-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+  border-top: 0.5px solid var(--border);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.wiki-legend .key { display: inline-flex; align-items: center; gap: 6px; }
+.wiki-legend .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text-secondary); }
+.wiki-legend .dot.hub { width: 13px; height: 13px; background: var(--text-accent); }
+.wiki-legend .dot.orph { background: var(--text-muted); opacity: 0.5; }
+.wiki-tip {
+  position: absolute;
+  pointer-events: none;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--surface-0);
+  border: 0.5px solid var(--border-strong);
+  font-size: 12px;
+  max-width: 240px;
+}
+
 /* Modal: zentrierter Dialog mit Backdrop, Maße pro Größe gedeckelt. */
 .modal-backdrop {
   position: fixed;

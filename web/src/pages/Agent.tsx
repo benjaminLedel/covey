@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type CSSProperties, type ReactNode } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback, type CSSProperties, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
@@ -24,6 +24,8 @@ import {
   type MCPTool,
   type MemoryEntry,
   type WikiLogEntry,
+  type WikiHealth,
+  type WikiFinding,
   type Principal,
   type RecordingEvent,
   type RuntimeInfo,
@@ -1993,10 +1995,262 @@ function wikiPreview(text: string): string {
     .slice(0, 120);
 }
 
+// Reihenfolge der Seitentypen im Baum (spec/05). Leerer Typ kommt zuletzt: die
+// nicht eingeordneten Seiten sind ein Rest, kein Anfang.
+const WIKI_TYPES = ["kunde", "projekt", "system", "person", "problem", "thema", ""] as const;
+
+// linkContext zieht den Satz heraus, in dem eine Seite auf eine andere verweist.
+// Ein Backlink ohne diesen Satz zwingt zum Klicken, nur um zu sehen, warum.
+function linkContext(body: string, slug: string): string {
+  const re = new RegExp("[^.\\n]*\\[\\[" + slug.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\]\\][^.\\n]*");
+  const m = re.exec(body);
+  if (!m) return "";
+  const s = m[0].replace(/\s+/g, " ").trim();
+  return s.length > 150 ? s.slice(0, 149) + "…" : s;
+}
+
+type GraphNode = { page: MemoryEntry; x: number; y: number; vx: number; vy: number; r: number; deg: number };
+type GraphEdge = { a: GraphNode; b: GraphNode };
+
+// forceLayout ist eine kleine Kräfte-Simulation (Abstoßung zwischen allen
+// Knoten, Federn entlang der Verweise, sanfte Mitte). Dependency-frei und in
+// einem Rutsch gerechnet — bei ein paar hundert Seiten reicht das, und es
+// erspart eine Graph-Bibliothek im Bundle.
+function forceLayout(nodes: GraphNode[], edges: GraphEdge[], w: number, h: number, iters: number) {
+  nodes.forEach((n, i) => {
+    const a = (i / Math.max(nodes.length, 1)) * Math.PI * 2;
+    n.x = w / 2 + Math.cos(a) * w * 0.3;
+    n.y = h / 2 + Math.sin(a) * h * 0.3;
+    n.vx = 0;
+    n.vy = 0;
+  });
+  const k = Math.sqrt((w * h) / Math.max(nodes.length, 1)) * 0.62;
+  for (let it = 0; it < iters; it++) {
+    for (let i = 0; i < nodes.length; i++) {
+      for (let j = i + 1; j < nodes.length; j++) {
+        const a = nodes[i];
+        const b = nodes[j];
+        let dx = a.x - b.x;
+        let dy = a.y - b.y;
+        let d2 = dx * dx + dy * dy;
+        if (d2 < 0.01) {
+          dx = (i - j) * 0.1 + 0.05;
+          dy = 0.05;
+          d2 = 0.01;
+        }
+        const d = Math.sqrt(d2);
+        const f = (k * k) / d2;
+        a.vx += (dx / d) * f;
+        a.vy += (dy / d) * f;
+        b.vx -= (dx / d) * f;
+        b.vy -= (dy / d) * f;
+      }
+    }
+    edges.forEach((e) => {
+      const dx = e.b.x - e.a.x;
+      const dy = e.b.y - e.a.y;
+      const d = Math.max(Math.sqrt(dx * dx + dy * dy), 0.01);
+      const f = (d * d) / k / 14;
+      e.a.vx += (dx / d) * f;
+      e.a.vy += (dy / d) * f;
+      e.b.vx -= (dx / d) * f;
+      e.b.vy -= (dy / d) * f;
+    });
+    nodes.forEach((n) => {
+      n.vx += (w / 2 - n.x) * 0.006;
+      n.vy += (h / 2 - n.y) * 0.006;
+      n.x += Math.max(-14, Math.min(14, n.vx));
+      n.y += Math.max(-14, Math.min(14, n.vy));
+      n.vx *= 0.82;
+      n.vy *= 0.82;
+      n.x = Math.max(18, Math.min(w - 18, n.x));
+      n.y = Math.max(18, Math.min(h - 18, n.y));
+    });
+  }
+}
+
+function buildGraph(pages: MemoryEntry[]) {
+  const nodes: GraphNode[] = pages.map((p) => ({ page: p, x: 0, y: 0, vx: 0, vy: 0, r: 4, deg: 0 }));
+  const idx = new Map(nodes.map((n) => [n.page.slug, n]));
+  const edges: GraphEdge[] = [];
+  pages.forEach((p) => {
+    const a = idx.get(p.slug)!;
+    (p.links ?? []).forEach((l) => {
+      const b = idx.get(l);
+      if (b && b !== a) {
+        edges.push({ a, b });
+        a.deg++;
+        b.deg++;
+      }
+    });
+  });
+  nodes.forEach((n) => (n.r = 4 + Math.min(n.deg, 8) * 1.5));
+  return { nodes, edges };
+}
+
+// WikiGraph zeichnet die Verlinkung — die Struktur, die als Liste unsichtbar
+// bleibt. Canvas statt SVG: bei mehreren hundert Knoten ist das der Unterschied
+// zwischen flüssig und zäh.
+function WikiGraph({
+  pages,
+  current,
+  onOpen,
+  height,
+  labels = true,
+}: {
+  pages: MemoryEntry[];
+  current?: string;
+  onOpen?: (slug: string) => void;
+  height: number;
+  labels?: boolean;
+}) {
+  const { t } = useTranslation();
+  const ref = useRef<HTMLCanvasElement | null>(null);
+  const model = useRef<{ nodes: GraphNode[]; edges: GraphEdge[] } | null>(null);
+  const [hover, setHover] = useState<GraphNode | null>(null);
+  const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(null);
+
+  const draw = useCallback(() => {
+    const cv = ref.current;
+    if (!cv || !cv.parentElement) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = cv.parentElement.clientWidth;
+    if (w === 0) return;
+    cv.style.height = height + "px";
+    cv.width = w * dpr;
+    cv.height = height * dpr;
+    const c = cv.getContext("2d");
+    if (!c) return;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (!model.current) {
+      model.current = buildGraph(pages);
+      forceLayout(model.current.nodes, model.current.edges, w, height, 320);
+    }
+    const { nodes, edges } = model.current;
+    const cs = getComputedStyle(document.documentElement);
+    const cEdge = cs.getPropertyValue("--border-strong") || "#ccc";
+    const cNode = cs.getPropertyValue("--text-secondary") || "#666";
+    const cAcc = cs.getPropertyValue("--text-accent") || "#185fa5";
+    const cMut = cs.getPropertyValue("--text-muted") || "#999";
+
+    c.clearRect(0, 0, w, height);
+    const near = new Set<GraphNode>();
+    if (hover) {
+      near.add(hover);
+      edges.forEach((e) => {
+        if (e.a === hover) near.add(e.b);
+        if (e.b === hover) near.add(e.a);
+      });
+    }
+    c.lineWidth = 1;
+    edges.forEach((e) => {
+      const hot = hover != null && (e.a === hover || e.b === hover);
+      c.strokeStyle = hot ? cAcc : cEdge;
+      c.globalAlpha = hover && !hot ? 0.25 : 1;
+      c.beginPath();
+      c.moveTo(e.a.x, e.a.y);
+      c.lineTo(e.b.x, e.b.y);
+      c.stroke();
+    });
+    c.globalAlpha = 1;
+    nodes.forEach((n) => {
+      const isSelf = n.page.slug === current;
+      const isHub = n.deg >= 3;
+      c.globalAlpha = hover && !near.has(n) ? 0.3 : 1;
+      if (n.deg === 0) c.globalAlpha *= 0.5;
+      c.fillStyle = isSelf || isHub ? cAcc : n.deg === 0 ? cMut : cNode;
+      c.beginPath();
+      c.arc(n.x, n.y, isSelf ? n.r + 2 : n.r, 0, 6.284);
+      c.fill();
+      if (labels && (isHub || isSelf || near.has(n))) {
+        c.globalAlpha = 1;
+        c.fillStyle = cNode;
+        c.font = "11px " + (cs.getPropertyValue("--sans") || "sans-serif");
+        c.textAlign = "center";
+        const name = (n.page.title || n.page.slug).slice(0, 26);
+        c.fillText(name, n.x, n.y - n.r - 5);
+      }
+    });
+    c.globalAlpha = 1;
+  }, [pages, current, hover, height, labels]);
+
+  useEffect(() => {
+    model.current = null;
+    draw();
+  }, [pages, height]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    draw();
+  }, [draw]);
+  useEffect(() => {
+    const onResize = () => {
+      model.current = null;
+      draw();
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [draw]);
+
+  const pick = (ev: React.MouseEvent<HTMLCanvasElement>): GraphNode | null => {
+    const m = model.current;
+    if (!m) return null;
+    const r = ev.currentTarget.getBoundingClientRect();
+    const x = ev.clientX - r.left;
+    const y = ev.clientY - r.top;
+    let best: GraphNode | null = null;
+    let bd = Infinity;
+    m.nodes.forEach((n) => {
+      const d = (n.x - x) ** 2 + (n.y - y) ** 2;
+      if (d < bd) {
+        bd = d;
+        best = n;
+      }
+    });
+    return bd < 400 ? best : null;
+  };
+
+  if (pages.length === 0) {
+    return <p className="muted p-4 text-[12.5px]">{t("agent.memory.graphEmpty")}</p>;
+  }
+
+  return (
+    <div style={{ position: "relative" }}>
+      <canvas
+        ref={ref}
+        style={{ display: "block", width: "100%", cursor: hover ? "pointer" : "default" }}
+        onMouseMove={(ev) => {
+          const n = pick(ev);
+          setHover(n);
+          if (n) {
+            const r = ev.currentTarget.getBoundingClientRect();
+            setTip({
+              x: Math.min(ev.clientX - r.left + 12, r.width - 240),
+              y: ev.clientY - r.top + 12,
+              text: (n.page.title || n.page.slug) + " · " + t("agent.memory.refs", { count: n.deg }),
+            });
+          } else setTip(null);
+        }}
+        onMouseLeave={() => {
+          setHover(null);
+          setTip(null);
+        }}
+        onClick={(ev) => {
+          const n = pick(ev);
+          if (n && onOpen) onOpen(n.page.slug);
+        }}
+      />
+      {tip && (
+        <div className="wiki-tip" style={{ left: tip.x, top: tip.y }}>
+          {tip.text}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Memories({ agentId, canManage }: { agentId: string; canManage: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const [view, setView] = useState<"pages" | "log">("pages");
+  const [view, setView] = useState<"pages" | "graph" | "log">("pages");
   // Offene Wiki-Seite lebt in der URL (?page=<slug>) — deep-linkbar, Browser-Zurück.
   const [sp, setSp] = useSearchParams();
   const selected = sp.get("page");
@@ -2018,12 +2272,11 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
     const h = setTimeout(() => setDebounced(query.trim()), 250);
     return () => clearTimeout(h);
   }, [query]);
-  // Volle Seitenliste — trägt Link-Auflösung (has), Backlinks und den Index.
+  // Volle Seitenliste — trägt Link-Auflösung (has), Backlinks, Baum und Graph.
   const mems = useQuery({
     queryKey: ["memories", agentId],
     queryFn: () => api<MemoryEntry[] | null>(`/agents/${agentId}/memories`),
   });
-  // Ranking-Treffer der Vektorsuche; nur aktiv, solange etwas gesucht wird.
   const search = useQuery({
     queryKey: ["memories-search", agentId, debounced],
     queryFn: () => api<MemoryEntry[] | null>(`/agents/${agentId}/memories?q=${encodeURIComponent(debounced)}`),
@@ -2034,22 +2287,34 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
     queryFn: () => api<WikiLogEntry[] | null>(`/agents/${agentId}/wiki/log`),
     enabled: view === "log",
   });
+  // Qualitätsbefunde (spec/05): was am Wiki verwahrlost, soll man sehen, ohne
+  // es selbst nachzuzählen.
+  const health = useQuery({
+    queryKey: ["wiki-health", agentId],
+    queryFn: () => api<WikiHealth>(`/agents/${agentId}/wiki/health`),
+  });
+
   const [draft, setDraft] = useState("");
   const [draftTitle, setDraftTitle] = useState("");
+  const [draftType, setDraftType] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editText, setEditText] = useState("");
   const [note, setNote] = useState("");
+  const [filter, setFilter] = useState<WikiFinding["kind"] | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["memories", agentId] });
     qc.invalidateQueries({ queryKey: ["wiki-log", agentId] });
+    qc.invalidateQueries({ queryKey: ["wiki-health", agentId] });
   };
 
   const add = useMutation({
-    mutationFn: () => post(`/agents/${agentId}/memories`, { content: draft, title: draftTitle }),
+    mutationFn: () => post(`/agents/${agentId}/memories`, { content: draft, title: draftTitle, type: draftType }),
     onSuccess: () => {
       setDraft("");
       setDraftTitle("");
+      setDraftType("");
       invalidate();
     },
   });
@@ -2072,23 +2337,140 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
     },
   });
 
-  const list = mems.data ?? [];
+  const list = useMemo(() => mems.data ?? [], [mems.data]);
   const logs = log.data ?? [];
   const locale = i18n.language === "de" ? "de-DE" : "en-US";
   const opLabel = (op: string) =>
-    ({ ingest: t("agent.memory.opIngest"), write: t("agent.memory.opWrite"), merge: t("agent.memory.opMerge"), delete: t("agent.memory.opDelete") })[op] ?? op;
+    ({
+      ingest: t("agent.memory.opIngest"),
+      write: t("agent.memory.opWrite"),
+      append: t("agent.memory.opWrite"),
+      merge: t("agent.memory.opMerge"),
+      delete: t("agent.memory.opDelete"),
+    })[op] ?? op;
 
-  const has = (slug: string) => list.some((p) => p.slug === slug);
+  const bySlug = useMemo(() => new Map(list.map((p) => [p.slug, p])), [list]);
+  const has = (slug: string) => bySlug.has(slug);
   const openPage = (slug: string) => {
     setView("pages");
     setEditId(null);
     setSelected(slug);
   };
-  // Aktuell geöffnete Seite; verschwindet sie (z. B. nach Löschen/Merge), zurück zum Index.
-  const current = selected ? (list.find((p) => p.slug === selected) ?? null) : null;
-  const backlinks = current ? list.filter((p) => p.id !== current.id && (p.links ?? []).includes(current.slug)) : [];
+  const current = selected ? (bySlug.get(selected) ?? null) : null;
+  const backlinks = useMemo(
+    () => (current ? list.filter((p) => p.id !== current.id && (p.links ?? []).includes(current.slug)) : []),
+    [current, list],
+  );
   const searching = debounced.length > 0;
-  const rows = searching ? (search.data ?? []) : list; // Index zeigt Voll-Liste oder Ranking-Treffer
+
+  // Nachbarschaft der offenen Seite (sie selbst, ihre Ziele, ihre Rückverweise).
+  // Memoisiert, weil der Graph bei neuer Array-Identität sein Layout verwirft
+  // und die Simulation neu rechnet.
+  const localPages = useMemo(() => {
+    if (!current) return [];
+    const names = new Set<string>([current.slug]);
+    (current.links ?? []).forEach((l) => bySlug.has(l) && names.add(l));
+    backlinks.forEach((b) => names.add(b.slug));
+    return list.filter((p) => names.has(p.slug));
+  }, [current, backlinks, list, bySlug]);
+
+  // Verwaist = kein lebender Verweis hinein oder hinaus. Wird im Baum gedämpft
+  // dargestellt; die Zahl steht in der Qualitätsleiste.
+  const orphanSlugs = useMemo(() => {
+    const inbound = new Set<string>();
+    list.forEach((p) => (p.links ?? []).forEach((l) => bySlug.has(l) && inbound.add(l)));
+    return new Set(
+      list.filter((p) => !inbound.has(p.slug) && !(p.links ?? []).some((l) => bySlug.has(l))).map((p) => p.slug),
+    );
+  }, [list, bySlug]);
+
+  // Auf einen Befund gefilterte Seitenmenge.
+  const filtered = useMemo(() => {
+    if (!filter) return null;
+    const slugs = new Set((health.data?.findings ?? []).filter((f) => f.kind === filter).map((f) => f.slug));
+    return slugs;
+  }, [filter, health.data]);
+
+  const typeLabel = (ty: string) =>
+    ty === ""
+      ? t("agent.memory.typeNone")
+      : (
+          {
+            kunde: t("agent.memory.typeKunde"),
+            projekt: t("agent.memory.typeProjekt"),
+            system: t("agent.memory.typeSystem"),
+            person: t("agent.memory.typePerson"),
+            problem: t("agent.memory.typeProblem"),
+            thema: t("agent.memory.typeThema"),
+          } as Record<string, string>
+        )[ty] ?? ty;
+
+  const visible = useMemo(
+    () => list.filter((p) => !filtered || filtered.has(p.slug)),
+    [list, filtered],
+  );
+
+  // ── Baum: erste Ebene ist der Seitentyp, darunter die Seiten; eine Seite
+  // lässt sich aufklappen und zeigt dann, worauf sie verweist. ────────────────
+  const treeRow = (p: MemoryEntry, child: boolean) => {
+    const kids = (p.links ?? []).filter((l) => bySlug.has(l));
+    const isOpen = expanded.has(p.slug);
+    return (
+      <div key={p.slug + (child ? "-c" : "")}>
+        <div className={`wiki-node${p.slug === selected ? " sel" : ""}${orphanSlugs.has(p.slug) ? " orphan" : ""}`}>
+          <button
+            type="button"
+            className="tw"
+            disabled={kids.length === 0 || child}
+            aria-label={p.title || p.slug}
+            onClick={() =>
+              setExpanded((prev) => {
+                const n = new Set(prev);
+                if (n.has(p.slug)) n.delete(p.slug);
+                else n.add(p.slug);
+                return n;
+              })
+            }
+          >
+            {kids.length > 0 && !child ? (isOpen ? "▾" : "▸") : "·"}
+          </button>
+          <button type="button" className="lbl" title={wikiPreview(p.content)} onClick={() => setSelected(p.slug)}>
+            {p.title || p.slug}
+          </button>
+          {kids.length > 0 && <span className="cnt">{kids.length}</span>}
+        </div>
+        {isOpen && !child && <div className="wiki-kids">{kids.map((l) => treeRow(bySlug.get(l)!, true))}</div>}
+      </div>
+    );
+  };
+
+  const tree = WIKI_TYPES.map((ty) => {
+    const items = visible.filter((p) => (p.type ?? "") === ty);
+    if (items.length === 0) return null;
+    return (
+      <div className="wiki-group" key={ty || "none"}>
+        <div className="wiki-group-h">
+          <span>{typeLabel(ty)}</span>
+          <span className="cnt">{items.length}</span>
+        </div>
+        {items.map((p) => treeRow(p, false))}
+      </div>
+    );
+  });
+
+  // ── Qualitätsleiste ────────────────────────────────────────────────────────
+  const h = health.data;
+  type QualityItem = { kind: WikiFinding["kind"]; n: number; label: string; help: string };
+  const quality: QualityItem[] = h
+    ? ([
+        { kind: "orphan", n: h.orphans, label: t("agent.memory.qOrphans"), help: t("agent.memory.qOrphansHelp") },
+        { kind: "dead_link", n: h.dead_links, label: t("agent.memory.qDeadLinks"), help: t("agent.memory.qDeadLinksHelp") },
+        { kind: "untyped", n: h.untyped, label: t("agent.memory.qUntyped"), help: t("agent.memory.qUntypedHelp") },
+        { kind: "episodic", n: h.episodic, label: t("agent.memory.qEpisodic"), help: t("agent.memory.qEpisodicHelp") },
+        { kind: "duplicate", n: h.duplicate, label: t("agent.memory.qDuplicate"), help: t("agent.memory.qDuplicateHelp") },
+        { kind: "stub", n: h.stubs, label: t("agent.memory.qStubs"), help: t("agent.memory.qStubsHelp") },
+      ] as QualityItem[]).filter((q) => q.n > 0)
+    : [];
 
   return (
     <div>
@@ -2099,21 +2481,50 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
             {t("agent.memory.pages")}
             {list.length > 0 && ` (${list.length})`}
           </button>
+          <button className={view === "graph" ? "active" : ""} onClick={() => setView("graph")}>
+            {t("agent.memory.graph")}
+          </button>
           <button className={view === "log" ? "active" : ""} onClick={() => setView("log")}>
             {t("agent.memory.log")}
           </button>
         </div>
         <span className="flex-1" />
         {canManage && (
-          <button
-            className="btn sm"
-            disabled={consolidate.isPending || list.length < 2}
-            onClick={() => consolidate.mutate()}
-          >
+          <button className="btn sm" disabled={consolidate.isPending || list.length < 2} onClick={() => consolidate.mutate()}>
             {consolidate.isPending ? t("agent.memory.consolidating") : t("agent.memory.consolidate")}
           </button>
         )}
       </div>
+
+      {/* Qualitätsbefunde: Zahlen, die zugleich Filter sind. */}
+      {h && list.length > 0 && (
+        <div className="wiki-quality mb-3">
+          <span className="muted text-[11px] uppercase tracking-wide">{t("agent.memory.quality")}</span>
+          {quality.length === 0 ? (
+            <span className="chip ok">{t("agent.memory.qClean")}</span>
+          ) : (
+            quality.map((q) => (
+              <button
+                key={q.kind}
+                type="button"
+                title={q.help}
+                className={`chip q${filter === q.kind ? " on" : ""}`}
+                onClick={() => {
+                  setFilter(filter === q.kind ? null : q.kind);
+                  setView("pages");
+                }}
+              >
+                {q.n} {q.label}
+              </button>
+            ))
+          )}
+          {filter && (
+            <button type="button" className="btn sm" onClick={() => setFilter(null)}>
+              {t("agent.memory.filterClear")}
+            </button>
+          )}
+        </div>
+      )}
       {note && <p className="muted text-xs mb-2">{note}</p>}
 
       {view === "log" ? (
@@ -2140,182 +2551,192 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
             </div>
           ))}
         </>
-      ) : current ? (
-        // ── Seiten-Detail: gerenderte Wiki-Seite mit klickbaren Links + Backlinks ──
-        <>
-          <button type="button" className="btn sm mb-3" onClick={() => setSelected(null)}>
-            ← {t("agent.memory.allPages")}
-          </button>
-          {editId === current.id ? (
-            <div className="card" style={{ padding: "12px 14px" }}>
-              <input className="mb-2" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder={t("agent.memory.titlePlaceholder")} />
-              <textarea rows={6} value={editText} onChange={(e) => setEditText(e.target.value)} />
-              <div className="flex items-center gap-2 mt-2">
-                <button className="btn primary sm" disabled={!editText.trim() || save.isPending} onClick={() => save.mutate()}>
-                  {t("agent.memory.save")}
-                </button>
-                <button className="btn sm" onClick={() => setEditId(null)}>
-                  {t("agent.memory.cancel")}
-                </button>
-                {save.isError && <span className="danger-text text-xs">{(save.error as Error).message}</span>}
-              </div>
+      ) : view === "graph" ? (
+        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+          <WikiGraph pages={visible} current={selected ?? undefined} onOpen={openPage} height={520} />
+          <div className="wiki-legend">
+            <span className="key">
+              <span className="dot hub" /> {t("agent.memory.graphHub")}
+            </span>
+            <span className="key">
+              <span className="dot" /> {t("agent.memory.graphLinked")}
+            </span>
+            <span className="key">
+              <span className="dot orph" /> {t("agent.memory.graphOrphanKey")}
+            </span>
+            <span className="flex-1" />
+            <span className="muted">{t("agent.memory.graphHint")}</span>
+          </div>
+        </div>
+      ) : (
+        // ── Arbeitsfläche: Baum | Seite | Kontext ──────────────────────────────
+        <div className="wiki-panes">
+          <div className="card wiki-pane" style={{ padding: "10px 12px" }}>
+            <div className="wiki-search mb-2">
+              <input type="search" placeholder={t("agent.memory.searchPlaceholder")} value={query} onChange={(e) => setQuery(e.target.value)} />
             </div>
-          ) : (
-            <div className="card" style={{ padding: "16px 18px" }}>
-              <div className="flex items-start justify-between gap-3 mb-3">
-                <span className="flex items-center gap-2 min-w-0">
-                  <span className="font-medium text-[16px]">{current.title || current.slug}</span>
-                  {current.source && (
-                    <span className="chip fixed" style={{ fontSize: "10px" }}>
-                      {current.source === "manual" ? t("agent.memory.sourceManual") : t("agent.memory.sourceAgent")}
-                    </span>
-                  )}
-                </span>
-                <span className="muted text-[11px] shrink-0 flex items-center gap-2">
-                  {new Date(current.updated_at || current.created_at).toLocaleDateString(locale)}
-                  {canManage && (
-                    <>
-                      <button
-                        className="btn sm"
-                        onClick={() => {
-                          setEditId(current.id);
-                          setEditTitle(current.title ?? "");
-                          setEditText(current.content);
-                        }}
-                      >
-                        {t("agent.memory.change")}
-                      </button>
-                      <button
-                        className="btn sm danger"
-                        disabled={remove.isPending}
-                        onClick={() => {
-                          remove.mutate(current.id);
-                          setSelected(null);
-                        }}
-                      >
-                        {t("agent.memory.forget")}
-                      </button>
-                    </>
-                  )}
-                </span>
-              </div>
-
-              <WikiBody text={current.content} has={has} onNav={openPage} />
-
-              {current.links && current.links.length > 0 && (
-                <div className="mt-4 pt-3" style={{ borderTop: "0.5px solid var(--border)" }}>
-                  <div className="muted text-[11px] mb-1.5">{t("agent.memory.outgoing")}</div>
-                  <div className="flex flex-wrap gap-x-3 gap-y-1">
-                    {current.links.map((l) =>
-                      has(l) ? (
-                        <button key={l} type="button" className="wikilink text-[13px]" onClick={() => openPage(l)}>
-                          {l}
-                        </button>
-                      ) : (
-                        <span key={l} className="wikilink missing text-[13px]" title={t("agent.memory.missing")}>
-                          {l}
-                        </span>
-                      ),
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-4 pt-3" style={{ borderTop: "0.5px solid var(--border)" }}>
-                <div className="muted text-[11px] mb-1.5">{t("agent.memory.backlinks")}</div>
-                {backlinks.length === 0 ? (
-                  <p className="muted text-[12.5px]">{t("agent.memory.noBacklinks")}</p>
+            <div className="wiki-tree">
+              {searching ? (
+                (search.data ?? []).length === 0 && !search.isFetching ? (
+                  <p className="muted text-[12.5px]">{t("agent.memory.searchEmpty")}</p>
                 ) : (
-                  <div className="flex flex-wrap gap-x-3 gap-y-1">
-                    {backlinks.map((b) => (
-                      <button key={b.id} type="button" className="wikilink text-[13px]" onClick={() => openPage(b.slug)}>
-                        {b.title || b.slug}
+                  (search.data ?? []).map((m) => (
+                    <div key={m.id} className={`wiki-node${m.slug === selected ? " sel" : ""}`}>
+                      <span className="tw">·</span>
+                      <button type="button" className="lbl" onClick={() => setSelected(m.slug)}>
+                        {m.title || m.slug}
                       </button>
+                      {typeof m.score === "number" && <span className="cnt">{Math.round(m.score * 100)}%</span>}
+                    </div>
+                  ))
+                )
+              ) : list.length === 0 ? (
+                <p className="muted text-[12.5px]">{t("agent.memory.nothingLearned")}</p>
+              ) : (
+                tree
+              )}
+            </div>
+          </div>
+
+          <div className="card wiki-pane" style={{ padding: 0 }}>
+            {!current ? (
+              <p className="muted text-[12.5px]" style={{ padding: "14px 16px" }}>
+                {t("agent.memory.preview")}
+              </p>
+            ) : editId === current.id ? (
+              <div style={{ padding: "12px 14px" }}>
+                <input className="mb-2" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder={t("agent.memory.titlePlaceholder")} />
+                <textarea rows={10} value={editText} onChange={(e) => setEditText(e.target.value)} />
+                <div className="flex items-center gap-2 mt-2">
+                  <button className="btn primary sm" disabled={!editText.trim() || save.isPending} onClick={() => save.mutate()}>
+                    {t("agent.memory.save")}
+                  </button>
+                  <button className="btn sm" onClick={() => setEditId(null)}>
+                    {t("agent.memory.cancel")}
+                  </button>
+                  {save.isError && <span className="danger-text text-xs">{(save.error as Error).message}</span>}
+                </div>
+              </div>
+            ) : (
+              <div style={{ padding: "14px 18px 18px" }}>
+                <div className="flex items-start justify-between gap-3 mb-1">
+                  <span className="flex items-center gap-2 min-w-0 flex-wrap">
+                    <span className="font-medium text-[16px]">{current.title || current.slug}</span>
+                    <span className={`chip${current.type ? " fixed" : " q"}`} style={{ fontSize: "10px" }}>
+                      {current.type ? typeLabel(current.type) : t("agent.memory.noType")}
+                    </span>
+                    {current.source && (
+                      <span className="chip fixed" style={{ fontSize: "10px" }}>
+                        {current.source === "manual" ? t("agent.memory.sourceManual") : t("agent.memory.sourceAgent")}
+                      </span>
+                    )}
+                  </span>
+                  <span className="muted text-[11px] shrink-0 flex items-center gap-2">
+                    {new Date(current.updated_at || current.created_at).toLocaleDateString(locale)}
+                    {canManage && (
+                      <>
+                        <button
+                          className="btn sm"
+                          onClick={() => {
+                            setEditId(current.id);
+                            setEditTitle(current.title ?? "");
+                            setEditText(current.content);
+                          }}
+                        >
+                          {t("agent.memory.change")}
+                        </button>
+                        <button
+                          className="btn sm danger"
+                          disabled={remove.isPending}
+                          onClick={() => {
+                            remove.mutate(current.id);
+                            setSelected(null);
+                          }}
+                        >
+                          {t("agent.memory.forget")}
+                        </button>
+                      </>
+                    )}
+                  </span>
+                </div>
+                <div className="slug mb-3">{current.slug}</div>
+                <WikiBody text={current.content} has={has} onNav={openPage} />
+              </div>
+            )}
+          </div>
+
+          <div className="card wiki-pane" style={{ padding: "10px 12px" }}>
+            {!current ? (
+              canManage && (
+                <>
+                  <div className="muted text-[11px] mb-1.5">{t("agent.memory.remember")}</div>
+                  <input className="mb-2" placeholder={t("agent.memory.titlePlaceholder")} value={draftTitle} onChange={(e) => setDraftTitle(e.target.value)} />
+                  <select className="mb-2" value={draftType} onChange={(e) => setDraftType(e.target.value)}>
+                    <option value="">{t("agent.memory.noType")}</option>
+                    {WIKI_TYPES.filter((x) => x !== "").map((ty) => (
+                      <option key={ty} value={ty}>
+                        {typeLabel(ty)}
+                      </option>
                     ))}
+                  </select>
+                  <textarea rows={4} placeholder={t("agent.memory.addPlaceholder")} value={draft} onChange={(e) => setDraft(e.target.value)} />
+                  <button className="btn primary sm mt-2" disabled={!draft.trim() || add.isPending} onClick={() => add.mutate()}>
+                    {t("agent.memory.remember")}
+                  </button>
+                  {add.isError && <span className="danger-text text-xs">{(add.error as Error).message}</span>}
+                </>
+              )
+            ) : (
+              <>
+                <div className="muted text-[11px] mb-1.5">
+                  {t("agent.memory.backlinks")} ({backlinks.length})
+                </div>
+                {backlinks.length === 0 ? (
+                  <p className="muted text-[12.5px] mb-3">{t("agent.memory.noBacklinks")}</p>
+                ) : (
+                  <div className="mb-3">
+                    {backlinks.map((b) => {
+                      const ctx = linkContext(b.content, current.slug);
+                      return (
+                        <div key={b.id} className="wiki-ctx">
+                          <button type="button" className="wikilink text-[12.5px]" onClick={() => openPage(b.slug)}>
+                            {b.title || b.slug}
+                          </button>
+                          {ctx && <p className="wiki-quote">„{ctx}“</p>}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
-              </div>
-            </div>
-          )}
-        </>
-      ) : (
-        // ── Seiten-Index: navigierbarer Katalog (index.md-Äquivalent, spec/05) ──
-        <>
-          {canManage && (
-            <div className="card mb-3" style={{ padding: "12px 14px" }}>
-              <input
-                className="mb-2"
-                placeholder={t("agent.memory.titlePlaceholder")}
-                value={draftTitle}
-                onChange={(e) => setDraftTitle(e.target.value)}
-              />
-              <textarea
-                rows={2}
-                placeholder={t("agent.memory.addPlaceholder")}
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-              />
-              <div className="flex items-center gap-2 mt-2">
-                <button className="btn primary sm" disabled={!draft.trim() || add.isPending} onClick={() => add.mutate()}>
-                  {t("agent.memory.remember")}
-                </button>
-                {add.isError && <span className="danger-text text-xs">{(add.error as Error).message}</span>}
-              </div>
-            </div>
-          )}
-          {(list.length > 0 || searching) && (
-            <div className="wiki-search mb-3">
-              <input
-                type="search"
-                placeholder={t("agent.memory.searchPlaceholder")}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-              />
-              {searching && (
-                <span className="muted text-[11px] shrink-0">
-                  {search.isFetching ? "…" : t("agent.memory.searchResults") + `: ${rows.length}`}
-                </span>
-              )}
-            </div>
-          )}
-          {!searching && list.length === 0 && <p className="muted">{t("agent.memory.nothingLearned")}</p>}
-          {searching && rows.length === 0 && !search.isFetching && <p className="muted">{t("agent.memory.searchEmpty")}</p>}
-          {rows.length > 0 && (
-            <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-              {rows.map((m) => {
-                const out = m.links?.length ?? 0;
-                const back = list.filter((p) => p.id !== m.id && (p.links ?? []).includes(m.slug)).length;
-                return (
-                  <button key={m.id} type="button" className="wiki-row" onClick={() => setSelected(m.slug)}>
-                    <span className="flex flex-col gap-0.5 min-w-0 flex-1">
-                      <span className="flex items-center gap-2 min-w-0">
-                        <span className="t truncate">{m.title || m.slug}</span>
-                        {m.source === "manual" && (
-                          <span className="chip fixed shrink-0" style={{ fontSize: "10px" }}>
-                            {t("agent.memory.sourceManual")}
-                          </span>
-                        )}
-                        {searching && typeof m.score === "number" && (
-                          <span className="wiki-refcount shrink-0" title={t("agent.memory.searchResults")}>
-                            {Math.round(m.score * 100)}%
-                          </span>
-                        )}
+
+                <div className="muted text-[11px] mb-1.5">
+                  {t("agent.memory.outgoing")} ({(current.links ?? []).length})
+                </div>
+                <div className="flex flex-wrap gap-x-3 gap-y-1 mb-3">
+                  {(current.links ?? []).length === 0 && <span className="muted text-[12.5px]">—</span>}
+                  {(current.links ?? []).map((l) =>
+                    has(l) ? (
+                      <button key={l} type="button" className="wikilink text-[12.5px]" onClick={() => openPage(l)}>
+                        {bySlug.get(l)?.title || l}
+                      </button>
+                    ) : (
+                      <span key={l} className="wikilink missing text-[12.5px]" title={t("agent.memory.missing")}>
+                        {l}
                       </span>
-                      <span className="p truncate">{wikiPreview(m.content)}</span>
-                    </span>
-                    {!searching && (
-                      <span className="wiki-refcount shrink-0">
-                        {out > 0 && <span title={t("agent.memory.outgoing")}>{out}→</span>}
-                        {out > 0 && back > 0 && " "}
-                        {back > 0 && <span title={t("agent.memory.backlinks")}>{back}←</span>}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </>
+                    ),
+                  )}
+                </div>
+
+                <div className="muted text-[11px] mb-1">{t("agent.memory.localGraph")}</div>
+                {localPages.length < 2 ? (
+                  <p className="muted text-[12.5px]">{t("agent.memory.graphOrphan")}</p>
+                ) : (
+                  <WikiGraph pages={localPages} current={current.slug} onOpen={openPage} height={140} labels={false} />
+                )}
+              </>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );
