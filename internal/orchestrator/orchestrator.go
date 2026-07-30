@@ -31,6 +31,8 @@ import (
 	"covey/internal/identity"
 	"covey/internal/memory"
 	"covey/internal/observability"
+	"covey/internal/reqlog"
+	reqlogstore "covey/internal/reqlog/store"
 	"covey/internal/secrets"
 	"covey/internal/target"
 	targetstore "covey/internal/target/store"
@@ -59,6 +61,10 @@ type Options struct {
 	Memory         *memory.Store
 	Targets        *targetstore.Store
 	Egress         *egress.Store
+	// ReqLog nimmt die HTTP-Requests der Zielsystem-Plugins auf (Diagnose,
+	// spec/06). nil = Request-Log abgeschaltet; die Events der Sandbox werden
+	// dann verworfen.
+	ReqLog *reqlogstore.Store
 	Provider       SandboxProvider
 	PublicWSURL    string // ws://…/api/daemon/ws — von Sandboxen erreichbar
 	DaemonTokenTTL time.Duration
@@ -66,8 +72,12 @@ type Options struct {
 	// WikiMaintenanceInterval taktet den Wiki-Konsolidierungs-Pass (spec/05:
 	// aufgabenunabhängig, nicht im Hot-Path). 0 → Default.
 	WikiMaintenanceInterval time.Duration
-	ReadyTimeout            time.Duration
-	Log                     *slog.Logger
+	// BoardRetention ist das Alter, ab dem eine terminale Aufgabe automatisch
+	// archiviert wird — damit räumt sich das Board selbst auf, statt auf einen
+	// Menschen am „Aufräumen"-Knopf zu warten. 0 → Default.
+	BoardRetention time.Duration
+	ReadyTimeout   time.Duration
+	Log            *slog.Logger
 }
 
 type Orchestrator struct {
@@ -96,6 +106,9 @@ func New(opts Options) *Orchestrator {
 	}
 	if opts.WikiMaintenanceInterval == 0 {
 		opts.WikiMaintenanceInterval = 10 * time.Minute
+	}
+	if opts.BoardRetention == 0 {
+		opts.BoardRetention = 24 * time.Hour
 	}
 	if opts.Log == nil {
 		opts.Log = slog.Default()
@@ -225,6 +238,7 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 	go o.listenLoop(ctx)
 	go o.wikiMaintenanceLoop(ctx)
 	go o.warmReaperLoop(ctx)
+	go o.boardJanitorLoop(ctx)
 	ticker := time.NewTicker(o.TickInterval)
 	defer ticker.Stop()
 	o.tick(ctx)
@@ -372,7 +386,7 @@ func (o *Orchestrator) fireHeartbeats(ctx context.Context) {
 	}
 	defer tx.Rollback(ctx)
 
-	rows, err := tx.Query(ctx, `SELECT h.agent_id, a.org_id, h.name, h.task_body, h.only_if,
+	rows, err := tx.Query(ctx, `SELECT h.agent_id, a.org_id, h.name, h.task_body, h.only_if, h.last_work_sig,
 			EXISTS (SELECT 1 FROM backlog_tasks t
 				WHERE t.agent_id=h.agent_id AND t.title=h.name
 				  AND (t.origin='heartbeat' OR t.origin LIKE 'continuation:%')
@@ -393,12 +407,13 @@ func (o *Orchestrator) fireHeartbeats(ctx context.Context) {
 	type due struct {
 		agentID, orgID     uuid.UUID
 		name, body, onlyIf string
+		lastSig            string
 		pending            bool
 	}
 	var dues []due
 	for rows.Next() {
 		var d due
-		if err := rows.Scan(&d.agentID, &d.orgID, &d.name, &d.body, &d.onlyIf, &d.pending); err != nil {
+		if err := rows.Scan(&d.agentID, &d.orgID, &d.name, &d.body, &d.onlyIf, &d.lastSig, &d.pending); err != nil {
 			rows.Close()
 			o.Log.Warn("heartbeat scan", "err", err)
 			return
@@ -431,9 +446,27 @@ func (o *Orchestrator) fireHeartbeats(ctx context.Context) {
 			o.Log.Info("heartbeat übersprungen: aufgabe noch offen", "agent", d.agentID, "name", d.name)
 			continue
 		}
-		if d.onlyIf != "" && !o.heartbeatHasWork(ctx, d.agentID, d.orgID, d.onlyIf) {
-			o.Log.Info("heartbeat übersprungen: keine arbeit", "agent", d.agentID, "name", d.name, "system", d.onlyIf)
-			continue
+		if d.onlyIf != "" {
+			has, sig := o.heartbeatHasWork(ctx, d.agentID, d.orgID, d.onlyIf)
+			if has && sig != "" && sig != d.lastSig {
+				o.rememberWorkSignature(ctx, d.agentID, d.name, sig)
+			} else if !has && d.lastSig != "" {
+				// Vorrat abgearbeitet — Signatur zurücksetzen, damit derselbe
+				// Zustand später wieder wecken darf.
+				o.rememberWorkSignature(ctx, d.agentID, d.name, "")
+			}
+			if !has {
+				o.Log.Info("heartbeat übersprungen: keine arbeit", "agent", d.agentID, "name", d.name, "system", d.onlyIf)
+				continue
+			}
+			// Unveränderter Vorrat: der Agent kennt diesen Stand schon und hat
+			// ihn bewusst so gelassen. Erst eine ÄNDERUNG weckt erneut — sonst
+			// müsste er kommentieren, nur um seinen eigenen Wecker abzustellen.
+			if sig != "" && sig == d.lastSig {
+				o.Log.Info("heartbeat übersprungen: arbeitsvorrat unverändert",
+					"agent", d.agentID, "name", d.name, "system", d.onlyIf)
+				continue
+			}
 		}
 		if _, err := o.Backlog.Create(ctx, d.orgID, d.agentID, d.name, d.body, "heartbeat", 0); err != nil {
 			o.Log.Warn("heartbeat-aufgabe anlegen", "agent", d.agentID, "name", d.name, "err", err)
@@ -452,41 +485,59 @@ func (o *Orchestrator) fireHeartbeats(ctx context.Context) {
 // nicht. Fail-open: lässt sich die Bedingung nicht prüfen (Plugin ohne
 // WorkChecker, fehlende Secrets, Verbindungsfehler), feuert der Heartbeat
 // regulär — eine kaputte Bedingung darf keine Arbeit liegen lassen.
-func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid.UUID, condition string) bool {
+// Rückgabe: (Arbeit vorhanden, Signatur des Vorrats). Die Signatur ist leer,
+// wenn das Plugin keine liefert — dann feuert der Heartbeat wie bisher bei
+// jedem Pegel.
+func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid.UUID, condition string) (bool, string) {
 	system, kind, _ := strings.Cut(condition, ":")
 	sys, ok := target.Get(system)
 	if !ok {
 		o.Log.Warn("nur-wenn: unbekanntes zielsystem — feuere trotzdem", "system", system)
-		return true
+		return true, ""
 	}
 	checker, ok := sys.(target.WorkChecker)
 	if !ok {
 		o.Log.Warn("nur-wenn: zielsystem kann arbeit nicht vorab prüfen — feuere trotzdem", "system", system)
-		return true
+		return true, ""
 	}
 	var cred target.Credential
 	if d, _ := target.Describe(system); !d.NoCredentials {
 		token, err := o.Secrets.Resolve(ctx, orgID, agentID, system+"_token")
 		if err != nil {
 			o.Log.Warn("nur-wenn: secret fehlt — feuere trotzdem", "system", system, "err", err)
-			return true
+			return true, ""
 		}
 		baseURL, err := o.Secrets.Resolve(ctx, orgID, agentID, system+"_url")
 		if err != nil {
 			o.Log.Warn("nur-wenn: secret fehlt — feuere trotzdem", "system", system, "err", err)
-			return true
+			return true, ""
 		}
 		cred = target.Credential{BaseURL: baseURL, Token: token}
 	}
 	cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
+	// Der Work-Check ist ein Zielsystem-Request aus der Control Plane heraus —
+	// mit Agenten-Senke, damit er im Request-Log zuordenbar ist statt anonym.
+	if o.ReqLog != nil {
+		cctx = reqlog.WithSink(cctx, o.ReqLog.Sink(&orgID, &agentID, nil))
+	}
 	var (
 		has bool
+		sig string
 		err error
 	)
-	if kc, ok := checker.(target.KindWorkChecker); ok && kind != "" {
-		has, err = kc.HasWorkKind(cctx, cred, kind)
-	} else {
+	switch c := checker.(type) {
+	case target.SignedWorkChecker:
+		// Liefert zusätzlich die Signatur des Vorrats — damit unterdrückt der
+		// Dispatch den Wake auf einen bereits gesehenen Stand.
+		has, sig, err = c.HasWorkSigned(cctx, cred, kind)
+	case target.KindWorkChecker:
+		if kind == "" {
+			has, err = c.HasWork(cctx, cred)
+		} else {
+			has, err = c.HasWorkKind(cctx, cred, kind)
+		}
+	default:
 		if kind != "" {
 			o.Log.Warn("nur-wenn: zielsystem kennt keinen unterscope — prüfe gesamt", "system", system, "kind", kind)
 		}
@@ -494,9 +545,20 @@ func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid
 	}
 	if err != nil {
 		o.Log.Warn("nur-wenn: prüfung fehlgeschlagen — feuere trotzdem", "system", system, "kind", kind, "err", err)
-		return true
+		return true, ""
 	}
-	return has
+	return has, sig
+}
+
+// rememberWorkSignature schreibt die Signatur fort, auf die zuletzt gefeuert
+// wurde. Best-effort: schlägt es fehl, weckt der nächste Tick höchstens einmal
+// zu viel — das ist harmloser als ein verpasster Lauf.
+func (o *Orchestrator) rememberWorkSignature(ctx context.Context, agentID uuid.UUID, name, sig string) {
+	if _, err := o.Pool.Exec(ctx,
+		"UPDATE agent_heartbeats SET last_work_sig=$3 WHERE agent_id=$1 AND name=$2",
+		agentID, name, sig); err != nil {
+		o.Log.Warn("heartbeat-signatur fortschreiben", "agent", agentID, "name", name, "err", err)
+	}
 }
 
 // EnsureRunning startet eine Agent-Session, falls keine läuft (idempotent).
@@ -791,6 +853,46 @@ func (o *Orchestrator) evictWarm(ctx context.Context, agentID uuid.UUID, kill bo
 	}
 	_ = o.sendMsg(ctx, ws.link, msg, map[string]string{})
 	ws.teardown()
+}
+
+// boardJanitorLoop hält das Backlog-Board auf den Arbeitszuständen, die es
+// wirklich gibt: terminale Aufgaben werden nach BoardRetention archiviert
+// (nicht gelöscht — sie bleiben im Archiv), und die damit leer gewordenen
+// Agenten-Spalten fallen weg.
+//
+// Warum die Plattform und nicht der Agent: Aufräumen ist Hygiene, keine
+// Entscheidung. Ein Agent, der es im Prompt tun soll, vergisst es unter Last
+// oder tut es zur falschen Zeit; hier passiert es für jede Installation gleich,
+// ohne dass jemand daran denken muss. Der „Aufräumen"-Knopf in der UI bleibt
+// für „und zwar jetzt".
+func (o *Orchestrator) boardJanitorLoop(ctx context.Context) {
+	if o.BoardRetention < 0 {
+		o.Log.Info("board-aufräumen ist abgeschaltet (COVEY_BOARD_RETENTION negativ)")
+		return
+	}
+	// Stündlich reicht: die Frist liegt in Stunden, nicht in Minuten.
+	t := time.NewTicker(time.Hour)
+	defer t.Stop()
+	o.sweepBoards(ctx)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			o.sweepBoards(ctx)
+		}
+	}
+}
+
+func (o *Orchestrator) sweepBoards(ctx context.Context) {
+	n, err := o.Backlog.ArchiveTerminalOlderThan(ctx, o.BoardRetention)
+	if err != nil {
+		o.Log.Warn("board-aufräumen fehlgeschlagen", "err", err)
+		return
+	}
+	if n > 0 {
+		o.Log.Info("board-aufräumen: terminale Aufgaben archiviert", "count", n, "älter_als", o.BoardRetention)
+	}
 }
 
 // warmReaperLoop baut geparkte warme Sandboxen ab, die zu lange idle waren.
@@ -1153,6 +1255,21 @@ func (o *Orchestrator) storeActionArtifact(ctx context.Context, agent agents.Age
 	return payload
 }
 
+// recordHTTP legt einen aus der Sandbox gemeldeten HTTP-Request ins
+// Request-Log — mit dem Kontext, den nur die Control Plane hat (Org, Agent,
+// Aufgabe). Ohne konfiguriertes Log ist es ein No-op.
+func (o *Orchestrator) recordHTTP(ctx context.Context, agent agents.Agent, taskID uuid.UUID, payload []byte) {
+	if o.ReqLog == nil {
+		return
+	}
+	var e reqlog.Entry
+	if err := json.Unmarshal(payload, &e); err != nil {
+		return
+	}
+	orgID, agentID, tid := agent.OrgID, agent.ID, taskID
+	o.ReqLog.Enqueue(reqlogstore.Record{Entry: e, OrgID: &orgID, AgentID: &agentID, TaskID: &tid})
+}
+
 // handleDaemonMessage verarbeitet eine Daemon-Nachricht; true = Aufgabe beendet.
 func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Agent, link DaemonLink, taskID uuid.UUID, msg daemon.Message, s *session) (bool, error) {
 	switch msg.Type {
@@ -1164,9 +1281,15 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		if err != nil {
 			return false, nil
 		}
+		// HTTP-Requests der Plugins gehören ins Request-Log, nicht in die
+		// Recording-Timeline — eigene Retention, eigene Sicht (spec/06).
+		if ev.Kind == daemon.EventKindHTTP {
+			o.recordHTTP(ctx, agent, taskID, ev.Payload)
+			return false, nil
+		}
 		kind := observability.KindRuntime
 		payload := json.RawMessage(ev.Payload)
-		if ev.Kind == "action" {
+		if ev.Kind == daemon.EventKindAction {
 			kind = observability.KindAction
 			payload = o.storeActionArtifact(ctx, agent, taskID, payload)
 		}
@@ -1696,9 +1819,16 @@ func (o *Orchestrator) brokerCredential(ctx context.Context, agent agents.Agent,
 	if err != nil {
 		return deny("kein Secret hinterlegt oder zugewiesen: " + req.System + "_token")
 	}
+	// Bringt das Plugin den Endpoint selbst mit (BaseURLOptional), ist
+	// <name>_url nur ein Override — ein fehlendes Secret verweigert dann
+	// nicht, sonst scheiterte ein sauber eingerichteter Agent an einem
+	// Wert, den die Control Plane gar nicht braucht.
 	baseURL, err := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_url")
 	if err != nil {
-		return deny("kein Secret hinterlegt oder zugewiesen: " + req.System + "_url")
+		if d, ok := target.Describe(req.System); !ok || !d.BaseURLOptional {
+			return deny("kein Secret hinterlegt oder zugewiesen: " + req.System + "_url")
+		}
+		baseURL = ""
 	}
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
 		map[string]any{"system": req.System, "granted": true, "ttl_secs": int(o.DaemonTokenTTL.Seconds())})

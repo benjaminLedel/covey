@@ -18,6 +18,9 @@ web/dist/
 # IDEs
 .idea/
 
+# Claude Code — lokale Berechtigungen dieser Arbeitskopie, nicht des Projekts
+.claude/settings.local.json
+
 # macOS
 .DS_Store
 web/tsconfig.tsbuildinfo

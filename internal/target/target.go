@@ -89,6 +89,33 @@ type KindWorkChecker interface {
 	HasWorkKind(ctx context.Context, cred Credential, kind string) (bool, error)
 }
 
+// SignedWorkChecker verfeinert WorkChecker um eine Signatur des gefundenen
+// Arbeitsvorrats — eine kurze, stabile Beschreibung dessen, WORAUF der Check
+// angeschlagen hat (bei GitLab etwa „mr!9@n1234": Merge Request 9, neuester
+// Beitrag 1234).
+//
+// Der Grund: Eine nur-wenn:-Bedingung ist pegelgesteuert. Sie meldet Arbeit,
+// solange der Zustand besteht — „im Thread hat zuletzt jemand anderes
+// geschrieben" bleibt wahr, bis der Agent selbst schreibt. Ein Agent, der einen
+// Lauf BEWUSST kommentarlos beendet (die Rückmeldung war eine Freigabe, es gibt
+// nichts zu tun), würde deshalb im nächsten Intervall erneut geweckt und
+// kommentiert am Ende nur noch, um seinen eigenen Wecker abzustellen.
+//
+// Die Control Plane merkt sich darum die Signatur, auf die zuletzt gefeuert
+// wurde, und feuert erst wieder, wenn sie sich ÄNDERT. Der Agent wird also
+// weiterhin zu jeder Neuigkeit geweckt — auch zu einer, die er nur zur Kenntnis
+// nimmt — aber nie zweimal zur selben. Ob eine Rückmeldung Arbeit ist (Mängel)
+// oder nicht (Freigabe), entscheidet damit der Agent, nicht das Gate.
+//
+// Eine leere Signatur schaltet die Unterdrückung ab: dann feuert der Heartbeat
+// wie bisher bei jedem Pegel (fail-open).
+type SignedWorkChecker interface {
+	WorkChecker
+	// HasWorkSigned prüft wie HasWorkKind (kind == "" → wie HasWork) und
+	// liefert zusätzlich die Signatur des gefundenen Vorrats.
+	HasWorkSigned(ctx context.Context, cred Credential, kind string) (bool, string, error)
+}
+
 // workdirKey trägt das Sandbox-Arbeitsverzeichnis durch den Context zu
 // Execute. Aktionen, die Dateien in der Sandbox materialisieren (z. B.
 // gitlab checkout), entpacken dorthin — der Daemon setzt den Wert, weil nur
@@ -227,10 +254,16 @@ type Descriptor struct {
 	// <name>_token/_url) — es arbeitet rein lokal in der Sandbox (z. B. das
 	// dev-Plugin). ACCESS.md, Aktivierung und Guard-Rails gelten trotzdem.
 	NoCredentials bool `json:"-"`
+	// BaseURLOptional: das Plugin kennt den Endpoint seines Zielsystems selbst
+	// (fester Default, z. B. der Bot-Framework-Token-Endpoint bei Teams).
+	// <name>_url ist dann ein Override für Sonderfälle, kein Pflicht-Secret —
+	// der Broker verweigert ohne es nicht. Ein <name>_token bleibt Pflicht.
+	BaseURLOptional bool `json:"-"`
 	// SetupDoc ist die Einrichtungs-Anleitung fürs UI (Plain Text, nummerierte
 	// Schritte). Platzhalter: {public_url} wird von der API durch die
 	// konfigurierte COVEY_PUBLIC_URL ersetzt; <agent-slug> bleibt stehen und
-	// meint den Slug des zuständigen Agenten.
+	// meint den Slug des zuständigen Agenten (ersatzweise akzeptiert der
+	// Webhook-Endpoint auch dessen ID).
 	SetupDoc string `json:"setup_doc,omitempty"`
 }
 

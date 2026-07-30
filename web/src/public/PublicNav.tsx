@@ -1,4 +1,4 @@
-import { NavLink, Link } from "react-router-dom";
+import { NavLink, Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import i18n from "../i18n";
 import { BirdMark } from "./chrome";
@@ -27,6 +27,9 @@ export default function PublicNav() {
         <nav className="pubnav-links" aria-label={t("public.nav.aria")}>
           <NavLink to="/funktion" className={link}>
             {t("public.nav.function")}
+          </NavLink>
+          <NavLink to="/integrationen" className={link}>
+            {t("public.nav.integrations")}
           </NavLink>
           <NavLink to="/produkt/covey" className={link}>
             {t("public.nav.covey")}

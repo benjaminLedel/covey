@@ -12,9 +12,13 @@ import (
 
 // defaultTokenEndpoint ist der OAuth2-Token-Endpoint für den Bot-Connector-
 // Zugriff (client_credentials). Default ist der Multi-Tenant-Bot-Framework-
-// Endpoint; über das gebrokerte teams_url pro Agent überschreibbar (z. B. ein
-// tenant-spezifischer Endpoint für Single-Tenant-Bots).
+// Endpoint; über COVEY_TEAMS_TOKEN_URL für die ganze Instanz und über das
+// gebrokerte teams_url pro Agent überschreibbar (z. B. ein tenant-spezifischer
+// Endpoint für Single-Tenant-Bots).
 func defaultTokenEndpoint() string {
+	if v := strings.TrimSpace(os.Getenv("COVEY_TEAMS_TOKEN_URL")); v != "" {
+		return v
+	}
 	return "https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token"
 }
 

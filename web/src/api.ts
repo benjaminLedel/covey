@@ -367,6 +367,39 @@ export type EgressLogEntry = {
   created_at: string;
 };
 
+// Request-Log (Plattform → Requests): die HTTP-Requests an den Rändern —
+// eingehende Webhooks ("in") und ausgehende Zielsystem-Aufrufe ("out").
+// Bodies sind gekappt und redigiert und kommen erst im Detail-Abruf mit.
+export type RequestLogEntry = {
+  id: number;
+  created_at: string;
+  agent_id?: string;
+  agent_slug?: string;
+  task_id?: string;
+  direction: "in" | "out";
+  system: string;
+  method: string;
+  url: string;
+  status: number;
+  duration_ms: number;
+  req_bytes: number;
+  resp_bytes: number;
+  error?: string;
+  remote?: string;
+  req_body?: string;
+  resp_body?: string;
+  bodies_shown?: boolean;
+};
+
+export type RequestLogPage = {
+  enabled: boolean;
+  bodies: boolean;
+  retention_hours: number;
+  dropped: number;
+  systems: string[];
+  entries: RequestLogEntry[];
+};
+
 // Eine Wiki-Seite (spec/05): title + body (content) + [[wikilinks]]. content
 // trägt weiter den Body (Rückwärtskompatibilität der manuellen Pflege).
 export type MemoryEntry = {

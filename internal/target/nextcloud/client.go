@@ -19,6 +19,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"covey/internal/reqlog"
 )
 
 // uploadMaxBytes begrenzt die Größe eines PUT-Uploads. Überschreibbar via
@@ -53,7 +55,7 @@ func NewClient(cfg Config) *Client {
 		DavBase: cfg.DavBase,
 		User:    cfg.User,
 		Pass:    cfg.Pass,
-		HTTP:    &http.Client{Timeout: 60 * time.Second},
+		HTTP:    reqlog.Client("nextcloud", 60*time.Second),
 	}
 }
 

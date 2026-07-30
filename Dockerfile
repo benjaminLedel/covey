@@ -1,6 +1,6 @@
 # Multi-Stage-Build aus spec/10-architektur-stack.md:
 # Node baut das Frontend → Go bettet es ein → distroless-Endimage.
-FROM node:22 AS web
+FROM node:26 AS web
 WORKDIR /web
 COPY web/package.json web/package-lock.json ./
 RUN npm ci

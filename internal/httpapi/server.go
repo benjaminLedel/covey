@@ -28,6 +28,7 @@ import (
 	"covey/internal/observability"
 	"covey/internal/orchestrator"
 	"covey/internal/org"
+	reqlogstore "covey/internal/reqlog/store"
 	"covey/internal/secrets"
 	targetstore "covey/internal/target/store"
 	"covey/internal/templates"
@@ -58,6 +59,10 @@ type Server struct {
 	EgressDefaults []string
 
 	Templates *templates.Store
+
+	// ReqLog protokolliert die HTTP-Requests an den Rändern (Webhooks rein,
+	// Zielsystem-Aufrufe raus). nil = abgeschaltet (COVEY_REQUEST_LOG=false).
+	ReqLog *reqlogstore.Store
 
 	// WebhookSecrets: Zielsystem-Name → Signatur-Secret
 	// (ENV COVEY_<SYSTEM>_WEBHOOK_SECRET, z. B. COVEY_ZAMMAD_WEBHOOK_SECRET).
@@ -260,9 +265,17 @@ func (s *Server) Handler() http.Handler {
 	// Live-Updates.
 	mux.Handle("GET /api/v1/events", s.auth(s.handleSSE))
 
+	// Request-Log (Plattform-Diagnose): die HTTP-Requests an den Rändern.
+	mux.Handle("GET /api/v1/platform/requests", s.rbac(securityRoles, s.handleListRequests))
+	mux.Handle("GET /api/v1/platform/requests/{id}", s.rbac(securityRoles, s.handleGetRequest))
+	mux.Handle("DELETE /api/v1/platform/requests", s.rbac(securityRoles, s.handleClearRequests))
+
 	// Maschinen-Endpunkte (eigene Auth: HMAC, Trigger-Token bzw. Daemon-JWT).
-	mux.HandleFunc("POST /api/webhooks/{system}/{slug}", s.handleTargetWebhook)
-	mux.HandleFunc("POST /api/trigger/{token}", s.handleAgentTrigger)
+	// Beide gehen durch logIncoming — auch (und gerade) wenn sie abgelehnt
+	// werden: ein Webhook, der an der Signatur scheitert, ist die häufigste
+	// Frage beim Anbinden eines Zielsystems.
+	mux.HandleFunc("POST /api/webhooks/{system}/{agent}", s.logIncoming(s.handleTargetWebhook))
+	mux.HandleFunc("POST /api/trigger/{token}", s.logIncoming(s.handleAgentTrigger))
 	mux.HandleFunc("GET /api/daemon/ws", s.handleDaemonWS)
 
 	// Eingebettete SPA mit Fallback auf index.html (client-seitiges Routing).

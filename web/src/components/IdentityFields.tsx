@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, type TargetPlugin } from "../api";
+import { TargetIcon } from "./TargetIcon";
 
 export default function IdentityFields({
   value,
@@ -15,12 +16,15 @@ export default function IdentityFields({
     queryFn: () => api<TargetPlugin[] | null>("/targets"),
   });
 
-  const platforms = new Map<string, string>();
+  type Platform = { label: string; kind?: string; category?: string };
+  const platforms = new Map<string, Platform>();
   for (const tgt of targets.data ?? []) {
-    if (tgt.enabled) platforms.set(tgt.name, tgt.label || tgt.name);
+    if (tgt.enabled) {
+      platforms.set(tgt.name, { label: tgt.label || tgt.name, kind: tgt.kind, category: tgt.category });
+    }
   }
   for (const system of Object.keys(value)) {
-    if (!platforms.has(system)) platforms.set(system, system);
+    if (!platforms.has(system)) platforms.set(system, { label: system });
   }
 
   if (platforms.size === 0) {
@@ -33,9 +37,12 @@ export default function IdentityFields({
 
   return (
     <>
-      {[...platforms].map(([system, label]) => (
+      {[...platforms].map(([system, p]) => (
         <div className="min-w-40" key={system}>
-          <label>{t("profile.identityLabel", { system: label })}</label>
+          <label className="flex items-center gap-1.5">
+            <TargetIcon name={system} kind={p.kind} category={p.category} size={14} />
+            {t("profile.identityLabel", { system: p.label })}
+          </label>
           <input
             value={value[system] ?? ""}
             onChange={(e) => onChange({ ...value, [system]: e.target.value })}

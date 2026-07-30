@@ -3,6 +3,7 @@
     "nav": {
       "aria": "Main navigation",
       "function": "Function",
+      "integrations": "Integrations",
       "covey": "Platform",
       "companion": "App",
       "login": "Sign in",
@@ -102,6 +103,71 @@
       "ctaTitle": "Try Covey",
       "ctaLead": "Sign in and see Covey in action.",
       "ctaCovey": "More about Covey"
+    },
+    "integrations": {
+      "eyebrow": "Integrations",
+      "title": "Where your agents do the work",
+      "lead": "In Covey a target system isn't a connector someone wired up once — it's a plugin with a manifest: actions, webhook handling, prompt docs. Enable it, store the credentials, assign it to an agent. Done.",
+      "groups": {
+        "work": "Where the work comes from",
+        "files": "Files & documents",
+        "sandbox": "Web & sandbox",
+        "extend": "Missing one? Plug it in instead of waiting."
+      },
+      "tag": {
+        "webhook": "Woken by webhook",
+        "poll": "Polled by heartbeat",
+        "nosecret": "No credentials needed"
+      },
+      "sys": {
+        "zammad": {
+          "t": "Zammad",
+          "d": "Read tickets, reply, set state, escalate. A trigger wakes the agent the moment a customer answers — it doesn't wait around, it gets fetched."
+        },
+        "gitlab": {
+          "t": "GitLab",
+          "d": "Issues as the work queue, source checked out, a fix on a feature branch, a merge request to the supervisor — and the review loop afterwards, red CI included."
+        },
+        "email": {
+          "t": "Email (IMAP/SMTP)",
+          "d": "A mailbox of the agent's own: triage the inbox, reply, file things away. For everything that arrives without a portal and without an API."
+        },
+        "teams": {
+          "t": "Microsoft Teams",
+          "d": "A chat channel via the Azure Bot Service: receive and send messages, with every inbound call cryptographically verified."
+        },
+        "nextcloud": {
+          "t": "Nextcloud",
+          "d": "A file store via share link or account: list, read, write, create folders. Access over WebDAV — a bot only needs the link."
+        },
+        "sharepoint": {
+          "t": "SharePoint / Teams files",
+          "d": "The same file operations in the Microsoft stack: a document library through an Entra ID app registration, cleanly scoped."
+        },
+        "browser": {
+          "t": "Browser (headless Chrome)",
+          "d": "The universal adapter for web apps that have no plugin of their own: open pages, read text, click, type, save screenshots. Which pages are reachable is decided by the egress allowlist."
+        },
+        "dev": {
+          "t": "Dev sandbox",
+          "d": "The agent's own computer: run shell commands, start dev servers and databases, check them, tear them down again."
+        }
+      },
+      "extendLead": "Two ways to get there without waiting for a release — both in the UI, neither needs a deploy.",
+      "ext": {
+        "manifest": {
+          "t": "REST system via manifest",
+          "d": "A JSON manifest describes auth, actions and the fields of the webhook. Upload it, enable it, assign it — without a line of Go."
+        },
+        "mcp": {
+          "t": "MCP servers",
+          "d": "Any Model Context Protocol server can be registered as a target system. Covey discovers the tools; you decide per agent which of them it may use."
+        }
+      },
+      "brokerTitle": "The sandbox never sees the credentials",
+      "brokerLead": "No long-lived secret travels into the agent's workplace. Every access goes through the broker at runtime — short-lived, scoped to the target system it needs, and every call lands in the audit trail. What an agent is allowed to do is decided by the control plane's guard rails, not by its prompt.",
+      "ctaTitle": "And the rest of the platform?",
+      "ctaLead": "Target systems are one half. The other is everything around them that lets you trust an agent workforce in the first place."
     },
     "covey": {
       "eyebrow": "Product · Platform",
@@ -228,7 +294,8 @@
     "help": "Help (?)",
     "logout": "Sign out",
     "userMenu": "User menu",
-    "profile": "Profile & Settings"
+    "profile": "Profile & Settings",
+    "requests": "Requests"
   },
   "costs": {
     "title": "Cost & Tokens",
@@ -961,6 +1028,51 @@
       "notePlaceholder": "Note (optional)",
       "removeHost": "remove"
     }
+  },
+  "requests": {
+    "title": "Requests",
+    "subtitle": "HTTP traffic at the edges",
+    "intro": "Every request a target-system plugin makes (outbound) and every webhook Covey receives (inbound) — including the rejected ones. The recording shows WHAT an agent did; this shows what actually went over the wire. Diagnostic data with short retention, not an audit trail. Credentials are redacted, bodies truncated.",
+    "disabled": "Request log is switched off",
+    "disabledHint": "Enable with COVEY_REQUEST_LOG=true (the default) and restart the process.",
+    "filterDirection": "Filter by direction",
+    "allDirections": "All directions",
+    "dirIn": "Inbound (webhook to Covey)",
+    "dirOut": "Outbound (Covey to target system)",
+    "dirInShort": "in",
+    "dirOutShort": "out",
+    "filterSystem": "Filter by target system",
+    "allSystems": "All target systems",
+    "filterAgent": "Filter by agent",
+    "allAgents": "All agents",
+    "onlyErrors": "errors only",
+    "search": "Search URL and error text",
+    "searchPlaceholder": "URL or error …",
+    "clear": "Clear log",
+    "clearTitle": "Clear the request log?",
+    "clearBody": "All logged requests of this organization are deleted. The recording and the egress log stay untouched.",
+    "count": "{{count}} entries",
+    "retention": "kept for {{hours}} h",
+    "bodiesOff": "bodies are not stored",
+    "dropped": "{{count}} dropped (buffer full)",
+    "colTime": "Time",
+    "colDirection": "Direction",
+    "colSystem": "System",
+    "colAgent": "Agent",
+    "colRequest": "Request",
+    "colStatus": "Status",
+    "colDuration": "Duration",
+    "noStatus": "—",
+    "loading": "loading …",
+    "empty": "No requests in the window. As soon as an agent talks to a target system or a webhook arrives, it shows up here.",
+    "detailTitle": "Request detail",
+    "close": "Close",
+    "remote": "Sender",
+    "error": "Error",
+    "reqBody": "Request body",
+    "respBody": "Response body",
+    "noBody": "(no body)",
+    "redactHint": "Bodies are truncated at 8 KiB; tokens, passwords and secrets are replaced. Headers are never stored."
   },
   "templates": {
     "title": "Templates",

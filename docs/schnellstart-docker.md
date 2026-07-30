@@ -4,7 +4,7 @@ Covey in wenigen Minuten lokal ausprobieren — **ohne Go, Node oder eine
 lokale Postgres-Installation**. Es genügen Docker und Docker Compose.
 
 > Für die Entwicklung (Hot-Reload, Tests) siehe stattdessen den Abschnitt
-> „Schnellstart (Entwicklung)" in der [README](../README.md).
+> „Schnellstart (Entwicklung)" in der [README](../README.de.md).
 
 ---
 

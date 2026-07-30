@@ -494,6 +494,48 @@ func (s *Store) Archive(ctx context.Context, id uuid.UUID) (Task, error) {
 	return t, err
 }
 
+// ArchiveTerminalOlderThan archiviert organisationsweit jede terminale Aufgabe,
+// die seit `age` nicht mehr angefasst wurde, und räumt danach die leer
+// gewordenen Agenten-Spalten ab. Das ist der Selbstaufräum-Pfad: ohne ihn hält
+// jede erledigte Karte ihre Spalte am Leben, und ein Board, auf dem ein Agent
+// tagelang gearbeitet hat, wächst zu einem Verlauf statt eines Zustands — das
+// Spalten-Cleanup allein greift nie, weil die Leiche in der Spalte liegen
+// bleibt. Wer sofort aufräumen will, hat weiter ArchiveTerminal (UI-Button).
+//
+// Bewusst zeitbasiert statt „nach jedem Lauf": frisch Erledigtes soll auf dem
+// Board sichtbar bleiben, sonst verschwindet die Arbeit des letzten Laufs vor
+// den Augen dessen, der sie gerade prüfen will.
+func (s *Store) ArchiveTerminalOlderThan(ctx context.Context, age time.Duration) (int64, error) {
+	rows, err := s.pool.Query(ctx, `UPDATE backlog_tasks SET archived_at=now()
+		WHERE archived_at IS NULL AND state IN ('done','failed','cancelled')
+		  AND updated_at < now() - $1::interval
+		RETURNING agent_id`, age.String())
+	if err != nil {
+		return 0, err
+	}
+	var archived int64
+	seen := map[uuid.UUID]bool{}
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		seen[id] = true
+		archived++
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	for id := range seen {
+		if _, err := cleanupEmptyAgentStages(ctx, s.pool, id); err != nil {
+			return archived, err
+		}
+	}
+	return archived, nil
+}
+
 // ArchiveTerminal räumt auf: archiviert alle terminalen Aufgaben eines Agenten.
 func (s *Store) ArchiveTerminal(ctx context.Context, agentID uuid.UUID) (int64, error) {
 	tag, err := s.pool.Exec(ctx, `UPDATE backlog_tasks SET archived_at=now()

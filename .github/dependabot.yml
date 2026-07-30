@@ -1,0 +1,37 @@
+# Dependabot-Konfiguration für den GitHub-Spiegel (die CI selbst läuft auf
+# GitLab). Covey wird von Dritten aus GitHub installiert — offene Advisories
+# sind dort sichtbar, also sollen Updates auch dort auflaufen.
+#
+# Drei Ökosysteme an drei Orten: das Frontend unter web/ (npm), das Go-Modul in
+# der Repo-Wurzel und die Basis-Images der Dockerfiles. Wöchentlich, damit es
+# Signal bleibt und nicht zum Rauschen wird.
+version: 2
+updates:
+  # Frontend: package.json/package-lock.json liegen unter web/.
+  - package-ecosystem: "npm"
+    directory: "/web"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      # Ein PR je Woche für die harmlosen Sprünge; Majors kommen einzeln —
+      # sie sind eigene Arbeit (siehe den React-19-Schritt).
+      minor-und-patch:
+        update-types: ["minor", "patch"]
+
+  # Control Plane und Daemon: ein Go-Modul in der Repo-Wurzel.
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    groups:
+      minor-und-patch:
+        update-types: ["minor", "patch"]
+
+  # Basis-Images der Dockerfiles (Endimage, Sandbox, Egress-Proxy).
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"covey/internal/target"
@@ -105,12 +106,8 @@ func mrProjectPath(m MergeRequest) string {
 // Pegel (steht irgendwo etwas offen?) — sonst weckt derselbe unerledigte Vorgang
 // den Agenten in jedem Intervall erneut.
 func (System) HasWork(ctx context.Context, cred target.Credential) (bool, error) {
-	gc := NewClient(cred.BaseURL, cred.Token)
-	has, err := issueWorkPending(ctx, gc, false)
-	if err != nil || has {
-		return has, err
-	}
-	return mrReviewPending(ctx, gc)
+	has, _, err := System{}.HasWorkSigned(ctx, cred, "")
+	return has, err
 }
 
 // HasWorkKind (target.KindWorkChecker) gatet eine einzelne Arbeits-Art, damit
@@ -130,19 +127,48 @@ func (System) HasWork(ctx context.Context, cred target.Credential) (bool, error)
 //     eingetragen ist, auf sein Review (QA-/Test-Sicht)?
 //   - sonst             → beides von HasWork, fail-open bei unbekanntem Scope.
 func (System) HasWorkKind(ctx context.Context, cred target.Credential, kind string) (bool, error) {
+	has, _, err := System{}.HasWorkSigned(ctx, cred, kind)
+	return has, err
+}
+
+// HasWorkSigned (target.SignedWorkChecker) ist die eigentliche Prüfung: sie
+// liefert neben dem Ja/Nein die Signatur der wartenden Vorgänge, damit die
+// Control Plane nicht zweimal auf denselben Stand weckt. Ein Agent darf einen
+// Lauf dadurch schweigend beenden — die Rückmeldung des QA-Kollegen war eine
+// Freigabe, es gibt nichts zu tun — ohne im nächsten Intervall erneut geweckt
+// zu werden. Kommt dagegen ein neuer Beitrag oder ein Push dazu, ändert sich
+// die Signatur und der Agent wacht auf. Ob eine Rückmeldung Arbeit bedeutet
+// (gemeldete Mängel) oder nur Information (Freigabe), entscheidet damit der
+// Agent und nicht das Gate.
+func (System) HasWorkSigned(ctx context.Context, cred target.Credential, kind string) (bool, string, error) {
 	gc := NewClient(cred.BaseURL, cred.Token)
+	var (
+		waiting []string
+		err     error
+	)
 	switch kind {
 	case "issues", "issue":
-		return issueWorkPending(ctx, gc, false)
+		waiting, err = issueWorkPending(ctx, gc, false)
 	case "issues:assigned", "issue:assigned", "assigned":
-		return issueWorkPending(ctx, gc, true)
+		waiting, err = issueWorkPending(ctx, gc, true)
 	case "mr", "mrs":
-		return mrReviewPending(ctx, gc)
+		waiting, err = mrReviewPending(ctx, gc)
 	case "review", "reviews":
-		return mrReviewAssignedPending(ctx, gc)
+		waiting, err = mrReviewAssignedPending(ctx, gc)
 	default:
-		return System{}.HasWork(ctx, cred)
+		// Ohne Unterscope zählt beides — Issues UND der eigene Review-Loop.
+		waiting, err = issueWorkPending(ctx, gc, false)
+		if err == nil {
+			var mrs []string
+			if mrs, err = mrReviewPending(ctx, gc); err == nil {
+				waiting = append(waiting, mrs...)
+			}
+		}
 	}
+	if err != nil {
+		return false, "", err
+	}
+	return len(waiting) > 0, workSig(waiting), nil
 }
 
 // issueMaxNotesChecks begrenzt die Kommentar-Prüfung von issueWorkPending: der
@@ -170,10 +196,10 @@ const issueMaxNotesChecks = 30
 // Der Vertrag daraus: **Ein Agent, der an einem Issue gearbeitet hat, muss dort
 // kommentieren.** Ein stiller Lauf gilt als „noch nicht bearbeitet" und weckt
 // erneut. Das Playbook „Issue-Triage" hält das so.
-func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) (bool, error) {
+func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) ([]string, error) {
 	issues, err := gc.ListIssues(ctx, 0, "opened", "", "", assignedOnly)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	inScope := issues[:0]
 	for _, i := range issues {
@@ -182,26 +208,57 @@ func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) (bool,
 		}
 	}
 	if len(inScope) == 0 {
-		return false, nil
+		return nil, nil
 	}
 	if len(inScope) > issueMaxNotesChecks {
-		return true, nil
+		// Zu viele offene Issues für die Kommentar-Prüfung: wecken, ohne sie
+		// einzeln anzusehen. Die Signatur trägt dann nur die Anzahl — sie
+		// ändert sich, sobald ein Issue dazukommt oder wegfällt.
+		return []string{fmt.Sprintf("issues:many@%d", len(inScope))}, nil
 	}
 	me, err := gc.CurrentUser(ctx)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
+	var waiting []string
 	for _, i := range inScope {
 		notes, err := gc.ListNotes(ctx, i.ProjectID, i.IID)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
 		if lastHumanNoteIsMine(notes, me.Username) {
 			continue // schon beantwortet — ruht, bis jemand darauf antwortet
 		}
-		return true, nil
+		waiting = append(waiting, threadSig("issue", i.ProjectID, i.IID, notes))
 	}
-	return false, nil
+	return waiting, nil
+}
+
+// threadSig beschreibt einen wartenden Vorgang so, dass sich die Beschreibung
+// genau dann ändert, wenn dort etwas Neues passiert ist: Projekt, Nummer und
+// die höchste Note-ID des Threads. GitLab vergibt Note-IDs monoton und
+// vermerkt auch Pushes als System-Note — neue Commits ändern die Signatur
+// also mit, ohne dass es einen zusätzlichen Request kostet.
+func threadSig(kind string, projectID, iid int, notes []Note) string {
+	last := 0
+	for _, n := range notes {
+		if n.ID > last {
+			last = n.ID
+		}
+	}
+	return fmt.Sprintf("%s%d!%d@%d", kind, projectID, iid, last)
+}
+
+// workSig fasst die wartenden Vorgänge zu einer stabilen Signatur zusammen.
+// Sortiert, weil GitLab nach updated_at liefert — sonst wechselte die Signatur
+// allein durch die Reihenfolge.
+func workSig(waiting []string) string {
+	if len(waiting) == 0 {
+		return ""
+	}
+	sorted := append([]string(nil), waiting...)
+	sort.Strings(sorted)
+	return strings.Join(sorted, ",")
 }
 
 // lastHumanNoteIsMine sagt, ob der letzte Nicht-System-Kommentar eines Threads
@@ -222,10 +279,10 @@ func lastHumanNoteIsMine(notes []Note, me string) bool {
 // Kommentar im Thread stammt nicht vom Bot. Frische MRs ganz ohne Kommentare
 // (der Bot hat gerade eröffnet, das Review steht noch aus) zählen NICHT als
 // Arbeit — sonst würde jeder offene MR den Agenten in jedem Intervall wecken.
-func mrReviewPending(ctx context.Context, gc *Client) (bool, error) {
+func mrReviewPending(ctx context.Context, gc *Client) ([]string, error) {
 	mrs, err := gc.ListMyOpenMergeRequests(ctx)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	inScope := mrs[:0]
 	for _, m := range mrs {
@@ -234,16 +291,17 @@ func mrReviewPending(ctx context.Context, gc *Client) (bool, error) {
 		}
 	}
 	if len(inScope) == 0 {
-		return false, nil
+		return nil, nil
 	}
 	me, err := gc.CurrentUser(ctx)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
+	var waiting []string
 	for _, m := range inScope {
 		notes, err := gc.ListMRNotes(ctx, m.ProjectID, m.IID)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
 		// Notes kommen chronologisch (sort=asc); der letzte Nicht-System-
 		// Kommentar entscheidet. Ist er von jemand anderem als dem Bot, wartet
@@ -253,12 +311,12 @@ func mrReviewPending(ctx context.Context, gc *Client) (bool, error) {
 				continue
 			}
 			if notes[i].Author.Username != me.Username {
-				return true, nil
+				waiting = append(waiting, threadSig("mr", m.ProjectID, m.IID, notes))
 			}
 			break // letzter menschlicher Kommentar ist vom Bot → schon beantwortet
 		}
 	}
-	return false, nil
+	return waiting, nil
 }
 
 // mrReviewAssignedPending ist das Spiegelbild von mrReviewPending aus der
@@ -266,34 +324,37 @@ func mrReviewPending(ctx context.Context, gc *Client) (bool, error) {
 // REVIEWER eingetragen ist, auf sein Review? Das trägt den Review-Loop für einen
 // QA-/Test-Agenten ohne Webhook, gegatet über nur-wenn: gitlab:review.
 //
-// Arbeit liegt vor, wenn der letzte Nicht-System-Kommentar NICHT vom Bot stammt —
-// oder wenn der MR noch gar keinen Kommentar hat. Anders als beim Autoren-Loop
-// zählt ein frischer, an mich zum Review übergebener MR (noch ohne Kommentar)
-// SEHR WOHL als Arbeit: genau er wartet auf mein Erst-Review. Hat der Bot als
-// letzter kommentiert, ist diese Review-Runde beantwortet und der MR ruht, bis
-// der Autor erneut reagiert.
-func mrReviewAssignedPending(ctx context.Context, gc *Client) (bool, error) {
+// Arbeit liegt vor, wenn seit dem letzten eigenen Kommentar ein Mensch
+// geschrieben hat oder der Autor NEUE COMMITS gepusht hat — oder wenn der Bot
+// hier noch gar nichts gesagt hat. Anders als beim Autoren-Loop zählt ein
+// frischer, an mich zum Review übergebener MR (noch ohne Kommentar) SEHR WOHL
+// als Arbeit: genau er wartet auf mein Erst-Review. Hat der Bot zuletzt
+// kommentiert, ruht der MR, bis der Autor mit Code reagiert — eine bloße
+// Textantwort des Autoren-Agenten („danke für das Review") ist kein Anlass für
+// eine neue Review-Runde, sonst schaukeln sich beide Agenten gegenseitig hoch.
+func mrReviewAssignedPending(ctx context.Context, gc *Client) ([]string, error) {
 	me, err := gc.CurrentUser(ctx)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	mrs, err := gc.ListReviewMergeRequests(ctx, me.Username)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
+	var waiting []string
 	for _, m := range mrs {
 		if !projectInScope(m.ProjectID, mrProjectPath(m)) {
 			continue
 		}
 		notes, err := gc.ListMRNotes(ctx, m.ProjectID, m.IID)
 		if err != nil {
-			return false, err
+			return nil, err
 		}
 		if !lastHumanNoteIsMine(notes, me.Username) {
-			return true, nil
+			waiting = append(waiting, threadSig("mr", m.ProjectID, m.IID, notes))
 		}
 	}
-	return false, nil
+	return waiting, nil
 }
 
 // ActionSubject: öffentliche Kommentare (internal=false) sind ein eigenes,
@@ -537,12 +598,24 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		if in.SourceBranch == targetBranch {
 			return nil, fmt.Errorf("source_branch und target_branch sind identisch (%q)", targetBranch)
 		}
-		// Der Assignee (idR der Vorgesetzte) muss auflösbar sein — ein MR
-		// ohne benannten Menschen als Empfänger ist hier nicht vorgesehen.
-		if strings.TrimSpace(in.Assignee) == "" {
-			return nil, fmt.Errorf("assignee fehlt — trage den GitLab-Username deines Vorgesetzten aus dem Team-Verzeichnis ein")
+		// Der Assignee muss auflösbar sein — ein MR ohne benannten Menschen als
+		// Empfänger ist hier nicht vorgesehen. Fehlt er, aber ist das
+		// zugrundeliegende Issue benannt, fällt der MR an dessen MELDER: Wer den
+		// Bedarf aufgeschrieben hat, entscheidet über den Merge. Pauschal den
+		// Vorgesetzten einzutragen macht ihn zum Flaschenhals für Arbeit, die er
+		// nie angefragt hat.
+		assignee := strings.TrimSpace(in.Assignee)
+		if assignee == "" && in.IssueIID != 0 {
+			iss, err := gc.GetIssue(ctx, in.ProjectID, in.IssueIID)
+			if err != nil {
+				return nil, err
+			}
+			assignee = iss.Author.Username
 		}
-		u, err := gc.LookupUser(ctx, in.Assignee)
+		if assignee == "" {
+			return nil, fmt.Errorf("assignee fehlt — trage den GitLab-Username des Issue-Melders ein (ersatzweise deinen Vorgesetzten) oder gib issue_iid mit")
+		}
+		u, err := gc.LookupUser(ctx, assignee)
 		if err != nil {
 			return nil, err
 		}
@@ -550,7 +623,7 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		// Reviewer ein (Assignee bleibt der Vorgesetzte). Ohne reviewer prüft der
 		// Assignee selbst — Reviewer = Assignee wie bisher.
 		reviewerID := u.ID
-		if r := strings.TrimSpace(in.Reviewer); r != "" && r != in.Assignee {
+		if r := strings.TrimSpace(in.Reviewer); r != "" && r != assignee {
 			ru, err := gc.LookupUser(ctx, r)
 			if err != nil {
 				return nil, err
@@ -667,12 +740,16 @@ func (System) PromptDoc() string {
    pusht deine lokal editierten Dateien als EINEN Commit auf den Branch; existiert der Branch nicht, wird er vom
    start_branch abgezweigt. Direkte Commits auf den Default-Branch sind verboten — der Weg dorthin führt über:
    create_merge_request {"project_id":N,"source_branch":"fix/…","target_branch":"main (optional, Default: Default-Branch)",
-   "title":"...","description":"...","assignee":"gitlab-username","reviewer":"gitlab-username (optional)"} — eröffnet den
-   Merge Request; als assignee trägst du deinen Vorgesetzten aus dem Team-Verzeichnis ein. Ohne reviewer wird der Assignee
-   auch Reviewer (wie bisher). Gibt es im Abschnitt "Team (KI-Kollegen)" einen QA-/Test-Agenten, der fürs Testen zuständig
-   ist, trägst du IHN als reviewer ein (seinen GitLab-Username exakt aus dem Verzeichnis) — bevorzugt einen Kollegen aus
-   DEINEM TEAM (gleiche Abteilung); gibt es dort keinen, nimm den organisationsweit fürs Testen Zuständigen. Der Assignee
-   bleibt dabei der Vorgesetzte, der QA-Agent testet das Feature und gibt Feedback. Der Source-Branch wird nach dem Merge
+   "title":"...","description":"...","assignee":"gitlab-username (optional)","issue_iid":N (optional),
+   "reviewer":"gitlab-username (optional)"} — eröffnet den Merge Request. Als assignee trägst du den MELDER des
+   zugrundeliegenden Issues ein (dessen author) — er hat den Bedarf angemeldet und entscheidet über den Merge. Gib
+   stattdessen einfach issue_iid mit, dann setzt Covey den Melder selbst ein. Nur wenn es kein Issue gibt oder der Melder
+   ein Kollegen-Agent ist (KI-Kollegen mergen nicht), trägst du deinen Vorgesetzten aus dem Team-Verzeichnis ein — NIE
+   pauschal: der Vorgesetzte wird sonst zum Flaschenhals für Arbeit, die er nie angefragt hat. Ohne reviewer wird der
+   Assignee auch Reviewer (wie bisher). Gibt es im Abschnitt "Team (KI-Kollegen)" einen QA-/Test-Agenten, der fürs Testen
+   zuständig ist, trägst du IHN als reviewer ein (seinen GitLab-Username exakt aus dem Verzeichnis) — bevorzugt einen
+   Kollegen aus DEINEM TEAM (gleiche Abteilung); gibt es dort keinen, nimm den organisationsweit fürs Testen Zuständigen.
+   Der QA-Agent testet das Feature und gibt Feedback, gemergt wird beim Assignee. Der Source-Branch wird nach dem Merge
    automatisch entfernt.
    Arbeitsweise als Entwickler — wenn du einen Bug nicht nur bestätigst, sondern behebst:
    1. checkout des Projekts, den Fehler am Code nachvollziehen (Datei:Zeile).

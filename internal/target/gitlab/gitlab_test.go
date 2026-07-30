@@ -1197,6 +1197,28 @@ func TestExtractTarGzRejectsTraversal(t *testing.T) {
 	}
 }
 
+// securePath ist die Zusage am fertigen Zielpfad: Was der Name-Test vorne
+// durchlässt, darf hinten trotzdem nicht aus dem Zielverzeichnis zeigen.
+func TestSecurePathStaysUnderRoot(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"pkg/app.go", "./a/../b.go", "tief/im/baum.txt"} {
+		dest, err := securePath(root, name)
+		if err != nil {
+			t.Fatalf("%q ist harmlos und muss durchgehen: %v", name, err)
+		}
+		if !strings.HasPrefix(dest, root+string(filepath.Separator)) {
+			t.Fatalf("%q landete außerhalb: %q", name, dest)
+		}
+	}
+	// Absolute Namen fängt der Aufrufer schon vorher ab; hier zählt nur, was
+	// aus dem Zielverzeichnis herausführt.
+	for _, name := range []string{"../evil.conf", "a/../../evil.conf", ".."} {
+		if dest, err := securePath(root, name); err == nil {
+			t.Fatalf("%q muss abgelehnt werden, ergab %q", name, dest)
+		}
+	}
+}
+
 func TestClientErrorSurface(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"401 Unauthorized"}`, http.StatusUnauthorized)
@@ -1566,4 +1588,116 @@ func gitOut(t *testing.T, dir string, args ...string) string {
 		t.Fatalf("git %v: %v", args, err)
 	}
 	return strings.TrimSpace(string(out))
+}
+
+// TestCreateMergeRequestAssigneeFromIssue deckt ab, dass der MR ohne benannten
+// assignee an den MELDER des Issues geht statt pauschal an den Vorgesetzten.
+func TestCreateMergeRequestAssigneeFromIssue(t *testing.T) {
+	var mrBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v4/projects/15":
+			json.NewEncoder(w).Encode(ProjectDetail{ID: 15, DefaultBranch: "main"})
+		case r.URL.Path == "/api/v4/projects/15/issues/23":
+			iss := Issue{IID: 23, ProjectID: 15, Title: "Login kaputt"}
+			iss.Author.Username = "mario"
+			json.NewEncoder(w).Encode(iss)
+		case r.URL.Path == "/api/v4/users":
+			if u := r.URL.Query().Get("username"); u == "mario" {
+				json.NewEncoder(w).Encode([]User{{ID: 42, Username: "mario"}})
+			} else {
+				json.NewEncoder(w).Encode([]User{})
+			}
+		case r.URL.Path == "/api/v4/projects/15/merge_requests" && r.Method == http.MethodPost:
+			json.NewDecoder(r.Body).Decode(&mrBody)
+			json.NewEncoder(w).Encode(MergeRequest{IID: 9})
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	if _, err := sys.Execute(context.Background(), "create_merge_request", []byte(`{"project_id":15,
+		"source_branch":"fix/issue-23-login","title":"Fix Login","issue_iid":23}`), cred); err != nil {
+		t.Fatalf("create_merge_request: %v", err)
+	}
+	ids, _ := mrBody["assignee_ids"].([]any)
+	if len(ids) != 1 || ids[0] != float64(42) {
+		t.Fatalf("assignee muss der Issue-Melder sein: %+v", mrBody)
+	}
+}
+
+// TestWorkSignature deckt die Wecker-Bremse ab: Der Vorab-Check liefert neben
+// dem Ja/Nein eine Signatur des Arbeitsvorrats. Sie bleibt stabil, solange sich
+// im Thread nichts tut — damit darf ein Agent einen Lauf schweigend beenden,
+// ohne beim nächsten Intervall erneut auf denselben Stand geweckt zu werden —
+// und ändert sich, sobald ein neuer Beitrag dazukommt.
+func TestWorkSignature(t *testing.T) {
+	var myMRs []MergeRequest
+	var mrNotes []Note
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v4/issues":
+			json.NewEncoder(w).Encode([]Issue{})
+		case r.URL.Path == "/api/v4/merge_requests":
+			json.NewEncoder(w).Encode(myMRs)
+		case r.URL.Path == "/api/v4/user":
+			json.NewEncoder(w).Encode(User{ID: 1, Username: "covey-bot"})
+		case strings.HasSuffix(r.URL.Path, "/notes"):
+			json.NewEncoder(w).Encode(mrNotes)
+		default:
+			t.Errorf("unerwarteter request: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "t"}
+	ctx := context.Background()
+	author := func(name string) struct {
+		Username string `json:"username"`
+	} {
+		return struct {
+			Username string `json:"username"`
+		}{Username: name}
+	}
+
+	mr := MergeRequest{IID: 9, ProjectID: 15}
+	mr.References.Full = "gruppe/support!9"
+	myMRs = []MergeRequest{mr}
+
+	// Ohne Arbeit ist die Signatur leer — sie unterdrückt dann nichts.
+	mrNotes = []Note{{ID: 1, Body: "erledigt", Author: author("covey-bot")}}
+	has, sig, err := sys.HasWorkSigned(ctx, cred, "mr")
+	if err != nil || has || sig != "" {
+		t.Fatalf("ohne arbeit: has=%v sig=%q err=%v", has, sig, err)
+	}
+
+	// Review-Feedback: Arbeit mit Signatur — und beim zweiten Check dieselbe,
+	// denn es hat sich nichts getan.
+	mrNotes = []Note{
+		{ID: 1, Body: "erledigt", Author: author("covey-bot")},
+		{ID: 7, Body: "grün, Freigabe", Author: author("egon")},
+	}
+	has, sig, err = sys.HasWorkSigned(ctx, cred, "mr")
+	if err != nil || !has || sig == "" {
+		t.Fatalf("mit feedback: has=%v sig=%q err=%v", has, sig, err)
+	}
+	if _, again, _ := sys.HasWorkSigned(ctx, cred, "mr"); again != sig {
+		t.Fatalf("signatur muss stabil bleiben: %q vs %q", again, sig)
+	}
+
+	// Ein neuer Beitrag ändert sie → der Agent wird erneut geweckt.
+	mrNotes = append(mrNotes, Note{ID: 8, Body: "und noch ein Mangel", Author: author("egon")})
+	_, changed, _ := sys.HasWorkSigned(ctx, cred, "mr")
+	if changed == sig {
+		t.Fatalf("neuer beitrag muss die signatur ändern: %q", changed)
+	}
+
+	// Auch ein Push zählt: GitLab vermerkt ihn als System-Note.
+	before := changed
+	mrNotes = append(mrNotes, Note{ID: 9, Body: "added 2 commits", System: true, Author: author("gitlab")})
+	if _, afterPush, _ := sys.HasWorkSigned(ctx, cred, "mr"); afterPush == before {
+		t.Fatalf("push muss die signatur ändern: %q", afterPush)
+	}
 }

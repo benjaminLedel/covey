@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Link, NavLink, Route, Routes, useNavigate, useParams } from "react-router-dom";
+import { Link, NavLink, Route, Routes, useNavigate, useParams } from "react-router";
 import {
   api, del, post,
   type EgressBuiltin, type EgressStats, type EgressStatus, type EgressTemplate, type Principal,
@@ -167,7 +167,14 @@ function DefaultsCard({ status, canEdit }: { status: EgressStatus; canEdit: bool
   const qc = useQueryClient();
   const invalidate = () => qc.invalidateQueries({ queryKey: ["egress"] });
   const delHost = useMutation({ mutationFn: (id: string) => del(`/egress/defaults/${id}`), onSuccess: invalidate });
-  const hasLLM = status.defaults.some((h) => h.pattern.endsWith("anthropic.com"));
+  // Auf Host-Grenze prüfen, nicht auf Endung: "boese-anthropic.com" ist ein
+  // fremder Host und darf den Hinweis auf die fehlende LLM-Freigabe nicht
+  // verschlucken. Muster können ein Wildcard-Präfix und einen Port tragen.
+  const isAnthropic = (pattern: string) => {
+    const host = pattern.trim().toLowerCase().replace(/^\*\./, "").split(":")[0];
+    return host === "anthropic.com" || host.endsWith(".anthropic.com");
+  };
+  const hasLLM = status.defaults.some((h) => isAnthropic(h.pattern));
 
   return (
     <div className="card mb-4" style={{ padding: "13px 15px" }}>

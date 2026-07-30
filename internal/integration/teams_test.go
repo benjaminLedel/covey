@@ -236,3 +236,68 @@ func postTeamsWebhook(t *testing.T, s *stack, slug string, body []byte) string {
 	}
 	return strings.TrimSpace(buf.String())
 }
+
+// TestTeamsReplyOhneURLSecret: teams_url ist ein Override für Single-Tenant-
+// Bots, kein Pflicht-Secret — das Plugin kennt seinen Token-Endpoint selbst
+// (BaseURLOptional). Ohne das Secret muss der Broker das Credential trotzdem
+// gewähren und die Antwort rausgehen; vorher verweigerte er fail-closed und ein
+// sauber eingerichteter Agent scheiterte an einem Wert, den niemand braucht.
+func TestTeamsReplyOhneURLSecret(t *testing.T) {
+	s := newStack(t)
+	teams := newFakeTeams(t)
+	ctx := context.Background()
+
+	// Instanz-weiter Default statt Agent-Secret — hier auf das Double gelenkt.
+	t.Setenv("COVEY_TEAMS_TOKEN_URL", teams.srv.URL+"/token")
+
+	// Nur der Token, KEIN teams_url.
+	if err := s.secrets.Put(ctx, s.orgID, "teams_token", "bot-app-id:bot-app-secret"); err != nil {
+		t.Fatal(err)
+	}
+	agent := s.newTeamsAgent("teams-ohne-url")
+	s.secrets.Assign(ctx, s.orgID, "teams_token", agent.ID)
+
+	text := fmt.Sprintf(
+		"[mock:action teams/reply {\"service_url\":\"%s\",\"conversation_id\":\"19:c\",\"reply_to_activity_id\":\"a1\",\"text\":\"Hallo\"}]\n"+
+			"[mock:result Erledigt]", teams.srv.URL)
+	activity := teamsActivity("a1", "19:c", "29:user", "28:bot", text, nil)
+	if out := postTeamsWebhook(t, s, "teams-ohne-url", activity); out != `{"outcome":"created"}` {
+		t.Fatalf("webhook muss eine Aufgabe anlegen, got %s", out)
+	}
+
+	waitFor(t, "antwort beim connector", 15*time.Second, func() bool {
+		return teams.replyCount() == 1
+	})
+	if teams.tokenHits == 0 {
+		t.Fatal("der Default-Token-Endpoint muss aufgerufen worden sein")
+	}
+}
+
+// TestWebhookAddressedByAgentID: der Webhook-Endpoint adressiert den Agenten
+// per Slug — ersatzweise auch per Agent-ID. Die ID steht in der URL der
+// Agenten-Seite und wandert beim Einrichten eines Zielsystems leicht statt des
+// Slugs in die Endpoint-Konfiguration des Fremdsystems; da sie denselben
+// Agenten eindeutig bezeichnet, wäre ein 404 nur eine Stolperfalle. Unbekannte
+// Adressen bleiben fail-closed.
+func TestWebhookAddressedByAgentID(t *testing.T) {
+	s := newStack(t)
+	agent := s.newTeamsAgent("teams-per-id")
+
+	activity := teamsActivity("a1", "19:c", "29:user", "28:bot", "[mock:result Erledigt]", nil)
+	if out := postTeamsWebhook(t, s, agent.ID.String(), activity); out != `{"outcome":"created"}` {
+		t.Fatalf("ID-adressierte Zustellung muss eine Aufgabe anlegen, got %s", out)
+	}
+
+	// Eine ID, die es nicht gibt, darf nichts wecken.
+	req, _ := http.NewRequest(http.MethodPost,
+		s.http.URL+"/api/webhooks/teams/"+uuid.NewString(), bytes.NewReader(activity))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("unbekannte agent-id: HTTP %d (erwartet 404)", resp.StatusCode)
+	}
+}

@@ -14,6 +14,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"covey/internal/reqlog"
 )
 
 // Manifest ist ein deklaratives Zielsystem-Plugin: eine JSON-Datei, die ein
@@ -81,7 +83,7 @@ type ManifestAction struct {
 	Path string `json:"path"`
 	// Subject überschreibt das Guard-Rail-Subjekt (Default system:aktion).
 	// SubjectWhen erlaubt param-abhängige Subjekte (z. B. internal=false).
-	Subject     string              `json:"subject,omitempty"`
+	Subject     string                `json:"subject,omitempty"`
 	SubjectWhen []ManifestSubjectRule `json:"subject_when,omitempty"`
 }
 
@@ -138,7 +140,7 @@ type ManifestSystem struct {
 }
 
 func NewManifestSystem(m Manifest) *ManifestSystem {
-	return &ManifestSystem{M: m, HTTP: &http.Client{Timeout: 15 * time.Second}}
+	return &ManifestSystem{M: m, HTTP: reqlog.Client(m.Name, 15*time.Second)}
 }
 
 func (s *ManifestSystem) Name() string { return s.M.Name }
@@ -281,7 +283,7 @@ func (s *ManifestSystem) Execute(ctx context.Context, action string, params json
 
 	httpc := s.HTTP
 	if httpc == nil {
-		httpc = &http.Client{Timeout: 15 * time.Second}
+		httpc = reqlog.Client(s.M.Name, 15*time.Second)
 	}
 	resp, err := httpc.Do(req)
 	if err != nil {

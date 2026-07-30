@@ -65,6 +65,17 @@ Lückenlose Aufzeichnung jeder Agenten-Aktivität, gespeist aus den `event`-Nach
 
 Recording ist die Grundlage für Audit, Debugging, Kostenanalyse und die Supervisor-Auswertung. Es ist unveränderlich und pro Agent/Aufgabe zeitlich navigierbar.
 
+## Request-Log (Diagnose der Zielsystem-Anbindung)
+
+Das Recording sagt, **was** ein Agent getan hat — welche Aktion mit welchen Parametern und ob sie glückte. Beim Anbinden eines Zielsystems ist die drängendere Frage aber, **was über die Leitung ging**: der Bot-Connector-Call nach Teams samt Antwort, der eingehende Webhook, der an der Signaturprüfung scheiterte. Genau das hält das **Request-Log** fest (Tabelle `request_log`, Sicht *Plattform → Requests*):
+
+- **ausgehend** — jeder Request eines Zielsystem-Plugins. Die Plugins bauen ihren HTTP-Client über `reqlog.Client(...)`; ob und wohin protokolliert wird, entscheidet eine Senke, nicht das Plugin. Aus der Sandbox reist der Eintrag als `event(kind=http)` über das Daemon-Protokoll und bekommt in der Control Plane Org-, Agenten- und Aufgabenbezug; Requests, die die Control Plane selbst stellt (Work-Checks der Heartbeat-Bedingung `nur-wenn:`, JWKS-Abruf), laufen über die Default-Senke.
+- **eingehend** — jeder Webhook und jeder generische Trigger, **auch der abgelehnte**. Ein Webhook, der an der Signatur, am Slug oder am nicht aktivierten Zielsystem scheitert, hinterlässt sonst keine Spur — und ist der häufigste Fehlerfall bei der Einrichtung.
+
+Abgrenzung zum Recording, bewusst als eigene Tabelle: Das Request-Log ist **Diagnose, kein Audit-Trail**. Es hat sein eigenes, kurzes Aufbewahrungsfenster (`COVEY_REQUEST_LOG_RETENTION`, Default 72 h, dazu eine harte Zeilen-Obergrenze), es bläht die Agenten-Timeline nicht auf, und es ist ganz abschaltbar (`COVEY_REQUEST_LOG=false`). Geschrieben wird asynchron über einen gepufferten Kanal — ein Request-Pfad hängt nie an der Diagnose; läuft der Puffer voll, werden Einträge verworfen und gezählt.
+
+Zugangsdaten gehören nicht hinein: Header werden gar nicht erst gespeichert (dort steckt der Bearer), verdächtige Query-Parameter und Body-Felder (`token`, `secret`, `password`, `client_secret`, …) werden ersetzt, Bodies bei 8 KiB gekappt. Wer auch die Nutzinhalte (Chat-Nachrichten, Ticket-Texte) aus der Diagnose-Tabelle heraushalten will, setzt `COVEY_REQUEST_LOG_BODIES=false` — dann bleiben nur Metadaten. Die Sicht ist den Rollen `platform_admin` und `security` vorbehalten.
+
 ## Approval-Gates
 
 Approval-Gates sind der **interaktive** Guard-Rail-Typ: Riskante Aktionen laufen nicht durch, sondern warten auf **Freigabe**. Der Daemon meldet `request_approval`; die Control Plane hält die Aktion an, bis ein Mensch (oder eine Policy) `approve`/`deny` liefert.
@@ -114,6 +125,7 @@ Die Plattform-Sichten sind **rollen-gescopt** (siehe RBAC in [`09-enterprise-mod
 - **Live-Status** aller Agenten (wer schläft, wer arbeitet, wer blockiert ist),
 - **Backlog-Einblick** (was liegt in wessen Liste),
 - **Recording-Timeline** pro Agent/Aufgabe,
+- **Request-Log** der Zielsystem-Anbindung (Plattform → Requests),
 - **Alerts** vom Supervisor und aus ausgelösten Guard-Rails,
 - **Kosten-Dashboard** pro Agent und aggregiert,
 - **Guard-Rail-Verwaltung** (global / Rolle / Agent, versioniert),

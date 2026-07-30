@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type CSSProperties, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import i18n from "../i18n";
 import {
@@ -35,6 +35,7 @@ import {
   type TaskNote,
 } from "../api";
 import { ActivityFeed } from "../components/ActivityFeed";
+import { TargetIcon } from "../components/TargetIcon";
 import { Markdown } from "../components/Markdown";
 import ProfileForm from "../components/ProfileForm";
 import { AddHostForm, EgressLogTable, HostChips } from "../components/EgressBits";
@@ -653,7 +654,7 @@ function Backlog({
                   >
                     <div className="kh">
                       <span className="dot" style={{ background: col.color }} />
-                      {col.name}
+                      <span className="knm" title={col.name}>{col.name}</span>
                       <span className="n">{all.length}</span>
                     </div>
                     {items.map((tk) => (
@@ -2503,6 +2504,7 @@ function MCPToolAssign({
   return (
     <div className="card" style={{ padding: "14px 16px", opacity: plugin.enabled ? 1 : 0.6 }}>
       <div className="flex items-center gap-2 mb-2">
+        <TargetIcon name={plugin.name} kind={plugin.kind} category={plugin.category} size={16} />
         <span className="font-medium">{plugin.label || plugin.name}</span>
         <span className="mono text-xs muted">{plugin.name}</span>
         {!plugin.enabled && <span className="text-[11px] ml-auto" style={{ color: "var(--clay)" }}>{t("agent.tools.deactivated")}</span>}

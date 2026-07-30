@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"covey/internal/reqlog"
 	"covey/internal/target"
 )
 
@@ -86,6 +87,10 @@ func (p *actionProxy) handle(w http.ResponseWriter, r *http.Request) {
 	// Recording durchreichen, ohne es ins Runtime-Ergebnis zu legen.
 	var artifact *target.Artifact
 	ctx := target.WithArtifactSink(r.Context(), func(a target.Artifact) { artifact = &a })
+	// Request-Senke: die HTTP-Requests, die das Plugin auf dem Weg stellt,
+	// gehen als eigene Events an die Control Plane (Request-Log). Die Senke
+	// hängt am Context, damit sie nur für diese Aktion gilt.
+	ctx = reqlog.WithSink(ctx, p.httpSink(system))
 
 	data, err := p.execute(ctx, system, action, params)
 	result := map[string]any{"status": "ok", "data": data}
@@ -103,6 +108,25 @@ func (p *actionProxy) handle(w http.ResponseWriter, r *http.Request) {
 	audit, _ := json.Marshal(auditMap)
 	_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
 	writeJSON(w, result)
+}
+
+// httpSink schickt jeden HTTP-Request eines Plugins als event(kind=http) an die
+// Control Plane — dort landet er im Request-Log. Der Aufruf darf den
+// Aktions-Pfad nicht aufhalten: send() schreibt gepuffert auf die WebSocket,
+// Fehler werden geschluckt (Diagnose-Daten, kein Audit-Trail). Das System aus
+// der URL kennt das Plugin nicht immer — der Proxy setzt es aus dem Pfad nach.
+func (p *actionProxy) httpSink(system string) reqlog.Sink {
+	return func(e reqlog.Entry) {
+		if e.System == "" {
+			e.System = system
+		}
+		e.TaskID = p.taskID
+		payload, err := json.Marshal(e)
+		if err != nil {
+			return
+		}
+		_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: EventKindHTTP, Payload: payload})
+	}
 }
 
 // handleControlPlane bedient Meta-Aktionen (system="covey"), die die Control

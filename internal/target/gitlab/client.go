@@ -16,6 +16,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"covey/internal/reqlog"
 )
 
 // Client spricht die GitLab-REST-API (v4) mit einem (gebrokerten) API-Token.
@@ -30,7 +32,7 @@ func NewClient(baseURL, token string) *Client {
 	return &Client{
 		BaseURL: strings.TrimRight(baseURL, "/"),
 		Token:   token,
-		HTTP:    &http.Client{Timeout: 15 * time.Second},
+		HTTP:    reqlog.Client("gitlab", 15*time.Second),
 	}
 }
 
@@ -83,6 +85,11 @@ type Issue struct {
 	Assignees []struct {
 		Username string `json:"username"`
 	} `json:"assignees"`
+	// Author ist der Melder: Wer den Bedarf aufgeschrieben hat, ist der
+	// natürliche Empfänger des Merge Requests, der ihn erledigt.
+	Author struct {
+		Username string `json:"username"`
+	} `json:"author"`
 	// References.Full ist die volle Referenz "gruppe/projekt#iid" — daraus
 	// lässt sich der Projektpfad für den Intake-Filter ableiten.
 	References struct {
@@ -226,7 +233,7 @@ func (c *Client) DownloadArchive(ctx context.Context, projectID int, ref, subPat
 	req.Header.Set("PRIVATE-TOKEN", c.Token)
 	// Eigener HTTP-Client ohne das knappe API-Timeout — der Download eines
 	// großen Repos darf länger dauern; die Grenze setzt der Aufruf-Context.
-	resp, err := (&http.Client{}).Do(req)
+	resp, err := reqlog.Client("gitlab", 0).Do(req)
 	if err != nil {
 		return nil, err
 	}
