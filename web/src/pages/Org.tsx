@@ -256,11 +256,14 @@ function placeTrunk(ul: HTMLElement, items: HTMLElement[]) {
   }
 }
 
-function useTreeLayout() {
+// paused = es wird gerade gezogen. Dann bleibt das Layout, wie es ist: sonst
+// vermisst der Hook mitten im Drag neu, die Gruppen brechen anders um und die
+// Karte, auf die man zielt, ist beim Loslassen woanders.
+function useTreeLayout(paused: boolean) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const root = ref.current;
-    if (!root) return;
+    if (!root || paused) return;
     const measure = () => {
       root.style.setProperty("--tree-avail", `${root.clientWidth - 12}px`);
       // Von innen nach außen (Dokumentreihenfolge rückwärts): eine Abteilung
@@ -269,16 +272,10 @@ function useTreeLayout() {
       // rechnet — sonst stapelt sie Karten, die nebeneinander passen.
       for (const ul of [...root.querySelectorAll<HTMLElement>("ul.tree-grid")].reverse()) {
         // Erst frei messen: eine zuvor gesetzte Breite würde den Umbruch
-        // vorgeben, den wir gerade ermitteln wollen, und die Karten füllen
-        // ihre Reihe — beides muss für die Messung aus sein. Gemalt wird
-        // dazwischen nichts, alles passiert in einem Rutsch.
+        // vorgeben, den wir gerade ermitteln wollen.
         ul.style.width = "";
-        ul.setAttribute("data-measuring", "");
         const items = [...ul.children] as HTMLElement[];
-        if (items.length === 0) {
-          ul.removeAttribute("data-measuring");
-          continue;
-        }
+        if (items.length === 0) continue;
         // offsetTop zählt ab der ul (die ist position: relative) und trägt
         // deren Innenabstand — die erste Reihe liegt also nicht bei 0.
         const firstRow = items[0].offsetTop;
@@ -304,11 +301,7 @@ function useTreeLayout() {
         // Auf die breiteste Reihe schrumpfen. Sonst bleibt die Gruppe so breit
         // wie ihr Deckel, der Elternknoten sitzt über deren Mitte — und damit
         // sichtbar neben seinen Kindern. Die Reihen sind linksbündig, der
-        // Umbruch ändert sich durch die Breite also nicht. Die Karten füllen
-        // die Breite anschließend aus (flex-grow), damit jede Reihe gleich
-        // breit ist und der Strich des Elternknotens auf dem Balken der
-        // ersten Reihe landet.
-        ul.removeAttribute("data-measuring");
+        // Umbruch ändert sich durch die Breite also nicht.
         if (wrapped) ul.style.width = `${Math.ceil(widest) + 1}px`;
         if (wrapped) placeTrunk(ul, items);
       }
@@ -403,7 +396,7 @@ function DiagramView({
   // Hooks vor jeden frühen Ausstieg: sonst ändert sich ihre Zahl, sobald die
   // erste Abteilung angelegt wird, und React bricht ab.
   const collapse = useCollapse();
-  const treeRef = useTreeLayout();
+  const treeRef = useTreeLayout(dragging !== null);
 
   const inDept = (deptId: string | null) => ({
     humans: humans.filter(h => (h.department_id ?? null) === deptId),

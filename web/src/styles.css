@@ -1399,11 +1399,11 @@ kbd {
 /* Verbinder je Reihe — dieselbe Zeichnung wie im klassischen Baum, nur an
    data-row-first/-last statt an :first-child/:last-child, damit jede Reihe
    ihren eigenen Balken bekommt. */
-/* Die Karten füllen ihre Reihe aus (nie schrumpfen), damit alle Reihen gleich
-   breit sind — sonst endet der Balken der ersten Reihe neben dem Strich des
-   Elternknotens. Fürs Messen schaltet der Hook das kurz ab. */
-.tree ul.tree-grid > li { padding-top: 14px; flex: 1 0 auto; }
-.tree ul.tree-grid[data-measuring] > li { flex-grow: 0; }
+/* Karten stehen dicht beieinander wie im klassischen Baum — sie über die
+   Reihenbreite zu verteilen ließ zwischen ihnen tote Flächen entstehen, auf
+   denen ein Drop ins Leere geht. Dass der Strich des Elternknotens trotzdem
+   auf dem Balken der ersten Reihe landet, besorgt der Stamm samt Armen. */
+.tree ul.tree-grid > li { padding-top: 14px; }
 .tree ul.tree-grid > li::before,
 .tree ul.tree-grid > li::after { height: 14px; }
 /* Alle Reihen-Regeln tragen [data-wrapped]: gleiche Spezifität, damit allein
