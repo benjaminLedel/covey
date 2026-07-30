@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
@@ -183,6 +183,24 @@ export default function Org() {
   );
 }
 
+// Die umbrechenden Ebenen brauchen einen Breiten-Deckel in Pixeln: Prozente
+// helfen nicht, weil alle Vorfahren im Baum max-content-breit sind. Der Hook
+// schreibt die tatsächlich sichtbare Breite als --tree-avail an den
+// Scroll-Container; styles.css deckelt die Gruppen damit.
+function useTreeWidth() {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => el.style.setProperty("--tree-avail", `${el.clientWidth - 12}px`);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return ref;
+}
+
 /* ── Diagramm: Organisation → Abteilungen → Berichtsbaum ───────────────
    Innerhalb einer Abteilung wird die Vorgesetzten-Hierarchie abgebildet
    (Menschen via manager_id, Agenten via supervisor_id). Agenten lassen sich
@@ -215,6 +233,7 @@ function DiagramView({
   }
 
   const memberHandlers = { dragging, onDragStart, onDragEnd, onDrop };
+  const treeRef = useTreeWidth();
 
   // Leitungen sind org-weit referenziert — eine Leitung muss nicht Mitglied
   // ihrer Abteilung sein, daher gegen die vollen Listen auflösen.
@@ -222,14 +241,14 @@ function DiagramView({
     l.kind === "human" ? humans.find(h => h.id === l.id) : agents.find(a => a.id === l.id);
 
   return (
-    <div className="tree mt-4">
+    <div className="tree mt-4" ref={treeRef}>
       <ul>
         <li>
           <div className="node org">
             <div className="nm">{t("org.rootOrg")}</div>
             <div className="rl">{t("org.rootOrgSub", { count: humans.length + agents.length })}</div>
           </div>
-          <ul>
+          <ul className={departments.length + (hasUnassigned ? 1 : 0) > WRAP_DEPTS_AT ? "tree-grid tree-grid-wide" : undefined}>
             {departments.map(dept => (
               <DeptTreeNode
                 key={dept.id}
@@ -251,6 +270,15 @@ function DiagramView({
 }
 
 type Members = { humans: Human[]; agents: Agent[] };
+
+// Ab wie vielen Geschwistern eine Ebene in mehrere Reihen umbricht. Eine
+// Flex-Zeile pro Ebene lässt den Baum sonst endlos nach rechts wachsen — zehn
+// Mitarbeiter einer Abteilung sind gut zwei Bildschirmbreiten. Umgebrochene
+// Ebenen tragen ihre Zugehörigkeit über eine Klammer statt über T-Verbinder
+// (siehe .tree-grid in styles.css): eine CSS-Linie kann Reihen nicht sauber
+// verbinden, weil das Layout erst im Browser entscheidet, wo umgebrochen wird.
+const WRAP_AT = 3;       // Mitglieder je Ebene
+const WRAP_DEPTS_AT = 1; // Abteilungen: schon ab zwei Karten, die sind breit
 
 // roots einer Abteilung = Mitglieder, deren Vorgesetzter nicht in derselben
 // Abteilung sitzt (oder keiner). Kinder werden nur innerhalb der Abteilung
@@ -292,10 +320,11 @@ function MemberBranch({
     ? rootsOf(members).agents
     : members.agents.filter(a => a.supervisor_id === parentId && !seen.has(a.id)));
 
-  if (childHumans.length + childAgents.length === 0) return null;
+  const count = childHumans.length + childAgents.length;
+  if (count === 0) return null;
 
   return (
-    <ul>
+    <ul className={count > WRAP_AT ? "tree-grid" : undefined}>
       {childHumans.map(h => (
         <MemberNode
           key={h.id}

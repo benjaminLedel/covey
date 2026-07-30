@@ -1327,7 +1327,9 @@ kbd {
 }
 
 /* ── Diagramm-Ansicht: klassischer Org-Chart-Baum ────────────────────── */
-.tree { overflow-x: auto; padding: 6px 4px 20px; }
+/* Kein seitliches Padding: mit min-width:100% am Wurzel-ul ergäbe es sonst
+   dauerhaft ein paar Pixel Querlauf, auch wenn der Baum längst passt. */
+.tree { overflow-x: auto; padding: 6px 0 20px; }
 .tree ul { display: flex; justify-content: center; padding: 22px 0 0; position: relative; margin: 0; list-style: none; }
 /* width: max-content — sonst zentriert flex breiteren Inhalt über den
    Scroll-Ursprung hinaus nach links, wo er unerreichbar abgeschnitten wird. */
@@ -1340,6 +1342,45 @@ kbd {
 .tree li:last-child::before { border-right: 1.5px solid var(--border-strong); border-radius: 0 6px 0 0; }
 .tree li:first-child::after { border-radius: 6px 0 0 0; }
 .tree ul ul::before { content: ""; position: absolute; top: 0; left: 50%; height: 22px; border-left: 1.5px solid var(--border-strong); }
+
+/* Breite Ebenen brechen in mehrere Reihen um — eine einzige Zeile ließe den
+   Baum mit jedem Mitglied weiter nach rechts wachsen. --tree-avail ist die
+   sichtbare Breite des Scroll-Containers (gemessen in Org.tsx; Prozente gehen
+   nicht, die Vorfahren sind max-content-breit). Statt der T-Verbinder trägt
+   eine Klammer über der Gruppe die Zugehörigkeit — wo umgebrochen wird,
+   entscheidet erst der Browser, und eine CSS-Linie kann Reihen nicht
+   nachträglich verbinden. */
+.tree ul.tree-grid {
+  flex-wrap: wrap;
+  /* max-content + Deckel: die Gruppe ist so breit wie ihr Inhalt, höchstens
+     aber so breit wie der Deckel — daran bricht sie um. */
+  width: max-content;
+  max-width: min(1200px, var(--tree-avail, 900px));
+  row-gap: 10px;
+}
+/* Abteilungs-Karten sind deutlich breiter als ein Mitglied — sie dürfen die
+   ganze sichtbare Breite nutzen. */
+.tree ul.tree-grid-wide { max-width: var(--tree-avail, 1200px); row-gap: 22px; }
+
+.tree ul.tree-grid > li { padding-top: 14px; }
+.tree ul.tree-grid > li::before,
+.tree ul.tree-grid > li::after { display: none; }
+
+/* Die Klammer: liegt unter dem senkrechten Strich des Elternknotens und
+   fasst alle Reihen der Gruppe zusammen. */
+.tree ul.tree-grid::after {
+  content: "";
+  position: absolute;
+  top: 22px; left: 10px; right: 10px; height: 8px;
+  border: 1.5px solid var(--border-strong);
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+}
+.tree > ul.tree-grid::after { top: 0; }
+/* Abteilungs-Ebene ohne Klammer: die Karten sind unterschiedlich breit, eine
+   Klammer über der ganzen Gruppe stünde sichtbar neben ihrem Inhalt. Der
+   senkrechte Strich vom Organisations-Knoten genügt. */
+.tree ul.tree-grid-wide::after { display: none; }
 
 /* Org-Wurzel- und Abteilungs-Knoten im Baum */
 .node.org, .node.dept { flex-direction: column; align-items: flex-start; gap: 2px; cursor: default; min-width: 168px; }
