@@ -37,6 +37,12 @@ x-covey-base: &covey-base
     COVEY_ADMIN_PASSWORD: ${COVEY_ADMIN_PASSWORD:?in .env setzen}
     COVEY_SANDBOX_PROVIDER: docker
     COVEY_SANDBOX_IMAGE: ${COVEY_SANDBOX_IMAGE:-covey-sandbox:latest}
+    # Wiki-Pflege (spec/05): legt jedem Agenten täglich einen Aufräum-Task an
+    # (Duplikate zusammenführen, tote [[Verweise]] korrigieren). Der zentrale
+    # Konsolidierungs-Pass arbeitet rein über Embedding-Ähnlichkeit und fasst
+    # damit nur Beinahe-Identisches an — das inhaltliche Aufräumen leistet erst
+    # dieser Heartbeat. Kostet pro Agent einen LLM-Lauf pro Tag; leer = aus.
+    COVEY_WIKI_CLEANUP: ${COVEY_WIKI_CLEANUP:-03:00}
   volumes:
     - ${COVEY_DATA_DIR:-/opt/covey/data}:${COVEY_DATA_DIR:-/opt/covey/data}
 

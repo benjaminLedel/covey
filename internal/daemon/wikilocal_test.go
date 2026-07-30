@@ -64,6 +64,66 @@ func TestWikiWorkingCopy(t *testing.T) {
 	}
 }
 
+// TestWikiOrphansPruned: Seiten, die es in der Control Plane nicht mehr gibt,
+// verschwinden beim Materialisieren aus dem Home — sonst schreibt der Rücksync
+// sie wieder an (spec/05).
+func TestWikiOrphansPruned(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "wiki")
+	if _, err := writeWikiFiles(dir, []wikiPage{
+		{Slug: "kunde-acme", Title: "Kunde ACME", Body: "Nur telefonisch."},
+		{Slug: "dublette", Title: "Dublette", Body: "Wird gleich verschmolzen."},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Nächster Lauf: "dublette" wurde in der Control Plane gelöscht.
+	snap, err := writeWikiFiles(dir, []wikiPage{
+		{Slug: "kunde-acme", Title: "Kunde ACME", Body: "Nur telefonisch."},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "dublette.md")); !os.IsNotExist(err) {
+		t.Fatalf("verwaiste Datei dublette.md hätte entfernt werden müssen (err=%v)", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "kunde-acme.md")); err != nil {
+		t.Fatalf("lebende Seite darf nicht entfernt werden: %v", err)
+	}
+	if edits, _ := readWikiEdits(dir, snap); len(edits) != 0 {
+		t.Fatalf("nach dem Aufräumen darf nichts zurückgesynct werden, got %+v", edits)
+	}
+}
+
+// TestPartitionWikiEditsKeepsDeletionsDeleted: der Rücksync darf eine Seite,
+// die der Agent im Lauf gelöscht hat, nicht wieder auferstehen lassen — auch
+// dann nicht, wenn er ihre Home-Datei vorher noch angefasst hat.
+func TestPartitionWikiEditsKeepsDeletionsDeleted(t *testing.T) {
+	snap := map[string]string{"dublette": "hash-a", "kunde-acme": "hash-b"}
+	edits := []wikiPage{
+		{Slug: "dublette", Title: "Dublette", Body: "zusammengeführt in [[kunde-acme]]"},
+		{Slug: "kunde-acme", Title: "Kunde ACME", Body: "Jetzt auch per E-Mail."},
+		{Slug: "kollegin-zabel", Title: "Kollegin Zabel", Body: "Betreut ACME."},
+	}
+	live := map[string]bool{"kunde-acme": true} // "dublette" wurde im Lauf gelöscht
+
+	writes, stale := partitionWikiEdits(edits, snap, live, true)
+	if len(stale) != 1 || stale[0] != "dublette" {
+		t.Fatalf("gelöschte Seite sollte als Karteileiche gelten, got %v", stale)
+	}
+	got := map[string]bool{}
+	for _, w := range writes {
+		got[w.Slug] = true
+	}
+	if len(writes) != 2 || !got["kunde-acme"] || !got["kollegin-zabel"] {
+		t.Fatalf("bearbeitete und neue Seite müssen zurückgeschrieben werden, got %+v", writes)
+	}
+
+	// Ohne Live-Liste (Abruf fehlgeschlagen): fail-safe, alles schreiben.
+	writes, stale = partitionWikiEdits(edits, snap, nil, false)
+	if len(writes) != 3 || len(stale) != 0 {
+		t.Fatalf("ohne Live-Liste muss fail-safe alles geschrieben werden, got writes=%d stale=%v", len(writes), stale)
+	}
+}
+
 func TestParseWikiFileNoFrontmatter(t *testing.T) {
 	title, body := parseWikiFile("Nur Text, kein Frontmatter.")
 	if title != "" || body != "Nur Text, kein Frontmatter." {
