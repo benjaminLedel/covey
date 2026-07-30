@@ -750,7 +750,12 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   padding: 3px 9px;
   color: var(--text-primary);
 }
-.chip.fixed { border-style: dashed; color: var(--text-secondary); }
+/* "is-"-Präfix mit Absicht: eine Klasse namens `fixed` kollidiert mit Tailwinds
+   Utility `.fixed { position: fixed }`. Da hier kein `position` gesetzt wird,
+   griff die Utility ungehindert durch — der Chip verließ den Textfluss und
+   klebte am Viewport, blieb beim Scrollen also mitten im Text stehen. Kurze
+   Zustandsnamen deshalb immer mit Präfix. */
+.chip.is-fixed { border-style: dashed; color: var(--text-secondary); }
 .chip .src { font-family: var(--sans); font-size: 10.5px; color: var(--text-muted); }
 .chip button {
   border: none;

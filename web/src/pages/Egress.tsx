@@ -190,7 +190,7 @@ function DefaultsCard({ status, canEdit }: { status: EgressStatus; canEdit: bool
           emptyText={t("egress.baseEmpty")}
         />
         {status.env.map((p) => (
-          <span key={p} className="chip fixed" title={t("egress.envChipTitle")}>
+          <span key={p} className="chip is-fixed" title={t("egress.envChipTitle")}>
             {p}
             <span className="src">ENV</span>
           </span>

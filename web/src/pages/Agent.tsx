@@ -2463,12 +2463,12 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
   type QualityItem = { kind: WikiFinding["kind"]; n: number; label: string; help: string };
   const quality: QualityItem[] = h
     ? ([
-        { kind: "orphan", n: h.orphans, label: t("agent.memory.qOrphans"), help: t("agent.memory.qOrphansHelp") },
-        { kind: "dead_link", n: h.dead_links, label: t("agent.memory.qDeadLinks"), help: t("agent.memory.qDeadLinksHelp") },
-        { kind: "untyped", n: h.untyped, label: t("agent.memory.qUntyped"), help: t("agent.memory.qUntypedHelp") },
-        { kind: "episodic", n: h.episodic, label: t("agent.memory.qEpisodic"), help: t("agent.memory.qEpisodicHelp") },
-        { kind: "duplicate", n: h.duplicate, label: t("agent.memory.qDuplicate"), help: t("agent.memory.qDuplicateHelp") },
-        { kind: "stub", n: h.stubs, label: t("agent.memory.qStubs"), help: t("agent.memory.qStubsHelp") },
+        { kind: "orphan", n: h.orphans, label: t("agent.memory.qOrphans", { count: h.orphans }), help: t("agent.memory.qOrphansHelp") },
+        { kind: "dead_link", n: h.dead_links, label: t("agent.memory.qDeadLinks", { count: h.dead_links }), help: t("agent.memory.qDeadLinksHelp") },
+        { kind: "untyped", n: h.untyped, label: t("agent.memory.qUntyped", { count: h.untyped }), help: t("agent.memory.qUntypedHelp") },
+        { kind: "episodic", n: h.episodic, label: t("agent.memory.qEpisodic", { count: h.episodic }), help: t("agent.memory.qEpisodicHelp") },
+        { kind: "duplicate", n: h.duplicate, label: t("agent.memory.qDuplicate", { count: h.duplicate }), help: t("agent.memory.qDuplicateHelp") },
+        { kind: "stub", n: h.stubs, label: t("agent.memory.qStubs", { count: h.stubs }), help: t("agent.memory.qStubsHelp") },
       ] as QualityItem[]).filter((q) => q.n > 0)
     : [];
 
@@ -2514,7 +2514,7 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
                   setView("pages");
                 }}
               >
-                {q.n} {q.label}
+                {q.label}
               </button>
             ))
           )}
@@ -2532,7 +2532,7 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
           {logs.length === 0 && <p className="muted">{t("agent.memory.logEmpty")}</p>}
           {logs.map((l) => (
             <div key={l.id} className="flex items-baseline gap-2 py-1 border-b" style={{ borderColor: "var(--border)" }}>
-              <span className={`chip ${l.op === "merge" ? "" : "fixed"}`} style={{ fontSize: "10.5px" }}>
+              <span className={`chip ${l.op === "merge" ? "" : "is-fixed"}`} style={{ fontSize: "10.5px" }}>
                 {opLabel(l.op)}
               </span>
               {l.page_slug &&
@@ -2622,11 +2622,11 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
                 <div className="flex items-start justify-between gap-3 mb-1">
                   <span className="flex items-center gap-2 min-w-0 flex-wrap">
                     <span className="font-medium text-[16px]">{current.title || current.slug}</span>
-                    <span className={`chip${current.type ? " fixed" : " q"}`} style={{ fontSize: "10px" }}>
+                    <span className={`chip${current.type ? " is-fixed" : " q"}`} style={{ fontSize: "10px" }}>
                       {current.type ? typeLabel(current.type) : t("agent.memory.noType")}
                     </span>
                     {current.source && (
-                      <span className="chip fixed" style={{ fontSize: "10px" }}>
+                      <span className="chip is-fixed" style={{ fontSize: "10px" }}>
                         {current.source === "manual" ? t("agent.memory.sourceManual") : t("agent.memory.sourceAgent")}
                       </span>
                     )}
@@ -2774,7 +2774,7 @@ function AgentEgress({ agentId, canEdit }: { agentId: string; canEdit: boolean }
         <p className="text-xs font-medium mb-2">{t("agent.egress.effectiveAllowlist")}</p>
         <div className="flex flex-wrap gap-1">
           {[...effective.entries()].map(([pattern, source]) => (
-            <span key={pattern} className={`chip${source === "ENV" ? " fixed" : ""}`}>
+            <span key={pattern} className={`chip${source === "ENV" ? " is-fixed" : ""}`}>
               {pattern}
               <span className="src">{source}</span>
             </span>
