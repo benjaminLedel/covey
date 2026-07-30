@@ -126,6 +126,18 @@ func Checkout(ctx context.Context, gc *Client, projectID int, ref, subPath, work
 	}, nil
 }
 
+// securePath verankert einen Archiv-Eintrag unter root: Der zusammengesetzte
+// Zielpfad muss innerhalb von root bleiben. Der Präfix-Test auf ".." am Namen
+// fängt den Regelfall schon vorher ab — diese Prüfung ist die Zusage am
+// FERTIGEN Pfad und damit die, auf die es ankommt (Zip Slip, CWE-22).
+func securePath(root, name string) (string, error) {
+	dest := filepath.Clean(filepath.Join(root, name))
+	if dest != filepath.Clean(root) && !strings.HasPrefix(dest, filepath.Clean(root)+string(filepath.Separator)) {
+		return "", fmt.Errorf("unsicherer pfad im archiv: %q", name)
+	}
+	return dest, nil
+}
+
 // extractTarGz entpackt ein GitLab-Repository-Archiv nach destRoot und liefert
 // den Namen des Top-Level-Verzeichnisses (GitLab: <projekt>-<ref>-<sha>).
 // Sicherheit: Pfade werden gegen Traversal geprüft, Symlinks übersprungen,
@@ -158,11 +170,18 @@ func extractTarGz(r io.Reader, destRoot string) (topDir string, files int, err e
 		if topDir == "" {
 			topDir = strings.SplitN(name, string(filepath.Separator), 2)[0]
 			// Vorherigen Stand desselben Archivs ersetzen (frischer Checkout).
-			if err := os.RemoveAll(filepath.Join(destRoot, topDir)); err != nil {
+			old, err := securePath(destRoot, topDir)
+			if err != nil {
+				return "", 0, err
+			}
+			if err := os.RemoveAll(old); err != nil {
 				return "", 0, err
 			}
 		}
-		dest := filepath.Join(destRoot, name)
+		dest, err := securePath(destRoot, name)
+		if err != nil {
+			return "", 0, err
+		}
 		switch hdr.Typeflag {
 		case tar.TypeDir:
 			if err := os.MkdirAll(dest, 0o755); err != nil {
@@ -233,7 +252,10 @@ func extractTarGzInto(r io.Reader, destDir string) (files int, err error) {
 		if len(rel) < 2 || rel[1] == "" {
 			continue // das Hüllverzeichnis selbst
 		}
-		dest := filepath.Join(destDir, rel[1])
+		dest, err := securePath(destDir, rel[1])
+		if err != nil {
+			return 0, err
+		}
 		switch hdr.Typeflag {
 		case tar.TypeDir:
 			if err := os.MkdirAll(dest, 0o755); err != nil {

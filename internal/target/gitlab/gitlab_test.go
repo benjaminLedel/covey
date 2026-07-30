@@ -1196,6 +1196,28 @@ func TestExtractTarGzRejectsTraversal(t *testing.T) {
 	}
 }
 
+// securePath ist die Zusage am fertigen Zielpfad: Was der Name-Test vorne
+// durchlässt, darf hinten trotzdem nicht aus dem Zielverzeichnis zeigen.
+func TestSecurePathStaysUnderRoot(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"pkg/app.go", "./a/../b.go", "tief/im/baum.txt"} {
+		dest, err := securePath(root, name)
+		if err != nil {
+			t.Fatalf("%q ist harmlos und muss durchgehen: %v", name, err)
+		}
+		if !strings.HasPrefix(dest, root+string(filepath.Separator)) {
+			t.Fatalf("%q landete außerhalb: %q", name, dest)
+		}
+	}
+	// Absolute Namen fängt der Aufrufer schon vorher ab; hier zählt nur, was
+	// aus dem Zielverzeichnis herausführt.
+	for _, name := range []string{"../evil.conf", "a/../../evil.conf", ".."} {
+		if dest, err := securePath(root, name); err == nil {
+			t.Fatalf("%q muss abgelehnt werden, ergab %q", name, dest)
+		}
+	}
+}
+
 func TestClientErrorSurface(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"401 Unauthorized"}`, http.StatusUnauthorized)
