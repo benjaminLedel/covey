@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import i18n from "../i18n";
 import { type RecordingEvent, recordingBlobURL } from "../api";
+import { fmtDelta } from "../format";
 
 // ActivityFeed: übersetzt das lückenlose Recording in eine erzählende
 // Aktivitätsansicht im Stil des Mockups — Turns mit der Stimme des Agenten
@@ -9,6 +10,12 @@ import { type RecordingEvent, recordingBlobURL } from "../api";
 // Parked-Block, wenn der Agent auf ein externes Ereignis wartet.
 // Tool-Aufruf und Tool-Ergebnis werden über die tool_use_id korreliert,
 // sodass Aufruf und Antwort als ein Eintrag erscheinen.
+//
+// Sub-Läufe (der Sub-Agent im Projekt-Checkout, spec/12) tragen ihre
+// Markierung IM Payload und landen in derselben Aufzeichnung wie der äußere
+// Lauf. Der Feed fasst sie zu einem eigenen, zugeklappten Block zusammen —
+// sonst stünde die Arbeit des Sub-Agenten ununterscheidbar zwischen der des
+// äußeren Agenten, und man wüsste nicht mehr, wer was getan hat.
 
 type Tone = "ok" | "warn" | "danger" | "muted";
 
@@ -34,13 +41,42 @@ type FeedItem = { key: string } & (
   | { kind: "gate"; icon: IconName; text: string; time: string; tone: Tone }
   | { kind: "parked"; title: string; text: string; time: string }
   | { kind: "result"; ok: boolean; text: string; meta: string; time: string }
+  | { kind: "subagent"; dir: string; task?: string; time: string; meta: string; running: boolean; items: FeedItem[] }
 );
+
+// SubAgentMark ist die Markierung, die der Daemon jeder stream-json-Zeile eines
+// Sub-Laufs mitgibt (markSubAgent in internal/daemon/subagent.go). task steht
+// nur auf der ERSTEN Zeile des Laufs.
+export type SubAgentMark = { dir: string; task?: string };
+
+// subAgentMark liest die Markierung aus einem Recording-Event. null = das
+// Event gehört zum äußeren Lauf.
+export function subAgentMark(e: RecordingEvent): SubAgentMark | null {
+  if (!e.payload || typeof e.payload !== "object") return null;
+  const m = (e.payload as Record<string, unknown>).covey_sub_agent;
+  if (!m || typeof m !== "object") return null;
+  const { dir, task } = m as Record<string, unknown>;
+  return {
+    dir: typeof dir === "string" ? dir : "",
+    task: typeof task === "string" && task ? task : undefined,
+  };
+}
+
+// shortDir kürzt den Checkout-Pfad auf die letzten beiden Segmente:
+// /home/agent/repos/covey-main-abc123 → repos/covey-main-abc123. Der volle
+// Pfad ist als Überschrift zu lang und sagt nicht mehr aus.
+function shortDir(dir: string): string {
+  const parts = dir.split("/").filter(Boolean);
+  return parts.slice(-2).join("/") || dir;
+}
 
 // --- Icons: kleine Inline-SVGs im Strichstil der übrigen UI ---
 
-type IconName = "bolt" | "moon" | "check" | "shield" | "key" | "clock" | "x" | "flag" | "info";
+type IconName = "bolt" | "moon" | "check" | "shield" | "key" | "clock" | "x" | "flag" | "info" | "layers";
 
 const paths: Record<IconName, string> = {
+  // layers: der Sub-Lauf — eine zweite Ebene unter der laufenden Arbeit.
+  layers: "M12 3l8 4.5-8 4.5-8-4.5L12 3zm-8 9l8 4.5 8-4.5",
   bolt: "M13 2L4 14h6l-1 8 9-12h-6l1-8z",
   moon: "M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z",
   check: "M4 12.5l5 5L20 6.5",
@@ -108,6 +144,14 @@ function resultText(content: unknown): string {
 type TurnItem = Extract<FeedItem, { kind: "turn" }>;
 
 export function buildFeed(events: RecordingEvent[]): FeedItem[] {
+  return buildItems(events, false);
+}
+
+// buildItems ist der eigentliche Aufbau. nested=true heißt: Wir bauen den
+// Inhalt EINES Sub-Laufs. Dann entfallen Datumstrenner (im Block will niemand
+// einen) und die system-Zeile der Runtime („Sitzung gestartet") — dass hier
+// eine eigene Session läuft, sagt der Kopf des Blocks bereits.
+function buildItems(events: RecordingEvent[], nested: boolean): FeedItem[] {
   const items: FeedItem[] = [];
   const toolIndex = new Map<string, ToolCall>();
   let turn: TurnItem | null = null;
@@ -137,7 +181,8 @@ export function buildFeed(events: RecordingEvent[]): FeedItem[] {
     items.push(evt);
   };
 
-  for (const e of events) {
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i];
     const p = (typeof e.payload === "object" && e.payload !== null ? e.payload : {}) as Record<
       string,
       any
@@ -145,14 +190,34 @@ export function buildFeed(events: RecordingEvent[]): FeedItem[] {
     const time = fmtTime(e.created_at);
     const day = fmtDay(e.created_at);
     const k = `e${e.id}`;
-    if (day !== lastDay) {
+    if (!nested && day !== lastDay) {
       lastDay = day;
       closeTurn();
       items.push({ key: `day-${day}`, kind: "day", text: day });
     }
 
+    // Ein Sub-Lauf: alle unmittelbar folgenden Events mit derselben Marke
+    // gehören dazu. Sie liegen garantiert zusammenhängend, weil der äußere
+    // Lauf so lange blockiert auf die Antwort des Action-Proxys wartet —
+    // zwei Sub-Läufe im selben Checkout trennen sich dadurch von selbst.
+    const mark = nested ? null : subAgentMark(e);
+    if (mark) {
+      let end = i;
+      while (end < events.length) {
+        const m = subAgentMark(events[end]);
+        if (!m || m.dir !== mark.dir) break;
+        end++;
+      }
+      closeTurn();
+      items.push(subAgentItem(events.slice(i, end), mark));
+      i = end - 1;
+      continue;
+    }
+
     switch (e.kind) {
       case "runtime": {
+        // Im Block ist die eigene Session des Sub-Laufs kein Ereignis.
+        if (nested && p.type === "system") break;
         if (typeof p.text === "string" && !p.message && !p.type) {
           ensureTurn(time, k).voice.push(p.text);
           break;
@@ -398,6 +463,44 @@ export function buildFeed(events: RecordingEvent[]): FeedItem[] {
   return items;
 }
 
+// subAgentItem baut aus den Events eines Sub-Laufs den zugeklappten Block.
+// Der Inhalt entsteht durch denselben Aufbau noch einmal — der Sub-Lauf
+// bekommt dadurch sein eigenes tool_use/tool_result-Register und korreliert
+// sauber in sich, statt sich mit dem äußeren Lauf zu vermischen.
+function subAgentItem(group: RecordingEvent[], mark: SubAgentMark): FeedItem {
+  const inner = buildItems(group, true);
+  const first = group[0];
+  const last = group[group.length - 1];
+  // Das result-Item ist der Bericht des Sub-Agenten; fehlt es, läuft er noch.
+  const result = inner.find((it) => it.kind === "result") as
+    | Extract<FeedItem, { kind: "result" }>
+    | undefined;
+  const tools = inner.reduce(
+    (n, it) => n + (it.kind === "turn" ? it.rows.filter((r) => r.type === "tool").length : 0),
+    0,
+  );
+  const ms = new Date(last.created_at).getTime() - new Date(first.created_at).getTime();
+  const meta = [
+    tools ? i18n.t("activity.subAgentTools", { n: tools }) : "",
+    ms > 0 ? fmtDelta(ms) : "",
+    result?.meta ?? "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return {
+    key: `sub-${first.id}`,
+    kind: "subagent",
+    dir: mark.dir,
+    // Der Auftrag steht nur auf der ersten Zeile — von dort einsammeln.
+    task: group.map(subAgentMark).find((m) => m?.task)?.task,
+    time: fmtTime(first.created_at),
+    meta,
+    running: !result,
+    items: newestFirst(inner),
+  };
+}
+
 function newestFirst(items: FeedItem[]): FeedItem[] {
   const groups: FeedItem[][] = [];
   for (const it of items) {
@@ -461,11 +564,43 @@ function ToolRow({ call }: { call: ToolCall }) {
   );
 }
 
-export function ActivityFeed({ events, truncated }: { events: RecordingEvent[]; truncated?: boolean }) {
+// SubRun: der Sub-Lauf als ein zugeklappter Block. Der Kopf trägt Checkout,
+// Auftrag und Kennzahlen — damit beantwortet er die Frage „wer hat das getan
+// und wozu?", ohne dass man aufklappen muss.
+function SubRun({ item }: { item: Extract<FeedItem, { kind: "subagent" }> }) {
   const { t } = useTranslation();
-  const items = newestFirst(buildFeed(events));
   return (
-    <div className="act-feed">
+    <details className="subrun">
+      <summary>
+        <span className="subrun-head">
+          <span className="chev">▸</span>
+          <Icon name="layers" />
+          <span className="subrun-name">
+            {t("activity.subAgentTitle", { dir: shortDir(item.dir) })}
+          </span>
+          <span className="subrun-time">{item.time}</span>
+          {item.running ? (
+            <span className="pill mut">{t("activity.subAgentRunning")}</span>
+          ) : (
+            <span className="pill ok">{t("activity.toolOk")}</span>
+          )}
+        </span>
+        {item.task && <span className="subrun-task">„{truncate(item.task, 220)}"</span>}
+        {item.meta && <span className="subrun-meta">{item.meta}</span>}
+      </summary>
+      <div className="subrun-body">
+        <FeedItems items={item.items} />
+      </div>
+    </details>
+  );
+}
+
+// FeedItems rendert eine Item-Liste. Eigene Komponente, weil der Sub-Lauf-Block
+// sie für seinen Inhalt erneut braucht.
+function FeedItems({ items }: { items: FeedItem[] }) {
+  const { t } = useTranslation();
+  return (
+    <>
       {items.map((it) => {
         switch (it.kind) {
           case "day":
@@ -533,10 +668,21 @@ export function ActivityFeed({ events, truncated }: { events: RecordingEvent[]; 
                 )}
               </div>
             );
+          case "subagent":
+            return <SubRun key={it.key} item={it} />;
           default:
             return null;
         }
       })}
+    </>
+  );
+}
+
+export function ActivityFeed({ events, truncated }: { events: RecordingEvent[]; truncated?: boolean }) {
+  const { t } = useTranslation();
+  return (
+    <div className="act-feed">
+      <FeedItems items={newestFirst(buildFeed(events))} />
       {truncated && (
         <div className="evt muted">
           <Icon name="info" /> {t("activity.truncatedFeed", { count: events.length })}

@@ -65,6 +65,8 @@ Lückenlose Aufzeichnung jeder Agenten-Aktivität, gespeist aus den `event`-Nach
 
 Recording ist die Grundlage für Audit, Debugging, Kostenanalyse und die Supervisor-Auswertung. Es ist unveränderlich und pro Agent/Aufgabe zeitlich navigierbar.
 
+**Sub-Läufe bleiben unterscheidbar.** Gibt ein Agent Arbeit an einen Sub-Agenten im Projekt-Checkout ab ([`12-claude-code-adapter.md`](12-claude-code-adapter.md)), landet dessen Arbeit unter derselben Agenten- und Aufgaben-ID in derselben Aufzeichnung — sonst wäre sie weder abrechenbar noch auditierbar. Damit man trotzdem sieht, **wer** was getan hat, tragen diese Zeilen eine Markierung, und die Timeline fasst einen zusammenhängenden Sub-Lauf zu einem zugeklappten Block zusammen: Kopf mit Checkout, Arbeitsauftrag und Kennzahlen (Tool-Aufrufe, Dauer, Kosten), aufgeklappt die Turns des Sub-Agenten. Ohne diese Klammer stünde seine Arbeit ununterscheidbar zwischen der des beauftragenden Agenten.
+
 ## Request-Log (Diagnose der Zielsystem-Anbindung)
 
 Das Recording sagt, **was** ein Agent getan hat — welche Aktion mit welchen Parametern und ob sie glückte. Beim Anbinden eines Zielsystems ist die drängendere Frage aber, **was über die Leitung ging**: der Bot-Connector-Call nach Teams samt Antwort, der eingehende Webhook, der an der Signaturprüfung scheiterte. Genau das hält das **Request-Log** fest (Tabelle `request_log`, Sicht *Plattform → Requests*):

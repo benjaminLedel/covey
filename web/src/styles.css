@@ -411,6 +411,7 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
 .kind-credential { background: var(--bg-pro); color: var(--text-pro); }
 .kind-action { background: var(--bg-accent); color: var(--text-accent); }
 .kind-lifecycle { background: var(--bg-success); color: var(--text-success); }
+.kind-subagent { background: var(--bg-accent); color: var(--text-accent); font-style: italic; }
 
 /* Segment-Umschalter (Lesbar | Rohdaten) */
 .seg {
@@ -575,6 +576,64 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   color: var(--text-muted);
   font-size: 12px;
 }
+
+/* Sub-Lauf: die Arbeit des Sub-Agenten im Projekt-Checkout als ein
+   zugeklappter Block. Die Akzentkante links trennt ihn vom äußeren Lauf,
+   ohne ihn wie einen Fehler aussehen zu lassen. */
+.act-feed details.subrun {
+  border: 0.5px solid var(--border);
+  border-left: 2px solid var(--text-accent);
+  border-radius: 8px;
+  margin-bottom: 18px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.act-feed details.subrun > summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+.act-feed details.subrun > summary::-webkit-details-marker { display: none; }
+.act-feed .subrun-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.act-feed details.subrun[open] > summary .chev { transform: rotate(90deg); }
+.act-feed .subrun-name { flex-shrink: 0; }
+.act-feed .subrun-time {
+  flex: 1;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.act-feed .subrun-task {
+  font-family: var(--voice);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  padding-left: 20px;
+  overflow-wrap: anywhere;
+}
+.act-feed .subrun-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding-left: 20px;
+}
+/* Innen wieder normaler Feed — nur etwas eingerückt und ohne den Rahmen
+   doppelt zu ziehen. */
+.act-feed .subrun-body {
+  padding: 12px 12px 2px;
+  border-top: 0.5px solid var(--border);
+  background: var(--surface-1);
+}
+.act-feed .subrun-body > *:last-child { margin-bottom: 8px; }
+
 .pill {
   font-size: 11px;
   padding: 1px 8px;
