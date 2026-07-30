@@ -84,6 +84,12 @@ h1, h2, h3 { font-weight: 500; margin: 0; }
 .st-killed, .st-failed, .st-denied { background: transparent; color: var(--text-danger); border: 0.5px solid var(--border-danger); }
 .st-open { background: var(--surface-1); color: var(--text-secondary); border: 0.5px dashed var(--clay); }
 
+/* Einzeilige Felder deckeln: seit der Rahmen die volle Bildschirmbreite nutzt,
+   liefe ein `width: 100%`-Feld sonst über 2000px — bedienbar wird es dadurch
+   nicht. In schmalen Behältern (Panes, Modals, Karten) greift der Deckel nicht,
+   dort ist 100% ohnehin kleiner. Textareas bleiben ungedeckelt: Config-Editor
+   und Seiten-Bearbeitung wollen den Platz. */
+input, select { max-width: 640px; }
 input, textarea, select {
   width: 100%;
   padding: 8px 10px;
@@ -790,7 +796,10 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   text-decoration-style: dashed;
   cursor: default;
 }
-.wiki-body { line-height: 1.55; }
+/* Lesebreite: der mittlere Bereich wächst mit dem Fenster, Fließtext soll das
+   nicht. Rund 78 Zeichen sind die Grenze, ab der das Auge die nächste Zeile
+   nicht mehr sicher findet. */
+.wiki-body { line-height: 1.55; max-width: 78ch; }
 .wiki-body p { margin: 0 0 8px; }
 .wiki-body p:last-child { margin-bottom: 0; }
 .wiki-body ul { margin: 0 0 8px; padding-left: 18px; list-style: disc; }

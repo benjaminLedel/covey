@@ -366,9 +366,13 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
         </div>
       </aside>
       <main className="flex-1 min-w-0 flex flex-col">
-        {/* Das Organigramm nutzt die volle Breite — alle anderen Seiten
-            bleiben auf Lesebreite begrenzt. */}
-        <div key={location.pathname} className="fade flex-1" style={{ padding: "22px 26px 60px", maxWidth: location.pathname === "/org" || location.pathname === "/costs" ? undefined : 1080 }}>
+        {/* Volle Breite. Ein harter Deckel von 1080px stammte aus der Zeit, als
+            hier vor allem Formulare standen; inzwischen sind es Boards, Tabellen
+            und die dreispaltige Wiki-Fläche, denen der Platz fehlt — auf einem
+            breiten Schirm blieb rechts ein Drittel leer. Lesebreite ist damit
+            Sache der Inhalte, die sie brauchen (siehe .measure in styles.css),
+            nicht des Rahmens. */}
+        <div key={location.pathname} className="fade flex-1" style={{ padding: "22px 26px 60px" }}>
           <Routes>
             <Route path="/" element={<Dashboard me={me} />} />
             <Route path="/agents/:id" element={<AgentPage me={me} />} />
