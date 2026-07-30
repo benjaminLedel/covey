@@ -41,13 +41,21 @@ type FeedItem = { key: string } & (
   | { kind: "gate"; icon: IconName; text: string; time: string; tone: Tone }
   | { kind: "parked"; title: string; text: string; time: string }
   | { kind: "result"; ok: boolean; text: string; meta: string; time: string }
-  | { kind: "subagent"; dir: string; task?: string; time: string; meta: string; running: boolean; items: FeedItem[] }
+  | {
+      kind: "subagent";
+      dir: string;
+      task?: string;
+      time: string;
+      meta: string;
+      state: "running" | "ok" | "failed";
+      items: FeedItem[];
+    }
 );
 
 // SubAgentMark ist die Markierung, die der Daemon jeder stream-json-Zeile eines
-// Sub-Laufs mitgibt (markSubAgent in internal/daemon/subagent.go). task steht
-// nur auf der ERSTEN Zeile des Laufs.
-export type SubAgentMark = { dir: string; task?: string };
+// Sub-Laufs mitgibt (markSubAgent in internal/daemon/subagent.go). dir und run
+// stehen auf jeder Zeile, task nur auf der ERSTEN.
+export type SubAgentMark = { dir: string; run?: string; task?: string };
 
 // subAgentMark liest die Markierung aus einem Recording-Event. null = das
 // Event gehört zum äußeren Lauf.
@@ -55,12 +63,18 @@ export function subAgentMark(e: RecordingEvent): SubAgentMark | null {
   if (!e.payload || typeof e.payload !== "object") return null;
   const m = (e.payload as Record<string, unknown>).covey_sub_agent;
   if (!m || typeof m !== "object") return null;
-  const { dir, task } = m as Record<string, unknown>;
+  const { dir, run, task } = m as Record<string, unknown>;
   return {
     dir: typeof dir === "string" ? dir : "",
+    run: typeof run === "string" && run ? run : undefined,
     task: typeof task === "string" && task ? task : undefined,
   };
 }
+
+// runKey identifiziert den Lauf, zu dem eine Zeile gehört. Die Kennung des
+// Daemons ist die verlässliche Quelle; für Aufzeichnungen, die noch vor ihrer
+// Einführung entstanden sind, muss das Verzeichnis herhalten.
+const runKey = (m: SubAgentMark) => m.run ?? `dir:${m.dir}`;
 
 // shortDir kürzt den Checkout-Pfad auf die letzten beiden Segmente:
 // /home/agent/repos/covey-main-abc123 → repos/covey-main-abc123. Der volle
@@ -181,8 +195,24 @@ function buildItems(events: RecordingEvent[], nested: boolean): FeedItem[] {
     items.push(evt);
   };
 
-  for (let i = 0; i < events.length; i++) {
-    const e = events[i];
+  // Sub-Läufe vorab nach ihrer Kennung bündeln, statt sie an ihrer
+  // Nachbarschaft im Strom zu erkennen. Der Unterschied zählt: Der
+  // Action-Proxy bedient nebenläufig, zwei gleichzeitige `dev agent`-Aufrufe
+  // verschränken also ihre Zeilen. Über die Kennung bleibt trotzdem jeder Lauf
+  // ein Block; über Nachbarschaft verschmölzen sie oder zerfielen in Stücke.
+  const runs = new Map<string, RecordingEvent[]>();
+  if (!nested) {
+    for (const e of events) {
+      const m = subAgentMark(e);
+      if (!m) continue;
+      const bucket = runs.get(runKey(m));
+      if (bucket) bucket.push(e);
+      else runs.set(runKey(m), [e]);
+    }
+  }
+  const emitted = new Set<string>();
+
+  for (const e of events) {
     const p = (typeof e.payload === "object" && e.payload !== null ? e.payload : {}) as Record<
       string,
       any
@@ -196,21 +226,16 @@ function buildItems(events: RecordingEvent[], nested: boolean): FeedItem[] {
       items.push({ key: `day-${day}`, kind: "day", text: day });
     }
 
-    // Ein Sub-Lauf: alle unmittelbar folgenden Events mit derselben Marke
-    // gehören dazu. Sie liegen garantiert zusammenhängend, weil der äußere
-    // Lauf so lange blockiert auf die Antwort des Action-Proxys wartet —
-    // zwei Sub-Läufe im selben Checkout trennen sich dadurch von selbst.
+    // Der Block steht dort, wo der Lauf beginnt; seine weiteren Zeilen sind
+    // damit abgehandelt.
     const mark = nested ? null : subAgentMark(e);
     if (mark) {
-      let end = i;
-      while (end < events.length) {
-        const m = subAgentMark(events[end]);
-        if (!m || m.dir !== mark.dir) break;
-        end++;
+      const key = runKey(mark);
+      if (!emitted.has(key)) {
+        emitted.add(key);
+        closeTurn();
+        items.push(subAgentItem(runs.get(key) ?? [e], mark));
       }
-      closeTurn();
-      items.push(subAgentItem(events.slice(i, end), mark));
-      i = end - 1;
       continue;
     }
 
@@ -471,19 +496,34 @@ function subAgentItem(group: RecordingEvent[], mark: SubAgentMark): FeedItem {
   const inner = buildItems(group, true);
   const first = group[0];
   const last = group[group.length - 1];
-  // Das result-Item ist der Bericht des Sub-Agenten; fehlt es, läuft er noch.
-  const result = inner.find((it) => it.kind === "result") as
-    | Extract<FeedItem, { kind: "result" }>
-    | undefined;
+
+  // Kennzahlen aus den result-Zeilen selbst, nicht aus dem fertigen Item:
+  // Am Turn-Limit hängt der Adapter einen zweiten `claude`-Prozess an (er holt
+  // den Übergabe-Stand per --resume), und dessen Zeilen laufen durch denselben
+  // Callback. Die Gruppe trägt dann ZWEI result-Zeilen — die erste vom
+  // abgebrochenen Lauf. Nur die Summe beschreibt, was der Sub-Lauf insgesamt
+  // gekostet hat, und gescheitert ist er, sobald eine davon einen Fehler meldet.
+  const results = group
+    .map((e) => (typeof e.payload === "object" && e.payload ? (e.payload as Record<string, any>) : {}))
+    .filter((p) => p.type === "result");
+  const sum = (pick: (p: Record<string, any>) => unknown) =>
+    results.reduce((n, p) => n + (Number(pick(p)) || 0), 0);
+  const cost = sum((p) => p.total_cost_usd);
+  const inTok = sum((p) => p.usage?.input_tokens);
+  const outTok = sum((p) => p.usage?.output_tokens);
+  const turns = sum((p) => p.num_turns);
+
   const tools = inner.reduce(
     (n, it) => n + (it.kind === "turn" ? it.rows.filter((r) => r.type === "tool").length : 0),
     0,
   );
   const ms = new Date(last.created_at).getTime() - new Date(first.created_at).getTime();
   const meta = [
-    tools ? i18n.t("activity.subAgentTools", { n: tools }) : "",
+    tools ? i18n.t("activity.subAgentTools", { count: tools }) : "",
+    turns ? i18n.t("activity.subAgentTurns", { count: turns }) : "",
     ms > 0 ? fmtDelta(ms) : "",
-    result?.meta ?? "",
+    cost ? `$${cost.toFixed(4)}` : "",
+    inTok ? `${inTok} → ${outTok} Tokens` : "",
   ]
     .filter(Boolean)
     .join(" · ");
@@ -496,7 +536,7 @@ function subAgentItem(group: RecordingEvent[], mark: SubAgentMark): FeedItem {
     task: group.map(subAgentMark).find((m) => m?.task)?.task,
     time: fmtTime(first.created_at),
     meta,
-    running: !result,
+    state: results.length === 0 ? "running" : results.some((p) => p.is_error) ? "failed" : "ok",
     items: newestFirst(inner),
   };
 }
@@ -579,11 +619,9 @@ function SubRun({ item }: { item: Extract<FeedItem, { kind: "subagent" }> }) {
             {t("activity.subAgentTitle", { dir: shortDir(item.dir) })}
           </span>
           <span className="subrun-time">{item.time}</span>
-          {item.running ? (
-            <span className="pill mut">{t("activity.subAgentRunning")}</span>
-          ) : (
-            <span className="pill ok">{t("activity.toolOk")}</span>
-          )}
+          {item.state === "running" && <span className="pill mut">{t("activity.subAgentRunning")}</span>}
+          {item.state === "ok" && <span className="pill ok">{t("activity.toolOk")}</span>}
+          {item.state === "failed" && <span className="pill err">{t("activity.toolError")}</span>}
         </span>
         {item.task && <span className="subrun-task">„{truncate(item.task, 220)}"</span>}
         {item.meta && <span className="subrun-meta">{item.meta}</span>}

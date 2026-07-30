@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coder/websocket"
@@ -33,6 +34,10 @@ type Client struct {
 	// Gesetzt wird sie in Run(), gelesen aus jeder Goroutine, die sendet.
 	conn    *websocket.Conn
 	writeMu sync.Mutex
+
+	// subRuns zählt die Sub-Läufe dieses Daemons und gibt jedem eine Kennung,
+	// an der die Timeline seine Zeilen erkennt (siehe subagent.go).
+	subRuns atomic.Uint64
 
 	mu           sync.Mutex
 	cfg          InjectConfig
