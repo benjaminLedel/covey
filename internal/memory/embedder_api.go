@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -24,32 +26,46 @@ import (
 // Modelle sind untereinander nicht vergleichbar, ein gemischter Index wäre
 // schlechter als ein durchgehend schlechter. Fehler kommen als Fehler zurück.
 type APIEmbedder struct {
-	provider string // "voyage" | "openai"
+	provider string // "ollama" | "voyage" | "openai"
 	model    string
 	key      string
 	url      string
+	log      *slog.Logger
 	hc       *http.Client
+	// truncWarn: die Matryoshka-Kürzung wird einmal pro Prozess gemeldet, nicht
+	// bei jeder Seite.
+	truncWarn sync.Once
 }
 
-// Provider-Defaults: Modelle, die eine 256-dim Ausgabe können.
-var embeddingDefaults = map[string]struct{ url, model string }{
-	"voyage": {"https://api.voyageai.com/v1/embeddings", "voyage-3.5-lite"},
-	"openai": {"https://api.openai.com/v1/embeddings", "text-embedding-3-small"},
+// Provider-Defaults. "ollama" ist der selbstgehostete Weg: ein kleines Modell
+// auf dem eigenen Host statt eines fremden Dienstes — die Wiki-Inhalte verlassen
+// das Haus nicht. Default-Modell ist EmbeddingGemma (308M, mehrsprachig,
+// Matryoshka-trainiert und damit offiziell auf 256 Dimensionen verkürzbar), der
+// Default-Host der Compose-Dienstname.
+var embeddingDefaults = map[string]struct {
+	url, model string
+	needsKey   bool
+}{
+	"voyage": {"https://api.voyageai.com/v1/embeddings", "voyage-3.5-lite", true},
+	"openai": {"https://api.openai.com/v1/embeddings", "text-embedding-3-small", true},
+	"ollama": {"http://embeddings:11434/v1/embeddings", "embeddinggemma", false},
 }
 
 // SupportedProviders sind die Werte, die COVEY_EMBEDDING_PROVIDER annehmen darf.
-func SupportedProviders() []string { return []string{"builtin", "voyage", "openai"} }
+func SupportedProviders() []string { return []string{"builtin", "ollama", "voyage", "openai"} }
 
 // NewAPIEmbedder baut den Embedder für einen Provider. Leere Werte für model und
-// url fallen auf die Provider-Defaults zurück.
-func NewAPIEmbedder(provider, model, key, url string) (*APIEmbedder, error) {
+// url fallen auf die Provider-Defaults zurück; log darf nil sein.
+func NewAPIEmbedder(provider, model, key, url string, log *slog.Logger) (*APIEmbedder, error) {
 	provider = strings.ToLower(strings.TrimSpace(provider))
 	def, ok := embeddingDefaults[provider]
 	if !ok {
 		return nil, fmt.Errorf("unbekannter embedding-provider %q (erlaubt: %s)",
 			provider, strings.Join(SupportedProviders(), ", "))
 	}
-	if strings.TrimSpace(key) == "" {
+	// Nur fremde Dienste brauchen einen Schlüssel — ein lokaler Server will
+	// keinen, und einen Platzhalter zu verlangen wäre Unsinn.
+	if def.needsKey && strings.TrimSpace(key) == "" {
 		return nil, fmt.Errorf("embedding-provider %q braucht COVEY_EMBEDDING_API_KEY", provider)
 	}
 	if strings.TrimSpace(model) == "" {
@@ -58,12 +74,16 @@ func NewAPIEmbedder(provider, model, key, url string) (*APIEmbedder, error) {
 	if strings.TrimSpace(url) == "" {
 		url = def.url
 	}
+	if log == nil {
+		log = slog.Default()
+	}
 	return &APIEmbedder{
 		provider: provider,
 		model:    model,
 		key:      strings.TrimSpace(key),
 		url:      url,
-		hc:       &http.Client{Timeout: 20 * time.Second},
+		log:      log,
+		hc:       &http.Client{Timeout: 60 * time.Second},
 	}, nil
 }
 
@@ -134,7 +154,9 @@ func (e *APIEmbedder) call(ctx context.Context, payload []byte) ([Dim]float32, e
 		return out, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+e.key)
+	if e.key != "" {
+		req.Header.Set("Authorization", "Bearer "+e.key)
+	}
 
 	resp, err := e.hc.Do(req)
 	if err != nil {
@@ -157,10 +179,23 @@ func (e *APIEmbedder) call(ctx context.Context, payload []byte) ([Dim]float32, e
 		return out, fmt.Errorf("embedding-provider %s lieferte keinen Vektor", e.provider)
 	}
 	got := parsed.Data[0].Embedding
-	if len(got) != Dim {
-		// Nicht auffüllen oder abschneiden: ein Vektor falscher Länge passt weder
-		// ins Schema noch zu den übrigen Seiten.
-		return out, fmt.Errorf("embedding-provider %s lieferte %d Dimensionen, erwartet %d — Modell %q kann die Ausgabelänge nicht",
+	switch {
+	case len(got) == Dim:
+	case len(got) > Dim:
+		// Matryoshka: Modelle wie EmbeddingGemma sind darauf trainiert, dass man
+		// den Vektor vorne abschneidet und neu normalisiert — genau das ist der
+		// vorgesehene Weg zu kürzeren Ausgaben. Nötig wird es, wenn der Server
+		// den Dimensions-Wunsch ignoriert (etwa llama.cpp). Einmal melden,
+		// damit es nicht stillschweigend passiert.
+		full := len(got)
+		e.truncWarn.Do(func() {
+			e.log.Info("wiki-embedding: Vektor wird auf die Schemabreite gekürzt (Matryoshka)",
+				"modell", e.model, "geliefert", full, "genutzt", Dim)
+		})
+		got = got[:Dim]
+	default:
+		// Auffüllen wäre Erfindung: zu kurz ist nicht reparierbar.
+		return out, fmt.Errorf("embedding-provider %s lieferte nur %d Dimensionen, gebraucht werden %d — Modell %q ist zu klein",
 			e.provider, len(got), Dim, e.model)
 	}
 	copy(out[:], got)

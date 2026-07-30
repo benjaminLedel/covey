@@ -43,7 +43,7 @@ func embedServer(t *testing.T, dims int, status int, calls *int32) (*httptest.Se
 
 func TestAPIEmbedderVoyage(t *testing.T) {
 	srv, last := embedServer(t, Dim, http.StatusOK, nil)
-	e, err := NewAPIEmbedder("voyage", "", "geheim", srv.URL)
+	e, err := NewAPIEmbedder("voyage", "", "geheim", srv.URL, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestAPIEmbedderVoyage(t *testing.T) {
 
 func TestAPIEmbedderOpenAIUsesDimensions(t *testing.T) {
 	srv, last := embedServer(t, Dim, http.StatusOK, nil)
-	e, err := NewAPIEmbedder("openai", "text-embedding-3-large", "k", srv.URL)
+	e, err := NewAPIEmbedder("openai", "text-embedding-3-large", "k", srv.URL, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,14 +91,70 @@ func TestAPIEmbedderOpenAIUsesDimensions(t *testing.T) {
 	}
 }
 
-// Ein Vektor falscher Länge darf nicht aufgefüllt oder abgeschnitten werden —
-// er passt weder ins Schema noch zu den übrigen Seiten.
-func TestAPIEmbedderRejectsWrongDimension(t *testing.T) {
+// Ein zu kurzer Vektor ist nicht reparierbar — auffüllen wäre Erfindung.
+func TestAPIEmbedderRejectsTooFewDimensions(t *testing.T) {
 	srv, _ := embedServer(t, 128, http.StatusOK, nil)
-	e, _ := NewAPIEmbedder("voyage", "", "k", srv.URL)
+	e, _ := NewAPIEmbedder("voyage", "", "k", srv.URL, nil)
 	_, err := e.Embed(context.Background(), "text")
 	if err == nil || !strings.Contains(err.Error(), "128") {
 		t.Fatalf("erwartet Dimensionsfehler, got %v", err)
+	}
+}
+
+// Liefert der Server mehr Dimensionen als das Schema hält (weil er den
+// Dimensions-Wunsch ignoriert), wird auf Dim gekürzt und neu normalisiert —
+// der bei Matryoshka-Modellen vorgesehene Weg, statt eines Abbruchs.
+func TestAPIEmbedderTruncatesMatryoshka(t *testing.T) {
+	srv, _ := embedServer(t, 768, http.StatusOK, nil)
+	e, _ := NewAPIEmbedder("ollama", "", "", srv.URL, nil)
+	v, err := e.Embed(context.Background(), "text")
+	if err != nil {
+		t.Fatalf("768 Dimensionen müssen gekürzt werden, got %v", err)
+	}
+	var norm float64
+	for _, f := range v {
+		norm += float64(f) * float64(f)
+	}
+	if math.Abs(norm-1) > 1e-4 {
+		t.Fatalf("gekürzter Vektor muss neu normalisiert sein, Norm=%f", norm)
+	}
+	// Gekürzt heißt: die ersten Dim Werte, nicht irgendwelche. Der Stub baut
+	// i%7+1, der erste Wert ist also 1 — nach Normalisierung > 0.
+	if v[0] <= 0 {
+		t.Fatalf("Kürzung muss den Anfang des Vektors behalten, v[0]=%f", v[0])
+	}
+}
+
+// Der selbstgehostete Weg kommt ohne Schlüssel aus: kein Platzhalter nötig und
+// kein Authorization-Header auf der Leitung.
+func TestAPIEmbedderOllamaWithoutKey(t *testing.T) {
+	srv, last := embedServer(t, Dim, http.StatusOK, nil)
+	e, err := NewAPIEmbedder("ollama", "", "", srv.URL, nil)
+	if err != nil {
+		t.Fatalf("ollama darf keinen Schlüssel verlangen: %v", err)
+	}
+	if _, err := e.Embed(context.Background(), "text"); err != nil {
+		t.Fatal(err)
+	}
+	if got := (*last)["_auth"]; got != "" {
+		t.Fatalf("ohne Schlüssel darf kein Authorization-Header gesetzt sein, got %v", got)
+	}
+	if got := (*last)["model"]; got != "embeddinggemma" {
+		t.Fatalf("Default-Modell nicht gesetzt: %v", got)
+	}
+	if got := (*last)["dimensions"]; got != float64(Dim) {
+		t.Fatalf("ollama spricht das OpenAI-Format, erwartet dimensions=%d, got %v", Dim, got)
+	}
+}
+
+// Ohne explizite URL zeigt ollama auf den Compose-Dienstnamen.
+func TestAPIEmbedderOllamaDefaultURL(t *testing.T) {
+	e, err := NewAPIEmbedder("ollama", "", "", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.url != "http://embeddings:11434/v1/embeddings" {
+		t.Fatalf("Default-URL unerwartet: %s", e.url)
 	}
 }
 
@@ -107,7 +163,7 @@ func TestAPIEmbedderRejectsWrongDimension(t *testing.T) {
 func TestAPIEmbedderSurfacesProviderError(t *testing.T) {
 	var calls int32
 	srv, _ := embedServer(t, Dim, http.StatusTooManyRequests, &calls)
-	e, _ := NewAPIEmbedder("voyage", "", "k", srv.URL)
+	e, _ := NewAPIEmbedder("voyage", "", "k", srv.URL, nil)
 	_, err := e.Embed(context.Background(), "text")
 	if err == nil || !strings.Contains(err.Error(), "Kontingent") {
 		t.Fatalf("Provider-Fehler muss durchschlagen, got %v", err)
@@ -120,7 +176,7 @@ func TestAPIEmbedderSurfacesProviderError(t *testing.T) {
 func TestAPIEmbedderEmptyTextNoCall(t *testing.T) {
 	var calls int32
 	srv, _ := embedServer(t, Dim, http.StatusOK, &calls)
-	e, _ := NewAPIEmbedder("voyage", "", "k", srv.URL)
+	e, _ := NewAPIEmbedder("voyage", "", "k", srv.URL, nil)
 	v, err := e.Embed(context.Background(), "   ")
 	if err != nil {
 		t.Fatal(err)
@@ -136,13 +192,13 @@ func TestAPIEmbedderEmptyTextNoCall(t *testing.T) {
 }
 
 func TestNewAPIEmbedderValidation(t *testing.T) {
-	if _, err := NewAPIEmbedder("gibtsnicht", "", "k", ""); err == nil {
+	if _, err := NewAPIEmbedder("gibtsnicht", "", "k", "", nil); err == nil {
 		t.Fatal("unbekannter Provider muss abgelehnt werden")
 	}
-	if _, err := NewAPIEmbedder("voyage", "", "  ", ""); err == nil {
+	if _, err := NewAPIEmbedder("voyage", "", "  ", "", nil); err == nil {
 		t.Fatal("fehlender API-Schlüssel muss abgelehnt werden")
 	}
-	e, err := NewAPIEmbedder("openai", "", "k", "")
+	e, err := NewAPIEmbedder("openai", "", "k", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

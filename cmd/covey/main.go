@@ -479,7 +479,7 @@ func buildEmbedder(cfg config.Config, log *slog.Logger) (memory.Embedder, error)
 			"für semantisches Retrieval COVEY_EMBEDDING_PROVIDER=voyage|openai + COVEY_EMBEDDING_API_KEY setzen")
 		return memory.HashEmbedder{}, nil
 	}
-	e, err := memory.NewAPIEmbedder(provider, cfg.EmbeddingModel, cfg.EmbeddingAPIKey, cfg.EmbeddingURL)
+	e, err := memory.NewAPIEmbedder(provider, cfg.EmbeddingModel, cfg.EmbeddingAPIKey, cfg.EmbeddingURL, log)
 	if err != nil {
 		return nil, err
 	}
@@ -489,9 +489,17 @@ func buildEmbedder(cfg config.Config, log *slog.Logger) (memory.Embedder, error)
 
 // startReembed zieht Bestandsseiten im Hintergrund auf das aktive Embedding-
 // Modell nach. Im Hintergrund, weil der Serve-Start nicht auf hunderte
-// API-Aufrufe warten soll; die betroffenen Seiten sind bis dahin über die
+// Aufrufe warten soll; die betroffenen Seiten sind bis dahin über die
 // Vektorsuche schlicht nicht auffindbar (Query filtert auf das aktive Modell),
 // gehen aber nicht verloren.
+//
+// Mit Wiederholung, weil ein selbstgehosteter Embedding-Dienst beim ersten
+// Start typischerweise noch das Modell lädt: ohne Nachfassen bliebe das Wiki
+// bis zum nächsten Neustart der Control Plane unauffindbar, obwohl der Dienst
+// zwei Minuten später bereit ist.
+const reembedRetryDelay = time.Minute
+const reembedRetries = 30
+
 func startReembed(ctx context.Context, mem *memory.Store, log *slog.Logger) {
 	stale, err := mem.StaleCount(ctx)
 	if err != nil || stale == 0 {
@@ -499,12 +507,22 @@ func startReembed(ctx context.Context, mem *memory.Store, log *slog.Logger) {
 	}
 	log.Info("wiki-embedding: Bestand wird nachgezogen", "seiten", stale, "modell", mem.EmbedderName())
 	go func() {
-		n, err := mem.ReembedStale(ctx, 50)
-		if err != nil {
-			log.Warn("wiki-embedding: Nachziehen abgebrochen", "neu_eingebettet", n, "err", err)
-			return
+		for attempt := 0; attempt < reembedRetries; attempt++ {
+			n, err := mem.ReembedStale(ctx, 50)
+			if err == nil {
+				log.Info("wiki-embedding: Bestand nachgezogen", "seiten", n)
+				return
+			}
+			log.Warn("wiki-embedding: Nachziehen unterbrochen, neuer Versuch",
+				"neu_eingebettet", n, "in", reembedRetryDelay, "err", err)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(reembedRetryDelay):
+			}
 		}
-		log.Info("wiki-embedding: Bestand nachgezogen", "seiten", n)
+		log.Error("wiki-embedding: Bestand konnte nicht nachgezogen werden — " +
+			"die Wiki-Suche findet die betroffenen Seiten nicht")
 	}()
 }
 

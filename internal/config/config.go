@@ -85,9 +85,10 @@ type Config struct {
 	// überschreibbar. COVEY_WIKI_CLEANUP.
 	WikiCleanup string
 	// EmbeddingProvider wählt das Embedding hinter dem Wiki-Retrieval:
-	// "builtin" (Hash, offline, nur lexikalisch — Default), "voyage" oder
-	// "openai". Alles außer builtin braucht EmbeddingAPIKey. Ein Wechsel bettet
-	// den Bestand im Hintergrund neu ein. COVEY_EMBEDDING_PROVIDER.
+	// "builtin" (Hash, offline, nur lexikalisch — Default), "ollama" (selbst
+	// betrieben, ohne Schlüssel) oder die fremden Dienste "voyage"/"openai",
+	// die EmbeddingAPIKey brauchen. Ein Wechsel bettet den Bestand im
+	// Hintergrund neu ein. COVEY_EMBEDDING_PROVIDER.
 	EmbeddingProvider string
 	// EmbeddingModel überschreibt das Provider-Default-Modell.
 	// COVEY_EMBEDDING_MODEL.
