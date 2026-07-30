@@ -226,13 +226,37 @@ deploy:
         echo "WICHTIG: $DEPLOY_DIR/.env sichern — enthält den Master-Key. Admin-Passwort steht dort."
       fi
     - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    # Alte Images wegräumen, BEVOR das neue gezogen wird. Jeder Deploy legt zwei
+    # Images auf dem Host ab (covey:<sha> und sandbox:<sha>, letzteres mit
+    # Chromium über 2 GB) — ohne Aufräumen läuft die Platte voll und der Pull
+    # scheitert mit "no space left on device" (so geschehen bei Pipeline 539).
+    #
+    # `until=24h` lässt alles von heute stehen: das gerade laufende Image, die
+    # Rollback-Ziele der letzten Deploys und vor allem das aktuelle
+    # Sandbox-Image, das an KEINEM laufenden Container hängt (Sandboxen sind
+    # ephemer) und von `prune -a` sonst mitgenommen würde. Volumes werden nie
+    # angefasst — dort liegt die Datenbank.
+    - docker system df || true
+    - docker image prune -af --filter "until=24h" || true
+    - docker system df || true
     # Image auf den unveränderlichen Commit-Tag pinnen ("spezieller Tag").
     - export COVEY_IMAGE="$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
     # Sandbox-Image HIER pullen (der Host-Daemon hat danach das Image lokal):
     # `docker run` aus dem covey-Container heraus hat keine Registry-Credentials,
     # darf also nie selbst pullen müssen.
     - export COVEY_SANDBOX_IMAGE="$CI_REGISTRY_IMAGE/sandbox:$CI_COMMIT_SHORT_SHA"
-    - docker pull "$COVEY_SANDBOX_IMAGE"
+    # Reicht das schonende Aufräumen nicht (etwa weil die Platte allein durch die
+    # Deploys von heute vollgelaufen ist), einmal hart aufräumen und erneut
+    # ziehen. `prune -a` nimmt dann auch das bisherige Sandbox-Image mit — das
+    # ist verschmerzbar, weil direkt danach das neue kommt, und allemal besser
+    # als ein Deploy, der gar nicht durchgeht.
+    - |
+      if ! docker pull "$COVEY_SANDBOX_IMAGE"; then
+        echo "Pull fehlgeschlagen — räume alle ungenutzten Images weg und versuche erneut."
+        docker image prune -af || true
+        docker system df || true
+        docker pull "$COVEY_SANDBOX_IMAGE"
+      fi
     - echo "Deploye $COVEY_IMAGE (Sandbox $COVEY_SANDBOX_IMAGE) nach $DEPLOY_DIR"
     - cd "$DEPLOY_DIR"
     # Die aktuellen Image-Tags zusätzlich in der .env persistieren: nur so
