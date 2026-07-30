@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, post, roleLabel, type Approval, type Principal } from "./api";
+import { api, buildInfo, post, roleLabel, type Approval, type Principal } from "./api";
 import i18n from "./i18n";
 import HelpDrawer from "./components/HelpDrawer";
 import PublicSite from "./public/PublicSite";
@@ -191,6 +191,44 @@ function initials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+// Fuß der Sidebar: welcher Stand läuft hier. Nach einem Deploy die erste
+// Frage — Version, Commit und Bauzeit kommen aus dem Binary selbst
+// (internal/buildinfo). Die Zeile bleibt schmal, die vollen Angaben stehen
+// im Tooltip.
+function BuildLine() {
+  const { t, i18n } = useTranslation();
+  const q = useQuery({
+    queryKey: ["version"],
+    queryFn: buildInfo,
+    staleTime: Infinity, // ändert sich nur mit einem Neustart des Servers
+    retry: false,
+  });
+  const b = q.data;
+  if (!b) return null;
+
+  const built = b.built_at ? new Date(b.built_at) : null;
+  const valid = built && !isNaN(built.getTime());
+  const fmt: Intl.DateTimeFormatOptions = { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" };
+  const version = b.version + (b.dirty ? "-dirty" : "");
+  const short = [version, b.commit.slice(0, 7)].filter(Boolean).join(" · ");
+  const title = [
+    short,
+    valid ? t("version.builtAt", { when: built.toLocaleString(i18n.language, fmt) }) : null,
+    b.go,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  // Zwei Zeilen: die Sidebar ist zu schmal, um Version, Commit und Bauzeit
+  // nebeneinander zu zeigen, ohne die Zeit abzuschneiden.
+  return (
+    <div className="side-build" title={title}>
+      <span className="truncate">{short}</span>
+      {valid && <span className="bt truncate">{built.toLocaleString(i18n.language, fmt)}</span>}
+    </div>
+  );
+}
+
 function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
   const { t } = useTranslation();
   const location = useLocation();
@@ -326,6 +364,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
                 </>
               )}
             </div>
+            <BuildLine />
           </div>
         </div>
       </aside>

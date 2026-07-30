@@ -329,6 +329,9 @@
     "current": "DE",
     "switchTo": "Sprache: English"
   },
+  "version": {
+    "builtAt": "gebaut am {{when}}"
+  },
   "status": {
     "sleeping": "schläft",
     "triggered": "geweckt",

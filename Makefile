@@ -3,6 +3,15 @@
 GO ?= go
 DB_URL ?= postgres://covey:covey@localhost:5433/covey?sslmode=disable
 
+# Herkunft des Binaries (internal/buildinfo): `covey version`, das Startup-Log
+# und der Fuß der UI zeigen sie. Aus Git gezogen, überschreibbar per Variable.
+VERSION ?= $(shell git describe --tags --dirty 2>/dev/null || echo dev)
+COMMIT  ?= $(shell git rev-parse --short=12 HEAD 2>/dev/null)
+DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS := -X covey/internal/buildinfo.version=$(VERSION) \
+           -X covey/internal/buildinfo.commit=$(COMMIT) \
+           -X covey/internal/buildinfo.date=$(DATE)
+
 .PHONY: build web test test-integration run bootstrap dev-db sandbox-image egress-image clean skill-sync
 
 # npm ci statt npm install — bewusst: es installiert exakt den Lockfile und
@@ -19,8 +28,8 @@ skill-sync:
 	@for d in skills/*/; do name=$$(basename $$d); mkdir -p .claude/skills/$$name && cp -f $$d/* .claude/skills/$$name/; done
 
 build: web skill-sync
-	$(GO) build -o covey ./cmd/covey
-	$(GO) build -o coveyd ./cmd/coveyd
+	$(GO) build -ldflags "$(LDFLAGS)" -o covey ./cmd/covey
+	$(GO) build -ldflags "$(LDFLAGS)" -o coveyd ./cmd/coveyd
 
 # Postgres mit pgvector für Entwicklung und Tests (Port 5433).
 dev-db:
@@ -37,7 +46,9 @@ run: build
 
 # Sandbox-Image für COVEY_SANDBOX_PROVIDER=docker (coveyd + Claude Code).
 sandbox-image:
-	docker build -f Dockerfile.sandbox -t covey-sandbox:latest .
+	docker build -f Dockerfile.sandbox \
+		--build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) --build-arg DATE=$(DATE) \
+		-t covey-sandbox:latest .
 
 # Egress-Proxy-Image für COVEY_EGRESS_ISOLATION=network (harte Netz-Isolation).
 egress-image:

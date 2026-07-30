@@ -21,6 +21,7 @@ import (
 
 	"covey/internal/agents"
 	"covey/internal/backlog"
+	"covey/internal/buildinfo"
 	"covey/internal/egress"
 	"covey/internal/guardrails"
 	"covey/internal/identity"
@@ -96,6 +97,13 @@ func (s *Server) Handler() http.Handler {
 		}
 		w.Write([]byte("ready"))
 	})
+
+	// Herkunft des laufenden Binaries (Version, Commit, Bauzeit) — der Fuß
+	// der UI zeigt sie an. Angemeldet, nicht öffentlich: welcher Commit auf
+	// einer Instanz läuft, geht Dritte nichts an.
+	mux.Handle("GET /api/v1/version", s.auth(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, buildinfo.Get())
+	}))
 
 	// Auth.
 	mux.HandleFunc("POST /api/v1/auth/login", s.handleLogin)

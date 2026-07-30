@@ -109,9 +109,14 @@ build-image:
     - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
   script:
     - docker pull "$CI_REGISTRY_IMAGE:latest" || true
+    # Herkunft ins Binary schreiben (internal/buildinfo): im Image gibt es kein
+    # .git, also reicht die CI Tag/Commit/Bauzeit als Build-Args durch.
     - docker build
         --cache-from "$CI_REGISTRY_IMAGE:latest"
         --build-arg BUILDKIT_INLINE_CACHE=1
+        --build-arg "VERSION=${CI_COMMIT_TAG:-$CI_COMMIT_REF_NAME}"
+        --build-arg "COMMIT=$CI_COMMIT_SHORT_SHA"
+        --build-arg "DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
         --tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
         .
     - |
@@ -159,6 +164,9 @@ build-sandbox-image:
     - docker build
         --cache-from "$CI_REGISTRY_IMAGE/sandbox:latest"
         --build-arg BUILDKIT_INLINE_CACHE=1
+        --build-arg "VERSION=${CI_COMMIT_TAG:-$CI_COMMIT_REF_NAME}"
+        --build-arg "COMMIT=$CI_COMMIT_SHORT_SHA"
+        --build-arg "DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
         --file Dockerfile.sandbox
         --tag "$CI_REGISTRY_IMAGE/sandbox:$CI_COMMIT_SHORT_SHA"
         .

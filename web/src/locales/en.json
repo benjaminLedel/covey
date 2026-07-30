@@ -329,6 +329,9 @@
     "current": "EN",
     "switchTo": "Language: Deutsch"
   },
+  "version": {
+    "builtAt": "built {{when}}"
+  },
   "status": {
     "sleeping": "sleeping",
     "triggered": "triggered",

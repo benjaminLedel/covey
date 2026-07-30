@@ -23,6 +23,7 @@ import (
 
 	"covey/internal/agents"
 	"covey/internal/backlog"
+	"covey/internal/buildinfo"
 	"covey/internal/config"
 	"covey/internal/db"
 	"covey/internal/egress"
@@ -60,6 +61,13 @@ func main() {
 	if len(os.Args) < 2 {
 		usage()
 		os.Exit(2)
+	}
+	// version läuft vor der Config: „welcher Stand ist das?" muss auch dann
+	// eine Antwort geben, wenn die Umgebung unvollständig ist.
+	switch os.Args[1] {
+	case "version", "--version", "-v":
+		fmt.Println("covey " + buildinfo.String())
+		return
 	}
 	cfg, err := config.FromEnv()
 	if err != nil {
@@ -108,6 +116,7 @@ func usage() {
   covey egress-proxy      Egress-Allowlist-Proxy (network-Isolationsmodus, im Container)
   covey config lint       Agenten-Configs auf bekannte Fallstricke prüfen (ändert nichts)
   covey genkey            neuen COVEY_MASTER_KEY erzeugen
+  covey version           Version, Commit und Bauzeit dieses Binaries
 
 Konfiguration über ENV: COVEY_DATABASE_URL, COVEY_LISTEN_ADDR, COVEY_PUBLIC_URL,
 COVEY_MASTER_KEY, COVEY_SANDBOX_IMAGE, COVEY_DATA_DIR, COVEY_ZAMMAD_WEBHOOK_SECRET,
@@ -625,7 +634,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		httpServer.Shutdown(shutdownCtx)
 	}()
 
-	log.Info("covey serve", "addr", cfg.ListenAddr, "public", cfg.PublicURL)
+	log.Info("covey serve", "addr", cfg.ListenAddr, "public", cfg.PublicURL, "build", buildinfo.String())
 	if err := httpServer.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

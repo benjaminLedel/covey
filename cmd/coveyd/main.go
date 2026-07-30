@@ -6,11 +6,13 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"covey/internal/buildinfo"
 	"covey/internal/daemon"
 	"covey/internal/target"
 
@@ -28,6 +30,16 @@ import (
 
 func main() {
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+
+	// Ein Sandbox-Image kann veralten — `coveyd version` beantwortet, welcher
+	// Stand tatsächlich im Container liegt.
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "version", "--version", "-v":
+			fmt.Println("coveyd " + buildinfo.String())
+			return
+		}
+	}
 
 	wsURL := os.Getenv("COVEY_WS_URL")
 	token := os.Getenv("COVEY_DAEMON_TOKEN")
@@ -48,6 +60,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	log.Info("coveyd start", "agent", agentID, "build", buildinfo.String())
 	client := daemon.NewClient(wsURL, token, agentID, homeDir, log)
 	err := client.Run(ctx)
 	// Lokalen Plugin-Zustand abräumen (z. B. Prozesse des dev-Supervisors) —

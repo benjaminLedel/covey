@@ -455,6 +455,20 @@ export type AgentTemplate = {
   builtin?: boolean;
 };
 
+// Herkunft des laufenden Binaries (GET /version, internal/buildinfo): welcher
+// Stand läuft hier? Der Fuß der Sidebar zeigt sie — nach einem Deploy die
+// erste Frage. built_at ist RFC3339 (UTC), commit/built_at können leer sein,
+// wenn ein Build ohne Git-Kontext lief.
+export type BuildInfo = {
+  version: string;
+  commit: string;
+  built_at: string;
+  dirty: boolean;
+  go: string;
+};
+
+export const buildInfo = () => api<BuildInfo>("/version");
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
