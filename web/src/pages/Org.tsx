@@ -204,24 +204,45 @@ function useTreeLayout() {
     const measure = () => {
       root.style.setProperty("--tree-avail", `${root.clientWidth - 12}px`);
       for (const ul of root.querySelectorAll<HTMLElement>("ul.tree-grid")) {
+        // Erst frei messen: eine zuvor gesetzte Breite würde den Umbruch
+        // vorgeben, den wir gerade ermitteln wollen, und die Karten füllen
+        // ihre Reihe — beides muss für die Messung aus sein. Gemalt wird
+        // dazwischen nichts, alles passiert in einem Rutsch.
+        ul.style.width = "";
+        ul.setAttribute("data-measuring", "");
         const items = [...ul.children] as HTMLElement[];
-        if (items.length === 0) continue;
+        if (items.length === 0) {
+          ul.removeAttribute("data-measuring");
+          continue;
+        }
         // offsetTop zählt ab der ul (die ist position: relative) und trägt
         // deren Innenabstand — die erste Reihe liegt also nicht bei 0.
         const firstRow = items[0].offsetTop;
         let lastRow = firstRow;
+        let widest = 0;
         items.forEach((li, i) => {
           const top = li.offsetTop;
           li.toggleAttribute("data-row-first", i === 0 || items[i - 1].offsetTop !== top);
           li.toggleAttribute("data-row-last", i === items.length - 1 || items[i + 1].offsetTop !== top);
           lastRow = Math.max(lastRow, top);
+          widest = Math.max(widest, li.offsetLeft + li.offsetWidth);
         });
         // Die Schiene reicht vom Balken der ersten bis zu dem der letzten
         // Reihe. Passt die Ebene doch in eine Reihe, bleibt es bei der
         // klassischen Zeichnung — data-wrapped schaltet Schiene und den Arm
         // zu ihr wieder ab.
-        ul.toggleAttribute("data-wrapped", lastRow > firstRow);
+        const wrapped = lastRow > firstRow;
+        ul.toggleAttribute("data-wrapped", wrapped);
         ul.style.setProperty("--grid-spine", `${lastRow - firstRow}px`);
+        // Auf die breiteste Reihe schrumpfen. Sonst bleibt die Gruppe so breit
+        // wie ihr Deckel, der Elternknoten sitzt über deren Mitte — und damit
+        // sichtbar neben seinen Kindern. Die Reihen sind linksbündig, der
+        // Umbruch ändert sich durch die Breite also nicht. Die Karten füllen
+        // die Breite anschließend aus (flex-grow), damit jede Reihe gleich
+        // breit ist und der Strich des Elternknotens auf dem Balken der
+        // ersten Reihe landet.
+        ul.removeAttribute("data-measuring");
+        if (wrapped) ul.style.width = `${Math.ceil(widest)}px`;
       }
     };
     measure();

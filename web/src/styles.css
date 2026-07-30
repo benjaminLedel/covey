@@ -1381,7 +1381,11 @@ kbd {
 /* Verbinder je Reihe — dieselbe Zeichnung wie im klassischen Baum, nur an
    data-row-first/-last statt an :first-child/:last-child, damit jede Reihe
    ihren eigenen Balken bekommt. */
-.tree ul.tree-grid > li { padding-top: 14px; }
+/* Die Karten füllen ihre Reihe aus (nie schrumpfen), damit alle Reihen gleich
+   breit sind — sonst endet der Balken der ersten Reihe neben dem Strich des
+   Elternknotens. Fürs Messen schaltet der Hook das kurz ab. */
+.tree ul.tree-grid > li { padding-top: 14px; flex: 1 0 auto; }
+.tree ul.tree-grid[data-measuring] > li { flex-grow: 0; }
 .tree ul.tree-grid > li::before,
 .tree ul.tree-grid > li::after { height: 14px; }
 /* Erste Karte der Reihe: Balken von der Schiene bis zu ihrer Mitte. Nur bei
