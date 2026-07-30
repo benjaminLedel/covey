@@ -1352,6 +1352,9 @@ kbd {
    nachträglich verbinden. */
 .tree ul.tree-grid {
   flex-wrap: wrap;
+  /* Reihen linksbündig: nur so stehen die Balken aller Reihen über derselben
+     Schiene. Zentrierte Reihen fingen jede woanders an. */
+  justify-content: flex-start;
   /* max-content + Deckel: die Gruppe ist so breit wie ihr Inhalt, höchstens
      aber so breit wie der Deckel — daran bricht sie um. */
   width: max-content;
@@ -1362,25 +1365,39 @@ kbd {
    ganze sichtbare Breite nutzen. */
 .tree ul.tree-grid-wide { max-width: var(--tree-avail, 1200px); row-gap: 22px; }
 
-.tree ul.tree-grid > li { padding-top: 14px; }
-.tree ul.tree-grid > li::before,
-.tree ul.tree-grid > li::after { display: none; }
-
-/* Die Klammer: liegt unter dem senkrechten Strich des Elternknotens und
-   fasst alle Reihen der Gruppe zusammen. */
+/* Schiene: die Senkrechte am linken Rand, an der die Balken aller Reihen
+   hängen. Den waagerechten Strich der ersten Reihe zeichnet die Reihe selbst
+   — ein eigener Bügel stünde rechts über ihr hinaus. --grid-spine misst der
+   Layout-Hook in Org.tsx. */
 .tree ul.tree-grid::after {
   content: "";
   position: absolute;
-  top: 22px; left: 10px; right: 10px; height: 8px;
-  border: 1.5px solid var(--border-strong);
-  border-bottom: 0;
-  border-radius: 6px 6px 0 0;
+  top: 22px; left: 10px;
+  height: var(--grid-spine, 0);
+  border-left: 1.5px solid var(--border-strong);
 }
 .tree > ul.tree-grid::after { top: 0; }
-/* Abteilungs-Ebene ohne Klammer: die Karten sind unterschiedlich breit, eine
-   Klammer über der ganzen Gruppe stünde sichtbar neben ihrem Inhalt. Der
-   senkrechte Strich vom Organisations-Knoten genügt. */
-.tree ul.tree-grid-wide::after { display: none; }
+
+/* Verbinder je Reihe — dieselbe Zeichnung wie im klassischen Baum, nur an
+   data-row-first/-last statt an :first-child/:last-child, damit jede Reihe
+   ihren eigenen Balken bekommt. */
+.tree ul.tree-grid > li { padding-top: 14px; }
+.tree ul.tree-grid > li::before,
+.tree ul.tree-grid > li::after { height: 14px; }
+/* Erste Karte der Reihe: Balken von der Schiene bis zu ihrer Mitte. Nur bei
+   tatsächlichem Umbruch — sonst bliebe links vom ersten Knoten ein Stummel. */
+.tree ul.tree-grid[data-wrapped] > li[data-row-first]::before {
+  left: 10px; right: 50%; width: auto;
+  border-top: 1.5px solid var(--border-strong);
+  border-radius: 0;
+}
+/* Letzte Karte der Reihe: rechts endet der Balken, der Abzweig sitzt links. */
+.tree ul.tree-grid > li[data-row-last]::after { border: 0; }
+.tree ul.tree-grid > li[data-row-last]::before {
+  border-right: 1.5px solid var(--border-strong);
+  border-radius: 0 6px 0 0;
+}
+.tree ul.tree-grid > li[data-row-first][data-row-last]::before { border-radius: 0 6px 0 0; }
 
 /* Org-Wurzel- und Abteilungs-Knoten im Baum */
 .node.org, .node.dept { flex-direction: column; align-items: flex-start; gap: 2px; cursor: default; min-width: 168px; }

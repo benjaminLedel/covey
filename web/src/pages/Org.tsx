@@ -183,21 +183,53 @@ export default function Org() {
   );
 }
 
-// Die umbrechenden Ebenen brauchen einen Breiten-Deckel in Pixeln: Prozente
-// helfen nicht, weil alle Vorfahren im Baum max-content-breit sind. Der Hook
-// schreibt die tatsächlich sichtbare Breite als --tree-avail an den
-// Scroll-Container; styles.css deckelt die Gruppen damit.
-function useTreeWidth() {
+// Zwei Dinge, die erst der Browser weiß, und die der Baum trotzdem braucht:
+//
+//  1. Den Breiten-Deckel der umbrechenden Ebenen — in Pixeln, denn Prozente
+//     helfen nicht: alle Vorfahren im Baum sind max-content-breit. Der Hook
+//     schreibt die sichtbare Breite des Scroll-Containers als --tree-avail.
+//  2. Wo die Reihen einer umgebrochenen Ebene anfangen und aufhören. Erst
+//     danach lassen sich die Verbinder zeichnen (data-row-first/-last, siehe
+//     .tree-grid in styles.css) und die senkrechte Schiene bemessen, die die
+//     Reihen zusammenhält (--grid-spine).
+//
+// Beide Male werden nur data-Attribute und CSS-Variablen gesetzt, die auf
+// absolut positionierte Pseudo-Elemente wirken — das löst kein neues Layout
+// aus, der ResizeObserver läuft also nicht im Kreis.
+function useTreeLayout() {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const measure = () => el.style.setProperty("--tree-avail", `${el.clientWidth - 12}px`);
+    const root = ref.current;
+    if (!root) return;
+    const measure = () => {
+      root.style.setProperty("--tree-avail", `${root.clientWidth - 12}px`);
+      for (const ul of root.querySelectorAll<HTMLElement>("ul.tree-grid")) {
+        const items = [...ul.children] as HTMLElement[];
+        if (items.length === 0) continue;
+        // offsetTop zählt ab der ul (die ist position: relative) und trägt
+        // deren Innenabstand — die erste Reihe liegt also nicht bei 0.
+        const firstRow = items[0].offsetTop;
+        let lastRow = firstRow;
+        items.forEach((li, i) => {
+          const top = li.offsetTop;
+          li.toggleAttribute("data-row-first", i === 0 || items[i - 1].offsetTop !== top);
+          li.toggleAttribute("data-row-last", i === items.length - 1 || items[i + 1].offsetTop !== top);
+          lastRow = Math.max(lastRow, top);
+        });
+        // Die Schiene reicht vom Balken der ersten bis zu dem der letzten
+        // Reihe. Passt die Ebene doch in eine Reihe, bleibt es bei der
+        // klassischen Zeichnung — data-wrapped schaltet Schiene und den Arm
+        // zu ihr wieder ab.
+        ul.toggleAttribute("data-wrapped", lastRow > firstRow);
+        ul.style.setProperty("--grid-spine", `${lastRow - firstRow}px`);
+      }
+    };
     measure();
     const ro = new ResizeObserver(measure);
-    ro.observe(el);
+    ro.observe(root);
+    for (const ul of root.querySelectorAll("ul.tree-grid")) ro.observe(ul);
     return () => ro.disconnect();
-  }, []);
+  });
   return ref;
 }
 
@@ -233,7 +265,7 @@ function DiagramView({
   }
 
   const memberHandlers = { dragging, onDragStart, onDragEnd, onDrop };
-  const treeRef = useTreeWidth();
+  const treeRef = useTreeLayout();
 
   // Leitungen sind org-weit referenziert — eine Leitung muss nicht Mitglied
   // ihrer Abteilung sein, daher gegen die vollen Listen auflösen.
