@@ -217,12 +217,15 @@ type Cost struct {
 // [[slug]]-Wikilinks im Body) und list (alle Seiten fürs Materialisieren ins
 // Home). Das Wiki liegt in der Control Plane (Quelle der Wahrheit, spec/05).
 type RequestWiki struct {
-	RequestID string `json:"request_id"`
-	Op        string `json:"op"` // search | read | write | list
-	Query     string `json:"query,omitempty"`
-	Slug      string `json:"slug,omitempty"`
-	Title     string `json:"title,omitempty"`
-	Body      string `json:"body,omitempty"`
+	RequestID string   `json:"request_id"`
+	Op        string   `json:"op"` // search | read | write | append | delete | list
+	Query     string   `json:"query,omitempty"`
+	Slug      string   `json:"slug,omitempty"`
+	Title     string   `json:"title,omitempty"`
+	Body      string   `json:"body,omitempty"`
+	Type      string   `json:"type,omitempty"` // Entitätstyp der Seite (spec/05)
+	Tags      []string `json:"tags,omitempty"`
+	Text      string   `json:"text,omitempty"` // nur append: der anzuhängende Absatz
 }
 
 type InjectWiki struct {

@@ -3,6 +3,7 @@ package daemon
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -30,8 +31,8 @@ func TestWikiWorkingCopy(t *testing.T) {
 
 	// Frontmatter wird korrekt geparst.
 	raw, _ := os.ReadFile(filepath.Join(dir, "kunde-acme.md"))
-	if title, body := parseWikiFile(string(raw)); title != "Kunde ACME" || body != "Nur telefonisch erreichbar.\n" {
-		t.Fatalf("parseWikiFile unerwartet: title=%q body=%q", title, body)
+	if pg := parseWikiFile(string(raw)); pg.Title != "Kunde ACME" || pg.Body != "Nur telefonisch erreichbar.\n" {
+		t.Fatalf("parseWikiFile unerwartet: title=%q body=%q", pg.Title, pg.Body)
 	}
 
 	// Ohne Änderung: kein Rücksync.
@@ -125,8 +126,39 @@ func TestPartitionWikiEditsKeepsDeletionsDeleted(t *testing.T) {
 }
 
 func TestParseWikiFileNoFrontmatter(t *testing.T) {
-	title, body := parseWikiFile("Nur Text, kein Frontmatter.")
-	if title != "" || body != "Nur Text, kein Frontmatter." {
-		t.Fatalf("ohne Frontmatter: title=%q body=%q", title, body)
+	pg := parseWikiFile("Nur Text, kein Frontmatter.")
+	if pg.Title != "" || pg.Body != "Nur Text, kein Frontmatter." {
+		t.Fatalf("ohne Frontmatter: title=%q body=%q", pg.Title, pg.Body)
+	}
+}
+
+// Typ und Tags müssen die Runde Home → Control Plane überstehen: bis hierher
+// verwarf der Parser alles außer dem Titel, und der Agent konnte eine Seite
+// nicht einordnen, selbst wenn er es versuchte.
+func TestWikiFrontmatterRoundTrip(t *testing.T) {
+	in := wikiPage{Slug: "kunde-acme", Title: "Kunde ACME", Type: "kunde",
+		Tags: []string{"abrechnung", "eskalation"}, Body: "Nur telefonisch."}
+	pg := parseWikiFile(renderWikiFile(in))
+	if pg.Title != in.Title || pg.Type != "kunde" {
+		t.Fatalf("Titel/Typ verloren: %+v", pg)
+	}
+	if len(pg.Tags) != 2 || pg.Tags[0] != "abrechnung" || pg.Tags[1] != "eskalation" {
+		t.Fatalf("Tags verloren: %v", pg.Tags)
+	}
+	if strings.TrimSpace(pg.Body) != "Nur telefonisch." {
+		t.Fatalf("Body verändert: %q", pg.Body)
+	}
+	// Ohne Typ/Tags steht auch keine leere Zeile im Kopf.
+	plain := renderWikiFile(wikiPage{Title: "X", Body: "y"})
+	if strings.Contains(plain, "type:") || strings.Contains(plain, "tags:") {
+		t.Fatalf("leere Felder gehören nicht ins Frontmatter: %q", plain)
+	}
+}
+
+// YAML-Listenform der Tags akzeptieren, nicht nur die Kommaform.
+func TestParseWikiTagsListForm(t *testing.T) {
+	pg := parseWikiFile("---\ntitle: T\ntags: [alpha, beta]\n---\nText\n")
+	if len(pg.Tags) != 2 || pg.Tags[0] != "alpha" || pg.Tags[1] != "beta" {
+		t.Fatalf("Tags in Listenform: %v", pg.Tags)
 	}
 }

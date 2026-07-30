@@ -908,9 +908,11 @@ func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Content string `json:"content"`
-		Title   string `json:"title"`
-		Slug    string `json:"slug"`
+		Content string   `json:"content"`
+		Title   string   `json:"title"`
+		Slug    string   `json:"slug"`
+		Type    string   `json:"type"`
+		Tags    []string `json:"tags"`
 	}
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "ungültiger request")
@@ -930,7 +932,10 @@ func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 		if slug == "" {
 			slug = in.Title
 		}
-		if _, err := s.Memory.Write(r.Context(), id, slug, in.Title, in.Content, "manual"); err != nil {
+		if _, err := s.Memory.Write(r.Context(), id, memory.PageInput{
+			Slug: slug, Title: in.Title, Body: in.Content,
+			Source: "manual", Type: in.Type, Tags: in.Tags,
+		}); err != nil {
 			if errors.Is(err, memory.ErrNoContent) {
 				writeErr(w, http.StatusBadRequest, "kein verwertbarer inhalt")
 				return
@@ -982,6 +987,27 @@ func (s *Server) handleDeleteMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handleWikiHealth liefert die Qualitätsbefunde eines Wikis (spec/05):
+// verwaiste Seiten, tote Verweise, fehlende Typen, Tagebuch-Titel, Dubletten-
+// Verdacht und Stummel. Rein lesend — es wird nichts automatisch geändert.
+func (s *Server) handleWikiHealth(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	if _, err := s.Registry.Get(r.Context(), id); err != nil {
+		mapErr(w, err)
+		return
+	}
+	h, err := s.Memory.CheckHealth(r.Context(), id)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, h)
 }
 
 // handleWikiLog liefert das chronologische Wiki-Protokoll (log.md, spec/05) —

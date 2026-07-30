@@ -1720,10 +1720,12 @@ func (o *Orchestrator) brokerWiki(ctx context.Context, agent agents.Agent, req d
 			Title string   `json:"title"`
 			Body  string   `json:"body"`
 			Links []string `json:"links"`
+			Type  string   `json:"type"`
+			Tags  []string `json:"tags"`
 		}
 		pages := make([]page, 0, len(entries))
 		for _, e := range entries {
-			pages = append(pages, page{e.Slug, e.Title, e.Content, e.Links})
+			pages = append(pages, page{e.Slug, e.Title, e.Content, e.Links, e.Type, e.Tags})
 		}
 		return ok(pages)
 	case "search":
@@ -1749,7 +1751,17 @@ func (o *Orchestrator) brokerWiki(ctx context.Context, agent agents.Agent, req d
 		}
 		return ok(e)
 	case "write":
-		e, err := o.Memory.Write(ctx, agent.ID, req.Slug, req.Title, req.Body, "agent")
+		e, err := o.Memory.Write(ctx, agent.ID, memory.PageInput{
+			Slug: req.Slug, Title: req.Title, Body: req.Body,
+			Source: "agent", Type: req.Type, Tags: req.Tags,
+		})
+		if err != nil {
+			return fail(err.Error())
+		}
+		return ok(map[string]string{"slug": e.Slug, "title": e.Title, "type": e.Type})
+	case "append":
+		// Ergänzen, ohne die Seite neu zu schreiben (spec/05).
+		e, err := o.Memory.Append(ctx, agent.ID, req.Slug, req.Text)
 		if err != nil {
 			return fail(err.Error())
 		}

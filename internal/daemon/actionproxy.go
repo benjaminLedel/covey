@@ -152,9 +152,28 @@ func (p *actionProxy) handleControlPlane(ctx context.Context, w http.ResponseWri
 		var in struct {
 			Content string `json:"content"`
 			TaskID  string `json:"task_id"`
+			Page    string `json:"page"`
 		}
 		if err := json.Unmarshal(params, &in); err != nil || strings.TrimSpace(in.Content) == "" {
 			writeJSON(w, map[string]string{"status": "error", "error": "content fehlt"})
+			return
+		}
+		// remember mit Seitenbezug ist ein Anhängen an genau diese Seite. Ohne
+		// Bezug muss die Plattform raten, welche Seite gemeint ist — das erzeugt
+		// die satzbetitelten Streuseiten, die das Wiki aufblähen (spec/05).
+		if action == "remember" && strings.TrimSpace(in.Page) != "" {
+			resp, err := p.client.wiki(ctx, RequestWiki{Op: "append", Slug: in.Page, Text: in.Content})
+			if err != nil {
+				writeJSON(w, map[string]string{"status": "error", "error": err.Error()})
+				return
+			}
+			if !resp.OK {
+				writeJSON(w, map[string]string{"status": "error", "error": resp.Error})
+				return
+			}
+			audit, _ := json.Marshal(map[string]any{"action": "covey:remember", "page": in.Page, "content": in.Content})
+			_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
+			writeJSON(w, map[string]any{"status": "ok", "data": resp.Data})
 			return
 		}
 		taskID := in.TaskID
@@ -192,16 +211,20 @@ func (p *actionProxy) handleControlPlane(ctx context.Context, w http.ResponseWri
 		audit, _ := json.Marshal(map[string]any{"action": "covey:set_stage", "stage": in.Stage})
 		_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
 		writeJSON(w, map[string]string{"status": "ok", "stage": in.Stage})
-	case "wiki_search", "wiki_read", "wiki_write", "wiki_delete":
+	case "wiki_search", "wiki_read", "wiki_write", "wiki_append", "wiki_delete":
 		var in struct {
-			Query string `json:"query"`
-			Slug  string `json:"slug"`
-			Title string `json:"title"`
-			Body  string `json:"body"`
+			Query string   `json:"query"`
+			Slug  string   `json:"slug"`
+			Title string   `json:"title"`
+			Body  string   `json:"body"`
+			Type  string   `json:"type"`
+			Tags  []string `json:"tags"`
+			Text  string   `json:"text"`
 		}
 		_ = json.Unmarshal(params, &in)
 		op := strings.TrimPrefix(action, "wiki_")
-		resp, err := p.client.wiki(ctx, RequestWiki{Op: op, Query: in.Query, Slug: in.Slug, Title: in.Title, Body: in.Body})
+		resp, err := p.client.wiki(ctx, RequestWiki{Op: op, Query: in.Query, Slug: in.Slug,
+			Title: in.Title, Body: in.Body, Type: in.Type, Tags: in.Tags, Text: in.Text})
 		if err != nil {
 			writeJSON(w, map[string]string{"status": "error", "error": err.Error()})
 			return
