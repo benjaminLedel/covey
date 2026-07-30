@@ -125,8 +125,25 @@ func TestGitChangesSinceWithoutRepo(t *testing.T) {
 // Die Markierung eines Sub-Lauf-Events darf das Format der Runtime nicht
 // verdecken: Aufzeichnung und Timeline lesen stream-json direkt und würden den
 // Sub-Lauf sonst als JSON-Klumpen statt als Turn mit Tool-Aufrufen zeigen.
+// subAgentMarkOf liest die Marke aus einer markierten Zeile.
+func subAgentMarkOf(t *testing.T, line json.RawMessage) map[string]any {
+	t.Helper()
+	var obj map[string]any
+	if err := json.Unmarshal(line, &obj); err != nil {
+		t.Fatalf("markierte Zeile ist kein JSON: %s", line)
+	}
+	mark, ok := obj["covey_sub_agent"].(map[string]any)
+	if !ok {
+		t.Fatalf("Sub-Lauf-Markierung fehlt: %s", line)
+	}
+	return mark
+}
+
 func TestMarkSubAgentKeepsStreamFormat(t *testing.T) {
-	got := markSubAgent(json.RawMessage(`{"type":"assistant","message":{"content":[]}}`), "/home/agent/repos/p")
+	got, stamped := markSubAgent(json.RawMessage(`{"type":"assistant","message":{"content":[]}}`), "/home/agent/repos/p", "7", "")
+	if !stamped {
+		t.Fatal("ein JSON-Objekt muss markiert werden")
+	}
 
 	var obj map[string]any
 	if err := json.Unmarshal(got, &obj); err != nil {
@@ -135,9 +152,90 @@ func TestMarkSubAgentKeepsStreamFormat(t *testing.T) {
 	if obj["type"] != "assistant" {
 		t.Fatalf("type muss oben stehen bleiben: %s", got)
 	}
-	mark, ok := obj["covey_sub_agent"].(map[string]any)
-	if !ok || mark["dir"] != "/home/agent/repos/p" {
-		t.Fatalf("Sub-Lauf-Markierung fehlt oder ist unvollständig: %s", got)
+	mark := subAgentMarkOf(t, got)
+	if mark["dir"] != "/home/agent/repos/p" || mark["run"] != "7" {
+		t.Fatalf("Markierung unvollständig: %s", got)
+	}
+	if _, ok := mark["task"]; ok {
+		t.Fatalf("ohne Auftrag darf kein task-Schlüssel entstehen: %s", got)
+	}
+}
+
+// Zeilen, die kein JSON-Objekt sind, lässt der Adapter bewusst durch. Sie
+// dürfen weder verändert noch als markiert gemeldet werden — sonst gälte der
+// Auftrag als untergebracht, obwohl ihn niemand trägt.
+func TestMarkSubAgentPassesNonObjects(t *testing.T) {
+	for _, line := range []string{"kein json", `["liste"]`, `null`} {
+		got, stamped := markSubAgent(json.RawMessage(line), "/repo", "1", "Auftrag")
+		if stamped || string(got) != line {
+			t.Fatalf("%q muss unverändert und unmarkiert durchgehen, war %q (stamped=%v)", line, got, stamped)
+		}
+	}
+}
+
+// Der Arbeitsauftrag ist die Überschrift des Sub-Laufs in der Timeline. Er
+// steht deshalb in der Marke — gekürzt, weil er dort nur betiteln soll.
+func TestMarkSubAgentCarriesTask(t *testing.T) {
+	got, _ := markSubAgent(json.RawMessage(`{"type":"system","subtype":"init"}`), "/repo", "1", "  Nullpointer beheben  ")
+	if task := subAgentMarkOf(t, got)["task"]; task != "Nullpointer beheben" {
+		t.Fatalf("Auftrag muss getrimmt in der Marke stehen: %s", got)
+	}
+
+	// Lange Aufträge werden rune-sicher gekürzt — kein halbes Zeichen, keine
+	// Timeline, die am Auftragstext erstickt.
+	got, _ = markSubAgent(json.RawMessage(`{"type":"system"}`), "/repo", "1", strings.Repeat("ä", maxMarkedTask+50))
+	task, _ := subAgentMarkOf(t, got)["task"].(string)
+	if r := []rune(task); len(r) != maxMarkedTask+1 || r[len(r)-1] != '…' {
+		t.Fatalf("Auftrag muss auf %d Runen plus Auslassung gekürzt werden, war %d", maxMarkedTask, len([]rune(task)))
+	}
+}
+
+// Der Kern der Auszeichnung: dir und run stehen auf JEDER Zeile eines Laufs —
+// daran erkennt die Timeline seine Zeilen, auch wenn ein zweiter Sub-Lauf
+// dazwischenfunkt. Der Auftrag dagegen steht genau einmal, sonst ginge er mit
+// seiner Länge × Zeilenzahl in die Aufzeichnung.
+func TestSubAgentStamperGivesTaskOnce(t *testing.T) {
+	stamp := subAgentStamper("/repo", "3", "Nullpointer beheben")
+
+	// Eine Nicht-JSON-Zeile zuerst: Sie darf den Auftrag nicht aufbrauchen.
+	if got := stamp(json.RawMessage("Warnung aus dem Wrapper")); string(got) != "Warnung aus dem Wrapper" {
+		t.Fatalf("Nicht-JSON muss unverändert durchgehen: %s", got)
+	}
+
+	var withTask int
+	for i := range 3 {
+		mark := subAgentMarkOf(t, stamp(json.RawMessage(`{"type":"assistant"}`)))
+		if mark["dir"] != "/repo" || mark["run"] != "3" {
+			t.Fatalf("Zeile %d ohne vollständige Lauf-Kennung: %v", i, mark)
+		}
+		if _, ok := mark["task"]; ok {
+			withTask++
+		}
+	}
+	if withTask != 1 {
+		t.Fatalf("genau eine Zeile trägt den Auftrag, waren %d", withTask)
+	}
+}
+
+// Zwei Sub-Läufe desselben Daemons müssen unterscheidbare Kennungen bekommen —
+// sonst verschmelzen sie in der Timeline zu einem Block.
+func TestSubAgentRunsAreDistinct(t *testing.T) {
+	bin, home := fakeClaude(t, `cat <<'EOF'
+{"type":"result","subtype":"success","session_id":"s","result":"fertig"}
+EOF`)
+	c := &Client{homeDir: home, runtimes: map[string]Runtime{"claude-code": &ClaudeCode{Binary: bin}},
+		creds: map[string]InjectCredentials{}, cfg: InjectConfig{Runtime: "claude-code"}}
+
+	req := target.SubAgentRequest{Dir: home, Task: "Fix"}
+	if _, err := c.runSubAgent(t.Context(), "task-1", req); err != nil {
+		t.Fatal(err)
+	}
+	first := c.subRuns.Load()
+	if _, err := c.runSubAgent(t.Context(), "task-1", req); err != nil {
+		t.Fatal(err)
+	}
+	if c.subRuns.Load() == first {
+		t.Fatal("jeder Sub-Lauf braucht eine eigene Kennung")
 	}
 }
 

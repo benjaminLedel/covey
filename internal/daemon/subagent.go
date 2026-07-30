@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"covey/internal/target"
@@ -137,8 +138,15 @@ func (c *Client) runSubAgent(ctx context.Context, taskID string, req target.SubA
 		Env: c.runtimeKeyEnv(),
 	}
 
+	// Jeder Sub-Lauf bekommt eine eigene Kennung. Sie ist das, woran die
+	// Timeline die Zeilen eines Laufs erkennt — nicht ihre Nachbarschaft im
+	// Strom. Der Unterschied zählt, weil der Action-Proxy nebenläufig bedient
+	// (jeder Request eine Goroutine): Zwei gleichzeitige `dev agent`-Aufrufe
+	// verschränken ihre Zeilen unter derselben Aufgabe, und ohne Kennung
+	// verschmölzen sie zu einem Block oder zerfielen in Bruchstücke.
+	stamp := subAgentStamper(dir, strconv.FormatUint(c.subRuns.Add(1), 10), task)
 	res, err := runtime.Run(ctx, spec, func(kind string, payload json.RawMessage) {
-		_ = c.send(TypeEvent, Event{TaskID: taskID, Kind: kind, Payload: markSubAgent(payload, dir)})
+		_ = c.send(TypeEvent, Event{TaskID: taskID, Kind: kind, Payload: stamp(payload)})
 	})
 	if err != nil {
 		return target.SubAgentResult{}, err
@@ -186,27 +194,67 @@ func (c *Client) releaseSubAgentDir(dir string) {
 	delete(c.subAgentDirs, dir)
 }
 
+// maxMarkedTask begrenzt den Arbeitsauftrag in der Marke. Er dient dort als
+// Überschrift, nicht als Archiv — den vollen Text hält ohnehin das
+// action-Event des Action-Proxys fest.
+const maxMarkedTask = 400
+
 // markSubAgent markiert eine Runtime-Zeile als Teil eines Sub-Laufs — als
 // zusätzlichen Schlüssel IM Objekt, nicht als Hülle darum. Der Unterschied ist
 // nicht kosmetisch: Aufzeichnung und Timeline lesen das Format der Runtime
 // (stream-json) direkt, und eine Hülle würde `type` verdecken. Der Sub-Lauf
 // stünde dann als JSON-Klumpen in der Aufzeichnung statt als Turn mit seinen
 // Tool-Aufrufen — ausgerechnet dort, wo die eigentliche Arbeit passiert.
-func markSubAgent(payload json.RawMessage, dir string) json.RawMessage {
+//
+// run ist die Kennung des Laufs, task der Arbeitsauftrag. task steht nur auf
+// der ersten Zeile (siehe subAgentStamper): Die Timeline zeigt damit im Kopf
+// des Blocks, WOMIT der Sub-Agent beauftragt war, ohne dass man ihn aufklappen
+// muss. Der zweite Rückgabewert sagt, ob wirklich markiert wurde — nur dann
+// gilt der Auftrag als untergebracht.
+func markSubAgent(payload json.RawMessage, dir, run, task string) (json.RawMessage, bool) {
 	var obj map[string]json.RawMessage
 	if err := json.Unmarshal(payload, &obj); err != nil || obj == nil {
-		return payload // kein JSON-Objekt → unverändert durchreichen
+		return payload, false // kein JSON-Objekt → unverändert durchreichen
 	}
-	mark, err := json.Marshal(map[string]string{"dir": dir})
+	fields := map[string]string{"dir": dir, "run": run}
+	if task = strings.TrimSpace(task); task != "" {
+		if r := []rune(task); len(r) > maxMarkedTask {
+			task = string(r[:maxMarkedTask]) + "…"
+		}
+		fields["task"] = task
+	}
+	mark, err := json.Marshal(fields)
 	if err != nil {
-		return payload
+		return payload, false
 	}
 	obj["covey_sub_agent"] = mark
 	marked, err := json.Marshal(obj)
 	if err != nil {
-		return payload
+		return payload, false
 	}
-	return marked
+	return marked, true
+}
+
+// subAgentStamper markiert die Zeilen EINES Sub-Laufs und vergibt den
+// Arbeitsauftrag dabei genau einmal — auf jeder Zeile ginge er mit seiner
+// Länge × Zeilenzahl in die Aufzeichnung, als Überschrift genügt er einmal.
+//
+// Verbraucht wird er erst, wenn er auch wirklich untergebracht ist: Eine Zeile,
+// die kein JSON-Objekt ist, lässt der Adapter bewusst durch (stream toleriert
+// sie), und an ihr darf der Auftrag nicht verloren gehen.
+//
+// Der zurückgegebene Stempel ist NICHT nebenläufig benutzbar — er muss es auch
+// nicht sein: stream ruft den Callback sequentiell in seiner Scanner-Schleife,
+// und ein etwaiger Zusatzlauf (summarize) folgt erst danach.
+func subAgentStamper(dir, run, task string) func(json.RawMessage) json.RawMessage {
+	head := task
+	return func(payload json.RawMessage) json.RawMessage {
+		marked, stamped := markSubAgent(payload, dir, run, head)
+		if stamped {
+			head = ""
+		}
+		return marked
+	}
 }
 
 // gitRev löst eine Referenz zu einem Commit auf. Leer, wenn es sie nicht gibt

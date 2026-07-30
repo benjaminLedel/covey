@@ -34,7 +34,8 @@ import {
   type Task,
   type TaskNote,
 } from "../api";
-import { ActivityFeed } from "../components/ActivityFeed";
+import { ActivityFeed, subAgentMark } from "../components/ActivityFeed";
+import { fmtDelta } from "../format";
 import { TargetIcon } from "../components/TargetIcon";
 import { Markdown } from "../components/Markdown";
 import ProfileForm from "../components/ProfileForm";
@@ -1137,9 +1138,13 @@ function RecordingItem({ event }: { event: RecordingEvent }) {
   const s = summarize(event);
   const raw = typeof event.payload === "string" ? event.payload : JSON.stringify(event.payload, null, 2);
   const locale = i18n.language === "de" ? "de-DE" : "en-US";
+  // Rohansicht und erzählende Ansicht müssen dasselbe sagen: Gehört die Zeile
+  // zu einem Sub-Lauf, steht das hier als Badge — dort als eigener Block.
+  const sub = subAgentMark(event);
   return (
     <div className="timeline-item">
       <span className={`kind-tag kind-${event.kind}`}>{event.kind}</span>
+      {sub && <span className="kind-tag kind-subagent">{i18n.t("activity.subAgentBadge")}</span>}
       <details className="flex-1 min-w-0 rec-details">
         <summary
           className={`rec-summary break-words ${s.mono ? "mono" : ""}`}
@@ -1157,17 +1162,6 @@ function RecordingItem({ event }: { event: RecordingEvent }) {
       </span>
     </div>
   );
-}
-
-function fmtDelta(ms: number): string {
-  const s = Math.max(0, Math.round(ms / 1000));
-  if (s < 60) return `${s} s`;
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m} min`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return m % 60 ? `${h} h ${m % 60} min` : `${h} h`;
-  const d = Math.floor(h / 24);
-  return h % 24 ? `${d} d ${h % 24} h` : `${d} d`;
 }
 
 function scheduleLabel(hb: HeartbeatStatus): string {
