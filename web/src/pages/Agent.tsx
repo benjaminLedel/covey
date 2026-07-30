@@ -39,6 +39,7 @@ import {
 import { ActivityFeed, subAgentMark } from "../components/ActivityFeed";
 import { fmtDelta } from "../format";
 import { TargetIcon } from "../components/TargetIcon";
+import { WikiTypeIcon, WikiOpIcon } from "../components/WikiIcon";
 import { Markdown } from "../components/Markdown";
 import ProfileForm from "../components/ProfileForm";
 import { AddHostForm, EgressLogTable, HostChips } from "../components/EgressBits";
@@ -2501,6 +2502,7 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
     return (
       <div className="wiki-group" key={ty || "none"}>
         <div className="wiki-group-h">
+          <WikiTypeIcon type={ty} size={14} />
           <span>{typeLabel(ty)}</span>
           <span className="cnt">{items.length}</span>
         </div>
@@ -2600,7 +2602,10 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
                       <span className="at">
                         {new Date(l.created_at).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}
                       </span>
-                      <span className={`op op-${l.op}`}>{opLabel(l.op)}</span>
+                      <span className={`op op-${l.op}`}>
+                        <WikiOpIcon op={l.op} />
+                        {opLabel(l.op)}
+                      </span>
                       <span className="cell">
                         {page ? (
                           <button type="button" className="wikilink" onClick={() => openPage(page.slug)} title={page.slug}>
@@ -2656,7 +2661,9 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
                 ) : (
                   (search.data ?? []).map((m) => (
                     <div key={m.id} className={`wiki-node${m.slug === selected ? " sel" : ""}`}>
-                      <span className="tw">·</span>
+                      <span className="tw">
+                        <WikiTypeIcon type={m.type} size={13} />
+                      </span>
                       <button type="button" className="lbl" onClick={() => setSelected(m.slug)}>
                         {m.title || m.slug}
                       </button>
@@ -2697,6 +2704,7 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
                   <span className="flex items-center gap-2 min-w-0 flex-wrap">
                     <span className="font-medium text-[16px]">{current.title || current.slug}</span>
                     <span className={`chip${current.type ? " is-fixed" : " q"}`} style={{ fontSize: "10px" }}>
+                      <WikiTypeIcon type={current.type} size={12} />
                       {current.type ? typeLabel(current.type) : t("agent.memory.noType")}
                     </span>
                     {current.source && (
