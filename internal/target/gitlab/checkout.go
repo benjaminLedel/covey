@@ -108,7 +108,16 @@ func Checkout(ctx context.Context, gc *Client, projectID int, ref, subPath, work
 	}
 	defer body.Close()
 
-	destDir := filepath.Join(workdir, "repos", stableCheckoutDir(projectID, ref, subPath))
+	reposDir := filepath.Join(workdir, "repos")
+	destDir := filepath.Join(reposDir, stableCheckoutDir(projectID, ref, subPath))
+	// Sicherheitsnetz um den Verzeichnisnamen: Er entsteht aus Projekt-ID und
+	// Ref, also aus Werten, die der Agent liefert. stableCheckoutDir lässt
+	// keinen Pfad-Separator durch — die Prüfung hält diese Zusage explizit fest,
+	// statt sie zwei Funktionen entfernt implizit zu lassen. Alles darunter
+	// (Entpacken, git-Baseline) verlässt sich darauf.
+	if !strings.HasPrefix(destDir, reposDir+string(os.PathSeparator)) {
+		return CheckoutResult{}, fmt.Errorf("unsicheres checkout-verzeichnis für ref %q", ref)
+	}
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return CheckoutResult{}, err
 	}
@@ -139,24 +148,23 @@ func Checkout(ctx context.Context, gc *Client, projectID int, ref, subPath, work
 //   - Nach der Arbeit im Checkout ließe sich sonst nicht sagen, WAS geändert
 //     wurde — die commit-Aktion braucht aber genau diese Dateiliste.
 //
-// Die Baseline wird bei jedem Checkout neu gezogen (.git steht bewusst NICHT
-// in preserveDirs): Nur so entspricht sie exakt dem frischen Upstream-Stand,
-// und `git status` zeigt danach ausschließlich die eigene Arbeit.
+// Die Baseline wird bei jedem Checkout neu gezogen: `.git` steht bewusst NICHT
+// in preserveDirs, pruneExceptPreserved räumt sie also vor dem Entpacken weg.
+// Nur so entspricht sie exakt dem frischen Upstream-Stand, und `git status`
+// zeigt danach ausschließlich die eigene Arbeit.
 //
 // Alles hier ist best effort — fehlt git oder scheitert ein Schritt, bleibt der
 // Checkout gültig; der Agent verliert nur den Komfort.
 func initGitBaseline(ctx context.Context, dir string) {
 	git := func(args ...string) error {
-		cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
+		cmd := exec.CommandContext(ctx, "git", args...)
+		cmd.Dir = dir
 		// Identität als Flag statt via git config: Wir fassen weder die globale
 		// Konfiguration des Sandbox-Users an noch brauchen wir eine echte.
 		cmd.Env = append(os.Environ(),
 			"GIT_AUTHOR_NAME=Covey", "GIT_AUTHOR_EMAIL=covey@localhost",
 			"GIT_COMMITTER_NAME=Covey", "GIT_COMMITTER_EMAIL=covey@localhost")
 		return cmd.Run()
-	}
-	if err := os.RemoveAll(filepath.Join(dir, ".git")); err != nil {
-		return
 	}
 	if err := git("init", "-q"); err != nil {
 		return
