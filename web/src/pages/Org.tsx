@@ -203,7 +203,11 @@ function useTreeLayout() {
     if (!root) return;
     const measure = () => {
       root.style.setProperty("--tree-avail", `${root.clientWidth - 12}px`);
-      for (const ul of root.querySelectorAll<HTMLElement>("ul.tree-grid")) {
+      // Von innen nach außen (Dokumentreihenfolge rückwärts): eine Abteilung
+      // ist so breit wie ihr Mitglieder-Block. Erst wenn der auf seine Reihen
+      // geschrumpft ist, stimmt die Breite, mit der die Abteilungs-Ebene
+      // rechnet — sonst stapelt sie Karten, die nebeneinander passen.
+      for (const ul of [...root.querySelectorAll<HTMLElement>("ul.tree-grid")].reverse()) {
         // Erst frei messen: eine zuvor gesetzte Breite würde den Umbruch
         // vorgeben, den wir gerade ermitteln wollen, und die Karten füllen
         // ihre Reihe — beides muss für die Messung aus sein. Gemalt wird
