@@ -668,7 +668,9 @@
       "qDuplicate_one": "{{count}} possible duplicate",
       "qDuplicate_other": "{{count}} possible duplicates",
       "qStubs_one": "{{count}} stub",
-      "qStubs_other": "{{count}} stubs"
+      "qStubs_other": "{{count}} stubs",
+      "today": "Today",
+      "yesterday": "Yesterday"
     },
     "egress": {
       "desc": "This agent may only reach the hosts listed below — everything else is blocked by the egress proxy fail-closed.",

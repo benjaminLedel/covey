@@ -668,7 +668,9 @@
       "qDuplicate_one": "{{count}} Dubletten-Verdacht",
       "qDuplicate_other": "{{count}} Dubletten-Verdacht",
       "qStubs_one": "{{count}} Stummel",
-      "qStubs_other": "{{count}} Stummel"
+      "qStubs_other": "{{count}} Stummel",
+      "today": "Heute",
+      "yesterday": "Gestern"
     },
     "egress": {
       "desc": "Dieser Agent darf ausgehend nur die Hosts unten erreichen — alles andere blockt der Egress-Proxy fail-closed.",

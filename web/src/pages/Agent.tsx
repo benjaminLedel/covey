@@ -2247,6 +2247,32 @@ function WikiGraph({
   );
 }
 
+// Die Vorgangs-Präfixe, die die Control Plane in wiki_log.summary schreibt
+// (internal/memory). Geschlossene Liste, exakt abgeglichen — eine Regel wie
+// "alles bis zum ersten Doppelpunkt" schnitte mitten in Titel hinein, die
+// selbst einen enthalten ("educa-ai-web !100 (#222): fertig, …").
+const LOG_PREFIXES = ["neue Seite: ", "ergänzt: ", "gelöscht: ", "bearbeitet: "];
+
+// logDetail entscheidet, ob die Zusammenfassung neben der Seite noch etwas
+// beiträgt. Meist lautet sie "<Vorgang>: <Seitentitel>" — dann steht dasselbe
+// zweimal in einer Zeile, und genau das machte das Protokoll unlesbar.
+function logDetail(summary: string, pageName: string): string {
+  let s = (summary ?? "").trim();
+  for (const p of LOG_PREFIXES) {
+    if (s.startsWith(p)) {
+      s = s.slice(p.length).trim();
+      break;
+    }
+  }
+  const n = (pageName ?? "").trim();
+  if (!s) return "";
+  if (!n) return s;
+  const a = s.toLowerCase();
+  const b = n.toLowerCase();
+  if (a === b || a.endsWith(b) || a.startsWith(b) || b.startsWith(a)) return "";
+  return s;
+}
+
 function Memories({ agentId, canManage }: { agentId: string; canManage: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -2350,6 +2376,31 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
     })[op] ?? op;
 
   const bySlug = useMemo(() => new Map(list.map((p) => [p.slug, p])), [list]);
+
+  // Protokoll nach Tagen gruppieren: 25 Zeitstempel untereinander liest niemand,
+  // drei Tagesblöcke mit Uhrzeiten schon.
+  const logDays = useMemo(() => {
+    const today = new Date().toDateString();
+    const yest = new Date(Date.now() - 86400000).toDateString();
+    const out: { key: string; label: string; rows: WikiLogEntry[] }[] = [];
+    logs.forEach((l) => {
+      const d = new Date(l.created_at);
+      const key = d.toDateString();
+      let group = out.find((g) => g.key === key);
+      if (!group) {
+        const label =
+          key === today
+            ? t("agent.memory.today")
+            : key === yest
+              ? t("agent.memory.yesterday")
+              : d.toLocaleDateString(locale, { day: "2-digit", month: "long", year: "numeric" });
+        group = { key, label, rows: [] };
+        out.push(group);
+      }
+      group.rows.push(l);
+    });
+    return out;
+  }, [logs, locale, t]);
   const has = (slug: string) => bySlug.has(slug);
   const openPage = (slug: string) => {
     setView("pages");
@@ -2530,35 +2581,49 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
       {view === "log" ? (
         <>
           {logs.length === 0 && <p className="muted">{t("agent.memory.logEmpty")}</p>}
-          <div className="card" style={{ padding: "4px 12px" }}>
-            {logs.map((l) => {
-              // Seiten beim Namen nennen, wo es sie noch gibt — der rohe Slug ist
-              // bis zu 64 Zeichen lang und sagt weniger als der Titel.
-              const page = l.page_slug ? bySlug.get(l.page_slug) : undefined;
-              return (
-                <div key={l.id} className="wiki-log-row">
-                  <span className={`chip ${l.op === "merge" ? "" : "is-fixed"} op`}>{opLabel(l.op)}</span>
-                  {page ? (
-                    <button type="button" className="wikilink cell" onClick={() => openPage(page.slug)} title={page.slug}>
-                      {page.title || page.slug}
-                    </button>
-                  ) : l.page_slug ? (
-                    <span className="wikilink missing cell" title={t("agent.memory.missing")}>
-                      {l.page_slug}
-                    </span>
-                  ) : (
-                    <span />
-                  )}
-                  <span className="cell summary" title={l.summary}>
-                    {l.summary}
-                  </span>
-                  <span className="at">
-                    {new Date(l.created_at).toLocaleString(locale, { dateStyle: "short", timeStyle: "short" })}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
+          {logDays.map((day) => (
+            <div key={day.key} className="wiki-log-day">
+              <div className="wiki-log-day-h">{day.label}</div>
+              <div className="card" style={{ padding: "2px 14px" }}>
+                {day.rows.map((l) => {
+                  // Seiten beim Namen nennen, wo es sie noch gibt — der rohe Slug
+                  // ist bis zu 64 Zeichen lang und sagt weniger als der Titel.
+                  const page = l.page_slug ? bySlug.get(l.page_slug) : undefined;
+                  const name = page?.title || page?.slug || l.page_slug || "";
+                  const extra = logDetail(l.summary, name);
+                  // Gibt es die Seite nicht mehr, ist ihr Slug kryptisch und bis
+                  // 64 Zeichen lang; dann trägt der Satz aus dem Protokoll mehr.
+                  const primary = page ? name : extra || name;
+                  const detail = page ? extra : "";
+                  return (
+                    <div key={l.id} className="wiki-log-row">
+                      <span className="at">
+                        {new Date(l.created_at).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                      <span className={`op op-${l.op}`}>{opLabel(l.op)}</span>
+                      <span className="cell">
+                        {page ? (
+                          <button type="button" className="wikilink" onClick={() => openPage(page.slug)} title={page.slug}>
+                            {name}
+                          </button>
+                        ) : (
+                          <span className="wikilink missing" title={l.page_slug}>
+                            {primary}
+                          </span>
+                        )}
+                        {detail && (
+                          <span className="detail" title={l.summary}>
+                            {" · "}
+                            {detail}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </>
       ) : view === "graph" ? (
         <div className="card" style={{ padding: 0, overflow: "hidden" }}>
