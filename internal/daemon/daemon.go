@@ -29,15 +29,18 @@ type Client struct {
 	homeDir  string
 	runtimes map[string]Runtime
 
+	// conn steht unter writeMu — der Mutex, der ohnehin jeden Write serialisiert.
+	// Gesetzt wird sie in Run(), gelesen aus jeder Goroutine, die sendet.
 	conn    *websocket.Conn
 	writeMu sync.Mutex
 
-	mu        sync.Mutex
-	cfg       InjectConfig
-	creds     map[string]InjectCredentials // System → gebrokertes Credential (nur RAM)
-	targets   map[string]target.System     // System → gebrokertes Manifest-Plugin (nur RAM)
-	pending   map[string]chan Message      // request_id → Antwortkanal
-	cancelRun context.CancelFunc
+	mu           sync.Mutex
+	cfg          InjectConfig
+	creds        map[string]InjectCredentials // System → gebrokertes Credential (nur RAM)
+	targets      map[string]target.System     // System → gebrokertes Manifest-Plugin (nur RAM)
+	pending      map[string]chan Message      // request_id → Antwortkanal
+	subAgentDirs map[string]bool              // Verzeichnisse mit laufendem Sub-Agent
+	cancelRun    context.CancelFunc
 
 	// ErrKilled signalisiert dem Prozess-Exit den Kill-Pfad.
 	log *slog.Logger
@@ -60,9 +63,6 @@ func NewClient(wsURL, token, agentID, homeDir string, log *slog.Logger) *Client 
 }
 
 func (c *Client) send(msgType string, payload any) error {
-	if c.conn == nil {
-		return errors.New("keine verbindung zur control plane")
-	}
 	msg, err := Encode(msgType, payload)
 	if err != nil {
 		return err
@@ -73,6 +73,11 @@ func (c *Client) send(msgType string, payload any) error {
 	}
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
+	// Vor Run() bzw. nach einem Verbindungsabbruch gibt es keine Verbindung.
+	// Die Prüfung steht unter writeMu, weil conn dort geschrieben wird.
+	if c.conn == nil {
+		return errors.New("keine verbindung zur control plane")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return c.conn.Write(ctx, websocket.MessageText, raw)
@@ -114,7 +119,9 @@ func (c *Client) Run(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("control plane nicht erreichbar: %w", err)
 	}
+	c.writeMu.Lock()
 	c.conn = conn
+	c.writeMu.Unlock()
 	defer conn.Close(websocket.StatusNormalClosure, "bye")
 	conn.SetReadLimit(16 << 20)
 

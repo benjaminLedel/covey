@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
@@ -19,9 +20,10 @@ import (
 //
 // Die Rollenteilung dahinter (spec/12): Der äußere Agent ist Orchestrator und
 // Kommunikator (Triage, Issue-/MR-Verkehr, commit, Gedächtnis), der Sub-Agent
-// programmiert. Er läuft deshalb bewusst **hermetisch**: kein
-// COVEY_ACTION_PORT, also kein Zugriff auf Zielsysteme. Er kann lesen, ändern,
-// bauen und testen — mehr nicht.
+// programmiert. Er erreicht deshalb bewusst keine Zielsysteme: kein
+// COVEY_ACTION_PORT — und über childEnv auch nicht die Zugangsdaten des
+// Daemons zur Control Plane, mit denen sich der Broker direkt ansprechen
+// ließe. Er kann lesen, ändern, bauen und testen — mehr nicht.
 const (
 	// defaultSubAgentTurns ist großzügiger als das Limit des äußeren Laufs:
 	// Der Sub-Agent macht die eigentliche Arbeit (verstehen, ändern, testen).
@@ -67,9 +69,28 @@ func (c *Client) runSubAgent(ctx context.Context, taskID string, req target.SubA
 	if dir == "" {
 		return target.SubAgentResult{}, fmt.Errorf("cwd fehlt: der Sub-Agent startet im Projekt-Checkout")
 	}
+	dir = filepath.Clean(dir)
 	if !filepath.IsAbs(dir) {
 		dir = filepath.Join(c.homeDir, dir)
 	}
+	// Pfad vorab prüfen, statt den Lauf am chdir des Subprozesses scheitern zu
+	// lassen: „claude starten: chdir …" sagt dem Agenten nicht, was er falsch
+	// gemacht hat.
+	if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
+		return target.SubAgentResult{}, fmt.Errorf(
+			"cwd %q ist kein Verzeichnis in der Sandbox — nimm den Pfad aus dem checkout-Ergebnis", req.Dir)
+	}
+	// Ein Sub-Lauf je Verzeichnis. Der Action-Proxy bedient jede Anfrage in
+	// einer eigenen Goroutine und die Runtime ruft Werkzeuge durchaus parallel
+	// auf: Zwei Läufe im selben Checkout schrieben sich gegenseitig die Dateien
+	// um und meldeten beide denselben kumulativen Stand — zwei Berichte über
+	// eine vermischte Arbeit. Deshalb Absage statt Warteschlange: Der Agent
+	// soll den ersten Bericht lesen, bevor er im selben Checkout den nächsten
+	// Auftrag gibt. Verschiedene Verzeichnisse laufen weiter parallel.
+	if err := c.claimSubAgentDir(dir); err != nil {
+		return target.SubAgentResult{}, err
+	}
+	defer c.releaseSubAgentDir(dir)
 
 	c.mu.Lock()
 	cfg := c.cfg
@@ -143,6 +164,28 @@ func (c *Client) runSubAgent(ctx context.Context, taskID string, req target.SubA
 	}, nil
 }
 
+// claimSubAgentDir belegt ein Verzeichnis für die Dauer eines Sub-Laufs und
+// lehnt einen zweiten Lauf darin ab, solange der erste arbeitet.
+func (c *Client) claimSubAgentDir(dir string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.subAgentDirs == nil {
+		c.subAgentDirs = map[string]bool{}
+	}
+	if c.subAgentDirs[dir] {
+		return fmt.Errorf("in %s arbeitet schon ein Sub-Agent — lies erst seinen Bericht, "+
+			"bevor du im selben Checkout den nächsten Auftrag gibst", dir)
+	}
+	c.subAgentDirs[dir] = true
+	return nil
+}
+
+func (c *Client) releaseSubAgentDir(dir string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.subAgentDirs, dir)
+}
+
 // markSubAgent markiert eine Runtime-Zeile als Teil eines Sub-Laufs — als
 // zusätzlichen Schlüssel IM Objekt, nicht als Hülle darum. Der Unterschied ist
 // nicht kosmetisch: Aufzeichnung und Timeline lesen das Format der Runtime
@@ -170,8 +213,7 @@ func markSubAgent(payload json.RawMessage, dir string) json.RawMessage {
 // (kein Repo, kein Commit, kein Tag) — der Aufrufer entscheidet dann, ob er
 // einen anderen Anker nimmt oder gar keine Dateiliste meldet.
 func gitRev(ctx context.Context, dir, rev string) string {
-	out, err := exec.CommandContext(ctx, "git", "-C", dir,
-		"rev-parse", "--verify", "--quiet", rev+"^{commit}").Output()
+	out, err := gitRun(ctx, dir, "rev-parse", "--verify", "--quiet", rev+"^{commit}")
 	if err != nil {
 		return ""
 	}
@@ -203,13 +245,13 @@ func gitChangesSince(ctx context.Context, dir, base string) (changed, deleted []
 		switch {
 		case code == "" || from == "":
 			return
-		case strings.HasPrefix(code, "R"), strings.HasPrefix(code, "C"):
+		case strings.ContainsAny(code, "RC"):
 			// Umbenennung/Kopie: das Ziel ist neu, bei R fällt die Quelle weg.
 			// Die Quelle muss mit, sonst bliebe sie im Zielsystem stehen.
 			if to != "" {
 				state[to] = false
 			}
-			if strings.HasPrefix(code, "R") {
+			if strings.ContainsRune(code, 'R') {
 				state[from] = true
 			}
 		case strings.ContainsRune(code, 'D'):
@@ -218,29 +260,43 @@ func gitChangesSince(ctx context.Context, dir, base string) (changed, deleted []
 			state[from] = false
 		}
 	}
-	// Committet: --name-status trennt mit Tabs, Umbenennungen als "R100 alt neu".
-	for _, line := range gitLines(ctx, dir, "diff", "--name-status", base, "HEAD") {
-		f := strings.Split(line, "\t")
-		if len(f) < 2 {
-			continue
-		}
+	// Committet: --name-status -z liefert einen Feldstrom aus Status und Pfad,
+	// bei Umbenennung/Kopie zwei Pfaden — "R100\0alt\0neu\0".
+	fields := gitFields(ctx, dir, "diff", "--name-status", "-z", base, "HEAD")
+	for i := 0; i+1 < len(fields); {
+		code, from := fields[i], fields[i+1]
+		i += 2
 		to := ""
-		if len(f) > 2 {
-			to = f[2]
+		if strings.ContainsAny(code, "RC") {
+			if i >= len(fields) {
+				break
+			}
+			to = fields[i]
+			i++
 		}
-		mark(f[0], f[1], to)
+		mark(code, from, to)
 	}
-	// Offen im Arbeitsverzeichnis: --porcelain, Umbenennungen als "alt -> neu".
-	for _, line := range gitLines(ctx, dir, "status", "--porcelain", "-uall") {
-		if len(line) < 4 {
+	// Offen im Arbeitsverzeichnis: --porcelain -z. Ein Feld ist ein Datensatz
+	// "XY <pfad>"; bei Umbenennung/Kopie folgt die Quelle als eigenes Feld —
+	// und zwar NACH dem Ziel, denn in -z ist die Reihenfolge gegenüber
+	// "alt -> neu" umgekehrt.
+	fields = gitFields(ctx, dir, "status", "--porcelain", "-z", "-uall")
+	for i := 0; i < len(fields); {
+		rec := fields[i]
+		i++
+		if len(rec) < 4 {
 			continue
 		}
-		code, path := strings.TrimSpace(line[:2]), strings.TrimSpace(line[3:])
-		from, to := path, ""
-		if i := strings.Index(path, " -> "); i >= 0 {
-			from, to = path[:i], path[i+4:]
+		code, path := strings.TrimSpace(rec[:2]), rec[3:]
+		if strings.ContainsAny(code, "RC") {
+			if i >= len(fields) {
+				break
+			}
+			mark(code, fields[i], path) // Ziel zuerst, Quelle danach
+			i++
+			continue
 		}
-		mark(code, strings.Trim(from, `"`), strings.Trim(to, `"`))
+		mark(code, path, "")
 	}
 
 	for path, gone := range state {
@@ -257,17 +313,36 @@ func gitChangesSince(ctx context.Context, dir, base string) (changed, deleted []
 	return changed, deleted
 }
 
-// gitLines führt ein git-Kommando aus und liefert seine Ausgabezeilen. Ohne git
-// oder ohne Repository leer: Dann meldet der Sub-Lauf eben keine Dateiliste,
-// statt zu scheitern.
-func gitLines(ctx context.Context, dir string, args ...string) []string {
-	out, err := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...).Output()
+// gitRun führt ein git-Kommando im Checkout aus. Zwei Details stecken hier
+// drin, beide nicht kosmetisch:
+//
+//   - core.quotepath=false: Sonst liefert git (Default true) Pfade außerhalb
+//     ASCII escaped — "pr\303\274fung.go" statt prüfung.go. Der Pfad ginge
+//     verstümmelt in changed_files und von dort unverändert in die
+//     commit-Aktion. Zusammen mit -z beim Aufrufer kommen die Bytes roh und
+//     ungequotet heraus; das erledigt Leerzeichen und Anführungszeichen mit.
+//   - childEnv: ohne die COVEY_*-Variablen des Daemons. git liest Konfiguration
+//     AUS dem Repository, und die kann Kommandos benennen, die git selbst
+//     ausführt (core.fsmonitor, Filter-Driver). Nach dem Sub-Lauf ist dieses
+//     Repository nicht vertrauenswürdiger als der übrige Checkout.
+func gitRun(ctx context.Context, dir string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, "git", append([]string{"-c", "core.quotepath=false"}, args...)...)
+	cmd.Dir = dir
+	cmd.Env = childEnv()
+	return cmd.Output()
+}
+
+// gitFields führt ein git-Kommando mit -z aus und liefert dessen
+// NUL-getrennte Felder. Ohne git oder ohne Repository leer: Dann meldet der
+// Sub-Lauf eben keine Dateiliste, statt zu scheitern.
+func gitFields(ctx context.Context, dir string, args ...string) []string {
+	out, err := gitRun(ctx, dir, args...)
 	if err != nil {
 		return nil
 	}
-	trimmed := strings.TrimRight(string(out), "\n")
+	trimmed := strings.TrimRight(string(out), "\x00")
 	if trimmed == "" {
 		return nil
 	}
-	return strings.Split(trimmed, "\n")
+	return strings.Split(trimmed, "\x00")
 }

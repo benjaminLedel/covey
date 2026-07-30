@@ -168,7 +168,10 @@ func (c *ClaudeCode) stream(ctx context.Context, spec RunSpec, args []string, on
 	if cmd.Dir == "" {
 		cmd.Dir = spec.HomeDir
 	}
-	cmd.Env = append(os.Environ(), spec.Env...)
+	// Umgebung ohne die COVEY_*-Variablen des Daemons (siehe childEnv): Der
+	// Lauf bekommt nur, was ihm der Aufrufer ausdrücklich mitgibt — sonst
+	// erbte ein Hook oder MCP-Server aus dem Projekt das Daemon-Token.
+	cmd.Env = childEnv(spec.Env...)
 	cmd.Env = append(cmd.Env, "HOME="+spec.HomeDir)
 
 	stdout, err := cmd.StdoutPipe()

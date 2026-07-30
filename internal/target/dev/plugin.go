@@ -205,10 +205,15 @@ func (System) PromptDoc() string {
    (Datei:Zeile) und Auflagen (minimal-invasiv, Tests ausführen, Test ergänzen). Kein "siehe oben".
    Der Sub-Agent kann lesen, ändern, bauen und testen — er erreicht WEDER GitLab NOCH E-Mail und kann
    nicht committen. Das Einchecken und die gesamte Kommunikation bleiben bei dir.
+   Ein Auftrag je Checkout: Solange dort ein Sub-Agent arbeitet, wird ein zweiter Aufruf mit demselben
+   cwd abgelehnt — warte auf den Bericht, sonst überschreiben sich zwei Läufe die Dateien.
    Ergebnis: {"result":"<Bericht: Ursache, Änderung, Verifikation>","changed_files":[…],"deleted":[…],
-   "cost_usd":…,"turns_exhausted":true|false}. Die Dateilisten gehen unverändert in die commit-Aktion;
-   sie nennen den GESAMTEN Stand gegenüber dem Checkout — also auch die Arbeit eines früheren
-   Auftrags an derselben Aufgabe, nicht nur die des letzten.
+   "cost_usd":…,"turns_exhausted":true|false,"error":"<nur wenn der Lauf scheiterte>"}. Die Dateilisten
+   gehen unverändert in die commit-Aktion; sie nennen den GESAMTEN Stand gegenüber dem Checkout — also
+   auch die Arbeit eines früheren Auftrags an derselben Aufgabe, nicht nur die des letzten.
+   PRÜFE "error": Es steht IM Ergebnis, der Aufruf selbst gilt trotzdem als erfolgreich (status ok).
+   Ist es gesetzt, ist der Sub-Lauf gescheitert — dann nicht committen, sondern den Fehler lesen und
+   entweder nachbeauftragen oder mit dem, was du weißt, im Issue eskalieren.
    Bei "turns_exhausted":true war der Auftrag zu groß: Schließe mit dem Teilergebnis ab und lege den
    Rest per covey/create_task an, statt es erneut im selben Lauf zu versuchen.
    exec {"cmd":"npm test","cwd":"unterordner (optional, relativ zu deinem Home)","timeout_secs":120} —

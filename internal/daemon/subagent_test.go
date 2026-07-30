@@ -77,6 +77,38 @@ func TestGitChangesSinceIsCumulative(t *testing.T) {
 	}
 }
 
+// Umlaute, Leerzeichen und Anführungszeichen in Pfaden müssen ROH im Bericht
+// ankommen: Die Listen gehen unverändert in die commit-Aktion. git escaped
+// Pfade außerhalb ASCII per Default (core.quotepath=true, so steht es in der
+// Sandbox) — aus prüfung.go würde "pr\303\274fung.go", und genau dieser
+// verstümmelte Pfad landete im Zielsystem.
+func TestGitChangesSinceRawPaths(t *testing.T) {
+	dir := gitRepo(t)
+	// Den Default der Sandbox lokal festschreiben, damit der Test unabhängig
+	// von der globalen Konfiguration des Entwicklerrechners reproduziert.
+	runGit(t, dir, "config", "core.quotepath", "true")
+
+	writeFile(t, dir, "alt ümlaut.go", "package app")
+	runGit(t, dir, "add", "-A")
+	runGit(t, dir, "commit", "-q", "-m", "covey baseline")
+	runGit(t, dir, "tag", target.BaselineRef)
+	base := gitRev(t.Context(), dir, target.BaselineRef)
+
+	// Committet: eine Umbenennung, Umlaut und Leerzeichen auf beiden Seiten.
+	runGit(t, dir, "mv", "alt ümlaut.go", "neu geprüft.go")
+	runGit(t, dir, "commit", "-q", "-m", "umbenannt")
+	// Offen im Arbeitsverzeichnis: eine neue Datei, ebenfalls mit Umlaut.
+	writeFile(t, dir, "änderung offen.txt", "x")
+
+	changed, deleted := gitChangesSince(t.Context(), dir, base)
+	if want := []string{"neu geprüft.go", "änderung offen.txt"}; !reflect.DeepEqual(changed, want) {
+		t.Fatalf("changed muss die rohen Pfade nennen: %q (erwartet %q)", changed, want)
+	}
+	if want := []string{"alt ümlaut.go"}; !reflect.DeepEqual(deleted, want) {
+		t.Fatalf("Quelle der Umbenennung muss roh mitkommen: %q (erwartet %q)", deleted, want)
+	}
+}
+
 // Ohne Repository gibt es keinen Anker. Dann meldet der Sub-Lauf lieber keine
 // Dateiliste, als eine falsche — scheitern darf er deswegen nicht.
 func TestGitChangesSinceWithoutRepo(t *testing.T) {
@@ -171,10 +203,18 @@ fi`)
 }
 
 // Der Sub-Lauf ist hermetisch: kein COVEY_ACTION_PORT, also kein Weg zu
-// Zielsystemen. Der gebrokerte LLM-Key muss dagegen ankommen.
+// Zielsystemen — und auch nicht über die Hintertür der Daemon-Umgebung. Sie
+// enthält COVEY_WS_URL und COVEY_DAEMON_TOKEN; damit könnte ein Hook oder
+// MCP-Server aus dem Repo eine eigene WebSocket zur Control Plane öffnen und
+// selbst `request_credential` schicken, also genau die gebrokerten Zugänge
+// erreichen, die der fehlende Action-Proxy fernhält. Der gebrokerte LLM-Key
+// muss dagegen ankommen, sonst läuft die Runtime nicht.
 func TestSubAgentEnvIsHermetic(t *testing.T) {
+	t.Setenv("COVEY_DAEMON_TOKEN", "daemon-jwt-geheim")
+	t.Setenv("COVEY_WS_URL", "wss://covey.example/api/daemon/ws")
 	bin, home := fakeClaude(t, `
-printf 'port=%s key=%s\n' "$COVEY_ACTION_PORT" "$ANTHROPIC_API_KEY" > "$HOME/env.txt"
+printf 'port=%s key=%s token=%s ws=%s\n' "$COVEY_ACTION_PORT" "$ANTHROPIC_API_KEY" \
+  "$COVEY_DAEMON_TOKEN" "$COVEY_WS_URL" > "$HOME/env.txt"
 cat <<'EOF'
 {"type":"result","subtype":"success","session_id":"s","result":"fertig"}
 EOF`)
@@ -196,5 +236,59 @@ EOF`)
 	}
 	if !strings.Contains(string(got), "sk-ant-api-geheim") {
 		t.Fatalf("gebrokerter LLM-Key fehlt: %q", got)
+	}
+	if !strings.Contains(string(got), "token= ws=") {
+		t.Fatalf("Zugangsdaten des Daemons dürfen nicht in den Sub-Lauf erben: %q", got)
+	}
+}
+
+// Ein Sub-Lauf je Checkout. Zwei parallele Läufe im selben Verzeichnis
+// schrieben sich gegenseitig die Dateien um und meldeten beide denselben
+// kumulativen Stand — der beauftragende Agent bekäme zwei Berichte über eine
+// vermischte Arbeit. Verschiedene Verzeichnisse bleiben parallel möglich.
+func TestSubAgentOnePerDir(t *testing.T) {
+	bin, home := fakeClaude(t, `
+cat <<'EOF'
+{"type":"result","subtype":"success","session_id":"s","result":"fertig"}
+EOF`)
+	c := &Client{homeDir: home, runtimes: map[string]Runtime{"claude-code": &ClaudeCode{Binary: bin}},
+		creds: map[string]InjectCredentials{}, cfg: InjectConfig{Runtime: "claude-code"}}
+	other := filepath.Join(home, "zweites-projekt")
+	if err := os.Mkdir(other, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Belegt, wie es ein noch laufender Sub-Agent hinterlässt.
+	if err := c.claimSubAgentDir(home); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.runSubAgent(t.Context(), "task-1", target.SubAgentRequest{Dir: home, Task: "x"}); err == nil {
+		t.Fatal("zweiter Auftrag im selben Checkout muss abgelehnt werden")
+	}
+	if _, err := c.runSubAgent(t.Context(), "task-1", target.SubAgentRequest{Dir: other, Task: "x"}); err != nil {
+		t.Fatalf("ein anderer Checkout ist davon nicht betroffen: %v", err)
+	}
+	// Nach dem Bericht ist das Verzeichnis wieder frei.
+	c.releaseSubAgentDir(home)
+	if _, err := c.runSubAgent(t.Context(), "task-1", target.SubAgentRequest{Dir: home, Task: "x"}); err != nil {
+		t.Fatalf("nach Abschluss muss derselbe Checkout wieder gehen: %v", err)
+	}
+}
+
+// Ein cwd, das es nicht gibt, scheitert mit einer Meldung im Stil der anderen
+// Validierungen — nicht erst am chdir des Subprozesses („claude starten:
+// chdir …"), was dem Agenten nichts über seinen Fehler sagt.
+func TestSubAgentRejectsMissingDir(t *testing.T) {
+	bin, home := fakeClaude(t, `
+cat <<'EOF'
+{"type":"result","subtype":"success","session_id":"s","result":"fertig"}
+EOF`)
+	c := &Client{homeDir: home, runtimes: map[string]Runtime{"claude-code": &ClaudeCode{Binary: bin}},
+		creds: map[string]InjectCredentials{}, cfg: InjectConfig{Runtime: "claude-code"}}
+
+	_, err := c.runSubAgent(t.Context(), "task-1",
+		target.SubAgentRequest{Dir: "repos/gibts-nicht", Task: "x"})
+	if err == nil || !strings.Contains(err.Error(), "checkout-Ergebnis") {
+		t.Fatalf("fehlendes cwd muss vorab abgelehnt werden, war: %v", err)
 	}
 }
