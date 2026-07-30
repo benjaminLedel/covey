@@ -222,6 +222,7 @@ function useTreeLayout() {
         // offsetTop zählt ab der ul (die ist position: relative) und trägt
         // deren Innenabstand — die erste Reihe liegt also nicht bei 0.
         const firstRow = items[0].offsetTop;
+        const ulLeft = ul.getBoundingClientRect().left;
         let lastRow = firstRow;
         let widest = 0;
         items.forEach((li, i) => {
@@ -229,7 +230,9 @@ function useTreeLayout() {
           li.toggleAttribute("data-row-first", i === 0 || items[i - 1].offsetTop !== top);
           li.toggleAttribute("data-row-last", i === items.length - 1 || items[i + 1].offsetTop !== top);
           lastRow = Math.max(lastRow, top);
-          widest = Math.max(widest, li.offsetLeft + li.offsetWidth);
+          // Auf Bruchteile genau: offsetWidth rundet ab, und schon ein halbes
+          // Pixel zu wenig wirft die letzte Karte der Reihe in die nächste.
+          widest = Math.max(widest, li.getBoundingClientRect().right - ulLeft);
         });
         // Die Schiene reicht vom Balken der ersten bis zu dem der letzten
         // Reihe. Passt die Ebene doch in eine Reihe, bleibt es bei der
@@ -246,7 +249,7 @@ function useTreeLayout() {
         // breit ist und der Strich des Elternknotens auf dem Balken der
         // ersten Reihe landet.
         ul.removeAttribute("data-measuring");
-        if (wrapped) ul.style.width = `${Math.ceil(widest)}px`;
+        if (wrapped) ul.style.width = `${Math.ceil(widest) + 1}px`;
       }
     };
     measure();
