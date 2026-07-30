@@ -205,7 +205,7 @@ func deriveTitle(content string) string {
 	for i := 0; i < len(t) && i < 80; i++ {
 		if c := t[i]; c == '.' || c == '!' || c == '?' {
 			atBoundary := i+1 >= len(t) || t[i+1] == ' '
-			if atBoundary && i >= minTitleLen {
+			if atBoundary && i >= minTitleLen && !isAbbrevDot(t, i) {
 				t = t[:i] // Satzzeichen sind ASCII → Byte-Index ist Rune-Grenze
 				break
 			}
@@ -215,6 +215,23 @@ func deriveTitle(content string) string {
 		t = strings.TrimSpace(truncRunes(t, 80))
 	}
 	return t
+}
+
+// isAbbrevDot erkennt einen Punkt, der zu einer Abkürzung gehört statt einen
+// Satz zu beenden: steht davor ein einzelner Buchstabe ("z. B.", "u. a."), ist
+// es kein Satzende. Ohne diese Prüfung entstand aus "Zugesagte Rückmeldungen
+// (z. B. …)" der Titel "Zugesagte Rückmeldungen (z".
+func isAbbrevDot(t string, i int) bool {
+	if t[i] != '.' {
+		return false
+	}
+	start := i
+	for start > 0 && t[start-1] != ' ' {
+		start--
+	}
+	// Das Wort vor dem Punkt, ohne öffnende Klammern/Anführungszeichen.
+	word := strings.TrimLeft(t[start:i], "(\"'„«[")
+	return len([]rune(word)) <= 1
 }
 
 // extractLinks liest die [[slug]]-Wikilinks aus einem Body.
@@ -616,9 +633,15 @@ type Health struct {
 	Findings  []Finding `json:"findings"`
 }
 
-// episodicTitleLen: ab dieser Titellänge ist es kein Entitätsname mehr, sondern
-// ein Satz — das Merkmal der Tagebuchseiten, die Ingest ohne Seitenbezug anlegt.
-const episodicTitleLen = 60
+// episodicTitleLen ist die Kappungsgrenze von deriveTitle: ein Titel, der sie
+// erreicht, ist per Konstruktion ein abgeschnittener Satz und kein Entitätsname.
+//
+// Bewusst genau diese Grenze und nicht "irgendwas über 60": an echten Daten
+// gemessen liegen 25 von 43 Titeln exakt auf der Kappung (auto-erzeugt), während
+// die 60er-Schwelle auch brauchbare Überschriften wie "Sandbox: PHP 8.2
+// vorhanden — Laravel-Queries ohne das educa-Repo prüfen" eingefangen hat. Ein
+// Befund, der 88 % der Seiten markiert, sagt niemandem mehr, wo anzufassen ist.
+const episodicTitleLen = 80
 
 // stubBodyLen: darunter trägt eine eigene Seite nichts, was nicht als Absatz auf
 // einer Entitätsseite besser aufgehoben wäre.
@@ -635,7 +658,7 @@ var dateInTitle = regexp.MustCompile(`\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{4}-\d{2
 
 func isEpisodicTitle(title string) bool {
 	t := strings.TrimSpace(title)
-	return len([]rune(t)) > episodicTitleLen || dateInTitle.MatchString(t)
+	return len([]rune(t)) >= episodicTitleLen || dateInTitle.MatchString(t)
 }
 
 // CheckHealth sammelt die Qualitätsbefunde eines Wikis (spec/05). Rein lesend —

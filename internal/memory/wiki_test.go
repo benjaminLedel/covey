@@ -88,4 +88,46 @@ func TestDeriveTitle(t *testing.T) {
 	if got := deriveTitle("Antwort z.B. per Mail geht schneller als telefonisch. Ende."); got != "Antwort z.B. per Mail geht schneller als telefonisch" {
 		t.Fatalf("deriveTitle Abkürzung: %q", got)
 	}
+	// Auch die gesperrte Abkürzung "z. B." ist kein Satzende — daraus wurde am
+	// echten Bestand der Titel "Zugesagte Rückmeldungen (z".
+	got := deriveTitle("Zugesagte Rückmeldungen (z. B. 'ich melde mich') erst nach Prüfung ins Wiki schreiben.")
+	if strings.HasSuffix(got, "(z") {
+		t.Fatalf("an der Abkürzung abgeschnitten: %q", got)
+	}
+	if !strings.HasPrefix(got, "Zugesagte Rückmeldungen (z. B.") {
+		t.Fatalf("deriveTitle gesperrte Abkürzung: %q", got)
+	}
+}
+
+// TestIsEpisodicTitle: der Befund "Tagebuch-Titel" hängt an der Kappungsgrenze
+// von deriveTitle — ein Titel, der sie erreicht, ist ein abgeschnittener Satz.
+// Beispiele aus dem echten Bestand.
+func TestIsEpisodicTitle(t *testing.T) {
+	episodic := []string{
+		// Auf 80 Zeichen gekappt → per Konstruktion auto-erzeugt.
+		"educa-ai-web (148), Stand 30.07.2026 11:00 UTC: alpha hat neue Deps und der Buil",
+		"CI-Muster: MR-Pipelines von brunhilde.tatkraeftig in educa/educa laufen erst nach",
+		// Vollständiges Datum benennt einen Vorgang, keine Sache.
+		"Umstellung am 12.03.2026",
+	}
+	for _, s := range episodic {
+		if !isEpisodicTitle(s) {
+			t.Errorf("sollte als Tagebuch-Titel gelten (%d Zeichen): %q", utf8.RuneCountInString(s), s)
+		}
+	}
+	// Brauchbare Namen dürfen NICHT anschlagen — ein Befund, der fast alles
+	// markiert, sagt niemandem mehr, wo anzufassen ist.
+	fine := []string{
+		"Kunde ACME",
+		"In educa lms ist der Hauptbranch educa-x-bugfix",
+		"educa-ai-web (148): Review-/Merge-Wege meiner MRs",
+		"Sandbox: PHP 8.2 vorhanden — Laravel-Queries ohne das educa-Repo pruefen",
+		// Versionsnummern sind keine Daten.
+		"gpt_markdown 1.1.8: Emphase-Opener-Guard ist verdreht",
+	}
+	for _, s := range fine {
+		if isEpisodicTitle(s) {
+			t.Errorf("kein Tagebuch-Titel (%d Zeichen): %q", utf8.RuneCountInString(s), s)
+		}
+	}
 }
