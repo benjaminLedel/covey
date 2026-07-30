@@ -136,6 +136,68 @@ COVEY_IMAGE=<registry>/covey:<älterer-sha> docker compose up -d
 
 ---
 
+## Wiki-Gedächtnis: Embedding wählen
+
+Die Wiki-Suche der Agenten (siehe [`spec/05`](../spec/05-gedaechtnis.md)) liegt
+auf einem Vektor-Index. Welches Embedding ihn füllt, entscheidet
+`COVEY_EMBEDDING_PROVIDER` in der `.env` des Deploy-Ordners.
+
+Der Default `builtin` braucht nichts und kann wenig: er misst Wortüberlappung,
+keine Bedeutung. „Die Pipeline ist rot" und „Der CI-Build schlägt fehl" haben
+für ihn nichts miteinander zu tun. Ein Agent findet seine eigene Seite damit
+nicht wieder, sobald er anders formuliert — und legt eine zweite an. Für echten
+Betrieb ist das zu wenig.
+
+**Selbst betreiben** (empfohlen — die Wiki-Inhalte verlassen das Haus nicht):
+
+```bash
+# in /opt/covey/.env
+COMPOSE_PROFILES=embeddings
+COVEY_EMBEDDING_PROVIDER=ollama
+```
+
+Das startet zwei zusätzliche Container: einen Embedding-Server und einen
+einmaligen Job, der das Modell lädt. Default ist EmbeddingGemma — 308M
+Parameter, mehrsprachig, läuft auf der CPU, kein Schlüssel, kein Egress zu
+Dritten. Ein anderes Modell über `COVEY_EMBEDDING_MODEL`; es muss die vom
+Schema erwarteten 256 Dimensionen liefern können (Matryoshka-trainierte Modelle
+tun das, sonst wird gekürzt und neu normalisiert).
+
+**Fremden Dienst nutzen:**
+
+```bash
+COVEY_EMBEDDING_PROVIDER=voyage      # oder openai
+COVEY_EMBEDDING_API_KEY=…
+```
+
+Danach `docker compose up -d`. Beim Start bettet die Control Plane den
+vorhandenen Bestand automatisch neu ein — Vektoren verschiedener Modelle sind
+nicht vergleichbar, deshalb trägt jede Seite den Fingerabdruck ihres Modells.
+Im Log:
+
+```
+wiki-embedding aktiv                      modell=ollama:embeddinggemma:256
+wiki-embedding: Bestand wird nachgezogen  seiten=52
+wiki-embedding: Bestand nachgezogen       seiten=52
+```
+
+Bis das durchgelaufen ist, findet die Suche die betroffenen Seiten nicht; sie
+gehen aber nicht verloren. Ist der Embedding-Dienst beim Start noch nicht
+bereit (er lädt beim ersten Mal das Modell), fasst die Control Plane im
+Minutentakt nach.
+
+### Aufräum-Heartbeat
+
+`COVEY_WIKI_CLEANUP` (Default `03:00`) legt jedem Agenten täglich eine
+Wartungsaufgabe an: ähnliche Seiten zusammenführen, tote `[[Verweise]]`
+korrigieren, Widersprüche glätten. Das kostet **einen LLM-Lauf pro Agent und
+Tag** — bei vielen Agenten ein spürbarer Posten. Abschalten mit einem leeren
+Wert, ein anderer Takt über `HH:MM` oder ein Intervall wie `12h`. Einzelne
+Agenten überschreiben den Eintrag über einen gleichnamigen Punkt in ihrer
+`HEARTBEAT.md`.
+
+---
+
 ## Vor echtem Produktivbetrieb
 
 Das Setup ist bewusst schlank. Für echten Betrieb zusätzlich (vgl.
