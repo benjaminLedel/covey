@@ -2530,26 +2530,35 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
       {view === "log" ? (
         <>
           {logs.length === 0 && <p className="muted">{t("agent.memory.logEmpty")}</p>}
-          {logs.map((l) => (
-            <div key={l.id} className="flex items-baseline gap-2 py-1 border-b" style={{ borderColor: "var(--border)" }}>
-              <span className={`chip ${l.op === "merge" ? "" : "is-fixed"}`} style={{ fontSize: "10.5px" }}>
-                {opLabel(l.op)}
-              </span>
-              {l.page_slug &&
-                (has(l.page_slug) ? (
-                  <button type="button" className="wikilink text-[13px]" onClick={() => openPage(l.page_slug!)}>
-                    {l.page_slug}
-                  </button>
-                ) : (
-                  <span className="wikilink missing text-[13px]" title={t("agent.memory.missing")}>
-                    {l.page_slug}
+          <div className="card" style={{ padding: "4px 12px" }}>
+            {logs.map((l) => {
+              // Seiten beim Namen nennen, wo es sie noch gibt — der rohe Slug ist
+              // bis zu 64 Zeichen lang und sagt weniger als der Titel.
+              const page = l.page_slug ? bySlug.get(l.page_slug) : undefined;
+              return (
+                <div key={l.id} className="wiki-log-row">
+                  <span className={`chip ${l.op === "merge" ? "" : "is-fixed"} op`}>{opLabel(l.op)}</span>
+                  {page ? (
+                    <button type="button" className="wikilink cell" onClick={() => openPage(page.slug)} title={page.slug}>
+                      {page.title || page.slug}
+                    </button>
+                  ) : l.page_slug ? (
+                    <span className="wikilink missing cell" title={t("agent.memory.missing")}>
+                      {l.page_slug}
+                    </span>
+                  ) : (
+                    <span />
+                  )}
+                  <span className="cell summary" title={l.summary}>
+                    {l.summary}
                   </span>
-                ))}
-              <span className="text-[13px] min-w-0 truncate">{l.summary}</span>
-              <span className="flex-1" />
-              <span className="muted text-[11px] shrink-0">{new Date(l.created_at).toLocaleString(locale)}</span>
-            </div>
-          ))}
+                  <span className="at">
+                    {new Date(l.created_at).toLocaleString(locale, { dateStyle: "short", timeStyle: "short" })}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </>
       ) : view === "graph" ? (
         <div className="card" style={{ padding: 0, overflow: "hidden" }}>

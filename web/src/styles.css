@@ -913,6 +913,46 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   margin: 2px 0 0;
 }
 
+/* Protokoll: feste Spalten. Ohne sie richtet sich jede Zeile nach der Länge
+   ihres Slugs (bis 64 Zeichen), bricht um und schiebt Zusammenfassung und
+   Zeitstempel an eine andere Stelle — die Spalten fluchten dann nirgends. */
+.wiki-log-row {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 26%) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 0.5px solid var(--border);
+  font-size: 12.5px;
+}
+.wiki-log-row:last-child { border-bottom: none; }
+.wiki-log-row > * { min-width: 0; }
+.wiki-log-row .op { justify-self: start; font-size: 10.5px; }
+/* Eine Zeile, Rest als Ellipse — der volle Text steht im title-Attribut. */
+.wiki-log-row .cell {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.wiki-log-row .summary { color: var(--text-secondary); }
+/* Im Protokoll ist eine fehlende Seite der Normalfall (die Zeile daneben sagt
+   „gelöscht") — kein Grund für Alarmrot wie sonst bei toten Verweisen. */
+.wiki-log-row .wikilink.missing { color: var(--text-muted); }
+.wiki-log-row .at {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  justify-self: end;
+}
+@media (max-width: 900px) {
+  .wiki-log-row { grid-template-columns: 104px minmax(0, 1fr) auto; }
+  .wiki-log-row .summary { display: none; }
+}
+
 /* Graph */
 .wiki-legend {
   display: flex;
