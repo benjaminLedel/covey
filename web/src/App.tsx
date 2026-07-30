@@ -191,10 +191,10 @@ function initials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
-// Fuß der Sidebar: welcher Stand läuft hier. Nach einem Deploy die erste
+// Fuß der Hauptspalte: welcher Stand läuft hier. Nach einem Deploy die erste
 // Frage — Version, Commit und Bauzeit kommen aus dem Binary selbst
-// (internal/buildinfo). Die Zeile bleibt schmal, die vollen Angaben stehen
-// im Tooltip.
+// (internal/buildinfo). Bewusst nicht in der Sidebar: die bleibt der
+// Navigation vorbehalten. Die vollen Angaben stehen im Tooltip.
 function BuildLine() {
   const { t, i18n } = useTranslation();
   const q = useQuery({
@@ -219,12 +219,10 @@ function BuildLine() {
     .filter(Boolean)
     .join("\n");
 
-  // Zwei Zeilen: die Sidebar ist zu schmal, um Version, Commit und Bauzeit
-  // nebeneinander zu zeigen, ohne die Zeit abzuschneiden.
   return (
-    <div className="side-build" title={title}>
-      <span className="truncate">{short}</span>
-      {valid && <span className="bt truncate">{built.toLocaleString(i18n.language, fmt)}</span>}
+    <div className="main-build" title={title}>
+      {short}
+      {valid && <span className="bt"> · {built.toLocaleString(i18n.language, fmt)}</span>}
     </div>
   );
 }
@@ -364,14 +362,13 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
                 </>
               )}
             </div>
-            <BuildLine />
           </div>
         </div>
       </aside>
-      <main className="flex-1 min-w-0">
+      <main className="flex-1 min-w-0 flex flex-col">
         {/* Das Organigramm nutzt die volle Breite — alle anderen Seiten
             bleiben auf Lesebreite begrenzt. */}
-        <div key={location.pathname} className="fade" style={{ padding: "22px 26px 60px", maxWidth: location.pathname === "/org" || location.pathname === "/costs" ? undefined : 1080 }}>
+        <div key={location.pathname} className="fade flex-1" style={{ padding: "22px 26px 60px", maxWidth: location.pathname === "/org" || location.pathname === "/costs" ? undefined : 1080 }}>
           <Routes>
             <Route path="/" element={<Dashboard me={me} />} />
             <Route path="/agents/:id" element={<AgentPage me={me} />} />
@@ -392,6 +389,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </div>
+        <BuildLine />
       </main>
       <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
