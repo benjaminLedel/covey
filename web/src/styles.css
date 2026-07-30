@@ -1384,14 +1384,13 @@ kbd {
    ganze sichtbare Breite nutzen. */
 .tree ul.tree-grid-wide { max-width: var(--tree-avail, 1200px); row-gap: 22px; }
 
-/* Schiene: die Senkrechte am linken Rand, an der die Balken aller Reihen
-   hängen. Den waagerechten Strich der ersten Reihe zeichnet die Reihe selbst
-   — ein eigener Bügel stünde rechts über ihr hinaus. --grid-spine misst der
-   Layout-Hook in Org.tsx. */
+/* Der Stamm: die Senkrechte, an der die Reihen hängen. Sie läuft unter dem
+   Elternknoten herunter, durch eine Lücke zwischen den Karten — Position
+   (--trunk-x) und Länge (--grid-spine) misst der Layout-Hook in Org.tsx. */
 .tree ul.tree-grid::after {
   content: "";
   position: absolute;
-  top: 22px; left: 10px;
+  top: 22px; left: var(--trunk-x, 10px);
   height: var(--grid-spine, 0);
   border-left: 1.5px solid var(--border-strong);
 }
@@ -1407,20 +1406,34 @@ kbd {
 .tree ul.tree-grid[data-measuring] > li { flex-grow: 0; }
 .tree ul.tree-grid > li::before,
 .tree ul.tree-grid > li::after { height: 14px; }
-/* Erste Karte der Reihe: Balken von der Schiene bis zu ihrer Mitte. Nur bei
-   tatsächlichem Umbruch — sonst bliebe links vom ersten Knoten ein Stummel. */
-.tree ul.tree-grid[data-wrapped] > li[data-row-first]::before {
-  left: 10px; right: 50%; width: auto;
-  border-top: 1.5px solid var(--border-strong);
+/* Alle Reihen-Regeln tragen [data-wrapped]: gleiche Spezifität, damit allein
+   die Reihenfolge entscheidet. Ohne Umbruch zeichnet weiterhin die klassische
+   :first-child/:last-child-Fassung oben. */
+/* Erste Karte der Reihe: ohne Arm kein Strich nach links — der Balken der
+   Reihe beginnt bei ihrer Mitte. */
+.tree ul.tree-grid[data-wrapped] > li[data-row-first]::before { border: 0; }
+/* Mit Arm: Balken vom Stamm bis zur Mitte der Karte (--arm ist der Abstand
+   des Stamms zur linken Kante dieser Karte, notfalls negativ). */
+.tree ul.tree-grid[data-wrapped] > li[data-arm-left]::before {
+  left: var(--arm); right: 50%; width: auto;
+  border: 0; border-top: 1.5px solid var(--border-strong);
   border-radius: 0;
 }
 /* Letzte Karte der Reihe: rechts endet der Balken, der Abzweig sitzt links. */
-.tree ul.tree-grid > li[data-row-last]::after { border: 0; }
-.tree ul.tree-grid > li[data-row-last]::before {
+.tree ul.tree-grid[data-wrapped] > li[data-row-last]::after { border: 0; }
+.tree ul.tree-grid[data-wrapped] > li[data-row-last]::before {
   border-right: 1.5px solid var(--border-strong);
   border-radius: 0 6px 0 0;
 }
-.tree ul.tree-grid > li[data-row-first][data-row-last]::before { border-radius: 0 6px 0 0; }
+/* Arm nach rechts: der Stamm liegt hinter der letzten Karte der Reihe, der
+   Balken läuft von ihrer Mitte bis dorthin weiter. */
+.tree ul.tree-grid[data-wrapped] > li[data-arm-right]::after {
+  left: 50%; right: var(--arm-right); width: auto;
+  border: 0;
+  border-top: 1.5px solid var(--border-strong);
+  border-left: 1.5px solid var(--border-strong);
+  border-radius: 0;
+}
 
 /* Org-Wurzel- und Abteilungs-Knoten im Baum */
 .node.org, .node.dept { flex-direction: column; align-items: flex-start; gap: 2px; cursor: default; min-width: 168px; }

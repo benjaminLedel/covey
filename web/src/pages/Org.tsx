@@ -196,6 +196,66 @@ export default function Org() {
 // Beide Male werden nur data-Attribute und CSS-Variablen gesetzt, die auf
 // absolut positionierte Pseudo-Elemente wirken — das löst kein neues Layout
 // aus, der ResizeObserver läuft also nicht im Kreis.
+// Der Stamm einer umgebrochenen Ebene: die Senkrechte, an der die Reihen
+// hängen. Sie soll unter dem Elternknoten herunterlaufen — also möglichst
+// mittig — darf dabei aber keine Karte kreuzen. Deshalb sucht placeTrunk die
+// freie Spalte (Lücke zwischen zwei Karten, in ALLEN gekreuzten Reihen frei),
+// die der Mitte am nächsten liegt; notfalls landet der Stamm links außen.
+// Wo eine Reihe den Stamm nicht von selbst erreicht, bekommt ihre erste bzw.
+// letzte Karte einen Arm dorthin (data-arm-left/-right).
+function placeTrunk(ul: HTMLElement, items: HTMLElement[]) {
+  const ulLeft = ul.getBoundingClientRect().left;
+  const rows: HTMLElement[][] = [];
+  for (const li of items) {
+    const row = rows[rows.length - 1];
+    if (row && row[0].offsetTop === li.offsetTop) row.push(li);
+    else rows.push([li]);
+  }
+  // Die Karte sitzt mit Innenabstand im li — die tatsächlich freie Lücke ist
+  // breiter als der Abstand der li-Kästen.
+  const box = (li: HTMLElement) => {
+    const r = (li.firstElementChild ?? li).getBoundingClientRect();
+    return { l: r.left - ulLeft, r: r.right - ulLeft };
+  };
+  // Freie Spalten = Schnittmenge der Lücken aller Reihen, die der Stamm
+  // durchquert (die letzte kreuzt er nicht, dort endet er).
+  let free = [{ l: -1e6, r: 1e6 }];
+  for (const row of rows.slice(0, -1)) {
+    const boxes = row.map(box);
+    const gaps = [{ l: -1e6, r: boxes[0].l }];
+    for (let i = 1; i < boxes.length; i++) gaps.push({ l: boxes[i - 1].r, r: boxes[i].l });
+    const next: typeof free = [];
+    for (const a of free) for (const b of gaps) {
+      const l = Math.max(a.l, b.l), r = Math.min(a.r, b.r);
+      if (r - l >= 8) next.push({ l, r });
+    }
+    free = next;
+  }
+  const center = ul.getBoundingClientRect().width / 2;
+  let trunk = -14;
+  let best = Infinity;
+  for (const g of free) {
+    const x = Math.min(Math.max(center, g.l + 4), g.r - 4);
+    if (Math.abs(x - center) < best) { best = Math.abs(x - center); trunk = x; }
+  }
+  ul.style.setProperty("--trunk-x", `${Math.round(trunk)}px`);
+
+  for (const row of rows) {
+    const first = row[0], last = row[row.length - 1];
+    const firstMid = first.offsetLeft + first.offsetWidth / 2;
+    const lastMid = last.offsetLeft + last.offsetWidth / 2;
+    const armLeft = trunk < firstMid - 1;
+    const armRight = trunk > lastMid + 1;
+    first.toggleAttribute("data-arm-left", armLeft);
+    first.style.setProperty("--arm", `${Math.round(trunk - first.offsetLeft)}px`);
+    last.toggleAttribute("data-arm-right", armRight);
+    last.style.setProperty("--arm-right", `${Math.round(last.offsetLeft + last.offsetWidth - trunk)}px`);
+    // Mit Arm nach rechts zeichnet die letzte Karte den Balken selbst weiter —
+    // dann darf die Ecke der Reihen-Zeichnung nicht zusätzlich greifen.
+    last.toggleAttribute("data-row-last", !armRight);
+  }
+}
+
 function useTreeLayout() {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -250,6 +310,7 @@ function useTreeLayout() {
         // ersten Reihe landet.
         ul.removeAttribute("data-measuring");
         if (wrapped) ul.style.width = `${Math.ceil(widest) + 1}px`;
+        if (wrapped) placeTrunk(ul, items);
       }
     };
     measure();
