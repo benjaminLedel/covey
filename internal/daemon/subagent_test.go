@@ -126,7 +126,7 @@ func TestGitChangesSinceWithoutRepo(t *testing.T) {
 // verdecken: Aufzeichnung und Timeline lesen stream-json direkt und würden den
 // Sub-Lauf sonst als JSON-Klumpen statt als Turn mit Tool-Aufrufen zeigen.
 func TestMarkSubAgentKeepsStreamFormat(t *testing.T) {
-	got := markSubAgent(json.RawMessage(`{"type":"assistant","message":{"content":[]}}`), "/home/agent/repos/p")
+	got := markSubAgent(json.RawMessage(`{"type":"assistant","message":{"content":[]}}`), "/home/agent/repos/p", "")
 
 	var obj map[string]any
 	if err := json.Unmarshal(got, &obj); err != nil {
@@ -138,6 +138,36 @@ func TestMarkSubAgentKeepsStreamFormat(t *testing.T) {
 	mark, ok := obj["covey_sub_agent"].(map[string]any)
 	if !ok || mark["dir"] != "/home/agent/repos/p" {
 		t.Fatalf("Sub-Lauf-Markierung fehlt oder ist unvollständig: %s", got)
+	}
+	if _, ok := mark["task"]; ok {
+		t.Fatalf("ohne Auftrag darf kein task-Schlüssel entstehen: %s", got)
+	}
+}
+
+// Der Arbeitsauftrag ist die Überschrift des Sub-Laufs in der Timeline. Er
+// steht deshalb in der Marke — gekürzt, weil er dort nur betiteln soll.
+func TestMarkSubAgentCarriesTask(t *testing.T) {
+	got := markSubAgent(json.RawMessage(`{"type":"system","subtype":"init"}`), "/repo", "  Nullpointer beheben  ")
+
+	var obj map[string]any
+	if err := json.Unmarshal(got, &obj); err != nil {
+		t.Fatal(err)
+	}
+	mark := obj["covey_sub_agent"].(map[string]any)
+	if mark["task"] != "Nullpointer beheben" {
+		t.Fatalf("Auftrag muss getrimmt in der Marke stehen: %s", got)
+	}
+
+	// Lange Aufträge werden rune-sicher gekürzt — kein halbes Zeichen, keine
+	// Timeline, die am Auftragstext erstickt.
+	long := strings.Repeat("ä", maxMarkedTask+50)
+	got = markSubAgent(json.RawMessage(`{"type":"system"}`), "/repo", long)
+	if err := json.Unmarshal(got, &obj); err != nil {
+		t.Fatal(err)
+	}
+	task := obj["covey_sub_agent"].(map[string]any)["task"].(string)
+	if r := []rune(task); len(r) != maxMarkedTask+1 || r[len(r)-1] != '…' {
+		t.Fatalf("Auftrag muss auf %d Runen plus Auslassung gekürzt werden, war %d", maxMarkedTask, len([]rune(task)))
 	}
 }
 

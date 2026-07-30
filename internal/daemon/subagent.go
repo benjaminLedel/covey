@@ -137,8 +137,15 @@ func (c *Client) runSubAgent(ctx context.Context, taskID string, req target.SubA
 		Env: c.runtimeKeyEnv(),
 	}
 
+	// Der Arbeitsauftrag reist nur auf der ERSTEN Zeile mit: Er ist die
+	// Überschrift des Sub-Laufs in der Aufzeichnung, und auf jede Zeile
+	// gestempelt würde er die Timeline um seine Länge × Zeilenzahl aufblähen.
+	// Der Callback läuft sequentiell in der Scanner-Schleife von stream — das
+	// Flag braucht deshalb keine Synchronisierung.
+	head := task
 	res, err := runtime.Run(ctx, spec, func(kind string, payload json.RawMessage) {
-		_ = c.send(TypeEvent, Event{TaskID: taskID, Kind: kind, Payload: markSubAgent(payload, dir)})
+		_ = c.send(TypeEvent, Event{TaskID: taskID, Kind: kind, Payload: markSubAgent(payload, dir, head)})
+		head = ""
 	})
 	if err != nil {
 		return target.SubAgentResult{}, err
@@ -186,18 +193,34 @@ func (c *Client) releaseSubAgentDir(dir string) {
 	delete(c.subAgentDirs, dir)
 }
 
+// maxMarkedTask begrenzt den Arbeitsauftrag in der Marke. Er dient dort als
+// Überschrift, nicht als Archiv — den vollen Text hält ohnehin das
+// action-Event des Action-Proxys fest.
+const maxMarkedTask = 400
+
 // markSubAgent markiert eine Runtime-Zeile als Teil eines Sub-Laufs — als
 // zusätzlichen Schlüssel IM Objekt, nicht als Hülle darum. Der Unterschied ist
 // nicht kosmetisch: Aufzeichnung und Timeline lesen das Format der Runtime
 // (stream-json) direkt, und eine Hülle würde `type` verdecken. Der Sub-Lauf
 // stünde dann als JSON-Klumpen in der Aufzeichnung statt als Turn mit seinen
 // Tool-Aufrufen — ausgerechnet dort, wo die eigentliche Arbeit passiert.
-func markSubAgent(payload json.RawMessage, dir string) json.RawMessage {
+//
+// task ist optional und steht nur auf der ersten Zeile eines Sub-Laufs (siehe
+// runSubAgent): Die Timeline zeigt damit im Kopf des Blocks, WOMIT der
+// Sub-Agent beauftragt war, ohne dass man ihn aufklappen muss.
+func markSubAgent(payload json.RawMessage, dir, task string) json.RawMessage {
 	var obj map[string]json.RawMessage
 	if err := json.Unmarshal(payload, &obj); err != nil || obj == nil {
 		return payload // kein JSON-Objekt → unverändert durchreichen
 	}
-	mark, err := json.Marshal(map[string]string{"dir": dir})
+	fields := map[string]string{"dir": dir}
+	if task = strings.TrimSpace(task); task != "" {
+		if r := []rune(task); len(r) > maxMarkedTask {
+			task = string(r[:maxMarkedTask]) + "…"
+		}
+		fields["task"] = task
+	}
+	mark, err := json.Marshal(fields)
 	if err != nil {
 		return payload
 	}
