@@ -33,8 +33,10 @@ Die Felder unter „Pflicht" braucht der Lead, sonst arbeitet er nicht los.
 
 ## Steuerung
 - **WIP-Limit:** <Tickets gleichzeitig je Entwickler; ohne Angabe gilt 1>
-- **Berichtsticket:** #<iid> — dorthin schreibt der Lead den Tagesstand
-- **Zuständiger Mensch:** <Name> — bekommt offene Fragen und den Bericht
+- **Berichtsticket:** Projekt <id> / #<iid> — dorthin schreibt der Lead den
+  Tagesstand. Muss dem Lead zugewiesen und dauerhaft offen sein.
+- **Zuständiger Mensch:** <Name>, GitLab-Kennung <username> — bekommt offene
+  Fragen und den Bericht. Ohne hinterlegte GitLab-Kennung scheitert `assign`.
 
 ## Reihenfolge und Abhängigkeiten
 - #<iid> vor #<iid>, #<iid>, … — <Begründung: gemeinsame Grundlage>
@@ -67,10 +69,12 @@ selbst; der Tagesbericht liest sich von hier.>
   selbst. Findet er sie nicht, **bricht er die Aufbereitung ab** und meldet es
   einmal im Berichtsticket, statt Abnahmekriterien aus Ticket-Titeln zu raten.
   Ein Vorhaben, das nicht anläuft, ist deshalb zuerst hier zu prüfen.
-- **Das WIP-Limit** ist die einzige Bremse gegen den häufigsten Fehler:
-  fünf Agenten arbeiten gleichzeitig an Tickets, die sich dieselbe Grundlage
-  teilen, und erzeugen fünf widersprüchliche Implementierungen auf einem Branch.
-  Im Zweifel niedriger ansetzen.
+- **Das WIP-Limit** ist die Bremse gegen den häufigsten Fehler: fünf Agenten
+  arbeiten gleichzeitig an Tickets, die sich dieselbe Grundlage teilen, und
+  erzeugen fünf widersprüchliche Implementierungen auf einem Branch. Im Zweifel
+  niedriger ansetzen. Es wirkt allerdings nur, wenn die Entwickler-Agenten auf
+  `nur-wenn: gitlab:issues:assigned` stehen — greifen sie frei nach offenen
+  Issues, umgehen sie den Lead vollständig.
 - **Die Reihenfolge** ist dasselbe Problem in explizit: Was eine gemeinsame
   Grundlage hat, wird nacheinander gebaut. Der Lead hält abhängige Tickets
   zurück, bis der Vorgänger gemergt ist.

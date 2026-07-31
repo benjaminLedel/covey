@@ -255,6 +255,79 @@ func TestSetLabelsIsPartial(t *testing.T) {
 	if _, err := c.SetLabels(ctx, 15, 739, []string{"  "}, nil); err == nil {
 		t.Fatal("nur Leerraum ist kein Label — muss abgelehnt werden")
 	}
+
+	// Ein Eintrag mit Komma darf NICHT still zu zwei Labels werden: GitLab legt
+	// fehlende Labels beim Setzen automatisch an, aus einem Tippfehler würden
+	// also dauerhaft zwei Projekt-Labels.
+	if _, err := c.SetLabels(ctx, 15, 739, []string{"lead::bereit,lead::in-arbeit"}, nil); err == nil {
+		t.Fatal("Label mit Komma muss abgelehnt statt gesplittet werden")
+	}
+}
+
+// Die Aktionen müssen auch DURCH Execute funktionieren — die Client-Tests oben
+// rufen die Methoden direkt auf und würden einen falschen JSON-Struct-Tag im
+// Parameter-Struct des Plugins nicht bemerken. Genau dort sitzt die Naht zum
+// Agenten: Was er schickt, ist JSON.
+func TestExecuteSetLabelsAndMilestone(t *testing.T) {
+	var gotMethod, gotPath, gotQuery string
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath, gotQuery = r.Method, r.URL.Path, r.URL.RawQuery
+		gotBody = map[string]any{}
+		json.NewDecoder(r.Body).Decode(&gotBody)
+		if r.Method == http.MethodGet {
+			json.NewEncoder(w).Encode([]Issue{{IID: 739, ProjectID: 15, Title: "Mailvorlagen"}})
+			return
+		}
+		json.NewEncoder(w).Encode(Issue{IID: 739, ProjectID: 15,
+			Labels: []string{"MUSS-Kriterium", "lead::in-arbeit"}})
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	// milestone muss aus dem JSON bis in die Query durchschlagen.
+	if _, err := sys.Execute(ctx, "list_issues",
+		[]byte(`{"project_id":15,"milestone":"ECA-2026-045 Bundesdruckerei LMS"}`), cred); err != nil {
+		t.Fatalf("list_issues mit milestone: %v", err)
+	}
+	if !strings.Contains(gotQuery, "milestone=ECA-2026-045+Bundesdruckerei+LMS") {
+		t.Fatalf("milestone kommt nicht in der Query an (Struct-Tag?): %s", gotQuery)
+	}
+
+	// set_labels: Listen aus dem JSON, additiv/subtraktiv, Label-Stand zurück.
+	res, err := sys.Execute(ctx, "set_labels",
+		[]byte(`{"project_id":15,"issue_iid":739,"add_labels":["lead::in-arbeit"],"remove_labels":["lead::bereit"]}`), cred)
+	if err != nil {
+		t.Fatalf("set_labels: %v", err)
+	}
+	if gotMethod != http.MethodPut || gotPath != "/api/v4/projects/15/issues/739" {
+		t.Fatalf("falscher API-Aufruf: %s %s", gotMethod, gotPath)
+	}
+	if gotBody["add_labels"] != "lead::in-arbeit" || gotBody["remove_labels"] != "lead::bereit" {
+		t.Fatalf("add_labels/remove_labels kommen nicht an (Struct-Tag?): %+v", gotBody)
+	}
+	out := res.(map[string]any)
+	if out["issue_iid"] != 739 {
+		t.Fatalf("Antwort muss das Issue benennen: %+v", out)
+	}
+	if labels, ok := out["labels"].([]string); !ok || len(labels) != 2 {
+		t.Fatalf("Antwort muss den erreichten Label-Stand tragen: %+v", out)
+	}
+
+	// Pflichtfelder und der Komma-Fall auch über Execute.
+	for _, params := range []string{
+		`{"issue_iid":739,"add_labels":["x"]}`,                   // project_id fehlt
+		`{"project_id":15,"add_labels":["x"]}`,                   // issue_iid fehlt
+		`{"project_id":15,"issue_iid":739}`,                      // weder add noch remove
+		`{"project_id":15,"issue_iid":739,"add_labels":["a,b"]}`, // Komma im Label
+	} {
+		if _, err := sys.Execute(ctx, "set_labels", []byte(params), cred); err == nil {
+			t.Fatalf("set_labels %s muss fehlschlagen", params)
+		}
+	}
 }
 
 func TestListActionsRespectIntakeScope(t *testing.T) {
@@ -1333,6 +1406,11 @@ func TestActionSubject(t *testing.T) {
 	}
 	if got := sys.ActionSubject("set_state", nil); got != "gitlab:set_state" {
 		t.Fatalf("set_state: %s", got)
+	}
+	// docs/betrieb-gitlab.md §5.1 sichert dieses Subjekt zu — daran hängen
+	// Guard-Rail-Regeln, die den Zustandswechsel im Board gaten sollen.
+	if got := sys.ActionSubject("set_labels", nil); got != "gitlab:set_labels" {
+		t.Fatalf("set_labels: %s", got)
 	}
 }
 

@@ -292,6 +292,38 @@ GitLab-Nutzern, und der Review-Loop unterscheidet „Autor" von „Reviewer" sau
 > seine Sandbox dieselben Paket-Registries wie der Entwickler-Agent (npm/PyPI/Go
 > über die Built-in-Egress-Templates) — siehe `docs/betrieb-deployment.md`.
 
+### 2.9 Der Delivery Lead: ein ganzes Vorhaben führen
+
+Entwickler- und QA-Agent arbeiten ticketweise. Hängt die Arbeit an einem
+**Meilenstein mit Frist** — einer Ausschreibung, einem Release —, kommt eine
+Ebene darüber dazu: der Delivery Lead (`examples/delivery-lead.bundle.json`).
+Er macht Tickets implementierbar (Anforderung im Original lesen, prüfbare
+Abnahmekriterien kommentieren, betroffene Stellen per `list_tree`/`read_file`
+benennen), hält abhängige Tickets zurück, bis ihre Grundlage gemergt ist, und
+vergibt Arbeit nach einem WIP-Limit.
+
+Drei Dinge unterscheiden sein Setup von dem der anderen:
+
+1. **Die Entwickler-Agenten müssen auf `nur-wenn: gitlab:issues:assigned`
+   stehen** (so ist die Vorlage geschnitten). Greifen sie frei nach offenen
+   Issues, weckt sie bereits der Aufbereitungs-Kommentar des Leads — dann sind
+   WIP-Limit und Reihenfolge wirkungslos, und der Lead ist Dekoration.
+2. **`ACCESS.md` des Leads trägt eine `tools:`-Allowlist.** Seine Rolle
+   definiert sich über eine lange Verbotsliste (nicht committen, keine MRs, nicht
+   mergen, keine Tickets schließen); durchsetzbar ist die nur zentral, nicht im
+   Prompt (spec: Guard-Rails fail-closed außerhalb der Runtime). `commit`,
+   `create_merge_request`, `approve_mr`, `set_state` und `checkout` sind deshalb
+   nicht freigeschaltet, obwohl `scope: write` sie hergäbe.
+3. **Nichts Vorhabensspezifisches steht in seiner Config.** Projekt, Meilenstein,
+   Ziel-Branch, Frist, Anforderungspfad, WIP-Limit, Abhängigkeiten und
+   Berichtsticket stehen in einer Wiki-Seite (`examples/vorhaben-steckbrief.md`).
+   Ein Lead führt genau ein Vorhaben — für ein zweites ein zweiter Lead.
+
+Zusätzlich zum eigenen Bot-Nutzer braucht er ein ihm zugewiesenes, dauerhaft
+offenes **Berichtsticket** und einen menschlichen Vorgesetzten, **dessen
+GitLab-Kennung im Profil hinterlegt ist** — ohne sie scheitert `assign` in
+genau dem Pfad, der offene Fachfragen an Menschen übergibt.
+
 ---
 
 ## 3. Welche Issues nimmt der Agent auf?
@@ -457,6 +489,21 @@ Mensch sieht ohne Rückfrage, was bereit ist, was läuft und was auf Abnahme
 wartet. Voraussetzung ist, dass der Agent bei jedem Wechsel **beides** tut:
 altes Zustands-Label entfernen, neues setzen. Guard-Rail-Subjekt:
 `gitlab:set_labels`.
+
+Zwei Eigenheiten, die man beim Entwerfen eines solchen Agenten kennen muss:
+
+- **GitLab legt unbekannte Labels beim Setzen still neu an.** Ein Vertipper des
+  Modells (`lead::in_arbeit` statt `lead::in-arbeit`) erzeugt also dauerhaft ein
+  Projekt-Label, das niemand wieder wegräumt — dieselbe Falle wie bei frei
+  erfundenen Board-Spalten. Das Playbook muss deshalb eine **feste, kleine**
+  Menge von Zustandsnamen zeichengenau vorgeben. Die Prompt-Doku des Plugins
+  weist den Agenten darauf hin; ein Label mit Komma darin wird abgelehnt, statt
+  still in zwei Labels zu zerfallen.
+- **`::` macht daraus GitLab-Scoped-Labels** — gegenseitig ausschließend aber
+  nur in Premium/Ultimate. Auf Free sind es normale Labels mit `::` im Namen.
+  Ein Agent darf sich also nicht darauf verlassen, dass GitLab das alte
+  Zustands-Label automatisch entfernt; er muss es selbst in `remove_labels`
+  mitgeben. Genau deshalb steht die Regel „beides im selben Aufruf" oben.
 
 ---
 

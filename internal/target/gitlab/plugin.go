@@ -418,14 +418,14 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		// Labels mit.
 		AddLabels    []string `json:"add_labels"`
 		RemoveLabels []string `json:"remove_labels"`
-		Path       string `json:"path"`
-		FilePath   string `json:"file_path"`
-		URL        string `json:"url"`
-		Recursive  bool   `json:"recursive"`
-		Sha        string `json:"sha"`
-		Since      string `json:"since"`
-		Target     string `json:"target_branch"`
-		Username   string `json:"username"`
+		Path         string   `json:"path"`
+		FilePath     string   `json:"file_path"`
+		URL          string   `json:"url"`
+		Recursive    bool     `json:"recursive"`
+		Sha          string   `json:"sha"`
+		Since        string   `json:"since"`
+		Target       string   `json:"target_branch"`
+		Username     string   `json:"username"`
 		// Entwickler-Workflow: commit + create_merge_request.
 		Branch       string   `json:"branch"`
 		StartBranch  string   `json:"start_branch"`
@@ -702,7 +702,10 @@ func (System) PromptDoc() string {
    (alle Felder optional; ohne project_id alle für dich sichtbaren Issues; assigned=true nur die deinem
    Bot-Nutzer zugewiesenen — nutze das, wenn dein Playbook nur zugewiesene Issues vorsieht; milestone ist der
    TITEL des Meilensteins exakt wie in GitLab und ist der zuverlässigste Filter, wenn dein Auftrag an einem
-   Vorhaben hängt — jedes Issue trägt seinen Meilenstein im Feld "milestone" zurück), get_issue {"project_id":N,"issue_iid":N},
+   Vorhaben hängt — jedes Issue trägt seinen Meilenstein im Feld "milestone" zurück).
+   ACHTUNG: list_issues liefert höchstens 100 Treffer und sagt dir NICHT, dass abgeschnitten wurde. Bekommst du
+   genau 100 zurück, ist die Liste vermutlich unvollständig — grenze mit project_id, milestone, labels oder
+   state weiter ein, statt sie für vollständig zu halten, get_issue {"project_id":N,"issue_iid":N},
    download_upload {"project_id":N,"url":"/uploads/<secret>/<datei>.png"} — lädt einen an ein Issue/MR angehängten
    Upload (Screenshot, Bild) in deine Sandbox und liefert den lokalen Pfad; sieh ihn dir dann mit dem Read-Tool an
    (Vision). WICHTIG: Enthält eine Issue-Beschreibung oder ein Kommentar einen Bild-Anhang — in der Markdown-Syntax
@@ -734,7 +737,10 @@ func (System) PromptDoc() string {
    erreichten Label-Stand). Damit führst du den Arbeitszustand eines Vorgangs sichtbar im Board — Zustand und Wechsel
    beim selben Schritt: beim Weiterreichen das alte Zustands-Label entfernen und das neue setzen, nie nur hinzufügen,
    sonst trägt ein Issue am Ende drei widersprüchliche Zustände. Fachliche Labels (Komponente, Typ) fasst du dabei
-   nicht an,
+   nicht an. WICHTIG: Ein Label, das es im Projekt noch nicht gibt, legt GitLab beim Setzen STILL NEU AN — ein
+   Vertipper ("in_arbeit" statt "in-arbeit") erzeugt also dauerhaft ein Projekt-Label, das niemand mehr wegräumt.
+   Nimm die Zustandsnamen zeichengenau aus deinem Playbook und erfinde keine Varianten. Jedes Label ist ein eigener
+   Listeneintrag; ein Eintrag mit Komma darin wird abgelehnt,
    list_branches {"project_id":N,"search":"..."} listet Branches (Default-Branch ist markiert — rate keine Branch-Namen),
    list_commits {"project_id":N,"ref":"...","path":"datei/oder/verzeichnis","since":"ISO-Datum"} listet die Commit-Historie
    (alle Filter optional), get_commit {"project_id":N,"sha":"..."} liefert den Diff eines Commits,

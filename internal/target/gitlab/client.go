@@ -890,17 +890,25 @@ func (c *Client) AssignIssue(ctx context.Context, projectID, issueIID int, userI
 // der Agent den erreichten Zustand sieht, statt ihn erneut abzufragen.
 func (c *Client) SetLabels(ctx context.Context, projectID, issueIID int, add, remove []string) (Issue, error) {
 	body := map[string]any{}
-	if joined := joinLabels(add); joined != "" {
-		body["add_labels"] = joined
+	joinedAdd, err := joinLabels(add)
+	if err != nil {
+		return Issue{}, fmt.Errorf("add_labels: %w", err)
 	}
-	if joined := joinLabels(remove); joined != "" {
-		body["remove_labels"] = joined
+	joinedRemove, err := joinLabels(remove)
+	if err != nil {
+		return Issue{}, fmt.Errorf("remove_labels: %w", err)
+	}
+	if joinedAdd != "" {
+		body["add_labels"] = joinedAdd
+	}
+	if joinedRemove != "" {
+		body["remove_labels"] = joinedRemove
 	}
 	if len(body) == 0 {
 		return Issue{}, fmt.Errorf("weder add_labels noch remove_labels angegeben")
 	}
 	var out Issue
-	err := c.do(ctx, http.MethodPut,
+	err = c.do(ctx, http.MethodPut,
 		fmt.Sprintf("/projects/%d/issues/%d", projectID, issueIID), body, &out)
 	return out, err
 }
@@ -908,14 +916,24 @@ func (c *Client) SetLabels(ctx context.Context, projectID, issueIID int, add, re
 // joinLabels macht aus der Label-Liste des Agenten den kommaseparierten String,
 // den die GitLab-API erwartet. Leere Einträge fallen raus — ein versehentliches
 // "" im Array soll nicht als Label mit leerem Namen ankommen.
-func joinLabels(labels []string) string {
+//
+// Ein Eintrag MIT Komma ist dagegen ein Fehler, kein stiller Split: Weil GitLab
+// fehlende Labels beim Setzen automatisch anlegt, würde aus einem einzelnen
+// falsch gebauten Eintrag ("a,b") dauerhaft zwei Projekt-Labels — sichtbar erst,
+// wenn das Board schon zugewachsen ist. Lieber der Fehler zurück an den Agenten.
+func joinLabels(labels []string) (string, error) {
 	out := make([]string, 0, len(labels))
 	for _, l := range labels {
-		if l = strings.TrimSpace(l); l != "" {
-			out = append(out, l)
+		l = strings.TrimSpace(l)
+		if l == "" {
+			continue
 		}
+		if strings.Contains(l, ",") {
+			return "", fmt.Errorf("label %q enthält ein Komma — gib jedes Label als eigenen Listeneintrag an", l)
+		}
+		out = append(out, l)
 	}
-	return strings.Join(out, ",")
+	return strings.Join(out, ","), nil
 }
 
 // Escalate setzt eine interne Notiz und entfernt die Zuweisung
