@@ -213,6 +213,20 @@ func Validate(spec Spec) error {
 // Dateisatz). Ersetzen statt Zusammenführen ist Absicht: Der Aufrufer schickt
 // den gewünschten Endzustand, sonst bliebe eine gelöschte Datei ewig liegen.
 func (s *Store) Upsert(ctx context.Context, orgID uuid.UUID, spec Spec) (Skill, error) {
+	return s.write(ctx, orgID, spec, false)
+}
+
+// write ist der gemeinsame Schreibpfad von Upsert und Create. createOnly
+// entscheidet, was bei einem bereits vergebenen Namen passiert: ersetzen oder
+// ErrExists.
+//
+// Beides in EINER Transaktion und nicht als „vorher fragen, dann schreiben":
+// Zwischen einer getrennten Existenzprüfung und dem Schreiben passt ein
+// paralleler Aufruf, und der zweite Aufrufer ersetzte dann still fremde Arbeit,
+// obwohl er anlegen wollte. Der SELECT läuft deshalb in derselben Transaktion
+// wie der INSERT, und der Teil-Unique-Index fängt das Rennen ab, das der SELECT
+// nicht sieht.
+func (s *Store) write(ctx context.Context, orgID uuid.UUID, spec Spec, createOnly bool) (Skill, error) {
 	if err := Validate(spec); err != nil {
 		return Skill{}, err
 	}
@@ -252,6 +266,8 @@ func (s *Store) Upsert(ctx context.Context, orgID uuid.UUID, spec Spec) (Skill, 
 		}
 	case err != nil:
 		return Skill{}, err
+	case createOnly:
+		return Skill{}, fmt.Errorf("%w: %q", ErrExists, spec.Name)
 	default:
 		if _, err := tx.Exec(ctx, `UPDATE skills SET description=$2, updated_at=now() WHERE id=$1`,
 			id, desc); err != nil {
@@ -281,36 +297,7 @@ func (s *Store) Upsert(ctx context.Context, orgID uuid.UUID, spec Spec) (Skill, 
 // anlegen" drückt, meint einen neuen — ein Namenstreffer wäre dann fremde
 // Arbeit, die still verschwindet. Zum Ersetzen gibt es Upsert (Editor, Import).
 func (s *Store) Create(ctx context.Context, orgID uuid.UUID, spec Spec) (Skill, error) {
-	if err := ValidateName(spec.Name); err != nil {
-		return Skill{}, err
-	}
-	taken, err := s.Exists(ctx, orgID, spec.AgentID, spec.Name)
-	if err != nil {
-		return Skill{}, err
-	}
-	if taken {
-		return Skill{}, fmt.Errorf("%w: %q", ErrExists, spec.Name)
-	}
-	return s.Upsert(ctx, orgID, spec)
-}
-
-// Exists sagt, ob auf dieser Ebene — Bibliothek (agentID nil) oder ein
-// bestimmter Agent — schon ein Skill dieses Namens liegt. Die beiden Ebenen
-// sind getrennt: Ein Agent darf einen eigenen Skill haben, der genauso heißt
-// wie einer aus der Bibliothek (dann gewinnt seiner, siehe ForAgent).
-func (s *Store) Exists(ctx context.Context, orgID uuid.UUID, agentID *uuid.UUID, name string) (bool, error) {
-	var q string
-	var args []any
-	if agentID == nil {
-		q = `SELECT EXISTS (SELECT 1 FROM skills WHERE org_id=$1 AND name=$2 AND agent_id IS NULL)`
-		args = []any{orgID, name}
-	} else {
-		q = `SELECT EXISTS (SELECT 1 FROM skills WHERE org_id=$1 AND name=$2 AND agent_id=$3)`
-		args = []any{orgID, name, *agentID}
-	}
-	var found bool
-	err := s.pool.QueryRow(ctx, q, args...).Scan(&found)
-	return found, err
+	return s.write(ctx, orgID, spec, true)
 }
 
 // Get liefert einen Skill samt Dateien.
@@ -456,11 +443,21 @@ func isUniqueViolation(err error) bool {
 }
 
 // Unassign löst die Verlinkung.
+//
+// Löst nichts — unbekannte ID, fremde Organisation, gar keine Verlinkung —,
+// ist das ErrNotFound und kein Erfolg: Sonst quittiert die Oberfläche einen
+// Entzug, der nie stattgefunden hat, und niemand sieht den Tippfehler.
 func (s *Store) Unassign(ctx context.Context, orgID, skillID, agentID uuid.UUID) error {
-	_, err := s.pool.Exec(ctx, `DELETE FROM skill_assignments a USING skills s
+	tag, err := s.pool.Exec(ctx, `DELETE FROM skill_assignments a USING skills s
 		WHERE a.skill_id=s.id AND s.org_id=$1 AND a.skill_id=$2 AND a.agent_id=$3`,
 		orgID, skillID, agentID)
-	return err
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 // ForAgent löst auf, was ein Agent tatsächlich bekommt: seine eigenen Skills

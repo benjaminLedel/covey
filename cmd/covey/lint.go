@@ -92,9 +92,14 @@ func lintSubjects(ctx context.Context, pool *pgxpool.Pool) ([]agents.Subject, er
 	}
 	defer rows.Close()
 
+	// Ziel je Subject, nach Index geführt: Der Slug ist nur PRO Organisation
+	// eindeutig (migrations/0001: UNIQUE (org_id, slug)), und der Lint liest
+	// über alle Organisationen. Über den Slug geschlüsselt bekäme bei
+	// gleichnamigen Agenten einer die IDs des anderen — und damit eine
+	// Skill-Auflösung, die zu ihm nicht passt.
+	type target struct{ id, orgID uuid.UUID }
 	var out []agents.Subject
-	ids := map[string]uuid.UUID{}
-	orgs := map[string]uuid.UUID{}
+	var targets []target
 	for rows.Next() {
 		var (
 			id       uuid.UUID
@@ -112,8 +117,7 @@ func lintSubjects(ctx context.Context, pool *pgxpool.Pool) ([]agents.Subject, er
 		if maxTurns != nil {
 			s.MaxTurns = *maxTurns
 		}
-		ids[s.Slug] = id
-		orgs[s.Slug] = orgID
+		targets = append(targets, target{id: id, orgID: orgID})
 		out = append(out, s)
 	}
 	if err := rows.Err(); err != nil {
@@ -122,14 +126,14 @@ func lintSubjects(ctx context.Context, pool *pgxpool.Pool) ([]agents.Subject, er
 
 	skillStore := skills.NewStore(pool)
 	for i := range out {
-		id := ids[out[i].Slug]
-		if out[i].AgentStages, err = agentStages(ctx, pool, id); err != nil {
+		t := targets[i]
+		if out[i].AgentStages, err = agentStages(ctx, pool, t.id); err != nil {
 			return nil, err
 		}
-		if out[i].TurnLimitFailures, err = turnLimitFailures(ctx, pool, id); err != nil {
+		if out[i].TurnLimitFailures, err = turnLimitFailures(ctx, pool, t.id); err != nil {
 			return nil, err
 		}
-		if out[i].Skills, err = agentSkills(ctx, skillStore, orgs[out[i].Slug], id); err != nil {
+		if out[i].Skills, err = agentSkills(ctx, skillStore, t.orgID, t.id); err != nil {
 			return nil, err
 		}
 	}

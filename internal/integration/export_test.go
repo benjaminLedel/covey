@@ -5,6 +5,10 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/google/uuid"
+
+	identbuiltin "covey/internal/identity/builtin"
 )
 
 // TestExportImportRoundtrip prüft das Ziel „Config von Bots komplett
@@ -295,6 +299,31 @@ func TestBundleSkills(t *testing.T) {
 		t.Fatalf("Config-Import muss die Skills mitbringen: %+v", pulled)
 	}
 	c.expect(http.MethodPost, "/api/v1/agents/"+tid+"/config/import", broken, http.StatusBadRequest)
+
+	// --- Scheitert die Config an der Rollen-Grenze, dürfen auch die Skills
+	// nicht angelegt worden sein. Ein Fehler muss heißen: nichts passiert. ---
+	hash, _ := identbuiltin.HashPassword("owner-passwort")
+	if _, err := s.pool.Exec(t.Context(), `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
+		VALUES ($1,$2,'owner@test.local','Owner',$3,'agent_owner')`, uuid.New(), s.orgID, hash); err != nil {
+		t.Fatal(err)
+	}
+	owner := login(t, s, "owner@test.local", "owner-passwort")
+
+	unberührt := c.expect(http.MethodPost, "/api/v1/agents",
+		map[string]string{"slug": "rbac-ziel", "display_name": "RBAC-Ziel", "runtime": "mock"}, http.StatusCreated)
+	uid := unberührt["id"].(string)
+
+	// Tool-Allowlists ändert nur platform_admin/security — für den agent_owner
+	// ist dasselbe Bundle ein 403.
+	mitTools := map[string]any{}
+	json.Unmarshal(rawBundle, &mitTools)
+	files := mitTools["files"].(map[string]any)
+	files["ACCESS.md"] = "- system: zammad   scope: read,write   tools: reply, close"
+	owner.expect(http.MethodPost, "/api/v1/agents/"+uid+"/config/import", mitTools, http.StatusForbidden)
+
+	if got := getSkillList(t, c, "/api/v1/agents/"+uid+"/skills"); len(got) != 0 {
+		t.Fatalf("ein an der RBAC gescheiterter Import darf keine Skills hinterlassen: %+v", got)
+	}
 }
 
 // TestImportConfigOverwrite prüft das Überschreiben eines BESTEHENDEN Agenten

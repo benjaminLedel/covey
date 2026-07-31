@@ -77,10 +77,19 @@ function SkillCard({ skill, agents, editable }: { skill: Skill; agents: Agent[];
   const inval = () => qc.invalidateQueries({ queryKey: ["skills"] });
 
   // Zum Ändern braucht es die Dateien — die Liste liefert sie nicht mit.
+  //
+  // gcTime/staleTime 0 und refetchOnMount sind hier kein Feintuning, sondern
+  // Schutz vor Datenverlust: Der Editor übernimmt seinen Anfangszustand beim
+  // Einhängen, und PUT ersetzt den Dateisatz vollständig. Käme der Stand aus
+  // dem Cache, überschriebe ein Speichern die Änderung, die inzwischen jemand
+  // anderes gemacht hat — ohne dass irgendwo ein Konflikt sichtbar würde.
   const full = useQuery({
     queryKey: ["skill", skill.id],
     queryFn: () => api<Skill>(`/skills/${skill.id}`),
     enabled: editing,
+    gcTime: 0,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
   const save = useMutation({
     mutationFn: (d: SkillDraft) => put<Skill>(`/skills/${skill.id}`, d),
@@ -124,6 +133,13 @@ function SkillCard({ skill, agents, editable }: { skill: Skill; agents: Agent[];
           </>
         )}
       </div>
+      {/* Fehlgeschlagene Aktionen müssen sichtbar sein: Ohne Meldung sieht ein
+          wirkungsloser Klick genauso aus wie ein erfolgreicher. */}
+      {(remove.isError || unassign.isError || assign.isError) && (
+        <p className="danger-text text-xs mt-1 mb-0">
+          {((remove.error ?? unassign.error ?? assign.error) as Error).message}
+        </p>
+      )}
 
       <div className="flex items-center gap-2 flex-wrap mt-2 text-xs">
         <span className="muted">{t("skills.assignedTo")}</span>
@@ -162,10 +178,11 @@ function SkillCard({ skill, agents, editable }: { skill: Skill; agents: Agent[];
         )}
       </div>
 
-      {/* Erst öffnen, wenn die Dateien da sind: Der Editor übernimmt seinen
-          Anfangszustand beim Einhängen, ein Nachladen käme nicht mehr an —
-          und Speichern würde den echten Inhalt mit Leere überschreiben. */}
-      {editing && full.data && (
+      {/* Erst öffnen, wenn der frische Stand da ist: Der Editor übernimmt
+          seinen Anfangszustand beim Einhängen, ein Nachladen käme nicht mehr
+          an — und Speichern würde den echten Inhalt überschreiben. */}
+      {editing && full.isFetching && <span className="muted text-xs">{t("skills.loading")}</span>}
+      {editing && full.data && !full.isFetching && (
         <SkillEditor
           skill={full.data}
           title={skill.name}

@@ -89,6 +89,53 @@ func SplitEntry(content string) (name, description, body string) {
 	return name, description, strings.TrimLeft(after, "\n")
 }
 
+// UnsupportedFrontmatterKeys liefert die Frontmatter-Schlüssel einer SKILL.md,
+// die Covey nicht führt — leer, wenn nur name/description (oder gar kein Block)
+// vorkommen.
+//
+// Der Aufrufer lehnt damit ab, statt zu speichern. Grund: SplitEntry schneidet
+// den ganzen Block ab und Render baut ihn aus Name und Beschreibung neu auf —
+// alles andere wäre nach dem Speichern spurlos weg. Bei `allowed-tools:` heißt
+// das, dass die materialisierte SKILL.md ohne die Einschränkung im Home landet,
+// der Skill also mit MEHR Rechten läuft als der Autor geschrieben hat. Ein
+// stiller Verlust, den niemand bemerkt; eine Ablehnung sieht jeder sofort.
+func UnsupportedFrontmatterKeys(content string) []string {
+	trimmed := strings.TrimLeft(content, "\ufeff \t\r\n")
+	if !strings.HasPrefix(trimmed, "---") {
+		return nil
+	}
+	rest := trimmed[len("---"):]
+	i := strings.IndexByte(rest, '\n')
+	if i < 0 {
+		return nil
+	}
+	rest = rest[i+1:]
+	end := findCloser(rest)
+	if !end.valid() {
+		return nil // unabgeschlossener Block ist Rumpf, siehe SplitEntry
+	}
+	var out []string
+	for _, line := range strings.Split(rest[:end.start], "\n") {
+		if strings.TrimSpace(line) == "" || strings.HasPrefix(strings.TrimSpace(line), "#") {
+			continue
+		}
+		key, _, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		switch k := strings.TrimSpace(key); k {
+		case "name", "description":
+		default:
+			// Fortsetzungszeilen einer Liste (»  - Bash«) tragen keinen eigenen
+			// Schlüssel — sie gehören zum Schlüssel darüber, der schon gemeldet ist.
+			if !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") && !strings.HasPrefix(k, "-") {
+				out = append(out, k)
+			}
+		}
+	}
+	return out
+}
+
 // closer beschreibt die Fundstelle des schließenden ---.
 type closer struct{ start, after int }
 

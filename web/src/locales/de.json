@@ -925,7 +925,8 @@
     "removeFile": "Entfernen",
     "filesHint": "SKILL.md ist die Anleitung. Alles Schwergewichtige (Referenzen, Vorlagen, Checklisten) in eigene Dateien — sie werden nur gelesen, wenn der Skill wirklich zieht.",
     "save": "Speichern",
-    "cancel": "Abbrechen"
+    "cancel": "Abbrechen",
+    "loading": "lädt …"
   },
   "targets": {
     "title": "Zielsysteme",

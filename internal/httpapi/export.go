@@ -284,7 +284,10 @@ func (s *Server) buildBundle(ctx context.Context, orgID, agentID uuid.UUID, incl
 func validateBundleSkills(list []bundleSkill) error {
 	seen := map[string]bool{}
 	for i, bs := range list {
-		spec := bs.input().spec(nil)
+		spec, err := bs.input().checked(nil)
+		if err != nil {
+			return err
+		}
 		label := spec.Name
 		if label == "" {
 			label = fmt.Sprintf("#%d (ohne name)", i+1)
@@ -416,14 +419,23 @@ func (s *Server) handleImportConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	// Skills gehören zur Konfiguration des Agenten, seit Prozeduren aus
 	// PLAYBOOKS.md dorthin wandern — ein Bundle-Import, der sie ausließe,
-	// ergäbe einen Agenten ohne die Hälfte seines Handwerks. Vor dem Speichern
-	// der Config, damit ein fehlerhafter Skill als 400 zurückkommt, statt eine
-	// halb übernommene Config zu hinterlassen. Die Warnungen gehen ins Log:
-	// Die Antwort dieses Endpunkts ist die Config-Version (wie bei PUT /config).
+	// ergäbe einen Agenten ohne die Hälfte seines Handwerks.
+	//
+	// Reihenfolge: erst ALLE Prüfungen (Skills und Config), dann die
+	// Seiteneffekte. Andernfalls stünden die Skills schon in der Datenbank,
+	// wenn die Config an ihrer RBAC-Grenze scheitert (ein Bundle mit
+	// tools:-Allowlist ist für agent_owner ein 403) — und der Aufrufer sähe
+	// einen Fehler, obwohl die Hälfte übernommen wurde.
 	if err := validateBundleSkills(b.Skills); err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	apply, ok := s.prepareConfigWrite(w, r, id, b.Files)
+	if !ok {
+		return
+	}
+	// Die Warnungen gehen ins Log: Die Antwort dieses Endpunkts ist die
+	// Config-Version (wie bei PUT /config).
 	warnings, err := s.importSkills(r.Context(), principalFrom(r).OrgID, id, b.Skills)
 	if err != nil {
 		mapSkillErr(w, err)
@@ -432,7 +444,7 @@ func (s *Server) handleImportConfig(w http.ResponseWriter, r *http.Request) {
 	for _, warn := range warnings {
 		s.Log.Warn("skill-import", "agent", id, "hinweis", warn)
 	}
-	s.saveAndApplyConfig(w, r, id, b.Files)
+	s.commitConfig(w, r, id, b.Files, apply)
 }
 
 // handleImportAgent — POST /api/v1/agents/import: legt aus einem Bundle einen

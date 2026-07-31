@@ -53,10 +53,20 @@ func (c *Client) requestSkills(ctx context.Context) (InjectSkills, error) {
 
 // materializeSkills schreibt die Skills des Agenten nach <home>/.claude/skills/.
 //
-// Best-effort wie die Wiki-Arbeitskopie: Scheitert es, läuft die Aufgabe ohne
-// Skills weiter statt gar nicht. Ein fehlender Skill kostet Qualität, ein
-// abgebrochener Lauf kostet die Aufgabe.
+// Best-effort für den LAUF: Scheitert es, läuft die Aufgabe ohne Skills weiter
+// statt gar nicht. Ein fehlender Skill kostet Qualität, ein abgebrochener Lauf
+// kostet die Aufgabe.
+//
+// Nicht best-effort ist dagegen das Aufräumen. Bleibt die Antwort aus (Timeout,
+// Transportfehler, eine Control Plane, die request_skills noch nicht kennt),
+// wird das Verzeichnis GELEERT statt unangetastet gelassen. Denn das Home
+// überlebt den Lauf: Ohne diesen Schritt liefe die Aufgabe nicht „ohne Skills",
+// sondern mit den ALTEN — und ein Skill, der gerade entzogen wurde, wirkte
+// weiter. „Ich weiß nicht, welche gelten" muss dasselbe bewirken wie „keine";
+// die Control Plane hält dieselbe Zusage, indem sie selbst bei DB-Fehlern mit
+// einer leeren Liste antwortet (orchestrator.skillsFor).
 func (c *Client) materializeSkills(ctx context.Context) {
+	dir := filepath.Join(c.homeDir, filepath.FromSlash(skillsDirName))
 	res, err := c.requestSkills(ctx)
 	if err != nil || !res.OK {
 		reason := "unbekannt"
@@ -66,12 +76,33 @@ func (c *Client) materializeSkills(ctx context.Context) {
 			reason = res.Error
 		}
 		c.log.Warn("skills nicht abrufbar — lauf ohne skills", "err", reason)
+		if err := clearSkillDirs(dir); err != nil {
+			c.log.Warn("alte skills nicht abräumbar", "err", err)
+		}
 		return
 	}
-	dir := filepath.Join(c.homeDir, filepath.FromSlash(skillsDirName))
 	if err := writeSkillDirs(dir, res.Skills); err != nil {
 		c.log.Warn("skills nicht materialisierbar — lauf ohne skills", "err", err)
 	}
+}
+
+// clearSkillDirs entfernt alles, was Covey früher unter dir abgelegt hat, ohne
+// etwas Neues zu schreiben. Ein fehlendes Verzeichnis ist kein Fehler — dann
+// gab es nie Skills.
+func clearSkillDirs(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if err := os.RemoveAll(filepath.Join(dir, e.Name())); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // writeSkillDirs legt die Skill-Verzeichnisse an und entfernt vorher alles, was

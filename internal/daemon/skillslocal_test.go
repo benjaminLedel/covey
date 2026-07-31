@@ -125,3 +125,30 @@ func TestWriteSkillDirsRejectsUnsafeNames(t *testing.T) {
 		t.Fatalf("nur der gültige Name darf angelegt werden, bekam: %v", got)
 	}
 }
+
+// Bleibt die Antwort der Control Plane aus, muss das Verzeichnis GELEERT
+// werden. Das Home überlebt den Lauf: Ohne diesen Schritt liefe die Aufgabe
+// nicht „ohne Skills", sondern mit den alten — ein gerade entzogener Skill
+// wirkte weiter, und der Entzug wäre fail-open.
+func TestClearSkillDirsRemovesEverything(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), ".claude", "skills")
+	if err := writeSkillDirs(dir, []SkillDir{
+		{Name: "alt", Description: "x", Files: map[string]string{"SKILL.md": "a", "ref.md": "b"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := clearSkillDirs(dir); err != nil {
+		t.Fatalf("clearSkillDirs: %v", err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("nach dem Abräumen darf nichts übrig sein, bekam: %+v", entries)
+	}
+	// Nie materialisiert: kein Verzeichnis, kein Fehler.
+	if err := clearSkillDirs(filepath.Join(t.TempDir(), "gibtsnicht")); err != nil {
+		t.Fatalf("fehlendes Verzeichnis ist kein Fehler: %v", err)
+	}
+}

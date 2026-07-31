@@ -1927,7 +1927,19 @@ function AgentSkills({ agentId, canManage }: { agentId: string; canManage: boole
   });
   const library = useQuery({ queryKey: ["skills"], queryFn: () => api<Skill[]>("/skills"), retry: false });
   const [creating, setCreating] = useState(false);
-  const [editing, setEditing] = useState<Skill | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  // Zum Ändern den frischen Stand holen statt den Eintrag aus der Liste: Der
+  // Editor übernimmt seinen Anfangszustand beim Einhängen und PUT ersetzt den
+  // Dateisatz vollständig — aus einer veralteten Liste heraus gespeichert,
+  // verschwände die Änderung, die inzwischen jemand anderes gemacht hat.
+  const editing = useQuery({
+    queryKey: ["skill", editingId],
+    queryFn: () => api<Skill>(`/skills/${editingId}`),
+    enabled: !!editingId,
+    gcTime: 0,
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
   const inval = () => {
     qc.invalidateQueries({ queryKey: ["agent-skills", agentId] });
     qc.invalidateQueries({ queryKey: ["skills"] });
@@ -1941,9 +1953,9 @@ function AgentSkills({ agentId, canManage }: { agentId: string; canManage: boole
     },
   });
   const save = useMutation({
-    mutationFn: (d: SkillDraft) => put<Skill>(`/skills/${editing?.id}`, d),
+    mutationFn: (d: SkillDraft) => put<Skill>(`/skills/${editingId}`, d),
     onSuccess: () => {
-      setEditing(null);
+      setEditingId(null);
       inval();
     },
   });
@@ -2008,7 +2020,7 @@ function AgentSkills({ agentId, canManage }: { agentId: string; canManage: boole
             </span>
             {canManage && s.origin === "agent" && (
               <>
-                <button className="btn sm" onClick={() => setEditing(s)}>
+                <button className="btn sm" onClick={() => setEditingId(s.id)}>
                   {t("skills.edit")}
                 </button>
                 <button
@@ -2030,6 +2042,10 @@ function AgentSkills({ agentId, canManage }: { agentId: string; canManage: boole
         </div>
       ))}
       {resolved.length === 0 && <p className="muted mb-3">{t("agent.skills.none")}</p>}
+      {/* Ein wirkungsloser Klick sieht ohne Meldung aus wie ein erfolgreicher. */}
+      {(remove.isError || unlink.isError) && (
+        <p className="danger-text text-xs mb-2">{((remove.error ?? unlink.error) as Error).message}</p>
+      )}
 
       {/* Verlinkt, aber wirkungslos: ein gleichnamiger eigener Skill verdeckt ihn. */}
       {linked.filter(shadowed).map((s) => (
@@ -2057,14 +2073,14 @@ function AgentSkills({ agentId, canManage }: { agentId: string; canManage: boole
           onClose={() => setCreating(false)}
         />
       )}
-      {editing && (
+      {editingId && editing.data && !editing.isFetching && (
         <SkillEditor
-          skill={editing}
-          title={editing.name}
+          skill={editing.data}
+          title={editing.data.name}
           saving={save.isPending}
           error={save.isError ? (save.error as Error).message : undefined}
           onSave={(d) => save.mutate(d)}
-          onClose={() => setEditing(null)}
+          onClose={() => setEditingId(null)}
         />
       )}
     </div>

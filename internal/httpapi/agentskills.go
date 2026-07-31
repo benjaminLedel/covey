@@ -2,7 +2,9 @@ package httpapi
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -64,6 +66,23 @@ type skillInput struct {
 	Name        string        `json:"name"`
 	Description string        `json:"description"`
 	Files       []skills.File `json:"files"`
+}
+
+// checked ist spec() mit der Frontmatter-Prüfung davor: Ein Schlüssel, den
+// Covey nicht führt, wird abgelehnt statt beim Speichern verworfen (siehe
+// skills.UnsupportedFrontmatterKeys). Alle Schreibpfade gehen hier durch.
+func (in skillInput) checked(agentID *uuid.UUID) (skills.Spec, error) {
+	for _, f := range in.Files {
+		if f.Path != skills.EntryFile {
+			continue
+		}
+		if keys := skills.UnsupportedFrontmatterKeys(f.Content); len(keys) > 0 {
+			return skills.Spec{}, fmt.Errorf(
+				"%w: %s-Frontmatter führt %s — Covey speichert nur name und description, alles andere ginge beim Speichern verloren",
+				skills.ErrInvalid, skills.EntryFile, strings.Join(keys, ", "))
+		}
+	}
+	return in.spec(agentID), nil
 }
 
 // spec macht aus der Eingabe eine Store-Spec.
@@ -141,7 +160,12 @@ func (s *Server) handleCreateSkill(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "ungültiger request")
 		return
 	}
-	sk, err := store.Create(r.Context(), principalFrom(r).OrgID, in.spec(nil))
+	spec, err := in.checked(nil)
+	if err != nil {
+		mapSkillErr(w, err)
+		return
+	}
+	sk, err := store.Create(r.Context(), principalFrom(r).OrgID, spec)
 	if err != nil {
 		mapSkillErr(w, err)
 		return
@@ -197,7 +221,11 @@ func (s *Server) handlePutSkill(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "ungültiger request")
 		return
 	}
-	spec := in.spec(cur.AgentID)
+	spec, err := in.checked(cur.AgentID)
+	if err != nil {
+		mapSkillErr(w, err)
+		return
+	}
 	if spec.Name != "" && spec.Name != cur.Name {
 		writeErr(w, http.StatusConflict,
 			"der Name eines Skills ist sein Verzeichnis und sein /slash-command — zum Umbenennen neu anlegen und den alten löschen")
@@ -348,7 +376,12 @@ func (s *Server) handleCreateAgentSkill(w http.ResponseWriter, r *http.Request) 
 		writeErr(w, http.StatusBadRequest, "ungültiger request")
 		return
 	}
-	sk, err := store.Create(r.Context(), agent.OrgID, in.spec(&agent.ID))
+	spec, err := in.checked(&agent.ID)
+	if err != nil {
+		mapSkillErr(w, err)
+		return
+	}
+	sk, err := store.Create(r.Context(), agent.OrgID, spec)
 	if err != nil {
 		mapSkillErr(w, err)
 		return

@@ -167,11 +167,8 @@ func (c *Client) Run(ctx context.Context) error {
 		// wartenden Aufrufers und gehen an dessen Kanal. Ohne request_id ist
 		// derselbe Nachrichtentyp ein proaktiver Push (inject_credentials) und
 		// fällt in den switch durch.
-		if routedInjectTypes[msg.Type] {
-			if id := requestIDOf(msg); id != "" {
-				c.route(id, msg)
-				continue
-			}
+		if c.deliverIfResponse(msg) {
+			continue
 		}
 		switch msg.Type {
 		case TypeInjectConfig:
@@ -229,6 +226,27 @@ var routedInjectTypes = map[string]bool{
 	TypeInjectWiki:        true,
 	TypeInjectSkills:      true,
 	TypeInjectCreateTask:  true,
+}
+
+// deliverIfResponse stellt eine Antwort auf eine eigene Anfrage an ihren
+// wartenden Aufrufer zu und sagt, ob die Nachricht damit erledigt ist.
+//
+// Eigene Funktion statt einer Bedingung mitten in der Lese-Schleife, damit die
+// Zustellung ohne WebSocket prüfbar ist: Der Fehler, gegen den sie abgesichert
+// ist (ein Antworttyp fehlt im Routing, der Aufrufer läuft in seinen Timeout),
+// fällt sonst erst in einem Integrationstest auf — nach 15 Sekunden Warten.
+func (c *Client) deliverIfResponse(msg Message) bool {
+	if !routedInjectTypes[msg.Type] {
+		return false
+	}
+	id := requestIDOf(msg)
+	if id == "" {
+		// Ohne request_id ist derselbe Typ ein proaktiver Push
+		// (inject_credentials) und gehört in den switch der Lese-Schleife.
+		return false
+	}
+	c.route(id, msg)
+	return true
 }
 
 // requestIDOf liest die Korrelations-ID aus einem beliebigen Antwort-Payload.

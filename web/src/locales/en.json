@@ -925,7 +925,8 @@
     "removeFile": "Remove",
     "filesHint": "SKILL.md holds the instructions. Put anything heavy (references, templates, checklists) into separate files — they are read only when the skill actually applies.",
     "save": "Save",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "loading": "loading …"
   },
   "targets": {
     "title": "Target Systems",

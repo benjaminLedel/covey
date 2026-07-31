@@ -150,6 +150,12 @@ func TestSkillsAPI(t *testing.T) {
 			"files": skillFiles([2]string{"referenz.md", "x"})}},
 		{"Beschreibung fehlt", map[string]any{"name": "ohne-desc",
 			"files": skillFiles([2]string{"SKILL.md", "x"})}},
+		// Covey speichert nur name/description; alles andere im Frontmatter
+		// wäre nach dem Speichern spurlos weg. Bei allowed-tools hieße das:
+		// Der Skill läuft mit MEHR Rechten, als der Autor geschrieben hat.
+		{"unbekannter Frontmatter-Schlüssel", map[string]any{
+			"files": skillFiles([2]string{"SKILL.md",
+				"---\nname: mit-tools\ndescription: d\nallowed-tools: Bash, Read\n---\n\n# X\n"})}},
 	} {
 		admin.expect(http.MethodPost, "/api/v1/skills", bad.body, http.StatusBadRequest)
 		if list := getSkillList(t, admin, "/api/v1/skills"); len(list) != 1 {
@@ -198,6 +204,12 @@ func TestSkillsAPI(t *testing.T) {
 	// Unbekannter Agent bzw. Skill: 404, kein 500.
 	admin.expect(http.MethodPut, "/api/v1/skills/"+deployID+"/agents/"+uuid.NewString(), nil, http.StatusNotFound)
 	admin.expect(http.MethodGet, "/api/v1/skills/"+uuid.NewString(), nil, http.StatusNotFound)
+
+	// Ein Entzug, der nichts löst, ist kein Erfolg — sonst quittiert die
+	// Oberfläche eine Wirkung, die es nie gab (hier: alice ist gar nicht
+	// verlinkt mit bobs eigenem Skill).
+	admin.expect(http.MethodDelete, "/api/v1/skills/"+bobOwn["id"].(string)+"/agents/"+alice.ID.String(),
+		nil, http.StatusNotFound)
 
 	// Ersetzen tauscht den ganzen Dateisatz aus (weggelassene Datei ist weg).
 	admin.expect(http.MethodPut, "/api/v1/skills/"+deployID, map[string]any{
