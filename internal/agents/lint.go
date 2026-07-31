@@ -47,6 +47,14 @@ type Subject struct {
 	Slug  string
 	Files map[string]string
 
+	// Skills sind die Fähigkeiten des Agenten (internal/skills): Skill-Name →
+	// Inhalt seiner Dateien. Sie gehören in die Prüfung, weil Prozeduren aus
+	// PLAYBOOKS.md dorthin wandern — ein Kommentar-Schritt in einem Skill ist
+	// derselbe Schritt. Sähe der Lint ihn nicht, warnte er bei jedem
+	// umgestellten Agenten falsch, und eine Regel, die bei guten Configs
+	// meckert, wird ignoriert.
+	Skills map[string]string
+
 	// AgentStages sind die Board-Spalten, die der Agent selbst angelegt hat
 	// (created_by='agent').
 	AgentStages []string
@@ -158,7 +166,8 @@ func lintVisibleTrace(s Subject, hbs []Heartbeat) []Finding {
 	if !gated {
 		return nil
 	}
-	haystack := strings.ToLower(s.Files["PLAYBOOKS.md"] + "\n" + s.Files["HEARTBEAT.md"] + "\n" + s.Files["SOUL.md"])
+	haystack := strings.ToLower(s.Files["PLAYBOOKS.md"] + "\n" + s.Files["HEARTBEAT.md"] + "\n" +
+		s.Files["SOUL.md"] + "\n" + s.skillText())
 	for _, a := range commentActions {
 		if strings.Contains(haystack, a) {
 			return nil
@@ -179,27 +188,63 @@ func lintBlockedOnPolling(s Subject, systems map[string]bool) []Finding {
 	if !systems["gitlab"] && !systems["email"] {
 		return nil
 	}
-	text := s.Files["SOUL.md"] + "\n" + s.Files["PLAYBOOKS.md"]
-	for i, line := range strings.Split(text, "\n") {
-		low := strings.ToLower(line)
-		idx := strings.Index(low, "blocked")
-		if idx < 0 {
-			continue
+	// Quelle für Quelle statt über einen zusammengeklebten Text: Sonst zeigt der
+	// Befund auf eine Zeilennummer, die es in der genannten Datei nicht gibt.
+	for _, src := range s.proseSources() {
+		for i, line := range strings.Split(src.text, "\n") {
+			low := strings.ToLower(line)
+			idx := strings.Index(low, "blocked")
+			if idx < 0 {
+				continue
+			}
+			// Verneinungen sind der Normalfall in guten Configs — und stehen dort
+			// selten direkt davor („ende mit done, NIE mit blocked"). Deshalb der
+			// Blick auf das Satzstück vor dem Wort statt auf feste Wortpaare.
+			if negatedBefore(low[:idx]) {
+				continue
+			}
+			return []Finding{{
+				AgentSlug: s.Slug, Rule: "blocked-bei-polling-system", Severity: SeverityInfo,
+				File: src.name, Line: i + 1,
+				Message: "Die Config erwähnt blocked, obwohl der Agent an einem Polling-Zielsystem hängt (gitlab/email)",
+				Hint:    "Diese Systeme haben keinen Webhook, der eine geparkte Aufgabe weckt — dort mit done enden und beim nächsten Heartbeat erneut aufgreifen.",
+			}}
 		}
-		// Verneinungen sind der Normalfall in guten Configs — und stehen dort
-		// selten direkt davor („ende mit done, NIE mit blocked"). Deshalb der
-		// Blick auf das Satzstück vor dem Wort statt auf feste Wortpaare.
-		if negatedBefore(low[:idx]) {
-			continue
-		}
-		return []Finding{{
-			AgentSlug: s.Slug, Rule: "blocked-bei-polling-system", Severity: SeverityInfo,
-			File: "SOUL.md", Line: i + 1,
-			Message: "Die Config erwähnt blocked, obwohl der Agent an einem Polling-Zielsystem hängt (gitlab/email)",
-			Hint:    "Diese Systeme haben keinen Webhook, der eine geparkte Aufgabe weckt — dort mit done enden und beim nächsten Heartbeat erneut aufgreifen.",
-		}}
 	}
 	return nil
+}
+
+// proseSource ist ein prüfbarer Fließtext des Agenten samt seiner Herkunft.
+type proseSource struct{ name, text string }
+
+// proseSources sind die Texte, die das Verhalten beschreiben: die beiden
+// Prompt-Dateien und die Skills. Skills nach Namen sortiert, damit derselbe
+// Agent nicht mal diesen und mal jenen Befund liefert.
+func (s Subject) proseSources() []proseSource {
+	out := []proseSource{
+		{"SOUL.md", s.Files["SOUL.md"]},
+		{"PLAYBOOKS.md", s.Files["PLAYBOOKS.md"]},
+	}
+	names := make([]string, 0, len(s.Skills))
+	for name := range s.Skills {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		out = append(out, proseSource{"skill:" + name, s.Skills[name]})
+	}
+	return out
+}
+
+// skillText klebt alle Skills zu einem Heuhaufen zusammen — für Regeln, die
+// nur suchen, ob etwas irgendwo vorkommt.
+func (s Subject) skillText() string {
+	var b strings.Builder
+	for _, src := range s.proseSources()[2:] {
+		b.WriteString(src.text)
+		b.WriteString("\n")
+	}
+	return b.String()
 }
 
 // negationTokens verneinen eine blocked-Erwähnung im selben Satz.

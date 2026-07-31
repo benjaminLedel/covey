@@ -292,6 +292,112 @@ GitLab-Nutzern, und der Review-Loop unterscheidet „Autor" von „Reviewer" sau
 > seine Sandbox dieselben Paket-Registries wie der Entwickler-Agent (npm/PyPI/Go
 > über die Built-in-Egress-Templates) — siehe `docs/betrieb-deployment.md`.
 
+### 2.9 Der Delivery Lead: ein ganzes Vorhaben führen
+
+Entwickler- und QA-Agent arbeiten ticketweise. Hängt die Arbeit an einem
+**Meilenstein mit Frist** — einer Ausschreibung, einem Release —, kommt eine
+Ebene darüber dazu: der Delivery Lead (`examples/delivery-lead.bundle.json`).
+Er macht Tickets implementierbar (Anforderung im Original lesen, prüfbare
+Abnahmekriterien kommentieren, betroffene Stellen per `list_tree`/`read_file`
+benennen), hält abhängige Tickets zurück, bis ihre Grundlage gemergt ist, und
+vergibt Arbeit nach einem WIP-Limit.
+
+Vier Dinge unterscheiden sein Setup von dem der anderen:
+
+1. **Die Entwickler-Agenten müssen auf `nur-wenn: gitlab:issues:assigned`
+   stehen** (so ist die Vorlage geschnitten). Greifen sie frei nach offenen
+   Issues, weckt sie bereits der Aufbereitungs-Kommentar des Leads — dann sind
+   WIP-Limit und Reihenfolge wirkungslos, und der Lead ist Dekoration.
+2. **`ACCESS.md` des Leads trägt eine `tools:`-Allowlist.** Seine Rolle
+   definiert sich über eine lange Verbotsliste (nicht committen, keine MRs, nicht
+   mergen, keine Tickets schließen); durchsetzbar ist die nur zentral, nicht im
+   Prompt (spec: Guard-Rails fail-closed außerhalb der Runtime). `commit`,
+   `create_merge_request`, `approve_mr`, `set_state` und `checkout` sind deshalb
+   nicht freigeschaltet, obwohl `scope: write` sie hergäbe.
+3. **Nichts Vorhabensspezifisches steht in seiner Config.** Projekt, Meilenstein,
+   Ziel-Branch, Frist, Anforderungspfad, WIP-Limit, Abhängigkeiten und
+   Berichtsticket stehen in einer Wiki-Seite, dem **Vorhaben-Steckbrief**
+   (2.9.1). Ein Lead führt genau ein Vorhaben — für ein zweites ein zweiter Lead.
+4. **Sein Handwerk steckt in Skills, nicht in `PLAYBOOKS.md`.** Die vier
+   Abläufe — `ruecklaeufer`, `arbeit-vergeben`, `ticket-aufbereiten`,
+   `tagesbericht` — liegen als Skills am Agenten (Reiter *Skills*); im Playbook
+   steht nur, in welcher Reihenfolge sie drankommen. Der Grund ist die
+   Prompt-Rechnung: Die Config steht in JEDEM Lauf im Prompt, und der Lead läuft
+   alle 30 Minuten, meist ohne etwas zu finden. So kostet ein leerer Lauf rund
+   3.000 statt 5.100 Token, und der volle Text eines Ablaufs wird nur gelesen,
+   wenn er gebraucht wird. Wer die Abläufe anpasst, tut das also im Skill —
+   `PLAYBOOKS.md` ändert nur, wer die Reihenfolge ändern will.
+
+Zusätzlich zum eigenen Bot-Nutzer braucht er ein ihm zugewiesenes, dauerhaft
+offenes **Berichtsticket** und einen menschlichen Vorgesetzten, **dessen
+GitLab-Kennung im Profil hinterlegt ist** — ohne sie scheitert `assign` in
+genau dem Pfad, der offene Fachfragen an Menschen übergibt.
+
+#### 2.9.1 Der Vorhaben-Steckbrief
+
+Der Lead liest zu Beginn jedes Laufs eine Seite aus seinem Wiki-Gedächtnis
+(`covey/wiki_search` → `covey/wiki_read`) und schreibt Gelerntes dorthin zurück:
+eine Abhängigkeit, die erst beim Aufbereiten auffiel, eine Entscheidung des
+Auftraggebers. Damit bleibt die **Config** generisch — dieselbe Vorlage führt
+jedes Vorhaben, weil sie keines kennt.
+
+Anlegen über die Gedächtnis-Ansicht des Agenten im UI oder als Aufgabe an ihn.
+Seitentitel: `Vorhaben-Steckbrief <Meilenstein-Titel>`.
+
+```markdown
+# Vorhaben-Steckbrief <Meilenstein-Titel>
+
+## Pflicht
+- **Projekt-ID:** <numerische GitLab-Projekt-id, nicht der Pfad>
+- **Meilenstein-Titel:** <exakt wie in GitLab — der Filter matcht wörtlich>
+- **Ziel-Branch:** <Branch, gegen den entwickelt wird>
+- **Frist:** <Datum> — <woraus sie sich ergibt>
+
+## Anforderungen im Original
+- **Pfad im Repository:** <z. B. docs/anforderungen/kriterien.md>
+- **Was maßgeblich ist:** <welches Dokument gewinnt bei Widerspruch zum Ticket-Text>
+
+## Steuerung
+- **WIP-Limit:** <Tickets gleichzeitig je Entwickler; ohne Angabe gilt 1>
+- **Berichtsticket:** Projekt <id> / #<iid> — dorthin schreibt der Lead den
+  Tagesstand. Muss dem Lead zugewiesen und dauerhaft offen sein.
+- **Zuständiger Mensch:** <Name>, GitLab-Kennung <username> — bekommt offene
+  Fragen und den Bericht. Ohne hinterlegte GitLab-Kennung scheitert `assign`.
+
+## Reihenfolge und Abhängigkeiten
+- #<iid> vor #<iid>, #<iid>, … — <Begründung: gemeinsame Grundlage>
+
+## Entscheidungen
+<Was der Auftraggeber festgelegt hat, mit Datum. Der Lead trägt hier jede
+beantwortete Rückfrage ein — sonst stellt er sie beim nächsten Ticket erneut.>
+
+## Offene Fragen
+<Was niemand beantwortet hat, mit Ticket und Wartedauer. Der Tagesbericht
+liest sich von hier.>
+```
+
+Warum diese Felder:
+
+- **Projekt-ID und Meilenstein-Titel** sind der Schnitt des Arbeitsvorrats
+  (`list_issues {"project_id":N,"milestone":"…"}`). Ohne sie greift der Lead
+  entweder nichts oder das ganze Projekt.
+- **Der Pfad zu den Anforderungen** ist der Unterschied zwischen einem Lead, der
+  Tickets sortiert, und einem, der sie implementierbar macht: Ein Ticket-Text ist
+  eine Zusammenfassung, die Abnahmekriterien müssen aus dem Original kommen. Die
+  Dokumente gehören deshalb ins Repository — versioniert und für alle Kollegen
+  lesbar. Stimmt der Pfad nicht, sucht der Lead die Datei einmal per `list_tree`
+  und korrigiert den Steckbrief selbst; findet er sie nicht, **bricht er die
+  Aufbereitung ab** und meldet es einmal im Berichtsticket, statt Kriterien aus
+  Ticket-Titeln zu raten. Ein Vorhaben, das nicht anläuft, ist zuerst hier zu
+  prüfen.
+- **WIP-Limit und Reihenfolge** sind die Bremse gegen den häufigsten Fehler:
+  mehrere Agenten arbeiten gleichzeitig an Tickets, die sich dieselbe Grundlage
+  teilen, und erzeugen widersprüchliche Implementierungen auf einem Branch. Im
+  Zweifel niedriger ansetzen.
+- **Entscheidungen** verhindern, dass eine beantwortete Frage in jedem weiteren
+  Ticket erneut gestellt wird. Der Kommentarverlauf eines einzelnen Tickets ist
+  dafür der falsche Ort — beim nächsten Ticket ist er nicht in Sicht.
+
 ---
 
 ## 3. Welche Issues nimmt der Agent auf?
@@ -303,6 +409,13 @@ gibt es `list_issues {"assigned":true}` (GitLab-`scope=assigned_to_me`, bezogen
 auf den Bot-Nutzer des Tokens) — die Regel selbst gehört in
 `PLAYBOOKS.md`/`HEARTBEAT.md` des Agenten; zusätzlich liefert jedes Issue seine
 `assignees` mit, sodass der Agent die Zuweisung auch im Einzelfall prüfen kann.
+
+Hängt der Auftrag an einem **Vorhaben** statt an einzelnen Tickets — einer
+Ausschreibung, einem Release —, ist der Meilenstein der belastbarere Schnitt:
+`list_issues {"project_id":15,"milestone":"ECA-2026-045 Bundesdruckerei LMS"}`
+filtert GitLab-seitig auf den Meilenstein-**Titel**, und jedes Issue trägt sein
+`milestone` (mit `due_date`) zurück. Labels bleiben daneben nutzbar
+(`{"labels":"MUSS-Kriterium"}`), tragen aber keine Frist.
 
 ### 3.1 Kein Doppelbearbeiten
 
@@ -435,6 +548,36 @@ Der Adapter unterscheidet — analog `reply` bei Zammad:
 `escalate` setzt eine interne Notiz und entfernt die Zuweisung des Issues,
 damit ein Mensch übernimmt. `set_state` kennt `close` und `reopen`
 (GitLab-`state_event`).
+
+### 5.1 Arbeitszustand im Board: `set_labels`
+
+`set_labels {"project_id":15,"issue_iid":739,"add_labels":["in Arbeit"],"remove_labels":["bereit"]}`
+ändert die Labels eines **bestehenden** Issues. Bewusst additiv/subtraktiv
+(GitLab-`add_labels`/`remove_labels`) statt als volle Liste: Ein Agent, der den
+Arbeitszustand führt, schreibt sonst bei jedem Wechsel die fachlichen Labels des
+Tickets mit — Komponente, Typ, Vergabeverfahren — weg. Mindestens eine der
+beiden Listen muss gesetzt sein; die Antwort enthält den erreichten Label-Stand.
+
+Der Zustand gehört damit sichtbar ins Board statt nur in Kommentare — ein
+Mensch sieht ohne Rückfrage, was bereit ist, was läuft und was auf Abnahme
+wartet. Voraussetzung ist, dass der Agent bei jedem Wechsel **beides** tut:
+altes Zustands-Label entfernen, neues setzen. Guard-Rail-Subjekt:
+`gitlab:set_labels`.
+
+Zwei Eigenheiten, die man beim Entwerfen eines solchen Agenten kennen muss:
+
+- **GitLab legt unbekannte Labels beim Setzen still neu an.** Ein Vertipper des
+  Modells (`lead::in_arbeit` statt `lead::in-arbeit`) erzeugt also dauerhaft ein
+  Projekt-Label, das niemand wieder wegräumt — dieselbe Falle wie bei frei
+  erfundenen Board-Spalten. Das Playbook muss deshalb eine **feste, kleine**
+  Menge von Zustandsnamen zeichengenau vorgeben. Die Prompt-Doku des Plugins
+  weist den Agenten darauf hin; ein Label mit Komma darin wird abgelehnt, statt
+  still in zwei Labels zu zerfallen.
+- **`::` macht daraus GitLab-Scoped-Labels** — gegenseitig ausschließend aber
+  nur in Premium/Ultimate. Auf Free sind es normale Labels mit `::` im Namen.
+  Ein Agent darf sich also nicht darauf verlassen, dass GitLab das alte
+  Zustands-Label automatisch entfernt; er muss es selbst in `remove_labels`
+  mitgeben. Genau deshalb steht die Regel „beides im selben Aufruf" oben.
 
 ---
 

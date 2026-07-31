@@ -157,12 +157,28 @@ func TestLintCleanConfigIsSilent(t *testing.T) {
 			Agent struct {
 				Slug string `json:"slug"`
 			} `json:"agent"`
-			Files map[string]string `json:"files"`
+			Files  map[string]string `json:"files"`
+			Skills []struct {
+				Name  string            `json:"name"`
+				Files map[string]string `json:"files"`
+			} `json:"skills"`
 		}
 		if err := json.Unmarshal(raw, &bundle); err != nil {
 			t.Fatal(err)
 		}
-		if f := Lint(Subject{Slug: bundle.Agent.Slug, Files: bundle.Files}); len(f) > 0 {
+		// Die Skills gehören dazu: Seit Prozeduren aus PLAYBOOKS.md dorthin
+		// wandern, stünde der Lint sonst vor einer Config, der die halbe
+		// Beschreibung fehlt — und meldete Befunde, die keine sind.
+		skills := map[string]string{}
+		for _, sk := range bundle.Skills {
+			var b strings.Builder
+			for _, content := range sk.Files {
+				b.WriteString(content)
+				b.WriteString("\n")
+			}
+			skills[sk.Name] = b.String()
+		}
+		if f := Lint(Subject{Slug: bundle.Agent.Slug, Files: bundle.Files, Skills: skills}); len(f) > 0 {
 			t.Errorf("%s: Beispiel-Bundle muss befundfrei sein, got %+v", filepath.Base(p), f)
 		}
 	}

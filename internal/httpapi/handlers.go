@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -143,16 +144,33 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 // prüfen, damit eine fehlerhafte Datei keine Version erzeugt; bei Erfolg wird
 // die neue ConfigVersion (200) geschrieben.
 func (s *Server) saveAndApplyConfig(w http.ResponseWriter, r *http.Request, id uuid.UUID, files map[string]string) {
+	apply, ok := s.prepareConfigWrite(w, r, id, files)
+	if !ok {
+		return
+	}
+	s.commitConfig(w, r, id, files, apply)
+}
+
+// prepareConfigWrite prüft alles, was vor dem ersten Schreiben feststehen muss
+// (Dateiformate, RBAC für Tools/Egress) und liefert die Write-Through-Funktion.
+// Fehler sind bereits beantwortet; ok=false heißt: nichts mehr tun.
+//
+// Getrennt vom Schreiben, weil der Bundle-Import daneben noch Skills anlegt und
+// beides eine gemeinsame Reihenfolge braucht: erst ALLE Prüfungen, dann alle
+// Seiteneffekte. Sonst hinterlässt ein 403 an der Config bereits angelegte
+// Skills, und der Aufrufer glaubt, es sei nichts passiert.
+func (s *Server) prepareConfigWrite(w http.ResponseWriter, r *http.Request, id uuid.UUID,
+	files map[string]string) (func(context.Context) error, bool) {
 	p := principalFrom(r)
 	if _, ok := files["TOOLS.md"]; ok {
 		writeErr(w, http.StatusBadRequest, "TOOLS.md ist in ACCESS.md aufgegangen (Attribut tools: je System)")
-		return
+		return nil, false
 	}
 	// HEARTBEAT.md vorab validieren: ein Parse-Fehler soll als 400 mit
 	// verständlicher Meldung zurückkommen, nicht erst in SaveConfig scheitern.
 	if _, err := agents.ParseHeartbeat(files["HEARTBEAT.md"]); err != nil {
 		writeErr(w, http.StatusBadRequest, "HEARTBEAT.md: "+err.Error())
-		return
+		return nil, false
 	}
 	// Write-Through in die UI-Stores (Tools, Egress) — erst validieren und
 	// RBAC prüfen, damit eine fehlerhafte Datei keine Version erzeugt.
@@ -164,8 +182,15 @@ func (s *Server) saveAndApplyConfig(w http.ResponseWriter, r *http.Request, id u
 		} else {
 			writeErr(w, http.StatusBadRequest, err.Error())
 		}
-		return
+		return nil, false
 	}
+	return apply, true
+}
+
+// commitConfig schreibt die neue Version und führt den Write-Through aus.
+func (s *Server) commitConfig(w http.ResponseWriter, r *http.Request, id uuid.UUID,
+	files map[string]string, apply func(context.Context) error) {
+	p := principalFrom(r)
 	cv, err := s.Registry.SaveConfig(r.Context(), id, files, &p.ID)
 	if err != nil {
 		mapErr(w, err)

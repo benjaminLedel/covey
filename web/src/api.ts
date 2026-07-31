@@ -467,6 +467,28 @@ export type SecretCheck = {
   hint?: string;
 };
 
+// Ein Skill ist eine Fähigkeit des Agenten: ein Verzeichnis mit SKILL.md und
+// beliebigem Beiwerk. Nur description steht dauerhaft im Kontext jedes Laufs,
+// der Rest wird geladen, wenn die Runtime den Skill zieht.
+//
+// agent_id leer = Skill der Org-Bibliothek; assigned_to sind dann die Agenten,
+// denen er verlinkt ist (leer heißt: er erreicht niemanden). origin liefert die
+// Agenten-Sicht mit: "agent" (gehört ihm) oder "library" (verlinkt).
+export type SkillFile = { path: string; content: string };
+export type Skill = {
+  id: string;
+  org_id: string;
+  agent_id?: string;
+  name: string;
+  description: string;
+  assigned_to?: string[];
+  updated_at: string;
+  files?: SkillFile[];
+  origin?: "agent" | "library";
+};
+
+export const SKILL_ENTRY = "SKILL.md";
+
 export type AgentTemplate = {
   id: string;
   org_id: string;

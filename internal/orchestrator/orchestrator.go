@@ -34,6 +34,7 @@ import (
 	"covey/internal/reqlog"
 	reqlogstore "covey/internal/reqlog/store"
 	"covey/internal/secrets"
+	"covey/internal/skills"
 	"covey/internal/target"
 	targetstore "covey/internal/target/store"
 )
@@ -59,6 +60,9 @@ type Options struct {
 	Secrets        secrets.Store
 	Identity       identity.Provider
 	Memory         *memory.Store
+	// Skills sind die Fähigkeiten der Agenten (Bibliothek + agent-eigen). nil =
+	// Feature abgeschaltet; Läufe bekommen dann keine Skills materialisiert.
+	Skills         *skills.Store
 	Targets        *targetstore.Store
 	Egress         *egress.Store
 	// ReqLog nimmt die HTTP-Requests der Zielsystem-Plugins auf (Diagnose,
@@ -1346,6 +1350,13 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		}
 		resp := o.brokerWiki(ctx, agent, req)
 		return false, o.sendMsg(ctx, link, daemon.TypeInjectWiki, resp)
+
+	case daemon.TypeRequestSkills:
+		req, err := daemon.DecodePayload[daemon.RequestSkills](msg)
+		if err != nil {
+			return false, nil
+		}
+		return false, o.sendMsg(ctx, link, daemon.TypeInjectSkills, o.skillsFor(ctx, agent, req))
 
 	case daemon.TypeRequestCreateTask:
 		req, err := daemon.DecodePayload[daemon.RequestCreateTask](msg)

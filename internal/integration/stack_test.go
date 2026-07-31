@@ -34,6 +34,7 @@ import (
 	"covey/internal/org"
 	reqlogstore "covey/internal/reqlog/store"
 	secbuiltin "covey/internal/secrets/builtin"
+	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
 
 	_ "covey/internal/target/browser"
@@ -93,6 +94,7 @@ type stack struct {
 	mem      *memory.Store
 	targets  *targetstore.Store
 	egress   *egress.Store
+	skills   *skills.Store
 	reqlog   *reqlogstore.Store
 	orch     *orchestrator.Orchestrator
 	http     *httptest.Server
@@ -153,6 +155,7 @@ func newStack(t *testing.T) *stack {
 
 	s.targets = targetstore.NewStore(pool)
 	s.egress = egress.NewStore(pool)
+	s.skills = skills.NewStore(pool)
 	// Request-Log wie im Betrieb, aber ohne reqlog.SetDefault: die Senke ist
 	// prozessweit, und parallel laufende Stacks würden sich ihre Einträge
 	// gegenseitig zuschieben. Was über Orchestrator und HTTP-Server läuft
@@ -164,6 +167,7 @@ func newStack(t *testing.T) *stack {
 		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
 		Rails: s.rails, Secrets: secretStore, Identity: idp, Memory: s.mem,
 		Targets:        s.targets,
+		Skills:         s.skills,
 		ReqLog:         s.reqlog,
 		Provider:       &inprocProvider{homeBase: s.homeBase, log: log},
 		DaemonTokenTTL: 5 * time.Minute,
@@ -176,6 +180,7 @@ func newStack(t *testing.T) *stack {
 		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
 		Rails: s.rails, Secrets: secretStore, Identity: idp, Memory: s.mem,
 		Org: org.NewStore(pool), Targets: s.targets,
+		Skills:      s.skills,
 		EgressStore: s.egress,
 		ReqLog:      s.reqlog,
 		Orch:        s.orch, Log: log,

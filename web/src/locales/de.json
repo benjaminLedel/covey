@@ -295,7 +295,8 @@
     "logout": "Abmelden",
     "userMenu": "Benutzermenü",
     "profile": "Profil & Einstellungen",
-    "requests": "Requests"
+    "requests": "Requests",
+    "skills": "Skills"
   },
   "costs": {
     "title": "Kosten & Token",
@@ -481,7 +482,8 @@
       "egress": "Egress",
       "secrets": "Secrets",
       "config": "Config",
-      "settings": "Einstellungen"
+      "settings": "Einstellungen",
+      "skills": "Skills"
     },
     "cost": {
       "total": "Kosten gesamt",
@@ -754,6 +756,19 @@
       "deleteYes": "Ja, endgültig löschen",
       "cancel": "Abbrechen",
       "rollDice": "Zufälligen Namen würfeln"
+    },
+    "skills": {
+      "desc": "Was dieser Agent an Fähigkeiten hat — eigene plus die ihm aus der Bibliothek verlinkten. Genau diese Liste landet vor jedem Lauf in seinem Home; von jedem Eintrag steht dauerhaft nur die Beschreibung im Kontext.",
+      "linkLibrary": "Skill aus der Bibliothek verlinken",
+      "selectSkill": "Skill wählen …",
+      "noMoreLibrary": "Alle Bibliotheks-Skills sind verlinkt",
+      "newOwn": "Eigenen Skill anlegen",
+      "own": "eigen",
+      "fromLibrary": "Bibliothek",
+      "unlink": "Verlinkung lösen",
+      "fileCount": "{{count}} Dateien",
+      "none": "Dieser Agent hat noch keine Skills.",
+      "shadowed": "verlinkt, aber verdeckt: ein eigener Skill gleichen Namens hat Vorrang"
     }
   },
   "approvals": {
@@ -933,6 +948,32 @@
     "protect": "Schützen",
     "protectConfirm": "„{{key}}“ als sensibel markieren? Der Wert ist danach nie wieder einsehbar — rückgängig nur durch Löschen und Neuanlegen.",
     "delete": "Löschen"
+  },
+  "skills": {
+    "title": "Skills",
+    "subtitle": "Fähigkeiten, die Agenten bei Bedarf laden",
+    "desc": "Die Agenten-Config steht in jedem Lauf vollständig im Prompt. Ein Skill dreht das um: Nur seine Beschreibung ist immer sichtbar, Anleitung und Zusatzdateien liest die Runtime erst, wenn sie ihn zieht. Ein Skill aus dieser Bibliothek wirkt erst, wenn du ihn einem Agenten verlinkst — jede Beschreibung kostet Kontext in jedem seiner Läufe, deshalb ausdrücklich statt automatisch.",
+    "new": "Neuer Skill",
+    "empty": "Noch keine Skills in der Bibliothek.",
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "deleteConfirm": "Skill {{name}} löschen? Agenten, die ihn haben, verlieren ihn beim nächsten Lauf.",
+    "assignedTo": "Verlinkt mit:",
+    "nobody": "niemandem — wirkt nirgends",
+    "linkTo": "Agent verlinken …",
+    "unlink": "Verlinkung lösen",
+    "name": "Name",
+    "nameLocked": "Der Name ist das Verzeichnis des Skills und sein /slash-command — zum Umbenennen neu anlegen und den alten löschen.",
+    "description": "Beschreibung",
+    "descriptionPlaceholder": "Nutze dies, wenn: …",
+    "descriptionHint": "Das Einzige, was dauerhaft im Kontext steht. Sag, WANN der Skill zu ziehen ist, nicht was er tut.",
+    "addFile": "Datei hinzufügen",
+    "addFileBtn": "Hinzufügen",
+    "removeFile": "Entfernen",
+    "filesHint": "SKILL.md ist die Anleitung. Alles Schwergewichtige (Referenzen, Vorlagen, Checklisten) in eigene Dateien — sie werden nur gelesen, wenn der Skill wirklich zieht.",
+    "save": "Speichern",
+    "cancel": "Abbrechen",
+    "loading": "lädt …"
   },
   "targets": {
     "title": "Zielsysteme",

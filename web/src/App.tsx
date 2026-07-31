@@ -11,6 +11,7 @@ import AgentPage from "./pages/Agent";
 import Approvals from "./pages/Approvals";
 import Guardrails from "./pages/Guardrails";
 import Secrets from "./pages/Secrets";
+import Skills from "./pages/Skills";
 import Users from "./pages/Users";
 import Organizations from "./pages/Organizations";
 import Org from "./pages/Org";
@@ -141,6 +142,13 @@ const icons: Record<string, React.JSX.Element> = {
       <rect x="7" y="12" width="3" height="5" rx="0.5" />
       <rect x="12" y="8" width="3" height="9" rx="0.5" />
       <rect x="17" y="5" width="3" height="12" rx="0.5" />
+    </>
+  ),
+  book: (
+    <>
+      <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H19v14H5.5A1.5 1.5 0 0 0 4 19.5z" />
+      <path d="M4 19.5A1.5 1.5 0 0 1 5.5 18H19v2H5.5" />
+      <path d="M8 8.5h7" />
     </>
   ),
   chevron: <path d="M9 6l6 6l-6 6" />,
@@ -293,6 +301,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
         <div className="nav-group">
           <NavItem to="/" end icon="robot" label={t("nav.agents")} />
           <NavItem to="/templates" icon="copy" label={t("nav.templates")} />
+          <NavItem to="/skills" icon="book" label={t("nav.skills")} />
           <NavItem to="/org" icon="sitemap" label={t("nav.org")} />
           <NavItem to="/costs" icon="chart" label={t("nav.costs")} />
         </div>
@@ -377,6 +386,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
             <Route path="/" element={<Dashboard me={me} />} />
             <Route path="/agents/:id" element={<AgentPage me={me} />} />
             <Route path="/templates" element={<Templates me={me} />} />
+            <Route path="/skills" element={<Skills me={me} />} />
             <Route path="/org" element={<Org />} />
             <Route path="/costs" element={<Costs />} />
             <Route path="/people/:id" element={<PersonPage me={me} />} />
