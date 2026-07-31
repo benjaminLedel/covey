@@ -138,7 +138,8 @@ func (s *Server) handleConfigAssist(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
-	raw, err := callAnthropicMessages(ctx, cred, oauth, assistModel, assistMaxTokens, system, in.Messages)
+	raw, err := callAnthropicMessages(ctx, cred, oauth,
+		anthCall{Model: assistModel, MaxTokens: assistMaxTokens}, system, in.Messages)
 	if err != nil {
 		s.Log.Error("config-assist", "agent", id, "err", err)
 		writeErr(w, http.StatusBadGateway, "KI-Assistent nicht erreichbar: "+err.Error())
@@ -243,10 +244,29 @@ type anthTextBlock struct {
 }
 
 type anthMessagesReq struct {
-	Model     string          `json:"model"`
-	MaxTokens int             `json:"max_tokens"`
-	System    []anthTextBlock `json:"system,omitempty"`
-	Messages  []assistMessage `json:"messages"`
+	Model        string            `json:"model"`
+	MaxTokens    int               `json:"max_tokens"`
+	System       []anthTextBlock   `json:"system,omitempty"`
+	Messages     []assistMessage   `json:"messages"`
+	OutputConfig *anthOutputConfig `json:"output_config,omitempty"`
+}
+
+// anthOutputConfig steuert die Denktiefe. Ab Opus 5 denkt das Modell per
+// Voreinstellung, und max_tokens deckelt Denken *und* Antwort gemeinsam — für
+// eine eng umrissene Umformulierungsaufgabe ist das teuer erkauft: gemessen
+// über zwei Minuten Wartezeit für 24 Titel. Ein niedriges effort ist hier der
+// richtige Hebel; Denken ganz abzuschalten wäre der falsche, weil das Modell
+// dann `<thinking>`-Tags in den Antworttext schreiben kann und das JSON bricht.
+type anthOutputConfig struct {
+	Effort string `json:"effort,omitempty"` // low | medium | high | xhigh | max
+}
+
+// anthCall bündelt, was je Aufrufer verschieden ist. Die Auth-Mechanik ist
+// geteilt, die Modellwahl nicht.
+type anthCall struct {
+	Model     string
+	MaxTokens int
+	Effort    string // leer = Vorgabe des Modells
 }
 
 type anthMessagesResp struct {
@@ -265,10 +285,7 @@ type anthMessagesResp struct {
 // die auch die Runtime nutzt (API-Key via x-api-key, Abo-OAuth-Token via
 // Bearer + oauth-Beta-Header). Bei OAuth-Tokens verlangt Anthropic den
 // Claude-Code-Identitäts-Block als erstes System-Segment.
-// Modell und Token-Deckel sind Parameter, weil neben dem Config-Copilot
-// inzwischen ein zweiter Aufrufer denselben Weg nimmt (der Titel-Pass der
-// Wiki-Wartung) — die Auth-Mechanik ist geteilt, die Modellwahl nicht.
-func callAnthropicMessages(ctx context.Context, credential string, oauth bool, model string, maxTokens int, system string, messages []assistMessage) (string, error) {
+func callAnthropicMessages(ctx context.Context, credential string, oauth bool, call anthCall, system string, messages []assistMessage) (string, error) {
 	sys := []anthTextBlock{}
 	if oauth {
 		sys = append(sys, anthTextBlock{Type: "text",
@@ -276,12 +293,16 @@ func callAnthropicMessages(ctx context.Context, credential string, oauth bool, m
 	}
 	sys = append(sys, anthTextBlock{Type: "text", Text: system})
 
-	body, err := json.Marshal(anthMessagesReq{
-		Model:     model,
-		MaxTokens: maxTokens,
+	req0 := anthMessagesReq{
+		Model:     call.Model,
+		MaxTokens: call.MaxTokens,
 		System:    sys,
 		Messages:  messages,
-	})
+	}
+	if call.Effort != "" {
+		req0.OutputConfig = &anthOutputConfig{Effort: call.Effort}
+	}
+	body, err := json.Marshal(req0)
 	if err != nil {
 		return "", err
 	}

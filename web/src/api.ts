@@ -448,10 +448,17 @@ export type WikiRetitleProposal = {
   reason?: string;
 };
 
-export type WikiRetitleResult = {
-  proposals: WikiRetitleProposal[];
+// Ein Wartungslauf. Er lebt in der Control Plane, nicht im Tab: ein Reload
+// verliert weder den Fortschritt noch gibt er den Knopf wieder frei.
+export type WikiMaintainRun = {
+  status: "idle" | "running" | "done" | "error";
+  phase: "merge" | "titles" | "";
+  merged: number;
   checked: number; // Seiten mit Tagebuch-Titel
   skipped: number; // über den Deckel eines Durchlaufs hinaus
+  proposals: WikiRetitleProposal[];
+  error?: string;
+  started_at: string;
 };
 
 // Ein Eintrag des Wiki-Protokolls (log.md-Äquivalent, spec/05).

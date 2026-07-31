@@ -27,7 +27,7 @@ import {
   type WikiHealth,
   type WikiFinding,
   type WikiRetitleProposal,
-  type WikiRetitleResult,
+  type WikiMaintainRun,
   type Principal,
   type RecordingEvent,
   type RuntimeInfo,
@@ -2338,7 +2338,6 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
   const [note, setNote] = useState("");
   const [filter, setFilter] = useState<WikiFinding["kind"] | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [proposals, setProposals] = useState<WikiRetitleProposal[]>([]);
   const [sort, setSort] = useState<WikiSort>(() => {
     const saved = localStorage.getItem(WIKI_SORT_KEY) as WikiSort | null;
     return saved && WIKI_SORTS.includes(saved) ? saved : "recent";
@@ -2374,40 +2373,65 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
     onSuccess: invalidate,
   });
   // Wartungslauf: erst der rechnerische Teil (Dubletten verschmelzen, schreibt
-  // sofort), dann der Titel-Pass — der legt nur vor, bestätigt wird unten.
-  const maintain = useMutation({
-    mutationFn: async () => {
-      const merged = await post<{ merged: number }>(`/agents/${agentId}/wiki/consolidate`);
-      const titles = await post<WikiRetitleResult>(`/agents/${agentId}/wiki/retitle`);
-      return { merged: merged.merged, titles };
-    },
-    onSuccess: ({ merged, titles }) => {
-      setProposals(titles.proposals);
-      const parts: string[] = [];
-      parts.push(merged > 0 ? t("agent.memory.consolidateDone", { count: merged }) : t("agent.memory.consolidateNone"));
-      if (titles.proposals.length > 0) parts.push(t("agent.memory.titlesFound", { count: titles.proposals.length }));
-      else if (titles.checked > 0) parts.push(t("agent.memory.titlesNone"));
-      if (titles.skipped > 0) parts.push(t("agent.memory.titlesSkipped", { count: titles.skipped }));
-      setNote(parts.join(" · "));
-      invalidate();
+  // sofort), dann der Titel-Pass — der legt nur vor, bestätigt wird unten. Der
+  // Lauf steht auf dem Server; die UI fragt ihn ab, solange er läuft.
+  // Abfrage-Takt als schlichter Wert im Render-Pfad statt als Callback: der
+  // Callback wurde nach dem Start nicht neu ausgewertet, der Lauf lief durch
+  // und die Anzeige blieb auf der ersten Phase stehen.
+  const [polling, setPolling] = useState(false);
+  const maintain = useQuery({
+    queryKey: ["wiki-maintain", agentId],
+    queryFn: () => api<WikiMaintainRun>(`/agents/${agentId}/wiki/maintain`),
+    refetchInterval: polling ? 1500 : false,
+  });
+  const run = maintain.data;
+  const running = run?.status === "running";
+  const proposals = run?.proposals ?? [];
+  // Deckt beide Wege ab: eigener Start und ein Reload mitten im Lauf.
+  useEffect(() => setPolling(run?.status === "running"), [run?.status]);
+
+  const startMaintain = useMutation({
+    mutationFn: () => post<WikiMaintainRun>(`/agents/${agentId}/wiki/maintain`),
+    onSuccess: (r) => {
+      qc.setQueryData(["wiki-maintain", agentId], r);
+      setPolling(r.status === "running");
     },
     onError: (e: Error) => setNote(e.message),
   });
-  // Übernehmen geht den regulären Bearbeiten-Weg: neuer Titel, Inhalt
-  // unverändert. Der Slug bleibt, damit [[…]]-Verweise nicht brechen.
-  const applyTitle = useMutation({
+  // Rückgängig: den alten Titel zurückschreiben, dann die Zeile abhaken. Geht
+  // denselben Weg wie das Bearbeiten von Hand — der Slug war nie betroffen.
+  const undoTitle = useMutation({
     mutationFn: async (pr: WikiRetitleProposal) => {
       const page = bySlug.get(pr.slug);
       if (!page) throw new Error(pr.slug);
-      await patch(`/memories/${page.id}`, { title: pr.title, content: page.content });
-      return pr.slug;
+      await patch(`/memories/${page.id}`, { title: pr.old, content: page.content });
+      return del<WikiMaintainRun>(`/agents/${agentId}/wiki/maintain?slug=${encodeURIComponent(pr.slug)}`);
     },
-    onSuccess: (slug) => {
-      setProposals((prev) => prev.filter((p) => p.slug !== slug));
+    onSuccess: (r) => {
+      qc.setQueryData(["wiki-maintain", agentId], r);
       invalidate();
     },
     onError: (e: Error) => setNote(e.message),
   });
+  const dismissTitle = useMutation({
+    mutationFn: (slug?: string) =>
+      del<WikiMaintainRun>(`/agents/${agentId}/wiki/maintain${slug ? `?slug=${encodeURIComponent(slug)}` : ""}`),
+    onSuccess: (r) => qc.setQueryData(["wiki-maintain", agentId], r),
+  });
+
+  // Sekundenzeiger für die Fortschrittsanzeige. Ein Lauf ohne sichtbar
+  // laufende Uhr sieht nach dreißig Sekunden aus wie ein hängender Knopf.
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!running) return;
+    const h = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(h);
+  }, [running]);
+  const elapsed = useMemo(() => {
+    void tick;
+    if (!run?.started_at) return 0;
+    return Math.max(0, Math.round((Date.now() - new Date(run.started_at).getTime()) / 1000));
+  }, [run?.started_at, tick]);
 
   const list = useMemo(() => mems.data ?? [], [mems.data]);
   const logs = log.data ?? [];
@@ -2640,10 +2664,10 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
           <button
             className="btn sm"
             title={t("agent.memory.maintainHelp")}
-            disabled={maintain.isPending || list.length === 0}
-            onClick={() => maintain.mutate()}
+            disabled={running || startMaintain.isPending || list.length === 0}
+            onClick={() => startMaintain.mutate()}
           >
-            {maintain.isPending ? t("agent.memory.maintaining") : t("agent.memory.maintain")}
+            {running ? t("agent.memory.maintaining") : t("agent.memory.maintain")}
           </button>
         )}
       </div>
@@ -2679,22 +2703,47 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
       )}
       {note && <p className="muted text-xs mb-2">{note}</p>}
 
-      {/* Titel-Vorschläge des Wartungslaufs. Nichts davon ist geschrieben —
-          jede Zeile wartet auf eine Entscheidung. */}
+      {/* Fortschritt des Wartungslaufs. Benennt die Phase und lässt die Uhr
+          laufen — der Titel-Pass wartet auf ein Modell, das kein Zwischen-
+          ergebnis liefert, also ist die verstrichene Zeit das ehrlichste
+          Signal, das es gibt. Kein Balken, der etwas anderes behauptet. */}
+      {running && (
+        <div className="wiki-progress mb-3">
+          <span className="spin" aria-hidden="true" />
+          <span>
+            {run?.phase === "titles"
+              ? run.checked > 0
+                ? t("agent.memory.runTitles", { count: run.checked })
+                : t("agent.memory.runTitlesPrep")
+              : t("agent.memory.runMerge")}
+          </span>
+          <span className="muted">{t("agent.memory.runElapsed", { s: elapsed })}</span>
+        </div>
+      )}
+      {run?.status === "error" && run.error && (
+        <p className="danger-text text-xs mb-2">{t("agent.memory.runFailed", { err: run.error })}</p>
+      )}
+      {run?.status === "done" && proposals.length === 0 && (
+        <p className="muted text-xs mb-2">
+          {[
+            run.merged > 0 ? t("agent.memory.consolidateDone", { count: run.merged }) : t("agent.memory.consolidateNone"),
+            run.checked > 0 ? t("agent.memory.titlesNone") : null,
+            run.skipped > 0 ? t("agent.memory.titlesSkipped", { count: run.skipped }) : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      )}
+
+      {/* Protokoll des Laufs: was umbenannt wurde, mit dem alten Titel daneben.
+          Geändert ist es bereits — die Zeile ist der Weg zurück, nicht hin. */}
       {proposals.length > 0 && (
         <div className="card wiki-titles mb-3">
           <div className="wiki-titles-h">
             <span>{t("agent.memory.titlesHead", { count: proposals.length })}</span>
             <span className="flex-1" />
-            <button
-              className="btn sm"
-              disabled={applyTitle.isPending}
-              onClick={() => proposals.forEach((p) => applyTitle.mutate(p))}
-            >
-              {t("agent.memory.titlesApplyAll")}
-            </button>
-            <button className="btn sm" onClick={() => setProposals([])}>
-              {t("agent.memory.titlesDismissAll")}
+            <button className="btn sm" disabled={dismissTitle.isPending} onClick={() => dismissTitle.mutate(undefined)}>
+              {t("agent.memory.titlesClose")}
             </button>
           </div>
           {proposals.map((p) => (
@@ -2707,11 +2756,8 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
                 {p.reason && <span className="why">{p.reason}</span>}
               </span>
               <span className="flex items-center gap-2 shrink-0">
-                <button className="btn sm primary" disabled={applyTitle.isPending} onClick={() => applyTitle.mutate(p)}>
-                  {t("agent.memory.titlesApply")}
-                </button>
-                <button className="btn sm" onClick={() => setProposals((prev) => prev.filter((x) => x.slug !== p.slug))}>
-                  {t("agent.memory.titlesDismiss")}
+                <button className="btn sm" disabled={undoTitle.isPending} onClick={() => undoTitle.mutate(p)}>
+                  {t("agent.memory.titlesUndo")}
                 </button>
               </span>
             </div>

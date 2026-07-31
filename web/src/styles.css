@@ -842,6 +842,31 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   .wiki-pane { max-height: none; }
 }
 
+/* Fortschritt des Wartungslaufs: Phase, laufende Uhr, ein Ring der sich dreht.
+   Kein Balken — es gibt keinen Anteil, den er ehrlich abbilden könnte. */
+.wiki-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.wiki-progress .spin {
+  width: 11px;
+  height: 11px;
+  flex: none;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  border-top-color: var(--text-accent);
+  animation: wiki-spin 0.7s linear infinite;
+}
+@keyframes wiki-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wiki-progress .spin { animation-duration: 2.4s; }
+}
+
 /* Titel-Vorschläge des Wartungslaufs. Alt und neu untereinander statt
    nebeneinander: die Titel sind lang, und was zählt, ist der neue. */
 .wiki-titles { padding: 10px 14px 12px; }
