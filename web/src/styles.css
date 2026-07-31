@@ -842,6 +842,75 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   .wiki-pane { max-height: none; }
 }
 
+/* Fortschritt des Wartungslaufs: Phase, laufende Uhr, ein Ring der sich dreht.
+   Kein Balken — es gibt keinen Anteil, den er ehrlich abbilden könnte. */
+.wiki-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.wiki-progress .spin {
+  width: 11px;
+  height: 11px;
+  flex: none;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  border-top-color: var(--text-accent);
+  animation: wiki-spin 0.7s linear infinite;
+}
+@keyframes wiki-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wiki-progress .spin { animation-duration: 2.4s; }
+}
+
+/* Titel-Vorschläge des Wartungslaufs. Alt und neu untereinander statt
+   nebeneinander: die Titel sind lang, und was zählt, ist der neue. */
+.wiki-titles { padding: 10px 14px 12px; }
+.wiki-titles-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.wiki-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 0.5px solid var(--border);
+}
+.wiki-title-row .old,
+.wiki-title-row .new,
+.wiki-title-row .why { display: block; overflow-wrap: anywhere; }
+.wiki-title-row .old {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+.wiki-title-row .new { font-size: 13.5px; font-weight: 500; color: var(--text-primary); }
+.wiki-title-row .why { font-size: 11.5px; color: var(--text-secondary); margin-top: 1px; }
+
+/* Sortierwahl über dem Baum. Zurückhaltend gezeichnet — sie ist ein Regler,
+   kein Formularfeld, und darf die Seitenliste nicht überstimmen. */
+.wiki-sort { display: flex; align-items: center; }
+.wiki-sort select {
+  width: auto;
+  max-width: 100%;
+  padding: 1px 2px;
+  border: none;
+  background: none;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.wiki-sort select:hover { color: var(--text-secondary); }
+
 /* Navigationsbaum: erste Ebene Seitentyp, darunter die Seiten. */
 .wiki-tree { display: flex; flex-direction: column; gap: 1px; }
 .wiki-group + .wiki-group { margin-top: 7px; }
@@ -862,7 +931,9 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
 .wiki-group-h .cnt { margin-left: auto; font-variant-numeric: tabular-nums; }
 .wiki-node {
   display: flex;
-  align-items: center;
+  /* Oben ausgerichtet, weil ein zweizeiliger Titel den Aufklapp-Pfeil sonst
+     in die Mitte schiebt und der Baum seine Kante verliert. */
+  align-items: flex-start;
   gap: 4px;
   border-radius: 5px;
   padding: 1px 4px;
@@ -881,6 +952,8 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   line-height: 1;
   color: var(--text-muted);
   cursor: pointer;
+  /* Auf die erste Textzeile des Titels ausgerichtet, nicht auf den Block. */
+  padding-top: 7px;
 }
 .wiki-node .tw:disabled { cursor: default; opacity: 0.55; }
 .wiki-node .tw svg { display: block; opacity: 0.7; }
@@ -895,15 +968,23 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   font-size: 12.5px;
   color: var(--text-primary);
   cursor: pointer;
+  /* Zwei Zeilen statt einer: die Agenten schreiben lange, satzartige Titel,
+     und eine einzeilige Ellipse schneidet genau die Unterscheidung weg
+     ("Projekt X (148): Review" vs. "… : Merge-Konflikt"). Kurze Titel bleiben
+     einzeilig, die Liste wird also nur dort höher, wo es nötig ist. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
 }
 .wiki-node .cnt {
   flex: none;
   font-size: 10.5px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
+  padding-top: 4px;
 }
 .wiki-kids { margin-left: 13px; padding-left: 5px; border-left: 0.5px solid var(--border); }
 
@@ -3314,3 +3395,21 @@ kbd {
   line-height: 1.5;
 }
 .tgt-tools li:last-child { border-bottom: none; }
+
+/* Traumerzählung: bewusst anders gesetzt als alles andere in der Karte —
+   kursiv, eingerückt, mit Mond. Wer sie liest, soll sofort wissen, dass hier
+   erzählt und nicht protokolliert wird. */
+.dream-story {
+  display: flex;
+  gap: 8px;
+  margin: 2px 0 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--surface-1);
+  font-family: var(--voice);
+  font-style: italic;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.dream-story .mark { flex: none; font-style: normal; opacity: 0.5; }

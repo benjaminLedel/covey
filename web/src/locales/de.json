@@ -483,7 +483,8 @@
       "secrets": "Secrets",
       "config": "Config",
       "settings": "Einstellungen",
-      "skills": "Skills"
+      "skills": "Skills",
+      "dreams": "Träume"
     },
     "cost": {
       "total": "Kosten gesamt",
@@ -608,10 +609,6 @@
       "pages": "Seiten",
       "log": "Verlauf",
       "logEmpty": "Noch keine Wiki-Aktivität.",
-      "consolidate": "Duplikate zusammenführen",
-      "consolidating": "Führe zusammen …",
-      "consolidateDone": "{{count}} zusammengeführt",
-      "consolidateNone": "Keine Duplikate gefunden",
       "sourceManual": "manuell",
       "sourceAgent": "Agent",
       "hint": "Das Wiki ist das dauerhafte Gedächtnis des Agenten: verlinkte Seiten, im triage-Schritt geladen, im done-Schritt gepflegt.",
@@ -672,7 +669,12 @@
       "qStubs_one": "{{count}} Stummel",
       "qStubs_other": "{{count}} Stummel",
       "today": "Heute",
-      "yesterday": "Gestern"
+      "yesterday": "Gestern",
+      "sortLabel": "Sortierung",
+      "sortRecent": "Zuletzt geändert",
+      "sortRelevance": "Relevanz",
+      "sortTitle": "A–Z",
+      "sortDegreeHelp": "Verweise auf diese Seite und von ihr weg — je mehr, desto zentraler."
     },
     "egress": {
       "desc": "Dieser Agent darf ausgehend nur die Hosts unten erreichen — alles andere blockt der Egress-Proxy fail-closed.",
@@ -769,6 +771,31 @@
       "fileCount": "{{count}} Dateien",
       "none": "Dieser Agent hat noch keine Skills.",
       "shadowed": "verlinkt, aber verdeckt: ein eigener Skill gleichen Namens hat Vorrang"
+    },
+    "dreams": {
+      "hint": "Nachts räumt der Agent sein Gedächtnis auf: Er verschmilzt, was dasselbe sagt, und benennt um, was einen Vorgang statt einer Sache benennt. Hier steht, was dabei herauskam.",
+      "start": "Träumen lassen",
+      "empty": "Dieser Agent hat noch nicht geträumt.",
+      "today": "Heute",
+      "yesterday": "Gestern",
+      "nightly": "nachts",
+      "manual": "angestoßen",
+      "phaseMerge": "Sucht Dubletten …",
+      "phaseTitles_one": "Geht {{count}} Titel durch …",
+      "phaseTitles_other": "Geht {{count}} Titel durch …",
+      "elapsed": "{{s}} s",
+      "took": "{{s}} s",
+      "renamed_one": "{{count}} Titel umbenannt",
+      "renamed_other": "{{count}} Titel umbenannt",
+      "merged_one": "{{count}} Dublette verschmolzen",
+      "merged_other": "{{count}} Dubletten verschmolzen",
+      "skipped_one": "{{count}} Seite blieb liegen",
+      "skipped_other": "{{count}} Seiten blieben liegen",
+      "quiet": "nichts zu tun",
+      "expand": "Ansehen",
+      "collapse": "Zuklappen",
+      "undo": "Rückgängig",
+      "undone": "zurückgenommen"
     }
   },
   "approvals": {

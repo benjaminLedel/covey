@@ -661,6 +661,12 @@ func isEpisodicTitle(title string) bool {
 	return len([]rune(t)) >= episodicTitleLen || dateInTitle.MatchString(t)
 }
 
+// NeedsRetitle sagt, ob eine Seite dem Titel-Pass der Wiki-Wartung vorgelegt
+// werden soll. Bewusst dieselbe Heuristik wie der episodic-Befund: was die
+// Qualitätsleiste als Tagebuch-Titel anzeigt, ist genau das, was der Pass
+// aufräumen soll — zwei Schwellen für dieselbe Sache würden auseinanderlaufen.
+func NeedsRetitle(title string) bool { return isEpisodicTitle(title) }
+
 // CheckHealth sammelt die Qualitätsbefunde eines Wikis (spec/05). Rein lesend —
 // die Befunde sind Entscheidungsgrundlage, nichts wird automatisch geändert.
 func (s *Store) CheckHealth(ctx context.Context, agentID uuid.UUID) (Health, error) {

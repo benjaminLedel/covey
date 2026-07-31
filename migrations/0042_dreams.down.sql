@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS dream_actions;
+DROP TABLE IF EXISTS dreams;

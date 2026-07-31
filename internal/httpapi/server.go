@@ -22,6 +22,7 @@ import (
 	"covey/internal/agents"
 	"covey/internal/backlog"
 	"covey/internal/buildinfo"
+	"covey/internal/dream"
 	"covey/internal/egress"
 	"covey/internal/guardrails"
 	"covey/internal/identity"
@@ -45,6 +46,7 @@ type Server struct {
 	Secrets  secrets.Store
 	Identity identity.Provider
 	Memory   *memory.Store
+	Dreams   *dream.Store
 	Org      *org.Store
 	Targets  *targetstore.Store
 	// Skills sind die Fähigkeiten der Agenten (Bibliothek + agent-eigen).
@@ -200,6 +202,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/agents/{id}/wiki/log", s.rbac(anyRole, s.handleWikiLog))
 	mux.Handle("GET /api/v1/agents/{id}/wiki/health", s.rbac(anyRole, s.handleWikiHealth))
 	mux.Handle("POST /api/v1/agents/{id}/wiki/consolidate", s.rbac(manage, s.handleWikiConsolidate))
+	mux.Handle("POST /api/v1/agents/{id}/dreams", s.rbac(manage, s.handleStartDream))
+	mux.Handle("GET /api/v1/agents/{id}/dreams", s.rbac(anyRole, s.handleListDreams))
+	mux.Handle("POST /api/v1/dream-actions/{id}/undo", s.rbac(manage, s.handleUndoDreamAction))
 	mux.Handle("PATCH /api/v1/memories/{id}", s.rbac(manage, s.handleUpdateMemory))
 	mux.Handle("DELETE /api/v1/memories/{id}", s.rbac(manage, s.handleDeleteMemory))
 	mux.Handle("POST /api/v1/tasks/{id}/cancel", s.rbac(manage, s.handleCancelTask))

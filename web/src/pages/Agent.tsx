@@ -26,6 +26,7 @@ import {
   type WikiLogEntry,
   type WikiHealth,
   type WikiFinding,
+  type Dream,
   type Principal,
   type RecordingEvent,
   type RuntimeInfo,
@@ -67,6 +68,7 @@ export default function AgentPage({ me }: { me: Principal }) {
     | "recording"
     | "config"
     | "memory"
+    | "dreams"
     | "secrets"
     | "egress"
     | "tools"
@@ -145,6 +147,7 @@ export default function AgentPage({ me }: { me: Principal }) {
             ...(canManage(me.Role) ? ([["webhook", t("agent.tabs.webhook")]] as const) : []),
             ["recording", t("agent.tabs.recording")],
             ["memory", t("agent.tabs.memory")],
+            ["dreams", t("agent.tabs.dreams")],
             ["tools", t("agent.tabs.tools")],
             ["skills", t("agent.tabs.skills")],
             ["egress", t("agent.tabs.egress")],
@@ -197,6 +200,7 @@ export default function AgentPage({ me }: { me: Principal }) {
         />
       )}
       {tab === "memory" && <Memories agentId={a.id} canManage={canManage(me.Role)} />}
+      {tab === "dreams" && <Dreams agentId={a.id} canManage={canManage(me.Role)} />}
       {tab === "egress" && <AgentEgress agentId={a.id} canEdit={canSecrets(me.Role)} />}
       {tab === "tools" && <AgentTools agentId={a.id} canEdit={canSecrets(me.Role)} />}
       {tab === "skills" && <AgentSkills agentId={a.id} canManage={canManage(me.Role)} />}
@@ -2183,6 +2187,12 @@ function wikiPreview(text: string): string {
 // nicht eingeordneten Seiten sind ein Rest, kein Anfang.
 const WIKI_TYPES = ["kunde", "projekt", "system", "person", "problem", "thema", ""] as const;
 
+// Sortierung innerhalb einer Baumebene. Die Wahl steht im localStorage — wer
+// nach Relevanz arbeitet, will das nicht bei jedem Seitenaufruf neu einstellen.
+type WikiSort = "recent" | "relevance" | "title";
+const WIKI_SORT_KEY = "covey.wiki.sort";
+const WIKI_SORTS: WikiSort[] = ["recent", "relevance", "title"];
+
 // linkContext zieht den Satz heraus, in dem eine Seite auf eine andere verweist.
 // Ein Backlink ohne diesen Satz zwingt zum Klicken, nur um zu sehen, warum.
 function linkContext(body: string, slug: string): string {
@@ -2457,6 +2467,175 @@ function logDetail(summary: string, pageName: string): string {
   return s;
 }
 
+// ── Träume ────────────────────────────────────────────────────────────────
+// Der Agent räumt sein Gedächtnis nachts auf: verschmelzen, umbenennen. Dieser
+// Reiter zeigt, was dabei herauskam — nicht "Wartung gelaufen", sondern welche
+// Seite, von welchem Titel auf welchen, und warum. Jede Umbenennung lässt sich
+// einzeln zurücknehmen; der Traum schreibt schließlich, während niemand zusieht.
+function Dreams({ agentId, canManage }: { agentId: string; canManage: boolean }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const locale = i18n.language === "de" ? "de-DE" : "en-US";
+  const [note, setNote] = useState("");
+  const [open, setOpen] = useState<Set<string>>(new Set());
+
+  const [polling, setPolling] = useState(false);
+  const dreams = useQuery({
+    queryKey: ["dreams", agentId],
+    queryFn: () => api<Dream[] | null>(`/agents/${agentId}/dreams`),
+    refetchInterval: polling ? 2000 : false,
+  });
+  const list = useMemo(() => dreams.data ?? [], [dreams.data]);
+  const current = list.find((d) => d.status === "running");
+  useEffect(() => setPolling(!!current), [current]);
+
+  // Sekundenzeiger: ein Traum ohne sichtbar laufende Uhr sieht nach einer
+  // halben Minute aus wie ein hängender Knopf.
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!current) return;
+    const h = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(h);
+  }, [current]);
+  const elapsed = useMemo(() => {
+    void tick;
+    if (!current) return 0;
+    return Math.max(0, Math.round((Date.now() - new Date(current.started_at).getTime()) / 1000));
+  }, [current, tick]);
+
+  const start = useMutation({
+    mutationFn: () => post<Dream>(`/agents/${agentId}/dreams`),
+    onSuccess: (d) => {
+      setPolling(d.status === "running");
+      qc.invalidateQueries({ queryKey: ["dreams", agentId] });
+    },
+    onError: (e: Error) => setNote(e.message),
+  });
+  const undo = useMutation({
+    mutationFn: (actionID: string) => post<{ ok: boolean }>(`/dream-actions/${actionID}/undo`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["dreams", agentId] });
+      qc.invalidateQueries({ queryKey: ["memories", agentId] });
+      qc.invalidateQueries({ queryKey: ["wiki-health", agentId] });
+    },
+    onError: (e: Error) => setNote(e.message),
+  });
+
+  const dayLabel = (iso: string) => {
+    const d = new Date(iso);
+    const today = new Date().toDateString();
+    const yest = new Date(Date.now() - 86400000).toDateString();
+    const time = d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+    if (d.toDateString() === today) return `${t("agent.dreams.today")}, ${time}`;
+    if (d.toDateString() === yest) return `${t("agent.dreams.yesterday")}, ${time}`;
+    return `${d.toLocaleDateString(locale, { day: "2-digit", month: "long" })}, ${time}`;
+  };
+  const duration = (d: Dream) => {
+    if (!d.finished_at) return "";
+    const s = Math.max(0, Math.round((new Date(d.finished_at).getTime() - new Date(d.started_at).getTime()) / 1000));
+    return t("agent.dreams.took", { s });
+  };
+
+  return (
+    <div>
+      <p className="muted text-[12.5px] mb-3">{t("agent.dreams.hint")}</p>
+      <div className="flex items-center gap-2 mb-3">
+        {current ? (
+          <span className="wiki-progress">
+            <span className="spin" aria-hidden="true" />
+            <span>{current.phase === "titles" ? t("agent.dreams.phaseTitles", { count: current.looked_at }) : t("agent.dreams.phaseMerge")}</span>
+            <span className="muted">{t("agent.dreams.elapsed", { s: elapsed })}</span>
+          </span>
+        ) : (
+          canManage && (
+            <button className="btn sm" disabled={start.isPending} onClick={() => start.mutate()}>
+              {t("agent.dreams.start")}
+            </button>
+          )
+        )}
+      </div>
+      {note && <p className="danger-text text-xs mb-2">{note}</p>}
+
+      {list.length === 0 && !dreams.isLoading && <p className="muted text-[12.5px]">{t("agent.dreams.empty")}</p>}
+
+      {list.map((d) => {
+        const renames = d.actions.filter((a) => a.kind === "retitle");
+        const merges = d.actions.filter((a) => a.kind === "merge").length;
+        const isOpen = open.has(d.id);
+        return (
+          <div key={d.id} className="card wiki-titles mb-3">
+            <div className="wiki-titles-h">
+              <span className="font-medium">{dayLabel(d.started_at)}</span>
+              <span className="chip is-fixed" style={{ fontSize: "10px" }}>
+                {d.trigger === "nightly" ? t("agent.dreams.nightly") : t("agent.dreams.manual")}
+              </span>
+              <span className="muted">
+                {[
+                  renames.length > 0 ? t("agent.dreams.renamed", { count: renames.length }) : null,
+                  merges > 0 ? t("agent.dreams.merged", { count: merges }) : null,
+                  d.skipped > 0 ? t("agent.dreams.skipped", { count: d.skipped }) : null,
+                  d.status === "done" && renames.length === 0 && merges === 0 ? t("agent.dreams.quiet") : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+              <span className="flex-1" />
+              <span className="muted text-[11px]">{duration(d)}</span>
+              {renames.length > 0 && (
+                <button
+                  className="btn sm"
+                  onClick={() =>
+                    setOpen((prev) => {
+                      const n = new Set(prev);
+                      if (n.has(d.id)) n.delete(d.id);
+                      else n.add(d.id);
+                      return n;
+                    })
+                  }
+                >
+                  {isOpen ? t("agent.dreams.collapse") : t("agent.dreams.expand")}
+                </button>
+              )}
+            </div>
+            {d.status === "error" && d.error && <p className="danger-text text-xs">{d.error}</p>}
+            {/* Die Erzählung ist erfunden — das Protokoll darunter ist es nicht.
+                Deshalb sichtbar abgesetzt und als Traum ausgewiesen. */}
+            {d.story && (
+              <p className="dream-story">
+                <span className="mark" aria-hidden="true">
+                  ☾
+                </span>
+                {d.story}
+              </p>
+            )}
+            {isOpen &&
+              renames.map((a) => (
+                <div key={a.id} className="wiki-title-row">
+                  <span className="min-w-0">
+                    <span className="old" title={a.before}>
+                      {a.before}
+                    </span>
+                    <span className="new">{a.after}</span>
+                    {a.reason && <span className="why">{a.reason}</span>}
+                  </span>
+                  <span className="flex items-center gap-2 shrink-0">
+                    {a.undone_at ? (
+                      <span className="muted text-[11px]">{t("agent.dreams.undone")}</span>
+                    ) : (
+                      <button className="btn sm" disabled={undo.isPending} onClick={() => undo.mutate(a.id)}>
+                        {t("agent.dreams.undo")}
+                      </button>
+                    )}
+                  </span>
+                </div>
+              ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function Memories({ agentId, canManage }: { agentId: string; canManage: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -2510,9 +2689,16 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
   const [editId, setEditId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editText, setEditText] = useState("");
-  const [note, setNote] = useState("");
   const [filter, setFilter] = useState<WikiFinding["kind"] | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [sort, setSort] = useState<WikiSort>(() => {
+    const saved = localStorage.getItem(WIKI_SORT_KEY) as WikiSort | null;
+    return saved && WIKI_SORTS.includes(saved) ? saved : "recent";
+  });
+  const changeSort = (s: WikiSort) => {
+    localStorage.setItem(WIKI_SORT_KEY, s);
+    setSort(s);
+  };
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["memories", agentId] });
     qc.invalidateQueries({ queryKey: ["wiki-log", agentId] });
@@ -2539,14 +2725,6 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
     mutationFn: (id: string) => del(`/memories/${id}`),
     onSuccess: invalidate,
   });
-  const consolidate = useMutation({
-    mutationFn: () => post<{ merged: number }>(`/agents/${agentId}/wiki/consolidate`),
-    onSuccess: (r) => {
-      setNote(r.merged > 0 ? t("agent.memory.consolidateDone", { count: r.merged }) : t("agent.memory.consolidateNone"));
-      invalidate();
-    },
-  });
-
   const list = useMemo(() => mems.data ?? [], [mems.data]);
   const logs = log.data ?? [];
   const locale = i18n.language === "de" ? "de-DE" : "en-US";
@@ -2619,6 +2797,37 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
     );
   }, [list, bySlug]);
 
+  // Grad einer Seite im Wiki-Graph — das einzige Relevanzsignal, das es gibt:
+  // Zugriffe werden nirgends gezählt. Eingehende Verweise wiegen doppelt, denn
+  // eine Seite, auf die andere zeigen, ist ein Knotenpunkt; eine, die nur selbst
+  // viel verlinkt, ist bloß geschwätzig. Tote Verweise zählen nicht mit.
+  const degree = useMemo(() => {
+    const d = new Map<string, number>();
+    list.forEach((p) => d.set(p.slug, 0));
+    list.forEach((p) =>
+      (p.links ?? []).forEach((l) => {
+        if (!bySlug.has(l) || l === p.slug) return;
+        d.set(l, (d.get(l) ?? 0) + 2);
+        d.set(p.slug, (d.get(p.slug) ?? 0) + 1);
+      }),
+    );
+    return d;
+  }, [list, bySlug]);
+
+  // Vergleicher für eine Baumebene. Gleichstand fällt immer auf „zuletzt
+  // geändert" zurück — sonst wandern Seiten bei jedem Rendern umher.
+  const sortPages = useCallback(
+    (a: MemoryEntry, b: MemoryEntry) => {
+      if (sort === "title") return (a.title || a.slug).localeCompare(b.title || b.slug, locale);
+      if (sort === "relevance") {
+        const d = (degree.get(b.slug) ?? 0) - (degree.get(a.slug) ?? 0);
+        if (d !== 0) return d;
+      }
+      return (b.updated_at || b.created_at).localeCompare(a.updated_at || a.created_at);
+    },
+    [sort, degree, locale],
+  );
+
   // Auf einen Befund gefilterte Seitenmenge.
   const filtered = useMemo(() => {
     if (!filter) return null;
@@ -2648,7 +2857,10 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
   // ── Baum: erste Ebene ist der Seitentyp, darunter die Seiten; eine Seite
   // lässt sich aufklappen und zeigt dann, worauf sie verweist. ────────────────
   const treeRow = (p: MemoryEntry, child: boolean) => {
-    const kids = (p.links ?? []).filter((l) => bySlug.has(l));
+    const kids = (p.links ?? [])
+      .map((l) => bySlug.get(l))
+      .filter((k): k is MemoryEntry => !!k && k.slug !== p.slug)
+      .sort(sortPages);
     const isOpen = expanded.has(p.slug);
     return (
       <div key={p.slug + (child ? "-c" : "")}>
@@ -2669,18 +2881,33 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
           >
             {kids.length > 0 && !child ? (isOpen ? "▾" : "▸") : "·"}
           </button>
-          <button type="button" className="lbl" title={wikiPreview(p.content)} onClick={() => setSelected(p.slug)}>
+          {/* Der Tooltip zeigte nur den Inhalt — bei einem abgeschnittenen Titel
+              ist aber der Titel das, was fehlt. Erst er, dann der Auszug. */}
+          <button
+            type="button"
+            className="lbl"
+            title={[p.title || p.slug, wikiPreview(p.content)].filter(Boolean).join("\n\n")}
+            onClick={() => setSelected(p.slug)}
+          >
             {p.title || p.slug}
           </button>
-          {kids.length > 0 && <span className="cnt">{kids.length}</span>}
+          {/* Nach Relevanz sortiert steht dort der Grad — eine Reihenfolge ohne
+              sichtbaren Grund liest sich als Zufall. Sonst: ausgehende Verweise. */}
+          {sort === "relevance"
+            ? (degree.get(p.slug) ?? 0) > 0 && (
+                <span className="cnt" title={t("agent.memory.sortDegreeHelp")}>
+                  {degree.get(p.slug)}
+                </span>
+              )
+            : kids.length > 0 && <span className="cnt">{kids.length}</span>}
         </div>
-        {isOpen && !child && <div className="wiki-kids">{kids.map((l) => treeRow(bySlug.get(l)!, true))}</div>}
+        {isOpen && !child && <div className="wiki-kids">{kids.map((k) => treeRow(k, true))}</div>}
       </div>
     );
   };
 
   const tree = WIKI_TYPES.map((ty) => {
-    const items = visible.filter((p) => (p.type ?? "") === ty);
+    const items = visible.filter((p) => (p.type ?? "") === ty).sort(sortPages);
     if (items.length === 0) return null;
     return (
       <div className="wiki-group" key={ty || "none"}>
@@ -2725,11 +2952,6 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
           </button>
         </div>
         <span className="flex-1" />
-        {canManage && (
-          <button className="btn sm" disabled={consolidate.isPending || list.length < 2} onClick={() => consolidate.mutate()}>
-            {consolidate.isPending ? t("agent.memory.consolidating") : t("agent.memory.consolidate")}
-          </button>
-        )}
       </div>
 
       {/* Qualitätsbefunde: Zahlen, die zugleich Filter sind. */}
@@ -2761,7 +2983,7 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
           )}
         </div>
       )}
-      {note && <p className="muted text-xs mb-2">{note}</p>}
+
 
       {view === "log" ? (
         <>
@@ -2837,6 +3059,17 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
             <div className="wiki-search mb-2">
               <input type="search" placeholder={t("agent.memory.searchPlaceholder")} value={query} onChange={(e) => setQuery(e.target.value)} />
             </div>
+            {/* Sortierung je Ebene. Bei der Suche ohne Wirkung — dort ordnet die
+                semantische Ähnlichkeit, und die soll nichts überstimmen. */}
+            {!searching && list.length > 0 && (
+              <div className="wiki-sort mb-1">
+                <select value={sort} onChange={(e) => changeSort(e.target.value as WikiSort)} aria-label={t("agent.memory.sortLabel")}>
+                  <option value="recent">{t("agent.memory.sortRecent")}</option>
+                  <option value="relevance">{t("agent.memory.sortRelevance")}</option>
+                  <option value="title">{t("agent.memory.sortTitle")}</option>
+                </select>
+              </div>
+            )}
             <div className="wiki-tree">
               {searching ? (
                 (search.data ?? []).length === 0 && !search.isFetching ? (

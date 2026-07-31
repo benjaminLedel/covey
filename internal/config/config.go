@@ -38,6 +38,12 @@ type Config struct {
 	WebhookSecrets map[string]string
 	// TickInterval ist der periodische "was liegt an?"-Impuls des Dispatch-Loops.
 	TickInterval time.Duration
+
+	// DreamAt ist die Ortszeit ("03:00"), ab der Agenten nachts ihr Gedächtnis
+	// aufräumen. Leer oder "off" schaltet den Nachtlauf ab — jeder Traum kostet
+	// einen LLM-Aufruf, und wer das nicht will, soll es abstellen können, ohne
+	// die Funktion aus dem Binary zu nehmen.
+	DreamAt string
 	// SessionTTL für menschliche Logins.
 	SessionTTL time.Duration
 	// DaemonTokenTTL für die kurzlebigen Sandbox-Daemon-JWTs.
@@ -113,6 +119,7 @@ func FromEnv() (Config, error) {
 		SandboxImage:     getenv("COVEY_SANDBOX_IMAGE", "covey-sandbox:latest"),
 		WebhookSecrets:   webhookSecretsFromEnv(),
 		TickInterval:     getenvDuration("COVEY_TICK_INTERVAL", 30*time.Second),
+		DreamAt:          getenv("COVEY_DREAM_AT", "03:00"),
 		SessionTTL:       getenvDuration("COVEY_SESSION_TTL", 12*time.Hour),
 		DaemonTokenTTL:   getenvDuration("COVEY_DAEMON_TOKEN_TTL", 15*time.Minute),
 		BoardRetention:   getenvDuration("COVEY_BOARD_RETENTION", 24*time.Hour),

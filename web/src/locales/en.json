@@ -483,7 +483,8 @@
       "secrets": "Secrets",
       "config": "Config",
       "settings": "Settings",
-      "skills": "Skills"
+      "skills": "Skills",
+      "dreams": "Dreams"
     },
     "cost": {
       "total": "Total cost",
@@ -608,10 +609,6 @@
       "pages": "Pages",
       "log": "Activity",
       "logEmpty": "No wiki activity yet.",
-      "consolidate": "Merge duplicates",
-      "consolidating": "Merging …",
-      "consolidateDone": "{{count}} merged",
-      "consolidateNone": "No duplicates found",
       "sourceManual": "manual",
       "sourceAgent": "agent",
       "hint": "The wiki is the agent's long-term memory: linked pages, loaded at triage, maintained at done.",
@@ -672,7 +669,12 @@
       "qStubs_one": "{{count}} stub",
       "qStubs_other": "{{count}} stubs",
       "today": "Today",
-      "yesterday": "Yesterday"
+      "yesterday": "Yesterday",
+      "sortLabel": "Sort order",
+      "sortRecent": "Recently changed",
+      "sortRelevance": "Relevance",
+      "sortTitle": "A–Z",
+      "sortDegreeHelp": "Links to and from this page — the more, the more central it is."
     },
     "egress": {
       "desc": "This agent may only reach the hosts listed below — everything else is blocked by the egress proxy fail-closed.",
@@ -769,6 +771,31 @@
       "fileCount": "{{count}} files",
       "none": "This agent has no skills yet.",
       "shadowed": "linked but shadowed: an own skill of the same name takes precedence"
+    },
+    "dreams": {
+      "hint": "At night the agent tidies up its memory: it merges what says the same thing and renames what names an event rather than a thing. This is what came of it.",
+      "start": "Start dreaming",
+      "empty": "This agent has not dreamt yet.",
+      "today": "Today",
+      "yesterday": "Yesterday",
+      "nightly": "nightly",
+      "manual": "on demand",
+      "phaseMerge": "Looking for duplicates …",
+      "phaseTitles_one": "Going through {{count}} title …",
+      "phaseTitles_other": "Going through {{count}} titles …",
+      "elapsed": "{{s}} s",
+      "took": "{{s}} s",
+      "renamed_one": "{{count}} title renamed",
+      "renamed_other": "{{count}} titles renamed",
+      "merged_one": "{{count}} duplicate merged",
+      "merged_other": "{{count}} duplicates merged",
+      "skipped_one": "{{count}} page left for later",
+      "skipped_other": "{{count}} pages left for later",
+      "quiet": "nothing to do",
+      "expand": "View",
+      "collapse": "Collapse",
+      "undo": "Undo",
+      "undone": "undone"
     }
   },
   "approvals": {
