@@ -25,6 +25,7 @@ passe sie an:
 | `qa-agent.bundle.json` | Tester: fremde MRs abnehmen, Web-UIs im Browser prüfen, Bug-Intake per Mail |
 | `web-researcher.bundle.json` | Rechercheur: im offenen Web mit echtem Browser recherchieren |
 | `log-triage-agent.bundle.json` | Log-Triage: gemeldete Logs → GitLab-Tickets |
+| `delivery-lead.bundle.json` | Delivery Lead: einen GitLab-Meilenstein zur Frist führen — Tickets aufbereiten, Reihenfolge halten, an Entwickler-Kollegen vergeben, Stand berichten. Vorhabensspezifisches steht im [Vorhaben-Steckbrief](../../examples/vorhaben-steckbrief.md), nicht in der Config |
 
 Lies die gewählte Vorlage komplett, bevor du etwas änderst — sie zeigt die bewährte Struktur.
 

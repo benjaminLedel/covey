@@ -68,6 +68,13 @@ var manifest = []struct {
 		DescriptionEn: "Reviews others' merge requests end-to-end and turns emailed bug reports into GitLab tickets.",
 	},
 	{
+		File:          "delivery-lead.bundle.json",
+		Name:          "Delivery Lead (GitLab-Meilenstein)",
+		Description:   "Führt einen GitLab-Meilenstein zur Frist: macht Tickets implementierbar (Anforderung im Original lesen, prüfbare Abnahmekriterien, betroffene Codestellen), hält die Reihenfolge abhängiger Tickets, vergibt Arbeit nach WIP-Limit an die Entwickler-Kollegen und berichtet den Stand. Das Vorhaben selbst steht in einem Steckbrief im Wiki, nicht in der Config — derselbe Agent führt jedes weitere Vorhaben.",
+		NameEn:        "Delivery lead (GitLab milestone)",
+		DescriptionEn: "Drives a GitLab milestone to its deadline: makes tickets implementable (reads the source requirement, writes testable acceptance criteria, points at the affected code), keeps dependent tickets in order, hands work to developer colleagues within a WIP limit and reports status. The engagement itself lives in a wiki brief, not in the config — the same agent runs the next one.",
+	},
+	{
 		File:          "log-triage-agent.bundle.json",
 		Name:          "Log-Triage-Agent (E-Mail → GitLab)",
 		Description:   "Analysiert per E-Mail gemeldete Logs, prüft auf Duplikate, legt für relevante Befunde GitLab-Tickets an und übergibt echte Code-Bugs an einen Entwickler-Agenten.",
