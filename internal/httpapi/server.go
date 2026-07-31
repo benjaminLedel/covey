@@ -30,6 +30,7 @@ import (
 	"covey/internal/org"
 	reqlogstore "covey/internal/reqlog/store"
 	"covey/internal/secrets"
+	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
 	"covey/internal/templates"
 )
@@ -45,9 +46,13 @@ type Server struct {
 	Memory   *memory.Store
 	Org      *org.Store
 	Targets  *targetstore.Store
-	Orch     *orchestrator.Orchestrator
-	WebFS    fs.FS // dist der SPA; nil = nur API
-	Log      *slog.Logger
+	// Skills sind die Fähigkeiten der Agenten (Bibliothek + agent-eigen).
+	// nil = Feature abgeschaltet; die Skill-Routen antworten dann mit 503
+	// (dieselbe Bedeutung wie orchestrator.Options.Skills == nil).
+	Skills *skills.Store
+	Orch   *orchestrator.Orchestrator
+	WebFS  fs.FS // dist der SPA; nil = nur API
+	Log    *slog.Logger
 
 	// Egress (UI-verwaltet). EgressStore ist immer gesetzt; EgressEnforced
 	// spiegelt die Prozess-Config, EgressDefaults sind die ENV-Zusätze aus
@@ -243,6 +248,22 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/fleet/kill", s.rbac(securityRoles, s.handleFleetKill))
 	mux.Handle("POST /api/v1/fleet/resume", s.rbac(securityRoles, s.handleFleetResume))
 	mux.Handle("GET /api/v1/fleet", s.rbac(anyRole, s.handleFleetStatus))
+
+	// Agenten-Skills: Org-Bibliothek, Verlinkung, agent-eigene Fähigkeiten
+	// (agentskills.go). Lesen darf jede Rolle — Skills sind Prozeduren, keine
+	// Geheimnisse, und stehen damit auf einer Stufe mit der Agenten-Config.
+	// Die Route /api/v1/skills/covey-agent.zip weiter oben ist etwas anderes
+	// (der Claude-Code-Skill zum Herunterladen) und geht als literales Segment
+	// dem {id}-Platzhalter vor.
+	mux.Handle("GET /api/v1/skills", s.rbac(anyRole, s.handleListSkills))
+	mux.Handle("POST /api/v1/skills", s.rbac(manage, s.handleCreateSkill))
+	mux.Handle("GET /api/v1/skills/{id}", s.rbac(anyRole, s.handleGetSkill))
+	mux.Handle("PUT /api/v1/skills/{id}", s.rbac(manage, s.handlePutSkill))
+	mux.Handle("DELETE /api/v1/skills/{id}", s.rbac(manage, s.handleDeleteSkill))
+	mux.Handle("PUT /api/v1/skills/{id}/agents/{agentID}", s.rbac(manage, s.handleAssignSkill))
+	mux.Handle("DELETE /api/v1/skills/{id}/agents/{agentID}", s.rbac(manage, s.handleUnassignSkill))
+	mux.Handle("GET /api/v1/agents/{id}/skills", s.rbac(anyRole, s.handleAgentSkills))
+	mux.Handle("POST /api/v1/agents/{id}/skills", s.rbac(manage, s.handleCreateAgentSkill))
 
 	// Vorlagen-Bibliothek.
 	mux.Handle("GET /api/v1/templates", s.rbac(anyRole, s.handleListTemplates))

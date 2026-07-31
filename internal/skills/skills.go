@@ -32,17 +32,27 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 var (
 	ErrNotFound = errors.New("skill nicht gefunden")
+	// ErrInvalid markiert einen Eingabefehler des Aufrufers — fehlende
+	// Beschreibung, zu große Datei, fehlende SKILL.md. Alle Prüfungen unten
+	// wickeln ihn ein, damit die HTTP-Schicht daraus ein 400 macht und nicht
+	// ein 500, das nach einem Serverfehler aussieht.
+	ErrInvalid = errors.New("ungültiger skill")
 	// ErrInvalidName: der Name wird zum Verzeichnisnamen und zum
 	// /slash-command — er muss beides gefahrlos hergeben.
-	ErrInvalidName = errors.New("ungültiger skill-name")
+	ErrInvalidName = fmt.Errorf("%w: ungültiger skill-name", ErrInvalid)
 	// ErrInvalidPath: ein Dateipfad, der aus dem Skill-Verzeichnis
 	// herausführen würde. Fail-closed, bevor irgendetwas auf Platte landet.
-	ErrInvalidPath = errors.New("ungültiger dateipfad")
+	ErrInvalidPath = fmt.Errorf("%w: ungültiger dateipfad", ErrInvalid)
+	// ErrExists: auf dieser Ebene (Bibliothek oder Agent) liegt bereits ein
+	// Skill dieses Namens. Anlegen ersetzt ihn NICHT still — der Name ist der
+	// Verzeichnisname, ein Fehlgriff würde fremde Arbeit überschreiben.
+	ErrExists = errors.New("skill mit diesem namen existiert bereits")
 )
 
 // EntryFile ist der Pflichtname der Skill-Beschreibung. Fehlt sie, ist das
@@ -140,10 +150,10 @@ func ValidatePath(p string) error {
 // Claude Code kein Skill, der Agent bekäme also stumm nichts.
 func validateFiles(files []File) error {
 	if len(files) == 0 {
-		return fmt.Errorf("keine dateien: %s ist pflicht", EntryFile)
+		return fmt.Errorf("%w: keine dateien, %s ist pflicht", ErrInvalid, EntryFile)
 	}
 	if len(files) > maxFiles {
-		return fmt.Errorf("zu viele dateien (%d, max. %d)", len(files), maxFiles)
+		return fmt.Errorf("%w: zu viele dateien (%d, max. %d)", ErrInvalid, len(files), maxFiles)
 	}
 	seen := map[string]bool{}
 	hasEntry := false
@@ -152,18 +162,19 @@ func validateFiles(files []File) error {
 			return err
 		}
 		if seen[f.Path] {
-			return fmt.Errorf("datei %q doppelt", f.Path)
+			return fmt.Errorf("%w: datei %q doppelt", ErrInvalid, f.Path)
 		}
 		seen[f.Path] = true
 		if len(f.Content) > maxFileBytes {
-			return fmt.Errorf("datei %q zu groß (%d bytes, max. %d)", f.Path, len(f.Content), maxFileBytes)
+			return fmt.Errorf("%w: datei %q zu groß (%d bytes, max. %d)", ErrInvalid, f.Path, len(f.Content), maxFileBytes)
 		}
 		if f.Path == EntryFile {
 			hasEntry = true
 		}
 	}
 	if !hasEntry {
-		return fmt.Errorf("%s fehlt — ohne sie erkennt die Runtime das Verzeichnis nicht als Skill", EntryFile)
+		return fmt.Errorf("%w: %s fehlt — ohne sie erkennt die Runtime das Verzeichnis nicht als Skill",
+			ErrInvalid, EntryFile)
 	}
 	return nil
 }
@@ -186,11 +197,12 @@ func (s *Store) Upsert(ctx context.Context, orgID uuid.UUID, spec Spec) (Skill, 
 	}
 	desc := strings.TrimSpace(spec.Description)
 	if desc == "" {
-		return Skill{}, errors.New("description fehlt — sie entscheidet, ob die Runtime den Skill überhaupt lädt")
+		return Skill{}, fmt.Errorf("%w: description fehlt — sie entscheidet, ob die Runtime den Skill überhaupt lädt",
+			ErrInvalid)
 	}
 	if len([]rune(desc)) > maxDescription {
-		return Skill{}, fmt.Errorf("description zu lang (%d zeichen, max. %d) — sie steht in jedem Lauf im Kontext",
-			len([]rune(desc)), maxDescription)
+		return Skill{}, fmt.Errorf("%w: description zu lang (%d zeichen, max. %d) — sie steht in jedem Lauf im Kontext",
+			ErrInvalid, len([]rune(desc)), maxDescription)
 	}
 	if err := validateFiles(spec.Files); err != nil {
 		return Skill{}, err
@@ -220,6 +232,12 @@ func (s *Store) Upsert(ctx context.Context, orgID uuid.UUID, spec Spec) (Skill, 
 		id = uuid.New()
 		if _, err := tx.Exec(ctx, `INSERT INTO skills (id, org_id, agent_id, name, description)
 			VALUES ($1,$2,$3,$4,$5)`, id, orgID, spec.AgentID, spec.Name, desc); err != nil {
+			// Zwischen SELECT und INSERT kann ein paralleler Aufruf denselben
+			// Namen belegt haben. Der Teil-Unique-Index fängt das ab; hier wird
+			// daraus dieselbe Aussage wie bei Create, statt eines rohen 23505.
+			if isUniqueViolation(err) {
+				return Skill{}, fmt.Errorf("%w: %q", ErrExists, spec.Name)
+			}
 			return Skill{}, err
 		}
 	case err != nil:
@@ -244,6 +262,45 @@ func (s *Store) Upsert(ctx context.Context, orgID uuid.UUID, spec Spec) (Skill, 
 	}
 	return Skill{ID: id, OrgID: orgID, AgentID: spec.AgentID, Name: spec.Name,
 		Description: desc, UpdatedAt: time.Now()}, nil
+}
+
+// Create legt einen Skill an und lehnt einen bereits vergebenen Namen mit
+// ErrExists ab, statt ihn zu ersetzen.
+//
+// Der Unterschied zu Upsert ist die Absicht des Aufrufers: Wer „neuen Skill
+// anlegen" drückt, meint einen neuen — ein Namenstreffer wäre dann fremde
+// Arbeit, die still verschwindet. Zum Ersetzen gibt es Upsert (Editor, Import).
+func (s *Store) Create(ctx context.Context, orgID uuid.UUID, spec Spec) (Skill, error) {
+	if err := ValidateName(spec.Name); err != nil {
+		return Skill{}, err
+	}
+	taken, err := s.Exists(ctx, orgID, spec.AgentID, spec.Name)
+	if err != nil {
+		return Skill{}, err
+	}
+	if taken {
+		return Skill{}, fmt.Errorf("%w: %q", ErrExists, spec.Name)
+	}
+	return s.Upsert(ctx, orgID, spec)
+}
+
+// Exists sagt, ob auf dieser Ebene — Bibliothek (agentID nil) oder ein
+// bestimmter Agent — schon ein Skill dieses Namens liegt. Die beiden Ebenen
+// sind getrennt: Ein Agent darf einen eigenen Skill haben, der genauso heißt
+// wie einer aus der Bibliothek (dann gewinnt seiner, siehe ForAgent).
+func (s *Store) Exists(ctx context.Context, orgID uuid.UUID, agentID *uuid.UUID, name string) (bool, error) {
+	var q string
+	var args []any
+	if agentID == nil {
+		q = `SELECT EXISTS (SELECT 1 FROM skills WHERE org_id=$1 AND name=$2 AND agent_id IS NULL)`
+		args = []any{orgID, name}
+	} else {
+		q = `SELECT EXISTS (SELECT 1 FROM skills WHERE org_id=$1 AND name=$2 AND agent_id=$3)`
+		args = []any{orgID, name, *agentID}
+	}
+	var found bool
+	err := s.pool.QueryRow(ctx, q, args...).Scan(&found)
+	return found, err
 }
 
 // Get liefert einen Skill samt Dateien.
@@ -375,11 +432,17 @@ func (s *Store) Assign(ctx context.Context, orgID, skillID, agentID uuid.UUID) e
 		return err
 	}
 	if !isLibrary {
-		return errors.New("nur bibliotheks-skills lassen sich zuweisen — dieser gehört bereits einem agenten")
+		return fmt.Errorf("%w: nur bibliotheks-skills lassen sich zuweisen — dieser gehört bereits einem agenten",
+			ErrInvalid)
 	}
 	_, err = s.pool.Exec(ctx, `INSERT INTO skill_assignments (skill_id, agent_id)
 		VALUES ($1,$2) ON CONFLICT DO NOTHING`, skillID, agentID)
 	return err
+}
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
 // Unassign löst die Verlinkung.

@@ -36,6 +36,7 @@ import (
 	"covey/internal/reqlog"
 	reqlogstore "covey/internal/reqlog/store"
 	secbuiltin "covey/internal/secrets/builtin"
+	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
 	"covey/internal/templates"
 	"covey/migrations"
@@ -512,6 +513,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	targets := targetstore.NewStore(pool)
 	egressStore := egress.NewStore(pool)
 	templateStore := templates.NewStore(pool)
+	skillStore := skills.NewStore(pool)
 
 	// Egress-Enforcement ist nur mit echter Netz-Isolation (docker) durchsetzbar.
 	egressEnforced := cfg.EgressEnforce && cfg.SandboxProvider == "docker"
@@ -566,6 +568,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Pool: pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Identity: idp, Memory: mem,
 		Targets:        targets,
+		Skills:         skillStore,
 		Egress:         egressStore,
 		ReqLog:         reqLog,
 		Provider:       provider,
@@ -584,7 +587,8 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Pool: pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Identity: idp, Memory: mem,
 		Org: org.NewStore(pool), Targets: targets, Templates: templateStore,
-		Orch: orch, WebFS: dist, Log: log,
+		Skills: skillStore,
+		Orch:   orch, WebFS: dist, Log: log,
 		WebhookSecrets: cfg.WebhookSecrets,
 		SessionTTL:     cfg.SessionTTL,
 		PublicURL:      cfg.PublicURL,
