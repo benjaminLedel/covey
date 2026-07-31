@@ -62,6 +62,11 @@ selbst; der Tagesbericht liest sich von hier.>
   eine Zusammenfassung; die Abnahmekriterien müssen aus dem Original kommen. Die
   Dokumente gehören deshalb ins Repository (versioniert, für alle Kollegen
   lesbar), nicht in einen Anhang.
+  Stimmt der Pfad nicht — Datei doch nicht committet, falscher Branch, Tippfehler
+  —, sucht der Lead sie einmal per `list_tree` und korrigiert den Steckbrief
+  selbst. Findet er sie nicht, **bricht er die Aufbereitung ab** und meldet es
+  einmal im Berichtsticket, statt Abnahmekriterien aus Ticket-Titeln zu raten.
+  Ein Vorhaben, das nicht anläuft, ist deshalb zuerst hier zu prüfen.
 - **Das WIP-Limit** ist die einzige Bremse gegen den häufigsten Fehler:
   fünf Agenten arbeiten gleichzeitig an Tickets, die sich dieselbe Grundlage
   teilen, und erzeugen fünf widersprüchliche Implementierungen auf einem Branch.
