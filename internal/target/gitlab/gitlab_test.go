@@ -132,7 +132,7 @@ func TestClientDiscovery(t *testing.T) {
 		t.Fatalf("ListProjects muss auf Mitgliedschaft filtern: %s", gotQuery)
 	}
 
-	issues, err := c.ListIssues(ctx, 15, "", "", "", false)
+	issues, err := c.ListIssues(ctx, 15, "", "", "", "", false)
 	if err != nil || len(issues) != 1 || issues[0].IID != 23 {
 		t.Fatalf("ListIssues (Projekt): %v %+v", err, issues)
 	}
@@ -140,7 +140,7 @@ func TestClientDiscovery(t *testing.T) {
 		t.Fatalf("ListIssues muss projektbezogen und mit Default state=opened laufen: %s?%s", gotPath, gotQuery)
 	}
 
-	if _, err := c.ListIssues(ctx, 0, "all", "bug,support", "login", false); err != nil {
+	if _, err := c.ListIssues(ctx, 0, "all", "bug,support", "login", "", false); err != nil {
 		t.Fatalf("ListIssues (global): %v", err)
 	}
 	if gotPath != "/api/v4/issues" || !strings.Contains(gotQuery, "scope=all") {
@@ -153,17 +153,107 @@ func TestClientDiscovery(t *testing.T) {
 		t.Fatalf("labels/search müssen durchgereicht werden: %s", gotQuery)
 	}
 
-	if _, err := c.ListIssues(ctx, 0, "", "", "", true); err != nil {
+	if _, err := c.ListIssues(ctx, 0, "", "", "", "", true); err != nil {
 		t.Fatalf("ListIssues (assigned, global): %v", err)
 	}
 	if !strings.Contains(gotQuery, "scope=assigned_to_me") || strings.Contains(gotQuery, "scope=all") {
 		t.Fatalf("assigned=true muss scope=assigned_to_me statt scope=all senden: %s", gotQuery)
 	}
-	if _, err := c.ListIssues(ctx, 15, "", "", "", true); err != nil {
+	if _, err := c.ListIssues(ctx, 15, "", "", "", "", true); err != nil {
 		t.Fatalf("ListIssues (assigned, Projekt): %v", err)
 	}
 	if gotPath != "/api/v4/projects/15/issues" || !strings.Contains(gotQuery, "scope=assigned_to_me") {
 		t.Fatalf("assigned=true muss auch projektbezogen scope=assigned_to_me senden: %s?%s", gotPath, gotQuery)
+	}
+
+	// Meilenstein: der Filter, mit dem ein Agent ein ganzes Vorhaben greift.
+	if _, err := c.ListIssues(ctx, 15, "", "", "", "ECA-2026-045 Bundesdruckerei LMS", false); err != nil {
+		t.Fatalf("ListIssues (milestone): %v", err)
+	}
+	if !strings.Contains(gotQuery, "milestone=ECA-2026-045+Bundesdruckerei+LMS") {
+		t.Fatalf("milestone muss durchgereicht werden: %s", gotQuery)
+	}
+	if _, err := c.ListIssues(ctx, 15, "", "", "", "", false); err != nil {
+		t.Fatalf("ListIssues (ohne milestone): %v", err)
+	}
+	if strings.Contains(gotQuery, "milestone=") {
+		t.Fatalf("leerer milestone darf keinen Parameter senden: %s", gotQuery)
+	}
+}
+
+// Der Meilenstein muss am Issue ankommen — ein Agent, der ein Vorhaben führt,
+// entscheidet daran, was zu seinem Auftrag gehört. GitLab liefert null, wenn
+// keiner gesetzt ist; das darf nicht in einen leeren Titel kippen.
+func TestIssueCarriesMilestone(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`[{"iid":739,"project_id":15,"milestone":{"title":"ECA-2026-045 Bundesdruckerei LMS","due_date":"2026-11-30","state":"active"}},
+		                 {"iid":740,"project_id":15,"milestone":null}]`))
+	}))
+	defer srv.Close()
+
+	issues, err := NewClient(srv.URL, "t").ListIssues(context.Background(), 15, "", "", "", "", false)
+	if err != nil || len(issues) != 2 {
+		t.Fatalf("ListIssues: %v %+v", err, issues)
+	}
+	if issues[0].Milestone == nil || issues[0].Milestone.Title != "ECA-2026-045 Bundesdruckerei LMS" {
+		t.Fatalf("Meilenstein muss am Issue ankommen: %+v", issues[0].Milestone)
+	}
+	if issues[0].Milestone.DueDate != "2026-11-30" {
+		t.Fatalf("Fälligkeit des Meilensteins fehlt: %+v", issues[0].Milestone)
+	}
+	if issues[1].Milestone != nil {
+		t.Fatalf("ohne Meilenstein muss das Feld nil bleiben: %+v", issues[1].Milestone)
+	}
+}
+
+// set_labels führt den Arbeitszustand im Board. Entscheidend ist, dass es
+// TEILWEISE arbeitet (add_labels/remove_labels) statt die Label-Liste zu
+// überschreiben — sonst nimmt jeder Zustandswechsel die fachlichen Labels mit.
+func TestSetLabelsIsPartial(t *testing.T) {
+	var gotMethod, gotPath string
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath = r.Method, r.URL.Path
+		gotBody = map[string]any{}
+		json.NewDecoder(r.Body).Decode(&gotBody)
+		json.NewEncoder(w).Encode(Issue{IID: 739, ProjectID: 15,
+			Labels: []string{"ECA-2026-045", "MUSS-Kriterium", "in Arbeit"}})
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, "test-token")
+	ctx := context.Background()
+
+	iss, err := c.SetLabels(ctx, 15, 739, []string{"in Arbeit"}, []string{"bereit", ""})
+	if err != nil {
+		t.Fatalf("SetLabels: %v", err)
+	}
+	if gotMethod != http.MethodPut || gotPath != "/api/v4/projects/15/issues/739" {
+		t.Fatalf("SetLabels muss das Issue per PUT ändern: %s %s", gotMethod, gotPath)
+	}
+	if gotBody["add_labels"] != "in Arbeit" || gotBody["remove_labels"] != "bereit" {
+		t.Fatalf("add/remove müssen getrennt und ohne Leereinträge gehen: %+v", gotBody)
+	}
+	if gotBody["labels"] != nil {
+		t.Fatalf("die volle labels-Liste darf NICHT überschrieben werden: %+v", gotBody)
+	}
+	if len(iss.Labels) != 3 {
+		t.Fatalf("der erreichte Label-Stand muss zurückkommen: %+v", iss.Labels)
+	}
+
+	// Nur entfernen ist erlaubt, gar nichts angeben nicht — sonst schickt ein
+	// unvollständiger Aufruf einen wirkungslosen PUT an GitLab.
+	if _, err := c.SetLabels(ctx, 15, 739, nil, []string{"bereit"}); err != nil {
+		t.Fatalf("nur remove_labels muss erlaubt sein: %v", err)
+	}
+	if gotBody["add_labels"] != nil {
+		t.Fatalf("ohne add_labels darf das Feld nicht mitgeschickt werden: %+v", gotBody)
+	}
+	if _, err := c.SetLabels(ctx, 15, 739, nil, nil); err == nil {
+		t.Fatal("ohne add_labels und remove_labels muss SetLabels abgelehnt werden")
+	}
+	if _, err := c.SetLabels(ctx, 15, 739, []string{"  "}, nil); err == nil {
+		t.Fatal("nur Leerraum ist kein Label — muss abgelehnt werden")
 	}
 }
 

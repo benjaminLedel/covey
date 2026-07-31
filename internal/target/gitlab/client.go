@@ -85,6 +85,15 @@ type Issue struct {
 	Assignees []struct {
 		Username string `json:"username"`
 	} `json:"assignees"`
+	// Milestone ordnet das Issue einem Vorhaben zu (Release, Ausschreibung,
+	// Sprint). Ein Agent, der ein ganzes Vorhaben führt, braucht den Titel, um
+	// zu erkennen, was zu seinem Auftrag gehört; GitLab liefert null, wenn das
+	// Issue keinem Meilenstein zugeordnet ist.
+	Milestone *struct {
+		Title   string `json:"title"`
+		DueDate string `json:"due_date"`
+		State   string `json:"state"`
+	} `json:"milestone"`
 	// Author ist der Melder: Wer den Bedarf aufgeschrieben hat, ist der
 	// natürliche Empfänger des Merge Requests, der ihn erledigt.
 	Author struct {
@@ -128,11 +137,11 @@ func (c *Client) ListProjects(ctx context.Context) ([]Project, error) {
 // ListIssues findet Issues — mit projectID über GET /projects/{id}/issues,
 // ohne (projectID=0) über das globale GET /issues mit scope=all: alle Issues,
 // die das Token sehen darf. state ist "opened" (Default), "closed" oder "all";
-// labels (kommasepariert) und search schränken optional ein. assigned=true
-// liefert nur Issues, die dem Bot-Nutzer des Tokens zugewiesen sind
-// (scope=assigned_to_me) — für Agenten, die laut Playbook nur ihre eigene
-// Zuweisung bearbeiten.
-func (c *Client) ListIssues(ctx context.Context, projectID int, state, labels, search string, assigned bool) ([]Issue, error) {
+// labels (kommasepariert), search und milestone (Meilenstein-TITEL, wie er in
+// GitLab steht) schränken optional ein. assigned=true liefert nur Issues, die
+// dem Bot-Nutzer des Tokens zugewiesen sind (scope=assigned_to_me) — für
+// Agenten, die laut Playbook nur ihre eigene Zuweisung bearbeiten.
+func (c *Client) ListIssues(ctx context.Context, projectID int, state, labels, search, milestone string, assigned bool) ([]Issue, error) {
 	q := url.Values{}
 	if state == "" {
 		state = "opened"
@@ -145,6 +154,9 @@ func (c *Client) ListIssues(ctx context.Context, projectID int, state, labels, s
 	}
 	if search != "" {
 		q.Set("search", search)
+	}
+	if milestone != "" {
+		q.Set("milestone", milestone)
 	}
 	if assigned {
 		q.Set("scope", "assigned_to_me")
@@ -865,6 +877,45 @@ func (c *Client) LookupUser(ctx context.Context, username string) (User, error) 
 func (c *Client) AssignIssue(ctx context.Context, projectID, issueIID int, userIDs []int) error {
 	return c.do(ctx, http.MethodPut, fmt.Sprintf("/projects/%d/issues/%d", projectID, issueIID),
 		map[string]any{"assignee_ids": userIDs}, nil)
+}
+
+// SetLabels — PUT /projects/{id}/issues/{iid} mit add_labels/remove_labels:
+// setzt und entfernt Labels an einem BESTEHENDEN Issue, ohne die übrigen
+// anzutasten. Genau diese Teil-Operation braucht ein Agent, der den
+// Arbeitszustand eines Vorgangs im Board führt (etwa „bereit" → „in Arbeit"):
+// Würde er die volle labels-Liste schreiben, löschte jeder Zustandswechsel die
+// fachlichen Labels gleich mit.
+//
+// GitLab antwortet mit dem aktualisierten Issue — das geben wir zurück, damit
+// der Agent den erreichten Zustand sieht, statt ihn erneut abzufragen.
+func (c *Client) SetLabels(ctx context.Context, projectID, issueIID int, add, remove []string) (Issue, error) {
+	body := map[string]any{}
+	if joined := joinLabels(add); joined != "" {
+		body["add_labels"] = joined
+	}
+	if joined := joinLabels(remove); joined != "" {
+		body["remove_labels"] = joined
+	}
+	if len(body) == 0 {
+		return Issue{}, fmt.Errorf("weder add_labels noch remove_labels angegeben")
+	}
+	var out Issue
+	err := c.do(ctx, http.MethodPut,
+		fmt.Sprintf("/projects/%d/issues/%d", projectID, issueIID), body, &out)
+	return out, err
+}
+
+// joinLabels macht aus der Label-Liste des Agenten den kommaseparierten String,
+// den die GitLab-API erwartet. Leere Einträge fallen raus — ein versehentliches
+// "" im Array soll nicht als Label mit leerem Namen ankommen.
+func joinLabels(labels []string) string {
+	out := make([]string, 0, len(labels))
+	for _, l := range labels {
+		if l = strings.TrimSpace(l); l != "" {
+			out = append(out, l)
+		}
+	}
+	return strings.Join(out, ",")
 }
 
 // Escalate setzt eine interne Notiz und entfernt die Zuweisung

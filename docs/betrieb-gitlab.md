@@ -304,6 +304,13 @@ auf den Bot-Nutzer des Tokens) — die Regel selbst gehört in
 `PLAYBOOKS.md`/`HEARTBEAT.md` des Agenten; zusätzlich liefert jedes Issue seine
 `assignees` mit, sodass der Agent die Zuweisung auch im Einzelfall prüfen kann.
 
+Hängt der Auftrag an einem **Vorhaben** statt an einzelnen Tickets — einer
+Ausschreibung, einem Release —, ist der Meilenstein der belastbarere Schnitt:
+`list_issues {"project_id":15,"milestone":"ECA-2026-045 Bundesdruckerei LMS"}`
+filtert GitLab-seitig auf den Meilenstein-**Titel**, und jedes Issue trägt sein
+`milestone` (mit `due_date`) zurück. Labels bleiben daneben nutzbar
+(`{"labels":"MUSS-Kriterium"}`), tragen aber keine Frist.
+
 ### 3.1 Kein Doppelbearbeiten
 
 Weil der Intake per Polling läuft, sieht der Agent bei jedem Lauf denselben
@@ -435,6 +442,21 @@ Der Adapter unterscheidet — analog `reply` bei Zammad:
 `escalate` setzt eine interne Notiz und entfernt die Zuweisung des Issues,
 damit ein Mensch übernimmt. `set_state` kennt `close` und `reopen`
 (GitLab-`state_event`).
+
+### 5.1 Arbeitszustand im Board: `set_labels`
+
+`set_labels {"project_id":15,"issue_iid":739,"add_labels":["in Arbeit"],"remove_labels":["bereit"]}`
+ändert die Labels eines **bestehenden** Issues. Bewusst additiv/subtraktiv
+(GitLab-`add_labels`/`remove_labels`) statt als volle Liste: Ein Agent, der den
+Arbeitszustand führt, schreibt sonst bei jedem Wechsel die fachlichen Labels des
+Tickets mit — Komponente, Typ, Vergabeverfahren — weg. Mindestens eine der
+beiden Listen muss gesetzt sein; die Antwort enthält den erreichten Label-Stand.
+
+Der Zustand gehört damit sichtbar ins Board statt nur in Kommentare — ein
+Mensch sieht ohne Rückfrage, was bereit ist, was läuft und was auf Abnahme
+wartet. Voraussetzung ist, dass der Agent bei jedem Wechsel **beides** tut:
+altes Zustands-Label entfernen, neues setzen. Guard-Rail-Subjekt:
+`gitlab:set_labels`.
 
 ---
 

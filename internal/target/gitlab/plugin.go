@@ -19,7 +19,7 @@ func init() {
 	target.Register(target.Descriptor{
 		Name:        "gitlab",
 		Label:       "GitLab",
-		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues), extern gemeldete Bugs als Ticket anlegen (create_issue), Quellcode auschecken, Projekt aufsetzen und Bugs am Code verifizieren (checkout + Sandbox-Shell), an Issues angehängte Screenshots/Bilder lesen (download_upload + Vision), eigene Screenshots an einen MR/ein Issue anhängen (upload + comment_mr), Fixes entwickeln — auf Feature-Branch committen (commit), Merge Request an den Vorgesetzten eröffnen (create_merge_request, optional mit QA-Agent als reviewer) und den Review-Loop leben: bei jedem Heartbeat-Lauf offene MRs auf neues Review-Feedback prüfen (list_merge_requests/list_mr_notes/comment_mr), rote CI selbst diagnostizieren (list_pipelines/list_pipeline_jobs/get_job_log) und auf den Merge reagieren. Auch als QA-/Test-Agent nutzbar: fremde MRs, in denen man als Reviewer eingetragen ist, end-to-end testen und Feedback geben (set_reviewer/approve_mr, nur-wenn: gitlab:review). Intake per HEARTBEAT.md (Polling), Auth per API-Token (Secrets gitlab_token + gitlab_url).",
+		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues, auch nach Meilenstein), extern gemeldete Bugs als Ticket anlegen (create_issue), den Arbeitszustand im Board führen (set_labels/assign), Quellcode auschecken, Projekt aufsetzen und Bugs am Code verifizieren (checkout + Sandbox-Shell), an Issues angehängte Screenshots/Bilder lesen (download_upload + Vision), eigene Screenshots an einen MR/ein Issue anhängen (upload + comment_mr), Fixes entwickeln — auf Feature-Branch committen (commit), Merge Request an den Vorgesetzten eröffnen (create_merge_request, optional mit QA-Agent als reviewer) und den Review-Loop leben: bei jedem Heartbeat-Lauf offene MRs auf neues Review-Feedback prüfen (list_merge_requests/list_mr_notes/comment_mr), rote CI selbst diagnostizieren (list_pipelines/list_pipeline_jobs/get_job_log) und auf den Merge reagieren. Auch als QA-/Test-Agent nutzbar: fremde MRs, in denen man als Reviewer eingetragen ist, end-to-end testen und Feedback geben (set_reviewer/approve_mr, nur-wenn: gitlab:review). Intake per HEARTBEAT.md (Polling), Auth per API-Token (Secrets gitlab_token + gitlab_url).",
 		Kind:        "builtin",
 		Category:    target.CategoryCode,
 		System:      System{},
@@ -197,7 +197,7 @@ const issueMaxNotesChecks = 30
 // kommentieren.** Ein stiller Lauf gilt als „noch nicht bearbeitet" und weckt
 // erneut. Das Playbook „Issue-Triage" hält das so.
 func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) ([]string, error) {
-	issues, err := gc.ListIssues(ctx, 0, "opened", "", "", assignedOnly)
+	issues, err := gc.ListIssues(ctx, 0, "opened", "", "", "", assignedOnly)
 	if err != nil {
 		return nil, err
 	}
@@ -410,8 +410,14 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		Note       string `json:"note"`
 		Labels     string `json:"labels"`
 		Search     string `json:"search"`
+		Milestone  string `json:"milestone"`
 		Ref        string `json:"ref"`
 		Assigned   bool   `json:"assigned"`
+		// set_labels arbeitet additiv/subtraktiv statt die ganze Liste zu
+		// überschreiben — sonst nimmt jeder Zustandswechsel die fachlichen
+		// Labels mit.
+		AddLabels    []string `json:"add_labels"`
+		RemoveLabels []string `json:"remove_labels"`
 		Path       string `json:"path"`
 		FilePath   string `json:"file_path"`
 		URL        string `json:"url"`
@@ -451,7 +457,7 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		}
 		return out, nil
 	case "list_issues":
-		issues, err := gc.ListIssues(ctx, in.ProjectID, in.State, in.Labels, in.Search, in.Assigned)
+		issues, err := gc.ListIssues(ctx, in.ProjectID, in.State, in.Labels, in.Search, in.Milestone, in.Assigned)
 		if err != nil {
 			return nil, err
 		}
@@ -671,6 +677,15 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, err
 		}
 		return map[string]any{"assigned_to": u.Username, "user_id": u.ID}, nil
+	case "set_labels":
+		if in.ProjectID == 0 || in.IssueIID == 0 {
+			return nil, fmt.Errorf("project_id oder issue_iid fehlt")
+		}
+		iss, err := gc.SetLabels(ctx, in.ProjectID, in.IssueIID, in.AddLabels, in.RemoveLabels)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"issue_iid": iss.IID, "labels": iss.Labels}, nil
 	case "escalate":
 		note := in.Note
 		if note == "" {
@@ -683,9 +698,11 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 }
 
 func (System) PromptDoc() string {
-	return `Verfügbare GitLab-Aktionen: list_projects {}, list_issues {"project_id":N,"state":"opened"|"closed"|"all","labels":"...","search":"...","assigned":true|false}
+	return `Verfügbare GitLab-Aktionen: list_projects {}, list_issues {"project_id":N,"state":"opened"|"closed"|"all","labels":"...","search":"...","milestone":"...","assigned":true|false}
    (alle Felder optional; ohne project_id alle für dich sichtbaren Issues; assigned=true nur die deinem
-   Bot-Nutzer zugewiesenen — nutze das, wenn dein Playbook nur zugewiesene Issues vorsieht), get_issue {"project_id":N,"issue_iid":N},
+   Bot-Nutzer zugewiesenen — nutze das, wenn dein Playbook nur zugewiesene Issues vorsieht; milestone ist der
+   TITEL des Meilensteins exakt wie in GitLab und ist der zuverlässigste Filter, wenn dein Auftrag an einem
+   Vorhaben hängt — jedes Issue trägt seinen Meilenstein im Feld "milestone" zurück), get_issue {"project_id":N,"issue_iid":N},
    download_upload {"project_id":N,"url":"/uploads/<secret>/<datei>.png"} — lädt einen an ein Issue/MR angehängten
    Upload (Screenshot, Bild) in deine Sandbox und liefert den lokalen Pfad; sieh ihn dir dann mit dem Read-Tool an
    (Vision). WICHTIG: Enthält eine Issue-Beschreibung oder ein Kommentar einen Bild-Anhang — in der Markdown-Syntax
@@ -712,6 +729,12 @@ func (System) PromptDoc() string {
    assign {"project_id":N,"issue_iid":N,"username":"gitlab-username"} weist das Issue einer Person zu — z. B. nach einem
    Fix dem Teammitglied, das laut Team-Verzeichnis fürs Testen zuständig ist; nimm den GitLab-Username exakt aus dem
    Abschnitt "Team (menschliche Mitarbeiter)" deines Prompts und erkläre die Übergabe in einem Kommentar,
+   set_labels {"project_id":N,"issue_iid":N,"add_labels":["…"],"remove_labels":["…"]} setzt und entfernt Labels an einem
+   BESTEHENDEN Issue, ohne die übrigen anzutasten (mindestens eine der beiden Listen angeben; die Antwort enthält den
+   erreichten Label-Stand). Damit führst du den Arbeitszustand eines Vorgangs sichtbar im Board — Zustand und Wechsel
+   beim selben Schritt: beim Weiterreichen das alte Zustands-Label entfernen und das neue setzen, nie nur hinzufügen,
+   sonst trägt ein Issue am Ende drei widersprüchliche Zustände. Fachliche Labels (Komponente, Typ) fasst du dabei
+   nicht an,
    list_branches {"project_id":N,"search":"..."} listet Branches (Default-Branch ist markiert — rate keine Branch-Namen),
    list_commits {"project_id":N,"ref":"...","path":"datei/oder/verzeichnis","since":"ISO-Datum"} listet die Commit-Historie
    (alle Filter optional), get_commit {"project_id":N,"sha":"..."} liefert den Diff eines Commits,
