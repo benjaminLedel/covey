@@ -30,12 +30,41 @@ Ein Agent-Bundle ist eine JSON-Datei. Pflicht sind `kind`, `version`, `agent.slu
   "stages": [ { "name": "In Arbeit", "color": "#..." } ],        // optional: Backlog-Spalten
   "guardrails": [ ... ],                                          // optional: Policy-Regeln
   "egress_templates": [ { "name": "...", "hosts": [ ... ] } ],    // optional: erlaubte Hosts
+  "skills": [ { "name": "...", "description": "...",              // optional: Fähigkeiten
+                "origin": "agent",
+                "files": { "SKILL.md": "...", "referenz.md": "..." } } ],
   "secrets": { "org_keys": [], "agent_keys": [] }                // optional: NUR NAMEN, nie Werte
 }
 ```
 
-**Nur die `files` sind für ein reines Config-Update nötig** (`POST /agents/{id}/config/import`);
+**Für ein Config-Update reichen `files` und `skills`** (`POST /agents/{id}/config/import`);
 die restlichen Felder greifen nur beim Neu-Anlegen (`POST /agents/import`).
+
+### Skills — Prozeduren, die nicht jeder Lauf bezahlt
+
+Alles in `files` steht in **jedem** Lauf im System-Prompt. Für Identität und Grenzen ist das
+richtig, für Prozeduren nicht: Ein Agent mit fünf Playbooks zahlt alle fünf auch dann, wenn der
+Lauf nach drei Turns feststellt, dass nichts zu tun ist. Ein Skill dreht das um — nur seine
+`description` steht immer im Kontext, `SKILL.md` und die Zusatzdateien liest die Runtime erst,
+wenn sie den Skill zieht.
+
+- `name` — `[a-z0-9-]`, max. 63 Zeichen. Wird zum Verzeichnisnamen im Agenten-Home und damit
+  zum `/slash-command`. **Nicht umbenennbar** (Verweise würden ins Leere laufen); zum Ändern
+  neu anlegen und den alten löschen.
+- `description` — der einzige Text, der dauerhaft Kontext kostet. Ein Satz, der sagt, **wann**
+  der Skill zu ziehen ist („Nutze dies, wenn: …"), max. 500 Zeichen.
+- `origin` — `"agent"`: gehört nur diesem Agenten. `"library"`: liegt in der Org-Bibliothek und
+  ist ihm verlinkt; beim Import wird eine dort bereits vorhandene gleichnamige Fassung
+  **verlinkt statt überschrieben** (sie kann anderen Agenten gehören) — der Import meldet das
+  als Warnung. Fehlt das Feld, gilt `"agent"`.
+- `files` — `SKILL.md` ist Pflicht (ohne sie erkennt die Runtime das Verzeichnis nicht als
+  Skill). Max. 32 Dateien à 256 KB, relative Pfade ohne `..`. Der Frontmatter der `SKILL.md`
+  wird beim Import abgeschnitten und darf `name`/`description` füllen; gespeichert wird der
+  Rumpf, damit die Beschreibung nicht an zwei Orten steht.
+
+**Faustregel:** In `PLAYBOOKS.md` bleibt, was der Agent in fast jedem Lauf braucht (der
+Standardablauf). In einen Skill wandert, was selten greift, aber dann ausführlich ist —
+Sonderfälle, Checklisten, Vorlagen, Referenztabellen.
 
 ### Die fünf Config-Dateien
 

@@ -188,25 +188,35 @@ type Spec struct {
 	Files       []File
 }
 
+// Validate prüft eine Spec, ohne etwas zu speichern.
+//
+// Getrennt von Upsert, weil manche Aufrufer vorab wissen müssen, ob alles
+// durchgeht: Der Bundle-Import prüft erst das ganze Bundle und legt dann an —
+// ein halb importierter Agent wäre schlimmer als ein abgelehnter.
+func Validate(spec Spec) error {
+	if err := ValidateName(spec.Name); err != nil {
+		return err
+	}
+	desc := strings.TrimSpace(spec.Description)
+	if desc == "" {
+		return fmt.Errorf("%w: description fehlt — sie entscheidet, ob die Runtime den Skill überhaupt lädt",
+			ErrInvalid)
+	}
+	if len([]rune(desc)) > maxDescription {
+		return fmt.Errorf("%w: description zu lang (%d zeichen, max. %d) — sie steht in jedem Lauf im Kontext",
+			ErrInvalid, len([]rune(desc)), maxDescription)
+	}
+	return validateFiles(spec.Files)
+}
+
 // Upsert legt einen Skill an oder ersetzt ihn vollständig (Beschreibung und
 // Dateisatz). Ersetzen statt Zusammenführen ist Absicht: Der Aufrufer schickt
 // den gewünschten Endzustand, sonst bliebe eine gelöschte Datei ewig liegen.
 func (s *Store) Upsert(ctx context.Context, orgID uuid.UUID, spec Spec) (Skill, error) {
-	if err := ValidateName(spec.Name); err != nil {
+	if err := Validate(spec); err != nil {
 		return Skill{}, err
 	}
 	desc := strings.TrimSpace(spec.Description)
-	if desc == "" {
-		return Skill{}, fmt.Errorf("%w: description fehlt — sie entscheidet, ob die Runtime den Skill überhaupt lädt",
-			ErrInvalid)
-	}
-	if len([]rune(desc)) > maxDescription {
-		return Skill{}, fmt.Errorf("%w: description zu lang (%d zeichen, max. %d) — sie steht in jedem Lauf im Kontext",
-			ErrInvalid, len([]rune(desc)), maxDescription)
-	}
-	if err := validateFiles(spec.Files); err != nil {
-		return Skill{}, err
-	}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
