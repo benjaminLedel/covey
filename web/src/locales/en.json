@@ -295,7 +295,8 @@
     "logout": "Sign out",
     "userMenu": "User menu",
     "profile": "Profile & Settings",
-    "requests": "Requests"
+    "requests": "Requests",
+    "skills": "Skills"
   },
   "costs": {
     "title": "Cost & Tokens",
@@ -478,7 +479,8 @@
       "egress": "Egress",
       "secrets": "Secrets",
       "config": "Config",
-      "settings": "Settings"
+      "settings": "Settings",
+      "skills": "Skills"
     },
     "cost": {
       "total": "Total cost",
@@ -707,6 +709,19 @@
       "deleteYes": "Yes, delete permanently",
       "cancel": "Cancel",
       "rollDice": "Roll random name"
+    },
+    "skills": {
+      "desc": "The capabilities this agent has — its own plus those linked from the library. Exactly this list is written into its home before every run; of each entry, only the description stays in context permanently.",
+      "linkLibrary": "Link skill from the library",
+      "selectSkill": "Choose skill …",
+      "noMoreLibrary": "All library skills are linked",
+      "newOwn": "Create own skill",
+      "own": "own",
+      "fromLibrary": "library",
+      "unlink": "Unlink",
+      "fileCount": "{{count}} files",
+      "none": "This agent has no skills yet.",
+      "shadowed": "linked but shadowed: an own skill of the same name takes precedence"
     }
   },
   "approvals": {
@@ -886,6 +901,31 @@
     "protect": "Protect",
     "protectConfirm": "Mark \"{{key}}\" as sensitive? The value can never be viewed again — to undo, delete and re-create it.",
     "delete": "Delete"
+  },
+  "skills": {
+    "title": "Skills",
+    "subtitle": "Capabilities agents load on demand",
+    "desc": "Agent config sits in the prompt of every single run. A skill inverts that: only its description is always visible, while the instructions and any extra files are read once the runtime pulls it. A skill from this library takes effect only after you link it to an agent — every description costs context in each of that agent's runs, so linking is explicit rather than automatic.",
+    "new": "New skill",
+    "empty": "No skills in the library yet.",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteConfirm": "Delete skill {{name}}? Agents that have it will lose it on their next run.",
+    "assignedTo": "Linked to:",
+    "nobody": "nobody — has no effect anywhere",
+    "linkTo": "Link agent …",
+    "unlink": "Unlink",
+    "name": "Name",
+    "nameLocked": "The name is the skill's directory and its /slash-command — to rename, create a new one and delete the old.",
+    "description": "Description",
+    "descriptionPlaceholder": "Use this when: …",
+    "descriptionHint": "The only part that stays in context permanently. Say WHEN to pull the skill, not what it does.",
+    "addFile": "Add file",
+    "addFileBtn": "Add",
+    "removeFile": "Remove",
+    "filesHint": "SKILL.md holds the instructions. Put anything heavy (references, templates, checklists) into separate files — they are read only when the skill actually applies.",
+    "save": "Save",
+    "cancel": "Cancel"
   },
   "targets": {
     "title": "Target Systems",
