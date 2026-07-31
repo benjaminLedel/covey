@@ -842,6 +842,21 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   .wiki-pane { max-height: none; }
 }
 
+/* Sortierwahl über dem Baum. Zurückhaltend gezeichnet — sie ist ein Regler,
+   kein Formularfeld, und darf die Seitenliste nicht überstimmen. */
+.wiki-sort { display: flex; align-items: center; }
+.wiki-sort select {
+  width: auto;
+  max-width: 100%;
+  padding: 1px 2px;
+  border: none;
+  background: none;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.wiki-sort select:hover { color: var(--text-secondary); }
+
 /* Navigationsbaum: erste Ebene Seitentyp, darunter die Seiten. */
 .wiki-tree { display: flex; flex-direction: column; gap: 1px; }
 .wiki-group + .wiki-group { margin-top: 7px; }

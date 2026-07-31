@@ -2000,6 +2000,12 @@ function wikiPreview(text: string): string {
 // nicht eingeordneten Seiten sind ein Rest, kein Anfang.
 const WIKI_TYPES = ["kunde", "projekt", "system", "person", "problem", "thema", ""] as const;
 
+// Sortierung innerhalb einer Baumebene. Die Wahl steht im localStorage — wer
+// nach Relevanz arbeitet, will das nicht bei jedem Seitenaufruf neu einstellen.
+type WikiSort = "recent" | "relevance" | "title";
+const WIKI_SORT_KEY = "covey.wiki.sort";
+const WIKI_SORTS: WikiSort[] = ["recent", "relevance", "title"];
+
 // linkContext zieht den Satz heraus, in dem eine Seite auf eine andere verweist.
 // Ein Backlink ohne diesen Satz zwingt zum Klicken, nur um zu sehen, warum.
 function linkContext(body: string, slug: string): string {
@@ -2330,6 +2336,14 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
   const [note, setNote] = useState("");
   const [filter, setFilter] = useState<WikiFinding["kind"] | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [sort, setSort] = useState<WikiSort>(() => {
+    const saved = localStorage.getItem(WIKI_SORT_KEY) as WikiSort | null;
+    return saved && WIKI_SORTS.includes(saved) ? saved : "recent";
+  });
+  const changeSort = (s: WikiSort) => {
+    localStorage.setItem(WIKI_SORT_KEY, s);
+    setSort(s);
+  };
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["memories", agentId] });
     qc.invalidateQueries({ queryKey: ["wiki-log", agentId] });
@@ -2436,6 +2450,37 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
     );
   }, [list, bySlug]);
 
+  // Grad einer Seite im Wiki-Graph — das einzige Relevanzsignal, das es gibt:
+  // Zugriffe werden nirgends gezählt. Eingehende Verweise wiegen doppelt, denn
+  // eine Seite, auf die andere zeigen, ist ein Knotenpunkt; eine, die nur selbst
+  // viel verlinkt, ist bloß geschwätzig. Tote Verweise zählen nicht mit.
+  const degree = useMemo(() => {
+    const d = new Map<string, number>();
+    list.forEach((p) => d.set(p.slug, 0));
+    list.forEach((p) =>
+      (p.links ?? []).forEach((l) => {
+        if (!bySlug.has(l) || l === p.slug) return;
+        d.set(l, (d.get(l) ?? 0) + 2);
+        d.set(p.slug, (d.get(p.slug) ?? 0) + 1);
+      }),
+    );
+    return d;
+  }, [list, bySlug]);
+
+  // Vergleicher für eine Baumebene. Gleichstand fällt immer auf „zuletzt
+  // geändert" zurück — sonst wandern Seiten bei jedem Rendern umher.
+  const sortPages = useCallback(
+    (a: MemoryEntry, b: MemoryEntry) => {
+      if (sort === "title") return (a.title || a.slug).localeCompare(b.title || b.slug, locale);
+      if (sort === "relevance") {
+        const d = (degree.get(b.slug) ?? 0) - (degree.get(a.slug) ?? 0);
+        if (d !== 0) return d;
+      }
+      return (b.updated_at || b.created_at).localeCompare(a.updated_at || a.created_at);
+    },
+    [sort, degree, locale],
+  );
+
   // Auf einen Befund gefilterte Seitenmenge.
   const filtered = useMemo(() => {
     if (!filter) return null;
@@ -2465,7 +2510,10 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
   // ── Baum: erste Ebene ist der Seitentyp, darunter die Seiten; eine Seite
   // lässt sich aufklappen und zeigt dann, worauf sie verweist. ────────────────
   const treeRow = (p: MemoryEntry, child: boolean) => {
-    const kids = (p.links ?? []).filter((l) => bySlug.has(l));
+    const kids = (p.links ?? [])
+      .map((l) => bySlug.get(l))
+      .filter((k): k is MemoryEntry => !!k && k.slug !== p.slug)
+      .sort(sortPages);
     const isOpen = expanded.has(p.slug);
     return (
       <div key={p.slug + (child ? "-c" : "")}>
@@ -2489,15 +2537,23 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
           <button type="button" className="lbl" title={wikiPreview(p.content)} onClick={() => setSelected(p.slug)}>
             {p.title || p.slug}
           </button>
-          {kids.length > 0 && <span className="cnt">{kids.length}</span>}
+          {/* Nach Relevanz sortiert steht dort der Grad — eine Reihenfolge ohne
+              sichtbaren Grund liest sich als Zufall. Sonst: ausgehende Verweise. */}
+          {sort === "relevance"
+            ? (degree.get(p.slug) ?? 0) > 0 && (
+                <span className="cnt" title={t("agent.memory.sortDegreeHelp")}>
+                  {degree.get(p.slug)}
+                </span>
+              )
+            : kids.length > 0 && <span className="cnt">{kids.length}</span>}
         </div>
-        {isOpen && !child && <div className="wiki-kids">{kids.map((l) => treeRow(bySlug.get(l)!, true))}</div>}
+        {isOpen && !child && <div className="wiki-kids">{kids.map((k) => treeRow(k, true))}</div>}
       </div>
     );
   };
 
   const tree = WIKI_TYPES.map((ty) => {
-    const items = visible.filter((p) => (p.type ?? "") === ty);
+    const items = visible.filter((p) => (p.type ?? "") === ty).sort(sortPages);
     if (items.length === 0) return null;
     return (
       <div className="wiki-group" key={ty || "none"}>
@@ -2654,6 +2710,17 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
             <div className="wiki-search mb-2">
               <input type="search" placeholder={t("agent.memory.searchPlaceholder")} value={query} onChange={(e) => setQuery(e.target.value)} />
             </div>
+            {/* Sortierung je Ebene. Bei der Suche ohne Wirkung — dort ordnet die
+                semantische Ähnlichkeit, und die soll nichts überstimmen. */}
+            {!searching && list.length > 0 && (
+              <div className="wiki-sort mb-1">
+                <select value={sort} onChange={(e) => changeSort(e.target.value as WikiSort)} aria-label={t("agent.memory.sortLabel")}>
+                  <option value="recent">{t("agent.memory.sortRecent")}</option>
+                  <option value="relevance">{t("agent.memory.sortRelevance")}</option>
+                  <option value="title">{t("agent.memory.sortTitle")}</option>
+                </select>
+              </div>
+            )}
             <div className="wiki-tree">
               {searching ? (
                 (search.data ?? []).length === 0 && !search.isFetching ? (
