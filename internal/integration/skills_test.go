@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"covey/examples"
 	"covey/internal/backlog"
 	identbuiltin "covey/internal/identity/builtin"
 )
@@ -234,6 +235,64 @@ func TestSkillsAPI(t *testing.T) {
 	// Bobs eigener Skill bleibt davon unberührt.
 	if bobSkills = getSkillList(t, admin, "/api/v1/agents/"+bob.ID.String()+"/skills"); len(bobSkills) != 1 {
 		t.Fatalf("agent-eigener Skill darf nicht mitgelöscht werden: %+v", bobSkills)
+	}
+}
+
+// TestDeliveryLeadSkills hält die Umstellung des mitgelieferten Delivery Leads
+// fest: Seine Prozeduren liegen als Skills im Bundle, nicht mehr in
+// PLAYBOOKS.md. Zwei Dinge müssen dafür stimmen — das ausgelieferte Bundle
+// muss importierbar sein (die Skill-Prüfung ist streng), und jeder Skill muss
+// irgendwo genannt werden. Ein Skill, auf den niemand zeigt, wird nie gezogen;
+// er kostet dann nur seine Beschreibung und trägt nichts.
+func TestDeliveryLeadSkills(t *testing.T) {
+	s := newStack(t)
+	c := login(t, s, "admin@test.local", "admin-passwort")
+
+	var bundle json.RawMessage
+	for _, b := range examples.Builtins() {
+		if b.Key == "builtin:delivery-lead" {
+			bundle = b.Bundle
+		}
+	}
+	if bundle == nil {
+		t.Fatal("mitgelieferte Delivery-Lead-Vorlage nicht gefunden")
+	}
+	var parsed struct {
+		Files map[string]string `json:"files"`
+	}
+	if err := json.Unmarshal(bundle, &parsed); err != nil {
+		t.Fatal(err)
+	}
+
+	imported := c.expect(http.MethodPost, "/api/v1/agents/import?slug=lead-probe", bundle, http.StatusCreated)
+	nid := imported["agent"].(map[string]any)["id"].(string)
+
+	got := getSkillList(t, c, "/api/v1/agents/"+nid+"/skills")
+	want := map[string]bool{"ruecklaeufer": false, "arbeit-vergeben": false,
+		"ticket-aufbereiten": false, "tagesbericht": false}
+	for _, sk := range got {
+		if _, ok := want[sk.Name]; !ok {
+			t.Errorf("unerwarteter Skill %q", sk.Name)
+			continue
+		}
+		want[sk.Name] = true
+		if sk.Origin != "agent" {
+			t.Errorf("%s: origin=%q (die Lead-Prozeduren gehören ihm allein)", sk.Name, sk.Origin)
+		}
+		if len(sk.file("SKILL.md")) < 200 {
+			t.Errorf("%s: SKILL.md zu dünn (%d Zeichen)", sk.Name, len(sk.file("SKILL.md")))
+		}
+	}
+	// Genannt werden muss jeder — in den Playbooks (Reihenfolge) oder im
+	// HEARTBEAT (Auftragstext des Laufs).
+	verweise := parsed.Files["PLAYBOOKS.md"] + parsed.Files["HEARTBEAT.md"]
+	for name, found := range want {
+		if !found {
+			t.Errorf("Skill %q fehlt am importierten Agenten", name)
+		}
+		if !strings.Contains(verweise, name) {
+			t.Errorf("auf Skill %q zeigt weder PLAYBOOKS.md noch HEARTBEAT.md", name)
+		}
 	}
 }
 

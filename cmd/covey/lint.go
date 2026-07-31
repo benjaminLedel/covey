@@ -14,6 +14,7 @@ import (
 	"covey/internal/agents"
 	"covey/internal/config"
 	"covey/internal/db"
+	"covey/internal/skills"
 )
 
 // runConfigLint prüft die Agenten-Konfigurationen dieser Installation gegen die
@@ -78,7 +79,7 @@ func runConfigLint(ctx context.Context, cfg config.Config, args []string) error 
 // Turn-Limit abgebrochenen Läufe.
 func lintSubjects(ctx context.Context, pool *pgxpool.Pool) ([]agents.Subject, error) {
 	rows, err := pool.Query(ctx, `
-		SELECT a.id, a.slug, a.max_turns,
+		SELECT a.id, a.org_id, a.slug, a.max_turns,
 		       COALESCE(c.files, '{}'::jsonb)
 		FROM agents a
 		LEFT JOIN LATERAL (
@@ -93,14 +94,16 @@ func lintSubjects(ctx context.Context, pool *pgxpool.Pool) ([]agents.Subject, er
 
 	var out []agents.Subject
 	ids := map[string]uuid.UUID{}
+	orgs := map[string]uuid.UUID{}
 	for rows.Next() {
 		var (
 			id       uuid.UUID
+			orgID    uuid.UUID
 			s        agents.Subject
 			maxTurns *int
 			raw      []byte
 		)
-		if err := rows.Scan(&id, &s.Slug, &maxTurns, &raw); err != nil {
+		if err := rows.Scan(&id, &orgID, &s.Slug, &maxTurns, &raw); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal(raw, &s.Files); err != nil {
@@ -110,12 +113,14 @@ func lintSubjects(ctx context.Context, pool *pgxpool.Pool) ([]agents.Subject, er
 			s.MaxTurns = *maxTurns
 		}
 		ids[s.Slug] = id
+		orgs[s.Slug] = orgID
 		out = append(out, s)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
 
+	skillStore := skills.NewStore(pool)
 	for i := range out {
 		id := ids[out[i].Slug]
 		if out[i].AgentStages, err = agentStages(ctx, pool, id); err != nil {
@@ -124,6 +129,34 @@ func lintSubjects(ctx context.Context, pool *pgxpool.Pool) ([]agents.Subject, er
 		if out[i].TurnLimitFailures, err = turnLimitFailures(ctx, pool, id); err != nil {
 			return nil, err
 		}
+		if out[i].Skills, err = agentSkills(ctx, skillStore, orgs[out[i].Slug], id); err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+// agentSkills sammelt die Fähigkeiten, die dem Agenten tatsächlich zustehen —
+// eigene plus verlinkte Bibliotheks-Skills. Ohne sie prüfte der Lint eine halbe
+// Config: Prozeduren, die aus PLAYBOOKS.md in Skills gewandert sind, wären
+// unsichtbar, und Regeln wie „wer arbeitet, kommentiert" schlügen fälschlich an.
+//
+// Über den Store und nicht per eigener Abfrage: Die Vorrang-Regel bei
+// Namensgleichheit (agent-eigen schlägt Bibliothek) darf es nur einmal geben,
+// sonst prüft der Lint irgendwann etwas anderes, als der Agent bekommt.
+func agentSkills(ctx context.Context, store *skills.Store, orgID, agentID uuid.UUID) (map[string]string, error) {
+	found, err := store.ForAgent(ctx, orgID, agentID)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, len(found))
+	for _, sk := range found {
+		var b strings.Builder
+		for _, f := range sk.Files {
+			b.WriteString(f.Content)
+			b.WriteString("\n")
+		}
+		out[sk.Name] = b.String()
 	}
 	return out, nil
 }
