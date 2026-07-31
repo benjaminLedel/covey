@@ -52,11 +52,11 @@ Auftrag — nicht der Ticket-Titel.
 
 Damit derselbe Agent das nächste Vorhaben führen kann, steht nichts
 Vorhabensspezifisches in seiner Config — Projekt, Meilenstein, Frist, Reihenfolge
-und WIP-Limit stehen in einer Wiki-Seite. Vorlage und Begründung der Felder:
-[`vorhaben-steckbrief.md`](vorhaben-steckbrief.md). **Ein Lead führt genau ein
-Vorhaben**; für ein zweites wird ein zweiter Lead angelegt (dieselbe Config,
-eigener Steckbrief), weil seine Heartbeats keinen Meilenstein nennen und er zwei
-Steckbriefe nicht auseinanderhalten könnte.
+und WIP-Limit stehen in einer Wiki-Seite, dem Vorhaben-Steckbrief. Vorlage und
+Begründung der Felder: [`docs/betrieb-gitlab.md`](../docs/betrieb-gitlab.md)
+§2.9.1. **Ein Lead führt genau ein Vorhaben**; für ein zweites wird ein zweiter
+Lead angelegt (dieselbe Config, eigener Steckbrief), weil seine Heartbeats keinen
+Meilenstein nennen und er zwei Steckbriefe nicht auseinanderhalten könnte.
 
 **Ein Bundle trägt nur die Config-Dateien**, keine Stammdaten. Nach dem Import
 noch nötig (siehe `docs/betrieb-gitlab.md` 2.2, 2.7 und — für den Lead — 2.9):
@@ -72,6 +72,12 @@ noch nötig (siehe `docs/betrieb-gitlab.md` 2.2, 2.7 und — für den Lead — 2
 - Alle Agenten **derselben Abteilung** zuordnen — dann sieht der Entwickler den
   QA-Agenten als `DEIN TEAM` und wählt ihn bevorzugt als Reviewer, und der Lead
   findet seine Entwickler.
+- **Für den Mail-Intake des QA-Agenten** zusätzlich ein eigenes Postfach
+  einrichten und die Secrets `email_url` + `email_token` zuweisen (siehe
+  `docs/betrieb-email.md`). Damit der Agent Bug-Reports dem richtigen GitLab-
+  Projekt zuordnen kann, im Profil des QA-Agenten die **Produkt→Projekt-Zuordnung**
+  hinterlegen (welches Postfach/Produkt gehört zu welchem GitLab-Projekt); ist die
+  Zuordnung unklar, fragt er beim Melder nach, statt ins falsche Projekt zu ticketen.
 
 Zusätzlich nur für den **Delivery Lead**:
 
@@ -81,10 +87,5 @@ Zusätzlich nur für den **Delivery Lead**:
 - Einen **menschlichen Vorgesetzten** eintragen, **dessen GitLab-Kennung im
   Profil hinterlegt sein muss**. Ohne sie scheitert `assign` bei jeder offenen
   Fachfrage — also genau in dem Pfad, der Menschen einbindet.
-- Die Wiki-Seite mit dem Steckbrief anlegen, bevor der erste Heartbeat feuert.
-- **Für den Mail-Intake des QA-Agenten** zusätzlich ein eigenes Postfach
-  einrichten und die Secrets `email_url` + `email_token` zuweisen (siehe
-  `docs/betrieb-email.md`). Damit der Agent Bug-Reports dem richtigen GitLab-
-  Projekt zuordnen kann, im Profil des QA-Agenten die **Produkt→Projekt-Zuordnung**
-  hinterlegen (welches Postfach/Produkt gehört zu welchem GitLab-Projekt); ist die
-  Zuordnung unklar, fragt er beim Melder nach, statt ins falsche Projekt zu ticketen.
+- Die Wiki-Seite mit dem Steckbrief anlegen (Vorlage: `docs/betrieb-gitlab.md`
+  §2.9.1), bevor der erste Heartbeat feuert.

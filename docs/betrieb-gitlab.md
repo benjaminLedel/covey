@@ -316,13 +316,78 @@ Drei Dinge unterscheiden sein Setup von dem der anderen:
    nicht freigeschaltet, obwohl `scope: write` sie hergäbe.
 3. **Nichts Vorhabensspezifisches steht in seiner Config.** Projekt, Meilenstein,
    Ziel-Branch, Frist, Anforderungspfad, WIP-Limit, Abhängigkeiten und
-   Berichtsticket stehen in einer Wiki-Seite (`examples/vorhaben-steckbrief.md`).
-   Ein Lead führt genau ein Vorhaben — für ein zweites ein zweiter Lead.
+   Berichtsticket stehen in einer Wiki-Seite, dem **Vorhaben-Steckbrief**
+   (2.9.1). Ein Lead führt genau ein Vorhaben — für ein zweites ein zweiter Lead.
 
 Zusätzlich zum eigenen Bot-Nutzer braucht er ein ihm zugewiesenes, dauerhaft
 offenes **Berichtsticket** und einen menschlichen Vorgesetzten, **dessen
 GitLab-Kennung im Profil hinterlegt ist** — ohne sie scheitert `assign` in
 genau dem Pfad, der offene Fachfragen an Menschen übergibt.
+
+#### 2.9.1 Der Vorhaben-Steckbrief
+
+Der Lead liest zu Beginn jedes Laufs eine Seite aus seinem Wiki-Gedächtnis
+(`covey/wiki_search` → `covey/wiki_read`) und schreibt Gelerntes dorthin zurück:
+eine Abhängigkeit, die erst beim Aufbereiten auffiel, eine Entscheidung des
+Auftraggebers. Damit bleibt die **Config** generisch — dieselbe Vorlage führt
+jedes Vorhaben, weil sie keines kennt.
+
+Anlegen über die Gedächtnis-Ansicht des Agenten im UI oder als Aufgabe an ihn.
+Seitentitel: `Vorhaben-Steckbrief <Meilenstein-Titel>`.
+
+```markdown
+# Vorhaben-Steckbrief <Meilenstein-Titel>
+
+## Pflicht
+- **Projekt-ID:** <numerische GitLab-Projekt-id, nicht der Pfad>
+- **Meilenstein-Titel:** <exakt wie in GitLab — der Filter matcht wörtlich>
+- **Ziel-Branch:** <Branch, gegen den entwickelt wird>
+- **Frist:** <Datum> — <woraus sie sich ergibt>
+
+## Anforderungen im Original
+- **Pfad im Repository:** <z. B. docs/anforderungen/kriterien.md>
+- **Was maßgeblich ist:** <welches Dokument gewinnt bei Widerspruch zum Ticket-Text>
+
+## Steuerung
+- **WIP-Limit:** <Tickets gleichzeitig je Entwickler; ohne Angabe gilt 1>
+- **Berichtsticket:** Projekt <id> / #<iid> — dorthin schreibt der Lead den
+  Tagesstand. Muss dem Lead zugewiesen und dauerhaft offen sein.
+- **Zuständiger Mensch:** <Name>, GitLab-Kennung <username> — bekommt offene
+  Fragen und den Bericht. Ohne hinterlegte GitLab-Kennung scheitert `assign`.
+
+## Reihenfolge und Abhängigkeiten
+- #<iid> vor #<iid>, #<iid>, … — <Begründung: gemeinsame Grundlage>
+
+## Entscheidungen
+<Was der Auftraggeber festgelegt hat, mit Datum. Der Lead trägt hier jede
+beantwortete Rückfrage ein — sonst stellt er sie beim nächsten Ticket erneut.>
+
+## Offene Fragen
+<Was niemand beantwortet hat, mit Ticket und Wartedauer. Der Tagesbericht
+liest sich von hier.>
+```
+
+Warum diese Felder:
+
+- **Projekt-ID und Meilenstein-Titel** sind der Schnitt des Arbeitsvorrats
+  (`list_issues {"project_id":N,"milestone":"…"}`). Ohne sie greift der Lead
+  entweder nichts oder das ganze Projekt.
+- **Der Pfad zu den Anforderungen** ist der Unterschied zwischen einem Lead, der
+  Tickets sortiert, und einem, der sie implementierbar macht: Ein Ticket-Text ist
+  eine Zusammenfassung, die Abnahmekriterien müssen aus dem Original kommen. Die
+  Dokumente gehören deshalb ins Repository — versioniert und für alle Kollegen
+  lesbar. Stimmt der Pfad nicht, sucht der Lead die Datei einmal per `list_tree`
+  und korrigiert den Steckbrief selbst; findet er sie nicht, **bricht er die
+  Aufbereitung ab** und meldet es einmal im Berichtsticket, statt Kriterien aus
+  Ticket-Titeln zu raten. Ein Vorhaben, das nicht anläuft, ist zuerst hier zu
+  prüfen.
+- **WIP-Limit und Reihenfolge** sind die Bremse gegen den häufigsten Fehler:
+  mehrere Agenten arbeiten gleichzeitig an Tickets, die sich dieselbe Grundlage
+  teilen, und erzeugen widersprüchliche Implementierungen auf einem Branch. Im
+  Zweifel niedriger ansetzen.
+- **Entscheidungen** verhindern, dass eine beantwortete Frage in jedem weiteren
+  Ticket erneut gestellt wird. Der Kommentarverlauf eines einzelnen Tickets ist
+  dafür der falsche Ort — beim nächsten Ticket ist er nicht in Sicht.
 
 ---
 
