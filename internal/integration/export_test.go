@@ -5,6 +5,10 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	"github.com/google/uuid"
+
+	identbuiltin "covey/internal/identity/builtin"
 )
 
 // TestExportImportRoundtrip prüft das Ziel „Config von Bots komplett
@@ -148,6 +152,177 @@ func TestExportImportRoundtrip(t *testing.T) {
 		t.Error("webhook nicht aktiviert")
 	} else if nwebhook["token"] == srcToken {
 		t.Error("webhook-token wurde kopiert statt neu erzeugt")
+	}
+}
+
+// TestBundleSkills prüft die Skills im Bundle: Sie reisen mit vollem Inhalt
+// und Herkunftsvermerk mit, ein Import stellt sie auf der Zielseite wieder her
+// — agent-eigene als eigene, Bibliotheks-Skills in der Bibliothek und dem
+// Agenten verlinkt. Ohne das importierte jemand einen Agenten, dessen
+// Prozeduren fehlen, und merkte es erst im Lauf.
+func TestBundleSkills(t *testing.T) {
+	s := newStack(t)
+	c := login(t, s, "admin@test.local", "admin-passwort")
+
+	src := c.expect(http.MethodPost, "/api/v1/agents",
+		map[string]string{"slug": "skill-quelle", "display_name": "Skill-Quelle", "runtime": "mock"}, http.StatusCreated)
+	sid := src["id"].(string)
+	c.expect(http.MethodPut, "/api/v1/agents/"+sid+"/config", map[string]any{"files": map[string]string{
+		"SOUL.md": "# Skill-Quelle\n\n## Rolle\nTrägt Fähigkeiten.",
+	}}, http.StatusOK)
+
+	// Ein Skill aus der Bibliothek (verlinkt) und einer, der nur ihm gehört.
+	lib := c.expect(http.MethodPost, "/api/v1/skills", map[string]any{
+		"name": "gemeinsam", "description": "Nutze dies, wenn: alle es brauchen",
+		"files": skillFiles(
+			[2]string{"SKILL.md", "# Gemeinsam\n\nSiehe referenz.md.\n"},
+			[2]string{"referenz.md", "Tabelle\n"},
+		),
+	}, http.StatusCreated)
+	libID := lib["id"].(string)
+	c.expect(http.MethodPut, "/api/v1/skills/"+libID+"/agents/"+sid, nil, http.StatusOK)
+	own := c.expect(http.MethodPost, "/api/v1/agents/"+sid+"/skills", map[string]any{
+		"name": "eigen", "description": "Nur für diesen Agenten",
+		"files": skillFiles([2]string{"SKILL.md", "# Eigen\n"}),
+	}, http.StatusCreated)
+	ownID := own["id"].(string)
+
+	// --- Export: beide Skills mit vollem Inhalt und Herkunft. ---
+	resp := c.do(http.MethodGet, "/api/v1/agents/"+sid+"/export", nil)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("export: HTTP %d", resp.StatusCode)
+	}
+	var bundle map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&bundle); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	var exported []struct {
+		Name        string            `json:"name"`
+		Description string            `json:"description"`
+		Origin      string            `json:"origin"`
+		Files       map[string]string `json:"files"`
+	}
+	rawSkills, _ := json.Marshal(bundle["skills"])
+	if err := json.Unmarshal(rawSkills, &exported); err != nil {
+		t.Fatal(err)
+	}
+	if len(exported) != 2 {
+		t.Fatalf("zwei Skills erwartet: %s", rawSkills)
+	}
+	byName := map[string]int{}
+	for i, sk := range exported {
+		byName[sk.Name] = i
+	}
+	if e := exported[byName["eigen"]]; e.Origin != "agent" {
+		t.Fatalf("agent-eigener Skill braucht origin=agent: %+v", e)
+	}
+	g := exported[byName["gemeinsam"]]
+	if g.Origin != "library" || g.Files["referenz.md"] == "" ||
+		!strings.Contains(g.Files["SKILL.md"], "# Gemeinsam") {
+		t.Fatalf("Bibliotheks-Skill unvollständig exportiert: %+v", g)
+	}
+
+	// --- Zielseite ohne diese Skills: löschen simuliert die fremde Instanz. ---
+	c.expect(http.MethodDelete, "/api/v1/skills/"+libID, nil, http.StatusOK)
+	c.expect(http.MethodDelete, "/api/v1/skills/"+ownID, nil, http.StatusOK)
+
+	imported := c.expect(http.MethodPost, "/api/v1/agents/import?slug=skill-ziel", bundle, http.StatusCreated)
+	nid := imported["agent"].(map[string]any)["id"].(string)
+
+	got := getSkillList(t, c, "/api/v1/agents/"+nid+"/skills")
+	if len(got) != 2 {
+		t.Fatalf("importierter Agent braucht beide Skills: %+v", got)
+	}
+	origins := map[string]string{}
+	for _, sk := range got {
+		origins[sk.Name] = sk.Origin
+	}
+	if origins["eigen"] != "agent" || origins["gemeinsam"] != "library" {
+		t.Fatalf("Herkunft nach dem Import falsch: %+v", origins)
+	}
+	// Der Bibliotheks-Skill liegt wieder in der Bibliothek — nicht als Kopie
+	// beim Agenten, sonst wäre er beim nächsten Agenten wieder weg.
+	libNow := getSkillList(t, c, "/api/v1/skills")
+	if len(libNow) != 1 || libNow[0].Name != "gemeinsam" || len(libNow[0].AssignedTo) != 1 {
+		t.Fatalf("Bibliothek nach dem Import: %+v", libNow)
+	}
+
+	// --- Zweiter Import: der Bibliotheks-Skill existiert jetzt. Er wird
+	// verlinkt statt überschrieben (er kann anderen Agenten gehören). ---
+	c.expect(http.MethodPut, "/api/v1/skills/"+libNow[0].ID, map[string]any{
+		"description": "Örtlich angepasste Fassung",
+		"files":       skillFiles([2]string{"SKILL.md", "# Lokal angepasst\n"}),
+	}, http.StatusOK)
+	second := c.expect(http.MethodPost, "/api/v1/agents/import?slug=skill-ziel-2", bundle, http.StatusCreated)
+	warnJSON, _ := json.Marshal(second["warnings"])
+	if !strings.Contains(string(warnJSON), "gemeinsam") {
+		t.Fatalf("Hinweis auf den vorhandenen Bibliotheks-Skill fehlt: %s", warnJSON)
+	}
+	libAfter := getSkillList(t, c, "/api/v1/skills")
+	if len(libAfter) != 1 || libAfter[0].Description != "Örtlich angepasste Fassung" {
+		t.Fatalf("vorhandene Bibliotheks-Fassung darf nicht überschrieben werden: %+v", libAfter)
+	}
+	if len(libAfter[0].AssignedTo) != 2 {
+		t.Fatalf("zweiter Agent muss verlinkt sein: %+v", libAfter[0])
+	}
+
+	// --- Kaputter Skill im Bundle: 400, und kein halb angelegter Agent. ---
+	broken := map[string]any{}
+	rawBundle, _ := json.Marshal(bundle)
+	json.Unmarshal(rawBundle, &broken)
+	broken["skills"] = []map[string]any{{
+		"name": "boese", "description": "d", "origin": "agent",
+		"files": map[string]string{"SKILL.md": "x", "../../.claude/settings.json": "{}"},
+	}}
+	c.expect(http.MethodPost, "/api/v1/agents/import?slug=nie-angelegt", broken, http.StatusBadRequest)
+	agentList := c.do(http.MethodGet, "/api/v1/agents", nil)
+	var all []struct {
+		Slug string `json:"slug"`
+	}
+	json.NewDecoder(agentList.Body).Decode(&all)
+	agentList.Body.Close()
+	for _, a := range all {
+		if a.Slug == "nie-angelegt" {
+			t.Fatal("ein abgelehntes Bundle darf keinen Agenten hinterlassen")
+		}
+	}
+
+	// --- Der Config-Import auf einen bestehenden Agenten zieht Skills nach. ---
+	tgt := c.expect(http.MethodPost, "/api/v1/agents",
+		map[string]string{"slug": "skill-nachzieher", "display_name": "Nachzieher", "runtime": "mock"}, http.StatusCreated)
+	tid := tgt["id"].(string)
+	c.expect(http.MethodPost, "/api/v1/agents/"+tid+"/config/import", bundle, http.StatusOK)
+	pulled := getSkillList(t, c, "/api/v1/agents/"+tid+"/skills")
+	if len(pulled) != 2 {
+		t.Fatalf("Config-Import muss die Skills mitbringen: %+v", pulled)
+	}
+	c.expect(http.MethodPost, "/api/v1/agents/"+tid+"/config/import", broken, http.StatusBadRequest)
+
+	// --- Scheitert die Config an der Rollen-Grenze, dürfen auch die Skills
+	// nicht angelegt worden sein. Ein Fehler muss heißen: nichts passiert. ---
+	hash, _ := identbuiltin.HashPassword("owner-passwort")
+	if _, err := s.pool.Exec(t.Context(), `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
+		VALUES ($1,$2,'owner@test.local','Owner',$3,'agent_owner')`, uuid.New(), s.orgID, hash); err != nil {
+		t.Fatal(err)
+	}
+	owner := login(t, s, "owner@test.local", "owner-passwort")
+
+	unberührt := c.expect(http.MethodPost, "/api/v1/agents",
+		map[string]string{"slug": "rbac-ziel", "display_name": "RBAC-Ziel", "runtime": "mock"}, http.StatusCreated)
+	uid := unberührt["id"].(string)
+
+	// Tool-Allowlists ändert nur platform_admin/security — für den agent_owner
+	// ist dasselbe Bundle ein 403.
+	mitTools := map[string]any{}
+	json.Unmarshal(rawBundle, &mitTools)
+	files := mitTools["files"].(map[string]any)
+	files["ACCESS.md"] = "- system: zammad   scope: read,write   tools: reply, close"
+	owner.expect(http.MethodPost, "/api/v1/agents/"+uid+"/config/import", mitTools, http.StatusForbidden)
+
+	if got := getSkillList(t, c, "/api/v1/agents/"+uid+"/skills"); len(got) != 0 {
+		t.Fatalf("ein an der RBAC gescheiterter Import darf keine Skills hinterlassen: %+v", got)
 	}
 }
 

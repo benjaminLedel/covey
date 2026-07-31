@@ -58,11 +58,28 @@ Das Verhalten eines Agenten ist als Satz von Markdown-Dateien in Git definiert �
 | `EGRESS.md` | Egress-Konfiguration des Agenten: zugewiesene Templates + eigene Hosts. |
 | `HEARTBEAT.md` | Wiederkehrende Aufgaben nach Zeitplan (Intervall oder feste Tageszeit) — die Control Plane legt sie automatisch ins Backlog, siehe [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md). |
 
-Die genaue Dateiliste ist bewusst erweiterbar — weitere sinnvolle MD-Dateien (z. B. `TONE.md`, `ESCALATION.md`) können hinzukommen. Kernregel: **`ACCESS.md` enthält Referenzen, keine Geheimnisse.**
+Die genaue Dateiliste ist bewusst erweiterbar — weitere sinnvolle MD-Dateien (z. B. `TONE.md`, `ESCALATION.md`) können hinzukommen. Kernregel: **`ACCESS.md` enthält Referenzen, keine Geheimnisse.** Neben diesen Dateien, die jeder Lauf vollständig mitträgt, gibt es **Skills** für Prozeduren, die nur bei Bedarf laden (siehe unten).
 
 `ACCESS.md` und `EGRESS.md` sind die **Text-Sicht auf Zustand, der auch über die Oberfläche gepflegt wird** (Reiter *Tools* bzw. *Egress*). Damit Text- und UI-Config nie divergieren, gibt es jede Datei genau einmal und beide Richtungen schreiben denselben Store: Lesen rendert die Datei live aus der Datenbank, Speichern parst sie und wendet sie an (Write-Through). Text-Edits an Tools/Egress unterliegen derselben RBAC wie die Reiter (nur `platform_admin`/`security`); in den System-Prompt kompiliert werden beide Dateien nicht.
 
 Auch `HEARTBEAT.md` ist Plattform-Config, kein Prompt-Material: Sie wird beim Speichern geparst und materialisiert (Tabelle `agent_heartbeats`), die Aufgabe selbst erreicht den Agenten als reguläre Backlog-Aufgabe. Format und Zeitplan-Semantik stehen in [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md).
+
+### Skills: Fähigkeiten, die erst bei Bedarf laden
+
+Alle oben genannten Prompt-Dateien stehen in **jedem** Lauf vollständig im System-Prompt. Für Identität und Grenzen ist das richtig — sie gelten immer. Für Prozeduren ist es Verschwendung: Ein Agent mit fünf Playbooks zahlt alle fünf auch dann, wenn der Lauf nach drei Turns feststellt, dass nichts zu tun ist.
+
+Ein **Skill** kehrt das um. Er ist ein Verzeichnis mit einer `SKILL.md` und beliebigem Beiwerk (Referenztabellen, Vorlagen, Checklisten). Dauerhaft im Kontext steht nur seine **Beschreibung** — ein Satz, der sagt, *wann* der Skill zu ziehen ist; Rumpf und Zusatzdateien liest die Runtime erst, wenn sie ihn zieht. Der Daemon materialisiert die Skills eines Agenten vor jedem Lauf nach `<home>/.claude/skills/<name>/`; weil der Lauf mit `HOME=<Agenten-Home>` startet, sind es damit die **persönlichen Skills genau dieses Agenten**, ohne dass am Prompt etwas geändert werden müsste.
+
+Zwei Ebenen, dem Secrets-Modell nachgebaut ([`04-identitaet-secrets.md`](04-identitaet-secrets.md)):
+
+- **Agent-eigene Skills** gehören genau einem Agenten.
+- **Skills der Org-Bibliothek** stehen allen zur Verfügung, erreichen aber **nur nach ausdrücklicher Verlinkung** einen Agenten. Diese Opt-in-Regel ist hier nicht nur Least Privilege, sondern auch eine Kostenfrage: Jede verfügbare Beschreibung liegt dauerhaft im Kontext jedes Laufs, und ein Recherche-Agent braucht die Deploy-Checkliste nicht.
+
+Bei Namensgleichheit gewinnt der agent-eigene Skill — sonst überschriebe eine Änderung an der Bibliothek eine bewusste lokale Abweichung, und auf Platte könnten zwei Skills nicht in dasselbe Verzeichnis. Der Name ist zugleich Verzeichnisname und `/slash-command` und deshalb unveränderlich; Umbenennen hieße, Verweise aus Playbooks und anderen Skills still ins Leere laufen zu lassen.
+
+Skills sind **zentral verwaltete Config**, kein Gedächtnis: Es gibt keinen Rückweg aus der Sandbox. Ein Lauf, der sich selbst neue Fähigkeiten schreiben könnte, hebelte die Kontrolle aus, die das Feature erst rechtfertigt. Umgekehrt räumt der Daemon entzogene Skills beim nächsten Lauf ab — das Home überlebt den Lauf, ein gelöschter oder abgehängter Skill bliebe sonst für immer wirksam.
+
+Faustregel für den Schnitt: In `PLAYBOOKS.md` bleibt der Standardablauf, den fast jeder Lauf braucht. In einen Skill wandert, was selten greift, aber dann ausführlich ist.
 
 ### Was zur Config gehört — und was zum Binary
 
@@ -79,11 +96,13 @@ Praktische Folge für den Betrieb: **Ein Deploy rollt Plattform-Änderungen selb
 
 ### Export & Import
 
-Die komplette Konfiguration eines Agenten ist als **JSON-Bundle** portabel (`GET /api/v1/agents/{id}/export`, `POST /api/v1/agents/import`, in der UI als *Export*-Button am Agenten und *Import* auf der Agenten-Übersicht). Das Bundle (`kind: covey.agent-config`, versioniert) umfasst Stammdaten (Runtime, Modell, Turn-Limit, Budget, Vorgesetzter per E-Mail), alle Config-Dateien inklusive der live gerenderten `ACCESS.md`/`EGRESS.md`, Board-Spalten, agent-scoped Guard-Rails, die zugewiesenen Egress-Templates **samt Definition** (fehlende legt der Import an) und die **Namen** zugewiesener Secrets.
+Die komplette Konfiguration eines Agenten ist als **JSON-Bundle** portabel (`GET /api/v1/agents/{id}/export`, `POST /api/v1/agents/import`, in der UI als *Export*-Button am Agenten und *Import* auf der Agenten-Übersicht). Das Bundle (`kind: covey.agent-config`, versioniert) umfasst Stammdaten (Runtime, Modell, Turn-Limit, Budget, Vorgesetzter per E-Mail), alle Config-Dateien inklusive der live gerenderten `ACCESS.md`/`EGRESS.md`, Board-Spalten, agent-scoped Guard-Rails, die zugewiesenen Egress-Templates **samt Definition** (fehlende legt der Import an), die **Skills** des Agenten mit vollem Inhalt und Herkunftsvermerk (`origin: agent|library`) und die **Namen** zugewiesener Secrets.
+
+Skills reisen bewusst vollständig mit: Anders als bei Secrets gibt es an ihnen nichts Geheimes, und ein Bundle, das nur Namen nennte, ergäbe beim Import einen Agenten ohne seine Prozeduren — was nicht beim Import auffiele, sondern erst im Lauf. Beim Import gilt dieselbe Trennung der beiden Ebenen: Agent-eigene Skills legt er an, bei Bibliotheks-Skills verlinkt er eine **bereits vorhandene gleichnamige Fassung** statt sie zu überschreiben (sie kann anderen Agenten gehören) und meldet das als Warnung.
 
 Grenzen bleiben dabei erhalten: **Secret-Werte und Webhook-Tokens verlassen die Plattform nie** — der Import weist vorhandene Org-Secrets per Name neu zu, meldet fehlende als Warnung und erzeugt bei aktiviertem Webhook ein frisches Token. Der Import legt stets einen **neuen** Agenten an (Slug-Kollision → `409`, `?slug=` überschreibt) und unterliegt derselben RBAC wie die Einzel-Endpunkte: Bundles mit Guard-Rails, Egress oder Tool-Allowlists importiert nur `platform_admin`/`security` (fail-closed).
 
-Neben dem Neu-Anlegen gibt es das **Überschreiben eines bestehenden Agenten aus einem Bundle**, das **nur die Config-Dateien** übernimmt (`POST /api/v1/agents/{id}/config/import`, in der UI der Button *Bundle importieren (nur Config)* am Config-Tab). Alles andere im Bundle — Stammdaten, Board-Spalten, Guard-Rails, Egress-Templates, Secret-Zuordnungen — wird ignoriert; der Ziel-Agent behält Identität, Secrets und Zuweisungen. Speicher- und Write-Through-Pfad sind identisch zu `PUT /config` (neue Config-Version, dieselbe Security-Rollen-Grenze für Tool-Allowlists/Egress). So verteilt man eine gemeinsame Basis-Config auf mehrere bestehende Agenten, ohne sie neu anzulegen.
+Neben dem Neu-Anlegen gibt es das **Überschreiben eines bestehenden Agenten aus einem Bundle**, das **die Config-Dateien und die Skills** übernimmt (`POST /api/v1/agents/{id}/config/import`, in der UI der Button *Bundle importieren (nur Config)* am Config-Tab). Die Skills gehören dazu, seit Prozeduren aus `PLAYBOOKS.md` dorthin wandern — eine reine Datei-Übernahme wäre sonst ein halber Import; sie wirkt additiv, vorhandene Skills, die das Bundle nicht kennt, bleiben stehen. Alles andere im Bundle — Stammdaten, Board-Spalten, Guard-Rails, Egress-Templates, Secret-Zuordnungen — wird ignoriert; der Ziel-Agent behält Identität, Secrets und Zuweisungen. Speicher- und Write-Through-Pfad sind identisch zu `PUT /config` (neue Config-Version, dieselbe Security-Rollen-Grenze für Tool-Allowlists/Egress). So verteilt man eine gemeinsame Basis-Config auf mehrere bestehende Agenten, ohne sie neu anzulegen.
 
 ### Beispiel: `SOUL.md` (Skizze)
 
