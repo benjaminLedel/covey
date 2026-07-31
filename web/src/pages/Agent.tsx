@@ -2534,7 +2534,14 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
           >
             {kids.length > 0 && !child ? (isOpen ? "▾" : "▸") : "·"}
           </button>
-          <button type="button" className="lbl" title={wikiPreview(p.content)} onClick={() => setSelected(p.slug)}>
+          {/* Der Tooltip zeigte nur den Inhalt — bei einem abgeschnittenen Titel
+              ist aber der Titel das, was fehlt. Erst er, dann der Auszug. */}
+          <button
+            type="button"
+            className="lbl"
+            title={[p.title || p.slug, wikiPreview(p.content)].filter(Boolean).join("\n\n")}
+            onClick={() => setSelected(p.slug)}
+          >
             {p.title || p.slug}
           </button>
           {/* Nach Relevanz sortiert steht dort der Grad — eine Reihenfolge ohne
