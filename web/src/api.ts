@@ -462,6 +462,8 @@ export type Dream = {
   phase?: string;
   looked_at: number;
   skipped: number;
+  // Traumerzählung — Zierrat neben dem Protokoll, nicht an dessen Stelle.
+  story?: string;
   started_at: string;
   finished_at?: string;
   actions: DreamAction[];

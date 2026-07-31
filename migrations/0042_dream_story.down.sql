@@ -1,0 +1,1 @@
+ALTER TABLE dreams DROP COLUMN IF EXISTS story;

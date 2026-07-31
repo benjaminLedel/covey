@@ -2415,6 +2415,16 @@ function Dreams({ agentId, canManage }: { agentId: string; canManage: boolean })
               )}
             </div>
             {d.status === "error" && d.error && <p className="danger-text text-xs">{d.error}</p>}
+            {/* Die Erzählung ist erfunden — das Protokoll darunter ist es nicht.
+                Deshalb sichtbar abgesetzt und als Traum ausgewiesen. */}
+            {d.story && (
+              <p className="dream-story">
+                <span className="mark" aria-hidden="true">
+                  ☾
+                </span>
+                {d.story}
+              </p>
+            )}
             {isOpen &&
               renames.map((a) => (
                 <div key={a.id} className="wiki-title-row">

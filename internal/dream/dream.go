@@ -73,13 +73,16 @@ type Action struct {
 
 // Dream ist ein Traum samt seiner Handlungen.
 type Dream struct {
-	ID         uuid.UUID  `json:"id"`
-	AgentID    uuid.UUID  `json:"agent_id"`
-	Trigger    string     `json:"trigger"` // manual | nightly
-	Status     string     `json:"status"`  // running | done | error
-	Error      string     `json:"error,omitempty"`
-	Phase      string     `json:"phase,omitempty"`
-	LookedAt   int        `json:"looked_at"`
+	ID       uuid.UUID `json:"id"`
+	AgentID  uuid.UUID `json:"agent_id"`
+	Trigger  string    `json:"trigger"` // manual | nightly
+	Status   string    `json:"status"`  // running | done | error
+	Error    string    `json:"error,omitempty"`
+	Phase    string    `json:"phase,omitempty"`
+	LookedAt int       `json:"looked_at"`
+	// Story ist die Traumerzählung — Zierrat, kein Protokoll. Leer, wenn der
+	// Traum nichts getan hat.
+	Story      string     `json:"story,omitempty"`
 	Skipped    int        `json:"skipped"`
 	StartedAt  time.Time  `json:"started_at"`
 	FinishedAt *time.Time `json:"finished_at,omitempty"`
@@ -156,7 +159,7 @@ func (s *Store) List(ctx context.Context, agentID uuid.UUID, limit int) ([]Dream
 		limit = 30
 	}
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, agent_id, trigger, status, error, phase, looked_at, skipped, started_at, finished_at
+		`SELECT id, agent_id, trigger, status, error, phase, looked_at, skipped, story, started_at, finished_at
 		 FROM dreams WHERE agent_id=$1 ORDER BY started_at DESC LIMIT $2`, agentID, limit)
 	if err != nil {
 		return nil, err
@@ -167,7 +170,7 @@ func (s *Store) List(ctx context.Context, agentID uuid.UUID, limit int) ([]Dream
 	for rows.Next() {
 		var d Dream
 		if err := rows.Scan(&d.ID, &d.AgentID, &d.Trigger, &d.Status, &d.Error, &d.Phase,
-			&d.LookedAt, &d.Skipped, &d.StartedAt, &d.FinishedAt); err != nil {
+			&d.LookedAt, &d.Skipped, &d.Story, &d.StartedAt, &d.FinishedAt); err != nil {
 			return nil, err
 		}
 		d.Actions = []Action{}
@@ -343,8 +346,82 @@ func (s *Store) Run(ctx context.Context, d Dream, cred Credential) {
 		s.addAction(ctx, d.ID, Action{Kind: "retitle", PageSlug: pr.Slug,
 			Before: page.Title, After: pr.Title, Reason: pr.Reason})
 	}
+	// 3. Erzählen, wovon er geträumt hat — nur wenn es etwas zu erzählen gibt.
+	if len(items) > 0 || merged > 0 {
+		if story := s.tellStory(ctx, cred, merged, items, bySlug); story != "" {
+			_, _ = s.pool.Exec(ctx, `UPDATE dreams SET story=$2 WHERE id=$1`, d.ID, story)
+		}
+	}
 	s.finish(ctx, d.ID, "done", "")
 }
+
+// tellStory lässt das Modell in zwei, drei Sätzen erzählen, wovon der Agent
+// geträumt hat. Reiner Zierrat: schlägt der Aufruf fehl, bleibt die Erzählung
+// leer und der Traum gilt trotzdem als gelungen — an einer Geschichte darf die
+// Gedächtnispflege nicht scheitern.
+func (s *Store) tellStory(ctx context.Context, cred Credential, merged int, items []retitleItem, bySlug map[string]memory.Entry) string {
+	var b strings.Builder
+	b.WriteString("Was in dieser Nacht geschah:\n\n")
+	if merged > 0 {
+		b.WriteString(fmt.Sprintf("- %d Seitenpaar(e) verschmolzen, weil sie dasselbe sagten\n", merged))
+	}
+	for _, it := range items {
+		b.WriteString("- umbenannt: \"" + bySlug[it.Slug].Title + "\" → \"" + it.Title + "\"\n")
+	}
+	raw, err := claudeapi.Messages(ctx, cred.Value, cred.OAuth,
+		claudeapi.Call{Model: Model, MaxTokens: storyMaxTokens, Effort: Effort},
+		storySystem, []claudeapi.Message{{Role: "user", Content: b.String()}})
+	if err != nil {
+		s.log.Info("traum: erzählung nicht möglich", "err", err)
+		return ""
+	}
+	return clampStory(strings.TrimSpace(raw))
+}
+
+// storyMaxChars ist die Notbremse, falls ein Modell die Satzvorgabe großzügig
+// auslegt. Bewusst weit über dem, was fünf Sätze brauchen: gekürzt wird der
+// Ausreißer, nicht der Normalfall. Eine Erzählung, die mitten im Satz endet,
+// liest sich wie ein Absturz — genau daran ist die erste Fassung gescheitert.
+const storyMaxChars = 1400
+
+// clampStory kürzt am letzten Satzende vor der Grenze. Ein Punkt zählt nur,
+// wenn ein Leerzeichen folgt: sonst schneidet die Kürzung mitten durch
+// Bezeichner mit Punkt (Benutzernamen wie "vorname.nachname", Dateinamen,
+// Versionsnummern) — beim ersten Lauf passiert, und es las sich wie ein
+// Absturz.
+func clampStory(story string) string {
+	r := []rune(story)
+	if len(r) <= storyMaxChars {
+		return story
+	}
+	cut := r[:storyMaxChars]
+	end := -1
+	for i := 0; i < len(cut)-1; i++ {
+		if strings.ContainsRune(".!?", cut[i]) && (cut[i+1] == ' ' || cut[i+1] == '\n') {
+			end = i
+		}
+	}
+	if end > 200 {
+		return strings.TrimSpace(string(cut[:end+1]))
+	}
+	return strings.TrimSpace(string(cut)) + " …"
+}
+
+// storyMaxTokens: ein kurzer Absatz. Der Deckel gilt ab Opus 5 für Denken und
+// Antwort gemeinsam, deshalb nicht zu knapp.
+const storyMaxTokens = 3000
+
+const storySystem = `Ein KI-Agent hat im Schlaf sein Gedächtnis aufgeräumt. Du erzählst, wovon er dabei geträumt hat.
+
+Drei bis fünf Sätze, in der Sprache der genannten Titel. Erzähle den Aufräumvorgang als Traumbild: verschmolzene Seiten sind Gestalten, die zu einer werden; ein umbenannter Titel ist etwas, das seinen wahren Namen wiederfindet. Nimm die konkreten Inhalte auf — die Projekte, Systeme und Dinge, um die es in den Titeln geht.
+
+Regeln:
+- Erfinde keine Ereignisse, die nicht in der Liste stehen. Bilder ja, Behauptungen nein.
+- Kein Protokollton ("Ich habe … umbenannt"), keine Aufzählung, keine Überschrift.
+- Kein Vorwort, keine Anführungszeichen um das Ganze, keine Emojis.
+- Schreib in der dritten Person über den Träumenden oder in der ersten Person aus seiner Sicht — such dir eins aus und bleib dabei.
+
+Antworte nur mit der Erzählung.`
 
 const retitleSystem = `Du räumst die Titel eines Agenten-Wikis auf.
 

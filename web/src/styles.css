@@ -970,7 +970,7 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   cursor: pointer;
   /* Zwei Zeilen statt einer: die Agenten schreiben lange, satzartige Titel,
      und eine einzeilige Ellipse schneidet genau die Unterscheidung weg
-     ("educa-ai-web (148): Review" vs. "… : Merge"). Kurze Titel bleiben
+     ("Projekt X (148): Review" vs. "… : Merge-Konflikt"). Kurze Titel bleiben
      einzeilig, die Liste wird also nur dort höher, wo es nötig ist. */
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -3395,3 +3395,21 @@ kbd {
   line-height: 1.5;
 }
 .tgt-tools li:last-child { border-bottom: none; }
+
+/* Traumerzählung: bewusst anders gesetzt als alles andere in der Karte —
+   kursiv, eingerückt, mit Mond. Wer sie liest, soll sofort wissen, dass hier
+   erzählt und nicht protokolliert wird. */
+.dream-story {
+  display: flex;
+  gap: 8px;
+  margin: 2px 0 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--surface-1);
+  font-family: var(--voice);
+  font-style: italic;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.dream-story .mark { flex: none; font-style: normal; opacity: 0.5; }
