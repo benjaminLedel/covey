@@ -25,6 +25,7 @@ const (
 	TypeInjectTarget      = "inject_target"
 	TypeInjectOrgChart    = "inject_org_chart"
 	TypeInjectWiki        = "inject_wiki"
+	TypeInjectSkills      = "inject_skills"
 	TypeKill              = "kill"
 	TypeSleep             = "sleep"
 )
@@ -44,6 +45,7 @@ const (
 	TypeSetStage          = "set_stage"
 	TypeNote              = "note"
 	TypeRequestWiki       = "request_wiki"
+	TypeRequestSkills     = "request_skills"
 	TypeRequestCreateTask = "request_create_task"
 )
 
@@ -230,6 +232,32 @@ type InjectWiki struct {
 	OK        bool            `json:"ok"`
 	Error     string          `json:"error,omitempty"`
 	Data      json.RawMessage `json:"data,omitempty"`
+}
+
+// RequestSkills/InjectSkills holen die Skills eines Agenten zum Materialisieren
+// ins Home. Anders als beim Wiki gibt es keinen Rückweg: Skills sind Config aus
+// der Control Plane (Bibliothek oder agent-eigen), der Agent bearbeitet sie
+// nicht — ein Lauf, der sich selbst neue Fähigkeiten schreibt, wäre kein
+// Feature, sondern der Verlust der zentralen Kontrolle.
+type RequestSkills struct {
+	RequestID string `json:"request_id"`
+}
+
+// SkillDir ist ein Skill als Verzeichnis: Name, Beschreibung und die Dateien
+// relativ dazu. Die SKILL.md kommt OHNE Frontmatter — den erzeugt der Daemon
+// beim Schreiben aus Name und Beschreibung, damit beides nur an einer Stelle
+// gepflegt wird.
+type SkillDir struct {
+	Name        string            `json:"name"`
+	Description string            `json:"description"`
+	Files       map[string]string `json:"files"`
+}
+
+type InjectSkills struct {
+	RequestID string     `json:"request_id"`
+	OK        bool       `json:"ok"`
+	Error     string     `json:"error,omitempty"`
+	Skills    []SkillDir `json:"skills"`
 }
 
 // RequestCreateTask/InjectCreateTask sind die Meta-Aktion covey/create_task:
