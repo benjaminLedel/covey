@@ -302,7 +302,7 @@ Abnahmekriterien kommentieren, betroffene Stellen per `list_tree`/`read_file`
 benennen), hält abhängige Tickets zurück, bis ihre Grundlage gemergt ist, und
 vergibt Arbeit nach einem WIP-Limit.
 
-Drei Dinge unterscheiden sein Setup von dem der anderen:
+Vier Dinge unterscheiden sein Setup von dem der anderen:
 
 1. **Die Entwickler-Agenten müssen auf `nur-wenn: gitlab:issues:assigned`
    stehen** (so ist die Vorlage geschnitten). Greifen sie frei nach offenen
@@ -318,6 +318,15 @@ Drei Dinge unterscheiden sein Setup von dem der anderen:
    Ziel-Branch, Frist, Anforderungspfad, WIP-Limit, Abhängigkeiten und
    Berichtsticket stehen in einer Wiki-Seite, dem **Vorhaben-Steckbrief**
    (2.9.1). Ein Lead führt genau ein Vorhaben — für ein zweites ein zweiter Lead.
+4. **Sein Handwerk steckt in Skills, nicht in `PLAYBOOKS.md`.** Die vier
+   Abläufe — `ruecklaeufer`, `arbeit-vergeben`, `ticket-aufbereiten`,
+   `tagesbericht` — liegen als Skills am Agenten (Reiter *Skills*); im Playbook
+   steht nur, in welcher Reihenfolge sie drankommen. Der Grund ist die
+   Prompt-Rechnung: Die Config steht in JEDEM Lauf im Prompt, und der Lead läuft
+   alle 30 Minuten, meist ohne etwas zu finden. So kostet ein leerer Lauf rund
+   3.000 statt 5.100 Token, und der volle Text eines Ablaufs wird nur gelesen,
+   wenn er gebraucht wird. Wer die Abläufe anpasst, tut das also im Skill —
+   `PLAYBOOKS.md` ändert nur, wer die Reihenfolge ändern will.
 
 Zusätzlich zum eigenen Bot-Nutzer braucht er ein ihm zugewiesenes, dauerhaft
 offenes **Berichtsticket** und einen menschlichen Vorgesetzten, **dessen
