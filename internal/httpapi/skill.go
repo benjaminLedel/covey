@@ -7,7 +7,10 @@ import (
 	"net/http"
 	"strings"
 
-	"covey/skills"
+	// Alias, weil in diesem Paket auch covey/internal/skills vorkommt (die
+	// Fähigkeiten der Agenten, siehe agentskills.go) — das hier sind die
+	// mitgelieferten Claude-Code-Skills für Menschen.
+	embedskills "covey/skills"
 )
 
 // handleDownloadSkill liefert einen mitgelieferten Claude-Code-Skill als ZIP —
@@ -41,11 +44,11 @@ func (s *Server) handleDownloadSkill(w http.ResponseWriter, r *http.Request) {
 	zw := zip.NewWriter(w)
 	defer zw.Close()
 
-	err := fs.WalkDir(skills.FS, skillDir, func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(embedskills.FS, skillDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return err
 		}
-		data, err := skills.FS.ReadFile(path)
+		data, err := embedskills.FS.ReadFile(path)
 		if err != nil {
 			return err
 		}

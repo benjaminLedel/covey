@@ -163,6 +163,13 @@ func (c *Client) Run(ctx context.Context) error {
 			c.log.Warn("unlesbare nachricht", "err", err)
 			continue
 		}
+		// Antworten auf eigene Anfragen zuerst: Sie tragen die request_id des
+		// wartenden Aufrufers und gehen an dessen Kanal. Ohne request_id ist
+		// derselbe Nachrichtentyp ein proaktiver Push (inject_credentials) und
+		// fällt in den switch durch.
+		if c.deliverIfResponse(msg) {
+			continue
+		}
 		switch msg.Type {
 		case TypeInjectConfig:
 			cfg, err := DecodePayload[InjectConfig](msg)
@@ -173,48 +180,15 @@ func (c *Client) Run(ctx context.Context) error {
 			c.cfg = cfg
 			c.mu.Unlock()
 		case TypeInjectCredentials:
+			// Ohne request_id ist das kein Antwort-Frame, sondern ein
+			// proaktiver Push (z. B. anthropic-Key) → nur im RAM cachen.
 			cred, err := DecodePayload[InjectCredentials](msg)
 			if err != nil {
 				continue
 			}
-			if cred.RequestID != "" {
-				c.route(cred.RequestID, msg)
-				continue
-			}
-			// Proaktiv gepusht (z. B. anthropic-Key) → nur im RAM cachen.
 			c.mu.Lock()
 			c.creds[cred.System] = cred
 			c.mu.Unlock()
-		case TypeApprovalDecision:
-			dec, err := DecodePayload[ApprovalDecision](msg)
-			if err != nil {
-				continue
-			}
-			c.route(dec.RequestID, msg)
-		case TypeInjectTarget:
-			inj, err := DecodePayload[InjectTarget](msg)
-			if err != nil {
-				continue
-			}
-			c.route(inj.RequestID, msg)
-		case TypeInjectOrgChart:
-			inj, err := DecodePayload[InjectOrgChart](msg)
-			if err != nil {
-				continue
-			}
-			c.route(inj.RequestID, msg)
-		case TypeInjectWiki:
-			inj, err := DecodePayload[InjectWiki](msg)
-			if err != nil {
-				continue
-			}
-			c.route(inj.RequestID, msg)
-		case TypeInjectCreateTask:
-			inj, err := DecodePayload[InjectCreateTask](msg)
-			if err != nil {
-				continue
-			}
-			c.route(inj.RequestID, msg)
 		case TypeAssignTask:
 			task, err := DecodePayload[AssignTask](msg)
 			if err != nil {
@@ -232,6 +206,62 @@ func (c *Client) Run(ctx context.Context) error {
 			return nil
 		}
 	}
+}
+
+// routedInjectTypes sind die Nachrichtentypen, mit denen die Control Plane eine
+// ANFRAGE des Daemons beantwortet. Diese Map ist das Routing — sie ersetzt die
+// früheren, zeichengleichen switch-Zweige je Typ.
+//
+// Warum als Liste und nicht als Zweige: Wer einen neuen Antworttyp einführt und
+// ihn hier vergisst, dessen Aufrufer bekommt nie eine Antwort und läuft in
+// seinen Timeout. Sitzt die Anfrage im kritischen Pfad vor dem Lauf, steht
+// danach die ganze Aufgabe — und der Fehler sieht aus wie ein Timeout
+// irgendwo anders. Genau so ist inject_skills beim Einbau durchgerutscht und
+// hat jeden Integrationstest in einen 15-Sekunden-Timeout laufen lassen.
+var routedInjectTypes = map[string]bool{
+	TypeInjectCredentials: true, // auch proaktiv gepusht — dann ohne request_id
+	TypeApprovalDecision:  true,
+	TypeInjectTarget:      true,
+	TypeInjectOrgChart:    true,
+	TypeInjectWiki:        true,
+	TypeInjectSkills:      true,
+	TypeInjectCreateTask:  true,
+}
+
+// deliverIfResponse stellt eine Antwort auf eine eigene Anfrage an ihren
+// wartenden Aufrufer zu und sagt, ob die Nachricht damit erledigt ist.
+//
+// Eigene Funktion statt einer Bedingung mitten in der Lese-Schleife, damit die
+// Zustellung ohne WebSocket prüfbar ist: Der Fehler, gegen den sie abgesichert
+// ist (ein Antworttyp fehlt im Routing, der Aufrufer läuft in seinen Timeout),
+// fällt sonst erst in einem Integrationstest auf — nach 15 Sekunden Warten.
+func (c *Client) deliverIfResponse(msg Message) bool {
+	if !routedInjectTypes[msg.Type] {
+		return false
+	}
+	id := requestIDOf(msg)
+	if id == "" {
+		// Ohne request_id ist derselbe Typ ein proaktiver Push
+		// (inject_credentials) und gehört in den switch der Lese-Schleife.
+		return false
+	}
+	c.route(id, msg)
+	return true
+}
+
+// requestIDOf liest die Korrelations-ID aus einem beliebigen Antwort-Payload.
+// Bewusst über ein Minimal-Struct statt über den konkreten Typ: Das Routing
+// braucht nur dieses eine Feld, und so kostet ein neuer Antworttyp genau einen
+// Eintrag in routedInjectTypes statt einen weiteren Decode-Zweig.
+func requestIDOf(msg Message) string {
+	var probe struct {
+		RequestID string `json:"request_id"`
+	}
+	if len(msg.Payload) == 0 {
+		return ""
+	}
+	_ = json.Unmarshal(msg.Payload, &probe)
+	return probe.RequestID
 }
 
 func (c *Client) route(requestID string, msg Message) {
@@ -448,6 +478,10 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 	// Wiki-Arbeitskopie ins Home materialisieren (spec/05), damit der Agent es
 	// mit normalen Datei-Tools lesen/bearbeiten kann.
 	wikiSnap := c.materializeWiki(runCtx)
+	// Skills ins Home materialisieren: Die Runtime findet sie unter
+	// ~/.claude/skills/ und lädt ihren Rumpf erst, wenn einer zieht. Muss VOR
+	// dem Lauf passieren — danach wäre es wirkungslos.
+	c.materializeSkills(runCtx)
 
 	res, err := runtime.Run(runCtx, spec, func(kind string, payload json.RawMessage) {
 		_ = c.send(TypeEvent, Event{TaskID: task.TaskID, Kind: kind, Payload: payload})
