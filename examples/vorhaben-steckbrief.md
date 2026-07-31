@@ -5,8 +5,14 @@ in seiner Config. Alles, was ihn an ein konkretes Vorhaben bindet, steht in eine
 **Wiki-Seite** — die liest er zu Beginn jedes Laufs (`covey/wiki_search` →
 `covey/wiki_read`) und schreibt Gelerntes dorthin zurück.
 
-Damit ist ein zweites Vorhaben eine zweite Wiki-Seite, kein zweiter Agent. Führt
-ein Lead mehrere Vorhaben, unterscheidet er sie am Meilenstein-Titel.
+Damit bleibt die **Config** generisch: Dieselbe Vorlage führt jedes Vorhaben,
+weil sie keines kennt.
+
+**Ein Lead führt aber genau ein Vorhaben.** Seine Heartbeats nennen keinen
+Meilenstein — er könnte zwei Steckbriefe gar nicht auseinanderhalten und würde
+im Zweifel den falschen nehmen. Ein zweites Vorhaben bekommt deshalb einen
+zweiten Lead aus derselben Vorlage, mit eigener Wiki-Seite und eigenem
+GitLab-Bot-Nutzer.
 
 **Anlegen:** als Aufgabe an den Lead („Lege den Steckbrief für <Meilenstein> an:
 …"), oder direkt über die Gedächtnis-Ansicht des Agenten im UI. Titel der Seite:
