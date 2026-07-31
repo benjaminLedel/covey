@@ -439,26 +439,32 @@ export type WikiHealth = {
   findings: WikiFinding[];
 };
 
-// Ein Titel-Vorschlag des Wartungs-Passes. Der Server schreibt ihn nicht —
-// übernommen wird er erst, wenn ein Mensch ihn bestätigt (spec/05).
-export type WikiRetitleProposal = {
-  slug: string;
-  old: string;
-  title: string;
+// Was ein Agent im Traum mit einer Seite gemacht hat (spec/05). `before` trägt
+// den Zustand davor — daran hängt das Rückgängigmachen.
+export type DreamAction = {
+  id: string;
+  kind: "retitle" | "merge";
+  page_slug?: string;
+  before?: string;
+  after?: string;
   reason?: string;
+  undone_at?: string;
 };
 
-// Ein Wartungslauf. Er lebt in der Control Plane, nicht im Tab: ein Reload
-// verliert weder den Fortschritt noch gibt er den Knopf wieder frei.
-export type WikiMaintainRun = {
-  status: "idle" | "running" | "done" | "error";
-  phase: "merge" | "titles" | "";
-  merged: number;
-  checked: number; // Seiten mit Tagebuch-Titel
-  skipped: number; // über den Deckel eines Durchlaufs hinaus
-  proposals: WikiRetitleProposal[];
+// Ein Traum: der nächtliche (oder von Hand angestoßene) Aufräumlauf des
+// Gedächtnisses, samt allem, was er getan hat.
+export type Dream = {
+  id: string;
+  agent_id: string;
+  trigger: "manual" | "nightly";
+  status: "running" | "done" | "error";
   error?: string;
+  phase?: string;
+  looked_at: number;
+  skipped: number;
   started_at: string;
+  finished_at?: string;
+  actions: DreamAction[];
 };
 
 // Ein Eintrag des Wiki-Protokolls (log.md-Äquivalent, spec/05).

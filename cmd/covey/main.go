@@ -24,8 +24,10 @@ import (
 	"covey/internal/agents"
 	"covey/internal/backlog"
 	"covey/internal/buildinfo"
+	"covey/internal/claudeapi"
 	"covey/internal/config"
 	"covey/internal/db"
+	"covey/internal/dream"
 	"covey/internal/egress"
 	"covey/internal/guardrails"
 	"covey/internal/httpapi"
@@ -585,6 +587,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	}
 	mem := memory.NewStore(pool, embedder)
 	startReembed(ctx, mem, log)
+	dreams := dream.NewStore(pool, mem, log)
 	targets := targetstore.NewStore(pool)
 	egressStore := egress.NewStore(pool)
 	templateStore := templates.NewStore(pool)
@@ -658,7 +661,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	}
 	srv := &httpapi.Server{
 		Pool: pool, Registry: registry, Backlog: backlogStore, Obs: obs,
-		Rails: rails, Secrets: secretStore, Identity: idp, Memory: mem,
+		Rails: rails, Secrets: secretStore, Identity: idp, Memory: mem, Dreams: dreams,
 		Org: org.NewStore(pool), Targets: targets, Templates: templateStore,
 		Orch: orch, WebFS: dist, Log: log,
 		WebhookSecrets: cfg.WebhookSecrets,
@@ -678,6 +681,20 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			log.Error("orchestrator", "err", err)
 		}
 	}()
+
+	// Nachtruhe der Agenten: einmal je Nacht räumt jeder sein Wiki auf. Das
+	// Credential kommt je Agent aus der Organisation — ohne eines wird nicht
+	// geträumt, still und ohne Fehler.
+	if at := strings.TrimSpace(cfg.DreamAt); at != "" && at != "off" {
+		go dreams.RunNightly(ctx, at, func(ctx context.Context, agentID uuid.UUID) (dream.Credential, bool) {
+			a, err := registry.Get(ctx, agentID)
+			if err != nil {
+				return dream.Credential{}, false
+			}
+			cred, oauth, ok := claudeapi.ResolveOrg(ctx, secretStore, a.OrgID)
+			return dream.Credential{Value: cred, OAuth: oauth}, ok
+		}, log)
+	}
 	// Egress-Log-Retention: alte Entscheidungen periodisch wegräumen.
 	go func() {
 		t := time.NewTicker(6 * time.Hour)

@@ -26,8 +26,7 @@ import {
   type WikiLogEntry,
   type WikiHealth,
   type WikiFinding,
-  type WikiRetitleProposal,
-  type WikiMaintainRun,
+  type Dream,
   type Principal,
   type RecordingEvent,
   type RuntimeInfo,
@@ -67,6 +66,7 @@ export default function AgentPage({ me }: { me: Principal }) {
     | "recording"
     | "config"
     | "memory"
+    | "dreams"
     | "secrets"
     | "egress"
     | "tools"
@@ -144,6 +144,7 @@ export default function AgentPage({ me }: { me: Principal }) {
             ...(canManage(me.Role) ? ([["webhook", t("agent.tabs.webhook")]] as const) : []),
             ["recording", t("agent.tabs.recording")],
             ["memory", t("agent.tabs.memory")],
+            ["dreams", t("agent.tabs.dreams")],
             ["tools", t("agent.tabs.tools")],
             ["egress", t("agent.tabs.egress")],
             ...(canSecrets(me.Role) ? ([["secrets", t("agent.tabs.secrets")]] as const) : []),
@@ -195,6 +196,7 @@ export default function AgentPage({ me }: { me: Principal }) {
         />
       )}
       {tab === "memory" && <Memories agentId={a.id} canManage={canManage(me.Role)} />}
+      {tab === "dreams" && <Dreams agentId={a.id} canManage={canManage(me.Role)} />}
       {tab === "egress" && <AgentEgress agentId={a.id} canEdit={canSecrets(me.Role)} />}
       {tab === "tools" && <AgentTools agentId={a.id} canEdit={canSecrets(me.Role)} />}
       {tab === "secrets" && canSecrets(me.Role) && <AgentSecrets agentId={a.id} />}
@@ -2282,6 +2284,165 @@ function logDetail(summary: string, pageName: string): string {
   return s;
 }
 
+// ── Träume ────────────────────────────────────────────────────────────────
+// Der Agent räumt sein Gedächtnis nachts auf: verschmelzen, umbenennen. Dieser
+// Reiter zeigt, was dabei herauskam — nicht "Wartung gelaufen", sondern welche
+// Seite, von welchem Titel auf welchen, und warum. Jede Umbenennung lässt sich
+// einzeln zurücknehmen; der Traum schreibt schließlich, während niemand zusieht.
+function Dreams({ agentId, canManage }: { agentId: string; canManage: boolean }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const locale = i18n.language === "de" ? "de-DE" : "en-US";
+  const [note, setNote] = useState("");
+  const [open, setOpen] = useState<Set<string>>(new Set());
+
+  const [polling, setPolling] = useState(false);
+  const dreams = useQuery({
+    queryKey: ["dreams", agentId],
+    queryFn: () => api<Dream[] | null>(`/agents/${agentId}/dreams`),
+    refetchInterval: polling ? 2000 : false,
+  });
+  const list = useMemo(() => dreams.data ?? [], [dreams.data]);
+  const current = list.find((d) => d.status === "running");
+  useEffect(() => setPolling(!!current), [current]);
+
+  // Sekundenzeiger: ein Traum ohne sichtbar laufende Uhr sieht nach einer
+  // halben Minute aus wie ein hängender Knopf.
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!current) return;
+    const h = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(h);
+  }, [current]);
+  const elapsed = useMemo(() => {
+    void tick;
+    if (!current) return 0;
+    return Math.max(0, Math.round((Date.now() - new Date(current.started_at).getTime()) / 1000));
+  }, [current, tick]);
+
+  const start = useMutation({
+    mutationFn: () => post<Dream>(`/agents/${agentId}/dreams`),
+    onSuccess: (d) => {
+      setPolling(d.status === "running");
+      qc.invalidateQueries({ queryKey: ["dreams", agentId] });
+    },
+    onError: (e: Error) => setNote(e.message),
+  });
+  const undo = useMutation({
+    mutationFn: (actionID: string) => post<{ ok: boolean }>(`/dream-actions/${actionID}/undo`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["dreams", agentId] });
+      qc.invalidateQueries({ queryKey: ["memories", agentId] });
+      qc.invalidateQueries({ queryKey: ["wiki-health", agentId] });
+    },
+    onError: (e: Error) => setNote(e.message),
+  });
+
+  const dayLabel = (iso: string) => {
+    const d = new Date(iso);
+    const today = new Date().toDateString();
+    const yest = new Date(Date.now() - 86400000).toDateString();
+    const time = d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+    if (d.toDateString() === today) return `${t("agent.dreams.today")}, ${time}`;
+    if (d.toDateString() === yest) return `${t("agent.dreams.yesterday")}, ${time}`;
+    return `${d.toLocaleDateString(locale, { day: "2-digit", month: "long" })}, ${time}`;
+  };
+  const duration = (d: Dream) => {
+    if (!d.finished_at) return "";
+    const s = Math.max(0, Math.round((new Date(d.finished_at).getTime() - new Date(d.started_at).getTime()) / 1000));
+    return t("agent.dreams.took", { s });
+  };
+
+  return (
+    <div>
+      <p className="muted text-[12.5px] mb-3">{t("agent.dreams.hint")}</p>
+      <div className="flex items-center gap-2 mb-3">
+        {current ? (
+          <span className="wiki-progress">
+            <span className="spin" aria-hidden="true" />
+            <span>{current.phase === "titles" ? t("agent.dreams.phaseTitles", { count: current.looked_at }) : t("agent.dreams.phaseMerge")}</span>
+            <span className="muted">{t("agent.dreams.elapsed", { s: elapsed })}</span>
+          </span>
+        ) : (
+          canManage && (
+            <button className="btn sm" disabled={start.isPending} onClick={() => start.mutate()}>
+              {t("agent.dreams.start")}
+            </button>
+          )
+        )}
+      </div>
+      {note && <p className="danger-text text-xs mb-2">{note}</p>}
+
+      {list.length === 0 && !dreams.isLoading && <p className="muted text-[12.5px]">{t("agent.dreams.empty")}</p>}
+
+      {list.map((d) => {
+        const renames = d.actions.filter((a) => a.kind === "retitle");
+        const merges = d.actions.filter((a) => a.kind === "merge").length;
+        const isOpen = open.has(d.id);
+        return (
+          <div key={d.id} className="card wiki-titles mb-3">
+            <div className="wiki-titles-h">
+              <span className="font-medium">{dayLabel(d.started_at)}</span>
+              <span className="chip is-fixed" style={{ fontSize: "10px" }}>
+                {d.trigger === "nightly" ? t("agent.dreams.nightly") : t("agent.dreams.manual")}
+              </span>
+              <span className="muted">
+                {[
+                  renames.length > 0 ? t("agent.dreams.renamed", { count: renames.length }) : null,
+                  merges > 0 ? t("agent.dreams.merged", { count: merges }) : null,
+                  d.skipped > 0 ? t("agent.dreams.skipped", { count: d.skipped }) : null,
+                  d.status === "done" && renames.length === 0 && merges === 0 ? t("agent.dreams.quiet") : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+              <span className="flex-1" />
+              <span className="muted text-[11px]">{duration(d)}</span>
+              {renames.length > 0 && (
+                <button
+                  className="btn sm"
+                  onClick={() =>
+                    setOpen((prev) => {
+                      const n = new Set(prev);
+                      if (n.has(d.id)) n.delete(d.id);
+                      else n.add(d.id);
+                      return n;
+                    })
+                  }
+                >
+                  {isOpen ? t("agent.dreams.collapse") : t("agent.dreams.expand")}
+                </button>
+              )}
+            </div>
+            {d.status === "error" && d.error && <p className="danger-text text-xs">{d.error}</p>}
+            {isOpen &&
+              renames.map((a) => (
+                <div key={a.id} className="wiki-title-row">
+                  <span className="min-w-0">
+                    <span className="old" title={a.before}>
+                      {a.before}
+                    </span>
+                    <span className="new">{a.after}</span>
+                    {a.reason && <span className="why">{a.reason}</span>}
+                  </span>
+                  <span className="flex items-center gap-2 shrink-0">
+                    {a.undone_at ? (
+                      <span className="muted text-[11px]">{t("agent.dreams.undone")}</span>
+                    ) : (
+                      <button className="btn sm" disabled={undo.isPending} onClick={() => undo.mutate(a.id)}>
+                        {t("agent.dreams.undo")}
+                      </button>
+                    )}
+                  </span>
+                </div>
+              ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function Memories({ agentId, canManage }: { agentId: string; canManage: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -2335,7 +2496,6 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
   const [editId, setEditId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [editText, setEditText] = useState("");
-  const [note, setNote] = useState("");
   const [filter, setFilter] = useState<WikiFinding["kind"] | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [sort, setSort] = useState<WikiSort>(() => {
@@ -2372,67 +2532,6 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
     mutationFn: (id: string) => del(`/memories/${id}`),
     onSuccess: invalidate,
   });
-  // Wartungslauf: erst der rechnerische Teil (Dubletten verschmelzen, schreibt
-  // sofort), dann der Titel-Pass — der legt nur vor, bestätigt wird unten. Der
-  // Lauf steht auf dem Server; die UI fragt ihn ab, solange er läuft.
-  // Abfrage-Takt als schlichter Wert im Render-Pfad statt als Callback: der
-  // Callback wurde nach dem Start nicht neu ausgewertet, der Lauf lief durch
-  // und die Anzeige blieb auf der ersten Phase stehen.
-  const [polling, setPolling] = useState(false);
-  const maintain = useQuery({
-    queryKey: ["wiki-maintain", agentId],
-    queryFn: () => api<WikiMaintainRun>(`/agents/${agentId}/wiki/maintain`),
-    refetchInterval: polling ? 1500 : false,
-  });
-  const run = maintain.data;
-  const running = run?.status === "running";
-  const proposals = run?.proposals ?? [];
-  // Deckt beide Wege ab: eigener Start und ein Reload mitten im Lauf.
-  useEffect(() => setPolling(run?.status === "running"), [run?.status]);
-
-  const startMaintain = useMutation({
-    mutationFn: () => post<WikiMaintainRun>(`/agents/${agentId}/wiki/maintain`),
-    onSuccess: (r) => {
-      qc.setQueryData(["wiki-maintain", agentId], r);
-      setPolling(r.status === "running");
-    },
-    onError: (e: Error) => setNote(e.message),
-  });
-  // Rückgängig: den alten Titel zurückschreiben, dann die Zeile abhaken. Geht
-  // denselben Weg wie das Bearbeiten von Hand — der Slug war nie betroffen.
-  const undoTitle = useMutation({
-    mutationFn: async (pr: WikiRetitleProposal) => {
-      const page = bySlug.get(pr.slug);
-      if (!page) throw new Error(pr.slug);
-      await patch(`/memories/${page.id}`, { title: pr.old, content: page.content });
-      return del<WikiMaintainRun>(`/agents/${agentId}/wiki/maintain?slug=${encodeURIComponent(pr.slug)}`);
-    },
-    onSuccess: (r) => {
-      qc.setQueryData(["wiki-maintain", agentId], r);
-      invalidate();
-    },
-    onError: (e: Error) => setNote(e.message),
-  });
-  const dismissTitle = useMutation({
-    mutationFn: (slug?: string) =>
-      del<WikiMaintainRun>(`/agents/${agentId}/wiki/maintain${slug ? `?slug=${encodeURIComponent(slug)}` : ""}`),
-    onSuccess: (r) => qc.setQueryData(["wiki-maintain", agentId], r),
-  });
-
-  // Sekundenzeiger für die Fortschrittsanzeige. Ein Lauf ohne sichtbar
-  // laufende Uhr sieht nach dreißig Sekunden aus wie ein hängender Knopf.
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    if (!running) return;
-    const h = setInterval(() => setTick((n) => n + 1), 1000);
-    return () => clearInterval(h);
-  }, [running]);
-  const elapsed = useMemo(() => {
-    void tick;
-    if (!run?.started_at) return 0;
-    return Math.max(0, Math.round((Date.now() - new Date(run.started_at).getTime()) / 1000));
-  }, [run?.started_at, tick]);
-
   const list = useMemo(() => mems.data ?? [], [mems.data]);
   const logs = log.data ?? [];
   const locale = i18n.language === "de" ? "de-DE" : "en-US";
@@ -2660,16 +2759,6 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
           </button>
         </div>
         <span className="flex-1" />
-        {canManage && (
-          <button
-            className="btn sm"
-            title={t("agent.memory.maintainHelp")}
-            disabled={running || startMaintain.isPending || list.length === 0}
-            onClick={() => startMaintain.mutate()}
-          >
-            {running ? t("agent.memory.maintaining") : t("agent.memory.maintain")}
-          </button>
-        )}
       </div>
 
       {/* Qualitätsbefunde: Zahlen, die zugleich Filter sind. */}
@@ -2701,69 +2790,7 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
           )}
         </div>
       )}
-      {note && <p className="muted text-xs mb-2">{note}</p>}
 
-      {/* Fortschritt des Wartungslaufs. Benennt die Phase und lässt die Uhr
-          laufen — der Titel-Pass wartet auf ein Modell, das kein Zwischen-
-          ergebnis liefert, also ist die verstrichene Zeit das ehrlichste
-          Signal, das es gibt. Kein Balken, der etwas anderes behauptet. */}
-      {running && (
-        <div className="wiki-progress mb-3">
-          <span className="spin" aria-hidden="true" />
-          <span>
-            {run?.phase === "titles"
-              ? run.checked > 0
-                ? t("agent.memory.runTitles", { count: run.checked })
-                : t("agent.memory.runTitlesPrep")
-              : t("agent.memory.runMerge")}
-          </span>
-          <span className="muted">{t("agent.memory.runElapsed", { s: elapsed })}</span>
-        </div>
-      )}
-      {run?.status === "error" && run.error && (
-        <p className="danger-text text-xs mb-2">{t("agent.memory.runFailed", { err: run.error })}</p>
-      )}
-      {run?.status === "done" && proposals.length === 0 && (
-        <p className="muted text-xs mb-2">
-          {[
-            run.merged > 0 ? t("agent.memory.consolidateDone", { count: run.merged }) : t("agent.memory.consolidateNone"),
-            run.checked > 0 ? t("agent.memory.titlesNone") : null,
-            run.skipped > 0 ? t("agent.memory.titlesSkipped", { count: run.skipped }) : null,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-        </p>
-      )}
-
-      {/* Protokoll des Laufs: was umbenannt wurde, mit dem alten Titel daneben.
-          Geändert ist es bereits — die Zeile ist der Weg zurück, nicht hin. */}
-      {proposals.length > 0 && (
-        <div className="card wiki-titles mb-3">
-          <div className="wiki-titles-h">
-            <span>{t("agent.memory.titlesHead", { count: proposals.length })}</span>
-            <span className="flex-1" />
-            <button className="btn sm" disabled={dismissTitle.isPending} onClick={() => dismissTitle.mutate(undefined)}>
-              {t("agent.memory.titlesClose")}
-            </button>
-          </div>
-          {proposals.map((p) => (
-            <div key={p.slug} className="wiki-title-row">
-              <span className="min-w-0">
-                <span className="old" title={p.old}>
-                  {p.old}
-                </span>
-                <span className="new">{p.title}</span>
-                {p.reason && <span className="why">{p.reason}</span>}
-              </span>
-              <span className="flex items-center gap-2 shrink-0">
-                <button className="btn sm" disabled={undoTitle.isPending} onClick={() => undoTitle.mutate(p)}>
-                  {t("agent.memory.titlesUndo")}
-                </button>
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
 
       {view === "log" ? (
         <>

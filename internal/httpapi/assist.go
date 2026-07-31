@@ -1,11 +1,8 @@
 package httpapi
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -13,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"covey/internal/agents"
+	"covey/internal/claudeapi"
 )
 
 // KI-Assistent zum Anpassen von Agenten („Config-Copilot", FR-001).
@@ -62,10 +60,7 @@ var assistFileOrder = []string{
 
 // assistMessage ist ein Turn im Dialog Mensch↔Assistent. Content ist ein
 // einfacher String — die Messages-API akzeptiert das als einzelnen Text-Block.
-type assistMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
+type assistMessage = claudeapi.Message
 
 // assistProposal ist ein vorgeschlagener neuer Inhalt für eine Config-Datei.
 type assistProposal struct {
@@ -80,20 +75,10 @@ type assistResponse struct {
 	Proposals []assistProposal `json:"proposals"`
 }
 
-// resolveOrgClaude findet das org-weite Claude-Credential. Rückgabe:
-// (Credential, oauth?, gefunden?). API-Key hat Vorrang vor Abo-OAuth-Token.
+// resolveOrgClaude findet das org-weite Claude-Credential (Reihenfolge und
+// Schlüsselnamen liegen in claudeapi, damit Copilot und Traum dasselbe sehen).
 func (s *Server) resolveOrgClaude(ctx context.Context, orgID uuid.UUID) (cred string, oauth, ok bool) {
-	if v, err := s.Secrets.Get(ctx, orgID, "anthropic_api_key"); err == nil {
-		if v = strings.TrimSpace(v); v != "" {
-			return v, false, true
-		}
-	}
-	if v, err := s.Secrets.Get(ctx, orgID, "claude_code_oauth_token"); err == nil {
-		if v = strings.TrimSpace(v); v != "" {
-			return v, true, true
-		}
-	}
-	return "", false, false
+	return claudeapi.ResolveOrg(ctx, s.Secrets, orgID)
 }
 
 // handleAssistStatus meldet der UI, ob der Config-Copilot verfügbar ist — also
@@ -138,8 +123,8 @@ func (s *Server) handleConfigAssist(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
-	raw, err := callAnthropicMessages(ctx, cred, oauth,
-		anthCall{Model: assistModel, MaxTokens: assistMaxTokens}, system, in.Messages)
+	raw, err := claudeapi.Messages(ctx, cred, oauth,
+		claudeapi.Call{Model: assistModel, MaxTokens: assistMaxTokens}, system, in.Messages)
 	if err != nil {
 		s.Log.Error("config-assist", "agent", id, "err", err)
 		writeErr(w, http.StatusBadGateway, "KI-Assistent nicht erreichbar: "+err.Error())
@@ -234,113 +219,6 @@ Regeln:
 - Bei ACCESS.md/EGRESS.md das exakte Format des aktuellen Stands beibehalten (Kommentarzeilen, Einträge) und nur real existierende Systeme/Templates verwenden.
 - Schlage nichts vor, was die Plattform nicht kann.`)
 	return b.String()
-}
-
-// --- Anthropic Messages-API (roher HTTP-Call, wie credcheck.go) ---
-
-type anthTextBlock struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-}
-
-type anthMessagesReq struct {
-	Model        string            `json:"model"`
-	MaxTokens    int               `json:"max_tokens"`
-	System       []anthTextBlock   `json:"system,omitempty"`
-	Messages     []assistMessage   `json:"messages"`
-	OutputConfig *anthOutputConfig `json:"output_config,omitempty"`
-}
-
-// anthOutputConfig steuert die Denktiefe. Ab Opus 5 denkt das Modell per
-// Voreinstellung, und max_tokens deckelt Denken *und* Antwort gemeinsam — für
-// eine eng umrissene Umformulierungsaufgabe ist das teuer erkauft: gemessen
-// über zwei Minuten Wartezeit für 24 Titel. Ein niedriges effort ist hier der
-// richtige Hebel; Denken ganz abzuschalten wäre der falsche, weil das Modell
-// dann `<thinking>`-Tags in den Antworttext schreiben kann und das JSON bricht.
-type anthOutputConfig struct {
-	Effort string `json:"effort,omitempty"` // low | medium | high | xhigh | max
-}
-
-// anthCall bündelt, was je Aufrufer verschieden ist. Die Auth-Mechanik ist
-// geteilt, die Modellwahl nicht.
-type anthCall struct {
-	Model     string
-	MaxTokens int
-	Effort    string // leer = Vorgabe des Modells
-}
-
-type anthMessagesResp struct {
-	Content []struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
-	} `json:"content"`
-	StopReason string `json:"stop_reason"`
-	Error      *struct {
-		Type    string `json:"type"`
-		Message string `json:"message"`
-	} `json:"error"`
-}
-
-// callAnthropicMessages ruft die Messages-API mit exakt der Auth-Mechanik auf,
-// die auch die Runtime nutzt (API-Key via x-api-key, Abo-OAuth-Token via
-// Bearer + oauth-Beta-Header). Bei OAuth-Tokens verlangt Anthropic den
-// Claude-Code-Identitäts-Block als erstes System-Segment.
-func callAnthropicMessages(ctx context.Context, credential string, oauth bool, call anthCall, system string, messages []assistMessage) (string, error) {
-	sys := []anthTextBlock{}
-	if oauth {
-		sys = append(sys, anthTextBlock{Type: "text",
-			Text: "You are Claude Code, Anthropic's official CLI for Claude."})
-	}
-	sys = append(sys, anthTextBlock{Type: "text", Text: system})
-
-	req0 := anthMessagesReq{
-		Model:     call.Model,
-		MaxTokens: call.MaxTokens,
-		System:    sys,
-		Messages:  messages,
-	}
-	if call.Effort != "" {
-		req0.OutputConfig = &anthOutputConfig{Effort: call.Effort}
-	}
-	body, err := json.Marshal(req0)
-	if err != nil {
-		return "", err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		anthropicBaseURL+"/v1/messages", bytes.NewReader(body))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("content-type", "application/json")
-	req.Header.Set("anthropic-version", "2023-06-01")
-	if oauth {
-		req.Header.Set("Authorization", "Bearer "+credential)
-		req.Header.Set("anthropic-beta", "oauth-2025-04-20")
-	} else {
-		req.Header.Set("x-api-key", credential)
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
-
-	var parsed anthMessagesResp
-	_ = json.Unmarshal(raw, &parsed)
-	if resp.StatusCode != http.StatusOK {
-		if parsed.Error != nil && parsed.Error.Message != "" {
-			return "", errors.New(parsed.Error.Message)
-		}
-		return "", errors.New("HTTP " + resp.Status)
-	}
-	var out strings.Builder
-	for _, c := range parsed.Content {
-		if c.Type == "text" {
-			out.WriteString(c.Text)
-		}
-	}
-	return out.String(), nil
 }
 
 // parseAssistReply zieht das JSON-Objekt aus der Modell-Antwort. Fällt das
