@@ -26,6 +26,8 @@ import {
   type WikiLogEntry,
   type WikiHealth,
   type WikiFinding,
+  type WikiRetitleProposal,
+  type WikiRetitleResult,
   type Principal,
   type RecordingEvent,
   type RuntimeInfo,
@@ -2336,6 +2338,7 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
   const [note, setNote] = useState("");
   const [filter, setFilter] = useState<WikiFinding["kind"] | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [proposals, setProposals] = useState<WikiRetitleProposal[]>([]);
   const [sort, setSort] = useState<WikiSort>(() => {
     const saved = localStorage.getItem(WIKI_SORT_KEY) as WikiSort | null;
     return saved && WIKI_SORTS.includes(saved) ? saved : "recent";
@@ -2370,12 +2373,40 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
     mutationFn: (id: string) => del(`/memories/${id}`),
     onSuccess: invalidate,
   });
-  const consolidate = useMutation({
-    mutationFn: () => post<{ merged: number }>(`/agents/${agentId}/wiki/consolidate`),
-    onSuccess: (r) => {
-      setNote(r.merged > 0 ? t("agent.memory.consolidateDone", { count: r.merged }) : t("agent.memory.consolidateNone"));
+  // Wartungslauf: erst der rechnerische Teil (Dubletten verschmelzen, schreibt
+  // sofort), dann der Titel-Pass — der legt nur vor, bestätigt wird unten.
+  const maintain = useMutation({
+    mutationFn: async () => {
+      const merged = await post<{ merged: number }>(`/agents/${agentId}/wiki/consolidate`);
+      const titles = await post<WikiRetitleResult>(`/agents/${agentId}/wiki/retitle`);
+      return { merged: merged.merged, titles };
+    },
+    onSuccess: ({ merged, titles }) => {
+      setProposals(titles.proposals);
+      const parts: string[] = [];
+      parts.push(merged > 0 ? t("agent.memory.consolidateDone", { count: merged }) : t("agent.memory.consolidateNone"));
+      if (titles.proposals.length > 0) parts.push(t("agent.memory.titlesFound", { count: titles.proposals.length }));
+      else if (titles.checked > 0) parts.push(t("agent.memory.titlesNone"));
+      if (titles.skipped > 0) parts.push(t("agent.memory.titlesSkipped", { count: titles.skipped }));
+      setNote(parts.join(" · "));
       invalidate();
     },
+    onError: (e: Error) => setNote(e.message),
+  });
+  // Übernehmen geht den regulären Bearbeiten-Weg: neuer Titel, Inhalt
+  // unverändert. Der Slug bleibt, damit [[…]]-Verweise nicht brechen.
+  const applyTitle = useMutation({
+    mutationFn: async (pr: WikiRetitleProposal) => {
+      const page = bySlug.get(pr.slug);
+      if (!page) throw new Error(pr.slug);
+      await patch(`/memories/${page.id}`, { title: pr.title, content: page.content });
+      return pr.slug;
+    },
+    onSuccess: (slug) => {
+      setProposals((prev) => prev.filter((p) => p.slug !== slug));
+      invalidate();
+    },
+    onError: (e: Error) => setNote(e.message),
   });
 
   const list = useMemo(() => mems.data ?? [], [mems.data]);
@@ -2606,8 +2637,13 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
         </div>
         <span className="flex-1" />
         {canManage && (
-          <button className="btn sm" disabled={consolidate.isPending || list.length < 2} onClick={() => consolidate.mutate()}>
-            {consolidate.isPending ? t("agent.memory.consolidating") : t("agent.memory.consolidate")}
+          <button
+            className="btn sm"
+            title={t("agent.memory.maintainHelp")}
+            disabled={maintain.isPending || list.length === 0}
+            onClick={() => maintain.mutate()}
+          >
+            {maintain.isPending ? t("agent.memory.maintaining") : t("agent.memory.maintain")}
           </button>
         )}
       </div>
@@ -2642,6 +2678,46 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
         </div>
       )}
       {note && <p className="muted text-xs mb-2">{note}</p>}
+
+      {/* Titel-Vorschläge des Wartungslaufs. Nichts davon ist geschrieben —
+          jede Zeile wartet auf eine Entscheidung. */}
+      {proposals.length > 0 && (
+        <div className="card wiki-titles mb-3">
+          <div className="wiki-titles-h">
+            <span>{t("agent.memory.titlesHead", { count: proposals.length })}</span>
+            <span className="flex-1" />
+            <button
+              className="btn sm"
+              disabled={applyTitle.isPending}
+              onClick={() => proposals.forEach((p) => applyTitle.mutate(p))}
+            >
+              {t("agent.memory.titlesApplyAll")}
+            </button>
+            <button className="btn sm" onClick={() => setProposals([])}>
+              {t("agent.memory.titlesDismissAll")}
+            </button>
+          </div>
+          {proposals.map((p) => (
+            <div key={p.slug} className="wiki-title-row">
+              <span className="min-w-0">
+                <span className="old" title={p.old}>
+                  {p.old}
+                </span>
+                <span className="new">{p.title}</span>
+                {p.reason && <span className="why">{p.reason}</span>}
+              </span>
+              <span className="flex items-center gap-2 shrink-0">
+                <button className="btn sm primary" disabled={applyTitle.isPending} onClick={() => applyTitle.mutate(p)}>
+                  {t("agent.memory.titlesApply")}
+                </button>
+                <button className="btn sm" onClick={() => setProposals((prev) => prev.filter((x) => x.slug !== p.slug))}>
+                  {t("agent.memory.titlesDismiss")}
+                </button>
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {view === "log" ? (
         <>

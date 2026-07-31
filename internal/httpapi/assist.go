@@ -138,7 +138,7 @@ func (s *Server) handleConfigAssist(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
-	raw, err := callAnthropicMessages(ctx, cred, oauth, system, in.Messages)
+	raw, err := callAnthropicMessages(ctx, cred, oauth, assistModel, assistMaxTokens, system, in.Messages)
 	if err != nil {
 		s.Log.Error("config-assist", "agent", id, "err", err)
 		writeErr(w, http.StatusBadGateway, "KI-Assistent nicht erreichbar: "+err.Error())
@@ -265,7 +265,10 @@ type anthMessagesResp struct {
 // die auch die Runtime nutzt (API-Key via x-api-key, Abo-OAuth-Token via
 // Bearer + oauth-Beta-Header). Bei OAuth-Tokens verlangt Anthropic den
 // Claude-Code-Identitäts-Block als erstes System-Segment.
-func callAnthropicMessages(ctx context.Context, credential string, oauth bool, system string, messages []assistMessage) (string, error) {
+// Modell und Token-Deckel sind Parameter, weil neben dem Config-Copilot
+// inzwischen ein zweiter Aufrufer denselben Weg nimmt (der Titel-Pass der
+// Wiki-Wartung) — die Auth-Mechanik ist geteilt, die Modellwahl nicht.
+func callAnthropicMessages(ctx context.Context, credential string, oauth bool, model string, maxTokens int, system string, messages []assistMessage) (string, error) {
 	sys := []anthTextBlock{}
 	if oauth {
 		sys = append(sys, anthTextBlock{Type: "text",
@@ -274,8 +277,8 @@ func callAnthropicMessages(ctx context.Context, credential string, oauth bool, s
 	sys = append(sys, anthTextBlock{Type: "text", Text: system})
 
 	body, err := json.Marshal(anthMessagesReq{
-		Model:     assistModel,
-		MaxTokens: assistMaxTokens,
+		Model:     model,
+		MaxTokens: maxTokens,
 		System:    sys,
 		Messages:  messages,
 	})

@@ -439,6 +439,21 @@ export type WikiHealth = {
   findings: WikiFinding[];
 };
 
+// Ein Titel-Vorschlag des Wartungs-Passes. Der Server schreibt ihn nicht —
+// übernommen wird er erst, wenn ein Mensch ihn bestätigt (spec/05).
+export type WikiRetitleProposal = {
+  slug: string;
+  old: string;
+  title: string;
+  reason?: string;
+};
+
+export type WikiRetitleResult = {
+  proposals: WikiRetitleProposal[];
+  checked: number; // Seiten mit Tagebuch-Titel
+  skipped: number; // über den Deckel eines Durchlaufs hinaus
+};
+
 // Ein Eintrag des Wiki-Protokolls (log.md-Äquivalent, spec/05).
 export type WikiLogEntry = {
   id: number;

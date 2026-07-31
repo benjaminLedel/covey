@@ -195,6 +195,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/agents/{id}/wiki/log", s.rbac(anyRole, s.handleWikiLog))
 	mux.Handle("GET /api/v1/agents/{id}/wiki/health", s.rbac(anyRole, s.handleWikiHealth))
 	mux.Handle("POST /api/v1/agents/{id}/wiki/consolidate", s.rbac(manage, s.handleWikiConsolidate))
+	mux.Handle("POST /api/v1/agents/{id}/wiki/retitle", s.rbac(manage, s.handleWikiRetitle))
 	mux.Handle("PATCH /api/v1/memories/{id}", s.rbac(manage, s.handleUpdateMemory))
 	mux.Handle("DELETE /api/v1/memories/{id}", s.rbac(manage, s.handleDeleteMemory))
 	mux.Handle("POST /api/v1/tasks/{id}/cancel", s.rbac(manage, s.handleCancelTask))
