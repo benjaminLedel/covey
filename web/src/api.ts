@@ -314,6 +314,25 @@ export type TargetPlugin = {
   setup_doc?: string;
 };
 
+// Ein Zielsystem aus der Sicht eines Agenten (GET /agents/{id}/systems):
+// Plugin, Zugang aus ACCESS.md und die Aktionen im Wortlaut seines Prompts.
+// access=false heißt: der Broker verweigert dem Agenten hier jede Anfrage,
+// egal ob das Plugin für die Organisation aktiviert ist.
+export type AgentSystem = {
+  name: string;
+  label: string;
+  description?: string;
+  kind: "builtin" | "custom" | "mcp";
+  category?: string;
+  enabled: boolean;
+  access: boolean;
+  scopes?: string[];
+  /** Werkzeug-Allowlist des Agenten (nur MCP); leer = alle. */
+  tools?: string[];
+  /** Aktionsliste, wie sie im System-Prompt steht. */
+  doc?: string;
+};
+
 // Ein vom MCP-Server angebotenes Werkzeug (aus tools/list entdeckt).
 export type MCPTool = {
   name: string;

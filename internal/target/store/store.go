@@ -367,52 +367,22 @@ func (s *Store) Manifest(ctx context.Context, orgID uuid.UUID, name string) (tar
 	return target.ParseManifest(manifest)
 }
 
-// EnabledDocs sammelt die Prompt-Dokus aller für die Organisation
-// aktivierten Zielsysteme (Built-ins + Custom-Manifeste).
-func (s *Store) EnabledDocs(ctx context.Context, orgID uuid.UUID) ([]string, error) {
-	rows, err := s.pool.Query(ctx,
-		`SELECT name, kind, enabled, manifest FROM target_plugins WHERE org_id=$1`, orgID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	enabledBuiltin := map[string]bool{}
-	var docs []string
-	for rows.Next() {
-		var name, kind string
-		var enabled bool
-		var manifest []byte
-		if err := rows.Scan(&name, &kind, &enabled, &manifest); err != nil {
-			return nil, err
-		}
-		if !enabled {
-			continue
-		}
-		switch kind {
-		case "builtin":
-			enabledBuiltin[name] = true
-		case "custom":
-			if m, err := target.ParseManifest(manifest); err == nil {
-				docs = append(docs, target.NewManifestSystem(m).PromptDoc())
-			}
-		}
-	}
-	if rows.Err() != nil {
-		return nil, rows.Err()
-	}
-	// Built-ins nur mit expliziter Aktivierung (opt-in, fail-closed).
-	for _, d := range target.All() {
-		if enabledBuiltin[d.Name] && d.System != nil {
-			docs = append(docs, d.System.PromptDoc())
-		}
-	}
-	return docs, nil
+// SystemDoc ist die Prompt-Doku eines Zielsystems samt dessen Namen: was ein
+// Agent dort tun kann, in genau der Formulierung, die auch in seinem Prompt
+// steht. Der Prompt braucht nur den Text; das Webinterface zeigt die Aktionen
+// je System und braucht deshalb die Zuordnung.
+type SystemDoc struct {
+	System string `json:"system"`
+	Doc    string `json:"doc"`
 }
 
-// EnabledDocsForAgent ist wie EnabledDocs, filtert MCP-Tools aber auf die dem
-// Agenten zugewiesenen (leere Zuweisung = alle Tools). Wird zur Dispatch-Zeit
-// benutzt, damit der Prompt nur die tatsächlich nutzbaren Tools nennt.
-func (s *Store) EnabledDocsForAgent(ctx context.Context, orgID, agentID uuid.UUID) ([]string, error) {
+// DocsForAgent sammelt die Prompt-Dokus der für die Organisation aktivierten
+// Zielsysteme (Built-ins, Manifest- und MCP-Plugins), bei MCP gefiltert auf
+// die dem Agenten zugewiesenen Tools (leere Zuweisung = alle Tools).
+//
+// Aktivierung ist opt-in (fail-closed): ein Built-in ohne Zeile mit
+// enabled=TRUE taucht nicht auf.
+func (s *Store) DocsForAgent(ctx context.Context, orgID, agentID uuid.UUID) ([]SystemDoc, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT name, kind, enabled, manifest FROM target_plugins WHERE org_id=$1`, orgID)
 	if err != nil {
@@ -420,7 +390,7 @@ func (s *Store) EnabledDocsForAgent(ctx context.Context, orgID, agentID uuid.UUI
 	}
 	defer rows.Close()
 	enabledBuiltin := map[string]bool{}
-	var docs []string
+	var docs []SystemDoc
 	for rows.Next() {
 		var name, kind string
 		var enabled bool
@@ -436,7 +406,7 @@ func (s *Store) EnabledDocsForAgent(ctx context.Context, orgID, agentID uuid.UUI
 			enabledBuiltin[name] = true
 		case "custom":
 			if m, err := target.ParseManifest(manifest); err == nil {
-				docs = append(docs, target.NewManifestSystem(m).PromptDoc())
+				docs = append(docs, SystemDoc{System: name, Doc: target.NewManifestSystem(m).PromptDoc()})
 			}
 		case "mcp":
 			if c, err := mcp.ParseConfig(manifest); err == nil {
@@ -445,7 +415,7 @@ func (s *Store) EnabledDocsForAgent(ctx context.Context, orgID, agentID uuid.UUI
 					return nil, err
 				}
 				if doc := mcp.NewSystem(c).PromptDocFor(only); doc != "" {
-					docs = append(docs, doc)
+					docs = append(docs, SystemDoc{System: name, Doc: doc})
 				}
 			}
 		}
@@ -456,10 +426,24 @@ func (s *Store) EnabledDocsForAgent(ctx context.Context, orgID, agentID uuid.UUI
 	// Built-ins nur mit expliziter Aktivierung (opt-in, fail-closed).
 	for _, d := range target.All() {
 		if enabledBuiltin[d.Name] && d.System != nil {
-			docs = append(docs, d.System.PromptDoc())
+			docs = append(docs, SystemDoc{System: d.Name, Doc: d.System.PromptDoc()})
 		}
 	}
 	return docs, nil
+}
+
+// EnabledDocsForAgent liefert dieselben Dokus als reine Textliste — die Form,
+// in der sie in den System-Prompt kompiliert werden.
+func (s *Store) EnabledDocsForAgent(ctx context.Context, orgID, agentID uuid.UUID) ([]string, error) {
+	docs, err := s.DocsForAgent(ctx, orgID, agentID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(docs))
+	for _, d := range docs {
+		out = append(out, d.Doc)
+	}
+	return out, nil
 }
 
 // AgentTools liefert die einem Agenten für ein System zugewiesenen Tools.

@@ -486,6 +486,7 @@
       "settings": "Einstellungen",
       "skills": "Skills",
       "files": "Arbeitsplatz",
+      "toolsSkills": "Tools & Skills",
       "dreams": "Träume"
     },
     "files": {
@@ -721,6 +722,22 @@
       "ownHosts": "Eigene Hosts",
       "none": "keine",
       "lastDecisions": "Letzte Egress-Entscheidungen"
+    },
+    "tooling": {
+      "subSystems": "Zielsysteme",
+      "subMCP": "MCP-Werkzeuge",
+      "systemsDesc": "Was dieser Agent in den angebundenen Zielsystemen tun kann — die Aktionen im Wortlaut seines System-Prompts. Ein Zugang entsteht in ACCESS.md (Einstellungen → Config), aktiviert wird ein Zielsystem organisationsweit unter Zielsysteme.",
+      "noAccess": "Dieser Agent hat keinen Zugang zu einem Zielsystem — der Broker verweigert jede Credential-Anfrage.",
+      "otherSystems": "Ohne Zugang",
+      "otherSystemsDesc": "Für die Organisation vorhanden, aber nicht in ACCESS.md dieses Agenten.",
+      "enabledNoAccess": "Aktiviert, aber ohne Zugang für diesen Agenten",
+      "notEnabled": "Für die Organisation nicht aktiviert",
+      "notEnabledBadge": "nicht aktiviert",
+      "off": "aus",
+      "restricted": "Nur diese Werkzeuge: {{tools}}",
+      "showDoc": "Aktionen im Wortlaut des Prompts",
+      "noActions": "Keine Aktionen dokumentiert.",
+      "noActionsDisabled": "Aktionen erscheinen, sobald das Zielsystem für die Organisation aktiviert ist."
     },
     "tools": {
       "desc": "Weise diesem Agenten gezielt Tools der angebundenen MCP-Server zu.",

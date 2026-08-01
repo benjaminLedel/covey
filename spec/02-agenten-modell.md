@@ -36,7 +36,7 @@ Das persistente Home deckt Dateien ab — **nicht** das episodische Gedächtnis 
 
 ### Der Arbeitsplatz im Webinterface
 
-Das Home ist im Webinterface als **Dateibrowser** offen (Reiter „Arbeitsplatz" am Agenten): durchsehen, öffnen, Textdateien ändern, hoch- und herunterladen, Ordner anlegen, umbenennen, löschen. Damit ist „was liegt bei dem Agenten eigentlich rum?" eine Frage der Oberfläche und nicht mehr eine Shell auf dem Host — und der Weg, einem Agenten Material mitzugeben (eine Vorlage, eine Preisliste, einen Datensatz), führt nicht mehr über den Umweg eines Zielsystems.
+Das Home ist im Webinterface als **Dateibrowser** offen (Reiter *Arbeitsplatz* am Agenten): durchsehen, öffnen, Textdateien ändern, hoch- und herunterladen, Ordner anlegen, umbenennen, löschen. Damit ist „was liegt bei dem Agenten eigentlich rum?" eine Frage der Oberfläche und nicht mehr eine Shell auf dem Host — und der Weg, einem Agenten Material mitzugeben (eine Vorlage, eine Preisliste, einen Datensatz), führt nicht mehr über den Umweg eines Zielsystems.
 
 Drei Festlegungen tragen das:
 
@@ -74,7 +74,9 @@ Das Verhalten eines Agenten ist als Satz von Markdown-Dateien in Git definiert �
 
 Die genaue Dateiliste ist bewusst erweiterbar — weitere sinnvolle MD-Dateien (z. B. `TONE.md`, `ESCALATION.md`) können hinzukommen. Kernregel: **`ACCESS.md` enthält Referenzen, keine Geheimnisse.** Neben diesen Dateien, die jeder Lauf vollständig mitträgt, gibt es **Skills** für Prozeduren, die nur bei Bedarf laden (siehe unten).
 
-`ACCESS.md` und `EGRESS.md` sind die **Text-Sicht auf Zustand, der auch über die Oberfläche gepflegt wird** (Reiter *Tools* bzw. *Egress*). Damit Text- und UI-Config nie divergieren, gibt es jede Datei genau einmal und beide Richtungen schreiben denselben Store: Lesen rendert die Datei live aus der Datenbank, Speichern parst sie und wendet sie an (Write-Through). Text-Edits an Tools/Egress unterliegen derselben RBAC wie die Reiter (nur `platform_admin`/`security`); in den System-Prompt kompiliert werden beide Dateien nicht.
+`ACCESS.md` und `EGRESS.md` sind die **Text-Sicht auf Zustand, der auch über die Oberfläche gepflegt wird** (*Tools & Skills* bzw. *Einstellungen → Egress*). Damit Text- und UI-Config nie divergieren, gibt es jede Datei genau einmal und beide Richtungen schreiben denselben Store: Lesen rendert die Datei live aus der Datenbank, Speichern parst sie und wendet sie an (Write-Through). Text-Edits an Tools/Egress unterliegen derselben RBAC wie die Oberfläche (nur `platform_admin`/`security`); in den System-Prompt kompiliert werden beide Dateien nicht.
+
+Was ein Agent in einem angebundenen Zielsystem **tun** kann, zeigt derselbe Reiter unter *Zielsysteme*: die Aktionsliste im **Wortlaut seines System-Prompts** (`PromptDoc` des Plugins, bei MCP auf die zugewiesenen Werkzeuge gefiltert), dazu der Zugang aus `ACCESS.md` und die org-weite Aktivierung. Eine geglättete Zweitfassung wäre eine zweite Wahrheit, die irgendwann von der ersten abweicht — die Frage „warum schließt der Agent das Ticket nicht?" beantwortet nur der Text, den er wirklich liest.
 
 Auch `HEARTBEAT.md` ist Plattform-Config, kein Prompt-Material: Sie wird beim Speichern geparst und materialisiert (Tabelle `agent_heartbeats`), die Aufgabe selbst erreicht den Agenten als reguläre Backlog-Aufgabe. Format und Zeitplan-Semantik stehen in [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md).
 

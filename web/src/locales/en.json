@@ -486,6 +486,7 @@
       "settings": "Settings",
       "skills": "Skills",
       "files": "Workspace",
+      "toolsSkills": "Tools & Skills",
       "dreams": "Dreams"
     },
     "files": {
@@ -721,6 +722,22 @@
       "ownHosts": "Own hosts",
       "none": "none",
       "lastDecisions": "Recent egress decisions"
+    },
+    "tooling": {
+      "subSystems": "Target systems",
+      "subMCP": "MCP tools",
+      "systemsDesc": "What this agent can do in the connected target systems — the actions in the wording of its system prompt. Access is granted in ACCESS.md (Settings → Config); a target system is enabled org-wide under Target Systems.",
+      "noAccess": "This agent has access to no target system — the broker denies every credential request.",
+      "otherSystems": "Without access",
+      "otherSystemsDesc": "Available to the organisation, but not in this agent's ACCESS.md.",
+      "enabledNoAccess": "Enabled, but no access for this agent",
+      "notEnabled": "Not enabled for the organisation",
+      "notEnabledBadge": "not enabled",
+      "off": "off",
+      "restricted": "Only these tools: {{tools}}",
+      "showDoc": "Actions in the wording of the prompt",
+      "noActions": "No actions documented.",
+      "noActionsDisabled": "Actions appear once the target system is enabled for the organisation."
     },
     "tools": {
       "desc": "Assign specific tools from connected MCP servers to this agent.",

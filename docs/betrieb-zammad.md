@@ -208,7 +208,7 @@ feuert — sonst wacht ein geblockter Agent nie wieder auf.
 > Templates + agent-eigene Hosts.
 > - **In der Oberfläche** (empfohlen): *Egress* (Seitenmenü) pflegt die
 >   wiederverwendbaren **Templates** und zeigt das globale Monitoring; die
->   **Zuweisung pro Agent** (Templates + eigene Hosts) sitzt im Reiter *Egress*
+>   **Zuweisung pro Agent** (Templates + eigene Hosts) sitzt unter *Einstellungen → Egress*
 >   der Agenten-Seite. Wirkt innerhalb ~15 s, kein Neustart. Rechte: `security`
 >   oder `platform_admin`.
 > - **Per ENV/Compose** (gilt für ALLE Agenten, nicht in der UI löschbar):

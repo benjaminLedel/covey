@@ -49,7 +49,7 @@ Lies die gewählte Vorlage komplett, bevor du etwas änderst — sie zeigt die b
 ## Workflow B — Bestehenden Agenten aktualisieren
 
 1. **Aktuellen Stand holen:** `GET /api/v1/agents/{id}/export` → das aktuelle Bundle. (Oder die
-   Config im UI-Tab „Config" ansehen.)
+   Config im UI unter Einstellungen → Config ansehen.)
 2. Die betroffene(n) Datei(en) ändern — **minimal-invasiv**, Struktur/Ton erhalten.
 3. **Nur die Config zurückspielen:** `POST /api/v1/agents/{id}/config/import` mit dem Bundle —
    das überschreibt SOUL/CAPABILITIES/PLAYBOOKS/ACCESS/HEARTBEAT als **neue Version** (versioniert,

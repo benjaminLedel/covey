@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -27,6 +28,108 @@ func (s *Server) handleListTargets(w http.ResponseWriter, r *http.Request) {
 		list[i].SetupDoc = strings.ReplaceAll(list[i].SetupDoc, "{public_url}", strings.TrimRight(s.PublicURL, "/"))
 	}
 	writeJSON(w, http.StatusOK, list)
+}
+
+// agentSystem beantwortet die Frage „was kann dieser Agent in welchem
+// Zielsystem tun?" an einer Stelle: das Plugin (Name, Art, Aktivierung), der
+// Zugang des Agenten aus ACCESS.md (Scopes, Tool-Allowlist) und die
+// Aktionsliste — derselbe Text, den auch sein System-Prompt bekommt.
+//
+// Ohne diese Zusammenführung steht die Antwort an drei Orten: in der
+// Zielsystem-Verwaltung (aktiviert?), in ACCESS.md (darf er?) und im
+// kompilierten Prompt (was genau?). Wer wissen will, warum ein Agent ein
+// Ticket nicht schließt, will nicht drei Orte lesen.
+type agentSystem struct {
+	Name        string   `json:"name"`
+	Label       string   `json:"label"`
+	Description string   `json:"description,omitempty"`
+	Kind        string   `json:"kind"`
+	Category    string   `json:"category,omitempty"`
+	// Enabled: für die Organisation freigeschaltet (opt-in, fail-closed).
+	Enabled bool `json:"enabled"`
+	// Access: der Agent hat einen Zugang in ACCESS.md — ohne ihn verweigert
+	// der Broker jede Credential-Anfrage, egal wie aktiv das Plugin ist.
+	Access bool     `json:"access"`
+	Scopes []string `json:"scopes,omitempty"`
+	// Tools ist die Werkzeug-Allowlist des Agenten (nur MCP); leer = alle.
+	Tools []string `json:"tools,omitempty"`
+	// Doc sind die Aktionen im Wortlaut des Prompts; leer, solange das System
+	// für die Organisation nicht aktiviert ist (dann gibt es keine).
+	Doc string `json:"doc,omitempty"`
+}
+
+// handleAgentSystems liefert die Zielsysteme aus der Sicht eines Agenten.
+func (s *Server) handleAgentSystems(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	p := principalFrom(r)
+	ctx := r.Context()
+
+	agent, err := s.Registry.Get(ctx, id)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	if agent.OrgID != p.OrgID {
+		writeErr(w, http.StatusNotFound, "agent nicht gefunden")
+		return
+	}
+
+	plugins, err := s.Targets.List(ctx, p.OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	docs, err := s.Targets.DocsForAgent(ctx, p.OrgID, id)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	bySystem := map[string]string{}
+	for _, d := range docs {
+		bySystem[d.System] = d.Doc
+	}
+	accesses, err := s.Registry.Accesses(ctx, id)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	scopes := map[string][]string{}
+	for _, a := range accesses {
+		scopes[a.System] = a.Scopes
+	}
+
+	out := make([]agentSystem, 0, len(plugins))
+	for _, pl := range plugins {
+		sys := agentSystem{
+			Name: pl.Name, Label: pl.Label, Description: pl.Description,
+			Kind: pl.Kind, Category: pl.Category, Enabled: pl.Enabled,
+			Doc: strings.TrimSpace(bySystem[pl.Name]),
+		}
+		if sc, ok := scopes[pl.Name]; ok {
+			sys.Access = true
+			sys.Scopes = sc
+		}
+		if tools, err := s.Targets.AgentTools(ctx, id, pl.Name); err == nil && len(tools) > 0 {
+			sys.Tools = tools
+		}
+		out = append(out, sys)
+	}
+	// Zugänge zuerst — das ist die Liste, um die es geht; der Rest zeigt, was
+	// dieser Agent noch bekommen könnte.
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Access != out[j].Access {
+			return out[i].Access
+		}
+		if out[i].Enabled != out[j].Enabled {
+			return out[i].Enabled
+		}
+		return out[i].Name < out[j].Name
+	})
+	writeJSON(w, http.StatusOK, out)
 }
 
 // handleUploadTarget nimmt eine Plugin-Datei (JSON-Manifest) entgegen,

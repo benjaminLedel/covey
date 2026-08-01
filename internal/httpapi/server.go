@@ -202,6 +202,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/targets/{name}/tools", s.rbac(anyRole, s.handleListMCPTools))
 	mux.Handle("PATCH /api/v1/targets/{name}", s.rbac(securityRoles, s.handleToggleTarget))
 	mux.Handle("DELETE /api/v1/targets/{name}", s.rbac(securityRoles, s.handleDeleteTarget))
+	// Was der Agent in welchem Zielsystem tun kann — Plugin, Zugang und
+	// Aktionsliste an einer Stelle (targets.go).
+	mux.Handle("GET /api/v1/agents/{id}/systems", s.rbac(anyRole, s.handleAgentSystems))
 	mux.Handle("GET /api/v1/agents/{id}/tools/{system}", s.rbac(anyRole, s.handleGetAgentTools))
 	mux.Handle("PUT /api/v1/agents/{id}/tools/{system}", s.rbac(securityRoles, s.handleSetAgentTools))
 	mux.Handle("GET /api/v1/agents/{id}/recording", s.rbac(anyRole, s.handleRecording))

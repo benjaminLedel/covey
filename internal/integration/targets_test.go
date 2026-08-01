@@ -215,3 +215,69 @@ func TestCustomManifestPlugin(t *testing.T) {
 		t.Fatalf("nach löschen erwarte ich 404, got %d", resp.StatusCode)
 	}
 }
+
+// TestAgentSystemsView prüft die Agenten-Sicht auf die Zielsysteme
+// (GET /agents/{id}/systems, spec/02): Zugang aus ACCESS.md, org-weite
+// Aktivierung und die Aktionsliste im Wortlaut des System-Prompts an einer
+// Stelle — die Antwort auf „was kann dieser Agent wo tun?".
+func TestAgentSystemsView(t *testing.T) {
+	s := newStack(t)
+	agent := s.newSupportAgent("systemsicht") // ACCESS.md: zammad read,write
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+
+	var systems []map[string]any
+	resp := admin.do(http.MethodGet, "/api/v1/agents/"+agent.ID.String()+"/systems", nil)
+	json.NewDecoder(resp.Body).Decode(&systems)
+	resp.Body.Close()
+
+	var zammad, teams map[string]any
+	for _, sys := range systems {
+		switch sys["name"] {
+		case "zammad":
+			zammad = sys
+		case "teams":
+			teams = sys
+		}
+	}
+	if zammad == nil || teams == nil {
+		t.Fatalf("zammad und teams müssen gelistet sein: %v", systems)
+	}
+
+	// Der Zugang aus ACCESS.md steht drin — samt Scopes und Aktionen.
+	if zammad["access"] != true || zammad["enabled"] != true {
+		t.Fatalf("zammad muss Zugang und Aktivierung zeigen: %v", zammad)
+	}
+	scopes, _ := zammad["scopes"].([]any)
+	if len(scopes) != 2 {
+		t.Fatalf("scopes aus ACCESS.md fehlen: %v", zammad["scopes"])
+	}
+	doc, _ := zammad["doc"].(string)
+	if !strings.Contains(doc, "get_ticket") {
+		t.Fatalf("aktionsliste muss der prompt-doku entsprechen: %q", doc)
+	}
+
+	// Aktiviert, aber ohne Zugang: sichtbar, und der Unterschied ist ablesbar.
+	if teams["access"] == true || teams["enabled"] != true {
+		t.Fatalf("teams ist aktiviert, hat aber keinen Zugang in ACCESS.md: %v", teams)
+	}
+	// Zugänge stehen vorn — die UI zeigt sie zuerst.
+	if systems[0]["access"] != true {
+		t.Fatalf("systeme mit Zugang gehören an den Anfang: %v", systems[0])
+	}
+
+	// Ein deaktiviertes Zielsystem hat keine Aktionen: fail-closed gilt auch
+	// für die Anzeige, sonst liest sich Deaktiviertes wie Verfügbares.
+	admin.expect(http.MethodPatch, "/api/v1/targets/zammad", map[string]any{"enabled": false}, http.StatusOK)
+	// Frische Ziel-Slice: in eine befüllte hinein dekodiert, mischt
+	// encoding/json die alten Map-Schlüssel mit den neuen — der alte Stand
+	// stünde dann im „neuen" Ergebnis.
+	var nachher []map[string]any
+	resp = admin.do(http.MethodGet, "/api/v1/agents/"+agent.ID.String()+"/systems", nil)
+	json.NewDecoder(resp.Body).Decode(&nachher)
+	resp.Body.Close()
+	for _, sys := range nachher {
+		if sys["name"] == "zammad" && sys["doc"] != nil {
+			t.Fatalf("deaktiviertes system darf keine aktionen zeigen: %v", sys)
+		}
+	}
+}

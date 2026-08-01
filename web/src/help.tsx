@@ -132,27 +132,28 @@ const deTopics: HelpTopic[] = [
             <b>Backlog</b> — Aufgaben anlegen und verfolgen. „Wecken" startet die Abarbeitung sofort.
           </li>
           <li>
-            <b>Heartbeat</b> — die wiederkehrenden Aufgaben aus <Term>HEARTBEAT.md</Term> grafisch:
-            Zeitplan, letzter Lauf und die nächsten Läufe auf einer 24-Stunden-Zeitachse.
-          </li>
-          <li>
             <b>Recording</b> — lückenlose Aufzeichnung: Runtime-Events, Aktionen, Guard-Rail- und
             Credential-Entscheidungen, Lifecycle.
           </li>
           <li>
-            <b>Config</b> — Config-as-Code: <Term>SOUL.md</Term> (Verhalten),{" "}
-            <Term>ACCESS.md</Term> (Zugriffs-Referenzen, nie Secrets) und{" "}
-            <Term>HEARTBEAT.md</Term> (wiederkehrende Aufgaben, die nach Zeitplan automatisch im
-            Backlog landen). Jede Änderung erzeugt eine neue Version.
-          </li>
-          <li>
-            <b>Gedächtnis</b> — Episoden, die der Agent aus erledigten Aufgaben gelernt hat; sie
-            fließen in künftige Läufe ein.
+            <b>Gedächtnis</b> — das Wiki des Agenten: verlinkte Seiten, was er aus erledigten
+            Aufgaben gelernt hat, und die Träume seiner Nachtläufe.
           </li>
           <li>
             <b>Arbeitsplatz</b> — das persistente Home des Agenten als Dateibaum: nachsehen, was da
             liegt, Dateien hochladen oder ändern. Das Home überlebt die Sandbox, der Zugriff geht
             deshalb auch am schlafenden Agenten. Jede Änderung steht im Recording.
+          </li>
+          <li>
+            <b>Tools &amp; Skills</b> — womit der Agent arbeitet: <b>Zielsysteme</b> (was er dort
+            tun kann, im Wortlaut seines Prompts), <b>MCP-Werkzeuge</b> (welche davon er nutzen
+            darf) und <b>Skills</b> (Prozeduren, die er bei Bedarf zieht).
+          </li>
+          <li>
+            <b>Einstellungen</b> — was man einmal einrichtet: Stammdaten, <b>Heartbeat</b> (die
+            wiederkehrenden Aufgaben aus <Term>HEARTBEAT.md</Term> grafisch), Webhook-Auslöser,{" "}
+            <b>Config</b> (<Term>SOUL.md</Term>, <Term>ACCESS.md</Term>, <Term>HEARTBEAT.md</Term> —
+            jede Änderung erzeugt eine neue Version), Egress und Secrets.
           </li>
         </ul>
         <p>
@@ -453,27 +454,28 @@ const enTopics: HelpTopic[] = [
             <b>Backlog</b> — Create and track tasks. "Wake" starts processing immediately.
           </li>
           <li>
-            <b>Heartbeat</b> — Recurring tasks from <Term>HEARTBEAT.md</Term> shown graphically:
-            schedule, last run, and next runs on a 24-hour timeline.
-          </li>
-          <li>
             <b>Recording</b> — Complete audit trail: runtime events, actions, guard-rail and
             credential decisions, lifecycle.
           </li>
           <li>
-            <b>Config</b> — Config-as-Code: <Term>SOUL.md</Term> (behavior),{" "}
-            <Term>ACCESS.md</Term> (access references, never secrets) and{" "}
-            <Term>HEARTBEAT.md</Term> (recurring tasks automatically added to the backlog on
-            schedule). Each change creates a new version.
-          </li>
-          <li>
-            <b>Memory</b> — Episodes the agent learned from completed tasks; they feed into future
-            runs.
+            <b>Memory</b> — the agent's wiki: linked pages, what it learned from completed tasks,
+            and the dreams from its night runs.
           </li>
           <li>
             <b>Workspace</b> — the agent's persistent home as a file tree: see what it has lying
             around, upload or edit files. The home outlives the sandbox, so this works while the
             agent sleeps. Every change is recorded.
+          </li>
+          <li>
+            <b>Tools &amp; Skills</b> — what the agent works with: <b>target systems</b> (what it
+            can do there, in the wording of its prompt), <b>MCP tools</b> (which of them it may
+            use) and <b>skills</b> (procedures it pulls when they apply).
+          </li>
+          <li>
+            <b>Settings</b> — what you set up once: master data, <b>heartbeat</b> (recurring tasks
+            from <Term>HEARTBEAT.md</Term> shown graphically), webhook trigger, <b>config</b> (
+            <Term>SOUL.md</Term>, <Term>ACCESS.md</Term>, <Term>HEARTBEAT.md</Term> — each change
+            creates a new version), egress and secrets.
           </li>
         </ul>
         <p>
