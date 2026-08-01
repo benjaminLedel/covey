@@ -1,7 +1,10 @@
 package sandboxfs
 
 import (
+	"archive/zip"
+	"bytes"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -353,5 +356,143 @@ func TestReadLiefertVorschauArt(t *testing.T) {
 	}
 	if arten["notiz.md"] != PreviewMarkdown || arten["bild.png"] != PreviewImage || arten["programm"] != "" {
 		t.Errorf("arten in der auflistung: %v", arten)
+	}
+}
+
+// Sammel-Download: mehrere Pfade und ganze Ordner in einem Archiv, benannt
+// relativ zum gewählten Elternteil — wer „notizen" wählt, bekommt „notizen/…"
+// und nicht dessen ausgeschütteten Inhalt.
+func TestZipMehrerePfadeUndOrdner(t *testing.T) {
+	fs, _ := newTestFS(t)
+	for p, inhalt := range map[string]string{
+		"notizen/a.md":      "A",
+		"notizen/tief/b.md": "B",
+		"lose.txt":          "lose",
+		"anderes/egal.txt":  "egal",
+	} {
+		if _, err := fs.Write(p, strings.NewReader(inhalt)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	plan, err := fs.PlanZip([]string{"notizen", "lose.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Files != 3 {
+		t.Fatalf("erwartet 3 dateien im archiv, got %d", plan.Files)
+	}
+	if plan.Name != "dateien.zip" {
+		t.Errorf("name bei mehreren pfaden: %q", plan.Name)
+	}
+
+	var buf bytes.Buffer
+	if err := fs.WriteZip(&buf, plan); err != nil {
+		t.Fatal(err)
+	}
+	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	inhalte := map[string]string{}
+	for _, f := range zr.File {
+		if f.FileInfo().IsDir() {
+			inhalte[f.Name] = "<dir>"
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := io.ReadAll(rc)
+		rc.Close()
+		inhalte[f.Name] = string(b)
+	}
+	for name, want := range map[string]string{
+		"notizen/":          "<dir>",
+		"notizen/a.md":      "A",
+		"notizen/tief/b.md": "B",
+		"lose.txt":          "lose",
+	} {
+		if inhalte[name] != want {
+			t.Errorf("archiv-eintrag %q = %q, erwartet %q (alle: %v)", name, inhalte[name], want, inhalte)
+		}
+	}
+	// Was nicht gewählt war, ist auch nicht drin.
+	if _, drin := inhalte["anderes/egal.txt"]; drin {
+		t.Errorf("nicht gewählter pfad im archiv: %v", inhalte)
+	}
+
+	// Ein einzelner Ordner benennt das Archiv nach sich.
+	einzeln, err := fs.PlanZip([]string{"notizen"})
+	if err != nil || einzeln.Name != "notizen.zip" {
+		t.Errorf("einzelner ordner: name=%q, %v", einzeln.Name, err)
+	}
+	// Das ganze Home lässt sich am Stück ziehen.
+	ganz, err := fs.PlanZip([]string{""})
+	if err != nil || ganz.Files != 4 || ganz.Name != "home.zip" {
+		t.Errorf("ganzes home: %d dateien, name=%q, %v", ganz.Files, ganz.Name, err)
+	}
+}
+
+// Doppelt gewählt (Ordner UND eine Datei darin) darf nicht doppelt im Archiv
+// landen — ZIP-Einträge mit gleichem Namen entpacken je nach Werkzeug anders.
+func TestZipKeineDoppeltenEintraege(t *testing.T) {
+	fs, _ := newTestFS(t)
+	if _, err := fs.Write("ordner/datei.txt", strings.NewReader("x")); err != nil {
+		t.Fatal(err)
+	}
+	plan, err := fs.PlanZip([]string{"ordner", "ordner/datei.txt"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Files != 1 {
+		t.Errorf("erwartet 1 datei, got %d", plan.Files)
+	}
+}
+
+// Ein Symlink aus dem Home heraus gehört nicht ins Archiv: sonst packte der
+// Download Dateien des Hosts mit ein.
+func TestZipUeberspringtAusbrechendeSymlinks(t *testing.T) {
+	fs, root := newTestFS(t)
+	draußen := filepath.Join(filepath.Dir(root), "aussen")
+	if err := os.MkdirAll(draußen, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(draußen, "beute.txt"), []byte("beute"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fs.Write("ordner/eigen.txt", strings.NewReader("eigen")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(draußen, filepath.Join(root, "ordner", "raus")); err != nil {
+		t.Skipf("symlinks nicht verfügbar: %v", err)
+	}
+
+	plan, err := fs.PlanZip([]string{"ordner"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plan.Files != 1 {
+		t.Fatalf("nur die eigene datei gehört ins archiv, got %d", plan.Files)
+	}
+	var buf bytes.Buffer
+	if err := fs.WriteZip(&buf, plan); err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(buf.Bytes(), []byte("beute")) {
+		t.Error("inhalt von ausserhalb des homes im archiv")
+	}
+}
+
+// Grenzen greifen VOR dem ersten Byte — ein abgebrochener Strom hinterließe
+// ein Archiv, dem man nicht ansieht, dass es unfertig ist.
+func TestZipGrenzen(t *testing.T) {
+	fs, _ := newTestFS(t)
+	if _, err := fs.PlanZip([]string{"gibtsnicht"}); !errors.Is(err, ErrNotFound) {
+		t.Errorf("unbekannter pfad: %v, erwartet ErrNotFound", err)
+	}
+	if _, err := fs.PlanZip([]string{"../draussen"}); err == nil {
+		t.Error("pfad aus dem home heraus muss scheitern")
 	}
 }

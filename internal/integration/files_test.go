@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"archive/zip"
 	"bytes"
 	"context"
 	"encoding/base64"
@@ -234,6 +235,93 @@ func (c *apiClient) uploadRaw(t *testing.T, path, name string, content []byte) {
 		b, _ := io.ReadAll(resp.Body)
 		t.Fatalf("upload %s: HTTP %d: %s", name, resp.StatusCode, b)
 	}
+}
+
+// TestSandboxFilesZipUndOrdnerUpload prüft die Sammel-Wege (spec/02): ein
+// Upload mit Verzeichnisanteilen im Dateinamen legt die Struktur an, und der
+// ZIP-Endpunkt gibt mehrere Pfade — auch ganze Ordner — in einem Archiv zurück.
+func TestSandboxFilesZipUndOrdnerUpload(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	created := admin.expect(http.MethodPost, "/api/v1/agents",
+		map[string]string{"slug": "zip-agent", "display_name": "ZIP", "runtime": "mock"}, http.StatusCreated)
+	agentID := created["id"].(string)
+	base := "/api/v1/agents/" + agentID + "/files"
+
+	// Ein Ordner-Upload: der Dateiname trägt den relativen Pfad — genau so
+	// schickt ihn der Browser beim Ziehen eines Ordners.
+	admin.upload(t, base+"/upload?path=projekt", map[string]string{
+		"doku/kapitel-1.md":      "# Eins",
+		"doku/bilder/skizze.txt": "skizze",
+		"liesmich.txt":           "hallo",
+	})
+
+	// Die Struktur ist angelegt, nicht flachgeklopft.
+	list := admin.expect(http.MethodGet, base+"?path="+url.QueryEscape("projekt/doku/bilder"), nil, http.StatusOK)
+	if entryNames(list)["skizze.txt"] == nil {
+		t.Fatalf("verschachtelter upload fehlt: %+v", list)
+	}
+
+	// Ein Dateiname mit `..` bricht nicht aus: er wird normalisiert, BEVOR er
+	// an das Zielverzeichnis gehängt wird — die Datei landet also im Ziel, nicht
+	// eine Ebene darüber und erst recht nicht außerhalb des Homes.
+	admin.upload(t, base+"/upload?path=projekt", map[string]string{"../../entwischt.txt": "nein"})
+	admin.expect(http.MethodGet, base+"/content?path="+url.QueryEscape("projekt/entwischt.txt"), nil, http.StatusOK)
+	root := admin.expect(http.MethodGet, base, nil, http.StatusOK)
+	if entryNames(root)["entwischt.txt"] != nil {
+		t.Fatalf("`..` im dateinamen darf keine ebene nach oben schreiben: %+v", root)
+	}
+
+	// ZIP über mehrere Pfade: ein Ordner und eine Datei.
+	resp := admin.do(http.MethodGet, base+"/zip?path="+url.QueryEscape("projekt/doku")+
+		"&path="+url.QueryEscape("projekt/liesmich.txt"), nil)
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("zip: HTTP %d: %s", resp.StatusCode, body)
+	}
+	if ct := resp.Header.Get("Content-Type"); ct != "application/zip" {
+		t.Errorf("content-type %q, erwartet application/zip", ct)
+	}
+	if cd := resp.Header.Get("Content-Disposition"); !strings.HasPrefix(cd, "attachment") {
+		t.Errorf("zip muss ein anhang sein: %q", cd)
+	}
+
+	zr, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+	if err != nil {
+		t.Fatalf("archiv unlesbar: %v", err)
+	}
+	drin := map[string]string{}
+	for _, f := range zr.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := io.ReadAll(rc)
+		rc.Close()
+		drin[f.Name] = string(b)
+	}
+	if drin["doku/kapitel-1.md"] != "# Eins" || drin["doku/bilder/skizze.txt"] != "skizze" ||
+		drin["liesmich.txt"] != "hallo" {
+		t.Fatalf("archiv-inhalt unerwartet: %v", drin)
+	}
+
+	// Ohne Pfad kein Archiv, und aus dem Home führt auch hier keiner hinaus.
+	admin.expect(http.MethodGet, base+"/zip", nil, http.StatusBadRequest)
+	admin.expect(http.MethodGet, base+"/zip?path="+url.QueryEscape("../../etc"), nil, http.StatusNotFound)
+
+	// Lesen darf Security, herunterladen also auch — schreiben weiterhin nicht.
+	ctx := context.Background()
+	hash, _ := identbuiltin.HashPassword("passwort-1234")
+	if _, err := s.pool.Exec(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
+		VALUES ($1,$2,'zipsec@test.local','Security',$3,'security')`, uuid.New(), s.orgID, hash); err != nil {
+		t.Fatal(err)
+	}
+	security := login(t, s, "zipsec@test.local", "passwort-1234")
+	security.expect(http.MethodGet, base+"/zip?path="+url.QueryEscape("projekt"), nil, http.StatusOK)
 }
 
 // upload schickt Dateien als multipart/form-data, wie es der Browser tut.

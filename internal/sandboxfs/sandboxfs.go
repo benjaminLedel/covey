@@ -13,6 +13,7 @@
 package sandboxfs
 
 import (
+	"archive/zip"
 	"errors"
 	"fmt"
 	"io"
@@ -21,6 +22,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -36,6 +38,12 @@ const (
 	// MaxEntries begrenzt die Einträge einer Auflistung. Ein Verzeichnis mit
 	// mehr Einträgen kommt gekürzt zurück, statt die UI zu erschlagen.
 	MaxEntries = 2000
+	// MaxZipFiles/MaxZipBytes begrenzen ein Sammel-Download. Beides wird VOR
+	// dem ersten Byte geprüft: ein Strom, der auf halber Strecke abbricht,
+	// hinterlässt ein kaputtes Archiv, dem man nicht ansieht, dass es unfertig
+	// ist — die Grenze muss eine Fehlermeldung sein, kein Torso.
+	MaxZipFiles = 20000
+	MaxZipBytes = 2 << 30 // 2 GiB unkomprimiert
 	// sniffBytes ist der Ausschnitt, an dem Text von Binär unterschieden wird.
 	sniffBytes = 8000
 )
@@ -52,6 +60,8 @@ var (
 	ErrIsDir  = errors.New("ist ein verzeichnis")
 	// ErrExists: das Ziel ist belegt.
 	ErrExists = errors.New("existiert bereits")
+	// ErrTooMany: der Sammel-Download umfasst zu viele Dateien.
+	ErrTooMany = errors.New("zu viele dateien")
 )
 
 // Vorschau-Arten. Welche Art eine Datei hat, entscheidet hier *eine* Stelle —
@@ -356,6 +366,162 @@ func (f *FS) Open(rel string) (io.ReadCloser, os.FileInfo, error) {
 		return nil, nil, err
 	}
 	return fh, info, nil
+}
+
+// ZipPlan ist das fertig ausgemessene Sammel-Archiv: was hineinkommt, wie viel
+// es ist und wie es heißen soll. Getrennt vom Schreiben, damit Grenzen und
+// Fehler (nichts gefunden, zu groß) noch als HTTP-Status gehen können — sind
+// die ersten Bytes raus, bleibt nur noch ein Abbruch mitten im Download.
+type ZipPlan struct {
+	// Name ist der vorgeschlagene Dateiname des Archivs (ohne Pfad).
+	Name string
+	// Files/Bytes ist der Umfang: Dateien und unkomprimierte Gesamtgröße.
+	Files int
+	Bytes int64
+	items []zipItem
+}
+
+// zipItem ist ein Eintrag im Archiv: Quelle auf der Platte, Name im Archiv.
+type zipItem struct {
+	abs  string
+	name string // Pfad im Archiv, „/" als Trenner
+	dir  bool
+	size int64
+	mod  time.Time
+}
+
+// PlanZip sammelt, was ein Archiv über diese Pfade enthielte. Verzeichnisse
+// kommen mitsamt Inhalt hinein, benannt relativ zu ihrem Elternteil — wer
+// „notizen" auswählt, bekommt ein Archiv mit einem Ordner „notizen" darin und
+// nicht dessen ausgeschüttete Einzelteile.
+func (f *FS) PlanZip(rels []string) (ZipPlan, error) {
+	var plan ZipPlan
+	seen := map[string]bool{}
+
+	for _, rel := range rels {
+		abs, clean, err := f.resolve(rel)
+		if err != nil {
+			return ZipPlan{}, err
+		}
+		info, err := os.Stat(abs)
+		if errors.Is(err, os.ErrNotExist) {
+			return ZipPlan{}, ErrNotFound
+		}
+		if err != nil {
+			return ZipPlan{}, err
+		}
+		// Der Name im Archiv ist relativ zum Elternteil des gewählten Pfads;
+		// bei der Wurzel selbst relativ zur Wurzel.
+		base := path.Dir(clean)
+		if clean == "" || base == "." {
+			base = ""
+		}
+		if err := f.walkZip(abs, clean, base, info, seen, &plan); err != nil {
+			return ZipPlan{}, err
+		}
+	}
+	if plan.Files == 0 && len(plan.items) == 0 {
+		return ZipPlan{}, ErrNotFound
+	}
+	plan.Name = zipName(rels)
+	return plan, nil
+}
+
+// walkZip nimmt einen Pfad (Datei oder Verzeichnis) rekursiv ins Archiv auf.
+func (f *FS) walkZip(abs, clean, base string, info os.FileInfo, seen map[string]bool, plan *ZipPlan) error {
+	if seen[abs] {
+		return nil // doppelte Auswahl (Ordner + Datei darin) nur einmal
+	}
+	seen[abs] = true
+
+	name := clean
+	if base != "" {
+		name = strings.TrimPrefix(clean, base+"/")
+	}
+	if name == "" {
+		name = path.Base(clean)
+	}
+
+	if !info.IsDir() {
+		if plan.Files+1 > MaxZipFiles {
+			return ErrTooMany
+		}
+		if plan.Bytes+info.Size() > MaxZipBytes {
+			return ErrTooLarge
+		}
+		plan.items = append(plan.items, zipItem{abs: abs, name: name, size: info.Size(), mod: info.ModTime()})
+		plan.Files++
+		plan.Bytes += info.Size()
+		return nil
+	}
+
+	plan.items = append(plan.items, zipItem{abs: abs, name: name + "/", dir: true, mod: info.ModTime()})
+	des, err := os.ReadDir(abs)
+	if err != nil {
+		return err
+	}
+	for _, de := range des {
+		childAbs := filepath.Join(abs, de.Name())
+		// Ein Symlink, der aus dem Home zeigt, gehört nicht ins Archiv: sonst
+		// packte der Download Dateien des Hosts mit ein.
+		if err := f.ensureInside(childAbs); err != nil {
+			continue
+		}
+		childInfo, err := os.Stat(childAbs)
+		if err != nil {
+			continue // kaputter Link o. Ä. — überspringen, nicht abbrechen
+		}
+		if err := f.walkZip(childAbs, path.Join(clean, de.Name()), base, childInfo, seen, plan); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// WriteZip schreibt das geplante Archiv als Strom.
+func (f *FS) WriteZip(w io.Writer, plan ZipPlan) error {
+	zw := zip.NewWriter(w)
+	for _, it := range plan.items {
+		hdr := &zip.FileHeader{Name: it.name, Modified: it.mod}
+		if it.dir {
+			hdr.SetMode(0o755 | os.ModeDir)
+			if _, err := zw.CreateHeader(hdr); err != nil {
+				return err
+			}
+			continue
+		}
+		hdr.Method = zip.Deflate
+		hdr.SetMode(0o644)
+		dst, err := zw.CreateHeader(hdr)
+		if err != nil {
+			return err
+		}
+		src, err := os.Open(it.abs)
+		if err != nil {
+			// Zwischen Planen und Schreiben verschwunden — der Agent arbeitet
+			// weiter. Kein Grund, das ganze Archiv fallenzulassen.
+			continue
+		}
+		_, err = io.Copy(dst, src)
+		src.Close()
+		if err != nil {
+			return err
+		}
+	}
+	return zw.Close()
+}
+
+// zipName leitet den Dateinamen des Archivs aus der Auswahl ab: bei genau
+// einem Pfad dessen Name, sonst ein Sammelname.
+func zipName(rels []string) string {
+	if len(rels) == 1 {
+		clean := strings.TrimPrefix(path.Clean("/"+rels[0]), "/")
+		if clean != "" && clean != "." {
+			return path.Base(clean) + ".zip"
+		}
+		return "home.zip"
+	}
+	return "dateien.zip"
 }
 
 // Write legt eine Datei an oder ersetzt sie. Fehlende Elternverzeichnisse

@@ -38,6 +38,8 @@ Das persistente Home deckt Dateien ab — **nicht** das episodische Gedächtnis 
 
 Das Home ist im Webinterface als **Dateibrowser** offen (Reiter *Arbeitsplatz* am Agenten): durchsehen, öffnen, Textdateien ändern, hoch- und herunterladen, Ordner anlegen, umbenennen, löschen. Damit ist „was liegt bei dem Agenten eigentlich rum?" eine Frage der Oberfläche und nicht mehr eine Shell auf dem Host — und der Weg, einem Agenten Material mitzugeben (eine Vorlage, eine Preisliste, einen Datensatz), führt nicht mehr über den Umweg eines Zielsystems.
 
+**Ganze Ordner, in beide Richtungen.** Hinein: mehrere Dateien auf einmal, per Dialog oder Drag & Drop — auch ein kompletter Ordner, dessen Struktur erhalten bleibt (der Browser liefert dabei keinen Dateibaum, sondern Einträge, die die Oberfläche selbst abläuft). Heraus: markierte Einträge und ganze Ordner als **ZIP**, gestreamt statt zwischengelagert. Der Umfang wird vorher ausgemessen — „zu groß" muss ein Fehler sein, kein Archiv, das mitten im Download abbricht und dem man das nicht ansieht.
+
 **Ansehen statt herunterladen.** Der Browser zeigt die üblichen Dateien an Ort und Stelle: Markdown gerendert, Bilder (auch SVG) als Bild, PDF eingebettet, CSV/TSV als Tabelle, alles Übrige im Editor. Wo es einen Quelltext gibt, ist er einen Klick entfernt und bleibt bearbeitbar — die Vorschau steht *vor* dem Editor, sie ersetzt ihn nicht. Die Art der Datei bestimmt die Control Plane an einer Stelle (`sandboxfs.PreviewKind`), damit Anzeige und Auslieferung nicht auseinanderlaufen.
 
 Vier Festlegungen tragen das:

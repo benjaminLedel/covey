@@ -29,6 +29,48 @@ import { Modal, ConfirmDialog } from "./Modal";
 
 const q = (s: string) => encodeURIComponent(s);
 
+// Ein hineingezogener Ordner ist im Browser kein File, sondern ein
+// FileSystemEntry-Baum, den man selbst ablaufen muss. Ohne das käme beim
+// Ziehen eines Ordners genau nichts an — dataTransfer.files ist dann leer.
+type DTEntry = {
+  isFile: boolean;
+  isDirectory: boolean;
+  name: string;
+  file: (cb: (f: File) => void, err: (e: unknown) => void) => void;
+  createReader: () => { readEntries: (cb: (e: DTEntry[]) => void, err: (e: unknown) => void) => void };
+};
+
+async function walkDropEntry(entry: DTEntry, prefix: string): Promise<Array<{ file: File; path: string }>> {
+  if (entry.isFile) {
+    const file = await new Promise<File>((res, rej) => entry.file(res, rej));
+    return [{ file, path: prefix + entry.name }];
+  }
+  if (!entry.isDirectory) return [];
+  const reader = entry.createReader();
+  const out: Array<{ file: File; path: string }> = [];
+  // readEntries liefert je Aufruf nur einen Teil (Chrome: 100) — bis zur
+  // leeren Antwort weiterlesen, sonst fehlt beim großen Ordner der Rest.
+  for (;;) {
+    const batch = await new Promise<DTEntry[]>((res, rej) => reader.readEntries(res, rej));
+    if (batch.length === 0) break;
+    for (const child of batch) out.push(...(await walkDropEntry(child, prefix + entry.name + "/")));
+  }
+  return out;
+}
+
+async function filesFromDrop(dt: DataTransfer): Promise<Array<{ file: File; path: string }>> {
+  const items = Array.from(dt.items ?? []);
+  const entries = items
+    .map((i) => (i.webkitGetAsEntry?.() as unknown as DTEntry | null) ?? null)
+    .filter((e): e is DTEntry => e !== null);
+  if (entries.length > 0) {
+    const nested = await Promise.all(entries.map((e) => walkDropEntry(e, "")));
+    return nested.flat();
+  }
+  // Browser ohne webkitGetAsEntry: wenigstens die flachen Dateien.
+  return Array.from(dt.files).map((file) => ({ file, path: file.name }));
+}
+
 // Symbole im Strichstil der übrigen UI. Ein Ordner sieht anders aus als ein
 // Bild — das erspart es, jede Zeile zu lesen, um die Liste zu überfliegen.
 const GLYPHS: Record<string, string> = {
@@ -77,10 +119,16 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
 
   const [dropping, setDropping] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [uploading, setUploading] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [prompting, setPrompting] = useState<null | { kind: "mkdir" | "newfile" | "rename"; entry?: FileEntry }>(null);
   const [confirming, setConfirming] = useState<FileEntry | null>(null);
+  // Auswahl fürs Sammel-Herunterladen. Sie hängt am Ordner: wer weiterklickt,
+  // nimmt sie nicht versehentlich mit.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  useEffect(() => setSelected(new Set()), [dir]);
   const fileInput = useRef<HTMLInputElement>(null);
+  const dirInput = useRef<HTMLInputElement>(null);
 
   const run = async (fn: () => Promise<unknown>) => {
     setBusy(true);
@@ -95,13 +143,30 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
     }
   };
 
-  const uploadFiles = (files: FileList | File[]) => {
-    const list = Array.from(files);
-    if (list.length === 0) return;
+  // uploadFiles nimmt Dateien samt ihrem relativen Pfad: der dritte Parameter
+  // von append() ist der Dateiname im Upload, und der darf hier Ordner
+  // enthalten. So kommt ein hineingezogener Ordner drüben genauso wieder an,
+  // statt als Haufen loser Dateien. Der Server setzt den Pfad zusammen und
+  // normalisiert ihn — aus dem Home führt auch so keiner hinaus.
+  const uploadFiles = (files: Array<{ file: File; path: string }>) => {
+    if (files.length === 0) return;
     const form = new FormData();
-    for (const f of list) form.append("file", f, f.name);
-    return run(() => upload(`/agents/${agent.id}/files/upload?path=${q(dir)}`, form));
+    for (const { file, path } of files) form.append("file", file, path);
+    setUploading(files.length);
+    return run(() => upload(`/agents/${agent.id}/files/upload?path=${q(dir)}`, form)).finally(() =>
+      setUploading(0),
+    );
   };
+
+  // Aus einem <input> kommen Dateien flach — außer bei einem Ordner-Upload,
+  // dann trägt webkitRelativePath die Struktur.
+  const uploadPicked = (list: FileList) =>
+    uploadFiles(
+      Array.from(list).map((file) => ({
+        file,
+        path: (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name,
+      })),
+    );
 
   const remove = useMutation({
     mutationFn: (e: FileEntry) => del(`/agents/${agent.id}/files?path=${q(e.path)}`),
@@ -116,6 +181,20 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
   const crumbs = dir === "" ? [] : dir.split("/");
   const busyNow = busy || remove.isPending;
   const working = ["working", "triage", "triggered"].includes(agent.status);
+  const entries = listing.data?.entries ?? [];
+  const selectable = entries.filter((e) => !e.outside);
+  const allSelected = selectable.length > 0 && selectable.every((e) => selected.has(e.path));
+  const toggle = (path: string) =>
+    setSelected((prev) => {
+      const n = new Set(prev);
+      n.has(path) ? n.delete(path) : n.add(path);
+      return n;
+    });
+  // Mehrere Pfade in einer URL: derselbe Parameter mehrfach — so liest ihn der
+  // Handler als Liste, ohne ein eigenes Trennzeichen zu erfinden, das in einem
+  // Dateinamen vorkommen könnte.
+  const zipURL = (paths: string[]) =>
+    `/api/v1/agents/${agent.id}/files/zip?` + paths.map((p) => `path=${q(p)}`).join("&");
 
   return (
     <div>
@@ -153,6 +232,17 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
           ))}
         </nav>
         <span className="ml-auto" />
+        {selected.size > 0 && (
+          <>
+            <span className="muted text-xs">{t("agent.files.selected", { count: selected.size })}</span>
+            <a className="btn sm primary" href={zipURL([...selected])}>
+              {t("agent.files.downloadZip")}
+            </a>
+            <button className="btn sm" onClick={() => setSelected(new Set())}>
+              {t("agent.files.clearSelection")}
+            </button>
+          </>
+        )}
         {canWrite && (
           <>
             <input
@@ -161,12 +251,29 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
               multiple
               hidden
               onChange={(e) => {
-                if (e.target.files) uploadFiles(e.target.files);
+                if (e.target.files) uploadPicked(e.target.files);
+                e.target.value = "";
+              }}
+            />
+            {/* webkitdirectory ist kein Standard-Attribut, React reicht es aber
+                durch — ohne es gibt es keinen Ordner-Upload über den Dialog. */}
+            <input
+              ref={dirInput}
+              type="file"
+              multiple
+              hidden
+              // @ts-expect-error — nicht im React-Typ, von allen Browsern unterstützt
+              webkitdirectory=""
+              onChange={(e) => {
+                if (e.target.files) uploadPicked(e.target.files);
                 e.target.value = "";
               }}
             />
             <button className="btn sm primary" disabled={busyNow} onClick={() => fileInput.current?.click()}>
               {t("agent.files.upload")}
+            </button>
+            <button className="btn sm" disabled={busyNow} onClick={() => dirInput.current?.click()}>
+              {t("agent.files.uploadFolder")}
             </button>
             <button className="btn sm" disabled={busyNow} onClick={() => setPrompting({ kind: "newfile" })}>
               {t("agent.files.newFile")}
@@ -182,6 +289,9 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
       </div>
 
       {error && <p className="danger-text text-xs mb-2">{error}</p>}
+      {uploading > 0 && (
+        <p className="muted text-xs mb-2">{t("agent.files.uploadingFiles", { count: uploading })}</p>
+      )}
 
       <div
         className="card"
@@ -200,7 +310,10 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
           if (!canWrite) return;
           e.preventDefault();
           setDropping(false);
-          if (e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files);
+          // filesFromDrop greift die Items noch vor seinem ersten await ab —
+          // danach räumt der Browser die DataTransfer-Liste ab, die daraus
+          // gewonnenen Entry-Objekte bleiben aber gültig.
+          filesFromDrop(e.dataTransfer).then(uploadFiles);
         }}
       >
         {listing.isError && (
@@ -219,6 +332,16 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
           <table className="tbl">
             <thead>
               <tr>
+                <th style={{ width: 28 }}>
+                  <input
+                    type="checkbox"
+                    aria-label={t("agent.files.selectAll")}
+                    checked={allSelected}
+                    onChange={() =>
+                      setSelected(allSelected ? new Set() : new Set(selectable.map((e) => e.path)))
+                    }
+                  />
+                </th>
                 <th>{t("agent.files.colName")}</th>
                 <th style={{ width: 100 }}>{t("agent.files.colSize")}</th>
                 <th style={{ width: 160 }}>{t("agent.files.colModified")}</th>
@@ -228,6 +351,15 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
             <tbody>
               {listing.data.entries.map((e) => (
                 <tr key={e.path}>
+                  <td>
+                    <input
+                      type="checkbox"
+                      aria-label={e.name}
+                      disabled={e.outside}
+                      checked={selected.has(e.path)}
+                      onChange={() => toggle(e.path)}
+                    />
+                  </td>
                   <td style={{ maxWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     <button
                       className="btn sm mono flex items-center gap-2"
@@ -245,13 +377,19 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
                   <td className="muted mono text-xs">{e.is_dir ? "—" : fmtBytes(e.size)}</td>
                   <td className="muted text-xs">{new Date(e.mod_time).toLocaleString()}</td>
                   <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                    {!e.is_dir && !e.outside && (
+                    {!e.outside && (
+                      // Ein Ordner kommt als Archiv, eine Datei roh — beides
+                      // unter demselben Knopf, weil es dieselbe Absicht ist.
                       <a
                         className="btn sm"
-                        href={`/api/v1/agents/${agent.id}/files/download?path=${q(e.path)}`}
-                        download={e.name}
+                        href={
+                          e.is_dir
+                            ? zipURL([e.path])
+                            : `/api/v1/agents/${agent.id}/files/download?path=${q(e.path)}`
+                        }
+                        download={e.is_dir ? `${e.name}.zip` : e.name}
                       >
-                        {t("agent.files.download")}
+                        {e.is_dir ? t("agent.files.downloadZipShort") : t("agent.files.download")}
                       </a>
                     )}
                     {canWrite && (
@@ -278,9 +416,7 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
         )}
       </div>
 
-      {canWrite && (
-        <p className="muted text-xs mt-2">{t("agent.files.dropHint")}</p>
-      )}
+      {canWrite && <p className="muted text-xs mt-2">{t("agent.files.dropHint")}</p>}
 
       {openFile && (
         <FileViewer

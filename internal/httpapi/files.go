@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"mime/multipart"
 	"net/http"
 	"path"
 	"strings"
@@ -105,6 +106,41 @@ func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, rc)
 }
 
+// handleZipFiles: GET /agents/{id}/files/zip?path=…&path=… — mehrere Dateien
+// und ganze Ordner in einem Rutsch, als ZIP-Strom.
+//
+// Der Umfang wird VOR dem ersten Byte ausgemessen: „zu groß" muss ein Status
+// sein, kein Archiv, das mitten im Download abbricht. Danach wird gestreamt,
+// ohne das Archiv im Speicher oder auf der Platte zwischenzulagern — ein Home
+// kann größer sein als der Arbeitsspeicher der Control Plane.
+func (s *Server) handleZipFiles(w http.ResponseWriter, r *http.Request) {
+	fs, _, ok := s.agentFS(w, r)
+	if !ok {
+		return
+	}
+	paths := r.URL.Query()["path"]
+	if len(paths) == 0 {
+		writeErr(w, http.StatusBadRequest, "path fehlt")
+		return
+	}
+	plan, err := fs.PlanZip(paths)
+	if err != nil {
+		writeFSErr(w, err)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Disposition",
+		mime.FormatMediaType("attachment", map[string]string{"filename": plan.Name}))
+	w.WriteHeader(http.StatusOK)
+	if err := fs.WriteZip(w, plan); err != nil {
+		// Header sind raus — mehr als abbrechen und protokollieren geht nicht.
+		// Der Browser meldet den unvollständigen Download.
+		s.Log.Warn("zip-download abgebrochen", "pfade", paths, "err", err)
+	}
+}
+
 // handlePreviewFile: GET /agents/{id}/files/preview?path=… — dieselben Bytes
 // wie der Download, aber *inline* darstellbar: Bilder und PDF direkt im
 // Browser statt „erst herunterladen, dann im Dateimanager suchen".
@@ -188,11 +224,8 @@ func (s *Server) handleUploadFiles(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusBadRequest, "upload unlesbar: "+err.Error())
 			return
 		}
-		// Der Dateiname des Clients ist Fremdeingabe: nur der Basisname zählt,
-		// Verzeichnisanteile („../", "C:\…") fliegen raus. Relative Pfade aus
-		// einem Ordner-Upload kommen über das Feld „path" mit.
-		name := path.Base(strings.ReplaceAll(part.FileName(), "\\", "/"))
-		if part.FormName() != "file" || name == "" || name == "." || name == "/" {
+		name := partRelPath(part)
+		if part.FormName() != "file" || name == "" || name == "." {
 			part.Close()
 			continue
 		}
@@ -210,6 +243,28 @@ func (s *Server) handleUploadFiles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"uploaded": uploaded})
+}
+
+// partRelPath liest den Dateinamen eines Upload-Teils als *relativen Pfad*.
+//
+// Part.FileName() taugt dafür nicht: es gibt nach RFC 7578 §4.2 nur den
+// Basisnamen zurück. Diese Vorsicht ist richtig für Server, die den Namen
+// ungeprüft in ein Verzeichnis legen — hier steht sie im Weg, denn wer einen
+// Ordner in den Browser zieht, will ihn samt Struktur wiederfinden und nicht
+// seinen Inhalt ausgeschüttet. Deshalb der Griff zum rohen Header.
+//
+// Sicher ist das, weil der zusammengesetzte Pfad denselben Weg durch
+// sandboxfs.resolve() nimmt wie jeder andere: `..` fällt weg, ein absoluter
+// Pfad wird relativ zur Wurzel gelesen, aus dem Home führt nichts hinaus. Ein
+// Windows-Pfad („ordner\\datei") wird vorher auf „/" normalisiert.
+func partRelPath(part *multipart.Part) string {
+	raw := part.FileName() // Rückfall: schon auf den Basisnamen gekürzt
+	if disp := part.Header.Get("Content-Disposition"); disp != "" {
+		if _, params, err := mime.ParseMediaType(disp); err == nil && params["filename"] != "" {
+			raw = params["filename"]
+		}
+	}
+	return strings.TrimPrefix(path.Clean("/"+strings.ReplaceAll(raw, "\\", "/")), "/")
 }
 
 // handleMkdir: POST /agents/{id}/files/dir — {path}
@@ -341,7 +396,11 @@ func writeFSErr(w http.ResponseWriter, err error) {
 		writeErr(w, http.StatusConflict, "existiert bereits")
 	case errors.Is(err, sandboxfs.ErrTooLarge):
 		writeErr(w, http.StatusRequestEntityTooLarge,
-			fmt.Sprintf("datei zu groß (max. %d MiB)", sandboxfs.MaxWriteBytes>>20))
+			fmt.Sprintf("zu groß (max. %d MiB je Datei, %d GiB je Archiv)",
+				sandboxfs.MaxWriteBytes>>20, sandboxfs.MaxZipBytes>>30))
+	case errors.Is(err, sandboxfs.ErrTooMany):
+		writeErr(w, http.StatusRequestEntityTooLarge,
+			fmt.Sprintf("zu viele dateien (max. %d je Archiv)", sandboxfs.MaxZipFiles))
 	default:
 		mapErr(w, err)
 	}
