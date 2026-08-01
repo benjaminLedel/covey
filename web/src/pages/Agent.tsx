@@ -64,16 +64,19 @@ export default function AgentPage({ me }: { me: Principal }) {
   const tab = ((sp.get("tab") as
     | "backlog"
     | "heartbeat"
-    | "webhook"
     | "recording"
-    | "config"
     | "memory"
-    | "dreams"
-    | "secrets"
     | "egress"
     | "tools"
     | "skills"
-    | "einstellungen") || "backlog");
+    | "einstellungen"
+    // Zusammengelegt, aber als URL weiterhin gueltig: geteilte Links und
+    // Lesezeichen sollen nicht ins Leere laufen, sondern dort landen, wo der
+    // Inhalt jetzt wohnt (siehe Umleitung unten).
+    | "webhook"
+    | "config"
+    | "secrets"
+    | "dreams") || "backlog");
   const setTab = (key: typeof tab) =>
     setSp(
       (prev) => {
@@ -85,6 +88,29 @@ export default function AgentPage({ me }: { me: Principal }) {
       { replace: false },
     );
   const [recTask, setRecTask] = useState<{ id: string; title: string } | null>(null);
+
+  // Webhook, Config und Secrets sind Unterpunkte der Einstellungen geworden,
+  // die Traeume eine Ansicht des Gedaechtnisses. Alte Links landen am neuen Ort
+  // statt auf dem Backlog.
+  useEffect(() => {
+    const moved: Record<string, [string, string, string]> = {
+      webhook: ["einstellungen", "sub", "webhook"],
+      config: ["einstellungen", "sub", "config"],
+      secrets: ["einstellungen", "sub", "secrets"],
+      dreams: ["memory", "view", "dreams"],
+    };
+    const to = moved[tab];
+    if (!to) return;
+    setSp(
+      (prev) => {
+        const n = new URLSearchParams(prev);
+        n.set("tab", to[0]);
+        n.set(to[1], to[2]);
+        return n;
+      },
+      { replace: true },
+    );
+  }, [tab, setSp]);
 
   const act = useMutation({
     mutationFn: (action: string) => post(`/agents/${id}/${action}`),
@@ -144,15 +170,11 @@ export default function AgentPage({ me }: { me: Principal }) {
           [
             ["backlog", t("agent.tabs.backlog")],
             ["heartbeat", t("agent.tabs.heartbeat")],
-            ...(canManage(me.Role) ? ([["webhook", t("agent.tabs.webhook")]] as const) : []),
             ["recording", t("agent.tabs.recording")],
             ["memory", t("agent.tabs.memory")],
-            ["dreams", t("agent.tabs.dreams")],
             ["tools", t("agent.tabs.tools")],
             ["skills", t("agent.tabs.skills")],
             ["egress", t("agent.tabs.egress")],
-            ...(canSecrets(me.Role) ? ([["secrets", t("agent.tabs.secrets")]] as const) : []),
-            ["config", t("agent.tabs.config")],
             ["einstellungen", t("agent.tabs.settings")],
           ] as const
         ).map(([key, label]) => (
@@ -186,31 +208,94 @@ export default function AgentPage({ me }: { me: Principal }) {
         />
       )}
       {tab === "heartbeat" && <Heartbeats agentId={a.id} canManage={canManage(me.Role)} />}
-      {tab === "webhook" && canManage(me.Role) && <WebhookTrigger agentId={a.id} />}
       {tab === "recording" && (
         <Recording agentId={a.id} taskFilter={recTask} onClearFilter={() => setRecTask(null)} />
       )}
-      {tab === "config" && (
-        <Config
-          agentId={a.id}
-          slug={a.slug}
-          displayName={a.display_name}
-          canManage={canManage(me.Role)}
-          canExport={canManage(me.Role) || me.Role === "security"}
-        />
-      )}
       {tab === "memory" && <Memories agentId={a.id} canManage={canManage(me.Role)} />}
-      {tab === "dreams" && <Dreams agentId={a.id} canManage={canManage(me.Role)} />}
       {tab === "egress" && <AgentEgress agentId={a.id} canEdit={canSecrets(me.Role)} />}
       {tab === "tools" && <AgentTools agentId={a.id} canEdit={canSecrets(me.Role)} />}
       {tab === "skills" && <AgentSkills agentId={a.id} canManage={canManage(me.Role)} />}
-      {tab === "secrets" && canSecrets(me.Role) && <AgentSecrets agentId={a.id} />}
-      {tab === "einstellungen" && <AgentSettings agent={a} editable={canManage(me.Role)} />}
+      {tab === "einstellungen" && (
+        <AgentSettings
+          agent={a}
+          editable={canManage(me.Role)}
+          canManage={canManage(me.Role)}
+          canSecrets={canSecrets(me.Role)}
+          isSecurity={me.Role === "security"}
+        />
+      )}
     </div>
   );
 }
 
-function AgentSettings({ agent, editable }: { agent: Agent; editable: boolean }) {
+// Die Einstellungen buendeln alles, was man einmal einrichtet und dann in Ruhe
+// laesst: Stammdaten, der Webhook-Auslöser, die Config-Dateien und die
+// Zugangsdaten. Als eigene Reiter waren das vier von zwoelf — nebeneinander in
+// der obersten Ebene, obwohl man sie im Alltag kaum anfasst.
+function AgentSettings({
+  agent,
+  editable,
+  canManage,
+  canSecrets,
+  isSecurity,
+}: {
+  agent: Agent;
+  editable: boolean;
+  canManage: boolean;
+  canSecrets: boolean;
+  isSecurity: boolean;
+}) {
+  const { t } = useTranslation();
+  const [sp, setSp] = useSearchParams();
+  // Der Unterpunkt steht in der URL: teilbare Links auf die Config eines
+  // Agenten waren vorher moeglich und sollen es bleiben.
+  const subs = [
+    ["allgemein", t("agent.settings.subGeneral"), true],
+    ["webhook", t("agent.tabs.webhook"), canManage],
+    ["config", t("agent.tabs.config"), true],
+    ["secrets", t("agent.tabs.secrets"), canSecrets],
+  ] as const;
+  const wanted = sp.get("sub") ?? "allgemein";
+  const sub = subs.some(([k, , allowed]) => k === wanted && allowed) ? wanted : "allgemein";
+  const setSub = (key: string) =>
+    setSp(
+      (prev) => {
+        const n = new URLSearchParams(prev);
+        n.set("tab", "einstellungen");
+        n.set("sub", key);
+        return n;
+      },
+      { replace: false },
+    );
+
+  return (
+    <div>
+      <div className="seg mb-3" role="tablist">
+        {subs
+          .filter(([, , allowed]) => allowed)
+          .map(([key, label]) => (
+            <button key={key} className={sub === key ? "active" : ""} onClick={() => setSub(key)}>
+              {label}
+            </button>
+          ))}
+      </div>
+      {sub === "allgemein" && <AgentSettingsGeneral agent={agent} editable={editable} />}
+      {sub === "webhook" && canManage && <WebhookTrigger agentId={agent.id} />}
+      {sub === "config" && (
+        <Config
+          agentId={agent.id}
+          slug={agent.slug}
+          displayName={agent.display_name}
+          canManage={canManage}
+          canExport={canManage || isSecurity}
+        />
+      )}
+      {sub === "secrets" && canSecrets && <AgentSecrets agentId={agent.id} />}
+    </div>
+  );
+}
+
+function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const navigate = useNavigate();
@@ -2639,9 +2724,15 @@ function Dreams({ agentId, canManage }: { agentId: string; canManage: boolean })
 function Memories({ agentId, canManage }: { agentId: string; canManage: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const [view, setView] = useState<"pages" | "graph" | "log">("pages");
   // Offene Wiki-Seite lebt in der URL (?page=<slug>) — deep-linkbar, Browser-Zurück.
   const [sp, setSp] = useSearchParams();
+  // Vier Sichten auf dasselbe Gedaechtnis: die Seiten, ihr Graph, das Protokoll
+  // der Schreibvorgaenge — und die Traeume, in denen der Agent aufraeumt. Als
+  // eigener Reiter stand "Traeume" gleichrangig neben "Gedaechtnis", obwohl es
+  // nichts anderes zeigt als dessen Pflege.
+  const [view, setView] = useState<"pages" | "graph" | "log" | "dreams">(
+    sp.get("view") === "dreams" ? "dreams" : "pages",
+  );
   const selected = sp.get("page");
   const setSelected = (slug: string | null) =>
     setSp(
@@ -2950,6 +3041,9 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
           <button className={view === "log" ? "active" : ""} onClick={() => setView("log")}>
             {t("agent.memory.log")}
           </button>
+          <button className={view === "dreams" ? "active" : ""} onClick={() => setView("dreams")}>
+            {t("agent.tabs.dreams")}
+          </button>
         </div>
         <span className="flex-1" />
       </div>
@@ -2985,7 +3079,9 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
       )}
 
 
-      {view === "log" ? (
+      {view === "dreams" ? (
+        <Dreams agentId={agentId} canManage={canManage} />
+      ) : view === "log" ? (
         <>
           {logs.length === 0 && <p className="muted">{t("agent.memory.logEmpty")}</p>}
           {logDays.map((day) => (

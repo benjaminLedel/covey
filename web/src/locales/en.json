@@ -757,7 +757,8 @@
       "deleteConfirm": "Permanently delete {{name}}?",
       "deleteYes": "Yes, delete permanently",
       "cancel": "Cancel",
-      "rollDice": "Roll random name"
+      "rollDice": "Roll random name",
+      "subGeneral": "General"
     },
     "skills": {
       "desc": "The capabilities this agent has — its own plus those linked from the library. Exactly this list is written into its home before every run; of each entry, only the description stays in context permanently.",
