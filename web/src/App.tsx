@@ -243,7 +243,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
 
   // Plattform-Administration ist selten gebraucht — standardmäßig eingeklappt,
   // Zustand wird gemerkt; auf einer Plattform-Seite ist die Gruppe immer offen.
-  const inPlatform = ["/users", "/orgs", "/runtimes", "/requests"].some((p) => location.pathname.startsWith(p));
+  const inPlatform = ["/users", "/orgs"].some((p) => location.pathname.startsWith(p));
   const [platformOpen, setPlatformOpen] = useState(() => localStorage.getItem("covey.nav.platform") === "1");
   const togglePlatform = () => {
     const next = !platformOpen;
@@ -298,20 +298,35 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
           </span>
           Covey
         </div>
+        {/* Die Navigation ist gewachsen — die Reihenfolge bildete ab, wann
+            etwas dazukam, nicht wann man es braucht. Jetzt nach dem Alltag
+            sortiert: oben, was man taeglich oeffnet; darunter, was man einmal
+            einrichtet; dann die Aufsicht. */}
         <div className="nav-group">
           <NavItem to="/" end icon="robot" label={t("nav.agents")} />
-          <NavItem to="/templates" icon="copy" label={t("nav.templates")} />
-          <NavItem to="/skills" icon="book" label={t("nav.skills")} />
-          <NavItem to="/org" icon="sitemap" label={t("nav.org")} />
-          <NavItem to="/costs" icon="chart" label={t("nav.costs")} />
-        </div>
-        <div className="nav-sec">{t("nav.trust")}</div>
-        <div className="nav-group">
           <NavItem to="/approvals" icon="bell" label={t("nav.approvals")} count={pending} />
-          <NavItem to="/guardrails" icon="shield" label={t("nav.guardrails")} />
+          <NavItem to="/costs" icon="chart" label={t("nav.costs")} />
+          <NavItem to="/org" icon="sitemap" label={t("nav.org")} />
+        </div>
+        <div className="nav-sec">{t("nav.setup")}</div>
+        <div className="nav-group">
           <NavItem to="/secrets" icon="key" label={t("nav.secrets")} />
           <NavItem to="/targets" icon="plug" label={t("nav.targets")} />
+          <NavItem to="/skills" icon="book" label={t("nav.skills")} />
+          <NavItem to="/templates" icon="copy" label={t("nav.templates")} />
+          <NavItem to="/runtimes" icon="cpu" label={t("nav.runtimes")} />
+        </div>
+        <div className="nav-sec">{t("nav.control")}</div>
+        <div className="nav-group">
+          <NavItem to="/guardrails" icon="shield" label={t("nav.guardrails")} />
           <NavItem to="/egress" icon="globe" label={t("nav.egress")} />
+          {/* Das Request-Log liest nur, wer es auch abrufen darf (die API
+              laesst platform_admin und security durch) — sonst zeigte das
+              Menue einen Weg, der in einer 403 endet. Vorher stand es im
+              Admin-Block und blieb Security damit verborgen. */}
+          {(me.Role === "platform_admin" || me.Role === "security") && (
+            <NavItem to="/requests" icon="exchange" label={t("nav.requests")} />
+          )}
         </div>
         <div className="mt-auto">
           {me.Role === "platform_admin" && (
@@ -324,8 +339,6 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
                 <div className="nav-group">
                   <NavItem to="/users" icon="user" label={t("nav.users")} />
                   <NavItem to="/orgs" icon="box" label={t("nav.organizations")} />
-                  <NavItem to="/runtimes" icon="cpu" label={t("nav.runtimes")} />
-                  <NavItem to="/requests" icon="exchange" label={t("nav.requests")} />
                 </div>
               )}
             </>
