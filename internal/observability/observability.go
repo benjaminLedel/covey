@@ -49,6 +49,16 @@ func (s *Store) EffectiveRecordingLevel(ctx context.Context, agentID uuid.UUID) 
 	if err != nil {
 		return LevelStandard, err
 	}
+	return effectiveLevel(orgLevel, agentLevel), nil
+}
+
+// effectiveLevel ist die Regel hinter EffectiveRecordingLevel, getrennt von der
+// Abfrage: Der Org-Level ist der **Boden**, ein Agent darf nur nach oben davon
+// abweichen. Ein Agent, der sich selbst leiser stellen könnte, wäre genau die
+// Lücke, die Security/Compliance mit dem Org-Boden schließen wollten.
+// Unbekannte Werte fallen fail-safe auf standard — im Zweifel wird mehr
+// aufgezeichnet, nicht weniger.
+func effectiveLevel(orgLevel string, agentLevel *string) string {
 	eff := orgLevel
 	if agentLevel != nil && levelRank[*agentLevel] > levelRank[eff] {
 		eff = *agentLevel
@@ -56,7 +66,7 @@ func (s *Store) EffectiveRecordingLevel(ctx context.Context, agentID uuid.UUID) 
 	if _, ok := levelRank[eff]; !ok {
 		eff = LevelStandard
 	}
-	return eff, nil
+	return eff
 }
 
 // SetOrgRecordingLevel setzt den Org-Boden (Security/Compliance).
