@@ -2628,6 +2628,44 @@ kbd {
 }
 .assist-msg .md-pre:last-child { margin-bottom: 0; }
 .assist-msg .md-pre code { background: none; padding: 0; }
+/* Erste Schritte: die Checkliste auf der Agenten-Übersicht. Zurückhaltend —
+   sie ist eine Handreichung, kein Banner, und verschwindet ohnehin, sobald sie
+   nichts mehr zu sagen hat. */
+.onboarding-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.onboarding-steps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.onboarding-steps li.next { background: var(--surface-1); }
+.onboarding-steps li.done .what { color: var(--text-secondary); }
+.onboarding-steps .mark {
+  display: flex;
+  width: 16px;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-success);
+}
+/* Offener Schritt: ein leerer Ring statt eines Hakens. */
+.onboarding-steps .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong, var(--border));
+}
+.onboarding-steps li.next .dot { border-color: var(--text-accent); }
+.onboarding-steps li.done .mark .file-ic { opacity: 1; stroke-width: 2.2; }
+
 /* Datei-Symbole im Arbeitsplatz: Strichstil wie die übrige Navigation. Ohne
    eigene Regel griffe keine der `.ic`-Regeln (die hängen alle an .nav-item)
    und die Pfade kämen schwarz gefüllt heraus. */

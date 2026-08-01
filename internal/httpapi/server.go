@@ -128,6 +128,8 @@ func (s *Server) Handler() http.Handler {
 	manage := []string{identity.RolePlatformAdmin, identity.RoleAgentOwner}
 	securityRoles := []string{identity.RolePlatformAdmin, identity.RoleSecurity}
 
+	// Erste Schritte als Checkliste über den echten Org-Zustand (onboarding.go).
+	mux.Handle("GET /api/v1/onboarding", s.rbac(anyRole, s.handleOnboarding))
 	mux.Handle("GET /api/v1/agents", s.rbac(anyRole, s.handleListAgents))
 	mux.Handle("POST /api/v1/agents", s.rbac(manage, s.handleCreateAgent))
 	mux.Handle("GET /api/v1/agents/{id}", s.rbac(anyRole, s.handleGetAgent))

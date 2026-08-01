@@ -565,6 +565,15 @@ export type BuildInfo = {
 
 export const buildInfo = () => api<BuildInfo>("/version");
 
+
+// Erste Schritte: der Zustand der Organisation, nicht ein Fortschritt, den
+// sich die Oberfläche merkt (GET /onboarding). done=true → die Checkliste hat
+// nichts mehr zu sagen und verschwindet.
+export type OnboardingState = {
+  steps: Array<{ key: string; done: boolean }>;
+  done: boolean;
+};
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {

@@ -37,7 +37,7 @@ const deTopics: HelpTopic[] = [
             Unter <b>Agenten</b> einen Agenten anlegen (Runtime <Term>claude-code</Term>).
           </li>
           <li>
-            Auf der Agenten-Seite im Tab <b>Config</b> die <Term>SOUL.md</Term> schreiben — Rolle,
+            Auf der Agenten-Seite unter <b>Einstellungen → Config</b> die <Term>SOUL.md</Term> schreiben — Rolle,
             Ton, Arbeitsweise des Agenten.
           </li>
           <li>
@@ -47,6 +47,10 @@ const deTopics: HelpTopic[] = [
             Im Tab <b>Recording</b> zusehen, was passiert — jede Aktion wird aufgezeichnet.
           </li>
         </ol>
+        <p>
+          Dieselben Schritte stehen als Checkliste auf der <b>Agenten</b>-Übersicht und haken sich
+          von selbst ab, sobald sie erledigt sind. Ist alles erledigt, verschwindet sie.
+        </p>
       </>
     ),
   },
@@ -359,7 +363,7 @@ const enTopics: HelpTopic[] = [
             Under <b>Agents</b>, create an agent (Runtime <Term>claude-code</Term>).
           </li>
           <li>
-            On the agent page in the <b>Config</b> tab, write <Term>SOUL.md</Term> — the agent's
+            On the agent page under <b>Settings → Config</b>, write <Term>SOUL.md</Term> — the agent's
             role, tone, and working style.
           </li>
           <li>
@@ -369,6 +373,10 @@ const enTopics: HelpTopic[] = [
             Watch what happens in the <b>Recording</b> tab — every action is recorded.
           </li>
         </ol>
+        <p>
+          The same steps sit as a checklist on the <b>Agents</b> overview and tick themselves off as
+          you go. Once everything is done, it disappears.
+        </p>
       </>
     ),
   },

@@ -357,6 +357,39 @@
     "auditor": "Auditor",
     "controlling": "Controlling"
   },
+  "onboarding": {
+    "title": "First steps",
+    "lead": "The path to your first working agent. The checkmarks come from your organisation's actual state — once everything is done, this list disappears on its own.",
+    "progress": "{{done}} of {{total}}",
+    "hide": "Hide",
+    "steps": {
+      "credential": {
+        "title": "Add a runtime credential",
+        "hint": "anthropic_api_key (API key) or claude_code_oauth_token (subscription account). Without one of them every task fails.",
+        "action": "Go to Secrets"
+      },
+      "agent": {
+        "title": "Create an agent",
+        "hint": "Name, slug, runtime — that is all it takes to start.",
+        "action": "Create an agent"
+      },
+      "config": {
+        "title": "Write SOUL.md",
+        "hint": "Role, tone, way of working. On the agent under Settings → Config; the AI assistant helps with the wording.",
+        "action": "Go to agents"
+      },
+      "task": {
+        "title": "Create the first task",
+        "hint": "In the agent's backlog. “Wake” starts processing right away.",
+        "action": "Go to agents"
+      },
+      "run": {
+        "title": "Watch it work",
+        "hint": "The recording shows every step: tool calls, target-system actions, approvals, cost.",
+        "action": "Go to agents"
+      }
+    }
+  },
   "modal": {
     "close": "Close",
     "delete": "Delete",

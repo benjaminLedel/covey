@@ -66,6 +66,12 @@ docker compose run --rm bootstrap
 
 ## Der erste Agent
 
+Auf der Agenten-Übersicht steht dafür eine Checkliste **Erste Schritte**:
+Runtime-Credential hinterlegen → Agent anlegen → `SOUL.md` schreiben → Aufgabe
+anlegen → beim Arbeiten zusehen. Sie liest den tatsächlichen Zustand der
+Organisation, hakt sich also selbst ab und verschwindet, sobald alles erledigt
+ist. Dieselben Schritte stehen ausführlicher in der Hilfe (Taste `?`).
+
 Nach dem Login ist bereits ein **Demo-Support-Agent** angelegt. Damit er
 tatsächlich arbeiten kann, braucht er zwei Dinge — beides in der Admin-UI unter
 dem Agenten hinterlegbar:

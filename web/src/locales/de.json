@@ -357,6 +357,39 @@
     "auditor": "Auditor",
     "controlling": "Controlling"
   },
+  "onboarding": {
+    "title": "Erste Schritte",
+    "lead": "Der Weg zum ersten arbeitenden Agenten. Die Haken kommen aus dem tatsächlichen Zustand Ihrer Organisation — ist alles erledigt, verschwindet diese Liste von selbst.",
+    "progress": "{{done}} von {{total}}",
+    "hide": "Ausblenden",
+    "steps": {
+      "credential": {
+        "title": "Runtime-Credential hinterlegen",
+        "hint": "anthropic_api_key (API-Schlüssel) oder claude_code_oauth_token (Abo-Konto). Ohne eines von beiden schlägt jede Aufgabe fehl.",
+        "action": "Zu den Secrets"
+      },
+      "agent": {
+        "title": "Agenten anlegen",
+        "hint": "Name, Kürzel, Runtime — mehr braucht es nicht, um anzufangen.",
+        "action": "Agenten anlegen"
+      },
+      "config": {
+        "title": "SOUL.md schreiben",
+        "hint": "Rolle, Ton, Arbeitsweise. Am Agenten unter Einstellungen → Config; der KI-Assistent hilft beim Formulieren.",
+        "action": "Zu den Agenten"
+      },
+      "task": {
+        "title": "Erste Aufgabe anlegen",
+        "hint": "Im Backlog des Agenten. „Wecken“ startet die Abarbeitung sofort.",
+        "action": "Zu den Agenten"
+      },
+      "run": {
+        "title": "Beim Arbeiten zusehen",
+        "hint": "Das Recording zeigt jeden Schritt: Werkzeugaufrufe, Zielsystem-Aktionen, Freigaben, Kosten.",
+        "action": "Zu den Agenten"
+      }
+    }
+  },
   "modal": {
     "close": "Schließen",
     "delete": "Löschen",

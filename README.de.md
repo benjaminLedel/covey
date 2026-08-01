@@ -54,7 +54,7 @@ echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env   # 32-Byte-Schlüssel
 docker compose up -d --build                              # Postgres + Covey starten
 ```
 
-Dann [http://localhost:8494](http://localhost:8494) öffnen — Login `admin@covey.local` / `covey-admin`.
+Dann [http://localhost:8494](http://localhost:8494) öffnen — Login `admin@covey.local` / `covey-admin`. Eine Checkliste **Erste Schritte** auf der Agenten-Übersicht führt zum ersten arbeitenden Agenten; sie liest den tatsächlichen Zustand der Organisation, hakt sich selbst ab und verschwindet, wenn alles erledigt ist.
 
 Das mitgelieferte [`docker-compose.yml`](docker-compose.yml) bringt Postgres (pgvector) und das covey-Binary mit eingebetteter Admin-UI; `bootstrap` legt Organisation, Admin und einen Demo-Agenten an, Migrationen laufen automatisch. Vollständige Anleitung inkl. erstem Agenten und Produktions-Checkliste: [`docs/schnellstart-docker.md`](docs/schnellstart-docker.md).
 
