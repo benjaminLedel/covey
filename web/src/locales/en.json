@@ -359,7 +359,8 @@
   "modal": {
     "close": "Close",
     "delete": "Delete",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "ok": "OK"
   },
   "login": {
     "title": "Sign in",
@@ -484,7 +485,42 @@
       "config": "Config",
       "settings": "Settings",
       "skills": "Skills",
+      "files": "Workspace",
       "dreams": "Dreams"
+    },
+    "files": {
+      "desc": "The agent's persistent home — its workspace. Files outlive the sandbox, so you can browse or drop something here even while the agent sleeps. Every change is recorded.",
+      "runningHint": "The agent is working right now. Changes here touch the same files it is writing.",
+      "wikiHint": "The wiki lives in the control plane; these files are only the working copy and get overwritten on the next run. Edit wiki pages under Memory.",
+      "breadcrumb": "Path",
+      "home": "Home",
+      "upload": "Upload",
+      "newFile": "New file",
+      "newFolder": "New folder",
+      "refresh": "Refresh",
+      "colName": "Name",
+      "colSize": "Size",
+      "colModified": "Modified",
+      "download": "Download",
+      "rename": "Rename",
+      "renameTitle": "Rename {{name}}",
+      "newName": "New name",
+      "name": "Name",
+      "noSlash": "A name has no slash in it — create nested folders one at a time.",
+      "delete": "Delete",
+      "deleteTitle": "Delete {{name}}",
+      "deleteFileConfirm": "“{{name}}” will be deleted from the agent's home.",
+      "deleteDirConfirm": "“{{name}}” and everything in it will be deleted from the agent's home.",
+      "emptyDir": "This folder is empty.",
+      "noHome": "The agent has no home yet — it is created on the first wake. Uploading a file creates it.",
+      "tooManyEntries": "Only the first entries are shown.",
+      "dropHint": "You can also drag and drop files onto the list.",
+      "symlinkTo": "Link to {{target}}",
+      "outside": "(points outside the home)",
+      "binary": "Binary file — not displayable here. Download it to view.",
+      "truncated": "Only the beginning of the file is shown; it is too large to edit. Use “Download” for the whole thing.",
+      "save": "Save",
+      "saving": "Saving …"
     },
     "cost": {
       "total": "Total cost",
@@ -1298,6 +1334,12 @@
     }
   },
   "activity": {
+    "fileWrite": "{{actor}} changed “{{path}}” in the workspace",
+    "fileUpload": "{{actor}} uploaded “{{path}}” to the workspace",
+    "fileMkdir": "{{actor}} created the folder “{{path}}”",
+    "fileMove": "{{actor}} moved something to “{{path}}”",
+    "fileDelete": "{{actor}} deleted “{{path}}” from the workspace",
+    "fileSomebody": "Somebody",
     "sessionStarted": "Session started{{model}}",
     "withModel": " · Model {{model}}",
     "rateLimitUpdated": "API rate limit status updated",

@@ -135,6 +135,18 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/agents/{id}/config", s.rbac(anyRole, s.handleGetConfig))
 	mux.Handle("GET /api/v1/agents/{id}/export", s.rbac(append(manage, identity.RoleSecurity), s.handleExportAgent))
 	mux.Handle("GET /api/v1/agents/{id}/diagnostics", s.rbac(append(manage, identity.RoleSecurity), s.handleAgentDiagnostics))
+	// Der Arbeitsplatz: das persistente Home als Dateibaum (files.go). Lesen
+	// darf zusätzlich Security — wer einen Agenten untersucht, muss sehen, was
+	// bei ihm liegt. Schreiben bleibt bei den Verwaltern: eine Datei im Home
+	// ist Konfiguration des Agenten, kein Audit-Vorgang.
+	mux.Handle("GET /api/v1/agents/{id}/files", s.rbac(append(manage, identity.RoleSecurity), s.handleListFiles))
+	mux.Handle("GET /api/v1/agents/{id}/files/content", s.rbac(append(manage, identity.RoleSecurity), s.handleReadFile))
+	mux.Handle("GET /api/v1/agents/{id}/files/download", s.rbac(append(manage, identity.RoleSecurity), s.handleDownloadFile))
+	mux.Handle("PUT /api/v1/agents/{id}/files/content", s.rbac(manage, s.handleWriteFile))
+	mux.Handle("POST /api/v1/agents/{id}/files/upload", s.rbac(manage, s.handleUploadFiles))
+	mux.Handle("POST /api/v1/agents/{id}/files/dir", s.rbac(manage, s.handleMkdir))
+	mux.Handle("POST /api/v1/agents/{id}/files/move", s.rbac(manage, s.handleMoveFile))
+	mux.Handle("DELETE /api/v1/agents/{id}/files", s.rbac(manage, s.handleDeleteFile))
 	mux.Handle("GET /api/v1/skills/covey-agent.zip", s.rbac(anyRole, s.handleDownloadSkill))
 	mux.Handle("POST /api/v1/agents/import", s.rbac(manage, s.handleImportAgent))
 	mux.Handle("PUT /api/v1/agents/{id}/config", s.rbac(manage, s.handlePutConfig))

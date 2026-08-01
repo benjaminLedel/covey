@@ -69,6 +69,7 @@ The bundled [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector
 | 🔑 **Secrets broker** | No long-lived secrets inside the sandbox — access is brokered at runtime, short-lived and scoped. |
 | 🧩 **Skills** | Procedures an agent loads only when they apply: the description stays in context, the instructions and any extra files are read on demand. Kept in an org-wide library, linked per agent — a delivery lead run that finds nothing to do no longer pays for five playbooks. |
 | 🧠 **Wiki memory** | Linked Markdown pages with a pgvector index instead of flat snippets — readable, and correctable by hand. |
+| 📂 **Workspace** | The agent's home directory in the browser: look through what it has lying around, drop a template or a dataset in, edit a file. Works while the agent sleeps, and every change is recorded. |
 | 🎥 **Recording & kill switch** | Every run recorded including screenshots; cost per agent and model; an emergency stop for the entire organisation. |
 | 📦 **One binary** | Frontend and migrations are compiled in. Copy it, run `covey serve` — no nginx, no separate frontend hosting. |
 

@@ -149,6 +149,11 @@ const deTopics: HelpTopic[] = [
             <b>Gedächtnis</b> — Episoden, die der Agent aus erledigten Aufgaben gelernt hat; sie
             fließen in künftige Läufe ein.
           </li>
+          <li>
+            <b>Arbeitsplatz</b> — das persistente Home des Agenten als Dateibaum: nachsehen, was da
+            liegt, Dateien hochladen oder ändern. Das Home überlebt die Sandbox, der Zugriff geht
+            deshalb auch am schlafenden Agenten. Jede Änderung steht im Recording.
+          </li>
         </ul>
         <p>
           Die Kostenleiste zeigt LLM-Kosten und Tokens. Ist ein Budget gesetzt, pausiert der Agent
@@ -464,6 +469,11 @@ const enTopics: HelpTopic[] = [
           <li>
             <b>Memory</b> — Episodes the agent learned from completed tasks; they feed into future
             runs.
+          </li>
+          <li>
+            <b>Workspace</b> — the agent's persistent home as a file tree: see what it has lying
+            around, upload or edit files. The home outlives the sandbox, so this works while the
+            agent sleeps. Every change is recorded.
           </li>
         </ul>
         <p>

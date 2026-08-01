@@ -44,6 +44,7 @@ import { TargetIcon } from "../components/TargetIcon";
 import { WikiTypeIcon, WikiOpIcon } from "../components/WikiIcon";
 import { Markdown } from "../components/Markdown";
 import { SkillEditor, type SkillDraft } from "../components/SkillEditor";
+import { AgentFiles } from "../components/AgentFiles";
 import ProfileForm from "../components/ProfileForm";
 import { AddHostForm, EgressLogTable, HostChips } from "../components/EgressBits";
 import { SecretValue } from "./Secrets";
@@ -52,6 +53,9 @@ import { generateAgentName } from "../names";
 const canManage = (role: string) => role === "platform_admin" || role === "agent_owner";
 const canKill = (role: string) => canManage(role) || role === "security";
 const canSecrets = (role: string) => role === "platform_admin" || role === "security";
+// Der Arbeitsplatz (Home des Agenten): lesen dürfen ihn seine Verwalter und
+// Security — wer einen Agenten untersucht, muss sehen, was bei ihm liegt.
+const canFiles = (role: string) => canManage(role) || role === "security";
 
 export default function AgentPage({ me }: { me: Principal }) {
   const { t } = useTranslation();
@@ -68,6 +72,7 @@ export default function AgentPage({ me }: { me: Principal }) {
     | "memory"
     | "tools"
     | "skills"
+    | "dateien"
     | "einstellungen"
     // Zusammengelegt, aber als URL weiterhin gueltig: geteilte Links und
     // Lesezeichen sollen nicht ins Leere laufen, sondern dort landen, wo der
@@ -83,6 +88,10 @@ export default function AgentPage({ me }: { me: Principal }) {
         const n = new URLSearchParams(prev);
         n.set("tab", key);
         if (key !== "memory") n.delete("page"); // Wiki-Seite nur im memory-Tab
+        if (key !== "dateien") {
+          n.delete("dir"); // Ordner und Datei nur im Arbeitsplatz-Tab
+          n.delete("file");
+        }
         return n;
       },
       { replace: false },
@@ -175,9 +184,14 @@ export default function AgentPage({ me }: { me: Principal }) {
             ["memory", t("agent.tabs.memory")],
             ["tools", t("agent.tabs.tools")],
             ["skills", t("agent.tabs.skills")],
+            ["dateien", t("agent.tabs.files")],
             ["einstellungen", t("agent.tabs.settings")],
           ] as const
-        ).map(([key, label]) => (
+        )
+          // Der Arbeitsplatz zeigt, was im Home des Agenten liegt — das sehen
+          // nur seine Verwalter und Security, nicht jede Rolle.
+          .filter(([key]) => key !== "dateien" || canFiles(me.Role))
+          .map(([key, label]) => (
           <button
             key={key}
             onClick={() => {
@@ -214,6 +228,9 @@ export default function AgentPage({ me }: { me: Principal }) {
       {tab === "memory" && <Memories agentId={a.id} canManage={canManage(me.Role)} />}
       {tab === "tools" && <AgentTools agentId={a.id} canEdit={canSecrets(me.Role)} />}
       {tab === "skills" && <AgentSkills agentId={a.id} canManage={canManage(me.Role)} />}
+      {tab === "dateien" && canFiles(me.Role) && (
+        <AgentFiles agent={a} canWrite={canManage(me.Role)} />
+      )}
       {tab === "einstellungen" && (
         <AgentSettings
           agent={a}

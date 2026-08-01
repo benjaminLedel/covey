@@ -359,7 +359,8 @@
   "modal": {
     "close": "Schließen",
     "delete": "Löschen",
-    "cancel": "Abbrechen"
+    "cancel": "Abbrechen",
+    "ok": "OK"
   },
   "login": {
     "title": "Anmelden",
@@ -484,7 +485,42 @@
       "config": "Config",
       "settings": "Einstellungen",
       "skills": "Skills",
+      "files": "Arbeitsplatz",
       "dreams": "Träume"
+    },
+    "files": {
+      "desc": "Das persistente Home des Agenten — sein Arbeitsplatz. Dateien überleben die Sandbox: Sie können hier auch dann etwas ablegen oder ansehen, wenn der Agent schläft. Jede Änderung landet im Recording.",
+      "runningHint": "Der Agent arbeitet gerade. Änderungen hier treffen dieselben Dateien, an denen er schreibt.",
+      "wikiHint": "Das Wiki lebt in der Control Plane; diese Dateien sind nur die Arbeitskopie und werden beim nächsten Lauf überschrieben. Wiki-Seiten ändern Sie im Gedächtnis.",
+      "breadcrumb": "Pfad",
+      "home": "Home",
+      "upload": "Hochladen",
+      "newFile": "Neue Datei",
+      "newFolder": "Neuer Ordner",
+      "refresh": "Aktualisieren",
+      "colName": "Name",
+      "colSize": "Größe",
+      "colModified": "Geändert",
+      "download": "Herunterladen",
+      "rename": "Umbenennen",
+      "renameTitle": "{{name}} umbenennen",
+      "newName": "Neuer Name",
+      "name": "Name",
+      "noSlash": "Ein Name enthält keinen Schrägstrich — legen Sie Unterordner nacheinander an.",
+      "delete": "Löschen",
+      "deleteTitle": "{{name}} löschen",
+      "deleteFileConfirm": "„{{name}}\" wird aus dem Home des Agenten gelöscht.",
+      "deleteDirConfirm": "„{{name}}\" wird samt Inhalt aus dem Home des Agenten gelöscht.",
+      "emptyDir": "Dieser Ordner ist leer.",
+      "noHome": "Der Agent hat noch kein Home — es entsteht beim ersten Wecken. Hochgeladene Dateien legen es an.",
+      "tooManyEntries": "Nur die ersten Einträge werden gezeigt.",
+      "dropHint": "Dateien lassen sich auch per Drag & Drop in die Liste ziehen.",
+      "symlinkTo": "Verweis auf {{target}}",
+      "outside": "(zeigt aus dem Home heraus)",
+      "binary": "Binärdatei — hier nicht darstellbar. Zum Ansehen herunterladen.",
+      "truncated": "Nur der Anfang der Datei wird gezeigt; sie ist zu groß zum Bearbeiten. Vollständig gibt es sie über „Herunterladen\".",
+      "save": "Speichern",
+      "saving": "Speichert …"
     },
     "cost": {
       "total": "Kosten gesamt",
@@ -1298,6 +1334,12 @@
     }
   },
   "activity": {
+    "fileWrite": "{{actor}} hat „{{path}}\" im Arbeitsplatz geändert",
+    "fileUpload": "{{actor}} hat „{{path}}\" in den Arbeitsplatz hochgeladen",
+    "fileMkdir": "{{actor}} hat den Ordner „{{path}}\" angelegt",
+    "fileMove": "{{actor}} hat etwas nach „{{path}}\" verschoben",
+    "fileDelete": "{{actor}} hat „{{path}}\" aus dem Arbeitsplatz gelöscht",
+    "fileSomebody": "Jemand",
     "sessionStarted": "Sitzung gestartet{{model}}",
     "withModel": " · Modell {{model}}",
     "rateLimitUpdated": "Rate-Limit-Status der API aktualisiert",

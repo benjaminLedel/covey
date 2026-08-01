@@ -34,6 +34,20 @@ Der „PC des Mitarbeiters": eine isolierte Sandbox mit **persistentem Home-Verz
 
 Das persistente Home deckt Dateien ab — **nicht** das episodische Gedächtnis über Aufgaben hinweg. Dafür gibt es eine separate Memory-Schicht (siehe [`05-gedaechtnis.md`](05-gedaechtnis.md)).
 
+### Der Arbeitsplatz im Webinterface
+
+Das Home ist im Webinterface als **Dateibrowser** offen (Reiter „Arbeitsplatz" am Agenten): durchsehen, öffnen, Textdateien ändern, hoch- und herunterladen, Ordner anlegen, umbenennen, löschen. Damit ist „was liegt bei dem Agenten eigentlich rum?" eine Frage der Oberfläche und nicht mehr eine Shell auf dem Host — und der Weg, einem Agenten Material mitzugeben (eine Vorlage, eine Preisliste, einen Datensatz), führt nicht mehr über den Umweg eines Zielsystems.
+
+Drei Festlegungen tragen das:
+
+- **Am Daemon vorbei, direkt aufs Home.** Der Zugriff läuft über den `FileAccess`-Port des Sandbox-Providers auf das Home-Verzeichnis, nicht über das Daemon-Protokoll. Sonst gäbe es den Arbeitsplatz nur, während die Sandbox läuft — und laufen tut sie im Normalfall nicht (siehe [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)). Ein Provider ohne erreichbares Home hat kein Feature, statt eines geratenen.
+- **Kein Weg aus dem Home heraus.** Jeder Pfad wird normalisiert und gegen den tiefsten existierenden Vorfahren geprüft; ein Symlink, der hinauszeigt, wird angezeigt, aber nicht geöffnet. Der Dateibrowser einer Control Plane, der sich zum Dateibrowser des Hosts ausweiten lässt, wäre die teuerste Bequemlichkeit der Plattform.
+- **Jede Änderung ins Recording.** Schreibende Zugriffe landen als Ereignis (`kind: file`) in derselben Spur wie die Aktionen des Agenten, mit dem handelnden Menschen. Wer über Nacht eine Datei im Home austauscht, ändert das Verhalten des Agenten; für den, der den Lauf später liest, ist das dieselbe Art von Ereignis wie ein Tool-Aufruf.
+
+**Rollen:** Lesen dürfen die Verwalter des Agenten und Security — wer einen Agenten untersucht, muss sehen, was bei ihm liegt. Schreiben bleibt bei den Verwaltern: eine Datei im Home ist Konfiguration des Agenten, kein Audit-Vorgang.
+
+Die Wiki-Arbeitskopie unter `~/wiki/` ist sichtbar, aber kein Bearbeitungsort: Quelle der Wahrheit ist die Control Plane, und der nächste Lauf materialisiert sie neu (siehe [`05-gedaechtnis.md`](05-gedaechtnis.md)). Die Oberfläche sagt das an Ort und Stelle.
+
 > **Weiche vs. harte Grenzen.** Die `## Grenzen` in `SOUL.md` sind **Selbstbindung** — sie leiten das Verhalten des Agenten über den Prompt. Sie sind wertvoll, aber **nicht** die Sicherheitsgrenze: Ein Prompt lässt sich umgehen oder per Injection aushebeln. Die *harten* Grenzen kommen aus den zentralen, plattform-erzwungenen **Guard-Rails** (siehe [`06-observability-control.md`](06-observability-control.md)), die außerhalb der Runtime greifen. Beide Schichten zusammen = Defense in Depth.
 
 ## Zugänge
