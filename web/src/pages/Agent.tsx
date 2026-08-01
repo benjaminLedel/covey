@@ -66,7 +66,6 @@ export default function AgentPage({ me }: { me: Principal }) {
     | "heartbeat"
     | "recording"
     | "memory"
-    | "egress"
     | "tools"
     | "skills"
     | "einstellungen"
@@ -76,6 +75,7 @@ export default function AgentPage({ me }: { me: Principal }) {
     | "webhook"
     | "config"
     | "secrets"
+    | "egress"
     | "dreams") || "backlog");
   const setTab = (key: typeof tab) =>
     setSp(
@@ -97,6 +97,7 @@ export default function AgentPage({ me }: { me: Principal }) {
       webhook: ["einstellungen", "sub", "webhook"],
       config: ["einstellungen", "sub", "config"],
       secrets: ["einstellungen", "sub", "secrets"],
+      egress: ["einstellungen", "sub", "egress"],
       dreams: ["memory", "view", "dreams"],
     };
     const to = moved[tab];
@@ -174,7 +175,6 @@ export default function AgentPage({ me }: { me: Principal }) {
             ["memory", t("agent.tabs.memory")],
             ["tools", t("agent.tabs.tools")],
             ["skills", t("agent.tabs.skills")],
-            ["egress", t("agent.tabs.egress")],
             ["einstellungen", t("agent.tabs.settings")],
           ] as const
         ).map(([key, label]) => (
@@ -212,7 +212,6 @@ export default function AgentPage({ me }: { me: Principal }) {
         <Recording agentId={a.id} taskFilter={recTask} onClearFilter={() => setRecTask(null)} />
       )}
       {tab === "memory" && <Memories agentId={a.id} canManage={canManage(me.Role)} />}
-      {tab === "egress" && <AgentEgress agentId={a.id} canEdit={canSecrets(me.Role)} />}
       {tab === "tools" && <AgentTools agentId={a.id} canEdit={canSecrets(me.Role)} />}
       {tab === "skills" && <AgentSkills agentId={a.id} canManage={canManage(me.Role)} />}
       {tab === "einstellungen" && (
@@ -253,6 +252,7 @@ function AgentSettings({
     ["allgemein", t("agent.settings.subGeneral"), true],
     ["webhook", t("agent.tabs.webhook"), canManage],
     ["config", t("agent.tabs.config"), true],
+    ["egress", t("agent.tabs.egress"), true],
     ["secrets", t("agent.tabs.secrets"), canSecrets],
   ] as const;
   const wanted = sp.get("sub") ?? "allgemein";
@@ -301,6 +301,7 @@ function AgentSettings({
             canExport={canManage || isSecurity}
           />
         )}
+        {sub === "egress" && <AgentEgress agentId={agent.id} canEdit={canSecrets} />}
         {sub === "secrets" && canSecrets && <AgentSecrets agentId={agent.id} />}
       </div>
     </div>
@@ -3043,6 +3044,9 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
       {view !== "dreams" && <p className="muted text-[12.5px] mb-3">{t("agent.memory.hint")}</p>}
       <div className="flex items-center gap-2 mb-3">
         <div className="seg" role="tablist">
+          <button className={view === "dreams" ? "active" : ""} onClick={() => setView("dreams")}>
+            {t("agent.tabs.dreams")}
+          </button>
           <button className={view === "pages" ? "active" : ""} onClick={() => setView("pages")}>
             {t("agent.memory.pages")}
             {list.length > 0 && ` (${list.length})`}
@@ -3052,9 +3056,6 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
           </button>
           <button className={view === "log" ? "active" : ""} onClick={() => setView("log")}>
             {t("agent.memory.log")}
-          </button>
-          <button className={view === "dreams" ? "active" : ""} onClick={() => setView("dreams")}>
-            {t("agent.tabs.dreams")}
           </button>
         </div>
         <span className="flex-1" />
