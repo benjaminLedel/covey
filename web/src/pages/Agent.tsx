@@ -269,28 +269,40 @@ function AgentSettings({
     );
 
   return (
-    <div>
-      <div className="seg mb-3" role="tablist">
+    <div className="settings-panes">
+      {/* Seitlich statt oben: die Einstellungen sind vier eigenstaendige Bereiche
+          mit langen Formularen, keine Ansichten derselben Sache. Ein Menue an
+          der Seite bleibt beim Scrollen sichtbar und nimmt dem Inhalt nichts
+          von der Hoehe. */}
+      <nav className="settings-nav" role="tablist">
         {subs
           .filter(([, , allowed]) => allowed)
           .map(([key, label]) => (
-            <button key={key} className={sub === key ? "active" : ""} onClick={() => setSub(key)}>
+            <button
+              key={key}
+              role="tab"
+              aria-selected={sub === key}
+              className={`nav-item${sub === key ? " active" : ""}`}
+              onClick={() => setSub(key)}
+            >
               {label}
             </button>
           ))}
+      </nav>
+      <div className="min-w-0">
+        {sub === "allgemein" && <AgentSettingsGeneral agent={agent} editable={editable} />}
+        {sub === "webhook" && canManage && <WebhookTrigger agentId={agent.id} />}
+        {sub === "config" && (
+          <Config
+            agentId={agent.id}
+            slug={agent.slug}
+            displayName={agent.display_name}
+            canManage={canManage}
+            canExport={canManage || isSecurity}
+          />
+        )}
+        {sub === "secrets" && canSecrets && <AgentSecrets agentId={agent.id} />}
       </div>
-      {sub === "allgemein" && <AgentSettingsGeneral agent={agent} editable={editable} />}
-      {sub === "webhook" && canManage && <WebhookTrigger agentId={agent.id} />}
-      {sub === "config" && (
-        <Config
-          agentId={agent.id}
-          slug={agent.slug}
-          displayName={agent.display_name}
-          canManage={canManage}
-          canExport={canManage || isSecurity}
-        />
-      )}
-      {sub === "secrets" && canSecrets && <AgentSecrets agentId={agent.id} />}
     </div>
   );
 }
@@ -3028,7 +3040,7 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
 
   return (
     <div>
-      <p className="muted text-[12.5px] mb-3">{t("agent.memory.hint")}</p>
+      {view !== "dreams" && <p className="muted text-[12.5px] mb-3">{t("agent.memory.hint")}</p>}
       <div className="flex items-center gap-2 mb-3">
         <div className="seg" role="tablist">
           <button className={view === "pages" ? "active" : ""} onClick={() => setView("pages")}>
@@ -3049,7 +3061,7 @@ function Memories({ agentId, canManage }: { agentId: string; canManage: boolean 
       </div>
 
       {/* Qualitätsbefunde: Zahlen, die zugleich Filter sind. */}
-      {h && list.length > 0 && (
+      {h && list.length > 0 && view !== "dreams" && (
         <div className="wiki-quality mb-3">
           <span className="muted text-[11px] uppercase tracking-wide">{t("agent.memory.quality")}</span>
           {quality.length === 0 ? (

@@ -3413,3 +3413,32 @@ kbd {
   color: var(--text-secondary);
 }
 .dream-story .mark { flex: none; font-style: normal; opacity: 0.5; }
+
+/* Einstellungen: Menue links, Inhalt rechts. Die vier Bereiche sind lange
+   Formulare — eine Leiste oben waere nach dem ersten Scrollen weg, waehrend
+   das Seitenmenue stehen bleibt und zeigt, wo man ist. */
+.settings-panes {
+  display: grid;
+  grid-template-columns: 186px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  position: sticky;
+  top: 12px;
+}
+.settings-nav .nav-item {
+  border: 0.5px solid transparent; /* Sprung beim Aktivieren vermeiden */
+  background: none;
+  text-align: left;
+  font-family: inherit;
+}
+@media (max-width: 900px) {
+  .settings-panes { grid-template-columns: 1fr; gap: 12px; }
+  /* Schmal wird aus der Spalte eine Zeile: untereinander waeren vier Punkte
+     hier nur verlorene Hoehe. */
+  .settings-nav { position: static; flex-direction: row; flex-wrap: wrap; }
+}
