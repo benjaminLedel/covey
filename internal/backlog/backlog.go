@@ -51,17 +51,17 @@ var (
 )
 
 type Task struct {
-	ID               uuid.UUID `json:"id"`
-	OrgID            uuid.UUID `json:"org_id"`
-	AgentID          uuid.UUID `json:"agent_id"`
-	Title            string    `json:"title"`
-	Body             string    `json:"body"`
-	State            string    `json:"state"`
-	Priority         int       `json:"priority"`
-	Origin           string    `json:"origin"`
-	CorrelationKey   *string   `json:"correlation_key,omitempty"`
-	RuntimeSessionID *string   `json:"runtime_session_id,omitempty"`
-	ResumeInput      *string   `json:"resume_input,omitempty"`
+	ID               uuid.UUID  `json:"id"`
+	OrgID            uuid.UUID  `json:"org_id"`
+	AgentID          uuid.UUID  `json:"agent_id"`
+	Title            string     `json:"title"`
+	Body             string     `json:"body"`
+	State            string     `json:"state"`
+	Priority         int        `json:"priority"`
+	Origin           string     `json:"origin"`
+	CorrelationKey   *string    `json:"correlation_key,omitempty"`
+	RuntimeSessionID *string    `json:"runtime_session_id,omitempty"`
+	ResumeInput      *string    `json:"resume_input,omitempty"`
 	Result           *string    `json:"result,omitempty"`
 	Error            *string    `json:"error,omitempty"`
 	StageID          *uuid.UUID `json:"stage_id,omitempty"`

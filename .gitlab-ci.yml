@@ -68,6 +68,12 @@ test-go:
     paths:
       - .go/pkg/mod/
   script:
+    # Formatierung ist keine Geschmacksfrage: unformatierter Code macht jeden
+    # späteren Diff größer als die Änderung, die er transportiert. gofmt -l
+    # nennt die Abweichler (tee zeigt sie im Job-Log), test -z lässt den Job
+    # scheitern, sobald die Liste nicht leer ist. Die Pfade kommen aus
+    # `go list`, damit nicht der Modul-Cache unter $GOPATH mitgeprüft wird.
+    - test -z "$(gofmt -l $(go list -f '{{.Dir}}' ./...) | tee /dev/stderr)"
     - go vet ./...
     # Coverage über alle Pakete messen: -coverpkg=./... zählt auch Zeilen, die
     # aus Tests anderer Pakete heraus abgedeckt werden (sonst nur paket-lokal).

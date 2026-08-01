@@ -9,7 +9,7 @@ func TestPreview(t *testing.T) {
 		want  string
 	}{
 		{"leer", "", ""},
-		{"kurz bleibt maskiert", "short_pin123", ""},   // genau 12 → maskiert
+		{"kurz bleibt maskiert", "short_pin123", ""},       // genau 12 → maskiert
 		{"ab 13 Zeichen Präfix", "sk_live_abcdef", "sk_l"}, // > 12 → erste 4
 		{"langer Token", "sk-ant-0123456789", "sk-a"},
 		{"multibyte sauber", "äöüßabcdefghij", "äöüß"}, // 14 Runen → erste 4 Runen

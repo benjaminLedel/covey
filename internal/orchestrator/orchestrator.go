@@ -52,23 +52,23 @@ type DaemonLink interface {
 }
 
 type Options struct {
-	Pool           *pgxpool.Pool
-	Registry       *agents.Registry
-	Backlog        *backlog.Store
-	Obs            *observability.Store
-	Rails          *guardrails.Store
-	Secrets        secrets.Store
-	Identity       identity.Provider
-	Memory         *memory.Store
+	Pool     *pgxpool.Pool
+	Registry *agents.Registry
+	Backlog  *backlog.Store
+	Obs      *observability.Store
+	Rails    *guardrails.Store
+	Secrets  secrets.Store
+	Identity identity.Provider
+	Memory   *memory.Store
 	// Skills sind die Fähigkeiten der Agenten (Bibliothek + agent-eigen). nil =
 	// Feature abgeschaltet; Läufe bekommen dann keine Skills materialisiert.
-	Skills         *skills.Store
-	Targets        *targetstore.Store
-	Egress         *egress.Store
+	Skills  *skills.Store
+	Targets *targetstore.Store
+	Egress  *egress.Store
 	// ReqLog nimmt die HTTP-Requests der Zielsystem-Plugins auf (Diagnose,
 	// spec/06). nil = Request-Log abgeschaltet; die Events der Sandbox werden
 	// dann verworfen.
-	ReqLog *reqlogstore.Store
+	ReqLog         *reqlogstore.Store
 	Provider       SandboxProvider
 	PublicWSURL    string // ws://…/api/daemon/ws — von Sandboxen erreichbar
 	DaemonTokenTTL time.Duration

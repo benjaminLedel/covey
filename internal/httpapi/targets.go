@@ -40,11 +40,11 @@ func (s *Server) handleListTargets(w http.ResponseWriter, r *http.Request) {
 // kompilierten Prompt (was genau?). Wer wissen will, warum ein Agent ein
 // Ticket nicht schließt, will nicht drei Orte lesen.
 type agentSystem struct {
-	Name        string   `json:"name"`
-	Label       string   `json:"label"`
-	Description string   `json:"description,omitempty"`
-	Kind        string   `json:"kind"`
-	Category    string   `json:"category,omitempty"`
+	Name        string `json:"name"`
+	Label       string `json:"label"`
+	Description string `json:"description,omitempty"`
+	Kind        string `json:"kind"`
+	Category    string `json:"category,omitempty"`
 	// Enabled: für die Organisation freigeschaltet (opt-in, fail-closed).
 	Enabled bool `json:"enabled"`
 	// Access: der Agent hat einen Zugang in ACCESS.md — ohne ihn verweigert

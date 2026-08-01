@@ -30,16 +30,16 @@ func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
 // Plugin ist die UI-/API-Sicht auf ein Zielsystem-Plugin.
 type Plugin struct {
-	Name        string          `json:"name"`
-	Label       string          `json:"label"`
-	Description string          `json:"description"`
-	Kind        string          `json:"kind"` // builtin | custom | mcp
+	Name        string `json:"name"`
+	Label       string `json:"label"`
+	Description string `json:"description"`
+	Kind        string `json:"kind"` // builtin | custom | mcp
 	// Category ordnet das Plugin im Store ein: bei Built-ins aus dem
 	// Descriptor, bei Manifest-Plugins aus dem Manifest-Feld "category".
-	Category string          `json:"category,omitempty"`
-	Enabled  bool            `json:"enabled"`
-	Manifest    json.RawMessage `json:"manifest,omitempty"` // custom: Manifest, mcp: Config
-	UpdatedAt   *time.Time      `json:"updated_at,omitempty"`
+	Category  string          `json:"category,omitempty"`
+	Enabled   bool            `json:"enabled"`
+	Manifest  json.RawMessage `json:"manifest,omitempty"` // custom: Manifest, mcp: Config
+	UpdatedAt *time.Time      `json:"updated_at,omitempty"`
 	// SetupDoc ist die Einrichtungs-Anleitung fürs UI: bei Built-ins aus dem
 	// Plugin-Descriptor, bei Manifest-/MCP-Plugins generisch erzeugt.
 	SetupDoc string `json:"setup_doc,omitempty"`
