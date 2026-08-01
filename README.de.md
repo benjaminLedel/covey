@@ -54,7 +54,7 @@ echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env   # 32-Byte-Schlüssel
 docker compose up -d --build                              # Postgres + Covey starten
 ```
 
-Dann [http://localhost:8494](http://localhost:8494) öffnen — Login `admin@covey.local` / `covey-admin`.
+Dann [http://localhost:8494](http://localhost:8494) öffnen — Login `admin@covey.local` / `covey-admin`. Eine Checkliste **Erste Schritte** auf der Agenten-Übersicht führt zum ersten arbeitenden Agenten; sie liest den tatsächlichen Zustand der Organisation, hakt sich selbst ab und verschwindet, wenn alles erledigt ist.
 
 Das mitgelieferte [`docker-compose.yml`](docker-compose.yml) bringt Postgres (pgvector) und das covey-Binary mit eingebetteter Admin-UI; `bootstrap` legt Organisation, Admin und einen Demo-Agenten an, Migrationen laufen automatisch. Vollständige Anleitung inkl. erstem Agenten und Produktions-Checkliste: [`docs/schnellstart-docker.md`](docs/schnellstart-docker.md).
 
@@ -69,6 +69,7 @@ Das mitgelieferte [`docker-compose.yml`](docker-compose.yml) bringt Postgres (pg
 | 🔑 **Secrets-Broker** | Keine langlebigen Secrets in der Sandbox — Zugriff wird zur Laufzeit gebrokert, kurzlebig und gescopt. |
 | 🧩 **Skills** | Prozeduren, die ein Agent nur lädt, wenn sie greifen: Die Beschreibung steht im Kontext, Anleitung und Zusatzdateien werden bei Bedarf gelesen. Org-weite Bibliothek, je Agent verlinkt — ein Lead-Lauf, der nichts zu tun findet, zahlt nicht mehr fünf Playbooks. |
 | 🧠 **Wiki-Gedächtnis** | Verlinkte Markdown-Seiten mit pgvector-Index statt flacher Schnipsel — lesbar und von Hand korrigierbar. |
+| 📂 **Arbeitsplatz** | Das Home des Agenten im Browser: nachsehen, was da liegt, eine Vorlage, einen Datensatz oder einen ganzen Ordner ablegen, eine Datei ändern, eine Auswahl als ZIP herausziehen. Markdown, Bilder, PDF und Tabellen werden gleich angezeigt. Geht auch, während der Agent schläft, und jede Änderung steht im Recording. |
 | 🎥 **Recording & Kill-Switch** | Jeder Lauf aufgezeichnet inkl. Screenshots; Kosten pro Agent und Modell; Notaus für die ganze Organisation. |
 | 📦 **Ein Binary** | Frontend und Migrationen sind einkompiliert. Kopieren, `covey serve` — kein nginx, kein separates Frontend-Hosting. |
 

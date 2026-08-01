@@ -2628,6 +2628,98 @@ kbd {
 }
 .assist-msg .md-pre:last-child { margin-bottom: 0; }
 .assist-msg .md-pre code { background: none; padding: 0; }
+/* Erste Schritte: die Checkliste auf der Agenten-Übersicht. Zurückhaltend —
+   sie ist eine Handreichung, kein Banner, und verschwindet ohnehin, sobald sie
+   nichts mehr zu sagen hat. */
+.onboarding-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.onboarding-steps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.onboarding-steps li.next { background: var(--surface-1); }
+.onboarding-steps li.done .what { color: var(--text-secondary); }
+.onboarding-steps .mark {
+  display: flex;
+  width: 16px;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-success);
+}
+/* Offener Schritt: ein leerer Ring statt eines Hakens. */
+.onboarding-steps .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong, var(--border));
+}
+.onboarding-steps li.next .dot { border-color: var(--text-accent); }
+.onboarding-steps li.done .mark .file-ic { opacity: 1; stroke-width: 2.2; }
+
+/* Datei-Symbole im Arbeitsplatz: Strichstil wie die übrige Navigation. Ohne
+   eigene Regel griffe keine der `.ic`-Regeln (die hängen alle an .nav-item)
+   und die Pfade kämen schwarz gefüllt heraus. */
+.file-ic {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+/* Dieselbe Markdown-Komponente als Dokument statt als Chat-Bubble: die
+   Vorschau einer .md-Datei im Arbeitsplatz. Mehr Luft, größere Überschriften
+   — man liest hier eine Seite, keine Antwort. */
+.md-body {
+  max-height: 60vh;
+  overflow: auto;
+  padding: 4px 2px;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.md-body .md-p { margin: 0 0 10px; }
+.md-body .md-h { margin: 16px 0 8px; font-weight: 600; line-height: 1.35; }
+.md-body h4.md-h { font-size: 17px; }
+.md-body h5.md-h { font-size: 15px; }
+.md-body h6.md-h { font-size: 13.5px; color: var(--text-secondary); }
+.md-body .md-h:first-child { margin-top: 0; }
+.md-body .md-list { margin: 0 0 10px; padding-left: 20px; }
+/* Der Reset nimmt Listen ihre Punkte; im Dokument gehören sie hin — ohne sie
+   ist eine Aufzählung nicht von aneinandergereihten Absätzen zu unterscheiden. */
+.md-body ul.md-list { list-style: disc; }
+.md-body ol.md-list { list-style: decimal; }
+.md-body .md-list li { margin: 3px 0; }
+.md-body code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: rgba(30, 28, 23, 0.06);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+.md-body .md-pre {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  background: var(--surface-0);
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  overflow-x: auto;
+}
+.md-body .md-pre code { background: none; padding: 0; }
+.md-body a { color: var(--text-accent); text-decoration: underline; }
 .assist-msg a { color: var(--text-accent); text-decoration: underline; }
 .assist-msg.bot {
   align-self: flex-start;

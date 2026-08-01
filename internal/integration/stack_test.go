@@ -69,6 +69,13 @@ func (p *inprocProvider) Start(ctx context.Context, spec orchestrator.SandboxSpe
 	return &inprocSandbox{cancel: cancel, done: done}, nil
 }
 
+// AgentHome erfüllt orchestrator.FileAccess: auch in-process liegt das Home
+// auf der Platte. Ohne das wäre der Dateibrowser (spec/02) im Durchstich nicht
+// prüfbar — er hängt genau an diesem Port.
+func (p *inprocProvider) AgentHome(agentID uuid.UUID) (orchestrator.Home, error) {
+	return orchestrator.Home{Path: p.homeBase + "/" + agentID.String(), UID: -1, GID: -1}, nil
+}
+
 type inprocSandbox struct {
 	cancel context.CancelFunc
 	done   chan struct{}

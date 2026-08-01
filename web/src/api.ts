@@ -314,6 +314,25 @@ export type TargetPlugin = {
   setup_doc?: string;
 };
 
+// Ein Zielsystem aus der Sicht eines Agenten (GET /agents/{id}/systems):
+// Plugin, Zugang aus ACCESS.md und die Aktionen im Wortlaut seines Prompts.
+// access=false heißt: der Broker verweigert dem Agenten hier jede Anfrage,
+// egal ob das Plugin für die Organisation aktiviert ist.
+export type AgentSystem = {
+  name: string;
+  label: string;
+  description?: string;
+  kind: "builtin" | "custom" | "mcp";
+  category?: string;
+  enabled: boolean;
+  access: boolean;
+  scopes?: string[];
+  /** Werkzeug-Allowlist des Agenten (nur MCP); leer = alle. */
+  tools?: string[];
+  /** Aktionsliste, wie sie im System-Prompt steht. */
+  doc?: string;
+};
+
 // Ein vom MCP-Server angebotenes Werkzeug (aus tools/list entdeckt).
 export type MCPTool = {
   name: string;
@@ -546,6 +565,15 @@ export type BuildInfo = {
 
 export const buildInfo = () => api<BuildInfo>("/version");
 
+
+// Erste Schritte: der Zustand der Organisation, nicht ein Fortschritt, den
+// sich die Oberfläche merkt (GET /onboarding). done=true → die Checkliste hat
+// nichts mehr zu sagen und verschwindet.
+export type OnboardingState = {
+  steps: Array<{ key: string; done: boolean }>;
+  done: boolean;
+};
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -555,8 +583,12 @@ export class ApiError extends Error {
 }
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  // Bei FormData setzt der Browser den Content-Type selbst — samt der
+  // multipart-Grenze, die wir gar nicht kennen. Ihn zu überschreiben machte
+  // den Upload unlesbar.
+  const isForm = init?.body instanceof FormData;
   const res = await fetch(`/api/v1${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: isForm ? undefined : { "Content-Type": "application/json" },
     ...init,
   });
   if (!res.ok) {
@@ -581,6 +613,50 @@ export const put = <T>(path: string, body: unknown) =>
 export const patch = <T>(path: string, body: unknown) =>
   api<T>(path, { method: "PATCH", body: JSON.stringify(body) });
 export const del = <T>(path: string) => api<T>(path, { method: "DELETE" });
+export const upload = <T>(path: string, form: FormData) =>
+  api<T>(path, { method: "POST", body: form });
+
+// --- Arbeitsplatz: das persistente Home eines Agenten als Dateibaum ---
+
+// Wie eine Datei zu zeigen ist. Der Server entscheidet das an einer Stelle
+// (internal/sandboxfs) — die Oberfläche wählt danach nur noch die Darstellung.
+export type PreviewKind = "text" | "markdown" | "image" | "pdf" | "csv" | "binary";
+
+export type FileEntry = {
+  name: string;
+  /** Pfad relativ zum Home, „/" als Trenner. */
+  path: string;
+  is_dir: boolean;
+  size: number;
+  mode: string;
+  mod_time: string;
+  /** Ziel, wenn der Eintrag ein Symlink ist. */
+  symlink?: string;
+  /** Der Link zeigt aus dem Home heraus — sichtbar, aber nicht zu öffnen. */
+  outside?: boolean;
+  /** Vorschau-Art nach Dateiname; leer = erst beim Öffnen entscheidbar. */
+  preview?: PreviewKind;
+};
+
+export type FileListing = {
+  path: string;
+  /** false = das Home wurde noch nie angelegt (Agent nie geweckt). */
+  exists: boolean;
+  truncated: boolean;
+  entries: FileEntry[];
+};
+
+export type FileContent = {
+  path: string;
+  size: number;
+  mode: string;
+  mod_time: string;
+  binary: boolean;
+  truncated: boolean;
+  /** text/markdown/csv tragen content; image/pdf kommen über den preview-Endpunkt. */
+  preview: PreviewKind;
+  content: string;
+};
 
 // KI-Assistent zum Anpassen von Agenten (Config-Copilot, FR-001).
 export type AssistMessage = { role: "user" | "assistant"; content: string };

@@ -320,7 +320,7 @@ Vier Dinge unterscheiden sein Setup von dem der anderen:
    (2.9.1). Ein Lead führt genau ein Vorhaben — für ein zweites ein zweiter Lead.
 4. **Sein Handwerk steckt in Skills, nicht in `PLAYBOOKS.md`.** Die vier
    Abläufe — `ruecklaeufer`, `arbeit-vergeben`, `ticket-aufbereiten`,
-   `tagesbericht` — liegen als Skills am Agenten (Reiter *Skills*); im Playbook
+   `tagesbericht` — liegen als Skills am Agenten (Reiter *Tools & Skills* → *Skills*); im Playbook
    steht nur, in welcher Reihenfolge sie drankommen. Der Grund ist die
    Prompt-Rechnung: Die Config steht in JEDEM Lauf im Prompt, und der Lead läuft
    alle 30 Minuten, meist ohne etwas zu finden. So kostet ein leerer Lauf rund

@@ -128,6 +128,8 @@ func (s *Server) Handler() http.Handler {
 	manage := []string{identity.RolePlatformAdmin, identity.RoleAgentOwner}
 	securityRoles := []string{identity.RolePlatformAdmin, identity.RoleSecurity}
 
+	// Erste Schritte als Checkliste über den echten Org-Zustand (onboarding.go).
+	mux.Handle("GET /api/v1/onboarding", s.rbac(anyRole, s.handleOnboarding))
 	mux.Handle("GET /api/v1/agents", s.rbac(anyRole, s.handleListAgents))
 	mux.Handle("POST /api/v1/agents", s.rbac(manage, s.handleCreateAgent))
 	mux.Handle("GET /api/v1/agents/{id}", s.rbac(anyRole, s.handleGetAgent))
@@ -135,6 +137,20 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/agents/{id}/config", s.rbac(anyRole, s.handleGetConfig))
 	mux.Handle("GET /api/v1/agents/{id}/export", s.rbac(append(manage, identity.RoleSecurity), s.handleExportAgent))
 	mux.Handle("GET /api/v1/agents/{id}/diagnostics", s.rbac(append(manage, identity.RoleSecurity), s.handleAgentDiagnostics))
+	// Der Arbeitsplatz: das persistente Home als Dateibaum (files.go). Lesen
+	// darf zusätzlich Security — wer einen Agenten untersucht, muss sehen, was
+	// bei ihm liegt. Schreiben bleibt bei den Verwaltern: eine Datei im Home
+	// ist Konfiguration des Agenten, kein Audit-Vorgang.
+	mux.Handle("GET /api/v1/agents/{id}/files", s.rbac(append(manage, identity.RoleSecurity), s.handleListFiles))
+	mux.Handle("GET /api/v1/agents/{id}/files/content", s.rbac(append(manage, identity.RoleSecurity), s.handleReadFile))
+	mux.Handle("GET /api/v1/agents/{id}/files/download", s.rbac(append(manage, identity.RoleSecurity), s.handleDownloadFile))
+	mux.Handle("GET /api/v1/agents/{id}/files/preview", s.rbac(append(manage, identity.RoleSecurity), s.handlePreviewFile))
+	mux.Handle("GET /api/v1/agents/{id}/files/zip", s.rbac(append(manage, identity.RoleSecurity), s.handleZipFiles))
+	mux.Handle("PUT /api/v1/agents/{id}/files/content", s.rbac(manage, s.handleWriteFile))
+	mux.Handle("POST /api/v1/agents/{id}/files/upload", s.rbac(manage, s.handleUploadFiles))
+	mux.Handle("POST /api/v1/agents/{id}/files/dir", s.rbac(manage, s.handleMkdir))
+	mux.Handle("POST /api/v1/agents/{id}/files/move", s.rbac(manage, s.handleMoveFile))
+	mux.Handle("DELETE /api/v1/agents/{id}/files", s.rbac(manage, s.handleDeleteFile))
 	mux.Handle("GET /api/v1/skills/covey-agent.zip", s.rbac(anyRole, s.handleDownloadSkill))
 	mux.Handle("POST /api/v1/agents/import", s.rbac(manage, s.handleImportAgent))
 	mux.Handle("PUT /api/v1/agents/{id}/config", s.rbac(manage, s.handlePutConfig))
@@ -190,6 +206,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/targets/{name}/tools", s.rbac(anyRole, s.handleListMCPTools))
 	mux.Handle("PATCH /api/v1/targets/{name}", s.rbac(securityRoles, s.handleToggleTarget))
 	mux.Handle("DELETE /api/v1/targets/{name}", s.rbac(securityRoles, s.handleDeleteTarget))
+	// Was der Agent in welchem Zielsystem tun kann — Plugin, Zugang und
+	// Aktionsliste an einer Stelle (targets.go).
+	mux.Handle("GET /api/v1/agents/{id}/systems", s.rbac(anyRole, s.handleAgentSystems))
 	mux.Handle("GET /api/v1/agents/{id}/tools/{system}", s.rbac(anyRole, s.handleGetAgentTools))
 	mux.Handle("PUT /api/v1/agents/{id}/tools/{system}", s.rbac(securityRoles, s.handleSetAgentTools))
 	mux.Handle("GET /api/v1/agents/{id}/recording", s.rbac(anyRole, s.handleRecording))

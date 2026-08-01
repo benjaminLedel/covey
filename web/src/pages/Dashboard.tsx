@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api, post, ApiError, type Agent, type AgentTemplate, type Principal, type RuntimeInfo } from "../api";
 import { generateAgentName, slugify } from "../names";
 import { Modal } from "../components/Modal";
+import { Onboarding } from "../components/Onboarding";
 
 const canManage = (role: string) => role === "platform_admin" || role === "agent_owner";
 const canSecurity = (role: string) => role === "platform_admin" || role === "security";
@@ -51,6 +52,8 @@ export default function Dashboard({ me }: { me: Principal }) {
           </button>
         )}
       </div>
+
+      <Onboarding me={me} />
 
       {fleetKilled && (
         <div

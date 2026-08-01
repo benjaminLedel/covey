@@ -34,6 +34,25 @@ Der „PC des Mitarbeiters": eine isolierte Sandbox mit **persistentem Home-Verz
 
 Das persistente Home deckt Dateien ab — **nicht** das episodische Gedächtnis über Aufgaben hinweg. Dafür gibt es eine separate Memory-Schicht (siehe [`05-gedaechtnis.md`](05-gedaechtnis.md)).
 
+### Der Arbeitsplatz im Webinterface
+
+Das Home ist im Webinterface als **Dateibrowser** offen (Reiter *Arbeitsplatz* am Agenten): durchsehen, öffnen, Textdateien ändern, hoch- und herunterladen, Ordner anlegen, umbenennen, löschen. Damit ist „was liegt bei dem Agenten eigentlich rum?" eine Frage der Oberfläche und nicht mehr eine Shell auf dem Host — und der Weg, einem Agenten Material mitzugeben (eine Vorlage, eine Preisliste, einen Datensatz), führt nicht mehr über den Umweg eines Zielsystems.
+
+**Ganze Ordner, in beide Richtungen.** Hinein: mehrere Dateien auf einmal, per Dialog oder Drag & Drop — auch ein kompletter Ordner, dessen Struktur erhalten bleibt (der Browser liefert dabei keinen Dateibaum, sondern Einträge, die die Oberfläche selbst abläuft). Heraus: markierte Einträge und ganze Ordner als **ZIP**, gestreamt statt zwischengelagert. Der Umfang wird vorher ausgemessen — „zu groß" muss ein Fehler sein, kein Archiv, das mitten im Download abbricht und dem man das nicht ansieht.
+
+**Ansehen statt herunterladen.** Der Browser zeigt die üblichen Dateien an Ort und Stelle: Markdown gerendert, Bilder (auch SVG) als Bild, PDF eingebettet, CSV/TSV als Tabelle, alles Übrige im Editor. Wo es einen Quelltext gibt, ist er einen Klick entfernt und bleibt bearbeitbar — die Vorschau steht *vor* dem Editor, sie ersetzt ihn nicht. Die Art der Datei bestimmt die Control Plane an einer Stelle (`sandboxfs.PreviewKind`), damit Anzeige und Auslieferung nicht auseinanderlaufen.
+
+Vier Festlegungen tragen das:
+
+- **Am Daemon vorbei, direkt aufs Home.** Der Zugriff läuft über den `FileAccess`-Port des Sandbox-Providers auf das Home-Verzeichnis, nicht über das Daemon-Protokoll. Sonst gäbe es den Arbeitsplatz nur, während die Sandbox läuft — und laufen tut sie im Normalfall nicht (siehe [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)). Ein Provider ohne erreichbares Home hat kein Feature, statt eines geratenen.
+- **Kein Weg aus dem Home heraus.** Jeder Pfad wird normalisiert und gegen den tiefsten existierenden Vorfahren geprüft; ein Symlink, der hinauszeigt, wird angezeigt, aber nicht geöffnet. Der Dateibrowser einer Control Plane, der sich zum Dateibrowser des Hosts ausweiten lässt, wäre die teuerste Bequemlichkeit der Plattform.
+- **Inline nur nach Allowlist.** Eine Datei aus einem Agenten-Home im Browser darzustellen heißt, fremde Bytes auf der Covey-Origin zu rendern. Deshalb kommt nur eine kurze Liste von Typen (Bilder, PDF) *inline* — mit `nosniff` und einer CSP ohne jedes Recht; alles andere geht ausschließlich als Anhang raus. Hochgeladenes HTML ist damit eine Datei, die man herunterlädt, und keine Seite, die auf der Plattform läuft.
+- **Jede Änderung ins Recording.** Schreibende Zugriffe landen als Ereignis (`kind: file`) in derselben Spur wie die Aktionen des Agenten, mit dem handelnden Menschen. Wer über Nacht eine Datei im Home austauscht, ändert das Verhalten des Agenten; für den, der den Lauf später liest, ist das dieselbe Art von Ereignis wie ein Tool-Aufruf.
+
+**Rollen:** Lesen dürfen die Verwalter des Agenten und Security — wer einen Agenten untersucht, muss sehen, was bei ihm liegt. Schreiben bleibt bei den Verwaltern: eine Datei im Home ist Konfiguration des Agenten, kein Audit-Vorgang.
+
+Die Wiki-Arbeitskopie unter `~/wiki/` ist sichtbar, aber kein Bearbeitungsort: Quelle der Wahrheit ist die Control Plane, und der nächste Lauf materialisiert sie neu (siehe [`05-gedaechtnis.md`](05-gedaechtnis.md)). Die Oberfläche sagt das an Ort und Stelle.
+
 > **Weiche vs. harte Grenzen.** Die `## Grenzen` in `SOUL.md` sind **Selbstbindung** — sie leiten das Verhalten des Agenten über den Prompt. Sie sind wertvoll, aber **nicht** die Sicherheitsgrenze: Ein Prompt lässt sich umgehen oder per Injection aushebeln. Die *harten* Grenzen kommen aus den zentralen, plattform-erzwungenen **Guard-Rails** (siehe [`06-observability-control.md`](06-observability-control.md)), die außerhalb der Runtime greifen. Beide Schichten zusammen = Defense in Depth.
 
 ## Zugänge
@@ -60,7 +79,9 @@ Das Verhalten eines Agenten ist als Satz von Markdown-Dateien in Git definiert �
 
 Die genaue Dateiliste ist bewusst erweiterbar — weitere sinnvolle MD-Dateien (z. B. `TONE.md`, `ESCALATION.md`) können hinzukommen. Kernregel: **`ACCESS.md` enthält Referenzen, keine Geheimnisse.** Neben diesen Dateien, die jeder Lauf vollständig mitträgt, gibt es **Skills** für Prozeduren, die nur bei Bedarf laden (siehe unten).
 
-`ACCESS.md` und `EGRESS.md` sind die **Text-Sicht auf Zustand, der auch über die Oberfläche gepflegt wird** (Reiter *Tools* bzw. *Egress*). Damit Text- und UI-Config nie divergieren, gibt es jede Datei genau einmal und beide Richtungen schreiben denselben Store: Lesen rendert die Datei live aus der Datenbank, Speichern parst sie und wendet sie an (Write-Through). Text-Edits an Tools/Egress unterliegen derselben RBAC wie die Reiter (nur `platform_admin`/`security`); in den System-Prompt kompiliert werden beide Dateien nicht.
+`ACCESS.md` und `EGRESS.md` sind die **Text-Sicht auf Zustand, der auch über die Oberfläche gepflegt wird** (*Tools & Skills* bzw. *Einstellungen → Egress*). Damit Text- und UI-Config nie divergieren, gibt es jede Datei genau einmal und beide Richtungen schreiben denselben Store: Lesen rendert die Datei live aus der Datenbank, Speichern parst sie und wendet sie an (Write-Through). Text-Edits an Tools/Egress unterliegen derselben RBAC wie die Oberfläche (nur `platform_admin`/`security`); in den System-Prompt kompiliert werden beide Dateien nicht.
+
+Was ein Agent in einem angebundenen Zielsystem **tun** kann, zeigt derselbe Reiter unter *Zielsysteme*: die Aktionsliste im **Wortlaut seines System-Prompts** (`PromptDoc` des Plugins, bei MCP auf die zugewiesenen Werkzeuge gefiltert), dazu der Zugang aus `ACCESS.md` und die org-weite Aktivierung. Eine geglättete Zweitfassung wäre eine zweite Wahrheit, die irgendwann von der ersten abweicht — die Frage „warum schließt der Agent das Ticket nicht?" beantwortet nur der Text, den er wirklich liest.
 
 Auch `HEARTBEAT.md` ist Plattform-Config, kein Prompt-Material: Sie wird beim Speichern geparst und materialisiert (Tabelle `agent_heartbeats`), die Aufgabe selbst erreicht den Agenten als reguläre Backlog-Aufgabe. Format und Zeitplan-Semantik stehen in [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md).
 

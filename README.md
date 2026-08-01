@@ -54,7 +54,7 @@ echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env   # 32-byte key
 docker compose up -d --build                              # start Postgres + Covey
 ```
 
-Then open [http://localhost:8494](http://localhost:8494) — log in with `admin@covey.local` / `covey-admin`.
+Then open [http://localhost:8494](http://localhost:8494) — log in with `admin@covey.local` / `covey-admin`. A **first steps** checklist on the agent overview walks you to your first working agent; it reads your organisation's actual state, ticks itself off and disappears once you are done.
 
 The bundled [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector) and the covey binary with its embedded admin UI; `bootstrap` creates the organisation, the admin and a demo agent, and migrations run automatically. Full walkthrough including your first agent and a production checklist: [`docs/schnellstart-docker.md`](docs/schnellstart-docker.md) (German).
 
@@ -69,6 +69,7 @@ The bundled [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector
 | 🔑 **Secrets broker** | No long-lived secrets inside the sandbox — access is brokered at runtime, short-lived and scoped. |
 | 🧩 **Skills** | Procedures an agent loads only when they apply: the description stays in context, the instructions and any extra files are read on demand. Kept in an org-wide library, linked per agent — a delivery lead run that finds nothing to do no longer pays for five playbooks. |
 | 🧠 **Wiki memory** | Linked Markdown pages with a pgvector index instead of flat snippets — readable, and correctable by hand. |
+| 📂 **Workspace** | The agent's home directory in the browser: look through what it has lying around, drop a template, a dataset or a whole folder in, edit a file, pull a selection back out as a ZIP. Markdown, images, PDFs and tables are previewed in place. Works while the agent sleeps, and every change is recorded. |
 | 🎥 **Recording & kill switch** | Every run recorded including screenshots; cost per agent and model; an emergency stop for the entire organisation. |
 | 📦 **One binary** | Frontend and migrations are compiled in. Copy it, run `covey serve` — no nginx, no separate frontend hosting. |
 

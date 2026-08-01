@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // DockerProvider startet coveyd in einem Container — echte Isolation auf
@@ -69,10 +71,26 @@ func (p *DockerProvider) docker() string {
 	return "docker"
 }
 
+// AgentHome erfüllt FileAccess: das Home liegt als Verzeichnis auf dem Host
+// (`<DataDir>/homes/<agent-id>`) und wird in die Sandbox gemountet — lesbar und
+// beschreibbar auch dann, wenn kein Container läuft.
+func (p *DockerProvider) AgentHome(agentID uuid.UUID) (Home, error) {
+	return Home{Path: p.homePath(agentID.String()), UID: sandboxUID, GID: sandboxGID}, nil
+}
+
+// homePath ist die eine Stelle, an der der Host-Pfad eines Homes entsteht.
+func (p *DockerProvider) homePath(agentID string) string {
+	home := filepath.Join(p.DataDir, "homes", agentID)
+	if abs, err := filepath.Abs(home); err == nil {
+		return abs
+	}
+	return home
+}
+
 func (p *DockerProvider) Start(ctx context.Context, spec SandboxSpec) (Sandbox, error) {
 	home := spec.HomeDir
 	if home == "" {
-		home = filepath.Join(p.DataDir, "homes", spec.AgentID.String())
+		home = p.homePath(spec.AgentID.String())
 	}
 	if abs, err := filepath.Abs(home); err == nil {
 		home = abs

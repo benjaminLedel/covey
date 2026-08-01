@@ -281,7 +281,8 @@
     "templates": "Templates",
     "org": "Org Chart",
     "costs": "Costs",
-    "trust": "Trust",
+    "setup": "Setup",
+    "control": "Oversight",
     "approvals": "Approvals",
     "guardrails": "Guard Rails",
     "secrets": "Secrets",
@@ -356,10 +357,44 @@
     "auditor": "Auditor",
     "controlling": "Controlling"
   },
+  "onboarding": {
+    "title": "First steps",
+    "lead": "The path to your first working agent. The checkmarks come from your organisation's actual state — once everything is done, this list disappears on its own.",
+    "progress": "{{done}} of {{total}}",
+    "hide": "Hide",
+    "steps": {
+      "credential": {
+        "title": "Add a runtime credential",
+        "hint": "anthropic_api_key (API key) or claude_code_oauth_token (subscription account). Without one of them every task fails.",
+        "action": "Go to Secrets"
+      },
+      "agent": {
+        "title": "Create an agent",
+        "hint": "Name, slug, runtime — that is all it takes to start.",
+        "action": "Create an agent"
+      },
+      "config": {
+        "title": "Write SOUL.md",
+        "hint": "Role, tone, way of working. On the agent under Settings → Config; the AI assistant helps with the wording.",
+        "action": "Go to agents"
+      },
+      "task": {
+        "title": "Create the first task",
+        "hint": "In the agent's backlog. “Wake” starts processing right away.",
+        "action": "Go to agents"
+      },
+      "run": {
+        "title": "Watch it work",
+        "hint": "The recording shows every step: tool calls, target-system actions, approvals, cost.",
+        "action": "Go to agents"
+      }
+    }
+  },
   "modal": {
     "close": "Close",
     "delete": "Delete",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "ok": "OK"
   },
   "login": {
     "title": "Sign in",
@@ -484,7 +519,56 @@
       "config": "Config",
       "settings": "Settings",
       "skills": "Skills",
+      "files": "Workspace",
+      "toolsSkills": "Tools & Skills",
       "dreams": "Dreams"
+    },
+    "files": {
+      "desc": "The agent's persistent home — its workspace. Files outlive the sandbox, so you can browse or drop something here even while the agent sleeps. Every change is recorded.",
+      "runningHint": "The agent is working right now. Changes here touch the same files it is writing.",
+      "wikiHint": "The wiki lives in the control plane; these files are only the working copy and get overwritten on the next run. Edit wiki pages under Memory.",
+      "breadcrumb": "Path",
+      "home": "Home",
+      "upload": "Upload",
+      "newFile": "New file",
+      "newFolder": "New folder",
+      "refresh": "Refresh",
+      "colName": "Name",
+      "colSize": "Size",
+      "colModified": "Modified",
+      "download": "Download",
+      "rename": "Rename",
+      "renameTitle": "Rename {{name}}",
+      "newName": "New name",
+      "name": "Name",
+      "noSlash": "A name has no slash in it — create nested folders one at a time.",
+      "delete": "Delete",
+      "deleteTitle": "Delete {{name}}",
+      "deleteFileConfirm": "“{{name}}” will be deleted from the agent's home.",
+      "deleteDirConfirm": "“{{name}}” and everything in it will be deleted from the agent's home.",
+      "emptyDir": "This folder is empty.",
+      "noHome": "The agent has no home yet — it is created on the first wake. Uploading a file creates it.",
+      "tooManyEntries": "Only the first entries are shown.",
+      "dropHint": "You can also drag and drop files and whole folders onto the list — the folder structure is kept.",
+      "symlinkTo": "Link to {{target}}",
+      "outside": "(points outside the home)",
+      "binary": "Binary file — not displayable here. Download it to view.",
+      "truncated": "Only the beginning of the file is shown; it is too large to edit. Use “Download” for the whole thing.",
+      "uploadFolder": "Upload folder",
+      "uploadingFiles": "Uploading {{count}} file(s) …",
+      "selectAll": "Select all",
+      "selected": "{{count}} selected",
+      "downloadZip": "Download as ZIP",
+      "downloadZipShort": "As ZIP",
+      "clearSelection": "Clear selection",
+      "showSource": "Source",
+      "showPreview": "Preview",
+      "openTab": "Open in new tab",
+      "emptyFile": "The file is empty.",
+      "csvRows": "{{rows}} rows · {{cols}} columns",
+      "csvTruncated": "First {{shown}} rows · {{cols}} columns — see the source for all of it.",
+      "save": "Save",
+      "saving": "Saving …"
     },
     "cost": {
       "total": "Total cost",
@@ -685,6 +769,22 @@
       "ownHosts": "Own hosts",
       "none": "none",
       "lastDecisions": "Recent egress decisions"
+    },
+    "tooling": {
+      "subSystems": "Target systems",
+      "subMCP": "MCP tools",
+      "systemsDesc": "What this agent can do in the connected target systems — the actions in the wording of its system prompt. Access is granted in ACCESS.md (Settings → Config); a target system is enabled org-wide under Target Systems.",
+      "noAccess": "This agent has access to no target system — the broker denies every credential request.",
+      "otherSystems": "Without access",
+      "otherSystemsDesc": "Available to the organisation, but not in this agent's ACCESS.md.",
+      "enabledNoAccess": "Enabled, but no access for this agent",
+      "notEnabled": "Not enabled for the organisation",
+      "notEnabledBadge": "not enabled",
+      "off": "off",
+      "restricted": "Only these tools: {{tools}}",
+      "showDoc": "Actions in the wording of the prompt",
+      "noActions": "No actions documented.",
+      "noActionsDisabled": "Actions appear once the target system is enabled for the organisation."
     },
     "tools": {
       "desc": "Assign specific tools from connected MCP servers to this agent.",
@@ -1298,6 +1398,12 @@
     }
   },
   "activity": {
+    "fileWrite": "{{actor}} changed “{{path}}” in the workspace",
+    "fileUpload": "{{actor}} uploaded “{{path}}” to the workspace",
+    "fileMkdir": "{{actor}} created the folder “{{path}}”",
+    "fileMove": "{{actor}} moved something to “{{path}}”",
+    "fileDelete": "{{actor}} deleted “{{path}}” from the workspace",
+    "fileSomebody": "Somebody",
     "sessionStarted": "Session started{{model}}",
     "withModel": " · Model {{model}}",
     "rateLimitUpdated": "API rate limit status updated",

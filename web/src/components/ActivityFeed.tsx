@@ -86,9 +86,22 @@ function shortDir(dir: string): string {
 
 // --- Icons: kleine Inline-SVGs im Strichstil der übrigen UI ---
 
-type IconName = "bolt" | "moon" | "check" | "shield" | "key" | "clock" | "x" | "flag" | "info" | "layers";
+type IconName =
+  | "bolt"
+  | "moon"
+  | "check"
+  | "shield"
+  | "key"
+  | "clock"
+  | "x"
+  | "flag"
+  | "info"
+  | "layers"
+  | "file";
 
 const paths: Record<IconName, string> = {
+  // file: eine Änderung am Arbeitsplatz — von Menschenhand, nicht vom Agenten.
+  file: "M6 3h7l5 5v13H6V3zm7 0v5h5",
   // layers: der Sub-Lauf — eine zweite Ebene unter der laufenden Arbeit.
   layers: "M12 3l8 4.5-8 4.5-8-4.5L12 3zm-8 9l8 4.5 8-4.5",
   bolt: "M13 2L4 14h6l-1 8 9-12h-6l1-8z",
@@ -455,6 +468,32 @@ function buildItems(events: RecordingEvent[], nested: boolean): FeedItem[] {
           time,
           tone: "danger",
         }, k);
+        break;
+      }
+
+      // Ein Mensch hat am Arbeitsplatz des Agenten etwas geändert. Steht
+      // bewusst in derselben Spur wie die Aktionen des Agenten: für den, der
+      // den Lauf später liest, ist eine über Nacht ausgetauschte Datei
+      // dieselbe Art von Ereignis wie ein Tool-Aufruf.
+      case "file": {
+        closeTurn();
+        const ops: Record<string, string> = {
+          write: "activity.fileWrite",
+          upload: "activity.fileUpload",
+          mkdir: "activity.fileMkdir",
+          move: "activity.fileMove",
+          delete: "activity.fileDelete",
+        };
+        items.push({
+          key: k,
+          kind: "evt",
+          icon: "file",
+          text: i18n.t(ops[String(p.op)] ?? "activity.fileWrite", {
+            path: p.path,
+            actor: p.actor || i18n.t("activity.fileSomebody"),
+          }),
+          time,
+        });
         break;
       }
 

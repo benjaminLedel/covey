@@ -15,6 +15,7 @@ import {
   type AssistProposal,
   type Agent,
   type AgentEgress as AgentEgressCfg,
+  type AgentSystem,
   type AgentWebhook,
   type ConfigVersion,
   type CostSummary,
@@ -44,6 +45,7 @@ import { TargetIcon } from "../components/TargetIcon";
 import { WikiTypeIcon, WikiOpIcon } from "../components/WikiIcon";
 import { Markdown } from "../components/Markdown";
 import { SkillEditor, type SkillDraft } from "../components/SkillEditor";
+import { AgentFiles } from "../components/AgentFiles";
 import ProfileForm from "../components/ProfileForm";
 import { AddHostForm, EgressLogTable, HostChips } from "../components/EgressBits";
 import { SecretValue } from "./Secrets";
@@ -52,6 +54,9 @@ import { generateAgentName } from "../names";
 const canManage = (role: string) => role === "platform_admin" || role === "agent_owner";
 const canKill = (role: string) => canManage(role) || role === "security";
 const canSecrets = (role: string) => role === "platform_admin" || role === "security";
+// Der Arbeitsplatz (Home des Agenten): lesen dürfen ihn seine Verwalter und
+// Security — wer einen Agenten untersucht, muss sehen, was bei ihm liegt.
+const canFiles = (role: string) => canManage(role) || role === "security";
 
 export default function AgentPage({ me }: { me: Principal }) {
   const { t } = useTranslation();
@@ -63,15 +68,17 @@ export default function AgentPage({ me }: { me: Principal }) {
   const [sp, setSp] = useSearchParams();
   const tab = ((sp.get("tab") as
     | "backlog"
-    | "heartbeat"
     | "recording"
     | "memory"
-    | "tools"
-    | "skills"
+    | "dateien"
+    | "werkzeuge"
     | "einstellungen"
     // Zusammengelegt, aber als URL weiterhin gueltig: geteilte Links und
     // Lesezeichen sollen nicht ins Leere laufen, sondern dort landen, wo der
     // Inhalt jetzt wohnt (siehe Umleitung unten).
+    | "heartbeat"
+    | "tools"
+    | "skills"
     | "webhook"
     | "config"
     | "secrets"
@@ -82,22 +89,30 @@ export default function AgentPage({ me }: { me: Principal }) {
       (prev) => {
         const n = new URLSearchParams(prev);
         n.set("tab", key);
+        n.delete("sub"); // Unterpunkt gehoert dem Reiter, den man verlaesst
         if (key !== "memory") n.delete("page"); // Wiki-Seite nur im memory-Tab
+        if (key !== "dateien") {
+          n.delete("dir"); // Ordner und Datei nur im Arbeitsplatz-Tab
+          n.delete("file");
+        }
         return n;
       },
       { replace: false },
     );
   const [recTask, setRecTask] = useState<{ id: string; title: string } | null>(null);
 
-  // Webhook, Config und Secrets sind Unterpunkte der Einstellungen geworden,
-  // die Traeume eine Ansicht des Gedaechtnisses. Alte Links landen am neuen Ort
-  // statt auf dem Backlog.
+  // Was man einmal einrichtet, wohnt unter den Einstellungen; was zusammen
+  // gehoert, unter einem Reiter. Alte Links landen am neuen Ort statt auf dem
+  // Backlog — geteilte Links und Lesezeichen sollen nicht ins Leere laufen.
   useEffect(() => {
     const moved: Record<string, [string, string, string]> = {
+      heartbeat: ["einstellungen", "sub", "heartbeat"],
       webhook: ["einstellungen", "sub", "webhook"],
       config: ["einstellungen", "sub", "config"],
       secrets: ["einstellungen", "sub", "secrets"],
       egress: ["einstellungen", "sub", "egress"],
+      tools: ["werkzeuge", "sub", "mcp"],
+      skills: ["werkzeuge", "sub", "skills"],
       dreams: ["memory", "view", "dreams"],
     };
     const to = moved[tab];
@@ -170,14 +185,17 @@ export default function AgentPage({ me }: { me: Principal }) {
         {(
           [
             ["backlog", t("agent.tabs.backlog")],
-            ["heartbeat", t("agent.tabs.heartbeat")],
             ["recording", t("agent.tabs.recording")],
             ["memory", t("agent.tabs.memory")],
-            ["tools", t("agent.tabs.tools")],
-            ["skills", t("agent.tabs.skills")],
+            ["dateien", t("agent.tabs.files")],
+            ["werkzeuge", t("agent.tabs.toolsSkills")],
             ["einstellungen", t("agent.tabs.settings")],
           ] as const
-        ).map(([key, label]) => (
+        )
+          // Der Arbeitsplatz zeigt, was im Home des Agenten liegt — das sehen
+          // nur seine Verwalter und Security, nicht jede Rolle.
+          .filter(([key]) => key !== "dateien" || canFiles(me.Role))
+          .map(([key, label]) => (
           <button
             key={key}
             onClick={() => {
@@ -207,13 +225,20 @@ export default function AgentPage({ me }: { me: Principal }) {
           }}
         />
       )}
-      {tab === "heartbeat" && <Heartbeats agentId={a.id} canManage={canManage(me.Role)} />}
       {tab === "recording" && (
         <Recording agentId={a.id} taskFilter={recTask} onClearFilter={() => setRecTask(null)} />
       )}
       {tab === "memory" && <Memories agentId={a.id} canManage={canManage(me.Role)} />}
-      {tab === "tools" && <AgentTools agentId={a.id} canEdit={canSecrets(me.Role)} />}
-      {tab === "skills" && <AgentSkills agentId={a.id} canManage={canManage(me.Role)} />}
+      {tab === "dateien" && canFiles(me.Role) && (
+        <AgentFiles agent={a} canWrite={canManage(me.Role)} />
+      )}
+      {tab === "werkzeuge" && (
+        <AgentTooling
+          agentId={a.id}
+          canManage={canManage(me.Role)}
+          canSecrets={canSecrets(me.Role)}
+        />
+      )}
       {tab === "einstellungen" && (
         <AgentSettings
           agent={a}
@@ -227,10 +252,186 @@ export default function AgentPage({ me }: { me: Principal }) {
   );
 }
 
+// Werkzeuge buendeln, womit der Agent arbeitet: was er in den angebundenen
+// Zielsystemen tun kann, welche MCP-Werkzeuge er davon nutzen darf und welche
+// Skills er zieht. Als drei getrennte Reiter stand die Frage „was kann der
+// eigentlich?" an drei Stellen — hier steht sie an einer.
+function AgentTooling({
+  agentId,
+  canManage,
+  canSecrets,
+}: {
+  agentId: string;
+  canManage: boolean;
+  canSecrets: boolean;
+}) {
+  const { t } = useTranslation();
+  const [sp, setSp] = useSearchParams();
+  const subs = [
+    ["systeme", t("agent.tooling.subSystems")],
+    ["mcp", t("agent.tooling.subMCP")],
+    ["skills", t("agent.tabs.skills")],
+  ] as const;
+  const wanted = sp.get("sub") ?? "systeme";
+  const sub = subs.some(([k]) => k === wanted) ? wanted : "systeme";
+  const setSub = (key: string) =>
+    setSp(
+      (prev) => {
+        const n = new URLSearchParams(prev);
+        n.set("tab", "werkzeuge");
+        n.set("sub", key);
+        return n;
+      },
+      { replace: false },
+    );
+
+  return (
+    <div className="settings-panes">
+      <nav className="settings-nav" role="tablist">
+        {subs.map(([key, label]) => (
+          <button
+            key={key}
+            role="tab"
+            aria-selected={sub === key}
+            className={`nav-item${sub === key ? " active" : ""}`}
+            onClick={() => setSub(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </nav>
+      <div className="min-w-0">
+        {sub === "systeme" && <AgentSystems agentId={agentId} />}
+        {sub === "mcp" && <AgentTools agentId={agentId} canEdit={canSecrets} />}
+        {sub === "skills" && <AgentSkills agentId={agentId} canManage={canManage} />}
+      </div>
+    </div>
+  );
+}
+
+// AgentSystems beantwortet „was kann dieser Agent in den angebundenen
+// Zielsystemen tun?" — mit den Aktionen im Wortlaut seines System-Prompts.
+// Genau diesen Text liest der Agent; eine geglättete Zweitfassung wäre eine
+// zweite Wahrheit, die irgendwann von der ersten abweicht.
+function AgentSystems({ agentId }: { agentId: string }) {
+  const { t } = useTranslation();
+  const systems = useQuery({
+    queryKey: ["agent-systems", agentId],
+    queryFn: () => api<AgentSystem[]>(`/agents/${agentId}/systems`),
+  });
+  const list = systems.data ?? [];
+  const mit = list.filter((s) => s.access);
+  const ohne = list.filter((s) => !s.access);
+
+  return (
+    <div>
+      <p className="muted text-xs mb-4" style={{ maxWidth: 680 }}>
+        {t("agent.tooling.systemsDesc")}
+      </p>
+      {systems.isError && <p className="danger-text text-xs">{(systems.error as Error).message}</p>}
+      {systems.data && mit.length === 0 && (
+        <p className="muted mb-4">{t("agent.tooling.noAccess")}</p>
+      )}
+      {mit.map((s) => (
+        <SystemCard key={s.name} system={s} />
+      ))}
+      {ohne.length > 0 && (
+        <>
+          <h3 className="text-sm mt-6 mb-1">{t("agent.tooling.otherSystems")}</h3>
+          <p className="muted text-xs mb-3" style={{ maxWidth: 680 }}>
+            {t("agent.tooling.otherSystemsDesc")}
+          </p>
+          <div className="flex gap-2 flex-wrap">
+            {ohne.map((s) => (
+              <span
+                key={s.name}
+                className="badge st-open"
+                title={s.enabled ? t("agent.tooling.enabledNoAccess") : t("agent.tooling.notEnabled")}
+                style={{ opacity: s.enabled ? 1 : 0.6 }}
+              >
+                {s.label || s.name}
+                {!s.enabled && ` · ${t("agent.tooling.off")}`}
+              </span>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// actionNames zieht die Aktionsnamen aus einer Prompt-Doku: die Plugins
+// schreiben sie durchgehend als `name {"param":…}`. Eine Heuristik auf dem
+// Prompt-Text statt eines zweiten, gepflegten Feldes im Plugin — der Prompt
+// ist das, was der Agent wirklich liest, und darf nicht auseinanderlaufen.
+// Findet sie nichts, bleibt es beim Volltext; falsch ist dann nichts.
+function actionNames(doc: string): string[] {
+  const out: string[] = [];
+  for (const m of doc.matchAll(/(?:^|[\s,(])([a-z][a-z0-9_]{2,})\s*\{/g)) {
+    if (!out.includes(m[1])) out.push(m[1]);
+  }
+  return out;
+}
+
+function SystemCard({ system }: { system: AgentSystem }) {
+  const { t } = useTranslation();
+  const actions = system.doc ? actionNames(system.doc) : [];
+  return (
+    <div className="card mb-3">
+      <div className="flex items-center gap-2 mb-2 flex-wrap">
+        <TargetIcon name={system.name} kind={system.kind} category={system.category} size={16} />
+        <span className="font-medium">{system.label || system.name}</span>
+        <span className="mono text-xs muted">{system.name}</span>
+        {!system.enabled && (
+          <span className="badge st-killed">{t("agent.tooling.notEnabledBadge")}</span>
+        )}
+        <span className="ml-auto" />
+        {system.scopes && system.scopes.length > 0 && (
+          <span className="muted text-xs mono">scope: {system.scopes.join(", ")}</span>
+        )}
+      </div>
+      {system.description && <p className="muted text-xs mb-2">{system.description}</p>}
+      {system.tools && system.tools.length > 0 && (
+        <p className="text-xs mb-2">
+          {t("agent.tooling.restricted", { tools: system.tools.join(", ") })}
+        </p>
+      )}
+      {system.doc ? (
+        <>
+          {actions.length > 0 && (
+            <div className="flex gap-1 flex-wrap mb-2">
+              {actions.map((a) => (
+                <span key={a} className="badge st-open mono" style={{ fontSize: 11 }}>
+                  {a}
+                </span>
+              ))}
+            </div>
+          )}
+          {/* Zugeklappt der Wortlaut aus dem System-Prompt: die Chips sagen,
+              WAS geht, der Text sagt WIE — mit Parametern und Arbeitsweise. */}
+          <details className="rec-details">
+            <summary className="rec-summary text-xs">{t("agent.tooling.showDoc")}</summary>
+            <pre
+              className="mono text-xs"
+              style={{ whiteSpace: "pre-wrap", margin: "6px 0 0", color: "var(--text-secondary)" }}
+            >
+              {system.doc}
+            </pre>
+          </details>
+        </>
+      ) : (
+        <p className="muted text-xs">
+          {system.enabled ? t("agent.tooling.noActions") : t("agent.tooling.noActionsDisabled")}
+        </p>
+      )}
+    </div>
+  );
+}
+
 // Die Einstellungen buendeln alles, was man einmal einrichtet und dann in Ruhe
-// laesst: Stammdaten, der Webhook-Auslöser, die Config-Dateien und die
-// Zugangsdaten. Als eigene Reiter waren das vier von zwoelf — nebeneinander in
-// der obersten Ebene, obwohl man sie im Alltag kaum anfasst.
+// laesst: Stammdaten, Heartbeat, der Webhook-Auslöser, die Config-Dateien und
+// die Zugangsdaten. Als eigene Reiter waren das fuenf von zwoelf — nebeneinander
+// in der obersten Ebene, obwohl man sie im Alltag kaum anfasst.
 function AgentSettings({
   agent,
   editable,
@@ -250,6 +451,7 @@ function AgentSettings({
   // Agenten waren vorher moeglich und sollen es bleiben.
   const subs = [
     ["allgemein", t("agent.settings.subGeneral"), true],
+    ["heartbeat", t("agent.tabs.heartbeat"), true],
     ["webhook", t("agent.tabs.webhook"), canManage],
     ["config", t("agent.tabs.config"), true],
     ["egress", t("agent.tabs.egress"), true],
@@ -291,6 +493,7 @@ function AgentSettings({
       </nav>
       <div className="min-w-0">
         {sub === "allgemein" && <AgentSettingsGeneral agent={agent} editable={editable} />}
+        {sub === "heartbeat" && <Heartbeats agentId={agent.id} canManage={canManage} />}
         {sub === "webhook" && canManage && <WebhookTrigger agentId={agent.id} />}
         {sub === "config" && (
           <Config
