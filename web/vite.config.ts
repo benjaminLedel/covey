@@ -12,4 +12,13 @@ export default defineConfig({
     },
   },
   build: { outDir: "dist" },
+  // Tests laufen im selben Werkzeug wie der Build — damit gilt für sie
+  // dieselbe Auflösung von Importen und Aliassen wie für die Anwendung und
+  // nicht die einer zweiten, danebenstehenden Konfiguration.
+  test: {
+    environment: "jsdom",
+    setupFiles: ["./src/test/setup.ts"],
+    // Der Rest von web/ ist Anwendungscode; Tests liegen neben ihrem Gegenstück.
+    include: ["src/**/*.test.{ts,tsx}"],
+  },
 });

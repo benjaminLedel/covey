@@ -50,6 +50,10 @@ build-web:
   script:
     - cd web
     - npm ci
+    # Erst die Tests, dann der Build: Ein Bundle, das gebaut wird, obwohl die
+    # Oberfläche nachweislich kaputt ist, kostet nur Zeit und verschleiert den
+    # Befund. `npm run build` fährt ohnehin `tsc -b` mit.
+    - npm test
     - npm run build
   artifacts:
     paths:
