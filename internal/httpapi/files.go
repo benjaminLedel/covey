@@ -105,6 +105,64 @@ func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, rc)
 }
 
+// handlePreviewFile: GET /agents/{id}/files/preview?path=… — dieselben Bytes
+// wie der Download, aber *inline* darstellbar: Bilder und PDF direkt im
+// Browser statt „erst herunterladen, dann im Dateimanager suchen".
+//
+// Inline heißt: fremde Bytes aus einem Agenten-Home werden auf der
+// Covey-Origin gerendert. Drei Riegel halten das eng:
+//   - Eine kurze Allowlist von Typen (sandboxfs.InlineType); alles andere
+//     bekommt hier ein 415 und geht nur über den Download-Endpunkt raus.
+//   - `nosniff`, damit der Browser nicht doch HTML daraus macht.
+//   - Eine CSP ohne alles (siehe unten): ein SVG mit Skript führt im <img>
+//     ohnehin nichts aus, direkt aufgerufen ist es damit auch entschärft.
+func (s *Server) handlePreviewFile(w http.ResponseWriter, r *http.Request) {
+	fs, _, ok := s.agentFS(w, r)
+	if !ok {
+		return
+	}
+	path := r.URL.Query().Get("path")
+	rc, info, err := fs.Open(path)
+	if err != nil {
+		writeFSErr(w, err)
+		return
+	}
+	defer rc.Close()
+
+	ctype := sandboxfs.InlineType(info.Name())
+	if ctype == "" {
+		writeErr(w, http.StatusUnsupportedMediaType, "dieser dateityp wird nicht inline ausgeliefert")
+		return
+	}
+	w.Header().Set("Content-Type", ctype)
+	w.Header().Set("Content-Length", fmt.Sprint(info.Size()))
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	// `default-src 'none'` verbietet der Antwort jede Nachladung — das gilt für
+	// alle Typen. Dazu `sandbox`, das sie in eine Origin ohne Rechte sperrt:
+	// nötig für SVG, das direkt aufgerufen sonst als Dokument Skript ausführen
+	// dürfte.
+	//
+	// PDF bekommt das `sandbox` nicht: Chromes eingebauter Viewer ist selbst
+	// ein Dokument, das seine Bausteine nachlädt, und meldet in der
+	// undurchsichtigen Origin „Fehler beim Laden des PDF-Dokuments" — die
+	// Vorschau wäre keine. Der Rest der Absicherung bleibt: `default-src
+	// 'none'`, `nosniff` (die Antwort kann nichts anderes als ein PDF werden)
+	// und die eigene Sandbox des Viewers, aus der PDF-JavaScript das
+	// einbettende Dokument nicht erreicht.
+	csp := "default-src 'none'; sandbox"
+	if ctype == "application/pdf" {
+		csp = "default-src 'none'"
+	}
+	w.Header().Set("Content-Security-Policy", csp)
+	w.Header().Set("Content-Disposition",
+		mime.FormatMediaType("inline", map[string]string{"filename": info.Name()}))
+	// Nicht cachen: die Datei kann sich unter demselben Pfad jederzeit ändern —
+	// der Agent arbeitet ja weiter.
+	w.Header().Set("Cache-Control", "private, no-cache")
+	w.WriteHeader(http.StatusOK)
+	_, _ = io.Copy(w, rc)
+}
+
 // handleUploadFiles: POST /agents/{id}/files/upload?path=<zielverzeichnis>
 // (multipart/form-data, Feld „file", mehrfach erlaubt). Der Body wird
 // gestreamt statt gepuffert — ein Upload ins Home kann groß sein.

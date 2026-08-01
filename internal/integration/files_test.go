@@ -3,11 +3,13 @@ package integration
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -133,6 +135,105 @@ func TestSandboxFilesAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	admin.expect(http.MethodGet, "/api/v1/agents/"+fremd.ID.String()+"/files", nil, http.StatusNotFound)
+}
+
+// TestSandboxFilePreview prüft die Inline-Vorschau (spec/02): Bilder und PDF
+// kommen mit ihrem echten Typ inline, alles andere gar nicht — die Allowlist
+// ist der Riegel dagegen, fremdes HTML auf der Covey-Origin auszuführen.
+func TestSandboxFilePreview(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	created := admin.expect(http.MethodPost, "/api/v1/agents",
+		map[string]string{"slug": "vorschau-agent", "display_name": "Vorschau", "runtime": "mock"}, http.StatusCreated)
+	agentID := created["id"].(string)
+	base := "/api/v1/agents/" + agentID + "/files"
+
+	// Ein winziges, gültiges PNG (1×1, transparent).
+	png, err := base64.StdEncoding.DecodeString(
+		"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
+	if err != nil {
+		t.Fatal(err)
+	}
+	admin.uploadRaw(t, base+"/upload?path=bilder", "punkt.png", png)
+	admin.upload(t, base+"/upload?path=bilder", map[string]string{
+		"seite.html": "<script>alert(1)</script>",
+		"notiz.md":   "# Titel",
+	})
+
+	// Die Auflistung trägt die Vorschau-Art — daran hängt das Symbol in der UI.
+	list := admin.expect(http.MethodGet, base+"?path=bilder", nil, http.StatusOK)
+	arten := map[string]any{}
+	for name, e := range entryNames(list) {
+		arten[name] = e.(map[string]any)["preview"]
+	}
+	if arten["punkt.png"] != "image" || arten["notiz.md"] != "markdown" {
+		t.Fatalf("vorschau-arten unerwartet: %v", arten)
+	}
+
+	// Ein Bild kommt inline, mit echtem Typ und ohne Sniffing.
+	resp := admin.do(http.MethodGet, base+"/preview?path="+url.QueryEscape("bilder/punkt.png"), nil)
+	body, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || !bytes.Equal(body, png) {
+		t.Fatalf("bild-vorschau: HTTP %d, %d bytes", resp.StatusCode, len(body))
+	}
+	if ct := resp.Header.Get("Content-Type"); ct != "image/png" {
+		t.Errorf("content-type %q, erwartet image/png", ct)
+	}
+	if resp.Header.Get("X-Content-Type-Options") != "nosniff" {
+		t.Error("nosniff fehlt — der Browser dürfte den Typ sonst selbst raten")
+	}
+	if csp := resp.Header.Get("Content-Security-Policy"); !strings.Contains(csp, "sandbox") {
+		t.Errorf("bild ohne sandbox-CSP: %q", csp)
+	}
+	if cd := resp.Header.Get("Content-Disposition"); !strings.HasPrefix(cd, "inline") {
+		t.Errorf("content-disposition %q, erwartet inline", cd)
+	}
+
+	// HTML und Markdown gibt es NICHT inline — fail-closed über die Allowlist.
+	for _, p := range []string{"bilder/seite.html", "bilder/notiz.md"} {
+		resp := admin.do(http.MethodGet, base+"/preview?path="+url.QueryEscape(p), nil)
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusUnsupportedMediaType {
+			t.Errorf("%s: HTTP %d, erwartet 415", p, resp.StatusCode)
+		}
+	}
+
+	// Der Download bleibt für alles der Weg — und immer als Anhang.
+	resp = admin.do(http.MethodGet, base+"/download?path="+url.QueryEscape("bilder/seite.html"), nil)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK ||
+		!strings.HasPrefix(resp.Header.Get("Content-Disposition"), "attachment") ||
+		resp.Header.Get("Content-Type") != "application/octet-stream" {
+		t.Errorf("html-download muss ein anhang mit neutralem typ sein: %d %q %q", resp.StatusCode,
+			resp.Header.Get("Content-Disposition"), resp.Header.Get("Content-Type"))
+	}
+}
+
+// uploadRaw lädt eine einzelne Datei mit beliebigen Bytes hoch.
+func (c *apiClient) uploadRaw(t *testing.T, path, name string, content []byte) {
+	t.Helper()
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	w, err := mw.CreateFormFile("file", name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Write(content); err != nil {
+		t.Fatal(err)
+	}
+	mw.Close()
+	req, _ := http.NewRequest(http.MethodPost, c.base+path, &buf)
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	resp, err := c.http.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("upload %s: HTTP %d: %s", name, resp.StatusCode, b)
+	}
 }
 
 // upload schickt Dateien als multipart/form-data, wie es der Browser tut.

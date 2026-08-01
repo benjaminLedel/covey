@@ -609,6 +609,10 @@ export const upload = <T>(path: string, form: FormData) =>
 
 // --- Arbeitsplatz: das persistente Home eines Agenten als Dateibaum ---
 
+// Wie eine Datei zu zeigen ist. Der Server entscheidet das an einer Stelle
+// (internal/sandboxfs) — die Oberfläche wählt danach nur noch die Darstellung.
+export type PreviewKind = "text" | "markdown" | "image" | "pdf" | "csv" | "binary";
+
 export type FileEntry = {
   name: string;
   /** Pfad relativ zum Home, „/" als Trenner. */
@@ -621,6 +625,8 @@ export type FileEntry = {
   symlink?: string;
   /** Der Link zeigt aus dem Home heraus — sichtbar, aber nicht zu öffnen. */
   outside?: boolean;
+  /** Vorschau-Art nach Dateiname; leer = erst beim Öffnen entscheidbar. */
+  preview?: PreviewKind;
 };
 
 export type FileListing = {
@@ -638,6 +644,8 @@ export type FileContent = {
   mod_time: string;
   binary: boolean;
   truncated: boolean;
+  /** text/markdown/csv tragen content; image/pdf kommen über den preview-Endpunkt. */
+  preview: PreviewKind;
   content: string;
 };
 

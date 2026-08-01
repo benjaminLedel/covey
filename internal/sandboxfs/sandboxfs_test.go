@@ -274,3 +274,84 @@ func TestOpenLiefertVolleDatei(t *testing.T) {
 		t.Errorf("lesen: %d, %v", n, err)
 	}
 }
+
+// Die Vorschau-Art entscheidet, wie die Oberfläche eine Datei zeigt — und die
+// Inline-Allowlist, was der Server überhaupt inline ausliefern darf. Beides
+// hängt an einer Stelle, damit sich Anzeige und Auslieferung nicht auseinander
+// entwickeln.
+func TestVorschauArtUndInlineTypen(t *testing.T) {
+	für := map[string]string{
+		"notiz.md":        PreviewMarkdown,
+		"README.MARKDOWN": PreviewMarkdown,
+		"daten.csv":       PreviewCSV,
+		"daten.TSV":       PreviewCSV,
+		"bild.png":        PreviewImage,
+		"foto.JPEG":       PreviewImage,
+		"logo.svg":        PreviewImage,
+		"handbuch.pdf":    PreviewPDF,
+		"skript.sh":       "", // aus dem Namen nicht zu erkennen
+		"ohne-endung":     "",
+	}
+	for name, want := range für {
+		if got := PreviewKind(name); got != want {
+			t.Errorf("PreviewKind(%q) = %q, erwartet %q", name, got, want)
+		}
+	}
+
+	// Inline darf nur, was auf der Allowlist steht — HTML gehört bewusst nicht
+	// dazu: es liefe als Dokument auf der Covey-Origin.
+	for _, name := range []string{"seite.html", "skript.js", "notiz.md", "daten.csv", "archiv.zip"} {
+		if got := InlineType(name); got != "" {
+			t.Errorf("InlineType(%q) = %q, erwartet leer", name, got)
+		}
+	}
+	if got := InlineType("bild.PNG"); got != "image/png" {
+		t.Errorf("InlineType(bild.PNG) = %q", got)
+	}
+	if got := InlineType("handbuch.pdf"); got != "application/pdf" {
+		t.Errorf("InlineType(handbuch.pdf) = %q", got)
+	}
+}
+
+// Read trägt die Vorschau-Art mit — und überträgt Bilder nicht als Text: die
+// Bytes holt die Oberfläche über den preview-Endpunkt.
+func TestReadLiefertVorschauArt(t *testing.T) {
+	fs, root := newTestFS(t)
+	if err := os.WriteFile(filepath.Join(root, "notiz.md"), []byte("# Titel"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Ein Bild, das zufällig gültiges UTF-8 wäre: die Endung entscheidet, nicht
+	// der Inhalt — sonst landete es im Editor.
+	if err := os.WriteFile(filepath.Join(root, "bild.png"), []byte("nicht wirklich png"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "programm"), []byte{0x7f, 'E', 'L', 'F', 0x00}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	md, err := fs.Read("notiz.md")
+	if err != nil || md.Preview != PreviewMarkdown || md.Content != "# Titel" {
+		t.Fatalf("markdown: %+v, %v", md, err)
+	}
+	img, err := fs.Read("bild.png")
+	if err != nil || img.Preview != PreviewImage || img.Content != "" || !img.Binary {
+		t.Fatalf("bild: %+v, %v", img, err)
+	}
+	bin, err := fs.Read("programm")
+	if err != nil || bin.Preview != PreviewBinary {
+		t.Fatalf("binär: %+v, %v", bin, err)
+	}
+
+	// In der Auflistung trägt jede Datei ihre Art — daran hängt das Symbol.
+	list, err := fs.List("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	arten := map[string]string{}
+	for _, e := range list.Entries {
+		arten[e.Name] = e.Preview
+	}
+	if arten["notiz.md"] != PreviewMarkdown || arten["bild.png"] != PreviewImage || arten["programm"] != "" {
+		t.Errorf("arten in der auflistung: %v", arten)
+	}
+}

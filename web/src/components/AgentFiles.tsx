@@ -14,6 +14,7 @@ import {
   type FileListing,
 } from "../api";
 import { fmtBytes } from "../format";
+import { Markdown } from "./Markdown";
 import { Modal, ConfirmDialog } from "./Modal";
 
 // Der Arbeitsplatz des Agenten: sein persistentes Home als Dateibaum. Es ist
@@ -27,6 +28,26 @@ import { Modal, ConfirmDialog } from "./Modal";
 // ist etwas, das man verschickt.
 
 const q = (s: string) => encodeURIComponent(s);
+
+// Symbole im Strichstil der übrigen UI. Ein Ordner sieht anders aus als ein
+// Bild — das erspart es, jede Zeile zu lesen, um die Liste zu überfliegen.
+const GLYPHS: Record<string, string> = {
+  dir: "M3 6a1 1 0 0 1 1-1h5l2 2h8a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6z",
+  file: "M6 3h7l5 5v13H6V3zm7 0v5h5",
+  markdown: "M6 3h7l5 5v13H6V3zm7 0v5h5M9 18v-5l2 2 2-2v5",
+  image: "M4 5h16v14H4V5zm3 9l3-3 3 3 2-2 3 3M9 9.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z",
+  pdf: "M6 3h7l5 5v13H6V3zm7 0v5h5M9 17v-4h1.5a1.2 1.2 0 0 1 0 2.4H9m5 1.6v-4h1.6",
+  csv: "M4 5h16v14H4V5zm0 4.7h16M4 14.3h16M9.3 5v14M14.7 5v14",
+};
+
+function FileGlyph({ entry }: { entry: FileEntry }) {
+  const name = entry.is_dir ? "dir" : (entry.preview && GLYPHS[entry.preview]) ? entry.preview : "file";
+  return (
+    <svg viewBox="0 0 24 24" className="file-ic" aria-hidden="true">
+      <path d={GLYPHS[name]} />
+    </svg>
+  );
+}
 
 export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolean }) {
   const { t } = useTranslation();
@@ -209,13 +230,13 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
                 <tr key={e.path}>
                   <td style={{ maxWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     <button
-                      className="btn sm mono"
+                      className="btn sm mono flex items-center gap-2"
                       style={{ border: "none", padding: "2px 4px", maxWidth: "100%" }}
                       disabled={e.outside}
                       title={e.symlink ? t("agent.files.symlinkTo", { target: e.symlink }) : e.name}
                       onClick={() => (e.is_dir ? setParam("dir", e.path) : setParam("file", e.path))}
                     >
-                      <span aria-hidden="true">{e.is_dir ? "▸ " : ""}</span>
+                      <FileGlyph entry={e} />
                       {e.name}
                       {e.symlink && <span className="muted"> → {e.symlink}</span>}
                     </button>
@@ -317,8 +338,12 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
   );
 }
 
-// FileViewer zeigt eine Datei und lässt sie ändern. Binäres bleibt zu — im
-// Textfeld würde es zu Müll, und beim Speichern zu kaputtem Müll.
+// FileViewer zeigt eine Datei — jede Art so, wie man sie ansehen will:
+// Markdown gerendert, Bilder als Bild, PDF eingebettet, Tabellen als Tabelle,
+// alles andere im Editor. Wo es einen Quelltext gibt, ist er einen Klick
+// entfernt und bleibt bearbeitbar; die Vorschau ersetzt den Editor nicht,
+// sondern steht davor. Binäres bleibt zu — im Textfeld würde es zu Müll, und
+// beim Speichern zu kaputtem Müll.
 function FileViewer({
   agentId,
   path,
@@ -342,7 +367,12 @@ function FileViewer({
     refetchOnMount: "always",
   });
   const [draft, setDraft] = useState<string | null>(null);
-  useEffect(() => setDraft(null), [path]);
+  // Quelltext statt Vorschau — die Wahl gilt fürs Fenster, nicht für die Datei.
+  const [source, setSource] = useState(false);
+  useEffect(() => {
+    setDraft(null);
+    setSource(false);
+  }, [path]);
 
   const save = useMutation({
     mutationFn: (content: string) => put(`/agents/${agentId}/files/content`, { path, content }),
@@ -357,6 +387,11 @@ function FileViewer({
   const editable = canWrite && d && !d.binary && !d.truncated;
   const value = draft ?? d?.content ?? "";
   const dirty = draft !== null && draft !== d?.content;
+  // Gerendert werden kann, was Text ist und eine eigene Darstellung hat. Ein
+  // angefangener Edit zieht die Vorschau mit: man will sehen, was man tippt.
+  const renderable = d?.preview === "markdown" || d?.preview === "csv";
+  const showPreview = renderable && !source;
+  const previewURL = `/api/v1/agents/${agentId}/files/preview?path=${q(path)}`;
 
   return (
     <Modal
@@ -368,6 +403,16 @@ function FileViewer({
           <a className="btn sm" href={`/api/v1/agents/${agentId}/files/download?path=${q(path)}`} download>
             {t("agent.files.download")}
           </a>
+          {renderable && (
+            <button className="btn sm" onClick={() => setSource((v) => !v)}>
+              {source ? t("agent.files.showPreview") : t("agent.files.showSource")}
+            </button>
+          )}
+          {(d?.preview === "image" || d?.preview === "pdf") && (
+            <a className="btn sm" href={previewURL} target="_blank" rel="noopener noreferrer">
+              {t("agent.files.openTab")}
+            </a>
+          )}
           <span className="ml-auto" />
           <button className="btn sm" onClick={onClose}>
             {t("modal.cancel")}
@@ -391,13 +436,42 @@ function FileViewer({
           <p className="muted text-xs mb-2 mono">
             {fmtBytes(d.size)} · {d.mode} · {new Date(d.mod_time).toLocaleString()}
           </p>
-          {d.binary && <p className="text-sm">{t("agent.files.binary")}</p>}
+          {d.preview === "image" && (
+            <img
+              src={previewURL}
+              alt={path}
+              style={{
+                maxWidth: "100%",
+                maxHeight: "60vh",
+                display: "block",
+                margin: "0 auto",
+                // Karierter Grund: sonst ist bei einem transparenten PNG nicht
+                // zu sehen, wo das Bild aufhört und die Seite anfängt.
+                background:
+                  "repeating-conic-gradient(var(--surface-1) 0% 25%, transparent 0% 50%) 50% / 16px 16px",
+              }}
+            />
+          )}
+          {d.preview === "pdf" && (
+            <iframe
+              src={previewURL}
+              title={path}
+              style={{ width: "100%", height: "60vh", border: "0.5px solid var(--border)", borderRadius: 6 }}
+            />
+          )}
+          {d.preview === "binary" && <p className="text-sm">{t("agent.files.binary")}</p>}
           {!d.binary && d.truncated && (
             <p className="text-xs mb-2" style={{ color: "var(--text-warning)" }}>
               {t("agent.files.truncated")}
             </p>
           )}
-          {!d.binary && (
+          {showPreview && d.preview === "markdown" && (
+            <div className="md-body">
+              <Markdown text={value} />
+            </div>
+          )}
+          {showPreview && d.preview === "csv" && <CsvTable text={value} path={path} />}
+          {!d.binary && !showPreview && (
             <textarea
               className="code"
               rows={22}
@@ -411,6 +485,83 @@ function FileViewer({
         </>
       )}
     </Modal>
+  );
+}
+
+// CsvTable zeigt eine Tabellendatei als Tabelle. Der Parser kann, was das
+// Format wirklich braucht: Trennzeichen nach Endung, Anführungszeichen mit
+// verdoppelten Quotes und Trennern im Feld. Zeilenumbrüche INNERHALB eines
+// Feldes kann er nicht — dafür gibt es den Quelltext, und die Tabelle sagt es
+// nicht, weil sie es gar nicht erst falsch darstellt: solche Zeilen enden
+// sichtbar als eigene Zeile.
+const CSV_MAX_ROWS = 200;
+
+function parseDelimited(text: string, sep: string): string[][] {
+  const rows: string[][] = [];
+  for (const line of text.replace(/\r\n/g, "\n").split("\n")) {
+    if (line === "" && rows.length > 0) continue;
+    const cells: string[] = [];
+    let cur = "";
+    let quoted = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (quoted) {
+        if (c === '"' && line[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else if (c === '"') quoted = false;
+        else cur += c;
+      } else if (c === '"' && cur === "") quoted = true;
+      else if (c === sep) {
+        cells.push(cur);
+        cur = "";
+      } else cur += c;
+    }
+    cells.push(cur);
+    rows.push(cells);
+    if (rows.length >= CSV_MAX_ROWS + 1) break;
+  }
+  return rows;
+}
+
+function CsvTable({ text, path }: { text: string; path: string }) {
+  const { t } = useTranslation();
+  const sep = path.toLowerCase().endsWith(".tsv") ? "\t" : ",";
+  const rows = parseDelimited(text, sep);
+  if (rows.length === 0) return <p className="muted text-sm">{t("agent.files.emptyFile")}</p>;
+  const [head, ...body] = rows;
+  const shown = body.slice(0, CSV_MAX_ROWS);
+
+  return (
+    <>
+      <div style={{ overflowX: "auto", maxHeight: "60vh" }}>
+        <table className="tbl">
+          <thead>
+            <tr>
+              {head.map((c, i) => (
+                <th key={i}>{c}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((r, i) => (
+              <tr key={i}>
+                {head.map((_, j) => (
+                  <td key={j} className="mono text-xs">
+                    {r[j] ?? ""}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="muted text-xs mt-2">
+        {body.length > shown.length
+          ? t("agent.files.csvTruncated", { shown: shown.length, cols: head.length })
+          : t("agent.files.csvRows", { rows: shown.length, cols: head.length })}
+      </p>
+    </>
   );
 }
 

@@ -142,6 +142,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/agents/{id}/files", s.rbac(append(manage, identity.RoleSecurity), s.handleListFiles))
 	mux.Handle("GET /api/v1/agents/{id}/files/content", s.rbac(append(manage, identity.RoleSecurity), s.handleReadFile))
 	mux.Handle("GET /api/v1/agents/{id}/files/download", s.rbac(append(manage, identity.RoleSecurity), s.handleDownloadFile))
+	mux.Handle("GET /api/v1/agents/{id}/files/preview", s.rbac(append(manage, identity.RoleSecurity), s.handlePreviewFile))
 	mux.Handle("PUT /api/v1/agents/{id}/files/content", s.rbac(manage, s.handleWriteFile))
 	mux.Handle("POST /api/v1/agents/{id}/files/upload", s.rbac(manage, s.handleUploadFiles))
 	mux.Handle("POST /api/v1/agents/{id}/files/dir", s.rbac(manage, s.handleMkdir))

@@ -520,6 +520,12 @@
       "outside": "(points outside the home)",
       "binary": "Binary file — not displayable here. Download it to view.",
       "truncated": "Only the beginning of the file is shown; it is too large to edit. Use “Download” for the whole thing.",
+      "showSource": "Source",
+      "showPreview": "Preview",
+      "openTab": "Open in new tab",
+      "emptyFile": "The file is empty.",
+      "csvRows": "{{rows}} rows · {{cols}} columns",
+      "csvTruncated": "First {{shown}} rows · {{cols}} columns — see the source for all of it.",
       "save": "Save",
       "saving": "Saving …"
     },

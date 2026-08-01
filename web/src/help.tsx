@@ -141,8 +141,10 @@ const deTopics: HelpTopic[] = [
           </li>
           <li>
             <b>Arbeitsplatz</b> — das persistente Home des Agenten als Dateibaum: nachsehen, was da
-            liegt, Dateien hochladen oder ändern. Das Home überlebt die Sandbox, der Zugriff geht
-            deshalb auch am schlafenden Agenten. Jede Änderung steht im Recording.
+            liegt, Dateien hochladen oder ändern. Die üblichen Dateien werden gleich angezeigt —
+            Markdown gerendert, Bilder als Bild, PDF eingebettet, Tabellen als Tabelle. Das Home
+            überlebt die Sandbox, der Zugriff geht deshalb auch am schlafenden Agenten. Jede
+            Änderung steht im Recording.
           </li>
           <li>
             <b>Tools &amp; Skills</b> — womit der Agent arbeitet: <b>Zielsysteme</b> (was er dort
@@ -463,8 +465,9 @@ const enTopics: HelpTopic[] = [
           </li>
           <li>
             <b>Workspace</b> — the agent's persistent home as a file tree: see what it has lying
-            around, upload or edit files. The home outlives the sandbox, so this works while the
-            agent sleeps. Every change is recorded.
+            around, upload or edit files. Common file types are shown right there — markdown
+            rendered, images as images, PDFs embedded, tables as tables. The home outlives the
+            sandbox, so this works while the agent sleeps. Every change is recorded.
           </li>
           <li>
             <b>Tools &amp; Skills</b> — what the agent works with: <b>target systems</b> (what it

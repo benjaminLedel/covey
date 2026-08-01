@@ -54,6 +54,69 @@ var (
 	ErrExists = errors.New("existiert bereits")
 )
 
+// Vorschau-Arten. Welche Art eine Datei hat, entscheidet hier *eine* Stelle —
+// die Oberfläche wählt danach ihre Darstellung, statt selbst noch einmal
+// Endungen zu raten und irgendwann etwas anderes zu meinen als der Server,
+// der die Bytes ausliefert.
+const (
+	PreviewText     = "text"     // im Editor bearbeitbar
+	PreviewMarkdown = "markdown" // gerendert oder als Quelltext
+	PreviewImage    = "image"    // inline über den preview-Endpunkt
+	PreviewPDF      = "pdf"      // inline, eingebettet
+	PreviewCSV      = "csv"      // als Tabelle oder Quelltext
+	PreviewBinary   = "binary"   // nur herunterladen
+)
+
+// inlineTypes ist die Allowlist der Typen, die *inline* ausgeliefert werden
+// dürfen — alles andere geht ausschließlich als Anhang raus. Bewusst kurz und
+// fail-closed: Inline-Auslieferung aus einem Agenten-Home heißt, fremde Bytes
+// auf der Covey-Origin darzustellen. Bilder und PDF sind es wert, HTML nicht.
+//
+// SVG ist dabei, weil es im <img>-Kontext kein Skript ausführt; gegen den
+// direkten Aufruf der URL sichert der Handler zusätzlich mit einer
+// sandbox-CSP ab (files.go).
+var inlineTypes = map[string]string{
+	".png":  "image/png",
+	".jpg":  "image/jpeg",
+	".jpeg": "image/jpeg",
+	".gif":  "image/gif",
+	".webp": "image/webp",
+	".avif": "image/avif",
+	".bmp":  "image/bmp",
+	".ico":  "image/x-icon",
+	".svg":  "image/svg+xml",
+	".pdf":  "application/pdf",
+}
+
+// markdownExts/csvExts sind die Text-Arten mit eigener Darstellung.
+var markdownExts = map[string]bool{".md": true, ".markdown": true, ".mdx": true}
+
+var csvExts = map[string]bool{".csv": true, ".tsv": true}
+
+// PreviewKind bestimmt die Vorschau-Art aus dem Dateinamen. Leeres Ergebnis =
+// aus dem Namen nicht zu erkennen; dann entscheidet der Inhalt (Text oder
+// binär), siehe Read.
+func PreviewKind(name string) string {
+	ext := strings.ToLower(filepath.Ext(name))
+	switch {
+	case markdownExts[ext]:
+		return PreviewMarkdown
+	case csvExts[ext]:
+		return PreviewCSV
+	case ext == ".pdf":
+		return PreviewPDF
+	case inlineTypes[ext] != "":
+		return PreviewImage
+	}
+	return ""
+}
+
+// InlineType liefert den Content-Type, unter dem eine Datei inline
+// ausgeliefert werden darf — leer heißt: nur als Anhang.
+func InlineType(name string) string {
+	return inlineTypes[strings.ToLower(filepath.Ext(name))]
+}
+
 // FS ist der Dateibaum eines Agenten-Homes.
 //
 // UID/GID sind der Besitzer *in der Sandbox* (der User `agent` im Image). Die
@@ -97,6 +160,9 @@ type Entry struct {
 	// dem Home zeigt, wird angezeigt, aber nicht geöffnet (Outside).
 	Symlink string `json:"symlink,omitempty"`
 	Outside bool   `json:"outside,omitempty"`
+	// Preview ist die Vorschau-Art nach Dateiname (leer = erst beim Öffnen
+	// entscheidbar). In der Liste trägt sie das Symbol der Zeile.
+	Preview string `json:"preview,omitempty"`
 }
 
 // Listing ist eine Verzeichnisauflistung.
@@ -116,7 +182,11 @@ type File struct {
 	ModTime   string `json:"mod_time"`
 	Binary    bool   `json:"binary"`
 	Truncated bool   `json:"truncated"`
-	Content   string `json:"content"`
+	// Preview sagt der Oberfläche, wie die Datei zu zeigen ist: text,
+	// markdown, csv (Content trägt den Text), image, pdf (Content ist leer,
+	// die Bytes kommen über den preview-Endpunkt) oder binary.
+	Preview string `json:"preview"`
+	Content string `json:"content"`
 }
 
 // List liefert die Einträge eines Verzeichnisses, Verzeichnisse zuerst und
@@ -191,6 +261,9 @@ func (f *FS) entry(dirAbs, dirRel, name string) Entry {
 	e.Size = li.Size()
 	e.Mode = li.Mode().String()
 	e.ModTime = li.ModTime().UTC().Format("2006-01-02T15:04:05Z")
+	if !e.IsDir {
+		e.Preview = PreviewKind(name)
+	}
 	return e
 }
 
@@ -217,6 +290,14 @@ func (f *FS) Read(rel string) (File, error) {
 		Size:    info.Size(),
 		Mode:    info.Mode().String(),
 		ModTime: info.ModTime().UTC().Format("2006-01-02T15:04:05Z"),
+		Preview: PreviewKind(info.Name()),
+	}
+	// Bild und PDF werden nicht als Text übertragen: ihre Bytes holt sich die
+	// Oberfläche über den preview-Endpunkt. Ein Base64-Umweg durchs JSON
+	// verdreifachte nur das Volumen.
+	if out.Preview == PreviewImage || out.Preview == PreviewPDF {
+		out.Binary = true
+		return out, nil
 	}
 
 	fh, err := os.Open(abs)
@@ -237,6 +318,7 @@ func (f *FS) Read(rel string) (File, error) {
 	}
 	if isBinary(data) {
 		out.Binary = true
+		out.Preview = PreviewBinary
 		return out, nil
 	}
 	// Abgeschnitten wird auf Byte-Ebene; ein halbes UTF-8-Zeichen am Ende
@@ -245,6 +327,9 @@ func (f *FS) Read(rel string) (File, error) {
 		for len(data) > 0 && !utf8.Valid(data) {
 			data = data[:len(data)-1]
 		}
+	}
+	if out.Preview == "" {
+		out.Preview = PreviewText
 	}
 	out.Content = string(data)
 	return out, nil

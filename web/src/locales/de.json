@@ -520,6 +520,12 @@
       "outside": "(zeigt aus dem Home heraus)",
       "binary": "Binärdatei — hier nicht darstellbar. Zum Ansehen herunterladen.",
       "truncated": "Nur der Anfang der Datei wird gezeigt; sie ist zu groß zum Bearbeiten. Vollständig gibt es sie über „Herunterladen\".",
+      "showSource": "Quelltext",
+      "showPreview": "Vorschau",
+      "openTab": "In neuem Tab öffnen",
+      "emptyFile": "Die Datei ist leer.",
+      "csvRows": "{{rows}} Zeilen · {{cols}} Spalten",
+      "csvTruncated": "Erste {{shown}} Zeilen · {{cols}} Spalten — vollständig im Quelltext.",
       "save": "Speichern",
       "saving": "Speichert …"
     },

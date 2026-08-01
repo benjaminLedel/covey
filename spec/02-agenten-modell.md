@@ -38,10 +38,13 @@ Das persistente Home deckt Dateien ab — **nicht** das episodische Gedächtnis 
 
 Das Home ist im Webinterface als **Dateibrowser** offen (Reiter *Arbeitsplatz* am Agenten): durchsehen, öffnen, Textdateien ändern, hoch- und herunterladen, Ordner anlegen, umbenennen, löschen. Damit ist „was liegt bei dem Agenten eigentlich rum?" eine Frage der Oberfläche und nicht mehr eine Shell auf dem Host — und der Weg, einem Agenten Material mitzugeben (eine Vorlage, eine Preisliste, einen Datensatz), führt nicht mehr über den Umweg eines Zielsystems.
 
-Drei Festlegungen tragen das:
+**Ansehen statt herunterladen.** Der Browser zeigt die üblichen Dateien an Ort und Stelle: Markdown gerendert, Bilder (auch SVG) als Bild, PDF eingebettet, CSV/TSV als Tabelle, alles Übrige im Editor. Wo es einen Quelltext gibt, ist er einen Klick entfernt und bleibt bearbeitbar — die Vorschau steht *vor* dem Editor, sie ersetzt ihn nicht. Die Art der Datei bestimmt die Control Plane an einer Stelle (`sandboxfs.PreviewKind`), damit Anzeige und Auslieferung nicht auseinanderlaufen.
+
+Vier Festlegungen tragen das:
 
 - **Am Daemon vorbei, direkt aufs Home.** Der Zugriff läuft über den `FileAccess`-Port des Sandbox-Providers auf das Home-Verzeichnis, nicht über das Daemon-Protokoll. Sonst gäbe es den Arbeitsplatz nur, während die Sandbox läuft — und laufen tut sie im Normalfall nicht (siehe [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)). Ein Provider ohne erreichbares Home hat kein Feature, statt eines geratenen.
 - **Kein Weg aus dem Home heraus.** Jeder Pfad wird normalisiert und gegen den tiefsten existierenden Vorfahren geprüft; ein Symlink, der hinauszeigt, wird angezeigt, aber nicht geöffnet. Der Dateibrowser einer Control Plane, der sich zum Dateibrowser des Hosts ausweiten lässt, wäre die teuerste Bequemlichkeit der Plattform.
+- **Inline nur nach Allowlist.** Eine Datei aus einem Agenten-Home im Browser darzustellen heißt, fremde Bytes auf der Covey-Origin zu rendern. Deshalb kommt nur eine kurze Liste von Typen (Bilder, PDF) *inline* — mit `nosniff` und einer CSP ohne jedes Recht; alles andere geht ausschließlich als Anhang raus. Hochgeladenes HTML ist damit eine Datei, die man herunterlädt, und keine Seite, die auf der Plattform läuft.
 - **Jede Änderung ins Recording.** Schreibende Zugriffe landen als Ereignis (`kind: file`) in derselben Spur wie die Aktionen des Agenten, mit dem handelnden Menschen. Wer über Nacht eine Datei im Home austauscht, ändert das Verhalten des Agenten; für den, der den Lauf später liest, ist das dieselbe Art von Ereignis wie ein Tool-Aufruf.
 
 **Rollen:** Lesen dürfen die Verwalter des Agenten und Security — wer einen Agenten untersucht, muss sehen, was bei ihm liegt. Schreiben bleibt bei den Verwaltern: eine Datei im Home ist Konfiguration des Agenten, kein Audit-Vorgang.
