@@ -2072,21 +2072,60 @@ func (o *Orchestrator) Kill(ctx context.Context, agentID uuid.UUID) error {
 }
 
 // KillFleet ist der flottenweite Notaus (spec/06).
-func (o *Orchestrator) KillFleet(ctx context.Context, orgID uuid.UUID) error {
-	if err := o.Registry.SetFleetKilled(ctx, orgID, true); err != nil {
+// ResumeFleet nimmt den Notaus zurück — das Gegenstück zu KillFleet, und zwar
+// vollständig.
+//
+// Vorher löste das Zurücknehmen nur das Org-Flag, während KillFleet JEDEN
+// Agenten einzeln gestoppt hatte. Die Belegschaft blieb danach stehen, obwohl
+// die Oberfläche „kein Notaus" meldete — man hätte jeden Agenten von Hand
+// wieder anschalten müssen, ohne dass irgendetwas darauf hinweist. Ein Notaus
+// muss sich so lösen lassen, wie er ausgelöst wurde.
+func (o *Orchestrator) ResumeFleet(ctx context.Context, orgID uuid.UUID) error {
+	if err := o.Registry.SetFleetKilled(ctx, orgID, false); err != nil {
 		return err
 	}
-	rows, err := o.Pool.Query(ctx, "SELECT id FROM agents WHERE org_id=$1", orgID)
+	ids, err := o.agentIDs(ctx, orgID)
 	if err != nil {
 		return err
+	}
+	var firstErr error
+	for _, id := range ids {
+		if err := o.Registry.SetKilled(ctx, id, false); err != nil && firstErr == nil {
+			firstErr = err
+			continue
+		}
+		// Wer offene Arbeit hat, soll sie sofort aufnehmen und nicht bis zum
+		// nächsten Tick warten.
+		o.EnsureRunning(id)
+	}
+	return firstErr
+}
+
+// agentIDs listet die Agenten einer Organisation.
+func (o *Orchestrator) agentIDs(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := o.Pool.Query(ctx, "SELECT id FROM agents WHERE org_id=$1", orgID)
+	if err != nil {
+		return nil, err
 	}
 	defer rows.Close()
 	var ids []uuid.UUID
 	for rows.Next() {
 		var id uuid.UUID
-		if rows.Scan(&id) == nil {
-			ids = append(ids, id)
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
 		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+func (o *Orchestrator) KillFleet(ctx context.Context, orgID uuid.UUID) error {
+	if err := o.Registry.SetFleetKilled(ctx, orgID, true); err != nil {
+		return err
+	}
+	ids, err := o.agentIDs(ctx, orgID)
+	if err != nil {
+		return err
 	}
 	var firstErr error
 	for _, id := range ids {

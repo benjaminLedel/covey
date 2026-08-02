@@ -1456,7 +1456,7 @@ func (s *Server) handleFleetKill(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleFleetResume(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
-	if err := s.Registry.SetFleetKilled(r.Context(), p.OrgID, false); err != nil {
+	if err := s.Orch.ResumeFleet(r.Context(), p.OrgID); err != nil {
 		mapErr(w, err)
 		return
 	}

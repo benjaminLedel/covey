@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -175,10 +176,23 @@ func (c Config) SecurityWarnings() []string {
 }
 
 func isLoopbackPublic(u string) bool {
-	for _, h := range []string{"localhost", "127.0.0.1", "[::1]", "::1"} {
-		if strings.Contains(u, h) {
-			return true
-		}
+	// Auf den HOSTNAMEN prüfen, nicht auf die Zeichenkette: Ein
+	// `strings.Contains` hielte auch https://localhost.example.com für
+	// Entwicklung — und schwiege damit ausgerechnet bei einer echten, öffentlich
+	// erreichbaren Instanz zu jeder Unsicherheit.
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return false // unlesbar = im Zweifel warnen
+	}
+	host := parsed.Hostname()
+	if host == "" {
+		// Ohne Schema parst Go den Wert als Pfad; dann steht der Host vorne.
+		host, _, _ = strings.Cut(strings.TrimPrefix(u, "//"), "/")
+		host, _, _ = strings.Cut(host, ":")
+	}
+	switch strings.ToLower(host) {
+	case "localhost", "127.0.0.1", "::1", "[::1]":
+		return true
 	}
 	return false
 }
