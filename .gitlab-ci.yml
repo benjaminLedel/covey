@@ -1,7 +1,9 @@
 # GitLab CI für Covey.
 #
-# Pipeline: test → build.
-# - test:  Frontend bauen (web/dist muss für //go:embed existieren), dann go vet + go test.
+# Pipeline: test → build → deploy.
+# - test:  govulncheck (Abhängigkeiten gegen die Go-Schwachstellendatenbank),
+#          Frontend-Tests + Build (web/dist muss für //go:embed existieren),
+#          dann gofmt-Prüfung, go vet und go test.
 #          go test läuft mit -coverprofile: GitLab bekommt den Gesamt-Prozentwert
 #          als Badge (coverage-Regex) und einen Cobertura-Report für die
 #          MR-Diff-Coverage-Anzeige.
@@ -37,6 +39,24 @@ stages:
   - test
   - build
   - deploy
+
+security:
+  stage: test
+  image: golang:1.26
+  variables:
+    GOPATH: $CI_PROJECT_DIR/.go
+  cache:
+    key: go-mod
+    paths:
+      - .go/pkg/mod/
+  script:
+    # govulncheck prüft die Abhängigkeiten gegen die Go-Schwachstellendatenbank
+    # — und zwar auf ERREICHBARKEIT: Es meldet nur, was der eigene Code
+    # tatsächlich aufruft. Deshalb praktisch ohne Fehlalarme, deshalb als
+    # harter Schritt und nicht als Bericht, den niemand liest.
+    # (Ein Fund in einem Modul, das wir nur einbinden aber nie aufrufen, lässt
+    # den Job bewusst grün — sonst wäre er nach der ersten Woche abgeschaltet.)
+    - go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
 build-web:
   stage: test
