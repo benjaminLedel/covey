@@ -49,6 +49,10 @@ type Verdict struct {
 	Rule     *Rule
 }
 
+// ErrNotFound: die Regel gibt es nicht — oder nicht in dieser Organisation.
+// Beides ist dieselbe Antwort.
+var ErrNotFound = errors.New("guard-rail nicht gefunden")
+
 // Validate prüft eine Regel vor dem Persistieren — fail-closed heißt auch:
 // keine Regeln speichern, die nie greifen oder mehrdeutig wären.
 func Validate(r Rule) error {
@@ -199,6 +203,16 @@ func (s *Store) SetEnabled(ctx context.Context, orgID, id uuid.UUID, enabled boo
 }
 
 func (s *Store) Delete(ctx context.Context, orgID, id uuid.UUID) error {
-	_, err := s.pool.Exec(ctx, "DELETE FROM guardrails WHERE org_id=$1 AND id=$2", orgID, id)
-	return err
+	tag, err := s.pool.Exec(ctx, "DELETE FROM guardrails WHERE org_id=$1 AND id=$2", orgID, id)
+	if err != nil {
+		return err
+	}
+	// Die Abfrage ist org-gescopt, eine fremde Regel trifft also nie zu — sie
+	// meldete bisher trotzdem Erfolg. Wer eine Regel einer anderen Organisation
+	// zu loeschen versucht, bekommt jetzt „nicht gefunden" statt einer
+	// Bestaetigung fuer etwas, das nicht passiert ist.
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

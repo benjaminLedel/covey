@@ -231,22 +231,22 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/agents/{id}/dreams", s.agentScoped(manage, s.handleStartDream))
 	mux.Handle("GET /api/v1/agents/{id}/dreams", s.agentScoped(anyRole, s.handleListDreams))
 	mux.Handle("POST /api/v1/dream-actions/{id}/undo", s.rbac(manage, s.handleUndoDreamAction))
-	mux.Handle("PATCH /api/v1/memories/{id}", s.rbac(manage, s.handleUpdateMemory))
-	mux.Handle("DELETE /api/v1/memories/{id}", s.rbac(manage, s.handleDeleteMemory))
-	mux.Handle("POST /api/v1/tasks/{id}/cancel", s.rbac(manage, s.handleCancelTask))
-	mux.Handle("POST /api/v1/tasks/{id}/retry", s.rbac(manage, s.handleRetryTask))
-	mux.Handle("POST /api/v1/tasks/{id}/archive", s.rbac(manage, s.handleArchiveTask))
+	mux.Handle("PATCH /api/v1/memories/{id}", s.pageScoped(manage, s.handleUpdateMemory))
+	mux.Handle("DELETE /api/v1/memories/{id}", s.pageScoped(manage, s.handleDeleteMemory))
+	mux.Handle("POST /api/v1/tasks/{id}/cancel", s.taskScoped(manage, s.handleCancelTask))
+	mux.Handle("POST /api/v1/tasks/{id}/retry", s.taskScoped(manage, s.handleRetryTask))
+	mux.Handle("POST /api/v1/tasks/{id}/archive", s.taskScoped(manage, s.handleArchiveTask))
 	mux.Handle("POST /api/v1/agents/{id}/backlog/cleanup", s.agentScoped(manage, s.handleCleanupBacklog))
-	mux.Handle("POST /api/v1/tasks/{id}/stage", s.rbac(manage, s.handleMoveTask))
-	mux.Handle("GET /api/v1/tasks/{id}/transitions", s.rbac(anyRole, s.handleTransitions))
-	mux.Handle("GET /api/v1/tasks/{id}/notes", s.rbac(anyRole, s.handleTaskNotes))
+	mux.Handle("POST /api/v1/tasks/{id}/stage", s.taskScoped(manage, s.handleMoveTask))
+	mux.Handle("GET /api/v1/tasks/{id}/transitions", s.taskScoped(anyRole, s.handleTransitions))
+	mux.Handle("GET /api/v1/tasks/{id}/notes", s.taskScoped(anyRole, s.handleTaskNotes))
 
 	// Custom-Stages (Kanban-Overlay, pro Agent).
 	mux.Handle("GET /api/v1/agents/{id}/stages", s.agentScoped(anyRole, s.handleListStages))
 	mux.Handle("POST /api/v1/agents/{id}/stages", s.agentScoped(manage, s.handleCreateStage))
 	mux.Handle("POST /api/v1/agents/{id}/stages/reorder", s.agentScoped(manage, s.handleReorderStages))
-	mux.Handle("PATCH /api/v1/stages/{id}", s.rbac(manage, s.handleUpdateStage))
-	mux.Handle("DELETE /api/v1/stages/{id}", s.rbac(manage, s.handleDeleteStage))
+	mux.Handle("PATCH /api/v1/stages/{id}", s.stageScoped(manage, s.handleUpdateStage))
+	mux.Handle("DELETE /api/v1/stages/{id}", s.stageScoped(manage, s.handleDeleteStage))
 
 	// Vertrauensschicht.
 	mux.Handle("GET /api/v1/approvals", s.rbac(anyRole, s.handleListApprovals))
@@ -461,6 +461,52 @@ func (s *Server) agentScoped(roles []string, next http.HandlerFunc) http.Handler
 			return
 		}
 		next(w, r.WithContext(context.WithValue(r.Context(), agentKey, agent)))
+	})
+}
+
+// taskScoped/stageScoped/pageScoped sind dasselbe Muster wie agentScoped für
+// die übrigen Objekte mit eigener ID. Aufgaben, Board-Spalten und Wiki-Seiten
+// waren aus fremden Organisationen les- und veränderbar, weil die Prüfung auch
+// hier Sache des Handlers war — und dort fehlte.
+//
+// Bewusst drei kleine Funktionen statt einer generischen: Die Frage „gehört
+// das mir?" wird je Objekt anders beantwortet (Aufgaben tragen die
+// Organisation selbst, Spalten und Seiten erst über ihren Agenten). Ein
+// Generikum müsste das doch wieder aufdröseln.
+func (s *Server) taskScoped(roles []string, next http.HandlerFunc) http.Handler {
+	return s.idScoped(roles, next, func(r *http.Request, orgID, id uuid.UUID) bool {
+		return s.Backlog.InOrg(r.Context(), orgID, id)
+	})
+}
+
+func (s *Server) stageScoped(roles []string, next http.HandlerFunc) http.Handler {
+	return s.idScoped(roles, next, func(r *http.Request, orgID, id uuid.UUID) bool {
+		return s.Backlog.StageInOrg(r.Context(), orgID, id)
+	})
+}
+
+func (s *Server) pageScoped(roles []string, next http.HandlerFunc) http.Handler {
+	return s.idScoped(roles, next, func(r *http.Request, orgID, id uuid.UUID) bool {
+		return s.Memory.PageInOrg(r.Context(), orgID, id)
+	})
+}
+
+// idScoped ist der gemeinsame Rumpf: ID aus dem Pfad, Zugehörigkeit prüfen,
+// sonst „nicht gefunden" — nie „verboten", denn die Existenz eines Objekts in
+// einer anderen Organisation ist selbst schon eine Auskunft.
+func (s *Server) idScoped(roles []string, next http.HandlerFunc,
+	gehoert func(*http.Request, uuid.UUID, uuid.UUID) bool) http.Handler {
+	return s.rbac(roles, func(w http.ResponseWriter, r *http.Request) {
+		id, err := uuid.Parse(r.PathValue("id"))
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "ungültige id")
+			return
+		}
+		if !gehoert(r, principalFrom(r).OrgID, id) {
+			writeErr(w, http.StatusNotFound, "nicht gefunden")
+			return
+		}
+		next(w, r)
 	})
 }
 

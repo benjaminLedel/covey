@@ -506,6 +506,15 @@ func (s *Store) UpdatePage(ctx context.Context, id uuid.UUID, title, content str
 }
 
 // Delete entfernt eine Seite endgültig (manuelle Pflege).
+// PageInOrg prüft, ob eine Wiki-Seite zu dieser Organisation gehört. Seiten
+// hängen am Agenten; die Organisation steht erst nach dem Join fest.
+func (s *Store) PageInOrg(ctx context.Context, orgID, pageID uuid.UUID) bool {
+	var eins int
+	err := s.pool.QueryRow(ctx, `SELECT 1 FROM wiki_pages p JOIN agents a ON a.id = p.agent_id
+		WHERE p.id=$1 AND a.org_id=$2`, pageID, orgID).Scan(&eins)
+	return err == nil
+}
+
 func (s *Store) Delete(ctx context.Context, id uuid.UUID) error {
 	var agentID uuid.UUID
 	var slug, title string

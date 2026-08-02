@@ -24,6 +24,7 @@ import (
 	"covey/internal/backlog"
 	"covey/internal/daemon"
 	"covey/internal/db"
+	"covey/internal/dream"
 	"covey/internal/egress"
 	"covey/internal/guardrails"
 	"covey/internal/httpapi"
@@ -36,6 +37,7 @@ import (
 	secbuiltin "covey/internal/secrets/builtin"
 	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
+	"covey/internal/templates"
 
 	_ "covey/internal/target/browser"
 	_ "covey/internal/target/dev"
@@ -91,24 +93,26 @@ func (s *inprocSandbox) Stop(ctx context.Context) error {
 }
 
 type stack struct {
-	t        *testing.T
-	pool     *pgxpool.Pool
-	registry *agents.Registry
-	backlog  *backlog.Store
-	obs      *observability.Store
-	rails    *guardrails.Store
-	secrets  *secbuiltin.Store
-	mem      *memory.Store
-	targets  *targetstore.Store
-	egress   *egress.Store
-	skills   *skills.Store
-	reqlog   *reqlogstore.Store
-	orch     *orchestrator.Orchestrator
-	http     *httptest.Server
-	orgID    uuid.UUID
-	adminID  uuid.UUID
-	homeBase string
-	cancel   context.CancelFunc
+	t         *testing.T
+	pool      *pgxpool.Pool
+	registry  *agents.Registry
+	backlog   *backlog.Store
+	obs       *observability.Store
+	rails     *guardrails.Store
+	secrets   *secbuiltin.Store
+	mem       *memory.Store
+	targets   *targetstore.Store
+	egress    *egress.Store
+	skills    *skills.Store
+	reqlog    *reqlogstore.Store
+	templates *templates.Store
+	dreams    *dream.Store
+	orch      *orchestrator.Orchestrator
+	http      *httptest.Server
+	orgID     uuid.UUID
+	adminID   uuid.UUID
+	homeBase  string
+	cancel    context.CancelFunc
 }
 
 const webhookSecret = "test-webhook-secret"
@@ -168,6 +172,11 @@ func newStack(t *testing.T) *stack {
 	// gegenseitig zuschieben. Was über Orchestrator und HTTP-Server läuft
 	// (Sandbox-Requests, eingehende Webhooks), reicht für den Durchstich.
 	s.reqlog = reqlogstore.NewStore(pool, log, true, time.Hour)
+	// Vorlagen und Träume gehören zur Grundausstattung einer Instanz (main.go
+	// setzt sie immer). Fehlten sie im Test-Stack, liefen ihre Endpunkte in
+	// einen Nil-Pointer statt in den Code, der geprüft werden soll.
+	s.templates = templates.NewStore(pool)
+	s.dreams = dream.NewStore(pool, s.mem, log)
 	s.homeBase = t.TempDir()
 
 	s.orch = orchestrator.New(orchestrator.Options{
@@ -187,6 +196,7 @@ func newStack(t *testing.T) *stack {
 		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
 		Rails: s.rails, Secrets: secretStore, Identity: idp, Memory: s.mem,
 		Org: org.NewStore(pool), Targets: s.targets,
+		Templates: s.templates, Dreams: s.dreams,
 		Skills:      s.skills,
 		EgressStore: s.egress,
 		ReqLog:      s.reqlog,

@@ -571,6 +571,25 @@ func (s *Store) CorrelateWake(ctx context.Context, correlationKey, resumeInput s
 	return t, nil
 }
 
+// InOrg beantwortet, ob eine Aufgabe zu dieser Organisation gehört. Die
+// Antwort ist bewusst ein Boolean und kein Task: Der Aufrufer (die
+// taskScoped-Middleware) will nur die Grenze prüfen, nicht die Daten.
+func (s *Store) InOrg(ctx context.Context, orgID, taskID uuid.UUID) bool {
+	var eins int
+	err := s.pool.QueryRow(ctx,
+		"SELECT 1 FROM backlog_tasks WHERE id=$1 AND org_id=$2", taskID, orgID).Scan(&eins)
+	return err == nil
+}
+
+// StageInOrg prüft dasselbe für eine Board-Spalte. Spalten hängen am Agenten,
+// die Organisation steht also erst nach dem Join fest.
+func (s *Store) StageInOrg(ctx context.Context, orgID, stageID uuid.UUID) bool {
+	var eins int
+	err := s.pool.QueryRow(ctx, `SELECT 1 FROM agent_stages st JOIN agents a ON a.id = st.agent_id
+		WHERE st.id=$1 AND a.org_id=$2`, stageID, orgID).Scan(&eins)
+	return err == nil
+}
+
 func (s *Store) Transitions(ctx context.Context, taskID uuid.UUID) ([]Transition, error) {
 	rows, err := s.pool.Query(ctx, `SELECT from_state, to_state, note, created_at
 		FROM task_transitions WHERE task_id=$1 ORDER BY id`, taskID)
