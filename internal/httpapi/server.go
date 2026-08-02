@@ -89,13 +89,18 @@ type Server struct {
 	// nil = kein Lebenszyklus bekannt (Tests); dann greift context.Background().
 	BaseCtx context.Context
 
-	// loginLimiter bremst Brute-Force auf /auth/login (lazy in Handler init.).
-	loginLimiter *loginLimiter
+	// loginLimiter bremst Brute-Force auf /auth/login, webhookLimiter die
+	// unauthentifizierten Webhook-Endpunkte (beide lazy in Handler init.).
+	loginLimiter   *loginLimiter
+	webhookLimiter *webhookLimiter
 }
 
 func (s *Server) Handler() http.Handler {
 	if s.loginLimiter == nil {
 		s.loginLimiter = newLoginLimiter()
+	}
+	if s.webhookLimiter == nil {
+		s.webhookLimiter = newWebhookLimiter()
 	}
 	mux := http.NewServeMux()
 
@@ -569,8 +574,14 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
+	// SameSite=Strict statt Lax: Covey ist ein Verwaltungswerkzeug, in das man
+	// sich hineinnavigiert — es gibt keine Deep-Links von fremden Seiten, auf
+	// die man Rücksicht nehmen müsste. Lax schickt das Cookie bei jeder
+	// Top-Level-Navigation von außen mit; Strict tut das nicht und nimmt damit
+	// die ganze Klasse von Angriffen aus dem Spiel, die mit einem Klick auf
+	// einen fremden Link beginnen.
 	http.SetCookie(w, &http.Cookie{Name: "covey_session", Value: token, Path: "/",
-		HttpOnly: true, Secure: s.CookieSecure, SameSite: http.SameSiteLaxMode, MaxAge: int(s.SessionTTL.Seconds())})
+		HttpOnly: true, Secure: s.CookieSecure, SameSite: http.SameSiteStrictMode, MaxAge: int(s.SessionTTL.Seconds())})
 	writeJSON(w, http.StatusOK, p)
 }
 
@@ -579,7 +590,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		_ = s.sessions().Delete(r.Context(), hashToken(cookie.Value))
 	}
 	http.SetCookie(w, &http.Cookie{Name: "covey_session", Value: "", Path: "/",
-		HttpOnly: true, Secure: s.CookieSecure, SameSite: http.SameSiteLaxMode, MaxAge: -1})
+		HttpOnly: true, Secure: s.CookieSecure, SameSite: http.SameSiteStrictMode, MaxAge: -1})
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 

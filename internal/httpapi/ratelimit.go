@@ -33,6 +33,62 @@ func newLoginLimiter() *loginLimiter {
 	}
 }
 
+// webhookLimiter bremst die Webhook-Endpunkte. Die sind bewusst
+// UNAUTHENTIFIZIERT erreichbar — ein Zielsystem soll ohne Covey-Konto
+// zustellen können — und jeder angenommene Aufruf weckt einen Agenten, also
+// einen LLM-Lauf mit echten Kosten. Wer die URL kennt (sie steht in der
+// Konfiguration des Zielsystems), könnte sonst beliebig Kosten treiben.
+//
+// Anders als beim Login zählt hier JEDER Aufruf, nicht nur der
+// fehlgeschlagene: Der teure Fall ist gerade der erfolgreiche.
+//
+// Der Schlüssel ist der Agent, nicht die IP: Ein Zielsystem stellt aus
+// wechselnden Adressen zu (Cloud-Dienste tun das ständig), und was gedeckelt
+// gehört, ist die Weckrate EINES Agenten. 60 pro Minute liegt weit über dem,
+// was ein Ticketsystem im Alltag erzeugt, und weit unter dem, was wehtut.
+type webhookLimiter struct {
+	mu      sync.Mutex
+	hits    map[string][]time.Time
+	maxHits int
+	window  time.Duration
+}
+
+func newWebhookLimiter() *webhookLimiter {
+	return &webhookLimiter{
+		hits:    make(map[string][]time.Time),
+		maxHits: 60,
+		window:  time.Minute,
+	}
+}
+
+// allow verbucht einen Aufruf und meldet, ob er noch im Rahmen liegt.
+func (l *webhookLimiter) allow(key string, now time.Time) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	cutoff := now.Add(-l.window)
+	kept := l.hits[key][:0]
+	for _, t := range l.hits[key] {
+		if t.After(cutoff) {
+			kept = append(kept, t)
+		}
+	}
+	if len(kept) >= l.maxHits {
+		l.hits[key] = kept
+		return false
+	}
+	l.hits[key] = append(kept, now)
+	// Gegen unbegrenztes Wachstum der Map: Ein Angreifer, der wechselnde
+	// Agenten-Namen probiert, legt sonst je Name einen Eintrag an.
+	if len(l.hits) > 10000 {
+		for k, ts := range l.hits {
+			if len(ts) == 0 || !ts[len(ts)-1].After(cutoff) {
+				delete(l.hits, k)
+			}
+		}
+	}
+	return true
+}
+
 // blocked meldet true, wenn für den Schlüssel im aktuellen Fenster bereits
 // maxFails Fehlversuche liegen.
 func (l *loginLimiter) blocked(key string, now time.Time) bool {
