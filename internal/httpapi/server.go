@@ -82,6 +82,13 @@ type Server struct {
 	// CookieSecure setzt das Secure-Flag auf dem Session-Cookie (HTTPS-only).
 	CookieSecure bool
 
+	// BaseCtx ist der Lebenszyklus des Servers. Hintergrund-Arbeit, die einen
+	// Request überdauern soll (der Nachtlauf eines Agenten etwa), hängt daran
+	// statt an context.Background() — sonst liefe sie nach einem Shutdown
+	// weiter, ohne dass jemand auf sie wartet oder sie abbrechen könnte.
+	// nil = kein Lebenszyklus bekannt (Tests); dann greift context.Background().
+	BaseCtx context.Context
+
 	// loginLimiter bremst Brute-Force auf /auth/login (lazy in Handler init.).
 	loginLimiter *loginLimiter
 }
@@ -340,6 +347,14 @@ func (s *Server) Handler() http.Handler {
 }
 
 // --- Hilfen ---
+
+// baseCtx ist der Lebenszyklus des Servers, mit Rückfall für Tests.
+func (s *Server) baseCtx() context.Context {
+	if s.BaseCtx != nil {
+		return s.BaseCtx
+	}
+	return context.Background()
+}
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")

@@ -83,6 +83,10 @@ func (c *Client) send(msgType string, payload any) error {
 	if c.conn == nil {
 		return errors.New("keine verbindung zur control plane")
 	}
+	// Eigener Kontext statt eines durchgereichten: Ein Schreibvorgang auf die
+	// Control-Plane-Verbindung darf nicht daran hängen, ob die AUFGABE noch
+	// läuft — gerade die Abschlussmeldung entsteht, wenn deren Kontext endet.
+	// Die 10 Sekunden begrenzen ihn stattdessen.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return c.conn.Write(ctx, websocket.MessageText, raw)

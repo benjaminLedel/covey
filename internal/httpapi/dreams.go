@@ -50,10 +50,13 @@ func (s *Server) handleStartDream(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	// Bewusst nicht an r.Context() gehängt: der Request ist gleich beendet, der
-	// Traum soll es nicht sein.
+	// Bewusst nicht an r.Context() gehängt: Der Request ist gleich beendet, der
+	// Traum soll es nicht sein — er läuft Minuten. Aber auch nicht an
+	// context.Background(): Dann überlebte er ein Herunterfahren als Goroutine,
+	// die niemand mehr abbricht und auf die niemand wartet. Der Lebenszyklus
+	// des Servers ist genau das richtige Maß dazwischen.
 	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		ctx, cancel := context.WithTimeout(s.baseCtx(), 10*time.Minute)
 		defer cancel()
 		s.Dreams.Run(ctx, d, dream.Credential{Value: cred, OAuth: oauth})
 	}()

@@ -88,6 +88,10 @@ func (m *manager) ensureLocked() (context.Context, error) {
 		opts = append(opts, chromedp.ExecPath(p))
 	}
 
+	// Losgelöst von jeder einzelnen Aktion: Die Sitzung ist der Sinn dieses
+	// Plugins — Cookies und Login sollen über mehrere Aktionen hinweg stehen
+	// bleiben. Beendet wird sie über allocCancel/browserCancel (Close), nicht
+	// über einen geerbten Kontext.
 	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	browserCtx, browserCancel := chromedp.NewContext(allocCtx)
 	// Leerer Run erzwingt den Browser-Start und bindet den initialen Tab an den

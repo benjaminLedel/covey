@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
 	"covey/internal/daemon"
 )
 
@@ -91,5 +93,57 @@ func TestWarmLinkPropagatesInnerError(t *testing.T) {
 	inner.err <- errors.New("verbindung verloren")
 	if _, err := wl.Receive(context.Background()); err == nil {
 		t.Fatal("Fehler des inneren Links muss durchschlagen")
+	}
+}
+
+// fakeSandbox merkt sich, ob sie abgebaut wurde.
+type fakeSandbox struct{ stopped atomic.Bool }
+
+func (f *fakeSandbox) Stop(context.Context) error {
+	f.stopped.Store(true)
+	return nil
+}
+
+// Eine warme Sandbox ist ein LAUFENDER Container, der dem schlafenden Agenten
+// gehört. Faehrt die Control Plane herunter, muss sie ihn abbauen — sonst
+// bleibt er zurueck: Beim naechsten Start raeumt ihn erst der naechste Wake
+// desselben Agenten weg (der Provider loescht den gleichnamigen Container), und
+// bei einem Agenten, der nie wieder geweckt wird, laeuft er unbegrenzt weiter.
+func uuidNil() uuid.UUID { return uuid.New() }
+
+func TestWarmeSandboxenWerdenBeimHerunterfahrenAbgebaut(t *testing.T) {
+	o := New(Options{})
+	link, sandbox := newFakeLink(), &fakeSandbox{}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go o.warmReaperLoop(ctx)
+	o.parkWarm(uuidNil(), link, sandbox)
+
+	o.mu.Lock()
+	geparkt := len(o.warm)
+	o.mu.Unlock()
+	if geparkt != 1 {
+		t.Fatalf("erwartet eine geparkte Sandbox, got %d", geparkt)
+	}
+
+	cancel() // Control Plane faehrt herunter
+
+	frist := time.After(3 * time.Second)
+	for {
+		if sandbox.stopped.Load() && link.closed.Load() {
+			break
+		}
+		select {
+		case <-frist:
+			t.Fatalf("warme Sandbox nicht abgebaut (stopped=%v, link geschlossen=%v)",
+				sandbox.stopped.Load(), link.closed.Load())
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+	o.mu.Lock()
+	rest := len(o.warm)
+	o.mu.Unlock()
+	if rest != 0 {
+		t.Errorf("nach dem Herunterfahren sind noch %d Sandboxen geparkt", rest)
 	}
 }

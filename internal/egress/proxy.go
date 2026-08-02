@@ -120,6 +120,8 @@ func (p *Proxy) Close() error {
 	if p.srv == nil {
 		return nil
 	}
+	// Herunterfahren braucht einen eigenen Kontext: Der Aufrufer schließt den
+	// Proxy typischerweise, WEIL sein Kontext abgelaufen ist.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return p.srv.Shutdown(ctx)

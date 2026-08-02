@@ -287,7 +287,12 @@ func (v *tokenVerifier) jwksKeyFunc(token *jwt.Token) (any, error) {
 
 // refreshLocked lädt die JWKS-Schlüssel neu. Aufrufer hält v.mu.
 func (v *tokenVerifier) refreshLocked() error {
-	keys, err := fetchJWKS(context.Background())
+	// Kein Request-Kontext verfügbar (der Aufrufer hält bereits v.mu), aber
+	// ohne Frist hinge die Token-Prüfung an einem hängenden JWKS-Endpunkt —
+	// und mit ihr jeder eingehende Teams-Aufruf.
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	keys, err := fetchJWKS(ctx)
 	if err != nil {
 		return err
 	}

@@ -663,7 +663,8 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		return err
 	}
 	srv := &httpapi.Server{
-		Pool: pool, Registry: registry, Backlog: backlogStore, Obs: obs,
+		BaseCtx: ctx,
+		Pool:    pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Identity: idp, Memory: mem, Dreams: dreams,
 		Org: org.NewStore(pool), Targets: targets, Templates: templateStore,
 		Skills: skillStore,

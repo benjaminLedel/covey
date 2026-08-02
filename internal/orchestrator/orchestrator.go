@@ -90,6 +90,12 @@ type Orchestrator struct {
 	mu       sync.Mutex
 	sessions map[uuid.UUID]*session
 	waiting  map[uuid.UUID]chan DaemonLink
+	// baseCtx ist der Lebenszyklus der Control Plane, gesetzt von Run. Sessions
+	// hängen daran statt an context.Background(): Beim Herunterfahren sollen
+	// laufende Läufe abgebrochen werden und nicht als verwaiste Goroutinen mit
+	// offener Sandbox zurückbleiben. Vor Run (oder in Tests, die Run nicht
+	// starten) ist es nil und der Rückfall greift — siehe base().
+	baseCtx context.Context
 	// warm hält geparkte Sandbox-Sessions warm-geschalteter Agenten am Leben,
 	// während der Agent schläft (Link offen, Container läuft weiter). Der nächste
 	// Wake übernimmt sie, statt kalt hochzufahren.
@@ -146,6 +152,9 @@ type warmSession struct {
 func (ws *warmSession) teardown() {
 	ws.teardownOnce.Do(func() {
 		ws.link.Close()
+		// Losgelöst mit Absicht: Aufgeräumt wird oft GERADE, weil der
+		// zugehörige Kontext abgelaufen ist. Ein abgeleiteter wäre hier
+		// bereits tot und der Container bliebe stehen.
 		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		_ = ws.sandbox.Stop(stopCtx)
@@ -167,6 +176,9 @@ type warmLink struct {
 }
 
 func newWarmLink(inner DaemonLink) *warmLink {
+	// Eigener Lebenszyklus statt eines geerbten: Der Link überlebt bewusst den
+	// Lauf, der ihn erzeugt hat (das ist der Sinn von „warm"). Beendet wird er
+	// über stopPump in Close.
 	ctx, cancel := context.WithCancel(context.Background())
 	wl := &warmLink{
 		inner:    inner,
@@ -230,7 +242,21 @@ type session struct {
 
 // Run startet den Dispatch-Loop: billig, dauerhaft, kein LLM (spec/03).
 // Wake-Quellen: NOTIFY (Event) und der periodische Tick.
+// base liefert den Lebenszyklus, an dem neue Sessions hängen. Aufrufer hält
+// o.mu. Ohne laufendes Run (Tests, früher Aufruf) bleibt es bei
+// context.Background() — dann gibt es schlicht nichts, woran man hängen könnte.
+func (o *Orchestrator) base() context.Context {
+	if o.baseCtx != nil {
+		return o.baseCtx
+	}
+	return context.Background()
+}
+
 func (o *Orchestrator) Run(ctx context.Context) error {
+	o.mu.Lock()
+	o.baseCtx = ctx
+	o.mu.Unlock()
+
 	// Startup-Reconcile: verwaiste in_progress-Aufgaben (Sandbox mit dem letzten
 	// Prozess verschwunden) zurück auf open, sonst hingen sie nach Crash/Deploy
 	// dauerhaft. Muss vor dem ersten tick laufen, damit sie sofort neu greifen.
@@ -572,7 +598,9 @@ func (o *Orchestrator) EnsureRunning(agentID uuid.UUID) {
 		o.mu.Unlock()
 		return
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	// An den Lebenszyklus der Control Plane gehängt, nicht an Background: Ein
+	// Shutdown beendet damit auch Sessions, die über diesen Weg entstanden sind.
+	ctx, cancel := context.WithCancel(o.base())
 	s := &session{cancel: cancel}
 	o.sessions[agentID] = s
 	o.mu.Unlock()
@@ -656,6 +684,8 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 			o.parkWarm(agent.ID, link, sandbox)
 		} else {
 			link.Close()
+			// Auch hier losgelöst: Bei kill oder Abbruch ist ctx bereits
+			// abgelaufen — die Sandbox muss trotzdem weg.
 			stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			sandbox.Stop(stopCtx)
 			cancel()
@@ -790,6 +820,9 @@ func (o *Orchestrator) acquireSandbox(ctx context.Context, agent agents.Agent) (
 // Hintergrund die Daemon-Heartbeats, bis der nächste Wake übernimmt oder der
 // Reaper abräumt. Stirbt der Link im Idle, wird die Sandbox sofort abgebaut.
 func (o *Orchestrator) parkWarm(agentID uuid.UUID, link DaemonLink, sandbox Sandbox) {
+	// Der Drain lebt, solange die Sandbox geparkt ist — länger als der Lauf,
+	// der sie abgibt. Beendet wird er vom Reaper (Idle-TTL), vom nächsten Wake
+	// oder beim Herunterfahren durch teardownAllWarm.
 	drainCtx, cancel := context.WithCancel(context.Background())
 	ws := &warmSession{link: link, sandbox: sandbox, lastUsed: time.Now(), cancel: cancel, done: make(chan struct{})}
 	o.mu.Lock()
@@ -906,11 +939,47 @@ func (o *Orchestrator) warmReaperLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			// Eine warme Sandbox ist ein LAUFENDER Container, der einem
+			// schlafenden Agenten gehört. Ohne diesen Abbau bliebe er beim
+			// Herunterfahren zurück: Der nächste Start räumt ihn erst weg,
+			// wenn derselbe Agent wieder geweckt wird (der Provider löscht
+			// dann den gleichnamigen Container) — ein Agent, der nie wieder
+			// dran ist, hielte seinen Container für immer.
+			o.teardownAllWarm()
 			return
 		case <-t.C:
 			o.reapIdleWarm(ctx)
 		}
 	}
+}
+
+// teardownAllWarm baut beim Herunterfahren alle geparkten Sandboxen ab.
+func (o *Orchestrator) teardownAllWarm() {
+	o.mu.Lock()
+	alle := make([]*warmSession, 0, len(o.warm))
+	for id, ws := range o.warm {
+		alle = append(alle, ws)
+		delete(o.warm, id)
+	}
+	o.mu.Unlock()
+	if len(alle) == 0 {
+		return
+	}
+	// Eigener, kurzer Kontext: der des Loops ist gerade abgelaufen — genau
+	// deshalb wird hier ja aufgeräumt. Ein abgelaufener Kontext würde jedes
+	// sleep und jedes Stop sofort scheitern lassen.
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	for _, ws := range alle {
+		ws.cancel()
+		<-ws.done
+		if !ws.dead.Load() {
+			// Sauber einschlafen lassen, damit coveyd seine Kindprozesse abräumt.
+			_ = o.sendMsg(ctx, ws.link, daemon.TypeSleep, map[string]string{})
+		}
+		ws.teardown()
+	}
+	o.Log.Info("warme sandboxen beim herunterfahren abgebaut", "anzahl", len(alle))
 }
 
 func (o *Orchestrator) reapIdleWarm(ctx context.Context) {
