@@ -1869,3 +1869,101 @@ func TestWorkSignature(t *testing.T) {
 		t.Fatalf("push muss die signatur ändern: %q", afterPush)
 	}
 }
+
+// Die drei Aktionen, die bisher durch kein Test liefen — get_issue, list_notes
+// und escalate. Ohne sie waere jede Umstellung der Execute-Verteilung ein
+// Sprung ohne Netz: Ein vertippter Aktionsname faellt sonst erst im Betrieb auf.
+func TestExecuteRestlicheAktionen(t *testing.T) {
+	type ruf struct {
+		method, path string
+		body         map[string]any
+	}
+	var rufe []ruf
+	var gotPath string
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotBody = map[string]any{}
+		json.NewDecoder(r.Body).Decode(&gotBody)
+		rufe = append(rufe, ruf{r.Method, r.URL.Path, gotBody})
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/notes") && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode([]Note{{ID: 1, Body: "erste Notiz"}})
+		case strings.HasSuffix(r.URL.Path, "/notes"):
+			json.NewEncoder(w).Encode(Note{ID: 2, Body: "angelegt"})
+		default:
+			json.NewEncoder(w).Encode(Issue{IID: 42, ProjectID: 7, Title: "Drucker brennt"})
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	// get_issue: ein Ticket am Stück.
+	res, err := sys.Execute(ctx, "get_issue", []byte(`{"project_id":7,"issue_iid":42}`), cred)
+	if err != nil {
+		t.Fatalf("get_issue: %v", err)
+	}
+	if gotPath != "/api/v4/projects/7/issues/42" {
+		t.Errorf("get_issue ruft %s", gotPath)
+	}
+	if iss, ok := res.(Issue); !ok || iss.IID != 42 {
+		t.Errorf("get_issue liefert %#v", res)
+	}
+
+	// list_notes: der Verlauf am Ticket.
+	res, err = sys.Execute(ctx, "list_notes", []byte(`{"project_id":7,"issue_iid":42}`), cred)
+	if err != nil {
+		t.Fatalf("list_notes: %v", err)
+	}
+	if gotPath != "/api/v4/projects/7/issues/42/notes" {
+		t.Errorf("list_notes ruft %s", gotPath)
+	}
+	if notes, ok := res.([]Note); !ok || len(notes) != 1 {
+		t.Errorf("list_notes liefert %#v", res)
+	}
+
+	// escalate macht ZWEI Dinge: erst einen internen Kommentar, dann die
+	// Zuweisung aufheben — das Ticket landet wieder beim Menschen. Beides
+	// gehört festgehalten, sonst fällt beim Umbau die Hälfte weg, ohne dass
+	// ein Test sich meldet.
+	rufe = nil
+	if _, err := sys.Execute(ctx, "escalate", []byte(`{"project_id":7,"issue_iid":42}`), cred); err != nil {
+		t.Fatalf("escalate: %v", err)
+	}
+	if len(rufe) != 2 {
+		t.Fatalf("escalate macht %d Aufrufe, erwartet 2 (Kommentar + Zuweisung lösen): %+v", len(rufe), rufe)
+	}
+	if rufe[0].method != http.MethodPost || !strings.HasSuffix(rufe[0].path, "/notes") {
+		t.Errorf("erster Aufruf ist kein Kommentar: %s %s", rufe[0].method, rufe[0].path)
+	}
+	if body, _ := rufe[0].body["body"].(string); body != "Eskalation durch Covey-Agent." {
+		t.Errorf("escalate ohne note nutzt nicht die Vorgabe: %q", body)
+	}
+	if intern, _ := rufe[0].body["internal"].(bool); !intern {
+		t.Error("der Eskalations-Kommentar muss intern sein — er geht das Team an, nicht den Melder")
+	}
+	if rufe[1].method != http.MethodPut {
+		t.Errorf("zweiter Aufruf löst nicht die Zuweisung: %s %s", rufe[1].method, rufe[1].path)
+	}
+	if ids, ok := rufe[1].body["assignee_ids"].([]any); !ok || len(ids) != 0 {
+		t.Errorf("escalate muss die Zuweisung leeren, got %#v", rufe[1].body["assignee_ids"])
+	}
+
+	// … und mit eigenem Text bleibt dieser stehen.
+	rufe = nil
+	if _, err := sys.Execute(ctx, "escalate",
+		[]byte(`{"project_id":7,"issue_iid":42,"note":"Kunde wartet seit drei Tagen"}`), cred); err != nil {
+		t.Fatalf("escalate mit note: %v", err)
+	}
+	if body, _ := rufe[0].body["body"].(string); body != "Kunde wartet seit drei Tagen" {
+		t.Errorf("escalate überschreibt den eigenen Text: %q", body)
+	}
+
+	// Eine unbekannte Aktion ist ein Fehler, kein stilles Nichts.
+	if _, err := sys.Execute(ctx, "gibtsnicht", []byte(`{}`), cred); err == nil {
+		t.Error("unbekannte aktion muss einen Fehler liefern")
+	}
+}
