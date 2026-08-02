@@ -61,6 +61,20 @@ security:
     # (Ein Fund in einem Modul, das wir nur einbinden aber nie aufrufen, lässt
     # den Job bewusst grün — sonst wäre er nach der ersten Woche abgeschaltet.)
     - go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+    # gosec ergaenzt govulncheck: Das eine kennt bekannte Luecken in
+    # ABHAENGIGKEITEN, das andere sucht Muster im EIGENEN Code.
+    #
+    # Bewusst mit einer ausdruecklichen Regel-LISTE statt „alles ausser…":
+    # Ungefiltert meldet gosec hier 120 Befunde, und die Masse davon ist der
+    # Zweck dieses Programms — der dev-Plugin FUEHRT Shell-Befehle aus (G204),
+    # der Arbeitsplatz LIEST Dateien nach Pfad (G304), die Sandbox-Homes
+    # brauchen ihre Rechte (G301). Ein Job, der 120 Zeilen ausspuckt, wird nach
+    # zwei Wochen weggeklickt. Diese Liste enthaelt die Regeln, auf die wir
+    # tatsaechlich reagieren; eine neue kommt dazu, wenn sie sich als
+    # aussagekraeftig erweist.
+    #
+    # Stand: 0 Befunde. Wird das rot, ist es ernst gemeint.
+    - go run github.com/securego/gosec/v2/cmd/gosec@v2.22.9 -quiet -include=G101,G102,G106,G107,G112,G114,G201,G202,G203,G303,G305,G401,G402,G403,G404,G501,G502,G503,G504,G601 ./...
 
 build-web:
   stage: test

@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"time"
 )
 
 func main() {
@@ -69,5 +70,6 @@ func main() {
 	})
 
 	log.Println("fake-teams (Bot Connector) auf :9998")
-	log.Fatal(http.ListenAndServe(":9998", mux))
+	srv := &http.Server{Addr: ":9998", Handler: mux, ReadHeaderTimeout: 20 * time.Second}
+	log.Fatal(srv.ListenAndServe())
 }

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"covey/internal/reqlog"
 	"covey/internal/target"
@@ -33,7 +34,14 @@ func (c *Client) startActionProxy(ctx context.Context, taskID string) (*actionPr
 	p := &actionProxy{client: c, taskID: taskID, ln: ln}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /actions/{system}/{action}", p.handle)
-	p.srv = &http.Server{Handler: mux, BaseContext: func(net.Listener) context.Context { return ctx }}
+	p.srv = &http.Server{
+		Handler:     mux,
+		BaseContext: func(net.Listener) context.Context { return ctx },
+		// Der Action-Proxy lauscht auf Loopback IN der Sandbox — also genau
+		// dort, wo die Runtime läuft. Ein hängender Aufruf soll die Verbindung
+		// nicht dauerhaft belegen.
+		ReadHeaderTimeout: 20 * time.Second,
+	}
 	go p.srv.Serve(ln)
 	return p, nil
 }

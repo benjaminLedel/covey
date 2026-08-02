@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -41,7 +42,8 @@ func main() {
 	})
 
 	log.Println("fake-zammad auf :9999")
-	log.Fatal(http.ListenAndServe(":9999", mux))
+	srv := &http.Server{Addr: ":9999", Handler: mux, ReadHeaderTimeout: 20 * time.Second}
+	log.Fatal(srv.ListenAndServe())
 }
 
 // authShape zeigt, DASS ein gebrokertes Credential ankommt — Schema und Länge

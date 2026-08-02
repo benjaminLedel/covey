@@ -86,3 +86,12 @@ jobs:
       # kommt, ist selbst ein Einfallstor.
       - name: govulncheck
         run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+      # gosec ergänzt govulncheck: Das eine kennt bekannte Lücken in
+      # ABHÄNGIGKEITEN, das andere sucht Muster im EIGENEN Code. Mit einer
+      # ausdrücklichen Regel-Liste statt „alles außer…" — ungefiltert meldet
+      # gosec hier 120 Befunde, und die Masse davon ist der Zweck dieses
+      # Programms (der dev-Plugin FÜHRT Shell-Befehle aus, der Arbeitsplatz
+      # LIEST Dateien nach Pfad). Ein Job, der 120 Zeilen ausspuckt, wird
+      # weggeklickt.
+      - name: gosec
+        run: go run github.com/securego/gosec/v2/cmd/gosec@v2.22.9 -quiet -include=G101,G102,G106,G107,G112,G114,G201,G202,G203,G303,G305,G401,G402,G403,G404,G501,G502,G503,G504,G601 ./...

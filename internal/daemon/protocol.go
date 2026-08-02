@@ -18,8 +18,9 @@ type Message struct {
 // Plane startet die Sandbox über den SandboxProvider; danach verbindet sich
 // der Daemon und meldet ready.)
 const (
-	TypeInjectConfig      = "inject_config"
-	TypeAssignTask        = "assign_task"
+	TypeInjectConfig = "inject_config"
+	TypeAssignTask   = "assign_task"
+	// #nosec G101 — der Name einer Nachrichtenart, kein Zugangsdatum.
 	TypeInjectCredentials = "inject_credentials"
 	TypeApprovalDecision  = "approval_decision"
 	TypeInjectTarget      = "inject_target"

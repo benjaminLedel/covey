@@ -682,7 +682,19 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		ReqLog:         reqLog,
 	}
 
-	httpServer := &http.Server{Addr: cfg.ListenAddr, Handler: srv.Handler()}
+	httpServer := &http.Server{
+		Addr:    cfg.ListenAddr,
+		Handler: srv.Handler(),
+		// Gegen Slowloris: Wer eine Verbindung öffnet und die Kopfzeilen
+		// tröpfchenweise schickt, band bisher unbegrenzt eine Verbindung.
+		ReadHeaderTimeout: 20 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		// ReadTimeout und WriteTimeout bleiben bewusst AUS:
+		// Ein Datei-Upload ins Agenten-Home darf lange dauern (Read), und der
+		// SSE-Strom (/api/v1/events) sowie die Daemon-WebSocket laufen über
+		// Stunden (Write). Ein Timeout dort würde die Oberfläche und die
+		// Sandbox-Verbindung im Minutentakt abreißen lassen.
+	}
 
 	go func() {
 		if err := orch.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
