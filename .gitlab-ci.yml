@@ -50,13 +50,17 @@ security:
     paths:
       - .go/pkg/mod/
   script:
+    # Version gepinnt statt @latest: Ein Werkzeug, das bei jedem Lauf frisch
+    # aus dem Netz gezogen wird, ist selbst ein Einfallstor — ein
+    # kompromittiertes Release liefe ungefragt in der Pipeline, mit Zugriff auf
+    # deren Umgebung. Pinnen kostet ein Dependabot-Update im Quartal.
     # govulncheck prüft die Abhängigkeiten gegen die Go-Schwachstellendatenbank
     # — und zwar auf ERREICHBARKEIT: Es meldet nur, was der eigene Code
     # tatsächlich aufruft. Deshalb praktisch ohne Fehlalarme, deshalb als
     # harter Schritt und nicht als Bericht, den niemand liest.
     # (Ein Fund in einem Modul, das wir nur einbinden aber nie aufrufen, lässt
     # den Job bewusst grün — sonst wäre er nach der ersten Woche abgeschaltet.)
-    - go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+    - go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
 
 build-web:
   stage: test
@@ -105,7 +109,7 @@ test-go:
     # Gesamt-Prozentwert für den GitLab-Coverage-Badge (siehe coverage-Regex unten).
     - go tool cover -func=coverage.out | tee coverage.txt
     # Cobertura-Report für die MR-Diff-Coverage-Anzeige in GitLab.
-    - go run github.com/boumenot/gocover-cobertura@latest < coverage.out > coverage.xml
+    - go run github.com/boumenot/gocover-cobertura@v1.3.0 < coverage.out > coverage.xml
   # GitLab liest den Gesamt-Coverage aus der Ausgabe von `go tool cover -func`
   # (letzte Zeile "total: … 42.7%") und zeigt ihn als Badge/Trend an.
   coverage: '/^total:\s+\(statements\)\s+(\d+(?:\.\d+)?)%/'

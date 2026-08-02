@@ -343,7 +343,27 @@ func (s *Server) Handler() http.Handler {
 	if s.WebFS != nil {
 		mux.Handle("/", spaHandler(s.WebFS))
 	}
-	return mux
+	// Die Schutz-Header auf ALLES legen, nicht nur auf die Oberfläche: Auch
+	// eine 404 und jede API-Antwort kommen von derselben Origin, und ein
+	// Endpunkt, der sie vergisst, ist genau die Lücke, die man nicht sucht.
+	// Handler mit eigenen Vorstellungen (die Datei-Vorschau setzt eine
+	// strengere CSP) überschreiben sie danach schlicht.
+	return s.mitSchutzHeadern(mux)
+}
+
+// mitSchutzHeadern setzt die Sicherheits-Kopfzeilen vor jeder Antwort.
+func (s *Server) mitSchutzHeadern(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		setzeSchutzHeader(w)
+		// HSTS nur bei einer Instanz, die tatsächlich per HTTPS läuft
+		// (CookieSecure ist derselbe Schalter). Auf einer lokalen
+		// HTTP-Instanz würde der Header den Browser für Monate auf https
+		// festnageln und den Zugang verbauen.
+		if s.CookieSecure {
+			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // --- Hilfen ---
