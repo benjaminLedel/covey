@@ -39,6 +39,13 @@ type onboardingState struct {
 // das der erste Schritt und nicht das Anlegen eines Agenten.
 var runtimeCredentialKeys = []string{"anthropic_api_key", "claude_code_oauth_token"}
 
+// Die eine Abfrage geht bewusst am Store-Schnitt vorbei: Sie fragt fünf
+// Domänen gleichzeitig (Secrets, Agenten, Config, Backlog, Recording) und
+// interessiert sich für keine davon inhaltlich — nur dafür, ob es überhaupt
+// etwas gibt. Auf fünf Store-Aufrufe verteilt wären es fünf Rundreisen zur
+// Datenbank für eine Ansicht, die bei jedem Laden der Agenten-Übersicht
+// mitläuft; in einem Store untergebracht gehörte sie dort nicht hin. Das ist
+// die Aufgabe eines BFF: aus vielen Quellen eine Ansicht bauen.
 func (s *Server) handleOnboarding(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 

@@ -202,10 +202,8 @@ func (s *Server) handleImportEgressBuiltin(w http.ResponseWriter, r *http.Reques
 // --- Zuweisung + agent-eigene Hosts ---
 
 func (s *Server) handleAgentEgress(w http.ResponseWriter, r *http.Request) {
-	agentID, ok := s.agentInOrg(w, r)
-	if !ok {
-		return
-	}
+	// Geprüft von agentScoped (server.go) — hier steht der Agent bereits fest.
+	agentID := agentFrom(r).ID
 	cfg, err := s.EgressStore.AgentConfig(r.Context(), agentID)
 	if err != nil {
 		mapErr(w, err)
@@ -223,10 +221,8 @@ func (s *Server) handleUnassignEgressTemplate(w http.ResponseWriter, r *http.Req
 }
 
 func (s *Server) setAgentTemplate(w http.ResponseWriter, r *http.Request, assigned bool) {
-	agentID, ok := s.agentInOrg(w, r)
-	if !ok {
-		return
-	}
+	// Geprüft von agentScoped (server.go) — hier steht der Agent bereits fest.
+	agentID := agentFrom(r).ID
 	tid, err := uuid.Parse(r.PathValue("tid"))
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "ungültige template-id")
@@ -240,10 +236,8 @@ func (s *Server) setAgentTemplate(w http.ResponseWriter, r *http.Request, assign
 }
 
 func (s *Server) handleAddAgentEgressHost(w http.ResponseWriter, r *http.Request) {
-	agentID, ok := s.agentInOrg(w, r)
-	if !ok {
-		return
-	}
+	// Geprüft von agentScoped (server.go) — hier steht der Agent bereits fest.
+	agentID := agentFrom(r).ID
 	var in struct{ Pattern, Note string }
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "ungültiger request")
@@ -258,10 +252,8 @@ func (s *Server) handleAddAgentEgressHost(w http.ResponseWriter, r *http.Request
 }
 
 func (s *Server) handleDeleteAgentEgressHost(w http.ResponseWriter, r *http.Request) {
-	agentID, ok := s.agentInOrg(w, r)
-	if !ok {
-		return
-	}
+	// Geprüft von agentScoped (server.go) — hier steht der Agent bereits fest.
+	agentID := agentFrom(r).ID
 	hid, err := uuid.Parse(r.PathValue("hid"))
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "ungültige host-id")
@@ -285,8 +277,11 @@ func (s *Server) handleEgressLog(w http.ResponseWriter, r *http.Request) {
 			writeErr(w, http.StatusBadRequest, "ungültige agent-id")
 			return
 		}
-		// Nur Agenten der eigenen Org.
-		if !s.agentBelongsToOrg(r, id) {
+		// Diese Route ist org-weit; der Agent kommt als Filter aus der Query
+		// und nicht aus dem Pfad — agentScoped greift hier also nicht, die
+		// Zugehörigkeit muss von Hand geprüft werden. Über die Registry, nicht
+		// über eigenes SQL: Wer das Schema kennt, ist der Store.
+		if a, err := s.Registry.Get(r.Context(), id); err != nil || a.OrgID != p.OrgID {
 			writeErr(w, http.StatusNotFound, "nicht gefunden")
 			return
 		}
@@ -317,26 +312,6 @@ func (s *Server) handleEgressStats(w http.ResponseWriter, r *http.Request) {
 
 // agentInOrg parst {id} und stellt sicher, dass der Agent zur Org des Aufrufers
 // gehört. Bei Fehlschlag ist bereits eine Antwort geschrieben (ok=false).
-func (s *Server) agentInOrg(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
-	id, err := uuid.Parse(r.PathValue("id"))
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige agent-id")
-		return uuid.Nil, false
-	}
-	if !s.agentBelongsToOrg(r, id) {
-		writeErr(w, http.StatusNotFound, "nicht gefunden")
-		return uuid.Nil, false
-	}
-	return id, true
-}
-
-func (s *Server) agentBelongsToOrg(r *http.Request, agentID uuid.UUID) bool {
-	p := principalFrom(r)
-	var one int
-	err := s.Pool.QueryRow(r.Context(),
-		`SELECT 1 FROM agents WHERE id=$1 AND org_id=$2`, agentID, p.OrgID).Scan(&one)
-	return err == nil
-}
 
 func egressBadOrErr(w http.ResponseWriter, err error) {
 	if errors.Is(err, egress.ErrInvalidPattern) {

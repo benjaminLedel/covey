@@ -39,10 +39,8 @@ func spaHandler(dist fs.FS) http.Handler {
 // denselben Agenten eindeutig — der Slug hat Vorrang, falls ein Slug wie eine
 // UUID aussieht.
 func (s *Server) findWebhookAgent(r *http.Request, ref string) (agents.Agent, error) {
-	var orgID uuid.UUID
-	if err := s.Pool.QueryRow(r.Context(),
-		"SELECT org_id FROM agents WHERE slug=$1 LIMIT 1", ref).Scan(&orgID); err == nil {
-		return s.Registry.GetBySlug(r.Context(), orgID, ref)
+	if a, err := s.Registry.FindBySlug(r.Context(), ref); err == nil {
+		return a, nil
 	}
 	id, err := uuid.Parse(ref)
 	if err != nil {

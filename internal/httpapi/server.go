@@ -409,11 +409,7 @@ func (s *Server) auth(next http.HandlerFunc) http.Handler {
 			writeErr(w, http.StatusUnauthorized, "nicht angemeldet")
 			return
 		}
-		var p identity.Principal
-		err = s.Pool.QueryRow(r.Context(), `SELECT h.id, h.org_id, h.email, h.display_name, h.role
-			FROM http_sessions s JOIN humans h ON h.id=s.human_id
-			WHERE s.token_hash=$1 AND s.expires_at > now()`, hashToken(cookie.Value)).
-			Scan(&p.ID, &p.OrgID, &p.Email, &p.DisplayName, &p.Role)
+		p, err := s.sessions().Principal(r.Context(), hashToken(cookie.Value))
 		if err != nil {
 			writeErr(w, http.StatusUnauthorized, "session abgelaufen")
 			return
@@ -503,8 +499,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	buf := make([]byte, 32)
 	rand.Read(buf)
 	token := hex.EncodeToString(buf)
-	if _, err := s.Pool.Exec(r.Context(), `INSERT INTO http_sessions (token_hash, human_id, expires_at)
-		VALUES ($1,$2,$3)`, hashToken(token), p.ID, time.Now().Add(s.SessionTTL)); err != nil {
+	if err := s.sessions().Create(r.Context(), hashToken(token), p.ID, time.Now().Add(s.SessionTTL)); err != nil {
 		mapErr(w, err)
 		return
 	}
@@ -515,7 +510,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie("covey_session"); err == nil {
-		s.Pool.Exec(r.Context(), "DELETE FROM http_sessions WHERE token_hash=$1", hashToken(cookie.Value))
+		_ = s.sessions().Delete(r.Context(), hashToken(cookie.Value))
 	}
 	http.SetCookie(w, &http.Cookie{Name: "covey_session", Value: "", Path: "/",
 		HttpOnly: true, Secure: s.CookieSecure, SameSite: http.SameSiteLaxMode, MaxAge: -1})

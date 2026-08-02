@@ -190,6 +190,35 @@ func (s *Store) PutBlob(ctx context.Context, orgID, agentID uuid.UUID, taskID *u
 }
 
 // GetBlob liefert ein Artefakt org-gescopt (mime + Bytes).
+// Blob ist ein Recording-Artefakt (Screenshot) samt Inhalt.
+type Blob struct {
+	ID        uuid.UUID `json:"id"`
+	MIME      string    `json:"mime"`
+	Bytes     []byte    `json:"bytes"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// BlobsByAgent liefert alle Artefakte eines Agenten — mit Inhalt, denn der
+// einzige Aufrufer ist der Diagnose-Export, der ein vollständiges Abbild
+// erzeugt. Für Ansichten gibt es GetBlob (eines, org-geprüft).
+func (s *Store) BlobsByAgent(ctx context.Context, agentID uuid.UUID) ([]Blob, error) {
+	rows, err := s.pool.Query(ctx,
+		"SELECT id, mime, bytes, created_at FROM recording_blobs WHERE agent_id=$1 ORDER BY created_at", agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Blob
+	for rows.Next() {
+		var b Blob
+		if err := rows.Scan(&b.ID, &b.MIME, &b.Bytes, &b.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) GetBlob(ctx context.Context, orgID, id uuid.UUID) (string, []byte, error) {
 	var mime string
 	var data []byte

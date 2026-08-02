@@ -122,23 +122,18 @@ func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie("covey_session"); err == nil {
 		cur = hashToken(cookie.Value)
 	}
-	rows, err := s.Pool.Query(r.Context(), `SELECT token_hash, created_at, expires_at
-		FROM http_sessions WHERE human_id=$1 AND expires_at > now() ORDER BY created_at DESC`, p.ID)
+	offen, err := s.sessions().List(r.Context(), p.ID)
 	if err != nil {
 		mapErr(w, err)
 		return
 	}
-	defer rows.Close()
 	list := []sessionInfo{}
-	for rows.Next() {
-		var hash string
-		var si sessionInfo
-		if err := rows.Scan(&hash, &si.CreatedAt, &si.ExpiresAt); err != nil {
-			mapErr(w, err)
-			return
-		}
-		si.Current = hash == cur
-		list = append(list, si)
+	for _, sitz := range offen {
+		list = append(list, sessionInfo{
+			CreatedAt: sitz.CreatedAt,
+			ExpiresAt: sitz.ExpiresAt,
+			Current:   sitz.TokenHash == cur,
+		})
 	}
 	writeJSON(w, http.StatusOK, list)
 }
@@ -150,10 +145,10 @@ func (s *Server) handleRevokeOtherSessions(w http.ResponseWriter, r *http.Reques
 	if cookie, err := r.Cookie("covey_session"); err == nil {
 		cur = hashToken(cookie.Value)
 	}
-	tag, err := s.Pool.Exec(r.Context(), `DELETE FROM http_sessions WHERE human_id=$1 AND token_hash <> $2`, p.ID, cur)
+	n, err := s.sessions().DeleteOthers(r.Context(), p.ID, cur)
 	if err != nil {
 		mapErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]int64{"revoked": tag.RowsAffected()})
+	writeJSON(w, http.StatusOK, map[string]int64{"revoked": n})
 }

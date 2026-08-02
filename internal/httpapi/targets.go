@@ -265,10 +265,8 @@ func (s *Server) discoverMCP(ctx context.Context, cfg mcp.Config, token string) 
 // handleGetAgentTools liefert die einem Agenten für ein System zugewiesenen
 // Tools. Leere Liste = keine Einschränkung (alle Tools erlaubt).
 func (s *Server) handleGetAgentTools(w http.ResponseWriter, r *http.Request) {
-	agentID, ok := s.agentInOrg(w, r)
-	if !ok {
-		return
-	}
+	// Geprüft von agentScoped (server.go) — hier steht der Agent bereits fest.
+	agentID := agentFrom(r).ID
 	tools, err := s.Targets.AgentTools(r.Context(), agentID, r.PathValue("system"))
 	if err != nil {
 		mapErr(w, err)
@@ -282,10 +280,8 @@ func (s *Server) handleGetAgentTools(w http.ResponseWriter, r *http.Request) {
 
 // handleSetAgentTools ersetzt die Tool-Zuweisung eines Agenten für ein System.
 func (s *Server) handleSetAgentTools(w http.ResponseWriter, r *http.Request) {
-	agentID, ok := s.agentInOrg(w, r)
-	if !ok {
-		return
-	}
+	// Geprüft von agentScoped (server.go) — hier steht der Agent bereits fest.
+	agentID := agentFrom(r).ID
 	var in struct {
 		Tools []string `json:"tools"`
 	}

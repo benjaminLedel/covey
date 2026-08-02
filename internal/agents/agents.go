@@ -132,6 +132,42 @@ func (r *Registry) Get(ctx context.Context, id uuid.UUID) (Agent, error) {
 	return scanAgent(r.pool.QueryRow(ctx, "SELECT "+agentCols+" FROM agents WHERE id=$1", id))
 }
 
+// ConfigVersionMeta ist die schlanke Historie einer Agent-Config: Version und
+// Zeitpunkt, ohne die Dateien selbst. Für Diagnose-Ansichten, die den Verlauf
+// zeigen wollen, ohne jede Fassung zu laden.
+type ConfigVersionMeta struct {
+	Version   int       `json:"version"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// ConfigHistory liefert die Versionen einer Agent-Config aufsteigend.
+func (r *Registry) ConfigHistory(ctx context.Context, agentID uuid.UUID) ([]ConfigVersionMeta, error) {
+	rows, err := r.pool.Query(ctx,
+		"SELECT version, created_at FROM agent_config_versions WHERE agent_id=$1 ORDER BY version", agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ConfigVersionMeta
+	for rows.Next() {
+		var m ConfigVersionMeta
+		if err := rows.Scan(&m.Version, &m.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// FindBySlug sucht einen Agenten allein am Slug, ohne die Organisation zu
+// kennen — für Wege, an denen die Organisation noch nicht feststeht (der
+// Webhook-Endpunkt trägt nur den Slug in der URL). Slugs sind global eindeutig
+// genug für diesen Zweck; bei Mehrdeutigkeit gewinnt der älteste.
+func (r *Registry) FindBySlug(ctx context.Context, slug string) (Agent, error) {
+	return scanAgent(r.pool.QueryRow(ctx,
+		"SELECT "+agentCols+" FROM agents WHERE slug=$1 ORDER BY created_at LIMIT 1", slug))
+}
+
 func (r *Registry) GetBySlug(ctx context.Context, orgID uuid.UUID, slug string) (Agent, error) {
 	return scanAgent(r.pool.QueryRow(ctx, "SELECT "+agentCols+" FROM agents WHERE org_id=$1 AND slug=$2", orgID, slug))
 }
