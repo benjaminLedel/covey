@@ -1,0 +1,41 @@
+# CodeQL: die statische Analyse von GitHub, für Go und das TypeScript-Frontend.
+#
+# Sie ergänzt govulncheck, statt es zu ersetzen: govulncheck kennt bekannte
+# Schwachstellen in ABHÄNGIGKEITEN, CodeQL sucht Muster im EIGENEN Code —
+# ungeprüfte Eingaben, Pfad-Manipulation, fehlende Fehlerbehandlung.
+#
+# Läuft auf Pull Requests und wöchentlich: Die Regelsätze werden
+# weiterentwickelt, ein Lauf auf unverändertem Code findet später womöglich
+# mehr als heute.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "42 6 * * 1"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  analyse:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [go, javascript-typescript]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/codeql-action/init@v3
+        with:
+          language: ${{ matrix.language }}
+      # Go muss übersetzt werden, damit CodeQL den Datenfluss sieht — und
+      # dafür braucht //go:embed ein vorhandenes web/dist.
+      - name: web/dist bereitstellen
+        if: matrix.language == 'go'
+        run: mkdir -p web/dist && echo '<!doctype html><title>ci</title>' > web/dist/index.html
+      - uses: github/codeql-action/autobuild@v3
+      - uses: github/codeql-action/analyze@v3

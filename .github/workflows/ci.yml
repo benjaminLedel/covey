@@ -1,0 +1,88 @@
+# GitHub-Pipeline für Covey.
+#
+# Das Repository liegt auf GitLab (dort läuft die vollständige Pipeline samt
+# Deploy) UND auf GitHub — dort ist es das öffentliche Gesicht des Projekts.
+# Auf GitHub lief bisher gar nichts: Wer das Repository dort ansieht, sah
+# keinen einzigen grünen Haken.
+#
+# Diese Pipeline prüft dasselbe wie die GitLab-Seite, ohne Deploy: Format,
+# Vet, Tests, Frontend, Schwachstellen. Die Integrationstests überspringen
+# sich selbst, weil hier kein Postgres auf 5433 lauscht (siehe
+# internal/integration/stack_test.go).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Wöchentlich, damit ein NEU bekannt gewordener Schwachstellen-Eintrag
+  # auffällt, ohne dass jemand etwas pusht.
+  schedule:
+    - cron: "17 6 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npm test
+        working-directory: web
+      - run: npm run build
+        working-directory: web
+      # Das Go-Binary bettet web/dist per //go:embed ein — ohne dieses
+      # Artefakt scheitert der Go-Job am Build, nicht am Code.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist/
+          retention-days: 1
+
+  go:
+    runs-on: ubuntu-latest
+    needs: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+      # Formatierung ist eine Bedingung, keine Geschmacksfrage: unformatierter
+      # Code macht jeden späteren Diff größer als die Änderung.
+      - name: gofmt
+        run: test -z "$(gofmt -l $(go list -f '{{.Dir}}' ./...) | tee /dev/stderr)"
+      - run: go vet ./...
+      - run: go test ./...
+
+  security:
+    runs-on: ubuntu-latest
+    needs: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: web/dist
+      # govulncheck meldet nur, was der eigene Code tatsächlich AUFRUFT —
+      # deshalb praktisch ohne Fehlalarme und deshalb als harter Schritt.
+      # Version gepinnt: Ein Werkzeug, das bei jedem Lauf frisch aus dem Netz
+      # kommt, ist selbst ein Einfallstor.
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
