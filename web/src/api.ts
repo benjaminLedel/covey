@@ -574,6 +574,19 @@ export type OnboardingState = {
   done: boolean;
 };
 
+// Ein Eintrag der Audit-Spur (GET /audit): wer wann was an der Plattform
+// angefasst hat. Ohne Request-Inhalte — darin stünden Secret-Werte.
+export type AuditEntry = {
+  id: number;
+  actor_email: string;
+  actor_role: string;
+  method: string;
+  path: string;
+  status: number;
+  client_ip?: string;
+  created_at: string;
+};
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {

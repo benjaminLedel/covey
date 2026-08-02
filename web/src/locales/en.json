@@ -296,6 +296,7 @@
     "logout": "Sign out",
     "userMenu": "User menu",
     "profile": "Profile & Settings",
+    "audit": "Audit",
     "requests": "Requests",
     "skills": "Skills"
   },
@@ -389,6 +390,19 @@
         "action": "Go to agents"
       }
     }
+  },
+  "audit": {
+    "title": "Audit",
+    "count": "{{count}} entries",
+    "lead": "What humans did to the platform — the counterpart to the recording, which shows the agents. It holds who touched what and when; payloads are deliberately absent, since secret values would end up in them.",
+    "searchPlaceholder": "Search (path, person, method)",
+    "onlyRejected": "Rejected only",
+    "empty": "No administrative actions yet.",
+    "colTime": "Time",
+    "colActor": "Who",
+    "colMethod": "Method",
+    "colPath": "What",
+    "colStatus": "Result"
   },
   "modal": {
     "close": "Close",

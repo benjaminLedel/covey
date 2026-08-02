@@ -21,6 +21,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"covey/internal/agents"
+	"covey/internal/audit"
 	"covey/internal/backlog"
 	"covey/internal/daemon"
 	"covey/internal/db"
@@ -106,6 +107,7 @@ type stack struct {
 	skills    *skills.Store
 	reqlog    *reqlogstore.Store
 	templates *templates.Store
+	audit     *audit.Store
 	dreams    *dream.Store
 	orch      *orchestrator.Orchestrator
 	http      *httptest.Server
@@ -176,6 +178,7 @@ func newStack(t *testing.T) *stack {
 	// setzt sie immer). Fehlten sie im Test-Stack, liefen ihre Endpunkte in
 	// einen Nil-Pointer statt in den Code, der geprüft werden soll.
 	s.templates = templates.NewStore(pool)
+	s.audit = audit.NewStore(pool)
 	s.dreams = dream.NewStore(pool, s.mem, log)
 	s.homeBase = t.TempDir()
 
@@ -196,7 +199,7 @@ func newStack(t *testing.T) *stack {
 		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
 		Rails: s.rails, Secrets: secretStore, Identity: idp, Memory: s.mem,
 		Org: org.NewStore(pool), Targets: s.targets,
-		Templates: s.templates, Dreams: s.dreams,
+		Templates: s.templates, Dreams: s.dreams, Audit: s.audit,
 		Skills:      s.skills,
 		EgressStore: s.egress,
 		ReqLog:      s.reqlog,

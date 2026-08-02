@@ -22,6 +22,7 @@ import (
 	"golang.org/x/term"
 
 	"covey/internal/agents"
+	"covey/internal/audit"
 	"covey/internal/backlog"
 	"covey/internal/buildinfo"
 	"covey/internal/claudeapi"
@@ -592,6 +593,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	targets := targetstore.NewStore(pool)
 	egressStore := egress.NewStore(pool)
 	templateStore := templates.NewStore(pool)
+	auditStore := audit.NewStore(pool)
 	skillStore := skills.NewStore(pool)
 
 	// Egress-Enforcement ist nur mit echter Netz-Isolation (docker) durchsetzbar.
@@ -664,6 +666,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	}
 	srv := &httpapi.Server{
 		BaseCtx: ctx,
+		Audit:   auditStore,
 		Pool:    pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Identity: idp, Memory: mem, Dreams: dreams,
 		Org: org.NewStore(pool), Targets: targets, Templates: templateStore,

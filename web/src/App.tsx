@@ -20,6 +20,7 @@ import Runtimes from "./pages/Runtimes";
 import Targets from "./pages/Targets";
 import Egress from "./pages/Egress";
 import Requests from "./pages/Requests";
+import Audit from "./pages/Audit";
 import Templates from "./pages/Templates";
 import Costs from "./pages/Costs";
 
@@ -152,6 +153,13 @@ const icons: Record<string, React.JSX.Element> = {
     </>
   ),
   chevron: <path d="M9 6l6 6l-6 6" />,
+  // Audit: ein Klemmbrett — die Liste dessen, was Menschen getan haben.
+  clipboard: (
+    <>
+      <rect x="5" y="4" width="14" height="17" rx="2" />
+      <path d="M9 4V3h6v1M8.5 10h7M8.5 14h7M8.5 18h4" />
+    </>
+  ),
   // Request-Log: zwei Pfeile, rein und raus.
   exchange: (
     <>
@@ -324,6 +332,12 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
               laesst platform_admin und security durch) — sonst zeigte das
               Menue einen Weg, der in einer 403 endet. Vorher stand es im
               Admin-Block und blieb Security damit verborgen. */}
+          {/* Die Audit-Spur geht die an, die sie prüfen: Plattform-Admin,
+              Security, Auditor. Agent-Owner und Controlling stehen selbst
+              darin. */}
+          {["platform_admin", "security", "auditor"].includes(me.Role) && (
+            <NavItem to="/audit" icon="clipboard" label={t("nav.audit")} />
+          )}
           {(me.Role === "platform_admin" || me.Role === "security") && (
             <NavItem to="/requests" icon="exchange" label={t("nav.requests")} />
           )}
@@ -411,6 +425,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
             <Route path="/orgs" element={<Organizations me={me} />} />
             <Route path="/runtimes" element={<Runtimes />} />
             <Route path="/requests" element={<Requests me={me} />} />
+            <Route path="/audit" element={<Audit />} />
             <Route path="/targets" element={<Targets me={me} />} />
             <Route path="/egress/*" element={<Egress me={me} />} />
             <Route path="*" element={<Navigate to="/" />} />

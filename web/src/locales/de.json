@@ -296,6 +296,7 @@
     "logout": "Abmelden",
     "userMenu": "Benutzermenü",
     "profile": "Profil & Einstellungen",
+    "audit": "Audit",
     "requests": "Requests",
     "skills": "Skills"
   },
@@ -389,6 +390,19 @@
         "action": "Zu den Agenten"
       }
     }
+  },
+  "audit": {
+    "title": "Audit",
+    "count": "{{count}} Einträge",
+    "lead": "Was Menschen an der Plattform getan haben — das Gegenstück zum Recording, das die Agenten zeigt. Festgehalten ist, wer wann was angefasst hat; Inhalte stehen bewusst nicht darin, weil dort Secret-Werte lägen.",
+    "searchPlaceholder": "Suchen (Pfad, Person, Methode)",
+    "onlyRejected": "Nur abgewiesene",
+    "empty": "Noch keine Verwaltungshandlungen.",
+    "colTime": "Zeitpunkt",
+    "colActor": "Wer",
+    "colMethod": "Methode",
+    "colPath": "Was",
+    "colStatus": "Ergebnis"
   },
   "modal": {
     "close": "Schließen",

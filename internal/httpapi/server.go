@@ -20,6 +20,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"covey/internal/agents"
+	"covey/internal/audit"
 	"covey/internal/backlog"
 	"covey/internal/buildinfo"
 	"covey/internal/dream"
@@ -67,6 +68,10 @@ type Server struct {
 	EgressDefaults []string
 
 	Templates *templates.Store
+
+	// Audit hält die Verwaltungshandlungen von Menschen fest (internal/audit).
+	// nil = kein Audit (Tests); die Middleware ist dann still.
+	Audit *audit.Store
 
 	// ReqLog protokolliert die HTTP-Requests an den Rändern (Webhooks rein,
 	// Zielsystem-Aufrufe raus). nil = abgeschaltet (COVEY_REQUEST_LOG=false).
@@ -141,6 +146,11 @@ func (s *Server) Handler() http.Handler {
 	securityRoles := []string{identity.RolePlatformAdmin, identity.RoleSecurity}
 
 	// Erste Schritte als Checkliste über den echten Org-Zustand (onboarding.go).
+	// Die Audit-Spur lesen dürfen die, die sie angeht: Plattform-Admin,
+	// Security und Auditor. Agent-Owner und Controlling nicht — sie stehen
+	// selbst darin.
+	mux.Handle("GET /api/v1/audit", s.rbac([]string{identity.RolePlatformAdmin,
+		identity.RoleSecurity, identity.RoleAuditor}, s.handleAuditLog))
 	mux.Handle("GET /api/v1/onboarding", s.rbac(anyRole, s.handleOnboarding))
 	mux.Handle("GET /api/v1/agents", s.rbac(anyRole, s.handleListAgents))
 	mux.Handle("POST /api/v1/agents", s.rbac(manage, s.handleCreateAgent))
@@ -348,12 +358,15 @@ func (s *Server) Handler() http.Handler {
 	if s.WebFS != nil {
 		mux.Handle("/", spaHandler(s.WebFS))
 	}
+	// Die Audit-Spur liegt INNEN, direkt um den Mux: Sie braucht den
+	// Principal, den die auth-Middleware je Route setzt, und den Statuscode,
+	// den der Handler schreibt.
 	// Die Schutz-Header auf ALLES legen, nicht nur auf die Oberfläche: Auch
 	// eine 404 und jede API-Antwort kommen von derselben Origin, und ein
 	// Endpunkt, der sie vergisst, ist genau die Lücke, die man nicht sucht.
 	// Handler mit eigenen Vorstellungen (die Datei-Vorschau setzt eine
 	// strengere CSP) überschreiben sie danach schlicht.
-	return s.mitSchutzHeadern(mux)
+	return s.mitSchutzHeadern(s.mitAuditSpur(mux))
 }
 
 // mitSchutzHeadern setzt die Sicherheits-Kopfzeilen vor jeder Antwort.
@@ -438,6 +451,11 @@ func (s *Server) auth(next http.HandlerFunc) http.Handler {
 		if err != nil {
 			writeErr(w, http.StatusUnauthorized, "session abgelaufen")
 			return
+		}
+		// Den Akteur zusätzlich an die Audit-Middleware zurückmelden: Sie
+		// liegt weiter außen und sieht den Context nicht, den wir hier anlegen.
+		if h, ok := r.Context().Value(akteurKey).(*akteurHalter); ok {
+			h.p = p
 		}
 		next(w, r.WithContext(context.WithValue(r.Context(), principalKey, p)))
 	})
