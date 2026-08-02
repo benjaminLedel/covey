@@ -98,50 +98,43 @@ func (System) ActionSubject(action string, _ json.RawMessage) string {
 	return "email:" + action
 }
 
-func (System) Execute(ctx context.Context, action string, params json.RawMessage, cred target.Credential) (any, error) {
-	cfg, err := ParseConfig(cred)
-	if err != nil {
-		return nil, err
-	}
+// aktionsParams ist die Vereinigung aller Parameter, die irgendeine Aktion
+// dieses Zielsystems braucht — der Agent schickt ein flaches JSON-Objekt,
+// was darin fehlt, bleibt leer.
+type aktionsParams struct {
+	Mailbox   string   `json:"mailbox"`
+	UID       uint32   `json:"uid"`
+	ToMailbox string   `json:"to_mailbox"`
+	Limit     int      `json:"limit"`
+	To        []string `json:"to"`
+	Cc        []string `json:"cc"`
+	Subject   string   `json:"subject"`
+	Body      string   `json:"body"`
+	ReplyAll  bool     `json:"reply_all"`
+	Name      string   `json:"name"`
+}
 
-	var in struct {
-		Mailbox   string   `json:"mailbox"`
-		UID       uint32   `json:"uid"`
-		ToMailbox string   `json:"to_mailbox"`
-		Limit     int      `json:"limit"`
-		To        []string `json:"to"`
-		Cc        []string `json:"cc"`
-		Subject   string   `json:"subject"`
-		Body      string   `json:"body"`
-		ReplyAll  bool     `json:"reply_all"`
-		Name      string   `json:"name"`
-	}
-	if err := json.Unmarshal(params, &in); err != nil {
-		return nil, fmt.Errorf("params: %w", err)
-	}
-	if in.Mailbox == "" {
-		in.Mailbox = "INBOX"
-	}
-	if in.Limit <= 0 {
-		in.Limit = 20
-	}
-	if in.Limit > 100 {
-		in.Limit = 100
-	}
+// aktion fuehrt EINE Aktion aus. Frueher war jede ein Fall in einem langen
+// switch; jetzt ist sie fuer sich lesbar und die Verteilung eine Tabelle.
+type aktion func(ctx context.Context, cfg Config, action string, in aktionsParams) (any, error)
 
-	switch action {
-	case "list_mailboxes":
+var aktionen = map[string]aktion{
+	"list_mailboxes": func(ctx context.Context, cfg Config, action string, in aktionsParams) (any, error) {
 		return listMailboxes(cfg)
-	case "list_unread":
+	},
+	"list_unread": func(ctx context.Context, cfg Config, action string, in aktionsParams) (any, error) {
 		return listMessages(cfg, in.Mailbox, true, in.Limit)
-	case "list_messages":
+	},
+	"list_messages": func(ctx context.Context, cfg Config, action string, in aktionsParams) (any, error) {
 		return listMessages(cfg, in.Mailbox, false, in.Limit)
-	case "get_message":
+	},
+	"get_message": func(ctx context.Context, cfg Config, action string, in aktionsParams) (any, error) {
 		if in.UID == 0 {
 			return nil, fmt.Errorf("uid fehlt")
 		}
 		return getMessage(cfg, in.Mailbox, in.UID)
-	case "get_attachment":
+	},
+	"get_attachment": func(ctx context.Context, cfg Config, action string, in aktionsParams) (any, error) {
 		if in.UID == 0 {
 			return nil, fmt.Errorf("uid fehlt")
 		}
@@ -149,7 +142,8 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, fmt.Errorf("name fehlt")
 		}
 		return getAttachmentToSandbox(cfg, in.Mailbox, in.UID, in.Name, target.Workdir(ctx))
-	case "mark_seen", "mark_unseen":
+	},
+	"mark_seen": func(ctx context.Context, cfg Config, action string, in aktionsParams) (any, error) {
 		if in.UID == 0 {
 			return nil, fmt.Errorf("uid fehlt")
 		}
@@ -157,7 +151,8 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, err
 		}
 		return map[string]any{"uid": in.UID, "mailbox": in.Mailbox, "seen": action == "mark_seen"}, nil
-	case "move":
+	},
+	"move": func(ctx context.Context, cfg Config, action string, in aktionsParams) (any, error) {
 		if in.UID == 0 || strings.TrimSpace(in.ToMailbox) == "" {
 			return nil, fmt.Errorf("uid oder to_mailbox fehlt")
 		}
@@ -165,7 +160,8 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, err
 		}
 		return map[string]any{"uid": in.UID, "moved_to": in.ToMailbox}, nil
-	case "send":
+	},
+	"send": func(ctx context.Context, cfg Config, action string, in aktionsParams) (any, error) {
 		if len(in.To) == 0 || strings.TrimSpace(in.Subject) == "" || strings.TrimSpace(in.Body) == "" {
 			return nil, fmt.Errorf("to, subject oder body fehlt")
 		}
@@ -185,7 +181,8 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, err
 		}
 		return map[string]any{"sent_to": to, "cc": cc, "subject": in.Subject}, nil
-	case "reply":
+	},
+	"reply": func(ctx context.Context, cfg Config, action string, in aktionsParams) (any, error) {
 		if in.UID == 0 || strings.TrimSpace(in.Body) == "" {
 			return nil, fmt.Errorf("uid oder body fehlt")
 		}
@@ -205,9 +202,40 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		seenErr := setSeen(cfg, in.Mailbox, in.UID, true)
 		return map[string]any{"replied_to": o.To, "cc": o.Cc, "subject": o.Subject,
 			"marked_seen": seenErr == nil}, nil
-	default:
+	},
+}
+
+// Zweitnamen derselben Aktion: im switch zusammengefasste case-Label,
+// in einer Tabelle ein Verweis.
+func init() {
+	aktionen["mark_unseen"] = aktionen["mark_seen"]
+}
+
+func (System) Execute(ctx context.Context, action string, params json.RawMessage, cred target.Credential) (any, error) {
+	fn, ok := aktionen[action]
+	if !ok {
 		return nil, fmt.Errorf("unbekannte aktion %q", strings.TrimSpace(action))
 	}
+	cfg, err := ParseConfig(cred)
+	if err != nil {
+		return nil, err
+	}
+
+	var in aktionsParams
+	if err := json.Unmarshal(params, &in); err != nil {
+		return nil, fmt.Errorf("params: %w", err)
+	}
+	if in.Mailbox == "" {
+		in.Mailbox = "INBOX"
+	}
+	if in.Limit <= 0 {
+		in.Limit = 20
+	}
+	if in.Limit > 100 {
+		in.Limit = 100
+	}
+
+	return fn(ctx, cfg, action, in)
 }
 
 // buildReply leitet Empfänger, Betreff und Threading-Header der Antwort aus

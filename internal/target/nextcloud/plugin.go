@@ -79,29 +79,22 @@ func (System) ActionSubject(action string, _ json.RawMessage) string {
 	return "nextcloud:" + action
 }
 
-func (System) Execute(ctx context.Context, action string, params json.RawMessage, cred target.Credential) (any, error) {
-	cfg, err := ParseConfig(cred.BaseURL, cred.Token)
-	if err != nil {
-		return nil, err
-	}
-	c := NewClient(cfg)
+// aktionsParams ist die Vereinigung aller Parameter, die irgendeine Aktion
+// dieses Zielsystems braucht — der Agent schickt ein flaches JSON-Objekt,
+// was darin fehlt, bleibt leer.
+type aktionsParams struct {
+	Path    string `json:"path"`
+	To      string `json:"to"`
+	From    string `json:"from"`
+	Content string `json:"content"`
+}
 
-	var in struct {
-		Path    string `json:"path"`
-		To      string `json:"to"`
-		From    string `json:"from"`
-		Content string `json:"content"`
-	}
-	if err := json.Unmarshal(params, &in); err != nil {
-		return nil, fmt.Errorf("params: %w", err)
-	}
-	relPath, err := cleanRemotePath(in.Path)
-	if err != nil {
-		return nil, err
-	}
+// aktion fuehrt EINE Aktion aus. Frueher war jede ein Fall in einem langen
+// switch; jetzt ist sie fuer sich lesbar und die Verteilung eine Tabelle.
+type aktion func(ctx context.Context, c *Client, relPath string, in aktionsParams) (any, error)
 
-	switch action {
-	case "list":
+var aktionen = map[string]aktion{
+	"list": func(ctx context.Context, c *Client, relPath string, in aktionsParams) (any, error) {
 		entries, rootName, truncated, err := c.List(ctx, relPath)
 		if err != nil {
 			return nil, err
@@ -115,8 +108,8 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			out["hint"] = fmt.Sprintf("Mehr als %d Einträge — mit path in einen Unterordner eingrenzen.", listMax)
 		}
 		return out, nil
-
-	case "read":
+	},
+	"read": func(ctx context.Context, c *Client, relPath string, in aktionsParams) (any, error) {
 		if relPath == "" {
 			return nil, fmt.Errorf("path fehlt")
 		}
@@ -133,14 +126,14 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, fmt.Errorf("datei %q ist zu gross oder binaer fuer read — mit download in die Sandbox holen", relPath)
 		}
 		return map[string]any{"path": relPath, "size": len(data), "content": string(data)}, nil
-
-	case "write":
+	},
+	"write": func(ctx context.Context, c *Client, relPath string, in aktionsParams) (any, error) {
 		if relPath == "" {
 			return nil, fmt.Errorf("path fehlt")
 		}
 		return c.Upload(ctx, relPath, []byte(in.Content))
-
-	case "upload":
+	},
+	"upload": func(ctx context.Context, c *Client, relPath string, in aktionsParams) (any, error) {
 		local, err := localPath(ctx, in.From)
 		if err != nil {
 			return nil, err
@@ -172,8 +165,8 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, err
 		}
 		return c.Upload(ctx, to, data)
-
-	case "download":
+	},
+	"download": func(ctx context.Context, c *Client, relPath string, in aktionsParams) (any, error) {
 		if relPath == "" {
 			return nil, fmt.Errorf("path fehlt")
 		}
@@ -206,11 +199,11 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		}
 		return map[string]any{"path": local, "size": n,
 			"hint": "Datei liegt lokal — direkt lesen/bearbeiten und danach mit upload zurücklegen."}, nil
-
-	case "mkdir":
+	},
+	"mkdir": func(ctx context.Context, c *Client, relPath string, in aktionsParams) (any, error) {
 		return c.Mkdir(ctx, relPath)
-
-	case "delete":
+	},
+	"delete": func(ctx context.Context, c *Client, relPath string, in aktionsParams) (any, error) {
 		if relPath == "" {
 			return nil, fmt.Errorf("path fehlt")
 		}
@@ -218,10 +211,30 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, err
 		}
 		return map[string]any{"deleted": relPath}, nil
+	},
+}
 
-	default:
+func (System) Execute(ctx context.Context, action string, params json.RawMessage, cred target.Credential) (any, error) {
+	fn, ok := aktionen[action]
+	if !ok {
 		return nil, fmt.Errorf("unbekannte aktion %q", strings.TrimSpace(action))
 	}
+	cfg, err := ParseConfig(cred.BaseURL, cred.Token)
+	if err != nil {
+		return nil, err
+	}
+	c := NewClient(cfg)
+
+	var in aktionsParams
+	if err := json.Unmarshal(params, &in); err != nil {
+		return nil, fmt.Errorf("params: %w", err)
+	}
+	relPath, err := cleanRemotePath(in.Path)
+	if err != nil {
+		return nil, err
+	}
+
+	return fn(ctx, c, relPath, in)
 }
 
 // localPath löst einen vom Agenten angegebenen Sandbox-Pfad sicher gegen das

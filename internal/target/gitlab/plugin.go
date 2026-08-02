@@ -395,56 +395,62 @@ func isDuplicateComment(ctx context.Context, gc *Client, notes []Note, body stri
 	return lastOwn != "" && strings.TrimSpace(lastOwn) == strings.TrimSpace(body)
 }
 
-func (System) Execute(ctx context.Context, action string, params json.RawMessage, cred target.Credential) (any, error) {
-	gc := NewClient(cred.BaseURL, cred.Token)
+// aktionsParams ist die Vereinigung aller Parameter, die irgendeine
+// GitLab-Aktion braucht. Ein gemeinsames Struct statt eines je Aktion: Der
+// Agent schickt ein flaches JSON-Objekt, und was darin fehlt, bleibt schlicht
+// leer — das ist die Schnittstelle zum Modell, nicht unsere Wunschform.
+type aktionsParams struct {
+	ProjectID  int    `json:"project_id"`
+	IssueIID   int    `json:"issue_iid"`
+	MRIID      int    `json:"mr_iid"`
+	PipelineID int    `json:"pipeline_id"`
+	JobID      int    `json:"job_id"`
+	Body       string `json:"body"`
+	Internal   *bool  `json:"internal"`
+	State      string `json:"state"`
+	Note       string `json:"note"`
+	Labels     string `json:"labels"`
+	Search     string `json:"search"`
+	Milestone  string `json:"milestone"`
+	Ref        string `json:"ref"`
+	Assigned   bool   `json:"assigned"`
+	// set_labels arbeitet additiv/subtraktiv statt die ganze Liste zu
+	// überschreiben — sonst nimmt jeder Zustandswechsel die fachlichen
+	// Labels mit.
+	AddLabels    []string `json:"add_labels"`
+	RemoveLabels []string `json:"remove_labels"`
+	Path         string   `json:"path"`
+	FilePath     string   `json:"file_path"`
+	URL          string   `json:"url"`
+	Recursive    bool     `json:"recursive"`
+	Sha          string   `json:"sha"`
+	Since        string   `json:"since"`
+	Target       string   `json:"target_branch"`
+	Username     string   `json:"username"`
+	// Entwickler-Workflow: commit + create_merge_request.
+	Branch       string   `json:"branch"`
+	StartBranch  string   `json:"start_branch"`
+	Message      string   `json:"message"`
+	CheckoutPath string   `json:"checkout_path"`
+	Files        []string `json:"files"`
+	Deleted      []string `json:"deleted"`
+	SourceBranch string   `json:"source_branch"`
+	Title        string   `json:"title"`
+	Description  string   `json:"description"`
+	Assignee     string   `json:"assignee"`
+	Reviewer     string   `json:"reviewer"`
+}
 
-	var in struct {
-		ProjectID  int    `json:"project_id"`
-		IssueIID   int    `json:"issue_iid"`
-		MRIID      int    `json:"mr_iid"`
-		PipelineID int    `json:"pipeline_id"`
-		JobID      int    `json:"job_id"`
-		Body       string `json:"body"`
-		Internal   *bool  `json:"internal"`
-		State      string `json:"state"`
-		Note       string `json:"note"`
-		Labels     string `json:"labels"`
-		Search     string `json:"search"`
-		Milestone  string `json:"milestone"`
-		Ref        string `json:"ref"`
-		Assigned   bool   `json:"assigned"`
-		// set_labels arbeitet additiv/subtraktiv statt die ganze Liste zu
-		// überschreiben — sonst nimmt jeder Zustandswechsel die fachlichen
-		// Labels mit.
-		AddLabels    []string `json:"add_labels"`
-		RemoveLabels []string `json:"remove_labels"`
-		Path         string   `json:"path"`
-		FilePath     string   `json:"file_path"`
-		URL          string   `json:"url"`
-		Recursive    bool     `json:"recursive"`
-		Sha          string   `json:"sha"`
-		Since        string   `json:"since"`
-		Target       string   `json:"target_branch"`
-		Username     string   `json:"username"`
-		// Entwickler-Workflow: commit + create_merge_request.
-		Branch       string   `json:"branch"`
-		StartBranch  string   `json:"start_branch"`
-		Message      string   `json:"message"`
-		CheckoutPath string   `json:"checkout_path"`
-		Files        []string `json:"files"`
-		Deleted      []string `json:"deleted"`
-		SourceBranch string   `json:"source_branch"`
-		Title        string   `json:"title"`
-		Description  string   `json:"description"`
-		Assignee     string   `json:"assignee"`
-		Reviewer     string   `json:"reviewer"`
-	}
-	if err := json.Unmarshal(params, &in); err != nil {
-		return nil, fmt.Errorf("params: %w", err)
-	}
+// aktion fuehrt EINE GitLab-Aktion aus. Frueher lag jede davon als Fall in
+// einem 300-Zeilen-switch; eine Aktion dazuzunehmen hiess, diese Funktion
+// anzufassen. Jetzt ist jede fuer sich lesbar und die Verteilung eine Tabelle.
+type aktion func(ctx context.Context, gc *Client, in aktionsParams) (any, error)
 
-	switch action {
-	case "list_projects":
+// aktionen ist die Verteilung: Name aus dem Daemon-Protokoll auf Ausfuehrung.
+// Wer eine Aktion sucht, liest hier einen Namen und springt an eine Stelle,
+// statt sich durch die Nachbarn zu scrollen.
+var aktionen = map[string]aktion{
+	"list_projects": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		ps, err := gc.ListProjects(ctx)
 		if err != nil {
 			return nil, err
@@ -456,7 +462,8 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			}
 		}
 		return out, nil
-	case "list_issues":
+	},
+	"list_issues": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		issues, err := gc.ListIssues(ctx, in.ProjectID, in.State, in.Labels, in.Search, in.Milestone, in.Assigned)
 		if err != nil {
 			return nil, err
@@ -468,29 +475,35 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			}
 		}
 		return out, nil
-	case "get_issue":
+	},
+	"get_issue": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		return gc.GetIssue(ctx, in.ProjectID, in.IssueIID)
-	case "download_upload":
+	},
+	"download_upload": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || strings.TrimSpace(in.URL) == "" {
 			return nil, fmt.Errorf("project_id oder url fehlt")
 		}
 		return DownloadUploadToSandbox(ctx, gc, in.ProjectID, in.URL, target.Workdir(ctx))
-	case "upload":
+	},
+	"upload": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || strings.TrimSpace(in.Path) == "" {
 			return nil, fmt.Errorf("project_id oder path fehlt")
 		}
 		return UploadFromSandbox(ctx, gc, in.ProjectID, in.Path, target.Workdir(ctx))
-	case "checkout":
+	},
+	"checkout": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
 			return nil, fmt.Errorf("project_id fehlt")
 		}
 		return Checkout(ctx, gc, in.ProjectID, in.Ref, in.Path, target.Workdir(ctx))
-	case "list_tree":
+	},
+	"list_tree": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
 			return nil, fmt.Errorf("project_id fehlt")
 		}
 		return gc.ListTree(ctx, in.ProjectID, in.Path, in.Ref, in.Recursive)
-	case "read_file":
+	},
+	"read_file": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.FilePath == "" {
 			return nil, fmt.Errorf("project_id oder file_path fehlt")
 		}
@@ -500,32 +513,38 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		}
 		return map[string]any{"file_path": in.FilePath, "ref": in.Ref,
 			"content": content, "truncated": truncated}, nil
-	case "list_commits":
+	},
+	"list_commits": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
 			return nil, fmt.Errorf("project_id fehlt")
 		}
 		return gc.ListCommits(ctx, in.ProjectID, in.Ref, in.Path, in.Since)
-	case "get_commit":
+	},
+	"get_commit": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.Sha == "" {
 			return nil, fmt.Errorf("project_id oder sha fehlt")
 		}
 		return gc.GetCommitDiff(ctx, in.ProjectID, in.Sha)
-	case "list_merge_requests":
+	},
+	"list_merge_requests": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
 			return nil, fmt.Errorf("project_id fehlt")
 		}
 		return gc.ListMergeRequests(ctx, in.ProjectID, in.State, in.Search, in.Target)
-	case "get_merge_request":
+	},
+	"get_merge_request": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.MRIID == 0 {
 			return nil, fmt.Errorf("project_id oder mr_iid fehlt")
 		}
 		return gc.GetMergeRequest(ctx, in.ProjectID, in.MRIID)
-	case "list_mr_notes":
+	},
+	"list_mr_notes": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.MRIID == 0 {
 			return nil, fmt.Errorf("project_id oder mr_iid fehlt")
 		}
 		return gc.ListMRNotes(ctx, in.ProjectID, in.MRIID)
-	case "comment_mr":
+	},
+	"comment_mr": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.MRIID == 0 || strings.TrimSpace(in.Body) == "" {
 			return nil, fmt.Errorf("project_id, mr_iid oder body fehlt")
 		}
@@ -534,7 +553,8 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 				"reason": "identisch zum letzten eigenen Kommentar — nicht erneut gepostet"}, nil
 		}
 		return gc.CommentMR(ctx, in.ProjectID, in.MRIID, in.Body)
-	case "set_reviewer":
+	},
+	"set_reviewer": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.MRIID == 0 {
 			return nil, fmt.Errorf("project_id oder mr_iid fehlt")
 		}
@@ -546,7 +566,8 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, err
 		}
 		return map[string]any{"reviewer": u.Username, "user_id": u.ID}, nil
-	case "approve_mr":
+	},
+	"approve_mr": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.MRIID == 0 {
 			return nil, fmt.Errorf("project_id oder mr_iid fehlt")
 		}
@@ -554,22 +575,26 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, err
 		}
 		return map[string]any{"approved": true, "mr_iid": in.MRIID}, nil
-	case "list_pipelines":
+	},
+	"list_pipelines": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
 			return nil, fmt.Errorf("project_id fehlt")
 		}
 		return gc.ListPipelines(ctx, in.ProjectID, in.Ref)
-	case "list_pipeline_jobs":
+	},
+	"list_pipeline_jobs": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.PipelineID == 0 {
 			return nil, fmt.Errorf("project_id oder pipeline_id fehlt")
 		}
 		return gc.ListPipelineJobs(ctx, in.ProjectID, in.PipelineID)
-	case "retry_pipeline":
+	},
+	"retry_pipeline": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.PipelineID == 0 {
 			return nil, fmt.Errorf("project_id oder pipeline_id fehlt")
 		}
 		return gc.RetryPipeline(ctx, in.ProjectID, in.PipelineID)
-	case "get_job_log":
+	},
+	"get_job_log": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.JobID == 0 {
 			return nil, fmt.Errorf("project_id oder job_id fehlt")
 		}
@@ -578,18 +603,21 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, err
 		}
 		return map[string]any{"job_id": in.JobID, "log": logText, "truncated": truncated}, nil
-	case "list_branches":
+	},
+	"list_branches": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
 			return nil, fmt.Errorf("project_id fehlt")
 		}
 		return gc.ListBranches(ctx, in.ProjectID, in.Search)
-	case "commit":
+	},
+	"commit": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
 			return nil, fmt.Errorf("project_id fehlt")
 		}
 		return CommitFromCheckout(ctx, gc, in.ProjectID, in.Branch, in.StartBranch,
 			in.Message, in.CheckoutPath, in.Files, in.Deleted, target.Workdir(ctx))
-	case "create_merge_request":
+	},
+	"create_merge_request": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || strings.TrimSpace(in.SourceBranch) == "" || strings.TrimSpace(in.Title) == "" {
 			return nil, fmt.Errorf("project_id, source_branch oder title fehlt")
 		}
@@ -638,7 +666,8 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		}
 		return gc.CreateMergeRequest(ctx, in.ProjectID, in.SourceBranch, targetBranch,
 			in.Title, in.Description, u.ID, reviewerID)
-	case "create_issue":
+	},
+	"create_issue": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || strings.TrimSpace(in.Title) == "" {
 			return nil, fmt.Errorf("project_id oder title fehlt")
 		}
@@ -651,21 +680,25 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			assigneeID = u.ID
 		}
 		return gc.CreateIssue(ctx, in.ProjectID, in.Title, in.Description, in.Labels, assigneeID)
-	case "list_notes":
+	},
+	"list_notes": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		return gc.ListNotes(ctx, in.ProjectID, in.IssueIID)
-	case "comment":
+	},
+	"comment": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		internal := in.Internal == nil || *in.Internal
 		if notes, err := gc.ListNotes(ctx, in.ProjectID, in.IssueIID); err == nil && isDuplicateComment(ctx, gc, notes, in.Body) {
 			return map[string]any{"skipped": "duplicate",
 				"reason": "identisch zum letzten eigenen Kommentar — nicht erneut gepostet"}, nil
 		}
 		return gc.Comment(ctx, in.ProjectID, in.IssueIID, in.Body, internal)
-	case "set_state":
+	},
+	"set_state": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.State == "" {
 			return nil, fmt.Errorf("state fehlt")
 		}
 		return nil, gc.SetState(ctx, in.ProjectID, in.IssueIID, in.State)
-	case "assign":
+	},
+	"assign": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.IssueIID == 0 {
 			return nil, fmt.Errorf("project_id oder issue_iid fehlt")
 		}
@@ -677,7 +710,8 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, err
 		}
 		return map[string]any{"assigned_to": u.Username, "user_id": u.ID}, nil
-	case "set_labels":
+	},
+	"set_labels": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.IssueIID == 0 {
 			return nil, fmt.Errorf("project_id oder issue_iid fehlt")
 		}
@@ -686,15 +720,26 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, err
 		}
 		return map[string]any{"issue_iid": iss.IID, "labels": iss.Labels}, nil
-	case "escalate":
+	},
+	"escalate": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		note := in.Note
 		if note == "" {
 			note = "Eskalation durch Covey-Agent."
 		}
 		return nil, gc.Escalate(ctx, in.ProjectID, in.IssueIID, note)
-	default:
+	},
+}
+
+func (System) Execute(ctx context.Context, action string, params json.RawMessage, cred target.Credential) (any, error) {
+	fn, ok := aktionen[action]
+	if !ok {
 		return nil, fmt.Errorf("unbekannte aktion %q", strings.TrimSpace(action))
 	}
+	var in aktionsParams
+	if err := json.Unmarshal(params, &in); err != nil {
+		return nil, fmt.Errorf("params: %w", err)
+	}
+	return fn(ctx, NewClient(cred.BaseURL, cred.Token), in)
 }
 
 func (System) PromptDoc() string {
