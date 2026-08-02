@@ -139,54 +139,54 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/onboarding", s.rbac(anyRole, s.handleOnboarding))
 	mux.Handle("GET /api/v1/agents", s.rbac(anyRole, s.handleListAgents))
 	mux.Handle("POST /api/v1/agents", s.rbac(manage, s.handleCreateAgent))
-	mux.Handle("GET /api/v1/agents/{id}", s.rbac(anyRole, s.handleGetAgent))
-	mux.Handle("DELETE /api/v1/agents/{id}", s.rbac(manage, s.handleDeleteAgent))
-	mux.Handle("GET /api/v1/agents/{id}/config", s.rbac(anyRole, s.handleGetConfig))
-	mux.Handle("GET /api/v1/agents/{id}/export", s.rbac(append(manage, identity.RoleSecurity), s.handleExportAgent))
-	mux.Handle("GET /api/v1/agents/{id}/diagnostics", s.rbac(append(manage, identity.RoleSecurity), s.handleAgentDiagnostics))
+	mux.Handle("GET /api/v1/agents/{id}", s.agentScoped(anyRole, s.handleGetAgent))
+	mux.Handle("DELETE /api/v1/agents/{id}", s.agentScoped(manage, s.handleDeleteAgent))
+	mux.Handle("GET /api/v1/agents/{id}/config", s.agentScoped(anyRole, s.handleGetConfig))
+	mux.Handle("GET /api/v1/agents/{id}/export", s.agentScoped(append(manage, identity.RoleSecurity), s.handleExportAgent))
+	mux.Handle("GET /api/v1/agents/{id}/diagnostics", s.agentScoped(append(manage, identity.RoleSecurity), s.handleAgentDiagnostics))
 	// Der Arbeitsplatz: das persistente Home als Dateibaum (files.go). Lesen
 	// darf zusätzlich Security — wer einen Agenten untersucht, muss sehen, was
 	// bei ihm liegt. Schreiben bleibt bei den Verwaltern: eine Datei im Home
 	// ist Konfiguration des Agenten, kein Audit-Vorgang.
-	mux.Handle("GET /api/v1/agents/{id}/files", s.rbac(append(manage, identity.RoleSecurity), s.handleListFiles))
-	mux.Handle("GET /api/v1/agents/{id}/files/content", s.rbac(append(manage, identity.RoleSecurity), s.handleReadFile))
-	mux.Handle("GET /api/v1/agents/{id}/files/download", s.rbac(append(manage, identity.RoleSecurity), s.handleDownloadFile))
-	mux.Handle("GET /api/v1/agents/{id}/files/preview", s.rbac(append(manage, identity.RoleSecurity), s.handlePreviewFile))
-	mux.Handle("GET /api/v1/agents/{id}/files/zip", s.rbac(append(manage, identity.RoleSecurity), s.handleZipFiles))
-	mux.Handle("PUT /api/v1/agents/{id}/files/content", s.rbac(manage, s.handleWriteFile))
-	mux.Handle("POST /api/v1/agents/{id}/files/upload", s.rbac(manage, s.handleUploadFiles))
-	mux.Handle("POST /api/v1/agents/{id}/files/dir", s.rbac(manage, s.handleMkdir))
-	mux.Handle("POST /api/v1/agents/{id}/files/move", s.rbac(manage, s.handleMoveFile))
-	mux.Handle("DELETE /api/v1/agents/{id}/files", s.rbac(manage, s.handleDeleteFile))
+	mux.Handle("GET /api/v1/agents/{id}/files", s.agentScoped(append(manage, identity.RoleSecurity), s.handleListFiles))
+	mux.Handle("GET /api/v1/agents/{id}/files/content", s.agentScoped(append(manage, identity.RoleSecurity), s.handleReadFile))
+	mux.Handle("GET /api/v1/agents/{id}/files/download", s.agentScoped(append(manage, identity.RoleSecurity), s.handleDownloadFile))
+	mux.Handle("GET /api/v1/agents/{id}/files/preview", s.agentScoped(append(manage, identity.RoleSecurity), s.handlePreviewFile))
+	mux.Handle("GET /api/v1/agents/{id}/files/zip", s.agentScoped(append(manage, identity.RoleSecurity), s.handleZipFiles))
+	mux.Handle("PUT /api/v1/agents/{id}/files/content", s.agentScoped(manage, s.handleWriteFile))
+	mux.Handle("POST /api/v1/agents/{id}/files/upload", s.agentScoped(manage, s.handleUploadFiles))
+	mux.Handle("POST /api/v1/agents/{id}/files/dir", s.agentScoped(manage, s.handleMkdir))
+	mux.Handle("POST /api/v1/agents/{id}/files/move", s.agentScoped(manage, s.handleMoveFile))
+	mux.Handle("DELETE /api/v1/agents/{id}/files", s.agentScoped(manage, s.handleDeleteFile))
 	mux.Handle("GET /api/v1/skills/covey-agent.zip", s.rbac(anyRole, s.handleDownloadSkill))
 	mux.Handle("POST /api/v1/agents/import", s.rbac(manage, s.handleImportAgent))
-	mux.Handle("PUT /api/v1/agents/{id}/config", s.rbac(manage, s.handlePutConfig))
+	mux.Handle("PUT /api/v1/agents/{id}/config", s.agentScoped(manage, s.handlePutConfig))
 	// Bestehenden Agenten aus einem Bundle überschreiben — nur die Config-Dateien.
-	mux.Handle("POST /api/v1/agents/{id}/config/import", s.rbac(manage, s.handleImportConfig))
+	mux.Handle("POST /api/v1/agents/{id}/config/import", s.agentScoped(manage, s.handleImportConfig))
 	// KI-Assistent zum Anpassen von Agenten (Config-Copilot, FR-001): nur
 	// verfügbar, wenn org-weit ein Claude-Credential hinterlegt ist.
 	mux.Handle("GET /api/v1/assist/status", s.rbac(anyRole, s.handleAssistStatus))
-	mux.Handle("POST /api/v1/agents/{id}/config/assist", s.rbac(manage, s.handleConfigAssist))
-	mux.Handle("GET /api/v1/agents/{id}/heartbeats", s.rbac(anyRole, s.handleHeartbeats))
-	mux.Handle("POST /api/v1/agents/{id}/heartbeats/{name}/fire", s.rbac(manage, s.handleFireHeartbeat))
-	mux.Handle("GET /api/v1/agents/{id}/backlog", s.rbac(anyRole, s.handleBacklog))
-	mux.Handle("POST /api/v1/agents/{id}/tasks", s.rbac(manage, s.handleCreateTask))
-	mux.Handle("POST /api/v1/agents/{id}/wake", s.rbac(manage, s.handleWake))
-	mux.Handle("POST /api/v1/agents/{id}/kill", s.rbac(append(manage, identity.RoleSecurity), s.handleKill))
-	mux.Handle("POST /api/v1/agents/{id}/resume", s.rbac(append(manage, identity.RoleSecurity), s.handleResumeAgent))
-	mux.Handle("POST /api/v1/agents/{id}/budget", s.rbac(manage, s.handleSetBudget))
-	mux.Handle("PATCH /api/v1/agents/{id}/name", s.rbac(manage, s.handleRename))
-	mux.Handle("PATCH /api/v1/agents/{id}/profile", s.rbac(manage, s.handleUpdateAgentProfile))
-	mux.Handle("PATCH /api/v1/agents/{id}/slug", s.rbac(manage, s.handleSetSlug))
-	mux.Handle("PATCH /api/v1/agents/{id}/runtime", s.rbac(manage, s.handleSetRuntime))
-	mux.Handle("PATCH /api/v1/agents/{id}/model", s.rbac(manage, s.handleSetModel))
-	mux.Handle("PATCH /api/v1/agents/{id}/max-turns", s.rbac(manage, s.handleSetMaxTurns))
-	mux.Handle("PATCH /api/v1/agents/{id}/recording-level", s.rbac(manage, s.handleSetRecordingLevel))
-	mux.Handle("PATCH /api/v1/agents/{id}/warm-sandbox", s.rbac(manage, s.handleSetWarmSandbox))
+	mux.Handle("POST /api/v1/agents/{id}/config/assist", s.agentScoped(manage, s.handleConfigAssist))
+	mux.Handle("GET /api/v1/agents/{id}/heartbeats", s.agentScoped(anyRole, s.handleHeartbeats))
+	mux.Handle("POST /api/v1/agents/{id}/heartbeats/{name}/fire", s.agentScoped(manage, s.handleFireHeartbeat))
+	mux.Handle("GET /api/v1/agents/{id}/backlog", s.agentScoped(anyRole, s.handleBacklog))
+	mux.Handle("POST /api/v1/agents/{id}/tasks", s.agentScoped(manage, s.handleCreateTask))
+	mux.Handle("POST /api/v1/agents/{id}/wake", s.agentScoped(manage, s.handleWake))
+	mux.Handle("POST /api/v1/agents/{id}/kill", s.agentScoped(append(manage, identity.RoleSecurity), s.handleKill))
+	mux.Handle("POST /api/v1/agents/{id}/resume", s.agentScoped(append(manage, identity.RoleSecurity), s.handleResumeAgent))
+	mux.Handle("POST /api/v1/agents/{id}/budget", s.agentScoped(manage, s.handleSetBudget))
+	mux.Handle("PATCH /api/v1/agents/{id}/name", s.agentScoped(manage, s.handleRename))
+	mux.Handle("PATCH /api/v1/agents/{id}/profile", s.agentScoped(manage, s.handleUpdateAgentProfile))
+	mux.Handle("PATCH /api/v1/agents/{id}/slug", s.agentScoped(manage, s.handleSetSlug))
+	mux.Handle("PATCH /api/v1/agents/{id}/runtime", s.agentScoped(manage, s.handleSetRuntime))
+	mux.Handle("PATCH /api/v1/agents/{id}/model", s.agentScoped(manage, s.handleSetModel))
+	mux.Handle("PATCH /api/v1/agents/{id}/max-turns", s.agentScoped(manage, s.handleSetMaxTurns))
+	mux.Handle("PATCH /api/v1/agents/{id}/recording-level", s.agentScoped(manage, s.handleSetRecordingLevel))
+	mux.Handle("PATCH /api/v1/agents/{id}/warm-sandbox", s.agentScoped(manage, s.handleSetWarmSandbox))
 	mux.Handle("GET /api/v1/org/recording-level", s.rbac(anyRole, s.handleGetOrgRecording))
 	mux.Handle("PATCH /api/v1/org/recording-level", s.rbac(securityRoles, s.handleSetOrgRecording))
-	mux.Handle("PATCH /api/v1/agents/{id}/supervisor", s.rbac(manage, s.handleSetSupervisor))
-	mux.Handle("PATCH /api/v1/agents/{id}/department", s.rbac(manage, s.handleSetAgentDepartment))
+	mux.Handle("PATCH /api/v1/agents/{id}/supervisor", s.agentScoped(manage, s.handleSetSupervisor))
+	mux.Handle("PATCH /api/v1/agents/{id}/department", s.agentScoped(manage, s.handleSetAgentDepartment))
 	mux.Handle("PATCH /api/v1/org/humans/{id}/department", s.rbac(manage, s.handleSetHumanDepartment))
 	mux.Handle("PATCH /api/v1/org/humans/{id}/manager", s.rbac(manage, s.handleSetHumanManager))
 	mux.Handle("GET /api/v1/departments", s.rbac(anyRole, s.handleListDepartments))
@@ -196,9 +196,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/departments/{id}", s.rbac(manage, s.handleDeleteDepartment))
 	mux.Handle("POST /api/v1/departments/{id}/leads", s.rbac(manage, s.handleAddDepartmentLead))
 	mux.Handle("DELETE /api/v1/departments/{id}/leads/{member}", s.rbac(manage, s.handleRemoveDepartmentLead))
-	mux.Handle("GET /api/v1/agents/{id}/webhook", s.rbac(manage, s.handleGetAgentWebhook))
-	mux.Handle("POST /api/v1/agents/{id}/webhook", s.rbac(manage, s.handleEnableAgentWebhook))
-	mux.Handle("DELETE /api/v1/agents/{id}/webhook", s.rbac(manage, s.handleDisableAgentWebhook))
+	mux.Handle("GET /api/v1/agents/{id}/webhook", s.agentScoped(manage, s.handleGetAgentWebhook))
+	mux.Handle("POST /api/v1/agents/{id}/webhook", s.agentScoped(manage, s.handleEnableAgentWebhook))
+	mux.Handle("DELETE /api/v1/agents/{id}/webhook", s.agentScoped(manage, s.handleDisableAgentWebhook))
 	mux.Handle("GET /api/v1/org/chart", s.rbac(anyRole, s.handleOrgChart))
 	mux.Handle("GET /api/v1/org/humans/{id}", s.rbac(anyRole, s.handleGetHuman))
 	mux.Handle("GET /api/v1/org/profile-fields", s.rbac(anyRole, s.handleListProfileFields))
@@ -215,36 +215,36 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/targets/{name}", s.rbac(securityRoles, s.handleDeleteTarget))
 	// Was der Agent in welchem Zielsystem tun kann — Plugin, Zugang und
 	// Aktionsliste an einer Stelle (targets.go).
-	mux.Handle("GET /api/v1/agents/{id}/systems", s.rbac(anyRole, s.handleAgentSystems))
-	mux.Handle("GET /api/v1/agents/{id}/tools/{system}", s.rbac(anyRole, s.handleGetAgentTools))
-	mux.Handle("PUT /api/v1/agents/{id}/tools/{system}", s.rbac(securityRoles, s.handleSetAgentTools))
-	mux.Handle("GET /api/v1/agents/{id}/recording", s.rbac(anyRole, s.handleRecording))
+	mux.Handle("GET /api/v1/agents/{id}/systems", s.agentScoped(anyRole, s.handleAgentSystems))
+	mux.Handle("GET /api/v1/agents/{id}/tools/{system}", s.agentScoped(anyRole, s.handleGetAgentTools))
+	mux.Handle("PUT /api/v1/agents/{id}/tools/{system}", s.agentScoped(securityRoles, s.handleSetAgentTools))
+	mux.Handle("GET /api/v1/agents/{id}/recording", s.agentScoped(anyRole, s.handleRecording))
 	mux.Handle("GET /api/v1/recordings/blobs/{id}", s.rbac(anyRole, s.handleRecordingBlob))
-	mux.Handle("GET /api/v1/agents/{id}/cost", s.rbac(anyRole, s.handleCost))
-	mux.Handle("GET /api/v1/agents/{id}/cost/series", s.rbac(anyRole, s.handleCostSeries))
+	mux.Handle("GET /api/v1/agents/{id}/cost", s.agentScoped(anyRole, s.handleCost))
+	mux.Handle("GET /api/v1/agents/{id}/cost/series", s.agentScoped(anyRole, s.handleCostSeries))
 	mux.Handle("GET /api/v1/cost/org", s.rbac(anyRole, s.handleOrgCost))
-	mux.Handle("GET /api/v1/agents/{id}/memories", s.rbac(anyRole, s.handleMemories))
-	mux.Handle("POST /api/v1/agents/{id}/memories", s.rbac(manage, s.handleCreateMemory))
-	mux.Handle("GET /api/v1/agents/{id}/wiki/log", s.rbac(anyRole, s.handleWikiLog))
-	mux.Handle("GET /api/v1/agents/{id}/wiki/health", s.rbac(anyRole, s.handleWikiHealth))
-	mux.Handle("POST /api/v1/agents/{id}/wiki/consolidate", s.rbac(manage, s.handleWikiConsolidate))
-	mux.Handle("POST /api/v1/agents/{id}/dreams", s.rbac(manage, s.handleStartDream))
-	mux.Handle("GET /api/v1/agents/{id}/dreams", s.rbac(anyRole, s.handleListDreams))
+	mux.Handle("GET /api/v1/agents/{id}/memories", s.agentScoped(anyRole, s.handleMemories))
+	mux.Handle("POST /api/v1/agents/{id}/memories", s.agentScoped(manage, s.handleCreateMemory))
+	mux.Handle("GET /api/v1/agents/{id}/wiki/log", s.agentScoped(anyRole, s.handleWikiLog))
+	mux.Handle("GET /api/v1/agents/{id}/wiki/health", s.agentScoped(anyRole, s.handleWikiHealth))
+	mux.Handle("POST /api/v1/agents/{id}/wiki/consolidate", s.agentScoped(manage, s.handleWikiConsolidate))
+	mux.Handle("POST /api/v1/agents/{id}/dreams", s.agentScoped(manage, s.handleStartDream))
+	mux.Handle("GET /api/v1/agents/{id}/dreams", s.agentScoped(anyRole, s.handleListDreams))
 	mux.Handle("POST /api/v1/dream-actions/{id}/undo", s.rbac(manage, s.handleUndoDreamAction))
 	mux.Handle("PATCH /api/v1/memories/{id}", s.rbac(manage, s.handleUpdateMemory))
 	mux.Handle("DELETE /api/v1/memories/{id}", s.rbac(manage, s.handleDeleteMemory))
 	mux.Handle("POST /api/v1/tasks/{id}/cancel", s.rbac(manage, s.handleCancelTask))
 	mux.Handle("POST /api/v1/tasks/{id}/retry", s.rbac(manage, s.handleRetryTask))
 	mux.Handle("POST /api/v1/tasks/{id}/archive", s.rbac(manage, s.handleArchiveTask))
-	mux.Handle("POST /api/v1/agents/{id}/backlog/cleanup", s.rbac(manage, s.handleCleanupBacklog))
+	mux.Handle("POST /api/v1/agents/{id}/backlog/cleanup", s.agentScoped(manage, s.handleCleanupBacklog))
 	mux.Handle("POST /api/v1/tasks/{id}/stage", s.rbac(manage, s.handleMoveTask))
 	mux.Handle("GET /api/v1/tasks/{id}/transitions", s.rbac(anyRole, s.handleTransitions))
 	mux.Handle("GET /api/v1/tasks/{id}/notes", s.rbac(anyRole, s.handleTaskNotes))
 
 	// Custom-Stages (Kanban-Overlay, pro Agent).
-	mux.Handle("GET /api/v1/agents/{id}/stages", s.rbac(anyRole, s.handleListStages))
-	mux.Handle("POST /api/v1/agents/{id}/stages", s.rbac(manage, s.handleCreateStage))
-	mux.Handle("POST /api/v1/agents/{id}/stages/reorder", s.rbac(manage, s.handleReorderStages))
+	mux.Handle("GET /api/v1/agents/{id}/stages", s.agentScoped(anyRole, s.handleListStages))
+	mux.Handle("POST /api/v1/agents/{id}/stages", s.agentScoped(manage, s.handleCreateStage))
+	mux.Handle("POST /api/v1/agents/{id}/stages/reorder", s.agentScoped(manage, s.handleReorderStages))
 	mux.Handle("PATCH /api/v1/stages/{id}", s.rbac(manage, s.handleUpdateStage))
 	mux.Handle("DELETE /api/v1/stages/{id}", s.rbac(manage, s.handleDeleteStage))
 
@@ -270,21 +270,21 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/egress/stats", s.rbac(anyRole, s.handleEgressStats))
 	mux.Handle("GET /api/v1/egress/builtin", s.rbac(anyRole, s.handleListEgressBuiltins))
 	mux.Handle("POST /api/v1/egress/builtin/{slug}", s.rbac(securityRoles, s.handleImportEgressBuiltin))
-	mux.Handle("GET /api/v1/agents/{id}/egress", s.rbac(anyRole, s.handleAgentEgress))
-	mux.Handle("PUT /api/v1/agents/{id}/egress/templates/{tid}", s.rbac(securityRoles, s.handleAssignEgressTemplate))
-	mux.Handle("DELETE /api/v1/agents/{id}/egress/templates/{tid}", s.rbac(securityRoles, s.handleUnassignEgressTemplate))
-	mux.Handle("POST /api/v1/agents/{id}/egress/hosts", s.rbac(securityRoles, s.handleAddAgentEgressHost))
-	mux.Handle("DELETE /api/v1/agents/{id}/egress/hosts/{hid}", s.rbac(securityRoles, s.handleDeleteAgentEgressHost))
+	mux.Handle("GET /api/v1/agents/{id}/egress", s.agentScoped(anyRole, s.handleAgentEgress))
+	mux.Handle("PUT /api/v1/agents/{id}/egress/templates/{tid}", s.agentScoped(securityRoles, s.handleAssignEgressTemplate))
+	mux.Handle("DELETE /api/v1/agents/{id}/egress/templates/{tid}", s.agentScoped(securityRoles, s.handleUnassignEgressTemplate))
+	mux.Handle("POST /api/v1/agents/{id}/egress/hosts", s.agentScoped(securityRoles, s.handleAddAgentEgressHost))
+	mux.Handle("DELETE /api/v1/agents/{id}/egress/hosts/{hid}", s.agentScoped(securityRoles, s.handleDeleteAgentEgressHost))
 	mux.Handle("GET /api/v1/secrets", s.rbac(securityRoles, s.handleListSecrets))
 	mux.Handle("PUT /api/v1/secrets/{key}", s.rbac(securityRoles, s.handlePutSecret))
 	mux.Handle("PATCH /api/v1/secrets/{key}", s.rbac(securityRoles, s.handlePatchSecret))
 	mux.Handle("DELETE /api/v1/secrets/{key}", s.rbac(securityRoles, s.handleDeleteSecret))
 	mux.Handle("PUT /api/v1/secrets/{key}/agents/{agentID}", s.rbac(securityRoles, s.handleAssignSecret))
 	mux.Handle("DELETE /api/v1/secrets/{key}/agents/{agentID}", s.rbac(securityRoles, s.handleUnassignSecret))
-	mux.Handle("GET /api/v1/agents/{id}/secrets", s.rbac(securityRoles, s.handleListAgentSecrets))
-	mux.Handle("PUT /api/v1/agents/{id}/secrets/{key}", s.rbac(securityRoles, s.handlePutAgentSecret))
-	mux.Handle("PATCH /api/v1/agents/{id}/secrets/{key}", s.rbac(securityRoles, s.handlePatchAgentSecret))
-	mux.Handle("DELETE /api/v1/agents/{id}/secrets/{key}", s.rbac(securityRoles, s.handleDeleteAgentSecret))
+	mux.Handle("GET /api/v1/agents/{id}/secrets", s.agentScoped(securityRoles, s.handleListAgentSecrets))
+	mux.Handle("PUT /api/v1/agents/{id}/secrets/{key}", s.agentScoped(securityRoles, s.handlePutAgentSecret))
+	mux.Handle("PATCH /api/v1/agents/{id}/secrets/{key}", s.agentScoped(securityRoles, s.handlePatchAgentSecret))
+	mux.Handle("DELETE /api/v1/agents/{id}/secrets/{key}", s.agentScoped(securityRoles, s.handleDeleteAgentSecret))
 	mux.Handle("POST /api/v1/fleet/kill", s.rbac(securityRoles, s.handleFleetKill))
 	mux.Handle("POST /api/v1/fleet/resume", s.rbac(securityRoles, s.handleFleetResume))
 	mux.Handle("GET /api/v1/fleet", s.rbac(anyRole, s.handleFleetStatus))
@@ -302,8 +302,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/skills/{id}", s.rbac(manage, s.handleDeleteSkill))
 	mux.Handle("PUT /api/v1/skills/{id}/agents/{agentID}", s.rbac(manage, s.handleAssignSkill))
 	mux.Handle("DELETE /api/v1/skills/{id}/agents/{agentID}", s.rbac(manage, s.handleUnassignSkill))
-	mux.Handle("GET /api/v1/agents/{id}/skills", s.rbac(anyRole, s.handleAgentSkills))
-	mux.Handle("POST /api/v1/agents/{id}/skills", s.rbac(manage, s.handleCreateAgentSkill))
+	mux.Handle("GET /api/v1/agents/{id}/skills", s.agentScoped(anyRole, s.handleAgentSkills))
+	mux.Handle("POST /api/v1/agents/{id}/skills", s.agentScoped(manage, s.handleCreateAgentSkill))
 
 	// Vorlagen-Bibliothek.
 	mux.Handle("GET /api/v1/templates", s.rbac(anyRole, s.handleListTemplates))
@@ -434,6 +434,48 @@ func (s *Server) rbac(roles []string, next http.HandlerFunc) http.Handler {
 		}
 		writeErr(w, http.StatusForbidden, "rolle "+p.Role+" hat hier keine Rechte")
 	})
+}
+
+// agentScoped ist rbac PLUS der Nachweis, dass der Agent aus der URL zur
+// Organisation des Anrufers gehört. Jede Route unter /agents/{id}/… läuft
+// darüber.
+//
+// Der Grund für eine Middleware statt einer Zeile im Handler: Diese Prüfung
+// war zuvor Sache jedes einzelnen Handlers — und bei 25 von 67 schlicht
+// vergessen. Fremde Config, fremdes Backlog, fremdes Recording, fremde Kosten
+// waren damit lesbar, wake/kill/budget sogar auslösbar. Eine Grenze, an die
+// sich 67 Aufrufer erinnern müssen, ist keine Grenze; eine, an der man
+// vorbeikommen MUSS, schon.
+//
+// Der aufgelöste Agent liegt danach im Context — die Handler brauchen ihn
+// meist ohnehin und sparen sich die zweite Abfrage.
+func (s *Server) agentScoped(roles []string, next http.HandlerFunc) http.Handler {
+	return s.rbac(roles, func(w http.ResponseWriter, r *http.Request) {
+		id, err := uuid.Parse(r.PathValue("id"))
+		if err != nil {
+			writeErr(w, http.StatusBadRequest, "ungültige id")
+			return
+		}
+		p := principalFrom(r)
+		agent, err := s.Registry.Get(r.Context(), id)
+		// Fremd oder nicht vorhanden ist dieselbe Antwort: Ob es einen Agenten
+		// mit dieser ID irgendwo gibt, geht eine andere Organisation nichts an.
+		if err != nil || agent.OrgID != p.OrgID {
+			writeErr(w, http.StatusNotFound, "agent nicht gefunden")
+			return
+		}
+		next(w, r.WithContext(context.WithValue(r.Context(), agentKey, agent)))
+	})
+}
+
+// agentKey trägt den geprüften Agenten durch den Context.
+const agentKey ctxKey = "agent"
+
+// agentFrom liefert den von agentScoped geprüften Agenten. Nur in Handlern
+// gültig, die über agentScoped eingehängt sind.
+func agentFrom(r *http.Request) agents.Agent {
+	a, _ := r.Context().Value(agentKey).(agents.Agent)
+	return a
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {

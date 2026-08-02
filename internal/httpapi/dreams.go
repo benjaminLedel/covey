@@ -18,7 +18,22 @@ import (
 // Hintergrund und wird über die Historie verfolgt. Träumt der Agent schon,
 // kommt der laufende zurück statt eines zweiten — jeder Traum kostet einen
 // LLM-Aufruf.
+// dreamStore gibt den Traum-Store heraus oder beantwortet die Anfrage. Wie bei
+// den Skills ist er optional: Eine Instanz ohne konfigurierten Nachtlauf soll
+// mit 503 antworten und nicht mit einem Nil-Pointer-Absturz, der die ganze
+// Verbindung reißt.
+func (s *Server) dreamStore(w http.ResponseWriter) (*dream.Store, bool) {
+	if s.Dreams == nil {
+		writeErr(w, http.StatusServiceUnavailable, "träume sind in dieser Instanz nicht konfiguriert")
+		return nil, false
+	}
+	return s.Dreams, true
+}
+
 func (s *Server) handleStartDream(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.dreamStore(w); !ok {
+		return
+	}
 	id, err := parseID(r)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "ungültige id")
@@ -66,6 +81,9 @@ func (s *Server) handleStartDream(w http.ResponseWriter, r *http.Request) {
 // handleListDreams liefert die Traum-Historie: was der Agent in den letzten
 // Nächten mit seinem Gedächtnis gemacht hat, Handlung für Handlung.
 func (s *Server) handleListDreams(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.dreamStore(w); !ok {
+		return
+	}
 	id, err := parseID(r)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "ungültige id")
@@ -81,6 +99,9 @@ func (s *Server) handleListDreams(w http.ResponseWriter, r *http.Request) {
 
 // handleUndoDreamAction nimmt eine einzelne Handlung zurück.
 func (s *Server) handleUndoDreamAction(w http.ResponseWriter, r *http.Request) {
+	if _, ok := s.dreamStore(w); !ok {
+		return
+	}
 	actionID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "ungültige id")

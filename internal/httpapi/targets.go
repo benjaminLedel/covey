@@ -60,23 +60,10 @@ type agentSystem struct {
 
 // handleAgentSystems liefert die Zielsysteme aus der Sicht eines Agenten.
 func (s *Server) handleAgentSystems(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
-		return
-	}
+	// agentScoped hat den Agenten bereits aufgelöst und die Organisation geprüft.
+	id := agentFrom(r).ID
 	p := principalFrom(r)
 	ctx := r.Context()
-
-	agent, err := s.Registry.Get(ctx, id)
-	if err != nil {
-		mapErr(w, err)
-		return
-	}
-	if agent.OrgID != p.OrgID {
-		writeErr(w, http.StatusNotFound, "agent nicht gefunden")
-		return
-	}
 
 	plugins, err := s.Targets.List(ctx, p.OrgID)
 	if err != nil {

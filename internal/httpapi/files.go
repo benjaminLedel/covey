@@ -330,21 +330,9 @@ func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
 // agentFS löst den Agenten aus der URL auf, prüft die Organisation und öffnet
 // sein Home. Bei jedem Fehlschlag ist die Antwort bereits geschrieben.
 func (s *Server) agentFS(w http.ResponseWriter, r *http.Request) (*sandboxfs.FS, uuid.UUID, bool) {
-	id, err := parseID(r)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
-		return nil, uuid.Nil, false
-	}
-	p := principalFrom(r)
-	agent, err := s.Registry.Get(r.Context(), id)
-	if err != nil {
-		mapErr(w, err)
-		return nil, uuid.Nil, false
-	}
-	if agent.OrgID != p.OrgID {
-		writeErr(w, http.StatusNotFound, "agent nicht gefunden")
-		return nil, uuid.Nil, false
-	}
+	// Der Agent kommt geprüft aus agentScoped — ID und Organisation sind dort
+	// schon abgeglichen.
+	id := agentFrom(r).ID
 	if s.Orch == nil {
 		writeErr(w, http.StatusServiceUnavailable, "dateizugriff nicht verfügbar")
 		return nil, uuid.Nil, false
