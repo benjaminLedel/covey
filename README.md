@@ -237,6 +237,7 @@ All runbooks are in German.
 | [`spec/13-zammad-integration.md`](spec/13-zammad-integration.md) | Target system Zammad: wake via webhook, REST actions, `blocked`↔`pending` |
 | [`spec/14-companion-gedaechtnis.md`](spec/14-companion-gedaechtnis.md) | Companion: brain dump & context from what the humans know |
 | [`spec/15-teams-integration.md`](spec/15-teams-integration.md) | Microsoft Teams as a target system: OAuth2/JWT, chat as the channel |
+| [`spec/16-runner.md`](spec/16-runner.md) | Distributed data plane: registered runners, the central home store, sandbox images per agent |
 
 </details>
 
@@ -247,3 +248,9 @@ All runbooks are in German.
 ## Contributing
 
 Changes to concept and architecture go through the spec: proposals as a merge request against [`spec/`](spec/), open points discussed in [`spec/07-offene-entscheidungen.md`](spec/07-offene-entscheidungen.md). For code, the build order from the MVP plan applies — thinnest vertical slice first, `builtin` as the default, interface before implementation.
+
+## License
+
+Covey is free software under the [GNU Affero General Public License v3.0](LICENSE). You may run it, study it, modify it and pass it on. The one obligation that matters in practice: if you offer a modified Covey to others over a network, those users must be able to get your modified source under the same terms.
+
+Self-hosting Covey inside your own organisation triggers nothing — running it, however you have configured it, is simply using the software.

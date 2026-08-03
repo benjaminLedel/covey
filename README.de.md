@@ -235,6 +235,7 @@ Exit-Code 1 bei Befunden, damit ein Upgrade-Skript darauf reagieren kann. Geänd
 | [`spec/13-zammad-integration.md`](spec/13-zammad-integration.md) | Zielsystem Zammad: Wake via Webhook, REST-Aktionen, `blocked`↔`pending` |
 | [`spec/14-companion-gedaechtnis.md`](spec/14-companion-gedaechtnis.md) | Companion: Brain-Dump & Kontext aus dem Wissen der Menschen |
 | [`spec/15-teams-integration.md`](spec/15-teams-integration.md) | Microsoft Teams als Zielsystem: OAuth2/JWT, Chat als Kanal |
+| [`spec/16-runner.md`](spec/16-runner.md) | Verteilte Data Plane: registrierte Runner, der zentrale Home-Store, Sandbox-Images pro Agent |
 
 </details>
 
@@ -245,3 +246,9 @@ Exit-Code 1 bei Befunden, damit ein Upgrade-Skript darauf reagieren kann. Geänd
 ## Mitwirken
 
 Änderungen an Konzept und Architektur gehen über die Spec: Vorschläge als Merge Request gegen [`spec/`](spec/), Diskussion offener Punkte in [`spec/07-offene-entscheidungen.md`](spec/07-offene-entscheidungen.md). Für Code gilt die Bau-Reihenfolge aus dem MVP-Plan — dünnster vertikaler Durchstich zuerst, `builtin` als Default, Interface vor Implementierung.
+
+## Lizenz
+
+Covey ist freie Software unter der [GNU Affero General Public License v3.0](LICENSE). Du darfst sie betreiben, studieren, verändern und weitergeben. Die eine Pflicht, die in der Praxis zählt: Wer ein *verändertes* Covey anderen über ein Netzwerk anbietet, muss diesen Nutzern seinen geänderten Quellcode unter denselben Bedingungen zugänglich machen.
+
+Covey im eigenen Unternehmen selbst zu hosten, löst nichts davon aus — es zu betreiben, wie auch immer konfiguriert, ist schlicht Benutzung.
