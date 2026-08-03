@@ -12,7 +12,7 @@ import ProductCovey from "./ProductCovey";
 import ProductCompanion from "./ProductCompanion";
 import Docs from "./Docs";
 import Head from "./Head";
-import { usePublicLang } from "./lang";
+import { usePublicLang, useSprachwahlFolgen } from "./lang";
 import { LANGS, PAGE_ROUTES, pathOf } from "./seo";
 
 /* Impressum & Datenschutz — Anschrift/E-Mail sind Platzhalter, die der
@@ -115,6 +115,7 @@ export default function PublicSite({ onLogin }: { onLogin: () => void }) {
   const lang = usePublicLang();
   const [legal, setLegal] = useState<"imprint" | "privacy" | null>(null);
   useReveal(loc.pathname);
+  useSprachwahlFolgen();
 
   // Bei jedem Seitenwechsel nach oben scrollen.
   useEffect(() => {
