@@ -91,15 +91,19 @@ func (s *Server) handleTargetWebhook(w http.ResponseWriter, r *http.Request) {
 // den Agenten. Verwaltung über /api/v1/agents/{id}/webhook (Manager-Rollen).
 
 // webhookView ist die Verwaltungs-Sicht: aktiviert ja/nein, Token und die
-// fertige Trigger-URL (absolut, wenn PublicURL konfiguriert ist).
-func (s *Server) webhookView(a agents.Agent) map[string]any {
+// fertige Trigger-URL.
+//
+// Die Adresse kommt aus dem Request und nicht aus PublicURL: Diese URL soll
+// jemand kopieren und in ein Fremdsystem eintragen — sie muss also von AUSSEN
+// erreichbar sein. PublicURL ist die Adresse, unter der die Sandboxen die
+// Control Plane erreichen, oft ein Loopback; die hier anzuzeigen wäre schlicht
+// falsch. Der Request kommt aus dem Browser des Betreibers, trägt damit genau
+// die Adresse, unter der er die Instanz erreicht — und das ist die gesuchte.
+func (s *Server) webhookView(r *http.Request, a agents.Agent) map[string]any {
 	if a.WebhookToken == nil {
 		return map[string]any{"enabled": false}
 	}
-	url := "/api/trigger/" + *a.WebhookToken
-	if s.PublicURL != "" {
-		url = strings.TrimSuffix(s.PublicURL, "/") + url
-	}
+	url := s.origin(r) + "/api/trigger/" + *a.WebhookToken
 	return map[string]any{"enabled": true, "token": *a.WebhookToken, "url": url}
 }
 
@@ -115,7 +119,7 @@ func (s *Server) handleGetAgentWebhook(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, s.webhookView(agent))
+	writeJSON(w, http.StatusOK, s.webhookView(r, agent))
 }
 
 // handleEnableAgentWebhook — POST /api/v1/agents/{id}/webhook:
@@ -138,7 +142,7 @@ func (s *Server) handleEnableAgentWebhook(w http.ResponseWriter, r *http.Request
 		mapErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, s.webhookView(agent))
+	writeJSON(w, http.StatusOK, s.webhookView(r, agent))
 }
 
 // handleDisableAgentWebhook — DELETE /api/v1/agents/{id}/webhook.

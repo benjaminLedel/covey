@@ -92,12 +92,17 @@ In GitLab unter **Settings → CI/CD → Variables**:
 > scheitern dann mit `daemon hat sich nicht verbunden (timeout 1m0s)`.
 > Der Wert muss **von der Sandbox aus** erreichbar sein, sonst nichts.
 
-Die Adresse der öffentlichen Website ist davon getrennt: `COVEY_SITE_URL`. Sie
-füllt `canonical`, `hreflang`, `sitemap.xml` und `robots.txt`. **Leer lassen ist
-der Normalfall** — dann leitet der Server sie aus dem Request ab (Host-Header
-plus `X-Forwarded-Proto`), was hinter einem sauber konfigurierten Reverse-Proxy
-genau das Richtige tut. Setzen nur, wenn der Proxy die Herkunft nicht
-durchreicht und in der Sitemap sonst `http://` oder ein interner Name landet.
+Alles, was diese Instanz **nach außen** adressiert, hängt dagegen an
+`COVEY_SITE_URL`: `canonical`, `hreflang`, `sitemap.xml`, `robots.txt`, die
+Webhook- und Trigger-URLs zum Kopieren und die Ziel-URL im herunterladbaren
+Skill. **Leer lassen ist der Normalfall** — dann leitet der Server die Adresse
+aus dem Request ab (Host-Header plus `X-Forwarded-Proto`). Da die Oberfläche
+unter der richtigen Domain aufgerufen wird, stimmen die angezeigten URLs damit
+von selbst. Setzen nur, wenn der Reverse-Proxy die Herkunft nicht durchreicht
+und in der Sitemap sonst `http://` oder ein interner Name landet.
+
+Kurz: `COVEY_PUBLIC_URL` zeigt **nach innen** (zu den Sandboxen),
+`COVEY_SITE_URL` zeigt **nach außen** (zu Besuchern und Fremdsystemen).
 
 Registry-Login läuft automatisch über die eingebauten `$CI_REGISTRY_*`.
 

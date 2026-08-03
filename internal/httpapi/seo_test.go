@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"testing/fstest"
+
+	"covey/internal/agents"
 )
 
 // testDist baut ein dist/ nach, wie es web/prerender.mjs erzeugt: eine
@@ -158,9 +160,8 @@ func TestOriginPlatzhalterWirdErsetzt(t *testing.T) {
 		t.Fatalf("Canonical trägt nicht die konfigurierte Adresse: %s", body)
 	}
 
-	// Ohne COVEY_PUBLIC_URL kommt die Adresse aus dem Request.
-	ohne := &Server{WebFS: testDist()}
-	ohne.seo = ladeSEOIndex(ohne.WebFS)
+	// Ohne Konfiguration kommt die Adresse aus dem Request.
+	ohne := testServerOhneSiteURL()
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Host = "covey.intern:8494"
@@ -171,26 +172,46 @@ func TestOriginPlatzhalterWirdErsetzt(t *testing.T) {
 	}
 }
 
-// PublicURL ist die Adresse, über die Sandboxen die Control Plane erreichen —
-// beim docker-Provider typischerweise ein Loopback. Sie darf die Adressen der
-// Website nicht bestimmen: Sonst kann niemand die eine setzen, ohne die andere
-// zu verstellen. Genau das ist einmal passiert und hat die Data Plane
-// stillgelegt.
-func TestWebsiteAdresseHaengtNichtAnPublicURL(t *testing.T) {
-	s := &Server{WebFS: testDist(), PublicURL: "http://localhost:8494"}
-	s.seo = ladeSEOIndex(s.WebFS)
+// Alles, was eine Adresse dieser Instanz nach außen gibt, leitet sie aus dem
+// Request ab: die Website, die Trigger-URL zum Kopieren, die Ziel-URL im Skill.
+// Der Anlass ist ein Ausfall — solange all das an COVEY_PUBLIC_URL hing, konnte
+// niemand die nach außen sichtbare Adresse richtig stellen, ohne die Adresse zu
+// verstellen, über die die Sandboxen zurückverbinden. Am Ende stand eine
+// Instanz mit korrekten Webhook-URLs und einer toten Data Plane.
+//
+// Dass PublicURL hier nicht mehr hineinreicht, hält inzwischen der Compiler
+// fest: httpapi.Server kennt das Feld nicht mehr. Dieser Test deckt die andere
+// Hälfte ab — dass die Ableitung aus dem Request auch stimmt.
+func TestExterneAdressenKommenAusDemRequest(t *testing.T) {
+	s := testServerOhneSiteURL()
 
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.Host = "covey.example"
-	req.Header.Set("X-Forwarded-Proto", "https")
-	s.spaHandler(s.WebFS).ServeHTTP(rec, req)
-
-	if strings.Contains(rec.Body.String(), "localhost:8494") {
-		t.Fatalf("PublicURL steht in den Adressen der Website:\n%s", rec.Body.String())
+	anfrage := func(pfad string) *http.Request {
+		req := httptest.NewRequest(http.MethodGet, pfad, nil)
+		req.Host = "covey.example"
+		req.Header.Set("X-Forwarded-Proto", "https")
+		return req
 	}
-	if !strings.Contains(rec.Body.String(), "https://covey.example/") {
-		t.Fatalf("Adresse nicht aus dem Request abgeleitet:\n%s", rec.Body.String())
+
+	// Website.
+	rec := httptest.NewRecorder()
+	s.spaHandler(s.WebFS).ServeHTTP(rec, anfrage("/"))
+	if !strings.Contains(rec.Body.String(), `href="https://covey.example/"`) {
+		t.Fatalf("Canonical nicht aus dem Request:\n%s", rec.Body.String())
+	}
+
+	// Trigger-URL — die kopiert jemand in ein Fremdsystem; eine interne
+	// Adresse wäre dort wertlos.
+	token := "geheim"
+	view := s.webhookView(anfrage("/api/v1/agents/x/webhook"), agents.Agent{WebhookToken: &token})
+	if got := view["url"]; got != "https://covey.example/api/trigger/geheim" {
+		t.Fatalf("Trigger-URL = %v", got)
+	}
+
+	// Und mit gesetzter SiteURL gewinnt die Konfiguration.
+	s.SiteURL = "https://covey.beispiel.de"
+	view = s.webhookView(anfrage("/api/v1/agents/x/webhook"), agents.Agent{WebhookToken: &token})
+	if got := view["url"]; got != "https://covey.beispiel.de/api/trigger/geheim" {
+		t.Fatalf("SiteURL sticht den Request nicht: %v", got)
 	}
 }
 
@@ -227,4 +248,10 @@ func TestRobotsUndSitemap(t *testing.T) {
 	if strings.Contains(sitemap, "/anmelden") {
 		t.Fatalf("sitemap.xml enthält die Anmeldeseite:\n%s", sitemap)
 	}
+}
+
+func testServerOhneSiteURL() *Server {
+	s := &Server{WebFS: testDist()}
+	s.seo = ladeSEOIndex(s.WebFS)
+	return s
 }

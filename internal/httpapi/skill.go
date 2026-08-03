@@ -25,14 +25,10 @@ import (
 func (s *Server) handleDownloadSkill(w http.ResponseWriter, r *http.Request) {
 	const skillDir = "covey-agent"
 
-	base := strings.TrimRight(s.PublicURL, "/")
-	if base == "" {
-		scheme := "http"
-		if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-			scheme = "https"
-		}
-		base = scheme + "://" + r.Host
-	}
+	// Dieselbe Ableitung wie für Website und Webhook-URLs (seo.go): Der Skill
+	// wird auf einem fremden Rechner ausgeführt und muss die Instanz von außen
+	// erreichen — nicht unter der Adresse, über die Sandboxen zurückverbinden.
+	base := s.origin(r)
 	header := fmt.Sprintf("> **Diese Covey-Instanz:** `COVEY_URL=%s`\n"+
 		"> Dieser Skill wurde von obiger Instanz geladen — nutze diese URL als Standard-Ziel\n"+
 		"> für „live anlegen\"/Update (Workflow D). Auth (Token/Session) erfragst du beim Nutzer.\n\n",

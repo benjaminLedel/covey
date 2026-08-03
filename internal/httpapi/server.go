@@ -81,12 +81,15 @@ type Server struct {
 	// (ENV COVEY_<SYSTEM>_WEBHOOK_SECRET, z. B. COVEY_ZAMMAD_WEBHOOK_SECRET).
 	WebhookSecrets map[string]string
 	SessionTTL     time.Duration
-	// PublicURL füllt den {public_url}-Platzhalter in den Einrichtungs-
-	// Anleitungen der Zielsystem-Plugins (Webhook-Endpunkte).
-	PublicURL string
-	// SiteURL ist die Adresse der öffentlichen Website (canonical, hreflang,
-	// sitemap.xml). Leer = aus dem Request ableiten. Getrennt von PublicURL,
-	// weil die eine nach außen zeigt und die andere zu den Sandboxen.
+	// SiteURL ist die von außen erreichbare Adresse dieser Instanz: canonical
+	// und sitemap.xml der Website, die Webhook- und Trigger-URLs zum Kopieren,
+	// die Ziel-URL im herunterladbaren Skill. Leer = aus dem Request ableiten
+	// (origin() in seo.go), was hinter einem sauberen Reverse-Proxy genügt.
+	//
+	// cfg.PublicURL steht hier bewusst NICHT: Das ist die Adresse, über die
+	// Sandboxen die Control Plane erreichen — beim docker-Provider meist ein
+	// Loopback. Sie in einer HTTP-Antwort zu zeigen wäre immer falsch, und
+	// solange sie dem Server gar nicht bekannt ist, kann es auch nicht passieren.
 	SiteURL string
 	// CookieSecure setzt das Secure-Flag auf dem Session-Cookie (HTTPS-only).
 	CookieSecure bool

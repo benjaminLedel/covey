@@ -680,7 +680,6 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Orch:   orch, WebFS: dist, Log: log,
 		WebhookSecrets: cfg.WebhookSecrets,
 		SessionTTL:     cfg.SessionTTL,
-		PublicURL:      cfg.PublicURL,
 		SiteURL:        cfg.SiteURL,
 		CookieSecure:   cfg.CookieSecure,
 		EgressStore:    egressStore,

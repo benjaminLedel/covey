@@ -13,7 +13,7 @@ import (
 // Dateien unter covey-agent/, und die Basis-URL der Instanz wird in die SKILL.md
 // eingespritzt (damit der geladene Skill gegen DIESE Instanz arbeitet).
 func TestDownloadSkill(t *testing.T) {
-	s := &Server{PublicURL: "https://covey.example.test"}
+	s := &Server{SiteURL: "https://covey.example.test"}
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/api/v1/skills/covey-agent.zip", nil)
 
