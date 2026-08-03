@@ -75,6 +75,7 @@ Ein Runner ohne Verbindung ist **offline**, nicht gelöscht — die Unterscheidu
 |---|---|
 | `start_sandbox` | Sandbox starten: Agent-ID, Image, Home-Kennung, Env (`COVEY_WS_URL`, `COVEY_DAEMON_TOKEN`, Egress-Token) |
 | `stop_sandbox` | Compute herunterfahren; das Home bleibt |
+| `sync_home` | Home als Snapshot in den Store schreiben — regulär nach dem Job, außerdem erzwingbar (Wartung, Runner-Abbau) |
 | `home_op` | Dateizugriff auf ein Home: auflisten, lesen, schreiben, löschen (siehe Dateizugriff) |
 | `set_allowlist` | Egress-Allowlist für den lokalen Proxy des Runners aktualisieren |
 | `prune` | Verwaiste Container und Homes gelöschter Agenten aufräumen |
@@ -86,6 +87,7 @@ Ein Runner ohne Verbindung ist **offline**, nicht gelöscht — die Unterscheidu
 | `registered` | Capabilities, Tags, Version — die erste Nachricht nach dem Verbinden |
 | `sandbox_started` / `sandbox_failed` | Ergebnis eines `start_sandbox` (der `ready`-Beweis kommt weiterhin vom Daemon selbst) |
 | `sandbox_exited` | Die Sandbox ist von sich aus beendet (Absturz, OOM) — die Control Plane erfährt es, ohne auf den Daemon-Timeout zu warten |
+| `home_synced` | Snapshot geschrieben: Kennung, übertragene Blöcke, Gesamtgröße — erst danach darf lokal aufgeräumt werden |
 | `home_result` | Antwort auf `home_op` |
 | `capacity` | Laufende Sandboxen, freier Platz — Grundlage für Scheduling und Warnungen |
 | `heartbeat` | Lebenszeichen |
@@ -105,52 +107,68 @@ Der Schein trügt. Ein vermessenes Entwickler-Home (7,1 GB) besteht fast vollst�
 | `wiki/`, `.claude/skills/` | wenige MB | die Control Plane (bereits zentral) |
 | **alles Übrige** | **48 MB** | *nirgends* |
 
-**Rund 7,05 der 7,1 GB sind ableitbar oder zentral geführt.** Das Home ist damit kein kostbarer Zustand, sondern zu über 99 % ein **Cache** — und das ändert die Antwort auf die Runner-Frage grundlegend.
+Die Tabelle zeigt zweierlei. Erstens: **Fast nichts darin ist einzigartig.** Die 4 GB Toolchain-Caches sind auf jedem Entwickler-Home byteweise dieselben, und selbst Checkouts überschneiden sich zwischen Agenten am selben Projekt. Zweitens: Der wirklich einzigartige Teil ist mit 48 MB winzig — und er liegt **quer im Home verstreut**. Neben den 30 MB Session-Transkripten finden sich dort `useSevenAssistant.ts` (95 KB extrahierter Code), `panel.json`, `subagent-223.json`, `fix223/`, `verify-729/` — direkt im Wurzelverzeichnis, nicht in einem dafür vorgesehenen Ordner. Ein Agent legt seine Zwischenstände, Auswertungen und selbstgeschriebenen Helfer dort ab, wo es ihm im Lauf sinnvoll erscheint. Sein Home ist sein Arbeitsplatz, kein Formular.
 
-### Erhalten ist die Voreinstellung
+Daraus folgt, was **nicht** funktioniert: eine Liste. Weder eine Positivliste („sichere `work/` und `uploads/`") noch eine Negativliste („verwirf, was das Image-Profil als Cache kennt") überlebt den Kontakt mit einem Agenten, der sich morgen ein Verzeichnis `analyse/` anlegt. Jede Liste ist eine Regel, die falsch sein kann, und ihr Fehler kostet Arbeit, die schon bezahlt wurde.
 
-Die letzte Zeile der Tabelle heißt bewusst „alles Übrige" und nicht `work/` und `uploads/`. Der Grund steht im vermessenen Home: Neben den 30 MB Session-Transkripten liegen dort `useSevenAssistant.ts` (95 KB extrahierter Code), `panel.json`, `subagent-223.json`, `fix223/`, `verify-729/` — **quer im Home verstreut, nicht in einem dafür vorgesehenen Ordner.** Ein Agent legt seine Zwischenstände, Notizen, Auswertungen und selbstgeschriebenen Helfer dort ab, wo es ihm im Lauf sinnvoll erscheint, und das ist richtig so: Sein Home ist sein Arbeitsplatz, kein Formular.
+### Der zentrale Home-Store
 
-Daraus folgt die Regel, und ihre Richtung ist das Entscheidende:
+**Entschieden: Nach jedem Job wird das Home als Ganzes in einen zentralen Store gesynct und beim Wake von dort materialisiert.** Kein Whitelisting, keine Negativliste, keine Prüfung, ob ein Checkout sauber ist — das Home geht vollständig hinein und vollständig heraus. Die Frage „was ist wertvoll?" wird damit gar nicht erst gestellt.
 
-> **Aufgezählt wird, was verworfen werden darf — nicht, was gesichert wird.**
+Praktikabel wird das durch die Bauform des Stores — **inhaltsadressiert und blockweise dedupliziert**:
 
-Eine Positivliste („sichere `work/` und `uploads/`") würde genau die Dateien oben verlieren, und zwar **stillschweigend**: Ein Agent, der sich morgen ein Verzeichnis `analyse/` anlegt, stünde nicht darauf. Bei einer Negativliste ist der unbekannte Neuzugang automatisch geschützt; ein Fehler in der Liste kostet Platz, nicht Arbeit.
+- Jede Datei zerfällt in Blöcke, der Block-Hash ist sein Schlüssel. Gleicher Inhalt heißt **ein** Block, org-weit über alle Agenten und alle Snapshots hinweg.
+- Nach dem Job wandern nur die **neuen** Blöcke nach oben. Ein typischer Lauf verändert Megabytes an einem 7-GB-Home.
+- Beim Wake kommen nur die **fehlenden** Blöcke herunter; was der Runner lokal schon hat, bleibt liegen.
+- Ein Snapshot pro Job. Historie und Rollback („das Home von vorgestern") fallen als Nebenprodukt ab.
 
-Verworfen werden darf nur, was das **Image-Profil** als ableitbar ausweist (D11 — das Profil kennt seine Toolchains und damit deren Cache-Pfade): `.gradle`, `.pub-cache`, `.npm`, `.dartServer`, `flutter`, `jdk` und dergleichen. Was das Profil nicht kennt, wird gesichert.
+Der Effekt auf die gemessenen Zahlen ist der eigentliche Punkt: Die 4 GB Toolchain-Caches liegen zentral **einmal**, nicht einmal pro Agent — dedupliziert genau deshalb, weil sie überall identisch sind. Und die 48 MB einzigartiger Arbeit sind mitgesichert, **ohne dass irgendwo notiert werden musste, dass es sie gibt**.
 
-`repos/` ist dabei der eine heikle Fall. Ein Checkout ist **nur dann** ableitbar, wenn der Arbeitsbaum sauber und alles gepusht ist. Ein Agent, der mitten in einer Änderung einschläft, hat unveröffentlichte Arbeit im Checkout liegen — die zählt zum Rest und wird gesichert. Der Runner prüft das, bevor er ein Repo als verwerfbar behandelt; im Zweifel behält er es.
+Damit erledigen sich drei Sorgen auf einmal: Die Session-Transkripte reisen automatisch mit (ein geparkter Agent behält seinen `--resume`-Faden, wo immer er aufwacht, [`12-claude-code-adapter.md`](12-claude-code-adapter.md)); unveröffentlichte Änderungen in einem Checkout sind kein Sonderfall mehr; und selbstgeschriebene Werkzeuge brauchen keine Regel, die sie schützt.
 
-### Zentral geführt, ins Home materialisiert
+### Cache für die Masse, einzige Kopie für den Rest
 
-Für den wertvollen Rest ist das Muster in Covey **bereits gebaut**: Das Wiki liegt in Postgres und wird zu Aufgabenbeginn als `~/wiki/*.md` materialisiert, am Aufgabenende zurückgesynct ([`05-gedaechtnis.md`](05-gedaechtnis.md), „hybride Speicherung"); die Skills desselbe nach `~/.claude/skills/`. Die Control Plane ist dort längst die Quelle der Wahrheit, das Home nur die Arbeitskopie.
+Der Store heißt „Cache", und für 99 % seines Inhalts stimmt das: Ginge er verloren, würden Toolchains neu geladen und Repos neu geklont — ärgerlich, nicht tragisch. Für die 48 MB stimmt es **nicht**. Sie existieren nirgends sonst.
 
-**Entschieden ist, dieses Muster auf den Rest auszudehnen** (D12): Die 48 MB, die keine Quelle haben, werden zentral geführt und beim Wake ins Home geholt — als Ganzes, nach der Negativliste oben, nicht als Auswahl einzelner Ordner.
+Daraus folgt eine Betriebsregel, die man nicht überlesen darf: **Der Home-Store ist sicherungspflichtig wie die Datenbank.** Ihn als reinen Cache zu behandeln — beliebig löschbar, kein Backup — wäre genau der Datenverlust, den die ganze Konstruktion verhindern soll. Er ist ein Cache in seiner *Funktion*, nicht in seiner *Schutzwürdigkeit*.
 
-Zwei Anteile darin verdienen eine eigene Erwähnung:
+### Ausschlüsse sind Optimierung, nicht Politik
 
-- **Session-Transkripte** (30 der 48 MB). Sie sind das Einzige, was eine *blockierte* Aufgabe wirklich an einen Host fesselt: Die Session-ID liegt in der DB (`RuntimeSessionID`), das für `--resume` nötige Transkript aber nur im Home ([`12-claude-code-adapter.md`](12-claude-code-adapter.md)). Ohne sie verliert ein geparkter Agent seinen Faden, sobald er woanders aufwacht.
-- **Selbstgeschriebene Werkzeuge und Zwischenstände.** Skripte, Auswertungen, extrahierter Code — das Ergebnis von Arbeit, die schon bezahlt ist. Sie sind nirgends reproduzierbar und dürfen unter keinen Umständen einem Aufräumlauf zum Opfer fallen.
+Einzelne Pfade vom Sync auszunehmen bleibt sinnvoll — reine Analyse-Caches wie `.dartServer` (317 MB) etwa gewinnen durch Dedup wenig und ändern sich ständig. Der Unterschied zum verworfenen Listen-Ansatz ist die **Rolle** der Liste:
 
-Nicht zentral geführt wird, was eine Quelle hat: **Checkouts** klont der Runner neu (das ist der Zweck eines Git-Remotes), **Caches und SDKs** baut er nach dem Pin im Projekt-Repo wieder auf („Version → Home, Toolchain → Image", D11). Beides zentral zu spiegeln hieße, ein Remote und einen Paket-Mirror nachzubauen.
+- Vorher war ihre Vollständigkeit **Voraussetzung für Korrektheit**. Ein vergessener Pfad hieß Datenverlust.
+- Jetzt ist sie eine **Kostenfrage**. Die Voreinstellung ist leer: Ohne Konfiguration wird alles gesynct.
 
-> **Warum nicht das ganze Home als Git-Repo?** Naheliegend, aber es passt nur auf den kuratierten Textteil — und der ist das Wiki, das bereits zentral liegt. `repos/` sind selbst Git-Checkouts (verschachtelte Repos, plus Duplizierung eines existierenden Remotes), Caches und SDKs haben in einer Versionsgeschichte nichts verloren, und die Transkripte sind append-only JSONL, an dem Git aufbläht, ohne dass je jemand einen Diff liest. Das Wiki *mit* Git-Historie zu unterlegen bleibt eine attraktive, eigenständige Idee — sie beantwortet aber die Runner-Frage nicht und ist hier bewusst nicht mitentschieden.
+Ausschlüsse gelten deshalb nur für nachweislich ableitbare Pfade, und im Zweifel wird gesynct. Ein falsch gesetzter Ausschluss kostet dann immer noch etwas — nur muss ihn jemand ausdrücklich gesetzt haben, statt ihn zu vergessen.
+
+### Was das kostet
+
+Ehrlich zu nennen, weil es nicht gratis ist:
+
+- **Der erste Sync** eines gewachsenen Entwickler-Homes ist ein voller Durchgang — 7 GB. Danach Deltas.
+- **Der Sleep-Pfad wird länger.** Der Sync läuft beim echten Einschlafen, nicht beim Parken einer warmen Sandbox — die warme Session ([`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)) bleibt davon unberührt.
+- **Ein Speicher für Blöcke.** Postgres ist für GB-große Binärdaten der falsche Ort. Nach „batteries included, but swappable" ([`10-architektur-stack.md`](10-architektur-stack.md)): Voreinstellung ein Verzeichnis neben `data/homes`, ein Objektspeicher (S3/MinIO) zuschaltbar. Das ist eine echte Erweiterung der Betriebsfläche gegenüber „ein Binary + Postgres" und soll nicht kleingeredet werden.
+- **Aufräumen.** Snapshots häufen sich; ohne Retention (die letzten N plus den letzten erfolgreichen) wächst der Store unbegrenzt.
+
+> **Warum nicht Git als Transport?** Naheliegend, aber Git passt nur auf den kuratierten Textteil. `repos/` sind selbst Git-Checkouts (verschachtelte Repos plus Duplizierung eines existierenden Remotes), Caches und SDKs haben in einer Versionsgeschichte nichts verloren, und die Transkripte sind append-only JSONL, an dem Git aufbläht, ohne dass je ein Diff gelesen wird. Was Git hier attraktiv macht — Dedup und Historie — liefert der inhaltsadressierte Store ohnehin, und zwar ohne diese Nachteile. Das Wiki *mit* Git-Historie zu unterlegen bleibt eine eigenständig attraktive Idee, ist hier aber nicht mitentschieden.
 
 ### Affinität als Präferenz, nicht als Bindung
 
-Ist das Home vollständig wiederherstellbar, wird die Bindung an einen Runner von einer *Voraussetzung* zu einer *Optimierung*. Der Unterschied ist der Ausfall:
+Ist das Home aus dem Store wiederherstellbar, wird die Bindung an einen Runner von einer *Voraussetzung* zu einer *Optimierung*. Der Unterschied zeigt sich am Ausfall:
 
-- **Präferenz:** Der Scheduler bevorzugt den Runner, auf dem der Agent zuletzt lief — dort liegen Checkouts und Caches warm. Ist er weg, läuft der Agent woanders an, mit einem kalten Home.
-- Der Preis eines kalten Starts ist real und soll nicht kleingeredet werden: 3 GB neu klonen plus 4 GB SDKs und Pakete. Ein Flutter-Agent braucht auf einem frischen Runner Minuten, bevor er die erste Zeile liest.
-- Aber er ist **Zeit, nicht Datenverlust** — und das ist der ganze Unterschied. Ein Runner-Ausfall macht einen Agenten langsam, nicht arbeitsunfähig.
+- **Präferenz:** Der Scheduler bevorzugt den Runner, auf dem der Agent zuletzt lief — dort liegen dessen Blöcke schon lokal, das Materialisieren ist fast umsonst.
+- **Auf einem anderen Runner** holt er nur die Blöcke, die dort fehlen. Das ist deutlich weniger als ein kalter Start im ursprünglichen Sinn: Nichts wird neu geklont oder aus dem Internet gezogen, es kommt aus dem eigenen Store — und alles, was andere Agenten dort schon abgelegt haben, ist bereits da.
+- Der schlimmste Fall bleibt ein **frischer** Runner ohne einen einzigen Block. Dann ist es ein voller Transfer, und ein Flutter-Agent braucht Minuten, bevor er die erste Zeile liest. Aber das ist **Zeit, nicht Datenverlust** — und es trifft den ersten Agenten auf einer neuen Maschine, nicht jeden Wechsel.
 
-Das Home eines Agenten auf einem Runner ist damit ein **verwerfbarer Arbeitsbestand** — mit der Betonung auf dem, was die Negativliste als verwerfbar ausweist. Der Runner darf bei Platzmangel aufräumen (`prune`), aber nur die ableitbaren Anteile, und ein neu aufgesetzter Runner braucht keine Datenübernahme. Für die 48 MB gilt das Gegenteil: **Sie werden nie lokal weggeräumt, bevor sie zentral angekommen sind.** Ein `prune`, der einem Agenten seine selbstgeschriebenen Werkzeuge nimmt, wäre kein Aufräumen, sondern Arbeitsvernichtung.
+Das Home auf einem Runner ist damit ein **echter Arbeitsbestand ohne Sonderregeln**: Der Runner darf ihn bei Platzmangel vollständig wegräumen (`prune`), sobald der Sync durch ist — es gibt nichts darin, das nicht im Store läge. Die einzige harte Regel lautet: **Kein `prune` vor erfolgreichem Sync.** Ein neu aufgesetzter Runner braucht keine Datenübernahme.
 
 Die Präferenz ist dabei **klebrig, aber ohne Rückkehr-Automatik**: Fällt ein Runner aus, wandern seine Agenten auf einen anderen und *bleiben dort*. Kommt der alte zurück, wird nicht zurückmigriert — sonst folgt auf die Ausfallwelle eine zweite Welle kalter Starts. Der Ausgleich passiert von selbst beim nächsten ohnehin kalten Start.
 
-## Warmup: warm ist der Runner, nicht das Paar
+## Warmup: der lokale Blockspeicher
 
-Ein fester Runner allein macht das Warmup nicht warm genug. Der Grund steht im heutigen Provider: Eine Sandbox hat **genau einen Mount** — ihr eigenes Home. Damit ist jeder Cache privat, obwohl kein Byte daran agentenspezifisch ist:
+Warmup braucht **keinen eigenen Mechanismus** — es fällt aus dem Store ab, sobald der Runner die geholten Blöcke lokal behält statt sie wegzuwerfen. Ein Block gehört keinem Agenten: Er ist durch seinen Hash bestimmt, und wer denselben Inhalt braucht, bekommt denselben Block.
+
+Das trifft genau die Verschwendung, die heute unvermeidbar ist. Eine Sandbox hat aktuell **einen einzigen Mount**, ihr eigenes Home — jeder Cache ist privat, obwohl kein Byte daran agentenspezifisch ist:
 
 | | Größe im vermessenen Home | agentenspezifisch? |
 |---|---|---|
@@ -160,31 +178,22 @@ Ein fester Runner allein macht das Warmup nicht warm genug. Der Grund steht im h
 | `.npm` | 402 MB | nein |
 | `jdk` | 346 MB | nein |
 
-Zwei Entwickler-Agenten auf demselben Runner halten heute zweimal dieselben 4 GB; fünf halten 20 GB. Und ein **neuer** Agent lädt auf einem Runner, der diese Pakete längst hundertfach liegen hat, alles erneut — weil er sie nicht sehen kann.
+Zwei Entwickler-Agenten auf demselben Host halten heute zweimal dieselben 4 GB; fünf halten 20 GB. Mit blockweiser Deduplizierung liegen sie **einmal** im lokalen Speicher des Runners — und der zweite Agent materialisiert sein Home daraus, ohne ein Byte über die Leitung zu holen. Ein *neuer* Agent auf einem eingelaufenen Runner startet damit fast warm, obwohl er dort noch nie lief.
 
-Deshalb hält der Runner einen **geteilten Bestand**, den er in jede Sandbox einblendet:
+### Warum das die Isolationsfrage auflöst
 
-- **Toolchains und SDKs** — fvm-Flutter-SDKs, JDK-Toolchains. Unveränderlich und per Version adressiert.
-- **Paket-Caches** — `.pub-cache`, `.gradle/caches`, `.npm/_cacache`, Composer. Inhaltsadressiert mit Integritäts-Hashes.
-- **Git-Mirror** — der Runner hält Bare-Mirrors der Projekte; ein Checkout wird zum `--reference`-Klon statt zu 3 GB über die Leitung.
+Ein geteilter Cache ist sonst ein **Kanal zwischen Agenten** und damit eine Isolationsfrage ([`06-observability-control.md`](06-observability-control.md)) — wer in einen gemeinsamen Paket-Cache schreiben darf, kann anderen etwas unterschieben. Bei Inhaltsadressierung entfällt das Problem **konstruktionsbedingt**:
 
-### Geteilt heißt nur-lesbar
+- Ein Block wird über den Hash **seines Inhalts** angefordert. Liefert der lokale Speicher ihn, ist der Inhalt per Definition derselbe, den der Store liefern würde.
+- Welche Blöcke das Home eines Agenten bilden, steht in **seinem eigenen** Snapshot. Kein anderer Agent kann diese Zuordnung beeinflussen.
 
-Ein geteilter Cache ist ein **Kanal zwischen Agenten** und damit eine Isolationsfrage ([`06-observability-control.md`](06-observability-control.md)). Entschieden ist deshalb: **Die Sandbox liest den geteilten Bestand, sie schreibt ihn nie.**
-
-- Technisch als Overlay: der geteilte Bestand als nur-lesbare untere Schicht, die Schreibschicht liegt im Home des Agenten. Alles, was ein Werkzeug neu holt, landet privat — Lesezugriffe fallen auf den geteilten Bestand durch. Wo ein Werkzeug das nativ kann, wird es genutzt statt nachgebaut (Gradle etwa kennt einen nur-lesbaren Dependency-Cache genau für diesen CI-Fall).
-- Gefüllt wird der geteilte Bestand ausschließlich vom **Runner**, nachträglich: Nach einem erfolgreichen Lauf befördert er neu geholte Artefakte aus der privaten Schicht nach unten — beschränkt auf inhaltsadressierte Pfade mit prüfbarem Hash. Ein Agent kann damit einem anderen nichts unterschieben; er kann höchstens etwas beitragen, das seinem eigenen Hash entspricht.
-
-> **Der Hash entscheidet über *Teilen*, nie über *Behalten*.** Er ist der Filter einer einzigen Richtung — private Schicht → geteilter Bestand. Was ihn nicht passiert, bleibt schlicht privat liegen; nichts wird gelöscht, weil es keinen Hash hat. Für selbstgeschriebene Skripte, Auswertungen und Zwischenstände ist genau das die richtige Behandlung: Sie gehören dem Agenten, nicht dem Cache, und ihr Verbleib richtet sich allein nach der Negativliste aus „Das Home".
-- Der Preis ist ehrlich zu nennen: Ein **noch unbekanntes** Paket lädt der erste Agent selbst, und erst der zweite profitiert. Warmup ist ein Effekt über die Zeit, keine Garantie beim ersten Lauf.
-
-Beim `--reference`-Klon kommt eine Eigenheit dazu: Ein so erzeugter Checkout hängt am Objektspeicher des Mirrors. Räumt der Runner ihn weg, ist der Checkout beschädigt. Entweder der Mirror wird nie geräumt, solange Checkouts darauf verweisen, oder es wird mit `--dissociate` geklont — das kopiert die nötigen Objekte einmal und kostet Platz statt Zerbrechlichkeit.
+Es gibt damit keine Beförderungsregel, keine Hash-Prüfliste und keinen nur-lesbaren Unterbau, den jemand befüllen müsste. Das Teilen ist sicher, weil es gar nicht die Möglichkeit gibt, unter einem fremden Hash etwas anderes abzulegen.
 
 ### Was das für den Ausfall bedeutet
 
-Der geteilte Bestand entschärft genau die Schwäche, die ein fester Runner sonst hat. Fällt ein Runner aus, wandern **alle** seine Agenten gleichzeitig auf den Ausweich-Runner — ohne geteilten Bestand zieht dort jeder für sich Gigabytes, gleichzeitig. Mit ihm ist der Ausweich-Runner in aller Regel **nicht kalt**, weil andere Agenten dieselben Pakete längst dorthin gezogen haben. Aus „3 GB Klon plus 4 GB SDKs" wird im Normalfall ein Bruchteil davon.
+Fällt ein Runner aus, wandern **alle** seine Agenten gleichzeitig auf einen anderen. Ohne geteilte Blöcke zöge dort jeder für sich Gigabytes, zeitgleich. Mit ihnen holt der Ausweich-Runner **jeden Block genau einmal**, egal wie viele Agenten ihn brauchen — und alles, was andere Agenten dort schon abgelegt haben, ist bereits da.
 
-Damit ist der kalte Start kein hingenommener Regelfall mehr, sondern die Ausnahme: Er trifft den *ersten* Agenten auf einem frischen Runner, nicht jeden Agenten bei jedem Wechsel.
+Der kalte Start ist damit keine Frage des Agentenwechsels mehr, sondern nur noch eine des **frischen Hosts**: Er trifft den ersten Agenten auf einer neuen Maschine, danach niemanden mehr.
 
 ## Scheduling
 
@@ -244,7 +253,7 @@ Die Begründung, warum der Dateizugriff bewusst **nicht** durch das Daemon-Proto
 Bewusst ausgeklammert, damit der erste Wurf klein bleibt:
 
 - **Autoscaling** von Runnern (Cloud-API, Spot-Instanzen).
-- **Vorausschauendes Warmhalten** — den geteilten Bestand vorsorglich auf Runner spiegeln, auf denen ein Agent noch nie lief. Der Bestand wächst aus tatsächlicher Nutzung; ihn zu *antizipieren* ist eine spätere Optimierung.
+- **Vorausschauendes Warmhalten** — Blöcke vorsorglich auf Runner spiegeln, auf denen ein Agent noch nie lief. Der lokale Blockcache wächst aus tatsächlicher Nutzung; ihn zu *antizipieren* ist eine spätere Optimierung.
 - **Rückmigration** nach einem Runner-Ausfall (siehe „Das Home": die Präferenz bleibt klebrig).
 - **Mehrere gleichzeitige Sandboxen pro Agent** — „seriell vor parallel" gilt weiter.
 - **Runner als Mandantengrenze.** Ein Runner pro Mandant ist naheliegend, aber die Isolationszusagen dafür gehören in [`09-enterprise-modell.md`](09-enterprise-modell.md) und sind eine eigene Entscheidung.
@@ -258,10 +267,12 @@ Jede Stufe ist für sich nützlich und einzeln abnehmbar:
 |---|---|---|
 | 0 | Egress-Proxy von der DB lösen (Allowlist über die API) | Richtige Bauform des Enforcement-Punkts, unabhängig von Runnern |
 | 1 | Image pro Agent (`sandbox_image`), Profile `base`/`dev` | Der Mail-Agent trägt keine JVM mehr |
-| 2 | Home vollständig wiederherstellbar: Session-Transkripte, Artefakte und Uploads zentral sichern (Muster wie `wikilocal.go`) | Ein verlorenes Home kostet Zeit statt Arbeit — auch auf **einem** Host schon wertvoll |
+| 2 | Home-Store: inhaltsadressierter Blockspeicher, Sync nach dem Job, Materialisieren beim Wake, lokaler Blockcache | Ein verlorenes Home kostet Zeit statt Arbeit, und der zweite Agent auf demselben Host startet warm — **beides schon mit einem einzigen Host** |
 | 3 | `covey-runner` als drittes Binary: Registrierung, `start_sandbox`/`stop_sandbox`, `RunnerPool` als `SandboxProvider` | Sandboxen laufen auf einem zweiten Host |
-| 4 | Geteilter Bestand pro Runner: Toolchains, Paket-Caches, Git-Mirror — nur-lesbar eingeblendet, vom Runner befüllt | Zweiter Agent auf demselben Host startet warm; **auch mit einem einzigen Runner** sofort wirksam |
-| 5 | `home_op` — Dateibrowser über den Runner-Link | Der Dateibrowser funktioniert auch entfernt |
-| 6 | Tags, Kapazität, Runner-Ansicht in der UI | Betreibbarkeit ab mehr als zwei Runnern |
+| 4 | `home_op` — Dateibrowser über den Runner-Link | Der Dateibrowser funktioniert auch entfernt |
+| 5 | Tags, Kapazität, Runner-Ansicht in der UI | Betreibbarkeit ab mehr als zwei Runnern |
+| 6 | Retention und GC für Snapshots | Der Store wächst nicht unbegrenzt |
 
-Die Stufen 0 bis 2 sind vom Runner unabhängig und sollten zuerst laufen — jede ist für sich eine Verbesserung des Ist-Zustands. Stufe 0, weil sie sonst zur Sicherheitslücke wird, sobald ein Runner entfernt läuft. Stufe 1, weil die Image-Capability sonst in Stufe 3 nachgereicht werden müsste. **Stufe 2 ist die eigentliche Voraussetzung:** Solange ein blockierter Agent seinen Faden verliert, wenn er woanders aufwacht, wäre jeder Runner-Wechsel ein stiller Datenverlust — und die Affinität müsste doch wieder eine Bindung sein.
+Die Stufen 0 bis 2 sind vom Runner unabhängig und sollten zuerst laufen — jede ist für sich eine Verbesserung des Ist-Zustands. Stufe 0, weil sie sonst zur Sicherheitslücke wird, sobald ein Runner entfernt läuft. Stufe 1, weil die Image-Capability sonst in Stufe 3 nachgereicht werden müsste.
+
+**Stufe 2 trägt das ganze Gebäude.** Sie macht das Home ersetzbar, und erst damit ist ein Runner-Wechsel kein Datenverlust; ohne sie müsste die Affinität doch wieder eine Bindung sein. Sie liefert das Warmup gleich mit — der Blockcache *ist* der geteilte Bestand. Und sie lohnt sich, bevor ein einziger zweiter Host existiert: Heute halten zwei Entwickler-Agenten auf derselben Maschine zweimal dieselben 4 GB, und ein gelöschtes Home ist unwiederbringlich.
