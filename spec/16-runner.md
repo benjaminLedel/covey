@@ -41,7 +41,7 @@ Was noch am lokalen Host klebt, ist entsprechend überschaubar:
                      │  ┌─────────┐ │       │
                      │  │ Sandbox ├─┼───────┘
                      │  └─────────┘ │
-                     │  homes/      │  ← persistent, hostlokal
+                     │  homes/      │  ← Arbeitsbestand, verwerfbar
                      └──────────────┘
 ```
 
@@ -65,7 +65,7 @@ Danach hält `covey-runner run` eine dauerhafte WebSocket-Verbindung auf `/api/r
 - die Tags aus der Registrierung,
 - seine eigene Version, damit die Control Plane Versions-Drift sichtbar machen kann.
 
-Ein Runner ohne Verbindung ist **offline**, nicht gelöscht: Seine Agenten bleiben ihm zugeordnet, ihre Aufgaben bleiben im Backlog liegen. Löschen ist eine bewusste Aktion mit Konsequenzen (siehe Affinität).
+Ein Runner ohne Verbindung ist **offline**, nicht gelöscht — die Unterscheidung ist für den Betrieb wichtig (Wartungsfenster vs. Abbau), für die Agenten aber folgenlos: Sie weichen auf einen anderen Runner aus (siehe „Das Home"). Ein gelöschter Runner nimmt nur seinen lokalen Arbeitsbestand mit, keinen Zustand der Plattform.
 
 ## Runner-Protokoll
 
@@ -92,31 +92,55 @@ Ein Runner ohne Verbindung ist **offline**, nicht gelöscht: Seine Agenten bleib
 
 `sandbox_exited` ist der Grund, warum der Runner den Container-Zustand überhaupt beobachten muss: Heute merkt die Control Plane einen Absturz erst am `ReadyTimeout` oder am abbrechenden Daemon-Link. Mit einem Runner, der den lokalen Docker-Daemon ohnehin fragt, wird daraus eine gemeldete Tatsache statt einer Vermutung.
 
-## Home-Affinität
+## Das Home
 
-**Entschieden: Ein Agent ist an einen Runner gebunden; sein Home bleibt lokal auf dessen Platte.** (D12 in [`07-offene-entscheidungen.md`](07-offene-entscheidungen.md).)
+Hier endet die GitLab-Analogie scheinbar: Ein CI-Runner darf frei gewählt werden, weil er **zustandslos** ist — ein Job klont neu, baut, wirft alles weg. Coveys Sandbox hat dagegen ein persistentes Home, und das *ist* Teil des Versprechens („geht eine Sandbox verloren, wird sie aus Config + Home neu aufgebaut", [`01-architektur.md`](01-architektur.md)).
 
-Hier endet die GitLab-Analogie, und das ist der wichtigste Punkt dieses Dokuments. Ein CI-Runner ist **zustandslos**: Ein Job klont neu, baut, wirft alles weg — deshalb darf ihn der Scheduler frei wählen. Coveys Sandbox ist das Gegenteil: Das persistente Home *ist* das Versprechen („geht eine Sandbox verloren, wird sie aus Config + Home neu aufgebaut", [`01-architektur.md`](01-architektur.md)). Es trägt das Gedächtnis, die Checkouts, die Caches, die installierten SDKs ([`05-gedaechtnis.md`](05-gedaechtnis.md)).
+Der Schein trügt. Ein vermessenes Entwickler-Home (7,1 GB) besteht fast vollständig aus Dingen, die **anderswo bereits eine Quelle haben**:
 
-Persistenter Zustand und freie Schedulebarkeit vertragen sich nicht von selbst. Die Affinität macht die Kopplung **sichtbar**, statt sie hinter geteiltem Speicher zu verstecken — und sie passt zur Leitmetapher: Ein Mitarbeiter hat einen Schreibtisch, und der steht in einem Gebäude.
+| Anteil | Größe | Quelle der Wahrheit |
+|---|---|---|
+| `repos/` | 3,0 GB | das Git-Remote des Projekts |
+| `flutter`, `.pub-cache`, `.gradle`, `.npm`, `jdk`, `.dartServer` | 4,0 GB | ableitbar — reiner Cache |
+| `wiki/`, `.claude/skills/` | wenige MB | die Control Plane (bereits zentral) |
+| `.claude/projects/` (Session-Transkripte) | 30 MB | *nirgends* |
+| `uploads/`, `work/`, Artefakte | ~15 MB | teils das Zielsystem, teils *nirgends* |
 
-Konkret:
+**Rund 7,05 der 7,1 GB sind ableitbar oder zentral geführt.** Das Home ist damit kein kostbarer Zustand, sondern zu über 99 % ein **Cache** — und das ändert die Antwort auf die Runner-Frage grundlegend.
 
-- Der Agent trägt `runner_tags` (welche Art Host er braucht) und `runner_id` (an welchen er gebunden ist, anfangs leer).
-- **Beim ersten Wake** wählt der Scheduler einen passenden, verbundenen Runner und **pinnt** den Agenten darauf. Ab da geht jeder Wake dorthin.
-- Ist der Runner offline, ist der Agent **nicht weckbar**. Die Aufgabe bleibt im Backlog, der Zustand ist in der UI sichtbar und benannt — nicht ein stiller Timeout, sondern „Runner *Build-Host Frankfurt* ist offline".
-- **Umzug ist eine ausdrückliche Handlung**, kein Automatismus: entweder das Home kopieren (Control Plane koordiniert `home_op` lesend auf dem alten, schreibend auf dem neuen Runner) oder es verwerfen und aus Config neu aufbauen. Beides ist vertretbar — aber es ist eine Entscheidung mit Datenverlust-Risiko und gehört deshalb vor die Augen eines Menschen.
+### Zentral geführt, ins Home materialisiert
 
-Kein Rebalancing, kein automatisches Failover. Wer echte Ausfallsicherheit für Homes will, legt sie **unter** den Runner: geteilter Speicher oder repliziertes Volume sind eine Betriebsentscheidung des Hosts, keine Aufgabe der Control Plane. Die verworfenen Alternativen samt Begründung stehen in D12.
+Für den wertvollen Rest ist das Muster in Covey **bereits gebaut**: Das Wiki liegt in Postgres und wird zu Aufgabenbeginn als `~/wiki/*.md` materialisiert, am Aufgabenende zurückgesynct ([`05-gedaechtnis.md`](05-gedaechtnis.md), „hybride Speicherung"); die Skills desselbe nach `~/.claude/skills/`. Die Control Plane ist dort längst die Quelle der Wahrheit, das Home nur die Arbeitskopie.
+
+**Entschieden ist, dieses Muster auf den Rest auszudehnen** (D12): Was weder ableitbar ist noch anderswo eine Quelle hat, wird zentral geführt und beim Wake ins Home geholt.
+
+- **Session-Transkripte.** Sie sind heute das Einzige, was eine *blockierte* Aufgabe wirklich an einen Host fesselt: Die Session-ID liegt in der DB (`RuntimeSessionID`), das für `--resume` nötige Transkript aber nur im Home ([`12-claude-code-adapter.md`](12-claude-code-adapter.md)). Es wird beim Einschlafen mitgesichert und beim Wake zurückgeschrieben — sonst verliert ein geparkter Agent seinen Faden, sobald er woanders aufwacht.
+- **Artefakte und Uploads.** Dasselbe Sync-Muster wie beim Wiki, kein neues Konzept.
+
+Nicht zentral geführt wird, was eine Quelle hat: **Checkouts** klont der Runner neu (das ist der Zweck eines Git-Remotes), **Caches und SDKs** baut er nach dem Pin im Projekt-Repo wieder auf („Version → Home, Toolchain → Image", D11). Beides zentral zu spiegeln hieße, ein Remote und einen Paket-Mirror nachzubauen.
+
+> **Warum nicht das ganze Home als Git-Repo?** Naheliegend, aber es passt nur auf den kuratierten Textteil — und der ist das Wiki, das bereits zentral liegt. `repos/` sind selbst Git-Checkouts (verschachtelte Repos, plus Duplizierung eines existierenden Remotes), Caches und SDKs haben in einer Versionsgeschichte nichts verloren, und die Transkripte sind append-only JSONL, an dem Git aufbläht, ohne dass je jemand einen Diff liest. Das Wiki *mit* Git-Historie zu unterlegen bleibt eine attraktive, eigenständige Idee — sie beantwortet aber die Runner-Frage nicht und ist hier bewusst nicht mitentschieden.
+
+### Affinität als Präferenz, nicht als Bindung
+
+Ist das Home vollständig wiederherstellbar, wird die Bindung an einen Runner von einer *Voraussetzung* zu einer *Optimierung*. Der Unterschied ist der Ausfall:
+
+- **Präferenz:** Der Scheduler bevorzugt den Runner, auf dem der Agent zuletzt lief — dort liegen Checkouts und Caches warm. Ist er weg, läuft der Agent woanders an, mit einem kalten Home.
+- Der Preis eines kalten Starts ist real und soll nicht kleingeredet werden: 3 GB neu klonen plus 4 GB SDKs und Pakete. Ein Flutter-Agent braucht auf einem frischen Runner Minuten, bevor er die erste Zeile liest.
+- Aber er ist **Zeit, nicht Datenverlust** — und das ist der ganze Unterschied. Ein Runner-Ausfall macht einen Agenten langsam, nicht arbeitsunfähig.
+
+Das Home eines Agenten auf einem Runner ist damit ein **verwerfbarer Arbeitsbestand**: Der Runner darf ihn bei Platzmangel aufräumen (`prune`), und ein neu aufgesetzter Runner braucht keine Datenübernahme.
 
 ## Scheduling
 
-Bewusst einfach, weil Affinität die meiste Arbeit erledigt:
+Bewusst einfach, weil kein Runner „der richtige" sein muss — nur der günstigste:
 
-1. Ist der Agent gepinnt → dieser Runner. Offline → Wake schlägt an, nicht aus.
-2. Sonst: alle verbundenen Runner, deren Tags die `runner_tags` des Agenten erfüllen **und** die sein Image haben.
-3. Aus denen der mit den wenigsten laufenden Sandboxen. Kein Bin-Packing, keine Ressourcenmodellierung.
+1. Kandidaten: alle **verbundenen** Runner, deren Tags die `runner_tags` des Agenten erfüllen **und** die sein Image vorhalten.
+2. Davon bevorzugt der, auf dem der Agent zuletzt lief (`last_runner_id`) — dort ist sein Arbeitsbestand warm.
+3. Sonst der mit den wenigsten laufenden Sandboxen. Kein Bin-Packing, keine Ressourcenmodellierung.
 4. Keiner passend → die Aufgabe bleibt liegen, mit erklärendem Zustand statt einer Fehlermeldung über einen fehlgeschlagenen Container-Start.
+
+`last_runner_id` ist ausdrücklich ein **Hinweis, keine Zusage**: Der Scheduler darf ihn jederzeit übergehen, und nichts im System darf annehmen, dass ein Home noch da ist. Ein Agent, dessen bevorzugter Runner fehlt, wacht auf einem anderen auf — langsamer, aber ohne Zutun eines Menschen.
 
 ## Sandbox-Images pro Agent
 
@@ -165,7 +189,7 @@ Die Begründung, warum der Dateizugriff bewusst **nicht** durch das Daemon-Proto
 Bewusst ausgeklammert, damit der erste Wurf klein bleibt:
 
 - **Autoscaling** von Runnern (Cloud-API, Spot-Instanzen).
-- **Automatische Home-Migration** und Failover zwischen Runnern.
+- **Warmhalten von Arbeitsbeständen** über mehrere Runner hinweg (vorsorgliches Klonen, Cache-Spiegel). Der kalte Start ist hingenommen, nicht wegoptimiert.
 - **Mehrere gleichzeitige Sandboxen pro Agent** — „seriell vor parallel" gilt weiter.
 - **Runner als Mandantengrenze.** Ein Runner pro Mandant ist naheliegend, aber die Isolationszusagen dafür gehören in [`09-enterprise-modell.md`](09-enterprise-modell.md) und sind eine eigene Entscheidung.
 - **Nicht-Docker-Runner** (Firecracker, Kubernetes-Pods). Das Runner-Protokoll ist so geschnitten, dass sie später dahinter passen — gebaut wird zuerst der Docker-Runner.
@@ -178,8 +202,9 @@ Jede Stufe ist für sich nützlich und einzeln abnehmbar:
 |---|---|---|
 | 0 | Egress-Proxy von der DB lösen (Allowlist über die API) | Richtige Bauform des Enforcement-Punkts, unabhängig von Runnern |
 | 1 | Image pro Agent (`sandbox_image`), Profile `base`/`dev` | Der Mail-Agent trägt keine JVM mehr |
-| 2 | `covey-runner` als drittes Binary: Registrierung, `start_sandbox`/`stop_sandbox`, `RunnerPool` als `SandboxProvider` | Sandboxen laufen auf einem zweiten Host |
-| 3 | `home_op` — Dateibrowser über den Runner-Link | Der Dateibrowser funktioniert auch entfernt |
-| 4 | Tags, Kapazität, Runner-Ansicht in der UI | Betreibbarkeit ab mehr als zwei Runnern |
+| 2 | Home vollständig wiederherstellbar: Session-Transkripte, Artefakte und Uploads zentral sichern (Muster wie `wikilocal.go`) | Ein verlorenes Home kostet Zeit statt Arbeit — auch auf **einem** Host schon wertvoll |
+| 3 | `covey-runner` als drittes Binary: Registrierung, `start_sandbox`/`stop_sandbox`, `RunnerPool` als `SandboxProvider` | Sandboxen laufen auf einem zweiten Host |
+| 4 | `home_op` — Dateibrowser über den Runner-Link | Der Dateibrowser funktioniert auch entfernt |
+| 5 | Tags, Kapazität, Runner-Ansicht in der UI | Betreibbarkeit ab mehr als zwei Runnern |
 
-Stufe 0 und 1 sind vom Rest unabhängig und sollten zuerst laufen: Stufe 0, weil sie sonst zur Sicherheitslücke wird, sobald ein Runner entfernt läuft; Stufe 1, weil die Image-Capability sonst in Stufe 2 nachgereicht werden müsste.
+Die Stufen 0 bis 2 sind vom Runner unabhängig und sollten zuerst laufen — jede ist für sich eine Verbesserung des Ist-Zustands. Stufe 0, weil sie sonst zur Sicherheitslücke wird, sobald ein Runner entfernt läuft. Stufe 1, weil die Image-Capability sonst in Stufe 3 nachgereicht werden müsste. **Stufe 2 ist die eigentliche Voraussetzung:** Solange ein blockierter Agent seinen Faden verliert, wenn er woanders aufwacht, wäre jeder Runner-Wechsel ein stiller Datenverlust — und die Affinität müsste doch wieder eine Bindung sein.
