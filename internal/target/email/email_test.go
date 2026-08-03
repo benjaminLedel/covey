@@ -634,12 +634,22 @@ func TestMaxAttachmentBytes(t *testing.T) {
 	if got := maxAttachmentBytes(); got != 2<<20 {
 		t.Errorf("override: %d", got)
 	}
-	// Fail-closed: Unsinn lässt den Default stehen — auch ein Wert, der beim
-	// Umrechnen in Bytes überliefe und die Größenprüfung aushebelte.
-	for _, v := range []string{"0", "-1", "viel", "8796093022208"} {
+	// Unlesbares und Nicht-Positives lässt den Default stehen (fail-closed).
+	for _, v := range []string{"0", "-1", "viel"} {
 		t.Setenv("COVEY_EMAIL_ATTACHMENT_MAX_MB", v)
 		if got := maxAttachmentBytes(); got != 25<<20 {
 			t.Errorf("wert %q: %d, erwartet default", v, got)
+		}
+	}
+	// Zu große Werte werden auf das Maximum geklemmt statt auf den Default
+	// zurückzufallen. Wer 2048 einträgt, will offensichtlich viel und nicht die
+	// Voreinstellung — ein 80-fach kleineres Limit ohne ein Wort war die
+	// unfreundlichste aller Antworten (GitHub #2, Punkt 3). Der Schutz vor dem
+	// Überlauf beim Umrechnen in Bytes bleibt: geklemmt wird auf 1024 MB.
+	for _, v := range []string{"2048", "8796093022208"} {
+		t.Setenv("COVEY_EMAIL_ATTACHMENT_MAX_MB", v)
+		if got := maxAttachmentBytes(); got != 1024<<20 {
+			t.Errorf("wert %q: %d, erwartet 1024 MB", v, got)
 		}
 	}
 }

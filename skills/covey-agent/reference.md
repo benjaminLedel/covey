@@ -86,7 +86,7 @@ Registrierte Built-in-Systeme (Stand Repo): `gitlab`, `email`, `dev`, `browser`,
 | System | Scopes (ACCESS) | Wozu / Kern-Aktionen |
 |---|---|---|
 | `gitlab` | `read,write,comment` | Issues/MRs: list_issues (auch `milestone`), get_issue, checkout, read_file, create_issue, comment, list_notes, assign, set_labels, set_state, commit, create_merge_request, comment_mr, approve_mr, upload, download_upload |
-| `email` | `read,write` | IMAP/SMTP: list_unread, get_message, reply, mark_seen |
+| `email` | `read,write` | IMAP/SMTP: list_unread, get_message, reply, mark_seen, get_attachment (Anhang in die Sandbox, dann Read-Tool/Vision) |
 | `dev` | `exec,processes` | Sandbox-Shell: exec, start/stop/logs/list (Dev-Server hochfahren) |
 | `browser` | `navigate,content,screenshot,click,type` | headless Chrome; CSS + `:has-text("…")`; screenshot mit `highlight`+`label` |
 | `teams` | s. SetupDoc | Microsoft Teams |

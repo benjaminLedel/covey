@@ -3,9 +3,9 @@ package teams
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
+
+	"covey/internal/target"
 )
 
 // DownloadResult ist die Antwort der download_attachment-Aktion: wo die Datei in
@@ -40,32 +40,19 @@ func DownloadAttachmentToSandbox(ctx context.Context, c *Client, downloadURL, na
 	if filename == "" {
 		filename = Attachment{ContentURL: downloadURL}.Filename()
 	}
-	// Dateinamen auf den Basename festnageln — kein Pfad-Traversal aus name/URL.
-	filename = filepath.Base(filename)
 
-	destDir := filepath.Join(workdir, "attachments")
-	if err := os.MkdirAll(destDir, 0o755); err != nil {
+	// Ablegen, Namenshärtung und Kollisionsschutz macht der gemeinsame Helfer
+	// (internal/target/sandboxdatei.go). Wichtig gerade hier: `attachments/`
+	// teilen sich teams und email in derselben Sandbox.
+	datei, err := target.DateiAblegen(workdir, "attachments", filename, data, contentType)
+	if err != nil {
 		return DownloadResult{}, err
-	}
-	dest := filepath.Join(destDir, filename)
-	if err := os.WriteFile(dest, data, 0o644); err != nil {
-		return DownloadResult{}, err
-	}
-
-	// Content-Type nur nennen, wenn die Antwort einen brauchbaren mitgibt.
-	var ct string
-	if contentType != "" {
-		ct = " (Content-Type " + contentType + ")"
-	}
-	hint := fmt.Sprintf("Datei liegt lokal unter %s%s. Ist es ein Bild, sieh es mit dem Read-Tool an (Vision); sonst öffne es passend.", dest, ct)
-	if strings.HasPrefix(contentType, "image/") {
-		hint = fmt.Sprintf("Bild liegt lokal unter %s — sieh es dir mit dem Read-Tool an (Vision).", dest)
 	}
 	return DownloadResult{
-		Path:        dest,
-		Filename:    filename,
-		ContentType: contentType,
-		Bytes:       int64(len(data)),
-		Hint:        hint,
+		Path:        datei.Pfad,
+		Filename:    datei.Dateiname,
+		ContentType: datei.ContentType,
+		Bytes:       datei.Bytes,
+		Hint:        datei.Hinweis,
 	}, nil
 }

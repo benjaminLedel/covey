@@ -333,7 +333,17 @@ func fetchAttachmentPart(c *imapclient.Client, uids imap.UIDSet, part *attachmen
 	if len(rawHead) == 0 {
 		return "", "", nil, fmt.Errorf("anhang %q: der server lieferte den MIME-Teil nicht", part.filename)
 	}
-	ent, err := gomessage.Read(io.MultiReader(bytes.NewReader(rawHead), bytes.NewReader(msgs[0].FindBodySection(body))))
+	rawBody := msgs[0].FindBodySection(body)
+	// Die Vorabprüfung gegen BODYSTRUCTURE (siehe Aufrufer) hängt an der Angabe
+	// des Servers. body-fld-octets ist zwar Pflicht, aber ein fehlerhafter oder
+	// böswilliger Server, der dort 0 meldet, hebelte das Budget aus: Collect()
+	// hat den kodierten Teil zu diesem Zeitpunkt bereits vollständig im
+	// Speicher, der LimitReader unten greift erst auf den DEKODIERTEN Strom.
+	// Deshalb hier noch einmal gegen das tatsächlich Gelesene prüfen.
+	if int64(len(rawBody)) > 4*limit {
+		return "", "", nil, fmt.Errorf("anhang %q größer als %d MB — abgebrochen", part.filename, limit>>20)
+	}
+	ent, err := gomessage.Read(io.MultiReader(bytes.NewReader(rawHead), bytes.NewReader(rawBody)))
 	if err != nil && !gomessage.IsUnknownEncoding(err) {
 		return "", "", nil, fmt.Errorf("anhang %q nicht parsebar: %w", part.filename, err)
 	}

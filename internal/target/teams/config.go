@@ -2,8 +2,9 @@ package teams
 
 import (
 	"os"
-	"strconv"
 	"strings"
+
+	"covey/internal/target"
 )
 
 // Betriebs-Konfiguration des Teams-Plugins aus ENV (12-Factor, wie die
@@ -38,16 +39,11 @@ func intakeTenants() map[string]bool {
 
 // maxAttachmentBytes ist die Obergrenze für einen einzelnen, in die Sandbox
 // materialisierten Anhang. Default 25 MB, via COVEY_TEAMS_ATTACHMENT_MAX_MB
-// überschreibbar (1 bis 1024 MB). Fail-closed: ein unbrauchbarer Wert lässt den
-// Default stehen — auch ein absurd großer, der beim Umrechnen in Bytes
-// überliefe und die Größenprüfung damit gerade aushebelte.
+// überschreibbar (1 bis 1024 MB). Werte darüber werden geklemmt, Unlesbares
+// bleibt beim Default — beides mit einer Zeile im Log, siehe
+// target.MaxBytesAusEnv.
 func maxAttachmentBytes() int64 {
-	if v := strings.TrimSpace(os.Getenv("COVEY_TEAMS_ATTACHMENT_MAX_MB")); v != "" {
-		if mb, err := strconv.ParseInt(v, 10, 64); err == nil && mb > 0 && mb <= 1024 {
-			return mb << 20
-		}
-	}
-	return 25 << 20
+	return target.MaxBytesAusEnv("COVEY_TEAMS_ATTACHMENT_MAX_MB", 25, 1024)
 }
 
 // parseSet zerlegt eine kommaseparierte ENV-Liste in ein Set kleingeschriebener,

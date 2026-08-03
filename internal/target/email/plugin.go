@@ -56,7 +56,9 @@ func init() {
    COVEY_EMAIL_INTAKE_ADDRESSES="example.com"           (nur diese Absender
                                                          im Arbeitsvorrat)
    COVEY_EMAIL_ATTACHMENT_MAX_MB=25                     (Größenlimit je Anhang
-                                                         für get_attachment)
+                                                         für get_attachment;
+                                                         gültig 1-1024, darüber
+                                                         wird geklemmt)
 
 6. Die IMAP-/SMTP-Hosts müssen aus der Sandbox erreichbar sein
    (Egress-Freigabe für beide Hosts).

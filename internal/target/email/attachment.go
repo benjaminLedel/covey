@@ -2,9 +2,9 @@ package email
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
+
+	"covey/internal/target"
 )
 
 // AttachmentResult ist die Antwort der get_attachment-Aktion: wo der Anhang in
@@ -34,36 +34,18 @@ func getAttachmentToSandbox(cfg Config, mailbox string, uid uint32, name, workdi
 		return AttachmentResult{}, err
 	}
 
-	// Dateinamen auf den Basename festnageln — kein Pfad-Traversal aus dem
-	// vom Absender gesetzten Anhang-Namen.
-	filename := filepath.Base(strings.TrimSpace(fname))
-	if filename == "." || filename == ".." || filename == string(filepath.Separator) {
-		filename = "anhang"
-	}
-
-	destDir := filepath.Join(workdir, "attachments")
-	if err := os.MkdirAll(destDir, 0o755); err != nil {
+	// Ablegen, Namenshärtung und Kollisionsschutz macht der gemeinsame Helfer
+	// (internal/target/sandboxdatei.go) — teams und gitlab schreiben über
+	// denselben Weg, und `attachments/` teilen sich email und teams sogar.
+	datei, err := target.DateiAblegen(workdir, "attachments", fname, data, contentType)
+	if err != nil {
 		return AttachmentResult{}, err
-	}
-	dest := filepath.Join(destDir, filename)
-	if err := os.WriteFile(dest, data, 0o644); err != nil {
-		return AttachmentResult{}, err
-	}
-
-	// Content-Type nur nennen, wenn die Mail einen brauchbaren mitgibt.
-	var ct string
-	if contentType != "" {
-		ct = " (Content-Type " + contentType + ")"
-	}
-	hint := fmt.Sprintf("Datei liegt lokal unter %s%s. Ist es ein Bild, sieh es mit dem Read-Tool an (Vision); sonst öffne es passend.", dest, ct)
-	if strings.HasPrefix(contentType, "image/") {
-		hint = fmt.Sprintf("Bild liegt lokal unter %s — sieh es dir mit dem Read-Tool an (Vision).", dest)
 	}
 	return AttachmentResult{
-		Path:        dest,
-		Filename:    filename,
-		ContentType: contentType,
-		Bytes:       int64(len(data)),
-		Hint:        hint,
+		Path:        datei.Pfad,
+		Filename:    datei.Dateiname,
+		ContentType: datei.ContentType,
+		Bytes:       datei.Bytes,
+		Hint:        datei.Hinweis,
 	}, nil
 }

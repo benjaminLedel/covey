@@ -189,7 +189,7 @@ COVEY_PUBLIC_URL=https://covey.example.com        # vom Bot Service erreichbar, 
 COVEY_TEAMS_WEBHOOK_SECRET=<bot-app-id>           # die erwartete JWT-Audience
 # optional:
 COVEY_TEAMS_INTAKE_TENANTS="<tenant-id>"          # leer = alle Tenants
-COVEY_TEAMS_ATTACHMENT_MAX_MB=25                  # Größenlimit je Anhang
+COVEY_TEAMS_ATTACHMENT_MAX_MB=25                  # Größenlimit je Anhang (1-1024)
 ```
 
 > **Wichtig:** `COVEY_TEAMS_WEBHOOK_SECRET` trägt hier **nicht** ein HMAC-Secret,
@@ -264,8 +264,13 @@ lesen". Betriebsrelevant:
 - **Egress:** Für geteilte Dateien lädt der Agent von SharePoint/OneDrive
   (`*.sharepoint.com`), für Inline-Bilder vom Connector-Host. Beide müssen bei
   aktiviertem Egress-Enforcement auf die Allowlist (siehe Abschnitt 5).
-- **Größenlimit:** `COVEY_TEAMS_ATTACHMENT_MAX_MB` (Default 25) deckelt jeden
-  Download fail-closed.
+- **Größenlimit:** `COVEY_TEAMS_ATTACHMENT_MAX_MB` (Default 25, gültig 1–1024)
+  deckelt jeden Download fail-closed. Werte über 1024 werden auf 1024 geklemmt,
+  Unlesbares lässt den Default stehen; beides steht als `WARN` im Log.
+- **Gleiche Namen kollidieren nicht:** Liegt unter `attachments/` schon eine
+  andere Datei dieses Namens, bekommt die neue einen Zähler (`bericht-2.pdf`).
+  Bei byte-gleichem Inhalt bleibt es beim bestehenden Pfad. Wichtig, weil sich
+  Teams und E-Mail **dasselbe** `attachments/` derselben Sandbox teilen.
 - **Kurzlebige URLs:** Download-URLs laufen ab — der Agent sollte Anhänge zeitnah
   laden. Wacht ein `blocked`-Agent spät auf, kann eine URL ungültig sein.
 
@@ -326,7 +331,7 @@ Details: [`../spec/15-teams-integration.md`](../spec/15-teams-integration.md).
 | `COVEY_TEAMS_WEBHOOK_SECRET` | *(leer = JWT-Prüfung aus)* | erwartete Bot-App-ID (JWT-Audience) |
 | `COVEY_TEAMS_INTAKE_TENANTS` | *(leer = alle)* | Allowlist der Microsoft-365-Tenants |
 | `COVEY_TEAMS_TOKEN_URL` | Bot-Framework-Endpoint | instanzweiter Token-Endpoint; pro Agent weiter per Secret `teams_url` überschreibbar |
-| `COVEY_TEAMS_ATTACHMENT_MAX_MB` | `25` | Größenlimit je in die Sandbox geladenem Anhang |
+| `COVEY_TEAMS_ATTACHMENT_MAX_MB` | `25` | Größenlimit je in die Sandbox geladenem Anhang (gültig 1–1024; darüber wird geklemmt) |
 | `COVEY_DAEMON_TOKEN_TTL` | `15m` | TTL des in die Sandbox gereichten Credentials |
 | `COVEY_EGRESS_ENFORCE` | `false` | Egress-Allowlist-Proxy einschalten (nur `docker`-Provider) |
 | `COVEY_EGRESS_ALLOW` | *(leer)* | zusätzliche erlaubte Egress-Hosts |

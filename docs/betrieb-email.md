@@ -178,14 +178,24 @@ enthalten). Wie bei GitLab (`download_upload`) und Teams
 Plane.
 
 - Der Dateiname wird auf den Basename festgenagelt — kein Ausbruch aus
-  `attachments/`. Tragen zwei Anhänge denselben Namen, gewinnt der erste in
-  MIME-Reihenfolge.
+  `attachments/`. Tragen zwei Anhänge **derselben Mail** denselben Namen,
+  gewinnt der erste in MIME-Reihenfolge.
+- **Gleiche Namen aus verschiedenen Quellen kollidieren nicht.** Liegt unter
+  `attachments/` bereits eine andere Datei dieses Namens, bekommt die neue einen
+  Zähler: `rechnung.pdf`, `rechnung-2.pdf`, `rechnung-3.pdf`. Nur bei
+  byte-gleichem Inhalt bleibt es beim bestehenden Pfad, damit ein zweiter Abruf
+  desselben Anhangs keine Kopien anhäuft. Das gilt über Zielsysteme hinweg:
+  Teams schreibt in **dasselbe** `attachments/` derselben Sandbox.
 - Das Größenlimit greift fail-closed, bevor etwas geschrieben wird — ein zu
   großer Anhang hinterlässt keine angefangene Datei:
 
 ```bash
-COVEY_EMAIL_ATTACHMENT_MAX_MB=25   # Default 25 MB, gilt je Anhang
+COVEY_EMAIL_ATTACHMENT_MAX_MB=25   # Default 25 MB, gültig 1–1024
 ```
+
+  Werte über 1024 werden auf 1024 geklemmt, Unlesbares (`0`, `-3`, `viel`)
+  lässt den Default stehen. Beide Fälle stehen als `WARN` im Log — ein
+  stillschweigend anderes Limit wäre die schlechtere Antwort.
 
 - Geholt wird **nur der gefragte Anhang**, nicht die ganze Mail: die
   BODYSTRUCTURE nennt Ort, Kodierung und Größe jedes Teils, ein zu großer

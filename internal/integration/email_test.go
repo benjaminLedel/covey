@@ -4,8 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -219,4 +222,95 @@ func smtpPathArg(line string) string {
 		return line[i+1 : j]
 	}
 	return strings.TrimSpace(line)
+}
+
+// mailMitAnhang baut eine multipart/mixed-Mail mit genau einem Anhang.
+func mailMitAnhang(messageID, betreff, dateiname, contentType, inhalt string) string {
+	return "From: Kunde <kunde@example.com>\r\n" +
+		"To: agent@example.com\r\n" +
+		"Subject: " + betreff + "\r\n" +
+		"Message-ID: <" + messageID + ">\r\n" +
+		"MIME-Version: 1.0\r\n" +
+		"Content-Type: multipart/mixed; boundary=\"grenze\"\r\n\r\n" +
+		"--grenze\r\n" +
+		"Content-Type: text/plain; charset=utf-8\r\n\r\n" +
+		"Anbei.\r\n" +
+		"--grenze\r\n" +
+		"Content-Type: " + contentType + "; name=\"" + dateiname + "\"\r\n" +
+		"Content-Disposition: attachment; filename=\"" + dateiname + "\"\r\n" +
+		"Content-Transfer-Encoding: base64\r\n\r\n" +
+		base64.StdEncoding.EncodeToString([]byte(inhalt)) + "\r\n" +
+		"--grenze--\r\n"
+}
+
+// TestEmailGetAttachment: der Durchstich für get_attachment — vom IMAP-Server
+// über den Action-Proxy bis zu den Bytes in der Sandbox. Analog zum
+// Teams-Pendant in teams_test.go (GitHub #2, Punkt 7).
+//
+// Der zweite Teil ist der eigentliche Grund für den Test: Zwei Mails mit je
+// `rechnung.pdf` überschrieben sich früher stillschweigend, und ein Agent, der
+// sich den Pfad gemerkt hatte, las danach das falsche Dokument (Punkt 1). Ein
+// Unit-Test des Helfers zeigt die Namensvergabe; erst hier steht, dass sie auf
+// dem echten Weg auch greift.
+func TestEmailGetAttachment(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+
+	const mailUser = "agent@example.com"
+	imapAddr := startMemIMAP(t, mailUser, "pw")
+	appendTestMail(t, imapAddr, mailUser, "pw",
+		mailMitAnhang("a1@example.com", "Rechnung Januar", "rechnung.pdf", "application/pdf", "%PDF-1.4 januar"))
+	appendTestMail(t, imapAddr, mailUser, "pw",
+		mailMitAnhang("a2@example.com", "Rechnung Februar", "rechnung.pdf", "application/pdf", "%PDF-1.4 februar"))
+	smtp := startFakeSMTP(t)
+
+	if _, err := s.pool.Exec(ctx, `INSERT INTO target_plugins (org_id, name, kind, enabled)
+		VALUES ($1,'email','builtin',TRUE)`, s.orgID); err != nil {
+		t.Fatal(err)
+	}
+
+	agent, err := s.registry.Create(ctx, s.orgID, "anhang-leser", "Anhang-Agent", "mock", &s.adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.registry.SaveConfig(ctx, agent.ID, map[string]string{
+		"SOUL.md":   "# Anhang-Agent",
+		"ACCESS.md": "- system: email scope: read,write",
+	}, &s.adminID); err != nil {
+		t.Fatal(err)
+	}
+	s.secrets.Put(ctx, s.orgID, "email_url",
+		fmt.Sprintf("imap+insecure://%s smtp+insecure://%s", imapAddr, smtp.addr()))
+	s.secrets.Put(ctx, s.orgID, "email_token", mailUser+":pw")
+	s.secrets.Assign(ctx, s.orgID, "email_url", agent.ID)
+	s.secrets.Assign(ctx, s.orgID, "email_token", agent.ID)
+
+	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Rechnungen holen",
+		`[mock:action email/get_attachment {"uid":1,"name":"rechnung.pdf"}] `+
+			`[mock:action email/get_attachment {"uid":2,"name":"rechnung.pdf"}] `+
+			`[mock:result Anhänge geholt]`,
+		"manual", 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "anhang-aufgabe done", 15*time.Second, func() bool {
+		return s.taskState(task.ID) == backlog.StateDone
+	})
+
+	dir := filepath.Join(s.homeBase, agent.ID.String(), "attachments")
+
+	// Erster Anhang: unter seinem Namen, mit den echten Bytes.
+	erste, err := os.ReadFile(filepath.Join(dir, "rechnung.pdf"))
+	if err != nil || !strings.Contains(string(erste), "januar") {
+		t.Fatalf("erster Anhang nicht materialisiert: %q (err=%v)", erste, err)
+	}
+
+	// Zweiter, gleichnamiger Anhang: eigene Datei — und der erste ist unberührt.
+	zweite, err := os.ReadFile(filepath.Join(dir, "rechnung-2.pdf"))
+	if err != nil || !strings.Contains(string(zweite), "februar") {
+		t.Fatalf("zweiter Anhang nicht kollisionsfrei abgelegt: %q (err=%v)", zweite, err)
+	}
+	if !strings.Contains(string(erste), "januar") {
+		t.Fatal("der zweite Anhang hat den ersten überschrieben")
+	}
 }
