@@ -163,7 +163,21 @@ Die Voreinstellung ist bewusst das Verzeichnis. Für eine Installation auf einer
 
 **Wenn Objektspeicher, dann S3-kompatibel — nicht „AWS S3".** Das Protokoll ist der gemeinsame Nenner von Hetzner Object Storage, Garage, MinIO, Ceph RadosGW und SeaweedFS; Covey schreibt keinen Server vor, sondern spricht das Protokoll. Zur Auswahl auf der Betreiberseite: Was der Hoster ohnehin anbietet (auf der in [`10-architektur-stack.md`](10-architektur-stack.md) genannten Hetzner/Proxmox-Infra also Hetzner Object Storage), sonst **Garage** — leichtgewichtig und für genau solche kleinen, selbst betriebenen Cluster gebaut. MinIO, wenn es im Haus ohnehin läuft.
 
-Als Client **`minio-go/v7`** (Apache-2.0) statt `aws-sdk-go-v2`: Er ist auf fremde Endpunkte, Path-Style und beliebige Regionen ausgelegt, und er wiegt weniger. Das ist hier kein Nebenaspekt — `go.mod` hat heute **sieben** direkte Abhängigkeiten, und der AWS-SDK-Baum wäre die mit Abstand größte Einzelposition im Projekt.
+**Die Client-Frage bleibt bis Stufe 7 offen** — bewusst, denn sie ist kleiner, als sie aussieht. Ein Block-Store braucht fünf Operationen: `PUT`, `GET`, `HEAD`, `DELETE` und das Signieren kurzlebiger URLs. Weil Blöcke klein und unveränderlich sind, entfällt der aufwendigste Teil eines S3-Clients komplett: **Multipart-Upload wird nie gebraucht.**
+
+Gemessen, statt geschätzt:
+
+| Kandidat | Kosten | Anmerkung |
+|---|---|---|
+| `minio-go/v7` | **18 indirekte Module, 41 kompilierte Fremdpakete** | Covey hat heute 22 Module *insgesamt*. Bringt `msgp`, `xxh3`, `crc64nvme`, `md5-simd`, `compress` für Replikation, ILM, Notifications, S3 Select — nichts davon wird je benutzt |
+| `aws-sdk-go-v2` | noch schwerer | Offiziell und gründlich, aber gegen fremde Endpunkte umständlicher |
+| eigener Minimal-Client | keine Abhängigkeit | SigV4 über `crypto/hmac` + `crypto/sha256`; die Presign-Variante ist die einfachere (Query-String-Auth) |
+
+Der Eigenbau ist hier vertretbarer als üblich, weil sein **Fehlermodus laut und geschlossen** ist: Eine falsche Signatur ergibt ein `403`, sofort sichtbar — nicht eine still geschwächte Sicherheitseigenschaft. Das ist der Unterschied zwischen „Krypto-Primitive benutzen" und „Krypto-Protokoll erfinden": SigV4 ist ein Signatur-Rezept über HMAC-SHA256, kein Handshake.
+
+Dagegen spricht das, was eine gereifte Bibliothek mitbringt: die Eigenheiten der einzelnen Anbieter (Path-Style vs. Virtual-Host, Regions-Ermittlung, Fehler-Parsing). Wer nur einen Anbieter bedient, merkt davon nichts; wer fünf bedient, merkt es an jedem.
+
+Entschieden wird das, wenn Stufe 7 ansteht. Bis dahin zählt allein, dass `BlobStore` ein Port ist und `builtin` **gar keine** Abhängigkeit braucht.
 
 ### Wie die Blöcke zum Runner kommen
 
