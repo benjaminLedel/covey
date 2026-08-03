@@ -131,6 +131,44 @@ Ist das Home vollständig wiederherstellbar, wird die Bindung an einen Runner vo
 
 Das Home eines Agenten auf einem Runner ist damit ein **verwerfbarer Arbeitsbestand**: Der Runner darf ihn bei Platzmangel aufräumen (`prune`), und ein neu aufgesetzter Runner braucht keine Datenübernahme.
 
+Die Präferenz ist dabei **klebrig, aber ohne Rückkehr-Automatik**: Fällt ein Runner aus, wandern seine Agenten auf einen anderen und *bleiben dort*. Kommt der alte zurück, wird nicht zurückmigriert — sonst folgt auf die Ausfallwelle eine zweite Welle kalter Starts. Der Ausgleich passiert von selbst beim nächsten ohnehin kalten Start.
+
+## Warmup: warm ist der Runner, nicht das Paar
+
+Ein fester Runner allein macht das Warmup nicht warm genug. Der Grund steht im heutigen Provider: Eine Sandbox hat **genau einen Mount** — ihr eigenes Home. Damit ist jeder Cache privat, obwohl kein Byte daran agentenspezifisch ist:
+
+| | Größe im vermessenen Home | agentenspezifisch? |
+|---|---|---|
+| `.pub-cache` | 1,0 GB | nein — dieselben Pakete |
+| `.gradle` | 951 MB | nein |
+| `flutter` (SDK) | 1,0 GB | nein — die Version steht im Projekt |
+| `.npm` | 402 MB | nein |
+| `jdk` | 346 MB | nein |
+
+Zwei Entwickler-Agenten auf demselben Runner halten heute zweimal dieselben 4 GB; fünf halten 20 GB. Und ein **neuer** Agent lädt auf einem Runner, der diese Pakete längst hundertfach liegen hat, alles erneut — weil er sie nicht sehen kann.
+
+Deshalb hält der Runner einen **geteilten Bestand**, den er in jede Sandbox einblendet:
+
+- **Toolchains und SDKs** — fvm-Flutter-SDKs, JDK-Toolchains. Unveränderlich und per Version adressiert.
+- **Paket-Caches** — `.pub-cache`, `.gradle/caches`, `.npm/_cacache`, Composer. Inhaltsadressiert mit Integritäts-Hashes.
+- **Git-Mirror** — der Runner hält Bare-Mirrors der Projekte; ein Checkout wird zum `--reference`-Klon statt zu 3 GB über die Leitung.
+
+### Geteilt heißt nur-lesbar
+
+Ein geteilter Cache ist ein **Kanal zwischen Agenten** und damit eine Isolationsfrage ([`06-observability-control.md`](06-observability-control.md)). Entschieden ist deshalb: **Die Sandbox liest den geteilten Bestand, sie schreibt ihn nie.**
+
+- Technisch als Overlay: der geteilte Bestand als nur-lesbare untere Schicht, die Schreibschicht liegt im Home des Agenten. Alles, was ein Werkzeug neu holt, landet privat — Lesezugriffe fallen auf den geteilten Bestand durch. Wo ein Werkzeug das nativ kann, wird es genutzt statt nachgebaut (Gradle etwa kennt einen nur-lesbaren Dependency-Cache genau für diesen CI-Fall).
+- Gefüllt wird der geteilte Bestand ausschließlich vom **Runner**, nachträglich: Nach einem erfolgreichen Lauf befördert er neu geholte Artefakte aus der privaten Schicht nach unten — beschränkt auf inhaltsadressierte Pfade mit prüfbarem Hash. Ein Agent kann damit einem anderen nichts unterschieben; er kann höchstens etwas beitragen, das seinem eigenen Hash entspricht.
+- Der Preis ist ehrlich zu nennen: Ein **noch unbekanntes** Paket lädt der erste Agent selbst, und erst der zweite profitiert. Warmup ist ein Effekt über die Zeit, keine Garantie beim ersten Lauf.
+
+Beim `--reference`-Klon kommt eine Eigenheit dazu: Ein so erzeugter Checkout hängt am Objektspeicher des Mirrors. Räumt der Runner ihn weg, ist der Checkout beschädigt. Entweder der Mirror wird nie geräumt, solange Checkouts darauf verweisen, oder es wird mit `--dissociate` geklont — das kopiert die nötigen Objekte einmal und kostet Platz statt Zerbrechlichkeit.
+
+### Was das für den Ausfall bedeutet
+
+Der geteilte Bestand entschärft genau die Schwäche, die ein fester Runner sonst hat. Fällt ein Runner aus, wandern **alle** seine Agenten gleichzeitig auf den Ausweich-Runner — ohne geteilten Bestand zieht dort jeder für sich Gigabytes, gleichzeitig. Mit ihm ist der Ausweich-Runner in aller Regel **nicht kalt**, weil andere Agenten dieselben Pakete längst dorthin gezogen haben. Aus „3 GB Klon plus 4 GB SDKs" wird im Normalfall ein Bruchteil davon.
+
+Damit ist der kalte Start kein hingenommener Regelfall mehr, sondern die Ausnahme: Er trifft den *ersten* Agenten auf einem frischen Runner, nicht jeden Agenten bei jedem Wechsel.
+
 ## Scheduling
 
 Bewusst einfach, weil kein Runner „der richtige" sein muss — nur der günstigste:
@@ -189,7 +227,8 @@ Die Begründung, warum der Dateizugriff bewusst **nicht** durch das Daemon-Proto
 Bewusst ausgeklammert, damit der erste Wurf klein bleibt:
 
 - **Autoscaling** von Runnern (Cloud-API, Spot-Instanzen).
-- **Warmhalten von Arbeitsbeständen** über mehrere Runner hinweg (vorsorgliches Klonen, Cache-Spiegel). Der kalte Start ist hingenommen, nicht wegoptimiert.
+- **Vorausschauendes Warmhalten** — den geteilten Bestand vorsorglich auf Runner spiegeln, auf denen ein Agent noch nie lief. Der Bestand wächst aus tatsächlicher Nutzung; ihn zu *antizipieren* ist eine spätere Optimierung.
+- **Rückmigration** nach einem Runner-Ausfall (siehe „Das Home": die Präferenz bleibt klebrig).
 - **Mehrere gleichzeitige Sandboxen pro Agent** — „seriell vor parallel" gilt weiter.
 - **Runner als Mandantengrenze.** Ein Runner pro Mandant ist naheliegend, aber die Isolationszusagen dafür gehören in [`09-enterprise-modell.md`](09-enterprise-modell.md) und sind eine eigene Entscheidung.
 - **Nicht-Docker-Runner** (Firecracker, Kubernetes-Pods). Das Runner-Protokoll ist so geschnitten, dass sie später dahinter passen — gebaut wird zuerst der Docker-Runner.
@@ -204,7 +243,8 @@ Jede Stufe ist für sich nützlich und einzeln abnehmbar:
 | 1 | Image pro Agent (`sandbox_image`), Profile `base`/`dev` | Der Mail-Agent trägt keine JVM mehr |
 | 2 | Home vollständig wiederherstellbar: Session-Transkripte, Artefakte und Uploads zentral sichern (Muster wie `wikilocal.go`) | Ein verlorenes Home kostet Zeit statt Arbeit — auch auf **einem** Host schon wertvoll |
 | 3 | `covey-runner` als drittes Binary: Registrierung, `start_sandbox`/`stop_sandbox`, `RunnerPool` als `SandboxProvider` | Sandboxen laufen auf einem zweiten Host |
-| 4 | `home_op` — Dateibrowser über den Runner-Link | Der Dateibrowser funktioniert auch entfernt |
-| 5 | Tags, Kapazität, Runner-Ansicht in der UI | Betreibbarkeit ab mehr als zwei Runnern |
+| 4 | Geteilter Bestand pro Runner: Toolchains, Paket-Caches, Git-Mirror — nur-lesbar eingeblendet, vom Runner befüllt | Zweiter Agent auf demselben Host startet warm; **auch mit einem einzigen Runner** sofort wirksam |
+| 5 | `home_op` — Dateibrowser über den Runner-Link | Der Dateibrowser funktioniert auch entfernt |
+| 6 | Tags, Kapazität, Runner-Ansicht in der UI | Betreibbarkeit ab mehr als zwei Runnern |
 
 Die Stufen 0 bis 2 sind vom Runner unabhängig und sollten zuerst laufen — jede ist für sich eine Verbesserung des Ist-Zustands. Stufe 0, weil sie sonst zur Sicherheitslücke wird, sobald ein Runner entfernt läuft. Stufe 1, weil die Image-Capability sonst in Stufe 3 nachgereicht werden müsste. **Stufe 2 ist die eigentliche Voraussetzung:** Solange ein blockierter Agent seinen Faden verliert, wenn er woanders aufwacht, wäre jeder Runner-Wechsel ein stiller Datenverlust — und die Affinität müsste doch wieder eine Bindung sein.
