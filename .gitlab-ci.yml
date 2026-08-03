@@ -126,9 +126,16 @@ test-go:
     # `go list`, damit nicht der Modul-Cache unter $GOPATH mitgeprüft wird.
     - test -z "$(gofmt -l $(go list -f '{{.Dir}}' ./...) | tee /dev/stderr)"
     - go vet ./...
-    # Coverage über alle Pakete messen: -coverpkg=./... zählt auch Zeilen, die
-    # aus Tests anderer Pakete heraus abgedeckt werden (sonst nur paket-lokal).
-    - go test -coverprofile=coverage.out -coverpkg=./... ./...
+    # Coverage über alle Pakete messen: -coverpkg zählt auch Zeilen, die aus
+    # Tests anderer Pakete heraus abgedeckt werden (sonst nur paket-lokal).
+    #
+    # Die Paketliste kommt aus `go list` statt als Muster `./...`: Als Muster
+    # instrumentierte -coverpkg auch die Abhängigkeiten mit. Im Profil landeten
+    # 673 Dateien, davon nur 119 aus covey/ — der Rest chromedp, pgx und
+    # Konsorten. Das druecke den Badge auf 14,3 %, waehrend der eigene Code
+    # tatsaechlich bei ~29 % liegt. Eine Kennzahl, die zur Haelfte fremden
+    # Code misst, taugt nicht als Trend.
+    - go test -coverprofile=coverage.out -coverpkg="$(go list ./... | paste -sd, -)" ./...
     # Gesamt-Prozentwert für den GitLab-Coverage-Badge (siehe coverage-Regex unten).
     - go tool cover -func=coverage.out | tee coverage.txt
     # Cobertura-Report für die MR-Diff-Coverage-Anzeige in GitLab.
