@@ -46,6 +46,50 @@ RUN curl -fsSL https://packages.sury.org/php/apt.gpg -o /usr/share/keyrings/sury
          php8.2-cli php8.2-xml php8.2-mbstring php8.2-curl php8.2-zip php8.2-gd \
          php8.2-ldap php8.2-sqlite3 php8.2-mysql php8.2-bcmath php8.2-intl composer \
     && rm -rf /var/lib/apt/lists/*
+# JDK für Kotlin/Java-Projekte. Bewusst nur EINE Version: `gradlew` braucht nur
+# eine JVM zum Starten und lädt sein Gradle selbst; ein Projekt, das ein anderes
+# JDK verlangt, holt es sich über Gradles Toolchain-Provisioning oder SDKMAN ins
+# Home. Jede weitere JDK-Version hier kostet ~200 MB für alle Agenten.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        openjdk-21-jdk-headless \
+    && rm -rf /var/lib/apt/lists/*
+
+# Versionsmanager für Toolchains, deren VERSION am Projekt hängt statt am Agenten.
+# Sie gehören ins Image, ihre SDKs NICHT: Die Control Plane mountet das
+# persistente Home über /home/agent (sandbox_docker.go) — was hier nach
+# /home/agent installiert würde, wäre zur Laufzeit maskiert und unsichtbar.
+# Also: Binary in den Systempfad, Cache ins Home. Weil das Home persistent ist,
+# lädt jeder Agent ein SDK genau einmal und findet es bei jedem weiteren Lauf
+# wieder.
+#   fvm → Flutter/Dart, Version aus dem Projekt (.fvmrc), SDKs unter ~/fvm
+#   uv  → Python, Version aus .python-version, Interpreter unter ~/.local/share/uv
+# fvm liegt als Baum unter /opt/fvm statt als einzelnes Binary: Der Einstieg ist
+# ein Shell-Launcher, der src/dart und src/fvm.snapshot NEBEN sich erwartet. Er
+# löst dafür Symlinks auf (readlink -f), deshalb genügt der Link im Systempfad.
+# Versionen gepinnt, damit derselbe Commit dasselbe Image ergibt; die Architektur
+# NICHT — das Image wird je nach Host auf amd64 oder arm64 gebaut.
+ARG FVM_VERSION=4.1.2
+ARG UV_VERSION=0.12.1
+RUN set -eux; \
+    case "$(dpkg --print-architecture)" in \
+        amd64) fvm_arch=x64;   uv_arch=x86_64  ;; \
+        arm64) fvm_arch=arm64; uv_arch=aarch64 ;; \
+        *) echo "nicht unterstützte Architektur: $(dpkg --print-architecture)" >&2; exit 1 ;; \
+    esac; \
+    tmp="$(mktemp -d)"; \
+    curl -fsSL -o "$tmp/fvm.tar.gz" \
+        "https://github.com/leoafarias/fvm/releases/download/${FVM_VERSION}/fvm-${FVM_VERSION}-linux-${fvm_arch}.tar.gz"; \
+    tar -xzf "$tmp/fvm.tar.gz" -C "$tmp"; \
+    mv "$tmp/fvm" /opt/fvm; \
+    ln -s /opt/fvm/fvm /usr/local/bin/fvm; \
+    curl -fsSL -o "$tmp/uv.tar.gz" \
+        "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${uv_arch}-unknown-linux-gnu.tar.gz"; \
+    tar -xzf "$tmp/uv.tar.gz" -C "$tmp"; \
+    install -m 0755 "$tmp/uv-${uv_arch}-unknown-linux-gnu/uv" /usr/local/bin/uv; \
+    install -m 0755 "$tmp/uv-${uv_arch}-unknown-linux-gnu/uvx" /usr/local/bin/uvx; \
+    rm -rf "$tmp"; \
+    fvm --version; uv --version
+
 # UTF-8 als Sandbox-Locale. Ohne das läuft der Container im POSIX-Default:
 # grep/sed/sort/wc/tr sehen dann Bytes statt Zeichen, unzip verstümmelt
 # Dateinamen mit Umlauten, und der Agent lernt aus den kaputten Rückgaben, dass

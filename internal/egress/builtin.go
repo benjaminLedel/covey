@@ -87,6 +87,35 @@ var Builtins = []BuiltinTemplate{
 		},
 	},
 	{
+		Slug:        "composer",
+		Name:        "PHP / Composer",
+		Description: "Pakete via composer installieren",
+		Hosts: []BuiltinHost{
+			{Pattern: "packagist.org", Note: "Paket-Index"},
+			{Pattern: "repo.packagist.org", Note: "Metadaten und Paket-Downloads"},
+		},
+	},
+	{
+		Slug:        "dart-flutter",
+		Name:        "Dart / Flutter",
+		Description: "Flutter-SDKs via fvm holen und Pakete via pub installieren",
+		Hosts: []BuiltinHost{
+			{Pattern: "pub.dev", Note: "Paket-Registry (pub get)"},
+			{Pattern: "storage.googleapis.com", Note: "SDK-Archive und Pub-Downloads"},
+		},
+	},
+	{
+		Slug:        "maven-gradle",
+		Name:        "Maven / Gradle",
+		Description: "Abhängigkeiten und Gradle-Distributionen für JVM-Projekte laden",
+		Hosts: []BuiltinHost{
+			{Pattern: "repo1.maven.org", Note: "Maven Central"},
+			{Pattern: "plugins.gradle.org", Note: "Gradle Plugin Portal"},
+			{Pattern: "services.gradle.org", Note: "Gradle-Distributionen für den Wrapper"},
+			{Pattern: "api.foojay.io", Note: "JDK-Beschaffung für Gradle-Toolchains"},
+		},
+	},
+	{
 		Slug:        "container",
 		Name:        "Container-Registries",
 		Description: "Images von Docker Hub, GitHub und Quay ziehen",

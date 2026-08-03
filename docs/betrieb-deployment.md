@@ -40,6 +40,59 @@ stimmen die `-v`-Pfade der Agenten-Homes, die der covey-Container an den
 Host-Daemon übergibt. Das Sandbox-Image wird im Deploy-Job gepullt (dort
 existiert der Registry-Login); die Control Plane selbst pullt nie.
 
+### Was ins Sandbox-Image gehört — und was nicht
+
+Ein Entwickler-Agent arbeitet an mehreren Projekten mit unterschiedlichen
+Technologien und Versionen. Die Sandbox hängt aber am **Agenten**, nicht am
+Projekt: Der Container startet beim Wake, bevor feststeht, welches Ticket aus
+welchem Projekt drankommt. Ein Image pro Projekt ist deshalb kein gangbarer Weg.
+Stattdessen gilt:
+
+> **Version → Home. Vorhandensein einer Toolchain → Image.**
+
+| Schicht | Inhalt | Lebensdauer |
+|---|---|---|
+| Image | Systempakete (PHP, JDK) und die Versionsmanager selbst | pro Build |
+| Home `/home/agent` | die SDK-Versionen, die das Projekt pinnt | persistent je Agent |
+| Checkout | `vendor/`, `node_modules/`, Gradle-Cache | persistent je Agent |
+
+Das Image bringt deshalb `fvm` (Flutter/Dart) und `uv` (Python) mit, aber
+**keine SDKs**: Die zieht sich jeder Agent beim ersten Bedarf in sein Home,
+gesteuert durch die Version, die im Projekt-Repo steht (`.fvmrc`,
+`.python-version`, `gradle-wrapper.properties`). Weil das Home persistent ist,
+passiert das einmal und nicht bei jedem Lauf.
+
+**Beim Erweitern des Images beachten:** Die Control Plane mountet das Home über
+`/home/agent`. Alles, was ein Installer zur Build-Zeit dorthin schreibt, ist zur
+Laufzeit maskiert und unsichtbar — Werkzeuge gehören in einen Systempfad
+(`/usr/local/bin`, `/opt`), ihre Caches ins Home. Aus demselben Grund lässt sich
+SDKMAN nicht vorinstallieren; es liegt konstruktionsbedingt in `$HOME/.sdkman`
+und wird bei Bedarf vom Agenten selbst installiert (bleibt dann liegen).
+
+**Nachinstallieren zur Laufzeit ist kein Weg.** Der Agent läuft als Nicht-Root,
+und ein Paketmanager auf der Egress-Allowlist wäre ein generischer
+Code-Ausführungskanal. Die Begründung steht als **D11** in
+[`spec/07-offene-entscheidungen.md`](../spec/07-offene-entscheidungen.md).
+
+### Egress für Entwickler-Agenten
+
+Im Isolationsmodus `network` erreicht die Sandbox nur, was auf der Allowlist
+steht — ohne die passenden Templates scheitern `composer install`,
+`fvm install` und `gradlew`. Der eingebaute Katalog
+(`internal/egress/builtin.go`) hält dafür fertige Host-Sets bereit; einem
+Entwickler-Agenten weist man üblicherweise zu:
+
+| Template | Wofür |
+|---|---|
+| GitHub | Git-Klone, Release-Downloads — auch für `fvm`, Composer-VCS-Pakete und `uv` |
+| PHP / Composer | `packagist.org` |
+| Dart / Flutter | `pub.dev`, SDK-Archive |
+| Maven / Gradle | Maven Central, Gradle-Wrapper, JDK-Toolchains |
+| Node.js / npm | `registry.npmjs.org` |
+
+Dazu das eigene GitLab bzw. Zammad als org-eigenes Template — die stehen
+bewusst nicht im Katalog.
+
 Migrationen laufen beim `serve`-Start automatisch (Advisory-Lock). Der
 `bootstrap`-Service legt Organisation/Admin idempotent an und blockiert den
 Start der Control Plane, bis er durch ist.

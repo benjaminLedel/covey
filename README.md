@@ -149,7 +149,7 @@ make bootstrap    # build frontend + binaries, migrate, create org/admin/agent
 make run          # covey serve on http://localhost:8494
 ```
 
-**Sandbox isolation.** The control plane starts sandboxes as containers (**docker provider**, the default) — real isolation at the container level. Build the image once before the first start with `make sandbox-image` ([`Dockerfile.sandbox`](Dockerfile.sandbox): coveyd + Claude Code + chromium for the `browser` plugin). The persistent agent home is mounted as a volume; the container inherits nothing from the host environment. Override the image via `COVEY_SANDBOX_IMAGE`.
+**Sandbox isolation.** The control plane starts sandboxes as containers (**docker provider**, the default) — real isolation at the container level. Build the image once before the first start with `make sandbox-image` ([`Dockerfile.sandbox`](Dockerfile.sandbox): coveyd + Claude Code + chromium for the `browser` plugin, plus PHP, a JDK and the version managers `fvm`/`uv` for developer agents). The persistent agent home is mounted as a volume; the container inherits nothing from the host environment. Override the image via `COVEY_SANDBOX_IMAGE`. The rule when extending it: **version → home, toolchain → image** — SDK versions are fetched by the agent itself into its persistent home, following the pin in the project repo ([`docs/betrieb-deployment.md`](docs/betrieb-deployment.md)).
 
 **Login.** `admin@covey.local` / `covey-admin`, overridable via `COVEY_ADMIN_EMAIL` / `COVEY_ADMIN_PASSWORD` at bootstrap time.
 
