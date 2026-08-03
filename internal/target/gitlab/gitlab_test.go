@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -131,7 +132,7 @@ func TestClientDiscovery(t *testing.T) {
 		t.Fatalf("ListProjects muss auf Mitgliedschaft filtern: %s", gotQuery)
 	}
 
-	issues, err := c.ListIssues(ctx, 15, "", "", "", false)
+	issues, err := c.ListIssues(ctx, 15, "", "", "", "", false)
 	if err != nil || len(issues) != 1 || issues[0].IID != 23 {
 		t.Fatalf("ListIssues (Projekt): %v %+v", err, issues)
 	}
@@ -139,7 +140,7 @@ func TestClientDiscovery(t *testing.T) {
 		t.Fatalf("ListIssues muss projektbezogen und mit Default state=opened laufen: %s?%s", gotPath, gotQuery)
 	}
 
-	if _, err := c.ListIssues(ctx, 0, "all", "bug,support", "login", false); err != nil {
+	if _, err := c.ListIssues(ctx, 0, "all", "bug,support", "login", "", false); err != nil {
 		t.Fatalf("ListIssues (global): %v", err)
 	}
 	if gotPath != "/api/v4/issues" || !strings.Contains(gotQuery, "scope=all") {
@@ -152,17 +153,180 @@ func TestClientDiscovery(t *testing.T) {
 		t.Fatalf("labels/search müssen durchgereicht werden: %s", gotQuery)
 	}
 
-	if _, err := c.ListIssues(ctx, 0, "", "", "", true); err != nil {
+	if _, err := c.ListIssues(ctx, 0, "", "", "", "", true); err != nil {
 		t.Fatalf("ListIssues (assigned, global): %v", err)
 	}
 	if !strings.Contains(gotQuery, "scope=assigned_to_me") || strings.Contains(gotQuery, "scope=all") {
 		t.Fatalf("assigned=true muss scope=assigned_to_me statt scope=all senden: %s", gotQuery)
 	}
-	if _, err := c.ListIssues(ctx, 15, "", "", "", true); err != nil {
+	if _, err := c.ListIssues(ctx, 15, "", "", "", "", true); err != nil {
 		t.Fatalf("ListIssues (assigned, Projekt): %v", err)
 	}
 	if gotPath != "/api/v4/projects/15/issues" || !strings.Contains(gotQuery, "scope=assigned_to_me") {
 		t.Fatalf("assigned=true muss auch projektbezogen scope=assigned_to_me senden: %s?%s", gotPath, gotQuery)
+	}
+
+	// Meilenstein: der Filter, mit dem ein Agent ein ganzes Vorhaben greift.
+	if _, err := c.ListIssues(ctx, 15, "", "", "", "ECA-2026-045 Bundesdruckerei LMS", false); err != nil {
+		t.Fatalf("ListIssues (milestone): %v", err)
+	}
+	if !strings.Contains(gotQuery, "milestone=ECA-2026-045+Bundesdruckerei+LMS") {
+		t.Fatalf("milestone muss durchgereicht werden: %s", gotQuery)
+	}
+	if _, err := c.ListIssues(ctx, 15, "", "", "", "", false); err != nil {
+		t.Fatalf("ListIssues (ohne milestone): %v", err)
+	}
+	if strings.Contains(gotQuery, "milestone=") {
+		t.Fatalf("leerer milestone darf keinen Parameter senden: %s", gotQuery)
+	}
+}
+
+// Der Meilenstein muss am Issue ankommen — ein Agent, der ein Vorhaben führt,
+// entscheidet daran, was zu seinem Auftrag gehört. GitLab liefert null, wenn
+// keiner gesetzt ist; das darf nicht in einen leeren Titel kippen.
+func TestIssueCarriesMilestone(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`[{"iid":739,"project_id":15,"milestone":{"title":"ECA-2026-045 Bundesdruckerei LMS","due_date":"2026-11-30","state":"active"}},
+		                 {"iid":740,"project_id":15,"milestone":null}]`))
+	}))
+	defer srv.Close()
+
+	issues, err := NewClient(srv.URL, "t").ListIssues(context.Background(), 15, "", "", "", "", false)
+	if err != nil || len(issues) != 2 {
+		t.Fatalf("ListIssues: %v %+v", err, issues)
+	}
+	if issues[0].Milestone == nil || issues[0].Milestone.Title != "ECA-2026-045 Bundesdruckerei LMS" {
+		t.Fatalf("Meilenstein muss am Issue ankommen: %+v", issues[0].Milestone)
+	}
+	if issues[0].Milestone.DueDate != "2026-11-30" {
+		t.Fatalf("Fälligkeit des Meilensteins fehlt: %+v", issues[0].Milestone)
+	}
+	if issues[1].Milestone != nil {
+		t.Fatalf("ohne Meilenstein muss das Feld nil bleiben: %+v", issues[1].Milestone)
+	}
+}
+
+// set_labels führt den Arbeitszustand im Board. Entscheidend ist, dass es
+// TEILWEISE arbeitet (add_labels/remove_labels) statt die Label-Liste zu
+// überschreiben — sonst nimmt jeder Zustandswechsel die fachlichen Labels mit.
+func TestSetLabelsIsPartial(t *testing.T) {
+	var gotMethod, gotPath string
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath = r.Method, r.URL.Path
+		gotBody = map[string]any{}
+		json.NewDecoder(r.Body).Decode(&gotBody)
+		json.NewEncoder(w).Encode(Issue{IID: 739, ProjectID: 15,
+			Labels: []string{"ECA-2026-045", "MUSS-Kriterium", "in Arbeit"}})
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, "test-token")
+	ctx := context.Background()
+
+	iss, err := c.SetLabels(ctx, 15, 739, []string{"in Arbeit"}, []string{"bereit", ""})
+	if err != nil {
+		t.Fatalf("SetLabels: %v", err)
+	}
+	if gotMethod != http.MethodPut || gotPath != "/api/v4/projects/15/issues/739" {
+		t.Fatalf("SetLabels muss das Issue per PUT ändern: %s %s", gotMethod, gotPath)
+	}
+	if gotBody["add_labels"] != "in Arbeit" || gotBody["remove_labels"] != "bereit" {
+		t.Fatalf("add/remove müssen getrennt und ohne Leereinträge gehen: %+v", gotBody)
+	}
+	if gotBody["labels"] != nil {
+		t.Fatalf("die volle labels-Liste darf NICHT überschrieben werden: %+v", gotBody)
+	}
+	if len(iss.Labels) != 3 {
+		t.Fatalf("der erreichte Label-Stand muss zurückkommen: %+v", iss.Labels)
+	}
+
+	// Nur entfernen ist erlaubt, gar nichts angeben nicht — sonst schickt ein
+	// unvollständiger Aufruf einen wirkungslosen PUT an GitLab.
+	if _, err := c.SetLabels(ctx, 15, 739, nil, []string{"bereit"}); err != nil {
+		t.Fatalf("nur remove_labels muss erlaubt sein: %v", err)
+	}
+	if gotBody["add_labels"] != nil {
+		t.Fatalf("ohne add_labels darf das Feld nicht mitgeschickt werden: %+v", gotBody)
+	}
+	if _, err := c.SetLabels(ctx, 15, 739, nil, nil); err == nil {
+		t.Fatal("ohne add_labels und remove_labels muss SetLabels abgelehnt werden")
+	}
+	if _, err := c.SetLabels(ctx, 15, 739, []string{"  "}, nil); err == nil {
+		t.Fatal("nur Leerraum ist kein Label — muss abgelehnt werden")
+	}
+
+	// Ein Eintrag mit Komma darf NICHT still zu zwei Labels werden: GitLab legt
+	// fehlende Labels beim Setzen automatisch an, aus einem Tippfehler würden
+	// also dauerhaft zwei Projekt-Labels.
+	if _, err := c.SetLabels(ctx, 15, 739, []string{"lead::bereit,lead::in-arbeit"}, nil); err == nil {
+		t.Fatal("Label mit Komma muss abgelehnt statt gesplittet werden")
+	}
+}
+
+// Die Aktionen müssen auch DURCH Execute funktionieren — die Client-Tests oben
+// rufen die Methoden direkt auf und würden einen falschen JSON-Struct-Tag im
+// Parameter-Struct des Plugins nicht bemerken. Genau dort sitzt die Naht zum
+// Agenten: Was er schickt, ist JSON.
+func TestExecuteSetLabelsAndMilestone(t *testing.T) {
+	var gotMethod, gotPath, gotQuery string
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath, gotQuery = r.Method, r.URL.Path, r.URL.RawQuery
+		gotBody = map[string]any{}
+		json.NewDecoder(r.Body).Decode(&gotBody)
+		if r.Method == http.MethodGet {
+			json.NewEncoder(w).Encode([]Issue{{IID: 739, ProjectID: 15, Title: "Mailvorlagen"}})
+			return
+		}
+		json.NewEncoder(w).Encode(Issue{IID: 739, ProjectID: 15,
+			Labels: []string{"MUSS-Kriterium", "lead::in-arbeit"}})
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	// milestone muss aus dem JSON bis in die Query durchschlagen.
+	if _, err := sys.Execute(ctx, "list_issues",
+		[]byte(`{"project_id":15,"milestone":"ECA-2026-045 Bundesdruckerei LMS"}`), cred); err != nil {
+		t.Fatalf("list_issues mit milestone: %v", err)
+	}
+	if !strings.Contains(gotQuery, "milestone=ECA-2026-045+Bundesdruckerei+LMS") {
+		t.Fatalf("milestone kommt nicht in der Query an (Struct-Tag?): %s", gotQuery)
+	}
+
+	// set_labels: Listen aus dem JSON, additiv/subtraktiv, Label-Stand zurück.
+	res, err := sys.Execute(ctx, "set_labels",
+		[]byte(`{"project_id":15,"issue_iid":739,"add_labels":["lead::in-arbeit"],"remove_labels":["lead::bereit"]}`), cred)
+	if err != nil {
+		t.Fatalf("set_labels: %v", err)
+	}
+	if gotMethod != http.MethodPut || gotPath != "/api/v4/projects/15/issues/739" {
+		t.Fatalf("falscher API-Aufruf: %s %s", gotMethod, gotPath)
+	}
+	if gotBody["add_labels"] != "lead::in-arbeit" || gotBody["remove_labels"] != "lead::bereit" {
+		t.Fatalf("add_labels/remove_labels kommen nicht an (Struct-Tag?): %+v", gotBody)
+	}
+	out := res.(map[string]any)
+	if out["issue_iid"] != 739 {
+		t.Fatalf("Antwort muss das Issue benennen: %+v", out)
+	}
+	if labels, ok := out["labels"].([]string); !ok || len(labels) != 2 {
+		t.Fatalf("Antwort muss den erreichten Label-Stand tragen: %+v", out)
+	}
+
+	// Pflichtfelder und der Komma-Fall auch über Execute.
+	for _, params := range []string{
+		`{"issue_iid":739,"add_labels":["x"]}`,                   // project_id fehlt
+		`{"project_id":15,"add_labels":["x"]}`,                   // issue_iid fehlt
+		`{"project_id":15,"issue_iid":739}`,                      // weder add noch remove
+		`{"project_id":15,"issue_iid":739,"add_labels":["a,b"]}`, // Komma im Label
+	} {
+		if _, err := sys.Execute(ctx, "set_labels", []byte(params), cred); err == nil {
+			t.Fatalf("set_labels %s muss fehlschlagen", params)
+		}
 	}
 }
 
@@ -1196,6 +1360,28 @@ func TestExtractTarGzRejectsTraversal(t *testing.T) {
 	}
 }
 
+// securePath ist die Zusage am fertigen Zielpfad: Was der Name-Test vorne
+// durchlässt, darf hinten trotzdem nicht aus dem Zielverzeichnis zeigen.
+func TestSecurePathStaysUnderRoot(t *testing.T) {
+	root := t.TempDir()
+	for _, name := range []string{"pkg/app.go", "./a/../b.go", "tief/im/baum.txt"} {
+		dest, err := securePath(root, name)
+		if err != nil {
+			t.Fatalf("%q ist harmlos und muss durchgehen: %v", name, err)
+		}
+		if !strings.HasPrefix(dest, root+string(filepath.Separator)) {
+			t.Fatalf("%q landete außerhalb: %q", name, dest)
+		}
+	}
+	// Absolute Namen fängt der Aufrufer schon vorher ab; hier zählt nur, was
+	// aus dem Zielverzeichnis herausführt.
+	for _, name := range []string{"../evil.conf", "a/../../evil.conf", ".."} {
+		if dest, err := securePath(root, name); err == nil {
+			t.Fatalf("%q muss abgelehnt werden, ergab %q", name, dest)
+		}
+	}
+}
+
 func TestClientErrorSurface(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"message":"401 Unauthorized"}`, http.StatusUnauthorized)
@@ -1220,6 +1406,11 @@ func TestActionSubject(t *testing.T) {
 	}
 	if got := sys.ActionSubject("set_state", nil); got != "gitlab:set_state" {
 		t.Fatalf("set_state: %s", got)
+	}
+	// docs/betrieb-gitlab.md §5.1 sichert dieses Subjekt zu — daran hängen
+	// Guard-Rail-Regeln, die den Zustandswechsel im Board gaten sollen.
+	if got := sys.ActionSubject("set_labels", nil); got != "gitlab:set_labels" {
+		t.Fatalf("set_labels: %s", got)
 	}
 }
 
@@ -1495,6 +1686,78 @@ func TestHasWorkKindReview(t *testing.T) {
 	check(false)
 }
 
+// TestCheckoutGitBaseline sichert die Grundlage, auf der der Sub-Agent im
+// Checkout arbeitet: Das Archiv bringt keine .git mit, deshalb legt der
+// Checkout eine Baseline an. Nur dadurch funktionieren git-aufrufende
+// Projekt-Skripte, und nur dadurch lässt sich hinterher sagen, WAS der
+// Sub-Agent geändert hat (Dateiliste für die commit-Aktion).
+func TestCheckoutGitBaseline(t *testing.T) {
+	archive := tarGz(t, map[string]string{
+		"proj-main-abc/":           "",
+		"proj-main-abc/README.md":  "# Projekt",
+		"proj-main-abc/pkg/app.go": "package app",
+	})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write(archive)
+	}))
+	defer srv.Close()
+
+	workdir := t.TempDir()
+	ctx := target.WithWorkdir(context.Background(), workdir)
+	res, err := System{}.Execute(ctx, "checkout", []byte(`{"project_id":7,"ref":"main"}`),
+		target.Credential{BaseURL: srv.URL, Token: "t"})
+	if err != nil {
+		t.Fatalf("checkout: %v", err)
+	}
+	dir := res.(CheckoutResult).Path
+
+	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
+		t.Skipf("kein git verfügbar: %v", err)
+	}
+	// Frischer Checkout = sauberer Baum: Alles Entpackte steckt im Baseline-Commit.
+	if out := gitOut(t, dir, "status", "--porcelain", "-uall"); out != "" {
+		t.Fatalf("frischer Checkout muss sauber sein, war:\n%s", out)
+	}
+	// Der Tag ist der Anker, gegen den der Sub-Lauf seine Arbeit meldet — auch
+	// dann noch, wenn er zwischendurch lokal committet hat.
+	if out := gitOut(t, dir, "tag", "--list", target.BaselineRef); out != target.BaselineRef {
+		t.Fatalf("Checkout muss den Upstream-Stand als %q taggen, hatte: %q", target.BaselineRef, out)
+	}
+	// Nach einer Änderung meldet git genau diese Datei — das ist die Liste,
+	// die der Sub-Agent an die commit-Aktion zurückgibt.
+	if err := os.WriteFile(filepath.Join(dir, "pkg", "app.go"), []byte("package app // fix"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "pkg", "app_test.go"), []byte("package app"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out := gitOut(t, dir, "status", "--porcelain", "-uall")
+	if !strings.Contains(out, "pkg/app.go") || !strings.Contains(out, "pkg/app_test.go") {
+		t.Fatalf("geänderte und neue Datei müssen auftauchen:\n%s", out)
+	}
+
+	// Dependency-Caches gehören nicht zur Arbeit: Sie überleben den Checkout
+	// (preserveDirs) und bleiben über .git/info/exclude aus dem Status heraus.
+	if err := os.MkdirAll(filepath.Join(dir, "node_modules", "lib"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "node_modules", "lib", "index.js"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if out := gitOut(t, dir, "status", "--porcelain", "-uall"); strings.Contains(out, "node_modules") {
+		t.Fatalf("Cache-Verzeichnisse dürfen nicht als Arbeit gelten:\n%s", out)
+	}
+}
+
+func gitOut(t *testing.T, dir string, args ...string) string {
+	t.Helper()
+	out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).Output()
+	if err != nil {
+		t.Fatalf("git %v: %v", args, err)
+	}
+	return strings.TrimSpace(string(out))
+}
+
 // TestCreateMergeRequestAssigneeFromIssue deckt ab, dass der MR ohne benannten
 // assignee an den MELDER des Issues geht statt pauschal an den Vorgesetzten.
 func TestCreateMergeRequestAssigneeFromIssue(t *testing.T) {
@@ -1604,5 +1867,103 @@ func TestWorkSignature(t *testing.T) {
 	mrNotes = append(mrNotes, Note{ID: 9, Body: "added 2 commits", System: true, Author: author("gitlab")})
 	if _, afterPush, _ := sys.HasWorkSigned(ctx, cred, "mr"); afterPush == before {
 		t.Fatalf("push muss die signatur ändern: %q", afterPush)
+	}
+}
+
+// Die drei Aktionen, die bisher durch kein Test liefen — get_issue, list_notes
+// und escalate. Ohne sie waere jede Umstellung der Execute-Verteilung ein
+// Sprung ohne Netz: Ein vertippter Aktionsname faellt sonst erst im Betrieb auf.
+func TestExecuteRestlicheAktionen(t *testing.T) {
+	type ruf struct {
+		method, path string
+		body         map[string]any
+	}
+	var rufe []ruf
+	var gotPath string
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		gotBody = map[string]any{}
+		json.NewDecoder(r.Body).Decode(&gotBody)
+		rufe = append(rufe, ruf{r.Method, r.URL.Path, gotBody})
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/notes") && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode([]Note{{ID: 1, Body: "erste Notiz"}})
+		case strings.HasSuffix(r.URL.Path, "/notes"):
+			json.NewEncoder(w).Encode(Note{ID: 2, Body: "angelegt"})
+		default:
+			json.NewEncoder(w).Encode(Issue{IID: 42, ProjectID: 7, Title: "Drucker brennt"})
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	// get_issue: ein Ticket am Stück.
+	res, err := sys.Execute(ctx, "get_issue", []byte(`{"project_id":7,"issue_iid":42}`), cred)
+	if err != nil {
+		t.Fatalf("get_issue: %v", err)
+	}
+	if gotPath != "/api/v4/projects/7/issues/42" {
+		t.Errorf("get_issue ruft %s", gotPath)
+	}
+	if iss, ok := res.(Issue); !ok || iss.IID != 42 {
+		t.Errorf("get_issue liefert %#v", res)
+	}
+
+	// list_notes: der Verlauf am Ticket.
+	res, err = sys.Execute(ctx, "list_notes", []byte(`{"project_id":7,"issue_iid":42}`), cred)
+	if err != nil {
+		t.Fatalf("list_notes: %v", err)
+	}
+	if gotPath != "/api/v4/projects/7/issues/42/notes" {
+		t.Errorf("list_notes ruft %s", gotPath)
+	}
+	if notes, ok := res.([]Note); !ok || len(notes) != 1 {
+		t.Errorf("list_notes liefert %#v", res)
+	}
+
+	// escalate macht ZWEI Dinge: erst einen internen Kommentar, dann die
+	// Zuweisung aufheben — das Ticket landet wieder beim Menschen. Beides
+	// gehört festgehalten, sonst fällt beim Umbau die Hälfte weg, ohne dass
+	// ein Test sich meldet.
+	rufe = nil
+	if _, err := sys.Execute(ctx, "escalate", []byte(`{"project_id":7,"issue_iid":42}`), cred); err != nil {
+		t.Fatalf("escalate: %v", err)
+	}
+	if len(rufe) != 2 {
+		t.Fatalf("escalate macht %d Aufrufe, erwartet 2 (Kommentar + Zuweisung lösen): %+v", len(rufe), rufe)
+	}
+	if rufe[0].method != http.MethodPost || !strings.HasSuffix(rufe[0].path, "/notes") {
+		t.Errorf("erster Aufruf ist kein Kommentar: %s %s", rufe[0].method, rufe[0].path)
+	}
+	if body, _ := rufe[0].body["body"].(string); body != "Eskalation durch Covey-Agent." {
+		t.Errorf("escalate ohne note nutzt nicht die Vorgabe: %q", body)
+	}
+	if intern, _ := rufe[0].body["internal"].(bool); !intern {
+		t.Error("der Eskalations-Kommentar muss intern sein — er geht das Team an, nicht den Melder")
+	}
+	if rufe[1].method != http.MethodPut {
+		t.Errorf("zweiter Aufruf löst nicht die Zuweisung: %s %s", rufe[1].method, rufe[1].path)
+	}
+	if ids, ok := rufe[1].body["assignee_ids"].([]any); !ok || len(ids) != 0 {
+		t.Errorf("escalate muss die Zuweisung leeren, got %#v", rufe[1].body["assignee_ids"])
+	}
+
+	// … und mit eigenem Text bleibt dieser stehen.
+	rufe = nil
+	if _, err := sys.Execute(ctx, "escalate",
+		[]byte(`{"project_id":7,"issue_iid":42,"note":"Kunde wartet seit drei Tagen"}`), cred); err != nil {
+		t.Fatalf("escalate mit note: %v", err)
+	}
+	if body, _ := rufe[0].body["body"].(string); body != "Kunde wartet seit drei Tagen" {
+		t.Errorf("escalate überschreibt den eigenen Text: %q", body)
+	}
+
+	// Eine unbekannte Aktion ist ein Fehler, kein stilles Nichts.
+	if _, err := sys.Execute(ctx, "gibtsnicht", []byte(`{}`), cred); err == nil {
+		t.Error("unbekannte aktion muss einen Fehler liefern")
 	}
 }

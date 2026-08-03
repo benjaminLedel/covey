@@ -314,6 +314,25 @@ export type TargetPlugin = {
   setup_doc?: string;
 };
 
+// Ein Zielsystem aus der Sicht eines Agenten (GET /agents/{id}/systems):
+// Plugin, Zugang aus ACCESS.md und die Aktionen im Wortlaut seines Prompts.
+// access=false heißt: der Broker verweigert dem Agenten hier jede Anfrage,
+// egal ob das Plugin für die Organisation aktiviert ist.
+export type AgentSystem = {
+  name: string;
+  label: string;
+  description?: string;
+  kind: "builtin" | "custom" | "mcp";
+  category?: string;
+  enabled: boolean;
+  access: boolean;
+  scopes?: string[];
+  /** Werkzeug-Allowlist des Agenten (nur MCP); leer = alle. */
+  tools?: string[];
+  /** Aktionsliste, wie sie im System-Prompt steht. */
+  doc?: string;
+};
+
 // Ein vom MCP-Server angebotenes Werkzeug (aus tools/list entdeckt).
 export type MCPTool = {
   name: string;
@@ -409,9 +428,64 @@ export type MemoryEntry = {
   content: string;
   links?: string[];
   source?: string;
+  type?: string; // kunde | projekt | system | person | problem | thema; leer = nicht eingeordnet
+  tags?: string[];
   score?: number;
   created_at: string;
   updated_at: string;
+};
+
+// Ein Qualitätsbefund über das Wiki eines Agenten (spec/05).
+export type WikiFinding = {
+  kind: "orphan" | "dead_link" | "untyped" | "episodic" | "duplicate" | "stub";
+  slug: string;
+  title?: string;
+  detail?: string;
+  score?: number;
+  related?: string[];
+};
+
+// Kennzahlen plus Befunde — die Qualitätssicht auf ein Wiki.
+export type WikiHealth = {
+  pages: number;
+  links: number;
+  orphans: number;
+  dead_links: number;
+  untyped: number;
+  episodic: number;
+  duplicate: number;
+  stubs: number;
+  findings: WikiFinding[];
+};
+
+// Was ein Agent im Traum mit einer Seite gemacht hat (spec/05). `before` trägt
+// den Zustand davor — daran hängt das Rückgängigmachen.
+export type DreamAction = {
+  id: string;
+  kind: "retitle" | "merge";
+  page_slug?: string;
+  before?: string;
+  after?: string;
+  reason?: string;
+  undone_at?: string;
+};
+
+// Ein Traum: der nächtliche (oder von Hand angestoßene) Aufräumlauf des
+// Gedächtnisses, samt allem, was er getan hat.
+export type Dream = {
+  id: string;
+  agent_id: string;
+  trigger: "manual" | "nightly";
+  status: "running" | "done" | "error";
+  error?: string;
+  phase?: string;
+  looked_at: number;
+  skipped: number;
+  // Traumerzählung — Zierrat neben dem Protokoll, nicht an dessen Stelle.
+  story?: string;
+  started_at: string;
+  finished_at?: string;
+  actions: DreamAction[];
 };
 
 // Ein Eintrag des Wiki-Protokolls (log.md-Äquivalent, spec/05).
@@ -442,6 +516,28 @@ export type SecretCheck = {
   hint?: string;
 };
 
+// Ein Skill ist eine Fähigkeit des Agenten: ein Verzeichnis mit SKILL.md und
+// beliebigem Beiwerk. Nur description steht dauerhaft im Kontext jedes Laufs,
+// der Rest wird geladen, wenn die Runtime den Skill zieht.
+//
+// agent_id leer = Skill der Org-Bibliothek; assigned_to sind dann die Agenten,
+// denen er verlinkt ist (leer heißt: er erreicht niemanden). origin liefert die
+// Agenten-Sicht mit: "agent" (gehört ihm) oder "library" (verlinkt).
+export type SkillFile = { path: string; content: string };
+export type Skill = {
+  id: string;
+  org_id: string;
+  agent_id?: string;
+  name: string;
+  description: string;
+  assigned_to?: string[];
+  updated_at: string;
+  files?: SkillFile[];
+  origin?: "agent" | "library";
+};
+
+export const SKILL_ENTRY = "SKILL.md";
+
 export type AgentTemplate = {
   id: string;
   org_id: string;
@@ -455,6 +551,42 @@ export type AgentTemplate = {
   builtin?: boolean;
 };
 
+// Herkunft des laufenden Binaries (GET /version, internal/buildinfo): welcher
+// Stand läuft hier? Der Fuß der Sidebar zeigt sie — nach einem Deploy die
+// erste Frage. built_at ist RFC3339 (UTC), commit/built_at können leer sein,
+// wenn ein Build ohne Git-Kontext lief.
+export type BuildInfo = {
+  version: string;
+  commit: string;
+  built_at: string;
+  dirty: boolean;
+  go: string;
+};
+
+export const buildInfo = () => api<BuildInfo>("/version");
+
+
+// Erste Schritte: der Zustand der Organisation, nicht ein Fortschritt, den
+// sich die Oberfläche merkt (GET /onboarding). done=true → die Checkliste hat
+// nichts mehr zu sagen und verschwindet.
+export type OnboardingState = {
+  steps: Array<{ key: string; done: boolean }>;
+  done: boolean;
+};
+
+// Ein Eintrag der Audit-Spur (GET /audit): wer wann was an der Plattform
+// angefasst hat. Ohne Request-Inhalte — darin stünden Secret-Werte.
+export type AuditEntry = {
+  id: number;
+  actor_email: string;
+  actor_role: string;
+  method: string;
+  path: string;
+  status: number;
+  client_ip?: string;
+  created_at: string;
+};
+
 export class ApiError extends Error {
   status: number;
   constructor(status: number, message: string) {
@@ -464,8 +596,12 @@ export class ApiError extends Error {
 }
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  // Bei FormData setzt der Browser den Content-Type selbst — samt der
+  // multipart-Grenze, die wir gar nicht kennen. Ihn zu überschreiben machte
+  // den Upload unlesbar.
+  const isForm = init?.body instanceof FormData;
   const res = await fetch(`/api/v1${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: isForm ? undefined : { "Content-Type": "application/json" },
     ...init,
   });
   if (!res.ok) {
@@ -490,6 +626,50 @@ export const put = <T>(path: string, body: unknown) =>
 export const patch = <T>(path: string, body: unknown) =>
   api<T>(path, { method: "PATCH", body: JSON.stringify(body) });
 export const del = <T>(path: string) => api<T>(path, { method: "DELETE" });
+export const upload = <T>(path: string, form: FormData) =>
+  api<T>(path, { method: "POST", body: form });
+
+// --- Arbeitsplatz: das persistente Home eines Agenten als Dateibaum ---
+
+// Wie eine Datei zu zeigen ist. Der Server entscheidet das an einer Stelle
+// (internal/sandboxfs) — die Oberfläche wählt danach nur noch die Darstellung.
+export type PreviewKind = "text" | "markdown" | "image" | "pdf" | "csv" | "binary";
+
+export type FileEntry = {
+  name: string;
+  /** Pfad relativ zum Home, „/" als Trenner. */
+  path: string;
+  is_dir: boolean;
+  size: number;
+  mode: string;
+  mod_time: string;
+  /** Ziel, wenn der Eintrag ein Symlink ist. */
+  symlink?: string;
+  /** Der Link zeigt aus dem Home heraus — sichtbar, aber nicht zu öffnen. */
+  outside?: boolean;
+  /** Vorschau-Art nach Dateiname; leer = erst beim Öffnen entscheidbar. */
+  preview?: PreviewKind;
+};
+
+export type FileListing = {
+  path: string;
+  /** false = das Home wurde noch nie angelegt (Agent nie geweckt). */
+  exists: boolean;
+  truncated: boolean;
+  entries: FileEntry[];
+};
+
+export type FileContent = {
+  path: string;
+  size: number;
+  mode: string;
+  mod_time: string;
+  binary: boolean;
+  truncated: boolean;
+  /** text/markdown/csv tragen content; image/pdf kommen über den preview-Endpunkt. */
+  preview: PreviewKind;
+  content: string;
+};
 
 // KI-Assistent zum Anpassen von Agenten (Config-Copilot, FR-001).
 export type AssistMessage = { role: "user" | "assistant"; content: string };

@@ -2,12 +2,21 @@
 # Bauen: `make sandbox-image`. Die Control Plane startet daraus pro Wake einen
 # Container; das persistente Agenten-Home wird nach /home/agent gemountet.
 FROM golang:1.26 AS build
+# Herkunft des Binaries (internal/buildinfo) — `coveyd version` im Container
+# beantwortet, welcher Stand im Sandbox-Image liegt. Werte reicht der Aufrufer
+# durch (make sandbox-image / CI); ohne Build-Args bleibt es "dev".
+ARG VERSION=dev
+ARG COMMIT=
+ARG DATE=
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY cmd/coveyd ./cmd/coveyd
 COPY internal ./internal
-RUN CGO_ENABLED=0 go build -o /coveyd ./cmd/coveyd
+RUN CGO_ENABLED=0 go build -ldflags "\
+        -X covey/internal/buildinfo.version=$VERSION \
+        -X covey/internal/buildinfo.commit=$COMMIT \
+        -X covey/internal/buildinfo.date=$DATE" -o /coveyd ./cmd/coveyd
 
 FROM node:26-slim
 # Werkzeuge, die die Runtime in der Praxis braucht: git für Repos,
@@ -21,6 +30,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 # Damit chromedp den Browser ohne Rätselraten findet.
 ENV COVEY_BROWSER_CHROME_PATH=/usr/bin/chromium
+# UTF-8 als Sandbox-Locale. Ohne das läuft der Container im POSIX-Default:
+# grep/sed/sort/wc/tr sehen dann Bytes statt Zeichen, unzip verstümmelt
+# Dateinamen mit Umlauten, und der Agent lernt aus den kaputten Rückgaben, dass
+# er deutschen Text lieber nach ASCII umschreibt („ue" statt „ü"). C.UTF-8 ist
+# in glibc ab Debian bookworm eingebaut — kein locales-Paket nötig.
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 RUN npm install -g @anthropic-ai/claude-code
 
 # Nicht-root: Claude Code verweigert --dangerously-skip-permissions als root,

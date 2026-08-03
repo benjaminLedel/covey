@@ -111,7 +111,12 @@ func (p *Proxy) Start(addr string) (string, error) {
 		return "", fmt.Errorf("egress-proxy binden: %w", err)
 	}
 	p.ln = ln
-	p.srv = &http.Server{Handler: http.HandlerFunc(p.serve)}
+	// ReadHeaderTimeout auch hier: Der Proxy ist aus jeder Sandbox erreichbar,
+	// und eine Sandbox ist genau der Ort, an dem fremder Code läuft.
+	p.srv = &http.Server{
+		Handler:           http.HandlerFunc(p.serve),
+		ReadHeaderTimeout: 20 * time.Second,
+	}
 	go func() { _ = p.srv.Serve(ln) }()
 	return ln.Addr().String(), nil
 }
@@ -120,6 +125,8 @@ func (p *Proxy) Close() error {
 	if p.srv == nil {
 		return nil
 	}
+	// Herunterfahren braucht einen eigenen Kontext: Der Aufrufer schließt den
+	// Proxy typischerweise, WEIL sein Kontext abgelaufen ist.
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	return p.srv.Shutdown(ctx)

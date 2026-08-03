@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"covey/internal/agents"
 	"covey/internal/target"
@@ -30,6 +31,17 @@ func (s *Server) handleTargetWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	noteWebhookAgent(r, agent) // Request-Log: Eintrag dem Agenten zuordnen
+
+	// Erst ab hier bremsen, nicht schon vor der Agenten-Auflösung: Der
+	// Schlüssel IST der Agent. Ein unbekannter Slug ist oben bereits mit 404
+	// beantwortet und kostet nichts weiter.
+	if !s.webhookLimiter.allow(agent.ID.String(), time.Now()) {
+		s.Log.Warn("webhook-rate-limit greift", "agent", agent.Slug, "system", systemName)
+		w.Header().Set("Retry-After", "60")
+		writeErr(w, http.StatusTooManyRequests,
+			"zu viele Webhook-Aufrufe für diesen Agenten — bitte später erneut zustellen")
+		return
+	}
 
 	sys, err := s.Targets.System(r.Context(), agent.OrgID, systemName)
 	if err != nil {

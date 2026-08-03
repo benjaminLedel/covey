@@ -7,10 +7,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"covey/internal/target"
 )
 
 // preserveDirs bleiben bei einem erneuten Checkout erhalten (nicht mit dem
@@ -105,7 +108,15 @@ func Checkout(ctx context.Context, gc *Client, projectID int, ref, subPath, work
 	}
 	defer body.Close()
 
-	destDir := filepath.Join(workdir, "repos", stableCheckoutDir(projectID, ref, subPath))
+	// Der Verzeichnisname entsteht aus Projekt-ID und Ref, also aus Werten, die
+	// der Agent liefert. stableCheckoutDir lässt keinen Pfad-Separator durch —
+	// securePath hält diese Zusage am fertigen Pfad explizit fest, statt sie zwei
+	// Funktionen entfernt implizit zu lassen. Alles darunter (Entpacken,
+	// git-Baseline) verlässt sich darauf.
+	destDir, err := securePath(filepath.Join(workdir, "repos"), stableCheckoutDir(projectID, ref, subPath))
+	if err != nil {
+		return CheckoutResult{}, err
+	}
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return CheckoutResult{}, err
 	}
@@ -117,13 +128,78 @@ func Checkout(ctx context.Context, gc *Client, projectID int, ref, subPath, work
 	if err != nil {
 		return CheckoutResult{}, err
 	}
+	initGitBaseline(ctx, destDir)
 	return CheckoutResult{
 		Path:    destDir,
 		Ref:     ref,
 		SubPath: subPath,
 		Files:   files,
-		Hint:    "Quellcode liegt lokal — durchsuche und lies ihn direkt (Grep/Read/Bash). Dependency-Caches (node_modules o. ä.) bleiben über Läufe erhalten, npm/pip/go install läuft dann inkrementell.",
+		Hint:    "Quellcode liegt lokal — durchsuche und lies ihn direkt (Grep/Read/Bash). Für die eigentliche Änderung übergib den Pfad an dev agent: Der Sub-Agent arbeitet IM Projekt und bekommt dort dessen eigene Regeln (CLAUDE.md, .claude/agents, Skills) — du selbst siehst die nicht. Das Verzeichnis ist ein git-Repo mit dem Upstream-Stand als Baseline-Commit, geänderte Dateien meldet der Sub-Agent zurück. Dependency-Caches (node_modules o. ä.) bleiben über Läufe erhalten, npm/pip/go install läuft dann inkrementell.",
 	}, nil
+}
+
+// securePath verankert einen Archiv-Eintrag unter root: Der zusammengesetzte
+// Zielpfad muss innerhalb von root bleiben. Der Präfix-Test auf ".." am Namen
+// fängt den Regelfall schon vorher ab — diese Prüfung ist die Zusage am
+// FERTIGEN Pfad und damit die, auf die es ankommt (Zip Slip, CWE-22).
+func securePath(root, name string) (string, error) {
+	dest := filepath.Clean(filepath.Join(root, name))
+	if dest != filepath.Clean(root) && !strings.HasPrefix(dest, filepath.Clean(root)+string(filepath.Separator)) {
+		return "", fmt.Errorf("unsicherer pfad im archiv: %q", name)
+	}
+	return dest, nil
+}
+
+// initGitBaseline legt im frischen Checkout ein git-Repository mit genau einem
+// Commit an: dem gerade entpackten Upstream-Stand. Das Archiv selbst bringt
+// keine .git mit (es ist ein Tarball, kein Klon), und daraus folgen zwei
+// Probleme, die dieser Commit löst:
+//
+//   - Werkzeuge und Skripte des Projekts, die git aufrufen, scheitern sonst.
+//   - Nach der Arbeit im Checkout ließe sich sonst nicht sagen, WAS geändert
+//     wurde — die commit-Aktion braucht aber genau diese Dateiliste.
+//
+// Die Baseline wird bei jedem Checkout neu gezogen: `.git` steht bewusst NICHT
+// in preserveDirs, pruneExceptPreserved räumt sie also vor dem Entpacken weg.
+// Nur so entspricht sie exakt dem frischen Upstream-Stand, und `git status`
+// zeigt danach ausschließlich die eigene Arbeit.
+//
+// Alles hier ist best effort — fehlt git oder scheitert ein Schritt, bleibt der
+// Checkout gültig; der Agent verliert nur den Komfort.
+func initGitBaseline(ctx context.Context, dir string) {
+	git := func(args ...string) error {
+		cmd := exec.CommandContext(ctx, "git", args...)
+		cmd.Dir = dir
+		// Identität als Flag statt via git config: Wir fassen weder die globale
+		// Konfiguration des Sandbox-Users an noch brauchen wir eine echte.
+		cmd.Env = append(os.Environ(),
+			"GIT_AUTHOR_NAME=Covey", "GIT_AUTHOR_EMAIL=covey@localhost",
+			"GIT_COMMITTER_NAME=Covey", "GIT_COMMITTER_EMAIL=covey@localhost")
+		return cmd.Run()
+	}
+	if err := git("init", "-q"); err != nil {
+		return
+	}
+	// Dependency- und Build-Caches (preserveDirs) überleben den Checkout und
+	// gehören nicht zur Arbeit. Über info/exclude bleiben sie aus Baseline und
+	// späterem `git status` heraus, ohne die .gitignore des Projekts anzufassen.
+	var excl strings.Builder
+	for name := range preserveDirs {
+		excl.WriteString("/" + name + "\n")
+	}
+	_ = os.WriteFile(filepath.Join(dir, ".git", "info", "exclude"), []byte(excl.String()), 0o644)
+	if err := git("add", "-A"); err != nil {
+		return
+	}
+	if err := git("commit", "-q", "--allow-empty", "-m", "covey baseline"); err != nil {
+		return
+	}
+	// Der Tag macht den Upstream-Stand referenzierbar (target.BaselineRef): Der
+	// Sub-Lauf meldet seine Arbeit als Differenz zu diesem Commit. Damit zählt
+	// auch, was der Sub-Agent lokal committet hat — ein Vergleich zweier
+	// `git status`-Abbilder würde danach nichts mehr sehen. `-f`, weil ein
+	// erneuter Checkout in dasselbe Verzeichnis den Tag neu setzen muss.
+	_ = git("tag", "-f", target.BaselineRef)
 }
 
 // extractTarGz entpackt ein GitLab-Repository-Archiv nach destRoot und liefert
@@ -158,11 +234,18 @@ func extractTarGz(r io.Reader, destRoot string) (topDir string, files int, err e
 		if topDir == "" {
 			topDir = strings.SplitN(name, string(filepath.Separator), 2)[0]
 			// Vorherigen Stand desselben Archivs ersetzen (frischer Checkout).
-			if err := os.RemoveAll(filepath.Join(destRoot, topDir)); err != nil {
+			old, err := securePath(destRoot, topDir)
+			if err != nil {
+				return "", 0, err
+			}
+			if err := os.RemoveAll(old); err != nil {
 				return "", 0, err
 			}
 		}
-		dest := filepath.Join(destRoot, name)
+		dest, err := securePath(destRoot, name)
+		if err != nil {
+			return "", 0, err
+		}
 		switch hdr.Typeflag {
 		case tar.TypeDir:
 			if err := os.MkdirAll(dest, 0o755); err != nil {
@@ -233,7 +316,10 @@ func extractTarGzInto(r io.Reader, destDir string) (files int, err error) {
 		if len(rel) < 2 || rel[1] == "" {
 			continue // das Hüllverzeichnis selbst
 		}
-		dest := filepath.Join(destDir, rel[1])
+		dest, err := securePath(destDir, rel[1])
+		if err != nil {
+			return 0, err
+		}
 		switch hdr.Typeflag {
 		case tar.TypeDir:
 			if err := os.MkdirAll(dest, 0o755); err != nil {

@@ -54,7 +54,7 @@ echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env   # 32-Byte-Schlüssel
 docker compose up -d --build                              # Postgres + Covey starten
 ```
 
-Dann [http://localhost:8494](http://localhost:8494) öffnen — Login `admin@covey.local` / `covey-admin`.
+Dann [http://localhost:8494](http://localhost:8494) öffnen — Login `admin@covey.local` / `covey-admin`. Eine Checkliste **Erste Schritte** auf der Agenten-Übersicht führt zum ersten arbeitenden Agenten; sie liest den tatsächlichen Zustand der Organisation, hakt sich selbst ab und verschwindet, wenn alles erledigt ist.
 
 Das mitgelieferte [`docker-compose.yml`](docker-compose.yml) bringt Postgres (pgvector) und das covey-Binary mit eingebetteter Admin-UI; `bootstrap` legt Organisation, Admin und einen Demo-Agenten an, Migrationen laufen automatisch. Vollständige Anleitung inkl. erstem Agenten und Produktions-Checkliste: [`docs/schnellstart-docker.md`](docs/schnellstart-docker.md).
 
@@ -67,9 +67,13 @@ Das mitgelieferte [`docker-compose.yml`](docker-compose.yml) bringt Postgres (pg
 | 🔌 **Zielsysteme als Plugins** | Zammad, GitLab, Microsoft Teams, SharePoint, Nextcloud, E-Mail (IMAP/SMTP), headless Browser, MCP — jedes über ein Manifest, kein Sonderweg im Kern. |
 | 🛡️ **Guard-Rails & Freigaben** | Zentral erzwungen, außerhalb der Runtime, fail-closed. Kritische Aktionen gehen an einen Menschen. |
 | 🔑 **Secrets-Broker** | Keine langlebigen Secrets in der Sandbox — Zugriff wird zur Laufzeit gebrokert, kurzlebig und gescopt. |
+| 🧩 **Skills** | Prozeduren, die ein Agent nur lädt, wenn sie greifen: Die Beschreibung steht im Kontext, Anleitung und Zusatzdateien werden bei Bedarf gelesen. Org-weite Bibliothek, je Agent verlinkt — ein Lead-Lauf, der nichts zu tun findet, zahlt nicht mehr fünf Playbooks. |
 | 🧠 **Wiki-Gedächtnis** | Verlinkte Markdown-Seiten mit pgvector-Index statt flacher Schnipsel — lesbar und von Hand korrigierbar. |
+| 📂 **Arbeitsplatz** | Das Home des Agenten im Browser: nachsehen, was da liegt, eine Vorlage, einen Datensatz oder einen ganzen Ordner ablegen, eine Datei ändern, eine Auswahl als ZIP herausziehen. Markdown, Bilder, PDF und Tabellen werden gleich angezeigt. Geht auch, während der Agent schläft, und jede Änderung steht im Recording. |
 | 🎥 **Recording & Kill-Switch** | Jeder Lauf aufgezeichnet inkl. Screenshots; Kosten pro Agent und Modell; Notaus für die ganze Organisation. |
 | 📦 **Ein Binary** | Frontend und Migrationen sind einkompiliert. Kopieren, `covey serve` — kein nginx, kein separates Frontend-Hosting. |
+
+**CI:** Jeder Push und jeder Pull Request prüft Formatierung, `go vet`, die Go- und Frontend-Tests, `govulncheck` und CodeQL — auf GitHub über [Actions](.github/workflows/), auf GitLab über die Pipeline unten.
 
 **Automatisches Deployment (main → Host):** Jeder Push auf `main` rollt Covey über die GitLab-Pipeline (`test → build → deploy`) auf einen Zielhost aus — so entsteht [covey.work](https://covey.work): das gebaute Image auf den Commit-Tag gepinnt, via [`docker-compose.deploy.yml`](docker-compose.deploy.yml) auf einem Shell-Runner am Host gestartet. Siehe [`docs/betrieb-deployment.md`](docs/betrieb-deployment.md).
 
@@ -157,6 +161,8 @@ make run          # covey serve auf http://localhost:8494
 | `claude_code_oauth_token` | Abo-Account — Token einmalig mit `claude setup-token` erzeugen |
 
 Ohne eines von beiden scheitern Aufgaben mit „Not logged in · Please run /login": die Sandbox hat ein eigenes, leeres `HOME`, die lokale `claude`-Anmeldung ist dort nicht sichtbar.
+
+**Welcher Stand läuft?** `covey version` zeigt Version, Commit und Bauzeit — dieselbe Angabe steht in der Startzeile von `covey serve`, unter `GET /api/v1/version` (angemeldet) und im Fuß der Sidebar in der UI. In einer Sandbox beantwortet `coveyd version` dasselbe für das Sandbox-Image. Die Werte kommen beim Bauen ins Binary: `make build` zieht sie aus Git, die Container-Builds aus den Build-Args `VERSION` / `COMMIT` / `DATE` (die CI füllt sie aus `$CI_COMMIT_*`).
 
 **Tests.** `make test` (Unit) und `make test-integration` (voller Durchstich gegen die Dev-DB, mit Mock-Runtime und Fake-Zammad; skippt, wenn Port 5433 nicht erreichbar ist). Für Demos ohne echtes Zammad: `go run ./demo/fakezammad`, dann die Secrets `zammad_url` = `http://localhost:9999` und `zammad_token` (beliebig) setzen.
 

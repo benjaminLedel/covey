@@ -67,7 +67,7 @@ func sendMail(cfg Config, o outgoing) error {
 	var c *smtp.Client
 	var err error
 	if cfg.SMTPTLS == tlsImplicit {
-		conn, dialErr := tls.Dial("tcp", cfg.SMTPAddr, &tls.Config{ServerName: cfg.SMTPHost})
+		conn, dialErr := tls.Dial("tcp", cfg.SMTPAddr, tlsConfig(cfg.SMTPHost))
 		if dialErr != nil {
 			return fmt.Errorf("smtp-verbindung %s: %w", cfg.SMTPAddr, dialErr)
 		}
@@ -81,7 +81,7 @@ func sendMail(cfg Config, o outgoing) error {
 	defer c.Close()
 
 	if cfg.SMTPTLS == tlsStartTLS {
-		if err := c.StartTLS(&tls.Config{ServerName: cfg.SMTPHost}); err != nil {
+		if err := c.StartTLS(tlsConfig(cfg.SMTPHost)); err != nil {
 			return fmt.Errorf("smtp-starttls: %w", err)
 		}
 	}
@@ -137,4 +137,12 @@ func parseAddrs(field string, raw []string) ([]string, error) {
 // Stelle, an der Nutzer-Text (Betreff) in Header gelangt.
 func sanitizeHeader(s string) string {
 	return strings.NewReplacer("\r", " ", "\n", " ").Replace(s)
+}
+
+// tlsConfig setzt die Mindestversion ausdrücklich statt sich auf den
+// Go-Default zu verlassen. Der ist heute TLS 1.2 und damit richtig — aber
+// „richtig, weil die Sprache es gerade so vorgibt" ist kein Zustand, auf den
+// man eine Verschlüsselung stellt. Postfächer werden über Jahre betrieben.
+func tlsConfig(serverName string) *tls.Config {
+	return &tls.Config{ServerName: serverName, MinVersion: tls.VersionTLS12}
 }

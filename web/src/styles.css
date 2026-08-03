@@ -84,6 +84,12 @@ h1, h2, h3 { font-weight: 500; margin: 0; }
 .st-killed, .st-failed, .st-denied { background: transparent; color: var(--text-danger); border: 0.5px solid var(--border-danger); }
 .st-open { background: var(--surface-1); color: var(--text-secondary); border: 0.5px dashed var(--clay); }
 
+/* Einzeilige Felder deckeln: seit der Rahmen die volle Bildschirmbreite nutzt,
+   liefe ein `width: 100%`-Feld sonst über 2000px — bedienbar wird es dadurch
+   nicht. In schmalen Behältern (Panes, Modals, Karten) greift der Deckel nicht,
+   dort ist 100% ohnehin kleiner. Textareas bleiben ungedeckelt: Config-Editor
+   und Seiten-Bearbeitung wollen den Platz. */
+input, select { max-width: 640px; }
 input, textarea, select {
   width: 100%;
   padding: 8px 10px;
@@ -259,6 +265,20 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
 .side-foot .suser .avatar { width: 30px; height: 30px; font-size: 11px; }
 .side-foot .suser .nm { font-weight: 500; font-size: 12.5px; color: var(--text-primary); }
 .side-foot .suser .rl { font-size: 11px; color: var(--text-muted); }
+/* Build-Zeile am Fuß der Hauptspalte: Version · Commit · Bauzeit, mittig.
+   Bewusst leise — sie wird nur gesucht, wenn jemand wissen will, welcher
+   Stand läuft. */
+.main-build {
+  padding: 0 26px 16px;
+  text-align: center;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+}
+.main-build .bt { opacity: 0.75; }
+
 /* Eine Zeile: Nutzer + ⋯-Button; das Menü öffnet darüber. */
 .suser-row { position: relative; display: flex; align-items: center; gap: 2px; }
 .suser-row .suser { flex: 1; min-width: 0; }
@@ -411,6 +431,7 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
 .kind-credential { background: var(--bg-pro); color: var(--text-pro); }
 .kind-action { background: var(--bg-accent); color: var(--text-accent); }
 .kind-lifecycle { background: var(--bg-success); color: var(--text-success); }
+.kind-subagent { background: var(--bg-accent); color: var(--text-accent); font-style: italic; }
 
 /* Segment-Umschalter (Lesbar | Rohdaten) */
 .seg {
@@ -575,6 +596,72 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   color: var(--text-muted);
   font-size: 12px;
 }
+
+/* Sub-Lauf: die Arbeit des Sub-Agenten im Projekt-Checkout als ein
+   zugeklappter Block. Die Akzentkante links trennt ihn vom äußeren Lauf,
+   ohne ihn wie einen Fehler aussehen zu lassen. */
+.act-feed details.subrun {
+  border: 0.5px solid var(--border);
+  border-left: 2px solid var(--text-accent);
+  border-radius: 8px;
+  margin-bottom: 18px;
+  overflow: hidden;
+  background: var(--surface-2);
+}
+.act-feed details.subrun > summary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 9px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+.act-feed details.subrun > summary::-webkit-details-marker { display: none; }
+.act-feed .subrun-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text-primary);
+}
+.act-feed details.subrun[open] > summary .chev { transform: rotate(90deg); }
+/* Schrumpfen darf der Name, nicht die Status-Pille: Ein langer Checkout-Pfad
+   soll ellipsieren statt die Pille aus der Zeile zu drücken (details.subrun
+   schneidet sie sonst ab) — wie .tool-detail in der Tool-Zeile. */
+.act-feed .subrun-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.act-feed .subrun-time {
+  flex: 1;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.act-feed .subrun-task {
+  font-family: var(--voice);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  padding-left: 20px;
+  overflow-wrap: anywhere;
+}
+.act-feed .subrun-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding-left: 20px;
+}
+/* Innen wieder normaler Feed — nur etwas eingerückt und ohne den Rahmen
+   doppelt zu ziehen. */
+.act-feed .subrun-body {
+  padding: 12px 12px 2px;
+  border-top: 0.5px solid var(--border);
+  background: var(--surface-1);
+}
+.act-feed .subrun-body > *:last-child { margin-bottom: 8px; }
+
 .pill {
   font-size: 11px;
   padding: 1px 8px;
@@ -669,7 +756,13 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   padding: 3px 9px;
   color: var(--text-primary);
 }
-.chip.fixed { border-style: dashed; color: var(--text-secondary); }
+/* "is-"-Präfix mit Absicht: eine Klasse namens `fixed` kollidiert mit Tailwinds
+   Utility `.fixed { position: fixed }`. Da hier kein `position` gesetzt wird,
+   griff die Utility ungehindert durch — der Chip verließ den Textfluss und
+   klebte am Viewport, blieb beim Scrollen also mitten im Text stehen. Kurze
+   Zustandsnamen deshalb immer mit Präfix. */
+.chip.is-fixed { border-style: dashed; color: var(--text-secondary); }
+.chip svg { flex: none; opacity: 0.8; margin-right: -2px; }
 .chip .src { font-family: var(--sans); font-size: 10.5px; color: var(--text-muted); }
 .chip button {
   border: none;
@@ -703,7 +796,10 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
   text-decoration-style: dashed;
   cursor: default;
 }
-.wiki-body { line-height: 1.55; }
+/* Lesebreite: der mittlere Bereich wächst mit dem Fenster, Fließtext soll das
+   nicht. Rund 78 Zeichen sind die Grenze, ab der das Auge die nächste Zeile
+   nicht mehr sicher findet. */
+.wiki-body { line-height: 1.55; max-width: 78ch; }
 .wiki-body p { margin: 0 0 8px; }
 .wiki-body p:last-child { margin-bottom: 0; }
 .wiki-body ul { margin: 0 0 8px; padding-left: 18px; list-style: disc; }
@@ -731,6 +827,272 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
 .wiki-refcount { font-family: var(--mono); font-size: 10.5px; color: var(--text-muted); white-space: nowrap; }
 .wiki-search { display: flex; align-items: center; gap: 10px; }
 .wiki-search input { flex: 1; }
+
+/* Wiki-Arbeitsfläche: Baum | Seite | Kontext. Die Liste bleibt stehen, während
+   man Verweisen folgt — sonst verliert man bei jedem Sprung den Überblick. */
+.wiki-panes {
+  display: grid;
+  grid-template-columns: 258px minmax(0, 1fr) 278px;
+  gap: 12px;
+  align-items: start;
+}
+.wiki-pane { max-height: 68vh; overflow-y: auto; overflow-x: hidden; }
+@media (max-width: 1100px) {
+  .wiki-panes { grid-template-columns: 1fr; }
+  .wiki-pane { max-height: none; }
+}
+
+/* Fortschritt des Wartungslaufs: Phase, laufende Uhr, ein Ring der sich dreht.
+   Kein Balken — es gibt keinen Anteil, den er ehrlich abbilden könnte. */
+.wiki-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.wiki-progress .spin {
+  width: 11px;
+  height: 11px;
+  flex: none;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  border-top-color: var(--text-accent);
+  animation: wiki-spin 0.7s linear infinite;
+}
+@keyframes wiki-spin {
+  to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wiki-progress .spin { animation-duration: 2.4s; }
+}
+
+/* Titel-Vorschläge des Wartungslaufs. Alt und neu untereinander statt
+   nebeneinander: die Titel sind lang, und was zählt, ist der neue. */
+.wiki-titles { padding: 10px 14px 12px; }
+.wiki-titles-h {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+.wiki-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 0.5px solid var(--border);
+}
+.wiki-title-row .old,
+.wiki-title-row .new,
+.wiki-title-row .why { display: block; overflow-wrap: anywhere; }
+.wiki-title-row .old {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+.wiki-title-row .new { font-size: 13.5px; font-weight: 500; color: var(--text-primary); }
+.wiki-title-row .why { font-size: 11.5px; color: var(--text-secondary); margin-top: 1px; }
+
+/* Sortierwahl über dem Baum. Zurückhaltend gezeichnet — sie ist ein Regler,
+   kein Formularfeld, und darf die Seitenliste nicht überstimmen. */
+.wiki-sort { display: flex; align-items: center; }
+.wiki-sort select {
+  width: auto;
+  max-width: 100%;
+  padding: 1px 2px;
+  border: none;
+  background: none;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.wiki-sort select:hover { color: var(--text-secondary); }
+
+/* Navigationsbaum: erste Ebene Seitentyp, darunter die Seiten. */
+.wiki-tree { display: flex; flex-direction: column; gap: 1px; }
+.wiki-group + .wiki-group { margin-top: 7px; }
+.wiki-group-h {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  /* Symbole sind dekorativ und dürfen nie schmaler werden als gezeichnet. */
+}
+.wiki-group-h svg { flex: none; opacity: 0.75; }
+.wiki-group-h {
+  padding: 3px 4px;
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.wiki-group-h .cnt { margin-left: auto; font-variant-numeric: tabular-nums; }
+.wiki-node {
+  display: flex;
+  /* Oben ausgerichtet, weil ein zweizeiliger Titel den Aufklapp-Pfeil sonst
+     in die Mitte schiebt und der Baum seine Kante verliert. */
+  align-items: flex-start;
+  gap: 4px;
+  border-radius: 5px;
+  padding: 1px 4px;
+}
+.wiki-node:hover { background: var(--surface-1); }
+.wiki-node.sel { background: var(--bg-accent); }
+.wiki-node.sel .lbl { color: var(--text-accent); }
+.wiki-node.orphan .lbl { color: var(--text-muted); }
+.wiki-node .tw {
+  width: 13px;
+  flex: none;
+  border: none;
+  background: none;
+  padding: 0;
+  font-size: 9px;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+  /* Auf die erste Textzeile des Titels ausgerichtet, nicht auf den Block. */
+  padding-top: 7px;
+}
+.wiki-node .tw:disabled { cursor: default; opacity: 0.55; }
+.wiki-node .tw svg { display: block; opacity: 0.7; }
+.wiki-node .lbl {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  padding: 2px 0;
+  text-align: left;
+  font: inherit;
+  font-size: 12.5px;
+  color: var(--text-primary);
+  cursor: pointer;
+  /* Zwei Zeilen statt einer: die Agenten schreiben lange, satzartige Titel,
+     und eine einzeilige Ellipse schneidet genau die Unterscheidung weg
+     ("Projekt X (148): Review" vs. "… : Merge-Konflikt"). Kurze Titel bleiben
+     einzeilig, die Liste wird also nur dort höher, wo es nötig ist. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}
+.wiki-node .cnt {
+  flex: none;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  padding-top: 4px;
+}
+.wiki-kids { margin-left: 13px; padding-left: 5px; border-left: 0.5px solid var(--border); }
+
+/* Qualitätsleiste: Zahlen, die zugleich Filter sind. */
+.wiki-quality { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.chip.q {
+  background: var(--bg-warning);
+  color: var(--text-warning);
+  border-color: transparent;
+  cursor: pointer;
+}
+.chip.q.on { outline: 1.5px solid var(--text-warning); outline-offset: 1px; }
+.chip.ok { background: var(--bg-success); color: var(--text-success); border-color: transparent; }
+
+/* Backlink mit dem Satz, in dem der Verweis steht. */
+.wiki-ctx { padding: 6px 0; border-bottom: 0.5px solid var(--border); }
+.wiki-ctx:last-child { border-bottom: none; }
+.wiki-quote {
+  font-family: var(--voice);
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 2px 0 0;
+}
+
+/* Protokoll als Aktivitätsliste: nach Tagen gruppiert, pro Zeile Uhrzeit,
+   Vorgang und Seite. Feste Spalten, weil sich sonst jede Zeile nach der Länge
+   ihres Slugs richtet (bis 64 Zeichen), umbricht und die Nachbarspalten
+   verschiebt — dann fluchtet über zwölf Zeilen nichts mehr. */
+.wiki-log-day + .wiki-log-day { margin-top: 16px; }
+.wiki-log-day-h {
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 5px 2px;
+}
+.wiki-log-row {
+  display: grid;
+  grid-template-columns: 48px 100px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 0.5px solid var(--border);
+  font-size: 12.5px;
+}
+.wiki-log-row:last-child { border-bottom: none; }
+.wiki-log-row > * { min-width: 0; }
+.wiki-log-row .at {
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* Der Vorgang als gefärbtes Wort statt als gestricheltes Kästchen: zwölf
+   Kästchen untereinander sind Unruhe, die Farbe trägt dieselbe Information. */
+.wiki-log-row .op {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+.wiki-log-row .op svg { flex: none; opacity: 0.8; }
+.wiki-log-row .op-merge { color: var(--text-accent); }
+.wiki-log-row .op-delete { color: var(--text-muted); }
+/* Eine Zeile, Rest als Ellipse — der volle Text steht im title-Attribut. */
+.wiki-log-row .cell {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wiki-log-row .detail { color: var(--text-muted); }
+/* Im Protokoll ist eine fehlende Seite der Normalfall (die Zeile daneben sagt
+   „gelöscht") — kein Grund für Alarmrot wie sonst bei toten Verweisen. */
+.wiki-log-row .wikilink.missing { color: var(--text-muted); border-bottom: none; }
+@media (max-width: 700px) {
+  .wiki-log-row { grid-template-columns: 48px minmax(0, 1fr); }
+  .wiki-log-row .op { display: none; }
+}
+
+/* Graph */
+.wiki-legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+  border-top: 0.5px solid var(--border);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.wiki-legend .key { display: inline-flex; align-items: center; gap: 6px; }
+.wiki-legend .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text-secondary); }
+.wiki-legend .dot.hub { width: 13px; height: 13px; background: var(--text-accent); }
+.wiki-legend .dot.orph { background: var(--text-muted); opacity: 0.5; }
+.wiki-tip {
+  position: absolute;
+  pointer-events: none;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--surface-0);
+  border: 0.5px solid var(--border-strong);
+  font-size: 12px;
+  max-width: 240px;
+}
 
 /* Modal: zentrierter Dialog mit Backdrop, Maße pro Größe gedeckelt. */
 .modal-backdrop {
@@ -1019,17 +1381,36 @@ kbd {
 
 .dept-count { font-size: 10.5px; color: var(--text-muted); margin-left: auto; white-space: nowrap; flex-shrink: 0; }
 
+/* Aufklapper an Abteilungs- und Mitarbeiter-Knoten. Zugeklappt steht die Zahl
+   der verborgenen Knoten daneben — sonst verschwände sie spurlos. */
 .dept-toggle-btn {
-  width: 20px; height: 20px; flex-shrink: 0;
-  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 20px; height: 20px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center; gap: 3px;
   border: 0.5px solid var(--border); border-radius: 5px;
   background: var(--surface-2); color: var(--text-muted);
-  cursor: pointer; padding: 0;
+  cursor: pointer; padding: 0 4px;
   transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
-.dept-toggle-btn svg { width: 10px; height: 10px; }
+.dept-toggle-btn svg { width: 10px; height: 10px; flex-shrink: 0; transition: transform 0.12s; }
+.dept-toggle-btn .n { font-size: 10px; font-variant-numeric: tabular-nums; }
 .dept-toggle-btn:hover { background: var(--surface-0); color: var(--text-primary); border-color: var(--border-strong); }
 .dept-toggle-btn.closed svg { transform: rotate(-90deg); }
+
+/* Am Mitarbeiter-Chip: sitzt rechts im Chip, bleibt dezent bis zum Hover. */
+.subtree-toggle {
+  display: inline-flex; align-items: center; gap: 3px; flex-shrink: 0;
+  align-self: center;   /* .orgmember streckt seine Kinder sonst auf Chip-Höhe */
+  margin: 0 8px 0 2px; padding: 2px 6px;
+  border: 0.5px solid var(--border); border-radius: 20px;
+  background: var(--surface-1); color: var(--text-muted);
+  font-size: 10px; font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.subtree-toggle svg { width: 10px; height: 10px; transition: transform 0.12s; }
+.subtree-toggle:hover { background: var(--surface-0); color: var(--text-primary); border-color: var(--border-strong); }
+.subtree-toggle.closed { border-color: var(--border-strong); color: var(--text-secondary); }
+.subtree-toggle.closed svg { transform: rotate(-90deg); }
 
 /* ── Body: Vorgesetzter + Baum-Kinder ── */
 .dept-body {
@@ -1213,13 +1594,25 @@ kbd {
 }
 .dept-lead-chip .icon-btn { font-size: 10px; padding: 0 3px; }
 /* Während eines Drag-Vorgangs: zwei großzügige, klar getrennte Drop-Zonen
-   („Als Mitglied" / „Als Leitung") statt der kleinen Kartenfläche. */
-.dept-dropzones { display: flex; flex-direction: column; gap: 5px; width: 100%; margin-top: 8px; }
+   („Als Mitglied" / „Als Leitung") statt der kleinen Kartenfläche.
+   Sie legen sich ÜBER die Karte, statt sie auseinanderzuziehen: eine
+   wachsende Karte schiebt den Berichtsbaum darunter nach unten — also auch
+   die Karte, die man gerade angefasst hat. Rutscht die im selben Moment
+   unter dem Zeiger weg, bricht Chrome den Drag ab, und nichts lässt sich
+   mehr aufnehmen. */
+.dept-dropzones {
+  position: absolute; inset: 0; z-index: 3;
+  display: flex; flex-direction: column; gap: 4px;
+  margin: 0; padding: 5px;
+  border-radius: inherit;
+  background: var(--surface-2);
+}
 .dept-dz {
+  flex: 1; min-height: 0;
   display: flex; align-items: center; justify-content: center; gap: 6px;
-  min-height: 34px; padding: 4px 10px;
+  padding: 2px 8px;
   border: 1.5px dashed var(--border-strong); border-radius: 8px;
-  font-size: 11.5px; color: var(--text-muted); text-align: center;
+  font-size: 11px; line-height: 1.25; color: var(--text-muted); text-align: center;
   transition: border-color 0.12s, color 0.12s, background 0.12s;
 }
 .dept-dz.over {
@@ -1246,7 +1639,9 @@ kbd {
 }
 
 /* ── Diagramm-Ansicht: klassischer Org-Chart-Baum ────────────────────── */
-.tree { overflow-x: auto; padding: 6px 4px 20px; }
+/* Kein seitliches Padding: mit min-width:100% am Wurzel-ul ergäbe es sonst
+   dauerhaft ein paar Pixel Querlauf, auch wenn der Baum längst passt. */
+.tree { overflow-x: auto; padding: 6px 0 20px; }
 .tree ul { display: flex; justify-content: center; padding: 22px 0 0; position: relative; margin: 0; list-style: none; }
 /* width: max-content — sonst zentriert flex breiteren Inhalt über den
    Scroll-Ursprung hinaus nach links, wo er unerreichbar abgeschnitten wird. */
@@ -1260,6 +1655,79 @@ kbd {
 .tree li:first-child::after { border-radius: 6px 0 0 0; }
 .tree ul ul::before { content: ""; position: absolute; top: 0; left: 50%; height: 22px; border-left: 1.5px solid var(--border-strong); }
 
+/* Breite Ebenen brechen in mehrere Reihen um — eine einzige Zeile ließe den
+   Baum mit jedem Mitglied weiter nach rechts wachsen. --tree-avail ist die
+   sichtbare Breite des Scroll-Containers (gemessen in Org.tsx; Prozente gehen
+   nicht, die Vorfahren sind max-content-breit). Statt der T-Verbinder trägt
+   eine Klammer über der Gruppe die Zugehörigkeit — wo umgebrochen wird,
+   entscheidet erst der Browser, und eine CSS-Linie kann Reihen nicht
+   nachträglich verbinden. */
+.tree ul.tree-grid {
+  flex-wrap: wrap;
+  /* Reihen linksbündig: nur so stehen die Balken aller Reihen über derselben
+     Schiene. Zentrierte Reihen fingen jede woanders an. */
+  justify-content: flex-start;
+  /* max-content + Deckel: die Gruppe ist so breit wie ihr Inhalt, höchstens
+     aber so breit wie der Deckel — daran bricht sie um. */
+  width: max-content;
+  max-width: min(1200px, var(--tree-avail, 900px));
+  row-gap: 10px;
+}
+/* Abteilungs-Karten sind deutlich breiter als ein Mitglied — sie dürfen die
+   ganze sichtbare Breite nutzen. */
+.tree ul.tree-grid-wide { max-width: var(--tree-avail, 1200px); row-gap: 22px; }
+
+/* Der Stamm: die Senkrechte, an der die Reihen hängen. Sie läuft unter dem
+   Elternknoten herunter, durch eine Lücke zwischen den Karten — Position
+   (--trunk-x) und Länge (--grid-spine) misst der Layout-Hook in Org.tsx. */
+.tree ul.tree-grid::after {
+  content: "";
+  position: absolute;
+  top: 22px; left: var(--trunk-x, 10px);
+  height: var(--grid-spine, 0);
+  border-left: 1.5px solid var(--border-strong);
+}
+.tree > ul.tree-grid::after { top: 0; }
+
+/* Verbinder je Reihe — dieselbe Zeichnung wie im klassischen Baum, nur an
+   data-row-first/-last statt an :first-child/:last-child, damit jede Reihe
+   ihren eigenen Balken bekommt. */
+/* Karten stehen dicht beieinander wie im klassischen Baum — sie über die
+   Reihenbreite zu verteilen ließ zwischen ihnen tote Flächen entstehen, auf
+   denen ein Drop ins Leere geht. Dass der Strich des Elternknotens trotzdem
+   auf dem Balken der ersten Reihe landet, besorgt der Stamm samt Armen. */
+.tree ul.tree-grid > li { padding-top: 14px; }
+.tree ul.tree-grid > li::before,
+.tree ul.tree-grid > li::after { height: 14px; }
+/* Alle Reihen-Regeln tragen [data-wrapped]: gleiche Spezifität, damit allein
+   die Reihenfolge entscheidet. Ohne Umbruch zeichnet weiterhin die klassische
+   :first-child/:last-child-Fassung oben. */
+/* Erste Karte der Reihe: ohne Arm kein Strich nach links — der Balken der
+   Reihe beginnt bei ihrer Mitte. */
+.tree ul.tree-grid[data-wrapped] > li[data-row-first]::before { border: 0; }
+/* Mit Arm: Balken vom Stamm bis zur Mitte der Karte (--arm ist der Abstand
+   des Stamms zur linken Kante dieser Karte, notfalls negativ). */
+.tree ul.tree-grid[data-wrapped] > li[data-arm-left]::before {
+  left: var(--arm); right: 50%; width: auto;
+  border: 0; border-top: 1.5px solid var(--border-strong);
+  border-radius: 0;
+}
+/* Letzte Karte der Reihe: rechts endet der Balken, der Abzweig sitzt links. */
+.tree ul.tree-grid[data-wrapped] > li[data-row-last]::after { border: 0; }
+.tree ul.tree-grid[data-wrapped] > li[data-row-last]::before {
+  border-right: 1.5px solid var(--border-strong);
+  border-radius: 0 6px 0 0;
+}
+/* Arm nach rechts: der Stamm liegt hinter der letzten Karte der Reihe, der
+   Balken läuft von ihrer Mitte bis dorthin weiter. */
+.tree ul.tree-grid[data-wrapped] > li[data-arm-right]::after {
+  left: 50%; right: var(--arm-right); width: auto;
+  border: 0;
+  border-top: 1.5px solid var(--border-strong);
+  border-left: 1.5px solid var(--border-strong);
+  border-radius: 0;
+}
+
 /* Org-Wurzel- und Abteilungs-Knoten im Baum */
 .node.org, .node.dept { flex-direction: column; align-items: flex-start; gap: 2px; cursor: default; min-width: 168px; }
 .node.org {
@@ -1271,6 +1739,7 @@ kbd {
   background: var(--surface-2); transition: border-color 0.15s, box-shadow 0.15s;
   box-shadow: inset 3px 0 0 var(--text-accent);
   padding-left: 15px;
+  position: relative;   /* Bezug für die Drop-Zonen, die sich darüberlegen */
 }
 .node.dept .nm { font-size: 13px; font-weight: 600; }
 .node.dept .rl { color: var(--text-muted); font-size: 11px; }
@@ -2159,6 +2628,98 @@ kbd {
 }
 .assist-msg .md-pre:last-child { margin-bottom: 0; }
 .assist-msg .md-pre code { background: none; padding: 0; }
+/* Erste Schritte: die Checkliste auf der Agenten-Übersicht. Zurückhaltend —
+   sie ist eine Handreichung, kein Banner, und verschwindet ohnehin, sobald sie
+   nichts mehr zu sagen hat. */
+.onboarding-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.onboarding-steps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.onboarding-steps li.next { background: var(--surface-1); }
+.onboarding-steps li.done .what { color: var(--text-secondary); }
+.onboarding-steps .mark {
+  display: flex;
+  width: 16px;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-success);
+}
+/* Offener Schritt: ein leerer Ring statt eines Hakens. */
+.onboarding-steps .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong, var(--border));
+}
+.onboarding-steps li.next .dot { border-color: var(--text-accent); }
+.onboarding-steps li.done .mark .file-ic { opacity: 1; stroke-width: 2.2; }
+
+/* Datei-Symbole im Arbeitsplatz: Strichstil wie die übrige Navigation. Ohne
+   eigene Regel griffe keine der `.ic`-Regeln (die hängen alle an .nav-item)
+   und die Pfade kämen schwarz gefüllt heraus. */
+.file-ic {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+/* Dieselbe Markdown-Komponente als Dokument statt als Chat-Bubble: die
+   Vorschau einer .md-Datei im Arbeitsplatz. Mehr Luft, größere Überschriften
+   — man liest hier eine Seite, keine Antwort. */
+.md-body {
+  max-height: 60vh;
+  overflow: auto;
+  padding: 4px 2px;
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.md-body .md-p { margin: 0 0 10px; }
+.md-body .md-h { margin: 16px 0 8px; font-weight: 600; line-height: 1.35; }
+.md-body h4.md-h { font-size: 17px; }
+.md-body h5.md-h { font-size: 15px; }
+.md-body h6.md-h { font-size: 13.5px; color: var(--text-secondary); }
+.md-body .md-h:first-child { margin-top: 0; }
+.md-body .md-list { margin: 0 0 10px; padding-left: 20px; }
+/* Der Reset nimmt Listen ihre Punkte; im Dokument gehören sie hin — ohne sie
+   ist eine Aufzählung nicht von aneinandergereihten Absätzen zu unterscheiden. */
+.md-body ul.md-list { list-style: disc; }
+.md-body ol.md-list { list-style: decimal; }
+.md-body .md-list li { margin: 3px 0; }
+.md-body code {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: rgba(30, 28, 23, 0.06);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+.md-body .md-pre {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  background: var(--surface-0);
+  border: 0.5px solid var(--border);
+  border-radius: 8px;
+  overflow-x: auto;
+}
+.md-body .md-pre code { background: none; padding: 0; }
+.md-body a { color: var(--text-accent); text-decoration: underline; }
 .assist-msg a { color: var(--text-accent); text-decoration: underline; }
 .assist-msg.bot {
   align-self: flex-start;
@@ -2926,3 +3487,50 @@ kbd {
   line-height: 1.5;
 }
 .tgt-tools li:last-child { border-bottom: none; }
+
+/* Traumerzählung: bewusst anders gesetzt als alles andere in der Karte —
+   kursiv, eingerückt, mit Mond. Wer sie liest, soll sofort wissen, dass hier
+   erzählt und nicht protokolliert wird. */
+.dream-story {
+  display: flex;
+  gap: 8px;
+  margin: 2px 0 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--surface-1);
+  font-family: var(--voice);
+  font-style: italic;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+.dream-story .mark { flex: none; font-style: normal; opacity: 0.5; }
+
+/* Einstellungen: Menue links, Inhalt rechts. Die vier Bereiche sind lange
+   Formulare — eine Leiste oben waere nach dem ersten Scrollen weg, waehrend
+   das Seitenmenue stehen bleibt und zeigt, wo man ist. */
+.settings-panes {
+  display: grid;
+  grid-template-columns: 186px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  position: sticky;
+  top: 12px;
+}
+.settings-nav .nav-item {
+  border: 0.5px solid transparent; /* Sprung beim Aktivieren vermeiden */
+  background: none;
+  text-align: left;
+  font-family: inherit;
+}
+@media (max-width: 900px) {
+  .settings-panes { grid-template-columns: 1fr; gap: 12px; }
+  /* Schmal wird aus der Spalte eine Zeile: untereinander waeren vier Punkte
+     hier nur verlorene Hoehe. */
+  .settings-nav { position: static; flex-direction: row; flex-wrap: wrap; }
+}

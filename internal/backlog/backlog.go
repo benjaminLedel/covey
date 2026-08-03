@@ -51,17 +51,17 @@ var (
 )
 
 type Task struct {
-	ID               uuid.UUID `json:"id"`
-	OrgID            uuid.UUID `json:"org_id"`
-	AgentID          uuid.UUID `json:"agent_id"`
-	Title            string    `json:"title"`
-	Body             string    `json:"body"`
-	State            string    `json:"state"`
-	Priority         int       `json:"priority"`
-	Origin           string    `json:"origin"`
-	CorrelationKey   *string   `json:"correlation_key,omitempty"`
-	RuntimeSessionID *string   `json:"runtime_session_id,omitempty"`
-	ResumeInput      *string   `json:"resume_input,omitempty"`
+	ID               uuid.UUID  `json:"id"`
+	OrgID            uuid.UUID  `json:"org_id"`
+	AgentID          uuid.UUID  `json:"agent_id"`
+	Title            string     `json:"title"`
+	Body             string     `json:"body"`
+	State            string     `json:"state"`
+	Priority         int        `json:"priority"`
+	Origin           string     `json:"origin"`
+	CorrelationKey   *string    `json:"correlation_key,omitempty"`
+	RuntimeSessionID *string    `json:"runtime_session_id,omitempty"`
+	ResumeInput      *string    `json:"resume_input,omitempty"`
 	Result           *string    `json:"result,omitempty"`
 	Error            *string    `json:"error,omitempty"`
 	StageID          *uuid.UUID `json:"stage_id,omitempty"`
@@ -569,6 +569,25 @@ func (s *Store) CorrelateWake(ctx context.Context, correlationKey, resumeInput s
 	}
 	s.notify(ctx, t.AgentID)
 	return t, nil
+}
+
+// InOrg beantwortet, ob eine Aufgabe zu dieser Organisation gehört. Die
+// Antwort ist bewusst ein Boolean und kein Task: Der Aufrufer (die
+// taskScoped-Middleware) will nur die Grenze prüfen, nicht die Daten.
+func (s *Store) InOrg(ctx context.Context, orgID, taskID uuid.UUID) bool {
+	var eins int
+	err := s.pool.QueryRow(ctx,
+		"SELECT 1 FROM backlog_tasks WHERE id=$1 AND org_id=$2", taskID, orgID).Scan(&eins)
+	return err == nil
+}
+
+// StageInOrg prüft dasselbe für eine Board-Spalte. Spalten hängen am Agenten,
+// die Organisation steht also erst nach dem Join fest.
+func (s *Store) StageInOrg(ctx context.Context, orgID, stageID uuid.UUID) bool {
+	var eins int
+	err := s.pool.QueryRow(ctx, `SELECT 1 FROM agent_stages st JOIN agents a ON a.id = st.agent_id
+		WHERE st.id=$1 AND a.org_id=$2`, stageID, orgID).Scan(&eins)
+	return err == nil
 }
 
 func (s *Store) Transitions(ctx context.Context, taskID uuid.UUID) ([]Transition, error) {

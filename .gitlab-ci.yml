@@ -1,7 +1,9 @@
 # GitLab CI für Covey.
 #
-# Pipeline: test → build.
-# - test:  Frontend bauen (web/dist muss für //go:embed existieren), dann go vet + go test.
+# Pipeline: test → build → deploy.
+# - test:  govulncheck (Abhängigkeiten gegen die Go-Schwachstellendatenbank),
+#          Frontend-Tests + Build (web/dist muss für //go:embed existieren),
+#          dann gofmt-Prüfung, go vet und go test.
 #          go test läuft mit -coverprofile: GitLab bekommt den Gesamt-Prozentwert
 #          als Badge (coverage-Regex) und einen Cobertura-Report für die
 #          MR-Diff-Coverage-Anzeige.
@@ -38,6 +40,51 @@ stages:
   - build
   - deploy
 
+security:
+  stage: test
+  image: golang:1.26
+  variables:
+    GOPATH: $CI_PROJECT_DIR/.go
+  cache:
+    key: go-mod
+    paths:
+      - .go/pkg/mod/
+  script:
+    # Version gepinnt statt @latest: Ein Werkzeug, das bei jedem Lauf frisch
+    # aus dem Netz gezogen wird, ist selbst ein Einfallstor — ein
+    # kompromittiertes Release liefe ungefragt in der Pipeline, mit Zugriff auf
+    # deren Umgebung. Pinnen kostet ein Dependabot-Update im Quartal.
+    # govulncheck prüft die Abhängigkeiten gegen die Go-Schwachstellendatenbank
+    # — und zwar auf ERREICHBARKEIT: Es meldet nur, was der eigene Code
+    # tatsächlich aufruft. Deshalb praktisch ohne Fehlalarme, deshalb als
+    # harter Schritt und nicht als Bericht, den niemand liest.
+    # (Ein Fund in einem Modul, das wir nur einbinden aber nie aufrufen, lässt
+    # den Job bewusst grün — sonst wäre er nach der ersten Woche abgeschaltet.)
+    - go run golang.org/x/vuln/cmd/govulncheck@v1.1.4 ./...
+    # gosec ergaenzt govulncheck: Das eine kennt bekannte Luecken in
+    # ABHAENGIGKEITEN, das andere sucht Muster im EIGENEN Code.
+    #
+    # Bewusst mit einer ausdruecklichen Regel-LISTE statt „alles ausser…":
+    # Ungefiltert meldet gosec hier 120 Befunde, und die Masse davon ist der
+    # Zweck dieses Programms — der dev-Plugin FUEHRT Shell-Befehle aus (G204),
+    # der Arbeitsplatz LIEST Dateien nach Pfad (G304), die Sandbox-Homes
+    # brauchen ihre Rechte (G301). Ein Job, der 120 Zeilen ausspuckt, wird nach
+    # zwei Wochen weggeklickt. Diese Liste enthaelt die Regeln, auf die wir
+    # tatsaechlich reagieren; eine neue kommt dazu, wenn sie sich als
+    # aussagekraeftig erweist.
+    #
+    # Stand: 0 Befunde. Wird das rot, ist es ernst gemeint.
+    #
+    # -exclude-dir=.go ist hier keine Kosmetik, sondern Pflicht: GOPATH zeigt
+    # oben auf $CI_PROJECT_DIR/.go, damit GitLab den Modul-Cache zwischen
+    # Laeufen behalten kann (Cache-Pfade muessen im Projektverzeichnis
+    # liegen). gosec loest ./... aber ueber das Dateisystem auf, nicht ueber
+    # `go list` — und lief damit durch jede fremde Abhaengigkeit unter
+    # .go/pkg/mod: 6167 Dateien, 2,7 Mio. Zeilen, 320 Befunde, keiner davon
+    # im eigenen Code, dafuer 15 Minuten Laufzeit und Exit 1. Dieselbe Falle,
+    # gegen die die gofmt-Zeile in test-go sich schon mit `go list` wehrt.
+    - go run github.com/securego/gosec/v2/cmd/gosec@v2.22.9 -quiet -exclude-dir=.go -include=G101,G102,G106,G107,G112,G114,G201,G202,G203,G303,G305,G401,G402,G403,G404,G501,G502,G503,G504,G601 ./...
+
 build-web:
   stage: test
   image: node:22
@@ -50,6 +97,10 @@ build-web:
   script:
     - cd web
     - npm ci
+    # Erst die Tests, dann der Build: Ein Bundle, das gebaut wird, obwohl die
+    # Oberfläche nachweislich kaputt ist, kostet nur Zeit und verschleiert den
+    # Befund. `npm run build` fährt ohnehin `tsc -b` mit.
+    - npm test
     - npm run build
   artifacts:
     paths:
@@ -68,14 +119,31 @@ test-go:
     paths:
       - .go/pkg/mod/
   script:
+    # Formatierung ist keine Geschmacksfrage: unformatierter Code macht jeden
+    # späteren Diff größer als die Änderung, die er transportiert. gofmt -l
+    # nennt die Abweichler (tee zeigt sie im Job-Log), test -z lässt den Job
+    # scheitern, sobald die Liste nicht leer ist. Die Pfade kommen aus
+    # `go list`, damit nicht der Modul-Cache unter $GOPATH mitgeprüft wird.
+    - test -z "$(gofmt -l $(go list -f '{{.Dir}}' ./...) | tee /dev/stderr)"
     - go vet ./...
-    # Coverage über alle Pakete messen: -coverpkg=./... zählt auch Zeilen, die
-    # aus Tests anderer Pakete heraus abgedeckt werden (sonst nur paket-lokal).
-    - go test -coverprofile=coverage.out -coverpkg=./... ./...
+    # Coverage über alle Pakete messen: -coverpkg zählt auch Zeilen, die aus
+    # Tests anderer Pakete heraus abgedeckt werden (sonst nur paket-lokal).
+    #
+    # Die Paketliste kommt aus `go list` statt als Muster `./...`: Als Muster
+    # instrumentierte -coverpkg auch die Abhängigkeiten mit. Im Profil landeten
+    # 673 Dateien, davon nur 119 aus covey/ — der Rest chromedp, pgx und
+    # Konsorten. Das druecke den Badge auf 14,3 %, waehrend der eigene Code
+    # tatsaechlich bei ~29 % liegt. Eine Kennzahl, die zur Haelfte fremden
+    # Code misst, taugt nicht als Trend.
+    - go test -coverprofile=coverage.out -coverpkg="$(go list ./... | paste -sd, -)" ./...
     # Gesamt-Prozentwert für den GitLab-Coverage-Badge (siehe coverage-Regex unten).
     - go tool cover -func=coverage.out | tee coverage.txt
     # Cobertura-Report für die MR-Diff-Coverage-Anzeige in GitLab.
-    - go run github.com/boumenot/gocover-cobertura@latest < coverage.out > coverage.xml
+    # v1.5.0 statt v1.3.0: Letzteres zieht golang.org/x/tools v0.8.0 mit, und
+    # das laesst sich mit Go 1.26 nicht mehr uebersetzen ("invalid array
+    # length -delta * delta"). Der Job scheiterte deshalb an dieser letzten
+    # Zeile — nach gruenen Tests, weshalb GitLab den Coverage-Wert noch anzeigte.
+    - go run github.com/boumenot/gocover-cobertura@v1.5.0 < coverage.out > coverage.xml
   # GitLab liest den Gesamt-Coverage aus der Ausgabe von `go tool cover -func`
   # (letzte Zeile "total: … 42.7%") und zeigt ihn als Badge/Trend an.
   coverage: '/^total:\s+\(statements\)\s+(\d+(?:\.\d+)?)%/'
@@ -109,9 +177,14 @@ build-image:
     - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
   script:
     - docker pull "$CI_REGISTRY_IMAGE:latest" || true
+    # Herkunft ins Binary schreiben (internal/buildinfo): im Image gibt es kein
+    # .git, also reicht die CI Tag/Commit/Bauzeit als Build-Args durch.
     - docker build
         --cache-from "$CI_REGISTRY_IMAGE:latest"
         --build-arg BUILDKIT_INLINE_CACHE=1
+        --build-arg "VERSION=${CI_COMMIT_TAG:-$CI_COMMIT_REF_NAME}"
+        --build-arg "COMMIT=$CI_COMMIT_SHORT_SHA"
+        --build-arg "DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
         --tag "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
         .
     - |
@@ -159,6 +232,9 @@ build-sandbox-image:
     - docker build
         --cache-from "$CI_REGISTRY_IMAGE/sandbox:latest"
         --build-arg BUILDKIT_INLINE_CACHE=1
+        --build-arg "VERSION=${CI_COMMIT_TAG:-$CI_COMMIT_REF_NAME}"
+        --build-arg "COMMIT=$CI_COMMIT_SHORT_SHA"
+        --build-arg "DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
         --file Dockerfile.sandbox
         --tag "$CI_REGISTRY_IMAGE/sandbox:$CI_COMMIT_SHORT_SHA"
         .
@@ -218,13 +294,37 @@ deploy:
         echo "WICHTIG: $DEPLOY_DIR/.env sichern — enthält den Master-Key. Admin-Passwort steht dort."
       fi
     - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    # Alte Images wegräumen, BEVOR das neue gezogen wird. Jeder Deploy legt zwei
+    # Images auf dem Host ab (covey:<sha> und sandbox:<sha>, letzteres mit
+    # Chromium über 2 GB) — ohne Aufräumen läuft die Platte voll und der Pull
+    # scheitert mit "no space left on device" (so geschehen bei Pipeline 539).
+    #
+    # `until=24h` lässt alles von heute stehen: das gerade laufende Image, die
+    # Rollback-Ziele der letzten Deploys und vor allem das aktuelle
+    # Sandbox-Image, das an KEINEM laufenden Container hängt (Sandboxen sind
+    # ephemer) und von `prune -a` sonst mitgenommen würde. Volumes werden nie
+    # angefasst — dort liegt die Datenbank.
+    - docker system df || true
+    - docker image prune -af --filter "until=24h" || true
+    - docker system df || true
     # Image auf den unveränderlichen Commit-Tag pinnen ("spezieller Tag").
     - export COVEY_IMAGE="$CI_REGISTRY_IMAGE:$CI_COMMIT_SHORT_SHA"
     # Sandbox-Image HIER pullen (der Host-Daemon hat danach das Image lokal):
     # `docker run` aus dem covey-Container heraus hat keine Registry-Credentials,
     # darf also nie selbst pullen müssen.
     - export COVEY_SANDBOX_IMAGE="$CI_REGISTRY_IMAGE/sandbox:$CI_COMMIT_SHORT_SHA"
-    - docker pull "$COVEY_SANDBOX_IMAGE"
+    # Reicht das schonende Aufräumen nicht (etwa weil die Platte allein durch die
+    # Deploys von heute vollgelaufen ist), einmal hart aufräumen und erneut
+    # ziehen. `prune -a` nimmt dann auch das bisherige Sandbox-Image mit — das
+    # ist verschmerzbar, weil direkt danach das neue kommt, und allemal besser
+    # als ein Deploy, der gar nicht durchgeht.
+    - |
+      if ! docker pull "$COVEY_SANDBOX_IMAGE"; then
+        echo "Pull fehlgeschlagen — räume alle ungenutzten Images weg und versuche erneut."
+        docker image prune -af || true
+        docker system df || true
+        docker pull "$COVEY_SANDBOX_IMAGE"
+      fi
     - echo "Deploye $COVEY_IMAGE (Sandbox $COVEY_SANDBOX_IMAGE) nach $DEPLOY_DIR"
     - cd "$DEPLOY_DIR"
     # Die aktuellen Image-Tags zusätzlich in der .env persistieren: nur so

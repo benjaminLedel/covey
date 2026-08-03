@@ -137,3 +137,78 @@ func TestClaudeCodeAdapterExitError(t *testing.T) {
 		t.Fatalf("exit ≠ 0 muss failed liefern: %+v", res)
 	}
 }
+
+// TestClaudeCodeAdapterWorkDir sichert die Naht, auf der der Sub-Agent im
+// Projekt-Checkout steht: cwd zeigt ins Projekt (nur dort findet Claude Code
+// dessen CLAUDE.md, .claude/agents, Skills), HOME bleibt das Agenten-Home
+// (dort liegen ~/.claude, Wiki-Arbeitskopie und Caches).
+func TestClaudeCodeAdapterWorkDir(t *testing.T) {
+	bin, home := fakeClaude(t, `
+printf '%s\n' "$PWD" > "$HOME/cwd.txt"
+cat <<'EOF'
+{"type":"result","subtype":"success","session_id":"s","result":"fertig","total_cost_usd":0.01,"usage":{"input_tokens":1,"output_tokens":1}}
+EOF`)
+	project := filepath.Join(home, "repos", "p1-main")
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	adapter := &ClaudeCode{Binary: bin}
+	if _, err := adapter.Run(context.Background(), RunSpec{
+		TaskID: "t", Title: "Auftrag", HomeDir: home, WorkDir: project,
+	}, func(string, json.RawMessage) {}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(home, "cwd.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// macOS: /var/… ist ein Symlink auf /private/var — Suffix statt Gleichheit.
+	if cwd := strings.TrimSpace(string(got)); !strings.HasSuffix(cwd, filepath.Join("repos", "p1-main")) {
+		t.Fatalf("cwd muss im Projekt-Checkout liegen, war %q", cwd)
+	}
+}
+
+// Kein Runtime-Lauf erbt die COVEY_*-Variablen des Daemons — auch der äußere
+// nicht. Was ein Lauf braucht, gibt der Aufrufer ausdrücklich mit
+// (COVEY_ACTION_PORT, gebrokerter Key); geerbt wird nichts, sonst stünde das
+// Daemon-Token jedem Subprozess offen.
+func TestClaudeCodeAdapterDropsDaemonEnv(t *testing.T) {
+	t.Setenv("COVEY_DAEMON_TOKEN", "daemon-jwt-geheim")
+	t.Setenv("COVEY_AGENT_ID", "agent-1")
+	bin, home := fakeClaude(t, `
+printf 'token=%s agent=%s port=%s\n' "$COVEY_DAEMON_TOKEN" "$COVEY_AGENT_ID" "$COVEY_ACTION_PORT" > "$HOME/env.txt"
+cat <<'EOF'
+{"type":"result","subtype":"success","session_id":"s","result":"fertig"}
+EOF`)
+	adapter := &ClaudeCode{Binary: bin}
+	if _, err := adapter.Run(context.Background(), RunSpec{
+		TaskID: "t", Title: "x", HomeDir: home, Env: []string{"COVEY_ACTION_PORT=4711"},
+	}, func(string, json.RawMessage) {}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(home, "env.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(got)) != "token= agent= port=4711" {
+		t.Fatalf("Daemon-Umgebung darf nicht erben, der Action-Port muss ankommen: %q", got)
+	}
+}
+
+// Ohne WorkDir bleibt alles wie bisher: der äußere Lauf startet im Home.
+func TestClaudeCodeAdapterWorkDirDefaultsToHome(t *testing.T) {
+	bin, home := fakeClaude(t, `
+printf '%s\n' "$PWD" > "$HOME/cwd.txt"
+cat <<'EOF'
+{"type":"result","subtype":"success","session_id":"s","result":"fertig"}
+EOF`)
+	adapter := &ClaudeCode{Binary: bin}
+	if _, err := adapter.Run(context.Background(), RunSpec{TaskID: "t", Title: "x", HomeDir: home},
+		func(string, json.RawMessage) {}); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(filepath.Join(home, "cwd.txt"))
+	if cwd := strings.TrimSpace(string(got)); !strings.HasSuffix(cwd, filepath.Base(home)) {
+		t.Fatalf("ohne WorkDir muss der Lauf im Home starten, war %q", cwd)
+	}
+}

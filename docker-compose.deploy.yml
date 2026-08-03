@@ -37,6 +37,30 @@ x-covey-base: &covey-base
     COVEY_ADMIN_PASSWORD: ${COVEY_ADMIN_PASSWORD:?in .env setzen}
     COVEY_SANDBOX_PROVIDER: docker
     COVEY_SANDBOX_IMAGE: ${COVEY_SANDBOX_IMAGE:-covey-sandbox:latest}
+    # Wiki-Pflege (spec/05): legt jedem Agenten täglich einen Aufräum-Task an
+    # (Duplikate zusammenführen, tote [[Verweise]] korrigieren). Der zentrale
+    # Konsolidierungs-Pass arbeitet rein über Embedding-Ähnlichkeit und fasst
+    # damit nur Beinahe-Identisches an — das inhaltliche Aufräumen leistet erst
+    # dieser Heartbeat. Kostet pro Agent einen LLM-Lauf pro Tag; leer = aus.
+    COVEY_WIKI_CLEANUP: ${COVEY_WIKI_CLEANUP:-03:00}
+    # Embedding hinter der Wiki-Suche. Der Default `builtin` misst nur
+    # Wortüberlappung — damit findet ein Agent seine eigene Seite nicht wieder,
+    # sobald er anders formuliert. Zwei Wege zu semantischem Retrieval, beide
+    # über die `.env`:
+    #
+    #   selbst betreiben (empfohlen — die Wiki-Inhalte verlassen das Haus nicht):
+    #     COMPOSE_PROFILES=embeddings
+    #     COVEY_EMBEDDING_PROVIDER=ollama
+    #
+    #   fremder Dienst:
+    #     COVEY_EMBEDDING_PROVIDER=voyage   (oder openai)
+    #     COVEY_EMBEDDING_API_KEY=…
+    #
+    # Der Bestand wird beim nächsten Start automatisch neu eingebettet.
+    COVEY_EMBEDDING_PROVIDER: ${COVEY_EMBEDDING_PROVIDER:-builtin}
+    COVEY_EMBEDDING_MODEL: ${COVEY_EMBEDDING_MODEL:-}
+    COVEY_EMBEDDING_API_KEY: ${COVEY_EMBEDDING_API_KEY:-}
+    COVEY_EMBEDDING_URL: ${COVEY_EMBEDDING_URL:-}
   volumes:
     - ${COVEY_DATA_DIR:-/opt/covey/data}:${COVEY_DATA_DIR:-/opt/covey/data}
 
@@ -85,5 +109,36 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
 
+  # Selbstgehostetes Embedding für das Wiki-Gedächtnis (spec/05). Aus, solange
+  # `COMPOSE_PROFILES=embeddings` nicht in der .env steht — wer einen fremden
+  # Dienst nutzt oder beim Built-in bleibt, bekommt diesen Container nicht.
+  #
+  # Default-Modell ist EmbeddingGemma (308M): mehrsprachig, läuft auf CPU und
+  # ist Matryoshka-trainiert, liefert also die vom Schema erwarteten 256
+  # Dimensionen. Kein Schlüssel, kein Egress zu Dritten.
+  embeddings:
+    image: ollama/ollama:latest
+    profiles: ["embeddings"]
+    volumes:
+      - covey-ollama:/root/.ollama
+    restart: unless-stopped
+
+  # Einmaliger Modell-Pull pro Deploy (idempotent — liegt das Modell schon im
+  # Volume, kehrt der Job sofort zurück). Ollama zieht ein fehlendes Modell
+  # beim Embedding-Aufruf NICHT selbst nach, deshalb dieser Schritt.
+  embeddings-init:
+    image: ollama/ollama:latest
+    profiles: ["embeddings"]
+    depends_on:
+      - embeddings
+    environment:
+      OLLAMA_HOST: http://embeddings:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - until ollama list >/dev/null 2>&1; do echo "warte auf embeddings…"; sleep 2; done;
+        ollama pull "${COVEY_EMBEDDING_MODEL:-embeddinggemma}"
+    restart: "no"
+
 volumes:
   covey-db:
+  covey-ollama:

@@ -19,7 +19,7 @@ func init() {
 	target.Register(target.Descriptor{
 		Name:        "gitlab",
 		Label:       "GitLab",
-		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues), extern gemeldete Bugs als Ticket anlegen (create_issue), Quellcode auschecken, Projekt aufsetzen und Bugs am Code verifizieren (checkout + Sandbox-Shell), an Issues angehängte Screenshots/Bilder lesen (download_upload + Vision), eigene Screenshots an einen MR/ein Issue anhängen (upload + comment_mr), Fixes entwickeln — auf Feature-Branch committen (commit), Merge Request an den Vorgesetzten eröffnen (create_merge_request, optional mit QA-Agent als reviewer) und den Review-Loop leben: bei jedem Heartbeat-Lauf offene MRs auf neues Review-Feedback prüfen (list_merge_requests/list_mr_notes/comment_mr), rote CI selbst diagnostizieren (list_pipelines/list_pipeline_jobs/get_job_log) und auf den Merge reagieren. Auch als QA-/Test-Agent nutzbar: fremde MRs, in denen man als Reviewer eingetragen ist, end-to-end testen und Feedback geben (set_reviewer/approve_mr, nur-wenn: gitlab:review). Intake per HEARTBEAT.md (Polling), Auth per API-Token (Secrets gitlab_token + gitlab_url).",
+		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues, auch nach Meilenstein), extern gemeldete Bugs als Ticket anlegen (create_issue), den Arbeitszustand im Board führen (set_labels/assign), Quellcode auschecken, Projekt aufsetzen und Bugs am Code verifizieren (checkout + Sandbox-Shell), an Issues angehängte Screenshots/Bilder lesen (download_upload + Vision), eigene Screenshots an einen MR/ein Issue anhängen (upload + comment_mr), Fixes entwickeln — auf Feature-Branch committen (commit), Merge Request an den Vorgesetzten eröffnen (create_merge_request, optional mit QA-Agent als reviewer) und den Review-Loop leben: bei jedem Heartbeat-Lauf offene MRs auf neues Review-Feedback prüfen (list_merge_requests/list_mr_notes/comment_mr), rote CI selbst diagnostizieren (list_pipelines/list_pipeline_jobs/get_job_log) und auf den Merge reagieren. Auch als QA-/Test-Agent nutzbar: fremde MRs, in denen man als Reviewer eingetragen ist, end-to-end testen und Feedback geben (set_reviewer/approve_mr, nur-wenn: gitlab:review). Intake per HEARTBEAT.md (Polling), Auth per API-Token (Secrets gitlab_token + gitlab_url).",
 		Kind:        "builtin",
 		Category:    target.CategoryCode,
 		System:      System{},
@@ -197,7 +197,7 @@ const issueMaxNotesChecks = 30
 // kommentieren.** Ein stiller Lauf gilt als „noch nicht bearbeitet" und weckt
 // erneut. Das Playbook „Issue-Triage" hält das so.
 func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) ([]string, error) {
-	issues, err := gc.ListIssues(ctx, 0, "opened", "", "", assignedOnly)
+	issues, err := gc.ListIssues(ctx, 0, "opened", "", "", "", assignedOnly)
 	if err != nil {
 		return nil, err
 	}
@@ -395,50 +395,62 @@ func isDuplicateComment(ctx context.Context, gc *Client, notes []Note, body stri
 	return lastOwn != "" && strings.TrimSpace(lastOwn) == strings.TrimSpace(body)
 }
 
-func (System) Execute(ctx context.Context, action string, params json.RawMessage, cred target.Credential) (any, error) {
-	gc := NewClient(cred.BaseURL, cred.Token)
+// aktionsParams ist die Vereinigung aller Parameter, die irgendeine
+// GitLab-Aktion braucht. Ein gemeinsames Struct statt eines je Aktion: Der
+// Agent schickt ein flaches JSON-Objekt, und was darin fehlt, bleibt schlicht
+// leer — das ist die Schnittstelle zum Modell, nicht unsere Wunschform.
+type aktionsParams struct {
+	ProjectID  int    `json:"project_id"`
+	IssueIID   int    `json:"issue_iid"`
+	MRIID      int    `json:"mr_iid"`
+	PipelineID int    `json:"pipeline_id"`
+	JobID      int    `json:"job_id"`
+	Body       string `json:"body"`
+	Internal   *bool  `json:"internal"`
+	State      string `json:"state"`
+	Note       string `json:"note"`
+	Labels     string `json:"labels"`
+	Search     string `json:"search"`
+	Milestone  string `json:"milestone"`
+	Ref        string `json:"ref"`
+	Assigned   bool   `json:"assigned"`
+	// set_labels arbeitet additiv/subtraktiv statt die ganze Liste zu
+	// überschreiben — sonst nimmt jeder Zustandswechsel die fachlichen
+	// Labels mit.
+	AddLabels    []string `json:"add_labels"`
+	RemoveLabels []string `json:"remove_labels"`
+	Path         string   `json:"path"`
+	FilePath     string   `json:"file_path"`
+	URL          string   `json:"url"`
+	Recursive    bool     `json:"recursive"`
+	Sha          string   `json:"sha"`
+	Since        string   `json:"since"`
+	Target       string   `json:"target_branch"`
+	Username     string   `json:"username"`
+	// Entwickler-Workflow: commit + create_merge_request.
+	Branch       string   `json:"branch"`
+	StartBranch  string   `json:"start_branch"`
+	Message      string   `json:"message"`
+	CheckoutPath string   `json:"checkout_path"`
+	Files        []string `json:"files"`
+	Deleted      []string `json:"deleted"`
+	SourceBranch string   `json:"source_branch"`
+	Title        string   `json:"title"`
+	Description  string   `json:"description"`
+	Assignee     string   `json:"assignee"`
+	Reviewer     string   `json:"reviewer"`
+}
 
-	var in struct {
-		ProjectID  int    `json:"project_id"`
-		IssueIID   int    `json:"issue_iid"`
-		MRIID      int    `json:"mr_iid"`
-		PipelineID int    `json:"pipeline_id"`
-		JobID      int    `json:"job_id"`
-		Body       string `json:"body"`
-		Internal   *bool  `json:"internal"`
-		State      string `json:"state"`
-		Note       string `json:"note"`
-		Labels     string `json:"labels"`
-		Search     string `json:"search"`
-		Ref        string `json:"ref"`
-		Assigned   bool   `json:"assigned"`
-		Path       string `json:"path"`
-		FilePath   string `json:"file_path"`
-		URL        string `json:"url"`
-		Recursive  bool   `json:"recursive"`
-		Sha        string `json:"sha"`
-		Since      string `json:"since"`
-		Target     string `json:"target_branch"`
-		Username   string `json:"username"`
-		// Entwickler-Workflow: commit + create_merge_request.
-		Branch       string   `json:"branch"`
-		StartBranch  string   `json:"start_branch"`
-		Message      string   `json:"message"`
-		CheckoutPath string   `json:"checkout_path"`
-		Files        []string `json:"files"`
-		Deleted      []string `json:"deleted"`
-		SourceBranch string   `json:"source_branch"`
-		Title        string   `json:"title"`
-		Description  string   `json:"description"`
-		Assignee     string   `json:"assignee"`
-		Reviewer     string   `json:"reviewer"`
-	}
-	if err := json.Unmarshal(params, &in); err != nil {
-		return nil, fmt.Errorf("params: %w", err)
-	}
+// aktion fuehrt EINE GitLab-Aktion aus. Frueher lag jede davon als Fall in
+// einem 300-Zeilen-switch; eine Aktion dazuzunehmen hiess, diese Funktion
+// anzufassen. Jetzt ist jede fuer sich lesbar und die Verteilung eine Tabelle.
+type aktion func(ctx context.Context, gc *Client, in aktionsParams) (any, error)
 
-	switch action {
-	case "list_projects":
+// aktionen ist die Verteilung: Name aus dem Daemon-Protokoll auf Ausfuehrung.
+// Wer eine Aktion sucht, liest hier einen Namen und springt an eine Stelle,
+// statt sich durch die Nachbarn zu scrollen.
+var aktionen = map[string]aktion{
+	"list_projects": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		ps, err := gc.ListProjects(ctx)
 		if err != nil {
 			return nil, err
@@ -450,8 +462,9 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			}
 		}
 		return out, nil
-	case "list_issues":
-		issues, err := gc.ListIssues(ctx, in.ProjectID, in.State, in.Labels, in.Search, in.Assigned)
+	},
+	"list_issues": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
+		issues, err := gc.ListIssues(ctx, in.ProjectID, in.State, in.Labels, in.Search, in.Milestone, in.Assigned)
 		if err != nil {
 			return nil, err
 		}
@@ -462,29 +475,35 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			}
 		}
 		return out, nil
-	case "get_issue":
+	},
+	"get_issue": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		return gc.GetIssue(ctx, in.ProjectID, in.IssueIID)
-	case "download_upload":
+	},
+	"download_upload": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || strings.TrimSpace(in.URL) == "" {
 			return nil, fmt.Errorf("project_id oder url fehlt")
 		}
 		return DownloadUploadToSandbox(ctx, gc, in.ProjectID, in.URL, target.Workdir(ctx))
-	case "upload":
+	},
+	"upload": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || strings.TrimSpace(in.Path) == "" {
 			return nil, fmt.Errorf("project_id oder path fehlt")
 		}
 		return UploadFromSandbox(ctx, gc, in.ProjectID, in.Path, target.Workdir(ctx))
-	case "checkout":
+	},
+	"checkout": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
 			return nil, fmt.Errorf("project_id fehlt")
 		}
 		return Checkout(ctx, gc, in.ProjectID, in.Ref, in.Path, target.Workdir(ctx))
-	case "list_tree":
+	},
+	"list_tree": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
 			return nil, fmt.Errorf("project_id fehlt")
 		}
 		return gc.ListTree(ctx, in.ProjectID, in.Path, in.Ref, in.Recursive)
-	case "read_file":
+	},
+	"read_file": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.FilePath == "" {
 			return nil, fmt.Errorf("project_id oder file_path fehlt")
 		}
@@ -494,32 +513,38 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		}
 		return map[string]any{"file_path": in.FilePath, "ref": in.Ref,
 			"content": content, "truncated": truncated}, nil
-	case "list_commits":
+	},
+	"list_commits": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
 			return nil, fmt.Errorf("project_id fehlt")
 		}
 		return gc.ListCommits(ctx, in.ProjectID, in.Ref, in.Path, in.Since)
-	case "get_commit":
+	},
+	"get_commit": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.Sha == "" {
 			return nil, fmt.Errorf("project_id oder sha fehlt")
 		}
 		return gc.GetCommitDiff(ctx, in.ProjectID, in.Sha)
-	case "list_merge_requests":
+	},
+	"list_merge_requests": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
 			return nil, fmt.Errorf("project_id fehlt")
 		}
 		return gc.ListMergeRequests(ctx, in.ProjectID, in.State, in.Search, in.Target)
-	case "get_merge_request":
+	},
+	"get_merge_request": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.MRIID == 0 {
 			return nil, fmt.Errorf("project_id oder mr_iid fehlt")
 		}
 		return gc.GetMergeRequest(ctx, in.ProjectID, in.MRIID)
-	case "list_mr_notes":
+	},
+	"list_mr_notes": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.MRIID == 0 {
 			return nil, fmt.Errorf("project_id oder mr_iid fehlt")
 		}
 		return gc.ListMRNotes(ctx, in.ProjectID, in.MRIID)
-	case "comment_mr":
+	},
+	"comment_mr": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.MRIID == 0 || strings.TrimSpace(in.Body) == "" {
 			return nil, fmt.Errorf("project_id, mr_iid oder body fehlt")
 		}
@@ -528,7 +553,8 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 				"reason": "identisch zum letzten eigenen Kommentar — nicht erneut gepostet"}, nil
 		}
 		return gc.CommentMR(ctx, in.ProjectID, in.MRIID, in.Body)
-	case "set_reviewer":
+	},
+	"set_reviewer": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.MRIID == 0 {
 			return nil, fmt.Errorf("project_id oder mr_iid fehlt")
 		}
@@ -540,7 +566,8 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, err
 		}
 		return map[string]any{"reviewer": u.Username, "user_id": u.ID}, nil
-	case "approve_mr":
+	},
+	"approve_mr": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.MRIID == 0 {
 			return nil, fmt.Errorf("project_id oder mr_iid fehlt")
 		}
@@ -548,22 +575,26 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, err
 		}
 		return map[string]any{"approved": true, "mr_iid": in.MRIID}, nil
-	case "list_pipelines":
+	},
+	"list_pipelines": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
 			return nil, fmt.Errorf("project_id fehlt")
 		}
 		return gc.ListPipelines(ctx, in.ProjectID, in.Ref)
-	case "list_pipeline_jobs":
+	},
+	"list_pipeline_jobs": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.PipelineID == 0 {
 			return nil, fmt.Errorf("project_id oder pipeline_id fehlt")
 		}
 		return gc.ListPipelineJobs(ctx, in.ProjectID, in.PipelineID)
-	case "retry_pipeline":
+	},
+	"retry_pipeline": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.PipelineID == 0 {
 			return nil, fmt.Errorf("project_id oder pipeline_id fehlt")
 		}
 		return gc.RetryPipeline(ctx, in.ProjectID, in.PipelineID)
-	case "get_job_log":
+	},
+	"get_job_log": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.JobID == 0 {
 			return nil, fmt.Errorf("project_id oder job_id fehlt")
 		}
@@ -572,18 +603,21 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, err
 		}
 		return map[string]any{"job_id": in.JobID, "log": logText, "truncated": truncated}, nil
-	case "list_branches":
+	},
+	"list_branches": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
 			return nil, fmt.Errorf("project_id fehlt")
 		}
 		return gc.ListBranches(ctx, in.ProjectID, in.Search)
-	case "commit":
+	},
+	"commit": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
 			return nil, fmt.Errorf("project_id fehlt")
 		}
 		return CommitFromCheckout(ctx, gc, in.ProjectID, in.Branch, in.StartBranch,
 			in.Message, in.CheckoutPath, in.Files, in.Deleted, target.Workdir(ctx))
-	case "create_merge_request":
+	},
+	"create_merge_request": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || strings.TrimSpace(in.SourceBranch) == "" || strings.TrimSpace(in.Title) == "" {
 			return nil, fmt.Errorf("project_id, source_branch oder title fehlt")
 		}
@@ -632,7 +666,8 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		}
 		return gc.CreateMergeRequest(ctx, in.ProjectID, in.SourceBranch, targetBranch,
 			in.Title, in.Description, u.ID, reviewerID)
-	case "create_issue":
+	},
+	"create_issue": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || strings.TrimSpace(in.Title) == "" {
 			return nil, fmt.Errorf("project_id oder title fehlt")
 		}
@@ -645,21 +680,25 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			assigneeID = u.ID
 		}
 		return gc.CreateIssue(ctx, in.ProjectID, in.Title, in.Description, in.Labels, assigneeID)
-	case "list_notes":
+	},
+	"list_notes": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		return gc.ListNotes(ctx, in.ProjectID, in.IssueIID)
-	case "comment":
+	},
+	"comment": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		internal := in.Internal == nil || *in.Internal
 		if notes, err := gc.ListNotes(ctx, in.ProjectID, in.IssueIID); err == nil && isDuplicateComment(ctx, gc, notes, in.Body) {
 			return map[string]any{"skipped": "duplicate",
 				"reason": "identisch zum letzten eigenen Kommentar — nicht erneut gepostet"}, nil
 		}
 		return gc.Comment(ctx, in.ProjectID, in.IssueIID, in.Body, internal)
-	case "set_state":
+	},
+	"set_state": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.State == "" {
 			return nil, fmt.Errorf("state fehlt")
 		}
 		return nil, gc.SetState(ctx, in.ProjectID, in.IssueIID, in.State)
-	case "assign":
+	},
+	"assign": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.IssueIID == 0 {
 			return nil, fmt.Errorf("project_id oder issue_iid fehlt")
 		}
@@ -671,21 +710,47 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, err
 		}
 		return map[string]any{"assigned_to": u.Username, "user_id": u.ID}, nil
-	case "escalate":
+	},
+	"set_labels": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
+		if in.ProjectID == 0 || in.IssueIID == 0 {
+			return nil, fmt.Errorf("project_id oder issue_iid fehlt")
+		}
+		iss, err := gc.SetLabels(ctx, in.ProjectID, in.IssueIID, in.AddLabels, in.RemoveLabels)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"issue_iid": iss.IID, "labels": iss.Labels}, nil
+	},
+	"escalate": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		note := in.Note
 		if note == "" {
 			note = "Eskalation durch Covey-Agent."
 		}
 		return nil, gc.Escalate(ctx, in.ProjectID, in.IssueIID, note)
-	default:
+	},
+}
+
+func (System) Execute(ctx context.Context, action string, params json.RawMessage, cred target.Credential) (any, error) {
+	fn, ok := aktionen[action]
+	if !ok {
 		return nil, fmt.Errorf("unbekannte aktion %q", strings.TrimSpace(action))
 	}
+	var in aktionsParams
+	if err := json.Unmarshal(params, &in); err != nil {
+		return nil, fmt.Errorf("params: %w", err)
+	}
+	return fn(ctx, NewClient(cred.BaseURL, cred.Token), in)
 }
 
 func (System) PromptDoc() string {
-	return `Verfügbare GitLab-Aktionen: list_projects {}, list_issues {"project_id":N,"state":"opened"|"closed"|"all","labels":"...","search":"...","assigned":true|false}
+	return `Verfügbare GitLab-Aktionen: list_projects {}, list_issues {"project_id":N,"state":"opened"|"closed"|"all","labels":"...","search":"...","milestone":"...","assigned":true|false}
    (alle Felder optional; ohne project_id alle für dich sichtbaren Issues; assigned=true nur die deinem
-   Bot-Nutzer zugewiesenen — nutze das, wenn dein Playbook nur zugewiesene Issues vorsieht), get_issue {"project_id":N,"issue_iid":N},
+   Bot-Nutzer zugewiesenen — nutze das, wenn dein Playbook nur zugewiesene Issues vorsieht; milestone ist der
+   TITEL des Meilensteins exakt wie in GitLab und ist der zuverlässigste Filter, wenn dein Auftrag an einem
+   Vorhaben hängt — jedes Issue trägt seinen Meilenstein im Feld "milestone" zurück).
+   ACHTUNG: list_issues liefert höchstens 100 Treffer und sagt dir NICHT, dass abgeschnitten wurde. Bekommst du
+   genau 100 zurück, ist die Liste vermutlich unvollständig — grenze mit project_id, milestone, labels oder
+   state weiter ein, statt sie für vollständig zu halten, get_issue {"project_id":N,"issue_iid":N},
    download_upload {"project_id":N,"url":"/uploads/<secret>/<datei>.png"} — lädt einen an ein Issue/MR angehängten
    Upload (Screenshot, Bild) in deine Sandbox und liefert den lokalen Pfad; sieh ihn dir dann mit dem Read-Tool an
    (Vision). WICHTIG: Enthält eine Issue-Beschreibung oder ein Kommentar einen Bild-Anhang — in der Markdown-Syntax
@@ -712,6 +777,15 @@ func (System) PromptDoc() string {
    assign {"project_id":N,"issue_iid":N,"username":"gitlab-username"} weist das Issue einer Person zu — z. B. nach einem
    Fix dem Teammitglied, das laut Team-Verzeichnis fürs Testen zuständig ist; nimm den GitLab-Username exakt aus dem
    Abschnitt "Team (menschliche Mitarbeiter)" deines Prompts und erkläre die Übergabe in einem Kommentar,
+   set_labels {"project_id":N,"issue_iid":N,"add_labels":["…"],"remove_labels":["…"]} setzt und entfernt Labels an einem
+   BESTEHENDEN Issue, ohne die übrigen anzutasten (mindestens eine der beiden Listen angeben; die Antwort enthält den
+   erreichten Label-Stand). Damit führst du den Arbeitszustand eines Vorgangs sichtbar im Board — Zustand und Wechsel
+   beim selben Schritt: beim Weiterreichen das alte Zustands-Label entfernen und das neue setzen, nie nur hinzufügen,
+   sonst trägt ein Issue am Ende drei widersprüchliche Zustände. Fachliche Labels (Komponente, Typ) fasst du dabei
+   nicht an. WICHTIG: Ein Label, das es im Projekt noch nicht gibt, legt GitLab beim Setzen STILL NEU AN — ein
+   Vertipper ("in_arbeit" statt "in-arbeit") erzeugt also dauerhaft ein Projekt-Label, das niemand mehr wegräumt.
+   Nimm die Zustandsnamen zeichengenau aus deinem Playbook und erfinde keine Varianten. Jedes Label ist ein eigener
+   Listeneintrag; ein Eintrag mit Komma darin wird abgelehnt,
    list_branches {"project_id":N,"search":"..."} listet Branches (Default-Branch ist markiert — rate keine Branch-Namen),
    list_commits {"project_id":N,"ref":"...","path":"datei/oder/verzeichnis","since":"ISO-Datum"} listet die Commit-Historie
    (alle Filter optional), get_commit {"project_id":N,"sha":"..."} liefert den Diff eines Commits,

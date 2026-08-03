@@ -22,9 +22,13 @@ import (
 	"golang.org/x/term"
 
 	"covey/internal/agents"
+	"covey/internal/audit"
 	"covey/internal/backlog"
+	"covey/internal/buildinfo"
+	"covey/internal/claudeapi"
 	"covey/internal/config"
 	"covey/internal/db"
+	"covey/internal/dream"
 	"covey/internal/egress"
 	"covey/internal/guardrails"
 	"covey/internal/httpapi"
@@ -36,6 +40,7 @@ import (
 	"covey/internal/reqlog"
 	reqlogstore "covey/internal/reqlog/store"
 	secbuiltin "covey/internal/secrets/builtin"
+	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
 	"covey/internal/templates"
 	"covey/migrations"
@@ -60,6 +65,13 @@ func main() {
 	if len(os.Args) < 2 {
 		usage()
 		os.Exit(2)
+	}
+	// version läuft vor der Config: „welcher Stand ist das?" muss auch dann
+	// eine Antwort geben, wenn die Umgebung unvollständig ist.
+	switch os.Args[1] {
+	case "version", "--version", "-v":
+		fmt.Println("covey " + buildinfo.String())
+		return
 	}
 	cfg, err := config.FromEnv()
 	if err != nil {
@@ -108,6 +120,7 @@ func usage() {
   covey egress-proxy      Egress-Allowlist-Proxy (network-Isolationsmodus, im Container)
   covey config lint       Agenten-Configs auf bekannte Fallstricke prüfen (ändert nichts)
   covey genkey            neuen COVEY_MASTER_KEY erzeugen
+  covey version           Version, Commit und Bauzeit dieses Binaries
 
 Konfiguration über ENV: COVEY_DATABASE_URL, COVEY_LISTEN_ADDR, COVEY_PUBLIC_URL,
 COVEY_MASTER_KEY, COVEY_SANDBOX_IMAGE, COVEY_DATA_DIR, COVEY_ZAMMAD_WEBHOOK_SECRET,
@@ -459,6 +472,64 @@ func startEgressProxy(ctx context.Context, cfg config.Config, store *egress.Stor
 	return containerURL, func() { _ = proxy.Close() }, nil
 }
 
+// buildEmbedder wählt das Embedding für das Wiki-Gedächtnis (spec/05).
+// "builtin" ist der Offline-Rückfall ohne API-Schlüssel; jeder andere Provider
+// wird strikt validiert — eine kaputte Konfiguration soll den Start abbrechen
+// und nicht unbemerkt zum schwächeren Hash-Embedding zurückfallen.
+func buildEmbedder(cfg config.Config, log *slog.Logger) (memory.Embedder, error) {
+	provider := strings.ToLower(strings.TrimSpace(cfg.EmbeddingProvider))
+	if provider == "" || provider == "builtin" {
+		log.Warn("wiki-embedding: built-in hash aktiv — die Vektorsuche misst nur Wortüberlappung; " +
+			"für semantisches Retrieval COVEY_EMBEDDING_PROVIDER=voyage|openai + COVEY_EMBEDDING_API_KEY setzen")
+		return memory.HashEmbedder{}, nil
+	}
+	e, err := memory.NewAPIEmbedder(provider, cfg.EmbeddingModel, cfg.EmbeddingAPIKey, cfg.EmbeddingURL, log)
+	if err != nil {
+		return nil, err
+	}
+	log.Info("wiki-embedding aktiv", "modell", e.Name())
+	return e, nil
+}
+
+// startReembed zieht Bestandsseiten im Hintergrund auf das aktive Embedding-
+// Modell nach. Im Hintergrund, weil der Serve-Start nicht auf hunderte
+// Aufrufe warten soll; die betroffenen Seiten sind bis dahin über die
+// Vektorsuche schlicht nicht auffindbar (Query filtert auf das aktive Modell),
+// gehen aber nicht verloren.
+//
+// Mit Wiederholung, weil ein selbstgehosteter Embedding-Dienst beim ersten
+// Start typischerweise noch das Modell lädt: ohne Nachfassen bliebe das Wiki
+// bis zum nächsten Neustart der Control Plane unauffindbar, obwohl der Dienst
+// zwei Minuten später bereit ist.
+const reembedRetryDelay = time.Minute
+const reembedRetries = 30
+
+func startReembed(ctx context.Context, mem *memory.Store, log *slog.Logger) {
+	stale, err := mem.StaleCount(ctx)
+	if err != nil || stale == 0 {
+		return
+	}
+	log.Info("wiki-embedding: Bestand wird nachgezogen", "seiten", stale, "modell", mem.EmbedderName())
+	go func() {
+		for attempt := 0; attempt < reembedRetries; attempt++ {
+			n, err := mem.ReembedStale(ctx, 50)
+			if err == nil {
+				log.Info("wiki-embedding: Bestand nachgezogen", "seiten", n)
+				return
+			}
+			log.Warn("wiki-embedding: Nachziehen unterbrochen, neuer Versuch",
+				"neu_eingebettet", n, "in", reembedRetryDelay, "err", err)
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(reembedRetryDelay):
+			}
+		}
+		log.Error("wiki-embedding: Bestand konnte nicht nachgezogen werden — " +
+			"die Wiki-Suche findet die betroffenen Seiten nicht")
+	}()
+}
+
 func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	if cfg.MasterKeyHex == "" {
 		return fmt.Errorf("COVEY_MASTER_KEY fehlt (mit `covey genkey` erzeugen)")
@@ -508,10 +579,22 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	backlogStore := backlog.NewStore(pool)
 	obs := observability.NewStore(pool)
 	rails := guardrails.NewStore(pool)
-	mem := memory.NewStore(pool, memory.HashEmbedder{})
+	// Embedding hinter dem Wiki-Retrieval (spec/05). Der Built-in-Hash misst nur
+	// Wortüberlappung; ein echter Provider macht aus der Vektorsuche erst eine
+	// semantische. Fehlkonfiguration bricht den Start ab, statt still auf das
+	// schwächere Embedding zurückzufallen — sonst merkt es niemand.
+	embedder, err := buildEmbedder(cfg, log)
+	if err != nil {
+		return err
+	}
+	mem := memory.NewStore(pool, embedder)
+	startReembed(ctx, mem, log)
+	dreams := dream.NewStore(pool, mem, log)
 	targets := targetstore.NewStore(pool)
 	egressStore := egress.NewStore(pool)
 	templateStore := templates.NewStore(pool)
+	auditStore := audit.NewStore(pool)
+	skillStore := skills.NewStore(pool)
 
 	// Egress-Enforcement ist nur mit echter Netz-Isolation (docker) durchsetzbar.
 	egressEnforced := cfg.EgressEnforce && cfg.SandboxProvider == "docker"
@@ -566,6 +649,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Pool: pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Identity: idp, Memory: mem,
 		Targets:        targets,
+		Skills:         skillStore,
 		Egress:         egressStore,
 		ReqLog:         reqLog,
 		Provider:       provider,
@@ -581,10 +665,13 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		return err
 	}
 	srv := &httpapi.Server{
-		Pool: pool, Registry: registry, Backlog: backlogStore, Obs: obs,
-		Rails: rails, Secrets: secretStore, Identity: idp, Memory: mem,
+		BaseCtx: ctx,
+		Audit:   auditStore,
+		Pool:    pool, Registry: registry, Backlog: backlogStore, Obs: obs,
+		Rails: rails, Secrets: secretStore, Identity: idp, Memory: mem, Dreams: dreams,
 		Org: org.NewStore(pool), Targets: targets, Templates: templateStore,
-		Orch: orch, WebFS: dist, Log: log,
+		Skills: skillStore,
+		Orch:   orch, WebFS: dist, Log: log,
 		WebhookSecrets: cfg.WebhookSecrets,
 		SessionTTL:     cfg.SessionTTL,
 		PublicURL:      cfg.PublicURL,
@@ -595,13 +682,39 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		ReqLog:         reqLog,
 	}
 
-	httpServer := &http.Server{Addr: cfg.ListenAddr, Handler: srv.Handler()}
+	httpServer := &http.Server{
+		Addr:    cfg.ListenAddr,
+		Handler: srv.Handler(),
+		// Gegen Slowloris: Wer eine Verbindung öffnet und die Kopfzeilen
+		// tröpfchenweise schickt, band bisher unbegrenzt eine Verbindung.
+		ReadHeaderTimeout: 20 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		// ReadTimeout und WriteTimeout bleiben bewusst AUS:
+		// Ein Datei-Upload ins Agenten-Home darf lange dauern (Read), und der
+		// SSE-Strom (/api/v1/events) sowie die Daemon-WebSocket laufen über
+		// Stunden (Write). Ein Timeout dort würde die Oberfläche und die
+		// Sandbox-Verbindung im Minutentakt abreißen lassen.
+	}
 
 	go func() {
 		if err := orch.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 			log.Error("orchestrator", "err", err)
 		}
 	}()
+
+	// Nachtruhe der Agenten: einmal je Nacht räumt jeder sein Wiki auf. Das
+	// Credential kommt je Agent aus der Organisation — ohne eines wird nicht
+	// geträumt, still und ohne Fehler.
+	if at := strings.TrimSpace(cfg.DreamAt); at != "" && at != "off" {
+		go dreams.RunNightly(ctx, at, func(ctx context.Context, agentID uuid.UUID) (dream.Credential, bool) {
+			a, err := registry.Get(ctx, agentID)
+			if err != nil {
+				return dream.Credential{}, false
+			}
+			cred, oauth, ok := claudeapi.ResolveOrg(ctx, secretStore, a.OrgID)
+			return dream.Credential{Value: cred, OAuth: oauth}, ok
+		}, log)
+	}
 	// Egress-Log-Retention: alte Entscheidungen periodisch wegräumen.
 	go func() {
 		t := time.NewTicker(6 * time.Hour)
@@ -625,7 +738,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		httpServer.Shutdown(shutdownCtx)
 	}()
 
-	log.Info("covey serve", "addr", cfg.ListenAddr, "public", cfg.PublicURL)
+	log.Info("covey serve", "addr", cfg.ListenAddr, "public", cfg.PublicURL, "build", buildinfo.String())
 	if err := httpServer.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

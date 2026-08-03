@@ -3,6 +3,10 @@
 # Container, der auf dem internen Sandbox-Netz als EINZIGER Ausgang sitzt und
 # nur Allowlist-Hosts durchlässt (Allowlist aus DB + ENV, live nachgeladen).
 FROM golang:1.26 AS build
+# Herkunft des Binaries (internal/buildinfo), analog Dockerfile.
+ARG VERSION=dev
+ARG COMMIT=
+ARG DATE=
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -18,7 +22,10 @@ COPY skills ./skills
 # Der Proxy-Container liefert die SPA nie aus; ein Placeholder-dist genügt, damit
 # die //go:embed all:dist-Direktive des web-Pakets baut (kein npm-Build nötig).
 RUN mkdir -p web/dist && [ -e web/dist/index.html ] || echo "egress-proxy" > web/dist/index.html
-RUN CGO_ENABLED=0 go build -o /covey ./cmd/covey
+RUN CGO_ENABLED=0 go build -ldflags "\
+        -X covey/internal/buildinfo.version=$VERSION \
+        -X covey/internal/buildinfo.commit=$COMMIT \
+        -X covey/internal/buildinfo.date=$DATE" -o /covey ./cmd/covey
 
 FROM alpine:3.24
 RUN apk add --no-cache ca-certificates

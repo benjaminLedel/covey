@@ -56,9 +56,9 @@ var manifest = []struct {
 	{
 		File:          "coding-agent.bundle.json",
 		Name:          "Entwickler-Agent (GitLab)",
-		Description:   "Nimmt GitLab-Issues auf, verifiziert Bugs am Quelltext, entwickelt Fixes und eröffnet Merge Requests im Review-Loop.",
+		Description:   "Nimmt GitLab-Issues auf, verifiziert Bugs am Quelltext und lässt den Fix von einem Sub-Agenten im Projekt-Checkout entwickeln — dort gelten CLAUDE.md, Skills und Subagenten des Projekts. Checkt das Ergebnis ein und führt den Review-Loop.",
 		NameEn:        "Developer agent (GitLab)",
-		DescriptionEn: "Picks up GitLab issues, verifies bugs against the source, develops fixes and opens merge requests in the review loop.",
+		DescriptionEn: "Picks up GitLab issues, verifies bugs against the source and has a sub-agent develop the fix inside the project checkout — where the project's own CLAUDE.md, skills and subagents apply. Commits the result and runs the review loop.",
 	},
 	{
 		File:          "qa-agent.bundle.json",
@@ -66,6 +66,13 @@ var manifest = []struct {
 		Description:   "Nimmt fremde Merge Requests als Reviewer end-to-end ab und legt Bug-Reports aus E-Mails als GitLab-Tickets an.",
 		NameEn:        "QA / test agent (GitLab + email)",
 		DescriptionEn: "Reviews others' merge requests end-to-end and turns emailed bug reports into GitLab tickets.",
+	},
+	{
+		File:          "delivery-lead.bundle.json",
+		Name:          "Delivery Lead (GitLab-Meilenstein)",
+		Description:   "Führt einen GitLab-Meilenstein zur Frist: macht Tickets implementierbar (Anforderung im Original lesen, prüfbare Abnahmekriterien, betroffene Codestellen), hält die Reihenfolge abhängiger Tickets, vergibt Arbeit nach WIP-Limit an die Entwickler-Kollegen und berichtet den Stand. Das Vorhaben selbst steht in einem Steckbrief im Wiki, nicht in der Config — derselbe Agent führt jedes weitere Vorhaben.",
+		NameEn:        "Delivery lead (GitLab milestone)",
+		DescriptionEn: "Drives a GitLab milestone to its deadline: makes tickets implementable (reads the source requirement, writes testable acceptance criteria, points at the affected code), keeps dependent tickets in order, hands work to developer colleagues within a WIP limit and reports status. The engagement itself lives in a wiki brief, not in the config — the same agent runs the next one.",
 	},
 	{
 		File:          "log-triage-agent.bundle.json",

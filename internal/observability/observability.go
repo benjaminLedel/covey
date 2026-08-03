@@ -49,6 +49,16 @@ func (s *Store) EffectiveRecordingLevel(ctx context.Context, agentID uuid.UUID) 
 	if err != nil {
 		return LevelStandard, err
 	}
+	return effectiveLevel(orgLevel, agentLevel), nil
+}
+
+// effectiveLevel ist die Regel hinter EffectiveRecordingLevel, getrennt von der
+// Abfrage: Der Org-Level ist der **Boden**, ein Agent darf nur nach oben davon
+// abweichen. Ein Agent, der sich selbst leiser stellen könnte, wäre genau die
+// Lücke, die Security/Compliance mit dem Org-Boden schließen wollten.
+// Unbekannte Werte fallen fail-safe auf standard — im Zweifel wird mehr
+// aufgezeichnet, nicht weniger.
+func effectiveLevel(orgLevel string, agentLevel *string) string {
 	eff := orgLevel
 	if agentLevel != nil && levelRank[*agentLevel] > levelRank[eff] {
 		eff = *agentLevel
@@ -56,7 +66,7 @@ func (s *Store) EffectiveRecordingLevel(ctx context.Context, agentID uuid.UUID) 
 	if _, ok := levelRank[eff]; !ok {
 		eff = LevelStandard
 	}
-	return eff, nil
+	return eff
 }
 
 // SetOrgRecordingLevel setzt den Org-Boden (Security/Compliance).
@@ -180,6 +190,35 @@ func (s *Store) PutBlob(ctx context.Context, orgID, agentID uuid.UUID, taskID *u
 }
 
 // GetBlob liefert ein Artefakt org-gescopt (mime + Bytes).
+// Blob ist ein Recording-Artefakt (Screenshot) samt Inhalt.
+type Blob struct {
+	ID        uuid.UUID `json:"id"`
+	MIME      string    `json:"mime"`
+	Bytes     []byte    `json:"bytes"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// BlobsByAgent liefert alle Artefakte eines Agenten — mit Inhalt, denn der
+// einzige Aufrufer ist der Diagnose-Export, der ein vollständiges Abbild
+// erzeugt. Für Ansichten gibt es GetBlob (eines, org-geprüft).
+func (s *Store) BlobsByAgent(ctx context.Context, agentID uuid.UUID) ([]Blob, error) {
+	rows, err := s.pool.Query(ctx,
+		"SELECT id, mime, bytes, created_at FROM recording_blobs WHERE agent_id=$1 ORDER BY created_at", agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Blob
+	for rows.Next() {
+		var b Blob
+		if err := rows.Scan(&b.ID, &b.MIME, &b.Bytes, &b.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) GetBlob(ctx context.Context, orgID, id uuid.UUID) (string, []byte, error) {
 	var mime string
 	var data []byte

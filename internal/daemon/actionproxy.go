@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"covey/internal/reqlog"
 	"covey/internal/target"
@@ -33,7 +34,14 @@ func (c *Client) startActionProxy(ctx context.Context, taskID string) (*actionPr
 	p := &actionProxy{client: c, taskID: taskID, ln: ln}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /actions/{system}/{action}", p.handle)
-	p.srv = &http.Server{Handler: mux, BaseContext: func(net.Listener) context.Context { return ctx }}
+	p.srv = &http.Server{
+		Handler:     mux,
+		BaseContext: func(net.Listener) context.Context { return ctx },
+		// Der Action-Proxy lauscht auf Loopback IN der Sandbox — also genau
+		// dort, wo die Runtime läuft. Ein hängender Aufruf soll die Verbindung
+		// nicht dauerhaft belegen.
+		ReadHeaderTimeout: 20 * time.Second,
+	}
 	go p.srv.Serve(ln)
 	return p, nil
 }
@@ -152,9 +160,28 @@ func (p *actionProxy) handleControlPlane(ctx context.Context, w http.ResponseWri
 		var in struct {
 			Content string `json:"content"`
 			TaskID  string `json:"task_id"`
+			Page    string `json:"page"`
 		}
 		if err := json.Unmarshal(params, &in); err != nil || strings.TrimSpace(in.Content) == "" {
 			writeJSON(w, map[string]string{"status": "error", "error": "content fehlt"})
+			return
+		}
+		// remember mit Seitenbezug ist ein Anhängen an genau diese Seite. Ohne
+		// Bezug muss die Plattform raten, welche Seite gemeint ist — das erzeugt
+		// die satzbetitelten Streuseiten, die das Wiki aufblähen (spec/05).
+		if action == "remember" && strings.TrimSpace(in.Page) != "" {
+			resp, err := p.client.wiki(ctx, RequestWiki{Op: "append", Slug: in.Page, Text: in.Content})
+			if err != nil {
+				writeJSON(w, map[string]string{"status": "error", "error": err.Error()})
+				return
+			}
+			if !resp.OK {
+				writeJSON(w, map[string]string{"status": "error", "error": resp.Error})
+				return
+			}
+			audit, _ := json.Marshal(map[string]any{"action": "covey:remember", "page": in.Page, "content": in.Content})
+			_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
+			writeJSON(w, map[string]any{"status": "ok", "data": resp.Data})
 			return
 		}
 		taskID := in.TaskID
@@ -192,16 +219,20 @@ func (p *actionProxy) handleControlPlane(ctx context.Context, w http.ResponseWri
 		audit, _ := json.Marshal(map[string]any{"action": "covey:set_stage", "stage": in.Stage})
 		_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
 		writeJSON(w, map[string]string{"status": "ok", "stage": in.Stage})
-	case "wiki_search", "wiki_read", "wiki_write", "wiki_delete":
+	case "wiki_search", "wiki_read", "wiki_write", "wiki_append", "wiki_delete":
 		var in struct {
-			Query string `json:"query"`
-			Slug  string `json:"slug"`
-			Title string `json:"title"`
-			Body  string `json:"body"`
+			Query string   `json:"query"`
+			Slug  string   `json:"slug"`
+			Title string   `json:"title"`
+			Body  string   `json:"body"`
+			Type  string   `json:"type"`
+			Tags  []string `json:"tags"`
+			Text  string   `json:"text"`
 		}
 		_ = json.Unmarshal(params, &in)
 		op := strings.TrimPrefix(action, "wiki_")
-		resp, err := p.client.wiki(ctx, RequestWiki{Op: op, Query: in.Query, Slug: in.Slug, Title: in.Title, Body: in.Body})
+		resp, err := p.client.wiki(ctx, RequestWiki{Op: op, Query: in.Query, Slug: in.Slug,
+			Title: in.Title, Body: in.Body, Type: in.Type, Tags: in.Tags, Text: in.Text})
 		if err != nil {
 			writeJSON(w, map[string]string{"status": "error", "error": err.Error()})
 			return
@@ -307,5 +338,8 @@ func (p *actionProxy) execute(ctx context.Context, system, action string, params
 	// Workdir für Aktionen, die Dateien in die Sandbox materialisieren
 	// (z. B. gitlab checkout) — das Credential selbst bleibt im Daemon.
 	ctx = target.WithWorkdir(ctx, p.client.homeDir)
+	// Sub-Agent-Runner: erlaubt einem Plugin (dev:agent), einen geschachtelten
+	// Runtime-Lauf im Projekt-Checkout zu starten, ohne den Daemon zu kennen.
+	ctx = target.WithSubAgent(ctx, p.client.subAgentRunner(p.taskID))
 	return sys.Execute(ctx, action, params, target.Credential{BaseURL: cred.BaseURL, Token: cred.Token})
 }

@@ -62,10 +62,10 @@ func TestWikiConsolidate(t *testing.T) {
 	// Hash-Embedder ist zu empfindlich, um zwei abweichende Bodies verlässlich
 	// über die dupThreshold zu bringen.)
 	const body = "Kunde ACME ist nur telefonisch erreichbar. Betreut von [[kollegin-zabel]], siehe [[projekt-x]]."
-	if _, err := s.mem.Write(ctx, a.ID, "kunde-acme", "Kunde ACME", body, "agent"); err != nil {
+	if _, err := s.mem.Write(ctx, a.ID, memory.PageInput{Slug: "kunde-acme", Title: "Kunde ACME", Body: body, Source: "agent"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.mem.Write(ctx, a.ID, "acme-alt", "Kunde ACME", body, "agent"); err != nil {
+	if _, err := s.mem.Write(ctx, a.ID, memory.PageInput{Slug: "acme-alt", Title: "Kunde ACME", Body: body, Source: "agent"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -134,7 +134,7 @@ func TestWikiWriteUpsert(t *testing.T) {
 	ctx := context.Background()
 	a := s.newSupportAgent("upsert-agent")
 
-	if _, err := s.mem.Write(ctx, a.ID, "projekt-x", "Projekt X", "Startphase. Team um [[kollegin-zabel]].", "agent"); err != nil {
+	if _, err := s.mem.Write(ctx, a.ID, memory.PageInput{Slug: "projekt-x", Title: "Projekt X", Body: "Startphase. Team um [[kollegin-zabel]].", Source: "agent"}); err != nil {
 		t.Fatal(err)
 	}
 	page, err := s.mem.Read(ctx, a.ID, "projekt-x")
@@ -146,7 +146,7 @@ func TestWikiWriteUpsert(t *testing.T) {
 	}
 
 	// Gleicher Slug → in-place-Update, keine zweite Seite.
-	if _, err := s.mem.Write(ctx, a.ID, "projekt-x", "Projekt X", "Umsetzungsphase. Siehe [[meilenstein-2]].", "agent"); err != nil {
+	if _, err := s.mem.Write(ctx, a.ID, memory.PageInput{Slug: "projekt-x", Title: "Projekt X", Body: "Umsetzungsphase. Siehe [[meilenstein-2]].", Source: "agent"}); err != nil {
 		t.Fatal(err)
 	}
 	pages, _ := s.mem.List(ctx, a.ID, 50)
@@ -159,7 +159,7 @@ func TestWikiWriteUpsert(t *testing.T) {
 	}
 
 	// Leerer/nichtssagender Body → ErrNoContent.
-	if _, err := s.mem.Write(ctx, a.ID, "leer", "Leer", "   ", "agent"); !errors.Is(err, memory.ErrNoContent) {
+	if _, err := s.mem.Write(ctx, a.ID, memory.PageInput{Slug: "leer", Title: "Leer", Body: "   ", Source: "agent"}); !errors.Is(err, memory.ErrNoContent) {
 		t.Fatalf("leerer Body muss ErrNoContent liefern, got %v", err)
 	}
 
@@ -178,10 +178,10 @@ func TestWikiMaintenanceConsolidation(t *testing.T) {
 	a := s.newSupportAgent("maint-agent")
 
 	const body = "Kunde ACME ist nur telefonisch erreichbar. Siehe [[projekt-x]]."
-	if _, err := s.mem.Write(ctx, a.ID, "p1", "ACME", body, "agent"); err != nil {
+	if _, err := s.mem.Write(ctx, a.ID, memory.PageInput{Slug: "p1", Title: "ACME", Body: body, Source: "agent"}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.mem.Write(ctx, a.ID, "p2", "ACME", body, "agent"); err != nil {
+	if _, err := s.mem.Write(ctx, a.ID, memory.PageInput{Slug: "p2", Title: "ACME", Body: body, Source: "agent"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -211,4 +211,110 @@ func pageSlugs(pages []memory.Entry) []string {
 		out[i] = p.Slug
 	}
 	return out
+}
+
+// TestWikiAppendKeepsPage: Ergänzen darf den Rest der Seite nicht verlieren —
+// vor wiki_append hieß "ergänzen" immer, die ganze Seite neu zu schreiben.
+func TestWikiAppendKeepsPage(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	a := s.newSupportAgent("append-agent")
+
+	if _, err := s.mem.Write(ctx, a.ID, memory.PageInput{
+		Slug: "kunde-acme", Title: "Kunde ACME", Type: "kunde",
+		Body: "Nur telefonisch erreichbar. Siehe [[projekt-x]].", Source: "agent",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.mem.Append(ctx, a.ID, "kunde-acme", "Rechnungen gehen an [[frau-zabel]]."); err != nil {
+		t.Fatal(err)
+	}
+	page, err := s.mem.Read(ctx, a.ID, "kunde-acme")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(page.Content, "Nur telefonisch") || !strings.Contains(page.Content, "Rechnungen gehen") {
+		t.Fatalf("Append muss beides behalten, got %q", page.Content)
+	}
+	// Verweise aus altem und neuem Text stehen danach beide drin.
+	if !slices.Contains(page.Links, "projekt-x") || !slices.Contains(page.Links, "frau-zabel") {
+		t.Fatalf("Links nach Append: %v", page.Links)
+	}
+	// Typ überlebt das Ergänzen.
+	if page.Type != "kunde" {
+		t.Fatalf("Typ verloren: %q", page.Type)
+	}
+	// Zweimal derselbe Absatz doppelt nicht.
+	before := page.Content
+	if _, err := s.mem.Append(ctx, a.ID, "kunde-acme", "Rechnungen gehen an [[frau-zabel]]."); err != nil {
+		t.Fatal(err)
+	}
+	if page, _ = s.mem.Read(ctx, a.ID, "kunde-acme"); page.Content != before {
+		t.Fatalf("identischer Absatz darf nicht erneut angehängt werden")
+	}
+	// Unbekannte Seite: Append legt sie an, statt zu scheitern.
+	if _, err := s.mem.Append(ctx, a.ID, "neue-seite", "Erster Absatz einer neuen Seite."); err != nil {
+		t.Fatalf("Append auf unbekannte Seite muss sie anlegen: %v", err)
+	}
+}
+
+// TestWikiHealthFindings: die Qualitätsbefunde erkennen genau die Muster, an
+// denen ein Agenten-Wiki verwahrlost (spec/05).
+func TestWikiHealthFindings(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	a := s.newSupportAgent("health-agent")
+
+	// Saubere Entitätsseite mit lebendem Verweis …
+	if _, err := s.mem.Write(ctx, a.ID, memory.PageInput{
+		Slug: "kunde-acme", Title: "Kunde ACME", Type: "kunde", Source: "agent",
+		Body: "ACME zahlt per Rechnung und ist nur telefonisch erreichbar. Betreut von [[frau-zabel]] aus dem Innendienst.",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.mem.Write(ctx, a.ID, memory.PageInput{
+		Slug: "frau-zabel", Title: "Frau Zabel", Type: "person", Source: "agent",
+		Body: "Innendienst, betreut [[kunde-acme]] und meldet sich nur vormittags zurück.",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// … eine Tagebuchseite ohne Typ, ohne Verweise, mit totem Link und Datum …
+	if _, err := s.mem.Write(ctx, a.ID, memory.PageInput{
+		Slug:   "am-29-07-2026-hat-der-kunde-das-ticket-4711-geschlossen-und-nichts",
+		Title:  "Am 29.07.2026 hat der Kunde das Ticket 4711 geschlossen und nichts weiter gemeldet",
+		Body:   "Vorgang vom 29.07.2026, abgeschlossen. Verweist auf [[gibt-es-nicht]] und sonst nirgendwohin.",
+		Source: "agent",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	h, err := s.mem.CheckHealth(ctx, a.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h.Pages != 3 {
+		t.Fatalf("Seitenzahl: %d", h.Pages)
+	}
+	if h.DeadLinks != 1 {
+		t.Fatalf("toter Verweis nicht erkannt: %d", h.DeadLinks)
+	}
+	if h.Untyped != 1 {
+		t.Fatalf("Seite ohne Typ nicht erkannt: %d", h.Untyped)
+	}
+	if h.Episodic != 1 {
+		t.Fatalf("Tagebuch-Titel nicht erkannt: %d", h.Episodic)
+	}
+	// Die Tagebuchseite hat keinen lebenden Verweis hinein oder hinaus.
+	if h.Orphans != 1 {
+		t.Fatalf("verwaiste Seite nicht erkannt: %d", h.Orphans)
+	}
+	// Die beiden verlinkten Entitätsseiten gelten NICHT als verwaist.
+	for _, f := range h.Findings {
+		if f.Kind == "orphan" && (f.Slug == "kunde-acme" || f.Slug == "frau-zabel") {
+			t.Fatalf("verlinkte Seite fälschlich als verwaist gemeldet: %s", f.Slug)
+		}
+	}
+	if h.Links != 2 {
+		t.Fatalf("lebende Verweise: %d", h.Links)
+	}
 }

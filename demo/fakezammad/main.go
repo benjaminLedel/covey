@@ -5,15 +5,18 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"strings"
+	"time"
 )
 
 func main() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /api/v1/tickets/{id}", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("→ GET ticket %s (auth: %.30s)", r.PathValue("id"), r.Header.Get("Authorization"))
+		log.Printf("→ GET ticket %s (auth: %s)", r.PathValue("id"), authShape(r))
 		json.NewEncoder(w).Encode(map[string]any{
 			"id": 42, "number": "20042", "title": "Login funktioniert nicht",
 			"state": "open", "customer_id": 7,
@@ -39,5 +42,21 @@ func main() {
 	})
 
 	log.Println("fake-zammad auf :9999")
-	log.Fatal(http.ListenAndServe(":9999", mux))
+	srv := &http.Server{Addr: ":9999", Handler: mux, ReadHeaderTimeout: 20 * time.Second}
+	log.Fatal(srv.ListenAndServe())
+}
+
+// authShape zeigt, DASS ein gebrokertes Credential ankommt — Schema und Länge
+// statt des Tokens selbst. Für die Demo ist genau das die Aussage; das Token
+// gehört auch in einem Double nicht ins Log.
+func authShape(r *http.Request) string {
+	h := r.Header.Get("Authorization")
+	if h == "" {
+		return "keine"
+	}
+	scheme, rest, ok := strings.Cut(h, " ")
+	if !ok {
+		return fmt.Sprintf("%d Zeichen", len(h))
+	}
+	return fmt.Sprintf("%s, %d Zeichen", scheme, len(rest))
 }

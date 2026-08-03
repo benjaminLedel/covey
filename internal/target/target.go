@@ -125,6 +125,7 @@ type ctxKey int
 const (
 	workdirKey ctxKey = iota
 	artifactSinkKey
+	subAgentKey
 )
 
 // Artifact ist ein Binär-Nebenergebnis einer Aktion, das ins Recording gehört
@@ -159,6 +160,59 @@ func WithWorkdir(ctx context.Context, dir string) context.Context {
 func Workdir(ctx context.Context) string {
 	dir, _ := ctx.Value(workdirKey).(string)
 	return dir
+}
+
+// BaselineRef ist der git-Tag, den ein Checkout auf den frisch entpackten
+// Upstream-Stand setzt. Er ist der Anker zwischen Checkout und Sub-Lauf: Der
+// Sub-Lauf meldet seine Arbeit als Differenz zu diesem Commit, nicht als
+// Differenz zweier Status-Abbilder. Nur so bleibt die Arbeit sichtbar, wenn
+// der Sub-Agent im Checkout lokal committet — was viele Projekte in ihrer
+// CLAUDE.md ausdrücklich verlangen.
+const BaselineRef = "covey-baseline"
+
+// SubAgentRequest ist ein Arbeitsauftrag an einen geschachtelten Runtime-Lauf,
+// der IM angegebenen Verzeichnis startet — typischerweise ein Projekt-Checkout.
+// Damit greift dort der Claude-Code-Harness des Projekts selbst (CLAUDE.md,
+// .claude/agents, skills, commands), den der äußere Lauf vom Agenten-Home aus
+// nie sieht.
+type SubAgentRequest struct {
+	// Dir ist das Arbeitsverzeichnis des Sub-Laufs (relativ zum Sandbox-Home
+	// oder absolut).
+	Dir string
+	// Task ist der Arbeitsauftrag — die einzige Eingabe des Sub-Agenten.
+	Task string
+	// Model und MaxTurns überschreiben die Vorgaben des Laufs (leer/0 = Default).
+	Model    string
+	MaxTurns int
+}
+
+// SubAgentResult ist das normierte Ergebnis eines Sub-Laufs. ChangedFiles und
+// Deleted sind repo-relative Pfade und passen direkt in die commit-Aktion.
+type SubAgentResult struct {
+	Result         string   `json:"result"`
+	ChangedFiles   []string `json:"changed_files,omitempty"`
+	Deleted        []string `json:"deleted,omitempty"`
+	CostUSD        float64  `json:"cost_usd,omitempty"`
+	TurnsExhausted bool     `json:"turns_exhausted,omitempty"`
+	Error          string   `json:"error,omitempty"`
+}
+
+// SubAgentRunner führt einen Sub-Lauf aus. Der Daemon hängt ihn pro Aktion an
+// den Context — genau wie Workdir und die Artefakt-Senke, damit Plugins die
+// Fähigkeit nutzen können, ohne den Daemon zu importieren.
+type SubAgentRunner func(ctx context.Context, req SubAgentRequest) (SubAgentResult, error)
+
+// WithSubAgent hängt den Sub-Agent-Runner an den Context.
+func WithSubAgent(ctx context.Context, run SubAgentRunner) context.Context {
+	return context.WithValue(ctx, subAgentKey, run)
+}
+
+// SubAgent liest den Runner aus dem Context. nil, wenn die Aktion außerhalb
+// einer Sandbox läuft (z. B. Control-Plane-Kontext) — dann gibt es keine
+// Runtime, die sich schachteln ließe.
+func SubAgent(ctx context.Context) SubAgentRunner {
+	run, _ := ctx.Value(subAgentKey).(SubAgentRunner)
+	return run
 }
 
 // WebhookEvent ist das normalisierte Ergebnis eines Webhook-Payloads —

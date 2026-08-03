@@ -23,7 +23,7 @@ func init() {
 	target.Register(target.Descriptor{
 		Name:          "dev",
 		Label:         "Dev-Sandbox",
-		Description:   "Der eigene Computer des Agenten: Shell-Befehle in der Sandbox ausführen (exec) und langlaufende Prozesse verwalten (start/stop/logs/list) — Dev-Server, Datenbanken, headless Chrome. Läuft vollständig im Daemon der Sandbox; braucht keine Secrets.",
+		Description:   "Der eigene Computer des Agenten: Shell-Befehle in der Sandbox ausführen (exec), langlaufende Prozesse verwalten (start/stop/logs/list) — Dev-Server, Datenbanken, headless Chrome — und die eigentliche Programmierarbeit an einen Sub-Agenten im Projekt-Checkout übergeben (agent). Der Sub-Agent arbeitet mit dem Claude-Code-Harness des Projekts selbst (CLAUDE.md, .claude/agents, Skills, Commands) und erreicht dabei keine Zielsysteme. Läuft vollständig im Daemon der Sandbox; braucht keine Secrets.",
 		Kind:          "builtin",
 		Category:      target.CategoryDev,
 		System:        System{},
@@ -32,13 +32,22 @@ func init() {
    laufen lokal in der Sandbox des Agenten (nichts auf der Control Plane).
 
 2. In der ACCESS.md des Agenten freischalten:
-   - system: dev scope: exec,processes
+   - system: dev scope: exec,processes,agent
 
 3. Soll der Agent Pakete installieren oder einen Browser laden, die
    nötigen Hosts über die Egress-Templates freigeben (npm, PyPI, Go, …).
 
 Hinweis: Mit start gestartete Prozesse leben bis zum Ende der Wach-Phase
-des Agenten — beim Einschlafen der Sandbox werden sie beendet.`,
+des Agenten — beim Einschlafen der Sandbox werden sie beendet.
+
+Zur Aktion agent (Sub-Agent im Projekt-Checkout): Sie startet einen zweiten
+Runtime-Lauf IM ausgecheckten Projekt, damit dort dessen eigener
+Claude-Code-Harness greift (CLAUDE.md, .claude/agents, Skills, Commands).
+Der Sub-Agent läuft hermetisch — kein Action-Proxy, also kein Zugriff auf
+GitLab, E-Mail oder andere Zielsysteme; commit und Kommunikation bleiben beim
+beauftragenden Agenten. Seine Kosten zählen auf dasselbe Budget, seine Events
+stehen (als Sub-Lauf markiert) in derselben Aufzeichnung. Wer das nicht will,
+verbietet die Aktion zentral per Guard-Rail auf dem Subjekt dev:agent.`,
 	})
 	target.OnShutdown(super.shutdown)
 }
@@ -64,6 +73,9 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		Cwd         string `json:"cwd"`
 		TimeoutSecs int    `json:"timeout_secs"`
 		TailLines   int    `json:"tail_lines"`
+		Task        string `json:"task"`
+		Model       string `json:"model"`
+		MaxTurns    int    `json:"max_turns"`
 	}
 	if err := json.Unmarshal(params, &in); err != nil {
 		return nil, fmt.Errorf("params: %w", err)
@@ -73,6 +85,8 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 	switch action {
 	case "exec":
 		return runExec(ctx, in.Cmd, dir, in.TimeoutSecs)
+	case "agent":
+		return runSubAgent(ctx, in.Cwd, in.Task, in.Model, in.MaxTurns)
 	case "start":
 		return super.start(in.Name, in.Cmd, dir)
 	case "stop":
@@ -84,6 +98,26 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 	default:
 		return nil, fmt.Errorf("unbekannte aktion %q", strings.TrimSpace(action))
 	}
+}
+
+// runSubAgent übergibt einen Arbeitsauftrag an einen geschachtelten
+// Runtime-Lauf, der IM angegebenen Projekt-Checkout startet. Erst dadurch
+// greift der Claude-Code-Harness des Projekts (CLAUDE.md, .claude/agents,
+// Skills, Commands) — der äußere Lauf sieht ihn nie, weil er im Agenten-Home
+// läuft. Den Lauf selbst fährt der Daemon; das Plugin kennt ihn nur als
+// Runner im Context (wie Workdir und die Artefakt-Senke).
+func runSubAgent(ctx context.Context, cwd, task, model string, maxTurns int) (any, error) {
+	if strings.TrimSpace(cwd) == "" {
+		return nil, fmt.Errorf("cwd fehlt: der Sub-Agent startet im Projekt-Checkout (Pfad aus dem checkout-Ergebnis)")
+	}
+	if strings.TrimSpace(task) == "" {
+		return nil, fmt.Errorf("task fehlt: beschreibe den Arbeitsauftrag so, dass ein Kollege ohne deinen Kontext arbeiten kann")
+	}
+	run := target.SubAgent(ctx)
+	if run == nil {
+		return nil, fmt.Errorf("kein Sub-Agent verfügbar (Aktion läuft außerhalb einer Sandbox)")
+	}
+	return run(ctx, target.SubAgentRequest{Dir: cwd, Task: task, Model: model, MaxTurns: maxTurns})
 }
 
 // resolveDir löst cwd relativ zum Sandbox-Home auf; absolute Pfade bleiben —
@@ -160,6 +194,28 @@ func runExec(ctx context.Context, command, dir string, timeoutSecs int) (any, er
 
 func (System) PromptDoc() string {
 	return `Verfügbare dev-Aktionen — deine Sandbox ist dein eigener Rechner, alles hier läuft lokal darin:
+   agent {"cwd":"<Pfad aus dem checkout-Ergebnis>","task":"<Arbeitsauftrag>","max_turns":60} —
+   übergibt die eigentliche PROGRAMMIERARBEIT an einen Sub-Agenten, der IM Projekt-Checkout startet.
+   Das ist der wichtigste Unterschied zu allem anderen hier: Nur dort gelten die Regeln des Projekts —
+   seine CLAUDE.md, seine .claude/agents (z. B. getrennte Frontend-/Backend-Spezialisten), Skills und
+   Commands. Du selbst arbeitest im Home und siehst davon nichts; deshalb liest du den Code nicht
+   selbst zusammen, sondern beauftragst den Sub-Agenten.
+   Der Auftrag ist eine ÜBERGABE an einen Kollegen ohne deinen Kontext — schreibe hinein: was kaputt ist
+   bzw. gebaut werden soll, wie man es reproduziert, die Abnahmekriterien, bekannte Fundstellen
+   (Datei:Zeile) und Auflagen (minimal-invasiv, Tests ausführen, Test ergänzen). Kein "siehe oben".
+   Der Sub-Agent kann lesen, ändern, bauen und testen — er erreicht WEDER GitLab NOCH E-Mail und kann
+   nicht committen. Das Einchecken und die gesamte Kommunikation bleiben bei dir.
+   Ein Auftrag je Checkout: Solange dort ein Sub-Agent arbeitet, wird ein zweiter Aufruf mit demselben
+   cwd abgelehnt — warte auf den Bericht, sonst überschreiben sich zwei Läufe die Dateien.
+   Ergebnis: {"result":"<Bericht: Ursache, Änderung, Verifikation>","changed_files":[…],"deleted":[…],
+   "cost_usd":…,"turns_exhausted":true|false,"error":"<nur wenn der Lauf scheiterte>"}. Die Dateilisten
+   gehen unverändert in die commit-Aktion; sie nennen den GESAMTEN Stand gegenüber dem Checkout — also
+   auch die Arbeit eines früheren Auftrags an derselben Aufgabe, nicht nur die des letzten.
+   PRÜFE "error": Es steht IM Ergebnis, der Aufruf selbst gilt trotzdem als erfolgreich (status ok).
+   Ist es gesetzt, ist der Sub-Lauf gescheitert — dann nicht committen, sondern den Fehler lesen und
+   entweder nachbeauftragen oder mit dem, was du weißt, im Issue eskalieren.
+   Bei "turns_exhausted":true war der Auftrag zu groß: Schließe mit dem Teilergebnis ab und lege den
+   Rest per covey/create_task an, statt es erneut im selben Lauf zu versuchen.
    exec {"cmd":"npm test","cwd":"unterordner (optional, relativ zu deinem Home)","timeout_secs":120} —
    führt einen Shell-Befehl aus und liefert exit_code + output (letzte Ausgabe, gekappt). Für Builds,
    Tests, Installationen; ein Exit-Code ungleich 0 kommt als Ergebnis zurück, lies den Output.

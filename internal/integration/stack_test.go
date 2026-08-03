@@ -21,9 +21,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"covey/internal/agents"
+	"covey/internal/audit"
 	"covey/internal/backlog"
 	"covey/internal/daemon"
 	"covey/internal/db"
+	"covey/internal/dream"
 	"covey/internal/egress"
 	"covey/internal/guardrails"
 	"covey/internal/httpapi"
@@ -34,7 +36,9 @@ import (
 	"covey/internal/org"
 	reqlogstore "covey/internal/reqlog/store"
 	secbuiltin "covey/internal/secrets/builtin"
+	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
+	"covey/internal/templates"
 
 	_ "covey/internal/target/browser"
 	_ "covey/internal/target/dev"
@@ -68,6 +72,13 @@ func (p *inprocProvider) Start(ctx context.Context, spec orchestrator.SandboxSpe
 	return &inprocSandbox{cancel: cancel, done: done}, nil
 }
 
+// AgentHome erfüllt orchestrator.FileAccess: auch in-process liegt das Home
+// auf der Platte. Ohne das wäre der Dateibrowser (spec/02) im Durchstich nicht
+// prüfbar — er hängt genau an diesem Port.
+func (p *inprocProvider) AgentHome(agentID uuid.UUID) (orchestrator.Home, error) {
+	return orchestrator.Home{Path: p.homeBase + "/" + agentID.String(), UID: -1, GID: -1}, nil
+}
+
 type inprocSandbox struct {
 	cancel context.CancelFunc
 	done   chan struct{}
@@ -83,23 +94,27 @@ func (s *inprocSandbox) Stop(ctx context.Context) error {
 }
 
 type stack struct {
-	t        *testing.T
-	pool     *pgxpool.Pool
-	registry *agents.Registry
-	backlog  *backlog.Store
-	obs      *observability.Store
-	rails    *guardrails.Store
-	secrets  *secbuiltin.Store
-	mem      *memory.Store
-	targets  *targetstore.Store
-	egress   *egress.Store
-	reqlog   *reqlogstore.Store
-	orch     *orchestrator.Orchestrator
-	http     *httptest.Server
-	orgID    uuid.UUID
-	adminID  uuid.UUID
-	homeBase string
-	cancel   context.CancelFunc
+	t         *testing.T
+	pool      *pgxpool.Pool
+	registry  *agents.Registry
+	backlog   *backlog.Store
+	obs       *observability.Store
+	rails     *guardrails.Store
+	secrets   *secbuiltin.Store
+	mem       *memory.Store
+	targets   *targetstore.Store
+	egress    *egress.Store
+	skills    *skills.Store
+	reqlog    *reqlogstore.Store
+	templates *templates.Store
+	audit     *audit.Store
+	dreams    *dream.Store
+	orch      *orchestrator.Orchestrator
+	http      *httptest.Server
+	orgID     uuid.UUID
+	adminID   uuid.UUID
+	homeBase  string
+	cancel    context.CancelFunc
 }
 
 const webhookSecret = "test-webhook-secret"
@@ -153,17 +168,25 @@ func newStack(t *testing.T) *stack {
 
 	s.targets = targetstore.NewStore(pool)
 	s.egress = egress.NewStore(pool)
+	s.skills = skills.NewStore(pool)
 	// Request-Log wie im Betrieb, aber ohne reqlog.SetDefault: die Senke ist
 	// prozessweit, und parallel laufende Stacks würden sich ihre Einträge
 	// gegenseitig zuschieben. Was über Orchestrator und HTTP-Server läuft
 	// (Sandbox-Requests, eingehende Webhooks), reicht für den Durchstich.
 	s.reqlog = reqlogstore.NewStore(pool, log, true, time.Hour)
+	// Vorlagen und Träume gehören zur Grundausstattung einer Instanz (main.go
+	// setzt sie immer). Fehlten sie im Test-Stack, liefen ihre Endpunkte in
+	// einen Nil-Pointer statt in den Code, der geprüft werden soll.
+	s.templates = templates.NewStore(pool)
+	s.audit = audit.NewStore(pool)
+	s.dreams = dream.NewStore(pool, s.mem, log)
 	s.homeBase = t.TempDir()
 
 	s.orch = orchestrator.New(orchestrator.Options{
 		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
 		Rails: s.rails, Secrets: secretStore, Identity: idp, Memory: s.mem,
 		Targets:        s.targets,
+		Skills:         s.skills,
 		ReqLog:         s.reqlog,
 		Provider:       &inprocProvider{homeBase: s.homeBase, log: log},
 		DaemonTokenTTL: 5 * time.Minute,
@@ -176,6 +199,8 @@ func newStack(t *testing.T) *stack {
 		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
 		Rails: s.rails, Secrets: secretStore, Identity: idp, Memory: s.mem,
 		Org: org.NewStore(pool), Targets: s.targets,
+		Templates: s.templates, Dreams: s.dreams, Audit: s.audit,
+		Skills:      s.skills,
 		EgressStore: s.egress,
 		ReqLog:      s.reqlog,
 		Orch:        s.orch, Log: log,

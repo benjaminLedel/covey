@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"context"
 	"math"
 	"strings"
 	"testing"
@@ -14,17 +15,28 @@ func cosine(a, b [Dim]float32) float64 {
 	return dot // Vektoren sind normalisiert
 }
 
+// mustEmbed ruft den Embedder auf und lässt den Test scheitern, wenn er einen
+// Fehler liefert — der Hash-Embedder tut das nie, das Interface erlaubt es aber.
+func mustEmbed(t *testing.T, e Embedder, text string) [Dim]float32 {
+	t.Helper()
+	v, err := e.Embed(context.Background(), text)
+	if err != nil {
+		t.Fatalf("Embed(%q): %v", text, err)
+	}
+	return v
+}
+
 func TestHashEmbedderDeterministic(t *testing.T) {
 	e := HashEmbedder{}
-	a := e.Embed("Kunde Meier hat ein Login-Problem")
-	b := e.Embed("Kunde Meier hat ein Login-Problem")
+	a := mustEmbed(t, e, "Kunde Meier hat ein Login-Problem")
+	b := mustEmbed(t, e, "Kunde Meier hat ein Login-Problem")
 	if a != b {
 		t.Fatal("Embedding muss deterministisch sein")
 	}
 }
 
 func TestHashEmbedderNormalized(t *testing.T) {
-	v := HashEmbedder{}.Embed("irgendein text mit mehreren wörtern")
+	v := mustEmbed(t, HashEmbedder{}, "irgendein text mit mehreren wörtern")
 	var norm float64
 	for _, f := range v {
 		norm += float64(f) * float64(f)
@@ -36,9 +48,9 @@ func TestHashEmbedderNormalized(t *testing.T) {
 
 func TestHashEmbedderSimilarityOrdering(t *testing.T) {
 	e := HashEmbedder{}
-	query := e.Embed("Kunde Meier Login Problem Passwort")
-	related := e.Embed("Meier konnte sich nicht einloggen, Passwort zurückgesetzt")
-	unrelated := e.Embed("Rechnung Q3 Controlling Export fehlgeschlagen")
+	query := mustEmbed(t, e, "Kunde Meier Login Problem Passwort")
+	related := mustEmbed(t, e, "Meier konnte sich nicht einloggen, Passwort zurückgesetzt")
+	unrelated := mustEmbed(t, e, "Rechnung Q3 Controlling Export fehlgeschlagen")
 	if cosine(query, related) <= cosine(query, unrelated) {
 		t.Fatalf("verwandter Text muss ähnlicher sein: related=%f unrelated=%f",
 			cosine(query, related), cosine(query, unrelated))
@@ -46,7 +58,7 @@ func TestHashEmbedderSimilarityOrdering(t *testing.T) {
 }
 
 func TestHashEmbedderEmpty(t *testing.T) {
-	v := HashEmbedder{}.Embed("")
+	v := mustEmbed(t, HashEmbedder{}, "")
 	for _, f := range v {
 		if f != 0 {
 			t.Fatal("leerer Text muss Nullvektor liefern")

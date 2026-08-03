@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, post, roleLabel, type Approval, type Principal } from "./api";
+import { api, buildInfo, post, roleLabel, type Approval, type Principal } from "./api";
 import i18n from "./i18n";
 import HelpDrawer from "./components/HelpDrawer";
 import PublicSite from "./public/PublicSite";
@@ -11,6 +11,7 @@ import AgentPage from "./pages/Agent";
 import Approvals from "./pages/Approvals";
 import Guardrails from "./pages/Guardrails";
 import Secrets from "./pages/Secrets";
+import Skills from "./pages/Skills";
 import Users from "./pages/Users";
 import Organizations from "./pages/Organizations";
 import Org from "./pages/Org";
@@ -19,6 +20,7 @@ import Runtimes from "./pages/Runtimes";
 import Targets from "./pages/Targets";
 import Egress from "./pages/Egress";
 import Requests from "./pages/Requests";
+import Audit from "./pages/Audit";
 import Templates from "./pages/Templates";
 import Costs from "./pages/Costs";
 
@@ -143,7 +145,21 @@ const icons: Record<string, React.JSX.Element> = {
       <rect x="17" y="5" width="3" height="12" rx="0.5" />
     </>
   ),
+  book: (
+    <>
+      <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H19v14H5.5A1.5 1.5 0 0 0 4 19.5z" />
+      <path d="M4 19.5A1.5 1.5 0 0 1 5.5 18H19v2H5.5" />
+      <path d="M8 8.5h7" />
+    </>
+  ),
   chevron: <path d="M9 6l6 6l-6 6" />,
+  // Audit: ein Klemmbrett — die Liste dessen, was Menschen getan haben.
+  clipboard: (
+    <>
+      <rect x="5" y="4" width="14" height="17" rx="2" />
+      <path d="M9 4V3h6v1M8.5 10h7M8.5 14h7M8.5 18h4" />
+    </>
+  ),
   // Request-Log: zwei Pfeile, rein und raus.
   exchange: (
     <>
@@ -191,6 +207,42 @@ function initials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
+// Fuß der Hauptspalte: welcher Stand läuft hier. Nach einem Deploy die erste
+// Frage — Version, Commit und Bauzeit kommen aus dem Binary selbst
+// (internal/buildinfo). Bewusst nicht in der Sidebar: die bleibt der
+// Navigation vorbehalten. Die vollen Angaben stehen im Tooltip.
+function BuildLine() {
+  const { t, i18n } = useTranslation();
+  const q = useQuery({
+    queryKey: ["version"],
+    queryFn: buildInfo,
+    staleTime: Infinity, // ändert sich nur mit einem Neustart des Servers
+    retry: false,
+  });
+  const b = q.data;
+  if (!b) return null;
+
+  const built = b.built_at ? new Date(b.built_at) : null;
+  const valid = built && !isNaN(built.getTime());
+  const fmt: Intl.DateTimeFormatOptions = { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" };
+  const version = b.version + (b.dirty ? "-dirty" : "");
+  const short = [version, b.commit.slice(0, 7)].filter(Boolean).join(" · ");
+  const title = [
+    short,
+    valid ? t("version.builtAt", { when: built.toLocaleString(i18n.language, fmt) }) : null,
+    b.go,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return (
+    <div className="main-build" title={title}>
+      {short}
+      {valid && <span className="bt"> · {built.toLocaleString(i18n.language, fmt)}</span>}
+    </div>
+  );
+}
+
 function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
   const { t } = useTranslation();
   const location = useLocation();
@@ -199,7 +251,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
 
   // Plattform-Administration ist selten gebraucht — standardmäßig eingeklappt,
   // Zustand wird gemerkt; auf einer Plattform-Seite ist die Gruppe immer offen.
-  const inPlatform = ["/users", "/orgs", "/runtimes", "/requests"].some((p) => location.pathname.startsWith(p));
+  const inPlatform = ["/users", "/orgs"].some((p) => location.pathname.startsWith(p));
   const [platformOpen, setPlatformOpen] = useState(() => localStorage.getItem("covey.nav.platform") === "1");
   const togglePlatform = () => {
     const next = !platformOpen;
@@ -254,19 +306,41 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
           </span>
           Covey
         </div>
+        {/* Die Navigation ist gewachsen — die Reihenfolge bildete ab, wann
+            etwas dazukam, nicht wann man es braucht. Jetzt nach dem Alltag
+            sortiert: oben, was man taeglich oeffnet; darunter, was man einmal
+            einrichtet; dann die Aufsicht. */}
         <div className="nav-group">
           <NavItem to="/" end icon="robot" label={t("nav.agents")} />
-          <NavItem to="/templates" icon="copy" label={t("nav.templates")} />
-          <NavItem to="/org" icon="sitemap" label={t("nav.org")} />
-          <NavItem to="/costs" icon="chart" label={t("nav.costs")} />
-        </div>
-        <div className="nav-sec">{t("nav.trust")}</div>
-        <div className="nav-group">
           <NavItem to="/approvals" icon="bell" label={t("nav.approvals")} count={pending} />
-          <NavItem to="/guardrails" icon="shield" label={t("nav.guardrails")} />
+          <NavItem to="/costs" icon="chart" label={t("nav.costs")} />
+          <NavItem to="/org" icon="sitemap" label={t("nav.org")} />
+        </div>
+        <div className="nav-sec">{t("nav.setup")}</div>
+        <div className="nav-group">
           <NavItem to="/secrets" icon="key" label={t("nav.secrets")} />
           <NavItem to="/targets" icon="plug" label={t("nav.targets")} />
+          <NavItem to="/skills" icon="book" label={t("nav.skills")} />
+          <NavItem to="/templates" icon="copy" label={t("nav.templates")} />
+          <NavItem to="/runtimes" icon="cpu" label={t("nav.runtimes")} />
+        </div>
+        <div className="nav-sec">{t("nav.control")}</div>
+        <div className="nav-group">
+          <NavItem to="/guardrails" icon="shield" label={t("nav.guardrails")} />
           <NavItem to="/egress" icon="globe" label={t("nav.egress")} />
+          {/* Das Request-Log liest nur, wer es auch abrufen darf (die API
+              laesst platform_admin und security durch) — sonst zeigte das
+              Menue einen Weg, der in einer 403 endet. Vorher stand es im
+              Admin-Block und blieb Security damit verborgen. */}
+          {/* Die Audit-Spur geht die an, die sie prüfen: Plattform-Admin,
+              Security, Auditor. Agent-Owner und Controlling stehen selbst
+              darin. */}
+          {["platform_admin", "security", "auditor"].includes(me.Role) && (
+            <NavItem to="/audit" icon="clipboard" label={t("nav.audit")} />
+          )}
+          {(me.Role === "platform_admin" || me.Role === "security") && (
+            <NavItem to="/requests" icon="exchange" label={t("nav.requests")} />
+          )}
         </div>
         <div className="mt-auto">
           {me.Role === "platform_admin" && (
@@ -279,8 +353,6 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
                 <div className="nav-group">
                   <NavItem to="/users" icon="user" label={t("nav.users")} />
                   <NavItem to="/orgs" icon="box" label={t("nav.organizations")} />
-                  <NavItem to="/runtimes" icon="cpu" label={t("nav.runtimes")} />
-                  <NavItem to="/requests" icon="exchange" label={t("nav.requests")} />
                 </div>
               )}
             </>
@@ -329,14 +401,19 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
           </div>
         </div>
       </aside>
-      <main className="flex-1 min-w-0">
-        {/* Das Organigramm nutzt die volle Breite — alle anderen Seiten
-            bleiben auf Lesebreite begrenzt. */}
-        <div key={location.pathname} className="fade" style={{ padding: "22px 26px 60px", maxWidth: location.pathname === "/org" || location.pathname === "/costs" ? undefined : 1080 }}>
+      <main className="flex-1 min-w-0 flex flex-col">
+        {/* Volle Breite. Ein harter Deckel von 1080px stammte aus der Zeit, als
+            hier vor allem Formulare standen; inzwischen sind es Boards, Tabellen
+            und die dreispaltige Wiki-Fläche, denen der Platz fehlt — auf einem
+            breiten Schirm blieb rechts ein Drittel leer. Lesebreite ist damit
+            Sache der Inhalte, die sie brauchen (siehe .measure in styles.css),
+            nicht des Rahmens. */}
+        <div key={location.pathname} className="fade flex-1" style={{ padding: "22px 26px 60px" }}>
           <Routes>
             <Route path="/" element={<Dashboard me={me} />} />
             <Route path="/agents/:id" element={<AgentPage me={me} />} />
             <Route path="/templates" element={<Templates me={me} />} />
+            <Route path="/skills" element={<Skills me={me} />} />
             <Route path="/org" element={<Org />} />
             <Route path="/costs" element={<Costs />} />
             <Route path="/people/:id" element={<PersonPage me={me} />} />
@@ -348,11 +425,13 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
             <Route path="/orgs" element={<Organizations me={me} />} />
             <Route path="/runtimes" element={<Runtimes />} />
             <Route path="/requests" element={<Requests me={me} />} />
+            <Route path="/audit" element={<Audit />} />
             <Route path="/targets" element={<Targets me={me} />} />
             <Route path="/egress/*" element={<Egress me={me} />} />
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </div>
+        <BuildLine />
       </main>
       <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>

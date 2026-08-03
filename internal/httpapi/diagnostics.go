@@ -78,23 +78,11 @@ const (
 // handleAgentDiagnostics — GET /api/v1/agents/{id}/diagnostics: der komplette
 // Laufzeit-Zustand eines Agenten als herunterladbares JSON.
 func (s *Server) handleAgentDiagnostics(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
-		return
-	}
+	// Agent und Org-Zugehörigkeit hat agentScoped bereits geprüft.
+	agent := agentFrom(r)
+	id := agent.ID
 	p := principalFrom(r)
 	ctx := r.Context()
-
-	agent, err := s.Registry.Get(ctx, id)
-	if err != nil {
-		mapErr(w, err)
-		return
-	}
-	if agent.OrgID != p.OrgID {
-		writeErr(w, http.StatusNotFound, "agent nicht gefunden")
-		return
-	}
 
 	d := agentDiagnostics{
 		Kind:            "covey.agent-diagnostics",
@@ -114,13 +102,9 @@ func (s *Server) handleAgentDiagnostics(w http.ResponseWriter, r *http.Request) 
 	if cfg, err := s.Registry.CurrentConfig(ctx, id); err == nil {
 		d.Config = &cfg
 	}
-	if rows, err := s.Pool.Query(ctx, `SELECT version, created_at FROM agent_config_versions WHERE agent_id=$1 ORDER BY version`, id); err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var m configVersionMeta
-			if rows.Scan(&m.Version, &m.CreatedAt) == nil {
-				d.ConfigHistory = append(d.ConfigHistory, m)
-			}
+	if hist, err := s.Registry.ConfigHistory(ctx, id); err == nil {
+		for _, m := range hist {
+			d.ConfigHistory = append(d.ConfigHistory, configVersionMeta{Version: m.Version, CreatedAt: m.CreatedAt})
 		}
 	}
 
@@ -199,14 +183,9 @@ func (s *Server) dumpRecording(ctx context.Context, agentID uuid.UUID, d *agentD
 		d.Notes = append(d.Notes, fmt.Sprintf("Recording-Events bei %d abgeschnitten", maxDiagEvents))
 	}
 
-	rows, err := s.Pool.Query(ctx, `SELECT id, mime, bytes, created_at FROM recording_blobs WHERE agent_id=$1 ORDER BY created_at`, agentID)
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var b diagBlob
-			if rows.Scan(&b.ID, &b.MIME, &b.Bytes, &b.CreatedAt) == nil {
-				dump.Blobs = append(dump.Blobs, b)
-			}
+	if blobs, err := s.Obs.BlobsByAgent(ctx, agentID); err == nil {
+		for _, b := range blobs {
+			dump.Blobs = append(dump.Blobs, diagBlob{ID: b.ID, MIME: b.MIME, Bytes: b.Bytes, CreatedAt: b.CreatedAt})
 		}
 	}
 	return dump

@@ -28,6 +28,9 @@ type Store struct {
 	pool *pgxpool.Pool
 }
 
+// ErrNotFound: das Objekt gibt es nicht — oder nicht in dieser Organisation.
+var ErrNotFound = errors.New("egress-objekt nicht gefunden")
+
 func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool}
 }
@@ -208,8 +211,16 @@ func (s *Store) ImportBuiltin(ctx context.Context, orgID uuid.UUID, b BuiltinTem
 }
 
 func (s *Store) DeleteTemplate(ctx context.Context, orgID, id uuid.UUID) error {
-	_, err := s.pool.Exec(ctx, `DELETE FROM egress_templates WHERE id=$1 AND org_id=$2`, id, orgID)
-	return err
+	tag, err := s.pool.Exec(ctx, `DELETE FROM egress_templates WHERE id=$1 AND org_id=$2`, id, orgID)
+	if err != nil {
+		return err
+	}
+	// Siehe guardrails.Delete: org-gescopt, aber ohne diese Prüfung meldete
+	// auch der Griff nach einer fremden Vorlage Erfolg.
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (s *Store) AddTemplateHost(ctx context.Context, orgID, templateID uuid.UUID, pattern, note string) (Host, error) {

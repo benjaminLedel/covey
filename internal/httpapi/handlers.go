@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -143,16 +144,33 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 // prüfen, damit eine fehlerhafte Datei keine Version erzeugt; bei Erfolg wird
 // die neue ConfigVersion (200) geschrieben.
 func (s *Server) saveAndApplyConfig(w http.ResponseWriter, r *http.Request, id uuid.UUID, files map[string]string) {
+	apply, ok := s.prepareConfigWrite(w, r, id, files)
+	if !ok {
+		return
+	}
+	s.commitConfig(w, r, id, files, apply)
+}
+
+// prepareConfigWrite prüft alles, was vor dem ersten Schreiben feststehen muss
+// (Dateiformate, RBAC für Tools/Egress) und liefert die Write-Through-Funktion.
+// Fehler sind bereits beantwortet; ok=false heißt: nichts mehr tun.
+//
+// Getrennt vom Schreiben, weil der Bundle-Import daneben noch Skills anlegt und
+// beides eine gemeinsame Reihenfolge braucht: erst ALLE Prüfungen, dann alle
+// Seiteneffekte. Sonst hinterlässt ein 403 an der Config bereits angelegte
+// Skills, und der Aufrufer glaubt, es sei nichts passiert.
+func (s *Server) prepareConfigWrite(w http.ResponseWriter, r *http.Request, id uuid.UUID,
+	files map[string]string) (func(context.Context) error, bool) {
 	p := principalFrom(r)
 	if _, ok := files["TOOLS.md"]; ok {
 		writeErr(w, http.StatusBadRequest, "TOOLS.md ist in ACCESS.md aufgegangen (Attribut tools: je System)")
-		return
+		return nil, false
 	}
 	// HEARTBEAT.md vorab validieren: ein Parse-Fehler soll als 400 mit
 	// verständlicher Meldung zurückkommen, nicht erst in SaveConfig scheitern.
 	if _, err := agents.ParseHeartbeat(files["HEARTBEAT.md"]); err != nil {
 		writeErr(w, http.StatusBadRequest, "HEARTBEAT.md: "+err.Error())
-		return
+		return nil, false
 	}
 	// Write-Through in die UI-Stores (Tools, Egress) — erst validieren und
 	// RBAC prüfen, damit eine fehlerhafte Datei keine Version erzeugt.
@@ -164,8 +182,15 @@ func (s *Server) saveAndApplyConfig(w http.ResponseWriter, r *http.Request, id u
 		} else {
 			writeErr(w, http.StatusBadRequest, err.Error())
 		}
-		return
+		return nil, false
 	}
+	return apply, true
+}
+
+// commitConfig schreibt die neue Version und führt den Write-Through aus.
+func (s *Server) commitConfig(w http.ResponseWriter, r *http.Request, id uuid.UUID,
+	files map[string]string, apply func(context.Context) error) {
+	p := principalFrom(r)
 	cv, err := s.Registry.SaveConfig(r.Context(), id, files, &p.ID)
 	if err != nil {
 		mapErr(w, err)
@@ -908,9 +933,11 @@ func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Content string `json:"content"`
-		Title   string `json:"title"`
-		Slug    string `json:"slug"`
+		Content string   `json:"content"`
+		Title   string   `json:"title"`
+		Slug    string   `json:"slug"`
+		Type    string   `json:"type"`
+		Tags    []string `json:"tags"`
 	}
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "ungültiger request")
@@ -930,7 +957,10 @@ func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 		if slug == "" {
 			slug = in.Title
 		}
-		if _, err := s.Memory.Write(r.Context(), id, slug, in.Title, in.Content, "manual"); err != nil {
+		if _, err := s.Memory.Write(r.Context(), id, memory.PageInput{
+			Slug: slug, Title: in.Title, Body: in.Content,
+			Source: "manual", Type: in.Type, Tags: in.Tags,
+		}); err != nil {
 			if errors.Is(err, memory.ErrNoContent) {
 				writeErr(w, http.StatusBadRequest, "kein verwertbarer inhalt")
 				return
@@ -982,6 +1012,27 @@ func (s *Server) handleDeleteMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handleWikiHealth liefert die Qualitätsbefunde eines Wikis (spec/05):
+// verwaiste Seiten, tote Verweise, fehlende Typen, Tagebuch-Titel, Dubletten-
+// Verdacht und Stummel. Rein lesend — es wird nichts automatisch geändert.
+func (s *Server) handleWikiHealth(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "ungültige id")
+		return
+	}
+	if _, err := s.Registry.Get(r.Context(), id); err != nil {
+		mapErr(w, err)
+		return
+	}
+	h, err := s.Memory.CheckHealth(r.Context(), id)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, h)
 }
 
 // handleWikiLog liefert das chronologische Wiki-Protokoll (log.md, spec/05) —
@@ -1405,7 +1456,7 @@ func (s *Server) handleFleetKill(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleFleetResume(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
-	if err := s.Registry.SetFleetKilled(r.Context(), p.OrgID, false); err != nil {
+	if err := s.Orch.ResumeFleet(r.Context(), p.OrgID); err != nil {
 		mapErr(w, err)
 		return
 	}

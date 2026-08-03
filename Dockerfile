@@ -8,13 +8,22 @@ COPY web/ .
 RUN npm run build
 
 FROM golang:1.26 AS build
+# Herkunft des Binaries (internal/buildinfo). Im Image gibt es kein .git
+# (siehe .dockerignore), deshalb reicht der Aufrufer die Werte durch —
+# die CI setzt sie aus $CI_COMMIT_*; ohne Build-Args bleibt es "dev".
+ARG VERSION=dev
+ARG COMMIT=
+ARG DATE=
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
 COPY --from=web /web/dist ./web/dist
-RUN CGO_ENABLED=0 go build -o /covey ./cmd/covey && \
-    CGO_ENABLED=0 go build -o /coveyd ./cmd/coveyd
+RUN LDFLAGS="-X covey/internal/buildinfo.version=$VERSION \
+             -X covey/internal/buildinfo.commit=$COMMIT \
+             -X covey/internal/buildinfo.date=$DATE" && \
+    CGO_ENABLED=0 go build -ldflags "$LDFLAGS" -o /covey ./cmd/covey && \
+    CGO_ENABLED=0 go build -ldflags "$LDFLAGS" -o /coveyd ./cmd/coveyd
 
 FROM gcr.io/distroless/static
 COPY --from=build /covey /covey

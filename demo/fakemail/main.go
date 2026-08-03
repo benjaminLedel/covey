@@ -116,7 +116,8 @@ func start(imapAddr, smtpAddr, httpAddr string) (*store, error) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /send", st.handleSend)
 	mux.HandleFunc("GET /mails", st.handleMails)
-	go http.Serve(st.httpLn, mux)
+	srv := &http.Server{Handler: mux, ReadHeaderTimeout: 20 * time.Second}
+	go func() { _ = srv.Serve(st.httpLn) }()
 	return st, nil
 }
 

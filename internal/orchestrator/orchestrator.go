@@ -34,6 +34,7 @@ import (
 	"covey/internal/reqlog"
 	reqlogstore "covey/internal/reqlog/store"
 	"covey/internal/secrets"
+	"covey/internal/skills"
 	"covey/internal/target"
 	targetstore "covey/internal/target/store"
 )
@@ -51,20 +52,23 @@ type DaemonLink interface {
 }
 
 type Options struct {
-	Pool           *pgxpool.Pool
-	Registry       *agents.Registry
-	Backlog        *backlog.Store
-	Obs            *observability.Store
-	Rails          *guardrails.Store
-	Secrets        secrets.Store
-	Identity       identity.Provider
-	Memory         *memory.Store
-	Targets        *targetstore.Store
-	Egress         *egress.Store
+	Pool     *pgxpool.Pool
+	Registry *agents.Registry
+	Backlog  *backlog.Store
+	Obs      *observability.Store
+	Rails    *guardrails.Store
+	Secrets  secrets.Store
+	Identity identity.Provider
+	Memory   *memory.Store
+	// Skills sind die Fähigkeiten der Agenten (Bibliothek + agent-eigen). nil =
+	// Feature abgeschaltet; Läufe bekommen dann keine Skills materialisiert.
+	Skills  *skills.Store
+	Targets *targetstore.Store
+	Egress  *egress.Store
 	// ReqLog nimmt die HTTP-Requests der Zielsystem-Plugins auf (Diagnose,
 	// spec/06). nil = Request-Log abgeschaltet; die Events der Sandbox werden
 	// dann verworfen.
-	ReqLog *reqlogstore.Store
+	ReqLog         *reqlogstore.Store
 	Provider       SandboxProvider
 	PublicWSURL    string // ws://…/api/daemon/ws — von Sandboxen erreichbar
 	DaemonTokenTTL time.Duration
@@ -86,6 +90,12 @@ type Orchestrator struct {
 	mu       sync.Mutex
 	sessions map[uuid.UUID]*session
 	waiting  map[uuid.UUID]chan DaemonLink
+	// baseCtx ist der Lebenszyklus der Control Plane, gesetzt von Run. Sessions
+	// hängen daran statt an context.Background(): Beim Herunterfahren sollen
+	// laufende Läufe abgebrochen werden und nicht als verwaiste Goroutinen mit
+	// offener Sandbox zurückbleiben. Vor Run (oder in Tests, die Run nicht
+	// starten) ist es nil und der Rückfall greift — siehe base().
+	baseCtx context.Context
 	// warm hält geparkte Sandbox-Sessions warm-geschalteter Agenten am Leben,
 	// während der Agent schläft (Link offen, Container läuft weiter). Der nächste
 	// Wake übernimmt sie, statt kalt hochzufahren.
@@ -142,6 +152,9 @@ type warmSession struct {
 func (ws *warmSession) teardown() {
 	ws.teardownOnce.Do(func() {
 		ws.link.Close()
+		// Losgelöst mit Absicht: Aufgeräumt wird oft GERADE, weil der
+		// zugehörige Kontext abgelaufen ist. Ein abgeleiteter wäre hier
+		// bereits tot und der Container bliebe stehen.
 		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		_ = ws.sandbox.Stop(stopCtx)
@@ -163,6 +176,9 @@ type warmLink struct {
 }
 
 func newWarmLink(inner DaemonLink) *warmLink {
+	// Eigener Lebenszyklus statt eines geerbten: Der Link überlebt bewusst den
+	// Lauf, der ihn erzeugt hat (das ist der Sinn von „warm"). Beendet wird er
+	// über stopPump in Close.
 	ctx, cancel := context.WithCancel(context.Background())
 	wl := &warmLink{
 		inner:    inner,
@@ -226,7 +242,21 @@ type session struct {
 
 // Run startet den Dispatch-Loop: billig, dauerhaft, kein LLM (spec/03).
 // Wake-Quellen: NOTIFY (Event) und der periodische Tick.
+// base liefert den Lebenszyklus, an dem neue Sessions hängen. Aufrufer hält
+// o.mu. Ohne laufendes Run (Tests, früher Aufruf) bleibt es bei
+// context.Background() — dann gibt es schlicht nichts, woran man hängen könnte.
+func (o *Orchestrator) base() context.Context {
+	if o.baseCtx != nil {
+		return o.baseCtx
+	}
+	return context.Background()
+}
+
 func (o *Orchestrator) Run(ctx context.Context) error {
+	o.mu.Lock()
+	o.baseCtx = ctx
+	o.mu.Unlock()
+
 	// Startup-Reconcile: verwaiste in_progress-Aufgaben (Sandbox mit dem letzten
 	// Prozess verschwunden) zurück auf open, sonst hingen sie nach Crash/Deploy
 	// dauerhaft. Muss vor dem ersten tick laufen, damit sie sofort neu greifen.
@@ -568,7 +598,9 @@ func (o *Orchestrator) EnsureRunning(agentID uuid.UUID) {
 		o.mu.Unlock()
 		return
 	}
-	ctx, cancel := context.WithCancel(context.Background())
+	// An den Lebenszyklus der Control Plane gehängt, nicht an Background: Ein
+	// Shutdown beendet damit auch Sessions, die über diesen Weg entstanden sind.
+	ctx, cancel := context.WithCancel(o.base())
 	s := &session{cancel: cancel}
 	o.sessions[agentID] = s
 	o.mu.Unlock()
@@ -652,6 +684,8 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 			o.parkWarm(agent.ID, link, sandbox)
 		} else {
 			link.Close()
+			// Auch hier losgelöst: Bei kill oder Abbruch ist ctx bereits
+			// abgelaufen — die Sandbox muss trotzdem weg.
 			stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			sandbox.Stop(stopCtx)
 			cancel()
@@ -786,6 +820,9 @@ func (o *Orchestrator) acquireSandbox(ctx context.Context, agent agents.Agent) (
 // Hintergrund die Daemon-Heartbeats, bis der nächste Wake übernimmt oder der
 // Reaper abräumt. Stirbt der Link im Idle, wird die Sandbox sofort abgebaut.
 func (o *Orchestrator) parkWarm(agentID uuid.UUID, link DaemonLink, sandbox Sandbox) {
+	// Der Drain lebt, solange die Sandbox geparkt ist — länger als der Lauf,
+	// der sie abgibt. Beendet wird er vom Reaper (Idle-TTL), vom nächsten Wake
+	// oder beim Herunterfahren durch teardownAllWarm.
 	drainCtx, cancel := context.WithCancel(context.Background())
 	ws := &warmSession{link: link, sandbox: sandbox, lastUsed: time.Now(), cancel: cancel, done: make(chan struct{})}
 	o.mu.Lock()
@@ -902,11 +939,47 @@ func (o *Orchestrator) warmReaperLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			// Eine warme Sandbox ist ein LAUFENDER Container, der einem
+			// schlafenden Agenten gehört. Ohne diesen Abbau bliebe er beim
+			// Herunterfahren zurück: Der nächste Start räumt ihn erst weg,
+			// wenn derselbe Agent wieder geweckt wird (der Provider löscht
+			// dann den gleichnamigen Container) — ein Agent, der nie wieder
+			// dran ist, hielte seinen Container für immer.
+			o.teardownAllWarm()
 			return
 		case <-t.C:
 			o.reapIdleWarm(ctx)
 		}
 	}
+}
+
+// teardownAllWarm baut beim Herunterfahren alle geparkten Sandboxen ab.
+func (o *Orchestrator) teardownAllWarm() {
+	o.mu.Lock()
+	alle := make([]*warmSession, 0, len(o.warm))
+	for id, ws := range o.warm {
+		alle = append(alle, ws)
+		delete(o.warm, id)
+	}
+	o.mu.Unlock()
+	if len(alle) == 0 {
+		return
+	}
+	// Eigener, kurzer Kontext: der des Loops ist gerade abgelaufen — genau
+	// deshalb wird hier ja aufgeräumt. Ein abgelaufener Kontext würde jedes
+	// sleep und jedes Stop sofort scheitern lassen.
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	for _, ws := range alle {
+		ws.cancel()
+		<-ws.done
+		if !ws.dead.Load() {
+			// Sauber einschlafen lassen, damit coveyd seine Kindprozesse abräumt.
+			_ = o.sendMsg(ctx, ws.link, daemon.TypeSleep, map[string]string{})
+		}
+		ws.teardown()
+	}
+	o.Log.Info("warme sandboxen beim herunterfahren abgebaut", "anzahl", len(alle))
 }
 
 func (o *Orchestrator) reapIdleWarm(ctx context.Context) {
@@ -1347,6 +1420,13 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		resp := o.brokerWiki(ctx, agent, req)
 		return false, o.sendMsg(ctx, link, daemon.TypeInjectWiki, resp)
 
+	case daemon.TypeRequestSkills:
+		req, err := daemon.DecodePayload[daemon.RequestSkills](msg)
+		if err != nil {
+			return false, nil
+		}
+		return false, o.sendMsg(ctx, link, daemon.TypeInjectSkills, o.skillsFor(ctx, agent, req))
+
 	case daemon.TypeRequestCreateTask:
 		req, err := daemon.DecodePayload[daemon.RequestCreateTask](msg)
 		if err != nil {
@@ -1394,7 +1474,15 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		// Konsolidierung (Beinahe-Duplikate verschmelzen) läuft aufgabenunabhängig
 		// im getakteten Wartungs-Job, nicht hier im Hot-Path.
 		if d.Memory != "" {
-			_ = o.Memory.Ingest(ctx, agent.ID, d.Memory, map[string]string{"task_id": taskID.String()})
+			// Fehler nicht verschlucken: seit das Embedding über einen Dienst
+			// laufen kann, heißt ein Fehlschlag, dass eine Erkenntnis verloren
+			// geht. Der Aufgabenabschluss soll daran nicht scheitern, aber es
+			// muss im Log stehen.
+			if err := o.Memory.Ingest(ctx, agent.ID, d.Memory,
+				map[string]string{"task_id": taskID.String()}); err != nil {
+				o.Log.Warn("wiki: Erkenntnis konnte nicht gespeichert werden",
+					"agent", agent.Slug, "task", taskID, "err", err)
+			}
 		}
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
 			map[string]string{"status": "task_" + d.Status})
@@ -1437,8 +1525,11 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		if n.Scope == "memory" {
 			// Allgemeingültige Erkenntnis: sofort ins Gedächtnis, nicht erst
 			// über das memory-Feld beim Abschluss (M7).
-			_ = o.Memory.Ingest(ctx, agent.ID, n.Content, map[string]string{
-				"task_id": target.String(), "origin": "proactive"})
+			if err := o.Memory.Ingest(ctx, agent.ID, n.Content, map[string]string{
+				"task_id": target.String(), "origin": "proactive"}); err != nil {
+				o.Log.Warn("wiki: Erkenntnis (remember) konnte nicht gespeichert werden",
+					"agent", agent.Slug, "err", err)
+			}
 		} else {
 			// Aufgabenbezogene Notiz: an die Aufgabe selbst.
 			if _, err := o.Backlog.AddNote(ctx, target, "agent", n.Content); err != nil {
@@ -1709,10 +1800,12 @@ func (o *Orchestrator) brokerWiki(ctx context.Context, agent agents.Agent, req d
 			Title string   `json:"title"`
 			Body  string   `json:"body"`
 			Links []string `json:"links"`
+			Type  string   `json:"type"`
+			Tags  []string `json:"tags"`
 		}
 		pages := make([]page, 0, len(entries))
 		for _, e := range entries {
-			pages = append(pages, page{e.Slug, e.Title, e.Content, e.Links})
+			pages = append(pages, page{e.Slug, e.Title, e.Content, e.Links, e.Type, e.Tags})
 		}
 		return ok(pages)
 	case "search":
@@ -1738,7 +1831,17 @@ func (o *Orchestrator) brokerWiki(ctx context.Context, agent agents.Agent, req d
 		}
 		return ok(e)
 	case "write":
-		e, err := o.Memory.Write(ctx, agent.ID, req.Slug, req.Title, req.Body, "agent")
+		e, err := o.Memory.Write(ctx, agent.ID, memory.PageInput{
+			Slug: req.Slug, Title: req.Title, Body: req.Body,
+			Source: "agent", Type: req.Type, Tags: req.Tags,
+		})
+		if err != nil {
+			return fail(err.Error())
+		}
+		return ok(map[string]string{"slug": e.Slug, "title": e.Title, "type": e.Type})
+	case "append":
+		// Ergänzen, ohne die Seite neu zu schreiben (spec/05).
+		e, err := o.Memory.Append(ctx, agent.ID, req.Slug, req.Text)
 		if err != nil {
 			return fail(err.Error())
 		}
@@ -1969,21 +2072,60 @@ func (o *Orchestrator) Kill(ctx context.Context, agentID uuid.UUID) error {
 }
 
 // KillFleet ist der flottenweite Notaus (spec/06).
-func (o *Orchestrator) KillFleet(ctx context.Context, orgID uuid.UUID) error {
-	if err := o.Registry.SetFleetKilled(ctx, orgID, true); err != nil {
+// ResumeFleet nimmt den Notaus zurück — das Gegenstück zu KillFleet, und zwar
+// vollständig.
+//
+// Vorher löste das Zurücknehmen nur das Org-Flag, während KillFleet JEDEN
+// Agenten einzeln gestoppt hatte. Die Belegschaft blieb danach stehen, obwohl
+// die Oberfläche „kein Notaus" meldete — man hätte jeden Agenten von Hand
+// wieder anschalten müssen, ohne dass irgendetwas darauf hinweist. Ein Notaus
+// muss sich so lösen lassen, wie er ausgelöst wurde.
+func (o *Orchestrator) ResumeFleet(ctx context.Context, orgID uuid.UUID) error {
+	if err := o.Registry.SetFleetKilled(ctx, orgID, false); err != nil {
 		return err
 	}
-	rows, err := o.Pool.Query(ctx, "SELECT id FROM agents WHERE org_id=$1", orgID)
+	ids, err := o.agentIDs(ctx, orgID)
 	if err != nil {
 		return err
+	}
+	var firstErr error
+	for _, id := range ids {
+		if err := o.Registry.SetKilled(ctx, id, false); err != nil && firstErr == nil {
+			firstErr = err
+			continue
+		}
+		// Wer offene Arbeit hat, soll sie sofort aufnehmen und nicht bis zum
+		// nächsten Tick warten.
+		o.EnsureRunning(id)
+	}
+	return firstErr
+}
+
+// agentIDs listet die Agenten einer Organisation.
+func (o *Orchestrator) agentIDs(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := o.Pool.Query(ctx, "SELECT id FROM agents WHERE org_id=$1", orgID)
+	if err != nil {
+		return nil, err
 	}
 	defer rows.Close()
 	var ids []uuid.UUID
 	for rows.Next() {
 		var id uuid.UUID
-		if rows.Scan(&id) == nil {
-			ids = append(ids, id)
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
 		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+func (o *Orchestrator) KillFleet(ctx context.Context, orgID uuid.UUID) error {
+	if err := o.Registry.SetFleetKilled(ctx, orgID, true); err != nil {
+		return err
+	}
+	ids, err := o.agentIDs(ctx, orgID)
+	if err != nil {
+		return err
 	}
 	var firstErr error
 	for _, id := range ids {

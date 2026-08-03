@@ -34,6 +34,25 @@ Der „PC des Mitarbeiters": eine isolierte Sandbox mit **persistentem Home-Verz
 
 Das persistente Home deckt Dateien ab — **nicht** das episodische Gedächtnis über Aufgaben hinweg. Dafür gibt es eine separate Memory-Schicht (siehe [`05-gedaechtnis.md`](05-gedaechtnis.md)).
 
+### Der Arbeitsplatz im Webinterface
+
+Das Home ist im Webinterface als **Dateibrowser** offen (Reiter *Arbeitsplatz* am Agenten): durchsehen, öffnen, Textdateien ändern, hoch- und herunterladen, Ordner anlegen, umbenennen, löschen. Damit ist „was liegt bei dem Agenten eigentlich rum?" eine Frage der Oberfläche und nicht mehr eine Shell auf dem Host — und der Weg, einem Agenten Material mitzugeben (eine Vorlage, eine Preisliste, einen Datensatz), führt nicht mehr über den Umweg eines Zielsystems.
+
+**Ganze Ordner, in beide Richtungen.** Hinein: mehrere Dateien auf einmal, per Dialog oder Drag & Drop — auch ein kompletter Ordner, dessen Struktur erhalten bleibt (der Browser liefert dabei keinen Dateibaum, sondern Einträge, die die Oberfläche selbst abläuft). Heraus: markierte Einträge und ganze Ordner als **ZIP**, gestreamt statt zwischengelagert. Der Umfang wird vorher ausgemessen — „zu groß" muss ein Fehler sein, kein Archiv, das mitten im Download abbricht und dem man das nicht ansieht.
+
+**Ansehen statt herunterladen.** Der Browser zeigt die üblichen Dateien an Ort und Stelle: Markdown gerendert, Bilder (auch SVG) als Bild, PDF eingebettet, CSV/TSV als Tabelle, alles Übrige im Editor. Wo es einen Quelltext gibt, ist er einen Klick entfernt und bleibt bearbeitbar — die Vorschau steht *vor* dem Editor, sie ersetzt ihn nicht. Die Art der Datei bestimmt die Control Plane an einer Stelle (`sandboxfs.PreviewKind`), damit Anzeige und Auslieferung nicht auseinanderlaufen.
+
+Vier Festlegungen tragen das:
+
+- **Am Daemon vorbei, direkt aufs Home.** Der Zugriff läuft über den `FileAccess`-Port des Sandbox-Providers auf das Home-Verzeichnis, nicht über das Daemon-Protokoll. Sonst gäbe es den Arbeitsplatz nur, während die Sandbox läuft — und laufen tut sie im Normalfall nicht (siehe [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)). Ein Provider ohne erreichbares Home hat kein Feature, statt eines geratenen.
+- **Kein Weg aus dem Home heraus.** Jeder Pfad wird normalisiert und gegen den tiefsten existierenden Vorfahren geprüft; ein Symlink, der hinauszeigt, wird angezeigt, aber nicht geöffnet. Der Dateibrowser einer Control Plane, der sich zum Dateibrowser des Hosts ausweiten lässt, wäre die teuerste Bequemlichkeit der Plattform.
+- **Inline nur nach Allowlist.** Eine Datei aus einem Agenten-Home im Browser darzustellen heißt, fremde Bytes auf der Covey-Origin zu rendern. Deshalb kommt nur eine kurze Liste von Typen (Bilder, PDF) *inline* — mit `nosniff` und einer CSP ohne jedes Recht; alles andere geht ausschließlich als Anhang raus. Hochgeladenes HTML ist damit eine Datei, die man herunterlädt, und keine Seite, die auf der Plattform läuft.
+- **Jede Änderung ins Recording.** Schreibende Zugriffe landen als Ereignis (`kind: file`) in derselben Spur wie die Aktionen des Agenten, mit dem handelnden Menschen. Wer über Nacht eine Datei im Home austauscht, ändert das Verhalten des Agenten; für den, der den Lauf später liest, ist das dieselbe Art von Ereignis wie ein Tool-Aufruf.
+
+**Rollen:** Lesen dürfen die Verwalter des Agenten und Security — wer einen Agenten untersucht, muss sehen, was bei ihm liegt. Schreiben bleibt bei den Verwaltern: eine Datei im Home ist Konfiguration des Agenten, kein Audit-Vorgang.
+
+Die Wiki-Arbeitskopie unter `~/wiki/` ist sichtbar, aber kein Bearbeitungsort: Quelle der Wahrheit ist die Control Plane, und der nächste Lauf materialisiert sie neu (siehe [`05-gedaechtnis.md`](05-gedaechtnis.md)). Die Oberfläche sagt das an Ort und Stelle.
+
 > **Weiche vs. harte Grenzen.** Die `## Grenzen` in `SOUL.md` sind **Selbstbindung** — sie leiten das Verhalten des Agenten über den Prompt. Sie sind wertvoll, aber **nicht** die Sicherheitsgrenze: Ein Prompt lässt sich umgehen oder per Injection aushebeln. Die *harten* Grenzen kommen aus den zentralen, plattform-erzwungenen **Guard-Rails** (siehe [`06-observability-control.md`](06-observability-control.md)), die außerhalb der Runtime greifen. Beide Schichten zusammen = Defense in Depth.
 
 ## Zugänge
@@ -58,11 +77,30 @@ Das Verhalten eines Agenten ist als Satz von Markdown-Dateien in Git definiert �
 | `EGRESS.md` | Egress-Konfiguration des Agenten: zugewiesene Templates + eigene Hosts. |
 | `HEARTBEAT.md` | Wiederkehrende Aufgaben nach Zeitplan (Intervall oder feste Tageszeit) — die Control Plane legt sie automatisch ins Backlog, siehe [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md). |
 
-Die genaue Dateiliste ist bewusst erweiterbar — weitere sinnvolle MD-Dateien (z. B. `TONE.md`, `ESCALATION.md`) können hinzukommen. Kernregel: **`ACCESS.md` enthält Referenzen, keine Geheimnisse.**
+Die genaue Dateiliste ist bewusst erweiterbar — weitere sinnvolle MD-Dateien (z. B. `TONE.md`, `ESCALATION.md`) können hinzukommen. Kernregel: **`ACCESS.md` enthält Referenzen, keine Geheimnisse.** Neben diesen Dateien, die jeder Lauf vollständig mitträgt, gibt es **Skills** für Prozeduren, die nur bei Bedarf laden (siehe unten).
 
-`ACCESS.md` und `EGRESS.md` sind die **Text-Sicht auf Zustand, der auch über die Oberfläche gepflegt wird** (Reiter *Tools* bzw. *Egress*). Damit Text- und UI-Config nie divergieren, gibt es jede Datei genau einmal und beide Richtungen schreiben denselben Store: Lesen rendert die Datei live aus der Datenbank, Speichern parst sie und wendet sie an (Write-Through). Text-Edits an Tools/Egress unterliegen derselben RBAC wie die Reiter (nur `platform_admin`/`security`); in den System-Prompt kompiliert werden beide Dateien nicht.
+`ACCESS.md` und `EGRESS.md` sind die **Text-Sicht auf Zustand, der auch über die Oberfläche gepflegt wird** (*Tools & Skills* bzw. *Einstellungen → Egress*). Damit Text- und UI-Config nie divergieren, gibt es jede Datei genau einmal und beide Richtungen schreiben denselben Store: Lesen rendert die Datei live aus der Datenbank, Speichern parst sie und wendet sie an (Write-Through). Text-Edits an Tools/Egress unterliegen derselben RBAC wie die Oberfläche (nur `platform_admin`/`security`); in den System-Prompt kompiliert werden beide Dateien nicht.
+
+Was ein Agent in einem angebundenen Zielsystem **tun** kann, zeigt derselbe Reiter unter *Zielsysteme*: die Aktionsliste im **Wortlaut seines System-Prompts** (`PromptDoc` des Plugins, bei MCP auf die zugewiesenen Werkzeuge gefiltert), dazu der Zugang aus `ACCESS.md` und die org-weite Aktivierung. Eine geglättete Zweitfassung wäre eine zweite Wahrheit, die irgendwann von der ersten abweicht — die Frage „warum schließt der Agent das Ticket nicht?" beantwortet nur der Text, den er wirklich liest.
 
 Auch `HEARTBEAT.md` ist Plattform-Config, kein Prompt-Material: Sie wird beim Speichern geparst und materialisiert (Tabelle `agent_heartbeats`), die Aufgabe selbst erreicht den Agenten als reguläre Backlog-Aufgabe. Format und Zeitplan-Semantik stehen in [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md).
+
+### Skills: Fähigkeiten, die erst bei Bedarf laden
+
+Alle oben genannten Prompt-Dateien stehen in **jedem** Lauf vollständig im System-Prompt. Für Identität und Grenzen ist das richtig — sie gelten immer. Für Prozeduren ist es Verschwendung: Ein Agent mit fünf Playbooks zahlt alle fünf auch dann, wenn der Lauf nach drei Turns feststellt, dass nichts zu tun ist.
+
+Ein **Skill** kehrt das um. Er ist ein Verzeichnis mit einer `SKILL.md` und beliebigem Beiwerk (Referenztabellen, Vorlagen, Checklisten). Dauerhaft im Kontext steht nur seine **Beschreibung** — ein Satz, der sagt, *wann* der Skill zu ziehen ist; Rumpf und Zusatzdateien liest die Runtime erst, wenn sie ihn zieht. Der Daemon materialisiert die Skills eines Agenten vor jedem Lauf nach `<home>/.claude/skills/<name>/`; weil der Lauf mit `HOME=<Agenten-Home>` startet, sind es damit die **persönlichen Skills genau dieses Agenten**, ohne dass am Prompt etwas geändert werden müsste.
+
+Zwei Ebenen, dem Secrets-Modell nachgebaut ([`04-identitaet-secrets.md`](04-identitaet-secrets.md)):
+
+- **Agent-eigene Skills** gehören genau einem Agenten.
+- **Skills der Org-Bibliothek** stehen allen zur Verfügung, erreichen aber **nur nach ausdrücklicher Verlinkung** einen Agenten. Diese Opt-in-Regel ist hier nicht nur Least Privilege, sondern auch eine Kostenfrage: Jede verfügbare Beschreibung liegt dauerhaft im Kontext jedes Laufs, und ein Recherche-Agent braucht die Deploy-Checkliste nicht.
+
+Bei Namensgleichheit gewinnt der agent-eigene Skill — sonst überschriebe eine Änderung an der Bibliothek eine bewusste lokale Abweichung, und auf Platte könnten zwei Skills nicht in dasselbe Verzeichnis. Der Name ist zugleich Verzeichnisname und `/slash-command` und deshalb unveränderlich; Umbenennen hieße, Verweise aus Playbooks und anderen Skills still ins Leere laufen zu lassen.
+
+Skills sind **zentral verwaltete Config**, kein Gedächtnis: Es gibt keinen Rückweg aus der Sandbox. Ein Lauf, der sich selbst neue Fähigkeiten schreiben könnte, hebelte die Kontrolle aus, die das Feature erst rechtfertigt. Umgekehrt räumt der Daemon entzogene Skills beim nächsten Lauf ab — das Home überlebt den Lauf, ein gelöschter oder abgehängter Skill bliebe sonst für immer wirksam.
+
+Faustregel für den Schnitt: In `PLAYBOOKS.md` bleibt der Standardablauf, den fast jeder Lauf braucht. In einen Skill wandert, was selten greift, aber dann ausführlich ist.
 
 ### Was zur Config gehört — und was zum Binary
 
@@ -79,11 +117,13 @@ Praktische Folge für den Betrieb: **Ein Deploy rollt Plattform-Änderungen selb
 
 ### Export & Import
 
-Die komplette Konfiguration eines Agenten ist als **JSON-Bundle** portabel (`GET /api/v1/agents/{id}/export`, `POST /api/v1/agents/import`, in der UI als *Export*-Button am Agenten und *Import* auf der Agenten-Übersicht). Das Bundle (`kind: covey.agent-config`, versioniert) umfasst Stammdaten (Runtime, Modell, Turn-Limit, Budget, Vorgesetzter per E-Mail), alle Config-Dateien inklusive der live gerenderten `ACCESS.md`/`EGRESS.md`, Board-Spalten, agent-scoped Guard-Rails, die zugewiesenen Egress-Templates **samt Definition** (fehlende legt der Import an) und die **Namen** zugewiesener Secrets.
+Die komplette Konfiguration eines Agenten ist als **JSON-Bundle** portabel (`GET /api/v1/agents/{id}/export`, `POST /api/v1/agents/import`, in der UI als *Export*-Button am Agenten und *Import* auf der Agenten-Übersicht). Das Bundle (`kind: covey.agent-config`, versioniert) umfasst Stammdaten (Runtime, Modell, Turn-Limit, Budget, Vorgesetzter per E-Mail), alle Config-Dateien inklusive der live gerenderten `ACCESS.md`/`EGRESS.md`, Board-Spalten, agent-scoped Guard-Rails, die zugewiesenen Egress-Templates **samt Definition** (fehlende legt der Import an), die **Skills** des Agenten mit vollem Inhalt und Herkunftsvermerk (`origin: agent|library`) und die **Namen** zugewiesener Secrets.
+
+Skills reisen bewusst vollständig mit: Anders als bei Secrets gibt es an ihnen nichts Geheimes, und ein Bundle, das nur Namen nennte, ergäbe beim Import einen Agenten ohne seine Prozeduren — was nicht beim Import auffiele, sondern erst im Lauf. Beim Import gilt dieselbe Trennung der beiden Ebenen: Agent-eigene Skills legt er an, bei Bibliotheks-Skills verlinkt er eine **bereits vorhandene gleichnamige Fassung** statt sie zu überschreiben (sie kann anderen Agenten gehören) und meldet das als Warnung.
 
 Grenzen bleiben dabei erhalten: **Secret-Werte und Webhook-Tokens verlassen die Plattform nie** — der Import weist vorhandene Org-Secrets per Name neu zu, meldet fehlende als Warnung und erzeugt bei aktiviertem Webhook ein frisches Token. Der Import legt stets einen **neuen** Agenten an (Slug-Kollision → `409`, `?slug=` überschreibt) und unterliegt derselben RBAC wie die Einzel-Endpunkte: Bundles mit Guard-Rails, Egress oder Tool-Allowlists importiert nur `platform_admin`/`security` (fail-closed).
 
-Neben dem Neu-Anlegen gibt es das **Überschreiben eines bestehenden Agenten aus einem Bundle**, das **nur die Config-Dateien** übernimmt (`POST /api/v1/agents/{id}/config/import`, in der UI der Button *Bundle importieren (nur Config)* am Config-Tab). Alles andere im Bundle — Stammdaten, Board-Spalten, Guard-Rails, Egress-Templates, Secret-Zuordnungen — wird ignoriert; der Ziel-Agent behält Identität, Secrets und Zuweisungen. Speicher- und Write-Through-Pfad sind identisch zu `PUT /config` (neue Config-Version, dieselbe Security-Rollen-Grenze für Tool-Allowlists/Egress). So verteilt man eine gemeinsame Basis-Config auf mehrere bestehende Agenten, ohne sie neu anzulegen.
+Neben dem Neu-Anlegen gibt es das **Überschreiben eines bestehenden Agenten aus einem Bundle**, das **die Config-Dateien und die Skills** übernimmt (`POST /api/v1/agents/{id}/config/import`, in der UI der Button *Bundle importieren (nur Config)* am Config-Tab). Die Skills gehören dazu, seit Prozeduren aus `PLAYBOOKS.md` dorthin wandern — eine reine Datei-Übernahme wäre sonst ein halber Import; sie wirkt additiv, vorhandene Skills, die das Bundle nicht kennt, bleiben stehen. Alles andere im Bundle — Stammdaten, Board-Spalten, Guard-Rails, Egress-Templates, Secret-Zuordnungen — wird ignoriert; der Ziel-Agent behält Identität, Secrets und Zuweisungen. Speicher- und Write-Through-Pfad sind identisch zu `PUT /config` (neue Config-Version, dieselbe Security-Rollen-Grenze für Tool-Allowlists/Egress). So verteilt man eine gemeinsame Basis-Config auf mehrere bestehende Agenten, ohne sie neu anzulegen.
 
 ### Beispiel: `SOUL.md` (Skizze)
 

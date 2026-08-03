@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -33,7 +34,13 @@ type RunSpec struct {
 	ResumeSessionID string
 	ResumeInput     string
 	HomeDir         string
-	Env             []string // zusätzliche ENV (z. B. COVEY_ACTION_PORT, gebrokerte Keys)
+	// WorkDir ist das Arbeitsverzeichnis des Laufs. Leer = HomeDir. Getrennt
+	// vom Home, damit ein Sub-Run IM Projekt-Checkout starten kann (dort greift
+	// dessen eigener Claude-Code-Harness: CLAUDE.md, .claude/agents, skills),
+	// während HOME weiterhin auf das persistente Agenten-Home zeigt — dort
+	// liegen ~/.claude, die Wiki-Arbeitskopie und die Dependency-Caches.
+	WorkDir string
+	Env     []string // zusätzliche ENV (z. B. COVEY_ACTION_PORT, gebrokerte Keys)
 }
 
 // RunResult ist das normierte Ergebnis eines Runtime-Laufs.
@@ -56,6 +63,30 @@ type RunResult struct {
 type Runtime interface {
 	Name() string
 	Run(ctx context.Context, spec RunSpec, onEvent func(kind string, payload json.RawMessage)) (RunResult, error)
+}
+
+// childEnv baut die Umgebung eines Subprozesses aus der Umgebung des Daemons —
+// OHNE dessen eigene COVEY_*-Variablen. Der Grund ist der Weg zum Broker:
+// COVEY_WS_URL und COVEY_DAEMON_TOKEN sind Zugangsdaten zur Control Plane, mit
+// denen ein Kindprozess eine eigene WebSocket aufmachen und `request_credential`
+// schicken könnte — also genau die gebrokerten Zugänge erreichen, die das
+// Weglassen von COVEY_ACTION_PORT aus der Reichweite hält.
+//
+// Beim äußeren Lauf wäre das folgenlos (er führt die kompilierte Config des
+// Agenten aus), beim Sub-Lauf nicht: Dort ist Repo-Inhalt ausführbare
+// Konfiguration (Hooks, MCP-Server) — der Filter gilt deshalb für jeden
+// Subprozess. Was ein Lauf legitim braucht, kommt explizit über extra dazu
+// (COVEY_ACTION_PORT, gebrokerter LLM-Key), nicht durch Vererbung.
+func childEnv(extra ...string) []string {
+	host := os.Environ()
+	env := make([]string, 0, len(host)+len(extra))
+	for _, kv := range host {
+		if strings.HasPrefix(kv, "COVEY_") {
+			continue
+		}
+		env = append(env, kv)
+	}
+	return append(env, extra...)
 }
 
 // covey_status ist die Abschluss-Zeile, die die kompilierte Config von der

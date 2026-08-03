@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -38,6 +39,12 @@ type Config struct {
 	WebhookSecrets map[string]string
 	// TickInterval ist der periodische "was liegt an?"-Impuls des Dispatch-Loops.
 	TickInterval time.Duration
+
+	// DreamAt ist die Ortszeit ("03:00"), ab der Agenten nachts ihr Gedächtnis
+	// aufräumen. Leer oder "off" schaltet den Nachtlauf ab — jeder Traum kostet
+	// einen LLM-Aufruf, und wer das nicht will, soll es abstellen können, ohne
+	// die Funktion aus dem Binary zu nehmen.
+	DreamAt string
 	// SessionTTL für menschliche Logins.
 	SessionTTL time.Duration
 	// DaemonTokenTTL für die kurzlebigen Sandbox-Daemon-JWTs.
@@ -84,6 +91,20 @@ type Config struct {
 	// (Duplikate mergen, tote Links fixen). Pro Agent per HEARTBEAT.md
 	// überschreibbar. COVEY_WIKI_CLEANUP.
 	WikiCleanup string
+	// EmbeddingProvider wählt das Embedding hinter dem Wiki-Retrieval:
+	// "builtin" (Hash, offline, nur lexikalisch — Default), "ollama" (selbst
+	// betrieben, ohne Schlüssel) oder die fremden Dienste "voyage"/"openai",
+	// die EmbeddingAPIKey brauchen. Ein Wechsel bettet den Bestand im
+	// Hintergrund neu ein. COVEY_EMBEDDING_PROVIDER.
+	EmbeddingProvider string
+	// EmbeddingModel überschreibt das Provider-Default-Modell.
+	// COVEY_EMBEDDING_MODEL.
+	EmbeddingModel string
+	// EmbeddingAPIKey ist der Schlüssel des Providers. COVEY_EMBEDDING_API_KEY.
+	EmbeddingAPIKey string
+	// EmbeddingURL überschreibt den Endpunkt (Proxy, Azure, kompatible Dienste).
+	// COVEY_EMBEDDING_URL.
+	EmbeddingURL string
 }
 
 func FromEnv() (Config, error) {
@@ -99,6 +120,7 @@ func FromEnv() (Config, error) {
 		SandboxImage:     getenv("COVEY_SANDBOX_IMAGE", "covey-sandbox:latest"),
 		WebhookSecrets:   webhookSecretsFromEnv(),
 		TickInterval:     getenvDuration("COVEY_TICK_INTERVAL", 30*time.Second),
+		DreamAt:          getenv("COVEY_DREAM_AT", "03:00"),
 		SessionTTL:       getenvDuration("COVEY_SESSION_TTL", 12*time.Hour),
 		DaemonTokenTTL:   getenvDuration("COVEY_DAEMON_TOKEN_TTL", 15*time.Minute),
 		BoardRetention:   getenvDuration("COVEY_BOARD_RETENTION", 24*time.Hour),
@@ -107,6 +129,11 @@ func FromEnv() (Config, error) {
 		EgressIsolation:  getenv("COVEY_EGRESS_ISOLATION", "proxy"),
 		EgressProxyAddr:  getenv("COVEY_EGRESS_PROXY_ADDR", ":8888"),
 		WikiCleanup:      strings.TrimSpace(os.Getenv("COVEY_WIKI_CLEANUP")),
+
+		EmbeddingProvider: getenv("COVEY_EMBEDDING_PROVIDER", "builtin"),
+		EmbeddingModel:    strings.TrimSpace(os.Getenv("COVEY_EMBEDDING_MODEL")),
+		EmbeddingAPIKey:   strings.TrimSpace(os.Getenv("COVEY_EMBEDDING_API_KEY")),
+		EmbeddingURL:      strings.TrimSpace(os.Getenv("COVEY_EMBEDDING_URL")),
 
 		RequestLog:          getenvBool("COVEY_REQUEST_LOG", true),
 		RequestLogBodies:    getenvBool("COVEY_REQUEST_LOG_BODIES", true),
@@ -149,10 +176,23 @@ func (c Config) SecurityWarnings() []string {
 }
 
 func isLoopbackPublic(u string) bool {
-	for _, h := range []string{"localhost", "127.0.0.1", "[::1]", "::1"} {
-		if strings.Contains(u, h) {
-			return true
-		}
+	// Auf den HOSTNAMEN prüfen, nicht auf die Zeichenkette: Ein
+	// `strings.Contains` hielte auch https://localhost.example.com für
+	// Entwicklung — und schwiege damit ausgerechnet bei einer echten, öffentlich
+	// erreichbaren Instanz zu jeder Unsicherheit.
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return false // unlesbar = im Zweifel warnen
+	}
+	host := parsed.Hostname()
+	if host == "" {
+		// Ohne Schema parst Go den Wert als Pfad; dann steht der Host vorne.
+		host, _, _ = strings.Cut(strings.TrimPrefix(u, "//"), "/")
+		host, _, _ = strings.Cut(host, ":")
+	}
+	switch strings.ToLower(host) {
+	case "localhost", "127.0.0.1", "::1", "[::1]":
+		return true
 	}
 	return false
 }

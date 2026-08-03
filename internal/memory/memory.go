@@ -34,12 +34,65 @@ const dupThreshold = 0.93
 // ErrNoContent: Inhalt ist leer oder eine Floskel (IsNoise) — nicht speicherbar.
 var ErrNoContent = errors.New("kein verwertbarer inhalt")
 
-// Embedder ist der Port für Text→Vektor. builtin ist ein deterministisches
-// Hash-Embedding (offline, dependency-frei) — ehrlich begrenzt, aber für den
-// MVP-Durchstich ausreichend und über dieses Interface durch einen echten
-// Embedding-Provider (API) austauschbar.
+// PageTypes ist das kontrollierte Vokabular der Seitentypen (spec/05: "eine
+// Seite pro Entität"). Bewusst geschlossen und kurz — bei den Kanban-Spalten
+// hat sich gezeigt, dass frei erfundene Bezeichner binnen Tagen ausufern und
+// die Struktur wertlos machen. Was nicht passt, landet in "thema".
+var PageTypes = []string{"kunde", "projekt", "system", "person", "problem", "thema"}
+
+// NormalizeType bringt eine Typangabe auf das Vokabular. Unbekanntes und Leeres
+// ergibt "" — nicht zugeordnet, ein Qualitätsbefund, kein Fehler.
+func NormalizeType(t string) string {
+	t = strings.ToLower(strings.TrimSpace(t))
+	if t == "" {
+		return ""
+	}
+	// Gängige Schreibweisen und Synonyme einfangen, statt sie zu verwerfen.
+	switch t {
+	case "kollege", "kollegin", "mitarbeiter", "mensch", "people", "colleague":
+		t = "person"
+	case "kunde", "kundin", "customer", "client":
+		t = "kunde"
+	case "projekt", "project", "repo", "repository":
+		t = "projekt"
+	case "system", "tool", "werkzeug", "zielsystem", "service":
+		t = "system"
+	case "problem", "fehler", "bug", "loesung", "lösung", "runbook":
+		t = "problem"
+	case "thema", "topic", "notiz", "sonstiges":
+		t = "thema"
+	}
+	for _, known := range PageTypes {
+		if t == known {
+			return t
+		}
+	}
+	return "thema"
+}
+
+// normalizeTags entfernt Leeres und Duplikate und schreibt klein.
+func normalizeTags(tags []string) []string {
+	seen := map[string]bool{}
+	out := []string{}
+	for _, t := range tags {
+		t = strings.ToLower(strings.TrimSpace(strings.TrimPrefix(t, "#")))
+		if t == "" || seen[t] {
+			continue
+		}
+		seen[t] = true
+		out = append(out, t)
+	}
+	return out
+}
+
+// Embedder ist der Port für Text→Vektor ("batteries included, but swappable"):
+// builtin ist das Hash-Embedding (offline, aber nur lexikalisch), APIEmbedder
+// spricht einen echten Embedding-Provider. Name() ist der Fingerabdruck des
+// Modells — er landet in wiki_pages.embed_model, damit ReembedStale erkennt,
+// welche Seiten nach einem Wechsel neu eingebettet werden müssen.
 type Embedder interface {
-	Embed(text string) [Dim]float32
+	Embed(ctx context.Context, text string) ([Dim]float32, error)
+	Name() string
 }
 
 // Entry ist die Sicht auf eine Wiki-Seite (Content = Body, für Rückwärts-
@@ -52,6 +105,8 @@ type Entry struct {
 	Content   string    `json:"content"`
 	Links     []string  `json:"links,omitempty"`
 	Source    string    `json:"source,omitempty"`
+	Type      string    `json:"type,omitempty"`
+	Tags      []string  `json:"tags,omitempty"`
 	Score     float64   `json:"score,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
@@ -150,7 +205,7 @@ func deriveTitle(content string) string {
 	for i := 0; i < len(t) && i < 80; i++ {
 		if c := t[i]; c == '.' || c == '!' || c == '?' {
 			atBoundary := i+1 >= len(t) || t[i+1] == ' '
-			if atBoundary && i >= minTitleLen {
+			if atBoundary && i >= minTitleLen && !isAbbrevDot(t, i) {
 				t = t[:i] // Satzzeichen sind ASCII → Byte-Index ist Rune-Grenze
 				break
 			}
@@ -160,6 +215,23 @@ func deriveTitle(content string) string {
 		t = strings.TrimSpace(truncRunes(t, 80))
 	}
 	return t
+}
+
+// isAbbrevDot erkennt einen Punkt, der zu einer Abkürzung gehört statt einen
+// Satz zu beenden: steht davor ein einzelner Buchstabe ("z. B.", "u. a."), ist
+// es kein Satzende. Ohne diese Prüfung entstand aus "Zugesagte Rückmeldungen
+// (z. B. …)" der Titel "Zugesagte Rückmeldungen (z".
+func isAbbrevDot(t string, i int) bool {
+	if t[i] != '.' {
+		return false
+	}
+	start := i
+	for start > 0 && t[start-1] != ' ' {
+		start--
+	}
+	// Das Wort vor dem Punkt, ohne öffnende Klammern/Anführungszeichen.
+	word := strings.TrimLeft(t[start:i], "(\"'„«[")
+	return len([]rune(word)) <= 1
 }
 
 // extractLinks liest die [[slug]]-Wikilinks aus einem Body.
@@ -206,7 +278,10 @@ func (s *Store) Ingest(ctx context.Context, agentID uuid.UUID, content string, m
 	if metadata != nil && metadata["source"] != "" {
 		source = metadata["source"]
 	}
-	vec := s.embedder.Embed(content)
+	vec, err := s.embedder.Embed(ctx, content)
+	if err != nil {
+		return fmt.Errorf("embedding: %w", err)
+	}
 
 	// Passende Seite suchen (nur diese Agenten-Seiten).
 	var (
@@ -215,17 +290,21 @@ func (s *Store) Ingest(ctx context.Context, agentID uuid.UUID, content string, m
 		body  string
 		score float64
 	)
-	err := s.pool.QueryRow(ctx, `SELECT id, slug, body, 1 - (embedding <=> $2::vector) AS score
-		FROM wiki_pages WHERE agent_id=$1 ORDER BY embedding <=> $2::vector LIMIT 1`,
-		agentID, vectorLiteral(vec)).Scan(&pid, &slug, &body, &score)
+	err = s.pool.QueryRow(ctx, `SELECT id, slug, body, 1 - (embedding <=> $2::vector) AS score
+		FROM wiki_pages WHERE agent_id=$1 AND embed_model=$3
+		ORDER BY embedding <=> $2::vector LIMIT 1`,
+		agentID, vectorLiteral(vec), s.embedder.Name()).Scan(&pid, &slug, &body, &score)
 	switch {
 	case err == nil && score >= mergeThreshold:
 		merged := strings.TrimSpace(body) + "\n\n" + content
 		links := extractLinks(merged)
-		mv := s.embedder.Embed(merged)
+		mv, err := s.embedder.Embed(ctx, merged)
+		if err != nil {
+			return fmt.Errorf("embedding: %w", err)
+		}
 		if _, err := s.pool.Exec(ctx, `UPDATE wiki_pages
-			SET body=$2, links=$3, embedding=$4::vector, updated_at=now() WHERE id=$1`,
-			pid, merged, links, vectorLiteral(mv)); err != nil {
+			SET body=$2, links=$3, embedding=$4::vector, embed_model=$5, updated_at=now() WHERE id=$1`,
+			pid, merged, links, vectorLiteral(mv), s.embedder.Name()); err != nil {
 			return err
 		}
 		s.logOp(ctx, agentID, "ingest", slug, "ergänzt: "+deriveTitle(content))
@@ -239,9 +318,10 @@ func (s *Store) Ingest(ctx context.Context, agentID uuid.UUID, content string, m
 	newSlug := s.uniqueSlug(ctx, agentID, title)
 	meta, _ := json.Marshal(orEmpty(metadata))
 	if _, err := s.pool.Exec(ctx, `INSERT INTO wiki_pages
-		(id, agent_id, slug, title, body, links, source, metadata, embedding)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::vector)`,
-		uuid.New(), agentID, newSlug, title, content, extractLinks(content), source, meta, vectorLiteral(vec)); err != nil {
+		(id, agent_id, slug, title, body, links, source, metadata, embedding, embed_model)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::vector,$10)`,
+		uuid.New(), agentID, newSlug, title, content, extractLinks(content), source, meta,
+		vectorLiteral(vec), s.embedder.Name()); err != nil {
 		return err
 	}
 	s.logOp(ctx, agentID, "ingest", newSlug, "neue Seite: "+title)
@@ -260,12 +340,15 @@ func (s *Store) Query(ctx context.Context, agentID uuid.UUID, query string, limi
 	if limit <= 0 {
 		limit = 5
 	}
-	vec := s.embedder.Embed(query)
-	rows, err := s.pool.Query(ctx, `SELECT id, agent_id, slug, title, body, links, source, created_at, updated_at,
+	vec, err := s.embedder.Embed(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("embedding: %w", err)
+	}
+	rows, err := s.pool.Query(ctx, `SELECT id, agent_id, slug, title, body, links, source, type, tags, created_at, updated_at,
 		1 - (embedding <=> $2::vector) AS score
-		FROM wiki_pages WHERE agent_id=$1
+		FROM wiki_pages WHERE agent_id=$1 AND embed_model=$4
 		ORDER BY embedding <=> $2::vector LIMIT $3`,
-		agentID, vectorLiteral(vec), limit)
+		agentID, vectorLiteral(vec), limit, s.embedder.Name())
 	if err != nil {
 		return nil, err
 	}
@@ -280,7 +363,7 @@ func (s *Store) Search(ctx context.Context, agentID uuid.UUID, query string, lim
 
 // Read liefert eine Seite per Slug (covey/wiki_read).
 func (s *Store) Read(ctx context.Context, agentID uuid.UUID, slug string) (Entry, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, agent_id, slug, title, body, links, source, created_at, updated_at, 0
+	rows, err := s.pool.Query(ctx, `SELECT id, agent_id, slug, title, body, links, source, type, tags, created_at, updated_at, 0
 		FROM wiki_pages WHERE agent_id=$1 AND slug=$2`, agentID, slugify(slug))
 	if err != nil {
 		return Entry{}, err
@@ -295,37 +378,97 @@ func (s *Store) Read(ctx context.Context, agentID uuid.UUID, slug string) (Entry
 	return list[0], nil
 }
 
+// PageInput beschreibt eine zu schreibende Seite. Als Struct statt sechs
+// Stellungsparametern: Slug, Titel, Typ und Quelle sind allesamt Strings, und
+// eine vertauschte Reihenfolge fiele beim Kompilieren nicht auf.
+type PageInput struct {
+	Slug   string
+	Title  string
+	Body   string
+	Source string // agent | manual
+	Type   string // Vokabular siehe PageTypes; leer = nicht zugeordnet
+	Tags   []string
+}
+
 // Write legt eine Seite an oder aktualisiert sie (covey/wiki_write, manuelle
 // Pflege). Wikilinks werden aus dem Body extrahiert.
-func (s *Store) Write(ctx context.Context, agentID uuid.UUID, slug, title, body, source string) (Entry, error) {
-	body = strings.TrimSpace(body)
+//
+// Typ und Tags werden nur überschrieben, wenn welche mitkommen — sonst würde
+// ein Agent, der bloß den Text einer Seite ergänzt, deren Einordnung löschen.
+func (s *Store) Write(ctx context.Context, agentID uuid.UUID, in PageInput) (Entry, error) {
+	body := strings.TrimSpace(in.Body)
 	if body == "" || IsNoise(body) {
 		return Entry{}, ErrNoContent
 	}
-	slug = slugify(slug)
+	slug := slugify(in.Slug)
 	if slug == "seite" || slug == "" {
-		slug = s.uniqueSlug(ctx, agentID, title)
+		slug = s.uniqueSlug(ctx, agentID, in.Title)
 	}
+	title := in.Title
 	if strings.TrimSpace(title) == "" {
 		title = deriveTitle(body)
 	}
+	source := in.Source
 	if source == "" {
 		source = "agent"
 	}
 	links := extractLinks(body)
-	vec := s.embedder.Embed(title + " " + body)
-	_, err := s.pool.Exec(ctx, `INSERT INTO wiki_pages
-		(id, agent_id, slug, title, body, links, source, embedding)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8::vector)
+	vec, err := s.embedder.Embed(ctx, title+" "+body)
+	if err != nil {
+		return Entry{}, fmt.Errorf("embedding: %w", err)
+	}
+	_, err = s.pool.Exec(ctx, `INSERT INTO wiki_pages
+		(id, agent_id, slug, title, body, links, source, type, tags, embedding, embed_model)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::vector,$11)
 		ON CONFLICT (agent_id, slug) DO UPDATE
 		SET title=EXCLUDED.title, body=EXCLUDED.body, links=EXCLUDED.links,
-		    embedding=EXCLUDED.embedding, updated_at=now()`,
-		uuid.New(), agentID, slug, title, body, links, source, vectorLiteral(vec))
+		    type=CASE WHEN EXCLUDED.type <> '' THEN EXCLUDED.type ELSE wiki_pages.type END,
+		    tags=CASE WHEN cardinality(EXCLUDED.tags) > 0 THEN EXCLUDED.tags ELSE wiki_pages.tags END,
+		    embedding=EXCLUDED.embedding, embed_model=EXCLUDED.embed_model, updated_at=now()`,
+		uuid.New(), agentID, slug, title, body, links, source,
+		NormalizeType(in.Type), normalizeTags(in.Tags), vectorLiteral(vec), s.embedder.Name())
 	if err != nil {
 		return Entry{}, err
 	}
 	s.logOp(ctx, agentID, "write", slug, title)
 	return s.Read(ctx, agentID, slug)
+}
+
+// Append hängt einen Absatz an eine bestehende Seite (covey/wiki_append).
+//
+// Ohne das hieß "eine Seite ergänzen" immer: ganze Seite lesen, Text anhängen,
+// ganze Seite zurückschreiben — bei jeder Ergänzung die Gelegenheit, den Rest
+// der Seite zu verlieren. Existiert die Seite nicht, entsteht sie mit diesem
+// Absatz als Inhalt.
+func (s *Store) Append(ctx context.Context, agentID uuid.UUID, slug, text string) (Entry, error) {
+	text = strings.TrimSpace(text)
+	if text == "" || IsNoise(text) {
+		return Entry{}, ErrNoContent
+	}
+	cur, err := s.Read(ctx, agentID, slug)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return s.Write(ctx, agentID, PageInput{Slug: slug, Body: text})
+	}
+	if err != nil {
+		return Entry{}, err
+	}
+	if strings.Contains(cur.Content, text) {
+		return cur, nil // schon da — nicht doppeln
+	}
+	merged := strings.TrimRight(cur.Content, "\n") + "\n\n" + text
+	links := extractLinks(merged)
+	vec, err := s.embedder.Embed(ctx, cur.Title+" "+merged)
+	if err != nil {
+		return Entry{}, fmt.Errorf("embedding: %w", err)
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE wiki_pages
+		SET body=$2, links=$3, embedding=$4::vector, embed_model=$5, updated_at=now()
+		WHERE id=$1`,
+		cur.ID, merged, links, vectorLiteral(vec), s.embedder.Name()); err != nil {
+		return Entry{}, err
+	}
+	s.logOp(ctx, agentID, "append", cur.Slug, "ergänzt: "+deriveTitle(text))
+	return s.Read(ctx, agentID, cur.Slug)
 }
 
 // UpdatePage ersetzt Titel und Body einer Seite per ID (manuelle Pflege /
@@ -345,10 +488,13 @@ func (s *Store) UpdatePage(ctx context.Context, id uuid.UUID, title, content str
 	if strings.TrimSpace(title) == "" {
 		title = curTitle
 	}
-	vec := s.embedder.Embed(title + " " + content)
+	vec, err := s.embedder.Embed(ctx, title+" "+content)
+	if err != nil {
+		return fmt.Errorf("embedding: %w", err)
+	}
 	tag, err := s.pool.Exec(ctx, `UPDATE wiki_pages
-		SET title=$2, body=$3, links=$4, embedding=$5::vector, updated_at=now() WHERE id=$1`,
-		id, title, content, extractLinks(content), vectorLiteral(vec))
+		SET title=$2, body=$3, links=$4, embedding=$5::vector, embed_model=$6, updated_at=now() WHERE id=$1`,
+		id, title, content, extractLinks(content), vectorLiteral(vec), s.embedder.Name())
 	if err != nil {
 		return err
 	}
@@ -360,6 +506,15 @@ func (s *Store) UpdatePage(ctx context.Context, id uuid.UUID, title, content str
 }
 
 // Delete entfernt eine Seite endgültig (manuelle Pflege).
+// PageInOrg prüft, ob eine Wiki-Seite zu dieser Organisation gehört. Seiten
+// hängen am Agenten; die Organisation steht erst nach dem Join fest.
+func (s *Store) PageInOrg(ctx context.Context, orgID, pageID uuid.UUID) bool {
+	var eins int
+	err := s.pool.QueryRow(ctx, `SELECT 1 FROM wiki_pages p JOIN agents a ON a.id = p.agent_id
+		WHERE p.id=$1 AND a.org_id=$2`, pageID, orgID).Scan(&eins)
+	return err == nil
+}
+
 func (s *Store) Delete(ctx context.Context, id uuid.UUID) error {
 	var agentID uuid.UUID
 	var slug, title string
@@ -391,6 +546,211 @@ func (s *Store) DeleteBySlug(ctx context.Context, agentID uuid.UUID, slug string
 	}
 	s.logOp(ctx, agentID, "delete", slug, "gelöscht: "+title)
 	return nil
+}
+
+// EmbedderName ist der Fingerabdruck des aktiven Embedding-Modells.
+func (s *Store) EmbedderName() string { return s.embedder.Name() }
+
+// StaleCount zählt die Seiten, die noch mit einem anderen Modell eingebettet
+// sind als dem aktiven.
+func (s *Store) StaleCount(ctx context.Context) (int, error) {
+	var n int
+	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM wiki_pages WHERE embed_model <> $1`,
+		s.embedder.Name()).Scan(&n)
+	return n, err
+}
+
+// ReembedStale bettet Seiten neu ein, die noch von einem anderen Modell stammen
+// — der Umstieg auf einen anderen Embedder (oder der erste Umstieg weg vom
+// Hash-Embedding) macht den bestehenden Index sonst unbrauchbar, weil Seiten
+// verschiedener Modelle nicht miteinander verglichen werden können.
+//
+// Arbeitet in Häppchen und bricht beim ersten Provider-Fehler ab: bei einem
+// abgelaufenen Schlüssel oder Rate-Limit ist Weitermachen nur teuer. Der Aufruf
+// ist idempotent und kann jederzeit erneut laufen. Gibt zurück, wie viele
+// Seiten neu eingebettet wurden.
+func (s *Store) ReembedStale(ctx context.Context, batch int) (int, error) {
+	if batch <= 0 {
+		batch = 50
+	}
+	name := s.embedder.Name()
+	done := 0
+	for {
+		rows, err := s.pool.Query(ctx, `SELECT id, title, body FROM wiki_pages
+			WHERE embed_model <> $1 ORDER BY updated_at DESC LIMIT $2`, name, batch)
+		if err != nil {
+			return done, err
+		}
+		type page struct {
+			id          uuid.UUID
+			title, body string
+		}
+		var pages []page
+		for rows.Next() {
+			var p page
+			if err := rows.Scan(&p.id, &p.title, &p.body); err != nil {
+				rows.Close()
+				return done, err
+			}
+			pages = append(pages, p)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return done, err
+		}
+		if len(pages) == 0 {
+			return done, nil
+		}
+		for _, p := range pages {
+			vec, err := s.embedder.Embed(ctx, p.title+" "+p.body)
+			if err != nil {
+				return done, fmt.Errorf("embedding %q: %w", p.title, err)
+			}
+			if _, err := s.pool.Exec(ctx, `UPDATE wiki_pages
+				SET embedding=$2::vector, embed_model=$3 WHERE id=$1`,
+				p.id, vectorLiteral(vec), name); err != nil {
+				return done, err
+			}
+			done++
+		}
+	}
+}
+
+// ── Qualität ────────────────────────────────────────────────────────────────
+
+// Finding ist ein Qualitätsbefund über das Wiki eines Agenten.
+type Finding struct {
+	Kind    string   `json:"kind"`             // orphan | dead_link | untyped | episodic | duplicate | stub
+	Slug    string   `json:"slug"`             // betroffene Seite
+	Title   string   `json:"title,omitempty"`  // Anzeigename der Seite
+	Detail  string   `json:"detail,omitempty"` // Ziel-Slug, Partnerseite o. Ä.
+	Score   float64  `json:"score,omitempty"`  // nur duplicate: Ähnlichkeit
+	Related []string `json:"related,omitempty"`
+}
+
+// Health ist die Qualitätssicht auf ein Wiki: die Kennzahlen fürs Erste,
+// die Befunde zum Danebenlegen.
+type Health struct {
+	Pages     int       `json:"pages"`
+	Links     int       `json:"links"`
+	Orphans   int       `json:"orphans"`
+	DeadLinks int       `json:"dead_links"`
+	Untyped   int       `json:"untyped"`
+	Episodic  int       `json:"episodic"`
+	Duplicate int       `json:"duplicate"`
+	Stubs     int       `json:"stubs"`
+	Findings  []Finding `json:"findings"`
+}
+
+// episodicTitleLen ist die Kappungsgrenze von deriveTitle: ein Titel, der sie
+// erreicht, ist per Konstruktion ein abgeschnittener Satz und kein Entitätsname.
+//
+// Bewusst genau diese Grenze und nicht "irgendwas über 60": an echten Daten
+// gemessen liegen 25 von 43 Titeln exakt auf der Kappung (auto-erzeugt), während
+// die 60er-Schwelle auch brauchbare Überschriften wie "Sandbox: PHP 8.2
+// vorhanden — Laravel-Queries ohne das educa-Repo prüfen" eingefangen hat. Ein
+// Befund, der 88 % der Seiten markiert, sagt niemandem mehr, wo anzufassen ist.
+const episodicTitleLen = 80
+
+// stubBodyLen: darunter trägt eine eigene Seite nichts, was nicht als Absatz auf
+// einer Entitätsseite besser aufgehoben wäre.
+const stubBodyLen = 120
+
+// dupFindingThreshold liegt bewusst unter dupThreshold: der Konsolidierungs-Pass
+// verschmilzt automatisch erst ab dupThreshold, aber schon knapp darunter lohnt
+// der menschliche Blick.
+const dupFindingThreshold = 0.88
+
+// isEpisodicTitle erkennt Titel, die einen Vorgang statt einer Entität benennen:
+// zu lang, oder mit einem konkreten Datum versehen.
+var dateInTitle = regexp.MustCompile(`\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{4}-\d{2}-\d{2}`)
+
+func isEpisodicTitle(title string) bool {
+	t := strings.TrimSpace(title)
+	return len([]rune(t)) >= episodicTitleLen || dateInTitle.MatchString(t)
+}
+
+// NeedsRetitle sagt, ob eine Seite dem Titel-Pass der Wiki-Wartung vorgelegt
+// werden soll. Bewusst dieselbe Heuristik wie der episodic-Befund: was die
+// Qualitätsleiste als Tagebuch-Titel anzeigt, ist genau das, was der Pass
+// aufräumen soll — zwei Schwellen für dieselbe Sache würden auseinanderlaufen.
+func NeedsRetitle(title string) bool { return isEpisodicTitle(title) }
+
+// CheckHealth sammelt die Qualitätsbefunde eines Wikis (spec/05). Rein lesend —
+// die Befunde sind Entscheidungsgrundlage, nichts wird automatisch geändert.
+func (s *Store) CheckHealth(ctx context.Context, agentID uuid.UUID) (Health, error) {
+	pages, err := s.List(ctx, agentID, 5000)
+	if err != nil {
+		return Health{}, err
+	}
+	h := Health{Pages: len(pages), Findings: []Finding{}}
+	exists := map[string]Entry{}
+	for _, p := range pages {
+		exists[p.Slug] = p
+	}
+	inbound := map[string]int{}
+	for _, p := range pages {
+		for _, l := range p.Links {
+			if _, ok := exists[l]; ok {
+				inbound[l]++
+			}
+		}
+	}
+
+	add := func(f Finding) { h.Findings = append(h.Findings, f) }
+	for _, p := range pages {
+		live := 0
+		for _, l := range p.Links {
+			if _, ok := exists[l]; ok {
+				live++
+				continue
+			}
+			h.DeadLinks++
+			add(Finding{Kind: "dead_link", Slug: p.Slug, Title: p.Title, Detail: l})
+		}
+		h.Links += live
+		if live == 0 && inbound[p.Slug] == 0 {
+			h.Orphans++
+			add(Finding{Kind: "orphan", Slug: p.Slug, Title: p.Title})
+		}
+		if p.Type == "" {
+			h.Untyped++
+			add(Finding{Kind: "untyped", Slug: p.Slug, Title: p.Title})
+		}
+		if isEpisodicTitle(p.Title) {
+			h.Episodic++
+			add(Finding{Kind: "episodic", Slug: p.Slug, Title: p.Title})
+		}
+		if len([]rune(strings.TrimSpace(p.Content))) < stubBodyLen {
+			h.Stubs++
+			add(Finding{Kind: "stub", Slug: p.Slug, Title: p.Title})
+		}
+	}
+
+	// Dubletten-Verdacht über den Vektorindex — nur innerhalb desselben Modells,
+	// Vektoren verschiedener Modelle sind nicht vergleichbar.
+	rows, err := s.pool.Query(ctx, `SELECT a.slug, a.title, b.slug, b.title,
+		1 - (a.embedding <=> b.embedding) AS score
+		FROM wiki_pages a JOIN wiki_pages b
+		  ON a.agent_id=b.agent_id AND a.id < b.id
+		WHERE a.agent_id=$1 AND a.embed_model=$3 AND b.embed_model=$3
+		  AND 1 - (a.embedding <=> b.embedding) >= $2
+		ORDER BY score DESC LIMIT 50`, agentID, dupFindingThreshold, s.embedder.Name())
+	if err != nil {
+		return h, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var aSlug, aTitle, bSlug, bTitle string
+		var score float64
+		if err := rows.Scan(&aSlug, &aTitle, &bSlug, &bTitle, &score); err != nil {
+			return h, err
+		}
+		h.Duplicate++
+		add(Finding{Kind: "duplicate", Slug: aSlug, Title: aTitle,
+			Detail: bTitle, Score: score, Related: []string{bSlug}})
+	}
+	return h, rows.Err()
 }
 
 // LogEntry ist ein Eintrag des Wiki-Protokolls (log.md-Äquivalent, spec/05).
@@ -429,7 +789,7 @@ func (s *Store) List(ctx context.Context, agentID uuid.UUID, limit int) ([]Entry
 	if limit <= 0 {
 		limit = 50
 	}
-	rows, err := s.pool.Query(ctx, `SELECT id, agent_id, slug, title, body, links, source, created_at, updated_at, 0
+	rows, err := s.pool.Query(ctx, `SELECT id, agent_id, slug, title, body, links, source, type, tags, created_at, updated_at, 0
 		FROM wiki_pages WHERE agent_id=$1 ORDER BY updated_at DESC LIMIT $2`, agentID, limit)
 	if err != nil {
 		return nil, err
@@ -444,7 +804,8 @@ func (s *Store) Consolidate(ctx context.Context, agentID uuid.UUID) (int, error)
 		FROM wiki_pages a JOIN wiki_pages b
 		  ON a.agent_id=b.agent_id AND a.id < b.id
 		WHERE a.agent_id=$1 AND 1 - (a.embedding <=> b.embedding) >= $2
-		ORDER BY a.id`, agentID, dupThreshold)
+		  AND a.embed_model=$3 AND b.embed_model=$3
+		ORDER BY a.id`, agentID, dupThreshold, s.embedder.Name())
 	if err != nil {
 		return 0, err
 	}
@@ -494,10 +855,13 @@ func (s *Store) mergePages(ctx context.Context, agentID, keep, drop uuid.UUID) e
 		body = body + "\n\n" + extra
 	}
 	links := unionSlugs(keepLinks, dropLinks, extractLinks(body))
-	vec := s.embedder.Embed(body)
+	vec, err := s.embedder.Embed(ctx, body)
+	if err != nil {
+		return fmt.Errorf("embedding: %w", err)
+	}
 	if _, err := s.pool.Exec(ctx, `UPDATE wiki_pages
-		SET body=$2, links=$3, embedding=$4::vector, updated_at=now() WHERE id=$1`,
-		keep, body, links, vectorLiteral(vec)); err != nil {
+		SET body=$2, links=$3, embedding=$4::vector, embed_model=$5, updated_at=now() WHERE id=$1`,
+		keep, body, links, vectorLiteral(vec), s.embedder.Name()); err != nil {
 		return err
 	}
 	if _, err := s.pool.Exec(ctx, `DELETE FROM wiki_pages WHERE id=$1`, drop); err != nil {
@@ -527,7 +891,7 @@ func scanEntries(rows pgx.Rows) ([]Entry, error) {
 	for rows.Next() {
 		var e Entry
 		if err := rows.Scan(&e.ID, &e.AgentID, &e.Slug, &e.Title, &e.Content, &e.Links,
-			&e.Source, &e.CreatedAt, &e.UpdatedAt, &e.Score); err != nil {
+			&e.Source, &e.Type, &e.Tags, &e.CreatedAt, &e.UpdatedAt, &e.Score); err != nil {
 			return nil, err
 		}
 		out = append(out, e)

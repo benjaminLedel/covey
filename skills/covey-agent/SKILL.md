@@ -25,6 +25,7 @@ passe sie an:
 | `qa-agent.bundle.json` | Tester: fremde MRs abnehmen, Web-UIs im Browser prüfen, Bug-Intake per Mail |
 | `web-researcher.bundle.json` | Rechercheur: im offenen Web mit echtem Browser recherchieren |
 | `log-triage-agent.bundle.json` | Log-Triage: gemeldete Logs → GitLab-Tickets |
+| `delivery-lead.bundle.json` | Delivery Lead: einen GitLab-Meilenstein zur Frist führen — Tickets aufbereiten, Reihenfolge halten, an Entwickler-Kollegen vergeben, Stand berichten. Vorhabensspezifisches steht in einem Steckbrief im Wiki (Vorlage: `docs/betrieb-gitlab.md` §2.9.1), nicht in der Config |
 
 Lies die gewählte Vorlage komplett, bevor du etwas änderst — sie zeigt die bewährte Struktur.
 
@@ -36,7 +37,8 @@ Lies die gewählte Vorlage komplett, bevor du etwas änderst — sie zeigt die b
    Braucht er eine **warme Sandbox** (Dev-Server/Build zwischen Läufen halten → Test-/Entwickler-
    Agenten)?
 2. **Dateien entwerfen** — die fünf Config-Dateien nach den Konventionen unten:
-   `SOUL.md`, `CAPABILITIES.md`, `PLAYBOOKS.md`, `ACCESS.md`, `HEARTBEAT.md`.
+   `SOUL.md`, `CAPABILITIES.md`, `PLAYBOOKS.md`, `ACCESS.md`, `HEARTBEAT.md`. Was selten greift,
+   aber dann ausführlich ist, wird stattdessen ein **Skill** (siehe unten und reference.md).
 3. **Bundle zusammensetzen** (Schema in reference.md), JSON validieren
    (`python3 -c "import json;json.load(open('<datei>'))"`).
 4. **Anlegen** (Workflow D) oder als Datei ablegen, damit der Nutzer per UI importiert.
@@ -47,11 +49,12 @@ Lies die gewählte Vorlage komplett, bevor du etwas änderst — sie zeigt die b
 ## Workflow B — Bestehenden Agenten aktualisieren
 
 1. **Aktuellen Stand holen:** `GET /api/v1/agents/{id}/export` → das aktuelle Bundle. (Oder die
-   Config im UI-Tab „Config" ansehen.)
+   Config im UI unter Einstellungen → Config ansehen.)
 2. Die betroffene(n) Datei(en) ändern — **minimal-invasiv**, Struktur/Ton erhalten.
 3. **Nur die Config zurückspielen:** `POST /api/v1/agents/{id}/config/import` mit dem Bundle —
    das überschreibt SOUL/CAPABILITIES/PLAYBOOKS/ACCESS/HEARTBEAT als **neue Version** (versioniert,
-   Stammdaten/Secrets/Guard-Rails bleiben unangetastet).
+   Stammdaten/Secrets/Guard-Rails bleiben unangetastet) und zieht die `skills` des Bundles nach
+   (additiv — vorhandene Skills, die das Bundle nicht kennt, bleiben stehen).
 
 ## Workflow C — Teilen (Export/Import durch Dritte)
 
@@ -108,6 +111,12 @@ immer berücksichtigen:
   — im Playbook eine **feste, kleine** Menge von Spaltennamen vorgeben (z. B. `Triage`, `Analyse`,
   `Warten auf Review`). Nie den Vorgang in den Spaltennamen (`#83 CSV-Import`), nie Synonyme für
   denselben Zustand; sonst wächst das Board in Tagen auf ein Dutzend toter Spalten.
+- **Seltene Prozeduren gehören in einen Skill, nicht in `PLAYBOOKS.md`.** Die Config steht in
+  JEDEM Lauf im Prompt — ein Agent mit fünf Playbooks zahlt alle fünf auch für einen Lauf, der
+  nach drei Turns feststellt, dass nichts zu tun ist. Von einem Skill steht dauerhaft nur die
+  `description` im Kontext; Rumpf und Zusatzdateien liest die Runtime erst, wenn sie ihn zieht.
+  Faustregel: der Standardablauf bleibt im Playbook, Sonderfälle/Checklisten/Vorlagen/
+  Referenztabellen werden Skills. Schema und Regeln: reference.md.
 - **`ACCESS.md`-Syntax:** eine Zeile je System: `- system: <name> scope: <scope1>,<scope2>`.
   Nur freischalten, was der Agent wirklich braucht (least privilege).
 - **`HEARTBEAT.md`-Syntax:** eine Zeile je Auslöser:
@@ -130,6 +139,7 @@ immer berücksichtigen:
 - [ ] Bundle-JSON valide, `kind`/`version` gesetzt, `agent.slug` + `agent.display_name` vorhanden?
 - [ ] Alle fünf Dateien vorhanden und auf Deutsch, im Vorlagen-Ton?
 - [ ] `ACCESS.md` deckt genau die im `PLAYBOOKS.md` genutzten Aktionen — nicht mehr?
+- [ ] Selten gebrauchte, aber ausführliche Prozeduren als Skill ausgelagert statt im Playbook?
 - [ ] `HEARTBEAT.md` endet-mit-`done`-Logik + Idempotenz/Skip beschrieben?
 - [ ] Loop-Schutz (Idempotenz, kein Doppel-Kommentar, Hand-off) im Prompt verankert?
 - [ ] Jeder Lauf hinterlässt eine sichtbare Spur (Kommentar) — sonst weckt die Flanke erneut?

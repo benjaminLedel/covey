@@ -161,8 +161,17 @@ func (c *ClaudeCode) buildArgs(spec RunSpec) ([]string, string) {
 // Recording weiter und sammelt daraus das Roh-Ergebnis ein.
 func (c *ClaudeCode) stream(ctx context.Context, spec RunSpec, args []string, onEvent func(kind string, payload json.RawMessage)) (outcome, error) {
 	cmd := exec.CommandContext(ctx, c.Binary, args...)
-	cmd.Dir = spec.HomeDir
-	cmd.Env = append(os.Environ(), spec.Env...)
+	// Arbeitsverzeichnis und Home sind getrennt: Claude Code sucht CLAUDE.md,
+	// .claude/agents, skills und commands relativ zum cwd — ein Sub-Run im
+	// Projekt-Checkout bekommt so dessen Harness, behält aber das Agenten-Home.
+	cmd.Dir = spec.WorkDir
+	if cmd.Dir == "" {
+		cmd.Dir = spec.HomeDir
+	}
+	// Umgebung ohne die COVEY_*-Variablen des Daemons (siehe childEnv): Der
+	// Lauf bekommt nur, was ihm der Aufrufer ausdrücklich mitgibt — sonst
+	// erbte ein Hook oder MCP-Server aus dem Projekt das Daemon-Token.
+	cmd.Env = childEnv(spec.Env...)
 	cmd.Env = append(cmd.Env, "HOME="+spec.HomeDir)
 
 	stdout, err := cmd.StdoutPipe()
