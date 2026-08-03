@@ -30,6 +30,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 # Damit chromedp den Browser ohne Rätselraten findet.
 ENV COVEY_BROWSER_CHROME_PATH=/usr/bin/chromium
+# PHP 8.2 + Composer für Agenten, die an PHP-Projekten arbeiten (Laravel).
+# Die Version ist nicht beliebig: Debian trixie liefert 8.4, die CI der
+# Zielprojekte fährt 8.2 — ein Agent, der gegen eine andere Minor-Version baut
+# und testet, meldet grün und die Pipeline wird rot. Deshalb die Pakete von
+# packages.sury.org, wo 8.2 weiter gepflegt wird. Extensions: zip/gd/ldap wie in
+# der Projekt-CI, dazu die von composer.json geforderten (dom/json/openssl/pdo)
+# und pdo_sqlite, weil PHPUnit dort gegen eine In-Memory-SQLite läuft.
+# Als Nicht-Root kann der Agent nichts nachinstallieren — was hier fehlt, fehlt
+# ihm zur Laufzeit.
+RUN curl -fsSL https://packages.sury.org/php/apt.gpg -o /usr/share/keyrings/sury-php.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/sury-php.gpg] https://packages.sury.org/php/ trixie main" \
+         > /etc/apt/sources.list.d/sury-php.list \
+    && apt-get update && apt-get install -y --no-install-recommends \
+         php8.2-cli php8.2-xml php8.2-mbstring php8.2-curl php8.2-zip php8.2-gd \
+         php8.2-ldap php8.2-sqlite3 php8.2-mysql php8.2-bcmath php8.2-intl composer \
+    && rm -rf /var/lib/apt/lists/*
 # UTF-8 als Sandbox-Locale. Ohne das läuft der Container im POSIX-Default:
 # grep/sed/sort/wc/tr sehen dann Bytes statt Zeichen, unzip verstümmelt
 # Dateinamen mit Umlauten, und der Agent lernt aus den kaputten Rückgaben, dass
