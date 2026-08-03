@@ -58,14 +58,37 @@ covey-runner register --url https://covey.example --token <registration-token> \
                       --tag php --tag arm64 --description "Build-Host Frankfurt"
 ```
 
+`register` schreibt das erhaltene Runner-Token in eine **Konfigurationsdatei** (`/etc/covey-runner/config.toml`, überschreibbar) — Server-Adresse, Token, Tags, Arbeitsverzeichnis. Bewusst eine Datei und nicht nur Umgebungsvariablen: Der Runner läuft als Dienst auf einer Maschine, die sonst nichts mit Covey zu tun hat, und `register` muss sein Ergebnis irgendwo hinterlegen können.
+
 Danach hält `covey-runner run` eine dauerhafte WebSocket-Verbindung auf `/api/runner/ws`, authentifiziert mit dem Runner-Token. Der Runner meldet beim Verbinden seine **Capabilities**:
 
 - verfügbare Sandbox-Images (siehe unten),
 - Architektur (`amd64`/`arm64`), CPU/RAM, freier Plattenplatz,
 - die Tags aus der Registrierung,
-- seine eigene Version, damit die Control Plane Versions-Drift sichtbar machen kann.
+- seine eigene Version, damit die Control Plane Versions-Drift sichtbar machen kann,
+- die **Protokoll-Version**, die er spricht (siehe „Auslieferung").
+
+**Ein Prozess, eine Instanz.** Ein Runner registriert sich bei genau einem Covey-Server. Wer zwei Instanzen bedienen will, startet zwei Prozesse — das ist billiger als die Alternative: Ein geteilter Blockspeicher über zwei Organisationen hinweg wäre ein Kanal zwischen ihnen, und Kapazitätsverteilung zwischen fremden Mandanten wäre eine Politik, die niemand braucht.
 
 Ein Runner ohne Verbindung ist **offline**, nicht gelöscht — die Unterscheidung ist für den Betrieb wichtig (Wartungsfenster vs. Abbau), für die Agenten aber folgenlos: Sie weichen auf einen anderen Runner aus (siehe „Das Home"). Ein gelöschter Runner nimmt nur seinen lokalen Arbeitsbestand mit, keinen Zustand der Plattform.
+
+## Auslieferung
+
+Der Runner wird **einzeln installiert**, auf Maschinen, auf denen sonst nichts von Covey liegt. Er ist deshalb ein eigenes Release-Artefakt mit eigener Versionsnummer: statisches Binary je Architektur, ein Docker-Image, eine systemd-Unit. Ein Operator lädt es herunter, ruft `register` mit einem Token auf und ist fertig — er merkt vom Rest des Projekts nichts.
+
+**Der Code bleibt trotzdem im selben Repository** (`cmd/covey-runner/`), und zwar aus einem Grund, der sich hier schon bewährt hat: `coveyd` ist exakt derselbe Fall. Es ist ein eigenes Binary, läuft auf einer anderen Maschine (in der Sandbox), spricht ein Protokoll zur Control Plane — und `internal/daemon` definiert dieses Protokoll für **beide** Seiten. Genau deshalb ist eine Protokolländerung ein einziger Commit statt eines Kompatibilitätstanzes über zwei Repositories.
+
+Ein getrenntes Repository nach dem Vorbild von `gitlab-runner` bliebe möglich, sobald das Protokoll steht. Solange es in Bewegung ist, kostet die Trennung mehr, als sie einbringt — und für den Operator ändert sie ohnehin nichts, weil er das Artefakt sieht und nicht das Repository.
+
+### Protokoll-Version
+
+Weil Runner und Server getrennt ausgeliefert werden, treffen zwangsläufig verschiedene Stände aufeinander — jemand aktualisiert Covey und vergisst drei Runner. Der Handshake nennt deshalb eine Protokoll-Version, und die Control Plane entscheidet:
+
+- **passend** → normale Zuweisung.
+- **älter, aber unterstützt** → Verbindung steht, in der Runner-Ansicht als veraltet markiert.
+- **zu alt oder neuer als bekannt** → Verbindung wird abgelehnt, mit einer Meldung, die sagt *welche* Seite zu aktualisieren ist.
+
+Abgelehnt wird ausdrücklich mit Begründung, nicht stillschweigend: Ein Runner, der sich wortlos nicht verbindet, kostet einen Abend Suche.
 
 ## Runner-Protokoll
 
@@ -339,7 +362,7 @@ Jede Stufe ist für sich nützlich und einzeln abnehmbar:
 | 0 | Egress-Proxy von der DB lösen (Allowlist über die API) | Richtige Bauform des Enforcement-Punkts, unabhängig von Runnern |
 | 1 | Image pro Agent (`sandbox_image`), Profile `base`/`dev` | Der Mail-Agent trägt keine JVM mehr |
 | 2 | Home-Store: inhaltsadressierter Blockspeicher, Sync nach dem Job, Materialisieren beim Wake, lokaler Blockcache | Ein verlorenes Home kostet Zeit statt Arbeit, und der zweite Agent auf demselben Host startet warm — **beides schon mit einem einzigen Host** |
-| 3 | `covey-runner` als drittes Binary: Registrierung, `start_sandbox`/`stop_sandbox`, `RunnerPool` als `SandboxProvider` | Sandboxen laufen auf einem zweiten Host |
+| 3 | `covey-runner` als drittes Binary: Registrierung samt Konfigurationsdatei, Protokoll-Handshake, `start_sandbox`/`stop_sandbox`, `RunnerPool` als `SandboxProvider`; dazu die Release-Artefakte (Binary je Architektur, Docker-Image, systemd-Unit) | Sandboxen laufen auf einem zweiten Host |
 | 4 | `home_op` — Dateibrowser über den Runner-Link | Der Dateibrowser funktioniert auch entfernt |
 | 5 | Tags, Kapazität, Runner-Ansicht in der UI | Betreibbarkeit ab mehr als zwei Runnern |
 | 6 | Oberfläche: Home-Info, Snapshot-Liste, Retention-Einstellung und -Knopf, Füllstand aufs Dashboard | Der Store ist sichtbar und bedienbar, statt still zu wachsen |
