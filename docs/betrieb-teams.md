@@ -229,6 +229,7 @@ COVEY_TEAMS_ATTACHMENT_MAX_MB=25                  # Größenlimit je Anhang
 | `download_attachment` schlägt fehl | URL abgelaufen (zeitnah laden), Egress blockt `*.sharepoint.com`, oder Datei über dem Limit (`COVEY_TEAMS_ATTACHMENT_MAX_MB`). |
 | Config-Änderung wirkt nicht | Der Agent hängt auf `blocked` in einer laufenden Unterhaltung. Eine Folgenachricht setzt die Runtime-Session per `--resume` fort — **mit dem System-Prompt von damals**. Neue Config greift erst bei einer neuen Session: Aufgabe abschließen/abbrechen (Backlog → *Aufräumen*), dann wirkt sie. |
 | Datei senden passiert nichts | Zustimmungs-Karte kam an, aber niemand hat geklickt — der Agent parkt korrekt. Ohne `supportsFiles: true` erscheint die Karte gar nicht (2.3). |
+| Zugestimmt, aber nichts kommt an; Request-Log zeigt `ignored` | Die zugehörige Aufgabe parkt nicht mehr (abgebrochen, anders beendet, verspätete Zustellung). Zustimmungen legen bewusst keine neue Aufgabe an — Versand neu anstoßen (3.1). |
 
 ---
 
@@ -288,6 +289,13 @@ Klickt der Empfänger „Ablehnen", wird der Agent ebenfalls geweckt und beendet
 seinen Auftrag; er bleibt nicht auf einer Zustimmung hängen, die nie kommt. Die
 Upload-URL ist kurzlebig — hängt der Agent lange (Warteschlange, Budget-Deckel),
 kann sie ablaufen, dann muss er neu fragen.
+
+Kommt der Klick, wenn **niemand mehr parkt** (die Aufgabe wurde abgebrochen oder
+anders beendet, oder Teams stellt verspätet zu), verpufft das Event: im Request-
+Log steht `ignored`, es entsteht keine Aufgabe. Das ist Absicht — eine
+Zustimmung ist die Fortsetzung einer angefangenen Arbeit, kein neuer Auftrag.
+Der Empfänger sieht dann eine abgehakte Karte ohne folgende Datei; der Agent
+muss den Versand neu anstoßen.
 
 In **Kanälen** gibt es diesen Weg nicht: dort führt Dateiablage über Microsoft
 Graph und ist nicht Teil dieser Integration.

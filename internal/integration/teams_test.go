@@ -405,6 +405,47 @@ func TestTeamsSendFileAbgelehnt(t *testing.T) {
 	}
 }
 
+// TestTeamsSendFileOhneWartenden: eine Zustimmung ist die Fortsetzung einer
+// angefangenen Arbeit, nicht ihr Anfang. Trifft sie ein, ohne dass jemand
+// darauf parkt (Aufgabe längst beendet, verspätete Zustellung), darf keine
+// neue Aufgabe entstehen — sonst bekäme ein ahnungsloser Agent den Auftrag,
+// eine Datei hochzuladen, von der er nichts weiß.
+func TestTeamsSendFileOhneWartenden(t *testing.T) {
+	s := newStack(t)
+	teams := newFakeTeams(t)
+	ctx := context.Background()
+
+	s.secrets.Put(ctx, s.orgID, "teams_token", "bot-app-id:bot-app-secret")
+	agent := s.newTeamsAgent("teams-verwaist")
+	s.secrets.Assign(ctx, s.orgID, "teams_token", agent.ID)
+
+	consent, _ := json.Marshal(map[string]any{
+		"type": "invoke", "id": "inv-3", "name": "fileConsent/invoke",
+		"serviceUrl": teams.srv.URL, "channelId": "msteams",
+		"from":         map[string]any{"id": "29:user", "name": "Alice"},
+		"recipient":    map[string]any{"id": "28:bot", "name": "Covey"},
+		"conversation": map[string]any{"id": "19:leer", "conversationType": "personal", "tenantId": "t1"},
+		"value": map[string]any{
+			"type": "fileUpload", "action": "accept",
+			"context": map[string]any{"key": "bericht.pdf"},
+			"uploadInfo": map[string]any{
+				"uploadUrl": teams.srv.URL + "/upload/bericht.pdf", "name": "bericht.pdf",
+			},
+		},
+	})
+	if out := postTeamsWebhook(t, s, "teams-verwaist", consent); out != `{"outcome":"ignored"}` {
+		t.Fatalf("zustimmung ohne wartende Aufgabe darf keine Arbeit anlegen, got %s", out)
+	}
+	if tasks, err := s.backlog.ListByAgent(ctx, agent.ID, true); err != nil {
+		t.Fatal(err)
+	} else if len(tasks) != 0 {
+		t.Fatalf("es darf keine Aufgabe entstanden sein, got %d: %+v", len(tasks), tasks)
+	}
+	if up := teams.lastUpload(); up != nil {
+		t.Fatalf("nichts darf hochgeladen worden sein, got %+v", up)
+	}
+}
+
 // TestTeamsReplyOhneURLSecret: teams_url ist ein Override für Single-Tenant-
 // Bots, kein Pflicht-Secret — das Plugin kennt seinen Token-Endpoint selbst
 // (BaseURLOptional). Ohne das Secret muss der Broker das Credential trotzdem

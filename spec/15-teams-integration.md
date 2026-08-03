@@ -105,14 +105,17 @@ Plattform-Vorgabe und nicht abkürzbar:
 
 1. Agent ruft `send_file` mit dem Pfad einer Datei in seinem Arbeitsverzeichnis.
    Covey postet eine Karte (`…card.file.consent`) mit Name, Beschreibung und
-   Größe; der `context.key` trägt den Dateinamen durch beide Richtungen.
+   Größe; der `context.key` trägt den **angefragten Pfad** durch beide
+   Richtungen (nicht nur den Dateinamen — sonst zeigte er bei einer Datei im
+   Unterordner ins Leere).
 2. Agent beendet den Lauf mit `blocked` auf `teams:conversation:<id>` — genau
    der Korrelations-Key, der auch normale Rückfragen trägt.
 3. Der Empfänger klickt „Annehmen". Teams schickt eine **`invoke`-Activity**
    (`fileConsent/invoke`) mit `uploadInfo.uploadUrl` — einer SharePoint-/
    OneDrive-Upload-Session in *seinem* Speicher.
-4. Der Event-Router weckt den geparkten Agenten; der Task-Body enthält den
-   fertigen `upload_file`-Aufruf.
+4. Der Event-Router weckt den geparkten Agenten mit dem **vollständigen**
+   `upload_file`-Aufruf — `path` aus dem zurückgelaufenen `context.key`, der
+   Rest aus `uploadInfo`. Der Agent muss nichts ergänzen und nichts raten.
 5. Agent ruft `upload_file`: PUT der Bytes mit `Content-Range` an die
    Upload-URL — **ohne** Connector-Token, die URL autorisiert sich selbst —,
    danach die Abschluss-Karte (`…card.file.info`), die die Datei im Verlauf
@@ -127,6 +130,12 @@ Zwei Entwurfsentscheidungen dahinter:
   und der Agent führt seine eigene Arbeit zu Ende.
 - **Ablehnung weckt genauso.** Ein „Nein" ist ein Ergebnis, kein Ausbleiben:
   ohne Wake bliebe der Agent auf einer Zustimmung hängen, die nie kommt.
+- **Nur korrelieren, nie neu anlegen.** Die Antwort auf eine Zustimmungs-Karte
+  ist die Fortsetzung einer angefangenen Arbeit. Parkt niemand darauf — die
+  Aufgabe ist längst beendet, die Zustellung kommt verspätet —, verpufft das
+  Event (`CorrelateOnly`). Andernfalls entstünde eine Aufgabe, die einen
+  ahnungslosen Agenten aufforderte, eine Datei hochzuladen, von der er nichts
+  weiß.
 
 Grenzen: `path` wird gegen das Arbeitsverzeichnis aufgelöst (kein `..`, keine
 absoluten Pfade hinaus), es gilt dasselbe Größenlimit wie für eingehende

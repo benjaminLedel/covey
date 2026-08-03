@@ -95,9 +95,12 @@ func RequestFileConsent(ctx context.Context, c *Client, serviceURL, conversation
 	if strings.TrimSpace(description) == "" {
 		description = name
 	}
-	// consentKey wandert durch Teams und kommt in der invoke-Activity zurück —
-	// er benennt die Datei, um die es ging.
-	if _, err := c.SendFileConsent(ctx, serviceURL, conversationID, name, description, int64(len(data)), name); err != nil {
+	// consentKey wandert unverändert durch Teams und kommt in der
+	// invoke-Activity zurück. Wir legen den *angefragten Pfad* hinein, nicht
+	// den Dateinamen: nur so kann der Wake-Prompt später den fertigen
+	// upload_file-Aufruf bilden — auch wenn die Datei in einem Unterordner
+	// liegt, wo der Basename allein ins Leere zeigt.
+	if _, err := c.SendFileConsent(ctx, serviceURL, conversationID, name, description, int64(len(data)), strings.TrimSpace(path)); err != nil {
 		return SendFileResult{}, err
 	}
 	return SendFileResult{
@@ -105,8 +108,8 @@ func RequestFileConsent(ctx context.Context, c *Client, serviceURL, conversation
 		Bytes:    int64(len(data)),
 		Hint: fmt.Sprintf(
 			"Zustimmungs-Karte für %s ist im Chat. Beende jetzt mit blocked auf teams:conversation:%s — "+
-				"klickt der Empfänger „Annehmen\", wirst du mit der Upload-URL geweckt und lädst mit upload_file hoch (path: %s).",
-			name, conversationID, path),
+				"klickt der Empfänger „Annehmen\", wirst du mit dem fertigen upload_file-Aufruf geweckt.",
+			name, conversationID),
 	}, nil
 }
 
