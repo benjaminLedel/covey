@@ -70,6 +70,9 @@ func (System) ParseWebhook(body []byte) (target.WebhookEvent, error) {
 	if err != nil {
 		return target.WebhookEvent{}, err
 	}
+	if a.IsFileConsent() {
+		return consentEvent(a), nil
+	}
 	from := a.From.Name
 	if from == "" {
 		from = a.From.ID
@@ -99,6 +102,66 @@ func (System) ParseWebhook(body []byte) (target.WebhookEvent, error) {
 		ResumeInput: fmt.Sprintf("Antwort von %s in Teams:\n%s%s", from, text, attachSection),
 		Wake:        a.ShouldWake(),
 	}, nil
+}
+
+// consentEvent übersetzt die Antwort auf eine Zustimmungs-Karte in ein
+// Wake-Event. Der Agent wartet an dieser Stelle geparkt auf genau diese
+// Entscheidung (Korrelation über die Konversation); der ResumeInput ist
+// deshalb ein direkter Arbeitsauftrag, keine Nachricht zum Beantworten.
+//
+// Immer CorrelateOnly: eine Zustimmung ist die Fortsetzung einer Arbeit, die
+// dieser Agent begonnen hat. Parkt niemand darauf (Aufgabe schon beendet,
+// anders entblockt, verspätete Zustellung), ist sie keine neue Arbeit — sonst
+// entstünde eine Aufgabe, die einen ahnungslosen Agenten auffordert, eine
+// Datei hochzuladen, von der er nichts weiß.
+func consentEvent(a Activity) target.WebhookEvent {
+	name := a.Value.UploadInfo.Name
+	if name == "" {
+		name = "die Datei"
+	}
+	if !a.ConsentAccepted() {
+		reason := "abgelehnt"
+		if strings.EqualFold(a.Value.Action, "accept") {
+			// Zustimmung ohne Upload-URL — nichts, womit der Agent arbeiten könnte.
+			reason = "zwar angenommen, aber Teams hat keine Upload-URL geliefert"
+		}
+		return target.WebhookEvent{
+			DedupKey:       a.DedupKey(),
+			CorrelationKey: CorrelationKey(a.Conversation.ID),
+			Title:          fmt.Sprintf("Teams: %s wurde nicht angenommen", name),
+			TaskBody: fmt.Sprintf(
+				"Der Empfänger hat %s %s. Lade nichts hoch. Wenn der Inhalt wichtig ist, biete ihn als Text an — sonst nimm es zur Kenntnis.",
+				name, reason),
+			ResumeInput: fmt.Sprintf(
+				"Der Empfänger hat %s %s. Lade nichts hoch und beende den Auftrag; biete den Inhalt notfalls als Text an.",
+				name, reason),
+			Wake:          a.ShouldWake(),
+			CorrelateOnly: true,
+		}
+	}
+
+	// context.key trägt den Pfad, den send_file angefragt hat — damit ist der
+	// Aufruf vollständig und der Agent muss nicht raten, welche Datei gemeint
+	// war. Fehlt er (fremde Karte, alter Flow), bleibt der Platzhalter.
+	path := strings.TrimSpace(a.Value.Context.Key)
+	if path == "" {
+		path = "<deine Datei>"
+	}
+	up := a.Value.UploadInfo
+	call := fmt.Sprintf(
+		"upload_file {\"upload_url\":%q,\"path\":%q,\"service_url\":%q,\"conversation_id\":%q,\"content_url\":%q,\"unique_id\":%q,\"file_type\":%q,\"name\":%q}",
+		up.UploadURL, path, a.ServiceURL, a.Conversation.ID, up.ContentURL, up.UniqueID, up.FileType, up.Name)
+
+	return target.WebhookEvent{
+		DedupKey:       a.DedupKey(),
+		CorrelationKey: CorrelationKey(a.Conversation.ID),
+		Title:          fmt.Sprintf("Teams: Zustimmung für %s", name),
+		TaskBody: "Der Empfänger hat dem Datei-Versand zugestimmt. Lade die Datei jetzt hoch — " +
+			"die Upload-URL ist kurzlebig, also sofort:\n" + call,
+		ResumeInput:   "Zustimmung erteilt. Lade die Datei jetzt sofort hoch (die Upload-URL läuft ab):\n" + call,
+		Wake:          a.ShouldWake(),
+		CorrelateOnly: true,
+	}
 }
 
 // attachmentSection formatiert die Datei-Anhänge als Text-Block für den
@@ -137,6 +200,12 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		Text              string `json:"text"`
 		URL               string `json:"url"`
 		Name              string `json:"name"`
+		Path              string `json:"path"`
+		Description       string `json:"description"`
+		UploadURL         string `json:"upload_url"`
+		ContentURL        string `json:"content_url"`
+		UniqueID          string `json:"unique_id"`
+		FileType          string `json:"file_type"`
 	}
 	if err := json.Unmarshal(params, &in); err != nil {
 		return nil, fmt.Errorf("params: %w", err)
@@ -163,6 +232,25 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			return nil, err
 		}
 		return DownloadAttachmentToSandbox(ctx, c, in.URL, in.Name, target.Workdir(ctx))
+	case "send_file":
+		if err := requireFields("send_file", in.ServiceURL, in.ConversationID, in.Path); err != nil {
+			return nil, err
+		}
+		return RequestFileConsent(ctx, c, in.ServiceURL, in.ConversationID, in.Path, in.Description, target.Workdir(ctx))
+	case "upload_file":
+		if err := requireFields("upload_file", in.UploadURL, in.Path); err != nil {
+			return nil, err
+		}
+		return UploadConsentedFile(ctx, c, UploadInput{
+			UploadURL:      in.UploadURL,
+			Path:           in.Path,
+			ServiceURL:     in.ServiceURL,
+			ConversationID: in.ConversationID,
+			ContentURL:     in.ContentURL,
+			UniqueID:       in.UniqueID,
+			FileType:       in.FileType,
+			Name:           in.Name,
+		}, target.Workdir(ctx))
 	default:
 		return nil, fmt.Errorf("unbekannte aktion %q", strings.TrimSpace(action))
 	}
@@ -183,6 +271,9 @@ func (System) PromptDoc() string {
    reply {"service_url":"...","conversation_id":"...","reply_to_activity_id":"...","text":"..."} — Antwort auf eine Nachricht (ohne reply_to_activity_id → send).
    create_conversation {"service_url":"...","tenant_id":"...","user_id":"...","text":"..."} — proaktiver 1:1-Chat mit einem Nutzer.
    download_attachment {"url":"...","name":"..."} — lädt einen Datei-Anhang der Nachricht in die Sandbox (unter attachments/); danach mit dem Read-Tool ansehen. url/name stehen im Task-Body.
+   send_file {"service_url":"...","conversation_id":"...","path":"bericht.pdf","description":"..."} — fragt den Empfänger, ob er die Datei annehmen will (Zustimmungs-Karte). path zeigt in dein Arbeitsverzeichnis. Danach beendest du mit blocked; der Klick des Empfängers weckt dich mit der Upload-URL.
+   upload_file {"upload_url":"...","path":"bericht.pdf", ...} — schiebt die Bytes hoch, nachdem zugestimmt wurde. Der vollständige Aufruf steht fertig im Aufgaben-Body; die Upload-URL ist kurzlebig, also sofort ausführen.
+   Dateien senden geht nur in zwei Schritten — ohne Zustimmung des Empfängers gibt es keine Upload-URL, das ist Teams-Vorgabe und nicht umgehbar.
    service_url und conversation_id stammen aus der auslösenden Nachricht (steht im Task-Body).
    Korrelations-Key für Status blocked: teams:conversation:<conversation_id>.`
 }

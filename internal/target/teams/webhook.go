@@ -31,6 +31,46 @@ type Activity struct {
 	Recipient    ChannelAccount      `json:"recipient"`
 	Conversation ConversationAccount `json:"conversation"`
 	Attachments  []Attachment        `json:"attachments"`
+	// Name/Value tragen die invoke-Activities. Für ausgehende Dateien ist das
+	// fileConsent/invoke: die Antwort des Empfängers auf die Zustimmungs-Karte.
+	Name  string      `json:"name"`
+	Value InvokeValue `json:"value"`
+}
+
+// InvokeValue ist der value-Block einer fileConsent/invoke-Activity: was der
+// Empfänger entschieden hat, welche Datei gemeint war (context.key, von uns
+// gesetzt) und — bei Zustimmung — wohin die Bytes gehen (uploadInfo).
+type InvokeValue struct {
+	Type    string `json:"type"`
+	Action  string `json:"action"`
+	Context struct {
+		Key string `json:"key"`
+	} `json:"context"`
+	UploadInfo struct {
+		UploadURL  string `json:"uploadUrl"`
+		ContentURL string `json:"contentUrl"`
+		Name       string `json:"name"`
+		UniqueID   string `json:"uniqueId"`
+		FileType   string `json:"fileType"`
+	} `json:"uploadInfo"`
+}
+
+// Card-Content-Types des Teams-Datei-Austauschs.
+const (
+	consentCardContentType = "application/vnd.microsoft.teams.card.file.consent"
+	infoCardContentType    = "application/vnd.microsoft.teams.card.file.info"
+	fileConsentInvokeName  = "fileConsent/invoke"
+)
+
+// IsFileConsent erkennt die Antwort auf eine Zustimmungs-Karte.
+func (a Activity) IsFileConsent() bool {
+	return strings.EqualFold(a.Type, "invoke") && a.Name == fileConsentInvokeName
+}
+
+// ConsentAccepted sagt, ob der Empfänger zugestimmt hat — und ob wir eine
+// Upload-URL bekommen haben. Ohne URL ist auch ein „accept" wertlos.
+func (a Activity) ConsentAccepted() bool {
+	return strings.EqualFold(a.Value.Action, "accept") && a.Value.UploadInfo.UploadURL != ""
 }
 
 // Attachment ist ein Datei-Anhang einer Activity. Teams liefert Dateien je nach
@@ -193,7 +233,15 @@ func (a Activity) InIntakeScope() bool {
 // zugelassenen Tenant, die Text oder mindestens einen Datei-Anhang trägt. Nur
 // dann entsteht eine Aufgabe bzw. wird eine geblockte Aufgabe geweckt
 // (orchestrator.HandleWebhook gated auf diesem Flag).
+//
+// Zweiter Fall: die Antwort auf eine Zustimmungs-Karte (fileConsent/invoke).
+// Sie ist keine Nachricht, sondern die Fortsetzung einer Arbeit, die der Agent
+// begonnen hat — er wartet darauf, um den Upload abzuschließen. Zustimmung wie
+// Ablehnung wecken; Ablehnung, damit er nicht ewig geparkt bleibt.
 func (a Activity) ShouldWake() bool {
+	if a.IsFileConsent() {
+		return !a.IsEcho() && a.InIntakeScope()
+	}
 	return strings.EqualFold(a.Type, "message") &&
 		a.From.ID != "" &&
 		!a.IsEcho() &&

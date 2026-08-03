@@ -237,6 +237,215 @@ func postTeamsWebhook(t *testing.T, s *stack, slug string, body []byte) string {
 	return strings.TrimSpace(buf.String())
 }
 
+// TestTeamsSendFileConsentFlow ist der Durchstich für ausgehende Dateien
+// (spec/15): Der Agent fragt mit einer Karte um Zustimmung (send_file) und
+// parkt; der Klick des Empfängers kommt als fileConsent/invoke zurück, weckt
+// ihn über die Konversation und er lädt die Bytes hoch (upload_file). Ohne
+// Zustimmung gibt es keine Upload-URL — das ist Teams-Vorgabe, der Zwei-Schritt
+// also nicht abkürzbar.
+func TestTeamsSendFileConsentFlow(t *testing.T) {
+	s := newStack(t)
+	teams := newFakeTeams(t)
+	ctx := context.Background()
+
+	s.secrets.Put(ctx, s.orgID, "teams_token", "bot-app-id:bot-app-secret")
+	s.secrets.Put(ctx, s.orgID, "teams_url", teams.srv.URL+"/token")
+	agent := s.newTeamsAgent("teams-versand")
+	s.secrets.Assign(ctx, s.orgID, "teams_token", agent.ID)
+	s.secrets.Assign(ctx, s.orgID, "teams_url", agent.ID)
+
+	// Die zu sendende Datei liegt im persistenten Home des Agenten — genau
+	// deshalb übersteht sie die Wartezeit bis zur Zustimmung.
+	home := filepath.Join(s.homeBase, agent.ID.String())
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "bericht.pdf"), []byte("PDF-INHALT"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Das Skript des Mock-Agenten: erst um Zustimmung fragen und parken, nach
+	// dem Wecken hochladen. Die Direktiven hinter [mock:block] laufen erst beim
+	// Resume — der Mock spielt den Body dann erneut ab (und postet dabei auch
+	// die Consent-Karte ein zweites Mal; deshalb prüft der Test die Karte
+	// VOR der Zustimmung).
+	svc := teams.srv.URL
+	ask := fmt.Sprintf(
+		"[mock:action teams/send_file {\"service_url\":\"%s\",\"conversation_id\":\"19:c\",\"path\":\"bericht.pdf\",\"description\":\"Quartalsbericht\"}]\n"+
+			"[mock:block key=teams:conversation:19:c question=Warte auf Zustimmung]\n"+
+			"[mock:action teams/upload_file {\"upload_url\":\"%s/upload/bericht.pdf\",\"path\":\"bericht.pdf\",\"service_url\":\"%s\",\"conversation_id\":\"19:c\",\"content_url\":\"%s/files/bericht.pdf\",\"unique_id\":\"u-1\",\"file_type\":\"pdf\",\"name\":\"bericht.pdf\"}]\n"+
+			"[mock:result Datei gesendet]", svc, svc, svc, svc)
+	if out := postTeamsWebhook(t, s, "teams-versand", teamsActivity("a1", "19:c", "29:user", "28:bot", ask, nil)); out != `{"outcome":"created"}` {
+		t.Fatalf("erste Zustellung muss eine Aufgabe anlegen, got %s", out)
+	}
+
+	// Die Zustimmungs-Karte liegt im Chat, die Aufgabe parkt.
+	waitFor(t, "zustimmungs-karte gepostet", 15*time.Second, func() bool {
+		return len(teams.cardsOfType("card.file.consent")) == 1
+	})
+	card := teams.cardsOfType("card.file.consent")[0]
+	if card["name"] != "bericht.pdf" {
+		t.Fatalf("falscher Dateiname in der Karte: %+v", card)
+	}
+	if content, _ := card["content"].(map[string]any); content == nil || content["sizeInBytes"] == nil {
+		t.Fatalf("karte ohne sizeInBytes: %+v", card["content"])
+	}
+	var task backlog.Task
+	waitFor(t, "aufgabe blocked", 15*time.Second, func() bool {
+		tasks, _ := s.backlog.ListByAgent(ctx, agent.ID, false)
+		for _, tk := range tasks {
+			if tk.State == backlog.StateBlocked {
+				task = tk
+				return true
+			}
+		}
+		return false
+	})
+
+	// Der Empfänger klickt „Annehmen": Teams schickt die Upload-URL als
+	// invoke-Activity — sie korreliert über die Konversation.
+	uploadURL := svc + "/upload/bericht.pdf"
+	invoke, _ := json.Marshal(map[string]any{
+		"type": "invoke", "id": "inv-1", "name": "fileConsent/invoke",
+		"serviceUrl": svc, "channelId": "msteams",
+		"from":         map[string]any{"id": "29:user", "name": "Alice"},
+		"recipient":    map[string]any{"id": "28:bot", "name": "Covey"},
+		"conversation": map[string]any{"id": "19:c", "conversationType": "personal", "tenantId": "t1"},
+		"value": map[string]any{
+			"type": "fileUpload", "action": "accept",
+			"context": map[string]any{"key": "bericht.pdf"},
+			"uploadInfo": map[string]any{
+				"uploadUrl": uploadURL, "contentUrl": svc + "/files/bericht.pdf",
+				"name": "bericht.pdf", "uniqueId": "u-1", "fileType": "pdf",
+			},
+		},
+	})
+	if out := postTeamsWebhook(t, s, "teams-versand", invoke); out != `{"outcome":"correlated"}` {
+		t.Fatalf("zustimmung muss korrelieren, got %s", out)
+	}
+
+	// Der geweckte Agent lädt hoch und schließt ab.
+	waitFor(t, "datei hochgeladen", 15*time.Second, func() bool {
+		return teams.lastUpload() != nil
+	})
+	up := teams.lastUpload()
+	if up["body"] != "PDF-INHALT" {
+		t.Fatalf("falscher Upload-Inhalt: %q", up["body"])
+	}
+	if up["range"] != "bytes 0-9/10" {
+		t.Fatalf("Content-Range falsch: %q", up["range"])
+	}
+	if up["auth"] != "" {
+		t.Fatalf("Upload-URL trägt ihre Autorisierung selbst — kein Bearer erwartet, got %q", up["auth"])
+	}
+	waitFor(t, "abschluss-karte gepostet", 15*time.Second, func() bool {
+		return len(teams.cardsOfType("card.file.info")) == 1
+	})
+	waitFor(t, "aufgabe done", 15*time.Second, func() bool {
+		return s.taskState(task.ID) == backlog.StateDone
+	})
+}
+
+// TestTeamsSendFileAbgelehnt: lehnt der Empfänger ab, wird der Agent trotzdem
+// geweckt — sonst bliebe er auf einer Zustimmung hängen, die nie kommt. Es darf
+// nichts hochgeladen werden.
+func TestTeamsSendFileAbgelehnt(t *testing.T) {
+	s := newStack(t)
+	teams := newFakeTeams(t)
+	ctx := context.Background()
+
+	s.secrets.Put(ctx, s.orgID, "teams_token", "bot-app-id:bot-app-secret")
+	s.secrets.Put(ctx, s.orgID, "teams_url", teams.srv.URL+"/token")
+	agent := s.newTeamsAgent("teams-abgelehnt")
+	s.secrets.Assign(ctx, s.orgID, "teams_token", agent.ID)
+	s.secrets.Assign(ctx, s.orgID, "teams_url", agent.ID)
+
+	home := filepath.Join(s.homeBase, agent.ID.String())
+	os.MkdirAll(home, 0o755)
+	os.WriteFile(filepath.Join(home, "bericht.pdf"), []byte("PDF-INHALT"), 0o644)
+
+	svc := teams.srv.URL
+	ask := fmt.Sprintf(
+		"[mock:action teams/send_file {\"service_url\":\"%s\",\"conversation_id\":\"19:c\",\"path\":\"bericht.pdf\"}]\n"+
+			"[mock:block key=teams:conversation:19:c question=Warte auf Zustimmung]\n"+
+			"[mock:result Zustimmung angefragt]", svc)
+	postTeamsWebhook(t, s, "teams-abgelehnt", teamsActivity("a1", "19:c", "29:user", "28:bot", ask, nil))
+
+	var task backlog.Task
+	waitFor(t, "aufgabe blocked", 15*time.Second, func() bool {
+		tasks, _ := s.backlog.ListByAgent(ctx, agent.ID, false)
+		for _, tk := range tasks {
+			if tk.State == backlog.StateBlocked {
+				task = tk
+				return true
+			}
+		}
+		return false
+	})
+
+	decline, _ := json.Marshal(map[string]any{
+		"type": "invoke", "id": "inv-2", "name": "fileConsent/invoke",
+		"serviceUrl": svc, "channelId": "msteams",
+		"from":         map[string]any{"id": "29:user", "name": "Alice"},
+		"recipient":    map[string]any{"id": "28:bot", "name": "Covey"},
+		"conversation": map[string]any{"id": "19:c", "conversationType": "personal", "tenantId": "t1"},
+		"value": map[string]any{
+			"type": "fileUpload", "action": "decline",
+			"context": map[string]any{"key": "bericht.pdf"},
+		},
+	})
+	if out := postTeamsWebhook(t, s, "teams-abgelehnt", decline); out != `{"outcome":"correlated"}` {
+		t.Fatalf("ablehnung muss den Agenten wecken, got %s", out)
+	}
+	waitFor(t, "aufgabe done", 15*time.Second, func() bool {
+		return s.taskState(task.ID) == backlog.StateDone
+	})
+	if up := teams.lastUpload(); up != nil {
+		t.Fatalf("nach Ablehnung darf nichts hochgeladen werden, got %+v", up)
+	}
+}
+
+// TestTeamsSendFileOhneWartenden: eine Zustimmung ist die Fortsetzung einer
+// angefangenen Arbeit, nicht ihr Anfang. Trifft sie ein, ohne dass jemand
+// darauf parkt (Aufgabe längst beendet, verspätete Zustellung), darf keine
+// neue Aufgabe entstehen — sonst bekäme ein ahnungsloser Agent den Auftrag,
+// eine Datei hochzuladen, von der er nichts weiß.
+func TestTeamsSendFileOhneWartenden(t *testing.T) {
+	s := newStack(t)
+	teams := newFakeTeams(t)
+	ctx := context.Background()
+
+	s.secrets.Put(ctx, s.orgID, "teams_token", "bot-app-id:bot-app-secret")
+	agent := s.newTeamsAgent("teams-verwaist")
+	s.secrets.Assign(ctx, s.orgID, "teams_token", agent.ID)
+
+	consent, _ := json.Marshal(map[string]any{
+		"type": "invoke", "id": "inv-3", "name": "fileConsent/invoke",
+		"serviceUrl": teams.srv.URL, "channelId": "msteams",
+		"from":         map[string]any{"id": "29:user", "name": "Alice"},
+		"recipient":    map[string]any{"id": "28:bot", "name": "Covey"},
+		"conversation": map[string]any{"id": "19:leer", "conversationType": "personal", "tenantId": "t1"},
+		"value": map[string]any{
+			"type": "fileUpload", "action": "accept",
+			"context": map[string]any{"key": "bericht.pdf"},
+			"uploadInfo": map[string]any{
+				"uploadUrl": teams.srv.URL + "/upload/bericht.pdf", "name": "bericht.pdf",
+			},
+		},
+	})
+	if out := postTeamsWebhook(t, s, "teams-verwaist", consent); out != `{"outcome":"ignored"}` {
+		t.Fatalf("zustimmung ohne wartende Aufgabe darf keine Arbeit anlegen, got %s", out)
+	}
+	if tasks, err := s.backlog.ListByAgent(ctx, agent.ID, true); err != nil {
+		t.Fatal(err)
+	} else if len(tasks) != 0 {
+		t.Fatalf("es darf keine Aufgabe entstanden sein, got %d: %+v", len(tasks), tasks)
+	}
+	if up := teams.lastUpload(); up != nil {
+		t.Fatalf("nichts darf hochgeladen worden sein, got %+v", up)
+	}
+}
+
 // TestTeamsReplyOhneURLSecret: teams_url ist ein Override für Single-Tenant-
 // Bots, kein Pflicht-Secret — das Plugin kennt seinen Token-Endpoint selbst
 // (BaseURLOptional). Ohne das Secret muss der Broker das Credential trotzdem

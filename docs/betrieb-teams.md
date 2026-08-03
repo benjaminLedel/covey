@@ -227,6 +227,9 @@ COVEY_TEAMS_ATTACHMENT_MAX_MB=25                  # Größenlimit je Anhang
 | Agent antwortet nicht zurück | `teams_token` falsch (`appId:appPassword`?), Secret abgelaufen, oder Egress blockt `login.microsoftonline.com` / Connector-Host (Abschnitt 5). Im Recording steht die Ursache im Klartext — „Zugang zu teams verweigert" heißt Secret fehlt oder ist dem Agenten nicht zugewiesen. |
 | Datei-Anhänge fehlen im 1:1-Chat | `supportsFiles: true` im Manifest vergessen (2.3). |
 | `download_attachment` schlägt fehl | URL abgelaufen (zeitnah laden), Egress blockt `*.sharepoint.com`, oder Datei über dem Limit (`COVEY_TEAMS_ATTACHMENT_MAX_MB`). |
+| Config-Änderung wirkt nicht | Der Agent hängt auf `blocked` in einer laufenden Unterhaltung. Eine Folgenachricht setzt die Runtime-Session per `--resume` fort — **mit dem System-Prompt von damals**. Neue Config greift erst bei einer neuen Session: Aufgabe abschließen/abbrechen (Backlog → *Aufräumen*), dann wirkt sie. |
+| Datei senden passiert nichts | Zustimmungs-Karte kam an, aber niemand hat geklickt — der Agent parkt korrekt. Ohne `supportsFiles: true` erscheint die Karte gar nicht (2.3). |
+| Zugestimmt, aber nichts kommt an; Request-Log zeigt `ignored` | Die zugehörige Aufgabe parkt nicht mehr (abgebrochen, anders beendet, verspätete Zustellung). Zustimmungen legen bewusst keine neue Aufgabe an — Versand neu anstoßen (3.1). |
 
 ---
 
@@ -265,6 +268,37 @@ lesen". Betriebsrelevant:
   Download fail-closed.
 - **Kurzlebige URLs:** Download-URLs laufen ab — der Agent sollte Anhänge zeitnah
   laden. Wacht ein `blocked`-Agent spät auf, kann eine URL ungültig sein.
+
+### 3.1 Dateien senden
+
+Ein Bot kann in Teams keine Datei einfach anhängen — der Empfänger muss
+zustimmen, und erst sein Klick erzeugt den Upload-Platz. Für den Betrieb heißt
+das dreierlei:
+
+- **Es sind immer zwei Läufe.** Der Agent fragt (`send_file`), parkt auf
+  `blocked`, wird vom Klick geweckt und lädt hoch (`upload_file`). Im Recording
+  sieht man deshalb zwei Sitzungen pro Datei; das ist kein Fehler.
+- **`supportsFiles: true`** im App-Manifest ist Pflicht (Abschnitt 2.3) — ohne
+  das Flag erscheint die Zustimmungs-Karte im 1:1-Chat gar nicht erst.
+- **Egress:** die Upload-URL zeigt auf `*.sharepoint.com` bzw.
+  `*-my.sharepoint.com` (das OneDrive des Empfängers). Ohne diesen Host auf der
+  Allowlist scheitert der Upload — dieselbe Zeile, die auch eingehende
+  Anhänge braucht.
+
+Klickt der Empfänger „Ablehnen", wird der Agent ebenfalls geweckt und beendet
+seinen Auftrag; er bleibt nicht auf einer Zustimmung hängen, die nie kommt. Die
+Upload-URL ist kurzlebig — hängt der Agent lange (Warteschlange, Budget-Deckel),
+kann sie ablaufen, dann muss er neu fragen.
+
+Kommt der Klick, wenn **niemand mehr parkt** (die Aufgabe wurde abgebrochen oder
+anders beendet, oder Teams stellt verspätet zu), verpufft das Event: im Request-
+Log steht `ignored`, es entsteht keine Aufgabe. Das ist Absicht — eine
+Zustimmung ist die Fortsetzung einer angefangenen Arbeit, kein neuer Auftrag.
+Der Empfänger sieht dann eine abgehakte Karte ohne folgende Datei; der Agent
+muss den Versand neu anstoßen.
+
+In **Kanälen** gibt es diesen Weg nicht: dort führt Dateiablage über Microsoft
+Graph und ist nicht Teil dieser Integration.
 
 ### Zuordnung Nachricht → Agent
 
@@ -353,10 +387,11 @@ Port 9998. So testet man Outbound ohne Azure-Registration:
   verschlüsselt und reicht es kurzlebig durch; der Laufzeit-Connector-Zugriff
   läuft dann bereits über ein kurzlebiges getauschtes Token. Secret regelmäßig
   rotieren.
-- **Klartext + eingehende Anhänge.** Eingehende Datei-Anhänge werden gelesen
-  (`download_attachment`, Abschnitt 3). Noch **nicht** abgedeckt: Adaptive Cards,
-  **ausgehende** Anhänge (Dateien senden) und Kanal-/Team-Verwaltung über
-  Microsoft Graph (spec/15, Abschnitt „Scope").
+- **Dateien in beide Richtungen, aber nur in Chats.** Eingehende Anhänge werden
+  gelesen (`download_attachment`, Abschnitt 3), ausgehende laufen über den
+  File-Consent-Flow (Abschnitt 3.1). Noch **nicht** abgedeckt: Adaptive Cards,
+  Dateien in **Kanäle** und Kanal-/Team-Verwaltung über Microsoft Graph
+  (spec/15, Abschnitt „Scope").
 - Die allgemeinen MVP-Grenzen (Egress-Härtung, Retry/Reconnect, Budget-Deckel,
   `webhook_events`-Retention) gelten wie im Zammad-Runbook
   ([`betrieb-zammad.md`](betrieb-zammad.md), Abschnitt 7).

@@ -6,11 +6,13 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -399,5 +401,111 @@ func TestExecuteValidation(t *testing.T) {
 	if _, err := sys.Execute(context.Background(), "send",
 		json.RawMessage(`{}`), target.Credential{Token: "kaputt"}); err == nil {
 		t.Fatal("kaputtes Credential muss Fehler sein")
+	}
+}
+
+// TestResolveInWorkdir: ein Agent darf nur Dateien aus seinem eigenen
+// Arbeitsverzeichnis verschicken. Absolute Pfade und ".." führen nicht hinaus —
+// sonst könnte eine manipulierte Quelle ihn dazu bringen, /etc/passwd in einen
+// Chat zu schieben.
+func TestResolveInWorkdir(t *testing.T) {
+	work := t.TempDir()
+	if _, err := resolveInWorkdir(work, "bericht.pdf"); err != nil {
+		t.Fatalf("normaler Pfad muss gehen: %v", err)
+	}
+	if _, err := resolveInWorkdir(work, "unterordner/../bericht.pdf"); err != nil {
+		t.Fatalf("bereinigter Pfad innerhalb des Workdirs muss gehen: %v", err)
+	}
+	for _, bad := range []string{"../../etc/passwd", "/etc/passwd", "..", ""} {
+		if _, err := resolveInWorkdir(work, bad); err == nil {
+			t.Fatalf("pfad %q muss abgelehnt werden", bad)
+		}
+	}
+	if _, err := resolveInWorkdir("", "bericht.pdf"); err == nil {
+		t.Fatal("ohne Workdir muss die Aktion scheitern")
+	}
+}
+
+// TestSendFileBrauchtDatei: send_file/upload_file scheitern sauber, wenn die
+// genannte Datei fehlt — statt eine leere Karte in den Chat zu stellen.
+func TestSendFileBrauchtDatei(t *testing.T) {
+	work := t.TempDir()
+	c, err := NewClient(target.Credential{Token: "app:pass"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := RequestFileConsent(context.Background(), c, "http://x", "19:c", "fehlt.pdf", "", work); err == nil {
+		t.Fatal("fehlende Datei muss Fehler sein")
+	}
+	if _, err := UploadConsentedFile(context.Background(), c,
+		UploadInput{UploadURL: "http://x/up", Path: "fehlt.pdf"}, work); err == nil {
+		t.Fatal("fehlende Datei muss Fehler sein")
+	}
+}
+
+// consentInvoke baut die invoke-Activity, mit der Teams die Entscheidung des
+// Empfängers zustellt. key ist der context.key aus unserer Karte — der Pfad,
+// den send_file angefragt hat.
+func consentInvoke(action, key, uploadURL string) []byte {
+	return []byte(fmt.Sprintf(`{"type":"invoke","id":"inv-1","name":"fileConsent/invoke",
+		"serviceUrl":"https://smba.example/emea/","channelId":"msteams",
+		"from":{"id":"29:user","name":"Alice"},"recipient":{"id":"28:bot","name":"Covey"},
+		"conversation":{"id":"19:c","conversationType":"personal","tenantId":"t1"},
+		"value":{"type":"fileUpload","action":%q,"context":{"key":%q},
+			"uploadInfo":{"uploadUrl":%q,"contentUrl":"https://sp.example/f","name":"bericht.pdf",
+				"uniqueId":"u-1","fileType":"pdf"}}}`, action, key, uploadURL))
+}
+
+// TestConsentEventFuelltPfad: der context.key kommt aus unserer eigenen Karte
+// und trägt den angefragten Pfad — der Wake-Prompt setzt ihn in den fertigen
+// upload_file-Aufruf ein, statt den Agenten raten zu lassen. Der Pfad kann in
+// einem Unterordner liegen; der Basename allein zeigte dort ins Leere.
+func TestConsentEventFuelltPfad(t *testing.T) {
+	ev, err := System{}.ParseWebhook(consentInvoke("accept", "berichte/q3.pdf", "https://sp.example/up"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(ev.ResumeInput, `"path":"berichte/q3.pdf"`) {
+		t.Fatalf("pfad aus context.key fehlt im Aufruf: %s", ev.ResumeInput)
+	}
+	if strings.Contains(ev.ResumeInput, "<deine Datei>") {
+		t.Fatalf("platzhalter trotz bekanntem pfad: %s", ev.ResumeInput)
+	}
+	if ev.CorrelationKey != CorrelationKey("19:c") || !ev.Wake {
+		t.Fatalf("zustimmung muss über die Konversation wecken: %+v", ev)
+	}
+	// Ohne key (fremde Karte, alter Flow) bleibt der Platzhalter stehen —
+	// besser ein sichtbares Loch als ein erfundener Pfad.
+	ohne, err := System{}.ParseWebhook(consentInvoke("accept", "", "https://sp.example/up"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(ohne.ResumeInput, "<deine Datei>") {
+		t.Fatalf("ohne context.key muss der Platzhalter bleiben: %s", ohne.ResumeInput)
+	}
+}
+
+// TestConsentEventNurKorrelieren: eine Zustimmung ist die Fortsetzung einer
+// angefangenen Arbeit. Parkt niemand darauf, darf daraus keine neue Aufgabe
+// entstehen — sonst bekäme ein ahnungsloser Agent den Auftrag, eine Datei
+// hochzuladen, von der er nichts weiß. Gilt für beide Entscheidungen.
+func TestConsentEventNurKorrelieren(t *testing.T) {
+	for _, tc := range []struct{ name, action, uploadURL string }{
+		{"zustimmung", "accept", "https://sp.example/up"},
+		{"ablehnung", "decline", ""},
+		{"zustimmung ohne upload-url", "accept", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ev, err := System{}.ParseWebhook(consentInvoke(tc.action, "bericht.pdf", tc.uploadURL))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !ev.CorrelateOnly {
+				t.Fatal("consent-Event darf keine neue Aufgabe anlegen")
+			}
+			if !ev.Wake {
+				t.Fatal("consent-Event muss den geparkten Agenten wecken")
+			}
+		})
 	}
 }

@@ -83,8 +83,10 @@ Optionaler Betriebs-Filter über ENV (12-Factor, wie bei Zammad):
 | `reply` | `service_url`, `conversation_id`, `reply_to_activity_id`, `text` | Antwort auf eine Nachricht (ohne `reply_to_activity_id` → `send`). |
 | `create_conversation` | `service_url`, `tenant_id`, `user_id`, `text` | Proaktiver 1:1-Chat mit einem Nutzer. |
 | `download_attachment` | `url`, `name` | Lädt einen Datei-Anhang der Nachricht in die Sandbox. |
+| `send_file` | `service_url`, `conversation_id`, `path`, `description` | Fragt den Empfänger per Karte, ob er eine Datei annehmen will. |
+| `upload_file` | `upload_url`, `path`, `service_url`, `conversation_id`, … | Lädt die Bytes hoch, nachdem zugestimmt wurde. |
 
-`service_url` und `conversation_id` stammen aus der auslösenden Nachricht (stehen im Task-Body). Alle sind eigene Guard-Rail-Subjekte (`teams:send`, `teams:reply`, `teams:create_conversation`, `teams:download_attachment`).
+`service_url` und `conversation_id` stammen aus der auslösenden Nachricht (stehen im Task-Body). Alle sind eigene Guard-Rail-Subjekte (`teams:send`, `teams:reply`, `teams:create_conversation`, `teams:download_attachment`, `teams:send_file`, `teams:upload_file`).
 
 ## Anhänge lesen
 
@@ -95,15 +97,62 @@ Nachrichten tragen oft Dateien — Screenshots, PDFs, Logs. Eine eingehende Acti
 - **Kurzlebige URLs:** Teams-Download-URLs laufen ab. Der Task-Body weist den Agenten an, Anhänge zeitnah zu laden; wacht ein `blocked`-Agent erst spät auf, kann eine URL ungültig sein — dann fordert der Agent die Datei erneut an.
 - Reine Anhang-Nachrichten (Datei ohne Text) lösen ebenfalls einen Wake aus.
 
+## Dateien senden (File-Consent-Flow)
+
+Teams lässt einen Bot Dateien **nicht einfach anhängen**. Der Weg führt über die
+Zustimmung des Empfängers, und erst sie erzeugt den Upload-Platz — das ist
+Plattform-Vorgabe und nicht abkürzbar:
+
+1. Agent ruft `send_file` mit dem Pfad einer Datei in seinem Arbeitsverzeichnis.
+   Covey postet eine Karte (`…card.file.consent`) mit Name, Beschreibung und
+   Größe; der `context.key` trägt den **angefragten Pfad** durch beide
+   Richtungen (nicht nur den Dateinamen — sonst zeigte er bei einer Datei im
+   Unterordner ins Leere).
+2. Agent beendet den Lauf mit `blocked` auf `teams:conversation:<id>` — genau
+   der Korrelations-Key, der auch normale Rückfragen trägt.
+3. Der Empfänger klickt „Annehmen". Teams schickt eine **`invoke`-Activity**
+   (`fileConsent/invoke`) mit `uploadInfo.uploadUrl` — einer SharePoint-/
+   OneDrive-Upload-Session in *seinem* Speicher.
+4. Der Event-Router weckt den geparkten Agenten mit dem **vollständigen**
+   `upload_file`-Aufruf — `path` aus dem zurückgelaufenen `context.key`, der
+   Rest aus `uploadInfo`. Der Agent muss nichts ergänzen und nichts raten.
+5. Agent ruft `upload_file`: PUT der Bytes mit `Content-Range` an die
+   Upload-URL — **ohne** Connector-Token, die URL autorisiert sich selbst —,
+   danach die Abschluss-Karte (`…card.file.info`), die die Datei im Verlauf
+   zeigt.
+
+Zwei Entwurfsentscheidungen dahinter:
+
+- **Die Bytes bleiben in der Sandbox.** Zwischen Karte und Klick können Minuten
+  liegen; die Datei wartet im **persistenten `/home`** des Agenten, nicht in der
+  Control Plane. Damit braucht der Flow keinen Zwischenspeicher und keine neue
+  Protokoll-Nachricht — er ist derselbe `blocked`-Zyklus wie jede Rückfrage,
+  und der Agent führt seine eigene Arbeit zu Ende.
+- **Ablehnung weckt genauso.** Ein „Nein" ist ein Ergebnis, kein Ausbleiben:
+  ohne Wake bliebe der Agent auf einer Zustimmung hängen, die nie kommt.
+- **Nur korrelieren, nie neu anlegen.** Die Antwort auf eine Zustimmungs-Karte
+  ist die Fortsetzung einer angefangenen Arbeit. Parkt niemand darauf — die
+  Aufgabe ist längst beendet, die Zustellung kommt verspätet —, verpufft das
+  Event (`CorrelateOnly`). Andernfalls entstünde eine Aufgabe, die einen
+  ahnungslosen Agenten aufforderte, eine Datei hochzuladen, von der er nichts
+  weiß.
+
+Grenzen: `path` wird gegen das Arbeitsverzeichnis aufgelöst (kein `..`, keine
+absoluten Pfade hinaus), es gilt dasselbe Größenlimit wie für eingehende
+Anhänge, und der Flow trägt nur **1:1- und Gruppen-Chats**. In Kanälen gibt es
+keine Zustimmungs-Karte — dort führt der Weg über Graph in die Dateiablage des
+Teams und bleibt außerhalb dieser Integration.
+
 ## Scope dieser Integration
 
 - **Ein Bot / ein Agent**, App-ID + App-Passwort über den Built-in-`SecretStore`.
 - **Messaging-Endpoint** als Webhook, JWT-verifiziert, idempotent verarbeitet.
-- **Aktionen:** senden, antworten, 1:1-Chat eröffnen, Anhang in die Sandbox laden.
+- **Aktionen:** senden, antworten, 1:1-Chat eröffnen, Anhang in die Sandbox laden, Datei senden (Consent-Flow).
 - **Anhänge lesen** über `download_attachment` (Bytes in die Sandbox, nicht in die Control Plane).
-- **`blocked`** über die Konversation, Korrelation über die `conversation.id`.
+- **Anhänge senden** über `send_file`/`upload_file` in Chats — Bytes ebenfalls aus der Sandbox.
+- **`blocked`** über die Konversation, Korrelation über die `conversation.id` — für Rückfragen wie für Datei-Zustimmungen.
 
-Später (nicht jetzt): Adaptive Cards statt Klartext, **ausgehende** Anhänge (Dateien senden), Kanal-/Team-Verwaltung über Microsoft Graph, delegierter Nutzer-Kontext (Graph mit On-Behalf-Of), mehrere Bots pro Org.
+Später (nicht jetzt): Adaptive Cards statt Klartext, Dateien in **Kanäle** (Graph), Kanal-/Team-Verwaltung über Microsoft Graph, delegierter Nutzer-Kontext (Graph mit On-Behalf-Of), mehrere Bots pro Org.
 
 ## Hinweise
 
