@@ -93,5 +93,10 @@ jobs:
       # Programms (der dev-Plugin FÜHRT Shell-Befehle aus, der Arbeitsplatz
       # LIEST Dateien nach Pfad). Ein Job, der 120 Zeilen ausspuckt, wird
       # weggeklickt.
+      # -exclude-dir=.go greift hier ins Leere (GOPATH liegt unter ~/go, also
+      # ausserhalb des Arbeitsverzeichnisses) — steht aber bewusst gleichlautend
+      # zur GitLab-Seite, wo genau das den Job 15 Minuten lang durch den
+      # Modul-Cache laufen liess. Beide Pipelines pruefen dasselbe, also auch
+      # mit denselben Flags.
       - name: gosec
-        run: go run github.com/securego/gosec/v2/cmd/gosec@v2.22.9 -quiet -include=G101,G102,G106,G107,G112,G114,G201,G202,G203,G303,G305,G401,G402,G403,G404,G501,G502,G503,G504,G601 ./...
+        run: go run github.com/securego/gosec/v2/cmd/gosec@v2.22.9 -quiet -exclude-dir=.go -include=G101,G102,G106,G107,G112,G114,G201,G202,G203,G303,G305,G401,G402,G403,G404,G501,G502,G503,G504,G601 ./...

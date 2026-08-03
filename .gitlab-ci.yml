@@ -74,7 +74,16 @@ security:
     # aussagekraeftig erweist.
     #
     # Stand: 0 Befunde. Wird das rot, ist es ernst gemeint.
-    - go run github.com/securego/gosec/v2/cmd/gosec@v2.22.9 -quiet -include=G101,G102,G106,G107,G112,G114,G201,G202,G203,G303,G305,G401,G402,G403,G404,G501,G502,G503,G504,G601 ./...
+    #
+    # -exclude-dir=.go ist hier keine Kosmetik, sondern Pflicht: GOPATH zeigt
+    # oben auf $CI_PROJECT_DIR/.go, damit GitLab den Modul-Cache zwischen
+    # Laeufen behalten kann (Cache-Pfade muessen im Projektverzeichnis
+    # liegen). gosec loest ./... aber ueber das Dateisystem auf, nicht ueber
+    # `go list` — und lief damit durch jede fremde Abhaengigkeit unter
+    # .go/pkg/mod: 6167 Dateien, 2,7 Mio. Zeilen, 320 Befunde, keiner davon
+    # im eigenen Code, dafuer 15 Minuten Laufzeit und Exit 1. Dieselbe Falle,
+    # gegen die die gofmt-Zeile in test-go sich schon mit `go list` wehrt.
+    - go run github.com/securego/gosec/v2/cmd/gosec@v2.22.9 -quiet -exclude-dir=.go -include=G101,G102,G106,G107,G112,G114,G201,G202,G203,G303,G305,G401,G402,G403,G404,G501,G502,G503,G504,G601 ./...
 
 build-web:
   stage: test
@@ -123,7 +132,11 @@ test-go:
     # Gesamt-Prozentwert für den GitLab-Coverage-Badge (siehe coverage-Regex unten).
     - go tool cover -func=coverage.out | tee coverage.txt
     # Cobertura-Report für die MR-Diff-Coverage-Anzeige in GitLab.
-    - go run github.com/boumenot/gocover-cobertura@v1.3.0 < coverage.out > coverage.xml
+    # v1.5.0 statt v1.3.0: Letzteres zieht golang.org/x/tools v0.8.0 mit, und
+    # das laesst sich mit Go 1.26 nicht mehr uebersetzen ("invalid array
+    # length -delta * delta"). Der Job scheiterte deshalb an dieser letzten
+    # Zeile — nach gruenen Tests, weshalb GitLab den Coverage-Wert noch anzeigte.
+    - go run github.com/boumenot/gocover-cobertura@v1.5.0 < coverage.out > coverage.xml
   # GitLab liest den Gesamt-Coverage aus der Ausgabe von `go tool cover -func`
   # (letzte Zeile "total: … 42.7%") und zeigt ihn als Badge/Trend an.
   coverage: '/^total:\s+\(statements\)\s+(\d+(?:\.\d+)?)%/'
