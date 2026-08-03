@@ -251,6 +251,8 @@ Changes to concept and architecture go through the spec: proposals as a merge re
 
 ## License
 
+Copyright (C) 2026 Benjamin Ledel
+
 Covey is free software under the [GNU Affero General Public License v3.0](LICENSE). You may run it, study it, modify it and pass it on. The one obligation that matters in practice: if you offer a modified Covey to others over a network, those users must be able to get your modified source under the same terms.
 
 Self-hosting Covey inside your own organisation triggers nothing — running it, however you have configured it, is simply using the software.

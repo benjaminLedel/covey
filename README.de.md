@@ -249,6 +249,8 @@ Exit-Code 1 bei Befunden, damit ein Upgrade-Skript darauf reagieren kann. Geänd
 
 ## Lizenz
 
+Copyright (C) 2026 Benjamin Ledel
+
 Covey ist freie Software unter der [GNU Affero General Public License v3.0](LICENSE). Du darfst sie betreiben, studieren, verändern und weitergeben. Die eine Pflicht, die in der Praxis zählt: Wer ein *verändertes* Covey anderen über ein Netzwerk anbietet, muss diesen Nutzern seinen geänderten Quellcode unter denselben Bedingungen zugänglich machen.
 
 Covey im eigenen Unternehmen selbst zu hosten, löst nichts davon aus — es zu betreiben, wie auch immer konfiguriert, ist schlicht Benutzung.
