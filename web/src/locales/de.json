@@ -274,6 +274,11 @@
       "title": "Dokumentation",
       "prev": "Zurück",
       "next": "Weiter"
+    },
+    "notFound": {
+      "title": "Diese Seite gibt es nicht",
+      "text": "Die Adresse führt ins Leere — vermutlich ein Tippfehler oder ein Link, der älter ist als die Seite.",
+      "home": "Zur Startseite"
     }
   },
   "nav": {

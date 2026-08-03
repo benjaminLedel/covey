@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
 import { api, buildInfo, post, roleLabel, type Approval, type Principal } from "./api";
-import i18n from "./i18n";
+import i18n, { gespeicherteSprache, istVorgerendert, merkeSprache } from "./i18n";
 import HelpDrawer from "./components/HelpDrawer";
 import PublicSite from "./public/PublicSite";
 import Dashboard from "./pages/Dashboard";
@@ -47,6 +47,13 @@ function useLiveEvents(enabled: boolean) {
   }, [enabled, qc]);
 }
 
+/* Wurde diese Seite beim Build vorgerendert? Dann steht ihr Inhalt schon im
+   HTML, und der erste Rendervorgang im Browser muss ihn treffen — sonst
+   verwirft React das vorgerenderte Markup. Deshalb zeigt App auf solchen
+   Seiten die öffentliche Website bereits, während /auth/me noch läuft. Auf
+   allen anderen Pfaden bleibt es beim bisherigen Verhalten. */
+const prerendered = istVorgerendert();
+
 export default function App() {
   const me = useQuery({
     queryKey: ["me"],
@@ -55,7 +62,9 @@ export default function App() {
   });
   useLiveEvents(me.isSuccess);
 
-  if (me.isLoading) return null;
+  if (me.isLoading) {
+    return prerendered ? <PublicSite onLogin={() => me.refetch()} /> : null;
+  }
   if (me.isError) return <PublicSite onLogin={() => me.refetch()} />;
   return <Shell me={me.data!} onLogout={() => me.refetch()} />;
 }
@@ -249,6 +258,15 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
   const [helpOpen, setHelpOpen] = useState(false);
   const [userMenu, setUserMenu] = useState(false);
 
+  /* Die Sprachwahl der Oberfläche ist eine persönliche Einstellung und steht
+     im localStorage. Auf einer vorgerenderten Seite startet i18n bewusst auf
+     Deutsch, damit die Hydration passt (siehe i18n.ts) — hier wird die Wahl
+     nachgeholt, sobald die Oberfläche übernimmt. */
+  useEffect(() => {
+    const gewaehlt = gespeicherteSprache();
+    if (gewaehlt && i18n.language !== gewaehlt) void i18n.changeLanguage(gewaehlt);
+  }, []);
+
   // Plattform-Administration ist selten gebraucht — standardmäßig eingeklappt,
   // Zustand wird gemerkt; auf einer Plattform-Seite ist die Gruppe immer offen.
   const inPlatform = ["/users", "/orgs"].some((p) => location.pathname.startsWith(p));
@@ -289,7 +307,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
   const toggleLang = () => {
     const next = i18n.language === "de" ? "en" : "de";
     i18n.changeLanguage(next);
-    localStorage.setItem("covey.lang", next);
+    merkeSprache(next);
   };
 
   return (

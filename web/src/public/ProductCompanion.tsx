@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+import PubLink from "./PubLink";
 import { useTranslation } from "react-i18next";
 import { icons } from "./chrome";
 
@@ -31,7 +31,7 @@ export default function ProductCompanion() {
         <h1 className="pub-product-title">Companion</h1>
         <p className="pub-hero-lead">{t("public.companion.lead")}</p>
         <div className="pub-cta-row">
-          <Link to="/produkt/covey" className="btn primary">{t("public.companion.aboutCovey")}</Link>
+          <PubLink id="produkt-covey" className="btn primary">{t("public.companion.aboutCovey")}</PubLink>
         </div>
       </header>
 
@@ -86,8 +86,8 @@ export default function ProductCompanion() {
         <h2>{t("public.companion.ctaTitle")}</h2>
         <p>{t("public.companion.ctaLead")}</p>
         <div className="pub-cta-row">
-          <Link to="/produkt/covey" className="btn primary">{t("public.companion.aboutCovey")}</Link>
-          <Link to="/funktion" className="btn">{t("public.nav.function")}</Link>
+          <PubLink id="produkt-covey" className="btn primary">{t("public.companion.aboutCovey")}</PubLink>
+          <PubLink id="funktion" className="btn">{t("public.nav.function")}</PubLink>
         </div>
       </section>
     </div>

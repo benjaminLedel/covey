@@ -1,12 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { post } from "../api";
 
 const DEMO_EMAIL = "admin@covey.local";
 const DEMO_PASSWORD = "covey-admin";
-const isLocal = ["localhost", "127.0.0.1", "[::1]"].includes(
-  window.location.hostname,
-);
+
+/* Der Hostname steht beim Vorrendern nicht fest und darf die erste Darstellung
+   im Browser nicht verändern — sonst weicht sie vom vorgerenderten HTML ab und
+   React verwirft es. Deshalb erst nach der Hydration nachreichen. */
+const localHost = () =>
+  typeof window !== "undefined" &&
+  ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
 
 /* Die Anmelde-Karte — auf der Home-Seite im Hero, außerdem unter /anmelden.
    Aus der früheren pages/Login.tsx herausgelöst. */
@@ -16,6 +20,9 @@ export default function LoginCard({ onLogin }: { onLogin: () => void }) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [isLocal, setIsLocal] = useState(false);
+
+  useEffect(() => setIsLocal(localHost()), []);
 
   const login = async (mail: string, pass: string) => {
     setBusy(true);

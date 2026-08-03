@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+import PubLink from "./PubLink";
 import { useTranslation } from "react-i18next";
 import { BirdMark, icons } from "./chrome";
 import Screenshots from "./Screenshots";
@@ -27,8 +27,8 @@ export default function ProductCovey() {
         </div>
         <p className="pub-hero-lead">{t("public.covey.lead")}</p>
         <div className="pub-cta-row">
-          <Link to="/anmelden" className="btn primary">{t("public.nav.login")}</Link>
-          <Link to="/funktion" className="btn">{t("public.covey.seeFunctions")}</Link>
+          <PubLink id="anmelden" className="btn primary">{t("public.nav.login")}</PubLink>
+          <PubLink id="funktion" className="btn">{t("public.covey.seeFunctions")}</PubLink>
         </div>
       </header>
 
@@ -97,8 +97,8 @@ export default function ProductCovey() {
         <h2>{t("public.covey.ctaTitle")}</h2>
         <p>{t("public.covey.ctaLead")}</p>
         <div className="pub-cta-row">
-          <Link to="/anmelden" className="btn primary">{t("public.nav.login")}</Link>
-          <Link to="/produkt/companion" className="btn">{t("public.covey.ctaCompanion")}</Link>
+          <PubLink id="anmelden" className="btn primary">{t("public.nav.login")}</PubLink>
+          <PubLink id="produkt-companion" className="btn">{t("public.covey.ctaCompanion")}</PubLink>
         </div>
       </section>
     </div>

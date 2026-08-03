@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+import PubLink from "./PubLink";
 import { useTranslation } from "react-i18next";
 import { TargetIcon } from "../components/TargetIcon";
 
@@ -107,8 +107,8 @@ export default function Integrationen() {
         <h2>{t("public.integrations.ctaTitle")}</h2>
         <p>{t("public.integrations.ctaLead")}</p>
         <div className="pub-cta-row">
-          <Link to="/funktion" className="btn primary">{t("public.nav.function")}</Link>
-          <Link to="/anmelden" className="btn">{t("public.nav.login")}</Link>
+          <PubLink id="funktion" className="btn primary">{t("public.nav.function")}</PubLink>
+          <PubLink id="anmelden" className="btn">{t("public.nav.login")}</PubLink>
         </div>
       </section>
     </div>

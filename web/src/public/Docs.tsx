@@ -1,13 +1,18 @@
 import { Link, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Markdown } from "../components/Markdown";
-import { DOC_SECTIONS, DOC_PAGES, FIRST_DOC, docLang } from "./docs/docsContent";
+import { DOC_SECTIONS, DOC_PAGES, FIRST_DOC } from "./docs/docsContent";
+import { usePublicLang } from "./lang";
+import { pathOf } from "./seo";
 
 /* Docs-Bereich: linke Kategorie-/Seiten-Navigation + Markdown-Inhalt.
-   Zweisprachig — Titel und Body je Sprache in docs/docsContent.ts. */
+   Zweisprachig — Titel und Body je Sprache in docs/docsContent.ts. Die
+   Sprache kommt aus der URL, nicht aus i18n: Sie steht damit schon beim ersten
+   Rendern fest und ist beim Vorrendern dieselbe wie im Browser. */
 export default function Docs() {
-  const { t, i18n } = useTranslation();
-  const lang = docLang(i18n.language);
+  const { t } = useTranslation();
+  const lang = usePublicLang();
+  const base = pathOf("docs", lang);
   const { slug } = useParams<{ slug: string }>();
   const page = DOC_PAGES.find((p) => p.slug === slug) ?? FIRST_DOC;
 
@@ -26,7 +31,7 @@ export default function Docs() {
               {sec.pages.map((p) => (
                 <li key={p.slug}>
                   <Link
-                    to={`/docs/${p.slug}`}
+                    to={`${base}/${p.slug}`}
                     className={`docs-nav-link ${p.slug === page.slug ? "active" : ""}`}
                   >
                     {p.title[lang]}
@@ -45,13 +50,13 @@ export default function Docs() {
 
         <nav className="docs-pager">
           {prev ? (
-            <Link to={`/docs/${prev.slug}`} className="docs-pager-link prev">
+            <Link to={`${base}/${prev.slug}`} className="docs-pager-link prev">
               <span className="docs-pager-dir">← {t("public.docs.prev")}</span>
               <span className="docs-pager-title">{prev.title[lang]}</span>
             </Link>
           ) : <span />}
           {next ? (
-            <Link to={`/docs/${next.slug}`} className="docs-pager-link next">
+            <Link to={`${base}/${next.slug}`} className="docs-pager-link next">
               <span className="docs-pager-dir">{t("public.docs.next")} →</span>
               <span className="docs-pager-title">{next.title[lang]}</span>
             </Link>

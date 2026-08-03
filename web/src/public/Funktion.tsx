@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+import PubLink from "./PubLink";
 import { useTranslation } from "react-i18next";
 import { icons } from "./chrome";
 
@@ -80,8 +80,8 @@ export default function Funktion() {
         <h2>{t("public.function.ctaTitle")}</h2>
         <p>{t("public.function.ctaLead")}</p>
         <div className="pub-cta-row">
-          <Link to="/produkt/covey" className="btn primary">{t("public.function.ctaCovey")}</Link>
-          <Link to="/anmelden" className="btn">{t("public.nav.login")}</Link>
+          <PubLink id="produkt-covey" className="btn primary">{t("public.function.ctaCovey")}</PubLink>
+          <PubLink id="anmelden" className="btn">{t("public.nav.login")}</PubLink>
         </div>
       </section>
     </div>
