@@ -23,6 +23,13 @@ import (
 	"sync"
 )
 
+// SourceURL ist die öffentliche Quelle dieses Programms. Covey steht unter der
+// AGPL-3.0 und läuft als Netzwerkdienst: Wer eine veränderte Fassung anderen
+// anbietet, schuldet ihnen den Quelltext. Die Adresse gehört deshalb dorthin,
+// wo sie ohne Suche zu finden ist — CLI und UI-Fuß. Wer forkt und betreibt,
+// trägt hier seine eigene Adresse ein.
+const SourceURL = "https://github.com/benjaminLedel/covey"
+
 // Per -ldflags gesetzt. Kleingeschrieben: der Zugriff läuft über Get().
 var (
 	version string
@@ -43,11 +50,15 @@ type Info struct {
 	Dirty bool `json:"dirty"`
 	// Go ist die Toolchain-Version, mit der gebaut wurde.
 	Go string `json:"go"`
+	// Source ist die öffentliche Quelle (SourceURL). Sie geht mit über die
+	// API, damit die UI sie nicht hartkodiert — ein Fork zeigt so seine
+	// eigene Adresse, nicht die des Ursprungs.
+	Source string `json:"source"`
 }
 
 // Get liefert die Herkunft des Binaries (einmal ermittelt, dann gecacht).
 var Get = sync.OnceValue(func() Info {
-	i := Info{Version: version, Commit: commit, BuiltAt: date, Go: runtime.Version()}
+	i := Info{Version: version, Commit: commit, BuiltAt: date, Go: runtime.Version(), Source: SourceURL}
 
 	// Lücken aus den eingebetteten VCS-Angaben füllen (lokaler Build im
 	// Git-Arbeitsbaum). Gesetzte -ldflags-Werte gewinnen immer.

@@ -338,7 +338,8 @@
     "switchTo": "Sprache: English"
   },
   "version": {
-    "builtAt": "gebaut am {{when}}"
+    "builtAt": "gebaut am {{when}}",
+    "source": "AGPL-3.0 · Quelltext"
   },
   "status": {
     "sleeping": "schläft",

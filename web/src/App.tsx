@@ -248,6 +248,16 @@ function BuildLine() {
     <div className="main-build" title={title}>
       {short}
       {valid && <span className="bt"> · {built.toLocaleString(i18n.language, fmt)}</span>}
+      {/* Covey läuft als Netzwerkdienst unter AGPL-3.0. Der Quelltext-Link
+          steht hier, weil genau das die Pflicht ist, die ein Betreiber sonst
+          übersieht — und weil er von jeder Seite aus erreichbar sein soll. */}
+      {b.source && (
+        <div className="bt">
+          <a className="build-src" href={b.source} target="_blank" rel="noopener noreferrer">
+            {t("version.source")}
+          </a>
+        </div>
+      )}
     </div>
   );
 }

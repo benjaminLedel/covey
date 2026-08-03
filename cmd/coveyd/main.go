@@ -37,6 +37,8 @@ func main() {
 		switch os.Args[1] {
 		case "version", "--version", "-v":
 			fmt.Println("coveyd " + buildinfo.String())
+			// Derselbe Hinweis wie bei covey: ein Werk, eine Lizenz.
+			fmt.Println("AGPL-3.0 · Quelltext: " + buildinfo.SourceURL)
 			return
 		}
 	}
