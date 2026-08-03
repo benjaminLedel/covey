@@ -52,7 +52,9 @@ Die Data Plane ist bewusst **dumm und ersetzbar**. Eine Sandbox ist ein isoliert
 
 **Isolationsmodell:** persistentes Volume + ephemere Compute. Der Agent „wacht auf", mountet sein Home, arbeitet, schläft wieder ein. Die Compute-Instanz selbst ist kurzlebig; nur das Home-Volume überlebt.
 
-> **Build-vs-Buy:** Die Sandbox-Infrastruktur wird **nicht** from scratch gebaut. Kandidaten: Firecracker/gVisor selbst betrieben (Proxmox-Erfahrung vorhanden, aber ephemere MicroVMs sind ein eigenes Biest) oder Sandbox-as-a-Service (E2B, Daytona). Der differenzierte Teil ist die Control Plane drumherum, nicht der Container-Runner. Entscheidung offen — siehe [`07-offene-entscheidungen.md`](07-offene-entscheidungen.md).
+**Verteilung:** Die Data Plane muss nicht auf dem Host der Control Plane liegen. **Runner** sind registrierte Ausführungsknoten nach dem Vorbild der GitLab-Runner: Ein Prozess auf einem beliebigen Host meldet sich mit einem Registration-Token an, hält eine ausgehende Verbindung und bekommt Sandboxen zugewiesen. Das ist möglich, weil die Data Plane ohnehin nie eingehend erreichbar sein muss — der Daemon wählt heraus (siehe Daemon-Protokoll unten). Weil das Home persistent ist, wird ein Agent dabei an *einen* Runner gebunden; die Begründung und das vollständige Modell stehen in [`16-runner.md`](16-runner.md).
+
+> **Build-vs-Buy:** Die Sandbox-Infrastruktur wird **nicht** from scratch gebaut. Kandidaten: Firecracker/gVisor selbst betrieben (Proxmox-Erfahrung vorhanden, aber ephemere MicroVMs sind ein eigenes Biest) oder Sandbox-as-a-Service (E2B, Daytona). Der differenzierte Teil ist die Control Plane drumherum, nicht der Container-Runner. Entscheidung offen — siehe [`07-offene-entscheidungen.md`](07-offene-entscheidungen.md). Davon unberührt ist die **Topologie**: Wo Sandboxen laufen, entscheidet D12 (Runner), nicht die Wahl der Isolationstechnik — ein Runner kapselt genau diese Wahl pro Host.
 
 ## Runtime-Abstraktion
 

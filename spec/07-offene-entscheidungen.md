@@ -52,11 +52,25 @@ Beide tragfähig für den nebenläufigkeits-schweren Orchestration-Core. **Tende
 
 Wie kommt die projektspezifische Toolchain in eine Sandbox, die am **Agenten** hängt? Ein Entwickler-Agent arbeitet an mehreren Projekten mit verschiedenen Technologien und Versionen; sein Container startet aber beim Wake, bevor feststeht, welches Ticket aus welchem Projekt drankommt. „Ein Image pro Projekt" setzt deshalb einen Agenten pro Projekt voraus.
 
-Entschieden: **Version → Home, Toolchain → Image.** Das Image trägt Systempakete (PHP, JDK) und die Versionsmanager (`fvm`, `uv`); die SDK-**Versionen** zieht sich der Agent nach dem Pin im Projekt-Repo selbst ins persistente Home. Ein Image für alle Agenten — ein `sandbox_image` pro Agent lohnt erst, wenn ein Agent bewusst *weniger* können soll, nicht für mehr Sprachen.
+Entschieden: **Version → Home, Toolchain → Image.** Das Image trägt Systempakete (PHP, JDK) und die Versionsmanager (`fvm`, `uv`); die SDK-**Versionen** zieht sich der Agent nach dem Pin im Projekt-Repo selbst ins persistente Home.
+
+Das Image hängt dabei am **Agenten**, nicht an der Sprache: Ein Profil ist eine *Vereinigung* von Toolchains (`base` für Support-, Mail- und QA-Agenten, `dev` für Entwickler), damit derselbe Agent an einem PHP- **und** einem Flutter-Projekt arbeiten kann. Ein Image pro *Sprache* brächte genau die oben verworfene Frage zurück — welches starte ich beim Wake? Dass die Auswahl heute instanzweit über `COVEY_SANDBOX_IMAGE` läuft und noch kein Feld am Agenten ist, ist eine offene Bau-Aufgabe, keine Eigenschaft der Entscheidung: siehe [`16-runner.md`](16-runner.md), wo das Image zugleich zur Runner-Capability wird.
 
 Verworfen: **Pakete zur Laufzeit über die UI nachinstallieren.** Drei Gründe, alle strukturell — der Agent läuft als Nicht-Root (Claude Code verweigert `--dangerously-skip-permissions` als root); ein Paketmanager auf der Egress-Allowlist ist ein generischer Code-Ausführungskanal und kein Zielsystem-Host; und eine Sandbox, deren Werkzeuge aus einer Klickliste plus dem Zustand eines Mirrors entstehen, ist nicht mehr aus Config + Home rekonstruierbar — der Kern der „dumm und ersetzbar"-Zusage aus [`01-architektur.md`](01-architektur.md).
 
 Betriebsseite samt Egress-Templates in [`../docs/betrieb-deployment.md`](../docs/betrieb-deployment.md).
+
+### D12 — Verteilte Data Plane: Runner ✅ *entschieden*
+
+Wie kommt die Data Plane von **einem** Host auf viele? Heute startet die Control Plane Sandboxen über die lokale Docker-CLI: Die Größe der Belegschaft ist damit die Größe einer Maschine, und Datenresidenz pro Abteilung oder Hardware-Nähe (ARM, GPU, ein Host im Netz des Zielsystems) sind nicht darstellbar.
+
+Entschieden: **registrierte Runner nach dem Vorbild der GitLab-Runner** — ein eigenständiger Prozess auf einem beliebigen Host meldet sich mit einem Registration-Token an, hält eine ausgehende Verbindung und bekommt von dort Sandboxen zugewiesen. Der Port `SandboxProvider` bleibt die Naht; der Orchestrator merkt nichts davon. Ausführlich in [`16-runner.md`](16-runner.md).
+
+Die eigentliche Frage dahinter ist nicht die Registrierung, sondern das **persistente Home**. Ein CI-Runner darf frei gewählt werden, weil er zustandslos ist — ein Job klont neu. Coveys Sandbox ist das Gegenteil: Das Home trägt Gedächtnis, Checkouts, Caches und selbst installierte SDKs. Entschieden ist deshalb **Affinität**: Ein Agent wird beim ersten Wake auf einen passenden Runner gepinnt, sein Home bleibt lokal auf dessen Platte, und ein Umzug ist eine ausdrückliche Handlung statt eines Automatismus. Ist der Runner offline, ist der Agent nicht weckbar — benannt und sichtbar, nicht als stiller Timeout.
+
+Verworfen: **geteilter Speicher** (NFS/CSI über alle Runner) gäbe echte Scheduling-Freiheit, verlegt aber `node_modules`, `vendor` und Gradle-Caches auf ein Netzdateisystem und macht eine Betriebsentscheidung des Hosts zur Voraussetzung der Plattform. Ebenfalls verworfen: **das Home als Artefakt** (beim Sleep nach S3, beim Wake zurück) — Runner wären beliebig ersetzbar, aber ein mehrere Gigabyte großer Cache bei jedem Wake entwertet die warme Sandbox und damit „immer erreichbar, Compute nur bei Bedarf". Beide bleiben *unter* dem Runner möglich: Wer sein Home repliziert, tut das als Host-Betreiber, ohne dass die Control Plane davon wissen muss.
+
+Ein Runner ist **vertrauenswürdige Infrastruktur der Organisation** — er sieht die Daemon- und Egress-Tokens der Agenten, die er hostet, und kann sie damit imitieren. Er ist kein Weg, fremde Rechenkapazität einzubinden. Daraus folgt insbesondere: kein Datenbankzugriff vom Runner aus, TLS zwingend, Widerruf und Audit pro Runner.
 
 ## Vorgeschlagener MVP-Scope
 
