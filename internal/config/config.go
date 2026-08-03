@@ -167,6 +167,42 @@ func FromEnv() (Config, error) {
 	return c, nil
 }
 
+// DataPlaneWarnings prüft die Adresse, über die Sandboxen zurückverbinden.
+//
+// Der Anlass ist ein Ausfall: Auf einer öffentlichen Instanz wurde
+// COVEY_PUBLIC_URL auf die Domain der Website gesetzt — naheliegend, der Name
+// legt es nahe. Damit wählte jede Sandbox über das offene Netz zurück, wo die
+// Egress-Allowlist sie stoppte, und sämtliche Agenten scheiterten mit „daemon
+// hat sich nicht verbunden". Sichtbar war das erst eine Minute später im Log
+// jeder einzelnen Sitzung, nicht beim Start.
+//
+// Die Prüfung bleibt eine Warnung und kein Abbruch: Es gibt Aufbauten, in denen
+// die Sandbox die Control Plane tatsächlich unter ihrem öffentlichen Namen
+// erreicht. Sie soll den Verdacht beim Start aussprechen, nicht Betrieb
+// verbieten, den sie nicht überblicken kann.
+func (c Config) DataPlaneWarnings() []string {
+	// Nur der docker-Provider schreibt Loopback zu host.docker.internal um und
+	// hat damit ein belastbares „richtig". Für andere Provider ist jede Adresse
+	// denkbar.
+	if c.SandboxProvider != "docker" {
+		return nil
+	}
+	if isLoopbackPublic(c.PublicURL) {
+		return nil
+	}
+	parsed, err := url.Parse(c.PublicURL)
+	if err == nil && parsed.Hostname() == "host.docker.internal" {
+		return nil
+	}
+	return []string{fmt.Sprintf(
+		"COVEY_PUBLIC_URL zeigt auf %q — von DORT aus muss jede Sandbox die Control Plane "+
+			"erreichen (COVEY_WS_URL), nicht der Browser. Ist die Adresse aus den "+
+			"Sandbox-Containern heraus nicht erreichbar oder nicht in der Egress-Allowlist, "+
+			"scheitern alle Agenten mit \"daemon hat sich nicht verbunden\". "+
+			"Die Adresse der Website gehört in COVEY_SITE_URL.",
+		c.PublicURL)}
+}
+
 // SecurityWarnings sammelt Härtungs-Hinweise für Deployments, die nicht rein
 // lokal sind. Die Meldungen sind bewusst nicht fatal — lokale Entwicklung und
 // Demos sollen ohne Zeremonie laufen —, aber sie machen unsichere Defaults beim

@@ -538,6 +538,12 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	for _, warn := range cfg.SecurityWarnings() {
 		log.Warn("sicherheit: " + warn)
 	}
+	// Eine Adresse, die die Sandboxen nicht erreichen, legt die gesamte Data
+	// Plane still — das gehört beim Start gesagt und nicht erst im Timeout
+	// jeder einzelnen Agenten-Sitzung.
+	for _, warn := range cfg.DataPlaneWarnings() {
+		log.Warn("data-plane: " + warn)
+	}
 	pool, err := db.Connect(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err

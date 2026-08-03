@@ -17,7 +17,11 @@ func TestRewriteLoopbackForDocker(t *testing.T) {
 		"ws://127.0.0.1:8494/api/daemon/ws": "ws://host.docker.internal:8494/api/daemon/ws",
 		"ws://[::1]:8494/api/daemon/ws":     "ws://host.docker.internal:8494/api/daemon/ws",
 		"ws://localhost/api/daemon/ws":      "ws://host.docker.internal/api/daemon/ws",
-		// Echte Hostnamen bleiben unangetastet — dort stimmt die URL auch im Container.
+		// Echte Hostnamen bleiben unangetastet. Das ist die richtige Wahl —
+		// raten kann die Funktion hier nichts —, aber es ist auch die Stelle,
+		// an der eine falsch gesetzte COVEY_PUBLIC_URL ungebremst durchgeht:
+		// Die Sandbox wählt dann über das offene Netz zurück. Beim Start warnt
+		// deshalb config.DataPlaneWarnings davor.
 		"wss://covey.example.com/api/daemon/ws": "wss://covey.example.com/api/daemon/ws",
 		"ws://10.0.0.5:8494/api/daemon/ws":      "ws://10.0.0.5:8494/api/daemon/ws",
 	}

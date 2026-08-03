@@ -109,3 +109,45 @@ func TestLoopbackErkennung(t *testing.T) {
 		}
 	}
 }
+
+// DataPlaneWarnings ist der Wächter über die Adresse, die die Sandboxen
+// zurückführt. Sie ist aus einem Ausfall entstanden: COVEY_PUBLIC_URL wurde auf
+// die Domain der Website gesetzt, worauf jede Sandbox über das offene Netz
+// zurückwählte und an der Egress-Allowlist scheiterte. Der Test hält beides
+// fest — dass die Warnung im Verdachtsfall kommt und dass sie schweigt, wo
+// alles stimmt. Eine Warnung, die immer kommt, liest bald niemand mehr.
+func TestDataPlaneWarnings(t *testing.T) {
+	docker := func(publicURL string) Config {
+		return Config{SandboxProvider: "docker", PublicURL: publicURL}
+	}
+
+	// Erreichbar aus dem Container: Loopback wird zu host.docker.internal
+	// umgeschrieben, host.docker.internal ist es schon.
+	for _, ok := range []string{
+		"http://localhost:8494",
+		"http://127.0.0.1:8494",
+		"http://host.docker.internal:8494",
+	} {
+		if w := docker(ok).DataPlaneWarnings(); len(w) != 0 {
+			t.Fatalf("%s: unerwartete Warnung %q", ok, w[0])
+		}
+	}
+
+	// Der Fall, der die Data Plane stillgelegt hat.
+	w := docker("https://covey.example.com").DataPlaneWarnings()
+	if len(w) != 1 {
+		t.Fatalf("keine Warnung bei öffentlicher Adresse: %v", w)
+	}
+	for _, teil := range []string{"COVEY_PUBLIC_URL", "Sandbox", "COVEY_SITE_URL"} {
+		if !strings.Contains(w[0], teil) {
+			t.Fatalf("Warnung nennt %q nicht: %s", teil, w[0])
+		}
+	}
+
+	// Andere Provider schreiben nichts um — dort ist jede Adresse denkbar,
+	// also gibt es nichts zu behaupten.
+	fremd := Config{SandboxProvider: "e2b", PublicURL: "https://covey.example.com"}
+	if w := fremd.DataPlaneWarnings(); len(w) != 0 {
+		t.Fatalf("Warnung für fremden Provider: %q", w[0])
+	}
+}
