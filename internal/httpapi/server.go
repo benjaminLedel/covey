@@ -98,6 +98,11 @@ type Server struct {
 	// unauthentifizierten Webhook-Endpunkte (beide lazy in Handler init.).
 	loginLimiter   *loginLimiter
 	webhookLimiter *webhookLimiter
+
+	// seo ist die Landkarte der öffentlichen Website aus dist/seo.json
+	// (internal/httpapi/seo.go). Sie trägt die Adressen für sitemap.xml und
+	// die Pfad-Präfixe der angemeldeten Oberfläche.
+	seo seoIndex
 }
 
 func (s *Server) Handler() http.Handler {
@@ -107,6 +112,7 @@ func (s *Server) Handler() http.Handler {
 	if s.webhookLimiter == nil {
 		s.webhookLimiter = newWebhookLimiter()
 	}
+	s.seo = ladeSEOIndex(s.WebFS)
 	mux := http.NewServeMux()
 
 	// Health/Readiness (ohne Auth).
@@ -354,9 +360,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/trigger/{token}", s.logIncoming(s.handleAgentTrigger))
 	mux.HandleFunc("GET /api/daemon/ws", s.handleDaemonWS)
 
-	// Eingebettete SPA mit Fallback auf index.html (client-seitiges Routing).
+	// Eingebettete SPA samt vorgerenderter öffentlicher Website.
 	if s.WebFS != nil {
-		mux.Handle("/", spaHandler(s.WebFS))
+		mux.HandleFunc("GET /robots.txt", s.handleRobots)
+		mux.HandleFunc("GET /sitemap.xml", s.handleSitemap)
+		mux.Handle("/", s.spaHandler(s.WebFS))
 	}
 	// Die Audit-Spur liegt INNEN, direkt um den Mux: Sie braucht den
 	// Principal, den die auth-Middleware je Route setzt, und den Statuscode,

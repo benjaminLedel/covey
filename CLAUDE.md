@@ -87,6 +87,6 @@ Begründung: ein Binary → `go.mod` in der Wurzel, `web/` + `migrations/` als G
 
 ## Git
 
-- Branch `main`, Remote ist GitLab (`gitlab.lapco.legal`).
+- Branch `main`. **Zwei Remotes, und gepusht wird immer auf beide:** `origin` (GitLab, `gitlab.lapco.legal` — hier laufen Pipeline und Deploy) und `github` (`benjaminLedel/covey` — die öffentliche Fassung, von der Dritte Covey installieren). Ein Branch nur auf einem der beiden lässt die zwei Historien auseinanderlaufen; „push" heißt ohne weitere Angabe `git push origin <branch> && git push github <branch>`.
 - **Regelmäßig committen:** abgeschlossene, zusammengehörige Arbeitsschritte (Feature fertig, Tests grün) als eigenen Commit festhalten — nicht alles in einem Riesen-Commit sammeln. Commit-Messages auf Deutsch, im Stil der bestehenden Historie.
 - Nicht auf `main` committen ohne Rückfrage — vorher Branch anlegen. Push weiterhin nur auf ausdrückliche Bitte.

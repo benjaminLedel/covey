@@ -173,9 +173,21 @@ mux.Handle("/", spaHandler(http.FS(dist)))  // SPA-Fallback: unbekannte Pfade �
 mux.Handle("/api/", apiHandler)
 ```
 
-- **SPA-Fallback:** Da React Router client-seitig routet, muss ein Reload auf `/agents/42` die `index.html` liefern statt 404 — ein schmaler Handler, der bei unbekannten Pfaden zurückfällt.
+- **SPA-Fallback:** Da React Router client-seitig routet, muss ein Reload auf `/agents/42` die SPA-Hülle liefern statt 404 — der Handler erkennt die Pfade der angemeldeten Oberfläche an ihrem Präfix und fällt nur dort zurück.
 - **Dev vs. Prod:** Im Dev läuft der Vite-Dev-Server (Hot-Reload) und proxyt `/api` zu Go; im Prod-Build wird `web/dist` eingebettet. Umschaltung per Build-Tag/ENV.
 - **Ergebnis:** ein Prozess = Frontend + API + Orchestration-Core.
+
+### Die öffentliche Website ist vorgerendert
+
+Dasselbe Binary liefert zwei Dinge aus, die sich in einer Hinsicht widersprechen: die **angemeldete Oberfläche**, die niemand indexieren soll, und die **öffentliche Website** (Start, Funktion, Integrationen, Produkte, Docs), die gefunden werden muss. Eine reine SPA erfüllt nur das erste. Google führt zwar JavaScript aus, Bing tut es unzuverlässig, und die Crawler der Sprachmodelle (GPTBot, ClaudeBot, PerplexityBot) gar nicht — eine leere Hülle ist für sie eine leere Seite.
+
+Deshalb rendert der Build die öffentlichen Seiten vor (`web/prerender.mjs`, nach `vite build`): jede Seite je Sprache als echte HTML-Datei mit Inhalt und eigenem Kopf. Die Trennung liegt damit in der **Auslieferung**, nicht im Betrieb — es bleibt ein Binary.
+
+- **Eine Quelle für die Routen:** `web/src/public/seo.ts` trägt Pfad, Titel und Description je Sprache. Daraus bauen sich das Routing der öffentlichen Seite, der Kopf (`Head.tsx`), das Vorrendern und `sitemap.xml`. Die Docs-Seiten leiten sich aus dem Inhalt ab — eine neue Seite steht ohne weiteres Zutun in der Sitemap.
+- **Sprache über die URL:** Die englische Fassung liegt unter `/en/…` mit übersetzten Slugs. Eine Sprache, die nur im `localStorage` umschaltet, hat keine Adresse und existiert für Suchmaschinen nicht. `hreflang` verbindet die Fassungen wechselseitig.
+- **Adresse erst zur Laufzeit:** Covey wird selbst gehostet, jede Installation hat ihre eigene Domain. Im vorgerenderten HTML steht deshalb ein Platzhalter, den der Server beim Ausliefern durch die tatsächliche Origin ersetzt (`COVEY_PUBLIC_URL`, ersatzweise der Host des Requests). `robots.txt` und `sitemap.xml` erzeugt das Binary aus demselben Grund selbst.
+- **Ehrliche 404:** Unbekannte Pfade außerhalb der App-Präfixe bekommen Status 404 statt der Startseite mit 200 — sonst gilt jede Fehladresse als gültige Seite („Soft 404").
+- **Schriften im Binary:** Inter und Lora werden mitgeliefert, nicht vom Google-CDN geladen — die eigene CSP lässt keine fremden Hosts zu, und die IP jedes Besuchers ginge sonst an einen Dritten.
 
 ## Betrieb & Bootstrapping
 

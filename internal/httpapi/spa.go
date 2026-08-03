@@ -1,9 +1,11 @@
 package httpapi
 
 import (
+	"io"
 	"io/fs"
 	"mime"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
@@ -16,20 +18,88 @@ func init() {
 	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
 }
 
-// spaHandler liefert die eingebettete SPA aus; unbekannte Pfade fallen auf
-// index.html zurück (client-seitiges Routing, spec/10).
-func spaHandler(dist fs.FS) http.Handler {
+// platzhalterOrigin steht im vorgerenderten HTML überall dort, wo die Adresse
+// dieser Installation hingehört (Canonical, hreflang, og:url, JSON-LD). Der
+// Build kennt sie nicht — Covey wird selbst gehostet. Siehe seo.go.
+const platzhalterOrigin = "__COVEY_ORIGIN__"
+
+// spaHandler liefert die Website aus. Vier Fälle, in dieser Reihenfolge:
+//
+//  1. eine vorgerenderte öffentliche Seite (dist/funktion/index.html …),
+//  2. eine statische Datei (Assets, Bilder, Manifest),
+//  3. ein Pfad der angemeldeten Oberfläche → die SPA-Hülle, nicht indexierbar,
+//  4. sonst: eine ehrliche 404.
+//
+// Punkt 4 ist der Unterschied zu früher. Bis dahin bekam jeder Pfad die
+// index.html mit Status 200 — für Besucher unauffällig, für Suchmaschinen ein
+// „Soft 404": beliebig viele Adressen, die alle dasselbe zeigen und alle als
+// gültige Seite gelten. Ohne vorgerendertes dist/ (alter Build, Tests mit
+// handgebautem FS) bleibt es beim alten Verhalten — siehe seoIndex.istAppPfad.
+func (s *Server) spaHandler(dist fs.FS) http.Handler {
 	fileServer := http.FileServer(http.FS(dist))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := strings.TrimPrefix(r.URL.Path, "/")
-		if path == "" {
-			path = "index.html"
+		// /funktion/ und /funktion wären zwei Adressen mit demselben Inhalt.
+		if r.URL.Path != "/" && strings.HasSuffix(r.URL.Path, "/") {
+			http.Redirect(w, r, strings.TrimRight(r.URL.Path, "/"), http.StatusMovedPermanently)
+			return
 		}
-		if _, err := fs.Stat(dist, path); err != nil {
-			r.URL.Path = "/" // Fallback → index.html
+
+		pfad := strings.Trim(r.URL.Path, "/")
+
+		seite := "index.html"
+		if pfad != "" {
+			seite = pfad + "/index.html"
 		}
-		fileServer.ServeHTTP(w, r)
+		if daten, err := fs.ReadFile(dist, seite); err == nil {
+			s.schreibeHTML(w, r, daten, http.StatusOK)
+			return
+		}
+
+		if pfad != "" {
+			if info, err := fs.Stat(dist, pfad); err == nil && !info.IsDir() {
+				fileServer.ServeHTTP(w, r)
+				return
+			}
+		}
+
+		if s.seo.istAppPfad(r.URL.Path) {
+			// Die Oberfläche selbst gehört nicht in den Index: Ohne Sitzung
+			// zeigt sie nichts, und ihr Adressraum ist unendlich.
+			w.Header().Set("X-Robots-Tag", "noindex")
+			daten, err := fs.ReadFile(dist, "app.html")
+			if err != nil {
+				// Build ohne Vorrendern — dann ist index.html die Hülle.
+				daten, err = fs.ReadFile(dist, "index.html")
+			}
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			s.schreibeHTML(w, r, daten, http.StatusOK)
+			return
+		}
+
+		datei := "404.html"
+		if strings.HasPrefix(pfad, "en/") || pfad == "en" {
+			datei = "en/404.html"
+		}
+		daten, err := fs.ReadFile(dist, datei)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		s.schreibeHTML(w, r, daten, http.StatusNotFound)
 	})
+}
+
+// schreibeHTML setzt die Adresse dieser Installation in das vorgerenderte HTML
+// ein und liefert es aus.
+func (s *Server) schreibeHTML(w http.ResponseWriter, r *http.Request, daten []byte, status int) {
+	html := strings.ReplaceAll(string(daten), platzhalterOrigin, s.origin(r))
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Content-Length", strconv.Itoa(len(html)))
+	w.WriteHeader(status)
+	_, _ = io.WriteString(w, html)
 }
 
 // setzeSchutzHeader gibt der Admin-Oberfläche die Kopfzeilen, die ein Browser

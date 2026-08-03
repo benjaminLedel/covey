@@ -3,19 +3,55 @@ import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router";
 import App from "./App";
-import "./i18n";
+import { istVorgerendert } from "./i18n";
+
+/* Inter und Lora liegen im Binary, nicht bei Google. Zwei Gründe: Die eigene
+   CSP erlaubt keine fremden Stylesheet- und Font-Hosts (script-src/font-src
+   'self'), das Google-Fonts-CDN war damit ohnehin blockiert und die Oberfläche
+   lief auf Ersatzschriften. Und ein Aufruf an fonts.googleapis.com überträgt
+   die IP jedes Besuchers an einen Dritten — für eine Software, die in
+   deutschen Unternehmen läuft, keine gute Voreinstellung.
+   Nur die tatsächlich benutzten Schnitte, nur die lateinischen Subsets. */
+import "@fontsource/inter/latin-400.css";
+import "@fontsource/inter/latin-500.css";
+import "@fontsource/inter/latin-ext-400.css";
+import "@fontsource/inter/latin-ext-500.css";
+import "@fontsource/lora/latin-400.css";
+import "@fontsource/lora/latin-400-italic.css";
+import "@fontsource/lora/latin-ext-400.css";
+import "@fontsource/lora/latin-ext-400-italic.css";
+
 import "./styles.css";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false, staleTime: 3000 } },
 });
 
-ReactDOM.createRoot(document.getElementById("root")!).render(
+const root = document.getElementById("root")!;
+
+/* .js am Wurzelelement: Alles, was erst durch JavaScript sichtbar wird
+   (die Scroll-Reveals), bleibt ohne JavaScript sichtbar. Das betrifft nicht
+   nur Besucher mit abgeschaltetem Skript, sondern vor allem die Crawler, die
+   kein JavaScript ausführen — sie sollen keinen Text vorfinden, der auf
+   opacity: 0 steht. */
+document.documentElement.classList.add("js");
+
+const tree = (
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <App />
       </BrowserRouter>
     </QueryClientProvider>
-  </React.StrictMode>,
+  </React.StrictMode>
 );
+
+/* Vorgerenderte Seiten werden hydriert statt neu gerendert: Der Besucher sieht
+   den Text sofort und behält ihn, statt ihn beim Start von React ersetzt zu
+   bekommen. Alle anderen Einstiege (die angemeldete Oberfläche) rendern wie
+   bisher frisch. */
+if (istVorgerendert()) {
+  ReactDOM.hydrateRoot(root, tree);
+} else {
+  ReactDOM.createRoot(root).render(tree);
+}

@@ -83,6 +83,13 @@ In GitLab unter **Settings → CI/CD → Variables**:
 | `DEPLOY_DIR` | `/opt/covey` | Zielordner auf dem Host |
 | `COVEY_PUBLIC_URL` | `http://localhost:8494` | öffentliche URL — nur beim **ersten** Deploy in die `.env` geschrieben |
 
+`COVEY_PUBLIC_URL` ist mehr als Kosmetik: Aus ihr baut das Binary die Adressen
+in `sitemap.xml`, `robots.txt` und den `canonical`/`hreflang`-Angaben der
+öffentlichen Website. Ist sie leer, leitet der Server sie aus dem Host-Header
+ab — das funktioniert hinter einem sauber konfigurierten Reverse-Proxy, ist aber
+die schwächere Grundlage. Wer die Website in Suchmaschinen sehen will, setzt sie
+auf die tatsächliche `https://`-Adresse.
+
 Registry-Login läuft automatisch über die eingebauten `$CI_REGISTRY_*`.
 
 ### 3. Erster Push auf main

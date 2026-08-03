@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+import PubLink from "./PubLink";
 import { useTranslation } from "react-i18next";
 import { BirdMark, RotatingWord, HeroFlock, icons } from "./chrome";
 import Screenshots from "./Screenshots";
@@ -38,8 +38,8 @@ export default function Home() {
             ))}
           </ul>
           <div className="landing-cta login-rise" style={{ animationDelay: "0.32s" }}>
-            <Link to="/anmelden" className="btn primary">{t("public.nav.login")}</Link>
-            <Link to="/funktion" className="btn">{t("public.covey.seeFunctions")}</Link>
+            <PubLink id="anmelden" className="btn primary">{t("public.nav.login")}</PubLink>
+            <PubLink id="funktion" className="btn">{t("public.covey.seeFunctions")}</PubLink>
           </div>
         </div>
 
@@ -63,8 +63,8 @@ export default function Home() {
         <p className="landing-lead reveal">{t("public.products.lead")}</p>
         <div className="pub-products">
           {(["covey", "companion"] as const).map((p, i) => (
-            <Link
-              to={`/produkt/${p}`}
+            <PubLink
+              id={`produkt-${p}`}
               className="pub-product reveal"
               style={{ transitionDelay: `${i * 0.08}s` }}
               key={p}
@@ -85,7 +85,7 @@ export default function Home() {
                   <path d="M5 12h14M13 6l6 6-6 6" />
                 </svg>
               </span>
-            </Link>
+            </PubLink>
           ))}
         </div>
       </section>
@@ -109,12 +109,12 @@ export default function Home() {
             </div>
           ))}
         </div>
-        <Link to="/funktion" className="pub-textlink reveal">
+        <PubLink id="funktion" className="pub-textlink reveal">
           {t("public.products.allFunctions")}
           <svg viewBox="0 0 24 24" aria-hidden="true">
             <path d="M5 12h14M13 6l6 6-6 6" />
           </svg>
-        </Link>
+        </PubLink>
       </section>
 
       {/* Ablauf in drei Schritten, daneben die Formation aus dem Schwarm. */}

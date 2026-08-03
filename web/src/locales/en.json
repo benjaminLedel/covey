@@ -274,6 +274,11 @@
       "title": "Documentation",
       "prev": "Back",
       "next": "Next"
+    },
+    "notFound": {
+      "title": "This page does not exist",
+      "text": "The address leads nowhere — most likely a typo, or a link older than the page it points to.",
+      "home": "Go to the homepage"
     }
   },
   "nav": {
