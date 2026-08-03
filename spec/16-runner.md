@@ -103,19 +103,34 @@ Der Schein trügt. Ein vermessenes Entwickler-Home (7,1 GB) besteht fast vollst�
 | `repos/` | 3,0 GB | das Git-Remote des Projekts |
 | `flutter`, `.pub-cache`, `.gradle`, `.npm`, `jdk`, `.dartServer` | 4,0 GB | ableitbar — reiner Cache |
 | `wiki/`, `.claude/skills/` | wenige MB | die Control Plane (bereits zentral) |
-| `.claude/projects/` (Session-Transkripte) | 30 MB | *nirgends* |
-| `uploads/`, `work/`, Artefakte | ~15 MB | teils das Zielsystem, teils *nirgends* |
+| **alles Übrige** | **48 MB** | *nirgends* |
 
 **Rund 7,05 der 7,1 GB sind ableitbar oder zentral geführt.** Das Home ist damit kein kostbarer Zustand, sondern zu über 99 % ein **Cache** — und das ändert die Antwort auf die Runner-Frage grundlegend.
+
+### Erhalten ist die Voreinstellung
+
+Die letzte Zeile der Tabelle heißt bewusst „alles Übrige" und nicht `work/` und `uploads/`. Der Grund steht im vermessenen Home: Neben den 30 MB Session-Transkripten liegen dort `useSevenAssistant.ts` (95 KB extrahierter Code), `panel.json`, `subagent-223.json`, `fix223/`, `verify-729/` — **quer im Home verstreut, nicht in einem dafür vorgesehenen Ordner.** Ein Agent legt seine Zwischenstände, Notizen, Auswertungen und selbstgeschriebenen Helfer dort ab, wo es ihm im Lauf sinnvoll erscheint, und das ist richtig so: Sein Home ist sein Arbeitsplatz, kein Formular.
+
+Daraus folgt die Regel, und ihre Richtung ist das Entscheidende:
+
+> **Aufgezählt wird, was verworfen werden darf — nicht, was gesichert wird.**
+
+Eine Positivliste („sichere `work/` und `uploads/`") würde genau die Dateien oben verlieren, und zwar **stillschweigend**: Ein Agent, der sich morgen ein Verzeichnis `analyse/` anlegt, stünde nicht darauf. Bei einer Negativliste ist der unbekannte Neuzugang automatisch geschützt; ein Fehler in der Liste kostet Platz, nicht Arbeit.
+
+Verworfen werden darf nur, was das **Image-Profil** als ableitbar ausweist (D11 — das Profil kennt seine Toolchains und damit deren Cache-Pfade): `.gradle`, `.pub-cache`, `.npm`, `.dartServer`, `flutter`, `jdk` und dergleichen. Was das Profil nicht kennt, wird gesichert.
+
+`repos/` ist dabei der eine heikle Fall. Ein Checkout ist **nur dann** ableitbar, wenn der Arbeitsbaum sauber und alles gepusht ist. Ein Agent, der mitten in einer Änderung einschläft, hat unveröffentlichte Arbeit im Checkout liegen — die zählt zum Rest und wird gesichert. Der Runner prüft das, bevor er ein Repo als verwerfbar behandelt; im Zweifel behält er es.
 
 ### Zentral geführt, ins Home materialisiert
 
 Für den wertvollen Rest ist das Muster in Covey **bereits gebaut**: Das Wiki liegt in Postgres und wird zu Aufgabenbeginn als `~/wiki/*.md` materialisiert, am Aufgabenende zurückgesynct ([`05-gedaechtnis.md`](05-gedaechtnis.md), „hybride Speicherung"); die Skills desselbe nach `~/.claude/skills/`. Die Control Plane ist dort längst die Quelle der Wahrheit, das Home nur die Arbeitskopie.
 
-**Entschieden ist, dieses Muster auf den Rest auszudehnen** (D12): Was weder ableitbar ist noch anderswo eine Quelle hat, wird zentral geführt und beim Wake ins Home geholt.
+**Entschieden ist, dieses Muster auf den Rest auszudehnen** (D12): Die 48 MB, die keine Quelle haben, werden zentral geführt und beim Wake ins Home geholt — als Ganzes, nach der Negativliste oben, nicht als Auswahl einzelner Ordner.
 
-- **Session-Transkripte.** Sie sind heute das Einzige, was eine *blockierte* Aufgabe wirklich an einen Host fesselt: Die Session-ID liegt in der DB (`RuntimeSessionID`), das für `--resume` nötige Transkript aber nur im Home ([`12-claude-code-adapter.md`](12-claude-code-adapter.md)). Es wird beim Einschlafen mitgesichert und beim Wake zurückgeschrieben — sonst verliert ein geparkter Agent seinen Faden, sobald er woanders aufwacht.
-- **Artefakte und Uploads.** Dasselbe Sync-Muster wie beim Wiki, kein neues Konzept.
+Zwei Anteile darin verdienen eine eigene Erwähnung:
+
+- **Session-Transkripte** (30 der 48 MB). Sie sind das Einzige, was eine *blockierte* Aufgabe wirklich an einen Host fesselt: Die Session-ID liegt in der DB (`RuntimeSessionID`), das für `--resume` nötige Transkript aber nur im Home ([`12-claude-code-adapter.md`](12-claude-code-adapter.md)). Ohne sie verliert ein geparkter Agent seinen Faden, sobald er woanders aufwacht.
+- **Selbstgeschriebene Werkzeuge und Zwischenstände.** Skripte, Auswertungen, extrahierter Code — das Ergebnis von Arbeit, die schon bezahlt ist. Sie sind nirgends reproduzierbar und dürfen unter keinen Umständen einem Aufräumlauf zum Opfer fallen.
 
 Nicht zentral geführt wird, was eine Quelle hat: **Checkouts** klont der Runner neu (das ist der Zweck eines Git-Remotes), **Caches und SDKs** baut er nach dem Pin im Projekt-Repo wieder auf („Version → Home, Toolchain → Image", D11). Beides zentral zu spiegeln hieße, ein Remote und einen Paket-Mirror nachzubauen.
 
@@ -129,7 +144,7 @@ Ist das Home vollständig wiederherstellbar, wird die Bindung an einen Runner vo
 - Der Preis eines kalten Starts ist real und soll nicht kleingeredet werden: 3 GB neu klonen plus 4 GB SDKs und Pakete. Ein Flutter-Agent braucht auf einem frischen Runner Minuten, bevor er die erste Zeile liest.
 - Aber er ist **Zeit, nicht Datenverlust** — und das ist der ganze Unterschied. Ein Runner-Ausfall macht einen Agenten langsam, nicht arbeitsunfähig.
 
-Das Home eines Agenten auf einem Runner ist damit ein **verwerfbarer Arbeitsbestand**: Der Runner darf ihn bei Platzmangel aufräumen (`prune`), und ein neu aufgesetzter Runner braucht keine Datenübernahme.
+Das Home eines Agenten auf einem Runner ist damit ein **verwerfbarer Arbeitsbestand** — mit der Betonung auf dem, was die Negativliste als verwerfbar ausweist. Der Runner darf bei Platzmangel aufräumen (`prune`), aber nur die ableitbaren Anteile, und ein neu aufgesetzter Runner braucht keine Datenübernahme. Für die 48 MB gilt das Gegenteil: **Sie werden nie lokal weggeräumt, bevor sie zentral angekommen sind.** Ein `prune`, der einem Agenten seine selbstgeschriebenen Werkzeuge nimmt, wäre kein Aufräumen, sondern Arbeitsvernichtung.
 
 Die Präferenz ist dabei **klebrig, aber ohne Rückkehr-Automatik**: Fällt ein Runner aus, wandern seine Agenten auf einen anderen und *bleiben dort*. Kommt der alte zurück, wird nicht zurückmigriert — sonst folgt auf die Ausfallwelle eine zweite Welle kalter Starts. Der Ausgleich passiert von selbst beim nächsten ohnehin kalten Start.
 
@@ -159,6 +174,8 @@ Ein geteilter Cache ist ein **Kanal zwischen Agenten** und damit eine Isolations
 
 - Technisch als Overlay: der geteilte Bestand als nur-lesbare untere Schicht, die Schreibschicht liegt im Home des Agenten. Alles, was ein Werkzeug neu holt, landet privat — Lesezugriffe fallen auf den geteilten Bestand durch. Wo ein Werkzeug das nativ kann, wird es genutzt statt nachgebaut (Gradle etwa kennt einen nur-lesbaren Dependency-Cache genau für diesen CI-Fall).
 - Gefüllt wird der geteilte Bestand ausschließlich vom **Runner**, nachträglich: Nach einem erfolgreichen Lauf befördert er neu geholte Artefakte aus der privaten Schicht nach unten — beschränkt auf inhaltsadressierte Pfade mit prüfbarem Hash. Ein Agent kann damit einem anderen nichts unterschieben; er kann höchstens etwas beitragen, das seinem eigenen Hash entspricht.
+
+> **Der Hash entscheidet über *Teilen*, nie über *Behalten*.** Er ist der Filter einer einzigen Richtung — private Schicht → geteilter Bestand. Was ihn nicht passiert, bleibt schlicht privat liegen; nichts wird gelöscht, weil es keinen Hash hat. Für selbstgeschriebene Skripte, Auswertungen und Zwischenstände ist genau das die richtige Behandlung: Sie gehören dem Agenten, nicht dem Cache, und ihr Verbleib richtet sich allein nach der Negativliste aus „Das Home".
 - Der Preis ist ehrlich zu nennen: Ein **noch unbekanntes** Paket lädt der erste Agent selbst, und erst der zweite profitiert. Warmup ist ein Effekt über die Zeit, keine Garantie beim ersten Lauf.
 
 Beim `--reference`-Klon kommt eine Eigenheit dazu: Ein so erzeugter Checkout hängt am Objektspeicher des Mirrors. Räumt der Runner ihn weg, ist der Checkout beschädigt. Entweder der Mirror wird nie geräumt, solange Checkouts darauf verweisen, oder es wird mit `--dissociate` geklont — das kopiert die nötigen Objekte einmal und kostet Platz statt Zerbrechlichkeit.
