@@ -46,7 +46,7 @@ func testDist() fs.FS {
 }
 
 func testServer() *Server {
-	s := &Server{WebFS: testDist(), PublicURL: "https://covey.example"}
+	s := &Server{WebFS: testDist(), SiteURL: "https://covey.example"}
 	s.seo = ladeSEOIndex(s.WebFS)
 	return s
 }
@@ -168,6 +168,29 @@ func TestOriginPlatzhalterWirdErsetzt(t *testing.T) {
 	ohne.spaHandler(ohne.WebFS).ServeHTTP(rec, req)
 	if !strings.Contains(rec.Body.String(), "https://covey.intern:8494/") {
 		t.Fatalf("Adresse nicht aus dem Request abgeleitet: %s", rec.Body.String())
+	}
+}
+
+// PublicURL ist die Adresse, über die Sandboxen die Control Plane erreichen —
+// beim docker-Provider typischerweise ein Loopback. Sie darf die Adressen der
+// Website nicht bestimmen: Sonst kann niemand die eine setzen, ohne die andere
+// zu verstellen. Genau das ist einmal passiert und hat die Data Plane
+// stillgelegt.
+func TestWebsiteAdresseHaengtNichtAnPublicURL(t *testing.T) {
+	s := &Server{WebFS: testDist(), PublicURL: "http://localhost:8494"}
+	s.seo = ladeSEOIndex(s.WebFS)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Host = "covey.example"
+	req.Header.Set("X-Forwarded-Proto", "https")
+	s.spaHandler(s.WebFS).ServeHTTP(rec, req)
+
+	if strings.Contains(rec.Body.String(), "localhost:8494") {
+		t.Fatalf("PublicURL steht in den Adressen der Website:\n%s", rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "https://covey.example/") {
+		t.Fatalf("Adresse nicht aus dem Request abgeleitet:\n%s", rec.Body.String())
 	}
 }
 

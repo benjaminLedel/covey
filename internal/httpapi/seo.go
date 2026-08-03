@@ -73,13 +73,20 @@ func (i seoIndex) istAppPfad(pfad string) bool {
 	return false
 }
 
-// origin ist die Adresse, unter der diese Installation erreichbar ist —
-// Grundlage für Canonical, hreflang und Sitemap. COVEY_PUBLIC_URL hat Vorrang,
-// weil nur die Konfiguration weiß, was vor dem Server steht; sonst wird sie aus
-// dem Request abgeleitet.
+// origin ist die Adresse, unter der die öffentliche Website erreichbar ist —
+// Grundlage für Canonical, hreflang und Sitemap.
+//
+// Bewusst NICHT PublicURL: Die ist die Adresse, über die Sandboxen die Control
+// Plane erreichen, und damit eine interne Betriebsadresse (beim docker-Provider
+// oft ein Loopback, das für die Sandbox zu host.docker.internal wird). Beides
+// an eine Variable zu hängen hieße, dass niemand die Website-Adresse setzen
+// kann, ohne die Data Plane vom Netz zu nehmen.
+//
+// Default ist deshalb die Herkunft des Requests; COVEY_SITE_URL ist der
+// Ausweg für Aufbauten, in denen der Proxy sie nicht durchreicht.
 func (s *Server) origin(r *http.Request) string {
-	if s.PublicURL != "" {
-		return strings.TrimRight(s.PublicURL, "/")
+	if s.SiteURL != "" {
+		return strings.TrimRight(s.SiteURL, "/")
 	}
 	schema := "http"
 	if r.TLS != nil {

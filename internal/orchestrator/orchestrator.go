@@ -788,7 +788,14 @@ func (o *Orchestrator) wake(ctx context.Context, agent agents.Agent) (DaemonLink
 		return link, sandbox, nil
 	case <-time.After(o.ReadyTimeout):
 		sandbox.Stop(context.WithoutCancel(ctx))
-		return nil, nil, fmt.Errorf("daemon hat sich nicht verbunden (timeout %s)", o.ReadyTimeout)
+		// Die Adresse gehört in die Meldung: Der häufigste Grund für dieses
+		// Timeout ist, dass die Sandbox die Control Plane unter genau dieser
+		// URL nicht erreicht — falsches COVEY_PUBLIC_URL, fehlende
+		// Egress-Freigabe, Proxy dazwischen. Ohne sie sucht man im Dunkeln.
+		return nil, nil, fmt.Errorf(
+			"daemon hat sich nicht verbunden (timeout %s) — Sandbox sollte %s erreichen; "+
+				"prüfen: COVEY_PUBLIC_URL muss von der Sandbox aus erreichbar sein",
+			o.ReadyTimeout, o.PublicWSURL)
 	case <-ctx.Done():
 		sandbox.Stop(context.WithoutCancel(ctx))
 		return nil, nil, ctx.Err()

@@ -84,6 +84,10 @@ type Server struct {
 	// PublicURL füllt den {public_url}-Platzhalter in den Einrichtungs-
 	// Anleitungen der Zielsystem-Plugins (Webhook-Endpunkte).
 	PublicURL string
+	// SiteURL ist die Adresse der öffentlichen Website (canonical, hreflang,
+	// sitemap.xml). Leer = aus dem Request ableiten. Getrennt von PublicURL,
+	// weil die eine nach außen zeigt und die andere zu den Sandboxen.
+	SiteURL string
 	// CookieSecure setzt das Secure-Flag auf dem Session-Cookie (HTTPS-only).
 	CookieSecure bool
 

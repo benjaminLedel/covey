@@ -83,12 +83,21 @@ In GitLab unter **Settings → CI/CD → Variables**:
 | `DEPLOY_DIR` | `/opt/covey` | Zielordner auf dem Host |
 | `COVEY_PUBLIC_URL` | `http://localhost:8494` | öffentliche URL — nur beim **ersten** Deploy in die `.env` geschrieben |
 
-`COVEY_PUBLIC_URL` ist mehr als Kosmetik: Aus ihr baut das Binary die Adressen
-in `sitemap.xml`, `robots.txt` und den `canonical`/`hreflang`-Angaben der
-öffentlichen Website. Ist sie leer, leitet der Server sie aus dem Host-Header
-ab — das funktioniert hinter einem sauber konfigurierten Reverse-Proxy, ist aber
-die schwächere Grundlage. Wer die Website in Suchmaschinen sehen will, setzt sie
-auf die tatsächliche `https://`-Adresse.
+> **`COVEY_PUBLIC_URL` ist eine Betriebsadresse, keine Marketing-Adresse.**
+> Aus ihr baut sich die `COVEY_WS_URL`, mit der jede Sandbox zur Control Plane
+> zurückverbindet. Beim docker-Provider wird ein Loopback-Host dabei zu
+> `host.docker.internal` umgeschrieben — ein öffentlicher Name wird es nicht.
+> Trägt man hier die Domain der Website ein, wählen die Sandboxen über das
+> offene Netz zurück, wo die Egress-Allowlist sie stoppt: Alle Agenten
+> scheitern dann mit `daemon hat sich nicht verbunden (timeout 1m0s)`.
+> Der Wert muss **von der Sandbox aus** erreichbar sein, sonst nichts.
+
+Die Adresse der öffentlichen Website ist davon getrennt: `COVEY_SITE_URL`. Sie
+füllt `canonical`, `hreflang`, `sitemap.xml` und `robots.txt`. **Leer lassen ist
+der Normalfall** — dann leitet der Server sie aus dem Request ab (Host-Header
+plus `X-Forwarded-Proto`), was hinter einem sauber konfigurierten Reverse-Proxy
+genau das Richtige tut. Setzen nur, wenn der Proxy die Herkunft nicht
+durchreicht und in der Sitemap sonst `http://` oder ein interner Name landet.
 
 Registry-Login läuft automatisch über die eingebauten `$CI_REGISTRY_*`.
 

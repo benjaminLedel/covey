@@ -16,7 +16,23 @@ type Config struct {
 	// ListenAddr ist die HTTP-Bind-Adresse des Binaries (API + eingebettetes Frontend).
 	ListenAddr string
 	// PublicURL ist die von Sandboxen erreichbare Basis-URL der Control Plane.
+	//
+	// ACHTUNG, das ist eine Betriebsadresse, keine Marketing-Adresse: Aus ihr
+	// baut sich die COVEY_WS_URL, die jede Sandbox zum Zurückverbinden benutzt
+	// (cmd/covey/main.go). Beim docker-Provider wird ein Loopback-Host dabei zu
+	// host.docker.internal umgeschrieben — ein öffentlicher Name wird es nicht.
+	// Wer hier die Domain der Website einträgt, schickt jede Sandbox über das
+	// offene Netz zurück, wo die Egress-Allowlist sie stoppt; die Agenten
+	// scheitern dann mit „daemon hat sich nicht verbunden".
+	// Die Adresse der öffentlichen Website ist SiteURL.
 	PublicURL string
+
+	// SiteURL ist die Adresse, unter der die öffentliche Website erreichbar
+	// ist — Grundlage für canonical, hreflang, sitemap.xml und robots.txt.
+	// Leer (Default) heißt: aus dem Request ableiten (Host + X-Forwarded-Proto),
+	// was hinter einem sauber konfigurierten Reverse-Proxy das Richtige tut.
+	// Nur setzen, wenn der Proxy die Herkunft nicht durchreicht.
+	SiteURL string
 	// CookieSecure setzt das Secure-Flag auf dem Session-Cookie (nur über
 	// HTTPS ausgeliefert). Default: automatisch aus dem PublicURL-Schema
 	// abgeleitet (https → true), per COVEY_COOKIE_SECURE überschreibbar.
@@ -112,6 +128,7 @@ func FromEnv() (Config, error) {
 		DatabaseURL:      getenv("COVEY_DATABASE_URL", "postgres://covey:covey@localhost:5433/covey?sslmode=disable"),
 		ListenAddr:       getenv("COVEY_LISTEN_ADDR", ":8494"),
 		PublicURL:        getenv("COVEY_PUBLIC_URL", "http://localhost:8494"),
+		SiteURL:          os.Getenv("COVEY_SITE_URL"),
 		MasterKeyHex:     os.Getenv("COVEY_MASTER_KEY"),
 		IdentityProvider: getenv("COVEY_IDENTITY_PROVIDER", "builtin"),
 		SecretStore:      getenv("COVEY_SECRET_STORE", "builtin"),
