@@ -147,8 +147,32 @@ Ehrlich zu nennen, weil es nicht gratis ist:
 
 - **Der erste Sync** eines gewachsenen Entwickler-Homes ist ein voller Durchgang — 7 GB. Danach Deltas.
 - **Der Sleep-Pfad wird länger.** Der Sync läuft beim echten Einschlafen, nicht beim Parken einer warmen Sandbox — die warme Session ([`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)) bleibt davon unberührt.
-- **Ein Speicher für Blöcke.** Postgres ist für GB-große Binärdaten der falsche Ort. Nach „batteries included, but swappable" ([`10-architektur-stack.md`](10-architektur-stack.md)): Voreinstellung ein Verzeichnis neben `data/homes`, ein Objektspeicher (S3/MinIO) zuschaltbar. Das ist eine echte Erweiterung der Betriebsfläche gegenüber „ein Binary + Postgres" und soll nicht kleingeredet werden.
-- **Aufräumen.** Snapshots häufen sich; ohne Retention (die letzten N plus den letzten erfolgreichen) wächst der Store unbegrenzt.
+- **Ein Speicher für Blöcke.** Postgres ist für GB-große Binärdaten der falsche Ort (siehe unten).
+- **Aufräumen.** Snapshots häufen sich; ohne Retention wächst der Store unbegrenzt. Bedienbar in der Oberfläche, nicht nur per Umgebungsvariable — siehe „Oberfläche".
+
+### Wo die Blöcke liegen
+
+Ein weiterer Port nach dem Muster von `IdentityProvider` und `SecretStore` ([`10-architektur-stack.md`](10-architektur-stack.md), „batteries included, but swappable"): **`BlobStore`**, Interface vor Implementierung, zwei Umsetzungen.
+
+| Backend | Wann | Was es kostet |
+|---|---|---|
+| `builtin` (Voreinstellung) | ein Verzeichnis neben `data/homes`, Blöcke als `blocks/<xx>/<hash>` | nichts — kein Zusatzdienst, kein neues Betriebsteil |
+| `s3` | wenn Durabilität, Replikation oder Trennung von der Control-Plane-Platte gefordert ist | ein weiterer Dienst im Betrieb |
+
+Die Voreinstellung ist bewusst das Verzeichnis. Für eine Installation auf einer Maschine — der Normalfall von Covey — ist ein Objektspeicher unnötige Betriebsfläche, und das Versprechen „ein Binary + Postgres" soll nicht klammheimlich zu „ein Binary + Postgres + MinIO" werden.
+
+**Wenn Objektspeicher, dann S3-kompatibel — nicht „AWS S3".** Das Protokoll ist der gemeinsame Nenner von Hetzner Object Storage, Garage, MinIO, Ceph RadosGW und SeaweedFS; Covey schreibt keinen Server vor, sondern spricht das Protokoll. Zur Auswahl auf der Betreiberseite: Was der Hoster ohnehin anbietet (auf der in [`10-architektur-stack.md`](10-architektur-stack.md) genannten Hetzner/Proxmox-Infra also Hetzner Object Storage), sonst **Garage** — leichtgewichtig und für genau solche kleinen, selbst betriebenen Cluster gebaut. MinIO, wenn es im Haus ohnehin läuft.
+
+Als Client **`minio-go/v7`** (Apache-2.0) statt `aws-sdk-go-v2`: Er ist auf fremde Endpunkte, Path-Style und beliebige Regionen ausgelegt, und er wiegt weniger. Das ist hier kein Nebenaspekt — `go.mod` hat heute **sieben** direkte Abhängigkeiten, und der AWS-SDK-Baum wäre die mit Abstand größte Einzelposition im Projekt.
+
+### Wie die Blöcke zum Runner kommen
+
+Ein Runner bekommt **niemals die Zugangsdaten des Stores** — das wäre dasselbe Versäumnis wie die Datenbank-URL im Egress-Proxy (siehe „Vertrauensgrenze"). Stattdessen stellt die Control Plane pro Transfer **kurzlebige, gescopte URLs** aus, genau nach dem Muster des Secrets-Brokers ([`04-identitaet-secrets.md`](04-identitaet-secrets.md)):
+
+- Beim `s3`-Backend als **pre-signed URLs** — der Runner lädt direkt beim Objektspeicher, die Control Plane sieht die Bytes nie.
+- Beim `builtin`-Backend liefert die Control Plane gleichwertige kurzlebige URLs auf sich selbst.
+
+Beides verhindert zugleich, dass 7 GB durch die Runner-WebSocket müssen: Der Steuerkanal bleibt schmal, die Nutzlast geht daran vorbei.
 
 > **Warum nicht Git als Transport?** Naheliegend, aber Git passt nur auf den kuratierten Textteil. `repos/` sind selbst Git-Checkouts (verschachtelte Repos plus Duplizierung eines existierenden Remotes), Caches und SDKs haben in einer Versionsgeschichte nichts verloren, und die Transkripte sind append-only JSONL, an dem Git aufbläht, ohne dass je ein Diff gelesen wird. Was Git hier attraktiv macht — Dedup und Historie — liefert der inhaltsadressierte Store ohnehin, und zwar ohne diese Nachteile. Das Wiki *mit* Git-Historie zu unterlegen bleibt eine eigenständig attraktive Idee, ist hier aber nicht mitentschieden.
 
@@ -230,7 +254,7 @@ Ein Runner erhält mit `start_sandbox` das `COVEY_DAEMON_TOKEN` und das Egress-T
 
 Daraus folgen harte Regeln:
 
-- **Kein Datenbankzugriff.** Ein Runner spricht ausschließlich das Runner-Protokoll. Das betrifft heute konkret den Egress-Proxy: Er bekommt im harten Isolationsmodus `COVEY_DATABASE_URL` und liest seine Allowlist selbst aus Postgres. Auf einem entfernten Runner hieße das, die Postgres-Zugangsdaten auf jeden Host zu verteilen — das kippt die Vertrauensgrenze und ist **Voraussetzung** für alles Weitere: Die Allowlist muss über die authentifizierte Control-Plane-API kommen (siehe unten).
+- **Kein Datenbankzugriff und keine Store-Zugangsdaten.** Ein Runner spricht ausschließlich das Runner-Protokoll; Blöcke holt und schreibt er über kurzlebige, gescopte URLs (siehe „Wie die Blöcke zum Runner kommen"). Das betrifft heute konkret den Egress-Proxy: Er bekommt im harten Isolationsmodus `COVEY_DATABASE_URL` und liest seine Allowlist selbst aus Postgres. Auf einem entfernten Runner hieße das, die Postgres-Zugangsdaten auf jeden Host zu verteilen — das kippt die Vertrauensgrenze und ist **Voraussetzung** für alles Weitere: Die Allowlist muss über die authentifizierte Control-Plane-API kommen (siehe unten).
 - **Kein langlebiges Zielsystem-Secret.** Der Runner sieht Daemon- und Egress-Token, nie die gebrokerten Zugangsdaten — die gehen weiterhin direkt an den Daemon ([`04-identitaet-secrets.md`](04-identitaet-secrets.md)).
 - **TLS ist Pflicht.** Die Control Plane muss von fremden Hosts erreichbar sein; `COVEY_PUBLIC_URL` über Klartext-HTTP wäre die Preisgabe jedes Daemon-Tokens.
 - **Widerruf und Audit pro Runner.** Ein Runner-Token ist einzeln widerrufbar; Registrierung, Verbindung, jede Sandbox-Zuweisung und jeder `home_op` sind auditierbare Ereignisse ([`06-observability-control.md`](06-observability-control.md)).
@@ -247,6 +271,39 @@ Der harte Isolationsmodus (`network`) verlangt einen Proxy **im Netzsegment der 
 `FileAccess` liefert heute einen **Host-Pfad**, den der Dateibrowser direkt liest. Mit entfernten Runnern wird daraus `home_op` über den Runner-Link.
 
 Die Begründung, warum der Dateizugriff bewusst **nicht** durch das Daemon-Protokoll geht, bleibt dabei erhalten — sie wird sogar sauberer: Das Home muss auch dann lesbar sein, wenn die Sandbox schläft, und schlafend ist der Normalzustand. Der Runner-Link besteht durchgehend, der Daemon-Link nur während eines Laufs. Der Runner ist damit genau die richtige Naht für diese Anforderung; der Daemon wäre die falsche gewesen.
+
+## Oberfläche
+
+Ein Store, der still im Hintergrund wächst und dessen Inhalt niemand sehen kann, ist ein Betriebsrisiko — man bemerkt ihn erst, wenn die Platte voll ist. Beides gehört deshalb in die UI und nicht nur in Umgebungsvariablen.
+
+### Das Home eines Agenten
+
+Auf der Agenten-Seite, neben dem bestehenden Dateibrowser:
+
+| Angabe | Warum sie dort steht |
+|---|---|
+| Größe des Homes, davon **belegt nach Dedup** | Der Unterschied ist die eigentliche Aussage: 7,1 GB Home, aber vielleicht 200 MB, die nur dieser Agent hält |
+| Letzter Sync: Zeitpunkt, Dauer, übertragene Blöcke | Ob der Sync überhaupt läuft, und ob er teuer ist |
+| Anzahl Snapshots und Zeitraum | Was die Retention gerade übrig lässt |
+| Aktueller bzw. zuletzt genutzter Runner | Wo der Arbeitsbestand warm liegt |
+| Die größten Verzeichnisse | Beantwortet „warum ist das Home so groß?" ohne Shell-Zugang — und legt Kandidaten für einen Ausschluss offen |
+
+Dazu die Snapshot-Liste mit zwei Aktionen: **Wiederherstellen** (ein früherer Stand wird zum aktuellen — die Rollback-Fähigkeit, die aus der Bauform ohnehin abfällt) und **Jetzt sichern** (Sync erzwingen, etwa vor einer Wartung).
+
+Wiederherstellen ist eine ändernde Aktion an fremder Arbeit und braucht deshalb dieselbe Behandlung wie andere Eingriffe: nur mit der passenden Rolle, mit Bestätigung, und als Audit-Ereignis ([`06-observability-control.md`](06-observability-control.md)). Sie ist außerdem nur zulässig, während der Agent **nicht** läuft — sonst schreibt die laufende Sandbox in ein Home, das sich unter ihr ändert.
+
+### Retention
+
+Org-weite Einstellung, mit Knopf statt nur mit Variable:
+
+- **Snapshots je Agent behalten:** die letzten *N* (Voreinstellung 10).
+- **Höchstalter:** Snapshots älter als *X* Tage entfernen (Voreinstellung 30).
+- **Immer behalten:** der jüngste Snapshot jedes Agenten — auch wenn beide Regeln ihn träfen. Eine Retention, die einem Agenten sein letztes Home nimmt, ist ein Löschbefehl mit Umweg.
+- **Jetzt aufräumen** als ausdrücklicher Knopf, mit Vorschau: was fiele weg, wie viel Platz käme frei.
+
+Beim Aufräumen wird ein Block erst entfernt, wenn **kein** verbleibender Snapshot ihn mehr referenziert — das ist der Preis der Deduplizierung und der Grund, warum „diesen Snapshot löschen" nicht linear Platz freigibt. Die Vorschau nennt deshalb den tatsächlich frei werdenden Platz, nicht die Summe der Snapshot-Größen; alles andere wäre eine Zahl, die nie stimmt.
+
+Der Füllstand des Stores gehört zusätzlich auf das Dashboard: Gesamtgröße, Wachstum, und eine Warnung, bevor die Platte knapp wird — nicht danach.
 
 ## Nicht im ersten Wurf
 
@@ -271,7 +328,8 @@ Jede Stufe ist für sich nützlich und einzeln abnehmbar:
 | 3 | `covey-runner` als drittes Binary: Registrierung, `start_sandbox`/`stop_sandbox`, `RunnerPool` als `SandboxProvider` | Sandboxen laufen auf einem zweiten Host |
 | 4 | `home_op` — Dateibrowser über den Runner-Link | Der Dateibrowser funktioniert auch entfernt |
 | 5 | Tags, Kapazität, Runner-Ansicht in der UI | Betreibbarkeit ab mehr als zwei Runnern |
-| 6 | Retention und GC für Snapshots | Der Store wächst nicht unbegrenzt |
+| 6 | Oberfläche: Home-Info, Snapshot-Liste, Retention-Einstellung und -Knopf, Füllstand aufs Dashboard | Der Store ist sichtbar und bedienbar, statt still zu wachsen |
+| 7 | `BlobStore`-Backend `s3` (Port existiert ab Stufe 2, `builtin` genügt bis hierher) | Durabilität und Replikation, wenn die Control-Plane-Platte nicht reicht |
 
 Die Stufen 0 bis 2 sind vom Runner unabhängig und sollten zuerst laufen — jede ist für sich eine Verbesserung des Ist-Zustands. Stufe 0, weil sie sonst zur Sicherheitslücke wird, sobald ein Runner entfernt läuft. Stufe 1, weil die Image-Capability sonst in Stufe 3 nachgereicht werden müsste.
 
