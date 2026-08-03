@@ -1,6 +1,6 @@
 # 07 — Offene Entscheidungen & MVP-Scope
 
-Stand: Ergebnis des Brainstorms. Diese Punkte sind bewusst offen und sollten früh festgenagelt werden, weil sie stark kaskadieren.
+Stand: Ergebnis des Brainstorms. Diese Punkte sind bewusst offen und sollten früh festgenagelt werden, weil sie stark kaskadieren. Entschiedene Punkte bleiben mit `✅ *entschieden*` stehen — die Begründung gehört zur Entscheidung und geht sonst verloren.
 
 ## Offene Entscheidungen
 
@@ -52,7 +52,7 @@ Beide tragfähig für den nebenläufigkeits-schweren Orchestration-Core. **Tende
 
 Wie kommt die projektspezifische Toolchain in eine Sandbox, die am **Agenten** hängt? Ein Entwickler-Agent arbeitet an mehreren Projekten mit verschiedenen Technologien und Versionen; sein Container startet aber beim Wake, bevor feststeht, welches Ticket aus welchem Projekt drankommt. „Ein Image pro Projekt" setzt deshalb einen Agenten pro Projekt voraus.
 
-Entschieden: **Version → Home, Vorhandensein einer Toolchain → Image.** Das Image trägt Systempakete (PHP, JDK) und die Versionsmanager (`fvm`, `uv`); die SDK-**Versionen** zieht sich der Agent nach dem Pin im Projekt-Repo selbst ins persistente Home. Ein Image für alle Agenten — ein `sandbox_image` pro Agent lohnt erst, wenn ein Agent bewusst *weniger* können soll, nicht für mehr Sprachen.
+Entschieden: **Version → Home, Toolchain → Image.** Das Image trägt Systempakete (PHP, JDK) und die Versionsmanager (`fvm`, `uv`); die SDK-**Versionen** zieht sich der Agent nach dem Pin im Projekt-Repo selbst ins persistente Home. Ein Image für alle Agenten — ein `sandbox_image` pro Agent lohnt erst, wenn ein Agent bewusst *weniger* können soll, nicht für mehr Sprachen.
 
 Verworfen: **Pakete zur Laufzeit über die UI nachinstallieren.** Drei Gründe, alle strukturell — der Agent läuft als Nicht-Root (Claude Code verweigert `--dangerously-skip-permissions` als root); ein Paketmanager auf der Egress-Allowlist ist ein generischer Code-Ausführungskanal und kein Zielsystem-Host; und eine Sandbox, deren Werkzeuge aus einer Klickliste plus dem Zustand eines Mirrors entstehen, ist nicht mehr aus Config + Home rekonstruierbar — der Kern der „dumm und ersetzbar"-Zusage aus [`01-architektur.md`](01-architektur.md).
 

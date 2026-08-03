@@ -39,20 +39,34 @@ ENV COVEY_BROWSER_CHROME_PATH=/usr/bin/chromium
 # und pdo_sqlite, weil PHPUnit dort gegen eine In-Memory-SQLite läuft.
 # Als Nicht-Root kann der Agent nichts nachinstallieren — was hier fehlt, fehlt
 # ihm zur Laufzeit.
+# Nebenwirkung von sury, die man kennen muss: Die Quelle bringt eigene Rebuilds
+# einiger Systembibliotheken mit, und php8.2-gd zieht deren libgd3 anstelle der
+# Debian-Fassung. Das ist bei sury unvermeidbar (die Abhängigkeit ist so gebaut),
+# aber es heißt: Ein Drittanbieter-Repo liefert hier mehr als nur PHP. Deshalb
+# fliegt die Quellendatei im selben Layer wieder raus — das Image soll keine
+# aktive Fremdquelle tragen, und apt braucht der Agent ohnehin nie.
 RUN curl -fsSL https://packages.sury.org/php/apt.gpg -o /usr/share/keyrings/sury-php.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/sury-php.gpg] https://packages.sury.org/php/ trixie main" \
          > /etc/apt/sources.list.d/sury-php.list \
     && apt-get update && apt-get install -y --no-install-recommends \
          php8.2-cli php8.2-xml php8.2-mbstring php8.2-curl php8.2-zip php8.2-gd \
          php8.2-ldap php8.2-sqlite3 php8.2-mysql php8.2-bcmath php8.2-intl composer \
+    && rm -f /etc/apt/sources.list.d/sury-php.list \
     && rm -rf /var/lib/apt/lists/*
+
 # JDK für Kotlin/Java-Projekte. Bewusst nur EINE Version: `gradlew` braucht nur
 # eine JVM zum Starten und lädt sein Gradle selbst; ein Projekt, das ein anderes
 # JDK verlangt, holt es sich über Gradles Toolchain-Provisioning oder SDKMAN ins
 # Home. Jede weitere JDK-Version hier kostet ~200 MB für alle Agenten.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        openjdk-21-jdk-headless \
-    && rm -rf /var/lib/apt/lists/*
+# JAVA_HOME wird gesetzt, weil `gradlew` zwar mit `java` aus dem PATH auskommt,
+# Toolchain-Erkennung und Android-Tooling aber die Variable lesen. Der Pfad trägt
+# die Debian-Architektur im Namen, deshalb abgeleitet statt hart notiert.
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends openjdk-21-jdk-headless; \
+    rm -rf /var/lib/apt/lists/*; \
+    ln -s "/usr/lib/jvm/java-21-openjdk-$(dpkg --print-architecture)" /opt/java
+ENV JAVA_HOME=/opt/java
 
 # Versionsmanager für Toolchains, deren VERSION am Projekt hängt statt am Agenten.
 # Sie gehören ins Image, ihre SDKs NICHT: Die Control Plane mountet das
@@ -66,8 +80,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # fvm liegt als Baum unter /opt/fvm statt als einzelnes Binary: Der Einstieg ist
 # ein Shell-Launcher, der src/dart und src/fvm.snapshot NEBEN sich erwartet. Er
 # löst dafür Symlinks auf (readlink -f), deshalb genügt der Link im Systempfad.
-# Versionen gepinnt, damit derselbe Commit dasselbe Image ergibt; die Architektur
-# NICHT — das Image wird je nach Host auf amd64 oder arm64 gebaut.
+# Versionen sind auf den Release-Tag gepinnt; das ist kein Inhalts-Pin (Assets
+# eines Tags sind ersetzbar), hält aber Rebuilds über Monate stabil — dasselbe
+# Niveau wie beim npm-Paket der Runtime weiter unten. Die Architektur ist NICHT
+# gepinnt: Das Image wird je nach Host auf amd64 oder arm64 gebaut.
 ARG FVM_VERSION=4.1.2
 ARG UV_VERSION=0.12.1
 RUN set -eux; \
@@ -80,6 +96,7 @@ RUN set -eux; \
     curl -fsSL -o "$tmp/fvm.tar.gz" \
         "https://github.com/leoafarias/fvm/releases/download/${FVM_VERSION}/fvm-${FVM_VERSION}-linux-${fvm_arch}.tar.gz"; \
     tar -xzf "$tmp/fvm.tar.gz" -C "$tmp"; \
+    rm -rf /opt/fvm; \
     mv "$tmp/fvm" /opt/fvm; \
     ln -s /opt/fvm/fvm /usr/local/bin/fvm; \
     curl -fsSL -o "$tmp/uv.tar.gz" \
@@ -89,6 +106,12 @@ RUN set -eux; \
     install -m 0755 "$tmp/uv-${uv_arch}-unknown-linux-gnu/uvx" /usr/local/bin/uvx; \
     rm -rf "$tmp"; \
     fvm --version; uv --version
+# Was diese Manager ins Home legen, liegt nicht im Standard-PATH: uv installiert
+# Werkzeuge nach ~/.local/bin, fvm verlinkt das aktive SDK nach ~/fvm/default.
+# Der übliche Ausweg — der Installer ergänzt die .bashrc — greift hier nicht, weil
+# das gemountete Home die Shell-Dateien aus dem Image maskiert. Also fest in den
+# PATH, sonst findet der Agent, was er selbst installiert hat, nicht wieder.
+ENV PATH=/home/agent/.local/bin:/home/agent/fvm/default/bin:${PATH}
 
 # UTF-8 als Sandbox-Locale. Ohne das läuft der Container im POSIX-Default:
 # grep/sed/sort/wc/tr sehen dann Bytes statt Zeichen, unzip verstümmelt

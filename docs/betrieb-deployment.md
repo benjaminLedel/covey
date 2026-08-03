@@ -40,6 +40,17 @@ stimmen die `-v`-Pfade der Agenten-Homes, die der covey-Container an den
 Host-Daemon übergibt. Das Sandbox-Image wird im Deploy-Job gepullt (dort
 existiert der Registry-Login); die Control Plane selbst pullt nie.
 
+Migrationen laufen beim `serve`-Start automatisch (Advisory-Lock). Der
+`bootstrap`-Service legt Organisation/Admin idempotent an und blockiert den
+Start der Control Plane, bis er durch ist.
+
+Deploy-Compose vs. lokales Compose:
+
+| Datei | Zweck | Image |
+|---|---|---|
+| `docker-compose.yml` | lokal ausprobieren | `build: .` (baut lokal) |
+| `docker-compose.deploy.yml` | Host-Deployment via CI | `image: ${COVEY_IMAGE}` (aus Registry) |
+
 ### Was ins Sandbox-Image gehört — und was nicht
 
 Ein Entwickler-Agent arbeitet an mehreren Projekten mit unterschiedlichen
@@ -48,7 +59,7 @@ Projekt: Der Container startet beim Wake, bevor feststeht, welches Ticket aus
 welchem Projekt drankommt. Ein Image pro Projekt ist deshalb kein gangbarer Weg.
 Stattdessen gilt:
 
-> **Version → Home. Vorhandensein einer Toolchain → Image.**
+> **Version → Home, Toolchain → Image.**
 
 | Schicht | Inhalt | Lebensdauer |
 |---|---|---|
@@ -84,25 +95,29 @@ Entwickler-Agenten weist man üblicherweise zu:
 
 | Template | Wofür |
 |---|---|
-| GitHub | Git-Klone, Release-Downloads — auch für `fvm`, Composer-VCS-Pakete und `uv` |
-| PHP / Composer | `packagist.org` |
-| Dart / Flutter | `pub.dev`, SDK-Archive |
-| Maven / Gradle | Maven Central, Gradle-Wrapper, JDK-Toolchains |
+| GitHub | Git-Klone und Release-Downloads. **Praktisch immer nötig:** `fvm`, Composer-VCS-Pakete, `uv`s CPython, der Gradle-Wrapper und die JDK-Toolchains landen alle auf GitHub Releases |
+| PHP / Composer | `packagist.org` (die dist-Archive kommen über GitHub) |
+| Dart / Flutter | `pub.dev` und die SDK-Artefakte |
+| Maven / Gradle | Maven Central, Plugin Portal, Wrapper-Distributionen, JDK-Toolchains |
+| Android / Google Maven | Android-Abhängigkeiten — für Gradle- **und** Flutter-Builds |
 | Node.js / npm | `registry.npmjs.org` |
 
 Dazu das eigene GitLab bzw. Zammad als org-eigenes Template — die stehen
 bewusst nicht im Katalog.
 
-Migrationen laufen beim `serve`-Start automatisch (Advisory-Lock). Der
-`bootstrap`-Service legt Organisation/Admin idempotent an und blockiert den
-Start der Control Plane, bis er durch ist.
+Zwei Dinge, die beim Zuschneiden der Allowlist regelmäßig Zeit kosten:
 
-Deploy-Compose vs. lokales Compose:
-
-| Datei | Zweck | Image |
-|---|---|---|
-| `docker-compose.yml` | lokal ausprobieren | `build: .` (baut lokal) |
-| `docker-compose.deploy.yml` | Host-Deployment via CI | `image: ${COVEY_IMAGE}` (aus Registry) |
+- **Der Proxy folgt keinem Redirect.** Er sieht nur den CONNECT-Host der
+  jeweiligen Verbindung, und er ist fail-closed. Leitet ein Dienst auf einen
+  anderen Host um, muss auch das Ziel auf der Liste stehen — deshalb liegt
+  `plugins-artifacts.gradle.org` neben `plugins.gradle.org`, und deshalb ist
+  das GitHub-Template praktisch Pflicht.
+- **`storage.googleapis.com` im Flutter-Template ist breit.** Der Proxy
+  terminiert TLS nicht, kann also nicht auf Pfade filtern — der Eintrag öffnet
+  jeden öffentlich lesbaren GCS-Bucket, nicht nur die Flutter-Artefakte. Für
+  Agenten, bei denen das nicht tragbar ist, führt der Weg über einen eigenen
+  Spiegel und `FLUTTER_STORAGE_BASE_URL` in der Sandbox statt über dieses
+  Template.
 
 ---
 
