@@ -13,11 +13,11 @@ import (
 	"covey/internal/target/email"
 )
 
-// TestRoundtripMitEmailPlugin hält das Double ehrlich: der komplette
-// Demo-Kreislauf mit dem echten email-Plugin — Kunde speist per HTTP ein,
-// der Agent liest per IMAP und antwortet per SMTP, die Antwort landet im
-// Kunden-Postfach und im Zustell-Log.
-func TestRoundtripMitEmailPlugin(t *testing.T) {
+// TestRoundtripWithEmailPlugin keeps the double honest: the complete demo
+// cycle with the real email plugin — the customer feeds in over HTTP,
+// the agent reads by IMAP and answers by SMTP, and the answer lands in the
+// customer mailbox and in the delivery log.
+func TestRoundtripWithEmailPlugin(t *testing.T) {
 	st, err := start("127.0.0.1:0", "127.0.0.1:0", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -50,7 +50,7 @@ func TestRoundtripMitEmailPlugin(t *testing.T) {
 	}
 	resp.Body.Close()
 
-	// Agent: lesen und antworten.
+	// The agent: read and answer.
 	agentCred := cred("agent@covey.demo", "agent-pw")
 	unread := run(agentCred, "list_unread", `{}`).([]email.MessageSummary)
 	if len(unread) != 1 || unread[0].From != "kunde@covey.demo" {
@@ -69,7 +69,7 @@ func TestRoundtripMitEmailPlugin(t *testing.T) {
 		t.Fatalf("antwort-text: %+v", msg)
 	}
 
-	// … und im Zustell-Log (http-Inject + smtp-Antwort).
+	// … and in the delivery log (the HTTP inject + the SMTP answer).
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	if len(st.log) != 2 || st.log[0].Via != "http" || st.log[1].Via != "smtp" ||

@@ -1,15 +1,15 @@
-// fakemail ist ein minimales Mail-Double für lokale Demos des email-Plugins:
-// ein In-Memory-IMAP-Server (go-imap), ein SMTP-Eingang, der an die lokalen
-// Postfächer zustellt, und eine kleine HTTP-API zum Einspeisen und Mitlesen.
-// Alle Zustellungen werden geloggt. Start: go run ./demo/fakemail
+// fakemail is a minimal mail double for local demos of the email plugin: an
+// in-memory IMAP server (go-imap), an SMTP entry point that delivers to the
+// local mailboxes, and a small HTTP API for injecting and reading along.
+// Every delivery is logged. Start: go run ./demo/fakemail
 //
-//	IMAP :1143 — Klartext, passend zum email_url-Schema imap+insecure
-//	SMTP :1025 — Klartext, passend zu smtp+insecure
-//	HTTP :8025 — POST /send {from,to,subject,body} speist eine Mail ein,
-//	             GET /mails listet alle Zustellungen (neueste zuletzt)
+//	IMAP :1143 — plaintext, matching the email_url scheme imap+insecure
+//	SMTP :1025 — plaintext, matching smtp+insecure
+//	HTTP :8025 — POST /send {from,to,subject,body} injects a mail,
+//	             GET /mails lists all deliveries (newest last)
 //
-// Postfächer: agent@covey.demo (Passwort agent-pw) für den Covey-Agenten,
-// kunde@covey.demo (kunde-pw) als Gegenstelle. Secrets für den Agenten:
+// Mailboxes: agent@covey.demo (password agent-pw) for the Covey agent,
+// kunde@covey.demo (kunde-pw) as the counterpart. Secrets for the agent:
 //
 //	email_url   = imap+insecure://127.0.0.1:1143 smtp+insecure://127.0.0.1:1025
 //	email_token = agent@covey.demo:agent-pw
@@ -37,16 +37,16 @@ import (
 	"github.com/emersion/go-imap/v2/imapserver/imapmemserver"
 )
 
-// accounts sind die festen Demo-Postfächer.
+// accounts are the fixed demo mailboxes.
 var accounts = map[string]string{
 	"agent@covey.demo": "agent-pw",
 	"kunde@covey.demo": "kunde-pw",
 }
 
 func main() {
-	imapAddr := flag.String("imap", ":1143", "IMAP-Adresse (Klartext)")
-	smtpAddr := flag.String("smtp", ":1025", "SMTP-Adresse (Klartext)")
-	httpAddr := flag.String("http", ":8025", "HTTP-Adresse (Inject/Log)")
+	imapAddr := flag.String("imap", ":1143", "IMAP address (plaintext)")
+	smtpAddr := flag.String("smtp", ":1025", "SMTP address (plaintext)")
+	httpAddr := flag.String("http", ":8025", "HTTP address (inject/log)")
 	flag.Parse()
 
 	st, err := start(*imapAddr, *smtpAddr, *httpAddr)
@@ -55,12 +55,12 @@ func main() {
 	}
 	log.Printf("fake-mail: imap %s, smtp %s, http %s", st.imapLn.Addr(), st.smtpLn.Addr(), st.httpLn.Addr())
 	for user := range accounts {
-		log.Printf("postfach %s (passwort %s)", user, accounts[user])
+		log.Printf("mailbox %s (password %s)", user, accounts[user])
 	}
 	select {}
 }
 
-// store hält die Postfächer und das Zustell-Log.
+// store holds the mailboxes and the delivery log.
 type store struct {
 	mu     sync.Mutex
 	users  map[string]*imapmemserver.User
@@ -70,17 +70,17 @@ type store struct {
 	httpLn net.Listener
 }
 
-// delivered ist ein Eintrag im Zustell-Log (GET /mails).
+// delivered is one entry in the delivery log (GET /mails).
 type delivered struct {
 	Time    time.Time `json:"time"`
-	Via     string    `json:"via"` // "smtp" (echter Versand) oder "http" (Inject)
+	Via     string    `json:"via"` // "smtp" (real send) or "http" (inject)
 	From    string    `json:"from"`
 	To      []string  `json:"to"`
 	Subject string    `json:"subject"`
 	Body    string    `json:"body"`
 }
 
-// start fährt alle drei Server hoch (":0" = freier Port, für Tests).
+// start brings all three servers up (":0" = free port, for tests).
 func start(imapAddr, smtpAddr, httpAddr string) (*store, error) {
 	st := &store{users: map[string]*imapmemserver.User{}}
 	mem := imapmemserver.New()
@@ -121,31 +121,31 @@ func start(imapAddr, smtpAddr, httpAddr string) (*store, error) {
 	return st, nil
 }
 
-// deliver stellt eine Roh-Mail in die INBOX aller bekannten Empfänger zu und
-// protokolliert sie. Unbekannte Empfänger werden geloggt und verworfen —
-// genau wie ein echter Mailserver mit lokaler Zustellung.
+// deliver puts a raw mail into the INBOX of every known recipient and records
+// it. Unknown recipients are logged and dropped — just like a real mail server
+// doing local delivery.
 func (st *store) deliver(via, from string, rcpts []string, raw []byte) {
 	entry := delivered{Time: time.Now(), Via: via, From: from, To: rcpts}
 	entry.Subject, entry.Body = parseForLog(raw)
 	for _, rcpt := range rcpts {
 		u, ok := st.users[strings.ToLower(strings.TrimSpace(rcpt))]
 		if !ok {
-			log.Printf("→ %s: empfänger %q unbekannt, verworfen", via, rcpt)
+			log.Printf("→ %s: recipient %q unknown, dropped", via, rcpt)
 			continue
 		}
 		_, err := u.Append("INBOX", literal{bytes.NewReader(raw)}, &imap.AppendOptions{Time: time.Now()})
 		if err != nil {
-			log.Printf("→ %s: zustellung an %s fehlgeschlagen: %v", via, rcpt, err)
+			log.Printf("→ %s: delivery to %s failed: %v", via, rcpt, err)
 		}
 	}
 	st.mu.Lock()
 	st.log = append(st.log, entry)
 	st.mu.Unlock()
-	log.Printf("→ %s: %s → %v betreff=%q", via, from, rcpts, entry.Subject)
+	log.Printf("→ %s: %s → %v subject=%q", via, from, rcpts, entry.Subject)
 }
 
-// handleSend speist eine Mail per HTTP ein (Demo-Komfort: der „Kunde" braucht
-// keinen Mail-Client).
+// handleSend injects a mail over HTTP (demo convenience: the "customer" needs
+// no mail client).
 func (st *store) handleSend(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		From    string   `json:"from"`
@@ -154,7 +154,7 @@ func (st *store) handleSend(w http.ResponseWriter, r *http.Request) {
 		Body    string   `json:"body"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || in.From == "" || len(in.To) == 0 {
-		http.Error(w, "erwarte {from,to[],subject,body}", http.StatusBadRequest)
+		http.Error(w, "expected {from,to[],subject,body}", http.StatusBadRequest)
 		return
 	}
 	raw := fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\nDate: %s\r\nMessage-ID: <%d@fakemail>\r\n\r\n%s\r\n",
@@ -170,8 +170,8 @@ func (st *store) handleMails(w http.ResponseWriter, _ *http.Request) {
 	json.NewEncoder(w).Encode(st.log)
 }
 
-// serveSMTP nimmt Klartext-SMTP-Einlieferungen an (EHLO/MAIL/RCPT/DATA) und
-// stellt sie lokal zu — der Rückkanal für die Antworten des Agenten.
+// serveSMTP accepts plaintext SMTP submissions (EHLO/MAIL/RCPT/DATA) and
+// delivers them locally — the return channel for the agent's replies.
 func (st *store) serveSMTP() {
 	for {
 		conn, err := st.smtpLn.Accept()
@@ -228,7 +228,7 @@ func (st *store) handleSMTP(conn net.Conn) {
 	}
 }
 
-// pathArg extrahiert die Adresse aus "MAIL FROM:<a@b> PARAM" / "RCPT TO:<a@b>".
+// pathArg extracts the address from "MAIL FROM:<a@b> PARAM" / "RCPT TO:<a@b>".
 func pathArg(line string) string {
 	if i, j := strings.Index(line, "<"), strings.Index(line, ">"); i >= 0 && j > i {
 		return line[i+1 : j]
@@ -236,8 +236,8 @@ func pathArg(line string) string {
 	return strings.TrimSpace(line)
 }
 
-// parseForLog zieht Betreff und Text-Anfang für das Zustell-Log aus der
-// Roh-Mail (Best effort — das Log ist Anzeige, nicht Wahrheit).
+// parseForLog pulls subject and the start of the text out of the raw mail for
+// the delivery log (best effort — the log is display, not truth).
 func parseForLog(raw []byte) (subject, body string) {
 	msg, err := mail.ReadMessage(bytes.NewReader(raw))
 	if err != nil {
@@ -253,7 +253,7 @@ func parseForLog(raw []byte) (subject, body string) {
 	return subject, strings.TrimSpace(string(b))
 }
 
-// literal macht einen bytes.Reader zum imap.LiteralReader.
+// literal turns a bytes.Reader into an imap.LiteralReader.
 type literal struct{ *bytes.Reader }
 
 func (l literal) Size() int64 { return int64(l.Reader.Len()) }
