@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
-  api, roleLabel,
+  api,
   createDepartment, renameDepartment, deleteDepartment, setDepartmentColor,
   setAgentDepartment, setAgentSupervisor,
   setHumanDepartment, setHumanManager,
@@ -606,7 +606,7 @@ function MemberNode({
           <div>
             <div className="nm">{member.display_name}</div>
             <div className={`rl${isAgent && !agent!.job_title ? " mono" : ""}`}>
-              {isAgent ? (agent!.job_title || agent!.slug) : (human!.job_title || roleLabel[human!.role] || human!.role)}
+              {isAgent ? (agent!.job_title || agent!.slug) : (human!.job_title || t(`role.${human!.role}`, human!.role))}
             </div>
           </div>
           {isAgent

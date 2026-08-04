@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, buildInfo, post, roleLabel, type Approval, type Principal } from "./api";
+import { api, buildInfo, post, type Approval, type Principal } from "./api";
 import i18n, { gespeicherteSprache, istVorgerendert, merkeSprache } from "./i18n";
 import HelpDrawer from "./components/HelpDrawer";
 import PublicSite from "./public/PublicSite";
@@ -395,7 +395,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
                 <span className="avatar">{initials(me.DisplayName)}</span>
                 <span className="min-w-0">
                   <span className="nm truncate block">{me.DisplayName}</span>
-                  <span className="rl block truncate">{roleLabel[me.Role] || me.Role}</span>
+                  <span className="rl block truncate">{t(`role.${me.Role}`, me.Role)}</span>
                 </span>
               </NavLink>
               <button

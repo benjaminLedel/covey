@@ -1,6 +1,8 @@
 # Binaries
 /covey
 /coveyd
+/seed
+/tour
 
 # Secrets & Logs — der Master-Key darf nie ins Repo
 .covey.key
