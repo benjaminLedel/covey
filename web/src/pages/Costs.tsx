@@ -169,7 +169,7 @@ function CostChart({
             borderRadius: 8,
             padding: "8px 10px",
             fontSize: 12,
-            boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
+            boxShadow: "0 4px 16px var(--shadow-md)",
             minWidth: 150,
           }}
         >
@@ -237,7 +237,7 @@ function Seg<T extends string | number>({
               background: active ? "var(--surface-2)" : "transparent",
               color: active ? "var(--text-primary)" : "var(--text-secondary)",
               fontWeight: active ? 600 : 400,
-              boxShadow: active ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
+              boxShadow: active ? "0 1px 3px var(--shadow-xs)" : "none",
             }}
           >
             {o.label}

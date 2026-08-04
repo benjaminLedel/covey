@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api, buildInfo, post, type Approval, type Principal } from "./api";
 import i18n, { gespeicherteSprache, istVorgerendert, merkeSprache } from "./i18n";
 import HelpDrawer from "./components/HelpDrawer";
+import ThemeSwitch from "./components/ThemeSwitch";
 import PublicSite from "./public/PublicSite";
 import Dashboard from "./pages/Dashboard";
 import AgentPage from "./pages/Agent";
@@ -411,6 +412,9 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
                 <>
                   <div className="foot-menu-backdrop" onClick={() => setUserMenu(false)} />
                   <div className="foot-menu">
+                    <div className="foot-menu-sec">{t("theme.label")}</div>
+                    <ThemeSwitch />
+                    <div className="sep" />
                     <button onClick={toggleLang}>
                       <NavIcon name="globe" />
                       {t("lang.switchTo")}

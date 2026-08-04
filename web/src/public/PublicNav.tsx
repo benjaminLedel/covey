@@ -1,12 +1,13 @@
 import { NavLink, Link, useLocation, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { merkeSprache } from "../i18n";
+import ThemeSwitch from "../components/ThemeSwitch";
 import { BirdMark } from "./chrome";
 import { usePublicLang } from "./lang";
 import { LANGS, altPath, pathOf } from "./seo";
 
 /* Sticky Kopfzeile der öffentlichen Website: Wortmarke, Seiten-Navigation,
-   Sprachumschalter und Anmelde-Knopf. */
+   Erscheinungsbild, Sprachumschalter und Anmelde-Knopf. */
 export default function PublicNav() {
   const { t } = useTranslation();
   const { pathname } = useLocation();
@@ -49,6 +50,7 @@ export default function PublicNav() {
         </nav>
 
         <div className="pubnav-right">
+          <ThemeSwitch variant="pill" />
           <div className="lang-switch inline" role="group" aria-label="Sprache / Language">
             {LANGS.map((l) => (
               <button

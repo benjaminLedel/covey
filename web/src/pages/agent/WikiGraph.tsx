@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import {
   type MemoryEntry,
 } from "../../api";
+import { beobachteTheme } from "../../theme";
 
 export type GraphNode = { page: MemoryEntry; x: number; y: number; vx: number; vy: number; r: number; deg: number };
 export type GraphEdge = { a: GraphNode; b: GraphNode };
@@ -184,6 +185,11 @@ export function WikiGraph({
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, [draw]);
+  /* Die Farben stehen im Bild, nicht im Stylesheet: Wechselt das
+     Erscheinungsbild, muss der Graph neu gezeichnet werden — sonst bleiben die
+     Linien der alten Fassung stehen (im Dunkeln also unsichtbar). Das Modell
+     bleibt, nur die Farben werden neu gelesen. */
+  useEffect(() => beobachteTheme(draw), [draw]);
 
   const pick = (ev: React.MouseEvent<HTMLCanvasElement>): GraphNode | null => {
     const m = model.current;
