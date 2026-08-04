@@ -252,7 +252,10 @@ func run(ctx context.Context, dbURL string, force bool) error {
 	tasks := backlog.NewStore(pool)
 	orgStore := org.NewStore(pool)
 	mem := memory.NewStore(pool, memory.HashEmbedder{})
-	rnd := rand.New(rand.NewSource(20260804)) // fest: derselbe Seed, dieselben Zahlen
+	// #nosec G404 — Streuung für Demo-Zahlen, keine Sicherheitsentscheidung.
+	// Der feste Seed ist hier der Zweck: derselbe Seed, dieselben Zahlen, damit
+	// die README-Bilder bei jedem Lauf denselben Datensatz zeigen.
+	rnd := rand.New(rand.NewSource(20260804))
 
 	if _, err := pool.Exec(ctx, `UPDATE organizations SET name='Northgate Systems' WHERE id=$1`, orgID); err != nil {
 		return err
