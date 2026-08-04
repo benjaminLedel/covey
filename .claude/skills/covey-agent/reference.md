@@ -1,140 +1,142 @@
-# Referenz: Bundle-Schema & Zielsysteme
+# Reference: bundle schema & target systems
 
-## Bundle-Schema (`covey.agent-config`, Version 1)
+## Bundle schema (`covey.agent-config`, version 1)
 
-Ein Agent-Bundle ist eine JSON-Datei. Pflicht sind `kind`, `version`, `agent.slug`,
-`agent.display_name` und `files`. Alles Weitere ist optional.
+An agent bundle is a JSON file. Mandatory are `kind`, `version`, `agent.slug`,
+`agent.display_name` and `files`. Everything else is optional.
 
 ```json
 {
   "kind": "covey.agent-config",
   "version": 1,
   "agent": {
-    "slug": "covey-support",              // eindeutig pro Org, [a-z0-9-]
+    "slug": "covey-support",              // unique per org, [a-z0-9-]
     "display_name": "Covey Support",
-    "runtime": "claude-code",             // aktuell einzige Runtime
-    "model": "",                          // optional, leer = Runtime-Default
-    "max_turns": 0,                       // optional, 0 = Default (30)
-    "budget_usd": 0,                      // optional, 0 = kein Deckel (Kill-Switch bei Überschreitung)
-    "supervisor_email": "",               // optional, ordnet den Vorgesetzten zu
-    "webhook_enabled": false,             // optional, erzeugt beim Import ein frisches Token
-    "warm_sandbox": false                 // optional, hält Sandbox zwischen Läufen live (nur Dev/Test)
+    "runtime": "claude-code",             // currently the only runtime
+    "model": "",                          // optional, empty = the runtime default
+    "max_turns": 0,                       // optional, 0 = default (30)
+    "budget_usd": 0,                      // optional, 0 = no cap (kill switch on exceeding it)
+    "supervisor_email": "",               // optional, assigns the manager
+    "webhook_enabled": false,             // optional, generates a fresh token on import
+    "warm_sandbox": false                 // optional, keeps the sandbox live between runs (dev/test only)
   },
   "files": {
-    "SOUL.md": "...",                     // Rolle, Auftrag, Ton, Grenzen
-    "CAPABILITIES.md": "...",             // was er kann / nicht zuständig
-    "PLAYBOOKS.md": "...",                // Schritt-für-Schritt je Auftrag
-    "ACCESS.md": "...",                   // Zugänge (system + scope)
-    "HEARTBEAT.md": "..."                 // Auslöser (Intervall, nur-wenn, aufgabe)
+    "SOUL.md": "...",                     // role, mission, tone, limits
+    "CAPABILITIES.md": "...",             // what it can do / is not responsible for
+    "PLAYBOOKS.md": "...",                // step by step per assignment
+    "ACCESS.md": "...",                   // access (system + scope)
+    "HEARTBEAT.md": "..."                 // triggers (interval, nur-wenn, aufgabe)
   },
-  "stages": [ { "name": "In Arbeit", "color": "#..." } ],        // optional: Backlog-Spalten
-  "guardrails": [ ... ],                                          // optional: Policy-Regeln
-  "egress_templates": [ { "name": "...", "hosts": [ ... ] } ],    // optional: erlaubte Hosts
-  "skills": [ { "name": "...", "description": "...",              // optional: Fähigkeiten
+  "stages": [ { "name": "In progress", "color": "#..." } ],       // optional: backlog columns
+  "guardrails": [ ... ],                                          // optional: policy rules
+  "egress_templates": [ { "name": "...", "hosts": [ ... ] } ],    // optional: permitted hosts
+  "skills": [ { "name": "...", "description": "...",              // optional: capabilities
                 "origin": "agent",
-                "files": { "SKILL.md": "...", "referenz.md": "..." } } ],
-  "secrets": { "org_keys": [], "agent_keys": [] }                // optional: NUR NAMEN, nie Werte
+                "files": { "SKILL.md": "...", "reference.md": "..." } } ],
+  "secrets": { "org_keys": [], "agent_keys": [] }                // optional: ONLY NAMES, never values
 }
 ```
 
-**Für ein Config-Update reichen `files` und `skills`** (`POST /agents/{id}/config/import`);
-die restlichen Felder greifen nur beim Neu-Anlegen (`POST /agents/import`).
+**For a config update `files` and `skills` suffice** (`POST /agents/{id}/config/import`);
+the remaining fields only take effect when creating anew (`POST /agents/import`).
 
-### Skills — Prozeduren, die nicht jeder Lauf bezahlt
+### Skills — procedures that not every run pays for
 
-Alles in `files` steht in **jedem** Lauf im System-Prompt. Für Identität und Grenzen ist das
-richtig, für Prozeduren nicht: Ein Agent mit fünf Playbooks zahlt alle fünf auch dann, wenn der
-Lauf nach drei Turns feststellt, dass nichts zu tun ist. Ein Skill dreht das um — nur seine
-`description` steht immer im Kontext, `SKILL.md` und die Zusatzdateien liest die Runtime erst,
-wenn sie den Skill zieht.
+Everything in `files` sits in the system prompt on **every** run. For identity and limits that
+is right, for procedures it is not: an agent with five playbooks pays for all five even when the
+run establishes after three turns that there is nothing to do. A skill inverts that — only its
+`description` sits in context permanently; `SKILL.md` and the extra files are read by the runtime
+only when it pulls the skill.
 
-- `name` — `[a-z0-9-]`, max. 63 Zeichen. Wird zum Verzeichnisnamen im Agenten-Home und damit
-  zum `/slash-command`. **Nicht umbenennbar** (Verweise würden ins Leere laufen); zum Ändern
-  neu anlegen und den alten löschen.
-- `description` — der einzige Text, der dauerhaft Kontext kostet. Ein Satz, der sagt, **wann**
-  der Skill zu ziehen ist („Nutze dies, wenn: …"), max. 500 Zeichen.
-- `origin` — `"agent"`: gehört nur diesem Agenten. `"library"`: liegt in der Org-Bibliothek und
-  ist ihm verlinkt; beim Import wird eine dort bereits vorhandene gleichnamige Fassung
-  **verlinkt statt überschrieben** (sie kann anderen Agenten gehören) — der Import meldet das
-  als Warnung. Fehlt das Feld, gilt `"agent"`.
-- `files` — `SKILL.md` ist Pflicht (ohne sie erkennt die Runtime das Verzeichnis nicht als
-  Skill). Max. 32 Dateien à 256 KB, relative Pfade ohne `..`. Der Frontmatter der `SKILL.md`
-  wird beim Import abgeschnitten und darf `name`/`description` füllen; gespeichert wird der
-  Rumpf, damit die Beschreibung nicht an zwei Orten steht.
+- `name` — `[a-z0-9-]`, max. 63 characters. Becomes the directory name in the agent home and
+  therefore the `/slash-command`. **Not renameable** (references would point into the void); to
+  change it, create a new one and delete the old.
+- `description` — the only text that costs context permanently. One sentence saying **when**
+  to pull the skill ("Use this when: …"), max. 500 characters.
+- `origin` — `"agent"`: belongs to this agent only. `"library"`: sits in the org library and is
+  linked to it; on import an already existing version of the same name there is **linked instead
+  of overwritten** (it may belong to other agents) — the import reports that as a warning. If the
+  field is missing, `"agent"` applies.
+- `files` — `SKILL.md` is mandatory (without it the runtime does not recognise the directory as a
+  skill). Max. 32 files of 256 KB each, relative paths without `..`. The `SKILL.md` frontmatter is
+  cut off on import and may fill `name`/`description`; what is stored is the body, so that the
+  description does not sit in two places.
 
-**Faustregel:** In `PLAYBOOKS.md` bleibt, was der Agent in fast jedem Lauf braucht (der
-Standardablauf). In einen Skill wandert, was selten greift, aber dann ausführlich ist —
-Sonderfälle, Checklisten, Vorlagen, Referenztabellen.
+**Rule of thumb:** `PLAYBOOKS.md` keeps what the agent needs in nearly every run (the standard
+procedure). What rarely applies but is then extensive moves into a skill —
+special cases, checklists, templates, reference tables.
 
-### Die fünf Config-Dateien
+### The five config files
 
-- **SOUL.md** — Identität und Auftrag. Struktur der Vorlagen: `## Rolle`, `## Auftrag`,
-  `## Ton`, `## Grenzen`. Hier gehören die Verhaltensregeln hinein (done-nicht-blocked,
-  Idempotenz, sichtbare Spur je Lauf, Zerlegen statt Turn-Limit, Hand-off).
-- **CAPABILITIES.md** — knappe Fähigkeitenliste + `## Nicht zuständig`.
-- **PLAYBOOKS.md** — nummerierte Abläufe je Auftrag; die konkreten Aktionsaufrufe.
-- **ACCESS.md** — Zugänge, eine Zeile je System: `- system: <name> scope: <a>,<b>`.
-- **HEARTBEAT.md** — Auslöser, eine Zeile je Trigger:
-  `- alle: <intervall> nur-wenn: <system>:<kind> titel: <kurz> aufgabe: <konkret>`.
+- **SOUL.md** — identity and mission. The templates' structure: `## Role`, `## Assignment`,
+  `## Tone`, `## Limits`. This is where the behavioural rules belong (done-not-blocked,
+  idempotency, a visible trace per run, breaking up instead of the turn limit, hand-off).
+- **CAPABILITIES.md** — a terse capability list + `## Not responsible for`.
+- **PLAYBOOKS.md** — numbered procedures per assignment; the concrete action calls.
+- **ACCESS.md** — access, one line per system: `- system: <name> scope: <a>,<b>`.
+- **HEARTBEAT.md** — triggers, one line per trigger:
+  `- alle: <interval> nur-wenn: <system>:<kind> titel: <short> aufgabe: <concrete>`.
+  The keys are German because a parser reads them — they are the data format, not text.
 
-## Zielsystem-Katalog
+## Target-system catalogue
 
-Registrierte Built-in-Systeme (Stand Repo): `gitlab`, `email`, `dev`, `browser`, `teams`,
-`zammad`, `sharepoint`, `mcp`. **Autoritativ** sind die `SetupDoc()`/`PromptDoc()` im jeweiligen
-`internal/target/<name>/plugin.go` — dort stehen die exakten Scopes und Aktionen. Häufig genutzt:
+Registered built-in systems (as of this repo): `gitlab`, `email`, `dev`, `browser`, `teams`,
+`zammad`, `sharepoint`, `mcp`. **Authoritative** are the `SetupDoc()`/`PromptDoc()` in the
+respective `internal/target/<name>/plugin.go` — the exact scopes and actions are there.
+Frequently used:
 
-| System | Scopes (ACCESS) | Wozu / Kern-Aktionen |
+| System | Scopes (ACCESS) | What for / core actions |
 |---|---|---|
-| `gitlab` | `read,write,comment` | Issues/MRs: list_issues (auch `milestone`), get_issue, checkout, read_file, create_issue, comment, list_notes, assign, set_labels, set_state, commit, create_merge_request, comment_mr, approve_mr, upload, download_upload |
-| `email` | `read,write` | IMAP/SMTP: list_unread, get_message, reply, mark_seen, get_attachment (Anhang in die Sandbox, dann Read-Tool/Vision) |
-| `dev` | `exec,processes` | Sandbox-Shell: exec, start/stop/logs/list (Dev-Server hochfahren) |
-| `browser` | `navigate,content,screenshot,click,type` | headless Chrome; CSS + `:has-text("…")`; screenshot mit `highlight`+`label` |
-| `teams` | s. SetupDoc | Microsoft Teams |
-| `zammad` | s. SetupDoc | Zammad-Tickets (erstes Built-in, spec/13) |
-| `sharepoint` | s. SetupDoc | SharePoint / Teams-Dateien |
-| `mcp` | s. SetupDoc | generischer MCP-Adapter |
+| `gitlab` | `read,write,comment` | Issues/MRs: list_issues (including `milestone`), get_issue, checkout, read_file, create_issue, comment, list_notes, assign, set_labels, set_state, commit, create_merge_request, comment_mr, approve_mr, upload, download_upload |
+| `email` | `read,write` | IMAP/SMTP: list_unread, get_message, reply, mark_seen, get_attachment (the attachment into the sandbox, then the read tool/vision) |
+| `dev` | `exec,processes` | The sandbox shell: exec, start/stop/logs/list (bring a dev server up) |
+| `browser` | `navigate,content,screenshot,click,type` | Headless Chrome; CSS + `:has-text("…")`; screenshot with `highlight`+`label` |
+| `teams` | see SetupDoc | Microsoft Teams |
+| `zammad` | see SetupDoc | Zammad tickets (the first built-in, spec/13) |
+| `sharepoint` | see SetupDoc | SharePoint / Teams files |
+| `mcp` | see SetupDoc | The generic MCP adapter |
 
-Secrets, die ein System braucht (z. B. `gitlab_token` + `gitlab_url`, IMAP/SMTP-Zugang),
-stehen in dessen `SetupDoc()` — dem Nutzer nach dem Import zum Zuweisen nennen; Werte reisen
-nie im Bundle.
+The secrets a system needs (e.g. `gitlab_token` + `gitlab_url`, IMAP/SMTP access) are in its
+`SetupDoc()` — name them to the user for assignment after the import; values never travel in the
+bundle.
 
-## Plattform-Aktionen (`covey/…`)
+## Platform actions (`covey/…`)
 
-Neben den Zielsystemen kennt der Action-Proxy das Pseudo-System `covey` — Aktionen an die
-Control Plane selbst. Sie brauchen **keinen `ACCESS.md`-Eintrag** (kein Credential, kein
-Egress) und stehen jedem Agenten offen; der kompilierte System-Prompt erklärt sie ihm.
-Im `PLAYBOOKS.md` lohnt es trotzdem, sie an den richtigen Stellen zu verankern:
+Besides the target systems, the action proxy knows the pseudo-system `covey` — actions on the
+control plane itself. They need **no `ACCESS.md` entry** (no credential, no egress) and are open
+to every agent; the compiled system prompt explains them to it.
+It is still worth anchoring them in `PLAYBOOKS.md` at the right places:
 
-| Aktion | Params | Wofür |
+| Action | Params | What for |
 |---|---|---|
-| `set_stage` | `{"stage":"<name>"}` | Kanban-Spalte der laufenden Aufgabe (rein anzeigend) |
-| `add_note` | `{"content":"<text>"}` | Zwischenstand an der Aufgabe |
-| `remember` | `{"content":"<fakt>"}` | Einzelfakt ins Gedächtnis |
-| `wiki_search/read/write/delete` | s. Prompt | verlinktes Langzeit-Gedächtnis (spec/05) |
-| `org_chart` | `{}` | Zuständigkeiten/Eskalationswege zur Laufzeit nachschlagen |
-| `create_task` | `{"title":…,"body":…,"agent":"<slug>","priority":1..9}` | Teilaufgabe (ohne `agent`) oder Delegation an einen Kollegen |
+| `set_stage` | `{"stage":"<name>"}` | The kanban column of the running task (purely presentational) |
+| `add_note` | `{"content":"<text>"}` | An interim state on the task |
+| `remember` | `{"content":"<fact>"}` | A single fact into memory |
+| `wiki_search/read/write/delete` | see the prompt | The linked long-term memory (spec/05) |
+| `org_chart` | `{}` | Look responsibilities/escalation paths up at runtime |
+| `create_task` | `{"title":…,"body":…,"agent":"<slug>","priority":1..9}` | A subtask (without `agent`) or a delegation to a colleague |
 
-Zwei davon brauchen Sorgfalt beim Entwerfen:
+Two of them need care when designing:
 
-- **`create_task`** ist der Ausweg aus zu großen Aufträgen: Teilergebnis abschließen, Rest als
-  Aufgabe hinterlegen — statt bis zum Turn-Limit weiterzumachen. Als einzige `covey`-Aktion
-  läuft sie durch die Guard-Rails (`covey:create_task`, bei Delegation
-  `covey:create_task:foreign`), kann also `denied`/`pending` liefern. Die Plattform lehnt
-  Dubletten gleichen Titels, zu tiefe Ketten und zu viele Aufgaben pro Lauf ab — das Playbook
-  sollte gar nicht erst dagegenlaufen.
-- **`set_stage`** legt fehlende Spalten automatisch an. Gib im Playbook eine **feste, kleine**
-  Menge von Namen vor, die Arbeits*zustände* benennen (`Triage`, `Analyse`, `Warten auf
-  Review`) — nie den Vorgang (`#83 CSV-Import`), nie Synonyme für denselben Zustand. Sonst
-  wächst das Board in Tagen auf ein Dutzend toter Spalten.
+- **`create_task`** is the way out of assignments that are too big: close the partial result off,
+  file the rest as a task — instead of carrying on to the turn limit. As the only `covey` action
+  it runs through the guard rails (`covey:create_task`, on delegation
+  `covey:create_task:foreign`), so it can return `denied`/`pending`. The platform refuses
+  duplicates of the same title, chains that are too deep and too many tasks per run — the
+  playbook should not run into that in the first place.
+- **`set_stage`** creates missing columns automatically. Prescribe a **fixed, small** set of
+  names in the playbook that name working *states* (`Triage`, `Analysis`, `Waiting for
+  review`) — never the item (`#83 CSV import`), never synonyms for the same state. Otherwise the
+  board grows a dozen dead columns within days.
 
-## API-Endpunkte
+## API endpoints
 
-| Zweck | Call |
+| Purpose | Call |
 |---|---|
-| Neu anlegen | `POST /api/v1/agents/import` (Body = Bundle; `?slug=` überschreibt bei Kollision) |
-| Config updaten | `POST /api/v1/agents/{id}/config/import` (Body = Bundle; nur `files` wirken) |
-| Exportieren/Teilen | `GET /api/v1/agents/{id}/export` (Bundle-Download, ohne Secret-Werte) |
-| Diagnose (Laufzeit) | `GET /api/v1/agents/{id}/diagnostics` (voller Zustand inkl. Recording) |
+| Create anew | `POST /api/v1/agents/import` (body = the bundle; `?slug=` overrides on a collision) |
+| Update the config | `POST /api/v1/agents/{id}/config/import` (body = the bundle; only `files` take effect) |
+| Export/share | `GET /api/v1/agents/{id}/export` (a bundle download, without secret values) |
+| Diagnostics (runtime) | `GET /api/v1/agents/{id}/diagnostics` (the full state including the recording) |
 
-Alle sind RBAC-geschützt (Manage-Rolle; Export/Diagnose auch Security). Auth per Admin-Session
-oder Bearer-Token. Basis-URL und Auth immer vom Nutzer erfragen, nie hardcoden.
+All are RBAC-protected (manage role; export/diagnostics also security). Auth by an admin session
+or a bearer token. Always ask the user for the base URL and auth, never hardcode them.

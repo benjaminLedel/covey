@@ -339,39 +339,44 @@ client. That keeps the **config** generic — the same template leads every
 undertaking, because it knows none of them.
 
 Create it through the agent's memory view in the UI or as a task to it. The page
-title: `Vorhaben-Steckbrief <milestone title>`.
+title: `Engagement brief <milestone title>`.
 
 ```markdown
-# Vorhaben-Steckbrief <milestone title>
+# Engagement brief <milestone title>
 
-## Pflicht
-- **Projekt-ID:** <the numeric GitLab project id, not the path>
-- **Meilenstein-Titel:** <exactly as in GitLab — the filter matches literally>
-- **Ziel-Branch:** <the branch that is developed against>
-- **Frist:** <date> — <what it derives from>
+## Mandatory
+- **Project ID:** <the numeric GitLab project id, not the path>
+- **Milestone title:** <exactly as in GitLab — the filter matches literally>
+- **Target branch:** <the branch that is developed against>
+- **Deadline:** <date> — <what it derives from>
 
-## Anforderungen im Original
-- **Pfad im Repository:** <e.g. docs/anforderungen/kriterien.md>
-- **Was maßgeblich ist:** <which document wins on a contradiction with the ticket text>
+## Requirements in the original
+- **Path in the repository:** <e.g. docs/requirements/criteria.md>
+- **What is authoritative:** <which document wins on a contradiction with the ticket text>
 
-## Steuerung
-- **WIP-Limit:** <tickets at a time per developer; without a value 1 applies>
-- **Berichtsticket:** project <id> / #<iid> — this is where the lead writes the
+## Steering
+- **WIP limit:** <tickets at a time per developer; without a value 1 applies>
+- **Report ticket:** project <id> / #<iid> — this is where the lead writes the
   daily state. It has to be assigned to the lead and permanently open.
-- **Zuständiger Mensch:** <name>, GitLab identifier <username> — receives open
+- **Responsible human:** <name>, GitLab identifier <username> — receives open
   questions and the report. Without a deposited GitLab identifier `assign` fails.
 
-## Reihenfolge und Abhängigkeiten
+## Order and dependencies
 - #<iid> before #<iid>, #<iid>, … — <reason: a shared foundation>
 
-## Entscheidungen
+## Decisions
 <What the client has settled, with a date. The lead enters every answered
 question here — otherwise it asks it again at the next ticket.>
 
-## Offene Fragen
+## Open questions
 <What nobody has answered, with the ticket and how long it has been waiting.
 The daily report reads from here.>
 ```
+
+The German bundle (`delivery-lead.de.bundle.json`) uses German headings
+(`Vorhaben-Steckbrief`, `## Pflicht`, `## Steuerung` …) — the brief and the
+skills that read it have to speak the same language, so take the headings from
+the bundle you actually instantiated.
 
 Why these fields:
 
@@ -548,7 +553,7 @@ human takes over. `set_state` knows `close` and `reopen`
 
 ### 5.1 The working state on the board: `set_labels`
 
-`set_labels {"project_id":15,"issue_iid":739,"add_labels":["in Arbeit"],"remove_labels":["bereit"]}`
+`set_labels {"project_id":15,"issue_iid":739,"add_labels":["in progress"],"remove_labels":["ready"]}`
 changes the labels of an **existing** issue. Deliberately additive/subtractive
 (the GitLab `add_labels`/`remove_labels`) rather than as a full list: an agent
 that maintains the working state would otherwise wipe the ticket's subject-matter
@@ -564,7 +569,7 @@ remove the old state label, set the new one. Guard-rail subject:
 Two idiosyncrasies you have to know when designing such an agent:
 
 - **GitLab silently creates unknown labels when setting them.** A typo by the
-  model (`lead::in_arbeit` instead of `lead::in-arbeit`) therefore produces a
+  model (`lead::in_progress` instead of `lead::in-progress`) therefore produces a
   permanent project label that nobody clears away again — the same trap as with
   freely invented board columns. The playbook therefore has to prescribe a
   **fixed, small** set of state names character by character. The plugin's

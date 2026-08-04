@@ -1,13 +1,14 @@
-# Feature Requests
+# Feature requests
 
-Vorschläge für neue Funktionen — noch nicht festgeschriebene Spec. Ein Request
-argumentiert Motivation, Auslösebedingung, Einbettung in die bestehende
-Architektur, Nicht-Ziele und Akzeptanzkriterien. Wird er angenommen, wandert der
-Inhalt in das zuständige [`spec/`](../spec/README.md)-Dokument; das Request-Dokument
-bleibt als Nachweis mit Status *angenommen* / *abgelehnt* stehen.
+Proposals for new functionality — not yet settled spec. A request argues the
+motivation, the trigger condition, the embedding into the existing
+architecture, the non-goals and the acceptance criteria. If it is accepted, the
+content moves into the responsible [`spec/`](../spec/README.md) document; the
+request document stays in place as a record with the status *accepted* /
+*rejected*.
 
-Nummerierung fortlaufend, `NNN-kurz-titel.md`.
+Numbering is consecutive, `NNN-short-title.md`.
 
-| Nr. | Titel | Status |
+| No. | Title | Status |
 |---|---|---|
-| [FR-001](001-ki-config-assistent.md) | KI-Assistent zum Anpassen von Agenten (Config-Copilot) | Umgesetzt |
+| [FR-001](001-ki-config-assistent.md) | An AI assistant for adapting agents (the config copilot) | Implemented |

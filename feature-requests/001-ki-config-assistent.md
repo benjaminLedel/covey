@@ -1,125 +1,124 @@
-# FR-001 — KI-Assistent zum Anpassen von Agenten („Config-Copilot")
+# FR-001 — An AI assistant for adapting agents (the "config copilot")
 
-Status: **Umgesetzt** · Stand: 2026-07-24
+Status: **Implemented** · As of: 2026-07-24
 
-> Feature Requests sind Vorschläge, noch nicht festgeschriebene Spec. Wird ein
-> Request angenommen, wandert sein Inhalt in das zuständige `spec/`-Dokument und
-> dieses Dokument wird auf *angenommen* / *abgelehnt* gesetzt.
+> Feature requests are proposals, not yet settled spec. If a request is accepted,
+> its content moves into the responsible `spec/` document and this document is
+> set to *accepted* / *rejected*.
 
-> **Umgesetzt** in der Control Plane (`internal/httpapi/assist.go`) und der Web-UI
-> (`web/src/pages/Agent.tsx`, Komponente `ConfigAssistant`). Endpunkte:
-> `GET /api/v1/assist/status` (Gating) und
-> `POST /api/v1/agents/{id}/config/assist` (Dialog). Der Assistent nutzt das
-> org-weite Claude-Credential serverseitig, schlägt Config-Dateien als Diff vor
-> und speichert nichts selbst.
+> **Implemented** in the control plane (`internal/httpapi/assist.go`) and the web UI
+> (`web/src/pages/Agent.tsx`, the component `ConfigAssistant`). Endpoints:
+> `GET /api/v1/assist/status` (gating) and
+> `POST /api/v1/agents/{id}/config/assist` (the dialogue). The assistant uses the
+> org-wide Claude credential server-side, proposes config files as a diff
+> and saves nothing itself.
 
-## Kurzfassung
+## In short
 
-Sobald in der Organisation ein **org-weites Claude-Credential** hinterlegt ist
-(`anthropic_api_key` oder `claude_code_oauth_token` — dieselbe Zugangsdaten, die
-schon die Agenten-Runtime speisen), bietet die Control Plane einen **KI-Assistenten
-zum Anpassen von Agenten** an: einen Config-Copilot direkt im Agenten-Editor, der
-die Config-Dateien (`SOUL.md`, `CAPABILITIES.md`, `PLAYBOOKS.md`, `ORG.md`,
-`HEARTBEAT.md`) im Dialog schreibt und überarbeitet — statt dass ein Mensch die
-Markdown-Dateien von Hand aus dem Nichts formuliert.
+As soon as an **org-wide Claude credential** is deposited in the organisation
+(`anthropic_api_key` or `claude_code_oauth_token` — the same credentials that
+already feed the agent runtime), the control plane offers an **AI assistant
+for adapting agents**: a config copilot directly in the agent editor that
+writes and reworks the config files (`SOUL.md`, `CAPABILITIES.md`, `PLAYBOOKS.md`,
+`ORG.md`, `HEARTBEAT.md`) in dialogue — instead of a human formulating the
+Markdown files by hand out of nothing.
 
 ## Motivation
 
-Ein Agent verhält sich nur so gut wie seine Config. Heute muss ein Agent-Owner
-`SOUL.md` & Co. von Hand schreiben: leeres Textfeld, keine Vorlage im Kopf, keine
-Rückmeldung, ob die Formulierung trägt, bis der Agent das erste Mal läuft. Das ist
-die größte Reibung beim Onboarding eines neuen Agenten und der häufigste Grund für
-schlechtes Verhalten (vage Rolle, fehlende Playbooks, widersprüchliche Anweisungen).
+An agent behaves only as well as its config. Today an agent owner has to write
+`SOUL.md` & co. by hand: an empty text field, no template in mind, no
+feedback on whether the phrasing carries, until the agent runs for the first time. That is
+the biggest friction when onboarding a new agent and the most common reason for
+bad behaviour (a vague role, missing playbooks, contradictory instructions).
 
-Die Plattform hat das Werkzeug, das zu lösen, bereits im Haus: das org-weite
-Claude-Credential. Es liegt ohnehin vor (sonst liefe kein Agent) und lässt sich
-serverseitig für einen Meta-Assistenten wiederverwenden, der beim Formulieren der
-Config hilft — ein LLM, das den Menschen beim Konfigurieren der anderen LLMs
-unterstützt.
+The platform already has the tool to solve that in the house: the org-wide
+Claude credential. It is there anyway (otherwise no agent would run) and can be
+reused server-side for a meta assistant that helps with formulating the
+config — an LLM supporting the human in configuring the other LLMs.
 
-## Auslösebedingung (Gating)
+## Trigger condition (gating)
 
-Der Assistent erscheint **nur**, wenn das Credential org-weit auflösbar ist
-(`SecretStore` liefert `anthropic_api_key` oder `claude_code_oauth_token` für die
-Org). Fehlt es, wird die Funktion in der UI gar nicht angeboten — es gäbe kein LLM,
-das sie tragen könnte. Damit ist das Feature streng an eine bereits vorhandene
-Fähigkeit gekoppelt und verursacht ohne sie keine tote UI und keine Kosten.
+The assistant appears **only** when the credential is resolvable org-wide
+(the `SecretStore` delivers `anthropic_api_key` or `claude_code_oauth_token` for the
+org). If it is missing, the function is not offered in the UI at all — there would be no LLM
+to carry it. The feature is thereby strictly coupled to a capability that is already
+present and causes neither dead UI nor cost without it.
 
-Das Credential wird **ausschließlich serverseitig** von der Control Plane für den
-Assistenten-Call benutzt und nie an den Browser oder in eine Sandbox gereicht
-(Designprinzip 6 — *niemals langlebige Secrets in die Sandbox*). Der Assistent läuft
-in der Control Plane, nicht in einer Agenten-Sandbox.
+The credential is used **exclusively server-side** by the control plane for the
+assistant call and never passed to the browser or into a sandbox
+(design principle 6 — *never put long-lived secrets in the sandbox*). The assistant runs
+in the control plane, not in an agent sandbox.
 
-## Was der Assistent tut
+## What the assistant does
 
-Ein Chat-Panel neben dem Config-Editor auf der Agenten-Seite. Der Mensch beschreibt
-in Prosa, was der Agent tun soll oder was am Verhalten nicht stimmt; der Assistent
-antwortet mit **konkreten Änderungsvorschlägen an den Config-Dateien**:
+A chat panel next to the config editor on the agent page. The human describes
+in prose what the agent should do or what is wrong with its behaviour; the assistant
+answers with **concrete proposed changes to the config files**:
 
-- **Neu anlegen:** „Ein Support-Agent für Rechnungsfragen, antwortet auf Deutsch,
-  eskaliert an Team Buchhaltung" → Entwurf für `SOUL.md`, `CAPABILITIES.md`,
+- **Create anew:** "A support agent for invoice questions, answers in German,
+  escalates to the accounting team" → a draft for `SOUL.md`, `CAPABILITIES.md`,
   `PLAYBOOKS.md`.
-- **Überarbeiten:** „Er ist zu geschwätzig und vergisst, Tickets zu schließen" →
-  gezielte Diffs an den betroffenen Abschnitten.
-- **Erklären:** „Warum eskaliert der Agent hier nicht?" → liest die aktuelle Config
-  und zeigt die Lücke, statt blind zu schreiben.
+- **Rework:** "It is too chatty and forgets to close tickets" →
+  targeted diffs on the affected sections.
+- **Explain:** "Why does the agent not escalate here?" → it reads the current config
+  and shows the gap instead of writing blindly.
 
-Der Assistent kennt beim Formulieren den **Plattform-Kontext**: das
-Covey-Plattform-Protokoll (`agents.ProtocolInstructions`), die am Agenten
-angebundenen Zielsysteme samt verfügbaren Aktionen, die geltenden Guard-Rails und
-die Org-Einbettung. So schlägt er nur Verhalten vor, das die Plattform auch zulässt
-(er erfindet keine Aktion, die der Action-Proxy gar nicht anbietet).
+While formulating, the assistant knows the **platform context**: the
+Covey platform protocol (`agents.ProtocolInstructions`), the target systems connected
+to the agent including their available actions, the guard rails in force and
+the org embedding. That way it only proposes behaviour the platform actually permits
+(it invents no action the action proxy does not offer).
 
-## Einbettung in die bestehende Architektur
+## Embedding into the existing architecture
 
-- **Andockpunkt UI:** `web/src/pages/Agent.tsx` — der Config-Editor, der heute
-  `files` (`SOUL.md`, `HEARTBEAT.md`, …) hält und via `PUT /agents/{id}/config`
-  speichert. Der Assistent liefert Vorschläge in denselben `files`-Draft; der Mensch
-  reviewt sie als Diff und speichert bewusst.
-- **Andockpunkt Backend:** ein neuer Control-Plane-Endpunkt (z. B.
-  `POST /api/v1/agents/{id}/config/assist`), der den org-weiten Claude-Key über den
-  `SecretStore` auflöst, den Kontext (aktuelle `files`, Zielsystem-Manifeste,
-  Guard-Rails, `ProtocolInstructions`) zusammenstellt und Claude befragt.
-- **Config-as-Code bleibt gewahrt (Designprinzip 5):** Der Assistent **committet
-  nichts selbst**. Er erzeugt Vorschläge; wirksam werden sie erst durch die reguläre,
-  menschlich verantwortete Speicherung der Config — mit dem bestehenden Diff-/
-  Vers-Mechanismus. Der Assistent ersetzt das Review nicht, er beschleunigt den
-  Entwurf.
-- **RBAC:** dieselben Rollen, die heute die Agenten-Config bearbeiten dürfen
-  (Agent-Owner), dürfen den Assistenten nutzen. Keine neue Berechtigung nötig.
+- **UI docking point:** `web/src/pages/Agent.tsx` — the config editor that today
+  holds `files` (`SOUL.md`, `HEARTBEAT.md`, …) and saves via `PUT /agents/{id}/config`.
+  The assistant delivers proposals into the same `files` draft; the human
+  reviews them as a diff and saves deliberately.
+- **Backend docking point:** a new control-plane endpoint (e.g.
+  `POST /api/v1/agents/{id}/config/assist`) that resolves the org-wide Claude key through the
+  `SecretStore`, assembles the context (the current `files`, target-system manifests,
+  guard rails, `ProtocolInstructions`) and asks Claude.
+- **Config as code is preserved (design principle 5):** the assistant **commits
+  nothing itself**. It produces proposals; they only take effect through the regular,
+  humanly accountable saving of the config — with the existing diff/version
+  mechanism. The assistant does not replace the review, it accelerates the
+  draft.
+- **RBAC:** the same roles that may edit the agent config today
+  (agent owner) may use the assistant. No new permission needed.
 
-## Nicht-Ziele / Abgrenzung
+## Non-goals / delimitation
 
-- **Keine Autonomie über die Config.** Der Assistent schreibt keine Config live,
-  löst keine Deployments aus und ändert keine Guard-Rails oder Secrets.
-- **Kein zweiter Runtime-Pfad.** Er nutzt das bestehende org-Credential über einen
-  einfachen Control-Plane-Call, keine Sandbox, keinen Daemon.
-- **Kein Supervisor.** Abzugrenzen vom Supervisor-Agenten aus
-  [`spec/06-observability-control.md`](../spec/06-observability-control.md), der
-  *laufende* Agenten reviewt. Dieser Assistent hilft beim *Konfigurieren*, nicht beim
-  Überwachen.
+- **No autonomy over the config.** The assistant writes no config live,
+  triggers no deployments and changes no guard rails or secrets.
+- **No second runtime path.** It uses the existing org credential through a
+  simple control-plane call, no sandbox, no daemon.
+- **Not a supervisor.** To be distinguished from the supervisor agent in
+  [`spec/06-observability-control.md`](../spec/06-observability-control.md), which
+  reviews *running* agents. This assistant helps with *configuring*, not with
+  monitoring.
 
-## Offene Fragen
+## Open questions
 
-- **Kostensicht:** Assistenten-Calls laufen auf demselben org-Credential wie die
-  Agenten. Sollen sie in der Kostenkontrolle
-  ([`spec/06-observability-control.md`](../spec/06-observability-control.md)) getrennt
-  ausgewiesen werden (Cost-Center „Plattform/Tooling" statt Agent)?
-- **Modellwahl:** festes Modell (z. B. das jeweils aktuellste Opus) oder aus der
-  Runtime-Konfiguration abgeleitet?
-- **Vorlagen-Kopplung:** Verhältnis zu den bestehenden Templates
-  (`web/src/pages/Templates.tsx`) — startet der Assistent bevorzugt aus einem
-  Template und verfeinert es, statt vom leeren Blatt?
+- **The cost view:** assistant calls run on the same org credential as the
+  agents. Should they be shown separately in cost control
+  ([`spec/06-observability-control.md`](../spec/06-observability-control.md))
+  (cost centre "platform/tooling" instead of the agent)?
+- **Model choice:** a fixed model (e.g. the most current Opus at any time) or derived from the
+  runtime configuration?
+- **Template coupling:** the relationship to the existing templates
+  (`web/src/pages/Templates.tsx`) — does the assistant preferably start from a
+  template and refine it, rather than from a blank page?
 
-## Akzeptanzkriterien (Definition of Done)
+## Acceptance criteria (definition of done)
 
-1. Ist kein org-weites Claude-Credential hinterlegt, erscheint der Assistent nicht;
-   die Agenten-Seite verhält sich unverändert.
-2. Ist eines hinterlegt, kann ein Agent-Owner im Dialog eine neue `SOUL.md` (plus
-   ergänzende Dateien) entwerfen lassen und sie als Config-Draft übernehmen.
-3. Vorschläge erscheinen als Diff gegen die aktuellen `files` und werden erst durch
-   bewusstes Speichern wirksam — der Assistent committet nie selbst.
-4. Das Claude-Credential verlässt die Control Plane nicht (nicht in den Browser,
-   nicht in eine Sandbox).
-5. Vorgeschlagenes Verhalten bezieht sich nur auf real angebundene Zielsysteme/
-   Aktionen und respektiert die geltenden Guard-Rails.
+1. If no org-wide Claude credential is deposited, the assistant does not appear;
+   the agent page behaves unchanged.
+2. If one is deposited, an agent owner can have a new `SOUL.md` (plus
+   supplementary files) designed in dialogue and take it over as a config draft.
+3. Proposals appear as a diff against the current `files` and only take effect through
+   deliberate saving — the assistant never commits itself.
+4. The Claude credential does not leave the control plane (not into the browser,
+   not into a sandbox).
+5. Proposed behaviour refers only to genuinely connected target systems/
+   actions and respects the guard rails in force.
