@@ -684,27 +684,15 @@ export const assistStatus = () =>
 export const configAssist = (agentId: string, messages: AssistMessage[], files: Record<string, string>) =>
   post<AssistReply>(`/agents/${agentId}/config/assist`, { messages, files });
 
-export const roleLabel: Record<string, string> = {
-  platform_admin: "Plattform-Admin",
-  agent_owner: "Agent-Owner",
-  security: "Security",
-  auditor: "Auditor",
-  controlling: "Controlling",
-};
+/* Die Rollen in Anzeigereihenfolge. Die Beschriftung steht NICHT hier, sondern
+   in den Sprachdateien unter role.<rolle> — eine Liste deutscher Beschriftungen
+   an dieser Stelle war der Grund, warum die englische Oberfläche
+   "Plattform-Admin" anzeigte. */
+export const ROLES = [
+  "platform_admin",
+  "agent_owner",
+  "security",
+  "auditor",
+  "controlling",
+] as const;
 
-export const statusLabel: Record<string, string> = {
-  sleeping: "schläft",
-  triggered: "geweckt",
-  triage: "triage",
-  working: "arbeitet",
-  killed: "gestoppt",
-  open: "offen",
-  in_progress: "in Arbeit",
-  blocked: "wartet",
-  done: "erledigt",
-  failed: "fehlgeschlagen",
-  cancelled: "verworfen",
-  pending: "ausstehend",
-  approved: "freigegeben",
-  denied: "abgelehnt",
-};

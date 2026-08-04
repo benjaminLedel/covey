@@ -1,0 +1,68 @@
+name: Feature request
+description: Something Covey should be able to do
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Covey is a specified project: how the system *behaves* is written down in
+        [`spec/`](../tree/main/spec). Small additions can be discussed here.
+        Larger proposals usually end up as a numbered document in
+        [`feature-requests/`](../tree/main/feature-requests) — motivation, trigger
+        condition, embedding, non-goals, acceptance criteria — before any code is
+        written. Do not worry about getting that right up front; describe the
+        problem and we will work out where it belongs.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: |
+        What are you trying to do that Covey makes hard or impossible today?
+        Describe the situation, not the solution — it is the part we cannot
+        guess.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you have in mind
+      description: How you would like it to work. A rough sketch is fine.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Which part of the platform
+      options:
+        - Agents, config and org chart
+        - Backlog, scheduling and wake sources
+        - Target system plugin (existing or new)
+        - Runtime / sandbox / daemon
+        - Identity, secrets, guard rails, egress
+        - Memory and workspace
+        - Observability, cost, recordings
+        - Admin UI
+        - Operations, deployment, docs
+        - Not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you tried or considered
+      description: |
+        Workarounds, other tools, or a configuration you expected to cover it.
+        If Covey already does this and you could not find it, that is a docs bug
+        worth reporting as one.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues and the spec, and did not find this.
+          required: true

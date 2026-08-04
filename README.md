@@ -48,9 +48,13 @@ The bundled [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector
 
 ## The interface
 
+![A pass through Covey](web/public/shots/tour.gif)
+
+*Seventeen seconds through the platform: the workforce, an agent's backlog, the recording of a completed run, its wiki memory, the org chart, and what the whole thing costs.*
+
 ![Agent overview](web/public/shots/agents.jpg)
 
-*An organisation's workforce at a glance — state (`gestoppt` = stopped, `schläft` = sleeping), the runtime per agent, and the kill switch for all of them.*
+*An organisation's workforce at a glance — state, the runtime and budget per agent, and the kill switch for all of them.*
 
 | | |
 |---|---|
@@ -241,6 +245,7 @@ All runbooks are in English.
 | `skills/covey-agent/` | Claude Code skill for building and updating Covey agents |
 | [`examples/`](examples/) | Ready-made agent bundles: coding agent, QA agent, web researcher, log triage |
 | `demo/fakezammad/` | Minimal Zammad double for local demos |
+| `demo/seed/`, `demo/tour/` | The demo organisation behind the screenshots above, and the program that re-records them |
 | `mockup/` | Static HTML mockup of the admin interface |
 
 <details>

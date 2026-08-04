@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, del, patch, post, roleLabel, type Human, type Principal } from "../api";
+import { api, del, patch, post, ROLES, type Human, type Principal } from "../api";
 import { Avatar, PersonLink } from "../components/person";
 
 export default function Users({ me }: { me: Principal }) {
@@ -77,9 +77,9 @@ function CreateUser({ onDone }: { onDone: () => void }) {
         <div className="min-w-40">
           <label>{t("users.role")}</label>
           <select value={role} onChange={(e) => setRole(e.target.value)}>
-            {Object.entries(roleLabel).map(([value, label]) => (
+            {ROLES.map((value) => (
               <option key={value} value={value}>
-                {label}
+                {t(`role.${value}`, value)}
               </option>
             ))}
           </select>
@@ -155,9 +155,9 @@ function UserRow({ user, me }: { user: Human; me: Principal }) {
           disabled={setRole.isPending}
           style={{ width: "auto" }}
         >
-          {Object.entries(roleLabel).map(([value, label]) => (
+          {ROLES.map((value) => (
             <option key={value} value={value}>
-              {label}
+              {t(`role.${value}`, value)}
             </option>
           ))}
         </select>

@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, roleLabel, type Human, type OrgChart, type Principal } from "../api";
+import { api, type Human, type OrgChart, type Principal } from "../api";
 import AccountSettings from "../components/AccountSettings";
 import { Avatar, PersonLink } from "../components/person";
 import ProfileForm from "../components/ProfileForm";
@@ -42,11 +42,11 @@ export default function PersonPage({ me }: { me: Principal }) {
             {isSelf && <span className="muted text-sm"> {t("person.self")}</span>}
           </h1>
           <div className="muted text-xs">
-            {h.job_title || (roleLabel[h.role] ?? h.role)} · <span className="mono">{h.email}</span>
+            {h.job_title || t(`role.${h.role}`, h.role)} · <span className="mono">{h.email}</span>
           </div>
         </div>
         <span className="ntag" style={{ marginLeft: "auto" }}>
-          {roleLabel[h.role] ?? h.role}
+          {t(`role.${h.role}`, h.role)}
         </span>
       </div>
 
