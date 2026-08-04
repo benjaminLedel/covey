@@ -47,7 +47,7 @@ func builtinTemplates(lang string) []Template {
 			OrgID:       uuid.Nil,
 			Name:        name,
 			Description: desc,
-			Bundle:      b.Bundle,
+			Bundle:      b.LocalizedBundle(lang),
 			Builtin:     true,
 		})
 	}

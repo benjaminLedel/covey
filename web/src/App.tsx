@@ -271,10 +271,12 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
   /* Die Sprachwahl der Oberfläche ist eine persönliche Einstellung und steht
      im localStorage. Auf einer vorgerenderten Seite startet i18n bewusst auf
      Deutsch, damit die Hydration passt (siehe i18n.ts) — hier wird die Wahl
-     nachgeholt, sobald die Oberfläche übernimmt. */
+     nachgeholt, sobald die Oberfläche übernimmt. Ohne gespeicherte Wahl gilt
+     die Basissprache: Sonst bliebe die angemeldete Oberfläche für jeden, der
+     über eine vorgerenderte Seite hereinkommt, dauerhaft deutsch. */
   useEffect(() => {
-    const gewaehlt = gespeicherteSprache();
-    if (gewaehlt && i18n.language !== gewaehlt) void i18n.changeLanguage(gewaehlt);
+    const gewaehlt = gespeicherteSprache() ?? "en";
+    if (i18n.language !== gewaehlt) void i18n.changeLanguage(gewaehlt);
   }, []);
 
   // Plattform-Administration ist selten gebraucht — standardmäßig eingeklappt,

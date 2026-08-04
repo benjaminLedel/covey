@@ -247,8 +247,15 @@ func (s Subject) skillText() string {
 	return b.String()
 }
 
-// negationTokens verneinen eine blocked-Erwähnung im selben Satz.
-var negationTokens = []string{"nie", "niemals", "nicht", "kein", "statt", "ohne"}
+// negationTokens verneinen eine blocked-Erwähnung im selben Satz. Beide
+// Sprachen, weil eine Agenten-Config in beiden geschrieben sein darf: Die
+// mitgelieferten Vorlagen gibt es englisch und deutsch, und der Linter darf
+// eine gute englische Config nicht anmeckern, nur weil sie „never" statt „nie"
+// sagt.
+var negationTokens = []string{
+	"nie", "niemals", "nicht", "kein", "statt", "ohne",
+	"never", "not", "no", "instead", "without", "rather",
+}
 
 // negatedBefore sagt, ob im Satzstück vor einer Erwähnung eine Verneinung
 // steht. Betrachtet wird nur der aktuelle Satz — ein „nicht" zwei Sätze vorher

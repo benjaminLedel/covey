@@ -41,7 +41,11 @@ export function initialLang(pathname?: string): Lang {
      angemeldeten Oberfläche beim Aufbau der Shell (App.tsx). */
   if (istVorgerendert()) return "de";
 
-  return gespeicherteSprache() === "en" ? "en" : "de";
+  /* Englisch ist die Basissprache der angemeldeten Oberfläche — wer Deutsch
+     will, wählt es einmal und bekommt es ab dann wieder. Die öffentliche
+     Website bleibt davon unberührt: Sie ist vorgerendert und entscheidet eine
+     Zeile höher über den Pfad. */
+  return gespeicherteSprache() === "de" ? "de" : "en";
 }
 
 /* Die Abfrage hängt an window, nicht an localStorage: Node 25 bringt ein
@@ -70,7 +74,7 @@ export function merkeSprache(lang: Lang) {
 i18n.use(initReactI18next).init({
   resources: { de: { translation: de }, en: { translation: en } },
   lng: initialLang(),
-  fallbackLng: "de",
+  fallbackLng: "en",
   interpolation: { escapeValue: false },
 });
 
