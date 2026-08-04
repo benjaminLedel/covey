@@ -32,7 +32,7 @@ func TestCompilePromptOrderAndProtocol(t *testing.T) {
 
 func TestCompilePromptEmptyFiles(t *testing.T) {
 	p := CompilePrompt(map[string]string{"SOUL.md": "  \n"})
-	if !strings.HasPrefix(p, "## Covey-Plattform-Protokoll") {
+	if !strings.HasPrefix(p, "## Covey platform protocol") {
 		t.Fatalf("leere Dateien sollen übersprungen werden, got: %.60q", p)
 	}
 }
@@ -71,10 +71,10 @@ func TestTeamSection(t *testing.T) {
 		{Name: "Erika Beispiel"}, // nur Name — keine leeren Klammern/Bindestriche
 		{Name: "  "},             // ohne Name: überspringen
 	})
-	if !strings.Contains(s, "## Team (menschliche Mitarbeiter)") {
+	if !strings.Contains(s, "## Team (human employees)") {
 		t.Fatalf("Überschrift fehlt: %q", s)
 	}
-	if !strings.Contains(s, "- Max Mustermann — QA Engineer (E-Mail: max@example.com, GitLab: maxm, Zammad: max@firma.de) — zuständig für: testet Bugfixes im Projekt educa") {
+	if !strings.Contains(s, "- Max Mustermann — QA Engineer (Email: max@example.com, GitLab: maxm, Zammad: max@firma.de) — responsible for: testet Bugfixes im Projekt educa") {
 		t.Fatalf("Vollprofil-Zeile falsch: %q", s)
 	}
 	if !strings.Contains(s, "- Erika Beispiel\n") && !strings.HasSuffix(s, "- Erika Beispiel") {
@@ -98,17 +98,17 @@ func TestTeamAgentsSection(t *testing.T) {
 			Identities: []TeamIdentity{{Label: "GitLab", Value: "covey-support"}}},
 		{Name: "  "}, // ohne Name: überspringen
 	})
-	if !strings.Contains(s, "## Team (KI-Kollegen)") {
+	if !strings.Contains(s, "## Team (AI colleagues)") {
 		t.Fatalf("Überschrift fehlt: %q", s)
 	}
-	if !strings.Contains(s, "- covey-qa — QA-Agent — DEIN TEAM (Engineering) (GitLab: covey-qa) — zuständig für: testet Merge Requests") {
+	if !strings.Contains(s, "- covey-qa — QA-Agent — YOUR TEAM (Engineering) (GitLab: covey-qa) — responsible for: testet Merge Requests") {
 		t.Fatalf("Team-Kollege-Zeile falsch: %q", s)
 	}
-	if !strings.Contains(s, "- covey-support — Support-Agent — Team: Support (GitLab: covey-support)") {
+	if !strings.Contains(s, "- covey-support — Support-Agent — team: Support (GitLab: covey-support)") {
 		t.Fatalf("Fremd-Team-Zeile falsch: %q", s)
 	}
-	if strings.Contains(s, "covey-support — DEIN TEAM") {
-		t.Fatalf("nur Kollegen aus dem eigenen Team dürfen als DEIN TEAM markiert sein: %q", s)
+	if strings.Contains(s, "covey-support — YOUR TEAM") {
+		t.Fatalf("nur Kollegen aus dem eigenen Team dürfen als YOUR TEAM markiert sein: %q", s)
 	}
 	if TeamAgentsSection(nil) != "" || TeamAgentsSection([]AgentColleague{{Name: " "}}) != "" {
 		t.Fatal("ohne Kollegen muss der Abschnitt leer sein")
@@ -120,7 +120,7 @@ func TestTeamAgentsSectionSupervisor(t *testing.T) {
 		{Name: "covey-lead", JobTitle: "Lead-Agent", Supervisor: true,
 			Identities: []TeamIdentity{{Label: "GitLab", Value: "covey-lead"}}},
 	})
-	if !strings.Contains(s, "- covey-lead — Lead-Agent — DEIN VORGESETZTER (GitLab: covey-lead)") {
+	if !strings.Contains(s, "- covey-lead — Lead-Agent — YOUR MANAGER (GitLab: covey-lead)") {
 		t.Fatalf("Vorgesetzten-Markierung fehlt oder falsch platziert: %q", s)
 	}
 }
@@ -131,13 +131,13 @@ func TestTeamSectionSupervisor(t *testing.T) {
 			Identities: []TeamIdentity{{Label: "GitLab", Value: "leaddev"}}},
 		{Name: "Max Mustermann"},
 	})
-	if !strings.Contains(s, "- Lena Lead — Engineering Lead — DEIN VORGESETZTER (GitLab: leaddev)") {
+	if !strings.Contains(s, "- Lena Lead — Engineering Lead — YOUR MANAGER (GitLab: leaddev)") {
 		t.Fatalf("Vorgesetzten-Markierung fehlt oder falsch platziert: %q", s)
 	}
-	if strings.Contains(s, "Max Mustermann — DEIN VORGESETZTER") {
+	if strings.Contains(s, "Max Mustermann — YOUR MANAGER") {
 		t.Fatalf("nur der Vorgesetzte darf markiert sein: %q", s)
 	}
-	if !strings.Contains(s, "Merge\nRequests") && !strings.Contains(s, "Merge Requests") {
+	if !strings.Contains(s, "merge\nrequests") && !strings.Contains(s, "merge requests") {
 		t.Fatalf("Hinweis auf Merge Requests an den Vorgesetzten fehlt: %q", s)
 	}
 }

@@ -165,14 +165,14 @@ Deine Aufgabe: Aus der Beschreibung des Menschen konkrete, gut formulierte Confi
 	b.WriteString("Runtime: " + a.Runtime + "\n\n")
 
 	if docs, err := s.Targets.EnabledDocsForAgent(ctx, orgID, a.ID); err == nil && len(docs) > 0 {
-		b.WriteString("## Angebundene Zielsysteme (verfügbare Aktionen)\n")
+		b.WriteString("## Connected target systems (available actions)\n")
 		for _, d := range docs {
 			b.WriteString(d)
 			b.WriteString("\n")
 		}
 		b.WriteString("\n")
 	} else {
-		b.WriteString("## Angebundene Zielsysteme\nKeine — der Agent hat aktuell keine Zielsysteme angebunden.\n\n")
+		b.WriteString("## Connected target systems\nNone — the agent currently has no target systems connected.\n\n")
 	}
 
 	if rules, err := s.Rails.List(ctx, orgID); err == nil {

@@ -79,7 +79,7 @@ after the import (see `docs/ops-gitlab.md` 2.2, 2.7 and — for the lead — 2.9
 - Enter the **GitLab identifier** (`gitlab: covey-dev` or `covey-qa`,
   `covey-lead`) and the **responsibility** in every agent's profile.
 - Assign all the agents to **the same department** — then the developer sees the
-  QA agent as `DEIN TEAM` and prefers them as the reviewer, and the lead finds
+  QA agent as `YOUR TEAM` and prefers them as the reviewer, and the lead finds
   its developers.
 - **For the QA agent's mail intake** additionally set up a mailbox of its own
   and assign the secrets `email_url` + `email_token` (see

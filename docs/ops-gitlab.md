@@ -227,7 +227,7 @@ the QA agent's intake side is needed.
    a user name. At dispatch time its prompt contains the section
    **"Team (AI colleagues)"** with all the organisation's other agents, their
    GitLab identifier, responsibility and department; colleagues from **its
-   team** (the same department) are marked as `DEIN TEAM`. It picks from that
+   team** (the same department) are marked as `YOUR TEAM`. It picks from that
    the colleague responsible for testing — preferably from its own team — and
    enters them as the `reviewer` on `create_merge_request` (the manager stays
    the `assignee`):
@@ -275,7 +275,7 @@ remaining three are **master data** the bundle deliberately does not carry
    agent recognises the QA colleague (a job title "QA agent" helps too).
 5. **Put it in the same team:** assign the QA agent to **the same department**
    as the developer agents (org chart → department). It is then marked as
-   `DEIN TEAM` in their prompt and preferred. (If it is in no department or a
+   `YOUR TEAM` in their prompt and preferred. (If it is in no department or a
    different one, it is still found organisation-wide by responsibility — just
    not preferentially.)
 

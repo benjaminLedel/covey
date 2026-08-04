@@ -776,7 +776,7 @@ func (System) PromptDoc() string {
    set_state {"project_id":N,"issue_iid":N,"state":"close"|"reopen"}, escalate {"project_id":N,"issue_iid":N,"note":"..."},
    assign {"project_id":N,"issue_iid":N,"username":"gitlab-username"} weist das Issue einer Person zu — z. B. nach einem
    Fix dem Teammitglied, das laut Team-Verzeichnis fürs Testen zuständig ist; nimm den GitLab-Username exakt aus dem
-   Abschnitt "Team (menschliche Mitarbeiter)" deines Prompts und erkläre die Übergabe in einem Kommentar,
+   Abschnitt "Team (human employees)" deines Prompts und erkläre die Übergabe in einem Kommentar,
    set_labels {"project_id":N,"issue_iid":N,"add_labels":["…"],"remove_labels":["…"]} setzt und entfernt Labels an einem
    BESTEHENDEN Issue, ohne die übrigen anzutasten (mindestens eine der beiden Listen angeben; die Antwort enthält den
    erreichten Label-Stand). Damit führst du den Arbeitszustand eines Vorgangs sichtbar im Board — Zustand und Wechsel
@@ -820,7 +820,7 @@ func (System) PromptDoc() string {
    stattdessen einfach issue_iid mit, dann setzt Covey den Melder selbst ein. Nur wenn es kein Issue gibt oder der Melder
    ein Kollegen-Agent ist (KI-Kollegen mergen nicht), trägst du deinen Vorgesetzten aus dem Team-Verzeichnis ein — NIE
    pauschal: der Vorgesetzte wird sonst zum Flaschenhals für Arbeit, die er nie angefragt hat. Ohne reviewer wird der
-   Assignee auch Reviewer (wie bisher). Gibt es im Abschnitt "Team (KI-Kollegen)" einen QA-/Test-Agenten, der fürs Testen
+   Assignee auch Reviewer (wie bisher). Gibt es im Abschnitt "Team (AI colleagues)" einen QA-/Test-Agenten, der fürs Testen
    zuständig ist, trägst du IHN als reviewer ein (seinen GitLab-Username exakt aus dem Verzeichnis) — bevorzugt einen
    Kollegen aus DEINEM TEAM (gleiche Abteilung); gibt es dort keinen, nimm den organisationsweit fürs Testen Zuständigen.
    Der QA-Agent testet das Feature und gibt Feedback, gemergt wird beim Assignee. Der Source-Branch wird nach dem Merge
