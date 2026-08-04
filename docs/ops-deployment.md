@@ -1,139 +1,138 @@
-# Betrieb: Automatisches Deployment (main → Host)
+# Operations: automatic deployment (main → host)
 
-Jeder Push auf `main` rollt Covey automatisch auf einen Zielhost aus. Dieses
-Runbook beschreibt die einmalige Einrichtung und was im laufenden Betrieb
-passiert.
+Every push to `main` rolls Covey out onto a target host automatically. This
+runbook describes the one-off setup and what happens in ongoing operation.
 
-> Für lokales Ausprobieren ohne CI siehe stattdessen
-> [`quickstart-docker.md`](quickstart-docker.md).
+> For trying things out locally without CI see
+> [`quickstart-docker.md`](quickstart-docker.md) instead.
 
 ---
 
-## Wie es funktioniert
+## How it works
 
-Die Pipeline (`.gitlab-ci.yml`) hat drei Stages: `test → build → deploy`.
+The pipeline (`.gitlab-ci.yml`) has three stages: `test → build → deploy`.
 
-1. **build** baut zwei Docker-Images und pusht sie in die Registry, u. a. auf
-   den **unveränderlichen Commit-Tag** `:$CI_COMMIT_SHORT_SHA` — das ist der
-   „spezielle Tag", auf den das Deployment pinnt:
-   - `…/covey` (Control Plane, [`Dockerfile`](../Dockerfile)),
-   - `…/covey/sandbox` (coveyd + Claude-Code-Runtime,
+1. **build** builds two Docker images and pushes them into the registry, among
+   others onto the **immutable commit tag** `:$CI_COMMIT_SHORT_SHA` — that is
+   the "special tag" the deployment pins to:
+   - `…/covey` (the control plane, [`Dockerfile`](../Dockerfile)),
+   - `…/covey/sandbox` (coveyd + the Claude Code runtime,
      [`Dockerfile.sandbox`](../Dockerfile.sandbox)).
-2. **deploy** läuft auf einem **Shell-Runner direkt auf dem Zielhost**
-   (Runner-Tag `covey-deploy`). Der Job:
-   - kopiert [`docker-compose.deploy.yml`](../docker-compose.deploy.yml) nach
-     `$DEPLOY_DIR/docker-compose.yml` (Default `/opt/covey`),
-   - erzeugt beim **ersten** Deploy einmalig eine `.env` mit zufälligem
-     Master-Key + Passwörtern (danach nie wieder angefasst),
-   - setzt `COVEY_IMAGE` auf `…/covey:$CI_COMMIT_SHORT_SHA`, pullt das
-     Sandbox-Image auf den Host und pinnt es via `COVEY_SANDBOX_IMAGE`,
+2. **deploy** runs on a **shell runner directly on the target host**
+   (runner tag `covey-deploy`). The job:
+   - copies [`docker-compose.deploy.yml`](../docker-compose.deploy.yml) to
+     `$DEPLOY_DIR/docker-compose.yml` (default `/opt/covey`),
+   - creates, on the **first** deploy, a one-off `.env` with a random
+     master key + passwords (never touched again afterwards),
+   - sets `COVEY_IMAGE` to `…/covey:$CI_COMMIT_SHORT_SHA`, pulls the
+     sandbox image onto the host and pins it via `COVEY_SANDBOX_IMAGE`,
    - `docker compose pull && docker compose up -d`.
 
-### Sandbox-Isolation im Deployment
+### Sandbox isolation in the deployment
 
-Das Deployment nutzt den **docker-SandboxProvider**: pro Agenten-Wake startet
-die Control Plane einen Sibling-Container aus dem Sandbox-Image. Dafür ist im
-Compose der Docker-Socket des Hosts in den covey-Container gemountet, und das
-Datenverzeichnis (`COVEY_DATA_DIR`, Default `/opt/covey/data`) liegt als
-Bind-Mount unter **identischem Pfad** auf Host und im Container — nur so
-stimmen die `-v`-Pfade der Agenten-Homes, die der covey-Container an den
-Host-Daemon übergibt. Das Sandbox-Image wird im Deploy-Job gepullt (dort
-existiert der Registry-Login); die Control Plane selbst pullt nie.
+The deployment uses the **docker SandboxProvider**: for every agent wake the
+control plane starts a sibling container from the sandbox image. For that, the
+host's Docker socket is mounted into the covey container in the Compose file,
+and the data directory (`COVEY_DATA_DIR`, default `/opt/covey/data`) sits as a
+bind mount at an **identical path** on the host and in the container — only
+that way are the `-v` paths of the agent homes, which the covey container hands
+to the host daemon, correct. The sandbox image is pulled in the deploy job
+(that is where the registry login exists); the control plane itself never
+pulls.
 
-Migrationen laufen beim `serve`-Start automatisch (Advisory-Lock). Der
-`bootstrap`-Service legt Organisation/Admin idempotent an und blockiert den
-Start der Control Plane, bis er durch ist.
+Migrations run automatically at `serve` start (an advisory lock). The
+`bootstrap` service creates the organisation/admin idempotently and blocks the
+control plane's start until it is through.
 
-Deploy-Compose vs. lokales Compose:
+Deploy Compose vs. local Compose:
 
-| Datei | Zweck | Image |
+| File | Purpose | Image |
 |---|---|---|
-| `docker-compose.yml` | lokal ausprobieren | `build: .` (baut lokal) |
-| `docker-compose.deploy.yml` | Host-Deployment via CI | `image: ${COVEY_IMAGE}` (aus Registry) |
+| `docker-compose.yml` | trying things out locally | `build: .` (builds locally) |
+| `docker-compose.deploy.yml` | host deployment via CI | `image: ${COVEY_IMAGE}` (from the registry) |
 
-### Was ins Sandbox-Image gehört — und was nicht
+### What belongs in the sandbox image — and what does not
 
-Ein Entwickler-Agent arbeitet an mehreren Projekten mit unterschiedlichen
-Technologien und Versionen. Die Sandbox hängt aber am **Agenten**, nicht am
-Projekt: Der Container startet beim Wake, bevor feststeht, welches Ticket aus
-welchem Projekt drankommt. Ein Image pro Projekt ist deshalb kein gangbarer Weg.
-Stattdessen gilt:
+A developer agent works on several projects with different technologies and
+versions. The sandbox, however, hangs off the **agent**, not the project: the
+container starts on wake, before it is settled which ticket from which project
+comes up. One image per project is therefore not a viable route.
+Instead:
 
-> **Version → Home, Toolchain → Image.**
+> **Version → home, toolchain → image.**
 
-| Schicht | Inhalt | Lebensdauer |
+| Layer | Contents | Lifetime |
 |---|---|---|
-| Image | Systempakete (PHP, JDK) und die Versionsmanager selbst | pro Build |
-| Home `/home/agent` | die SDK-Versionen, die das Projekt pinnt | persistent je Agent |
-| Checkout | `vendor/`, `node_modules/`, Gradle-Cache | persistent je Agent |
+| Image | System packages (PHP, JDK) and the version managers themselves | per build |
+| Home `/home/agent` | The SDK versions the project pins | persistent per agent |
+| Checkout | `vendor/`, `node_modules/`, the Gradle cache | persistent per agent |
 
-Das Image bringt deshalb `fvm` (Flutter/Dart) und `uv` (Python) mit, aber
-**keine SDKs**: Die zieht sich jeder Agent beim ersten Bedarf in sein Home,
-gesteuert durch die Version, die im Projekt-Repo steht (`.fvmrc`,
-`.python-version`, `gradle-wrapper.properties`). Weil das Home persistent ist,
-passiert das einmal und nicht bei jedem Lauf.
+The image therefore brings `fvm` (Flutter/Dart) and `uv` (Python) along, but
+**no SDKs**: every agent fetches those into its home when first needed, steered
+by the version written in the project repo (`.fvmrc`,
+`.python-version`, `gradle-wrapper.properties`). Because the home is
+persistent, that happens once and not on every run.
 
-**Beim Erweitern des Images beachten:** Die Control Plane mountet das Home über
-`/home/agent`. Alles, was ein Installer zur Build-Zeit dorthin schreibt, ist zur
-Laufzeit maskiert und unsichtbar — Werkzeuge gehören in einen Systempfad
-(`/usr/local/bin`, `/opt`), ihre Caches ins Home. Aus demselben Grund lässt sich
-SDKMAN nicht vorinstallieren; es liegt konstruktionsbedingt in `$HOME/.sdkman`
-und wird bei Bedarf vom Agenten selbst installiert (bleibt dann liegen).
+**When extending the image, note:** the control plane mounts the home over
+`/home/agent`. Anything an installer writes there at build time is masked and
+invisible at runtime — tools belong in a system path
+(`/usr/local/bin`, `/opt`), their caches in the home. For the same reason
+SDKMAN cannot be pre-installed; by construction it lives in `$HOME/.sdkman` and
+is installed by the agent itself when needed (and then stays there).
 
-**Nachinstallieren zur Laufzeit ist kein Weg.** Der Agent läuft als Nicht-Root,
-und ein Paketmanager auf der Egress-Allowlist wäre ein generischer
-Code-Ausführungskanal. Die Begründung steht als **D11** in
+**Installing at runtime is not a route.** The agent runs as non-root, and a
+package manager on the egress allowlist would be a generic code-execution
+channel. The reasoning is **D11** in
 [`spec/07-open-decisions.md`](../spec/07-open-decisions.md).
 
-### Egress für Entwickler-Agenten
+### Egress for developer agents
 
-Im Isolationsmodus `network` erreicht die Sandbox nur, was auf der Allowlist
-steht — ohne die passenden Templates scheitern `composer install`,
-`fvm install` und `gradlew`. Der eingebaute Katalog
-(`internal/egress/builtin.go`) hält dafür fertige Host-Sets bereit; einem
-Entwickler-Agenten weist man üblicherweise zu:
+In isolation mode `network` the sandbox reaches only what is on the allowlist —
+without the right templates, `composer install`, `fvm install` and `gradlew`
+fail. The built-in catalogue (`internal/egress/builtin.go`) holds ready-made
+host sets for that; a developer agent is usually assigned:
 
-| Template | Wofür |
+| Template | What for |
 |---|---|
-| GitHub | Git-Klone und Release-Downloads. **Praktisch immer nötig:** `fvm`, Composer-VCS-Pakete, `uv`s CPython, der Gradle-Wrapper und die JDK-Toolchains landen alle auf GitHub Releases |
-| PHP / Composer | `packagist.org` (die dist-Archive kommen über GitHub) |
-| Dart / Flutter | `pub.dev` und die SDK-Artefakte |
-| Maven / Gradle | Maven Central, Plugin Portal, Wrapper-Distributionen, JDK-Toolchains |
-| Android / Google Maven | Android-Abhängigkeiten — für Gradle- **und** Flutter-Builds |
+| GitHub | Git clones and release downloads. **Practically always needed:** `fvm`, Composer VCS packages, `uv`'s CPython, the Gradle wrapper and the JDK toolchains all end up on GitHub Releases |
+| PHP / Composer | `packagist.org` (the dist archives come via GitHub) |
+| Dart / Flutter | `pub.dev` and the SDK artefacts |
+| Maven / Gradle | Maven Central, the plugin portal, wrapper distributions, JDK toolchains |
+| Android / Google Maven | Android dependencies — for Gradle **and** Flutter builds |
 | Node.js / npm | `registry.npmjs.org` |
 
-Dazu das eigene GitLab bzw. Zammad als org-eigenes Template — die stehen
-bewusst nicht im Katalog.
+Plus your own GitLab or Zammad as an org-owned template — those deliberately do
+not sit in the catalogue.
 
-Zwei Dinge, die beim Zuschneiden der Allowlist regelmäßig Zeit kosten:
+Two things that regularly cost time when tailoring the allowlist:
 
-- **Der Proxy folgt keinem Redirect.** Er sieht nur den CONNECT-Host der
-  jeweiligen Verbindung, und er ist fail-closed. Leitet ein Dienst auf einen
-  anderen Host um, muss auch das Ziel auf der Liste stehen — deshalb liegt
-  `plugins-artifacts.gradle.org` neben `plugins.gradle.org`, und deshalb ist
-  das GitHub-Template praktisch Pflicht.
-- **`storage.googleapis.com` im Flutter-Template ist breit.** Der Proxy
-  terminiert TLS nicht, kann also nicht auf Pfade filtern — der Eintrag öffnet
-  jeden öffentlich lesbaren GCS-Bucket, nicht nur die Flutter-Artefakte. Für
-  Agenten, bei denen das nicht tragbar ist, führt der Weg über einen eigenen
-  Spiegel und `FLUTTER_STORAGE_BASE_URL` in der Sandbox statt über dieses
-  Template.
+- **The proxy follows no redirect.** It sees only the CONNECT host of the
+  respective connection, and it is fail-closed. If a service redirects to
+  another host, the target has to be on the list too — that is why
+  `plugins-artifacts.gradle.org` sits next to `plugins.gradle.org`, and why
+  the GitHub template is practically mandatory.
+- **`storage.googleapis.com` in the Flutter template is broad.** The proxy does
+  not terminate TLS and therefore cannot filter on paths — the entry opens
+  every publicly readable GCS bucket, not just the Flutter artefacts. For
+  agents where that is not acceptable, the route goes through a mirror of your
+  own and `FLUTTER_STORAGE_BASE_URL` in the sandbox rather than through this
+  template.
 
 ---
 
-## Einmalige Einrichtung
+## One-off setup
 
-### 1. Shell-Runner auf dem Zielhost
+### 1. A shell runner on the target host
 
-Ein GitLab-Runner mit **Executor `shell`** muss auf dem Zielhost laufen und mit
-dem Tag `covey-deploy` registriert sein. Auf dem Host müssen installiert sein:
+A GitLab runner with **executor `shell`** has to run on the target host and be
+registered with the tag `covey-deploy`. The host must have installed:
 
-- **Docker** + **Compose-Plugin** (`docker compose version`),
-- der Runner-User muss Docker ausführen dürfen (Gruppe `docker`),
-- **OpenSSL** (für die einmalige `.env`-Erzeugung).
+- **Docker** + the **Compose plugin** (`docker compose version`),
+- the runner user must be allowed to run Docker (the `docker` group),
+- **OpenSSL** (for the one-off `.env` generation).
 
 ```bash
-# Beispiel-Registrierung (auf dem Host):
+# example registration (on the host):
 gitlab-runner register \
   --url https://gitlab.lapco.legal \
   --registration-token <TOKEN> \
@@ -142,102 +141,102 @@ gitlab-runner register \
   --description "covey-host"
 ```
 
-### 2. CI/CD-Variablen (optional)
+### 2. CI/CD variables (optional)
 
-In GitLab unter **Settings → CI/CD → Variables**:
+In GitLab under **Settings → CI/CD → Variables**:
 
-| Variable | Default | Zweck |
+| Variable | Default | Purpose |
 |---|---|---|
-| `DEPLOY_DIR` | `/opt/covey` | Zielordner auf dem Host |
-| `COVEY_PUBLIC_URL` | `http://localhost:8494` | öffentliche URL — nur beim **ersten** Deploy in die `.env` geschrieben |
+| `DEPLOY_DIR` | `/opt/covey` | The target folder on the host |
+| `COVEY_PUBLIC_URL` | `http://localhost:8494` | The public URL — written into the `.env` only on the **first** deploy |
 
-> **`COVEY_PUBLIC_URL` ist eine Betriebsadresse, keine Marketing-Adresse.**
-> Aus ihr baut sich die `COVEY_WS_URL`, mit der jede Sandbox zur Control Plane
-> zurückverbindet. Beim docker-Provider wird ein Loopback-Host dabei zu
-> `host.docker.internal` umgeschrieben — ein öffentlicher Name wird es nicht.
-> Trägt man hier die Domain der Website ein, wählen die Sandboxen über das
-> offene Netz zurück, wo die Egress-Allowlist sie stoppt: Alle Agenten
-> scheitern dann mit `daemon hat sich nicht verbunden (timeout 1m0s)`.
-> Der Wert muss **von der Sandbox aus** erreichbar sein, sonst nichts.
+> **`COVEY_PUBLIC_URL` is an operational address, not a marketing address.**
+> The `COVEY_WS_URL` with which every sandbox connects back to the control
+> plane is built from it. With the docker provider a loopback host is rewritten
+> to `host.docker.internal` in the process — it does not become a public name.
+> If you enter the website's domain here, the sandboxes dial back over the open
+> network, where the egress allowlist stops them: all agents then fail with
+> `daemon hat sich nicht verbunden (timeout 1m0s)`.
+> The value has to be reachable **from the sandbox**, nothing else.
 
-Alles, was diese Instanz **nach außen** adressiert, hängt dagegen an
-`COVEY_SITE_URL`: `canonical`, `hreflang`, `sitemap.xml`, `robots.txt`, die
-Webhook- und Trigger-URLs zum Kopieren und die Ziel-URL im herunterladbaren
-Skill. **Leer lassen ist der Normalfall** — dann leitet der Server die Adresse
-aus dem Request ab (Host-Header plus `X-Forwarded-Proto`). Da die Oberfläche
-unter der richtigen Domain aufgerufen wird, stimmen die angezeigten URLs damit
-von selbst. Setzen nur, wenn der Reverse-Proxy die Herkunft nicht durchreicht
-und in der Sitemap sonst `http://` oder ein interner Name landet.
+Everything this instance addresses **outward**, by contrast, hangs off
+`COVEY_SITE_URL`: `canonical`, `hreflang`, `sitemap.xml`, `robots.txt`, the
+webhook and trigger URLs for copying, and the target URL in the downloadable
+skill. **Leaving it empty is the normal case** — the server then derives the
+address from the request (the host header plus `X-Forwarded-Proto`). Since the
+interface is called under the right domain, the URLs displayed are then correct
+by themselves. Set it only when the reverse proxy does not pass the origin
+through and `http://` or an internal name would otherwise land in the sitemap.
 
-Kurz: `COVEY_PUBLIC_URL` zeigt **nach innen** (zu den Sandboxen),
-`COVEY_SITE_URL` zeigt **nach außen** (zu Besuchern und Fremdsystemen).
+In short: `COVEY_PUBLIC_URL` points **inward** (to the sandboxes),
+`COVEY_SITE_URL` points **outward** (to visitors and third-party systems).
 
-Registry-Login läuft automatisch über die eingebauten `$CI_REGISTRY_*`.
+The registry login runs automatically through the built-in `$CI_REGISTRY_*`.
 
-### 3. Erster Push auf main
+### 3. The first push to main
 
-Beim ersten Deploy erzeugt der Job `$DEPLOY_DIR/.env` mit zufälligem Master-Key,
-Postgres- und Admin-Passwort. **Diese `.env` sofort sichern** — der Master-Key
-ver-/entschlüsselt alle hinterlegten Secrets; geht er verloren, sind alle
-gebrokerten Zugänge unlesbar. Das erzeugte Admin-Passwort steht ebenfalls dort:
+On the first deploy the job creates `$DEPLOY_DIR/.env` with a random master
+key and Postgres and admin passwords. **Back this `.env` up immediately** — the
+master key en/decrypts all deposited secrets; if it is lost, all brokered
+credentials are unreadable. The generated admin password is in there too:
 
 ```bash
-sudo cat /opt/covey/.env      # Admin-Passwort + Master-Key ablesen / sichern
+sudo cat /opt/covey/.env      # read off / back up the admin password + master key
 ```
 
 ---
 
-## Laufender Betrieb
+## Ongoing operation
 
 ```bash
 cd /opt/covey
-docker compose ps                 # Status
-docker compose logs -f covey      # Live-Logs
-docker compose down               # Stoppen (Daten bleiben in den Volumes)
+docker compose ps                 # status
+docker compose logs -f covey      # live logs
+docker compose down               # stop (data stays in the volumes)
 ```
 
-Jeder weitere main-Push zieht die neuen Images und startet neu. Das DB-Volume
-(`covey-db`), die Agenten-Homes (`/opt/covey/data/homes/…`) und die `.env`
-bleiben erhalten.
+Every further push to main pulls the new images and restarts. The DB volume
+(`covey-db`), the agent homes (`/opt/covey/data/homes/…`) and the `.env` are
+preserved.
 
-### Passwort-Notfall-Reset
+### Emergency password reset
 
-Eigenes Passwort ändert man in der UI (Account-Einstellungen), fremde setzt
-der Platform-Admin über die Nutzer-Seite zurück. Ist der **Admin selbst**
-ausgesperrt, hilft `covey passwd` direkt auf dem Host — es setzt das Passwort
-in der DB neu und invalidiert alle laufenden Sessions des Nutzers:
+You change your own password in the UI (account settings); other people's are
+reset by the platform admin through the user page. If the **admin themselves**
+is locked out, `covey passwd` directly on the host helps — it sets the password
+anew in the DB and invalidates all the user's running sessions:
 
 ```bash
 cd /opt/covey
 docker compose run --rm covey passwd admin@covey.local
-# → fragt das neue Passwort interaktiv ab (ohne Echo);
-#   nicht-interaktiv: echo 'neues-passwort' | docker compose run --rm -T covey passwd admin@covey.local
+# → asks for the new password interactively (without echo);
+#   non-interactively: echo 'new-password' | docker compose run --rm -T covey passwd admin@covey.local
 ```
 
 ### Rollback
 
-Auf einen früheren Commit-Tag zurück (Tags stehen in der Registry):
+Back to an earlier commit tag (the tags are in the registry):
 
 ```bash
 cd /opt/covey
-COVEY_IMAGE=<registry>/covey:<älterer-sha> docker compose up -d
+COVEY_IMAGE=<registry>/covey:<older-sha> docker compose up -d
 ```
 
 ---
 
-## Wiki-Gedächtnis: Embedding wählen
+## Wiki memory: choosing an embedding
 
-Die Wiki-Suche der Agenten (siehe [`spec/05`](../spec/05-memory.md)) liegt
-auf einem Vektor-Index. Welches Embedding ihn füllt, entscheidet
-`COVEY_EMBEDDING_PROVIDER` in der `.env` des Deploy-Ordners.
+The agents' wiki search (see [`spec/05`](../spec/05-memory.md)) sits on a
+vector index. Which embedding fills it is decided by
+`COVEY_EMBEDDING_PROVIDER` in the deploy folder's `.env`.
 
-Der Default `builtin` braucht nichts und kann wenig: er misst Wortüberlappung,
-keine Bedeutung. „Die Pipeline ist rot" und „Der CI-Build schlägt fehl" haben
-für ihn nichts miteinander zu tun. Ein Agent findet seine eigene Seite damit
-nicht wieder, sobald er anders formuliert — und legt eine zweite an. Für echten
-Betrieb ist das zu wenig.
+The default `builtin` needs nothing and can do little: it measures word
+overlap, not meaning. "The pipeline is red" and "The CI build is failing" have
+nothing to do with each other as far as it is concerned. An agent therefore
+does not find its own page again as soon as it phrases things differently — and
+creates a second one. For real operation that is not enough.
 
-**Selbst betreiben** (empfohlen — die Wiki-Inhalte verlassen das Haus nicht):
+**Run it yourself** (recommended — the wiki contents do not leave the house):
 
 ```bash
 # in /opt/covey/.env
@@ -245,24 +244,24 @@ COMPOSE_PROFILES=embeddings
 COVEY_EMBEDDING_PROVIDER=ollama
 ```
 
-Das startet zwei zusätzliche Container: einen Embedding-Server und einen
-einmaligen Job, der das Modell lädt. Default ist EmbeddingGemma — 308M
-Parameter, mehrsprachig, läuft auf der CPU, kein Schlüssel, kein Egress zu
-Dritten. Ein anderes Modell über `COVEY_EMBEDDING_MODEL`; es muss die vom
-Schema erwarteten 256 Dimensionen liefern können (Matryoshka-trainierte Modelle
-tun das, sonst wird gekürzt und neu normalisiert).
+That starts two additional containers: an embedding server and a one-off job
+that loads the model. The default is EmbeddingGemma — 308M parameters,
+multilingual, runs on the CPU, no key, no egress to third parties. A different
+model through `COVEY_EMBEDDING_MODEL`; it has to be able to deliver the 256
+dimensions the schema expects (Matryoshka-trained models do; otherwise it is
+truncated and re-normalised).
 
-**Fremden Dienst nutzen:**
+**Use a third-party service:**
 
 ```bash
-COVEY_EMBEDDING_PROVIDER=voyage      # oder openai
+COVEY_EMBEDDING_PROVIDER=voyage      # or openai
 COVEY_EMBEDDING_API_KEY=…
 ```
 
-Danach `docker compose up -d`. Beim Start bettet die Control Plane den
-vorhandenen Bestand automatisch neu ein — Vektoren verschiedener Modelle sind
-nicht vergleichbar, deshalb trägt jede Seite den Fingerabdruck ihres Modells.
-Im Log:
+Then `docker compose up -d`. At start the control plane re-embeds the existing
+corpus automatically — vectors from different models are not comparable, which
+is why every page carries its model's fingerprint.
+In the log:
 
 ```
 wiki-embedding aktiv                      modell=ollama:embeddinggemma:256
@@ -270,32 +269,30 @@ wiki-embedding: Bestand wird nachgezogen  seiten=52
 wiki-embedding: Bestand nachgezogen       seiten=52
 ```
 
-Bis das durchgelaufen ist, findet die Suche die betroffenen Seiten nicht; sie
-gehen aber nicht verloren. Ist der Embedding-Dienst beim Start noch nicht
-bereit (er lädt beim ersten Mal das Modell), fasst die Control Plane im
-Minutentakt nach.
+Until that has run through, the search does not find the affected pages; they
+are not lost, though. If the embedding service is not ready yet at start (it
+loads the model the first time), the control plane retries every minute.
 
-### Aufräum-Heartbeat
+### The cleanup heartbeat
 
-`COVEY_WIKI_CLEANUP` (Default `03:00`) legt jedem Agenten täglich eine
-Wartungsaufgabe an: ähnliche Seiten zusammenführen, tote `[[Verweise]]`
-korrigieren, Widersprüche glätten. Das kostet **einen LLM-Lauf pro Agent und
-Tag** — bei vielen Agenten ein spürbarer Posten. Abschalten mit einem leeren
-Wert, ein anderer Takt über `HH:MM` oder ein Intervall wie `12h`. Einzelne
-Agenten überschreiben den Eintrag über einen gleichnamigen Punkt in ihrer
-`HEARTBEAT.md`.
+`COVEY_WIKI_CLEANUP` (default `03:00`) creates a maintenance task for every
+agent daily: merge similar pages, fix dead `[[references]]`, smooth out
+contradictions. That costs **one LLM run per agent per day** — a noticeable item
+with many agents. Switch it off with an empty value, use a different cadence
+through `HH:MM` or an interval like `12h`. Individual agents override the entry
+through an item of the same name in their `HEARTBEAT.md`.
 
 ---
 
-## Vor echtem Produktivbetrieb
+## Before real production use
 
-Das Setup ist bewusst schlank. Für echten Betrieb zusätzlich (vgl.
-[`quickstart-docker.md`](quickstart-docker.md#für-den-produktivbetrieb)):
+The setup is deliberately lean. For real operation, additionally (cf.
+[`quickstart-docker.md`](quickstart-docker.md#for-production-use)):
 
-- **HTTPS davor:** Reverse-Proxy mit TLS-Terminierung, `COVEY_PUBLIC_URL` auf
-  `https://…` — das Secure-Cookie schaltet sich dann automatisch an.
-- **DB-TLS:** `sslmode=require` in der DB-URL (dann in `docker-compose.deploy.yml`
-  bzw. per eigener DB-Instanz).
-- **Egress:** `COVEY_EGRESS_ENFORCE=true` (der docker-Sandbox-Provider ist
-  bereits aktiv), damit Sandboxen nur Allowlist-Hosts erreichen.
-- Admin-Passwort aus der generierten `.env` durch ein eigenes ersetzen.
+- **HTTPS in front:** a reverse proxy with TLS termination, `COVEY_PUBLIC_URL`
+  on `https://…` — the secure cookie then switches itself on automatically.
+- **DB TLS:** `sslmode=require` in the DB URL (then in
+  `docker-compose.deploy.yml` or via a DB instance of your own).
+- **Egress:** `COVEY_EGRESS_ENFORCE=true` (the docker sandbox provider is
+  already active) so that sandboxes reach only allowlist hosts.
+- Replace the admin password from the generated `.env` with one of your own.

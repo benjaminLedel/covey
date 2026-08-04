@@ -1,95 +1,94 @@
-# Betrieb: Covey-Agenten einen Browser geben
+# Operations: giving Covey agents a browser
 
-Praktisches Runbook für das `browser`-Plugin: ein **vollwertiger headless
-Chrome** als universeller Adapter für Web-Anwendungen, die kein eigenes
-Zielsystem-Plugin haben. Der Agent navigiert, liest Seiteninhalt, macht
-Screenshots, klickt und tippt — wie ein Nutzer, nur ohne sichtbares Fenster.
-Getrieben wird ein echter Chromium über das DevTools-Protokoll (chromedp,
-reines Go); „headless" heißt gleiche Engine, volles Rendering.
+A practical runbook for the `browser` plugin: a **full headless Chrome** as a
+universal adapter for web applications that have no target-system plugin of
+their own. The agent navigates, reads page content, takes screenshots, clicks
+and types — like a user, only without a visible window. A real Chromium is
+driven over the DevTools protocol (chromedp, pure Go); "headless" means the
+same engine, full rendering.
 
-> Kurzfassung: Plugin aktivieren, in `ACCESS.md` freischalten, die Ziel-Hosts
-> in die **Egress-Allowlist** aufnehmen. Keine Secrets nötig — der Browser
-> läuft lokal in der Sandbox.
+> Short version: enable the plugin, unlock it in `ACCESS.md`, add the target
+> hosts to the **egress allowlist**. No secrets needed — the browser runs
+> locally in the sandbox.
 
 ---
 
-## 1. Wann der Browser, wann ein Plugin?
+## 1. When the browser, when a plugin?
 
-- **Eigenes Zielsystem-Plugin** (Zammad, Nextcloud, GitLab …) für Systeme, die
-  eine erstklassige, fein-guard-railte Integration wert sind: stabile
-  Aktionen, saubere `system:aktion`-Guard-Rails, gebrokerte Credentials.
-- **Browser** für den **langen Schwanz**: interne Web-Tools, Portale und
-  Dashboards, für die sich kein Plugin lohnt. Anwendungs-agnostisch — was ein
-  Mensch im Browser bedienen kann, kann der Agent auch, ohne API oder Plugin.
+- **A target-system plugin of its own** (Zammad, Nextcloud, GitLab …) for
+  systems worth a first-class, finely guard-railed integration: stable
+  actions, clean `system:action` guard rails, brokered credentials.
+- **The browser** for the **long tail**: internal web tools, portals and
+  dashboards for which a plugin is not worth it. Application-agnostic — what a
+  human can operate in a browser, the agent can too, without an API or a plugin.
 
-Der Preis: pro-Aktion-Guard-Rails greifen im Browser gröber (ein Klick ist
-opak). Die **Egress-Allowlist** ist hier die harte, tragende Grenze.
+The price: per-action guard rails apply more coarsely in the browser (a click is
+opaque). The **egress allowlist** is the hard, load-bearing limit here.
 
-## 2. Die Aktionen im Überblick
+## 2. The actions at a glance
 
-| Aktion | Parameter | Wirkung |
+| Action | Parameters | Effect |
 |---|---|---|
-| `navigate` | `url` | Seite laden, liefert Titel + finale URL (nur http/https) |
-| `content` | `selector` (optional) | Sichtbaren Text liefern (ganze Seite oder per CSS-Selektor, bis 20k Zeichen) |
-| `screenshot` | `to` (optional), `full` (optional) | PNG in die Sandbox schreiben (Default `browser/shot-N.png`); `full=true` = ganze scrollbare Seite |
-| `click` | `selector` | Element klicken |
-| `type` | `selector`, `text` | Text in ein Feld tippen |
+| `navigate` | `url` | Load a page, returns the title + final URL (http/https only) |
+| `content` | `selector` (optional) | Deliver the visible text (the whole page or by CSS selector, up to 20k characters) |
+| `screenshot` | `to` (optional), `full` (optional) | Write a PNG into the sandbox (default `browser/shot-N.png`); `full=true` = the whole scrollable page |
+| `click` | `selector` | Click an element |
+| `type` | `selector`, `text` | Type text into a field |
 
-Die Browser-Sitzung **bleibt über mehrere Aktionen bestehen** (Cookies/Login
-bleiben erhalten) und wird beim Einschlafen der Sandbox beendet. Screenshots
-liest der Agent anschließend als Bild — so „sieht" er die Seite.
+The browser session **persists across several actions** (cookies/login are
+preserved) and is ended when the sandbox falls asleep. The agent then reads
+screenshots as images — that is how it "sees" the page.
 
-## 3. Einrichtung
+## 3. Setup
 
-1. Plugin in der Org aktivieren (keine Secrets).
-2. In der `ACCESS.md` des Agenten:
+1. Enable the plugin in the org (no secrets).
+2. In the agent's `ACCESS.md`:
    ```
    - system: browser scope: navigate,content,screenshot,click,type
    ```
-3. **Egress:** jeden Host, den der Agent aufrufen soll, in die
-   Egress-Allowlist der Org aufnehmen. Ohne Freigabe lädt keine Seite —
-   fehlgeschlagene Navigation ist fast immer eine fehlende Egress-Regel.
-4. **Sandbox-Image:** muss `chromium` enthalten (im mitgelieferten
-   `Dockerfile.sandbox` bereits ergänzt). `COVEY_BROWSER_CHROME_PATH`
-   übersteuert den Browser-Pfad, falls nötig.
+3. **Egress:** add every host the agent should call to the org's egress
+   allowlist. Without approval no page loads — a failed navigation is almost
+   always a missing egress rule.
+4. **Sandbox image:** must contain `chromium` (already added in the bundled
+   `Dockerfile.sandbox`). `COVEY_BROWSER_CHROME_PATH` overrides the browser
+   path if necessary.
 
-## 4. Sicherheitsmodell
+## 4. Security model
 
-- **Kein langlebiges Secret in der Sandbox:** Der Browser bekommt keine
-  gebrokerten Credentials automatisch. Muss sich der Agent bei einer Web-App
-  anmelden, kommen die Zugangsdaten kurzlebig und gescopt über den Broker
-  (z. B. als hinterlegtes Login, das der Agent in ein Formular tippt) — nie
-  dauerhaft im Browser-Profil.
-- **Egress ist die harte Grenze:** Der Browser ist das mächtigste
-  Egress-Werkzeug überhaupt; die Sandbox-Netzsperre gatet jeden Request.
-- **Guard-Rails pro Aktion:** Subjekte `browser:navigate`, `browser:click`,
-  `browser:type`, `browser:content`, `browser:screenshot` — z. B.
-  `browser:type` approval-pflichtig setzen, während `browser:navigate`/
-  `content` frei bleiben.
-- **Kein lokaler Dateizugriff:** `navigate` erlaubt nur `http`/`https` —
-  `file://` & Co. werden abgewiesen.
-- **`--no-sandbox`:** Chromiums eigener Setuid-Sandbox braucht Kernel-Caps,
-  die der Container nicht hat; da der Container selbst die Isolationsgrenze
-  ist, läuft Chromium mit `--no-sandbox`. Die harte Grenze bleibt die
-  Sandbox, nicht der browsereigene Sandbox.
+- **No long-lived secret in the sandbox:** the browser gets no brokered
+  credentials automatically. If the agent has to log into a web app, the
+  credentials come short-lived and scoped through the broker (e.g. as a
+  deposited login the agent types into a form) — never permanently in the
+  browser profile.
+- **Egress is the hard limit:** the browser is the most powerful egress tool
+  there is; the sandbox's network barrier gates every request.
+- **Guard rails per action:** the subjects `browser:navigate`, `browser:click`,
+  `browser:type`, `browser:content`, `browser:screenshot` — e.g. make
+  `browser:type` subject to approval while `browser:navigate`/`content` stay
+  free.
+- **No local file access:** `navigate` only allows `http`/`https` —
+  `file://` & co. are refused.
+- **`--no-sandbox`:** Chromium's own setuid sandbox needs kernel capabilities
+  the container does not have; since the container itself is the isolation
+  boundary, Chromium runs with `--no-sandbox`. The hard limit remains the
+  sandbox, not the browser's own sandbox.
 
-## 5. Grenzen & Ausbau
+## 5. Limits & expansion
 
-- **Anti-Bot/CAPTCHA:** Manche Seiten blocken Automatisierung. Die
-  DOM-Steuerung über CDP stößt dort an Grenzen; die spätere Pixel-Ebene
-  (Computer-Use-Runtime, `spec/16`) fährt da besser, weil sie wie ein echter
-  Nutzer aussieht.
-- **Sichtbares Fenster / Live-View:** `COVEY_BROWSER_HEADFUL` startet Chromium
-  im sichtbaren Modus — braucht dann einen X-Server/Xvfb im Image. Das ist die
-  Brücke zur Live-View/Takeover-Ausbaustufe (noVNC).
-- **Timeout:** `COVEY_BROWSER_TIMEOUT_SECS` deckelt eine einzelne Aktion
-  (Default 45 s).
+- **Anti-bot/CAPTCHA:** some sites block automation. DOM control over CDP hits
+  its limits there; the later pixel level (a computer-use runtime, `spec/16`)
+  fares better, because it looks like a real user.
+- **A visible window / live view:** `COVEY_BROWSER_HEADFUL` starts Chromium in
+  visible mode — which then needs an X server/Xvfb in the image. That is the
+  bridge to the live-view/takeover expansion stage (noVNC).
+- **Timeout:** `COVEY_BROWSER_TIMEOUT_SECS` caps a single action
+  (default 45 s).
 
-## 6. Typische Fehlerbilder
+## 6. Typical failure patterns
 
-| Symptom | Ursache | Abhilfe |
+| Symptom | Cause | Remedy |
 |---|---|---|
-| „chromium start … " | Chromium fehlt im Image / falscher Pfad | `chromium` installieren bzw. `COVEY_BROWSER_CHROME_PATH` setzen |
-| Navigation hängt/timeout | Ziel-Host nicht in der Egress-Allowlist | Egress-Regel ergänzen |
-| `nur http/https erlaubt` | `file://`/`javascript:`-URL | echte Web-URL verwenden |
-| Klick findet nichts | Selektor unsichtbar/nicht vorhanden | mit `content`/`screenshot` prüfen, Selektor korrigieren |
+| "chromium start … " | Chromium missing in the image / wrong path | install `chromium` or set `COVEY_BROWSER_CHROME_PATH` |
+| Navigation hangs/times out | The target host is not in the egress allowlist | add an egress rule |
+| `nur http/https erlaubt` | A `file://`/`javascript:` URL | use a real web URL |
+| A click finds nothing | The selector is invisible/absent | check with `content`/`screenshot`, correct the selector |

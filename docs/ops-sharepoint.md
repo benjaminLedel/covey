@@ -1,111 +1,109 @@
-# Betrieb: Covey an SharePoint / Teams-Dateien anschließen
+# Operations: connecting Covey to SharePoint / Teams files
 
-Praktisches Runbook für das `sharepoint`-Plugin: eine **per Freigabelink
-bereitgestellte Dokumentbibliothek** (SharePoint-Site oder Dateien-Tab eines
-Teams-Kanals), in der der Agent Dateien listet, liest, bearbeitet und ablegt.
-Technische Grundlage ist die Microsoft-Graph-API; die Dateien eines
-Teams-Kanals liegen ohnehin in der SharePoint-Site des Teams — derselbe
-Mechanismus deckt beide Fälle ab.
+A practical runbook for the `sharepoint` plugin: a **document library provided
+through a share link** (a SharePoint site or the files tab of a Teams channel)
+in which the agent lists, reads, edits and deposits files. The technical basis
+is the Microsoft Graph API; a Teams channel's files live in the team's
+SharePoint site anyway — the same mechanism covers both cases.
 
-> Kurzfassung: Entra-ID-App registrieren, Freigabelink kopieren, zwei
-> Secrets setzen, ACCESS.md freischalten. SharePoint hat hier **keinen
-> Webhook** — braucht der Agent einen Eingangsordner als Arbeitsvorrat,
-> läuft der Intake per Polling über `HEARTBEAT.md`.
+> Short version: register an Entra ID app, copy the share link, set two
+> secrets, unlock it in ACCESS.md. SharePoint has **no webhook** here — if the
+> agent needs an inbox folder as its working set, the intake runs by polling
+> through `HEARTBEAT.md`.
 
 ---
 
-## 1. Überblick des Datenflusses
+## 1. Overview of the data flow
 
 ```
-SharePoint /   ◄──(Microsoft Graph, HTTPS)──  Agent (Sandbox, Claude Code)
-Teams-Dateien       list, read, write,          │ Aktionen über den Action-Proxy,
-                    download, upload,           │ Credentials pro Aufruf gebrokert
+SharePoint /   ◄──(Microsoft Graph, HTTPS)──  agent (sandbox, Claude Code)
+Teams files         list, read, write,          │ actions through the action proxy,
+                    download, upload,           │ credentials brokered per call
                     mkdir, delete               │ (sharepoint_url + sharepoint_token)
-Entra ID       ◄──(Client-Credentials-Flow)────┘ Bearer-Token, im Daemon gecacht
+Entra ID       ◄──(client credentials flow)────┘ bearer token, cached in the daemon
 ```
 
-Der hinterlegte **Freigabelink** wird über den Graph-`/shares`-Endpoint zur
-Dokumentbibliothek aufgelöst; alle Pfade in den Aktionen sind **relativ zu
-dieser Wurzel**. Ein Ausbruch per `..` wird daemon-seitig abgewiesen — der
-Agent sieht nur, was der Link freigibt (plus das, was die App-Berechtigung
-technisch erlaubt, siehe Least Privilege unten).
+The deposited **share link** is resolved to the document library through the
+Graph `/shares` endpoint; all paths in the actions are **relative to that
+root**. An escape via `..` is refused daemon-side — the agent sees only what
+the link releases (plus what the app permission technically allows, see least
+privilege below).
 
 ---
 
-## 2. Schritt-für-Schritt-Anleitung
+## 2. Step-by-step instructions
 
-### 2.1 In Entra ID: App-Registrierung für den Agenten
+### 2.1 In Entra ID: an app registration for the agent
 
-1. Azure-Portal → **App-Registrierungen** → neue App (z. B. `covey-agent`).
-2. **API-Berechtigungen** → Microsoft Graph → **Anwendungsberechtigungen**
-   (Application, nicht Delegated) → `Files.ReadWrite.All` → **Admin-Zustimmung
-   erteilen**.
-3. **Zertifikate & Geheimnisse** → neues **Client-Secret** erzeugen und den
-   Wert sofort notieren (er ist später nicht mehr einsehbar). Ablaufdatum im
-   Kalender vermerken — nach Ablauf schlagen alle Aktionen mit
-   `invalid_client` fehl.
-4. Notieren: **Verzeichnis-ID (Tenant)**, **Anwendungs-ID (Client)** und das
-   Secret.
+1. Azure portal → **App registrations** → a new app (e.g. `covey-agent`).
+2. **API permissions** → Microsoft Graph → **Application permissions**
+   (application, not delegated) → `Files.ReadWrite.All` → **grant admin
+   consent**.
+3. **Certificates & secrets** → create a new **client secret** and note the
+   value immediately (it cannot be viewed later). Note the expiry date in the
+   calendar — after expiry all actions fail with `invalid_client`.
+4. Note down: the **directory (tenant) ID**, the **application (client) ID**
+   and the secret.
 
-**Least Privilege:** `Files.ReadWrite.All` erlaubt der App technisch Zugriff
-auf alle Sites des Tenants. Wer das nicht will, nimmt stattdessen
-`Sites.Selected` und erteilt der App per Graph gezielt Zugriff auf die eine
-Site (`POST /sites/{site-id}/permissions` mit der App als `grantedToIdentities`,
-Rolle `write`) — das Plugin funktioniert mit beiden Varianten unverändert.
+**Least privilege:** `Files.ReadWrite.All` technically allows the app access to
+all sites in the tenant. Whoever does not want that takes `Sites.Selected`
+instead and grants the app targeted access to the one site through Graph
+(`POST /sites/{site-id}/permissions` with the app as `grantedToIdentities`,
+role `write`) — the plugin works unchanged with either variant.
 
-### 2.2 In SharePoint / Teams: Freigabelink kopieren
+### 2.2 In SharePoint / Teams: copy the share link
 
-- **SharePoint:** den Ordner bzw. die Dokumentbibliothek öffnen →
-  **Link kopieren**.
-- **Teams:** im Kanal den **Dateien**-Tab öffnen (ggf. in den gewünschten
-  Unterordner wechseln) → **Link kopieren**.
+- **SharePoint:** open the folder or document library →
+  **Copy link**.
+- **Teams:** open the **Files** tab in the channel (switching into the desired
+  subfolder if necessary) → **Copy link**.
 
-Der Link muss auf einen **Ordner** zeigen — ein Link auf eine einzelne Datei
-wird beim Auflösen abgewiesen. Auch ein einfacher Browser-URL des Ordners
-funktioniert; der Graph-`/shares`-Endpoint akzeptiert beide Formen.
+The link has to point at a **folder** — a link to an individual file is refused
+during resolution. A plain browser URL of the folder works too; the Graph
+`/shares` endpoint accepts both forms.
 
-### 2.3 In Covey: Secrets hinterlegen
+### 2.3 In Covey: deposit the secrets
 
-| Secret | Wert | Zweck |
+| Secret | Value | Purpose |
 |---|---|---|
-| `sharepoint_url` | der Freigabelink aus 2.2 | Wurzel der Ablage |
-| `sharepoint_token` | `tenant-id:client-id:client-secret` | Client-Credentials-Tripel |
+| `sharepoint_url` | the share link from 2.2 | the root of the store |
+| `sharepoint_token` | `tenant-id:client-id:client-secret` | the client credentials triple |
 
-Beide Secrets dem Agenten **zuweisen** (org-weite Secrets erreichen einen
-Agenten nur bei expliziter Zuweisung).
+**Assign** both secrets to the agent (org-wide secrets only reach an agent on
+explicit assignment).
 
-Optionale Endpunkt-Overrides in `sharepoint_url` (durch Leerzeichen
-getrennt, für nationale Clouds oder Tests):
+Optional endpoint overrides in `sharepoint_url` (separated by spaces, for
+national clouds or tests):
 
 ```
 sharepoint_url = https://contoso.sharepoint.com/:f:/s/TeamX/AbCdEf…
                  graph=https://graph.microsoft.de login=https://login.microsoftonline.de
 ```
 
-Für Demos/Tests gegen ein Graph-Double kann `sharepoint_token` statt des
-Tripels auch ein **fertiger Bearer-Token** sein (jeder Wert ohne die zwei
-Doppelpunkte) — dann entfällt der OAuth-Flow.
+For demos/tests against a Graph double, `sharepoint_token` can also be a
+**ready-made bearer token** instead of the triple (any value without the two
+colons) — the OAuth flow is then skipped.
 
-### 2.4 ACCESS.md des Agenten
+### 2.4 The agent's ACCESS.md
 
 ```
 - system: sharepoint scope: read,write
 ```
 
-### 2.5 Egress-Freigabe
+### 2.5 Egress release
 
-Aus der Sandbox müssen erreichbar sein:
+The following have to be reachable from the sandbox:
 
-- `graph.microsoft.com` (bzw. der `graph=`-Override)
-- `login.microsoftonline.com` (bzw. der `login=`-Override)
-- `*.sharepoint.com` — Datei-Downloads laufen über einen Redirect auf eine
-  vorautorisierte SharePoint-URL
+- `graph.microsoft.com` (or the `graph=` override)
+- `login.microsoftonline.com` (or the `login=` override)
+- `*.sharepoint.com` — file downloads run through a redirect to a
+  pre-authorised SharePoint URL
 
-### 2.6 Optional: Intake per Heartbeat
+### 2.6 Optional: intake by heartbeat
 
-SharePoint hat in Covey **keinen Webhook-Eingang** (Graph-Change-Notifications
-brauchen eine öffentlich validierte HTTPS-Subscription — bewusst nicht im
-MVP). Soll der Agent einen Eingangsordner eigenständig abarbeiten, in der
+SharePoint has **no webhook intake** in Covey (Graph change notifications need
+a publicly validated HTTPS subscription — deliberately not in the MVP). If the
+agent should work through an inbox folder on its own, in the
 `HEARTBEAT.md`:
 
 ```
@@ -115,52 +113,52 @@ MVP). Soll der Agent einen Eingangsordner eigenständig abarbeiten, in der
   entfernen).
 ```
 
-Weil es keinen Webhook gibt, gilt wie beim E-Mail-Plugin: **kein
-`blocked`-Status** auf SharePoint-Ereignisse — der Lauf endet regulär mit
-`done`, der nächste Heartbeat sichtet erneut.
+Because there is no webhook, the same applies as for the email plugin: **no
+`blocked` status** on SharePoint events — the run ends regularly with `done`,
+and the next heartbeat looks again.
 
 ---
 
-## 3. Die Aktionen im Überblick
+## 3. The actions at a glance
 
-| Aktion | Parameter | Wirkung |
+| Action | Parameters | Effect |
 |---|---|---|
-| `list` | `path` (optional) | Dateien/Ordner listen (max. 200 pro Aufruf) |
-| `read` | `path` | Textdatei direkt liefern (bis 1 MB, nur UTF-8) |
-| `write` | `path`, `content` | Textdatei anlegen/überschreiben |
-| `download` | `path`, `to` (optional) | Datei in die Sandbox holen (Default `sharepoint/<pfad>`) |
-| `upload` | `from`, `to` (optional) | Datei aus der Sandbox ablegen (ersetzt Vorhandenes) |
-| `mkdir` | `path` | Ordnerpfad anlegen (`mkdir -p`) |
-| `delete` | `path` | Datei/Ordner löschen (Wurzel ist tabu) |
+| `list` | `path` (optional) | List files/folders (max. 200 per call) |
+| `read` | `path` | Deliver a text file directly (up to 1 MB, UTF-8 only) |
+| `write` | `path`, `content` | Create/overwrite a text file |
+| `download` | `path`, `to` (optional) | Fetch a file into the sandbox (default `sharepoint/<path>`) |
+| `upload` | `from`, `to` (optional) | Deposit a file from the sandbox (replaces what is there) |
+| `mkdir` | `path` | Create a folder path (`mkdir -p`) |
+| `delete` | `path` | Delete a file/folder (the root is off limits) |
 
-Binär- und Office-Dateien (docx, xlsx, pdf, …) laufen immer über
-`download` → lokal bearbeiten → `upload`; `read`/`write` sind für reine
-Textdateien gedacht. Simple-Uploads sind auf 250 MB begrenzt
-(`COVEY_SHAREPOINT_UPLOAD_MAX_MB` im Daemon-Env übersteuert das Limit;
-größere Dateien bräuchten eine Graph-Upload-Session — nicht im MVP).
-
----
-
-## 4. Sicherheitsmodell
-
-- **Kein langlebiges Secret in der Sandbox:** Tripel und Bearer-Token leben
-  nur im RAM des Daemons; der Token wird mit Sicherheitsmarge gecacht und
-  vor Ablauf erneuert. Die Runtime (der LLM-Prozess) sieht nie ein Secret.
-- **Guard-Rails pro Aktion:** jedes Subjekt heißt `sharepoint:<aktion>` —
-  `sharepoint:delete` oder `sharepoint:write` lassen sich damit gezielt auf
-  Approval-Pflicht setzen, während `sharepoint:list`/`read` frei bleiben.
-- **Pfad-Härtung:** Remote-Pfade werden normalisiert (`..` abgewiesen),
-  lokale Pfade gegen das Sandbox-Arbeitsverzeichnis aufgelöst — kein
-  Ausbruch in `/home` oder das Host-Dateisystem.
+Binary and Office files (docx, xlsx, pdf, …) always go through
+`download` → edit locally → `upload`; `read`/`write` are meant for plain
+text files. Simple uploads are limited to 250 MB
+(`COVEY_SHAREPOINT_UPLOAD_MAX_MB` in the daemon env overrides the limit;
+larger files would need a Graph upload session — not in the MVP).
 
 ---
 
-## 5. Typische Fehlerbilder
+## 4. Security model
 
-| Symptom | Ursache | Abhilfe |
+- **No long-lived secret in the sandbox:** the triple and the bearer token live
+  only in the daemon's RAM; the token is cached with a safety margin and
+  renewed before expiry. The runtime (the LLM process) never sees a secret.
+- **Guard rails per action:** every subject is called `sharepoint:<action>` —
+  `sharepoint:delete` or `sharepoint:write` can therefore be put behind an
+  approval requirement specifically, while `sharepoint:list`/`read` stay free.
+- **Path hardening:** remote paths are normalised (`..` refused), local paths
+  resolved against the sandbox working directory — no escape into `/home` or
+  the host file system.
+
+---
+
+## 5. Typical failure patterns
+
+| Symptom | Cause | Remedy |
 |---|---|---|
-| `invalid_client` beim Token-Holen | Client-Secret falsch oder abgelaufen | neues Secret erzeugen, `sharepoint_token` aktualisieren |
-| `HTTP 403 accessDenied` beim Auflösen | Admin-Zustimmung fehlt oder `Sites.Selected` ohne Site-Grant | Zustimmung erteilen bzw. Site-Permission anlegen |
-| „Freigabelink zeigt auf eine Datei" | Link auf Datei statt Ordner kopiert | Ordner-/Bibliotheks-Link hinterlegen |
-| `itemNotFound` bei Aktionen | Pfad existiert nicht (relativ zur Link-Wurzel!) | mit `list` den tatsächlichen Baum prüfen |
-| Download bricht ab | `*.sharepoint.com` nicht im Egress freigegeben | Egress-Freigabe ergänzen |
+| `invalid_client` when fetching the token | The client secret is wrong or expired | create a new secret, update `sharepoint_token` |
+| `HTTP 403 accessDenied` during resolution | Admin consent is missing, or `Sites.Selected` without a site grant | grant consent or create the site permission |
+| "The share link points at a file" | A link to a file instead of a folder was copied | deposit a folder/library link |
+| `itemNotFound` on actions | The path does not exist (relative to the link root!) | check the actual tree with `list` |
+| A download breaks off | `*.sharepoint.com` is not released in the egress | add the egress release |

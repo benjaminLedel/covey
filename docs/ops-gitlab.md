@@ -1,597 +1,594 @@
-# Betrieb: Covey an ein GitLab anschließen
+# Operations: connecting Covey to a GitLab
 
-Praktisches Runbook für das Zielsystem **GitLab** (`internal/target/gitlab`).
-Aufbau und Datenfluss folgen dem Zammad-Adapter
-([`ops-zammad.md`](ops-zammad.md)) — die Einheit der Arbeit ist hier das
-**Issue** statt des Tickets.
+A practical runbook for the target system **GitLab** (`internal/target/gitlab`).
+Structure and data flow follow the Zammad adapter
+([`ops-zammad.md`](ops-zammad.md)) — the unit of work here is the
+**issue** instead of the ticket.
 
-> Kurzfassung: Token-Auth gegen die REST-API (`/api/v4`). Der Agent findet
-> seine Issues **selbst** (`list_issues`), getrieben von einem
-> `HEARTBEAT.md`-Eintrag — GitLab nimmt Arbeit **rein per Polling** auf, es
-> gibt keinen Webhook (bewusst: mit mehreren Agenten pro Projekt ist ein
-> Webhook-Setup aufwendig und fehleranfällig). Bug-Reports beantwortet er
-> **code-basiert**: `checkout` holt den Quelltext in die Sandbox, bestätigt
-> wird nur mit Fundstelle (Abschnitt 4). Es sind **Konfigurationsschritte**,
-> kein Umbau.
+> Short version: token auth against the REST API (`/api/v4`). The agent finds
+> its issues **itself** (`list_issues`), driven by a
+> `HEARTBEAT.md` entry — GitLab takes up work **purely by polling**, there is
+> no webhook (deliberately: with several agents per project a webhook setup is
+> laborious and error-prone). It answers bug reports **code-based**:
+> `checkout` fetches the source into the sandbox, and a report is confirmed
+> only with a location in the code (section 4). These are **configuration
+> steps**, not a rebuild.
 
 ---
 
-## 1. Überblick des Datenflusses
+## 1. Overview of the data flow
 
-**Intake ausschließlich per Heartbeat (Polling).** Ein `HEARTBEAT.md`-Eintrag
-legt dem Agenten periodisch die Aufgabe „Issues sichten" ins Backlog. Der Agent
-findet seinen Arbeitsvorrat selbst über die Discovery-Aktionen:
+**Intake exclusively by heartbeat (polling).** A `HEARTBEAT.md` entry puts the
+task "review issues" into the agent's backlog periodically. The agent finds its
+working set itself through the discovery actions:
 
 ```
-Covey  ──(Heartbeat-Tick)──►  Backlog-Task „GitLab-Issues sichten"
+Covey  ──(heartbeat tick)──►  backlog task "review GitLab issues"
                                  │
                                  ▼
-                              Agent (Sandbox, Claude Code)
-                                 │  Aktionen über Action-Proxy
+                              agent (sandbox, Claude Code)
+                                 │  actions through the action proxy
 GitLab  ◄──(REST /api/v4)────────┘  list_issues → get_issue/list_notes → checkout → comment/set_state/escalate
 ```
 
-Kein eingehender Traffic, keine öffentliche URL, kein Webhook-Secret —
-funktioniert auch, wenn Covey hinter NAT/Firewall läuft.
+No inbound traffic, no public URL, no webhook secret — it works even when Covey
+runs behind NAT/a firewall.
 
-> **Kein Webhook für GitLab.** Anders als Zammad hat das GitLab-Plugin
-> **keinen** Webhook-Eingang (`/api/webhooks/gitlab/…` antwortet mit 404). Der
-> Grund: Ein Webhook müsste pro Zielprojekt eingerichtet werden und einen
-> einzelnen Agenten adressieren — mit mehreren Agenten auf denselben Projekten
-> wird das schnell mehrdeutig und schwer zu warten. GitLab wird deshalb
-> vollständig per Polling betrieben; der Review-Loop (Abschnitt 2.7) läuft
-> ebenfalls über den Heartbeat statt über `blocked`+Wake. (Der generische,
-> per-Agent-Trigger `/api/trigger/<token>` für Fremdsysteme bleibt davon
-> unberührt — er ist kein Zielsystem-Webhook.)
+> **No webhook for GitLab.** Unlike Zammad, the GitLab plugin has **no**
+> webhook intake (`/api/webhooks/gitlab/…` answers with 404). The reason: a
+> webhook would have to be set up per target project and would address a single
+> agent — with several agents on the same projects that quickly becomes
+> ambiguous and hard to maintain. GitLab is therefore operated entirely by
+> polling; the review loop (section 2.7) likewise runs through the heartbeat
+> instead of `blocked`+wake. (The generic per-agent trigger
+> `/api/trigger/<token>` for third-party systems is unaffected by this — it is
+> not a target-system webhook.)
 
-Auth (nur outbound, Covey → GitLab): REST mit einem gebrokerten API-Token
-(Secret `gitlab_token`), das nie in der Sandbox persistiert wird.
+Auth (outbound only, Covey → GitLab): REST with a brokered API token
+(the secret `gitlab_token`) that is never persisted in the sandbox.
 
 ---
 
-## 2. Schritt-für-Schritt-Anleitung
+## 2. Step-by-step instructions
 
-### 2.1 In GitLab: Nutzer + Token anlegen
+### 2.1 In GitLab: create a user + token
 
-1. Einen **eigenen Nutzer** für den Covey-Agenten anlegen (z. B. `covey-bot`) —
-   nicht das Token eines Menschen verwenden. Über diesen Nutzer laufen alle
-   Kommentare und Commits des Agenten; per `list_notes` erkennt er beim
-   nächsten Lauf seinen eigenen letzten Stand und bearbeitet nichts doppelt.
-2. Den Nutzer den Zielprojekten mit **Reporter**-Rolle hinzufügen (reicht für
-   Kommentare inkl. interner Notizen; zum Schließen von Issues je nach
-   Projekt-Setup Developer).
-3. Als dieser Nutzer ein **Personal Access Token** mit Scope `api` erzeugen —
-   oder pro Projekt ein **Project Access Token** (Least Privilege). Token
-   notieren (wird nur einmal angezeigt).
+1. Create **a user of its own** for the Covey agent (e.g. `covey-bot`) —
+   do not use a person's token. All the agent's comments and commits run
+   through this user; by `list_notes` it recognises its own last state at the
+   next run and does not work on anything twice.
+2. Add the user to the target projects with the **Reporter** role (enough for
+   comments including internal notes; for closing issues, Developer depending
+   on the project setup).
+3. As that user create a **personal access token** with the scope `api` — or a
+   **project access token** per project (least privilege). Note the token down
+   (it is shown only once).
 
-### 2.2 In Covey: Secrets hinterlegen
+### 2.2 In Covey: deposit the secrets
 
-Pro Agent im SecretStore setzen (UI: Agenten-Seite → Secrets, oder via API):
+Set per agent in the SecretStore (UI: agent page → Secrets, or via the API):
 
-| Secret | Wert | Zweck |
+| Secret | Value | Purpose |
 |---|---|---|
-| `gitlab_url` | `https://gitlab.example.com` | **ohne** `/api/v4` — der Client hängt das an |
-| `gitlab_token` | das Token aus 2.1 | Outbound-Auth (`PRIVATE-TOKEN`-Header) |
-| `anthropic_api_key` *oder* `claude_code_oauth_token` | API-Key bzw. `claude setup-token` | die Runtime in der Sandbox |
+| `gitlab_url` | `https://gitlab.example.com` | **without** `/api/v4` — the client appends that |
+| `gitlab_token` | the token from 2.1 | outbound auth (the `PRIVATE-TOKEN` header) |
+| `anthropic_api_key` *or* `claude_code_oauth_token` | an API key or `claude setup-token` | the runtime in the sandbox |
 
-### 2.3 In Covey: Zielsystem aktivieren
+### 2.3 In Covey: enable the target system
 
-Das Zielsystem `gitlab` muss für die Org **aktiviert** sein (UI: Zielsysteme).
-Zusätzlich muss der Agent laut `ACCESS.md` auf `gitlab` zugreifen dürfen, und
-die Guard-Rails dürfen `gitlab` / `gitlab:comment_external` nicht verbieten.
+The target system `gitlab` has to be **enabled** for the org (UI: Target
+systems). In addition the agent has to be allowed to access `gitlab` according
+to its `ACCESS.md`, and the guard rails must not forbid `gitlab` /
+`gitlab:comment_external`.
 
-### 2.4 Intake per Heartbeat einrichten
+### 2.4 Setting up the intake by heartbeat
 
-In der `HEARTBEAT.md` des Agenten **zwei getrennte** Einträge anlegen — je ein
-Job (Issue-Triage, MR-Review), je eigen gegatet:
+Create **two separate** entries in the agent's `HEARTBEAT.md` — one job each
+(issue triage, MR review), each gated on its own:
 
 ```
 - alle: 15m nur-wenn: gitlab:issues titel: GitLab-Issues sichten aufgabe: Finde offene Issues (list_issues state=opened), bearbeite neue und prüfe per list_notes, ob auf deine Rückfragen geantwortet wurde. Bei Bugs: Code per checkout holen und die Behauptung am Quelltext verifizieren.
 - alle: 15m nur-wenn: gitlab:mr titel: Merge Requests betreuen aufgabe: Prüfe deine offenen Merge Requests (list_merge_requests state=opened) auf neues Review-Feedback (list_mr_notes), arbeite es ein und reagiere auf Merge bzw. Close.
 ```
 
-**Warum zwei Heartbeats mit Unterscope statt einem.** Weil der Agent nach
-`create_merge_request` **nicht blockt**, sondern mit `done` endet, muss ein
-Heartbeat seine offenen MRs per Polling erneut aufgreifen — der Review-Loop ist
-ein eigener Job. Der Unterscope nach dem Doppelpunkt (`gitlab:issues` bzw.
-`gitlab:mr`) sorgt dafür, dass jeder der beiden Heartbeats **nur für seine
-eigene Arbeit** feuert:
+**Why two heartbeats with a sub-scope instead of one.** Because the agent does
+**not** block after `create_merge_request` but ends with `done`, a heartbeat has
+to pick its open MRs back up by polling — the review loop is a job of its own.
+The sub-scope after the colon (`gitlab:issues` or `gitlab:mr`) ensures that each
+of the two heartbeats fires **only for its own work**:
 
-- `nur-wenn: gitlab:issues` → nur, wenn ein offenes Issue im Intake-Scope auf
-  eine Reaktion **wartet** (siehe „Flanke statt Pegel" unten).
-- `nur-wenn: gitlab:issues:assigned` → dasselbe, aber nur für die dem Bot-Nutzer
-  **zugewiesenen** Issues (`scope=assigned_to_me`) — für Agenten, deren Playbook
-  ausschließlich eigene Issues bearbeitet.
-- `nur-wenn: gitlab:mr` → nur, wenn einer der vom Bot selbst eröffneten, offenen
-  Merge Requests **unbeantwortetes Review-Feedback** hat (der letzte
-  Nicht-System-Kommentar im Thread stammt nicht vom Bot).
-- `nur-wenn: gitlab:review` → nur, wenn ein MR, in dem der Bot als **Reviewer**
-  eingetragen ist, auf sein Review wartet.
+- `nur-wenn: gitlab:issues` → only when an open issue in the intake scope is
+  **waiting** for a reaction (see "edge instead of level" below).
+- `nur-wenn: gitlab:issues:assigned` → the same, but only for the issues
+  **assigned** to the bot user (`scope=assigned_to_me`) — for agents whose
+  playbook works exclusively on their own issues.
+- `nur-wenn: gitlab:mr` → only when one of the open merge requests opened by the
+  bot itself has **unanswered review feedback** (the last non-system comment in
+  the thread is not from the bot).
+- `nur-wenn: gitlab:review` → only when an MR in which the bot is entered as a
+  **reviewer** is waiting for its review.
 
-Ohne Unterscope (`nur-wenn: gitlab`) prüft ein Heartbeat **beides gemeinsam** —
-dann würden zwei solche Heartbeats aber jeweils auch für die Arbeit des anderen
-mit-feuern (der MR-Task liefe bei reiner Issue-Arbeit und umgekehrt). Der
-Unterscope vermeidet genau diese Verschwendung; nutze `nur-wenn: gitlab` nur,
-wenn du beide Jobs bewusst in **einem** Task bündeln willst.
+Without a sub-scope (`nur-wenn: gitlab`) a heartbeat checks **both together** —
+but then two such heartbeats would each fire for the other's work as well (the
+MR task would run on pure issue work and vice versa). The sub-scope avoids
+exactly that waste; use `nur-wenn: gitlab` only when you deliberately want to
+bundle both jobs into **one** task.
 
-Der Merge-Abschluss braucht keinen eigenen Auslöser: Ist das zugehörige Issue
-noch offen, weckt es über den Issue-Heartbeat; wurde es beim Merge automatisch
-geschlossen, gibt es nichts mehr zu tun.
+The merge completion needs no trigger of its own: if the associated issue is
+still open, it wakes through the issue heartbeat; if it was closed automatically
+on merge, there is nothing left to do.
 
-**Flanke statt Pegel — und was das vom Agenten verlangt.** Ein offenes Issue
-oder ein offener MR ist *nicht* dauerhaft „Arbeit". Als Arbeit zählt ein Vorgang
-nur, solange der **letzte Nicht-System-Kommentar nicht vom Bot** stammt (oder es
-noch gar keinen gibt — dann steht die Erst-Triage aus). Hat der Bot zuletzt
-geschrieben, ruht der Vorgang, bis jemand antwortet.
+**Edge instead of level — and what that demands of the agent.** An open issue
+or an open MR is *not* permanently "work". An item counts as work only as long
+as the **last non-system comment is not from the bot** (or there is none yet —
+then the first triage is outstanding). If the bot wrote last, the item rests
+until someone answers.
 
-Daraus folgt ein Vertrag, den das Playbook einhalten muss: **wer an einem Issue
-gearbeitet hat, kommentiert dort.** Ein stiller Lauf hinterlässt keine Flanke,
-gilt beim nächsten Intervall wieder als unbearbeitet und weckt den Agenten
-erneut — bei `alle: 2m` sind das 30 Läufe pro Stunde auf denselben, längst
-erledigten Vorgang. Genau dieser Pegel-Trigger war die Ursache eines
-Endlos-Loops in der Praxis, siehe [Heartbeat-Intervalle](#25-intervalle-realistisch-wählen).
+From that follows a contract the playbook has to keep: **whoever has worked on
+an issue comments there.** A silent run leaves no edge, counts as unworked again
+at the next interval and wakes the agent anew — at `alle: 2m` that is 30 runs
+per hour on the same long-finished item. Exactly this level trigger was the
+cause of an endless loop in practice, see
+[heartbeat intervals](#25-choosing-realistic-intervals).
 
-Der Vorab-Check ist billig (wenige REST-Aufrufe: offene Issues bzw. die eigenen
-offenen MRs und deren Notes) — verglichen mit einem LLM-Turn vernachlässigbar.
+The advance check is cheap (a few REST calls: open issues or your own open MRs
+and their notes) — negligible compared with an LLM turn.
 
-Der Agent entdeckt seinen Arbeitsvorrat dann selbst: `list_projects` liefert
-die Projekte, in denen der Bot-Nutzer Mitglied ist, `list_issues` die offenen
-Issues (ohne `project_id`: alle, die das Token sehen darf). Damit
-wiederkehrende Läufe nichts doppelt bearbeiten, prüft der Agent per
-`list_notes`, ob sein eigener Kommentar bereits der letzte Stand ist — die
-Prompt-Doku des Plugins weist ihn darauf hin.
+The agent then discovers its working set itself: `list_projects` delivers the
+projects the bot user is a member of, `list_issues` the open issues (without
+`project_id`: all the ones the token may see). So that recurring runs do not
+work on anything twice, the agent checks by `list_notes` whether its own
+comment is already the last state — the plugin's prompt documentation points it
+at that.
 
-Optionaler Projekt-Filter (greift für `list_issues`/`list_projects` und den
-`nur-wenn:`-Vorabcheck):
+An optional project filter (it takes effect for `list_issues`/`list_projects`
+and the `nur-wenn:` advance check):
 
 ```bash
-COVEY_GITLAB_INTAKE_PROJECTS="gruppe/support"   # leer = alle Projekte
+COVEY_GITLAB_INTAKE_PROJECTS="group/support"   # empty = all projects
 ```
 
-### 2.5 Intervalle realistisch wählen
+### 2.5 Choosing realistic intervals
 
-Das Intervall muss zur **Dauer eines Laufs** passen, nicht zur gewünschten
-Reaktionszeit. Ein Issue end-to-end zu bearbeiten (Repo klonen, Code lesen, Fix,
-MR) dauert Minuten bis Viertelstunden; `alle: 2m` heißt dann nicht „schneller",
-sondern „der nächste Lauf beginnt, bevor der vorige verstanden hat, worum es
-geht". **15m für Issue-Triage, 15m für den MR-Loop** sind ein guter Startwert;
-unter 5m sollte nichts liegen, das Code anfasst.
+The interval has to fit the **duration of a run**, not the desired reaction
+time. Working an issue end to end (clone the repo, read the code, fix, MR)
+takes minutes to quarter-hours; `alle: 2m` then does not mean "faster" but
+"the next run begins before the previous one has understood what it is about".
+**15m for issue triage, 15m for the MR loop** are a good starting value;
+nothing that touches code should be below 5m.
 
-Zwei eingebaute Bremsen dämpfen das, ersetzen aber kein sinnvolles Intervall:
+Two built-in brakes dampen this but do not replace a sensible interval:
 
-- Ein Heartbeat feuert nicht, solange die Aufgabe seines letzten Laufs noch
-  offen ist (kein Stapeln).
-- Die `nur-wenn:`-Bedingung prüft die Flanke, nicht den Pegel (siehe oben).
+- A heartbeat does not fire while the task from its last run is still
+  open (no stacking).
+- The `nur-wenn:` condition checks the edge, not the level (see above).
 
-Was beides **nicht** abfängt: ein Lauf, der ohne Ergebnis am Turn-Limit endet.
-Covey erkennt das (`max_turns`), lässt sich den Zwischenstand vom Lauf selbst
-zusammenfassen und legt daraus eine **Folgeaufgabe** an, die die Session
-fortsetzt — statt den nächsten Heartbeat bei null anfangen zu lassen. Nach
-mehreren Fortsetzungen in Folge eskaliert die Aufgabe an den Vorgesetzten,
-statt weiterzulaufen. Passiert das regelmäßig, ist der Auftrag zu groß
-geschnitten oder `max_turns` zu klein.
+What neither catches: a run that ends without a result at the turn limit.
+Covey recognises that (`max_turns`), has the run summarise its own interim
+state and creates a **follow-up task** from it that continues the session —
+instead of letting the next heartbeat start from zero. After several
+continuations in a row the task escalates to the manager instead of continuing.
+If that happens regularly, the assignment is cut too large or `max_turns` is too
+small.
 
-### 2.6 Testen
+### 2.6 Testing
 
-1. Im Zielprojekt ein Issue anlegen → beim nächsten Heartbeat-Lauf nimmt der
-   Agent es auf.
-2. Antwortet der Agent, muss sein Kommentar unter dem `covey-bot`-Nutzer
-   erscheinen.
-3. Bei einer Rückfrage geht der Agent **nicht** `blocked`: Er stellt die
-   Rückfrage als Kommentar, schließt seinen Lauf mit `done` ab und prüft beim
-   nächsten Heartbeat per `list_notes`, ob eine Antwort da ist.
+1. Create an issue in the target project → at the next heartbeat run the agent
+   takes it up.
+2. If the agent replies, its comment has to appear under the `covey-bot` user.
+3. On a follow-up question the agent does **not** go `blocked`: it puts the
+   question as a comment, closes its run with `done` and checks at the next
+   heartbeat by `list_notes` whether an answer is there.
 
-### 2.7 Der Review-Loop: der Agent als Entwickler
+### 2.7 The review loop: the agent as a developer
 
-Behebt der Agent einen Bug selbst, arbeitet er wie ein Entwickler aus
-Fleisch und Blut — das Warten auf das Review läuft aber **per Polling**, nicht
-über `blocked`:
+If the agent fixes a bug itself, it works like a flesh-and-blood developer — but
+waiting for the review runs **by polling**, not through `blocked`:
 
-1. `checkout` des Projekts in die Sandbox, **Projekt aufsetzen** (Dependencies
-   installieren, Build und Tests einmal im Ausgangszustand laufen lassen —
-   die nötigen Paket-Registries gibt der Egress über die Built-in-Templates
-   frei, z. B. npm/PyPI/Go).
-2. Fix entwickeln, Tests ausführen, per `commit` auf einen Feature-Branch
-   pushen, `create_merge_request` an den Vorgesetzten, Link im Issue
-   kommentieren.
-3. Der Agent beendet seinen Lauf mit `done` — **kein `blocked`**. (Ein
-   `blocked` würde ohne Webhook nie geweckt und die Heartbeat-Aufgabe dauerhaft
-   belegen, sodass keine neuen „Issues sichten"-Läufe mehr entstünden.)
-4. Beim nächsten Heartbeat-Lauf prüft der Agent seine offenen MRs
-   (`list_merge_requests state=opened` → `list_mr_notes`) auf neues
-   Review-Feedback. Verlangt es Änderungen, checkt er den Source-Branch erneut
-   aus, arbeitet die Punkte ein, lässt die Tests laufen, pusht auf denselben
-   Branch und antwortet per `comment_mr` — danach wieder `done`.
-5. Ist ein MR **gemergt** (`list_merge_requests state=merged` / `get_merge_request`),
-   kommentiert der Agent das Ergebnis im Issue; wurde er ohne Merge
-   **geschlossen**, prüft er per `list_mr_notes` warum und eskaliert, wenn unklar.
+1. `checkout` of the project into the sandbox, **set the project up** (install
+   dependencies, run the build and tests once in the initial state — the
+   necessary package registries are released by the egress through the built-in
+   templates, e.g. npm/PyPI/Go).
+2. Develop the fix, run the tests, push onto a feature branch by `commit`,
+   `create_merge_request` to the manager, comment the link in the issue.
+3. The agent ends its run with `done` — **no `blocked`**. (Without a webhook, a
+   `blocked` would never be woken and would occupy the heartbeat task
+   permanently, so that no new "review issues" runs would arise.)
+4. At the next heartbeat run the agent checks its open MRs
+   (`list_merge_requests state=opened` → `list_mr_notes`) for new review
+   feedback. If it demands changes, it checks the source branch out again, works
+   the points in, runs the tests, pushes onto the same branch and answers by
+   `comment_mr` — then `done` again.
+5. If an MR has been **merged** (`list_merge_requests state=merged` /
+   `get_merge_request`), the agent comments the result in the issue; if it was
+   **closed** without a merge, it checks by `list_mr_notes` why and escalates if
+   that is unclear.
 
-Damit dieser Loop zuverlässig läuft, gehört der MR-Heartbeat
-(`nur-wenn: gitlab:mr`, Abschnitt 2.4) in die `HEARTBEAT.md`. Er weckt den
-Agenten genau dann, wenn einer seiner offenen MRs unbeantwortetes
-Review-Feedback hat — unabhängig davon, ob gerade ein Issue offen ist.
+For this loop to run reliably, the MR heartbeat
+(`nur-wenn: gitlab:mr`, section 2.4) belongs in the `HEARTBEAT.md`. It wakes the
+agent exactly when one of its open MRs has unanswered review feedback —
+regardless of whether an issue happens to be open.
 
-### 2.8 Der QA-/Test-Agent: fremde MRs end-to-end testen
+### 2.8 The QA/test agent: testing other people's MRs end to end
 
-Der Review-Loop aus 2.7 wartet standardmäßig auf einen **Menschen** (den
-Vorgesetzten, der als MR-Assignee eingetragen ist). Man kann das Review aber
-auch an einen **zweiten Agenten** geben — einen QA-/Test-Agenten, der das
-Feature abnimmt und dem Entwickler-Agenten Feedback gibt. Beide sind normale
-Covey-Agenten; sie arbeiten über GitLab zusammen (Covey kennt keine direkte
-Agent-zu-Agent-Aufgabenübergabe — die Zusammenarbeit läuft über das gemeinsame
-Zielsystem). Der Clou: Der Entwickler-Agent hat den MR-Review-Loop bereits
-(2.7) — kommentiert der QA-Agent Mängel am MR, greift der Entwickler sie bei
-seinem nächsten `gitlab:mr`-Lauf **automatisch** auf. Es braucht also nur die
-Intake-Seite des QA-Agenten.
+The review loop from 2.7 waits by default for a **human** (the manager, who is
+entered as the MR assignee). But the review can also be given to a **second
+agent** — a QA/test agent that accepts the feature and gives the developer agent
+feedback. Both are normal Covey agents; they work together through GitLab
+(Covey knows no direct agent-to-agent task handover — the collaboration runs
+through the shared target system). The trick: the developer agent already has
+the MR review loop (2.7) — if the QA agent comments defects on the MR, the
+developer picks them up **automatically** at its next `gitlab:mr` run. So only
+the QA agent's intake side is needed.
 
-**Ablauf:**
+**Sequence:**
 
-1. Der Entwickler-Agent **findet den QA-Agenten selbst** — er muss keinen
-   Benutzernamen kennen. Sein Prompt enthält zur Dispatch-Zeit den Abschnitt
-   **„Team (KI-Kollegen)"** mit allen anderen Agenten der Organisation, ihrer
-   GitLab-Kennung, Zuständigkeit und Abteilung; Kollegen aus **seinem Team**
-   (gleiche Abteilung) sind als `DEIN TEAM` markiert. Er wählt daraus den fürs
-   Testen zuständigen Kollegen — bevorzugt aus dem eigenen Team — und trägt ihn
-   beim `create_merge_request` als `reviewer` ein (der Vorgesetzte bleibt
-   `assignee`):
+1. The developer agent **finds the QA agent itself** — it does not have to know
+   a user name. At dispatch time its prompt contains the section
+   **"Team (AI colleagues)"** with all the organisation's other agents, their
+   GitLab identifier, responsibility and department; colleagues from **its
+   team** (the same department) are marked as `DEIN TEAM`. It picks from that
+   the colleague responsible for testing — preferably from its own team — and
+   enters them as the `reviewer` on `create_merge_request` (the manager stays
+   the `assignee`):
    `create_merge_request {"project_id":N,"source_branch":"fix/…","title":"…","assignee":"leaddev","reviewer":"covey-qa"}`.
-   Einen bestehenden MR übergibt er mit
-   `set_reviewer {"project_id":N,"mr_iid":N,"username":"covey-qa"}` und erklärt
-   die Übergabe in einem `comment_mr`. Gibt es keinen QA-Kollegen, bleibt es beim
-   bisherigen Verhalten (Vorgesetzter = Assignee und Reviewer).
-2. Der QA-Agent findet seine Review-Warteschlange über den neuen Unterscope
-   **`nur-wenn: gitlab:review`**: er feuert nur, wenn ein MR, in dem der QA-Bot
-   als Reviewer eingetragen ist, auf sein Review wartet (kein Kommentar, oder der
-   letzte Nicht-System-Kommentar stammt nicht vom QA-Bot). Ein frisch
-   übergebener MR ohne Kommentar zählt hier **sehr wohl** als Arbeit — er wartet
-   ja auf das Erst-Review (anders als beim Entwickler-Loop, wo ein frischer MR
-   auf den Reviewer wartet).
-3. Der QA-Agent checkt den **Source-Branch** aus, setzt das Projekt auf, **startet
-   die Anwendung und spielt das Feature end-to-end durch** (nicht nur Diff lesen),
-   prüft es gegen die Abnahmekriterien aus Issue/MR und lässt die volle Testsuite
-   laufen.
-4. Ergebnis per `comment_mr`: bei Mängeln konkret mit Datei:Zeile und
-   Reproduktion (der Entwickler-Agent arbeitet sie über seinen `gitlab:mr`-Loop
-   ein); ist alles grün, sagt der QA-Agent das explizit und gibt mit
-   `approve_mr` frei. Gemergt wird **vom Menschen** — der QA-Agent merged nie
-   selbst.
+   It hands an existing MR over with
+   `set_reviewer {"project_id":N,"mr_iid":N,"username":"covey-qa"}` and explains
+   the handover in a `comment_mr`. If there is no QA colleague, the previous
+   behaviour stands (the manager as both assignee and reviewer).
+2. The QA agent finds its review queue through the sub-scope
+   **`nur-wenn: gitlab:review`**: it fires only when an MR in which the QA bot
+   is entered as a reviewer is waiting for its review (no comment, or the last
+   non-system comment is not from the QA bot). A freshly handed-over MR without
+   a comment **does** count as work here — it is waiting for the first review
+   (unlike in the developer loop, where a fresh MR waits for the reviewer).
+3. The QA agent checks the **source branch** out, sets the project up, **starts
+   the application and plays the feature through end to end** (not just reading
+   the diff), checks it against the acceptance criteria from the issue/MR and
+   runs the full test suite.
+4. The result by `comment_mr`: on defects concretely with file:line and a
+   reproduction (the developer agent works them in through its `gitlab:mr`
+   loop); if everything is green, the QA agent says so explicitly and releases
+   it with `approve_mr`. Merging is done **by the human** — the QA agent never
+   merges itself.
 
-**Einrichtung des QA-Agenten.** Ein fertiges Beispiel liegt unter
+**Setting up the QA agent.** A ready-made example sits under
 `examples/qa-agent.bundle.json` (SOUL/CAPABILITIES/PLAYBOOKS/ACCESS/HEARTBEAT
-inklusive `nur-wenn: gitlab:review`). Damit die automatische Zuordnung aus
-Schritt 1 greift, sind fünf Schritte nötig — die ersten beiden liefert das
-Bundle, die restlichen drei sind **Stammdaten**, die das Bundle bewusst nicht
-trägt (Profil-Kennungen und Abteilung werden nie exportiert):
+including `nur-wenn: gitlab:review`). For the automatic assignment from step 1
+to take hold, five steps are needed — the bundle supplies the first two, the
+remaining three are **master data** the bundle deliberately does not carry
+(profile identifiers and department are never exported):
 
-1. **Agent anlegen:** das Bundle importieren
-   (`POST /api/v1/agents/import`, oder in der UI „Agent aus Bundle") — legt den
-   Agenten `covey-qa` mit allen Config-Dateien an.
-2. **Secrets zuweisen:** `gitlab_token` + `gitlab_url` wie in 2.2 hinterlegen und
-   dem QA-Agenten zuweisen; GitLab- und `dev`-Zielsystem für ihn aktivieren.
-3. **GitLab-Identität setzen:** im Profil des QA-Agenten die GitLab-Kennung
-   eintragen (z. B. `gitlab: covey-qa`) — **erst damit** erscheint er im
-   „Team (KI-Kollegen)"-Verzeichnis der anderen Agenten mit einem Username, den
-   der Entwickler als `reviewer` eintragen kann. Ohne GitLab-Identität ist er
-   für die Kollegen nicht adressierbar.
-4. **Zuständigkeit setzen:** im Profil `Zuständigkeiten` = „testet Merge
-   Requests / QA" o. ä. — das ist das Kriterium, an dem der Entwickler-Agent den
-   QA-Kollegen erkennt (Job-Titel „QA-Agent" hilft zusätzlich).
-5. **Ins selbe Team stecken:** den QA-Agenten **derselben Abteilung** zuordnen
-   wie die Entwickler-Agenten (Org-Chart → Abteilung). Dann ist er in ihrem
-   Prompt als `DEIN TEAM` markiert und wird bevorzugt gewählt. (Steckt er in
-   keiner oder einer anderen Abteilung, wird er trotzdem organisationsweit nach
-   Zuständigkeit gefunden — nur eben nicht bevorzugt.)
+1. **Create the agent:** import the bundle
+   (`POST /api/v1/agents/import`, or "Agent from bundle" in the UI) — it creates
+   the agent `covey-qa` with all its config files.
+2. **Assign secrets:** deposit `gitlab_token` + `gitlab_url` as in 2.2 and
+   assign them to the QA agent; enable the GitLab and `dev` target systems for
+   it.
+3. **Set the GitLab identity:** enter the GitLab identifier in the QA agent's
+   profile (e.g. `gitlab: covey-qa`) — **only then** does it appear in the other
+   agents' "Team (AI colleagues)" directory with a user name the developer can
+   enter as `reviewer`. Without a GitLab identity it is not addressable by the
+   colleagues.
+4. **Set the responsibility:** in the profile, `Responsibilities` = "tests merge
+   requests / QA" or similar — that is the criterion by which the developer
+   agent recognises the QA colleague (a job title "QA agent" helps too).
+5. **Put it in the same team:** assign the QA agent to **the same department**
+   as the developer agents (org chart → department). It is then marked as
+   `DEIN TEAM` in their prompt and preferred. (If it is in no department or a
+   different one, it is still found organisation-wide by responsibility — just
+   not preferentially.)
 
-Der eigene Bot-Nutzer in GitLab muss existieren (z. B. `covey-qa`, Rolle
-Reporter reicht zum Kommentieren; für `approve_mr` genügt Reporter ebenfalls,
-sofern das Projekt Approvals erlaubt). Sein Token liegt in `gitlab_token` des
-QA-Agenten — so schreiben Entwickler- und QA-Agent unter **verschiedenen**
-GitLab-Nutzern, und der Review-Loop unterscheidet „Autor" von „Reviewer" sauber.
+Its own bot user has to exist in GitLab (e.g. `covey-qa`, the Reporter role is
+enough for commenting; for `approve_mr` Reporter suffices too, provided the
+project allows approvals). Its token sits in the QA agent's `gitlab_token` — so
+the developer and QA agents write under **different** GitLab users, and the
+review loop distinguishes "author" from "reviewer" cleanly.
 
-> **Egress:** Damit der QA-Agent die Anwendung wirklich starten kann, braucht
-> seine Sandbox dieselben Paket-Registries wie der Entwickler-Agent (npm/PyPI/Go
-> über die Built-in-Egress-Templates) — siehe `docs/ops-deployment.md`.
+> **Egress:** for the QA agent to really be able to start the application, its
+> sandbox needs the same package registries as the developer agent (npm/PyPI/Go
+> through the built-in egress templates) — see `docs/ops-deployment.md`.
 
-### 2.9 Der Delivery Lead: ein ganzes Vorhaben führen
+### 2.9 The delivery lead: leading a whole undertaking
 
-Entwickler- und QA-Agent arbeiten ticketweise. Hängt die Arbeit an einem
-**Meilenstein mit Frist** — einer Ausschreibung, einem Release —, kommt eine
-Ebene darüber dazu: der Delivery Lead (`examples/delivery-lead.bundle.json`).
-Er macht Tickets implementierbar (Anforderung im Original lesen, prüfbare
-Abnahmekriterien kommentieren, betroffene Stellen per `list_tree`/`read_file`
-benennen), hält abhängige Tickets zurück, bis ihre Grundlage gemergt ist, und
-vergibt Arbeit nach einem WIP-Limit.
+Developer and QA agents work ticket by ticket. If the work hangs off a
+**milestone with a deadline** — a tender, a release — a level above them comes
+in: the delivery lead (`examples/delivery-lead.bundle.json`).
+It makes tickets implementable (read the requirement in the original, comment
+checkable acceptance criteria, name the affected places by
+`list_tree`/`read_file`), holds dependent tickets back until their foundation is
+merged, and hands out work according to a WIP limit.
 
-Vier Dinge unterscheiden sein Setup von dem der anderen:
+Four things distinguish its setup from the others:
 
-1. **Die Entwickler-Agenten müssen auf `nur-wenn: gitlab:issues:assigned`
-   stehen** (so ist die Vorlage geschnitten). Greifen sie frei nach offenen
-   Issues, weckt sie bereits der Aufbereitungs-Kommentar des Leads — dann sind
-   WIP-Limit und Reihenfolge wirkungslos, und der Lead ist Dekoration.
-2. **`ACCESS.md` des Leads trägt eine `tools:`-Allowlist.** Seine Rolle
-   definiert sich über eine lange Verbotsliste (nicht committen, keine MRs, nicht
-   mergen, keine Tickets schließen); durchsetzbar ist die nur zentral, nicht im
-   Prompt (spec: Guard-Rails fail-closed außerhalb der Runtime). `commit`,
-   `create_merge_request`, `approve_mr`, `set_state` und `checkout` sind deshalb
-   nicht freigeschaltet, obwohl `scope: write` sie hergäbe.
-3. **Nichts Vorhabensspezifisches steht in seiner Config.** Projekt, Meilenstein,
-   Ziel-Branch, Frist, Anforderungspfad, WIP-Limit, Abhängigkeiten und
-   Berichtsticket stehen in einer Wiki-Seite, dem **Vorhaben-Steckbrief**
-   (2.9.1). Ein Lead führt genau ein Vorhaben — für ein zweites ein zweiter Lead.
-4. **Sein Handwerk steckt in Skills, nicht in `PLAYBOOKS.md`.** Die vier
-   Abläufe — `ruecklaeufer`, `arbeit-vergeben`, `ticket-aufbereiten`,
-   `tagesbericht` — liegen als Skills am Agenten (Reiter *Tools & Skills* → *Skills*); im Playbook
-   steht nur, in welcher Reihenfolge sie drankommen. Der Grund ist die
-   Prompt-Rechnung: Die Config steht in JEDEM Lauf im Prompt, und der Lead läuft
-   alle 30 Minuten, meist ohne etwas zu finden. So kostet ein leerer Lauf rund
-   3.000 statt 5.100 Token, und der volle Text eines Ablaufs wird nur gelesen,
-   wenn er gebraucht wird. Wer die Abläufe anpasst, tut das also im Skill —
-   `PLAYBOOKS.md` ändert nur, wer die Reihenfolge ändern will.
+1. **The developer agents have to be on `nur-wenn: gitlab:issues:assigned`**
+   (that is how the template is cut). If they reach freely for open issues, the
+   lead's preparation comment already wakes them — the WIP limit and the order
+   are then ineffective, and the lead is decoration.
+2. **The lead's `ACCESS.md` carries a `tools:` allowlist.** Its role is defined
+   by a long list of prohibitions (do not commit, no MRs, do not merge, do not
+   close tickets); that is enforceable only centrally, not in the prompt (spec:
+   guard rails fail-closed outside the runtime). `commit`,
+   `create_merge_request`, `approve_mr`, `set_state` and `checkout` are
+   therefore not unlocked, even though `scope: write` would allow them.
+3. **Nothing undertaking-specific sits in its config.** Project, milestone,
+   target branch, deadline, requirements path, WIP limit, dependencies and the
+   report ticket sit in a wiki page, the **undertaking profile** (2.9.1). One
+   lead leads exactly one undertaking — for a second one, a second lead.
+4. **Its craft sits in skills, not in `PLAYBOOKS.md`.** The four procedures —
+   `ruecklaeufer`, `arbeit-vergeben`, `ticket-aufbereiten`, `tagesbericht` — sit
+   as skills on the agent (tab *Tools & skills* → *Skills*); the playbook only
+   says in what order they come up. The reason is the prompt arithmetic: the
+   config sits in the prompt on EVERY run, and the lead runs every 30 minutes,
+   mostly without finding anything. This way an empty run costs around
+   3,000 instead of 5,100 tokens, and a procedure's full text is only read when
+   it is needed. So whoever adapts the procedures does it in the skill —
+   `PLAYBOOKS.md` is only changed by whoever wants to change the order.
 
-Zusätzlich zum eigenen Bot-Nutzer braucht er ein ihm zugewiesenes, dauerhaft
-offenes **Berichtsticket** und einen menschlichen Vorgesetzten, **dessen
-GitLab-Kennung im Profil hinterlegt ist** — ohne sie scheitert `assign` in
-genau dem Pfad, der offene Fachfragen an Menschen übergibt.
+In addition to its own bot user it needs a permanently open **report ticket**
+assigned to it and a human manager **whose GitLab identifier is deposited in
+their profile** — without it, `assign` fails in exactly the path that hands open
+subject-matter questions to humans.
 
-#### 2.9.1 Der Vorhaben-Steckbrief
+#### 2.9.1 The undertaking profile
 
-Der Lead liest zu Beginn jedes Laufs eine Seite aus seinem Wiki-Gedächtnis
-(`covey/wiki_search` → `covey/wiki_read`) und schreibt Gelerntes dorthin zurück:
-eine Abhängigkeit, die erst beim Aufbereiten auffiel, eine Entscheidung des
-Auftraggebers. Damit bleibt die **Config** generisch — dieselbe Vorlage führt
-jedes Vorhaben, weil sie keines kennt.
+At the beginning of every run the lead reads a page from its wiki memory
+(`covey/wiki_search` → `covey/wiki_read`) and writes what it has learned back
+there: a dependency that only showed up during preparation, a decision by the
+client. That keeps the **config** generic — the same template leads every
+undertaking, because it knows none of them.
 
-Anlegen über die Gedächtnis-Ansicht des Agenten im UI oder als Aufgabe an ihn.
-Seitentitel: `Vorhaben-Steckbrief <Meilenstein-Titel>`.
+Create it through the agent's memory view in the UI or as a task to it. The page
+title: `Vorhaben-Steckbrief <milestone title>`.
 
 ```markdown
-# Vorhaben-Steckbrief <Meilenstein-Titel>
+# Vorhaben-Steckbrief <milestone title>
 
 ## Pflicht
-- **Projekt-ID:** <numerische GitLab-Projekt-id, nicht der Pfad>
-- **Meilenstein-Titel:** <exakt wie in GitLab — der Filter matcht wörtlich>
-- **Ziel-Branch:** <Branch, gegen den entwickelt wird>
-- **Frist:** <Datum> — <woraus sie sich ergibt>
+- **Projekt-ID:** <the numeric GitLab project id, not the path>
+- **Meilenstein-Titel:** <exactly as in GitLab — the filter matches literally>
+- **Ziel-Branch:** <the branch that is developed against>
+- **Frist:** <date> — <what it derives from>
 
 ## Anforderungen im Original
-- **Pfad im Repository:** <z. B. docs/anforderungen/kriterien.md>
-- **Was maßgeblich ist:** <welches Dokument gewinnt bei Widerspruch zum Ticket-Text>
+- **Pfad im Repository:** <e.g. docs/anforderungen/kriterien.md>
+- **Was maßgeblich ist:** <which document wins on a contradiction with the ticket text>
 
 ## Steuerung
-- **WIP-Limit:** <Tickets gleichzeitig je Entwickler; ohne Angabe gilt 1>
-- **Berichtsticket:** Projekt <id> / #<iid> — dorthin schreibt der Lead den
-  Tagesstand. Muss dem Lead zugewiesen und dauerhaft offen sein.
-- **Zuständiger Mensch:** <Name>, GitLab-Kennung <username> — bekommt offene
-  Fragen und den Bericht. Ohne hinterlegte GitLab-Kennung scheitert `assign`.
+- **WIP-Limit:** <tickets at a time per developer; without a value 1 applies>
+- **Berichtsticket:** project <id> / #<iid> — this is where the lead writes the
+  daily state. It has to be assigned to the lead and permanently open.
+- **Zuständiger Mensch:** <name>, GitLab identifier <username> — receives open
+  questions and the report. Without a deposited GitLab identifier `assign` fails.
 
 ## Reihenfolge und Abhängigkeiten
-- #<iid> vor #<iid>, #<iid>, … — <Begründung: gemeinsame Grundlage>
+- #<iid> before #<iid>, #<iid>, … — <reason: a shared foundation>
 
 ## Entscheidungen
-<Was der Auftraggeber festgelegt hat, mit Datum. Der Lead trägt hier jede
-beantwortete Rückfrage ein — sonst stellt er sie beim nächsten Ticket erneut.>
+<What the client has settled, with a date. The lead enters every answered
+question here — otherwise it asks it again at the next ticket.>
 
 ## Offene Fragen
-<Was niemand beantwortet hat, mit Ticket und Wartedauer. Der Tagesbericht
-liest sich von hier.>
+<What nobody has answered, with the ticket and how long it has been waiting.
+The daily report reads from here.>
 ```
 
-Warum diese Felder:
+Why these fields:
 
-- **Projekt-ID und Meilenstein-Titel** sind der Schnitt des Arbeitsvorrats
-  (`list_issues {"project_id":N,"milestone":"…"}`). Ohne sie greift der Lead
-  entweder nichts oder das ganze Projekt.
-- **Der Pfad zu den Anforderungen** ist der Unterschied zwischen einem Lead, der
-  Tickets sortiert, und einem, der sie implementierbar macht: Ein Ticket-Text ist
-  eine Zusammenfassung, die Abnahmekriterien müssen aus dem Original kommen. Die
-  Dokumente gehören deshalb ins Repository — versioniert und für alle Kollegen
-  lesbar. Stimmt der Pfad nicht, sucht der Lead die Datei einmal per `list_tree`
-  und korrigiert den Steckbrief selbst; findet er sie nicht, **bricht er die
-  Aufbereitung ab** und meldet es einmal im Berichtsticket, statt Kriterien aus
-  Ticket-Titeln zu raten. Ein Vorhaben, das nicht anläuft, ist zuerst hier zu
-  prüfen.
-- **WIP-Limit und Reihenfolge** sind die Bremse gegen den häufigsten Fehler:
-  mehrere Agenten arbeiten gleichzeitig an Tickets, die sich dieselbe Grundlage
-  teilen, und erzeugen widersprüchliche Implementierungen auf einem Branch. Im
-  Zweifel niedriger ansetzen.
-- **Entscheidungen** verhindern, dass eine beantwortete Frage in jedem weiteren
-  Ticket erneut gestellt wird. Der Kommentarverlauf eines einzelnen Tickets ist
-  dafür der falsche Ort — beim nächsten Ticket ist er nicht in Sicht.
+- **The project ID and milestone title** are the cut of the working set
+  (`list_issues {"project_id":N,"milestone":"…"}`). Without them the lead either
+  grabs nothing or the whole project.
+- **The path to the requirements** is the difference between a lead that sorts
+  tickets and one that makes them implementable: a ticket text is a summary, and
+  the acceptance criteria have to come from the original. The documents
+  therefore belong in the repository — versioned and readable by all colleagues.
+  If the path is wrong, the lead searches for the file once with `list_tree` and
+  corrects the profile itself; if it does not find it, it **aborts the
+  preparation** and reports that once in the report ticket instead of guessing
+  criteria from ticket titles. An undertaking that does not get going is to be
+  checked here first.
+- **The WIP limit and the order** are the brake against the most common error:
+  several agents work simultaneously on tickets that share the same foundation
+  and produce contradictory implementations on one branch. When in doubt, set it
+  lower.
+- **Decisions** prevent an answered question from being asked again in every
+  further ticket. An individual ticket's comment history is the wrong place for
+  that — at the next ticket it is out of sight.
 
 ---
 
-## 3. Welche Issues nimmt der Agent auf?
+## 3. Which issues does the agent take up?
 
-Der Agent entscheidet selbst: `list_issues` liefert nur offene Issues, und die
-Projekt-Allowlist (3.2) filtert die Ergebnisse von `list_issues`/`list_projects`
-serverseitig. Soll der Agent **nur direkt ihm zugewiesene Issues** bearbeiten,
-gibt es `list_issues {"assigned":true}` (GitLab-`scope=assigned_to_me`, bezogen
-auf den Bot-Nutzer des Tokens) — die Regel selbst gehört in
-`PLAYBOOKS.md`/`HEARTBEAT.md` des Agenten; zusätzlich liefert jedes Issue seine
-`assignees` mit, sodass der Agent die Zuweisung auch im Einzelfall prüfen kann.
+The agent decides for itself: `list_issues` delivers only open issues, and the
+project allowlist (3.2) filters the results of `list_issues`/`list_projects`
+server-side. If the agent should work **only on issues assigned directly to it**,
+there is `list_issues {"assigned":true}` (GitLab `scope=assigned_to_me`,
+relative to the token's bot user) — the rule itself belongs in the agent's
+`PLAYBOOKS.md`/`HEARTBEAT.md`; in addition every issue delivers its
+`assignees` along, so the agent can also check the assignment case by case.
 
-Hängt der Auftrag an einem **Vorhaben** statt an einzelnen Tickets — einer
-Ausschreibung, einem Release —, ist der Meilenstein der belastbarere Schnitt:
+If the assignment hangs off an **undertaking** rather than individual tickets —
+a tender, a release — the milestone is the more robust cut:
 `list_issues {"project_id":15,"milestone":"ECA-2026-045 Bundesdruckerei LMS"}`
-filtert GitLab-seitig auf den Meilenstein-**Titel**, und jedes Issue trägt sein
-`milestone` (mit `due_date`) zurück. Labels bleiben daneben nutzbar
-(`{"labels":"MUSS-Kriterium"}`), tragen aber keine Frist.
+filters GitLab-side on the milestone **title**, and every issue carries its
+`milestone` (with `due_date`) back. Labels remain usable alongside
+(`{"labels":"MUSS-Kriterium"}`) but carry no deadline.
 
-### 3.1 Kein Doppelbearbeiten
+### 3.1 No double working
 
-Weil der Intake per Polling läuft, sieht der Agent bei jedem Lauf denselben
-offenen Arbeitsvorrat erneut. Damit wiederkehrende Läufe nichts doppelt
-bearbeiten, prüft er per `list_notes` (bzw. `list_mr_notes` bei MRs), ob sein
-eigener Kommentar schon der letzte Stand ist, und reagiert nur auf seither neu
-hinzugekommene Antworten. Die Prompt-Doku des Plugins verpflichtet ihn darauf.
+Because the intake runs by polling, the agent sees the same open working set
+again on every run. So that recurring runs do not work on anything twice, it
+checks by `list_notes` (or `list_mr_notes` for MRs) whether its own comment is
+already the last state, and reacts only to answers newly added since then. The
+plugin's prompt documentation commits it to that.
 
-### 3.2 Projekt-Allowlist
+### 3.2 The project allowlist
 
 ```bash
-COVEY_GITLAB_INTAKE_PROJECTS="gruppe/support, 42"
+COVEY_GITLAB_INTAKE_PROJECTS="group/support, 42"
 ```
 
-Ist die Variable gesetzt, liefern `list_issues`/`list_projects` und der
-`nur-wenn:`-Vorabcheck nur Treffer aus diesen Projekten (Projektpfad
-`path_with_namespace` case-insensitiv oder numerische Projekt-id).
-Leer/ungesetzt → keine Einschränkung. Primärer Filter bleibt trotzdem das
-GitLab-seitige Setup: den Bot-Nutzer nur in den Zielprojekten eintragen.
+If the variable is set, `list_issues`/`list_projects` and the `nur-wenn:`
+advance check deliver only hits from these projects (the project path
+`path_with_namespace` case-insensitively, or the numeric project id).
+Empty/unset → no restriction. The primary filter nevertheless remains the
+GitLab-side setup: enter the bot user only in the target projects.
 
 ---
 
-## 4. Code-basierte Antworten: `checkout`
+## 4. Code-based answers: `checkout`
 
-Der Agent soll Bug-Reports nicht „aus dem Gedächtnis" beantworten, sondern die
-Behauptung **am Quelltext** prüfen. Dafür gibt es die Aktion
+The agent should not answer bug reports "from memory" but check the claim
+**against the source**. The action for that is
 
 ```
-checkout {"project_id":15, "ref":"main"}     # ref optional, Default: Default-Branch
+checkout {"project_id":15, "ref":"main"}     # ref optional, default: the default branch
 ```
 
-Ablauf und Sicherheitsmodell:
+Sequence and security model:
 
-- Der **Daemon** (nicht die Runtime) lädt das Repository-Archiv über die API
-  (`GET /projects/:id/repository/archive.tar.gz`) mit dem gebrokerten Token —
-  das Token bleibt im Daemon-RAM und landet **nie** im Dateisystem der Sandbox
-  (anders als bei einem `git clone` mit Credential-Remote, das das Token in
-  `.git/config` persistieren würde).
-- Entpackt wird nach `<home>/repos/<projekt>-<ref>-<sha>/`; die Aktion liefert
-  den Pfad zurück, der Agent arbeitet dann lokal mit Grep/Read/Bash. Ein
-  erneuter Checkout ersetzt den alten Stand (immer frischer Code).
-- Schutzmaßnahmen: Pfad-Traversal wird abgelehnt, Symlinks werden
-  übersprungen, die entpackte Größe ist begrenzt (Default 512 MB,
-  `COVEY_GITLAB_CHECKOUT_MAX_MB`).
-- Guard-Rail-Subjekte: `gitlab:checkout`, `gitlab:list_tree`,
-  `gitlab:read_file` (alle read-only gegenüber GitLab; wer sie einschränken
-  will, legt Regeln darauf).
+- The **daemon** (not the runtime) downloads the repository archive through the
+  API (`GET /projects/:id/repository/archive.tar.gz`) with the brokered token —
+  the token stays in the daemon's RAM and **never** lands in the sandbox's file
+  system (unlike a `git clone` with a credential remote, which would persist the
+  token in `.git/config`).
+- It is unpacked into `<home>/repos/<project>-<ref>-<sha>/`; the action returns
+  the path, and the agent then works locally with grep/read/bash. A renewed
+  checkout replaces the old state (always fresh code).
+- Protections: path traversal is refused, symlinks are skipped, and the unpacked
+  size is limited (default 512 MB, `COVEY_GITLAB_CHECKOUT_MAX_MB`).
+- Guard-rail subjects: `gitlab:checkout`, `gitlab:list_tree`,
+  `gitlab:read_file` (all read-only towards GitLab; whoever wants to restrict
+  them puts rules on them).
 
-**Große Repos:** Sprengt das Archiv das Limit, gibt es zwei Auswege — beide
-stehen auch in der Fehlermeldung, die der Agent sieht:
+**Large repos:** if the archive blows the limit, there are two ways out — both
+are also in the error message the agent sees:
 
-- **Teil-Checkout**: `checkout {"project_id":N, "path":"web/upload"}` lädt nur
-  das Unterverzeichnis (der `path`-Parameter der GitLab-Archiv-API).
-- **Browsen ohne Checkout**: `list_tree {"project_id":N, "path":"...",
-  "recursive":true}` listet den Repository-Baum (max. 100 Einträge pro
-  Aufruf), `read_file {"project_id":N, "file_path":"pfad/zur/datei"}` liest
-  eine einzelne Datei (bis 512 KB, darüber `truncated:true`).
+- **A partial checkout**: `checkout {"project_id":N, "path":"web/upload"}` loads
+  only the subdirectory (the `path` parameter of the GitLab archive API).
+- **Browsing without a checkout**: `list_tree {"project_id":N, "path":"...",
+  "recursive":true}` lists the repository tree (max. 100 entries per
+  call), `read_file {"project_id":N, "file_path":"path/to/file"}` reads a
+  single file (up to 512 KB, above that `truncated:true`).
 
-**Historie und MRs — „ist das schon gefixt?":** Ein Checkout ist ein Archiv
-ohne `.git` — Historie sieht der Agent darüber nicht. Dafür gibt es vier
-weitere read-only-Aktionen (Guard-Rail-Subjekte `gitlab:list_commits`,
+**History and MRs — "has that already been fixed?":** a checkout is an archive
+without `.git` — the agent sees no history through it. There are four further
+read-only actions for that (guard-rail subjects `gitlab:list_commits`,
 `gitlab:get_commit`, `gitlab:list_merge_requests`, `gitlab:list_branches`):
 
 ```
-list_branches       {"project_id":N, "search":"..."}          # Default-Branch ist markiert
+list_branches       {"project_id":N, "search":"..."}          # the default branch is marked
 list_commits        {"project_id":N, "ref":"...", "path":"...", "since":"2026-07-15T00:00:00Z"}
-get_commit          {"project_id":N, "sha":"..."}             # Diff, pro Datei auf 16 KB gekürzt
+get_commit          {"project_id":N, "sha":"..."}             # a diff, truncated to 16 KB per file
 list_merge_requests {"project_id":N, "state":"merged", "search":"...", "target_branch":"..."}
 ```
 
-Die Prompt-Doku des Plugins verpflichtet den Agenten auf diese Arbeitsweise:
-**Zuerst** prüfen, ob der gemeldete Fehler seit Erstellung des Issues bereits
-behoben wurde (`list_commits` mit `since`, `list_merge_requests`; verdächtige
-Commits per `get_commit` verifizieren) — ist das der Fall, meldet er genau
-das mit Commit-Referenz, statt den Bug erneut zu bestätigen. Erst danach:
-Bug **bestätigen** nur mit Fundstelle (Datei:Zeile) im ausgecheckten Code,
-und nur, nachdem der gemeldete Weg vollständig verfolgt wurde (UI →
-Endpoint → Verarbeitung — der Fehler kann im Frontend liegen, auch wenn das
-Backend verdächtig aussieht); findet er die Stelle nicht, beschreibt er, was
-er geprüft hat, und stellt eine gezielte Rückfrage. Antworten ohne Code-Beleg
-sind nur bei rein organisatorischen Issues zulässig. Voraussetzung: Das Token
-aus 2.1 braucht Lesezugriff aufs Repository (Scope `api` deckt das ab;
-Reporter-Rolle genügt bei privaten Projekten für den Archiv-Download).
+The plugin's prompt documentation commits the agent to this way of working:
+**first** check whether the reported error has already been fixed since the
+issue was created (`list_commits` with `since`, `list_merge_requests`; verify
+suspicious commits with `get_commit`) — if so, it reports exactly that with a
+commit reference instead of confirming the bug again. Only then: **confirm** a
+bug only with a location (file:line) in the checked-out code, and only after the
+reported route has been followed completely (UI → endpoint → processing — the
+error can be in the frontend even when the backend looks suspicious); if it does
+not find the place, it describes what it has checked and asks a targeted
+follow-up question. Answers without evidence in the code are permissible only
+for purely organisational issues. Prerequisite: the token from 2.1 needs read
+access to the repository (the scope `api` covers that; the Reporter role
+suffices for the archive download on private projects).
 
-**Screenshots und Bild-Anhänge lesen:** Bug-Reports hängen oft einen Screenshot
-an — in der Issue-Beschreibung (oder einem Kommentar) steht er als Markdown-Upload:
+**Reading screenshots and image attachments:** bug reports often attach a
+screenshot — in the issue description (or a comment) it sits as a Markdown
+upload:
 
 ```
 ![Fehlermeldung](/uploads/0123456789abcdef0123456789abcdef/login-fehler.png)
 ```
 
-Der Agent bekommt nur diesen Text, **nicht** das Bild — aus der Referenz allein ist
-der Inhalt nicht erschließbar. Dafür gibt es die Aktion `download_upload`:
+The agent only gets this text, **not** the image — the content cannot be derived
+from the reference alone. The action `download_upload` exists for that:
 
 ```
 download_upload {"project_id":15, "url":"/uploads/0123…/login-fehler.png"}
 ```
 
-- Der **Daemon** lädt den Upload gebrokert über
-  `GET /projects/:id/uploads/:secret/:filename` (das Token bleibt im Daemon,
-  landet nie im Dateisystem) und legt die Datei unter `<home>/uploads/` ab; die
-  Aktion liefert den lokalen Pfad zurück.
-- Der Agent sieht sich das Bild danach mit dem **Read-Tool an (Vision)** — er kann
-  den Screenshot also tatsächlich auswerten, statt ihn zu übergehen. Die
-  Prompt-Doku verpflichtet ihn darauf: sieht er einen Bild-Anhang im Markdown,
-  lädt er ihn **immer** erst herunter und schaut ihn an, bevor er ihn in seiner
-  Analyse berücksichtigt. Als `url` übergibt er die Referenz exakt so, wie sie
-  zwischen den Markdown-Klammern steht (nackter `/uploads/…`-Pfad oder volle
-  Web-URL — beides wird auf den Upload-Endpoint gemappt).
-- Schutzmaßnahmen: Der Dateiname wird auf den Basename festgenagelt (kein
-  Pfad-Traversal), die Größe ist auf 25 MB begrenzt. Guard-Rail-Subjekt:
-  `gitlab:download_upload` (read-only gegenüber GitLab).
-- Voraussetzung: Der Upload-API-Endpoint braucht **GitLab ≥ 16.6**; auf älteren
-  Instanzen liefert er `404`, was die Aktion mit einem entsprechenden Hinweis
-  meldet.
+- The **daemon** loads the upload brokered through
+  `GET /projects/:id/uploads/:secret/:filename` (the token stays in the daemon
+  and never lands in the file system) and puts the file under `<home>/uploads/`;
+  the action returns the local path.
+- The agent then looks at the image with the **read tool (vision)** — so it can
+  actually evaluate the screenshot instead of passing over it. The prompt
+  documentation commits it to that: if it sees an image attachment in the
+  Markdown, it **always** downloads it and looks at it first, before taking it
+  into account in its analysis. As the `url` it passes the reference exactly as
+  it stands between the Markdown brackets (a bare `/uploads/…` path or a full
+  web URL — both are mapped onto the upload endpoint).
+- Protections: the file name is nailed to the basename (no path traversal), and
+  the size is limited to 25 MB. Guard-rail subject:
+  `gitlab:download_upload` (read-only towards GitLab).
+- Prerequisite: the upload API endpoint needs **GitLab ≥ 16.6**; on older
+  instances it returns `404`, which the action reports with a corresponding
+  note.
 
 ---
 
-## 5. Interne vs. öffentliche Kommentare
+## 5. Internal vs. public comments
 
-Der Adapter unterscheidet — analog `reply` bei Zammad:
+The adapter distinguishes — analogous to `reply` at Zammad:
 
-- **intern** (`comment` mit `internal:true`, Default) → GitLab „internal note",
-  nur für Projektmitglieder ab Reporter sichtbar.
-- **extern** (`comment` mit `internal:false`) → öffentlicher Kommentar, auch für
-  externe Reporter sichtbar. Guard-Rail-Subjekt: `gitlab:comment_external` —
-  hier greift typischerweise eine Approval-Regel.
+- **internal** (`comment` with `internal:true`, the default) → a GitLab
+  "internal note", visible only to project members from Reporter upwards.
+- **external** (`comment` with `internal:false`) → a public comment, visible to
+  external reporters too. Guard-rail subject: `gitlab:comment_external` — this
+  is typically where an approval rule takes hold.
 
-`escalate` setzt eine interne Notiz und entfernt die Zuweisung des Issues,
-damit ein Mensch übernimmt. `set_state` kennt `close` und `reopen`
-(GitLab-`state_event`).
+`escalate` puts an internal note and removes the issue's assignment so that a
+human takes over. `set_state` knows `close` and `reopen`
+(the GitLab `state_event`).
 
-### 5.1 Arbeitszustand im Board: `set_labels`
+### 5.1 The working state on the board: `set_labels`
 
 `set_labels {"project_id":15,"issue_iid":739,"add_labels":["in Arbeit"],"remove_labels":["bereit"]}`
-ändert die Labels eines **bestehenden** Issues. Bewusst additiv/subtraktiv
-(GitLab-`add_labels`/`remove_labels`) statt als volle Liste: Ein Agent, der den
-Arbeitszustand führt, schreibt sonst bei jedem Wechsel die fachlichen Labels des
-Tickets mit — Komponente, Typ, Vergabeverfahren — weg. Mindestens eine der
-beiden Listen muss gesetzt sein; die Antwort enthält den erreichten Label-Stand.
+changes the labels of an **existing** issue. Deliberately additive/subtractive
+(the GitLab `add_labels`/`remove_labels`) rather than as a full list: an agent
+that maintains the working state would otherwise wipe the ticket's subject-matter
+labels — component, type, procurement procedure — on every change. At least one
+of the two lists has to be set; the answer contains the label state reached.
 
-Der Zustand gehört damit sichtbar ins Board statt nur in Kommentare — ein
-Mensch sieht ohne Rückfrage, was bereit ist, was läuft und was auf Abnahme
-wartet. Voraussetzung ist, dass der Agent bei jedem Wechsel **beides** tut:
-altes Zustands-Label entfernen, neues setzen. Guard-Rail-Subjekt:
+The state thereby belongs visibly on the board rather than only in comments — a
+human sees without asking what is ready, what is running and what is waiting for
+acceptance. The prerequisite is that the agent does **both** on every change:
+remove the old state label, set the new one. Guard-rail subject:
 `gitlab:set_labels`.
 
-Zwei Eigenheiten, die man beim Entwerfen eines solchen Agenten kennen muss:
+Two idiosyncrasies you have to know when designing such an agent:
 
-- **GitLab legt unbekannte Labels beim Setzen still neu an.** Ein Vertipper des
-  Modells (`lead::in_arbeit` statt `lead::in-arbeit`) erzeugt also dauerhaft ein
-  Projekt-Label, das niemand wieder wegräumt — dieselbe Falle wie bei frei
-  erfundenen Board-Spalten. Das Playbook muss deshalb eine **feste, kleine**
-  Menge von Zustandsnamen zeichengenau vorgeben. Die Prompt-Doku des Plugins
-  weist den Agenten darauf hin; ein Label mit Komma darin wird abgelehnt, statt
-  still in zwei Labels zu zerfallen.
-- **`::` macht daraus GitLab-Scoped-Labels** — gegenseitig ausschließend aber
-  nur in Premium/Ultimate. Auf Free sind es normale Labels mit `::` im Namen.
-  Ein Agent darf sich also nicht darauf verlassen, dass GitLab das alte
-  Zustands-Label automatisch entfernt; er muss es selbst in `remove_labels`
-  mitgeben. Genau deshalb steht die Regel „beides im selben Aufruf" oben.
+- **GitLab silently creates unknown labels when setting them.** A typo by the
+  model (`lead::in_arbeit` instead of `lead::in-arbeit`) therefore produces a
+  permanent project label that nobody clears away again — the same trap as with
+  freely invented board columns. The playbook therefore has to prescribe a
+  **fixed, small** set of state names character by character. The plugin's
+  prompt documentation points the agent at this; a label with a comma in it is
+  refused instead of silently falling apart into two labels.
+- **`::` turns them into GitLab scoped labels** — but mutually exclusive only in
+  Premium/Ultimate. On Free they are normal labels with `::` in the name.
+  An agent therefore must not rely on GitLab removing the old state label
+  automatically; it has to include it in `remove_labels` itself. That is exactly
+  why the rule "both in the same call" stands above.
 
 ---
 
-## 6. Env-Referenz (GitLab-relevant)
+## 6. Env reference (GitLab-relevant)
 
-| Variable | Default | Bedeutung |
+| Variable | Default | Meaning |
 |---|---|---|
-| `COVEY_GITLAB_INTAKE_PROJECTS` | *(leer = alle)* | Allowlist der Projekte (Pfad oder id) — filtert `list_issues`/`list_projects` und den `nur-wenn:`-Vorabcheck |
-| `COVEY_GITLAB_CHECKOUT_MAX_MB` | `512` | Obergrenze der entpackten Größe eines `checkout` (Abschnitt 4) |
-| `COVEY_EGRESS_ALLOW` | *(leer)* | zusätzliche erlaubte Egress-Hosts, z. B. das GitLab-Host |
+| `COVEY_GITLAB_INTAKE_PROJECTS` | *(empty = all)* | An allowlist of projects (path or id) — filters `list_issues`/`list_projects` and the `nur-wenn:` advance check |
+| `COVEY_GITLAB_CHECKOUT_MAX_MB` | `512` | The upper bound on the unpacked size of a `checkout` (section 4) |
+| `COVEY_EGRESS_ALLOW` | *(empty)* | Additional permitted egress hosts, e.g. the GitLab host |
 
-GitLab hat keinen Webhook-Eingang — die früheren Variablen `COVEY_PUBLIC_URL`
-(nur für GitLab), `COVEY_GITLAB_WEBHOOK_SECRET` und `COVEY_GITLAB_AGENT_USERNAMES`
-entfallen für dieses Plugin.
+GitLab has no webhook intake — the former variables `COVEY_PUBLIC_URL`
+(for GitLab only), `COVEY_GITLAB_WEBHOOK_SECRET` and
+`COVEY_GITLAB_AGENT_USERNAMES` no longer apply to this plugin.
 
-Die allgemeinen Variablen (Egress, Daemon-Token-TTL, …) stehen in
-[`ops-zammad.md`](ops-zammad.md), Abschnitt 6.
+The general variables (egress, the daemon token TTL, …) are in
+[`ops-zammad.md`](ops-zammad.md), section 6.

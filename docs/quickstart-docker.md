@@ -1,62 +1,62 @@
-# Schnellstart mit Docker Compose
+# Quickstart with Docker Compose
 
-Covey in wenigen Minuten lokal ausprobieren — **ohne Go, Node oder eine
-lokale Postgres-Installation**. Es genügen Docker und Docker Compose.
+Try Covey out locally in a few minutes — **without Go, Node or a local
+Postgres installation**. Docker and Docker Compose suffice.
 
-> Für die Entwicklung (Hot-Reload, Tests) siehe stattdessen den Abschnitt
-> „Schnellstart (Entwicklung)" in der [README](../README.de.md).
-
----
-
-## Voraussetzungen
-
-- **Docker** mit Compose-Plugin (`docker compose version` ≥ 2.x).
-- **OpenSSL** (für den Master-Key; auf macOS/Linux vorinstalliert).
-- Das Repository lokal ausgecheckt (das Image wird aus dem `Dockerfile` gebaut).
+> For development (hot reload, tests) see the "Development" section in the
+> [README](../README.md) instead.
 
 ---
 
-## In vier Schritten
+## Prerequisites
+
+- **Docker** with the Compose plugin (`docker compose version` ≥ 2.x).
+- **OpenSSL** (for the master key; pre-installed on macOS/Linux).
+- The repository checked out locally (the image is built from the `Dockerfile`).
+
+---
+
+## In four steps
 
 ```bash
-# 1. Konfiguration anlegen
+# 1. Create the configuration
 cp .env.example .env
 
-# 2. Master-Key erzeugen und in .env schreiben (32 Byte / 64 Hex-Zeichen)
+# 2. Generate a master key and write it into .env (32 bytes / 64 hex characters)
 echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env
 
-# 3. Starten (baut das Image beim ersten Mal)
+# 3. Start (builds the image the first time)
 docker compose up -d --build
 
-# 4. Öffnen
-open http://localhost:8494        # oder im Browser aufrufen
+# 4. Open
+open http://localhost:8494        # or call it up in the browser
 ```
 
 Login: **`admin@covey.local`** / **`covey-admin`**
-(änderbar in `.env` über `COVEY_ADMIN_EMAIL` / `COVEY_ADMIN_PASSWORD`).
+(changeable in `.env` through `COVEY_ADMIN_EMAIL` / `COVEY_ADMIN_PASSWORD`).
 
-Das war's. `docker compose` startet drei Dinge:
+That's it. `docker compose` starts three things:
 
-| Service | Aufgabe |
+| Service | Job |
 |---|---|
-| `db` | PostgreSQL mit `pgvector` (persistent im Volume `covey-db`) |
-| `bootstrap` | Legt einmalig Organisation, Admin-Login und einen Demo-Agenten an, dann beendet sich der Container (idempotent) |
-| `covey` | Die Control Plane: API + Orchestrator + eingebettete Admin-UI auf Port **8494**. Migrationen laufen beim Start automatisch |
+| `db` | PostgreSQL with `pgvector` (persistent in the volume `covey-db`) |
+| `bootstrap` | Creates the organisation, the admin login and a demo agent once, then the container exits (idempotent) |
+| `covey` | The control plane: API + orchestrator + the embedded admin UI on port **8494**. Migrations run automatically at start |
 
 ---
 
-## Nützliche Befehle
+## Useful commands
 
 ```bash
-docker compose logs -f covey      # Live-Logs der Control Plane
-docker compose ps                 # Status aller Services
-docker compose restart covey      # Nur die Control Plane neu starten
-docker compose down               # Stoppen (Daten bleiben in den Volumes)
-docker compose down -v            # Stoppen UND alle Daten löschen (frischer Start)
-docker compose up -d --build      # Nach Code-Änderungen neu bauen & starten
+docker compose logs -f covey      # live logs of the control plane
+docker compose ps                 # status of all services
+docker compose restart covey      # restart only the control plane
+docker compose down               # stop (data stays in the volumes)
+docker compose down -v            # stop AND delete all data (a fresh start)
+docker compose up -d --build      # rebuild & start after code changes
 ```
 
-Einen Befehl im covey-Container ausführen (z. B. Bootstrap manuell wiederholen):
+Run a command in the covey container (e.g. repeat the bootstrap manually):
 
 ```bash
 docker compose run --rm bootstrap
@@ -64,56 +64,56 @@ docker compose run --rm bootstrap
 
 ---
 
-## Der erste Agent
+## Your first agent
 
-Auf der Agenten-Übersicht steht dafür eine Checkliste **Erste Schritte**:
-Runtime-Credential hinterlegen → Agent anlegen → `SOUL.md` schreiben → Aufgabe
-anlegen → beim Arbeiten zusehen. Sie liest den tatsächlichen Zustand der
-Organisation, hakt sich also selbst ab und verschwindet, sobald alles erledigt
-ist. Dieselben Schritte stehen ausführlicher in der Hilfe (Taste `?`).
+There is a **first steps** checklist on the agent overview for this:
+deposit a runtime credential → create an agent → write `SOUL.md` → create a
+task → watch it work. It reads the organisation's actual state, so it ticks
+itself off and disappears once everything is done. The same steps are described
+in more detail in the help (key `?`).
 
-Nach dem Login ist bereits ein **Demo-Support-Agent** angelegt. Damit er
-tatsächlich arbeiten kann, braucht er zwei Dinge — beides in der Admin-UI unter
-dem Agenten hinterlegbar:
+After logging in a **demo support agent** already exists. For it to actually be
+able to work, it needs two things — both depositable in the admin UI under the
+agent:
 
-1. **Anthropic-Zugang** — Secret `anthropic_api_key` (API-Key) *oder*
-   `claude_code_oauth_token` (Abo-Account; Token einmalig mit
-   `claude setup-token` erzeugen). Ohne eines der beiden scheitern Aufgaben mit
-   „Not logged in", weil die Sandbox ein eigenes, leeres `HOME` hat.
-2. **Ein Zielsystem** — z. B. Zammad. Zum Ausprobieren ohne echtes Zammad gibt
-   es das Double `demo/fakezammad`; für den Anschluss an eine echte Instanz das
-   Runbook [`ops-zammad.md`](ops-zammad.md).
-
----
-
-## Sandbox-Isolation
-
-Das Compose-Setup nutzt den Default **`COVEY_SANDBOX_PROVIDER=local`**: Sandboxen
-laufen als Subprozesse *im* covey-Container. Das ist ehrlich und ideal zum
-Ausprobieren, bietet aber **nur Prozess-Isolation**.
-
-Für echte Container-Isolation pro Agent (`COVEY_SANDBOX_PROVIDER=docker`) braucht
-der covey-Container Zugriff auf einen Docker-Daemon (Socket-Mount oder
-Docker-in-Docker) und das Sandbox-Image `covey-sandbox:latest`
-([`Dockerfile.sandbox`](../Dockerfile.sandbox)). Das ist bewusst **nicht** Teil
-dieses Einsteiger-Setups — Details dazu in
-[`spec/01-architecture.md`](../spec/01-architecture.md) und der README.
+1. **Anthropic access** — the secret `anthropic_api_key` (an API key) *or*
+   `claude_code_oauth_token` (a subscription account; generate the token once
+   with `claude setup-token`). Without one of the two, tasks fail with
+   "Not logged in", because the sandbox has its own empty `HOME`.
+2. **A target system** — e.g. Zammad. For trying things out without a real
+   Zammad there is the double `demo/fakezammad`; for connecting to a real
+   instance see the runbook [`ops-zammad.md`](ops-zammad.md).
 
 ---
 
-## Für den Produktivbetrieb
+## Sandbox isolation
 
-Das Beispiel ist auf „schnell ausprobieren" optimiert. Vor einem echten Betrieb
-mindestens:
+The Compose setup uses the default **`COVEY_SANDBOX_PROVIDER=local`**: sandboxes
+run as subprocesses *inside* the covey container. That is honest and ideal for
+trying things out, but it offers **process isolation only**.
 
-- **Passwörter/Keys ändern:** `COVEY_ADMIN_PASSWORD`, das Postgres-Passwort und
-  einen frischen `COVEY_MASTER_KEY` (der Key ver-/entschlüsselt alle Secrets —
-  Verlust = alle hinterlegten Zugänge sind unlesbar; also sicher aufbewahren).
-- **HTTPS davor:** `COVEY_PUBLIC_URL` auf `https://…` setzen und einen
-  Reverse-Proxy (TLS-Terminierung) vorschalten. Das Secure-Cookie schaltet sich
-  dann automatisch an.
-- **DB-TLS:** `sslmode=require` (oder höher) in `COVEY_DATABASE_URL`.
-- **Egress & Isolation:** docker-Provider + `COVEY_EGRESS_ENFORCE=true`.
+For real container isolation per agent (`COVEY_SANDBOX_PROVIDER=docker`) the
+covey container needs access to a Docker daemon (a socket mount or
+Docker-in-Docker) and the sandbox image `covey-sandbox:latest`
+([`Dockerfile.sandbox`](../Dockerfile.sandbox)). That is deliberately **not**
+part of this beginner setup — details in
+[`spec/01-architecture.md`](../spec/01-architecture.md) and the README.
 
-Covey gibt diese Punkte beim `serve`-Start auch selbst als Warnungen aus, sobald
-es nicht rein lokal (`localhost`) gebunden ist.
+---
+
+## For production use
+
+The example is optimised for "try it out quickly". Before real operation, at
+least:
+
+- **Change passwords/keys:** `COVEY_ADMIN_PASSWORD`, the Postgres password and
+  a fresh `COVEY_MASTER_KEY` (the key en/decrypts all secrets — losing it means
+  every deposited credential is unreadable; keep it safe).
+- **HTTPS in front:** set `COVEY_PUBLIC_URL` to `https://…` and put a
+  reverse proxy (TLS termination) in front. The secure cookie then switches
+  itself on automatically.
+- **DB TLS:** `sslmode=require` (or higher) in `COVEY_DATABASE_URL`.
+- **Egress & isolation:** the docker provider + `COVEY_EGRESS_ENFORCE=true`.
+
+Covey also prints these points as warnings itself at `serve` start, as soon as
+it is not bound purely locally (`localhost`).
