@@ -48,6 +48,15 @@ docker rm -f covey-demo-pg
 The results land in `web/public/shots/`: `<view>.jpg` and `<view>.de.jpg` for the
 two READMEs, plus `tour.gif` and `tour.de.gif`.
 
+**Seed after the server is up, and record both languages in one go.** The
+control plane requeues every `in_progress` task to `open` when it starts
+(`RequeueOrphaned` — a task in progress without a live session is an orphan
+after a restart). Seed before that and the board is reset before you photograph
+it; the dispatcher then picks the open tasks up and the agents show as woken. So:
+start `covey serve`, *then* seed, then record. The heartbeats in the seeded
+configs fire on an interval, which gives you a comfortable window — but not an
+unlimited one.
+
 ## Two things that will surprise you
 
 **No task in the seed is `open`.** A running control plane claims every open task
