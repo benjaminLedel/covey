@@ -144,19 +144,29 @@ Details in [`spec/10-architektur-stack.md`](spec/10-architektur-stack.md).
 ## Installation
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/benjaminLedel/covey/main/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/benjaminLedel/covey/main/installer/install.sh | sh
 ```
 
-Holt das Binary für System und Architektur aus dem neuesten [Release](https://github.com/benjaminLedel/covey/releases), **prüft die SHA-256-Summe** und legt es nach `/usr/local/bin`. Version festnageln mit `--version v0.2.0`, anderes Ziel mit `--bin-dir ~/bin`.
+Holt das Binary für System und Architektur aus dem neuesten [Release](https://github.com/benjaminLedel/covey/releases), **prüft die SHA-256-Summe** und legt es nach `/usr/local/bin`.
+
+Covey besteht aus zwei Programmen — der Control Plane (`covey`) und dem Runner (`covey-runner`, der Sandboxen für einen Server fährt). Am Terminal fragt das Skript, welches du willst; in einer Pipeline ohne Terminal nimmt es die Voreinstellung, statt auf eine Antwort zu warten, die niemand geben kann. Oder gleich sagen: `--server`, `--runner`, `--all`. Version festnageln mit `--version v0.2.0`, anderes Ziel mit `--bin-dir ~/bin`.
+
+**Jede laufende Covey-Instanz liefert dasselbe Skript für ihre eigene Version aus:**
+
+```bash
+curl -sSL https://covey.example/install.sh | sh
+```
+
+Praktisch beim Aufsetzen eines Runners: Die Instanz kennt ihre Version, der Runner spricht damit dasselbe Protokoll wie der Server, bei dem er sich anmeldet. Die Binaries kommen weiterhin aus dem GitHub-Release — die Instanz bestimmt die Version, nicht den Inhalt.
 
 Wer ein Skript nicht ungelesen in eine Shell pipen mag — eine gesunde Haltung — nimmt den zweistufigen Weg:
 
 ```bash
-curl -sSLO https://raw.githubusercontent.com/benjaminLedel/covey/main/install.sh
+curl -sSLO https://raw.githubusercontent.com/benjaminLedel/covey/main/installer/install.sh
 less install.sh && sh install.sh
 ```
 
-Das installiert nur die Binaries. Covey braucht zusätzlich PostgreSQL (mit pgvector) und Docker für die Sandboxen; die restlichen Schritte nennt das Skript am Ende, der ausführliche Weg samt docker-compose steht in [`docs/betrieb-deployment.md`](docs/betrieb-deployment.md).
+Das installiert nur Binaries. Die Control Plane braucht zusätzlich PostgreSQL (mit pgvector) und Docker für die Sandboxen; die restlichen Schritte nennt das Skript am Ende, der ausführliche Weg samt docker-compose steht in [`docs/betrieb-deployment.md`](docs/betrieb-deployment.md).
 
 ## Entwicklung
 

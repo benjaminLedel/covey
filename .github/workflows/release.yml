@@ -6,9 +6,10 @@
 # GitHub, und dafür braucht es dort veröffentlichte Artefakte. Betriebs- und
 # Installationswerkzeug gehört ins Produkt, nicht in die interne CI.
 #
-# `install.sh` im Repo-Wurzelverzeichnis lädt genau die Dateien, die hier
-# entstehen. Wer das Namensschema der Archive ändert, muss das Skript
-# mitändern — es gibt keine dritte Stelle, die vermittelt.
+# `installer/install.sh` lädt genau die Dateien, die hier entstehen. Wer das
+# Namensschema der Archive ändert, muss das Skript mitändern — es gibt keine
+# dritte Stelle, die vermittelt. Dieselbe Datei liefert auch jede laufende
+# Instanz unter /install.sh aus (sie ist ins Binary eingebettet).
 name: Release
 
 on:

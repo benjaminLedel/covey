@@ -144,19 +144,29 @@ Details in [`spec/10-architektur-stack.md`](spec/10-architektur-stack.md).
 ## Install
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/benjaminLedel/covey/main/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/benjaminLedel/covey/main/installer/install.sh | sh
 ```
 
-Picks the binary for your OS and architecture from the latest [release](https://github.com/benjaminLedel/covey/releases), **verifies its SHA-256 checksum** and puts it in `/usr/local/bin`. Pin a version with `--version v0.2.0`, choose a different target with `--bin-dir ~/bin`.
+Picks the binary for your OS and architecture from the latest [release](https://github.com/benjaminLedel/covey/releases), **verifies its SHA-256 checksum** and puts it in `/usr/local/bin`.
+
+Covey ships as two programs — the control plane (`covey`) and the runner (`covey-runner`, which executes sandboxes for a server). Run it at a terminal and it asks which one you want; in a pipeline without a terminal it takes the default instead of waiting for an answer nobody can give. Or say it outright: `--server`, `--runner`, `--all`. Pin a version with `--version v0.2.0`, choose a different target with `--bin-dir ~/bin`.
+
+**Every running Covey instance serves the same script for its own version:**
+
+```bash
+curl -sSL https://covey.example/install.sh | sh
+```
+
+Useful for adding a runner: the instance knows its version, so the runner you get speaks the same protocol as the server it registers with. The binaries still come from the GitHub release — the instance decides the version, not the content.
 
 Not keen on piping a script into a shell? Reasonable — read it first:
 
 ```bash
-curl -sSLO https://raw.githubusercontent.com/benjaminLedel/covey/main/install.sh
+curl -sSLO https://raw.githubusercontent.com/benjaminLedel/covey/main/installer/install.sh
 less install.sh && sh install.sh
 ```
 
-This installs the binaries only. Covey also needs PostgreSQL (with pgvector) and Docker for the sandboxes; the script prints the remaining steps, and [`docs/betrieb-deployment.md`](docs/betrieb-deployment.md) has the full path including docker-compose.
+This installs binaries only. The control plane also needs PostgreSQL (with pgvector) and Docker for the sandboxes; the script prints the remaining steps, and [`docs/betrieb-deployment.md`](docs/betrieb-deployment.md) has the full path including docker-compose.
 
 ## Development
 
