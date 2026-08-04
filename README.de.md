@@ -141,6 +141,33 @@ Das System zerfällt in eine **Control Plane** (zustandsführend, immer aktiv: S
 
 Details in [`spec/10-architektur-stack.md`](spec/10-architektur-stack.md).
 
+## Installation
+
+```bash
+curl -sSL https://raw.githubusercontent.com/benjaminLedel/covey/main/installer/install.sh | sh
+```
+
+Holt das Binary für System und Architektur aus dem neuesten [Release](https://github.com/benjaminLedel/covey/releases), **prüft die SHA-256-Summe** und legt es nach `/usr/local/bin`.
+
+Covey besteht aus zwei Programmen — der Control Plane (`covey`) und dem Runner (`covey-runner`, der Sandboxen für einen Server fährt). Am Terminal fragt das Skript, welches du willst; in einer Pipeline ohne Terminal nimmt es die Voreinstellung, statt auf eine Antwort zu warten, die niemand geben kann. Oder gleich sagen: `--server`, `--runner`, `--all`. Version festnageln mit `--version v0.2.0`, anderes Ziel mit `--bin-dir ~/bin`.
+
+**Jede laufende Covey-Instanz liefert dasselbe Skript für ihre eigene Version aus:**
+
+```bash
+curl -sSL https://covey.example/install.sh | sh
+```
+
+Praktisch beim Aufsetzen eines Runners: Die Instanz kennt ihre Version, der Runner spricht damit dasselbe Protokoll wie der Server, bei dem er sich anmeldet. Die Binaries kommen weiterhin aus dem GitHub-Release — die Instanz bestimmt die Version, nicht den Inhalt.
+
+Wer ein Skript nicht ungelesen in eine Shell pipen mag — eine gesunde Haltung — nimmt den zweistufigen Weg:
+
+```bash
+curl -sSLO https://raw.githubusercontent.com/benjaminLedel/covey/main/installer/install.sh
+less install.sh && sh install.sh
+```
+
+Das installiert nur Binaries. Die Control Plane braucht zusätzlich PostgreSQL (mit pgvector) und Docker für die Sandboxen; die restlichen Schritte nennt das Skript am Ende, der ausführliche Weg samt docker-compose steht in [`docs/betrieb-deployment.md`](docs/betrieb-deployment.md).
+
 ## Entwicklung
 
 ```bash
@@ -235,6 +262,7 @@ Exit-Code 1 bei Befunden, damit ein Upgrade-Skript darauf reagieren kann. Geänd
 | [`spec/13-zammad-integration.md`](spec/13-zammad-integration.md) | Zielsystem Zammad: Wake via Webhook, REST-Aktionen, `blocked`↔`pending` |
 | [`spec/14-companion-gedaechtnis.md`](spec/14-companion-gedaechtnis.md) | Companion: Brain-Dump & Kontext aus dem Wissen der Menschen |
 | [`spec/15-teams-integration.md`](spec/15-teams-integration.md) | Microsoft Teams als Zielsystem: OAuth2/JWT, Chat als Kanal |
+| [`spec/16-runner.md`](spec/16-runner.md) | Verteilte Data Plane: registrierte Runner, der zentrale Home-Store, Sandbox-Images pro Agent |
 
 </details>
 
@@ -245,3 +273,11 @@ Exit-Code 1 bei Befunden, damit ein Upgrade-Skript darauf reagieren kann. Geänd
 ## Mitwirken
 
 Änderungen an Konzept und Architektur gehen über die Spec: Vorschläge als Merge Request gegen [`spec/`](spec/), Diskussion offener Punkte in [`spec/07-offene-entscheidungen.md`](spec/07-offene-entscheidungen.md). Für Code gilt die Bau-Reihenfolge aus dem MVP-Plan — dünnster vertikaler Durchstich zuerst, `builtin` als Default, Interface vor Implementierung.
+
+## Lizenz
+
+Copyright (C) 2026 Benjamin Ledel
+
+Covey ist freie Software unter der [GNU Affero General Public License v3.0](LICENSE). Du darfst sie betreiben, studieren, verändern und weitergeben. Die eine Pflicht, die in der Praxis zählt: Wer ein *verändertes* Covey anderen über ein Netzwerk anbietet, muss diesen Nutzern seinen geänderten Quellcode unter denselben Bedingungen zugänglich machen.
+
+Covey im eigenen Unternehmen selbst zu hosten, löst nichts davon aus — es zu betreiben, wie auch immer konfiguriert, ist schlicht Benutzung.

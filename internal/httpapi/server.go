@@ -367,6 +367,12 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/trigger/{token}", s.logIncoming(s.handleAgentTrigger))
 	mux.HandleFunc("GET /api/daemon/ws", s.handleDaemonWS)
 
+	// Das Installationsskript dieser Instanz — bewusst ohne Anmeldung: Wer es
+	// abruft, hat noch nichts, womit er sich anmelden könnte. Es liefert die
+	// eigene Version mit, damit ein darüber installierter Runner zum Server
+	// passt (spec/16, „Protokoll-Version").
+	mux.HandleFunc("GET /install.sh", s.handleInstallScript)
+
 	// Eingebettete SPA samt vorgerenderter öffentlicher Website.
 	if s.WebFS != nil {
 		mux.HandleFunc("GET /robots.txt", s.handleRobots)

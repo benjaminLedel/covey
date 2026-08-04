@@ -141,6 +141,33 @@ The system splits into a **control plane** (stateful, always on: scheduler, agen
 
 Details in [`spec/10-architektur-stack.md`](spec/10-architektur-stack.md).
 
+## Install
+
+```bash
+curl -sSL https://raw.githubusercontent.com/benjaminLedel/covey/main/installer/install.sh | sh
+```
+
+Picks the binary for your OS and architecture from the latest [release](https://github.com/benjaminLedel/covey/releases), **verifies its SHA-256 checksum** and puts it in `/usr/local/bin`.
+
+Covey ships as two programs — the control plane (`covey`) and the runner (`covey-runner`, which executes sandboxes for a server). Run it at a terminal and it asks which one you want; in a pipeline without a terminal it takes the default instead of waiting for an answer nobody can give. Or say it outright: `--server`, `--runner`, `--all`. Pin a version with `--version v0.2.0`, choose a different target with `--bin-dir ~/bin`.
+
+**Every running Covey instance serves the same script for its own version:**
+
+```bash
+curl -sSL https://covey.example/install.sh | sh
+```
+
+Useful for adding a runner: the instance knows its version, so the runner you get speaks the same protocol as the server it registers with. The binaries still come from the GitHub release — the instance decides the version, not the content.
+
+Not keen on piping a script into a shell? Reasonable — read it first:
+
+```bash
+curl -sSLO https://raw.githubusercontent.com/benjaminLedel/covey/main/installer/install.sh
+less install.sh && sh install.sh
+```
+
+This installs binaries only. The control plane also needs PostgreSQL (with pgvector) and Docker for the sandboxes; the script prints the remaining steps, and [`docs/betrieb-deployment.md`](docs/betrieb-deployment.md) has the full path including docker-compose.
+
 ## Development
 
 ```bash
@@ -237,6 +264,7 @@ All runbooks are in German.
 | [`spec/13-zammad-integration.md`](spec/13-zammad-integration.md) | Target system Zammad: wake via webhook, REST actions, `blocked`↔`pending` |
 | [`spec/14-companion-gedaechtnis.md`](spec/14-companion-gedaechtnis.md) | Companion: brain dump & context from what the humans know |
 | [`spec/15-teams-integration.md`](spec/15-teams-integration.md) | Microsoft Teams as a target system: OAuth2/JWT, chat as the channel |
+| [`spec/16-runner.md`](spec/16-runner.md) | Distributed data plane: registered runners, the central home store, sandbox images per agent |
 
 </details>
 
@@ -247,3 +275,11 @@ All runbooks are in German.
 ## Contributing
 
 Changes to concept and architecture go through the spec: proposals as a merge request against [`spec/`](spec/), open points discussed in [`spec/07-offene-entscheidungen.md`](spec/07-offene-entscheidungen.md). For code, the build order from the MVP plan applies — thinnest vertical slice first, `builtin` as the default, interface before implementation.
+
+## License
+
+Copyright (C) 2026 Benjamin Ledel
+
+Covey is free software under the [GNU Affero General Public License v3.0](LICENSE). You may run it, study it, modify it and pass it on. The one obligation that matters in practice: if you offer a modified Covey to others over a network, those users must be able to get your modified source under the same terms.
+
+Self-hosting Covey inside your own organisation triggers nothing — running it, however you have configured it, is simply using the software.

@@ -71,6 +71,11 @@ func main() {
 	switch os.Args[1] {
 	case "version", "--version", "-v":
 		fmt.Println("covey " + buildinfo.String())
+		// Covey ist ein Netzwerkdienst unter AGPL-3.0: Wer eine veränderte
+		// Fassung anderen anbietet, schuldet ihnen den Quelltext. Die Adresse
+		// hier zu nennen macht das für Betreiber zur Kleinigkeit statt zur
+		// Recherche.
+		fmt.Println("AGPL-3.0 · Quelltext: " + buildinfo.SourceURL)
 		return
 	}
 	cfg, err := config.FromEnv()

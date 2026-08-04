@@ -561,6 +561,9 @@ export type BuildInfo = {
   built_at: string;
   dirty: boolean;
   go: string;
+  // Öffentliche Quelle dieses Binaries (AGPL-3.0). Kommt vom Server, damit ein
+  // Fork seine eigene Adresse zeigt statt der des Ursprungs.
+  source: string;
 };
 
 export const buildInfo = () => api<BuildInfo>("/version");
