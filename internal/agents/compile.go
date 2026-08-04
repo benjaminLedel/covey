@@ -5,15 +5,15 @@ import (
 	"strings"
 )
 
-// Reihenfolge, in der die Config-Dateien in den System-Prompt kompiliert werden.
-// SOUL.md zuerst (Charakter), dann Fähigkeiten, Abläufe, Org-Einbettung.
-// ACCESS.md wird NICHT einkompiliert — sie ist eine Broker-Referenz, kein Prompt.
+// Order in which the config files are compiled into the system prompt.
+// SOUL.md first (character), then capabilities, procedures, org embedding.
+// ACCESS.md is NOT compiled in — it is a broker reference, not a prompt.
 var promptOrder = []string{"SOUL.md", "CAPABILITIES.md", "PLAYBOOKS.md", "ORG.md"}
 
-// ProtocolInstructions ist der Plattform-Anteil des Prompts: der Vertrag
-// zwischen Runtime und Daemon. Der Agent handelt in Zielsystemen ausschließlich
-// über den Action-Proxy des Daemons (Guard-Rails greifen zentral, Secrets
-// bleiben draußen) und meldet sein Ergebnis als COVEY_STATUS-Zeile.
+// ProtocolInstructions is the platform's share of the prompt: the contract
+// between runtime and daemon. The agent acts in target systems exclusively
+// through the daemon's action proxy (guard rails take hold centrally, secrets
+// stay outside) and reports its result as a COVEY_STATUS line.
 const ProtocolInstructions = `## Covey platform protocol
 
 You are an agent on the Covey platform. The following rules apply:
@@ -148,10 +148,10 @@ You are an agent on the Covey platform. The following rules apply:
    connection). If you have learned nothing new, leave it empty or out — NEVER
    write filler like "no new insights" into it.`
 
-// TargetDocs baut den Abschnitt "Angebundene Zielsysteme" aus den Aktions-
-// Dokus der Zielsystem-Plugins. Er wird zur Dispatch-Zeit an den System-
-// Prompt gehängt (nicht einkompiliert), damit er Aktivierung und Manifest-
-// Plugins der Organisation widerspiegelt.
+// TargetDocs builds the section "Connected target systems" from the action
+// docs of the target system plugins. It is appended to the system prompt at
+// dispatch time (not compiled in) so that it reflects the organisation's
+// activation and manifest plugins.
 func TargetDocs(docs []string) string {
 	var clean []string
 	for _, d := range docs {
@@ -165,38 +165,38 @@ func TargetDocs(docs []string) string {
 	return "## Connected target systems\n\n" + strings.Join(clean, "\n\n")
 }
 
-// TeamMember ist ein menschlicher Mitarbeiter der Organisation, wie er im
-// System-Prompt des Agenten erscheint. Die Felder kommen aus dem
-// Mitarbeiter-Profil (humans-Tabelle); leere Felder werden weggelassen.
+// TeamMember is a human employee of the organisation as they appear in the
+// agent's system prompt. The fields come from the employee profile (humans
+// table); empty fields are left out.
 type TeamMember struct {
 	Name     string
 	JobTitle string
 	Email    string
-	// Identities sind die Plattform-Kennungen der Person (generisch, ein
-	// Eintrag je Zielsystem), mit Anzeige-Label aus der Plugin-Registry.
+	// Identities are the person's platform identifiers (generic, one entry per
+	// target system), with the display label from the plugin registry.
 	Identities []TeamIdentity
-	// Fields sind die Werte der org-weit konfigurierbaren Profilfelder
-	// (profile_fields), bereits mit Anzeige-Label aufgelöst.
+	// Fields are the values of the org-wide configurable profile fields
+	// (profile_fields), already resolved with their display label.
 	Fields           []TeamIdentity
 	Responsibilities string
-	// Supervisor markiert den Vorgesetzten des Agenten (Org-Chart,
-	// agents.supervisor_id): an diese Person gehen Merge Requests zum
-	// Review und Eskalationen.
+	// Supervisor marks the agent's manager (org chart,
+	// agents.supervisor_id): merge requests for review and escalations go
+	// to this person.
 	Supervisor bool
 }
 
-// TeamIdentity ist eine Zielsystem-Kennung fürs Team-Verzeichnis,
-// z. B. {Label: "GitLab", Value: "maxm"}.
+// TeamIdentity is a target system identifier for the team directory,
+// e.g. {Label: "GitLab", Value: "maxm"}.
 type TeamIdentity struct {
 	Label string
 	Value string
 }
 
-// TeamSection baut den Abschnitt "Team" für den System-Prompt: das
-// Mitarbeiterverzeichnis der Organisation. Damit weiß ein Agent, wer wofür
-// zuständig ist und unter welcher Kennung er eine Person in einem Zielsystem
-// erreicht (z. B. GitLab-Issue zum Testen zuweisen). Wird wie TargetDocs zur
-// Dispatch-Zeit angehängt, damit Profil-Änderungen sofort wirken.
+// TeamSection builds the section "Team" for the system prompt: the
+// organisation's employee directory. With it an agent knows who is responsible
+// for what and under which identifier it reaches a person in a target system
+// (assigning a GitLab issue for testing, say). Appended at dispatch time like
+// TargetDocs, so that profile changes take effect immediately.
 func TeamSection(members []TeamMember) string {
 	var lines []string
 	for _, m := range members {
@@ -244,30 +244,29 @@ requests.
 ` + strings.Join(lines, "\n")
 }
 
-// AgentColleague ist ein KI-Agent derselben Organisation, wie er im
-// Team-Verzeichnis eines anderen Agenten erscheint. Anders als bei Menschen
-// zählt hier die Abteilung: ein Agent bevorzugt Kollegen aus dem EIGENEN Team,
-// wenn er Arbeit übergibt (z. B. einen Merge Request an einen QA-Agenten). Leere
-// Felder werden weggelassen.
+// AgentColleague is an AI agent of the same organisation as it appears in
+// another agent's team directory. Unlike with humans the department counts
+// here: an agent prefers colleagues from its OWN team when handing work over
+// (a merge request to a QA agent, say). Empty fields are left out.
 type AgentColleague struct {
 	Name       string
 	JobTitle   string
-	Department string // Abteilungsname; leer = keiner Abteilung zugeordnet
-	SameTeam   bool   // gleiche Abteilung wie der Agent, dessen Prompt das ist
+	Department string // department name; empty = not assigned to a department
+	SameTeam   bool   // same department as the agent whose prompt this is
 	Identities []TeamIdentity
-	// Responsibilities sagt, wofür der Kollege zuständig ist — die Grundlage der
-	// Auswahl (z. B. „Testen/QA").
+	// Responsibilities says what the colleague is responsible for — the basis of
+	// the choice (e.g. "testing/QA").
 	Responsibilities string
-	// Supervisor markiert einen Agenten, der zugleich der Vorgesetzte ist
-	// (Org-Chart erlaubt Agent-Vorgesetzte).
+	// Supervisor marks an agent that is at the same time the manager
+	// (the org chart allows agent managers).
 	Supervisor bool
 }
 
-// TeamAgentsSection baut den Abschnitt "Team (KI-Kollegen)": die anderen Agenten
-// der Organisation, damit ein Agent Arbeit an den passenden Kollegen übergeben
-// kann (z. B. der Entwickler-Agent seinen Merge Request an den QA-Agenten aus
-// seinem Team). Wird wie TeamSection zur Dispatch-Zeit angehängt. Kollegen aus
-// dem eigenen Team (SameTeam) sind die erste Wahl.
+// TeamAgentsSection builds the section "Team (AI colleagues)": the organisation's
+// other agents, so that an agent can hand work over to the fitting colleague
+// (the developer agent handing its merge request to the QA agent from its own
+// team, say). Appended at dispatch time like TeamSection. Colleagues from one's
+// own team (SameTeam) are the first choice.
 func TeamAgentsSection(colleagues []AgentColleague) string {
 	var lines []string
 	for _, c := range colleagues {
@@ -319,12 +318,12 @@ Never guess user names.
 ` + strings.Join(lines, "\n")
 }
 
-// CompilePrompt macht aus den Config-Dateien den System-Prompt.
-// Bekannte Dateien in definierter Reihenfolge, unbekannte alphabetisch dahinter.
+// CompilePrompt turns the config files into the system prompt.
+// Known files in a defined order, unknown ones alphabetically behind them.
 func CompilePrompt(files map[string]string) string {
 	var b strings.Builder
-	// ACCESS/EGRESS/HEARTBEAT sind Plattform-Config, kein Prompt-Material:
-	// Zugänge prüft der Broker, Heartbeat-Aufgaben kommen als Backlog-Task.
+	// ACCESS/EGRESS/HEARTBEAT are platform config, not prompt material:
+	// the broker checks accesses, heartbeat work arrives as a backlog task.
 	seen := map[string]bool{"ACCESS.md": true, "TOOLS.md": true, "EGRESS.md": true, "HEARTBEAT.md": true}
 	for _, name := range promptOrder {
 		if content, ok := files[name]; ok && strings.TrimSpace(content) != "" {
@@ -348,16 +347,16 @@ func CompilePrompt(files map[string]string) string {
 	return b.String()
 }
 
-// accessKeywords sind die Attribut-Schlüssel einer ACCESS.md-Systemzeile.
+// accessKeywords are the attribute keys of an ACCESS.md system line.
 var accessKeywords = map[string]bool{"system:": true, "scope:": true, "scopes:": true, "tools:": true}
 
-// ParseAccess liest ACCESS.md-Zeilen der Form
+// ParseAccess reads ACCESS.md lines of the form
 //
 //   - system: ticketing   scope: read,write,comment   tools: get_ticket, reply
 //
-// Referenzen auf Systeme + Scopes — niemals Secrets (spec/02-agent-model.md).
-// tools ist die Tool-Allowlist des Agenten für das System (MCP): fehlt das
-// Attribut oder steht dort "alle", sind alle Tools des Systems erlaubt.
+// References to systems + scopes — never secrets (spec/02-agent-model.md).
+// tools is the agent's tool allowlist for the system (MCP): if the attribute is
+// missing or says "alle", all tools of the system are allowed.
 func ParseAccess(content string) []SystemAccess {
 	var out []SystemAccess
 	for _, line := range strings.Split(content, "\n") {
@@ -371,8 +370,8 @@ func ParseAccess(content string) []SystemAccess {
 			if !accessKeywords[fields[i]] {
 				continue
 			}
-			// Wert: alle Tokens bis zum nächsten Schlüssel, kommasepariert —
-			// erlaubt sowohl "a,b" als auch "a, b".
+			// Value: all tokens up to the next key, comma-separated —
+			// allows both "a,b" and "a, b".
 			var val []string
 			for j := i + 1; j < len(fields) && !accessKeywords[fields[j]]; j++ {
 				val = append(val, fields[j])

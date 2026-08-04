@@ -9,9 +9,9 @@ import (
 	"testing"
 )
 
-// TestDownloadSkill deckt den Skill-Download ab: gültiges ZIP mit den Skill-
-// Dateien unter covey-agent/, und die Basis-URL der Instanz wird in die SKILL.md
-// eingespritzt (damit der geladene Skill gegen DIESE Instanz arbeitet).
+// TestDownloadSkill covers the skill download: a valid ZIP with the skill files
+// under covey-agent/, and the instance's base URL injected into SKILL.md (so
+// that the downloaded skill works against THIS instance).
 func TestDownloadSkill(t *testing.T) {
 	s := &Server{SiteURL: "https://covey.example.test"}
 	rec := httptest.NewRecorder()
@@ -28,7 +28,7 @@ func TestDownloadSkill(t *testing.T) {
 	body := rec.Body.Bytes()
 	zr, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
 	if err != nil {
-		t.Fatalf("kein gültiges ZIP: %v", err)
+		t.Fatalf("not a valid ZIP: %v", err)
 	}
 	files := map[string]string{}
 	for _, f := range zr.File {
@@ -41,21 +41,21 @@ func TestDownloadSkill(t *testing.T) {
 		files[f.Name] = string(data)
 	}
 	if _, ok := files["covey-agent/SKILL.md"]; !ok {
-		t.Fatalf("SKILL.md fehlt im ZIP; enthalten: %v", keys(files))
+		t.Fatalf("SKILL.md missing from the ZIP; contained: %v", keys(files))
 	}
 	if _, ok := files["covey-agent/reference.md"]; !ok {
-		t.Fatalf("reference.md fehlt im ZIP; enthalten: %v", keys(files))
+		t.Fatalf("reference.md missing from the ZIP; contained: %v", keys(files))
 	}
 	if !strings.Contains(files["covey-agent/SKILL.md"], "https://covey.example.test") {
-		t.Fatalf("Instanz-URL nicht in SKILL.md eingespritzt")
+		t.Fatalf("instance URL not injected into SKILL.md")
 	}
-	// Frontmatter muss erhalten bleiben (Skill bleibt gültig).
+	// The frontmatter has to survive (the skill stays valid).
 	if !strings.HasPrefix(files["covey-agent/SKILL.md"], "---\n") {
-		t.Fatalf("YAML-Frontmatter der SKILL.md zerstört")
+		t.Fatalf("YAML frontmatter of SKILL.md destroyed")
 	}
 }
 
-// TestDownloadSkillFallbackHost: ohne PublicURL wird die Host-Herkunft genutzt.
+// TestDownloadSkillFallbackHost: without PublicURL the host origin is used.
 func TestDownloadSkillFallbackHost(t *testing.T) {
 	s := &Server{}
 	rec := httptest.NewRecorder()
@@ -65,7 +65,7 @@ func TestDownloadSkillFallbackHost(t *testing.T) {
 	body := rec.Body.Bytes()
 	zr, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
 	if err != nil {
-		t.Fatalf("kein gültiges ZIP: %v", err)
+		t.Fatalf("not a valid ZIP: %v", err)
 	}
 	for _, f := range zr.File {
 		if f.Name == "covey-agent/SKILL.md" {
@@ -73,12 +73,12 @@ func TestDownloadSkillFallbackHost(t *testing.T) {
 			data, _ := io.ReadAll(rc)
 			rc.Close()
 			if !strings.Contains(string(data), "covey.local:8494") {
-				t.Fatalf("Fallback-Host nicht eingespritzt")
+				t.Fatalf("fallback host not injected")
 			}
 			return
 		}
 	}
-	t.Fatal("SKILL.md nicht gefunden")
+	t.Fatal("SKILL.md not found")
 }
 
 func keys(m map[string]string) []string {

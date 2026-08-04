@@ -16,18 +16,18 @@ import (
 	"covey/internal/sandboxfs"
 )
 
-// Der Arbeitsplatz eines Agenten (spec/02): sein persistentes Home als
-// Dateibaum — durchsehen, öffnen, hochladen, ändern, löschen. Es ist die
-// Antwort auf „was hat der Agent da eigentlich liegen?", die sonst nur über
-// eine Shell auf dem Host zu bekommen war.
+// An agent's workplace (spec/02): its persistent home as a file tree — browse,
+// open, upload, change, delete. It is the answer to "what does the agent
+// actually have lying around there?", which previously was only obtainable via
+// a shell on the host.
 //
-// Zwei Dinge halten das Feature ehrlich:
-//   - Der Zugriff läuft am Daemon vorbei direkt auf das Home-Verzeichnis.
-//     Sonst wäre er nur verfügbar, während die Sandbox läuft — und die läuft
-//     im Normalfall nicht.
-//   - Jede schreibende Änderung landet im Recording (kind "file"). Wer im
-//     Arbeitsplatz eines Agenten etwas ablegt, ändert dessen Verhalten; das
-//     gehört in dieselbe Spur wie die Aktionen des Agenten selbst.
+// Two things keep the feature honest:
+//   - Access goes past the daemon, straight to the home directory. Otherwise it
+//     would only be available while the sandbox is running — and normally it is
+//     not.
+//   - Every writing change lands in the recording (kind "file"). Whoever puts
+//     something into an agent's workplace changes its behaviour; that belongs in
+//     the same trail as the agent's own actions.
 
 // handleListFiles: GET /agents/{id}/files?path=…
 func (s *Server) handleListFiles(w http.ResponseWriter, r *http.Request) {
@@ -57,7 +57,7 @@ func (s *Server) handleReadFile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, f)
 }
 
-// handleWriteFile: PUT /agents/{id}/files/content — Textdatei anlegen/ersetzen.
+// handleWriteFile: PUT /agents/{id}/files/content — create/replace a text file.
 func (s *Server) handleWriteFile(w http.ResponseWriter, r *http.Request) {
 	fs, agentID, ok := s.agentFS(w, r)
 	if !ok {
@@ -68,7 +68,7 @@ func (s *Server) handleWriteFile(w http.ResponseWriter, r *http.Request) {
 		Content string `json:"content"`
 	}
 	if err := readJSON(r, &in); err != nil || strings.TrimSpace(in.Path) == "" {
-		writeErr(w, http.StatusBadRequest, "path fehlt")
+		writeErr(w, http.StatusBadRequest, "path is missing")
 		return
 	}
 	e, err := fs.Write(in.Path, strings.NewReader(in.Content))
@@ -80,10 +80,10 @@ func (s *Server) handleWriteFile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, e)
 }
 
-// handleDownloadFile: GET /agents/{id}/files/download?path=… — die Datei roh,
-// in voller Länge. Immer als Anhang: eine Datei aus einem Agenten-Home im
-// Browser rendern zu lassen hieße, fremdes HTML/JS auf der Covey-Origin
-// auszuführen.
+// handleDownloadFile: GET /agents/{id}/files/download?path=… — the raw file, at
+// full length. Always as an attachment: letting a file from an agent home be
+// rendered in the browser would mean executing foreign HTML/JS on the Covey
+// origin.
 func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request) {
 	fs, _, ok := s.agentFS(w, r)
 	if !ok {
@@ -106,13 +106,13 @@ func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, rc)
 }
 
-// handleZipFiles: GET /agents/{id}/files/zip?path=…&path=… — mehrere Dateien
-// und ganze Ordner in einem Rutsch, als ZIP-Strom.
+// handleZipFiles: GET /agents/{id}/files/zip?path=…&path=… — several files and
+// whole folders in one go, as a ZIP stream.
 //
-// Der Umfang wird VOR dem ersten Byte ausgemessen: „zu groß" muss ein Status
-// sein, kein Archiv, das mitten im Download abbricht. Danach wird gestreamt,
-// ohne das Archiv im Speicher oder auf der Platte zwischenzulagern — ein Home
-// kann größer sein als der Arbeitsspeicher der Control Plane.
+// The size is measured BEFORE the first byte: "too large" must be a status, not
+// an archive that breaks off mid-download. After that it is streamed, without
+// buffering the archive in memory or on disk — a home can be larger than the
+// control plane's RAM.
 func (s *Server) handleZipFiles(w http.ResponseWriter, r *http.Request) {
 	fs, _, ok := s.agentFS(w, r)
 	if !ok {
@@ -120,7 +120,7 @@ func (s *Server) handleZipFiles(w http.ResponseWriter, r *http.Request) {
 	}
 	paths := r.URL.Query()["path"]
 	if len(paths) == 0 {
-		writeErr(w, http.StatusBadRequest, "path fehlt")
+		writeErr(w, http.StatusBadRequest, "path is missing")
 		return
 	}
 	plan, err := fs.PlanZip(paths)
@@ -135,23 +135,23 @@ func (s *Server) handleZipFiles(w http.ResponseWriter, r *http.Request) {
 		mime.FormatMediaType("attachment", map[string]string{"filename": plan.Name}))
 	w.WriteHeader(http.StatusOK)
 	if err := fs.WriteZip(w, plan); err != nil {
-		// Header sind raus — mehr als abbrechen und protokollieren geht nicht.
-		// Der Browser meldet den unvollständigen Download.
-		s.Log.Warn("zip-download abgebrochen", "pfade", paths, "err", err)
+		// Headers are already out — there is nothing to do but abort and log.
+		// The browser reports the incomplete download.
+		s.Log.Warn("zip download aborted", "paths", paths, "err", err)
 	}
 }
 
-// handlePreviewFile: GET /agents/{id}/files/preview?path=… — dieselben Bytes
-// wie der Download, aber *inline* darstellbar: Bilder und PDF direkt im
-// Browser statt „erst herunterladen, dann im Dateimanager suchen".
+// handlePreviewFile: GET /agents/{id}/files/preview?path=… — the same bytes as
+// the download, but displayable *inline*: images and PDFs straight in the
+// browser instead of "download first, then hunt for it in the file manager".
 //
-// Inline heißt: fremde Bytes aus einem Agenten-Home werden auf der
-// Covey-Origin gerendert. Drei Riegel halten das eng:
-//   - Eine kurze Allowlist von Typen (sandboxfs.InlineType); alles andere
-//     bekommt hier ein 415 und geht nur über den Download-Endpunkt raus.
-//   - `nosniff`, damit der Browser nicht doch HTML daraus macht.
-//   - Eine CSP ohne alles (siehe unten): ein SVG mit Skript führt im <img>
-//     ohnehin nichts aus, direkt aufgerufen ist es damit auch entschärft.
+// Inline means: foreign bytes from an agent home are rendered on the Covey
+// origin. Three bars keep that narrow:
+//   - A short allowlist of types (sandboxfs.InlineType); everything else gets a
+//     415 here and only leaves via the download endpoint.
+//   - `nosniff`, so the browser does not turn it into HTML after all.
+//   - A CSP without anything (see below): an SVG with a script executes nothing
+//     inside an <img> anyway, and called directly it is defused as well.
 func (s *Server) handlePreviewFile(w http.ResponseWriter, r *http.Request) {
 	fs, _, ok := s.agentFS(w, r)
 	if !ok {
@@ -167,24 +167,23 @@ func (s *Server) handlePreviewFile(w http.ResponseWriter, r *http.Request) {
 
 	ctype := sandboxfs.InlineType(info.Name())
 	if ctype == "" {
-		writeErr(w, http.StatusUnsupportedMediaType, "dieser dateityp wird nicht inline ausgeliefert")
+		writeErr(w, http.StatusUnsupportedMediaType, "this file type is not served inline")
 		return
 	}
 	w.Header().Set("Content-Type", ctype)
 	w.Header().Set("Content-Length", fmt.Sprint(info.Size()))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	// `default-src 'none'` verbietet der Antwort jede Nachladung — das gilt für
-	// alle Typen. Dazu `sandbox`, das sie in eine Origin ohne Rechte sperrt:
-	// nötig für SVG, das direkt aufgerufen sonst als Dokument Skript ausführen
-	// dürfte.
+	// `default-src 'none'` forbids the response any subresource load — that
+	// holds for all types. Plus `sandbox`, which locks it into an origin without
+	// privileges: needed for SVG, which called directly would otherwise be a
+	// document allowed to run script.
 	//
-	// PDF bekommt das `sandbox` nicht: Chromes eingebauter Viewer ist selbst
-	// ein Dokument, das seine Bausteine nachlädt, und meldet in der
-	// undurchsichtigen Origin „Fehler beim Laden des PDF-Dokuments" — die
-	// Vorschau wäre keine. Der Rest der Absicherung bleibt: `default-src
-	// 'none'`, `nosniff` (die Antwort kann nichts anderes als ein PDF werden)
-	// und die eigene Sandbox des Viewers, aus der PDF-JavaScript das
-	// einbettende Dokument nicht erreicht.
+	// PDF does not get the `sandbox`: Chrome's built-in viewer is itself a
+	// document that loads its own building blocks, and in the opaque origin it
+	// reports "error loading PDF document" — that would be no preview at all.
+	// The rest of the hardening stays: `default-src 'none'`, `nosniff` (the
+	// response cannot become anything but a PDF) and the viewer's own sandbox,
+	// out of which PDF JavaScript cannot reach the embedding document.
 	csp := "default-src 'none'; sandbox"
 	if ctype == "application/pdf" {
 		csp = "default-src 'none'"
@@ -192,16 +191,16 @@ func (s *Server) handlePreviewFile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Security-Policy", csp)
 	w.Header().Set("Content-Disposition",
 		mime.FormatMediaType("inline", map[string]string{"filename": info.Name()}))
-	// Nicht cachen: die Datei kann sich unter demselben Pfad jederzeit ändern —
-	// der Agent arbeitet ja weiter.
+	// Do not cache: the file can change under the same path at any time — the
+	// agent keeps working, after all.
 	w.Header().Set("Cache-Control", "private, no-cache")
 	w.WriteHeader(http.StatusOK)
 	_, _ = io.Copy(w, rc)
 }
 
-// handleUploadFiles: POST /agents/{id}/files/upload?path=<zielverzeichnis>
-// (multipart/form-data, Feld „file", mehrfach erlaubt). Der Body wird
-// gestreamt statt gepuffert — ein Upload ins Home kann groß sein.
+// handleUploadFiles: POST /agents/{id}/files/upload?path=<target directory>
+// (multipart/form-data, field "file", may repeat). The body is streamed instead
+// of buffered — an upload into the home can be large.
 func (s *Server) handleUploadFiles(w http.ResponseWriter, r *http.Request) {
 	fs, agentID, ok := s.agentFS(w, r)
 	if !ok {
@@ -211,7 +210,7 @@ func (s *Server) handleUploadFiles(w http.ResponseWriter, r *http.Request) {
 
 	mr, err := r.MultipartReader()
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "kein multipart-upload")
+		writeErr(w, http.StatusBadRequest, "not a multipart upload")
 		return
 	}
 	uploaded := []sandboxfs.Entry{}
@@ -221,7 +220,7 @@ func (s *Server) handleUploadFiles(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if err != nil {
-			writeErr(w, http.StatusBadRequest, "upload unlesbar: "+err.Error())
+			writeErr(w, http.StatusBadRequest, "upload unreadable: "+err.Error())
 			return
 		}
 		name := partRelPath(part)
@@ -239,26 +238,26 @@ func (s *Server) handleUploadFiles(w http.ResponseWriter, r *http.Request) {
 		uploaded = append(uploaded, e)
 	}
 	if len(uploaded) == 0 {
-		writeErr(w, http.StatusBadRequest, "keine datei im upload")
+		writeErr(w, http.StatusBadRequest, "no file in the upload")
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"uploaded": uploaded})
 }
 
-// partRelPath liest den Dateinamen eines Upload-Teils als *relativen Pfad*.
+// partRelPath reads the file name of an upload part as a *relative path*.
 //
-// Part.FileName() taugt dafür nicht: es gibt nach RFC 7578 §4.2 nur den
-// Basisnamen zurück. Diese Vorsicht ist richtig für Server, die den Namen
-// ungeprüft in ein Verzeichnis legen — hier steht sie im Weg, denn wer einen
-// Ordner in den Browser zieht, will ihn samt Struktur wiederfinden und nicht
-// seinen Inhalt ausgeschüttet. Deshalb der Griff zum rohen Header.
+// Part.FileName() is no good for that: per RFC 7578 §4.2 it returns only the
+// base name. That caution is right for servers that drop the name unchecked
+// into a directory — here it is in the way, because whoever drags a folder into
+// the browser wants to find it again with its structure and not have its
+// contents dumped out. Hence reaching for the raw header.
 //
-// Sicher ist das, weil der zusammengesetzte Pfad denselben Weg durch
-// sandboxfs.resolve() nimmt wie jeder andere: `..` fällt weg, ein absoluter
-// Pfad wird relativ zur Wurzel gelesen, aus dem Home führt nichts hinaus. Ein
-// Windows-Pfad („ordner\\datei") wird vorher auf „/" normalisiert.
+// This is safe because the assembled path takes the same route through
+// sandboxfs.resolve() as any other: `..` is dropped, an absolute path is read
+// relative to the root, nothing leads out of the home. A Windows path
+// ("folder\\file") is normalised to "/" beforehand.
 func partRelPath(part *multipart.Part) string {
-	raw := part.FileName() // Rückfall: schon auf den Basisnamen gekürzt
+	raw := part.FileName() // fallback: already trimmed to the base name
 	if disp := part.Header.Get("Content-Disposition"); disp != "" {
 		if _, params, err := mime.ParseMediaType(disp); err == nil && params["filename"] != "" {
 			raw = params["filename"]
@@ -277,7 +276,7 @@ func (s *Server) handleMkdir(w http.ResponseWriter, r *http.Request) {
 		Path string `json:"path"`
 	}
 	if err := readJSON(r, &in); err != nil || strings.TrimSpace(in.Path) == "" {
-		writeErr(w, http.StatusBadRequest, "path fehlt")
+		writeErr(w, http.StatusBadRequest, "path is missing")
 		return
 	}
 	e, err := fs.Mkdir(in.Path)
@@ -289,7 +288,7 @@ func (s *Server) handleMkdir(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, e)
 }
 
-// handleMoveFile: POST /agents/{id}/files/move — {from,to} (umbenennen/verschieben).
+// handleMoveFile: POST /agents/{id}/files/move — {from,to} (rename/move).
 func (s *Server) handleMoveFile(w http.ResponseWriter, r *http.Request) {
 	fs, agentID, ok := s.agentFS(w, r)
 	if !ok {
@@ -300,7 +299,7 @@ func (s *Server) handleMoveFile(w http.ResponseWriter, r *http.Request) {
 		To   string `json:"to"`
 	}
 	if err := readJSON(r, &in); err != nil || strings.TrimSpace(in.From) == "" || strings.TrimSpace(in.To) == "" {
-		writeErr(w, http.StatusBadRequest, "from und to sind Pflicht")
+		writeErr(w, http.StatusBadRequest, "from and to are required")
 		return
 	}
 	e, err := fs.Move(in.From, in.To)
@@ -312,7 +311,8 @@ func (s *Server) handleMoveFile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, e)
 }
 
-// handleDeleteFile: DELETE /agents/{id}/files?path=… (Verzeichnisse samt Inhalt).
+// handleDeleteFile: DELETE /agents/{id}/files?path=… (directories including
+// their contents).
 func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
 	fs, agentID, ok := s.agentFS(w, r)
 	if !ok {
@@ -327,20 +327,20 @@ func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// agentFS löst den Agenten aus der URL auf, prüft die Organisation und öffnet
-// sein Home. Bei jedem Fehlschlag ist die Antwort bereits geschrieben.
+// agentFS resolves the agent from the URL, checks the organisation and opens
+// its home. On every failure the response has already been written.
 func (s *Server) agentFS(w http.ResponseWriter, r *http.Request) (*sandboxfs.FS, uuid.UUID, bool) {
-	// Der Agent kommt geprüft aus agentScoped — ID und Organisation sind dort
-	// schon abgeglichen.
+	// The agent comes checked out of agentScoped — ID and organisation have
+	// already been reconciled there.
 	id := agentFrom(r).ID
 	if s.Orch == nil {
-		writeErr(w, http.StatusServiceUnavailable, "dateizugriff nicht verfügbar")
+		writeErr(w, http.StatusServiceUnavailable, "file access is not available")
 		return nil, uuid.Nil, false
 	}
 	fs, err := s.Orch.AgentFiles(id)
 	if errors.Is(err, orchestrator.ErrNoFileAccess) {
 		writeErr(w, http.StatusServiceUnavailable,
-			"der konfigurierte Sandbox-Provider hat kein erreichbares Home")
+			"the configured sandbox provider has no reachable home")
 		return nil, uuid.Nil, false
 	}
 	if err != nil {
@@ -350,9 +350,9 @@ func (s *Server) agentFS(w http.ResponseWriter, r *http.Request) (*sandboxfs.FS,
 	return fs, id, true
 }
 
-// recordFileOp schreibt die Änderung ins Recording — mit dem Menschen, der sie
-// gemacht hat. Best effort: ein misslungener Eintrag darf die Operation nicht
-// nachträglich zum Fehlschlag erklären, sie ist längst passiert.
+// recordFileOp writes the change into the recording — together with the human
+// who made it. Best effort: a failed entry must not retroactively turn the
+// operation into a failure, it has long since happened.
 func (s *Server) recordFileOp(r *http.Request, agentID uuid.UUID, op, filePath string, size int64) {
 	p := principalFrom(r)
 	err := s.Obs.Record(r.Context(), p.OrgID, agentID, nil, "file", map[string]any{
@@ -363,32 +363,32 @@ func (s *Server) recordFileOp(r *http.Request, agentID uuid.UUID, op, filePath s
 		"actor_id": p.ID,
 	})
 	if err != nil {
-		s.Log.Warn("datei-operation nicht ins recording geschrieben",
-			"agent", agentID, "op", op, "pfad", filePath, "err", err)
+		s.Log.Warn("file operation not written to the recording",
+			"agent", agentID, "op", op, "path", filePath, "err", err)
 	}
 }
 
-// writeFSErr übersetzt die Fehler des Dateibaums in HTTP-Codes. Ein Pfad, der
-// aus dem Home zeigt, ist keine 500 — es ist eine schlechte Anfrage.
+// writeFSErr translates the file tree's errors into HTTP codes. A path pointing
+// out of the home is not a 500 — it is a bad request.
 func writeFSErr(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, sandboxfs.ErrNotFound):
-		writeErr(w, http.StatusNotFound, "pfad nicht gefunden")
+		writeErr(w, http.StatusNotFound, "path not found")
 	case errors.Is(err, sandboxfs.ErrInvalidPath):
-		writeErr(w, http.StatusBadRequest, "ungültiger pfad")
+		writeErr(w, http.StatusBadRequest, "invalid path")
 	case errors.Is(err, sandboxfs.ErrNotDir):
-		writeErr(w, http.StatusBadRequest, "kein verzeichnis")
+		writeErr(w, http.StatusBadRequest, "not a directory")
 	case errors.Is(err, sandboxfs.ErrIsDir):
-		writeErr(w, http.StatusBadRequest, "ist ein verzeichnis")
+		writeErr(w, http.StatusBadRequest, "is a directory")
 	case errors.Is(err, sandboxfs.ErrExists):
-		writeErr(w, http.StatusConflict, "existiert bereits")
+		writeErr(w, http.StatusConflict, "already exists")
 	case errors.Is(err, sandboxfs.ErrTooLarge):
 		writeErr(w, http.StatusRequestEntityTooLarge,
-			fmt.Sprintf("zu groß (max. %d MiB je Datei, %d GiB je Archiv)",
+			fmt.Sprintf("too large (max. %d MiB per file, %d GiB per archive)",
 				sandboxfs.MaxWriteBytes>>20, sandboxfs.MaxZipBytes>>30))
 	case errors.Is(err, sandboxfs.ErrTooMany):
 		writeErr(w, http.StatusRequestEntityTooLarge,
-			fmt.Sprintf("zu viele dateien (max. %d je Archiv)", sandboxfs.MaxZipFiles))
+			fmt.Sprintf("too many files (max. %d per archive)", sandboxfs.MaxZipFiles))
 	default:
 		mapErr(w, err)
 	}

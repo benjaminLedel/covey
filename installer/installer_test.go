@@ -4,11 +4,10 @@ import "strings"
 
 import "testing"
 
-// Der Kern der Sache: Eine Instanz darf dem Skript nur dann eine feste
-// Version vorgeben, wenn es dazu auch ein Release geben kann. Ein
-// Entwicklungs-Build heißt "dev" oder trägt einen describe-Zusatz — beides
-// gibt es auf GitHub nie, und das Skript liefe in einen 404, statt einfach die
-// neueste Veröffentlichung zu nehmen.
+// The heart of the matter: an instance may only prescribe a fixed version to
+// the script when a release for it can exist. A development build is called
+// "dev" or carries a describe suffix — neither ever exists on GitHub, and the
+// script would run into a 404 instead of simply taking the latest release.
 func TestVersionFuerRelease(t *testing.T) {
 	cases := []struct {
 		in   string
@@ -16,13 +15,13 @@ func TestVersionFuerRelease(t *testing.T) {
 	}{
 		{"v0.1.0", "v0.1.0"},
 		{"v1.2.3", "v1.2.3"},
-		{"v2.0.0-rc1", "v2.0.0-rc1"}, // Vorabversionen werden veröffentlicht
+		{"v2.0.0-rc1", "v2.0.0-rc1"}, // pre-releases do get published
 		{"dev", ""},
 		{"", ""},
-		{"v0.1.0-3-gabc1234", ""},       // git describe nach dem Tag
-		{"v0.1.0-dirty", ""},            // Arbeitsbaum mit Änderungen
-		{"v0.1.0-3-gabc1234-dirty", ""}, // beides
-		{"0.1.0", ""},                   // ohne v kein Tag dieses Projekts
+		{"v0.1.0-3-gabc1234", ""},       // git describe after the tag
+		{"v0.1.0-dirty", ""},            // working tree with changes
+		{"v0.1.0-3-gabc1234-dirty", ""}, // both
+		{"0.1.0", ""},                   // without a v it is no tag of this project
 	}
 	for _, tc := range cases {
 		if got := VersionFuerRelease(tc.in); got != tc.want {
@@ -33,36 +32,36 @@ func TestVersionFuerRelease(t *testing.T) {
 
 func TestRenderSetztVorspann(t *testing.T) {
 	out := Render("v0.1.0", "runner")
-	for _, muss := range []string{
+	for _, want := range []string{
 		"COVEY_INSTALL_VERSION=\"v0.1.0\"",
 		"COVEY_INSTALL_DEFAULT=\"runner\"",
 		"export COVEY_INSTALL_VERSION",
 	} {
-		if !strings.Contains(out, muss) {
-			t.Errorf("Vorspann enthält %q nicht", muss)
+		if !strings.Contains(out, want) {
+			t.Errorf("preamble does not contain %q", want)
 		}
 	}
-	// Der Rumpf muss unverändert dabei sein — sonst liefert die Instanz etwas
-	// anderes aus als das Repository.
+	// The body has to be in there unchanged — otherwise the instance serves
+	// something other than what the repository holds.
 	if !strings.Contains(out, Script) {
-		t.Error("das eingebettete Skript fehlt im Ergebnis")
+		t.Error("the embedded script is missing from the result")
 	}
-	// Genau ein Shebang, und zwar in der ersten Zeile: Der Vorspann bringt
-	// einen mit, der Rumpf auch. Stünde der zweite mittendrin, wäre er nur ein
-	// Kommentar — aber die erste Zeile muss stimmen.
+	// Exactly one shebang, and in the first line: the preamble brings one, the
+	// body does too. Were the second one in the middle it would only be a
+	// comment — but the first line has to be right.
 	if !strings.HasPrefix(out, "#!/bin/sh\n") {
-		t.Error("das Ergebnis beginnt nicht mit einem Shebang")
+		t.Error("the result does not start with a shebang")
 	}
 }
 
-// Ohne Version darf kein VERSION-Vorspann entstehen: Das Skript soll dann
-// selbst die neueste Veröffentlichung ermitteln.
+// Without a version no VERSION preamble may be produced: the script should then
+// determine the latest release itself.
 func TestRenderOhneVersion(t *testing.T) {
 	out := Render("", "")
 	if strings.Contains(out, "COVEY_INSTALL_VERSION=") {
-		t.Error("ohne Version darf keine Version vorgegeben werden")
+		t.Error("without a version none may be prescribed")
 	}
 	if !strings.Contains(out, "COVEY_INSTALL_DEFAULT=\"server\"") {
-		t.Error("ohne Angabe muss die Voreinstellung \"server\" sein")
+		t.Error("without an argument the default must be \"server\"")
 	}
 }

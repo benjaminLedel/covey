@@ -8,16 +8,16 @@ import (
 	"covey/internal/skills"
 )
 
-// skillsFor beantwortet request_skills: die Fähigkeiten, die dieser Agent
-// tatsächlich bekommt — seine eigenen plus die ihm aus der Org-Bibliothek
-// verlinkten. Der Daemon schreibt sie nach <home>/.claude/skills/, wo die
-// Runtime sie als persönliche Skills des Agenten findet.
+// skillsFor answers request_skills: the skills this agent actually gets — its
+// own plus the ones linked to it from the org library. The daemon writes them
+// to <home>/.claude/skills/, where the runtime finds them as the agent's
+// personal skills.
 //
-// Fail-soft: Ist das Feature nicht konfiguriert (Skills == nil) oder scheitert
-// die Abfrage, antworten wir mit einer LEEREN, aber erfolgreichen Liste. Der
-// Daemon räumt dann die alten Verzeichnisse ab und läuft ohne Skills weiter.
-// Das ist die sichere Richtung: Lieber ein Lauf ohne Zusatzfähigkeit als ein
-// Lauf mit einer Fähigkeit, die längst entzogen wurde.
+// Fail-soft: if the feature is not configured (Skills == nil) or the query
+// fails, we answer with an EMPTY but successful list. The daemon then clears
+// out the old directories and carries on without skills. That is the safe
+// direction: better a run without an extra skill than a run with a skill that
+// was revoked long ago.
 func (o *Orchestrator) skillsFor(ctx context.Context, agent agents.Agent, req daemon.RequestSkills) daemon.InjectSkills {
 	out := daemon.InjectSkills{RequestID: req.RequestID, OK: true, Skills: []daemon.SkillDir{}}
 	if o.Skills == nil {
@@ -25,7 +25,7 @@ func (o *Orchestrator) skillsFor(ctx context.Context, agent agents.Agent, req da
 	}
 	found, err := o.Skills.ForAgent(ctx, agent.OrgID, agent.ID)
 	if err != nil {
-		o.Log.Warn("skills nicht auflösbar", "agent", agent.Slug, "err", err)
+		o.Log.Warn("skills could not be resolved", "agent", agent.Slug, "err", err)
 		return out
 	}
 	for _, sk := range found {
@@ -34,10 +34,10 @@ func (o *Orchestrator) skillsFor(ctx context.Context, agent agents.Agent, req da
 		for _, f := range sk.Files {
 			dir.Files[f.Path] = f.Content
 		}
-		// Ein Skill ohne SKILL.md wäre für die Runtime kein Skill — dann lieber
-		// gar nicht ausliefern, statt ein totes Verzeichnis anzulegen.
+		// A skill without SKILL.md would be no skill at all to the runtime — then
+		// rather do not ship it than create a dead directory.
 		if _, ok := dir.Files[skills.EntryFile]; !ok {
-			o.Log.Warn("skill ohne SKILL.md übersprungen", "agent", agent.Slug, "skill", sk.Name)
+			o.Log.Warn("skipped skill without SKILL.md", "agent", agent.Slug, "skill", sk.Name)
 			continue
 		}
 		out.Skills = append(out.Skills, dir)

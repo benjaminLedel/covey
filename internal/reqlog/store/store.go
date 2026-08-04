@@ -1,10 +1,10 @@
-// Package store hält das Request-Log in Postgres (Tabelle request_log). Es ist
-// die Control-Plane-Seite von internal/reqlog: der Kern erzeugt Einträge
-// (auch in der Sandbox), dieser Store schreibt, liest und prunt sie.
+// Package store keeps the request log in Postgres (table request_log). It is
+// the control-plane side of internal/reqlog: the core produces entries (in the
+// sandbox too), this store writes, reads and prunes them.
 //
-// Geschrieben wird asynchron über einen gepufferten Kanal: ein Request-Pfad
-// darf nie an der Diagnose hängen. Läuft der Puffer voll, werden Einträge
-// verworfen und gezählt — Diagnose-Daten sind kein Audit-Trail.
+// Writing happens asynchronously through a buffered channel: a request path
+// must never hang on diagnostics. If the buffer runs full, entries are dropped
+// and counted — diagnostic data is not an audit trail.
 package store
 
 import (
@@ -20,18 +20,18 @@ import (
 	"covey/internal/reqlog"
 )
 
-// bufferSize ist die Puffertiefe des Schreib-Kanals. Großzügig genug für
-// Lastspitzen, klein genug, um bei einer hängenden DB nicht zu wachsen.
+// bufferSize is the buffer depth of the write channel. Generous enough for load
+// spikes, small enough not to grow when the DB hangs.
 const bufferSize = 512
 
-// pruneInterval ist der Takt des Aufräumens (Retention + harte Obergrenze).
+// pruneInterval is the cadence of the cleanup (retention + hard upper bound).
 const pruneInterval = 15 * time.Minute
 
-// MaxRows ist die harte Obergrenze der Tabelle — sie greift auch, wenn in
-// kurzer Zeit sehr viel Verkehr anfällt und die Alters-Retention noch nicht.
+// MaxRows is the hard upper bound of the table — it also applies when a lot of
+// traffic accumulates in a short time and the age-based retention does not yet.
 const MaxRows = 50_000
 
-// Record ist ein Eintrag mit dem Kontext, den nur die Control Plane kennt.
+// Record is an entry with the context only the control plane knows.
 type Record struct {
 	reqlog.Entry
 	OrgID   *uuid.UUID `json:"org_id,omitempty"`
@@ -39,7 +39,7 @@ type Record struct {
 	TaskID  *uuid.UUID `json:"task_id,omitempty"`
 }
 
-// View ist die Lese-Sicht eines Eintrags (API/UI).
+// View is the read view of an entry (API/UI).
 type View struct {
 	ID          int64      `json:"id"`
 	CreatedAt   time.Time  `json:"created_at"`
@@ -62,34 +62,34 @@ type View struct {
 	BodiesShown bool       `json:"bodies_shown"`
 }
 
-// Filter schränkt die Liste ein (alles optional).
+// Filter narrows the list down (everything optional).
 type Filter struct {
 	Direction string
 	System    string
 	AgentID   *uuid.UUID
-	OnlyBad   bool   // nur Fehler: Status >= 400 oder Transport-Fehler
-	Query     string // Teilstring in URL/Fehler
-	BeforeID  int64  // Paginierung: nur Einträge älter als diese ID
+	OnlyBad   bool   // errors only: status >= 400 or transport error
+	Query     string // substring in URL/error
+	BeforeID  int64  // pagination: only entries older than this ID
 	Limit     int
 }
 
-// Store schreibt und liest das Request-Log.
+// Store writes and reads the request log.
 type Store struct {
 	pool *pgxpool.Pool
 	log  *slog.Logger
 
 	ch chan Record
-	// Bodies steuert, ob Request-/Response-Ausschnitte gespeichert werden.
-	// false = nur Metadaten (COVEY_REQUEST_LOG_BODIES=false).
+	// bodies controls whether request/response excerpts are stored.
+	// false = metadata only (COVEY_REQUEST_LOG_BODIES=false).
 	bodies bool
-	// Retention ist das Alter, ab dem Einträge verschwinden.
+	// retention is the age from which entries disappear.
 	retention time.Duration
 
 	dropped atomic.Int64
 }
 
-// NewStore baut den Store. bodies=false speichert nur Metadaten; retention <= 0
-// fällt auf 72h zurück.
+// NewStore builds the store. bodies=false stores metadata only; retention <= 0
+// falls back to 72h.
 func NewStore(pool *pgxpool.Pool, log *slog.Logger, bodies bool, retention time.Duration) *Store {
 	if retention <= 0 {
 		retention = 72 * time.Hour
@@ -100,16 +100,16 @@ func NewStore(pool *pgxpool.Pool, log *slog.Logger, bodies bool, retention time.
 	return &Store{pool: pool, log: log, ch: make(chan Record, bufferSize), bodies: bodies, retention: retention}
 }
 
-// Sink liefert die reqlog.Sink dieses Stores — für reqlog.SetDefault bzw. für
-// Context-Senken mit Agenten-Bezug.
+// Sink returns this store's reqlog.Sink — for reqlog.SetDefault and for context
+// sinks with an agent reference.
 func (s *Store) Sink(orgID, agentID, taskID *uuid.UUID) reqlog.Sink {
 	return func(e reqlog.Entry) {
 		s.Enqueue(Record{Entry: e, OrgID: orgID, AgentID: agentID, TaskID: taskID})
 	}
 }
 
-// Enqueue nimmt einen Eintrag zum Schreiben an. Nicht blockierend: ist der
-// Puffer voll, wird verworfen (und gezählt).
+// Enqueue accepts an entry for writing. Non-blocking: if the buffer is full it
+// is dropped (and counted).
 func (s *Store) Enqueue(rec Record) {
 	if s == nil {
 		return
@@ -124,15 +124,15 @@ func (s *Store) Enqueue(rec Record) {
 	}
 }
 
-// Dropped ist die Zahl der wegen vollem Puffer verworfenen Einträge.
+// Dropped is the number of entries dropped because the buffer was full.
 func (s *Store) Dropped() int64 { return s.dropped.Load() }
 
-// Run schreibt den Puffer in die Datenbank und prunt periodisch. Blockiert bis
-// ctx endet (als Goroutine starten).
+// Run writes the buffer into the database and prunes periodically. Blocks until
+// ctx ends (start it as a goroutine).
 func (s *Store) Run(ctx context.Context) {
 	ticker := time.NewTicker(pruneInterval)
 	defer ticker.Stop()
-	// Beim Start einmal aufräumen — nach einem Neustart kann das Log alt sein.
+	// Clean up once at start — after a restart the log can be stale.
 	s.prune(ctx)
 	for {
 		select {
@@ -159,28 +159,28 @@ func (s *Store) insert(ctx context.Context, rec Record) {
 		rec.Method, rec.URL, rec.Status, rec.DurationMS, rec.ReqBytes, rec.RespBytes,
 		rec.ReqBody, rec.RespBody, rec.Error, rec.Remote)
 	if err != nil && ctx.Err() == nil {
-		s.log.Debug("request-log schreiben", "err", err)
+		s.log.Debug("writing request log", "err", err)
 	}
 }
 
-// prune löscht nach Alter und kappt anschließend auf MaxRows.
+// prune deletes by age and afterwards caps at MaxRows.
 func (s *Store) prune(ctx context.Context) {
 	if _, err := s.pool.Exec(ctx,
 		`DELETE FROM request_log WHERE created_at < now() - $1::interval`,
 		s.retention.String()); err != nil && ctx.Err() == nil {
-		s.log.Debug("request-log pruning (alter)", "err", err)
+		s.log.Debug("request-log pruning (age)", "err", err)
 	}
 	if _, err := s.pool.Exec(ctx,
 		`DELETE FROM request_log WHERE id <= (
 			SELECT id FROM request_log ORDER BY id DESC OFFSET $1 LIMIT 1)`,
 		MaxRows); err != nil && ctx.Err() == nil {
-		s.log.Debug("request-log pruning (obergrenze)", "err", err)
+		s.log.Debug("request-log pruning (upper bound)", "err", err)
 	}
 }
 
-// List liefert Einträge, neueste zuerst, ohne Bodies (die kommen im Detail).
-// Sichtbar sind die Einträge der eigenen Organisation plus die ohne
-// Organisations-Bezug — ein abgelehnter Webhook hat keine.
+// List returns entries, newest first, without bodies (those come with the
+// detail view). Visible are the entries of one's own organization plus those
+// without an organization reference — a rejected webhook has none.
 func (s *Store) List(ctx context.Context, orgID uuid.UUID, f Filter) ([]View, error) {
 	if f.Limit <= 0 || f.Limit > 500 {
 		f.Limit = 100
@@ -216,7 +216,7 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID, f Filter) ([]View, er
 	return out, rows.Err()
 }
 
-// Get liefert einen Eintrag samt Bodies, org-gescopt wie List.
+// Get returns an entry including bodies, org-scoped like List.
 func (s *Store) Get(ctx context.Context, orgID uuid.UUID, id int64) (View, error) {
 	var v View
 	err := s.pool.QueryRow(ctx, `SELECT l.id, l.created_at, l.org_id, l.agent_id, COALESCE(a.slug,''), l.task_id,
@@ -227,13 +227,13 @@ func (s *Store) Get(ctx context.Context, orgID uuid.UUID, id int64) (View, error
 		Scan(&v.ID, &v.CreatedAt, &v.OrgID, &v.AgentID, &v.AgentSlug, &v.TaskID,
 			&v.Direction, &v.System, &v.Method, &v.URL, &v.Status, &v.DurationMS,
 			&v.ReqBytes, &v.RespBytes, &v.Error, &v.Remote, &v.ReqBody, &v.RespBody)
-	// pgx.ErrNoRows reicht durch — mapErr macht daraus ein 404.
+	// pgx.ErrNoRows passes through — mapErr turns it into a 404.
 	v.BodiesShown = s.bodies
 	return v, err
 }
 
-// Systems liefert die im Log vorkommenden Zielsystem-Namen — die UI leitet
-// ihren Filter daraus ab, statt eine eigene Liste zu führen.
+// Systems returns the target-system names occurring in the log — the UI derives
+// its filter from that instead of keeping a list of its own.
 func (s *Store) Systems(ctx context.Context, orgID uuid.UUID) ([]string, error) {
 	rows, err := s.pool.Query(ctx, `SELECT DISTINCT system FROM request_log
 		WHERE (org_id IS NULL OR org_id = $1) AND system <> '' ORDER BY system`, orgID)
@@ -252,14 +252,15 @@ func (s *Store) Systems(ctx context.Context, orgID uuid.UUID) ([]string, error) 
 	return out, rows.Err()
 }
 
-// Clear leert das Log der Organisation (inkl. der Einträge ohne Org-Bezug).
+// Clear empties the organization's log (including the entries without an org
+// reference).
 func (s *Store) Clear(ctx context.Context, orgID uuid.UUID) (int64, error) {
 	tag, err := s.pool.Exec(ctx, `DELETE FROM request_log WHERE org_id IS NULL OR org_id = $1`, orgID)
 	return tag.RowsAffected(), err
 }
 
-// BodiesEnabled meldet, ob Bodies gespeichert werden (für die UI-Erklärung).
+// BodiesEnabled reports whether bodies are stored (for the UI's explanation).
 func (s *Store) BodiesEnabled() bool { return s != nil && s.bodies }
 
-// Retention ist das konfigurierte Aufbewahrungsfenster.
+// Retention is the configured retention window.
 func (s *Store) Retention() time.Duration { return s.retention }

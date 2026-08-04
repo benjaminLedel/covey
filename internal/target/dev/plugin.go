@@ -15,51 +15,51 @@ import (
 	"covey/internal/target"
 )
 
-// System bindet das dev-Plugin an die target-Registry: der lokale Werkzeug-
-// kasten der Sandbox, ohne externes Zielsystem und ohne Credentials.
+// System binds the dev plugin to the target registry: the sandbox's local
+// toolbox, without an external target system and without credentials.
 type System struct{}
 
 func init() {
 	target.Register(target.Descriptor{
 		Name:          "dev",
-		Label:         "Dev-Sandbox",
-		Description:   "Der eigene Computer des Agenten: Shell-Befehle in der Sandbox ausführen (exec), langlaufende Prozesse verwalten (start/stop/logs/list) — Dev-Server, Datenbanken, headless Chrome — und die eigentliche Programmierarbeit an einen Sub-Agenten im Projekt-Checkout übergeben (agent). Der Sub-Agent arbeitet mit dem Claude-Code-Harness des Projekts selbst (CLAUDE.md, .claude/agents, Skills, Commands) und erreicht dabei keine Zielsysteme. Läuft vollständig im Daemon der Sandbox; braucht keine Secrets.",
+		Label:         "Dev sandbox",
+		Description:   "The agent's own computer: run shell commands in the sandbox (exec), manage long-running processes (start/stop/logs/list) — dev servers, databases, headless Chrome — and hand the actual programming work to a sub-agent inside the project checkout (agent). The sub-agent works with the project's own Claude Code harness (CLAUDE.md, .claude/agents, skills, commands) and reaches no target systems while doing so. Runs entirely in the sandbox daemon; needs no secrets.",
 		Kind:          "builtin",
 		Category:      target.CategoryDev,
 		System:        System{},
 		NoCredentials: true,
-		SetupDoc: `1. Plugin hier aktivieren — Secrets sind nicht nötig, alle Aktionen
-   laufen lokal in der Sandbox des Agenten (nichts auf der Control Plane).
+		SetupDoc: `1. Activate the plugin here — no secrets are needed, all actions run
+   locally in the agent's sandbox (nothing on the control plane).
 
-2. In der ACCESS.md des Agenten freischalten:
+2. Enable it in the agent's ACCESS.md:
    - system: dev scope: exec,processes,agent
 
-3. Soll der Agent Pakete installieren oder einen Browser laden, die
-   nötigen Hosts über die Egress-Templates freigeben (npm, PyPI, Go, …).
+3. If the agent is to install packages or load a browser, release the
+   necessary hosts via the egress templates (npm, PyPI, Go, …).
 
-Hinweis: Mit start gestartete Prozesse leben bis zum Ende der Wach-Phase
-des Agenten — beim Einschlafen der Sandbox werden sie beendet.
+Note: processes started with start live until the end of the agent's waking
+phase — they are terminated when the sandbox goes to sleep.
 
-Zur Aktion agent (Sub-Agent im Projekt-Checkout): Sie startet einen zweiten
-Runtime-Lauf IM ausgecheckten Projekt, damit dort dessen eigener
-Claude-Code-Harness greift (CLAUDE.md, .claude/agents, Skills, Commands).
-Der Sub-Agent läuft hermetisch — kein Action-Proxy, also kein Zugriff auf
-GitLab, E-Mail oder andere Zielsysteme; commit und Kommunikation bleiben beim
-beauftragenden Agenten. Seine Kosten zählen auf dasselbe Budget, seine Events
-stehen (als Sub-Lauf markiert) in derselben Aufzeichnung. Wer das nicht will,
-verbietet die Aktion zentral per Guard-Rail auf dem Subjekt dev:agent.`,
+On the agent action (sub-agent in the project checkout): it starts a second
+runtime run INSIDE the checked-out project so that the project's own Claude
+Code harness applies there (CLAUDE.md, .claude/agents, skills, commands). The
+sub-agent runs hermetically — no action proxy, hence no access to GitLab,
+email or other target systems; commit and communication stay with the
+commissioning agent. Its cost counts against the same budget, its events are
+in the same recording (marked as a sub-run). Anyone who does not want this
+forbids the action centrally via a guard-rail on the subject dev:agent.`,
 	})
 	target.OnShutdown(super.shutdown)
 }
 
 func (System) Name() string { return "dev" }
 
-// VerifyWebhook/ParseWebhook: das dev-Plugin hat keinen Webhook-Eingang —
-// es gibt kein externes System, das Ereignisse schicken könnte.
+// VerifyWebhook/ParseWebhook: the dev plugin has no webhook inbound — there is
+// no external system that could send events.
 func (System) VerifyWebhook(string, []byte, http.Header) bool { return false }
 
 func (System) ParseWebhook([]byte) (target.WebhookEvent, error) {
-	return target.WebhookEvent{}, fmt.Errorf("dev hat keinen webhook-eingang")
+	return target.WebhookEvent{}, fmt.Errorf("dev has no webhook inbound")
 }
 
 func (System) ActionSubject(action string, _ json.RawMessage) string {
@@ -96,33 +96,33 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 	case "list":
 		return super.list(), nil
 	default:
-		return nil, fmt.Errorf("unbekannte aktion %q", strings.TrimSpace(action))
+		return nil, fmt.Errorf("unknown action %q", strings.TrimSpace(action))
 	}
 }
 
-// runSubAgent übergibt einen Arbeitsauftrag an einen geschachtelten
-// Runtime-Lauf, der IM angegebenen Projekt-Checkout startet. Erst dadurch
-// greift der Claude-Code-Harness des Projekts (CLAUDE.md, .claude/agents,
-// Skills, Commands) — der äußere Lauf sieht ihn nie, weil er im Agenten-Home
-// läuft. Den Lauf selbst fährt der Daemon; das Plugin kennt ihn nur als
-// Runner im Context (wie Workdir und die Artefakt-Senke).
+// runSubAgent hands an assignment to a nested runtime run that starts INSIDE
+// the given project checkout. Only that makes the project's Claude Code
+// harness apply (CLAUDE.md, .claude/agents, skills, commands) — the outer run
+// never sees it because it runs in the agent home. The daemon drives the run
+// itself; the plugin knows it only as a runner in the context (like Workdir
+// and the artifact sink).
 func runSubAgent(ctx context.Context, cwd, task, model string, maxTurns int) (any, error) {
 	if strings.TrimSpace(cwd) == "" {
-		return nil, fmt.Errorf("cwd fehlt: der Sub-Agent startet im Projekt-Checkout (Pfad aus dem checkout-Ergebnis)")
+		return nil, fmt.Errorf("cwd missing: the sub-agent starts in the project checkout (path from the checkout result)")
 	}
 	if strings.TrimSpace(task) == "" {
-		return nil, fmt.Errorf("task fehlt: beschreibe den Arbeitsauftrag so, dass ein Kollege ohne deinen Kontext arbeiten kann")
+		return nil, fmt.Errorf("task missing: describe the assignment so that a colleague without your context can work from it")
 	}
 	run := target.SubAgent(ctx)
 	if run == nil {
-		return nil, fmt.Errorf("kein Sub-Agent verfügbar (Aktion läuft außerhalb einer Sandbox)")
+		return nil, fmt.Errorf("no sub-agent available (action runs outside a sandbox)")
 	}
 	return run(ctx, target.SubAgentRequest{Dir: cwd, Task: task, Model: model, MaxTurns: maxTurns})
 }
 
-// resolveDir löst cwd relativ zum Sandbox-Home auf; absolute Pfade bleiben —
-// die Sandbox ist der eigene Rechner des Agenten, es gibt hier keine
-// Pfad-Grenze zu verteidigen (die Isolation liefert die Sandbox selbst).
+// resolveDir resolves cwd relative to the sandbox home; absolute paths stay as
+// they are — the sandbox is the agent's own machine, there is no path boundary
+// to defend here (the sandbox itself provides the isolation).
 func resolveDir(workdir, cwd string) string {
 	cwd = strings.TrimSpace(cwd)
 	switch {
@@ -140,13 +140,13 @@ const (
 	maxExecTimeout     = 900 * time.Second
 )
 
-// runExec führt einen Shell-Befehl synchron aus. Ein Exit-Code ungleich 0
-// ist ein Ergebnis, kein Fehler — der Agent soll Testfehlschläge lesen,
-// nicht einen Action-Error erraten. Der Timeout tötet die ganze
-// Prozessgruppe, damit kein `sh -c`-Kind hängen bleibt.
+// runExec runs a shell command synchronously. An exit code other than 0 is a
+// result, not an error — the agent is meant to read test failures, not to
+// guess at an action error. The timeout kills the whole process group so that
+// no `sh -c` child is left hanging.
 func runExec(ctx context.Context, command, dir string, timeoutSecs int) (any, error) {
 	if strings.TrimSpace(command) == "" {
-		return nil, fmt.Errorf("cmd fehlt")
+		return nil, fmt.Errorf("cmd missing")
 	}
 	timeout := defaultExecTimeout
 	if timeoutSecs > 0 {
@@ -179,7 +179,7 @@ func runExec(ctx context.Context, command, dir string, timeoutSecs int) (any, er
 	switch {
 	case errors.Is(ctx.Err(), context.DeadlineExceeded):
 		out["exit_code"] = -1
-		out["error"] = fmt.Sprintf("timeout nach %s — für Langläufer start statt exec nutzen", timeout)
+		out["error"] = fmt.Sprintf("timeout after %s — use start instead of exec for long runners", timeout)
 	case err == nil:
 	default:
 		var ee *exec.ExitError

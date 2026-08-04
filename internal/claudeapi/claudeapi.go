@@ -1,13 +1,13 @@
-// Package claudeapi ist der schmale Zugang der Control Plane zur Messages-API.
+// Package claudeapi is the control plane's narrow access to the Messages API.
 //
-// Die Control Plane ruft Claude an zwei Stellen selbst auf: der Config-Copilot
-// hilft beim Schreiben der Agenten-Config, und der Traum räumt nachts das
-// Gedächtnis auf. Beide brauchen dieselbe Auth-Mechanik (API-Key oder
-// Abo-OAuth-Token der Organisation) und dürfen nicht voneinander abhängen —
-// deshalb liegt sie hier und nicht in einem der beiden Aufrufer.
+// The control plane calls Claude itself in two places: the config copilot helps
+// writing the agent config, and the dream tidies up the memory at night. Both
+// need the same auth mechanics (API key or the organization's subscription
+// OAuth token) and must not depend on each other — which is why it lives here
+// and not in either of the two callers.
 //
-// Leitplanke wie gehabt: das Credential verlässt die Control Plane nie. Es geht
-// weder in den Browser noch in eine Sandbox.
+// Guard-rail as always: the credential never leaves the control plane. It goes
+// neither into the browser nor into a sandbox.
 package claudeapi
 
 import (
@@ -24,33 +24,33 @@ import (
 	"covey/internal/secrets"
 )
 
-// BaseURL ist Variable statt Konstante, damit Tests einen httptest-Server
-// unterschieben können.
+// BaseURL is a variable rather than a constant so that tests can slip in an
+// httptest server.
 var BaseURL = "https://api.anthropic.com"
 
-// Message ist ein Turn. Content ist ein einfacher String — die Messages-API
-// nimmt das als einzelnen Text-Block.
+// Message is one turn. Content is a plain string — the Messages API takes that
+// as a single text block.
 type Message struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-// Call bündelt, was je Aufrufer verschieden ist.
+// Call bundles what differs per caller.
 type Call struct {
 	Model     string
 	MaxTokens int
-	// Effort steuert die Denktiefe (low | medium | high | xhigh | max). Leer =
-	// Vorgabe des Modells.
+	// Effort controls the thinking depth (low | medium | high | xhigh | max).
+	// Empty = the model's default.
 	Effort string
-	// NoThinking schaltet das Denken ab. Ab Opus 5 denkt das Modell per Vorgabe,
-	// und MaxTokens deckelt Denken *und* Antwort gemeinsam — bei einer eng
-	// umrissenen Aufgabe frisst das die ganze Zeit: gemessen zwei Minuten für
-	// einen einzigen umzubenennenden Titel. Effort allein half nicht (über das
-	// Abo-OAuth-Credential wirkt es nicht sichtbar), das Abschalten schon.
+	// NoThinking turns thinking off. From Opus 5 on the model thinks by default,
+	// and MaxTokens caps thinking *and* answer together — on a narrowly outlined
+	// task that eats all the time: measured two minutes for a single title to be
+	// renamed. Effort alone did not help (over the subscription OAuth credential
+	// it has no visible effect), turning it off did.
 	//
-	// Nur für Aufrufe ohne Werkzeuge und mit maschinenlesbarer Antwort: ohne
-	// Denken kann das Modell Werkzeugaufrufe in den Fließtext schreiben, und
-	// gelegentlich rutschen <thinking>-Marken in die Antwort.
+	// Only for calls without tools and with a machine-readable answer: without
+	// thinking the model can write tool calls into the prose, and occasionally
+	// <thinking> markers slip into the answer.
 	NoThinking bool
 }
 
@@ -88,10 +88,10 @@ type messagesResp struct {
 	} `json:"error"`
 }
 
-// Messages ruft die Messages-API mit exakt der Auth-Mechanik auf, die auch die
-// Runtime nutzt: API-Key über x-api-key, Abo-OAuth-Token über Bearer plus
-// oauth-Beta-Header. Bei OAuth-Tokens verlangt Anthropic den
-// Claude-Code-Identitäts-Block als erstes System-Segment.
+// Messages calls the Messages API with exactly the auth mechanics the runtime
+// uses too: API key via x-api-key, subscription OAuth token via Bearer plus the
+// oauth beta header. For OAuth tokens Anthropic requires the Claude Code
+// identity block as the first system segment.
 func Messages(ctx context.Context, credential string, oauth bool, call Call, system string, messages []Message) (string, error) {
 	sys := []textBlock{}
 	if oauth {
@@ -152,10 +152,10 @@ func Messages(ctx context.Context, credential string, oauth bool, call Call, sys
 	return out.String(), nil
 }
 
-// ResolveOrg findet das Claude-Credential einer Organisation. API-Key hat
-// Vorrang vor dem Abo-OAuth-Token. Beide Aufrufer — Config-Copilot und Traum —
-// müssen hier zum selben Ergebnis kommen, deshalb liegt die Reihenfolge an
-// einer Stelle.
+// ResolveOrg finds an organization's Claude credential. The API key takes
+// precedence over the subscription OAuth token. Both callers — config copilot
+// and dream — must arrive at the same result here, which is why the order lives
+// in one place.
 func ResolveOrg(ctx context.Context, store secrets.Store, orgID uuid.UUID) (cred string, oauth, ok bool) {
 	if v, err := store.Get(ctx, orgID, "anthropic_api_key"); err == nil {
 		if v = strings.TrimSpace(v); v != "" {

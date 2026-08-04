@@ -1,23 +1,23 @@
-// Package skills verwaltet die Fähigkeiten eines Agenten als eigenes Objekt.
+// Package skills manages an agent's capabilities as objects of their own.
 //
-// Der Unterschied zur übrigen Agenten-Config (agents.CompilePrompt) ist die
-// Ladezeit: SOUL.md, CAPABILITIES.md und PLAYBOOKS.md stehen in JEDEM Lauf
-// vollständig im System-Prompt. Für Identität und Grenzen ist das richtig —
-// sie gelten immer. Für Prozeduren ist es Verschwendung: Ein Agent mit fünf
-// Playbooks zahlt alle fünf, auch wenn der Lauf nach drei Turns feststellt,
-// dass nichts zu tun ist.
+// What sets them apart from the rest of the agent config (agents.CompilePrompt)
+// is load time: SOUL.md, CAPABILITIES.md and PLAYBOOKS.md sit in the system
+// prompt in full on EVERY run. For identity and boundaries that is right — they
+// always apply. For procedures it is waste: an agent with five playbooks pays
+// for all five, even when the run finds after three turns that there is nothing
+// to do.
 //
-// Ein Skill kehrt das um. Er ist ein Verzeichnis mit einer SKILL.md, deren
-// YAML-Frontmatter (name + description) immer sichtbar ist, während Rumpf und
-// Zusatzdateien erst geladen werden, wenn Claude den Skill zieht. Der Daemon
-// startet den Lauf mit HOME=<Agenten-Home>; ein Verzeichnis unter
-// <home>/.claude/skills/<name>/ ist damit ein PERSÖNLICHER Skill genau dieses
-// Agenten (Claude-Code-Doku: „Personal — ~/.claude/skills/<skill-name>/SKILL.md").
+// A skill inverts that. It is a directory holding a SKILL.md whose YAML
+// frontmatter (name + description) is always visible, while body and extra
+// files are only loaded once Claude pulls the skill. The daemon starts the run
+// with HOME=<agent home>; a directory under <home>/.claude/skills/<name>/ is
+// therefore a PERSONAL skill of exactly this agent (Claude Code docs:
+// "Personal — ~/.claude/skills/<skill-name>/SKILL.md").
 //
-// Zwei Ebenen, dem Secrets-Modell nachgebaut: Skills der Org-Bibliothek
-// (AgentID leer) werden an Agenten verlinkt, agent-eigene Skills gehören einem.
-// Ohne Verlinkung erreicht ein Bibliotheks-Skill niemanden — dieselbe
-// Opt-in-Regel wie bei secret_assignments.
+// Two levels, modelled on the secrets scheme: skills in the org library
+// (AgentID empty) are linked to agents, agent-owned skills belong to one.
+// Without a link, a library skill reaches nobody — the same opt-in rule as with
+// secret_assignments.
 package skills
 
 import (
@@ -37,45 +37,44 @@ import (
 )
 
 var (
-	ErrNotFound = errors.New("skill nicht gefunden")
-	// ErrInvalid markiert einen Eingabefehler des Aufrufers — fehlende
-	// Beschreibung, zu große Datei, fehlende SKILL.md. Alle Prüfungen unten
-	// wickeln ihn ein, damit die HTTP-Schicht daraus ein 400 macht und nicht
-	// ein 500, das nach einem Serverfehler aussieht.
-	ErrInvalid = errors.New("ungültiger skill")
-	// ErrInvalidName: der Name wird zum Verzeichnisnamen und zum
-	// /slash-command — er muss beides gefahrlos hergeben.
-	ErrInvalidName = fmt.Errorf("%w: ungültiger skill-name", ErrInvalid)
-	// ErrInvalidPath: ein Dateipfad, der aus dem Skill-Verzeichnis
-	// herausführen würde. Fail-closed, bevor irgendetwas auf Platte landet.
-	ErrInvalidPath = fmt.Errorf("%w: ungültiger dateipfad", ErrInvalid)
-	// ErrExists: auf dieser Ebene (Bibliothek oder Agent) liegt bereits ein
-	// Skill dieses Namens. Anlegen ersetzt ihn NICHT still — der Name ist der
-	// Verzeichnisname, ein Fehlgriff würde fremde Arbeit überschreiben.
-	ErrExists = errors.New("skill mit diesem namen existiert bereits")
+	ErrNotFound = errors.New("skill not found")
+	// ErrInvalid marks an input error made by the caller — missing description,
+	// oversized file, missing SKILL.md. Every check below wraps it so the HTTP
+	// layer turns it into a 400 and not a 500 that looks like a server fault.
+	ErrInvalid = errors.New("invalid skill")
+	// ErrInvalidName: the name becomes the directory name and the
+	// /slash-command — it has to be safe for both.
+	ErrInvalidName = fmt.Errorf("%w: invalid skill name", ErrInvalid)
+	// ErrInvalidPath: a file path that would lead out of the skill directory.
+	// Fail-closed, before anything hits the disk.
+	ErrInvalidPath = fmt.Errorf("%w: invalid file path", ErrInvalid)
+	// ErrExists: at this level (library or agent) a skill of that name already
+	// exists. Creating does NOT silently replace it — the name is the directory
+	// name, so a slip would overwrite someone else's work.
+	ErrExists = errors.New("a skill with this name already exists")
 )
 
-// EntryFile ist der Pflichtname der Skill-Beschreibung. Fehlt sie, ist das
-// Verzeichnis für Claude Code kein Skill.
+// EntryFile is the mandatory name of the skill description. Without it the
+// directory is not a skill as far as Claude Code is concerned.
 const EntryFile = "SKILL.md"
 
 const (
-	// maxFiles/maxFileBytes begrenzen einen Skill. Nicht als Schikane: Der
-	// Inhalt wird bei jedem Lauf in die Sandbox materialisiert, und ein
-	// versehentlich hochgeladenes Archiv würde jeden Start verlangsamen.
+	// maxFiles/maxFileBytes cap a skill. Not out of spite: the content is
+	// materialized into the sandbox on every run, and an archive uploaded by
+	// accident would slow down every start.
 	maxFiles     = 32
 	maxFileBytes = 256 << 10
-	// maxDescription: die Beschreibung steht dauerhaft im Kontext JEDES Laufs
-	// dieses Agenten. Wer hier einen Absatz schreibt, zahlt ihn immer.
+	// maxDescription: the description permanently sits in the context of EVERY
+	// run of this agent. Write a paragraph here and you pay for it every time.
 	maxDescription = 500
 )
 
-// nameRe hält den Namen auf dem, was Verzeichnis und Slash-Command vertragen.
+// nameRe keeps the name within what a directory and a slash command tolerate.
 var nameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}$`)
 
-// Skill ist ein Skill ohne seine Dateien — die Listensicht für UI und API.
-// AgentID leer = Skill der Org-Bibliothek. AssignedTo trägt bei
-// Bibliotheks-Skills die verlinkten Agenten; leer heißt: wirkt bei niemandem.
+// Skill is a skill without its files — the list view for UI and API.
+// AgentID empty = skill from the org library. For library skills AssignedTo
+// carries the linked agents; empty means: it takes effect nowhere.
 type Skill struct {
 	ID          uuid.UUID   `json:"id"`
 	OrgID       uuid.UUID   `json:"org_id"`
@@ -86,74 +85,74 @@ type Skill struct {
 	UpdatedAt   time.Time   `json:"updated_at"`
 }
 
-// Library sagt, ob der Skill aus der Org-Bibliothek stammt (statt einem
-// Agenten zu gehören). Das ist der Herkunftsvermerk, den auch das Bundle trägt.
+// Library tells whether the skill comes from the org library (rather than
+// belonging to an agent). It is the origin marker the bundle carries as well.
 func (s Skill) Library() bool { return s.AgentID == nil }
 
-// File ist eine Datei im Skill-Verzeichnis. Path ist relativ, validiert.
+// File is a file inside the skill directory. Path is relative and validated.
 type File struct {
 	Path    string `json:"path"`
 	Content string `json:"content"`
 }
 
-// Full ist ein Skill mit Dateien — was zum Materialisieren und zum Export nötig ist.
+// Full is a skill with its files — what materializing and exporting need.
 type Full struct {
 	Skill
 	Files []File `json:"files"`
 }
 
-// Store ist der Datenzugriff. Keine Schnittstelle mit Alternativimplementierung
-// (anders als SecretStore/IdentityProvider): Skills sind Covey-eigener Zustand,
-// kein Fremdsystem, das man austauschen wollen würde.
+// Store is the data access layer. Not an interface with an alternative
+// implementation (unlike SecretStore/IdentityProvider): skills are Covey's own
+// state, not a foreign system anyone would want to swap out.
 type Store struct{ pool *pgxpool.Pool }
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
-// ValidateName prüft den Skill-Namen. Bewusst streng: Aus ihm werden ein
-// Verzeichnis im Agenten-Home und ein Slash-Command.
+// ValidateName checks the skill name. Deliberately strict: it turns into a
+// directory in the agent home and into a slash command.
 func ValidateName(name string) error {
 	if !nameRe.MatchString(name) {
-		return fmt.Errorf("%w %q: erlaubt sind Kleinbuchstaben, Ziffern und Bindestriche (max. 63, Beginn alphanumerisch)",
+		return fmt.Errorf("%w %q: allowed are lowercase letters, digits and hyphens (max. 63, must start alphanumeric)",
 			ErrInvalidName, name)
 	}
 	return nil
 }
 
-// ValidatePath prüft einen Dateipfad innerhalb des Skill-Verzeichnisses.
+// ValidatePath checks a file path inside the skill directory.
 //
-// Das ist eine Sicherheitsgrenze, keine Kosmetik: Der Pfad wird beim
-// Materialisieren an filepath.Join gehängt. Ein "../../.claude/settings.json"
-// oder ein absoluter Pfad würde sonst aus dem Skill-Verzeichnis ausbrechen und
-// in fremde Teile des Agenten-Home schreiben. Deshalb fail-closed und mit
-// path.Clean gegengeprüft, statt nur auf ".." zu suchen.
+// This is a security boundary, not cosmetics: while materializing, the path is
+// appended via filepath.Join. A "../../.claude/settings.json" or an absolute
+// path would otherwise break out of the skill directory and write into other
+// parts of the agent home. Hence fail-closed and cross-checked with path.Clean
+// instead of merely searching for "..".
 func ValidatePath(p string) error {
 	if p == "" || strings.ContainsRune(p, 0) {
-		return fmt.Errorf("%w: leer", ErrInvalidPath)
+		return fmt.Errorf("%w: empty", ErrInvalidPath)
 	}
 	if strings.HasPrefix(p, "/") || strings.Contains(p, `\`) || strings.Contains(p, ":") {
-		return fmt.Errorf("%w %q: nur relative Pfade mit /", ErrInvalidPath, p)
+		return fmt.Errorf("%w %q: only relative paths with /", ErrInvalidPath, p)
 	}
 	cleaned := path.Clean(p)
 	if cleaned != p || cleaned == "." || strings.HasPrefix(cleaned, "../") || cleaned == ".." {
-		return fmt.Errorf("%w %q: muss ein normalisierter Pfad innerhalb des Skills sein", ErrInvalidPath, p)
+		return fmt.Errorf("%w %q: must be a normalized path inside the skill", ErrInvalidPath, p)
 	}
 	for _, seg := range strings.Split(cleaned, "/") {
 		if seg == "" || seg == "." || seg == ".." {
-			return fmt.Errorf("%w %q: leeres oder relatives Pfadsegment", ErrInvalidPath, p)
+			return fmt.Errorf("%w %q: empty or relative path segment", ErrInvalidPath, p)
 		}
 	}
 	return nil
 }
 
-// validateFiles prüft den kompletten Dateisatz eines Skills: Pfade, Größen,
-// Anzahl — und dass die SKILL.md dabei ist. Ohne sie ist das Verzeichnis für
-// Claude Code kein Skill, der Agent bekäme also stumm nichts.
+// validateFiles checks a skill's complete file set: paths, sizes, count — and
+// that SKILL.md is among them. Without it the directory is not a skill to
+// Claude Code, so the agent would silently get nothing.
 func validateFiles(files []File) error {
 	if len(files) == 0 {
-		return fmt.Errorf("%w: keine dateien, %s ist pflicht", ErrInvalid, EntryFile)
+		return fmt.Errorf("%w: no files, %s is mandatory", ErrInvalid, EntryFile)
 	}
 	if len(files) > maxFiles {
-		return fmt.Errorf("%w: zu viele dateien (%d, max. %d)", ErrInvalid, len(files), maxFiles)
+		return fmt.Errorf("%w: too many files (%d, max. %d)", ErrInvalid, len(files), maxFiles)
 	}
 	seen := map[string]bool{}
 	hasEntry := false
@@ -162,25 +161,25 @@ func validateFiles(files []File) error {
 			return err
 		}
 		if seen[f.Path] {
-			return fmt.Errorf("%w: datei %q doppelt", ErrInvalid, f.Path)
+			return fmt.Errorf("%w: file %q duplicated", ErrInvalid, f.Path)
 		}
 		seen[f.Path] = true
 		if len(f.Content) > maxFileBytes {
-			return fmt.Errorf("%w: datei %q zu groß (%d bytes, max. %d)", ErrInvalid, f.Path, len(f.Content), maxFileBytes)
+			return fmt.Errorf("%w: file %q too large (%d bytes, max. %d)", ErrInvalid, f.Path, len(f.Content), maxFileBytes)
 		}
 		if f.Path == EntryFile {
 			hasEntry = true
 		}
 	}
 	if !hasEntry {
-		return fmt.Errorf("%w: %s fehlt — ohne sie erkennt die Runtime das Verzeichnis nicht als Skill",
+		return fmt.Errorf("%w: %s missing — without it the runtime does not recognize the directory as a skill",
 			ErrInvalid, EntryFile)
 	}
 	return nil
 }
 
-// Spec beschreibt einen anzulegenden oder zu ändernden Skill. AgentID leer =
-// Org-Bibliothek.
+// Spec describes a skill to be created or changed. AgentID empty = org
+// library.
 type Spec struct {
 	Name        string
 	Description string
@@ -188,44 +187,42 @@ type Spec struct {
 	Files       []File
 }
 
-// Validate prüft eine Spec, ohne etwas zu speichern.
+// Validate checks a Spec without storing anything.
 //
-// Getrennt von Upsert, weil manche Aufrufer vorab wissen müssen, ob alles
-// durchgeht: Der Bundle-Import prüft erst das ganze Bundle und legt dann an —
-// ein halb importierter Agent wäre schlimmer als ein abgelehnter.
+// Separate from Upsert because some callers need to know up front whether
+// everything will pass: the bundle import validates the whole bundle first and
+// only then creates — a half-imported agent would be worse than a rejected one.
 func Validate(spec Spec) error {
 	if err := ValidateName(spec.Name); err != nil {
 		return err
 	}
 	desc := strings.TrimSpace(spec.Description)
 	if desc == "" {
-		return fmt.Errorf("%w: description fehlt — sie entscheidet, ob die Runtime den Skill überhaupt lädt",
+		return fmt.Errorf("%w: description missing — it decides whether the runtime loads the skill at all",
 			ErrInvalid)
 	}
 	if len([]rune(desc)) > maxDescription {
-		return fmt.Errorf("%w: description zu lang (%d zeichen, max. %d) — sie steht in jedem Lauf im Kontext",
+		return fmt.Errorf("%w: description too long (%d characters, max. %d) — it sits in the context of every run",
 			ErrInvalid, len([]rune(desc)), maxDescription)
 	}
 	return validateFiles(spec.Files)
 }
 
-// Upsert legt einen Skill an oder ersetzt ihn vollständig (Beschreibung und
-// Dateisatz). Ersetzen statt Zusammenführen ist Absicht: Der Aufrufer schickt
-// den gewünschten Endzustand, sonst bliebe eine gelöschte Datei ewig liegen.
+// Upsert creates a skill or replaces it entirely (description and file set).
+// Replacing instead of merging is deliberate: the caller sends the desired end
+// state, otherwise a deleted file would linger forever.
 func (s *Store) Upsert(ctx context.Context, orgID uuid.UUID, spec Spec) (Skill, error) {
 	return s.write(ctx, orgID, spec, false)
 }
 
-// write ist der gemeinsame Schreibpfad von Upsert und Create. createOnly
-// entscheidet, was bei einem bereits vergebenen Namen passiert: ersetzen oder
-// ErrExists.
+// write is the shared write path of Upsert and Create. createOnly decides what
+// happens when the name is already taken: replace or ErrExists.
 //
-// Beides in EINER Transaktion und nicht als „vorher fragen, dann schreiben":
-// Zwischen einer getrennten Existenzprüfung und dem Schreiben passt ein
-// paralleler Aufruf, und der zweite Aufrufer ersetzte dann still fremde Arbeit,
-// obwohl er anlegen wollte. Der SELECT läuft deshalb in derselben Transaktion
-// wie der INSERT, und der Teil-Unique-Index fängt das Rennen ab, das der SELECT
-// nicht sieht.
+// Both in ONE transaction rather than "ask first, then write": a concurrent
+// call fits between a separate existence check and the write, and the second
+// caller would then silently replace someone else's work although it meant to
+// create. The SELECT therefore runs in the same transaction as the INSERT, and
+// the partial unique index catches the race the SELECT cannot see.
 func (s *Store) write(ctx context.Context, orgID uuid.UUID, spec Spec, createOnly bool) (Skill, error) {
 	if err := Validate(spec); err != nil {
 		return Skill{}, err
@@ -238,8 +235,8 @@ func (s *Store) write(ctx context.Context, orgID uuid.UUID, spec Spec, createOnl
 	}
 	defer tx.Rollback(ctx)
 
-	// Die Teil-Unique-Indizes trennen Org- und Agent-Ebene, deshalb zwei Wege
-	// statt eines ON CONFLICT.
+	// The partial unique indexes separate org and agent level, hence two paths
+	// instead of a single ON CONFLICT.
 	var id uuid.UUID
 	var q string
 	var args []any
@@ -256,9 +253,9 @@ func (s *Store) write(ctx context.Context, orgID uuid.UUID, spec Spec, createOnl
 		id = uuid.New()
 		if _, err := tx.Exec(ctx, `INSERT INTO skills (id, org_id, agent_id, name, description)
 			VALUES ($1,$2,$3,$4,$5)`, id, orgID, spec.AgentID, spec.Name, desc); err != nil {
-			// Zwischen SELECT und INSERT kann ein paralleler Aufruf denselben
-			// Namen belegt haben. Der Teil-Unique-Index fängt das ab; hier wird
-			// daraus dieselbe Aussage wie bei Create, statt eines rohen 23505.
+			// Between SELECT and INSERT a concurrent call may have taken the
+			// same name. The partial unique index catches that; here it turns
+			// into the same statement as with Create, instead of a raw 23505.
 			if isUniqueViolation(err) {
 				return Skill{}, fmt.Errorf("%w: %q", ErrExists, spec.Name)
 			}
@@ -290,17 +287,17 @@ func (s *Store) write(ctx context.Context, orgID uuid.UUID, spec Spec, createOnl
 		Description: desc, UpdatedAt: time.Now()}, nil
 }
 
-// Create legt einen Skill an und lehnt einen bereits vergebenen Namen mit
-// ErrExists ab, statt ihn zu ersetzen.
+// Create creates a skill and rejects an already taken name with ErrExists
+// instead of replacing it.
 //
-// Der Unterschied zu Upsert ist die Absicht des Aufrufers: Wer „neuen Skill
-// anlegen" drückt, meint einen neuen — ein Namenstreffer wäre dann fremde
-// Arbeit, die still verschwindet. Zum Ersetzen gibt es Upsert (Editor, Import).
+// What sets it apart from Upsert is the caller's intent: whoever hits "create
+// new skill" means a new one — a name collision would then be someone else's
+// work quietly disappearing. For replacing there is Upsert (editor, import).
 func (s *Store) Create(ctx context.Context, orgID uuid.UUID, spec Spec) (Skill, error) {
 	return s.write(ctx, orgID, spec, true)
 }
 
-// Get liefert einen Skill samt Dateien.
+// Get returns a skill including its files.
 func (s *Store) Get(ctx context.Context, orgID, id uuid.UUID) (Full, error) {
 	var out Full
 	err := s.pool.QueryRow(ctx, `SELECT id, org_id, agent_id, name, description, updated_at
@@ -361,8 +358,8 @@ func (s *Store) assigneesOf(ctx context.Context, skillID uuid.UUID) ([]uuid.UUID
 	return out, rows.Err()
 }
 
-// ListLibrary liefert die Org-Bibliothek (ohne Dateien), je Eintrag mit den
-// verlinkten Agenten — die UI zeigt daran, was wirklich irgendwo wirkt.
+// ListLibrary returns the org library (without files), each entry with its
+// linked agents — the UI uses that to show what actually takes effect anywhere.
 func (s *Store) ListLibrary(ctx context.Context, orgID uuid.UUID) ([]Skill, error) {
 	rows, err := s.pool.Query(ctx, `SELECT id, org_id, agent_id, name, description, updated_at
 		FROM skills WHERE org_id=$1 AND agent_id IS NULL ORDER BY name`, orgID)
@@ -381,7 +378,7 @@ func (s *Store) ListLibrary(ctx context.Context, orgID uuid.UUID) ([]Skill, erro
 	return out, nil
 }
 
-// ListOwn liefert die Skills, die einem Agenten selbst gehören (ohne Dateien).
+// ListOwn returns the skills an agent owns itself (without files).
 func (s *Store) ListOwn(ctx context.Context, orgID, agentID uuid.UUID) ([]Skill, error) {
 	rows, err := s.pool.Query(ctx, `SELECT id, org_id, agent_id, name, description, updated_at
 		FROM skills WHERE org_id=$1 AND agent_id=$2 ORDER BY name`, orgID, agentID)
@@ -404,7 +401,7 @@ func scanSkills(rows pgx.Rows) ([]Skill, error) {
 	return out, rows.Err()
 }
 
-// Delete entfernt einen Skill samt Dateien und Zuweisungen (ON DELETE CASCADE).
+// Delete removes a skill along with its files and assignments (ON DELETE CASCADE).
 func (s *Store) Delete(ctx context.Context, orgID, id uuid.UUID) error {
 	tag, err := s.pool.Exec(ctx, `DELETE FROM skills WHERE org_id=$1 AND id=$2`, orgID, id)
 	if err != nil {
@@ -416,8 +413,8 @@ func (s *Store) Delete(ctx context.Context, orgID, id uuid.UUID) error {
 	return nil
 }
 
-// Assign verlinkt einen Bibliotheks-Skill mit einem Agenten. Agent-eigene
-// Skills lassen sich nicht verlinken — sie gehören bereits jemandem.
+// Assign links a library skill to an agent. Agent-owned skills cannot be
+// linked — they already belong to someone.
 func (s *Store) Assign(ctx context.Context, orgID, skillID, agentID uuid.UUID) error {
 	var isLibrary bool
 	err := s.pool.QueryRow(ctx, `SELECT agent_id IS NULL FROM skills WHERE org_id=$1 AND id=$2`,
@@ -429,7 +426,7 @@ func (s *Store) Assign(ctx context.Context, orgID, skillID, agentID uuid.UUID) e
 		return err
 	}
 	if !isLibrary {
-		return fmt.Errorf("%w: nur bibliotheks-skills lassen sich zuweisen — dieser gehört bereits einem agenten",
+		return fmt.Errorf("%w: only library skills can be assigned — this one already belongs to an agent",
 			ErrInvalid)
 	}
 	_, err = s.pool.Exec(ctx, `INSERT INTO skill_assignments (skill_id, agent_id)
@@ -442,11 +439,11 @@ func isUniqueViolation(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
-// Unassign löst die Verlinkung.
+// Unassign removes the link.
 //
-// Löst nichts — unbekannte ID, fremde Organisation, gar keine Verlinkung —,
-// ist das ErrNotFound und kein Erfolg: Sonst quittiert die Oberfläche einen
-// Entzug, der nie stattgefunden hat, und niemand sieht den Tippfehler.
+// If nothing gets unlinked — unknown ID, foreign organization, no link at all
+// — that is ErrNotFound and not success: otherwise the UI confirms a revocation
+// that never happened, and nobody spots the typo.
 func (s *Store) Unassign(ctx context.Context, orgID, skillID, agentID uuid.UUID) error {
 	tag, err := s.pool.Exec(ctx, `DELETE FROM skill_assignments a USING skills s
 		WHERE a.skill_id=s.id AND s.org_id=$1 AND a.skill_id=$2 AND a.agent_id=$3`,
@@ -460,13 +457,12 @@ func (s *Store) Unassign(ctx context.Context, orgID, skillID, agentID uuid.UUID)
 	return nil
 }
 
-// ForAgent löst auf, was ein Agent tatsächlich bekommt: seine eigenen Skills
-// plus die ihm verlinkten Bibliotheks-Skills, mit Dateien.
+// ForAgent resolves what an agent actually gets: its own skills plus the
+// library skills linked to it, with files.
 //
-// Bei Namensgleichheit gewinnt der agent-eigene Skill. Sonst könnte eine
-// Änderung an der Bibliothek eine bewusste lokale Abweichung stillschweigend
-// überschreiben — und auf Platte könnten zwei Skills nicht ins selbe
-// Verzeichnis.
+// On a name clash the agent-owned skill wins. Otherwise a change in the library
+// could silently overwrite a deliberate local deviation — and on disk two
+// skills could not share the same directory anyway.
 func (s *Store) ForAgent(ctx context.Context, orgID, agentID uuid.UUID) ([]Full, error) {
 	rows, err := s.pool.Query(ctx, `SELECT id, org_id, agent_id, name, description, updated_at
 		FROM skills s WHERE s.org_id=$1 AND (
@@ -484,8 +480,8 @@ func (s *Store) ForAgent(ctx context.Context, orgID, agentID uuid.UUID) ([]Full,
 
 	byName := map[string]Skill{}
 	for _, sk := range found {
-		// ORDER BY agent_id NULLS LAST: Der agent-eigene Eintrag kommt zuerst
-		// und bleibt stehen.
+		// ORDER BY agent_id NULLS LAST: the agent-owned entry comes first and
+		// is the one that stays.
 		if _, dup := byName[sk.Name]; !dup {
 			byName[sk.Name] = sk
 		}

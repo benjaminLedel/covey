@@ -7,8 +7,8 @@ import (
 	"covey/internal/target"
 )
 
-// AttachmentResult ist die Antwort der get_attachment-Aktion: wo der Anhang in
-// der Sandbox liegt und wie der Agent ihn ansieht.
+// AttachmentResult is the answer of the get_attachment action: where the
+// attachment lies in the sandbox and how the agent looks at it.
 type AttachmentResult struct {
 	Path        string `json:"path"`
 	Filename    string `json:"filename"`
@@ -17,16 +17,16 @@ type AttachmentResult struct {
 	Hint        string `json:"hint"`
 }
 
-// getAttachmentToSandbox holt einen Mail-Anhang gebrokert in die Sandbox — die
-// Postfach-Credentials bleiben im Daemon, die Datei landet unter
-// <workdir>/attachments/. Der Agent liest sie danach mit dem Read-Tool (Bilder
-// per Vision, sonst als Datei). Die Namen der Anhänge liefert get_message.
+// getAttachmentToSandbox fetches a mail attachment brokered into the sandbox —
+// the mailbox credentials stay in the daemon, the file ends up under
+// <workdir>/attachments/. The agent then reads it with the Read tool (images by
+// vision, everything else as a file). get_message supplies the attachment names.
 func getAttachmentToSandbox(cfg Config, mailbox string, uid uint32, name, workdir string) (AttachmentResult, error) {
 	if workdir == "" {
-		return AttachmentResult{}, fmt.Errorf("get_attachment braucht eine Sandbox (kein Arbeitsverzeichnis im Kontext)")
+		return AttachmentResult{}, fmt.Errorf("get_attachment needs a sandbox (no working directory in the context)")
 	}
 	if strings.TrimSpace(name) == "" {
-		return AttachmentResult{}, fmt.Errorf("name fehlt")
+		return AttachmentResult{}, fmt.Errorf("name missing")
 	}
 	limit := maxAttachmentBytes()
 	fname, contentType, data, err := getAttachment(cfg, mailbox, uid, name, limit)
@@ -34,18 +34,19 @@ func getAttachmentToSandbox(cfg Config, mailbox string, uid uint32, name, workdi
 		return AttachmentResult{}, err
 	}
 
-	// Ablegen, Namenshärtung und Kollisionsschutz macht der gemeinsame Helfer
-	// (internal/target/sandboxdatei.go) — teams und gitlab schreiben über
-	// denselben Weg, und `attachments/` teilen sich email und teams sogar.
-	datei, err := target.DateiAblegen(workdir, "attachments", fname, data, contentType)
+	// Storing the file, hardening the name and collision protection is the job
+	// of the shared helper (internal/target/sandboxdatei.go) — teams and gitlab
+	// write through the same path, and email and teams even share
+	// `attachments/`.
+	file, err := target.StoreFile(workdir, "attachments", fname, data, contentType)
 	if err != nil {
 		return AttachmentResult{}, err
 	}
 	return AttachmentResult{
-		Path:        datei.Pfad,
-		Filename:    datei.Dateiname,
-		ContentType: datei.ContentType,
-		Bytes:       datei.Bytes,
-		Hint:        datei.Hinweis,
+		Path:        file.Path,
+		Filename:    file.FileName,
+		ContentType: file.ContentType,
+		Bytes:       file.Bytes,
+		Hint:        file.Hint,
 	}, nil
 }

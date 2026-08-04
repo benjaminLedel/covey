@@ -2,15 +2,15 @@ package orchestrator
 
 import "sync"
 
-// Event ist ein Live-Update für die Admin-UI (SSE).
+// Event is a live update for the admin UI (SSE).
 type Event struct {
 	Type    string `json:"type"` // agent_status | task | recording | approval | guardrail
 	AgentID string `json:"agent_id,omitempty"`
 	Data    any    `json:"data,omitempty"`
 }
 
-// Broadcaster ist ein simpler Fan-out für Live-Events. Langsame Abonnenten
-// verlieren Events (non-blocking send) — die UI lädt ohnehin per Query nach.
+// Broadcaster is a simple fan-out for live events. Slow subscribers lose
+// events (non-blocking send) — the UI reloads via query anyway.
 type Broadcaster struct {
 	mu   sync.Mutex
 	subs map[chan Event]struct{}

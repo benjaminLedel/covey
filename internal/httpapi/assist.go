@@ -13,34 +13,33 @@ import (
 	"covey/internal/claudeapi"
 )
 
-// KI-Assistent zum Anpassen von Agenten („Config-Copilot", FR-001).
+// AI assistant for adapting agents ("config copilot", FR-001).
 //
-// Idee: Sobald in der Organisation ein org-weites Claude-Credential hinterlegt
-// ist (dasselbe, das die Agenten-Runtime speist), kann die Control Plane es
-// serverseitig wiederverwenden, um einen Menschen beim Formulieren der
-// Agenten-Config (SOUL.md & Co.) zu unterstützen — ein LLM, das beim
-// Konfigurieren der anderen LLMs hilft.
+// The idea: as soon as an org-wide Claude credential is configured in the
+// organization (the same one that feeds the agent runtime), the control plane
+// can reuse it server-side to support a human in phrasing the agent config
+// (SOUL.md & co.) — an LLM that helps configuring the other LLMs.
 //
-// Leitplanken: Das Credential verlässt die Control Plane nie (kein Browser,
-// keine Sandbox). Der Assistent committet nichts selbst — er liefert
-// Vorschläge, die der Mensch als Diff reviewt und bewusst speichert
-// (Config-as-Code bleibt gewahrt).
+// Guard rails: the credential never leaves the control plane (no browser, no
+// sandbox). The assistant commits nothing itself — it delivers proposals that
+// the human reviews as a diff and saves deliberately (config-as-code stays
+// intact).
 
-// assistModel: festes Modell des Config-Copilots — das jeweils aktuellste Opus.
+// assistModel: fixed model of the config copilot — the most recent Opus.
 const assistModel = "claude-opus-4-8"
 
-// assistMaxTokens begrenzt die Antwort; nicht-gestreamt, also unter dem
-// SDK-Timeout-Bereich (~16k) bleiben.
+// assistMaxTokens caps the response; non-streamed, so stay below the SDK
+// timeout range (~16k).
 const assistMaxTokens = 8000
 
-// anthropicBaseURL wird aus credcheck.go geteilt (Variable, damit Tests einen
-// httptest-Server unterschieben können).
+// anthropicBaseURL is shared from credcheck.go (a variable so tests can slip
+// in an httptest server).
 
-// assistEditableFiles sind die Config-Dateien, die der Assistent vorschlagen
-// darf — alle vom Editor verwalteten Dateien. ACCESS.md und EGRESS.md sind
-// strukturierte Text-Sichten auf die Tools-/Egress-Stores; ihr Speichern läuft
-// über einen Write-Through (kann die Security-Rolle erfordern). TOOLS.md ist
-// Legacy und in ACCESS.md aufgegangen — daher bewusst nicht dabei.
+// assistEditableFiles are the config files the assistant may propose — all
+// files managed by the editor. ACCESS.md and EGRESS.md are structured text
+// views onto the tools/egress stores; saving them runs through a write-through
+// (may require the security role). TOOLS.md is legacy and has been merged into
+// ACCESS.md — hence deliberately not included.
 var assistEditableFiles = map[string]bool{
 	"SOUL.md":         true,
 	"CAPABILITIES.md": true,
@@ -51,59 +50,59 @@ var assistEditableFiles = map[string]bool{
 	"EGRESS.md":       true,
 }
 
-// assistFileOrder ist die Reihenfolge, in der Dateien dem Modell als Kontext
-// gezeigt werden.
+// assistFileOrder is the order in which files are shown to the model as
+// context.
 var assistFileOrder = []string{
 	"SOUL.md", "CAPABILITIES.md", "PLAYBOOKS.md", "ORG.md",
 	"HEARTBEAT.md", "ACCESS.md", "EGRESS.md",
 }
 
-// assistMessage ist ein Turn im Dialog Mensch↔Assistent. Content ist ein
-// einfacher String — die Messages-API akzeptiert das als einzelnen Text-Block.
+// assistMessage is one turn in the dialogue human↔assistant. Content is a
+// plain string — the Messages API accepts that as a single text block.
 type assistMessage = claudeapi.Message
 
-// assistProposal ist ein vorgeschlagener neuer Inhalt für eine Config-Datei.
+// assistProposal is a proposed new content for a config file.
 type assistProposal struct {
 	File    string `json:"file"`
 	Content string `json:"content"`
 }
 
-// assistResponse ist die Antwort an die UI: Prosa-Nachricht plus optionale
-// Datei-Vorschläge, die der Mensch als Diff übernehmen kann.
+// assistResponse is the answer to the UI: prose message plus optional file
+// proposals the human can accept as a diff.
 type assistResponse struct {
 	Reply     string           `json:"reply"`
 	Proposals []assistProposal `json:"proposals"`
 }
 
-// resolveOrgClaude findet das org-weite Claude-Credential (Reihenfolge und
-// Schlüsselnamen liegen in claudeapi, damit Copilot und Traum dasselbe sehen).
+// resolveOrgClaude finds the org-wide Claude credential (order and key names
+// live in claudeapi so that copilot and dream see the same).
 func (s *Server) resolveOrgClaude(ctx context.Context, orgID uuid.UUID) (cred string, oauth, ok bool) {
 	return claudeapi.ResolveOrg(ctx, s.Secrets, orgID)
 }
 
-// handleAssistStatus meldet der UI, ob der Config-Copilot verfügbar ist — also
-// ob ein org-weites Claude-Credential auflösbar ist. Ohne eines wird die
-// Funktion in der UI gar nicht angeboten (keine tote UI, keine Kosten).
+// handleAssistStatus tells the UI whether the config copilot is available —
+// that is, whether an org-wide Claude credential can be resolved. Without one
+// the feature is not offered in the UI at all (no dead UI, no costs).
 func (s *Server) handleAssistStatus(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	_, _, ok := s.resolveOrgClaude(r.Context(), p.OrgID)
 	writeJSON(w, http.StatusOK, map[string]bool{"available": ok})
 }
 
-// handleConfigAssist ist der Dialog-Endpunkt: nimmt den Gesprächsverlauf plus
-// den aktuellen (ggf. ungespeicherten) Config-Draft, stellt den Plattform-
-// Kontext zusammen, befragt Claude und liefert Nachricht + Datei-Vorschläge.
+// handleConfigAssist is the dialogue endpoint: it takes the conversation
+// history plus the current (possibly unsaved) config draft, assembles the
+// platform context, asks Claude and returns message + file proposals.
 func (s *Server) handleConfigAssist(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	p := principalFrom(r)
 	cred, oauth, ok := s.resolveOrgClaude(r.Context(), p.OrgID)
 	if !ok {
 		writeErr(w, http.StatusPreconditionFailed,
-			"kein org-weites Claude-Credential hinterlegt — der KI-Assistent ist nicht verfügbar")
+			"no org-wide Claude credential configured — the AI assistant is not available")
 		return
 	}
 	var in struct {
@@ -111,7 +110,7 @@ func (s *Server) handleConfigAssist(w http.ResponseWriter, r *http.Request) {
 		Files    map[string]string `json:"files"`
 	}
 	if err := readJSON(r, &in); err != nil || len(in.Messages) == 0 {
-		writeErr(w, http.StatusBadRequest, "messages fehlt")
+		writeErr(w, http.StatusBadRequest, "messages is missing")
 		return
 	}
 	a, err := s.Registry.Get(r.Context(), id)
@@ -127,40 +126,40 @@ func (s *Server) handleConfigAssist(w http.ResponseWriter, r *http.Request) {
 		claudeapi.Call{Model: assistModel, MaxTokens: assistMaxTokens}, system, in.Messages)
 	if err != nil {
 		s.Log.Error("config-assist", "agent", id, "err", err)
-		writeErr(w, http.StatusBadGateway, "KI-Assistent nicht erreichbar: "+err.Error())
+		writeErr(w, http.StatusBadGateway, "AI assistant unreachable: "+err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, parseAssistReply(raw))
 }
 
-// buildAssistSystem baut den System-Prompt: Rolle, Plattform-Protokoll,
-// angebundene Zielsysteme, geltende Guard-Rails, aktueller Config-Stand und
-// der JSON-Antwort-Vertrag. So schlägt der Assistent nur Verhalten vor, das die
-// Plattform auch zulässt.
+// buildAssistSystem builds the system prompt: role, platform protocol,
+// connected target systems, applicable guard rails, current config state and
+// the JSON response contract. That way the assistant only proposes behaviour
+// the platform actually permits.
 func (s *Server) buildAssistSystem(ctx context.Context, orgID uuid.UUID, a agents.Agent, files map[string]string) string {
 	var b strings.Builder
-	b.WriteString(`Du bist der Config-Assistent der Covey-Plattform: Du hilfst einem Menschen (dem Agent-Owner) dabei, die Konfiguration eines KI-Agenten zu schreiben und zu überarbeiten. Antworte auf Deutsch, nüchtern und präzise.
+	b.WriteString(`You are the config assistant of the Covey platform: you help a human (the agent owner) write and revise the configuration of an AI agent. Answer in English, matter-of-factly and precisely.
 
-Ein Agent auf Covey wird über Markdown-Dateien konfiguriert (Config-as-Code). Du darfst alle diese Dateien vorschlagen:
-- SOUL.md — Charakter, Rolle, Ton, Grundhaltung des Agenten (das Herzstück).
-- CAPABILITIES.md — konkrete Fähigkeiten und was der Agent tun darf/soll.
-- PLAYBOOKS.md — wiederkehrende Abläufe Schritt für Schritt.
-- ORG.md — Einbettung in die Organisation, an wen eskaliert wird.
-- HEARTBEAT.md — periodische „Was liegt an?"-Impulse (optional).
-- ACCESS.md — welche Zielsysteme der Agent nutzen darf (Broker-Scopes, Tool-Allowlist). Strukturierte Text-Sicht auf den Tools-Store; behalte exakt das Format des aktuellen Stands bei (Kommentarzeilen mit '#', dann Einträge). Änderungen wirken auf die Broker-Zugänge und können beim Speichern die Security-Rolle erfordern.
-- EGRESS.md — welche Hosts der Agent ausgehend erreichen darf (Templates + eigene Hosts). Strukturierte Text-Sicht auf den Egress-Store; ebenfalls exakt das bestehende Format beibehalten; Speichern kann die Security-Rolle erfordern.
+An agent on Covey is configured through markdown files (config-as-code). You may propose all of these files:
+- SOUL.md — character, role, tone, basic attitude of the agent (the heart of it).
+- CAPABILITIES.md — concrete capabilities and what the agent may/should do.
+- PLAYBOOKS.md — recurring procedures step by step.
+- ORG.md — embedding into the organization, whom to escalate to.
+- HEARTBEAT.md — periodic "what is up?" impulses (optional).
+- ACCESS.md — which target systems the agent may use (broker scopes, tool allowlist). Structured text view onto the tools store; keep exactly the format of the current state (comment lines with '#', then entries). Changes take effect on the broker accesses and may require the security role when saving.
+- EGRESS.md — which hosts the agent may reach outbound (templates + own hosts). Structured text view onto the egress store; likewise keep exactly the existing format; saving may require the security role.
 
-Deine Aufgabe: Aus der Beschreibung des Menschen konkrete, gut formulierte Config-Inhalte entwerfen oder bestehende gezielt überarbeiten. Schlage nur Verhalten vor, das die Plattform auch zulässt (keine Zielsysteme/Aktionen erfinden, die unten nicht aufgeführt sind; geltende Guard-Rails respektieren). Bei ACCESS.md/EGRESS.md nur Systeme/Templates verwenden, die real existieren (siehe Kontext unten).
+Your task: draft concrete, well-phrased config content from the human's description, or revise existing content in a targeted way. Only propose behaviour the platform actually permits (do not invent target systems/actions that are not listed below; respect the applicable guard rails). For ACCESS.md/EGRESS.md only use systems/templates that really exist (see the context below).
 
 `)
-	b.WriteString("## Plattform-Protokoll (gilt für jeden Agenten)\n")
+	b.WriteString("## Platform protocol (applies to every agent)\n")
 	b.WriteString(agents.ProtocolInstructions)
 	b.WriteString("\n\n")
 
-	b.WriteString("## Dieser Agent\n")
-	b.WriteString("Anzeigename: " + a.DisplayName + "\n")
+	b.WriteString("## This agent\n")
+	b.WriteString("Display name: " + a.DisplayName + "\n")
 	if a.JobTitle != "" {
-		b.WriteString("Funktion: " + a.JobTitle + "\n")
+		b.WriteString("Job title: " + a.JobTitle + "\n")
 	}
 	b.WriteString("Runtime: " + a.Runtime + "\n\n")
 
@@ -182,18 +181,18 @@ Deine Aufgabe: Aus der Beschreibung des Menschen konkrete, gut formulierte Confi
 				continue
 			}
 			if ru.ScopeLevel == "agent" && (ru.AgentID == nil || *ru.AgentID != a.ID) {
-				continue // agent-gescopte Regel eines anderen Agenten
+				continue // agent-scoped rule of a different agent
 			}
 			active = append(active, "- "+ru.RuleType+": "+ru.Pattern)
 		}
 		if len(active) > 0 {
-			b.WriteString("## Geltende Guard-Rails (plattform-erzwungen)\n")
+			b.WriteString("## Applicable guard rails (platform-enforced)\n")
 			b.WriteString(strings.Join(active, "\n"))
 			b.WriteString("\n\n")
 		}
 	}
 
-	b.WriteString("## Aktueller Config-Stand\n")
+	b.WriteString("## Current config state\n")
 	wroteAny := false
 	for _, name := range assistFileOrder {
 		content := strings.TrimSpace(files[name])
@@ -204,29 +203,29 @@ Deine Aufgabe: Aus der Beschreibung des Menschen konkrete, gut formulierte Confi
 		b.WriteString("### " + name + "\n```\n" + content + "\n```\n")
 	}
 	if !wroteAny {
-		b.WriteString("Alle Config-Dateien sind noch leer — der Agent wird gerade neu aufgesetzt.\n")
+		b.WriteString("All config files are still empty — the agent is being set up right now.\n")
 	}
 	b.WriteString("\n")
 
-	b.WriteString(`## Antwortformat (WICHTIG)
-Antworte AUSSCHLIESSLICH mit einem einzigen JSON-Objekt, ohne Markdown-Codefence, ohne Text davor oder danach:
-{"reply": "<deine Nachricht an den Menschen>", "proposals": [{"file": "SOUL.md", "content": "<vollständiger neuer Dateiinhalt>"}]}
+	b.WriteString(`## Response format (IMPORTANT)
+Answer EXCLUSIVELY with a single JSON object, without a markdown code fence, without text before or after it:
+{"reply": "<your message to the human>", "proposals": [{"file": "SOUL.md", "content": "<complete new file content>"}]}
 
-Regeln:
-- "reply" ist deine kurze Prosa-Antwort (was du vorschlägst und warum).
-- "proposals" enthält je einen Eintrag pro Datei, die du ändern willst, mit dem VOLLSTÄNDIGEN neuen Inhalt (nicht nur ein Diff). Leeres Array, wenn du nur erklärst/nachfragst und (noch) nichts änderst.
-- Erlaubte Dateinamen: SOUL.md, CAPABILITIES.md, PLAYBOOKS.md, ORG.md, HEARTBEAT.md, ACCESS.md, EGRESS.md.
-- Bei ACCESS.md/EGRESS.md das exakte Format des aktuellen Stands beibehalten (Kommentarzeilen, Einträge) und nur real existierende Systeme/Templates verwenden.
-- Schlage nichts vor, was die Plattform nicht kann.`)
+Rules:
+- "reply" is your short prose answer (what you propose and why).
+- "proposals" contains one entry per file you want to change, with the COMPLETE new content (not just a diff). Empty array if you only explain/ask back and do not change anything (yet).
+- Allowed file names: SOUL.md, CAPABILITIES.md, PLAYBOOKS.md, ORG.md, HEARTBEAT.md, ACCESS.md, EGRESS.md.
+- For ACCESS.md/EGRESS.md keep the exact format of the current state (comment lines, entries) and only use systems/templates that really exist.
+- Do not propose anything the platform cannot do.`)
 	return b.String()
 }
 
-// parseAssistReply zieht das JSON-Objekt aus der Modell-Antwort. Fällt das
-// Parsen fehl (das Modell hat doch Prosa geliefert), wird der ganze Text als
-// Nachricht ohne Vorschläge zurückgegeben — nie ein harter Fehler.
+// parseAssistReply extracts the JSON object from the model's answer. If
+// parsing fails (the model delivered prose after all), the whole text is
+// returned as the message without proposals — never a hard error.
 func parseAssistReply(raw string) assistResponse {
 	txt := strings.TrimSpace(raw)
-	// Etwaigen ```json … ```-Fence entfernen.
+	// Strip an eventual ```json … ``` fence.
 	if strings.HasPrefix(txt, "```") {
 		if i := strings.IndexByte(txt, '\n'); i >= 0 {
 			txt = txt[i+1:]
@@ -234,7 +233,7 @@ func parseAssistReply(raw string) assistResponse {
 		txt = strings.TrimSuffix(strings.TrimSpace(txt), "```")
 		txt = strings.TrimSpace(txt)
 	}
-	// Auf das erste '{' … letzte '}' eingrenzen (falls Text drumherum steht).
+	// Narrow down to the first '{' … last '}' (in case there is text around it).
 	if i := strings.IndexByte(txt, '{'); i > 0 {
 		txt = txt[i:]
 	}
@@ -246,7 +245,7 @@ func parseAssistReply(raw string) assistResponse {
 	if err := json.Unmarshal([]byte(txt), &out); err != nil || strings.TrimSpace(out.Reply) == "" {
 		return assistResponse{Reply: strings.TrimSpace(raw), Proposals: nil}
 	}
-	// Vorschläge auf die editierbaren Dateien filtern.
+	// Filter the proposals down to the editable files.
 	filtered := out.Proposals[:0]
 	for _, pr := range out.Proposals {
 		if assistEditableFiles[pr.File] {

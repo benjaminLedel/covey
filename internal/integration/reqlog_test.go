@@ -14,10 +14,10 @@ import (
 	reqlogstore "covey/internal/reqlog/store"
 )
 
-// TestRequestLogTeams ist der Durchstich des Request-Logs (spec/06) am
-// Teams-Zielsystem: der eingehende Webhook wird protokolliert (auch der
-// abgelehnte), der ausgehende Bot-Connector-Call der Sandbox ebenso — samt
-// Agenten- und Aufgabenbezug. Beides ist über die Plattform-API sichtbar.
+// TestRequestLogTeams is the vertical slice of the request log (spec/06) on the
+// Teams target system: the incoming webhook is logged (the rejected one as
+// well), and so is the sandbox's outgoing bot-connector call — including the
+// agent and task reference. Both are visible through the platform API.
 func TestRequestLogTeams(t *testing.T) {
 	s := newStack(t)
 	teams := newFakeTeams(t)
@@ -33,8 +33,8 @@ func TestRequestLogTeams(t *testing.T) {
 	s.secrets.Assign(ctx, s.orgID, "teams_token", agent.ID)
 	s.secrets.Assign(ctx, s.orgID, "teams_url", agent.ID)
 
-	// 1) Abgelehnter Webhook: unbekannter Slug. Genau dieser Fall hinterließ
-	//    bisher keine Spur — jetzt steht er mit Status 404 im Log.
+	// 1) Rejected webhook: unknown slug. Exactly this case used to leave no
+	//    trace — now it is in the log with status 404.
 	req, _ := http.NewRequest(http.MethodPost, s.http.URL+"/api/webhooks/teams/gibtsnicht",
 		strings.NewReader(`{"type":"message","text":"hallo","client_secret":"streng-geheim"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -44,19 +44,19 @@ func TestRequestLogTeams(t *testing.T) {
 	}
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("unbekannter slug: HTTP %d (erwartet 404)", resp.StatusCode)
+		t.Fatalf("unknown slug: HTTP %d (expected 404)", resp.StatusCode)
 	}
 
-	// 2) Echter Lauf: Webhook → Aufgabe → der Agent antwortet über den Connector.
+	// 2) Real run: webhook → task → the agent answers through the connector.
 	svc := teams.srv.URL
 	text := fmt.Sprintf(
-		"[mock:action teams/reply {\"service_url\":\"%s\",\"conversation_id\":\"19:c\",\"reply_to_activity_id\":\"a1\",\"text\":\"Alles klar\"}]\n"+
-			"[mock:result Erledigt]", svc)
+		"[mock:action teams/reply {\"service_url\":\"%s\",\"conversation_id\":\"19:c\",\"reply_to_activity_id\":\"a1\",\"text\":\"All right\"}]\n"+
+			"[mock:result Done]", svc)
 	activity := teamsActivity("a1", "19:c", "29:user", "28:bot", text, nil)
 	if out := postTeamsWebhook(t, s, "teams-log", activity); out != `{"outcome":"created"}` {
-		t.Fatalf("webhook muss eine Aufgabe anlegen, got %s", out)
+		t.Fatalf("the webhook has to create a task, got %s", out)
 	}
-	waitFor(t, "aufgabe done", 15*time.Second, func() bool {
+	waitFor(t, "task done", 15*time.Second, func() bool {
 		tasks, _ := s.backlog.ListByAgent(ctx, agent.ID, false)
 		for _, task := range tasks {
 			if task.State == backlog.StateDone {
@@ -66,57 +66,57 @@ func TestRequestLogTeams(t *testing.T) {
 		return false
 	})
 
-	// Der Store schreibt asynchron — auf die erwarteten Einträge warten.
+	// The store writes asynchronously — wait for the expected entries.
 	var entries []reqlogstore.View
-	waitFor(t, "request-log gefüllt", 10*time.Second, func() bool {
+	waitFor(t, "request log filled", 10*time.Second, func() bool {
 		entries, _ = s.reqlog.List(ctx, s.orgID, reqlogstore.Filter{Limit: 200})
 		return countDirection(entries, "in") >= 2 && countDirection(entries, "out") >= 1
 	})
 
-	// Eingehend: der abgelehnte Webhook, mit redigiertem Secret im Body.
+	// Incoming: the rejected webhook, with the secret redacted in the body.
 	rejected := findEntry(entries, func(v reqlogstore.View) bool {
 		return v.Direction == "in" && v.Status == http.StatusNotFound
 	})
 	if rejected == nil {
-		t.Fatalf("abgelehnter webhook fehlt im log: %+v", entries)
+		t.Fatalf("the rejected webhook is missing from the log: %+v", entries)
 	}
 	if rejected.System != "teams" {
-		t.Fatalf("system falsch: %q", rejected.System)
+		t.Fatalf("wrong system: %q", rejected.System)
 	}
 	detail, err := s.reqlog.Get(ctx, s.orgID, rejected.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if strings.Contains(detail.ReqBody, "streng-geheim") {
-		t.Fatalf("secret nicht redigiert: %q", detail.ReqBody)
+		t.Fatalf("the secret was not redacted: %q", detail.ReqBody)
 	}
-	if !strings.Contains(detail.RespBody, "kein agent mit slug") {
-		t.Fatalf("antwort fehlt: %q", detail.RespBody)
+	if !strings.Contains(detail.RespBody, "no agent with slug") {
+		t.Fatalf("the response is missing: %q", detail.RespBody)
 	}
 
-	// Eingehend: der angenommene Webhook trägt den aufgelösten Agenten.
+	// Incoming: the accepted webhook carries the resolved agent.
 	accepted := findEntry(entries, func(v reqlogstore.View) bool {
 		return v.Direction == "in" && v.Status == http.StatusOK
 	})
 	if accepted == nil || accepted.AgentSlug != "teams-log" {
-		t.Fatalf("angenommener webhook ohne agentenbezug: %+v", accepted)
+		t.Fatalf("the accepted webhook has no agent reference: %+v", accepted)
 	}
 
-	// Ausgehend: der Connector-Call aus der Sandbox — mit Agent und Aufgabe.
+	// Outgoing: the connector call from the sandbox — with agent and task.
 	out := findEntry(entries, func(v reqlogstore.View) bool {
 		return v.Direction == "out" && v.System == "teams" && strings.Contains(v.URL, "/activities")
 	})
 	if out == nil {
-		t.Fatalf("connector-call fehlt im log: %+v", entries)
+		t.Fatalf("the connector call is missing from the log: %+v", entries)
 	}
 	if out.AgentID == nil || out.TaskID == nil {
-		t.Fatalf("ausgehender request ohne agent/aufgabe: %+v", out)
+		t.Fatalf("outgoing request without agent/task: %+v", out)
 	}
 	if out.Status != http.StatusOK || out.DurationMS < 0 {
-		t.Fatalf("ausgehender request: status=%d dauer=%d", out.Status, out.DurationMS)
+		t.Fatalf("outgoing request: status=%d duration=%d", out.Status, out.DurationMS)
 	}
 
-	// 3) Sichtbar über die Plattform-API (Rolle platform_admin).
+	// 3) Visible through the platform API (role platform_admin).
 	c := login(t, s, "admin@test.local", "admin-passwort")
 	resp = c.do(http.MethodGet, "/api/v1/platform/requests?system=teams&limit=50", nil)
 	defer resp.Body.Close()
@@ -135,11 +135,11 @@ func TestRequestLogTeams(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !page.Enabled || len(page.Entries) == 0 {
-		t.Fatalf("API liefert keine einträge: %s", buf.String())
+		t.Fatalf("the API returns no entries: %s", buf.String())
 	}
 	for _, e := range page.Entries {
 		if e.System != "teams" {
-			t.Fatalf("system-filter greift nicht: %+v", e)
+			t.Fatalf("the system filter does not take effect: %+v", e)
 		}
 	}
 }

@@ -22,10 +22,10 @@ import (
 	"covey/internal/backlog"
 )
 
-// TestEmailPlugin: das E-Mail-Zielsystem end-to-end durch den Stack — die
-// Zwei-Secret-Konvention des Brokers (email_url kodiert IMAP- UND
-// SMTP-Endpoint), ACCESS.md-Gate und Action-Proxy bis zum echten
-// Protokoll-Roundtrip (In-Memory-IMAP, Fake-SMTP).
+// TestEmailPlugin: the e-mail target system end-to-end through the stack — the
+// broker's two-secret convention (email_url encodes the IMAP AND the SMTP
+// endpoint), the ACCESS.md gate and the action proxy right through to a real
+// protocol roundtrip (in-memory IMAP, fake SMTP).
 func TestEmailPlugin(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -36,7 +36,7 @@ func TestEmailPlugin(t *testing.T) {
 		"From: Kunde <kunde@example.com>\r\nTo: agent@example.com\r\nSubject: Drucker kaputt\r\nMessage-ID: <t1@example.com>\r\n\r\nDer Drucker druckt nicht.\r\n")
 	smtp := startFakeSMTP(t)
 
-	// Aktivierung ist opt-in — die Test-Org schaltet das Built-in frei.
+	// Activation is opt-in — the test org enables the built-in.
 	if _, err := s.pool.Exec(ctx, `INSERT INTO target_plugins (org_id, name, kind, enabled)
 		VALUES ($1,'email','builtin',TRUE)`, s.orgID); err != nil {
 		t.Fatal(err)
@@ -64,24 +64,24 @@ func TestEmailPlugin(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, "mail-aufgabe done", 15*time.Second, func() bool {
+	waitFor(t, "mail task done", 15*time.Second, func() bool {
 		return s.taskState(task.ID) == backlog.StateDone
 	})
 
-	// Die Antwort ging als echte SMTP-Einlieferung raus — mit Umschlag und
-	// Threading-Headern aus der Original-Mail.
+	// The reply went out as a real SMTP delivery — with an envelope and the
+	// threading headers from the original mail.
 	from, rcpts, data := smtp.snapshot()
 	if from != mailUser || strings.Join(rcpts, ",") != "kunde@example.com" {
-		t.Fatalf("smtp-umschlag: %q → %v", from, rcpts)
+		t.Fatalf("smtp envelope: %q → %v", from, rcpts)
 	}
 	if !strings.Contains(data, "Subject: Re: Drucker kaputt") ||
 		!strings.Contains(data, "In-Reply-To: <t1@example.com>") {
-		t.Fatalf("reply-nachricht unvollständig:\n%s", data)
+		t.Fatalf("reply message incomplete:\n%s", data)
 	}
 }
 
-// startMemIMAP startet einen In-Memory-IMAP-Server (Klartext — passend zur
-// imap+insecure-Test-Konfiguration des Plugins).
+// startMemIMAP starts an in-memory IMAP server (plaintext — matching the
+// plugin's imap+insecure test configuration).
 func startMemIMAP(t *testing.T, user, pass string) string {
 	t.Helper()
 	mem := imapmemserver.New()
@@ -105,7 +105,7 @@ func startMemIMAP(t *testing.T, user, pass string) string {
 	return ln.Addr().String()
 }
 
-// appendTestMail legt eine Roh-Mail per IMAP-APPEND ins Postfach (UID 1, 2, …).
+// appendTestMail puts a raw mail into the mailbox via IMAP APPEND (UID 1, 2, …).
 func appendTestMail(t *testing.T, addr, user, pass, raw string) {
 	t.Helper()
 	c, err := imapclient.DialInsecure(addr, nil)
@@ -129,8 +129,8 @@ func appendTestMail(t *testing.T, addr, user, pass, raw string) {
 	_ = c.Logout().Wait()
 }
 
-// fakeSMTPServer nimmt eine Einlieferung im Klartext entgegen und zeichnet
-// Umschlag + Nachricht auf — das SMTP-Gegenstück zum fakeZammad.
+// fakeSMTPServer accepts a delivery in plaintext and records envelope +
+// message — the SMTP counterpart to fakeZammad.
 type fakeSMTPServer struct {
 	ln    net.Listener
 	mu    sync.Mutex
@@ -216,7 +216,7 @@ func (f *fakeSMTPServer) snapshot() (string, []string, string) {
 	return f.from, append([]string{}, f.rcpts...), f.data
 }
 
-// smtpPathArg extrahiert die Adresse aus "MAIL FROM:<a@b> PARAM=X".
+// smtpPathArg extracts the address from "MAIL FROM:<a@b> PARAM=X".
 func smtpPathArg(line string) string {
 	if i, j := strings.Index(line, "<"), strings.Index(line, ">"); i >= 0 && j > i {
 		return line[i+1 : j]
@@ -224,8 +224,8 @@ func smtpPathArg(line string) string {
 	return strings.TrimSpace(line)
 }
 
-// mailMitAnhang baut eine multipart/mixed-Mail mit genau einem Anhang.
-func mailMitAnhang(messageID, betreff, dateiname, contentType, inhalt string) string {
+// mailMitAnhang builds a multipart/mixed mail with exactly one attachment.
+func mailMitAnhang(messageID, betreff, fileName, contentType, inhalt string) string {
 	return "From: Kunde <kunde@example.com>\r\n" +
 		"To: agent@example.com\r\n" +
 		"Subject: " + betreff + "\r\n" +
@@ -236,22 +236,22 @@ func mailMitAnhang(messageID, betreff, dateiname, contentType, inhalt string) st
 		"Content-Type: text/plain; charset=utf-8\r\n\r\n" +
 		"Anbei.\r\n" +
 		"--grenze\r\n" +
-		"Content-Type: " + contentType + "; name=\"" + dateiname + "\"\r\n" +
-		"Content-Disposition: attachment; filename=\"" + dateiname + "\"\r\n" +
+		"Content-Type: " + contentType + "; name=\"" + fileName + "\"\r\n" +
+		"Content-Disposition: attachment; filename=\"" + fileName + "\"\r\n" +
 		"Content-Transfer-Encoding: base64\r\n\r\n" +
 		base64.StdEncoding.EncodeToString([]byte(inhalt)) + "\r\n" +
 		"--grenze--\r\n"
 }
 
-// TestEmailGetAttachment: der Durchstich für get_attachment — vom IMAP-Server
-// über den Action-Proxy bis zu den Bytes in der Sandbox. Analog zum
-// Teams-Pendant in teams_test.go (GitHub #2, Punkt 7).
+// TestEmailGetAttachment: the vertical slice for get_attachment — from the IMAP
+// server via the action proxy to the bytes in the sandbox. Analogous to the
+// Teams counterpart in teams_test.go (GitHub #2, point 7).
 //
-// Der zweite Teil ist der eigentliche Grund für den Test: Zwei Mails mit je
-// `rechnung.pdf` überschrieben sich früher stillschweigend, und ein Agent, der
-// sich den Pfad gemerkt hatte, las danach das falsche Dokument (Punkt 1). Ein
-// Unit-Test des Helfers zeigt die Namensvergabe; erst hier steht, dass sie auf
-// dem echten Weg auch greift.
+// The second part is the actual reason for the test: two mails each carrying
+// `rechnung.pdf` used to overwrite each other silently, and an agent that had
+// memorized the path then read the wrong document (point 1). A unit test of the
+// helper shows the name assignment; only here is it established that it also
+// takes hold on the real path.
 func TestEmailGetAttachment(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -293,24 +293,24 @@ func TestEmailGetAttachment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, "anhang-aufgabe done", 15*time.Second, func() bool {
+	waitFor(t, "attachment task done", 15*time.Second, func() bool {
 		return s.taskState(task.ID) == backlog.StateDone
 	})
 
 	dir := filepath.Join(s.homeBase, agent.ID.String(), "attachments")
 
-	// Erster Anhang: unter seinem Namen, mit den echten Bytes.
-	erste, err := os.ReadFile(filepath.Join(dir, "rechnung.pdf"))
-	if err != nil || !strings.Contains(string(erste), "januar") {
-		t.Fatalf("erster Anhang nicht materialisiert: %q (err=%v)", erste, err)
+	// First attachment: under its own name, with the real bytes.
+	first, err := os.ReadFile(filepath.Join(dir, "rechnung.pdf"))
+	if err != nil || !strings.Contains(string(first), "januar") {
+		t.Fatalf("first attachment not materialized: %q (err=%v)", first, err)
 	}
 
-	// Zweiter, gleichnamiger Anhang: eigene Datei — und der erste ist unberührt.
-	zweite, err := os.ReadFile(filepath.Join(dir, "rechnung-2.pdf"))
-	if err != nil || !strings.Contains(string(zweite), "februar") {
-		t.Fatalf("zweiter Anhang nicht kollisionsfrei abgelegt: %q (err=%v)", zweite, err)
+	// Second attachment with the same name: its own file — and the first one is untouched.
+	second, err := os.ReadFile(filepath.Join(dir, "rechnung-2.pdf"))
+	if err != nil || !strings.Contains(string(second), "februar") {
+		t.Fatalf("second attachment not stored collision-free: %q (err=%v)", second, err)
 	}
-	if !strings.Contains(string(erste), "januar") {
-		t.Fatal("der zweite Anhang hat den ersten überschrieben")
+	if !strings.Contains(string(first), "januar") {
+		t.Fatal("the second attachment overwrote the first")
 	}
 }

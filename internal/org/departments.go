@@ -10,9 +10,9 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-var ErrDeptNotFound = errors.New("abteilung nicht gefunden")
+var ErrDeptNotFound = errors.New("department not found")
 
-// DeptLead ist ein Mitglied der Abteilungsleitung — ein Mensch oder ein Agent.
+// DeptLead is a member of a department's leadership — a human or an agent.
 type DeptLead struct {
 	Kind string    `json:"kind"` // "human" | "agent"
 	ID   uuid.UUID `json:"id"`
@@ -23,7 +23,7 @@ type Department struct {
 	OrgID       uuid.UUID  `json:"org_id"`
 	Name        string     `json:"name"`
 	Description string     `json:"description"`
-	Color       string     `json:"color"` // Hex-Akzentfarbe, leer = Standard
+	Color       string     `json:"color"` // hex accent color, empty = default
 	Leads       []DeptLead `json:"leads"`
 	CreatedAt   time.Time  `json:"created_at"`
 }
@@ -97,7 +97,7 @@ func (s *Store) GetDepartment(ctx context.Context, orgID, id uuid.UUID) (Departm
 func (s *Store) CreateDepartment(ctx context.Context, orgID uuid.UUID, name, description, color string) (Department, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return Department{}, errors.New("name ist Pflicht")
+		return Department{}, errors.New("name is required")
 	}
 	d := Department{OrgID: orgID, Name: name, Description: strings.TrimSpace(description), Color: color}
 	err := s.pool.QueryRow(ctx,
@@ -106,7 +106,7 @@ func (s *Store) CreateDepartment(ctx context.Context, orgID uuid.UUID, name, des
 	return d, err
 }
 
-// SetDepartmentColor setzt die Akzentfarbe; leer stellt den Standard wieder her.
+// SetDepartmentColor sets the accent color; empty restores the default.
 func (s *Store) SetDepartmentColor(ctx context.Context, orgID, id uuid.UUID, color string) error {
 	tag, err := s.pool.Exec(ctx,
 		`UPDATE departments SET color=$1 WHERE id=$2 AND org_id=$3`, color, id, orgID)
@@ -122,7 +122,7 @@ func (s *Store) SetDepartmentColor(ctx context.Context, orgID, id uuid.UUID, col
 func (s *Store) RenameDepartment(ctx context.Context, orgID, id uuid.UUID, name string) error {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return errors.New("name ist Pflicht")
+		return errors.New("name is required")
 	}
 	tag, err := s.pool.Exec(ctx,
 		`UPDATE departments SET name=$1 WHERE id=$2 AND org_id=$3`, name, id, orgID)
@@ -147,9 +147,9 @@ func (s *Store) DeleteDepartment(ctx context.Context, orgID, id uuid.UUID) error
 	return nil
 }
 
-// AddDepartmentLead nimmt ein Mitglied (Mensch oder Agent) in die Leitung einer
-// Abteilung auf. Idempotent — eine bestehende Leitungs-Zuordnung bleibt einfach
-// bestehen. Abteilung und Mitglied müssen zur Organisation gehören.
+// AddDepartmentLead adds a member (human or agent) to the leadership of a
+// department. Idempotent — an existing leadership assignment simply stays in
+// place. Department and member must belong to the organization.
 func (s *Store) AddDepartmentLead(ctx context.Context, orgID, deptID uuid.UUID, kind string, memberID uuid.UUID) error {
 	if _, err := s.GetDepartment(ctx, orgID, deptID); err != nil {
 		return err
@@ -161,7 +161,7 @@ func (s *Store) AddDepartmentLead(ctx context.Context, orgID, deptID uuid.UUID, 
 	case "agent":
 		col, table = "agent_id", "agents"
 	default:
-		return errors.New("kind muss human oder agent sein")
+		return errors.New("kind must be human or agent")
 	}
 	tag, err := s.pool.Exec(ctx,
 		`INSERT INTO department_leads (department_id, `+col+`)
@@ -171,8 +171,8 @@ func (s *Store) AddDepartmentLead(ctx context.Context, orgID, deptID uuid.UUID, 
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		// Entweder existiert das Mitglied nicht (in dieser Org) — oder es ist
-		// bereits Leitung. Letzteres ist kein Fehler.
+		// Either the member does not exist (in this org) — or it already is
+		// leadership. The latter is not an error.
 		var n int
 		if err := s.pool.QueryRow(ctx,
 			`SELECT count(*) FROM `+table+` WHERE id=$1 AND org_id=$2`, memberID, orgID).Scan(&n); err != nil {
@@ -185,7 +185,7 @@ func (s *Store) AddDepartmentLead(ctx context.Context, orgID, deptID uuid.UUID, 
 	return nil
 }
 
-// RemoveDepartmentLead entfernt ein Mitglied aus der Leitung einer Abteilung.
+// RemoveDepartmentLead removes a member from a department's leadership.
 func (s *Store) RemoveDepartmentLead(ctx context.Context, orgID, deptID, memberID uuid.UUID) error {
 	tag, err := s.pool.Exec(ctx,
 		`DELETE FROM department_leads dl USING departments d
@@ -200,7 +200,7 @@ func (s *Store) RemoveDepartmentLead(ctx context.Context, orgID, deptID, memberI
 	return nil
 }
 
-// SetHumanDepartment weist einen Menschen einer Abteilung zu; nil löst die Zuordnung.
+// SetHumanDepartment assigns a human to a department; nil detaches the assignment.
 func (s *Store) SetHumanDepartment(ctx context.Context, orgID, humanID uuid.UUID, deptID *uuid.UUID) error {
 	tag, err := s.pool.Exec(ctx,
 		`UPDATE humans SET department_id=$1 WHERE id=$2 AND org_id=$3`, deptID, humanID, orgID)

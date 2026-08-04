@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-// rules sammelt die Regel-Namen der Befunde, damit Tests auf sie prüfen können.
+// rules collects the rule names of the findings so that tests can check on them.
 func rules(fs []Finding) []string {
 	out := make([]string, len(fs))
 	for i, f := range fs {
@@ -26,9 +26,9 @@ func hasRule(fs []Finding, rule string) bool {
 	return false
 }
 
-// TestLintIntervalDependsOnSystems ist der Kern der Intervall-Regel: Dasselbe
-// Intervall ist je nach Zielsystem in Ordnung oder ruinös. Ein Postfach alle
-// 2 Minuten zu sichten ist normal; alle 2 Minuten ein Repo zu klonen nicht.
+// TestLintIntervalDependsOnSystems is the core of the interval rule: the same
+// interval is fine or ruinous depending on the target system. Checking a
+// mailbox every 2 minutes is normal; cloning a repo every 2 minutes is not.
 func TestLintIntervalDependsOnSystems(t *testing.T) {
 	hb := "- alle: 2m nur-wenn: gitlab:issues:assigned titel: Issues sichten aufgabe: Bearbeite und kommentiere.\n"
 
@@ -36,117 +36,117 @@ func TestLintIntervalDependsOnSystems(t *testing.T) {
 		"ACCESS.md":    "- system: gitlab scope: read,write",
 		"HEARTBEAT.md": hb,
 	}})
-	if !hasRule(heavy, "heartbeat-intervall-zu-kurz") {
-		t.Fatalf("2m mit gitlab muss auffallen, got %v", rules(heavy))
+	if !hasRule(heavy, "heartbeat-interval-too-short") {
+		t.Fatalf("2m with gitlab has to be flagged, got %v", rules(heavy))
 	}
 
-	// Dasselbe Intervall bei einem reinen Postfach-Agenten: kein Befund.
+	// The same interval on a pure mailbox agent: no finding.
 	light := Lint(Subject{Slug: "mail", Files: map[string]string{
 		"ACCESS.md":    "- system: email scope: read,write",
 		"HEARTBEAT.md": "- alle: 3m nur-wenn: email titel: Posteingang aufgabe: Antworte per reply.\n",
 	}})
-	if hasRule(light, "heartbeat-intervall-zu-kurz") {
-		t.Fatalf("3m ohne schweres Zielsystem darf nicht auffallen, got %v", rules(light))
+	if hasRule(light, "heartbeat-interval-too-short") {
+		t.Fatalf("3m without a heavy target system must not be flagged, got %v", rules(light))
 	}
 }
 
-// TestLintVisibleTrace prüft die Regel hinter dem beobachteten Endlos-Loop: Ein
-// gitlab-gegateter Heartbeat ohne Kommentar-Schritt hinterlässt keine Flanke.
+// TestLintVisibleTrace checks the rule behind the observed endless loop: a
+// gitlab-gated heartbeat without a comment step leaves no edge.
 func TestLintVisibleTrace(t *testing.T) {
 	stumm := Lint(Subject{Slug: "stumm", Files: map[string]string{
 		"ACCESS.md":    "- system: gitlab scope: read,write",
 		"HEARTBEAT.md": "- alle: 15m nur-wenn: gitlab:issues titel: Sichten aufgabe: Lies die Issues und setze Labels.\n",
 		"PLAYBOOKS.md": "1. list_issues aufrufen.\n2. Label setzen.\n",
 	}})
-	if !hasRule(stumm, "keine-sichtbare-spur") {
-		t.Fatalf("Playbook ohne Kommentar-Schritt muss auffallen, got %v", rules(stumm))
+	if !hasRule(stumm, "no-visible-trace") {
+		t.Fatalf("a playbook without a comment step has to be flagged, got %v", rules(stumm))
 	}
 
-	// Mit Kommentar-Schritt ist die Flanke gesichert — kein Befund.
+	// With a comment step the edge is secured — no finding.
 	laut := Lint(Subject{Slug: "laut", Files: map[string]string{
 		"ACCESS.md":    "- system: gitlab scope: read,write,comment",
 		"HEARTBEAT.md": "- alle: 15m nur-wenn: gitlab:issues titel: Sichten aufgabe: Bearbeite die Issues.\n",
 		"PLAYBOOKS.md": "1. list_issues aufrufen.\n2. Ergebnis per comment im Issue festhalten.\n",
 	}})
-	if hasRule(laut, "keine-sichtbare-spur") {
-		t.Fatalf("Playbook mit comment darf nicht auffallen, got %v", rules(laut))
+	if hasRule(laut, "no-visible-trace") {
+		t.Fatalf("a playbook with comment must not be flagged, got %v", rules(laut))
 	}
 
-	// Ohne gitlab-Gate greift die Regel gar nicht — sie gilt nur für die
-	// Flanken-Bedingung, nicht als allgemeine Kommentar-Pflicht.
+	// Without a gitlab gate the rule does not apply at all — it holds for the
+	// edge condition, not as a general obligation to comment.
 	ohneGate := Lint(Subject{Slug: "frei", Files: map[string]string{
 		"ACCESS.md":    "- system: gitlab scope: read",
 		"HEARTBEAT.md": "- täglich: 09:00 titel: Bericht aufgabe: Fasse zusammen.\n",
 		"PLAYBOOKS.md": "1. Nichts kommentieren.\n",
 	}})
-	if hasRule(ohneGate, "keine-sichtbare-spur") {
-		t.Fatalf("ohne gitlab-Gate darf die Regel nicht greifen, got %v", rules(ohneGate))
+	if hasRule(ohneGate, "no-visible-trace") {
+		t.Fatalf("without a gitlab gate the rule must not apply, got %v", rules(ohneGate))
 	}
 }
 
-// TestLintBlockedNegationsNotFlagged: Gute Configs schreiben „ende mit done,
-// NIE blocked". Eine Regel, die darauf anschlägt, wäre wertlos — sie meldete
-// genau bei den Agenten, die es richtig machen.
+// TestLintBlockedNegationsNotFlagged: good configs write "end with done, NEVER
+// blocked". A rule that fires on that would be worthless — it would report
+// exactly the agents that get it right.
 func TestLintBlockedNegationsNotFlagged(t *testing.T) {
 	gut := Lint(Subject{Slug: "gut", Files: map[string]string{
 		"ACCESS.md": "- system: gitlab scope: read,write",
 		"SOUL.md":   "Ende jeden Lauf mit done, NIE mit blocked (GitLab hat keinen Webhook).",
 	}})
-	if hasRule(gut, "blocked-bei-polling-system") {
-		t.Fatalf("Verneinung darf nicht auffallen, got %v", rules(gut))
+	if hasRule(gut, "blocked-on-polling-system") {
+		t.Fatalf("a negation must not be flagged, got %v", rules(gut))
 	}
 
 	schlecht := Lint(Subject{Slug: "schlecht", Files: map[string]string{
 		"ACCESS.md": "- system: gitlab scope: read,write",
 		"SOUL.md":   "Wartest du auf eine Antwort, beende den Lauf mit blocked.",
 	}})
-	if !hasRule(schlecht, "blocked-bei-polling-system") {
-		t.Fatalf("echte blocked-Anweisung muss auffallen, got %v", rules(schlecht))
+	if !hasRule(schlecht, "blocked-on-polling-system") {
+		t.Fatalf("a real blocked instruction has to be flagged, got %v", rules(schlecht))
 	}
 }
 
-// TestLintStages prüft die Board-Regeln gegen den real beobachteten Wildwuchs.
+// TestLintStages checks the board rules against the sprawl observed in the wild.
 func TestLintStages(t *testing.T) {
 	f := Lint(Subject{Slug: "board", AgentStages: []string{"Issue-Triage", "#83 CSV-Import"}})
-	if !hasRule(f, "stage-benennt-vorgang") {
-		t.Fatalf("Spalte mit Vorgangs-ID muss auffallen, got %v", rules(f))
+	if !hasRule(f, "stage-names-item") {
+		t.Fatalf("a column with an item ID has to be flagged, got %v", rules(f))
 	}
-	if hasRule(f, "stage-wildwuchs") {
-		t.Fatalf("zwei Spalten sind kein Wildwuchs, got %v", rules(f))
+	if hasRule(f, "stage-sprawl") {
+		t.Fatalf("two columns are not sprawl, got %v", rules(f))
 	}
 
 	viele := make([]string, 12)
 	for i := range viele {
 		viele[i] = string(rune('A' + i))
 	}
-	if !hasRule(Lint(Subject{Slug: "board", AgentStages: viele}), "stage-wildwuchs") {
-		t.Fatalf("12 Spalten müssen auffallen")
+	if !hasRule(Lint(Subject{Slug: "board", AgentStages: viele}), "stage-sprawl") {
+		t.Fatalf("12 columns have to be flagged")
 	}
 }
 
-// TestLintTurnLimit meldet erst bei Häufung — einzelne Abbrüche fängt die
-// Plattform selbst mit einer Folgeaufgabe auf.
+// TestLintTurnLimit only reports on accumulation — the platform catches
+// individual aborts itself with a follow-up task.
 func TestLintTurnLimit(t *testing.T) {
-	if hasRule(Lint(Subject{Slug: "a", TurnLimitFailures: 1}), "haeufige-turn-limit-abbrueche") {
-		t.Fatalf("ein einzelner Abbruch ist kein Befund")
+	if hasRule(Lint(Subject{Slug: "a", TurnLimitFailures: 1}), "frequent-turn-limit-aborts") {
+		t.Fatalf("a single abort is not a finding")
 	}
 	f := Lint(Subject{Slug: "a", TurnLimitFailures: 7, MaxTurns: 20})
-	if !hasRule(f, "haeufige-turn-limit-abbrueche") {
-		t.Fatalf("Häufung muss auffallen, got %v", rules(f))
+	if !hasRule(f, "frequent-turn-limit-aborts") {
+		t.Fatalf("an accumulation has to be flagged, got %v", rules(f))
 	}
 	if !strings.Contains(f[0].Hint, "max_turns") {
-		t.Fatalf("bei kleinem max_turns muss der Hinweis es nennen: %q", f[0].Hint)
+		t.Fatalf("with a small max_turns the hint has to name it: %q", f[0].Hint)
 	}
 }
 
-// TestLintCleanConfigIsSilent ist die wichtigste Zusicherung: Ein Lint, der bei
-// guten Configs meckert, wird ignoriert und ist damit wertlos. Geprüft an den
-// mitgelieferten Beispiel-Bundles — sie sind die Vorlage für neue Agenten und
-// müssen befundfrei sein.
+// TestLintCleanConfigIsSilent is the most important assurance: a lint that nags
+// at good configs gets ignored and is therefore worthless. Checked against the
+// shipped example bundles — they are the template for new agents and have to be
+// free of findings.
 func TestLintCleanConfigIsSilent(t *testing.T) {
 	paths, err := filepath.Glob("../../examples/*.bundle.json")
 	if err != nil || len(paths) == 0 {
-		t.Fatalf("Beispiel-Bundles nicht gefunden: %v", err)
+		t.Fatalf("example bundles not found: %v", err)
 	}
 	for _, p := range paths {
 		raw, err := os.ReadFile(p)
@@ -166,9 +166,9 @@ func TestLintCleanConfigIsSilent(t *testing.T) {
 		if err := json.Unmarshal(raw, &bundle); err != nil {
 			t.Fatal(err)
 		}
-		// Die Skills gehören dazu: Seit Prozeduren aus PLAYBOOKS.md dorthin
-		// wandern, stünde der Lint sonst vor einer Config, der die halbe
-		// Beschreibung fehlt — und meldete Befunde, die keine sind.
+		// The skills belong to it: ever since procedures migrate there from
+		// PLAYBOOKS.md, the lint would otherwise face a config missing half its
+		// description — and report findings that are none.
 		skills := map[string]string{}
 		for _, sk := range bundle.Skills {
 			var b strings.Builder
@@ -179,7 +179,7 @@ func TestLintCleanConfigIsSilent(t *testing.T) {
 			skills[sk.Name] = b.String()
 		}
 		if f := Lint(Subject{Slug: bundle.Agent.Slug, Files: bundle.Files, Skills: skills}); len(f) > 0 {
-			t.Errorf("%s: Beispiel-Bundle muss befundfrei sein, got %+v", filepath.Base(p), f)
+			t.Errorf("%s: the example bundle has to be free of findings, got %+v", filepath.Base(p), f)
 		}
 	}
 }

@@ -1,23 +1,23 @@
 package daemon
 
-// Runtimes werden als selbstbeschreibende Plugins behandelt: eine Runtime =
-// eine Datei, die sich in init() via RegisterRuntime einträgt und dabei
-// Metadaten (Name/Label/Beschreibung fürs UI), ihre Einrichtungs-Anleitung und
-// eine Fabrik mitbringt. Daemon (Ausführung) und Control Plane (UI/Validierung)
-// lesen dieselbe Registry — es gibt keine zweite, hartkodierte Liste.
+// Runtimes are treated as self-describing plugins: one runtime = one file that
+// registers itself in init() via RegisterRuntime, bringing metadata
+// (name/label/description for the UI), its setup instructions and a factory.
+// Daemon (execution) and control plane (UI/validation) read the same registry —
+// there is no second, hardcoded list.
 
-// RuntimeDescriptor ist die Plugin-Einheit einer Runtime.
+// RuntimeDescriptor is the plugin unit of a runtime.
 type RuntimeDescriptor struct {
 	Name            string         `json:"name"`
 	Label           string         `json:"label"`
 	Description     string         `json:"description"`
 	NeedsCredential bool           `json:"needs_credential"`
 	Setup           []SetupStep    `json:"setup"`
-	New             func() Runtime `json:"-"` // Fabrik der Implementierung (daemon-seitig)
+	New             func() Runtime `json:"-"` // factory of the implementation (daemon side)
 }
 
-// SetupStep ist ein Schritt der Einrichtungs-Anleitung. Text darf
-// `inline-code` in Backticks enthalten; das UI rendert diese Spannen monospaced.
+// SetupStep is one step of the setup instructions. Text may contain
+// `inline-code` in backticks; the UI renders those spans monospaced.
 type SetupStep struct {
 	Text  string   `json:"text"`
 	Items []string `json:"items,omitempty"`
@@ -28,9 +28,9 @@ var (
 	runtimeOrder    []string
 )
 
-// RegisterRuntime trägt ein Runtime-Plugin ein. Aufruf aus init() der
-// jeweiligen Runtime-Datei; die Reihenfolge der Registrierung ist die
-// Anzeige-Reihenfolge im UI.
+// RegisterRuntime registers a runtime plugin. Called from init() of the
+// respective runtime file; the order of registration is the display order in
+// the UI.
 func RegisterRuntime(d RuntimeDescriptor) {
 	if _, ok := runtimeRegistry[d.Name]; !ok {
 		runtimeOrder = append(runtimeOrder, d.Name)
@@ -38,7 +38,7 @@ func RegisterRuntime(d RuntimeDescriptor) {
 	runtimeRegistry[d.Name] = d
 }
 
-// Runtimes liefert alle registrierten Deskriptoren in Registrierungs-Reihenfolge.
+// Runtimes returns all registered descriptors in registration order.
 func Runtimes() []RuntimeDescriptor {
 	out := make([]RuntimeDescriptor, 0, len(runtimeOrder))
 	for _, name := range runtimeOrder {
@@ -47,13 +47,13 @@ func Runtimes() []RuntimeDescriptor {
 	return out
 }
 
-// IsRuntime prüft, ob ein Runtime-Name registriert ist.
+// IsRuntime reports whether a runtime name is registered.
 func IsRuntime(name string) bool {
 	_, ok := runtimeRegistry[name]
 	return ok
 }
 
-// newRuntimes instanziiert alle registrierten Plugins für einen Daemon-Client.
+// newRuntimes instantiates all registered plugins for one daemon client.
 func newRuntimes() map[string]Runtime {
 	m := make(map[string]Runtime, len(runtimeRegistry))
 	for name, d := range runtimeRegistry {

@@ -1,15 +1,15 @@
-// Package installer trägt das Installationsskript und liefert es so aus, wie
-// die laufende Instanz es braucht.
+// Package installer carries the installation script and serves it the way the
+// running instance needs it.
 //
-// Warum eine Instanz ihr eigenes Installationsskript ausliefert: Sie kennt
-// ihre Version. Ein Runner, der darüber installiert wird, passt damit zum
-// Server, an dem er sich anmeldet — die Protokoll-Drift aus spec/16 kann gar
-// nicht erst entstehen. Für „noch einen Knoten wie diesen" gilt dasselbe.
+// Why an instance serves its own installation script: it knows its version. A
+// runner installed through it therefore matches the server it registers with —
+// the protocol drift from spec/16 cannot arise in the first place. The same
+// holds for "one more node like this one".
 //
-// Die Binaries kommen weiterhin von den GitHub-Releases, nicht von der
-// Instanz. Das ist Absicht: Der Vertrauensanker für ausführbaren Code bleibt
-// die Projektquelle, auch wenn das Skript von woanders kommt. Die Instanz
-// bestimmt die Version, nicht den Inhalt.
+// The binaries still come from the GitHub releases, not from the instance.
+// That is deliberate: the trust anchor for executable code stays the project
+// source, even when the script comes from elsewhere. The instance decides the
+// version, not the content.
 package installer
 
 import (
@@ -18,28 +18,28 @@ import (
 	"strings"
 )
 
-// Script ist das Skript, wie es auch auf GitHub liegt (installer/install.sh).
-// Eine zweite Kopie im Repo gäbe es nicht ohne Drift — deshalb genau diese
-// Datei, eingebettet.
+// Script is the script exactly as it also sits on GitHub
+// (installer/install.sh). A second copy in the repo would not exist without
+// drift — hence this very file, embedded.
 //
 //go:embed install.sh
 var Script string
 
-// Render setzt der eingebetteten Fassung einen Vorspann voran, der die
-// Voreinstellungen der Instanz trägt. Das Skript liest sie über `:=`-Defaults,
-// bleibt also unverändert lauffähig, wenn es direkt von GitHub kommt.
+// Render prepends a preamble to the embedded version that carries the
+// instance's defaults. The script reads them through `:=` defaults, so it stays
+// runnable unchanged when it comes straight from GitHub.
 //
-// version leer = kein Vorspann für die Version: Dann ermittelt das Skript die
-// neueste Veröffentlichung selbst. Das ist der richtige Fallback für einen
-// Entwicklungs-Build, dessen "dev" es auf GitHub nie geben wird.
+// An empty version = no preamble for the version: the script then determines
+// the latest release itself. That is the right fallback for a development
+// build, whose "dev" will never exist on GitHub.
 func Render(version, standard string) string {
 	if standard == "" {
 		standard = "server"
 	}
 	var b strings.Builder
 	b.WriteString("#!/bin/sh\n")
-	b.WriteString("# Vorspann dieser Covey-Instanz — der Rumpf ist unverändert das Skript\n")
-	b.WriteString("# aus dem Repository (installer/install.sh).\n")
+	b.WriteString("# Preamble of this Covey instance — the body is, unchanged, the script\n")
+	b.WriteString("# from the repository (installer/install.sh).\n")
 	if version != "" {
 		fmt.Fprintf(&b, "COVEY_INSTALL_VERSION=%q\n", version)
 		b.WriteString("export COVEY_INSTALL_VERSION\n")
@@ -50,17 +50,16 @@ func Render(version, standard string) string {
 	return b.String()
 }
 
-// VersionFuerRelease filtert Versionen heraus, zu denen es kein Release geben
-// kann. Ein Binary aus `make build` trägt "dev" oder eine `git describe`-
-// Fassung mit Commit-Zusatz; würde die Instanz das als feste Version
-// vorgeben, liefe das Skript in einen 404 statt in die neueste
-// Veröffentlichung.
+// VersionFuerRelease filters out versions for which no release can exist. A
+// binary from `make build` carries "dev" or a `git describe` form with a commit
+// suffix; if the instance prescribed that as a fixed version, the script would
+// run into a 404 instead of into the latest release.
 func VersionFuerRelease(v string) string {
 	if !strings.HasPrefix(v, "v") || strings.Contains(v, "dirty") {
 		return ""
 	}
-	// `git describe` hängt bei Commits nach dem Tag "-<n>-g<hash>" an. Auch das
-	// ist kein Release-Tag.
+	// For commits after the tag `git describe` appends "-<n>-g<hash>". That is
+	// not a release tag either.
 	if strings.Count(v, "-") > 0 && !strings.Contains(v, "-rc") {
 		return ""
 	}

@@ -1,9 +1,9 @@
-// Package nextcloud bindet Nextcloud-Dateiablagen als Zielsystem-Plugin an:
-// ein öffentlicher Freigabelink (oder ein Konto-Zugang) wird über WebDAV
-// angesprochen, darunter kann der Agent Dateien listen, lesen, schreiben, in
-// die Sandbox laden und ablegen. Anders als das SharePoint-Plugin braucht es
-// keinen OAuth-Flow — Basic-Auth über WebDAV (public.php bzw. remote.php)
-// reicht; „einem Bot einen Link schicken" genügt für den Zugriff.
+// Package nextcloud binds Nextcloud file stores in as a target-system plugin:
+// a public share link (or an account login) is addressed over WebDAV, and
+// beneath it the agent can list, read and write files, fetch them into the
+// sandbox and deposit them again. Unlike the SharePoint plugin it needs no
+// OAuth flow — basic auth over WebDAV (public.php resp. remote.php) is enough;
+// "sending a bot a link" suffices for access.
 package nextcloud
 
 import (
@@ -23,8 +23,8 @@ import (
 	"covey/internal/reqlog"
 )
 
-// uploadMaxBytes begrenzt die Größe eines PUT-Uploads. Überschreibbar via
-// COVEY_NEXTCLOUD_UPLOAD_MAX_MB (Prozess-Env des Daemons).
+// uploadMaxBytes caps the size of a PUT upload. Overridable through
+// COVEY_NEXTCLOUD_UPLOAD_MAX_MB (the daemon's process env).
 func uploadMaxBytes() int64 {
 	if mb, err := strconv.Atoi(strings.TrimSpace(os.Getenv("COVEY_NEXTCLOUD_UPLOAD_MAX_MB"))); err == nil && mb > 0 {
 		return int64(mb) << 20
@@ -32,19 +32,18 @@ func uploadMaxBytes() int64 {
 	return 250 << 20
 }
 
-// readMaxBytes begrenzt, wie viel Text die read-Aktion direkt in die Session
-// zurückgibt — größere Dateien gehören per download in die Sandbox.
+// readMaxBytes caps how much text the read action returns straight into the
+// session — larger files belong in the sandbox by way of download.
 const readMaxBytes = 1 << 20
 
-// listMax begrenzt die Anzahl der Einträge, die list zurückgibt — WebDAV
-// liefert eine ganze Collection auf einmal; sehr große Ordner würden sonst
-// die Session fluten.
+// listMax caps the number of entries list returns — WebDAV delivers a whole
+// collection at once; very large folders would otherwise flood the session.
 const listMax = 500
 
-// Client spricht WebDAV mit gebrokerten Basic-Auth-Zugangsdaten. Die kommen
-// pro Aufruf aus dem Broker — sie werden nie persistiert.
+// Client speaks WebDAV with brokered basic-auth credentials. They come from
+// the broker per call — they are never persisted.
 type Client struct {
-	DavBase string // WebDAV-Collection-Wurzel, mit abschließendem "/"
+	DavBase string // WebDAV collection root, with a trailing "/"
 	User    string
 	Pass    string
 	HTTP    *http.Client
@@ -59,11 +58,11 @@ func NewClient(cfg Config) *Client {
 	}
 }
 
-// itemURL adressiert ein Item relativ zur WebDAV-Wurzel. dir=true hängt einen
-// abschließenden Schrägstrich an (WebDAV-Konvention für Collections bei
-// PROPFIND/MKCOL). Pfadsegmente werden einzeln escaped.
+// itemURL addresses an item relative to the WebDAV root. dir=true appends a
+// trailing slash (the WebDAV convention for collections on PROPFIND/MKCOL).
+// Path segments are escaped one by one.
 func (c *Client) itemURL(relPath string, dir bool) string {
-	u := c.DavBase // endet auf "/"
+	u := c.DavBase // ends in "/"
 	if relPath != "" {
 		u += escapePath(relPath)
 		if dir {
@@ -81,9 +80,9 @@ func escapePath(p string) string {
 	return strings.Join(segs, "/")
 }
 
-// do führt eine WebDAV-Anfrage aus und prüft den Status gegen die als „ok"
-// akzeptierten Codes. Liefert den Body zurück (der Aufrufer schließt nichts —
-// do liest ihn vollständig, außer bei Streaming über Download).
+// do runs a WebDAV request and checks the status against the codes accepted
+// as "ok". Returns the body (the caller closes nothing — do reads it in full,
+// except when streaming through Download).
 func (c *Client) do(ctx context.Context, method, u string, body io.Reader, headers map[string]string, okCodes ...int) ([]byte, error) {
 	req, err := http.NewRequestWithContext(ctx, method, u, body)
 	if err != nil {
@@ -110,14 +109,14 @@ func (c *Client) do(ctx context.Context, method, u string, body io.Reader, heade
 	return nil, davError(method, u, resp.StatusCode, data)
 }
 
-// davError macht aus einer WebDAV-Fehlerantwort einen kompakten Fehler.
-// Nextcloud liefert bei Fehlern oft ein <d:error><s:message>…-Dokument.
+// davError turns a WebDAV error response into a compact error. On failures
+// Nextcloud often delivers a <d:error><s:message>… document.
 func davError(method, u string, status int, data []byte) error {
 	switch status {
 	case http.StatusUnauthorized:
-		return fmt.Errorf("webdav %s: HTTP 401 — Zugangsdaten falsch (Share-Passwort bzw. Benutzer:App-Passwort prüfen)", method)
+		return fmt.Errorf("webdav %s: HTTP 401 — wrong credentials (check the share password resp. user:app-password)", method)
 	case http.StatusNotFound:
-		return fmt.Errorf("webdav %s: HTTP 404 — Pfad nicht gefunden", method)
+		return fmt.Errorf("webdav %s: HTTP 404 — path not found", method)
 	}
 	var e struct {
 		Message   string `xml:"message"`
@@ -129,9 +128,9 @@ func davError(method, u string, status int, data []byte) error {
 	return fmt.Errorf("webdav %s %s: HTTP %d: %.200s", method, redact(u), status, data)
 }
 
-// redact entfernt den Share-Token/Benutzer aus einer URL für Fehlermeldungen
-// (Basic-Auth steckt im Header, aber der public.php-Pfad ist harmlos — hier
-// geht es nur um kompakte Ausgaben).
+// redact strips the share token/user from a URL for error messages (basic auth
+// lives in the header, and the public.php path is harmless — this is only
+// about compact output).
 func redact(u string) string {
 	if i := strings.Index(u, "://"); i >= 0 {
 		if j := strings.IndexByte(u[i+3:], '/'); j >= 0 {
@@ -141,7 +140,7 @@ func redact(u string) string {
 	return u
 }
 
-// --- PROPFIND-Parsing ------------------------------------------------------
+// --- PROPFIND parsing ------------------------------------------------------
 
 type multistatus struct {
 	XMLName   xml.Name     `xml:"DAV: multistatus"`
@@ -167,8 +166,8 @@ type msProp struct {
 	} `xml:"DAV: resourcetype"`
 }
 
-// prop200 liefert die Properties aus dem 200-propstat einer Response (WebDAV
-// packt nicht gefundene Properties in einen separaten 404-propstat).
+// prop200 returns the properties from a response's 200 propstat (WebDAV puts
+// properties it did not find into a separate 404 propstat).
 func (r msResponse) prop200() (msProp, bool) {
 	for _, ps := range r.Propstat {
 		if strings.Contains(ps.Status, " 200") {
@@ -178,8 +177,8 @@ func (r msResponse) prop200() (msProp, bool) {
 	return msProp{}, false
 }
 
-// Entry ist ein Eintrag einer Ordner-Auflistung bzw. das Metadaten-Ergebnis
-// einer Schreib-Aktion.
+// Entry is one entry of a folder listing resp. the metadata result of a write
+// action.
 type Entry struct {
 	Name     string `json:"name"`
 	Path     string `json:"path,omitempty"`
@@ -193,8 +192,8 @@ const propfindBody = `<?xml version="1.0" encoding="utf-8"?>
 <d:displayname/><d:resourcetype/><d:getcontentlength/><d:getlastmodified/>
 </d:prop></d:propfind>`
 
-// List — PROPFIND Depth:1. Liefert die Kinder von relPath, den Anzeigenamen
-// der Wurzel-Collection und ob wegen listMax abgeschnitten wurde.
+// List — PROPFIND Depth:1. Returns the children of relPath, the display name
+// of the root collection and whether listMax cut the listing short.
 func (c *Client) List(ctx context.Context, relPath string) (entries []Entry, rootName string, truncated bool, err error) {
 	data, err := c.do(ctx, "PROPFIND", c.itemURL(relPath, true),
 		strings.NewReader(propfindBody),
@@ -205,13 +204,13 @@ func (c *Client) List(ctx context.Context, relPath string) (entries []Entry, roo
 	}
 	var ms multistatus
 	if err := xml.Unmarshal(data, &ms); err != nil {
-		return nil, "", false, fmt.Errorf("webdav-antwort nicht lesbar: %w", err)
+		return nil, "", false, fmt.Errorf("webdav response not readable: %w", err)
 	}
-	self := c.relFromHref(c.itemURL(relPath, true)) // = relPath (normalisiert)
+	self := c.relFromHref(c.itemURL(relPath, true)) // = relPath (normalized)
 	for _, r := range ms.Responses {
 		rel := c.relFromHref(r.Href)
 		prop, ok := r.prop200()
-		if rel == self { // die angefragte Collection selbst — nicht als Kind listen
+		if rel == self { // the requested collection itself — do not list it as a child
 			if ok {
 				rootName = prop.DisplayName
 			}
@@ -229,12 +228,12 @@ func (c *Client) List(ctx context.Context, relPath string) (entries []Entry, roo
 	return entries, rootName, truncated, nil
 }
 
-// relFromHref rechnet einen (evtl. absoluten, evtl. prozent-kodierten) href
-// aus der WebDAV-Antwort auf einen Pfad relativ zur DavBase zurück.
+// relFromHref maps an href from the WebDAV response (possibly absolute,
+// possibly percent-encoded) back onto a path relative to DavBase.
 func (c *Client) relFromHref(href string) string {
 	p := href
 	if u, err := url.Parse(href); err == nil {
-		p = u.Path // dekodiert Prozent-Kodierung
+		p = u.Path // decodes the percent encoding
 	}
 	base := c.DavBase
 	if u, err := url.Parse(c.DavBase); err == nil {
@@ -258,7 +257,7 @@ func toEntry(rel string, p msProp) Entry {
 	return e
 }
 
-// Download — GET. Gibt den offenen Body zurück; der Aufrufer schließt ihn.
+// Download — GET. Returns the open body; the caller closes it.
 func (c *Client) Download(ctx context.Context, relPath string) (io.ReadCloser, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.itemURL(relPath, false), nil)
 	if err != nil {
@@ -277,11 +276,11 @@ func (c *Client) Download(ctx context.Context, relPath string) (io.ReadCloser, e
 	return resp.Body, nil
 }
 
-// Upload — PUT. Legt fehlende Zwischenordner bei Bedarf an (Nextcloud legt
-// sie beim PUT nicht selbst an) und wiederholt den PUT einmal.
+// Upload — PUT. Creates missing intermediate folders where needed (Nextcloud
+// does not create them itself on a PUT) and retries the PUT once.
 func (c *Client) Upload(ctx context.Context, relPath string, data []byte) (Entry, error) {
 	if relPath == "" {
-		return Entry{}, fmt.Errorf("zielpfad fehlt")
+		return Entry{}, fmt.Errorf("target path missing")
 	}
 	put := func() error {
 		_, err := c.do(ctx, http.MethodPut, c.itemURL(relPath, false),
@@ -303,21 +302,21 @@ func (c *Client) Upload(ctx context.Context, relPath string, data []byte) (Entry
 	return Entry{Name: path.Base(relPath), Path: relPath, Type: "file", Size: int64(len(data))}, nil
 }
 
-// Delete — DELETE. Die WebDAV-Wurzel selbst ist tabu.
+// Delete — DELETE. The WebDAV root itself is off limits.
 func (c *Client) Delete(ctx context.Context, relPath string) error {
 	if relPath == "" {
-		return fmt.Errorf("die Wurzel der Freigabe kann nicht gelöscht werden")
+		return fmt.Errorf("the root of the share cannot be deleted")
 	}
 	_, err := c.do(ctx, http.MethodDelete, c.itemURL(relPath, false), nil, nil,
 		http.StatusOK, http.StatusNoContent)
 	return err
 }
 
-// Mkdir legt einen Ordnerpfad an (mkdir -p): jedes Segment per MKCOL, bereits
-// vorhandene Ordner (405 Method Not Allowed) sind kein Fehler.
+// Mkdir creates a folder path (mkdir -p): every segment through MKCOL, folders
+// that already exist (405 Method Not Allowed) are not an error.
 func (c *Client) Mkdir(ctx context.Context, relPath string) (Entry, error) {
 	if relPath == "" {
-		return Entry{}, fmt.Errorf("pfad fehlt")
+		return Entry{}, fmt.Errorf("path missing")
 	}
 	segs := strings.Split(relPath, "/")
 	parent := ""
@@ -332,8 +331,8 @@ func (c *Client) Mkdir(ctx context.Context, relPath string) (Entry, error) {
 	return Entry{Name: path.Base(relPath), Path: relPath, Type: "folder"}, nil
 }
 
-// cleanRemotePath normalisiert einen vom Agenten gelieferten Remote-Pfad und
-// weist alles ab, was aus der WebDAV-Wurzel ausbrechen würde.
+// cleanRemotePath normalizes a remote path supplied by the agent and rejects
+// anything that would break out of the WebDAV root.
 func cleanRemotePath(p string) (string, error) {
 	p = strings.ReplaceAll(strings.TrimSpace(p), "\\", "/")
 	p = strings.Trim(p, "/")
@@ -345,7 +344,7 @@ func cleanRemotePath(p string) (string, error) {
 		return "", nil
 	}
 	if cleaned == ".." || strings.HasPrefix(cleaned, "../") {
-		return "", fmt.Errorf("pfad %q verlässt die Freigabe (\"..\" ist nicht erlaubt)", p)
+		return "", fmt.Errorf("path %q leaves the share (\"..\" is not allowed)", p)
 	}
 	return cleaned, nil
 }

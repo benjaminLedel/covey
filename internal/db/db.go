@@ -1,5 +1,5 @@
-// Package db kapselt den Postgres-Zugriff: Pool, Migrationen, LISTEN/NOTIFY.
-// Postgres ist der einzige stateful Kern (siehe spec/10-architecture-stack.md).
+// Package db encapsulates Postgres access: pool, migrations, LISTEN/NOTIFY.
+// Postgres is the single stateful core (see spec/10-architecture-stack.md).
 package db
 
 import (

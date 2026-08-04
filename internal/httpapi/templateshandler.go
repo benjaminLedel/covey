@@ -12,8 +12,9 @@ import (
 	"covey/internal/templates"
 )
 
-// langFrom liest die UI-Sprache für lokalisierte (mitgelieferte) Vorlagen:
-// Query-Param ?lang= zuerst, sonst der Accept-Language-Header, sonst "de".
+// langFrom reads the UI language for localized (bundled) templates: the
+// ?lang= query param first, otherwise the Accept-Language header, otherwise
+// "de".
 func langFrom(r *http.Request) string {
 	if l := strings.TrimSpace(r.URL.Query().Get("lang")); l != "" {
 		return l
@@ -52,7 +53,7 @@ func (s *Server) handleGetTemplate(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	t, err := s.Templates.Get(r.Context(), p.OrgID, id, langFrom(r))
@@ -64,7 +65,7 @@ func (s *Server) handleGetTemplate(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleSaveTemplate — POST /api/v1/templates
-// Body: {name, description, from_agent_id} — baut das Bundle aus dem Agenten.
+// Body: {name, description, from_agent_id} — builds the bundle from the agent.
 func (s *Server) handleSaveTemplate(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	var in struct {
@@ -73,17 +74,17 @@ func (s *Server) handleSaveTemplate(w http.ResponseWriter, r *http.Request) {
 		FromAgentID string `json:"from_agent_id"`
 	}
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "body nicht lesbar")
+		writeErr(w, http.StatusBadRequest, "body not readable")
 		return
 	}
 	in.Name = strings.TrimSpace(in.Name)
 	if in.Name == "" {
-		writeErr(w, http.StatusBadRequest, "name fehlt")
+		writeErr(w, http.StatusBadRequest, "name is missing")
 		return
 	}
 	agentID, err := uuid.Parse(in.FromAgentID)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "from_agent_id fehlt oder ungültig")
+		writeErr(w, http.StatusBadRequest, "from_agent_id is missing or invalid")
 		return
 	}
 
@@ -92,7 +93,7 @@ func (s *Server) handleSaveTemplate(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	// ExportedAt gehört nicht in die gespeicherte Vorlage.
+	// ExportedAt does not belong in the stored template.
 	b.ExportedAt = nil
 
 	bundleJSON, err := json.Marshal(b)
@@ -113,16 +114,16 @@ func (s *Server) handleDeleteTemplate(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	if err := s.Templates.Delete(r.Context(), p.OrgID, id); err != nil {
 		if errors.Is(err, templates.ErrNotFound) {
-			writeErr(w, http.StatusNotFound, "vorlage nicht gefunden")
+			writeErr(w, http.StatusNotFound, "template not found")
 			return
 		}
 		if errors.Is(err, templates.ErrReadOnly) {
-			writeErr(w, http.StatusForbidden, "mitgelieferte vorlage kann nicht gelöscht werden")
+			writeErr(w, http.StatusForbidden, "a bundled template cannot be deleted")
 			return
 		}
 		mapErr(w, err)
@@ -132,12 +133,12 @@ func (s *Server) handleDeleteTemplate(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleInstantiateTemplate — POST /api/v1/templates/{id}/instantiate
-// Body: {slug, display_name} — legt aus der Vorlage einen neuen Agenten an.
+// Body: {slug, display_name} — creates a new agent from the template.
 func (s *Server) handleInstantiateTemplate(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	var in struct {
@@ -145,20 +146,20 @@ func (s *Server) handleInstantiateTemplate(w http.ResponseWriter, r *http.Reques
 		DisplayName string `json:"display_name"`
 	}
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "body nicht lesbar")
+		writeErr(w, http.StatusBadRequest, "body not readable")
 		return
 	}
 	in.Slug = strings.TrimSpace(in.Slug)
 	in.DisplayName = strings.TrimSpace(in.DisplayName)
 	if in.Slug == "" {
-		writeErr(w, http.StatusBadRequest, "slug fehlt")
+		writeErr(w, http.StatusBadRequest, "slug is missing")
 		return
 	}
 
 	tmpl, err := s.Templates.Get(r.Context(), p.OrgID, id, langFrom(r))
 	if err != nil {
 		if errors.Is(err, templates.ErrNotFound) {
-			writeErr(w, http.StatusNotFound, "vorlage nicht gefunden")
+			writeErr(w, http.StatusNotFound, "template not found")
 			return
 		}
 		mapErr(w, err)
@@ -167,17 +168,17 @@ func (s *Server) handleInstantiateTemplate(w http.ResponseWriter, r *http.Reques
 
 	var b agentBundle
 	if err := json.Unmarshal(tmpl.Bundle, &b); err != nil {
-		writeErr(w, http.StatusInternalServerError, "vorlage nicht lesbar")
+		writeErr(w, http.StatusInternalServerError, "template not readable")
 		return
 	}
 	b.Agent.Slug = in.Slug
 	if in.DisplayName != "" {
 		b.Agent.DisplayName = in.DisplayName
 	}
-	// Webhook nicht automatisch aktivieren — der Token wäre neu, kein Mehrwert.
+	// Do not enable the webhook automatically — the token would be new, no gain.
 	b.Agent.WebhookEnabled = false
 
-	// Importlogik wiederverwenden: Request-Kontext als Träger des Principals.
+	// Reuse the import logic: the request context carries the principal.
 	bundleJSON, err := json.Marshal(b)
 	if err != nil {
 		mapErr(w, err)

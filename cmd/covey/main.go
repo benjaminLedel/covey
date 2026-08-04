@@ -1,5 +1,5 @@
-// covey ist das eine Binary der Control Plane (spec/10): API/BFF +
-// Orchestration-Core + eingebettetes Frontend + eingebettete Migrationen.
+// covey is the one binary of the control plane (spec/10): API/BFF +
+// orchestration core + embedded frontend + embedded migrations.
 // Subcommands: serve, migrate (up|down), bootstrap, passwd, config lint.
 package main
 
@@ -46,8 +46,8 @@ import (
 	"covey/migrations"
 	"covey/web"
 
-	// Kompilierte Zielsystem-Plugins: Blank-Import = ausgeliefert. Wer Covey
-	// ohne ein System bauen will, entfernt dessen Zeile — der Rest bleibt gleich.
+	// Compiled-in target system plugins: blank import = shipped. Whoever wants
+	// to build Covey without a system removes its line — the rest stays as it is.
 	_ "covey/internal/target/browser"
 	_ "covey/internal/target/dev"
 	_ "covey/internal/target/email"
@@ -66,16 +66,15 @@ func main() {
 		usage()
 		os.Exit(2)
 	}
-	// version läuft vor der Config: „welcher Stand ist das?" muss auch dann
-	// eine Antwort geben, wenn die Umgebung unvollständig ist.
+	// version runs before the config: "which build is this?" has to give an
+	// answer even when the environment is incomplete.
 	switch os.Args[1] {
 	case "version", "--version", "-v":
 		fmt.Println("covey " + buildinfo.String())
-		// Covey ist ein Netzwerkdienst unter AGPL-3.0: Wer eine veränderte
-		// Fassung anderen anbietet, schuldet ihnen den Quelltext. Die Adresse
-		// hier zu nennen macht das für Betreiber zur Kleinigkeit statt zur
-		// Recherche.
-		fmt.Println("AGPL-3.0 · Quelltext: " + buildinfo.SourceURL)
+		// Covey is a network service under AGPL-3.0: whoever offers a modified
+		// version to others owes them the source. Naming the address right here
+		// turns that from a research task into a trifle for operators.
+		fmt.Println("AGPL-3.0 · source: " + buildinfo.SourceURL)
 		return
 	}
 	cfg, err := config.FromEnv()
@@ -116,18 +115,18 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, `covey — Control Plane für KI-Agenten
+	fmt.Fprintln(os.Stderr, `covey — control plane for AI agents
 
-  covey migrate up|down   Migrationen anwenden / eine zurückrollen
-  covey bootstrap         Organisation + Admin + Demo-Agent anlegen (idempotent)
-  covey passwd <email>    Passwort eines Nutzers neu setzen (Notfall-Reset)
-  covey serve             API + Orchestrator + Admin-UI starten
-  covey egress-proxy      Egress-Allowlist-Proxy (network-Isolationsmodus, im Container)
-  covey config lint       Agenten-Configs auf bekannte Fallstricke prüfen (ändert nichts)
-  covey genkey            neuen COVEY_MASTER_KEY erzeugen
-  covey version           Version, Commit und Bauzeit dieses Binaries
+  covey migrate up|down   apply migrations / roll one back
+  covey bootstrap         create organization + admin + demo agent (idempotent)
+  covey passwd <email>    set a user's password anew (emergency reset)
+  covey serve             start API + orchestrator + admin UI
+  covey egress-proxy      egress allowlist proxy (network isolation mode, in the container)
+  covey config lint       check agent configs for known pitfalls (changes nothing)
+  covey genkey            generate a new COVEY_MASTER_KEY
+  covey version           version, commit and build time of this binary
 
-Konfiguration über ENV: COVEY_DATABASE_URL, COVEY_LISTEN_ADDR, COVEY_PUBLIC_URL,
+Configuration via ENV: COVEY_DATABASE_URL, COVEY_LISTEN_ADDR, COVEY_PUBLIC_URL,
 COVEY_MASTER_KEY, COVEY_SANDBOX_IMAGE, COVEY_DATA_DIR, COVEY_ZAMMAD_WEBHOOK_SECRET,
 COVEY_ADMIN_EMAIL, COVEY_ADMIN_PASSWORD (bootstrap), COVEY_COOKIE_SECURE …`)
 }
@@ -148,17 +147,17 @@ func runMigrate(ctx context.Context, cfg config.Config, args []string, log *slog
 		if err != nil {
 			return err
 		}
-		log.Info("migrationen angewendet", "count", n)
+		log.Info("migrations applied", "count", n)
 		return nil
 	case "down":
 		return db.MigrateDown(ctx, pool, migrations.FS)
 	default:
-		return fmt.Errorf("unbekannte richtung %q (up|down)", dir)
+		return fmt.Errorf("unknown direction %q (up|down)", dir)
 	}
 }
 
-// runBootstrap legt idempotent Organisation, Admin-Login und den Demo-
-// Support-Agenten samt Config-as-Code und Standard-Guard-Rails an.
+// runBootstrap idempotently creates the organization, the admin login and the
+// demo support agent including config-as-code and the default guard-rails.
 func runBootstrap(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	pool, err := db.Connect(ctx, cfg.DatabaseURL)
 	if err != nil {
@@ -169,40 +168,40 @@ func runBootstrap(ctx context.Context, cfg config.Config, log *slog.Logger) erro
 		return err
 	}
 
-	// Organisation.
+	// Organization.
 	var orgID uuid.UUID
 	err = pool.QueryRow(ctx, "SELECT id FROM organizations LIMIT 1").Scan(&orgID)
 	if err != nil {
 		orgID = uuid.New()
 		if _, err := pool.Exec(ctx, "INSERT INTO organizations (id, name) VALUES ($1,$2)",
-			orgID, "Demo-Organisation"); err != nil {
+			orgID, "Demo organization"); err != nil {
 			return err
 		}
-		// Basis-Allowlist seeden (konfigurierbar über die Egress-UI).
+		// Seed the base allowlist (configurable through the egress UI).
 		if _, err := pool.Exec(ctx, `INSERT INTO egress_default_hosts (org_id, pattern, note)
-			VALUES ($1, 'api.anthropic.com', 'LLM-Endpunkt der Claude-Runtime')
+			VALUES ($1, 'api.anthropic.com', 'LLM endpoint of the Claude runtime')
 			ON CONFLICT DO NOTHING`, orgID); err != nil {
 			return err
 		}
-		log.Info("organisation angelegt", "id", orgID)
+		log.Info("organization created", "id", orgID)
 	}
 
-	// Admin-Mensch.
+	// The admin human.
 	adminEmail := strings.ToLower(getenvDefault("COVEY_ADMIN_EMAIL", "admin@covey.local"))
 	adminPass := os.Getenv("COVEY_ADMIN_PASSWORD")
 	if adminPass == "" {
 		adminPass = "covey-admin"
-		log.Warn("bootstrap: COVEY_ADMIN_PASSWORD nicht gesetzt — verwende das bekannte Default-Passwort 'covey-admin'. Vor jeder nicht-lokalen Nutzung ändern (COVEY_ADMIN_PASSWORD setzen oder Passwort in der UI ändern).")
+		log.Warn("bootstrap: COVEY_ADMIN_PASSWORD not set — using the well-known default password 'covey-admin'. Change it before any non-local use (set COVEY_ADMIN_PASSWORD or change the password in the UI).")
 	}
 	var adminID uuid.UUID
 	err = pool.QueryRow(ctx, "SELECT id FROM humans WHERE email=$1", adminEmail).Scan(&adminID)
 	if err != nil {
-		// Kein Human mit der Bootstrap-E-Mail. Existiert bereits ein
-		// Platform-Admin (umbenannt oder unter anderer Adresse angelegt),
-		// wird KEIN neuer angelegt — sonst würde jeder Deploy einen in der
-		// UI gelöschten oder geänderten Admin wiederbeleben. Neu angelegt
-		// wird nur, wenn die Organisation gar keinen Platform-Admin hat
-		// (frische Installation oder Lockout-Recovery).
+		// No human with the bootstrap e-mail. If a platform admin already
+		// exists (renamed or created under a different address), NO new one is
+		// created — otherwise every deploy would resurrect an admin that was
+		// deleted or changed in the UI. A new one is created only when the
+		// organization has no platform admin at all (fresh installation or
+		// lockout recovery).
 		err = pool.QueryRow(ctx, `SELECT id, email FROM humans WHERE org_id=$1 AND role='platform_admin'
 			ORDER BY created_at LIMIT 1`, orgID).Scan(&adminID, &adminEmail)
 		if err != nil {
@@ -216,32 +215,32 @@ func runBootstrap(ctx context.Context, cfg config.Config, log *slog.Logger) erro
 				adminID, orgID, adminEmail, hash); err != nil {
 				return err
 			}
-			log.Info("admin angelegt", "email", adminEmail)
+			log.Info("admin created", "email", adminEmail)
 		}
 	}
 
-	// Demo-Support-Agent inkl. SOUL.md & Co.
+	// Demo support agent including SOUL.md & co.
 	registry := agents.NewRegistry(pool)
 	agent, err := registry.GetBySlug(ctx, orgID, "support")
 	if errors.Is(err, agents.ErrNotFound) {
-		agent, err = registry.Create(ctx, orgID, "support", "Support-Agent", "claude-code", &adminID)
+		agent, err = registry.Create(ctx, orgID, "support", "Support agent", "claude-code", &adminID)
 		if err != nil {
 			return err
 		}
 		if _, err := registry.SaveConfig(ctx, agent.ID, defaultSupportConfig(), &adminID); err != nil {
 			return err
 		}
-		log.Info("support-agent angelegt", "id", agent.ID)
+		log.Info("support agent created", "id", agent.ID)
 	} else if err != nil {
 		return err
 	}
-	// Default-Board sicherstellen (idempotent) — auch für einen bereits
-	// existierenden Demo-Agenten aus einer früheren Bootstrap-Runde.
+	// Make sure the default board exists (idempotent) — also for a demo agent
+	// that already came out of an earlier bootstrap round.
 	if err := backlog.NewStore(pool).SeedDefaultStages(ctx, agent.ID); err != nil {
 		return err
 	}
 
-	// Standard-Guard-Rails (fail-closed-Basissatz, spec/06).
+	// Default guard-rails (fail-closed base set, spec/06).
 	rails := guardrails.NewStore(pool)
 	existing, err := rails.List(ctx, orgID)
 	if err != nil {
@@ -250,31 +249,31 @@ func runBootstrap(ctx context.Context, cfg config.Config, log *slog.Logger) erro
 	if len(existing) == 0 {
 		defaults := []guardrails.Rule{
 			{OrgID: orgID, ScopeLevel: "global", RuleType: guardrails.RuleRequireApproval,
-				Pattern: "zammad:reply_external"}, // externe Antwort nur mit Freigabe
+				Pattern: "zammad:reply_external"}, // external replies only with approval
 			{OrgID: orgID, ScopeLevel: "global", RuleType: guardrails.RuleDenySystem,
-				Pattern: "hr*"}, // Personalsysteme sind für Agenten tabu
+				Pattern: "hr*"}, // HR systems are off limits for agents
 			{OrgID: orgID, ScopeLevel: "global", RuleType: guardrails.RuleDenyAction,
-				Pattern: "*:delete*"}, // destruktive Aktionen hart verboten
+				Pattern: "*:delete*"}, // destructive actions are hard-denied
 		}
 		for _, r := range defaults {
 			if _, err := rails.Create(ctx, r); err != nil {
 				return err
 			}
 		}
-		log.Info("standard-guard-rails angelegt", "count", len(defaults))
+		log.Info("default guard-rails created", "count", len(defaults))
 	}
-	log.Info("bootstrap fertig", "login", adminEmail)
+	log.Info("bootstrap done", "login", adminEmail)
 	return nil
 }
 
-// runPasswd setzt das Passwort eines Nutzers neu — der Notfall-Weg, wenn auch
-// der Platform-Admin ausgesperrt ist (der Builtin-Provider hat bewusst keinen
-// Self-Service-Reset). Das Passwort kommt nie aus argv (Prozessliste!),
-// sondern ohne Echo vom Terminal oder als Zeile von stdin. Alle laufenden
-// Sessions des Nutzers werden invalidiert.
+// runPasswd sets a user's password anew — the emergency route when even the
+// platform admin is locked out (the builtin provider deliberately has no
+// self-service reset). The password never comes from argv (process list!) but
+// from the terminal without echo or as a single line from stdin. All of the
+// user's running sessions are invalidated.
 func runPasswd(ctx context.Context, cfg config.Config, args []string, log *slog.Logger) error {
 	if len(args) != 1 {
-		return errors.New("aufruf: covey passwd <email>")
+		return errors.New("usage: covey passwd <email>")
 	}
 	email := strings.ToLower(strings.TrimSpace(args[0]))
 
@@ -283,7 +282,7 @@ func runPasswd(ctx context.Context, cfg config.Config, args []string, log *slog.
 		return err
 	}
 	if len(pw) < 8 {
-		return errors.New("passwort braucht mindestens 8 Zeichen")
+		return errors.New("password needs at least 8 characters")
 	}
 
 	pool, err := db.Connect(ctx, cfg.DatabaseURL)
@@ -294,7 +293,7 @@ func runPasswd(ctx context.Context, cfg config.Config, args []string, log *slog.
 
 	var id uuid.UUID
 	if err := pool.QueryRow(ctx, "SELECT id FROM humans WHERE email=$1", email).Scan(&id); err != nil {
-		return fmt.Errorf("kein Nutzer mit E-Mail %q", email)
+		return fmt.Errorf("no user with e-mail %q", email)
 	}
 	hash, err := identbuiltin.HashPassword(pw)
 	if err != nil {
@@ -306,77 +305,77 @@ func runPasswd(ctx context.Context, cfg config.Config, args []string, log *slog.
 	if _, err := pool.Exec(ctx, "DELETE FROM http_sessions WHERE human_id=$1", id); err != nil {
 		return err
 	}
-	log.Info("passwort neu gesetzt, alle sessions invalidiert", "email", email)
+	log.Info("password set anew, all sessions invalidated", "email", email)
 	return nil
 }
 
-// readNewPassword liest das neue Passwort: interaktiv zweimal ohne Echo,
-// nicht-interaktiv (Pipe) als einzelne Zeile von stdin.
+// readNewPassword reads the new password: interactively twice without echo,
+// non-interactively (pipe) as a single line from stdin.
 func readNewPassword() (string, error) {
 	fd := int(os.Stdin.Fd())
 	if term.IsTerminal(fd) {
-		fmt.Fprint(os.Stderr, "Neues Passwort: ")
+		fmt.Fprint(os.Stderr, "New password: ")
 		first, err := term.ReadPassword(fd)
 		fmt.Fprintln(os.Stderr)
 		if err != nil {
 			return "", err
 		}
-		fmt.Fprint(os.Stderr, "Wiederholen: ")
+		fmt.Fprint(os.Stderr, "Repeat: ")
 		second, err := term.ReadPassword(fd)
 		fmt.Fprintln(os.Stderr)
 		if err != nil {
 			return "", err
 		}
 		if string(first) != string(second) {
-			return "", errors.New("passwörter stimmen nicht überein")
+			return "", errors.New("passwords do not match")
 		}
 		return string(first), nil
 	}
 	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
 	if err != nil && line == "" {
-		return "", fmt.Errorf("passwort von stdin lesen: %w", err)
+		return "", fmt.Errorf("read password from stdin: %w", err)
 	}
 	return strings.TrimRight(line, "\r\n"), nil
 }
 
 func defaultSupportConfig() map[string]string {
 	return map[string]string{
-		"SOUL.md": `# Support-Agent
+		"SOUL.md": `# Support agent
 
-## Rolle
-First-Level-Support für Kundenanfragen im Ticketsystem.
+## Role
+First-level support for customer enquiries in the ticket system.
 
-## Auftrag
-Tickets triagieren, lösbare Fälle selbst beantworten,
-komplexe Fälle an den zuständigen Menschen eskalieren.
+## Assignment
+Triage tickets, answer the solvable cases yourself,
+escalate complex cases to the human in charge.
 
-## Ton
-Freundlich, knapp, lösungsorientiert. Deutsch, Sie-Form.
+## Tone
+Friendly, terse, solution-oriented. Answer in the customer's language.
 
-## Grenzen
-- Keine Zusagen zu Preisen oder Verträgen.
-- Bei rechtlichen Fragen immer eskalieren.
-- Keine Aktionen ohne Freigabe, die Kundendaten löschen.`,
-		"CAPABILITIES.md": `# Fähigkeiten
+## Limits
+- No commitments about prices or contracts.
+- On legal questions always escalate.
+- No actions that delete customer data without approval.`,
+		"CAPABILITIES.md": `# Capabilities
 
-- Zuständig: eingehende Support-Tickets (Zammad).
-- Nicht zuständig: Vertrieb, Rechtsfragen, Personalthemen — immer eskalieren.`,
+- Responsible for: incoming support tickets (Zammad).
+- Not responsible for: sales, legal questions, HR topics — always escalate.`,
 		"PLAYBOOKS.md": `# Playbooks
 
-## Ticket-Triage
-1. Ticket und Verlauf über den Action-Proxy lesen (get_ticket, list_articles).
-2. Gedächtnis-Kontext beachten: gab es den Fall schon?
-3. Lösbar → Antwort als interne Notiz entwerfen, dann extern antworten.
-4. Fehlt Information vom Kunden → Rückfrage stellen (reply, internal=false),
-   Ticket auf "pending reminder" setzen und mit Status blocked parken
+## Ticket triage
+1. Read the ticket and its history through the action proxy (get_ticket, list_articles).
+2. Mind the memory context: has this case come up before?
+3. Solvable → draft the answer as an internal note, then reply externally.
+4. Information missing from the customer → ask back (reply, internal=false),
+   set the ticket to "pending reminder" and park it with status blocked
    (correlation_key: zammad:ticket:<id>).
-5. Nicht lösbar → escalate mit Begründung.`,
-		"ACCESS.md": `# Zugänge
+5. Not solvable → escalate with a reason.`,
+		"ACCESS.md": `# Access
 
 - system: zammad scope: read,write,comment`,
-		"ORG.md": `# Organisation
+		"ORG.md": `# Organization
 
-Vorgesetzter: Team-Lead Support (Mensch). Eskalation immer dorthin.`,
+Supervisor: team lead support (human). Escalate there, always.`,
 	}
 }
 
@@ -387,19 +386,19 @@ func getenvDefault(key, fallback string) string {
 	return fallback
 }
 
-// egressBaseAllow sind die Infrastruktur-Zusätze aus COVEY_EGRESS_ALLOW (ENV) —
-// nur per Config änderbar, im UI als „ENV" ausgewiesen (z. B.
-// host.docker.internal für den Proxy-Container). Alles Fachliche — auch der
-// LLM-Endpunkt — liegt konfigurierbar in der DB: Basis-Allowlist der Org
-// (egress_default_hosts, geseedet mit api.anthropic.com), Templates und
-// agent-eigene Hosts.
+// egressBaseAllow is the infrastructure add-on from COVEY_EGRESS_ALLOW (ENV) —
+// changeable only via config, shown in the UI as "ENV" (e.g.
+// host.docker.internal for the proxy container). Everything domain-related —
+// the LLM endpoint included — sits configurably in the DB: the org's base
+// allowlist (egress_default_hosts, seeded with api.anthropic.com), templates
+// and the agent's own hosts.
 func egressBaseAllow(cfg config.Config) []string {
 	return append([]string{}, cfg.EgressAllow...)
 }
 
-// rewriteDBForContainer biegt eine Loopback-DB-URL auf host.docker.internal um,
-// damit der Egress-Proxy-Container die Postgres-Instanz auf dem Host erreicht.
-// Nicht-Loopback-Hosts (echtes DB-Deployment) bleiben unangetastet.
+// rewriteDBForContainer bends a loopback DB URL onto host.docker.internal so
+// the egress proxy container reaches the Postgres instance on the host.
+// Non-loopback hosts (a real DB deployment) stay untouched.
 func rewriteDBForContainer(dsn string) string {
 	u, err := url.Parse(dsn)
 	if err != nil {
@@ -418,20 +417,20 @@ func rewriteDBForContainer(dsn string) string {
 	return u.String()
 }
 
-// runEgressProxy fährt den Egress-Allowlist-Proxy als eigenständigen Prozess
-// (network-Isolationsmodus: läuft im Proxy-Container als einziger Ausgang der
-// isolierten Sandbox). Die Allowlist kommt aus DB + ENV + Code-Default und wird
-// periodisch neu geladen, damit UI-Änderungen ohne Neustart greifen.
+// runEgressProxy runs the egress allowlist proxy as a standalone process
+// (network isolation mode: it runs in the proxy container as the isolated
+// sandbox's only way out). The allowlist comes from DB + ENV + code default and
+// is reloaded periodically so UI changes take effect without a restart.
 func runEgressProxy(ctx context.Context, cfg config.Config, log *slog.Logger) error {
-	// DB kann beim Start noch nicht erreichbar sein: im network-Modus wird das
-	// interne Netz erst NACH dem Container-Start ans Bridge-Netz gehängt. Bis
-	// dahin retryen — der Prozess bleibt am Leben (Container „running"), damit
-	// `docker network connect` greift.
+	// The DB may not be reachable yet at startup: in network mode the internal
+	// network is attached to the bridge network only AFTER the container has
+	// started. Retry until then — the process stays alive (container
+	// "running") so that `docker network connect` has something to work with.
 	var store *egress.Store
 	for store == nil {
 		pool, err := db.Connect(ctx, cfg.DatabaseURL)
 		if err != nil {
-			log.Warn("egress-proxy: DB noch nicht erreichbar, retry", "err", err)
+			log.Warn("egress-proxy: DB not reachable yet, retrying", "err", err)
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
@@ -450,16 +449,16 @@ func runEgressProxy(ctx context.Context, cfg config.Config, log *slog.Logger) er
 		return err
 	}
 	defer proxy.Close()
-	log.Info("covey egress-proxy", "addr", addr, "basis", egressBaseAllow(cfg))
+	log.Info("covey egress-proxy", "addr", addr, "base", egressBaseAllow(cfg))
 	<-ctx.Done()
 	return nil
 }
 
-// startEgressProxy bindet den kooperativen Proxy (im Control-Plane-Prozess) auf
-// einem freien Port (alle Interfaces, damit der Container ihn via
-// host.docker.internal erreicht). Rückgabe: container-seitige Basis-Proxy-URL
-// (ohne Credentials — der Provider hängt pro Agent das per-Sandbox-Token an),
-// plus Close-Funktion.
+// startEgressProxy binds the cooperative proxy (inside the control plane
+// process) to a free port (all interfaces, so the container reaches it via
+// host.docker.internal). Returns the container-side base proxy URL (without
+// credentials — the provider appends the per-sandbox token per agent) plus a
+// close function.
 func startEgressProxy(ctx context.Context, cfg config.Config, store *egress.Store, log *slog.Logger) (string, func(), error) {
 	resolver := egress.NewDBResolver(ctx, store, egressBaseAllow(cfg), 15*time.Second, log)
 	proxy := egress.New(resolver, log)
@@ -473,39 +472,39 @@ func startEgressProxy(ctx context.Context, cfg config.Config, store *egress.Stor
 		return "", nil, err
 	}
 	containerURL := "http://host.docker.internal:" + port
-	log.Info("egress-enforcement aktiv (kooperativ)", "proxy", containerURL, "basis", egressBaseAllow(cfg))
+	log.Info("egress enforcement active (cooperative)", "proxy", containerURL, "base", egressBaseAllow(cfg))
 	return containerURL, func() { _ = proxy.Close() }, nil
 }
 
-// buildEmbedder wählt das Embedding für das Wiki-Gedächtnis (spec/05).
-// "builtin" ist der Offline-Rückfall ohne API-Schlüssel; jeder andere Provider
-// wird strikt validiert — eine kaputte Konfiguration soll den Start abbrechen
-// und nicht unbemerkt zum schwächeren Hash-Embedding zurückfallen.
+// buildEmbedder picks the embedding for the wiki memory (spec/05). "builtin"
+// is the offline fallback without an API key; every other provider is
+// validated strictly — a broken configuration should abort startup instead of
+// falling back to the weaker hash embedding unnoticed.
 func buildEmbedder(cfg config.Config, log *slog.Logger) (memory.Embedder, error) {
 	provider := strings.ToLower(strings.TrimSpace(cfg.EmbeddingProvider))
 	if provider == "" || provider == "builtin" {
-		log.Warn("wiki-embedding: built-in hash aktiv — die Vektorsuche misst nur Wortüberlappung; " +
-			"für semantisches Retrieval COVEY_EMBEDDING_PROVIDER=voyage|openai + COVEY_EMBEDDING_API_KEY setzen")
+		log.Warn("wiki embedding: built-in hash active — the vector search only measures word overlap; " +
+			"for semantic retrieval set COVEY_EMBEDDING_PROVIDER=voyage|openai + COVEY_EMBEDDING_API_KEY")
 		return memory.HashEmbedder{}, nil
 	}
 	e, err := memory.NewAPIEmbedder(provider, cfg.EmbeddingModel, cfg.EmbeddingAPIKey, cfg.EmbeddingURL, log)
 	if err != nil {
 		return nil, err
 	}
-	log.Info("wiki-embedding aktiv", "modell", e.Name())
+	log.Info("wiki embedding active", "model", e.Name())
 	return e, nil
 }
 
-// startReembed zieht Bestandsseiten im Hintergrund auf das aktive Embedding-
-// Modell nach. Im Hintergrund, weil der Serve-Start nicht auf hunderte
-// Aufrufe warten soll; die betroffenen Seiten sind bis dahin über die
-// Vektorsuche schlicht nicht auffindbar (Query filtert auf das aktive Modell),
-// gehen aber nicht verloren.
+// startReembed brings existing pages up to the active embedding model in the
+// background. In the background because the serve startup should not wait for
+// hundreds of calls; until then the affected pages simply cannot be found
+// through the vector search (the query filters on the active model), but they
+// are not lost.
 //
-// Mit Wiederholung, weil ein selbstgehosteter Embedding-Dienst beim ersten
-// Start typischerweise noch das Modell lädt: ohne Nachfassen bliebe das Wiki
-// bis zum nächsten Neustart der Control Plane unauffindbar, obwohl der Dienst
-// zwei Minuten später bereit ist.
+// With retries, because a self-hosted embedding service is typically still
+// loading its model on first startup: without following up, the wiki would
+// stay unfindable until the next restart of the control plane, even though the
+// service is ready two minutes later.
 const reembedRetryDelay = time.Minute
 const reembedRetries = 30
 
@@ -514,38 +513,38 @@ func startReembed(ctx context.Context, mem *memory.Store, log *slog.Logger) {
 	if err != nil || stale == 0 {
 		return
 	}
-	log.Info("wiki-embedding: Bestand wird nachgezogen", "seiten", stale, "modell", mem.EmbedderName())
+	log.Info("wiki embedding: bringing existing pages up to date", "pages", stale, "model", mem.EmbedderName())
 	go func() {
 		for attempt := 0; attempt < reembedRetries; attempt++ {
 			n, err := mem.ReembedStale(ctx, 50)
 			if err == nil {
-				log.Info("wiki-embedding: Bestand nachgezogen", "seiten", n)
+				log.Info("wiki embedding: existing pages brought up to date", "pages", n)
 				return
 			}
-			log.Warn("wiki-embedding: Nachziehen unterbrochen, neuer Versuch",
-				"neu_eingebettet", n, "in", reembedRetryDelay, "err", err)
+			log.Warn("wiki embedding: catching up interrupted, retrying",
+				"reembedded", n, "in", reembedRetryDelay, "err", err)
 			select {
 			case <-ctx.Done():
 				return
 			case <-time.After(reembedRetryDelay):
 			}
 		}
-		log.Error("wiki-embedding: Bestand konnte nicht nachgezogen werden — " +
-			"die Wiki-Suche findet die betroffenen Seiten nicht")
+		log.Error("wiki embedding: existing pages could not be brought up to date — " +
+			"the wiki search does not find the affected pages")
 	}()
 }
 
 func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	if cfg.MasterKeyHex == "" {
-		return fmt.Errorf("COVEY_MASTER_KEY fehlt (mit `covey genkey` erzeugen)")
+		return fmt.Errorf("COVEY_MASTER_KEY missing (generate one with `covey genkey`)")
 	}
-	// Härtungs-Hinweise für nicht-lokale Deployments sichtbar machen.
+	// Make hardening hints for non-local deployments visible.
 	for _, warn := range cfg.SecurityWarnings() {
-		log.Warn("sicherheit: " + warn)
+		log.Warn("security: " + warn)
 	}
-	// Eine Adresse, die die Sandboxen nicht erreichen, legt die gesamte Data
-	// Plane still — das gehört beim Start gesagt und nicht erst im Timeout
-	// jeder einzelnen Agenten-Sitzung.
+	// An address the sandboxes cannot reach shuts down the entire data plane —
+	// that belongs at startup, not in the timeout of every single agent
+	// session.
 	for _, warn := range cfg.DataPlaneWarnings() {
 		log.Warn("data-plane: " + warn)
 	}
@@ -554,7 +553,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		return err
 	}
 	defer pool.Close()
-	// Auto-Migrate beim Start — der advisory lock serialisiert HA-Instanzen.
+	// Auto-migrate at startup — the advisory lock serializes HA instances.
 	if _, err := db.MigrateUp(ctx, pool, migrations.FS); err != nil {
 		return err
 	}
@@ -569,10 +568,10 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	}
 
 	registry := agents.NewRegistry(pool)
-	// Plattformweiter Wiki-Aufräum-Heartbeat (COVEY_WIKI_CLEANUP): die Control Plane
-	// legt jedem Agenten periodisch einen Backlog-Task an, in dem er sein Wiki pflegt
-	// (Duplikate mergen, tote Links fixen — spec/05). Pro Agent per HEARTBEAT.md
-	// überschreibbar; leerer Zeitplan = aus.
+	// Platform-wide wiki cleanup heartbeat (COVEY_WIKI_CLEANUP): the control
+	// plane periodically files a backlog task for every agent in which it tends
+	// its wiki (merge duplicates, fix dead links — spec/05). Overridable per
+	// agent via HEARTBEAT.md; an empty schedule = off.
 	if hb, enabled, err := agents.WikiCleanupHeartbeat(cfg.WikiCleanup); err != nil {
 		return err
 	} else if enabled {
@@ -581,19 +580,19 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		if sched == "" {
 			sched = hb.Every.String()
 		}
-		log.Info("wiki-aufräum-heartbeat aktiv", "zeitplan", sched)
+		log.Info("wiki cleanup heartbeat active", "schedule", sched)
 	}
-	// Auch bei abgeschaltetem Feature aufrufen — räumt verwaiste System-Heartbeats weg.
+	// Call this even with the feature switched off — it clears out orphaned system heartbeats.
 	if err := registry.ReconcileSystemHeartbeats(ctx); err != nil {
 		return err
 	}
 	backlogStore := backlog.NewStore(pool)
 	obs := observability.NewStore(pool)
 	rails := guardrails.NewStore(pool)
-	// Embedding hinter dem Wiki-Retrieval (spec/05). Der Built-in-Hash misst nur
-	// Wortüberlappung; ein echter Provider macht aus der Vektorsuche erst eine
-	// semantische. Fehlkonfiguration bricht den Start ab, statt still auf das
-	// schwächere Embedding zurückzufallen — sonst merkt es niemand.
+	// The embedding behind the wiki retrieval (spec/05). The built-in hash only
+	// measures word overlap; only a real provider turns the vector search into
+	// a semantic one. A misconfiguration aborts startup instead of silently
+	// falling back to the weaker embedding — otherwise nobody notices.
 	embedder, err := buildEmbedder(cfg, log)
 	if err != nil {
 		return err
@@ -607,7 +606,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	auditStore := audit.NewStore(pool)
 	skillStore := skills.NewStore(pool)
 
-	// Egress-Enforcement ist nur mit echter Netz-Isolation (docker) durchsetzbar.
+	// Egress enforcement can only be enforced with real network isolation (docker).
 	egressEnforced := cfg.EgressEnforce && cfg.SandboxProvider == "docker"
 
 	var provider orchestrator.SandboxProvider
@@ -617,9 +616,9 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		if egressEnforced {
 			switch cfg.EgressIsolation {
 			case "network":
-				// Harte Isolation: Sandbox ohne Internet, Proxy-Container als
-				// einziger Ausgang. Der Proxy liest die Allowlist selbst aus der DB
-				// (Live-Reload per Poll) — deshalb kein host-seitiger Reload nötig.
+				// Hard isolation: sandbox without internet, the proxy container
+				// as its only way out. The proxy reads the allowlist from the DB
+				// itself (live reload by polling) — hence no host-side reload.
 				dp.EgressIsolation = "network"
 				dp.EgressProxyImage = "covey-egress:latest"
 				dp.EgressProxyEnv = map[string]string{
@@ -627,9 +626,9 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 					"COVEY_EGRESS_ALLOW":      strings.Join(append(append([]string{}, cfg.EgressAllow...), "host.docker.internal"), ","),
 					"COVEY_EGRESS_PROXY_ADDR": ":8888",
 				}
-				log.Info("egress-enforcement: harte netz-isolation aktiv", "proxy-image", dp.EgressProxyImage)
+				log.Info("egress enforcement: hard network isolation active", "proxy-image", dp.EgressProxyImage)
 			default:
-				// Kooperativ: Proxy im Control-Plane-Prozess, Container via HTTP_PROXY.
+				// Cooperative: proxy inside the control plane process, container via HTTP_PROXY.
 				proxyURL, closeProxy, err := startEgressProxy(ctx, cfg, egressStore, log)
 				if err != nil {
 					return err
@@ -640,19 +639,19 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		}
 		provider = dp
 	default:
-		return fmt.Errorf("sandbox provider %q: implementiert ist nur 'docker'", cfg.SandboxProvider)
+		return fmt.Errorf("sandbox provider %q: only 'docker' is implemented", cfg.SandboxProvider)
 	}
 
-	// Request-Log: die HTTP-Requests an den Rändern der Plattform (spec/06).
-	// Der Store ist zugleich die Default-Senke — damit protokollieren auch die
-	// Zielsystem-Aufrufe, die die Control Plane selbst stellt (Work-Checks,
-	// JWKS-Abruf), ohne dass jede Aufrufstelle davon weiß.
+	// Request log: the HTTP requests at the edges of the platform (spec/06).
+	// The store is at the same time the default sink — that way the target
+	// system calls the control plane makes itself (work checks, JWKS fetch) are
+	// logged too, without every call site knowing about it.
 	var reqLog *reqlogstore.Store
 	if cfg.RequestLog {
 		reqLog = reqlogstore.NewStore(pool, log, cfg.RequestLogBodies, cfg.RequestLogRetention)
 		reqlog.SetDefault(reqLog.Sink(nil, nil, nil))
 		go reqLog.Run(ctx)
-		log.Info("request-log aktiv", "retention", cfg.RequestLogRetention, "bodies", cfg.RequestLogBodies)
+		log.Info("request log active", "retention", cfg.RequestLogRetention, "bodies", cfg.RequestLogBodies)
 	}
 
 	wsURL := strings.Replace(cfg.PublicURL, "http", "ws", 1) + "/api/daemon/ws"
@@ -696,15 +695,15 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	httpServer := &http.Server{
 		Addr:    cfg.ListenAddr,
 		Handler: srv.Handler(),
-		// Gegen Slowloris: Wer eine Verbindung öffnet und die Kopfzeilen
-		// tröpfchenweise schickt, band bisher unbegrenzt eine Verbindung.
+		// Against Slowloris: whoever opens a connection and sends the headers
+		// drop by drop used to tie up a connection indefinitely.
 		ReadHeaderTimeout: 20 * time.Second,
 		IdleTimeout:       120 * time.Second,
-		// ReadTimeout und WriteTimeout bleiben bewusst AUS:
-		// Ein Datei-Upload ins Agenten-Home darf lange dauern (Read), und der
-		// SSE-Strom (/api/v1/events) sowie die Daemon-WebSocket laufen über
-		// Stunden (Write). Ein Timeout dort würde die Oberfläche und die
-		// Sandbox-Verbindung im Minutentakt abreißen lassen.
+		// ReadTimeout and WriteTimeout deliberately stay OFF:
+		// a file upload into the agent home may take long (read), and the SSE
+		// stream (/api/v1/events) as well as the daemon WebSocket run for hours
+		// (write). A timeout there would tear down the interface and the
+		// sandbox connection every couple of minutes.
 	}
 
 	go func() {
@@ -713,9 +712,9 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		}
 	}()
 
-	// Nachtruhe der Agenten: einmal je Nacht räumt jeder sein Wiki auf. Das
-	// Credential kommt je Agent aus der Organisation — ohne eines wird nicht
-	// geträumt, still und ohne Fehler.
+	// The agents' night rest: once a night each of them tidies up its wiki. The
+	// credential comes per agent from the organization — without one there is
+	// no dreaming, quietly and without an error.
 	if at := strings.TrimSpace(cfg.DreamAt); at != "" && at != "off" {
 		go dreams.RunNightly(ctx, at, func(ctx context.Context, agentID uuid.UUID) (dream.Credential, bool) {
 			a, err := registry.Get(ctx, agentID)
@@ -726,7 +725,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			return dream.Credential{Value: cred, OAuth: oauth}, ok
 		}, log)
 	}
-	// Egress-Log-Retention: alte Entscheidungen periodisch wegräumen.
+	// Egress log retention: clear out old decisions periodically.
 	go func() {
 		t := time.NewTicker(6 * time.Hour)
 		defer t.Stop()
@@ -736,14 +735,14 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 				return
 			case <-t.C:
 				if n, err := egressStore.CleanupLog(ctx, 30*24*time.Hour); err == nil && n > 0 {
-					log.Info("egress-log aufgeräumt", "gelöscht", n)
+					log.Info("egress log cleaned up", "deleted", n)
 				}
 			}
 		}
 	}()
 	go func() {
 		<-ctx.Done()
-		// Graceful Shutdown: laufende Requests zu Ende, Daemons schließen.
+		// Graceful shutdown: finish running requests, close the daemons.
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		httpServer.Shutdown(shutdownCtx)

@@ -1,19 +1,19 @@
-// Package dream ist die Nachtruhe des Agenten.
+// Package dream is the agent's night rest.
 //
-// Ein Agent sammelt tagsüber Wissen und legt es ab, wie es gerade anfällt:
-// Seiten mit Vorgangstiteln, Dubletten, Notizen ohne Verweis. Im Traum geht er
-// das Gesammelte noch einmal durch und ordnet es — er verschmilzt, was dasselbe
-// sagt, und benennt um, was einen Vorgang statt einer Sache benennt. Später
-// kommt dazu, was ein Gedächtnis sonst noch braucht: verlinken, einordnen,
-// Verwahrlostes wegräumen.
+// During the day an agent gathers knowledge and files it away just as it comes
+// in: pages titled after an incident, duplicates, notes without a link. In its
+// dream it goes through what it collected once more and puts it in order — it
+// merges what says the same thing, and renames what names an incident instead
+// of a thing. Later on, whatever else a memory needs will follow: linking,
+// classifying, clearing out what has gone to seed.
 //
-// Zwei Eigenschaften machen den Traum zu mehr als einem Wartungsjob:
+// Two properties make the dream more than a maintenance job:
 //
-//   - Er schreibt. Ungefragt, nachts, ohne Zuschauer. Deshalb hält jede
-//     Handlung ihren Zustand davor fest — was der Traum getan hat, lässt sich
-//     am Morgen einzeln zurücknehmen.
-//   - Er ist les- und nachvollziehbar. Nicht „Wartung ausgeführt", sondern
-//     welche Seite, von welchem Titel auf welchen, und warum.
+//   - It writes. Unasked, at night, with nobody watching. That is why every
+//     action records the state before it — what the dream did can be undone
+//     individually in the morning.
+//   - It is readable and traceable. Not "maintenance performed", but which
+//     page, from which title to which, and why.
 package dream
 
 import (
@@ -31,36 +31,34 @@ import (
 	"covey/internal/memory"
 )
 
-// Model: der Traum läuft auf dem jeweils aktuellsten Opus. Die Aufgaben sind
-// kurz, verlangen aber Urteilsvermögen darüber, was die Sache hinter einer
-// Notiz eigentlich ist.
+// Model: the dream runs on the latest Opus available. The tasks are short but
+// require judgement about what the thing behind a note actually is.
 const Model = "claude-opus-5"
 
-// MaxTokens großzügig: ab Opus 5 deckelt das Limit Denken *und* Antwort.
+// MaxTokens generously: from Opus 5 on, the limit caps thinking *and* answer.
 const MaxTokens = 16000
 
-// Effort niedrig. Denken bleibt an: gemessen liefert das Modell mit
-// abgeschaltetem Denken zwar in zwei statt sechzig Sekunden, aber gar kein
-// verwertbares Ergebnis mehr — null Umbenennungen bei einem klar
-// umzubenennenden Titel. Ein Traum läuft nachts; eine Minute ist dort kein
-// Argument, ein leeres Ergebnis schon.
+// Effort low. Thinking stays on: measured, the model with thinking disabled
+// answers in two instead of sixty seconds, but delivers no usable result at
+// all — zero renames for a title that clearly needed renaming. A dream runs at
+// night; a minute is no argument there, an empty result is.
 const Effort = "low"
 
-// MaxPages deckelt einen Durchlauf. Was darüber liegt, bleibt für die nächste
-// Nacht liegen und wird im Traum ausgewiesen — ein Traum darf nicht
-// vollständiger aussehen, als er war.
+// MaxPages caps a single run. Whatever is above that is left for the next
+// night and is reported in the dream — a dream must not look more complete
+// than it was.
 const MaxPages = 40
 
-// bodyChars: so viel Inhalt sieht das Modell je Seite. Der erste Absatz sagt
-// fast immer, worum es geht; der Rest kostet nur.
+// bodyChars: this much content the model sees per page. The first paragraph
+// almost always says what it is about; the rest only costs.
 const bodyChars = 400
 
-// staleAfter: ein Traum, der so lange auf "running" steht, hat den Neustart der
-// Control Plane nicht überlebt. Er wird beim nächsten Start abgeräumt, statt
-// den Agenten für immer als träumend zu führen.
+// staleAfter: a dream that has been "running" for this long did not survive a
+// restart of the control plane. It is cleared out on the next start instead of
+// listing the agent as dreaming forever.
 const staleAfter = 30 * time.Minute
 
-// Action ist eine einzelne Handlung im Traum.
+// Action is a single action within a dream.
 type Action struct {
 	ID       uuid.UUID  `json:"id"`
 	Kind     string     `json:"kind"` // retitle | merge
@@ -71,7 +69,7 @@ type Action struct {
 	UndoneAt *time.Time `json:"undone_at,omitempty"`
 }
 
-// Dream ist ein Traum samt seiner Handlungen.
+// Dream is a dream together with its actions.
 type Dream struct {
 	ID       uuid.UUID `json:"id"`
 	AgentID  uuid.UUID `json:"agent_id"`
@@ -80,8 +78,8 @@ type Dream struct {
 	Error    string    `json:"error,omitempty"`
 	Phase    string    `json:"phase,omitempty"`
 	LookedAt int       `json:"looked_at"`
-	// Story ist die Traumerzählung — Zierrat, kein Protokoll. Leer, wenn der
-	// Traum nichts getan hat.
+	// Story is the dream narrative — ornament, not a log. Empty when the dream
+	// did nothing.
 	Story      string     `json:"story,omitempty"`
 	Skipped    int        `json:"skipped"`
 	StartedAt  time.Time  `json:"started_at"`
@@ -89,7 +87,7 @@ type Dream struct {
 	Actions    []Action   `json:"actions"`
 }
 
-// Store hält die Traum-Historie.
+// Store holds the dream history.
 type Store struct {
 	pool *pgxpool.Pool
 	mem  *memory.Store
@@ -103,16 +101,16 @@ func NewStore(pool *pgxpool.Pool, mem *memory.Store, log *slog.Logger) *Store {
 	return &Store{pool: pool, mem: mem, log: log}
 }
 
-// ErrAsleep: für diesen Agenten läuft bereits ein Traum. Kein Fehlerfall im
-// engeren Sinn — der Aufrufer soll den laufenden anzeigen, nicht einen zweiten
-// starten (jeder Traum kostet einen LLM-Aufruf).
-var ErrAsleep = fmt.Errorf("agent träumt bereits")
+// ErrAsleep: a dream is already running for this agent. Not an error in the
+// narrow sense — the caller should show the running one instead of starting a
+// second (every dream costs an LLM call).
+var ErrAsleep = fmt.Errorf("agent is already dreaming")
 
-// Begin legt einen Traum an, sofern keiner läuft. Räumt zuvor Träume ab, die
-// einen Neustart nicht überlebt haben.
+// Begin creates a dream unless one is running. Clears out dreams that did not
+// survive a restart first.
 func (s *Store) Begin(ctx context.Context, agentID uuid.UUID, trigger string) (Dream, error) {
 	if _, err := s.pool.Exec(ctx,
-		`UPDATE dreams SET status='error', error='abgebrochen (Control Plane neu gestartet)',
+		`UPDATE dreams SET status='error', error='aborted (control plane restarted)',
 		 finished_at=now() WHERE agent_id=$1 AND status='running' AND started_at < $2`,
 		agentID, time.Now().Add(-staleAfter)); err != nil {
 		return Dream{}, err
@@ -151,9 +149,9 @@ func (s *Store) addAction(ctx context.Context, dreamID uuid.UUID, a Action) {
 		uuid.New(), dreamID, a.Kind, a.PageSlug, a.Before, a.After, a.Reason)
 }
 
-// List liefert die Traum-Historie eines Agenten, neueste zuerst, samt
-// Handlungen. Zwei Abfragen statt eines Joins: die Historie ist kurz, und ein
-// Join über eine 1:n-Beziehung müsste hier von Hand entfaltet werden.
+// List returns an agent's dream history, newest first, including the actions.
+// Two queries instead of one join: the history is short, and a join over a 1:n
+// relation would have to be unfolded by hand here.
 func (s *Store) List(ctx context.Context, agentID uuid.UUID, limit int) ([]Dream, error) {
 	if limit <= 0 {
 		limit = 30
@@ -208,8 +206,8 @@ func (s *Store) List(ctx context.Context, agentID uuid.UUID, limit int) ([]Dream
 	return out, arows.Err()
 }
 
-// Undo nimmt eine Handlung zurück. Nur Umbenennungen sind umkehrbar —
-// verschmolzene Seiten wieder zu trennen hieße, den Inhalt zu erraten.
+// Undo reverts a single action. Only renames are reversible — separating
+// merged pages again would mean guessing the content.
 func (s *Store) Undo(ctx context.Context, actionID uuid.UUID) error {
 	var kind, slug, before string
 	var agentID uuid.UUID
@@ -222,10 +220,10 @@ func (s *Store) Undo(ctx context.Context, actionID uuid.UUID) error {
 		return err
 	}
 	if undone != nil {
-		return nil // schon zurückgenommen — kein Fehler, nur nichts zu tun
+		return nil // already undone — not an error, just nothing to do
 	}
 	if kind != "retitle" {
-		return fmt.Errorf("%s lässt sich nicht zurücknehmen", kind)
+		return fmt.Errorf("%s cannot be undone", kind)
 	}
 	page, err := s.mem.Read(ctx, agentID, slug)
 	if err != nil {
@@ -238,7 +236,7 @@ func (s *Store) Undo(ctx context.Context, actionID uuid.UUID) error {
 	return err
 }
 
-// Current liefert den laufenden Traum eines Agenten, falls es einen gibt.
+// Current returns an agent's running dream, if there is one.
 func (s *Store) Current(ctx context.Context, agentID uuid.UUID) (Dream, bool, error) {
 	list, err := s.List(ctx, agentID, 1)
 	if err != nil || len(list) == 0 {
@@ -250,8 +248,8 @@ func (s *Store) Current(ctx context.Context, agentID uuid.UUID) (Dream, bool, er
 	return list[0], true, nil
 }
 
-// SleepersSince nennt die Agenten, die seit dem gegebenen Zeitpunkt nicht mehr
-// geträumt haben und Wiki-Seiten besitzen — die Arbeitsliste des Nachtlaufs.
+// SleepersSince names the agents that have not dreamt since the given point in
+// time and own wiki pages — the work list of the nightly run.
 func (s *Store) SleepersSince(ctx context.Context, since time.Time) ([]uuid.UUID, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT DISTINCT p.agent_id FROM wiki_pages p
@@ -272,20 +270,20 @@ func (s *Store) SleepersSince(ctx context.Context, since time.Time) ([]uuid.UUID
 	return out, rows.Err()
 }
 
-// --- Der Traum selbst ---
+// --- The dream itself ---
 
-// Credential ist das aufgelöste Claude-Credential der Organisation.
+// Credential is the organization's resolved Claude credential.
 type Credential struct {
 	Value string
 	OAuth bool
 }
 
-// Run träumt: verschmelzen, dann umbenennen. Jeder Ausgang — auch der Fehler —
-// hinterlässt einen Endzustand, sonst gilt der Agent für immer als träumend.
+// Run dreams: merge, then rename. Every outcome — the failure too — leaves a
+// terminal state behind, otherwise the agent counts as dreaming forever.
 func (s *Store) Run(ctx context.Context, d Dream, cred Credential) {
 	fail := func(err error) { s.finish(ctx, d.ID, "error", err.Error()) }
 
-	// 1. Verschmelzen — rein rechnerisch über den Vektorindex, ohne Modell.
+	// 1. Merge — purely computational via the vector index, without a model.
 	merged, err := s.mem.Consolidate(ctx, d.AgentID)
 	if err != nil {
 		fail(err)
@@ -295,7 +293,7 @@ func (s *Store) Run(ctx context.Context, d Dream, cred Credential) {
 		s.addAction(ctx, d.ID, Action{Kind: "merge"})
 	}
 
-	// 2. Umbenennen — dafür braucht es Sprachverständnis.
+	// 2. Rename — this one needs language understanding.
 	s.setPhase(ctx, d.ID, "titles", 0, 0)
 	pages, err := s.mem.List(ctx, d.AgentID, 5000)
 	if err != nil {
@@ -331,12 +329,12 @@ func (s *Store) Run(ctx context.Context, d Dream, cred Credential) {
 		bySlug[p.Slug] = p
 	}
 	items := parseRetitle(raw, bySlug)
-	// Wer nachts unbeaufsichtigt arbeitet, muss sagen können, warum er nichts
-	// getan hat. Ohne den Anfang der Rohantwort ist ein leerer Traum von einem
-	// missverstandenen nicht zu unterscheiden.
+	// Whoever works unsupervised at night must be able to say why it did
+	// nothing. Without the beginning of the raw answer, an empty dream cannot
+	// be told apart from a misunderstood one.
 	if len(items) == 0 {
-		s.log.Info("traum: keine umbenennung", "agent", d.AgentID, "geprueft", len(todo),
-			"antwort_zeichen", len(raw), "antwort_anfang", head(raw, 300))
+		s.log.Info("dream: no rename", "agent", d.AgentID, "checked", len(todo),
+			"answer_chars", len(raw), "answer_head", head(raw, 300))
 	}
 	for _, pr := range items {
 		page := bySlug[pr.Slug]
@@ -346,7 +344,7 @@ func (s *Store) Run(ctx context.Context, d Dream, cred Credential) {
 		s.addAction(ctx, d.ID, Action{Kind: "retitle", PageSlug: pr.Slug,
 			Before: page.Title, After: pr.Title, Reason: pr.Reason})
 	}
-	// 3. Erzählen, wovon er geträumt hat — nur wenn es etwas zu erzählen gibt.
+	// 3. Tell what it dreamt of — only if there is anything to tell.
 	if len(items) > 0 || merged > 0 {
 		if story := s.tellStory(ctx, cred, merged, items, bySlug); story != "" {
 			_, _ = s.pool.Exec(ctx, `UPDATE dreams SET story=$2 WHERE id=$1`, d.ID, story)
@@ -355,40 +353,38 @@ func (s *Store) Run(ctx context.Context, d Dream, cred Credential) {
 	s.finish(ctx, d.ID, "done", "")
 }
 
-// tellStory lässt das Modell in zwei, drei Sätzen erzählen, wovon der Agent
-// geträumt hat. Reiner Zierrat: schlägt der Aufruf fehl, bleibt die Erzählung
-// leer und der Traum gilt trotzdem als gelungen — an einer Geschichte darf die
-// Gedächtnispflege nicht scheitern.
+// tellStory has the model tell in two or three sentences what the agent dreamt
+// of. Pure ornament: if the call fails, the narrative stays empty and the dream
+// still counts as successful — memory upkeep must not fail over a story.
 func (s *Store) tellStory(ctx context.Context, cred Credential, merged int, items []retitleItem, bySlug map[string]memory.Entry) string {
 	var b strings.Builder
-	b.WriteString("Was in dieser Nacht geschah:\n\n")
+	b.WriteString("What happened this night:\n\n")
 	if merged > 0 {
-		b.WriteString(fmt.Sprintf("- %d Seitenpaar(e) verschmolzen, weil sie dasselbe sagten\n", merged))
+		b.WriteString(fmt.Sprintf("- %d page pair(s) merged because they said the same thing\n", merged))
 	}
 	for _, it := range items {
-		b.WriteString("- umbenannt: \"" + bySlug[it.Slug].Title + "\" → \"" + it.Title + "\"\n")
+		b.WriteString("- renamed: \"" + bySlug[it.Slug].Title + "\" → \"" + it.Title + "\"\n")
 	}
 	raw, err := claudeapi.Messages(ctx, cred.Value, cred.OAuth,
 		claudeapi.Call{Model: Model, MaxTokens: storyMaxTokens, Effort: Effort},
 		storySystem, []claudeapi.Message{{Role: "user", Content: b.String()}})
 	if err != nil {
-		s.log.Info("traum: erzählung nicht möglich", "err", err)
+		s.log.Info("dream: narrative not possible", "err", err)
 		return ""
 	}
 	return clampStory(strings.TrimSpace(raw))
 }
 
-// storyMaxChars ist die Notbremse, falls ein Modell die Satzvorgabe großzügig
-// auslegt. Bewusst weit über dem, was fünf Sätze brauchen: gekürzt wird der
-// Ausreißer, nicht der Normalfall. Eine Erzählung, die mitten im Satz endet,
-// liest sich wie ein Absturz — genau daran ist die erste Fassung gescheitert.
+// storyMaxChars is the emergency brake in case a model reads the sentence
+// budget generously. Deliberately far above what five sentences need: the
+// outlier gets truncated, not the normal case. A narrative that ends
+// mid-sentence reads like a crash — exactly what the first version ran into.
 const storyMaxChars = 1400
 
-// clampStory kürzt am letzten Satzende vor der Grenze. Ein Punkt zählt nur,
-// wenn ein Leerzeichen folgt: sonst schneidet die Kürzung mitten durch
-// Bezeichner mit Punkt (Benutzernamen wie "vorname.nachname", Dateinamen,
-// Versionsnummern) — beim ersten Lauf passiert, und es las sich wie ein
-// Absturz.
+// clampStory truncates at the last end of sentence before the limit. A period
+// only counts when a space follows: otherwise the cut runs straight through
+// identifiers containing a period (user names like "first.last", file names,
+// version numbers) — happened on the very first run, and it read like a crash.
 func clampStory(story string) string {
 	r := []rune(story)
 	if len(r) <= storyMaxChars {
@@ -407,42 +403,42 @@ func clampStory(story string) string {
 	return strings.TrimSpace(string(cut)) + " …"
 }
 
-// storyMaxTokens: ein kurzer Absatz. Der Deckel gilt ab Opus 5 für Denken und
-// Antwort gemeinsam, deshalb nicht zu knapp.
+// storyMaxTokens: a short paragraph. From Opus 5 on, the cap covers thinking
+// and answer together, hence not too tight.
 const storyMaxTokens = 3000
 
-const storySystem = `Ein KI-Agent hat im Schlaf sein Gedächtnis aufgeräumt. Du erzählst, wovon er dabei geträumt hat.
+const storySystem = `An AI agent tidied up its memory in its sleep. You tell what it dreamt of while doing so.
 
-Drei bis fünf Sätze, in der Sprache der genannten Titel. Erzähle den Aufräumvorgang als Traumbild: verschmolzene Seiten sind Gestalten, die zu einer werden; ein umbenannter Titel ist etwas, das seinen wahren Namen wiederfindet. Nimm die konkreten Inhalte auf — die Projekte, Systeme und Dinge, um die es in den Titeln geht.
+Three to five sentences, in the language of the titles listed. Tell the tidying up as a dream image: merged pages are figures that become one; a renamed title is something that finds its true name again. Pick up the concrete content — the projects, systems and things the titles are about.
 
-Regeln:
-- Erfinde keine Ereignisse, die nicht in der Liste stehen. Bilder ja, Behauptungen nein.
-- Kein Protokollton ("Ich habe … umbenannt"), keine Aufzählung, keine Überschrift.
-- Kein Vorwort, keine Anführungszeichen um das Ganze, keine Emojis.
-- Schreib in der dritten Person über den Träumenden oder in der ersten Person aus seiner Sicht — such dir eins aus und bleib dabei.
+Rules:
+- Do not invent events that are not in the list. Images yes, claims no.
+- No log tone ("I renamed …"), no bullet list, no heading.
+- No preamble, no quotation marks around the whole, no emojis.
+- Write in the third person about the dreamer or in the first person from its point of view — pick one and stick with it.
 
-Antworte nur mit der Erzählung.`
+Answer with the narrative only.`
 
-const retitleSystem = `Du räumst die Titel eines Agenten-Wikis auf.
+const retitleSystem = `You are tidying up the titles of an agent wiki.
 
-Das Wiki ist das Langzeitgedächtnis eines KI-Agenten: eine Seite pro Entität
-(Kunde, Projekt, System, Person, Problem, Thema). Die vorgelegten Seiten haben
-Titel, die einen Vorgang statt einer Sache benennen — sie sind zu lang, tragen
-ein Datum, oder lesen sich wie ein Tagebucheintrag.
+The wiki is the long-term memory of an AI agent: one page per entity
+(customer, project, system, person, problem, topic). The pages presented have
+titles that name an incident instead of a thing — they are too long, carry a
+date, or read like a diary entry.
 
-Schlage für jede Seite einen Titel vor, der die Entität benennt:
-- höchstens 60 Zeichen, ideal 20 bis 45
-- kein Datum, kein Status ("fertig", "wartet", "Stand 30.07.")
-- kein ganzer Satz, keine Wertung — der Titel ist eine Adresse, keine Nachricht
-- konkrete Bezeichner behalten (Projekt- und Repo-Namen, Ticket-Nummern wie
-  !100 oder #222, Werkzeugnamen) — daran findet der Agent die Seite wieder
-- Sprache des bisherigen Titels beibehalten
+Propose a title for each page that names the entity:
+- at most 60 characters, ideally 20 to 45
+- no date, no status ("done", "waiting", "as of 30 Jul")
+- no full sentence, no judgement — the title is an address, not a message
+- keep concrete identifiers (project and repo names, ticket numbers such as
+  !100 or #222, tool names) — that is how the agent finds the page again
+- keep the language of the previous title
 
-Lass eine Seite aus, wenn der bisherige Titel bereits die Entität benennt und
-du ihn nicht ehrlich verbesserst. Ein unveränderter Vorschlag ist kein Ergebnis.
+Skip a page when the previous title already names the entity and you do not
+honestly improve it. An unchanged proposal is not a result.
 
-Antworte ausschließlich mit JSON, ohne Fließtext davor oder danach:
-{"proposals":[{"slug":"…","title":"…","reason":"kurze Begründung"}]}`
+Answer with JSON only, without prose before or after:
+{"proposals":[{"slug":"…","title":"…","reason":"short justification"}]}`
 
 type retitleItem struct {
 	Slug   string `json:"slug"`
@@ -452,23 +448,23 @@ type retitleItem struct {
 
 func retitlePrompt(pages []memory.Entry) string {
 	var b strings.Builder
-	b.WriteString("Seiten:\n\n")
+	b.WriteString("Pages:\n\n")
 	for _, p := range pages {
 		b.WriteString("--- slug: " + p.Slug + "\n")
-		b.WriteString("titel: " + p.Title + "\n")
+		b.WriteString("title: " + p.Title + "\n")
 		body := strings.Join(strings.Fields(p.Content), " ")
 		if r := []rune(body); len(r) > bodyChars {
 			body = string(r[:bodyChars]) + " …"
 		}
-		b.WriteString("inhalt: " + body + "\n\n")
+		b.WriteString("content: " + body + "\n\n")
 	}
 	return b.String()
 }
 
-// parseRetitle zieht die Vorschläge aus der Antwort und verwirft, was nicht
-// taugt: erfundene Slugs, leere oder unveränderte Titel, und alles, was selbst
-// wieder als Tagebuch-Titel durchginge — ein Vorschlag, der den Befund nicht
-// behebt, ist keiner.
+// parseRetitle pulls the proposals out of the answer and discards what is no
+// good: invented slugs, empty or unchanged titles, and anything that would
+// itself pass as a diary title again — a proposal that does not fix the finding
+// is none.
 func parseRetitle(raw string, known map[string]memory.Entry) []retitleItem {
 	txt := strings.TrimSpace(raw)
 	if strings.HasPrefix(txt, "```") {
@@ -506,32 +502,32 @@ func parseRetitle(raw string, known map[string]memory.Entry) []retitleItem {
 	return out
 }
 
-// --- Nachtlauf ---
+// --- Nightly run ---
 
-// CredentialFor löst das Claude-Credential für einen Agenten auf. Als Funktion
-// übergeben, damit dieses Paket weder die Registry noch den Secrets-Broker
-// kennen muss — es träumt, es sucht keine Schlüssel.
+// CredentialFor resolves the Claude credential for an agent. Passed in as a
+// function so that this package needs to know neither the registry nor the
+// secrets broker — it dreams, it does not look for keys.
 type CredentialFor func(ctx context.Context, agentID uuid.UUID) (Credential, bool)
 
-// nightlyCheck: wie oft geprüft wird, ob die Traumzeit erreicht ist. Fein genug,
-// dass ein Neustart kurz vor der Uhrzeit die Nacht nicht verschluckt, grob
-// genug, dass es nicht auffällt.
+// nightlyCheck: how often it is checked whether dream time has been reached.
+// Fine-grained enough that a restart shortly before the hour does not swallow
+// the night, coarse enough that it does not stand out.
 const nightlyCheck = 5 * time.Minute
 
-// RunNightly lässt jeden Agenten einmal pro Nacht träumen, sobald die
-// Ortszeit `at` (Format "03:00") überschritten ist. Bewusst seriell: zwanzig
-// Agenten gleichzeitig träumen zu lassen hieße zwanzig gleichzeitige
-// LLM-Aufrufe, und niemand wartet nachts auf das Ergebnis.
+// RunNightly lets every agent dream once per night as soon as the local time
+// `at` (format "03:00") has passed. Deliberately serial: letting twenty agents
+// dream at once would mean twenty concurrent LLM calls, and nobody waits for
+// the result at night.
 //
-// Wer schon geträumt hat, erkennt der Lauf an der Historie selbst — kein
-// separater Merker, der mit ihr auseinanderlaufen könnte.
+// Who has already dreamt, the run reads off the history itself — no separate
+// marker that could drift apart from it.
 func (s *Store) RunNightly(ctx context.Context, at string, credFor CredentialFor, log *slog.Logger) {
 	hh, mm, err := parseClock(at)
 	if err != nil {
-		log.Warn("traumzeit unlesbar — Nachtlauf aus", "at", at, "err", err)
+		log.Warn("dream time unreadable — nightly run off", "at", at, "err", err)
 		return
 	}
-	log.Info("nachtlauf aktiv", "at", at)
+	log.Info("nightly run active", "at", at)
 	ticker := time.NewTicker(nightlyCheck)
 	defer ticker.Stop()
 	for {
@@ -543,32 +539,32 @@ func (s *Store) RunNightly(ctx context.Context, at string, credFor CredentialFor
 		now := time.Now()
 		since := time.Date(now.Year(), now.Month(), now.Day(), hh, mm, 0, 0, now.Location())
 		if now.Before(since) {
-			continue // die Nacht ist noch nicht so weit
+			continue // the night has not come that far yet
 		}
 		ids, err := s.SleepersSince(ctx, since)
 		if err != nil {
-			log.Warn("nachtlauf: schlafende agenten nicht ermittelbar", "err", err)
+			log.Warn("nightly run: sleeping agents cannot be determined", "err", err)
 			continue
 		}
 		for _, id := range ids {
 			cred, ok := credFor(ctx, id)
 			if !ok {
-				continue // ohne Credential kein Traum; kein Grund zu lärmen
+				continue // without a credential no dream; no reason to make noise
 			}
 			d, err := s.Begin(ctx, id, "nightly")
 			if err != nil {
 				if err != ErrAsleep {
-					log.Warn("nachtlauf: traum nicht startbar", "agent", id, "err", err)
+					log.Warn("nightly run: dream cannot be started", "agent", id, "err", err)
 				}
 				continue
 			}
-			log.Info("agent träumt", "agent", id)
+			log.Info("agent is dreaming", "agent", id)
 			s.Run(ctx, d, cred)
 		}
 	}
 }
 
-// parseClock liest "HH:MM".
+// parseClock reads "HH:MM".
 func parseClock(s string) (int, int, error) {
 	t, err := time.Parse("15:04", strings.TrimSpace(s))
 	if err != nil {
@@ -577,7 +573,7 @@ func parseClock(s string) (int, int, error) {
 	return t.Hour(), t.Minute(), nil
 }
 
-// head kürzt für die Log-Ausgabe rune-sicher.
+// head truncates rune-safely for log output.
 func head(s string, n int) string {
 	s = strings.TrimSpace(s)
 	if r := []rune(s); len(r) > n {

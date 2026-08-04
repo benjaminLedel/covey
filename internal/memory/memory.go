@@ -1,9 +1,9 @@
-// Package memory ist das semantische Gedächtnis der Agenten (spec/05): ein
-// LLM-gepflegtes Wiki aus verlinkten Markdown-Seiten mit pgvector-Index. Die
-// Seite ist die Einheit, Wikilinks tragen die Beziehungen. Abgefragt im
-// triage-Schritt, gefüttert im done-Schritt und über die covey/wiki_*-Tools;
-// ein Konsolidierungs-Pass hält es widerspruchsarm. Graphiti (temporaler Graph)
-// kann post-Wiki über dasselbe Interface-Muster nachrüsten.
+// Package memory is the agents' semantic memory (spec/05): an LLM-maintained
+// wiki of linked Markdown pages with a pgvector index. The page is the unit,
+// wikilinks carry the relationships. Queried in the triage step, fed in the done
+// step and through the covey/wiki_* tools; a consolidation pass keeps it free of
+// contradictions. Graphiti (temporal graph) can be retrofitted post-wiki through
+// the same interface pattern.
 package memory
 
 import (
@@ -20,34 +20,34 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Dim ist die Vektor-Dimension des Schemas (migrations/0002_memory.up.sql).
+// Dim is the vector dimension of the schema (migrations/0002_memory.up.sql).
 const Dim = 256
 
-// mergeThreshold: ab dieser Kosinus-Ähnlichkeit ordnet Ingest eine neue
-// Erkenntnis einer bestehenden Seite zu, statt eine neue anzulegen.
+// mergeThreshold: from this cosine similarity upwards, Ingest assigns a new
+// insight to an existing page instead of creating a new one.
 const mergeThreshold = 0.80
 
-// dupThreshold: ab hier gelten zwei Seiten dem Konsolidierungs-Pass als
-// Beinahe-Duplikate und werden verschmolzen.
+// dupThreshold: from here upwards the consolidation pass considers two pages
+// near-duplicates and merges them.
 const dupThreshold = 0.93
 
-// ErrNoContent: Inhalt ist leer oder eine Floskel (IsNoise) — nicht speicherbar.
-var ErrNoContent = errors.New("kein verwertbarer inhalt")
+// ErrNoContent: the content is empty or a stock phrase (IsNoise) — not storable.
+var ErrNoContent = errors.New("no usable content")
 
-// PageTypes ist das kontrollierte Vokabular der Seitentypen (spec/05: "eine
-// Seite pro Entität"). Bewusst geschlossen und kurz — bei den Kanban-Spalten
-// hat sich gezeigt, dass frei erfundene Bezeichner binnen Tagen ausufern und
-// die Struktur wertlos machen. Was nicht passt, landet in "thema".
+// PageTypes is the controlled vocabulary of page types (spec/05: "one page per
+// entity"). Deliberately closed and short — the kanban columns showed that
+// freely invented labels proliferate within days and render the structure
+// worthless. Whatever does not fit ends up in "thema".
 var PageTypes = []string{"kunde", "projekt", "system", "person", "problem", "thema"}
 
-// NormalizeType bringt eine Typangabe auf das Vokabular. Unbekanntes und Leeres
-// ergibt "" — nicht zugeordnet, ein Qualitätsbefund, kein Fehler.
+// NormalizeType maps a type designation onto the vocabulary. Unknown and empty
+// input yields "" — unassigned, a quality finding, not an error.
 func NormalizeType(t string) string {
 	t = strings.ToLower(strings.TrimSpace(t))
 	if t == "" {
 		return ""
 	}
-	// Gängige Schreibweisen und Synonyme einfangen, statt sie zu verwerfen.
+	// Catch common spellings and synonyms instead of discarding them.
 	switch t {
 	case "kollege", "kollegin", "mitarbeiter", "mensch", "people", "colleague":
 		t = "person"
@@ -70,7 +70,7 @@ func NormalizeType(t string) string {
 	return "thema"
 }
 
-// normalizeTags entfernt Leeres und Duplikate und schreibt klein.
+// normalizeTags drops empty entries and duplicates and lowercases.
 func normalizeTags(tags []string) []string {
 	seen := map[string]bool{}
 	out := []string{}
@@ -85,18 +85,18 @@ func normalizeTags(tags []string) []string {
 	return out
 }
 
-// Embedder ist der Port für Text→Vektor ("batteries included, but swappable"):
-// builtin ist das Hash-Embedding (offline, aber nur lexikalisch), APIEmbedder
-// spricht einen echten Embedding-Provider. Name() ist der Fingerabdruck des
-// Modells — er landet in wiki_pages.embed_model, damit ReembedStale erkennt,
-// welche Seiten nach einem Wechsel neu eingebettet werden müssen.
+// Embedder is the port for text→vector ("batteries included, but swappable"):
+// builtin is the hash embedding (offline, but purely lexical), APIEmbedder talks
+// to a real embedding provider. Name() is the model's fingerprint — it ends up
+// in wiki_pages.embed_model so that ReembedStale can tell which pages have to be
+// re-embedded after a switch.
 type Embedder interface {
 	Embed(ctx context.Context, text string) ([Dim]float32, error)
 	Name() string
 }
 
-// Entry ist die Sicht auf eine Wiki-Seite (Content = Body, für Rückwärts-
-// kompatibilität so benannt). Score wird bei Query/Search gesetzt.
+// Entry is the view onto a wiki page (Content = body, named that way for
+// backwards compatibility). Score is set by Query/Search.
 type Entry struct {
 	ID        uuid.UUID `json:"id"`
 	AgentID   uuid.UUID `json:"agent_id"`
@@ -132,9 +132,11 @@ func vectorLiteral(v [Dim]float32) string {
 	return "[" + strings.Join(parts, ",") + "]"
 }
 
-// noisePhrases sind normalisierte Floskeln ohne Informationswert. Nur exakte
-// Treffer (nach Normalisierung) gelten als Noise — "keine neuen Erkenntnisse,
-// aber Kunde X reagiert nur auf Anrufe" enthält Substanz und bleibt erhalten.
+// noisePhrases are normalized stock phrases without informational value. Only
+// exact matches (after normalization) count as noise — "no new insights, but
+// customer X only responds to phone calls" carries substance and is kept. The
+// German phrases stay in the list: agents write their insights in the language
+// of their target system, and that is what has to be recognized here.
 var noisePhrases = map[string]bool{
 	"keine neuen erkenntnisse": true,
 	"keine erkenntnisse":       true,
@@ -155,9 +157,9 @@ var noisePhrases = map[string]bool{
 	"no new learnings":         true,
 }
 
-// IsNoise erkennt Episoden ohne Informationswert ("Keine neuen Erkenntnisse",
-// "n/a", "-") — solche Inhalte sind unsinnvoll zu speichern und werden beim
-// Ingest verworfen.
+// IsNoise detects episodes without informational value ("No new insights",
+// "n/a", "-") — storing such content makes no sense and it is discarded on
+// ingest.
 func IsNoise(content string) bool {
 	normalized := strings.Join(tokenize(content), " ")
 	return normalized == "" || noisePhrases[normalized]
@@ -169,7 +171,7 @@ var (
 	umlaut    = strings.NewReplacer("ä", "ae", "ö", "oe", "ü", "ue", "ß", "ss")
 )
 
-// slugify macht aus einem Titel einen dateinamen-tauglichen Slug.
+// slugify turns a title into a filename-safe slug.
 func slugify(s string) string {
 	s = umlaut.Replace(strings.ToLower(strings.TrimSpace(s)))
 	s = strings.Trim(slugStrip.ReplaceAllString(s, "-"), "-")
@@ -182,8 +184,8 @@ func slugify(s string) string {
 	return s
 }
 
-// truncRunes kürzt rune-sicher auf n Zeichen (kein Schnitt mitten in einem
-// UTF-8-Rune — wichtig bei Umlauten).
+// truncRunes truncates rune-safely to n characters (no cut in the middle of a
+// UTF-8 rune — important for umlauts and other multi-byte characters).
 func truncRunes(s string, n int) string {
 	r := []rune(s)
 	if len(r) <= n {
@@ -192,12 +194,12 @@ func truncRunes(s string, n int) string {
 	return string(r[:n])
 }
 
-// deriveTitle zieht einen Seitentitel aus einer freien Erkenntnis: erster Satz
-// bzw. die ersten ~80 Zeichen, einzeilig. Ein Satzzeichen zählt nur als
-// Satzende, wenn ein Leerzeichen oder das Textende folgt — sonst würde ein
-// Punkt in einer Domain, Abkürzung oder Dezimalzahl (x.educa-portal.de, z.B.,
-// 3.5 GB) den Titel zum 1-Wort-Fragment zerhacken. Zusätzlich wird ein zu
-// kurzer erster „Satz" (< minTitleLen) übersprungen.
+// deriveTitle derives a page title from a free-form insight: first sentence, or
+// the first ~80 characters, on one line. A punctuation mark only counts as the
+// end of a sentence when a space or the end of the text follows — otherwise a
+// dot inside a domain, an abbreviation or a decimal number (x.educa-portal.de,
+// e.g., 3.5 GB) would chop the title down to a one-word fragment. On top of
+// that, a first "sentence" that is too short (< minTitleLen) is skipped.
 const minTitleLen = 12
 
 func deriveTitle(content string) string {
@@ -206,7 +208,7 @@ func deriveTitle(content string) string {
 		if c := t[i]; c == '.' || c == '!' || c == '?' {
 			atBoundary := i+1 >= len(t) || t[i+1] == ' '
 			if atBoundary && i >= minTitleLen && !isAbbrevDot(t, i) {
-				t = t[:i] // Satzzeichen sind ASCII → Byte-Index ist Rune-Grenze
+				t = t[:i] // punctuation is ASCII → the byte index is a rune boundary
 				break
 			}
 		}
@@ -217,10 +219,10 @@ func deriveTitle(content string) string {
 	return t
 }
 
-// isAbbrevDot erkennt einen Punkt, der zu einer Abkürzung gehört statt einen
-// Satz zu beenden: steht davor ein einzelner Buchstabe ("z. B.", "u. a."), ist
-// es kein Satzende. Ohne diese Prüfung entstand aus "Zugesagte Rückmeldungen
-// (z. B. …)" der Titel "Zugesagte Rückmeldungen (z".
+// isAbbrevDot detects a dot that belongs to an abbreviation instead of ending a
+// sentence: if a single letter precedes it ("z. B.", "u. a.", "e. g."), it is
+// not a sentence end. Without this check, "Zugesagte Rückmeldungen (z. B. …)"
+// produced the title "Zugesagte Rückmeldungen (z".
 func isAbbrevDot(t string, i int) bool {
 	if t[i] != '.' {
 		return false
@@ -229,12 +231,12 @@ func isAbbrevDot(t string, i int) bool {
 	for start > 0 && t[start-1] != ' ' {
 		start--
 	}
-	// Das Wort vor dem Punkt, ohne öffnende Klammern/Anführungszeichen.
+	// The word in front of the dot, without opening brackets/quotes.
 	word := strings.TrimLeft(t[start:i], "(\"'„«[")
 	return len([]rune(word)) <= 1
 }
 
-// extractLinks liest die [[slug]]-Wikilinks aus einem Body.
+// extractLinks reads the [[slug]] wikilinks out of a body.
 func extractLinks(body string) []string {
 	seen := map[string]bool{}
 	out := []string{}
@@ -253,8 +255,8 @@ func (s *Store) logOp(ctx context.Context, agentID uuid.UUID, op, slug, summary 
 		agentID, op, slug, summary)
 }
 
-// uniqueSlug garantiert Eindeutigkeit pro Agent (Slug-Kollisionen bei
-// unterschiedlichen Seiten mit ähnlichem Titel).
+// uniqueSlug guarantees uniqueness per agent (slug collisions between different
+// pages with similar titles).
 func (s *Store) uniqueSlug(ctx context.Context, agentID uuid.UUID, base string) string {
 	base = slugify(base)
 	var exists bool
@@ -265,10 +267,10 @@ func (s *Store) uniqueSlug(ctx context.Context, agentID uuid.UUID, base string) 
 	return base + "-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:6]
 }
 
-// Ingest ordnet eine freie Erkenntnis der passenden Wiki-Seite zu: Ist eine
-// hinreichend ähnliche Seite vorhanden, wird die Erkenntnis dort angehängt und
-// die Seite neu eingebettet; sonst entsteht eine neue Seite. Leere und
-// nichtssagende Inhalte (IsNoise) werden still verworfen.
+// Ingest assigns a free-form insight to the matching wiki page: if a
+// sufficiently similar page exists, the insight is appended there and the page
+// is re-embedded; otherwise a new page is created. Empty and vacuous content
+// (IsNoise) is discarded silently.
 func (s *Store) Ingest(ctx context.Context, agentID uuid.UUID, content string, metadata map[string]string) error {
 	content = strings.TrimSpace(content)
 	if content == "" || IsNoise(content) {
@@ -283,7 +285,7 @@ func (s *Store) Ingest(ctx context.Context, agentID uuid.UUID, content string, m
 		return fmt.Errorf("embedding: %w", err)
 	}
 
-	// Passende Seite suchen (nur diese Agenten-Seiten).
+	// Look for a matching page (only this agent's pages).
 	var (
 		pid   uuid.UUID
 		slug  string
@@ -307,13 +309,13 @@ func (s *Store) Ingest(ctx context.Context, agentID uuid.UUID, content string, m
 			pid, merged, links, vectorLiteral(mv), s.embedder.Name()); err != nil {
 			return err
 		}
-		s.logOp(ctx, agentID, "ingest", slug, "ergänzt: "+deriveTitle(content))
+		s.logOp(ctx, agentID, "ingest", slug, "appended: "+deriveTitle(content))
 		return nil
 	case err != nil && !errors.Is(err, pgx.ErrNoRows):
 		return err
 	}
 
-	// Neue Seite.
+	// New page.
 	title := deriveTitle(content)
 	newSlug := s.uniqueSlug(ctx, agentID, title)
 	meta, _ := json.Marshal(orEmpty(metadata))
@@ -324,7 +326,7 @@ func (s *Store) Ingest(ctx context.Context, agentID uuid.UUID, content string, m
 		vectorLiteral(vec), s.embedder.Name()); err != nil {
 		return err
 	}
-	s.logOp(ctx, agentID, "ingest", newSlug, "neue Seite: "+title)
+	s.logOp(ctx, agentID, "ingest", newSlug, "new page: "+title)
 	return nil
 }
 
@@ -335,7 +337,7 @@ func orEmpty(m map[string]string) map[string]string {
 	return m
 }
 
-// Query liefert die relevantesten Seiten (triage-Schritt).
+// Query returns the most relevant pages (triage step).
 func (s *Store) Query(ctx context.Context, agentID uuid.UUID, query string, limit int) ([]Entry, error) {
 	if limit <= 0 {
 		limit = 5
@@ -355,13 +357,13 @@ func (s *Store) Query(ctx context.Context, agentID uuid.UUID, query string, limi
 	return scanEntries(rows)
 }
 
-// Search ist die Tool-Sicht (covey/wiki_search): dieselbe Vektorsuche, für die
-// Rückgabe an den Agenten gedacht.
+// Search is the tool view (covey/wiki_search): the same vector search, meant to
+// be returned to the agent.
 func (s *Store) Search(ctx context.Context, agentID uuid.UUID, query string, limit int) ([]Entry, error) {
 	return s.Query(ctx, agentID, query, limit)
 }
 
-// Read liefert eine Seite per Slug (covey/wiki_read).
+// Read returns a page by slug (covey/wiki_read).
 func (s *Store) Read(ctx context.Context, agentID uuid.UUID, slug string) (Entry, error) {
 	rows, err := s.pool.Query(ctx, `SELECT id, agent_id, slug, title, body, links, source, type, tags, created_at, updated_at, 0
 		FROM wiki_pages WHERE agent_id=$1 AND slug=$2`, agentID, slugify(slug))
@@ -378,23 +380,23 @@ func (s *Store) Read(ctx context.Context, agentID uuid.UUID, slug string) (Entry
 	return list[0], nil
 }
 
-// PageInput beschreibt eine zu schreibende Seite. Als Struct statt sechs
-// Stellungsparametern: Slug, Titel, Typ und Quelle sind allesamt Strings, und
-// eine vertauschte Reihenfolge fiele beim Kompilieren nicht auf.
+// PageInput describes a page to be written. A struct instead of six positional
+// parameters: slug, title, type and source are all strings, and a swapped order
+// would not be caught at compile time.
 type PageInput struct {
 	Slug   string
 	Title  string
 	Body   string
 	Source string // agent | manual
-	Type   string // Vokabular siehe PageTypes; leer = nicht zugeordnet
+	Type   string // vocabulary see PageTypes; empty = unassigned
 	Tags   []string
 }
 
-// Write legt eine Seite an oder aktualisiert sie (covey/wiki_write, manuelle
-// Pflege). Wikilinks werden aus dem Body extrahiert.
+// Write creates or updates a page (covey/wiki_write, manual maintenance).
+// Wikilinks are extracted from the body.
 //
-// Typ und Tags werden nur überschrieben, wenn welche mitkommen — sonst würde
-// ein Agent, der bloß den Text einer Seite ergänzt, deren Einordnung löschen.
+// Type and tags are only overwritten when they are supplied — otherwise an agent
+// that merely adds text to a page would erase its classification.
 func (s *Store) Write(ctx context.Context, agentID uuid.UUID, in PageInput) (Entry, error) {
 	body := strings.TrimSpace(in.Body)
 	if body == "" || IsNoise(body) {
@@ -434,12 +436,12 @@ func (s *Store) Write(ctx context.Context, agentID uuid.UUID, in PageInput) (Ent
 	return s.Read(ctx, agentID, slug)
 }
 
-// Append hängt einen Absatz an eine bestehende Seite (covey/wiki_append).
+// Append adds a paragraph to an existing page (covey/wiki_append).
 //
-// Ohne das hieß "eine Seite ergänzen" immer: ganze Seite lesen, Text anhängen,
-// ganze Seite zurückschreiben — bei jeder Ergänzung die Gelegenheit, den Rest
-// der Seite zu verlieren. Existiert die Seite nicht, entsteht sie mit diesem
-// Absatz als Inhalt.
+// Without it, "add to a page" always meant: read the whole page, append text,
+// write the whole page back — every addition an opportunity to lose the rest of
+// the page. If the page does not exist, it is created with this paragraph as its
+// content.
 func (s *Store) Append(ctx context.Context, agentID uuid.UUID, slug, text string) (Entry, error) {
 	text = strings.TrimSpace(text)
 	if text == "" || IsNoise(text) {
@@ -453,7 +455,7 @@ func (s *Store) Append(ctx context.Context, agentID uuid.UUID, slug, text string
 		return Entry{}, err
 	}
 	if strings.Contains(cur.Content, text) {
-		return cur, nil // schon da — nicht doppeln
+		return cur, nil // already there — do not duplicate
 	}
 	merged := strings.TrimRight(cur.Content, "\n") + "\n\n" + text
 	links := extractLinks(merged)
@@ -467,13 +469,13 @@ func (s *Store) Append(ctx context.Context, agentID uuid.UUID, slug, text string
 		cur.ID, merged, links, vectorLiteral(vec), s.embedder.Name()); err != nil {
 		return Entry{}, err
 	}
-	s.logOp(ctx, agentID, "append", cur.Slug, "ergänzt: "+deriveTitle(text))
+	s.logOp(ctx, agentID, "append", cur.Slug, "appended: "+deriveTitle(text))
 	return s.Read(ctx, agentID, cur.Slug)
 }
 
-// UpdatePage ersetzt Titel und Body einer Seite per ID (manuelle Pflege /
-// Tool-Edit) und bettet neu ein. Leerer title behält den bestehenden Titel.
-// Liefert pgx.ErrNoRows, wenn die Seite nicht existiert.
+// UpdatePage replaces title and body of a page by ID (manual maintenance /
+// tool edit) and re-embeds it. An empty title keeps the existing one.
+// Returns pgx.ErrNoRows when the page does not exist.
 func (s *Store) UpdatePage(ctx context.Context, id uuid.UUID, title, content string) error {
 	content = strings.TrimSpace(content)
 	if content == "" || IsNoise(content) {
@@ -501,17 +503,17 @@ func (s *Store) UpdatePage(ctx context.Context, id uuid.UUID, title, content str
 	if tag.RowsAffected() == 0 {
 		return pgx.ErrNoRows
 	}
-	s.logOp(ctx, agentID, "write", slug, "bearbeitet: "+title)
+	s.logOp(ctx, agentID, "write", slug, "edited: "+title)
 	return nil
 }
 
-// Delete entfernt eine Seite endgültig (manuelle Pflege).
-// PageInOrg prüft, ob eine Wiki-Seite zu dieser Organisation gehört. Seiten
-// hängen am Agenten; die Organisation steht erst nach dem Join fest.
+// Delete removes a page for good (manual maintenance).
+// PageInOrg checks whether a wiki page belongs to this organization. Pages hang
+// off the agent; the organization is only settled after the join.
 func (s *Store) PageInOrg(ctx context.Context, orgID, pageID uuid.UUID) bool {
-	var eins int
+	var one int
 	err := s.pool.QueryRow(ctx, `SELECT 1 FROM wiki_pages p JOIN agents a ON a.id = p.agent_id
-		WHERE p.id=$1 AND a.org_id=$2`, pageID, orgID).Scan(&eins)
+		WHERE p.id=$1 AND a.org_id=$2`, pageID, orgID).Scan(&one)
 	return err == nil
 }
 
@@ -527,14 +529,14 @@ func (s *Store) Delete(ctx context.Context, id uuid.UUID) error {
 	if tag.RowsAffected() == 0 {
 		return pgx.ErrNoRows
 	}
-	s.logOp(ctx, agentID, "delete", slug, "gelöscht: "+title)
+	s.logOp(ctx, agentID, "delete", slug, "deleted: "+title)
 	return nil
 }
 
-// DeleteBySlug entfernt eine Seite des Agenten anhand ihres Slugs. Anders als
-// Delete ist die Operation agent-gescopt (WHERE agent_id) — sie ist der
-// Enforcement-Punkt für das Agenten-Tool wiki_delete, damit ein Agent nur im
-// eigenen Wiki löschen kann.
+// DeleteBySlug removes one of the agent's pages by its slug. Unlike Delete the
+// operation is agent-scoped (WHERE agent_id) — it is the enforcement point for
+// the agent tool wiki_delete, so that an agent can only delete within its own
+// wiki.
 func (s *Store) DeleteBySlug(ctx context.Context, agentID uuid.UUID, slug string) error {
 	slug = slugify(slug)
 	var title string
@@ -542,17 +544,17 @@ func (s *Store) DeleteBySlug(ctx context.Context, agentID uuid.UUID, slug string
 		`DELETE FROM wiki_pages WHERE agent_id=$1 AND slug=$2 RETURNING title`,
 		agentID, slug).Scan(&title)
 	if err != nil {
-		return err // pgx.ErrNoRows, wenn keine Seite mit dem Slug existiert
+		return err // pgx.ErrNoRows when no page with that slug exists
 	}
-	s.logOp(ctx, agentID, "delete", slug, "gelöscht: "+title)
+	s.logOp(ctx, agentID, "delete", slug, "deleted: "+title)
 	return nil
 }
 
-// EmbedderName ist der Fingerabdruck des aktiven Embedding-Modells.
+// EmbedderName is the fingerprint of the active embedding model.
 func (s *Store) EmbedderName() string { return s.embedder.Name() }
 
-// StaleCount zählt die Seiten, die noch mit einem anderen Modell eingebettet
-// sind als dem aktiven.
+// StaleCount counts the pages that are still embedded with a model other than
+// the active one.
 func (s *Store) StaleCount(ctx context.Context) (int, error) {
 	var n int
 	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM wiki_pages WHERE embed_model <> $1`,
@@ -560,15 +562,14 @@ func (s *Store) StaleCount(ctx context.Context) (int, error) {
 	return n, err
 }
 
-// ReembedStale bettet Seiten neu ein, die noch von einem anderen Modell stammen
-// — der Umstieg auf einen anderen Embedder (oder der erste Umstieg weg vom
-// Hash-Embedding) macht den bestehenden Index sonst unbrauchbar, weil Seiten
-// verschiedener Modelle nicht miteinander verglichen werden können.
+// ReembedStale re-embeds pages that still come from another model — switching to
+// a different embedder (or the first switch away from the hash embedding) would
+// otherwise render the existing index useless, because pages of different models
+// cannot be compared with each other.
 //
-// Arbeitet in Häppchen und bricht beim ersten Provider-Fehler ab: bei einem
-// abgelaufenen Schlüssel oder Rate-Limit ist Weitermachen nur teuer. Der Aufruf
-// ist idempotent und kann jederzeit erneut laufen. Gibt zurück, wie viele
-// Seiten neu eingebettet wurden.
+// Works in batches and aborts on the first provider error: with an expired key
+// or a rate limit, carrying on is merely expensive. The call is idempotent and
+// can be run again at any time. Returns how many pages were re-embedded.
 func (s *Store) ReembedStale(ctx context.Context, batch int) (int, error) {
 	if batch <= 0 {
 		batch = 50
@@ -616,20 +617,20 @@ func (s *Store) ReembedStale(ctx context.Context, batch int) (int, error) {
 	}
 }
 
-// ── Qualität ────────────────────────────────────────────────────────────────
+// ── Quality ─────────────────────────────────────────────────────────────────
 
-// Finding ist ein Qualitätsbefund über das Wiki eines Agenten.
+// Finding is a quality finding about an agent's wiki.
 type Finding struct {
 	Kind    string   `json:"kind"`             // orphan | dead_link | untyped | episodic | duplicate | stub
-	Slug    string   `json:"slug"`             // betroffene Seite
-	Title   string   `json:"title,omitempty"`  // Anzeigename der Seite
-	Detail  string   `json:"detail,omitempty"` // Ziel-Slug, Partnerseite o. Ä.
-	Score   float64  `json:"score,omitempty"`  // nur duplicate: Ähnlichkeit
+	Slug    string   `json:"slug"`             // the page concerned
+	Title   string   `json:"title,omitempty"`  // display name of the page
+	Detail  string   `json:"detail,omitempty"` // target slug, partner page or similar
+	Score   float64  `json:"score,omitempty"`  // duplicate only: similarity
 	Related []string `json:"related,omitempty"`
 }
 
-// Health ist die Qualitätssicht auf ein Wiki: die Kennzahlen fürs Erste,
-// die Befunde zum Danebenlegen.
+// Health is the quality view onto a wiki: the metrics for a first impression,
+// the findings to put next to them.
 type Health struct {
 	Pages     int       `json:"pages"`
 	Links     int       `json:"links"`
@@ -642,27 +643,27 @@ type Health struct {
 	Findings  []Finding `json:"findings"`
 }
 
-// episodicTitleLen ist die Kappungsgrenze von deriveTitle: ein Titel, der sie
-// erreicht, ist per Konstruktion ein abgeschnittener Satz und kein Entitätsname.
+// episodicTitleLen is deriveTitle's truncation limit: a title that reaches it is
+// by construction a cut-off sentence, not the name of an entity.
 //
-// Bewusst genau diese Grenze und nicht "irgendwas über 60": an echten Daten
-// gemessen liegen 25 von 43 Titeln exakt auf der Kappung (auto-erzeugt), während
-// die 60er-Schwelle auch brauchbare Überschriften wie "Sandbox: PHP 8.2
-// vorhanden — Laravel-Queries ohne das educa-Repo prüfen" eingefangen hat. Ein
-// Befund, der 88 % der Seiten markiert, sagt niemandem mehr, wo anzufassen ist.
+// Deliberately exactly this limit and not "anything above 60": measured against
+// real data, 25 out of 43 titles sit exactly on the truncation (auto-generated),
+// while the threshold of 60 also caught usable headings like "Sandbox: PHP 8.2
+// vorhanden — Laravel-Queries ohne das educa-Repo prüfen". A finding that flags
+// 88 % of the pages no longer tells anybody where to intervene.
 const episodicTitleLen = 80
 
-// stubBodyLen: darunter trägt eine eigene Seite nichts, was nicht als Absatz auf
-// einer Entitätsseite besser aufgehoben wäre.
+// stubBodyLen: below this, a page of its own carries nothing that would not be
+// better placed as a paragraph on an entity page.
 const stubBodyLen = 120
 
-// dupFindingThreshold liegt bewusst unter dupThreshold: der Konsolidierungs-Pass
-// verschmilzt automatisch erst ab dupThreshold, aber schon knapp darunter lohnt
-// der menschliche Blick.
+// dupFindingThreshold deliberately sits below dupThreshold: the consolidation
+// pass only merges automatically from dupThreshold upwards, but a human look is
+// already worthwhile just below it.
 const dupFindingThreshold = 0.88
 
-// isEpisodicTitle erkennt Titel, die einen Vorgang statt einer Entität benennen:
-// zu lang, oder mit einem konkreten Datum versehen.
+// isEpisodicTitle detects titles that name an event instead of an entity: too
+// long, or carrying a concrete date.
 var dateInTitle = regexp.MustCompile(`\d{1,2}[./-]\d{1,2}[./-]\d{2,4}|\d{4}-\d{2}-\d{2}`)
 
 func isEpisodicTitle(title string) bool {
@@ -670,14 +671,14 @@ func isEpisodicTitle(title string) bool {
 	return len([]rune(t)) >= episodicTitleLen || dateInTitle.MatchString(t)
 }
 
-// NeedsRetitle sagt, ob eine Seite dem Titel-Pass der Wiki-Wartung vorgelegt
-// werden soll. Bewusst dieselbe Heuristik wie der episodic-Befund: was die
-// Qualitätsleiste als Tagebuch-Titel anzeigt, ist genau das, was der Pass
-// aufräumen soll — zwei Schwellen für dieselbe Sache würden auseinanderlaufen.
+// NeedsRetitle says whether a page should be handed to the title pass of the
+// wiki maintenance. Deliberately the same heuristic as the episodic finding:
+// what the quality bar shows as a diary title is exactly what the pass is meant
+// to clean up — two thresholds for the same thing would drift apart.
 func NeedsRetitle(title string) bool { return isEpisodicTitle(title) }
 
-// CheckHealth sammelt die Qualitätsbefunde eines Wikis (spec/05). Rein lesend —
-// die Befunde sind Entscheidungsgrundlage, nichts wird automatisch geändert.
+// CheckHealth collects the quality findings of a wiki (spec/05). Read-only — the
+// findings are a basis for decisions, nothing is changed automatically.
 func (s *Store) CheckHealth(ctx context.Context, agentID uuid.UUID) (Health, error) {
 	pages, err := s.List(ctx, agentID, 5000)
 	if err != nil {
@@ -727,8 +728,8 @@ func (s *Store) CheckHealth(ctx context.Context, agentID uuid.UUID) (Health, err
 		}
 	}
 
-	// Dubletten-Verdacht über den Vektorindex — nur innerhalb desselben Modells,
-	// Vektoren verschiedener Modelle sind nicht vergleichbar.
+	// Suspected duplicates via the vector index — only within the same model,
+	// vectors of different models are not comparable.
 	rows, err := s.pool.Query(ctx, `SELECT a.slug, a.title, b.slug, b.title,
 		1 - (a.embedding <=> b.embedding) AS score
 		FROM wiki_pages a JOIN wiki_pages b
@@ -753,7 +754,7 @@ func (s *Store) CheckHealth(ctx context.Context, agentID uuid.UUID) (Health, err
 	return h, rows.Err()
 }
 
-// LogEntry ist ein Eintrag des Wiki-Protokolls (log.md-Äquivalent, spec/05).
+// LogEntry is an entry of the wiki log (log.md equivalent, spec/05).
 type LogEntry struct {
 	ID        int64     `json:"id"`
 	Op        string    `json:"op"`
@@ -762,7 +763,7 @@ type LogEntry struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// Log liefert das chronologische Wiki-Protokoll eines Agenten (neueste zuerst).
+// Log returns an agent's chronological wiki log (newest first).
 func (s *Store) Log(ctx context.Context, agentID uuid.UUID, limit int) ([]LogEntry, error) {
 	if limit <= 0 {
 		limit = 100
@@ -784,7 +785,7 @@ func (s *Store) Log(ctx context.Context, agentID uuid.UUID, limit int) ([]LogEnt
 	return out, rows.Err()
 }
 
-// List liefert die zuletzt geänderten Seiten (index.md-Sicht, UI).
+// List returns the most recently changed pages (index.md view, UI).
 func (s *Store) List(ctx context.Context, agentID uuid.UUID, limit int) ([]Entry, error) {
 	if limit <= 0 {
 		limit = 50
@@ -797,8 +798,8 @@ func (s *Store) List(ctx context.Context, agentID uuid.UUID, limit int) ([]Entry
 	return scanEntries(rows)
 }
 
-// Consolidate ist der Lint-/Konsolidierungs-Pass (spec/05): Beinahe-Duplikat-
-// Seiten werden verschmolzen. Gibt die Zahl der Verschmelzungen zurück.
+// Consolidate is the lint/consolidation pass (spec/05): near-duplicate pages are
+// merged. Returns the number of merges.
 func (s *Store) Consolidate(ctx context.Context, agentID uuid.UUID) (int, error) {
 	rows, err := s.pool.Query(ctx, `SELECT a.id, b.id
 		FROM wiki_pages a JOIN wiki_pages b
@@ -867,7 +868,7 @@ func (s *Store) mergePages(ctx context.Context, agentID, keep, drop uuid.UUID) e
 	if _, err := s.pool.Exec(ctx, `DELETE FROM wiki_pages WHERE id=$1`, drop); err != nil {
 		return err
 	}
-	s.logOp(ctx, agentID, "merge", keepSlug, "Duplikat verschmolzen")
+	s.logOp(ctx, agentID, "merge", keepSlug, "duplicate merged")
 	return nil
 }
 
@@ -899,13 +900,13 @@ func scanEntries(rows pgx.Rows) ([]Entry, error) {
 	return out, rows.Err()
 }
 
-// FormatForPrompt macht aus Treffern den Wiki-Kontextblock für triage.
+// FormatForPrompt turns hits into the wiki context block for triage.
 func FormatForPrompt(entries []Entry) string {
 	if len(entries) == 0 {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("## Relevantes aus deinem Wiki\n\n")
+	b.WriteString("## Relevant from your wiki\n\n")
 	for _, e := range entries {
 		b.WriteString("### ")
 		b.WriteString(strings.TrimSpace(e.Title))
@@ -919,7 +920,7 @@ func FormatForPrompt(entries []Entry) string {
 		b.WriteString(body)
 		b.WriteString("\n")
 		if len(e.Links) > 0 {
-			b.WriteString("Verwandt: ")
+			b.WriteString("Related: ")
 			for i, l := range e.Links {
 				if i > 0 {
 					b.WriteString(", ")
@@ -933,17 +934,17 @@ func FormatForPrompt(entries []Entry) string {
 	return b.String()
 }
 
-// FormatIndexForPrompt macht aus den Seiten den kompakten Wiki-Index (Titel +
-// Slug) für den triage-Kontext: der Agent sieht so seinen gesamten Wissens-
-// bestand auf einen Blick, nicht nur die Vektor-Treffer — das hilft ihm zu
-// navigieren und Duplikate zu vermeiden.
+// FormatIndexForPrompt turns the pages into the compact wiki index (title +
+// slug) for the triage context: this way the agent sees its entire body of
+// knowledge at a glance, not just the vector hits — which helps it navigate and
+// avoid duplicates.
 func FormatIndexForPrompt(entries []Entry) string {
 	if len(entries) == 0 {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString("## Dein Wiki (Index)\n\n")
-	b.WriteString("Diese Seiten hast du schon — ergänze eine bestehende (covey/wiki_read + wiki_write), statt zu duplizieren:\n")
+	b.WriteString("## Your wiki (index)\n\n")
+	b.WriteString("You already have these pages — extend an existing one (covey/wiki_read + wiki_write) instead of duplicating:\n")
 	for _, e := range entries {
 		b.WriteString("- [[" + e.Slug + "]] — " + strings.TrimSpace(e.Title) + "\n")
 	}

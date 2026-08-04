@@ -4,21 +4,21 @@ import (
 	"strings"
 )
 
-// Frontmatter-Behandlung der SKILL.md.
+// Frontmatter handling of SKILL.md.
 //
-// Claude Code erwartet am Anfang der SKILL.md einen YAML-Block zwischen ---,
-// aus dem `description` entscheidet, ob der Skill geladen wird. Covey hält die
-// Beschreibung trotzdem als SPALTE und die SKILL.md ohne Frontmatter: Listen,
-// UI und Bundle brauchen die Beschreibung, ohne Dateien zu parsen, und die
-// Beschreibung soll sich nicht an zwei Orten widersprechen können.
+// Claude Code expects a YAML block between --- at the start of SKILL.md, whose
+// `description` decides whether the skill is loaded. Covey nevertheless keeps
+// the description as a COLUMN and the SKILL.md without frontmatter: lists, UI
+// and bundle need the description without parsing files, and the description
+// must not be able to contradict itself in two places.
 //
-// Damit gibt es genau zwei Übergänge: Beim Materialisieren wird der
-// Frontmatter erzeugt (Render), beim Import aus einem Bundle oder Editor
-// abgeschnitten (SplitEntry). Kein YAML-Parser — der Block hat zwei skalare
-// Schlüssel, und eine Abhängigkeit dafür wäre unverhältnismäßig.
+// That leaves exactly two transitions: while materializing the frontmatter is
+// generated (Render), on import from a bundle or the editor it is stripped
+// (SplitEntry). No YAML parser — the block has two scalar keys, and a
+// dependency for that would be out of proportion.
 
-// Render baut die SKILL.md, die auf Platte landet: Frontmatter aus Name und
-// Beschreibung, danach der gespeicherte Rumpf.
+// Render builds the SKILL.md that lands on disk: frontmatter from name and
+// description, then the stored body.
 func Render(name, description, body string) string {
 	var b strings.Builder
 	b.WriteString("---\n")
@@ -32,9 +32,9 @@ func Render(name, description, body string) string {
 	return b.String()
 }
 
-// yamlScalar macht einen einzeiligen YAML-Skalar sicher. Beschreibungen
-// enthalten regelmäßig Doppelpunkte („Nutze dies, wenn: …") — unquoted wäre
-// das eine YAML-Map und der Frontmatter kaputt.
+// yamlScalar makes a single-line YAML scalar safe. Descriptions regularly
+// contain colons ("Use this when: …") — unquoted that would be a YAML map and
+// the frontmatter broken.
 func yamlScalar(v string) string {
 	v = strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(v, "\r", " "), "\n", " "))
 	if v == "" {
@@ -48,21 +48,20 @@ func yamlScalar(v string) string {
 	return `"` + strings.ReplaceAll(strings.ReplaceAll(v, `\`, `\\`), `"`, `\"`) + `"`
 }
 
-// SplitEntry trennt eine eingehende SKILL.md in Frontmatter-Werte und Rumpf.
-// Fehlt der Frontmatter, ist alles Rumpf und die Werte bleiben leer — der
-// Aufrufer nimmt dann seine eigenen (Formularfeld, Bundle-Feld).
+// SplitEntry separates an incoming SKILL.md into frontmatter values and body.
+// If the frontmatter is missing, everything is body and the values stay empty —
+// the caller then uses its own (form field, bundle field).
 //
-// Rückgabe: name und description aus dem Block (leer, wenn nicht gesetzt),
-// body ohne den Block.
+// Returns: name and description from the block (empty if unset), body without
+// the block.
 func SplitEntry(content string) (name, description, body string) {
-	// \ufeff ist die BOM, die manche Editoren voranstellen — ohne sie zu
-	// schlucken beginnt die Datei nicht mit --- und der Frontmatter würde
-	// übersehen.
+	// \ufeff is the BOM some editors prepend — without swallowing it the
+	// file does not start with --- and the frontmatter would be missed.
 	trimmed := strings.TrimLeft(content, "\ufeff \t\r\n")
 	if !strings.HasPrefix(trimmed, "---") {
 		return "", "", content
 	}
-	// Zeile nach dem öffnenden --- suchen.
+	// Find the line after the opening ---.
 	rest := trimmed[len("---"):]
 	if i := strings.IndexByte(rest, '\n'); i >= 0 {
 		rest = rest[i+1:]
@@ -71,7 +70,7 @@ func SplitEntry(content string) (name, description, body string) {
 	}
 	end := findCloser(rest)
 	if !end.valid() {
-		return "", "", content // unabgeschlossener Block: nicht raten, alles ist Rumpf
+		return "", "", content // unterminated block: do not guess, everything is body
 	}
 	block, after := rest[:end.start], rest[end.after:]
 	for _, line := range strings.Split(block, "\n") {
@@ -89,16 +88,16 @@ func SplitEntry(content string) (name, description, body string) {
 	return name, description, strings.TrimLeft(after, "\n")
 }
 
-// UnsupportedFrontmatterKeys liefert die Frontmatter-Schlüssel einer SKILL.md,
-// die Covey nicht führt — leer, wenn nur name/description (oder gar kein Block)
-// vorkommen.
+// UnsupportedFrontmatterKeys returns the frontmatter keys of a SKILL.md that
+// Covey does not track — empty when only name/description (or no block at all)
+// occur.
 //
-// Der Aufrufer lehnt damit ab, statt zu speichern. Grund: SplitEntry schneidet
-// den ganzen Block ab und Render baut ihn aus Name und Beschreibung neu auf —
-// alles andere wäre nach dem Speichern spurlos weg. Bei `allowed-tools:` heißt
-// das, dass die materialisierte SKILL.md ohne die Einschränkung im Home landet,
-// der Skill also mit MEHR Rechten läuft als der Autor geschrieben hat. Ein
-// stiller Verlust, den niemand bemerkt; eine Ablehnung sieht jeder sofort.
+// The caller uses this to reject rather than store. Reason: SplitEntry cuts off
+// the whole block and Render rebuilds it from name and description — anything
+// else would be gone without a trace after saving. With `allowed-tools:` that
+// means the materialized SKILL.md lands in the home without the restriction, so
+// the skill runs with MORE permissions than its author wrote. A silent loss
+// nobody notices; a rejection everybody sees right away.
 func UnsupportedFrontmatterKeys(content string) []string {
 	trimmed := strings.TrimLeft(content, "\ufeff \t\r\n")
 	if !strings.HasPrefix(trimmed, "---") {
@@ -112,7 +111,7 @@ func UnsupportedFrontmatterKeys(content string) []string {
 	rest = rest[i+1:]
 	end := findCloser(rest)
 	if !end.valid() {
-		return nil // unabgeschlossener Block ist Rumpf, siehe SplitEntry
+		return nil // an unterminated block is body, see SplitEntry
 	}
 	var out []string
 	for _, line := range strings.Split(rest[:end.start], "\n") {
@@ -126,8 +125,8 @@ func UnsupportedFrontmatterKeys(content string) []string {
 		switch k := strings.TrimSpace(key); k {
 		case "name", "description":
 		default:
-			// Fortsetzungszeilen einer Liste (»  - Bash«) tragen keinen eigenen
-			// Schlüssel — sie gehören zum Schlüssel darüber, der schon gemeldet ist.
+			// Continuation lines of a list ("  - Bash") carry no key of their
+			// own — they belong to the key above, which is already reported.
 			if !strings.HasPrefix(line, " ") && !strings.HasPrefix(line, "\t") && !strings.HasPrefix(k, "-") {
 				out = append(out, k)
 			}
@@ -136,12 +135,12 @@ func UnsupportedFrontmatterKeys(content string) []string {
 	return out
 }
 
-// closer beschreibt die Fundstelle des schließenden ---.
+// closer describes where the closing --- was found.
 type closer struct{ start, after int }
 
 func (c closer) valid() bool { return c.start >= 0 }
 
-// findCloser sucht die Zeile, die nur aus --- besteht.
+// findCloser looks for the line that consists of --- alone.
 func findCloser(s string) closer {
 	offset := 0
 	for offset <= len(s) {

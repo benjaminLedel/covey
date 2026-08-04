@@ -10,10 +10,10 @@ func TestNormalizeIdentities(t *testing.T) {
 		"":         "wert-ohne-system",
 	})
 	if len(got) != 2 || got["gitlab"] != "maxm" || got["zammad"] != "max@firma.de" {
-		t.Fatalf("Normalisierung falsch: %+v", got)
+		t.Fatalf("normalization wrong: %+v", got)
 	}
 	if got := NormalizeIdentities(nil); got == nil || len(got) != 0 {
-		t.Fatalf("nil-Eingabe muss leere Map liefern (JSONB ist NOT NULL): %+v", got)
+		t.Fatalf("nil input must yield an empty map (JSONB is NOT NULL): %+v", got)
 	}
 }
 

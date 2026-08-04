@@ -18,26 +18,25 @@ import (
 	identbuiltin "covey/internal/identity/builtin"
 )
 
-// TestSandboxFilesAPI prüft den Arbeitsplatz eines Agenten über die API
-// (spec/02: persistentes Home): hochladen, auflisten, lesen, ändern,
-// herunterladen, umbenennen, löschen — samt RBAC und der Regel, dass kein Pfad
-// aus dem Home herausführt.
+// TestSandboxFilesAPI checks an agent's workplace through the API (spec/02:
+// persistent home): upload, list, read, change, download, rename, delete —
+// including RBAC and the rule that no path leads out of the home.
 func TestSandboxFilesAPI(t *testing.T) {
 	s := newStack(t)
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 
 	created := admin.expect(http.MethodPost, "/api/v1/agents",
-		map[string]string{"slug": "datei-agent", "display_name": "Datei-Agent", "runtime": "mock"}, http.StatusCreated)
+		map[string]string{"slug": "file-agent", "display_name": "Datei-Agent", "runtime": "mock"}, http.StatusCreated)
 	agentID := created["id"].(string)
 	base := "/api/v1/agents/" + agentID + "/files"
 
-	// Ein nie geweckter Agent hat noch kein Home: leer, aber kein Fehler.
+	// An agent that was never woken has no home yet: empty, but not an error.
 	leer := admin.expect(http.MethodGet, base, nil, http.StatusOK)
 	if leer["exists"] != false {
-		t.Fatalf("frisches home müsste exists=false liefern: %+v", leer)
+		t.Fatalf("a fresh home should return exists=false: %+v", leer)
 	}
 
-	// Hochladen legt das Home an.
+	// Uploading creates the home.
 	admin.upload(t, base+"/upload?path=notizen", map[string]string{
 		"kunde.md":  "# ACME\n\nNur telefonisch erreichbar.",
 		"liste.txt": "eins\nzwei\n",
@@ -46,24 +45,24 @@ func TestSandboxFilesAPI(t *testing.T) {
 	list := admin.expect(http.MethodGet, base+"?path=notizen", nil, http.StatusOK)
 	namen := entryNames(list)
 	if len(namen) != 2 || namen["kunde.md"] == nil || namen["liste.txt"] == nil {
-		t.Fatalf("hochgeladene dateien fehlen: %+v", list)
+		t.Fatalf("uploaded files are missing: %+v", list)
 	}
 
-	// Lesen liefert den Inhalt als Text.
+	// Reading returns the content as text.
 	f := admin.expect(http.MethodGet, base+"/content?path="+url.QueryEscape("notizen/kunde.md"), nil, http.StatusOK)
 	if f["binary"] != false || f["content"] != "# ACME\n\nNur telefonisch erreichbar." {
-		t.Fatalf("inhalt unerwartet: %+v", f)
+		t.Fatalf("unexpected content: %+v", f)
 	}
 
-	// Ändern und wieder lesen.
+	// Change and read again.
 	admin.expect(http.MethodPut, base+"/content",
 		map[string]string{"path": "notizen/kunde.md", "content": "# ACME\n\nJetzt per Mail."}, http.StatusOK)
 	f = admin.expect(http.MethodGet, base+"/content?path="+url.QueryEscape("notizen/kunde.md"), nil, http.StatusOK)
 	if f["content"] != "# ACME\n\nJetzt per Mail." {
-		t.Fatalf("änderung nicht gespeichert: %+v", f)
+		t.Fatalf("the change was not stored: %+v", f)
 	}
 
-	// Herunterladen liefert die Bytes als Anhang.
+	// Downloading returns the bytes as an attachment.
 	resp := admin.do(http.MethodGet, base+"/download?path="+url.QueryEscape("notizen/liste.txt"), nil)
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
@@ -71,10 +70,10 @@ func TestSandboxFilesAPI(t *testing.T) {
 		t.Fatalf("download: HTTP %d, %q", resp.StatusCode, body)
 	}
 	if cd := resp.Header.Get("Content-Disposition"); cd == "" || cd[:10] != "attachment" {
-		t.Fatalf("download muss ein anhang sein, got %q", cd)
+		t.Fatalf("a download must be an attachment, got %q", cd)
 	}
 
-	// Ordner anlegen, verschieben, löschen.
+	// Create, move and delete a folder.
 	admin.expect(http.MethodPost, base+"/dir", map[string]string{"path": "archiv"}, http.StatusCreated)
 	admin.expect(http.MethodPost, base+"/move",
 		map[string]string{"from": "notizen/liste.txt", "to": "archiv/liste.txt"}, http.StatusOK)
@@ -84,11 +83,11 @@ func TestSandboxFilesAPI(t *testing.T) {
 	admin.expect(http.MethodDelete, base+"?path=archiv", nil, http.StatusOK)
 	admin.expect(http.MethodGet, base+"?path=archiv", nil, http.StatusNotFound)
 
-	// Kein Weg aus dem Home heraus — weder lesend noch schreibend.
+	// No way out of the home — neither reading nor writing.
 	admin.expect(http.MethodGet, base+"/content?path="+url.QueryEscape("../../etc/passwd"), nil, http.StatusNotFound)
 	admin.expect(http.MethodDelete, base+"?path=", nil, http.StatusBadRequest)
 
-	// Jede Änderung steht im Recording — mit dem Menschen, der sie gemacht hat.
+	// Every change is in the recording — with the human who made it.
 	var events []map[string]any
 	resp = admin.do(http.MethodGet, "/api/v1/agents/"+agentID+"/recording", nil)
 	json.NewDecoder(resp.Body).Decode(&events)
@@ -101,14 +100,14 @@ func TestSandboxFilesAPI(t *testing.T) {
 		dateiEvents++
 		p, _ := e["payload"].(map[string]any)
 		if p["actor"] != "Admin" {
-			t.Fatalf("datei-event ohne handelnden menschen: %+v", p)
+			t.Fatalf("file event without an acting human: %+v", p)
 		}
 	}
 	if dateiEvents == 0 {
-		t.Fatal("datei-änderungen müssen im recording stehen")
+		t.Fatal("file changes must be in the recording")
 	}
 
-	// RBAC: Auditor sieht den Arbeitsplatz nicht, Security liest, schreibt aber nicht.
+	// RBAC: the auditor does not see the workplace, security reads but does not write.
 	ctx := context.Background()
 	for email, role := range map[string]string{"auditor@test.local": "auditor", "sec@test.local": "security"} {
 		hash, _ := identbuiltin.HashPassword("passwort-1234")
@@ -125,8 +124,8 @@ func TestSandboxFilesAPI(t *testing.T) {
 	security.expect(http.MethodPut, base+"/content",
 		map[string]string{"path": "notizen/kunde.md", "content": "manipuliert"}, http.StatusForbidden)
 
-	// Und nichts davon reicht in ein fremdes Home: ein Agent einer anderen
-	// Organisation ist für diese Session schlicht nicht vorhanden.
+	// And none of this reaches into a foreign home: an agent of another
+	// organization simply does not exist for this session.
 	fremdeOrg := uuid.New()
 	if _, err := s.pool.Exec(ctx, "INSERT INTO organizations (id, name) VALUES ($1,'Fremd')", fremdeOrg); err != nil {
 		t.Fatal(err)
@@ -138,9 +137,9 @@ func TestSandboxFilesAPI(t *testing.T) {
 	admin.expect(http.MethodGet, "/api/v1/agents/"+fremd.ID.String()+"/files", nil, http.StatusNotFound)
 }
 
-// TestSandboxFilePreview prüft die Inline-Vorschau (spec/02): Bilder und PDF
-// kommen mit ihrem echten Typ inline, alles andere gar nicht — die Allowlist
-// ist der Riegel dagegen, fremdes HTML auf der Covey-Origin auszuführen.
+// TestSandboxFilePreview checks the inline preview (spec/02): images and PDF
+// come inline with their real type, everything else not at all — the allowlist
+// is the bolt against executing foreign HTML on the Covey origin.
 func TestSandboxFilePreview(t *testing.T) {
 	s := newStack(t)
 	admin := login(t, s, "admin@test.local", "admin-passwort")
@@ -149,7 +148,7 @@ func TestSandboxFilePreview(t *testing.T) {
 	agentID := created["id"].(string)
 	base := "/api/v1/agents/" + agentID + "/files"
 
-	// Ein winziges, gültiges PNG (1×1, transparent).
+	// A tiny, valid PNG (1×1, transparent).
 	png, err := base64.StdEncoding.DecodeString(
 		"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
 	if err != nil {
@@ -161,57 +160,57 @@ func TestSandboxFilePreview(t *testing.T) {
 		"notiz.md":   "# Titel",
 	})
 
-	// Die Auflistung trägt die Vorschau-Art — daran hängt das Symbol in der UI.
+	// The listing carries the preview kind — the icon in the UI hangs off it.
 	list := admin.expect(http.MethodGet, base+"?path=bilder", nil, http.StatusOK)
 	arten := map[string]any{}
 	for name, e := range entryNames(list) {
 		arten[name] = e.(map[string]any)["preview"]
 	}
 	if arten["punkt.png"] != "image" || arten["notiz.md"] != "markdown" {
-		t.Fatalf("vorschau-arten unerwartet: %v", arten)
+		t.Fatalf("unexpected preview kinds: %v", arten)
 	}
 
-	// Ein Bild kommt inline, mit echtem Typ und ohne Sniffing.
+	// An image comes inline, with its real type and without sniffing.
 	resp := admin.do(http.MethodGet, base+"/preview?path="+url.QueryEscape("bilder/punkt.png"), nil)
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK || !bytes.Equal(body, png) {
-		t.Fatalf("bild-vorschau: HTTP %d, %d bytes", resp.StatusCode, len(body))
+		t.Fatalf("image preview: HTTP %d, %d bytes", resp.StatusCode, len(body))
 	}
 	if ct := resp.Header.Get("Content-Type"); ct != "image/png" {
-		t.Errorf("content-type %q, erwartet image/png", ct)
+		t.Errorf("content-type %q, expected image/png", ct)
 	}
 	if resp.Header.Get("X-Content-Type-Options") != "nosniff" {
-		t.Error("nosniff fehlt — der Browser dürfte den Typ sonst selbst raten")
+		t.Error("nosniff missing — the browser would otherwise guess the type itself")
 	}
 	if csp := resp.Header.Get("Content-Security-Policy"); !strings.Contains(csp, "sandbox") {
-		t.Errorf("bild ohne sandbox-CSP: %q", csp)
+		t.Errorf("image without a sandbox CSP: %q", csp)
 	}
 	if cd := resp.Header.Get("Content-Disposition"); !strings.HasPrefix(cd, "inline") {
-		t.Errorf("content-disposition %q, erwartet inline", cd)
+		t.Errorf("content-disposition %q, expected inline", cd)
 	}
 
-	// HTML und Markdown gibt es NICHT inline — fail-closed über die Allowlist.
+	// HTML and Markdown are NOT served inline — fail-closed via the allowlist.
 	for _, p := range []string{"bilder/seite.html", "bilder/notiz.md"} {
 		resp := admin.do(http.MethodGet, base+"/preview?path="+url.QueryEscape(p), nil)
 		resp.Body.Close()
 		if resp.StatusCode != http.StatusUnsupportedMediaType {
-			t.Errorf("%s: HTTP %d, erwartet 415", p, resp.StatusCode)
+			t.Errorf("%s: HTTP %d, expected 415", p, resp.StatusCode)
 		}
 	}
 
-	// Der Download bleibt für alles der Weg — und immer als Anhang.
+	// The download stays the way for everything — and always as an attachment.
 	resp = admin.do(http.MethodGet, base+"/download?path="+url.QueryEscape("bilder/seite.html"), nil)
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK ||
 		!strings.HasPrefix(resp.Header.Get("Content-Disposition"), "attachment") ||
 		resp.Header.Get("Content-Type") != "application/octet-stream" {
-		t.Errorf("html-download muss ein anhang mit neutralem typ sein: %d %q %q", resp.StatusCode,
+		t.Errorf("an html download must be an attachment with a neutral type: %d %q %q", resp.StatusCode,
 			resp.Header.Get("Content-Disposition"), resp.Header.Get("Content-Type"))
 	}
 }
 
-// uploadRaw lädt eine einzelne Datei mit beliebigen Bytes hoch.
+// uploadRaw uploads a single file with arbitrary bytes.
 func (c *apiClient) uploadRaw(t *testing.T, path, name string, content []byte) {
 	t.Helper()
 	var buf bytes.Buffer
@@ -237,9 +236,9 @@ func (c *apiClient) uploadRaw(t *testing.T, path, name string, content []byte) {
 	}
 }
 
-// TestSandboxFilesZipUndOrdnerUpload prüft die Sammel-Wege (spec/02): ein
-// Upload mit Verzeichnisanteilen im Dateinamen legt die Struktur an, und der
-// ZIP-Endpunkt gibt mehrere Pfade — auch ganze Ordner — in einem Archiv zurück.
+// TestSandboxFilesZipUndOrdnerUpload checks the bulk paths (spec/02): an upload
+// with directory parts in the file name creates the structure, and the ZIP
+// endpoint returns several paths — whole folders as well — in one archive.
 func TestSandboxFilesZipUndOrdnerUpload(t *testing.T) {
 	s := newStack(t)
 	admin := login(t, s, "admin@test.local", "admin-passwort")
@@ -248,31 +247,31 @@ func TestSandboxFilesZipUndOrdnerUpload(t *testing.T) {
 	agentID := created["id"].(string)
 	base := "/api/v1/agents/" + agentID + "/files"
 
-	// Ein Ordner-Upload: der Dateiname trägt den relativen Pfad — genau so
-	// schickt ihn der Browser beim Ziehen eines Ordners.
+	// A folder upload: the file name carries the relative path — that is
+	// exactly how the browser sends it when a folder is dragged in.
 	admin.upload(t, base+"/upload?path=projekt", map[string]string{
 		"doku/kapitel-1.md":      "# Eins",
 		"doku/bilder/skizze.txt": "skizze",
 		"liesmich.txt":           "hallo",
 	})
 
-	// Die Struktur ist angelegt, nicht flachgeklopft.
+	// The structure is created, not flattened.
 	list := admin.expect(http.MethodGet, base+"?path="+url.QueryEscape("projekt/doku/bilder"), nil, http.StatusOK)
 	if entryNames(list)["skizze.txt"] == nil {
-		t.Fatalf("verschachtelter upload fehlt: %+v", list)
+		t.Fatalf("the nested upload is missing: %+v", list)
 	}
 
-	// Ein Dateiname mit `..` bricht nicht aus: er wird normalisiert, BEVOR er
-	// an das Zielverzeichnis gehängt wird — die Datei landet also im Ziel, nicht
-	// eine Ebene darüber und erst recht nicht außerhalb des Homes.
+	// A file name containing `..` does not break out: it is normalized BEFORE
+	// it is appended to the target directory — so the file lands in the target,
+	// not one level above it and certainly not outside the home.
 	admin.upload(t, base+"/upload?path=projekt", map[string]string{"../../entwischt.txt": "nein"})
 	admin.expect(http.MethodGet, base+"/content?path="+url.QueryEscape("projekt/entwischt.txt"), nil, http.StatusOK)
 	root := admin.expect(http.MethodGet, base, nil, http.StatusOK)
 	if entryNames(root)["entwischt.txt"] != nil {
-		t.Fatalf("`..` im dateinamen darf keine ebene nach oben schreiben: %+v", root)
+		t.Fatalf("a `..` in the file name must not write one level up: %+v", root)
 	}
 
-	// ZIP über mehrere Pfade: ein Ordner und eine Datei.
+	// ZIP over several paths: one folder and one file.
 	resp := admin.do(http.MethodGet, base+"/zip?path="+url.QueryEscape("projekt/doku")+
 		"&path="+url.QueryEscape("projekt/liesmich.txt"), nil)
 	body, _ := io.ReadAll(resp.Body)
@@ -281,15 +280,15 @@ func TestSandboxFilesZipUndOrdnerUpload(t *testing.T) {
 		t.Fatalf("zip: HTTP %d: %s", resp.StatusCode, body)
 	}
 	if ct := resp.Header.Get("Content-Type"); ct != "application/zip" {
-		t.Errorf("content-type %q, erwartet application/zip", ct)
+		t.Errorf("content-type %q, expected application/zip", ct)
 	}
 	if cd := resp.Header.Get("Content-Disposition"); !strings.HasPrefix(cd, "attachment") {
-		t.Errorf("zip muss ein anhang sein: %q", cd)
+		t.Errorf("a zip must be an attachment: %q", cd)
 	}
 
 	zr, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
 	if err != nil {
-		t.Fatalf("archiv unlesbar: %v", err)
+		t.Fatalf("archive unreadable: %v", err)
 	}
 	drin := map[string]string{}
 	for _, f := range zr.File {
@@ -306,14 +305,14 @@ func TestSandboxFilesZipUndOrdnerUpload(t *testing.T) {
 	}
 	if drin["doku/kapitel-1.md"] != "# Eins" || drin["doku/bilder/skizze.txt"] != "skizze" ||
 		drin["liesmich.txt"] != "hallo" {
-		t.Fatalf("archiv-inhalt unerwartet: %v", drin)
+		t.Fatalf("unexpected archive content: %v", drin)
 	}
 
-	// Ohne Pfad kein Archiv, und aus dem Home führt auch hier keiner hinaus.
+	// Without a path no archive, and here too nobody gets out of the home.
 	admin.expect(http.MethodGet, base+"/zip", nil, http.StatusBadRequest)
 	admin.expect(http.MethodGet, base+"/zip?path="+url.QueryEscape("../../etc"), nil, http.StatusNotFound)
 
-	// Lesen darf Security, herunterladen also auch — schreiben weiterhin nicht.
+	// Security may read, so it may download too — writing still not.
 	ctx := context.Background()
 	hash, _ := identbuiltin.HashPassword("passwort-1234")
 	if _, err := s.pool.Exec(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
@@ -324,7 +323,7 @@ func TestSandboxFilesZipUndOrdnerUpload(t *testing.T) {
 	security.expect(http.MethodGet, base+"/zip?path="+url.QueryEscape("projekt"), nil, http.StatusOK)
 }
 
-// upload schickt Dateien als multipart/form-data, wie es der Browser tut.
+// upload sends files as multipart/form-data, the way the browser does.
 func (c *apiClient) upload(t *testing.T, path string, files map[string]string) {
 	t.Helper()
 	var buf bytes.Buffer
@@ -353,7 +352,7 @@ func (c *apiClient) upload(t *testing.T, path string, files map[string]string) {
 	}
 }
 
-// entryNames zieht die Einträge einer Auflistung nach Namen auseinander.
+// entryNames splits the entries of a listing apart by name.
 func entryNames(listing map[string]any) map[string]any {
 	out := map[string]any{}
 	entries, _ := listing["entries"].([]any)

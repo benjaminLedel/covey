@@ -13,10 +13,10 @@ import (
 	targetstore "covey/internal/target/store"
 )
 
-// --- Zielsystem-Plugins: Built-ins aktivieren/deaktivieren, Manifeste hochladen ---
+// --- Target system plugins: enable/disable built-ins, upload manifests ---
 
-// handleListTargets liefert die Zielsysteme der Organisation: kompilierte
-// Built-ins (Registry) plus hochgeladene Manifest-Plugins, mit Aktivierungs-Status.
+// handleListTargets returns the target systems of the organization: compiled
+// built-ins (registry) plus uploaded manifest plugins, with their enabled state.
 func (s *Server) handleListTargets(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	list, err := s.Targets.List(r.Context(), p.OrgID)
@@ -30,37 +30,37 @@ func (s *Server) handleListTargets(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, list)
 }
 
-// agentSystem beantwortet die Frage „was kann dieser Agent in welchem
-// Zielsystem tun?" an einer Stelle: das Plugin (Name, Art, Aktivierung), der
-// Zugang des Agenten aus ACCESS.md (Scopes, Tool-Allowlist) und die
-// Aktionsliste — derselbe Text, den auch sein System-Prompt bekommt.
+// agentSystem answers the question "what can this agent do in which target
+// system?" in one place: the plugin (name, kind, enabled state), the agent's
+// access from ACCESS.md (scopes, tool allowlist) and the action list — the
+// same text its system prompt gets.
 //
-// Ohne diese Zusammenführung steht die Antwort an drei Orten: in der
-// Zielsystem-Verwaltung (aktiviert?), in ACCESS.md (darf er?) und im
-// kompilierten Prompt (was genau?). Wer wissen will, warum ein Agent ein
-// Ticket nicht schließt, will nicht drei Orte lesen.
+// Without this merge, the answer lives in three places: in the target system
+// administration (enabled?), in ACCESS.md (is he allowed to?) and in the
+// compiled prompt (what exactly?). Whoever wants to know why an agent does not
+// close a ticket does not want to read three places.
 type agentSystem struct {
 	Name        string `json:"name"`
 	Label       string `json:"label"`
 	Description string `json:"description,omitempty"`
 	Kind        string `json:"kind"`
 	Category    string `json:"category,omitempty"`
-	// Enabled: für die Organisation freigeschaltet (opt-in, fail-closed).
+	// Enabled: unlocked for the organization (opt-in, fail-closed).
 	Enabled bool `json:"enabled"`
-	// Access: der Agent hat einen Zugang in ACCESS.md — ohne ihn verweigert
-	// der Broker jede Credential-Anfrage, egal wie aktiv das Plugin ist.
+	// Access: the agent has an access in ACCESS.md — without it the broker
+	// refuses every credential request, no matter how enabled the plugin is.
 	Access bool     `json:"access"`
 	Scopes []string `json:"scopes,omitempty"`
-	// Tools ist die Werkzeug-Allowlist des Agenten (nur MCP); leer = alle.
+	// Tools is the agent's tool allowlist (MCP only); empty = all.
 	Tools []string `json:"tools,omitempty"`
-	// Doc sind die Aktionen im Wortlaut des Prompts; leer, solange das System
-	// für die Organisation nicht aktiviert ist (dann gibt es keine).
+	// Doc are the actions in the wording of the prompt; empty as long as the
+	// system is not enabled for the organization (then there are none).
 	Doc string `json:"doc,omitempty"`
 }
 
-// handleAgentSystems liefert die Zielsysteme aus der Sicht eines Agenten.
+// handleAgentSystems returns the target systems from an agent's point of view.
 func (s *Server) handleAgentSystems(w http.ResponseWriter, r *http.Request) {
-	// agentScoped hat den Agenten bereits aufgelöst und die Organisation geprüft.
+	// agentScoped has already resolved the agent and checked the organization.
 	id := agentFrom(r).ID
 	p := principalFrom(r)
 	ctx := r.Context()
@@ -105,8 +105,8 @@ func (s *Server) handleAgentSystems(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, sys)
 	}
-	// Zugänge zuerst — das ist die Liste, um die es geht; der Rest zeigt, was
-	// dieser Agent noch bekommen könnte.
+	// Accesses first — that is the list this is about; the rest shows what this
+	// agent could still get.
 	sort.SliceStable(out, func(i, j int) bool {
 		if out[i].Access != out[j].Access {
 			return out[i].Access
@@ -119,13 +119,13 @@ func (s *Server) handleAgentSystems(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// handleUploadTarget nimmt eine Plugin-Datei (JSON-Manifest) entgegen,
-// validiert sie fail-closed und speichert sie als Custom-Zielsystem.
+// handleUploadTarget takes a plugin file (JSON manifest), validates it
+// fail-closed and stores it as a custom target system.
 func (s *Server) handleUploadTarget(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	raw, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "body nicht lesbar")
+		writeErr(w, http.StatusBadRequest, "body not readable")
 		return
 	}
 	m, err := s.Targets.PutManifest(r.Context(), p.OrgID, raw)
@@ -136,7 +136,7 @@ func (s *Server) handleUploadTarget(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"name": m.Name, "kind": "custom"})
 }
 
-// handleToggleTarget aktiviert/deaktiviert ein Plugin für die Organisation.
+// handleToggleTarget enables/disables a plugin for the organization.
 func (s *Server) handleToggleTarget(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	name := r.PathValue("name")
@@ -144,7 +144,7 @@ func (s *Server) handleToggleTarget(w http.ResponseWriter, r *http.Request) {
 		Enabled *bool `json:"enabled"`
 	}
 	if err := readJSON(r, &in); err != nil || in.Enabled == nil {
-		writeErr(w, http.StatusBadRequest, "feld enabled (true|false) fehlt")
+		writeErr(w, http.StatusBadRequest, "field enabled (true|false) is missing")
 		return
 	}
 	if err := s.Targets.SetEnabled(r.Context(), p.OrgID, name, *in.Enabled); err != nil {
@@ -158,11 +158,11 @@ func (s *Server) handleToggleTarget(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"name": name, "enabled": *in.Enabled})
 }
 
-// --- MCP-Server als Zielsystem-Plugins ---
+// --- MCP servers as target system plugins ---
 
-// mcpInput ist der Anlege-/Aktualisieren-Body eines MCP-Plugins. token dient
-// nur der sofortigen Tool-Discovery und wird NICHT gespeichert — zur Laufzeit
-// brokert der Daemon <name>_token aus dem Vault.
+// mcpInput is the create/update body of an MCP plugin. token only serves the
+// immediate tool discovery and is NOT stored — at runtime the daemon brokers
+// <name>_token from the vault.
 type mcpInput struct {
 	Name        string   `json:"name"`
 	Label       string   `json:"label"`
@@ -172,15 +172,15 @@ type mcpInput struct {
 	Token       string   `json:"token"`
 }
 
-// handleCreateMCP legt ein MCP-Zielsystem an (oder aktualisiert es) und
-// versucht direkt, die Tool-Liste zu entdecken. Scheitert die Discovery
-// (Server nicht erreichbar, Auth falsch), bleibt die Config trotzdem gespeichert
-// und der Fehler wird als discover_error zurückgemeldet.
+// handleCreateMCP creates an MCP target system (or updates it) and tries to
+// discover the tool list right away. If the discovery fails (server
+// unreachable, wrong auth), the config stays saved nonetheless and the error is
+// reported back as discover_error.
 func (s *Server) handleCreateMCP(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	var in mcpInput
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "body nicht lesbar")
+		writeErr(w, http.StatusBadRequest, "body not readable")
 		return
 	}
 	cfg := mcp.Config{Name: in.Name, Label: in.Label, Description: in.Description, URL: in.URL, Auth: in.Auth}
@@ -199,8 +199,8 @@ func (s *Server) handleCreateMCP(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
-// handleDiscoverMCP verbindet sich erneut zum MCP-Server und aktualisiert die
-// gespeicherte Tool-Liste. Optionaler token nur für diesen Aufruf.
+// handleDiscoverMCP connects to the MCP server again and updates the stored
+// tool list. The optional token applies to this call only.
 func (s *Server) handleDiscoverMCP(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	name := r.PathValue("name")
@@ -215,7 +215,7 @@ func (s *Server) handleDiscoverMCP(w http.ResponseWriter, r *http.Request) {
 	_ = readJSON(r, &in)
 	tools, derr := s.discoverMCP(r.Context(), cfg, in.Token)
 	if derr != nil {
-		writeErr(w, http.StatusBadGateway, "discovery fehlgeschlagen: "+derr.Error())
+		writeErr(w, http.StatusBadGateway, "discovery failed: "+derr.Error())
 		return
 	}
 	if err := s.Targets.SetMCPTools(r.Context(), p.OrgID, name, tools); err != nil {
@@ -225,7 +225,7 @@ func (s *Server) handleDiscoverMCP(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"name": name, "tools": tools})
 }
 
-// handleListMCPTools liefert die zuletzt entdeckte Tool-Liste eines MCP-Plugins.
+// handleListMCPTools returns the most recently discovered tool list of an MCP plugin.
 func (s *Server) handleListMCPTools(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	cfg, err := s.Targets.MCPConfig(r.Context(), p.OrgID, r.PathValue("name"))
@@ -236,8 +236,8 @@ func (s *Server) handleListMCPTools(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, cfg.Tools)
 }
 
-// discoverMCP führt den tools/list-Handshake gegen einen MCP-Server aus.
-// Der token gilt nur für diesen Aufruf (Discovery), nicht persistiert.
+// discoverMCP performs the tools/list handshake against an MCP server. The
+// token applies to this call only (discovery), it is not persisted.
 func (s *Server) discoverMCP(ctx context.Context, cfg mcp.Config, token string) ([]mcp.Tool, error) {
 	dctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
@@ -260,12 +260,12 @@ func (s *Server) discoverMCP(ctx context.Context, cfg mcp.Config, token string) 
 	return conn.ListTools(dctx)
 }
 
-// --- Per-Agent-Tool-Zuweisung ---
+// --- Per-agent tool assignment ---
 
-// handleGetAgentTools liefert die einem Agenten für ein System zugewiesenen
-// Tools. Leere Liste = keine Einschränkung (alle Tools erlaubt).
+// handleGetAgentTools returns the tools assigned to an agent for a system.
+// Empty list = no restriction (all tools allowed).
 func (s *Server) handleGetAgentTools(w http.ResponseWriter, r *http.Request) {
-	// Geprüft von agentScoped (server.go) — hier steht der Agent bereits fest.
+	// Checked by agentScoped (server.go) — the agent is already fixed here.
 	agentID := agentFrom(r).ID
 	tools, err := s.Targets.AgentTools(r.Context(), agentID, r.PathValue("system"))
 	if err != nil {
@@ -278,15 +278,15 @@ func (s *Server) handleGetAgentTools(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, tools)
 }
 
-// handleSetAgentTools ersetzt die Tool-Zuweisung eines Agenten für ein System.
+// handleSetAgentTools replaces an agent's tool assignment for a system.
 func (s *Server) handleSetAgentTools(w http.ResponseWriter, r *http.Request) {
-	// Geprüft von agentScoped (server.go) — hier steht der Agent bereits fest.
+	// Checked by agentScoped (server.go) — the agent is already fixed here.
 	agentID := agentFrom(r).ID
 	var in struct {
 		Tools []string `json:"tools"`
 	}
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "feld tools (liste) fehlt")
+		writeErr(w, http.StatusBadRequest, "field tools (list) is missing")
 		return
 	}
 	system := r.PathValue("system")
@@ -297,7 +297,7 @@ func (s *Server) handleSetAgentTools(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"system": system, "tools": in.Tools})
 }
 
-// handleDeleteTarget entfernt ein Custom-Plugin (Built-ins sind nicht löschbar).
+// handleDeleteTarget removes a custom plugin (built-ins cannot be deleted).
 func (s *Server) handleDeleteTarget(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	name := r.PathValue("name")

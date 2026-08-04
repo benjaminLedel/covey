@@ -11,7 +11,7 @@ import (
 	"covey/internal/daemon"
 )
 
-// wsLink implementiert orchestrator.DaemonLink über eine WebSocket-Verbindung.
+// wsLink implements orchestrator.DaemonLink over a WebSocket connection.
 type wsLink struct {
 	conn *websocket.Conn
 	done chan struct{}
@@ -36,28 +36,28 @@ func (l *wsLink) Receive(ctx context.Context) (daemon.Message, error) {
 
 func (l *wsLink) Close() error {
 	defer func() {
-		defer func() { recover() }() // doppelt schließen tolerieren
+		defer func() { recover() }() // tolerate a double close
 		close(l.done)
 	}()
 	return l.conn.Close(websocket.StatusNormalClosure, "sleep")
 }
 
-// handleDaemonWS authentifiziert den Sandbox-Daemon über sein kurzlebiges
-// JWT (aud=daemon) und übergibt die Verbindung an die wartende Session.
+// handleDaemonWS authenticates the sandbox daemon via its short-lived JWT
+// (aud=daemon) and hands the connection over to the waiting session.
 func (s *Server) handleDaemonWS(w http.ResponseWriter, r *http.Request) {
 	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 	if token == "" {
-		writeErr(w, http.StatusUnauthorized, "daemon-token fehlt")
+		writeErr(w, http.StatusUnauthorized, "daemon token missing")
 		return
 	}
 	agentID, err := s.Identity.VerifyAgentToken(r.Context(), token, "daemon")
 	if err != nil {
-		writeErr(w, http.StatusUnauthorized, "daemon-token ungültig")
+		writeErr(w, http.StatusUnauthorized, "daemon token invalid")
 		return
 	}
 
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-		// Sandboxen verbinden sich prozess-/netzintern, nicht aus dem Browser.
+		// Sandboxes connect process/network-internally, not from the browser.
 		InsecureSkipVerify: true,
 	})
 	if err != nil {
@@ -67,12 +67,12 @@ func (s *Server) handleDaemonWS(w http.ResponseWriter, r *http.Request) {
 	link := &wsLink{conn: conn, done: make(chan struct{})}
 
 	if err := s.Orch.AttachDaemon(agentID, link); err != nil {
-		s.Log.Warn("daemon-verbindung abgelehnt", "agent", agentID, "err", err)
-		conn.Close(websocket.StatusPolicyViolation, "keine wartende session")
+		s.Log.Warn("daemon connection rejected", "agent", agentID, "err", err)
+		conn.Close(websocket.StatusPolicyViolation, "no waiting session")
 		return
 	}
-	// Die Session besitzt die Verbindung jetzt; der Handler hält nur den
-	// HTTP-Handler-Scope offen, bis die Session sie schließt.
+	// The session owns the connection now; the handler only keeps the HTTP
+	// handler scope open until the session closes it.
 	select {
 	case <-r.Context().Done():
 	case <-link.done:

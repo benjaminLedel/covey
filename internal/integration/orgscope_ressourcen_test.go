@@ -17,19 +17,19 @@ import (
 	"covey/internal/templates"
 )
 
-// Nachdem sich gezeigt hat, dass 25 der 67 Agenten-Endpunkte die
-// Organisationsgrenze nicht prüften, ist die naheliegende Frage: Gilt das auch
-// für alles ANDERE, was über eine ID adressiert wird? Aufgaben, Wiki-Seiten,
-// Guard-Rails, Skills, Vorlagen, Abteilungen, Menschen, Freigaben, Artefakte.
+// After it turned out that 25 of the 67 agent endpoints did not check the
+// organization boundary, the obvious question is: does that also hold for
+// everything ELSE addressed through an ID? Tasks, wiki pages, guard-rails,
+// skills, templates, departments, humans, approvals, artifacts.
 //
-// Dieser Test legt dieselben Objekte in einer FREMDEN Organisation an und ruft
-// jede zugehörige Route damit auf. Erwartung: nichts kommt durch.
+// This test creates the same objects in a FOREIGN organization and calls every
+// route belonging to them with those IDs. Expectation: nothing gets through.
 func TestFremdeRessourcenSindNirgendsErreichbar(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 
-	// --- Eine vollständig ausgestattete fremde Organisation ---
+	// --- A fully equipped foreign organization ---
 	fremdeOrg := uuid.New()
 	if _, err := s.pool.Exec(ctx, "INSERT INTO organizations (id, name) VALUES ($1,'Fremd-AG')", fremdeOrg); err != nil {
 		t.Fatal(err)
@@ -95,8 +95,8 @@ func TestFremdeRessourcenSindNirgendsErreichbar(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// --- Jede Route mit der fremden ID ---
-	type fall struct{ method, pfad string }
+	// --- Every route with the foreign ID ---
+	type fall struct{ method, path string }
 	faelle := []fall{
 		{http.MethodGet, "/api/v1/tasks/" + fremdTask.ID.String() + "/notes"},
 		{http.MethodGet, "/api/v1/tasks/" + fremdTask.ID.String() + "/transitions"},
@@ -133,16 +133,16 @@ func TestFremdeRessourcenSindNirgendsErreichbar(t *testing.T) {
 
 	var offen []string
 	for _, f := range faelle {
-		resp := admin.do(f.method, f.pfad, map[string]any{"name": "übernommen", "color": "#000", "decision": "approve"})
+		resp := admin.do(f.method, f.path, map[string]any{"name": "übernommen", "color": "#000", "decision": "approve"})
 		resp.Body.Close()
 		if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-			// Für die Meldung den Ressourcentyp statt der UUID zeigen.
-			teile := strings.Split(strings.TrimPrefix(f.pfad, "/api/v1/"), "/")
+			// Show the resource type instead of the UUID in the message.
+			teile := strings.Split(strings.TrimPrefix(f.path, "/api/v1/"), "/")
 			offen = append(offen, f.method+" /"+teile[0]+"/…")
 		}
 	}
 	if len(offen) > 0 {
-		t.Errorf("%d Routen lassen eine fremde Organisation durch:\n  %s",
+		t.Errorf("%d routes let a foreign organization through:\n  %s",
 			len(offen), strings.Join(offen, "\n  "))
 	}
 }

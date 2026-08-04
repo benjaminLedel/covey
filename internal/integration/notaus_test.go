@@ -13,10 +13,10 @@ import (
 	identbuiltin "covey/internal/identity/builtin"
 )
 
-// Der Notaus für die ganze Flotte (spec/06) hatte keinen einzigen Test —
-// ausgerechnet der Griff, den man genau einmal braucht und der dann
-// funktionieren muss. Ein Kill-Switch, der nur so aussieht, ist schlimmer als
-// keiner: Man hält die Lage für beherrscht, während die Agenten weiterarbeiten.
+// The emergency stop for the whole fleet (spec/06) had not a single test — of
+// all things the lever you need exactly once and that has to work then. A kill
+// switch that only looks like one is worse than none: you believe the situation
+// is under control while the agents keep working.
 func TestNotausDerFlotte(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -35,54 +35,54 @@ func TestNotausDerFlotte(t *testing.T) {
 	}
 
 	if status() {
-		t.Fatal("frische Organisation startet nicht im Notaus")
+		t.Fatal("a fresh organization does not start with the emergency stop engaged")
 	}
 
-	// Auslösen.
+	// Trigger it.
 	admin.expect(http.MethodPost, "/api/v1/fleet/kill", nil, http.StatusOK)
 	if !status() {
-		t.Fatal("nach dem Auslösen meldet der Status keinen Notaus")
+		t.Fatal("after triggering it the status reports no emergency stop")
 	}
 
-	// Der Kern: Eine neue Aufgabe darf den Agenten NICHT mehr wecken. Sie
-	// bleibt liegen, statt bearbeitet zu werden.
-	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Trotz Notaus", "sollte liegenbleiben", "manual", 1)
+	// The core: a new task must NOT wake the agent any more. It stays put
+	// instead of being worked on.
+	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Despite the emergency stop", "should stay put", "manual", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Großzügig warten: Der Dispatcher tickt alle 300 ms im Test-Stack. Würde
-	// der Notaus nicht greifen, wäre die Aufgabe längst in Arbeit.
+	// Wait generously: the dispatcher ticks every 300 ms in the test stack. If
+	// the emergency stop did not hold, the task would long be in progress.
 	time.Sleep(2 * time.Second)
 	if st := s.taskState(task.ID); st != backlog.StateOpen {
-		t.Errorf("Aufgabe ist trotz Notaus im Zustand %q — der Notaus hält nicht", st)
+		t.Errorf("the task is in state %q despite the emergency stop — it does not hold", st)
 	}
 	if st := s.agentStatus(agent.ID); st == "working" || st == "triage" {
-		t.Errorf("Agent arbeitet trotz Notaus (Status %q)", st)
+		t.Errorf("the agent works despite the emergency stop (status %q)", st)
 	}
 
-	// Auch der direkte Weckruf über die API muss abprallen.
+	// The direct wake call through the API has to bounce off as well.
 	resp := admin.do(http.MethodPost, "/api/v1/agents/"+agent.ID.String()+"/wake", nil)
 	resp.Body.Close()
 	time.Sleep(time.Second)
 	if st := s.taskState(task.ID); st != backlog.StateOpen {
-		t.Errorf("Weckruf hat den Notaus umgangen: Aufgabe im Zustand %q", st)
+		t.Errorf("the wake call bypassed the emergency stop: task in state %q", st)
 	}
 
-	// Zurücknehmen — und derselbe Agent arbeitet wieder.
+	// Release it — and the same agent works again.
 	admin.expect(http.MethodPost, "/api/v1/fleet/resume", nil, http.StatusOK)
 	if status() {
-		t.Fatal("nach dem Zurücknehmen meldet der Status weiter Notaus")
+		t.Fatal("after releasing it the status still reports an emergency stop")
 	}
-	waitFor(t, "Aufgabe wird nach dem Zurücknehmen bearbeitet", 20*time.Second, func() bool {
+	waitFor(t, "task is worked on after the release", 20*time.Second, func() bool {
 		st := s.taskState(task.ID)
 		return st != backlog.StateOpen
 	})
 }
 
-// Der Notaus ist eine Sicherheitsentscheidung: Security und Plattform-Admin
-// dürfen ihn auslösen, sonst niemand. Und er gilt nur für die eigene
-// Organisation — ein Notaus, der die Nachbarn mitnimmt, wäre in einer
-// Mandantenplattform der GAU.
+// The emergency stop is a security decision: security and platform admin may
+// trigger it, nobody else. And it applies only to one's own organization — an
+// emergency stop that takes the neighbours down with it would be the worst case
+// on a multi-tenant platform.
 func TestNotausRollenUndOrgGrenze(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -100,20 +100,20 @@ func TestNotausRollenUndOrgGrenze(t *testing.T) {
 		}
 	}
 
-	// Darf: Security (und weiter unten der Plattform-Admin).
+	// May: security (and further down the platform admin).
 	login(t, s, "sec-notaus@test.local", "passwort-1234").
 		expect(http.MethodPost, "/api/v1/fleet/kill", nil, http.StatusOK)
 	login(t, s, "sec-notaus@test.local", "passwort-1234").
 		expect(http.MethodPost, "/api/v1/fleet/resume", nil, http.StatusOK)
 
-	// Darf nicht: alle übrigen Rollen.
+	// May not: all the remaining roles.
 	for _, email := range []string{"owner@test.local", "auditor2@test.local", "controlling@test.local"} {
 		c := login(t, s, email, "passwort-1234")
 		c.expect(http.MethodPost, "/api/v1/fleet/kill", nil, http.StatusForbidden)
 		c.expect(http.MethodPost, "/api/v1/fleet/resume", nil, http.StatusForbidden)
 	}
 
-	// Org-Grenze: Der Notaus der einen Organisation lässt die andere in Ruhe.
+	// Org boundary: one organization's emergency stop leaves the other alone.
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 	admin.expect(http.MethodPost, "/api/v1/orgs", map[string]any{
 		"name": "Nachbar-AG", "admin_email": "nachbar@test.local",
@@ -130,6 +130,6 @@ func TestNotausRollenUndOrgGrenze(t *testing.T) {
 	json.NewDecoder(resp.Body).Decode(&nachbarStatus)
 	resp.Body.Close()
 	if nachbarStatus.Killed {
-		t.Error("der Notaus einer Organisation hat die Nachbar-Organisation mitgestoppt")
+		t.Error("one organization's emergency stop also stopped the neighbouring organization")
 	}
 }

@@ -15,8 +15,8 @@ import (
 	"covey/internal/backlog"
 )
 
-// findChrome sucht einen Chromium/Chrome; fehlt er, wird der Browser-
-// Integrationstest übersprungen (wie die Suite ohne Dev-DB skippt).
+// findChrome looks for a Chromium/Chrome; if it is missing, the browser
+// integration test is skipped (just as the suite skips without a dev DB).
 func findChrome(t *testing.T) string {
 	t.Helper()
 	if p := os.Getenv("COVEY_BROWSER_CHROME_PATH"); p != "" {
@@ -30,7 +30,7 @@ func findChrome(t *testing.T) string {
 	if p := "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"; fileExists(p) {
 		return p
 	}
-	t.Skip("kein Chromium/Chrome gefunden — Browser-Integrationstest übersprungen")
+	t.Skip("no Chromium/Chrome found — browser integration test skipped")
 	return ""
 }
 
@@ -41,11 +41,11 @@ func fileExists(p string) bool {
 	return false
 }
 
-// TestBrowserPluginScreenshotRecording: End-to-End über den echten Action-Proxy
-// und einen echten headless Chrome. Der Agent navigiert, liest Inhalt und macht
-// einen Screenshot; geprüft wird, dass jede Aktion mit ok=true im Recording
-// steht UND der Screenshot out-of-band als recording_blob landet, referenziert
-// per payload->>'screenshot'.
+// TestBrowserPluginScreenshotRecording: end-to-end through the real action
+// proxy and a real headless Chrome. The agent navigates, reads content and
+// takes a screenshot; what is checked is that every action ends up in the
+// recording with ok=true AND that the screenshot lands out-of-band as a
+// recording_blob, referenced via payload->>'screenshot'.
 func TestBrowserPluginScreenshotRecording(t *testing.T) {
 	chrome := findChrome(t)
 	t.Setenv("COVEY_BROWSER_CHROME_PATH", chrome)
@@ -54,11 +54,11 @@ func TestBrowserPluginScreenshotRecording(t *testing.T) {
 	ctx := context.Background()
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 
-	// Aktivierung ist opt-in — wie bei jedem Zielsystem.
+	// Activation is opt-in — as with every target system.
 	admin.expect(http.MethodPatch, "/api/v1/targets/browser", map[string]any{"enabled": true}, http.StatusOK)
 
-	// Eine einfache Testseite; der echte Chrome erreicht 127.0.0.1 direkt
-	// (im In-Process-Daemon greift keine Egress-Sperre).
+	// A simple test page; the real Chrome reaches 127.0.0.1 directly (no egress
+	// block applies inside the in-process daemon).
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
 		_, _ = w.Write([]byte(`<!doctype html><title>Recherche-Testseite</title><h1 id="h">Belegte Aussage</h1>`))
@@ -75,8 +75,8 @@ func TestBrowserPluginScreenshotRecording(t *testing.T) {
 	}, &s.adminID); err != nil {
 		t.Fatal(err)
 	}
-	// Aufzeichnungstiefe 'full' — sonst würde der Screenshot durch das Gating
-	// (Org-Boden 'standard') nicht gespeichert (spec/06).
+	// Recording depth 'full' — otherwise the screenshot would not be stored
+	// because of the gating (org floor 'standard', spec/06).
 	if err := s.registry.SetRecordingLevel(ctx, agent.ID, "full"); err != nil {
 		t.Fatal(err)
 	}
@@ -89,11 +89,11 @@ func TestBrowserPluginScreenshotRecording(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, "browser-aufgabe done", 40*time.Second, func() bool {
+	waitFor(t, "browser task done", 40*time.Second, func() bool {
 		return s.taskState(task.ID) == backlog.StateDone
 	})
 
-	// Jede Aktion mit ok=true im Recording.
+	// Every action with ok=true in the recording.
 	for _, action := range []string{"browser:navigate", "browser:content", "browser:screenshot"} {
 		var n int
 		if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM recording_events
@@ -102,11 +102,11 @@ func TestBrowserPluginScreenshotRecording(t *testing.T) {
 			t.Fatal(err)
 		}
 		if n != 1 {
-			t.Fatalf("aktion %s fehlt im recording (count=%d)", action, n)
+			t.Fatalf("action %s missing from the recording (count=%d)", action, n)
 		}
 	}
 
-	// Der Screenshot referenziert einen Blob (Bytes NICHT inline im Payload).
+	// The screenshot references a blob (bytes NOT inline in the payload).
 	var blobID string
 	if err := s.pool.QueryRow(ctx, `SELECT payload->>'screenshot' FROM recording_events
 		WHERE agent_id=$1 AND kind='action' AND payload->>'action'='browser:screenshot'`,
@@ -114,9 +114,9 @@ func TestBrowserPluginScreenshotRecording(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := uuid.Parse(blobID); err != nil {
-		t.Fatalf("screenshot-referenz ist keine blob-id: %q", blobID)
+		t.Fatalf("the screenshot reference is not a blob id: %q", blobID)
 	}
-	// Es darf KEIN Base64-Bild im JSONB stehen (Bytes liegen out-of-band).
+	// There must be NO base64 image in the JSONB (bytes live out-of-band).
 	var hasInline bool
 	if err := s.pool.QueryRow(ctx, `SELECT (payload ? 'image_b64') FROM recording_events
 		WHERE agent_id=$1 AND kind='action' AND payload->>'action'='browser:screenshot'`,
@@ -124,10 +124,10 @@ func TestBrowserPluginScreenshotRecording(t *testing.T) {
 		t.Fatal(err)
 	}
 	if hasInline {
-		t.Error("image_b64 darf nicht im recording-payload stehen (Blob out-of-band)")
+		t.Error("image_b64 must not be in the recording payload (blob is out-of-band)")
 	}
 
-	// Der Blob existiert org-gescopt und trägt echte PNG-Bytes.
+	// The blob exists org-scoped and carries real PNG bytes.
 	var size int
 	var mime string
 	if err := s.pool.QueryRow(ctx, `SELECT length(bytes), mime FROM recording_blobs
@@ -135,11 +135,11 @@ func TestBrowserPluginScreenshotRecording(t *testing.T) {
 		t.Fatal(err)
 	}
 	if size < 100 || mime != "image/png" {
-		t.Fatalf("blob unplausibel: size=%d mime=%q", size, mime)
+		t.Fatalf("implausible blob: size=%d mime=%q", size, mime)
 	}
 
-	// Gating: ein Agent auf dem Org-Boden 'standard' bekommt KEINEN Screenshot
-	// ins Recording — die Aktion wird aufgezeichnet, das Bild aber verworfen.
+	// Gating: an agent on the org floor 'standard' gets NO screenshot in the
+	// recording — the action is recorded, but the image is discarded.
 	plain, err := s.registry.Create(ctx, s.orgID, "researcher-std", "Rechercheur (standard)", "mock", &s.adminID)
 	if err != nil {
 		t.Fatal(err)
@@ -157,10 +157,10 @@ func TestBrowserPluginScreenshotRecording(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, "standard-aufgabe done", 40*time.Second, func() bool {
+	waitFor(t, "standard task done", 40*time.Second, func() bool {
 		return s.taskState(task2.ID) == backlog.StateDone
 	})
-	// Screenshot-Aktion aufgezeichnet, aber ohne Blob-Referenz und ohne Blob.
+	// The screenshot action is recorded, but without a blob reference and without a blob.
 	var withRef, blobs int
 	if err := s.pool.QueryRow(ctx, `SELECT
 		count(*) FILTER (WHERE payload ? 'screenshot'),
@@ -171,6 +171,6 @@ func TestBrowserPluginScreenshotRecording(t *testing.T) {
 		t.Fatal(err)
 	}
 	if withRef != 0 || blobs != 0 {
-		t.Fatalf("gating verletzt: standard-Agent hat screenshot-ref=%d blobs=%d (erwartet 0/0)", withRef, blobs)
+		t.Fatalf("gating violated: standard agent has screenshot-ref=%d blobs=%d (expected 0/0)", withRef, blobs)
 	}
 }

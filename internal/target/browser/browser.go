@@ -1,16 +1,15 @@
-// Package browser bindet einen vollwertigen headless Chrome als Zielsystem-
-// Plugin an: der Agent navigiert, liest Seiteninhalt, macht Screenshots,
-// klickt und tippt — der universelle Adapter für Web-Anwendungen, die kein
-// eigenes Zielsystem-Plugin haben. Getrieben wird ein echter Chromium über
-// das DevTools-Protokoll (chromedp, reines Go). „Headless" heißt nur „ohne
-// sichtbares Fenster" — dieselbe Engine, volles Rendering; das „Sehen"
-// liefert der Screenshot.
+// Package browser binds a full headless Chrome as a target-system plugin: the
+// agent navigates, reads page content, takes screenshots, clicks and types —
+// the universal adapter for web applications that have no target-system
+// plugin of their own. Driven by a real Chromium over the DevTools protocol
+// (chromedp, pure Go). "Headless" only means "without a visible window" — the
+// same engine, full rendering; the "seeing" is done by the screenshot.
 //
-// Alles läuft lokal im Daemon der Sandbox (Descriptor.NoCredentials wie beim
-// dev-Plugin); der Browser braucht keine Secrets. Welche Seiten er erreicht,
-// gatet weiterhin die Egress-Allowlist der Org — der Browser ist das
-// mächtigste Egress-Werkzeug, deshalb greifen ACCESS.md, Aktivierung und
-// Guard-Rails (Subjekt browser:<aktion>) wie bei jedem Zielsystem.
+// Everything runs locally in the sandbox daemon (Descriptor.NoCredentials, as
+// with the dev plugin); the browser needs no secrets. Which pages it can reach
+// is still gated by the org's egress allowlist — the browser is the most
+// powerful egress tool, which is why ACCESS.md, activation and guard-rails
+// (subject browser:<action>) apply as with any target system.
 package browser
 
 import (
@@ -28,19 +27,19 @@ import (
 	"covey/internal/target"
 )
 
-// shotCounter vergibt fortlaufende Default-Screenshot-Namen je Prozess.
+// shotCounter hands out consecutive default screenshot names per process.
 var shotCounter atomic.Int64
 
 func nextShotName() string {
 	return fmt.Sprintf("shot-%d.png", shotCounter.Add(1))
 }
 
-// contentMax begrenzt, wie viel Seitentext content direkt in die Session
-// zurückgibt — größere Seiten gehören per Screenshot oder gezieltem Selektor.
+// contentMax caps how much page text content returns straight into the
+// session — larger pages belong in a screenshot or behind a narrow selector.
 const contentMax = 20000
 
-// actionTimeout deckelt eine einzelne Browser-Aktion (Navigation, Klick, …).
-// Überschreibbar via COVEY_BROWSER_TIMEOUT_SECS.
+// actionTimeout caps a single browser action (navigation, click, …).
+// Overridable via COVEY_BROWSER_TIMEOUT_SECS.
 func actionTimeout() time.Duration {
 	if s, err := strconv.Atoi(strings.TrimSpace(os.Getenv("COVEY_BROWSER_TIMEOUT_SECS"))); err == nil && s > 0 {
 		return time.Duration(s) * time.Second
@@ -48,10 +47,10 @@ func actionTimeout() time.Duration {
 	return 45 * time.Second
 }
 
-// manager hält einen persistenten Chromium über die Wach-Phase des Agenten
-// (Cookies/Tabs/Login bleiben zwischen Aktionen erhalten) und serialisiert
-// alle Läufe — ein chromedp-Kontext ist nicht nebenläufig bespielbar, und
-// Covey arbeitet ohnehin seriell pro Agent.
+// manager keeps one persistent Chromium alive across the agent's waking phase
+// (cookies/tabs/login survive between actions) and serializes all runs — a
+// chromedp context cannot be driven concurrently, and Covey works serially per
+// agent anyway.
 type manager struct {
 	mu            sync.Mutex
 	allocCancel   context.CancelFunc
@@ -63,51 +62,51 @@ var super = &manager{}
 
 func init() { target.OnShutdown(super.shutdown) }
 
-// ensureLocked startet den Browser bei Bedarf (Lock muss gehalten sein) und
-// liefert den Browser-Kontext, gegen den Aktionen laufen.
+// ensureLocked starts the browser on demand (the lock must be held) and
+// returns the browser context that actions run against.
 func (m *manager) ensureLocked() (context.Context, error) {
 	if m.browserCtx != nil && m.browserCtx.Err() == nil {
 		return m.browserCtx, nil
 	}
 	opts := append([]chromedp.ExecAllocatorOption{}, chromedp.DefaultExecAllocatorOptions[:]...)
-	// Der Container IST die Sandbox — Chromiums eigener Setuid-Sandbox braucht
-	// Kernel-Caps, die hier fehlen; --no-sandbox ist daher vertretbar. Kleiner
-	// /dev/shm in Containern → --disable-dev-shm-usage. Feste Fenstergröße für
-	// reproduzierbare Screenshots.
+	// The container IS the sandbox — Chromium's own setuid sandbox needs kernel
+	// caps that are missing here, so --no-sandbox is defensible. Small /dev/shm
+	// in containers → --disable-dev-shm-usage. Fixed window size for
+	// reproducible screenshots.
 	opts = append(opts,
 		chromedp.NoSandbox,
 		chromedp.Flag("disable-dev-shm-usage", true),
 		chromedp.WindowSize(1440, 900),
 	)
 	if os.Getenv("COVEY_BROWSER_HEADFUL") != "" {
-		// Sichtbarer Modus (braucht einen X-Server/Xvfb) — für die spätere
-		// Live-View/Takeover-Ausbaustufe. Default bleibt headless.
+		// Visible mode (needs an X server/Xvfb) — for the later live-view/takeover
+		// stage. The default stays headless.
 		opts = append(opts, chromedp.Flag("headless", false))
 	}
 	if p := strings.TrimSpace(os.Getenv("COVEY_BROWSER_CHROME_PATH")); p != "" {
 		opts = append(opts, chromedp.ExecPath(p))
 	}
 
-	// Losgelöst von jeder einzelnen Aktion: Die Sitzung ist der Sinn dieses
-	// Plugins — Cookies und Login sollen über mehrere Aktionen hinweg stehen
-	// bleiben. Beendet wird sie über allocCancel/browserCancel (Close), nicht
-	// über einen geerbten Kontext.
+	// Detached from any single action: the session is the whole point of this
+	// plugin — cookies and login are meant to survive across several actions.
+	// It is ended via allocCancel/browserCancel (Close), not via an inherited
+	// context.
 	allocCtx, allocCancel := chromedp.NewExecAllocator(context.Background(), opts...)
 	browserCtx, browserCancel := chromedp.NewContext(allocCtx)
-	// Leerer Run erzwingt den Browser-Start und bindet den initialen Tab an den
-	// langlebigen browserCtx — NICHT an ein Timeout-Kind, sonst risse dessen
-	// cancel() den Tab gleich wieder ab. Ein fehlender Chromium wird hier als
-	// klarer Fehler sichtbar (statt erst bei der ersten Navigation).
+	// An empty run forces the browser to start and binds the initial tab to the
+	// long-lived browserCtx — NOT to a timeout child, whose cancel() would tear
+	// the tab down again right away. A missing Chromium surfaces here as a clear
+	// error (instead of only on the first navigation).
 	if err := chromedp.Run(browserCtx); err != nil {
 		browserCancel()
 		allocCancel()
-		return nil, fmt.Errorf("chromium start (ist chromium im Sandbox-Image installiert?): %w", err)
+		return nil, fmt.Errorf("chromium start (is chromium installed in the sandbox image?): %w", err)
 	}
 	m.allocCancel, m.browserCtx, m.browserCancel = allocCancel, browserCtx, browserCancel
 	return m.browserCtx, nil
 }
 
-// do führt eine Reihe chromedp-Aktionen atomar und serialisiert aus.
+// do runs a series of chromedp actions atomically and serialized.
 func (m *manager) do(tasks ...chromedp.Action) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -120,8 +119,8 @@ func (m *manager) do(tasks ...chromedp.Action) error {
 	return chromedp.Run(runCtx, tasks...)
 }
 
-// shutdown beendet den Browser beim Herunterfahren der Sandbox — sonst
-// überlebte der Chromium-Prozess die Wach-Phase.
+// shutdown terminates the browser when the sandbox shuts down — otherwise the
+// Chromium process would outlive the waking phase.
 func (m *manager) shutdown() {
 	m.mu.Lock()
 	defer m.mu.Unlock()

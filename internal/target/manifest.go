@@ -18,56 +18,55 @@ import (
 	"covey/internal/reqlog"
 )
 
-// Manifest ist ein deklaratives Zielsystem-Plugin: eine JSON-Datei, die ein
-// Admin hochlädt, statt Go-Code zu kompilieren. Eine generische REST-Engine
-// (ManifestSystem) interpretiert sie — damit lassen sich API-Key-basierte
-// REST-Systeme anbinden, ohne Covey neu auszuliefern. Für alles darüber
-// hinaus (OAuth-Flows, Spezial-Protokolle) bleibt der Weg über ein
-// kompiliertes Built-in-Plugin.
+// Manifest is a declarative target system plugin: a JSON file an admin uploads
+// instead of compiling Go code. A generic REST engine (ManifestSystem)
+// interprets it — that way API-key-based REST systems can be connected without
+// shipping a new Covey build. For anything beyond that (OAuth flows, special
+// protocols) the way remains a compiled built-in plugin.
 type Manifest struct {
 	Name        string `json:"name"`
 	Label       string `json:"label,omitempty"`
 	Description string `json:"description,omitempty"`
-	// Category ordnet das Plugin im Zielsystem-Store ein (siehe Category…
-	// in target.go). Leer = "other".
+	// Category places the plugin in the target system store (see Category…
+	// in target.go). Empty = "other".
 	Category string `json:"category,omitempty"`
 
-	// Auth beschreibt, wie das gebrokerte Token in Requests landet.
+	// Auth describes how the brokered token ends up in requests.
 	Auth ManifestAuth `json:"auth"`
 
-	// Webhook mappt eingehende Payloads auf das Wake-Event. Feld-Referenzen
-	// sind Punkt-Pfade in das JSON ("ticket.id", "article.body").
+	// Webhook maps incoming payloads onto the wake event. Field references
+	// are dotted paths into the JSON ("ticket.id", "article.body").
 	Webhook ManifestWebhook `json:"webhook"`
 
-	// Actions sind die Aktionen, die der Agent über den Action-Proxy
-	// aufrufen darf. Key = Aktionsname.
+	// Actions are the actions the agent may call through the action proxy.
+	// Key = action name.
 	Actions map[string]ManifestAction `json:"actions"`
 
-	// PromptDoc beschreibt die Aktionen für den System-Prompt des Agenten.
+	// PromptDoc describes the actions for the agent's system prompt.
 	PromptDoc string `json:"prompt_doc,omitempty"`
 }
 
 type ManifestAuth struct {
-	// Header, in den das Token geschrieben wird (Default "Authorization").
+	// Header the token is written into (default "Authorization").
 	Header string `json:"header,omitempty"`
-	// Format des Header-Werts; {token} wird ersetzt (Default "Bearer {token}").
+	// Format of the header value; {token} is substituted (default "Bearer {token}").
 	Format string `json:"format,omitempty"`
 }
 
 type ManifestWebhook struct {
-	// Signature: "hmac-sha1" | "hmac-sha256" | "" (keine Prüfung).
+	// Signature: "hmac-sha1" | "hmac-sha256" | "" (no verification).
 	Signature string `json:"signature,omitempty"`
-	// SignatureHeader trägt die Signatur (Default "X-Hub-Signature").
+	// SignatureHeader carries the signature (default "X-Hub-Signature").
 	SignatureHeader string `json:"signature_header,omitempty"`
 
-	// IDField identifiziert das fachliche Objekt (Korrelations-Key).
+	// IDField identifies the business object (correlation key).
 	IDField string `json:"id_field"`
-	// EventIDField identifiziert das konkrete Ereignis (Dedup, z. B. Artikel-id).
+	// EventIDField identifies the concrete event (dedup, e.g. article id).
 	EventIDField string `json:"event_id_field,omitempty"`
-	// TitleField/BodyField füllen die Backlog-Aufgabe.
+	// TitleField/BodyField fill the backlog task.
 	TitleField string `json:"title_field,omitempty"`
 	BodyField  string `json:"body_field,omitempty"`
-	// IgnoreWhen: weckt NICHT, wenn Feld == Wert (z. B. das eigene Agent-Echo).
+	// IgnoreWhen: does NOT wake if field == value (e.g. the agent's own echo).
 	IgnoreWhen []ManifestCondition `json:"ignore_when,omitempty"`
 }
 
@@ -78,11 +77,11 @@ type ManifestCondition struct {
 
 type ManifestAction struct {
 	Method string `json:"method"`
-	// Path relativ zur Base-URL; {param}-Platzhalter werden aus den
-	// JSON-Params ersetzt, verbleibende Params gehen als JSON-Body raus.
+	// Path relative to the base URL; {param} placeholders are substituted from
+	// the JSON params, the remaining params go out as the JSON body.
 	Path string `json:"path"`
-	// Subject überschreibt das Guard-Rail-Subjekt (Default system:aktion).
-	// SubjectWhen erlaubt param-abhängige Subjekte (z. B. internal=false).
+	// Subject overrides the guard-rail subject (default system:action).
+	// SubjectWhen allows param-dependent subjects (e.g. internal=false).
 	Subject     string                `json:"subject,omitempty"`
 	SubjectWhen []ManifestSubjectRule `json:"subject_when,omitempty"`
 }
@@ -95,8 +94,8 @@ type ManifestSubjectRule struct {
 
 var manifestNameRe = regexp.MustCompile(`^[a-z][a-z0-9_-]{1,31}$`)
 
-// ParseManifest validiert eine hochgeladene Plugin-Datei fail-closed:
-// lieber ein klarer Fehler beim Upload als ein stilles Fehlverhalten zur Laufzeit.
+// ParseManifest validates an uploaded plugin file fail-closed: better a clear
+// error at upload time than silent misbehavior at runtime.
 func ParseManifest(raw []byte) (Manifest, error) {
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
@@ -105,35 +104,35 @@ func ParseManifest(raw []byte) (Manifest, error) {
 		return m, fmt.Errorf("manifest: %w", err)
 	}
 	if !manifestNameRe.MatchString(m.Name) {
-		return m, fmt.Errorf("manifest: name muss %s entsprechen", manifestNameRe)
+		return m, fmt.Errorf("manifest: name must match %s", manifestNameRe)
 	}
 	if len(m.Actions) == 0 {
-		return m, fmt.Errorf("manifest: mindestens eine action nötig")
+		return m, fmt.Errorf("manifest: at least one action is required")
 	}
 	for name, a := range m.Actions {
 		switch a.Method {
 		case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
 		default:
-			return m, fmt.Errorf("manifest: action %q: method %q nicht erlaubt", name, a.Method)
+			return m, fmt.Errorf("manifest: action %q: method %q not allowed", name, a.Method)
 		}
 		if !strings.HasPrefix(a.Path, "/") {
-			return m, fmt.Errorf("manifest: action %q: path muss mit / beginnen", name)
+			return m, fmt.Errorf("manifest: action %q: path must start with /", name)
 		}
 	}
 	switch m.Webhook.Signature {
 	case "", "hmac-sha1", "hmac-sha256":
 	default:
-		return m, fmt.Errorf("manifest: webhook.signature %q unbekannt (hmac-sha1|hmac-sha256)", m.Webhook.Signature)
+		return m, fmt.Errorf("manifest: webhook.signature %q unknown (hmac-sha1|hmac-sha256)", m.Webhook.Signature)
 	}
 	if m.Webhook.IDField == "" {
-		return m, fmt.Errorf("manifest: webhook.id_field fehlt")
+		return m, fmt.Errorf("manifest: webhook.id_field missing")
 	}
 	return m, nil
 }
 
-// ManifestSystem interpretiert ein Manifest als target.System — dieselbe
-// Schnittstelle wie ein kompiliertes Plugin, alle Enforcement-Punkte
-// (Guard-Rails, Broker, Recording) greifen identisch.
+// ManifestSystem interprets a manifest as a target.System — the same interface
+// as a compiled plugin, all enforcement points (guard-rails, broker, recording)
+// apply identically.
 type ManifestSystem struct {
 	M    Manifest
 	HTTP *http.Client
@@ -182,7 +181,7 @@ func (s *ManifestSystem) ParseWebhook(body []byte) (WebhookEvent, error) {
 	}
 	id := jsonPath(payload, s.M.Webhook.IDField)
 	if id == "" {
-		return WebhookEvent{}, fmt.Errorf("webhook payload: %s fehlt", s.M.Webhook.IDField)
+		return WebhookEvent{}, fmt.Errorf("webhook payload: %s missing", s.M.Webhook.IDField)
 	}
 	eventID := jsonPath(payload, s.M.Webhook.EventIDField)
 	title := jsonPath(payload, s.M.Webhook.TitleField)
@@ -207,9 +206,9 @@ func (s *ManifestSystem) ParseWebhook(body []byte) (WebhookEvent, error) {
 		DedupKey:       fmt.Sprintf("%s:%s:%s", s.M.Name, id, eventID),
 		CorrelationKey: correlation,
 		Title:          fmt.Sprintf("%s: %s", label, title),
-		TaskBody: fmt.Sprintf("Neues Ereignis im Zielsystem %s (id=%s).\nTitel: %s\n\nInhalt:\n%s\n\nBearbeite den Vorgang über den Action-Proxy (system %s, id=%s).",
+		TaskBody: fmt.Sprintf("New event in target system %s (id=%s).\nTitle: %s\n\nContent:\n%s\n\nHandle the case through the action proxy (system %s, id=%s).",
 			s.M.Name, id, title, bodyText, s.M.Name, id),
-		ResumeInput: fmt.Sprintf("Neues Ereignis zu %s:\n%s", correlation, bodyText),
+		ResumeInput: fmt.Sprintf("New event for %s:\n%s", correlation, bodyText),
 		Wake:        wake,
 	}, nil
 }
@@ -235,15 +234,15 @@ func (s *ManifestSystem) ActionSubject(action string, params json.RawMessage) st
 func (s *ManifestSystem) Execute(ctx context.Context, action string, params json.RawMessage, cred Credential) (any, error) {
 	a, ok := s.M.Actions[action]
 	if !ok {
-		return nil, fmt.Errorf("unbekannte aktion %q", action)
+		return nil, fmt.Errorf("unknown action %q", action)
 	}
 	var p map[string]json.RawMessage
 	if err := json.Unmarshal(params, &p); err != nil {
 		return nil, fmt.Errorf("params: %w", err)
 	}
 
-	// {param}-Platzhalter im Pfad ersetzen; verwendete Params wandern
-	// aus dem Body-Kandidaten raus.
+	// Substitute {param} placeholders in the path; the params used that way
+	// drop out of the body candidate.
 	path := a.Path
 	for key, raw := range p {
 		ph := "{" + key + "}"
@@ -253,7 +252,7 @@ func (s *ManifestSystem) Execute(ctx context.Context, action string, params json
 		}
 	}
 	if strings.Contains(path, "{") {
-		return nil, fmt.Errorf("aktion %q: unaufgelöster platzhalter in %q", action, path)
+		return nil, fmt.Errorf("action %q: unresolved placeholder in %q", action, path)
 	}
 
 	var reqBody io.Reader
@@ -318,8 +317,8 @@ func (s *ManifestSystem) PromptDoc() string {
 	return fmt.Sprintf("Available %s actions: %s.", s.M.Name, strings.Join(names, ", "))
 }
 
-// jsonPath liest einen Punkt-Pfad ("ticket.id") aus einem entpackten
-// JSON-Wert und liefert ihn als String (Zahlen ohne Exponent-Rauschen).
+// jsonPath reads a dotted path ("ticket.id") out of an unmarshalled JSON value
+// and returns it as a string (numbers without exponent noise).
 func jsonPath(v any, path string) string {
 	if path == "" {
 		return ""

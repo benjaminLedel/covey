@@ -11,93 +11,93 @@ import (
 	"covey/internal/backlog"
 )
 
-// TestMaxTurnsContinuation prüft den Turn-Limit-Pfad: Ein Lauf, der ohne
-// Ergebnis am Turn-Limit endet, scheitert nicht mehr stumm. Sein Übergabe-Stand
-// hängt als Notiz an der Aufgabe, und aus ihm entsteht eine Folgeaufgabe, die
-// die Runtime-Session wieder aufnimmt und die Arbeit zu Ende bringt.
+// TestMaxTurnsContinuation checks the turn-limit path: a run that ends at the
+// turn limit without a result no longer fails silently. Its handover state is
+// attached to the task as a note, and from it a follow-up task emerges that
+// resumes the runtime session and carries the work to the end.
 //
-// Vorher lief genau hier die Endlosschleife: max_turns kam als failed ohne
-// Fehlertext an, der Zwischenstand war verloren, und der nächste Heartbeat fing
-// dieselbe Arbeit bei null wieder an.
+// This is exactly where the endless loop used to run: max_turns arrived as
+// failed without an error text, the interim state was lost, and the next
+// heartbeat started the same work from scratch.
 func TestMaxTurnsContinuation(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
 	agent := s.newSupportAgent("limit-agent")
 
-	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Großer Auftrag",
-		"[mock:maxturns ## Erledigt\nRepo geklont\n## Offen\nFix schreiben\n## Nächster Schritt\nsrc/pay.go anfassen]",
+	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Big assignment",
+		"[mock:maxturns ## Done\nRepo cloned\n## Open\nWrite the fix\n## Next step\ntouch src/pay.go]",
 		"manual", 3)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	waitFor(t, "aufgabe terminal", 20*time.Second, func() bool {
+	waitFor(t, "task terminal", 20*time.Second, func() bool {
 		st := s.taskState(task.ID)
 		return st == backlog.StateFailed || st == backlog.StateDone
 	})
 
-	// Der abgebrochene Lauf scheitert — aber mit sprechendem Fehler statt leer.
+	// The aborted run fails — but with a speaking error instead of an empty one.
 	parent, err := s.backlog.Get(ctx, task.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if parent.State != backlog.StateFailed {
-		t.Fatalf("abgebrochener Lauf muss failed sein, ist %s", parent.State)
+		t.Fatalf("an aborted run has to be failed, is %s", parent.State)
 	}
-	if parent.Error == nil || !strings.Contains(*parent.Error, "Turn-Limit") {
-		t.Fatalf("Fehlertext muss das Turn-Limit nennen, ist %v", parent.Error)
+	if parent.Error == nil || !strings.Contains(*parent.Error, "turn limit") {
+		t.Fatalf("the error text has to name the turn limit, is %v", parent.Error)
 	}
-	if parent.Result == nil || !strings.Contains(*parent.Result, "Nächster Schritt") {
-		t.Fatalf("Übergabe-Stand muss als Ergebnis gespeichert sein, ist %v", parent.Result)
+	if parent.Result == nil || !strings.Contains(*parent.Result, "Next step") {
+		t.Fatalf("the handover state has to be stored as the result, is %v", parent.Result)
 	}
 
-	// Der Zwischenstand ist als Notiz an der Aufgabe sichtbar.
+	// The interim state is visible as a note on the task.
 	notes, err := s.backlog.ListNotes(ctx, task.ID)
 	if err != nil || len(notes) == 0 {
-		t.Fatalf("Zwischenstand muss als Notiz hängen: %+v (err=%v)", notes, err)
+		t.Fatalf("the interim state has to hang on the task as a note: %+v (err=%v)", notes, err)
 	}
 	if !strings.Contains(notes[0].Content, "src/pay.go") {
-		t.Fatalf("Notiz muss den Übergabe-Stand enthalten: %q", notes[0].Content)
+		t.Fatalf("the note has to contain the handover state: %q", notes[0].Content)
 	}
 
-	// Die Folgeaufgabe hängt an der Ursprungsaufgabe, nimmt deren Session wieder
-	// auf und trägt denselben Titel (sonst feuert die Heartbeat-Dedup daneben).
+	// The follow-up task hangs on the original task, resumes its session and
+	// carries the same title (otherwise the heartbeat dedup fires alongside it).
 	child := childOf(t, s, agent.ID, task.ID)
 	if child.Title != parent.Title {
-		t.Fatalf("Folgeaufgabe muss den Titel der Ursprungsaufgabe tragen: %q", child.Title)
+		t.Fatalf("the follow-up task has to carry the original task's title: %q", child.Title)
 	}
 	if child.RuntimeSessionID == nil || *child.RuntimeSessionID == "" {
-		t.Fatalf("Folgeaufgabe muss die Runtime-Session zum Wiederaufsetzen tragen")
+		t.Fatalf("the follow-up task has to carry the runtime session to resume from")
 	}
 	if !strings.HasPrefix(child.Origin, "continuation:") {
-		t.Fatalf("Folgeaufgabe braucht die Herkunft continuation:…, ist %q", child.Origin)
+		t.Fatalf("the follow-up task needs the origin continuation:…, is %q", child.Origin)
 	}
 
-	// Und sie läuft durch: die fortgesetzte Session kommt zum Ergebnis.
-	waitFor(t, "folgeaufgabe done", 20*time.Second, func() bool {
+	// And it runs through: the continued session reaches a result.
+	waitFor(t, "follow-up task done", 20*time.Second, func() bool {
 		return s.taskState(child.ID) == backlog.StateDone
 	})
 }
 
-// TestMaxTurnsEscalatesAfterCap prüft den Loop-Schutz: Läuft jede Fortsetzung
-// erneut ins Turn-Limit, wird die Kette nicht endlos verlängert, sondern
-// eskaliert. Ohne diese Grenze ersetzt die Fortsetzung nur eine Endlosschleife
-// durch eine andere.
+// TestMaxTurnsEscalatesAfterCap checks the loop protection: if every
+// continuation runs into the turn limit again, the chain is not extended
+// endlessly but escalates. Without that bound the continuation only replaces
+// one endless loop with another.
 func TestMaxTurnsEscalatesAfterCap(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
 	agent := s.newSupportAgent("limit-loop-agent")
 
-	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Nie fertig",
-		"[mock:maxturns-always ## Offen\nalles]", "manual", 3)
+	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Never finished",
+		"[mock:maxturns-always ## Open\neverything]", "manual", 3)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Der Kette folgen, bis eine Aufgabe keine Folgeaufgabe mehr erzeugt.
+	// Follow the chain until a task no longer produces a follow-up task.
 	last := task.ID
 	depth := 0
-	waitFor(t, "kette bricht ab", 60*time.Second, func() bool {
+	waitFor(t, "chain breaks off", 60*time.Second, func() bool {
 		if s.taskState(last) != backlog.StateFailed {
 			return false
 		}
@@ -115,18 +115,18 @@ func TestMaxTurnsEscalatesAfterCap(t *testing.T) {
 	})
 
 	if depth != 3 {
-		t.Fatalf("Kette muss nach 3 Fortsetzungen abbrechen, war %d", depth)
+		t.Fatalf("the chain has to break off after 3 continuations, was %d", depth)
 	}
 	final, err := s.backlog.Get(ctx, last)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if final.Result == nil || !strings.HasPrefix(*final.Result, "ESKALIERT") {
-		t.Fatalf("letzte Aufgabe der Kette muss eskalieren, ist %v", final.Result)
+	if final.Result == nil || !strings.HasPrefix(*final.Result, "ESCALATED") {
+		t.Fatalf("the last task of the chain has to escalate, is %v", final.Result)
 	}
 }
 
-// childOf findet die (einzige) Folgeaufgabe einer Aufgabe.
+// childOf finds the (single) follow-up task of a task.
 func childOf(t *testing.T, s *stack, agentID, parentID uuid.UUID) backlog.Task {
 	t.Helper()
 	tasks, err := s.backlog.ListByAgent(context.Background(), agentID, true)
@@ -138,6 +138,6 @@ func childOf(t *testing.T, s *stack, agentID, parentID uuid.UUID) backlog.Task {
 			return task
 		}
 	}
-	t.Fatalf("keine Folgeaufgabe zu %s gefunden", parentID)
+	t.Fatalf("no follow-up task found for %s", parentID)
 	return backlog.Task{}
 }

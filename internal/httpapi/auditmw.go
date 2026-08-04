@@ -12,70 +12,68 @@ import (
 	"covey/internal/identity"
 )
 
-// mitAuditSpur hält jede verändernde Anfrage fest.
+// mitAuditSpur records every mutating request.
 //
-// Bewusst als Middleware und nicht als Zeile in den betroffenen Handlern: Die
-// Organisationsgrenze war aus genau diesem Grund an 25 Stellen offen — eine
-// Pflicht, an die sich jeder Aufrufer erinnern muss, wird vergessen. Eine
-// Audit-Spur, die man vergessen kann, ist besonders tückisch: Ihr Fehlen sieht
-// aus wie „es ist nichts passiert".
+// Deliberately a middleware and not a line in the affected handlers: the
+// organisation boundary was open in 25 places for exactly this reason — an
+// obligation every caller has to remember gets forgotten. An audit trail one can
+// forget is particularly treacherous: its absence looks like "nothing happened".
 //
-// Festgehalten wird nur, WER WANN WAS ANGEFASST hat — Methode, Pfad, Ergebnis.
-// Kein Request-Body: Darin stünden Secret-Werte und Passwörter, und eine Spur,
-// die man wegen ihres Inhalts nicht aufbewahren darf, nützt niemandem. Der Pfad
-// trägt die IDs, „wer hat Guard-Rail X gelöscht" bleibt also beantwortbar.
+// Only WHO TOUCHED WHAT WHEN is recorded — method, path, result. No request
+// body: it would contain secret values and passwords, and a trail one is not
+// allowed to keep because of its content is of no use to anyone. The path
+// carries the IDs, so "who deleted guard rail X" remains answerable.
 func (s *Server) mitAuditSpur(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.Audit == nil || !istVeraendernd(r) || !istAuditWuerdig(r.URL.Path) {
 			next.ServeHTTP(w, r)
 			return
 		}
-		// Der Principal entsteht erst INNEN (auth-Middleware) — ein Context,
-		// den die innere Schicht anlegt, erreicht die äußere nicht mehr.
-		// Deshalb ein Halter, den auth befüllt: Die Alternative wäre, das
-		// Audit in jede Route einzuhängen, und damit wäre es wieder etwas,
-		// das man vergessen kann.
+		// The principal only comes into being INSIDE (auth middleware) — a
+		// context created by the inner layer no longer reaches the outer one.
+		// Hence a holder that auth fills in: the alternative would be hooking
+		// the audit into every route, and then it would again be something one
+		// can forget.
 		halter := &akteurHalter{}
 		r = r.WithContext(context.WithValue(r.Context(), akteurKey, halter))
 
 		rec := &statusMitschrift{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(rec, r)
 
-		// Erst nach der Antwort schreiben: Der Principal steht erst fest,
-		// nachdem die auth-Middleware ihn in den Context gelegt hat, und das
-		// Ergebnis (Status) ist Teil der Auskunft — ein abgewiesener Versuch,
-		// eine Guard-Rail zu löschen, gehört genauso in die Spur wie ein
-		// erfolgreicher.
+		// Write only after the response: the principal is only settled once the
+		// auth middleware has put it into the context, and the result (status) is
+		// part of the information — a rejected attempt to delete a guard rail
+		// belongs in the trail just as much as a successful one.
 		p := halter.p
 		if p.ID == uuid.Nil {
-			return // nicht angemeldet — kein Akteur, kein Eintrag
+			return // not signed in — no actor, no entry
 		}
 		actor := p.ID
 		eintrag := audit.Eintrag{
 			OrgID: p.OrgID, ActorID: &actor, ActorEmail: p.Email, ActorRole: p.Role,
 			Method: r.Method, Path: r.URL.Path, Status: rec.status, ClientIP: clientIP(r),
 		}
-		// Best effort: Die Handlung ist passiert; sie nachträglich scheitern zu
-		// lassen, weil das Protokollieren klemmt, macht die Lage nicht besser.
-		// Der Fehler gehört aber ins Log — eine stumm ausfallende Audit-Spur
-		// ist schlimmer als keine, weil man sich auf sie verlässt.
+		// Best effort: the action has happened; letting it fail after the fact
+		// because logging is stuck does not improve the situation. The error does
+		// belong in the log though — an audit trail that fails silently is worse
+		// than none, because people rely on it.
 		if err := s.Audit.Record(r.Context(), eintrag); err != nil {
-			s.Log.Error("audit-eintrag nicht geschrieben — die Spur hat eine Lücke",
-				"methode", r.Method, "pfad", r.URL.Path, "akteur", p.Email, "err", err)
+			s.Log.Error("audit entry not written — the trail has a gap",
+				"method", r.Method, "path", r.URL.Path, "actor", p.Email, "err", err)
 		}
 	})
 }
 
-// akteurHalter nimmt den angemeldeten Menschen von der auth-Middleware
-// entgegen. Ein einfacher Zeiger genügt: Innerhalb eines Requests schreibt
-// genau eine Stelle, und sie tut es, bevor der Handler antwortet.
+// akteurHalter receives the signed-in human from the auth middleware. A plain
+// pointer suffices: within one request exactly one place writes, and it does so
+// before the handler answers.
 type akteurHalter struct{ p identity.Principal }
 
 const akteurKey ctxKey = "akteur"
 
-// istVeraendernd: Lesen wird nicht protokolliert. Das ist eine bewusste Grenze
-// — jeder Seitenaufruf der Oberfläche wäre sonst ein Eintrag und die Spur
-// unlesbar. Wer WAS GESEHEN hat, beantwortet bei Bedarf das Request-Log.
+// istVeraendernd: reads are not logged. That is a deliberate boundary — every
+// page view of the interface would otherwise be an entry and the trail
+// unreadable. Who SAW WHAT is answered, if needed, by the request log.
 func istVeraendernd(r *http.Request) bool {
 	switch r.Method {
 	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
@@ -84,21 +82,21 @@ func istVeraendernd(r *http.Request) bool {
 	return false
 }
 
-// istAuditWuerdig blendet aus, was keine Verwaltungshandlung ist.
-func istAuditWuerdig(pfad string) bool {
-	if !strings.HasPrefix(pfad, "/api/v1/") {
-		return false // Webhooks, statische Dateien
+// istAuditWuerdig filters out whatever is not an administrative action.
+func istAuditWuerdig(path string) bool {
+	if !strings.HasPrefix(path, "/api/v1/") {
+		return false // webhooks, static files
 	}
 	switch {
-	// Anmelden/Abmelden hat keinen Akteur im Context (der entsteht erst
-	// dadurch) und ist über den Login-Limiter ohnehin beobachtet.
-	case strings.HasPrefix(pfad, "/api/v1/auth/"):
+	// Sign-in/sign-out has no actor in the context (that is only created by it)
+	// and is watched by the login limiter anyway.
+	case strings.HasPrefix(path, "/api/v1/auth/"):
 		return false
 	}
 	return true
 }
 
-// statusMitschrift merkt sich den Statuscode, den der Handler geschrieben hat.
+// statusMitschrift remembers the status code the handler wrote.
 type statusMitschrift struct {
 	http.ResponseWriter
 	status      int
@@ -113,21 +111,21 @@ func (m *statusMitschrift) WriteHeader(code int) {
 }
 
 func (m *statusMitschrift) Write(b []byte) (int, error) {
-	m.geschrieben = true // impliziter 200
+	m.geschrieben = true // implicit 200
 	return m.ResponseWriter.Write(b)
 }
 
-// Flush reicht das Leeren durch — die SSE-Endpunkte brauchen es.
+// Flush passes the flush through — the SSE endpoints need it.
 func (m *statusMitschrift) Flush() {
 	if f, ok := m.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
 	}
 }
 
-// handleAuditLog liefert die jüngsten Verwaltungshandlungen der Organisation.
+// handleAuditLog returns the organisation's most recent administrative actions.
 func (s *Server) handleAuditLog(w http.ResponseWriter, r *http.Request) {
 	if s.Audit == nil {
-		writeErr(w, http.StatusServiceUnavailable, "audit-spur ist in dieser Instanz nicht konfiguriert")
+		writeErr(w, http.StatusServiceUnavailable, "the audit trail is not configured in this instance")
 		return
 	}
 	p := principalFrom(r)

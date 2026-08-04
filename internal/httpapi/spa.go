@@ -14,61 +14,62 @@ import (
 )
 
 func init() {
-	// Go kennt .webmanifest nicht ab Werk — sonst liefert der FileServer text/plain.
+	// Go does not know .webmanifest out of the box — otherwise the FileServer
+	// would serve text/plain.
 	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
 }
 
-// platzhalterOrigin steht im vorgerenderten HTML überall dort, wo die Adresse
-// dieser Installation hingehört (Canonical, hreflang, og:url, JSON-LD). Der
-// Build kennt sie nicht — Covey wird selbst gehostet. Siehe seo.go.
+// platzhalterOrigin stands in the prerendered HTML everywhere the address of
+// this installation belongs (canonical, hreflang, og:url, JSON-LD). The build
+// does not know it — Covey is self-hosted. See seo.go.
 const platzhalterOrigin = "__COVEY_ORIGIN__"
 
-// spaHandler liefert die Website aus. Vier Fälle, in dieser Reihenfolge:
+// spaHandler serves the website. Four cases, in this order:
 //
-//  1. eine vorgerenderte öffentliche Seite (dist/funktion/index.html …),
-//  2. eine statische Datei (Assets, Bilder, Manifest),
-//  3. ein Pfad der angemeldeten Oberfläche → die SPA-Hülle, nicht indexierbar,
-//  4. sonst: eine ehrliche 404.
+//  1. a prerendered public page (dist/funktion/index.html …),
+//  2. a static file (assets, images, manifest),
+//  3. a path of the signed-in interface → the SPA shell, not indexable,
+//  4. otherwise: an honest 404.
 //
-// Punkt 4 ist der Unterschied zu früher. Bis dahin bekam jeder Pfad die
-// index.html mit Status 200 — für Besucher unauffällig, für Suchmaschinen ein
-// „Soft 404": beliebig viele Adressen, die alle dasselbe zeigen und alle als
-// gültige Seite gelten. Ohne vorgerendertes dist/ (alter Build, Tests mit
-// handgebautem FS) bleibt es beim alten Verhalten — siehe seoIndex.istAppPfad.
+// Point 4 is the difference to before. Until then every path got index.html with
+// status 200 — inconspicuous for visitors, a "soft 404" for search engines:
+// arbitrarily many addresses that all show the same thing and all count as a
+// valid page. Without a prerendered dist/ (old build, tests with a hand-built
+// FS) the old behaviour remains — see seoIndex.istAppPfad.
 func (s *Server) spaHandler(dist fs.FS) http.Handler {
 	fileServer := http.FileServer(http.FS(dist))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// /funktion/ und /funktion wären zwei Adressen mit demselben Inhalt.
+		// /funktion/ and /funktion would be two addresses with the same content.
 		if r.URL.Path != "/" && strings.HasSuffix(r.URL.Path, "/") {
 			http.Redirect(w, r, strings.TrimRight(r.URL.Path, "/"), http.StatusMovedPermanently)
 			return
 		}
 
-		pfad := strings.Trim(r.URL.Path, "/")
+		path := strings.Trim(r.URL.Path, "/")
 
 		seite := "index.html"
-		if pfad != "" {
-			seite = pfad + "/index.html"
+		if path != "" {
+			seite = path + "/index.html"
 		}
 		if daten, err := fs.ReadFile(dist, seite); err == nil {
 			s.schreibeHTML(w, r, daten, http.StatusOK)
 			return
 		}
 
-		if pfad != "" {
-			if info, err := fs.Stat(dist, pfad); err == nil && !info.IsDir() {
+		if path != "" {
+			if info, err := fs.Stat(dist, path); err == nil && !info.IsDir() {
 				fileServer.ServeHTTP(w, r)
 				return
 			}
 		}
 
 		if s.seo.istAppPfad(r.URL.Path) {
-			// Die Oberfläche selbst gehört nicht in den Index: Ohne Sitzung
-			// zeigt sie nichts, und ihr Adressraum ist unendlich.
+			// The interface itself does not belong in the index: without a
+			// session it shows nothing, and its address space is infinite.
 			w.Header().Set("X-Robots-Tag", "noindex")
 			daten, err := fs.ReadFile(dist, "app.html")
 			if err != nil {
-				// Build ohne Vorrendern — dann ist index.html die Hülle.
+				// Build without prerendering — then index.html is the shell.
 				daten, err = fs.ReadFile(dist, "index.html")
 			}
 			if err != nil {
@@ -79,11 +80,11 @@ func (s *Server) spaHandler(dist fs.FS) http.Handler {
 			return
 		}
 
-		datei := "404.html"
-		if strings.HasPrefix(pfad, "en/") || pfad == "en" {
-			datei = "en/404.html"
+		file := "404.html"
+		if strings.HasPrefix(path, "en/") || path == "en" {
+			file = "en/404.html"
 		}
-		daten, err := fs.ReadFile(dist, datei)
+		daten, err := fs.ReadFile(dist, file)
 		if err != nil {
 			http.NotFound(w, r)
 			return
@@ -92,8 +93,8 @@ func (s *Server) spaHandler(dist fs.FS) http.Handler {
 	})
 }
 
-// schreibeHTML setzt die Adresse dieser Installation in das vorgerenderte HTML
-// ein und liefert es aus.
+// schreibeHTML inserts the address of this installation into the prerendered
+// HTML and serves it.
 func (s *Server) schreibeHTML(w http.ResponseWriter, r *http.Request, daten []byte, status int) {
 	html := strings.ReplaceAll(string(daten), platzhalterOrigin, s.origin(r))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -102,24 +103,24 @@ func (s *Server) schreibeHTML(w http.ResponseWriter, r *http.Request, daten []by
 	_, _ = io.WriteString(w, html)
 }
 
-// setzeSchutzHeader gibt der Admin-Oberfläche die Kopfzeilen, die ein Browser
-// braucht, um sie zu verteidigen. Sie fehlten bisher vollständig.
+// setzeSchutzHeader gives the admin interface the headers a browser needs in
+// order to defend it. Until now they were missing entirely.
 //
-// Warum das mehr ist als Formalie: Die Oberfläche zeigt Inhalte, die Agenten
-// aus fremden Quellen mitbringen — Ticket-Texte, Mails, Wiki-Seiten, Ausgaben
-// von Zielsystemen. Sollte davon je etwas als Markup durchschlagen, ist die
-// CSP die zweite Linie: Ohne sie könnte ein eingeschleustes Skript
-// nachladen und Daten irgendwohin schicken; mit ihr nicht.
+// Why this is more than a formality: the interface shows content that agents
+// bring in from foreign sources — ticket texts, mails, wiki pages, output from
+// target systems. Should any of it ever break through as markup, the CSP is the
+// second line: without it an injected script could load more code and send data
+// somewhere; with it, it cannot.
 func setzeSchutzHeader(w http.ResponseWriter) {
 	h := w.Header()
-	// script-src 'self': Vite baut ein einziges Modul-Bundle, keine
-	// Inline-Skripte — das reicht also ohne 'unsafe-inline'.
-	// style-src braucht 'unsafe-inline', weil die Oberfläche durchgehend mit
-	// style-Attributen arbeitet (React style={{…}}).
-	// connect-src 'self': Die SPA spricht nur mit der eigenen API.
-	// frame-ancestors 'none' + X-Frame-Options: kein Einbetten, also kein
-	// Clickjacking auf Knöpfe wie „Stoppen" oder „Freigeben".
-	// img-src data: für die eingebetteten Icons, blob: für Vorschau-Bilder.
+	// script-src 'self': Vite builds a single module bundle, no inline scripts
+	// — so this suffices without 'unsafe-inline'.
+	// style-src needs 'unsafe-inline' because the interface works with style
+	// attributes throughout (React style={{…}}).
+	// connect-src 'self': the SPA only talks to its own API.
+	// frame-ancestors 'none' + X-Frame-Options: no embedding, therefore no
+	// clickjacking on buttons like "Stop" or "Approve".
+	// img-src data: for the embedded icons, blob: for preview images.
 	h.Set("Content-Security-Policy", strings.Join([]string{
 		"default-src 'self'",
 		"script-src 'self'",
@@ -134,19 +135,19 @@ func setzeSchutzHeader(w http.ResponseWriter) {
 	}, "; "))
 	h.Set("X-Frame-Options", "DENY")
 	h.Set("X-Content-Type-Options", "nosniff")
-	// Keine Referer an Dritte — die URL trägt Agenten- und Aufgaben-IDs.
+	// No referrer to third parties — the URL carries agent and task IDs.
 	h.Set("Referrer-Policy", "no-referrer")
-	// Nichts davon braucht die Oberfläche; explizit abschalten, damit ein
-	// eingeschleustes Skript es auch nicht bekommt.
+	// The interface needs none of these; switch them off explicitly so that an
+	// injected script does not get them either.
 	h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
 }
 
-// findWebhookAgent löst den Adress-Teil einer Webhook-URL auf (MVP: eine
-// Organisation). Gemeint ist der Slug; ersatzweise wird die Agent-ID
-// akzeptiert, weil sie in der UI-URL des Agenten steht und beim Einrichten
-// eines Zielsystems leicht statt des Slugs kopiert wird. Beides adressiert
-// denselben Agenten eindeutig — der Slug hat Vorrang, falls ein Slug wie eine
-// UUID aussieht.
+// findWebhookAgent resolves the address part of a webhook URL (MVP: one
+// organisation). What is meant is the slug; the agent ID is accepted as a
+// substitute because it appears in the agent's UI URL and is easily copied
+// instead of the slug when setting up a target system. Both address the same
+// agent unambiguously — the slug takes precedence in case a slug looks like a
+// UUID.
 func (s *Server) findWebhookAgent(r *http.Request, ref string) (agents.Agent, error) {
 	if a, err := s.Registry.FindBySlug(r.Context(), ref); err == nil {
 		return a, nil

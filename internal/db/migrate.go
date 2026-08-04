@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// advisoryLockKey serialisiert Migrationen über Instanzen hinweg (HA-Start).
+// advisoryLockKey serializes migrations across instances (HA start-up).
 const advisoryLockKey = 74_65_79 // "covey"
 
 type migration struct {
@@ -21,7 +21,7 @@ type migration struct {
 	downSQL string
 }
 
-// loadMigrations liest NNNN_name.up.sql / NNNN_name.down.sql aus dem FS.
+// loadMigrations reads NNNN_name.up.sql / NNNN_name.down.sql from the FS.
 func loadMigrations(fsys fs.FS) ([]migration, error) {
 	entries, err := fs.ReadDir(fsys, ".")
 	if err != nil {
@@ -38,12 +38,12 @@ func loadMigrations(fsys fs.FS) ([]migration, error) {
 			var isDown bool
 			base, isDown = strings.CutSuffix(name, ".down.sql")
 			if !isDown {
-				return nil, fmt.Errorf("migration %s: erwartet .up.sql oder .down.sql", name)
+				return nil, fmt.Errorf("migration %s: expected .up.sql or .down.sql", name)
 			}
 		}
 		versionStr, _, ok := strings.Cut(base, "_")
 		if !ok {
-			return nil, fmt.Errorf("migration %s: erwartet NNNN_name", name)
+			return nil, fmt.Errorf("migration %s: expected NNNN_name", name)
 		}
 		version, err := strconv.Atoi(versionStr)
 		if err != nil {
@@ -67,7 +67,7 @@ func loadMigrations(fsys fs.FS) ([]migration, error) {
 	out := make([]migration, 0, len(byVersion))
 	for _, m := range byVersion {
 		if m.upSQL == "" {
-			return nil, fmt.Errorf("migration %d (%s): up.sql fehlt", m.version, m.name)
+			return nil, fmt.Errorf("migration %d (%s): up.sql missing", m.version, m.name)
 		}
 		out = append(out, *m)
 	}
@@ -75,7 +75,7 @@ func loadMigrations(fsys fs.FS) ([]migration, error) {
 	return out, nil
 }
 
-// MigrateUp wendet alle ausstehenden Migrationen an, geschützt durch pg_advisory_lock.
+// MigrateUp applies all pending migrations, guarded by pg_advisory_lock.
 func MigrateUp(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS) (applied int, err error) {
 	ms, err := loadMigrations(fsys)
 	if err != nil {
@@ -124,7 +124,7 @@ func MigrateUp(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS) (applied int
 	return applied, nil
 }
 
-// MigrateDown rollt genau eine Migration zurück (Notfall; Normalbetrieb ist forward-only).
+// MigrateDown rolls back exactly one migration (emergency; normal operation is forward-only).
 func MigrateDown(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS) error {
 	ms, err := loadMigrations(fsys)
 	if err != nil {
@@ -145,14 +145,14 @@ func MigrateDown(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS) error {
 		return err
 	}
 	if current == 0 {
-		return fmt.Errorf("keine Migration angewendet")
+		return fmt.Errorf("no migration applied")
 	}
 	for _, m := range ms {
 		if m.version != current {
 			continue
 		}
 		if m.downSQL == "" {
-			return fmt.Errorf("migration %d (%s): keine down.sql", m.version, m.name)
+			return fmt.Errorf("migration %d (%s): no down.sql", m.version, m.name)
 		}
 		tx, err := conn.Begin(ctx)
 		if err != nil {
@@ -168,5 +168,5 @@ func MigrateDown(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS) error {
 		}
 		return tx.Commit(ctx)
 	}
-	return fmt.Errorf("migration %d nicht im FS gefunden", current)
+	return fmt.Errorf("migration %d not found in FS", current)
 }

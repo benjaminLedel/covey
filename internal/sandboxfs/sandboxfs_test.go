@@ -24,9 +24,9 @@ func newTestFS(t *testing.T) (*FS, string) {
 	return fs, root
 }
 
-// Der Kern des Pakets: kein Pfad zeigt aus der Wurzel heraus. Alles andere
-// wäre ein Dateibrowser auf dem gesamten Host.
-func TestAusbruchsversuche(t *testing.T) {
+// The core of the package: no path leads out of the root. Anything else would
+// be a file browser over the entire host.
+func TestEscapeAttempts(t *testing.T) {
 	fs, root := newTestFS(t)
 	if err := os.WriteFile(filepath.Join(filepath.Dir(root), "geheim.txt"), []byte("nicht für dich"), 0o644); err != nil {
 		t.Fatal(err)
@@ -35,58 +35,58 @@ func TestAusbruchsversuche(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// `..` in jeder Schreibweise landet höchstens wieder in der Wurzel, nie
-	// darüber — und damit auch nie an der Datei daneben.
+	// `..` in any spelling lands in the root at most, never above it — and thus
+	// never at the file next to it.
 	for _, p := range []string{"../geheim.txt", "unter/../../geheim.txt", "/../geheim.txt", "..%2Fgeheim.txt"} {
 		if _, err := fs.Read(p); err == nil {
-			t.Errorf("Read(%q) hätte scheitern müssen", p)
+			t.Errorf("Read(%q) should have failed", p)
 		}
 	}
-	// Absolute Pfade werden als relativ zur Wurzel gelesen, nicht als Host-Pfad.
+	// Absolute paths are read as relative to the root, not as a host path.
 	if _, _, err := fs.resolve("/etc/passwd"); err != nil {
-		t.Fatalf("absoluter pfad: %v", err)
+		t.Fatalf("absolute path: %v", err)
 	} else if abs, _, _ := fs.resolve("/etc/passwd"); abs != filepath.Join(root, "etc", "passwd") {
-		t.Errorf("absoluter pfad landet bei %q, erwartet unterhalb der wurzel", abs)
+		t.Errorf("absolute path lands at %q, expected below the root", abs)
 	}
 }
 
-func TestSymlinkAusbruch(t *testing.T) {
+func TestSymlinkEscape(t *testing.T) {
 	fs, root := newTestFS(t)
-	außerhalb := filepath.Join(filepath.Dir(root), "aussen")
-	if err := os.MkdirAll(außerhalb, 0o755); err != nil {
+	outside := filepath.Join(filepath.Dir(root), "aussen")
+	if err := os.MkdirAll(outside, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(außerhalb, "beute.txt"), []byte("beute"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(outside, "beute.txt"), []byte("beute"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(außerhalb, filepath.Join(root, "raus")); err != nil {
-		t.Skipf("symlinks nicht verfügbar: %v", err)
+	if err := os.Symlink(outside, filepath.Join(root, "raus")); err != nil {
+		t.Skipf("symlinks not available: %v", err)
 	}
 
-	// Lesen durch den Link hindurch: verboten.
+	// Reading through the link: forbidden.
 	if _, err := fs.Read("raus/beute.txt"); !errors.Is(err, ErrInvalidPath) {
-		t.Errorf("lesen durch symlink: %v, erwartet ErrInvalidPath", err)
+		t.Errorf("reading through symlink: %v, expected ErrInvalidPath", err)
 	}
-	// Schreiben durch den Link hindurch ebenfalls — sonst wäre der Link ein
-	// Schreibzugriff auf den Host.
+	// Writing through the link likewise — otherwise the link would be write
+	// access to the host.
 	if _, err := fs.Write("raus/neu.txt", strings.NewReader("x")); !errors.Is(err, ErrInvalidPath) {
-		t.Errorf("schreiben durch symlink: %v, erwartet ErrInvalidPath", err)
+		t.Errorf("writing through symlink: %v, expected ErrInvalidPath", err)
 	}
-	// Sichtbar bleibt er trotzdem, samt Ziel und Warnung: verstecken hieße,
-	// dem Betrachter etwas vorzuenthalten, was im Home tatsächlich liegt.
+	// It stays visible nonetheless, including target and warning: hiding it
+	// would withhold from the viewer something that really does lie in the home.
 	list, err := fs.List("")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(list.Entries) != 1 || list.Entries[0].Name != "raus" {
-		t.Fatalf("auflistung: %+v", list.Entries)
+		t.Fatalf("listing: %+v", list.Entries)
 	}
 	if !list.Entries[0].Outside || list.Entries[0].Symlink == "" {
-		t.Errorf("symlink nach draußen nicht als solcher markiert: %+v", list.Entries[0])
+		t.Errorf("symlink pointing outward not marked as such: %+v", list.Entries[0])
 	}
 }
 
-func TestListeSortiertVerzeichnisseZuerst(t *testing.T) {
+func TestListSortsDirectoriesFirst(t *testing.T) {
 	fs, root := newTestFS(t)
 	for _, d := range []string{"zeta", "alpha"} {
 		if err := os.MkdirAll(filepath.Join(root, d), 0o755); err != nil {
@@ -102,47 +102,47 @@ func TestListeSortiertVerzeichnisseZuerst(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var namen []string
+	var names []string
 	for _, e := range list.Entries {
-		namen = append(namen, e.Name)
+		names = append(names, e.Name)
 	}
 	want := []string{"alpha", "zeta", "A.txt", "b.txt"}
-	if strings.Join(namen, ",") != strings.Join(want, ",") {
-		t.Errorf("reihenfolge %v, erwartet %v", namen, want)
+	if strings.Join(names, ",") != strings.Join(want, ",") {
+		t.Errorf("order %v, expected %v", names, want)
 	}
 	if !list.Exists {
-		t.Error("exists=false, obwohl das home existiert")
+		t.Error("exists=false although the home exists")
 	}
 }
 
-// Ein nie geweckter Agent hat noch kein Home. Das ist kein Fehler, sondern ein
-// leerer Arbeitsplatz — die UI soll ihn zeigen können.
-func TestFehlendesHomeIstLeerNichtFehler(t *testing.T) {
+// An agent that has never been woken has no home yet. That is not an error but
+// an empty workplace — the UI should be able to show it.
+func TestMissingHomeIsEmptyNotAnError(t *testing.T) {
 	fs, err := New(filepath.Join(t.TempDir(), "nie-geweckt"), -1, -1)
 	if err != nil {
 		t.Fatal(err)
 	}
 	list, err := fs.List("")
 	if err != nil {
-		t.Fatalf("liste: %v", err)
+		t.Fatalf("list: %v", err)
 	}
 	if list.Exists || len(list.Entries) != 0 {
-		t.Errorf("erwartet leeres, nicht existierendes home: %+v", list)
+		t.Errorf("expected an empty, non-existent home: %+v", list)
 	}
-	// Unterverzeichnisse gibt es dann aber wirklich nicht.
+	// Subdirectories, however, really do not exist then.
 	if _, err := fs.List("irgendwas"); !errors.Is(err, ErrNotFound) {
-		t.Errorf("unterverzeichnis: %v, erwartet ErrNotFound", err)
+		t.Errorf("subdirectory: %v, expected ErrNotFound", err)
 	}
-	// Ein Upload legt das Home an.
-	if _, err := fs.Write("neu/datei.txt", strings.NewReader("inhalt")); err != nil {
-		t.Fatalf("schreiben ins fehlende home: %v", err)
+	// An upload creates the home.
+	if _, err := fs.Write("neu/file.txt", strings.NewReader("inhalt")); err != nil {
+		t.Fatalf("writing into the missing home: %v", err)
 	}
-	if f, err := fs.Read("neu/datei.txt"); err != nil || f.Content != "inhalt" {
-		t.Errorf("lesen nach anlegen: %+v, %v", f, err)
+	if f, err := fs.Read("neu/file.txt"); err != nil || f.Content != "inhalt" {
+		t.Errorf("reading after creation: %+v, %v", f, err)
 	}
 }
 
-func TestSchreibenLesenVerschiebenLoeschen(t *testing.T) {
+func TestWriteReadMoveDelete(t *testing.T) {
 	fs, _ := newTestFS(t)
 
 	if _, err := fs.Write("a/b/c.txt", strings.NewReader("hallo")); err != nil {
@@ -150,61 +150,61 @@ func TestSchreibenLesenVerschiebenLoeschen(t *testing.T) {
 	}
 	f, err := fs.Read("a/b/c.txt")
 	if err != nil || f.Content != "hallo" || f.Binary || f.Truncated {
-		t.Fatalf("lesen: %+v, %v", f, err)
+		t.Fatalf("read: %+v, %v", f, err)
 	}
 	if _, err := fs.Move("a/b/c.txt", "a/b/d.txt"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := fs.Read("a/b/c.txt"); !errors.Is(err, ErrNotFound) {
-		t.Errorf("alter pfad noch da: %v", err)
+		t.Errorf("old path still there: %v", err)
 	}
-	// Ein belegtes Ziel wird nicht überschrieben.
+	// A taken target is not overwritten.
 	if _, err := fs.Write("a/b/e.txt", strings.NewReader("x")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := fs.Move("a/b/d.txt", "a/b/e.txt"); !errors.Is(err, ErrExists) {
-		t.Errorf("verschieben auf belegtes ziel: %v, erwartet ErrExists", err)
+		t.Errorf("moving onto a taken target: %v, expected ErrExists", err)
 	}
 	if err := fs.Remove("a"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := fs.List("a"); !errors.Is(err, ErrNotFound) {
-		t.Errorf("verzeichnis nach löschen: %v", err)
+		t.Errorf("directory after deletion: %v", err)
 	}
-	// Die Wurzel selbst löscht man nicht aus dem Dateibrowser.
+	// One does not delete the root itself from the file browser.
 	if err := fs.Remove(""); !errors.Is(err, ErrInvalidPath) {
-		t.Errorf("wurzel löschen: %v, erwartet ErrInvalidPath", err)
+		t.Errorf("deleting the root: %v, expected ErrInvalidPath", err)
 	}
 }
 
-func TestVerzeichnisUndDateiVerwechseln(t *testing.T) {
+func TestConfusingDirectoryAndFile(t *testing.T) {
 	fs, _ := newTestFS(t)
 	if _, err := fs.Mkdir("ordner"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := fs.Mkdir("ordner"); !errors.Is(err, ErrExists) {
-		t.Errorf("mkdir doppelt: %v, erwartet ErrExists", err)
+		t.Errorf("mkdir twice: %v, expected ErrExists", err)
 	}
 	if _, err := fs.Read("ordner"); !errors.Is(err, ErrIsDir) {
-		t.Errorf("verzeichnis lesen: %v, erwartet ErrIsDir", err)
+		t.Errorf("reading a directory: %v, expected ErrIsDir", err)
 	}
 	if _, err := fs.Write("ordner", strings.NewReader("x")); !errors.Is(err, ErrIsDir) {
-		t.Errorf("verzeichnis überschreiben: %v, erwartet ErrIsDir", err)
+		t.Errorf("overwriting a directory: %v, expected ErrIsDir", err)
 	}
-	if _, err := fs.Write("datei.txt", strings.NewReader("x")); err != nil {
+	if _, err := fs.Write("file.txt", strings.NewReader("x")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := fs.List("datei.txt"); !errors.Is(err, ErrNotDir) {
-		t.Errorf("datei auflisten: %v, erwartet ErrNotDir", err)
+	if _, err := fs.List("file.txt"); !errors.Is(err, ErrNotDir) {
+		t.Errorf("listing a file: %v, expected ErrNotDir", err)
 	}
 }
 
-func TestGrosseUndBinaereDateien(t *testing.T) {
+func TestLargeAndBinaryFiles(t *testing.T) {
 	fs, root := newTestFS(t)
 
-	// Über der Ansichtsgrenze: abgeschnitten, aber lesbar.
-	groß := strings.Repeat("z", MaxViewBytes+1000)
-	if err := os.WriteFile(filepath.Join(root, "groß.txt"), []byte(groß), 0o644); err != nil {
+	// Above the view limit: truncated, but readable.
+	large := strings.Repeat("z", MaxViewBytes+1000)
+	if err := os.WriteFile(filepath.Join(root, "groß.txt"), []byte(large), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	f, err := fs.Read("groß.txt")
@@ -212,13 +212,13 @@ func TestGrosseUndBinaereDateien(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !f.Truncated || len(f.Content) != MaxViewBytes {
-		t.Errorf("abschneiden: truncated=%v len=%d", f.Truncated, len(f.Content))
+		t.Errorf("truncation: truncated=%v len=%d", f.Truncated, len(f.Content))
 	}
-	if f.Size != int64(len(groß)) {
-		t.Errorf("größe %d, erwartet %d", f.Size, len(groß))
+	if f.Size != int64(len(large)) {
+		t.Errorf("size %d, expected %d", f.Size, len(large))
 	}
 
-	// Binär: keine Bytes im JSON, nur die Metadaten.
+	// Binary: no bytes in the JSON, only the metadata.
 	if err := os.WriteFile(filepath.Join(root, "bild.png"), []byte{0x89, 'P', 'N', 'G', 0x00, 0x1a}, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -227,10 +227,11 @@ func TestGrosseUndBinaereDateien(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !f.Binary || f.Content != "" {
-		t.Errorf("binärdatei: %+v", f)
+		t.Errorf("binary file: %+v", f)
 	}
 
-	// Umlaute überleben das Abschneiden, statt als Ersatzzeichen zu enden.
+	// Umlauts survive the truncation instead of ending up as replacement
+	// characters.
 	if err := os.WriteFile(filepath.Join(root, "umlaut.txt"), []byte(strings.Repeat("ä", MaxViewBytes)), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -239,29 +240,29 @@ func TestGrosseUndBinaereDateien(t *testing.T) {
 		t.Fatal(err)
 	}
 	if f.Binary {
-		t.Error("utf-8-text als binär eingestuft")
+		t.Error("utf-8 text classified as binary")
 	}
 	if strings.ContainsRune(f.Content, '�') {
-		t.Error("abgeschnittenes zeichen am ende")
+		t.Error("character cut in half at the end")
 	}
 }
 
-func TestUploadGrenze(t *testing.T) {
+func TestUploadLimit(t *testing.T) {
 	fs, _ := newTestFS(t)
-	zuGroß := strings.NewReader(strings.Repeat("x", MaxWriteBytes+1))
-	if _, err := fs.Write("dick.bin", zuGroß); !errors.Is(err, ErrTooLarge) {
-		t.Errorf("upload über der grenze: %v, erwartet ErrTooLarge", err)
+	tooLarge := strings.NewReader(strings.Repeat("x", MaxWriteBytes+1))
+	if _, err := fs.Write("dick.bin", tooLarge); !errors.Is(err, ErrTooLarge) {
+		t.Errorf("upload above the limit: %v, expected ErrTooLarge", err)
 	}
-	// Und er hinterlässt keine halbe Datei.
+	// And it leaves no half file behind.
 	if _, err := fs.Read("dick.bin"); !errors.Is(err, ErrNotFound) {
-		t.Errorf("bruchstück liegengeblieben: %v", err)
+		t.Errorf("fragment left behind: %v", err)
 	}
 }
 
-func TestOpenLiefertVolleDatei(t *testing.T) {
+func TestOpenReturnsFullFile(t *testing.T) {
 	fs, _ := newTestFS(t)
-	inhalt := strings.Repeat("y", MaxViewBytes*2)
-	if _, err := fs.Write("download.bin", strings.NewReader(inhalt)); err != nil {
+	content := strings.Repeat("y", MaxViewBytes*2)
+	if _, err := fs.Write("download.bin", strings.NewReader(content)); err != nil {
 		t.Fatal(err)
 	}
 	rc, info, err := fs.Open("download.bin")
@@ -269,21 +270,20 @@ func TestOpenLiefertVolleDatei(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer rc.Close()
-	if info.Size() != int64(len(inhalt)) {
-		t.Errorf("größe %d, erwartet %d", info.Size(), len(inhalt))
+	if info.Size() != int64(len(content)) {
+		t.Errorf("size %d, expected %d", info.Size(), len(content))
 	}
 	buf := make([]byte, 16)
 	if n, err := rc.Read(buf); err != nil || n == 0 {
-		t.Errorf("lesen: %d, %v", n, err)
+		t.Errorf("read: %d, %v", n, err)
 	}
 }
 
-// Die Vorschau-Art entscheidet, wie die Oberfläche eine Datei zeigt — und die
-// Inline-Allowlist, was der Server überhaupt inline ausliefern darf. Beides
-// hängt an einer Stelle, damit sich Anzeige und Auslieferung nicht auseinander
-// entwickeln.
-func TestVorschauArtUndInlineTypen(t *testing.T) {
-	für := map[string]string{
+// The preview kind decides how the UI shows a file — and the inline allowlist
+// decides what the server may deliver inline at all. Both hang on one place so
+// that display and delivery do not drift apart.
+func TestPreviewKindAndInlineTypes(t *testing.T) {
+	cases := map[string]string{
 		"notiz.md":        PreviewMarkdown,
 		"README.MARKDOWN": PreviewMarkdown,
 		"daten.csv":       PreviewCSV,
@@ -292,20 +292,20 @@ func TestVorschauArtUndInlineTypen(t *testing.T) {
 		"foto.JPEG":       PreviewImage,
 		"logo.svg":        PreviewImage,
 		"handbuch.pdf":    PreviewPDF,
-		"skript.sh":       "", // aus dem Namen nicht zu erkennen
+		"skript.sh":       "", // not recognisable from the name
 		"ohne-endung":     "",
 	}
-	for name, want := range für {
+	for name, want := range cases {
 		if got := PreviewKind(name); got != want {
-			t.Errorf("PreviewKind(%q) = %q, erwartet %q", name, got, want)
+			t.Errorf("PreviewKind(%q) = %q, expected %q", name, got, want)
 		}
 	}
 
-	// Inline darf nur, was auf der Allowlist steht — HTML gehört bewusst nicht
-	// dazu: es liefe als Dokument auf der Covey-Origin.
+	// Only what is on the allowlist may go inline — HTML is deliberately not
+	// part of it: it would run as a document on the Covey origin.
 	for _, name := range []string{"seite.html", "skript.js", "notiz.md", "daten.csv", "archiv.zip"} {
 		if got := InlineType(name); got != "" {
-			t.Errorf("InlineType(%q) = %q, erwartet leer", name, got)
+			t.Errorf("InlineType(%q) = %q, expected empty", name, got)
 		}
 	}
 	if got := InlineType("bild.PNG"); got != "image/png" {
@@ -316,15 +316,15 @@ func TestVorschauArtUndInlineTypen(t *testing.T) {
 	}
 }
 
-// Read trägt die Vorschau-Art mit — und überträgt Bilder nicht als Text: die
-// Bytes holt die Oberfläche über den preview-Endpunkt.
-func TestReadLiefertVorschauArt(t *testing.T) {
+// Read carries the preview kind along — and does not transfer images as text:
+// the UI fetches those bytes through the preview endpoint.
+func TestReadReturnsPreviewKind(t *testing.T) {
 	fs, root := newTestFS(t)
 	if err := os.WriteFile(filepath.Join(root, "notiz.md"), []byte("# Titel"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// Ein Bild, das zufällig gültiges UTF-8 wäre: die Endung entscheidet, nicht
-	// der Inhalt — sonst landete es im Editor.
+	// An image that happens to be valid UTF-8: the extension decides, not the
+	// content — otherwise it would end up in the editor.
 	if err := os.WriteFile(filepath.Join(root, "bild.png"), []byte("nicht wirklich png"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -338,39 +338,39 @@ func TestReadLiefertVorschauArt(t *testing.T) {
 	}
 	img, err := fs.Read("bild.png")
 	if err != nil || img.Preview != PreviewImage || img.Content != "" || !img.Binary {
-		t.Fatalf("bild: %+v, %v", img, err)
+		t.Fatalf("image: %+v, %v", img, err)
 	}
 	bin, err := fs.Read("programm")
 	if err != nil || bin.Preview != PreviewBinary {
-		t.Fatalf("binär: %+v, %v", bin, err)
+		t.Fatalf("binary: %+v, %v", bin, err)
 	}
 
-	// In der Auflistung trägt jede Datei ihre Art — daran hängt das Symbol.
+	// In the listing every file carries its kind — the icon hangs on that.
 	list, err := fs.List("")
 	if err != nil {
 		t.Fatal(err)
 	}
-	arten := map[string]string{}
+	kinds := map[string]string{}
 	for _, e := range list.Entries {
-		arten[e.Name] = e.Preview
+		kinds[e.Name] = e.Preview
 	}
-	if arten["notiz.md"] != PreviewMarkdown || arten["bild.png"] != PreviewImage || arten["programm"] != "" {
-		t.Errorf("arten in der auflistung: %v", arten)
+	if kinds["notiz.md"] != PreviewMarkdown || kinds["bild.png"] != PreviewImage || kinds["programm"] != "" {
+		t.Errorf("kinds in the listing: %v", kinds)
 	}
 }
 
-// Sammel-Download: mehrere Pfade und ganze Ordner in einem Archiv, benannt
-// relativ zum gewählten Elternteil — wer „notizen" wählt, bekommt „notizen/…"
-// und nicht dessen ausgeschütteten Inhalt.
-func TestZipMehrerePfadeUndOrdner(t *testing.T) {
+// Bulk download: several paths and whole folders in one archive, named relative
+// to the chosen parent — whoever selects "notizen" gets "notizen/…" and not its
+// spilled-out content.
+func TestZipMultiplePathsAndFolders(t *testing.T) {
 	fs, _ := newTestFS(t)
-	for p, inhalt := range map[string]string{
+	for p, content := range map[string]string{
 		"notizen/a.md":      "A",
 		"notizen/tief/b.md": "B",
 		"lose.txt":          "lose",
 		"anderes/egal.txt":  "egal",
 	} {
-		if _, err := fs.Write(p, strings.NewReader(inhalt)); err != nil {
+		if _, err := fs.Write(p, strings.NewReader(content)); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -380,10 +380,10 @@ func TestZipMehrerePfadeUndOrdner(t *testing.T) {
 		t.Fatal(err)
 	}
 	if plan.Files != 3 {
-		t.Fatalf("erwartet 3 dateien im archiv, got %d", plan.Files)
+		t.Fatalf("expected 3 files in the archive, got %d", plan.Files)
 	}
-	if plan.Name != "dateien.zip" {
-		t.Errorf("name bei mehreren pfaden: %q", plan.Name)
+	if plan.Name != "files.zip" {
+		t.Errorf("name for several paths: %q", plan.Name)
 	}
 
 	var buf bytes.Buffer
@@ -394,10 +394,10 @@ func TestZipMehrerePfadeUndOrdner(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	inhalte := map[string]string{}
+	contents := map[string]string{}
 	for _, f := range zr.File {
 		if f.FileInfo().IsDir() {
-			inhalte[f.Name] = "<dir>"
+			contents[f.Name] = "<dir>"
 			continue
 		}
 		rc, err := f.Open()
@@ -406,7 +406,7 @@ func TestZipMehrerePfadeUndOrdner(t *testing.T) {
 		}
 		b, _ := io.ReadAll(rc)
 		rc.Close()
-		inhalte[f.Name] = string(b)
+		contents[f.Name] = string(b)
 	}
 	for name, want := range map[string]string{
 		"notizen/":          "<dir>",
@@ -414,59 +414,60 @@ func TestZipMehrerePfadeUndOrdner(t *testing.T) {
 		"notizen/tief/b.md": "B",
 		"lose.txt":          "lose",
 	} {
-		if inhalte[name] != want {
-			t.Errorf("archiv-eintrag %q = %q, erwartet %q (alle: %v)", name, inhalte[name], want, inhalte)
+		if contents[name] != want {
+			t.Errorf("archive entry %q = %q, expected %q (all: %v)", name, contents[name], want, contents)
 		}
 	}
-	// Was nicht gewählt war, ist auch nicht drin.
-	if _, drin := inhalte["anderes/egal.txt"]; drin {
-		t.Errorf("nicht gewählter pfad im archiv: %v", inhalte)
+	// What was not selected is not in there either.
+	if _, in := contents["anderes/egal.txt"]; in {
+		t.Errorf("unselected path in the archive: %v", contents)
 	}
 
-	// Ein einzelner Ordner benennt das Archiv nach sich.
-	einzeln, err := fs.PlanZip([]string{"notizen"})
-	if err != nil || einzeln.Name != "notizen.zip" {
-		t.Errorf("einzelner ordner: name=%q, %v", einzeln.Name, err)
+	// A single folder names the archive after itself.
+	single, err := fs.PlanZip([]string{"notizen"})
+	if err != nil || single.Name != "notizen.zip" {
+		t.Errorf("single folder: name=%q, %v", single.Name, err)
 	}
-	// Das ganze Home lässt sich am Stück ziehen.
-	ganz, err := fs.PlanZip([]string{""})
-	if err != nil || ganz.Files != 4 || ganz.Name != "home.zip" {
-		t.Errorf("ganzes home: %d dateien, name=%q, %v", ganz.Files, ganz.Name, err)
+	// The whole home can be pulled in one piece.
+	whole, err := fs.PlanZip([]string{""})
+	if err != nil || whole.Files != 4 || whole.Name != "home.zip" {
+		t.Errorf("whole home: %d files, name=%q, %v", whole.Files, whole.Name, err)
 	}
 }
 
-// Doppelt gewählt (Ordner UND eine Datei darin) darf nicht doppelt im Archiv
-// landen — ZIP-Einträge mit gleichem Namen entpacken je nach Werkzeug anders.
-func TestZipKeineDoppeltenEintraege(t *testing.T) {
+// Selected twice (folder AND a file within it) must not end up twice in the
+// archive — ZIP entries with the same name unpack differently depending on the
+// tool.
+func TestZipNoDuplicateEntries(t *testing.T) {
 	fs, _ := newTestFS(t)
-	if _, err := fs.Write("ordner/datei.txt", strings.NewReader("x")); err != nil {
+	if _, err := fs.Write("ordner/file.txt", strings.NewReader("x")); err != nil {
 		t.Fatal(err)
 	}
-	plan, err := fs.PlanZip([]string{"ordner", "ordner/datei.txt"})
+	plan, err := fs.PlanZip([]string{"ordner", "ordner/file.txt"})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if plan.Files != 1 {
-		t.Errorf("erwartet 1 datei, got %d", plan.Files)
+		t.Errorf("expected 1 file, got %d", plan.Files)
 	}
 }
 
-// Ein Symlink aus dem Home heraus gehört nicht ins Archiv: sonst packte der
-// Download Dateien des Hosts mit ein.
-func TestZipUeberspringtAusbrechendeSymlinks(t *testing.T) {
+// A symlink pointing out of the home does not belong in the archive: otherwise
+// the download would pack up files of the host as well.
+func TestZipSkipsEscapingSymlinks(t *testing.T) {
 	fs, root := newTestFS(t)
-	draußen := filepath.Join(filepath.Dir(root), "aussen")
-	if err := os.MkdirAll(draußen, 0o755); err != nil {
+	outside := filepath.Join(filepath.Dir(root), "aussen")
+	if err := os.MkdirAll(outside, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(draußen, "beute.txt"), []byte("beute"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(outside, "beute.txt"), []byte("beute"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := fs.Write("ordner/eigen.txt", strings.NewReader("eigen")); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(draußen, filepath.Join(root, "ordner", "raus")); err != nil {
-		t.Skipf("symlinks nicht verfügbar: %v", err)
+	if err := os.Symlink(outside, filepath.Join(root, "ordner", "raus")); err != nil {
+		t.Skipf("symlinks not available: %v", err)
 	}
 
 	plan, err := fs.PlanZip([]string{"ordner"})
@@ -474,25 +475,25 @@ func TestZipUeberspringtAusbrechendeSymlinks(t *testing.T) {
 		t.Fatal(err)
 	}
 	if plan.Files != 1 {
-		t.Fatalf("nur die eigene datei gehört ins archiv, got %d", plan.Files)
+		t.Fatalf("only the own file belongs in the archive, got %d", plan.Files)
 	}
 	var buf bytes.Buffer
 	if err := fs.WriteZip(&buf, plan); err != nil {
 		t.Fatal(err)
 	}
 	if bytes.Contains(buf.Bytes(), []byte("beute")) {
-		t.Error("inhalt von ausserhalb des homes im archiv")
+		t.Error("content from outside the home in the archive")
 	}
 }
 
-// Grenzen greifen VOR dem ersten Byte — ein abgebrochener Strom hinterließe
-// ein Archiv, dem man nicht ansieht, dass es unfertig ist.
-func TestZipGrenzen(t *testing.T) {
+// Limits take effect BEFORE the first byte — an aborted stream would leave an
+// archive that does not look unfinished.
+func TestZipLimits(t *testing.T) {
 	fs, _ := newTestFS(t)
 	if _, err := fs.PlanZip([]string{"gibtsnicht"}); !errors.Is(err, ErrNotFound) {
-		t.Errorf("unbekannter pfad: %v, erwartet ErrNotFound", err)
+		t.Errorf("unknown path: %v, expected ErrNotFound", err)
 	}
 	if _, err := fs.PlanZip([]string{"../draussen"}); err == nil {
-		t.Error("pfad aus dem home heraus muss scheitern")
+		t.Error("a path leading out of the home must fail")
 	}
 }

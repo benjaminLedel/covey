@@ -1,5 +1,5 @@
-// Package templates verwaltet die Vorlagen-Bibliothek: gespeicherte
-// agentBundle-JSON-Schnappschüsse, aus denen neue Agenten instanziert werden.
+// Package templates manages the template library: stored agentBundle JSON
+// snapshots from which new agents are instantiated.
 package templates
 
 import (
@@ -16,10 +16,10 @@ import (
 )
 
 var (
-	ErrNotFound = errors.New("vorlage nicht gefunden")
-	// ErrReadOnly: mitgelieferte Vorlagen sind fest ins Binary eingebettet und
-	// können nicht org-seitig gelöscht/überschrieben werden.
-	ErrReadOnly = errors.New("mitgelieferte vorlage ist schreibgeschützt")
+	ErrNotFound = errors.New("template not found")
+	// ErrReadOnly: bundled templates are embedded into the binary and cannot be
+	// deleted or overwritten from the org side.
+	ErrReadOnly = errors.New("bundled template is read-only")
 )
 
 type Template struct {
@@ -31,12 +31,12 @@ type Template struct {
 	CreatedBy   *uuid.UUID      `json:"created_by,omitempty"`
 	CreatedAt   time.Time       `json:"created_at"`
 	UpdatedAt   time.Time       `json:"updated_at"`
-	// Builtin markiert mitgelieferte Vorlagen (schreibgeschützt, org-übergreifend).
+	// Builtin marks bundled templates (read-only, shared across orgs).
 	Builtin bool `json:"builtin"`
 }
 
-// builtinTemplates projiziert die eingebetteten Beispiel-Bundles auf Template,
-// mit Name/Beschreibung in der gewünschten Sprache (lang, z. B. "de"/"en").
+// builtinTemplates projects the embedded example bundles onto Template, with
+// name/description in the requested language (lang, e.g. "de"/"en").
 func builtinTemplates(lang string) []Template {
 	bs := examples.Builtins()
 	out := make([]Template, 0, len(bs))
@@ -54,7 +54,7 @@ func builtinTemplates(lang string) []Template {
 	return out
 }
 
-// builtinByID sucht eine mitgelieferte Vorlage anhand ihrer festen ID.
+// builtinByID looks up a bundled template by its fixed ID.
 func builtinByID(id uuid.UUID, lang string) (Template, bool) {
 	for _, t := range builtinTemplates(lang) {
 		if t.ID == id {
@@ -81,8 +81,8 @@ type Store struct {
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
-// List liefert die mitgelieferten Vorlagen zuerst (in Sprache lang), danach die
-// org-eigenen.
+// List returns the bundled templates first (in language lang), then the
+// org's own ones.
 func (s *Store) List(ctx context.Context, orgID uuid.UUID, lang string) ([]Template, error) {
 	rows, err := s.pool.Query(ctx,
 		"SELECT "+cols+" FROM agent_templates WHERE org_id=$1 ORDER BY name", orgID)

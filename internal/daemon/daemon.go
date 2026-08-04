@@ -19,10 +19,10 @@ import (
 	"covey/internal/target/mcp"
 )
 
-// Client ist die Daemon-Seite des Protokolls: verbindet sich zur Control
-// Plane, bootstrappt die Runtime und setzt lokal den Tool-Layer durch
-// (Action-Proxy). Die verbindliche Policy-Entscheidung liegt zentral —
-// der Daemon ist ausführendes Organ, nicht Entscheider (spec/01).
+// Client is the daemon side of the protocol: it connects to the control plane,
+// bootstraps the runtime and enforces the tool layer locally (action proxy).
+// The binding policy decision is made centrally — the daemon executes, it does
+// not decide (spec/01).
 type Client struct {
 	wsURL    string
 	token    string
@@ -30,24 +30,24 @@ type Client struct {
 	homeDir  string
 	runtimes map[string]Runtime
 
-	// conn steht unter writeMu — der Mutex, der ohnehin jeden Write serialisiert.
-	// Gesetzt wird sie in Run(), gelesen aus jeder Goroutine, die sendet.
+	// conn lives under writeMu — the mutex that serializes every write anyway.
+	// It is set in Run() and read from every goroutine that sends.
 	conn    *websocket.Conn
 	writeMu sync.Mutex
 
-	// subRuns zählt die Sub-Läufe dieses Daemons und gibt jedem eine Kennung,
-	// an der die Timeline seine Zeilen erkennt (siehe subagent.go).
+	// subRuns counts this daemon's sub-runs and gives each one an identifier by
+	// which the timeline recognizes its lines (see subagent.go).
 	subRuns atomic.Uint64
 
 	mu           sync.Mutex
 	cfg          InjectConfig
-	creds        map[string]InjectCredentials // System → gebrokertes Credential (nur RAM)
-	targets      map[string]target.System     // System → gebrokertes Manifest-Plugin (nur RAM)
-	pending      map[string]chan Message      // request_id → Antwortkanal
-	subAgentDirs map[string]bool              // Verzeichnisse mit laufendem Sub-Agent
+	creds        map[string]InjectCredentials // system → brokered credential (RAM only)
+	targets      map[string]target.System     // system → brokered manifest plugin (RAM only)
+	pending      map[string]chan Message      // request_id → response channel
+	subAgentDirs map[string]bool              // directories with a running sub-agent
 	cancelRun    context.CancelFunc
 
-	// ErrKilled signalisiert dem Prozess-Exit den Kill-Pfad.
+	// ErrKilled signals the kill path to the process exit.
 	log *slog.Logger
 }
 
@@ -78,21 +78,21 @@ func (c *Client) send(msgType string, payload any) error {
 	}
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
-	// Vor Run() bzw. nach einem Verbindungsabbruch gibt es keine Verbindung.
-	// Die Prüfung steht unter writeMu, weil conn dort geschrieben wird.
+	// Before Run(), or after the connection dropped, there is no connection.
+	// The check sits under writeMu because conn is written there.
 	if c.conn == nil {
-		return errors.New("keine verbindung zur control plane")
+		return errors.New("no connection to the control plane")
 	}
-	// Eigener Kontext statt eines durchgereichten: Ein Schreibvorgang auf die
-	// Control-Plane-Verbindung darf nicht daran hängen, ob die AUFGABE noch
-	// läuft — gerade die Abschlussmeldung entsteht, wenn deren Kontext endet.
-	// Die 10 Sekunden begrenzen ihn stattdessen.
+	// An own context instead of a passed-through one: a write on the control
+	// plane connection must not depend on whether the TASK is still running —
+	// the completion message in particular is produced when its context ends.
+	// The 10 seconds bound it instead.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return c.conn.Write(ctx, websocket.MessageText, raw)
 }
 
-// request sendet eine Anfrage mit request_id und wartet auf die Antwort.
+// request sends a request carrying a request_id and waits for the answer.
 func (c *Client) request(ctx context.Context, msgType string, requestID string, payload any) (Message, error) {
 	ch := make(chan Message, 1)
 	c.mu.Lock()
@@ -114,19 +114,19 @@ func (c *Client) request(ctx context.Context, msgType string, requestID string, 
 	}
 }
 
-// Run verbindet, meldet ready und verarbeitet Nachrichten bis sleep/kill.
+// Run connects, reports ready and processes messages until sleep/kill.
 func (c *Client) Run(ctx context.Context) error {
-	// Proxy-bewusst: im harten Egress-Modus (COVEY_EGRESS_ISOLATION=network) hat
-	// die Sandbox keinen direkten Weg zur Control Plane — die WS läuft per
-	// HTTP-CONNECT durch den Egress-Proxy (setzt wss/TLS voraus). Im kooperativen
-	// Modus steht die Control Plane in NO_PROXY, ProxyFromEnvironment liefert dann
-	// nil und die Verbindung geht direkt — kein Verhalten ändert sich.
+	// Proxy-aware: in hard egress mode (COVEY_EGRESS_ISOLATION=network) the
+	// sandbox has no direct route to the control plane — the WS runs through the
+	// egress proxy via HTTP CONNECT (which requires wss/TLS). In cooperative
+	// mode the control plane sits in NO_PROXY, ProxyFromEnvironment then returns
+	// nil and the connection goes out directly — no behavior changes.
 	conn, _, err := websocket.Dial(ctx, c.wsURL, &websocket.DialOptions{
 		HTTPHeader: http.Header{"Authorization": {"Bearer " + c.token}},
 		HTTPClient: &http.Client{Transport: &http.Transport{Proxy: http.ProxyFromEnvironment}},
 	})
 	if err != nil {
-		return fmt.Errorf("control plane nicht erreichbar: %w", err)
+		return fmt.Errorf("control plane unreachable: %w", err)
 	}
 	c.writeMu.Lock()
 	c.conn = conn
@@ -138,7 +138,7 @@ func (c *Client) Run(ctx context.Context) error {
 		return err
 	}
 
-	// Heartbeat: Lebenszeichen alle 20s.
+	// Heartbeat: sign of life every 20s.
 	hbCtx, hbCancel := context.WithCancel(ctx)
 	defer hbCancel()
 	go func() {
@@ -160,17 +160,17 @@ func (c *Client) Run(ctx context.Context) error {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
-			return fmt.Errorf("verbindung verloren: %w", err)
+			return fmt.Errorf("connection lost: %w", err)
 		}
 		var msg Message
 		if err := json.Unmarshal(raw, &msg); err != nil {
-			c.log.Warn("unlesbare nachricht", "err", err)
+			c.log.Warn("unreadable message", "err", err)
 			continue
 		}
-		// Antworten auf eigene Anfragen zuerst: Sie tragen die request_id des
-		// wartenden Aufrufers und gehen an dessen Kanal. Ohne request_id ist
-		// derselbe Nachrichtentyp ein proaktiver Push (inject_credentials) und
-		// fällt in den switch durch.
+		// Answers to our own requests first: they carry the request_id of the
+		// waiting caller and go to its channel. Without a request_id the same
+		// message type is a proactive push (inject_credentials) and falls
+		// through into the switch.
 		if c.deliverIfResponse(msg) {
 			continue
 		}
@@ -184,8 +184,8 @@ func (c *Client) Run(ctx context.Context) error {
 			c.cfg = cfg
 			c.mu.Unlock()
 		case TypeInjectCredentials:
-			// Ohne request_id ist das kein Antwort-Frame, sondern ein
-			// proaktiver Push (z. B. anthropic-Key) → nur im RAM cachen.
+			// Without a request_id this is not a response frame but a proactive
+			// push (e.g. the anthropic key) → cache in RAM only.
 			cred, err := DecodePayload[InjectCredentials](msg)
 			if err != nil {
 				continue
@@ -212,18 +212,18 @@ func (c *Client) Run(ctx context.Context) error {
 	}
 }
 
-// routedInjectTypes sind die Nachrichtentypen, mit denen die Control Plane eine
-// ANFRAGE des Daemons beantwortet. Diese Map ist das Routing — sie ersetzt die
-// früheren, zeichengleichen switch-Zweige je Typ.
+// routedInjectTypes are the message types with which the control plane answers
+// a REQUEST from the daemon. This map is the routing — it replaces the former,
+// character-identical switch branches per type.
 //
-// Warum als Liste und nicht als Zweige: Wer einen neuen Antworttyp einführt und
-// ihn hier vergisst, dessen Aufrufer bekommt nie eine Antwort und läuft in
-// seinen Timeout. Sitzt die Anfrage im kritischen Pfad vor dem Lauf, steht
-// danach die ganze Aufgabe — und der Fehler sieht aus wie ein Timeout
-// irgendwo anders. Genau so ist inject_skills beim Einbau durchgerutscht und
-// hat jeden Integrationstest in einen 15-Sekunden-Timeout laufen lassen.
+// Why a list and not branches: whoever introduces a new response type and
+// forgets it here leaves its caller without an answer, running into its
+// timeout. If the request sits in the critical path before the run, the whole
+// task stalls afterwards — and the error looks like a timeout somewhere else.
+// That is exactly how inject_skills slipped through when it was added and made
+// every integration test run into a 15-second timeout.
 var routedInjectTypes = map[string]bool{
-	TypeInjectCredentials: true, // auch proaktiv gepusht — dann ohne request_id
+	TypeInjectCredentials: true, // also pushed proactively — then without request_id
 	TypeApprovalDecision:  true,
 	TypeInjectTarget:      true,
 	TypeInjectOrgChart:    true,
@@ -232,31 +232,32 @@ var routedInjectTypes = map[string]bool{
 	TypeInjectCreateTask:  true,
 }
 
-// deliverIfResponse stellt eine Antwort auf eine eigene Anfrage an ihren
-// wartenden Aufrufer zu und sagt, ob die Nachricht damit erledigt ist.
+// deliverIfResponse hands an answer to one of our own requests to its waiting
+// caller and reports whether the message is thereby dealt with.
 //
-// Eigene Funktion statt einer Bedingung mitten in der Lese-Schleife, damit die
-// Zustellung ohne WebSocket prüfbar ist: Der Fehler, gegen den sie abgesichert
-// ist (ein Antworttyp fehlt im Routing, der Aufrufer läuft in seinen Timeout),
-// fällt sonst erst in einem Integrationstest auf — nach 15 Sekunden Warten.
+// A function of its own instead of a condition in the middle of the read loop,
+// so delivery is testable without a WebSocket: the failure it guards against (a
+// response type missing from the routing, the caller running into its timeout)
+// would otherwise only show up in an integration test — after 15 seconds of
+// waiting.
 func (c *Client) deliverIfResponse(msg Message) bool {
 	if !routedInjectTypes[msg.Type] {
 		return false
 	}
 	id := requestIDOf(msg)
 	if id == "" {
-		// Ohne request_id ist derselbe Typ ein proaktiver Push
-		// (inject_credentials) und gehört in den switch der Lese-Schleife.
+		// Without a request_id the same type is a proactive push
+		// (inject_credentials) and belongs in the read loop's switch.
 		return false
 	}
 	c.route(id, msg)
 	return true
 }
 
-// requestIDOf liest die Korrelations-ID aus einem beliebigen Antwort-Payload.
-// Bewusst über ein Minimal-Struct statt über den konkreten Typ: Das Routing
-// braucht nur dieses eine Feld, und so kostet ein neuer Antworttyp genau einen
-// Eintrag in routedInjectTypes statt einen weiteren Decode-Zweig.
+// requestIDOf reads the correlation ID out of any response payload.
+// Deliberately through a minimal struct instead of the concrete type: the
+// routing needs only this one field, and that way a new response type costs
+// exactly one entry in routedInjectTypes instead of another decode branch.
 func requestIDOf(msg Message) string {
 	var probe struct {
 		RequestID string `json:"request_id"`
@@ -280,7 +281,7 @@ func (c *Client) route(requestID string, msg Message) {
 	}
 }
 
-// credential holt ein gebrokertes Credential (RAM-Cache pro Verbindung).
+// credential fetches a brokered credential (RAM cache per connection).
 func (c *Client) credential(ctx context.Context, system, taskID string) (InjectCredentials, error) {
 	c.mu.Lock()
 	if cred, ok := c.creds[system]; ok && cred.Granted {
@@ -302,7 +303,7 @@ func (c *Client) credential(ctx context.Context, system, taskID string) (InjectC
 		return InjectCredentials{}, err
 	}
 	if !cred.Granted {
-		return cred, fmt.Errorf("credential für %s verweigert: %s", system, cred.Reason)
+		return cred, fmt.Errorf("credential for %s denied: %s", system, cred.Reason)
 	}
 	c.mu.Lock()
 	c.creds[system] = cred
@@ -310,9 +311,9 @@ func (c *Client) credential(ctx context.Context, system, taskID string) (InjectC
 	return cred, nil
 }
 
-// manifestSystem holt die Definition eines Manifest-Plugins von der Control
-// Plane (RAM-Cache pro Verbindung). Nicht gewährt (unbekannt/deaktiviert)
-// wird NICHT gecacht — die Aktivierung kann sich während der Session ändern.
+// manifestSystem fetches the definition of a manifest plugin from the control
+// plane (RAM cache per connection). A refusal (unknown/disabled) is NOT cached
+// — activation can change during the session.
 func (c *Client) manifestSystem(ctx context.Context, system string) (target.System, bool) {
 	c.mu.Lock()
 	if sys, ok := c.targets[system]; ok {
@@ -338,14 +339,14 @@ func (c *Client) manifestSystem(ctx context.Context, system string) (target.Syst
 	case "mcp":
 		cfg, err := mcp.ParseConfig(inj.Manifest)
 		if err != nil {
-			c.log.Warn("gebrokerte mcp-config unlesbar", "system", system, "err", err)
+			c.log.Warn("brokered mcp config unreadable", "system", system, "err", err)
 			return nil, false
 		}
 		sys = mcp.NewSystem(cfg)
 	default:
 		m, err := target.ParseManifest(inj.Manifest)
 		if err != nil {
-			c.log.Warn("gebrokertes manifest unlesbar", "system", system, "err", err)
+			c.log.Warn("brokered manifest unreadable", "system", system, "err", err)
 			return nil, false
 		}
 		sys = target.NewManifestSystem(m)
@@ -356,9 +357,9 @@ func (c *Client) manifestSystem(ctx context.Context, system string) (target.Syst
 	return sys, true
 }
 
-// orgChart holt das Organigramm der Organisation von der Control Plane.
-// Bewusst ungecacht — Profile und Zuordnungen können sich während der
-// Session ändern, der Agent soll immer den aktuellen Stand sehen.
+// orgChart fetches the organization's org chart from the control plane.
+// Deliberately uncached — profiles and assignments can change during the
+// session, and the agent should always see the current state.
 func (c *Client) orgChart(ctx context.Context) (json.RawMessage, error) {
 	reqID := uuid.NewString()
 	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -374,8 +375,8 @@ func (c *Client) orgChart(ctx context.Context) (json.RawMessage, error) {
 	return inj.Chart, nil
 }
 
-// wiki brokert ein Wiki-Tool (search/read/write) an die Control Plane und gibt
-// die Antwort roh zurück. Ungecacht — das Wiki ändert sich während der Session.
+// wiki brokers a wiki tool (search/read/write) to the control plane and returns
+// the answer raw. Uncached — the wiki changes during the session.
 func (c *Client) wiki(ctx context.Context, req RequestWiki) (InjectWiki, error) {
 	req.RequestID = uuid.NewString()
 	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -387,8 +388,8 @@ func (c *Client) wiki(ctx context.Context, req RequestWiki) (InjectWiki, error) 
 	return DecodePayload[InjectWiki](msg)
 }
 
-// createTask lässt die Control Plane eine Aufgabe anlegen (covey/create_task):
-// Teilaufgabe für den Agenten selbst oder Delegation an einen Kollegen.
+// createTask has the control plane create a task (covey/create_task): a subtask
+// for the agent itself or a delegation to a colleague.
 func (c *Client) createTask(ctx context.Context, req RequestCreateTask) (InjectCreateTask, error) {
 	req.RequestID = uuid.NewString()
 	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -400,7 +401,7 @@ func (c *Client) createTask(ctx context.Context, req RequestCreateTask) (InjectC
 	return DecodePayload[InjectCreateTask](msg)
 }
 
-// checkAction holt die zentrale Policy-Entscheidung für eine Aktion.
+// checkAction fetches the central policy decision for an action.
 func (c *Client) checkAction(ctx context.Context, taskID, action string, params json.RawMessage) (ApprovalDecision, error) {
 	reqID := uuid.NewString()
 	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -413,9 +414,9 @@ func (c *Client) checkAction(ctx context.Context, taskID, action string, params 
 	return DecodePayload[ApprovalDecision](msg)
 }
 
-// runtimeKeyEnv liefert den gebrokerten LLM-Key als ENV-Zuweisung. Der Key ist
-// selbst ein gebrokertes Secret (spec/12 Auth): proaktiv injiziert, nie
-// dauerhaft in der Sandbox. Leer, solange nichts gebrokert wurde.
+// runtimeKeyEnv provides the brokered LLM key as an ENV assignment. The key is
+// itself a brokered secret (spec/12 Auth): pushed proactively, never persisted
+// in the sandbox. Empty as long as nothing has been brokered.
 func (c *Client) runtimeKeyEnv() []string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -424,10 +425,10 @@ func (c *Client) runtimeKeyEnv() []string {
 		return nil
 	}
 	token := strings.TrimSpace(cred.Token)
-	// Die Control Plane nennt die Ziel-Env (aus dem Secret-Namen). Fehlt sie,
-	// raten wir am Präfix: Abo-Accounts liefern OAuth-Tokens (`claude
-	// setup-token`, sk-ant-oat…), die Claude Code nur über
-	// CLAUDE_CODE_OAUTH_TOKEN nutzt.
+	// The control plane names the target env var (from the secret's name). If it
+	// is missing, we guess from the prefix: subscription accounts yield OAuth
+	// tokens (`claude setup-token`, sk-ant-oat…), which Claude Code only uses
+	// through CLAUDE_CODE_OAUTH_TOKEN.
 	envVar := cred.EnvVar
 	if envVar == "" {
 		if strings.HasPrefix(token, "sk-ant-oat") {
@@ -439,7 +440,7 @@ func (c *Client) runtimeKeyEnv() []string {
 	return []string{envVar + "=" + token}
 }
 
-// runTask fährt Action-Proxy + Runtime und meldet blocked/task_done + cost.
+// runTask drives action proxy + runtime and reports blocked/task_done + cost.
 func (c *Client) runTask(ctx context.Context, task AssignTask) {
 	runCtx, cancel := context.WithCancel(ctx)
 	c.mu.Lock()
@@ -460,7 +461,7 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 	runtime := c.runtimes[cfg.Runtime]
 	if runtime == nil {
 		_ = c.send(TypeTaskDone, TaskDone{TaskID: task.TaskID, Status: "failed",
-			Error: fmt.Sprintf("unbekannte runtime %q", cfg.Runtime)})
+			Error: fmt.Sprintf("unknown runtime %q", cfg.Runtime)})
 		return
 	}
 
@@ -479,21 +480,21 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 		HomeDir:         c.homeDir,
 		Env:             env,
 	}
-	// Wiki-Arbeitskopie ins Home materialisieren (spec/05), damit der Agent es
-	// mit normalen Datei-Tools lesen/bearbeiten kann.
+	// Materialize the wiki working copy into the home (spec/05) so the agent can
+	// read and edit it with ordinary file tools.
 	wikiSnap := c.materializeWiki(runCtx)
-	// Skills ins Home materialisieren: Die Runtime findet sie unter
-	// ~/.claude/skills/ und lädt ihren Rumpf erst, wenn einer zieht. Muss VOR
-	// dem Lauf passieren — danach wäre es wirkungslos.
+	// Materialize skills into the home: the runtime finds them under
+	// ~/.claude/skills/ and loads their body only when one applies. Must happen
+	// BEFORE the run — afterwards it would have no effect.
 	c.materializeSkills(runCtx)
 
 	res, err := runtime.Run(runCtx, spec, func(kind string, payload json.RawMessage) {
 		_ = c.send(TypeEvent, Event{TaskID: task.TaskID, Kind: kind, Payload: payload})
 	})
 	if runCtx.Err() != nil {
-		return // Kill-Pfad: die Control Plane hat übernommen
+		return // kill path: the control plane has taken over
 	}
-	// Direkt bearbeitete/neu angelegte Seiten zurück in die Control Plane.
+	// Directly edited/newly created pages go back into the control plane.
 	c.syncWikiBack(runCtx, wikiSnap)
 	if err != nil {
 		res.Status = "failed"

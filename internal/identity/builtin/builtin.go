@@ -1,6 +1,6 @@
-// Package builtin ist der DB-gestützte IdentityProvider: signierte JWTs
-// (Ed25519, kurz-TTL, gescopt) für Agenten, Argon2id für Menschen-Logins.
-// Krypto-Primitive aus bewährten Libs, kein eigener OAuth/OIDC-Stack (spec/10).
+// Package builtin is the DB-backed IdentityProvider: signed JWTs (Ed25519,
+// short TTL, scoped) for agents, Argon2id for human logins. Crypto primitives
+// from proven libraries, no OAuth/OIDC stack of our own (spec/10).
 package builtin
 
 import (
@@ -23,7 +23,7 @@ import (
 	"covey/internal/identity"
 )
 
-var ErrInvalidCredentials = errors.New("ungültige Zugangsdaten")
+var ErrInvalidCredentials = errors.New("invalid credentials")
 
 type Provider struct {
 	pool *pgxpool.Pool
@@ -31,9 +31,9 @@ type Provider struct {
 	pub  ed25519.PublicKey
 }
 
-// New erzeugt den Provider mit einem prozess-lokalen Signing-Key. Die von ihm
-// gemachten Tokens sind bewusst kurzlebig — ein Neustart invalidiert sie, was
-// für Daemon-Tokens (Minuten-TTL) in Ordnung ist.
+// New creates the provider with a process-local signing key. The tokens it
+// makes are deliberately short-lived — a restart invalidates them, which is
+// fine for daemon tokens (TTL in minutes).
 func New(pool *pgxpool.Pool) (*Provider, error) {
 	pub, priv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -71,7 +71,7 @@ func (p *Provider) IssueAgentToken(ctx context.Context, agentID uuid.UUID, scope
 func (p *Provider) VerifyAgentToken(ctx context.Context, token, audience string) (uuid.UUID, error) {
 	parsed, err := jwt.ParseWithClaims(token, &agentClaims{}, func(t *jwt.Token) (any, error) {
 		if t.Method != jwt.SigningMethodEdDSA {
-			return nil, fmt.Errorf("unerwartete Signaturmethode %v", t.Header["alg"])
+			return nil, fmt.Errorf("unexpected signing method %v", t.Header["alg"])
 		}
 		return p.pub, nil
 	}, jwt.WithAudience(audience), jwt.WithIssuer("covey"), jwt.WithExpirationRequired())
@@ -89,7 +89,7 @@ func (p *Provider) AuthenticateHuman(ctx context.Context, creds identity.Credent
 		FROM humans WHERE email=$1`, strings.ToLower(creds.Email)).
 		Scan(&pr.ID, &pr.OrgID, &pr.Email, &pr.DisplayName, &pr.Role, &hash)
 	if errors.Is(err, pgx.ErrNoRows) {
-		// Dummy-Vergleich gegen Timing-Orakel (User-Enumeration).
+		// Dummy comparison against a timing oracle (user enumeration).
 		_ = VerifyPassword(creds.Password, mustHash("covey-dummy"))
 		return pr, ErrInvalidCredentials
 	}
@@ -102,7 +102,7 @@ func (p *Provider) AuthenticateHuman(ctx context.Context, creds identity.Credent
 	return pr, nil
 }
 
-// --- Argon2id-Passwort-Hashing (PHC-String-Format) ---
+// --- Argon2id password hashing (PHC string format) ---
 
 const (
 	argonTime    = 1

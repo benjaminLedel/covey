@@ -1,5 +1,5 @@
-// Package agents hält die Agent-Registry und die Config-Kompilierung
-// (SOUL.md & Co. → System-Prompt), siehe spec/02-agent-model.md.
+// Package agents holds the agent registry and the config compilation
+// (SOUL.md & co. → system prompt), see spec/02-agent-model.md.
 package agents
 
 import (
@@ -21,9 +21,9 @@ import (
 
 var slugRe = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
-// Agent-Status der Zustandsmaschine aus spec/03-lifecycle-scheduling.md.
-// 'blocked' lebt auf der Aufgabe, nicht auf dem Agenten: ein Agent mit einer
-// geparkten Aufgabe ist wieder 'sleeping' und kann anderes bearbeiten.
+// Agent states of the state machine from spec/03-lifecycle-scheduling.md.
+// 'blocked' lives on the task, not on the agent: an agent with a parked task
+// is 'sleeping' again and can work on something else.
 const (
 	StatusSleeping  = "sleeping"
 	StatusTriggered = "triggered"
@@ -38,36 +38,36 @@ type Agent struct {
 	Slug        string    `json:"slug"`
 	DisplayName string    `json:"display_name"`
 	Runtime     string    `json:"runtime"`
-	// Model wählt das LLM innerhalb der Runtime (z. B. claude-opus-4-8);
-	// leer = die Runtime nutzt ihren eigenen Default.
+	// Model picks the LLM within the runtime (e.g. claude-opus-4-8);
+	// empty = the runtime uses its own default.
 	Model string `json:"model"`
-	// MaxTurns begrenzt die Turns eines Runtime-Laufs (Runaway-Guard);
-	// 0 = Default des Orchestrators.
+	// MaxTurns caps the turns of a runtime run (runaway guard);
+	// 0 = the orchestrator's default.
 	MaxTurns int        `json:"max_turns"`
 	Status   string     `json:"status"`
 	OwnerID  *uuid.UUID `json:"owner_id,omitempty"`
-	// SupervisorID ist der Platz im Org-Chart: der Mensch, an den der Agent
-	// berichtet und eskaliert (spec/02).
+	// SupervisorID is the place in the org chart: the human the agent
+	// reports and escalates to (spec/02).
 	SupervisorID *uuid.UUID `json:"supervisor_id,omitempty"`
-	// DepartmentID ordnet den Agenten einer Abteilung zu; nil = keiner.
+	// DepartmentID assigns the agent to a department; nil = none.
 	DepartmentID *uuid.UUID `json:"department_id,omitempty"`
-	// Profile sind dieselben Mitarbeiter-Stammdaten wie bei den Menschen
-	// (org.Profile): Funktion, Kontakt, Plattform-Kennungen und die Werte der
-	// org-weit konfigurierbaren Profilfelder — Agenten sind Mitarbeiter (spec/02).
+	// Profile is the same employee master data as for humans
+	// (org.Profile): function, contact, platform identifiers and the values of
+	// the org-wide configurable profile fields — agents are employees (spec/02).
 	org.Profile
 	Killed    bool    `json:"killed"`
 	BudgetUSD float64 `json:"budget_usd"`
-	// RecordingLevel ist der optionale Agent-Override der Aufzeichnungstiefe
-	// (spec/06); leer = erbt den Org-Boden. Wirkt nur verschärfend (max mit dem
-	// Boden), durchgesetzt in der Control Plane.
+	// RecordingLevel is the optional agent override of the recording depth
+	// (spec/06); empty = inherits the org floor. It only ever tightens (max with
+	// the floor), enforced in the control plane.
 	RecordingLevel string `json:"recording_level"`
-	// WarmSandbox hält die Sandbox dieses Agenten zwischen Wach-Phasen live
-	// (opt-in): Dev-Server und Caches überleben, der nächste Lauf startet ohne
-	// kalten Aufbau. Default false → ephemer wie alle anderen (spec/01).
+	// WarmSandbox keeps this agent's sandbox alive between waking phases
+	// (opt-in): dev servers and caches survive, the next run starts without a
+	// cold build-up. Default false → ephemeral like everyone else (spec/01).
 	WarmSandbox bool `json:"warm_sandbox"`
-	// WebhookToken ist das Geheimnis des optionalen generischen Webhook-
-	// Triggers (nil = deaktiviert). Bewusst nicht im JSON — lesbar nur über
-	// den dedizierten Webhook-Endpoint (Manager-Rollen).
+	// WebhookToken is the secret of the optional generic webhook trigger
+	// (nil = disabled). Deliberately not in the JSON — readable only through
+	// the dedicated webhook endpoint (manager roles).
 	WebhookToken *string   `json:"-"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
@@ -85,21 +85,21 @@ type ConfigVersion struct {
 type SystemAccess struct {
 	System string   `json:"system"`
 	Scopes []string `json:"scopes"`
-	// Tools ist die Tool-Allowlist des Agenten für dieses System (MCP);
-	// leer = alle Tools erlaubt. Materialisiert wird sie nicht hier, sondern
-	// im target-Store (agent_target_tools) — ACCESS.md ist die Text-Sicht.
+	// Tools is the agent's tool allowlist for this system (MCP);
+	// empty = all tools allowed. It is materialised not here but in the
+	// target store (agent_target_tools) — ACCESS.md is the textual view.
 	Tools []string `json:"tools,omitempty"`
 }
 
-var ErrNotFound = errors.New("agent nicht gefunden")
+var ErrNotFound = errors.New("agent not found")
 
 type Registry struct {
 	pool *pgxpool.Pool
-	// SystemHeartbeats sind plattformweite Default-Heartbeats (source='system' in
-	// agent_heartbeats), die die Control Plane für jeden Agenten materialisiert —
-	// sofern er nicht selbst einen HEARTBEAT.md-Eintrag gleichen Namens definiert.
-	// Aktuell: der konfigurierbare Wiki-Aufräum-Heartbeat (COVEY_WIKI_CLEANUP).
-	// Gesetzt beim Wiring in cmd/covey; leer = keine Defaults.
+	// SystemHeartbeats are platform-wide default heartbeats (source='system' in
+	// agent_heartbeats) that the control plane materialises for every agent —
+	// unless it defines a HEARTBEAT.md entry of the same name itself.
+	// Currently: the configurable wiki cleanup heartbeat (COVEY_WIKI_CLEANUP).
+	// Set during wiring in cmd/covey; empty = no defaults.
 	SystemHeartbeats []Heartbeat
 }
 
@@ -132,15 +132,15 @@ func (r *Registry) Get(ctx context.Context, id uuid.UUID) (Agent, error) {
 	return scanAgent(r.pool.QueryRow(ctx, "SELECT "+agentCols+" FROM agents WHERE id=$1", id))
 }
 
-// ConfigVersionMeta ist die schlanke Historie einer Agent-Config: Version und
-// Zeitpunkt, ohne die Dateien selbst. Für Diagnose-Ansichten, die den Verlauf
-// zeigen wollen, ohne jede Fassung zu laden.
+// ConfigVersionMeta is the slim history of an agent config: version and
+// timestamp, without the files themselves. For diagnostic views that want to
+// show the trail without loading every revision.
 type ConfigVersionMeta struct {
 	Version   int       `json:"version"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// ConfigHistory liefert die Versionen einer Agent-Config aufsteigend.
+// ConfigHistory returns the versions of an agent config in ascending order.
 func (r *Registry) ConfigHistory(ctx context.Context, agentID uuid.UUID) ([]ConfigVersionMeta, error) {
 	rows, err := r.pool.Query(ctx,
 		"SELECT version, created_at FROM agent_config_versions WHERE agent_id=$1 ORDER BY version", agentID)
@@ -159,10 +159,10 @@ func (r *Registry) ConfigHistory(ctx context.Context, agentID uuid.UUID) ([]Conf
 	return out, rows.Err()
 }
 
-// FindBySlug sucht einen Agenten allein am Slug, ohne die Organisation zu
-// kennen — für Wege, an denen die Organisation noch nicht feststeht (der
-// Webhook-Endpunkt trägt nur den Slug in der URL). Slugs sind global eindeutig
-// genug für diesen Zweck; bei Mehrdeutigkeit gewinnt der älteste.
+// FindBySlug looks an agent up by slug alone, without knowing the
+// organisation — for paths where the organisation is not yet established (the
+// webhook endpoint carries only the slug in the URL). Slugs are globally unique
+// enough for this purpose; on ambiguity the oldest one wins.
 func (r *Registry) FindBySlug(ctx context.Context, slug string) (Agent, error) {
 	return scanAgent(r.pool.QueryRow(ctx,
 		"SELECT "+agentCols+" FROM agents WHERE slug=$1 ORDER BY created_at LIMIT 1", slug))
@@ -197,7 +197,7 @@ func (r *Registry) SetStatus(ctx context.Context, id uuid.UUID, status string) e
 	return err
 }
 
-// SetKilled setzt den Kill-Switch eines einzelnen Agenten (spec/06).
+// SetKilled flips the kill switch of a single agent (spec/06).
 func (r *Registry) SetKilled(ctx context.Context, id uuid.UUID, killed bool) error {
 	status := StatusKilled
 	if !killed {
@@ -210,7 +210,7 @@ func (r *Registry) SetKilled(ctx context.Context, id uuid.UUID, killed bool) err
 	return err
 }
 
-// SetFleetKilled ist der flottenweite Notaus.
+// SetFleetKilled is the fleet-wide emergency stop.
 func (r *Registry) SetFleetKilled(ctx context.Context, orgID uuid.UUID, killed bool) error {
 	_, err := r.pool.Exec(ctx, "UPDATE organizations SET fleet_killed=$2 WHERE id=$1", orgID, killed)
 	return err
@@ -227,8 +227,8 @@ func (r *Registry) SetBudget(ctx context.Context, id uuid.UUID, budgetUSD float6
 	return err
 }
 
-// SetRuntime schaltet die Runtime eines Agenten um. Greift beim nächsten
-// Task-Dispatch — laufende Sessions bleiben unberührt.
+// SetRuntime switches an agent's runtime. Takes effect at the next task
+// dispatch — running sessions stay untouched.
 func (r *Registry) SetRuntime(ctx context.Context, id uuid.UUID, runtime string) error {
 	tag, err := r.pool.Exec(ctx, "UPDATE agents SET runtime=$2, updated_at=now() WHERE id=$1", id, runtime)
 	if err == nil && tag.RowsAffected() == 0 {
@@ -237,8 +237,8 @@ func (r *Registry) SetRuntime(ctx context.Context, id uuid.UUID, runtime string)
 	return err
 }
 
-// SetModel legt das Modell des Agenten fest (leer = Runtime-Default).
-// Greift wie SetRuntime beim nächsten Task-Dispatch.
+// SetModel sets the agent's model (empty = runtime default).
+// Takes effect at the next task dispatch, like SetRuntime.
 func (r *Registry) SetModel(ctx context.Context, id uuid.UUID, model string) error {
 	tag, err := r.pool.Exec(ctx, "UPDATE agents SET model=$2, updated_at=now() WHERE id=$1", id, model)
 	if err == nil && tag.RowsAffected() == 0 {
@@ -247,8 +247,8 @@ func (r *Registry) SetModel(ctx context.Context, id uuid.UUID, model string) err
 	return err
 }
 
-// SetMaxTurns legt das Turn-Limit je Runtime-Lauf fest (0 = Default des
-// Orchestrators). Greift wie SetModel beim nächsten Task-Dispatch.
+// SetMaxTurns sets the turn limit per runtime run (0 = the orchestrator's
+// default). Takes effect at the next task dispatch, like SetModel.
 func (r *Registry) SetMaxTurns(ctx context.Context, id uuid.UUID, maxTurns int) error {
 	tag, err := r.pool.Exec(ctx, "UPDATE agents SET max_turns=$2, updated_at=now() WHERE id=$1", id, maxTurns)
 	if err == nil && tag.RowsAffected() == 0 {
@@ -257,9 +257,9 @@ func (r *Registry) SetMaxTurns(ctx context.Context, id uuid.UUID, maxTurns int) 
 	return err
 }
 
-// SetRecordingLevel setzt den Agent-Override der Aufzeichnungstiefe (spec/06);
-// leer = zurück auf Erben des Org-Bodens (NULL). Der effektive Level ist stets
-// max(Org-Boden, Override) — control-plane-seitig durchgesetzt.
+// SetRecordingLevel sets the agent override of the recording depth (spec/06);
+// empty = back to inheriting the org floor (NULL). The effective level is always
+// max(org floor, override) — enforced on the control plane side.
 func (r *Registry) SetRecordingLevel(ctx context.Context, id uuid.UUID, level string) error {
 	tag, err := r.pool.Exec(ctx, "UPDATE agents SET recording_level=NULLIF($2,''), updated_at=now() WHERE id=$1", id, level)
 	if err == nil && tag.RowsAffected() == 0 {
@@ -268,8 +268,8 @@ func (r *Registry) SetRecordingLevel(ctx context.Context, id uuid.UUID, level st
 	return err
 }
 
-// SetWarmSandbox schaltet die warme Sandbox für einen Agenten ein/aus. Wirkt ab
-// dem nächsten Einschlafen: bei true wird die Sandbox danach nicht mehr abgebaut.
+// SetWarmSandbox turns the warm sandbox on/off for an agent. Takes effect from
+// the next falling asleep on: with true the sandbox is no longer torn down.
 func (r *Registry) SetWarmSandbox(ctx context.Context, id uuid.UUID, warm bool) error {
 	tag, err := r.pool.Exec(ctx, "UPDATE agents SET warm_sandbox=$2, updated_at=now() WHERE id=$1", id, warm)
 	if err == nil && tag.RowsAffected() == 0 {
@@ -278,10 +278,10 @@ func (r *Registry) SetWarmSandbox(ctx context.Context, id uuid.UUID, warm bool) 
 	return err
 }
 
-// Rename ändert den Anzeigenamen. Slug separat über SetSlug änderbar.
-// Delete löscht einen Agenten endgültig. Alle abhängigen Daten (Config,
-// Backlog, Secrets, Zuweisungen) werden per ON DELETE CASCADE mitgelöscht.
-// orgID verhindert Cross-Org-Löschung über geratene IDs.
+// Rename changes the display name. The slug is changed separately via SetSlug.
+// Delete removes an agent for good. All dependent data (config, backlog,
+// secrets, assignments) is deleted along with it via ON DELETE CASCADE.
+// orgID prevents cross-org deletion via guessed IDs.
 func (r *Registry) Delete(ctx context.Context, orgID, id uuid.UUID) error {
 	tag, err := r.pool.Exec(ctx, "DELETE FROM agents WHERE id=$1 AND org_id=$2", id, orgID)
 	if err != nil {
@@ -290,8 +290,8 @@ func (r *Registry) Delete(ctx context.Context, orgID, id uuid.UUID) error {
 	if tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
-	// supervisor_id trägt keinen DB-Fremdschlüssel mehr (Migration 0025):
-	// verweisende Untergebene hier lösen, damit keine Referenz ins Leere zeigt.
+	// supervisor_id no longer carries a DB foreign key (migration 0025):
+	// detach referencing subordinates here so no reference dangles.
 	_, _ = r.pool.Exec(ctx, "UPDATE agents SET supervisor_id=NULL WHERE supervisor_id=$1 AND org_id=$2", id, orgID)
 	return nil
 }
@@ -304,17 +304,17 @@ func (r *Registry) Rename(ctx context.Context, id uuid.UUID, displayName string)
 	return err
 }
 
-// SetSlug ändert den Slug eines Agenten. Der neue Slug muss innerhalb der Org
-// eindeutig sein — die DB-Unique-Constraint (org_id, slug) sorgt dafür.
-// Erlaubtes Format: nur Kleinbuchstaben, Ziffern und Bindestriche.
+// SetSlug changes an agent's slug. The new slug has to be unique within the
+// org — the DB unique constraint (org_id, slug) sees to that.
+// Permitted format: lowercase letters, digits and hyphens only.
 func (r *Registry) SetSlug(ctx context.Context, id uuid.UUID, slug string) error {
 	if !slugRe.MatchString(slug) {
-		return fmt.Errorf("slug darf nur Kleinbuchstaben, Ziffern und Bindestriche enthalten")
+		return fmt.Errorf("slug may only contain lowercase letters, digits and hyphens")
 	}
 	tag, err := r.pool.Exec(ctx, "UPDATE agents SET slug=$2, updated_at=now() WHERE id=$1", id, slug)
 	if err != nil {
 		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
-			return fmt.Errorf("slug bereits vergeben")
+			return fmt.Errorf("slug already taken")
 		}
 		return err
 	}
@@ -324,8 +324,8 @@ func (r *Registry) SetSlug(ctx context.Context, id uuid.UUID, slug string) error
 	return nil
 }
 
-// SetWebhookToken setzt bzw. rotiert das Token des generischen Webhook-
-// Triggers; nil deaktiviert den Webhook (spec/03, Wake-Quelle Event).
+// SetWebhookToken sets or rotates the token of the generic webhook trigger;
+// nil disables the webhook (spec/03, wake source event).
 func (r *Registry) SetWebhookToken(ctx context.Context, id uuid.UUID, token *string) error {
 	tag, err := r.pool.Exec(ctx, "UPDATE agents SET webhook_token=$2, updated_at=now() WHERE id=$1", id, token)
 	if err == nil && tag.RowsAffected() == 0 {
@@ -334,14 +334,14 @@ func (r *Registry) SetWebhookToken(ctx context.Context, id uuid.UUID, token *str
 	return err
 }
 
-// GetByWebhookToken löst das Trigger-Token auf den Agenten auf —
-// die Authentifizierung des öffentlichen Webhook-Endpoints.
+// GetByWebhookToken resolves the trigger token to the agent —
+// the authentication of the public webhook endpoint.
 func (r *Registry) GetByWebhookToken(ctx context.Context, token string) (Agent, error) {
 	return scanAgent(r.pool.QueryRow(ctx, "SELECT "+agentCols+" FROM agents WHERE webhook_token=$1", token))
 }
 
-// SupervisorName liefert den Anzeigenamen des Vorgesetzten aus dem Org-Chart —
-// für Eskalations-Texte. Leer, wenn kein Vorgesetzter zugeordnet ist.
+// SupervisorName returns the display name of the manager from the org chart —
+// for escalation texts. Empty if no manager is assigned.
 func (r *Registry) SupervisorName(ctx context.Context, agentID uuid.UUID) (string, error) {
 	var name string
 	err := r.pool.QueryRow(ctx, `SELECT COALESCE(h.display_name, sa.display_name, '')
@@ -355,7 +355,7 @@ func (r *Registry) SupervisorName(ctx context.Context, agentID uuid.UUID) (strin
 	return name, err
 }
 
-// SetSupervisor hängt den Agenten im Org-Chart um; nil löst die Zuordnung.
+// SetSupervisor re-hangs the agent in the org chart; nil clears the assignment.
 func (r *Registry) SetSupervisor(ctx context.Context, id uuid.UUID, supervisorID *uuid.UUID) error {
 	tag, err := r.pool.Exec(ctx, "UPDATE agents SET supervisor_id=$2, updated_at=now() WHERE id=$1", id, supervisorID)
 	if err == nil && tag.RowsAffected() == 0 {
@@ -364,9 +364,9 @@ func (r *Registry) SetSupervisor(ctx context.Context, id uuid.UUID, supervisorID
 	return err
 }
 
-// ProfileUpdate ist ein partielles Profil-Update — nil-Felder bleiben
-// unverändert; die Maps ersetzen bei nicht-nil den kompletten Bestand
-// (der Store normalisiert). Spiegelbild der Profil-Felder von org.HumanUpdate.
+// ProfileUpdate is a partial profile update — nil fields stay unchanged; the
+// maps replace the entire stock when non-nil (the store normalises).
+// Mirror image of the profile fields of org.HumanUpdate.
 type ProfileUpdate struct {
 	JobTitle         *string
 	Identities       map[string]string
@@ -375,8 +375,8 @@ type ProfileUpdate struct {
 	Custom           map[string]string
 }
 
-// UpdateProfile schreibt die Mitarbeiter-Stammdaten des Agenten. orgID
-// verhindert Cross-Org-Zugriff über geratene IDs.
+// UpdateProfile writes the agent's employee master data. orgID prevents
+// cross-org access via guessed IDs.
 func (r *Registry) UpdateProfile(ctx context.Context, orgID, id uuid.UUID, upd ProfileUpdate) (Agent, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -417,7 +417,7 @@ func (r *Registry) UpdateProfile(ctx context.Context, orgID, id uuid.UUID, upd P
 	return a, tx.Commit(ctx)
 }
 
-// SetDepartment weist den Agenten einer Abteilung zu; nil löst die Zuordnung.
+// SetDepartment assigns the agent to a department; nil clears the assignment.
 func (r *Registry) SetDepartment(ctx context.Context, id uuid.UUID, deptID *uuid.UUID) error {
 	tag, err := r.pool.Exec(ctx, "UPDATE agents SET department_id=$2, updated_at=now() WHERE id=$1", id, deptID)
 	if err == nil && tag.RowsAffected() == 0 {
@@ -426,8 +426,8 @@ func (r *Registry) SetDepartment(ctx context.Context, id uuid.UUID, deptID *uuid
 	return err
 }
 
-// SaveConfig legt eine neue Config-Version an (bestehende werden nie editiert),
-// kompiliert den System-Prompt und materialisiert ACCESS.md für den Broker.
+// SaveConfig creates a new config version (existing ones are never edited),
+// compiles the system prompt and materialises ACCESS.md for the broker.
 func (r *Registry) SaveConfig(ctx context.Context, agentID uuid.UUID, files map[string]string, createdBy *uuid.UUID) (ConfigVersion, error) {
 	compiled := CompilePrompt(files)
 	accesses := ParseAccess(files["ACCESS.md"])
@@ -468,8 +468,8 @@ func (r *Registry) SaveConfig(ctx context.Context, agentID uuid.UUID, files map[
 		}
 	}
 
-	// Heartbeats materialisieren: Upsert je titel, damit last_fired_at über
-	// Config-Versionen hinweg erhalten bleibt; entfernte Einträge löschen.
+	// Materialise the heartbeats: upsert per titel, so that last_fired_at
+	// survives across config versions; delete removed entries.
 	names := make([]string, 0, len(heartbeats))
 	for _, hb := range heartbeats {
 		names = append(names, hb.Name)
@@ -490,15 +490,15 @@ func (r *Registry) SaveConfig(ctx context.Context, agentID uuid.UUID, files map[
 			return ConfigVersion{}, err
 		}
 	}
-	// Nur die aus HEARTBEAT.md stammenden Einträge (source='config') aufräumen —
-	// plattformweite System-Defaults (source='system') bleiben unberührt.
+	// Only clean up the entries originating from HEARTBEAT.md (source='config') —
+	// platform-wide system defaults (source='system') stay untouched.
 	if _, err := tx.Exec(ctx, "DELETE FROM agent_heartbeats WHERE agent_id=$1 AND source='config' AND NOT (name = ANY($2))",
 		agentID, names); err != nil {
 		return ConfigVersion{}, err
 	}
-	// System-Default-Heartbeats für diesen Agenten materialisieren (source='system'),
-	// sofern er nicht selbst einen gleichnamigen HEARTBEAT.md-Eintrag hat (Override).
-	// So bekommen auch frisch angelegte Agenten die Defaults beim ersten Config-Sync.
+	// Materialise the system default heartbeats for this agent (source='system'),
+	// unless it has a HEARTBEAT.md entry of the same name itself (override).
+	// That way freshly created agents get the defaults at the first config sync too.
 	for _, hb := range r.SystemHeartbeats {
 		if slices.Contains(names, hb.Name) {
 			continue
@@ -524,12 +524,12 @@ func (r *Registry) SaveConfig(ctx context.Context, agentID uuid.UUID, files map[
 	return cv, tx.Commit(ctx)
 }
 
-// ReconcileSystemHeartbeats gleicht die plattformweiten System-Default-Heartbeats
-// (r.SystemHeartbeats) über ALLE Agenten hinweg ab — beim Prozessstart aufgerufen,
-// damit bestehende Agenten die Defaults auch ohne erneuten Config-Sync erhalten und
-// entfernte Defaults verschwinden. Berührt ausschließlich source='system'-Zeilen;
-// agenteneigene HEARTBEAT.md-Heartbeats (source='config') bleiben unangetastet, und
-// ein Agent mit gleichnamigem eigenem Eintrag wird übersprungen (Override gewinnt).
+// ReconcileSystemHeartbeats reconciles the platform-wide system default heartbeats
+// (r.SystemHeartbeats) across ALL agents — called at process start, so that existing
+// agents receive the defaults even without another config sync and removed defaults
+// disappear. It touches source='system' rows only; an agent's own HEARTBEAT.md
+// heartbeats (source='config') stay untouched, and an agent with an entry of the
+// same name of its own is skipped (the override wins).
 func (r *Registry) ReconcileSystemHeartbeats(ctx context.Context) error {
 	names := make([]string, 0, len(r.SystemHeartbeats))
 	for _, hb := range r.SystemHeartbeats {
@@ -553,8 +553,8 @@ func (r *Registry) ReconcileSystemHeartbeats(ctx context.Context) error {
 			return err
 		}
 	}
-	// Verwaiste System-Defaults entfernen (Zeitplan geändert -> Name gleich; Feature
-	// abgeschaltet -> names leer -> alle source='system'-Zeilen weg).
+	// Remove orphaned system defaults (schedule changed -> name stays the same;
+	// feature switched off -> names empty -> all source='system' rows go).
 	if _, err := r.pool.Exec(ctx,
 		"DELETE FROM agent_heartbeats WHERE source='system' AND NOT (name = ANY($1))", names); err != nil {
 		return err
@@ -562,7 +562,7 @@ func (r *Registry) ReconcileSystemHeartbeats(ctx context.Context) error {
 	return nil
 }
 
-// CurrentConfig liefert die jüngste Config-Version des Agenten.
+// CurrentConfig returns the agent's most recent config version.
 func (r *Registry) CurrentConfig(ctx context.Context, agentID uuid.UUID) (ConfigVersion, error) {
 	var cv ConfigVersion
 	var filesJSON []byte
@@ -581,7 +581,7 @@ func (r *Registry) CurrentConfig(ctx context.Context, agentID uuid.UUID) (Config
 	return cv, nil
 }
 
-// Accesses liefert die materialisierten Zugänge aus ACCESS.md (Broker-Prüfung).
+// Accesses returns the materialised accesses from ACCESS.md (broker check).
 func (r *Registry) Accesses(ctx context.Context, agentID uuid.UUID) ([]SystemAccess, error) {
 	rows, err := r.pool.Query(ctx, "SELECT system, scopes FROM system_accesses WHERE agent_id=$1", agentID)
 	if err != nil {
@@ -599,7 +599,7 @@ func (r *Registry) Accesses(ctx context.Context, agentID uuid.UUID) ([]SystemAcc
 	return out, rows.Err()
 }
 
-// HasAccess prüft Agent→System(+Scope) — die Berechtigungsfrage des Brokers.
+// HasAccess checks agent→system(+scope) — the broker's authorisation question.
 func (r *Registry) HasAccess(ctx context.Context, agentID uuid.UUID, system, scope string) (bool, error) {
 	accs, err := r.Accesses(ctx, agentID)
 	if err != nil {

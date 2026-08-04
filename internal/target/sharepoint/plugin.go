@@ -15,72 +15,72 @@ import (
 	"covey/internal/target"
 )
 
-// System bindet SharePoint/Teams-Dateien als Zielsystem-Plugin an die
-// target-Registry: eine per Freigabelink bereitgestellte Dokumentbibliothek,
-// in der der Agent Dateien listet, liest, schreibt, in die Sandbox lädt und
-// ablegt. Es gibt keinen Webhook-Eingang — Graph-Change-Notifications
-// brauchen eine öffentlich validierte HTTPS-Subscription; der Intake läuft
-// bei Bedarf per HEARTBEAT.md-Polling wie beim E-Mail-Plugin.
+// System binds SharePoint/Teams files in as a target-system plugin to the
+// target registry: a document library provided through a share link, in which
+// the agent lists, reads and writes files, fetches them into the sandbox and
+// deposits them. There is no webhook entry — Graph change notifications need a
+// publicly validated HTTPS subscription; where needed the intake runs by
+// HEARTBEAT.md polling, as with the e-mail plugin.
 type System struct{}
 
 func init() {
 	target.Register(target.Descriptor{
 		Name:        "sharepoint",
-		Label:       "SharePoint / Teams-Dateien",
-		Description: "Eine SharePoint-/Teams-Dokumentbibliothek per Freigabelink: Dateien listen (list), lesen (read/download in die Sandbox), ablegen und bearbeiten (write/upload), Ordner anlegen (mkdir), löschen (delete). Auth über eine Entra-ID-App-Registrierung (Client-Credentials), Secrets sharepoint_url (Freigabelink) + sharepoint_token (tenant:client:secret). Intake per HEARTBEAT.md (Polling, kein Webhook).",
+		Label:       "SharePoint / Teams files",
+		Description: "A SharePoint/Teams document library through a share link: list files (list), read them (read/download into the sandbox), deposit and edit them (write/upload), create folders (mkdir), delete (delete). Auth through an Entra ID app registration (client credentials), secrets sharepoint_url (share link) + sharepoint_token (tenant:client:secret). Intake through HEARTBEAT.md (polling, no webhook).",
 		Kind:        "builtin",
 		Category:    target.CategoryFiles,
 		System:      System{},
-		SetupDoc: `1. In Entra ID (Azure-Portal → App-Registrierungen) eine App für den
-   Agenten registrieren. Unter API-Berechtigungen die Anwendungs-
-   berechtigung (Application) Microsoft Graph → Files.ReadWrite.All
-   hinzufügen und Admin-Zustimmung erteilen. Least-Privilege-Alternative:
-   Sites.Selected und der App per Graph gezielt Zugriff auf die eine
-   Site geben. Dann ein Client-Secret erzeugen (Zertifikate & Geheimnisse).
+		SetupDoc: `1. In Entra ID (Azure portal → App registrations) register an app for the
+   agent. Under API permissions add the application permission
+   Microsoft Graph → Files.ReadWrite.All and grant admin consent.
+   Least-privilege alternative: Sites.Selected, and give the app targeted
+   access to the one site through Graph. Then create a client secret
+   (Certificates & secrets).
 
-2. In SharePoint oder Teams den Ordner bzw. die Dokumentbibliothek
-   öffnen, in der der Agent arbeiten soll, und den Link kopieren
-   (SharePoint: „Link kopieren"; Teams: Dateien-Tab → „Link kopieren").
-   Der Link muss auf einen Ordner zeigen, nicht auf eine einzelne Datei.
+2. In SharePoint or Teams open the folder resp. the document library the
+   agent is to work in and copy the link (SharePoint: "Copy link";
+   Teams: files tab → "Copy link").
+   The link must point at a folder, not at a single file.
 
-3. Unter Secrets hinterlegen und dem Agenten zuweisen:
-   sharepoint_url   = der Freigabelink aus Schritt 2
+3. Store under Secrets and assign to the agent:
+   sharepoint_url   = the share link from step 2
    sharepoint_token = tenant-id:client-id:client-secret
 
-4. In der ACCESS.md des Agenten freischalten:
+4. Enable in the agent's ACCESS.md:
    - system: sharepoint scope: read,write
 
-5. Egress: graph.microsoft.com und login.microsoftonline.com müssen aus
-   der Sandbox erreichbar sein.
+5. Egress: graph.microsoft.com and login.microsoftonline.com must be
+   reachable from the sandbox.
 
-6. Optionaler Intake per Heartbeat — in der HEARTBEAT.md des Agenten:
-   - alle: 30m titel: Ablage sichten aufgabe: Liste mit list den
-     Eingangsordner und bearbeite neue Dateien nach Playbook.
+6. Optional intake by heartbeat — in the agent's HEARTBEAT.md:
+   - alle: 30m titel: Review the file store aufgabe: List the inbox folder
+     with list and work on new files according to the playbook.
 
-Details: docs/ops-sharepoint.md im Repository.`,
+Details: docs/ops-sharepoint.md in the repository.`,
 	})
 }
 
 func (System) Name() string { return "sharepoint" }
 
-// VerifyWebhook/ParseWebhook: kein Webhook-Eingang — Graph-Subscriptions
-// (Change Notifications) brauchen eine öffentlich erreichbare, validierte
-// HTTPS-URL; der Intake läuft per Heartbeat-Polling.
+// VerifyWebhook/ParseWebhook: no webhook entry — Graph subscriptions (change
+// notifications) need a publicly reachable, validated HTTPS URL; the intake
+// runs by heartbeat polling.
 func (System) VerifyWebhook(string, []byte, http.Header) bool { return false }
 
 func (System) ParseWebhook([]byte) (target.WebhookEvent, error) {
-	return target.WebhookEvent{}, fmt.Errorf("sharepoint hat keinen webhook-eingang (intake per heartbeat)")
+	return target.WebhookEvent{}, fmt.Errorf("sharepoint has no webhook entry (intake by heartbeat)")
 }
 
-// ActionSubject: jede Aktion ist ihr eigenes Guard-Rail-Subjekt — delete
-// und write lassen sich so schärfer regeln als das reine Lesen.
+// ActionSubject: every action is its own guard-rail subject — that way delete
+// and write can be ruled on more sharply than plain reading.
 func (System) ActionSubject(action string, _ json.RawMessage) string {
 	return "sharepoint:" + action
 }
 
-// aktionsParams ist die Vereinigung aller Parameter, die irgendeine Aktion
-// dieses Zielsystems braucht — der Agent schickt ein flaches JSON-Objekt,
-// was darin fehlt, bleibt leer.
+// aktionsParams is the union of all parameters any action of this target
+// system needs — the agent sends a flat JSON object, and whatever is missing
+// from it stays empty.
 type aktionsParams struct {
 	Path    string `json:"path"`
 	To      string `json:"to"`
@@ -88,8 +88,8 @@ type aktionsParams struct {
 	Content string `json:"content"`
 }
 
-// aktion fuehrt EINE Aktion aus. Frueher war jede ein Fall in einem langen
-// switch; jetzt ist sie fuer sich lesbar und die Verteilung eine Tabelle.
+// aktion runs ONE action. Each used to be a case in a long switch; now it is
+// readable on its own and the dispatch is a table.
 type aktion func(ctx context.Context, c *Client, root Root, relPath string, in aktionsParams) (any, error)
 
 var aktionen = map[string]aktion{
@@ -101,13 +101,13 @@ var aktionen = map[string]aktion{
 		out := map[string]any{"root": root.Name, "path": relPath, "entries": entries}
 		if truncated {
 			out["truncated"] = true
-			out["hint"] = "Mehr als 200 Einträge — mit path in Unterordner eingrenzen."
+			out["hint"] = "More than 200 entries — narrow this down to subfolders with path."
 		}
 		return out, nil
 	},
 	"read": func(ctx context.Context, c *Client, root Root, relPath string, in aktionsParams) (any, error) {
 		if relPath == "" {
-			return nil, fmt.Errorf("path fehlt")
+			return nil, fmt.Errorf("path missing")
 		}
 		body, err := c.Download(ctx, root, relPath)
 		if err != nil {
@@ -119,13 +119,13 @@ var aktionen = map[string]aktion{
 			return nil, err
 		}
 		if int64(len(data)) > readMaxBytes || !utf8.Valid(data) {
-			return nil, fmt.Errorf("datei %q ist zu gross oder binaer fuer read — mit download in die Sandbox holen", relPath)
+			return nil, fmt.Errorf("file %q is too large or binary for read — fetch it into the sandbox with download", relPath)
 		}
 		return map[string]any{"path": relPath, "size": len(data), "content": string(data)}, nil
 	},
 	"write": func(ctx context.Context, c *Client, root Root, relPath string, in aktionsParams) (any, error) {
 		if relPath == "" {
-			return nil, fmt.Errorf("path fehlt")
+			return nil, fmt.Errorf("path missing")
 		}
 		return c.Upload(ctx, root, relPath, strings.NewReader(in.Content))
 	},
@@ -136,7 +136,7 @@ var aktionen = map[string]aktion{
 		}
 		f, err := os.Open(local)
 		if err != nil {
-			return nil, fmt.Errorf("lokale datei: %w", err)
+			return nil, fmt.Errorf("local file: %w", err)
 		}
 		defer f.Close()
 		st, err := f.Stat()
@@ -144,10 +144,10 @@ var aktionen = map[string]aktion{
 			return nil, err
 		}
 		if st.IsDir() {
-			return nil, fmt.Errorf("%q ist ein Verzeichnis — upload überträgt einzelne Dateien", in.From)
+			return nil, fmt.Errorf("%q is a directory — upload transfers single files", in.From)
 		}
 		if st.Size() > uploadMaxBytes() {
-			return nil, fmt.Errorf("datei %q ist zu gross (%d Bytes, Limit %d)", in.From, st.Size(), uploadMaxBytes())
+			return nil, fmt.Errorf("file %q is too large (%d bytes, limit %d)", in.From, st.Size(), uploadMaxBytes())
 		}
 		to, err := cleanRemotePath(in.To)
 		if err != nil {
@@ -156,8 +156,8 @@ var aktionen = map[string]aktion{
 		if to == "" {
 			to = filepath.Base(local)
 		}
-		// Vollständig einlesen, damit der PUT eine Content-Length trägt —
-		// Graph mag keine chunked Simple-Uploads. Das Limit ist geprüft.
+		// Read it in fully so that the PUT carries a Content-Length — Graph
+		// does not like chunked simple uploads. The limit is checked.
 		data, err := io.ReadAll(f)
 		if err != nil {
 			return nil, err
@@ -166,7 +166,7 @@ var aktionen = map[string]aktion{
 	},
 	"download": func(ctx context.Context, c *Client, root Root, relPath string, in aktionsParams) (any, error) {
 		if relPath == "" {
-			return nil, fmt.Errorf("path fehlt")
+			return nil, fmt.Errorf("path missing")
 		}
 		dest := in.To
 		if dest == "" {
@@ -196,14 +196,14 @@ var aktionen = map[string]aktion{
 			return nil, err
 		}
 		return map[string]any{"path": local, "size": n,
-			"hint": "Datei liegt lokal — direkt lesen/bearbeiten und danach mit upload zurücklegen."}, nil
+			"hint": "The file is local now — read/edit it directly and put it back with upload afterwards."}, nil
 	},
 	"mkdir": func(ctx context.Context, c *Client, root Root, relPath string, in aktionsParams) (any, error) {
 		return c.Mkdir(ctx, root, relPath)
 	},
 	"delete": func(ctx context.Context, c *Client, root Root, relPath string, in aktionsParams) (any, error) {
 		if relPath == "" {
-			return nil, fmt.Errorf("path fehlt")
+			return nil, fmt.Errorf("path missing")
 		}
 		if err := c.Delete(ctx, root, relPath); err != nil {
 			return nil, err
@@ -215,7 +215,7 @@ var aktionen = map[string]aktion{
 func (System) Execute(ctx context.Context, action string, params json.RawMessage, cred target.Credential) (any, error) {
 	fn, ok := aktionen[action]
 	if !ok {
-		return nil, fmt.Errorf("unbekannte aktion %q", strings.TrimSpace(action))
+		return nil, fmt.Errorf("unknown action %q", strings.TrimSpace(action))
 	}
 	cfg, err := ParseConfig(cred.BaseURL, cred.Token)
 	if err != nil {
@@ -243,24 +243,24 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 	return fn(ctx, c, root, relPath, in)
 }
 
-// localPath löst einen vom Agenten angegebenen Sandbox-Pfad sicher gegen
-// das Arbeitsverzeichnis auf: relativ zum Workdir, kein Ausbruch per ".."
-// oder absolutem Pfad außerhalb.
+// localPath resolves a sandbox path given by the agent safely against the
+// working directory: relative to the workdir, with no breaking out through
+// ".." or an absolute path outside it.
 func localPath(ctx context.Context, p string) (string, error) {
 	workdir := target.Workdir(ctx)
 	if workdir == "" {
-		return "", fmt.Errorf("keine Sandbox (kein Arbeitsverzeichnis im Kontext)")
+		return "", fmt.Errorf("no sandbox (no working directory in the context)")
 	}
 	p = strings.TrimSpace(p)
 	if p == "" {
-		return "", fmt.Errorf("lokaler pfad fehlt")
+		return "", fmt.Errorf("local path missing")
 	}
 	if !filepath.IsAbs(p) {
 		p = filepath.Join(workdir, p)
 	}
 	resolved := filepath.Clean(p)
 	if resolved != workdir && !strings.HasPrefix(resolved, workdir+string(filepath.Separator)) {
-		return "", fmt.Errorf("pfad %q liegt ausserhalb des Sandbox-Arbeitsverzeichnisses", p)
+		return "", fmt.Errorf("path %q lies outside the sandbox working directory", p)
 	}
 	return resolved, nil
 }

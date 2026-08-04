@@ -10,67 +10,67 @@ import (
 	"covey/internal/target"
 )
 
-// System bindet GitLab als Zielsystem-Plugin an die target-Registry:
-// Webhook-Eingang (Token-Prüfung, Idempotenz, Korrelation), die
-// Agent-Aktionen und die Aktions-Doku für den System-Prompt.
+// System binds GitLab in as a target-system plugin to the target registry: the
+// webhook entry (token check, idempotency, correlation), the agent actions and
+// the action documentation for the system prompt.
 type System struct{}
 
 func init() {
 	target.Register(target.Descriptor{
 		Name:        "gitlab",
 		Label:       "GitLab",
-		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues, auch nach Meilenstein), extern gemeldete Bugs als Ticket anlegen (create_issue), den Arbeitszustand im Board führen (set_labels/assign), Quellcode auschecken, Projekt aufsetzen und Bugs am Code verifizieren (checkout + Sandbox-Shell), an Issues angehängte Screenshots/Bilder lesen (download_upload + Vision), eigene Screenshots an einen MR/ein Issue anhängen (upload + comment_mr), Fixes entwickeln — auf Feature-Branch committen (commit), Merge Request an den Vorgesetzten eröffnen (create_merge_request, optional mit QA-Agent als reviewer) und den Review-Loop leben: bei jedem Heartbeat-Lauf offene MRs auf neues Review-Feedback prüfen (list_merge_requests/list_mr_notes/comment_mr), rote CI selbst diagnostizieren (list_pipelines/list_pipeline_jobs/get_job_log) und auf den Merge reagieren. Auch als QA-/Test-Agent nutzbar: fremde MRs, in denen man als Reviewer eingetragen ist, end-to-end testen und Feedback geben (set_reviewer/approve_mr, nur-wenn: gitlab:review). Intake per HEARTBEAT.md (Polling), Auth per API-Token (Secrets gitlab_token + gitlab_url).",
+		Description: "GitLab issues as the working set: find issues (list_projects/list_issues, by milestone too), file externally reported bugs as a ticket (create_issue), maintain the working state on the board (set_labels/assign), check out source code, set the project up and verify bugs against the code (checkout + sandbox shell), read screenshots/images attached to issues (download_upload + vision), attach your own screenshots to an MR/an issue (upload + comment_mr), develop fixes — commit onto a feature branch (commit), open a merge request to your manager (create_merge_request, optionally with a QA agent as reviewer) and live the review loop: on every heartbeat run check open MRs for new review feedback (list_merge_requests/list_mr_notes/comment_mr), diagnose red CI yourself (list_pipelines/list_pipeline_jobs/get_job_log) and react to the merge. Usable as a QA/test agent too: test others' MRs in which you are entered as reviewer end to end and give feedback (set_reviewer/approve_mr, nur-wenn: gitlab:review). Intake through HEARTBEAT.md (polling), auth by API token (the secrets gitlab_token + gitlab_url).",
 		Kind:        "builtin",
 		Category:    target.CategoryCode,
 		System:      System{},
-		SetupDoc: `1. In GitLab einen eigenen Bot-Nutzer anlegen (z. B. covey-bot), den
-   Zielprojekten hinzufügen und als dieser Nutzer ein Access Token mit
-   Scope "api" erzeugen. Rolle: Reporter reicht fürs Lesen/Kommentieren;
-   soll der Agent Fixes pushen und Merge Requests eröffnen (commit /
-   create_merge_request), braucht er Developer.
+		SetupDoc: `1. Create a bot user of its own in GitLab (covey-bot, say), add it to the
+   target projects and, as that user, generate an access token with the
+   scope "api". Role: reporter suffices for reading/commenting; if the agent
+   is to push fixes and open merge requests (commit /
+   create_merge_request), it needs developer.
 
-2. Unter Secrets hinterlegen und dem Agenten zuweisen:
-   gitlab_url   = https://gitlab.example.com   (ohne /api/v4)
-   gitlab_token = das Token aus Schritt 1
+2. Store under Secrets and assign to the agent:
+   gitlab_url   = https://gitlab.example.com   (without /api/v4)
+   gitlab_token = the token from step 1
 
-3. In der ACCESS.md des Agenten freischalten:
+3. Enable in the agent's ACCESS.md:
    - system: gitlab scope: read,write,comment
 
-4. Intake per Heartbeat (GitLab hat keinen Webhook — der Agent nimmt Arbeit
-   ausschließlich per Polling auf) — in der HEARTBEAT.md des Agenten zwei
-   getrennte, je eigen gegatete Einträge:
-   - alle: 15m nur-wenn: gitlab:issues titel: GitLab-Issues sichten aufgabe:
-     Finde offene Issues (list_issues state=opened), bearbeite neue und prüfe
-     per list_notes, ob auf deine Rückfragen geantwortet wurde. Bei Bugs: Code
-     per checkout holen und die Behauptung am Quelltext verifizieren.
-   - alle: 15m nur-wenn: gitlab:mr titel: Merge Requests betreuen aufgabe:
-     Prüfe deine offenen Merge Requests (list_merge_requests state=opened) auf
-     neues Review-Feedback (list_mr_notes), arbeite es ein und reagiere auf
-     Merge/Close.
-   (Der Unterscope nach dem Doppelpunkt spart den teuren Agenten-Lauf gezielt:
-    nur-wenn: gitlab:issues feuert bei IRGENDEINEM offenen Issue im Intake-Scope
-    (für Agenten, die alle offenen Issues triagieren),
-    nur-wenn: gitlab:mr nur, wenn einer deiner offenen MRs unbeantwortetes
-    Review-Feedback hat. So laufen beide Tasks getrennt, ohne dass der eine
-    für die Arbeit des anderen mit-feuert. nur-wenn: gitlab ohne Unterscope
-    prüft beides gemeinsam — nur nötig, wenn du beide Jobs in EINEM Task willst.)
-    WICHTIG — bearbeitet dein Playbook nur DIR ZUGEWIESENE Issues (list_issues
-    assigned=true), nutze nur-wenn: gitlab:issues:assigned. Dann weckt dich nur
-    ein dir zugewiesenes offenes Issue — sonst würde jedes fremde offene Issue
-    im Scope deinen Agenten in jedem Intervall unnötig starten.
-   Optionaler Projekt-Filter (gilt für list_issues/list_projects):
-   COVEY_GITLAB_INTAKE_PROJECTS="gruppe/support"   (leer = alle)
+4. Intake by heartbeat (GitLab has no webhook — the agent takes up work
+   exclusively by polling) — two separate entries in the agent's
+   HEARTBEAT.md, each gated on its own:
+   - alle: 15m nur-wenn: gitlab:issues titel: Review GitLab issues aufgabe:
+     Find open issues (list_issues state=opened), work on the new ones and check
+     with list_notes whether your queries have been answered. For bugs: fetch the
+     code with checkout and verify the claim against the source.
+   - alle: 15m nur-wenn: gitlab:mr titel: Look after merge requests aufgabe:
+     Check your open merge requests (list_merge_requests state=opened) for
+     new review feedback (list_mr_notes), work it in and react to
+     merge/close.
+   (The sub-scope after the colon saves the expensive agent run deliberately:
+    nur-wenn: gitlab:issues fires on ANY open issue in the intake scope
+    (for agents that triage all open issues),
+    nur-wenn: gitlab:mr only when one of your open MRs has unanswered
+    review feedback. That way both tasks run separately without one of them
+    firing for the other's work. nur-wenn: gitlab without a sub-scope
+    checks both together — only needed if you want both jobs in ONE task.)
+    IMPORTANT — if your playbook works only on issues ASSIGNED TO YOU (list_issues
+    assigned=true), use nur-wenn: gitlab:issues:assigned. Then only an open issue
+    assigned to you wakes you — otherwise every open issue of someone else's
+    in the scope would start your agent needlessly in every interval.
+   Optional project filter (applies to list_issues/list_projects):
+   COVEY_GITLAB_INTAKE_PROJECTS="group/support"   (empty = all)
 
-Details: docs/ops-gitlab.md im Repository.`,
+Details: docs/ops-gitlab.md in the repository.`,
 	})
 }
 
 func (System) Name() string { return "gitlab" }
 
-// issueProjectPath leitet den Projektpfad aus der vollen Referenz
-// ("gruppe/support#23") ab — die Issue-API liefert path_with_namespace nicht
-// direkt. Leerer Rückgabewert, wenn keine Referenz vorhanden ist; der
-// Intake-Filter matcht dann nur noch über die numerische Projekt-id.
+// issueProjectPath derives the project path from the full reference
+// ("group/support#23") — the issue API does not return path_with_namespace
+// directly. An empty return value when no reference is present; the intake
+// filter then only matches through the numeric project id.
 func issueProjectPath(i Issue) string {
 	if idx := strings.LastIndex(i.References.Full, "#"); idx > 0 {
 		return i.References.Full[:idx]
@@ -78,8 +78,8 @@ func issueProjectPath(i Issue) string {
 	return ""
 }
 
-// mrProjectPath leitet den Projektpfad aus der vollen MR-Referenz
-// ("gruppe/projekt!9") ab — analog issueProjectPath, aber getrennt am "!".
+// mrProjectPath derives the project path from the full MR reference
+// ("group/project!9") — as issueProjectPath, but split at the "!".
 func mrProjectPath(m MergeRequest) string {
 	if idx := strings.LastIndex(m.References.Full, "!"); idx > 0 {
 		return m.References.Full[:idx]
@@ -87,59 +87,59 @@ func mrProjectPath(m MergeRequest) string {
 	return ""
 }
 
-// HasWork (target.WorkChecker): billiger Vorab-Check der Control Plane für
-// nur-wenn:-Heartbeats. Ohne Webhook nimmt GitLab rein per Polling auf; dieser
-// Check spart den (teuren) Agenten-Wake, wenn es gerade nichts zu tun gibt.
-// Arbeit liegt vor, wenn EINES gilt:
+// HasWork (target.WorkChecker): the control plane's cheap pre-check for
+// nur-wenn: heartbeats. Without a webhook GitLab takes up work purely by
+// polling; this check saves the (expensive) agent wake-up when there is nothing
+// to do at the moment. Work is present when ONE of the following holds:
 //
-//   - Es gibt ein offenes Issue im Intake-Scope (globales GET /issues, danach
-//     COVEY_GITLAB_INTAKE_PROJECTS-Filter) — was der Agent nicht sähe, weckt
-//     ihn auch nicht —, auf das der Bot noch nicht als Letzter geantwortet hat.
-//   - Der Bot hat einen offenen, selbst eröffneten Merge Request mit
-//     unbeantwortetem Review-Feedback (der letzte Nicht-System-Kommentar stammt
-//     von jemand anderem als dem Bot). Das trägt den Review-Loop ohne Webhook.
+//   - There is an open issue in the intake scope (the global GET /issues,
+//     followed by the COVEY_GITLAB_INTAKE_PROJECTS filter) — what the agent
+//     would not see does not wake it either — on which the bot has not yet
+//     answered last.
+//   - The bot has an open merge request it opened itself with unanswered
+//     review feedback (the last non-system comment comes from someone other
+//     than the bot). That carries the review loop without a webhook.
 //
-// Der Merge-Abschluss braucht keinen eigenen Zweig: ist das zugehörige Issue
-// noch offen, weckt es über den Issue-Zweig; ist es beim Merge automatisch
-// geschlossen worden, gibt es nichts mehr zu tun. Maßgeblich ist überall die
-// **Flanke** (hat sich seit dem letzten Zug des Bots etwas getan?), nicht der
-// Pegel (steht irgendwo etwas offen?) — sonst weckt derselbe unerledigte Vorgang
-// den Agenten in jedem Intervall erneut.
+// The completion of a merge needs no branch of its own: if the associated issue
+// is still open, it wakes through the issue branch; if it was closed
+// automatically on the merge, there is nothing left to do. What counts
+// everywhere is the **edge** (has something happened since the bot's last
+// move?), not the level (is anything open anywhere?) — otherwise the same
+// unfinished item wakes the agent afresh in every interval.
 func (System) HasWork(ctx context.Context, cred target.Credential) (bool, error) {
 	has, _, err := System{}.HasWorkSigned(ctx, cred, "")
 	return has, err
 }
 
-// HasWorkKind (target.KindWorkChecker) gatet eine einzelne Arbeits-Art, damit
-// mehrere Heartbeats (nur-wenn: gitlab:issues, :mr, :review) getrennt feuern:
+// HasWorkKind (target.KindWorkChecker) gates a single kind of work so that
+// several heartbeats (nur-wenn: gitlab:issues, :mr, :review) fire separately:
 //
-//   - "issues"/"issue"  → wartet IRGENDEIN offenes Issue im Intake-Scope auf
-//     eine Reaktion (für Agenten, die alle offenen Issues triagieren)?
-//   - "issues:assigned"/"assigned" → wartet ein offenes Issue, das dem Bot-
-//     Nutzer selbst ZUGEWIESEN ist (scope=assigned_to_me)? Genau das braucht ein
-//     Agent, dessen Playbook nur seine eigenen Issues bearbeitet (list_issues
-//     assigned=true) — sonst weckt ihn jedes fremde offene Issue im Scope.
-//     „Wartet" heißt in beiden Fällen: der Bot hat dort noch nicht als Letzter
-//     kommentiert (siehe issueWorkPending).
-//   - "mr"/"mrs"        → wartet einer der SELBST eröffneten MRs des Bots auf
-//     Antwort (Autoren-Sicht, der Entwickler-Review-Loop)?
-//   - "review"/"reviews" → wartet einer der MRs, in denen der Bot als REVIEWER
-//     eingetragen ist, auf sein Review (QA-/Test-Sicht)?
-//   - sonst             → beides von HasWork, fail-open bei unbekanntem Scope.
+//   - "issues"/"issue"  → is ANY open issue in the intake scope waiting for a
+//     reaction (for agents that triage all open issues)?
+//   - "issues:assigned"/"assigned" → is an open issue waiting that is ASSIGNED
+//     to the bot user itself (scope=assigned_to_me)? Exactly that is what an
+//     agent needs whose playbook only works on its own issues (list_issues
+//     assigned=true) — otherwise every open issue of someone else's in the
+//     scope wakes it. "Waiting" means in both cases: the bot has not yet
+//     commented there last (see issueWorkPending).
+//   - "mr"/"mrs"        → is one of the MRs the bot opened ITSELF waiting for
+//     an answer (the author's view, the developer review loop)?
+//   - "review"/"reviews" → is one of the MRs in which the bot is entered as
+//     REVIEWER waiting for its review (the QA/test view)?
+//   - otherwise         → both of HasWork, fail-open on an unknown scope.
 func (System) HasWorkKind(ctx context.Context, cred target.Credential, kind string) (bool, error) {
 	has, _, err := System{}.HasWorkSigned(ctx, cred, kind)
 	return has, err
 }
 
-// HasWorkSigned (target.SignedWorkChecker) ist die eigentliche Prüfung: sie
-// liefert neben dem Ja/Nein die Signatur der wartenden Vorgänge, damit die
-// Control Plane nicht zweimal auf denselben Stand weckt. Ein Agent darf einen
-// Lauf dadurch schweigend beenden — die Rückmeldung des QA-Kollegen war eine
-// Freigabe, es gibt nichts zu tun — ohne im nächsten Intervall erneut geweckt
-// zu werden. Kommt dagegen ein neuer Beitrag oder ein Push dazu, ändert sich
-// die Signatur und der Agent wacht auf. Ob eine Rückmeldung Arbeit bedeutet
-// (gemeldete Mängel) oder nur Information (Freigabe), entscheidet damit der
-// Agent und nicht das Gate.
+// HasWorkSigned (target.SignedWorkChecker) is the actual check: besides the
+// yes/no it returns the signature of the waiting items so that the control
+// plane does not wake twice on the same state. An agent may thereby end a run
+// silently — the QA colleague's feedback was an approval, there is nothing to
+// do — without being woken again in the next interval. If, by contrast, a new
+// contribution or a push comes along, the signature changes and the agent wakes
+// up. Whether a piece of feedback means work (reported defects) or only
+// information (an approval) is thus decided by the agent and not by the gate.
 func (System) HasWorkSigned(ctx context.Context, cred target.Credential, kind string) (bool, string, error) {
 	gc := NewClient(cred.BaseURL, cred.Token)
 	var (
@@ -156,7 +156,7 @@ func (System) HasWorkSigned(ctx context.Context, cred target.Credential, kind st
 	case "review", "reviews":
 		waiting, err = mrReviewAssignedPending(ctx, gc)
 	default:
-		// Ohne Unterscope zählt beides — Issues UND der eigene Review-Loop.
+		// Without a sub-scope both count — issues AND one's own review loop.
 		waiting, err = issueWorkPending(ctx, gc, false)
 		if err == nil {
 			var mrs []string
@@ -171,31 +171,31 @@ func (System) HasWorkSigned(ctx context.Context, cred target.Credential, kind st
 	return len(waiting) > 0, workSig(waiting), nil
 }
 
-// issueMaxNotesChecks begrenzt die Kommentar-Prüfung von issueWorkPending: der
-// Check läuft in jedem Heartbeat-Intervall und darf nicht mit der Zahl offener
-// Issues davonlaufen. Wer mehr offene Issues hat als das, wird geweckt — die
-// Zuordnung „was davon ist neu" trifft dann der Agent selbst.
+// issueMaxNotesChecks caps the comment check of issueWorkPending: the check
+// runs in every heartbeat interval and must not run away with the number of
+// open issues. Whoever has more open issues than that gets woken — the call
+// "which of them is new" is then made by the agent itself.
 const issueMaxNotesChecks = 30
 
-// issueWorkPending: wartet mindestens ein offenes Issue im Intake-Scope auf den
-// Agenten? Globales GET /issues, danach COVEY_GITLAB_INTAKE_PROJECTS-Filter —
-// was der Agent per list_issues nicht sähe, weckt ihn auch nicht.
-// assignedOnly=true zählt nur die dem Bot-Nutzer zugewiesenen Issues
-// (scope=assigned_to_me) — passend zu einem Playbook, das ausschließlich
-// zugewiesene Issues bearbeitet; sonst würde jedes fremde offene Issue im Scope
-// den Agenten wecken.
+// issueWorkPending: is at least one open issue in the intake scope waiting for
+// the agent? The global GET /issues, followed by the
+// COVEY_GITLAB_INTAKE_PROJECTS filter — what the agent would not see through
+// list_issues does not wake it either. assignedOnly=true counts only the issues
+// assigned to the bot user (scope=assigned_to_me) — fitting for a playbook that
+// works exclusively on assigned issues; otherwise every open issue of someone
+// else's in the scope would wake the agent.
 //
-// Entscheidend ist die Flanke, nicht der Pegel: Ein offenes Issue ist Arbeit,
-// solange der letzte Nicht-System-Kommentar NICHT vom Bot stammt (oder es noch
-// gar keinen gibt — dann steht die Erst-Triage aus). Hat der Bot zuletzt
-// geschrieben, ruht das Issue, bis jemand antwortet. Ohne diese Kante bliebe ein
-// dauerhaft zugewiesenes Issue „ewig Arbeit" und der Heartbeat weckte den
-// Agenten in jedem Intervall neu auf dieselbe, längst erledigte Sache — dieselbe
-// Logik trägt bereits mrReviewPending/mrReviewAssignedPending.
+// What is decisive is the edge, not the level: an open issue is work as long as
+// the last non-system comment does NOT come from the bot (or there is none at
+// all yet — then the first triage is outstanding). If the bot wrote last, the
+// issue rests until someone answers. Without that edge a permanently assigned
+// issue would remain "work for ever" and the heartbeat would wake the agent
+// afresh in every interval on the same, long-settled matter — the same logic
+// already carries mrReviewPending/mrReviewAssignedPending.
 //
-// Der Vertrag daraus: **Ein Agent, der an einem Issue gearbeitet hat, muss dort
-// kommentieren.** Ein stiller Lauf gilt als „noch nicht bearbeitet" und weckt
-// erneut. Das Playbook „Issue-Triage" hält das so.
+// The contract that follows: **an agent that has worked on an issue must
+// comment there.** A silent run counts as "not yet worked on" and wakes again.
+// The playbook "issue triage" holds it that way.
 func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) ([]string, error) {
 	issues, err := gc.ListIssues(ctx, 0, "opened", "", "", "", assignedOnly)
 	if err != nil {
@@ -211,9 +211,9 @@ func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) ([]str
 		return nil, nil
 	}
 	if len(inScope) > issueMaxNotesChecks {
-		// Zu viele offene Issues für die Kommentar-Prüfung: wecken, ohne sie
-		// einzeln anzusehen. Die Signatur trägt dann nur die Anzahl — sie
-		// ändert sich, sobald ein Issue dazukommt oder wegfällt.
+		// Too many open issues for the comment check: wake without looking at
+		// them one by one. The signature then carries only the count — it
+		// changes as soon as an issue comes along or drops out.
 		return []string{fmt.Sprintf("issues:many@%d", len(inScope))}, nil
 	}
 	me, err := gc.CurrentUser(ctx)
@@ -227,18 +227,18 @@ func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) ([]str
 			return nil, err
 		}
 		if lastHumanNoteIsMine(notes, me.Username) {
-			continue // schon beantwortet — ruht, bis jemand darauf antwortet
+			continue // already answered — rests until someone replies to it
 		}
 		waiting = append(waiting, threadSig("issue", i.ProjectID, i.IID, notes))
 	}
 	return waiting, nil
 }
 
-// threadSig beschreibt einen wartenden Vorgang so, dass sich die Beschreibung
-// genau dann ändert, wenn dort etwas Neues passiert ist: Projekt, Nummer und
-// die höchste Note-ID des Threads. GitLab vergibt Note-IDs monoton und
-// vermerkt auch Pushes als System-Note — neue Commits ändern die Signatur
-// also mit, ohne dass es einen zusätzlichen Request kostet.
+// threadSig describes a waiting item in such a way that the description changes
+// exactly when something new has happened there: the project, the number and
+// the highest note id of the thread. GitLab hands out note ids monotonically
+// and records pushes as a system note too — new commits therefore change the
+// signature along with them without costing an additional request.
 func threadSig(kind string, projectID, iid int, notes []Note) string {
 	last := 0
 	for _, n := range notes {
@@ -249,9 +249,9 @@ func threadSig(kind string, projectID, iid int, notes []Note) string {
 	return fmt.Sprintf("%s%d!%d@%d", kind, projectID, iid, last)
 }
 
-// workSig fasst die wartenden Vorgänge zu einer stabilen Signatur zusammen.
-// Sortiert, weil GitLab nach updated_at liefert — sonst wechselte die Signatur
-// allein durch die Reihenfolge.
+// workSig condenses the waiting items into a stable signature. Sorted, because
+// GitLab returns them by updated_at — otherwise the signature would change
+// through the order alone.
 func workSig(waiting []string) string {
 	if len(waiting) == 0 {
 		return ""
@@ -261,9 +261,9 @@ func workSig(waiting []string) string {
 	return strings.Join(sorted, ",")
 }
 
-// lastHumanNoteIsMine sagt, ob der letzte Nicht-System-Kommentar eines Threads
-// vom Bot selbst stammt. Ohne jeden menschlichen Kommentar ist die Antwort
-// false: ein unkommentierter Thread wartet auf den ersten Zug.
+// lastHumanNoteIsMine says whether a thread's last non-system comment comes
+// from the bot itself. Without any human comment the answer is false: an
+// uncommented thread is waiting for the first move.
 func lastHumanNoteIsMine(notes []Note, me string) bool {
 	for i := len(notes) - 1; i >= 0; i-- {
 		if notes[i].System {
@@ -274,11 +274,11 @@ func lastHumanNoteIsMine(notes []Note, me string) bool {
 	return false
 }
 
-// mrReviewPending prüft, ob einer der offenen, selbst eröffneten Merge Requests
-// des Bots auf eine Antwort wartet: Der letzte menschliche (Nicht-System-)
-// Kommentar im Thread stammt nicht vom Bot. Frische MRs ganz ohne Kommentare
-// (der Bot hat gerade eröffnet, das Review steht noch aus) zählen NICHT als
-// Arbeit — sonst würde jeder offene MR den Agenten in jedem Intervall wecken.
+// mrReviewPending checks whether one of the bot's open, self-opened merge
+// requests is waiting for an answer: the last human (non-system) comment in the
+// thread does not come from the bot. Fresh MRs with no comments at all (the bot
+// has just opened it, the review is still outstanding) do NOT count as work —
+// otherwise every open MR would wake the agent in every interval.
 func mrReviewPending(ctx context.Context, gc *Client) ([]string, error) {
 	mrs, err := gc.ListMyOpenMergeRequests(ctx)
 	if err != nil {
@@ -303,9 +303,9 @@ func mrReviewPending(ctx context.Context, gc *Client) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		// Notes kommen chronologisch (sort=asc); der letzte Nicht-System-
-		// Kommentar entscheidet. Ist er von jemand anderem als dem Bot, wartet
-		// Review-Feedback auf Bearbeitung.
+		// Notes arrive chronologically (sort=asc); the last non-system comment
+		// decides. If it is from someone other than the bot, review feedback is
+		// waiting to be worked on.
 		for i := len(notes) - 1; i >= 0; i-- {
 			if notes[i].System {
 				continue
@@ -313,25 +313,25 @@ func mrReviewPending(ctx context.Context, gc *Client) ([]string, error) {
 			if notes[i].Author.Username != me.Username {
 				waiting = append(waiting, threadSig("mr", m.ProjectID, m.IID, notes))
 			}
-			break // letzter menschlicher Kommentar ist vom Bot → schon beantwortet
+			break // the last human comment is the bot's → already answered
 		}
 	}
 	return waiting, nil
 }
 
-// mrReviewAssignedPending ist das Spiegelbild von mrReviewPending aus der
-// Reviewer-Sicht: Wartet einer der offenen Merge Requests, in denen der Bot als
-// REVIEWER eingetragen ist, auf sein Review? Das trägt den Review-Loop für einen
-// QA-/Test-Agenten ohne Webhook, gegatet über nur-wenn: gitlab:review.
+// mrReviewAssignedPending is the mirror image of mrReviewPending from the
+// reviewer's point of view: is one of the open merge requests in which the bot
+// is entered as REVIEWER waiting for its review? That carries the review loop
+// for a QA/test agent without a webhook, gated through nur-wenn: gitlab:review.
 //
-// Arbeit liegt vor, wenn seit dem letzten eigenen Kommentar ein Mensch
-// geschrieben hat oder der Autor NEUE COMMITS gepusht hat — oder wenn der Bot
-// hier noch gar nichts gesagt hat. Anders als beim Autoren-Loop zählt ein
-// frischer, an mich zum Review übergebener MR (noch ohne Kommentar) SEHR WOHL
-// als Arbeit: genau er wartet auf mein Erst-Review. Hat der Bot zuletzt
-// kommentiert, ruht der MR, bis der Autor mit Code reagiert — eine bloße
-// Textantwort des Autoren-Agenten („danke für das Review") ist kein Anlass für
-// eine neue Review-Runde, sonst schaukeln sich beide Agenten gegenseitig hoch.
+// Work is present when a human has written since one's own last comment or the
+// author has pushed NEW COMMITS — or when the bot has said nothing here at all
+// yet. Unlike in the author loop, a fresh MR handed to me for review (still
+// without a comment) VERY MUCH counts as work: it is precisely that one waiting
+// for my first review. If the bot commented last, the MR rests until the author
+// reacts with code — a mere text answer from the author agent ("thanks for the
+// review") is no occasion for a new review round, otherwise the two agents work
+// each other up.
 func mrReviewAssignedPending(ctx context.Context, gc *Client) ([]string, error) {
 	me, err := gc.CurrentUser(ctx)
 	if err != nil {
@@ -357,8 +357,8 @@ func mrReviewAssignedPending(ctx context.Context, gc *Client) ([]string, error) 
 	return waiting, nil
 }
 
-// ActionSubject: öffentliche Kommentare (internal=false) sind ein eigenes,
-// schärfer regelbares Guard-Rail-Subjekt — analog zammad:reply_external.
+// ActionSubject: public comments (internal=false) are a guard-rail subject of
+// their own that can be ruled more sharply — analogous to zammad:reply_external.
 func (System) ActionSubject(action string, params json.RawMessage) string {
 	if action == "comment" {
 		var p struct {
@@ -373,11 +373,11 @@ func (System) ActionSubject(action string, params json.RawMessage) string {
 	return "gitlab:" + action
 }
 
-// isDuplicateComment ist die Server-Bremse gegen Kommentar-Loops: ist der neue
-// Kommentar-Body identisch zum jüngsten EIGENEN (nicht-System-)Kommentar des
-// Bots, wird er nicht erneut gepostet. Fail-open: geht der Wer-bin-ich-Check
-// schief, wird normal kommentiert (kein legitimer Kommentar soll blockiert
-// werden). Nur die Wiederholung des eigenen letzten Kommentars wird unterdrückt.
+// isDuplicateComment is the server-side brake against comment loops: if the new
+// comment body is identical to the bot's most recent OWN (non-system) comment,
+// it is not posted again. Fail-open: if the who-am-I check goes wrong, the
+// comment is posted as usual (no legitimate comment should be blocked). Only
+// the repetition of one's own last comment is suppressed.
 func isDuplicateComment(ctx context.Context, gc *Client, notes []Note, body string) bool {
 	me, err := gc.CurrentUser(ctx)
 	if err != nil || me.Username == "" {
@@ -388,17 +388,17 @@ func isDuplicateComment(ctx context.Context, gc *Client, notes []Note, body stri
 		if n.System || n.Author.Username != me.Username {
 			continue
 		}
-		if n.CreatedAt >= lastAt { // ISO8601 ist lexikografisch sortierbar
+		if n.CreatedAt >= lastAt { // ISO8601 sorts lexicographically
 			lastAt, lastOwn = n.CreatedAt, n.Body
 		}
 	}
 	return lastOwn != "" && strings.TrimSpace(lastOwn) == strings.TrimSpace(body)
 }
 
-// aktionsParams ist die Vereinigung aller Parameter, die irgendeine
-// GitLab-Aktion braucht. Ein gemeinsames Struct statt eines je Aktion: Der
-// Agent schickt ein flaches JSON-Objekt, und was darin fehlt, bleibt schlicht
-// leer — das ist die Schnittstelle zum Modell, nicht unsere Wunschform.
+// aktionsParams is the union of all parameters any GitLab action needs. One
+// shared struct instead of one per action: the agent sends a flat JSON object,
+// and whatever is missing from it simply stays empty — that is the interface to
+// the model, not the shape we would wish for.
 type aktionsParams struct {
 	ProjectID  int    `json:"project_id"`
 	IssueIID   int    `json:"issue_iid"`
@@ -414,9 +414,9 @@ type aktionsParams struct {
 	Milestone  string `json:"milestone"`
 	Ref        string `json:"ref"`
 	Assigned   bool   `json:"assigned"`
-	// set_labels arbeitet additiv/subtraktiv statt die ganze Liste zu
-	// überschreiben — sonst nimmt jeder Zustandswechsel die fachlichen
-	// Labels mit.
+	// set_labels works additively/subtractively instead of overwriting the
+	// whole list — otherwise every state change takes the subject-matter labels
+	// along with it.
 	AddLabels    []string `json:"add_labels"`
 	RemoveLabels []string `json:"remove_labels"`
 	Path         string   `json:"path"`
@@ -427,7 +427,7 @@ type aktionsParams struct {
 	Since        string   `json:"since"`
 	Target       string   `json:"target_branch"`
 	Username     string   `json:"username"`
-	// Entwickler-Workflow: commit + create_merge_request.
+	// The developer workflow: commit + create_merge_request.
 	Branch       string   `json:"branch"`
 	StartBranch  string   `json:"start_branch"`
 	Message      string   `json:"message"`
@@ -441,14 +441,14 @@ type aktionsParams struct {
 	Reviewer     string   `json:"reviewer"`
 }
 
-// aktion fuehrt EINE GitLab-Aktion aus. Frueher lag jede davon als Fall in
-// einem 300-Zeilen-switch; eine Aktion dazuzunehmen hiess, diese Funktion
-// anzufassen. Jetzt ist jede fuer sich lesbar und die Verteilung eine Tabelle.
+// aktion carries out ONE GitLab action. Formerly each of them lay as a case in
+// a 300-line switch; taking on one more action meant touching that function.
+// Now each is readable on its own and the dispatch is a table.
 type aktion func(ctx context.Context, gc *Client, in aktionsParams) (any, error)
 
-// aktionen ist die Verteilung: Name aus dem Daemon-Protokoll auf Ausfuehrung.
-// Wer eine Aktion sucht, liest hier einen Namen und springt an eine Stelle,
-// statt sich durch die Nachbarn zu scrollen.
+// aktionen is the dispatch: a name from the daemon protocol onto its execution.
+// Whoever looks for an action reads one name here and jumps to one place
+// instead of scrolling through its neighbours.
 var aktionen = map[string]aktion{
 	"list_projects": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		ps, err := gc.ListProjects(ctx)
@@ -481,31 +481,31 @@ var aktionen = map[string]aktion{
 	},
 	"download_upload": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || strings.TrimSpace(in.URL) == "" {
-			return nil, fmt.Errorf("project_id oder url fehlt")
+			return nil, fmt.Errorf("project_id or url missing")
 		}
 		return DownloadUploadToSandbox(ctx, gc, in.ProjectID, in.URL, target.Workdir(ctx))
 	},
 	"upload": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || strings.TrimSpace(in.Path) == "" {
-			return nil, fmt.Errorf("project_id oder path fehlt")
+			return nil, fmt.Errorf("project_id or path missing")
 		}
 		return UploadFromSandbox(ctx, gc, in.ProjectID, in.Path, target.Workdir(ctx))
 	},
 	"checkout": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
-			return nil, fmt.Errorf("project_id fehlt")
+			return nil, fmt.Errorf("project_id missing")
 		}
 		return Checkout(ctx, gc, in.ProjectID, in.Ref, in.Path, target.Workdir(ctx))
 	},
 	"list_tree": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
-			return nil, fmt.Errorf("project_id fehlt")
+			return nil, fmt.Errorf("project_id missing")
 		}
 		return gc.ListTree(ctx, in.ProjectID, in.Path, in.Ref, in.Recursive)
 	},
 	"read_file": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.FilePath == "" {
-			return nil, fmt.Errorf("project_id oder file_path fehlt")
+			return nil, fmt.Errorf("project_id or file_path missing")
 		}
 		content, truncated, err := gc.ReadFile(ctx, in.ProjectID, in.FilePath, in.Ref)
 		if err != nil {
@@ -516,47 +516,47 @@ var aktionen = map[string]aktion{
 	},
 	"list_commits": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
-			return nil, fmt.Errorf("project_id fehlt")
+			return nil, fmt.Errorf("project_id missing")
 		}
 		return gc.ListCommits(ctx, in.ProjectID, in.Ref, in.Path, in.Since)
 	},
 	"get_commit": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.Sha == "" {
-			return nil, fmt.Errorf("project_id oder sha fehlt")
+			return nil, fmt.Errorf("project_id or sha missing")
 		}
 		return gc.GetCommitDiff(ctx, in.ProjectID, in.Sha)
 	},
 	"list_merge_requests": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
-			return nil, fmt.Errorf("project_id fehlt")
+			return nil, fmt.Errorf("project_id missing")
 		}
 		return gc.ListMergeRequests(ctx, in.ProjectID, in.State, in.Search, in.Target)
 	},
 	"get_merge_request": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.MRIID == 0 {
-			return nil, fmt.Errorf("project_id oder mr_iid fehlt")
+			return nil, fmt.Errorf("project_id or mr_iid missing")
 		}
 		return gc.GetMergeRequest(ctx, in.ProjectID, in.MRIID)
 	},
 	"list_mr_notes": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.MRIID == 0 {
-			return nil, fmt.Errorf("project_id oder mr_iid fehlt")
+			return nil, fmt.Errorf("project_id or mr_iid missing")
 		}
 		return gc.ListMRNotes(ctx, in.ProjectID, in.MRIID)
 	},
 	"comment_mr": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.MRIID == 0 || strings.TrimSpace(in.Body) == "" {
-			return nil, fmt.Errorf("project_id, mr_iid oder body fehlt")
+			return nil, fmt.Errorf("project_id, mr_iid or body missing")
 		}
 		if notes, err := gc.ListMRNotes(ctx, in.ProjectID, in.MRIID); err == nil && isDuplicateComment(ctx, gc, notes, in.Body) {
 			return map[string]any{"skipped": "duplicate",
-				"reason": "identisch zum letzten eigenen Kommentar — nicht erneut gepostet"}, nil
+				"reason": "identical to your own last comment — not posted again"}, nil
 		}
 		return gc.CommentMR(ctx, in.ProjectID, in.MRIID, in.Body)
 	},
 	"set_reviewer": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.MRIID == 0 {
-			return nil, fmt.Errorf("project_id oder mr_iid fehlt")
+			return nil, fmt.Errorf("project_id or mr_iid missing")
 		}
 		u, err := gc.LookupUser(ctx, in.Username)
 		if err != nil {
@@ -569,7 +569,7 @@ var aktionen = map[string]aktion{
 	},
 	"approve_mr": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.MRIID == 0 {
-			return nil, fmt.Errorf("project_id oder mr_iid fehlt")
+			return nil, fmt.Errorf("project_id or mr_iid missing")
 		}
 		if err := gc.ApproveMR(ctx, in.ProjectID, in.MRIID); err != nil {
 			return nil, err
@@ -578,25 +578,25 @@ var aktionen = map[string]aktion{
 	},
 	"list_pipelines": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
-			return nil, fmt.Errorf("project_id fehlt")
+			return nil, fmt.Errorf("project_id missing")
 		}
 		return gc.ListPipelines(ctx, in.ProjectID, in.Ref)
 	},
 	"list_pipeline_jobs": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.PipelineID == 0 {
-			return nil, fmt.Errorf("project_id oder pipeline_id fehlt")
+			return nil, fmt.Errorf("project_id or pipeline_id missing")
 		}
 		return gc.ListPipelineJobs(ctx, in.ProjectID, in.PipelineID)
 	},
 	"retry_pipeline": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.PipelineID == 0 {
-			return nil, fmt.Errorf("project_id oder pipeline_id fehlt")
+			return nil, fmt.Errorf("project_id or pipeline_id missing")
 		}
 		return gc.RetryPipeline(ctx, in.ProjectID, in.PipelineID)
 	},
 	"get_job_log": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.JobID == 0 {
-			return nil, fmt.Errorf("project_id oder job_id fehlt")
+			return nil, fmt.Errorf("project_id or job_id missing")
 		}
 		logText, truncated, err := gc.GetJobLog(ctx, in.ProjectID, in.JobID)
 		if err != nil {
@@ -606,20 +606,20 @@ var aktionen = map[string]aktion{
 	},
 	"list_branches": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
-			return nil, fmt.Errorf("project_id fehlt")
+			return nil, fmt.Errorf("project_id missing")
 		}
 		return gc.ListBranches(ctx, in.ProjectID, in.Search)
 	},
 	"commit": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
-			return nil, fmt.Errorf("project_id fehlt")
+			return nil, fmt.Errorf("project_id missing")
 		}
 		return CommitFromCheckout(ctx, gc, in.ProjectID, in.Branch, in.StartBranch,
 			in.Message, in.CheckoutPath, in.Files, in.Deleted, target.Workdir(ctx))
 	},
 	"create_merge_request": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || strings.TrimSpace(in.SourceBranch) == "" || strings.TrimSpace(in.Title) == "" {
-			return nil, fmt.Errorf("project_id, source_branch oder title fehlt")
+			return nil, fmt.Errorf("project_id, source_branch or title missing")
 		}
 		targetBranch := strings.TrimSpace(in.Target)
 		if targetBranch == "" {
@@ -630,14 +630,13 @@ var aktionen = map[string]aktion{
 			targetBranch = proj.DefaultBranch
 		}
 		if in.SourceBranch == targetBranch {
-			return nil, fmt.Errorf("source_branch und target_branch sind identisch (%q)", targetBranch)
+			return nil, fmt.Errorf("source_branch and target_branch are identical (%q)", targetBranch)
 		}
-		// Der Assignee muss auflösbar sein — ein MR ohne benannten Menschen als
-		// Empfänger ist hier nicht vorgesehen. Fehlt er, aber ist das
-		// zugrundeliegende Issue benannt, fällt der MR an dessen MELDER: Wer den
-		// Bedarf aufgeschrieben hat, entscheidet über den Merge. Pauschal den
-		// Vorgesetzten einzutragen macht ihn zum Flaschenhals für Arbeit, die er
-		// nie angefragt hat.
+		// The assignee must be resolvable — an MR without a named human as its
+		// recipient is not provided for here. If it is missing but the underlying
+		// issue is named, the MR falls to that issue's REPORTER: whoever wrote the
+		// need down decides on the merge. Entering the manager across the board
+		// makes them the bottleneck for work they never asked for.
 		assignee := strings.TrimSpace(in.Assignee)
 		if assignee == "" && in.IssueIID != 0 {
 			iss, err := gc.GetIssue(ctx, in.ProjectID, in.IssueIID)
@@ -647,15 +646,15 @@ var aktionen = map[string]aktion{
 			assignee = iss.Author.Username
 		}
 		if assignee == "" {
-			return nil, fmt.Errorf("assignee fehlt — trage den GitLab-Username des Issue-Melders ein (ersatzweise deinen Vorgesetzten) oder gib issue_iid mit")
+			return nil, fmt.Errorf("assignee missing — enter the GitLab username of the issue reporter (failing that, your manager) or pass issue_iid along")
 		}
 		u, err := gc.LookupUser(ctx, assignee)
 		if err != nil {
 			return nil, err
 		}
-		// reviewer optional: ist ein QA-/Test-Agent zuständig, trägst du ihn als
-		// Reviewer ein (Assignee bleibt der Vorgesetzte). Ohne reviewer prüft der
-		// Assignee selbst — Reviewer = Assignee wie bisher.
+		// reviewer is optional: if a QA/test agent is responsible, you enter it as
+		// the reviewer (the assignee stays the manager). Without a reviewer the
+		// assignee checks it itself — reviewer = assignee as before.
 		reviewerID := u.ID
 		if r := strings.TrimSpace(in.Reviewer); r != "" && r != assignee {
 			ru, err := gc.LookupUser(ctx, r)
@@ -669,7 +668,7 @@ var aktionen = map[string]aktion{
 	},
 	"create_issue": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || strings.TrimSpace(in.Title) == "" {
-			return nil, fmt.Errorf("project_id oder title fehlt")
+			return nil, fmt.Errorf("project_id or title missing")
 		}
 		assigneeID := 0
 		if a := strings.TrimSpace(in.Assignee); a != "" {
@@ -688,19 +687,19 @@ var aktionen = map[string]aktion{
 		internal := in.Internal == nil || *in.Internal
 		if notes, err := gc.ListNotes(ctx, in.ProjectID, in.IssueIID); err == nil && isDuplicateComment(ctx, gc, notes, in.Body) {
 			return map[string]any{"skipped": "duplicate",
-				"reason": "identisch zum letzten eigenen Kommentar — nicht erneut gepostet"}, nil
+				"reason": "identical to your own last comment — not posted again"}, nil
 		}
 		return gc.Comment(ctx, in.ProjectID, in.IssueIID, in.Body, internal)
 	},
 	"set_state": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.State == "" {
-			return nil, fmt.Errorf("state fehlt")
+			return nil, fmt.Errorf("state missing")
 		}
 		return nil, gc.SetState(ctx, in.ProjectID, in.IssueIID, in.State)
 	},
 	"assign": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.IssueIID == 0 {
-			return nil, fmt.Errorf("project_id oder issue_iid fehlt")
+			return nil, fmt.Errorf("project_id or issue_iid missing")
 		}
 		u, err := gc.LookupUser(ctx, in.Username)
 		if err != nil {
@@ -713,7 +712,7 @@ var aktionen = map[string]aktion{
 	},
 	"set_labels": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.IssueIID == 0 {
-			return nil, fmt.Errorf("project_id oder issue_iid fehlt")
+			return nil, fmt.Errorf("project_id or issue_iid missing")
 		}
 		iss, err := gc.SetLabels(ctx, in.ProjectID, in.IssueIID, in.AddLabels, in.RemoveLabels)
 		if err != nil {
@@ -724,7 +723,7 @@ var aktionen = map[string]aktion{
 	"escalate": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		note := in.Note
 		if note == "" {
-			note = "Eskalation durch Covey-Agent."
+			note = "Escalated by a Covey agent."
 		}
 		return nil, gc.Escalate(ctx, in.ProjectID, in.IssueIID, note)
 	},
@@ -733,7 +732,7 @@ var aktionen = map[string]aktion{
 func (System) Execute(ctx context.Context, action string, params json.RawMessage, cred target.Credential) (any, error) {
 	fn, ok := aktionen[action]
 	if !ok {
-		return nil, fmt.Errorf("unbekannte aktion %q", strings.TrimSpace(action))
+		return nil, fmt.Errorf("unknown action %q", strings.TrimSpace(action))
 	}
 	var in aktionsParams
 	if err := json.Unmarshal(params, &in); err != nil {

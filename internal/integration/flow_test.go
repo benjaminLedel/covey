@@ -16,15 +16,15 @@ import (
 	"covey/internal/guardrails"
 )
 
-// TestBlockedLoopEndToEnd ist die Abnahme-Checkliste aus spec/11 in Code:
-// Wake → Triage (Memory) → Working (gebrokerte Zammad-Aktionen) → Blocked
-// (pending + Korrelations-Key) → Wake-on-correlation (Webhook) → Done (Memory).
+// TestBlockedLoopEndToEnd is the acceptance checklist from spec/11 in code:
+// wake → triage (memory) → working (brokered Zammad actions) → blocked (pending
+// + correlation key) → wake-on-correlation (webhook) → done (memory).
 func TestBlockedLoopEndToEnd(t *testing.T) {
 	s := newStack(t)
 	zammad := newFakeZammad(t)
 	ctx := context.Background()
 
-	// Broker-Secrets: Zammad-Token + URL, AES-GCM-verschlüsselt in Postgres.
+	// Broker secrets: Zammad token + URL, AES-GCM encrypted in Postgres.
 	if err := s.secrets.Put(ctx, s.orgID, "zammad_token", "zammad-api-token"); err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestBlockedLoopEndToEnd(t *testing.T) {
 
 	agent := s.newSupportAgent("support")
 
-	// Org-Secrets wirken erst durch explizite Zuweisung an den Agenten.
+	// Org secrets only take effect through an explicit assignment to the agent.
 	if err := s.secrets.Assign(ctx, s.orgID, "zammad_token", agent.ID); err != nil {
 		t.Fatal(err)
 	}
@@ -42,19 +42,19 @@ func TestBlockedLoopEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Vorwissen einspeisen, damit die Triage etwas findet.
+	// Feed in prior knowledge so that the triage finds something.
 	if err := s.mem.Ingest(ctx, agent.ID, "Kunde 7 hatte schon einmal ein Login-Problem, Lösung: Passwort-Reset.", nil); err != nil {
 		t.Fatal(err)
 	}
 
-	// Eingehendes Zammad-Ticket via Webhook (Wake-Quelle Event, kein Polling).
+	// Incoming Zammad ticket via webhook (wake source event, no polling).
 	newTicket := []byte(`{"ticket":{"id":42,"number":"20042","title":"Login funktioniert nicht","state":"open"},
 		"article":{"id":1,"sender":"Customer","body":"Ich kann mich nicht einloggen. [mock:action zammad/get_ticket {\"ticket_id\":42}] [mock:action zammad/reply {\"ticket_id\":42,\"body\":\"Welchen Browser nutzen Sie?\",\"internal\":true}] [mock:action zammad/set_state {\"ticket_id\":42,\"state\":\"pending reminder\"}] [mock:block key=zammad:ticket:42 question=Warte auf Kundenantwort] [mock:result Ticket gelöst] [mock:memory Ticket 42: Login-Problem, Browser erfragt]","internal":false}}`)
 	postWebhook(t, s, "support", newTicket)
 
-	// Der Agent wacht auf, arbeitet und parkt die Aufgabe.
+	// The agent wakes up, works and parks the task.
 	var taskID string
-	waitFor(t, "aufgabe blocked", 15*time.Second, func() bool {
+	waitFor(t, "task blocked", 15*time.Second, func() bool {
 		tasks, _ := s.backlog.ListByAgent(ctx, agent.ID, false)
 		for _, task := range tasks {
 			if task.State == backlog.StateBlocked {
@@ -67,42 +67,42 @@ func TestBlockedLoopEndToEnd(t *testing.T) {
 
 	task := mustTask(t, s, taskID)
 	if task.CorrelationKey == nil || *task.CorrelationKey != "zammad:ticket:42" {
-		t.Fatalf("korrelations-key fehlt: %+v", task.CorrelationKey)
+		t.Fatalf("correlation key missing: %+v", task.CorrelationKey)
 	}
 	if task.RuntimeSessionID == nil || *task.RuntimeSessionID == "" {
-		t.Fatalf("runtime_session_id (für --resume) fehlt")
+		t.Fatalf("runtime_session_id (for --resume) missing")
 	}
 	if zammad.replyCount() != 1 {
-		t.Fatalf("genau eine (interne) Rückfrage erwartet, got %d", zammad.replyCount())
+		t.Fatalf("expected exactly one (internal) follow-up question, got %d", zammad.replyCount())
 	}
 	if upd := zammad.lastUpdate(); upd == nil || upd["state"] != "pending reminder" {
-		t.Fatalf("ticket muss auf pending reminder stehen: %+v", upd)
+		t.Fatalf("the ticket must be on pending reminder: %+v", upd)
 	}
-	waitFor(t, "agent schläft nach blocked", 10*time.Second, func() bool {
+	waitFor(t, "agent sleeps after blocked", 10*time.Second, func() bool {
 		return s.agentStatus(agent.ID) == "sleeping"
 	})
 
-	// Idempotenz: derselbe Webhook (Zammad-Retry) darf nichts Neues auslösen.
+	// Idempotence: the same webhook (a Zammad retry) must not trigger anything new.
 	resp := postWebhookRaw(t, s, "support", newTicket)
 	if resp != `{"outcome":"duplicate"}` {
-		t.Fatalf("retry muss dedupliziert werden, got %s", resp)
+		t.Fatalf("a retry must be deduplicated, got %s", resp)
 	}
 
-	// Kundenantwort → Wake-on-correlation → Resume → Done.
+	// Customer reply → wake-on-correlation → resume → done.
 	answer := []byte(`{"ticket":{"id":42,"number":"20042","title":"Login funktioniert nicht","state":"open"},
 		"article":{"id":2,"sender":"Customer","body":"Ich nutze Chrome 126.","internal":false}}`)
 	postWebhook(t, s, "support", answer)
 
-	waitFor(t, "aufgabe done nach korrelation", 15*time.Second, func() bool {
+	waitFor(t, "task done after correlation", 15*time.Second, func() bool {
 		return s.taskState(task.ID) == backlog.StateDone
 	})
 	done := mustTask(t, s, taskID)
 	if done.Result == nil || *done.Result != "Ticket gelöst" {
-		t.Fatalf("ergebnis fehlt: %+v", done.Result)
+		t.Fatalf("result missing: %+v", done.Result)
 	}
 
-	// Wiki-Ingest beim done-Schritt (spec/05): die Erkenntnis landet als eigene
-	// Seite oder wird einer bestehenden angehängt — daher Contains, nicht ==.
+	// Wiki ingest on the done step (spec/05): the insight lands as its own page
+	// or is appended to an existing one — hence Contains, not ==.
 	entries, err := s.mem.Query(ctx, agent.ID, "Login-Problem Ticket", 5)
 	if err != nil {
 		t.Fatal(err)
@@ -114,10 +114,10 @@ func TestBlockedLoopEndToEnd(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("wiki-seite fehlt, got %+v", entries)
+		t.Fatalf("wiki page missing, got %+v", entries)
 	}
 
-	// Recording lückenlos: lifecycle + runtime + action + credential.
+	// A gapless recording: lifecycle + runtime + action + credential.
 	events, err := s.obs.Events(ctx, agent.ID, nil, 0, 500)
 	if err != nil {
 		t.Fatal(err)
@@ -128,23 +128,23 @@ func TestBlockedLoopEndToEnd(t *testing.T) {
 	}
 	for _, want := range []string{"lifecycle", "runtime", "action", "credential"} {
 		if kinds[want] == 0 {
-			t.Fatalf("recording ohne %s-Events: %+v", want, kinds)
+			t.Fatalf("recording without %s events: %+v", want, kinds)
 		}
 	}
 
-	// Kosten sichtbar (aus den cost-Events der Runtime).
+	// Costs are visible (from the runtime's cost events).
 	cost, err := s.obs.CostByAgent(ctx, agent.ID)
 	if err != nil || cost.TotalUSD <= 0 {
-		t.Fatalf("kosten müssen verbucht sein: %+v err=%v", cost, err)
+		t.Fatalf("costs must be booked: %+v err=%v", cost, err)
 	}
 
-	waitFor(t, "agent schläft am ende", 10*time.Second, func() bool {
+	waitFor(t, "agent sleeps at the end", 10*time.Second, func() bool {
 		return s.agentStatus(agent.ID) == "sleeping"
 	})
 }
 
-// TestApprovalGate: externe Antwort ist approval-pflichtig → Aufgabe parkt
-// auf approval:<id>; die menschliche Freigabe weckt sie, die Aktion läuft durch.
+// TestApprovalGate: an external reply requires approval → the task parks on
+// approval:<id>; the human clearance wakes it, the action runs through.
 func TestApprovalGate(t *testing.T) {
 	s := newStack(t)
 	zammad := newFakeZammad(t)
@@ -167,38 +167,38 @@ func TestApprovalGate(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	waitFor(t, "aufgabe blocked auf approval", 15*time.Second, func() bool {
+	waitFor(t, "task blocked on approval", 15*time.Second, func() bool {
 		return s.taskState(task.ID) == backlog.StateBlocked
 	})
 	if zammad.replyCount() != 0 {
-		t.Fatal("vor der Freigabe darf nichts rausgehen (fail-closed)")
+		t.Fatal("nothing may go out before the clearance (fail-closed)")
 	}
 
 	approvals, err := s.obs.ListApprovals(ctx, s.orgID, "pending")
 	if err != nil || len(approvals) != 1 {
-		t.Fatalf("genau ein pending approval erwartet: %v %d", err, len(approvals))
+		t.Fatalf("expected exactly one pending approval: %v %d", err, len(approvals))
 	}
 	if approvals[0].Action != "zammad:reply_external" {
-		t.Fatalf("falsches approval-subjekt: %s", approvals[0].Action)
+		t.Fatalf("wrong approval subject: %s", approvals[0].Action)
 	}
 
-	// Mensch gibt frei → Wake-on-correlation → Aktion läuft, Aufgabe done.
+	// A human clears it → wake-on-correlation → the action runs, the task is done.
 	appr, err := s.obs.DecideApproval(ctx, s.orgID, approvals[0].ID, true, &s.adminID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	s.orch.OnApprovalDecided(ctx, appr)
 
-	waitFor(t, "aufgabe done nach freigabe", 15*time.Second, func() bool {
+	waitFor(t, "task done after clearance", 15*time.Second, func() bool {
 		return s.taskState(task.ID) == backlog.StateDone
 	})
 	if zammad.replyCount() != 1 {
-		t.Fatalf("nach Freigabe genau eine externe Antwort, got %d", zammad.replyCount())
+		t.Fatalf("after the clearance exactly one external reply, got %d", zammad.replyCount())
 	}
 }
 
-// TestGuardrailDeny: deny_action blockt hart, der Agent arbeitet ohne die
-// Aktion weiter, die Auslösung steht im Recording.
+// TestGuardrailDeny: deny_action blocks hard, the agent carries on without the
+// action, the trigger is in the recording.
 func TestGuardrailDeny(t *testing.T) {
 	s := newStack(t)
 	zammad := newFakeZammad(t)
@@ -218,11 +218,11 @@ func TestGuardrailDeny(t *testing.T) {
 		`[mock:action zammad/escalate {"ticket_id":42,"note":"bitte übernehmen"}]
 [mock:result Trotzdem fertig]`, "manual", 3)
 
-	waitFor(t, "aufgabe done trotz deny", 15*time.Second, func() bool {
+	waitFor(t, "task done despite the deny", 15*time.Second, func() bool {
 		return s.taskState(task.ID) == backlog.StateDone
 	})
 	if zammad.replyCount() != 0 {
-		t.Fatal("die verbotene Eskalation darf Zammad nie erreichen")
+		t.Fatal("the forbidden escalation must never reach Zammad")
 	}
 	events, _ := s.obs.Events(ctx, agent.ID, nil, 0, 500)
 	found := false
@@ -232,13 +232,13 @@ func TestGuardrailDeny(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatal("guardrail-Auslösung muss im Recording stehen")
+		t.Fatal("a guardrail trigger must be in the recording")
 	}
 }
 
-// TestAgentSetsStage prüft den Agent-Pfad für Custom-Stages: die Runtime ruft
-// covey/set_stage; die Control Plane legt die Stage automatisch an und verschiebt
-// die Aufgabe dorthin — rein anzeigend, der Lifecycle-State bleibt done.
+// TestAgentSetsStage checks the agent path for custom stages: the runtime calls
+// covey/set_stage; the control plane creates the stage automatically and moves
+// the task there — purely for display, the lifecycle state stays done.
 func TestAgentSetsStage(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -248,28 +248,28 @@ func TestAgentSetsStage(t *testing.T) {
 		`[mock:action covey/set_stage {"stage":"Recherche"}]
 [mock:result fertig]`, "manual", 3)
 
-	waitFor(t, "aufgabe done", 15*time.Second, func() bool {
+	waitFor(t, "task done", 15*time.Second, func() bool {
 		return s.taskState(task.ID) == backlog.StateDone
 	})
 
 	stages, err := s.backlog.ListStages(ctx, agent.ID)
 	if err != nil || len(stages) != 1 || stages[0].Name != "Recherche" {
-		t.Fatalf("der Agent muss die Stage 'Recherche' angelegt haben, got %+v (err=%v)", stages, err)
+		t.Fatalf("the agent must have created the stage 'Recherche', got %+v (err=%v)", stages, err)
 	}
 	got, _ := s.backlog.Get(ctx, task.ID)
 	if got.StageID == nil || *got.StageID != stages[0].ID {
-		t.Fatalf("aufgabe muss in Stage 'Recherche' liegen, got stage_id=%v", got.StageID)
+		t.Fatalf("the task must sit in stage 'Recherche', got stage_id=%v", got.StageID)
 	}
 	if got.State != backlog.StateDone {
-		t.Fatalf("set_stage darf den Lifecycle-State nicht ändern, got %q", got.State)
+		t.Fatalf("set_stage must not change the lifecycle state, got %q", got.State)
 	}
 }
 
-// TestAgentNotesAndStageCleanup prüft proaktive Notizen und Auto-Aufräumen:
-// covey/add_note hängt einen Zwischenstand an die Aufgabe, covey/remember
-// speist Allgemeingültiges sofort ins Gedächtnis, und eine vom Agenten
-// „erfundene" Spalte verschwindet automatisch, sobald sie leert — die vom
-// Weiterschieben geleerte sofort, die letzte beim Archivieren der Aufgabe.
+// TestAgentNotesAndStageCleanup checks proactive notes and auto-cleanup:
+// covey/add_note attaches an interim status to the task, covey/remember feeds
+// generally valid knowledge into memory immediately, and a column "invented" by
+// the agent disappears automatically as soon as it empties — the one emptied by
+// moving on immediately, the last one when the task is archived.
 func TestAgentNotesAndStageCleanup(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -282,20 +282,20 @@ func TestAgentNotesAndStageCleanup(t *testing.T) {
 [mock:action covey/set_stage {"stage":"Warten auf Kunde"}]
 [mock:result fertig]`, "manual", 3)
 
-	waitFor(t, "aufgabe done", 15*time.Second, func() bool {
+	waitFor(t, "task done", 15*time.Second, func() bool {
 		return s.taskState(task.ID) == backlog.StateDone
 	})
 
-	// Aufgabenbezogener Zwischenstand hängt als Notiz an der Aufgabe.
+	// A task-related interim status hangs off the task as a note.
 	notes, err := s.backlog.ListNotes(ctx, task.ID)
 	if err != nil || len(notes) != 1 {
-		t.Fatalf("erwartet genau eine Notiz an der Aufgabe, got %+v (err=%v)", notes, err)
+		t.Fatalf("expected exactly one note on the task, got %+v (err=%v)", notes, err)
 	}
 	if notes[0].Author != "agent" || !strings.Contains(notes[0].Content, "Timeout") {
-		t.Fatalf("unerwartete Notiz: %+v", notes[0])
+		t.Fatalf("unexpected note: %+v", notes[0])
 	}
 
-	// Allgemeingültiges landet sofort im Gedächtnis — nicht erst beim Abschluss.
+	// Generally valid knowledge lands in memory immediately — not only on completion.
 	mems, _ := s.mem.List(ctx, agent.ID, 10)
 	foundMem := false
 	for _, m := range mems {
@@ -304,39 +304,39 @@ func TestAgentNotesAndStageCleanup(t *testing.T) {
 		}
 	}
 	if !foundMem {
-		t.Fatalf("remember muss sofort im Gedächtnis landen, got %+v", mems)
+		t.Fatalf("remember must land in memory immediately, got %+v", mems)
 	}
 
-	// „Recherche" leerte beim Weiterschieben → automatisch abgeräumt;
-	// „Warten auf Kunde" hält die Aufgabe und bleibt stehen.
+	// "Recherche" emptied when moving on → cleared away automatically;
+	// "Warten auf Kunde" holds the task and stays.
 	stages, _ := s.backlog.ListStages(ctx, agent.ID)
 	if len(stages) != 1 || stages[0].Name != "Warten auf Kunde" {
-		t.Fatalf("leere Agenten-Spalte muss abgeräumt sein, got %+v", stages)
+		t.Fatalf("an empty agent column must be cleared away, got %+v", stages)
 	}
 	if stages[0].CreatedBy != "agent" {
-		t.Fatalf("vom Agenten erfundene Spalte muss created_by=agent tragen, got %q", stages[0].CreatedBy)
+		t.Fatalf("a column invented by the agent must carry created_by=agent, got %q", stages[0].CreatedBy)
 	}
 
-	// Menschlich angelegte Spalten überleben das Aufräumen — auch leer.
+	// Columns created by humans survive the cleanup — even when empty.
 	if _, err := s.backlog.CreateStage(ctx, agent.ID, "Manuell", ""); err != nil {
 		t.Fatal(err)
 	}
 
-	// Archivieren leert die letzte Agenten-Spalte → sie verschwindet mit.
+	// Archiving empties the last agent column → it disappears with it.
 	if _, err := s.backlog.ArchiveTerminal(ctx, agent.ID); err != nil {
 		t.Fatal(err)
 	}
 	stages, _ = s.backlog.ListStages(ctx, agent.ID)
 	if len(stages) != 1 || stages[0].Name != "Manuell" {
-		t.Fatalf("nach dem Archivieren darf nur die menschliche Spalte bleiben, got %+v", stages)
+		t.Fatalf("after archiving only the human column may remain, got %+v", stages)
 	}
 }
 
-// TestAgentWiki prüft die Wiki-Tools (spec/05) end-to-end: der Agent legt über
-// covey/wiki_write eine Seite an (Daemon-Round-Trip → brokerWiki → Store), die
-// dann per Slug lesbar und per Vektorsuche auffindbar ist. (Die [[wikilink]]-
-// Extraktion prüft ein Store-Unit-Test — der Mock-Direktiven-Parser kann keine
-// ']' in Action-Params tragen.)
+// TestAgentWiki checks the wiki tools (spec/05) end-to-end: the agent creates a
+// page via covey/wiki_write (daemon round trip → brokerWiki → store), which is
+// then readable by slug and findable by vector search. (The [[wikilink]]
+// extraction is checked by a store unit test — the mock directive parser cannot
+// carry a ']' inside action params.)
 func TestAgentWiki(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -345,20 +345,20 @@ func TestAgentWiki(t *testing.T) {
 	task, _ := s.backlog.Create(ctx, s.orgID, agent.ID, "Wiki-Test",
 		`[mock:action covey/wiki_write {"slug":"kunde-acme","title":"Kunde ACME","body":"Erreichbar nur telefonisch, reagiert nicht auf E-Mail."}]
 [mock:result fertig]`, "manual", 3)
-	waitFor(t, "aufgabe done", 15*time.Second, func() bool {
+	waitFor(t, "task done", 15*time.Second, func() bool {
 		return s.taskState(task.ID) == backlog.StateDone
 	})
 
-	// Per Slug lesbar.
+	// Readable by slug.
 	page, err := s.mem.Read(ctx, agent.ID, "kunde-acme")
 	if err != nil {
-		t.Fatalf("angelegte Wiki-Seite nicht lesbar: %v", err)
+		t.Fatalf("the created wiki page is not readable: %v", err)
 	}
 	if page.Title != "Kunde ACME" || !strings.Contains(page.Content, "telefonisch") {
-		t.Fatalf("Seite unerwartet: %+v", page)
+		t.Fatalf("unexpected page: %+v", page)
 	}
 
-	// Per Vektorsuche auffindbar.
+	// Findable by vector search.
 	hits, err := s.mem.Search(ctx, agent.ID, "ACME telefonisch erreichbar", 5)
 	if err != nil {
 		t.Fatal(err)
@@ -370,33 +370,33 @@ func TestAgentWiki(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("Seite muss per Suche auffindbar sein, got %+v", hits)
+		t.Fatalf("the page must be findable by search, got %+v", hits)
 	}
 
-	// Home-Arbeitskopie (spec/05): eine zweite Aufgabe materialisiert die zuvor
-	// angelegte Seite zu Beginn als ~/wiki/<slug>.md ins persistente Home.
+	// Home working copy (spec/05): a second task materializes the page created
+	// earlier as ~/wiki/<slug>.md into the persistent home at the start.
 	task2, _ := s.backlog.Create(ctx, s.orgID, agent.ID, "Zweite Aufgabe",
 		"[mock:result ok]", "manual", 3)
-	waitFor(t, "zweite aufgabe done", 15*time.Second, func() bool {
+	waitFor(t, "second task done", 15*time.Second, func() bool {
 		return s.taskState(task2.ID) == backlog.StateDone
 	})
 	wikiFile := filepath.Join(s.homeBase, agent.ID.String(), "wiki", "kunde-acme.md")
-	waitFor(t, "wiki-datei materialisiert", 5*time.Second, func() bool {
+	waitFor(t, "wiki file materialized", 5*time.Second, func() bool {
 		_, err := os.Stat(wikiFile)
 		return err == nil
 	})
 	raw, err := os.ReadFile(wikiFile)
 	if err != nil || !strings.Contains(string(raw), "telefonisch") {
-		t.Fatalf("materialisierte Wiki-Datei unerwartet: %q (err=%v)", raw, err)
+		t.Fatalf("unexpected materialized wiki file: %q (err=%v)", raw, err)
 	}
 	if _, err := os.Stat(filepath.Join(s.homeBase, agent.ID.String(), "wiki", "index.md")); err != nil {
-		t.Fatalf("index.md muss materialisiert sein: %v", err)
+		t.Fatalf("index.md must be materialized: %v", err)
 	}
 }
 
-// TestBacklogCleanupAndRetry prüft die Aufräum-Logik: terminale Aufgaben
-// lassen sich archivieren (ausgeblendet, nicht gelöscht), gescheiterte
-// Aufgaben per Retry erneut einplanen — der Agent nimmt sie wirklich wieder auf.
+// TestBacklogCleanupAndRetry checks the cleanup logic: terminal tasks can be
+// archived (hidden, not deleted), failed tasks can be scheduled again via retry
+// — and the agent really does pick them up again.
 func TestBacklogCleanupAndRetry(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -404,18 +404,18 @@ func TestBacklogCleanupAndRetry(t *testing.T) {
 
 	task, _ := s.backlog.Create(ctx, s.orgID, agent.ID, "Scheitert",
 		"[mock:fail kaputt]", "manual", 3)
-	waitFor(t, "aufgabe failed", 15*time.Second, func() bool {
+	waitFor(t, "task failed", 15*time.Second, func() bool {
 		return s.taskState(task.ID) == backlog.StateFailed
 	})
 
-	// Offene Aufgaben sind nicht archivierbar (fail-closed für Aktives).
+	// Open tasks are not archivable (fail-closed for anything active).
 	open, _ := s.backlog.Create(ctx, s.orgID, agent.ID, "Bleibt offen",
 		"[mock:sleep 30s]", "manual", 9)
 	if _, err := s.backlog.Archive(ctx, open.ID); err == nil {
-		t.Fatalf("offene Aufgabe darf nicht archivierbar sein")
+		t.Fatalf("an open task must not be archivable")
 	}
 
-	// Aufräumen archiviert genau die terminale Aufgabe.
+	// The cleanup archives exactly the terminal task.
 	n, err := s.backlog.ArchiveTerminal(ctx, agent.ID)
 	if err != nil || n != 1 {
 		t.Fatalf("cleanup: n=%d err=%v, want 1", n, err)
@@ -423,7 +423,7 @@ func TestBacklogCleanupAndRetry(t *testing.T) {
 	active, _ := s.backlog.ListByAgent(ctx, agent.ID, false)
 	for _, a := range active {
 		if a.ID == task.ID {
-			t.Fatalf("archivierte Aufgabe darf im aktiven Backlog nicht auftauchen")
+			t.Fatalf("an archived task must not show up in the active backlog")
 		}
 	}
 	all, _ := s.backlog.ListByAgent(ctx, agent.ID, true)
@@ -434,24 +434,24 @@ func TestBacklogCleanupAndRetry(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("archivierte Aufgabe muss mit archived_at im Gesamt-Backlog stehen")
+		t.Fatalf("an archived task must appear in the full backlog with archived_at")
 	}
 
-	// Retry holt die gescheiterte (und archivierte) Aufgabe zurück auf open …
+	// Retry brings the failed (and archived) task back to open …
 	re, err := s.backlog.Retry(ctx, task.ID, "test-retry")
 	if err != nil || re.State != backlog.StateOpen || re.Error != nil || re.ArchivedAt != nil {
-		t.Fatalf("retry: %+v err=%v, want state=open ohne error/archived_at", re, err)
+		t.Fatalf("retry: %+v err=%v, want state=open without error/archived_at", re, err)
 	}
-	// … und der Agent arbeitet sie erneut ab (scheitert deterministisch wieder).
-	waitFor(t, "retry erneut verarbeitet", 15*time.Second, func() bool {
+	// … and the agent works it off again (failing deterministically once more).
+	waitFor(t, "retry processed again", 15*time.Second, func() bool {
 		got, _ := s.backlog.Get(ctx, task.ID)
 		return got.State == backlog.StateFailed && got.UpdatedAt.After(re.UpdatedAt)
 	})
 }
 
-// TestStageFollowsState prüft das Auto-Follow der Standard-Spalten: solange
-// eine Aufgabe in Backlog/In Arbeit/Erledigt (oder keiner Spalte) liegt, folgt
-// die Spalte dem Lifecycle-State; eine bewusst gesetzte eigene Spalte gewinnt.
+// TestStageFollowsState checks the auto-follow of the default columns: as long
+// as a task sits in Backlog/In Arbeit/Erledigt (or in no column), the column
+// follows the lifecycle state; a deliberately chosen own column wins.
 func TestStageFollowsState(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -472,22 +472,22 @@ func TestStageFollowsState(t *testing.T) {
 		return "?"
 	}
 
-	// Erfolgreiche Aufgabe: Backlog → (In Arbeit) → Erledigt.
+	// A successful task: Backlog → (In Arbeit) → Erledigt.
 	task, _ := s.backlog.Create(ctx, s.orgID, agent.ID, "Läuft durch", "[mock:result ok]", "manual", 3)
 	if got := stageName(task.StageID); got != "Backlog" {
-		t.Fatalf("neue Aufgabe muss in 'Backlog' starten, got %q", got)
+		t.Fatalf("a new task must start in 'Backlog', got %q", got)
 	}
-	waitFor(t, "aufgabe done", 15*time.Second, func() bool {
+	waitFor(t, "task done", 15*time.Second, func() bool {
 		return s.taskState(task.ID) == backlog.StateDone
 	})
 	done, _ := s.backlog.Get(ctx, task.ID)
 	if got := stageName(done.StageID); got != "Erledigt" {
-		t.Fatalf("erledigte Aufgabe muss in 'Erledigt' liegen, got %q", got)
+		t.Fatalf("a finished task must sit in 'Erledigt', got %q", got)
 	}
 
-	// Eigene Spalte gewinnt: manuell platzierte Aufgaben folgen dem State nicht.
+	// An own column wins: manually placed tasks do not follow the state.
 	fail, _ := s.backlog.Create(ctx, s.orgID, agent.ID, "Scheitert", "[mock:fail kaputt]", "manual", 3)
-	waitFor(t, "aufgabe failed", 15*time.Second, func() bool {
+	waitFor(t, "task failed", 15*time.Second, func() bool {
 		return s.taskState(fail.ID) == backlog.StateFailed
 	})
 	custom, err := s.backlog.EnsureStage(ctx, agent.ID, "Später")
@@ -502,12 +502,12 @@ func TestStageFollowsState(t *testing.T) {
 	}
 	got, _ := s.backlog.Get(ctx, fail.ID)
 	if name := stageName(got.StageID); name != "Später" {
-		t.Fatalf("manuell platzierte Aufgabe darf beim Retry nicht umziehen, got %q", name)
+		t.Fatalf("a manually placed task must not move on retry, got %q", name)
 	}
 }
 
-// TestKillSwitch stoppt einen arbeitenden Agenten sofort; die angefangene
-// Aufgabe geht zurück ins Backlog.
+// TestKillSwitch stops a working agent immediately; the task it had started
+// goes back into the backlog.
 func TestKillSwitch(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -516,42 +516,42 @@ func TestKillSwitch(t *testing.T) {
 	task, _ := s.backlog.Create(ctx, s.orgID, agent.ID, "Lange Aufgabe",
 		"[mock:sleep 30s]", "manual", 3)
 
-	waitFor(t, "agent arbeitet", 15*time.Second, func() bool {
+	waitFor(t, "agent working", 15*time.Second, func() bool {
 		return s.agentStatus(agent.ID) == "working"
 	})
 	if err := s.orch.Kill(ctx, agent.ID); err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, "aufgabe zurück im backlog", 10*time.Second, func() bool {
+	waitFor(t, "task back in the backlog", 10*time.Second, func() bool {
 		return s.taskState(task.ID) == backlog.StateOpen
 	})
-	waitFor(t, "agent steht auf killed", 10*time.Second, func() bool {
+	waitFor(t, "agent is killed", 10*time.Second, func() bool {
 		return s.agentStatus(agent.ID) == "killed"
 	})
 
-	// Ein getöteter Agent wird vom Dispatcher nicht wieder geweckt.
+	// A killed agent is not woken again by the dispatcher.
 	time.Sleep(time.Second)
 	if got := s.agentStatus(agent.ID); got != "killed" {
-		t.Fatalf("killed muss killed bleiben, got %s", got)
+		t.Fatalf("killed must stay killed, got %s", got)
 	}
 }
 
-// TestBudgetGuardrail pausiert den Agenten, sobald die Kosten den Deckel reißen.
+// TestBudgetGuardrail pauses the agent as soon as the costs break the cap.
 func TestBudgetGuardrail(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
 	agent := s.newSupportAgent("support")
-	// Mock-Runtime meldet 0.0123 USD pro Lauf; Deckel darunter.
+	// The mock runtime reports 0.0123 USD per run; the cap is below that.
 	if err := s.registry.SetBudget(ctx, agent.ID, 0.01); err != nil {
 		t.Fatal(err)
 	}
 
 	task, _ := s.backlog.Create(ctx, s.orgID, agent.ID, "Teuer", "", "manual", 3)
 
-	waitFor(t, "agent wegen budget pausiert", 15*time.Second, func() bool {
+	waitFor(t, "agent paused because of the budget", 15*time.Second, func() bool {
 		return s.agentStatus(agent.ID) == "killed"
 	})
-	waitFor(t, "aufgabe wieder offen", 10*time.Second, func() bool {
+	waitFor(t, "task open again", 10*time.Second, func() bool {
 		return s.taskState(task.ID) == backlog.StateOpen
 	})
 	events, _ := s.obs.Events(ctx, agent.ID, nil, 0, 500)
@@ -562,11 +562,11 @@ func TestBudgetGuardrail(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatal("budget-Auslösung muss im Recording stehen")
+		t.Fatal("a budget trigger must be in the recording")
 	}
 }
 
-// TestFleetKill: der flottenweite Notaus verhindert jeden Dispatch.
+// TestFleetKill: the fleet-wide emergency stop prevents every dispatch.
 func TestFleetKill(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -579,23 +579,23 @@ func TestFleetKill(t *testing.T) {
 
 	time.Sleep(1500 * time.Millisecond)
 	if got := s.agentStatus(agent.ID); got != "sleeping" {
-		t.Fatalf("bei fleet-kill darf nichts anlaufen, got %s", got)
+		t.Fatalf("with a fleet kill nothing may start up, got %s", got)
 	}
 
-	// Notaus lösen → Arbeit läuft an.
+	// Release the emergency stop → the work starts.
 	s.registry.SetFleetKilled(ctx, s.orgID, false)
-	waitFor(t, "arbeit läuft nach resume an", 15*time.Second, func() bool {
+	waitFor(t, "work starts after resume", 15*time.Second, func() bool {
 		tasks, _ := s.backlog.ListByAgent(ctx, agent.ID, false)
 		return len(tasks) == 1 && tasks[0].State == backlog.StateDone
 	})
 }
 
-// --- Hilfen ---
+// --- Helpers ---
 
 func postWebhook(t *testing.T, s *stack, slug string, body []byte) {
 	t.Helper()
 	if got := postWebhookRaw(t, s, slug, body); got == "" {
-		t.Fatal("webhook ohne antwort")
+		t.Fatal("webhook without a response")
 	}
 }
 

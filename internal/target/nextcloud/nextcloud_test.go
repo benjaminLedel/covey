@@ -16,39 +16,39 @@ import (
 )
 
 func TestParseConfig(t *testing.T) {
-	// Freigabelink mit Passwort.
+	// Share link with a password.
 	cfg, err := ParseConfig("https://cloud.example.com/s/AbCdEf", "geheim")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !cfg.Share || cfg.DavBase != "https://cloud.example.com/public.php/webdav/" ||
 		cfg.User != "AbCdEf" || cfg.Pass != "geheim" {
-		t.Errorf("Freigabelink falsch geparst: %+v", cfg)
+		t.Errorf("share link parsed wrong: %+v", cfg)
 	}
 
-	// Freigabelink ohne Passwort (Sentinel) + /index.php + Installations-Präfix.
+	// Share link without a password (sentinel) + /index.php + installation prefix.
 	cfg, err = ParseConfig("https://cloud.example.com/nc/index.php/s/XyZ/download", "-")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if cfg.DavBase != "https://cloud.example.com/nc/public.php/webdav/" || cfg.User != "XyZ" || cfg.Pass != "" {
-		t.Errorf("Freigabelink ohne Passwort falsch: %+v", cfg)
+		t.Errorf("share link without a password wrong: %+v", cfg)
 	}
 
-	// Konto-Zugang: Server-Basis + benutzer:app-passwort.
+	// Account login: server base + user:app-password.
 	cfg, err = ParseConfig("https://cloud.example.com", "alice:app-pass:mit:doppelpunkt")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if cfg.Share || cfg.DavBase != "https://cloud.example.com/remote.php/dav/files/alice/" ||
 		cfg.User != "alice" || cfg.Pass != "app-pass:mit:doppelpunkt" {
-		t.Errorf("Konto-Zugang falsch: %+v", cfg)
+		t.Errorf("account login wrong: %+v", cfg)
 	}
 
-	// Konto-Zugang: eine mitgegebene remote.php-URL wird auf den Datei-Root normalisiert.
+	// Account login: a supplied remote.php URL is normalized onto the file root.
 	cfg, _ = ParseConfig("https://cloud.example.com/remote.php/dav/files/bob/", "bob:pw")
 	if cfg.DavBase != "https://cloud.example.com/remote.php/dav/files/bob/" {
-		t.Errorf("remote.php-URL falsch normalisiert: %q", cfg.DavBase)
+		t.Errorf("remote.php URL normalized wrong: %q", cfg.DavBase)
 	}
 
 	for _, bad := range []struct{ url, token string }{
@@ -59,7 +59,7 @@ func TestParseConfig(t *testing.T) {
 		{"https://cloud.example.com", ":pass"},
 	} {
 		if _, err := ParseConfig(bad.url, bad.token); err == nil {
-			t.Errorf("ParseConfig(%q, %q): Fehler erwartet", bad.url, bad.token)
+			t.Errorf("ParseConfig(%q, %q): expected an error", bad.url, bad.token)
 		}
 	}
 }
@@ -76,18 +76,18 @@ func TestCleanRemotePath(t *testing.T) {
 	} {
 		got, err := cleanRemotePath(in)
 		if err != nil || got != want {
-			t.Errorf("cleanRemotePath(%q) = %q, %v — will %q", in, got, err, want)
+			t.Errorf("cleanRemotePath(%q) = %q, %v — want %q", in, got, err, want)
 		}
 	}
 	for _, bad := range []string{"..", "../x", "a/../../x"} {
 		if _, err := cleanRemotePath(bad); err == nil {
-			t.Errorf("cleanRemotePath(%q): Fehler erwartet", bad)
+			t.Errorf("cleanRemotePath(%q): expected an error", bad)
 		}
 	}
 }
 
-// fakeDav baut einen WebDAV-Server, der die vom Plugin genutzten Methoden über
-// dem public.php-Wurzelpfad bedient. Er hält einen kleinen In-Memory-Baum.
+// fakeDav builds a WebDAV server that serves the methods the plugin uses over
+// the public.php root path. It keeps a small in-memory tree.
 func fakeDav(t *testing.T) *httptest.Server {
 	t.Helper()
 	const root = "/public.php/webdav/"
@@ -111,7 +111,7 @@ func fakeDav(t *testing.T) *httptest.Server {
 	}
 
 	h := func(w http.ResponseWriter, r *http.Request) {
-		// Basic-Auth muss anliegen (Share-Token als User).
+		// Basic auth must be present (the share token as the user).
 		if u, _, ok := r.BasicAuth(); !ok || u == "" {
 			http.Error(w, "no auth", http.StatusUnauthorized)
 			return
@@ -144,7 +144,7 @@ func fakeDav(t *testing.T) *httptest.Server {
 			}
 			w.Write(data)
 		case http.MethodPut:
-			// PUT in einen nicht existenten Ordner → 409 (Nextcloud-Verhalten).
+			// A PUT into a folder that does not exist → 409 (Nextcloud behaviour).
 			if parent := filepath.ToSlash(filepath.Dir(rel)); parent != "." && !dirs[parent] {
 				http.Error(w, "conflict", http.StatusConflict)
 				return
@@ -173,7 +173,7 @@ func exec(t *testing.T, ctx context.Context, cred target.Credential, action, par
 	return System{}.Execute(ctx, action, json.RawMessage(params), cred)
 }
 
-// shareCred baut ein Credential im Freigabelink-Modus gegen den Testserver.
+// shareCred builds a credential in share-link mode against the test server.
 func shareCred(srv *httptest.Server) target.Credential {
 	return target.Credential{BaseURL: srv.URL + "/s/AbCdEf", Token: "geheim"}
 }
@@ -183,7 +183,7 @@ func TestExecuteActions(t *testing.T) {
 	ctx := context.Background()
 	cred := shareCred(srv)
 
-	// list auf der Wurzel: 3 Kinder, Wurzel-Eintrag selbst nicht gelistet.
+	// list on the root: 3 children, the root entry itself not listed.
 	out, err := exec(t, ctx, cred, "list", `{}`)
 	if err != nil {
 		t.Fatal(err)
@@ -197,17 +197,17 @@ func TestExecuteActions(t *testing.T) {
 		t.Fatalf("list = %+v", entries)
 	}
 
-	// list im Unterordner.
+	// list in the subfolder.
 	out, err = exec(t, ctx, cred, "list", `{"path":"berichte"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	e := out.(map[string]any)["entries"].([]Entry)
 	if len(e) != 1 || e[0].Path != "berichte/q3.pdf" || e[0].Type != "file" || e[0].Size != 9 {
-		t.Errorf("unterordner-list = %+v", e)
+		t.Errorf("subfolder list = %+v", e)
 	}
 
-	// read einer Textdatei.
+	// read of a text file.
 	out, err = exec(t, ctx, cred, "read", `{"path":"notes.txt"}`)
 	if err != nil {
 		t.Fatal(err)
@@ -216,12 +216,12 @@ func TestExecuteActions(t *testing.T) {
 		t.Errorf("read = %q", got)
 	}
 
-	// read einer Binärdatei → Fehler mit download-Hinweis.
+	// read of a binary file → an error carrying the download hint.
 	if _, err = exec(t, ctx, cred, "read", `{"path":"blob.bin"}`); err == nil || !strings.Contains(err.Error(), "download") {
-		t.Errorf("read binaer: %v", err)
+		t.Errorf("read binary: %v", err)
 	}
 
-	// write (Zielordner existiert).
+	// write (the target folder exists).
 	out, err = exec(t, ctx, cred, "write", `{"path":"berichte/neu.md","content":"# Hallo"}`)
 	if err != nil {
 		t.Fatal(err)
@@ -230,9 +230,9 @@ func TestExecuteActions(t *testing.T) {
 		t.Errorf("write = %+v", e)
 	}
 
-	// write in nicht existenten Ordner → auto-mkdir des Parents, dann PUT.
+	// write into a folder that does not exist → auto-mkdir of the parent, then PUT.
 	if _, err = exec(t, ctx, cred, "write", `{"path":"frisch/tief/x.txt","content":"ok"}`); err != nil {
-		t.Fatalf("write mit auto-mkdir: %v", err)
+		t.Fatalf("write with auto-mkdir: %v", err)
 	}
 
 	// mkdir.
@@ -248,19 +248,19 @@ func TestExecuteActions(t *testing.T) {
 	if _, err = exec(t, ctx, cred, "delete", `{"path":"notes.txt"}`); err != nil {
 		t.Fatal(err)
 	}
-	// delete der Wurzel ist tabu.
+	// deleting the root is off limits.
 	if _, err = exec(t, ctx, cred, "delete", `{"path":""}`); err == nil {
-		t.Error("delete der Wurzel: Fehler erwartet")
+		t.Error("delete of the root: expected an error")
 	}
 
-	// Pfad-Ausbruch remote.
+	// Path breakout, remote side.
 	if _, err = exec(t, ctx, cred, "read", `{"path":"../geheim.txt"}`); err == nil {
-		t.Error("remote-Traversal: Fehler erwartet")
+		t.Error("remote traversal: expected an error")
 	}
 
-	// unbekannte Aktion.
+	// Unknown action.
 	if _, err = exec(t, ctx, cred, "kaputt", `{}`); err == nil {
-		t.Error("unbekannte Aktion: Fehler erwartet")
+		t.Error("unknown action: expected an error")
 	}
 }
 
@@ -270,20 +270,20 @@ func TestExecuteSandboxTransfer(t *testing.T) {
 	ctx := target.WithWorkdir(context.Background(), workdir)
 	cred := shareCred(srv)
 
-	// download in die Sandbox (Default-Zielpfad).
+	// download into the sandbox (default target path).
 	out, err := exec(t, ctx, cred, "download", `{"path":"notes.txt"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	local := out.(map[string]any)["path"].(string)
 	if want := filepath.Join(workdir, "nextcloud", "notes.txt"); local != want {
-		t.Errorf("download nach %q, will %q", local, want)
+		t.Errorf("download to %q, want %q", local, want)
 	}
 	if data, _ := os.ReadFile(local); string(data) != "hallo welt" {
-		t.Errorf("download-Inhalt = %q", data)
+		t.Errorf("download content = %q", data)
 	}
 
-	// upload aus der Sandbox.
+	// upload out of the sandbox.
 	src := filepath.Join(workdir, "ergebnis.txt")
 	if err := os.WriteFile(src, []byte("fertig"), 0o644); err != nil {
 		t.Fatal(err)
@@ -296,23 +296,23 @@ func TestExecuteSandboxTransfer(t *testing.T) {
 		t.Errorf("upload = %+v", e)
 	}
 
-	// Ausbruch aus dem Workdir.
+	// Breaking out of the workdir.
 	if _, err = exec(t, ctx, cred, "upload", `{"from":"../../etc/passwd","to":"x"}`); err == nil {
-		t.Error("upload-Traversal: Fehler erwartet")
+		t.Error("upload traversal: expected an error")
 	}
 	if _, err = exec(t, ctx, cred, "download", `{"path":"notes.txt","to":"../ausbruch.txt"}`); err == nil {
-		t.Error("download-Traversal: Fehler erwartet")
+		t.Error("download traversal: expected an error")
 	}
 
-	// ohne Sandbox-Workdir kein Transfer.
+	// No transfer without a sandbox workdir.
 	if _, err = exec(t, context.Background(), cred, "download", `{"path":"notes.txt"}`); err == nil {
-		t.Error("download ohne Workdir: Fehler erwartet")
+		t.Error("download without a workdir: expected an error")
 	}
 }
 
-// TestAccountMode prüft, dass der Konto-Zugang denselben WebDAV-Client
-// erzeugt — der Testserver bedient den public.php-Pfad, deshalb genügt hier
-// die Config-Prüfung; die Aktionen selbst sind pfad-agnostisch (oben getestet).
+// TestAccountModeConfig checks that the account login produces the same WebDAV
+// client — the test server serves the public.php path, so checking the config
+// suffices here; the actions themselves are path-agnostic (tested above).
 func TestAccountModeConfig(t *testing.T) {
 	cfg, err := ParseConfig("https://cloud.example.com/", "alice:pw")
 	if err != nil {
@@ -334,13 +334,13 @@ func TestActionSubjectAndDocs(t *testing.T) {
 	doc := (System{}).PromptDoc()
 	for _, a := range []string{"list", "read", "write", "download", "upload", "mkdir", "delete"} {
 		if !strings.Contains(doc, a+" {") {
-			t.Errorf("PromptDoc ohne Aktion %q", a)
+			t.Errorf("PromptDoc without the action %q", a)
 		}
 	}
 	if (System{}).VerifyWebhook("s", nil, nil) {
-		t.Error("VerifyWebhook muss false liefern (kein Webhook)")
+		t.Error("VerifyWebhook must return false (no webhook)")
 	}
 	if _, err := (System{}).ParseWebhook(nil); err == nil {
-		t.Error("ParseWebhook muss einen Fehler liefern (kein Webhook)")
+		t.Error("ParseWebhook must return an error (no webhook)")
 	}
 }

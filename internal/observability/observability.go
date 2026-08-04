@@ -1,6 +1,6 @@
-// Package observability: Session-Recording (append-only), Cost-Tracking und
-// Approval-Queue (spec/06). Recording ist die Grundlage für Audit, Debugging
-// und Kostenanalyse — unveränderlich, pro Agent/Aufgabe navigierbar.
+// Package observability: session recording (append-only), cost tracking and
+// approval queue (spec/06). The recording is the basis for audit, debugging and
+// cost analysis — immutable, navigable per agent/task.
 package observability
 
 import (
@@ -14,18 +14,18 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Event-Kinds im Recording.
+// Event kinds in the recording.
 const (
-	KindRuntime    = "runtime"    // Runtime-Event (LLM-/Tool-Call aus stream-json)
-	KindLifecycle  = "lifecycle"  // Zustandsübergänge des Agenten/der Aufgabe
-	KindCredential = "credential" // Credential-Request (gewährt/verweigert)
-	KindApproval   = "approval"   // Approval-Gate angefragt/entschieden
-	KindGuardrail  = "guardrail"  // ausgelöste Guard-Rail (geblockt/gegated)
-	KindAction     = "action"     // Aktion im Zielsystem über den Action-Proxy
+	KindRuntime    = "runtime"    // runtime event (LLM/tool call from stream-json)
+	KindLifecycle  = "lifecycle"  // state transitions of the agent/the task
+	KindCredential = "credential" // credential request (granted/denied)
+	KindApproval   = "approval"   // approval gate requested/decided
+	KindGuardrail  = "guardrail"  // triggered guard-rail (blocked/gated)
+	KindAction     = "action"     // action in the target system via the action proxy
 )
 
-// Recording-Level (Aufzeichnungstiefe, spec/06): minimal < standard < full.
-// full schließt Screenshots/Artefakte ein; darunter werden sie nicht gespeichert.
+// Recording levels (recording depth, spec/06): minimal < standard < full.
+// full includes screenshots/artifacts; below that they are not stored.
 const (
 	LevelMinimal  = "minimal"
 	LevelStandard = "standard"
@@ -34,12 +34,12 @@ const (
 
 var levelRank = map[string]int{LevelMinimal: 0, LevelStandard: 1, LevelFull: 2}
 
-// ValidLevel prüft einen Recording-Level-Wert.
+// ValidLevel checks a recording-level value.
 func ValidLevel(s string) bool { _, ok := levelRank[s]; return ok }
 
-// EffectiveRecordingLevel liefert die effektive Aufzeichnungstiefe eines Agenten:
-// das Maximum aus Org-Boden und (optionalem) Agent-Override — nie unter dem
-// Boden. Bei Fehler/Unbekanntem fällt es fail-safe auf standard.
+// EffectiveRecordingLevel returns an agent's effective recording depth: the
+// maximum of the org floor and the (optional) agent override — never below the
+// floor. On error/unknown values it falls back fail-safe to standard.
 func (s *Store) EffectiveRecordingLevel(ctx context.Context, agentID uuid.UUID) (string, error) {
 	var orgLevel string
 	var agentLevel *string
@@ -52,12 +52,11 @@ func (s *Store) EffectiveRecordingLevel(ctx context.Context, agentID uuid.UUID) 
 	return effectiveLevel(orgLevel, agentLevel), nil
 }
 
-// effectiveLevel ist die Regel hinter EffectiveRecordingLevel, getrennt von der
-// Abfrage: Der Org-Level ist der **Boden**, ein Agent darf nur nach oben davon
-// abweichen. Ein Agent, der sich selbst leiser stellen könnte, wäre genau die
-// Lücke, die Security/Compliance mit dem Org-Boden schließen wollten.
-// Unbekannte Werte fallen fail-safe auf standard — im Zweifel wird mehr
-// aufgezeichnet, nicht weniger.
+// effectiveLevel is the rule behind EffectiveRecordingLevel, kept apart from
+// the query: the org level is the **floor**, an agent may only deviate upwards
+// from it. An agent that could turn itself down would be exactly the gap that
+// security/compliance wanted to close with the org floor. Unknown values fall
+// back fail-safe to standard — in doubt more is recorded, not less.
 func effectiveLevel(orgLevel string, agentLevel *string) string {
 	eff := orgLevel
 	if agentLevel != nil && levelRank[*agentLevel] > levelRank[eff] {
@@ -69,7 +68,7 @@ func effectiveLevel(orgLevel string, agentLevel *string) string {
 	return eff
 }
 
-// SetOrgRecordingLevel setzt den Org-Boden (Security/Compliance).
+// SetOrgRecordingLevel sets the org floor (security/compliance).
 func (s *Store) SetOrgRecordingLevel(ctx context.Context, orgID uuid.UUID, level string) error {
 	tag, err := s.pool.Exec(ctx, `UPDATE organizations SET recording_level=$2 WHERE id=$1`, orgID, level)
 	if err == nil && tag.RowsAffected() == 0 {
@@ -78,7 +77,7 @@ func (s *Store) SetOrgRecordingLevel(ctx context.Context, orgID uuid.UUID, level
 	return err
 }
 
-// OrgRecordingLevel liest den Org-Boden.
+// OrgRecordingLevel reads the org floor.
 func (s *Store) OrgRecordingLevel(ctx context.Context, orgID uuid.UUID) (string, error) {
 	var level string
 	err := s.pool.QueryRow(ctx, `SELECT recording_level FROM organizations WHERE id=$1`, orgID).Scan(&level)
@@ -119,7 +118,7 @@ type CostSummary struct {
 	Entries      int64     `json:"entries"`
 }
 
-// CostBucket ist ein Zeitfenster (Stunde/Tag/Woche) der Kostenzeitreihe.
+// CostBucket is one time window (hour/day/week) of the cost time series.
 type CostBucket struct {
 	Period       time.Time `json:"period"`
 	TotalUSD     float64   `json:"total_usd"`
@@ -128,7 +127,7 @@ type CostBucket struct {
 	Entries      int64     `json:"entries"`
 }
 
-// AgentCost ist die Kostensumme eines Agenten für die Org-Aufschlüsselung.
+// AgentCost is an agent's cost total for the org breakdown.
 type AgentCost struct {
 	AgentID      uuid.UUID `json:"agent_id"`
 	Slug         string    `json:"slug"`
@@ -139,7 +138,7 @@ type AgentCost struct {
 	Entries      int64     `json:"entries"`
 }
 
-// ModelCost ist die Kostensumme pro LLM-Modell.
+// ModelCost is the cost total per LLM model.
 type ModelCost struct {
 	Model        string  `json:"model"`
 	TotalUSD     float64 `json:"total_usd"`
@@ -148,8 +147,8 @@ type ModelCost struct {
 	Entries      int64   `json:"entries"`
 }
 
-// OrgCostReport bündelt org-weite Kosten: Gesamtsummen, Zeitreihe,
-// Aufschlüsselung pro Agent und pro Modell — die Datenbasis fürs Diagramm.
+// OrgCostReport bundles org-wide costs: totals, time series, breakdown per
+// agent and per model — the data basis for the chart.
 type OrgCostReport struct {
 	TotalUSD     float64      `json:"total_usd"`
 	InputTokens  int64        `json:"input_tokens"`
@@ -161,7 +160,7 @@ type OrgCostReport struct {
 	Models       []ModelCost  `json:"models"`
 }
 
-var ErrNotFound = errors.New("nicht gefunden")
+var ErrNotFound = errors.New("not found")
 
 type Store struct {
 	pool *pgxpool.Pool
@@ -169,7 +168,7 @@ type Store struct {
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
-// Record schreibt ein Ereignis ins Recording. payload wird als JSON persistiert.
+// Record writes an event into the recording. payload is persisted as JSON.
 func (s *Store) Record(ctx context.Context, orgID, agentID uuid.UUID, taskID *uuid.UUID, kind string, payload any) error {
 	raw, err := json.Marshal(payload)
 	if err != nil {
@@ -180,8 +179,8 @@ func (s *Store) Record(ctx context.Context, orgID, agentID uuid.UUID, taskID *uu
 	return err
 }
 
-// PutBlob legt ein Binär-Artefakt (z. B. Screenshot) out-of-band ab und liefert
-// dessen id — die kommt referenziert in den Event-Payload, nicht die Bytes.
+// PutBlob stores a binary artifact (e.g. a screenshot) out-of-band and returns
+// its id — that goes into the event payload as a reference, not the bytes.
 func (s *Store) PutBlob(ctx context.Context, orgID, agentID uuid.UUID, taskID *uuid.UUID, mime string, data []byte) (uuid.UUID, error) {
 	id := uuid.New()
 	_, err := s.pool.Exec(ctx, `INSERT INTO recording_blobs (id, org_id, agent_id, task_id, mime, bytes)
@@ -189,8 +188,8 @@ func (s *Store) PutBlob(ctx context.Context, orgID, agentID uuid.UUID, taskID *u
 	return id, err
 }
 
-// GetBlob liefert ein Artefakt org-gescopt (mime + Bytes).
-// Blob ist ein Recording-Artefakt (Screenshot) samt Inhalt.
+// GetBlob returns an artifact org-scoped (mime + bytes).
+// Blob is a recording artifact (screenshot) including its content.
 type Blob struct {
 	ID        uuid.UUID `json:"id"`
 	MIME      string    `json:"mime"`
@@ -198,9 +197,9 @@ type Blob struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// BlobsByAgent liefert alle Artefakte eines Agenten — mit Inhalt, denn der
-// einzige Aufrufer ist der Diagnose-Export, der ein vollständiges Abbild
-// erzeugt. Für Ansichten gibt es GetBlob (eines, org-geprüft).
+// BlobsByAgent returns all artifacts of an agent — with content, because the
+// only caller is the diagnostic export, which produces a complete image. For
+// views there is GetBlob (a single one, org-checked).
 func (s *Store) BlobsByAgent(ctx context.Context, agentID uuid.UUID) ([]Blob, error) {
 	rows, err := s.pool.Query(ctx,
 		"SELECT id, mime, bytes, created_at FROM recording_blobs WHERE agent_id=$1 ORDER BY created_at", agentID)
@@ -230,14 +229,15 @@ func (s *Store) GetBlob(ctx context.Context, orgID, id uuid.UUID) (string, []byt
 	return mime, data, err
 }
 
-// Events liefert die Recording-Timeline, optional pro Aufgabe, seit einer ID (Live-Follow).
+// Events returns the recording timeline, optionally per task, since an ID
+// (live follow).
 func (s *Store) Events(ctx context.Context, agentID uuid.UUID, taskID *uuid.UUID, afterID int64, limit int) ([]RecordingEvent, error) {
 	if limit <= 0 || limit > 1000 {
 		limit = 500
 	}
-	// Ohne after-Cursor interessiert das jüngste Geschehen: die letzten N
-	// Events, chronologisch sortiert. Mit Cursor (Live-Follow) weiterhin
-	// vorwärts ab der bekannten ID.
+	// Without an after cursor the most recent happenings are what matters: the
+	// last N events, sorted chronologically. With a cursor (live follow) still
+	// forwards from the known ID.
 	query := `SELECT id, org_id, agent_id, task_id, kind, payload, created_at
 		FROM recording_events
 		WHERE agent_id=$1 AND ($2::uuid IS NULL OR task_id=$2) AND id > $3
@@ -266,8 +266,8 @@ func (s *Store) Events(ctx context.Context, agentID uuid.UUID, taskID *uuid.UUID
 	return out, rows.Err()
 }
 
-// OrgEventsByKind liefert die jüngsten Ereignisse einer Art org-weit,
-// neueste zuerst — z. B. alle ausgelösten Guard-Rails für das Audit-Feed.
+// OrgEventsByKind returns the most recent events of one kind org-wide, newest
+// first — e.g. all triggered guard-rails for the audit feed.
 func (s *Store) OrgEventsByKind(ctx context.Context, orgID uuid.UUID, kind string, limit int) ([]RecordingEvent, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 50
@@ -291,7 +291,7 @@ func (s *Store) OrgEventsByKind(ctx context.Context, orgID uuid.UUID, kind strin
 	return out, rows.Err()
 }
 
-// AddCost verbucht Kosten aus einem cost-Event des Daemons.
+// AddCost books costs from a cost event of the daemon.
 func (s *Store) AddCost(ctx context.Context, agentID uuid.UUID, taskID *uuid.UUID, usd float64, inputTokens, outputTokens int64, model string) error {
 	_, err := s.pool.Exec(ctx, `INSERT INTO cost_entries (agent_id, task_id, usd, input_tokens, output_tokens, model)
 		VALUES ($1,$2,$3,$4,$5,$6)`, agentID, taskID, usd, inputTokens, outputTokens, model)
@@ -306,8 +306,8 @@ func (s *Store) CostByAgent(ctx context.Context, agentID uuid.UUID) (CostSummary
 	return c, err
 }
 
-// normalizeBucket beschränkt die Zeit-Granularität auf gültige date_trunc-Werte
-// (kein SQL-Injection-Vektor, sinnvoller Default).
+// normalizeBucket restricts the time granularity to valid date_trunc values
+// (no SQL injection vector, sensible default).
 func normalizeBucket(bucket string) string {
 	switch bucket {
 	case "hour", "day", "week", "month":
@@ -330,8 +330,8 @@ func scanBuckets(rows pgx.Rows) ([]CostBucket, error) {
 	return out, rows.Err()
 }
 
-// CostSeriesByAgent liefert die Kostenzeitreihe eines Agenten, in Zeitfenster
-// (bucket) gruppiert und ab since. Für das Kosten-/Token-Diagramm.
+// CostSeriesByAgent returns an agent's cost time series, grouped into time
+// windows (bucket) and starting at since. For the cost/token chart.
 func (s *Store) CostSeriesByAgent(ctx context.Context, agentID uuid.UUID, bucket string, since time.Time) ([]CostBucket, error) {
 	rows, err := s.pool.Query(ctx, `SELECT date_trunc($2, created_at) AS period,
 		COALESCE(SUM(usd),0), COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0), COUNT(*)
@@ -343,13 +343,13 @@ func (s *Store) CostSeriesByAgent(ctx context.Context, agentID uuid.UUID, bucket
 	return scanBuckets(rows)
 }
 
-// OrgCostReport aggregiert die Kosten einer Organisation: Gesamtsummen,
-// Zeitreihe, Aufschlüsselung pro Agent und pro Modell. cost_entries hat keine
-// org_id — wir joinen deshalb über agents.
+// OrgCostReport aggregates an organization's costs: totals, time series,
+// breakdown per agent and per model. cost_entries has no org_id — we therefore
+// join via agents.
 func (s *Store) OrgCostReport(ctx context.Context, orgID uuid.UUID, bucket string, since time.Time) (OrgCostReport, error) {
 	rep := OrgCostReport{Bucket: normalizeBucket(bucket), Series: []CostBucket{}, Agents: []AgentCost{}, Models: []ModelCost{}}
 
-	// Gesamtsummen.
+	// Totals.
 	if err := s.pool.QueryRow(ctx, `SELECT COALESCE(SUM(ce.usd),0), COALESCE(SUM(ce.input_tokens),0),
 		COALESCE(SUM(ce.output_tokens),0), COUNT(*)
 		FROM cost_entries ce JOIN agents a ON a.id=ce.agent_id
@@ -358,7 +358,7 @@ func (s *Store) OrgCostReport(ctx context.Context, orgID uuid.UUID, bucket strin
 		return rep, err
 	}
 
-	// Zeitreihe.
+	// Time series.
 	rows, err := s.pool.Query(ctx, `SELECT date_trunc($2, ce.created_at) AS period,
 		COALESCE(SUM(ce.usd),0), COALESCE(SUM(ce.input_tokens),0), COALESCE(SUM(ce.output_tokens),0), COUNT(*)
 		FROM cost_entries ce JOIN agents a ON a.id=ce.agent_id
@@ -371,7 +371,7 @@ func (s *Store) OrgCostReport(ctx context.Context, orgID uuid.UUID, bucket strin
 		return rep, err
 	}
 
-	// Pro Agent.
+	// Per agent.
 	arows, err := s.pool.Query(ctx, `SELECT a.id, a.slug, a.display_name,
 		COALESCE(SUM(ce.usd),0), COALESCE(SUM(ce.input_tokens),0), COALESCE(SUM(ce.output_tokens),0), COUNT(ce.id)
 		FROM agents a LEFT JOIN cost_entries ce ON ce.agent_id=a.id AND ce.created_at >= $2
@@ -397,8 +397,8 @@ func (s *Store) OrgCostReport(ctx context.Context, orgID uuid.UUID, bucket strin
 		return rep, err
 	}
 
-	// Pro Modell.
-	mrows, err := s.pool.Query(ctx, `SELECT COALESCE(NULLIF(ce.model,''),'unbekannt'),
+	// Per model.
+	mrows, err := s.pool.Query(ctx, `SELECT COALESCE(NULLIF(ce.model,''),'unknown'),
 		COALESCE(SUM(ce.usd),0), COALESCE(SUM(ce.input_tokens),0), COALESCE(SUM(ce.output_tokens),0), COUNT(*)
 		FROM cost_entries ce JOIN agents a ON a.id=ce.agent_id
 		WHERE a.org_id=$1 AND ce.created_at >= $2
@@ -417,7 +417,7 @@ func (s *Store) OrgCostReport(ctx context.Context, orgID uuid.UUID, bucket strin
 	return rep, mrows.Err()
 }
 
-// --- Approval-Queue ---
+// --- Approval queue ---
 
 func (s *Store) CreateApproval(ctx context.Context, orgID, agentID uuid.UUID, taskID *uuid.UUID, action string, params any) (Approval, error) {
 	raw, err := json.Marshal(params)
@@ -432,7 +432,7 @@ func (s *Store) CreateApproval(ctx context.Context, orgID, agentID uuid.UUID, ta
 	return a, err
 }
 
-// DecideApproval entscheidet ein pending-Gate; idempotent gegen Doppel-Klicks.
+// DecideApproval decides a pending gate; idempotent against double clicks.
 func (s *Store) DecideApproval(ctx context.Context, orgID, id uuid.UUID, approve bool, decidedBy *uuid.UUID) (Approval, error) {
 	status := "denied"
 	if approve {

@@ -13,18 +13,18 @@ import (
 	"time"
 )
 
-// APIEmbedder ist das echte, semantische Embedding: ein HTTP-Aufruf gegen einen
-// Embedding-Provider. Voyage und OpenAI teilen sich Request- und Response-Form
-// (Bearer-Auth, {model, input} → {data:[{embedding}]}) und unterscheiden sich
-// nur im Namen des Dimensions-Feldes — deshalb trägt eine Implementierung beide.
+// APIEmbedder is the real, semantic embedding: an HTTP call against an
+// embedding provider. Voyage and OpenAI share the request and response shape
+// (bearer auth, {model, input} → {data:[{embedding}]}) and differ only in the
+// name of the dimensions field — which is why one implementation carries both.
 //
-// Die Dimension wird beim Provider auf Dim (256) bestellt: beide Modellfamilien
-// beherrschen verkürzte Ausgaben (Matryoshka), damit bleibt das Schema
-// vector(256) aus Migration 0002/0031 unverändert.
+// The dimension is ordered from the provider as Dim (256): both model families
+// support shortened outputs (Matryoshka), so the vector(256) schema from
+// migration 0002/0031 stays unchanged.
 //
-// Es gibt bewusst KEINEN stillen Rückfall auf HashEmbedder: Vektoren zweier
-// Modelle sind untereinander nicht vergleichbar, ein gemischter Index wäre
-// schlechter als ein durchgehend schlechter. Fehler kommen als Fehler zurück.
+// There is deliberately NO silent fallback to HashEmbedder: vectors of two
+// models are not comparable with each other, and a mixed index would be worse
+// than a consistently bad one. Errors come back as errors.
 type APIEmbedder struct {
 	provider string // "ollama" | "voyage" | "openai"
 	model    string
@@ -32,16 +32,16 @@ type APIEmbedder struct {
 	url      string
 	log      *slog.Logger
 	hc       *http.Client
-	// truncWarn: die Matryoshka-Kürzung wird einmal pro Prozess gemeldet, nicht
-	// bei jeder Seite.
+	// truncWarn: the Matryoshka truncation is reported once per process, not on
+	// every page.
 	truncWarn sync.Once
 }
 
-// Provider-Defaults. "ollama" ist der selbstgehostete Weg: ein kleines Modell
-// auf dem eigenen Host statt eines fremden Dienstes — die Wiki-Inhalte verlassen
-// das Haus nicht. Default-Modell ist EmbeddingGemma (308M, mehrsprachig,
-// Matryoshka-trainiert und damit offiziell auf 256 Dimensionen verkürzbar), der
-// Default-Host der Compose-Dienstname.
+// Provider defaults. "ollama" is the self-hosted route: a small model on your
+// own host instead of a third-party service — the wiki contents do not leave the
+// house. The default model is EmbeddingGemma (308M, multilingual,
+// Matryoshka-trained and therefore officially truncatable to 256 dimensions),
+// the default host is the compose service name.
 var embeddingDefaults = map[string]struct {
 	url, model string
 	needsKey   bool
@@ -51,22 +51,22 @@ var embeddingDefaults = map[string]struct {
 	"ollama": {"http://embeddings:11434/v1/embeddings", "embeddinggemma", false},
 }
 
-// SupportedProviders sind die Werte, die COVEY_EMBEDDING_PROVIDER annehmen darf.
+// SupportedProviders are the values COVEY_EMBEDDING_PROVIDER may take.
 func SupportedProviders() []string { return []string{"builtin", "ollama", "voyage", "openai"} }
 
-// NewAPIEmbedder baut den Embedder für einen Provider. Leere Werte für model und
-// url fallen auf die Provider-Defaults zurück; log darf nil sein.
+// NewAPIEmbedder builds the embedder for a provider. Empty values for model and
+// url fall back to the provider defaults; log may be nil.
 func NewAPIEmbedder(provider, model, key, url string, log *slog.Logger) (*APIEmbedder, error) {
 	provider = strings.ToLower(strings.TrimSpace(provider))
 	def, ok := embeddingDefaults[provider]
 	if !ok {
-		return nil, fmt.Errorf("unbekannter embedding-provider %q (erlaubt: %s)",
+		return nil, fmt.Errorf("unknown embedding provider %q (allowed: %s)",
 			provider, strings.Join(SupportedProviders(), ", "))
 	}
-	// Nur fremde Dienste brauchen einen Schlüssel — ein lokaler Server will
-	// keinen, und einen Platzhalter zu verlangen wäre Unsinn.
+	// Only third-party services need a key — a local server does not want one,
+	// and demanding a placeholder would be nonsense.
 	if def.needsKey && strings.TrimSpace(key) == "" {
-		return nil, fmt.Errorf("embedding-provider %q braucht COVEY_EMBEDDING_API_KEY", provider)
+		return nil, fmt.Errorf("embedding provider %q needs COVEY_EMBEDDING_API_KEY", provider)
 	}
 	if strings.TrimSpace(model) == "" {
 		model = def.model
@@ -91,8 +91,8 @@ func (e *APIEmbedder) Name() string {
 	return fmt.Sprintf("%s:%s:%d", e.provider, e.model, Dim)
 }
 
-// maxEmbedChars deckelt den Eingabetext. Eine Wiki-Seite ist selten länger;
-// gekappt wird rune-sicher, damit kein Umlaut zerschnitten wird.
+// maxEmbedChars caps the input text. A wiki page is rarely longer; the cut is
+// rune-safe so no multi-byte character gets sliced in half.
 const maxEmbedChars = 8000
 
 type embedResponse struct {
@@ -108,7 +108,7 @@ func (e *APIEmbedder) Embed(ctx context.Context, text string) ([Dim]float32, err
 	var out [Dim]float32
 	text = strings.TrimSpace(text)
 	if text == "" {
-		return out, nil // Nullvektor, wie beim Hash-Embedder
+		return out, nil // zero vector, same as the hash embedder
 	}
 	text = truncRunes(text, maxEmbedChars)
 
@@ -124,8 +124,8 @@ func (e *APIEmbedder) Embed(ctx context.Context, text string) ([Dim]float32, err
 		return out, err
 	}
 
-	// Ein Wiederholungsversuch: Embedding-Endpunkte antworten gelegentlich mit
-	// 429/5xx, und ein verlorenes Embedding hieße eine Seite ohne Retrieval.
+	// One retry: embedding endpoints occasionally answer with 429/5xx, and a
+	// lost embedding would mean a page without retrieval.
 	var lastErr error
 	for attempt := 0; attempt < 2; attempt++ {
 		if attempt > 0 {
@@ -166,44 +166,44 @@ func (e *APIEmbedder) call(ctx context.Context, payload []byte) ([Dim]float32, e
 
 	var parsed embedResponse
 	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil && resp.StatusCode == http.StatusOK {
-		return out, fmt.Errorf("embedding-antwort unlesbar: %w", err)
+		return out, fmt.Errorf("embedding response unreadable: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		msg := resp.Status
 		if parsed.Error != nil && parsed.Error.Message != "" {
 			msg = parsed.Error.Message
 		}
-		return out, fmt.Errorf("embedding-provider %s: %s", e.provider, msg)
+		return out, fmt.Errorf("embedding provider %s: %s", e.provider, msg)
 	}
 	if len(parsed.Data) == 0 || len(parsed.Data[0].Embedding) == 0 {
-		return out, fmt.Errorf("embedding-provider %s lieferte keinen Vektor", e.provider)
+		return out, fmt.Errorf("embedding provider %s returned no vector", e.provider)
 	}
 	got := parsed.Data[0].Embedding
 	switch {
 	case len(got) == Dim:
 	case len(got) > Dim:
-		// Matryoshka: Modelle wie EmbeddingGemma sind darauf trainiert, dass man
-		// den Vektor vorne abschneidet und neu normalisiert — genau das ist der
-		// vorgesehene Weg zu kürzeren Ausgaben. Nötig wird es, wenn der Server
-		// den Dimensions-Wunsch ignoriert (etwa llama.cpp). Einmal melden,
-		// damit es nicht stillschweigend passiert.
+		// Matryoshka: models like EmbeddingGemma are trained so that you can cut
+		// the vector off at the front and re-normalize it — that is exactly the
+		// intended route to shorter outputs. It becomes necessary when the
+		// server ignores the requested dimension (llama.cpp, for instance).
+		// Report it once so it does not happen silently.
 		full := len(got)
 		e.truncWarn.Do(func() {
-			e.log.Info("wiki-embedding: Vektor wird auf die Schemabreite gekürzt (Matryoshka)",
-				"modell", e.model, "geliefert", full, "genutzt", Dim)
+			e.log.Info("wiki embedding: vector is truncated to the schema width (Matryoshka)",
+				"model", e.model, "returned", full, "used", Dim)
 		})
 		got = got[:Dim]
 	default:
-		// Auffüllen wäre Erfindung: zu kurz ist nicht reparierbar.
-		return out, fmt.Errorf("embedding-provider %s lieferte nur %d Dimensionen, gebraucht werden %d — Modell %q ist zu klein",
+		// Padding would be invention: too short is not repairable.
+		return out, fmt.Errorf("embedding provider %s returned only %d dimensions, %d are needed — model %q is too small",
 			e.provider, len(got), Dim, e.model)
 	}
 	copy(out[:], got)
 	return normalize(out), nil
 }
 
-// normalize bringt den Vektor auf Länge 1 — die Ähnlichkeitsschwellen und das
-// Skalarprodukt in den Tests setzen normalisierte Vektoren voraus.
+// normalize brings the vector to length 1 — the similarity thresholds and the
+// dot product in the tests assume normalized vectors.
 func normalize(v [Dim]float32) [Dim]float32 {
 	var norm float64
 	for _, f := range v {

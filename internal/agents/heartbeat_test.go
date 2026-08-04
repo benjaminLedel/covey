@@ -7,9 +7,9 @@ import (
 )
 
 func TestParseHeartbeat(t *testing.T) {
-	content := `# HEARTBEAT.md — wiederkehrende Aufgaben
+	content := `# HEARTBEAT.md — recurring tasks
 
-Prosa-Zeilen wie diese werden ignoriert.
+Prose lines like this one are ignored.
 
 - alle: 30m titel: Posteingang sichten aufgabe: Prüfe neue Tickets und triagiere sie.
 - täglich: 09:00 titel: Tagesbericht aufgabe: Fasse den gestrigen Tag zusammen.
@@ -21,94 +21,94 @@ Prosa-Zeilen wie diese werden ignoriert.
 		t.Fatalf("ParseHeartbeat: %v", err)
 	}
 	if len(hbs) != 4 {
-		t.Fatalf("erwartet 4 Einträge, bekommen %d: %+v", len(hbs), hbs)
+		t.Fatalf("expected 4 entries, got %d: %+v", len(hbs), hbs)
 	}
 	if hbs[0].Name != "Posteingang sichten" || hbs[0].Every != 30*time.Minute {
-		t.Errorf("Eintrag 0 falsch: %+v", hbs[0])
+		t.Errorf("entry 0 wrong: %+v", hbs[0])
 	}
 	if hbs[0].Task != "Prüfe neue Tickets und triagiere sie." {
-		t.Errorf("Aufgabe 0 falsch: %q", hbs[0].Task)
+		t.Errorf("task 0 wrong: %q", hbs[0].Task)
 	}
 	if hbs[1].DailyAt != "09:00" || hbs[1].Every != 0 {
-		t.Errorf("Eintrag 1 falsch: %+v", hbs[1])
+		t.Errorf("entry 1 wrong: %+v", hbs[1])
 	}
 	if hbs[2].Every != 24*time.Hour {
-		t.Errorf("1d nicht als 24h geparst: %+v", hbs[2])
+		t.Errorf("1d not parsed as 24h: %+v", hbs[2])
 	}
-	// Ohne aufgabe: fällt der Task auf den Titel zurück.
+	// Without aufgabe: the task falls back to the title.
 	if hbs[2].Task != "Wochenrückblick" {
-		t.Errorf("Task-Fallback fehlt: %q", hbs[2].Task)
+		t.Errorf("task fallback missing: %q", hbs[2].Task)
 	}
-	// Ohne nur-wenn: bleibt OnlyIf leer; mit nur-wenn: trägt es das Zielsystem.
+	// Without nur-wenn: OnlyIf stays empty; with nur-wenn: it carries the target system.
 	if hbs[0].OnlyIf != "" || hbs[3].OnlyIf != "email" {
-		t.Errorf("OnlyIf falsch: %q / %q", hbs[0].OnlyIf, hbs[3].OnlyIf)
+		t.Errorf("OnlyIf wrong: %q / %q", hbs[0].OnlyIf, hbs[3].OnlyIf)
 	}
 	if hbs[3].Name != "Postfach" || hbs[3].Every != 5*time.Minute {
-		t.Errorf("Eintrag 3 falsch: %+v", hbs[3])
+		t.Errorf("entry 3 wrong: %+v", hbs[3])
 	}
 }
 
 func TestParseHeartbeatLeer(t *testing.T) {
 	hbs, err := ParseHeartbeat("")
 	if err != nil || len(hbs) != 0 {
-		t.Fatalf("leere Datei: hbs=%v err=%v", hbs, err)
+		t.Fatalf("empty file: hbs=%v err=%v", hbs, err)
 	}
 }
 
 func TestParseHeartbeatFehler(t *testing.T) {
 	cases := map[string]string{
-		"titel fehlt":         "- alle: 30m aufgabe: irgendwas",
-		"kein zeitplan":       "- titel: X aufgabe: irgendwas",
-		"doppelter zeitplan":  "- alle: 30m täglich: 09:00 titel: X",
-		"kaputtes intervall":  "- alle: dreißig titel: X",
-		"negatives intervall": "- alle: -5m titel: X",
-		"kaputte tageszeit":   "- täglich: 25:99 titel: X",
-		"nur-wenn ohne wert":  "- alle: 30m nur-wenn: titel: X",
-		"nur-wenn zwei werte": "- alle: 30m nur-wenn: email gitlab titel: X",
+		"titel missing":            "- alle: 30m aufgabe: irgendwas",
+		"no schedule":              "- titel: X aufgabe: irgendwas",
+		"two schedules":            "- alle: 30m täglich: 09:00 titel: X",
+		"broken interval":          "- alle: dreißig titel: X",
+		"negative interval":        "- alle: -5m titel: X",
+		"broken time of day":       "- täglich: 25:99 titel: X",
+		"nur-wenn without value":   "- alle: 30m nur-wenn: titel: X",
+		"nur-wenn with two values": "- alle: 30m nur-wenn: email gitlab titel: X",
 	}
 	for name, content := range cases {
 		if _, err := ParseHeartbeat(content); err == nil {
-			t.Errorf("%s: Fehler erwartet für %q", name, content)
+			t.Errorf("%s: expected an error for %q", name, content)
 		}
 	}
 }
 
 func TestWikiCleanupHeartbeat(t *testing.T) {
-	// Leerer Zeitplan -> Feature aus.
+	// Empty schedule -> feature off.
 	if _, enabled, err := WikiCleanupHeartbeat(""); enabled || err != nil {
-		t.Fatalf("leer: enabled=%v err=%v (erwartet: aus, kein Fehler)", enabled, err)
+		t.Fatalf("empty: enabled=%v err=%v (expected: off, no error)", enabled, err)
 	}
 	if _, enabled, err := WikiCleanupHeartbeat("   "); enabled || err != nil {
 		t.Fatalf("whitespace: enabled=%v err=%v", enabled, err)
 	}
 
-	// Tageszeit-Form.
+	// Time-of-day form.
 	hb, enabled, err := WikiCleanupHeartbeat("03:00")
 	if err != nil || !enabled {
 		t.Fatalf("03:00: enabled=%v err=%v", enabled, err)
 	}
 	if hb.Name != WikiCleanupName || hb.DailyAt != "03:00" || hb.Every != 0 || hb.Task == "" {
-		t.Fatalf("03:00: unerwarteter Heartbeat %+v", hb)
+		t.Fatalf("03:00: unexpected heartbeat %+v", hb)
 	}
 
-	// Intervall-Formen (Go-Dauer und Tages-Suffix).
+	// Interval forms (Go duration and day suffix).
 	for _, in := range []string{"24h", "12h", "1d"} {
 		hb, enabled, err := WikiCleanupHeartbeat(in)
 		if err != nil || !enabled {
 			t.Fatalf("%s: enabled=%v err=%v", in, enabled, err)
 		}
 		if hb.Every <= 0 || hb.DailyAt != "" {
-			t.Fatalf("%s: erwartet Intervall-Form, bekam %+v", in, hb)
+			t.Fatalf("%s: expected the interval form, got %+v", in, hb)
 		}
 	}
 	if hb, _, _ := WikiCleanupHeartbeat("1d"); hb.Every != 24*time.Hour {
-		t.Fatalf("1d: erwartet 24h, bekam %v", hb.Every)
+		t.Fatalf("1d: expected 24h, got %v", hb.Every)
 	}
 
-	// Ungültiger Zeitplan -> Fehler.
+	// Invalid schedule -> error.
 	for _, bad := range []string{"dreißig", "25:99", "-5m", "morgens"} {
 		if _, enabled, err := WikiCleanupHeartbeat(bad); err == nil || enabled {
-			t.Errorf("%q: Fehler erwartet, bekam enabled=%v err=%v", bad, enabled, err)
+			t.Errorf("%q: expected an error, got enabled=%v err=%v", bad, enabled, err)
 		}
 	}
 }
@@ -119,6 +119,6 @@ func TestCompilePromptOhneHeartbeat(t *testing.T) {
 		"HEARTBEAT.md": "- alle: 30m titel: Posteingang sichten",
 	})
 	if strings.Contains(prompt, "Posteingang sichten") {
-		t.Error("HEARTBEAT.md darf nicht in den System-Prompt kompiliert werden")
+		t.Error("HEARTBEAT.md must not be compiled into the system prompt")
 	}
 }

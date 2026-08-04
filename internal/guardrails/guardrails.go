@@ -1,6 +1,6 @@
-// Package guardrails ist die Policy-Engine (spec/06): zentral definierte,
-// plattform-erzwungene Grenzen. Entschieden wird IMMER in der Control Plane
-// (der Daemon ist ausführendes Organ), Default ist fail-closed.
+// Package guardrails is the policy engine (spec/06): centrally defined,
+// platform-enforced limits. The decision is ALWAYS made in the control plane
+// (the daemon merely executes it); the default is fail-closed.
 package guardrails
 
 import (
@@ -14,13 +14,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// Regeltypen. Alle Regeln sind additiv-restriktiv: eine engere Ebene kann
-// verschärfen, eine globale Deny-Regel ist nicht aufweichbar.
+// Rule types. All rules are additively restrictive: a narrower level can only
+// tighten, and a global deny rule cannot be softened.
 const (
-	RuleDenySystem      = "deny_system"      // Broker: kein Token für dieses System
-	RuleDenyAction      = "deny_action"      // Tool-Layer: Aktion hart verboten
-	RuleRequireApproval = "require_approval" // Approval-Gate: nur mit Freigabe
-	RuleBudgetLimit     = "budget_limit"     // Kosten-Deckel (params: {"usd": N})
+	RuleDenySystem      = "deny_system"      // broker: no token for this system
+	RuleDenyAction      = "deny_action"      // tool layer: action flatly forbidden
+	RuleRequireApproval = "require_approval" // approval gate: only with sign-off
+	RuleBudgetLimit     = "budget_limit"     // cost cap (params: {"usd": N})
 )
 
 type Decision string
@@ -43,51 +43,51 @@ type Rule struct {
 	CreatedAt  time.Time       `json:"created_at"`
 }
 
-// Verdict ist das Ergebnis einer Policy-Entscheidung inkl. auslösender Regel.
+// Verdict is the outcome of a policy decision including the triggering rule.
 type Verdict struct {
 	Decision Decision
 	Rule     *Rule
 }
 
-// ErrNotFound: die Regel gibt es nicht — oder nicht in dieser Organisation.
-// Beides ist dieselbe Antwort.
-var ErrNotFound = errors.New("guard-rail nicht gefunden")
+// ErrNotFound: the rule does not exist — or not in this organisation. Both
+// cases get the same answer.
+var ErrNotFound = errors.New("guard-rail not found")
 
-// Validate prüft eine Regel vor dem Persistieren — fail-closed heißt auch:
-// keine Regeln speichern, die nie greifen oder mehrdeutig wären.
+// Validate checks a rule before it is persisted — fail-closed also means: do
+// not store rules that would never apply or would be ambiguous.
 func Validate(r Rule) error {
 	switch r.RuleType {
 	case RuleDenySystem, RuleDenyAction, RuleRequireApproval:
 		if strings.TrimSpace(r.Pattern) == "" {
-			return errors.New("pattern ist Pflicht")
+			return errors.New("pattern is required")
 		}
 	case RuleBudgetLimit:
 		var p struct {
 			USD float64 `json:"usd"`
 		}
 		if err := json.Unmarshal(r.Params, &p); err != nil || p.USD <= 0 {
-			return errors.New("budget_limit braucht params.usd > 0")
+			return errors.New("budget_limit needs params.usd > 0")
 		}
 	default:
-		return errors.New("unbekannter rule_type: " + r.RuleType)
+		return errors.New("unknown rule_type: " + r.RuleType)
 	}
 	switch r.ScopeLevel {
 	case "global", "team":
 		if r.AgentID != nil {
-			return errors.New("agent_id nur bei scope_level=agent")
+			return errors.New("agent_id only allowed with scope_level=agent")
 		}
 	case "agent":
 		if r.AgentID == nil {
-			return errors.New("scope_level=agent braucht agent_id")
+			return errors.New("scope_level=agent needs agent_id")
 		}
 	default:
-		return errors.New("unbekanntes scope_level: " + r.ScopeLevel)
+		return errors.New("unknown scope_level: " + r.ScopeLevel)
 	}
 	return nil
 }
 
-// matches prüft ein Muster wie "zammad:reply_external", "zammad:*" oder "*"
-// gegen einen konkreten Aktions-/System-Bezeichner.
+// matches tests a pattern such as "zammad:reply_external", "zammad:*" or "*"
+// against a concrete action/system identifier.
 func matches(pattern, subject string) bool {
 	if pattern == "*" || pattern == subject {
 		return true
@@ -98,9 +98,9 @@ func matches(pattern, subject string) bool {
 	return false
 }
 
-// Evaluate wendet die Regeln auf ein Subjekt an (z. B. "zammad" für einen
-// Credential-Request oder "zammad:reply_external" für eine Aktion).
-// Deny schlägt RequireApproval schlägt Allow — fail-closed in der Reihung.
+// Evaluate applies the rules to a subject (e.g. "zammad" for a credential
+// request or "zammad:reply_external" for an action). Deny beats
+// RequireApproval beats Allow — fail-closed by precedence.
 func Evaluate(rules []Rule, agentID uuid.UUID, subject string) Verdict {
 	var approval *Rule
 	for i := range rules {
@@ -127,7 +127,7 @@ func Evaluate(rules []Rule, agentID uuid.UUID, subject string) Verdict {
 	return Verdict{Decision: Allow}
 }
 
-// BudgetLimit liefert den engsten anwendbaren Kosten-Deckel (0 = keiner).
+// BudgetLimit returns the tightest applicable cost cap (0 = none).
 func BudgetLimit(rules []Rule, agentID uuid.UUID) float64 {
 	limit := 0.0
 	for i := range rules {
@@ -151,7 +151,7 @@ func BudgetLimit(rules []Rule, agentID uuid.UUID) float64 {
 	return limit
 }
 
-// --- Persistenz ---
+// --- Persistence ---
 
 type Store struct {
 	pool *pgxpool.Pool
@@ -192,8 +192,8 @@ func (s *Store) Create(ctx context.Context, r Rule) (Rule, error) {
 	return r, err
 }
 
-// SetEnabled schaltet eine Regel scharf oder pausiert sie — Pausieren statt
-// Löschen erhält die Regel-Historie und macht Experimente reversibel.
+// SetEnabled arms a rule or pauses it — pausing instead of deleting keeps the
+// rule history and makes experiments reversible.
 func (s *Store) SetEnabled(ctx context.Context, orgID, id uuid.UUID, enabled bool) (Rule, error) {
 	var r Rule
 	err := s.pool.QueryRow(ctx, `UPDATE guardrails SET enabled=$3 WHERE org_id=$1 AND id=$2
@@ -207,10 +207,10 @@ func (s *Store) Delete(ctx context.Context, orgID, id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	// Die Abfrage ist org-gescopt, eine fremde Regel trifft also nie zu — sie
-	// meldete bisher trotzdem Erfolg. Wer eine Regel einer anderen Organisation
-	// zu loeschen versucht, bekommt jetzt „nicht gefunden" statt einer
-	// Bestaetigung fuer etwas, das nicht passiert ist.
+	// The query is org-scoped, so a foreign rule never matches — yet it used to
+	// report success anyway. Anyone trying to delete another organisation's rule
+	// now gets "not found" instead of a confirmation for something that never
+	// happened.
 	if tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}

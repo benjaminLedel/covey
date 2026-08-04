@@ -1,5 +1,5 @@
-// Package zammad bindet das MVP-Zielsystem an (spec/13): REST-Client für die
-// Agent-Aktionen und Webhook-Verarbeitung (HMAC-verifiziert, idempotent).
+// Package zammad binds the MVP target system (spec/13): a REST client for the
+// agent actions and webhook processing (HMAC-verified, idempotent).
 package zammad
 
 import (
@@ -15,8 +15,8 @@ import (
 	"covey/internal/reqlog"
 )
 
-// Client spricht die Zammad-REST-API mit einem (gebrokerten) API-Token.
-// Das Token kommt pro Aufruf aus dem SecretStore — es wird nie persistiert.
+// Client talks to the Zammad REST API with a (brokered) API token. The token
+// comes from the SecretStore per call — it is never persisted.
 type Client struct {
 	BaseURL string
 	Token   string
@@ -103,11 +103,11 @@ func (c *Client) ListArticles(ctx context.Context, ticketID int) ([]Article, err
 	return out, err
 }
 
-// Reply — POST /ticket_articles. internal=true ist eine interne Notiz
-// (type "note", nur für Agenten sichtbar). internal=false geht kundensichtbar
-// raus — als type "email" (Default), damit die Antwort tatsächlich beim Kunden
-// ankommt; für Web-/Chat-Instanzen via COVEY_ZAMMAD_REPLY_TYPE überschreibbar.
-// (Eine externe "note" wäre im Ticket sichtbar, würde aber keine Mail auslösen.)
+// Reply — POST /ticket_articles. internal=true is an internal note (type
+// "note", visible only to agents). internal=false goes out customer-visible —
+// as type "email" (default), so that the answer actually reaches the customer;
+// overridable via COVEY_ZAMMAD_REPLY_TYPE for web/chat instances. (An external
+// "note" would be visible in the ticket but would trigger no mail.)
 func (c *Client) Reply(ctx context.Context, ticketID int, body string, internal bool) (Article, error) {
 	articleType := "note"
 	if !internal {
@@ -124,7 +124,7 @@ func (c *Client) Reply(ctx context.Context, ticketID int, body string, internal 
 	return out, err
 }
 
-// SetState — PUT /tickets/{id}. "pending reminder" bildet Coveys blocked ab.
+// SetState — PUT /tickets/{id}. "pending reminder" maps Covey's blocked.
 func (c *Client) SetState(ctx context.Context, ticketID int, state string) error {
 	body := map[string]any{"state": state}
 	if strings.HasPrefix(state, "pending") {
@@ -133,8 +133,8 @@ func (c *Client) SetState(ctx context.Context, ticketID int, state string) error
 	return c.do(ctx, http.MethodPut, fmt.Sprintf("/tickets/%d", ticketID), body, nil)
 }
 
-// Escalate setzt eine interne Notiz und stellt das Ticket zurück in die Gruppe
-// (owner_id 1 = System/unassigned), damit ein Mensch übernimmt.
+// Escalate adds an internal note and puts the ticket back into the group
+// (owner_id 1 = system/unassigned) so that a human takes over.
 func (c *Client) Escalate(ctx context.Context, ticketID int, note string) error {
 	if _, err := c.Reply(ctx, ticketID, note, true); err != nil {
 		return err

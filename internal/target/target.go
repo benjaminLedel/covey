@@ -1,22 +1,22 @@
-// Package target definiert das Plugin-Interface für Zielsysteme (Zammad,
-// GitLab, …) — dasselbe Muster wie die Runtime-Registry in internal/daemon:
-// ein Zielsystem = ein Unterpackage, das sich in init() via Register einträgt.
-// Control Plane (Webhook-Eingang, Prompt-Doku, UI) und Daemon (Action-
-// Ausführung) lesen dieselbe Registry; es gibt keine hartkodierte Liste.
+// Package target defines the plugin interface for target systems (Zammad,
+// GitLab, …) — the same pattern as the runtime registry in internal/daemon:
+// one target system = one subpackage that enters itself into the registry via
+// Register in init(). Control Plane (webhook intake, prompt docs, UI) and
+// daemon (action execution) read the same registry; there is no hardcoded list.
 //
-// Schlanke Auslieferung: Ein kompiliertes Plugin wird nur eingebunden, wenn
-// ein Binary es blank-importiert (cmd/covey, cmd/coveyd). Wer Covey ohne
-// Zammad ausliefern will, lässt den Import weg. Daneben gibt es zwei
-// Laufzeit-Plugin-Typen ganz ohne Neukompilieren:
+// Lean delivery: a compiled plugin is only linked in if a binary blank-imports
+// it (cmd/covey, cmd/coveyd). Whoever wants to ship Covey without Zammad simply
+// leaves out the import. Alongside that there are two runtime plugin types that
+// need no recompilation at all:
 //
-//   - Manifest-Plugins (kind=custom, JSON-Upload, siehe manifest.go): eine
-//     generische REST-Engine interpretiert das Manifest.
-//   - MCP-Plugins (kind=mcp, siehe Unterpaket mcp): ein angebundener
-//     MCP-Server, dessen Tools entdeckt (tools/list) und über den Action-Proxy
-//     aufgerufen (tools/call) werden.
+//   - Manifest plugins (kind=custom, JSON upload, see manifest.go): a generic
+//     REST engine interprets the manifest.
+//   - MCP plugins (kind=mcp, see subpackage mcp): a connected MCP server whose
+//     tools are discovered (tools/list) and invoked through the action proxy
+//     (tools/call).
 //
-// Alle drei erfüllen dieselbe System-Schnittstelle — Broker, Guard-Rails und
-// Recording greifen identisch, egal woher das Plugin stammt.
+// All three satisfy the same System interface — broker, guard-rails and
+// recording apply identically, no matter where the plugin comes from.
 package target
 
 import (
@@ -25,101 +25,100 @@ import (
 	"net/http"
 )
 
-// System ist ein angebundenes Zielsystem. Es bündelt die
-// Integrationsflächen (spec/13): Aktionen und Prompt-Doku. Der
-// Webhook-Eingang ist optional (siehe Webhooker) — ein Zielsystem, das rein
-// per Polling/Heartbeat aufnimmt (z. B. GitLab), implementiert ihn nicht.
+// System is a connected target system. It bundles the integration surfaces
+// (spec/13): actions and prompt docs. The webhook intake is optional (see
+// Webhooker) — a target system that only takes in work via polling/heartbeat
+// (e.g. GitLab) does not implement it.
 type System interface {
 	Name() string
 
-	// ActionSubject mappt Aktion+Params auf das Guard-Rail-Subjekt
-	// (z. B. reply mit internal=false → "zammad:reply_external").
+	// ActionSubject maps action+params onto the guard-rail subject
+	// (e.g. reply with internal=false → "zammad:reply_external").
 	ActionSubject(action string, params json.RawMessage) string
 
-	// Execute führt eine Agent-Aktion mit gebrokerten Credentials aus
-	// (Daemon-Seite). Die Credentials kommen pro Aufruf aus dem Broker —
-	// sie werden nie persistiert.
+	// Execute runs an agent action with brokered credentials (daemon side).
+	// The credentials come from the broker per call — they are never
+	// persisted.
 	Execute(ctx context.Context, action string, params json.RawMessage, cred Credential) (any, error)
 
-	// PromptDoc beschreibt die verfügbaren Aktionen für den System-Prompt
-	// des Agenten (wird in die Plattform-Protokoll-Sektion kompiliert).
+	// PromptDoc describes the available actions for the agent's system prompt
+	// (it is compiled into the platform protocol section).
 	PromptDoc() string
 }
 
-// Webhooker ist ein optionales Plugin-Interface für Zielsysteme mit
-// eingehendem Webhook (Zammad, Manifest-Plugins). Der Event-Router
-// (httpapi.handleTargetWebhook) prüft darauf; ein System ohne Webhooker
-// beantwortet Webhook-Posts fail-closed mit 404. Zielsysteme, die rein per
-// Polling aufnehmen, lassen dieses Interface weg — dann gibt es keinen
-// eingehenden Traffic, keine öffentliche URL und kein Webhook-Secret.
+// Webhooker is an optional plugin interface for target systems with an
+// incoming webhook (Zammad, manifest plugins). The event router
+// (httpapi.handleTargetWebhook) checks for it; a system without Webhooker
+// answers webhook posts fail-closed with 404. Target systems that only take in
+// work via polling leave this interface out — then there is no incoming
+// traffic, no public URL and no webhook secret.
 type Webhooker interface {
-	// VerifyWebhook prüft die Integrität eines rohen Webhook-Payloads
-	// (z. B. HMAC-Signatur). Leeres Secret = Prüfung deaktiviert (Dev).
+	// VerifyWebhook checks the integrity of a raw webhook payload (e.g. an
+	// HMAC signature). Empty secret = verification disabled (dev).
 	VerifyWebhook(secret string, body []byte, header http.Header) bool
 
-	// ParseWebhook macht aus dem Payload das Wake-Event für den Orchestrator.
+	// ParseWebhook turns the payload into the wake event for the orchestrator.
 	ParseWebhook(body []byte) (WebhookEvent, error)
 }
 
-// Credential ist das gebrokerte Zugangs-Paar für ein Zielsystem.
+// Credential is the brokered access pair for a target system.
 type Credential struct {
 	BaseURL string
 	Token   string
 }
 
-// WorkChecker ist ein optionales Plugin-Interface für Systeme ohne Webhook:
-// ein billiger Vorab-Check der Control Plane, ob überhaupt Arbeit vorliegt
-// (z. B. ungelesene Mails per IMAP). Heartbeat-Einträge mit nur-wenn: <system>
-// feuern nur, wenn HasWork true liefert — sonst entfällt der Lauf und damit
-// der (teure) Agenten-Wake. Der Check läuft in der Control Plane, das
-// Credential verlässt sie dabei nicht.
+// WorkChecker is an optional plugin interface for systems without a webhook:
+// a cheap upfront check by the Control Plane whether there is any work at all
+// (e.g. unread mail via IMAP). Heartbeat entries with nur-wenn: <system> only
+// fire if HasWork returns true — otherwise the run, and with it the (expensive)
+// agent wake, is skipped. The check runs in the Control Plane; the credential
+// never leaves it.
 type WorkChecker interface {
 	HasWork(ctx context.Context, cred Credential) (bool, error)
 }
 
-// KindWorkChecker verfeinert WorkChecker für Zielsysteme mit mehreren
-// Arbeits-Arten (z. B. GitLab: Issues vs. Merge-Request-Reviews). Ein
-// Heartbeat mit nur-wenn: <system>:<kind> (etwa nur-wenn: gitlab:mr) ruft
-// HasWorkKind(…, kind) — so lässt sich je Art getrennt gaten, statt beide
-// Heartbeats über einen gemeinsamen Boolean feuern zu lassen. Ohne Unterscope
-// (nur-wenn: <system>) greift weiter HasWork. Ein leerer/unbekannter kind darf
-// nicht weniger als HasWork melden (fail-open: im Zweifel Arbeit annehmen).
+// KindWorkChecker refines WorkChecker for target systems with several kinds of
+// work (e.g. GitLab: issues vs. merge request reviews). A heartbeat with
+// nur-wenn: <system>:<kind> (say nur-wenn: gitlab:mr) calls
+// HasWorkKind(…, kind) — that way each kind can be gated separately instead of
+// letting both heartbeats fire off a shared boolean. Without a sub-scope
+// (nur-wenn: <system>) HasWork still applies. An empty/unknown kind must not
+// report less than HasWork (fail-open: when in doubt, assume there is work).
 type KindWorkChecker interface {
 	WorkChecker
 	HasWorkKind(ctx context.Context, cred Credential, kind string) (bool, error)
 }
 
-// SignedWorkChecker verfeinert WorkChecker um eine Signatur des gefundenen
-// Arbeitsvorrats — eine kurze, stabile Beschreibung dessen, WORAUF der Check
-// angeschlagen hat (bei GitLab etwa „mr!9@n1234": Merge Request 9, neuester
-// Beitrag 1234).
+// SignedWorkChecker refines WorkChecker with a signature of the work found — a
+// short, stable description of WHAT the check responded to (with GitLab for
+// instance "mr!9@n1234": merge request 9, newest note 1234).
 //
-// Der Grund: Eine nur-wenn:-Bedingung ist pegelgesteuert. Sie meldet Arbeit,
-// solange der Zustand besteht — „im Thread hat zuletzt jemand anderes
-// geschrieben" bleibt wahr, bis der Agent selbst schreibt. Ein Agent, der einen
-// Lauf BEWUSST kommentarlos beendet (die Rückmeldung war eine Freigabe, es gibt
-// nichts zu tun), würde deshalb im nächsten Intervall erneut geweckt und
-// kommentiert am Ende nur noch, um seinen eigenen Wecker abzustellen.
+// The reason: a nur-wenn: condition is level-triggered. It reports work as long
+// as the state persists — "someone else wrote last in the thread" stays true
+// until the agent writes itself. An agent that DELIBERATELY ends a run without
+// a comment (the feedback was an approval, there is nothing to do) would
+// therefore be woken again in the next interval and would end up commenting
+// only to turn off its own alarm clock.
 //
-// Die Control Plane merkt sich darum die Signatur, auf die zuletzt gefeuert
-// wurde, und feuert erst wieder, wenn sie sich ÄNDERT. Der Agent wird also
-// weiterhin zu jeder Neuigkeit geweckt — auch zu einer, die er nur zur Kenntnis
-// nimmt — aber nie zweimal zur selben. Ob eine Rückmeldung Arbeit ist (Mängel)
-// oder nicht (Freigabe), entscheidet damit der Agent, nicht das Gate.
+// The Control Plane therefore remembers the signature it last fired on and only
+// fires again once it CHANGES. So the agent is still woken for every piece of
+// news — including one it merely takes note of — but never twice for the same
+// one. Whether feedback is work (defects) or not (approval) is thus decided by
+// the agent, not by the gate.
 //
-// Eine leere Signatur schaltet die Unterdrückung ab: dann feuert der Heartbeat
-// wie bisher bei jedem Pegel (fail-open).
+// An empty signature switches the suppression off: then the heartbeat fires on
+// every level as before (fail-open).
 type SignedWorkChecker interface {
 	WorkChecker
-	// HasWorkSigned prüft wie HasWorkKind (kind == "" → wie HasWork) und
-	// liefert zusätzlich die Signatur des gefundenen Vorrats.
+	// HasWorkSigned checks like HasWorkKind (kind == "" → like HasWork) and
+	// additionally returns the signature of the work found.
 	HasWorkSigned(ctx context.Context, cred Credential, kind string) (bool, string, error)
 }
 
-// workdirKey trägt das Sandbox-Arbeitsverzeichnis durch den Context zu
-// Execute. Aktionen, die Dateien in der Sandbox materialisieren (z. B.
-// gitlab checkout), entpacken dorthin — der Daemon setzt den Wert, weil nur
-// er weiß, wo der Workspace der Runtime liegt.
+// workdirKey carries the sandbox working directory through the context to
+// Execute. Actions that materialize files in the sandbox (e.g. gitlab
+// checkout) unpack them there — the daemon sets the value, because only it
+// knows where the runtime's workspace lives.
 type ctxKey int
 
 const (
@@ -128,66 +127,67 @@ const (
 	subAgentKey
 )
 
-// Artifact ist ein Binär-Nebenergebnis einer Aktion, das ins Recording gehört
-// (z. B. ein Screenshot), aber NICHT ins Aktions-Ergebnis der Runtime — sonst
-// landete es im LLM-Kontext. Plugins reichen es über EmitArtifact durch; der
-// Action-Proxy sammelt es getrennt vom zurückgegebenen Ergebnis ein.
+// Artifact is a binary side result of an action that belongs in the recording
+// (e.g. a screenshot) but NOT in the action result handed to the runtime —
+// otherwise it would end up in the LLM context. Plugins pass it through via
+// EmitArtifact; the action proxy collects it separately from the returned
+// result.
 type Artifact struct {
 	MIME  string
 	Bytes []byte
 }
 
-// WithArtifactSink hängt eine Senke an den Context, die EmitArtifact-Aufrufe
-// eines Plugins entgegennimmt. Der Action-Proxy setzt sie pro Aktion.
+// WithArtifactSink attaches a sink to the context that takes in a plugin's
+// EmitArtifact calls. The action proxy sets it per action.
 func WithArtifactSink(ctx context.Context, sink func(Artifact)) context.Context {
 	return context.WithValue(ctx, artifactSinkKey, sink)
 }
 
-// EmitArtifact meldet ein Artefakt an die Senke im Context (No-op ohne Senke).
+// EmitArtifact reports an artifact to the sink in the context (no-op without a
+// sink).
 func EmitArtifact(ctx context.Context, a Artifact) {
 	if sink, ok := ctx.Value(artifactSinkKey).(func(Artifact)); ok && sink != nil {
 		sink(a)
 	}
 }
 
-// WithWorkdir hängt das Sandbox-Arbeitsverzeichnis an den Context.
+// WithWorkdir attaches the sandbox working directory to the context.
 func WithWorkdir(ctx context.Context, dir string) context.Context {
 	return context.WithValue(ctx, workdirKey, dir)
 }
 
-// Workdir liest das Sandbox-Arbeitsverzeichnis aus dem Context. Leer, wenn
-// die Aktion außerhalb einer Sandbox läuft (z. B. Control-Plane-Kontext).
+// Workdir reads the sandbox working directory from the context. Empty if the
+// action runs outside a sandbox (e.g. in Control Plane context).
 func Workdir(ctx context.Context) string {
 	dir, _ := ctx.Value(workdirKey).(string)
 	return dir
 }
 
-// BaselineRef ist der git-Tag, den ein Checkout auf den frisch entpackten
-// Upstream-Stand setzt. Er ist der Anker zwischen Checkout und Sub-Lauf: Der
-// Sub-Lauf meldet seine Arbeit als Differenz zu diesem Commit, nicht als
-// Differenz zweier Status-Abbilder. Nur so bleibt die Arbeit sichtbar, wenn
-// der Sub-Agent im Checkout lokal committet — was viele Projekte in ihrer
-// CLAUDE.md ausdrücklich verlangen.
+// BaselineRef is the git tag a checkout puts on the freshly unpacked upstream
+// state. It is the anchor between checkout and sub-run: the sub-run reports its
+// work as a difference to that commit, not as a difference between two status
+// snapshots. Only that way does the work stay visible when the sub-agent
+// commits locally in the checkout — which many projects explicitly demand in
+// their CLAUDE.md.
 const BaselineRef = "covey-baseline"
 
-// SubAgentRequest ist ein Arbeitsauftrag an einen geschachtelten Runtime-Lauf,
-// der IM angegebenen Verzeichnis startet — typischerweise ein Projekt-Checkout.
-// Damit greift dort der Claude-Code-Harness des Projekts selbst (CLAUDE.md,
-// .claude/agents, skills, commands), den der äußere Lauf vom Agenten-Home aus
-// nie sieht.
+// SubAgentRequest is a work order for a nested runtime run that starts IN the
+// given directory — typically a project checkout. That way the project's own
+// Claude Code harness applies there (CLAUDE.md, .claude/agents, skills,
+// commands), which the outer run never sees from the agent home.
 type SubAgentRequest struct {
-	// Dir ist das Arbeitsverzeichnis des Sub-Laufs (relativ zum Sandbox-Home
-	// oder absolut).
+	// Dir is the working directory of the sub-run (relative to the sandbox
+	// home or absolute).
 	Dir string
-	// Task ist der Arbeitsauftrag — die einzige Eingabe des Sub-Agenten.
+	// Task is the work order — the sub-agent's only input.
 	Task string
-	// Model und MaxTurns überschreiben die Vorgaben des Laufs (leer/0 = Default).
+	// Model and MaxTurns override the run's defaults (empty/0 = default).
 	Model    string
 	MaxTurns int
 }
 
-// SubAgentResult ist das normierte Ergebnis eines Sub-Laufs. ChangedFiles und
-// Deleted sind repo-relative Pfade und passen direkt in die commit-Aktion.
+// SubAgentResult is the normalized result of a sub-run. ChangedFiles and
+// Deleted are repo-relative paths and fit straight into the commit action.
 type SubAgentResult struct {
 	Result         string   `json:"result"`
 	ChangedFiles   []string `json:"changed_files,omitempty"`
@@ -197,85 +197,85 @@ type SubAgentResult struct {
 	Error          string   `json:"error,omitempty"`
 }
 
-// SubAgentRunner führt einen Sub-Lauf aus. Der Daemon hängt ihn pro Aktion an
-// den Context — genau wie Workdir und die Artefakt-Senke, damit Plugins die
-// Fähigkeit nutzen können, ohne den Daemon zu importieren.
+// SubAgentRunner executes a sub-run. The daemon attaches it to the context per
+// action — just like the workdir and the artifact sink, so that plugins can use
+// the capability without importing the daemon.
 type SubAgentRunner func(ctx context.Context, req SubAgentRequest) (SubAgentResult, error)
 
-// WithSubAgent hängt den Sub-Agent-Runner an den Context.
+// WithSubAgent attaches the sub-agent runner to the context.
 func WithSubAgent(ctx context.Context, run SubAgentRunner) context.Context {
 	return context.WithValue(ctx, subAgentKey, run)
 }
 
-// SubAgent liest den Runner aus dem Context. nil, wenn die Aktion außerhalb
-// einer Sandbox läuft (z. B. Control-Plane-Kontext) — dann gibt es keine
-// Runtime, die sich schachteln ließe.
+// SubAgent reads the runner from the context. nil if the action runs outside a
+// sandbox (e.g. in Control Plane context) — then there is no runtime that could
+// be nested.
 func SubAgent(ctx context.Context) SubAgentRunner {
 	run, _ := ctx.Value(subAgentKey).(SubAgentRunner)
 	return run
 }
 
-// WebhookEvent ist das normalisierte Ergebnis eines Webhook-Payloads —
-// alles, was der Orchestrator für Idempotenz, Korrelation und Task-Anlage braucht.
+// WebhookEvent is the normalized result of a webhook payload — everything the
+// orchestrator needs for idempotency, correlation and task creation.
 type WebhookEvent struct {
-	// DedupKey macht die Verarbeitung idempotent (Retries des Zielsystems).
+	// DedupKey makes processing idempotent (retries by the target system).
 	DedupKey string
-	// CorrelationKey weckt eine geblockte Aufgabe (z. B. "zammad:ticket:42").
+	// CorrelationKey wakes a blocked task (e.g. "zammad:ticket:42").
 	CorrelationKey string
-	// Title/TaskBody beschreiben die neue Backlog-Aufgabe, falls keine
-	// geblockte Aufgabe korreliert.
+	// Title/TaskBody describe the new backlog task, in case no blocked task
+	// correlates.
 	Title    string
 	TaskBody string
-	// ResumeInput ist die Fortsetzungs-Eingabe für eine korrelierte Aufgabe.
+	// ResumeInput is the resume input for a correlated task.
 	ResumeInput string
-	// Wake: false → Event wird registriert (Dedup), weckt aber nicht —
-	// z. B. das Echo der eigenen Agent-Antwort.
+	// Wake: false → the event is registered (dedup) but does not wake —
+	// e.g. the echo of the agent's own reply.
 	Wake bool
-	// CorrelateOnly: das Event weckt nur eine bereits geblockte Aufgabe
-	// (Wake-on-correlation), legt aber KEINE neue an — z. B. der Merge eines
-	// MR: wartet niemand darauf, ist er keine Arbeit.
+	// CorrelateOnly: the event only wakes an already blocked task
+	// (wake-on-correlation) but creates NO new one — e.g. the merge of an MR:
+	// if nobody is waiting for it, it is not work.
 	CorrelateOnly bool
 }
 
-// Descriptor ist die Plugin-Einheit eines Zielsystems: Metadaten fürs UI
-// plus die Implementierung.
+// Descriptor is the plugin unit of a target system: metadata for the UI plus
+// the implementation.
 type Descriptor struct {
 	Name        string `json:"name"`
 	Label       string `json:"label"`
 	Description string `json:"description"`
-	// Kind: "builtin" (kompiliert) oder "custom" (Manifest-Upload).
+	// Kind: "builtin" (compiled) or "custom" (manifest upload).
 	Kind string `json:"kind"`
-	// Category ordnet das Plugin im Store ein (Konstanten Category…). Das
-	// Plugin deklariert sie selbst — die UI leitet ihre Filter aus den
-	// vorkommenden Kategorien ab, ohne eigene Liste. Leer = CategoryOther.
+	// Category places the plugin in the store (constants Category…). The
+	// plugin declares it itself — the UI derives its filters from the
+	// categories that occur, without a list of its own. Empty = CategoryOther.
 	Category string `json:"category,omitempty"`
 	System   System `json:"-"`
-	// NoCredentials: das System braucht keine gebrokerten Secrets (kein
-	// <name>_token/_url) — es arbeitet rein lokal in der Sandbox (z. B. das
-	// dev-Plugin). ACCESS.md, Aktivierung und Guard-Rails gelten trotzdem.
+	// NoCredentials: the system needs no brokered secrets (no
+	// <name>_token/_url) — it works purely locally in the sandbox (e.g. the
+	// dev plugin). ACCESS.md, activation and guard-rails still apply.
 	NoCredentials bool `json:"-"`
-	// BaseURLOptional: das Plugin kennt den Endpoint seines Zielsystems selbst
-	// (fester Default, z. B. der Bot-Framework-Token-Endpoint bei Teams).
-	// <name>_url ist dann ein Override für Sonderfälle, kein Pflicht-Secret —
-	// der Broker verweigert ohne es nicht. Ein <name>_token bleibt Pflicht.
+	// BaseURLOptional: the plugin knows its target system's endpoint itself
+	// (a fixed default, e.g. the Bot Framework token endpoint for Teams).
+	// <name>_url is then an override for special cases, not a mandatory
+	// secret — the broker does not refuse without it. A <name>_token stays
+	// mandatory.
 	BaseURLOptional bool `json:"-"`
-	// SetupDoc ist die Einrichtungs-Anleitung fürs UI (Plain Text, nummerierte
-	// Schritte). Platzhalter: {public_url} wird von der API durch die
-	// konfigurierte COVEY_PUBLIC_URL ersetzt; <agent-slug> bleibt stehen und
-	// meint den Slug des zuständigen Agenten (ersatzweise akzeptiert der
-	// Webhook-Endpoint auch dessen ID).
+	// SetupDoc is the setup guide for the UI (plain text, numbered steps).
+	// Placeholders: {public_url} is replaced by the API with the configured
+	// COVEY_PUBLIC_URL; <agent-slug> stays as it is and means the slug of the
+	// responsible agent (the webhook endpoint accepts its ID instead).
 	SetupDoc string `json:"setup_doc,omitempty"`
 }
 
-// Kategorien für den Zielsystem-Store. Rein für die Einordnung im UI —
-// Verhalten hängt nie daran.
+// Categories for the target system store. Purely for placement in the UI —
+// behavior never depends on them.
 const (
-	CategoryTicketing = "ticketing"     // Helpdesk, Service-Desk
-	CategoryCode      = "code"          // Repos, Merge Requests, CI
-	CategoryComms     = "communication" // E-Mail, Chat
-	CategoryFiles     = "files"         // Dateiablagen, Dokumente
-	CategoryWeb       = "web"           // Browser, Web-Anwendungen
-	CategoryDev       = "dev"           // Werkzeuge in der Sandbox selbst
+	CategoryTicketing = "ticketing"     // helpdesk, service desk
+	CategoryCode      = "code"          // repos, merge requests, CI
+	CategoryComms     = "communication" // email, chat
+	CategoryFiles     = "files"         // file shares, documents
+	CategoryWeb       = "web"           // browser, web applications
+	CategoryDev       = "dev"           // tools in the sandbox itself
 	CategoryOther     = "other"
 )
 
@@ -284,8 +284,8 @@ var (
 	order    []string
 )
 
-// Register trägt ein Zielsystem-Plugin ein. Aufruf aus init() des jeweiligen
-// Unterpackages; die Registrierungs-Reihenfolge ist die Anzeige-Reihenfolge.
+// Register enters a target system plugin. Called from the respective
+// subpackage's init(); the registration order is the display order.
 func Register(d Descriptor) {
 	if d.Kind == "" {
 		d.Kind = "builtin"
@@ -299,7 +299,7 @@ func Register(d Descriptor) {
 	registry[d.Name] = d
 }
 
-// Get liefert das registrierte (kompilierte) Zielsystem zu einem Namen.
+// Get returns the registered (compiled) target system for a name.
 func Get(name string) (System, bool) {
 	d, ok := registry[name]
 	if !ok || d.System == nil {
@@ -308,15 +308,15 @@ func Get(name string) (System, bool) {
 	return d.System, true
 }
 
-// Describe liefert den Deskriptor eines kompilierten Zielsystems — für
-// Entscheidungen der Control Plane, die Metadaten statt der Implementierung
-// brauchen (z. B. NoCredentials im Broker).
+// Describe returns the descriptor of a compiled target system — for Control
+// Plane decisions that need the metadata rather than the implementation
+// (e.g. NoCredentials in the broker).
 func Describe(name string) (Descriptor, bool) {
 	d, ok := registry[name]
 	return d, ok
 }
 
-// All liefert alle registrierten Deskriptoren in Registrierungs-Reihenfolge.
+// All returns all registered descriptors in registration order.
 func All() []Descriptor {
 	out := make([]Descriptor, 0, len(order))
 	for _, name := range order {
@@ -325,18 +325,17 @@ func All() []Descriptor {
 	return out
 }
 
-// Shutdown-Hooks: Plugins mit lokalem Zustand in der Sandbox (z. B. der
-// Prozess-Supervisor des dev-Plugins) registrieren hier ihren Aufräum-Code.
-// Der Daemon ruft Shutdown() beim Herunterfahren — sonst überlebten
-// gestartete Prozesse (Chrome, Dev-Server) die Sandbox.
+// Shutdown hooks: plugins with local state in the sandbox (e.g. the process
+// supervisor of the dev plugin) register their cleanup code here. The daemon
+// calls Shutdown() when shutting down — otherwise started processes (Chrome,
+// dev servers) would outlive the sandbox.
 var shutdownHooks []func()
 
-// OnShutdown registriert einen Aufräum-Hook (Aufruf aus init() bzw. bei
-// erster Nutzung; nicht nebenläufig zur Registrierung).
+// OnShutdown registers a cleanup hook (called from init() or on first use; not
+// concurrently with the registration).
 func OnShutdown(fn func()) { shutdownHooks = append(shutdownHooks, fn) }
 
-// Shutdown führt alle Aufräum-Hooks aus (idempotent, Reihenfolge der
-// Registrierung).
+// Shutdown runs all cleanup hooks (idempotent, in registration order).
 func Shutdown() {
 	for _, fn := range shutdownHooks {
 		fn()

@@ -10,21 +10,21 @@ import (
 	"covey/internal/dream"
 )
 
-// Träume (spec/05). Der Agent räumt sein Gedächtnis auf — nachts von selbst,
-// tagsüber auf Knopfdruck. Die Endpunkte hier sind die Naht: starten, zusehen,
-// nachlesen, zurücknehmen. Die Arbeit selbst liegt in internal/dream.
+// Dreams (spec/05). The agent tidies up its memory — at night on its own,
+// during the day at the push of a button. The endpoints here are the seam:
+// start, watch, read up, take back. The work itself lives in internal/dream.
 
-// handleStartDream weckt einen Traum. Kehrt sofort zurück; der Traum läuft im
-// Hintergrund und wird über die Historie verfolgt. Träumt der Agent schon,
-// kommt der laufende zurück statt eines zweiten — jeder Traum kostet einen
-// LLM-Aufruf.
-// dreamStore gibt den Traum-Store heraus oder beantwortet die Anfrage. Wie bei
-// den Skills ist er optional: Eine Instanz ohne konfigurierten Nachtlauf soll
-// mit 503 antworten und nicht mit einem Nil-Pointer-Absturz, der die ganze
-// Verbindung reißt.
+// handleStartDream wakes a dream. Returns immediately; the dream runs in the
+// background and is followed through the history. If the agent is already
+// dreaming, the running one comes back instead of a second — every dream costs
+// an LLM call.
+// dreamStore hands out the dream store or answers the request itself. As with
+// the skills it is optional: an instance without a configured night run should
+// answer with 503 and not with a nil pointer crash that tears down the whole
+// connection.
 func (s *Server) dreamStore(w http.ResponseWriter) (*dream.Store, bool) {
 	if s.Dreams == nil {
-		writeErr(w, http.StatusServiceUnavailable, "träume sind in dieser Instanz nicht konfiguriert")
+		writeErr(w, http.StatusServiceUnavailable, "dreams are not configured on this instance")
 		return nil, false
 	}
 	return s.Dreams, true
@@ -36,7 +36,7 @@ func (s *Server) handleStartDream(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	if _, err := s.Registry.Get(r.Context(), id); err != nil {
@@ -47,7 +47,7 @@ func (s *Server) handleStartDream(w http.ResponseWriter, r *http.Request) {
 	cred, oauth, ok := s.resolveOrgClaude(r.Context(), p.OrgID)
 	if !ok {
 		writeErr(w, http.StatusPreconditionFailed,
-			"kein org-weites Claude-Credential hinterlegt — der Agent kann nicht träumen")
+			"no org-wide Claude credential configured — the agent cannot dream")
 		return
 	}
 
@@ -65,11 +65,11 @@ func (s *Server) handleStartDream(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	// Bewusst nicht an r.Context() gehängt: Der Request ist gleich beendet, der
-	// Traum soll es nicht sein — er läuft Minuten. Aber auch nicht an
-	// context.Background(): Dann überlebte er ein Herunterfahren als Goroutine,
-	// die niemand mehr abbricht und auf die niemand wartet. Der Lebenszyklus
-	// des Servers ist genau das richtige Maß dazwischen.
+	// Deliberately not attached to r.Context(): the request is over in a
+	// moment, the dream should not be — it runs for minutes. But not attached to
+	// context.Background() either: then it would survive a shutdown as a
+	// goroutine that nobody cancels and nobody waits for. The server's lifecycle
+	// is exactly the right measure in between.
 	go func() {
 		ctx, cancel := context.WithTimeout(s.baseCtx(), 10*time.Minute)
 		defer cancel()
@@ -78,15 +78,15 @@ func (s *Server) handleStartDream(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, d)
 }
 
-// handleListDreams liefert die Traum-Historie: was der Agent in den letzten
-// Nächten mit seinem Gedächtnis gemacht hat, Handlung für Handlung.
+// handleListDreams returns the dream history: what the agent did with its
+// memory over the last nights, action by action.
 func (s *Server) handleListDreams(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.dreamStore(w); !ok {
 		return
 	}
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	list, err := s.Dreams.List(r.Context(), id, 30)
@@ -97,14 +97,14 @@ func (s *Server) handleListDreams(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, list)
 }
 
-// handleUndoDreamAction nimmt eine einzelne Handlung zurück.
+// handleUndoDreamAction takes back a single action.
 func (s *Server) handleUndoDreamAction(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.dreamStore(w); !ok {
 		return
 	}
 	actionID, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	if err := s.Dreams.Undo(r.Context(), actionID); err != nil {

@@ -10,57 +10,57 @@ import (
 	"covey/internal/target"
 )
 
-// System bindet Microsoft Teams als Zielsystem-Plugin an die target-Registry:
-// Webhook-Eingang (Bot-Framework-JWT, Idempotenz, Korrelation), die
-// Agent-Aktionen und die Aktions-Doku für den System-Prompt (spec/15).
+// System binds Microsoft Teams into the target registry as a target-system
+// plugin: webhook intake (Bot Framework JWT, idempotency, correlation), the
+// agent actions and the action documentation for the system prompt (spec/15).
 type System struct{}
 
 func init() {
 	target.Register(target.Descriptor{
 		Name:        "teams",
 		Label:       "Microsoft Teams",
-		Description: "Chat-Kanal über den Azure Bot Service (spec/15): Nachrichten empfangen (Messaging-Endpoint, JWT-verifiziert) und senden (Bot Connector). Auth per OAuth2 (Secrets teams_token = appId:appPassword + optional teams_url).",
+		Description: "Chat channel via the Azure Bot Service (spec/15): receive messages (messaging endpoint, JWT-verified) and send them (Bot Connector). Auth via OAuth2 (secrets teams_token = appId:appPassword + optional teams_url).",
 		Kind:        "builtin",
 		Category:    target.CategoryComms,
 		System:      System{},
-		// teams_url ist der Token-Endpoint — ohne ihn greift der
-		// Multi-Tenant-Default aus config.go. Nur Single-Tenant-Bots setzen
-		// ihn, deshalb kein Pflicht-Secret.
+		// teams_url is the token endpoint — without it the multi-tenant default
+		// from config.go applies. Only single-tenant bots set it, hence not a
+		// mandatory secret.
 		BaseURLOptional: true,
-		SetupDoc: `1. In Azure eine Bot-Registration (Azure Bot / Bot Channels Registration)
-   anlegen und den Kanal "Microsoft Teams" aktivieren. Microsoft-App-ID
-   notieren und ein Client Secret (App-Passwort) erzeugen.
+		SetupDoc: `1. Create a bot registration in Azure (Azure Bot / Bot Channels
+   Registration) and enable the "Microsoft Teams" channel. Note the Microsoft
+   app ID and generate a client secret (app password).
 
-2. Messaging-Endpoint der Bot-Registration setzen auf:
+2. Set the messaging endpoint of the bot registration to:
    {public_url}/api/webhooks/teams/<agent-slug>
 
-3. Unter Secrets hinterlegen und dem Agenten zuweisen:
-   teams_token = <app-id>:<app-passwort>
-   teams_url   = (optional) Token-Endpoint, Default
+3. Store under Secrets and assign to the agent:
+   teams_token = <app-id>:<app-password>
+   teams_url   = (optional) token endpoint, default
                  https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token
 
-4. In der ACCESS.md des Agenten freischalten:
+4. Grant it in the agent's ACCESS.md:
    - system: teams scope: read,write
 
-5. Prozess-Env für die Webhook-Verifikation:
-   COVEY_TEAMS_WEBHOOK_SECRET=<app-id>   (die Bot-App-ID = erwartete JWT-Audience;
-                                          leer = Verifikation aus, nur für Tests)
+5. Process env for the webhook verification:
+   COVEY_TEAMS_WEBHOOK_SECRET=<app-id>   (the bot app ID = expected JWT audience;
+                                          empty = verification off, tests only)
 
-6. Optionale Prozess-Env:
-   COVEY_TEAMS_INTAKE_TENANTS="<tenant-id>"   (leer = alle Tenants)
+6. Optional process env:
+   COVEY_TEAMS_INTAKE_TENANTS="<tenant-id>"   (empty = all tenants)
 
-7. Ein Teams-App-Manifest mit der App-ID als bot-id in Teams hochladen/seitwärts
-   laden, damit Nutzer den Agenten anschreiben können.
+7. Upload/sideload a Teams app manifest carrying the app ID as bot-id into
+   Teams so that users can message the agent.
 
-Details: docs/ops-teams.md im Repository.`,
+Details: docs/ops-teams.md in the repository.`,
 	})
 }
 
 func (System) Name() string { return "teams" }
 
-// VerifyWebhook validiert das Bot-Framework-JWT. Das "secret" ist hier die
-// erwartete Bot-App-ID (JWT-Audience), gesetzt via COVEY_TEAMS_WEBHOOK_SECRET;
-// leer = Verifikation deaktiviert (Dev/faketeams).
+// VerifyWebhook validates the Bot Framework JWT. The "secret" is the expected
+// bot app ID here (the JWT audience), set via COVEY_TEAMS_WEBHOOK_SECRET;
+// empty = verification disabled (dev/faketeams).
 func (System) VerifyWebhook(secret string, body []byte, header http.Header) bool {
 	return VerifyToken(secret, header.Get("Authorization"))
 }
@@ -83,7 +83,7 @@ func (System) ParseWebhook(body []byte) (target.WebhookEvent, error) {
 	}
 	text := a.CleanText()
 	if text == "" {
-		text = "(kein Text)"
+		text = "(no text)"
 	}
 
 	replyHint := fmt.Sprintf(
@@ -95,57 +95,57 @@ func (System) ParseWebhook(body []byte) (target.WebhookEvent, error) {
 	return target.WebhookEvent{
 		DedupKey:       a.DedupKey(),
 		CorrelationKey: CorrelationKey(a.Conversation.ID),
-		Title:          fmt.Sprintf("Teams-Nachricht von %s", from),
+		Title:          fmt.Sprintf("Teams message from %s", from),
 		TaskBody: fmt.Sprintf(
-			"Neue Microsoft-Teams-Nachricht von %s (%s).\n\nNachricht:\n%s%s\n\nAntworte über den Action-Proxy (system teams):\n%s",
+			"New Microsoft Teams message from %s (%s).\n\nMessage:\n%s%s\n\nReply through the action proxy (system teams):\n%s",
 			from, convKind, text, attachSection, replyHint),
-		ResumeInput: fmt.Sprintf("Antwort von %s in Teams:\n%s%s", from, text, attachSection),
+		ResumeInput: fmt.Sprintf("Reply from %s in Teams:\n%s%s", from, text, attachSection),
 		Wake:        a.ShouldWake(),
 	}, nil
 }
 
-// consentEvent übersetzt die Antwort auf eine Zustimmungs-Karte in ein
-// Wake-Event. Der Agent wartet an dieser Stelle geparkt auf genau diese
-// Entscheidung (Korrelation über die Konversation); der ResumeInput ist
-// deshalb ein direkter Arbeitsauftrag, keine Nachricht zum Beantworten.
+// consentEvent turns the answer to a consent card into a wake event. At this
+// point the agent is parked waiting for exactly this decision (correlated via
+// the conversation); the ResumeInput is therefore a direct work order, not a
+// message to be answered.
 //
-// Immer CorrelateOnly: eine Zustimmung ist die Fortsetzung einer Arbeit, die
-// dieser Agent begonnen hat. Parkt niemand darauf (Aufgabe schon beendet,
-// anders entblockt, verspätete Zustellung), ist sie keine neue Arbeit — sonst
-// entstünde eine Aufgabe, die einen ahnungslosen Agenten auffordert, eine
-// Datei hochzuladen, von der er nichts weiß.
+// Always CorrelateOnly: a consent is the continuation of work this agent
+// started. If nobody is parked on it (task already finished, unblocked
+// otherwise, late delivery), it is not new work — otherwise a task would
+// appear that tells an unsuspecting agent to upload a file it knows nothing
+// about.
 func consentEvent(a Activity) target.WebhookEvent {
 	name := a.Value.UploadInfo.Name
 	if name == "" {
-		name = "die Datei"
+		name = "the file"
 	}
 	if !a.ConsentAccepted() {
-		reason := "abgelehnt"
+		reason := "declined it"
 		if strings.EqualFold(a.Value.Action, "accept") {
-			// Zustimmung ohne Upload-URL — nichts, womit der Agent arbeiten könnte.
-			reason = "zwar angenommen, aber Teams hat keine Upload-URL geliefert"
+			// Consent without an upload URL — nothing the agent could work with.
+			reason = "accepted it, but Teams delivered no upload URL"
 		}
 		return target.WebhookEvent{
 			DedupKey:       a.DedupKey(),
 			CorrelationKey: CorrelationKey(a.Conversation.ID),
-			Title:          fmt.Sprintf("Teams: %s wurde nicht angenommen", name),
+			Title:          fmt.Sprintf("Teams: %s was not accepted", name),
 			TaskBody: fmt.Sprintf(
-				"Der Empfänger hat %s %s. Lade nichts hoch. Wenn der Inhalt wichtig ist, biete ihn als Text an — sonst nimm es zur Kenntnis.",
+				"The recipient was offered %s and %s. Do not upload anything. If the content matters, offer it as text — otherwise just take note.",
 				name, reason),
 			ResumeInput: fmt.Sprintf(
-				"Der Empfänger hat %s %s. Lade nichts hoch und beende den Auftrag; biete den Inhalt notfalls als Text an.",
+				"The recipient was offered %s and %s. Do not upload anything and finish the job; offer the content as text if need be.",
 				name, reason),
 			Wake:          a.ShouldWake(),
 			CorrelateOnly: true,
 		}
 	}
 
-	// context.key trägt den Pfad, den send_file angefragt hat — damit ist der
-	// Aufruf vollständig und der Agent muss nicht raten, welche Datei gemeint
-	// war. Fehlt er (fremde Karte, alter Flow), bleibt der Platzhalter.
+	// context.key carries the path send_file asked for — that makes the call
+	// complete and the agent does not have to guess which file was meant. If it
+	// is missing (foreign card, old flow), the placeholder stays.
 	path := strings.TrimSpace(a.Value.Context.Key)
 	if path == "" {
-		path = "<deine Datei>"
+		path = "<your file>"
 	}
 	up := a.Value.UploadInfo
 	call := fmt.Sprintf(
@@ -155,24 +155,24 @@ func consentEvent(a Activity) target.WebhookEvent {
 	return target.WebhookEvent{
 		DedupKey:       a.DedupKey(),
 		CorrelationKey: CorrelationKey(a.Conversation.ID),
-		Title:          fmt.Sprintf("Teams: Zustimmung für %s", name),
-		TaskBody: "Der Empfänger hat dem Datei-Versand zugestimmt. Lade die Datei jetzt hoch — " +
-			"die Upload-URL ist kurzlebig, also sofort:\n" + call,
-		ResumeInput:   "Zustimmung erteilt. Lade die Datei jetzt sofort hoch (die Upload-URL läuft ab):\n" + call,
+		Title:          fmt.Sprintf("Teams: consent for %s", name),
+		TaskBody: "The recipient consented to receiving the file. Upload it now — " +
+			"the upload URL is short-lived, so do it immediately:\n" + call,
+		ResumeInput:   "Consent granted. Upload the file right now (the upload URL expires):\n" + call,
 		Wake:          a.ShouldWake(),
 		CorrelateOnly: true,
 	}
 }
 
-// attachmentSection formatiert die Datei-Anhänge als Text-Block für den
-// Aufgaben-Body inkl. des fertigen download_attachment-Aufrufs je Anhang. Die
-// Download-URLs sind kurzlebig — der Agent sollte sie zeitnah laden.
+// attachmentSection formats the file attachments as a text block for the task
+// body, including the ready-made download_attachment call per attachment. The
+// download URLs are short-lived — the agent should fetch them promptly.
 func attachmentSection(files []Attachment) string {
 	if len(files) == 0 {
 		return ""
 	}
 	var b strings.Builder
-	fmt.Fprintf(&b, "\n\nAnhänge (%d) — lade sie mit download_attachment in die Sandbox und lies sie mit dem Read-Tool (URLs sind kurzlebig, zeitnah laden):", len(files))
+	fmt.Fprintf(&b, "\n\nAttachments (%d) — load them into the sandbox with download_attachment and read them with the read tool (the URLs are short-lived, fetch them promptly):", len(files))
 	for i, at := range files {
 		fmt.Fprintf(&b, "\n  %d. %s (%s)\n     download_attachment {\"url\":%q,\"name\":%q}",
 			i+1, at.Filename(), at.ContentType, at.DownloadURL(), at.Filename())
@@ -180,8 +180,8 @@ func attachmentSection(files []Attachment) string {
 	return b.String()
 }
 
-// ActionSubject: jede Aktion ist ein eigenes, separat regelbares
-// Guard-Rail-Subjekt (teams:send, teams:reply, teams:create_conversation).
+// ActionSubject: every action is its own, separately governable guard-rail
+// subject (teams:send, teams:reply, teams:create_conversation).
 func (System) ActionSubject(action string, params json.RawMessage) string {
 	return "teams:" + action
 }
@@ -252,14 +252,14 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 			Name:           in.Name,
 		}, target.Workdir(ctx))
 	default:
-		return nil, fmt.Errorf("unbekannte aktion %q", strings.TrimSpace(action))
+		return nil, fmt.Errorf("unknown action %q", strings.TrimSpace(action))
 	}
 }
 
 func requireFields(action string, vals ...string) error {
 	for _, v := range vals {
 		if strings.TrimSpace(v) == "" {
-			return fmt.Errorf("teams %s: pflichtfeld fehlt", action)
+			return fmt.Errorf("teams %s: required field missing", action)
 		}
 	}
 	return nil

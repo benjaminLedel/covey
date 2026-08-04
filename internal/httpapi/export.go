@@ -21,15 +21,15 @@ import (
 	"covey/internal/skills"
 )
 
-// Export/Import der kompletten Bot-Konfiguration als JSON-Bundle.
+// Export/import of the complete bot configuration as a JSON bundle.
 //
-// Das Bundle ist die portable Sicht auf alles, was einen Agenten konfiguriert:
-// Stammdaten, Config-Dateien (SOUL.md, HEARTBEAT.md sowie die live gerenderten
-// ACCESS.md/EGRESS.md), Board-Spalten, agent-scoped Guard-Rails, die dem
-// Agenten zugewiesenen Egress-Templates (samt Hosts, damit sie beim Import
-// fehlen dürfen) und die Namen der zugewiesenen Secrets. Secret-WERTE verlassen
-// die Plattform nie (Leitplanke: write-only) — der Import meldet sie als
-// nachzupflegende Warnungen.
+// The bundle is the portable view of everything that configures an agent:
+// master data, config files (SOUL.md, HEARTBEAT.md as well as the live
+// rendered ACCESS.md/EGRESS.md), board columns, agent-scoped guard rails, the
+// egress templates assigned to the agent (including their hosts, so they may
+// be missing on the importing instance) and the names of the assigned secrets.
+// Secret VALUES never leave the platform (guard rail: write-only) — the import
+// reports them as warnings to be followed up manually.
 
 const (
 	bundleKind    = "covey.agent-config"
@@ -44,10 +44,10 @@ type bundleAgent struct {
 	MaxTurns        int     `json:"max_turns,omitempty"`
 	BudgetUSD       float64 `json:"budget_usd,omitempty"`
 	SupervisorEmail string  `json:"supervisor_email,omitempty"`
-	// WebhookEnabled: beim Import wird ein FRISCHES Token erzeugt —
-	// das Token selbst ist ein Secret und steckt nie im Bundle.
+	// WebhookEnabled: on import a FRESH token is generated — the token itself
+	// is a secret and is never part of the bundle.
 	WebhookEnabled bool `json:"webhook_enabled,omitempty"`
-	// WarmSandbox hält die Sandbox zwischen Wach-Phasen live (opt-in, z. B. QA).
+	// WarmSandbox keeps the sandbox alive between wake phases (opt-in, e.g. QA).
 	WarmSandbox bool `json:"warm_sandbox,omitempty"`
 }
 
@@ -74,24 +74,24 @@ type bundleEgressTemplate struct {
 	Hosts       []bundleHost `json:"hosts"`
 }
 
-// bundleSecrets führt nur die NAMEN zugewiesener Secrets, nie Werte.
+// bundleSecrets carries only the NAMES of assigned secrets, never values.
 type bundleSecrets struct {
 	OrgKeys   []string `json:"org_keys"`
 	AgentKeys []string `json:"agent_keys"`
 }
 
-// bundleSkill ist eine Fähigkeit des Agenten mit vollem Inhalt.
+// bundleSkill is one skill of the agent, with its full content.
 //
-// Origin sagt, woher sie kam: "agent" gehört diesem Agenten allein, "library"
-// war ein Bibliotheks-Skill der Organisation, der ihm verlinkt ist. Beide
-// reisen vollständig mit — anders als bei Secrets gibt es hier nichts
-// Geheimes, und ein Bundle, das nur Namen nennt, ergäbe beim Import einen
-// Agenten ohne seine Prozeduren. Das fiele niemandem beim Import auf, sondern
-// erst im Lauf.
+// Origin says where it came from: "agent" belongs to this agent alone,
+// "library" was a library skill of the organization that is linked to it. Both
+// travel along in full — unlike secrets there is nothing confidential here,
+// and a bundle that merely names them would produce an agent without its
+// procedures on import. Nobody would notice that at import time, only during
+// a run.
 //
-// Files ist eine Map wie das files-Feld der Config: Der JSON-Encoder sortiert
-// Map-Schlüssel, wodurch exportierte Bundles diffbar bleiben (die
-// mitgelieferten examples/*.bundle.json liegen im Git).
+// Files is a map like the files field of the config: the JSON encoder sorts
+// map keys, which keeps exported bundles diffable (the bundled
+// examples/*.bundle.json live in git).
 type bundleSkill struct {
 	Name        string            `json:"name"`
 	Description string            `json:"description"`
@@ -104,9 +104,9 @@ const (
 	skillOriginLibrary = "library"
 )
 
-// input macht aus dem Bundle-Eintrag dieselbe Eingabe, die auch die HTTP-API
-// verarbeitet — inklusive Frontmatter-Behandlung (skillInput.spec). Ein
-// handgeschriebenes Bundle darf die SKILL.md also mit ihrem YAML-Kopf tragen.
+// input turns the bundle entry into the same input the HTTP API processes —
+// including frontmatter handling (skillInput.spec). A hand-written bundle may
+// therefore carry the SKILL.md with its YAML header.
 func (bs bundleSkill) input() skillInput {
 	in := skillInput{Name: bs.Name, Description: bs.Description,
 		Files: make([]skills.File, 0, len(bs.Files))}
@@ -134,13 +134,13 @@ type agentBundle struct {
 	Secrets         *bundleSecrets         `json:"secrets,omitempty"`
 }
 
-// canReadSecretKeys: dieselbe Grenze wie die Secrets-Endpunkte (securityRoles).
+// canReadSecretKeys: the same boundary as the secrets endpoints (securityRoles).
 func canReadSecretKeys(role string) bool {
 	return role == identity.RolePlatformAdmin || role == identity.RoleSecurity
 }
 
-// buildBundle baut das agentBundle für einen Agenten. includeSecrets steuert,
-// ob Secret-Namen mitgeliefert werden (nur für berechtigte Rollen aufrufen).
+// buildBundle assembles the agentBundle for an agent. includeSecrets controls
+// whether secret names travel along (only call it for authorized roles).
 func (s *Server) buildBundle(ctx context.Context, orgID, agentID uuid.UUID, includeSecrets bool) (agentBundle, error) {
 	a, err := s.Registry.Get(ctx, agentID)
 	if err != nil {
@@ -228,10 +228,10 @@ func (s *Server) buildBundle(ctx context.Context, orgID, agentID uuid.UUID, incl
 		}
 	}
 
-	// Skills: was der Agent tatsächlich bekommt (eigene plus verlinkte, bei
-	// Namensgleichheit gewinnt der eigene — skills.ForAgent). Genau diese
-	// Auflösung gehört ins Bundle: Sie ist eindeutig im Namen und entspricht
-	// dem, was der Agent im Lauf sieht.
+	// Skills: what the agent actually gets (own plus linked ones; on a name
+	// clash its own wins — skills.ForAgent). Exactly this resolution belongs
+	// in the bundle: it is unambiguous by name and matches what the agent sees
+	// during a run.
 	if s.Skills != nil {
 		found, err := s.Skills.ForAgent(ctx, orgID, agentID)
 		if err != nil {
@@ -277,10 +277,10 @@ func (s *Server) buildBundle(ctx context.Context, orgID, agentID uuid.UUID, incl
 	return b, nil
 }
 
-// validateBundleSkills prüft alle Skills eines Bundles, bevor irgendetwas
-// angelegt wird — der Import legt erst an, wenn das ganze Bundle trägt.
-// Doppelte Namen sind ein Fehler und keine Kleinigkeit: Beide würden im
-// Agenten-Home dasselbe Verzeichnis beanspruchen.
+// validateBundleSkills checks all skills of a bundle before anything is
+// created — the import only starts creating once the whole bundle holds up.
+// Duplicate names are an error and no trifle: both would claim the same
+// directory in the agent's home.
 func validateBundleSkills(list []bundleSkill) error {
 	seen := map[string]bool{}
 	for i, bs := range list {
@@ -290,38 +290,38 @@ func validateBundleSkills(list []bundleSkill) error {
 		}
 		label := spec.Name
 		if label == "" {
-			label = fmt.Sprintf("#%d (ohne name)", i+1)
+			label = fmt.Sprintf("#%d (without name)", i+1)
 		}
 		if err := skills.Validate(spec); err != nil {
 			return fmt.Errorf("skill %s: %w", label, err)
 		}
 		if seen[spec.Name] {
-			return fmt.Errorf("skill %s kommt doppelt im bundle vor", label)
+			return fmt.Errorf("skill %s appears twice in the bundle", label)
 		}
 		seen[spec.Name] = true
 	}
 	return nil
 }
 
-// importSkills trägt die Skills eines Bundles für einen Agenten ein.
+// importSkills registers the skills of a bundle for an agent.
 //
-// Zwei Ebenen, zwei Verhalten:
+// Two levels, two behaviours:
 //
-//   - Agent-eigene Skills gehören nur diesem Agenten; für sie ist das Bundle
-//     die Quelle, ein gleichnamiger vorhandener wird ersetzt.
-//   - Bibliotheks-Skills sind org-weit. Existiert dort bereits einer des
-//     Namens, wird die VORHANDENE Fassung verlinkt statt überschrieben — sie
-//     kann anderen Agenten gehören, die von diesem Import nichts wissen.
-//     Dasselbe Verhalten wie bei den Egress-Templates, samt Warnung.
+//   - Agent-owned skills belong to this agent alone; for them the bundle is
+//     the source of truth, an existing one of the same name is replaced.
+//   - Library skills are org-wide. If one of that name already exists there,
+//     the EXISTING version is linked instead of overwritten — it may belong to
+//     other agents that know nothing about this import. Same behaviour as with
+//     the egress templates, warning included.
 //
-// Additiv: Skills, die der Agent hat und das Bundle nicht kennt, bleiben
-// stehen. Ein Import soll Fähigkeiten bringen, nicht heimlich welche entziehen.
+// Additive: skills the agent has and the bundle does not know about stay in
+// place. An import should bring capabilities, not quietly take some away.
 func (s *Server) importSkills(ctx context.Context, orgID, agentID uuid.UUID, list []bundleSkill) ([]string, error) {
 	if len(list) == 0 {
 		return nil, nil
 	}
 	if s.Skills == nil {
-		return []string{"skills sind auf dieser Instanz nicht konfiguriert — übersprungen"}, nil
+		return []string{"skills are not configured on this instance — skipped"}, nil
 	}
 	lib, err := s.Skills.ListLibrary(ctx, orgID)
 	if err != nil {
@@ -345,7 +345,7 @@ func (s *Server) importSkills(ctx context.Context, orgID, agentID uuid.UUID, lis
 		id, known := existing[spec.Name]
 		if known {
 			warnings = append(warnings,
-				"bibliotheks-skill "+spec.Name+" existiert bereits — vorhandene Fassung wird verlinkt")
+				"library skill "+spec.Name+" already exists — the existing version is linked")
 		} else {
 			sk, err := s.Skills.Upsert(ctx, orgID, spec)
 			if err != nil {
@@ -361,12 +361,12 @@ func (s *Server) importSkills(ctx context.Context, orgID, agentID uuid.UUID, lis
 	return warnings, nil
 }
 
-// handleExportAgent — GET /api/v1/agents/{id}/export: die komplette
-// Konfiguration eines Agenten als herunterladbares JSON-Bundle.
+// handleExportAgent — GET /api/v1/agents/{id}/export: the complete
+// configuration of an agent as a downloadable JSON bundle.
 func (s *Server) handleExportAgent(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	p := principalFrom(r)
@@ -381,19 +381,19 @@ func (s *Server) handleExportAgent(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, b)
 }
 
-// handleImportConfig — POST /api/v1/agents/{id}/config/import: überschreibt die
-// Konfiguration eines BESTEHENDEN Agenten aus einem Bundle. Anders als
-// /agents/import (das einen neuen Agenten anlegt) übernimmt dieser Weg NUR die
-// Config-Dateien (SOUL.md, HEARTBEAT.md, ACCESS.md, EGRESS.md, …) und die
-// Skills. Alles andere im Bundle — Stammdaten, Board-Spalten, Guard-Rails,
-// Egress-Templates, Secret-Zuordnungen — wird bewusst ignoriert. Speicher- und Write-Through-Pfad
-// sind identisch zu PUT /config (neue Version, RBAC über prepareConfigApply):
-// enthält das Bundle Tool-Allowlists oder Egress, gilt dieselbe Security-Rollen-
-// Grenze wie am Text-Editor (403 statt stillem Weglassen).
+// handleImportConfig — POST /api/v1/agents/{id}/config/import: overwrites the
+// configuration of an EXISTING agent from a bundle. Unlike /agents/import
+// (which creates a new agent) this path takes ONLY the config files (SOUL.md,
+// HEARTBEAT.md, ACCESS.md, EGRESS.md, …) and the skills. Everything else in
+// the bundle — master data, board columns, guard rails, egress templates,
+// secret assignments — is deliberately ignored. The save and write-through
+// path is identical to PUT /config (new version, RBAC via prepareConfigApply):
+// if the bundle contains tool allowlists or egress, the same security-role
+// boundary applies as in the text editor (403 instead of silently dropping).
 func (s *Server) handleImportConfig(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	if _, err := s.Registry.Get(r.Context(), id); err != nil {
@@ -402,30 +402,30 @@ func (s *Server) handleImportConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	var b agentBundle
 	if err := readJSON(r, &b); err != nil {
-		writeErr(w, http.StatusBadRequest, "bundle nicht lesbar: "+err.Error())
+		writeErr(w, http.StatusBadRequest, "bundle not readable: "+err.Error())
 		return
 	}
 	if b.Kind != bundleKind {
-		writeErr(w, http.StatusBadRequest, "kind muss "+bundleKind+" sein")
+		writeErr(w, http.StatusBadRequest, "kind must be "+bundleKind)
 		return
 	}
 	if b.Version != bundleVersion {
-		writeErr(w, http.StatusBadRequest, fmt.Sprintf("bundle-version %d wird nicht unterstützt (erwartet %d)", b.Version, bundleVersion))
+		writeErr(w, http.StatusBadRequest, fmt.Sprintf("bundle version %d is not supported (expected %d)", b.Version, bundleVersion))
 		return
 	}
 	if len(b.Files) == 0 {
-		writeErr(w, http.StatusBadRequest, "bundle enthält keine config-dateien (files)")
+		writeErr(w, http.StatusBadRequest, "bundle contains no config files (files)")
 		return
 	}
-	// Skills gehören zur Konfiguration des Agenten, seit Prozeduren aus
-	// PLAYBOOKS.md dorthin wandern — ein Bundle-Import, der sie ausließe,
-	// ergäbe einen Agenten ohne die Hälfte seines Handwerks.
+	// Skills are part of the agent's configuration ever since procedures moved
+	// there from PLAYBOOKS.md — a bundle import that left them out would yield
+	// an agent without half of its craft.
 	//
-	// Reihenfolge: erst ALLE Prüfungen (Skills und Config), dann die
-	// Seiteneffekte. Andernfalls stünden die Skills schon in der Datenbank,
-	// wenn die Config an ihrer RBAC-Grenze scheitert (ein Bundle mit
-	// tools:-Allowlist ist für agent_owner ein 403) — und der Aufrufer sähe
-	// einen Fehler, obwohl die Hälfte übernommen wurde.
+	// Order: ALL checks first (skills and config), then the side effects.
+	// Otherwise the skills would already be in the database when the config
+	// fails at its RBAC boundary (a bundle with a tools: allowlist is a 403 for
+	// agent_owner) — and the caller would see an error although half of it had
+	// been applied.
 	if err := validateBundleSkills(b.Skills); err != nil {
 		writeErr(w, http.StatusBadRequest, err.Error())
 		return
@@ -434,67 +434,68 @@ func (s *Server) handleImportConfig(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// Die Warnungen gehen ins Log: Die Antwort dieses Endpunkts ist die
-	// Config-Version (wie bei PUT /config).
+	// The warnings go to the log: the response of this endpoint is the config
+	// version (as with PUT /config).
 	warnings, err := s.importSkills(r.Context(), principalFrom(r).OrgID, id, b.Skills)
 	if err != nil {
 		mapSkillErr(w, err)
 		return
 	}
 	for _, warn := range warnings {
-		s.Log.Warn("skill-import", "agent", id, "hinweis", warn)
+		s.Log.Warn("skill import", "agent", id, "note", warn)
 	}
 	s.commitConfig(w, r, id, b.Files, apply)
 }
 
-// handleImportAgent — POST /api/v1/agents/import: legt aus einem Bundle einen
-// NEUEN Agenten an. Query-Param slug überschreibt den Slug aus dem Bundle
-// (für Kopien bzw. Kollisionen). Alles Sicherheitsrelevante bleibt bei den
-// Grenzen der Einzel-Endpunkte: Tools/Egress/Guard-Rails importiert nur, wer
-// sie auch dort ändern dürfte (fail-closed, 403 statt stillem Weglassen).
-// Secret-Werte stecken nie im Bundle — vorhandene Org-Secrets werden per Name
-// wieder zugewiesen, alles andere landet als Warnung in der Antwort.
+// handleImportAgent — POST /api/v1/agents/import: creates a NEW agent from a
+// bundle. The slug query param overrides the slug from the bundle (for copies
+// resp. collisions). Everything security-relevant keeps the boundaries of the
+// individual endpoints: tools/egress/guard rails are only imported by someone
+// who would be allowed to change them there as well (fail-closed, 403 instead
+// of silently dropping). Secret values are never part of the bundle — existing
+// org secrets are re-assigned by name, everything else ends up as a warning in
+// the response.
 func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	var b agentBundle
 	if err := readJSON(r, &b); err != nil {
-		writeErr(w, http.StatusBadRequest, "bundle nicht lesbar: "+err.Error())
+		writeErr(w, http.StatusBadRequest, "bundle not readable: "+err.Error())
 		return
 	}
 	if b.Kind != bundleKind {
-		writeErr(w, http.StatusBadRequest, "kind muss "+bundleKind+" sein")
+		writeErr(w, http.StatusBadRequest, "kind must be "+bundleKind)
 		return
 	}
 	if b.Version != bundleVersion {
-		writeErr(w, http.StatusBadRequest, fmt.Sprintf("bundle-version %d wird nicht unterstützt (erwartet %d)", b.Version, bundleVersion))
+		writeErr(w, http.StatusBadRequest, fmt.Sprintf("bundle version %d is not supported (expected %d)", b.Version, bundleVersion))
 		return
 	}
 	if slug := r.URL.Query().Get("slug"); slug != "" {
 		b.Agent.Slug = slug
 	}
 	if b.Agent.Slug == "" || b.Agent.DisplayName == "" {
-		writeErr(w, http.StatusBadRequest, "agent.slug und agent.display_name sind Pflicht")
+		writeErr(w, http.StatusBadRequest, "agent.slug and agent.display_name are mandatory")
 		return
 	}
 	ctx := r.Context()
 
-	// --- Vorab-Validierung: erst prüfen, dann anlegen (kein halber Import). ---
+	// --- Up-front validation: check first, create afterwards (no half import). ---
 	if _, err := s.Registry.GetBySlug(ctx, p.OrgID, b.Agent.Slug); err == nil {
-		writeErr(w, http.StatusConflict, "slug "+b.Agent.Slug+" existiert bereits — ?slug= überschreibt")
+		writeErr(w, http.StatusConflict, "slug "+b.Agent.Slug+" already exists — ?slug= overrides it")
 		return
 	} else if !errors.Is(err, agents.ErrNotFound) {
 		mapErr(w, err)
 		return
 	}
 	if _, ok := b.Files["TOOLS.md"]; ok {
-		writeErr(w, http.StatusBadRequest, "TOOLS.md ist in ACCESS.md aufgegangen (Attribut tools: je System)")
+		writeErr(w, http.StatusBadRequest, "TOOLS.md has been merged into ACCESS.md (tools: attribute per system)")
 		return
 	}
 	if _, err := agents.ParseHeartbeat(b.Files["HEARTBEAT.md"]); err != nil {
 		writeErr(w, http.StatusBadRequest, "HEARTBEAT.md: "+err.Error())
 		return
 	}
-	// Platzhalter-ID nur für die Validierung — der Agent existiert noch nicht.
+	// Placeholder ID for the validation only — the agent does not exist yet.
 	probeID := uuid.New()
 	for _, g := range b.Guardrails {
 		probe := guardrails.Rule{OrgID: p.OrgID, ScopeLevel: "agent", AgentID: &probeID,
@@ -512,9 +513,9 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// RBAC wie an den Einzel-Endpunkten: Guard-Rails, Egress und Tool-
-	// Allowlists ändern nur Security-Rollen — im Bundle enthalten heißt
-	// für andere Rollen 403, nicht stilles Überspringen.
+	// RBAC as at the individual endpoints: guard rails, egress and tool
+	// allowlists are only changed by security roles — being contained in the
+	// bundle means 403 for other roles, not silent skipping.
 	canSecurity := p.Role == identity.RolePlatformAdmin || p.Role == identity.RoleSecurity
 	if !canSecurity {
 		var restricted []string
@@ -532,14 +533,14 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if len(restricted) > 0 {
-			writeErr(w, http.StatusForbidden, "bundle enthält "+strings.Join(restricted, ", ")+" — import nur mit platform_admin oder security")
+			writeErr(w, http.StatusForbidden, "bundle contains "+strings.Join(restricted, ", ")+" — import only with platform_admin or security")
 			return
 		}
 	}
 
 	var warnings []string
 
-	// Vorab: Supervisor per E-Mail auflösen (best-effort).
+	// Up front: resolve the supervisor by e-mail (best effort).
 	var supervisorID *uuid.UUID
 	if b.Agent.SupervisorEmail != "" {
 		humans, err := s.Org.ListHumans(ctx, p.OrgID)
@@ -555,12 +556,12 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if supervisorID == nil {
-			warnings = append(warnings, "supervisor "+b.Agent.SupervisorEmail+" nicht gefunden — Zuordnung übersprungen")
+			warnings = append(warnings, "supervisor "+b.Agent.SupervisorEmail+" not found — assignment skipped")
 		}
 	}
 
-	// Fehlende Egress-Templates aus dem Bundle anlegen, damit die
-	// templates:-Zeile in EGRESS.md auflösbar ist.
+	// Create missing egress templates from the bundle so that the templates:
+	// line in EGRESS.md can be resolved.
 	if s.EgressStore != nil {
 		existing, err := s.EgressStore.ListTemplates(ctx, p.OrgID)
 		if err != nil {
@@ -573,7 +574,7 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 		}
 		for _, bt := range b.EgressTemplates {
 			if byName[bt.Name] {
-				warnings = append(warnings, "egress-template "+bt.Name+" existiert bereits — vorhandene Definition wird verwendet")
+				warnings = append(warnings, "egress template "+bt.Name+" already exists — the existing definition is used")
 				continue
 			}
 			t, err := s.EgressStore.CreateTemplate(ctx, p.OrgID, bt.Name, bt.Description)
@@ -586,17 +587,18 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 			}
 			for _, h := range bt.Hosts {
 				if _, err := s.EgressStore.AddTemplateHost(ctx, p.OrgID, t.ID, h.Pattern, h.Note); err != nil {
-					writeErr(w, http.StatusBadRequest, "egress-template "+bt.Name+", host "+h.Pattern+": "+err.Error())
+					writeErr(w, http.StatusBadRequest, "egress template "+bt.Name+", host "+h.Pattern+": "+err.Error())
 					return
 				}
 			}
 		}
 	} else if len(b.EgressTemplates) > 0 {
-		warnings = append(warnings, "egress ist auf dieser Instanz nicht verfügbar — Templates übersprungen")
+		warnings = append(warnings, "egress is not available on this instance — templates skipped")
 	}
 
-	// --- Anlegen. Ab hier existiert der Agent; Folgefehler wären ein halber
-	// Import, deshalb ist oben alles Parse-/RBAC-Kritische bereits geprüft. ---
+	// --- Creating. From here on the agent exists; subsequent errors would be a
+	// half import, which is why everything parse-/RBAC-critical was checked
+	// above. ---
 	a, err := s.Registry.Create(ctx, p.OrgID, b.Agent.Slug, b.Agent.DisplayName, b.Agent.Runtime, &p.ID)
 	if err != nil {
 		mapErr(w, err)
@@ -642,7 +644,7 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Board: Spalten aus dem Bundle in Reihenfolge, sonst die Defaults.
+	// Board: columns from the bundle in order, otherwise the defaults.
 	if len(b.Stages) > 0 {
 		for _, st := range b.Stages {
 			if _, err := s.Backlog.CreateStage(ctx, a.ID, st.Name, st.Color); err != nil {
@@ -651,11 +653,11 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	} else if err := s.Backlog.SeedDefaultStages(ctx, a.ID); err != nil {
-		s.Log.Warn("default-stages seeden fehlgeschlagen", "agent", a.ID, "err", err)
+		s.Log.Warn("seeding default stages failed", "agent", a.ID, "err", err)
 	}
 
-	// Config-Version speichern und ACCESS.md/EGRESS.md in die UI-Stores
-	// übernehmen — derselbe Pfad wie PUT /config.
+	// Save the config version and apply ACCESS.md/EGRESS.md to the UI stores —
+	// the same path as PUT /config.
 	if len(b.Files) > 0 {
 		apply, err := s.prepareConfigApply(ctx, p.OrgID, a.ID, b.Files, canSecurity)
 		if err != nil {
@@ -668,7 +670,7 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := apply(ctx); err != nil {
 			s.Log.Error("import write-through", "agent", a.ID, "err", err)
-			writeErr(w, http.StatusInternalServerError, "Config gespeichert, aber Übernahme in Tools/Egress fehlgeschlagen: "+err.Error())
+			writeErr(w, http.StatusInternalServerError, "config saved, but applying it to tools/egress failed: "+err.Error())
 			return
 		}
 	}
@@ -691,8 +693,8 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Skills: agent-eigene anlegen, Bibliotheks-Skills anlegen bzw. die
-	// vorhandene Fassung verlinken.
+	// Skills: create the agent-owned ones, create the library skills resp. link
+	// the existing version.
 	skillWarnings, err := s.importSkills(ctx, p.OrgID, a.ID, b.Skills)
 	warnings = append(warnings, skillWarnings...)
 	if err != nil {
@@ -700,11 +702,11 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Secrets: vorhandene Org-Secrets per Name wieder zuweisen; alles, was es
-	// hier nicht gibt, als Warnung melden — Werte reisen nie im Bundle.
+	// Secrets: re-assign existing org secrets by name; report everything that
+	// does not exist here as a warning — values never travel in the bundle.
 	if b.Secrets != nil {
 		if !canReadSecretKeys(p.Role) {
-			warnings = append(warnings, "secrets-zuweisung erfordert platform_admin oder security — übersprungen")
+			warnings = append(warnings, "assigning secrets requires platform_admin or security — skipped")
 		} else {
 			keys, err := s.Secrets.Keys(ctx, p.OrgID)
 			if err != nil {
@@ -717,7 +719,7 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 			}
 			for _, k := range b.Secrets.OrgKeys {
 				if !have[k] {
-					warnings = append(warnings, "org-secret "+k+" fehlt auf dieser Instanz — anlegen und dem Agenten zuweisen")
+					warnings = append(warnings, "org secret "+k+" is missing on this instance — create it and assign it to the agent")
 					continue
 				}
 				if err := s.Secrets.Assign(ctx, p.OrgID, k, a.ID); err != nil {
@@ -726,7 +728,7 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			for _, k := range b.Secrets.AgentKeys {
-				warnings = append(warnings, "agent-eigenes Secret "+k+" muss manuell neu gesetzt werden (Werte werden nie exportiert)")
+				warnings = append(warnings, "agent-owned secret "+k+" must be set again manually (values are never exported)")
 			}
 		}
 	}

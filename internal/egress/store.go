@@ -15,34 +15,34 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// ErrInvalidPattern meldet ein syntaktisch unbrauchbares Allowlist-Muster.
-var ErrInvalidPattern = errors.New("ungültiges egress-muster")
+// ErrInvalidPattern reports a syntactically unusable allowlist pattern.
+var ErrInvalidPattern = errors.New("invalid egress pattern")
 
-// ErrTemplateExists meldet eine Namenskollision beim Anlegen/Übernehmen.
-var ErrTemplateExists = errors.New("template mit diesem namen existiert bereits")
+// ErrTemplateExists reports a name collision on create/import.
+var ErrTemplateExists = errors.New("a template with this name already exists")
 
-// Store hält die Egress-Konfiguration (Templates, Zuweisungen pro Agent,
-// Einzel-Hosts), die per-Sandbox-Tokens und das Entscheidungs-Log in Postgres.
-// Templates sind org-scoped; die effektive Allowlist wird pro Agent aufgelöst.
+// Store keeps the egress configuration (templates, per-agent assignments,
+// individual hosts), the per-sandbox tokens and the decision log in Postgres.
+// Templates are org-scoped; the effective allowlist is resolved per agent.
 type Store struct {
 	pool *pgxpool.Pool
 }
 
-// ErrNotFound: das Objekt gibt es nicht — oder nicht in dieser Organisation.
-var ErrNotFound = errors.New("egress-objekt nicht gefunden")
+// ErrNotFound: the object does not exist — or not in this organisation.
+var ErrNotFound = errors.New("egress object not found")
 
 func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool}
 }
 
-// Host ist ein einzelner Allowlist-Eintrag (in einem Template oder pro Agent).
+// Host is a single allowlist entry (in a template or per agent).
 type Host struct {
 	ID      uuid.UUID `json:"id"`
 	Pattern string    `json:"pattern"`
 	Note    string    `json:"note"`
 }
 
-// Template ist ein wiederverwendbares Host-Set.
+// Template is a reusable host set.
 type Template struct {
 	ID          uuid.UUID  `json:"id"`
 	Name        string     `json:"name"`
@@ -52,15 +52,15 @@ type Template struct {
 	CreatedAt   string     `json:"created_at"`
 }
 
-// AgentRef benennt einen Agenten, der ein Template zugewiesen hat — für die
-// „Verwendet von"-Anzeige in der UI.
+// AgentRef names an agent that has a template assigned — for the "used by"
+// display in the UI.
 type AgentRef struct {
 	ID          uuid.UUID `json:"id"`
 	Slug        string    `json:"slug"`
 	DisplayName string    `json:"display_name"`
 }
 
-// LogEntry ist eine protokollierte Egress-Entscheidung.
+// LogEntry is a recorded egress decision.
 type LogEntry struct {
 	ID        int64      `json:"id"`
 	AgentID   *uuid.UUID `json:"agent_id,omitempty"`
@@ -73,7 +73,7 @@ type LogEntry struct {
 
 // --- Templates ---
 
-// ListTemplates liefert alle Templates der Organisation samt ihrer Hosts.
+// ListTemplates returns all templates of the organisation together with their hosts.
 func (s *Store) ListTemplates(ctx context.Context, orgID uuid.UUID) ([]Template, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT id, name, description, created_at FROM egress_templates
@@ -102,7 +102,7 @@ func (s *Store) ListTemplates(ctx context.Context, orgID uuid.UUID) ([]Template,
 	if len(tpls) == 0 {
 		return tpls, nil
 	}
-	// Hosts aller Templates in einem Rutsch nachladen und zuordnen.
+	// Load the hosts of all templates in one go and assign them.
 	hrows, err := s.pool.Query(ctx,
 		`SELECT h.id, h.template_id, h.pattern, h.note FROM egress_template_hosts h
 		 JOIN egress_templates t ON t.id=h.template_id
@@ -124,7 +124,7 @@ func (s *Store) ListTemplates(ctx context.Context, orgID uuid.UUID) ([]Template,
 	if err := hrows.Err(); err != nil {
 		return nil, err
 	}
-	// Zuweisungen nachladen: welche Agenten nutzen welches Template?
+	// Load the assignments: which agents use which template?
 	arows, err := s.pool.Query(ctx,
 		`SELECT at.template_id, a.id, a.slug, a.display_name
 		 FROM agent_egress_templates at JOIN agents a ON a.id=at.agent_id
@@ -149,7 +149,7 @@ func (s *Store) ListTemplates(ctx context.Context, orgID uuid.UUID) ([]Template,
 func (s *Store) CreateTemplate(ctx context.Context, orgID uuid.UUID, name, description string) (Template, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return Template{}, fmt.Errorf("%w: name fehlt", ErrInvalidPattern)
+		return Template{}, fmt.Errorf("%w: name missing", ErrInvalidPattern)
 	}
 	var t Template
 	var created time.Time
@@ -170,9 +170,9 @@ func (s *Store) CreateTemplate(ctx context.Context, orgID uuid.UUID, name, descr
 	return t, nil
 }
 
-// ImportBuiltin übernimmt einen Katalog-Eintrag als org-eigenes Template
-// (Kopie samt Hosts). Kollidiert der Name mit einem bestehenden Template,
-// kommt ErrTemplateExists — nichts wird angelegt.
+// ImportBuiltin adopts a catalogue entry as an org-owned template (a copy
+// including its hosts). If the name collides with an existing template the
+// result is ErrTemplateExists — nothing is created.
 func (s *Store) ImportBuiltin(ctx context.Context, orgID uuid.UUID, b BuiltinTemplate) (Template, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -215,8 +215,8 @@ func (s *Store) DeleteTemplate(ctx context.Context, orgID, id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	// Siehe guardrails.Delete: org-gescopt, aber ohne diese Prüfung meldete
-	// auch der Griff nach einer fremden Vorlage Erfolg.
+	// See guardrails.Delete: org-scoped, but without this check reaching for
+	// another organisation's template reported success as well.
 	if tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
@@ -248,9 +248,9 @@ func (s *Store) DeleteTemplateHost(ctx context.Context, orgID, hostID uuid.UUID)
 	return err
 }
 
-// --- Zuweisung + agent-eigene Hosts ---
+// --- Assignment + agent-owned hosts ---
 
-// AgentEgress bündelt die Egress-Konfiguration eines Agenten für die UI.
+// AgentEgress bundles an agent's egress configuration for the UI.
 type AgentEgress struct {
 	TemplateIDs []uuid.UUID `json:"template_ids"`
 	Hosts       []Host      `json:"hosts"`
@@ -288,7 +288,7 @@ func (s *Store) AgentConfig(ctx context.Context, agentID uuid.UUID) (AgentEgress
 	return out, hrows.Err()
 }
 
-// SetAgentTemplate weist ein Template zu oder entfernt die Zuweisung.
+// SetAgentTemplate assigns a template or removes the assignment.
 func (s *Store) SetAgentTemplate(ctx context.Context, agentID, templateID uuid.UUID, assigned bool) error {
 	if assigned {
 		_, err := s.pool.Exec(ctx,
@@ -323,10 +323,10 @@ func (s *Store) DeleteAgentHost(ctx context.Context, agentID, hostID uuid.UUID) 
 	return err
 }
 
-// --- Basis-Allowlist (org-weit, für alle Agenten) ---
+// --- Base allowlist (org-wide, for every agent) ---
 
-// ListDefaultHosts liefert die Basis-Allowlist der Organisation — Hosts, die
-// jeder Agent erreichen darf. Konfigurierbar; geseedet mit dem LLM-Endpunkt.
+// ListDefaultHosts returns the organisation's base allowlist — hosts every
+// agent may reach. Configurable; seeded with the LLM endpoint.
 func (s *Store) ListDefaultHosts(ctx context.Context, orgID uuid.UUID) ([]Host, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT id, pattern, note FROM egress_default_hosts WHERE org_id=$1 ORDER BY pattern`, orgID)
@@ -368,9 +368,9 @@ func (s *Store) DeleteDefaultHost(ctx context.Context, orgID, hostID uuid.UUID) 
 	return err
 }
 
-// EffectiveAllowlist löst die vollständige Muster-Liste eines Agenten auf:
-// Basis-Allowlist der Org + Hosts aller zugewiesenen Templates + agent-eigene
-// Hosts. Nur ENV-Zusätze (COVEY_EGRESS_ALLOW) kommen im Proxy dazu.
+// EffectiveAllowlist resolves an agent's complete pattern list: the org's base
+// allowlist + the hosts of all assigned templates + agent-owned hosts. Only the
+// environment additions (COVEY_EGRESS_ALLOW) are added on top in the proxy.
 func (s *Store) EffectiveAllowlist(ctx context.Context, agentID uuid.UUID) ([]string, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT th.pattern FROM agent_egress_templates at
@@ -396,15 +396,15 @@ func (s *Store) EffectiveAllowlist(ctx context.Context, agentID uuid.UUID) ([]st
 	return out, rows.Err()
 }
 
-// --- Per-Sandbox-Token ---
+// --- Per-sandbox token ---
 
-// HashToken hasht ein Egress-Token für die Speicherung/den Vergleich.
+// HashToken hashes an egress token for storage/comparison.
 func HashToken(tok string) string {
 	sum := sha256.Sum256([]byte(tok))
 	return hex.EncodeToString(sum[:])
 }
 
-// SetAgentToken speichert (rotiert) den Token-Hash für einen Agenten.
+// SetAgentToken stores (rotates) the token hash of an agent.
 func (s *Store) SetAgentToken(ctx context.Context, agentID uuid.UUID, tokenHash string) error {
 	_, err := s.pool.Exec(ctx,
 		`INSERT INTO agent_egress_tokens (agent_id, token_hash, updated_at) VALUES ($1,$2,now())
@@ -413,14 +413,14 @@ func (s *Store) SetAgentToken(ctx context.Context, agentID uuid.UUID, tokenHash 
 	return err
 }
 
-// AgentTokenHash liefert den gespeicherten Token-Hash (leer, wenn keiner).
+// AgentTokenHash returns the stored token hash (empty if there is none).
 func (s *Store) AgentTokenHash(ctx context.Context, agentID uuid.UUID) (string, error) {
 	var h string
 	err := s.pool.QueryRow(ctx, `SELECT token_hash FROM agent_egress_tokens WHERE agent_id=$1`, agentID).Scan(&h)
 	return h, err
 }
 
-// --- Entscheidungs-Log ---
+// --- Decision log ---
 
 func (s *Store) LogDecision(ctx context.Context, agentID uuid.UUID, host, method string, allowed bool) error {
 	var aid any
@@ -433,8 +433,8 @@ func (s *Store) LogDecision(ctx context.Context, agentID uuid.UUID, host, method
 	return err
 }
 
-// ListLog liefert die jüngsten Entscheidungen der Organisation, optional nur
-// blockierte bzw. eines Agenten, mit Agent-Slug für die Anzeige.
+// ListLog returns the organisation's most recent decisions, optionally only
+// blocked ones or only those of one agent, with the agent slug for display.
 func (s *Store) ListLog(ctx context.Context, orgID, agentID uuid.UUID, onlyBlocked bool, limit int) ([]LogEntry, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 100
@@ -470,21 +470,21 @@ func (s *Store) ListLog(ctx context.Context, orgID, agentID uuid.UUID, onlyBlock
 	return out, rows.Err()
 }
 
-// Stats fasst das Egress-Geschehen der letzten 24 Stunden zusammen — für die
-// Übersichtskacheln im Monitoring.
+// Stats summarises the egress activity of the last 24 hours — for the overview
+// tiles in the monitoring view.
 type Stats struct {
 	Allowed24h int         `json:"allowed_24h"`
 	Blocked24h int         `json:"blocked_24h"`
 	TopBlocked []HostCount `json:"top_blocked"`
 }
 
-// HostCount zählt blockierte Zugriffe pro Host.
+// HostCount counts blocked accesses per host.
 type HostCount struct {
 	Host  string `json:"host"`
 	Count int    `json:"count"`
 }
 
-// LogStats liefert die 24h-Zusammenfassung der Organisation.
+// LogStats returns the organisation's 24h summary.
 func (s *Store) LogStats(ctx context.Context, orgID uuid.UUID) (Stats, error) {
 	st := Stats{TopBlocked: []HostCount{}}
 	err := s.pool.QueryRow(ctx,
@@ -513,7 +513,7 @@ func (s *Store) LogStats(ctx context.Context, orgID uuid.UUID) (Stats, error) {
 	return st, rows.Err()
 }
 
-// CleanupLog löscht Log-Einträge älter als das angegebene Alter.
+// CleanupLog deletes log entries older than the given age.
 func (s *Store) CleanupLog(ctx context.Context, olderThan time.Duration) (int64, error) {
 	tag, err := s.pool.Exec(ctx,
 		`DELETE FROM egress_log WHERE created_at < now() - $1::interval`,
@@ -524,17 +524,17 @@ func (s *Store) CleanupLog(ctx context.Context, olderThan time.Duration) (int64,
 	return tag.RowsAffected(), nil
 }
 
-// NormalizePattern validiert und normalisiert ein Host-Muster: klein
-// geschrieben, getrimmt, ohne Schema/Pfad/Port, optional "*."-Präfix. Ein
-// mitgegebener Port wird entfernt — die Allowlist matcht nur den Host, und
-// gespeichert wird genau das, was durchgesetzt wird.
+// NormalizePattern validates and normalises a host pattern: lower case,
+// trimmed, without scheme/path/port, optionally with a "*." prefix. A port that
+// was passed along is removed — the allowlist only matches the host, and what
+// is stored is exactly what is enforced.
 func NormalizePattern(raw string) (string, error) {
 	p := strings.ToLower(strings.TrimSpace(raw))
 	if p == "" {
-		return "", fmt.Errorf("%w: leer", ErrInvalidPattern)
+		return "", fmt.Errorf("%w: empty", ErrInvalidPattern)
 	}
 	if strings.ContainsAny(p, " \t/") || strings.Contains(p, "://") {
-		return "", fmt.Errorf("%w: nur Host (ohne Schema/Pfad/Leerzeichen)", ErrInvalidPattern)
+		return "", fmt.Errorf("%w: host only (no scheme/path/whitespace)", ErrInvalidPattern)
 	}
 	wildcard := strings.HasPrefix(p, "*.")
 	host := strings.TrimPrefix(p, "*.")
@@ -542,7 +542,7 @@ func NormalizePattern(raw string) (string, error) {
 		host = h
 	}
 	if host == "" || !strings.Contains(host, ".") {
-		return "", fmt.Errorf("%w: kein gültiger Host", ErrInvalidPattern)
+		return "", fmt.Errorf("%w: not a valid host", ErrInvalidPattern)
 	}
 	if wildcard {
 		return "*." + host, nil

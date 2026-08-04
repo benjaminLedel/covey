@@ -1,6 +1,6 @@
-// Package orchestrator ist die Control-Plane-Seite des Daemon-Protokolls:
-// Dispatch-Loop (LISTEN/NOTIFY + Tick), Agent-Sessions (seriell, eine Aufgabe
-// zur Zeit), Secrets-Broker-Entscheidungen, Guard-Rail-Enforcement, Kill-Switch.
+// Package orchestrator is the control plane side of the daemon protocol:
+// dispatch loop (LISTEN/NOTIFY + tick), agent sessions (serial, one task at a
+// time), secrets broker decisions, guard-rail enforcement, kill switch.
 package orchestrator
 
 import (
@@ -39,12 +39,12 @@ import (
 	targetstore "covey/internal/target/store"
 )
 
-// defaultMaxTurns ist der Runaway-Guard je Runtime-Lauf, wenn der Agent
-// kein eigenes Turn-Limit gesetzt hat (agents.max_turns = 0).
+// defaultMaxTurns is the runaway guard per runtime run when the agent has not
+// set a turn limit of its own (agents.max_turns = 0).
 const defaultMaxTurns = 30
 
-// DaemonLink abstrahiert die bidirektionale Verbindung zu einem Sandbox-Daemon.
-// Der HTTP-Layer implementiert sie über WebSocket; Tests in-process.
+// DaemonLink abstracts the bidirectional connection to a sandbox daemon. The
+// HTTP layer implements it over WebSocket; tests do it in-process.
 type DaemonLink interface {
 	Send(ctx context.Context, msg daemon.Message) error
 	Receive(ctx context.Context) (daemon.Message, error)
@@ -60,25 +60,25 @@ type Options struct {
 	Secrets  secrets.Store
 	Identity identity.Provider
 	Memory   *memory.Store
-	// Skills sind die Fähigkeiten der Agenten (Bibliothek + agent-eigen). nil =
-	// Feature abgeschaltet; Läufe bekommen dann keine Skills materialisiert.
+	// Skills are the agents' skills (library + agent-owned). nil = feature
+	// switched off; runs then get no skills materialized.
 	Skills  *skills.Store
 	Targets *targetstore.Store
 	Egress  *egress.Store
-	// ReqLog nimmt die HTTP-Requests der Zielsystem-Plugins auf (Diagnose,
-	// spec/06). nil = Request-Log abgeschaltet; die Events der Sandbox werden
-	// dann verworfen.
+	// ReqLog records the HTTP requests of the target-system plugins (diagnosis,
+	// spec/06). nil = request log switched off; the sandbox's events are then
+	// discarded.
 	ReqLog         *reqlogstore.Store
 	Provider       SandboxProvider
-	PublicWSURL    string // ws://…/api/daemon/ws — von Sandboxen erreichbar
+	PublicWSURL    string // ws://…/api/daemon/ws — reachable from sandboxes
 	DaemonTokenTTL time.Duration
 	TickInterval   time.Duration
-	// WikiMaintenanceInterval taktet den Wiki-Konsolidierungs-Pass (spec/05:
-	// aufgabenunabhängig, nicht im Hot-Path). 0 → Default.
+	// WikiMaintenanceInterval paces the wiki consolidation pass (spec/05:
+	// task-independent, not in the hot path). 0 → default.
 	WikiMaintenanceInterval time.Duration
-	// BoardRetention ist das Alter, ab dem eine terminale Aufgabe automatisch
-	// archiviert wird — damit räumt sich das Board selbst auf, statt auf einen
-	// Menschen am „Aufräumen"-Knopf zu warten. 0 → Default.
+	// BoardRetention is the age at which a terminal task is archived
+	// automatically — that way the board cleans itself up instead of waiting for
+	// a human at the "clean up" button. 0 → default.
 	BoardRetention time.Duration
 	ReadyTimeout   time.Duration
 	Log            *slog.Logger
@@ -90,15 +90,15 @@ type Orchestrator struct {
 	mu       sync.Mutex
 	sessions map[uuid.UUID]*session
 	waiting  map[uuid.UUID]chan DaemonLink
-	// baseCtx ist der Lebenszyklus der Control Plane, gesetzt von Run. Sessions
-	// hängen daran statt an context.Background(): Beim Herunterfahren sollen
-	// laufende Läufe abgebrochen werden und nicht als verwaiste Goroutinen mit
-	// offener Sandbox zurückbleiben. Vor Run (oder in Tests, die Run nicht
-	// starten) ist es nil und der Rückfall greift — siehe base().
+	// baseCtx is the control plane's lifecycle, set by Run. Sessions hang off it
+	// instead of context.Background(): on shutdown, running runs should be
+	// aborted and not linger as orphaned goroutines with an open sandbox. Before
+	// Run (or in tests that do not start Run) it is nil and the fallback kicks
+	// in — see base().
 	baseCtx context.Context
-	// warm hält geparkte Sandbox-Sessions warm-geschalteter Agenten am Leben,
-	// während der Agent schläft (Link offen, Container läuft weiter). Der nächste
-	// Wake übernimmt sie, statt kalt hochzufahren.
+	// warm keeps parked sandbox sessions of warm-enabled agents alive while the
+	// agent sleeps (link open, container keeps running). The next wake takes them
+	// over instead of starting cold.
 	warm map[uuid.UUID]*warmSession
 
 	wikiSweepMu   sync.Mutex
@@ -132,41 +132,41 @@ func New(opts Options) *Orchestrator {
 	}
 }
 
-// warmIdleTTL: nach so langer Idle-Zeit wird eine geparkte warme Sandbox doch
-// abgebaut, damit sie nicht unbegrenzt Ressourcen hält.
+// warmIdleTTL: after this much idle time a parked warm sandbox is torn down
+// after all, so it does not hold resources indefinitely.
 const warmIdleTTL = 30 * time.Minute
 
-// warmSession ist eine zwischen Wach-Phasen offen gehaltene Sandbox samt Daemon-
-// Link. Im Idle drained eine Goroutine die Heartbeats des Daemons (sonst würde
-// die WS als tot gelten). Der nächste Wake bricht den Drain ab und übernimmt.
+// warmSession is a sandbox plus daemon link kept open between waking phases.
+// While idle, a goroutine drains the daemon's heartbeats (otherwise the WS
+// would be considered dead). The next wake cancels the drain and takes over.
 type warmSession struct {
 	link         DaemonLink
 	sandbox      Sandbox
 	lastUsed     time.Time
-	cancel       context.CancelFunc // stoppt den Drain
-	done         chan struct{}      // geschlossen, wenn der Drain beendet ist
-	dead         atomic.Bool        // Link während des Idle gestorben
+	cancel       context.CancelFunc // stops the drain
+	done         chan struct{}      // closed once the drain has finished
+	dead         atomic.Bool        // link died while idle
 	teardownOnce sync.Once
 }
 
 func (ws *warmSession) teardown() {
 	ws.teardownOnce.Do(func() {
 		ws.link.Close()
-		// Losgelöst mit Absicht: Aufgeräumt wird oft GERADE, weil der
-		// zugehörige Kontext abgelaufen ist. Ein abgeleiteter wäre hier
-		// bereits tot und der Container bliebe stehen.
+		// Detached on purpose: cleanup often happens PRECISELY because the
+		// associated context has expired. A derived one would already be dead
+		// here and the container would stay up.
 		stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		_ = ws.sandbox.Stop(stopCtx)
 	})
 }
 
-// warmLink umschließt einen Daemon-Link für warme Sessions. Grund: bei
-// coder/websocket schließt ein Read, dessen Context gecancelt wird, die
-// Verbindung — der Idle-Drain (Cancel zum Handoff) würde den warmen Link also
-// killen. Eine Pump-Goroutine liest den inneren Link mit Hintergrund-Context und
-// verteilt die Nachrichten über einen Channel; Receive(ctx) liest nur aus dem
-// Channel, ein Cancel betrifft damit nie die eigentliche Verbindung.
+// warmLink wraps a daemon link for warm sessions. Reason: with coder/websocket
+// a read whose context is cancelled closes the connection — so the idle drain
+// (cancel for the handoff) would kill the warm link. A pump goroutine reads the
+// inner link with a background context and distributes the messages over a
+// channel; Receive(ctx) only reads from the channel, so a cancel never touches
+// the actual connection.
 type warmLink struct {
 	inner     DaemonLink
 	incoming  chan daemon.Message
@@ -176,9 +176,9 @@ type warmLink struct {
 }
 
 func newWarmLink(inner DaemonLink) *warmLink {
-	// Eigener Lebenszyklus statt eines geerbten: Der Link überlebt bewusst den
-	// Lauf, der ihn erzeugt hat (das ist der Sinn von „warm"). Beendet wird er
-	// über stopPump in Close.
+	// Its own lifecycle instead of an inherited one: the link deliberately
+	// outlives the run that created it (that is the point of "warm"). It is
+	// terminated via stopPump in Close.
 	ctx, cancel := context.WithCancel(context.Background())
 	wl := &warmLink{
 		inner:    inner,
@@ -216,7 +216,7 @@ func (wl *warmLink) Receive(ctx context.Context) (daemon.Message, error) {
 			case err := <-wl.pumpErr:
 				return daemon.Message{}, err
 			default:
-				return daemon.Message{}, fmt.Errorf("daemon-link geschlossen")
+				return daemon.Message{}, fmt.Errorf("daemon link closed")
 			}
 		}
 		return msg, nil
@@ -230,7 +230,7 @@ func (wl *warmLink) Close() error {
 	return wl.inner.Close()
 }
 
-// Events liefert den SSE-Broadcaster für Live-Updates der Admin-UI.
+// Events returns the SSE broadcaster for live updates of the admin UI.
 func (o *Orchestrator) Events() *Broadcaster { return o.events }
 
 type session struct {
@@ -240,11 +240,11 @@ type session struct {
 	killed bool
 }
 
-// Run startet den Dispatch-Loop: billig, dauerhaft, kein LLM (spec/03).
-// Wake-Quellen: NOTIFY (Event) und der periodische Tick.
-// base liefert den Lebenszyklus, an dem neue Sessions hängen. Aufrufer hält
-// o.mu. Ohne laufendes Run (Tests, früher Aufruf) bleibt es bei
-// context.Background() — dann gibt es schlicht nichts, woran man hängen könnte.
+// Run starts the dispatch loop: cheap, permanent, no LLM (spec/03).
+// Wake sources: NOTIFY (event) and the periodic tick.
+// base returns the lifecycle new sessions hang off. The caller holds o.mu.
+// Without a running Run (tests, early call) it stays context.Background() —
+// there is simply nothing to hang off then.
 func (o *Orchestrator) base() context.Context {
 	if o.baseCtx != nil {
 		return o.baseCtx
@@ -257,13 +257,14 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 	o.baseCtx = ctx
 	o.mu.Unlock()
 
-	// Startup-Reconcile: verwaiste in_progress-Aufgaben (Sandbox mit dem letzten
-	// Prozess verschwunden) zurück auf open, sonst hingen sie nach Crash/Deploy
-	// dauerhaft. Muss vor dem ersten tick laufen, damit sie sofort neu greifen.
+	// Startup reconcile: orphaned in_progress tasks (sandbox gone with the last
+	// process) back to open, otherwise they would hang forever after a
+	// crash/deploy. Has to run before the first tick so they are picked up again
+	// right away.
 	if n, err := o.Backlog.RequeueOrphaned(ctx); err != nil {
-		o.Log.Warn("startup-reconcile fehlgeschlagen", "err", err)
+		o.Log.Warn("startup reconcile failed", "err", err)
 	} else if n > 0 {
-		o.Log.Info("startup-reconcile: verwaiste Aufgaben requeued", "count", n)
+		o.Log.Info("startup reconcile: orphaned tasks requeued", "count", n)
 	}
 	go o.listenLoop(ctx)
 	go o.wikiMaintenanceLoop(ctx)
@@ -283,11 +284,11 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 	}
 }
 
-// listenLoop lauscht auf Postgres NOTIFY (Wake-Events der Stores).
+// listenLoop listens for Postgres NOTIFY (wake events from the stores).
 func (o *Orchestrator) listenLoop(ctx context.Context) {
 	for ctx.Err() == nil {
 		if err := o.listenOnce(ctx); err != nil && ctx.Err() == nil {
-			o.Log.Warn("listen/notify unterbrochen, reconnect", "err", err)
+			o.Log.Warn("listen/notify interrupted, reconnecting", "err", err)
 			time.Sleep(2 * time.Second)
 		}
 	}
@@ -313,8 +314,8 @@ func (o *Orchestrator) listenOnce(ctx context.Context) error {
 	}
 }
 
-// tick ist der periodische "was liegt an?"-Impuls: findet Agenten mit
-// offener Arbeit und weckt sie — reine SQL-Entscheidung, kein Modell.
+// tick is the periodic "what is due?" impulse: finds agents with open work and
+// wakes them — a pure SQL decision, no model.
 func (o *Orchestrator) tick(ctx context.Context) {
 	o.fireHeartbeats(ctx)
 	rows, err := o.Pool.Query(ctx, `SELECT DISTINCT a.id FROM agents a
@@ -338,9 +339,9 @@ func (o *Orchestrator) tick(ctx context.Context) {
 	}
 }
 
-// wikiMaintenanceLoop taktet den Wiki-Konsolidierungs-Pass (spec/05): der
-// Lint-/Dedup-Pass ist aufgabenunabhängig und läuft nicht im Hot-Path des
-// done-Schritts, sondern hier gebündelt und gedrosselt.
+// wikiMaintenanceLoop paces the wiki consolidation pass (spec/05): the
+// lint/dedup pass is task-independent and does not run in the hot path of the
+// done step, but bundled and throttled here.
 func (o *Orchestrator) wikiMaintenanceLoop(ctx context.Context) {
 	ticker := time.NewTicker(o.WikiMaintenanceInterval)
 	defer ticker.Stop()
@@ -350,18 +351,18 @@ func (o *Orchestrator) wikiMaintenanceLoop(ctx context.Context) {
 			return
 		case <-ticker.C:
 			if n, err := o.ConsolidateWikis(ctx); err != nil {
-				o.Log.Warn("wiki-wartung fehlgeschlagen", "err", err)
+				o.Log.Warn("wiki maintenance failed", "err", err)
 			} else if n > 0 {
-				o.Log.Info("wiki-wartung: Duplikate verschmolzen", "count", n)
+				o.Log.Info("wiki maintenance: duplicates merged", "count", n)
 			}
 		}
 	}
 }
 
-// ConsolidateWikis konsolidiert die Wikis aller Agenten, deren Seiten sich seit
-// dem letzten Durchlauf geändert haben (beim ersten Lauf: alle mit Seiten), und
-// gibt die Gesamtzahl der Verschmelzungen zurück. Vom Wartungs-Ticker und für
-// die manuelle Auslösung (UI) genutzt.
+// ConsolidateWikis consolidates the wikis of all agents whose pages have
+// changed since the last pass (on the first run: all that have pages) and
+// returns the total number of merges. Used by the maintenance ticker and for
+// manual triggering (UI).
 func (o *Orchestrator) ConsolidateWikis(ctx context.Context) (int, error) {
 	o.wikiSweepMu.Lock()
 	since := o.lastWikiSweep
@@ -387,7 +388,7 @@ func (o *Orchestrator) ConsolidateWikis(ctx context.Context) (int, error) {
 	for _, id := range ids {
 		n, err := o.Memory.Consolidate(ctx, id)
 		if err != nil {
-			o.Log.Warn("wiki-konsolidierung fehlgeschlagen", "agent", id, "err", err)
+			o.Log.Warn("wiki consolidation failed", "agent", id, "err", err)
 			continue
 		}
 		total += n
@@ -398,16 +399,16 @@ func (o *Orchestrator) ConsolidateWikis(ctx context.Context) (int, error) {
 	return total, nil
 }
 
-// fireHeartbeats legt fällige Heartbeat-Einträge (HEARTBEAT.md, materialisiert
-// in agent_heartbeats) als Backlog-Aufgabe an. Fällig ist die Intervall-Form
-// nach Ablauf des Intervalls seit last_fired_at, die Tageszeit-Form einmal pro
-// Tag ab der konfigurierten Uhrzeit (Serverzeit). Kill-Switches greifen wie
-// beim Wake. Dedup: solange eine nicht-terminale Aufgabe gleichen Titels aus
-// diesem Heartbeat existiert, wird keine neue angelegt — der Lauf gilt
-// trotzdem als "gefeuert", damit nach deren Abschluss kein sofortiger
-// Nachschlag kommt, sondern der reguläre Zeitplan weiterläuft. Die Fortsetzung
-// eines am Turn-Limit abgebrochenen Laufs (origin continuation:…) zählt dabei
-// mit: sie trägt dieselbe Arbeit weiter und darf nicht danebenlaufen.
+// fireHeartbeats creates a backlog task for due heartbeat entries
+// (HEARTBEAT.md, materialized in agent_heartbeats). The interval form is due
+// once the interval has elapsed since last_fired_at, the time-of-day form once
+// per day from the configured time (server time). Kill switches apply as they
+// do on wake. Dedup: as long as a non-terminal task with the same title from
+// this heartbeat exists, no new one is created — the run still counts as
+// "fired" so that no immediate second helping follows its completion and the
+// regular schedule simply continues. The continuation of a run aborted at the
+// turn limit (origin continuation:…) counts as well: it carries the same work
+// forward and must not run alongside it.
 func (o *Orchestrator) fireHeartbeats(ctx context.Context) {
 	tx, err := o.Pool.Begin(ctx)
 	if err != nil {
@@ -458,7 +459,7 @@ func (o *Orchestrator) fireHeartbeats(ctx context.Context) {
 		if _, err := tx.Exec(ctx,
 			"UPDATE agent_heartbeats SET last_fired_at=now() WHERE agent_id=$1 AND name=$2",
 			d.agentID, d.name); err != nil {
-			o.Log.Warn("heartbeat fortschreiben", "agent", d.agentID, "name", d.name, "err", err)
+			o.Log.Warn("advance heartbeat", "agent", d.agentID, "name", d.name, "err", err)
 			return
 		}
 	}
@@ -466,14 +467,14 @@ func (o *Orchestrator) fireHeartbeats(ctx context.Context) {
 		o.Log.Warn("heartbeat commit", "err", err)
 		return
 	}
-	// Aufgaben erst nach dem Commit anlegen — Create feuert NOTIFY und weckt
-	// den Agenten. Schlägt ein Create fehl, entfällt genau ein Lauf (best-effort).
-	// Die nur-wenn:-Prüfung läuft ebenfalls nach dem Commit (Netzwerk-I/O gehört
-	// nicht in die Transaktion); last_fired_at ist dann schon fortgeschrieben —
-	// ein übersprungener Lauf zählt als gelaufen, der Zeitplan pollt regulär weiter.
+	// Create tasks only after the commit — Create fires NOTIFY and wakes the
+	// agent. If a Create fails, exactly one run is skipped (best effort).
+	// The nur-wenn: check likewise runs after the commit (network I/O does not
+	// belong in the transaction); last_fired_at has been advanced by then — a
+	// skipped run counts as having run, the schedule keeps polling regularly.
 	for _, d := range dues {
 		if d.pending {
-			o.Log.Info("heartbeat übersprungen: aufgabe noch offen", "agent", d.agentID, "name", d.name)
+			o.Log.Info("heartbeat skipped: task still open", "agent", d.agentID, "name", d.name)
 			continue
 		}
 		if d.onlyIf != "" {
@@ -481,73 +482,74 @@ func (o *Orchestrator) fireHeartbeats(ctx context.Context) {
 			if has && sig != "" && sig != d.lastSig {
 				o.rememberWorkSignature(ctx, d.agentID, d.name, sig)
 			} else if !has && d.lastSig != "" {
-				// Vorrat abgearbeitet — Signatur zurücksetzen, damit derselbe
-				// Zustand später wieder wecken darf.
+				// Backlog worked off — reset the signature so the same state may
+				// wake the agent again later.
 				o.rememberWorkSignature(ctx, d.agentID, d.name, "")
 			}
 			if !has {
-				o.Log.Info("heartbeat übersprungen: keine arbeit", "agent", d.agentID, "name", d.name, "system", d.onlyIf)
+				o.Log.Info("heartbeat skipped: no work", "agent", d.agentID, "name", d.name, "system", d.onlyIf)
 				continue
 			}
-			// Unveränderter Vorrat: der Agent kennt diesen Stand schon und hat
-			// ihn bewusst so gelassen. Erst eine ÄNDERUNG weckt erneut — sonst
-			// müsste er kommentieren, nur um seinen eigenen Wecker abzustellen.
+			// Unchanged backlog: the agent already knows this state and left it
+			// that way deliberately. Only a CHANGE wakes it again — otherwise it
+			// would have to comment just to switch off its own alarm clock.
 			if sig != "" && sig == d.lastSig {
-				o.Log.Info("heartbeat übersprungen: arbeitsvorrat unverändert",
+				o.Log.Info("heartbeat skipped: work backlog unchanged",
 					"agent", d.agentID, "name", d.name, "system", d.onlyIf)
 				continue
 			}
 		}
 		if _, err := o.Backlog.Create(ctx, d.orgID, d.agentID, d.name, d.body, "heartbeat", 0); err != nil {
-			o.Log.Warn("heartbeat-aufgabe anlegen", "agent", d.agentID, "name", d.name, "err", err)
+			o.Log.Warn("create heartbeat task", "agent", d.agentID, "name", d.name, "err", err)
 		}
 	}
 }
 
-// heartbeatHasWork prüft die nur-wenn:-Bedingung eines fälligen Heartbeats:
-// das Zielsystem-Plugin meldet über target.WorkChecker, ob Arbeit vorliegt.
-// Der Bedingungs-Wert ist "<system>" oder "<system>:<kind>" — Letzteres gatet
-// eine einzelne Arbeits-Art (z. B. gitlab:mr für den Review-Loop, gitlab:issues
-// für die Issue-Triage) über target.KindWorkChecker, sodass zwei Heartbeats
-// desselben Systems getrennt feuern statt über einen gemeinsamen Boolean.
-// Secrets und Plugin-Lookup laufen über den System-Namen (vor dem ":").
-// Die Secrets löst die Control Plane selbst auf — das Credential verlässt sie
-// nicht. Fail-open: lässt sich die Bedingung nicht prüfen (Plugin ohne
-// WorkChecker, fehlende Secrets, Verbindungsfehler), feuert der Heartbeat
-// regulär — eine kaputte Bedingung darf keine Arbeit liegen lassen.
-// Rückgabe: (Arbeit vorhanden, Signatur des Vorrats). Die Signatur ist leer,
-// wenn das Plugin keine liefert — dann feuert der Heartbeat wie bisher bei
-// jedem Pegel.
+// heartbeatHasWork checks the nur-wenn: condition of a due heartbeat: the
+// target-system plugin reports via target.WorkChecker whether there is work.
+// The condition value is "<system>" or "<system>:<kind>" — the latter gates a
+// single kind of work (e.g. gitlab:mr for the review loop, gitlab:issues for
+// issue triage) via target.KindWorkChecker, so that two heartbeats of the same
+// system fire separately instead of through one shared boolean.
+// Secrets and plugin lookup go by the system name (before the ":").
+// The control plane resolves the secrets itself — the credential does not leave
+// it. Fail-open: if the condition cannot be checked (plugin without
+// WorkChecker, missing secrets, connection error), the heartbeat fires as
+// usual — a broken condition must not leave work lying around.
+// Returns: (work present, signature of the backlog). The signature is empty if
+// the plugin does not supply one — the heartbeat then fires at every level, as
+// it did before.
 func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid.UUID, condition string) (bool, string) {
 	system, kind, _ := strings.Cut(condition, ":")
 	sys, ok := target.Get(system)
 	if !ok {
-		o.Log.Warn("nur-wenn: unbekanntes zielsystem — feuere trotzdem", "system", system)
+		o.Log.Warn("nur-wenn: unknown target system — firing anyway", "system", system)
 		return true, ""
 	}
 	checker, ok := sys.(target.WorkChecker)
 	if !ok {
-		o.Log.Warn("nur-wenn: zielsystem kann arbeit nicht vorab prüfen — feuere trotzdem", "system", system)
+		o.Log.Warn("nur-wenn: target system cannot check for work up front — firing anyway", "system", system)
 		return true, ""
 	}
 	var cred target.Credential
 	if d, _ := target.Describe(system); !d.NoCredentials {
 		token, err := o.Secrets.Resolve(ctx, orgID, agentID, system+"_token")
 		if err != nil {
-			o.Log.Warn("nur-wenn: secret fehlt — feuere trotzdem", "system", system, "err", err)
+			o.Log.Warn("nur-wenn: secret missing — firing anyway", "system", system, "err", err)
 			return true, ""
 		}
 		baseURL, err := o.Secrets.Resolve(ctx, orgID, agentID, system+"_url")
 		if err != nil {
-			o.Log.Warn("nur-wenn: secret fehlt — feuere trotzdem", "system", system, "err", err)
+			o.Log.Warn("nur-wenn: secret missing — firing anyway", "system", system, "err", err)
 			return true, ""
 		}
 		cred = target.Credential{BaseURL: baseURL, Token: token}
 	}
 	cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	// Der Work-Check ist ein Zielsystem-Request aus der Control Plane heraus —
-	// mit Agenten-Senke, damit er im Request-Log zuordenbar ist statt anonym.
+	// The work check is a target-system request made from the control plane —
+	// with an agent sink so it is attributable in the request log instead of
+	// anonymous.
 	if o.ReqLog != nil {
 		cctx = reqlog.WithSink(cctx, o.ReqLog.Sink(&orgID, &agentID, nil))
 	}
@@ -558,8 +560,8 @@ func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid
 	)
 	switch c := checker.(type) {
 	case target.SignedWorkChecker:
-		// Liefert zusätzlich die Signatur des Vorrats — damit unterdrückt der
-		// Dispatch den Wake auf einen bereits gesehenen Stand.
+		// Additionally returns the signature of the backlog — with it the
+		// dispatch suppresses a wake on a state that has already been seen.
 		has, sig, err = c.HasWorkSigned(cctx, cred, kind)
 	case target.KindWorkChecker:
 		if kind == "" {
@@ -569,37 +571,37 @@ func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid
 		}
 	default:
 		if kind != "" {
-			o.Log.Warn("nur-wenn: zielsystem kennt keinen unterscope — prüfe gesamt", "system", system, "kind", kind)
+			o.Log.Warn("nur-wenn: target system knows no sub-scope — checking everything", "system", system, "kind", kind)
 		}
 		has, err = checker.HasWork(cctx, cred)
 	}
 	if err != nil {
-		o.Log.Warn("nur-wenn: prüfung fehlgeschlagen — feuere trotzdem", "system", system, "kind", kind, "err", err)
+		o.Log.Warn("nur-wenn: check failed — firing anyway", "system", system, "kind", kind, "err", err)
 		return true, ""
 	}
 	return has, sig
 }
 
-// rememberWorkSignature schreibt die Signatur fort, auf die zuletzt gefeuert
-// wurde. Best-effort: schlägt es fehl, weckt der nächste Tick höchstens einmal
-// zu viel — das ist harmloser als ein verpasster Lauf.
+// rememberWorkSignature advances the signature that was last fired on. Best
+// effort: if it fails, the next tick wakes the agent at most once too often —
+// which is more harmless than a missed run.
 func (o *Orchestrator) rememberWorkSignature(ctx context.Context, agentID uuid.UUID, name, sig string) {
 	if _, err := o.Pool.Exec(ctx,
 		"UPDATE agent_heartbeats SET last_work_sig=$3 WHERE agent_id=$1 AND name=$2",
 		agentID, name, sig); err != nil {
-		o.Log.Warn("heartbeat-signatur fortschreiben", "agent", agentID, "name", name, "err", err)
+		o.Log.Warn("advance heartbeat signature", "agent", agentID, "name", name, "err", err)
 	}
 }
 
-// EnsureRunning startet eine Agent-Session, falls keine läuft (idempotent).
+// EnsureRunning starts an agent session if none is running (idempotent).
 func (o *Orchestrator) EnsureRunning(agentID uuid.UUID) {
 	o.mu.Lock()
 	if _, active := o.sessions[agentID]; active {
 		o.mu.Unlock()
 		return
 	}
-	// An den Lebenszyklus der Control Plane gehängt, nicht an Background: Ein
-	// Shutdown beendet damit auch Sessions, die über diesen Weg entstanden sind.
+	// Hung off the control plane's lifecycle, not off Background: a shutdown
+	// thereby also terminates sessions that came into being this way.
 	ctx, cancel := context.WithCancel(o.base())
 	s := &session{cancel: cancel}
 	o.sessions[agentID] = s
@@ -618,26 +620,26 @@ func (o *Orchestrator) EnsureRunning(agentID uuid.UUID) {
 	}()
 }
 
-// AttachDaemon übergibt eine authentifizierte Daemon-Verbindung an die
-// wartende Session. Blockiert nicht: ohne wartende Session wird abgelehnt.
+// AttachDaemon hands an authenticated daemon connection to the waiting session.
+// Does not block: without a waiting session it is rejected.
 func (o *Orchestrator) AttachDaemon(agentID uuid.UUID, link DaemonLink) error {
 	o.mu.Lock()
 	ch := o.waiting[agentID]
 	o.mu.Unlock()
 	if ch == nil {
-		return fmt.Errorf("keine session wartet auf agent %s", agentID)
+		return fmt.Errorf("no session is waiting for agent %s", agentID)
 	}
 	select {
 	case ch <- link:
 		return nil
 	default:
-		return fmt.Errorf("agent %s hat bereits eine verbindung", agentID)
+		return fmt.Errorf("agent %s already has a connection", agentID)
 	}
 }
 
 func (o *Orchestrator) setStatus(ctx context.Context, agent agents.Agent, taskID *uuid.UUID, status string) {
 	if err := o.Registry.SetStatus(ctx, agent.ID, status); err != nil {
-		o.Log.Warn("status setzen", "agent", agent.ID, "err", err)
+		o.Log.Warn("set status", "agent", agent.ID, "err", err)
 		return
 	}
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, taskID, observability.KindLifecycle,
@@ -645,8 +647,8 @@ func (o *Orchestrator) setStatus(ctx context.Context, agent agents.Agent, taskID
 	o.events.Publish(Event{Type: "agent_status", AgentID: agent.ID.String(), Data: map[string]string{"status": status}})
 }
 
-// runAgent ist eine komplette Wach-Phase: Sandbox hoch, Aufgaben seriell
-// abarbeiten, Sandbox runter. sleeping → triggered → (triage → working)* → sleeping.
+// runAgent is one complete waking phase: sandbox up, work through the tasks
+// serially, sandbox down. sleeping → triggered → (triage → working)* → sleeping.
 func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *session) error {
 	agent, err := o.Registry.Get(ctx, agentID)
 	if err != nil {
@@ -666,7 +668,7 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 
 	o.setStatus(ctx, agent, nil, agents.StatusTriggered)
 
-	// Wake: warme Sandbox übernehmen, sonst kalt hochfahren und auf ready warten.
+	// Wake: take over a warm sandbox, otherwise start cold and wait for ready.
 	link, sandbox, err := o.acquireSandbox(ctx, agent)
 	if err != nil {
 		o.setStatus(ctx, agent, nil, agents.StatusSleeping)
@@ -678,14 +680,14 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 		if s.killed {
 			final = agents.StatusKilled
 		}
-		// Warm & sauber eingeschlafen: Sandbox + Link am Leben lassen (im Idle
-		// gedraint). Sonst — oder bei kill/Abbruch — Compute abbauen.
+		// Warm and cleanly asleep: keep sandbox + link alive (drained while
+		// idle). Otherwise — or on kill/abort — tear the compute down.
 		if agent.WarmSandbox && !s.killed && ctx.Err() == nil {
 			o.parkWarm(agent.ID, link, sandbox)
 		} else {
 			link.Close()
-			// Auch hier losgelöst: Bei kill oder Abbruch ist ctx bereits
-			// abgelaufen — die Sandbox muss trotzdem weg.
+			// Detached here too: on kill or abort ctx has already expired — the
+			// sandbox still has to go.
 			stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			sandbox.Stop(stopCtx)
 			cancel()
@@ -693,7 +695,7 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 		o.setStatus(context.WithoutCancel(ctx), agent, nil, final)
 	}()
 
-	// Runtime-LLM-Key proaktiv brokern (nie dauerhaft in der Sandbox).
+	// Broker the runtime LLM key proactively (never permanently in the sandbox).
 	o.pushAnthropicKey(ctx, agent, link)
 
 	for ctx.Err() == nil {
@@ -704,8 +706,8 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 		}
 		task, err := o.Backlog.ClaimNext(ctx, agentID)
 		if errors.Is(err, backlog.ErrNotFound) {
-			// Warm: KEIN Sleep — sonst räumt coveyd Dev-Server/Browser ab und
-			// beendet sich. Der Daemon idlet in seiner Receive-Schleife weiter.
+			// Warm: NO sleep — otherwise coveyd would clear away dev servers and
+			// browsers and exit. The daemon keeps idling in its receive loop.
 			if !agent.WarmSandbox {
 				_ = o.sendMsg(ctx, link, daemon.TypeSleep, map[string]string{})
 			}
@@ -719,7 +721,7 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 				return ctx.Err()
 			}
 			if errors.Is(err, errBudgetExceeded) {
-				return nil // Aufgabe wurde bereits wieder geöffnet, Agent pausiert
+				return nil // task has already been reopened, agent is paused
 			}
 			_, _ = o.Backlog.Complete(context.WithoutCancel(ctx), task.ID, backlog.StateFailed, "", err.Error())
 			o.publishTask(task.ID, agent.ID)
@@ -729,7 +731,7 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 	return ctx.Err()
 }
 
-// wake startet die Sandbox und wartet auf die ready-Meldung des Daemons.
+// wake starts the sandbox and waits for the daemon's ready message.
 func (o *Orchestrator) wake(ctx context.Context, agent agents.Agent) (DaemonLink, Sandbox, error) {
 	tok, err := o.Identity.IssueAgentToken(ctx, agent.ID,
 		identity.Scope{Audience: "daemon"}, o.DaemonTokenTTL)
@@ -747,15 +749,15 @@ func (o *Orchestrator) wake(ctx context.Context, agent agents.Agent) (DaemonLink
 		o.mu.Unlock()
 	}()
 
-	// Per-Sandbox-Egress-Token: der Proxy identifiziert den Agenten darüber.
-	// Rotiert bei jedem Wake; nur der Hash wird gespeichert.
+	// Per-sandbox egress token: the proxy identifies the agent by it. Rotated on
+	// every wake; only the hash is stored.
 	egressToken := ""
 	if o.Egress != nil {
 		buf := make([]byte, 32)
 		if _, err := rand.Read(buf); err == nil {
 			egressToken = hex.EncodeToString(buf)
 			if err := o.Egress.SetAgentToken(ctx, agent.ID, egress.HashToken(egressToken)); err != nil {
-				o.Log.Warn("egress-token setzen fehlgeschlagen", "agent", agent.ID, "err", err)
+				o.Log.Warn("setting the egress token failed", "agent", agent.ID, "err", err)
 				egressToken = ""
 			}
 		}
@@ -776,25 +778,25 @@ func (o *Orchestrator) wake(ctx context.Context, agent agents.Agent) (DaemonLink
 
 	select {
 	case link := <-ch:
-		// Erste Nachricht muss ready sein.
+		// The first message has to be ready.
 		readyCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 		msg, err := link.Receive(readyCtx)
 		if err != nil || msg.Type != daemon.TypeReady {
 			link.Close()
 			sandbox.Stop(context.WithoutCancel(ctx))
-			return nil, nil, fmt.Errorf("daemon nicht ready: %v (%s)", err, msg.Type)
+			return nil, nil, fmt.Errorf("daemon not ready: %v (%s)", err, msg.Type)
 		}
 		return link, sandbox, nil
 	case <-time.After(o.ReadyTimeout):
 		sandbox.Stop(context.WithoutCancel(ctx))
-		// Die Adresse gehört in die Meldung: Der häufigste Grund für dieses
-		// Timeout ist, dass die Sandbox die Control Plane unter genau dieser
-		// URL nicht erreicht — falsches COVEY_PUBLIC_URL, fehlende
-		// Egress-Freigabe, Proxy dazwischen. Ohne sie sucht man im Dunkeln.
+		// The address belongs in the message: the most common reason for this
+		// timeout is that the sandbox cannot reach the control plane at exactly
+		// this URL — wrong COVEY_PUBLIC_URL, missing egress allowance, a proxy in
+		// between. Without it one is searching in the dark.
 		return nil, nil, fmt.Errorf(
-			"daemon hat sich nicht verbunden (timeout %s) — Sandbox sollte %s erreichen; "+
-				"prüfen: COVEY_PUBLIC_URL muss von der Sandbox aus erreichbar sein",
+			"daemon did not connect (timeout %s) — the sandbox should reach %s; "+
+				"check: COVEY_PUBLIC_URL has to be reachable from the sandbox",
 			o.ReadyTimeout, o.PublicWSURL)
 	case <-ctx.Done():
 		sandbox.Stop(context.WithoutCancel(ctx))
@@ -802,12 +804,12 @@ func (o *Orchestrator) wake(ctx context.Context, agent agents.Agent) (DaemonLink
 	}
 }
 
-// acquireSandbox übernimmt für warm-geschaltete Agenten eine geparkte Sandbox
-// (kein kalter Start), sonst fährt es eine frische hoch (wake).
+// acquireSandbox takes over a parked sandbox for warm-enabled agents (no cold
+// start), otherwise it brings up a fresh one (wake).
 func (o *Orchestrator) acquireSandbox(ctx context.Context, agent agents.Agent) (DaemonLink, Sandbox, error) {
 	if agent.WarmSandbox {
 		if ws := o.takeWarm(agent.ID); ws != nil {
-			o.Log.Info("warme sandbox übernommen", "agent", agent.ID)
+			o.Log.Info("took over warm sandbox", "agent", agent.ID)
 			return ws.link, ws.sandbox, nil
 		}
 	}
@@ -815,25 +817,26 @@ func (o *Orchestrator) acquireSandbox(ctx context.Context, agent agents.Agent) (
 	if err != nil {
 		return nil, nil, err
 	}
-	// Warm: den frischen Link in die Pump-Hülle wickeln, damit ihn der Idle-Drain
-	// später gefahrlos übernehmen kann.
+	// Warm: wrap the fresh link in the pump shell so the idle drain can take it
+	// over safely later on.
 	if agent.WarmSandbox {
 		link = newWarmLink(link)
 	}
 	return link, sandbox, nil
 }
 
-// parkWarm hält Link + Sandbox nach dem Einschlafen offen und drained im
-// Hintergrund die Daemon-Heartbeats, bis der nächste Wake übernimmt oder der
-// Reaper abräumt. Stirbt der Link im Idle, wird die Sandbox sofort abgebaut.
+// parkWarm keeps link + sandbox open after falling asleep and drains the
+// daemon heartbeats in the background until the next wake takes over or the
+// reaper clears it away. If the link dies while idle, the sandbox is torn down
+// immediately.
 func (o *Orchestrator) parkWarm(agentID uuid.UUID, link DaemonLink, sandbox Sandbox) {
-	// Der Drain lebt, solange die Sandbox geparkt ist — länger als der Lauf,
-	// der sie abgibt. Beendet wird er vom Reaper (Idle-TTL), vom nächsten Wake
-	// oder beim Herunterfahren durch teardownAllWarm.
+	// The drain lives as long as the sandbox is parked — longer than the run
+	// that hands it over. It is terminated by the reaper (idle TTL), by the next
+	// wake, or on shutdown by teardownAllWarm.
 	drainCtx, cancel := context.WithCancel(context.Background())
 	ws := &warmSession{link: link, sandbox: sandbox, lastUsed: time.Now(), cancel: cancel, done: make(chan struct{})}
 	o.mu.Lock()
-	// Eine evtl. noch registrierte Vorgänger-Session desselben Agenten weichen.
+	// Make way for a possibly still-registered predecessor session of the same agent.
 	if old := o.warm[agentID]; old != nil {
 		old.cancel()
 	}
@@ -845,9 +848,9 @@ func (o *Orchestrator) parkWarm(agentID uuid.UUID, link DaemonLink, sandbox Sand
 		for {
 			if _, err := link.Receive(drainCtx); err != nil {
 				if drainCtx.Err() != nil {
-					return // gesunder Handoff (takeWarm/Reaper) — Link nicht anfassen
+					return // healthy handoff (takeWarm/reaper) — do not touch the link
 				}
-				// Link im Idle gestorben (Container-Crash o. ä.): abräumen.
+				// Link died while idle (container crash or similar): clean up.
 				ws.dead.Store(true)
 				o.mu.Lock()
 				if o.warm[agentID] == ws {
@@ -855,16 +858,16 @@ func (o *Orchestrator) parkWarm(agentID uuid.UUID, link DaemonLink, sandbox Sand
 				}
 				o.mu.Unlock()
 				ws.teardown()
-				o.Log.Warn("warme sandbox im idle verloren", "agent", agentID, "err", err)
+				o.Log.Warn("lost warm sandbox while idle", "agent", agentID, "err", err)
 				return
 			}
-			// Heartbeat/Idle-Nachricht verwerfen — es läuft keine Aufgabe.
+			// Discard the heartbeat/idle message — no task is running.
 		}
 	}()
 }
 
-// takeWarm zieht eine geparkte Session aus dem Cache, stoppt ihren Drain und gibt
-// sie zurück. Ist der Link inzwischen gestorben, liefert es nil (→ kalter Start).
+// takeWarm pulls a parked session out of the cache, stops its drain and returns
+// it. If the link has died in the meantime it returns nil (→ cold start).
 func (o *Orchestrator) takeWarm(agentID uuid.UUID) *warmSession {
 	o.mu.Lock()
 	ws := o.warm[agentID]
@@ -883,9 +886,9 @@ func (o *Orchestrator) takeWarm(agentID uuid.UUID) *warmSession {
 	return ws
 }
 
-// evictWarm baut eine geparkte warme Sandbox sofort ab (Kill/Disable). kill=true
-// schickt vorher TypeKill (sofortiges Ende), sonst TypeSleep (sauber). No-op,
-// wenn der Agent keine geparkte Session hat.
+// evictWarm tears a parked warm sandbox down immediately (kill/disable).
+// kill=true sends TypeKill beforehand (immediate end), otherwise TypeSleep
+// (clean). No-op if the agent has no parked session.
 func (o *Orchestrator) evictWarm(ctx context.Context, agentID uuid.UUID, kill bool) {
 	ws := o.takeWarm(agentID)
 	if ws == nil {
@@ -899,22 +902,22 @@ func (o *Orchestrator) evictWarm(ctx context.Context, agentID uuid.UUID, kill bo
 	ws.teardown()
 }
 
-// boardJanitorLoop hält das Backlog-Board auf den Arbeitszuständen, die es
-// wirklich gibt: terminale Aufgaben werden nach BoardRetention archiviert
-// (nicht gelöscht — sie bleiben im Archiv), und die damit leer gewordenen
-// Agenten-Spalten fallen weg.
+// boardJanitorLoop keeps the backlog board on the working states that really
+// exist: terminal tasks are archived after BoardRetention (not deleted — they
+// stay in the archive), and the agent columns that thereby become empty
+// disappear.
 //
-// Warum die Plattform und nicht der Agent: Aufräumen ist Hygiene, keine
-// Entscheidung. Ein Agent, der es im Prompt tun soll, vergisst es unter Last
-// oder tut es zur falschen Zeit; hier passiert es für jede Installation gleich,
-// ohne dass jemand daran denken muss. Der „Aufräumen"-Knopf in der UI bleibt
-// für „und zwar jetzt".
+// Why the platform and not the agent: cleaning up is hygiene, not a decision.
+// An agent told to do it in its prompt forgets it under load or does it at the
+// wrong time; here it happens the same way for every installation, without
+// anyone having to think about it. The "clean up" button in the UI remains for
+// "and right now".
 func (o *Orchestrator) boardJanitorLoop(ctx context.Context) {
 	if o.BoardRetention < 0 {
-		o.Log.Info("board-aufräumen ist abgeschaltet (COVEY_BOARD_RETENTION negativ)")
+		o.Log.Info("board cleanup is switched off (COVEY_BOARD_RETENTION is negative)")
 		return
 	}
-	// Stündlich reicht: die Frist liegt in Stunden, nicht in Minuten.
+	// Hourly is enough: the retention is measured in hours, not minutes.
 	t := time.NewTicker(time.Hour)
 	defer t.Stop()
 	o.sweepBoards(ctx)
@@ -931,27 +934,27 @@ func (o *Orchestrator) boardJanitorLoop(ctx context.Context) {
 func (o *Orchestrator) sweepBoards(ctx context.Context) {
 	n, err := o.Backlog.ArchiveTerminalOlderThan(ctx, o.BoardRetention)
 	if err != nil {
-		o.Log.Warn("board-aufräumen fehlgeschlagen", "err", err)
+		o.Log.Warn("board cleanup failed", "err", err)
 		return
 	}
 	if n > 0 {
-		o.Log.Info("board-aufräumen: terminale Aufgaben archiviert", "count", n, "älter_als", o.BoardRetention)
+		o.Log.Info("board cleanup: terminal tasks archived", "count", n, "older_than", o.BoardRetention)
 	}
 }
 
-// warmReaperLoop baut geparkte warme Sandboxen ab, die zu lange idle waren.
+// warmReaperLoop tears down parked warm sandboxes that have been idle too long.
 func (o *Orchestrator) warmReaperLoop(ctx context.Context) {
 	t := time.NewTicker(time.Minute)
 	defer t.Stop()
 	for {
 		select {
 		case <-ctx.Done():
-			// Eine warme Sandbox ist ein LAUFENDER Container, der einem
-			// schlafenden Agenten gehört. Ohne diesen Abbau bliebe er beim
-			// Herunterfahren zurück: Der nächste Start räumt ihn erst weg,
-			// wenn derselbe Agent wieder geweckt wird (der Provider löscht
-			// dann den gleichnamigen Container) — ein Agent, der nie wieder
-			// dran ist, hielte seinen Container für immer.
+			// A warm sandbox is a RUNNING container belonging to a sleeping
+			// agent. Without this teardown it would be left behind on
+			// shutdown: the next start only clears it away once the same agent
+			// is woken again (the provider then deletes the container of the
+			// same name) — an agent that never gets its turn again would hold
+			// its container forever.
 			o.teardownAllWarm()
 			return
 		case <-t.C:
@@ -960,33 +963,33 @@ func (o *Orchestrator) warmReaperLoop(ctx context.Context) {
 	}
 }
 
-// teardownAllWarm baut beim Herunterfahren alle geparkten Sandboxen ab.
+// teardownAllWarm tears down all parked sandboxes on shutdown.
 func (o *Orchestrator) teardownAllWarm() {
 	o.mu.Lock()
-	alle := make([]*warmSession, 0, len(o.warm))
+	all := make([]*warmSession, 0, len(o.warm))
 	for id, ws := range o.warm {
-		alle = append(alle, ws)
+		all = append(all, ws)
 		delete(o.warm, id)
 	}
 	o.mu.Unlock()
-	if len(alle) == 0 {
+	if len(all) == 0 {
 		return
 	}
-	// Eigener, kurzer Kontext: der des Loops ist gerade abgelaufen — genau
-	// deshalb wird hier ja aufgeräumt. Ein abgelaufener Kontext würde jedes
-	// sleep und jedes Stop sofort scheitern lassen.
+	// Its own short context: the loop's has just expired — which is precisely
+	// why we are cleaning up here. An expired context would make every sleep
+	// and every Stop fail immediately.
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	for _, ws := range alle {
+	for _, ws := range all {
 		ws.cancel()
 		<-ws.done
 		if !ws.dead.Load() {
-			// Sauber einschlafen lassen, damit coveyd seine Kindprozesse abräumt.
+			// Let it fall asleep cleanly so coveyd clears away its child processes.
 			_ = o.sendMsg(ctx, ws.link, daemon.TypeSleep, map[string]string{})
 		}
 		ws.teardown()
 	}
-	o.Log.Info("warme sandboxen beim herunterfahren abgebaut", "anzahl", len(alle))
+	o.Log.Info("tore down warm sandboxes on shutdown", "count", len(all))
 }
 
 func (o *Orchestrator) reapIdleWarm(ctx context.Context) {
@@ -1006,11 +1009,11 @@ func (o *Orchestrator) reapIdleWarm(ctx context.Context) {
 		if ws.dead.Load() {
 			continue
 		}
-		// Sauber einschlafen lassen (coveyd räumt Dev-Server ab und beendet sich),
-		// dann Compute abbauen.
+		// Let it fall asleep cleanly (coveyd clears away dev servers and exits),
+		// then tear the compute down.
 		_ = o.sendMsg(ctx, ws.link, daemon.TypeSleep, map[string]string{})
 		ws.teardown()
-		o.Log.Info("warme sandbox nach idle abgebaut", "ttl", warmIdleTTL)
+		o.Log.Info("tore down warm sandbox after idle", "ttl", warmIdleTTL)
 	}
 }
 
@@ -1023,10 +1026,10 @@ func (o *Orchestrator) sendMsg(ctx context.Context, link DaemonLink, msgType str
 }
 
 func (o *Orchestrator) pushAnthropicKey(ctx context.Context, agent agents.Agent, link DaemonLink) {
-	// Der Secret-Name bestimmt den Credential-Typ und damit die Runtime-Env:
-	// anthropic_api_key → ANTHROPIC_API_KEY, claude_code_oauth_token (Abo, via
-	// `claude setup-token`) → CLAUDE_CODE_OAUTH_TOKEN. Nicht am Token-Präfix
-	// raten — der Name ist die verbindliche Absicht.
+	// The secret's name determines the credential type and hence the runtime
+	// env: anthropic_api_key → ANTHROPIC_API_KEY, claude_code_oauth_token
+	// (subscription, via `claude setup-token`) → CLAUDE_CODE_OAUTH_TOKEN. Do not
+	// guess from the token prefix — the name is the binding intent.
 	key, err := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, "anthropic_api_key")
 	envVar := "ANTHROPIC_API_KEY"
 	if err != nil {
@@ -1034,9 +1037,9 @@ func (o *Orchestrator) pushAnthropicKey(ctx context.Context, agent agents.Agent,
 		envVar = "CLAUDE_CODE_OAUTH_TOKEN"
 	}
 	if err != nil {
-		return // kein Credential hinterlegt — die Runtime meldet das als Task-Fehler
+		return // no credential stored — the runtime reports this as a task error
 	}
-	key = strings.TrimSpace(key) // Copy-&-Paste-Whitespace/Newline abfangen
+	key = strings.TrimSpace(key) // catch copy-and-paste whitespace/newlines
 	_ = o.sendMsg(ctx, link, daemon.TypeInjectCredentials, daemon.InjectCredentials{
 		System: "anthropic", Granted: true, Token: key, EnvVar: envVar,
 		TTLSecs: int(o.DaemonTokenTTL.Seconds()),
@@ -1052,13 +1055,13 @@ func (o *Orchestrator) isKilled(ctx context.Context, agent agents.Agent) (bool, 
 	return killed || fleet, err
 }
 
-// teamSection lädt die Mitarbeiter-Profile der Organisation und baut daraus
-// den Team-Abschnitt des System-Prompts. Fehler sind nicht fatal — dann
-// arbeitet der Agent ohne Mitarbeiterverzeichnis. Die Plattform-Kennungen
-// sind generisch (Map system → kennung); Anzeige-Labels kommen aus den
-// Zielsystem-Plugins der Organisation, unbekannte Systeme behalten ihren
-// Schlüssel. supervisorID (agents.supervisor_id, nil = keiner) markiert den
-// Vorgesetzten — der Empfänger von Merge Requests und Eskalationen.
+// teamSection loads the organization's employee profiles and builds the team
+// section of the system prompt from them. Errors are not fatal — the agent then
+// works without a staff directory. The platform identifiers are generic (map
+// system → identifier); display labels come from the organization's
+// target-system plugins, unknown systems keep their key. supervisorID
+// (agents.supervisor_id, nil = none) marks the supervisor — the recipient of
+// merge requests and escalations.
 func (o *Orchestrator) teamSection(ctx context.Context, orgID uuid.UUID, supervisorID *uuid.UUID) string {
 	labels := map[string]string{}
 	if o.Targets != nil {
@@ -1070,8 +1073,8 @@ func (o *Orchestrator) teamSection(ctx context.Context, orgID uuid.UUID, supervi
 			}
 		}
 	}
-	// Org-weit konfigurierte Profilfelder: key → Label, in Definitions-
-	// Reihenfolge — nur definierte Felder erscheinen im Verzeichnis.
+	// Org-wide configured profile fields: key → label, in definition order —
+	// only defined fields appear in the directory.
 	type fieldDef struct{ key, label string }
 	var fieldDefs []fieldDef
 	if fr, err := o.Pool.Query(ctx, `SELECT key, label FROM profile_fields
@@ -1116,12 +1119,12 @@ func (o *Orchestrator) teamSection(ctx context.Context, orgID uuid.UUID, supervi
 	return agents.TeamSection(members)
 }
 
-// agentTeamSection baut das Verzeichnis der KI-Kollegen für den Prompt von
-// `self`: alle anderen (nicht gekillten) Agenten der Organisation, ihre
-// GitLab-/Zielsystem-Kennungen, Zuständigkeiten und Abteilung. Agenten aus
-// derselben Abteilung wie `self` werden als eigenes Team markiert — so findet
-// z. B. ein Entwickler-Agent den QA-Agenten seines Teams, um ihm den Merge
-// Request zum Review zu übergeben. Läuft wie teamSection zur Dispatch-Zeit.
+// agentTeamSection builds the directory of AI colleagues for `self`'s prompt:
+// all other (non-killed) agents of the organization, their GitLab/target-system
+// identifiers, responsibilities and department. Agents from the same department
+// as `self` are marked as its own team — that way a developer agent finds the
+// QA agent of its team to hand the merge request over for review. Runs at
+// dispatch time, like teamSection.
 func (o *Orchestrator) agentTeamSection(ctx context.Context, self agents.Agent) string {
 	labels := map[string]string{}
 	if o.Targets != nil {
@@ -1180,14 +1183,14 @@ func (o *Orchestrator) publishTask(taskID, agentID uuid.UUID) {
 	o.events.Publish(Event{Type: "task", AgentID: agentID.String(), Data: map[string]string{"task_id": taskID.String()}})
 }
 
-// processTask fährt eine Aufgabe durch triage → working → done/blocked/failed.
+// processTask drives a task through triage → working → done/blocked/failed.
 func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link DaemonLink, task backlog.Task, s *session) error {
 	taskID := task.ID
 	o.setStatus(ctx, agent, &taskID, agents.StatusTriage)
 	o.publishTask(taskID, agent.ID)
 
-	// Triage: Wiki prüfen (spec/05) und Config kompilieren (M2). Relevante
-	// Seiten (Vektor-Treffer) plus der kompakte Index des gesamten Wikis.
+	// Triage: check the wiki (spec/05) and compile the config (M2). Relevant
+	// pages (vector hits) plus the compact index of the whole wiki.
 	memCtx := ""
 	if entries, err := o.Memory.Query(ctx, agent.ID, task.Title+" "+task.Body, 5); err == nil {
 		memCtx = memory.FormatForPrompt(entries)
@@ -1204,22 +1207,22 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	if err != nil && !errors.Is(err, agents.ErrNotFound) {
 		return err
 	}
-	// Prompt zur Dispatch-Zeit aus den Config-Dateien neu kompilieren, statt den
-	// beim Speichern eingefrorenen compiled_prompt zu nehmen. Der Plattform-
-	// Anteil (agents.ProtocolInstructions: Abschluss-Protokoll, Meta-Aktionen,
-	// Stage-Regeln) ist Code, nicht Config — er gehört zum Binary, nicht zur
-	// Config-Version. Sonst müsste nach jedem Deploy jede bestehende Agent-Config
-	// von Hand neu gespeichert werden, damit der Agent von neuen Aktionen
-	// überhaupt erfährt; ein produktiver Agent liefe sonst auf Jahre mit dem
-	// Plattform-Vertrag von seinem letzten Config-Edit.
+	// Recompile the prompt from the config files at dispatch time instead of
+	// taking the compiled_prompt frozen at save time. The platform's share
+	// (agents.ProtocolInstructions: completion protocol, meta actions, stage
+	// rules) is code, not config — it belongs to the binary, not to the config
+	// version. Otherwise every existing agent config would have to be saved
+	// again by hand after each deploy for the agent to even learn about new
+	// actions; a production agent would run for years with the platform contract
+	// of its last config edit.
 	//
-	// Der gespeicherte compiled_prompt bleibt als Momentaufnahme für Audit und
-	// Anzeige erhalten — Quelle der Wahrheit für den Lauf sind die Dateien.
-	// Zielsystem-Doku und Team-Verzeichnis unten folgen derselben Logik.
+	// The stored compiled_prompt is kept as a snapshot for audit and display —
+	// the source of truth for the run are the files. Target-system docs and the
+	// team directory below follow the same logic.
 	compiled := agents.CompilePrompt(cfg.Files)
-	// Zielsystem-Doku zur Dispatch-Zeit anhängen — sie spiegelt die aktuell
-	// aktivierten Plugins der Organisation (inkl. Manifest-Uploads), nicht
-	// den Stand beim Kompilieren der Config.
+	// Append the target-system docs at dispatch time — they reflect the
+	// organization's currently enabled plugins (including manifest uploads), not
+	// the state at the time the config was compiled.
 	if o.Targets != nil {
 		if docs, err := o.Targets.EnabledDocsForAgent(ctx, agent.OrgID, agent.ID); err == nil {
 			if section := agents.TargetDocs(docs); section != "" {
@@ -1227,16 +1230,15 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 			}
 		}
 	}
-	// Team-Verzeichnis ebenfalls zur Dispatch-Zeit: die Mitarbeiter-Profile
-	// (Zuständigkeiten, GitLab-Usernames) sagen dem Agenten, wem er in
-	// Zielsystemen etwas übergibt — z. B. ein Issue zum Testen zuweist.
+	// The team directory likewise at dispatch time: the employee profiles
+	// (responsibilities, GitLab usernames) tell the agent whom it hands things
+	// over to in target systems — e.g. assigning an issue for testing.
 	if section := o.teamSection(ctx, agent.OrgID, agent.SupervisorID); section != "" {
 		compiled += "\n\n" + section
 	}
-	// KI-Kollegen dazu: die anderen Agenten der Organisation, damit ein Agent
-	// Arbeit an den passenden Kollegen übergeben kann (z. B. der Entwickler
-	// seinen MR an den QA-Agenten aus seinem Team) — Abteilung markiert das
-	// eigene Team.
+	// Plus the AI colleagues: the organization's other agents, so an agent can
+	// hand work over to the right colleague (e.g. the developer their MR to the
+	// QA agent of their team) — the department marks its own team.
 	if section := o.agentTeamSection(ctx, agent); section != "" {
 		compiled += "\n\n" + section
 	}
@@ -1265,7 +1267,7 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 		MemoryContext: memCtx,
 	}
 	if task.RuntimeSessionID != nil && task.ResumeInput != nil {
-		// blocked→working: Wiederaufnahme über die native Runtime-Session (spec/12).
+		// blocked→working: resumption through the native runtime session (spec/12).
 		assign.ResumeSessionID = *task.RuntimeSessionID
 		assign.ResumeInput = *task.ResumeInput
 	}
@@ -1273,11 +1275,11 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 		return err
 	}
 
-	// Nachrichtenschleife bis blocked/task_done.
+	// Message loop until blocked/task_done.
 	for {
 		msg, err := link.Receive(ctx)
 		if err != nil {
-			return fmt.Errorf("daemon-verbindung: %w", err)
+			return fmt.Errorf("daemon connection: %w", err)
 		}
 		done, err := o.handleDaemonMessage(ctx, agent, link, taskID, msg, s)
 		if err != nil {
@@ -1289,10 +1291,10 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	}
 }
 
-// storeActionArtifact zieht ein base64-Bild aus einem action-Event, legt es als
-// Blob ab und ersetzt es im Payload durch die Referenz (screenshot=<blob-id>) —
-// so bleiben die Bytes aus dem JSONB der Recording-Timeline heraus (spec/06).
-// Bei jedem Fehler bleibt der Payload unverändert (fail-open fürs Recording).
+// storeActionArtifact pulls a base64 image out of an action event, stores it as
+// a blob and replaces it in the payload with the reference (screenshot=<blob-id>)
+// — that keeps the bytes out of the recording timeline's JSONB (spec/06). On any
+// error the payload stays unchanged (fail-open for the recording).
 func (o *Orchestrator) storeActionArtifact(ctx context.Context, agent agents.Agent, taskID uuid.UUID, payload json.RawMessage) json.RawMessage {
 	var m map[string]any
 	if json.Unmarshal(payload, &m) != nil {
@@ -1302,10 +1304,10 @@ func (o *Orchestrator) storeActionArtifact(ctx context.Context, agent agents.Age
 	if !ok || b64 == "" {
 		return payload
 	}
-	// Aufzeichnungstiefe (spec/06): Screenshots nur bei 'full' speichern. Sonst
-	// das Bild verwerfen — die Aktion selbst bleibt im Recording. Control-Plane-
-	// seitige Durchsetzung ist die letzte Instanz (fail-closed: im Zweifel nicht
-	// speichern).
+	// Recording depth (spec/06): store screenshots only at 'full'. Otherwise
+	// discard the image — the action itself stays in the recording. Enforcement
+	// on the control plane side is the last instance (fail-closed: when in
+	// doubt, do not store).
 	if lvl, err := o.Obs.EffectiveRecordingLevel(ctx, agent.ID); err != nil || lvl != observability.LevelFull {
 		delete(m, "image_b64")
 		delete(m, "image_mime")
@@ -1335,9 +1337,9 @@ func (o *Orchestrator) storeActionArtifact(ctx context.Context, agent agents.Age
 	return payload
 }
 
-// recordHTTP legt einen aus der Sandbox gemeldeten HTTP-Request ins
-// Request-Log — mit dem Kontext, den nur die Control Plane hat (Org, Agent,
-// Aufgabe). Ohne konfiguriertes Log ist es ein No-op.
+// recordHTTP puts an HTTP request reported from the sandbox into the request
+// log — with the context only the control plane has (org, agent, task). Without
+// a configured log it is a no-op.
 func (o *Orchestrator) recordHTTP(ctx context.Context, agent agents.Agent, taskID uuid.UUID, payload []byte) {
 	if o.ReqLog == nil {
 		return
@@ -1350,7 +1352,7 @@ func (o *Orchestrator) recordHTTP(ctx context.Context, agent agents.Agent, taskI
 	o.ReqLog.Enqueue(reqlogstore.Record{Entry: e, OrgID: &orgID, AgentID: &agentID, TaskID: &tid})
 }
 
-// handleDaemonMessage verarbeitet eine Daemon-Nachricht; true = Aufgabe beendet.
+// handleDaemonMessage processes one daemon message; true = task finished.
 func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Agent, link DaemonLink, taskID uuid.UUID, msg daemon.Message, s *session) (bool, error) {
 	switch msg.Type {
 	case daemon.TypeHeartbeat:
@@ -1361,8 +1363,8 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		if err != nil {
 			return false, nil
 		}
-		// HTTP-Requests der Plugins gehören ins Request-Log, nicht in die
-		// Recording-Timeline — eigene Retention, eigene Sicht (spec/06).
+		// HTTP requests of the plugins belong in the request log, not in the
+		// recording timeline — own retention, own view (spec/06).
 		if ev.Kind == daemon.EventKindHTTP {
 			o.recordHTTP(ctx, agent, taskID, ev.Payload)
 			return false, nil
@@ -1469,25 +1471,24 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		}
 		result := d.Result
 		if d.Status == "escalated" {
-			result = "ESKALIERT: " + result
+			result = "ESCALATED: " + result
 			if name, err := o.Registry.SupervisorName(ctx, agent.ID); err == nil && name != "" {
-				result += " (an " + name + ")"
+				result += " (to " + name + ")"
 			}
 		}
 		if _, err := o.Backlog.Complete(ctx, taskID, state, result, d.Error); err != nil {
 			return true, err
 		}
-		// done-Schritt: Gelerntes ins Wiki einspeisen (spec/05). Die
-		// Konsolidierung (Beinahe-Duplikate verschmelzen) läuft aufgabenunabhängig
-		// im getakteten Wartungs-Job, nicht hier im Hot-Path.
+		// done step: feed what was learned into the wiki (spec/05). The
+		// consolidation (merging near-duplicates) runs task-independently in the
+		// paced maintenance job, not here in the hot path.
 		if d.Memory != "" {
-			// Fehler nicht verschlucken: seit das Embedding über einen Dienst
-			// laufen kann, heißt ein Fehlschlag, dass eine Erkenntnis verloren
-			// geht. Der Aufgabenabschluss soll daran nicht scheitern, aber es
-			// muss im Log stehen.
+			// Do not swallow errors: since the embedding can run through a
+			// service, a failure means an insight is lost. Completing the task
+			// should not fail because of it, but it has to be in the log.
 			if err := o.Memory.Ingest(ctx, agent.ID, d.Memory,
 				map[string]string{"task_id": taskID.String()}); err != nil {
-				o.Log.Warn("wiki: Erkenntnis konnte nicht gespeichert werden",
+				o.Log.Warn("wiki: insight could not be stored",
 					"agent", agent.Slug, "task", taskID, "err", err)
 			}
 		}
@@ -1507,10 +1508,10 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 				target = tid
 			}
 		}
-		// Ensure + Move + Cleanup leerer Agenten-Spalten in einer Transaktion.
+		// Ensure + move + cleanup of empty agent columns in one transaction.
 		stage, err := o.Backlog.SetTaskStageByName(ctx, agent.ID, target, ss.Stage)
 		if err != nil {
-			o.Log.Warn("set_stage: task konnte nicht verschoben werden", "err", err)
+			o.Log.Warn("set_stage: task could not be moved", "err", err)
 			return false, nil
 		}
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &target, observability.KindLifecycle,
@@ -1530,17 +1531,17 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 			}
 		}
 		if n.Scope == "memory" {
-			// Allgemeingültige Erkenntnis: sofort ins Gedächtnis, nicht erst
-			// über das memory-Feld beim Abschluss (M7).
+			// Generally applicable insight: straight into memory, not only via
+			// the memory field at completion time (M7).
 			if err := o.Memory.Ingest(ctx, agent.ID, n.Content, map[string]string{
 				"task_id": target.String(), "origin": "proactive"}); err != nil {
-				o.Log.Warn("wiki: Erkenntnis (remember) konnte nicht gespeichert werden",
+				o.Log.Warn("wiki: insight (remember) could not be stored",
 					"agent", agent.Slug, "err", err)
 			}
 		} else {
-			// Aufgabenbezogene Notiz: an die Aufgabe selbst.
+			// Task-related note: onto the task itself.
 			if _, err := o.Backlog.AddNote(ctx, target, "agent", n.Content); err != nil {
-				o.Log.Warn("note: konnte nicht gespeichert werden", "err", err)
+				o.Log.Warn("note: could not be stored", "err", err)
 				return false, nil
 			}
 		}
@@ -1550,42 +1551,42 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		return false, nil
 
 	default:
-		o.Log.Warn("unerwartete daemon-nachricht", "type", msg.Type)
+		o.Log.Warn("unexpected daemon message", "type", msg.Type)
 		return false, nil
 	}
 }
 
 const (
-	// statusIncomplete meldet ein Runtime-Adapter, wenn ein Lauf am Turn-Limit
-	// endete: Arbeit ist passiert, ein Ergebnis gibt es nicht. Kein
-	// Backlog-State — die Control Plane übersetzt ihn in failed + Folgeaufgabe.
+	// statusIncomplete is what a runtime adapter reports when a run ended at the
+	// turn limit: work happened, a result does not exist. Not a backlog state —
+	// the control plane translates it into failed + follow-up task.
 	statusIncomplete = "incomplete"
 
-	// originContinuation markiert die Folgeaufgabe eines abgebrochenen Laufs.
-	// Über dieses Präfix zählt der Loop-Schutz die Länge der Kette.
+	// originContinuation marks the follow-up task of an aborted run. The loop
+	// protection counts the length of the chain by this prefix.
 	originContinuation = "continuation"
 
-	// maxContinuations begrenzt, wie oft eine Aufgabe am Turn-Limit fortgesetzt
-	// wird, bevor sie eskaliert. Wer nach so vielen vollen Läufen kein Ergebnis
-	// hat, braucht keinen weiteren Lauf, sondern einen Menschen: entweder ist
-	// der Auftrag zu groß geschnitten oder max_turns zu klein.
+	// maxContinuations limits how often a task is continued at the turn limit
+	// before it escalates. Whoever has no result after that many full runs does
+	// not need another run but a human: either the assignment is cut too large
+	// or max_turns is too small.
 	maxContinuations = 3
 )
 
-// handleIncomplete verarbeitet den am Turn-Limit abgebrochenen Lauf (spec/03).
-// Vorher endete er als failed ohne Fehlertext und ohne Ergebnis — der nächste
-// Heartbeat fing dieselbe Arbeit bei null wieder an, in Endlosschleife.
+// handleIncomplete processes a run aborted at the turn limit (spec/03).
+// Previously it ended as failed without an error text and without a result —
+// the next heartbeat started the same work from scratch, in an endless loop.
 //
-// Jetzt gilt: Der Zwischenstand, den sich der Daemon aus der abgebrochenen
-// Session hat geben lassen, wird als Notiz an die Aufgabe gehängt (im Ticket
-// sichtbar) und als Ergebnis gespeichert; daraus entsteht eine **Folgeaufgabe**,
-// die die Runtime-Session wieder aufnimmt und dort weiterarbeitet. Nach
-// maxContinuations Fortsetzungen in Folge eskaliert die Aufgabe stattdessen.
+// Now: the interim state the daemon obtained from the aborted session is
+// attached to the task as a note (visible in the ticket) and stored as the
+// result; from it a **follow-up task** is created that resumes the runtime
+// session and carries on there. After maxContinuations consecutive
+// continuations the task escalates instead.
 func (o *Orchestrator) handleIncomplete(ctx context.Context, agent agents.Agent, taskID uuid.UUID, d daemon.TaskDone) error {
 	handover := strings.TrimSpace(d.Result)
 	if handover != "" {
-		if _, err := o.Backlog.AddNote(ctx, taskID, "agent", "Zwischenstand (Lauf am Turn-Limit abgebrochen):\n\n"+handover); err != nil {
-			o.Log.Warn("zwischenstand konnte nicht als notiz gespeichert werden", "task", taskID, "err", err)
+		if _, err := o.Backlog.AddNote(ctx, taskID, "agent", "Interim state (run aborted at the turn limit):\n\n"+handover); err != nil {
+			o.Log.Warn("interim state could not be stored as a note", "task", taskID, "err", err)
 		}
 	}
 
@@ -1595,19 +1596,19 @@ func (o *Orchestrator) handleIncomplete(ctx context.Context, agent agents.Agent,
 	}
 	depth, err := o.Backlog.AncestorsWithOrigin(ctx, taskID, originContinuation)
 	if err != nil {
-		o.Log.Warn("fortsetzungs-tiefe nicht ermittelbar — behandle als letzte", "task", taskID, "err", err)
+		o.Log.Warn("continuation depth not determinable — treating it as the last one", "task", taskID, "err", err)
 		depth = maxContinuations
 	}
 
-	// Kette am Ende: nicht weiterlaufen lassen, sondern abgeben.
+	// End of the chain: do not keep it running, hand it over instead.
 	if depth >= maxContinuations || d.SessionID == "" {
-		reason := fmt.Sprintf("%s. Nach %d Fortsetzungen ohne Ergebnis abgegeben — Auftrag zu groß geschnitten oder max_turns zu klein.", d.Error, depth)
+		reason := fmt.Sprintf("%s. Handed over after %d continuations without a result — the assignment is cut too large or max_turns is too small.", d.Error, depth)
 		if d.SessionID == "" {
-			reason = d.Error + ". Ohne Runtime-Session ist keine Fortsetzung möglich."
+			reason = d.Error + ". Without a runtime session no continuation is possible."
 		}
-		result := "ESKALIERT: " + handover
+		result := "ESCALATED: " + handover
 		if name, err := o.Registry.SupervisorName(ctx, agent.ID); err == nil && name != "" {
-			result += " (an " + name + ")"
+			result += " (to " + name + ")"
 		}
 		if _, err := o.Backlog.Complete(ctx, taskID, backlog.StateFailed, result, reason); err != nil {
 			return err
@@ -1618,9 +1619,9 @@ func (o *Orchestrator) handleIncomplete(ctx context.Context, agent agents.Agent,
 		return nil
 	}
 
-	// Fortsetzung: gleicher Titel und gleiche Priorität wie die Ursprungsaufgabe.
-	// Der Titel bleibt bewusst unverändert — die Heartbeat-Dedup erkennt an ihm,
-	// dass diese Arbeit noch läuft, und feuert nicht daneben.
+	// Continuation: same title and same priority as the original task. The title
+	// deliberately stays unchanged — the heartbeat dedup recognizes by it that
+	// this work is still running and does not fire alongside it.
 	child, err := o.Backlog.CreateChild(ctx, taskID, backlog.ChildSpec{
 		Title:       task.Title,
 		Body:        task.Body,
@@ -1633,7 +1634,7 @@ func (o *Orchestrator) handleIncomplete(ctx context.Context, agent agents.Agent,
 		return err
 	}
 	if _, err := o.Backlog.Complete(ctx, taskID, backlog.StateFailed, handover,
-		fmt.Sprintf("%s. Fortsetzung als Folgeaufgabe %s eingeplant (%d/%d).", d.Error, child.ID, depth+1, maxContinuations)); err != nil {
+		fmt.Sprintf("%s. Continuation scheduled as follow-up task %s (%d/%d).", d.Error, child.ID, depth+1, maxContinuations)); err != nil {
 		return err
 	}
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
@@ -1643,23 +1644,23 @@ func (o *Orchestrator) handleIncomplete(ctx context.Context, agent agents.Agent,
 	return nil
 }
 
-// continuationInput ist die Eingabe, mit der die wiederaufgenommene Session
-// weiterarbeitet. Der Übergabe-Stand steht mit drin, weil die Session zwar den
-// Kontext hält, der Agent aber wissen muss, dass er beim Turn-Limit unterbrochen
-// wurde — sonst antwortet er auf seine eigene Zusammenfassung statt zu arbeiten.
+// continuationInput is the input the resumed session carries on with. The
+// handover state is included because, while the session holds the context, the
+// agent has to know that it was interrupted at the turn limit — otherwise it
+// answers its own summary instead of working.
 func continuationInput(handover string) string {
-	in := "Dein vorheriger Lauf wurde am Turn-Limit abgebrochen. Arbeite dort weiter, wo du aufgehört hast."
+	in := "Your previous run was aborted at the turn limit. Carry on where you left off."
 	if handover != "" {
-		in += "\n\nDein eigener Übergabe-Stand:\n\n" + handover
+		in += "\n\nYour own handover state:\n\n" + handover
 	}
-	in += "\n\nGeh zuerst den offenen Punkt an, den du selbst als nächsten Schritt notiert hast. " +
-		"Halte den Lauf kurz genug, um diesmal zu einem Ergebnis zu kommen — lieber ein Teilergebnis " +
-		"sauber abschließen und den Rest als eigene Aufgabe anlegen, als erneut ins Limit zu laufen."
+	in += "\n\nStart with the open point you noted yourself as the next step. " +
+		"Keep the run short enough to reach a result this time — better to finish a partial " +
+		"result cleanly and create the rest as its own task than to run into the limit again."
 	return in
 }
 
-// enforceBudget prüft Budget-Deckel (Agent-Feld + budget_limit-Guard-Rails).
-// Überschreitung pausiert den Agenten (fail-closed) und stoppt den Lauf.
+// enforceBudget checks the budget caps (agent field + budget_limit guard
+// rails). Exceeding them pauses the agent (fail-closed) and stops the run.
 func (o *Orchestrator) enforceBudget(ctx context.Context, agent agents.Agent, link DaemonLink, taskID uuid.UUID, s *session) error {
 	summary, err := o.Obs.CostByAgent(ctx, agent.ID)
 	if err != nil {
@@ -1675,93 +1676,93 @@ func (o *Orchestrator) enforceBudget(ctx context.Context, agent agents.Agent, li
 		return nil
 	}
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindGuardrail,
-		map[string]any{"rule": "budget_limit", "limit_usd": limit, "spent_usd": summary.TotalUSD, "action": "agent pausiert"})
+		map[string]any{"rule": "budget_limit", "limit_usd": limit, "spent_usd": summary.TotalUSD, "action": "agent paused"})
 	_ = o.Registry.SetKilled(ctx, agent.ID, true)
 	s.killed = true
-	_, _ = o.Backlog.Reopen(ctx, taskID, "budget überschritten — agent pausiert")
+	_, _ = o.Backlog.Reopen(ctx, taskID, "budget exceeded — agent paused")
 	_ = o.sendMsg(ctx, link, daemon.TypeKill, map[string]string{"reason": "budget"})
 	return fmt.Errorf("%w (%.4f ≥ %.4f USD)", errBudgetExceeded, summary.TotalUSD, limit)
 }
 
-// errBudgetExceeded markiert den Budget-Stopp: Aufgabe ist wieder offen,
-// der Agent pausiert — kein failed-Abschluss.
-var errBudgetExceeded = errors.New("budget überschritten")
+// errBudgetExceeded marks the budget stop: the task is open again, the agent is
+// paused — not a failed completion.
+var errBudgetExceeded = errors.New("budget exceeded")
 
 const (
-	// originAgentTask markiert eine Aufgabe, die ein Agent selbst angelegt hat
-	// (covey/create_task) — als Teilaufgabe oder per Delegation. Die volle Form
-	// ist "agent:<slug>", damit im Audit steht, wer sie erzeugt hat.
+	// originAgentTask marks a task an agent created itself (covey/create_task) —
+	// as a subtask or by delegation. The full form is "agent:<slug>" so the
+	// audit trail records who created it.
 	originAgentTask = "agent"
 
-	// maxAgentTaskDepth begrenzt die Kette selbst erzeugter Aufgaben: eine
-	// Teilaufgabe darf Teilaufgaben haben, aber nicht beliebig tief. Ohne diese
-	// Grenze zerlegt ein Agent seine Arbeit rekursiv, bis das Budget leer ist.
+	// maxAgentTaskDepth limits the chain of self-created tasks: a subtask may
+	// have subtasks, but not to arbitrary depth. Without this limit an agent
+	// decomposes its work recursively until the budget is empty.
 	maxAgentTaskDepth = 3
 
-	// maxAgentTasksPerRun begrenzt die Breite: so viele Aufgaben darf ein
-	// einzelner Lauf abspalten. Ein Agent, der mehr braucht, hat seine Arbeit
-	// nicht zerlegt, sondern kopiert.
+	// maxAgentTasksPerRun limits the width: this many tasks a single run may
+	// spin off. An agent that needs more has not decomposed its work but copied
+	// it.
 	maxAgentTasksPerRun = 10
 )
 
-// createAgentTask bedient covey/create_task: Der Agent legt eine Teilaufgabe für
-// sich selbst an oder delegiert an einen Kollegen. Die neue Aufgabe hängt als
-// Kind an der laufenden — das trägt sowohl den Audit-Trail (wer hat sie erzeugt)
-// als auch den Loop-Schutz.
+// createAgentTask serves covey/create_task: the agent creates a subtask for
+// itself or delegates to a colleague. The new task hangs as a child off the
+// running one — that carries both the audit trail (who created it) and the loop
+// protection.
 //
-// Fail-closed in drei Richtungen, weil ein Agent, der Aufgaben anlegen kann,
-// sich selbst beschäftigen kann, bis das Budget leer ist:
+// Fail-closed in three directions, because an agent that can create tasks can
+// keep itself busy until the budget is empty:
 //
-//   - Tiefe (maxAgentTaskDepth) — keine unendliche Zerlegung.
-//   - Breite (maxAgentTasksPerRun) — ein Lauf spaltet begrenzt viel ab.
-//   - Dubletten — existiert bereits eine offene Aufgabe gleichen Titels beim
-//     Ziel-Agenten, entsteht keine zweite. Genau daran scheitern Schleifen, in
-//     denen jeder Lauf dieselbe Aufgabe neu anlegt.
+//   - Depth (maxAgentTaskDepth) — no infinite decomposition.
+//   - Width (maxAgentTasksPerRun) — a run spins off a limited amount.
+//   - Duplicates — if an open task with the same title already exists at the
+//     target agent, no second one is created. That is exactly where loops fail
+//     in which every run creates the same task again.
 //
-// Die Delegation bleibt in der Organisation: der Ziel-Agent wird über seinen
-// Slug **innerhalb der Org des Absenders** aufgelöst.
+// The delegation stays within the organization: the target agent is resolved by
+// its slug **within the sender's org**.
 func (o *Orchestrator) createAgentTask(ctx context.Context, agent agents.Agent, taskID uuid.UUID, req daemon.RequestCreateTask) daemon.InjectCreateTask {
 	fail := func(m string) daemon.InjectCreateTask {
 		return daemon.InjectCreateTask{RequestID: req.RequestID, OK: false, Error: m}
 	}
 	title := strings.TrimSpace(req.Title)
 	if title == "" {
-		return fail("title fehlt")
+		return fail("title is missing")
 	}
 
-	// Ziel-Agent: leer = ich selbst, sonst ein Kollege aus derselben Org.
+	// Target agent: empty = myself, otherwise a colleague from the same org.
 	targetAgent := agent
 	if slug := strings.TrimSpace(req.Agent); slug != "" && slug != agent.Slug {
 		found, err := o.Registry.GetBySlug(ctx, agent.OrgID, slug)
 		if err != nil {
-			return fail(fmt.Sprintf("kein agent %q in dieser organisation", slug))
+			return fail(fmt.Sprintf("no agent %q in this organization", slug))
 		}
 		if found.Killed {
-			return fail(fmt.Sprintf("agent %q ist pausiert — keine delegation", slug))
+			return fail(fmt.Sprintf("agent %q is paused — no delegation", slug))
 		}
 		targetAgent = found
 	}
 
 	depth, err := o.Backlog.AncestorsWithOrigin(ctx, taskID, originAgentTask+":")
 	if err != nil {
-		return fail("herkunftskette nicht prüfbar")
+		return fail("origin chain cannot be checked")
 	}
 	if depth >= maxAgentTaskDepth {
-		return fail(fmt.Sprintf("aufgaben-kette zu tief (%d) — zerlege nicht weiter, sondern schließe ab oder eskaliere", depth))
+		return fail(fmt.Sprintf("task chain too deep (%d) — do not decompose further, finish or escalate instead", depth))
 	}
 	children, err := o.Backlog.CountChildren(ctx, taskID)
 	if err != nil {
-		return fail("teilaufgaben nicht zählbar")
+		return fail("subtasks cannot be counted")
 	}
 	if children >= maxAgentTasksPerRun {
-		return fail(fmt.Sprintf("dieser lauf hat bereits %d aufgaben angelegt — das ist das limit", children))
+		return fail(fmt.Sprintf("this run has already created %d tasks — that is the limit", children))
 	}
 	dup, err := o.Backlog.OpenWithTitle(ctx, targetAgent.ID, title)
 	if err != nil {
-		return fail("dublettenprüfung fehlgeschlagen")
+		return fail("duplicate check failed")
 	}
 	if dup {
-		return fail(fmt.Sprintf("es gibt bereits eine offene aufgabe %q bei %s — keine zweite angelegt", title, targetAgent.Slug))
+		return fail(fmt.Sprintf("there is already an open task %q at %s — no second one created", title, targetAgent.Slug))
 	}
 
 	created, err := o.Backlog.CreateChild(ctx, taskID, backlog.ChildSpec{
@@ -1779,14 +1780,14 @@ func (o *Orchestrator) createAgentTask(ctx context.Context, agent agents.Agent, 
 			"target_agent": targetAgent.Slug, "title": title})
 	o.publishTask(created.ID, targetAgent.ID)
 	if targetAgent.ID != agent.ID {
-		o.EnsureRunning(targetAgent.ID) // Delegation weckt den Kollegen
+		o.EnsureRunning(targetAgent.ID) // delegation wakes the colleague
 	}
 	return daemon.InjectCreateTask{RequestID: req.RequestID, OK: true,
 		TaskID: created.ID.String(), Agent: targetAgent.Slug}
 }
 
-// brokerWiki bedient die Wiki-Tools des Agenten (covey/wiki_*, spec/05) gegen
-// den Memory-Store der Control Plane.
+// brokerWiki serves the agent's wiki tools (covey/wiki_*, spec/05) against the
+// control plane's memory store.
 func (o *Orchestrator) brokerWiki(ctx context.Context, agent agents.Agent, req daemon.RequestWiki) daemon.InjectWiki {
 	fail := func(m string) daemon.InjectWiki {
 		return daemon.InjectWiki{RequestID: req.RequestID, OK: false, Error: m}
@@ -1797,7 +1798,7 @@ func (o *Orchestrator) brokerWiki(ctx context.Context, agent agents.Agent, req d
 	}
 	switch req.Op {
 	case "list":
-		// Alle Seiten für die Home-Arbeitskopie (spec/05).
+		// All pages for the working copy in the home (spec/05).
 		entries, err := o.Memory.List(ctx, agent.ID, 1000)
 		if err != nil {
 			return fail(err.Error())
@@ -1834,7 +1835,7 @@ func (o *Orchestrator) brokerWiki(ctx context.Context, agent agents.Agent, req d
 	case "read":
 		e, err := o.Memory.Read(ctx, agent.ID, req.Slug)
 		if err != nil {
-			return fail("seite nicht gefunden")
+			return fail("page not found")
 		}
 		return ok(e)
 	case "write":
@@ -1847,21 +1848,21 @@ func (o *Orchestrator) brokerWiki(ctx context.Context, agent agents.Agent, req d
 		}
 		return ok(map[string]string{"slug": e.Slug, "title": e.Title, "type": e.Type})
 	case "append":
-		// Ergänzen, ohne die Seite neu zu schreiben (spec/05).
+		// Append without rewriting the page (spec/05).
 		e, err := o.Memory.Append(ctx, agent.ID, req.Slug, req.Text)
 		if err != nil {
 			return fail(err.Error())
 		}
 		return ok(map[string]string{"slug": e.Slug, "title": e.Title})
 	case "delete":
-		// Wiki-Pflege: überflüssige/zusammengeführte Seite entfernen. Agent-gescopt
-		// im Store, der Agent kann also nur im eigenen Wiki löschen (spec/05).
+		// Wiki upkeep: remove a superfluous/merged page. Agent-scoped in the
+		// store, so the agent can only delete within its own wiki (spec/05).
 		if err := o.Memory.DeleteBySlug(ctx, agent.ID, req.Slug); err != nil {
-			return fail("seite nicht gefunden")
+			return fail("page not found")
 		}
 		return ok(map[string]string{"slug": req.Slug, "deleted": "true"})
 	default:
-		return fail("unbekannte wiki-operation: " + req.Op)
+		return fail("unknown wiki operation: " + req.Op)
 	}
 }
 
@@ -1873,8 +1874,8 @@ func truncateRunes(s string, n int) string {
 	return strings.TrimSpace(string(r[:n])) + " …"
 }
 
-// brokerCredential ist die Broker-Entscheidung (spec/04): Berechtigung laut
-// ACCESS.md, Guard-Rails, dann kurzlebige Durchreichung aus dem SecretStore.
+// brokerCredential is the broker decision (spec/04): authorization per
+// ACCESS.md, guard rails, then short-lived pass-through from the SecretStore.
 func (o *Orchestrator) brokerCredential(ctx context.Context, agent agents.Agent, req daemon.RequestCredential) daemon.InjectCredentials {
 	deny := func(reason string) daemon.InjectCredentials {
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
@@ -1883,39 +1884,39 @@ func (o *Orchestrator) brokerCredential(ctx context.Context, agent agents.Agent,
 	}
 	ok, err := o.Registry.HasAccess(ctx, agent.ID, req.System, "")
 	if err != nil || !ok {
-		return deny("kein Zugang laut ACCESS.md")
+		return deny("no access per ACCESS.md")
 	}
-	// Plugin-Aktivierung ist ein zentraler Enforcement-Punkt (fail-closed):
-	// ein deaktiviertes oder unbekanntes Zielsystem bekommt keine Credentials.
+	// Plugin activation is a central enforcement point (fail-closed): a disabled
+	// or unknown target system gets no credentials.
 	var kind string
 	if o.Targets != nil {
 		if _, err := o.Targets.System(ctx, agent.OrgID, req.System); err != nil {
-			return deny("zielsystem nicht aktiviert: " + req.System)
+			return deny("target system not enabled: " + req.System)
 		}
 		kind, _ = o.Targets.Kind(ctx, agent.OrgID, req.System)
 	}
 	rules, err := o.Rails.List(ctx, agent.OrgID)
 	if err != nil {
-		return deny("guard-rails nicht lesbar (fail-closed)")
+		return deny("guard rails not readable (fail-closed)")
 	}
 	if v := guardrails.Evaluate(rules, agent.ID, req.System); v.Decision == guardrails.Deny {
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindGuardrail,
 			map[string]any{"rule": "deny_system", "system": req.System, "pattern": v.Rule.Pattern})
-		return deny("durch Guard-Rail verboten")
+		return deny("forbidden by guard rail")
 	}
-	// Lokale Systeme (NoCredentials, z. B. das dev-Plugin) brauchen keine
-	// Secrets — die Aktionen laufen komplett in der Sandbox. Die Prüfungen
-	// oben (ACCESS.md, Aktivierung, Guard-Rails) gelten trotzdem; gewährt
-	// wird ein leeres Credential.
+	// Local systems (NoCredentials, e.g. the dev plugin) need no secrets — the
+	// actions run entirely inside the sandbox. The checks above (ACCESS.md,
+	// activation, guard rails) still apply; what is granted is an empty
+	// credential.
 	if d, ok := target.Describe(req.System); ok && d.NoCredentials {
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
 			map[string]any{"system": req.System, "granted": true, "local": true})
 		return daemon.InjectCredentials{RequestID: req.RequestID, System: req.System,
 			Granted: true, TTLSecs: int(o.DaemonTokenTTL.Seconds())}
 	}
-	// MCP-Server tragen ihren Endpoint in der Config; Auth ist optional. Ein
-	// fehlendes Token verweigert daher NICHT — der Server kann ohne Auth
-	// erreichbar sein. URL-Secret bleibt optionaler Override.
+	// MCP servers carry their endpoint in the config; auth is optional. A
+	// missing token therefore does NOT deny — the server may be reachable
+	// without auth. The URL secret remains an optional override.
 	if kind == "mcp" {
 		token, _ := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_token")
 		baseURL, _ := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_url")
@@ -1927,16 +1928,16 @@ func (o *Orchestrator) brokerCredential(ctx context.Context, agent agents.Agent,
 	}
 	token, err := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_token")
 	if err != nil {
-		return deny("kein Secret hinterlegt oder zugewiesen: " + req.System + "_token")
+		return deny("no secret stored or assigned: " + req.System + "_token")
 	}
-	// Bringt das Plugin den Endpoint selbst mit (BaseURLOptional), ist
-	// <name>_url nur ein Override — ein fehlendes Secret verweigert dann
-	// nicht, sonst scheiterte ein sauber eingerichteter Agent an einem
-	// Wert, den die Control Plane gar nicht braucht.
+	// If the plugin brings the endpoint along itself (BaseURLOptional),
+	// <name>_url is only an override — a missing secret then does not deny,
+	// otherwise a properly set up agent would fail on a value the control plane
+	// does not need at all.
 	baseURL, err := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_url")
 	if err != nil {
 		if d, ok := target.Describe(req.System); !ok || !d.BaseURLOptional {
-			return deny("kein Secret hinterlegt oder zugewiesen: " + req.System + "_url")
+			return deny("no secret stored or assigned: " + req.System + "_url")
 		}
 		baseURL = ""
 	}
@@ -1946,37 +1947,37 @@ func (o *Orchestrator) brokerCredential(ctx context.Context, agent agents.Agent,
 		Granted: true, Token: token, BaseURL: baseURL, TTLSecs: int(o.DaemonTokenTTL.Seconds())}
 }
 
-// brokerTarget reicht die Definition eines Manifest-Plugins in die Sandbox —
-// nur für aktivierte Custom-Systeme der Organisation (fail-closed). Kompilierte
-// Plugins kennt der Daemon selbst und fragt hier gar nicht erst an.
+// brokerTarget passes the definition of a manifest plugin into the sandbox —
+// only for enabled custom systems of the organization (fail-closed). Compiled
+// plugins are known to the daemon itself, which does not even ask here.
 func (o *Orchestrator) brokerTarget(ctx context.Context, agent agents.Agent, req daemon.RequestTarget) daemon.InjectTarget {
 	deny := func(reason string) daemon.InjectTarget {
 		return daemon.InjectTarget{RequestID: req.RequestID, System: req.System, Granted: false, Reason: reason}
 	}
 	if o.Targets == nil {
-		return deny("kein zielsystem-store konfiguriert")
+		return deny("no target-system store configured")
 	}
 	kind, raw, err := o.Targets.BrokeredDefinition(ctx, agent.OrgID, req.System)
 	if err != nil {
-		return deny("zielsystem nicht verfügbar: " + err.Error())
+		return deny("target system not available: " + err.Error())
 	}
 	return daemon.InjectTarget{RequestID: req.RequestID, System: req.System, Granted: true,
 		Kind: kind, Manifest: raw}
 }
 
-// decideAction ist die zentrale Policy-Entscheidung für eine Aktion:
-// allow (auto), deny (Guard-Rail) oder pending (Approval-Gate, spec/06).
-// Eine bereits erteilte, unverbrauchte Freigabe wird konsumiert.
+// decideAction is the central policy decision for an action: allow (auto), deny
+// (guard rail) or pending (approval gate, spec/06). An already granted, unused
+// approval is consumed.
 func (o *Orchestrator) decideAction(ctx context.Context, agent agents.Agent, taskID uuid.UUID, req daemon.RequestApproval) daemon.ApprovalDecision {
-	// Per-Agent-Tool-Zuweisung (fail-closed, sobald eine Allowlist existiert):
-	// das Subjekt ist system:tool. Ohne Zuweisung für das System greift dies
-	// nicht — Built-ins/Manifeste bleiben unberührt.
+	// Per-agent tool assignment (fail-closed as soon as an allowlist exists):
+	// the subject is system:tool. Without an assignment for the system this does
+	// not apply — built-ins/manifests stay untouched.
 	if o.Targets != nil {
 		if system, tool, ok := strings.Cut(req.Action, ":"); ok {
 			allowed, err := o.Targets.AgentToolAllowed(ctx, agent.ID, system, tool)
 			if err != nil {
 				return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied",
-					Reason: "tool-zuweisung nicht lesbar (fail-closed)"}
+					Reason: "tool assignment not readable (fail-closed)"}
 			}
 			if !allowed {
 				_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindGuardrail,
@@ -1984,14 +1985,14 @@ func (o *Orchestrator) decideAction(ctx context.Context, agent agents.Agent, tas
 				o.events.Publish(Event{Type: "guardrail", AgentID: agent.ID.String(),
 					Data: map[string]string{"action": req.Action, "decision": "denied"}})
 				return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied",
-					Reason: "tool " + tool + " ist diesem Agenten nicht zugewiesen"}
+					Reason: "tool " + tool + " is not assigned to this agent"}
 			}
 		}
 	}
 	rules, err := o.Rails.List(ctx, agent.OrgID)
 	if err != nil {
 		return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied",
-			Reason: "guard-rails nicht lesbar (fail-closed)"}
+			Reason: "guard rails not readable (fail-closed)"}
 	}
 	verdict := guardrails.Evaluate(rules, agent.ID, req.Action)
 	switch verdict.Decision {
@@ -2002,10 +2003,10 @@ func (o *Orchestrator) decideAction(ctx context.Context, agent agents.Agent, tas
 		o.events.Publish(Event{Type: "guardrail", AgentID: agent.ID.String(),
 			Data: map[string]string{"action": req.Action, "decision": "denied"}})
 		return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied",
-			Reason: "verboten durch Guard-Rail " + verdict.Rule.Pattern}
+			Reason: "forbidden by guard rail " + verdict.Rule.Pattern}
 
 	case guardrails.RequireApproval:
-		// Unverbrauchte Freigabe für genau diese Aktion? Dann konsumieren.
+		// An unused approval for exactly this action? Then consume it.
 		var approvalID uuid.UUID
 		err := o.Pool.QueryRow(ctx, `UPDATE approvals SET used=TRUE
 			WHERE id = (SELECT id FROM approvals
@@ -2035,21 +2036,21 @@ func (o *Orchestrator) decideAction(ctx context.Context, agent agents.Agent, tas
 	}
 }
 
-// OnApprovalDecided schließt den Kreis des Approval-Gates: die Entscheidung
-// weckt die auf "approval:<id>" geblockte Aufgabe (Wake-on-correlation).
+// OnApprovalDecided closes the loop of the approval gate: the decision wakes
+// the task blocked on "approval:<id>" (wake-on-correlation).
 func (o *Orchestrator) OnApprovalDecided(ctx context.Context, appr observability.Approval) {
-	text := fmt.Sprintf("Die Freigabe für %q wurde erteilt. Führe die Aktion jetzt erneut über den Action-Proxy aus und schließe die Aufgabe ab.", appr.Action)
+	text := fmt.Sprintf("The approval for %q was granted. Perform the action again through the action proxy now and finish the task.", appr.Action)
 	if appr.Status == "denied" {
-		text = fmt.Sprintf("Die Freigabe für %q wurde ABGELEHNT. Führe die Aktion nicht aus; wähle einen anderen Weg oder eskaliere.", appr.Action)
+		text = fmt.Sprintf("The approval for %q was DENIED. Do not perform the action; choose another way or escalate.", appr.Action)
 	}
 	if _, err := o.Backlog.CorrelateWake(ctx, "approval:"+appr.ID.String(), text); err != nil &&
 		!errors.Is(err, backlog.ErrNotFound) {
-		o.Log.Warn("approval-korrelation", "approval", appr.ID, "err", err)
+		o.Log.Warn("approval correlation", "approval", appr.ID, "err", err)
 	}
 }
 
-// Kill ist der Kill-Switch für einen Agenten: Flag setzen, laufende Session
-// sofort abbrechen, angefangene Aufgabe zurück ins Backlog.
+// Kill is the kill switch for one agent: set the flag, abort the running
+// session immediately, put the started task back into the backlog.
 func (o *Orchestrator) Kill(ctx context.Context, agentID uuid.UUID) error {
 	if err := o.Registry.SetKilled(ctx, agentID, true); err != nil {
 		return err
@@ -2064,10 +2065,10 @@ func (o *Orchestrator) Kill(ctx context.Context, agentID uuid.UUID) error {
 		}
 		s.cancel()
 	}
-	// Eine geparkte warme Sandbox (kein aktiver Lauf) sofort abbauen — ein
-	// gekillter Agent darf keinen laufenden Container behalten.
+	// Tear down a parked warm sandbox (no active run) immediately — a killed
+	// agent must not keep a running container.
 	o.evictWarm(ctx, agentID, true)
-	// Angefangene Aufgabe wieder öffnen, damit nichts verloren geht.
+	// Reopen the started task so nothing gets lost.
 	_, _ = o.Pool.Exec(ctx, `UPDATE backlog_tasks SET state='open', updated_at=now()
 		WHERE agent_id=$1 AND state='in_progress'`, agentID)
 	if agent, err := o.Registry.Get(ctx, agentID); err == nil {
@@ -2078,15 +2079,15 @@ func (o *Orchestrator) Kill(ctx context.Context, agentID uuid.UUID) error {
 	return nil
 }
 
-// KillFleet ist der flottenweite Notaus (spec/06).
-// ResumeFleet nimmt den Notaus zurück — das Gegenstück zu KillFleet, und zwar
-// vollständig.
+// KillFleet is the fleet-wide emergency stop (spec/06).
+// ResumeFleet takes the emergency stop back — the counterpart to KillFleet, and
+// a complete one at that.
 //
-// Vorher löste das Zurücknehmen nur das Org-Flag, während KillFleet JEDEN
-// Agenten einzeln gestoppt hatte. Die Belegschaft blieb danach stehen, obwohl
-// die Oberfläche „kein Notaus" meldete — man hätte jeden Agenten von Hand
-// wieder anschalten müssen, ohne dass irgendetwas darauf hinweist. Ein Notaus
-// muss sich so lösen lassen, wie er ausgelöst wurde.
+// Previously, taking it back only released the org flag, while KillFleet had
+// stopped EVERY agent individually. The workforce stayed put afterwards even
+// though the UI reported "no emergency stop" — one would have had to switch
+// every agent back on by hand, without anything hinting at it. An emergency
+// stop has to be releasable the way it was triggered.
 func (o *Orchestrator) ResumeFleet(ctx context.Context, orgID uuid.UUID) error {
 	if err := o.Registry.SetFleetKilled(ctx, orgID, false); err != nil {
 		return err
@@ -2101,14 +2102,14 @@ func (o *Orchestrator) ResumeFleet(ctx context.Context, orgID uuid.UUID) error {
 			firstErr = err
 			continue
 		}
-		// Wer offene Arbeit hat, soll sie sofort aufnehmen und nicht bis zum
-		// nächsten Tick warten.
+		// Whoever has open work should pick it up right away instead of waiting
+		// for the next tick.
 		o.EnsureRunning(id)
 	}
 	return firstErr
 }
 
-// agentIDs listet die Agenten einer Organisation.
+// agentIDs lists the agents of an organization.
 func (o *Orchestrator) agentIDs(ctx context.Context, orgID uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := o.Pool.Query(ctx, "SELECT id FROM agents WHERE org_id=$1", orgID)
 	if err != nil {
@@ -2148,7 +2149,7 @@ func (o *Orchestrator) shutdown() {
 	for _, s := range o.sessions {
 		s.cancel()
 	}
-	// Geparkte warme Sandboxen (kein aktiver Lauf) einsammeln und abbauen.
+	// Collect and tear down parked warm sandboxes (no active run).
 	parked := make([]*warmSession, 0, len(o.warm))
 	for id, ws := range o.warm {
 		parked = append(parked, ws)
@@ -2162,9 +2163,9 @@ func (o *Orchestrator) shutdown() {
 	}
 }
 
-// HandleWebhook verarbeitet ein eingehendes Zielsystem-Event (M3/M4):
-// idempotent; korreliert zuerst gegen geblockte Aufgaben (dann ist
-// ResumeInput die Fortsetzungs-Eingabe), sonst neue Backlog-Aufgabe (TaskBody).
+// HandleWebhook processes an incoming target-system event (M3/M4): idempotent;
+// first correlates against blocked tasks (ResumeInput is then the continuation
+// input), otherwise a new backlog task (TaskBody).
 func (o *Orchestrator) HandleWebhook(ctx context.Context, agent agents.Agent, source string, ev target.WebhookEvent) (string, error) {
 	tag, err := o.Pool.Exec(ctx, `INSERT INTO webhook_events (dedup_key, source)
 		VALUES ($1,$2) ON CONFLICT (dedup_key) DO NOTHING`, ev.DedupKey, source)
@@ -2172,10 +2173,10 @@ func (o *Orchestrator) HandleWebhook(ctx context.Context, agent agents.Agent, so
 		return "", err
 	}
 	if tag.RowsAffected() == 0 {
-		return "duplicate", nil // Retry des Zielsystems — schon verarbeitet
+		return "duplicate", nil // retry from the target system — already processed
 	}
 	if !ev.Wake {
-		return "ignored", nil // z. B. das Echo der eigenen Agent-Antwort
+		return "ignored", nil // e.g. the echo of the agent's own reply
 	}
 	if task, err := o.Backlog.CorrelateWake(ctx, ev.CorrelationKey, ev.ResumeInput); err == nil {
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &task.ID, observability.KindLifecycle,
@@ -2186,7 +2187,7 @@ func (o *Orchestrator) HandleWebhook(ctx context.Context, agent agents.Agent, so
 		return "", err
 	}
 	if ev.CorrelateOnly {
-		return "ignored", nil // wartet niemand auf das Event, entsteht keine Arbeit
+		return "ignored", nil // if nobody waits for the event, no work is created
 	}
 	task, err := o.Backlog.Create(ctx, agent.OrgID, agent.ID, ev.Title, ev.TaskBody, "webhook:"+source, 3)
 	if err != nil {
@@ -2196,15 +2197,15 @@ func (o *Orchestrator) HandleWebhook(ctx context.Context, agent agents.Agent, so
 	return "created", nil
 }
 
-// HandleAgentTrigger verarbeitet den generischen, per Token authentifizierten
-// Webhook-Trigger eines Agenten (spec/03, Wake-Quelle Event): optional
-// idempotent über einen dedup_key, legt eine Backlog-Aufgabe an und stößt den
-// Dispatch sofort an. Anders als HandleWebhook gibt es kein Zielsystem-Plugin
-// und keine Korrelation — der Absender ist ein beliebiges Fremdsystem.
+// HandleAgentTrigger processes an agent's generic, token-authenticated webhook
+// trigger (spec/03, wake source event): optionally idempotent via a dedup_key,
+// creates a backlog task and kicks off the dispatch immediately. Unlike
+// HandleWebhook there is no target-system plugin and no correlation — the
+// sender is an arbitrary foreign system.
 func (o *Orchestrator) HandleAgentTrigger(ctx context.Context, agent agents.Agent, title, body string, priority int, dedupKey string) (string, error) {
 	if dedupKey != "" {
-		// Global eindeutige Tabelle — je Agent scopen, damit sich Fremdsysteme
-		// verschiedener Agenten nicht gegenseitig deduplizieren.
+		// Globally unique table — scope it per agent so that foreign systems of
+		// different agents do not deduplicate each other.
 		tag, err := o.Pool.Exec(ctx, `INSERT INTO webhook_events (dedup_key, source)
 			VALUES ($1,'agent-trigger') ON CONFLICT (dedup_key) DO NOTHING`,
 			"trigger:"+agent.ID.String()+":"+dedupKey)

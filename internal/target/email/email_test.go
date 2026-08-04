@@ -28,7 +28,7 @@ import (
 func TestParseConfig(t *testing.T) {
 	cfg, err := ParseConfig(target.Credential{
 		BaseURL: "imaps://imap.example.com smtp://mail.example.com:2525",
-		Token:   "agent@example.com:ge:heim", // Passwort darf Doppelpunkte enthalten
+		Token:   "agent@example.com:ge:heim", // the password may contain colons
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -46,7 +46,7 @@ func TestParseConfig(t *testing.T) {
 
 func TestParseConfigShorthand(t *testing.T) {
 	cfg, err := ParseConfig(target.Credential{
-		BaseURL: "  mail.example.com  ", // nur der Host → Standard-Setup
+		BaseURL: "  mail.example.com  ", // only the host → standard setup
 		Token:   "agent@example.com:pw",
 	})
 	if err != nil {
@@ -78,17 +78,17 @@ func TestParseConfigFromOverride(t *testing.T) {
 
 func TestParseConfigErrors(t *testing.T) {
 	cases := []target.Credential{
-		{BaseURL: "imaps://imap.example.com", Token: "u@x.de:p"},          // SMTP fehlt
-		{BaseURL: "smtp://mail.example.com", Token: "u@x.de:p"},           // IMAP fehlt
-		{BaseURL: "imaps://a smtp://b", Token: "ohne-doppelpunkt"},        // Token-Format
-		{BaseURL: "imaps://a smtp://b", Token: "login:pw"},                // From unbekannt
-		{BaseURL: "https://a smtp://b", Token: "u@x.de:p"},                // falsches Schema
-		{BaseURL: "mail.example.com:993", Token: "u@x.de:p"},              // Kurzform mit Port
-		{BaseURL: "imap.example.com smtp.example.com", Token: "u@x.de:p"}, // Kurzform mit zwei Hosts
+		{BaseURL: "imaps://imap.example.com", Token: "u@x.de:p"},          // SMTP missing
+		{BaseURL: "smtp://mail.example.com", Token: "u@x.de:p"},           // IMAP missing
+		{BaseURL: "imaps://a smtp://b", Token: "ohne-doppelpunkt"},        // token format
+		{BaseURL: "imaps://a smtp://b", Token: "login:pw"},                // From unknown
+		{BaseURL: "https://a smtp://b", Token: "u@x.de:p"},                // wrong scheme
+		{BaseURL: "mail.example.com:993", Token: "u@x.de:p"},              // shorthand with port
+		{BaseURL: "imap.example.com smtp.example.com", Token: "u@x.de:p"}, // shorthand with two hosts
 	}
 	for i, cred := range cases {
 		if _, err := ParseConfig(cred); err == nil {
-			t.Errorf("fall %d: fehler erwartet", i)
+			t.Errorf("case %d: error expected", i)
 		}
 	}
 }
@@ -102,16 +102,16 @@ func TestSendAllowlist(t *testing.T) {
 		"azubi@partner.de":  false,
 	} {
 		if got := sendAllowed(addr); got != want {
-			t.Errorf("sendAllowed(%q) = %v, will %v", addr, got, want)
+			t.Errorf("sendAllowed(%q) = %v, want %v", addr, got, want)
 		}
 	}
 	t.Setenv("COVEY_EMAIL_SEND_DOMAINS", "")
 	if !sendAllowed("wer@auch.immer") {
-		t.Error("leere allowlist muss alles erlauben")
+		t.Error("an empty allowlist has to permit everything")
 	}
 }
 
-// --- Nachrichtenbau -------------------------------------------------------
+// --- Message building -----------------------------------------------------
 
 func TestBuildMessage(t *testing.T) {
 	msg := string(buildMessage(outgoing{
@@ -129,14 +129,14 @@ func TestBuildMessage(t *testing.T) {
 		"Content-Transfer-Encoding: quoted-printable\r\n",
 	} {
 		if !strings.Contains(msg, want) {
-			t.Errorf("header fehlt: %q", want)
+			t.Errorf("header missing: %q", want)
 		}
 	}
 	if strings.Contains(msg, "X-Injected: ja\r\n") {
-		t.Error("header-injection über den betreff nicht neutralisiert")
+		t.Error("header injection through the subject not neutralized")
 	}
 	if !strings.Contains(msg, "Gr=C3=BC=C3=9Fe") {
-		t.Errorf("body nicht quoted-printable: %s", msg)
+		t.Errorf("body not quoted-printable: %s", msg)
 	}
 }
 
@@ -156,22 +156,22 @@ func TestBuildReply(t *testing.T) {
 		t.Errorf("reply: %+v", o)
 	}
 	if strings.Join(o.Cc, ",") != "team@example.com,chefin@example.com" {
-		t.Errorf("reply_all cc: %v (eigene adresse muss raus)", o.Cc)
+		t.Errorf("reply_all cc: %v (the own address has to be dropped)", o.Cc)
 	}
 	if strings.Join(o.References, " ") != "<m0@x> <m1@x>" {
 		t.Errorf("references: %v", o.References)
 	}
 
-	// Re:-Betreff nicht doppeln.
+	// Do not double the Re: subject.
 	orig.Subject = "RE: Frage"
 	if o, _ = buildReply(cfg, orig, "x", false); o.Subject != "RE: Frage" {
-		t.Errorf("re-präfix gedoppelt: %q", o.Subject)
+		t.Errorf("re prefix doubled: %q", o.Subject)
 	}
 
-	// Echo-Schutz: Antwort an die eigene Adresse ist verboten.
+	// Echo protection: a reply to the own address is forbidden.
 	orig.MessageSummary.From = "agent@example.com"
 	if _, err := buildReply(cfg, orig, "x", false); err == nil {
-		t.Error("antwort an eigene adresse muss scheitern")
+		t.Error("a reply to the own address has to fail")
 	}
 }
 
@@ -181,10 +181,10 @@ func TestActionSubject(t *testing.T) {
 	}
 }
 
-// --- Ende-zu-Ende gegen In-Memory-IMAP + Fake-SMTP ------------------------
+// --- End to end against in-memory IMAP + fake SMTP ------------------------
 
-// newMemIMAP startet einen In-Memory-IMAP-Server (Klartext, für die
-// imap+insecure-Test-Konfiguration) mit einem Benutzer und INBOX+Archiv.
+// newMemIMAP starts an in-memory IMAP server (plaintext, for the
+// imap+insecure test configuration) with one user and INBOX+Archiv.
 func newMemIMAP(t *testing.T, user, pass string) string {
 	t.Helper()
 	mem := imapmemserver.New()
@@ -211,7 +211,7 @@ func newMemIMAP(t *testing.T, user, pass string) string {
 	return ln.Addr().String()
 }
 
-// appendMail legt eine Roh-Mail per IMAP-APPEND ins Postfach.
+// appendMail puts a raw mail into the mailbox by IMAP APPEND.
 func appendMail(t *testing.T, addr, user, pass, raw string, seen bool) {
 	t.Helper()
 	c, err := imapclient.DialInsecure(addr, nil)
@@ -239,8 +239,8 @@ func appendMail(t *testing.T, addr, user, pass, raw string, seen bool) {
 	_ = c.Logout().Wait()
 }
 
-// fakeSMTP ist ein minimaler Klartext-SMTP-Server, der die eingelieferte
-// Nachricht aufzeichnet — analog zum Fake-Zammad der Integrationstests.
+// fakeSMTP is a minimal plaintext SMTP server that records the delivered
+// message — analogous to the fake Zammad of the integration tests.
 type fakeSMTP struct {
 	ln    net.Listener
 	mu    sync.Mutex
@@ -320,7 +320,7 @@ func (s *fakeSMTP) handle(conn net.Conn) {
 	}
 }
 
-// pathArg extrahiert die Adresse aus "MAIL FROM:<a@b> PARAM=X" / "RCPT TO:<a@b>".
+// pathArg extracts the address out of "MAIL FROM:<a@b> PARAM=X" / "RCPT TO:<a@b>".
 func pathArg(line string) string {
 	if i, j := strings.Index(line, "<"), strings.Index(line, ">"); i >= 0 && j > i {
 		return line[i+1 : j]
@@ -363,52 +363,52 @@ func TestExecuteInboxRoundtrip(t *testing.T) {
 	appendMail(t, imapAddr, testUser, "pw",
 		"From: alt@example.com\r\nTo: agent@example.com\r\nSubject: Erledigt\r\n\r\nAlte Mail.\r\n", true)
 
-	// list_unread: nur die ungelesene Mail.
+	// list_unread: only the unread mail.
 	unread := exec(t, cred, "list_unread", `{}`).([]MessageSummary)
 	if len(unread) != 1 || unread[0].From != "kunde@example.com" || unread[0].Seen {
 		t.Fatalf("list_unread: %+v", unread)
 	}
 	uid := unread[0].UID
 
-	// list_messages: beide.
+	// list_messages: both.
 	if all := exec(t, cred, "list_messages", `{}`).([]MessageSummary); len(all) != 2 {
 		t.Fatalf("list_messages: %+v", all)
 	}
 
-	// get_message: Text extrahiert, Gelesen-Flag unangetastet.
+	// get_message: text extracted, read flag untouched.
 	msg := exec(t, cred, "get_message", fmt.Sprintf(`{"uid":%d}`, uid)).(*Message)
 	if !strings.Contains(msg.Body, "Drucker im 2. OG") || msg.MessageID != "<t1@example.com>" {
 		t.Fatalf("get_message: %+v", msg)
 	}
 	if got := exec(t, cred, "list_unread", `{}`).([]MessageSummary); len(got) != 1 {
-		t.Fatalf("get_message darf das gelesen-flag nicht setzen: %+v", got)
+		t.Fatalf("get_message must not set the read flag: %+v", got)
 	}
 
-	// reply: SMTP-Versand mit Threading-Headern, danach als gelesen markiert.
+	// reply: SMTP delivery with threading headers, marked as read afterwards.
 	exec(t, cred, "reply", fmt.Sprintf(`{"uid":%d,"body":"Wir kümmern uns."}`, uid))
 	from, rcpts, data := smtp.snapshot()
 	if from != testUser || len(rcpts) != 1 || rcpts[0] != "kunde@example.com" {
-		t.Fatalf("smtp-umschlag: %q → %v", from, rcpts)
+		t.Fatalf("smtp envelope: %q → %v", from, rcpts)
 	}
 	if !strings.Contains(data, "In-Reply-To: <t1@example.com>") ||
 		!strings.Contains(data, "Subject: Re: Drucker kaputt") {
-		t.Fatalf("reply-nachricht:\n%s", data)
+		t.Fatalf("reply message:\n%s", data)
 	}
 	if got := exec(t, cred, "list_unread", `{}`).([]MessageSummary); len(got) != 0 {
-		t.Fatalf("reply muss als gelesen markieren: %+v", got)
+		t.Fatalf("reply has to mark the mail as read: %+v", got)
 	}
 
-	// mark_unseen → wieder im Arbeitsvorrat; move → Archiv.
+	// mark_unseen → back in the working set; move → Archiv.
 	exec(t, cred, "mark_unseen", fmt.Sprintf(`{"uid":%d}`, uid))
 	if got := exec(t, cred, "list_unread", `{}`).([]MessageSummary); len(got) != 1 {
 		t.Fatalf("mark_unseen: %+v", got)
 	}
 	exec(t, cred, "move", fmt.Sprintf(`{"uid":%d,"to_mailbox":"Archiv"}`, uid))
 	if got := exec(t, cred, "list_unread", `{}`).([]MessageSummary); len(got) != 0 {
-		t.Fatalf("nach move noch in INBOX: %+v", got)
+		t.Fatalf("still in INBOX after move: %+v", got)
 	}
 	if got := exec(t, cred, "list_messages", `{"mailbox":"Archiv"}`).([]MessageSummary); len(got) != 1 {
-		t.Fatalf("archiv: %+v", got)
+		t.Fatalf("archive: %+v", got)
 	}
 
 	// list_mailboxes.
@@ -426,26 +426,26 @@ func TestExecuteSend(t *testing.T) {
 	exec(t, cred, "send", `{"to":["kunde@example.com"],"cc":["chefin@example.com"],"subject":"Störung behoben","body":"Der Drucker läuft wieder."}`)
 	from, rcpts, data := smtp.snapshot()
 	if from != testUser || strings.Join(rcpts, ",") != "kunde@example.com,chefin@example.com" {
-		t.Fatalf("umschlag: %q → %v", from, rcpts)
+		t.Fatalf("envelope: %q → %v", from, rcpts)
 	}
 	if !strings.Contains(data, "To: kunde@example.com\r\n") || !strings.Contains(data, "Cc: chefin@example.com\r\n") {
-		t.Fatalf("nachricht:\n%s", data)
+		t.Fatalf("message:\n%s", data)
 	}
 
-	// Versand-Allowlist greift vor dem SMTP-Kontakt.
+	// The send allowlist takes effect before the SMTP contact.
 	t.Setenv("COVEY_EMAIL_SEND_DOMAINS", "example.com")
 	if _, err := (System{}).Execute(context.Background(), "send",
 		json.RawMessage(`{"to":["boese@evil.io"],"subject":"x","body":"y"}`), cred); err == nil {
-		t.Fatal("send außerhalb der allowlist muss scheitern")
+		t.Fatal("send outside the allowlist has to fail")
 	}
 }
 
-func TestExecuteEchoUndIntakeFilter(t *testing.T) {
+func TestExecuteEchoAndIntakeFilter(t *testing.T) {
 	imapAddr := newMemIMAP(t, testUser, "pw")
 	smtp := newFakeSMTP(t)
 	cred := testCred(t, imapAddr, smtp.ln.Addr().String())
 
-	// Eigene Mail und ein fremder Absender außerhalb der Intake-Allowlist.
+	// Own mail and a foreign sender outside the intake allowlist.
 	appendMail(t, imapAddr, testUser, "pw",
 		"From: agent@example.com\r\nTo: agent@example.com\r\nSubject: Notiz an mich\r\n\r\nx\r\n", false)
 	appendMail(t, imapAddr, testUser, "pw",
@@ -456,7 +456,7 @@ func TestExecuteEchoUndIntakeFilter(t *testing.T) {
 	t.Setenv("COVEY_EMAIL_INTAKE_ADDRESSES", "example.com")
 	unread := exec(t, cred, "list_unread", `{}`).([]MessageSummary)
 	if len(unread) != 1 || unread[0].From != "kunde@example.com" {
-		t.Fatalf("echo-/intake-filter: %+v", unread)
+		t.Fatalf("echo/intake filter: %+v", unread)
 	}
 }
 
@@ -472,30 +472,30 @@ func TestHasWork(t *testing.T) {
 			t.Fatal(err)
 		}
 		if has != want {
-			t.Errorf("%s: has=%v, erwartet %v", msg, has, want)
+			t.Errorf("%s: has=%v, expected %v", msg, has, want)
 		}
 	}
 
-	check(false, "leeres postfach")
+	check(false, "empty mailbox")
 	appendMail(t, imapAddr, testUser, "pw",
 		"From: alt@example.com\r\nTo: agent@example.com\r\nSubject: Erledigt\r\n\r\nx\r\n", true)
-	check(false, "nur gelesene mails")
+	check(false, "read mail only")
 	appendMail(t, imapAddr, testUser, "pw",
 		"From: agent@example.com\r\nTo: agent@example.com\r\nSubject: Echo\r\n\r\nx\r\n", false)
-	check(false, "eigene mail zählt nicht (echo-schutz)")
+	check(false, "own mail does not count (echo protection)")
 	appendMail(t, imapAddr, testUser, "pw",
 		"From: kunde@example.com\r\nTo: agent@example.com\r\nSubject: Frage\r\n\r\nx\r\n", false)
-	check(true, "ungelesene kundenmail")
+	check(true, "unread customer mail")
 
-	// Intake-Allowlist greift auch im Vorab-Check.
+	// The intake allowlist takes effect in the pre-check as well.
 	t.Setenv("COVEY_EMAIL_INTAKE_ADDRESSES", "partner.de")
-	check(false, "kundenmail außerhalb der intake-allowlist")
+	check(false, "customer mail outside the intake allowlist")
 }
 
-// --- Anhänge --------------------------------------------------------------
+// --- Attachments ----------------------------------------------------------
 
-// multipartMail baut eine Roh-Mail mit Text-Teil und base64-kodierten
-// Anhängen (Name → Content-Type/Inhalt in der angegebenen Reihenfolge).
+// multipartMail builds a raw mail with a text part and base64-encoded
+// attachments (name → content type/content in the given order).
 func multipartMail(subject string, atts ...[3]string) string {
 	var b strings.Builder
 	b.WriteString("From: kunde@example.com\r\nTo: agent@example.com\r\nSubject: " + subject +
@@ -515,51 +515,51 @@ func TestFindAttachment(t *testing.T) {
 	raw := []byte(multipartMail("Zwei Anhänge",
 		[3]string{"rechnung.pdf", "application/pdf", "%PDF-1.4 fake"},
 		[3]string{"logo.png", "image/png", "PNGDATA"},
-		[3]string{"rechnung.pdf", "text/plain", "die zweite"},
+		[3]string{"rechnung.pdf", "text/plain", "die second"},
 	))
 
-	// Treffer inkl. Content-Type und dekodierten Bytes.
+	// Hit including content type and decoded bytes.
 	name, ct, data, err := findAttachment(raw, "logo.png", 1<<20)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if name != "logo.png" || ct != "image/png" || string(data) != "PNGDATA" {
-		t.Fatalf("treffer: %q/%q/%q", name, ct, data)
+		t.Fatalf("hit: %q/%q/%q", name, ct, data)
 	}
 
-	// Gleichnamige Anhänge: der erste in MIME-Reihenfolge gewinnt.
+	// Attachments of the same name: the first one in MIME order wins.
 	if _, ct, data, err = findAttachment(raw, "rechnung.pdf", 1<<20); err != nil {
 		t.Fatal(err)
 	} else if ct != "application/pdf" || string(data) != "%PDF-1.4 fake" {
-		t.Fatalf("bei gleichnamigen anhängen muss der erste gewinnen: %q/%q", ct, data)
+		t.Fatalf("with attachments of the same name the first one has to win: %q/%q", ct, data)
 	}
 
-	// Größenlimit: über dem Limit wird abgebrochen, nichts geliefert.
+	// Size limit: above the limit it is aborted, nothing is delivered.
 	if _, _, data, err = findAttachment(raw, "rechnung.pdf", 4); err == nil {
-		t.Fatalf("anhang über dem limit muss scheitern (bekam %d bytes)", len(data))
-	} else if !strings.Contains(err.Error(), "größer als") {
-		t.Fatalf("fehlertext: %v", err)
+		t.Fatalf("an attachment above the limit has to fail (got %d bytes)", len(data))
+	} else if !strings.Contains(err.Error(), "larger than") {
+		t.Fatalf("error text: %v", err)
 	}
 
-	// Unbekannter Name → Fehler, der die vorhandenen Namen nennt.
+	// Unknown name → an error that names the attachments that are there.
 	if _, _, _, err = findAttachment(raw, "gibtsnicht.txt", 1<<20); err == nil {
-		t.Fatal("unbekannter anhang muss scheitern")
+		t.Fatal("an unknown attachment has to fail")
 	} else if !strings.Contains(err.Error(), "rechnung.pdf") {
-		t.Fatalf("fehlertext nennt die vorhandenen namen nicht: %v", err)
+		t.Fatalf("the error text does not name the available names: %v", err)
 	}
 
-	// Mail ganz ohne Anhänge → eigener, klarer Fehler (kein Panic).
-	ohne := []byte("From: kunde@example.com\r\nSubject: Nur Text\r\n\r\nkein anhang\r\n")
-	if _, _, _, err = findAttachment(ohne, "x.pdf", 1<<20); err == nil {
-		t.Fatal("mail ohne anhänge muss scheitern")
-	} else if !strings.Contains(err.Error(), "keine anhänge") {
-		t.Fatalf("fehlertext: %v", err)
+	// Mail without any attachment → a clear error of its own (no panic).
+	withoutAtt := []byte("From: kunde@example.com\r\nSubject: Nur Text\r\n\r\nkein anhang\r\n")
+	if _, _, _, err = findAttachment(withoutAtt, "x.pdf", 1<<20); err == nil {
+		t.Fatal("a mail without attachments has to fail")
+	} else if !strings.Contains(err.Error(), "no attachments") {
+		t.Fatalf("error text: %v", err)
 	}
 }
 
-// bsPart baut einen BODYSTRUCTURE-Teil, wie ihn ein Server für einen Anhang
-// bzw. den Fließtext meldet. Ohne Disposition steht der Name — wie bei älteren
-// Mailern — im Content-Type.
+// bsPart builds a BODYSTRUCTURE part the way a server reports one for an
+// attachment resp. for the body text. Without a disposition the name sits — as
+// with older mailers — in the content type.
 func bsPart(typ, sub, disp, filename string, size uint32) *imap.BodyStructureSinglePart {
 	p := &imap.BodyStructureSinglePart{Type: typ, Subtype: sub, Size: size, Encoding: "base64"}
 	switch {
@@ -575,42 +575,42 @@ func bsPart(typ, sub, disp, filename string, size uint32) *imap.BodyStructureSin
 
 func TestFindAttachmentPart(t *testing.T) {
 	bs := &imap.BodyStructureMultiPart{Subtype: "mixed", Children: []imap.BodyStructure{
-		bsPart("text", "plain", "", "", 20),                              // 1 Fließtext
+		bsPart("text", "plain", "", "", 20),                              // 1 body text
 		bsPart("image", "png", "inline", "logo.png", 100),                // 2 inline
 		bsPart("application", "pdf", "attachment", "rechnung.pdf", 2048), // 3
-		bsPart("text", "plain", "attachment", "rechnung.pdf", 99),        // 4 gleicher Name
-		bsPart("application", "zip", "", "archiv.zip", 7),                // 5 ohne Disposition
+		bsPart("text", "plain", "attachment", "rechnung.pdf", 99),        // 4 same name
+		bsPart("application", "zip", "", "archiv.zip", 7),                // 5 without disposition
 		bsPart("application", "pdf", "attachment", "=?UTF-8?Q?Gr=C3=BC=C3=9Fe.pdf?=", 42),
 	}}
 
-	// Treffer mit Pfad und kodierter Größe; bei gleichnamigen Anhängen gewinnt
-	// der erste in MIME-Reihenfolge (wie in findAttachment).
+	// Hit with path and encoded size; with attachments of the same name the
+	// first one in MIME order wins (as in findAttachment).
 	p := findAttachmentPart(bs, "rechnung.pdf")
 	if p == nil {
-		t.Fatal("rechnung.pdf nicht gefunden")
+		t.Fatal("rechnung.pdf not found")
 	}
 	if fmt.Sprint(p.path) != "[3]" || p.size != 2048 {
-		t.Errorf("teil: %+v", p)
+		t.Errorf("part: %+v", p)
 	}
 
-	// Ohne Content-Disposition zählt ein Nicht-Text-Teil trotzdem als Anhang —
-	// dieselbe Einordnung wie in go-message/mail.
+	// Without a Content-Disposition a non-text part counts as an attachment
+	// nevertheless — the same classification as in go-message/mail.
 	if p := findAttachmentPart(bs, "archiv.zip"); p == nil || fmt.Sprint(p.path) != "[5]" {
 		t.Errorf("archiv.zip: %+v", p)
 	}
 
-	// RFC-2047-kodierte Dateinamen werden vor dem Vergleich dekodiert.
+	// RFC-2047-encoded file names are decoded before the comparison.
 	if p := findAttachmentPart(bs, "Grüße.pdf"); p == nil || fmt.Sprint(p.path) != "[6]" {
-		t.Errorf("kodierter dateiname: %+v", p)
+		t.Errorf("encoded file name: %+v", p)
 	}
 
-	// Pfad-Traversal im Namen wird auch hier auf den Basename reduziert.
+	// Path traversal in the name is reduced to the basename here as well.
 	if p := findAttachmentPart(bs, "../../rechnung.pdf"); p == nil || fmt.Sprint(p.path) != "[3]" {
-		t.Errorf("basename-vergleich: %+v", p)
+		t.Errorf("basename comparison: %+v", p)
 	}
 
-	// Inline-Teile sind keine Anhänge — get_message listet sie auch nicht.
-	// Unbekannter Name und fehlende Struktur führen in den Fallback (nil).
+	// Inline parts are no attachments — get_message does not list them either.
+	// An unknown name and a missing structure lead into the fallback (nil).
 	for _, tc := range []struct {
 		bs   imap.BodyStructure
 		name string
@@ -620,7 +620,7 @@ func TestFindAttachmentPart(t *testing.T) {
 		{nil, "rechnung.pdf"},
 	} {
 		if p := findAttachmentPart(tc.bs, tc.name); p != nil {
-			t.Errorf("%q: kein treffer erwartet, bekam %+v", tc.name, p)
+			t.Errorf("%q: no hit expected, got %+v", tc.name, p)
 		}
 	}
 }
@@ -634,22 +634,22 @@ func TestMaxAttachmentBytes(t *testing.T) {
 	if got := maxAttachmentBytes(); got != 2<<20 {
 		t.Errorf("override: %d", got)
 	}
-	// Unlesbares und Nicht-Positives lässt den Default stehen (fail-closed).
+	// Unreadable and non-positive values leave the default standing (fail-closed).
 	for _, v := range []string{"0", "-1", "viel"} {
 		t.Setenv("COVEY_EMAIL_ATTACHMENT_MAX_MB", v)
 		if got := maxAttachmentBytes(); got != 25<<20 {
-			t.Errorf("wert %q: %d, erwartet default", v, got)
+			t.Errorf("value %q: %d, expected the default", v, got)
 		}
 	}
-	// Zu große Werte werden auf das Maximum geklemmt statt auf den Default
-	// zurückzufallen. Wer 2048 einträgt, will offensichtlich viel und nicht die
-	// Voreinstellung — ein 80-fach kleineres Limit ohne ein Wort war die
-	// unfreundlichste aller Antworten (GitHub #2, Punkt 3). Der Schutz vor dem
-	// Überlauf beim Umrechnen in Bytes bleibt: geklemmt wird auf 1024 MB.
+	// Values that are too large are clamped to the maximum instead of falling
+	// back to the default. Whoever enters 2048 obviously wants a lot and not the
+	// preset — a limit 80 times smaller without a word was the unfriendliest of
+	// all answers (GitHub #2, point 3). The protection against the overflow when
+	// converting to bytes remains: clamped is at 1024 MB.
 	for _, v := range []string{"2048", "8796093022208"} {
 		t.Setenv("COVEY_EMAIL_ATTACHMENT_MAX_MB", v)
 		if got := maxAttachmentBytes(); got != 1024<<20 {
-			t.Errorf("wert %q: %d, erwartet 1024 MB", v, got)
+			t.Errorf("value %q: %d, expected 1024 MB", v, got)
 		}
 	}
 }
@@ -680,40 +680,40 @@ func TestExecuteGetAttachment(t *testing.T) {
 	}
 	uid := unread[0].UID
 
-	// get_message listet die Namen weiterhin (unverändertes Verhalten).
+	// get_message still lists the names (unchanged behavior).
 	msg := exec(t, cred, "get_message", fmt.Sprintf(`{"uid":%d}`, uid)).(*Message)
 	if strings.Join(msg.Attachments, ",") != "rechnung.pdf,../../etc/passwd" {
-		t.Fatalf("attachment-namen in get_message: %v", msg.Attachments)
+		t.Fatalf("attachment names in get_message: %v", msg.Attachments)
 	}
 
-	// Anhang landet in <workdir>/attachments/ und ist byte-gleich.
+	// The attachment ends up in <workdir>/attachments/ and is byte identical.
 	res, err := get(fmt.Sprintf(`{"uid":%d,"name":"rechnung.pdf"}`, uid))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if res.Path != filepath.Join(work, "attachments", "rechnung.pdf") ||
 		res.ContentType != "application/pdf" || res.Bytes != 13 {
-		t.Fatalf("ergebnis: %+v", res)
+		t.Fatalf("result: %+v", res)
 	}
 	if data, _ := os.ReadFile(res.Path); string(data) != "%PDF-1.4 fake" {
-		t.Fatalf("datei-inhalt: %q", data)
+		t.Fatalf("file content: %q", data)
 	}
 
-	// Wie get_message setzt auch get_attachment KEIN Gelesen-Flag (BODY.PEEK).
+	// As get_message, get_attachment sets NO read flag either (BODY.PEEK).
 	if still := exec(t, cred, "list_unread", `{}`).([]MessageSummary); len(still) != 1 || still[0].Seen {
-		t.Errorf("get_attachment darf das gelesen-flag nicht setzen: %+v", still)
+		t.Errorf("get_attachment must not set the read flag: %+v", still)
 	}
 
-	// Pfad-Traversal im Anhang-Namen wird auf den Basename reduziert.
+	// Path traversal in the attachment name is reduced to the basename.
 	res, err = get(fmt.Sprintf(`{"uid":%d,"name":"../../etc/passwd"}`, uid))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if filepath.Dir(res.Path) != filepath.Join(work, "attachments") || res.Filename != "passwd" {
-		t.Fatalf("pfad-traversal nicht neutralisiert: %+v", res)
+		t.Fatalf("path traversal not neutralized: %+v", res)
 	}
 
-	// Unbekannter Anhang, unbekannte UID, fehlender Name → Fehler.
+	// Unknown attachment, unknown UID, missing name → error.
 	for _, params := range []string{
 		fmt.Sprintf(`{"uid":%d,"name":"gibtsnicht.txt"}`, uid),
 		`{"uid":999999,"name":"rechnung.pdf"}`,
@@ -721,18 +721,18 @@ func TestExecuteGetAttachment(t *testing.T) {
 		`{"name":"rechnung.pdf"}`,
 	} {
 		if _, err := get(params); err == nil {
-			t.Errorf("%s: fehler erwartet", params)
+			t.Errorf("%s: error expected", params)
 		}
 	}
 
-	// Ohne Sandbox-Workdir → Fehler (Bytes brauchen ein Ziel).
+	// Without a sandbox workdir → error (the bytes need a destination).
 	if _, err := (System{}).Execute(context.Background(), "get_attachment",
 		json.RawMessage(fmt.Sprintf(`{"uid":%d,"name":"rechnung.pdf"}`, uid)), cred); err == nil {
-		t.Error("ohne workdir muss get_attachment scheitern")
+		t.Error("without a workdir get_attachment has to fail")
 	}
 }
 
-func TestExecuteGetAttachmentGroessenlimit(t *testing.T) {
+func TestExecuteGetAttachmentSizeLimit(t *testing.T) {
 	imapAddr := newMemIMAP(t, testUser, "pw")
 	smtp := newFakeSMTP(t)
 	cred := testCred(t, imapAddr, smtp.ln.Addr().String())
@@ -749,19 +749,19 @@ func TestExecuteGetAttachmentGroessenlimit(t *testing.T) {
 	_, err := (System{}).Execute(ctx, "get_attachment",
 		json.RawMessage(fmt.Sprintf(`{"uid":%d,"name":"gross.bin"}`, uid)), cred)
 	if err == nil {
-		t.Fatal("anhang über dem limit muss scheitern")
+		t.Fatal("an attachment above the limit has to fail")
 	}
-	// Fail-closed: keine angefangene Datei in der Sandbox.
+	// Fail-closed: no half-written file in the sandbox.
 	if _, statErr := os.Stat(filepath.Join(work, "attachments", "gross.bin")); !os.IsNotExist(statErr) {
-		t.Errorf("teil-datei trotz limit-abbruch geschrieben (%v)", statErr)
+		t.Errorf("partial file written despite the limit abort (%v)", statErr)
 	}
 }
 
-// TestGetAttachmentHoltNurDenGefragtenTeil belegt, dass der gesuchte Anhang
-// über die BODYSTRUCTURE einzeln geholt wird: die Mail als Ganzes liegt über
-// dem Speicher-Budget (dem Vierfachen des Limits) — käme sie komplett, müsste
-// auch der kleine Anhang daran scheitern.
-func TestGetAttachmentHoltNurDenGefragtenTeil(t *testing.T) {
+// TestGetAttachmentFetchesOnlyTheRequestedPart shows that the wanted attachment
+// is fetched individually through the BODYSTRUCTURE: the mail as a whole is
+// above the memory budget (four times the limit) — were it to come in full, the
+// small attachment would have to fail on that as well.
+func TestGetAttachmentFetchesOnlyTheRequestedPart(t *testing.T) {
 	imapAddr := newMemIMAP(t, testUser, "pw")
 	smtp := newFakeSMTP(t)
 	cred := testCred(t, imapAddr, smtp.ln.Addr().String())
@@ -779,26 +779,26 @@ func TestGetAttachmentHoltNurDenGefragtenTeil(t *testing.T) {
 	res, err := (System{}).Execute(ctx, "get_attachment",
 		json.RawMessage(fmt.Sprintf(`{"uid":%d,"name":"klein.txt"}`, uid)), cred)
 	if err != nil {
-		t.Fatalf("kleiner anhang aus großer mail: %v", err)
+		t.Fatalf("small attachment out of a large mail: %v", err)
 	}
 	if got := res.(AttachmentResult); got.Filename != "klein.txt" || got.Bytes != 18 {
-		t.Errorf("ergebnis: %+v", got)
+		t.Errorf("result: %+v", got)
 	}
 
-	// Der große Anhang bleibt draußen — die BODYSTRUCTURE nennt seine Größe,
-	// also fließen seine Bytes gar nicht erst.
+	// The large attachment stays outside — the BODYSTRUCTURE names its size, so
+	// its bytes do not flow in the first place.
 	if _, err := (System{}).Execute(ctx, "get_attachment",
 		json.RawMessage(fmt.Sprintf(`{"uid":%d,"name":"gross.bin"}`, uid)), cred); err == nil {
-		t.Error("anhang über dem limit muss scheitern")
+		t.Error("an attachment above the limit has to fail")
 	}
 	if _, statErr := os.Stat(filepath.Join(work, "attachments", "gross.bin")); !os.IsNotExist(statErr) {
-		t.Errorf("teil-datei trotz limit-abbruch geschrieben (%v)", statErr)
+		t.Errorf("partial file written despite the limit abort (%v)", statErr)
 	}
 }
 
-func TestExecuteUnbekannteAktion(t *testing.T) {
+func TestExecuteUnknownAction(t *testing.T) {
 	cred := target.Credential{BaseURL: "imaps://a smtp://b", Token: "u@x.de:p"}
 	if _, err := (System{}).Execute(context.Background(), "kaboom", json.RawMessage(`{}`), cred); err == nil {
-		t.Fatal("fehler erwartet")
+		t.Fatal("error expected")
 	}
 }

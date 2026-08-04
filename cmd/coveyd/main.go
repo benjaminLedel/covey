@@ -1,6 +1,6 @@
-// coveyd ist der schlanke Sandbox-Daemon (spec/01): er spricht das
-// Daemon-Protokoll zur Control Plane und bootstrappt die Runtime.
-// Konfiguration ausschließlich über ENV — gesetzt vom SandboxProvider.
+// coveyd is the slim sandbox daemon (spec/01): it speaks the daemon protocol
+// towards the control plane and bootstraps the runtime.
+// Configuration exclusively via ENV — set by the SandboxProvider.
 package main
 
 import (
@@ -16,8 +16,8 @@ import (
 	"covey/internal/daemon"
 	"covey/internal/target"
 
-	// Kompilierte Zielsystem-Plugins: Blank-Import = ausgeliefert (analog
-	// cmd/covey). Manifest-Plugins kommen zur Laufzeit über das Protokoll.
+	// Compiled-in target system plugins: blank import = shipped (analogous to
+	// cmd/covey). Manifest plugins arrive at runtime over the protocol.
 	_ "covey/internal/target/browser"
 	_ "covey/internal/target/dev"
 	_ "covey/internal/target/email"
@@ -31,14 +31,14 @@ import (
 func main() {
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 
-	// Ein Sandbox-Image kann veralten — `coveyd version` beantwortet, welcher
-	// Stand tatsächlich im Container liegt.
+	// A sandbox image can go stale — `coveyd version` answers which build
+	// actually sits in the container.
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "version", "--version", "-v":
 			fmt.Println("coveyd " + buildinfo.String())
-			// Derselbe Hinweis wie bei covey: ein Werk, eine Lizenz.
-			fmt.Println("AGPL-3.0 · Quelltext: " + buildinfo.SourceURL)
+			// The same note as with covey: one work, one licence.
+			fmt.Println("AGPL-3.0 · source: " + buildinfo.SourceURL)
 			return
 		}
 	}
@@ -48,14 +48,14 @@ func main() {
 	agentID := os.Getenv("COVEY_AGENT_ID")
 	homeDir := os.Getenv("COVEY_HOME")
 	if wsURL == "" || token == "" || agentID == "" {
-		log.Error("COVEY_WS_URL, COVEY_DAEMON_TOKEN und COVEY_AGENT_ID sind Pflicht")
+		log.Error("COVEY_WS_URL, COVEY_DAEMON_TOKEN and COVEY_AGENT_ID are mandatory")
 		os.Exit(2)
 	}
 	if homeDir == "" {
 		homeDir, _ = os.Getwd()
 	}
 	if err := os.MkdirAll(homeDir, 0o700); err != nil {
-		log.Error("home anlegen", "err", err)
+		log.Error("create home", "err", err)
 		os.Exit(1)
 	}
 
@@ -65,17 +65,17 @@ func main() {
 	log.Info("coveyd start", "agent", agentID, "build", buildinfo.String())
 	client := daemon.NewClient(wsURL, token, agentID, homeDir, log)
 	err := client.Run(ctx)
-	// Lokalen Plugin-Zustand abräumen (z. B. Prozesse des dev-Supervisors) —
-	// sonst überlebten gestartete Dev-Server/Browser die Sandbox.
+	// Clear out local plugin state (e.g. the dev supervisor's processes) —
+	// otherwise started dev servers/browsers would outlive the sandbox.
 	target.Shutdown()
 	switch {
 	case err == nil:
-		log.Info("sleep — daemon fährt herunter")
+		log.Info("sleep — daemon is shutting down")
 	case errors.Is(err, daemon.ErrKilled):
-		log.Warn("kill-switch — daemon beendet sich sofort")
+		log.Warn("kill switch — daemon terminates immediately")
 		os.Exit(3)
 	default:
-		log.Error("daemon beendet", "err", err)
+		log.Error("daemon terminated", "err", err)
 		os.Exit(1)
 	}
 }

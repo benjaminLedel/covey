@@ -10,17 +10,17 @@ import (
 	"covey/internal/backlog"
 )
 
-// TestBoardJanitorArchivesOldTerminalTasks prüft das Selbstaufräumen des Boards:
-// Eine terminale Aufgabe, die älter als die Frist ist, archiviert die Control
-// Plane von selbst — und die Agenten-Spalte, die dadurch leer wird, verschwindet
-// mit. Ohne diesen Pfad hält jede erledigte Karte ihre Spalte am Leben; das
-// Spalten-Cleanup allein greift nie, weil die Leiche liegen bleibt. Genau so
-// entstand in der Praxis ein Board mit einem Dutzend toter Spalten, das nur ein
-// Mensch am „Aufräumen"-Knopf wieder loswurde.
+// TestBoardJanitorArchivesOldTerminalTasks checks the board's self-cleanup: a
+// terminal task older than the deadline is archived by the control plane on its
+// own — and the agent column that becomes empty as a result disappears with it.
+// Without this path every finished card keeps its column alive; the column
+// cleanup alone never takes hold because the corpse stays put. That is exactly
+// how a board with a dozen dead columns came about in practice, one that only a
+// human on the "clean up" button could get rid of again.
 func TestBoardJanitorArchivesOldTerminalTasks(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
-	// Pausiert: die Aufgaben sollen liegen bleiben, nicht dispatcht werden.
+	// Paused: the tasks are meant to stay put, not to be dispatched.
 	agent := s.newSupportAgent("janitor-agent")
 	if err := s.registry.SetKilled(ctx, agent.ID, true); err != nil {
 		t.Fatal(err)
@@ -29,12 +29,12 @@ func TestBoardJanitorArchivesOldTerminalTasks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Zwei terminale Aufgaben, jede in ihrer eigenen Agenten-Spalte — der Stand,
-	// den ein Board nach Tagen Arbeit hat.
+	// Two terminal tasks, each in its own agent column — the state a board is in
+	// after days of work.
 	alt := s.terminalTaskInStage(t, agent.ID, "Alte Analyse", "Analyse #83")
 	frisch := s.terminalTaskInStage(t, agent.ID, "Frische Analyse", "Analyse #99")
 
-	// Nur die alte Aufgabe ist über die Frist hinaus.
+	// Only the old task is past the deadline.
 	if _, err := s.pool.Exec(ctx,
 		"UPDATE backlog_tasks SET updated_at = now() - interval '48 hours' WHERE id=$1", alt.ID); err != nil {
 		t.Fatal(err)
@@ -45,7 +45,7 @@ func TestBoardJanitorArchivesOldTerminalTasks(t *testing.T) {
 		t.Fatal(err)
 	}
 	if n != 1 {
-		t.Fatalf("genau die alte Aufgabe sollte archiviert werden, waren %d", n)
+		t.Fatalf("exactly the old task should be archived, there were %d", n)
 	}
 
 	altNach, err := s.backlog.Get(ctx, alt.ID)
@@ -53,17 +53,17 @@ func TestBoardJanitorArchivesOldTerminalTasks(t *testing.T) {
 		t.Fatal(err)
 	}
 	if altNach.ArchivedAt == nil {
-		t.Fatalf("die alte Aufgabe muss archiviert sein")
+		t.Fatalf("the old task must be archived")
 	}
 	if altNach.State != backlog.StateDone {
-		t.Fatalf("archivieren ist kein Löschen — Zustand bleibt done, ist %q", altNach.State)
+		t.Fatalf("archiving is not deleting — the state stays done, is %q", altNach.State)
 	}
 	frischNach, err := s.backlog.Get(ctx, frisch.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if frischNach.ArchivedAt != nil {
-		t.Fatalf("frisch Erledigtes muss auf dem Board sichtbar bleiben — sonst verschwindet die Arbeit des letzten Laufs vor den Augen des Prüfers")
+		t.Fatalf("freshly finished work must stay visible on the board — otherwise the last run's work vanishes before the reviewer's eyes")
 	}
 
 	stages, err := s.backlog.ListStages(ctx, agent.ID)
@@ -72,7 +72,7 @@ func TestBoardJanitorArchivesOldTerminalTasks(t *testing.T) {
 	}
 	for _, st := range stages {
 		if st.Name == "Analyse #83" {
-			t.Fatalf("die geleerte Agenten-Spalte muss mit verschwinden, Board: %+v", stages)
+			t.Fatalf("the emptied agent column must disappear with it, board: %+v", stages)
 		}
 	}
 	found := false
@@ -82,12 +82,12 @@ func TestBoardJanitorArchivesOldTerminalTasks(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("die Spalte der frischen Aufgabe darf nicht abgeräumt werden, Board: %+v", stages)
+		t.Fatalf("the column of the fresh task must not be cleared away, board: %+v", stages)
 	}
 }
 
-// terminalTaskInStage baut den Zustand nach, den ein Lauf hinterlässt: eine
-// erledigte Aufgabe, die in einer vom Agenten angelegten Spalte liegt.
+// terminalTaskInStage reproduces the state a run leaves behind: a finished task
+// that sits in a column created by the agent.
 func (s *stack) terminalTaskInStage(t *testing.T, agentID uuid.UUID, title, stage string) backlog.Task {
 	t.Helper()
 	ctx := context.Background()
@@ -101,8 +101,8 @@ func (s *stack) terminalTaskInStage(t *testing.T, agentID uuid.UUID, title, stag
 	if _, err := s.backlog.Complete(ctx, task.ID, backlog.StateDone, "fertig", ""); err != nil {
 		t.Fatal(err)
 	}
-	// Nach dem Abschluss in die Agenten-Spalte legen: so sehen die Boards aus,
-	// die vor dem Auto-Follow-Fix entstanden sind.
+	// Put it into the agent column after completion: that is what the boards
+	// look like which came about before the auto-follow fix.
 	if _, err := s.backlog.SetTaskStageByName(ctx, agentID, task.ID, stage); err != nil {
 		t.Fatal(err)
 	}

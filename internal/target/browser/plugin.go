@@ -16,50 +16,49 @@ import (
 	"covey/internal/target"
 )
 
-// System bindet den headless Chrome an die target-Registry. Kein Webhook,
-// keine Credentials — der Browser lebt lokal in der Sandbox.
+// System binds the headless Chrome to the target registry. No webhook, no
+// credentials — the browser lives locally in the sandbox.
 type System struct{}
 
 func init() {
 	target.Register(target.Descriptor{
 		Name:          "browser",
 		Label:         "Browser (headless Chrome)",
-		Description:   "Ein vollwertiger headless Chrome als universeller Adapter für Web-Anwendungen ohne eigenes Plugin: Seiten öffnen (navigate), sichtbaren Text/DOM auslesen (content), Screenshots in die Sandbox schreiben (screenshot), klicken (click) und tippen (type). Läuft lokal im Daemon (chromedp/DevTools-Protokoll), braucht keine Secrets. Welche Seiten erreichbar sind, gatet die Egress-Allowlist.",
+		Description:   "A full headless Chrome as the universal adapter for web applications without a plugin of their own: open pages (navigate), read visible text/DOM (content), write screenshots into the sandbox (screenshot), click (click) and type (type). Runs locally in the daemon (chromedp/DevTools protocol), needs no secrets. Which pages are reachable is gated by the egress allowlist.",
 		Kind:          "builtin",
 		Category:      target.CategoryWeb,
 		System:        System{},
 		NoCredentials: true,
-		SetupDoc: `1. Plugin hier aktivieren — Secrets sind nicht nötig, alles läuft lokal
-   in der Sandbox (nichts auf der Control Plane).
+		SetupDoc: `1. Activate the plugin here — no secrets are needed, everything runs locally
+   in the sandbox (nothing on the control plane).
 
-2. In der ACCESS.md des Agenten freischalten:
+2. Enable it in the agent's ACCESS.md:
    - system: browser scope: navigate,content,screenshot,click,type
 
-3. Egress ist entscheidend: der Browser ist das mächtigste Egress-Werkzeug.
-   Jeder Host, den der Agent aufrufen darf, muss in der Egress-Allowlist der
-   Org stehen — sonst lädt keine Seite. Eng führen.
+3. Egress is decisive: the browser is the most powerful egress tool. Every
+   host the agent may call must be on the org's egress allowlist — otherwise
+   no page loads. Keep it narrow.
 
-4. Guard-Rails: jede Aktion ist ein eigenes Subjekt (browser:navigate,
-   browser:click, …) und lässt sich gezielt auf Approval-Pflicht setzen.
+4. Guard-rails: every action is its own subject (browser:navigate,
+   browser:click, …) and can be put under approval individually.
 
-Hinweis: Der Browser bleibt über eine Wach-Phase bestehen (Cookies/Login
-bleiben erhalten) und wird beim Einschlafen der Sandbox beendet. Das
-Sandbox-Image muss chromium enthalten (COVEY_BROWSER_CHROME_PATH übersteuert
-den Pfad).`,
+Note: the browser persists across a waking phase (cookies/login are kept) and
+is terminated when the sandbox goes to sleep. The sandbox image must contain
+chromium (COVEY_BROWSER_CHROME_PATH overrides the path).`,
 	})
 }
 
 func (System) Name() string { return "browser" }
 
-// Kein Webhook-Eingang — der Browser nimmt keine externen Ereignisse an.
+// No webhook inbound — the browser accepts no external events.
 func (System) VerifyWebhook(string, []byte, http.Header) bool { return false }
 
 func (System) ParseWebhook([]byte) (target.WebhookEvent, error) {
-	return target.WebhookEvent{}, fmt.Errorf("browser hat keinen webhook-eingang")
+	return target.WebhookEvent{}, fmt.Errorf("browser has no webhook inbound")
 }
 
-// ActionSubject: jede Aktion ihr eigenes Guard-Rail-Subjekt — navigate/click
-// lassen sich so schärfer regeln als das reine Lesen.
+// ActionSubject: every action gets its own guard-rail subject — navigate/click
+// can thus be governed more strictly than plain reading.
 func (System) ActionSubject(action string, _ json.RawMessage) string {
 	return "browser:" + action
 }
@@ -115,7 +114,7 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		if len(text) > contentMax {
 			out["text"] = text[:contentMax]
 			out["truncated"] = true
-			out["hint"] = fmt.Sprintf("Inhalt über %d Zeichen — mit selector eingrenzen oder screenshot nutzen.", contentMax)
+			out["hint"] = fmt.Sprintf("content over %d characters — narrow it down with selector or use screenshot.", contentMax)
 		}
 		return out, nil
 
@@ -128,8 +127,8 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		if err != nil {
 			return nil, err
 		}
-		// Optionale visuelle Annotation: den highlight-Treffer mit rotem Rahmen
-		// (und optionalem Label) markieren, bevor der Screenshot fällt.
+		// Optional visual annotation: mark the highlight hit with a red frame (and
+		// an optional label) before the screenshot is taken.
 		if hl := strings.TrimSpace(in.Highlight); hl != "" {
 			if err := annotate(hl, in.Label); err != nil {
 				return nil, fmt.Errorf("highlight %q: %w", hl, err)
@@ -143,7 +142,7 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		if err := super.do(shot); err != nil {
 			return nil, fmt.Errorf("screenshot: %w", err)
 		}
-		// Annotation-Overlay wieder entfernen — die Seite bleibt bedienbar.
+		// Remove the annotation overlay again — the page stays operable.
 		if strings.TrimSpace(in.Highlight) != "" {
 			_ = super.do(chromedp.Evaluate(`(()=>{const o=document.getElementById('covey-annot');if(o)o.remove();})()`, nil))
 		}
@@ -153,16 +152,16 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		if err := os.WriteFile(local, buf, 0o644); err != nil {
 			return nil, err
 		}
-		// Screenshot zusätzlich ins Recording geben (out-of-band als Blob) —
-		// nicht ins Ergebnis, das an die Runtime zurückgeht.
+		// Additionally hand the screenshot to the recording (out-of-band as a
+		// blob) — not into the result that goes back to the runtime.
 		target.EmitArtifact(ctx, target.Artifact{MIME: "image/png", Bytes: buf})
 		return map[string]any{"path": local, "size": len(buf),
-			"hint": "Screenshot liegt lokal — direkt lesen, um die Seite zu sehen."}, nil
+			"hint": "the screenshot is local — read it directly to see the page."}, nil
 
 	case "click":
 		sel := strings.TrimSpace(in.Selector)
 		if sel == "" {
-			return nil, fmt.Errorf("selector fehlt")
+			return nil, fmt.Errorf("selector missing")
 		}
 		eff, err := resolveSelector(sel)
 		if err != nil {
@@ -176,7 +175,7 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 	case "type":
 		sel := strings.TrimSpace(in.Selector)
 		if sel == "" {
-			return nil, fmt.Errorf("selector fehlt")
+			return nil, fmt.Errorf("selector missing")
 		}
 		eff, err := resolveSelector(sel)
 		if err != nil {
@@ -188,21 +187,21 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		return map[string]any{"typed": sel}, nil
 
 	default:
-		return nil, fmt.Errorf("unbekannte aktion %q", strings.TrimSpace(action))
+		return nil, fmt.Errorf("unknown action %q", strings.TrimSpace(action))
 	}
 }
 
-// hitAttr markiert den aufgelösten :has-text-Treffer im DOM, damit chromedp
-// ihn danach als reinen CSS-Selektor greifen kann.
+// hitAttr marks the resolved :has-text hit in the DOM so that chromedp can
+// afterwards grab it as a plain CSS selector.
 const hitAttr = "data-covey-hit"
 
-// hasTextRe erkennt das Playwright-artige :has-text("…")/:has-text('…') — kein
-// gültiges CSS, das querySelector kennt.
+// hasTextRe recognizes the Playwright-style :has-text("…")/:has-text('…') —
+// not valid CSS that querySelector would know.
 var hasTextRe = regexp.MustCompile(`:has-text\(\s*(?:"([^"]*)"|'([^']*)')\s*\)`)
 
-// parseHasText zerlegt einen Selektor mit :has-text("…") in seinen CSS-Präfix
-// und den gesuchten Text. Ohne :has-text ist ok=false. Ein leerer Präfix wird
-// zu "*" (jedes Element).
+// parseHasText splits a selector containing :has-text("…") into its CSS prefix
+// and the text being looked for. Without :has-text, ok=false. An empty prefix
+// becomes "*" (any element).
 func parseHasText(sel string) (css, needle string, ok bool) {
 	m := hasTextRe.FindStringSubmatch(sel)
 	if m == nil {
@@ -219,11 +218,11 @@ func parseHasText(sel string) (css, needle string, ok bool) {
 	return css, needle, true
 }
 
-// resolveSelector übersetzt Playwright-artige :has-text("…")-Selektoren, die
-// reines CSS nicht kennt, in einen konkreten CSS-Selektor. Der CSS-Präfix vor
-// :has-text bleibt erhalten (button.primary:has-text("Anmelden") → nur Buttons
-// mit sichtbarem Text „Anmelden"), getroffen wird der *innerste* sichtbare
-// Treffer — wie bei Playwright. Reine CSS-Selektoren gehen unverändert durch.
+// resolveSelector translates Playwright-style :has-text("…") selectors, which
+// plain CSS does not know, into a concrete CSS selector. The CSS prefix before
+// :has-text is preserved (button.primary:has-text("Sign in") → only buttons
+// with the visible text "Sign in"); what is matched is the *innermost* visible
+// hit — as in Playwright. Plain CSS selectors pass through unchanged.
 func resolveSelector(sel string) (string, error) {
 	css, needle, ok := parseHasText(sel)
 	if !ok {
@@ -245,18 +244,18 @@ func resolveSelector(sel string) (string, error) {
 })()`, c, n, hitAttr, hitAttr, hitAttr)
 	var count int
 	if err := super.do(chromedp.Evaluate(js, &count)); err != nil {
-		return "", fmt.Errorf(":has-text auflösen: %w", err)
+		return "", fmt.Errorf("resolving :has-text: %w", err)
 	}
 	if count == 0 {
-		return "", fmt.Errorf("kein Element mit Text %q gefunden", needle)
+		return "", fmt.Errorf("no element with text %q found", needle)
 	}
 	return fmt.Sprintf("[%s=\"1\"]", hitAttr), nil
 }
 
-// annotate zeichnet vor einem Screenshot einen roten Rahmen (und optional ein
-// Label) um den highlight-Treffer — so belegt der Agent visuell, WO ein Mangel
-// sitzt. highlight ist ein CSS-Selektor oder :has-text("…"). Das Overlay liegt
-// als #covey-annot über der Seite und wird nach dem Screenshot wieder entfernt.
+// annotate draws a red frame (and optionally a label) around the highlight hit
+// before a screenshot — that is how the agent shows visually WHERE a defect
+// sits. highlight is a CSS selector or :has-text("…"). The overlay sits over
+// the page as #covey-annot and is removed again after the screenshot.
 func annotate(highlight, label string) error {
 	eff, err := resolveSelector(highlight)
 	if err != nil {
@@ -292,48 +291,48 @@ func annotate(highlight, label string) error {
 		return err
 	}
 	if !ok {
-		return fmt.Errorf("element nicht gefunden")
+		return fmt.Errorf("element not found")
 	}
 	return nil
 }
 
-// cleanURL erzwingt ein http/https-Schema — file:// & Co. würden den Browser
-// zum lokalen Dateizugriff missbrauchen und werden abgewiesen.
+// cleanURL enforces an http/https scheme — file:// and friends would abuse the
+// browser for local file access and are rejected.
 func cleanURL(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
-		return "", fmt.Errorf("url fehlt")
+		return "", fmt.Errorf("url missing")
 	}
 	if !strings.Contains(raw, "://") {
 		raw = "https://" + raw
 	}
 	u, err := url.Parse(raw)
 	if err != nil || u.Host == "" {
-		return "", fmt.Errorf("url %q ist ungültig", raw)
+		return "", fmt.Errorf("url %q is invalid", raw)
 	}
 	if u.Scheme != "http" && u.Scheme != "https" {
-		return "", fmt.Errorf("nur http/https erlaubt (nicht %q)", u.Scheme)
+		return "", fmt.Errorf("only http/https allowed (not %q)", u.Scheme)
 	}
 	return u.String(), nil
 }
 
-// localPath löst einen Sandbox-Pfad sicher gegen das Arbeitsverzeichnis auf —
-// kein Ausbruch per ".." oder absolutem Pfad außerhalb.
+// localPath resolves a sandbox path safely against the working directory — no
+// escape via ".." or an absolute path outside it.
 func localPath(ctx context.Context, p string) (string, error) {
 	workdir := target.Workdir(ctx)
 	if workdir == "" {
-		return "", fmt.Errorf("keine Sandbox (kein Arbeitsverzeichnis im Kontext)")
+		return "", fmt.Errorf("no sandbox (no working directory in the context)")
 	}
 	p = strings.TrimSpace(p)
 	if p == "" {
-		return "", fmt.Errorf("lokaler pfad fehlt")
+		return "", fmt.Errorf("local path missing")
 	}
 	if !filepath.IsAbs(p) {
 		p = filepath.Join(workdir, p)
 	}
 	resolved := filepath.Clean(p)
 	if resolved != workdir && !strings.HasPrefix(resolved, workdir+string(filepath.Separator)) {
-		return "", fmt.Errorf("pfad %q liegt ausserhalb des Sandbox-Arbeitsverzeichnisses", p)
+		return "", fmt.Errorf("path %q lies outside the sandbox working directory", p)
 	}
 	return resolved, nil
 }

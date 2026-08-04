@@ -11,13 +11,14 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// DBResolver löst die per-Agent-Allowlist aus dem Store auf (mit kurzem Cache),
-// validiert das per-Sandbox-Token und schreibt das Entscheidungs-Log asynchron.
-// Er bedient sowohl den kooperativen Proxy (im Control-Plane-Prozess) als auch
-// den standalone Proxy-Container (network-Modus) — beide sprechen dieselbe DB.
+// DBResolver resolves the per-agent allowlist from the store (with a short
+// cache), validates the per-sandbox token and writes the decision log
+// asynchronously. It serves both the cooperative proxy (inside the control
+// plane process) and the standalone proxy container (network mode) — both talk
+// to the same database.
 type DBResolver struct {
 	store    *Store
-	defaults []string // immer erlaubte ENV-Zusätze (COVEY_EGRESS_ALLOW, z. B. host.docker.internal)
+	defaults []string // always-allowed additions from the environment (COVEY_EGRESS_ALLOW, e.g. host.docker.internal)
 	ttl      time.Duration
 	log      *slog.Logger
 
@@ -42,7 +43,7 @@ type logItem struct {
 	allowed bool
 }
 
-// NewDBResolver startet den Resolver samt Log-Writer, gebunden an ctx.
+// NewDBResolver starts the resolver together with its log writer, bound to ctx.
 func NewDBResolver(ctx context.Context, store *Store, defaults []string, ttl time.Duration, log *slog.Logger) *DBResolver {
 	if log == nil {
 		log = slog.Default()
@@ -62,8 +63,8 @@ func NewDBResolver(ctx context.Context, store *Store, defaults []string, ttl tim
 	return r
 }
 
-// Resolve validiert (agentID, token) und liefert die effektive Allowlist des
-// Agenten (Defaults + Templates + eigene Hosts). Fail-closed bei jedem Fehler.
+// Resolve validates (agentID, token) and returns the agent's effective
+// allowlist (defaults + templates + own hosts). Fail-closed on any error.
 func (r *DBResolver) Resolve(ctx context.Context, agentID, token string) (*Allowlist, uuid.UUID, bool) {
 	id, err := uuid.Parse(agentID)
 	if err != nil {
@@ -81,10 +82,10 @@ func (r *DBResolver) Resolve(ctx context.Context, agentID, token string) (*Allow
 	}
 
 	if entry.tokenHash == "" || HashToken(token) != entry.tokenHash {
-		// Beim Sandbox-Wake rotiert das Token — ein gecachter, alter Hash darf
-		// die frische Sandbox nicht bis zum TTL-Ablauf mit 407 aussperren.
-		// Einmal neu laden und erneut prüfen; die Mindest-Frische begrenzt,
-		// wie oft falsche Tokens einen DB-Zugriff auslösen können.
+		// The token rotates when the sandbox wakes — a cached, stale hash must
+		// not lock the fresh sandbox out with 407 until the TTL expires. Reload
+		// once and check again; the minimum freshness bounds how often wrong
+		// tokens can trigger a database round-trip.
 		if time.Since(entry.loaded) < 2*time.Second {
 			return nil, uuid.Nil, false
 		}
@@ -98,13 +99,13 @@ func (r *DBResolver) Resolve(ctx context.Context, agentID, token string) (*Allow
 	return entry.allow, id, true
 }
 
-// reload lädt den Cache-Eintrag eines Agenten frisch aus der DB und ersetzt
-// ihn im Cache. Fehler werden geloggt und propagiert (fail-closed, ohne den
-// Fehlzustand zu cachen).
+// reload loads an agent's cache entry freshly from the database and replaces
+// it in the cache. Errors are logged and propagated (fail-closed, without
+// caching the failure state).
 func (r *DBResolver) reload(ctx context.Context, id uuid.UUID) (cachedEntry, error) {
 	entry, err := r.load(ctx, id)
 	if err != nil {
-		r.log.Warn("egress-resolver: laden fehlgeschlagen", "agent", id, "err", err)
+		r.log.Warn("egress resolver: load failed", "agent", id, "err", err)
 		return cachedEntry{}, err
 	}
 	r.mu.Lock()
@@ -117,8 +118,8 @@ func (r *DBResolver) load(ctx context.Context, id uuid.UUID) (cachedEntry, error
 	now := time.Now()
 	hash, err := r.store.AgentTokenHash(ctx, id)
 	if errors.Is(err, pgx.ErrNoRows) {
-		// Kein Token hinterlegt → kein gültiger Zugang (fail-closed). Trotzdem
-		// mit leerem Hash cachen, damit nicht jede Anfrage die DB trifft.
+		// No token stored → no valid access (fail-closed). Cache it with an empty
+		// hash anyway so that not every request hits the database.
 		return cachedEntry{allow: NewAllowlist(r.defaults), tokenHash: "", loaded: now, expires: now.Add(r.ttl)}, nil
 	}
 	if err != nil {
@@ -132,8 +133,8 @@ func (r *DBResolver) load(ctx context.Context, id uuid.UUID) (cachedEntry, error
 	return cachedEntry{allow: NewAllowlist(all), tokenHash: hash, loaded: now, expires: now.Add(r.ttl)}, nil
 }
 
-// Log reiht eine Entscheidung nicht-blockierend ein; bei vollem Puffer wird
-// verworfen (gezählt), damit der Proxy nie an der DB hängt.
+// Log queues a decision without blocking; if the buffer is full the entry is
+// dropped (and counted) so that the proxy never hangs on the database.
 func (r *DBResolver) Log(agent uuid.UUID, host, method string, allowed bool) {
 	select {
 	case r.logCh <- logItem{agent: agent, host: host, method: method, allowed: allowed}:
@@ -152,7 +153,7 @@ func (r *DBResolver) writeLoop(ctx context.Context) {
 		case it := <-r.logCh:
 			wctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			if err := r.store.LogDecision(wctx, it.agent, it.host, it.method, it.allowed); err != nil {
-				r.log.Warn("egress-log schreiben fehlgeschlagen", "err", err)
+				r.log.Warn("writing egress log failed", "err", err)
 			}
 			cancel()
 		}

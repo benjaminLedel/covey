@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-// collect sammelt Einträge einer Senke.
+// collect gathers the entries of a sink.
 func collect() (Sink, *[]Entry) {
 	var got []Entry
 	return func(e Entry) { got = append(got, e) }, &got
@@ -41,26 +41,26 @@ func TestTransportProtokolliertRequestUndAntwort(t *testing.T) {
 	resp.Body.Close()
 
 	if string(body) != `{"error":"invalid_client"}` {
-		t.Fatalf("antwort verstümmelt: %q", body)
+		t.Fatalf("response mangled: %q", body)
 	}
 	if len(*got) != 1 {
-		t.Fatalf("erwarte genau einen eintrag, habe %d", len(*got))
+		t.Fatalf("expected exactly one entry, have %d", len(*got))
 	}
 	e := (*got)[0]
 	if e.Direction != DirectionOut || e.System != "teams" || e.Method != http.MethodPost {
-		t.Fatalf("kopf falsch: %+v", e)
+		t.Fatalf("head wrong: %+v", e)
 	}
 	if e.Status != http.StatusUnauthorized {
 		t.Fatalf("status %d", e.Status)
 	}
 	if !strings.Contains(e.RespBody, "invalid_client") {
-		t.Fatalf("antwort-body fehlt: %q", e.RespBody)
+		t.Fatalf("response body missing: %q", e.RespBody)
 	}
 	if strings.Contains(e.ReqBody, "geheim") {
-		t.Fatalf("secret nicht redigiert: %q", e.ReqBody)
+		t.Fatalf("secret not redacted: %q", e.ReqBody)
 	}
 	if !strings.Contains(e.ReqBody, "hallo") {
-		t.Fatalf("nutzinhalt fehlt: %q", e.ReqBody)
+		t.Fatalf("payload missing: %q", e.ReqBody)
 	}
 }
 
@@ -86,10 +86,10 @@ func TestTransportProtokolliertVerbindungsfehler(t *testing.T) {
 	ctx := WithSink(context.Background(), sink)
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:1/nix", nil)
 	if _, err := Client("teams", time.Second).Do(req); err == nil {
-		t.Fatal("erwarte fehler")
+		t.Fatal("expected an error")
 	}
 	if len(*got) != 1 || (*got)[0].Error == "" {
-		t.Fatalf("fehler nicht protokolliert: %+v", *got)
+		t.Fatalf("error not logged: %+v", *got)
 	}
 }
 
@@ -97,10 +97,10 @@ func TestRedactURLEntferntGeheimeQueryWerte(t *testing.T) {
 	u, _ := url.Parse("https://example.test/api?access_token=abc&page=2")
 	out := RedactURL(u)
 	if strings.Contains(out, "abc") {
-		t.Fatalf("token nicht redigiert: %s", out)
+		t.Fatalf("token not redacted: %s", out)
 	}
 	if !strings.Contains(out, "page=2") {
-		t.Fatalf("harmlose parameter verloren: %s", out)
+		t.Fatalf("harmless parameters lost: %s", out)
 	}
 }
 
@@ -108,10 +108,10 @@ func TestRedactTrifftJSONUndForm(t *testing.T) {
 	in := `{"access_token":"xyz","name":"Ada"}` + "\n" + `grant_type=client_credentials&client_secret=xyz`
 	out := Redact(in)
 	if strings.Contains(out, "xyz") {
-		t.Fatalf("secret überlebt: %s", out)
+		t.Fatalf("secret survived: %s", out)
 	}
 	if !strings.Contains(out, "Ada") || !strings.Contains(out, "grant_type=client_credentials") {
-		t.Fatalf("zu viel redigiert: %s", out)
+		t.Fatalf("too much redacted: %s", out)
 	}
 }
 
@@ -120,7 +120,7 @@ func TestSystemFromPath(t *testing.T) {
 		t.Fatalf("system %q", got)
 	}
 	if got := SystemFromPath("/api/trigger/abc"); got != "" {
-		t.Fatalf("erwarte leer, habe %q", got)
+		t.Fatalf("expected empty, have %q", got)
 	}
 }
 
@@ -135,6 +135,6 @@ func TestContextSenkeSchlaegtDefault(t *testing.T) {
 	Emit(context.Background(), Entry{Direction: DirectionIn, Method: http.MethodGet})
 
 	if len(*ctxGot) != 1 || len(*defGot) != 1 {
-		t.Fatalf("verteilung falsch: ctx=%d default=%d", len(*ctxGot), len(*defGot))
+		t.Fatalf("distribution wrong: ctx=%d default=%d", len(*ctxGot), len(*defGot))
 	}
 }

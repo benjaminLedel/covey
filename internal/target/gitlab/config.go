@@ -6,26 +6,26 @@ import (
 	"strings"
 )
 
-// Betriebs-Konfiguration des GitLab-Plugins aus ENV (12-Factor, wie beim
-// Zammad-Plugin). Alles hat sichere Defaults — ein nicht gesetztes Feld
-// schränkt nichts ein bzw. behält das Standardverhalten bei.
+// Operational configuration of the GitLab plugin from ENV (12-factor, as with
+// the Zammad plugin). Everything has safe defaults — an unset field restricts
+// nothing and keeps the standard behaviour.
 
-// intakeProjects liefert die Allowlist der GitLab-Projekte, aus denen Issues
-// überhaupt eine Aufgabe auslösen dürfen. Einträge sind Projektpfade
-// (path_with_namespace) oder numerische Projekt-ids. Format:
+// intakeProjects returns the allowlist of GitLab projects whose issues may
+// trigger a task at all. Entries are project paths (path_with_namespace) or
+// numeric project ids. Format:
 //
-//	COVEY_GITLAB_INTAKE_PROJECTS="gruppe/support, 42"
+//	COVEY_GITLAB_INTAKE_PROJECTS="group/support, 42"
 //
-// Leer/ungesetzt → keine Einschränkung (alle Projekte). Vergleich
-// case-insensitiv, führende/abschließende Leerzeichen werden ignoriert.
+// Empty/unset → no restriction (all projects). Comparison is
+// case-insensitive, leading/trailing whitespace is ignored.
 func intakeProjects() map[string]bool {
 	return parseSet(os.Getenv("COVEY_GITLAB_INTAKE_PROJECTS"))
 }
 
-// projectInScope prüft ein Projekt (numerische id + Pfad) gegen die Allowlist
-// aus COVEY_GITLAB_INTAKE_PROJECTS. Leere Allowlist → alles im Scope. Genutzt
-// von den Discovery-Aktionen (list_projects, list_issues) und vom
-// nur-wenn:-Vorabcheck (HasWork) — GitLab nimmt Arbeit rein per Polling auf.
+// projectInScope checks a project (numeric id + path) against the allowlist
+// from COVEY_GITLAB_INTAKE_PROJECTS. An empty allowlist → everything is in
+// scope. Used by the discovery actions (list_projects, list_issues) and by the
+// nur-wenn: pre-check (HasWork) — GitLab takes up work purely by polling.
 func projectInScope(projectID int, path string) bool {
 	projects := intakeProjects()
 	if len(projects) == 0 {
@@ -34,8 +34,8 @@ func projectInScope(projectID int, path string) bool {
 	return projects[strings.ToLower(strings.TrimSpace(path))] || projects[strconv.Itoa(projectID)]
 }
 
-// parseSet zerlegt eine kommaseparierte ENV-Liste in ein Set kleingeschriebener,
-// getrimmter Werte. Leere Einträge werden verworfen.
+// parseSet splits a comma-separated ENV list into a set of lower-cased,
+// trimmed values. Empty entries are dropped.
 func parseSet(raw string) map[string]bool {
 	out := map[string]bool{}
 	for _, part := range strings.Split(raw, ",") {

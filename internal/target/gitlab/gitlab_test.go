@@ -17,24 +17,24 @@ import (
 	"covey/internal/target"
 )
 
-// TestProjectInScope prüft den Intake-Filter (COVEY_GITLAB_INTAKE_PROJECTS),
-// der ohne Webhook nur noch die Discovery-Aktionen (list_issues/list_projects)
-// und den nur-wenn:-Vorabcheck (HasWork) begrenzt.
+// TestProjectInScope checks the intake filter (COVEY_GITLAB_INTAKE_PROJECTS),
+// which without a webhook only bounds the discovery actions
+// (list_issues/list_projects) and the nur-wenn: pre-check (HasWork).
 func TestProjectInScope(t *testing.T) {
 	if !projectInScope(15, "Gruppe/Support") {
-		t.Fatal("ohne Allowlist sind alle Projekte im Scope")
+		t.Fatal("without an allowlist all projects are in scope")
 	}
 	t.Setenv("COVEY_GITLAB_INTAKE_PROJECTS", "gruppe/support")
 	if !projectInScope(15, "Gruppe/Support") {
-		t.Fatal("Projektpfad-Vergleich muss case-insensitiv sein")
+		t.Fatal("the project path comparison must be case-insensitive")
 	}
 	t.Setenv("COVEY_GITLAB_INTAKE_PROJECTS", "15")
 	if !projectInScope(15, "gruppe/support") {
-		t.Fatal("numerische Projekt-id muss matchen")
+		t.Fatal("the numeric project id must match")
 	}
 	t.Setenv("COVEY_GITLAB_INTAKE_PROJECTS", "anderes/projekt")
 	if projectInScope(15, "gruppe/support") {
-		t.Fatal("Projekt außerhalb der Allowlist darf nicht im Scope sein")
+		t.Fatal("a project outside the allowlist must not be in scope")
 	}
 }
 
@@ -71,7 +71,7 @@ func TestClientActions(t *testing.T) {
 		t.Fatalf("GetIssue: %v %+v", err, issue)
 	}
 	if gotAuth != "test-token" {
-		t.Fatalf("PRIVATE-TOKEN-Header falsch: %q", gotAuth)
+		t.Fatalf("PRIVATE-TOKEN header wrong: %q", gotAuth)
 	}
 
 	notes, err := c.ListNotes(ctx, 15, 23)
@@ -83,27 +83,27 @@ func TestClientActions(t *testing.T) {
 		t.Fatalf("Comment: %v", err)
 	}
 	if gotBody["internal"] != false || gotBody["body"] != "Bitte Screenshot schicken" {
-		t.Fatalf("Comment-Body falsch: %+v", gotBody)
+		t.Fatalf("comment body wrong: %+v", gotBody)
 	}
 
 	if err := c.SetState(ctx, 15, 23, "close"); err != nil {
 		t.Fatalf("SetState: %v", err)
 	}
 	if gotMethod != http.MethodPut || gotPath != "/api/v4/projects/15/issues/23" {
-		t.Fatalf("SetState muss PUT /projects/15/issues/23 sein: %s %s", gotMethod, gotPath)
+		t.Fatalf("SetState must be PUT /projects/15/issues/23: %s %s", gotMethod, gotPath)
 	}
 	if gotBody["state_event"] != "close" {
-		t.Fatalf("SetState-Body falsch: %+v", gotBody)
+		t.Fatalf("SetState body wrong: %+v", gotBody)
 	}
 	if err := c.SetState(ctx, 15, 23, "opened"); err == nil {
-		t.Fatal("ungültiger state_event muss abgelehnt werden")
+		t.Fatal("an invalid state_event must be refused")
 	}
 
 	if err := c.Escalate(ctx, 15, 23, "Bitte übernehmen"); err != nil {
 		t.Fatalf("Escalate: %v", err)
 	}
 	if gotMethod != http.MethodPut || gotBody["assignee_ids"] == nil {
-		t.Fatalf("Escalate muss die Zuweisung entfernen: %s %+v", gotMethod, gotBody)
+		t.Fatalf("Escalate must remove the assignment: %s %+v", gotMethod, gotBody)
 	}
 }
 
@@ -129,61 +129,61 @@ func TestClientDiscovery(t *testing.T) {
 		t.Fatalf("ListProjects: %v %+v", err, ps)
 	}
 	if !strings.Contains(gotQuery, "membership=true") {
-		t.Fatalf("ListProjects muss auf Mitgliedschaft filtern: %s", gotQuery)
+		t.Fatalf("ListProjects must filter on membership: %s", gotQuery)
 	}
 
 	issues, err := c.ListIssues(ctx, 15, "", "", "", "", false)
 	if err != nil || len(issues) != 1 || issues[0].IID != 23 {
-		t.Fatalf("ListIssues (Projekt): %v %+v", err, issues)
+		t.Fatalf("ListIssues (project): %v %+v", err, issues)
 	}
 	if gotPath != "/api/v4/projects/15/issues" || !strings.Contains(gotQuery, "state=opened") {
-		t.Fatalf("ListIssues muss projektbezogen und mit Default state=opened laufen: %s?%s", gotPath, gotQuery)
+		t.Fatalf("ListIssues must run project-scoped and with the default state=opened: %s?%s", gotPath, gotQuery)
 	}
 
 	if _, err := c.ListIssues(ctx, 0, "all", "bug,support", "login", "", false); err != nil {
 		t.Fatalf("ListIssues (global): %v", err)
 	}
 	if gotPath != "/api/v4/issues" || !strings.Contains(gotQuery, "scope=all") {
-		t.Fatalf("ohne project_id muss das globale /issues mit scope=all laufen: %s?%s", gotPath, gotQuery)
+		t.Fatalf("without project_id the global /issues with scope=all must run: %s?%s", gotPath, gotQuery)
 	}
 	if strings.Contains(gotQuery, "state=") {
-		t.Fatalf("state=all darf keinen state-Parameter senden: %s", gotQuery)
+		t.Fatalf("state=all must send no state parameter: %s", gotQuery)
 	}
 	if !strings.Contains(gotQuery, "labels=bug%2Csupport") || !strings.Contains(gotQuery, "search=login") {
-		t.Fatalf("labels/search müssen durchgereicht werden: %s", gotQuery)
+		t.Fatalf("labels/search must be passed through: %s", gotQuery)
 	}
 
 	if _, err := c.ListIssues(ctx, 0, "", "", "", "", true); err != nil {
 		t.Fatalf("ListIssues (assigned, global): %v", err)
 	}
 	if !strings.Contains(gotQuery, "scope=assigned_to_me") || strings.Contains(gotQuery, "scope=all") {
-		t.Fatalf("assigned=true muss scope=assigned_to_me statt scope=all senden: %s", gotQuery)
+		t.Fatalf("assigned=true must send scope=assigned_to_me instead of scope=all: %s", gotQuery)
 	}
 	if _, err := c.ListIssues(ctx, 15, "", "", "", "", true); err != nil {
-		t.Fatalf("ListIssues (assigned, Projekt): %v", err)
+		t.Fatalf("ListIssues (assigned, project): %v", err)
 	}
 	if gotPath != "/api/v4/projects/15/issues" || !strings.Contains(gotQuery, "scope=assigned_to_me") {
-		t.Fatalf("assigned=true muss auch projektbezogen scope=assigned_to_me senden: %s?%s", gotPath, gotQuery)
+		t.Fatalf("assigned=true must send scope=assigned_to_me project-scoped too: %s?%s", gotPath, gotQuery)
 	}
 
-	// Meilenstein: der Filter, mit dem ein Agent ein ganzes Vorhaben greift.
+	// The milestone: the filter with which an agent grasps a whole undertaking.
 	if _, err := c.ListIssues(ctx, 15, "", "", "", "ECA-2026-045 Bundesdruckerei LMS", false); err != nil {
 		t.Fatalf("ListIssues (milestone): %v", err)
 	}
 	if !strings.Contains(gotQuery, "milestone=ECA-2026-045+Bundesdruckerei+LMS") {
-		t.Fatalf("milestone muss durchgereicht werden: %s", gotQuery)
+		t.Fatalf("milestone must be passed through: %s", gotQuery)
 	}
 	if _, err := c.ListIssues(ctx, 15, "", "", "", "", false); err != nil {
-		t.Fatalf("ListIssues (ohne milestone): %v", err)
+		t.Fatalf("ListIssues (without milestone): %v", err)
 	}
 	if strings.Contains(gotQuery, "milestone=") {
-		t.Fatalf("leerer milestone darf keinen Parameter senden: %s", gotQuery)
+		t.Fatalf("an empty milestone must send no parameter: %s", gotQuery)
 	}
 }
 
-// Der Meilenstein muss am Issue ankommen — ein Agent, der ein Vorhaben führt,
-// entscheidet daran, was zu seinem Auftrag gehört. GitLab liefert null, wenn
-// keiner gesetzt ist; das darf nicht in einen leeren Titel kippen.
+// The milestone must arrive at the issue — an agent running an undertaking
+// decides by it what belongs to its assignment. GitLab returns null when none
+// is set; that must not tip over into an empty title.
 func TestIssueCarriesMilestone(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`[{"iid":739,"project_id":15,"milestone":{"title":"ECA-2026-045 Bundesdruckerei LMS","due_date":"2026-11-30","state":"active"}},
@@ -196,19 +196,20 @@ func TestIssueCarriesMilestone(t *testing.T) {
 		t.Fatalf("ListIssues: %v %+v", err, issues)
 	}
 	if issues[0].Milestone == nil || issues[0].Milestone.Title != "ECA-2026-045 Bundesdruckerei LMS" {
-		t.Fatalf("Meilenstein muss am Issue ankommen: %+v", issues[0].Milestone)
+		t.Fatalf("the milestone must arrive at the issue: %+v", issues[0].Milestone)
 	}
 	if issues[0].Milestone.DueDate != "2026-11-30" {
-		t.Fatalf("Fälligkeit des Meilensteins fehlt: %+v", issues[0].Milestone)
+		t.Fatalf("the milestone's due date is missing: %+v", issues[0].Milestone)
 	}
 	if issues[1].Milestone != nil {
-		t.Fatalf("ohne Meilenstein muss das Feld nil bleiben: %+v", issues[1].Milestone)
+		t.Fatalf("without a milestone the field must stay nil: %+v", issues[1].Milestone)
 	}
 }
 
-// set_labels führt den Arbeitszustand im Board. Entscheidend ist, dass es
-// TEILWEISE arbeitet (add_labels/remove_labels) statt die Label-Liste zu
-// überschreiben — sonst nimmt jeder Zustandswechsel die fachlichen Labels mit.
+// set_labels maintains the working state on the board. What is decisive is that
+// it works PARTIALLY (add_labels/remove_labels) instead of overwriting the
+// label list — otherwise every state change takes the subject-matter labels
+// along with it.
 func TestSetLabelsIsPartial(t *testing.T) {
 	var gotMethod, gotPath string
 	var gotBody map[string]any
@@ -229,45 +230,45 @@ func TestSetLabelsIsPartial(t *testing.T) {
 		t.Fatalf("SetLabels: %v", err)
 	}
 	if gotMethod != http.MethodPut || gotPath != "/api/v4/projects/15/issues/739" {
-		t.Fatalf("SetLabels muss das Issue per PUT ändern: %s %s", gotMethod, gotPath)
+		t.Fatalf("SetLabels must change the issue by PUT: %s %s", gotMethod, gotPath)
 	}
 	if gotBody["add_labels"] != "in Arbeit" || gotBody["remove_labels"] != "bereit" {
-		t.Fatalf("add/remove müssen getrennt und ohne Leereinträge gehen: %+v", gotBody)
+		t.Fatalf("add/remove must go separately and without empty entries: %+v", gotBody)
 	}
 	if gotBody["labels"] != nil {
-		t.Fatalf("die volle labels-Liste darf NICHT überschrieben werden: %+v", gotBody)
+		t.Fatalf("the full labels list must NOT be overwritten: %+v", gotBody)
 	}
 	if len(iss.Labels) != 3 {
-		t.Fatalf("der erreichte Label-Stand muss zurückkommen: %+v", iss.Labels)
+		t.Fatalf("the label state reached must come back: %+v", iss.Labels)
 	}
 
-	// Nur entfernen ist erlaubt, gar nichts angeben nicht — sonst schickt ein
-	// unvollständiger Aufruf einen wirkungslosen PUT an GitLab.
+	// Removing only is allowed, giving nothing at all is not — otherwise an
+	// incomplete call sends an ineffective PUT to GitLab.
 	if _, err := c.SetLabels(ctx, 15, 739, nil, []string{"bereit"}); err != nil {
-		t.Fatalf("nur remove_labels muss erlaubt sein: %v", err)
+		t.Fatalf("remove_labels alone must be allowed: %v", err)
 	}
 	if gotBody["add_labels"] != nil {
-		t.Fatalf("ohne add_labels darf das Feld nicht mitgeschickt werden: %+v", gotBody)
+		t.Fatalf("without add_labels the field must not be sent along: %+v", gotBody)
 	}
 	if _, err := c.SetLabels(ctx, 15, 739, nil, nil); err == nil {
-		t.Fatal("ohne add_labels und remove_labels muss SetLabels abgelehnt werden")
+		t.Fatal("without add_labels and remove_labels SetLabels must be refused")
 	}
 	if _, err := c.SetLabels(ctx, 15, 739, []string{"  "}, nil); err == nil {
-		t.Fatal("nur Leerraum ist kein Label — muss abgelehnt werden")
+		t.Fatal("whitespace alone is no label — it must be refused")
 	}
 
-	// Ein Eintrag mit Komma darf NICHT still zu zwei Labels werden: GitLab legt
-	// fehlende Labels beim Setzen automatisch an, aus einem Tippfehler würden
-	// also dauerhaft zwei Projekt-Labels.
+	// An entry with a comma must NOT silently become two labels: GitLab creates
+	// missing labels automatically when setting them, so a typo would
+	// permanently produce two project labels.
 	if _, err := c.SetLabels(ctx, 15, 739, []string{"lead::bereit,lead::in-arbeit"}, nil); err == nil {
-		t.Fatal("Label mit Komma muss abgelehnt statt gesplittet werden")
+		t.Fatal("a label with a comma must be refused instead of split")
 	}
 }
 
-// Die Aktionen müssen auch DURCH Execute funktionieren — die Client-Tests oben
-// rufen die Methoden direkt auf und würden einen falschen JSON-Struct-Tag im
-// Parameter-Struct des Plugins nicht bemerken. Genau dort sitzt die Naht zum
-// Agenten: Was er schickt, ist JSON.
+// The actions must work THROUGH Execute too — the client tests above call the
+// methods directly and would not notice a wrong JSON struct tag in the plugin's
+// parameter struct. That is exactly where the seam to the agent sits: what it
+// sends is JSON.
 func TestExecuteSetLabelsAndMilestone(t *testing.T) {
 	var gotMethod, gotPath, gotQuery string
 	var gotBody map[string]any
@@ -288,44 +289,44 @@ func TestExecuteSetLabelsAndMilestone(t *testing.T) {
 	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
 	ctx := context.Background()
 
-	// milestone muss aus dem JSON bis in die Query durchschlagen.
+	// milestone must carry through from the JSON into the query.
 	if _, err := sys.Execute(ctx, "list_issues",
 		[]byte(`{"project_id":15,"milestone":"ECA-2026-045 Bundesdruckerei LMS"}`), cred); err != nil {
-		t.Fatalf("list_issues mit milestone: %v", err)
+		t.Fatalf("list_issues with milestone: %v", err)
 	}
 	if !strings.Contains(gotQuery, "milestone=ECA-2026-045+Bundesdruckerei+LMS") {
-		t.Fatalf("milestone kommt nicht in der Query an (Struct-Tag?): %s", gotQuery)
+		t.Fatalf("milestone does not arrive in the query (struct tag?): %s", gotQuery)
 	}
 
-	// set_labels: Listen aus dem JSON, additiv/subtraktiv, Label-Stand zurück.
+	// set_labels: lists out of the JSON, additive/subtractive, label state back.
 	res, err := sys.Execute(ctx, "set_labels",
 		[]byte(`{"project_id":15,"issue_iid":739,"add_labels":["lead::in-arbeit"],"remove_labels":["lead::bereit"]}`), cred)
 	if err != nil {
 		t.Fatalf("set_labels: %v", err)
 	}
 	if gotMethod != http.MethodPut || gotPath != "/api/v4/projects/15/issues/739" {
-		t.Fatalf("falscher API-Aufruf: %s %s", gotMethod, gotPath)
+		t.Fatalf("wrong API call: %s %s", gotMethod, gotPath)
 	}
 	if gotBody["add_labels"] != "lead::in-arbeit" || gotBody["remove_labels"] != "lead::bereit" {
-		t.Fatalf("add_labels/remove_labels kommen nicht an (Struct-Tag?): %+v", gotBody)
+		t.Fatalf("add_labels/remove_labels do not arrive (struct tag?): %+v", gotBody)
 	}
 	out := res.(map[string]any)
 	if out["issue_iid"] != 739 {
-		t.Fatalf("Antwort muss das Issue benennen: %+v", out)
+		t.Fatalf("the answer must name the issue: %+v", out)
 	}
 	if labels, ok := out["labels"].([]string); !ok || len(labels) != 2 {
-		t.Fatalf("Antwort muss den erreichten Label-Stand tragen: %+v", out)
+		t.Fatalf("the answer must carry the label state reached: %+v", out)
 	}
 
-	// Pflichtfelder und der Komma-Fall auch über Execute.
+	// The mandatory fields and the comma case through Execute as well.
 	for _, params := range []string{
-		`{"issue_iid":739,"add_labels":["x"]}`,                   // project_id fehlt
-		`{"project_id":15,"add_labels":["x"]}`,                   // issue_iid fehlt
-		`{"project_id":15,"issue_iid":739}`,                      // weder add noch remove
-		`{"project_id":15,"issue_iid":739,"add_labels":["a,b"]}`, // Komma im Label
+		`{"issue_iid":739,"add_labels":["x"]}`,                   // project_id missing
+		`{"project_id":15,"add_labels":["x"]}`,                   // issue_iid missing
+		`{"project_id":15,"issue_iid":739}`,                      // neither add nor remove
+		`{"project_id":15,"issue_iid":739,"add_labels":["a,b"]}`, // comma in the label
 	} {
 		if _, err := sys.Execute(ctx, "set_labels", []byte(params), cred); err == nil {
-			t.Fatalf("set_labels %s muss fehlschlagen", params)
+			t.Fatalf("set_labels %s must fail", params)
 		}
 	}
 }
@@ -358,7 +359,7 @@ func TestListActionsRespectIntakeScope(t *testing.T) {
 		t.Fatalf("list_projects: %v", err)
 	}
 	if ps := res.([]Project); len(ps) != 1 || ps[0].ID != 15 {
-		t.Fatalf("list_projects muss die Allowlist anwenden: %+v", ps)
+		t.Fatalf("list_projects must apply the allowlist: %+v", ps)
 	}
 
 	res, err = sys.Execute(ctx, "list_issues", []byte(`{}`), cred)
@@ -366,7 +367,7 @@ func TestListActionsRespectIntakeScope(t *testing.T) {
 		t.Fatalf("list_issues: %v", err)
 	}
 	if issues := res.([]Issue); len(issues) != 1 || issues[0].IID != 23 {
-		t.Fatalf("list_issues muss die Allowlist anwenden: %+v", issues)
+		t.Fatalf("list_issues must apply the allowlist: %+v", issues)
 	}
 }
 
@@ -378,12 +379,12 @@ func TestHasWork(t *testing.T) {
 		switch {
 		case r.URL.Path == "/api/v4/issues":
 			if r.URL.Query().Get("state") != "opened" {
-				t.Errorf("issues muss state=opened filtern: %s", r.URL.RawQuery)
+				t.Errorf("issues must filter on state=opened: %s", r.URL.RawQuery)
 			}
 			json.NewEncoder(w).Encode(issues)
 		case r.URL.Path == "/api/v4/merge_requests":
 			if r.URL.Query().Get("scope") != "created_by_me" || r.URL.Query().Get("state") != "opened" {
-				t.Errorf("mr-vorabcheck muss scope=created_by_me&state=opened sein: %s", r.URL.RawQuery)
+				t.Errorf("the mr pre-check must be scope=created_by_me&state=opened: %s", r.URL.RawQuery)
 			}
 			json.NewEncoder(w).Encode(myMRs)
 		case r.URL.Path == "/api/v4/user":
@@ -391,7 +392,7 @@ func TestHasWork(t *testing.T) {
 		case strings.HasSuffix(r.URL.Path, "/notes"):
 			json.NewEncoder(w).Encode(mrNotes)
 		default:
-			t.Errorf("unerwarteter request: %s?%s", r.URL.Path, r.URL.RawQuery)
+			t.Errorf("unexpected request: %s?%s", r.URL.Path, r.URL.RawQuery)
 		}
 	}))
 	defer srv.Close()
@@ -400,41 +401,41 @@ func TestHasWork(t *testing.T) {
 	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
 	ctx := context.Background()
 
-	// Weder offene Issues noch offene MRs → keine Arbeit.
+	// Neither open issues nor open MRs → no work.
 	if has, err := sys.HasWork(ctx, cred); err != nil || has {
-		t.Fatalf("nichts offen: has=%v err=%v", has, err)
+		t.Fatalf("nothing open: has=%v err=%v", has, err)
 	}
 
-	// Offenes Issue im Scope weckt (und kurzschließt vor der MR-Prüfung).
+	// An open issue in scope wakes (and short-circuits before the MR check).
 	issueIn := Issue{IID: 23, ProjectID: 15}
 	issueIn.References.Full = "gruppe/support#23"
 	issueOut := Issue{IID: 7, ProjectID: 99}
 	issueOut.References.Full = "gruppe/geheim#7"
 	issues = []Issue{issueOut, issueIn}
 	if has, err := sys.HasWork(ctx, cred); err != nil || !has {
-		t.Fatalf("offene issues: has=%v err=%v", has, err)
+		t.Fatalf("open issues: has=%v err=%v", has, err)
 	}
 
-	// Intake-Allowlist greift auch im Vorab-Check.
+	// The intake allowlist takes effect in the pre-check too.
 	t.Setenv("COVEY_GITLAB_INTAKE_PROJECTS", "gruppe/support")
 	issues = []Issue{issueOut}
 	if has, err := sys.HasWork(ctx, cred); err != nil || has {
-		t.Fatalf("issue außerhalb der allowlist: has=%v err=%v", has, err)
+		t.Fatalf("issue outside the allowlist: has=%v err=%v", has, err)
 	}
 
-	// --- MR-Review-Zweig (keine offenen Issues im Scope) ---
+	// --- The MR review branch (no open issues in scope) ---
 	issues = nil
 	mrIn := MergeRequest{IID: 9, ProjectID: 15}
 	mrIn.References.Full = "gruppe/support!9"
 
-	// Offener MR ohne Kommentare: Review steht noch aus → keine Arbeit.
+	// An open MR without comments: the review is still outstanding → no work.
 	myMRs = []MergeRequest{mrIn}
 	mrNotes = nil
 	if has, err := sys.HasWork(ctx, cred); err != nil || has {
-		t.Fatalf("frischer MR ohne feedback: has=%v err=%v", has, err)
+		t.Fatalf("fresh MR without feedback: has=%v err=%v", has, err)
 	}
 
-	// Letzter Kommentar vom Bot selbst → schon beantwortet, keine Arbeit.
+	// The last comment is the bot's own → already answered, no work.
 	mrNotes = []Note{
 		{ID: 1, Body: "Bitte Test ergänzen", Author: struct {
 			Username string `json:"username"`
@@ -444,11 +445,11 @@ func TestHasWork(t *testing.T) {
 		}{Username: "covey-bot"}},
 	}
 	if has, err := sys.HasWork(ctx, cred); err != nil || has {
-		t.Fatalf("MR bereits beantwortet: has=%v err=%v", has, err)
+		t.Fatalf("MR already answered: has=%v err=%v", has, err)
 	}
 
-	// Neues fremdes Feedback nach der Bot-Antwort → Arbeit. Ein abschließender
-	// System-Kommentar (z. B. "changed the description") darf das nicht verdecken.
+	// New foreign feedback after the bot's answer → work. A closing system
+	// comment (e.g. "changed the description") must not mask that.
 	mrNotes = append(mrNotes,
 		Note{ID: 3, Body: "Noch ein Punkt", Author: struct {
 			Username string `json:"username"`
@@ -458,21 +459,21 @@ func TestHasWork(t *testing.T) {
 		}{Username: "leaddev"}},
 	)
 	if has, err := sys.HasWork(ctx, cred); err != nil || !has {
-		t.Fatalf("unbeantwortetes review-feedback: has=%v err=%v", has, err)
+		t.Fatalf("unanswered review feedback: has=%v err=%v", has, err)
 	}
 
-	// MR außerhalb der Allowlist → kein Notes-Abruf, keine Arbeit.
+	// An MR outside the allowlist → no notes fetch, no work.
 	mrOut := MergeRequest{IID: 4, ProjectID: 99}
 	mrOut.References.Full = "gruppe/geheim!4"
 	myMRs = []MergeRequest{mrOut}
 	if has, err := sys.HasWork(ctx, cred); err != nil || has {
-		t.Fatalf("MR außerhalb der allowlist: has=%v err=%v", has, err)
+		t.Fatalf("MR outside the allowlist: has=%v err=%v", has, err)
 	}
 }
 
-// TestHasWorkKind prüft, dass der nur-wenn:-Unterscope die Arbeits-Arten
-// getrennt gatet: gitlab:issues sieht nur Issues, gitlab:mr nur MR-Reviews,
-// ein leerer/unbekannter Scope beides (wie HasWork).
+// TestHasWorkKind checks that the nur-wenn: sub-scope gates the kinds of work
+// separately: gitlab:issues sees only issues, gitlab:mr only MR reviews, an
+// empty/unknown scope both (like HasWork).
 func TestHasWorkKind(t *testing.T) {
 	var issues []Issue
 	var myMRs []MergeRequest
@@ -488,7 +489,7 @@ func TestHasWorkKind(t *testing.T) {
 		case strings.HasSuffix(r.URL.Path, "/notes"):
 			json.NewEncoder(w).Encode(mrNotes)
 		default:
-			t.Errorf("unerwarteter request: %s", r.URL.Path)
+			t.Errorf("unexpected request: %s", r.URL.Path)
 		}
 	}))
 	defer srv.Close()
@@ -512,35 +513,35 @@ func TestHasWorkKind(t *testing.T) {
 			t.Fatalf("HasWorkKind(%q): %v", kind, err)
 		}
 		if has != want {
-			t.Fatalf("HasWorkKind(%q) = %v, erwartet %v", kind, has, want)
+			t.Fatalf("HasWorkKind(%q) = %v, expected %v", kind, has, want)
 		}
 	}
 
-	// Nur offenes Issue, keine MR-Arbeit.
+	// Only an open issue, no MR work.
 	issues, myMRs, mrNotes = []Issue{issueIn}, nil, nil
 	check("issues", true)
 	check("mr", false)
-	check("", true) // Fallback prüft beides
+	check("", true) // the fallback checks both
 
-	// Nur unbeantwortetes MR-Feedback, kein offenes Issue.
+	// Only unanswered MR feedback, no open issue.
 	issues, myMRs, mrNotes = nil, []MergeRequest{mrIn}, foreign
 	check("issues", false)
 	check("mr", true)
-	check("unbekannt", true) // unbekannter Scope → wie HasWork (beides)
+	check("unbekannt", true) // an unknown scope → like HasWork (both)
 
-	// Gar nichts offen.
+	// Nothing open at all.
 	issues, myMRs, mrNotes = nil, nil, nil
 	check("issues", false)
 	check("mr", false)
 }
 
-// tarGz baut ein GitLab-artiges Repository-Archiv aus name→inhalt-Paaren.
+// tarGz builds a GitLab-like repository archive out of name→content pairs.
 func tarGz(t *testing.T, entries map[string]string) []byte {
 	t.Helper()
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
-	// pax_global_header wie im echten GitLab-Archiv — muss ignoriert werden.
+	// pax_global_header as in the real GitLab archive — must be ignored.
 	if err := tw.WriteHeader(&tar.Header{Name: "pax_global_header", Typeflag: tar.TypeXGlobalHeader}); err != nil {
 		t.Fatal(err)
 	}
@@ -586,42 +587,43 @@ func TestCheckout(t *testing.T) {
 		t.Fatalf("checkout: %v", err)
 	}
 	if gotPath != "/api/v4/projects/15/repository/archive.tar.gz" || gotAuth != "test-token" {
-		t.Fatalf("falscher API-Aufruf: %s (auth %q)", gotPath, gotAuth)
+		t.Fatalf("wrong API call: %s (auth %q)", gotPath, gotAuth)
 	}
 	if !strings.Contains(gotQuery, "sha=main") {
-		t.Fatalf("ref muss als sha-Parameter laufen: %s", gotQuery)
+		t.Fatalf("ref must run as the sha parameter: %s", gotQuery)
 	}
 	co := res.(CheckoutResult)
 	if co.Files != 2 {
-		t.Fatalf("erwartet 2 Dateien, war %d", co.Files)
+		t.Fatalf("expected 2 files, was %d", co.Files)
 	}
 	data, err := os.ReadFile(filepath.Join(co.Path, "pkg", "auth.go"))
 	if err != nil || !strings.Contains(string(data), "Bug") {
-		t.Fatalf("entpackte Datei fehlt/falsch: %v %q", err, data)
+		t.Fatalf("the unpacked file is missing/wrong: %v %q", err, data)
 	}
 	if !strings.HasPrefix(co.Path, filepath.Join(workdir, "repos")) {
-		t.Fatalf("checkout muss unter <workdir>/repos landen: %s", co.Path)
+		t.Fatalf("the checkout must land under <workdir>/repos: %s", co.Path)
 	}
 
-	// Zweiter Checkout desselben Stands ersetzt den alten (kein Fehler).
+	// A second checkout of the same state replaces the old one (no error).
 	if _, err := sys.Execute(ctx, "checkout", []byte(`{"project_id":15}`), cred); err != nil {
-		t.Fatalf("wiederholter checkout: %v", err)
+		t.Fatalf("repeated checkout: %v", err)
 	}
 
-	// Ohne Sandbox-Workdir (z. B. Control-Plane-Kontext) klare Ablehnung.
+	// Without a sandbox workdir (a control-plane context, say) a clear refusal.
 	if _, err := sys.Execute(context.Background(), "checkout", []byte(`{"project_id":15}`), cred); err == nil {
-		t.Fatal("checkout ohne workdir muss fehlschlagen")
+		t.Fatal("checkout without a workdir must fail")
 	}
-	// Ohne project_id klare Ablehnung.
+	// Without project_id a clear refusal.
 	if _, err := sys.Execute(ctx, "checkout", []byte(`{}`), cred); err == nil {
-		t.Fatal("checkout ohne project_id muss fehlschlagen")
+		t.Fatal("checkout without project_id must fail")
 	}
 }
 
-// TestDownloadUpload deckt den Kern des Screenshot-Lesens ab: die im
-// Issue-Markdown eingebettete Upload-Referenz ![...](/uploads/<secret>/<datei>)
-// wird gebrokert (Token bleibt im Daemon) in die Sandbox geladen, sodass der
-// Agent das Bild danach mit Read (Vision) ansehen kann.
+// TestDownloadUpload covers the core of reading screenshots: the upload
+// reference embedded in the issue Markdown, ![...](/uploads/<secret>/<file>),
+// is loaded into the sandbox in brokered fashion (the token stays in the
+// daemon) so that the agent can look at the image with Read (vision)
+// afterwards.
 func TestDownloadUpload(t *testing.T) {
 	const secret = "0123456789abcdef0123456789abcdef"
 	png := []byte("\x89PNG\r\n\x1a\nFAKE-SCREENSHOT")
@@ -638,59 +640,59 @@ func TestDownloadUpload(t *testing.T) {
 	workdir := t.TempDir()
 	ctx := target.WithWorkdir(context.Background(), workdir)
 
-	// So, wie die Referenz im Markdown einer Issue-Beschreibung steht.
+	// Just as the reference stands in the Markdown of an issue description.
 	params := []byte(`{"project_id":15,"url":"/uploads/` + secret + `/login-fehler.png"}`)
 	res, err := sys.Execute(ctx, "download_upload", params, cred)
 	if err != nil {
 		t.Fatalf("download_upload: %v", err)
 	}
 	if want := "/api/v4/projects/15/uploads/" + secret + "/login-fehler.png"; gotPath != want {
-		t.Fatalf("falscher API-Pfad: %s (erwartet %s)", gotPath, want)
+		t.Fatalf("wrong API path: %s (expected %s)", gotPath, want)
 	}
 	if gotAuth != "test-token" {
-		t.Fatalf("Token muss als PRIVATE-TOKEN laufen, war %q", gotAuth)
+		t.Fatalf("the token must run as PRIVATE-TOKEN, was %q", gotAuth)
 	}
 	up := res.(DownloadUploadResult)
 	if up.Filename != "login-fehler.png" || up.ContentType != "image/png" {
-		t.Fatalf("unerwartetes Ergebnis: %+v", up)
+		t.Fatalf("unexpected result: %+v", up)
 	}
 	if !strings.HasPrefix(up.Path, filepath.Join(workdir, "uploads")) {
-		t.Fatalf("Upload muss unter <workdir>/uploads landen: %s", up.Path)
+		t.Fatalf("the upload must land under <workdir>/uploads: %s", up.Path)
 	}
 	data, err := os.ReadFile(up.Path)
 	if err != nil || !bytes.Equal(data, png) {
-		t.Fatalf("heruntergeladenes Bild fehlt/falsch: %v", err)
+		t.Fatalf("the downloaded image is missing/wrong: %v", err)
 	}
 
-	// Auch die volle Web-URL als Referenz muss auf denselben Upload-Endpoint zeigen.
+	// The full web URL as a reference must point at the same upload endpoint.
 	full := srv.URL + "/gruppe/projekt/uploads/" + secret + "/login-fehler.png"
 	if _, err := sys.Execute(ctx, "download_upload",
 		[]byte(`{"project_id":15,"url":"`+full+`"}`), cred); err != nil {
-		t.Fatalf("download_upload mit voller URL: %v", err)
+		t.Fatalf("download_upload with the full URL: %v", err)
 	}
 	if want := "/api/v4/projects/15/uploads/" + secret + "/login-fehler.png"; gotPath != want {
-		t.Fatalf("volle URL muss auf den Upload-Endpoint gemappt werden: %s", gotPath)
+		t.Fatalf("the full URL must be mapped onto the upload endpoint: %s", gotPath)
 	}
 
-	// Ohne project_id oder url klare Ablehnung.
+	// Without project_id or url a clear refusal.
 	if _, err := sys.Execute(ctx, "download_upload", []byte(`{"project_id":15}`), cred); err == nil {
-		t.Fatal("download_upload ohne url muss fehlschlagen")
+		t.Fatal("download_upload without a url must fail")
 	}
-	// Referenz ohne gültiges Upload-Muster wird abgelehnt.
+	// A reference without a valid upload pattern is refused.
 	if _, err := sys.Execute(ctx, "download_upload",
 		[]byte(`{"project_id":15,"url":"/uploads/zu-kurz/x.png"}`), cred); err == nil {
-		t.Fatal("ungültige Upload-Referenz muss fehlschlagen")
+		t.Fatal("an invalid upload reference must fail")
 	}
-	// Ohne Sandbox-Workdir klare Ablehnung.
+	// Without a sandbox workdir a clear refusal.
 	if _, err := sys.Execute(context.Background(), "download_upload", params, cred); err == nil {
-		t.Fatal("download_upload ohne workdir muss fehlschlagen")
+		t.Fatal("download_upload without a workdir must fail")
 	}
 }
 
-// TestCreateIssueAction deckt den Intake extern gemeldeter Bugs ab: der Agent
-// überführt eine Meldung (z. B. per E-Mail) in ein GitLab-Ticket. Ohne title
-// bzw. project_id muss die Aktion klar ablehnen — das trägt das „erst nachfragen,
-// wenn das Projekt unklar ist"-Playbook (kein Ticket ins Blaue).
+// TestCreateIssueAction covers the intake of externally reported bugs: the
+// agent turns a report (by email, say) into a GitLab ticket. Without a title or
+// a project_id the action must refuse clearly — that carries the "ask first
+// when the project is unclear" playbook (no ticket filed into the blue).
 func TestCreateIssueAction(t *testing.T) {
 	var gotPath, gotMethod string
 	var gotBody map[string]any
@@ -725,32 +727,34 @@ func TestCreateIssueAction(t *testing.T) {
 		t.Fatalf("create_issue: %v", err)
 	}
 	if gotMethod != http.MethodPost || gotPath != "/api/v4/projects/15/issues" {
-		t.Fatalf("falscher API-Aufruf: %s %s", gotMethod, gotPath)
+		t.Fatalf("wrong API call: %s %s", gotMethod, gotPath)
 	}
 	if gotBody["title"] != "Login kaputt" || gotBody["labels"] != "bug,intake" {
-		t.Fatalf("Body falsch übertragen: %+v", gotBody)
+		t.Fatalf("the body was transferred wrongly: %+v", gotBody)
 	}
 	if _, ok := gotBody["assignee_ids"]; !ok {
-		t.Fatalf("assignee muss zu assignee_ids aufgelöst werden: %+v", gotBody)
+		t.Fatalf("assignee must be resolved into assignee_ids: %+v", gotBody)
 	}
 	iss := res.(Issue)
 	if iss.IID != 42 {
-		t.Fatalf("unerwartetes Issue: %+v", iss)
+		t.Fatalf("unexpected issue: %+v", iss)
 	}
 
-	// Ohne title (Projekt bekannt, aber keine Meldung) — Ablehnung.
+	// Without a title (the project is known but there is no report) — refusal.
 	if _, err := sys.Execute(ctx, "create_issue", []byte(`{"project_id":15}`), cred); err == nil {
-		t.Fatal("create_issue ohne title muss fehlschlagen")
+		t.Fatal("create_issue without a title must fail")
 	}
-	// Ohne project_id (Projekt unklar) — Ablehnung; der Agent muss stattdessen nachfragen.
+	// Without project_id (the project is unclear) — refusal; the agent must ask
+	// instead.
 	if _, err := sys.Execute(ctx, "create_issue", []byte(`{"title":"Irgendein Bug"}`), cred); err == nil {
-		t.Fatal("create_issue ohne project_id muss fehlschlagen")
+		t.Fatal("create_issue without project_id must fail")
 	}
 }
 
-// TestCheckoutPreservesCaches sichert den Speed-Fix ab: ein erneuter Checkout
-// desselben Refs ersetzt den Quellcode, lässt aber Dependency-Caches
-// (node_modules) stehen — sonst müsste jeder QA-Lauf neu installieren.
+// TestCheckoutPreservesCaches secures the speed fix: a repeated checkout of the
+// same ref replaces the source code but leaves dependency caches
+// (node_modules) standing — otherwise every QA run would have to install
+// afresh.
 func TestCheckoutPreservesCaches(t *testing.T) {
 	archive1 := tarGz(t, map[string]string{
 		"support-main-aaa/":         "",
@@ -758,7 +762,7 @@ func TestCheckoutPreservesCaches(t *testing.T) {
 		"support-main-aaa/stale.go": "wird beim nächsten Checkout entfernt",
 	})
 	archive2 := tarGz(t, map[string]string{
-		"support-main-bbb/":        "", // andere SHA → früher anderes Verzeichnis
+		"support-main-bbb/":        "", // a different SHA → formerly a different directory
 		"support-main-bbb/main.go": "package main // v2",
 	})
 	current := archive1
@@ -776,7 +780,7 @@ func TestCheckoutPreservesCaches(t *testing.T) {
 		t.Fatalf("checkout 1: %v", err)
 	}
 	path := res.(CheckoutResult).Path
-	// Der Agent installiert Dependencies + hinterlässt Build-Cache.
+	// The agent installs dependencies + leaves a build cache behind.
 	if err := os.MkdirAll(filepath.Join(path, "node_modules", "dep"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -784,7 +788,7 @@ func TestCheckoutPreservesCaches(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Zweiter Checkout (neue SHA) desselben Refs.
+	// A second checkout (a new SHA) of the same ref.
 	current = archive2
 	res2, err := sys.Execute(ctx, "checkout", []byte(`{"project_id":15,"ref":"main"}`), cred)
 	if err != nil {
@@ -792,26 +796,26 @@ func TestCheckoutPreservesCaches(t *testing.T) {
 	}
 	path2 := res2.(CheckoutResult).Path
 	if path2 != path {
-		t.Fatalf("stabiles Verzeichnis erwartet: %q != %q", path2, path)
+		t.Fatalf("a stable directory was expected: %q != %q", path2, path)
 	}
-	// node_modules muss überlebt haben ...
+	// node_modules must have survived ...
 	if b, err := os.ReadFile(filepath.Join(path2, "node_modules", "dep", "index.js")); err != nil || string(b) != "cached" {
-		t.Fatalf("node_modules-Cache nicht erhalten: %v %q", err, b)
+		t.Fatalf("the node_modules cache was not preserved: %v %q", err, b)
 	}
-	// ... Quellcode aktualisiert ...
+	// ... the source code was updated ...
 	if b, err := os.ReadFile(filepath.Join(path2, "main.go")); err != nil || !strings.Contains(string(b), "v2") {
-		t.Fatalf("Quellcode nicht aktualisiert: %v %q", err, b)
+		t.Fatalf("the source code was not updated: %v %q", err, b)
 	}
-	// ... veraltete Quelldatei entfernt.
+	// ... the stale source file was removed.
 	if _, err := os.Stat(filepath.Join(path2, "stale.go")); !os.IsNotExist(err) {
-		t.Fatalf("veraltete Datei stale.go hätte entfernt sein müssen: %v", err)
+		t.Fatalf("the stale file stale.go should have been removed: %v", err)
 	}
 }
 
 func TestCheckoutSubPathAndLimit(t *testing.T) {
 	archive := tarGz(t, map[string]string{
 		"support-main-abc123/":                   "",
-		"support-main-abc123/web/upload/form.js": "const maxSize = 5", // Teil-Checkout-Inhalt
+		"support-main-abc123/web/upload/form.js": "const maxSize = 5", // the partial-checkout content
 	})
 	var gotQuery string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -825,14 +829,14 @@ func TestCheckoutSubPathAndLimit(t *testing.T) {
 	ctx := target.WithWorkdir(context.Background(), t.TempDir())
 
 	if _, err := sys.Execute(ctx, "checkout", []byte(`{"project_id":15,"path":"web/upload"}`), cred); err != nil {
-		t.Fatalf("teil-checkout: %v", err)
+		t.Fatalf("partial checkout: %v", err)
 	}
 	if !strings.Contains(gotQuery, "path=web%2Fupload") {
-		t.Fatalf("path muss als Archiv-Parameter laufen: %s", gotQuery)
+		t.Fatalf("path must run as an archive parameter: %s", gotQuery)
 	}
 
-	// Limit per Env drücken: 2-MB-Datei gegen 1-MB-Limit → klarer Fehler
-	// mit Hinweis auf die Auswege (path / list_tree / read_file).
+	// Push the limit down through the env: a 2 MB file against a 1 MB limit → a
+	// clear error pointing at the ways out (path / list_tree / read_file).
 	big := tarGz(t, map[string]string{
 		"support-main-abc123/":         "",
 		"support-main-abc123/blob.bin": strings.Repeat("x", 2<<20),
@@ -841,7 +845,7 @@ func TestCheckoutSubPathAndLimit(t *testing.T) {
 	t.Setenv("COVEY_GITLAB_CHECKOUT_MAX_MB", "1")
 	_, err := sys.Execute(ctx, "checkout", []byte(`{"project_id":15}`), cred)
 	if err == nil || !strings.Contains(err.Error(), "list_tree") {
-		t.Fatalf("größen-limit muss mit Auswegen fehlschlagen: %v", err)
+		t.Fatalf("the size limit must fail with ways out: %v", err)
 	}
 }
 
@@ -866,10 +870,10 @@ func TestTreeAndReadFile(t *testing.T) {
 		t.Fatalf("list_tree: %v", err)
 	}
 	if entries := res.([]TreeEntry); len(entries) != 1 || entries[0].Path != "web/upload" {
-		t.Fatalf("tree falsch: %+v", entries)
+		t.Fatalf("the tree is wrong: %+v", entries)
 	}
 	if !strings.Contains(gotQuery, "recursive=true") || !strings.Contains(gotQuery, "path=web") {
-		t.Fatalf("tree-parameter fehlen: %s", gotQuery)
+		t.Fatalf("tree parameters are missing: %s", gotQuery)
 	}
 
 	res, err = sys.Execute(ctx, "read_file", []byte(`{"project_id":15,"file_path":"web/upload/form.js","ref":"main"}`), cred)
@@ -878,18 +882,18 @@ func TestTreeAndReadFile(t *testing.T) {
 	}
 	out := res.(map[string]any)
 	if !strings.Contains(out["content"].(string), "maxSize") || out["truncated"].(bool) {
-		t.Fatalf("read_file-inhalt falsch: %+v", out)
+		t.Fatalf("the read_file content is wrong: %+v", out)
 	}
-	// GitLab verlangt den komplett URL-kodierten Dateipfad (inkl. "/").
+	// GitLab demands the completely URL-encoded file path (including "/").
 	if !strings.Contains(gotPath, "/repository/files/web%2Fupload%2Fform.js/raw") {
-		t.Fatalf("file_path muss URL-kodiert sein: %s", gotPath)
+		t.Fatalf("file_path must be URL-encoded: %s", gotPath)
 	}
 	if !strings.Contains(gotQuery, "ref=main") {
-		t.Fatalf("ref muss durchgereicht werden: %s", gotQuery)
+		t.Fatalf("ref must be passed through: %s", gotQuery)
 	}
 
 	if _, err := sys.Execute(ctx, "read_file", []byte(`{"project_id":15}`), cred); err == nil {
-		t.Fatal("read_file ohne file_path muss fehlschlagen")
+		t.Fatal("read_file without file_path must fail")
 	}
 }
 
@@ -922,11 +926,11 @@ func TestHistoryActions(t *testing.T) {
 		t.Fatalf("list_commits: %v", err)
 	}
 	if cs := res.([]Commit); len(cs) != 1 || cs[0].Title != "Upload-Button wiederherstellen" {
-		t.Fatalf("commits falsch: %+v", cs)
+		t.Fatalf("the commits are wrong: %+v", cs)
 	}
 	if !strings.Contains(gotQuery, "ref_name=main") || !strings.Contains(gotQuery, "path=web") ||
 		!strings.Contains(gotQuery, "since=2026-07-15") {
-		t.Fatalf("commit-filter fehlen: %s", gotQuery)
+		t.Fatalf("commit filters are missing: %s", gotQuery)
 	}
 
 	res, err = sys.Execute(ctx, "get_commit", []byte(`{"project_id":15,"sha":"abc123"}`), cred)
@@ -935,11 +939,11 @@ func TestHistoryActions(t *testing.T) {
 	}
 	diffs := res.([]CommitDiff)
 	if len(diffs) != 1 || !diffs[0].Truncated || len(diffs[0].Diff) != maxDiffBytesPerFile {
-		t.Fatalf("diff muss auf maxDiffBytesPerFile gekürzt und markiert sein: len=%d truncated=%v",
+		t.Fatalf("the diff must be truncated to maxDiffBytesPerFile and marked: len=%d truncated=%v",
 			len(diffs[0].Diff), diffs[0].Truncated)
 	}
 	if !strings.Contains(gotPath, "/repository/commits/abc123/diff") {
-		t.Fatalf("diff-pfad falsch: %s", gotPath)
+		t.Fatalf("the diff path is wrong: %s", gotPath)
 	}
 
 	res, err = sys.Execute(ctx, "list_merge_requests", []byte(`{"project_id":15,"state":"merged","search":"upload"}`), cred)
@@ -947,10 +951,10 @@ func TestHistoryActions(t *testing.T) {
 		t.Fatalf("list_merge_requests: %v", err)
 	}
 	if mrs := res.([]MergeRequest); len(mrs) != 1 || mrs[0].State != "merged" {
-		t.Fatalf("mrs falsch: %+v", mrs)
+		t.Fatalf("the mrs are wrong: %+v", mrs)
 	}
 	if !strings.Contains(gotQuery, "state=merged") || !strings.Contains(gotQuery, "search=upload") {
-		t.Fatalf("mr-filter fehlen: %s", gotQuery)
+		t.Fatalf("mr filters are missing: %s", gotQuery)
 	}
 
 	res, err = sys.Execute(ctx, "list_branches", []byte(`{"project_id":15,"search":"bugfix"}`), cred)
@@ -958,10 +962,10 @@ func TestHistoryActions(t *testing.T) {
 		t.Fatalf("list_branches: %v", err)
 	}
 	if bs := res.([]Branch); len(bs) != 1 || !bs[0].Default {
-		t.Fatalf("branches falsch: %+v", bs)
+		t.Fatalf("the branches are wrong: %+v", bs)
 	}
 	if !strings.Contains(gotQuery, "search=bugfix") {
-		t.Fatalf("branch-suche fehlt: %s", gotQuery)
+		t.Fatalf("the branch search is missing: %s", gotQuery)
 	}
 
 	for _, call := range [][2]string{
@@ -969,7 +973,7 @@ func TestHistoryActions(t *testing.T) {
 		{"list_merge_requests", `{}`}, {"list_branches", `{}`},
 	} {
 		if _, err := sys.Execute(ctx, call[0], []byte(call[1]), cred); err == nil {
-			t.Fatalf("%s ohne Pflichtfelder muss fehlschlagen", call[0])
+			t.Fatalf("%s without its mandatory fields must fail", call[0])
 		}
 	}
 }
@@ -981,9 +985,9 @@ func TestCommitAction(t *testing.T) {
 		case r.URL.Path == "/api/v4/projects/15" && r.Method == http.MethodGet:
 			json.NewEncoder(w).Encode(ProjectDetail{ID: 15, DefaultBranch: "main"})
 		case strings.Contains(r.URL.Path, "/repository/branches"):
-			json.NewEncoder(w).Encode([]Branch{}) // Feature-Branch existiert noch nicht
+			json.NewEncoder(w).Encode([]Branch{}) // the feature branch does not exist yet
 		case strings.Contains(r.URL.Path, "/repository/files/") && r.Method == http.MethodHead:
-			// pkg/auth.go existiert im Repo, pkg/auth_test.go ist neu.
+			// pkg/auth.go exists in the repo, pkg/auth_test.go is new.
 			if strings.Contains(r.URL.EscapedPath(), "auth_test") {
 				w.WriteHeader(http.StatusNotFound)
 			}
@@ -1001,7 +1005,7 @@ func TestCommitAction(t *testing.T) {
 	workdir := t.TempDir()
 	ctx := target.WithWorkdir(context.Background(), workdir)
 
-	// Lokal editierter Checkout-Stand in der Sandbox.
+	// A locally edited checkout state in the sandbox.
 	co := filepath.Join(workdir, "repos", "support-main-abc123")
 	if err := os.MkdirAll(filepath.Join(co, "pkg"), 0o755); err != nil {
 		t.Fatal(err)
@@ -1017,14 +1021,14 @@ func TestCommitAction(t *testing.T) {
 	}
 	cr := res.(CommitResult)
 	if !cr.BranchCreated || cr.Branch != "fix/issue-23-login" || cr.Commit.ID != "def456" {
-		t.Fatalf("commit-Ergebnis falsch: %+v", cr)
+		t.Fatalf("the commit result is wrong: %+v", cr)
 	}
 	if commitBody["start_branch"] != "main" || commitBody["branch"] != "fix/issue-23-login" {
-		t.Fatalf("neuer Branch muss vom Default-Branch abzweigen: %+v", commitBody)
+		t.Fatalf("a new branch must be branched off the default branch: %+v", commitBody)
 	}
 	actions := commitBody["actions"].([]any)
 	if len(actions) != 3 {
-		t.Fatalf("erwartet 3 actions, war %d", len(actions))
+		t.Fatalf("expected 3 actions, was %d", len(actions))
 	}
 	byPath := map[string]map[string]any{}
 	for _, a := range actions {
@@ -1032,31 +1036,31 @@ func TestCommitAction(t *testing.T) {
 		byPath[m["file_path"].(string)] = m
 	}
 	if byPath["pkg/auth.go"]["action"] != "update" || byPath["pkg/auth.go"]["encoding"] != "base64" {
-		t.Fatalf("existierende Datei muss als base64-update laufen: %+v", byPath["pkg/auth.go"])
+		t.Fatalf("an existing file must run as a base64 update: %+v", byPath["pkg/auth.go"])
 	}
 	if byPath["pkg/auth_test.go"]["action"] != "create" {
-		t.Fatalf("neue Datei muss als create laufen: %+v", byPath["pkg/auth_test.go"])
+		t.Fatalf("a new file must run as create: %+v", byPath["pkg/auth_test.go"])
 	}
 	if byPath["pkg/alt.go"]["action"] != "delete" {
-		t.Fatalf("deleted muss als delete laufen: %+v", byPath["pkg/alt.go"])
+		t.Fatalf("deleted must run as delete: %+v", byPath["pkg/alt.go"])
 	}
 
-	// Fail-closed-Fälle.
+	// The fail-closed cases.
 	for name, p := range map[string]string{
-		"Default-Branch":  `{"project_id":15,"branch":"main","message":"x","checkout_path":"` + co + `","files":["pkg/auth.go"]}`,
-		"ohne Dateien":    `{"project_id":15,"branch":"fix/x","message":"x","checkout_path":"` + co + `"}`,
-		"ohne message":    `{"project_id":15,"branch":"fix/x","checkout_path":"` + co + `","files":["pkg/auth.go"]}`,
-		"Pfad-Traversal":  `{"project_id":15,"branch":"fix/x","message":"x","checkout_path":"` + co + `","files":["../../etc/passwd"]}`,
-		"fremder Pfad":    `{"project_id":15,"branch":"fix/x","message":"x","checkout_path":"/etc","files":["passwd"]}`,
-		"ohne project_id": `{"branch":"fix/x","message":"x","checkout_path":"` + co + `","files":["pkg/auth.go"]}`,
+		"default branch":     `{"project_id":15,"branch":"main","message":"x","checkout_path":"` + co + `","files":["pkg/auth.go"]}`,
+		"without files":      `{"project_id":15,"branch":"fix/x","message":"x","checkout_path":"` + co + `"}`,
+		"without message":    `{"project_id":15,"branch":"fix/x","checkout_path":"` + co + `","files":["pkg/auth.go"]}`,
+		"path traversal":     `{"project_id":15,"branch":"fix/x","message":"x","checkout_path":"` + co + `","files":["../../etc/passwd"]}`,
+		"foreign path":       `{"project_id":15,"branch":"fix/x","message":"x","checkout_path":"/etc","files":["passwd"]}`,
+		"without project_id": `{"branch":"fix/x","message":"x","checkout_path":"` + co + `","files":["pkg/auth.go"]}`,
 	} {
 		if _, err := sys.Execute(ctx, "commit", []byte(p), cred); err == nil {
-			t.Fatalf("commit muss fehlschlagen: %s", name)
+			t.Fatalf("commit must fail: %s", name)
 		}
 	}
-	// Ohne Sandbox-Workdir (Control-Plane-Kontext) klare Ablehnung.
+	// Without a sandbox workdir (a control-plane context) a clear refusal.
 	if _, err := sys.Execute(context.Background(), "commit", []byte(params), cred); err == nil {
-		t.Fatal("commit ohne workdir muss fehlschlagen")
+		t.Fatal("commit without a workdir must fail")
 	}
 }
 
@@ -1088,16 +1092,16 @@ func TestCommitOnExistingBranch(t *testing.T) {
 		"message":"Nachbesserung","checkout_path":"`+co+`","files":["fix.go"]}`),
 		target.Credential{BaseURL: srv.URL, Token: "t"})
 	if err != nil {
-		t.Fatalf("commit auf bestehendem Branch: %v", err)
+		t.Fatalf("commit onto an existing branch: %v", err)
 	}
 	if cr := res.(CommitResult); cr.BranchCreated {
-		t.Fatalf("bestehender Branch darf nicht als neu gemeldet werden: %+v", cr)
+		t.Fatalf("an existing branch must not be reported as new: %+v", cr)
 	}
 	if _, hasStart := commitBody["start_branch"]; hasStart {
-		t.Fatalf("bestehender Branch darf kein start_branch senden: %+v", commitBody)
+		t.Fatalf("an existing branch must send no start_branch: %+v", commitBody)
 	}
 	if existsRef != "fix/issue-23-login" {
-		t.Fatalf("Existenz-Prüfung muss gegen den bestehenden Branch laufen: %q", existsRef)
+		t.Fatalf("the existence check must run against the existing branch: %q", existsRef)
 	}
 }
 
@@ -1131,36 +1135,37 @@ func TestCreateMergeRequestAction(t *testing.T) {
 		t.Fatalf("create_merge_request: %v", err)
 	}
 	if mr := res.(MergeRequest); mr.IID != 9 || mr.TargetBranch != "main" {
-		t.Fatalf("mr falsch: %+v", mr)
+		t.Fatalf("the mr is wrong: %+v", mr)
 	}
-	// Ohne target_branch muss der Default-Branch des Projekts gezogen werden,
-	// der Vorgesetzte wird Assignee UND Reviewer, der Branch nach Merge entfernt.
+	// Without a target_branch the project's default branch must be pulled, the
+	// manager becomes assignee AND reviewer, the branch is removed after the
+	// merge.
 	if mrBody["target_branch"] != "main" || mrBody["remove_source_branch"] != true {
-		t.Fatalf("mr-body falsch: %+v", mrBody)
+		t.Fatalf("the mr body is wrong: %+v", mrBody)
 	}
 	for _, key := range []string{"assignee_ids", "reviewer_ids"} {
 		ids, _ := mrBody[key].([]any)
 		if len(ids) != 1 || ids[0] != float64(7) {
-			t.Fatalf("%s muss der Vorgesetzte sein: %+v", key, mrBody)
+			t.Fatalf("%s must be the manager: %+v", key, mrBody)
 		}
 	}
 
 	for name, p := range map[string]string{
-		"ohne assignee":      `{"project_id":15,"source_branch":"fix/x","title":"Fix"}`,
-		"unbekannter Nutzer": `{"project_id":15,"source_branch":"fix/x","title":"Fix","assignee":"gibtsnicht"}`,
-		"ohne source_branch": `{"project_id":15,"title":"Fix","assignee":"leaddev"}`,
-		"ohne title":         `{"project_id":15,"source_branch":"fix/x","assignee":"leaddev"}`,
-		"source gleich ziel": `{"project_id":15,"source_branch":"main","title":"Fix","assignee":"leaddev"}`,
+		"without assignee":         `{"project_id":15,"source_branch":"fix/x","title":"Fix"}`,
+		"unknown user":             `{"project_id":15,"source_branch":"fix/x","title":"Fix","assignee":"gibtsnicht"}`,
+		"without source_branch":    `{"project_id":15,"title":"Fix","assignee":"leaddev"}`,
+		"without title":            `{"project_id":15,"source_branch":"fix/x","assignee":"leaddev"}`,
+		"source equals the target": `{"project_id":15,"source_branch":"main","title":"Fix","assignee":"leaddev"}`,
 	} {
 		if _, err := sys.Execute(ctx, "create_merge_request", []byte(p), cred); err == nil {
-			t.Fatalf("create_merge_request muss fehlschlagen: %s", name)
+			t.Fatalf("create_merge_request must fail: %s", name)
 		}
 	}
 }
 
-// TestCommentDedup deckt die Server-Bremse gegen Kommentar-Loops ab: ein
-// Kommentar identisch zum letzten EIGENEN wird nicht erneut gepostet, ein
-// abweichender schon.
+// TestCommentDedup covers the server-side brake against comment loops: a
+// comment identical to one's own last one is not posted again, a differing one
+// is.
 func TestCommentDedup(t *testing.T) {
 	var posts int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1180,7 +1185,7 @@ func TestCommentDedup(t *testing.T) {
 			posts++
 			json.NewEncoder(w).Encode(Note{ID: 3})
 		default:
-			t.Errorf("unerwarteter request: %s %s", r.Method, r.URL.Path)
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 	}))
 	defer srv.Close()
@@ -1189,24 +1194,24 @@ func TestCommentDedup(t *testing.T) {
 	cred := target.Credential{BaseURL: srv.URL, Token: "t"}
 	ctx := context.Background()
 
-	// Identisch zum letzten eigenen Kommentar → übersprungen, kein POST.
+	// Identical to one's own last comment → skipped, no POST.
 	res, err := sys.Execute(ctx, "comment", []byte(`{"project_id":15,"issue_iid":23,"body":"MR eröffnet: !5"}`), cred)
 	if err != nil {
 		t.Fatalf("comment (dup): %v", err)
 	}
 	if m, _ := res.(map[string]any); m["skipped"] != "duplicate" {
-		t.Fatalf("Duplikat hätte übersprungen werden müssen: %+v", res)
+		t.Fatalf("the duplicate should have been skipped: %+v", res)
 	}
 	if posts != 0 {
-		t.Fatalf("kein POST erwartet, war %d", posts)
+		t.Fatalf("no POST expected, was %d", posts)
 	}
 
-	// Abweichender Kommentar → wird gepostet.
+	// A differing comment → is posted.
 	if _, err := sys.Execute(ctx, "comment", []byte(`{"project_id":15,"issue_iid":23,"body":"Neuer Stand"}`), cred); err != nil {
-		t.Fatalf("comment (neu): %v", err)
+		t.Fatalf("comment (new): %v", err)
 	}
 	if posts != 1 {
-		t.Fatalf("neuer Kommentar hätte gepostet werden müssen, posts=%d", posts)
+		t.Fatalf("the new comment should have been posted, posts=%d", posts)
 	}
 }
 
@@ -1227,11 +1232,11 @@ func TestMRReviewActions(t *testing.T) {
 			json.NewEncoder(w).Encode(Note{ID: 121, Body: "Erledigt"})
 		case r.URL.Path == "/api/v4/projects/15/pipelines":
 			if r.URL.Query().Get("ref") != "fix/issue-23-login" {
-				t.Errorf("ref-filter fehlt: %s", r.URL.RawQuery)
+				t.Errorf("the ref filter is missing: %s", r.URL.RawQuery)
 			}
 			json.NewEncoder(w).Encode([]Pipeline{{ID: 4, Status: "success", Ref: "fix/issue-23-login"}})
 		default:
-			t.Errorf("unerwarteter request: %s %s", r.Method, r.URL.Path)
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 	}))
 	defer srv.Close()
@@ -1246,7 +1251,7 @@ func TestMRReviewActions(t *testing.T) {
 	}
 	if mr := res.(MergeRequestDetail); mr.DetailedMergeStatus != "mergeable" ||
 		mr.HeadPipeline == nil || mr.HeadPipeline.Status != "success" {
-		t.Fatalf("mr-detail falsch: %+v", mr)
+		t.Fatalf("the mr detail is wrong: %+v", mr)
 	}
 
 	res, err = sys.Execute(ctx, "list_mr_notes", []byte(`{"project_id":15,"mr_iid":9}`), cred)
@@ -1254,14 +1259,14 @@ func TestMRReviewActions(t *testing.T) {
 		t.Fatalf("list_mr_notes: %v", err)
 	}
 	if notes := res.([]Note); len(notes) != 1 || notes[0].ID != 120 {
-		t.Fatalf("mr-notes falsch: %+v", notes)
+		t.Fatalf("the mr notes are wrong: %+v", notes)
 	}
 
 	if _, err = sys.Execute(ctx, "comment_mr", []byte(`{"project_id":15,"mr_iid":9,"body":"Erledigt"}`), cred); err != nil {
 		t.Fatalf("comment_mr: %v", err)
 	}
 	if commentBody["body"] != "Erledigt" {
-		t.Fatalf("comment-body falsch: %+v", commentBody)
+		t.Fatalf("the comment body is wrong: %+v", commentBody)
 	}
 
 	res, err = sys.Execute(ctx, "list_pipelines", []byte(`{"project_id":15,"ref":"fix/issue-23-login"}`), cred)
@@ -1269,20 +1274,20 @@ func TestMRReviewActions(t *testing.T) {
 		t.Fatalf("list_pipelines: %v", err)
 	}
 	if ps := res.([]Pipeline); len(ps) != 1 || ps[0].Status != "success" {
-		t.Fatalf("pipelines falsch: %+v", ps)
+		t.Fatalf("the pipelines are wrong: %+v", ps)
 	}
 
-	// Pflichtparameter fehlen → Fehler statt stiller Leerlauf.
+	// Mandatory parameters are missing → an error instead of a silent no-op.
 	for name, call := range map[string][2]string{
-		"get_merge_request ohne mr_iid":       {"get_merge_request", `{"project_id":15}`},
-		"list_mr_notes ohne mr_iid":           {"list_mr_notes", `{"project_id":15}`},
-		"comment_mr ohne body":                {"comment_mr", `{"project_id":15,"mr_iid":9}`},
-		"list_pipelines ohne project":         {"list_pipelines", `{}`},
-		"list_pipeline_jobs ohne pipeline_id": {"list_pipeline_jobs", `{"project_id":15}`},
-		"get_job_log ohne job_id":             {"get_job_log", `{"project_id":15}`},
+		"get_merge_request without mr_iid":       {"get_merge_request", `{"project_id":15}`},
+		"list_mr_notes without mr_iid":           {"list_mr_notes", `{"project_id":15}`},
+		"comment_mr without body":                {"comment_mr", `{"project_id":15,"mr_iid":9}`},
+		"list_pipelines without a project":       {"list_pipelines", `{}`},
+		"list_pipeline_jobs without pipeline_id": {"list_pipeline_jobs", `{"project_id":15}`},
+		"get_job_log without job_id":             {"get_job_log", `{"project_id":15}`},
 	} {
 		if _, err := sys.Execute(ctx, call[0], []byte(call[1]), cred); err == nil {
-			t.Fatalf("%s muss fehlschlagen", name)
+			t.Fatalf("%s must fail", name)
 		}
 	}
 }
@@ -1300,11 +1305,11 @@ func TestPipelineDiagnosisActions(t *testing.T) {
 			w.Write([]byte(bigLog))
 		case "/api/v4/projects/15/pipelines/4/retry":
 			if r.Method != http.MethodPost {
-				t.Errorf("retry muss POST sein, got %s", r.Method)
+				t.Errorf("retry must be POST, got %s", r.Method)
 			}
 			json.NewEncoder(w).Encode(Pipeline{ID: 5, Status: "pending", Ref: "fix/x"})
 		default:
-			t.Errorf("unerwarteter request: %s", r.URL.Path)
+			t.Errorf("unexpected request: %s", r.URL.Path)
 		}
 	}))
 	defer srv.Close()
@@ -1319,7 +1324,7 @@ func TestPipelineDiagnosisActions(t *testing.T) {
 	}
 	jobs := res.([]Job)
 	if len(jobs) != 2 || jobs[1].Status != "failed" {
-		t.Fatalf("jobs falsch: %+v", jobs)
+		t.Fatalf("the jobs are wrong: %+v", jobs)
 	}
 
 	res, err = sys.Execute(ctx, "get_job_log", []byte(`{"project_id":15,"job_id":42}`), cred)
@@ -1328,13 +1333,13 @@ func TestPipelineDiagnosisActions(t *testing.T) {
 	}
 	out := res.(map[string]any)
 	logText := out["log"].(string)
-	// Das ENDE des Logs muss erhalten bleiben (dort steht der Fehler), der
-	// Anfang darf der Kappung zum Opfer fallen.
+	// The END of the log must be preserved (that is where the error stands),
+	// the beginning may fall victim to the truncation.
 	if !strings.Contains(logText, "FEHLER: assertion failed") {
-		t.Fatal("log-ende muss erhalten bleiben")
+		t.Fatal("the end of the log must be preserved")
 	}
 	if out["truncated"] != true || len(logText) > maxJobLogBytes {
-		t.Fatalf("log muss auf %d bytes gekappt sein: len=%d truncated=%v",
+		t.Fatalf("the log must be capped at %d bytes: len=%d truncated=%v",
 			maxJobLogBytes, len(logText), out["truncated"])
 	}
 
@@ -1343,10 +1348,10 @@ func TestPipelineDiagnosisActions(t *testing.T) {
 		t.Fatalf("retry_pipeline: %v", err)
 	}
 	if p := res.(Pipeline); p.ID != 5 || p.Status != "pending" {
-		t.Fatalf("retry-ergebnis falsch: %+v", p)
+		t.Fatalf("the retry result is wrong: %+v", p)
 	}
 	if _, err := sys.Execute(ctx, "retry_pipeline", []byte(`{"project_id":15}`), cred); err == nil {
-		t.Fatal("retry_pipeline ohne pipeline_id muss fehlschlagen")
+		t.Fatal("retry_pipeline without pipeline_id must fail")
 	}
 }
 
@@ -1356,28 +1361,29 @@ func TestExtractTarGzRejectsTraversal(t *testing.T) {
 		"../../etc/evil.conf": "böse",
 	})
 	if _, _, err := extractTarGz(bytes.NewReader(archive), t.TempDir()); err == nil {
-		t.Fatal("pfad-traversal im archiv muss abgelehnt werden")
+		t.Fatal("path traversal in the archive must be refused")
 	}
 }
 
-// securePath ist die Zusage am fertigen Zielpfad: Was der Name-Test vorne
-// durchlässt, darf hinten trotzdem nicht aus dem Zielverzeichnis zeigen.
+// securePath is the promise on the finished destination path: what the name
+// test up front lets through must still not point out of the destination
+// directory at the back.
 func TestSecurePathStaysUnderRoot(t *testing.T) {
 	root := t.TempDir()
 	for _, name := range []string{"pkg/app.go", "./a/../b.go", "tief/im/baum.txt"} {
 		dest, err := securePath(root, name)
 		if err != nil {
-			t.Fatalf("%q ist harmlos und muss durchgehen: %v", name, err)
+			t.Fatalf("%q is harmless and must go through: %v", name, err)
 		}
 		if !strings.HasPrefix(dest, root+string(filepath.Separator)) {
-			t.Fatalf("%q landete außerhalb: %q", name, dest)
+			t.Fatalf("%q landed outside: %q", name, dest)
 		}
 	}
-	// Absolute Namen fängt der Aufrufer schon vorher ab; hier zählt nur, was
-	// aus dem Zielverzeichnis herausführt.
+	// Absolute names are caught by the caller beforehand; here only what leads
+	// out of the destination directory counts.
 	for _, name := range []string{"../evil.conf", "a/../../evil.conf", ".."} {
 		if dest, err := securePath(root, name); err == nil {
-			t.Fatalf("%q muss abgelehnt werden, ergab %q", name, dest)
+			t.Fatalf("%q must be refused, produced %q", name, dest)
 		}
 	}
 }
@@ -1389,26 +1395,26 @@ func TestClientErrorSurface(t *testing.T) {
 	defer srv.Close()
 	c := NewClient(srv.URL, "falsch")
 	if _, err := c.GetIssue(context.Background(), 15, 23); err == nil {
-		t.Fatal("HTTP-Fehler muss als error auftauchen")
+		t.Fatal("an HTTP error must surface as an error")
 	}
 }
 
 func TestActionSubject(t *testing.T) {
 	sys := System{}
 	if got := sys.ActionSubject("comment", []byte(`{"internal":false}`)); got != "gitlab:comment_external" {
-		t.Fatalf("externer Kommentar: %s", got)
+		t.Fatalf("external comment: %s", got)
 	}
 	if got := sys.ActionSubject("comment", []byte(`{"internal":true}`)); got != "gitlab:comment_internal" {
-		t.Fatalf("interner Kommentar: %s", got)
+		t.Fatalf("internal comment: %s", got)
 	}
 	if got := sys.ActionSubject("comment", []byte(`{}`)); got != "gitlab:comment_internal" {
-		t.Fatalf("Default muss intern (sicher) sein: %s", got)
+		t.Fatalf("the default must be internal (safe): %s", got)
 	}
 	if got := sys.ActionSubject("set_state", nil); got != "gitlab:set_state" {
 		t.Fatalf("set_state: %s", got)
 	}
-	// docs/ops-gitlab.md §5.1 sichert dieses Subjekt zu — daran hängen
-	// Guard-Rail-Regeln, die den Zustandswechsel im Board gaten sollen.
+	// docs/ops-gitlab.md §5.1 promises this subject — guard-rail rules that are
+	// meant to gate the state change on the board hang off it.
 	if got := sys.ActionSubject("set_labels", nil); got != "gitlab:set_labels" {
 		t.Fatalf("set_labels: %s", got)
 	}
@@ -1445,27 +1451,27 @@ func TestAssignAction(t *testing.T) {
 		t.Fatalf("assign: %v", err)
 	}
 	if m := out.(map[string]any); m["assigned_to"] != "maxm" || m["user_id"] != 42 {
-		t.Fatalf("assign-Ergebnis falsch: %+v", out)
+		t.Fatalf("the assign result is wrong: %+v", out)
 	}
 	if gotMethod != http.MethodPut || gotPath != "/api/v4/projects/15/issues/23" {
-		t.Fatalf("assign muss PUT /projects/15/issues/23 sein: %s %s (query %s)", gotMethod, gotPath, gotQuery)
+		t.Fatalf("assign must be PUT /projects/15/issues/23: %s %s (query %s)", gotMethod, gotPath, gotQuery)
 	}
 	ids, _ := gotBody["assignee_ids"].([]any)
 	if len(ids) != 1 || ids[0] != float64(42) {
-		t.Fatalf("assignee_ids falsch: %+v", gotBody)
+		t.Fatalf("assignee_ids are wrong: %+v", gotBody)
 	}
 
 	if _, err := sys.Execute(ctx, "assign", []byte(`{"project_id":15,"issue_iid":23,"username":"gibtsnicht"}`), cred); err == nil {
-		t.Fatal("unbekannter Username muss einen Fehler liefern (nie raten)")
+		t.Fatal("an unknown username must produce an error (never guess)")
 	}
 	if _, err := sys.Execute(ctx, "assign", []byte(`{"username":"maxm"}`), cred); err == nil {
-		t.Fatal("assign ohne project_id/issue_iid muss abgelehnt werden")
+		t.Fatal("assign without project_id/issue_iid must be refused")
 	}
 }
 
-// TestReviewerHandoff deckt die Übergabe eines MR an einen QA-/Test-Agenten ab:
-// create_merge_request mit separatem reviewer, set_reviewer auf einen
-// bestehenden MR und approve_mr als Freigabe.
+// TestReviewerHandoff covers handing an MR over to a QA/test agent:
+// create_merge_request with a separate reviewer, set_reviewer on an existing MR
+// and approve_mr as the approval.
 func TestReviewerHandoff(t *testing.T) {
 	var mrBody, reviewerBody map[string]any
 	var approvePath string
@@ -1492,7 +1498,7 @@ func TestReviewerHandoff(t *testing.T) {
 			approvePath = r.URL.Path
 			json.NewEncoder(w).Encode(map[string]any{"id": 9})
 		default:
-			t.Errorf("unerwarteter request: %s %s", r.Method, r.URL.Path)
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
 	}))
 	defer srv.Close()
@@ -1501,55 +1507,55 @@ func TestReviewerHandoff(t *testing.T) {
 	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
 	ctx := context.Background()
 
-	// create_merge_request mit reviewer ≠ assignee: Vorgesetzter bleibt Assignee,
-	// QA-Agent wird Reviewer.
+	// create_merge_request with reviewer != assignee: the manager stays the
+	// assignee, the QA agent becomes the reviewer.
 	if _, err := sys.Execute(ctx, "create_merge_request", []byte(`{"project_id":15,
 		"source_branch":"fix/issue-23-login","title":"Fix Login","assignee":"leaddev","reviewer":"qa-bot"}`), cred); err != nil {
-		t.Fatalf("create_merge_request mit reviewer: %v", err)
+		t.Fatalf("create_merge_request with a reviewer: %v", err)
 	}
 	if ids, _ := mrBody["assignee_ids"].([]any); len(ids) != 1 || ids[0] != float64(7) {
-		t.Fatalf("assignee muss der Vorgesetzte (7) sein: %+v", mrBody)
+		t.Fatalf("the assignee must be the manager (7): %+v", mrBody)
 	}
 	if ids, _ := mrBody["reviewer_ids"].([]any); len(ids) != 1 || ids[0] != float64(8) {
-		t.Fatalf("reviewer muss der QA-Agent (8) sein: %+v", mrBody)
+		t.Fatalf("the reviewer must be the QA agent (8): %+v", mrBody)
 	}
 
-	// set_reviewer auf einen bestehenden MR.
+	// set_reviewer on an existing MR.
 	out, err := sys.Execute(ctx, "set_reviewer", []byte(`{"project_id":15,"mr_iid":9,"username":"@qa-bot"}`), cred)
 	if err != nil {
 		t.Fatalf("set_reviewer: %v", err)
 	}
 	if m := out.(map[string]any); m["reviewer"] != "qa-bot" || m["user_id"] != 8 {
-		t.Fatalf("set_reviewer-Ergebnis falsch: %+v", out)
+		t.Fatalf("the set_reviewer result is wrong: %+v", out)
 	}
 	if ids, _ := reviewerBody["reviewer_ids"].([]any); len(ids) != 1 || ids[0] != float64(8) {
-		t.Fatalf("reviewer_ids falsch: %+v", reviewerBody)
+		t.Fatalf("reviewer_ids are wrong: %+v", reviewerBody)
 	}
 
-	// approve_mr als Freigabe.
+	// approve_mr as the approval.
 	if _, err := sys.Execute(ctx, "approve_mr", []byte(`{"project_id":15,"mr_iid":9}`), cred); err != nil {
 		t.Fatalf("approve_mr: %v", err)
 	}
 	if approvePath != "/api/v4/projects/15/merge_requests/9/approve" {
-		t.Fatalf("approve muss POST .../approve sein, war %q", approvePath)
+		t.Fatalf("approve must be POST .../approve, was %q", approvePath)
 	}
 
-	// Pflichtparameter fehlen → Fehler.
+	// Mandatory parameters are missing → an error.
 	for name, call := range map[string][2]string{
-		"set_reviewer ohne mr_iid":   {"set_reviewer", `{"project_id":15,"username":"qa-bot"}`},
-		"set_reviewer unbek. Nutzer": {"set_reviewer", `{"project_id":15,"mr_iid":9,"username":"gibtsnicht"}`},
-		"approve_mr ohne mr_iid":     {"approve_mr", `{"project_id":15}`},
+		"set_reviewer without mr_iid":    {"set_reviewer", `{"project_id":15,"username":"qa-bot"}`},
+		"set_reviewer with unknown user": {"set_reviewer", `{"project_id":15,"mr_iid":9,"username":"gibtsnicht"}`},
+		"approve_mr without mr_iid":      {"approve_mr", `{"project_id":15}`},
 	} {
 		if _, err := sys.Execute(ctx, call[0], []byte(call[1]), cred); err == nil {
-			t.Fatalf("%s muss fehlschlagen", name)
+			t.Fatalf("%s must fail", name)
 		}
 	}
 }
 
-// TestHasWorkKindIssuesAssigned prüft, dass nur-wenn: gitlab:issues:assigned nur
-// die dem Bot ZUGEWIESENEN offenen Issues zählt (scope=assigned_to_me) — sonst
-// weckt jedes fremde offene Issue im Scope einen Agenten, der laut Playbook nur
-// zugewiesene Issues bearbeitet.
+// TestHasWorkKindIssuesAssigned checks that nur-wenn: gitlab:issues:assigned
+// counts only the open issues ASSIGNED to the bot (scope=assigned_to_me) —
+// otherwise every open issue of someone else's in the scope wakes an agent that
+// according to its playbook only works on assigned issues.
 func TestHasWorkKindIssuesAssigned(t *testing.T) {
 	var issues []Issue
 	var notes []Note
@@ -1564,7 +1570,7 @@ func TestHasWorkKindIssuesAssigned(t *testing.T) {
 		case strings.HasSuffix(r.URL.Path, "/notes"):
 			json.NewEncoder(w).Encode(notes)
 		default:
-			t.Errorf("unerwarteter request: %s", r.URL.Path)
+			t.Errorf("unexpected request: %s", r.URL.Path)
 		}
 	}))
 	defer srv.Close()
@@ -1583,48 +1589,49 @@ func TestHasWorkKindIssuesAssigned(t *testing.T) {
 		}{Username: user}
 	}
 
-	// Kein zugewiesenes Issue → keine Arbeit; der Check muss assigned_to_me sein.
+	// No assigned issue → no work; the check must be assigned_to_me.
 	issues = nil
 	if has, err := sys.HasWorkKind(ctx, cred, "issues:assigned"); err != nil || has {
-		t.Fatalf("ohne Zuweisung: has=%v err=%v", has, err)
+		t.Fatalf("without an assignment: has=%v err=%v", has, err)
 	}
 	if sawScope != "assigned_to_me" {
-		t.Fatalf("assigned-Subscope muss scope=assigned_to_me abfragen, war %q", sawScope)
+		t.Fatalf("the assigned sub-scope must query scope=assigned_to_me, was %q", sawScope)
 	}
 
-	// Frisch zugewiesenes Issue ohne Kommentar → Erst-Triage steht aus, Arbeit.
+	// A freshly assigned issue without a comment → the first triage is
+	// outstanding, work.
 	issues, notes = []Issue{mine}, nil
 	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || !has {
-		t.Fatalf("mit Zuweisung: has=%v err=%v", has, err)
+		t.Fatalf("with an assignment: has=%v err=%v", has, err)
 	}
 
-	// Der Bot hat zuletzt kommentiert → bearbeitet, ruht bis zur Antwort. Genau
-	// hier lief der Agent vorher in die Endlosschleife: das Issue blieb ihm
-	// zugewiesen, also galt es in jedem 2-Minuten-Intervall erneut als Arbeit.
+	// The bot commented last → worked on, rests until the answer. Exactly here
+	// the agent ran into the endless loop before: the issue stayed assigned to
+	// it, so it counted as work afresh in every 2-minute interval.
 	notes = []Note{
 		{ID: 1, Body: "Bitte fixen", Author: by("leaddev")},
 		{ID: 2, Body: "Erledigt via MR !12", Author: by("covey-bot")},
 	}
 	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || has {
-		t.Fatalf("vom Bot beantwortetes Issue darf nicht wecken: has=%v err=%v", has, err)
+		t.Fatalf("an issue answered by the bot must not wake it: has=%v err=%v", has, err)
 	}
 
-	// Ein System-Kommentar danach (Label geändert) ändert daran nichts …
+	// A system comment after that (a label changed) changes nothing …
 	notes = append(notes, Note{ID: 3, System: true, Body: "added label", Author: by("leaddev")})
 	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || has {
-		t.Fatalf("system-notiz darf nicht wecken: has=%v err=%v", has, err)
+		t.Fatalf("a system note must not wake it: has=%v err=%v", has, err)
 	}
 
-	// … eine echte Antwort schon.
+	// … a real answer does.
 	notes = append(notes, Note{ID: 4, Body: "Noch ein Fall", Author: by("leaddev")})
 	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || !has {
-		t.Fatalf("neue Antwort muss wecken: has=%v err=%v", has, err)
+		t.Fatalf("a new answer must wake it: has=%v err=%v", has, err)
 	}
 }
 
-// TestHasWorkKindReview prüft den Reviewer-seitigen Vorabcheck (nur-wenn:
-// gitlab:review): ein an mich zum Review übergebener MR ist Arbeit, solange nicht
-// ICH als Letzter kommentiert habe — inklusive des frischen MR ganz ohne Notiz.
+// TestHasWorkKindReview checks the reviewer-side pre-check (nur-wenn:
+// gitlab:review): an MR handed to me for review is work as long as it was not I
+// who commented last — including the fresh MR with no note at all.
 func TestHasWorkKindReview(t *testing.T) {
 	var reviewMRs []MergeRequest
 	var mrNotes []Note
@@ -1634,13 +1641,13 @@ func TestHasWorkKindReview(t *testing.T) {
 			json.NewEncoder(w).Encode(User{ID: 8, Username: "qa-bot"})
 		case r.URL.Path == "/api/v4/merge_requests":
 			if r.URL.Query().Get("reviewer_username") != "qa-bot" {
-				t.Errorf("reviewer_username-Filter fehlt: %s", r.URL.RawQuery)
+				t.Errorf("the reviewer_username filter is missing: %s", r.URL.RawQuery)
 			}
 			json.NewEncoder(w).Encode(reviewMRs)
 		case strings.HasSuffix(r.URL.Path, "/notes"):
 			json.NewEncoder(w).Encode(mrNotes)
 		default:
-			t.Errorf("unerwarteter request: %s", r.URL.Path)
+			t.Errorf("unexpected request: %s", r.URL.Path)
 		}
 	}))
 	defer srv.Close()
@@ -1665,32 +1672,33 @@ func TestHasWorkKindReview(t *testing.T) {
 			t.Fatalf("HasWorkKind(review): %v", err)
 		}
 		if has != want {
-			t.Fatalf("HasWorkKind(review) = %v, erwartet %v", has, want)
+			t.Fatalf("HasWorkKind(review) = %v, expected %v", has, want)
 		}
 	}
 
-	// Kein MR mir zum Review zugewiesen → keine Arbeit.
+	// No MR assigned to me for review → no work.
 	reviewMRs, mrNotes = nil, nil
 	check(false)
 
-	// Frisch zugewiesener MR ohne Kommentar → Erst-Review steht aus (Arbeit).
+	// A freshly assigned MR without a comment → the first review is outstanding
+	// (work).
 	reviewMRs, mrNotes = []MergeRequest{mrIn}, nil
 	check(true)
 
-	// Autor hat zuletzt geantwortet (nachgebessert) → erneut prüfen (Arbeit).
+	// The author answered last (reworked it) → check again (work).
 	reviewMRs, mrNotes = []MergeRequest{mrIn}, author
 	check(true)
 
-	// Ich (qa-bot) habe zuletzt kommentiert → Runde beantwortet, keine Arbeit.
+	// I (qa-bot) commented last → the round is answered, no work.
 	reviewMRs, mrNotes = []MergeRequest{mrIn}, mine
 	check(false)
 }
 
-// TestCheckoutGitBaseline sichert die Grundlage, auf der der Sub-Agent im
-// Checkout arbeitet: Das Archiv bringt keine .git mit, deshalb legt der
-// Checkout eine Baseline an. Nur dadurch funktionieren git-aufrufende
-// Projekt-Skripte, und nur dadurch lässt sich hinterher sagen, WAS der
-// Sub-Agent geändert hat (Dateiliste für die commit-Aktion).
+// TestCheckoutGitBaseline secures the ground on which the sub-agent works in
+// the checkout: the archive brings no .git along, which is why the checkout
+// creates a baseline. Only through that do git-calling project scripts work,
+// and only through that can one say afterwards WHAT the sub-agent changed (the
+// file list for the commit action).
 func TestCheckoutGitBaseline(t *testing.T) {
 	archive := tarGz(t, map[string]string{
 		"proj-main-abc/":           "",
@@ -1712,19 +1720,20 @@ func TestCheckoutGitBaseline(t *testing.T) {
 	dir := res.(CheckoutResult).Path
 
 	if _, err := os.Stat(filepath.Join(dir, ".git")); err != nil {
-		t.Skipf("kein git verfügbar: %v", err)
+		t.Skipf("no git available: %v", err)
 	}
-	// Frischer Checkout = sauberer Baum: Alles Entpackte steckt im Baseline-Commit.
+	// A fresh checkout = a clean tree: everything unpacked sits in the baseline
+	// commit.
 	if out := gitOut(t, dir, "status", "--porcelain", "-uall"); out != "" {
-		t.Fatalf("frischer Checkout muss sauber sein, war:\n%s", out)
+		t.Fatalf("a fresh checkout must be clean, was:\n%s", out)
 	}
-	// Der Tag ist der Anker, gegen den der Sub-Lauf seine Arbeit meldet — auch
-	// dann noch, wenn er zwischendurch lokal committet hat.
+	// The tag is the anchor against which the sub-run reports its work — even
+	// then, when it has committed locally in between.
 	if out := gitOut(t, dir, "tag", "--list", target.BaselineRef); out != target.BaselineRef {
-		t.Fatalf("Checkout muss den Upstream-Stand als %q taggen, hatte: %q", target.BaselineRef, out)
+		t.Fatalf("the checkout must tag the upstream state as %q, had: %q", target.BaselineRef, out)
 	}
-	// Nach einer Änderung meldet git genau diese Datei — das ist die Liste,
-	// die der Sub-Agent an die commit-Aktion zurückgibt.
+	// After a change git reports exactly that file — that is the list the
+	// sub-agent hands back to the commit action.
 	if err := os.WriteFile(filepath.Join(dir, "pkg", "app.go"), []byte("package app // fix"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -1733,11 +1742,11 @@ func TestCheckoutGitBaseline(t *testing.T) {
 	}
 	out := gitOut(t, dir, "status", "--porcelain", "-uall")
 	if !strings.Contains(out, "pkg/app.go") || !strings.Contains(out, "pkg/app_test.go") {
-		t.Fatalf("geänderte und neue Datei müssen auftauchen:\n%s", out)
+		t.Fatalf("the changed and the new file must show up:\n%s", out)
 	}
 
-	// Dependency-Caches gehören nicht zur Arbeit: Sie überleben den Checkout
-	// (preserveDirs) und bleiben über .git/info/exclude aus dem Status heraus.
+	// Dependency caches are not part of the work: they survive the checkout
+	// (preserveDirs) and stay out of the status through .git/info/exclude.
 	if err := os.MkdirAll(filepath.Join(dir, "node_modules", "lib"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -1745,7 +1754,7 @@ func TestCheckoutGitBaseline(t *testing.T) {
 		t.Fatal(err)
 	}
 	if out := gitOut(t, dir, "status", "--porcelain", "-uall"); strings.Contains(out, "node_modules") {
-		t.Fatalf("Cache-Verzeichnisse dürfen nicht als Arbeit gelten:\n%s", out)
+		t.Fatalf("cache directories must not count as work:\n%s", out)
 	}
 }
 
@@ -1758,8 +1767,9 @@ func gitOut(t *testing.T, dir string, args ...string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// TestCreateMergeRequestAssigneeFromIssue deckt ab, dass der MR ohne benannten
-// assignee an den MELDER des Issues geht statt pauschal an den Vorgesetzten.
+// TestCreateMergeRequestAssigneeFromIssue covers that an MR without a named
+// assignee goes to the REPORTER of the issue instead of to the manager across
+// the board.
 func TestCreateMergeRequestAssigneeFromIssue(t *testing.T) {
 	var mrBody map[string]any
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1791,15 +1801,15 @@ func TestCreateMergeRequestAssigneeFromIssue(t *testing.T) {
 	}
 	ids, _ := mrBody["assignee_ids"].([]any)
 	if len(ids) != 1 || ids[0] != float64(42) {
-		t.Fatalf("assignee muss der Issue-Melder sein: %+v", mrBody)
+		t.Fatalf("the assignee must be the issue's reporter: %+v", mrBody)
 	}
 }
 
-// TestWorkSignature deckt die Wecker-Bremse ab: Der Vorab-Check liefert neben
-// dem Ja/Nein eine Signatur des Arbeitsvorrats. Sie bleibt stabil, solange sich
-// im Thread nichts tut — damit darf ein Agent einen Lauf schweigend beenden,
-// ohne beim nächsten Intervall erneut auf denselben Stand geweckt zu werden —
-// und ändert sich, sobald ein neuer Beitrag dazukommt.
+// TestWorkSignature covers the wake-up brake: besides the yes/no the pre-check
+// returns a signature of the working set. It stays stable as long as nothing
+// happens in the thread — that way an agent may end a run silently without
+// being woken again on the same state at the next interval — and it changes as
+// soon as a new contribution comes along.
 func TestWorkSignature(t *testing.T) {
 	var myMRs []MergeRequest
 	var mrNotes []Note
@@ -1814,7 +1824,7 @@ func TestWorkSignature(t *testing.T) {
 		case strings.HasSuffix(r.URL.Path, "/notes"):
 			json.NewEncoder(w).Encode(mrNotes)
 		default:
-			t.Errorf("unerwarteter request: %s", r.URL.Path)
+			t.Errorf("unexpected request: %s", r.URL.Path)
 		}
 	}))
 	defer srv.Close()
@@ -1834,45 +1844,46 @@ func TestWorkSignature(t *testing.T) {
 	mr.References.Full = "gruppe/support!9"
 	myMRs = []MergeRequest{mr}
 
-	// Ohne Arbeit ist die Signatur leer — sie unterdrückt dann nichts.
+	// Without work the signature is empty — it then suppresses nothing.
 	mrNotes = []Note{{ID: 1, Body: "erledigt", Author: author("covey-bot")}}
 	has, sig, err := sys.HasWorkSigned(ctx, cred, "mr")
 	if err != nil || has || sig != "" {
-		t.Fatalf("ohne arbeit: has=%v sig=%q err=%v", has, sig, err)
+		t.Fatalf("without work: has=%v sig=%q err=%v", has, sig, err)
 	}
 
-	// Review-Feedback: Arbeit mit Signatur — und beim zweiten Check dieselbe,
-	// denn es hat sich nichts getan.
+	// Review feedback: work with a signature — and the same one on the second
+	// check, because nothing has happened.
 	mrNotes = []Note{
 		{ID: 1, Body: "erledigt", Author: author("covey-bot")},
 		{ID: 7, Body: "grün, Freigabe", Author: author("egon")},
 	}
 	has, sig, err = sys.HasWorkSigned(ctx, cred, "mr")
 	if err != nil || !has || sig == "" {
-		t.Fatalf("mit feedback: has=%v sig=%q err=%v", has, sig, err)
+		t.Fatalf("with feedback: has=%v sig=%q err=%v", has, sig, err)
 	}
 	if _, again, _ := sys.HasWorkSigned(ctx, cred, "mr"); again != sig {
-		t.Fatalf("signatur muss stabil bleiben: %q vs %q", again, sig)
+		t.Fatalf("the signature must stay stable: %q vs %q", again, sig)
 	}
 
-	// Ein neuer Beitrag ändert sie → der Agent wird erneut geweckt.
+	// A new contribution changes it → the agent is woken again.
 	mrNotes = append(mrNotes, Note{ID: 8, Body: "und noch ein Mangel", Author: author("egon")})
 	_, changed, _ := sys.HasWorkSigned(ctx, cred, "mr")
 	if changed == sig {
-		t.Fatalf("neuer beitrag muss die signatur ändern: %q", changed)
+		t.Fatalf("a new contribution must change the signature: %q", changed)
 	}
 
-	// Auch ein Push zählt: GitLab vermerkt ihn als System-Note.
+	// A push counts too: GitLab records it as a system note.
 	before := changed
 	mrNotes = append(mrNotes, Note{ID: 9, Body: "added 2 commits", System: true, Author: author("gitlab")})
 	if _, afterPush, _ := sys.HasWorkSigned(ctx, cred, "mr"); afterPush == before {
-		t.Fatalf("push muss die signatur ändern: %q", afterPush)
+		t.Fatalf("a push must change the signature: %q", afterPush)
 	}
 }
 
-// Die drei Aktionen, die bisher durch kein Test liefen — get_issue, list_notes
-// und escalate. Ohne sie waere jede Umstellung der Execute-Verteilung ein
-// Sprung ohne Netz: Ein vertippter Aktionsname faellt sonst erst im Betrieb auf.
+// The three actions that no test ran through so far — get_issue, list_notes and
+// escalate. Without them every rearrangement of the Execute dispatch would be a
+// jump without a net: a mistyped action name would otherwise only show up in
+// operation.
 func TestExecuteRestlicheAktionen(t *testing.T) {
 	type ruf struct {
 		method, path string
@@ -1888,7 +1899,7 @@ func TestExecuteRestlicheAktionen(t *testing.T) {
 		rufe = append(rufe, ruf{r.Method, r.URL.Path, gotBody})
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/notes") && r.Method == http.MethodGet:
-			json.NewEncoder(w).Encode([]Note{{ID: 1, Body: "erste Notiz"}})
+			json.NewEncoder(w).Encode([]Note{{ID: 1, Body: "first Notiz"}})
 		case strings.HasSuffix(r.URL.Path, "/notes"):
 			json.NewEncoder(w).Encode(Note{ID: 2, Body: "angelegt"})
 		default:
@@ -1901,69 +1912,69 @@ func TestExecuteRestlicheAktionen(t *testing.T) {
 	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
 	ctx := context.Background()
 
-	// get_issue: ein Ticket am Stück.
+	// get_issue: one ticket in one piece.
 	res, err := sys.Execute(ctx, "get_issue", []byte(`{"project_id":7,"issue_iid":42}`), cred)
 	if err != nil {
 		t.Fatalf("get_issue: %v", err)
 	}
 	if gotPath != "/api/v4/projects/7/issues/42" {
-		t.Errorf("get_issue ruft %s", gotPath)
+		t.Errorf("get_issue calls %s", gotPath)
 	}
 	if iss, ok := res.(Issue); !ok || iss.IID != 42 {
-		t.Errorf("get_issue liefert %#v", res)
+		t.Errorf("get_issue returns %#v", res)
 	}
 
-	// list_notes: der Verlauf am Ticket.
+	// list_notes: the history on the ticket.
 	res, err = sys.Execute(ctx, "list_notes", []byte(`{"project_id":7,"issue_iid":42}`), cred)
 	if err != nil {
 		t.Fatalf("list_notes: %v", err)
 	}
 	if gotPath != "/api/v4/projects/7/issues/42/notes" {
-		t.Errorf("list_notes ruft %s", gotPath)
+		t.Errorf("list_notes calls %s", gotPath)
 	}
 	if notes, ok := res.([]Note); !ok || len(notes) != 1 {
-		t.Errorf("list_notes liefert %#v", res)
+		t.Errorf("list_notes returns %#v", res)
 	}
 
-	// escalate macht ZWEI Dinge: erst einen internen Kommentar, dann die
-	// Zuweisung aufheben — das Ticket landet wieder beim Menschen. Beides
-	// gehört festgehalten, sonst fällt beim Umbau die Hälfte weg, ohne dass
-	// ein Test sich meldet.
+	// escalate does TWO things: first an internal comment, then dropping the
+	// assignment — the ticket lands back with the human. Both belong pinned
+	// down, otherwise half of it falls away in a rearrangement without any test
+	// speaking up.
 	rufe = nil
 	if _, err := sys.Execute(ctx, "escalate", []byte(`{"project_id":7,"issue_iid":42}`), cred); err != nil {
 		t.Fatalf("escalate: %v", err)
 	}
 	if len(rufe) != 2 {
-		t.Fatalf("escalate macht %d Aufrufe, erwartet 2 (Kommentar + Zuweisung lösen): %+v", len(rufe), rufe)
+		t.Fatalf("escalate makes %d calls, expected 2 (comment + dropping the assignment): %+v", len(rufe), rufe)
 	}
 	if rufe[0].method != http.MethodPost || !strings.HasSuffix(rufe[0].path, "/notes") {
-		t.Errorf("erster Aufruf ist kein Kommentar: %s %s", rufe[0].method, rufe[0].path)
+		t.Errorf("the first call is not a comment: %s %s", rufe[0].method, rufe[0].path)
 	}
-	if body, _ := rufe[0].body["body"].(string); body != "Eskalation durch Covey-Agent." {
-		t.Errorf("escalate ohne note nutzt nicht die Vorgabe: %q", body)
+	if body, _ := rufe[0].body["body"].(string); body != "Escalated by a Covey agent." {
+		t.Errorf("escalate without a note does not use the default: %q", body)
 	}
 	if intern, _ := rufe[0].body["internal"].(bool); !intern {
-		t.Error("der Eskalations-Kommentar muss intern sein — er geht das Team an, nicht den Melder")
+		t.Error("the escalation comment must be internal — it concerns the team, not the reporter")
 	}
 	if rufe[1].method != http.MethodPut {
-		t.Errorf("zweiter Aufruf löst nicht die Zuweisung: %s %s", rufe[1].method, rufe[1].path)
+		t.Errorf("the second call does not drop the assignment: %s %s", rufe[1].method, rufe[1].path)
 	}
 	if ids, ok := rufe[1].body["assignee_ids"].([]any); !ok || len(ids) != 0 {
-		t.Errorf("escalate muss die Zuweisung leeren, got %#v", rufe[1].body["assignee_ids"])
+		t.Errorf("escalate must empty the assignment, got %#v", rufe[1].body["assignee_ids"])
 	}
 
-	// … und mit eigenem Text bleibt dieser stehen.
+	// … and with a text of its own that one stays.
 	rufe = nil
 	if _, err := sys.Execute(ctx, "escalate",
 		[]byte(`{"project_id":7,"issue_iid":42,"note":"Kunde wartet seit drei Tagen"}`), cred); err != nil {
-		t.Fatalf("escalate mit note: %v", err)
+		t.Fatalf("escalate with a note: %v", err)
 	}
 	if body, _ := rufe[0].body["body"].(string); body != "Kunde wartet seit drei Tagen" {
-		t.Errorf("escalate überschreibt den eigenen Text: %q", body)
+		t.Errorf("escalate overwrites the text given: %q", body)
 	}
 
-	// Eine unbekannte Aktion ist ein Fehler, kein stilles Nichts.
+	// An unknown action is an error, not a silent nothing.
 	if _, err := sys.Execute(ctx, "gibtsnicht", []byte(`{}`), cred); err == nil {
-		t.Error("unbekannte aktion muss einen Fehler liefern")
+		t.Error("an unknown action must produce an error")
 	}
 }

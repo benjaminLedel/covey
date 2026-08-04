@@ -1,8 +1,8 @@
-// Package examples liefert die mitgelieferten Agenten-Bundles als feste
-// Vorlagen-Bibliothek. Die *.bundle.json in diesem Verzeichnis sind die
-// Single Source of Truth: sie werden per //go:embed ins Binary gezogen und
-// erscheinen dadurch in der Vorlagen-Bibliothek (spec: Config-as-Code) — und
-// bleiben zugleich als Dateien zum manuellen Bundle-Import erhalten.
+// Package examples provides the bundled agent bundles as a fixed template
+// library. The *.bundle.json in this directory are the single source of truth:
+// they are pulled into the binary via //go:embed and thereby show up in the
+// template library (spec: config-as-code) — while remaining available as files
+// for a manual bundle import.
 package examples
 
 import (
@@ -17,70 +17,72 @@ import (
 //go:embed *.bundle.json
 var bundleFS embed.FS
 
-// Die deutsche Fassung eines Bundles liegt als `<name>.de.bundle.json` neben
-// der englischen, die den blanken Namen trägt (Basissprache). Zwei Dateien
-// statt eines Bundles mit zwei Textfeldern, weil ein Bundle exakt das Format
-// ist, das Import und Export sprechen — eine Sonderform nur für die Bibliothek
-// müsste beide Wege mitpflegen.
+// The German version of a bundle sits next to the English one as
+// `<name>.de.bundle.json`; the English one carries the bare name (base
+// language). Two files instead of one bundle with two text fields, because a
+// bundle is exactly the format import and export speak — a special form just
+// for the library would have to be maintained on both paths.
 const (
 	bundleSuffix = ".bundle.json"
 	deSuffix     = ".de.bundle.json"
 )
 
-// deFile: Dateiname der deutschen Fassung zu einer englischen.
+// deFile: file name of the German version belonging to an English one.
 func deFile(file string) string {
 	return strings.TrimSuffix(file, bundleSuffix) + deSuffix
 }
 
-// namespaceBuiltin: fester Namespace für deterministische Vorlagen-IDs. Damit
-// tragen die mitgelieferten Vorlagen über Neustarts und Instanzen hinweg
-// stabile IDs (die Instanziierungs-URL /templates/{id}/instantiate bleibt gültig),
-// ohne dass ein DB-Eintrag nötig wäre.
+// namespaceBuiltin: fixed namespace for deterministic template IDs. It gives
+// the bundled templates stable IDs across restarts and instances (the
+// instantiation URL /templates/{id}/instantiate stays valid) without needing a
+// database row.
 var namespaceBuiltin = uuid.MustParse("b0117e5e-c0de-4a11-a9e0-000000000001")
 
-// Builtin ist eine mitgelieferte Vorlage: kuratierte Metadaten (zweisprachig)
-// plus das eingebettete agentBundle-JSON, ebenfalls zweisprachig.
+// Builtin is a bundled template: curated metadata (bilingual) plus the
+// embedded agentBundle JSON, likewise bilingual.
 type Builtin struct {
 	ID            uuid.UUID
 	Key           string
-	Name          string // englisch (Basissprache)
-	Description   string // englisch (Basissprache)
+	Name          string // English (base language)
+	Description   string // English (base language)
 	NameDe        string
 	DescriptionDe string
-	Bundle        json.RawMessage // englisch (Basissprache)
-	BundleDe      json.RawMessage // leer, wenn es keine deutsche Fassung gibt
+	Bundle        json.RawMessage // English (base language)
+	BundleDe      json.RawMessage // empty when there is no German version
 }
 
-// istDeutsch: Sprachwahl der Oberfläche, wie sie am Endpunkt ankommt ("de",
-// "de-DE", ""). Basissprache ist Englisch — alles ohne "de"-Präfix bleibt dort.
-func istDeutsch(lang string) bool {
+// isGerman: the UI's language choice as it arrives at the endpoint ("de",
+// "de-DE", ""). The base language is English — anything without a "de" prefix
+// stays there.
+func isGerman(lang string) bool {
 	return strings.HasPrefix(strings.ToLower(lang), "de")
 }
 
-// Localized liefert Name und Beschreibung in der passenden Sprache.
+// Localized returns name and description in the matching language.
 func (b Builtin) Localized(lang string) (name, description string) {
-	if istDeutsch(lang) && b.NameDe != "" {
+	if isGerman(lang) && b.NameDe != "" {
 		return b.NameDe, b.DescriptionDe
 	}
 	return b.Name, b.Description
 }
 
-// LocalizedBundle liefert das Bundle in der passenden Sprache. Der Agent, den
-// jemand aus der Bibliothek instanziiert, spricht dann die Sprache, in der er
-// die Bibliothek gelesen hat — ein englischer Anzeigename über einem deutschen
-// SOUL.md wäre die schlechtere Hälfte von beidem. Fehlt die deutsche Fassung,
-// bleibt es bei der englischen; ein Agent mit Prompt ist besser als keiner.
+// LocalizedBundle returns the bundle in the matching language. The agent
+// somebody instantiates from the library then speaks the language they read
+// the library in — an English display name above a German SOUL.md would be the
+// worse half of both. If the German version is missing, the English one stays;
+// an agent with a prompt beats no agent at all.
 func (b Builtin) LocalizedBundle(lang string) json.RawMessage {
-	if istDeutsch(lang) && len(b.BundleDe) > 0 {
+	if isGerman(lang) && len(b.BundleDe) > 0 {
 		return b.BundleDe
 	}
 	return b.Bundle
 }
 
-// manifest kuratiert Anzeigename, Beschreibung und Reihenfolge je Bundle-Datei.
-// `File` nennt die englische Fassung (Basissprache); eine gleichnamige Datei
-// mit `.de.` davor ist die deutsche Entsprechung und wird automatisch gefunden.
-// Neue Beispiel-Bundles hier eintragen, damit sie in der Bibliothek auftauchen.
+// manifest curates display name, description and ordering per bundle file.
+// `File` names the English version (base language); a file of the same name
+// with `.de.` in front of the suffix is the German counterpart and is found
+// automatically. Register new example bundles here so they appear in the
+// library.
 var manifest = []struct {
 	File          string
 	Name          string
@@ -125,21 +127,21 @@ var manifest = []struct {
 	},
 }
 
-// builtins wird einmalig beim Package-Load gebaut; malformte eingebettete
-// Bundles lassen den Prozess sofort scheitern (fail fast, es sind unsere Dateien).
+// builtins is built once at package load; malformed embedded bundles fail the
+// process immediately (fail fast — they are our own files).
 var builtins = mustBuild()
 
 func mustBuild() []Builtin {
 	out := make([]Builtin, 0, len(manifest))
 	for _, m := range manifest {
 		raw := mustRead(m.File)
-		// Die deutsche Fassung ist optional: Ein neues Bundle darf englisch
-		// beginnen, ohne dass die Bibliothek deshalb scheitert. Ist sie da,
-		// muss sie valide sein — halb übersetzt ist schlimmer als gar nicht.
+		// The German version is optional: a new bundle may start out English
+		// without the library failing over it. If it is there, it has to be
+		// valid — half translated is worse than not at all.
 		var rawDe json.RawMessage
 		if b, err := bundleFS.ReadFile(deFile(m.File)); err == nil {
 			if !json.Valid(b) {
-				panic(fmt.Sprintf("examples: Bundle %q ist kein valides JSON", deFile(m.File)))
+				panic(fmt.Sprintf("examples: bundle %q is not valid JSON", deFile(m.File)))
 			}
 			rawDe = json.RawMessage(b)
 		}
@@ -161,13 +163,13 @@ func mustBuild() []Builtin {
 func mustRead(file string) []byte {
 	raw, err := bundleFS.ReadFile(file)
 	if err != nil {
-		panic(fmt.Sprintf("examples: eingebettetes Bundle %q nicht lesbar: %v", file, err))
+		panic(fmt.Sprintf("examples: embedded bundle %q not readable: %v", file, err))
 	}
 	if !json.Valid(raw) {
-		panic(fmt.Sprintf("examples: Bundle %q ist kein valides JSON", file))
+		panic(fmt.Sprintf("examples: bundle %q is not valid JSON", file))
 	}
 	return raw
 }
 
-// Builtins liefert die mitgelieferten Vorlagen in kuratierter Reihenfolge.
+// Builtins returns the bundled templates in curated order.
 func Builtins() []Builtin { return builtins }

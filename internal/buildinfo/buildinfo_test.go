@@ -9,17 +9,17 @@ func TestInfoString(t *testing.T) {
 		want string
 	}{
 		{
-			name: "vollständig",
+			name: "complete",
 			in:   Info{Version: "v0.1.0", Commit: "abc1234", BuiltAt: "2026-07-30T12:00:00Z", Go: "go1.26"},
 			want: "v0.1.0 (abc1234, 2026-07-30T12:00:00Z, go1.26)",
 		},
 		{
-			name: "arbeitsbaum mit änderungen",
+			name: "working tree with changes",
 			in:   Info{Version: "dev", Commit: "abc1234", Dirty: true, Go: "go1.26"},
 			want: "dev (abc1234-dirty, go1.26)",
 		},
 		{
-			name: "ohne jede herkunft",
+			name: "without any provenance",
 			in:   Info{Version: "dev"},
 			want: "dev",
 		},
@@ -33,13 +33,13 @@ func TestInfoString(t *testing.T) {
 	}
 }
 
-// Ohne -ldflags trägt Get() mindestens eine Version — "dev" statt leer, damit
-// die UI nie eine leere Zeile zeigt.
-func TestGetHatImmerEineVersion(t *testing.T) {
+// Without -ldflags Get() still carries a version — "dev" instead of empty, so
+// that the UI never shows an empty line.
+func TestGetAlwaysHasAVersion(t *testing.T) {
 	if got := Get().Version; got == "" {
-		t.Error("Version ist leer")
+		t.Error("version is empty")
 	}
 	if got := Get().Go; got == "" {
-		t.Error("Go-Version ist leer")
+		t.Error("Go version is empty")
 	}
 }

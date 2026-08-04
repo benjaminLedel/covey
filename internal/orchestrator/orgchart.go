@@ -7,10 +7,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// Organigramm-Broker: beantwortet die request_org_chart-Anfrage eines Daemons
-// (Meta-Aktion covey/org_chart). Die Sicht entspricht GET /org/chart — Menschen
-// und Agenten samt Profilen, Abteilungen, Vorgesetzten-Beziehungen — reduziert
-// auf das, was ein Agent braucht (keine Kill-Switches, Budgets, Webhooks).
+// Org-chart broker: answers a daemon's request_org_chart (meta action
+// covey/org_chart). The view matches GET /org/chart — humans and agents with
+// their profiles, departments, supervisor relations — reduced to what an agent
+// needs (no kill switches, budgets, webhooks).
 
 type chartPerson struct {
 	ID               uuid.UUID         `json:"id"`
@@ -22,11 +22,11 @@ type chartPerson struct {
 	Identities       map[string]string `json:"identities,omitempty"`
 	Responsibilities string            `json:"responsibilities,omitempty"`
 	Custom           map[string]string `json:"custom,omitempty"`
-	// ManagerID: bei Menschen humans.manager_id, bei Agenten
-	// agents.supervisor_id (Mensch ODER Agent — polymorph).
+	// ManagerID: humans.manager_id for humans, agents.supervisor_id for agents
+	// (human OR agent — polymorphic).
 	ManagerID    *uuid.UUID `json:"manager_id,omitempty"`
 	DepartmentID *uuid.UUID `json:"department_id,omitempty"`
-	// Self markiert den anfragenden Agenten selbst.
+	// Self marks the requesting agent itself.
 	Self bool `json:"self,omitempty"`
 }
 
@@ -47,9 +47,9 @@ type chartLead struct {
 	ID   uuid.UUID `json:"id"`
 }
 
-// orgChartPayload baut das Organigramm der Organisation als JSON. Fehler in
-// Teilabfragen sind nicht fatal — der Agent bekommt dann eine Teilsicht statt
-// gar keiner Antwort.
+// orgChartPayload builds the organization's org chart as JSON. Errors in
+// individual queries are not fatal — the agent then gets a partial view
+// instead of no answer at all.
 func (o *Orchestrator) orgChartPayload(ctx context.Context, orgID, selfID uuid.UUID) json.RawMessage {
 	chart := struct {
 		ProfileFields []chartField      `json:"profile_fields"`
@@ -63,8 +63,8 @@ func (o *Orchestrator) orgChartPayload(ctx context.Context, orgID, selfID uuid.U
 		Departments:   []chartDepartment{},
 	}
 
-	// Definitionen der konfigurierbaren Profilfelder — damit der Agent die
-	// Schlüssel in custom auf Anzeige-Labels abbilden kann.
+	// Definitions of the configurable profile fields — so the agent can map the
+	// keys in custom onto display labels.
 	if rows, err := o.Pool.Query(ctx, `SELECT key, label FROM profile_fields
 		WHERE org_id=$1 ORDER BY created_at`, orgID); err == nil {
 		for rows.Next() {

@@ -16,10 +16,10 @@ import (
 	"covey/internal/observability"
 )
 
-// agentDiagnostics ist der vollständige Laufzeit-Zustand EINES Agenten als
-// selbst-erklärendes JSON — zum Ziehen aus Produktiv und Analysieren anderswo.
-// Anders als das Config-Bundle (export.go) enthält es auch den Recording-Trace,
-// das Gedächtnis, Backlog, Kosten und Egress. Secret-WERTE sind nie enthalten.
+// agentDiagnostics is the complete runtime state of ONE agent as
+// self-explanatory JSON — to be pulled from production and analysed elsewhere.
+// Unlike the config bundle (export.go) it also contains the recording trace, the
+// memory, backlog, cost and egress. Secret VALUES are never included.
 type agentDiagnostics struct {
 	Kind       string    `json:"kind"`    // "covey.agent-diagnostics"
 	Version    int       `json:"version"` // 1
@@ -49,8 +49,8 @@ type recordingDump struct {
 	Blobs  []diagBlob                     `json:"blobs"`
 }
 
-// diagBlob trägt ein Recording-Artefakt (Screenshot). Bytes wird von der
-// JSON-Kodierung automatisch base64-kodiert.
+// diagBlob carries a recording artefact (screenshot). Bytes is base64-encoded
+// automatically by the JSON encoding.
 type diagBlob struct {
 	ID        uuid.UUID `json:"id"`
 	MIME      string    `json:"mime"`
@@ -68,17 +68,17 @@ type secretKeyDump struct {
 	AgentKeys []string `json:"agent_keys"`
 }
 
-// Obergrenzen: großzügig, aber nicht unbegrenzt (Speicher/Antwortgröße).
+// Upper bounds: generous, but not unbounded (memory/response size).
 const (
 	maxDiagEvents  = 200_000
 	maxDiagMemory  = 10_000
 	diagEventBatch = 1000
 )
 
-// handleAgentDiagnostics — GET /api/v1/agents/{id}/diagnostics: der komplette
-// Laufzeit-Zustand eines Agenten als herunterladbares JSON.
+// handleAgentDiagnostics — GET /api/v1/agents/{id}/diagnostics: an agent's
+// complete runtime state as downloadable JSON.
 func (s *Server) handleAgentDiagnostics(w http.ResponseWriter, r *http.Request) {
-	// Agent und Org-Zugehörigkeit hat agentScoped bereits geprüft.
+	// agentScoped has already checked the agent and its org membership.
 	agent := agentFrom(r)
 	id := agent.ID
 	p := principalFrom(r)
@@ -98,7 +98,7 @@ func (s *Server) handleAgentDiagnostics(w http.ResponseWriter, r *http.Request) 
 		d.EffectiveLevel = lvl
 	}
 
-	// Config: aktuelle Version voll, plus schlanke Historie.
+	// Config: current version in full, plus a slim history.
 	if cfg, err := s.Registry.CurrentConfig(ctx, id); err == nil {
 		d.Config = &cfg
 	}
@@ -108,15 +108,15 @@ func (s *Server) handleAgentDiagnostics(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	// Backlog inkl. Archiv (blocked-Gründe, Fehler, Ergebnisse).
+	// Backlog including the archive (blocked reasons, errors, results).
 	if tasks, err := s.Backlog.ListByAgent(ctx, id, true); err == nil {
 		d.Backlog = tasks
 	}
 
-	// Recording: alle Events (seitenweise) + Screenshot-Blobs.
+	// Recording: all events (paged) + screenshot blobs.
 	d.Recording = s.dumpRecording(ctx, id, &d)
 
-	// Gedächtnis: Wiki-Seiten + Protokoll.
+	// Memory: wiki pages + log.
 	pages, _ := s.Memory.List(ctx, id, maxDiagMemory)
 	if pages == nil {
 		pages = []memory.Entry{}
@@ -127,12 +127,12 @@ func (s *Server) handleAgentDiagnostics(w http.ResponseWriter, r *http.Request) 
 	}
 	d.Memory = memoryDump{Pages: pages, Log: log}
 
-	// Kosten (Summe).
+	// Cost (total).
 	if cost, err := s.Obs.CostByAgent(ctx, id); err == nil {
 		d.Cost = cost
 	}
 
-	// Egress: Zuweisung + Namen der zugewiesenen Templates.
+	// Egress: assignment + names of the assigned templates.
 	if s.EgressStore != nil {
 		if cfg, err := s.EgressStore.AgentConfig(ctx, id); err == nil {
 			d.Egress = cfg
@@ -151,20 +151,20 @@ func (s *Server) handleAgentDiagnostics(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	// Secret-NAMEN (nie Werte), nur für berechtigte Rollen.
+	// Secret NAMES (never values), only for authorised roles.
 	if canReadSecretKeys(p.Role) {
 		d.SecretKeys = s.dumpSecretKeys(ctx, p.OrgID, id)
 	} else {
-		d.Notes = append(d.Notes, "Secret-Namen ausgelassen (fehlende Berechtigung)")
+		d.Notes = append(d.Notes, "secret names omitted (missing permission)")
 	}
 
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", "diagnostics-"+agent.Slug+".json"))
 	writeJSON(w, http.StatusOK, d)
 }
 
-// dumpRecording zieht ALLE Recording-Events seitenweise und die zugehörigen
-// Screenshot-Blobs. Bei Überschreiten von maxDiagEvents wird abgeschnitten und
-// ein Hinweis in d.Notes gesetzt.
+// dumpRecording pulls ALL recording events page by page plus the matching
+// screenshot blobs. If maxDiagEvents is exceeded the dump is cut off and a note
+// is placed in d.Notes.
 func (s *Server) dumpRecording(ctx context.Context, agentID uuid.UUID, d *agentDiagnostics) recordingDump {
 	dump := recordingDump{Events: []observability.RecordingEvent{}, Blobs: []diagBlob{}}
 	var after int64
@@ -180,7 +180,7 @@ func (s *Server) dumpRecording(ctx context.Context, agentID uuid.UUID, d *agentD
 		}
 	}
 	if len(dump.Events) >= maxDiagEvents {
-		d.Notes = append(d.Notes, fmt.Sprintf("Recording-Events bei %d abgeschnitten", maxDiagEvents))
+		d.Notes = append(d.Notes, fmt.Sprintf("recording events truncated at %d", maxDiagEvents))
 	}
 
 	if blobs, err := s.Obs.BlobsByAgent(ctx, agentID); err == nil {
@@ -191,8 +191,8 @@ func (s *Server) dumpRecording(ctx context.Context, agentID uuid.UUID, d *agentD
 	return dump
 }
 
-// dumpSecretKeys sammelt die NAMEN der dem Agenten zugewiesenen Secrets
-// (org-weite + agent-eigene) — analog zum Config-Bundle, ohne Werte.
+// dumpSecretKeys collects the NAMES of the secrets assigned to the agent
+// (org-wide + agent-owned) — analogous to the config bundle, without values.
 func (s *Server) dumpSecretKeys(ctx context.Context, orgID, agentID uuid.UUID) *secretKeyDump {
 	out := &secretKeyDump{OrgKeys: []string{}, AgentKeys: []string{}}
 	if previews, err := s.Secrets.Previews(ctx, orgID); err == nil {

@@ -9,14 +9,14 @@ import (
 )
 
 func TestCheckCredentialWrongSlot(t *testing.T) {
-	// Falsch einsortierte Werte werden ohne Netz erkannt.
+	// Values filed into the wrong slot are detected without touching the network.
 	c := checkCredential(context.Background(), "claude_code_oauth_token", "sk-ant-api03-xxx")
 	if !c.Checked || c.Valid || !strings.Contains(c.Hint, "anthropic_api_key") {
-		t.Errorf("API-Key im OAuth-Slot nicht erkannt: %+v", c)
+		t.Errorf("API key in the OAuth slot not detected: %+v", c)
 	}
 	c = checkCredential(context.Background(), "anthropic_api_key", "sk-ant-oat01-xxx")
 	if !c.Checked || c.Valid || !strings.Contains(c.Hint, "claude_code_oauth_token") {
-		t.Errorf("OAuth-Token im API-Key-Slot nicht erkannt: %+v", c)
+		t.Errorf("OAuth token in the API key slot not detected: %+v", c)
 	}
 }
 
@@ -34,38 +34,38 @@ func TestCheckCredentialLive(t *testing.T) {
 	anthropicBaseURL = srv.URL
 	defer func() { anthropicBaseURL = orig }()
 
-	// OAuth-Token: Bearer + Beta-Header, 200 → gültig.
+	// OAuth token: bearer + beta header, 200 → valid.
 	c := checkCredential(context.Background(), "claude_code_oauth_token", "sk-ant-oat01-live")
 	if !c.Checked || !c.Valid {
-		t.Errorf("gültiges OAuth-Token: %+v", c)
+		t.Errorf("valid OAuth token: %+v", c)
 	}
 	if gotAuth != "Bearer sk-ant-oat01-live" || gotBeta == "" {
-		t.Errorf("OAuth-Header falsch: auth=%q beta=%q", gotAuth, gotBeta)
+		t.Errorf("wrong OAuth headers: auth=%q beta=%q", gotAuth, gotBeta)
 	}
 
-	// API-Key: x-api-key-Header.
+	// API key: x-api-key header.
 	c = checkCredential(context.Background(), "anthropic_api_key", "sk-ant-api03-live")
 	if !c.Checked || !c.Valid || gotAPIKey != "sk-ant-api03-live" {
-		t.Errorf("gültiger API-Key: %+v (x-api-key=%q)", c, gotAPIKey)
+		t.Errorf("valid API key: %+v (x-api-key=%q)", c, gotAPIKey)
 	}
 
-	// 401 → ungültig, mit actionable Hinweis.
+	// 401 → invalid, with an actionable hint.
 	status = http.StatusUnauthorized
 	c = checkCredential(context.Background(), "claude_code_oauth_token", "sk-ant-oat01-dead")
 	if !c.Checked || c.Valid || !strings.Contains(c.Hint, "claude setup-token") {
-		t.Errorf("abgelaufenes OAuth-Token: %+v", c)
+		t.Errorf("expired OAuth token: %+v", c)
 	}
 
-	// Serverfehler → gespeichert, aber ungeprüft (fail-open fürs Speichern).
+	// Server error → stored, but unverified (fail-open for storing).
 	status = http.StatusBadGateway
 	c = checkCredential(context.Background(), "anthropic_api_key", "sk-ant-api03-x")
 	if c.Checked {
-		t.Errorf("5xx darf nicht als geprüft gelten: %+v", c)
+		t.Errorf("5xx must not count as checked: %+v", c)
 	}
 
-	// Unbekannte Keys werden nicht geprüft.
+	// Unknown keys are not checked.
 	c = checkCredential(context.Background(), "zammad_token", "abc")
 	if c.Checked || c.Hint != "" {
-		t.Errorf("unbekannter Key geprüft: %+v", c)
+		t.Errorf("unknown key was checked: %+v", c)
 	}
 }

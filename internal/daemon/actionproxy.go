@@ -15,10 +15,10 @@ import (
 	"covey/internal/target"
 )
 
-// actionProxy ist der lokale Tool-Layer der Sandbox: die Runtime spricht
-// ausschließlich ihn an (http://127.0.0.1:<port>/actions/<system>/<aktion>).
-// Jede Aktion wird zentral gegen die Guard-Rails entschieden, mit gebrokerten
-// Credentials ausgeführt und aufgezeichnet — Secrets erreichen die Runtime nie.
+// actionProxy is the sandbox's local tool layer: the runtime talks to it and
+// nothing else (http://127.0.0.1:<port>/actions/<system>/<action>). Every action
+// is decided centrally against the guard-rails, executed with brokered
+// credentials and recorded — secrets never reach the runtime.
 type actionProxy struct {
 	client *Client
 	taskID string
@@ -37,9 +37,9 @@ func (c *Client) startActionProxy(ctx context.Context, taskID string) (*actionPr
 	p.srv = &http.Server{
 		Handler:     mux,
 		BaseContext: func(net.Listener) context.Context { return ctx },
-		// Der Action-Proxy lauscht auf Loopback IN der Sandbox — also genau
-		// dort, wo die Runtime läuft. Ein hängender Aufruf soll die Verbindung
-		// nicht dauerhaft belegen.
+		// The action proxy listens on loopback INSIDE the sandbox — exactly
+		// where the runtime runs. A hanging call must not occupy the connection
+		// indefinitely.
 		ReadHeaderTimeout: 20 * time.Second,
 	}
 	go p.srv.Serve(ln)
@@ -64,8 +64,8 @@ func (p *actionProxy) handle(w http.ResponseWriter, r *http.Request) {
 		params = json.RawMessage(`{}`)
 	}
 
-	// "covey" ist kein externes Zielsystem, sondern eine Meta-Aktion an die
-	// Control Plane selbst (keine Credentials, keine Guard-Rail-Prüfung).
+	// "covey" is not an external target system but a meta action towards the
+	// control plane itself (no credentials, no guard-rail check).
 	if system == "covey" {
 		p.handleControlPlane(r.Context(), w, action, params)
 		return
@@ -91,13 +91,13 @@ func (p *actionProxy) handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Artefakt-Senke: ein Plugin (z. B. browser screenshot) kann ein Bild fürs
-	// Recording durchreichen, ohne es ins Runtime-Ergebnis zu legen.
+	// Artifact sink: a plugin (e.g. browser screenshot) can pass an image
+	// through for the recording without putting it into the runtime result.
 	var artifact *target.Artifact
 	ctx := target.WithArtifactSink(r.Context(), func(a target.Artifact) { artifact = &a })
-	// Request-Senke: die HTTP-Requests, die das Plugin auf dem Weg stellt,
-	// gehen als eigene Events an die Control Plane (Request-Log). Die Senke
-	// hängt am Context, damit sie nur für diese Aktion gilt.
+	// Request sink: the HTTP requests the plugin makes along the way go to the
+	// control plane as separate events (request log). The sink hangs off the
+	// context so it applies to this action only.
 	ctx = reqlog.WithSink(ctx, p.httpSink(system))
 
 	data, err := p.execute(ctx, system, action, params)
@@ -105,9 +105,9 @@ func (p *actionProxy) handle(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		result = map[string]any{"status": "error", "error": err.Error()}
 	}
-	// Aktion + Ausgang ins Recording (kind=action). Ein Artefakt reist base64
-	// mit; der Orchestrator legt es als Blob ab und ersetzt es durch eine
-	// Referenz (die Bytes landen nicht im JSONB).
+	// Action + outcome into the recording (kind=action). An artifact travels
+	// along base64-encoded; the orchestrator stores it as a blob and replaces it
+	// with a reference (the bytes never land in the JSONB).
 	auditMap := map[string]any{"action": subject, "params": params, "ok": err == nil}
 	if artifact != nil && len(artifact.Bytes) > 0 {
 		auditMap["image_b64"] = base64.StdEncoding.EncodeToString(artifact.Bytes)
@@ -118,11 +118,11 @@ func (p *actionProxy) handle(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, result)
 }
 
-// httpSink schickt jeden HTTP-Request eines Plugins als event(kind=http) an die
-// Control Plane — dort landet er im Request-Log. Der Aufruf darf den
-// Aktions-Pfad nicht aufhalten: send() schreibt gepuffert auf die WebSocket,
-// Fehler werden geschluckt (Diagnose-Daten, kein Audit-Trail). Das System aus
-// der URL kennt das Plugin nicht immer — der Proxy setzt es aus dem Pfad nach.
+// httpSink sends every HTTP request of a plugin as event(kind=http) to the
+// control plane — where it lands in the request log. The call must not hold up
+// the action path: send() writes buffered onto the WebSocket, errors are
+// swallowed (diagnostic data, not an audit trail). The plugin does not always
+// know the system from the URL — the proxy fills it in from the path.
 func (p *actionProxy) httpSink(system string) reqlog.Sink {
 	return func(e reqlog.Entry) {
 		if e.System == "" {
@@ -137,11 +137,11 @@ func (p *actionProxy) httpSink(system string) reqlog.Sink {
 	}
 }
 
-// handleControlPlane bedient Meta-Aktionen (system="covey"), die die Control
-// Plane statt eines Zielsystems betreffen: set_stage (Aufgabe auf dem Board in
-// eine ggf. neue Stage schieben), add_note (Notiz an die Aufgabe), remember
-// (Erkenntnis sofort ins Gedächtnis), org_chart (Organigramm abfragen),
-// create_task (Teilaufgabe/Delegation) und die Wiki-Tools
+// handleControlPlane serves meta actions (system="covey") that concern the
+// control plane instead of a target system: set_stage (move the task into a
+// possibly new stage on the board), add_note (note on the task), remember
+// (insight straight into the memory), org_chart (query the org chart),
+// create_task (subtask/delegation) and the wiki tools
 // wiki_search/wiki_read/wiki_write/wiki_delete (spec/05).
 func (p *actionProxy) handleControlPlane(ctx context.Context, w http.ResponseWriter, action string, params json.RawMessage) {
 	switch action {
@@ -163,12 +163,13 @@ func (p *actionProxy) handleControlPlane(ctx context.Context, w http.ResponseWri
 			Page    string `json:"page"`
 		}
 		if err := json.Unmarshal(params, &in); err != nil || strings.TrimSpace(in.Content) == "" {
-			writeJSON(w, map[string]string{"status": "error", "error": "content fehlt"})
+			writeJSON(w, map[string]string{"status": "error", "error": "content missing"})
 			return
 		}
-		// remember mit Seitenbezug ist ein Anhängen an genau diese Seite. Ohne
-		// Bezug muss die Plattform raten, welche Seite gemeint ist — das erzeugt
-		// die satzbetitelten Streuseiten, die das Wiki aufblähen (spec/05).
+		// remember with a page reference appends to exactly that page. Without a
+		// reference the platform has to guess which page is meant — and that is
+		// what produces the sentence-titled scatter pages that bloat the wiki
+		// (spec/05).
 		if action == "remember" && strings.TrimSpace(in.Page) != "" {
 			resp, err := p.client.wiki(ctx, RequestWiki{Op: "append", Slug: in.Page, Text: in.Content})
 			if err != nil {
@@ -205,7 +206,7 @@ func (p *actionProxy) handleControlPlane(ctx context.Context, w http.ResponseWri
 			TaskID string `json:"task_id"`
 		}
 		if err := json.Unmarshal(params, &in); err != nil || strings.TrimSpace(in.Stage) == "" {
-			writeJSON(w, map[string]string{"status": "error", "error": "stage fehlt"})
+			writeJSON(w, map[string]string{"status": "error", "error": "stage missing"})
 			return
 		}
 		taskID := in.TaskID
@@ -245,15 +246,15 @@ func (p *actionProxy) handleControlPlane(ctx context.Context, w http.ResponseWri
 		_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
 		writeJSON(w, map[string]any{"status": "ok", "data": resp.Data})
 	default:
-		writeJSON(w, map[string]string{"status": "error", "error": fmt.Sprintf("unbekannte covey-aktion %q", action)})
+		writeJSON(w, map[string]string{"status": "error", "error": fmt.Sprintf("unknown covey action %q", action)})
 	}
 }
 
-// handleCreateTask legt eine Aufgabe an: ohne "agent" eine Teilaufgabe des
-// laufenden Agenten, mit "agent" eine Delegation an den Kollegen mit diesem
-// Slug. Anders als die übrigen covey-Aktionen läuft sie durch die Guard-Rails —
-// eine Aufgabe erzeugt Arbeit und Kosten, und Delegation (Subjekt
-// covey:create_task:foreign) muss sich getrennt verbieten lassen.
+// handleCreateTask creates a task: without "agent" a subtask of the running
+// agent, with "agent" a delegation to the colleague with that slug. Unlike the
+// other covey actions it goes through the guard-rails — a task produces work
+// and cost, and delegation (subject covey:create_task:foreign) must be
+// forbiddable separately.
 func (p *actionProxy) handleCreateTask(ctx context.Context, w http.ResponseWriter, params json.RawMessage) {
 	var in struct {
 		Title    string `json:"title"`
@@ -262,7 +263,7 @@ func (p *actionProxy) handleCreateTask(ctx context.Context, w http.ResponseWrite
 		Priority int    `json:"priority"`
 	}
 	if err := json.Unmarshal(params, &in); err != nil || strings.TrimSpace(in.Title) == "" {
-		writeJSON(w, map[string]string{"status": "error", "error": "title fehlt"})
+		writeJSON(w, map[string]string{"status": "error", "error": "title missing"})
 		return
 	}
 	subject := "covey:create_task"
@@ -305,9 +306,9 @@ func (p *actionProxy) handleCreateTask(ctx context.Context, w http.ResponseWrite
 		"data": map[string]string{"task_id": resp.TaskID, "agent": resp.Agent}})
 }
 
-// actionSubject bildet die Aktion auf das Guard-Rail-Subjekt ab — das
-// jeweilige Plugin kennt seine schärfer regelbaren Sonderfälle (z. B.
-// zammad:reply_external). Unbekannte Systeme fallen auf system:aktion zurück.
+// actionSubject maps the action onto the guard-rail subject — each plugin knows
+// its own special cases that can be governed more sharply (e.g.
+// zammad:reply_external). Unknown systems fall back to system:action.
 func (p *actionProxy) actionSubject(ctx context.Context, system, action string, params json.RawMessage) string {
 	if sys, ok := p.resolveSystem(ctx, system); ok {
 		return sys.ActionSubject(action, params)
@@ -315,8 +316,8 @@ func (p *actionProxy) actionSubject(ctx context.Context, system, action string, 
 	return system + ":" + action
 }
 
-// resolveSystem findet das Zielsystem: zuerst die kompilierte Plugin-Registry,
-// dann die von der Control Plane gebrokerten Manifest-Plugins (custom).
+// resolveSystem finds the target system: first the compiled plugin registry,
+// then the manifest plugins brokered by the control plane (custom).
 func (p *actionProxy) resolveSystem(ctx context.Context, system string) (target.System, bool) {
 	if sys, ok := target.Get(system); ok {
 		return sys, true
@@ -324,22 +325,22 @@ func (p *actionProxy) resolveSystem(ctx context.Context, system string) (target.
 	return p.client.manifestSystem(ctx, system)
 }
 
-// execute führt die Aktion mit gebrokerten Credentials aus. Welche Systeme es
-// gibt, entscheidet die Plugin-Registry (bzw. das Manifest) — nicht dieser Code.
+// execute runs the action with brokered credentials. Which systems exist is
+// decided by the plugin registry (or the manifest) — not by this code.
 func (p *actionProxy) execute(ctx context.Context, system, action string, params json.RawMessage) (any, error) {
 	sys, ok := p.resolveSystem(ctx, system)
 	if !ok {
-		return nil, fmt.Errorf("unbekanntes zielsystem %q", system)
+		return nil, fmt.Errorf("unknown target system %q", system)
 	}
 	cred, err := p.client.credential(ctx, system, p.taskID)
 	if err != nil {
 		return nil, err
 	}
-	// Workdir für Aktionen, die Dateien in die Sandbox materialisieren
-	// (z. B. gitlab checkout) — das Credential selbst bleibt im Daemon.
+	// Workdir for actions that materialize files into the sandbox (e.g. gitlab
+	// checkout) — the credential itself stays in the daemon.
 	ctx = target.WithWorkdir(ctx, p.client.homeDir)
-	// Sub-Agent-Runner: erlaubt einem Plugin (dev:agent), einen geschachtelten
-	// Runtime-Lauf im Projekt-Checkout zu starten, ohne den Daemon zu kennen.
+	// Sub-agent runner: lets a plugin (dev:agent) start a nested runtime run in
+	// the project checkout without knowing the daemon.
 	ctx = target.WithSubAgent(ctx, p.client.subAgentRunner(p.taskID))
 	return sys.Execute(ctx, action, params, target.Credential{BaseURL: cred.BaseURL, Token: cred.Token})
 }

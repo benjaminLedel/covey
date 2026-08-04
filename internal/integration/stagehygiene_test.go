@@ -10,14 +10,14 @@ import (
 	"covey/internal/backlog"
 )
 
-// TestTerminalTaskLeavesAgentStage prüft die Spalten-Hygiene: Eine erledigte
-// Aufgabe gehört nicht in „Recherche", sondern nach „Erledigt". Ohne das bliebe
-// in jeder vom Agenten erfundenen Spalte eine terminale Aufgabe liegen, die
-// Spalte damit dauerhaft „nicht leer" — so entstand in der Praxis ein Board mit
-// einem Dutzend toter Arbeitszustände.
+// TestTerminalTaskLeavesAgentStage checks the column hygiene: a completed task
+// does not belong in "Recherche", it belongs in "Erledigt". Without it, a
+// terminal task would stay behind in every column the agent invented, keeping
+// that column permanently "not empty" — that is how a board with a dozen dead
+// working states came about in practice.
 //
-// Menschlich angelegte Spalten sind davon ausgenommen: bewusste Platzierung
-// wird nie überschrieben.
+// Columns created by humans are exempt: a deliberate placement is never
+// overwritten.
 func TestTerminalTaskLeavesAgentStage(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -26,13 +26,13 @@ func TestTerminalTaskLeavesAgentStage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Durchlauf",
+	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Full pass",
 		`[mock:action covey/set_stage {"stage":"Recherche"}]
-[mock:result fertig]`, "manual", 3)
+[mock:result done]`, "manual", 3)
 	if err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, "aufgabe done", 20*time.Second, func() bool {
+	waitFor(t, "task done", 20*time.Second, func() bool {
 		return s.taskState(task.ID) == backlog.StateDone
 	})
 
@@ -42,40 +42,40 @@ func TestTerminalTaskLeavesAgentStage(t *testing.T) {
 	}
 	for _, st := range stages {
 		if st.Name == "Recherche" {
-			t.Fatalf("geleerte Agenten-Spalte muss verschwinden, Board: %+v", stages)
+			t.Fatalf("an emptied agent column has to disappear, board: %+v", stages)
 		}
 	}
 	if len(stages) != len(backlog.DefaultStages) {
-		t.Fatalf("nur die Standard-Spalten dürfen übrig sein, Board: %+v", stages)
+		t.Fatalf("only the default columns may be left, board: %+v", stages)
 	}
 
-	// Die Aufgabe ist nicht verloren, sondern in „Erledigt" gelandet.
+	// The task is not lost, it landed in "Erledigt".
 	done, err := s.backlog.Get(ctx, task.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if done.StageID == nil {
-		t.Fatalf("erledigte Aufgabe darf nicht ohne Spalte zurückbleiben")
+		t.Fatalf("a completed task must not be left without a column")
 	}
 	for _, st := range stages {
 		if st.ID == *done.StageID && st.Name != "Erledigt" {
-			t.Fatalf("erledigte Aufgabe gehört nach Erledigt, liegt in %q", st.Name)
+			t.Fatalf("a completed task belongs in Erledigt, it lies in %q", st.Name)
 		}
 	}
 }
 
-// TestAgentStageWithActiveTaskSurvives ist die Gegenprobe zum Aufräumen: Eine
-// Agenten-Spalte, in der noch echte Arbeit liegt, darf nicht verschwinden, nur
-// weil eine andere Aufgabe darin fertig geworden ist. Sonst zöge das Aufräumen
-// dem Agenten die Spalte unter der laufenden Aufgabe weg.
-// Ein Agent arbeitet strikt seriell, zwei gleichzeitig laufende Aufgaben gibt es
-// also nicht — der Test prüft die Regel deshalb am Store: zwei Aufgaben in
-// derselben Agenten-Spalte, eine wird terminal.
+// TestAgentStageWithActiveTaskSurvives is the counter-check to the cleanup: an
+// agent column that still holds real work must not disappear just because
+// another task in it has finished. Otherwise the cleanup would pull the column
+// out from under the agent's running task.
+// An agent works strictly serially, so two tasks running at the same time do not
+// exist — the test therefore checks the rule at the store: two tasks in the same
+// agent column, one of them turns terminal.
 func TestAgentStageWithActiveTaskSurvives(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
-	// Kein Dispatch: der pausierte Agent lässt seine Aufgaben liegen, damit die
-	// zweite verlässlich offen bleibt, während die erste abgeschlossen wird.
+	// No dispatch: the paused agent leaves its tasks alone so the second one
+	// reliably stays open while the first is being completed.
 	agent := s.newSupportAgent("mitbewohner-agent")
 	if err := s.registry.SetKilled(ctx, agent.ID, true); err != nil {
 		t.Fatal(err)
@@ -84,12 +84,12 @@ func TestAgentStageWithActiveTaskSurvives(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Priorität steuert, welche ClaimNext zuerst greift.
-	fertig, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Wird fertig", "", "manual", 1)
+	// The priority controls which one ClaimNext picks up first.
+	fertig, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Will finish", "", "manual", 1)
 	if err != nil {
 		t.Fatal(err)
 	}
-	bleibt, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Bleibt offen", "", "manual", 9)
+	bleibt, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Stays open", "", "manual", 9)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,15 +99,15 @@ func TestAgentStageWithActiveTaskSurvives(t *testing.T) {
 		}
 	}
 
-	// Eine der beiden wird terminal — sie verlässt „Analyse" nach „Erledigt".
+	// One of the two turns terminal — it leaves "Analyse" for "Erledigt".
 	claimed, err := s.backlog.ClaimNext(ctx, agent.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if claimed.ID != fertig.ID {
-		t.Fatalf("erwartet wurde die höher priorisierte Aufgabe, kam %q", claimed.Title)
+		t.Fatalf("the higher-prioritized task was expected, got %q", claimed.Title)
 	}
-	if _, err := s.backlog.Complete(ctx, fertig.ID, backlog.StateDone, "fertig", ""); err != nil {
+	if _, err := s.backlog.Complete(ctx, fertig.ID, backlog.StateDone, "done", ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -122,9 +122,9 @@ func TestAgentStageWithActiveTaskSurvives(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("Spalte mit noch offener Aufgabe darf nicht abgeräumt werden, Board: %+v", stages)
+		t.Fatalf("a column with a still-open task must not be cleaned up, board: %+v", stages)
 	}
-	// Die offene Aufgabe liegt weiterhin dort, die fertige nicht mehr.
+	// The open task still lies there, the finished one does not.
 	still, err := s.backlog.Get(ctx, bleibt.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -134,13 +134,13 @@ func TestAgentStageWithActiveTaskSurvives(t *testing.T) {
 		t.Fatal(err)
 	}
 	if still.StageID == nil || done.StageID == nil || *still.StageID == *done.StageID {
-		t.Fatalf("die fertige Aufgabe muss die Agenten-Spalte verlassen haben, die offene nicht")
+		t.Fatalf("the finished task has to have left the agent column, the open one not")
 	}
 }
 
-// TestHumanStageSurvivesTerminalTask ist die Gegenprobe: Legt ein Mensch eine
-// eigene Spalte an und liegt die Aufgabe dort, bleibt sie liegen — Auto-Follow
-// fasst bewusst platzierte Aufgaben nicht an, terminal oder nicht.
+// TestHumanStageSurvivesTerminalTask is the counter-check: if a human creates a
+// column of their own and the task lies there, it stays there — auto-follow does
+// not touch deliberately placed tasks, terminal or not.
 func TestHumanStageSurvivesTerminalTask(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -153,7 +153,7 @@ func TestHumanStageSurvivesTerminalTask(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Rechnung", "[mock:result fertig]", "manual", 3)
+	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Invoice", "[mock:result done]", "manual", 3)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,13 +175,13 @@ func TestHumanStageSurvivesTerminalTask(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("menschliche Spalte darf nicht abgeräumt werden, Board: %+v", stages)
+		t.Fatalf("a human column must not be cleaned up, board: %+v", stages)
 	}
 	done, err := s.backlog.Get(ctx, task.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if done.StageID == nil || *done.StageID != human.ID {
-		t.Fatalf("bewusst platzierte Aufgabe darf nicht verschoben werden")
+		t.Fatalf("a deliberately placed task must not be moved")
 	}
 }

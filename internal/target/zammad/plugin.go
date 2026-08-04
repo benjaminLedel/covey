@@ -10,40 +10,40 @@ import (
 	"covey/internal/target"
 )
 
-// System bindet Zammad als Zielsystem-Plugin an die target-Registry:
-// Webhook-Eingang (HMAC, Idempotenz, Korrelation), die fünf Agent-Aktionen
-// und die Aktions-Doku für den System-Prompt.
+// System binds Zammad as a target-system plugin to the target registry:
+// webhook inbound (HMAC, idempotency, correlation), the five agent actions and
+// the action doc for the system prompt.
 type System struct{}
 
 func init() {
 	target.Register(target.Descriptor{
 		Name:        "zammad",
 		Label:       "Zammad",
-		Description: "Open-Source-Helpdesk (spec/13): Tickets lesen, antworten, Status setzen, eskalieren. Webhook-Wake über Trigger, Auth per API-Token (Secrets zammad_token + zammad_url).",
+		Description: "Open-source helpdesk (spec/13): read tickets, reply, set state, escalate. Webhook wake via triggers, auth by API token (secrets zammad_token + zammad_url).",
 		Kind:        "builtin",
 		Category:    target.CategoryTicketing,
 		System:      System{},
-		SetupDoc: `1. In Zammad einen Agenten-User mit Least-Privilege-Rolle (ticket.agent für
-   die Zielgruppen) anlegen und als dieser ein API-Token erzeugen
-   (Token Access unter Admin → System → API aktivieren).
+		SetupDoc: `1. Create an agent user in Zammad with a least-privilege role (ticket.agent
+   for the target groups) and generate an API token as that user
+   (enable Token Access under Admin → System → API).
 
-2. Unter Secrets hinterlegen und dem Agenten zuweisen:
-   zammad_url   = https://helpdesk.example.com   (ohne /api/v1)
-   zammad_token = das Token aus Schritt 1
+2. Store under Secrets and assign to the agent:
+   zammad_url   = https://helpdesk.example.com   (without /api/v1)
+   zammad_token = the token from step 1
 
-3. In der ACCESS.md des Agenten freischalten:
+3. Enable it in the agent's ACCESS.md:
    - system: zammad scope: read,write,comment
 
-4. In Zammad Webhook + Trigger anlegen (Admin → Manage):
-   Webhook-Endpoint: {public_url}/api/webhooks/zammad/<agent-slug>
-   HMAC-Token:       Wert von COVEY_ZAMMAD_WEBHOOK_SECRET (Prozess-Env)
-   Trigger:          bei Ticket erstellt/aktualisiert + Absender Kunde → Webhook
+4. Create a webhook + trigger in Zammad (Admin → Manage):
+   Webhook endpoint: {public_url}/api/webhooks/zammad/<agent-slug>
+   HMAC token:       value of COVEY_ZAMMAD_WEBHOOK_SECRET (process env)
+   Trigger:          on ticket created/updated + sender customer → webhook
 
-5. Optionale Prozess-Env:
-   COVEY_ZAMMAD_INTAKE_GROUPS="Support L1"   (leer = alle Gruppen)
-   COVEY_ZAMMAD_REPLY_TYPE=email             (web für Chat-Instanzen)
+5. Optional process env:
+   COVEY_ZAMMAD_INTAKE_GROUPS="Support L1"   (empty = all groups)
+   COVEY_ZAMMAD_REPLY_TYPE=email             (web for chat instances)
 
-Details: docs/ops-zammad.md im Repository.`,
+Details: docs/ops-zammad.md in the repository.`,
 	})
 }
 
@@ -61,16 +61,16 @@ func (System) ParseWebhook(body []byte) (target.WebhookEvent, error) {
 	return target.WebhookEvent{
 		DedupKey:       p.DedupKey(),
 		CorrelationKey: CorrelationKey(p.Ticket.ID),
-		Title:          fmt.Sprintf("Zammad-Ticket #%s: %s", p.Ticket.Number, p.Ticket.Title),
-		TaskBody: fmt.Sprintf("Neues Ticket im Zammad (id=%d, nummer=%s).\nTitel: %s\n\nNachricht des Kunden:\n%s\n\nBearbeite das Ticket über den Action-Proxy (system zammad, ticket_id=%d).",
+		Title:          fmt.Sprintf("Zammad ticket #%s: %s", p.Ticket.Number, p.Ticket.Title),
+		TaskBody: fmt.Sprintf("New ticket in Zammad (id=%d, number=%s).\nTitle: %s\n\nMessage from the customer:\n%s\n\nWork on the ticket through the action proxy (system zammad, ticket_id=%d).",
 			p.Ticket.ID, p.Ticket.Number, p.Ticket.Title, p.Article.Body, p.Ticket.ID),
-		ResumeInput: fmt.Sprintf("Kundenantwort auf Ticket #%d:\n%s", p.Ticket.ID, p.Article.Body),
+		ResumeInput: fmt.Sprintf("Customer reply on ticket #%d:\n%s", p.Ticket.ID, p.Article.Body),
 		Wake:        p.ShouldWake(),
 	}, nil
 }
 
-// ActionSubject: externe Antworten (internal=false) sind ein eigenes,
-// schärfer regelbares Guard-Rail-Subjekt.
+// ActionSubject: external replies (internal=false) are a separate guard-rail
+// subject that can be governed more strictly.
 func (System) ActionSubject(action string, params json.RawMessage) string {
 	if action == "reply" {
 		var p struct {
@@ -109,17 +109,17 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 		return zc.Reply(ctx, in.TicketID, in.Body, internal)
 	case "set_state":
 		if in.State == "" {
-			return nil, fmt.Errorf("state fehlt")
+			return nil, fmt.Errorf("state missing")
 		}
 		return nil, zc.SetState(ctx, in.TicketID, in.State)
 	case "escalate":
 		note := in.Note
 		if note == "" {
-			note = "Eskalation durch Covey-Agent."
+			note = "Escalated by a Covey agent."
 		}
 		return nil, zc.Escalate(ctx, in.TicketID, note)
 	default:
-		return nil, fmt.Errorf("unbekannte aktion %q", strings.TrimSpace(action))
+		return nil, fmt.Errorf("unknown action %q", strings.TrimSpace(action))
 	}
 }
 

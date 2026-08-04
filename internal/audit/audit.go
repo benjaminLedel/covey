@@ -1,13 +1,12 @@
-// Package audit führt die Spur der Verwaltungshandlungen: wer wann was an der
-// Plattform angefasst hat.
+// Package audit keeps the trail of administrative actions: who touched what on
+// the platform, and when.
 //
-// Die Trennung zum Recording (internal/observability) ist inhaltlich: Dort
-// steht, was die AGENTEN tun — lückenlos, mit Screenshots, an der Aufgabe
-// hängend. Hier steht, was MENSCHEN an der Plattform tun. Beides zusammen
-// ergibt erst die Nachvollziehbarkeit, mit der Covey antritt (spec/06): Ohne
-// diese Hälfte könnte jemand eine Guard-Rail löschen, den Agenten seine Arbeit
-// tun lassen und die Regel danach wieder anlegen — im Recording stünde ein
-// tadelloser Lauf.
+// The separation from the recording (internal/observability) is one of content:
+// there it says what the AGENTS do — gapless, with screenshots, attached to the
+// task. Here it says what HUMANS do to the platform. Only both together yield
+// the traceability Covey sets out to deliver (spec/06): without this half,
+// somebody could delete a guard-rail, let the agent do its work and create the
+// rule again afterwards — and the recording would show a flawless run.
 package audit
 
 import (
@@ -22,11 +21,10 @@ type Store struct{ pool *pgxpool.Pool }
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
-// Eintrag ist eine festgehaltene Handlung.
+// Eintrag is a recorded action.
 //
-// Kein Request-Body: In ihm stünden Secret-Werte und Passwörter. Eine
-// Audit-Spur, die man nicht aufbewahren kann, weil Geheimnisse darin liegen,
-// ist keine.
+// No request body: it would contain secret values and passwords. An audit trail
+// that cannot be kept because secrets sit inside it is none.
 type Eintrag struct {
 	ID         int64      `json:"id"`
 	OrgID      uuid.UUID  `json:"org_id"`
@@ -40,7 +38,7 @@ type Eintrag struct {
 	CreatedAt  time.Time  `json:"created_at"`
 }
 
-// Record hält eine Handlung fest.
+// Record puts an action on record.
 func (s *Store) Record(ctx context.Context, e Eintrag) error {
 	_, err := s.pool.Exec(ctx, `INSERT INTO audit_log
 		(org_id, actor_id, actor_email, actor_role, method, path, status, client_ip)
@@ -49,7 +47,7 @@ func (s *Store) Record(ctx context.Context, e Eintrag) error {
 	return err
 }
 
-// List liefert die jüngsten Einträge einer Organisation.
+// List returns the most recent entries of an organization.
 func (s *Store) List(ctx context.Context, orgID uuid.UUID, limit int) ([]Eintrag, error) {
 	if limit <= 0 || limit > 500 {
 		limit = 200
@@ -73,9 +71,9 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID, limit int) ([]Eintrag
 	return out, rows.Err()
 }
 
-// Cleanup löscht Einträge älter als age. Eine Audit-Spur wächst sonst
-// unbegrenzt; wie lange sie vorgehalten wird, ist eine Compliance-Frage und
-// gehört deshalb dem Betreiber, nicht diesem Code.
+// Cleanup deletes entries older than age. An audit trail grows without bound
+// otherwise; how long it is kept is a compliance question and therefore belongs
+// to the operator, not to this code.
 func (s *Store) Cleanup(ctx context.Context, age time.Duration) (int64, error) {
 	tag, err := s.pool.Exec(ctx,
 		"DELETE FROM audit_log WHERE created_at < now() - $1::interval", age.String())

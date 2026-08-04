@@ -8,18 +8,19 @@ import (
 	"unicode"
 )
 
-// HashEmbedder ist das Built-in-Embedding: Wort- und Bigramm-Feature-Hashing
-// in einen normalisierten 256-dim Vektor. Deterministisch, offline, dependency-
-// frei — aber ein Lexikon-Maß, kein semantisches: es misst Wortüberlappung.
-// Verschieden formulierte Sätze mit gleicher Bedeutung landen nahe 0, weshalb
-// Suche, Ingest-Zuordnung und Konsolidierung damit kaum greifen. Für ein Wiki,
-// das verdichten statt anwachsen soll, gehört ein echtes Embedding davor
-// (APIEmbedder) — dieses hier ist der Offline-Rückfall ohne API-Schlüssel.
+// HashEmbedder is the built-in embedding: feature hashing over words and
+// bigrams into a normalized 256-dim vector. Deterministic, offline, dependency-
+// free — but a lexical measure, not a semantic one: it measures word overlap.
+// Differently phrased sentences with the same meaning end up near 0, which is
+// why search, ingest assignment and consolidation barely engage with it. For a
+// wiki that is meant to condense rather than grow, a real embedding belongs in
+// front of it (APIEmbedder) — this one is the offline fallback without an API
+// key.
 type HashEmbedder struct{}
 
-// Name ist der Fingerabdruck des Embedders. Er steht in wiki_pages.embed_model
-// und entscheidet, welche Seiten neu eingebettet werden müssen: Vektoren
-// verschiedener Modelle sind untereinander nicht vergleichbar.
+// Name is the embedder's fingerprint. It is stored in wiki_pages.embed_model
+// and decides which pages have to be re-embedded: vectors of different models
+// are not comparable with each other.
 func (HashEmbedder) Name() string { return "builtin-hash:256" }
 
 func tokenize(text string) []string {
