@@ -23,6 +23,25 @@ credentials, a backlog and a manager. Plus the tooling to supervise them.
 
 ---
 
+## Start in two minutes
+
+**No Go, no Node, no local Postgres** — Docker is all you need:
+
+```bash
+git clone https://github.com/benjaminLedel/covey.git && cd covey
+cp .env.example .env
+echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env   # 32-byte key
+docker compose up -d --build                              # start Postgres + Covey
+```
+
+Then open **[http://localhost:8494](http://localhost:8494)** — log in with `admin@covey.local` / `covey-admin`. A **first steps** checklist on the agent overview walks you to your first working agent; it reads your organisation's actual state, ticks itself off and disappears once you are done.
+
+The bundled [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector) and the covey binary with its embedded admin UI; `bootstrap` creates the organisation, the admin and a demo agent, and migrations run automatically.
+
+*Rather have the plain binary?* [`install.sh`](#install) fetches it from the [latest release](https://github.com/benjaminLedel/covey/releases/latest) and verifies its checksum. *Rather look before you install?* The running instance is at **[covey.work](https://covey.work)**. Full walkthrough including your first agent and a production checklist: [`docs/schnellstart-docker.md`](docs/schnellstart-docker.md) (German).
+
+---
+
 > **Codename: Covey.** A *covey* is a small, coordinated flock — a group that moves together. That is exactly what this platform is: many agents, centrally orchestrated.
 
 **Covey's unit is the organisation, not the individual user.** That is the load-bearing distinction from single-user "AI employee" apps: Covey is the platform a *company* operates to manage and govern its entire agent workforce — with many human stakeholders (IT, team leads, security/compliance, audit, controlling), central governance and a company-wide org chart.
@@ -41,22 +60,6 @@ credentials, a backlog and a manager. Plus the tooling to supervise them.
 | **Backlog** — tasks as first-class objects with freely configurable columns; cost, tokens and budget sit in the agent's header. | **Org chart** — humans and agents in the same structure; department and reporting line via drag & drop. |
 | ![An agent's memory](web/public/shots/memory.jpg) | ![Cost & tokens](web/public/shots/costs.jpg) |
 | **Memory** — what the agent has learned, readable and editable: add knowledge by hand or make it forget selectively. | **Cost & tokens** — spend over time, broken down by agent and model, for the whole organisation or a single agent. |
-
-## Up and running in two minutes
-
-Want a look first? The running instance lives at **[covey.work](https://covey.work)** — it is redeployed automatically on every push to `main`.
-
-Running it yourself needs **no Go, no Node, no local Postgres** — Docker is all you need:
-
-```bash
-cp .env.example .env
-echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env   # 32-byte key
-docker compose up -d --build                              # start Postgres + Covey
-```
-
-Then open [http://localhost:8494](http://localhost:8494) — log in with `admin@covey.local` / `covey-admin`. A **first steps** checklist on the agent overview walks you to your first working agent; it reads your organisation's actual state, ticks itself off and disappears once you are done.
-
-The bundled [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector) and the covey binary with its embedded admin UI; `bootstrap` creates the organisation, the admin and a demo agent, and migrations run automatically. Full walkthrough including your first agent and a production checklist: [`docs/schnellstart-docker.md`](docs/schnellstart-docker.md) (German).
 
 ## What's inside
 
