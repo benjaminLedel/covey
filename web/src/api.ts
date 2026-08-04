@@ -696,19 +696,3 @@ export const ROLES = [
   "controlling",
 ] as const;
 
-export const statusLabel: Record<string, string> = {
-  sleeping: "schläft",
-  triggered: "geweckt",
-  triage: "triage",
-  working: "arbeitet",
-  killed: "gestoppt",
-  open: "offen",
-  in_progress: "in Arbeit",
-  blocked: "wartet",
-  done: "erledigt",
-  failed: "fehlgeschlagen",
-  cancelled: "verworfen",
-  pending: "ausstehend",
-  approved: "freigegeben",
-  denied: "abgelehnt",
-};
