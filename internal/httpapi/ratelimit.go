@@ -8,16 +8,15 @@ import (
 	"time"
 )
 
-// loginLimiter bremst Brute-Force auf den Login: pro (Client-IP, E-Mail) sind
-// nur maxFails fehlgeschlagene Versuche innerhalb von window erlaubt, danach
-// wird für den Rest des Fensters mit 429 abgewiesen. In-Memory und damit
-// pro-Prozess — für die Single-Binary-Deployment-Topologie ausreichend; bei
-// mehreren Instanzen greift das Limit pro Instanz.
+// loginLimiter throttles brute force against the login: per (client IP, email)
+// only maxFails failed attempts within window are allowed, after that the rest
+// of the window is rejected with a 429. In-memory and therefore per process —
+// sufficient for the single-binary deployment topology; with several instances
+// the limit applies per instance.
 //
-// Bewusst nach (IP, E-Mail) geschlüsselt, nicht nur nach IP: so sperrt ein
-// falsch getipptes Passwort nicht ein ganzes Büro hinter einer NAT/Proxy aus,
-// während der eigentliche Angriffsvektor — viele Versuche gegen ein Konto —
-// trotzdem gedeckelt ist.
+// Deliberately keyed by (IP, email), not by IP alone: that way a mistyped
+// password does not lock out a whole office behind a NAT/proxy, while the actual
+// attack vector — many attempts against one account — is still capped.
 type loginLimiter struct {
 	mu       sync.Mutex
 	attempts map[string][]time.Time
@@ -33,19 +32,19 @@ func newLoginLimiter() *loginLimiter {
 	}
 }
 
-// webhookLimiter bremst die Webhook-Endpunkte. Die sind bewusst
-// UNAUTHENTIFIZIERT erreichbar — ein Zielsystem soll ohne Covey-Konto
-// zustellen können — und jeder angenommene Aufruf weckt einen Agenten, also
-// einen LLM-Lauf mit echten Kosten. Wer die URL kennt (sie steht in der
-// Konfiguration des Zielsystems), könnte sonst beliebig Kosten treiben.
+// webhookLimiter throttles the webhook endpoints. Those are deliberately
+// reachable UNAUTHENTICATED — a target system should be able to deliver without
+// a Covey account — and every accepted call wakes an agent, i.e. an LLM run with
+// real cost. Whoever knows the URL (it sits in the target system's
+// configuration) could otherwise run up arbitrary cost.
 //
-// Anders als beim Login zählt hier JEDER Aufruf, nicht nur der
-// fehlgeschlagene: Der teure Fall ist gerade der erfolgreiche.
+// Unlike the login, EVERY call counts here, not just the failed one: the
+// expensive case is precisely the successful one.
 //
-// Der Schlüssel ist der Agent, nicht die IP: Ein Zielsystem stellt aus
-// wechselnden Adressen zu (Cloud-Dienste tun das ständig), und was gedeckelt
-// gehört, ist die Weckrate EINES Agenten. 60 pro Minute liegt weit über dem,
-// was ein Ticketsystem im Alltag erzeugt, und weit unter dem, was wehtut.
+// The key is the agent, not the IP: a target system delivers from changing
+// addresses (cloud services do that constantly), and what belongs capped is the
+// wake rate of ONE agent. 60 per minute is far above what a ticket system
+// produces day to day, and far below what hurts.
 type webhookLimiter struct {
 	mu      sync.Mutex
 	hits    map[string][]time.Time
@@ -61,7 +60,7 @@ func newWebhookLimiter() *webhookLimiter {
 	}
 }
 
-// allow verbucht einen Aufruf und meldet, ob er noch im Rahmen liegt.
+// allow books a call and reports whether it is still within bounds.
 func (l *webhookLimiter) allow(key string, now time.Time) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -77,8 +76,8 @@ func (l *webhookLimiter) allow(key string, now time.Time) bool {
 		return false
 	}
 	l.hits[key] = append(kept, now)
-	// Gegen unbegrenztes Wachstum der Map: Ein Angreifer, der wechselnde
-	// Agenten-Namen probiert, legt sonst je Name einen Eintrag an.
+	// Against unbounded growth of the map: an attacker trying changing agent
+	// names would otherwise create one entry per name.
 	if len(l.hits) > 10000 {
 		for k, ts := range l.hits {
 			if len(ts) == 0 || !ts[len(ts)-1].After(cutoff) {
@@ -89,15 +88,15 @@ func (l *webhookLimiter) allow(key string, now time.Time) bool {
 	return true
 }
 
-// blocked meldet true, wenn für den Schlüssel im aktuellen Fenster bereits
-// maxFails Fehlversuche liegen.
+// blocked reports true if maxFails failed attempts already sit on the key
+// within the current window.
 func (l *loginLimiter) blocked(key string, now time.Time) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return len(l.recent(key, now)) >= l.maxFails
 }
 
-// fail verbucht einen Fehlversuch.
+// fail books a failed attempt.
 func (l *loginLimiter) fail(key string, now time.Time) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -107,15 +106,15 @@ func (l *loginLimiter) fail(key string, now time.Time) {
 	}
 }
 
-// reset räumt den Schlüssel nach erfolgreichem Login ab.
+// reset clears the key after a successful login.
 func (l *loginLimiter) reset(key string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	delete(l.attempts, key)
 }
 
-// recent liefert die Fehlversuche im Fenster (mit Aufräumen alter). Aufrufer
-// hält bereits das Lock.
+// recent returns the failed attempts within the window (cleaning out old ones).
+// The caller already holds the lock.
 func (l *loginLimiter) recent(key string, now time.Time) []time.Time {
 	cutoff := now.Add(-l.window)
 	kept := l.attempts[key][:0]
@@ -132,8 +131,8 @@ func (l *loginLimiter) recent(key string, now time.Time) []time.Time {
 	return kept
 }
 
-// sweep entfernt komplett abgelaufene Schlüssel (Schutz gegen Map-Wachstum).
-// Aufrufer hält bereits das Lock.
+// sweep removes keys that have expired entirely (protection against map
+// growth). The caller already holds the lock.
 func (l *loginLimiter) sweep(now time.Time) {
 	cutoff := now.Add(-l.window)
 	for k, ts := range l.attempts {
@@ -150,9 +149,9 @@ func (l *loginLimiter) sweep(now time.Time) {
 	}
 }
 
-// clientIP extrahiert die Client-IP aus RemoteAddr (ohne Port). Hinter einem
-// Reverse-Proxy ist das die Proxy-IP; X-Forwarded-For wird bewusst nicht
-// vertraut (spoofbar).
+// clientIP extracts the client IP from RemoteAddr (without the port). Behind a
+// reverse proxy that is the proxy IP; X-Forwarded-For is deliberately not
+// trusted (spoofable).
 func clientIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
@@ -161,7 +160,7 @@ func clientIP(r *http.Request) string {
 	return host
 }
 
-// loginKey ist der Rate-Limit-Schlüssel: Client-IP + kleingeschriebene E-Mail.
+// loginKey is the rate-limit key: client IP + lowercased email.
 func loginKey(r *http.Request, email string) string {
 	return clientIP(r) + "|" + strings.ToLower(strings.TrimSpace(email))
 }

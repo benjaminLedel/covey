@@ -19,8 +19,8 @@ import (
 	"covey/internal/reqlog"
 )
 
-// Activity ist der relevante Ausschnitt einer Bot-Framework-Aktivität, wie der
-// Azure Bot Service sie an den Messaging-Endpoint zustellt (spec/15).
+// Activity is the relevant excerpt of a Bot Framework activity as the Azure
+// Bot Service delivers it to the messaging endpoint (spec/15).
 type Activity struct {
 	Type         string              `json:"type"`
 	ID           string              `json:"id"`
@@ -31,15 +31,15 @@ type Activity struct {
 	Recipient    ChannelAccount      `json:"recipient"`
 	Conversation ConversationAccount `json:"conversation"`
 	Attachments  []Attachment        `json:"attachments"`
-	// Name/Value tragen die invoke-Activities. Für ausgehende Dateien ist das
-	// fileConsent/invoke: die Antwort des Empfängers auf die Zustimmungs-Karte.
+	// Name/Value carry the invoke activities. For outgoing files that is
+	// fileConsent/invoke: the recipient's answer to the consent card.
 	Name  string      `json:"name"`
 	Value InvokeValue `json:"value"`
 }
 
-// InvokeValue ist der value-Block einer fileConsent/invoke-Activity: was der
-// Empfänger entschieden hat, welche Datei gemeint war (context.key, von uns
-// gesetzt) und — bei Zustimmung — wohin die Bytes gehen (uploadInfo).
+// InvokeValue is the value block of a fileConsent/invoke activity: what the
+// recipient decided, which file was meant (context.key, set by us) and — on
+// consent — where the bytes go (uploadInfo).
 type InvokeValue struct {
 	Type    string `json:"type"`
 	Action  string `json:"action"`
@@ -55,41 +55,40 @@ type InvokeValue struct {
 	} `json:"uploadInfo"`
 }
 
-// Card-Content-Types des Teams-Datei-Austauschs.
+// Card content types of the Teams file exchange.
 const (
 	consentCardContentType = "application/vnd.microsoft.teams.card.file.consent"
 	infoCardContentType    = "application/vnd.microsoft.teams.card.file.info"
 	fileConsentInvokeName  = "fileConsent/invoke"
 )
 
-// IsFileConsent erkennt die Antwort auf eine Zustimmungs-Karte.
+// IsFileConsent recognizes the answer to a consent card.
 func (a Activity) IsFileConsent() bool {
 	return strings.EqualFold(a.Type, "invoke") && a.Name == fileConsentInvokeName
 }
 
-// ConsentAccepted sagt, ob der Empfänger zugestimmt hat — und ob wir eine
-// Upload-URL bekommen haben. Ohne URL ist auch ein „accept" wertlos.
+// ConsentAccepted says whether the recipient consented — and whether we got an
+// upload URL. Without a URL even an "accept" is worthless.
 func (a Activity) ConsentAccepted() bool {
 	return strings.EqualFold(a.Value.Action, "accept") && a.Value.UploadInfo.UploadURL != ""
 }
 
-// Attachment ist ein Datei-Anhang einer Activity. Teams liefert Dateien je nach
-// Kanal unterschiedlich: geteilte Dateien als contentType
-// "application/vnd.microsoft.teams.file.download.info" mit einer
-// vor-autorisierten content.downloadUrl; Inline-Bilder als image/* mit einer
-// contentUrl auf dem Connector-Host (Bearer-Token nötig). DownloadURL()
-// vereinheitlicht beides.
+// Attachment is a file attachment of an activity. Teams delivers files
+// differently depending on the channel: shared files as contentType
+// "application/vnd.microsoft.teams.file.download.info" with a pre-authorized
+// content.downloadUrl; inline images as image/* with a contentUrl on the
+// connector host (bearer token required). DownloadURL() unifies both.
 type Attachment struct {
 	ContentType string `json:"contentType"`
 	ContentURL  string `json:"contentUrl"`
 	Name        string `json:"name"`
-	// Content ist je nach Typ ein Objekt (file.download.info: {downloadUrl,…})
-	// oder ein String (text/html: die Rich-Text-Nachricht) — deshalb roh.
+	// Depending on the type, Content is either an object (file.download.info:
+	// {downloadUrl,…}) or a string (text/html: the rich-text message) — hence raw.
 	Content json.RawMessage `json:"content"`
 }
 
-// contentDownloadURL liest content.downloadUrl heraus, falls Content ein Objekt
-// ist. Ist Content ein String (text/html) oder leer, ergibt sich "".
+// contentDownloadURL extracts content.downloadUrl if Content is an object. If
+// Content is a string (text/html) or empty, the result is "".
 func (at Attachment) contentDownloadURL() string {
 	if len(at.Content) == 0 {
 		return ""
@@ -97,13 +96,13 @@ func (at Attachment) contentDownloadURL() string {
 	var c struct {
 		DownloadURL string `json:"downloadUrl"`
 	}
-	_ = json.Unmarshal(at.Content, &c) // Fehler ok: Content kann ein String sein
+	_ = json.Unmarshal(at.Content, &c) // error is fine: Content can be a string
 	return c.DownloadURL
 }
 
-// DownloadURL ist die effektive URL, unter der die Bytes liegen: bevorzugt die
-// vor-autorisierte content.downloadUrl (geteilte Dateien), sonst die contentUrl
-// (Inline-Bilder).
+// DownloadURL is the effective URL the bytes live at: preferably the
+// pre-authorized content.downloadUrl (shared files), otherwise the contentUrl
+// (inline images).
 func (at Attachment) DownloadURL() string {
 	if u := at.contentDownloadURL(); u != "" {
 		return u
@@ -111,8 +110,8 @@ func (at Attachment) DownloadURL() string {
 	return at.ContentURL
 }
 
-// Filename ist der Anzeigename des Anhangs; fehlt er, wird der Basename aus der
-// Download-URL abgeleitet.
+// Filename is the display name of the attachment; if it is missing, the
+// basename is derived from the download URL.
 func (at Attachment) Filename() string {
 	if at.Name != "" {
 		return at.Name
@@ -123,12 +122,12 @@ func (at Attachment) Filename() string {
 			return base
 		}
 	}
-	return "anhang"
+	return "attachment"
 }
 
-// isDownloadable filtert die echten Datei-Anhänge heraus: solche mit einer
-// Download-URL, aber ohne die Rich-Text-Repräsentation der Nachricht (text/html)
-// und ohne Karten (adaptive cards).
+// isDownloadable filters out the real file attachments: those with a download
+// URL, but not the rich-text representation of the message (text/html) and not
+// cards (adaptive cards).
 func (at Attachment) isDownloadable() bool {
 	if at.DownloadURL() == "" {
 		return false
@@ -139,7 +138,7 @@ func (at Attachment) isDownloadable() bool {
 	return true
 }
 
-// Files liefert die herunterladbaren Datei-Anhänge der Activity.
+// Files returns the downloadable file attachments of the activity.
 func (a Activity) Files() []Attachment {
 	var out []Attachment
 	for _, at := range a.Attachments {
@@ -150,43 +149,43 @@ func (a Activity) Files() []Attachment {
 	return out
 }
 
-// ChannelAccount identifiziert Absender bzw. Empfänger einer Activity.
+// ChannelAccount identifies the sender or recipient of an activity.
 type ChannelAccount struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	AADObjectID string `json:"aadObjectId"`
 }
 
-// ConversationAccount identifiziert die Konversation (1:1, Gruppe, Kanal).
+// ConversationAccount identifies the conversation (1:1, group, channel).
 type ConversationAccount struct {
 	ID               string `json:"id"`
 	ConversationType string `json:"conversationType"`
 	TenantID         string `json:"tenantId"`
 }
 
-// ParseWebhook liest die rohe Activity. Eine Activity ohne Typ ist kein
-// gültiger Bot-Framework-Payload und wird fail-closed abgelehnt.
+// ParseWebhook reads the raw activity. An activity without a type is not a
+// valid Bot Framework payload and is rejected fail-closed.
 func ParseWebhook(body []byte) (Activity, error) {
 	var a Activity
 	if err := json.Unmarshal(body, &a); err != nil {
 		return a, fmt.Errorf("teams activity: %w", err)
 	}
 	if a.Type == "" {
-		return a, fmt.Errorf("teams activity: type fehlt")
+		return a, fmt.Errorf("teams activity: type missing")
 	}
 	return a, nil
 }
 
-// CorrelationKey ist der stabile, natürliche Korrelations-Key für Teams: die
-// Konversations-id, die in jeder Activity mitkommt (spec/15).
+// CorrelationKey is the stable, natural correlation key for Teams: the
+// conversation id that comes with every activity (spec/15).
 func CorrelationKey(conversationID string) string {
 	return "teams:conversation:" + conversationID
 }
 
-// DedupKey macht die Webhook-Verarbeitung idempotent — der Bot Service
-// wiederholt Zustellungen; dieselbe Activity darf nur einen Wake auslösen.
-// Fällt die Activity-id (selten) aus, wird auf Konversation + Text
-// zurückgegriffen, damit der Key nicht kollabiert.
+// DedupKey makes the webhook processing idempotent — the Bot Service repeats
+// deliveries; the same activity may trigger only one wake. If the activity id
+// is (rarely) missing, it falls back to conversation + text so the key does not
+// collapse.
 func (a Activity) DedupKey() string {
 	if a.ID != "" {
 		return "teams:activity:" + a.ID
@@ -205,21 +204,21 @@ func hash(s string) uint32 {
 
 var mentionTag = regexp.MustCompile(`(?s)<at\b[^>]*>.*?</at>`)
 
-// CleanText entfernt die <at>…</at>-Mention-Tags, die Teams um den Bot-Namen
-// legt, und trimmt das Ergebnis — sodass der Agent nur die eigentliche
-// Nachricht sieht, nicht die Anrede "@Agent".
+// CleanText removes the <at>…</at> mention tags Teams wraps around the bot
+// name and trims the result — so the agent only sees the actual message, not
+// the "@agent" salutation.
 func (a Activity) CleanText() string {
 	return strings.TrimSpace(mentionTag.ReplaceAllString(a.Text, ""))
 }
 
-// IsEcho erkennt die eigene Antwort des Bots: Absender = Empfänger (die
-// Bot-Identität). Solche Activities dürfen keinen Wake-Zyklus erzeugen.
+// IsEcho recognizes the bot's own answer: sender = recipient (the bot
+// identity). Such activities must not produce a wake cycle.
 func (a Activity) IsEcho() bool {
 	return a.From.ID != "" && a.From.ID == a.Recipient.ID
 }
 
-// InIntakeScope prüft den konfigurierbaren Tenant-Filter
-// (COVEY_TEAMS_INTAKE_TENANTS). Ohne Allowlist: alle Tenants.
+// InIntakeScope checks the configurable tenant filter
+// (COVEY_TEAMS_INTAKE_TENANTS). Without an allowlist: all tenants.
 func (a Activity) InIntakeScope() bool {
 	tenants := intakeTenants()
 	if len(tenants) == 0 {
@@ -228,16 +227,15 @@ func (a Activity) InIntakeScope() bool {
 	return tenants[strings.ToLower(strings.TrimSpace(a.Conversation.TenantID))]
 }
 
-// ShouldWake ist die vollständige Aufnahme-Entscheidung: eine echte
-// Nutzer-Nachricht (type=message, mit Absender, kein Echo) aus einem
-// zugelassenen Tenant, die Text oder mindestens einen Datei-Anhang trägt. Nur
-// dann entsteht eine Aufgabe bzw. wird eine geblockte Aufgabe geweckt
-// (orchestrator.HandleWebhook gated auf diesem Flag).
+// ShouldWake is the complete intake decision: a genuine user message
+// (type=message, with a sender, not an echo) from an admitted tenant that
+// carries text or at least one file attachment. Only then does a task arise or
+// a blocked task get woken (orchestrator.HandleWebhook gates on this flag).
 //
-// Zweiter Fall: die Antwort auf eine Zustimmungs-Karte (fileConsent/invoke).
-// Sie ist keine Nachricht, sondern die Fortsetzung einer Arbeit, die der Agent
-// begonnen hat — er wartet darauf, um den Upload abzuschließen. Zustimmung wie
-// Ablehnung wecken; Ablehnung, damit er nicht ewig geparkt bleibt.
+// Second case: the answer to a consent card (fileConsent/invoke). It is not a
+// message but the continuation of work the agent started — it is waiting for
+// this to finish the upload. Consent as well as decline wake it; the decline so
+// that it does not stay parked forever.
 func (a Activity) ShouldWake() bool {
 	if a.IsFileConsent() {
 		return !a.IsEcho() && a.InIntakeScope()
@@ -249,12 +247,12 @@ func (a Activity) ShouldWake() bool {
 		a.InIntakeScope()
 }
 
-// --- JWT-Validierung des Messaging-Endpoints (spec/15) ---
+// --- JWT validation of the messaging endpoint (spec/15) ---
 //
-// Der Azure Bot Service signiert jede Zustellung mit einem JWT im
-// Authorization-Header (Issuer api.botframework.com, Audience = Bot-App-ID,
-// RS256, Schlüssel aus der Bot-Framework-JWKS). Covey validiert das Token,
-// bevor es dem Event traut.
+// The Azure Bot Service signs every delivery with a JWT in the Authorization
+// header (issuer api.botframework.com, audience = bot app ID, RS256, keys from
+// the Bot Framework JWKS). Covey validates the token before it trusts the
+// event.
 
 const (
 	botFrameworkIssuer = "https://api.botframework.com"
@@ -262,10 +260,9 @@ const (
 	jwksTTL            = time.Hour
 )
 
-// VerifyToken prüft den JWT-Bearer aus dem Authorization-Header gegen die
-// erwartete Bot-App-ID (die Audience). Leere appID = Prüfung deaktiviert
-// (Dev-Modus / faketeams) — dieselbe Konvention wie das leere HMAC-Secret bei
-// Zammad.
+// VerifyToken checks the JWT bearer from the Authorization header against the
+// expected bot app ID (the audience). An empty appID = check disabled (dev
+// mode / faketeams) — the same convention as the empty HMAC secret in Zammad.
 func VerifyToken(appID, authHeader string) bool {
 	if appID == "" {
 		return true
@@ -279,15 +276,15 @@ func VerifyToken(appID, authHeader string) bool {
 
 var defaultVerifier = &tokenVerifier{now: time.Now}
 
-// tokenVerifier validiert Bot-Framework-JWTs und cacht die öffentlichen
-// Signatur-Schlüssel (JWKS) bis jwksTTL. keyFunc ist ein Test-Haken: ist er
-// gesetzt, ersetzt er den Netz-Abruf der JWKS.
+// tokenVerifier validates Bot Framework JWTs and caches the public signature
+// keys (JWKS) for up to jwksTTL. keyFunc is a test hook: if it is set, it
+// replaces the network fetch of the JWKS.
 type tokenVerifier struct {
 	mu        sync.Mutex
 	keys      map[string]*rsa.PublicKey
 	fetchedAt time.Time
 	now       func() time.Time
-	keyFunc   jwt.Keyfunc // nur in Tests gesetzt
+	keyFunc   jwt.Keyfunc // only set in tests
 }
 
 func (v *tokenVerifier) verify(appID, tokenStr string) error {
@@ -304,13 +301,13 @@ func (v *tokenVerifier) verify(appID, tokenStr string) error {
 	return err
 }
 
-// jwksKeyFunc löst die kid aus dem Token-Header gegen die (gecachten)
-// Bot-Framework-Schlüssel auf; fehlt der Schlüssel oder ist der Cache abgelaufen,
-// wird die JWKS neu geladen.
+// jwksKeyFunc resolves the kid from the token header against the (cached) Bot
+// Framework keys; if the key is missing or the cache has expired, the JWKS is
+// reloaded.
 func (v *tokenVerifier) jwksKeyFunc(token *jwt.Token) (any, error) {
 	kid, _ := token.Header["kid"].(string)
 	if kid == "" {
-		return nil, fmt.Errorf("token ohne kid")
+		return nil, fmt.Errorf("token without kid")
 	}
 	v.mu.Lock()
 	defer v.mu.Unlock()
@@ -322,22 +319,22 @@ func (v *tokenVerifier) jwksKeyFunc(token *jwt.Token) (any, error) {
 	if key, ok := v.keys[kid]; ok {
 		return key, nil
 	}
-	// Schlüsselrotation: einmal frisch laden, bevor wir aufgeben.
+	// Key rotation: load once more before we give up.
 	if err := v.refreshLocked(); err != nil {
 		return nil, err
 	}
 	key, ok := v.keys[kid]
 	if !ok {
-		return nil, fmt.Errorf("unbekannte kid %q", kid)
+		return nil, fmt.Errorf("unknown kid %q", kid)
 	}
 	return key, nil
 }
 
-// refreshLocked lädt die JWKS-Schlüssel neu. Aufrufer hält v.mu.
+// refreshLocked reloads the JWKS keys. The caller holds v.mu.
 func (v *tokenVerifier) refreshLocked() error {
-	// Kein Request-Kontext verfügbar (der Aufrufer hält bereits v.mu), aber
-	// ohne Frist hinge die Token-Prüfung an einem hängenden JWKS-Endpunkt —
-	// und mit ihr jeder eingehende Teams-Aufruf.
+	// No request context available (the caller already holds v.mu), but without
+	// a deadline the token check would hang on a hanging JWKS endpoint — and
+	// with it every incoming Teams call.
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	keys, err := fetchJWKS(ctx)
@@ -351,8 +348,8 @@ func (v *tokenVerifier) refreshLocked() error {
 
 var jwksHTTP = reqlog.Client("teams", 10*time.Second)
 
-// fetchJWKS holt die OpenID-Metadaten (jwks_uri) und daraus die
-// RSA-Signatur-Schlüssel des Bot Frameworks.
+// fetchJWKS fetches the OpenID metadata (jwks_uri) and from it the RSA
+// signature keys of the Bot Framework.
 func fetchJWKS(ctx context.Context) (map[string]*rsa.PublicKey, error) {
 	var meta struct {
 		JWKSURI string `json:"jwks_uri"`
@@ -361,7 +358,7 @@ func fetchJWKS(ctx context.Context) (map[string]*rsa.PublicKey, error) {
 		return nil, fmt.Errorf("openid-config: %w", err)
 	}
 	if meta.JWKSURI == "" {
-		return nil, fmt.Errorf("openid-config ohne jwks_uri")
+		return nil, fmt.Errorf("openid-config without jwks_uri")
 	}
 	var set struct {
 		Keys []struct {
@@ -386,7 +383,7 @@ func fetchJWKS(ctx context.Context) (map[string]*rsa.PublicKey, error) {
 		out[k.Kid] = pub
 	}
 	if len(out) == 0 {
-		return nil, fmt.Errorf("jwks: keine RSA-Schlüssel")
+		return nil, fmt.Errorf("jwks: no RSA keys")
 	}
 	return out, nil
 }
@@ -411,8 +408,8 @@ func getJSON(ctx context.Context, url string, out any) error {
 	return json.Unmarshal(data, out)
 }
 
-// jwkToRSA baut aus den base64url-kodierten Feldern n (Modulus) und e (Exponent)
-// einen RSA-Public-Key.
+// jwkToRSA builds an RSA public key from the base64url-encoded fields n
+// (modulus) and e (exponent).
 func jwkToRSA(nStr, eStr string) (*rsa.PublicKey, error) {
 	nBytes, err := base64.RawURLEncoding.DecodeString(strings.TrimRight(nStr, "="))
 	if err != nil {

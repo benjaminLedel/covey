@@ -14,74 +14,74 @@ import (
 	"covey/internal/target"
 )
 
-// System bindet Nextcloud-Dateien als Zielsystem-Plugin an die target-
-// Registry: eine per Freigabelink (oder Konto-Zugang) bereitgestellte
-// Dateiablage, in der der Agent Dateien listet, liest, schreibt, in die
-// Sandbox lädt und ablegt. Es gibt keinen Webhook-Eingang — der Intake läuft
-// bei Bedarf per HEARTBEAT.md-Polling wie beim SharePoint-/E-Mail-Plugin.
+// System binds Nextcloud files in as a target-system plugin to the target
+// registry: a file store provided through a share link (or an account login),
+// in which the agent lists, reads and writes files, fetches them into the
+// sandbox and deposits them. There is no webhook entry — where needed the
+// intake runs by HEARTBEAT.md polling, as with the SharePoint/e-mail plugin.
 type System struct{}
 
 func init() {
 	target.Register(target.Descriptor{
 		Name:        "nextcloud",
-		Label:       "Nextcloud-Dateien",
-		Description: "Eine Nextcloud-Dateiablage per Freigabelink oder Konto-Zugang: Dateien listen (list), lesen (read/download in die Sandbox), ablegen und bearbeiten (write/upload), Ordner anlegen (mkdir), löschen (delete). Zugriff über WebDAV; einem Bot genügt der Link. Secrets nextcloud_url (Freigabelink https://host/s/… ODER Server-URL) + nextcloud_token (Share-Passwort bzw. benutzer:app-passwort). Intake per HEARTBEAT.md (Polling, kein Webhook).",
+		Label:       "Nextcloud files",
+		Description: "A Nextcloud file store through a share link or an account login: list files (list), read them (read/download into the sandbox), deposit and edit them (write/upload), create folders (mkdir), delete (delete). Access over WebDAV; a bot needs no more than the link. Secrets nextcloud_url (share link https://host/s/… OR server URL) + nextcloud_token (share password resp. user:app-password). Intake through HEARTBEAT.md (polling, no webhook).",
 		Kind:        "builtin",
 		Category:    target.CategoryFiles,
 		System:      System{},
-		SetupDoc: `Zwei Wege — der einfachste zuerst:
+		SetupDoc: `Two ways — the simplest first:
 
-A) Öffentlicher Freigabelink (empfohlen, „Bot einen Link schicken"):
-   1. In Nextcloud den Ordner öffnen, den der Agent bearbeiten soll →
-      Teilen → „Link teilen". Als Berechtigung „Bearbeiten erlauben"
-      wählen (sonst kann der Agent nur lesen). Dringend empfohlen: ein
-      Passwort auf die Freigabe setzen.
-   2. Den Freigabelink kopieren (Form https://cloud.example.com/s/AbCdEf).
-   3. Unter Secrets hinterlegen und dem Agenten zuweisen:
-      nextcloud_url   = der Freigabelink aus Schritt 2
-      nextcloud_token = das Share-Passwort  (oder "-" wenn die Freigabe
-                        kein Passwort hat)
+A) Public share link (recommended, "send the bot a link"):
+   1. In Nextcloud open the folder the agent is to work in →
+      Share → "Share link". Pick the permission "Allow editing"
+      (otherwise the agent can only read). Strongly recommended: put a
+      password on the share.
+   2. Copy the share link (of the form https://cloud.example.com/s/AbCdEf).
+   3. Store under Secrets and assign to the agent:
+      nextcloud_url   = the share link from step 2
+      nextcloud_token = the share password  (or "-" when the share has no
+                        password)
 
-B) Konto-Zugang (das ganze Datei-Verzeichnis eines Nutzers):
-   1. In Nextcloud → Einstellungen → Sicherheit → „App-Passwort erzeugen"
-      (kein Login-Passwort in Covey hinterlegen).
-   2. Unter Secrets hinterlegen und dem Agenten zuweisen:
-      nextcloud_url   = https://cloud.example.com   (die Server-Basis-URL)
-      nextcloud_token = benutzer:app-passwort
+B) Account login (a user's whole file tree):
+   1. In Nextcloud → Settings → Security → "Create new app password"
+      (do not store a login password in Covey).
+   2. Store under Secrets and assign to the agent:
+      nextcloud_url   = https://cloud.example.com   (the server base URL)
+      nextcloud_token = user:app-password
 
-3. In der ACCESS.md des Agenten freischalten:
+3. Enable in the agent's ACCESS.md:
    - system: nextcloud scope: read,write
 
-4. Egress: der Nextcloud-Host (z. B. cloud.example.com) muss aus der
-   Sandbox erreichbar sein — als Egress-Host der Org hinterlegen.
+4. Egress: the Nextcloud host (e.g. cloud.example.com) must be reachable
+   from the sandbox — store it as an egress host of the org.
 
-5. Optionaler Intake per Heartbeat — in der HEARTBEAT.md des Agenten:
-   - alle: 30m titel: Ablage sichten aufgabe: Liste mit list den
-     Eingangsordner und bearbeite neue Dateien nach Playbook.
+5. Optional intake by heartbeat — in the agent's HEARTBEAT.md:
+   - alle: 30m titel: Review the file store aufgabe: List the inbox folder
+     with list and work on new files according to the playbook.
 
-Details: docs/betrieb-nextcloud.md im Repository.`,
+Details: docs/ops-nextcloud.md in the repository.`,
 	})
 }
 
 func (System) Name() string { return "nextcloud" }
 
-// VerifyWebhook/ParseWebhook: kein Webhook-Eingang — der Intake läuft per
-// Heartbeat-Polling.
+// VerifyWebhook/ParseWebhook: no webhook entry — the intake runs by heartbeat
+// polling.
 func (System) VerifyWebhook(string, []byte, http.Header) bool { return false }
 
 func (System) ParseWebhook([]byte) (target.WebhookEvent, error) {
-	return target.WebhookEvent{}, fmt.Errorf("nextcloud hat keinen webhook-eingang (intake per heartbeat)")
+	return target.WebhookEvent{}, fmt.Errorf("nextcloud has no webhook entry (intake by heartbeat)")
 }
 
-// ActionSubject: jede Aktion ist ihr eigenes Guard-Rail-Subjekt — delete und
-// write lassen sich so schärfer regeln als das reine Lesen.
+// ActionSubject: every action is its own guard-rail subject — that way delete
+// and write can be ruled on more sharply than plain reading.
 func (System) ActionSubject(action string, _ json.RawMessage) string {
 	return "nextcloud:" + action
 }
 
-// aktionsParams ist die Vereinigung aller Parameter, die irgendeine Aktion
-// dieses Zielsystems braucht — der Agent schickt ein flaches JSON-Objekt,
-// was darin fehlt, bleibt leer.
+// aktionsParams is the union of all parameters any action of this target
+// system needs — the agent sends a flat JSON object, and whatever is missing
+// from it stays empty.
 type aktionsParams struct {
 	Path    string `json:"path"`
 	To      string `json:"to"`
@@ -89,8 +89,8 @@ type aktionsParams struct {
 	Content string `json:"content"`
 }
 
-// aktion fuehrt EINE Aktion aus. Frueher war jede ein Fall in einem langen
-// switch; jetzt ist sie fuer sich lesbar und die Verteilung eine Tabelle.
+// aktion runs ONE action. Each used to be a case in a long switch; now it is
+// readable on its own and the dispatch is a table.
 type aktion func(ctx context.Context, c *Client, relPath string, in aktionsParams) (any, error)
 
 var aktionen = map[string]aktion{
@@ -105,13 +105,13 @@ var aktionen = map[string]aktion{
 		}
 		if truncated {
 			out["truncated"] = true
-			out["hint"] = fmt.Sprintf("Mehr als %d Einträge — mit path in einen Unterordner eingrenzen.", listMax)
+			out["hint"] = fmt.Sprintf("More than %d entries — narrow this down to a subfolder with path.", listMax)
 		}
 		return out, nil
 	},
 	"read": func(ctx context.Context, c *Client, relPath string, in aktionsParams) (any, error) {
 		if relPath == "" {
-			return nil, fmt.Errorf("path fehlt")
+			return nil, fmt.Errorf("path missing")
 		}
 		body, err := c.Download(ctx, relPath)
 		if err != nil {
@@ -123,13 +123,13 @@ var aktionen = map[string]aktion{
 			return nil, err
 		}
 		if int64(len(data)) > readMaxBytes || !utf8.Valid(data) {
-			return nil, fmt.Errorf("datei %q ist zu gross oder binaer fuer read — mit download in die Sandbox holen", relPath)
+			return nil, fmt.Errorf("file %q is too large or binary for read — fetch it into the sandbox with download", relPath)
 		}
 		return map[string]any{"path": relPath, "size": len(data), "content": string(data)}, nil
 	},
 	"write": func(ctx context.Context, c *Client, relPath string, in aktionsParams) (any, error) {
 		if relPath == "" {
-			return nil, fmt.Errorf("path fehlt")
+			return nil, fmt.Errorf("path missing")
 		}
 		return c.Upload(ctx, relPath, []byte(in.Content))
 	},
@@ -140,7 +140,7 @@ var aktionen = map[string]aktion{
 		}
 		f, err := os.Open(local)
 		if err != nil {
-			return nil, fmt.Errorf("lokale datei: %w", err)
+			return nil, fmt.Errorf("local file: %w", err)
 		}
 		defer f.Close()
 		st, err := f.Stat()
@@ -148,10 +148,10 @@ var aktionen = map[string]aktion{
 			return nil, err
 		}
 		if st.IsDir() {
-			return nil, fmt.Errorf("%q ist ein Verzeichnis — upload überträgt einzelne Dateien", in.From)
+			return nil, fmt.Errorf("%q is a directory — upload transfers single files", in.From)
 		}
 		if st.Size() > uploadMaxBytes() {
-			return nil, fmt.Errorf("datei %q ist zu gross (%d Bytes, Limit %d)", in.From, st.Size(), uploadMaxBytes())
+			return nil, fmt.Errorf("file %q is too large (%d bytes, limit %d)", in.From, st.Size(), uploadMaxBytes())
 		}
 		to, err := cleanRemotePath(in.To)
 		if err != nil {
@@ -168,7 +168,7 @@ var aktionen = map[string]aktion{
 	},
 	"download": func(ctx context.Context, c *Client, relPath string, in aktionsParams) (any, error) {
 		if relPath == "" {
-			return nil, fmt.Errorf("path fehlt")
+			return nil, fmt.Errorf("path missing")
 		}
 		dest := in.To
 		if dest == "" {
@@ -198,14 +198,14 @@ var aktionen = map[string]aktion{
 			return nil, err
 		}
 		return map[string]any{"path": local, "size": n,
-			"hint": "Datei liegt lokal — direkt lesen/bearbeiten und danach mit upload zurücklegen."}, nil
+			"hint": "The file is local now — read/edit it directly and put it back with upload afterwards."}, nil
 	},
 	"mkdir": func(ctx context.Context, c *Client, relPath string, in aktionsParams) (any, error) {
 		return c.Mkdir(ctx, relPath)
 	},
 	"delete": func(ctx context.Context, c *Client, relPath string, in aktionsParams) (any, error) {
 		if relPath == "" {
-			return nil, fmt.Errorf("path fehlt")
+			return nil, fmt.Errorf("path missing")
 		}
 		if err := c.Delete(ctx, relPath); err != nil {
 			return nil, err
@@ -217,7 +217,7 @@ var aktionen = map[string]aktion{
 func (System) Execute(ctx context.Context, action string, params json.RawMessage, cred target.Credential) (any, error) {
 	fn, ok := aktionen[action]
 	if !ok {
-		return nil, fmt.Errorf("unbekannte aktion %q", strings.TrimSpace(action))
+		return nil, fmt.Errorf("unknown action %q", strings.TrimSpace(action))
 	}
 	cfg, err := ParseConfig(cred.BaseURL, cred.Token)
 	if err != nil {
@@ -237,44 +237,45 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 	return fn(ctx, c, relPath, in)
 }
 
-// localPath löst einen vom Agenten angegebenen Sandbox-Pfad sicher gegen das
-// Arbeitsverzeichnis auf: relativ zum Workdir, kein Ausbruch per ".." oder
-// absolutem Pfad außerhalb.
+// localPath resolves a sandbox path given by the agent safely against the
+// working directory: relative to the workdir, with no breaking out through
+// ".." or an absolute path outside it.
 func localPath(ctx context.Context, p string) (string, error) {
 	workdir := target.Workdir(ctx)
 	if workdir == "" {
-		return "", fmt.Errorf("keine Sandbox (kein Arbeitsverzeichnis im Kontext)")
+		return "", fmt.Errorf("no sandbox (no working directory in the context)")
 	}
 	p = strings.TrimSpace(p)
 	if p == "" {
-		return "", fmt.Errorf("lokaler pfad fehlt")
+		return "", fmt.Errorf("local path missing")
 	}
 	if !filepath.IsAbs(p) {
 		p = filepath.Join(workdir, p)
 	}
 	resolved := filepath.Clean(p)
 	if resolved != workdir && !strings.HasPrefix(resolved, workdir+string(filepath.Separator)) {
-		return "", fmt.Errorf("pfad %q liegt ausserhalb des Sandbox-Arbeitsverzeichnisses", p)
+		return "", fmt.Errorf("path %q lies outside the sandbox working directory", p)
 	}
 	return resolved, nil
 }
 
 func (System) PromptDoc() string {
-	return `Verfügbare Nextcloud-Datei-Aktionen (eine dir freigegebene Dateiablage; alle Pfade relativ zu deren
-   Wurzel): list {"path":"unterordner (optional, leer = Wurzel)"} listet Dateien und Ordner,
-   read {"path":"a/b.txt"} liefert den Inhalt einer Textdatei direkt (bis 1 MB, nur Text),
-   write {"path":"a/b.txt","content":"..."} legt eine Textdatei an oder überschreibt sie (fehlende
-   Zwischenordner werden angelegt),
-   download {"path":"a/bericht.pdf","to":"lokaler/pfad (optional)"} holt eine Datei in deine Sandbox
-   (Default: nextcloud/<pfad>) und liefert den lokalen Pfad,
-   upload {"from":"lokaler/pfad","to":"remote/pfad (optional, Default: Dateiname in der Wurzel)"} legt eine
-   Datei aus deiner Sandbox ab (ersetzt Vorhandenes),
-   mkdir {"path":"a/b/c"} legt Ordner an (fehlende Zwischenordner inklusive),
-   delete {"path":"a/alt.txt"} löscht eine Datei oder einen Ordner.
-   Arbeitsweise: Für Binär- und Office-Dateien (docx, xlsx, pdf, …) IMMER download → lokal bearbeiten →
-   upload auf denselben Remote-Pfad; read/write sind nur für reine Textdateien (md, txt, csv, json).
-   upload überschreibt ohne Rückfrage — prüfe mit list, ob der Zielpfad schon belegt ist, wenn du nicht
-   bewusst ersetzen willst. Lösche nichts, was du nicht selbst angelegt hast, ohne expliziten Auftrag.
-   WARTEN auf neue Dateien: Nextcloud hat hier keinen Webhook — nutze KEINEN blocked-Status; beende deinen
-   Lauf regulär mit done, der nächste Heartbeat-Lauf sichtet die Ablage erneut.`
+	return `Available Nextcloud file actions (a file store shared with you; all paths relative to its
+   root): list {"path":"subfolder (optional, empty = the root)"} lists files and folders,
+   read {"path":"a/b.txt"} returns the content of a text file directly (up to 1 MB, text only),
+   write {"path":"a/b.txt","content":"..."} creates a text file or overwrites it (missing
+   intermediate folders are created),
+   download {"path":"a/report.pdf","to":"local/path (optional)"} fetches a file into your sandbox
+   (default: nextcloud/<path>) and returns the local path,
+   upload {"from":"local/path","to":"remote/path (optional, default: the file name in the root)"} deposits a
+   file from your sandbox (replacing what is there),
+   mkdir {"path":"a/b/c"} creates folders (including missing intermediate ones),
+   delete {"path":"a/old.txt"} deletes a file or a folder.
+   How to work: for binary and Office files (docx, xlsx, pdf, …) ALWAYS download → edit locally →
+   upload onto the same remote path; read/write are only for plain text files (md, txt, csv, json).
+   upload overwrites without asking — check with list whether the target path is already taken if you do
+   not deliberately want to replace it. Delete nothing you did not create yourself without an explicit
+   assignment.
+   WAITING for new files: Nextcloud has no webhook here — do NOT use the blocked status; end your
+   run regularly with done, the next heartbeat run reviews the store again.`
 }

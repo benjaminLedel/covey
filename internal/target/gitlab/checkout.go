@@ -16,10 +16,10 @@ import (
 	"covey/internal/target"
 )
 
-// preserveDirs bleiben bei einem erneuten Checkout erhalten (nicht mit dem
-// Quellcode weggewischt): Dependency- und Build-Caches, die sonst jeden Lauf
-// neu aufgebaut werden müssten. So ist ein Folge-Checkout auf demselben Ref
-// inkrementell (npm/pip/go finden ihren Cache vor) statt kalt.
+// preserveDirs survive a repeated checkout (they are not wiped away together
+// with the source code): dependency and build caches that would otherwise have
+// to be rebuilt on every run. That way a follow-up checkout on the same ref is
+// incremental (npm/pip/go find their cache) instead of cold.
 var preserveDirs = map[string]bool{
 	"node_modules": true, ".venv": true, "venv": true, "vendor": true,
 	"target": true, ".gradle": true, ".next": true, ".cache": true,
@@ -28,9 +28,10 @@ var preserveDirs = map[string]bool{
 
 var refSanitize = regexp.MustCompile(`[^a-zA-Z0-9._-]+`)
 
-// stableCheckoutDir liefert einen über Commits stabilen Verzeichnisnamen pro
-// (Projekt, Ref, subPath) — anders als der GitLab-Archiv-Top-Level, der die SHA
-// enthält und sich mit jedem Commit ändert (dann käme node_modules nie mit).
+// stableCheckoutDir returns a directory name that is stable across commits per
+// (project, ref, subPath) — unlike the GitLab archive top level, which contains
+// the SHA and changes with every commit (node_modules would then never carry
+// over).
 func stableCheckoutDir(projectID int, ref, subPath string) string {
 	slug := func(s string) string {
 		s = strings.Trim(refSanitize.ReplaceAllString(strings.TrimSpace(s), "-"), "-")
@@ -50,8 +51,9 @@ func stableCheckoutDir(projectID int, ref, subPath string) string {
 	return name
 }
 
-// pruneExceptPreserved leert ein Verzeichnis, lässt aber die Cache-Verzeichnisse
-// aus preserveDirs stehen — so wird der Quellcode ersetzt, der Cache bleibt.
+// pruneExceptPreserved empties a directory but leaves the cache directories
+// from preserveDirs standing — that way the source code is replaced and the
+// cache stays.
 func pruneExceptPreserved(dir string) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -71,9 +73,9 @@ func pruneExceptPreserved(dir string) error {
 	return nil
 }
 
-// checkoutMaxBytes begrenzt die entpackte Gesamtgröße eines Checkouts —
-// Schutz der Sandbox vor Riesen-Repos und Zip-Bomben. Default 512 MB,
-// überschreibbar via COVEY_GITLAB_CHECKOUT_MAX_MB (Prozess-Env des Daemons).
+// checkoutMaxBytes caps the unpacked total size of a checkout — protection of
+// the sandbox against huge repos and zip bombs. Default 512 MB, overridable
+// via COVEY_GITLAB_CHECKOUT_MAX_MB (the daemon's process env).
 func checkoutMaxBytes() int64 {
 	if mb, err := strconv.Atoi(strings.TrimSpace(os.Getenv("COVEY_GITLAB_CHECKOUT_MAX_MB"))); err == nil && mb > 0 {
 		return int64(mb) << 20
@@ -81,8 +83,8 @@ func checkoutMaxBytes() int64 {
 	return 512 << 20
 }
 
-// CheckoutResult ist die Antwort der checkout-Aktion an den Agenten: wo der
-// Code liegt und wie er damit weiterarbeitet.
+// CheckoutResult is the answer of the checkout action to the agent: where the
+// code lies and how it goes on working with it.
 type CheckoutResult struct {
 	Path    string `json:"path"`
 	Ref     string `json:"ref,omitempty"`
@@ -91,16 +93,15 @@ type CheckoutResult struct {
 	Hint    string `json:"hint"`
 }
 
-// Checkout materialisiert den Quellcode eines Projekts in der Sandbox: lädt
-// das Repository-Archiv über die API (das gebrokerte Token bleibt im Daemon,
-// es landet nie im Dateisystem — anders als bei einem git clone mit
-// Credential-Remote) und entpackt es unter <workdir>/repos/. subPath schränkt
-// auf ein Unterverzeichnis ein (Teil-Checkout für große Repos). Ein
-// vorhandener Stand desselben Archivs wird ersetzt — der Agent arbeitet
-// immer auf dem aktuellen Code.
+// Checkout materialises a project's source code in the sandbox: it downloads
+// the repository archive through the API (the brokered token stays in the
+// daemon, it never lands in the file system — unlike with a git clone using a
+// credential remote) and unpacks it under <workdir>/repos/. subPath narrows it
+// to a subdirectory (a partial checkout for large repos). An existing state of
+// the same archive is replaced — the agent always works on the current code.
 func Checkout(ctx context.Context, gc *Client, projectID int, ref, subPath, workdir string) (CheckoutResult, error) {
 	if workdir == "" {
-		return CheckoutResult{}, fmt.Errorf("checkout braucht eine Sandbox (kein Arbeitsverzeichnis im Kontext)")
+		return CheckoutResult{}, fmt.Errorf("checkout needs a sandbox (no working directory in the context)")
 	}
 	body, err := gc.DownloadArchive(ctx, projectID, ref, subPath)
 	if err != nil {
@@ -108,11 +109,11 @@ func Checkout(ctx context.Context, gc *Client, projectID int, ref, subPath, work
 	}
 	defer body.Close()
 
-	// Der Verzeichnisname entsteht aus Projekt-ID und Ref, also aus Werten, die
-	// der Agent liefert. stableCheckoutDir lässt keinen Pfad-Separator durch —
-	// securePath hält diese Zusage am fertigen Pfad explizit fest, statt sie zwei
-	// Funktionen entfernt implizit zu lassen. Alles darunter (Entpacken,
-	// git-Baseline) verlässt sich darauf.
+	// The directory name arises from the project id and the ref, that is from
+	// values the agent supplies. stableCheckoutDir lets no path separator
+	// through — securePath pins that promise down explicitly on the finished
+	// path instead of leaving it implicit two functions away. Everything below
+	// (unpacking, the git baseline) relies on it.
 	destDir, err := securePath(filepath.Join(workdir, "repos"), stableCheckoutDir(projectID, ref, subPath))
 	if err != nil {
 		return CheckoutResult{}, err
@@ -120,7 +121,7 @@ func Checkout(ctx context.Context, gc *Client, projectID int, ref, subPath, work
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return CheckoutResult{}, err
 	}
-	// Alten Quellcode entfernen, Caches (preserveDirs) stehen lassen.
+	// Remove the old source code, leave the caches (preserveDirs) standing.
 	if err := pruneExceptPreserved(destDir); err != nil {
 		return CheckoutResult{}, err
 	}
@@ -134,44 +135,44 @@ func Checkout(ctx context.Context, gc *Client, projectID int, ref, subPath, work
 		Ref:     ref,
 		SubPath: subPath,
 		Files:   files,
-		Hint:    "Quellcode liegt lokal — durchsuche und lies ihn direkt (Grep/Read/Bash). Für die eigentliche Änderung übergib den Pfad an dev agent: Der Sub-Agent arbeitet IM Projekt und bekommt dort dessen eigene Regeln (CLAUDE.md, .claude/agents, Skills) — du selbst siehst die nicht. Das Verzeichnis ist ein git-Repo mit dem Upstream-Stand als Baseline-Commit, geänderte Dateien meldet der Sub-Agent zurück. Dependency-Caches (node_modules o. ä.) bleiben über Läufe erhalten, npm/pip/go install läuft dann inkrementell.",
+		Hint:    "The source code is local — search and read it directly (Grep/Read/Bash). For the actual change hand the path to dev agent: the sub-agent works IN the project and gets that project's own rules there (CLAUDE.md, .claude/agents, skills) — you yourself do not see them. The directory is a git repo with the upstream state as its baseline commit; the sub-agent reports changed files back. Dependency caches (node_modules and the like) survive across runs, so npm/pip/go install then runs incrementally.",
 	}, nil
 }
 
-// securePath verankert einen Archiv-Eintrag unter root: Der zusammengesetzte
-// Zielpfad muss innerhalb von root bleiben. Der Präfix-Test auf ".." am Namen
-// fängt den Regelfall schon vorher ab — diese Prüfung ist die Zusage am
-// FERTIGEN Pfad und damit die, auf die es ankommt (Zip Slip, CWE-22).
+// securePath anchors an archive entry under root: the assembled destination
+// path must stay inside root. The prefix test for ".." on the name already
+// catches the regular case beforehand — this check is the promise on the
+// FINISHED path and therefore the one that matters (zip slip, CWE-22).
 func securePath(root, name string) (string, error) {
 	dest := filepath.Clean(filepath.Join(root, name))
 	if dest != filepath.Clean(root) && !strings.HasPrefix(dest, filepath.Clean(root)+string(filepath.Separator)) {
-		return "", fmt.Errorf("unsicherer pfad im archiv: %q", name)
+		return "", fmt.Errorf("unsafe path in the archive: %q", name)
 	}
 	return dest, nil
 }
 
-// initGitBaseline legt im frischen Checkout ein git-Repository mit genau einem
-// Commit an: dem gerade entpackten Upstream-Stand. Das Archiv selbst bringt
-// keine .git mit (es ist ein Tarball, kein Klon), und daraus folgen zwei
-// Probleme, die dieser Commit löst:
+// initGitBaseline creates a git repository with exactly one commit in the fresh
+// checkout: the upstream state just unpacked. The archive itself brings no .git
+// along (it is a tarball, not a clone), and from that follow two problems this
+// commit solves:
 //
-//   - Werkzeuge und Skripte des Projekts, die git aufrufen, scheitern sonst.
-//   - Nach der Arbeit im Checkout ließe sich sonst nicht sagen, WAS geändert
-//     wurde — die commit-Aktion braucht aber genau diese Dateiliste.
+//   - Tools and scripts of the project that call git would otherwise fail.
+//   - After the work in the checkout there would be no way to say WHAT was
+//     changed — but the commit action needs exactly that file list.
 //
-// Die Baseline wird bei jedem Checkout neu gezogen: `.git` steht bewusst NICHT
-// in preserveDirs, pruneExceptPreserved räumt sie also vor dem Entpacken weg.
-// Nur so entspricht sie exakt dem frischen Upstream-Stand, und `git status`
-// zeigt danach ausschließlich die eigene Arbeit.
+// The baseline is drawn anew on every checkout: `.git` deliberately is NOT in
+// preserveDirs, so pruneExceptPreserved clears it away before unpacking. Only
+// that way does it match the fresh upstream state exactly, and `git status`
+// afterwards shows nothing but one's own work.
 //
-// Alles hier ist best effort — fehlt git oder scheitert ein Schritt, bleibt der
-// Checkout gültig; der Agent verliert nur den Komfort.
+// Everything here is best effort — if git is missing or a step fails, the
+// checkout stays valid; the agent only loses the convenience.
 func initGitBaseline(ctx context.Context, dir string) {
 	git := func(args ...string) error {
 		cmd := exec.CommandContext(ctx, "git", args...)
 		cmd.Dir = dir
-		// Identität als Flag statt via git config: Wir fassen weder die globale
-		// Konfiguration des Sandbox-Users an noch brauchen wir eine echte.
+		// The identity as a flag instead of via git config: we neither touch the
+		// sandbox user's global configuration nor do we need a real one.
 		cmd.Env = append(os.Environ(),
 			"GIT_AUTHOR_NAME=Covey", "GIT_AUTHOR_EMAIL=covey@localhost",
 			"GIT_COMMITTER_NAME=Covey", "GIT_COMMITTER_EMAIL=covey@localhost")
@@ -180,9 +181,9 @@ func initGitBaseline(ctx context.Context, dir string) {
 	if err := git("init", "-q"); err != nil {
 		return
 	}
-	// Dependency- und Build-Caches (preserveDirs) überleben den Checkout und
-	// gehören nicht zur Arbeit. Über info/exclude bleiben sie aus Baseline und
-	// späterem `git status` heraus, ohne die .gitignore des Projekts anzufassen.
+	// Dependency and build caches (preserveDirs) survive the checkout and are
+	// not part of the work. Through info/exclude they stay out of the baseline
+	// and out of a later `git status` without touching the project's .gitignore.
 	var excl strings.Builder
 	for name := range preserveDirs {
 		excl.WriteString("/" + name + "\n")
@@ -194,22 +195,22 @@ func initGitBaseline(ctx context.Context, dir string) {
 	if err := git("commit", "-q", "--allow-empty", "-m", "covey baseline"); err != nil {
 		return
 	}
-	// Der Tag macht den Upstream-Stand referenzierbar (target.BaselineRef): Der
-	// Sub-Lauf meldet seine Arbeit als Differenz zu diesem Commit. Damit zählt
-	// auch, was der Sub-Agent lokal committet hat — ein Vergleich zweier
-	// `git status`-Abbilder würde danach nichts mehr sehen. `-f`, weil ein
-	// erneuter Checkout in dasselbe Verzeichnis den Tag neu setzen muss.
+	// The tag makes the upstream state referenceable (target.BaselineRef): the
+	// sub-run reports its work as the difference to this commit. That way what
+	// the sub-agent committed locally counts too — a comparison of two
+	// `git status` snapshots would see nothing after that. `-f`, because a
+	// repeated checkout into the same directory has to reset the tag.
 	_ = git("tag", "-f", target.BaselineRef)
 }
 
-// extractTarGz entpackt ein GitLab-Repository-Archiv nach destRoot und liefert
-// den Namen des Top-Level-Verzeichnisses (GitLab: <projekt>-<ref>-<sha>).
-// Sicherheit: Pfade werden gegen Traversal geprüft, Symlinks übersprungen,
-// die entpackte Gesamtgröße ist begrenzt.
+// extractTarGz unpacks a GitLab repository archive into destRoot and returns
+// the name of the top-level directory (GitLab: <project>-<ref>-<sha>).
+// Security: paths are checked against traversal, symlinks are skipped, the
+// unpacked total size is capped.
 func extractTarGz(r io.Reader, destRoot string) (topDir string, files int, err error) {
 	gz, err := gzip.NewReader(r)
 	if err != nil {
-		return "", 0, fmt.Errorf("archiv lesen: %w", err)
+		return "", 0, fmt.Errorf("read archive: %w", err)
 	}
 	defer gz.Close()
 
@@ -222,18 +223,18 @@ func extractTarGz(r io.Reader, destRoot string) (topDir string, files int, err e
 			break
 		}
 		if err != nil {
-			return "", 0, fmt.Errorf("archiv lesen: %w", err)
+			return "", 0, fmt.Errorf("read archive: %w", err)
 		}
 		name := filepath.Clean(hdr.Name)
 		if name == "." || name == "pax_global_header" {
 			continue
 		}
 		if strings.HasPrefix(name, "..") || filepath.IsAbs(name) {
-			return "", 0, fmt.Errorf("unsicherer pfad im archiv: %q", hdr.Name)
+			return "", 0, fmt.Errorf("unsafe path in the archive: %q", hdr.Name)
 		}
 		if topDir == "" {
 			topDir = strings.SplitN(name, string(filepath.Separator), 2)[0]
-			// Vorherigen Stand desselben Archivs ersetzen (frischer Checkout).
+			// Replace the previous state of the same archive (a fresh checkout).
 			old, err := securePath(destRoot, topDir)
 			if err != nil {
 				return "", 0, err
@@ -254,7 +255,7 @@ func extractTarGz(r io.Reader, destRoot string) (topDir string, files int, err e
 		case tar.TypeReg:
 			total += hdr.Size
 			if total > maxBytes {
-				return "", 0, fmt.Errorf("archiv größer als %d MB — nutze checkout mit \"path\" (Unterverzeichnis) oder navigiere mit list_tree und lies gezielt per read_file; das Limit setzt COVEY_GITLAB_CHECKOUT_MAX_MB", maxBytes>>20)
+				return "", 0, fmt.Errorf("archive larger than %d MB — use checkout with \"path\" (a subdirectory) or navigate with list_tree and read selectively via read_file; the limit is set by COVEY_GITLAB_CHECKOUT_MAX_MB", maxBytes>>20)
 			}
 			if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 				return "", 0, err
@@ -270,26 +271,26 @@ func extractTarGz(r io.Reader, destRoot string) (topDir string, files int, err e
 			f.Close()
 			files++
 		default:
-			// Symlinks & Sonstiges: für die Code-Lektüre unnötig, als
-			// Ausbruchsvektor riskant — bewusst überspringen.
+			// Symlinks & the rest: unnecessary for reading code, risky as an
+			// escape vector — deliberately skipped.
 		}
 	}
 	if topDir == "" {
-		return "", 0, fmt.Errorf("leeres archiv")
+		return "", 0, fmt.Errorf("empty archive")
 	}
 	return topDir, files, nil
 }
 
-// extractTarGzInto entpackt ein GitLab-Repository-Archiv in destDir und strippt
-// dabei das Top-Level-Verzeichnis (die SHA-behaftete Hülle), sodass der Inhalt
-// direkt in destDir liegt — Voraussetzung für ein stabiles, cache-erhaltendes
-// Zielverzeichnis. Anders als extractTarGz räumt es destDir NICHT ab (der Aufrufer
-// prunt cache-schonend). Sicherheit wie extractTarGz: Traversal-Schutz, Symlinks
-// übersprungen, Gesamtgröße begrenzt.
+// extractTarGzInto unpacks a GitLab repository archive into destDir and strips
+// the top-level directory (the SHA-bearing shell) in doing so, so that the
+// contents lie directly in destDir — the precondition for a stable,
+// cache-preserving destination directory. Unlike extractTarGz it does NOT clear
+// destDir (the caller prunes cache-sparingly). Security as in extractTarGz:
+// traversal protection, symlinks skipped, total size capped.
 func extractTarGzInto(r io.Reader, destDir string) (files int, err error) {
 	gz, err := gzip.NewReader(r)
 	if err != nil {
-		return 0, fmt.Errorf("archiv lesen: %w", err)
+		return 0, fmt.Errorf("read archive: %w", err)
 	}
 	defer gz.Close()
 
@@ -302,19 +303,19 @@ func extractTarGzInto(r io.Reader, destDir string) (files int, err error) {
 			break
 		}
 		if err != nil {
-			return 0, fmt.Errorf("archiv lesen: %w", err)
+			return 0, fmt.Errorf("read archive: %w", err)
 		}
 		name := filepath.Clean(hdr.Name)
 		if name == "." || name == "pax_global_header" {
 			continue
 		}
 		if strings.HasPrefix(name, "..") || filepath.IsAbs(name) {
-			return 0, fmt.Errorf("unsicherer pfad im archiv: %q", hdr.Name)
+			return 0, fmt.Errorf("unsafe path in the archive: %q", hdr.Name)
 		}
-		// Top-Level-Verzeichnis (projname-ref-sha) abstreifen.
+		// Strip the top-level directory (projname-ref-sha).
 		rel := strings.SplitN(name, string(filepath.Separator), 2)
 		if len(rel) < 2 || rel[1] == "" {
-			continue // das Hüllverzeichnis selbst
+			continue // the shell directory itself
 		}
 		dest, err := securePath(destDir, rel[1])
 		if err != nil {
@@ -328,7 +329,7 @@ func extractTarGzInto(r io.Reader, destDir string) (files int, err error) {
 		case tar.TypeReg:
 			total += hdr.Size
 			if total > maxBytes {
-				return 0, fmt.Errorf("archiv größer als %d MB — nutze checkout mit \"path\" (Unterverzeichnis) oder navigiere mit list_tree und lies gezielt per read_file; das Limit setzt COVEY_GITLAB_CHECKOUT_MAX_MB", maxBytes>>20)
+				return 0, fmt.Errorf("archive larger than %d MB — use checkout with \"path\" (a subdirectory) or navigate with list_tree and read selectively via read_file; the limit is set by COVEY_GITLAB_CHECKOUT_MAX_MB", maxBytes>>20)
 			}
 			if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
 				return 0, err
@@ -344,7 +345,7 @@ func extractTarGzInto(r io.Reader, destDir string) (files int, err error) {
 			f.Close()
 			files++
 		default:
-			// Symlinks & Sonstiges bewusst überspringen.
+			// Symlinks & the rest deliberately skipped.
 		}
 	}
 	return files, nil

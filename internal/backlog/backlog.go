@@ -1,6 +1,6 @@
-// Package backlog implementiert das Backlog als First-Class-Postgres-Objekt:
-// State, Priorität, Herkunft, Historie, Korrelations-Key (spec/03).
-// Die Queue-Mechanik ist SELECT … FOR UPDATE SKIP LOCKED + LISTEN/NOTIFY.
+// Package backlog implements the backlog as a first-class Postgres object:
+// state, priority, origin, history, correlation key (spec/03).
+// The queue mechanics are SELECT … FOR UPDATE SKIP LOCKED + LISTEN/NOTIFY.
 package backlog
 
 import (
@@ -24,16 +24,16 @@ const (
 	StateCancelled  = "cancelled"
 )
 
-// NotifyChannel ist der Postgres-Kanal für Wake-Events (Payload: agent_id).
+// NotifyChannel is the Postgres channel for wake events (payload: agent_id).
 const NotifyChannel = "covey_wake"
 
-// validTransitions kodiert die Zustandsmaschine der Aufgabe.
+// validTransitions encodes the state machine of a task.
 var validTransitions = map[string][]string{
 	StateOpen:       {StateInProgress, StateCancelled},
 	StateInProgress: {StateBlocked, StateDone, StateFailed, StateOpen, StateCancelled},
-	StateBlocked:    {StateOpen, StateCancelled}, // Wake-on-correlation öffnet neu (mit resume)
-	StateFailed:     {StateOpen},                 // Retry: manuell erneut einplanen
-	StateCancelled:  {StateOpen},                 // Wiederaufnahme einer verworfenen Aufgabe
+	StateBlocked:    {StateOpen, StateCancelled}, // wake-on-correlation reopens it (with resume)
+	StateFailed:     {StateOpen},                 // retry: reschedule manually
+	StateCancelled:  {StateOpen},                 // resuming a discarded task
 }
 
 func transitionAllowed(from, to string) bool {
@@ -46,8 +46,8 @@ func transitionAllowed(from, to string) bool {
 }
 
 var (
-	ErrNotFound          = errors.New("aufgabe nicht gefunden")
-	ErrInvalidTransition = errors.New("unzulässiger Zustandsübergang")
+	ErrNotFound          = errors.New("task not found")
+	ErrInvalidTransition = errors.New("invalid state transition")
 )
 
 type Task struct {
@@ -71,10 +71,10 @@ type Task struct {
 	UpdatedAt        time.Time  `json:"updated_at"`
 }
 
-// Stage ist eine frei definierbare Kanban-Spalte eines Agenten (Overlay über
-// den Lifecycle-State). Reihenfolge über position, Farbe optional (CSS-Token).
-// CreatedBy unterscheidet die Herkunft: 'agent'-Spalten (per set_stage
-// „erfunden") werden automatisch abgeräumt, sobald sie leer sind.
+// Stage is a freely definable Kanban column of an agent (an overlay on top of
+// the lifecycle state). Order via position, color optional (CSS token).
+// CreatedBy distinguishes the origin: 'agent' columns ("invented" via
+// set_stage) are cleaned up automatically as soon as they are empty.
 type Stage struct {
 	ID        uuid.UUID `json:"id"`
 	AgentID   uuid.UUID `json:"agent_id"`
@@ -85,8 +85,8 @@ type Stage struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// Note ist eine proaktive Notiz an einer Aufgabe: Zwischenstände, Befunde,
-// Versuchtes — aufgabenbezogen, im Gegensatz zum Gedächtnis (allgemeingültig).
+// Note is a proactive note on a task: interim results, findings, things tried —
+// task-bound, in contrast to the memory (generally valid).
 type Note struct {
 	ID        uuid.UUID `json:"id"`
 	TaskID    uuid.UUID `json:"task_id"`
@@ -123,12 +123,12 @@ func scanTask(row pgx.Row) (Task, error) {
 	return t, err
 }
 
-// Create legt eine Aufgabe an und feuert NOTIFY, damit der Dispatch-Loop aufwacht.
+// Create creates a task and fires NOTIFY so that the dispatch loop wakes up.
 func (s *Store) Create(ctx context.Context, orgID, agentID uuid.UUID, title, body, origin string, priority int) (Task, error) {
 	if priority == 0 {
 		priority = 5
 	}
-	// Neue Aufgabe landet in der ersten Stage des Agenten (falls definiert).
+	// A new task lands in the agent's first stage (if one is defined).
 	row := s.pool.QueryRow(ctx, `INSERT INTO backlog_tasks (id, org_id, agent_id, title, body, origin, priority, stage_id)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,
 			(SELECT id FROM agent_stages WHERE agent_id=$3 ORDER BY position, created_at LIMIT 1))
@@ -142,13 +142,13 @@ func (s *Store) Create(ctx context.Context, orgID, agentID uuid.UUID, title, bod
 	return t, nil
 }
 
-// ChildSpec beschreibt eine Aufgabe, die aus einer anderen hervorgeht: die
-// Fortsetzung eines am Turn-Limit abgebrochenen Laufs oder eine vom Agenten
-// selbst abgespaltene Teilaufgabe. AgentID leer = derselbe Agent wie die
-// Ursprungsaufgabe (Delegation setzt sie auf einen Kollegen).
+// ChildSpec describes a task that emerges from another one: the continuation of
+// a run aborted at the turn limit, or a subtask the agent split off itself. An
+// empty AgentID = the same agent as the originating task (delegation points it
+// at a colleague).
 //
-// SessionID/ResumeInput sind nur für die Fortsetzung gesetzt: mit ihnen nimmt
-// die Runtime die abgebrochene Session wieder auf, statt bei null anzufangen.
+// SessionID/ResumeInput are only set for a continuation: with them the runtime
+// picks the aborted session back up instead of starting from scratch.
 type ChildSpec struct {
 	AgentID     uuid.UUID
 	Title       string
@@ -159,9 +159,9 @@ type ChildSpec struct {
 	ResumeInput string
 }
 
-// CreateChild legt eine Aufgabe an, die an einer Ursprungsaufgabe hängt.
-// Organisation und (per Default) Agent erbt sie von ihr — eine Aufgabe kann
-// also nie aus der Org ihrer Elternaufgabe herausfallen.
+// CreateChild creates a task that hangs off an originating task. It inherits
+// the organization and (by default) the agent from it — a task can therefore
+// never fall out of the org of its parent task.
 func (s *Store) CreateChild(ctx context.Context, parentID uuid.UUID, spec ChildSpec) (Task, error) {
 	parent, err := s.Get(ctx, parentID)
 	if err != nil {
@@ -190,10 +190,10 @@ func (s *Store) CreateChild(ctx context.Context, parentID uuid.UUID, spec ChildS
 	return t, nil
 }
 
-// AncestorsWithOrigin zählt, wie viele Vorfahren einer Aufgabe (inklusive ihrer
-// selbst) eine Herkunft mit dem gegebenen Präfix tragen. Das trägt den
-// Loop-Schutz: eine Fortsetzungs- oder Teilaufgaben-Kette darf nicht endlos
-// wachsen, und der einzige verlässliche Zähler ist die Kette selbst.
+// AncestorsWithOrigin counts how many ancestors of a task (including the task
+// itself) carry an origin with the given prefix. This carries the loop
+// protection: a chain of continuations or subtasks must not grow endlessly, and
+// the only reliable counter is the chain itself.
 func (s *Store) AncestorsWithOrigin(ctx context.Context, id uuid.UUID, originPrefix string) (int, error) {
 	var n int
 	err := s.pool.QueryRow(ctx, `
@@ -207,8 +207,8 @@ func (s *Store) AncestorsWithOrigin(ctx context.Context, id uuid.UUID, originPre
 	return n, err
 }
 
-// CountChildren zählt die direkt aus einer Aufgabe hervorgegangenen Aufgaben —
-// die Breite der Zerlegung.
+// CountChildren counts the tasks that emerged directly from a task — the width
+// of the decomposition.
 func (s *Store) CountChildren(ctx context.Context, parentID uuid.UUID) (int, error) {
 	var n int
 	err := s.pool.QueryRow(ctx,
@@ -216,10 +216,10 @@ func (s *Store) CountChildren(ctx context.Context, parentID uuid.UUID) (int, err
 	return n, err
 }
 
-// OpenWithTitle sagt, ob der Agent bereits eine nicht-terminale Aufgabe mit
-// diesem Titel hat. Der Dublettenschutz für selbst angelegte Aufgaben: Ein
-// Agent, der in jedem Lauf dieselbe Aufgabe neu anlegt, baut sich sonst eine
-// Warteschlange, die nie leer wird.
+// OpenWithTitle says whether the agent already has a non-terminal task with
+// this title. The duplicate protection for self-created tasks: an agent that
+// creates the same task anew on every run would otherwise build itself a queue
+// that never empties.
 func (s *Store) OpenWithTitle(ctx context.Context, agentID uuid.UUID, title string) (bool, error) {
 	var exists bool
 	err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM backlog_tasks
@@ -229,7 +229,7 @@ func (s *Store) OpenWithTitle(ctx context.Context, agentID uuid.UUID, title stri
 }
 
 func (s *Store) notify(ctx context.Context, agentID uuid.UUID) {
-	// Wake-Signal ist best-effort — der periodische Tick fängt Verluste ab.
+	// The wake signal is best-effort — the periodic tick catches losses.
 	_, _ = s.pool.Exec(ctx, "SELECT pg_notify($1,$2)", NotifyChannel, agentID.String())
 }
 
@@ -237,7 +237,7 @@ func (s *Store) Get(ctx context.Context, id uuid.UUID) (Task, error) {
 	return scanTask(s.pool.QueryRow(ctx, "SELECT "+taskCols+" FROM backlog_tasks WHERE id=$1", id))
 }
 
-// ListByAgent liefert das aktive Backlog; includeArchived nimmt das Archiv dazu.
+// ListByAgent returns the active backlog; includeArchived adds the archive.
 func (s *Store) ListByAgent(ctx context.Context, agentID uuid.UUID, includeArchived bool) ([]Task, error) {
 	filter := " AND archived_at IS NULL"
 	if includeArchived {
@@ -260,8 +260,8 @@ func (s *Store) ListByAgent(ctx context.Context, agentID uuid.UUID, includeArchi
 	return out, rows.Err()
 }
 
-// ClaimNext holt die nächste offene Aufgabe des Agenten — seriell, mit
-// SKIP LOCKED, damit konkurrierende Dispatcher sich nicht dieselbe greifen.
+// ClaimNext fetches the agent's next open task — serially, with SKIP LOCKED so
+// that competing dispatchers do not grab the same one.
 func (s *Store) ClaimNext(ctx context.Context, agentID uuid.UUID) (Task, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -294,10 +294,14 @@ func (s *Store) ClaimNext(ctx context.Context, agentID uuid.UUID) (Task, error) 
 	return t, nil
 }
 
-// stateStage bildet den Lifecycle-State auf die Standard-Spalte ab, in der
-// eine Aufgabe dann erwartet wird. Gilt nur, solange die Aufgabe in einer
-// Standard-Spalte (oder keiner) liegt — eine bewusst gesetzte eigene Stage
-// (Agent via set_stage, Mensch via Drag & Drop) wird nie überschrieben.
+// stateStage maps the lifecycle state onto the default column in which a task
+// is then expected. It only applies as long as the task sits in a default
+// column (or in none) — a deliberately chosen stage of its own (agent via
+// set_stage, human via drag & drop) is never overwritten.
+//
+// The column names are data: they are seeded per agent (DefaultStages) and
+// matched here by name, so renaming them would silently stop auto-follow on
+// every board that already exists.
 var stateStage = map[string]string{
 	StateOpen:       "Backlog",
 	StateInProgress: "In Arbeit",
@@ -307,22 +311,22 @@ var stateStage = map[string]string{
 	StateCancelled:  "Erledigt",
 }
 
-// terminalState sagt, ob ein State das Ende der Aufgabe ist.
+// terminalState says whether a state is the end of the task.
 func terminalState(state string) bool {
 	return state == StateDone || state == StateFailed || state == StateCancelled
 }
 
-// syncStage führt die Stage dem neuen State nach (innerhalb der Transaktion
-// des Zustandsübergangs). Fehlt die Ziel-Spalte (umbenannt/gelöscht), passiert
-// nichts — Auto-Follow ist Komfort, nie Zwang.
+// syncStage lets the stage follow the new state (within the transaction of the
+// state transition). If the target column is missing (renamed/deleted), nothing
+// happens — auto-follow is a convenience, never a constraint.
 //
-// Beim Übergang in einen terminalen State greift Auto-Follow zusätzlich für die
-// vom Agenten selbst angelegten Spalten: Eine erledigte Aufgabe gehört nicht in
-// „Recherche", sie gehört nach „Erledigt". Ohne das bliebe in jeder erfundenen
-// Spalte eine terminale Aufgabe liegen, die Spalte damit dauerhaft „nicht leer"
-// — und das Board sammelte über Wochen ein Dutzend toter Arbeitszustände an.
-// Von Menschen angelegte Spalten bleiben auch hier unangetastet: bewusste
-// Platzierung wird nie überschrieben.
+// On the transition into a terminal state, auto-follow additionally applies to
+// the columns the agent created itself: a completed task does not belong in
+// "Recherche", it belongs in "Erledigt". Without this, a terminal task would
+// stay behind in every invented column, keeping that column permanently "not
+// empty" — and over weeks the board would collect a dozen dead working states.
+// Columns created by humans stay untouched here as well: a deliberate placement
+// is never overwritten.
 func syncStage(ctx context.Context, tx pgx.Tx, taskID uuid.UUID, newState string) error {
 	target, ok := stateStage[newState]
 	if !ok {
@@ -343,7 +347,7 @@ func syncStage(ctx context.Context, tx pgx.Tx, taskID uuid.UUID, newState string
 	return err
 }
 
-// transition führt einen validierten Zustandsübergang inkl. Historie aus.
+// transition performs a validated state transition including its history entry.
 func (s *Store) transition(ctx context.Context, id uuid.UUID, to, note string, set string, args ...any) (Task, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -373,9 +377,9 @@ func (s *Store) transition(ctx context.Context, id uuid.UUID, to, note string, s
 	if err := syncStage(ctx, tx, id, to); err != nil {
 		return Task{}, err
 	}
-	// Die Aufgabe hat gerade eine Agenten-Spalte verlassen — steht die jetzt
-	// leer, verschwindet sie mit. Das hält das Board auf den Arbeitszuständen,
-	// die es wirklich gibt.
+	// The task has just left an agent column — if that column now stands empty,
+	// it goes with it. This keeps the board on the working states that really
+	// exist.
 	if terminalState(to) {
 		if _, err := cleanupEmptyAgentStages(ctx, tx, t.AgentID); err != nil {
 			return Task{}, err
@@ -387,35 +391,35 @@ func (s *Store) transition(ctx context.Context, id uuid.UUID, to, note string, s
 	return s.Get(ctx, id)
 }
 
-// Block parkt die Aufgabe: Korrelations-Key + Runtime-Session für --resume (spec/12, spec/13).
+// Block parks the task: correlation key + runtime session for --resume (spec/12, spec/13).
 func (s *Store) Block(ctx context.Context, id uuid.UUID, correlationKey, sessionID, question string) (Task, error) {
 	return s.transition(ctx, id, StateBlocked, "blocked: "+question,
 		"correlation_key=$3, runtime_session_id=$4, resume_input=NULL", correlationKey, sessionID)
 }
 
-// Complete schließt die Aufgabe ab (done) oder scheitert sie (failed).
+// Complete finishes the task (done) or fails it (failed).
 func (s *Store) Complete(ctx context.Context, id uuid.UUID, state, result, errMsg string) (Task, error) {
 	if state != StateDone && state != StateFailed {
-		return Task{}, fmt.Errorf("%w: complete nach %s", ErrInvalidTransition, state)
+		return Task{}, fmt.Errorf("%w: complete to %s", ErrInvalidTransition, state)
 	}
 	return s.transition(ctx, id, state, "", "result=$3, error=NULLIF($4,''), correlation_key=NULL", result, errMsg)
 }
 
-// Reopen setzt eine in_progress-Aufgabe zurück auf open (z. B. Kill mitten im Lauf).
+// Reopen resets an in_progress task back to open (e.g. a kill mid-run).
 func (s *Store) Reopen(ctx context.Context, id uuid.UUID, note string) (Task, error) {
 	return s.transition(ctx, id, StateOpen, note, "")
 }
 
-// RequeueOrphaned setzt beim Start alle in_progress-Aufgaben zurück auf open.
-// Ein frisch gestarteter Control-Plane-Prozess hat keine lebenden Daemon-
-// Sessions — eine Aufgabe in in_progress hing also an einer Sandbox, die mit dem
-// letzten Prozess (Crash/Deploy) verschwunden ist. Ohne dies bliebe sie dauerhaft
-// hängen, weil tick/ClaimNext nur state='open' sehen. blocked-Aufgaben bleiben
-// unberührt (sie wachen per Korrelation auf).
+// RequeueOrphaned resets all in_progress tasks back to open at startup. A
+// freshly started control-plane process has no live daemon sessions — a task in
+// in_progress therefore hung off a sandbox that vanished together with the last
+// process (crash/deploy). Without this it would stay stuck forever, because
+// tick/ClaimNext only see state='open'. blocked tasks stay untouched (they wake
+// up via correlation).
 //
-// HA-Hinweis: korrekt für Single-Node (aktueller Stand). Liefen mehrere aktive
-// Control-Plane-Prozesse, würde ein Neustart laufende Aufgaben anderer Nodes
-// zurücksetzen — das bräuchte node-übergreifende Session-Liveness.
+// HA note: correct for a single node (the current state). With several active
+// control-plane processes, a restart would reset the running tasks of other
+// nodes — that would need cross-node session liveness.
 func (s *Store) RequeueOrphaned(ctx context.Context) (int64, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -444,7 +448,7 @@ func (s *Store) RequeueOrphaned(ctx context.Context) (int64, error) {
 	}
 	for _, id := range ids {
 		if _, err := tx.Exec(ctx, `INSERT INTO task_transitions (task_id, from_state, to_state, note)
-			VALUES ($1,'in_progress','open','reconcile: control plane neu gestartet')`, id); err != nil {
+			VALUES ($1,'in_progress','open','reconcile: control plane restarted')`, id); err != nil {
 			return 0, err
 		}
 		if err := syncStage(ctx, tx, id, StateOpen); err != nil {
@@ -457,9 +461,9 @@ func (s *Store) RequeueOrphaned(ctx context.Context) (int64, error) {
 	return int64(len(ids)), nil
 }
 
-// Retry plant eine gescheiterte oder verworfene Aufgabe erneut ein: zurück auf
-// open, altes Ergebnis/Fehler geleert (die Historie steht in task_transitions),
-// und der Agent wird geweckt.
+// Retry reschedules a failed or discarded task: back to open, the old
+// result/error cleared (the history lives in task_transitions), and the agent
+// is woken.
 func (s *Store) Retry(ctx context.Context, id uuid.UUID, note string) (Task, error) {
 	t, err := s.transition(ctx, id, StateOpen, note,
 		"result=NULL, error=NULL, correlation_key=NULL, archived_at=NULL")
@@ -470,8 +474,8 @@ func (s *Store) Retry(ctx context.Context, id uuid.UUID, note string) (Task, err
 	return t, nil
 }
 
-// Archive blendet eine terminale Aufgabe aus dem aktiven Backlog aus.
-// Kein Löschen: Historie und Recording-Verweise bleiben vollständig.
+// Archive hides a terminal task from the active backlog. No deletion: history
+// and recording references stay complete.
 func (s *Store) Archive(ctx context.Context, id uuid.UUID) (Task, error) {
 	tag, err := s.pool.Exec(ctx, `UPDATE backlog_tasks SET archived_at=now()
 		WHERE id=$1 AND archived_at IS NULL AND state IN ('done','failed','cancelled')`, id)
@@ -483,28 +487,28 @@ func (s *Store) Archive(ctx context.Context, id uuid.UUID) (Task, error) {
 		if err != nil {
 			return t, err
 		}
-		return t, fmt.Errorf("%w: nur abgeschlossene Aufgaben lassen sich archivieren (Zustand %s)",
+		return t, fmt.Errorf("%w: only completed tasks can be archived (state %s)",
 			ErrInvalidTransition, t.State)
 	}
 	t, err := s.Get(ctx, id)
 	if err == nil {
-		// Archivieren kann eine Agenten-Spalte geleert haben.
+		// Archiving may have emptied an agent column.
 		_, _ = cleanupEmptyAgentStages(ctx, s.pool, t.AgentID)
 	}
 	return t, err
 }
 
-// ArchiveTerminalOlderThan archiviert organisationsweit jede terminale Aufgabe,
-// die seit `age` nicht mehr angefasst wurde, und räumt danach die leer
-// gewordenen Agenten-Spalten ab. Das ist der Selbstaufräum-Pfad: ohne ihn hält
-// jede erledigte Karte ihre Spalte am Leben, und ein Board, auf dem ein Agent
-// tagelang gearbeitet hat, wächst zu einem Verlauf statt eines Zustands — das
-// Spalten-Cleanup allein greift nie, weil die Leiche in der Spalte liegen
-// bleibt. Wer sofort aufräumen will, hat weiter ArchiveTerminal (UI-Button).
+// ArchiveTerminalOlderThan archives, org-wide, every terminal task that has not
+// been touched for `age`, and afterwards clears out the agent columns that have
+// become empty. This is the self-cleanup path: without it every completed card
+// keeps its column alive, and a board an agent has worked on for days grows
+// into a history instead of a state — the column cleanup alone never fires,
+// because the corpse stays lying in the column. Whoever wants to clean up right
+// away still has ArchiveTerminal (UI button).
 //
-// Bewusst zeitbasiert statt „nach jedem Lauf": frisch Erledigtes soll auf dem
-// Board sichtbar bleiben, sonst verschwindet die Arbeit des letzten Laufs vor
-// den Augen dessen, der sie gerade prüfen will.
+// Deliberately time-based instead of "after every run": freshly completed work
+// should stay visible on the board, otherwise the work of the last run vanishes
+// before the eyes of the person who is about to review it.
 func (s *Store) ArchiveTerminalOlderThan(ctx context.Context, age time.Duration) (int64, error) {
 	rows, err := s.pool.Query(ctx, `UPDATE backlog_tasks SET archived_at=now()
 		WHERE archived_at IS NULL AND state IN ('done','failed','cancelled')
@@ -536,14 +540,14 @@ func (s *Store) ArchiveTerminalOlderThan(ctx context.Context, age time.Duration)
 	return archived, nil
 }
 
-// ArchiveTerminal räumt auf: archiviert alle terminalen Aufgaben eines Agenten.
+// ArchiveTerminal tidies up: archives all terminal tasks of an agent.
 func (s *Store) ArchiveTerminal(ctx context.Context, agentID uuid.UUID) (int64, error) {
 	tag, err := s.pool.Exec(ctx, `UPDATE backlog_tasks SET archived_at=now()
 		WHERE agent_id=$1 AND archived_at IS NULL AND state IN ('done','failed','cancelled')`, agentID)
 	if err != nil {
 		return 0, err
 	}
-	// Archivieren kann Agenten-Spalten geleert haben — abräumen.
+	// Archiving may have emptied agent columns — clear them out.
 	_, _ = cleanupEmptyAgentStages(ctx, s.pool, agentID)
 	return tag.RowsAffected(), nil
 }
@@ -552,9 +556,9 @@ func (s *Store) Cancel(ctx context.Context, id uuid.UUID, note string) (Task, er
 	return s.transition(ctx, id, StateCancelled, note, "")
 }
 
-// CorrelateWake ist die blocked→working-Kante (M4): ein eingehendes Event mit
-// Korrelations-Key öffnet die geparkte Aufgabe mit Resume-Input neu und weckt
-// den Agenten. Liefert ErrNotFound, wenn nichts auf den Key wartet.
+// CorrelateWake is the blocked→working edge (M4): an incoming event with a
+// correlation key reopens the parked task with resume input and wakes the
+// agent. Returns ErrNotFound if nothing is waiting on the key.
 func (s *Store) CorrelateWake(ctx context.Context, correlationKey, resumeInput string) (Task, error) {
 	t, err := scanTask(s.pool.QueryRow(ctx, "SELECT "+taskCols+` FROM backlog_tasks
 		WHERE state='blocked' AND correlation_key=$1
@@ -562,7 +566,7 @@ func (s *Store) CorrelateWake(ctx context.Context, correlationKey, resumeInput s
 	if err != nil {
 		return Task{}, err
 	}
-	t, err = s.transition(ctx, t.ID, StateOpen, "korreliertes Event: "+correlationKey,
+	t, err = s.transition(ctx, t.ID, StateOpen, "correlated event: "+correlationKey,
 		"resume_input=$3, priority=1", resumeInput)
 	if err != nil {
 		return Task{}, err
@@ -571,22 +575,22 @@ func (s *Store) CorrelateWake(ctx context.Context, correlationKey, resumeInput s
 	return t, nil
 }
 
-// InOrg beantwortet, ob eine Aufgabe zu dieser Organisation gehört. Die
-// Antwort ist bewusst ein Boolean und kein Task: Der Aufrufer (die
-// taskScoped-Middleware) will nur die Grenze prüfen, nicht die Daten.
+// InOrg answers whether a task belongs to this organization. The answer is
+// deliberately a boolean and not a task: the caller (the taskScoped middleware)
+// only wants to check the boundary, not the data.
 func (s *Store) InOrg(ctx context.Context, orgID, taskID uuid.UUID) bool {
-	var eins int
+	var one int
 	err := s.pool.QueryRow(ctx,
-		"SELECT 1 FROM backlog_tasks WHERE id=$1 AND org_id=$2", taskID, orgID).Scan(&eins)
+		"SELECT 1 FROM backlog_tasks WHERE id=$1 AND org_id=$2", taskID, orgID).Scan(&one)
 	return err == nil
 }
 
-// StageInOrg prüft dasselbe für eine Board-Spalte. Spalten hängen am Agenten,
-// die Organisation steht also erst nach dem Join fest.
+// StageInOrg checks the same for a board column. Columns hang off the agent, so
+// the organization is only settled after the join.
 func (s *Store) StageInOrg(ctx context.Context, orgID, stageID uuid.UUID) bool {
-	var eins int
+	var one int
 	err := s.pool.QueryRow(ctx, `SELECT 1 FROM agent_stages st JOIN agents a ON a.id = st.agent_id
-		WHERE st.id=$1 AND a.org_id=$2`, stageID, orgID).Scan(&eins)
+		WHERE st.id=$1 AND a.org_id=$2`, stageID, orgID).Scan(&one)
 	return err == nil
 }
 
@@ -608,7 +612,7 @@ func (s *Store) Transitions(ctx context.Context, taskID uuid.UUID) ([]Transition
 	return out, rows.Err()
 }
 
-// HasOpen meldet, ob der Agent offene Arbeit hat (Tick-Entscheidung ohne LLM).
+// HasOpen reports whether the agent has open work (tick decision without an LLM).
 func (s *Store) HasOpen(ctx context.Context, agentID uuid.UUID) (bool, error) {
 	var n int
 	err := s.pool.QueryRow(ctx,
@@ -616,7 +620,7 @@ func (s *Store) HasOpen(ctx context.Context, agentID uuid.UUID) (bool, error) {
 	return n > 0, err
 }
 
-// --- Stages (Kanban-Overlay, pro Agent) ---
+// --- Stages (Kanban overlay, per agent) ---
 
 const stageCols = "id, agent_id, name, position, color, created_by, created_at"
 
@@ -629,7 +633,7 @@ func scanStage(row pgx.Row) (Stage, error) {
 	return st, err
 }
 
-// ListStages liefert die Spalten eines Agenten in Anzeigereihenfolge.
+// ListStages returns an agent's columns in display order.
 func (s *Store) ListStages(ctx context.Context, agentID uuid.UUID) ([]Stage, error) {
 	rows, err := s.pool.Query(ctx, "SELECT "+stageCols+
 		" FROM agent_stages WHERE agent_id=$1 ORDER BY position, created_at", agentID)
@@ -648,15 +652,15 @@ func (s *Store) ListStages(ctx context.Context, agentID uuid.UUID) ([]Stage, err
 	return out, rows.Err()
 }
 
-// querier abstrahiert Pool und Transaktion, damit Stage-Operationen auch
-// innerhalb einer Transaktion laufen können (SetTaskStageByName).
+// querier abstracts pool and transaction so that stage operations can also run
+// inside a transaction (SetTaskStageByName).
 type querier interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 }
 
-// CreateStage hängt eine neue Spalte hinten an (position = max+1) — der
-// menschliche Pfad (UI/API); Agenten-Spalten entstehen über EnsureStage.
+// CreateStage appends a new column at the end (position = max+1) — the human
+// path (UI/API); agent columns come into being via EnsureStage.
 func (s *Store) CreateStage(ctx context.Context, agentID uuid.UUID, name, color string) (Stage, error) {
 	return createStage(ctx, s.pool, agentID, name, color, "human")
 }
@@ -668,18 +672,20 @@ func createStage(ctx context.Context, q querier, agentID uuid.UUID, name, color,
 		RETURNING `+stageCols, uuid.New(), agentID, name, color, createdBy))
 }
 
-// DefaultStages sind die Spalten, die jeder Agent von Beginn an haben soll —
-// ein schlichtes Kanban. Die erste Spalte ist die Landezone neuer Aufgaben
-// (siehe Create). Farben nutzen dieselben CSS-Variablen wie das Frontend.
+// DefaultStages are the columns every agent should have from the start — a
+// plain Kanban. The first column is the landing zone for new tasks (see
+// Create). Colors use the same CSS variables as the frontend. The names are
+// German because they are persisted per agent and matched by name (stateStage);
+// renaming them needs a migration of the existing boards.
 var DefaultStages = []struct{ Name, Color string }{
 	{"Backlog", "var(--text-muted)"},
 	{"In Arbeit", "var(--text-accent)"},
 	{"Erledigt", "var(--text-success)"},
 }
 
-// SeedDefaultStages legt die Default-Spalten für einen Agenten an — idempotent:
-// hat der Agent bereits Stages, passiert nichts. So bekommt jeder neue Agent
-// von Anfang an ein Board, und ein Backfill bestehender Agenten ist gefahrlos.
+// SeedDefaultStages creates the default columns for an agent — idempotent: if
+// the agent already has stages, nothing happens. This way every new agent has a
+// board from the start, and backfilling existing agents is harmless.
 func (s *Store) SeedDefaultStages(ctx context.Context, agentID uuid.UUID) error {
 	var n int
 	if err := s.pool.QueryRow(ctx,
@@ -697,13 +703,13 @@ func (s *Store) SeedDefaultStages(ctx context.Context, agentID uuid.UUID) error 
 	return nil
 }
 
-// UpdateStage ändert Name, Farbe und Position einer Spalte.
+// UpdateStage changes name, color and position of a column.
 func (s *Store) UpdateStage(ctx context.Context, id uuid.UUID, name, color string, position int) (Stage, error) {
 	return scanStage(s.pool.QueryRow(ctx, `UPDATE agent_stages SET name=$2, color=$3, position=$4
 		WHERE id=$1 RETURNING `+stageCols, id, name, color, position))
 }
 
-// DeleteStage entfernt eine Spalte; Aufgaben darin fallen per FK auf stage=NULL.
+// DeleteStage removes a column; tasks in it fall back to stage=NULL via the FK.
 func (s *Store) DeleteStage(ctx context.Context, id uuid.UUID) error {
 	ct, err := s.pool.Exec(ctx, "DELETE FROM agent_stages WHERE id=$1", id)
 	if err != nil {
@@ -715,7 +721,7 @@ func (s *Store) DeleteStage(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// ReorderStages setzt die Positionen anhand der übergebenen Reihenfolge.
+// ReorderStages sets the positions according to the given order.
 func (s *Store) ReorderStages(ctx context.Context, agentID uuid.UUID, ordered []uuid.UUID) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -731,9 +737,9 @@ func (s *Store) ReorderStages(ctx context.Context, agentID uuid.UUID, ordered []
 	return tx.Commit(ctx)
 }
 
-// EnsureStage liefert die gleichnamige Stage oder legt sie an — der Weg, über
-// den der Agent per set_stage eine neue Spalte „erfindet". Solche Spalten
-// tragen created_by='agent' und werden automatisch abgeräumt, wenn sie leeren.
+// EnsureStage returns the stage of that name or creates it — the way the agent
+// "invents" a new column via set_stage. Such columns carry created_by='agent'
+// and are cleared out automatically once they run empty.
 func (s *Store) EnsureStage(ctx context.Context, agentID uuid.UUID, name string) (Stage, error) {
 	return ensureStage(ctx, s.pool, agentID, name)
 }
@@ -750,9 +756,9 @@ func ensureStage(ctx context.Context, q querier, agentID uuid.UUID, name string)
 	return createStage(ctx, q, agentID, name, "", "agent")
 }
 
-// SetTaskStage verschiebt eine Aufgabe in eine Stage (nil = ohne Stage). Rein
-// anzeigend — kein Lifecycle-Übergang, kein NOTIFY. Räumt danach leere
-// Agenten-Spalten ab (die Aufgabe könnte die letzte in einer gewesen sein).
+// SetTaskStage moves a task into a stage (nil = no stage). Purely a matter of
+// display — no lifecycle transition, no NOTIFY. Clears out empty agent columns
+// afterwards (the task might have been the last one in such a column).
 func (s *Store) SetTaskStage(ctx context.Context, taskID uuid.UUID, stageID *uuid.UUID) (Task, error) {
 	t, err := scanTask(s.pool.QueryRow(ctx,
 		"UPDATE backlog_tasks SET stage_id=$2, updated_at=now() WHERE id=$1 RETURNING "+taskCols,
@@ -763,10 +769,10 @@ func (s *Store) SetTaskStage(ctx context.Context, taskID uuid.UUID, stageID *uui
 	return t, err
 }
 
-// SetTaskStageByName ist der Agenten-Pfad (set_stage) in einer Transaktion:
-// Stage sicherstellen, Aufgabe verschieben, leere Agenten-Spalten abräumen.
-// Eine Transaktion, damit kein nebenläufiges Cleanup die frisch angelegte
-// Spalte zwischen Anlegen und Zuweisen wegräumt.
+// SetTaskStageByName is the agent path (set_stage) in one transaction: ensure
+// the stage, move the task, clear out empty agent columns. One transaction, so
+// that no concurrent cleanup removes the freshly created column between
+// creating it and assigning it.
 func (s *Store) SetTaskStageByName(ctx context.Context, agentID, taskID uuid.UUID, name string) (Stage, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -787,10 +793,10 @@ func (s *Store) SetTaskStageByName(ctx context.Context, agentID, taskID uuid.UUI
 	return st, tx.Commit(ctx)
 }
 
-// CleanupEmptyAgentStages räumt Spalten ab, die der Agent selbst angelegt hat
-// (created_by='agent') und in denen keine aktive (unarchivierte) Aufgabe mehr
-// liegt — die Spalten „erfindet" der Agent im Arbeiten, also verschwinden sie
-// auch wieder von selbst. Menschlich angelegte Spalten bleiben unberührt.
+// CleanupEmptyAgentStages clears out columns the agent created itself
+// (created_by='agent') and in which no active (unarchived) task is left — the
+// agent "invents" those columns while working, so they also disappear again by
+// themselves. Columns created by humans stay untouched.
 func (s *Store) CleanupEmptyAgentStages(ctx context.Context, agentID uuid.UUID) (int64, error) {
 	return cleanupEmptyAgentStages(ctx, s.pool, agentID)
 }
@@ -806,10 +812,10 @@ func cleanupEmptyAgentStages(ctx context.Context, q querier, agentID uuid.UUID) 
 	return tag.RowsAffected(), nil
 }
 
-// --- Notizen (proaktive Zwischenstände an der Aufgabe) ---
+// --- Notes (proactive interim results on the task) ---
 
-// AddNote hängt eine Notiz an die Aufgabe. Leerer Inhalt ist kein Fehler,
-// aber auch keine Notiz.
+// AddNote appends a note to the task. Empty content is not an error, but it is
+// not a note either.
 func (s *Store) AddNote(ctx context.Context, taskID uuid.UUID, author, content string) (Note, error) {
 	var n Note
 	err := s.pool.QueryRow(ctx, `INSERT INTO task_notes (id, task_id, author, content)
@@ -819,7 +825,7 @@ func (s *Store) AddNote(ctx context.Context, taskID uuid.UUID, author, content s
 	return n, err
 }
 
-// ListNotes liefert die Notizen einer Aufgabe in zeitlicher Reihenfolge.
+// ListNotes returns a task's notes in chronological order.
 func (s *Store) ListNotes(ctx context.Context, taskID uuid.UUID) ([]Note, error) {
 	rows, err := s.pool.Query(ctx, `SELECT id, task_id, author, content, created_at
 		FROM task_notes WHERE task_id=$1 ORDER BY created_at, id`, taskID)

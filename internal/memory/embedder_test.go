@@ -12,11 +12,11 @@ func cosine(a, b [Dim]float32) float64 {
 	for i := range a {
 		dot += float64(a[i]) * float64(b[i])
 	}
-	return dot // Vektoren sind normalisiert
+	return dot // vectors are normalized
 }
 
-// mustEmbed ruft den Embedder auf und lässt den Test scheitern, wenn er einen
-// Fehler liefert — der Hash-Embedder tut das nie, das Interface erlaubt es aber.
+// mustEmbed calls the embedder and fails the test if it returns an error — the
+// hash embedder never does, but the interface allows it.
 func mustEmbed(t *testing.T, e Embedder, text string) [Dim]float32 {
 	t.Helper()
 	v, err := e.Embed(context.Background(), text)
@@ -31,7 +31,7 @@ func TestHashEmbedderDeterministic(t *testing.T) {
 	a := mustEmbed(t, e, "Kunde Meier hat ein Login-Problem")
 	b := mustEmbed(t, e, "Kunde Meier hat ein Login-Problem")
 	if a != b {
-		t.Fatal("Embedding muss deterministisch sein")
+		t.Fatal("embedding must be deterministic")
 	}
 }
 
@@ -42,7 +42,7 @@ func TestHashEmbedderNormalized(t *testing.T) {
 		norm += float64(f) * float64(f)
 	}
 	if math.Abs(norm-1) > 1e-4 {
-		t.Fatalf("Norm erwartet 1, got %f", norm)
+		t.Fatalf("norm expected 1, got %f", norm)
 	}
 }
 
@@ -52,7 +52,7 @@ func TestHashEmbedderSimilarityOrdering(t *testing.T) {
 	related := mustEmbed(t, e, "Meier konnte sich nicht einloggen, Passwort zurückgesetzt")
 	unrelated := mustEmbed(t, e, "Rechnung Q3 Controlling Export fehlgeschlagen")
 	if cosine(query, related) <= cosine(query, unrelated) {
-		t.Fatalf("verwandter Text muss ähnlicher sein: related=%f unrelated=%f",
+		t.Fatalf("related text must be more similar: related=%f unrelated=%f",
 			cosine(query, related), cosine(query, unrelated))
 	}
 }
@@ -61,7 +61,7 @@ func TestHashEmbedderEmpty(t *testing.T) {
 	v := mustEmbed(t, HashEmbedder{}, "")
 	for _, f := range v {
 		if f != 0 {
-			t.Fatal("leerer Text muss Nullvektor liefern")
+			t.Fatal("empty text must yield the zero vector")
 		}
 	}
 }
@@ -71,7 +71,7 @@ func TestVectorLiteral(t *testing.T) {
 	v[0], v[1] = 0.5, -1
 	lit := vectorLiteral(v)
 	if !strings.HasPrefix(lit, "[0.5,-1,0,") || !strings.HasSuffix(lit, ",0]") {
-		t.Fatalf("unerwartetes Literal: %.40s…%s", lit, lit[len(lit)-4:])
+		t.Fatalf("unexpected literal: %.40s…%s", lit, lit[len(lit)-4:])
 	}
 }
 
@@ -102,20 +102,20 @@ func TestIsNoise(t *testing.T) {
 
 func TestFormatForPrompt(t *testing.T) {
 	if got := FormatForPrompt(nil); got != "" {
-		t.Fatalf("leere Treffer → leerer Block, got %q", got)
+		t.Fatalf("no hits → empty block, got %q", got)
 	}
-	// Der Wiki-Block rendert je Treffer eine Seite: Titel + [[slug]] als
-	// Überschrift, darunter den Body (Zeilenumbrüche bleiben — es ist Markdown),
-	// optional die verwandten Seiten.
+	// The wiki block renders one page per hit: title + [[slug]] as the heading,
+	// the body below it (line breaks are kept — it is Markdown), optionally the
+	// related pages.
 	got := FormatForPrompt([]Entry{{
 		Title:   "Kunde Meier",
 		Slug:    "kunde-meier",
 		Content: "Zeile1\nZeile2",
 		Links:   []string{"firefox"},
 	}})
-	for _, want := range []string{"### Kunde Meier [[kunde-meier]]", "Zeile1\nZeile2", "Verwandt: [[firefox]]"} {
+	for _, want := range []string{"### Kunde Meier [[kunde-meier]]", "Zeile1\nZeile2", "Related: [[firefox]]"} {
 		if !strings.Contains(got, want) {
-			t.Fatalf("Wiki-Block enthält %q nicht: %q", want, got)
+			t.Fatalf("wiki block does not contain %q: %q", want, got)
 		}
 	}
 }

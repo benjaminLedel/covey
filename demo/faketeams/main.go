@@ -1,14 +1,13 @@
-// faketeams ist ein minimales Bot-Connector-Double für lokale Demos: der
-// OAuth2-Token-Endpoint und die drei vom Teams-Agenten genutzten
-// Connector-Endpunkte (senden, antworten, Konversation eröffnen). Alle
-// Zugriffe werden geloggt.
+// faketeams is a minimal Bot Connector double for local demos: the OAuth2
+// token endpoint and the three connector endpoints used by the Teams agent
+// (send, reply, open conversation). Every access is logged.
 //
-// Start: go run ./demo/faketeams (Port 9998).
+// Start: go run ./demo/faketeams (port 9998).
 //
-// Gegenrichtung (eingehende Nachricht → Covey wecken): Da faketeams die
-// Antwort-Seite (Bot Connector) spielt, wird eine eingehende Activity per curl
-// direkt an den Messaging-Endpoint geschickt (COVEY_TEAMS_WEBHOOK_SECRET leer
-// lassen, dann ist die JWT-Prüfung aus):
+// Opposite direction (incoming message → wake Covey): since faketeams plays
+// the reply side (Bot Connector), an incoming activity is sent via curl
+// directly to the messaging endpoint (leave COVEY_TEAMS_WEBHOOK_SECRET empty,
+// then the JWT check is off):
 //
 //	curl -X POST http://localhost:8494/api/webhooks/teams/<agent-slug> \
 //	  -H 'Content-Type: application/json' -d '{
@@ -61,7 +60,7 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]any{"id": "19:new-conv"})
 	})
 
-	// Datei-Anhang (vor-autorisiert, ohne Token) — Ziel eines download_attachment.
+	// File attachment (pre-authorized, no token) — target of a download_attachment.
 	mux.HandleFunc("GET /files/{name}", func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue("name")
 		log.Printf("→ DOWNLOAD attachment %s", name)
@@ -69,7 +68,7 @@ func main() {
 		w.Write([]byte("Beispiel-Anhang " + name + " aus fake-teams.\n"))
 	})
 
-	log.Println("fake-teams (Bot Connector) auf :9998")
+	log.Println("fake-teams (Bot Connector) on :9998")
 	srv := &http.Server{Addr: ":9998", Handler: mux, ReadHeaderTimeout: 20 * time.Second}
 	log.Fatal(srv.ListenAndServe())
 }

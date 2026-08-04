@@ -21,7 +21,7 @@ import (
 	"covey/internal/secrets"
 )
 
-// --- Agenten ---
+// --- Agents ---
 
 func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
@@ -44,7 +44,7 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 		Runtime     string `json:"runtime"`
 	}
 	if err := readJSON(r, &in); err != nil || in.Slug == "" || in.DisplayName == "" {
-		writeErr(w, http.StatusBadRequest, "slug und display_name sind Pflicht")
+		writeErr(w, http.StatusBadRequest, "slug and display_name are required")
 		return
 	}
 	a, err := s.Registry.Create(r.Context(), p.OrgID, in.Slug, in.DisplayName, in.Runtime, &p.ID)
@@ -52,10 +52,10 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	// Jeder Agent startet mit einem Default-Board. Best-effort: der Agent ist
-	// bereits angelegt, ein Seed-Fehler darf die Erstellung nicht kippen.
+	// Every agent starts out with a default board. Best-effort: the agent is
+	// already created, a seeding error must not topple that.
 	if err := s.Backlog.SeedDefaultStages(r.Context(), a.ID); err != nil {
-		s.Log.Warn("default-stages seeden fehlgeschlagen", "agent", a.ID, "err", err)
+		s.Log.Warn("seeding default stages failed", "agent", a.ID, "err", err)
 	}
 	writeJSON(w, http.StatusCreated, a)
 }
@@ -63,7 +63,7 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	a, err := s.Registry.Get(r.Context(), id)
@@ -78,7 +78,7 @@ func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	if err := s.Registry.Delete(r.Context(), p.OrgID, id); err != nil {
@@ -93,56 +93,56 @@ func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	p := principalFrom(r)
 	cv, err := s.Registry.CurrentConfig(r.Context(), id)
 	if errors.Is(err, agents.ErrNotFound) {
-		// Noch keine Version: leere Dateien, damit ACCESS.md/EGRESS.md
-		// (live gerendert) trotzdem sichtbar sind.
+		// No version yet: empty files, so that ACCESS.md/EGRESS.md
+		// (rendered live) are visible anyway.
 		cv = agents.ConfigVersion{AgentID: id, Files: map[string]string{"SOUL.md": "", "HEARTBEAT.md": ""}}
 	} else if err != nil {
 		mapErr(w, err)
 		return
 	}
-	// ACCESS.md und EGRESS.md sind die Text-Sicht auf die UI-Stores und werden
-	// live gerendert — nie aus dem Version-Snapshot serviert (configsync.go).
+	// ACCESS.md and EGRESS.md are the text view of the UI stores and are
+	// rendered live — never served from the version snapshot (configsync.go).
 	if access, err := s.renderAccessFile(r.Context(), id); err != nil {
-		s.Log.Warn("ACCESS.md rendern", "agent", id, "err", err)
+		s.Log.Warn("rendering ACCESS.md", "agent", id, "err", err)
 	} else {
 		cv.Files["ACCESS.md"] = access
 	}
 	if eg, err := s.renderEgressFile(r.Context(), p.OrgID, id); err != nil {
-		s.Log.Warn("EGRESS.md rendern", "agent", id, "err", err)
+		s.Log.Warn("rendering EGRESS.md", "agent", id, "err", err)
 	} else {
 		cv.Files["EGRESS.md"] = eg
 	}
-	delete(cv.Files, "TOOLS.md") // Legacy: in ACCESS.md aufgegangen
+	delete(cv.Files, "TOOLS.md") // legacy: absorbed into ACCESS.md
 	writeJSON(w, http.StatusOK, cv)
 }
 
 func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	var in struct {
 		Files map[string]string `json:"files"`
 	}
 	if err := readJSON(r, &in); err != nil || len(in.Files) == 0 {
-		writeErr(w, http.StatusBadRequest, "files fehlt")
+		writeErr(w, http.StatusBadRequest, "files missing")
 		return
 	}
 	s.saveAndApplyConfig(w, r, id, in.Files)
 }
 
-// saveAndApplyConfig speichert files als neue Config-Version und übernimmt
-// ACCESS.md/EGRESS.md in die UI-Stores (Write-Through) — der gemeinsame Kern
-// von PUT /config und dem Bundle-Config-Import. Erst validieren und RBAC
-// prüfen, damit eine fehlerhafte Datei keine Version erzeugt; bei Erfolg wird
-// die neue ConfigVersion (200) geschrieben.
+// saveAndApplyConfig stores files as a new config version and carries
+// ACCESS.md/EGRESS.md over into the UI stores (write-through) — the shared core
+// of PUT /config and the bundle config import. Validate and check RBAC first,
+// so that a faulty file never produces a version; on success the new
+// ConfigVersion (200) is written.
 func (s *Server) saveAndApplyConfig(w http.ResponseWriter, r *http.Request, id uuid.UUID, files map[string]string) {
 	apply, ok := s.prepareConfigWrite(w, r, id, files)
 	if !ok {
@@ -151,29 +151,29 @@ func (s *Server) saveAndApplyConfig(w http.ResponseWriter, r *http.Request, id u
 	s.commitConfig(w, r, id, files, apply)
 }
 
-// prepareConfigWrite prüft alles, was vor dem ersten Schreiben feststehen muss
-// (Dateiformate, RBAC für Tools/Egress) und liefert die Write-Through-Funktion.
-// Fehler sind bereits beantwortet; ok=false heißt: nichts mehr tun.
+// prepareConfigWrite checks everything that has to be settled before the first
+// write (file formats, RBAC for tools/egress) and returns the write-through
+// function. Errors have already been answered; ok=false means: do nothing more.
 //
-// Getrennt vom Schreiben, weil der Bundle-Import daneben noch Skills anlegt und
-// beides eine gemeinsame Reihenfolge braucht: erst ALLE Prüfungen, dann alle
-// Seiteneffekte. Sonst hinterlässt ein 403 an der Config bereits angelegte
-// Skills, und der Aufrufer glaubt, es sei nichts passiert.
+// Separate from the writing because the bundle import also creates skills
+// alongside, and both need a common order: ALL checks first, then all side
+// effects. Otherwise a 403 on the config leaves already created skills behind,
+// and the caller believes nothing happened.
 func (s *Server) prepareConfigWrite(w http.ResponseWriter, r *http.Request, id uuid.UUID,
 	files map[string]string) (func(context.Context) error, bool) {
 	p := principalFrom(r)
 	if _, ok := files["TOOLS.md"]; ok {
-		writeErr(w, http.StatusBadRequest, "TOOLS.md ist in ACCESS.md aufgegangen (Attribut tools: je System)")
+		writeErr(w, http.StatusBadRequest, "TOOLS.md has been absorbed into ACCESS.md (tools: attribute per system)")
 		return nil, false
 	}
-	// HEARTBEAT.md vorab validieren: ein Parse-Fehler soll als 400 mit
-	// verständlicher Meldung zurückkommen, nicht erst in SaveConfig scheitern.
+	// Validate HEARTBEAT.md up front: a parse error should come back as a 400
+	// with a comprehensible message instead of failing later in SaveConfig.
 	if _, err := agents.ParseHeartbeat(files["HEARTBEAT.md"]); err != nil {
 		writeErr(w, http.StatusBadRequest, "HEARTBEAT.md: "+err.Error())
 		return nil, false
 	}
-	// Write-Through in die UI-Stores (Tools, Egress) — erst validieren und
-	// RBAC prüfen, damit eine fehlerhafte Datei keine Version erzeugt.
+	// Write-through into the UI stores (tools, egress) — validate and check
+	// RBAC first, so that a faulty file never produces a version.
 	canSecurity := p.Role == identity.RolePlatformAdmin || p.Role == identity.RoleSecurity
 	apply, err := s.prepareConfigApply(r.Context(), p.OrgID, id, files, canSecurity)
 	if err != nil {
@@ -187,7 +187,7 @@ func (s *Server) prepareConfigWrite(w http.ResponseWriter, r *http.Request, id u
 	return apply, true
 }
 
-// commitConfig schreibt die neue Version und führt den Write-Through aus.
+// commitConfig writes the new version and runs the write-through.
 func (s *Server) commitConfig(w http.ResponseWriter, r *http.Request, id uuid.UUID,
 	files map[string]string, apply func(context.Context) error) {
 	p := principalFrom(r)
@@ -198,18 +198,18 @@ func (s *Server) commitConfig(w http.ResponseWriter, r *http.Request, id uuid.UU
 	}
 	if err := apply(r.Context()); err != nil {
 		s.Log.Error("config write-through", "agent", id, "err", err)
-		writeErr(w, http.StatusInternalServerError, "Version gespeichert, aber Übernahme in Tools/Egress fehlgeschlagen: "+err.Error())
+		writeErr(w, http.StatusInternalServerError, "version saved, but applying it to tools/egress failed: "+err.Error())
 		return
 	}
 	writeJSON(w, http.StatusOK, cv)
 }
 
-// handleHeartbeats liefert die materialisierten Heartbeats des Agenten
-// inklusive berechnetem nächstem Lauf — die Monitoring-Sicht auf HEARTBEAT.md.
+// handleHeartbeats returns the agent's materialized heartbeats including the
+// computed next run — the monitoring view of HEARTBEAT.md.
 func (s *Server) handleHeartbeats(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	hbs, err := s.Registry.Heartbeats(r.Context(), id)
@@ -220,23 +220,23 @@ func (s *Server) handleHeartbeats(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, hbs)
 }
 
-// handleFireHeartbeat feuert einen Heartbeat sofort, unabhängig vom Zeitplan
-// (Button in der UI). Legt die Backlog-Aufgabe an und weckt den Agenten;
-// last_fired_at wird fortgeschrieben, der reguläre Zeitplan rechnet ab jetzt.
+// handleFireHeartbeat fires a heartbeat right away, independent of the
+// schedule (button in the UI). It creates the backlog task and wakes the agent;
+// last_fired_at is advanced, so the regular schedule counts from now.
 func (s *Server) handleFireHeartbeat(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	name := r.PathValue("name")
 	orgID, body, err := s.Registry.FireHeartbeat(r.Context(), id, name)
 	switch {
 	case errors.Is(err, agents.ErrHeartbeatPending):
-		writeErr(w, http.StatusConflict, "Die Aufgabe des letzten Laufs ist noch offen — erst abschließen oder abbrechen.")
+		writeErr(w, http.StatusConflict, "The task of the last run is still open — finish or cancel it first.")
 		return
 	case errors.Is(err, agents.ErrAgentKilled):
-		writeErr(w, http.StatusConflict, "Agent oder Flotte ist gestoppt — erst fortsetzen.")
+		writeErr(w, http.StatusConflict, "Agent or fleet is stopped — resume it first.")
 		return
 	case err != nil:
 		mapErr(w, err)
@@ -255,7 +255,7 @@ func (s *Server) handleFireHeartbeat(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleBacklog(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	tasks, err := s.Backlog.ListByAgent(r.Context(), id, r.URL.Query().Get("archived") == "1")
@@ -272,7 +272,7 @@ func (s *Server) handleBacklog(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	p := principalFrom(r)
@@ -282,7 +282,7 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		Priority int    `json:"priority"`
 	}
 	if err := readJSON(r, &in); err != nil || in.Title == "" {
-		writeErr(w, http.StatusBadRequest, "title ist Pflicht")
+		writeErr(w, http.StatusBadRequest, "title is required")
 		return
 	}
 	t, err := s.Backlog.Create(r.Context(), p.OrgID, id, in.Title, in.Body, "manual:"+p.Email, in.Priority)
@@ -296,11 +296,11 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleCancelTask(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	p := principalFrom(r)
-	t, err := s.Backlog.Cancel(r.Context(), id, "verworfen von "+p.Email)
+	t, err := s.Backlog.Cancel(r.Context(), id, "discarded by "+p.Email)
 	if err != nil {
 		mapErr(w, err)
 		return
@@ -308,15 +308,15 @@ func (s *Server) handleCancelTask(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, t)
 }
 
-// handleRetryTask plant eine gescheiterte/verworfene Aufgabe erneut ein.
+// handleRetryTask schedules a failed/discarded task again.
 func (s *Server) handleRetryTask(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	p := principalFrom(r)
-	t, err := s.Backlog.Retry(r.Context(), id, "erneut eingeplant von "+p.Email)
+	t, err := s.Backlog.Retry(r.Context(), id, "rescheduled by "+p.Email)
 	if err != nil {
 		mapErr(w, err)
 		return
@@ -324,11 +324,11 @@ func (s *Server) handleRetryTask(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, t)
 }
 
-// handleArchiveTask blendet eine terminale Aufgabe aus dem aktiven Backlog aus.
+// handleArchiveTask hides a terminal task from the active backlog.
 func (s *Server) handleArchiveTask(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	t, err := s.Backlog.Archive(r.Context(), id)
@@ -339,11 +339,11 @@ func (s *Server) handleArchiveTask(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, t)
 }
 
-// handleCleanupBacklog archiviert alle terminalen Aufgaben eines Agenten.
+// handleCleanupBacklog archives all terminal tasks of an agent.
 func (s *Server) handleCleanupBacklog(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	n, err := s.Backlog.ArchiveTerminal(r.Context(), id)
@@ -354,12 +354,12 @@ func (s *Server) handleCleanupBacklog(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]int64{"archived": n})
 }
 
-// --- Stages (Kanban-Overlay) ---
+// --- Stages (kanban overlay) ---
 
 func (s *Server) handleListStages(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	stages, err := s.Backlog.ListStages(r.Context(), id)
@@ -376,7 +376,7 @@ func (s *Server) handleListStages(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleCreateStage(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	var in struct {
@@ -384,7 +384,7 @@ func (s *Server) handleCreateStage(w http.ResponseWriter, r *http.Request) {
 		Color string `json:"color"`
 	}
 	if err := readJSON(r, &in); err != nil || in.Name == "" {
-		writeErr(w, http.StatusBadRequest, "name ist Pflicht")
+		writeErr(w, http.StatusBadRequest, "name is required")
 		return
 	}
 	st, err := s.Backlog.CreateStage(r.Context(), id, in.Name, in.Color)
@@ -398,7 +398,7 @@ func (s *Server) handleCreateStage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleUpdateStage(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	var in struct {
@@ -407,7 +407,7 @@ func (s *Server) handleUpdateStage(w http.ResponseWriter, r *http.Request) {
 		Position int    `json:"position"`
 	}
 	if err := readJSON(r, &in); err != nil || in.Name == "" {
-		writeErr(w, http.StatusBadRequest, "name ist Pflicht")
+		writeErr(w, http.StatusBadRequest, "name is required")
 		return
 	}
 	st, err := s.Backlog.UpdateStage(r.Context(), id, in.Name, in.Color, in.Position)
@@ -421,7 +421,7 @@ func (s *Server) handleUpdateStage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDeleteStage(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	if err := s.Backlog.DeleteStage(r.Context(), id); err != nil {
@@ -434,14 +434,14 @@ func (s *Server) handleDeleteStage(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleReorderStages(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	var in struct {
 		Order []uuid.UUID `json:"order"`
 	}
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "order ist Pflicht")
+		writeErr(w, http.StatusBadRequest, "order is required")
 		return
 	}
 	if err := s.Backlog.ReorderStages(r.Context(), id, in.Order); err != nil {
@@ -454,14 +454,14 @@ func (s *Server) handleReorderStages(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleMoveTask(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	var in struct {
 		StageID *uuid.UUID `json:"stage_id"`
 	}
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "stage_id fehlt")
+		writeErr(w, http.StatusBadRequest, "stage_id missing")
 		return
 	}
 	t, err := s.Backlog.SetTaskStage(r.Context(), id, in.StageID)
@@ -475,7 +475,7 @@ func (s *Server) handleMoveTask(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleTransitions(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	trs, err := s.Backlog.Transitions(r.Context(), id)
@@ -486,11 +486,11 @@ func (s *Server) handleTransitions(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, trs)
 }
 
-// handleTaskNotes liefert die proaktiven Notizen des Agenten an einer Aufgabe.
+// handleTaskNotes returns the agent's proactive notes on a task.
 func (s *Server) handleTaskNotes(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	notes, err := s.Backlog.ListNotes(r.Context(), id)
@@ -504,12 +504,12 @@ func (s *Server) handleTaskNotes(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, notes)
 }
 
-// --- Lifecycle-Steuerung ---
+// --- Lifecycle control ---
 
 func (s *Server) handleWake(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	s.Orch.EnsureRunning(id)
@@ -519,7 +519,7 @@ func (s *Server) handleWake(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleKill(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	if err := s.Orch.Kill(r.Context(), id); err != nil {
@@ -532,7 +532,7 @@ func (s *Server) handleKill(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleResumeAgent(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	if err := s.Registry.SetKilled(r.Context(), id, false); err != nil {
@@ -546,14 +546,14 @@ func (s *Server) handleResumeAgent(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSetBudget(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	var in struct {
 		BudgetUSD float64 `json:"budget_usd"`
 	}
 	if err := readJSON(r, &in); err != nil || in.BudgetUSD < 0 {
-		writeErr(w, http.StatusBadRequest, "budget_usd fehlt")
+		writeErr(w, http.StatusBadRequest, "budget_usd missing")
 		return
 	}
 	if err := s.Registry.SetBudget(r.Context(), id, in.BudgetUSD); err != nil {
@@ -563,24 +563,24 @@ func (s *Server) handleSetBudget(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// handleListRuntimes liefert die im Daemon registrierten Runtime-Plugins
-// (spec/12) — dieselbe Registry, die der Daemon zur Ausführung nutzt.
+// handleListRuntimes returns the runtime plugins registered in the daemon
+// (spec/12) — the same registry the daemon uses to run them.
 func (s *Server) handleListRuntimes(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, daemon.Runtimes())
 }
 
-// handleRename ändert den Anzeigenamen eines Agenten. Der Slug bleibt stabil.
+// handleRename changes an agent's display name. The slug stays stable.
 func (s *Server) handleRename(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	var in struct {
 		DisplayName string `json:"display_name"`
 	}
 	if err := readJSON(r, &in); err != nil || strings.TrimSpace(in.DisplayName) == "" {
-		writeErr(w, http.StatusBadRequest, "display_name fehlt")
+		writeErr(w, http.StatusBadRequest, "display_name missing")
 		return
 	}
 	if err := s.Registry.Rename(r.Context(), id, strings.TrimSpace(in.DisplayName)); err != nil {
@@ -590,19 +590,19 @@ func (s *Server) handleRename(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// handleUpdateAgentProfile schreibt die Mitarbeiter-Stammdaten eines Agenten —
-// dieselben Profilfelder wie bei den Menschen (profilePatch), Werte erscheinen
-// im Org-Chart und in der covey/org_chart-Abfrage der Agenten.
+// handleUpdateAgentProfile writes an agent's employee master data — the same
+// profile fields as for humans (profilePatch); the values show up in the org
+// chart and in the agents' covey/org_chart query.
 func (s *Server) handleUpdateAgentProfile(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	p := principalFrom(r)
 	var in profilePatch
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
 	}
 	a, err := s.Registry.UpdateProfile(r.Context(), p.OrgID, id, agents.ProfileUpdate{
@@ -619,22 +619,24 @@ func (s *Server) handleUpdateAgentProfile(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, a)
 }
 
-// handleSetSlug ändert den Slug eines Agenten. Muss innerhalb der Org eindeutig sein.
+// handleSetSlug changes an agent's slug. It has to be unique within the org.
 func (s *Server) handleSetSlug(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	var in struct {
 		Slug string `json:"slug"`
 	}
 	if err := readJSON(r, &in); err != nil || strings.TrimSpace(in.Slug) == "" {
-		writeErr(w, http.StatusBadRequest, "slug fehlt")
+		writeErr(w, http.StatusBadRequest, "slug missing")
 		return
 	}
 	if err := s.Registry.SetSlug(r.Context(), id, strings.TrimSpace(in.Slug)); err != nil {
-		if strings.Contains(err.Error(), "bereits vergeben") || strings.Contains(err.Error(), "Format") {
+		// Matched against the wording of agents.Registry.SetSlug: a slug already
+		// taken or a bad format is a conflict, not a server error.
+		if strings.Contains(err.Error(), "already taken") || strings.Contains(err.Error(), "Format") {
 			writeErr(w, http.StatusConflict, err.Error())
 			return
 		}
@@ -644,23 +646,23 @@ func (s *Server) handleSetSlug(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// handleSetRuntime schaltet die Runtime eines Agenten um (Umschalten z. B. auf
-// 'mock' für kostenlose Demos). Wirkt beim nächsten Task-Dispatch.
+// handleSetRuntime switches an agent's runtime (over to 'mock' for free demos,
+// for example). Takes effect at the next task dispatch.
 func (s *Server) handleSetRuntime(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	var in struct {
 		Runtime string `json:"runtime"`
 	}
 	if err := readJSON(r, &in); err != nil || in.Runtime == "" {
-		writeErr(w, http.StatusBadRequest, "runtime fehlt")
+		writeErr(w, http.StatusBadRequest, "runtime missing")
 		return
 	}
 	if !daemon.IsRuntime(in.Runtime) {
-		writeErr(w, http.StatusBadRequest, "unbekannte runtime")
+		writeErr(w, http.StatusBadRequest, "unknown runtime")
 		return
 	}
 	if err := s.Registry.SetRuntime(r.Context(), id, in.Runtime); err != nil {
@@ -670,21 +672,21 @@ func (s *Server) handleSetRuntime(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// handleSetModel legt das LLM eines Agenten fest (z. B. claude-opus-4-8).
-// Leerer Wert setzt zurück auf den Runtime-Default. Wirkt beim nächsten
-// Task-Dispatch; die Runtime meldet das tatsächlich genutzte Modell über
-// das Cost-Event zurück.
+// handleSetModel pins an agent's LLM (claude-opus-4-8, for example). An empty
+// value resets it to the runtime default. Takes effect at the next task
+// dispatch; the runtime reports the model actually used back through the cost
+// event.
 func (s *Server) handleSetModel(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	var in struct {
 		Model string `json:"model"`
 	}
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "model fehlt")
+		writeErr(w, http.StatusBadRequest, "model missing")
 		return
 	}
 	if err := s.Registry.SetModel(r.Context(), id, strings.TrimSpace(in.Model)); err != nil {
@@ -694,25 +696,25 @@ func (s *Server) handleSetModel(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// handleSetRecordingLevel setzt den Agent-Override der Aufzeichnungstiefe
-// (spec/06). Leer = zurück auf Erben des Org-Bodens. Wirkt beim nächsten
-// action-Event; der effektive Level bleibt max(Org-Boden, Override).
+// handleSetRecordingLevel sets the agent override of the recording depth
+// (spec/06). Empty = back to inheriting the org floor. Takes effect at the next
+// action event; the effective level stays max(org floor, override).
 func (s *Server) handleSetRecordingLevel(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	var in struct {
 		Level string `json:"level"`
 	}
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "level fehlt")
+		writeErr(w, http.StatusBadRequest, "level missing")
 		return
 	}
 	in.Level = strings.TrimSpace(in.Level)
 	if in.Level != "" && !observability.ValidLevel(in.Level) {
-		writeErr(w, http.StatusBadRequest, "level muss minimal|standard|full (oder leer) sein")
+		writeErr(w, http.StatusBadRequest, "level must be minimal|standard|full (or empty)")
 		return
 	}
 	if err := s.Registry.SetRecordingLevel(r.Context(), id, in.Level); err != nil {
@@ -722,19 +724,20 @@ func (s *Server) handleSetRecordingLevel(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// handleSetWarmSandbox schaltet die warme Sandbox eines Agenten (opt-in). Wirkt
-// ab dem nächsten Einschlafen — die Sandbox bleibt dann live (Dev-Server/Caches).
+// handleSetWarmSandbox toggles an agent's warm sandbox (opt-in). Takes effect
+// from the next fall-asleep on — the sandbox then stays live (dev
+// servers/caches).
 func (s *Server) handleSetWarmSandbox(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	var in struct {
 		Warm bool `json:"warm"`
 	}
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "warm fehlt")
+		writeErr(w, http.StatusBadRequest, "warm missing")
 		return
 	}
 	if err := s.Registry.SetWarmSandbox(r.Context(), id, in.Warm); err != nil {
@@ -744,8 +747,8 @@ func (s *Server) handleSetWarmSandbox(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true, "warm_sandbox": in.Warm})
 }
 
-// handleOrgRecording liest (GET) bzw. setzt (PATCH) den Org-Boden der
-// Aufzeichnungstiefe — die org-weite Mindesttiefe (Security/Compliance).
+// handleOrgRecording reads (GET) and sets (PATCH) the org floor of the
+// recording depth — the org-wide minimum depth (security/compliance).
 func (s *Server) handleGetOrgRecording(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	level, err := s.Obs.OrgRecordingLevel(r.Context(), p.OrgID)
@@ -762,7 +765,7 @@ func (s *Server) handleSetOrgRecording(w http.ResponseWriter, r *http.Request) {
 		Level string `json:"level"`
 	}
 	if err := readJSON(r, &in); err != nil || !observability.ValidLevel(strings.TrimSpace(in.Level)) {
-		writeErr(w, http.StatusBadRequest, "level muss minimal|standard|full sein")
+		writeErr(w, http.StatusBadRequest, "level must be minimal|standard|full")
 		return
 	}
 	if err := s.Obs.SetOrgRecordingLevel(r.Context(), p.OrgID, strings.TrimSpace(in.Level)); err != nil {
@@ -772,23 +775,24 @@ func (s *Server) handleSetOrgRecording(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// handleSetMaxTurns legt das Turn-Limit je Runtime-Lauf fest (Runaway-Guard).
-// 0 setzt zurück auf den Orchestrator-Default. Wirkt beim nächsten Task-Dispatch.
+// handleSetMaxTurns sets the turn limit per runtime run (runaway guard).
+// 0 resets it to the orchestrator default. Takes effect at the next task
+// dispatch.
 func (s *Server) handleSetMaxTurns(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	var in struct {
 		MaxTurns int `json:"max_turns"`
 	}
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "max_turns fehlt")
+		writeErr(w, http.StatusBadRequest, "max_turns missing")
 		return
 	}
 	if in.MaxTurns < 0 {
-		writeErr(w, http.StatusBadRequest, "max_turns darf nicht negativ sein")
+		writeErr(w, http.StatusBadRequest, "max_turns must not be negative")
 		return
 	}
 	if err := s.Registry.SetMaxTurns(r.Context(), id, in.MaxTurns); err != nil {
@@ -803,7 +807,7 @@ func (s *Server) handleSetMaxTurns(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleRecording(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	var taskID *uuid.UUID
@@ -821,12 +825,12 @@ func (s *Server) handleRecording(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, events)
 }
 
-// handleRecordingBlob liefert ein Recording-Artefakt (Screenshot) org-gescopt.
+// handleRecordingBlob returns a recording artifact (screenshot), org-scoped.
 func (s *Server) handleRecordingBlob(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	id, err := uuid.Parse(r.PathValue("id"))
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	mime, data, err := s.Obs.GetBlob(r.Context(), p.OrgID, id)
@@ -846,7 +850,7 @@ func (s *Server) handleRecordingBlob(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleCost(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	c, err := s.Obs.CostByAgent(r.Context(), id)
@@ -857,8 +861,8 @@ func (s *Server) handleCost(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, c)
 }
 
-// costWindow liest bucket + days aus der Query und bildet daraus (bucket, since).
-// Defaults: Tages-Buckets über die letzten 30 Tage; days wird auf 1..365 begrenzt.
+// costWindow reads bucket + days from the query and forms (bucket, since) out
+// of them. Defaults: daily buckets over the last 30 days; days is capped at 365.
 func costWindow(r *http.Request) (string, time.Time) {
 	bucket := r.URL.Query().Get("bucket")
 	days := 30
@@ -871,11 +875,11 @@ func costWindow(r *http.Request) (string, time.Time) {
 	return bucket, time.Now().AddDate(0, 0, -days)
 }
 
-// handleCostSeries liefert die Kostenzeitreihe eines Agenten fürs Diagramm.
+// handleCostSeries returns an agent's cost time series for the chart.
 func (s *Server) handleCostSeries(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	bucket, since := costWindow(r)
@@ -887,8 +891,8 @@ func (s *Server) handleCostSeries(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, series)
 }
 
-// handleOrgCost liefert den org-weiten Kostenbericht (Summen, Zeitreihe,
-// pro Agent, pro Modell) fürs Kosten-/Token-Diagramm.
+// handleOrgCost returns the org-wide cost report (totals, time series,
+// per agent, per model) for the cost/token chart.
 func (s *Server) handleOrgCost(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	bucket, since := costWindow(r)
@@ -903,12 +907,12 @@ func (s *Server) handleOrgCost(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleMemories(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	// Mit ?q= liefert der Endpunkt die semantische Vektorsuche (spec/05,
-	// pgvector) statt der jüngsten Seiten — dieselbe Sicht, die der Agent im
-	// triage-Schritt bekommt. Ohne q: die letzten Seiten für den Index.
+	// With ?q= the endpoint returns the semantic vector search (spec/05,
+	// pgvector) instead of the most recent pages — the same view the agent gets
+	// in the triage step. Without q: the latest pages for the index.
 	var entries []memory.Entry
 	if q := strings.TrimSpace(r.URL.Query().Get("q")); q != "" {
 		entries, err = s.Memory.Query(r.Context(), id, q, 20)
@@ -922,14 +926,14 @@ func (s *Server) handleMemories(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, entries)
 }
 
-// handleCreateMemory legt manuell Wiki-Wissen an (Onboarding, Korrekturen) —
-// Gegenstück zum automatischen Ingest im done-Schritt. Mit title (und optional
-// slug) entsteht eine benannte Seite; nur mit content wird die Erkenntnis in
-// die passende Seite geroutet (spec/05).
+// handleCreateMemory creates wiki knowledge by hand (onboarding, corrections) —
+// the counterpart to the automatic ingest in the done step. With title (and
+// optionally slug) a named page comes about; with content alone the insight is
+// routed into the fitting page (spec/05).
 func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	var in struct {
@@ -940,11 +944,11 @@ func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 		Tags    []string `json:"tags"`
 	}
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
 	}
 	if memory.IsNoise(in.Content) {
-		writeErr(w, http.StatusBadRequest, "kein verwertbarer inhalt")
+		writeErr(w, http.StatusBadRequest, "no usable content")
 		return
 	}
 	if _, err := s.Registry.Get(r.Context(), id); err != nil {
@@ -962,7 +966,7 @@ func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 			Source: "manual", Type: in.Type, Tags: in.Tags,
 		}); err != nil {
 			if errors.Is(err, memory.ErrNoContent) {
-				writeErr(w, http.StatusBadRequest, "kein verwertbarer inhalt")
+				writeErr(w, http.StatusBadRequest, "no usable content")
 				return
 			}
 			mapErr(w, err)
@@ -979,7 +983,7 @@ func (s *Server) handleCreateMemory(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleUpdateMemory(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	var in struct {
@@ -987,12 +991,12 @@ func (s *Server) handleUpdateMemory(w http.ResponseWriter, r *http.Request) {
 		Title   string `json:"title"`
 	}
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
 	}
 	if err := s.Memory.UpdatePage(r.Context(), id, in.Title, in.Content); err != nil {
 		if errors.Is(err, memory.ErrNoContent) {
-			writeErr(w, http.StatusBadRequest, "kein verwertbarer inhalt")
+			writeErr(w, http.StatusBadRequest, "no usable content")
 			return
 		}
 		mapErr(w, err)
@@ -1004,7 +1008,7 @@ func (s *Server) handleUpdateMemory(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDeleteMemory(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	if err := s.Memory.Delete(r.Context(), id); err != nil {
@@ -1014,13 +1018,13 @@ func (s *Server) handleDeleteMemory(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// handleWikiHealth liefert die Qualitätsbefunde eines Wikis (spec/05):
-// verwaiste Seiten, tote Verweise, fehlende Typen, Tagebuch-Titel, Dubletten-
-// Verdacht und Stummel. Rein lesend — es wird nichts automatisch geändert.
+// handleWikiHealth returns the quality findings of a wiki (spec/05): orphaned
+// pages, dead links, missing types, diary titles, suspected duplicates and
+// stubs. Purely reading — nothing is changed automatically.
 func (s *Server) handleWikiHealth(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	if _, err := s.Registry.Get(r.Context(), id); err != nil {
@@ -1035,12 +1039,12 @@ func (s *Server) handleWikiHealth(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, h)
 }
 
-// handleWikiLog liefert das chronologische Wiki-Protokoll (log.md, spec/05) —
-// Transparenz über Ingests, Edits, Verschmelzungen und Löschungen.
+// handleWikiLog returns the chronological wiki log (log.md, spec/05) —
+// transparency about ingests, edits, merges and deletions.
 func (s *Server) handleWikiLog(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
@@ -1052,12 +1056,12 @@ func (s *Server) handleWikiLog(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, entries)
 }
 
-// handleWikiConsolidate stößt den Konsolidierungs-Pass für einen Agenten manuell
-// an (spec/05) und meldet die Zahl der Verschmelzungen.
+// handleWikiConsolidate kicks off the consolidation pass for an agent by hand
+// (spec/05) and reports the number of merges.
 func (s *Server) handleWikiConsolidate(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	if _, err := s.Registry.Get(r.Context(), id); err != nil {
@@ -1087,7 +1091,7 @@ func (s *Server) handleListApprovals(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	p := principalFrom(r)
@@ -1095,13 +1099,13 @@ func (s *Server) handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 		Approve *bool `json:"approve"`
 	}
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
 	}
-	// Pflichtfeld: ein fehlendes approve darf nicht still als Ablehnung
-	// durchgehen — die Entscheidung muss explizit sein.
+	// Required field: a missing approve must not silently pass as a rejection —
+	// the decision has to be explicit.
 	if in.Approve == nil {
-		writeErr(w, http.StatusBadRequest, "feld approve (true|false) fehlt")
+		writeErr(w, http.StatusBadRequest, "field approve (true|false) missing")
 		return
 	}
 	appr, err := s.Obs.DecideApproval(r.Context(), p.OrgID, id, *in.Approve, &p.ID)
@@ -1109,7 +1113,7 @@ func (s *Server) handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	// Entscheidung weckt die geblockte Aufgabe (Wake-on-correlation).
+	// The decision wakes the blocked task (wake-on-correlation).
 	s.Orch.OnApprovalDecided(r.Context(), appr)
 	writeJSON(w, http.StatusOK, appr)
 }
@@ -1136,13 +1140,13 @@ func (s *Server) handleCreateGuardrail(w http.ResponseWriter, r *http.Request) {
 		Params     json.RawMessage `json:"params"`
 	}
 	if err := readJSON(r, &in); err != nil || in.RuleType == "" {
-		writeErr(w, http.StatusBadRequest, "rule_type ist Pflicht")
+		writeErr(w, http.StatusBadRequest, "rule_type is required")
 		return
 	}
 	if in.ScopeLevel == "" {
 		in.ScopeLevel = "global"
 	}
-	// Budget-Deckel gelten pro Scope, nicht pro Aktion — ohne Muster auf alles.
+	// Budget caps apply per scope, not per action — without a pattern, to all.
 	in.Pattern = strings.TrimSpace(in.Pattern)
 	if in.RuleType == guardrails.RuleBudgetLimit && in.Pattern == "" {
 		in.Pattern = "*"
@@ -1169,7 +1173,7 @@ func (s *Server) handleCreateGuardrail(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDeleteGuardrail(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	p := principalFrom(r)
@@ -1180,11 +1184,11 @@ func (s *Server) handleDeleteGuardrail(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// handleUpdateGuardrail schaltet eine Regel scharf/pausiert sie (enabled).
+// handleUpdateGuardrail arms a rule or pauses it (enabled).
 func (s *Server) handleUpdateGuardrail(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	p := principalFrom(r)
@@ -1192,7 +1196,7 @@ func (s *Server) handleUpdateGuardrail(w http.ResponseWriter, r *http.Request) {
 		Enabled *bool `json:"enabled"`
 	}
 	if err := readJSON(r, &in); err != nil || in.Enabled == nil {
-		writeErr(w, http.StatusBadRequest, "feld enabled (true|false) fehlt")
+		writeErr(w, http.StatusBadRequest, "field enabled (true|false) missing")
 		return
 	}
 	rule, err := s.Rails.SetEnabled(r.Context(), p.OrgID, id, *in.Enabled)
@@ -1203,9 +1207,9 @@ func (s *Server) handleUpdateGuardrail(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, rule)
 }
 
-// handleTestGuardrail ist der Regel-Tester: wertet ein Subjekt (System oder
-// system:aktion) gegen die aktuellen Regeln aus, ohne etwas auszuführen —
-// so lässt sich eine Policy vor dem Scharfschalten verifizieren.
+// handleTestGuardrail is the rule tester: it evaluates a subject (system or
+// system:action) against the current rules without running anything — that way
+// a policy can be verified before it is armed.
 func (s *Server) handleTestGuardrail(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	var in struct {
@@ -1213,7 +1217,7 @@ func (s *Server) handleTestGuardrail(w http.ResponseWriter, r *http.Request) {
 		AgentID *uuid.UUID `json:"agent_id"`
 	}
 	if err := readJSON(r, &in); err != nil || strings.TrimSpace(in.Subject) == "" {
-		writeErr(w, http.StatusBadRequest, "feld subject ist Pflicht")
+		writeErr(w, http.StatusBadRequest, "field subject is required")
 		return
 	}
 	rules, err := s.Rails.List(r.Context(), p.OrgID)
@@ -1239,7 +1243,7 @@ func (s *Server) handleTestGuardrail(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// handleGuardrailEvents liefert die jüngsten ausgelösten Guard-Rails org-weit.
+// handleGuardrailEvents returns the most recently triggered guard-rails org-wide.
 func (s *Server) handleGuardrailEvents(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
@@ -1274,7 +1278,7 @@ func (s *Server) handlePutSecret(w http.ResponseWriter, r *http.Request) {
 		Sensitive bool   `json:"sensitive"`
 	}
 	if err := readJSON(r, &in); err != nil || key == "" || in.Value == "" {
-		writeErr(w, http.StatusBadRequest, "value fehlt")
+		writeErr(w, http.StatusBadRequest, "value missing")
 		return
 	}
 	if err := s.Secrets.Put(r.Context(), p.OrgID, key, in.Value); err != nil {
@@ -1287,8 +1291,8 @@ func (s *Server) handlePutSecret(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	// Bekannte Credentials sofort live prüfen — ein totes Token soll hier
-	// auffallen, nicht erst beim 401 in der Sandbox.
+	// Check known credentials live right away — a dead token should stand out
+	// here, not first at the 401 inside the sandbox.
 	check := checkCredential(r.Context(), key, in.Value)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "check": check})
 }
@@ -1302,20 +1306,20 @@ func (s *Server) handleDeleteSecret(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// handlePatchSecret markiert ein Org-Secret als sensibel. Bewusst einweg:
-// sensitive=false wird abgelehnt — den Schutz aufheben hieße, den Wert doch
-// offenzulegen. Zurück nur durch Löschen und Neuanlegen.
+// handlePatchSecret marks an org secret as sensitive. Deliberately one-way:
+// sensitive=false is refused — lifting the protection would mean disclosing the
+// value after all. Back only by deleting and creating it anew.
 func (s *Server) handlePatchSecret(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	var in struct {
 		Sensitive *bool `json:"sensitive"`
 	}
 	if err := readJSON(r, &in); err != nil || in.Sensitive == nil {
-		writeErr(w, http.StatusBadRequest, "sensitive fehlt")
+		writeErr(w, http.StatusBadRequest, "sensitive missing")
 		return
 	}
 	if !*in.Sensitive {
-		writeErr(w, http.StatusConflict, "einmal als sensibel markiert bleibt ein Secret geschützt — löschen und neu anlegen")
+		writeErr(w, http.StatusConflict, "once marked sensitive a secret stays protected — delete it and create it anew")
 		return
 	}
 	if err := s.Secrets.MarkSensitive(r.Context(), p.OrgID, r.PathValue("key")); err != nil {
@@ -1325,23 +1329,23 @@ func (s *Server) handlePatchSecret(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// handlePatchAgentSecret — wie handlePatchSecret, für agent-eigene Secrets.
+// handlePatchAgentSecret — like handlePatchSecret, for agent-owned secrets.
 func (s *Server) handlePatchAgentSecret(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	agentID, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	var in struct {
 		Sensitive *bool `json:"sensitive"`
 	}
 	if err := readJSON(r, &in); err != nil || in.Sensitive == nil {
-		writeErr(w, http.StatusBadRequest, "sensitive fehlt")
+		writeErr(w, http.StatusBadRequest, "sensitive missing")
 		return
 	}
 	if !*in.Sensitive {
-		writeErr(w, http.StatusConflict, "einmal als sensibel markiert bleibt ein Secret geschützt — löschen und neu anlegen")
+		writeErr(w, http.StatusConflict, "once marked sensitive a secret stays protected — delete it and create it anew")
 		return
 	}
 	if err := s.Secrets.MarkAgentSensitive(r.Context(), p.OrgID, agentID, r.PathValue("key")); err != nil {
@@ -1351,13 +1355,13 @@ func (s *Server) handlePatchAgentSecret(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// --- Secrets mit Agent-Scope: explizite Zuweisungen + agent-eigene Secrets ---
+// --- Secrets with agent scope: explicit assignments + agent-owned secrets ---
 
 func (s *Server) handleAssignSecret(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	agentID, err := uuid.Parse(r.PathValue("agentID"))
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige agent-id")
+		writeErr(w, http.StatusBadRequest, "invalid agent id")
 		return
 	}
 	if err := s.Secrets.Assign(r.Context(), p.OrgID, r.PathValue("key"), agentID); err != nil {
@@ -1371,7 +1375,7 @@ func (s *Server) handleUnassignSecret(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	agentID, err := uuid.Parse(r.PathValue("agentID"))
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige agent-id")
+		writeErr(w, http.StatusBadRequest, "invalid agent id")
 		return
 	}
 	if err := s.Secrets.Unassign(r.Context(), p.OrgID, r.PathValue("key"), agentID); err != nil {
@@ -1385,7 +1389,7 @@ func (s *Server) handleListAgentSecrets(w http.ResponseWriter, r *http.Request) 
 	p := principalFrom(r)
 	agentID, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	previews, err := s.Secrets.AgentPreviews(r.Context(), p.OrgID, agentID)
@@ -1403,7 +1407,7 @@ func (s *Server) handlePutAgentSecret(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	agentID, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	key := r.PathValue("key")
@@ -1412,7 +1416,7 @@ func (s *Server) handlePutAgentSecret(w http.ResponseWriter, r *http.Request) {
 		Sensitive bool   `json:"sensitive"`
 	}
 	if err := readJSON(r, &in); err != nil || key == "" || in.Value == "" {
-		writeErr(w, http.StatusBadRequest, "value fehlt")
+		writeErr(w, http.StatusBadRequest, "value missing")
 		return
 	}
 	if err := s.Secrets.PutAgent(r.Context(), p.OrgID, agentID, key, in.Value); err != nil {
@@ -1433,7 +1437,7 @@ func (s *Server) handleDeleteAgentSecret(w http.ResponseWriter, r *http.Request)
 	p := principalFrom(r)
 	agentID, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	if err := s.Secrets.DeleteAgent(r.Context(), p.OrgID, agentID, r.PathValue("key")); err != nil {
@@ -1443,7 +1447,7 @@ func (s *Server) handleDeleteAgentSecret(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// --- Fleet (Kill-Switch flottenweit) ---
+// --- Fleet (fleet-wide kill switch) ---
 
 func (s *Server) handleFleetKill(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)

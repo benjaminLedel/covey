@@ -14,42 +14,41 @@ import (
 	"covey/internal/reqlog"
 )
 
-// Konfiguration des SharePoint-Plugins aus dem gebrokerten Secret-Paar. Der
-// Broker kennt pro System genau zwei Secrets (sharepoint_url +
-// sharepoint_token), deshalb kodiert sharepoint_url den Freigabelink plus
-// optionale Endpunkt-Overrides (durch Leerzeichen getrennt):
+// Configuration of the SharePoint plugin out of the brokered secret pair. The
+// broker knows exactly two secrets per system (sharepoint_url +
+// sharepoint_token), so sharepoint_url encodes the share link plus optional
+// endpoint overrides (separated by spaces):
 //
 //	sharepoint_url   = https://contoso.sharepoint.com/:f:/s/TeamX/AbCdEf…
 //	                   [graph=https://graph.microsoft.com]
 //	                   [login=https://login.microsoftonline.com]
 //	sharepoint_token = tenant-id:client-id:client-secret
 //
-// Der Freigabelink ist ein beliebiger SharePoint-/Teams-Link auf einen
-// Ordner oder eine Dokumentbibliothek („Link kopieren" in SharePoint bzw.
-// im Dateien-Tab eines Teams-Kanals) — die Graph-API löst ihn über den
-// /shares-Endpoint zur Dokumentbibliothek auf. graph=/login= überschreiben
-// die Microsoft-Endpunkte (nationale Clouds, Tests); Default ist die
-// öffentliche Cloud. sharepoint_token trägt das Client-Credentials-Tripel
-// einer Entra-ID-App-Registrierung; ein Wert OHNE die zwei Doppelpunkte
-// wird als fertiger Bearer-Token verwendet (Tests/Demos).
+// The share link is any SharePoint/Teams link onto a folder or a document
+// library ("Copy link" in SharePoint resp. in the files tab of a Teams
+// channel) — the Graph API resolves it to the document library through the
+// /shares endpoint. graph=/login= override the Microsoft endpoints (national
+// clouds, tests); the default is the public cloud. sharepoint_token carries
+// the client-credentials triple of an Entra ID app registration; a value
+// WITHOUT the two colons is used as a ready-made bearer token (tests/demos).
 
-// Config ist die geparste Verbindungs-Konfiguration.
+// Config is the parsed connection configuration.
 type Config struct {
-	ShareLink string // Freigabelink auf Ordner/Bibliothek
-	GraphBase string // Graph-Endpoint, ohne /v1.0
-	LoginBase string // Entra-ID-Token-Endpoint-Basis
+	ShareLink string // share link onto a folder/library
+	GraphBase string // Graph endpoint, without /v1.0
+	LoginBase string // base of the Entra ID token endpoint
 
-	// Client-Credentials-Tripel — leer, wenn StaticToken gesetzt ist.
+	// The client-credentials triple — empty when StaticToken is set.
 	Tenant       string
 	ClientID     string
 	ClientSecret string
 
-	// StaticToken ist ein fertiger Bearer-Token (Tests/Demos) — dann
-	// entfällt der OAuth-Flow komplett.
+	// StaticToken is a ready-made bearer token (tests/demos) — then the OAuth
+	// flow falls away entirely.
 	StaticToken string
 }
 
-// ParseConfig zerlegt das gebrokerte Credential in die Graph-Konfiguration.
+// ParseConfig breaks the brokered credential down into the Graph configuration.
 func ParseConfig(baseURL, token string) (Config, error) {
 	cfg := Config{
 		GraphBase: "https://graph.microsoft.com",
@@ -64,23 +63,23 @@ func ParseConfig(baseURL, token string) (Config, error) {
 		case cfg.ShareLink == "":
 			cfg.ShareLink = part
 		default:
-			return Config{}, fmt.Errorf("sharepoint_url: unerwarteter Bestandteil %q (erwartet: Freigabelink [graph=…] [login=…])", part)
+			return Config{}, fmt.Errorf("sharepoint_url: unexpected component %q (expected: share link [graph=…] [login=…])", part)
 		}
 	}
 	if cfg.ShareLink == "" {
-		return Config{}, fmt.Errorf("sharepoint_url: Freigabelink fehlt — den SharePoint-/Teams-Link des Ordners hinterlegen")
+		return Config{}, fmt.Errorf("sharepoint_url: share link missing — store the SharePoint/Teams link of the folder")
 	}
 	if u, err := url.Parse(cfg.ShareLink); err != nil || u.Scheme != "https" && u.Scheme != "http" || u.Host == "" {
-		return Config{}, fmt.Errorf("sharepoint_url: %q ist kein gültiger Link", cfg.ShareLink)
+		return Config{}, fmt.Errorf("sharepoint_url: %q is not a valid link", cfg.ShareLink)
 	}
 
 	token = strings.TrimSpace(token)
 	if token == "" {
-		return Config{}, fmt.Errorf("sharepoint_token fehlt")
+		return Config{}, fmt.Errorf("sharepoint_token missing")
 	}
 	if parts := strings.SplitN(token, ":", 3); len(parts) == 3 {
 		if parts[0] == "" || parts[1] == "" || parts[2] == "" {
-			return Config{}, fmt.Errorf("sharepoint_token muss %q sein", "tenant-id:client-id:client-secret")
+			return Config{}, fmt.Errorf("sharepoint_token must be %q", "tenant-id:client-id:client-secret")
 		}
 		cfg.Tenant, cfg.ClientID, cfg.ClientSecret = parts[0], parts[1], parts[2]
 	} else {
@@ -89,10 +88,10 @@ func ParseConfig(baseURL, token string) (Config, error) {
 	return cfg, nil
 }
 
-// Token-Cache für den Client-Credentials-Flow: Entra-ID-Tokens leben ~1 h —
-// sie pro Aktion neu zu holen wäre ein unnötiger Roundtrip und fiele bei
-// Microsoft unter Throttling. Der Cache lebt nur im Daemon-RAM (wie die
-// gebrokerten Credentials selbst) und verfällt mit Sicherheitsmarge.
+// Token cache for the client-credentials flow: Entra ID tokens live ~1 h —
+// fetching them afresh per action would be a needless roundtrip and would run
+// into throttling at Microsoft. The cache lives only in the daemon's RAM (like
+// the brokered credentials themselves) and expires with a safety margin.
 var (
 	tokenMu    sync.Mutex
 	tokenCache = map[string]cachedToken{}
@@ -103,8 +102,8 @@ type cachedToken struct {
 	expires time.Time
 }
 
-// AccessToken liefert einen gültigen Bearer-Token: den statischen, den
-// gecachten oder einen frisch über den Client-Credentials-Flow geholten.
+// AccessToken returns a valid bearer token: the static one, the cached one or
+// one freshly fetched through the client-credentials flow.
 func (cfg Config) AccessToken(ctx context.Context) (string, error) {
 	if cfg.StaticToken != "" {
 		return cfg.StaticToken, nil
@@ -147,11 +146,11 @@ func (cfg Config) AccessToken(ctx context.Context) (string, error) {
 		ExpiresIn   int    `json:"expires_in"`
 	}
 	if err := json.Unmarshal(data, &out); err != nil || out.AccessToken == "" {
-		return "", fmt.Errorf("entra-id token: unerwartete Antwort")
+		return "", fmt.Errorf("entra-id token: unexpected response")
 	}
 	ttl := time.Duration(out.ExpiresIn) * time.Second
 	if ttl > 2*time.Minute {
-		ttl -= 2 * time.Minute // Sicherheitsmarge vor dem echten Verfall
+		ttl -= 2 * time.Minute // safety margin ahead of the real expiry
 	}
 	tokenMu.Lock()
 	tokenCache[key] = cachedToken{token: out.AccessToken, expires: time.Now().Add(ttl)}

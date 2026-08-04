@@ -1,23 +1,23 @@
 package egress
 
-// Built-in-Template-Katalog: kuratierte Host-Sets für die üblichen Egress-
-// Bedürfnisse von Agenten (Paket-Registries, Code-Hosting, Container-Images).
-// Der Katalog lebt im Code — versioniert, reviewbar, für alle Orgs gleich.
-// Übernehmen erzeugt ein normales org-eigenes Template (Kopie), das danach
-// frei editierbar ist; der Katalog selbst bleibt unverändert.
+// Built-in template catalogue: curated host sets for the usual egress needs of
+// agents (package registries, code hosting, container images). The catalogue
+// lives in the code — versioned, reviewable, identical for every org.
+// Importing creates an ordinary org-owned template (a copy) that is freely
+// editable afterwards; the catalogue itself stays unchanged.
 //
-// Bewusst NICHT enthalten: api.anthropic.com (liegt in der konfigurierbaren
-// Basis-Allowlist der Org, dort geseedet) und org-spezifische Systeme wie das
-// eigene Zammad oder GitLab — dafür sind eigene Templates da.
+// Deliberately NOT included: api.anthropic.com (it lives in the org's
+// configurable base allowlist, seeded there) and org-specific systems such as
+// one's own Zammad or GitLab — those are what custom templates are for.
 
-// BuiltinHost ist ein Host-Muster des Katalogs samt Begründung.
+// BuiltinHost is a host pattern of the catalogue together with its rationale.
 type BuiltinHost struct {
 	Pattern string `json:"pattern"`
 	Note    string `json:"note"`
 }
 
-// BuiltinTemplate ist ein Katalog-Eintrag. Slug ist der stabile API-Bezeichner,
-// Name wird beim Übernehmen zum Template-Namen (unique je Org).
+// BuiltinTemplate is a catalogue entry. Slug is the stable API identifier;
+// Name becomes the template name on import (unique per org).
 type BuiltinTemplate struct {
 	Slug        string        `json:"slug"`
 	Name        string        `json:"name"`
@@ -25,142 +25,142 @@ type BuiltinTemplate struct {
 	Hosts       []BuiltinHost `json:"hosts"`
 }
 
-// Builtins ist der Katalog. Muster müssen NormalizePattern unverändert
-// passieren (klein, ohne Schema/Pfad/Port) — abgesichert per Unit-Test.
+// Builtins is the catalogue. Patterns must pass NormalizePattern unchanged
+// (lower case, no scheme/path/port) — guarded by a unit test.
 var Builtins = []BuiltinTemplate{
 	{
 		Slug:        "github",
 		Name:        "GitHub",
-		Description: "Code klonen, Releases und Raw-Inhalte laden, REST-/GraphQL-API",
+		Description: "Clone code, fetch releases and raw content, REST/GraphQL API",
 		Hosts: []BuiltinHost{
-			{Pattern: "github.com", Note: "Git über HTTPS, Web-URLs"},
-			{Pattern: "api.github.com", Note: "REST- und GraphQL-API"},
-			{Pattern: "codeload.github.com", Note: "Archiv-Downloads (zip/tar)"},
-			{Pattern: "*.githubusercontent.com", Note: "Raw-Inhalte, Release-Assets, Avatare"},
+			{Pattern: "github.com", Note: "Git over HTTPS, web URLs"},
+			{Pattern: "api.github.com", Note: "REST and GraphQL API"},
+			{Pattern: "codeload.github.com", Note: "archive downloads (zip/tar)"},
+			{Pattern: "*.githubusercontent.com", Note: "raw content, release assets, avatars"},
 		},
 	},
 	{
 		Slug:        "gitlab-com",
 		Name:        "GitLab.com",
-		Description: "Repos und API auf gitlab.com (nicht für selbst gehostete Instanzen)",
+		Description: "Repos and API on gitlab.com (not for self-hosted instances)",
 		Hosts: []BuiltinHost{
-			{Pattern: "gitlab.com", Note: "Git über HTTPS, API"},
-			{Pattern: "registry.gitlab.com", Note: "Container-Registry"},
+			{Pattern: "gitlab.com", Note: "Git over HTTPS, API"},
+			{Pattern: "registry.gitlab.com", Note: "container registry"},
 		},
 	},
 	{
 		Slug:        "npm",
 		Name:        "Node.js / npm",
-		Description: "Pakete via npm, yarn oder pnpm installieren",
+		Description: "Install packages via npm, yarn or pnpm",
 		Hosts: []BuiltinHost{
-			{Pattern: "registry.npmjs.org", Note: "npm-Registry"},
-			{Pattern: "registry.yarnpkg.com", Note: "Yarn-Spiegel der npm-Registry"},
+			{Pattern: "registry.npmjs.org", Note: "npm registry"},
+			{Pattern: "registry.yarnpkg.com", Note: "Yarn mirror of the npm registry"},
 		},
 	},
 	{
 		Slug:        "pypi",
 		Name:        "Python / PyPI",
-		Description: "Pakete via pip oder uv installieren",
+		Description: "Install packages via pip or uv",
 		Hosts: []BuiltinHost{
-			{Pattern: "pypi.org", Note: "Paket-Index"},
-			{Pattern: "files.pythonhosted.org", Note: "Paket-Downloads"},
+			{Pattern: "pypi.org", Note: "package index"},
+			{Pattern: "files.pythonhosted.org", Note: "package downloads"},
 		},
 	},
 	{
 		Slug:        "go",
-		Name:        "Go-Module",
-		Description: "Module über den öffentlichen Go-Modul-Proxy laden",
+		Name:        "Go modules",
+		Description: "Fetch modules through the public Go module proxy",
 		Hosts: []BuiltinHost{
-			{Pattern: "proxy.golang.org", Note: "Modul-Proxy"},
-			{Pattern: "sum.golang.org", Note: "Checksummen-Datenbank"},
-			{Pattern: "index.golang.org", Note: "Modul-Index"},
+			{Pattern: "proxy.golang.org", Note: "module proxy"},
+			{Pattern: "sum.golang.org", Note: "checksum database"},
+			{Pattern: "index.golang.org", Note: "module index"},
 		},
 	},
 	{
 		Slug:        "rust",
 		Name:        "Rust / crates.io",
-		Description: "Crates via cargo installieren",
+		Description: "Install crates via cargo",
 		Hosts: []BuiltinHost{
-			{Pattern: "crates.io", Note: "Registry-API"},
-			{Pattern: "index.crates.io", Note: "Sparse-Index"},
-			{Pattern: "static.crates.io", Note: "Crate-Downloads"},
+			{Pattern: "crates.io", Note: "registry API"},
+			{Pattern: "index.crates.io", Note: "sparse index"},
+			{Pattern: "static.crates.io", Note: "crate downloads"},
 		},
 	},
 	{
 		Slug:        "composer",
 		Name:        "PHP / Composer",
-		Description: "Pakete via composer installieren",
+		Description: "Install packages via composer",
 		Hosts: []BuiltinHost{
-			{Pattern: "packagist.org", Note: "Paket-Index"},
-			{Pattern: "repo.packagist.org", Note: "Metadaten (p2/…); die dist-Archive kommen über GitHub"},
+			{Pattern: "packagist.org", Note: "package index"},
+			{Pattern: "repo.packagist.org", Note: "metadata (p2/…); the dist archives come via GitHub"},
 		},
 	},
 	{
 		Slug:        "dart-flutter",
 		Name:        "Dart / Flutter",
-		Description: "Flutter-SDKs via fvm holen und Pakete via pub installieren",
+		Description: "Fetch Flutter SDKs via fvm and install packages via pub",
 		Hosts: []BuiltinHost{
-			{Pattern: "pub.dev", Note: "Paket-Registry inkl. der Archive (pub get)"},
-			// storage.googleapis.com ist der Bezugsweg für SDK- und Engine-Artefakte
-			// (flutter_infra_release, download.flutter.io). Der Proxy terminiert TLS
-			// nicht und matcht nur den CONNECT-Host — eine pfadgenaue Fassung ist
-			// deshalb nicht möglich, und der Eintrag öffnet zwangsläufig JEDEN
-			// öffentlichen GCS-Bucket. Wer das nicht will, spiegelt die Artefakte
-			// selbst und setzt FLUTTER_STORAGE_BASE_URL in der Sandbox.
-			{Pattern: "storage.googleapis.com", Note: "Flutter-SDK- und Engine-Artefakte — ACHTUNG: deckt alle öffentlichen GCS-Buckets ab"},
+			{Pattern: "pub.dev", Note: "package registry including the archives (pub get)"},
+			// storage.googleapis.com is how SDK and engine artefacts are obtained
+			// (flutter_infra_release, download.flutter.io). The proxy does not
+			// terminate TLS and only matches the CONNECT host — a path-precise
+			// version is therefore impossible, and this entry inevitably opens up
+			// EVERY public GCS bucket. Whoever does not want that mirrors the
+			// artefacts themselves and sets FLUTTER_STORAGE_BASE_URL in the sandbox.
+			{Pattern: "storage.googleapis.com", Note: "Flutter SDK and engine artefacts — CAUTION: covers all public GCS buckets"},
 		},
 	},
 	{
 		Slug:        "maven-gradle",
 		Name:        "Maven / Gradle",
-		Description: "Abhängigkeiten und Gradle-Distributionen für JVM-Projekte laden",
+		Description: "Fetch dependencies and Gradle distributions for JVM projects",
 		Hosts: []BuiltinHost{
 			{Pattern: "repo1.maven.org", Note: "Maven Central"},
-			{Pattern: "plugins.gradle.org", Note: "Gradle Plugin Portal (Metadaten)"},
-			// Das Plugin Portal liefert die Artefakte selbst nicht aus, sondern
-			// leitet auf plugins-artifacts.gradle.org um. Ohne diesen Host scheitert
-			// jedes `plugins { id … }` — der Proxy folgt keinem Redirect, er sieht
-			// nur den nächsten CONNECT-Host.
-			{Pattern: "plugins-artifacts.gradle.org", Note: "Artefakt-Downloads des Plugin Portals (Redirect-Ziel)"},
-			{Pattern: "services.gradle.org", Note: "Wrapper-Distributionen; leitet auf GitHub Releases um — GitHub-Template nötig"},
-			{Pattern: "api.foojay.io", Note: "JDK-Beschaffung für Gradle-Toolchains; leitet auf GitHub Releases um"},
+			{Pattern: "plugins.gradle.org", Note: "Gradle Plugin Portal (metadata)"},
+			// The Plugin Portal does not serve the artefacts itself, it redirects to
+			// plugins-artifacts.gradle.org. Without this host every `plugins { id … }`
+			// fails — the proxy follows no redirect, it only ever sees the next
+			// CONNECT host.
+			{Pattern: "plugins-artifacts.gradle.org", Note: "artefact downloads of the Plugin Portal (redirect target)"},
+			{Pattern: "services.gradle.org", Note: "wrapper distributions; redirects to GitHub Releases — GitHub template required"},
+			{Pattern: "api.foojay.io", Note: "JDK provisioning for Gradle toolchains; redirects to GitHub Releases"},
 		},
 	},
 	{
 		Slug:        "android",
 		Name:        "Android / Google Maven",
-		Description: "Android-Abhängigkeiten für Gradle- und Flutter-Builds laden",
+		Description: "Fetch Android dependencies for Gradle and Flutter builds",
 		Hosts: []BuiltinHost{
-			{Pattern: "maven.google.com", Note: "Google-Maven-Index (leitet auf dl.google.com um)"},
-			{Pattern: "dl.google.com", Note: "Artefakt-Downloads des Google-Maven-Repos"},
+			{Pattern: "maven.google.com", Note: "Google Maven index (redirects to dl.google.com)"},
+			{Pattern: "dl.google.com", Note: "artefact downloads of the Google Maven repo"},
 		},
 	},
 	{
 		Slug:        "container",
-		Name:        "Container-Registries",
-		Description: "Images von Docker Hub, GitHub und Quay ziehen",
+		Name:        "Container registries",
+		Description: "Pull images from Docker Hub, GitHub and Quay",
 		Hosts: []BuiltinHost{
 			{Pattern: "registry-1.docker.io", Note: "Docker Hub Registry"},
-			{Pattern: "auth.docker.io", Note: "Docker Hub Auth"},
-			{Pattern: "production.cloudflare.docker.com", Note: "Docker Hub Layer-CDN"},
+			{Pattern: "auth.docker.io", Note: "Docker Hub auth"},
+			{Pattern: "production.cloudflare.docker.com", Note: "Docker Hub layer CDN"},
 			{Pattern: "ghcr.io", Note: "GitHub Container Registry"},
 			{Pattern: "quay.io", Note: "Red Hat Quay"},
 		},
 	},
 	{
 		Slug:        "debian-ubuntu",
-		Name:        "Debian/Ubuntu-Pakete",
-		Description: "Systempakete via apt installieren (Sandbox-Image erweitern)",
+		Name:        "Debian/Ubuntu packages",
+		Description: "Install system packages via apt (extend the sandbox image)",
 		Hosts: []BuiltinHost{
-			{Pattern: "deb.debian.org", Note: "Debian-Spiegel (CDN)"},
-			{Pattern: "security.debian.org", Note: "Debian-Security-Updates"},
-			{Pattern: "archive.ubuntu.com", Note: "Ubuntu-Hauptarchiv"},
-			{Pattern: "security.ubuntu.com", Note: "Ubuntu-Security-Updates"},
+			{Pattern: "deb.debian.org", Note: "Debian mirror (CDN)"},
+			{Pattern: "security.debian.org", Note: "Debian security updates"},
+			{Pattern: "archive.ubuntu.com", Note: "Ubuntu main archive"},
+			{Pattern: "security.ubuntu.com", Note: "Ubuntu security updates"},
 		},
 	},
 }
 
-// BuiltinBySlug liefert den Katalog-Eintrag zum Slug.
+// BuiltinBySlug returns the catalogue entry for a slug.
 func BuiltinBySlug(slug string) (BuiltinTemplate, bool) {
 	for _, b := range Builtins {
 		if b.Slug == slug {

@@ -38,12 +38,12 @@ func TestAllowlistMatching(t *testing.T) {
 
 func TestAllowlistEmptyFailsClosed(t *testing.T) {
 	if NewAllowlist(nil).Allows("api.anthropic.com") {
-		t.Error("leere Allowlist muss fail-closed alles abweisen")
+		t.Error("an empty allowlist must fail closed and reject everything")
 	}
 }
 
-// stubResolver akzeptiert genau ein (agentID, token)-Paar und liefert dann eine
-// feste Allowlist; alles andere → 407.
+// stubResolver accepts exactly one (agentID, token) pair and then returns a
+// fixed allowlist; everything else → 407.
 type stubResolver struct {
 	agent uuid.UUID
 	token string
@@ -76,17 +76,17 @@ func TestNormalizePattern(t *testing.T) {
 		{"example.com:8080", "example.com", true},
 		{"*.example.com:443", "*.example.com", true},
 		{"https://example.com", "", false},
-		{"example.com/pfad", "", false},
+		{"example.com/path", "", false},
 		{"localhost", "", false},
 		{"", "", false},
 	}
 	for _, c := range cases {
 		got, err := NormalizePattern(c.in)
 		if c.ok && (err != nil || got != c.want) {
-			t.Errorf("NormalizePattern(%q) = %q, %v — erwartet %q", c.in, got, err, c.want)
+			t.Errorf("NormalizePattern(%q) = %q, %v — want %q", c.in, got, err, c.want)
 		}
 		if !c.ok && err == nil {
-			t.Errorf("NormalizePattern(%q) = %q — erwartet Fehler", c.in, got)
+			t.Errorf("NormalizePattern(%q) = %q — want an error", c.in, got)
 		}
 	}
 }
@@ -108,48 +108,48 @@ func TestProxyPerAgentAllowDenyAndAuth(t *testing.T) {
 	}
 	defer p.Close()
 
-	// Client mit korrekter Proxy-Authentifizierung (agentID:token in der URL).
+	// Client with correct proxy authentication (agentID:token in the URL).
 	proxyAuthed, _ := url.Parse("http://" + res.agent.String() + ":s3cret@" + addr)
 	authed := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxyAuthed)}}
 
-	// Erlaubt: der Upstream selbst.
+	// Allowed: the upstream itself.
 	resp, err := authed.Get(upstream.URL)
 	if err != nil {
-		t.Fatalf("erlaubter GET scheiterte: %v", err)
+		t.Fatalf("allowed GET failed: %v", err)
 	}
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	if resp.StatusCode != 200 || string(body) != "ok" {
-		t.Fatalf("erlaubt: status=%d body=%q", resp.StatusCode, body)
+		t.Fatalf("allowed: status=%d body=%q", resp.StatusCode, body)
 	}
 	if gotProxyAuth != "" {
-		t.Errorf("Proxy-Authorization darf den Upstream nicht erreichen, kam an: %q", gotProxyAuth)
+		t.Errorf("Proxy-Authorization must not reach the upstream, but arrived as: %q", gotProxyAuth)
 	}
 
-	// Verweigert: anderer Host.
+	// Denied: a different host.
 	req, _ := http.NewRequest("GET", "http://blocked.example.org/", nil)
 	resp2, err := authed.Do(req)
 	if err != nil {
-		t.Fatalf("verweigerter GET: transport-fehler %v", err)
+		t.Fatalf("denied GET: transport error %v", err)
 	}
 	resp2.Body.Close()
 	if resp2.StatusCode != http.StatusForbidden {
-		t.Fatalf("verweigert: erwartete 403, bekam %d", resp2.StatusCode)
+		t.Fatalf("denied: want 403, got %d", resp2.StatusCode)
 	}
 
-	// Ohne/falsche Credentials: 407.
+	// Missing/wrong credentials: 407.
 	proxyNoAuth, _ := url.Parse("http://" + addr)
 	anon := &http.Client{Transport: &http.Transport{Proxy: http.ProxyURL(proxyNoAuth)}}
 	resp3, err := anon.Get(upstream.URL)
 	if err != nil {
-		t.Fatalf("anon GET: transport-fehler %v", err)
+		t.Fatalf("anon GET: transport error %v", err)
 	}
 	resp3.Body.Close()
 	if resp3.StatusCode != http.StatusProxyAuthRequired {
-		t.Fatalf("ohne credentials: erwartete 407, bekam %d", resp3.StatusCode)
+		t.Fatalf("without credentials: want 407, got %d", resp3.StatusCode)
 	}
 
 	if len(res.logs) < 2 {
-		t.Errorf("erwartete geloggte Entscheidungen, bekam %v", res.logs)
+		t.Errorf("want logged decisions, got %v", res.logs)
 	}
 }

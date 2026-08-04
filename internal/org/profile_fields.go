@@ -11,12 +11,12 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// Konfigurierbare Profilfelder (spec/09): die Organisation definiert selbst,
-// welche zusätzlichen Felder ein Mitarbeiter-Profil hat. Die Definitionen
-// liegen in profile_fields, die Werte pro Person in humans.custom — beides
-// generisch, ein neues Feld ist reine Konfiguration.
+// Configurable profile fields (spec/09): the organization itself defines which
+// additional fields an employee profile has. The definitions live in
+// profile_fields, the per-person values in humans.custom — both generic, a new
+// field is pure configuration.
 
-var ErrFieldExists = errors.New("ein Profilfeld mit diesem Namen existiert bereits")
+var ErrFieldExists = errors.New("a profile field with this name already exists")
 
 type ProfileField struct {
 	ID        uuid.UUID `json:"id"`
@@ -28,9 +28,9 @@ type ProfileField struct {
 
 var nonSlug = regexp.MustCompile(`[^a-z0-9]+`)
 
-// FieldKey leitet den Map-Schlüssel aus dem Anzeigenamen ab ("Slack-Handle"
-// → "slack-handle"). Der Schlüssel bleibt beim Umbenennen stabil, damit die
-// Werte in humans.custom nicht verwaisen.
+// FieldKey derives the map key from the display name ("Slack-Handle" →
+// "slack-handle"). The key stays stable across renames so that the values in
+// humans.custom do not become orphans.
 func FieldKey(label string) string {
 	k := strings.ToLower(strings.TrimSpace(label))
 	for _, r := range []struct{ from, to string }{{"ä", "ae"}, {"ö", "oe"}, {"ü", "ue"}, {"ß", "ss"}} {
@@ -60,7 +60,7 @@ func (s *Store) ListProfileFields(ctx context.Context, orgID uuid.UUID) ([]Profi
 func (s *Store) CreateProfileField(ctx context.Context, orgID uuid.UUID, label string) (ProfileField, error) {
 	f := ProfileField{ID: uuid.New(), OrgID: orgID, Key: FieldKey(label), Label: strings.TrimSpace(label)}
 	if f.Key == "" || f.Label == "" {
-		return ProfileField{}, errors.New("label ist Pflicht")
+		return ProfileField{}, errors.New("label is required")
 	}
 	err := s.pool.QueryRow(ctx, `INSERT INTO profile_fields (id, org_id, key, label)
 		VALUES ($1,$2,$3,$4) RETURNING created_at`, f.ID, orgID, f.Key, f.Label).Scan(&f.CreatedAt)
@@ -70,11 +70,11 @@ func (s *Store) CreateProfileField(ctx context.Context, orgID uuid.UUID, label s
 	return f, err
 }
 
-// RenameProfileField ändert nur das Label — der Key (und damit die Werte in
-// humans.custom) bleibt stabil.
+// RenameProfileField changes the label only — the key (and with it the values
+// in humans.custom) stays stable.
 func (s *Store) RenameProfileField(ctx context.Context, orgID, id uuid.UUID, label string) error {
 	if strings.TrimSpace(label) == "" {
-		return errors.New("label ist Pflicht")
+		return errors.New("label is required")
 	}
 	tag, err := s.pool.Exec(ctx, `UPDATE profile_fields SET label=$1 WHERE id=$2 AND org_id=$3`,
 		strings.TrimSpace(label), id, orgID)
@@ -87,9 +87,9 @@ func (s *Store) RenameProfileField(ctx context.Context, orgID, id uuid.UUID, lab
 	return nil
 }
 
-// DeleteProfileField entfernt die Definition und räumt die zugehörigen Werte
-// aus allen Profilen der Organisation (Menschen wie Agenten) — keine
-// verwaisten Einträge.
+// DeleteProfileField removes the definition and clears the associated values
+// from all profiles of the organization (humans as well as agents) — no
+// orphaned entries.
 func (s *Store) DeleteProfileField(ctx context.Context, orgID, id uuid.UUID) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

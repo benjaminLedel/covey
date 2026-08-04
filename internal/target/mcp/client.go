@@ -1,15 +1,15 @@
-// Package mcp bindet MCP-Server (Model Context Protocol) als Zielsystem-Plugins
-// an — der dritte Plugin-Typ neben kompilierten Built-ins und deklarativen
-// Manifesten (siehe internal/target). Ein MCP-Server exponiert eine Tool-Liste;
-// Covey entdeckt sie (Control Plane, tools/list für die UI) und führt einzelne
-// Tools über den Action-Proxy des Daemons aus (tools/call). Alle zentralen
-// Enforcement-Punkte (Broker, Guard-Rails, Recording) greifen unverändert, weil
-// ein MCP-System dieselbe target.System-Schnittstelle erfüllt wie jedes andere.
+// Package mcp binds MCP servers (Model Context Protocol) as target-system
+// plugins — the third plugin type alongside compiled built-ins and declarative
+// manifests (see internal/target). An MCP server exposes a tool list; Covey
+// discovers it (control plane, tools/list for the UI) and executes individual
+// tools through the daemon's action proxy (tools/call). All central enforcement
+// points (broker, guard-rails, recording) apply unchanged, because an MCP
+// system satisfies the same target.System interface as any other.
 //
-// Transport: Streamable HTTP (ein Endpoint, JSON-RPC 2.0 per POST). Die Antwort
-// darf application/json ODER text/event-stream (SSE) sein — beide werden hier
-// gelesen. stdio-Server sind bewusst ausgeklammert: ein Zielsystem ist ein
-// erreichbarer Endpoint, kein in der Sandbox gestarteter Prozess.
+// Transport: streamable HTTP (one endpoint, JSON-RPC 2.0 via POST). The
+// response may be application/json OR text/event-stream (SSE) — both are read
+// here. stdio servers are deliberately left out: a target system is a reachable
+// endpoint, not a process started inside the sandbox.
 package mcp
 
 import (
@@ -26,18 +26,18 @@ import (
 	"covey/internal/reqlog"
 )
 
-// protocolVersion ist die MCP-Version, die Covey als Client anbietet.
+// protocolVersion is the MCP version Covey offers as a client.
 const protocolVersion = "2025-06-18"
 
-// Tool ist ein vom MCP-Server angebotenes Werkzeug — die Einheit, die im UI
-// erscheint, einem Agenten zugewiesen und über den Action-Proxy aufgerufen wird.
+// Tool is a tool offered by the MCP server — the unit that appears in the UI,
+// is assigned to an agent and is called through the action proxy.
 type Tool struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description,omitempty"`
 	InputSchema json.RawMessage `json:"input_schema,omitempty"`
 }
 
-// rpcRequest / rpcResponse sind der JSON-RPC-2.0-Rahmen.
+// rpcRequest / rpcResponse are the JSON-RPC 2.0 envelope.
 type rpcRequest struct {
 	JSONRPC string `json:"jsonrpc"`
 	ID      int    `json:"id,omitempty"`
@@ -57,22 +57,22 @@ type rpcError struct {
 	Message string `json:"message"`
 }
 
-func (e *rpcError) Error() string { return fmt.Sprintf("mcp fehler %d: %s", e.Code, e.Message) }
+func (e *rpcError) Error() string { return fmt.Sprintf("mcp error %d: %s", e.Code, e.Message) }
 
-// Conn ist eine kurzlebige MCP-Sitzung: initialisiert, führt eine Handvoll
-// Aufrufe aus, wird geschlossen. Sie wird pro Discovery (Control Plane) bzw.
-// pro Tool-Aufruf (Daemon) frisch aufgebaut — Zustand hält Covey nicht.
+// Conn is a short-lived MCP session: it initializes, performs a handful of
+// calls, and is closed. It is built freshly per discovery (control plane) and
+// per tool call (daemon) — Covey keeps no state.
 type Conn struct {
 	url       string
-	authHdr   string // Header-Name für das Token (leer = keine Auth)
-	authVal   string // fertiger Header-Wert
+	authHdr   string // header name for the token (empty = no auth)
+	authVal   string // ready-made header value
 	http      *http.Client
 	sessionID string
 	nextID    int
 }
 
-// Dial baut eine Verbindung auf und führt den initialize-Handshake aus.
-// authHeader/authValue sind optional (leer = kein Auth-Header).
+// Dial opens a connection and performs the initialize handshake.
+// authHeader/authValue are optional (empty = no auth header).
 func Dial(ctx context.Context, url, authHeader, authValue string, hc *http.Client) (*Conn, error) {
 	if hc == nil {
 		hc = reqlog.Client("mcp", 20*time.Second)
@@ -94,12 +94,12 @@ func (c *Conn) initialize(ctx context.Context) error {
 		return fmt.Errorf("initialize: %w", err)
 	}
 	_ = res
-	// notifications/initialized: Notification (ohne id) — Ergebnis egal.
+	// notifications/initialized: a notification (no id) — the result does not matter.
 	_ = c.notify(ctx, "notifications/initialized", map[string]any{})
 	return nil
 }
 
-// ListTools ruft tools/list und liefert die Werkzeuge des Servers.
+// ListTools calls tools/list and returns the server's tools.
 func (c *Conn) ListTools(ctx context.Context) ([]Tool, error) {
 	res, err := c.call(ctx, "tools/list", map[string]any{})
 	if err != nil {
@@ -122,8 +122,8 @@ func (c *Conn) ListTools(ctx context.Context) ([]Tool, error) {
 	return tools, nil
 }
 
-// CallTool ruft tools/call mit den gegebenen Argumenten und liefert den
-// rohen result-Teil (content/structuredContent) zurück.
+// CallTool calls tools/call with the given arguments and returns the raw
+// result part (content/structuredContent).
 func (c *Conn) CallTool(ctx context.Context, name string, args json.RawMessage) (json.RawMessage, error) {
 	if len(bytes.TrimSpace(args)) == 0 {
 		args = json.RawMessage(`{}`)
@@ -131,7 +131,7 @@ func (c *Conn) CallTool(ctx context.Context, name string, args json.RawMessage) 
 	return c.call(ctx, "tools/call", map[string]any{"name": name, "arguments": args})
 }
 
-// notify sendet eine JSON-RPC-Notification (keine id, keine Antwort erwartet).
+// notify sends a JSON-RPC notification (no id, no response expected).
 func (c *Conn) notify(ctx context.Context, method string, params any) error {
 	body, err := json.Marshal(rpcRequest{JSONRPC: "2.0", Method: method, Params: params})
 	if err != nil {
@@ -145,7 +145,7 @@ func (c *Conn) notify(ctx context.Context, method string, params any) error {
 	return nil
 }
 
-// call sendet eine JSON-RPC-Anfrage und liefert das result-Feld der Antwort.
+// call sends a JSON-RPC request and returns the response's result field.
 func (c *Conn) call(ctx context.Context, method string, params any) (json.RawMessage, error) {
 	id := c.nextID
 	c.nextID++
@@ -192,8 +192,8 @@ func (c *Conn) do(ctx context.Context, body []byte) (*http.Response, error) {
 	return c.http.Do(req)
 }
 
-// decodeRPC liest die Antwort — application/json direkt, text/event-stream
-// zeilenweise (die erste data:-Zeile mit einer JSON-RPC-Response gewinnt).
+// decodeRPC reads the response — application/json directly, text/event-stream
+// line by line (the first data: line carrying a JSON-RPC response wins).
 func decodeRPC(resp *http.Response) (rpcResponse, error) {
 	ct := resp.Header.Get("Content-Type")
 	if strings.HasPrefix(ct, "text/event-stream") {
@@ -205,7 +205,7 @@ func decodeRPC(resp *http.Response) (rpcResponse, error) {
 	}
 	var rpc rpcResponse
 	if err := json.Unmarshal(data, &rpc); err != nil {
-		return rpcResponse{}, fmt.Errorf("antwort nicht dekodierbar: %w (%.200s)", err, data)
+		return rpcResponse{}, fmt.Errorf("response not decodable: %w (%.200s)", err, data)
 	}
 	return rpc, nil
 }
@@ -230,7 +230,7 @@ func decodeSSE(r io.Reader) (rpcResponse, error) {
 		switch {
 		case strings.HasPrefix(line, "data:"):
 			payload.WriteString(strings.TrimPrefix(strings.TrimPrefix(line, "data:"), " "))
-		case line == "": // Event-Ende
+		case line == "": // end of event
 			if rpc, ok := flush(); ok {
 				return rpc, nil
 			}
@@ -242,5 +242,5 @@ func decodeSSE(r io.Reader) (rpcResponse, error) {
 	if rpc, ok := flush(); ok {
 		return rpc, nil
 	}
-	return rpcResponse{}, fmt.Errorf("SSE-Stream ohne JSON-RPC-Antwort")
+	return rpcResponse{}, fmt.Errorf("SSE stream without a JSON-RPC response")
 }

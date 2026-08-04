@@ -11,16 +11,16 @@ import (
 	"testing"
 )
 
-// fakeTeams ist das Zielsystem-Double: der OAuth2-Token-Endpoint, der Bot
-// Connector (senden/antworten) und ein vor-autorisierter Datei-Endpunkt für
-// Anhänge. Es zeichnet alle Zugriffe auf.
+// fakeTeams is the target-system double: the OAuth2 token endpoint, the bot
+// connector (send/reply) and a pre-authorized file endpoint for attachments.
+// It records every access.
 type fakeTeams struct {
 	mu        sync.Mutex
 	tokenHits int
 	replies   []map[string]string // {cid, aid, text, auth}
 	sends     []map[string]string // {cid, text}
 	files     []string
-	cards     []map[string]any // gepostete Karten (file.consent / file.info)
+	cards     []map[string]any // posted cards (file.consent / file.info)
 	uploads   []map[string]string
 	srv       *httptest.Server
 }
@@ -36,7 +36,7 @@ func newFakeTeams(t *testing.T) *fakeTeams {
 		json.NewEncoder(w).Encode(map[string]any{"access_token": "connector-token", "expires_in": 3600})
 	})
 
-	// Antwort auf eine konkrete Nachricht.
+	// Reply to a concrete message.
 	mux.HandleFunc("POST /v3/conversations/{cid}/activities/{aid}", func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]any
 		json.NewDecoder(r.Body).Decode(&body)
@@ -49,8 +49,8 @@ func newFakeTeams(t *testing.T) *fakeTeams {
 		json.NewEncoder(w).Encode(map[string]any{"id": "msg-1"})
 	})
 
-	// Neue Nachricht in eine Konversation — mit Attachments ist es eine Karte
-	// (Zustimmung bzw. Abschluss des Datei-Versands), sonst normaler Text.
+	// A new message into a conversation — with attachments it is a card
+	// (consent resp. completion of the file transfer), otherwise plain text.
 	mux.HandleFunc("POST /v3/conversations/{cid}/activities", func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]any
 		json.NewDecoder(r.Body).Decode(&body)
@@ -65,8 +65,8 @@ func newFakeTeams(t *testing.T) *fakeTeams {
 		json.NewEncoder(w).Encode(map[string]any{"id": "msg-2"})
 	})
 
-	// Upload-Session, wie Teams sie nach der Zustimmung liefert: PUT mit
-	// Content-Range und ohne Connector-Token.
+	// Upload session as Teams hands it over after the consent: PUT with
+	// Content-Range and without a connector token.
 	mux.HandleFunc("PUT /upload/{name}", func(w http.ResponseWriter, r *http.Request) {
 		buf := new(strings.Builder)
 		io.Copy(buf, r.Body)
@@ -82,7 +82,7 @@ func newFakeTeams(t *testing.T) *fakeTeams {
 		json.NewEncoder(w).Encode(map[string]any{"id": "uploaded"})
 	})
 
-	// Vor-autorisierter Datei-Download (ohne Token) — Ziel von download_attachment.
+	// Pre-authorized file download (without a token) — target of download_attachment.
 	mux.HandleFunc("GET /files/{name}", func(w http.ResponseWriter, r *http.Request) {
 		name := r.PathValue("name")
 		f.mu.Lock()
@@ -112,7 +112,7 @@ func (f *fakeTeams) lastReply() map[string]string {
 	return f.replies[len(f.replies)-1]
 }
 
-// cardsOfType liefert die geposteten Karten eines Content-Types
+// cardsOfType returns the posted cards of one content type
 // (file.consent / file.info).
 func (f *fakeTeams) cardsOfType(suffix string) []map[string]any {
 	f.mu.Lock()

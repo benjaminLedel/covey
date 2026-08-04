@@ -31,22 +31,22 @@ func TestParseWebhookAndKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	if a.CleanText() != "Hallo Welt" {
-		t.Fatalf("mention nicht entfernt: %q", a.CleanText())
+		t.Fatalf("mention not removed: %q", a.CleanText())
 	}
 	if a.DedupKey() != "teams:activity:a1" {
-		t.Fatalf("dedup-key: %s", a.DedupKey())
+		t.Fatalf("dedup key: %s", a.DedupKey())
 	}
 	if CorrelationKey(a.Conversation.ID) != "teams:conversation:19:conv1" {
-		t.Fatalf("korrelations-key: %s", CorrelationKey(a.Conversation.ID))
+		t.Fatalf("correlation key: %s", CorrelationKey(a.Conversation.ID))
 	}
 	if !a.ShouldWake() {
-		t.Fatal("Nutzer-Nachricht muss wecken")
+		t.Fatal("a user message must wake")
 	}
 }
 
 func TestParseWebhookRejectsTypeless(t *testing.T) {
 	if _, err := ParseWebhook([]byte(`{"id":"x"}`)); err == nil {
-		t.Fatal("Activity ohne type muss abgelehnt werden")
+		t.Fatal("an activity without a type must be rejected")
 	}
 }
 
@@ -61,43 +61,43 @@ func TestShouldWakeFilters(t *testing.T) {
 	}
 
 	if a := base(); !a.ShouldWake() {
-		t.Fatal("Basisfall muss wecken")
+		t.Fatal("the base case must wake")
 	}
 
-	// Echo der eigenen Bot-Antwort: from == recipient.
+	// Echo of the bot's own answer: from == recipient.
 	echo := base()
 	echo.From.ID = "28:bot"
 	if echo.ShouldWake() {
-		t.Fatal("Echo (from==recipient) darf nicht wecken")
+		t.Fatal("an echo (from==recipient) must not wake")
 	}
 	if !echo.IsEcho() {
-		t.Fatal("Echo muss als solches erkannt werden")
+		t.Fatal("an echo must be recognized as such")
 	}
 
-	// Nicht-message-Activity (z. B. conversationUpdate).
+	// Non-message activity (e.g. conversationUpdate).
 	upd := base()
 	upd.Type = "conversationUpdate"
 	if upd.ShouldWake() {
-		t.Fatal("conversationUpdate darf nicht wecken")
+		t.Fatal("conversationUpdate must not wake")
 	}
 
-	// Leerer Text (nur Mention).
+	// Empty text (mention only).
 	empty := base()
 	empty.Text = "<at>Bot</at>"
 	if empty.ShouldWake() {
-		t.Fatal("leerer Text darf nicht wecken")
+		t.Fatal("empty text must not wake")
 	}
 
-	// Tenant-Filter.
+	// Tenant filter.
 	t.Setenv("COVEY_TEAMS_INTAKE_TENANTS", "erlaubt-tenant")
 	scoped := base()
 	scoped.Conversation.TenantID = "anderer-tenant"
 	if scoped.ShouldWake() {
-		t.Fatal("Nachricht aus fremdem Tenant darf nicht wecken")
+		t.Fatal("a message from a foreign tenant must not wake")
 	}
 	scoped.Conversation.TenantID = "erlaubt-tenant"
 	if !scoped.ShouldWake() {
-		t.Fatal("Nachricht aus erlaubtem Tenant muss wecken")
+		t.Fatal("a message from an allowed tenant must wake")
 	}
 }
 
@@ -107,10 +107,10 @@ func TestParseCredential(t *testing.T) {
 		t.Fatalf("parseCredential: %q %q %v", id, pass, err)
 	}
 	if _, _, err := parseCredential("nurid"); err == nil {
-		t.Fatal("Credential ohne ':' muss Fehler sein")
+		t.Fatal("a credential without ':' must be an error")
 	}
 	if _, _, err := parseCredential(":passonly"); err == nil {
-		t.Fatal("Credential ohne appId muss Fehler sein")
+		t.Fatal("a credential without an appId must be an error")
 	}
 }
 
@@ -126,16 +126,16 @@ func TestJWKToRSARoundtrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	if pub.N.Cmp(key.N) != 0 || pub.E != key.E {
-		t.Fatal("JWK→RSA-Roundtrip stimmt nicht")
+		t.Fatal("the JWK→RSA roundtrip does not match")
 	}
 }
 
 func TestVerifyToken(t *testing.T) {
 	if !VerifyToken("", "irgendwas") {
-		t.Fatal("leere appID = Verifikation aus (Dev)")
+		t.Fatal("empty appID = verification off (dev)")
 	}
 	if VerifyToken("bot-app", "kein-bearer") {
-		t.Fatal("Header ohne Bearer muss abgelehnt werden")
+		t.Fatal("a header without Bearer must be rejected")
 	}
 
 	key, _ := rsa.GenerateKey(rand.Reader, 2048)
@@ -148,7 +148,7 @@ func TestVerifyToken(t *testing.T) {
 		}
 		return s
 	}
-	// Verifier mit injiziertem Schlüssel (kein Netz-Abruf).
+	// Verifier with an injected key (no network fetch).
 	defaultVerifier.keyFunc = func(*jwt.Token) (any, error) { return &key.PublicKey, nil }
 	t.Cleanup(func() { defaultVerifier.keyFunc = nil })
 
@@ -158,7 +158,7 @@ func TestVerifyToken(t *testing.T) {
 		"exp": time.Now().Add(time.Hour).Unix(),
 	})
 	if !VerifyToken("bot-app", "Bearer "+good) {
-		t.Fatal("gültiges Token muss akzeptiert werden")
+		t.Fatal("a valid token must be accepted")
 	}
 
 	wrongAud := sign(jwt.MapClaims{
@@ -167,7 +167,7 @@ func TestVerifyToken(t *testing.T) {
 		"exp": time.Now().Add(time.Hour).Unix(),
 	})
 	if VerifyToken("bot-app", "Bearer "+wrongAud) {
-		t.Fatal("falsche Audience muss abgelehnt werden")
+		t.Fatal("a wrong audience must be rejected")
 	}
 
 	expired := sign(jwt.MapClaims{
@@ -176,7 +176,7 @@ func TestVerifyToken(t *testing.T) {
 		"exp": time.Now().Add(-time.Hour).Unix(),
 	})
 	if VerifyToken("bot-app", "Bearer "+expired) {
-		t.Fatal("abgelaufenes Token muss abgelehnt werden")
+		t.Fatal("an expired token must be rejected")
 	}
 }
 
@@ -196,22 +196,22 @@ func TestAttachmentsParsing(t *testing.T) {
 	}
 	files := a.Files()
 	if len(files) != 2 {
-		t.Fatalf("erwartet 2 Datei-Anhänge (text/html gefiltert), bekam %d: %+v", len(files), files)
+		t.Fatalf("expected 2 file attachments (text/html filtered out), got %d: %+v", len(files), files)
 	}
 	if files[0].DownloadURL() != "https://share.example/dl/report.pdf" || files[0].Filename() != "report.pdf" {
-		t.Fatalf("file.download.info falsch: %+v", files[0])
+		t.Fatalf("file.download.info wrong: %+v", files[0])
 	}
 	if files[1].DownloadURL() != "https://smba.example/v3/attachments/x" {
-		t.Fatalf("inline-Bild-URL falsch: %+v", files[1])
+		t.Fatalf("inline image URL wrong: %+v", files[1])
 	}
-	// Nachricht ohne Text, aber mit Anhang muss wecken.
+	// A message without text but with an attachment must wake.
 	if !a.ShouldWake() {
-		t.Fatal("Nachricht nur mit Anhang muss wecken")
+		t.Fatal("a message with an attachment only must wake")
 	}
 }
 
 func TestDownloadAttachmentToSandbox(t *testing.T) {
-	// Server: /preauth liefert direkt (ohne Token), /connector verlangt Bearer.
+	// Server: /preauth delivers directly (without a token), /connector demands Bearer.
 	var sawToken bool
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /token", func(w http.ResponseWriter, r *http.Request) {
@@ -240,42 +240,42 @@ func TestDownloadAttachmentToSandbox(t *testing.T) {
 	work := t.TempDir()
 	ctx := context.Background()
 
-	// Vor-autorisierte URL (kein Token nötig).
+	// Pre-authorized URL (no token needed).
 	res, err := DownloadAttachmentToSandbox(ctx, c, srv.URL+"/preauth", "report.pdf", work)
 	if err != nil {
-		t.Fatalf("preauth-Download: %v", err)
+		t.Fatalf("preauth download: %v", err)
 	}
 	if res.Filename != "report.pdf" || res.ContentType != "application/pdf" || res.Bytes == 0 {
-		t.Fatalf("preauth-Ergebnis falsch: %+v", res)
+		t.Fatalf("preauth result wrong: %+v", res)
 	}
 	if data, _ := os.ReadFile(res.Path); string(data) != "%PDF-1.4 fake" {
-		t.Fatalf("preauth-Datei-Inhalt falsch: %q", data)
+		t.Fatalf("preauth file content wrong: %q", data)
 	}
 
-	// Connector-URL: erst 401, dann Retry mit Bearer.
+	// Connector URL: first 401, then a retry with Bearer.
 	res, err = DownloadAttachmentToSandbox(ctx, c, srv.URL+"/connector", "bild.png", work)
 	if err != nil {
-		t.Fatalf("connector-Download: %v", err)
+		t.Fatalf("connector download: %v", err)
 	}
 	if !sawToken {
-		t.Fatal("Connector-URL muss mit Bearer-Token nachgeladen werden")
+		t.Fatal("a connector URL must be re-fetched with the bearer token")
 	}
 	if res.ContentType != "image/png" {
-		t.Fatalf("connector-Ergebnis falsch: %+v", res)
+		t.Fatalf("connector result wrong: %+v", res)
 	}
 
-	// Pfad-Traversal im Namen wird auf den Basename reduziert.
+	// Path traversal in the name is reduced to the basename.
 	res, err = DownloadAttachmentToSandbox(ctx, c, srv.URL+"/preauth", "../../etc/passwd", work)
 	if err != nil {
-		t.Fatalf("traversal-Download: %v", err)
+		t.Fatalf("traversal download: %v", err)
 	}
 	if filepath.Dir(res.Path) != filepath.Join(work, "attachments") {
-		t.Fatalf("Pfad-Traversal nicht neutralisiert: %s", res.Path)
+		t.Fatalf("path traversal not neutralized: %s", res.Path)
 	}
 
-	// Ohne Sandbox-Workdir → Fehler.
+	// Without a sandbox workdir → error.
 	if _, err := DownloadAttachmentToSandbox(ctx, c, srv.URL+"/preauth", "x", ""); err == nil {
-		t.Fatal("ohne Workdir muss download_attachment scheitern")
+		t.Fatal("without a workdir download_attachment must fail")
 	}
 }
 
@@ -297,11 +297,11 @@ func TestDownloadAttachmentDispatch(t *testing.T) {
 		t.Fatalf("dispatch: %v", err)
 	}
 	if r, ok := out.(DownloadResult); !ok || r.Filename != "notiz.txt" {
-		t.Fatalf("dispatch-Ergebnis: %#v", out)
+		t.Fatalf("dispatch result: %#v", out)
 	}
-	// Fehlende url → Validierungsfehler.
+	// Missing url → validation error.
 	if _, err := (System{}).Execute(ctx, "download_attachment", json.RawMessage(`{}`), cred); err == nil {
-		t.Fatal("download_attachment ohne url muss Fehler sein")
+		t.Fatal("download_attachment without a url must be an error")
 	}
 }
 
@@ -315,7 +315,7 @@ func TestActionSubject(t *testing.T) {
 	}
 }
 
-// fakeConnector spielt Token-Endpoint + Bot-Connector in einem Server.
+// fakeConnector plays token endpoint + Bot Connector in one server.
 func fakeConnector(t *testing.T, record *[]string) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
@@ -353,37 +353,37 @@ func TestExecuteActions(t *testing.T) {
 		t.Fatalf("send: %v", err)
 	}
 	if rr, ok := out.(ResourceResponse); !ok || rr.ID != "msg-1" {
-		t.Fatalf("send-Antwort: %#v", out)
+		t.Fatalf("send answer: %#v", out)
 	}
 	if len(rec) == 0 || rec[0] != "send 19:c auth=Bearer connector-token" {
-		t.Fatalf("send-Request falsch: %v", rec)
+		t.Fatalf("send request wrong: %v", rec)
 	}
 
-	// reply mit activity-id
+	// reply with an activity id
 	if _, err := sys.Execute(ctx, "reply", json.RawMessage(
 		`{"service_url":"`+srv.URL+`","conversation_id":"19:c","reply_to_activity_id":"a9","text":"hi"}`), cred); err != nil {
 		t.Fatalf("reply: %v", err)
 	}
 	if rec[len(rec)-1] != "reply 19:c/a9" {
-		t.Fatalf("reply-Request falsch: %v", rec)
+		t.Fatalf("reply request wrong: %v", rec)
 	}
 
-	// reply ohne activity-id fällt auf send zurück
+	// reply without an activity id falls back to send
 	if _, err := sys.Execute(ctx, "reply", json.RawMessage(
 		`{"service_url":"`+srv.URL+`","conversation_id":"19:c","text":"hi"}`), cred); err != nil {
-		t.Fatalf("reply-fallback: %v", err)
+		t.Fatalf("reply fallback: %v", err)
 	}
 	if rec[len(rec)-1] != "send 19:c auth=Bearer connector-token" {
-		t.Fatalf("reply ohne activity-id muss senden: %v", rec)
+		t.Fatalf("reply without an activity id must send: %v", rec)
 	}
 
-	// create_conversation (POST /conversations + anschließendes send)
+	// create_conversation (POST /conversations + the subsequent send)
 	if _, err := sys.Execute(ctx, "create_conversation", json.RawMessage(
 		`{"service_url":"`+srv.URL+`","tenant_id":"t1","user_id":"29:u","text":"servus"}`), cred); err != nil {
 		t.Fatalf("create_conversation: %v", err)
 	}
 	if rec[len(rec)-2] != "create-conv" || rec[len(rec)-1] != "send 19:new auth=Bearer connector-token" {
-		t.Fatalf("create_conversation-Ablauf falsch: %v", rec)
+		t.Fatalf("create_conversation flow wrong: %v", rec)
 	}
 }
 
@@ -392,42 +392,41 @@ func TestExecuteValidation(t *testing.T) {
 	cred := target.Credential{Token: "app:secret"}
 	if _, err := sys.Execute(context.Background(), "send",
 		json.RawMessage(`{"conversation_id":"c","text":"x"}`), cred); err == nil {
-		t.Fatal("send ohne service_url muss Fehler sein")
+		t.Fatal("send without a service_url must be an error")
 	}
 	if _, err := sys.Execute(context.Background(), "unbekannt",
 		json.RawMessage(`{}`), cred); err == nil {
-		t.Fatal("unbekannte Aktion muss Fehler sein")
+		t.Fatal("an unknown action must be an error")
 	}
 	if _, err := sys.Execute(context.Background(), "send",
 		json.RawMessage(`{}`), target.Credential{Token: "kaputt"}); err == nil {
-		t.Fatal("kaputtes Credential muss Fehler sein")
+		t.Fatal("a broken credential must be an error")
 	}
 }
 
-// TestResolveInWorkdir: ein Agent darf nur Dateien aus seinem eigenen
-// Arbeitsverzeichnis verschicken. Absolute Pfade und ".." führen nicht hinaus —
-// sonst könnte eine manipulierte Quelle ihn dazu bringen, /etc/passwd in einen
-// Chat zu schieben.
+// TestResolveInWorkdir: an agent may only send files from its own working
+// directory. Absolute paths and ".." do not lead out of it — otherwise a
+// manipulated source could get it to push /etc/passwd into a chat.
 func TestResolveInWorkdir(t *testing.T) {
 	work := t.TempDir()
 	if _, err := resolveInWorkdir(work, "bericht.pdf"); err != nil {
-		t.Fatalf("normaler Pfad muss gehen: %v", err)
+		t.Fatalf("a normal path must work: %v", err)
 	}
-	if _, err := resolveInWorkdir(work, "unterordner/../bericht.pdf"); err != nil {
-		t.Fatalf("bereinigter Pfad innerhalb des Workdirs muss gehen: %v", err)
+	if _, err := resolveInWorkdir(work, "subfolder/../bericht.pdf"); err != nil {
+		t.Fatalf("a cleaned path inside the workdir must work: %v", err)
 	}
 	for _, bad := range []string{"../../etc/passwd", "/etc/passwd", "..", ""} {
 		if _, err := resolveInWorkdir(work, bad); err == nil {
-			t.Fatalf("pfad %q muss abgelehnt werden", bad)
+			t.Fatalf("path %q must be rejected", bad)
 		}
 	}
 	if _, err := resolveInWorkdir("", "bericht.pdf"); err == nil {
-		t.Fatal("ohne Workdir muss die Aktion scheitern")
+		t.Fatal("without a workdir the action must fail")
 	}
 }
 
-// TestSendFileBrauchtDatei: send_file/upload_file scheitern sauber, wenn die
-// genannte Datei fehlt — statt eine leere Karte in den Chat zu stellen.
+// TestSendFileBrauchtDatei: send_file/upload_file fail cleanly when the named
+// file is missing — instead of putting an empty card into the chat.
 func TestSendFileBrauchtDatei(t *testing.T) {
 	work := t.TempDir()
 	c, err := NewClient(target.Credential{Token: "app:pass"})
@@ -435,17 +434,17 @@ func TestSendFileBrauchtDatei(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := RequestFileConsent(context.Background(), c, "http://x", "19:c", "fehlt.pdf", "", work); err == nil {
-		t.Fatal("fehlende Datei muss Fehler sein")
+		t.Fatal("a missing file must be an error")
 	}
 	if _, err := UploadConsentedFile(context.Background(), c,
 		UploadInput{UploadURL: "http://x/up", Path: "fehlt.pdf"}, work); err == nil {
-		t.Fatal("fehlende Datei muss Fehler sein")
+		t.Fatal("a missing file must be an error")
 	}
 }
 
-// consentInvoke baut die invoke-Activity, mit der Teams die Entscheidung des
-// Empfängers zustellt. key ist der context.key aus unserer Karte — der Pfad,
-// den send_file angefragt hat.
+// consentInvoke builds the invoke activity with which Teams delivers the
+// recipient's decision. key is the context.key from our card — the path
+// send_file asked for.
 func consentInvoke(action, key, uploadURL string) []byte {
 	return []byte(fmt.Sprintf(`{"type":"invoke","id":"inv-1","name":"fileConsent/invoke",
 		"serviceUrl":"https://smba.example/emea/","channelId":"msteams",
@@ -456,44 +455,44 @@ func consentInvoke(action, key, uploadURL string) []byte {
 				"uniqueId":"u-1","fileType":"pdf"}}}`, action, key, uploadURL))
 }
 
-// TestConsentEventFuelltPfad: der context.key kommt aus unserer eigenen Karte
-// und trägt den angefragten Pfad — der Wake-Prompt setzt ihn in den fertigen
-// upload_file-Aufruf ein, statt den Agenten raten zu lassen. Der Pfad kann in
-// einem Unterordner liegen; der Basename allein zeigte dort ins Leere.
+// TestConsentEventFuelltPfad: the context.key comes from our own card and
+// carries the requested path — the wake prompt puts it into the ready-made
+// upload_file call instead of letting the agent guess. The path may sit in a
+// subfolder; the basename alone would point nowhere there.
 func TestConsentEventFuelltPfad(t *testing.T) {
 	ev, err := System{}.ParseWebhook(consentInvoke("accept", "berichte/q3.pdf", "https://sp.example/up"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(ev.ResumeInput, `"path":"berichte/q3.pdf"`) {
-		t.Fatalf("pfad aus context.key fehlt im Aufruf: %s", ev.ResumeInput)
+		t.Fatalf("the path from context.key is missing in the call: %s", ev.ResumeInput)
 	}
-	if strings.Contains(ev.ResumeInput, "<deine Datei>") {
-		t.Fatalf("platzhalter trotz bekanntem pfad: %s", ev.ResumeInput)
+	if strings.Contains(ev.ResumeInput, "<your file>") {
+		t.Fatalf("placeholder despite a known path: %s", ev.ResumeInput)
 	}
 	if ev.CorrelationKey != CorrelationKey("19:c") || !ev.Wake {
-		t.Fatalf("zustimmung muss über die Konversation wecken: %+v", ev)
+		t.Fatalf("a consent must wake via the conversation: %+v", ev)
 	}
-	// Ohne key (fremde Karte, alter Flow) bleibt der Platzhalter stehen —
-	// besser ein sichtbares Loch als ein erfundener Pfad.
+	// Without a key (foreign card, old flow) the placeholder stays — better a
+	// visible hole than an invented path.
 	ohne, err := System{}.ParseWebhook(consentInvoke("accept", "", "https://sp.example/up"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(ohne.ResumeInput, "<deine Datei>") {
-		t.Fatalf("ohne context.key muss der Platzhalter bleiben: %s", ohne.ResumeInput)
+	if !strings.Contains(ohne.ResumeInput, "<your file>") {
+		t.Fatalf("without a context.key the placeholder must stay: %s", ohne.ResumeInput)
 	}
 }
 
-// TestConsentEventNurKorrelieren: eine Zustimmung ist die Fortsetzung einer
-// angefangenen Arbeit. Parkt niemand darauf, darf daraus keine neue Aufgabe
-// entstehen — sonst bekäme ein ahnungsloser Agent den Auftrag, eine Datei
-// hochzuladen, von der er nichts weiß. Gilt für beide Entscheidungen.
+// TestConsentEventNurKorrelieren: a consent is the continuation of work that
+// was started. If nobody is parked on it, no new task may arise from it —
+// otherwise an unsuspecting agent would get the order to upload a file it
+// knows nothing about. Holds for both decisions.
 func TestConsentEventNurKorrelieren(t *testing.T) {
 	for _, tc := range []struct{ name, action, uploadURL string }{
-		{"zustimmung", "accept", "https://sp.example/up"},
-		{"ablehnung", "decline", ""},
-		{"zustimmung ohne upload-url", "accept", ""},
+		{"consent", "accept", "https://sp.example/up"},
+		{"decline", "decline", ""},
+		{"consent without upload url", "accept", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ev, err := System{}.ParseWebhook(consentInvoke(tc.action, "bericht.pdf", tc.uploadURL))
@@ -501,10 +500,10 @@ func TestConsentEventNurKorrelieren(t *testing.T) {
 				t.Fatal(err)
 			}
 			if !ev.CorrelateOnly {
-				t.Fatal("consent-Event darf keine neue Aufgabe anlegen")
+				t.Fatal("a consent event must not create a new task")
 			}
 			if !ev.Wake {
-				t.Fatal("consent-Event muss den geparkten Agenten wecken")
+				t.Fatal("a consent event must wake the parked agent")
 			}
 		})
 	}

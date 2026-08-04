@@ -1,15 +1,14 @@
-// Package sandboxfs öffnet das persistente Home eines Agenten als Dateibaum:
-// durchsehen, lesen, hochladen, ändern, löschen. Es ist der Arbeitsplatz des
-// Agenten (spec/02) — Compute ist ephemer, das Home überlebt. Weil es auf dem
-// Host liegt und nur in die Sandbox gemountet wird, funktioniert der Zugriff
-// unabhängig davon, ob die Sandbox gerade läuft; ein schlafender Agent ist
-// kein blinder Fleck.
+// Package sandboxfs opens an agent's persistent home as a file tree: browse,
+// read, upload, modify, delete. It is the agent's workplace (spec/02) — compute
+// is ephemeral, the home survives. Because it lives on the host and is merely
+// mounted into the sandbox, access works regardless of whether the sandbox is
+// currently running; a sleeping agent is not a blind spot.
 //
-// Die gesamte Fläche ist Pfad-Arbeit auf fremdem Input, deshalb liegt das
-// ganze Paket um eine Regel herum: **kein Weg zeigt aus der Wurzel heraus.**
-// Jeder Pfad wird normalisiert (`..` fällt weg) und anschließend gegen den
-// tiefsten existierenden Vorfahren geprüft — ein Symlink, der aus dem Home
-// zeigt, ist ein Ausbruchsversuch, kein Abkürzung.
+// The entire surface is path handling on foreign input, which is why the whole
+// package is built around one rule: **no path leads out of the root.** Every
+// path is normalised (`..` falls away) and then checked against the deepest
+// existing ancestor — a symlink pointing out of the home is an escape attempt,
+// not a shortcut.
 package sandboxfs
 
 import (
@@ -26,65 +25,63 @@ import (
 	"unicode/utf8"
 )
 
-// Grenzen. Sie sind bewusst großzügig, aber endlich: ein Home ist ein
-// Arbeitsplatz, kein Dateiserver.
+// Limits. Deliberately generous, but finite: a home is a workplace, not a file
+// server.
 const (
-	// MaxViewBytes ist der Ausschnitt, den die Textansicht überträgt. Größere
-	// Dateien kommen abgeschnitten (Truncated) — vollständig gibt es sie über
-	// den Download.
+	// MaxViewBytes is the excerpt the text view transfers. Larger files arrive
+	// truncated — the full content is available through the download.
 	MaxViewBytes = 512 << 10 // 512 KiB
-	// MaxWriteBytes begrenzt eine einzelne hochgeladene oder gespeicherte Datei.
+	// MaxWriteBytes limits a single uploaded or saved file.
 	MaxWriteBytes = 64 << 20 // 64 MiB
-	// MaxEntries begrenzt die Einträge einer Auflistung. Ein Verzeichnis mit
-	// mehr Einträgen kommt gekürzt zurück, statt die UI zu erschlagen.
+	// MaxEntries limits the entries of a listing. A directory with more entries
+	// comes back shortened instead of overwhelming the UI.
 	MaxEntries = 2000
-	// MaxZipFiles/MaxZipBytes begrenzen ein Sammel-Download. Beides wird VOR
-	// dem ersten Byte geprüft: ein Strom, der auf halber Strecke abbricht,
-	// hinterlässt ein kaputtes Archiv, dem man nicht ansieht, dass es unfertig
-	// ist — die Grenze muss eine Fehlermeldung sein, kein Torso.
+	// MaxZipFiles/MaxZipBytes limit a bulk download. Both are checked BEFORE the
+	// first byte: a stream that breaks off halfway leaves behind a broken
+	// archive that does not look unfinished — the limit has to be an error
+	// message, not a torso.
 	MaxZipFiles = 20000
-	MaxZipBytes = 2 << 30 // 2 GiB unkomprimiert
-	// sniffBytes ist der Ausschnitt, an dem Text von Binär unterschieden wird.
+	MaxZipBytes = 2 << 30 // 2 GiB uncompressed
+	// sniffBytes is the excerpt used to tell text from binary.
 	sniffBytes = 8000
 )
 
 var (
-	// ErrNotFound: der Pfad existiert nicht.
-	ErrNotFound = errors.New("pfad nicht gefunden")
-	// ErrInvalidPath: der Pfad zeigt aus dem Home heraus oder ist unbrauchbar.
-	ErrInvalidPath = errors.New("ungültiger pfad")
-	// ErrTooLarge: die Datei überschreitet die Grenze.
-	ErrTooLarge = errors.New("datei zu groß")
-	// ErrNotDir / ErrIsDir: die Operation passt nicht zum Typ des Ziels.
-	ErrNotDir = errors.New("kein verzeichnis")
-	ErrIsDir  = errors.New("ist ein verzeichnis")
-	// ErrExists: das Ziel ist belegt.
-	ErrExists = errors.New("existiert bereits")
-	// ErrTooMany: der Sammel-Download umfasst zu viele Dateien.
-	ErrTooMany = errors.New("zu viele dateien")
+	// ErrNotFound: the path does not exist.
+	ErrNotFound = errors.New("path not found")
+	// ErrInvalidPath: the path points out of the home or is unusable.
+	ErrInvalidPath = errors.New("invalid path")
+	// ErrTooLarge: the file exceeds the limit.
+	ErrTooLarge = errors.New("file too large")
+	// ErrNotDir / ErrIsDir: the operation does not match the target's type.
+	ErrNotDir = errors.New("not a directory")
+	ErrIsDir  = errors.New("is a directory")
+	// ErrExists: the target is taken.
+	ErrExists = errors.New("already exists")
+	// ErrTooMany: the bulk download covers too many files.
+	ErrTooMany = errors.New("too many files")
 )
 
-// Vorschau-Arten. Welche Art eine Datei hat, entscheidet hier *eine* Stelle —
-// die Oberfläche wählt danach ihre Darstellung, statt selbst noch einmal
-// Endungen zu raten und irgendwann etwas anderes zu meinen als der Server,
-// der die Bytes ausliefert.
+// Preview kinds. Which kind a file has is decided in *one* place — the UI picks
+// its rendering from that instead of guessing extensions a second time and
+// eventually meaning something different than the server delivering the bytes.
 const (
-	PreviewText     = "text"     // im Editor bearbeitbar
-	PreviewMarkdown = "markdown" // gerendert oder als Quelltext
-	PreviewImage    = "image"    // inline über den preview-Endpunkt
-	PreviewPDF      = "pdf"      // inline, eingebettet
-	PreviewCSV      = "csv"      // als Tabelle oder Quelltext
-	PreviewBinary   = "binary"   // nur herunterladen
+	PreviewText     = "text"     // editable in the editor
+	PreviewMarkdown = "markdown" // rendered or as source
+	PreviewImage    = "image"    // inline via the preview endpoint
+	PreviewPDF      = "pdf"      // inline, embedded
+	PreviewCSV      = "csv"      // as a table or as source
+	PreviewBinary   = "binary"   // download only
 )
 
-// inlineTypes ist die Allowlist der Typen, die *inline* ausgeliefert werden
-// dürfen — alles andere geht ausschließlich als Anhang raus. Bewusst kurz und
-// fail-closed: Inline-Auslieferung aus einem Agenten-Home heißt, fremde Bytes
-// auf der Covey-Origin darzustellen. Bilder und PDF sind es wert, HTML nicht.
+// inlineTypes is the allowlist of types that may be delivered *inline* —
+// everything else goes out as an attachment only. Deliberately short and
+// fail-closed: inline delivery from an agent home means rendering foreign bytes
+// on the Covey origin. Images and PDF are worth it, HTML is not.
 //
-// SVG ist dabei, weil es im <img>-Kontext kein Skript ausführt; gegen den
-// direkten Aufruf der URL sichert der Handler zusätzlich mit einer
-// sandbox-CSP ab (files.go).
+// SVG is included because it executes no script in an <img> context; against a
+// direct call of the URL the handler additionally guards with a sandbox CSP
+// (files.go).
 var inlineTypes = map[string]string{
 	".png":  "image/png",
 	".jpg":  "image/jpeg",
@@ -98,14 +95,14 @@ var inlineTypes = map[string]string{
 	".pdf":  "application/pdf",
 }
 
-// markdownExts/csvExts sind die Text-Arten mit eigener Darstellung.
+// markdownExts/csvExts are the text kinds with a rendering of their own.
 var markdownExts = map[string]bool{".md": true, ".markdown": true, ".mdx": true}
 
 var csvExts = map[string]bool{".csv": true, ".tsv": true}
 
-// PreviewKind bestimmt die Vorschau-Art aus dem Dateinamen. Leeres Ergebnis =
-// aus dem Namen nicht zu erkennen; dann entscheidet der Inhalt (Text oder
-// binär), siehe Read.
+// PreviewKind determines the preview kind from the file name. An empty result =
+// not recognisable from the name; the content then decides (text or binary),
+// see Read.
 func PreviewKind(name string) string {
 	ext := strings.ToLower(filepath.Ext(name))
 	switch {
@@ -121,31 +118,31 @@ func PreviewKind(name string) string {
 	return ""
 }
 
-// InlineType liefert den Content-Type, unter dem eine Datei inline
-// ausgeliefert werden darf — leer heißt: nur als Anhang.
+// InlineType returns the content type under which a file may be delivered
+// inline — empty means: as an attachment only.
 func InlineType(name string) string {
 	return inlineTypes[strings.ToLower(filepath.Ext(name))]
 }
 
-// FS ist der Dateibaum eines Agenten-Homes.
+// FS is the file tree of an agent home.
 //
-// UID/GID sind der Besitzer *in der Sandbox* (der User `agent` im Image). Die
-// Control Plane läuft im Deployment als root; ohne das Nachziehen der
-// Ownership gehörten hochgeladene Dateien root, und der Agent könnte seine
-// eigenen Dateien nicht mehr ändern. -1 = nicht setzen (lokale Entwicklung,
-// wo Docker Desktop die Ownership ohnehin mappt).
+// UID/GID are the owner *inside the sandbox* (the user `agent` in the image).
+// The control plane runs as root in the deployment; without adjusting the
+// ownership, uploaded files would belong to root and the agent could no longer
+// modify its own files. -1 = do not set (local development, where Docker
+// Desktop maps the ownership anyway).
 type FS struct {
 	root string
 	UID  int
 	GID  int
 }
 
-// New öffnet root als Dateibaum. Das Verzeichnis muss nicht existieren — ein
-// Agent, der noch nie geweckt wurde, hat noch kein Home; die Auflistung ist
-// dann leer statt ein Fehler.
+// New opens root as a file tree. The directory need not exist — an agent that
+// has never been woken has no home yet; the listing is then empty instead of an
+// error.
 func New(root string, uid, gid int) (*FS, error) {
 	if strings.TrimSpace(root) == "" {
-		return nil, fmt.Errorf("sandboxfs: leere wurzel")
+		return nil, fmt.Errorf("sandboxfs: empty root")
 	}
 	abs, err := filepath.Abs(root)
 	if err != nil {
@@ -154,37 +151,37 @@ func New(root string, uid, gid int) (*FS, error) {
 	return &FS{root: abs, UID: uid, GID: gid}, nil
 }
 
-// Root ist der Host-Pfad des Homes — für Anzeige und Diagnose.
+// Root is the host path of the home — for display and diagnostics.
 func (f *FS) Root() string { return f.root }
 
-// Entry ist ein Eintrag einer Auflistung.
+// Entry is one entry of a listing.
 type Entry struct {
 	Name string `json:"name"`
-	// Path ist der Pfad relativ zum Home, mit „/" als Trenner.
+	// Path is the path relative to the home, with "/" as the separator.
 	Path    string `json:"path"`
 	IsDir   bool   `json:"is_dir"`
 	Size    int64  `json:"size"`
 	Mode    string `json:"mode"`
 	ModTime string `json:"mod_time"`
-	// Symlink trägt das Ziel, wenn der Eintrag ein Link ist. Ein Link, der aus
-	// dem Home zeigt, wird angezeigt, aber nicht geöffnet (Outside).
+	// Symlink carries the target if the entry is a link. A link pointing out of
+	// the home is shown but not followed (Outside).
 	Symlink string `json:"symlink,omitempty"`
 	Outside bool   `json:"outside,omitempty"`
-	// Preview ist die Vorschau-Art nach Dateiname (leer = erst beim Öffnen
-	// entscheidbar). In der Liste trägt sie das Symbol der Zeile.
+	// Preview is the preview kind by file name (empty = only decidable on open).
+	// In the listing it drives the row's icon.
 	Preview string `json:"preview,omitempty"`
 }
 
-// Listing ist eine Verzeichnisauflistung.
+// Listing is a directory listing.
 type Listing struct {
 	Path string `json:"path"`
-	// Exists=false heißt: das Home wurde noch nie angelegt (Agent nie geweckt).
+	// Exists=false means: the home has never been created (agent never woken).
 	Exists    bool    `json:"exists"`
 	Truncated bool    `json:"truncated"`
 	Entries   []Entry `json:"entries"`
 }
 
-// File ist der Inhalt einer Datei für die Ansicht im Browser.
+// File is the content of a file for viewing in the browser.
 type File struct {
 	Path      string `json:"path"`
 	Size      int64  `json:"size"`
@@ -192,16 +189,15 @@ type File struct {
 	ModTime   string `json:"mod_time"`
 	Binary    bool   `json:"binary"`
 	Truncated bool   `json:"truncated"`
-	// Preview sagt der Oberfläche, wie die Datei zu zeigen ist: text,
-	// markdown, csv (Content trägt den Text), image, pdf (Content ist leer,
-	// die Bytes kommen über den preview-Endpunkt) oder binary.
+	// Preview tells the UI how to show the file: text, markdown, csv (Content
+	// carries the text), image, pdf (Content is empty, the bytes come through
+	// the preview endpoint) or binary.
 	Preview string `json:"preview"`
 	Content string `json:"content"`
 }
 
-// List liefert die Einträge eines Verzeichnisses, Verzeichnisse zuerst und
-// innerhalb dessen alphabetisch — die Sortierung, die ein Dateibrowser
-// erwartet.
+// List returns the entries of a directory, directories first and alphabetically
+// within each group — the ordering a file browser is expected to have.
 func (f *FS) List(rel string) (Listing, error) {
 	abs, clean, err := f.resolve(rel)
 	if err != nil {
@@ -211,7 +207,7 @@ func (f *FS) List(rel string) (Listing, error) {
 
 	info, err := os.Stat(abs)
 	if errors.Is(err, os.ErrNotExist) {
-		// Nur die Wurzel darf fehlen: das Home entsteht beim ersten Wake.
+		// Only the root may be missing: the home comes into being on first wake.
 		if clean == "" {
 			return out, nil
 		}
@@ -245,8 +241,8 @@ func (f *FS) List(rel string) (Listing, error) {
 	return out, nil
 }
 
-// entry baut den Eintrag zu einem Namen; Symlinks werden als solche gezeigt
-// (samt Ziel und dem Hinweis, ob sie aus dem Home hinauszeigen).
+// entry builds the entry for a name; symlinks are shown as such (including
+// their target and the hint whether they point out of the home).
 func (f *FS) entry(dirAbs, dirRel, name string) Entry {
 	full := filepath.Join(dirAbs, name)
 	e := Entry{Name: name, Path: path.Join(dirRel, name)}
@@ -260,7 +256,7 @@ func (f *FS) entry(dirAbs, dirRel, name string) Entry {
 			e.Symlink = target
 		}
 		e.Outside = f.ensureInside(full) != nil
-		// Für Größe/Typ auf das Ziel schauen — es sei denn, es zeigt hinaus.
+		// Look at the target for size/type — unless it points outward.
 		if !e.Outside {
 			if si, err := os.Stat(full); err == nil {
 				li = si
@@ -277,9 +273,9 @@ func (f *FS) entry(dirAbs, dirRel, name string) Entry {
 	return e
 }
 
-// Read liefert eine Datei für die Ansicht: Text bis MaxViewBytes (darüber
-// abgeschnitten), Binäres nur als Metadaten — Bytes im JSON zu transportieren
-// hilft niemandem, dafür gibt es Open (Download).
+// Read returns a file for viewing: text up to MaxViewBytes (truncated beyond
+// that), binary content as metadata only — carrying bytes through JSON helps
+// nobody, that is what Open (download) is for.
 func (f *FS) Read(rel string) (File, error) {
 	abs, clean, err := f.resolve(rel)
 	if err != nil {
@@ -302,9 +298,9 @@ func (f *FS) Read(rel string) (File, error) {
 		ModTime: info.ModTime().UTC().Format("2006-01-02T15:04:05Z"),
 		Preview: PreviewKind(info.Name()),
 	}
-	// Bild und PDF werden nicht als Text übertragen: ihre Bytes holt sich die
-	// Oberfläche über den preview-Endpunkt. Ein Base64-Umweg durchs JSON
-	// verdreifachte nur das Volumen.
+	// Image and PDF are not transferred as text: the UI fetches their bytes
+	// through the preview endpoint. A base64 detour through JSON would only
+	// triple the volume.
 	if out.Preview == PreviewImage || out.Preview == PreviewPDF {
 		out.Binary = true
 		return out, nil
@@ -331,8 +327,8 @@ func (f *FS) Read(rel string) (File, error) {
 		out.Preview = PreviewBinary
 		return out, nil
 	}
-	// Abgeschnitten wird auf Byte-Ebene; ein halbes UTF-8-Zeichen am Ende
-	// würde als Ersatzzeichen durchschlagen, deshalb weg damit.
+	// Truncation happens at byte level; half a UTF-8 character at the end would
+	// come through as a replacement character, so drop it.
 	if out.Truncated {
 		for len(data) > 0 && !utf8.Valid(data) {
 			data = data[:len(data)-1]
@@ -345,7 +341,7 @@ func (f *FS) Read(rel string) (File, error) {
 	return out, nil
 }
 
-// Open liefert die Datei zum Herunterladen — unverändert, in voller Länge.
+// Open returns the file for download — unchanged, at full length.
 func (f *FS) Open(rel string) (io.ReadCloser, os.FileInfo, error) {
 	abs, _, err := f.resolve(rel)
 	if err != nil {
@@ -368,32 +364,32 @@ func (f *FS) Open(rel string) (io.ReadCloser, os.FileInfo, error) {
 	return fh, info, nil
 }
 
-// ZipPlan ist das fertig ausgemessene Sammel-Archiv: was hineinkommt, wie viel
-// es ist und wie es heißen soll. Getrennt vom Schreiben, damit Grenzen und
-// Fehler (nichts gefunden, zu groß) noch als HTTP-Status gehen können — sind
-// die ersten Bytes raus, bleibt nur noch ein Abbruch mitten im Download.
+// ZipPlan is the fully measured bulk archive: what goes in, how much it is and
+// what it should be called. Kept separate from writing so that limits and
+// errors (nothing found, too large) can still travel as an HTTP status — once
+// the first bytes are out, all that remains is a break mid-download.
 type ZipPlan struct {
-	// Name ist der vorgeschlagene Dateiname des Archivs (ohne Pfad).
+	// Name is the suggested file name of the archive (without path).
 	Name string
-	// Files/Bytes ist der Umfang: Dateien und unkomprimierte Gesamtgröße.
+	// Files/Bytes is the extent: files and uncompressed total size.
 	Files int
 	Bytes int64
 	items []zipItem
 }
 
-// zipItem ist ein Eintrag im Archiv: Quelle auf der Platte, Name im Archiv.
+// zipItem is one entry in the archive: source on disk, name inside the archive.
 type zipItem struct {
 	abs  string
-	name string // Pfad im Archiv, „/" als Trenner
+	name string // path inside the archive, "/" as the separator
 	dir  bool
 	size int64
 	mod  time.Time
 }
 
-// PlanZip sammelt, was ein Archiv über diese Pfade enthielte. Verzeichnisse
-// kommen mitsamt Inhalt hinein, benannt relativ zu ihrem Elternteil — wer
-// „notizen" auswählt, bekommt ein Archiv mit einem Ordner „notizen" darin und
-// nicht dessen ausgeschüttete Einzelteile.
+// PlanZip collects what an archive over these paths would contain. Directories
+// go in together with their content, named relative to their parent — whoever
+// selects "notes" gets an archive with a folder "notes" inside it and not its
+// spilled-out individual parts.
 func (f *FS) PlanZip(rels []string) (ZipPlan, error) {
 	var plan ZipPlan
 	seen := map[string]bool{}
@@ -410,8 +406,8 @@ func (f *FS) PlanZip(rels []string) (ZipPlan, error) {
 		if err != nil {
 			return ZipPlan{}, err
 		}
-		// Der Name im Archiv ist relativ zum Elternteil des gewählten Pfads;
-		// bei der Wurzel selbst relativ zur Wurzel.
+		// The name inside the archive is relative to the parent of the chosen
+		// path; for the root itself relative to the root.
 		base := path.Dir(clean)
 		if clean == "" || base == "." {
 			base = ""
@@ -427,10 +423,10 @@ func (f *FS) PlanZip(rels []string) (ZipPlan, error) {
 	return plan, nil
 }
 
-// walkZip nimmt einen Pfad (Datei oder Verzeichnis) rekursiv ins Archiv auf.
+// walkZip takes a path (file or directory) into the archive recursively.
 func (f *FS) walkZip(abs, clean, base string, info os.FileInfo, seen map[string]bool, plan *ZipPlan) error {
 	if seen[abs] {
-		return nil // doppelte Auswahl (Ordner + Datei darin) nur einmal
+		return nil // a duplicate selection (folder + a file within it) only once
 	}
 	seen[abs] = true
 
@@ -462,14 +458,14 @@ func (f *FS) walkZip(abs, clean, base string, info os.FileInfo, seen map[string]
 	}
 	for _, de := range des {
 		childAbs := filepath.Join(abs, de.Name())
-		// Ein Symlink, der aus dem Home zeigt, gehört nicht ins Archiv: sonst
-		// packte der Download Dateien des Hosts mit ein.
+		// A symlink pointing out of the home does not belong in the archive:
+		// otherwise the download would pack up files of the host as well.
 		if err := f.ensureInside(childAbs); err != nil {
 			continue
 		}
 		childInfo, err := os.Stat(childAbs)
 		if err != nil {
-			continue // kaputter Link o. Ä. — überspringen, nicht abbrechen
+			continue // broken link or similar — skip, do not abort
 		}
 		if err := f.walkZip(childAbs, path.Join(clean, de.Name()), base, childInfo, seen, plan); err != nil {
 			return err
@@ -478,7 +474,7 @@ func (f *FS) walkZip(abs, clean, base string, info os.FileInfo, seen map[string]
 	return nil
 }
 
-// WriteZip schreibt das geplante Archiv als Strom.
+// WriteZip writes the planned archive as a stream.
 func (f *FS) WriteZip(w io.Writer, plan ZipPlan) error {
 	zw := zip.NewWriter(w)
 	for _, it := range plan.items {
@@ -498,8 +494,8 @@ func (f *FS) WriteZip(w io.Writer, plan ZipPlan) error {
 		}
 		src, err := os.Open(it.abs)
 		if err != nil {
-			// Zwischen Planen und Schreiben verschwunden — der Agent arbeitet
-			// weiter. Kein Grund, das ganze Archiv fallenzulassen.
+			// Vanished between planning and writing — the agent keeps working.
+			// No reason to drop the whole archive.
 			continue
 		}
 		_, err = io.Copy(dst, src)
@@ -511,8 +507,8 @@ func (f *FS) WriteZip(w io.Writer, plan ZipPlan) error {
 	return zw.Close()
 }
 
-// zipName leitet den Dateinamen des Archivs aus der Auswahl ab: bei genau
-// einem Pfad dessen Name, sonst ein Sammelname.
+// zipName derives the archive's file name from the selection: for exactly one
+// path its name, otherwise a collective name.
 func zipName(rels []string) string {
 	if len(rels) == 1 {
 		clean := strings.TrimPrefix(path.Clean("/"+rels[0]), "/")
@@ -521,12 +517,12 @@ func zipName(rels []string) string {
 		}
 		return "home.zip"
 	}
-	return "dateien.zip"
+	return "files.zip"
 }
 
-// Write legt eine Datei an oder ersetzt sie. Fehlende Elternverzeichnisse
-// entstehen mit — ein Upload nach `projekt/neu/` soll nicht daran scheitern,
-// dass es `neu` noch nicht gibt.
+// Write creates a file or replaces it. Missing parent directories come into
+// being with it — an upload to `project/new/` should not fail just because
+// `new` does not exist yet.
 func (f *FS) Write(rel string, r io.Reader) (Entry, error) {
 	abs, clean, err := f.resolve(rel)
 	if err != nil {
@@ -542,15 +538,15 @@ func (f *FS) Write(rel string, r io.Reader) (Entry, error) {
 		return Entry{}, err
 	}
 
-	// Erst in eine Nachbardatei schreiben, dann umbenennen: ein abgebrochener
-	// Upload hinterlässt sonst eine halbe Datei unter dem richtigen Namen —
-	// und der Agent arbeitet mit ihr weiter.
+	// Write to a neighbouring file first, then rename: otherwise an aborted
+	// upload leaves half a file under the right name — and the agent keeps
+	// working with it.
 	tmp, err := os.CreateTemp(filepath.Dir(abs), ".covey-upload-*")
 	if err != nil {
 		return Entry{}, err
 	}
 	tmpName := tmp.Name()
-	defer os.Remove(tmpName) // no-op nach erfolgreichem Rename
+	defer os.Remove(tmpName) // no-op after a successful rename
 
 	n, err := io.Copy(tmp, io.LimitReader(r, MaxWriteBytes+1))
 	if err != nil {
@@ -574,7 +570,7 @@ func (f *FS) Write(rel string, r io.Reader) (Entry, error) {
 	return f.entry(filepath.Dir(abs), path.Dir(clean), path.Base(clean)), nil
 }
 
-// Mkdir legt ein Verzeichnis an (samt fehlender Eltern).
+// Mkdir creates a directory (including missing parents).
 func (f *FS) Mkdir(rel string) (Entry, error) {
 	abs, clean, err := f.resolve(rel)
 	if err != nil {
@@ -592,8 +588,8 @@ func (f *FS) Mkdir(rel string) (Entry, error) {
 	return f.entry(filepath.Dir(abs), path.Dir(clean), path.Base(clean)), nil
 }
 
-// Remove löscht eine Datei oder ein Verzeichnis samt Inhalt. Die Wurzel selbst
-// ist tabu: das Home eines Agenten löscht man nicht aus dem Dateibrowser.
+// Remove deletes a file or a directory including its content. The root itself
+// is off limits: one does not delete an agent's home from the file browser.
 func (f *FS) Remove(rel string) error {
 	abs, clean, err := f.resolve(rel)
 	if err != nil {
@@ -608,8 +604,8 @@ func (f *FS) Remove(rel string) error {
 	return os.RemoveAll(abs)
 }
 
-// Move benennt um bzw. verschiebt. Ein belegtes Ziel wird nicht überschrieben —
-// ein Verschieben, das still etwas anderes löscht, ist eine Falle.
+// Move renames or moves. A taken target is not overwritten — a move that
+// silently deletes something else is a trap.
 func (f *FS) Move(fromRel, toRel string) (Entry, error) {
 	fromAbs, fromClean, err := f.resolve(fromRel)
 	if err != nil {
@@ -637,8 +633,8 @@ func (f *FS) Move(fromRel, toRel string) (Entry, error) {
 	return f.entry(filepath.Dir(toAbs), path.Dir(toClean), path.Base(toClean)), nil
 }
 
-// mkdirAll legt die Kette an und zieht die Ownership auf jedem neu
-// entstandenen Verzeichnis nach (MkdirAll allein gäbe sie der Control Plane).
+// mkdirAll creates the chain and adjusts the ownership on every newly created
+// directory (MkdirAll alone would give it to the control plane).
 func (f *FS) mkdirAll(abs string) error {
 	if !strings.HasPrefix(abs, f.root) {
 		return ErrInvalidPath
@@ -662,8 +658,8 @@ func (f *FS) mkdirAll(abs string) error {
 	return nil
 }
 
-// chown zieht die Sandbox-Ownership nach — best effort: als normaler User
-// (lokale Entwicklung) scheitert es, und das ist dort auch egal.
+// chown adjusts the sandbox ownership — best effort: as an ordinary user (local
+// development) it fails, and there it does not matter either.
 func (f *FS) chown(abs string) {
 	if f.UID < 0 || f.GID < 0 {
 		return
@@ -671,15 +667,15 @@ func (f *FS) chown(abs string) {
 	_ = os.Chown(abs, f.UID, f.GID)
 }
 
-// resolve normalisiert einen vom Client kommenden Pfad und stellt sicher, dass
-// er im Home bleibt. Rückgabe: absoluter Host-Pfad und der bereinigte
-// Relativpfad („" = Wurzel).
+// resolve normalises a path coming from the client and makes sure it stays
+// inside the home. Returns: absolute host path and the cleaned relative path
+// ("" = root).
 func (f *FS) resolve(rel string) (abs, clean string, err error) {
 	rel = strings.TrimSpace(rel)
 	if strings.ContainsRune(rel, 0) {
 		return "", "", ErrInvalidPath
 	}
-	// Über den Umweg über „/" fällt jedes `..` weg, auch ein führendes.
+	// Taking the detour via "/" makes every `..` fall away, a leading one too.
 	clean = strings.TrimPrefix(path.Clean("/"+strings.ReplaceAll(rel, "\\", "/")), "/")
 	if clean == "." {
 		clean = ""
@@ -694,14 +690,14 @@ func (f *FS) resolve(rel string) (abs, clean string, err error) {
 	return abs, clean, nil
 }
 
-// ensureInside prüft den Pfad gegen Symlink-Ausbrüche: der tiefste
-// *existierende* Vorfahre wird aufgelöst und muss in der Wurzel liegen. Noch
-// nicht existierende Endstücke können keine Links sein, deshalb reicht das.
+// ensureInside checks the path against symlink escapes: the deepest *existing*
+// ancestor is resolved and must lie inside the root. Trailing pieces that do
+// not exist yet cannot be links, so that is enough.
 func (f *FS) ensureInside(abs string) error {
 	rootReal, err := filepath.EvalSymlinks(f.root)
 	if err != nil {
-		// Home noch nicht angelegt: dann gibt es auch keinen Link, über den
-		// jemand ausbrechen könnte — der rein textuelle Vergleich genügt.
+		// Home not created yet: then there is no link anyone could escape
+		// through either — the purely textual comparison suffices.
 		if errors.Is(err, os.ErrNotExist) {
 			if within(f.root, abs) {
 				return nil
@@ -734,9 +730,9 @@ func within(root, p string) bool {
 	return p == root || strings.HasPrefix(p, root+string(os.PathSeparator))
 }
 
-// isBinary entscheidet an einer Stichprobe, ob der Inhalt als Text taugt: ein
-// NUL-Byte oder kaputtes UTF-8 heißt binär. Bewusst grob — die Frage ist nur,
-// ob der Editor die Datei zeigen darf.
+// isBinary decides from a sample whether the content works as text: a NUL byte
+// or broken UTF-8 means binary. Deliberately coarse — the only question is
+// whether the editor may show the file.
 func isBinary(data []byte) bool {
 	if len(data) == 0 {
 		return false
@@ -750,8 +746,8 @@ func isBinary(data []byte) bool {
 			return true
 		}
 	}
-	// Am Rand des Ausschnitts kann ein Zeichen zerschnitten sein — bis zu drei
-	// Bytes zurücknehmen, bevor das als „binär" zählt.
+	// At the edge of the excerpt a character may be cut in half — take back up
+	// to three bytes before that counts as "binary".
 	for i := 0; i < 3 && len(sniff) > 0 && !utf8.Valid(sniff); i++ {
 		sniff = sniff[:len(sniff)-1]
 	}

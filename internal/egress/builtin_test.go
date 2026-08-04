@@ -2,43 +2,43 @@ package egress
 
 import "testing"
 
-// Der Katalog muss in sich konsistent sein: eindeutige Slugs und Namen,
-// und jedes Host-Muster passiert NormalizePattern unverändert — sonst würde
-// beim Übernehmen etwas anderes gespeichert, als der Katalog verspricht.
+// The catalogue must be internally consistent: unique slugs and names, and
+// every host pattern passes NormalizePattern unchanged — otherwise importing
+// would store something other than what the catalogue promises.
 func TestBuiltinsConsistent(t *testing.T) {
 	slugs := map[string]bool{}
 	names := map[string]bool{}
 	for _, b := range Builtins {
 		if b.Slug == "" || b.Name == "" || b.Description == "" {
-			t.Errorf("builtin %q: slug, name und description müssen gesetzt sein", b.Slug)
+			t.Errorf("builtin %q: slug, name and description must be set", b.Slug)
 		}
 		if slugs[b.Slug] {
-			t.Errorf("slug %q doppelt", b.Slug)
+			t.Errorf("slug %q is duplicated", b.Slug)
 		}
 		slugs[b.Slug] = true
 		if names[b.Name] {
-			t.Errorf("name %q doppelt", b.Name)
+			t.Errorf("name %q is duplicated", b.Name)
 		}
 		names[b.Name] = true
 		if len(b.Hosts) == 0 {
-			t.Errorf("builtin %q: keine hosts", b.Slug)
+			t.Errorf("builtin %q: no hosts", b.Slug)
 		}
 		seen := map[string]bool{}
 		for _, h := range b.Hosts {
 			norm, err := NormalizePattern(h.Pattern)
 			if err != nil {
-				t.Errorf("builtin %q: muster %q ungültig: %v", b.Slug, h.Pattern, err)
+				t.Errorf("builtin %q: pattern %q invalid: %v", b.Slug, h.Pattern, err)
 				continue
 			}
 			if norm != h.Pattern {
-				t.Errorf("builtin %q: muster %q nicht in Normalform (erwartet %q)", b.Slug, h.Pattern, norm)
+				t.Errorf("builtin %q: pattern %q not in normal form (want %q)", b.Slug, h.Pattern, norm)
 			}
 			if seen[h.Pattern] {
-				t.Errorf("builtin %q: muster %q doppelt", b.Slug, h.Pattern)
+				t.Errorf("builtin %q: pattern %q is duplicated", b.Slug, h.Pattern)
 			}
 			seen[h.Pattern] = true
 			if h.Note == "" {
-				t.Errorf("builtin %q: muster %q ohne notiz", b.Slug, h.Pattern)
+				t.Errorf("builtin %q: pattern %q without a note", b.Slug, h.Pattern)
 			}
 		}
 	}
@@ -46,9 +46,9 @@ func TestBuiltinsConsistent(t *testing.T) {
 
 func TestBuiltinBySlug(t *testing.T) {
 	if _, ok := BuiltinBySlug("github"); !ok {
-		t.Fatal("github muss im Katalog sein")
+		t.Fatal("github must be in the catalogue")
 	}
-	if _, ok := BuiltinBySlug("gibtsnicht"); ok {
-		t.Fatal("unbekannter slug darf nichts liefern")
+	if _, ok := BuiltinBySlug("does-not-exist"); ok {
+		t.Fatal("an unknown slug must return nothing")
 	}
 }

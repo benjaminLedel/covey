@@ -1,75 +1,75 @@
-# Covey — Spezifikation
+# Covey — Specification
 
-> **Codename: Covey.** Ein „covey" ist ein kleiner, koordinierter Schwarm — eine abgestimmte Gruppe, die zusammen unterwegs ist. Genau das ist die Plattform: viele Agenten, zentral orchestriert.
+> **Codename: Covey.** A *covey* is a small, coordinated flock — a group that moves together. That is exactly what this platform is: many agents, centrally orchestrated.
 
-Eine zentrale Plattform, die KI-Agenten wie Mitarbeiter behandelt — mit Identität, Arbeitsplatz, Zugängen, Backlog und Vorgesetztem — und dem IT-Admin die Werkzeuge gibt, sie zu führen und zu überwachen.
+A central platform that treats AI agents like employees — with an identity, a workplace, credentials, a backlog and a manager — and gives the IT admin the tooling to lead and supervise them.
 
-**Coveys Einheit ist die Organisation, nicht der einzelne Nutzer.** Das ist die tragende Abgrenzung zu den Single-User-„AI-Employee"-Apps: Covey ist die Plattform, die ein *Unternehmen* betreibt, um seine gesamte Agenten-Belegschaft zu verwalten und zu governen — mit vielen menschlichen Stakeholdern (IT, Team-Leads, Security/Compliance, Audit, Controlling), zentraler Governance und unternehmensweitem Org-Chart. Agenten sind organisationseigene Ressourcen, keine persönlichen Assistenten. Details in [`09-enterprise-modell.md`](09-enterprise-modell.md).
+**Covey's unit is the organisation, not the individual user.** That is the load-bearing distinction from single-user "AI employee" apps: Covey is the platform a *company* operates to manage and govern its entire agent workforce — with many human stakeholders (IT, team leads, security/compliance, audit, controlling), central governance and a company-wide org chart. Agents are organisation-owned resources, not personal assistants. Details in [`09-enterprise-model.md`](09-enterprise-model.md).
 
-Die Leitmetapher, aus der die gesamte Architektur folgt: Die Plattform ist die **IT- und HR-Abteilung für KI-Agenten**. Fast jede Komponente hat ein Gegenstück im echten Unternehmen, und genau daraus ergibt sich der Bauplan — überall lässt sich bewährte Prior Art übernehmen statt neu zu erfinden.
+The guiding metaphor from which the whole architecture follows: the platform is the **IT and HR department for AI agents**. Nearly every component has a counterpart in a real company, and that is exactly what gives us the blueprint — proven prior art can be adopted everywhere instead of reinvented.
 
-| Im Unternehmen | Auf der Plattform |
+| In a company | On the platform |
 |---|---|
-| Identität / Active Directory | Agent-Identität (E-Mail optional) |
-| Arbeitsplatz / PC | Isolierte, persistente Sandbox |
-| Onboarding / Org-Chart | `SOUL.md` + Org-Struktur |
-| Belegschaft & Abteilungen | Org-eigene Agenten, Teams, Cost-Center |
-| Personalabteilung / IT-Verwaltung | Menschliche Rollen + RBAC + SSO |
-| Passwort-Tresor / PAM | Secrets-Broker (kurzlebige Tokens) |
-| Aufgabenliste / Ticket | Backlog (First-Class-Objekt) |
-| Betriebshandbuch / Compliance | Zentrale Guard-Rails (plattform-erzwungen) |
-| SIEM / EDR | Session-Recording + Alerts + Kill-Switch |
+| Identity / Active Directory | Agent identity (email optional) |
+| Workplace / PC | Isolated, persistent sandbox |
+| Onboarding / org chart | `SOUL.md` + org structure |
+| Workforce & departments | Org-owned agents, teams, cost centres |
+| HR / IT administration | Human roles + RBAC + SSO |
+| Password vault / PAM | Secrets broker (short-lived tokens) |
+| Task list / ticket | Backlog (first-class object) |
+| Operations manual / compliance | Central guard rails (platform-enforced) |
+| SIEM / EDR | Session recording + alerts + kill switch |
 
-## Dokumente
+## Documents
 
-| Datei | Inhalt |
+| File | Contents |
 |---|---|
-| [`01-architektur.md`](01-architektur.md) | System-Übersicht, Control Plane vs. Data Plane, Runtime-Abstraktion, Daemon-Protokoll |
-| [`02-agenten-modell.md`](02-agenten-modell.md) | Der Agent als Entität: Identität, Sandbox, Zugänge, Config-as-Code, Org-Chart |
-| [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md) | Zustandsmaschine, Dispatch-Loop, Wake-Quellen, Backlog, Blocking, Event-Korrelation |
-| [`04-identitaet-secrets.md`](04-identitaet-secrets.md) | Keycloak, RFC 8693 Token Exchange, Secrets-Broker, Threat-Model |
-| [`05-gedaechtnis.md`](05-gedaechtnis.md) | Memory-Schichten, LLM-Wiki (verlinkte Markdown-Seiten + pgvector-Index), persistentes Home |
-| [`06-observability-control.md`](06-observability-control.md) | Zentrale Guard-Rails, Session-Recording, Approval-Gates, Kill-Switch, Kostenkontrolle, Supervisor-Agent |
-| [`07-offene-entscheidungen.md`](07-offene-entscheidungen.md) | Offene Fragen, Build-vs-Buy, MVP-Scope |
-| [`08-marktumfeld.md`](08-marktumfeld.md) | Marktrecherche: Konkurrenz-Plattformen, Open-Source-Bausteine, Build-vs-Adopt-Matrix |
-| [`09-enterprise-modell.md`](09-enterprise-modell.md) | Organisation als Einheit: menschliche Rollen & RBAC, SSO, Mandanten, Cost-Center, Compliance |
-| [`10-architektur-stack.md`](10-architektur-stack.md) | Frontend, Backend-Sprache (Go/Kotlin), „Batteries included, but swappable", Pluggable-Interfaces, Postgres-Anker |
-| [`11-mvp-plan.md`](11-mvp-plan.md) | Bau-Reihenfolge: Meilensteine M0–M7, kritischer Pfad, Abnahme-Checkliste |
-| [`12-claude-code-adapter.md`](12-claude-code-adapter.md) | Erster Runtime-Adapter: Steuerung von Claude Code headless via `claude -p`, Flag-Mapping, `blocked`↔`--resume` |
-| [`13-zammad-integration.md`](13-zammad-integration.md) | MVP-Zielsystem Zammad: Wake via Trigger/Webhook, REST-Aktionen, Broker-Token, `blocked`↔`pending`, Korrelation via Ticket-ID |
-| [`14-companion-gedaechtnis.md`](14-companion-gedaechtnis.md) | Companion-App: universeller Brain-Dump (Audio/Mail/Screen/Dokumente) → kuratiertes Wiki mit Medien → Kontext für Agenten; Memory-Kurator, Bearer-Auth, Datenschutz |
-| [`15-teams-integration.md`](15-teams-integration.md) | Zielsystem Microsoft Teams (Azure Bot Framework): Wake über Messaging-Endpoint (JWT-verifiziert), Bot-Connector-Aktionen, OAuth2-Broker, `blocked`↔Konversation, Korrelation via `conversation.id` |
-| [`16-runner.md`](16-runner.md) | Verteilte Data Plane: registrierte Runner nach GitLab-Vorbild, Runner-Protokoll, zentraler Home-Store (inhaltsadressiert, dedupliziert), Sandbox-Images pro Agent, Vertrauensgrenze |
+| [`01-architecture.md`](01-architecture.md) | System overview, control plane vs. data plane, runtime abstraction, daemon protocol |
+| [`02-agent-model.md`](02-agent-model.md) | The agent as an entity: identity, sandbox, credentials, config as code, org chart |
+| [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md) | State machine, dispatch loop, wake sources, backlog, blocking, event correlation |
+| [`04-identity-secrets.md`](04-identity-secrets.md) | Keycloak, RFC 8693 token exchange, secrets broker, threat model |
+| [`05-memory.md`](05-memory.md) | Memory layers, LLM wiki (linked Markdown pages + pgvector index), persistent home |
+| [`06-observability-control.md`](06-observability-control.md) | Central guard rails, session recording, approval gates, kill switch, cost control, supervisor agent |
+| [`07-open-decisions.md`](07-open-decisions.md) | Open questions, build vs. buy, MVP scope |
+| [`08-market.md`](08-market.md) | Market research: competing platforms, open-source building blocks, build-vs-adopt matrix |
+| [`09-enterprise-model.md`](09-enterprise-model.md) | The organisation as the unit: human roles & RBAC, SSO, tenants, cost centres, compliance |
+| [`10-architecture-stack.md`](10-architecture-stack.md) | Frontend, backend language (Go/Kotlin), "batteries included, but swappable", pluggable interfaces, the Postgres anchor |
+| [`11-mvp-plan.md`](11-mvp-plan.md) | Build order: milestones M0–M7, critical path, acceptance checklist |
+| [`12-claude-code-adapter.md`](12-claude-code-adapter.md) | First runtime adapter: driving Claude Code headless via `claude -p`, flag mapping, `blocked`↔`--resume` |
+| [`13-zammad-integration.md`](13-zammad-integration.md) | MVP target system Zammad: wake via trigger/webhook, REST actions, broker token, `blocked`↔`pending`, correlation via ticket ID |
+| [`14-companion-memory.md`](14-companion-memory.md) | Companion app: universal brain dump (audio/mail/screen/documents) → curated wiki with media → context for agents; memory curator, bearer auth, data protection |
+| [`15-teams-integration.md`](15-teams-integration.md) | Target system Microsoft Teams (Azure Bot Framework): wake via messaging endpoint (JWT-verified), bot connector actions, OAuth2 broker, `blocked`↔conversation, correlation via `conversation.id` |
+| [`16-runner.md`](16-runner.md) | Distributed data plane: registered runners modelled on GitLab, runner protocol, central home store (content-addressed, deduplicated), per-agent sandbox images, trust boundary |
 
-## Designprinzipien
+## Design principles
 
-1. **Organisation als Einheit, nicht der Nutzer.** Covey ist eine Enterprise-Plattform: org-eigene Agenten, mehrere menschliche Rollen mit RBAC, zentrale Governance, unternehmensweiter Org-Chart. Kein Single-User-Produktivitäts-Tool.
-2. **Die Control Plane ist das Produkt.** Sandboxen sind Commodity, Runtimes austauschbar. Der Wert liegt in Scheduling, Identität, Governance und Observability — der Schicht, die sonst niemand baut.
-3. **Runtime-agnostisch.** Die Plattform managt nicht das Framework, sondern die Sandbox. In der Sandbox läuft ein schlanker Daemon mit einheitlichem Protokoll; OpenHands, Harness, Claude Code & Co. sind dahinter austauschbar.
-4. **Immer erreichbar, Compute nur bei Bedarf.** „Always-on" ist eine UX-Eigenschaft, keine Runtime-Eigenschaft. Idle muss wirklich idle sein, sonst skaliert die Rechnung weg.
-5. **Config-as-Code.** Agentenverhalten ist versioniert in Git. Änderungen laufen über PR/Review, nicht über Deploy. Audit fällt gratis ab.
-6. **Niemals langlebige Secrets in die Sandbox.** Zugriff wird zur Laufzeit gebrokert, kurzlebig und gescopt.
-7. **Guard-Rails zentral und plattform-erzwungen.** Harte Grenzen werden nicht dem Agenten überlassen (ein Prompt lässt sich umgehen oder injizieren), sondern zentral definiert und außerhalb der Runtime durchgesetzt — am Broker, am Egress, im Tool-Layer. Fail-closed.
-8. **Trust by design.** Ohne lückenlose Nachvollziehbarkeit, Freigaben und einen Kill-Switch gibt es keine Adoption. Observability ist kein Add-on, sondern Grundvoraussetzung.
-9. **Seriell vor parallel.** Ein Agent bearbeitet eine Aufgabe zur Zeit. Parallelität ist eine Frage von mehr Agenten, nicht von Nebenläufigkeit innerhalb eines Agenten.
-10. **Batteries included, but swappable.** Jede Plattform-Fähigkeit (IdM, Secrets, Queue, Observability) hat eine simple, DB-gestützte Built-in-Default und ein schmales Interface für einen externen Provider. Der MVP läuft mit `builtin` überall — Binary + Postgres + Sandbox-Infra; Keycloak/Vault/Redis/Langfuse sind optional zuschaltbar, nicht Voraussetzung.
+1. **The organisation is the unit, not the user.** Covey is an enterprise platform: org-owned agents, several human roles with RBAC, central governance, a company-wide org chart. Not a single-user productivity tool.
+2. **The control plane is the product.** Sandboxes are commodity, runtimes are swappable. The value sits in scheduling, identity, governance and observability — the layer nobody else builds.
+3. **Runtime-agnostic.** The platform manages the sandbox, not the framework. A slim daemon with a uniform protocol runs inside the sandbox; OpenHands, Harness, Claude Code & co. are interchangeable behind it.
+4. **Always reachable, compute only on demand.** "Always-on" is a UX property, not a runtime property. Idle has to mean idle, or the bill scales away from you.
+5. **Config as code.** Agent behaviour is versioned in Git. Changes go through PR/review, not through a deploy. Audit falls out for free.
+6. **Never put long-lived secrets in the sandbox.** Access is brokered at runtime, short-lived and scoped.
+7. **Guard rails central and platform-enforced.** Hard limits are not left to the agent (a prompt can be worked around or injected into) but defined centrally and enforced outside the runtime — at the broker, at the egress, in the tool layer. Fail-closed.
+8. **Trust by design.** Without complete traceability, approvals and a kill switch there is no adoption. Observability is not an add-on, it is a prerequisite.
+9. **Serial before parallel.** An agent works on one task at a time. Parallelism is a question of more agents, not of concurrency inside one agent.
+10. **Batteries included, but swappable.** Every platform capability (IdM, secrets, queue, observability) has a simple DB-backed built-in default and a narrow interface for an external provider. The MVP runs with `builtin` everywhere — binary + Postgres + sandbox infra; Keycloak/Vault/Redis/Langfuse can be switched on optionally, they are never prerequisites.
 
-## Glossar
+## Glossary
 
-- **Agent** — Eine konfigurierte, persistente Entität mit Identität, Sandbox, Zugängen und Backlog. Das Gegenstück zum Mitarbeiter. Eine eigene E-Mail-Adresse ist optional, nicht zwingend.
-- **Guard-Rail** — Eine zentral definierte, plattformseitig erzwungene Grenze für Agentenverhalten (z. B. Egress-Regel, verbotenes System/Tool, Approval-Pflicht). Greift außerhalb der Runtime und ist vom Agenten nicht umgehbar.
-- **Runtime** — Das Agent-Framework, das die eigentliche LLM-Schleife fährt (OpenHands, Harness, Claude Code …). Austauschbar.
-- **Daemon** — Der schlanke Prozess in der Sandbox, der das einheitliche Plattform-Protokoll spricht und die Runtime bootstrappt.
-- **Control Plane** — Der zentrale Dienst: Scheduler, Identitäts-Broker, Backlog-Store, Observability. Kennt den Zustand aller Agenten.
-- **Data Plane** — Die Gesamtheit der Sandboxen, in denen Agenten tatsächlich arbeiten.
-- **Dispatch-Loop** — Der billige, dauerhaft laufende Orchestrierungs-Loop pro Agent (kein LLM), der Wake-Events verarbeitet.
-- **Tick** — Ein periodischer „Was liegt an?"-Impuls, der einen Agenten proaktiv macht.
-- **Backlog** — Die persistente, priorisierte Aufgabenliste eines Agenten.
-- **Secrets-Broker** — Der Dienst, der Agenten kurzlebige, gescopte Access-Tokens für Zielsysteme ausstellt.
-- **Supervisor-Agent** — Ein optionaler Agent, der die Aktivität anderer Agenten reviewt und Anomalien flaggt.
-- **Enforcement-Punkt** — Eine Stelle, an der die Plattform ohnehin im Datenfluss sitzt (Broker, Egress, Tool-Layer) und an der Guard-Rails technisch durchgesetzt werden.
-- **Organisation / Tenant** — Die Einheit, für die eine Covey-Instanz betrieben wird. Alle Agenten, Rollen, Guard-Rails, Budgets und Audits sind org-scoped.
-- **Menschliche Rolle** — Ein Mensch mit definierten Rechten auf der Plattform (z. B. Platform-Admin, Agent-Owner, Security/Compliance, Auditor, Controlling). Über RBAC gesteuert, per SSO authentifiziert.
-- **Agent-Owner** — Der Mensch (meist Team-Lead einer Abteilung), der einen bestimmten Agenten verantwortet: dessen Config, Backlog-Priorität, Freigaben.
-- **Companion** — Die eigene (mobile/Desktop-) App zum Abladen des gesamten Brain-Loads (Audio, Mail, Screen-Recording, Dokumente, Links) an einem Ort. Der Memory-Kurator verdichtet ihn zum Wiki mit Medien (verlinkte Seiten + `pgvector`); privat by default, auf Wunsch an die eigenen Agenten freigebbar — als deren Kontext. Siehe [`14-companion-gedaechtnis.md`](14-companion-gedaechtnis.md).
-- **Memory-Kurator** — Ein org-eigener Agent, der den rohen Brain-Dump eines Menschen (Captures) in verlinkte Wiki-Seiten schneidet — Config-as-Code statt hartkodierter LLM-Aufruf. Siehe [`14-companion-gedaechtnis.md`](14-companion-gedaechtnis.md).
+- **Agent** — A configured, persistent entity with an identity, a sandbox, credentials and a backlog. The counterpart to the employee. An email address of its own is optional, not mandatory.
+- **Guard rail** — A centrally defined, platform-enforced limit on agent behaviour (e.g. an egress rule, a forbidden system/tool, a mandatory approval). It takes effect outside the runtime and cannot be circumvented by the agent.
+- **Runtime** — The agent framework that runs the actual LLM loop (OpenHands, Harness, Claude Code …). Swappable.
+- **Daemon** — The slim process inside the sandbox that speaks the uniform platform protocol and bootstraps the runtime.
+- **Control plane** — The central service: scheduler, identity broker, backlog store, observability. Knows the state of every agent.
+- **Data plane** — The totality of sandboxes in which agents actually work.
+- **Dispatch loop** — The cheap, permanently running orchestration loop per agent (no LLM) that processes wake events.
+- **Tick** — A periodic "anything to do?" impulse that makes an agent proactive.
+- **Backlog** — An agent's persistent, prioritised task list.
+- **Secrets broker** — The service that issues agents short-lived, scoped access tokens for target systems.
+- **Supervisor agent** — An optional agent that reviews other agents' activity and flags anomalies.
+- **Enforcement point** — A place where the platform sits in the data flow anyway (broker, egress, tool layer) and where guard rails are enforced technically.
+- **Organisation / tenant** — The unit a Covey instance is operated for. All agents, roles, guard rails, budgets and audits are org-scoped.
+- **Human role** — A person with defined rights on the platform (e.g. platform admin, agent owner, security/compliance, auditor, controlling). Governed by RBAC, authenticated via SSO.
+- **Agent owner** — The person (usually a department's team lead) accountable for a particular agent: its config, its backlog priority, its approvals.
+- **Companion** — The dedicated (mobile/desktop) app for offloading the entire brain load (audio, mail, screen recording, documents, links) in one place. The memory curator condenses it into a wiki with media (linked pages + `pgvector`); private by default, shareable with your own agents on request — as their context. See [`14-companion-memory.md`](14-companion-memory.md).
+- **Memory curator** — An org-owned agent that cuts a person's raw brain dump (captures) into linked wiki pages — config as code instead of a hardcoded LLM call. See [`14-companion-memory.md`](14-companion-memory.md).

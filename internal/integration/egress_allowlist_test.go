@@ -9,20 +9,20 @@ import (
 	"github.com/google/uuid"
 )
 
-// EffectiveAllowlist entscheidet, welche Hosts eine Sandbox überhaupt erreicht
-// — der Egress-Wächter aus spec/06. Die Funktion war ungeprüft, obwohl sie drei
-// Quellen zusammenführt (zugewiesene Vorlagen, agent-eigene Hosts, Org-Defaults)
-// und ihr Ergebnis darüber entscheidet, wohin ein Agent Daten schicken kann.
+// EffectiveAllowlist decides which hosts a sandbox can reach at all — the
+// egress guard from spec/06. The function was untested although it merges three
+// sources (assigned templates, agent-owned hosts, org defaults) and its result
+// decides where an agent can send data.
 //
-// Zwei Dinge müssen stimmen: Es muss ALLES drin sein, was erlaubt ist (fehlt
-// etwas, bricht die Arbeit des Agenten grundlos ab) — und NICHTS, was einer
-// anderen Organisation gehört.
+// Two things have to be right: EVERYTHING that is allowed has to be in there
+// (if something is missing, the agent's work breaks off for no reason) — and
+// NOTHING that belongs to another organization.
 func TestEffectiveAllowlist(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
 	agent := s.newSupportAgent("egress-agent")
 
-	// Quelle 1: eine Vorlage, dem Agenten zugewiesen.
+	// Source 1: a template, assigned to the agent.
 	vorlage, err := s.egress.CreateTemplate(ctx, s.orgID, "ticketsystem", "Zammad & Co.")
 	if err != nil {
 		t.Fatal(err)
@@ -37,18 +37,18 @@ func TestEffectiveAllowlist(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Quelle 2: ein Host, den nur dieser Agent hat.
+	// Source 2: a host that only this agent has.
 	if _, err := s.egress.AddAgentHost(ctx, agent.ID, "eigener-host.example.com", "Sonderfall"); err != nil {
 		t.Fatal(err)
 	}
 
-	// Quelle 3: ein Default der Organisation — gilt für alle ihre Agenten.
+	// Source 3: an organization default — valid for all of its agents.
 	if _, err := s.egress.AddDefaultHost(ctx, s.orgID, "api.anthropic.com", "Runtime"); err != nil {
 		t.Fatal(err)
 	}
 
-	// Eine fremde Organisation mit eigenen Defaults und eigener Vorlage. Nichts
-	// davon darf in unserer Allowlist auftauchen.
+	// A foreign organization with its own defaults and its own template. None of
+	// that may show up in our allowlist.
 	fremdeOrg := uuid.New()
 	if _, err := s.pool.Exec(ctx, "INSERT INTO organizations (id, name) VALUES ($1,'Fremd-Egress')", fremdeOrg); err != nil {
 		t.Fatal(err)
@@ -78,36 +78,36 @@ func TestEffectiveAllowlist(t *testing.T) {
 		return false
 	}
 
-	// Alle drei Quellen fließen zusammen.
+	// All three sources flow together.
 	for _, erwartet := range []string{
-		"zammad.example.com", "*.zammad-cdn.example.com", // Vorlage
-		"eigener-host.example.com", // agent-eigen
-		"api.anthropic.com",        // Org-Default
+		"zammad.example.com", "*.zammad-cdn.example.com", // template
+		"eigener-host.example.com", // agent-owned
+		"api.anthropic.com",        // org default
 	} {
 		if !drin(erwartet) {
-			t.Errorf("%q fehlt in der Allowlist: %v", erwartet, liste)
+			t.Errorf("%q is missing from the allowlist: %v", erwartet, liste)
 		}
 	}
-	// Und nichts Fremdes.
+	// And nothing foreign.
 	for _, verboten := range []string{"fremder-default.example.com", "fremder-host.example.com"} {
 		if drin(verboten) {
-			t.Errorf("%q gehört einer anderen Organisation, steht aber in der Allowlist: %v", verboten, liste)
+			t.Errorf("%q belongs to another organization but is in the allowlist: %v", verboten, liste)
 		}
 	}
 
-	// Ein Agent OHNE Zuweisungen bekommt nur die Org-Defaults — nicht die
-	// Hosts seines Kollegen. Sonst wäre jede agent-eigene Freigabe eine
-	// org-weite.
+	// An agent WITHOUT assignments only gets the org defaults — not its
+	// colleague's hosts. Otherwise every agent-owned clearance would be an
+	// org-wide one.
 	kollege := s.newSupportAgent("egress-kollege")
 	kollegenListe, err := s.egress.EffectiveAllowlist(ctx, kollege.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(kollegenListe) != 1 || kollegenListe[0] != "api.anthropic.com" {
-		t.Errorf("Kollege ohne eigene Freigaben sieht %v, erwartet nur den Org-Default", kollegenListe)
+		t.Errorf("the colleague without its own clearances sees %v, expected only the org default", kollegenListe)
 	}
 
-	// Die Vorlage abziehen nimmt ihre Hosts wieder mit.
+	// Withdrawing the template takes its hosts along again.
 	if err := s.egress.SetAgentTemplate(ctx, agent.ID, vorlage.ID, false); err != nil {
 		t.Fatal(err)
 	}
@@ -116,9 +116,9 @@ func TestEffectiveAllowlist(t *testing.T) {
 		t.Fatal(err)
 	}
 	if strings.Contains(strings.Join(danach, ","), "zammad") {
-		t.Errorf("nach dem Abziehen der Vorlage stehen ihre Hosts noch drin: %v", danach)
+		t.Errorf("after withdrawing the template its hosts are still in there: %v", danach)
 	}
 	if !strings.Contains(strings.Join(danach, ","), "eigener-host") {
-		t.Errorf("das Abziehen der Vorlage hat den agent-eigenen Host mitgenommen: %v", danach)
+		t.Errorf("withdrawing the template took the agent-owned host with it: %v", danach)
 	}
 }

@@ -9,8 +9,8 @@ import (
 	"testing"
 )
 
-// fakeClaude erzeugt ein Fake-`claude`-Binary, das seine Argumente nach
-// args.txt schreibt und ein vorgegebenes stream-json-Protokoll emittiert.
+// fakeClaude creates a fake `claude` binary that writes its arguments to
+// args.txt and emits a predefined stream-json protocol.
 func fakeClaude(t *testing.T, script string) (bin, dir string) {
 	t.Helper()
 	dir = t.TempDir()
@@ -46,16 +46,16 @@ EOF`)
 		t.Fatal(err)
 	}
 	if res.Status != "done" || res.Result != "Ticket beantwortet" || res.Memory != "Kunde nutzt Chrome" {
-		t.Fatalf("result falsch: %+v", res)
+		t.Fatalf("result wrong: %+v", res)
 	}
 	if res.SessionID != "sess-123" {
-		t.Fatalf("session_id fehlt: %+v", res)
+		t.Fatalf("session_id missing: %+v", res)
 	}
 	if res.CostUSD != 0.42 || res.InputTokens != 100 {
-		t.Fatalf("kosten falsch: %+v", res)
+		t.Fatalf("cost wrong: %+v", res)
 	}
 	if len(events) != 3 {
-		t.Fatalf("alle stream-json-Zeilen müssen als Events fließen, got %d", len(events))
+		t.Fatalf("every stream-json line must flow as an event, got %d", len(events))
 	}
 
 	args, err := os.ReadFile(filepath.Join(dir, "args.txt"))
@@ -67,11 +67,11 @@ EOF`)
 		"--append-system-prompt", "Du bist der Support-Agent.", "--allowedTools", "Bash,Read",
 		"--max-turns", "30", "--model", "claude-opus-4-8", "--dangerously-skip-permissions"} {
 		if !strings.Contains(got, want) {
-			t.Fatalf("flag %q fehlt in args:\n%s", want, got)
+			t.Fatalf("flag %q missing from args:\n%s", want, got)
 		}
 	}
 	if strings.Contains(got, "--resume") {
-		t.Fatal("ohne resume-Session darf --resume nicht gesetzt sein")
+		t.Fatal("without a resume session --resume must not be set")
 	}
 }
 
@@ -91,21 +91,21 @@ EOF`)
 		t.Fatal(err)
 	}
 	if res.Status != "done" || res.Result != "fortgesetzt" {
-		t.Fatalf("resume-result falsch: %+v", res)
+		t.Fatalf("resume result wrong: %+v", res)
 	}
 	args, _ := os.ReadFile(filepath.Join(dir, "args.txt"))
 	got := string(args)
 	if !strings.Contains(got, "--resume") || !strings.Contains(got, "sess-123") {
-		t.Fatalf("--resume <session_id> fehlt:\n%s", got)
+		t.Fatalf("--resume <session_id> missing:\n%s", got)
 	}
 	if !strings.Contains(got, "Kunde: es war Chrome") {
-		t.Fatalf("resume-input muss der neue Prompt sein:\n%s", got)
+		t.Fatalf("the resume input must be the new prompt:\n%s", got)
 	}
 	if strings.Contains(got, "ursprünglicher text") {
-		t.Fatalf("beim Resume darf der alte Body nicht erneut gesendet werden:\n%s", got)
+		t.Fatalf("on resume the old body must not be sent again:\n%s", got)
 	}
 	if strings.Contains(got, "--model") {
-		t.Fatalf("ohne Model-Feld darf --model nicht gesetzt sein:\n%s", got)
+		t.Fatalf("without a model field --model must not be set:\n%s", got)
 	}
 }
 
@@ -121,7 +121,7 @@ EOF`)
 		t.Fatal(err)
 	}
 	if res.Status != "blocked" || res.CorrelationKey != "zammad:ticket:7" || res.SessionID != "sess-9" {
-		t.Fatalf("blocked-mapping falsch: %+v", res)
+		t.Fatalf("blocked mapping wrong: %+v", res)
 	}
 }
 
@@ -134,14 +134,14 @@ func TestClaudeCodeAdapterExitError(t *testing.T) {
 		t.Fatal(err)
 	}
 	if res.Status != "failed" || !strings.Contains(res.Error, "exit") {
-		t.Fatalf("exit ≠ 0 muss failed liefern: %+v", res)
+		t.Fatalf("exit ≠ 0 must yield failed: %+v", res)
 	}
 }
 
-// TestClaudeCodeAdapterWorkDir sichert die Naht, auf der der Sub-Agent im
-// Projekt-Checkout steht: cwd zeigt ins Projekt (nur dort findet Claude Code
-// dessen CLAUDE.md, .claude/agents, Skills), HOME bleibt das Agenten-Home
-// (dort liegen ~/.claude, Wiki-Arbeitskopie und Caches).
+// TestClaudeCodeAdapterWorkDir secures the seam on which the sub-agent stands in
+// the project checkout: cwd points into the project (only there does Claude Code
+// find its CLAUDE.md, .claude/agents, skills), HOME stays the agent home (that
+// is where ~/.claude, the wiki working copy and the caches live).
 func TestClaudeCodeAdapterWorkDir(t *testing.T) {
 	bin, home := fakeClaude(t, `
 printf '%s\n' "$PWD" > "$HOME/cwd.txt"
@@ -162,16 +162,16 @@ EOF`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	// macOS: /var/… ist ein Symlink auf /private/var — Suffix statt Gleichheit.
+	// macOS: /var/… is a symlink to /private/var — suffix instead of equality.
 	if cwd := strings.TrimSpace(string(got)); !strings.HasSuffix(cwd, filepath.Join("repos", "p1-main")) {
-		t.Fatalf("cwd muss im Projekt-Checkout liegen, war %q", cwd)
+		t.Fatalf("cwd must lie inside the project checkout, was %q", cwd)
 	}
 }
 
-// Kein Runtime-Lauf erbt die COVEY_*-Variablen des Daemons — auch der äußere
-// nicht. Was ein Lauf braucht, gibt der Aufrufer ausdrücklich mit
-// (COVEY_ACTION_PORT, gebrokerter Key); geerbt wird nichts, sonst stünde das
-// Daemon-Token jedem Subprozess offen.
+// No runtime run inherits the daemon's COVEY_* variables — not even the outer
+// one. Whatever a run needs, the caller passes explicitly (COVEY_ACTION_PORT,
+// brokered key); nothing is inherited, otherwise the daemon token would be open
+// to every subprocess.
 func TestClaudeCodeAdapterDropsDaemonEnv(t *testing.T) {
 	t.Setenv("COVEY_DAEMON_TOKEN", "daemon-jwt-geheim")
 	t.Setenv("COVEY_AGENT_ID", "agent-1")
@@ -191,11 +191,11 @@ EOF`)
 		t.Fatal(err)
 	}
 	if strings.TrimSpace(string(got)) != "token= agent= port=4711" {
-		t.Fatalf("Daemon-Umgebung darf nicht erben, der Action-Port muss ankommen: %q", got)
+		t.Fatalf("the daemon environment must not be inherited, the action port must arrive: %q", got)
 	}
 }
 
-// Ohne WorkDir bleibt alles wie bisher: der äußere Lauf startet im Home.
+// Without a WorkDir everything stays as before: the outer run starts in the home.
 func TestClaudeCodeAdapterWorkDirDefaultsToHome(t *testing.T) {
 	bin, home := fakeClaude(t, `
 printf '%s\n' "$PWD" > "$HOME/cwd.txt"
@@ -209,6 +209,6 @@ EOF`)
 	}
 	got, _ := os.ReadFile(filepath.Join(home, "cwd.txt"))
 	if cwd := strings.TrimSpace(string(got)); !strings.HasSuffix(cwd, filepath.Base(home)) {
-		t.Fatalf("ohne WorkDir muss der Lauf im Home starten, war %q", cwd)
+		t.Fatalf("without a WorkDir the run must start in the home, was %q", cwd)
 	}
 }

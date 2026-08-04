@@ -13,10 +13,10 @@ import (
 	"covey/internal/guardrails"
 )
 
-// TestAgentCreatesSubtask prüft die Meta-Aktion covey/create_task für den
-// eigenen Agenten: Der Agent zerlegt zu große Arbeit selbst, statt sich bis zum
-// Turn-Limit festzufahren. Die Teilaufgabe hängt als Kind an der Ursprungs-
-// aufgabe, trägt ihn als Herkunft — und wird anschließend abgearbeitet.
+// TestAgentCreatesSubtask checks the meta action covey/create_task for the
+// agent's own account: the agent breaks down work that is too large itself
+// instead of running into the turn limit. The subtask hangs off the originating
+// task as a child, carries it as its origin — and is worked off afterwards.
 func TestAgentCreatesSubtask(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -28,29 +28,29 @@ func TestAgentCreatesSubtask(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, "aufgabe done", 20*time.Second, func() bool {
+	waitFor(t, "task done", 20*time.Second, func() bool {
 		return s.taskState(task.ID) == backlog.StateDone
 	})
 
 	child := childOf(t, s, agent.ID, task.ID)
 	if child.Title != "Teil zwei" {
-		t.Fatalf("Teilaufgabe hat den falschen Titel: %q", child.Title)
+		t.Fatalf("the subtask has the wrong title: %q", child.Title)
 	}
 	if child.Origin != "agent:zerleger" {
-		t.Fatalf("Herkunft muss den erzeugenden Agenten nennen, ist %q", child.Origin)
+		t.Fatalf("the origin must name the creating agent, is %q", child.Origin)
 	}
 	if child.Priority != 2 {
-		t.Fatalf("Priorität muss übernommen werden, ist %d", child.Priority)
+		t.Fatalf("the priority must be carried over, is %d", child.Priority)
 	}
-	// Sie ist echte Arbeit, kein Karteikarten-Eintrag: der Agent nimmt sie auf.
-	waitFor(t, "teilaufgabe abgearbeitet", 20*time.Second, func() bool {
+	// It is real work, not an index-card entry: the agent picks it up.
+	waitFor(t, "subtask worked off", 20*time.Second, func() bool {
 		return s.taskState(child.ID) == backlog.StateDone
 	})
 }
 
-// TestAgentDelegatesToColleague prüft die Delegation: Mit "agent":"<slug>"
-// landet die Aufgabe beim Kollegen aus derselben Organisation, nicht beim
-// Absender — und der Kollege wird dafür geweckt.
+// TestAgentDelegatesToColleague checks delegation: with "agent":"<slug>" the
+// task lands with the colleague from the same organization, not with the sender
+// — and the colleague is woken up for it.
 func TestAgentDelegatesToColleague(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -63,27 +63,27 @@ func TestAgentDelegatesToColleague(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, "aufgabe done", 20*time.Second, func() bool {
+	waitFor(t, "task done", 20*time.Second, func() bool {
 		return s.taskState(task.ID) == backlog.StateDone
 	})
 
 	delegated := childOf(t, s, colleague.ID, task.ID)
 	if delegated.AgentID != colleague.ID {
-		t.Fatalf("delegierte Aufgabe muss beim Kollegen liegen")
+		t.Fatalf("the delegated task must sit with the colleague")
 	}
 	if delegated.OrgID != s.orgID {
-		t.Fatalf("Delegation darf die Organisation nicht verlassen")
+		t.Fatalf("delegation must not leave the organization")
 	}
-	waitFor(t, "kollege arbeitet ab", 20*time.Second, func() bool {
+	waitFor(t, "colleague works it off", 20*time.Second, func() bool {
 		return s.taskState(delegated.ID) == backlog.StateDone
 	})
 }
 
-// TestCreateTaskLoopProtection prüft die Bremsen: Ein Agent, der Aufgaben
-// anlegen kann, kann sich selbst beschäftigen, bis das Budget leer ist. Deshalb
-// lehnt die Control Plane eine Dublette gleichen Titels ab — genau das Muster,
-// mit dem sich wiederkehrende Läufe sonst eine nie leer werdende Warteschlange
-// bauen. Ein unbekannter Ziel-Agent scheitert ebenfalls, statt still zu wirken.
+// TestCreateTaskLoopProtection checks the brakes: an agent that can create
+// tasks can keep itself busy until the budget is empty. That is why the control
+// plane rejects a duplicate with the same title — exactly the pattern with
+// which recurring runs otherwise build themselves a queue that never empties.
+// An unknown target agent fails as well, instead of silently having no effect.
 func TestCreateTaskLoopProtection(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -97,7 +97,7 @@ func TestCreateTaskLoopProtection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, "aufgabe terminal", 20*time.Second, func() bool {
+	waitFor(t, "task terminal", 20*time.Second, func() bool {
 		st := s.taskState(task.ID)
 		return st == backlog.StateDone || st == backlog.StateFailed
 	})
@@ -112,21 +112,21 @@ func TestCreateTaskLoopProtection(t *testing.T) {
 			n++
 		}
 		if a.Title == "Ins Leere" {
-			t.Fatalf("Aufgabe an unbekannten Agenten darf nicht entstehen")
+			t.Fatalf("a task for an unknown agent must not come into being")
 		}
 	}
 	if n != 1 {
-		t.Fatalf("Dublette gleichen Titels muss abgelehnt werden, angelegt: %d", n)
+		t.Fatalf("a duplicate with the same title must be rejected, created: %d", n)
 	}
 }
 
-// TestCreateTaskDepthLimit prüft die Tiefen-Bremse: Eine Aufgabe darf zerlegt
-// werden, ihre Teilaufgabe auch — aber die Kette endet. Ohne diese Grenze
-// zerlegt ein Agent seine Arbeit rekursiv weiter, bis das Budget leer ist.
+// TestCreateTaskDepthLimit checks the depth brake: a task may be broken down,
+// its subtask as well — but the chain ends. Without this limit an agent breaks
+// its work down recursively until the budget is empty.
 //
-// Der Test baut die Kette direkt im Store auf (so tief, wie sie ein Agent über
-// mehrere Läufe erzeugt hätte) und lässt erst die unterste Aufgabe laufen: Sie
-// darf keine weitere mehr abspalten.
+// The test builds the chain directly in the store (as deep as an agent would
+// have produced it over several runs) and only then lets the lowest task run:
+// it must not split off another one.
 func TestCreateTaskDepthLimit(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -135,19 +135,19 @@ func TestCreateTaskDepthLimit(t *testing.T) {
 	split := `[mock:action covey/create_task {"title":"Noch eine Stufe","body":"weiter"}]
 [mock:result versucht]`
 
-	// Stufe 0 zerlegt sich noch — die Kette ist frisch.
+	// Level 0 still breaks itself down — the chain is fresh.
 	root, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Stufe 0", split, "manual", 3)
 	if err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, "wurzel done", 20*time.Second, func() bool {
+	waitFor(t, "root done", 20*time.Second, func() bool {
 		return s.taskState(root.ID) == backlog.StateDone
 	})
 	if _, err := s.backlog.Get(ctx, childOf(t, s, agent.ID, root.ID).ID); err != nil {
-		t.Fatalf("die erste Zerlegung muss erlaubt sein: %v", err)
+		t.Fatalf("the first decomposition must be allowed: %v", err)
 	}
 
-	// Jetzt eine Kette, die das Limit bereits ausgeschöpft hat.
+	// Now a chain that has already exhausted the limit.
 	deep := root.ID
 	for i := 0; i < 3; i++ {
 		child, err := s.backlog.CreateChild(ctx, deep, backlog.ChildSpec{
@@ -158,7 +158,7 @@ func TestCreateTaskDepthLimit(t *testing.T) {
 		}
 		deep = child.ID
 	}
-	waitFor(t, "unterste stufe terminal", 30*time.Second, func() bool {
+	waitFor(t, "lowest level terminal", 30*time.Second, func() bool {
 		st := s.taskState(deep)
 		return st == backlog.StateDone || st == backlog.StateFailed
 	})
@@ -168,18 +168,18 @@ func TestCreateTaskDepthLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 	if n != 0 {
-		t.Fatalf("am Ende der Kette darf nicht weiter zerlegt werden, angelegt: %d", n)
+		t.Fatalf("at the end of the chain nothing may be decomposed further, created: %d", n)
 	}
-	// Und zwar sichtbar: der Agent bekommt die Ablehnung mit Begründung zurück,
-	// statt dass die Aufgabe stillschweigend im Nichts verschwindet.
-	if msg := taskError(t, s, deep); !strings.Contains(msg, "kette zu tief") {
-		t.Fatalf("Ablehnung muss die Tiefe nennen, war %q", msg)
+	// And visibly so: the agent gets the rejection back with a reason instead of
+	// the task vanishing into nothing without a word.
+	if msg := taskError(t, s, deep); !strings.Contains(msg, "chain too deep") {
+		t.Fatalf("the rejection must name the depth, was %q", msg)
 	}
 }
 
-// TestCreateTaskBreadthLimit prüft die Breiten-Bremse: Ein einzelner Lauf darf
-// nur begrenzt viele Aufgaben abspalten. Wer mehr braucht, hat seine Arbeit
-// nicht zerlegt, sondern kopiert.
+// TestCreateTaskBreadthLimit checks the breadth brake: a single run may only
+// split off a limited number of tasks. Whoever needs more has not broken down
+// their work but copied it.
 func TestCreateTaskBreadthLimit(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -195,7 +195,7 @@ func TestCreateTaskBreadthLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, "aufgabe terminal", 30*time.Second, func() bool {
+	waitFor(t, "task terminal", 30*time.Second, func() bool {
 		st := s.taskState(task.ID)
 		return st == backlog.StateDone || st == backlog.StateFailed
 	})
@@ -205,17 +205,17 @@ func TestCreateTaskBreadthLimit(t *testing.T) {
 		t.Fatal(err)
 	}
 	if n == 0 {
-		t.Fatalf("die ersten Teilaufgaben müssen entstehen")
+		t.Fatalf("the first subtasks must come into being")
 	}
 	if n > 10 {
-		t.Fatalf("ein Lauf darf höchstens 10 Aufgaben abspalten, waren %d", n)
+		t.Fatalf("a run may split off at most 10 tasks, there were %d", n)
 	}
 }
 
-// TestCreateTaskGuardRail prüft, dass covey/create_task — anders als die
-// übrigen covey-Meta-Aktionen — durch die Guard-Rails läuft: Delegation
-// (covey:create_task:foreign) lässt sich verbieten, ohne dem Agenten die
-// Zerlegung der eigenen Arbeit zu nehmen.
+// TestCreateTaskGuardRail checks that covey/create_task — unlike the remaining
+// covey meta actions — runs through the guard rails: delegation
+// (covey:create_task:foreign) can be forbidden without taking away the agent's
+// ability to break down its own work.
 func TestCreateTaskGuardRail(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -233,7 +233,7 @@ func TestCreateTaskGuardRail(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, "aufgabe terminal", 20*time.Second, func() bool {
+	waitFor(t, "task terminal", 20*time.Second, func() bool {
 		st := s.taskState(task.ID)
 		return st == backlog.StateDone || st == backlog.StateFailed
 	})
@@ -244,16 +244,16 @@ func TestCreateTaskGuardRail(t *testing.T) {
 	}
 	for _, a := range all {
 		if strings.HasPrefix(a.Title, "Abgeblockt") {
-			t.Fatalf("verbotene Delegation darf keine Aufgabe erzeugen")
+			t.Fatalf("a forbidden delegation must not produce a task")
 		}
 	}
-	// Die eigene Zerlegung bleibt erlaubt — die Regel trifft nur die Delegation.
+	// The agent's own decomposition stays allowed — the rule only hits delegation.
 	if _, err := s.backlog.Get(ctx, childOf(t, s, sender.ID, task.ID).ID); err != nil {
-		t.Fatalf("Teilaufgabe für sich selbst muss weiterhin entstehen: %v", err)
+		t.Fatalf("a subtask for itself must still come into being: %v", err)
 	}
 }
 
-// taskError liest den Fehlertext einer Aufgabe (leer, wenn keiner gesetzt ist).
+// taskError reads a task's error text (empty if none is set).
 func taskError(t *testing.T, s *stack, id uuid.UUID) string {
 	t.Helper()
 	task, err := s.backlog.Get(context.Background(), id)

@@ -2,54 +2,54 @@ package observability
 
 import "testing"
 
-// Die Aufzeichnungstiefe ist eine Compliance-Einstellung: Der Org-Level ist der
-// Boden, den Security setzt, der Agent darf nur nach OBEN abweichen. Ein Agent,
-// der sich leiser stellen könnte, wäre genau die Lücke, die der Boden schließen
-// soll — deshalb steht hier jede Kombination, nicht nur der Normalfall.
+// The recording depth is a compliance setting: the org level is the floor that
+// security sets, the agent may only deviate UPWARDS. An agent that could turn
+// itself down would be exactly the gap the floor is meant to close — that is why
+// every combination is listed here, not only the normal case.
 func TestEffectiveLevel(t *testing.T) {
 	p := func(s string) *string { return &s }
 
-	fälle := []struct {
+	cases := []struct {
 		name  string
 		org   string
 		agent *string
 		want  string
 	}{
-		{"ohne Override gilt der Boden", LevelStandard, nil, LevelStandard},
-		{"Agent lauter als der Boden", LevelStandard, p(LevelFull), LevelFull},
-		{"Agent gleich dem Boden", LevelStandard, p(LevelStandard), LevelStandard},
-		// Der Kern: nach unten geht nichts.
-		{"Agent leiser wird ignoriert", LevelStandard, p(LevelMinimal), LevelStandard},
-		{"Agent leiser als voller Boden", LevelFull, p(LevelMinimal), LevelFull},
-		{"Agent leiser als voller Boden (standard)", LevelFull, p(LevelStandard), LevelFull},
-		{"minimaler Boden, Agent hebt an", LevelMinimal, p(LevelStandard), LevelStandard},
-		{"minimaler Boden ohne Override", LevelMinimal, nil, LevelMinimal},
-		// Unbekanntes fällt nach oben, nicht nach unten.
-		{"unbekannter Boden → standard", "quatsch", nil, LevelStandard},
-		{"unbekannter Boden, Agent voll", "quatsch", p(LevelFull), LevelFull},
-		{"unbekannter Agent-Wert wird ignoriert", LevelStandard, p("quatsch"), LevelStandard},
-		{"leerer Boden → standard", "", nil, LevelStandard},
-		{"leerer Agent-Wert wird ignoriert", LevelFull, p(""), LevelFull},
+		{"without an override the floor applies", LevelStandard, nil, LevelStandard},
+		{"agent louder than the floor", LevelStandard, p(LevelFull), LevelFull},
+		{"agent equal to the floor", LevelStandard, p(LevelStandard), LevelStandard},
+		// The core: downwards nothing goes.
+		{"agent quieter is ignored", LevelStandard, p(LevelMinimal), LevelStandard},
+		{"agent quieter than a full floor", LevelFull, p(LevelMinimal), LevelFull},
+		{"agent quieter than a full floor (standard)", LevelFull, p(LevelStandard), LevelFull},
+		{"minimal floor, agent raises it", LevelMinimal, p(LevelStandard), LevelStandard},
+		{"minimal floor without an override", LevelMinimal, nil, LevelMinimal},
+		// Unknown values fall upwards, not downwards.
+		{"unknown floor → standard", "nonsense", nil, LevelStandard},
+		{"unknown floor, agent full", "nonsense", p(LevelFull), LevelFull},
+		{"unknown agent value is ignored", LevelStandard, p("nonsense"), LevelStandard},
+		{"empty floor → standard", "", nil, LevelStandard},
+		{"empty agent value is ignored", LevelFull, p(""), LevelFull},
 	}
-	for _, f := range fälle {
+	for _, f := range cases {
 		t.Run(f.name, func(t *testing.T) {
 			if got := effectiveLevel(f.org, f.agent); got != f.want {
-				t.Errorf("effectiveLevel(%q, %v) = %q, erwartet %q", f.org, f.agent, got, f.want)
+				t.Errorf("effectiveLevel(%q, %v) = %q, expected %q", f.org, f.agent, got, f.want)
 			}
 		})
 	}
 }
 
-// Die Eigenschaft hinter der Tabelle: Das Ergebnis liegt NIE unter dem Boden.
-// Sie gilt auch dann noch, wenn jemand die Tabelle bewusst umschreibt.
+// The property behind the table: the result is NEVER below the floor. It still
+// holds when someone deliberately rewrites the table.
 func TestEffectiveLevelNieUnterDemBoden(t *testing.T) {
-	stufen := []string{LevelMinimal, LevelStandard, LevelFull}
-	for _, org := range stufen {
-		for _, agent := range stufen {
+	levels := []string{LevelMinimal, LevelStandard, LevelFull}
+	for _, org := range levels {
+		for _, agent := range levels {
 			a := agent
 			got := effectiveLevel(org, &a)
 			if levelRank[got] < levelRank[org] {
-				t.Errorf("org=%s agent=%s ergibt %s — unter dem Boden", org, agent, got)
+				t.Errorf("org=%s agent=%s yields %s — below the floor", org, agent, got)
 			}
 		}
 	}
@@ -58,30 +58,30 @@ func TestEffectiveLevelNieUnterDemBoden(t *testing.T) {
 func TestValidLevel(t *testing.T) {
 	for _, s := range []string{LevelMinimal, LevelStandard, LevelFull} {
 		if !ValidLevel(s) {
-			t.Errorf("%q muss gültig sein", s)
+			t.Errorf("%q must be valid", s)
 		}
 	}
-	for _, s := range []string{"", "quatsch", "MINIMAL", "voll"} {
+	for _, s := range []string{"", "nonsense", "MINIMAL", "full-on"} {
 		if ValidLevel(s) {
-			t.Errorf("%q darf nicht gültig sein", s)
+			t.Errorf("%q must not be valid", s)
 		}
 	}
 }
 
-// normalizeBucket entscheidet, in welcher Körnung die Kostenreihe aggregiert
-// wird. Ein unbekannter Wert darf nicht in die SQL-Query durchschlagen.
+// normalizeBucket decides at which granularity the cost series is aggregated.
+// An unknown value must not leak into the SQL query.
 func TestNormalizeBucket(t *testing.T) {
-	erlaubt := map[string]bool{}
+	allowed := map[string]bool{}
 	for _, b := range []string{"hour", "day", "week", "month"} {
 		got := normalizeBucket(b)
-		erlaubt[got] = true
+		allowed[got] = true
 		if got != b {
-			t.Errorf("normalizeBucket(%q) = %q — bekannte Körnung darf nicht umgebogen werden", b, got)
+			t.Errorf("normalizeBucket(%q) = %q — a known granularity must not be bent", b, got)
 		}
 	}
-	for _, b := range []string{"", "jahr", "'; DROP TABLE cost_entries; --", "HOUR"} {
-		if got := normalizeBucket(b); !erlaubt[got] {
-			t.Errorf("normalizeBucket(%q) = %q — unbekannte Eingabe muss auf eine bekannte Körnung fallen", b, got)
+	for _, b := range []string{"", "year", "'; DROP TABLE cost_entries; --", "HOUR"} {
+		if got := normalizeBucket(b); !allowed[got] {
+			t.Errorf("normalizeBucket(%q) = %q — an unknown input must fall back to a known granularity", b, got)
 		}
 	}
 }

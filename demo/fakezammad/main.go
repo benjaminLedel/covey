@@ -1,6 +1,6 @@
-// fakezammad ist ein minimales Zammad-Double für lokale Demos: die vier vom
-// Support-Agenten genutzten Endpunkte, alle Zugriffe werden geloggt.
-// Start: go run ./demo/fakezammad (Port 9999).
+// fakezammad is a minimal Zammad double for local demos: the four endpoints
+// used by the support agent, every access is logged.
+// Start: go run ./demo/fakezammad (port 9999).
 package main
 
 import (
@@ -23,7 +23,7 @@ func main() {
 		})
 	})
 	mux.HandleFunc("GET /api/v1/ticket_articles/by_ticket/{id}", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("→ GET articles für ticket %s", r.PathValue("id"))
+		log.Printf("→ GET articles for ticket %s", r.PathValue("id"))
 		json.NewEncoder(w).Encode([]map[string]any{
 			{"id": 1, "ticket_id": 42, "sender": "Customer", "body": "Ich kann mich seit gestern nicht mehr einloggen."},
 		})
@@ -41,22 +41,22 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]any{"id": 42})
 	})
 
-	log.Println("fake-zammad auf :9999")
+	log.Println("fake-zammad on :9999")
 	srv := &http.Server{Addr: ":9999", Handler: mux, ReadHeaderTimeout: 20 * time.Second}
 	log.Fatal(srv.ListenAndServe())
 }
 
-// authShape zeigt, DASS ein gebrokertes Credential ankommt — Schema und Länge
-// statt des Tokens selbst. Für die Demo ist genau das die Aussage; das Token
-// gehört auch in einem Double nicht ins Log.
+// authShape shows THAT a brokered credential arrives — scheme and length
+// instead of the token itself. That is exactly the point of the demo; the
+// token has no place in the log, not even in a double.
 func authShape(r *http.Request) string {
 	h := r.Header.Get("Authorization")
 	if h == "" {
-		return "keine"
+		return "none"
 	}
 	scheme, rest, ok := strings.Cut(h, " ")
 	if !ok {
-		return fmt.Sprintf("%d Zeichen", len(h))
+		return fmt.Sprintf("%d chars", len(h))
 	}
-	return fmt.Sprintf("%s, %d Zeichen", scheme, len(rest))
+	return fmt.Sprintf("%s, %d chars", scheme, len(rest))
 }

@@ -1,6 +1,6 @@
-// Package identity definiert den IdentityProvider-Port (spec/10):
-// Agenten-Identität ausstellen, Menschen authentifizieren, kurzlebige Tokens minten.
-// Implementierungen: builtin (Ed25519-JWT + Argon2id) — oidc folgt post-MVP.
+// Package identity defines the IdentityProvider port (spec/10): issue agent
+// identities, authenticate humans, mint short-lived tokens.
+// Implementations: builtin (Ed25519 JWT + Argon2id) — oidc follows post-MVP.
 package identity
 
 import (
@@ -10,10 +10,10 @@ import (
 	"github.com/google/uuid"
 )
 
-// Scope beschränkt ein Token auf Zweck + System (Least Privilege).
+// Scope restricts a token to purpose + system (least privilege).
 type Scope struct {
-	Audience string // z. B. "daemon" oder "zammad"
-	System   string // Zielsystem, falls zutreffend
+	Audience string // e.g. "daemon" or "zammad"
+	System   string // target system, if applicable
 	Scopes   []string
 }
 
@@ -22,7 +22,7 @@ type Token struct {
 	ExpiresAt time.Time
 }
 
-// Principal ist ein authentifizierter Mensch inkl. RBAC-Rolle (spec/09).
+// Principal is an authenticated human including their RBAC role (spec/09).
 type Principal struct {
 	ID          uuid.UUID
 	OrgID       uuid.UUID
@@ -37,15 +37,15 @@ type Credentials struct {
 }
 
 type Provider interface {
-	// IssueAgentToken mintet ein kurzlebiges, gescoptes Token für eine Agent-Identität.
+	// IssueAgentToken mints a short-lived, scoped token for an agent identity.
 	IssueAgentToken(ctx context.Context, agentID uuid.UUID, scope Scope, ttl time.Duration) (Token, error)
-	// VerifyAgentToken prüft Signatur, Ablauf und Audience.
+	// VerifyAgentToken checks signature, expiry and audience.
 	VerifyAgentToken(ctx context.Context, token, audience string) (agentID uuid.UUID, err error)
-	// AuthenticateHuman prüft Login-Credentials gegen den Nutzerbestand.
+	// AuthenticateHuman checks login credentials against the user records.
 	AuthenticateHuman(ctx context.Context, creds Credentials) (Principal, error)
 }
 
-// Menschliche Rollen (RBAC, spec/09-enterprise-modell.md).
+// Human roles (RBAC, spec/09-enterprise-model.md).
 const (
 	RolePlatformAdmin = "platform_admin"
 	RoleAgentOwner    = "agent_owner"

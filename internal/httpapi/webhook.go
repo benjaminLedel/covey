@@ -15,59 +15,59 @@ import (
 	targetstore "covey/internal/target/store"
 )
 
-// handleTargetWebhook ist der Event-Router-Eingang für Zielsysteme (spec/13):
-// Plugin-Lookup (nur aktivierte Systeme, fail-closed), Signatur-Prüfung,
-// idempotente Verarbeitung, Korrelation.
-// URL: POST /api/webhooks/{system}/{agent} — der letzte Pfad-Teil adressiert
-// den Agenten (Slug oder, ersatzweise, seine ID).
+// handleTargetWebhook is the event-router entrance for target systems
+// (spec/13): plugin lookup (only enabled systems, fail-closed), signature
+// verification, idempotent processing, correlation.
+// URL: POST /api/webhooks/{system}/{agent} — the last path segment addresses the
+// agent (slug or, as a substitute, its ID).
 func (s *Server) handleTargetWebhook(w http.ResponseWriter, r *http.Request) {
 	systemName := r.PathValue("system")
 
-	// MVP: eine Organisation — der Agent wird org-übergreifend aufgelöst.
+	// MVP: one organisation — the agent is resolved across orgs.
 	ref := r.PathValue("agent")
 	agent, err := s.findWebhookAgent(r, ref)
 	if err != nil {
-		writeErr(w, http.StatusNotFound, "kein agent mit slug oder id "+ref)
+		writeErr(w, http.StatusNotFound, "no agent with slug or id "+ref)
 		return
 	}
-	noteWebhookAgent(r, agent) // Request-Log: Eintrag dem Agenten zuordnen
+	noteWebhookAgent(r, agent) // request log: attribute the entry to the agent
 
-	// Erst ab hier bremsen, nicht schon vor der Agenten-Auflösung: Der
-	// Schlüssel IST der Agent. Ein unbekannter Slug ist oben bereits mit 404
-	// beantwortet und kostet nichts weiter.
+	// Throttle only from here on, not before resolving the agent: the key IS
+	// the agent. An unknown slug has already been answered with a 404 above and
+	// costs nothing further.
 	if !s.webhookLimiter.allow(agent.ID.String(), time.Now()) {
-		s.Log.Warn("webhook-rate-limit greift", "agent", agent.Slug, "system", systemName)
+		s.Log.Warn("webhook rate limit hit", "agent", agent.Slug, "system", systemName)
 		w.Header().Set("Retry-After", "60")
 		writeErr(w, http.StatusTooManyRequests,
-			"zu viele Webhook-Aufrufe für diesen Agenten — bitte später erneut zustellen")
+			"too many webhook calls for this agent — please redeliver later")
 		return
 	}
 
 	sys, err := s.Targets.System(r.Context(), agent.OrgID, systemName)
 	if err != nil {
 		if errors.Is(err, targetstore.ErrNotFound) {
-			writeErr(w, http.StatusNotFound, "zielsystem "+systemName+" unbekannt oder deaktiviert")
+			writeErr(w, http.StatusNotFound, "target system "+systemName+" unknown or disabled")
 			return
 		}
 		mapErr(w, err)
 		return
 	}
-	// Webhook ist eine optionale Zielsystem-Capability (target.Webhooker) —
-	// Systeme, die rein per Polling/Heartbeat aufnehmen (z. B. GitLab), haben
-	// keinen Webhook-Eingang; fail-closed mit 404.
+	// Webhooks are an optional target-system capability (target.Webhooker) —
+	// systems that ingest purely by polling/heartbeat (e.g. GitLab) have no
+	// webhook entrance; fail-closed with a 404.
 	hook, ok := sys.(target.Webhooker)
 	if !ok {
-		writeErr(w, http.StatusNotFound, "zielsystem "+systemName+" hat keinen webhook-eingang (aufnahme per polling/heartbeat)")
+		writeErr(w, http.StatusNotFound, "target system "+systemName+" has no webhook entrance (ingest via polling/heartbeat)")
 		return
 	}
 
 	body, err := io.ReadAll(io.LimitReader(r.Body, 4<<20))
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "body nicht lesbar")
+		writeErr(w, http.StatusBadRequest, "body not readable")
 		return
 	}
 	if !hook.VerifyWebhook(s.WebhookSecrets[systemName], body, r.Header) {
-		writeErr(w, http.StatusUnauthorized, "signatur ungültig")
+		writeErr(w, http.StatusUnauthorized, "invalid signature")
 		return
 	}
 	ev, err := hook.ParseWebhook(body)
@@ -84,21 +84,22 @@ func (s *Server) handleTargetWebhook(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"outcome": outcome})
 }
 
-// --- Generischer Agent-Webhook: optionaler Trigger je Agent (spec/03) ---
+// --- Generic agent webhook: optional per-agent trigger (spec/03) ---
 //
-// Für Fremdsysteme ohne Zielsystem-Plugin (CI, Cron, Zapier, Monitoring):
-// ein geheimes Token in der URL, POST legt eine Backlog-Aufgabe an und weckt
-// den Agenten. Verwaltung über /api/v1/agents/{id}/webhook (Manager-Rollen).
+// For foreign systems without a target-system plugin (CI, cron, Zapier,
+// monitoring): a secret token in the URL, POST creates a backlog task and wakes
+// the agent. Managed via /api/v1/agents/{id}/webhook (manager roles).
 
-// webhookView ist die Verwaltungs-Sicht: aktiviert ja/nein, Token und die
-// fertige Trigger-URL.
+// webhookView is the management view: enabled yes/no, token and the ready-made
+// trigger URL.
 //
-// Die Adresse kommt aus dem Request und nicht aus PublicURL: Diese URL soll
-// jemand kopieren und in ein Fremdsystem eintragen — sie muss also von AUSSEN
-// erreichbar sein. PublicURL ist die Adresse, unter der die Sandboxen die
-// Control Plane erreichen, oft ein Loopback; die hier anzuzeigen wäre schlicht
-// falsch. Der Request kommt aus dem Browser des Betreibers, trägt damit genau
-// die Adresse, unter der er die Instanz erreicht — und das ist die gesuchte.
+// The address comes from the request and not from PublicURL: someone is meant
+// to copy this URL and enter it into a foreign system — so it has to be
+// reachable from OUTSIDE. PublicURL is the address under which the sandboxes
+// reach the control plane, often a loopback; showing that here would simply be
+// wrong. The request comes from the operator's browser and therefore carries
+// exactly the address under which they reach the instance — and that is the one
+// we are after.
 func (s *Server) webhookView(r *http.Request, a agents.Agent) map[string]any {
 	if a.WebhookToken == nil {
 		return map[string]any{"enabled": false}
@@ -111,7 +112,7 @@ func (s *Server) webhookView(r *http.Request, a agents.Agent) map[string]any {
 func (s *Server) handleGetAgentWebhook(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	agent, err := s.Registry.Get(r.Context(), id)
@@ -123,11 +124,11 @@ func (s *Server) handleGetAgentWebhook(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleEnableAgentWebhook — POST /api/v1/agents/{id}/webhook:
-// aktiviert den Trigger bzw. rotiert das Token (alte URL wird ungültig).
+// enables the trigger resp. rotates the token (the old URL becomes invalid).
 func (s *Server) handleEnableAgentWebhook(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	buf := make([]byte, 32)
@@ -149,7 +150,7 @@ func (s *Server) handleEnableAgentWebhook(w http.ResponseWriter, r *http.Request
 func (s *Server) handleDisableAgentWebhook(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	if err := s.Registry.SetWebhookToken(r.Context(), id, nil); err != nil {
@@ -159,29 +160,29 @@ func (s *Server) handleDisableAgentWebhook(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, map[string]any{"enabled": false})
 }
 
-// handleAgentTrigger — POST /api/trigger/{token} (ohne Session-Auth, das Token
-// ist das Geheimnis). Payload optional als JSON {title, body, priority,
-// dedup_key}; alles andere wird als Roh-Text in den Aufgaben-Body übernommen.
+// handleAgentTrigger — POST /api/trigger/{token} (no session auth, the token is
+// the secret). Payload optionally as JSON {title, body, priority, dedup_key};
+// everything else is taken over as raw text into the task body.
 func (s *Server) handleAgentTrigger(w http.ResponseWriter, r *http.Request) {
 	token := r.PathValue("token")
 	agent, err := s.Registry.GetByWebhookToken(r.Context(), token)
 	if err != nil {
 		if errors.Is(err, agents.ErrNotFound) {
-			writeErr(w, http.StatusNotFound, "unbekanntes token")
+			writeErr(w, http.StatusNotFound, "unknown token")
 			return
 		}
 		mapErr(w, err)
 		return
 	}
-	noteWebhookAgent(r, agent) // Request-Log: Eintrag dem Agenten zuordnen
+	noteWebhookAgent(r, agent) // request log: attribute the entry to the agent
 	if agent.Killed {
-		writeErr(w, http.StatusConflict, "agent ist gestoppt")
+		writeErr(w, http.StatusConflict, "agent is stopped")
 		return
 	}
 
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "body nicht lesbar")
+		writeErr(w, http.StatusBadRequest, "body not readable")
 		return
 	}
 	var in struct {
@@ -192,14 +193,14 @@ func (s *Server) handleAgentTrigger(w http.ResponseWriter, r *http.Request) {
 	}
 	raw := strings.TrimSpace(string(body))
 	if err := json.Unmarshal(body, &in); err != nil {
-		// Kein JSON — der Roh-Body ist die Aufgabe.
+		// Not JSON — the raw body is the task.
 		in.Body = raw
 	} else if in.Title == "" && in.Body == "" {
-		// JSON ohne title/body (fremdes Payload-Format) — nichts wegwerfen.
+		// JSON without title/body (a foreign payload format) — throw nothing away.
 		in.Body = raw
 	}
 	if in.Title == "" {
-		in.Title = "Webhook-Trigger"
+		in.Title = "Webhook trigger"
 	}
 	if in.Priority < 1 || in.Priority > 5 {
 		in.Priority = 3

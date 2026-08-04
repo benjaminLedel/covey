@@ -1,6 +1,6 @@
-// Package builtin ist der DB-gestützte SecretStore: AES-256-GCM-verschlüsselte
-// Spalte in Postgres, Master-Key aus ENV (spec/10). Deckt "lagere ein
-// Legacy-API-Token und reiche es kurzlebig durch" vollständig ab.
+// Package builtin is the DB-backed SecretStore: AES-256-GCM encrypted column in
+// Postgres, master key from ENV (spec/10). Fully covers "store a legacy API
+// token and hand it through short-lived".
 package builtin
 
 import (
@@ -24,11 +24,11 @@ type Store struct {
 	aead cipher.AEAD
 }
 
-// New erwartet den Master-Key als 64 Hex-Zeichen (32 Bytes → AES-256).
+// New expects the master key as 64 hex characters (32 bytes → AES-256).
 func New(pool *pgxpool.Pool, masterKeyHex string) (*Store, error) {
 	key, err := hex.DecodeString(masterKeyHex)
 	if err != nil || len(key) != 32 {
-		return nil, fmt.Errorf("COVEY_MASTER_KEY muss 32 Bytes hex sein (64 Zeichen)")
+		return nil, fmt.Errorf("COVEY_MASTER_KEY must be 32 bytes of hex (64 characters)")
 	}
 	block, err := aes.NewCipher(key)
 	if err != nil {
@@ -41,7 +41,7 @@ func New(pool *pgxpool.Pool, masterKeyHex string) (*Store, error) {
 	return &Store{pool: pool, aead: aead}, nil
 }
 
-// GenerateMasterKey erzeugt einen neuen Master-Key fürs Bootstrapping.
+// GenerateMasterKey creates a new master key for bootstrapping.
 func GenerateMasterKey() (string, error) {
 	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {
@@ -50,8 +50,8 @@ func GenerateMasterKey() (string, error) {
 	return hex.EncodeToString(key), nil
 }
 
-// aad bindet das Chiffrat an seinen Platz (kein Row-Swapping): org+key für
-// org-weite Secrets, org+agent+key für agent-eigene.
+// aad binds the ciphertext to its place (no row swapping): org+key for org-wide
+// secrets, org+agent+key for an agent's own.
 func aad(orgID uuid.UUID, agentID *uuid.UUID, key string) []byte {
 	if agentID != nil {
 		return []byte(orgID.String() + "/" + agentID.String() + "/" + key)
@@ -70,7 +70,7 @@ func (s *Store) seal(aad []byte, value string) (nonce, ciphertext []byte, err er
 func (s *Store) open(key string, aad, nonce, ciphertext []byte) (string, error) {
 	plain, err := s.aead.Open(nil, nonce, ciphertext, aad)
 	if err != nil {
-		return "", fmt.Errorf("secret %q: entschlüsselung fehlgeschlagen: %w", key, err)
+		return "", fmt.Errorf("secret %q: decryption failed: %w", key, err)
 	}
 	return string(plain), nil
 }
@@ -88,8 +88,8 @@ func (s *Store) Put(ctx context.Context, orgID uuid.UUID, key, value string) err
 	return err
 }
 
-// PutAgent legt ein agent-eigenes Secret an. Der Agent muss zur Org gehören —
-// sonst ErrNotFound (kein Cross-Org-Schreiben über geratene Agent-IDs).
+// PutAgent creates an agent's own secret. The agent must belong to the org —
+// otherwise ErrNotFound (no cross-org writing via guessed agent IDs).
 func (s *Store) PutAgent(ctx context.Context, orgID, agentID uuid.UUID, key, value string) error {
 	nonce, ct, err := s.seal(aad(orgID, &agentID, key), value)
 	if err != nil {
@@ -124,9 +124,9 @@ func (s *Store) Get(ctx context.Context, orgID uuid.UUID, key string) (string, e
 	return s.open(key, aad(orgID, nil, key), nonce, ct)
 }
 
-// Resolve bevorzugt das agent-eigene Secret; sonst greift das org-weite —
-// aber nur bei expliziter Zuweisung. Ein Org-Secret ohne Zuweisungen
-// erreicht keinen Agenten.
+// Resolve prefers the agent's own secret; otherwise the org-wide one applies —
+// but only on explicit assignment. An org secret without assignments reaches no
+// agent.
 func (s *Store) Resolve(ctx context.Context, orgID, agentID uuid.UUID, key string) (string, error) {
 	var (
 		nonce, ct []byte
@@ -149,7 +149,7 @@ func (s *Store) Resolve(ctx context.Context, orgID, agentID uuid.UUID, key strin
 }
 
 func (s *Store) Delete(ctx context.Context, orgID uuid.UUID, key string) error {
-	// Zuweisungen hängen am org-weiten Secret — mit ihm verschwinden sie.
+	// Assignments hang off the org-wide secret — they disappear with it.
 	if _, err := s.pool.Exec(ctx,
 		"DELETE FROM secret_assignments WHERE org_id=$1 AND key=$2", orgID, key); err != nil {
 		return err
@@ -183,8 +183,8 @@ func (s *Store) Keys(ctx context.Context, orgID uuid.UUID) ([]string, error) {
 	return out, rows.Err()
 }
 
-// Previews entschlüsselt jeden Wert: nicht-sensible Secrets sind Variablen
-// und liefern den vollständigen Klartext, sensible nur ihr begrenztes Präfix.
+// Previews decrypts every value: non-sensitive secrets are variables and yield
+// the full plaintext, sensitive ones only their limited prefix.
 func (s *Store) Previews(ctx context.Context, orgID uuid.UUID) ([]secrets.KeyPreview, error) {
 	rows, err := s.pool.Query(ctx, `SELECT s.key, s.nonce, s.ciphertext, s.sensitive,
 			COALESCE(array_agg(a.agent_id::text ORDER BY a.created_at)
@@ -219,7 +219,8 @@ func (s *Store) Previews(ctx context.Context, orgID uuid.UUID) ([]secrets.KeyPre
 	return out, rows.Err()
 }
 
-// MarkSensitive ist bewusst einweg (siehe Port-Doku): nur false→true.
+// MarkSensitive is deliberately one-way (see the port documentation): only
+// false→true.
 func (s *Store) MarkSensitive(ctx context.Context, orgID uuid.UUID, key string) error {
 	tag, err := s.pool.Exec(ctx,
 		"UPDATE secrets SET sensitive=true WHERE org_id=$1 AND key=$2 AND agent_id IS NULL",
@@ -271,10 +272,9 @@ func (s *Store) AgentPreviews(ctx context.Context, orgID, agentID uuid.UUID) ([]
 	return out, rows.Err()
 }
 
-// expose entschlüsselt best-effort für die Anzeige: nicht-sensible Werte
-// vollständig, sensible nur als Präfix. Ein nicht entschlüsselbares Secret
-// (z. B. mit altem Master-Key) darf die Liste nicht kippen — dann eben
-// voll maskiert.
+// expose decrypts best-effort for display: non-sensitive values in full,
+// sensitive ones only as a prefix. A secret that cannot be decrypted (e.g. with
+// an old master key) must not topple the list — then it is fully masked.
 func (s *Store) expose(key string, aad, nonce, ct []byte, sensitive bool) (value, prefix string) {
 	plain, err := s.open(key, aad, nonce, ct)
 	if err != nil {
@@ -286,8 +286,8 @@ func (s *Store) expose(key string, aad, nonce, ct []byte, sensitive bool) (value
 	return plain, ""
 }
 
-// Assign weist ein org-weites Secret einem Agenten explizit zu. Secret und
-// Agent müssen existieren und zur Org gehören — sonst ErrNotFound.
+// Assign explicitly assigns an org-wide secret to an agent. Secret and agent
+// must exist and belong to the org — otherwise ErrNotFound.
 func (s *Store) Assign(ctx context.Context, orgID uuid.UUID, key string, agentID uuid.UUID) error {
 	var secretOK, agentOK bool
 	if err := s.pool.QueryRow(ctx, `SELECT

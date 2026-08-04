@@ -1,9 +1,9 @@
-// Package dev macht die Sandbox zum eigenen Computer des Agenten: Befehle
-// ausführen (exec) und langlaufende Prozesse verwalten (start/stop/logs/list)
-// — Dev-Server, Datenbanken, headless Chrome. Alles läuft im Daemon der
-// Sandbox, nichts auf der Control Plane; Secrets braucht das Plugin keine
-// (Descriptor.NoCredentials). ACCESS.md, Aktivierung und Guard-Rails greifen
-// wie bei jedem Zielsystem.
+// Package dev turns the sandbox into the agent's own computer: run commands
+// (exec) and manage long-running processes (start/stop/logs/list) — dev
+// servers, databases, headless Chrome. Everything runs in the sandbox daemon,
+// nothing on the control plane; the plugin needs no secrets
+// (Descriptor.NoCredentials). ACCESS.md, activation and guard-rails apply as
+// with any target system.
 package dev
 
 import (
@@ -17,16 +17,16 @@ import (
 )
 
 const (
-	// maxLogBytes begrenzt den Log-Puffer je Prozess (die letzte Ausgabe zählt).
+	// maxLogBytes caps the log buffer per process (the last output is what counts).
 	maxLogBytes = 256 << 10
-	// maxProcs begrenzt die gleichzeitig verwalteten Prozesse (Runaway-Guard).
+	// maxProcs caps the number of concurrently managed processes (runaway guard).
 	maxProcs = 16
-	// stopGrace ist die Frist zwischen SIGTERM und SIGKILL beim Stoppen.
+	// stopGrace is the grace period between SIGTERM and SIGKILL when stopping.
 	stopGrace = 5 * time.Second
 )
 
-// logBuffer ist ein nebenläufig beschreibbarer Puffer, der nur die letzten
-// maxLogBytes behält — genug, um Fehler zu sehen, ohne den Kontext zu sprengen.
+// logBuffer is a concurrently writable buffer that keeps only the last
+// maxLogBytes — enough to see errors without blowing up the context.
 type logBuffer struct {
 	mu        sync.Mutex
 	buf       []byte
@@ -44,7 +44,7 @@ func (b *logBuffer) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// Tail liefert die letzten n Zeilen (n<=0: alles Gepufferte).
+// Tail returns the last n lines (n<=0: everything buffered).
 func (b *logBuffer) Tail(n int) (string, bool) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -59,7 +59,7 @@ func (b *logBuffer) Tail(n int) (string, bool) {
 	return strings.Join(lines, "\n"), b.truncated
 }
 
-// process ist ein verwalteter Hintergrund-Prozess samt Ausgabe-Puffer.
+// process is a managed background process along with its output buffer.
 type process struct {
 	name      string
 	command   string
@@ -69,7 +69,7 @@ type process struct {
 	done      chan struct{}
 
 	mu       sync.Mutex
-	exitDesc string // leer, solange der Prozess läuft
+	exitDesc string // empty as long as the process is running
 }
 
 func (p *process) running() bool {
@@ -102,9 +102,9 @@ func (p *process) info() map[string]any {
 	return out
 }
 
-// supervisor verwaltet die Hintergrund-Prozesse einer Sandbox-Session.
-// Jeder Prozess bekommt eine eigene Prozessgruppe (Setpgid), damit stop und
-// shutdown auch Kind-Prozesse (z. B. die von `sh -c` gestartete App) treffen.
+// supervisor manages the background processes of a sandbox session. Every
+// process gets its own process group (Setpgid) so that stop and shutdown also
+// reach child processes (e.g. the app started by `sh -c`).
 type supervisor struct {
 	mu    sync.Mutex
 	procs map[string]*process
@@ -115,12 +115,12 @@ var super = &supervisor{procs: map[string]*process{}}
 func (s *supervisor) start(name, command, dir string) (map[string]any, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || strings.TrimSpace(command) == "" {
-		return nil, fmt.Errorf("name oder cmd fehlt")
+		return nil, fmt.Errorf("name or cmd missing")
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if p, ok := s.procs[name]; ok && p.running() {
-		return nil, fmt.Errorf("prozess %q läuft bereits (pid %d) — erst stop", name, p.cmd.Process.Pid)
+		return nil, fmt.Errorf("process %q is already running (pid %d) — stop it first", name, p.cmd.Process.Pid)
 	}
 	running := 0
 	for _, p := range s.procs {
@@ -129,7 +129,7 @@ func (s *supervisor) start(name, command, dir string) (map[string]any, error) {
 		}
 	}
 	if running >= maxProcs {
-		return nil, fmt.Errorf("limit von %d laufenden prozessen erreicht — räume mit stop auf", maxProcs)
+		return nil, fmt.Errorf("limit of %d running processes reached — clean up with stop", maxProcs)
 	}
 
 	cmd := exec.Command("sh", "-c", command)
@@ -162,7 +162,7 @@ func (s *supervisor) get(name string) (*process, error) {
 	defer s.mu.Unlock()
 	p, ok := s.procs[strings.TrimSpace(name)]
 	if !ok {
-		return nil, fmt.Errorf("kein prozess %q — list zeigt alle", name)
+		return nil, fmt.Errorf("no process %q — list shows them all", name)
 	}
 	return p, nil
 }
@@ -213,9 +213,9 @@ func (s *supervisor) list() []map[string]any {
 	return out
 }
 
-// shutdown beendet alle laufenden Prozesse hart — der Aufräum-Hook beim
-// Herunterfahren des Daemons (target.Shutdown). Ohne ihn überlebten Chrome
-// und Dev-Server die Sandbox.
+// shutdown kills all running processes hard — the cleanup hook when the daemon
+// shuts down (target.Shutdown). Without it, Chrome and dev servers would
+// outlive the sandbox.
 func (s *supervisor) shutdown() {
 	s.mu.Lock()
 	procs := make([]*process, 0, len(s.procs))
@@ -231,8 +231,8 @@ func (s *supervisor) shutdown() {
 	}
 }
 
-// killGroup signalisiert die ganze Prozessgruppe (negative PID); Fehler sind
-// egal — die Gruppe kann bereits beendet sein.
+// killGroup signals the whole process group (negative PID); errors do not
+// matter — the group may already be gone.
 func killGroup(p *process, sig syscall.Signal) {
 	_ = syscall.Kill(-p.cmd.Process.Pid, sig)
 }

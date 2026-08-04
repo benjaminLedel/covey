@@ -8,9 +8,9 @@ import (
 	"time"
 )
 
-// TestHeartbeat prüft den Zeitplan-Trigger aus spec/03: HEARTBEAT.md wird beim
-// Speichern materialisiert, feuert nicht sofort, legt dann periodisch eine
-// Backlog-Aufgabe (origin=heartbeat) an und wird beim Entfernen aufgeräumt.
+// TestHeartbeat checks the schedule trigger from spec/03: HEARTBEAT.md is
+// materialized on save, does not fire immediately, then periodically creates a
+// backlog task (origin=heartbeat) and is cleaned up when the entry is removed.
 func TestHeartbeat(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -26,17 +26,17 @@ func TestHeartbeat(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Baseline: ein frisch gespeicherter Heartbeat feuert nicht sofort.
+	// Baseline: a freshly saved heartbeat does not fire immediately.
 	tasks, err := s.backlog.ListByAgent(ctx, agent.ID, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(tasks) != 0 {
-		t.Fatalf("kein sofortiges Feuern erwartet, backlog: %+v", tasks)
+		t.Fatalf("no immediate firing expected, backlog: %+v", tasks)
 	}
 
-	// Nach Ablauf des Intervalls legt der Tick die Aufgabe an.
-	waitFor(t, "heartbeat-aufgabe erscheint", 15*time.Second, func() bool {
+	// Once the interval has elapsed, the tick creates the task.
+	waitFor(t, "heartbeat task appears", 15*time.Second, func() bool {
 		tasks, _ := s.backlog.ListByAgent(ctx, agent.ID, true)
 		for _, task := range tasks {
 			if task.Origin == "heartbeat" && task.Title == "Puls" {
@@ -46,30 +46,30 @@ func TestHeartbeat(t *testing.T) {
 		return false
 	})
 
-	// Monitoring-Sicht: Zeitplan und nächster Lauf sind konsistent.
+	// Monitoring view: schedule and next run are consistent.
 	hbs, err := s.registry.Heartbeats(ctx, agent.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(hbs) != 1 || hbs[0].Name != "Puls" {
-		t.Fatalf("ein Heartbeat 'Puls' erwartet: %+v", hbs)
+		t.Fatalf("expected one heartbeat 'Puls': %+v", hbs)
 	}
 	if hbs[0].EverySeconds == nil || *hbs[0].EverySeconds != 1 {
-		t.Fatalf("every_seconds=1 erwartet: %+v", hbs[0])
+		t.Fatalf("expected every_seconds=1: %+v", hbs[0])
 	}
 	if !hbs[0].NextRun.After(hbs[0].LastFiredAt) {
-		t.Fatalf("next_run muss nach last_fired liegen: %+v", hbs[0])
+		t.Fatalf("next_run must lie after last_fired: %+v", hbs[0])
 	}
 
-	// Kaputte HEARTBEAT.md erzeugt keine neue Version.
+	// A broken HEARTBEAT.md produces no new version.
 	if _, err := s.registry.SaveConfig(ctx, agent.ID, map[string]string{
 		"SOUL.md":      "# Puls-Agent",
 		"HEARTBEAT.md": "- alle: 1s aufgabe: titel fehlt",
 	}, &s.adminID); err == nil {
-		t.Fatal("SaveConfig mit kaputter HEARTBEAT.md muss scheitern")
+		t.Fatal("SaveConfig with a broken HEARTBEAT.md must fail")
 	}
 
-	// Eintrag entfernen: die Materialisierung wird aufgeräumt.
+	// Removing the entry: the materialization is cleaned up.
 	if _, err := s.registry.SaveConfig(ctx, agent.ID, map[string]string{
 		"SOUL.md": "# Puls-Agent",
 	}, &s.adminID); err != nil {
@@ -81,14 +81,14 @@ func TestHeartbeat(t *testing.T) {
 		t.Fatal(err)
 	}
 	if n != 0 {
-		t.Fatalf("agent_heartbeats nicht aufgeräumt: %d Einträge", n)
+		t.Fatalf("agent_heartbeats not cleaned up: %d entries", n)
 	}
 }
 
-// TestHeartbeatManualFire prüft den manuellen Trigger (POST …/heartbeats/
-// {name}/fire): feuert sofort unabhängig vom Zeitplan, dedupliziert gegen die
-// offene Aufgabe des letzten Laufs, feuert nach Abschluss erneut und lehnt
-// gekillte Agenten ab.
+// TestHeartbeatManualFire checks the manual trigger (POST …/heartbeats/
+// {name}/fire): it fires immediately regardless of the schedule, deduplicates
+// against the open task of the last run, fires again after completion and
+// rejects killed agents.
 func TestHeartbeatManualFire(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -97,7 +97,7 @@ func TestHeartbeatManualFire(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// 1h-Intervall: der Scheduler-Tick feuert im Testfenster nie selbst.
+	// A 1h interval: the scheduler tick never fires by itself within the test window.
 	if _, err := s.registry.SaveConfig(ctx, agent.ID, map[string]string{
 		"SOUL.md":      "# Puls manuell",
 		"HEARTBEAT.md": "- alle: 1h titel: Wochenpuls aufgabe: Melde dich. [mock:result ok]",
@@ -110,18 +110,18 @@ func TestHeartbeatManualFire(t *testing.T) {
 
 	created := admin.expect(http.MethodPost, fire, nil, http.StatusOK)
 	if created["origin"] != "heartbeat" || created["title"] != "Wochenpuls" {
-		t.Fatalf("heartbeat-aufgabe erwartet, got %v", created)
+		t.Fatalf("expected a heartbeat task, got %v", created)
 	}
 
-	// Solange die Aufgabe offen ist, wird nicht erneut gefeuert.
+	// As long as the task is open, it does not fire again.
 	admin.expect(http.MethodPost, fire, nil, http.StatusConflict)
 
-	// Unbekannter Heartbeat-Name → 404.
+	// An unknown heartbeat name → 404.
 	admin.expect(http.MethodPost, "/api/v1/agents/"+agent.ID.String()+"/heartbeats/Nix/fire",
 		nil, http.StatusNotFound)
 
-	// Nach Abschluss der Aufgabe (Mock-Runtime) feuert der Trigger wieder.
-	waitFor(t, "heartbeat-aufgabe abgeschlossen", 15*time.Second, func() bool {
+	// After the task is completed (mock runtime), the trigger fires again.
+	waitFor(t, "heartbeat task completed", 15*time.Second, func() bool {
 		tasks, _ := s.backlog.ListByAgent(ctx, agent.ID, true)
 		for _, task := range tasks {
 			if task.Origin == "heartbeat" && task.State == "done" {
@@ -132,10 +132,10 @@ func TestHeartbeatManualFire(t *testing.T) {
 	})
 	admin.expect(http.MethodPost, fire, nil, http.StatusOK)
 
-	// Gekillter Agent feuert nicht (Kill-Switch geht vor Dedup).
+	// A killed agent does not fire (the kill switch comes before the dedup).
 	admin.expect(http.MethodPost, "/api/v1/agents/"+agent.ID.String()+"/kill", nil, http.StatusOK)
 	conflict := admin.expect(http.MethodPost, fire, nil, http.StatusConflict)
-	if msg, _ := conflict["error"].(string); !strings.Contains(msg, "gestoppt") {
-		t.Fatalf("kill-fehler erwartet, got %v", conflict)
+	if msg, _ := conflict["error"].(string); !strings.Contains(msg, "stopped") {
+		t.Fatalf("expected the kill error, got %v", conflict)
 	}
 }

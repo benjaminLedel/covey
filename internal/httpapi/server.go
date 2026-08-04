@@ -1,6 +1,6 @@
-// Package httpapi ist der API/BFF-Teil des Binaries (spec/10): REST-API mit
-// RBAC, Daemon-WebSocket, SSE-Live-Updates, Zammad-Webhook und die
-// eingebettete Admin-SPA.
+// Package httpapi is the API/BFF part of the binary (spec/10): REST API with
+// RBAC, daemon WebSocket, SSE live updates, Zammad webhook and the embedded
+// admin SPA.
 package httpapi
 
 import (
@@ -50,65 +50,65 @@ type Server struct {
 	Dreams   *dream.Store
 	Org      *org.Store
 	Targets  *targetstore.Store
-	// Skills sind die Fähigkeiten der Agenten (Bibliothek + agent-eigen).
-	// nil = Feature abgeschaltet; die Skill-Routen antworten dann mit 503
-	// (dieselbe Bedeutung wie orchestrator.Options.Skills == nil).
+	// Skills are the agents' capabilities (library + agent-owned).
+	// nil = feature switched off; the skill routes then answer with 503
+	// (the same meaning as orchestrator.Options.Skills == nil).
 	Skills *skills.Store
 	Orch   *orchestrator.Orchestrator
-	WebFS  fs.FS // dist der SPA; nil = nur API
+	WebFS  fs.FS // dist of the SPA; nil = API only
 	Log    *slog.Logger
 
-	// Egress (UI-verwaltet). EgressStore ist immer gesetzt; EgressEnforced
-	// spiegelt die Prozess-Config, EgressDefaults sind die ENV-Zusätze aus
-	// COVEY_EGRESS_ALLOW (nur per Config änderbar). Die fachliche Basis-
-	// Allowlist liegt konfigurierbar in der DB (egress_default_hosts). Der
-	// Proxy lädt Änderungen selbst nach (Resolver-Cache mit TTL).
+	// Egress (UI-managed). EgressStore is always set; EgressEnforced mirrors
+	// the process config, EgressDefaults are the ENV additions from
+	// COVEY_EGRESS_ALLOW (changeable only via config). The functional base
+	// allowlist sits configurably in the DB (egress_default_hosts). The proxy
+	// reloads changes by itself (resolver cache with TTL).
 	EgressStore    *egress.Store
 	EgressEnforced bool
 	EgressDefaults []string
 
 	Templates *templates.Store
 
-	// Audit hält die Verwaltungshandlungen von Menschen fest (internal/audit).
-	// nil = kein Audit (Tests); die Middleware ist dann still.
+	// Audit records the administrative actions of humans (internal/audit).
+	// nil = no audit (tests); the middleware then stays silent.
 	Audit *audit.Store
 
-	// ReqLog protokolliert die HTTP-Requests an den Rändern (Webhooks rein,
-	// Zielsystem-Aufrufe raus). nil = abgeschaltet (COVEY_REQUEST_LOG=false).
+	// ReqLog logs the HTTP requests at the edges (webhooks in, target-system
+	// calls out). nil = switched off (COVEY_REQUEST_LOG=false).
 	ReqLog *reqlogstore.Store
 
-	// WebhookSecrets: Zielsystem-Name → Signatur-Secret
-	// (ENV COVEY_<SYSTEM>_WEBHOOK_SECRET, z. B. COVEY_ZAMMAD_WEBHOOK_SECRET).
+	// WebhookSecrets: target-system name → signature secret
+	// (ENV COVEY_<SYSTEM>_WEBHOOK_SECRET, e.g. COVEY_ZAMMAD_WEBHOOK_SECRET).
 	WebhookSecrets map[string]string
 	SessionTTL     time.Duration
-	// SiteURL ist die von außen erreichbare Adresse dieser Instanz: canonical
-	// und sitemap.xml der Website, die Webhook- und Trigger-URLs zum Kopieren,
-	// die Ziel-URL im herunterladbaren Skill. Leer = aus dem Request ableiten
-	// (origin() in seo.go), was hinter einem sauberen Reverse-Proxy genügt.
+	// SiteURL is this instance's externally reachable address: canonical and
+	// sitemap.xml of the website, the webhook and trigger URLs to copy, the
+	// target URL in the downloadable skill. Empty = derive it from the request
+	// (origin() in seo.go), which suffices behind a clean reverse proxy.
 	//
-	// cfg.PublicURL steht hier bewusst NICHT: Das ist die Adresse, über die
-	// Sandboxen die Control Plane erreichen — beim docker-Provider meist ein
-	// Loopback. Sie in einer HTTP-Antwort zu zeigen wäre immer falsch, und
-	// solange sie dem Server gar nicht bekannt ist, kann es auch nicht passieren.
+	// cfg.PublicURL deliberately does NOT belong here: that is the address over
+	// which sandboxes reach the control plane — with the docker provider mostly
+	// a loopback. Showing it in an HTTP response would always be wrong, and as
+	// long as the server does not even know it, that cannot happen.
 	SiteURL string
-	// CookieSecure setzt das Secure-Flag auf dem Session-Cookie (HTTPS-only).
+	// CookieSecure sets the Secure flag on the session cookie (HTTPS only).
 	CookieSecure bool
 
-	// BaseCtx ist der Lebenszyklus des Servers. Hintergrund-Arbeit, die einen
-	// Request überdauern soll (der Nachtlauf eines Agenten etwa), hängt daran
-	// statt an context.Background() — sonst liefe sie nach einem Shutdown
-	// weiter, ohne dass jemand auf sie wartet oder sie abbrechen könnte.
-	// nil = kein Lebenszyklus bekannt (Tests); dann greift context.Background().
+	// BaseCtx is the server's lifecycle. Background work that is meant to
+	// outlive a request (an agent's night run, say) hangs off it instead of
+	// context.Background() — otherwise it would keep running after a shutdown
+	// without anyone waiting for it or being able to cancel it.
+	// nil = no lifecycle known (tests); context.Background() then applies.
 	BaseCtx context.Context
 
-	// loginLimiter bremst Brute-Force auf /auth/login, webhookLimiter die
-	// unauthentifizierten Webhook-Endpunkte (beide lazy in Handler init.).
+	// loginLimiter slows brute force on /auth/login, webhookLimiter the
+	// unauthenticated webhook endpoints (both initialized lazily in Handler).
 	loginLimiter   *loginLimiter
 	webhookLimiter *webhookLimiter
 
-	// seo ist die Landkarte der öffentlichen Website aus dist/seo.json
-	// (internal/httpapi/seo.go). Sie trägt die Adressen für sitemap.xml und
-	// die Pfad-Präfixe der angemeldeten Oberfläche.
+	// seo is the map of the public website from dist/seo.json
+	// (internal/httpapi/seo.go). It carries the addresses for sitemap.xml and
+	// the path prefixes of the signed-in interface.
 	seo seoIndex
 }
 
@@ -122,22 +122,22 @@ func (s *Server) Handler() http.Handler {
 	s.seo = ladeSEOIndex(s.WebFS)
 	mux := http.NewServeMux()
 
-	// Health/Readiness (ohne Auth).
+	// Health/readiness (without auth).
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("ok"))
 	})
 	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
 		if err := s.Pool.Ping(r.Context()); err != nil {
-			http.Error(w, "db nicht erreichbar", http.StatusServiceUnavailable)
+			http.Error(w, "db not reachable", http.StatusServiceUnavailable)
 			return
 		}
 		w.Write([]byte("ready"))
 	})
 
-	// Herkunft des laufenden Binaries (Version, Commit, Bauzeit) — der Fuß
-	// der UI zeigt sie an. Angemeldet, nicht öffentlich: welcher Commit auf
-	// einer Instanz läuft, geht Dritte nichts an.
+	// Provenance of the running binary (version, commit, build time) — the
+	// footer of the UI shows it. Signed in, not public: which commit runs on an
+	// instance is nobody else's business.
 	mux.Handle("GET /api/v1/version", s.auth(func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, buildinfo.Get())
 	}))
@@ -151,17 +151,17 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/auth/sessions", s.auth(s.handleListSessions))
 	mux.Handle("DELETE /api/v1/auth/sessions", s.auth(s.handleRevokeOtherSessions))
 
-	// Agenten & Backlog. Lesen dürfen alle Rollen (rollen-gescopte Sichten
-	// im MVP: gleiche Daten, unterschiedliche Schreibrechte).
+	// Agents & backlog. All roles may read (role-scoped views in the MVP: same
+	// data, different write rights).
 	anyRole := []string{identity.RolePlatformAdmin, identity.RoleAgentOwner,
 		identity.RoleSecurity, identity.RoleAuditor, identity.RoleControlling}
 	manage := []string{identity.RolePlatformAdmin, identity.RoleAgentOwner}
 	securityRoles := []string{identity.RolePlatformAdmin, identity.RoleSecurity}
 
-	// Erste Schritte als Checkliste über den echten Org-Zustand (onboarding.go).
-	// Die Audit-Spur lesen dürfen die, die sie angeht: Plattform-Admin,
-	// Security und Auditor. Agent-Owner und Controlling nicht — sie stehen
-	// selbst darin.
+	// First steps as a checklist over the real org state (onboarding.go).
+	// The audit trail may be read by those it concerns: platform admin,
+	// security and auditor. Agent owner and controlling may not — they appear
+	// in it themselves.
 	mux.Handle("GET /api/v1/audit", s.rbac([]string{identity.RolePlatformAdmin,
 		identity.RoleSecurity, identity.RoleAuditor}, s.handleAuditLog))
 	mux.Handle("GET /api/v1/onboarding", s.rbac(anyRole, s.handleOnboarding))
@@ -172,10 +172,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/agents/{id}/config", s.agentScoped(anyRole, s.handleGetConfig))
 	mux.Handle("GET /api/v1/agents/{id}/export", s.agentScoped(append(manage, identity.RoleSecurity), s.handleExportAgent))
 	mux.Handle("GET /api/v1/agents/{id}/diagnostics", s.agentScoped(append(manage, identity.RoleSecurity), s.handleAgentDiagnostics))
-	// Der Arbeitsplatz: das persistente Home als Dateibaum (files.go). Lesen
-	// darf zusätzlich Security — wer einen Agenten untersucht, muss sehen, was
-	// bei ihm liegt. Schreiben bleibt bei den Verwaltern: eine Datei im Home
-	// ist Konfiguration des Agenten, kein Audit-Vorgang.
+	// The workplace: the persistent home as a file tree (files.go). Security
+	// may read on top of that — whoever investigates an agent has to see what
+	// lies with it. Writing stays with the administrators: a file in the home
+	// is configuration of the agent, not an audit action.
 	mux.Handle("GET /api/v1/agents/{id}/files", s.agentScoped(append(manage, identity.RoleSecurity), s.handleListFiles))
 	mux.Handle("GET /api/v1/agents/{id}/files/content", s.agentScoped(append(manage, identity.RoleSecurity), s.handleReadFile))
 	mux.Handle("GET /api/v1/agents/{id}/files/download", s.agentScoped(append(manage, identity.RoleSecurity), s.handleDownloadFile))
@@ -189,10 +189,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/skills/covey-agent.zip", s.rbac(anyRole, s.handleDownloadSkill))
 	mux.Handle("POST /api/v1/agents/import", s.rbac(manage, s.handleImportAgent))
 	mux.Handle("PUT /api/v1/agents/{id}/config", s.agentScoped(manage, s.handlePutConfig))
-	// Bestehenden Agenten aus einem Bundle überschreiben — nur die Config-Dateien.
+	// Overwrite an existing agent from a bundle — the config files only.
 	mux.Handle("POST /api/v1/agents/{id}/config/import", s.agentScoped(manage, s.handleImportConfig))
-	// KI-Assistent zum Anpassen von Agenten (Config-Copilot, FR-001): nur
-	// verfügbar, wenn org-weit ein Claude-Credential hinterlegt ist.
+	// AI assistant for adapting agents (config copilot, FR-001): available only
+	// when a Claude credential is stored org-wide.
 	mux.Handle("GET /api/v1/assist/status", s.rbac(anyRole, s.handleAssistStatus))
 	mux.Handle("POST /api/v1/agents/{id}/config/assist", s.agentScoped(manage, s.handleConfigAssist))
 	mux.Handle("GET /api/v1/agents/{id}/heartbeats", s.agentScoped(anyRole, s.handleHeartbeats))
@@ -241,8 +241,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/targets/{name}/tools", s.rbac(anyRole, s.handleListMCPTools))
 	mux.Handle("PATCH /api/v1/targets/{name}", s.rbac(securityRoles, s.handleToggleTarget))
 	mux.Handle("DELETE /api/v1/targets/{name}", s.rbac(securityRoles, s.handleDeleteTarget))
-	// Was der Agent in welchem Zielsystem tun kann — Plugin, Zugang und
-	// Aktionsliste an einer Stelle (targets.go).
+	// What the agent can do in which target system — plugin, access and action
+	// list in one place (targets.go).
 	mux.Handle("GET /api/v1/agents/{id}/systems", s.agentScoped(anyRole, s.handleAgentSystems))
 	mux.Handle("GET /api/v1/agents/{id}/tools/{system}", s.agentScoped(anyRole, s.handleGetAgentTools))
 	mux.Handle("PUT /api/v1/agents/{id}/tools/{system}", s.agentScoped(securityRoles, s.handleSetAgentTools))
@@ -269,14 +269,14 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/tasks/{id}/transitions", s.taskScoped(anyRole, s.handleTransitions))
 	mux.Handle("GET /api/v1/tasks/{id}/notes", s.taskScoped(anyRole, s.handleTaskNotes))
 
-	// Custom-Stages (Kanban-Overlay, pro Agent).
+	// Custom stages (kanban overlay, per agent).
 	mux.Handle("GET /api/v1/agents/{id}/stages", s.agentScoped(anyRole, s.handleListStages))
 	mux.Handle("POST /api/v1/agents/{id}/stages", s.agentScoped(manage, s.handleCreateStage))
 	mux.Handle("POST /api/v1/agents/{id}/stages/reorder", s.agentScoped(manage, s.handleReorderStages))
 	mux.Handle("PATCH /api/v1/stages/{id}", s.stageScoped(manage, s.handleUpdateStage))
 	mux.Handle("DELETE /api/v1/stages/{id}", s.stageScoped(manage, s.handleDeleteStage))
 
-	// Vertrauensschicht.
+	// Trust layer.
 	mux.Handle("GET /api/v1/approvals", s.rbac(anyRole, s.handleListApprovals))
 	mux.Handle("POST /api/v1/approvals/{id}/decide", s.rbac(append(manage, identity.RoleSecurity), s.handleDecideApproval))
 	mux.Handle("GET /api/v1/guardrails", s.rbac(anyRole, s.handleListGuardrails))
@@ -285,7 +285,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/guardrails/{id}", s.rbac(securityRoles, s.handleDeleteGuardrail))
 	mux.Handle("POST /api/v1/guardrails/test", s.rbac(anyRole, s.handleTestGuardrail))
 	mux.Handle("GET /api/v1/guardrails/events", s.rbac(anyRole, s.handleGuardrailEvents))
-	// Egress: Status, Templates, Zuweisung pro Agent, Entscheidungs-Log.
+	// Egress: status, templates, per-agent assignment, decision log.
 	mux.Handle("GET /api/v1/egress", s.rbac(anyRole, s.handleEgressStatus))
 	mux.Handle("POST /api/v1/egress/defaults", s.rbac(securityRoles, s.handleAddEgressDefaultHost))
 	mux.Handle("DELETE /api/v1/egress/defaults/{id}", s.rbac(securityRoles, s.handleDeleteEgressDefaultHost))
@@ -317,12 +317,12 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/fleet/resume", s.rbac(securityRoles, s.handleFleetResume))
 	mux.Handle("GET /api/v1/fleet", s.rbac(anyRole, s.handleFleetStatus))
 
-	// Agenten-Skills: Org-Bibliothek, Verlinkung, agent-eigene Fähigkeiten
-	// (agentskills.go). Lesen darf jede Rolle — Skills sind Prozeduren, keine
-	// Geheimnisse, und stehen damit auf einer Stufe mit der Agenten-Config.
-	// Die Route /api/v1/skills/covey-agent.zip weiter oben ist etwas anderes
-	// (der Claude-Code-Skill zum Herunterladen) und geht als literales Segment
-	// dem {id}-Platzhalter vor.
+	// Agent skills: org library, linking, agent-owned capabilities
+	// (agentskills.go). Every role may read — skills are procedures, not
+	// secrets, and thus stand on the same level as the agent config.
+	// The route /api/v1/skills/covey-agent.zip further up is something else
+	// (the Claude Code skill to download) and, as a literal segment, takes
+	// precedence over the {id} placeholder.
 	mux.Handle("GET /api/v1/skills", s.rbac(anyRole, s.handleListSkills))
 	mux.Handle("POST /api/v1/skills", s.rbac(manage, s.handleCreateSkill))
 	mux.Handle("GET /api/v1/skills/{id}", s.rbac(anyRole, s.handleGetSkill))
@@ -333,14 +333,14 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/agents/{id}/skills", s.agentScoped(anyRole, s.handleAgentSkills))
 	mux.Handle("POST /api/v1/agents/{id}/skills", s.agentScoped(manage, s.handleCreateAgentSkill))
 
-	// Vorlagen-Bibliothek.
+	// Template library.
 	mux.Handle("GET /api/v1/templates", s.rbac(anyRole, s.handleListTemplates))
 	mux.Handle("GET /api/v1/templates/{id}", s.rbac(anyRole, s.handleGetTemplate))
 	mux.Handle("POST /api/v1/templates", s.rbac(manage, s.handleSaveTemplate))
 	mux.Handle("DELETE /api/v1/templates/{id}", s.rbac(manage, s.handleDeleteTemplate))
 	mux.Handle("POST /api/v1/templates/{id}/instantiate", s.rbac(manage, s.handleInstantiateTemplate))
 
-	// Administration: Benutzer- und Mandanten-Verwaltung (nur platform_admin).
+	// Administration: user and tenant management (platform_admin only).
 	adminOnly := []string{identity.RolePlatformAdmin}
 	mux.Handle("GET /api/v1/users", s.rbac(adminOnly, s.handleListUsers))
 	mux.Handle("POST /api/v1/users", s.rbac(adminOnly, s.handleCreateUser))
@@ -351,53 +351,52 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/orgs/{id}", s.rbac(adminOnly, s.handleUpdateOrg))
 	mux.Handle("DELETE /api/v1/orgs/{id}", s.rbac(adminOnly, s.handleDeleteOrg))
 
-	// Live-Updates.
+	// Live updates.
 	mux.Handle("GET /api/v1/events", s.auth(s.handleSSE))
 
-	// Request-Log (Plattform-Diagnose): die HTTP-Requests an den Rändern.
+	// Request log (platform diagnostics): the HTTP requests at the edges.
 	mux.Handle("GET /api/v1/platform/requests", s.rbac(securityRoles, s.handleListRequests))
 	mux.Handle("GET /api/v1/platform/requests/{id}", s.rbac(securityRoles, s.handleGetRequest))
 	mux.Handle("DELETE /api/v1/platform/requests", s.rbac(securityRoles, s.handleClearRequests))
 
-	// Maschinen-Endpunkte (eigene Auth: HMAC, Trigger-Token bzw. Daemon-JWT).
-	// Beide gehen durch logIncoming — auch (und gerade) wenn sie abgelehnt
-	// werden: ein Webhook, der an der Signatur scheitert, ist die häufigste
-	// Frage beim Anbinden eines Zielsystems.
+	// Machine endpoints (auth of their own: HMAC, trigger token or daemon JWT).
+	// Both go through logIncoming — also (and especially) when they are
+	// rejected: a webhook that fails on the signature is the most common
+	// question when hooking up a target system.
 	mux.HandleFunc("POST /api/webhooks/{system}/{agent}", s.logIncoming(s.handleTargetWebhook))
 	mux.HandleFunc("POST /api/trigger/{token}", s.logIncoming(s.handleAgentTrigger))
 	mux.HandleFunc("GET /api/daemon/ws", s.handleDaemonWS)
 
-	// Das Installationsskript dieser Instanz — bewusst ohne Anmeldung: Wer es
-	// abruft, hat noch nichts, womit er sich anmelden könnte. Es liefert die
-	// eigene Version mit, damit ein darüber installierter Runner zum Server
-	// passt (spec/16, „Protokoll-Version").
+	// This instance's installation script — deliberately without a login:
+	// whoever fetches it has nothing yet to log in with. It ships its own
+	// version along, so that a runner installed through it matches the server
+	// (spec/16, "protocol version").
 	mux.HandleFunc("GET /install.sh", s.handleInstallScript)
 
-	// Eingebettete SPA samt vorgerenderter öffentlicher Website.
+	// Embedded SPA together with the pre-rendered public website.
 	if s.WebFS != nil {
 		mux.HandleFunc("GET /robots.txt", s.handleRobots)
 		mux.HandleFunc("GET /sitemap.xml", s.handleSitemap)
 		mux.Handle("/", s.spaHandler(s.WebFS))
 	}
-	// Die Audit-Spur liegt INNEN, direkt um den Mux: Sie braucht den
-	// Principal, den die auth-Middleware je Route setzt, und den Statuscode,
-	// den der Handler schreibt.
-	// Die Schutz-Header auf ALLES legen, nicht nur auf die Oberfläche: Auch
-	// eine 404 und jede API-Antwort kommen von derselben Origin, und ein
-	// Endpunkt, der sie vergisst, ist genau die Lücke, die man nicht sucht.
-	// Handler mit eigenen Vorstellungen (die Datei-Vorschau setzt eine
-	// strengere CSP) überschreiben sie danach schlicht.
+	// The audit trail sits INSIDE, directly around the mux: it needs the
+	// principal that the auth middleware sets per route, and the status code
+	// that the handler writes.
+	// Put the protective headers on EVERYTHING, not just on the interface: a
+	// 404 and every API response come from the same origin too, and an endpoint
+	// that forgets them is exactly the gap nobody goes looking for. Handlers
+	// with ideas of their own (the file preview sets a stricter CSP) simply
+	// override them afterwards.
 	return s.mitSchutzHeadern(s.mitAuditSpur(mux))
 }
 
-// mitSchutzHeadern setzt die Sicherheits-Kopfzeilen vor jeder Antwort.
+// mitSchutzHeadern sets the security headers before every response.
 func (s *Server) mitSchutzHeadern(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		setzeSchutzHeader(w)
-		// HSTS nur bei einer Instanz, die tatsächlich per HTTPS läuft
-		// (CookieSecure ist derselbe Schalter). Auf einer lokalen
-		// HTTP-Instanz würde der Header den Browser für Monate auf https
-		// festnageln und den Zugang verbauen.
+		// HSTS only on an instance that actually runs over HTTPS (CookieSecure
+		// is the same switch). On a local HTTP instance the header would nail
+		// the browser to https for months and block the way in.
 		if s.CookieSecure {
 			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		}
@@ -405,9 +404,9 @@ func (s *Server) mitSchutzHeadern(next http.Handler) http.Handler {
 	})
 }
 
-// --- Hilfen ---
+// --- Helpers ---
 
-// baseCtx ist der Lebenszyklus des Servers, mit Rückfall für Tests.
+// baseCtx is the server's lifecycle, with a fallback for tests.
 func (s *Server) baseCtx() context.Context {
 	if s.BaseCtx != nil {
 		return s.BaseCtx
@@ -435,7 +434,7 @@ func mapErr(w http.ResponseWriter, err error) {
 		errors.Is(err, observability.ErrNotFound), errors.Is(err, secrets.ErrNotFound),
 		errors.Is(err, org.ErrNotFound), errors.Is(err, org.ErrDeptNotFound),
 		errors.Is(err, pgx.ErrNoRows):
-		writeErr(w, http.StatusNotFound, "nicht gefunden")
+		writeErr(w, http.StatusNotFound, "not found")
 	case errors.Is(err, backlog.ErrInvalidTransition),
 		errors.Is(err, org.ErrLastAdmin), errors.Is(err, org.ErrEmailTaken),
 		errors.Is(err, org.ErrManagerCycle):
@@ -445,7 +444,7 @@ func mapErr(w http.ResponseWriter, err error) {
 	}
 }
 
-// --- Session-Auth (builtin: Cookie + Hash in Postgres) ---
+// --- Session auth (builtin: cookie + hash in Postgres) ---
 
 type ctxKey string
 
@@ -465,16 +464,16 @@ func (s *Server) auth(next http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("covey_session")
 		if err != nil {
-			writeErr(w, http.StatusUnauthorized, "nicht angemeldet")
+			writeErr(w, http.StatusUnauthorized, "not signed in")
 			return
 		}
 		p, err := s.sessions().Principal(r.Context(), hashToken(cookie.Value))
 		if err != nil {
-			writeErr(w, http.StatusUnauthorized, "session abgelaufen")
+			writeErr(w, http.StatusUnauthorized, "session expired")
 			return
 		}
-		// Den Akteur zusätzlich an die Audit-Middleware zurückmelden: Sie
-		// liegt weiter außen und sieht den Context nicht, den wir hier anlegen.
+		// Report the actor back to the audit middleware on top of that: it sits
+		// further out and does not see the context we create here.
 		if h, ok := r.Context().Value(akteurKey).(*akteurHalter); ok {
 			h.p = p
 		}
@@ -482,7 +481,7 @@ func (s *Server) auth(next http.HandlerFunc) http.Handler {
 	})
 }
 
-// rbac erzwingt die rollen-gescopten Rechte (spec/09).
+// rbac enforces the role-scoped rights (spec/09).
 func (s *Server) rbac(roles []string, next http.HandlerFunc) http.Handler {
 	return s.auth(func(w http.ResponseWriter, r *http.Request) {
 		p := principalFrom(r)
@@ -492,51 +491,50 @@ func (s *Server) rbac(roles []string, next http.HandlerFunc) http.Handler {
 				return
 			}
 		}
-		writeErr(w, http.StatusForbidden, "rolle "+p.Role+" hat hier keine Rechte")
+		writeErr(w, http.StatusForbidden, "role "+p.Role+" has no rights here")
 	})
 }
 
-// agentScoped ist rbac PLUS der Nachweis, dass der Agent aus der URL zur
-// Organisation des Anrufers gehört. Jede Route unter /agents/{id}/… läuft
-// darüber.
+// agentScoped is rbac PLUS the proof that the agent from the URL belongs to
+// the caller's organization. Every route under /agents/{id}/… runs through it.
 //
-// Der Grund für eine Middleware statt einer Zeile im Handler: Diese Prüfung
-// war zuvor Sache jedes einzelnen Handlers — und bei 25 von 67 schlicht
-// vergessen. Fremde Config, fremdes Backlog, fremdes Recording, fremde Kosten
-// waren damit lesbar, wake/kill/budget sogar auslösbar. Eine Grenze, an die
-// sich 67 Aufrufer erinnern müssen, ist keine Grenze; eine, an der man
-// vorbeikommen MUSS, schon.
+// The reason for a middleware instead of one line in the handler: this check
+// used to be every single handler's business — and in 25 out of 67 it was
+// simply forgotten. Foreign config, foreign backlog, foreign recording, foreign
+// cost were readable that way, wake/kill/budget even triggerable. A boundary
+// that 67 callers have to remember is no boundary; one you MUST pass through
+// is.
 //
-// Der aufgelöste Agent liegt danach im Context — die Handler brauchen ihn
-// meist ohnehin und sparen sich die zweite Abfrage.
+// The resolved agent then lies in the context — the handlers need it anyway
+// most of the time and save themselves the second query.
 func (s *Server) agentScoped(roles []string, next http.HandlerFunc) http.Handler {
 	return s.rbac(roles, func(w http.ResponseWriter, r *http.Request) {
 		id, err := uuid.Parse(r.PathValue("id"))
 		if err != nil {
-			writeErr(w, http.StatusBadRequest, "ungültige id")
+			writeErr(w, http.StatusBadRequest, "invalid id")
 			return
 		}
 		p := principalFrom(r)
 		agent, err := s.Registry.Get(r.Context(), id)
-		// Fremd oder nicht vorhanden ist dieselbe Antwort: Ob es einen Agenten
-		// mit dieser ID irgendwo gibt, geht eine andere Organisation nichts an.
+		// Foreign or non-existent is the same answer: whether an agent with
+		// this id exists somewhere is no other organization's business.
 		if err != nil || agent.OrgID != p.OrgID {
-			writeErr(w, http.StatusNotFound, "agent nicht gefunden")
+			writeErr(w, http.StatusNotFound, "agent not found")
 			return
 		}
 		next(w, r.WithContext(context.WithValue(r.Context(), agentKey, agent)))
 	})
 }
 
-// taskScoped/stageScoped/pageScoped sind dasselbe Muster wie agentScoped für
-// die übrigen Objekte mit eigener ID. Aufgaben, Board-Spalten und Wiki-Seiten
-// waren aus fremden Organisationen les- und veränderbar, weil die Prüfung auch
-// hier Sache des Handlers war — und dort fehlte.
+// taskScoped/stageScoped/pageScoped are the same pattern as agentScoped for
+// the remaining objects with an id of their own. Tasks, board columns and wiki
+// pages were readable and changeable from foreign organizations because the
+// check was the handler's business here too — and was missing there.
 //
-// Bewusst drei kleine Funktionen statt einer generischen: Die Frage „gehört
-// das mir?" wird je Objekt anders beantwortet (Aufgaben tragen die
-// Organisation selbst, Spalten und Seiten erst über ihren Agenten). Ein
-// Generikum müsste das doch wieder aufdröseln.
+// Deliberately three small functions instead of one generic: the question "is
+// this mine?" is answered differently per object (tasks carry the organization
+// themselves, columns and pages only via their agent). A generic one would have
+// to untangle that again anyway.
 func (s *Server) taskScoped(roles []string, next http.HandlerFunc) http.Handler {
 	return s.idScoped(roles, next, func(r *http.Request, orgID, id uuid.UUID) bool {
 		return s.Backlog.InOrg(r.Context(), orgID, id)
@@ -555,30 +553,30 @@ func (s *Server) pageScoped(roles []string, next http.HandlerFunc) http.Handler 
 	})
 }
 
-// idScoped ist der gemeinsame Rumpf: ID aus dem Pfad, Zugehörigkeit prüfen,
-// sonst „nicht gefunden" — nie „verboten", denn die Existenz eines Objekts in
-// einer anderen Organisation ist selbst schon eine Auskunft.
+// idScoped is the shared body: id from the path, check the affiliation,
+// otherwise "not found" — never "forbidden", because the existence of an object
+// in another organization is itself already a disclosure.
 func (s *Server) idScoped(roles []string, next http.HandlerFunc,
 	gehoert func(*http.Request, uuid.UUID, uuid.UUID) bool) http.Handler {
 	return s.rbac(roles, func(w http.ResponseWriter, r *http.Request) {
 		id, err := uuid.Parse(r.PathValue("id"))
 		if err != nil {
-			writeErr(w, http.StatusBadRequest, "ungültige id")
+			writeErr(w, http.StatusBadRequest, "invalid id")
 			return
 		}
 		if !gehoert(r, principalFrom(r).OrgID, id) {
-			writeErr(w, http.StatusNotFound, "nicht gefunden")
+			writeErr(w, http.StatusNotFound, "not found")
 			return
 		}
 		next(w, r)
 	})
 }
 
-// agentKey trägt den geprüften Agenten durch den Context.
+// agentKey carries the checked agent through the context.
 const agentKey ctxKey = "agent"
 
-// agentFrom liefert den von agentScoped geprüften Agenten. Nur in Handlern
-// gültig, die über agentScoped eingehängt sind.
+// agentFrom returns the agent checked by agentScoped. Valid only in handlers
+// that are hooked in via agentScoped.
 func agentFrom(r *http.Request) agents.Agent {
 	a, _ := r.Context().Value(agentKey).(agents.Agent)
 	return a
@@ -590,19 +588,19 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		Password string `json:"password"`
 	}
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
 	}
 	now := time.Now()
 	key := loginKey(r, in.Email)
 	if s.loginLimiter.blocked(key, now) {
-		writeErr(w, http.StatusTooManyRequests, "zu viele Fehlversuche — bitte später erneut versuchen")
+		writeErr(w, http.StatusTooManyRequests, "too many failed attempts — please try again later")
 		return
 	}
 	p, err := s.Identity.AuthenticateHuman(r.Context(), identity.Credentials{Email: in.Email, Password: in.Password})
 	if err != nil {
 		s.loginLimiter.fail(key, now)
-		writeErr(w, http.StatusUnauthorized, "ungültige Zugangsdaten")
+		writeErr(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
 	s.loginLimiter.reset(key)
@@ -613,12 +611,11 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	// SameSite=Strict statt Lax: Covey ist ein Verwaltungswerkzeug, in das man
-	// sich hineinnavigiert — es gibt keine Deep-Links von fremden Seiten, auf
-	// die man Rücksicht nehmen müsste. Lax schickt das Cookie bei jeder
-	// Top-Level-Navigation von außen mit; Strict tut das nicht und nimmt damit
-	// die ganze Klasse von Angriffen aus dem Spiel, die mit einem Klick auf
-	// einen fremden Link beginnen.
+	// SameSite=Strict instead of Lax: Covey is an administration tool you
+	// navigate into — there are no deep links from foreign pages that would
+	// need any consideration. Lax sends the cookie along on every top-level
+	// navigation from outside; Strict does not, and thereby takes the whole
+	// class of attacks that begin with a click on a foreign link out of play.
 	http.SetCookie(w, &http.Cookie{Name: "covey_session", Value: token, Path: "/",
 		HttpOnly: true, Secure: s.CookieSecure, SameSite: http.SameSiteStrictMode, MaxAge: int(s.SessionTTL.Seconds())})
 	writeJSON(w, http.StatusOK, p)

@@ -10,8 +10,8 @@ import (
 	"covey/internal/target"
 )
 
-// DownloadUploadResult ist die Antwort der download_upload-Aktion: wo das Bild
-// in der Sandbox liegt und wie der Agent es ansieht.
+// DownloadUploadResult is the answer of the download_upload action: where the
+// image lies in the sandbox and how the agent looks at it.
 type DownloadUploadResult struct {
 	Path        string `json:"path"`
 	Filename    string `json:"filename"`
@@ -20,15 +20,15 @@ type DownloadUploadResult struct {
 	Hint        string `json:"hint"`
 }
 
-// DownloadUploadToSandbox holt einen an ein Issue/MR angehängten Upload
-// (Screenshot) gebrokert in die Sandbox — das Token bleibt im Daemon, die Datei
-// landet unter <workdir>/uploads/. Der Agent liest sie danach mit dem Read-Tool
-// (Vision) und kann den Screenshot tatsächlich ansehen. ref ist die Referenz aus
-// der Issue-Beschreibung: "/uploads/<secret>/<datei>.png", die volle Web-URL oder
-// schon "<secret>/<datei>".
+// DownloadUploadToSandbox fetches an upload attached to an issue/MR (a
+// screenshot) into the sandbox in brokered fashion — the token stays in the
+// daemon, the file lands under <workdir>/uploads/. The agent then reads it with
+// the Read tool (vision) and can actually look at the screenshot. ref is the
+// reference from the issue description: "/uploads/<secret>/<file>.png", the full
+// web URL or already "<secret>/<file>".
 func DownloadUploadToSandbox(ctx context.Context, gc *Client, projectID int, ref, workdir string) (DownloadUploadResult, error) {
 	if workdir == "" {
-		return DownloadUploadResult{}, fmt.Errorf("download_upload braucht eine Sandbox (kein Arbeitsverzeichnis im Kontext)")
+		return DownloadUploadResult{}, fmt.Errorf("download_upload needs a sandbox (no working directory in the context)")
 	}
 	name, contentType, body, err := gc.DownloadUpload(ctx, projectID, ref)
 	if err != nil {
@@ -36,24 +36,24 @@ func DownloadUploadToSandbox(ctx context.Context, gc *Client, projectID int, ref
 	}
 	defer body.Close()
 
-	// Ablegen, Namenshärtung, Limit und Kollisionsschutz macht der gemeinsame
-	// Helfer (internal/target/sandboxdatei.go) — hier in der Strom-Variante,
-	// weil der Upload nicht vorher im Speicher liegt.
-	datei, err := target.StromAblegen(workdir, "uploads", name, body, maxUploadBytes, contentType)
+	// Storing, name hardening, the limit and collision protection are done by
+	// the shared helper (internal/target/sandboxdatei.go) — here in the stream
+	// variant, because the upload does not lie in memory beforehand.
+	file, err := target.StoreStream(workdir, "uploads", name, body, maxUploadBytes, contentType)
 	if err != nil {
 		return DownloadUploadResult{}, err
 	}
 	return DownloadUploadResult{
-		Path:        datei.Pfad,
-		Filename:    datei.Dateiname,
-		ContentType: datei.ContentType,
-		Bytes:       datei.Bytes,
-		Hint:        datei.Hinweis,
+		Path:        file.Path,
+		Filename:    file.FileName,
+		ContentType: file.ContentType,
+		Bytes:       file.Bytes,
+		Hint:        file.Hint,
 	}, nil
 }
 
-// UploadResultOut ist die Antwort der upload-Aktion: die Markdown-Referenz zum
-// Einbetten in einen comment_mr-Body plus die relative URL.
+// UploadResultOut is the answer of the upload action: the Markdown reference
+// for embedding in a comment_mr body plus the relative URL.
 type UploadResultOut struct {
 	Markdown string `json:"markdown"`
 	URL      string `json:"url"`
@@ -62,16 +62,16 @@ type UploadResultOut struct {
 	Hint     string `json:"hint"`
 }
 
-// UploadFromSandbox lädt eine Datei aus der Sandbox (z. B. einen Browser-
-// Screenshot) gebrokert an ein GitLab-Projekt und liefert die Markdown-Referenz
-// zurück, die der Agent in comment_mr einbettet. Der Pfad wird sicher gegen das
-// Arbeitsverzeichnis aufgelöst — kein Ausbruch per ".." oder absolutem Pfad.
+// UploadFromSandbox uploads a file from the sandbox (e.g. a browser screenshot)
+// in brokered fashion to a GitLab project and returns the Markdown reference
+// the agent embeds in comment_mr. The path is resolved safely against the
+// working directory — no escape via ".." or an absolute path.
 func UploadFromSandbox(ctx context.Context, gc *Client, projectID int, path, workdir string) (UploadResultOut, error) {
 	if workdir == "" {
-		return UploadResultOut{}, fmt.Errorf("upload braucht eine Sandbox (kein Arbeitsverzeichnis im Kontext)")
+		return UploadResultOut{}, fmt.Errorf("upload needs a sandbox (no working directory in the context)")
 	}
 	if projectID == 0 {
-		return UploadResultOut{}, fmt.Errorf("project_id fehlt")
+		return UploadResultOut{}, fmt.Errorf("project_id missing")
 	}
 	local, err := resolveInWorkdir(workdir, path)
 	if err != nil {
@@ -79,10 +79,10 @@ func UploadFromSandbox(ctx context.Context, gc *Client, projectID int, path, wor
 	}
 	data, err := os.ReadFile(local)
 	if err != nil {
-		return UploadResultOut{}, fmt.Errorf("datei lesen: %w", err)
+		return UploadResultOut{}, fmt.Errorf("read file: %w", err)
 	}
 	if len(data) > maxUploadBytes {
-		return UploadResultOut{}, fmt.Errorf("datei größer als %d MB — abgebrochen", maxUploadBytes>>20)
+		return UploadResultOut{}, fmt.Errorf("file larger than %d MB — aborted", maxUploadBytes>>20)
 	}
 	res, err := gc.UploadFile(ctx, projectID, filepath.Base(local), data)
 	if err != nil {
@@ -97,23 +97,23 @@ func UploadFromSandbox(ctx context.Context, gc *Client, projectID int, path, wor
 		URL:      res.URL,
 		Filename: filepath.Base(local),
 		Bytes:    len(data),
-		Hint:     "Diese Markdown-Referenz in den comment_mr-Body einbetten, damit der Screenshot direkt im MR erscheint.",
+		Hint:     "Embed this Markdown reference in the comment_mr body so that the screenshot appears directly in the MR.",
 	}, nil
 }
 
-// resolveInWorkdir löst einen Sandbox-Pfad sicher gegen das Arbeitsverzeichnis
-// auf — kein Ausbruch per ".." oder absolutem Pfad außerhalb.
+// resolveInWorkdir resolves a sandbox path safely against the working
+// directory — no escape via ".." or an absolute path outside it.
 func resolveInWorkdir(workdir, p string) (string, error) {
 	p = strings.TrimSpace(p)
 	if p == "" {
-		return "", fmt.Errorf("path fehlt")
+		return "", fmt.Errorf("path missing")
 	}
 	if !filepath.IsAbs(p) {
 		p = filepath.Join(workdir, p)
 	}
 	resolved := filepath.Clean(p)
 	if resolved != workdir && !strings.HasPrefix(resolved, workdir+string(filepath.Separator)) {
-		return "", fmt.Errorf("pfad %q liegt ausserhalb des Sandbox-Arbeitsverzeichnisses", p)
+		return "", fmt.Errorf("path %q lies outside the sandbox working directory", p)
 	}
 	return resolved, nil
 }

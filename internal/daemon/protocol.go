@@ -1,6 +1,6 @@
-// Package daemon enthält das bidirektionale Daemon-Protokoll (spec/01) und
-// die Daemon-Seite (Runtime-Adapter, Action-Proxy). Das Protokoll ist die
-// stabile Naht des Systems: Runtimes ändern sich, das Protokoll bleibt.
+// Package daemon holds the bidirectional daemon protocol (spec/01) and the
+// daemon side of it (runtime adapter, action proxy). The protocol is the
+// system's stable seam: runtimes change, the protocol stays.
 package daemon
 
 import (
@@ -8,19 +8,19 @@ import (
 	"fmt"
 )
 
-// Message ist der Envelope beider Richtungen (JSON über WebSocket).
+// Message is the envelope for both directions (JSON over WebSocket).
 type Message struct {
 	Type    string          `json:"type"`
 	Payload json.RawMessage `json:"payload,omitempty"`
 }
 
-// Control Plane → Daemon. ("wake" ist kein WS-Frame: Wecken = die Control
-// Plane startet die Sandbox über den SandboxProvider; danach verbindet sich
-// der Daemon und meldet ready.)
+// Control plane → daemon. ("wake" is not a WS frame: waking = the control
+// plane starts the sandbox through the SandboxProvider; the daemon then
+// connects and reports ready.)
 const (
 	TypeInjectConfig = "inject_config"
 	TypeAssignTask   = "assign_task"
-	// #nosec G101 — der Name einer Nachrichtenart, kein Zugangsdatum.
+	// #nosec G101 — the name of a message kind, not a credential.
 	TypeInjectCredentials = "inject_credentials"
 	TypeApprovalDecision  = "approval_decision"
 	TypeInjectTarget      = "inject_target"
@@ -31,7 +31,7 @@ const (
 	TypeSleep             = "sleep"
 )
 
-// Daemon → Control Plane.
+// Daemon → control plane.
 const (
 	TypeReady             = "ready"
 	TypeEvent             = "event"
@@ -50,13 +50,13 @@ const (
 	TypeRequestCreateTask = "request_create_task"
 )
 
-// Control Plane → Daemon (Antwort auf request_create_task).
+// Control plane → daemon (answer to request_create_task).
 const TypeInjectCreateTask = "inject_create_task"
 
 type InjectConfig struct {
 	SystemPrompt string   `json:"system_prompt"`
 	Runtime      string   `json:"runtime"`
-	Model        string   `json:"model,omitempty"` // leer = Runtime-Default
+	Model        string   `json:"model,omitempty"` // empty = runtime default
 	AllowedTools []string `json:"allowed_tools,omitempty"`
 	MaxTurns     int      `json:"max_turns,omitempty"`
 	MaxBudgetUSD float64  `json:"max_budget_usd,omitempty"`
@@ -80,15 +80,15 @@ type InjectCredentials struct {
 	Token     string `json:"token,omitempty"`
 	BaseURL   string `json:"base_url,omitempty"`
 	TTLSecs   int    `json:"ttl_secs,omitempty"`
-	// EnvVar nennt die Ziel-Umgebungsvariable der Runtime, wenn die Control
-	// Plane den Credential-Typ kennt (aus dem Secret-Namen). Ist sie leer,
-	// rät der Daemon anhand des Token-Präfixes (Rückwärtskompatibilität).
+	// EnvVar names the runtime's target environment variable when the control
+	// plane knows the credential type (from the secret's name). If it is empty,
+	// the daemon guesses from the token prefix (backwards compatibility).
 	EnvVar string `json:"env_var,omitempty"`
 }
 
-// ApprovalDecision ist die zentrale Policy-Entscheidung zu einer Aktion:
-// approved (ggf. auto-allow), denied (Guard-Rail) oder pending (wartet auf
-// menschliche Freigabe; correlation_key weckt die Aufgabe nach der Entscheidung).
+// ApprovalDecision is the central policy decision on an action: approved
+// (possibly auto-allow), denied (guard-rail) or pending (waits for human
+// approval; correlation_key wakes the task once the decision is made).
 type ApprovalDecision struct {
 	RequestID      string `json:"request_id"`
 	Status         string `json:"status"` // approved | denied | pending
@@ -107,20 +107,20 @@ type Event struct {
 	Payload json.RawMessage `json:"payload"`
 }
 
-// Event-Kinds mit Sonderbehandlung in der Control Plane.
+// Event kinds with special handling in the control plane.
 const (
-	// EventKindAction ist eine ausgeführte Zielsystem-Aktion (→ Recording).
+	// EventKindAction is an executed target-system action (→ recording).
 	EventKindAction = "action"
-	// EventKindHTTP ist ein einzelner HTTP-Request, den ein Zielsystem-Plugin
-	// in der Sandbox gestellt hat (Payload: reqlog.Entry). Er geht nicht ins
-	// Recording, sondern ins Request-Log — Diagnose, kein Audit-Trail.
+	// EventKindHTTP is a single HTTP request a target-system plugin made inside
+	// the sandbox (payload: reqlog.Entry). It does not go into the recording but
+	// into the request log — diagnostics, not an audit trail.
 	EventKindHTTP = "http"
 )
 
-// RequestTarget/InjectTarget brokern die Definition eines Manifest-Plugins
-// (kind=custom) in die Sandbox: Der Daemon kennt kompilierte Plugins selbst,
-// hochgeladene Manifeste holt er sich von der Control Plane — nur wenn das
-// System für die Organisation aktiviert ist (fail-closed).
+// RequestTarget/InjectTarget broker the definition of a manifest plugin
+// (kind=custom) into the sandbox: the daemon knows compiled plugins itself,
+// uploaded manifests it fetches from the control plane — only if the system is
+// enabled for the organization (fail-closed).
 type RequestTarget struct {
 	RequestID string `json:"request_id"`
 	System    string `json:"system"`
@@ -131,18 +131,17 @@ type InjectTarget struct {
 	System    string `json:"system"`
 	Granted   bool   `json:"granted"`
 	Reason    string `json:"reason,omitempty"`
-	// Kind unterscheidet die Definition in Manifest: "custom" (REST-Manifest)
-	// oder "mcp" (MCP-Server-Config). Leer = custom (Rückwärtskompatibilität).
+	// Kind tells apart the definition in Manifest: "custom" (REST manifest) or
+	// "mcp" (MCP server config). Empty = custom (backwards compatibility).
 	Kind     string          `json:"kind,omitempty"`
 	Manifest json.RawMessage `json:"manifest,omitempty"`
 }
 
-// RequestOrgChart/InjectOrgChart brokern das Organigramm der Organisation in
-// die Sandbox: Menschen und Agenten samt Profilen (inkl. der konfigurierbaren
-// Profilfelder), Abteilungen und Vorgesetzten-Beziehungen. Read-only-Sicht auf
-// dieselben Daten wie GET /org/chart — der Agent fragt sie zur Laufzeit über
-// die Meta-Aktion covey/org_chart ab, statt einen veralteten Prompt-Stand zu
-// nutzen.
+// RequestOrgChart/InjectOrgChart broker the organization's org chart into the
+// sandbox: humans and agents with their profiles (including the configurable
+// profile fields), departments and reporting lines. A read-only view of the
+// same data as GET /org/chart — the agent queries it at runtime through the
+// meta action covey/org_chart instead of relying on a stale prompt snapshot.
 type RequestOrgChart struct {
 	RequestID string `json:"request_id"`
 }
@@ -162,7 +161,7 @@ type RequestCredential struct {
 type RequestApproval struct {
 	RequestID string          `json:"request_id"`
 	TaskID    string          `json:"task_id,omitempty"`
-	Action    string          `json:"action"` // z. B. "zammad:reply_external"
+	Action    string          `json:"action"` // e.g. "zammad:reply_external"
 	Params    json.RawMessage `json:"params"`
 }
 
@@ -170,36 +169,36 @@ type Blocked struct {
 	TaskID         string `json:"task_id"`
 	CorrelationKey string `json:"correlation_key"`
 	Question       string `json:"question,omitempty"`
-	SessionID      string `json:"session_id,omitempty"` // Runtime-Session für --resume
+	SessionID      string `json:"session_id,omitempty"` // runtime session for --resume
 }
 
-// TaskDone schließt eine Aufgabe ab. Status "incomplete" ist der Sonderfall des
-// am Turn-Limit abgebrochenen Laufs: Er hat gearbeitet, aber kein Ergebnis
-// erreicht. Result trägt dann den Übergabe-Stand („Erledigt / Offen / Nächster
-// Schritt"), den sich der Adapter aus der abgebrochenen Session geben lässt, und
-// SessionID die Session zum Wiederaufsetzen. Die Control Plane macht daraus eine
-// Folgeaufgabe statt eines stillen Fehlschlags (siehe orchestrator.handleIncomplete).
+// TaskDone closes a task. Status "incomplete" is the special case of a run cut
+// off at the turn limit: it did work but reached no result. Result then carries
+// the handover state ("Done / Open / Next step") the adapter obtains from the
+// aborted session, and SessionID the session to resume from. The control plane
+// turns that into a follow-up task instead of a silent failure (see
+// orchestrator.handleIncomplete).
 type TaskDone struct {
 	TaskID    string `json:"task_id"`
 	Status    string `json:"status"` // done | failed | escalated | incomplete
 	Result    string `json:"result,omitempty"`
 	Error     string `json:"error,omitempty"`
-	Memory    string `json:"memory,omitempty"` // Episode fürs Gedächtnis (M7)
+	Memory    string `json:"memory,omitempty"` // episode for the memory (M7)
 	SessionID string `json:"session_id,omitempty"`
 }
 
-// SetStage bewegt eine Aufgabe auf dem Kanban-Board in eine (ggf. neue) Stage.
-// Rein anzeigend — kein Lifecycle-Übergang. Ist Stage neu, legt die Control
-// Plane sie an ("der Agent erfindet Spalten"). TaskID leer = aktuelle Aufgabe.
+// SetStage moves a task on the kanban board into a (possibly new) stage. Purely
+// presentational — no lifecycle transition. If the stage is new, the control
+// plane creates it ("the agent invents columns"). Empty TaskID = current task.
 type SetStage struct {
 	TaskID string `json:"task_id,omitempty"`
 	Stage  string `json:"stage"`
 }
 
-// Note ist eine proaktive Notiz des Agenten mitten im Lauf. Scope "task" hängt
-// sie an die Aufgabe (Zwischenstände, Befunde — aufgabenbezogen), Scope
-// "memory" speist sie sofort ins Gedächtnis (allgemeingültige Erkenntnisse) —
-// ohne auf das memory-Feld von task_done zu warten. TaskID leer = aktuelle Aufgabe.
+// Note is a proactive note the agent takes mid-run. Scope "task" attaches it to
+// the task (interim findings — task-specific), scope "memory" feeds it into the
+// memory right away (generally valid insights) — without waiting for the memory
+// field of task_done. Empty TaskID = current task.
 type Note struct {
 	TaskID  string `json:"task_id,omitempty"`
 	Scope   string `json:"scope"` // task | memory
@@ -214,11 +213,11 @@ type Cost struct {
 	Model        string  `json:"model,omitempty"`
 }
 
-// RequestWiki/InjectWiki brokern die Wiki-Tools des Agenten (covey/wiki_*) und
-// die Home-Arbeitskopie in die Control Plane: search (Vektorsuche über die
-// Seiten), read (eine Seite per Slug), write (Seite anlegen/aktualisieren,
-// [[slug]]-Wikilinks im Body) und list (alle Seiten fürs Materialisieren ins
-// Home). Das Wiki liegt in der Control Plane (Quelle der Wahrheit, spec/05).
+// RequestWiki/InjectWiki broker the agent's wiki tools (covey/wiki_*) and the
+// home working copy into the control plane: search (vector search across the
+// pages), read (one page by slug), write (create/update a page, [[slug]]
+// wikilinks in the body) and list (all pages, for materializing into the home).
+// The wiki lives in the control plane (source of truth, spec/05).
 type RequestWiki struct {
 	RequestID string   `json:"request_id"`
 	Op        string   `json:"op"` // search | read | write | append | delete | list
@@ -226,9 +225,9 @@ type RequestWiki struct {
 	Slug      string   `json:"slug,omitempty"`
 	Title     string   `json:"title,omitempty"`
 	Body      string   `json:"body,omitempty"`
-	Type      string   `json:"type,omitempty"` // Entitätstyp der Seite (spec/05)
+	Type      string   `json:"type,omitempty"` // entity type of the page (spec/05)
 	Tags      []string `json:"tags,omitempty"`
-	Text      string   `json:"text,omitempty"` // nur append: der anzuhängende Absatz
+	Text      string   `json:"text,omitempty"` // append only: the paragraph to add
 }
 
 type InjectWiki struct {
@@ -238,19 +237,18 @@ type InjectWiki struct {
 	Data      json.RawMessage `json:"data,omitempty"`
 }
 
-// RequestSkills/InjectSkills holen die Skills eines Agenten zum Materialisieren
-// ins Home. Anders als beim Wiki gibt es keinen Rückweg: Skills sind Config aus
-// der Control Plane (Bibliothek oder agent-eigen), der Agent bearbeitet sie
-// nicht — ein Lauf, der sich selbst neue Fähigkeiten schreibt, wäre kein
-// Feature, sondern der Verlust der zentralen Kontrolle.
+// RequestSkills/InjectSkills fetch an agent's skills for materializing into the
+// home. Unlike the wiki there is no way back: skills are config from the
+// control plane (library or agent-owned), the agent does not edit them — a run
+// that writes itself new capabilities would not be a feature but the loss of
+// central control.
 type RequestSkills struct {
 	RequestID string `json:"request_id"`
 }
 
-// SkillDir ist ein Skill als Verzeichnis: Name, Beschreibung und die Dateien
-// relativ dazu. Die SKILL.md kommt OHNE Frontmatter — den erzeugt der Daemon
-// beim Schreiben aus Name und Beschreibung, damit beides nur an einer Stelle
-// gepflegt wird.
+// SkillDir is a skill as a directory: name, description and the files relative
+// to it. SKILL.md comes WITHOUT frontmatter — the daemon generates it while
+// writing, from name and description, so both are maintained in one place only.
 type SkillDir struct {
 	Name        string            `json:"name"`
 	Description string            `json:"description"`
@@ -264,19 +262,19 @@ type InjectSkills struct {
 	Skills    []SkillDir `json:"skills"`
 }
 
-// RequestCreateTask/InjectCreateTask sind die Meta-Aktion covey/create_task:
-// Der Agent legt eine Aufgabe an — entweder eine **Teilaufgabe** für sich
-// selbst (er zerlegt zu große Arbeit, statt ins Turn-Limit zu laufen) oder eine
-// **Delegation** an einen Kollegen (Agent = dessen Slug). Die neue Aufgabe hängt
-// als Kind an der laufenden Aufgabe; darüber zählt der Loop-Schutz.
+// RequestCreateTask/InjectCreateTask are the meta action covey/create_task: the
+// agent creates a task — either a **subtask** for itself (splitting work that
+// is too large instead of running into the turn limit) or a **delegation** to a
+// colleague (Agent = that colleague's slug). The new task hangs as a child off
+// the running task; that is what the loop protection counts.
 //
-// Anders als die übrigen covey-Meta-Aktionen läuft sie durch die Guard-Rails
-// (Subjekt covey:create_task bzw. covey:create_task:foreign bei Delegation) —
-// eine Aufgabe anzulegen erzeugt Arbeit und Kosten und muss regelbar sein.
+// Unlike the other covey meta actions it goes through the guard-rails (subject
+// covey:create_task, or covey:create_task:foreign when delegating) — creating a
+// task produces work and cost and must be governable.
 type RequestCreateTask struct {
 	RequestID string `json:"request_id"`
-	TaskID    string `json:"task_id,omitempty"` // laufende Aufgabe = Elternteil
-	Agent     string `json:"agent,omitempty"`   // Ziel-Agent (Slug); leer = ich selbst
+	TaskID    string `json:"task_id,omitempty"` // running task = parent
+	Agent     string `json:"agent,omitempty"`   // target agent (slug); empty = myself
 	Title     string `json:"title"`
 	Body      string `json:"body"`
 	Priority  int    `json:"priority,omitempty"`
@@ -286,11 +284,11 @@ type InjectCreateTask struct {
 	RequestID string `json:"request_id"`
 	OK        bool   `json:"ok"`
 	Error     string `json:"error,omitempty"`
-	TaskID    string `json:"task_id,omitempty"` // die angelegte Aufgabe
-	Agent     string `json:"agent,omitempty"`   // aufgelöster Ziel-Agent (Slug)
+	TaskID    string `json:"task_id,omitempty"` // the created task
+	Agent     string `json:"agent,omitempty"`   // resolved target agent (slug)
 }
 
-// Encode baut einen Envelope; panict nie, weil alle Payloads marshalbar sind.
+// Encode builds an envelope; never panics, because all payloads are marshalable.
 func Encode(msgType string, payload any) (Message, error) {
 	raw, err := json.Marshal(payload)
 	if err != nil {
@@ -299,11 +297,11 @@ func Encode(msgType string, payload any) (Message, error) {
 	return Message{Type: msgType, Payload: raw}, nil
 }
 
-// DecodePayload entpackt den Payload eines Envelopes typisiert.
+// DecodePayload unpacks an envelope's payload in a typed way.
 func DecodePayload[T any](m Message) (T, error) {
 	var v T
 	if len(m.Payload) == 0 {
-		return v, fmt.Errorf("%s: leerer payload", m.Type)
+		return v, fmt.Errorf("%s: empty payload", m.Type)
 	}
 	if err := json.Unmarshal(m.Payload, &v); err != nil {
 		return v, fmt.Errorf("%s: %w", m.Type, err)

@@ -11,9 +11,9 @@ import (
 	"covey/internal/org"
 )
 
-// Admin-Endpunkte: Benutzer- und Mandanten-Verwaltung, nur platform_admin.
-// Passwort-Hashing ist builtin-spezifisch (Argon2id) — mit dem OIDC-Ausbau
-// verwaltet der externe Provider die Logins und diese Endpunkte schrumpfen.
+// Admin endpoints: user and tenant management, platform_admin only.
+// Password hashing is builtin-specific (Argon2id) — once OIDC is built out the
+// external provider manages the logins and these endpoints shrink.
 
 var validRoles = map[string]bool{
 	identity.RolePlatformAdmin: true,
@@ -25,7 +25,7 @@ var validRoles = map[string]bool{
 
 const minPasswordLen = 8
 
-// --- Benutzer (gescopt auf die Organisation des Aufrufers) ---
+// --- Users (scoped to the caller's organization) ---
 
 func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
@@ -50,20 +50,20 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		org.Profile
 	}
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
 	}
 	in.Email = strings.ToLower(strings.TrimSpace(in.Email))
 	if !strings.Contains(in.Email, "@") || in.DisplayName == "" {
-		writeErr(w, http.StatusBadRequest, "email und display_name sind Pflicht")
+		writeErr(w, http.StatusBadRequest, "email and display_name are required")
 		return
 	}
 	if !validRoles[in.Role] {
-		writeErr(w, http.StatusBadRequest, "unbekannte rolle "+in.Role)
+		writeErr(w, http.StatusBadRequest, "unknown role "+in.Role)
 		return
 	}
 	if len(in.Password) < minPasswordLen {
-		writeErr(w, http.StatusBadRequest, "passwort braucht mindestens 8 Zeichen")
+		writeErr(w, http.StatusBadRequest, "password needs at least 8 characters")
 		return
 	}
 	hash, err := identbuiltin.HashPassword(in.Password)
@@ -82,7 +82,7 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	p := principalFrom(r)
@@ -90,12 +90,12 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		DisplayName *string `json:"display_name"`
 		Role        *string `json:"role"`
 		Password    *string `json:"password"`
-		// ManagerID: nil = unverändert, "" = Zuordnung lösen, sonst UUID.
+		// ManagerID: nil = unchanged, "" = detach, otherwise a UUID.
 		ManagerID *string `json:"manager_id"`
 		profilePatch
 	}
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
 	}
 	upd := org.HumanUpdate{DisplayName: in.DisplayName, Role: in.Role}
@@ -105,7 +105,7 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		if *in.ManagerID != "" {
 			mid, err := uuid.Parse(*in.ManagerID)
 			if err != nil {
-				writeErr(w, http.StatusBadRequest, "ungültige manager_id")
+				writeErr(w, http.StatusBadRequest, "invalid manager_id")
 				return
 			}
 			nu = uuid.NullUUID{UUID: mid, Valid: true}
@@ -113,16 +113,16 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 		upd.ManagerID = &nu
 	}
 	if in.DisplayName != nil && *in.DisplayName == "" {
-		writeErr(w, http.StatusBadRequest, "display_name darf nicht leer sein")
+		writeErr(w, http.StatusBadRequest, "display_name must not be empty")
 		return
 	}
 	if in.Role != nil && !validRoles[*in.Role] {
-		writeErr(w, http.StatusBadRequest, "unbekannte rolle "+*in.Role)
+		writeErr(w, http.StatusBadRequest, "unknown role "+*in.Role)
 		return
 	}
 	if in.Password != nil {
 		if len(*in.Password) < minPasswordLen {
-			writeErr(w, http.StatusBadRequest, "passwort braucht mindestens 8 Zeichen")
+			writeErr(w, http.StatusBadRequest, "password needs at least 8 characters")
 			return
 		}
 		hash, err := identbuiltin.HashPassword(*in.Password)
@@ -143,12 +143,12 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	p := principalFrom(r)
 	if id == p.ID {
-		writeErr(w, http.StatusConflict, "das eigene Konto kann nicht gelöscht werden")
+		writeErr(w, http.StatusConflict, "your own account cannot be deleted")
 		return
 	}
 	if err := s.Org.DeleteHuman(r.Context(), p.OrgID, id); err != nil {
@@ -158,7 +158,7 @@ func (s *Server) handleDeleteUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// --- Mandanten (Organisationen) ---
+// --- Tenants (organizations) ---
 
 func (s *Server) handleListOrgs(w http.ResponseWriter, r *http.Request) {
 	list, err := s.Org.ListOrgs(r.Context())
@@ -180,16 +180,16 @@ func (s *Server) handleCreateOrg(w http.ResponseWriter, r *http.Request) {
 		AdminPassword string `json:"admin_password"`
 	}
 	if err := readJSON(r, &in); err != nil || strings.TrimSpace(in.Name) == "" {
-		writeErr(w, http.StatusBadRequest, "name ist Pflicht")
+		writeErr(w, http.StatusBadRequest, "name is required")
 		return
 	}
 	in.AdminEmail = strings.ToLower(strings.TrimSpace(in.AdminEmail))
 	if !strings.Contains(in.AdminEmail, "@") || in.AdminName == "" {
-		writeErr(w, http.StatusBadRequest, "admin_email und admin_name sind Pflicht (Organisation ohne Admin wäre unerreichbar)")
+		writeErr(w, http.StatusBadRequest, "admin_email and admin_name are required (an organization without an admin would be unreachable)")
 		return
 	}
 	if len(in.AdminPassword) < minPasswordLen {
-		writeErr(w, http.StatusBadRequest, "admin_password braucht mindestens 8 Zeichen")
+		writeErr(w, http.StatusBadRequest, "admin_password needs at least 8 characters")
 		return
 	}
 	hash, err := identbuiltin.HashPassword(in.AdminPassword)
@@ -208,14 +208,14 @@ func (s *Server) handleCreateOrg(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleUpdateOrg(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	var in struct {
 		Name string `json:"name"`
 	}
 	if err := readJSON(r, &in); err != nil || strings.TrimSpace(in.Name) == "" {
-		writeErr(w, http.StatusBadRequest, "name ist Pflicht")
+		writeErr(w, http.StatusBadRequest, "name is required")
 		return
 	}
 	if err := s.Org.RenameOrg(r.Context(), id, strings.TrimSpace(in.Name)); err != nil {
@@ -228,12 +228,12 @@ func (s *Server) handleUpdateOrg(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleDeleteOrg(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	p := principalFrom(r)
 	if id == p.OrgID {
-		writeErr(w, http.StatusConflict, "die eigene Organisation kann nicht gelöscht werden")
+		writeErr(w, http.StatusConflict, "your own organization cannot be deleted")
 		return
 	}
 	if err := s.Org.DeleteOrg(r.Context(), id); err != nil {

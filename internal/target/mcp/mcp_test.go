@@ -12,8 +12,8 @@ import (
 	"covey/internal/target"
 )
 
-// fakeMCP ist ein minimaler MCP-Server über Streamable HTTP: initialize,
-// tools/list, tools/call. sse steuert das Antwortformat (JSON vs. SSE).
+// fakeMCP is a minimal MCP server over streamable HTTP: initialize,
+// tools/list, tools/call. sse controls the response format (JSON vs. SSE).
 func fakeMCP(t *testing.T, sse bool, wantAuth string) *httptest.Server {
 	t.Helper()
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -109,11 +109,11 @@ func TestSystemExecute_Auth(t *testing.T) {
 	cfg := Config{Name: "weather", URL: srv.URL}
 	sys := NewSystem(cfg)
 
-	// Ohne Token → 401 → Fehler.
+	// Without a token → 401 → error.
 	if _, err := sys.Execute(context.Background(), "send_alert", nil, target.Credential{}); err == nil {
-		t.Fatal("erwartete auth-fehler ohne token")
+		t.Fatal("expected an auth error without a token")
 	}
-	// Mit Token → ok.
+	// With a token → ok.
 	out, err := sys.Execute(context.Background(), "send_alert", json.RawMessage(`{"x":1}`),
 		target.Credential{Token: "secret-123"})
 	if err != nil {
@@ -134,23 +134,23 @@ func TestPromptDocFor_Filter(t *testing.T) {
 		t.Fatalf("full doc: %s", full)
 	}
 	if strings.Contains(full, "Zeile2") {
-		t.Fatalf("beschreibung sollte auf erste zeile gekürzt sein: %s", full)
+		t.Fatalf("description should be shortened to the first line: %s", full)
 	}
 	only := sys.PromptDocFor(map[string]bool{"get_weather": true})
 	if !strings.Contains(only, "get_weather") || strings.Contains(only, "send_alert") {
-		t.Fatalf("gefilterte doc falsch: %s", only)
+		t.Fatalf("filtered doc wrong: %s", only)
 	}
 }
 
 func TestParseConfig_Validate(t *testing.T) {
 	if _, err := ParseConfig([]byte(`{"name":"OK","url":"https://x"}`)); err == nil {
-		t.Fatal("name mit großbuchstaben sollte scheitern")
+		t.Fatal("a name with uppercase letters should fail")
 	}
 	if _, err := ParseConfig([]byte(`{"name":"weather","url":"ftp://x"}`)); err == nil {
-		t.Fatal("nicht-http url sollte scheitern")
+		t.Fatal("a non-http url should fail")
 	}
 	if _, err := ParseConfig([]byte(`{"name":"weather","url":"https://x/mcp"}`)); err != nil {
-		t.Fatalf("gültige config: %v", err)
+		t.Fatalf("valid config: %v", err)
 	}
 }
 

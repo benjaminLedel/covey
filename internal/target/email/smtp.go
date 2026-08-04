@@ -13,11 +13,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// SMTP-Seite des Plugins: Nachrichten bauen und versenden. Die Stdlib reicht
-// hier — PLAIN-Auth über TLS/STARTTLS ist der gemeinsame Nenner aller
-// gängigen Provider; eigene Protokoll-Nachbauten sind tabu (Leitplanken).
+// SMTP side of the plugin: build and deliver messages. The stdlib is enough
+// here — PLAIN auth over TLS/STARTTLS is the common denominator of all
+// widespread providers; rebuilding protocols ourselves is off limits (guard
+// rails).
 
-// outgoing ist eine zu versendende Nachricht (send wie reply).
+// outgoing is a message to be delivered (send as well as reply).
 type outgoing struct {
 	From       string
 	To         []string
@@ -28,10 +29,10 @@ type outgoing struct {
 	References []string
 }
 
-// buildMessage serialisiert die Nachricht als RFC-5322-Text: UTF-8-Betreff
-// per Q-Encoding, Body quoted-printable, Threading-Header für Antworten.
-// Empfänger-Adressen sind vorab validiert (parseAddrs) — Header-Injection
-// über eingeschleuste Zeilenumbrüche ist damit ausgeschlossen.
+// buildMessage serializes the message as RFC-5322 text: UTF-8 subject by
+// Q-encoding, body quoted-printable, threading headers for replies. Recipient
+// addresses are validated beforehand (parseAddrs) — header injection through
+// smuggled-in line breaks is thereby ruled out.
 func buildMessage(o outgoing, now time.Time) []byte {
 	var b strings.Builder
 	header := func(k, v string) {
@@ -58,8 +59,8 @@ func buildMessage(o outgoing, now time.Time) []byte {
 	return []byte(b.String())
 }
 
-// sendMail liefert die Nachricht beim SMTP-Server ein. Auth nur, wenn der
-// Server sie anbietet (Test-Doubles und interne Relays kommen ohne aus).
+// sendMail delivers the message to the SMTP server. Auth only if the server
+// offers it (test doubles and internal relays get by without it).
 func sendMail(cfg Config, o outgoing) error {
 	msg := buildMessage(o, time.Now())
 	rcpts := append(append([]string{}, o.To...), o.Cc...)
@@ -69,34 +70,34 @@ func sendMail(cfg Config, o outgoing) error {
 	if cfg.SMTPTLS == tlsImplicit {
 		conn, dialErr := tls.Dial("tcp", cfg.SMTPAddr, tlsConfig(cfg.SMTPHost))
 		if dialErr != nil {
-			return fmt.Errorf("smtp-verbindung %s: %w", cfg.SMTPAddr, dialErr)
+			return fmt.Errorf("smtp connection %s: %w", cfg.SMTPAddr, dialErr)
 		}
 		c, err = smtp.NewClient(conn, cfg.SMTPHost)
 	} else {
 		c, err = smtp.Dial(cfg.SMTPAddr)
 	}
 	if err != nil {
-		return fmt.Errorf("smtp-verbindung %s: %w", cfg.SMTPAddr, err)
+		return fmt.Errorf("smtp connection %s: %w", cfg.SMTPAddr, err)
 	}
 	defer c.Close()
 
 	if cfg.SMTPTLS == tlsStartTLS {
 		if err := c.StartTLS(tlsConfig(cfg.SMTPHost)); err != nil {
-			return fmt.Errorf("smtp-starttls: %w", err)
+			return fmt.Errorf("smtp starttls: %w", err)
 		}
 	}
 	if ok, _ := c.Extension("AUTH"); ok {
 		auth := smtp.PlainAuth("", cfg.Username, cfg.Password, cfg.SMTPHost)
 		if err := c.Auth(auth); err != nil {
-			return fmt.Errorf("smtp-login als %s: %w", cfg.Username, err)
+			return fmt.Errorf("smtp login as %s: %w", cfg.Username, err)
 		}
 	}
 	if err := c.Mail(o.From); err != nil {
-		return fmt.Errorf("smtp-absender %s: %w", o.From, err)
+		return fmt.Errorf("smtp sender %s: %w", o.From, err)
 	}
 	for _, r := range rcpts {
 		if err := c.Rcpt(r); err != nil {
-			return fmt.Errorf("smtp-empfänger %s: %w", r, err)
+			return fmt.Errorf("smtp recipient %s: %w", r, err)
 		}
 	}
 	w, err := c.Data()
@@ -112,8 +113,8 @@ func sendMail(cfg Config, o outgoing) error {
 	return c.Quit()
 }
 
-// parseAddrs validiert und normalisiert Empfänger-Adressen und erzwingt die
-// Versand-Allowlist (COVEY_EMAIL_SEND_DOMAINS) — fail-closed pro Adresse.
+// parseAddrs validates and normalizes recipient addresses and enforces the send
+// allowlist (COVEY_EMAIL_SEND_DOMAINS) — fail-closed per address.
 func parseAddrs(field string, raw []string) ([]string, error) {
 	out := []string{}
 	for _, r := range raw {
@@ -123,26 +124,26 @@ func parseAddrs(field string, raw []string) ([]string, error) {
 		}
 		a, err := mail.ParseAddress(r)
 		if err != nil {
-			return nil, fmt.Errorf("%s: ungültige adresse %q: %w", field, r, err)
+			return nil, fmt.Errorf("%s: invalid address %q: %w", field, r, err)
 		}
 		if !sendAllowed(a.Address) {
-			return nil, fmt.Errorf("%s: %q liegt außerhalb der Versand-Allowlist (COVEY_EMAIL_SEND_DOMAINS)", field, a.Address)
+			return nil, fmt.Errorf("%s: %q lies outside the send allowlist (COVEY_EMAIL_SEND_DOMAINS)", field, a.Address)
 		}
 		out = append(out, a.Address)
 	}
 	return out, nil
 }
 
-// sanitizeHeader entfernt Zeilenumbrüche aus Header-Werten — die einzige
-// Stelle, an der Nutzer-Text (Betreff) in Header gelangt.
+// sanitizeHeader strips line breaks out of header values — the only place where
+// user text (the subject) reaches a header.
 func sanitizeHeader(s string) string {
 	return strings.NewReplacer("\r", " ", "\n", " ").Replace(s)
 }
 
-// tlsConfig setzt die Mindestversion ausdrücklich statt sich auf den
-// Go-Default zu verlassen. Der ist heute TLS 1.2 und damit richtig — aber
-// „richtig, weil die Sprache es gerade so vorgibt" ist kein Zustand, auf den
-// man eine Verschlüsselung stellt. Postfächer werden über Jahre betrieben.
+// tlsConfig sets the minimum version explicitly instead of relying on the Go
+// default. That default is TLS 1.2 today and thereby right — but "right,
+// because the language happens to prescribe it that way" is no ground to build
+// an encryption on. Mailboxes are operated for years.
 func tlsConfig(serverName string) *tls.Config {
 	return &tls.Config{ServerName: serverName, MinVersion: tls.VersionTLS12}
 }

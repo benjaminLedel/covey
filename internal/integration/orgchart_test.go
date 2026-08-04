@@ -11,14 +11,14 @@ import (
 	"covey/internal/backlog"
 )
 
-// TestOrgChart deckt das Organigramm ab: Vorgesetzten-Beziehungen für Menschen
-// (manager_id, zyklusfrei) und Agenten (supervisor_id), die für alle Rollen
-// lesbare Chart-Sicht und das Org-Scoping des Vorgesetzten.
+// TestOrgChart covers the org chart: supervisor relations for humans
+// (manager_id, cycle-free) and agents (supervisor_id), the chart view readable
+// for every role, and the org scoping of the supervisor.
 func TestOrgChart(t *testing.T) {
 	s := newStack(t)
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 
-	// Lead anlegen, der an den Admin berichtet.
+	// Create a lead that reports to the admin.
 	lead := admin.expect(http.MethodPost, "/api/v1/users", map[string]string{
 		"email": "lead@test.local", "display_name": "Lead", "role": "agent_owner",
 		"password": "lead-passwort",
@@ -27,36 +27,36 @@ func TestOrgChart(t *testing.T) {
 	admin.expect(http.MethodPatch, "/api/v1/users/"+leadID,
 		map[string]string{"manager_id": s.adminID.String()}, http.StatusOK)
 
-	// Zyklen sind verboten: weder Selbstbezug noch Admin → Lead → Admin.
+	// Cycles are forbidden: neither self-reference nor admin → lead → admin.
 	admin.expect(http.MethodPatch, "/api/v1/users/"+leadID,
 		map[string]string{"manager_id": leadID}, http.StatusConflict)
 	admin.expect(http.MethodPatch, "/api/v1/users/"+s.adminID.String(),
 		map[string]string{"manager_id": leadID}, http.StatusConflict)
 
-	// Der Org-Chart-Endpunkt (Drag & Drop im UI) kann Menschen ebenso umhängen:
-	// Zyklen werden abgewiesen, leere manager_id löst die Zuordnung.
+	// The org-chart endpoint (drag & drop in the UI) can re-hang humans just as
+	// well: cycles are rejected, an empty manager_id clears the assignment.
 	admin.expect(http.MethodPatch, "/api/v1/org/humans/"+leadID+"/manager",
 		map[string]string{"manager_id": leadID}, http.StatusConflict)
 	admin.expect(http.MethodPatch, "/api/v1/org/humans/"+leadID+"/manager",
 		map[string]string{"manager_id": ""}, http.StatusOK)
 	if h := admin.expect(http.MethodGet, "/api/v1/org/humans/"+leadID, nil, http.StatusOK); h["manager_id"] != nil {
-		t.Fatalf("manager_id muss gelöst sein, got %v", h["manager_id"])
+		t.Fatalf("manager_id has to be cleared, got %v", h["manager_id"])
 	}
 	admin.expect(http.MethodPatch, "/api/v1/org/humans/"+leadID+"/manager",
 		map[string]string{"manager_id": s.adminID.String()}, http.StatusOK)
 
-	// Agent anlegen und dem Lead zuordnen.
+	// Create an agent and assign it to the lead.
 	created := admin.expect(http.MethodPost, "/api/v1/agents",
 		map[string]string{"slug": "nova", "display_name": "Nova"}, http.StatusCreated)
 	agentID := created["id"].(string)
 	admin.expect(http.MethodPatch, "/api/v1/agents/"+agentID+"/supervisor",
 		map[string]string{"supervisor_id": leadID}, http.StatusOK)
 
-	// Der Chart ist für jede Rolle lesbar und enthält beide Beziehungen.
+	// The chart is readable for every role and contains both relations.
 	viewer := login(t, s, "lead@test.local", "lead-passwort")
 	resp := viewer.do(http.MethodGet, "/api/v1/org/chart", nil)
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("org/chart erwartet 200, got %d", resp.StatusCode)
+		t.Fatalf("org/chart expected 200, got %d", resp.StatusCode)
 	}
 	var chart struct {
 		Humans []map[string]any `json:"humans"`
@@ -65,40 +65,40 @@ func TestOrgChart(t *testing.T) {
 	json.NewDecoder(resp.Body).Decode(&chart)
 	resp.Body.Close()
 	if len(chart.Humans) != 2 || len(chart.Agents) != 1 {
-		t.Fatalf("erwartet 2 menschen / 1 agent, got %d/%d", len(chart.Humans), len(chart.Agents))
+		t.Fatalf("expected 2 humans / 1 agent, got %d/%d", len(chart.Humans), len(chart.Agents))
 	}
 	for _, h := range chart.Humans {
 		if h["email"] == "lead@test.local" && h["manager_id"] != s.adminID.String() {
-			t.Fatalf("lead muss an den admin berichten, got %v", h["manager_id"])
+			t.Fatalf("the lead has to report to the admin, got %v", h["manager_id"])
 		}
 	}
 	if chart.Agents[0]["supervisor_id"] != leadID {
-		t.Fatalf("agent muss an den lead berichten, got %v", chart.Agents[0]["supervisor_id"])
+		t.Fatalf("the agent has to report to the lead, got %v", chart.Agents[0]["supervisor_id"])
 	}
 
-	// Leere supervisor_id löst die Zuordnung.
+	// An empty supervisor_id clears the assignment.
 	admin.expect(http.MethodPatch, "/api/v1/agents/"+agentID+"/supervisor",
 		map[string]string{"supervisor_id": ""}, http.StatusOK)
 	got := admin.expect(http.MethodGet, "/api/v1/agents/"+agentID, nil, http.StatusOK)
 	if _, hasSupervisor := got["supervisor_id"]; hasSupervisor {
-		t.Fatalf("supervisor_id muss gelöst sein, got %v", got["supervisor_id"])
+		t.Fatalf("supervisor_id has to be cleared, got %v", got["supervisor_id"])
 	}
 
-	// Abteilungen können ein oder mehrere Leitungen haben — Menschen wie
-	// Agenten. Zuweisen ist idempotent, die Leitungen stehen in der
-	// Abteilungs-Antwort, Entfernen löscht genau die eine Zuordnung.
+	// Departments can have one or several leads — humans as well as agents.
+	// Assigning is idempotent, the leads are part of the department response,
+	// removing deletes exactly the one assignment.
 	dept := admin.expect(http.MethodPost, "/api/v1/departments",
 		map[string]string{"name": "Support", "color": "#7d9471"}, http.StatusCreated)
 	deptID := dept["id"].(string)
 	if dept["color"] != "#7d9471" {
-		t.Fatalf("abteilung muss die farbe tragen, got %v", dept["color"])
+		t.Fatalf("the department has to carry the color, got %v", dept["color"])
 	}
 
-	// Farbe ändern und zurücksetzen; kaputte Werte werden abgewiesen.
+	// Change and reset the color; broken values are rejected.
 	admin.expect(http.MethodPatch, "/api/v1/departments/"+deptID+"/color",
 		map[string]string{"color": "#c9a227"}, http.StatusOK)
 	admin.expect(http.MethodPatch, "/api/v1/departments/"+deptID+"/color",
-		map[string]string{"color": "rot"}, http.StatusBadRequest)
+		map[string]string{"color": "red"}, http.StatusBadRequest)
 	admin.expect(http.MethodPatch, "/api/v1/departments/"+deptID+"/color",
 		map[string]string{"color": ""}, http.StatusOK)
 	admin.expect(http.MethodPost, "/api/v1/departments/"+deptID+"/leads",
@@ -115,14 +115,14 @@ func TestOrgChart(t *testing.T) {
 	json.NewDecoder(deptsResp.Body).Decode(&depts)
 	deptsResp.Body.Close()
 	if len(depts) != 1 || len(depts[0].Leads) != 2 {
-		t.Fatalf("erwartet 1 abteilung mit 2 leitungen, got %+v", depts)
+		t.Fatalf("expected 1 department with 2 leads, got %+v", depts)
 	}
 
 	admin.expect(http.MethodDelete, "/api/v1/departments/"+deptID+"/leads/"+agentID, nil, http.StatusOK)
 	admin.expect(http.MethodDelete, "/api/v1/departments/"+deptID+"/leads/"+agentID, nil, http.StatusNotFound)
 
-	// Org-Scoping: ein Mensch einer fremden Organisation ist kein gültiger
-	// Vorgesetzter — weder für Agenten noch für Menschen.
+	// Org scoping: a human from a foreign organization is not a valid supervisor
+	// — neither for agents nor for humans.
 	admin.expect(http.MethodPost, "/api/v1/orgs", map[string]string{
 		"name": "Fremde Org", "admin_email": "chef@fremd.local", "admin_name": "Chef",
 		"admin_password": "chef-passwort",
@@ -144,25 +144,24 @@ func TestOrgChart(t *testing.T) {
 		map[string]string{"kind": "human", "member_id": fremdID}, http.StatusNotFound)
 }
 
-// TestAgentProfileAndOrgChartQuery deckt die Agenten-Profilfelder ab: Agenten
-// tragen dieselben Profilfelder wie Menschen (inkl. der org-weit konfigurierbaren
-// Felder), das Löschen einer Feld-Definition räumt auch die Agenten-Werte, und
-// ein Agent kann das Organigramm zur Laufzeit über die Meta-Aktion
-// covey/org_chart abfragen.
+// TestAgentProfileAndOrgChartQuery covers the agent profile fields: agents
+// carry the same profile fields as humans (including the org-wide configurable
+// ones), deleting a field definition also clears the agent values, and an agent
+// can query the org chart at runtime through the meta action covey/org_chart.
 func TestAgentProfileAndOrgChartQuery(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 
-	// Org-weit konfigurierbares Profilfeld (key wird aus dem Label abgeleitet).
+	// Org-wide configurable profile field (the key is derived from the label).
 	field := admin.expect(http.MethodPost, "/api/v1/org/profile-fields",
 		map[string]string{"label": "Standort"}, http.StatusCreated)
 
 	agent := s.newSupportAgent("profil-agent")
 	agentID := agent.ID.String()
 
-	// Profil schreiben — dieselben Felder wie beim Menschen; Kennungen werden
-	// normalisiert (führendes "@" entfällt).
+	// Write the profile — the same fields as for a human; identifiers are
+	// normalized (a leading "@" is dropped).
 	admin.expect(http.MethodPatch, "/api/v1/agents/"+agentID+"/profile", map[string]any{
 		"job_title":        "Support-Spezialist",
 		"identities":       map[string]string{"gitlab": "@nova"},
@@ -172,32 +171,32 @@ func TestAgentProfileAndOrgChartQuery(t *testing.T) {
 
 	got := admin.expect(http.MethodGet, "/api/v1/agents/"+agentID, nil, http.StatusOK)
 	if got["job_title"] != "Support-Spezialist" || got["responsibilities"] != "First-Level-Support" {
-		t.Fatalf("agenten-profil nicht gespeichert: %v", got)
+		t.Fatalf("the agent profile was not stored: %v", got)
 	}
 	if ids, _ := got["identities"].(map[string]any); ids["gitlab"] != "nova" {
-		t.Fatalf("identities müssen normalisiert sein (ohne @), got %v", got["identities"])
+		t.Fatalf("identities have to be normalized (without @), got %v", got["identities"])
 	}
 	if custom, _ := got["custom"].(map[string]any); custom["standort"] != "Berlin" {
-		t.Fatalf("custom-wert fehlt, got %v", got["custom"])
+		t.Fatalf("the custom value is missing, got %v", got["custom"])
 	}
 
-	// Die Chart-Sicht trägt das Agenten-Profil — dort lesen es Menschen und UI.
+	// The chart view carries the agent profile — that is where humans and UI read it.
 	chart := admin.expect(http.MethodGet, "/api/v1/org/chart", nil, http.StatusOK)
 	agentsList, _ := chart["agents"].([]any)
 	if len(agentsList) != 1 {
-		t.Fatalf("erwartet 1 agent im chart, got %d", len(agentsList))
+		t.Fatalf("expected 1 agent in the chart, got %d", len(agentsList))
 	}
 	if a, _ := agentsList[0].(map[string]any); a["job_title"] != "Support-Spezialist" {
-		t.Fatalf("chart muss das agenten-profil tragen, got %v", agentsList[0])
+		t.Fatalf("the chart has to carry the agent profile, got %v", agentsList[0])
 	}
 
-	// Der Agent selbst fragt das Organigramm über den Action-Proxy ab
-	// (request_org_chart → inject_org_chart) — die Aufgabe läuft nur durch,
-	// wenn die Control Plane antwortet.
+	// The agent itself queries the org chart through the action proxy
+	// (request_org_chart → inject_org_chart) — the task only runs through if the
+	// control plane answers.
 	task, _ := s.backlog.Create(ctx, s.orgID, agent.ID, "Orgchart-Test",
 		`[mock:action covey/org_chart {}]
-[mock:result Organigramm gelesen]`, "manual", 3)
-	waitFor(t, "aufgabe done", 15*time.Second, func() bool {
+[mock:result org chart read]`, "manual", 3)
+	waitFor(t, "task done", 15*time.Second, func() bool {
 		return s.taskState(task.ID) == backlog.StateDone
 	})
 	events, err := s.obs.Events(ctx, agent.ID, nil, 0, 500)
@@ -211,13 +210,13 @@ func TestAgentProfileAndOrgChartQuery(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatal("covey:org_chart muss als Aktion im Recording stehen")
+		t.Fatal("covey:org_chart has to appear as an action in the recording")
 	}
 
-	// Feld-Definition löschen räumt den Wert auch aus dem Agenten-Profil.
+	// Deleting the field definition also clears the value from the agent profile.
 	admin.expect(http.MethodDelete, "/api/v1/org/profile-fields/"+field["id"].(string), nil, http.StatusOK)
 	got = admin.expect(http.MethodGet, "/api/v1/agents/"+agentID, nil, http.StatusOK)
 	if custom, _ := got["custom"].(map[string]any); len(custom) != 0 {
-		t.Fatalf("gelöschtes profilfeld muss aus agents.custom verschwinden, got %v", got["custom"])
+		t.Fatalf("a deleted profile field has to disappear from agents.custom, got %v", got["custom"])
 	}
 }

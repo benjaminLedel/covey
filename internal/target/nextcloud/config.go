@@ -6,67 +6,65 @@ import (
 	"strings"
 )
 
-// Konfiguration des Nextcloud-Plugins aus dem gebrokerten Secret-Paar
-// (nextcloud_url + nextcloud_token). Nextcloud spricht WebDAV; das Plugin
-// unterstützt zwei Betriebsarten, allein am nextcloud_url erkannt:
+// Configuration of the Nextcloud plugin out of the brokered secret pair
+// (nextcloud_url + nextcloud_token). Nextcloud speaks WebDAV; the plugin
+// supports two modes, told apart by nextcloud_url alone:
 //
-//  1. Freigabelink („einem Bot einen Link schicken"): der öffentliche Link
-//     eines geteilten Ordners, z. B. https://cloud.example.com/s/AbCdEf.
-//     WebDAV läuft dann über /public.php/webdav/, Basic-Auth mit dem Share-
-//     Token als Benutzer und dem Share-Passwort als Passwort:
+//  1. Share link ("sending a bot a link"): the public link of a shared
+//     folder, e.g. https://cloud.example.com/s/AbCdEf. WebDAV then runs over
+//     /public.php/webdav/, basic auth with the share token as the user and
+//     the share password as the password:
 //
 //     nextcloud_url   = https://cloud.example.com/s/AbCdEf
-//     nextcloud_token = <Share-Passwort>   (oder "-" wenn die Freigabe
-//                       kein Passwort hat)
+//     nextcloud_token = <share password>   (or "-" when the share has no
+//                       password)
 //
-//  2. Konto-Zugang (das ganze Dateiverzeichnis eines Nutzers): die
-//     Server-Basis-URL plus Benutzer:App-Passwort. WebDAV läuft über
-//     /remote.php/dav/files/<user>/:
+//  2. Account login (a user's whole file tree): the server base URL plus
+//     user:app-password. WebDAV runs over /remote.php/dav/files/<user>/:
 //
 //     nextcloud_url   = https://cloud.example.com
-//     nextcloud_token = alice:<App-Passwort>
+//     nextcloud_token = alice:<app password>
 //
-// In beiden Fällen sind alle Pfade der Aktionen relativ zur WebDAV-Wurzel
-// (dem geteilten Ordner bzw. dem Datei-Root des Kontos). Ein Ausbruch per
-// ".." wird daemon-seitig abgewiesen.
+// In both cases all paths of the actions are relative to the WebDAV root (the
+// shared folder resp. the account's file root). Breaking out through ".." is
+// rejected on the daemon side.
 
-// Config ist die geparste Verbindungs-Konfiguration.
+// Config is the parsed connection configuration.
 type Config struct {
-	// DavBase ist die vollständige WebDAV-Collection-Wurzel inklusive
-	// abschließendem Schrägstrich (Aktionen hängen den relativen Pfad an).
+	// DavBase is the complete WebDAV collection root including the trailing
+	// slash (actions append the relative path to it).
 	DavBase string
-	// User/Pass sind die Basic-Auth-Zugangsdaten (Share-Token bzw. Konto-
-	// Benutzer). Pass darf leer sein (passwortlose Freigabe).
+	// User/Pass are the basic-auth credentials (share token resp. account
+	// user). Pass may be empty (a share without a password).
 	User string
 	Pass string
-	// Share meldet, ob es sich um eine öffentliche Freigabe (true) oder einen
-	// Konto-Zugang (false) handelt — nur für Diagnose/Ausgaben.
+	// Share reports whether this is a public share (true) or an account login
+	// (false) — for diagnostics/output only.
 	Share bool
 }
 
-// passwordSentinels sind Marker-Werte für „keine Passwort" — der Broker
-// verlangt, dass nextcloud_token gesetzt ist, eine passwortlose Freigabe hat
-// aber keins. Statt eines leeren Secrets hinterlegt der Betreiber einen
-// dieser Werte.
+// passwordSentinels are marker values for "no password" — the broker insists
+// that nextcloud_token be set, but a share without a password has none.
+// Instead of an empty secret the operator stores one of these values.
 var passwordSentinels = map[string]bool{
 	"": true, "-": true, "none": true, "kein": true,
 	"anonymous": true, "public": true, "x": true,
 }
 
-// ParseConfig zerlegt das gebrokerte Credential in die WebDAV-Konfiguration.
+// ParseConfig breaks the brokered credential down into the WebDAV configuration.
 func ParseConfig(rawURL, token string) (Config, error) {
 	rawURL = strings.TrimSpace(rawURL)
 	if rawURL == "" {
-		return Config{}, fmt.Errorf("nextcloud_url fehlt — den Freigabelink oder die Server-URL hinterlegen")
+		return Config{}, fmt.Errorf("nextcloud_url missing — store the share link or the server URL")
 	}
 	u, err := url.Parse(rawURL)
 	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
-		return Config{}, fmt.Errorf("nextcloud_url: %q ist kein gültiger Link", rawURL)
+		return Config{}, fmt.Errorf("nextcloud_url: %q is not a valid link", rawURL)
 	}
 	origin := u.Scheme + "://" + u.Host
 
-	// Betriebsart 1: Freigabelink (/s/<token>, optional mit /index.php und
-	// Installations-Unterverzeichnis davor).
+	// Mode 1: share link (/s/<token>, optionally preceded by /index.php and
+	// an installation subdirectory).
 	if prefix, shareToken, ok := parseShareLink(u.Path); ok {
 		pass := token
 		if passwordSentinels[strings.ToLower(strings.TrimSpace(token))] {
@@ -80,14 +78,14 @@ func ParseConfig(rawURL, token string) (Config, error) {
 		}, nil
 	}
 
-	// Betriebsart 2: Konto-Zugang. nextcloud_token = benutzer:app-passwort.
+	// Mode 2: account login. nextcloud_token = user:app-password.
 	user, pass, found := strings.Cut(token, ":")
 	if !found || user == "" || pass == "" {
-		return Config{}, fmt.Errorf("nextcloud_token muss %q sein (Konto-Zugang) — oder nextcloud_url auf einen /s/-Freigabelink zeigen", "benutzer:app-passwort")
+		return Config{}, fmt.Errorf("nextcloud_token must be %q (account login) — or point nextcloud_url at an /s/ share link", "user:app-password")
 	}
-	// Ein evtl. mitgegebenes /remote.php/... abschneiden, damit wir sauber
-	// auf den Datei-Root des Nutzers zeigen. Installations-Unterverzeichnis
-	// (z. B. /nextcloud) bleibt erhalten.
+	// Cut off a /remote.php/... that may have been supplied, so that we point
+	// cleanly at the user's file root. An installation subdirectory (e.g.
+	// /nextcloud) is preserved.
 	prefix := strings.TrimRight(u.Path, "/")
 	if i := strings.Index(prefix, "/remote.php"); i >= 0 {
 		prefix = prefix[:i]
@@ -102,8 +100,8 @@ func ParseConfig(rawURL, token string) (Config, error) {
 	}, nil
 }
 
-// parseShareLink erkennt einen Nextcloud-Freigabelink und liefert das
-// Installations-Präfix (leer oder z. B. "/nextcloud") sowie den Share-Token.
+// parseShareLink recognizes a Nextcloud share link and returns the
+// installation prefix (empty or e.g. "/nextcloud") along with the share token.
 func parseShareLink(path string) (prefix, token string, ok bool) {
 	idx := strings.Index(path, "/s/")
 	if idx < 0 {
@@ -111,7 +109,7 @@ func parseShareLink(path string) (prefix, token string, ok bool) {
 	}
 	token = path[idx+len("/s/"):]
 	if i := strings.IndexByte(token, '/'); i >= 0 {
-		token = token[:i] // evtl. /download o. Ä. abschneiden
+		token = token[:i] // cut off a trailing /download or the like
 	}
 	if token == "" {
 		return "", "", false

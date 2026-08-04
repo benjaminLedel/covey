@@ -19,19 +19,19 @@ func TestVerifySignature(t *testing.T) {
 	header := "sha1=" + hex.EncodeToString(mac.Sum(nil))
 
 	if !VerifySignature(secret, body, header) {
-		t.Fatal("gültige Signatur muss akzeptiert werden")
+		t.Fatal("a valid signature must be accepted")
 	}
 	if VerifySignature(secret, []byte(`{"ticket":{"id":43}}`), header) {
-		t.Fatal("manipulierter Body muss abgelehnt werden")
+		t.Fatal("a tampered body must be rejected")
 	}
 	if VerifySignature(secret, body, "sha1=deadbeef") {
-		t.Fatal("falsche Signatur muss abgelehnt werden")
+		t.Fatal("a wrong signature must be rejected")
 	}
 	if VerifySignature(secret, body, "") {
-		t.Fatal("fehlender Header muss abgelehnt werden")
+		t.Fatal("a missing header must be rejected")
 	}
 	if !VerifySignature("", body, "") {
-		t.Fatal("leeres Secret deaktiviert die Prüfung (Dev-Modus)")
+		t.Fatal("an empty secret disables the check (dev mode)")
 	}
 }
 
@@ -43,19 +43,19 @@ func TestParseWebhook(t *testing.T) {
 		t.Fatal(err)
 	}
 	if p.Ticket.ID != 42 || p.Article.Sender != "Customer" {
-		t.Fatalf("payload falsch geparst: %+v", p)
+		t.Fatalf("payload parsed wrongly: %+v", p)
 	}
 	if !p.IsCustomerMessage() {
-		t.Fatal("Kunden-Artikel muss als Customer-Message erkannt werden")
+		t.Fatal("a customer article must be recognized as a customer message")
 	}
 	if CorrelationKey(p.Ticket.ID) != "zammad:ticket:42" {
-		t.Fatalf("korrelations-key: %s", CorrelationKey(p.Ticket.ID))
+		t.Fatalf("correlation key: %s", CorrelationKey(p.Ticket.ID))
 	}
 }
 
 func TestParseWebhookRejectsMissingTicket(t *testing.T) {
 	if _, err := ParseWebhook([]byte(`{"article":{"id":1}}`)); err == nil {
-		t.Fatal("payload ohne ticket.id muss abgelehnt werden")
+		t.Fatal("a payload without ticket.id must be rejected")
 	}
 }
 
@@ -63,12 +63,12 @@ func TestAgentArticleTriggersNoWake(t *testing.T) {
 	p := WebhookPayload{}
 	p.Article.Sender = "Agent"
 	if p.IsCustomerMessage() {
-		t.Fatal("Agent-Artikel darf keinen Wake auslösen (Echo-Schleife)")
+		t.Fatal("an agent article must not trigger a wake (echo loop)")
 	}
 	p.Article.Sender = "Customer"
 	p.Article.Internal = true
 	if p.IsCustomerMessage() {
-		t.Fatal("interne Artikel dürfen keinen Wake auslösen")
+		t.Fatal("internal articles must not trigger a wake")
 	}
 }
 
@@ -105,7 +105,7 @@ func TestClientActions(t *testing.T) {
 		t.Fatalf("GetTicket: %v %+v", err, tk)
 	}
 	if gotAuth != "Token token=test-token" {
-		t.Fatalf("Token-Auth-Header falsch: %q", gotAuth)
+		t.Fatalf("token auth header wrong: %q", gotAuth)
 	}
 
 	arts, err := c.ListArticles(ctx, 42)
@@ -117,17 +117,17 @@ func TestClientActions(t *testing.T) {
 		t.Fatalf("Reply: %v", err)
 	}
 	if gotBody["internal"] != false || gotBody["ticket_id"] != float64(42) {
-		t.Fatalf("Reply-Body falsch: %+v", gotBody)
+		t.Fatalf("reply body wrong: %+v", gotBody)
 	}
 
 	if err := c.SetState(ctx, 42, "pending reminder"); err != nil {
 		t.Fatalf("SetState: %v", err)
 	}
 	if gotMethod != http.MethodPut || gotPath != "/api/v1/tickets/42" {
-		t.Fatalf("SetState muss PUT /tickets/42 sein: %s %s", gotMethod, gotPath)
+		t.Fatalf("SetState must be PUT /tickets/42: %s %s", gotMethod, gotPath)
 	}
 	if gotBody["state"] != "pending reminder" || gotBody["pending_time"] == nil {
-		t.Fatalf("pending-State braucht pending_time: %+v", gotBody)
+		t.Fatalf("a pending state needs pending_time: %+v", gotBody)
 	}
 }
 
@@ -138,6 +138,6 @@ func TestClientErrorSurface(t *testing.T) {
 	defer srv.Close()
 	c := NewClient(srv.URL, "falsch")
 	if _, err := c.GetTicket(context.Background(), 1); err == nil {
-		t.Fatal("HTTP-Fehler muss als error auftauchen")
+		t.Fatal("an HTTP error must surface as an error")
 	}
 }

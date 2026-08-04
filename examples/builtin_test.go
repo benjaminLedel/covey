@@ -9,21 +9,21 @@ import (
 func TestBuiltinsLoad(t *testing.T) {
 	bs := Builtins()
 	if len(bs) != len(manifest) {
-		t.Fatalf("erwartet %d Builtins, bekam %d", len(manifest), len(bs))
+		t.Fatalf("expected %d builtins, got %d", len(manifest), len(bs))
 	}
 	seen := map[string]bool{}
 	for _, b := range bs {
 		if b.ID.String() == "00000000-0000-0000-0000-000000000000" {
-			t.Errorf("%s: leere ID", b.Key)
+			t.Errorf("%s: empty ID", b.Key)
 		}
 		if seen[b.ID.String()] {
-			t.Errorf("%s: doppelte ID %s", b.Key, b.ID)
+			t.Errorf("%s: duplicate ID %s", b.Key, b.ID)
 		}
 		seen[b.ID.String()] = true
 		if b.Name == "" {
-			t.Errorf("%s: kein Name", b.Key)
+			t.Errorf("%s: no name", b.Key)
 		}
-		// Das Bundle muss ein instanziierbares agent-config sein.
+		// The bundle has to be an instantiable agent-config.
 		var probe struct {
 			Kind  string `json:"kind"`
 			Agent struct {
@@ -32,22 +32,22 @@ func TestBuiltinsLoad(t *testing.T) {
 			Files map[string]string `json:"files"`
 		}
 		if err := json.Unmarshal(b.Bundle, &probe); err != nil {
-			t.Fatalf("%s: Bundle nicht lesbar: %v", b.Key, err)
+			t.Fatalf("%s: bundle not readable: %v", b.Key, err)
 		}
 		if probe.Kind != "covey.agent-config" {
-			t.Errorf("%s: kind=%q, erwartet covey.agent-config", b.Key, probe.Kind)
+			t.Errorf("%s: kind=%q, expected covey.agent-config", b.Key, probe.Kind)
 		}
 		if probe.Agent.Slug == "" {
-			t.Errorf("%s: agent.slug fehlt", b.Key)
+			t.Errorf("%s: agent.slug missing", b.Key)
 		}
 		if len(probe.Files) == 0 {
-			t.Errorf("%s: keine files", b.Key)
+			t.Errorf("%s: no files", b.Key)
 		}
 	}
 }
 
-// TestBuiltinIDsStable hält die festen IDs fest: ändern sie sich, brechen
-// bestehende Instanziierungs-Links — bewusst als Regressionsschutz.
+// TestBuiltinIDsStable pins the fixed IDs: if they change, existing
+// instantiation links break — deliberately a regression guard.
 func TestBuiltinIDsStable(t *testing.T) {
 	want := map[string]string{
 		"builtin:coding-agent":     "",
@@ -58,21 +58,21 @@ func TestBuiltinIDsStable(t *testing.T) {
 	}
 	for _, b := range Builtins() {
 		if _, ok := want[b.Key]; !ok {
-			t.Errorf("unerwarteter Key %q", b.Key)
+			t.Errorf("unexpected key %q", b.Key)
 		}
 	}
 }
 
-// TestBuiltinSkills hält die Regeln fest, an denen ein Skill in einer
-// mitgelieferten Vorlage scheitert, ohne dass es jemandem auffiele:
+// TestBuiltinSkills pins the rules under which a skill in a bundled template
+// fails without anybody noticing:
 //
-//   - Ohne SKILL.md erkennt die Runtime das Verzeichnis nicht als Skill, der
-//     Agent bekäme still gar nichts.
-//   - Ohne Beschreibung entscheidet nichts darüber, ob der Skill geladen wird.
-//   - Und ein Skill, auf den weder PLAYBOOKS.md noch HEARTBEAT.md zeigt, wird
-//     nie gezogen: Er kostet dann dauerhaft seine Beschreibung im Kontext und
-//     trägt nichts. Das ist der eigentliche Fallstrick beim Umstellen einer
-//     Vorlage — der Ablauf wandert in den Skill, und der Verweis bleibt aus.
+//   - Without a SKILL.md the runtime does not recognise the directory as a
+//     skill; the agent would silently get nothing at all.
+//   - Without a description nothing decides whether the skill gets loaded.
+//   - And a skill that neither PLAYBOOKS.md nor HEARTBEAT.md points at is never
+//     pulled: it then permanently costs its description in the context and
+//     contributes nothing. That is the real trap when converting a template —
+//     the procedure moves into the skill and the reference is left out.
 func TestBuiltinSkills(t *testing.T) {
 	for _, b := range Builtins() {
 		var bundle struct {
@@ -87,19 +87,19 @@ func TestBuiltinSkills(t *testing.T) {
 		if err := json.Unmarshal(b.Bundle, &bundle); err != nil {
 			t.Fatalf("%s: %v", b.Key, err)
 		}
-		verweise := bundle.Files["PLAYBOOKS.md"] + bundle.Files["HEARTBEAT.md"]
+		references := bundle.Files["PLAYBOOKS.md"] + bundle.Files["HEARTBEAT.md"]
 		for _, sk := range bundle.Skills {
 			if sk.Files["SKILL.md"] == "" {
-				t.Errorf("%s / %s: SKILL.md fehlt oder ist leer", b.Key, sk.Name)
+				t.Errorf("%s / %s: SKILL.md missing or empty", b.Key, sk.Name)
 			}
 			if sk.Description == "" {
-				t.Errorf("%s / %s: description fehlt", b.Key, sk.Name)
+				t.Errorf("%s / %s: description missing", b.Key, sk.Name)
 			}
 			if sk.Origin != "agent" && sk.Origin != "library" {
-				t.Errorf("%s / %s: origin=%q (erwartet agent oder library)", b.Key, sk.Name, sk.Origin)
+				t.Errorf("%s / %s: origin=%q (expected agent or library)", b.Key, sk.Name, sk.Origin)
 			}
-			if !strings.Contains(verweise, sk.Name) {
-				t.Errorf("%s: auf Skill %q zeigt weder PLAYBOOKS.md noch HEARTBEAT.md — er wird nie gezogen",
+			if !strings.Contains(references, sk.Name) {
+				t.Errorf("%s: neither PLAYBOOKS.md nor HEARTBEAT.md points at skill %q — it is never pulled",
 					b.Key, sk.Name)
 			}
 		}

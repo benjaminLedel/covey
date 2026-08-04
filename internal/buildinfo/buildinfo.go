@@ -1,18 +1,18 @@
-// Package buildinfo trägt die Herkunft des laufenden Binaries: Version,
-// Commit-Hash und Bauzeit. Beides Binaries (covey, coveyd) nutzen dasselbe
-// Paket, damit „welcher Stand läuft hier?" überall dieselbe Antwort hat —
-// im Log, auf der CLI, in der API und im Fuß der UI.
+// Package buildinfo carries the provenance of the running binary: version,
+// commit hash and build time. Both binaries (covey, coveyd) use the same
+// package so that "which build is running here?" has the same answer
+// everywhere — in the log, on the CLI, in the API and in the UI footer.
 //
-// Die Werte setzt der Build per -ldflags (siehe Makefile/Dockerfile/CI):
+// The build sets the values via -ldflags (see Makefile/Dockerfile/CI):
 //
 //	go build -ldflags "-X covey/internal/buildinfo.version=v0.1.0 \
 //	                   -X covey/internal/buildinfo.commit=abc1234 \
 //	                   -X covey/internal/buildinfo.date=2026-07-30T12:00:00Z"
 //
-// Fehlen sie — etwa bei einem nackten `go build ./...` — fällt das Paket auf
-// die von Go selbst eingebetteten VCS-Angaben zurück. Im Container-Build gibt
-// es die nicht (`.git` liegt in .dockerignore), deshalb reicht dort das
-// Makefile/CI die Werte durch.
+// If they are missing — for instance in a bare `go build ./...` — the package
+// falls back to the VCS data Go embeds itself. In the container build there is
+// none (`.git` is in .dockerignore), which is why the Makefile/CI passes the
+// values through there.
 package buildinfo
 
 import (
@@ -23,45 +23,45 @@ import (
 	"sync"
 )
 
-// SourceURL ist die öffentliche Quelle dieses Programms. Covey steht unter der
-// AGPL-3.0 und läuft als Netzwerkdienst: Wer eine veränderte Fassung anderen
-// anbietet, schuldet ihnen den Quelltext. Die Adresse gehört deshalb dorthin,
-// wo sie ohne Suche zu finden ist — CLI und UI-Fuß. Wer forkt und betreibt,
-// trägt hier seine eigene Adresse ein.
+// SourceURL is the public source of this program. Covey is licensed under the
+// AGPL-3.0 and runs as a network service: whoever offers a modified version to
+// others owes them the source. The address therefore belongs where it can be
+// found without searching — the CLI and the UI footer. Whoever forks and
+// operates it enters their own address here.
 const SourceURL = "https://github.com/benjaminLedel/covey"
 
-// Per -ldflags gesetzt. Kleingeschrieben: der Zugriff läuft über Get().
+// Set via -ldflags. Lowercase: access goes through Get().
 var (
 	version string
 	commit  string
 	date    string
 )
 
-// Info ist die Herkunft des Binaries, so wie API und CLI sie zeigen.
+// Info is the binary's provenance, the way the API and the CLI show it.
 type Info struct {
-	// Version ist der Git-Tag bzw. `git describe`; "dev", wenn unbekannt.
+	// Version is the git tag resp. `git describe`; "dev" when unknown.
 	Version string `json:"version"`
-	// Commit ist der kurze Commit-Hash; leer, wenn unbekannt.
+	// Commit is the short commit hash; empty when unknown.
 	Commit string `json:"commit"`
-	// BuiltAt ist die Bauzeit in RFC3339 (UTC); leer, wenn unbekannt.
+	// BuiltAt is the build time in RFC3339 (UTC); empty when unknown.
 	BuiltAt string `json:"built_at"`
-	// Dirty markiert einen Build aus einem Arbeitsbaum mit uncommitteten
-	// Änderungen (nur erkennbar, wenn Go die VCS-Infos eingebettet hat).
+	// Dirty marks a build from a working tree with uncommitted changes (only
+	// detectable when Go has embedded the VCS info).
 	Dirty bool `json:"dirty"`
-	// Go ist die Toolchain-Version, mit der gebaut wurde.
+	// Go is the toolchain version the binary was built with.
 	Go string `json:"go"`
-	// Source ist die öffentliche Quelle (SourceURL). Sie geht mit über die
-	// API, damit die UI sie nicht hartkodiert — ein Fork zeigt so seine
-	// eigene Adresse, nicht die des Ursprungs.
+	// Source is the public source (SourceURL). It travels along over the API
+	// so that the UI does not hardcode it — a fork thus shows its own address,
+	// not the origin's.
 	Source string `json:"source"`
 }
 
-// Get liefert die Herkunft des Binaries (einmal ermittelt, dann gecacht).
+// Get returns the binary's provenance (determined once, then cached).
 var Get = sync.OnceValue(func() Info {
 	i := Info{Version: version, Commit: commit, BuiltAt: date, Go: runtime.Version(), Source: SourceURL}
 
-	// Lücken aus den eingebetteten VCS-Angaben füllen (lokaler Build im
-	// Git-Arbeitsbaum). Gesetzte -ldflags-Werte gewinnen immer.
+	// Fill gaps from the embedded VCS data (local build in a git working
+	// tree). Values set via -ldflags always win.
 	if bi, ok := debug.ReadBuildInfo(); ok {
 		for _, s := range bi.Settings {
 			switch s.Key {
@@ -88,7 +88,7 @@ var Get = sync.OnceValue(func() Info {
 	return i
 })
 
-// String ist die einzeilige Fassung für Log und CLI:
+// String is the one-line rendering for log and CLI:
 // "v0.1.0 (abc1234, 2026-07-30T12:00:00Z, go1.26)".
 func (i Info) String() string {
 	var parts []string
@@ -111,5 +111,5 @@ func (i Info) String() string {
 	return fmt.Sprintf("%s (%s)", i.Version, strings.Join(parts, ", "))
 }
 
-// String ist die Kurzfassung des laufenden Binaries — für Log-Zeilen.
+// String is the short rendering of the running binary — for log lines.
 func String() string { return Get().String() }

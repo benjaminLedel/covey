@@ -26,22 +26,22 @@ func auditSpur(t *testing.T, c *apiClient) []auditEintrag {
 	resp := c.do(http.MethodGet, "/api/v1/audit", nil)
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("audit-spur lesen: HTTP %d", resp.StatusCode)
+		t.Fatalf("reading the audit trail: HTTP %d", resp.StatusCode)
 	}
 	json.NewDecoder(resp.Body).Decode(&out)
 	return out
 }
 
-// Covey tritt mit lückenloser Nachvollziehbarkeit an (spec/06) — hatte aber
-// nur die eine Hälfte: Was AGENTEN tun, steht im Recording; was MENSCHEN an
-// der Plattform tun, stand nirgends. Ohne diese Hälfte könnte jemand eine
-// Guard-Rail löschen, den Agenten arbeiten lassen und die Regel danach wieder
-// anlegen — im Recording stünde ein tadelloser Lauf.
+// Covey promises gapless traceability (spec/06) — but only had one half of it:
+// what AGENTS do is in the recording; what HUMANS do to the platform was
+// nowhere. Without that half someone could delete a guard rail, let the agent
+// work and create the rule again afterwards — and the recording would show a
+// flawless run.
 func TestAuditSpurHaeltVerwaltungshandlungenFest(t *testing.T) {
 	s := newStack(t)
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 
-	// Ein paar Handgriffe, wie sie ein Admin macht.
+	// A few handgrips of the kind an admin performs.
 	created := admin.expect(http.MethodPost, "/api/v1/agents",
 		map[string]string{"slug": "audit-agent", "display_name": "Audit", "runtime": "mock"}, http.StatusCreated)
 	agentID := created["id"].(string)
@@ -55,7 +55,7 @@ func TestAuditSpurHaeltVerwaltungshandlungenFest(t *testing.T) {
 
 	spur := auditSpur(t, admin)
 	if len(spur) < 5 {
-		t.Fatalf("erwartet mindestens 5 Einträge, got %d: %+v", len(spur), spur)
+		t.Fatalf("expected at least 5 entries, got %d: %+v", len(spur), spur)
 	}
 	hat := func(method, teilPfad string) bool {
 		for _, e := range spur {
@@ -73,36 +73,35 @@ func TestAuditSpurHaeltVerwaltungshandlungenFest(t *testing.T) {
 		{http.MethodPost, "/fleet/kill"},
 	} {
 		if !hat(f[0], f[1]) {
-			t.Errorf("%s %s fehlt in der Spur", f[0], f[1])
+			t.Errorf("%s %s is missing from the trail", f[0], f[1])
 		}
 	}
 
-	// Der Handelnde steht dabei — eine Spur ohne Namen beantwortet nichts.
+	// The actor is recorded along with it — a trail without names answers nothing.
 	for _, e := range spur {
 		if e.ActorEmail != "admin@test.local" || e.ActorRole != "platform_admin" {
-			t.Errorf("Eintrag ohne Handelnden: %+v", e)
+			t.Errorf("entry without an actor: %+v", e)
 		}
 	}
 
-	// DER Punkt: Der Secret-WERT darf nirgends in der Spur auftauchen. Eine
-	// Audit-Spur, die man wegen ihres Inhalts nicht aufbewahren darf, ist keine.
+	// THE point: the secret VALUE must appear nowhere in the trail. An audit
+	// trail one is not allowed to retain because of its content is none.
 	roh, _ := json.Marshal(spur)
 	if strings.Contains(string(roh), "streng-geheim") {
-		t.Fatal("der Secret-Wert steht in der Audit-Spur")
+		t.Fatal("the secret value is in the audit trail")
 	}
 
-	// Lesen wird NICHT protokolliert — sonst wäre jeder Seitenaufruf ein
-	// Eintrag und die Spur unlesbar.
+	// Reads are NOT logged — otherwise every page view would be an entry and
+	// the trail unreadable.
 	vorher := len(auditSpur(t, admin))
 	admin.do(http.MethodGet, "/api/v1/agents/"+agentID, nil).Body.Close()
 	admin.do(http.MethodGet, "/api/v1/agents", nil).Body.Close()
 	if nachher := len(auditSpur(t, admin)); nachher != vorher {
-		t.Errorf("Lesen erzeugt Einträge: vorher %d, nachher %d", vorher, nachher)
+		t.Errorf("reading produces entries: before %d, after %d", vorher, nachher)
 	}
 
-	// Auch der ABGEWIESENE Versuch gehört hinein — der Versuch, eine
-	// Guard-Rail einer fremden Organisation zu löschen, ist die interessantere
-	// Zeile.
+	// The REJECTED attempt belongs in there too — the attempt to delete a guard
+	// rail of a foreign organization is the more interesting line.
 	admin.do(http.MethodDelete, "/api/v1/guardrails/"+uuid.NewString(), nil).Body.Close()
 	spur = auditSpur(t, admin)
 	var gefunden bool
@@ -112,11 +111,11 @@ func TestAuditSpurHaeltVerwaltungshandlungenFest(t *testing.T) {
 		}
 	}
 	if !gefunden {
-		t.Error("ein abgewiesener Versuch steht nicht in der Spur")
+		t.Error("a rejected attempt is not in the trail")
 	}
 }
 
-// Die Spur ist org-gescopt, und lesen darf sie nur, wen sie angeht.
+// The trail is org-scoped, and only those it concerns may read it.
 func TestAuditSpurRollenUndOrgGrenze(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
@@ -136,16 +135,16 @@ func TestAuditSpurRollenUndOrgGrenze(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	// Dürfen lesen: Auditor und Security (und der Admin oben).
+	// May read: auditor and security (and the admin above).
 	for _, email := range []string{"pruefer@test.local", "sicher@test.local"} {
 		login(t, s, email, "passwort-1234").expect(http.MethodGet, "/api/v1/audit", nil, http.StatusOK)
 	}
-	// Dürfen nicht: Agent-Owner und Controlling — sie stehen selbst darin.
+	// May not: agent owner and controlling — they appear in it themselves.
 	for _, email := range []string{"besitzer@test.local", "kosten@test.local"} {
 		login(t, s, email, "passwort-1234").expect(http.MethodGet, "/api/v1/audit", nil, http.StatusForbidden)
 	}
 
-	// Andere Organisation, andere Spur.
+	// Another organization, another trail.
 	admin.expect(http.MethodPost, "/api/v1/orgs", map[string]any{
 		"name": "Spur-Nachbar", "admin_email": "spurnachbar@test.local",
 		"admin_name": "Nachbar", "admin_password": "nachbar-passwort",
@@ -153,7 +152,7 @@ func TestAuditSpurRollenUndOrgGrenze(t *testing.T) {
 	nachbar := login(t, s, "spurnachbar@test.local", "nachbar-passwort")
 	for _, e := range auditSpur(t, nachbar) {
 		if strings.Contains(e.Path, "spur-agent") || e.ActorEmail == "admin@test.local" {
-			t.Errorf("die Nachbar-Organisation sieht fremde Handlungen: %+v", e)
+			t.Errorf("the neighbouring organization sees foreign actions: %+v", e)
 		}
 	}
 }

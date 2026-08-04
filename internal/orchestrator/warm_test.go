@@ -12,8 +12,8 @@ import (
 	"covey/internal/daemon"
 )
 
-// fakeLink ist ein minimaler DaemonLink für die warmLink-Tests: Receive liefert
-// aus einem Channel, Close markiert den Link als geschlossen.
+// fakeLink is a minimal DaemonLink for the warmLink tests: Receive delivers
+// from a channel, Close marks the link as closed.
 type fakeLink struct {
 	in     chan daemon.Message
 	err    chan error
@@ -50,53 +50,53 @@ func TestWarmLinkForwardsAndSurvivesCancel(t *testing.T) {
 	inner := newFakeLink()
 	wl := newWarmLink(inner)
 
-	// Nachricht fließt durch.
+	// A message flows through.
 	inner.in <- daemon.Message{Type: daemon.TypeHeartbeat}
 	msg, err := wl.Receive(context.Background())
 	if err != nil || msg.Type != daemon.TypeHeartbeat {
 		t.Fatalf("Receive = %v, %v", msg.Type, err)
 	}
 
-	// Ein Receive mit abgelaufenem Context liefert den ctx-Fehler — und darf den
-	// inneren Link NICHT schließen (das ist der ganze Zweck der Pump-Hülle).
+	// A Receive with an expired context returns the ctx error — and must NOT
+	// close the inner link (that is the whole point of the pump wrapper).
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
 	defer cancel()
 	if _, err := wl.Receive(ctx); !errors.Is(err, context.DeadlineExceeded) {
-		t.Fatalf("erwartet DeadlineExceeded, war %v", err)
+		t.Fatalf("expected DeadlineExceeded, was %v", err)
 	}
 	if inner.closed.Load() {
-		t.Fatal("innerer Link darf durch Receive-Cancel NICHT geschlossen werden")
+		t.Fatal("the inner link must NOT be closed by a Receive cancel")
 	}
 
-	// Nach dem Cancel ist der Link weiter benutzbar.
+	// After the cancel the link is still usable.
 	inner.in <- daemon.Message{Type: daemon.TypeSleep}
 	if msg, err := wl.Receive(context.Background()); err != nil || msg.Type != daemon.TypeSleep {
-		t.Fatalf("Link nach Cancel unbrauchbar: %v, %v", msg.Type, err)
+		t.Fatalf("link unusable after cancel: %v, %v", msg.Type, err)
 	}
 
-	// Send delegiert an den inneren Link.
+	// Send delegates to the inner link.
 	_ = wl.Send(context.Background(), daemon.Message{Type: daemon.TypeKill})
 	if inner.sent.Load() != 1 {
-		t.Fatalf("Send nicht durchgereicht: %d", inner.sent.Load())
+		t.Fatalf("Send was not passed through: %d", inner.sent.Load())
 	}
 
-	// Close schließt den inneren Link.
+	// Close closes the inner link.
 	_ = wl.Close()
 	if !inner.closed.Load() {
-		t.Fatal("Close muss den inneren Link schließen")
+		t.Fatal("Close has to close the inner link")
 	}
 }
 
 func TestWarmLinkPropagatesInnerError(t *testing.T) {
 	inner := newFakeLink()
 	wl := newWarmLink(inner)
-	inner.err <- errors.New("verbindung verloren")
+	inner.err <- errors.New("connection lost")
 	if _, err := wl.Receive(context.Background()); err == nil {
-		t.Fatal("Fehler des inneren Links muss durchschlagen")
+		t.Fatal("an error from the inner link has to propagate")
 	}
 }
 
-// fakeSandbox merkt sich, ob sie abgebaut wurde.
+// fakeSandbox remembers whether it was torn down.
 type fakeSandbox struct{ stopped atomic.Bool }
 
 func (f *fakeSandbox) Stop(context.Context) error {
@@ -104,14 +104,14 @@ func (f *fakeSandbox) Stop(context.Context) error {
 	return nil
 }
 
-// Eine warme Sandbox ist ein LAUFENDER Container, der dem schlafenden Agenten
-// gehört. Faehrt die Control Plane herunter, muss sie ihn abbauen — sonst
-// bleibt er zurueck: Beim naechsten Start raeumt ihn erst der naechste Wake
-// desselben Agenten weg (der Provider loescht den gleichnamigen Container), und
-// bei einem Agenten, der nie wieder geweckt wird, laeuft er unbegrenzt weiter.
+// A warm sandbox is a RUNNING container belonging to a sleeping agent. When
+// the control plane shuts down it has to tear it down — otherwise it is left
+// behind: on the next start only the next wake of the same agent clears it
+// away (the provider deletes the container of the same name), and for an agent
+// that is never woken again it keeps running indefinitely.
 func uuidNil() uuid.UUID { return uuid.New() }
 
-func TestWarmeSandboxenWerdenBeimHerunterfahrenAbgebaut(t *testing.T) {
+func TestWarmSandboxesAreTornDownOnShutdown(t *testing.T) {
 	o := New(Options{})
 	link, sandbox := newFakeLink(), &fakeSandbox{}
 
@@ -120,22 +120,22 @@ func TestWarmeSandboxenWerdenBeimHerunterfahrenAbgebaut(t *testing.T) {
 	o.parkWarm(uuidNil(), link, sandbox)
 
 	o.mu.Lock()
-	geparkt := len(o.warm)
+	parked := len(o.warm)
 	o.mu.Unlock()
-	if geparkt != 1 {
-		t.Fatalf("erwartet eine geparkte Sandbox, got %d", geparkt)
+	if parked != 1 {
+		t.Fatalf("expected one parked sandbox, got %d", parked)
 	}
 
-	cancel() // Control Plane faehrt herunter
+	cancel() // the control plane shuts down
 
-	frist := time.After(3 * time.Second)
+	deadline := time.After(3 * time.Second)
 	for {
 		if sandbox.stopped.Load() && link.closed.Load() {
 			break
 		}
 		select {
-		case <-frist:
-			t.Fatalf("warme Sandbox nicht abgebaut (stopped=%v, link geschlossen=%v)",
+		case <-deadline:
+			t.Fatalf("warm sandbox was not torn down (stopped=%v, link closed=%v)",
 				sandbox.stopped.Load(), link.closed.Load())
 		case <-time.After(10 * time.Millisecond):
 		}
@@ -144,6 +144,6 @@ func TestWarmeSandboxenWerdenBeimHerunterfahrenAbgebaut(t *testing.T) {
 	rest := len(o.warm)
 	o.mu.Unlock()
 	if rest != 0 {
-		t.Errorf("nach dem Herunterfahren sind noch %d Sandboxen geparkt", rest)
+		t.Errorf("%d sandboxes are still parked after shutdown", rest)
 	}
 }

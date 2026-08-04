@@ -1,28 +1,28 @@
-# 03 — Lifecycle & Scheduling
+# 03 — Lifecycle & scheduling
 
-Dies ist das Herzstück der Plattform. Der Scheduler/Dispatcher ist das eigentliche Produkt: ein OS-Scheduler + cron + Inbox + Zustandsverwaltung für Agenten.
+This is the heart of the platform. The scheduler/dispatcher is the actual product: an OS scheduler + cron + inbox + state management for agents.
 
-## Der „Always-on"-Trick
+## The "always-on" trick
 
-Ein Agent soll sich verhalten wie ein Mitarbeiter: immer erreichbar, mit einem Backlog, proaktiv. Aber **„always-on" ist eine UX-Eigenschaft, keine Runtime-Eigenschaft.** Ein Mensch ist dauerhaft da, verbrennt dabei aber fast keine Energie — er wird aktiv, wenn etwas reinkommt. Wörtlich always-on (Dauer-Inferenz) wäre teuer und würde Halluzinations-Rauschen produzieren.
+An agent should behave like an employee: always reachable, with a backlog, proactive. But **"always-on" is a UX property, not a runtime property.** A human is permanently there yet burns almost no energy doing it — they become active when something comes in. Literally always-on (continuous inference) would be expensive and would produce hallucination noise.
 
-Die Lösung: **immer erreichbar und stateful, aber Compute nur bei Bedarf.** Das Vehikel dafür ist das Backlog plus ein billiger Dispatch-Loop.
+The solution: **always reachable and stateful, but compute only on demand.** The vehicle for that is the backlog plus a cheap dispatch loop.
 
-## Dispatch-Loop
+## Dispatch loop
 
-Pro Agent läuft ein dauerhafter, **billiger** Dispatch-Loop — **kein LLM**, reine Orchestrierung. Er kennt drei Wake-Quellen:
+A permanent, **cheap** dispatch loop runs per agent — **no LLM**, pure orchestration. It knows three wake sources:
 
-| Wake-Quelle | Beispiel |
+| Wake source | Example |
 |---|---|
-| **Event** | neues Ticket, Webhook, eingehende Mail (falls der Agent eine hat), Delegation von einem anderen Agenten |
-| **Scheduler-Tick** | alle N Minuten „was liegt an?" |
-| **Zeitplan (cron)** | „Montag 9 Uhr Wochenreport" — konfiguriert je Agent in `HEARTBEAT.md`, siehe unten |
+| **Event** | new ticket, webhook, incoming mail (if the agent has one), delegation from another agent |
+| **Scheduler tick** | every N minutes, "anything to do?" |
+| **Schedule (cron)** | "Monday 9 a.m. weekly report" — configured per agent in `HEARTBEAT.md`, see below |
 
-Erst wenn eine dieser Quellen feuert, wird die teure Agent-Runtime in der Sandbox geweckt (`wake` → `assign_task`, siehe [`01-architektur.md`](01-architektur.md)).
+Only when one of these sources fires is the expensive agent runtime in the sandbox woken (`wake` → `assign_task`, see [`01-architecture.md`](01-architecture.md)).
 
-### Heartbeat: wiederkehrende Aufgaben (`HEARTBEAT.md`)
+### Heartbeat: recurring tasks (`HEARTBEAT.md`)
 
-Die Zeitplan-Quelle ist Config-as-Code: jede Zeile in `HEARTBEAT.md` ([`02-agenten-modell.md`](02-agenten-modell.md)) definiert eine wiederkehrende Aufgabe.
+The schedule source is config as code: every line in `HEARTBEAT.md` ([`02-agent-model.md`](02-agent-model.md)) defines a recurring task.
 
 ```markdown
 - alle: 30m      titel: Posteingang sichten   aufgabe: Prüfe neue Tickets und triagiere sie.
@@ -30,47 +30,47 @@ Die Zeitplan-Quelle ist Config-as-Code: jede Zeile in `HEARTBEAT.md` ([`02-agent
 - alle: 5m nur-wenn: email titel: Postfach    aufgabe: Bearbeite die ungelesenen Mails.
 ```
 
-Zwei Zeitplan-Formen, genau eine je Eintrag:
+Two schedule forms, exactly one per entry:
 
-- **`alle:`** — Intervall (`30m`, `2h`, `1d`). Fällig, sobald seit dem letzten Lauf das Intervall verstrichen ist.
-- **`täglich:`** — feste Tageszeit (`HH:MM`, Serverzeit). Fällig einmal pro Tag ab dieser Uhrzeit.
+- **`alle:`** (every) — an interval (`30m`, `2h`, `1d`). Due as soon as the interval has elapsed since the last run.
+- **`täglich:`** (daily) — a fixed time of day (`HH:MM`, server time). Due once per day from that time onward.
 
-Optional je Eintrag:
+Optional per entry:
 
-- **`nur-wenn:`** — Name eines Zielsystems, das beim Feuern erst Arbeit melden muss. Die Control Plane fragt das Plugin über das optionale `target.WorkChecker`-Interface (`HasWork`) mit selbst aufgelösten Secrets — für `email` etwa: „gibt es ungelesene Mails im Arbeitsvorrat?" Meldet das System keine Arbeit, entfällt der Lauf ohne Agenten-Wake; `last_fired_at` wird trotzdem fortgeschrieben, der Zeitplan pollt regulär weiter. Die Prüfung ist fail-open: lässt sich die Bedingung nicht auswerten (Plugin ohne `WorkChecker`, fehlende Secrets, Verbindungsfehler), feuert der Heartbeat regulär — eine kaputte Bedingung darf keine Arbeit liegen lassen. So wird aus dem Polling-Intake webhookloser Systeme ein billiger Control-Plane-Check; die teure Runtime startet nur, wenn wirklich etwas vorliegt.
+- **`nur-wenn:`** (only-if) — the name of a target system that has to report work first when the entry fires. The control plane asks the plugin through the optional `target.WorkChecker` interface (`HasWork`) with self-resolved secrets — for `email`, for instance: "are there unread mails in the working set?" If the system reports no work, the run is skipped without waking the agent; `last_fired_at` is advanced regardless, so the schedule keeps polling as usual. The check is fail-open: if the condition cannot be evaluated (plugin without `WorkChecker`, missing secrets, connection error), the heartbeat fires as usual — a broken condition must not leave work lying around. This turns the polling intake of webhook-less systems into a cheap control-plane check; the expensive runtime only starts when something is genuinely there.
 
-**Nie zweimal auf denselben Stand wecken (Signatur):** Eine `nur-wenn:`-Bedingung misst einen Pegel — „dort wartet etwas" bleibt wahr, bis der Agent den Zustand ändert. Bei Gesprächsfäden (GitLab-Issue, Merge Request) heißt das: Solange der letzte Beitrag nicht vom Agenten stammt, weckt derselbe Vorgang in jedem Intervall erneut. Ein Agent, der einen Lauf **bewusst kommentarlos** beendet — die Rückmeldung des QA-Kollegen war eine Freigabe, es gibt nichts zu tun —, würde deshalb dauerhaft geweckt und kommentierte am Ende nur noch, um seinen eigenen Wecker abzustellen. Zwischen zwei Agenten trägt das einen Selbstläufer: jeder Kommentar schließt das eigene Gate und öffnet das des anderen.
+**Never wake twice on the same state (signature):** a `nur-wenn:` condition measures a level — "something is waiting there" stays true until the agent changes the state. For conversation threads (GitLab issue, merge request) that means: as long as the last contribution is not from the agent, the same item wakes it again at every interval. An agent that **deliberately** ends a run without commenting — the QA colleague's feedback was an approval, there is nothing to do — would therefore be woken permanently and would end up commenting only to switch off its own alarm clock. Between two agents this carries a runaway: every comment closes one's own gate and opens the other's.
 
-Plugins können darum über `target.SignedWorkChecker` neben dem Ja/Nein eine **Signatur** des gefundenen Vorrats liefern — eine kurze, stabile Beschreibung dessen, worauf der Check angeschlagen hat (GitLab: Projekt, Vorgangsnummer und höchste Note-ID je wartendem Thread; Pushes zählen mit, weil GitLab sie als System-Note vermerkt). Die Control Plane hält sie in `agent_heartbeats.last_work_sig` und feuert nur, wenn sie sich **geändert** hat. Der Agent wird also weiterhin zu jeder Neuigkeit geweckt — auch zu einer, die er nur zur Kenntnis nimmt —, aber nie zweimal zur selben. Die Entscheidung, ob eine Rückmeldung Arbeit bedeutet (gemeldete Mängel) oder nicht (Freigabe), liegt damit beim Agenten statt beim Gate; **Schweigen wird eine gültige Antwort**. Liefert ein Plugin keine Signatur, feuert der Heartbeat wie zuvor bei jedem Pegel (fail-open). Meldet der Check keine Arbeit mehr, wird die Signatur zurückgesetzt — derselbe Zustand darf später wieder wecken.
+Plugins can therefore deliver, via `target.SignedWorkChecker`, a **signature** of the work found alongside the yes/no — a short, stable description of what the check responded to (GitLab: project, item number and highest note ID per waiting thread; pushes count, because GitLab records them as a system note). The control plane keeps it in `agent_heartbeats.last_work_sig` and only fires when it has **changed**. So the agent is still woken for every piece of news — including one it merely takes note of — but never twice for the same one. The decision whether feedback means work (defects reported) or not (approval) thereby sits with the agent instead of the gate; **silence becomes a valid answer**. If a plugin delivers no signature, the heartbeat fires on every level as before (fail-open). When the check reports no more work, the signature is reset — the same state may wake the agent again later.
 
-Mechanik: Beim Speichern der Config werden die Einträge in `agent_heartbeats` materialisiert (`titel:` ist der Schlüssel; `last_fired_at` überlebt Config-Versionen und startet bei *jetzt* — ein frisch angelegter Heartbeat feuert also erst nach Ablauf seines Zeitplans, nicht sofort). Der periodische Tick des Dispatch-Loops prüft fällige Einträge per SQL und legt sie als reguläre Backlog-Aufgabe mit `origin='heartbeat'` an — ab dort greift der normale Lifecycle (wake, triage, working). Kill-Switch und Flotten-Notaus unterdrücken das Feuern.
+Mechanics: on saving the config, the entries are materialised into `agent_heartbeats` (`titel:` is the key; `last_fired_at` survives config versions and starts at *now* — a freshly created heartbeat therefore fires only after its schedule has elapsed, not immediately). The dispatch loop's periodic tick checks due entries via SQL and creates them as a regular backlog task with `origin='heartbeat'` — from there the normal lifecycle applies (wake, triage, working). The kill switch and the fleet-wide emergency stop suppress firing.
 
-**Kein Aufstauen:** Ist die Aufgabe des letzten Laufs noch nicht terminal (open/in_progress/blocked), wird kein Duplikat angelegt; der Lauf gilt trotzdem als gefeuert, damit nach Abschluss der reguläre Zeitplan weiterläuft statt sofort nachzuschlagen. Verpasste Läufe (Control Plane down) werden nicht nachgeholt — es feuert höchstens der nächste fällige Lauf.
+**No pile-up:** if the last run's task is not yet terminal (open/in_progress/blocked), no duplicate is created; the run still counts as fired, so that after completion the regular schedule continues instead of firing immediately. Missed runs (control plane down) are not caught up — at most the next due run fires.
 
-**Manueller Trigger:** `POST /api/v1/agents/{id}/heartbeats/{name}/fire` (Rollen: platform_admin, agent_owner — in der UI der Button „Jetzt ausführen" im Heartbeat-Tab) feuert einen Heartbeat sofort, unabhängig vom Zeitplan. Es gelten dieselben Regeln wie beim Tick: Kill-Switch/Notaus und eine noch offene Aufgabe des letzten Laufs lehnen ab (409), und `last_fired_at` wird fortgeschrieben — der reguläre Zeitplan rechnet ab dem manuellen Lauf weiter. Eine `nur-wenn:`-Bedingung wird beim manuellen Trigger **nicht** geprüft: wer den Button drückt, will den Lauf.
+**Manual trigger:** `POST /api/v1/agents/{id}/heartbeats/{name}/fire` (roles: platform_admin, agent_owner — the "Run now" button in the heartbeat tab) fires a heartbeat immediately, regardless of the schedule. The same rules as for the tick apply: kill switch/emergency stop and a still-open task from the last run cause a refusal (409), and `last_fired_at` is advanced — the regular schedule continues counting from the manual run. A `nur-wenn:` condition is **not** checked on a manual trigger: whoever presses the button wants the run.
 
-**Gestaffelte Kosten beim Tick:** Der Tick darf nicht jedes Mal Opus anwerfen. Ein kleines, billiges Modell entscheidet zuerst „gibt es überhaupt etwas zu tun?" — bei „nein" schläft der Agent weiter. Erst bei „ja" wird die volle Runtime geweckt. Der Tick ist das, was Proaktivität erzeugt: Ohne externen Trigger merkt der Support-Agent selbst „Ticket #42 wartet seit zwei Tagen auf Kundenantwort, ich hake nach."
+**Tiered cost at the tick:** the tick must not fire up Opus every time. A small, cheap model first decides "is there anything to do at all?" — on "no" the agent stays asleep. Only on "yes" is the full runtime woken. The tick is what produces proactivity: without an external trigger, the support agent notices for itself that "ticket #42 has been waiting two days for a customer reply, I'll follow up."
 
-### Generischer Webhook-Trigger (optional je Agent)
+### Generic webhook trigger (optional per agent)
 
-Neben den Zielsystem-Webhooks (Plugin, Signatur-Prüfung, Korrelation — siehe [`13-zammad-integration.md`](13-zammad-integration.md)) kann jeder Agent **optional** einen generischen Webhook als Wake-Quelle bekommen — für Fremdsysteme ohne eigenes Plugin (CI-Pipelines, Cron-Jobs, Zapier, Monitoring):
+Besides the target-system webhooks (plugin, signature check, correlation — see [`13-zammad-integration.md`](13-zammad-integration.md)), every agent can **optionally** be given a generic webhook as a wake source — for third-party systems without a plugin of their own (CI pipelines, cron jobs, Zapier, monitoring):
 
-- **Aktivierung** über die API/UI (`POST /api/v1/agents/{id}/webhook`, Manager-Rollen) erzeugt ein geheimes Token; erneutes Aktivieren rotiert es (alte URL wird ungültig), `DELETE` deaktiviert. Default ist **aus** — das Token liegt als nullable Spalte am Agenten (`webhook_token`), nicht in der Sandbox.
-- **Auslösen:** `POST /api/trigger/{token}` — das Token in der URL ist die gesamte Authentifizierung. Payload optional als JSON `{"title", "body", "priority", "dedup_key"}`; jeder andere Body wird als Roh-Text in den Aufgaben-Body übernommen (nichts geht verloren, auch fremde Payload-Formate nicht).
-- **Wirkung:** legt eine reguläre Backlog-Aufgabe mit `origin='webhook:trigger'` an und stößt den Dispatch sofort an — ab dort greift der normale Lifecycle. Kein Plugin, keine Korrelation: Wer korrelierte Wakes braucht, nimmt ein Zielsystem-Plugin.
-- **Idempotenz:** optional über `dedup_key` (je Agent gescopt, gleiche `webhook_events`-Tabelle wie der Event-Router) — Retries des Fremdsystems erzeugen keine Duplikate.
-- **Fail-closed:** ein gestoppter Agent (Kill-Switch) lehnt den Trigger ab; ein unbekanntes Token liefert 404.
+- **Activation** via the API/UI (`POST /api/v1/agents/{id}/webhook`, manager roles) generates a secret token; activating again rotates it (the old URL becomes invalid), `DELETE` deactivates. The default is **off** — the token sits as a nullable column on the agent (`webhook_token`), not in the sandbox.
+- **Triggering:** `POST /api/trigger/{token}` — the token in the URL is the entire authentication. Payload optionally as JSON `{"title", "body", "priority", "dedup_key"}`; any other body is taken into the task body as raw text (nothing is lost, not even foreign payload formats).
+- **Effect:** creates a regular backlog task with `origin='webhook:trigger'` and kicks off dispatch immediately — from there the normal lifecycle applies. No plugin, no correlation: whoever needs correlated wakes takes a target-system plugin.
+- **Idempotency:** optional via `dedup_key` (scoped per agent, the same `webhook_events` table as the event router) — the third-party system's retries do not create duplicates.
+- **Fail-closed:** a stopped agent (kill switch) refuses the trigger; an unknown token returns 404.
 
-## Zustandsmaschine
+## State machine
 
 ```
-   ┌──────────┐  Event/Tick/Zeitplan   ┌───────────┐
+   ┌──────────┐  event/tick/schedule   ┌───────────┐
    │ sleeping │ ─────────────────────▶ │ triggered │
    └──────────┘                        └─────┬─────┘
         ▲                                    │
         │                                    ▼
         │                              ┌───────────┐
-        │                              │  triage   │  Backlog + Gedächtnis prüfen
+        │                              │  triage   │  check backlog + memory
         │                              └─────┬─────┘
         │                                    │
         │                                    ▼
@@ -78,142 +78,142 @@ Neben den Zielsystem-Webhooks (Plugin, Signatur-Prüfung, Korrelation — siehe 
         │  done                        │  working  │
         └──────────────┐               └──┬─────▲──┘
                        │                  │     │
-                  ┌────┴─────┐   block    │     │  korreliertes Event
+                  ┌────┴─────┐   block    │     │  correlated event
                   │   done   │◀───────┐   ▼     │
                   └──────────┘        ┌─────────┴─┐
-                                      │  blocked  │  wartet auf externes Ereignis
+                                      │  blocked  │  waits for an external event
                                       └───────────┘
 ```
 
-| Zustand | Bedeutung | Compute |
+| State | Meaning | Compute |
 |---|---|---|
-| `sleeping` | erreichbar, wartet auf Wake | keiner (nur Dispatch-Loop) |
-| `triggered` | eine Wake-Quelle hat gefeuert | minimal (Tick-Entscheidung) |
-| `triage` | Backlog + Gedächtnis prüfen, priorisieren | Runtime an |
-| `working` | Aufgabe wird in der Sandbox bearbeitet | Runtime an (voll) |
-| `blocked` | Aufgabe geparkt, wartet auf externes Ereignis | keiner (suspendiert) |
-| `done` | Aufgabe abgeschlossen, Ergebnis + Gedächtnis-Update | Runtime fährt runter |
+| `sleeping` | reachable, waiting for a wake | none (dispatch loop only) |
+| `triggered` | a wake source has fired | minimal (tick decision) |
+| `triage` | check backlog + memory, prioritise | runtime on |
+| `working` | the task is being worked on in the sandbox | runtime on (full) |
+| `blocked` | task parked, waiting for an external event | none (suspended) |
+| `done` | task finished, result + memory update | runtime shuts down |
 
-Der vollständige Zyklus: `sleeping → triggered → triage → working → (blocked ⇄ working) → done → sleeping`.
+The full cycle: `sleeping → triggered → triage → working → (blocked ⇄ working) → done → sleeping`.
 
-## Der `blocked`-Zustand
+## The `blocked` state
 
-Der Zustand, den fast alle vergessen — und der aus einem Agenten einen Angestellten macht. Ein echter Mitarbeiter parkt Aufgaben („warte auf Antwort vom Kunden", „warte auf Freigabe vom Chef") statt darauf zu pollen oder sich eine Antwort zu halluzinieren.
+The state nearly everyone forgets — and the one that turns an agent into an employee. A real employee parks tasks ("waiting for the customer's reply", "waiting for the boss's approval") instead of polling for them or hallucinating an answer.
 
-Der Agent muss sagen können: **„Ich bin auf X geblockt, weck mich, wenn die Antwort kommt"** — und dann *wirklich suspendieren*. Der Daemon meldet `blocked` mit einem **Korrelations-Key** an die Control Plane; die Sandbox wird heruntergefahren. Die `blocked → working`-Kante wird geschlossen, wenn ein eingehendes Event auf diesen Key gemappt wird.
+The agent must be able to say: **"I am blocked on X, wake me when the answer arrives"** — and then *actually suspend*. The daemon reports `blocked` with a **correlation key** to the control plane; the sandbox is shut down. The `blocked → working` edge is closed when an incoming event is mapped onto that key.
 
-Sauberes `blocked`-Handling ist der Unterschied zwischen „Agent" und „Angestellter".
+Clean `blocked` handling is the difference between "agent" and "employee".
 
-## Der abgebrochene Lauf: Turn-Limit statt Ergebnis
+## The aborted run: turn limit instead of a result
 
-`blocked` ist das geplante Anhalten. Daneben steht das **ungeplante**: Ein Lauf stößt an sein Turn-Limit (`max_turns`), bevor er zu einem Ergebnis kommt. Er hat gearbeitet — geklont, gelesen, halb gefixt —, aber nichts davon steht in einem Ergebnis, und der Kontext stirbt mit der Sandbox.
+`blocked` is the planned halt. Next to it stands the **unplanned** one: a run hits its turn limit (`max_turns`) before arriving at a result. It did work — cloned, read, half-fixed — but none of that is in a result, and the context dies with the sandbox.
 
-Naiv behandelt ist das ein stiller Fehlschlag, und aus ihm entsteht die teuerste Schleife des Systems: Der Heartbeat feuert erneut, ein frischer Lauf fängt dieselbe Arbeit von vorn an, läuft wieder ins Limit — beliebig oft.
+Handled naively this is a silent failure, and out of it grows the most expensive loop in the system: the heartbeat fires again, a fresh run starts the same work from scratch, hits the limit again — arbitrarily often.
 
-Der Runtime-Adapter meldet diesen Fall deshalb als eigenen Status **`incomplete`** (nicht `failed`) und legt zwei Dinge bei:
+The runtime adapter therefore reports this case as its own status **`incomplete`** (not `failed`) and attaches two things:
 
-1. **Den Übergabe-Stand.** Ein einziger zusätzlicher Turn auf der bereits abgebrochenen Session (`--resume`, ohne Werkzeuge) fragt den Agenten nach *Erledigt / Offen / Nächster Schritt*. Auf gecachtem Kontext kostet das fast nichts, verglichen mit dem Lauf, der sonst verloren wäre.
-2. **Die Runtime-Session** zum Wiederaufsetzen.
+1. **The handover state.** A single additional turn on the already-aborted session (`--resume`, without tools) asks the agent for *Done / Open / Next step*. On cached context that costs almost nothing compared to the run that would otherwise be lost.
+2. **The runtime session** for resuming.
 
-Die Control Plane macht daraus:
+The control plane turns that into:
 
-- eine **Notiz an der Aufgabe** mit dem Übergabe-Stand (im Board sichtbar, siehe [Notizen](#notizen-zwischenstände-an-der-aufgabe)),
-- den Abschluss der Aufgabe als `failed` — mit sprechendem Fehlertext statt leerem Feld — und dem Übergabe-Stand als Ergebnis,
-- eine **Folgeaufgabe** (`parent_task_id`, Herkunft `continuation:<task-id>`), die dieselbe Session wieder aufnimmt und dort weiterarbeitet, wo der Lauf abbrach.
+- a **note on the task** with the handover state (visible on the board, see [Notes](#notes-interim-state-on-the-task)),
+- the completion of the task as `failed` — with a meaningful error text instead of an empty field — and the handover state as the result,
+- a **follow-up task** (`parent_task_id`, origin `continuation:<task-id>`) that picks the same session back up and continues where the run broke off.
 
-Die Folgeaufgabe trägt bewusst **denselben Titel** wie ihre Ursprungsaufgabe: Die Heartbeat-Dedup erkennt daran, dass diese Arbeit noch läuft, und feuert nicht daneben.
+The follow-up task deliberately carries **the same title** as the task it came from: heartbeat dedup recognises from this that the work is still running and does not fire alongside it.
 
-**Loop-Schutz.** Eine Fortsetzung, die wieder ins Limit läuft, erzeugt die nächste — aber nicht endlos. Nach drei Fortsetzungen in Folge (`maxContinuations`) eskaliert die Aufgabe an den Vorgesetzten, statt weiterzulaufen. Wer nach vier vollen Läufen kein Ergebnis hat, braucht keinen fünften, sondern einen Menschen: Entweder ist der Auftrag zu groß geschnitten oder `max_turns` zu klein. Ohne diese Grenze ersetzte die Fortsetzung nur eine Endlosschleife durch eine andere.
+**Loop protection.** A continuation that runs into the limit again produces the next one — but not endlessly. After three continuations in a row (`maxContinuations`) the task escalates to the manager instead of continuing. Whoever has no result after four full runs does not need a fifth but a human: either the assignment is cut too large or `max_turns` is too small. Without that limit the continuation would merely replace one infinite loop with another.
 
-Der bessere Weg für den Agenten bleibt, gar nicht erst ins Limit zu laufen: Wird eine Aufgabe zu groß, zerlegt er sie selbst (`covey/create_task`, siehe [Teilaufgaben und Delegation](#teilaufgaben-und-delegation-coveycreate_task)) und schließt den laufenden Auftrag mit einem Teilergebnis ab.
+The better route for the agent remains not running into the limit at all: if a task grows too large, it breaks it up itself (`covey/create_task`, see [Subtasks and delegation](#subtasks-and-delegation-coveycreate_task)) and closes the current assignment with a partial result.
 
-## Backlog als First-Class-Objekt
+## Backlog as a first-class object
 
-Das Backlog ist **kein flüchtiger Queue**, sondern ein persistentes, inspizierbares Objekt in der Control Plane. Jede Aufgabe trägt:
+The backlog is **not a transient queue** but a persistent, inspectable object in the control plane. Every task carries:
 
-- **State** (`open`, `in_progress`, `blocked`, `done`, `failed`, `cancelled`),
-- **Priorität**,
-- **Herkunft** (wer/was hat sie zugewiesen — `manual:<email>`, `heartbeat`, `webhook:<system>`, `webhook:trigger`, `agent:<slug>` für vom Agenten selbst angelegte, `continuation:<task-id>` für die Fortsetzung eines abgebrochenen Laufs),
-- **Historie** (Zustandsübergänge, Zeitstempel),
-- ggf. **Korrelations-Key** (wenn `blocked`),
-- ggf. **Ursprungsaufgabe** (`parent_task_id` — Teilaufgabe, Delegation oder Fortsetzung; trägt zugleich den Loop-Schutz, siehe unten),
-- ggf. **Stage** (frei definierbare Kanban-Spalte, siehe unten),
-- ggf. **Notizen** (proaktive Zwischenstände des Agenten, siehe unten).
+- a **state** (`open`, `in_progress`, `blocked`, `done`, `failed`, `cancelled`),
+- a **priority**,
+- an **origin** (who/what assigned it — `manual:<email>`, `heartbeat`, `webhook:<system>`, `webhook:trigger`, `agent:<slug>` for ones the agent created itself, `continuation:<task-id>` for the continuation of an aborted run),
+- a **history** (state transitions, timestamps),
+- where applicable a **correlation key** (when `blocked`),
+- where applicable an **originating task** (`parent_task_id` — subtask, delegation or continuation; it also carries the loop protection, see below),
+- where applicable a **stage** (a freely definable kanban column, see below),
+- where applicable **notes** (the agent's proactive interim states, see below).
 
-**Terminale States sind keine Sackgassen, und das Backlog wächst nicht ins Unendliche:**
+**Terminal states are not dead ends, and the backlog does not grow without bound:**
 
-- **Retry:** `failed → open` und `cancelled → open` sind zulässige Übergänge — eine gescheiterte oder verworfene Aufgabe lässt sich manuell **erneut einplanen** (Ergebnis/Fehler werden geleert, die Historie bleibt in den Transitions, der Agent wird geweckt). `done` bleibt final.
-- **Archivieren statt löschen:** Terminale Aufgaben (`done`/`failed`/`cancelled`) lassen sich einzeln oder gesammelt („Aufräumen") **archivieren** (`archived_at`). Archiviert heißt: aus dem aktiven Backlog ausgeblendet, aber vollständig erhalten — Historie und Recording-Verweise bleiben gültig, das UI zeigt das Archiv auf Wunsch ein. Aktive Aufgaben (`open`/`in_progress`/`blocked`) sind bewusst nicht archivierbar.
+- **Retry:** `failed → open` and `cancelled → open` are permitted transitions — a failed or discarded task can be **rescheduled** manually (result/error are cleared, the history stays in the transitions, the agent is woken). `done` stays final.
+- **Archive instead of delete:** terminal tasks (`done`/`failed`/`cancelled`) can be **archived** individually or in bulk ("Clean up") (`archived_at`). Archived means: hidden from the active backlog but fully preserved — history and recording references stay valid, and the UI shows the archive on request. Active tasks (`open`/`in_progress`/`blocked`) are deliberately not archivable.
 
-### Stages: Kanban-Overlay über dem State
+### Stages: a kanban overlay on top of the state
 
-Der **State** ist die Maschinen-Wahrheit — an ihm hängen Scheduler (`ClaimNext` greift `open`), `blocked`-Suspendierung und Abschluss. Er ist fest und darf nicht frei werden, sonst verliert der Orchestrator seinen Halt.
+The **state** is the machine truth — the scheduler hangs off it (`ClaimNext` takes `open`), as do `blocked` suspension and completion. It is fixed and must not become free-form, or the orchestrator loses its footing.
 
-Darüber liegt eine zweite, **rein anzeigende** Dimension: die **Stage**. Stages sind frei benennbare Kanban-Spalten, **pro Agent** definiert (z. B. `Triage → Recherche → Warten → Antwort → Erledigt`). Sie tragen keine Semantik für den Scheduler — sie machen sichtbar, *wo im eigenen Workflow* eine Aufgabe steht.
+On top of it sits a second, **purely presentational** dimension: the **stage**. Stages are freely nameable kanban columns defined **per agent** (e.g. `Triage → Research → Waiting → Reply → Done`). They carry no semantics for the scheduler — they make visible *where in its own workflow* a task stands.
 
-- **Der Agent bewegt sich selbst.** Über den Action-Proxy (`covey/set_stage`, siehe [`01-architektur.md`](01-architektur.md)) schiebt der Agent seine laufende Aufgabe in eine Stage; existiert sie nicht, wird sie automatisch als neue Spalte angelegt — der Agent „erfindet" seine Spalten also im Arbeiten.
-- **Spalten sind Zustände, keine Überschriften.** Das automatische Anlegen ist bequem und verführt zum Wildwuchs: Ein Agent, der in jedem Lauf einen neuen Namen für dieselbe Tätigkeit prägt (`Issue-Triage`, `GitLab-Sichtung`) oder den Vorgang statt des Zustands benennt (`#83 CSV-Import`), baut sich in Tagen ein Board mit einem Dutzend toter Spalten. Der kompilierte System-Prompt hält deshalb drei Regeln fest: den *Zustand* benennen, bestehende Spalten wiederverwenden, mit einer Handvoll auskommen. Was darüber hinaus dokumentiert werden will, ist eine Notiz, keine Spalte.
-- **Auto-Cleanup der Agenten-Spalten.** Spalten, die der Agent selbst angelegt hat (`created_by='agent'`), werden automatisch wieder abgeräumt, sobald keine aktive (unarchivierte) Aufgabe mehr darin liegt — geprüft nach jedem Stage-Move, nach jedem terminalen Zustandsübergang und nach dem Archivieren. So bleibt das Board frei von verwaisten Arbeitszuständen. Menschlich angelegte Spalten (UI, Default-Stages) bleiben stehen, auch wenn sie leer sind.
-- **Terminale Aufgaben verlassen die Agenten-Spalte.** Erreicht eine Aufgabe einen terminalen State, führt Auto-Follow sie auch aus einer *selbst erfundenen* Spalte nach „Erledigt" — eine fertige Aufgabe gehört nicht in „Recherche". Erst dadurch greift das Cleanup: Bliebe in jeder erfundenen Spalte eine terminale Aufgabe liegen, wäre keine davon je „leer", und das Board sammelte über Wochen ein Dutzend toter Arbeitszustände. Von **Menschen** angelegte Spalten sind auch hier ausgenommen — bewusste Platzierung wird nie überschrieben.
-- **Das Board räumt sich selbst auf.** Auto-Cleanup greift nur bei *leeren* Spalten — eine erledigte Karte, die liegen bleibt, hält ihre Spalte am Leben. Deshalb archiviert die Control Plane getaktet (stündlich) jede terminale Aufgabe, die seit `COVEY_BOARD_RETENTION` (Default 24 h) nicht mehr angefasst wurde; die dadurch leeren Agenten-Spalten fallen mit weg. Archivieren ist kein Löschen: Zustand, Historie und Recording bleiben, die Aufgabe wandert nur aus dem aktiven Board ins Archiv. Bewusst zeitversetzt — frisch Erledigtes soll sichtbar bleiben, sonst verschwindet die Arbeit des letzten Laufs vor den Augen dessen, der sie prüfen will. Eine negative Dauer schaltet das Aufräumen ab; der „Aufräumen"-Knopf im Board bleibt für „und zwar jetzt". Aufräumen ist **Hygiene, keine Entscheidung** — es gehört in die Plattform, nicht in den Prompt eines Agenten, der es unter Last vergisst.
-- **Menschen ebenso.** Verwalter ziehen Aufgaben im Board per Drag & Drop und pflegen die Spalten (anlegen, umbenennen, umsortieren, färben, löschen).
-- **Persistenz:** Tabelle `agent_stages` (pro Agent, mit `position`/`color`), Aufgabe referenziert `stage_id` (nullable → „Ohne Stage"). Löschen einer Stage setzt betroffene Aufgaben auf `NULL` zurück, nie Datenverlust.
-- **Overlay, nicht Ersatz:** Eine Aufgabe hat gleichzeitig einen `state` (z. B. `blocked`) und eine `stage` (z. B. `Warten`). Die Kanban-Spalten des UI kommen aus den Stages; der State steht als Badge auf der Karte.
-- **Auto-Follow der Standard-Spalten:** Jeder Agent startet mit `Backlog → In Arbeit → Erledigt`. Solange eine Aufgabe in einer dieser Standard-Spalten (oder in keiner) liegt, führt der Store die Spalte beim Zustandsübergang automatisch nach (`open`→Backlog, `in_progress`/`blocked`→In Arbeit, terminal→Erledigt). Sobald Agent oder Mensch die Aufgabe bewusst in eine **eigene** Spalte legt, gilt manuelle Platzierung — Auto-Follow fasst sie nicht mehr an. Fehlt eine Standard-Spalte (umbenannt/gelöscht), entfällt das Nachführen ersatzlos.
+- **The agent moves itself.** Through the action proxy (`covey/set_stage`, see [`01-architecture.md`](01-architecture.md)) the agent pushes its running task into a stage; if the stage does not exist it is created automatically as a new column — so the agent "invents" its columns while working.
+- **Columns are states, not headlines.** Automatic creation is convenient and tempts sprawl: an agent that coins a new name for the same activity in every run (`Issue triage`, `GitLab review`) or names the item instead of the state (`#83 CSV import`) builds itself a board with a dozen dead columns within days. The compiled system prompt therefore lays down three rules: name the *state*, reuse existing columns, make do with a handful. Whatever wants documenting beyond that is a note, not a column.
+- **Auto-cleanup of agent columns.** Columns the agent created itself (`created_by='agent'`) are cleared away automatically as soon as no active (unarchived) task is left in them — checked after every stage move, after every terminal state transition and after archiving. That keeps the board free of orphaned working states. Human-created columns (UI, default stages) stay, even when empty.
+- **Terminal tasks leave the agent column.** When a task reaches a terminal state, auto-follow moves it out of a *self-invented* column into "Done" as well — a finished task does not belong in "Research". Only then does the cleanup take hold: if a terminal task stayed behind in every invented column, none of them would ever be "empty", and the board would collect a dozen dead working states over weeks. Columns created by **humans** are exempt here too — deliberate placement is never overwritten.
+- **The board cleans itself up.** Auto-cleanup only takes hold on *empty* columns — a finished card left lying around keeps its column alive. The control plane therefore archives, on a schedule (hourly), every terminal task untouched for longer than `COVEY_BOARD_RETENTION` (default 24 h); the agent columns thereby emptied fall away with it. Archiving is not deletion: state, history and recording remain, the task merely moves out of the active board into the archive. Deliberately time-delayed — freshly completed work should stay visible, otherwise the last run's work disappears in front of whoever wants to check it. A negative duration switches the cleanup off; the "Clean up" button on the board remains for "and do it now". Cleaning up is **hygiene, not a decision** — it belongs in the platform, not in the prompt of an agent that forgets it under load.
+- **Humans likewise.** Administrators drag tasks around the board and maintain the columns (create, rename, reorder, colour, delete).
+- **Persistence:** table `agent_stages` (per agent, with `position`/`color`), the task references `stage_id` (nullable → "no stage"). Deleting a stage resets affected tasks to `NULL`, never data loss.
+- **Overlay, not replacement:** a task simultaneously has a `state` (e.g. `blocked`) and a `stage` (e.g. `Waiting`). The UI's kanban columns come from the stages; the state sits as a badge on the card.
+- **Auto-follow of the default columns:** every agent starts with `Backlog → In progress → Done`. As long as a task sits in one of those default columns (or in none), the store advances the column automatically on a state transition (`open`→Backlog, `in_progress`/`blocked`→In progress, terminal→Done). As soon as agent or human deliberately places the task in a **custom** column, manual placement applies — auto-follow no longer touches it. If a default column is missing (renamed/deleted), the advancing simply does not happen.
 
-### Notizen: Zwischenstände an der Aufgabe
+### Notes: interim state on the task
 
-Neben Stage und State trägt eine Aufgabe **Notizen** (`task_notes`): proaktive Zwischenstände, die der Agent mitten im Lauf über den Action-Proxy anhängt (`covey/add_note`, siehe [`01-architektur.md`](01-architektur.md)) — Befunde, Versuchtes, Arbeitsstand. Die Abgrenzung ist bewusst einfach: **Hilft es nur dieser Aufgabe, ist es eine Notiz an der Aufgabe; hilft es auch künftigen Aufgaben, gehört es ins Gedächtnis** (`covey/remember`, siehe [`05-gedaechtnis.md`](05-gedaechtnis.md)). Notizen hängen an der Aufgabe (Cascade beim Löschen, sichtbar in der Karte im Board) und fließen nicht in die Memory-Abfrage künftiger Aufgaben ein.
+Besides stage and state, a task carries **notes** (`task_notes`): proactive interim states the agent attaches mid-run through the action proxy (`covey/add_note`, see [`01-architecture.md`](01-architecture.md)) — findings, things tried, work in progress. The distinction is deliberately simple: **if it helps only this task, it is a note on the task; if it also helps future tasks, it belongs in memory** (`covey/remember`, see [`05-memory.md`](05-memory.md)). Notes hang off the task (cascade on delete, visible on the card on the board) and do not flow into the memory query of future tasks.
 
-### Teilaufgaben und Delegation (`covey/create_task`)
+### Subtasks and delegation (`covey/create_task`)
 
-Aufgaben entstehen nicht nur von außen (Mensch, Heartbeat, Webhook, Trigger). Ein Agent kann selbst welche anlegen — über die Meta-Aktion `covey/create_task` am Action-Proxy (siehe [`01-architektur.md`](01-architektur.md)):
+Tasks do not only arise from outside (human, heartbeat, webhook, trigger). An agent can create them itself — through the meta action `covey/create_task` at the action proxy (see [`01-architecture.md`](01-architecture.md)):
 
-- **Teilaufgabe** (ohne `agent`) — der Agent zerlegt Arbeit, die für einen Lauf zu groß ist. Das ist die gesunde Alternative zum Festfahren: Teilergebnis abschließen, Rest als Aufgabe hinterlegen, statt ins Turn-Limit zu laufen.
-- **Delegation** (`"agent": "<slug>"`) — die Aufgabe landet beim Kollegen aus derselben Organisation und weckt ihn. Damit wird der Org-Chart aus [`02-agenten-modell.md`](02-agenten-modell.md) operativ: Eskalation und Delegation brauchen kein Sonderprotokoll und keinen Umweg über ein externes Ticketsystem.
+- **Subtask** (without `agent`) — the agent breaks up work that is too large for one run. That is the healthy alternative to getting stuck: close with a partial result, leave the rest as a task, instead of running into the turn limit.
+- **Delegation** (`"agent": "<slug>"`) — the task lands with a colleague from the same organisation and wakes them. This makes the org chart from [`02-agent-model.md`](02-agent-model.md) operational: escalation and delegation need no special protocol and no detour through an external ticket system.
 
-Jede so erzeugte Aufgabe hängt über `parent_task_id` an der Aufgabe, aus der sie hervorging, und trägt die Herkunft `agent:<slug>` — im Audit steht also, wer sie erzeugt hat und woraus.
+Every task created this way hangs via `parent_task_id` off the task it came from and carries the origin `agent:<slug>` — so the audit records who created it and out of what.
 
-**Ein Agent, der Aufgaben anlegen kann, kann sich selbst beschäftigen, bis das Budget leer ist.** Deshalb fail-closed in vier Richtungen:
+**An agent that can create tasks can keep itself busy until the budget is empty.** Hence fail-closed in four directions:
 
-| Grenze | Regel |
+| Limit | Rule |
 |---|---|
-| Policy | Guard-Rail-Subjekt `covey:create_task`, bei Delegation `covey:create_task:foreign` — getrennt regelbar, `denied`/`pending` wie bei jeder Zielsystem-Aktion |
-| Tiefe | Eine Kette selbst erzeugter Aufgaben endet nach `maxAgentTaskDepth` — keine unendliche Zerlegung |
-| Breite | Ein einzelner Lauf spaltet höchstens `maxAgentTasksPerRun` Aufgaben ab |
-| Dubletten | Existiert beim Ziel-Agenten bereits eine offene Aufgabe gleichen Titels, entsteht keine zweite |
+| Policy | Guard-rail subject `covey:create_task`, on delegation `covey:create_task:foreign` — separately governable, `denied`/`pending` as for any target-system action |
+| Depth | A chain of self-created tasks ends after `maxAgentTaskDepth` — no infinite decomposition |
+| Width | A single run splits off at most `maxAgentTasksPerRun` tasks |
+| Duplicates | If an open task with the same title already exists at the target agent, no second one is created |
 
-Der Dublettenschutz ist die wichtigste der vier: Ohne ihn baut ein wiederkehrender Lauf, der jedes Mal dieselbe Aufgabe anlegt, eine Warteschlange, die nie leer wird — dieselbe Klasse Fehler wie ein Heartbeat, der auf den Pegel statt auf die Flanke triggert.
+Duplicate protection is the most important of the four: without it, a recurring run that creates the same task every time builds a queue that never empties — the same class of error as a heartbeat that triggers on the level instead of the edge.
 
-Die Delegation bleibt in der Organisation: Der Ziel-Agent wird über seinen Slug **innerhalb der Org des Absenders** aufgelöst, ein pausierter Agent nimmt nichts an. Inter-Agenten-Aufgaben unterliegen damit denselben Recording- und Policy-Regeln wie alles andere (vgl. das Risiko „Agent-zu-Agent-Missbrauch" in [`04-identitaet-secrets.md`](04-identitaet-secrets.md)).
+Delegation stays inside the organisation: the target agent is resolved by its slug **within the sender's org**, and a paused agent accepts nothing. Inter-agent tasks are therefore subject to the same recording and policy rules as everything else (cf. the "agent-to-agent abuse" risk in [`04-identity-secrets.md`](04-identity-secrets.md)).
 
-### Ironie/Chance: Backlog = Ticketsystem für Agenten
+### Irony/opportunity: the backlog = a ticket system for agents
 
-Das Backlog *ist* im Grunde ein Ticketsystem — für die Agenten selbst. Zwei Optionen:
+The backlog basically *is* a ticket system — for the agents themselves. Two options:
 
-1. **Bestehendes Ticketsystem zweckentfremden.** Menschen und Agenten teilen dieselbe Aufgaben-Realität; ein Kollege sieht, was der Agent auf dem Tisch hat, und kann umpriorisieren. Stärkt das Org-Chart-Gefühl massiv.
-2. **Schlanker eigener Store.** Weniger Kopplung, volle Kontrolle über das Schema.
+1. **Repurpose an existing ticket system.** Humans and agents share the same task reality; a colleague sees what the agent has on its desk and can reprioritise. Strengthens the org-chart feeling enormously.
+2. **A leaner store of our own.** Less coupling, full control over the schema.
 
-Option 1 ist überraschend mächtig für die Mitarbeiter-Metapher. Entscheidung offen — siehe [`07-offene-entscheidungen.md`](07-offene-entscheidungen.md).
+Option 1 is surprisingly powerful for the employee metaphor. Decision open — see [`07-open-decisions.md`](07-open-decisions.md).
 
-## Seriell vs. parallel
+## Serial vs. parallel
 
-**Innerhalb eines Agenten strikt seriell:** eine Aufgabe zur Zeit, der Rest wartet im Backlog. Ein LLM mit einem Kontext kann nicht ehrlich jonglieren. Seriell deckt sich mit „ein PC, ein Worker", ist debugbar und konsistent. Nebenläufigkeit *innerhalb* eines Agenten erkauft man sich mit massiver Komplexität bei Memory und Konsistenz.
+**Strictly serial within an agent:** one task at a time, the rest waits in the backlog. An LLM with one context cannot honestly juggle. Serial matches "one PC, one worker", is debuggable and consistent. Concurrency *inside* an agent is bought with massive complexity in memory and consistency.
 
-**Parallelität = mehr Agenten spawnen**, nicht mehr Threads pro Agent. Das ist eine Kostenfrage, keine Feature-Frage.
+**Parallelism = spawn more agents**, not more threads per agent. That is a cost question, not a feature question.
 
-## Event-Korrelation (offene Kernfrage)
+## Event correlation (open core question)
 
-Wenn Agenten geblockt warten und über Events geweckt werden, braucht die Plattform **zuverlässige Korrelation**: Das eingehende Ereignis muss auf die geparkte Aufgabe gemappt werden. Das gilt **kanalunabhängig** — die Antwort kann als Mail, als Ticket-Update, als Webhook oder als Nachricht von einem anderen Agenten kommen. E-Mail ist nur *einer* dieser Kanäle. Zwei Ansätze:
+When agents wait blocked and are woken by events, the platform needs **reliable correlation**: the incoming event has to be mapped onto the parked task. That holds **independently of the channel** — the answer can arrive as mail, as a ticket update, as a webhook or as a message from another agent. Email is only *one* of those channels. Two approaches:
 
-| Ansatz | Mechanik | Bewertung |
+| Approach | Mechanics | Assessment |
 |---|---|---|
-| **Korrelations-Key** | Der Agent hinterlegt beim `blocked`-Gehen einen Key; der ausgehende Anstoß trägt ihn mit (Task-ID im Subject-Tag / Message-ID bei Mail, Ticket-ID bei Tickets, Callback-Token bei Webhooks); das eingehende Event trägt ihn zurück | einfach, dezentral; anfällig, wenn die Gegenstelle den Key verliert |
-| **Zentraler Event-Router** | Control Plane empfängt alle eingehenden Events und mappt sie über Regeln/Heuristiken (Absender, Betreff, Ticket-ID) auf Agenten + Aufgaben | robuster, zentral auditierbar; mehr Logik in der Control Plane |
-| **Hybrid** | Korrelations-Key als primärer Match, Router als Fallback-Heuristik | pragmatisch |
+| **Correlation key** | The agent deposits a key when going `blocked`; the outgoing prompt carries it along (task ID in the subject tag / message ID for mail, ticket ID for tickets, callback token for webhooks); the incoming event carries it back | simple, decentralised; fragile if the far end loses the key |
+| **Central event router** | The control plane receives all incoming events and maps them onto agents + tasks via rules/heuristics (sender, subject, ticket ID) | more robust, centrally auditable; more logic in the control plane |
+| **Hybrid** | Correlation key as the primary match, router as a fallback heuristic | pragmatic |
 
-Diese Entscheidung bestimmt, wie zuverlässig geparkte Aufgaben über alle Kanäle wieder aufwachen. **Das ist der nächste festzunagelnde Punkt** (siehe [`07-offene-entscheidungen.md`](07-offene-entscheidungen.md)).
+This decision determines how reliably parked tasks wake up again across all channels. **This is the next point to nail down** (see [`07-open-decisions.md`](07-open-decisions.md)).
 
-## Kostenkonsequenz
+## Cost consequence
 
-Always-on × viele Agenten wird nur bezahlbar, weil **idle wirklich idle** ist. Per-Agent-Budget und hibernierende Sandboxen sind keine spätere Optimierung, sondern Grundvoraussetzung — sonst skaliert die Rechnung beim zehnten Agenten weg. Details zum Budget-Tracking in [`06-observability-control.md`](06-observability-control.md).
+Always-on × many agents only becomes affordable because **idle really is idle**. Per-agent budgets and hibernating sandboxes are not a later optimisation but a prerequisite — otherwise the bill scales away from you at the tenth agent. Details on budget tracking in [`06-observability-control.md`](06-observability-control.md).

@@ -1,7 +1,7 @@
-// Package store verwaltet Zielsystem-Plugins pro Organisation: die
-// Aktivierung der kompilierten Built-ins und die hochgeladenen
-// Manifest-Plugins (kind=custom). Control-Plane-seitig — der Daemon
-// bekommt Manifeste über das Daemon-Protokoll gebrokert.
+// Package store manages target-system plugins per organization: the activation
+// of the compiled built-ins and the uploaded manifest plugins (kind=custom).
+// Control-plane side — the daemon gets manifests brokered over the daemon
+// protocol.
 package store
 
 import (
@@ -20,7 +20,7 @@ import (
 	"covey/internal/target/mcp"
 )
 
-var ErrNotFound = errors.New("zielsystem nicht gefunden")
+var ErrNotFound = errors.New("target system not found")
 
 type Store struct {
 	pool *pgxpool.Pool
@@ -28,28 +28,27 @@ type Store struct {
 
 func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
-// Plugin ist die UI-/API-Sicht auf ein Zielsystem-Plugin.
+// Plugin is the UI/API view of a target-system plugin.
 type Plugin struct {
 	Name        string `json:"name"`
 	Label       string `json:"label"`
 	Description string `json:"description"`
 	Kind        string `json:"kind"` // builtin | custom | mcp
-	// Category ordnet das Plugin im Store ein: bei Built-ins aus dem
-	// Descriptor, bei Manifest-Plugins aus dem Manifest-Feld "category".
+	// Category places the plugin in the store: for built-ins from the
+	// descriptor, for manifest plugins from the manifest field "category".
 	Category  string          `json:"category,omitempty"`
 	Enabled   bool            `json:"enabled"`
-	Manifest  json.RawMessage `json:"manifest,omitempty"` // custom: Manifest, mcp: Config
+	Manifest  json.RawMessage `json:"manifest,omitempty"` // custom: manifest, mcp: config
 	UpdatedAt *time.Time      `json:"updated_at,omitempty"`
-	// SetupDoc ist die Einrichtungs-Anleitung fürs UI: bei Built-ins aus dem
-	// Plugin-Descriptor, bei Manifest-/MCP-Plugins generisch erzeugt.
+	// SetupDoc is the setup guide for the UI: for built-ins from the plugin
+	// descriptor, for manifest/MCP plugins generated generically.
 	SetupDoc string `json:"setup_doc,omitempty"`
 }
 
-// List mergt die kompilierte Registry mit den DB-Zeilen der Organisation.
-// Aktivierung ist opt-in (fail-closed): ein Built-in ohne Zeile ist
-// deaktiviert — es zählt nur eine explizite Zeile mit enabled=TRUE.
-// (Bestandsorganisationen wurden per Migration 0020 auf ihren bisherigen
-// Stand gesetzt.)
+// List merges the compiled registry with the organization's DB rows.
+// Activation is opt-in (fail-closed): a built-in without a row is disabled —
+// only an explicit row with enabled=TRUE counts. (Existing organizations were
+// put on their previous state by migration 0020.)
 func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT name, kind, enabled, manifest, updated_at FROM target_plugins WHERE org_id=$1`, orgID)
@@ -105,50 +104,50 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 			}
 			p.SetupDoc = mcpSetupDoc(p.Name)
 		default:
-			continue // Zeile eines Built-ins, das dieses Binary nicht mitkompiliert hat
+			continue // row of a built-in that this binary did not compile in
 		}
 		out = append(out, p)
 	}
 	return out, nil
 }
 
-// customSetupDoc ist die generische Einrichtungs-Anleitung eines
-// Manifest-Plugins — Webhook-Route und Secret-Namen folgen der Konvention,
-// die Details (Auth-Header, Aktionen) stehen im Manifest selbst.
+// customSetupDoc is the generic setup guide of a manifest plugin — the webhook
+// route and secret names follow the convention, the details (auth header,
+// actions) are in the manifest itself.
 func customSetupDoc(name string) string {
-	return fmt.Sprintf(`1. Unter Secrets hinterlegen und dem Agenten zuweisen:
-   %[1]s_url   = Basis-URL des Systems
-   %[1]s_token = API-Token (wird über den im Manifest definierten Auth-Header gesendet)
+	return fmt.Sprintf(`1. Store under Secrets and assign to the agent:
+   %[1]s_url   = base URL of the system
+   %[1]s_token = API token (sent via the auth header defined in the manifest)
 
-2. In der ACCESS.md des Agenten freischalten:
+2. Enable it in the agent's ACCESS.md:
    - system: %[1]s scope: read,write
 
-3. Im Zielsystem einen Webhook auf diese URL einrichten:
+3. Set up a webhook in the target system pointing at this URL:
    {public_url}/api/webhooks/%[1]s/<agent-slug>
-   Signatur-Secret: Wert von COVEY_%[2]s_WEBHOOK_SECRET (Prozess-Env, leer = Prüfung aus)
+   Signature secret: value of COVEY_%[2]s_WEBHOOK_SECRET (process env, empty = check off)
 
-Das Feld-Mapping des Webhooks und die verfügbaren Aktionen definiert das
-hochgeladene JSON-Manifest.`, name, strings.ToUpper(name))
+The webhook's field mapping and the available actions are defined by the
+uploaded JSON manifest.`, name, strings.ToUpper(name))
 }
 
-// mcpSetupDoc ist die generische Einrichtungs-Anleitung eines MCP-Plugins —
-// kein Webhook-Eingang; die Tools laufen über den Action-Proxy.
+// mcpSetupDoc is the generic setup guide of an MCP plugin — no webhook
+// inbound; the tools run through the action proxy.
 func mcpSetupDoc(name string) string {
-	return fmt.Sprintf(`1. Unter Secrets hinterlegen und dem Agenten zuweisen (falls der Server Auth verlangt):
-   %[1]s_token = Token für den MCP-Server
+	return fmt.Sprintf(`1. Store under Secrets and assign to the agent (if the server requires auth):
+   %[1]s_token = token for the MCP server
 
-2. In der ACCESS.md des Agenten freischalten (optional mit Tool-Allowlist):
+2. Enable it in the agent's ACCESS.md (optionally with a tool allowlist):
    - system: %[1]s scope: read,write   tools: alle
 
-3. Tool-Liste aktuell halten: "Tools aktualisieren" auf dieser Karte führt die
-   Discovery (tools/list) erneut aus.
+3. Keep the tool list current: "Refresh tools" on this card runs discovery
+   (tools/list) again.
 
-MCP-Systeme haben keinen Webhook-Eingang — Aufgaben entstehen über Backlog
-oder andere Zielsysteme; die Tools ruft der Agent über den Action-Proxy auf.`, name)
+MCP systems have no webhook inbound — work arrives via the backlog or other
+target systems; the agent calls the tools through the action proxy.`, name)
 }
 
-// SetEnabled schaltet ein Plugin für die Organisation an/aus. Für Built-ins
-// wird die Zeile bei Bedarf angelegt; unbekannte Namen sind ein Fehler.
+// SetEnabled turns a plugin on/off for the organization. For built-ins the row
+// is created on demand; unknown names are an error.
 func (s *Store) SetEnabled(ctx context.Context, orgID uuid.UUID, name string, enabled bool) error {
 	if _, ok := target.Get(name); ok {
 		_, err := s.pool.Exec(ctx, `INSERT INTO target_plugins (org_id, name, kind, enabled)
@@ -168,17 +167,17 @@ func (s *Store) SetEnabled(ctx context.Context, orgID uuid.UUID, name string, en
 	return nil
 }
 
-// PutManifest validiert und speichert ein hochgeladenes Manifest-Plugin.
-// Der Name eines kompilierten Built-ins ist tabu — kein stilles Überschatten.
+// PutManifest validates and stores an uploaded manifest plugin. The name of a
+// compiled built-in is off limits — no silent shadowing.
 func (s *Store) PutManifest(ctx context.Context, orgID uuid.UUID, raw []byte) (target.Manifest, error) {
 	m, err := target.ParseManifest(raw)
 	if err != nil {
 		return m, err
 	}
 	if _, ok := target.Get(m.Name); ok {
-		return m, fmt.Errorf("name %q ist durch ein eingebautes Plugin belegt", m.Name)
+		return m, fmt.Errorf("name %q is taken by a built-in plugin", m.Name)
 	}
-	// Normalisiert (kompaktes JSON) speichern, nicht den Roh-Upload.
+	// Store it normalized (compact JSON), not the raw upload.
 	norm, err := json.Marshal(m)
 	if err != nil {
 		return m, err
@@ -190,8 +189,8 @@ func (s *Store) PutManifest(ctx context.Context, orgID uuid.UUID, raw []byte) (t
 	return m, err
 }
 
-// DeleteManifest entfernt ein Custom-Plugin. Built-ins lassen sich nur
-// deaktivieren, nicht löschen.
+// DeleteManifest removes a custom plugin. Built-ins can only be disabled, not
+// deleted.
 func (s *Store) DeleteManifest(ctx context.Context, orgID uuid.UUID, name string) error {
 	tag, err := s.pool.Exec(ctx,
 		`DELETE FROM target_plugins WHERE org_id=$1 AND name=$2 AND kind IN ('custom','mcp')`, orgID, name)
@@ -204,8 +203,8 @@ func (s *Store) DeleteManifest(ctx context.Context, orgID uuid.UUID, name string
 	return nil
 }
 
-// System löst ein Zielsystem für eine Organisation auf — nur wenn aktiviert
-// (fail-closed): erst die kompilierte Registry, dann die Custom-Manifeste.
+// System resolves a target system for an organization — only if activated
+// (fail-closed): first the compiled registry, then the custom manifests.
 func (s *Store) System(ctx context.Context, orgID uuid.UUID, name string) (target.System, error) {
 	var kind string
 	var enabled bool
@@ -214,16 +213,16 @@ func (s *Store) System(ctx context.Context, orgID uuid.UUID, name string) (targe
 		WHERE org_id=$1 AND name=$2`, orgID, name).Scan(&kind, &enabled, &manifest)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
-		// Keine Zeile = nicht aktiviert (fail-closed, auch für Built-ins).
+		// No row = not activated (fail-closed, for built-ins too).
 		if _, ok := target.Get(name); ok {
-			return nil, fmt.Errorf("%w: %s ist nicht aktiviert", ErrNotFound, name)
+			return nil, fmt.Errorf("%w: %s is not activated", ErrNotFound, name)
 		}
 		return nil, ErrNotFound
 	case err != nil:
 		return nil, err
 	}
 	if !enabled {
-		return nil, fmt.Errorf("%w: %s ist deaktiviert", ErrNotFound, name)
+		return nil, fmt.Errorf("%w: %s is disabled", ErrNotFound, name)
 	}
 	switch kind {
 	case "builtin":
@@ -234,27 +233,27 @@ func (s *Store) System(ctx context.Context, orgID uuid.UUID, name string) (targe
 	case "mcp":
 		c, err := mcp.ParseConfig(manifest)
 		if err != nil {
-			return nil, fmt.Errorf("gespeicherte mcp-config %s: %w", name, err)
+			return nil, fmt.Errorf("stored mcp config %s: %w", name, err)
 		}
 		return mcp.NewSystem(c), nil
 	default:
 		m, err := target.ParseManifest(manifest)
 		if err != nil {
-			return nil, fmt.Errorf("gespeichertes manifest %s: %w", name, err)
+			return nil, fmt.Errorf("stored manifest %s: %w", name, err)
 		}
 		return target.NewManifestSystem(m), nil
 	}
 }
 
-// PutMCP validiert und speichert eine MCP-Server-Konfiguration (kind=mcp).
-// Wie beim Manifest ist der Name eines Built-ins tabu. Bestehende Tools bleiben
-// erhalten, wenn der Aufruf sie nicht mitliefert (Discovery läuft separat).
+// PutMCP validates and stores an MCP server configuration (kind=mcp). As with
+// the manifest, the name of a built-in is off limits. Existing tools are kept
+// if the call does not supply them (discovery runs separately).
 func (s *Store) PutMCP(ctx context.Context, orgID uuid.UUID, cfg mcp.Config) (mcp.Config, error) {
 	if err := cfg.Validate(); err != nil {
 		return cfg, err
 	}
 	if _, ok := target.Get(cfg.Name); ok {
-		return cfg, fmt.Errorf("name %q ist durch ein eingebautes Plugin belegt", cfg.Name)
+		return cfg, fmt.Errorf("name %q is taken by a built-in plugin", cfg.Name)
 	}
 	if prev, err := s.MCPConfig(ctx, orgID, cfg.Name); err == nil && len(cfg.Tools) == 0 {
 		cfg.Tools = prev.Tools
@@ -270,7 +269,7 @@ func (s *Store) PutMCP(ctx context.Context, orgID uuid.UUID, cfg mcp.Config) (mc
 	return cfg, err
 }
 
-// MCPConfig liest die gespeicherte Config eines MCP-Plugins.
+// MCPConfig reads the stored config of an MCP plugin.
 func (s *Store) MCPConfig(ctx context.Context, orgID uuid.UUID, name string) (mcp.Config, error) {
 	var kind string
 	var manifest []byte
@@ -283,12 +282,12 @@ func (s *Store) MCPConfig(ctx context.Context, orgID uuid.UUID, name string) (mc
 		return mcp.Config{}, err
 	}
 	if kind != "mcp" {
-		return mcp.Config{}, fmt.Errorf("%w: %s ist kein mcp-plugin", ErrNotFound, name)
+		return mcp.Config{}, fmt.Errorf("%w: %s is not an mcp plugin", ErrNotFound, name)
 	}
 	return mcp.ParseConfig(manifest)
 }
 
-// SetMCPTools persistiert die per Discovery entdeckte Tool-Liste in der Config.
+// SetMCPTools persists the tool list found by discovery into the config.
 func (s *Store) SetMCPTools(ctx context.Context, orgID uuid.UUID, name string, tools []mcp.Tool) error {
 	cfg, err := s.MCPConfig(ctx, orgID, name)
 	if err != nil {
@@ -310,8 +309,8 @@ func (s *Store) SetMCPTools(ctx context.Context, orgID uuid.UUID, name string, t
 	return nil
 }
 
-// Kind liefert den Plugin-Typ (builtin|custom|mcp) — der Broker verzweigt
-// danach (z. B. sind für mcp Token/URL-Secrets optional).
+// Kind returns the plugin type (builtin|custom|mcp) — the broker branches on it
+// (e.g. for mcp the token/URL secrets are optional).
 func (s *Store) Kind(ctx context.Context, orgID uuid.UUID, name string) (string, error) {
 	var kind string
 	err := s.pool.QueryRow(ctx, `SELECT kind FROM target_plugins WHERE org_id=$1 AND name=$2`,
@@ -328,9 +327,10 @@ func (s *Store) Kind(ctx context.Context, orgID uuid.UUID, name string) (string,
 	return kind, nil
 }
 
-// BrokeredDefinition liefert die in die Sandbox zu brokernde Plugin-Definition
-// eines aktivierten Nicht-Built-ins: den Typ (custom|mcp) und die rohe JSON-
-// Definition. Der Daemon baut daraus das passende target.System (fail-closed).
+// BrokeredDefinition returns the plugin definition of an activated
+// non-built-in to be brokered into the sandbox: the type (custom|mcp) and the
+// raw JSON definition. From it the daemon builds the matching target.System
+// (fail-closed).
 func (s *Store) BrokeredDefinition(ctx context.Context, orgID uuid.UUID, name string) (kind string, raw json.RawMessage, err error) {
 	var enabled bool
 	var manifest []byte
@@ -343,13 +343,13 @@ func (s *Store) BrokeredDefinition(ctx context.Context, orgID uuid.UUID, name st
 		return "", nil, err
 	}
 	if !enabled {
-		return "", nil, fmt.Errorf("%w: %s ist deaktiviert", ErrNotFound, name)
+		return "", nil, fmt.Errorf("%w: %s is disabled", ErrNotFound, name)
 	}
 	return kind, manifest, nil
 }
 
-// Manifest liefert das gespeicherte Manifest eines aktivierten Custom-Plugins
-// (für den Daemon, der es zur Ausführung braucht).
+// Manifest returns the stored manifest of an activated custom plugin (for the
+// daemon, which needs it for execution).
 func (s *Store) Manifest(ctx context.Context, orgID uuid.UUID, name string) (target.Manifest, error) {
 	var enabled bool
 	var manifest []byte
@@ -362,26 +362,26 @@ func (s *Store) Manifest(ctx context.Context, orgID uuid.UUID, name string) (tar
 		return target.Manifest{}, err
 	}
 	if !enabled {
-		return target.Manifest{}, fmt.Errorf("%w: %s ist deaktiviert", ErrNotFound, name)
+		return target.Manifest{}, fmt.Errorf("%w: %s is disabled", ErrNotFound, name)
 	}
 	return target.ParseManifest(manifest)
 }
 
-// SystemDoc ist die Prompt-Doku eines Zielsystems samt dessen Namen: was ein
-// Agent dort tun kann, in genau der Formulierung, die auch in seinem Prompt
-// steht. Der Prompt braucht nur den Text; das Webinterface zeigt die Aktionen
-// je System und braucht deshalb die Zuordnung.
+// SystemDoc is the prompt doc of a target system together with its name: what
+// an agent can do there, in exactly the wording that also stands in its prompt.
+// The prompt only needs the text; the web interface shows the actions per
+// system and therefore needs the mapping.
 type SystemDoc struct {
 	System string `json:"system"`
 	Doc    string `json:"doc"`
 }
 
-// DocsForAgent sammelt die Prompt-Dokus der für die Organisation aktivierten
-// Zielsysteme (Built-ins, Manifest- und MCP-Plugins), bei MCP gefiltert auf
-// die dem Agenten zugewiesenen Tools (leere Zuweisung = alle Tools).
+// DocsForAgent collects the prompt docs of the target systems activated for
+// the organization (built-ins, manifest and MCP plugins), for MCP filtered down
+// to the tools assigned to the agent (an empty assignment = all tools).
 //
-// Aktivierung ist opt-in (fail-closed): ein Built-in ohne Zeile mit
-// enabled=TRUE taucht nicht auf.
+// Activation is opt-in (fail-closed): a built-in without a row with
+// enabled=TRUE does not show up.
 func (s *Store) DocsForAgent(ctx context.Context, orgID, agentID uuid.UUID) ([]SystemDoc, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT name, kind, enabled, manifest FROM target_plugins WHERE org_id=$1`, orgID)
@@ -423,7 +423,7 @@ func (s *Store) DocsForAgent(ctx context.Context, orgID, agentID uuid.UUID) ([]S
 	if rows.Err() != nil {
 		return nil, rows.Err()
 	}
-	// Built-ins nur mit expliziter Aktivierung (opt-in, fail-closed).
+	// Built-ins only with explicit activation (opt-in, fail-closed).
 	for _, d := range target.All() {
 		if enabledBuiltin[d.Name] && d.System != nil {
 			docs = append(docs, SystemDoc{System: d.Name, Doc: d.System.PromptDoc()})
@@ -432,8 +432,8 @@ func (s *Store) DocsForAgent(ctx context.Context, orgID, agentID uuid.UUID) ([]S
 	return docs, nil
 }
 
-// EnabledDocsForAgent liefert dieselben Dokus als reine Textliste — die Form,
-// in der sie in den System-Prompt kompiliert werden.
+// EnabledDocsForAgent returns the same docs as a plain text list — the form in
+// which they are compiled into the system prompt.
 func (s *Store) EnabledDocsForAgent(ctx context.Context, orgID, agentID uuid.UUID) ([]string, error) {
 	docs, err := s.DocsForAgent(ctx, orgID, agentID)
 	if err != nil {
@@ -446,8 +446,8 @@ func (s *Store) EnabledDocsForAgent(ctx context.Context, orgID, agentID uuid.UUI
 	return out, nil
 }
 
-// AgentTools liefert die einem Agenten für ein System zugewiesenen Tools.
-// Leeres Ergebnis = keine Einschränkung (alle Tools erlaubt).
+// AgentTools returns the tools assigned to an agent for a system. An empty
+// result = no restriction (all tools allowed).
 func (s *Store) AgentTools(ctx context.Context, agentID uuid.UUID, system string) ([]string, error) {
 	rows, err := s.pool.Query(ctx,
 		`SELECT tool FROM agent_target_tools WHERE agent_id=$1 AND system=$2 ORDER BY tool`,
@@ -467,7 +467,7 @@ func (s *Store) AgentTools(ctx context.Context, agentID uuid.UUID, system string
 	return out, rows.Err()
 }
 
-// agentToolSet liefert die Zuweisung als Set oder nil (= keine Einschränkung).
+// agentToolSet returns the assignment as a set or nil (= no restriction).
 func (s *Store) agentToolSet(ctx context.Context, agentID uuid.UUID, system string) (map[string]bool, error) {
 	tools, err := s.AgentTools(ctx, agentID, system)
 	if err != nil || len(tools) == 0 {
@@ -480,8 +480,8 @@ func (s *Store) agentToolSet(ctx context.Context, agentID uuid.UUID, system stri
 	return set, nil
 }
 
-// SetAgentTools ersetzt die Tool-Zuweisung eines Agenten für ein System
-// atomar. Leere Liste = Zuweisung aufheben (alle Tools erlaubt).
+// SetAgentTools atomically replaces an agent's tool assignment for a system.
+// An empty list = drop the assignment (all tools allowed).
 func (s *Store) SetAgentTools(ctx context.Context, agentID uuid.UUID, system string, tools []string) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -505,9 +505,9 @@ func (s *Store) SetAgentTools(ctx context.Context, agentID uuid.UUID, system str
 	return tx.Commit(ctx)
 }
 
-// AgentToolAllowed ist der zentrale Enforcement-Punkt für die Tool-Zuweisung
-// (fail-closed pro System, sobald eine Allowlist existiert): keine Zeilen für
-// (agent, system) = erlaubt; sonst muss das Tool gelistet sein.
+// AgentToolAllowed is the central enforcement point for the tool assignment
+// (fail-closed per system as soon as an allowlist exists): no rows for
+// (agent, system) = allowed; otherwise the tool must be listed.
 func (s *Store) AgentToolAllowed(ctx context.Context, agentID uuid.UUID, system, tool string) (bool, error) {
 	var count, hit int
 	err := s.pool.QueryRow(ctx,
@@ -518,7 +518,7 @@ func (s *Store) AgentToolAllowed(ctx context.Context, agentID uuid.UUID, system,
 		return false, err
 	}
 	if count == 0 {
-		return true, nil // keine Allowlist → keine Einschränkung
+		return true, nil // no allowlist → no restriction
 	}
 	return hit > 0, nil
 }

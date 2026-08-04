@@ -1,8 +1,7 @@
-// Package org verwaltet die Mandanten (Organisationen) und die Menschen
-// darin (RBAC, spec/09). Die Organisation ist die Einheit von Covey — dieser
-// Store trägt die Admin-Seite: Nutzer anlegen/ändern/entfernen, Tenants
-// verwalten. Schutzregeln (letzter platform_admin bleibt) werden hier
-// erzwungen, nicht in der UI.
+// Package org manages the tenants (organizations) and the humans within them
+// (RBAC, spec/09). The organization is Covey's unit — this store carries the
+// admin side: create/change/remove users, manage tenants. Protective rules (the
+// last platform_admin stays) are enforced here, not in the UI.
 package org
 
 import (
@@ -18,14 +17,14 @@ import (
 )
 
 var (
-	ErrNotFound   = errors.New("nicht gefunden")
-	ErrEmailTaken = errors.New("e-mail ist bereits vergeben")
-	// ErrLastAdmin schützt vor Aussperrung: der letzte platform_admin einer
-	// Organisation kann weder gelöscht noch herabgestuft werden.
-	ErrLastAdmin = errors.New("der letzte platform_admin der Organisation kann nicht entfernt werden")
-	// ErrManagerCycle hält den Org-Chart azyklisch: niemand kann (transitiv)
-	// an sich selbst berichten.
-	ErrManagerCycle = errors.New("vorgesetzten-beziehung würde einen zyklus bilden")
+	ErrNotFound   = errors.New("not found")
+	ErrEmailTaken = errors.New("e-mail is already taken")
+	// ErrLastAdmin guards against lockout: the last platform_admin of an
+	// organization can neither be deleted nor demoted.
+	ErrLastAdmin = errors.New("the last platform_admin of the organization cannot be removed")
+	// ErrManagerCycle keeps the org chart acyclic: nobody can (transitively)
+	// report to themselves.
+	ErrManagerCycle = errors.New("manager relation would form a cycle")
 )
 
 type Organization struct {
@@ -43,38 +42,38 @@ type Human struct {
 	Email       string    `json:"email"`
 	DisplayName string    `json:"display_name"`
 	Role        string    `json:"role"`
-	// ManagerID ist die Vorgesetzten-Beziehung im Org-Chart (spec/09);
-	// nil = Wurzel (berichtet an niemanden).
+	// ManagerID is the manager relation in the org chart (spec/09);
+	// nil = root (reports to nobody).
 	ManagerID *uuid.UUID `json:"manager_id,omitempty"`
-	// DepartmentID ordnet den Menschen einer Abteilung zu; nil = keiner.
+	// DepartmentID assigns the human to a department; nil = none.
 	DepartmentID *uuid.UUID `json:"department_id,omitempty"`
 	Profile
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// Profile sind die Mitarbeiter-Stammdaten jenseits von Login und RBAC:
-// Funktion, Kontakt und die Kennungen in Zielsystemen. Agenten bekommen sie
-// als Team-Verzeichnis in den Prompt — der GitLab-Username ist z. B. das,
-// womit ein Bot ein Issue der richtigen Person zum Testen zuweist.
+// Profile is the employee master data beyond login and RBAC: role, contact and
+// the identifiers in target systems. Agents get it as a team directory in their
+// prompt — the GitLab username, for example, is what a bot uses to assign an
+// issue to the right person for testing.
 //
-// Identities ist bewusst eine generische Map system → kennung (z. B.
-// {"gitlab": "maxm", "zammad": "max@firma.de"}): Zielsysteme sind Plugins
-// ohne hartkodierte Liste, die Profile folgen demselben Prinzip — eine neue
-// Plattform braucht keinen Schema- oder Code-Change am Profil.
+// Identities is deliberately a generic map system → identifier (e.g.
+// {"gitlab": "maxm", "zammad": "max@company.com"}): target systems are plugins
+// without a hardcoded list, the profiles follow the same principle — a new
+// platform needs no schema or code change on the profile.
 type Profile struct {
 	JobTitle         string            `json:"job_title"`
 	Identities       map[string]string `json:"identities"`
 	Phone            string            `json:"phone"`
 	Responsibilities string            `json:"responsibilities"`
-	// Custom sind die Werte der org-weit konfigurierbaren Profilfelder
-	// (profile_fields): key → wert, z. B. {"standort": "Berlin"}.
+	// Custom holds the values of the org-wide configurable profile fields
+	// (profile_fields): key → value, e.g. {"location": "Berlin"}.
 	Custom map[string]string `json:"custom"`
 }
 
-// NormalizeIdentities bereinigt eine Kennungen-Map: System-Schlüssel
-// kleingeschrieben und getrimmt, Werte getrimmt und ohne führendes "@"
-// (Copy-&-Paste aus GitLab/Slack), leere Einträge entfernt. Nie nil —
-// die JSONB-Spalte ist NOT NULL.
+// NormalizeIdentities cleans up an identifier map: system keys lowercased and
+// trimmed, values trimmed and without a leading "@" (copy & paste from
+// GitLab/Slack), empty entries removed. Never nil — the JSONB column is
+// NOT NULL.
 func NormalizeIdentities(in map[string]string) map[string]string {
 	out := map[string]string{}
 	for k, v := range in {
@@ -87,9 +86,9 @@ func NormalizeIdentities(in map[string]string) map[string]string {
 	return out
 }
 
-// NormalizeCustom bereinigt die Werte der konfigurierbaren Profilfelder:
-// getrimmt, leere Einträge entfernt. Schlüssel sind die stabilen Feld-Keys
-// aus profile_fields. Nie nil — die JSONB-Spalte ist NOT NULL.
+// NormalizeCustom cleans up the values of the configurable profile fields:
+// trimmed, empty entries removed. Keys are the stable field keys from
+// profile_fields. Never nil — the JSONB column is NOT NULL.
 func NormalizeCustom(in map[string]string) map[string]string {
 	out := map[string]string{}
 	for k, v := range in {
@@ -102,9 +101,9 @@ func NormalizeCustom(in map[string]string) map[string]string {
 	return out
 }
 
-// HumanUpdate ist ein partielles Update — nil-Felder bleiben unverändert.
-// ManagerID unterscheidet drei Fälle: nil = unverändert, Valid=false = Zuordnung
-// lösen, Valid=true = neuer Vorgesetzter.
+// HumanUpdate is a partial update — nil fields stay unchanged. ManagerID
+// distinguishes three cases: nil = unchanged, Valid=false = detach the
+// assignment, Valid=true = new manager.
 type HumanUpdate struct {
 	DisplayName  *string
 	Role         *string
@@ -114,8 +113,8 @@ type HumanUpdate struct {
 	JobTitle         *string
 	Phone            *string
 	Responsibilities *string
-	// Identities/Custom: nil = unverändert, sonst vollständiger Ersatz der
-	// jeweiligen Map (vor dem Schreiben normalisiert).
+	// Identities/Custom: nil = unchanged, otherwise a full replacement of the
+	// respective map (normalized before writing).
 	Identities map[string]string
 	Custom     map[string]string
 }
@@ -128,7 +127,7 @@ func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool}
 }
 
-// --- Menschen (org-gescopt) ---
+// --- Humans (org-scoped) ---
 
 func (s *Store) ListHumans(ctx context.Context, orgID uuid.UUID) ([]Human, error) {
 	rows, err := s.pool.Query(ctx, `SELECT id, org_id, email, display_name, role, manager_id,
@@ -169,9 +168,9 @@ func (s *Store) CreateHuman(ctx context.Context, orgID uuid.UUID, email, display
 	return h, err
 }
 
-// UpdateHuman ändert Name, Rolle und/oder Passwort. Bei einem Passwortwechsel
-// werden alle Sessions des Nutzers widerrufen. Läuft in einer Transaktion,
-// damit die Last-Admin-Prüfung nicht racet.
+// UpdateHuman changes name, role and/or password. On a password change all of
+// the user's sessions are revoked. Runs in a transaction so that the last-admin
+// check does not race.
 func (s *Store) UpdateHuman(ctx context.Context, orgID, id uuid.UUID, upd HumanUpdate) (Human, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -271,22 +270,22 @@ func (s *Store) DeleteHuman(ctx context.Context, orgID, id uuid.UUID) error {
 			return err
 		}
 	}
-	// agents.supervisor_id trägt seit Migration 0025 keinen DB-Fremdschlüssel
-	// mehr auf humans — Agenten, die an diesen Menschen berichteten, hier lösen
-	// (früher via ON DELETE SET NULL).
+	// Since migration 0025 agents.supervisor_id no longer carries a DB foreign
+	// key on humans — detach agents that reported to this human here (formerly
+	// via ON DELETE SET NULL).
 	if _, err := tx.Exec(ctx, `UPDATE agents SET supervisor_id=NULL WHERE supervisor_id=$1 AND org_id=$2`, id, orgID); err != nil {
 		return err
 	}
-	// Sessions fallen per ON DELETE CASCADE mit weg.
+	// Sessions go away with it via ON DELETE CASCADE.
 	if _, err := tx.Exec(ctx, `DELETE FROM humans WHERE id=$1`, id); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
 }
 
-// ensureNoManagerCycle prüft, dass der neue Vorgesetzte zur Organisation gehört
-// und die Kette von ihm aufwärts nicht zurück zu id führt. Läuft in der
-// Update-Transaktion, damit die Prüfung nicht racet.
+// ensureNoManagerCycle checks that the new manager belongs to the organization
+// and that the chain upwards from them does not lead back to id. Runs inside
+// the update transaction so that the check does not race.
 func ensureNoManagerCycle(ctx context.Context, tx pgx.Tx, orgID, id, managerID uuid.UUID) error {
 	if managerID == id {
 		return ErrManagerCycle
@@ -296,7 +295,7 @@ func ensureNoManagerCycle(ctx context.Context, tx pgx.Tx, orgID, id, managerID u
 		var next *uuid.UUID
 		err := tx.QueryRow(ctx, `SELECT manager_id FROM humans WHERE id=$1 AND org_id=$2`, cur, orgID).Scan(&next)
 		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrNotFound // Vorgesetzter existiert nicht (in dieser Organisation)
+			return ErrNotFound // manager does not exist (in this organization)
 		}
 		if err != nil {
 			return err
@@ -323,11 +322,11 @@ func ensureOtherAdmin(ctx context.Context, tx pgx.Tx, orgID, exceptID uuid.UUID)
 	return nil
 }
 
-// --- Organisationen (Tenants) ---
+// --- Organizations (tenants) ---
 
-// ListOrgs liefert alle Mandanten der Installation. Im MVP ist platform_admin
-// zugleich Betreiber-Rolle der Deployment-Instanz — eine eigene
-// Super-Admin-Ebene folgt erst mit dem OIDC-Ausbau.
+// ListOrgs returns all tenants of the installation. In the MVP platform_admin
+// is at the same time the operator role of the deployment instance — a
+// dedicated super-admin level only follows with the OIDC build-out.
 func (s *Store) ListOrgs(ctx context.Context) ([]Organization, error) {
 	rows, err := s.pool.Query(ctx, `SELECT o.id, o.name, o.fleet_killed, o.created_at,
 			(SELECT count(*) FROM humans h WHERE h.org_id=o.id),
@@ -348,8 +347,8 @@ func (s *Store) ListOrgs(ctx context.Context) ([]Organization, error) {
 	return list, rows.Err()
 }
 
-// CreateOrg legt einen Mandanten samt initialem platform_admin an — eine
-// Organisation ohne Admin wäre unerreichbar.
+// CreateOrg creates a tenant together with an initial platform_admin — an
+// organization without an admin would be unreachable.
 func (s *Store) CreateOrg(ctx context.Context, name, adminEmail, adminName, adminPasswordHash string) (Organization, error) {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -371,10 +370,10 @@ func (s *Store) CreateOrg(ctx context.Context, name, adminEmail, adminName, admi
 	if err != nil {
 		return Organization{}, err
 	}
-	// Basis-Allowlist seeden: der LLM-Endpunkt der Runtime muss erreichbar
-	// sein, sonst kann kein Agent arbeiten. Über die Egress-UI änderbar.
+	// Seed the base allowlist: the runtime's LLM endpoint must be reachable,
+	// otherwise no agent can work. Changeable through the egress UI.
 	if _, err := tx.Exec(ctx, `INSERT INTO egress_default_hosts (org_id, pattern, note)
-		VALUES ($1, 'api.anthropic.com', 'LLM-Endpunkt der Claude-Runtime')`, o.ID); err != nil {
+		VALUES ($1, 'api.anthropic.com', 'LLM endpoint of the Claude runtime')`, o.ID); err != nil {
 		return Organization{}, err
 	}
 	return o, tx.Commit(ctx)
@@ -391,8 +390,8 @@ func (s *Store) RenameOrg(ctx context.Context, id uuid.UUID, name string) error 
 	return nil
 }
 
-// DeleteOrg entfernt einen Mandanten mitsamt allem, was an ihm hängt
-// (Agenten, Nutzer, Backlog, Secrets — per ON DELETE CASCADE).
+// DeleteOrg removes a tenant together with everything attached to it
+// (agents, users, backlog, secrets — via ON DELETE CASCADE).
 func (s *Store) DeleteOrg(ctx context.Context, id uuid.UUID) error {
 	tag, err := s.pool.Exec(ctx, `DELETE FROM organizations WHERE id=$1`, id)
 	if err != nil {
@@ -404,7 +403,7 @@ func (s *Store) DeleteOrg(ctx context.Context, id uuid.UUID) error {
 	return nil
 }
 
-// --- Hilfen ---
+// --- Helpers ---
 
 func scanHumans(rows pgx.Rows) ([]Human, error) {
 	var list []Human

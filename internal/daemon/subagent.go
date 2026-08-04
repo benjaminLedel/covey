@@ -14,80 +14,79 @@ import (
 	"covey/internal/target"
 )
 
-// Ein Sub-Lauf ist ein geschachtelter Runtime-Lauf, der IM Projekt-Checkout
-// startet statt im Agenten-Home. Damit greift dort der Claude-Code-Harness des
-// Projekts selbst — CLAUDE.md als Projekt-Memory, `.claude/agents`, Skills und
-// Commands —, den der äußere Lauf nie sieht, weil er vom Home aus läuft.
+// A sub-run is a nested runtime run that starts INSIDE the project checkout
+// instead of the agent home. That way the project's own Claude Code harness
+// applies — CLAUDE.md as project memory, `.claude/agents`, skills and commands —
+// which the outer run never sees because it runs from the home.
 //
-// Die Rollenteilung dahinter (spec/12): Der äußere Agent ist Orchestrator und
-// Kommunikator (Triage, Issue-/MR-Verkehr, commit, Gedächtnis), der Sub-Agent
-// programmiert. Er erreicht deshalb bewusst keine Zielsysteme: kein
-// COVEY_ACTION_PORT — und über childEnv auch nicht die Zugangsdaten des
-// Daemons zur Control Plane, mit denen sich der Broker direkt ansprechen
-// ließe. Er kann lesen, ändern, bauen und testen — mehr nicht.
+// The division of roles behind it (spec/12): the outer agent orchestrates and
+// communicates (triage, issue/MR traffic, commit, memory), the sub-agent
+// programs. It therefore deliberately reaches no target system: no
+// COVEY_ACTION_PORT — and, thanks to childEnv, not the daemon's credentials for
+// the control plane either, with which the broker could be addressed directly.
+// It can read, change, build and test — nothing more.
 const (
-	// defaultSubAgentTurns ist großzügiger als das Limit des äußeren Laufs:
-	// Der Sub-Agent macht die eigentliche Arbeit (verstehen, ändern, testen).
+	// defaultSubAgentTurns is more generous than the outer run's limit: the
+	// sub-agent does the actual work (understand, change, test).
 	defaultSubAgentTurns = 60
 	maxSubAgentTurns     = 200
 )
 
-// subAgentPrompt ist der einzige Plattform-Anteil am Prompt des Sub-Laufs.
-// Bewusst knapp: Der Harness des Projekts soll dominieren, nicht Covey.
-const subAgentPrompt = `Du arbeitest im Checkout eines Projekts und bist für genau einen Arbeitsauftrag zuständig.
-Die Konventionen dieses Projekts gelten: Halte dich an CLAUDE.md, CONTRIBUTING und die
-Regeln, Skills und Subagenten, die das Projekt mitbringt.
+// subAgentPrompt is the platform's only contribution to the sub-run's prompt.
+// Deliberately terse: the project's harness should dominate, not Covey.
+const subAgentPrompt = `You are working in the checkout of a project and are responsible for exactly one work order.
+This project's conventions apply: follow CLAUDE.md, CONTRIBUTING and the rules,
+skills and subagents the project brings along.
 
-Rahmen deiner Arbeit:
-- Du hast KEINEN Zugang zu GitLab, E-Mail oder anderen Zielsystemen und kannst nicht pushen.
-  Lokale git-Commits im Checkout sind in Ordnung (halte dich an die Konventionen des Projekts);
-  das Einchecken ins Zielsystem übernimmt der Agent, der dich beauftragt hat.
-- Verifiziere deine Änderung, bevor du fertig meldest: Build bzw. Tests des Projekts ausführen,
-  für einen Fix möglichst einen Test ergänzen.
-- Deine letzte Nachricht ist dein Bericht an den beauftragenden Agenten. Fasse darin zusammen:
-  Ursache, was du geändert hast (Datei:Zeile), wie du es verifiziert hast (welche Kommandos, welches
-  Ergebnis) und was offen blieb. Kein Status-Marker, keine Floskeln — der Bericht ist die Übergabe.`
+The frame of your work:
+- You have NO access to GitLab, e-mail or other target systems, and you cannot push.
+  Local git commits in the checkout are fine (follow the project's conventions);
+  checking in to the target system is done by the agent that commissioned you.
+- Verify your change before you report it finished: run the project's build and tests,
+  and for a fix add a test if you can.
+- Your last message is your report to the commissioning agent. Summarize in it:
+  the cause, what you changed (file:line), how you verified it (which commands, which
+  result) and what remained open. No status marker, no boilerplate — the report is the handover.`
 
-// subAgentRunner bindet den Runner an die laufende Aufgabe (für Recording und
-// Kostenzuordnung) und liefert ihn in der Form, die der target-Port erwartet.
+// subAgentRunner binds the runner to the running task (for recording and cost
+// attribution) and returns it in the shape the target port expects.
 func (c *Client) subAgentRunner(taskID string) target.SubAgentRunner {
 	return func(ctx context.Context, req target.SubAgentRequest) (target.SubAgentResult, error) {
 		return c.runSubAgent(ctx, taskID, req)
 	}
 }
 
-// runSubAgent fährt einen geschachtelten Runtime-Lauf im angegebenen
-// Verzeichnis. Events und Kosten laufen über dieselben Protokoll-Nachrichten
-// wie der äußere Lauf: Die Timeline zeigt den Sub-Lauf (markiert), und
-// AddCost/enforceBudget der Control Plane greifen auch hier — ein Sub-Lauf
-// kann das Budget also nicht umgehen.
+// runSubAgent drives a nested runtime run in the given directory. Events and
+// cost travel over the same protocol messages as the outer run: the timeline
+// shows the sub-run (marked), and the control plane's AddCost/enforceBudget
+// apply here too — so a sub-run cannot bypass the budget.
 func (c *Client) runSubAgent(ctx context.Context, taskID string, req target.SubAgentRequest) (target.SubAgentResult, error) {
 	task := strings.TrimSpace(req.Task)
 	if task == "" {
-		return target.SubAgentResult{}, fmt.Errorf("task fehlt: der Sub-Agent braucht einen Arbeitsauftrag")
+		return target.SubAgentResult{}, fmt.Errorf("task missing: the sub-agent needs a work order")
 	}
 	dir := req.Dir
 	if dir == "" {
-		return target.SubAgentResult{}, fmt.Errorf("cwd fehlt: der Sub-Agent startet im Projekt-Checkout")
+		return target.SubAgentResult{}, fmt.Errorf("cwd missing: the sub-agent starts in the project checkout")
 	}
 	dir = filepath.Clean(dir)
 	if !filepath.IsAbs(dir) {
 		dir = filepath.Join(c.homeDir, dir)
 	}
-	// Pfad vorab prüfen, statt den Lauf am chdir des Subprozesses scheitern zu
-	// lassen: „claude starten: chdir …" sagt dem Agenten nicht, was er falsch
-	// gemacht hat.
+	// Check the path up front instead of letting the run fail at the
+	// subprocess's chdir: "starting claude: chdir …" does not tell the agent
+	// what it did wrong.
 	if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
 		return target.SubAgentResult{}, fmt.Errorf(
-			"cwd %q ist kein Verzeichnis in der Sandbox — nimm den Pfad aus dem checkout-Ergebnis", req.Dir)
+			"cwd %q is not a directory in the sandbox — take the path from the checkout result", req.Dir)
 	}
-	// Ein Sub-Lauf je Verzeichnis. Der Action-Proxy bedient jede Anfrage in
-	// einer eigenen Goroutine und die Runtime ruft Werkzeuge durchaus parallel
-	// auf: Zwei Läufe im selben Checkout schrieben sich gegenseitig die Dateien
-	// um und meldeten beide denselben kumulativen Stand — zwei Berichte über
-	// eine vermischte Arbeit. Deshalb Absage statt Warteschlange: Der Agent
-	// soll den ersten Bericht lesen, bevor er im selben Checkout den nächsten
-	// Auftrag gibt. Verschiedene Verzeichnisse laufen weiter parallel.
+	// One sub-run per directory. The action proxy serves every request in its
+	// own goroutine and the runtime does call tools in parallel: two runs in the
+	// same checkout overwrote each other's files and both reported the same
+	// cumulative state — two reports about one blended piece of work. Hence a
+	// refusal instead of a queue: the agent should read the first report before
+	// it gives the next order in the same checkout. Different directories keep
+	// running in parallel.
 	if err := c.claimSubAgentDir(dir); err != nil {
 		return target.SubAgentResult{}, err
 	}
@@ -99,7 +98,7 @@ func (c *Client) runSubAgent(ctx context.Context, taskID string, req target.SubA
 
 	runtime := c.runtimes[cfg.Runtime]
 	if runtime == nil {
-		return target.SubAgentResult{}, fmt.Errorf("unbekannte runtime %q", cfg.Runtime)
+		return target.SubAgentResult{}, fmt.Errorf("unknown runtime %q", cfg.Runtime)
 	}
 
 	turns := req.MaxTurns
@@ -114,11 +113,10 @@ func (c *Client) runSubAgent(ctx context.Context, taskID string, req target.SubA
 		model = cfg.Model
 	}
 
-	// Anker für den Bericht: der Upstream-Stand, den der Checkout als Tag
-	// festhält. Fehlt er (das Verzeichnis kommt nicht aus einem Checkout),
-	// dient der Stand unmittelbar vor dem Sub-Lauf als Anker — nie das
-	// Wurzel-Commit, sonst wäre in einem echten Klon die ganze Repo-Historie
-	// „Arbeit".
+	// Anchor for the report: the upstream state that the checkout pins down as a
+	// tag. If it is missing (the directory does not come from a checkout), the
+	// state immediately before the sub-run serves as the anchor — never the root
+	// commit, otherwise in a real clone the entire repo history would be "work".
 	base := gitRev(ctx, dir, target.BaselineRef)
 	if base == "" {
 		base = gitRev(ctx, dir, "HEAD")
@@ -126,7 +124,7 @@ func (c *Client) runSubAgent(ctx context.Context, taskID string, req target.SubA
 
 	spec := RunSpec{
 		TaskID:       taskID,
-		Title:        "Arbeitsauftrag im Projekt",
+		Title:        "Work order in the project",
 		Body:         task,
 		SystemPrompt: subAgentPrompt,
 		Model:        model,
@@ -134,16 +132,16 @@ func (c *Client) runSubAgent(ctx context.Context, taskID string, req target.SubA
 		MaxTurns:     turns,
 		HomeDir:      c.homeDir,
 		WorkDir:      dir,
-		// Bewusst ohne COVEY_ACTION_PORT: hermetisch, keine Zielsysteme.
+		// Deliberately without COVEY_ACTION_PORT: hermetic, no target systems.
 		Env: c.runtimeKeyEnv(),
 	}
 
-	// Jeder Sub-Lauf bekommt eine eigene Kennung. Sie ist das, woran die
-	// Timeline die Zeilen eines Laufs erkennt — nicht ihre Nachbarschaft im
-	// Strom. Der Unterschied zählt, weil der Action-Proxy nebenläufig bedient
-	// (jeder Request eine Goroutine): Zwei gleichzeitige `dev agent`-Aufrufe
-	// verschränken ihre Zeilen unter derselben Aufgabe, und ohne Kennung
-	// verschmölzen sie zu einem Block oder zerfielen in Bruchstücke.
+	// Every sub-run gets an identifier of its own. It is what the timeline uses
+	// to recognize a run's lines — not their adjacency in the stream. The
+	// difference matters because the action proxy serves concurrently (one
+	// goroutine per request): two simultaneous `dev agent` calls interleave their
+	// lines under the same task, and without an identifier they would either
+	// merge into one block or fall apart into fragments.
 	stamp := subAgentStamper(dir, strconv.FormatUint(c.subRuns.Add(1), 10), task)
 	res, err := runtime.Run(ctx, spec, func(kind string, payload json.RawMessage) {
 		_ = c.send(TypeEvent, Event{TaskID: taskID, Kind: kind, Payload: stamp(payload)})
@@ -158,11 +156,11 @@ func (c *Client) runSubAgent(ctx context.Context, taskID string, req target.SubA
 
 	changed, deleted := gitChangesSince(ctx, dir, base)
 	return target.SubAgentResult{
-		// Beim Turn-Limit liefert der Adapter statt eines Ergebnisses den
-		// Übergabe-Stand der abgebrochenen Session (Status "incomplete",
-		// siehe runtime_claudecode.go). Genau der gehört in den Bericht: Der
-		// beauftragende Agent schließt mit dem Teilergebnis ab und legt den
-		// Rest als Aufgabe an, statt die halbe Arbeit zu verlieren.
+		// At the turn limit the adapter delivers the aborted session's handover
+		// state instead of a result (status "incomplete", see
+		// runtime_claudecode.go). Exactly that belongs in the report: the
+		// commissioning agent closes with the partial result and files the rest
+		// as a task, instead of losing half the work.
 		Result:         res.Result,
 		ChangedFiles:   changed,
 		Deleted:        deleted,
@@ -172,8 +170,8 @@ func (c *Client) runSubAgent(ctx context.Context, taskID string, req target.SubA
 	}, nil
 }
 
-// claimSubAgentDir belegt ein Verzeichnis für die Dauer eines Sub-Laufs und
-// lehnt einen zweiten Lauf darin ab, solange der erste arbeitet.
+// claimSubAgentDir reserves a directory for the duration of a sub-run and
+// rejects a second run in it while the first is working.
 func (c *Client) claimSubAgentDir(dir string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -181,8 +179,8 @@ func (c *Client) claimSubAgentDir(dir string) error {
 		c.subAgentDirs = map[string]bool{}
 	}
 	if c.subAgentDirs[dir] {
-		return fmt.Errorf("in %s arbeitet schon ein Sub-Agent — lies erst seinen Bericht, "+
-			"bevor du im selben Checkout den nächsten Auftrag gibst", dir)
+		return fmt.Errorf("a sub-agent is already working in %s — read its report first "+
+			"before giving the next order in the same checkout", dir)
 	}
 	c.subAgentDirs[dir] = true
 	return nil
@@ -194,27 +192,27 @@ func (c *Client) releaseSubAgentDir(dir string) {
 	delete(c.subAgentDirs, dir)
 }
 
-// maxMarkedTask begrenzt den Arbeitsauftrag in der Marke. Er dient dort als
-// Überschrift, nicht als Archiv — den vollen Text hält ohnehin das
-// action-Event des Action-Proxys fest.
+// maxMarkedTask caps the work order inside the mark. There it serves as a
+// heading, not as an archive — the full text is kept by the action proxy's
+// action event anyway.
 const maxMarkedTask = 400
 
-// markSubAgent markiert eine Runtime-Zeile als Teil eines Sub-Laufs — als
-// zusätzlichen Schlüssel IM Objekt, nicht als Hülle darum. Der Unterschied ist
-// nicht kosmetisch: Aufzeichnung und Timeline lesen das Format der Runtime
-// (stream-json) direkt, und eine Hülle würde `type` verdecken. Der Sub-Lauf
-// stünde dann als JSON-Klumpen in der Aufzeichnung statt als Turn mit seinen
-// Tool-Aufrufen — ausgerechnet dort, wo die eigentliche Arbeit passiert.
+// markSubAgent marks a runtime line as part of a sub-run — as an additional key
+// IN the object, not as a wrapper around it. The difference is not cosmetic:
+// recording and timeline read the runtime's format (stream-json) directly, and a
+// wrapper would hide `type`. The sub-run would then appear as a JSON blob in the
+// recording instead of as a turn with its tool calls — precisely where the
+// actual work happens.
 //
-// run ist die Kennung des Laufs, task der Arbeitsauftrag. task steht nur auf
-// der ersten Zeile (siehe subAgentStamper): Die Timeline zeigt damit im Kopf
-// des Blocks, WOMIT der Sub-Agent beauftragt war, ohne dass man ihn aufklappen
-// muss. Der zweite Rückgabewert sagt, ob wirklich markiert wurde — nur dann
-// gilt der Auftrag als untergebracht.
+// run is the run's identifier, task the work order. task appears on the first
+// line only (see subAgentStamper): that way the timeline shows at the head of
+// the block WHAT the sub-agent was commissioned with, without having to expand
+// it. The second return value says whether the line was really marked — only
+// then does the order count as placed.
 func markSubAgent(payload json.RawMessage, dir, run, task string) (json.RawMessage, bool) {
 	var obj map[string]json.RawMessage
 	if err := json.Unmarshal(payload, &obj); err != nil || obj == nil {
-		return payload, false // kein JSON-Objekt → unverändert durchreichen
+		return payload, false // not a JSON object → pass through unchanged
 	}
 	fields := map[string]string{"dir": dir, "run": run}
 	if task = strings.TrimSpace(task); task != "" {
@@ -235,17 +233,17 @@ func markSubAgent(payload json.RawMessage, dir, run, task string) (json.RawMessa
 	return marked, true
 }
 
-// subAgentStamper markiert die Zeilen EINES Sub-Laufs und vergibt den
-// Arbeitsauftrag dabei genau einmal — auf jeder Zeile ginge er mit seiner
-// Länge × Zeilenzahl in die Aufzeichnung, als Überschrift genügt er einmal.
+// subAgentStamper marks the lines of ONE sub-run and hands out the work order
+// exactly once while doing so — on every line it would enter the recording with
+// its length × the number of lines, whereas as a heading it suffices once.
 //
-// Verbraucht wird er erst, wenn er auch wirklich untergebracht ist: Eine Zeile,
-// die kein JSON-Objekt ist, lässt der Adapter bewusst durch (stream toleriert
-// sie), und an ihr darf der Auftrag nicht verloren gehen.
+// It is only consumed once it is actually placed: a line that is not a JSON
+// object is deliberately passed through by the adapter (stream tolerates it),
+// and the order must not get lost on such a line.
 //
-// Der zurückgegebene Stempel ist NICHT nebenläufig benutzbar — er muss es auch
-// nicht sein: stream ruft den Callback sequentiell in seiner Scanner-Schleife,
-// und ein etwaiger Zusatzlauf (summarize) folgt erst danach.
+// The returned stamper is NOT safe for concurrent use — nor does it need to be:
+// stream calls the callback sequentially in its scanner loop, and a possible
+// extra run (summarize) only follows afterwards.
 func subAgentStamper(dir, run, task string) func(json.RawMessage) json.RawMessage {
 	head := task
 	return func(payload json.RawMessage) json.RawMessage {
@@ -257,9 +255,9 @@ func subAgentStamper(dir, run, task string) func(json.RawMessage) json.RawMessag
 	}
 }
 
-// gitRev löst eine Referenz zu einem Commit auf. Leer, wenn es sie nicht gibt
-// (kein Repo, kein Commit, kein Tag) — der Aufrufer entscheidet dann, ob er
-// einen anderen Anker nimmt oder gar keine Dateiliste meldet.
+// gitRev resolves a reference to a commit. Empty if it does not exist (no repo,
+// no commit, no tag) — the caller then decides whether to take another anchor or
+// report no file list at all.
 func gitRev(ctx context.Context, dir, rev string) string {
 	out, err := gitRun(ctx, dir, "rev-parse", "--verify", "--quiet", rev+"^{commit}")
 	if err != nil {
@@ -268,34 +266,34 @@ func gitRev(ctx context.Context, dir, rev string) string {
 	return strings.TrimSpace(string(out))
 }
 
-// gitChangesSince liefert die Arbeit im Checkout als die beiden Listen, die die
-// commit-Aktion erwartet: geänderte/neue und gelöschte Dateien, jeweils
-// repo-relativ und gemessen gegen base.
+// gitChangesSince returns the work in the checkout as the two lists the commit
+// action expects: changed/new and deleted files, each repo-relative and measured
+// against base.
 //
-// Gemessen wird gegen einen COMMIT, nicht gegen ein `git status`-Abbild von
-// vorher. Das ist der Punkt: Der Sub-Agent darf im Checkout lokal committen —
-// viele Projekte verlangen das in ihrer CLAUDE.md —, und nach einem Commit
-// zeigt `git status` nichts mehr an. Die Arbeit läge dann fertig auf Platte,
-// aber der Bericht wäre leer und die commit-Aktion bräche mit „nichts zu
-// committen" ab.
+// Measured against a COMMIT, not against a `git status` snapshot taken earlier.
+// That is the point: the sub-agent may commit locally in the checkout — many
+// projects demand it in their CLAUDE.md — and after a commit `git status` shows
+// nothing any more. The work would then sit finished on disk, but the report
+// would be empty and the commit action would abort with "nothing to commit".
 //
-// Deshalb beide Hälften zusammen: was seit base committet wurde (git diff) und
-// was daneben im Arbeitsverzeichnis offen liegt (git status). Cache-
-// Verzeichnisse bleiben über .git/info/exclude des Checkouts außen vor.
+// Hence both halves together: what has been committed since base (git diff) and
+// what lies open beside it in the working tree (git status). Cache directories
+// stay out via the checkout's .git/info/exclude.
 func gitChangesSince(ctx context.Context, dir, base string) (changed, deleted []string) {
 	if base == "" {
-		return nil, nil // kein Anker → lieber keine Liste als eine falsche
+		return nil, nil // no anchor → rather no list than a wrong one
 	}
-	// Pfad → gelöscht? Die spätere Quelle gewinnt, weil sie den jüngeren Stand
-	// beschreibt: erst base→HEAD, dann HEAD→Arbeitsverzeichnis.
+	// path → deleted? The later source wins because it describes the more recent
+	// state: first base→HEAD, then HEAD→working tree.
 	state := map[string]bool{}
 	mark := func(code, from, to string) {
 		switch {
 		case code == "" || from == "":
 			return
 		case strings.ContainsAny(code, "RC"):
-			// Umbenennung/Kopie: das Ziel ist neu, bei R fällt die Quelle weg.
-			// Die Quelle muss mit, sonst bliebe sie im Zielsystem stehen.
+			// Rename/copy: the target is new, and with R the source goes away.
+			// The source must come along, otherwise it would remain in the
+			// target system.
 			if to != "" {
 				state[to] = false
 			}
@@ -308,8 +306,8 @@ func gitChangesSince(ctx context.Context, dir, base string) (changed, deleted []
 			state[from] = false
 		}
 	}
-	// Committet: --name-status -z liefert einen Feldstrom aus Status und Pfad,
-	// bei Umbenennung/Kopie zwei Pfaden — "R100\0alt\0neu\0".
+	// Committed: --name-status -z yields a field stream of status and path, with
+	// two paths on rename/copy — "R100\0old\0new\0".
 	fields := gitFields(ctx, dir, "diff", "--name-status", "-z", base, "HEAD")
 	for i := 0; i+1 < len(fields); {
 		code, from := fields[i], fields[i+1]
@@ -324,10 +322,10 @@ func gitChangesSince(ctx context.Context, dir, base string) (changed, deleted []
 		}
 		mark(code, from, to)
 	}
-	// Offen im Arbeitsverzeichnis: --porcelain -z. Ein Feld ist ein Datensatz
-	// "XY <pfad>"; bei Umbenennung/Kopie folgt die Quelle als eigenes Feld —
-	// und zwar NACH dem Ziel, denn in -z ist die Reihenfolge gegenüber
-	// "alt -> neu" umgekehrt.
+	// Open in the working tree: --porcelain -z. One field is one record
+	// "XY <path>"; on rename/copy the source follows as a field of its own —
+	// and AFTER the target, because with -z the order is reversed compared to
+	// "old -> new".
 	fields = gitFields(ctx, dir, "status", "--porcelain", "-z", "-uall")
 	for i := 0; i < len(fields); {
 		rec := fields[i]
@@ -340,7 +338,7 @@ func gitChangesSince(ctx context.Context, dir, base string) (changed, deleted []
 			if i >= len(fields) {
 				break
 			}
-			mark(code, fields[i], path) // Ziel zuerst, Quelle danach
+			mark(code, fields[i], path) // target first, source afterwards
 			i++
 			continue
 		}
@@ -354,25 +352,25 @@ func gitChangesSince(ctx context.Context, dir, base string) (changed, deleted []
 		}
 		changed = append(changed, path)
 	}
-	// Stabil halten — sonst wechselt die Reihenfolge je Lauf (Map-Iteration)
-	// und Recording wie Commit-Diff werden unnötig rauschig.
+	// Keep it stable — otherwise the order changes per run (map iteration) and
+	// both recording and commit diff become needlessly noisy.
 	sort.Strings(changed)
 	sort.Strings(deleted)
 	return changed, deleted
 }
 
-// gitRun führt ein git-Kommando im Checkout aus. Zwei Details stecken hier
-// drin, beide nicht kosmetisch:
+// gitRun executes a git command in the checkout. Two details are baked in here,
+// neither of them cosmetic:
 //
-//   - core.quotepath=false: Sonst liefert git (Default true) Pfade außerhalb
-//     ASCII escaped — "pr\303\274fung.go" statt prüfung.go. Der Pfad ginge
-//     verstümmelt in changed_files und von dort unverändert in die
-//     commit-Aktion. Zusammen mit -z beim Aufrufer kommen die Bytes roh und
-//     ungequotet heraus; das erledigt Leerzeichen und Anführungszeichen mit.
-//   - childEnv: ohne die COVEY_*-Variablen des Daemons. git liest Konfiguration
-//     AUS dem Repository, und die kann Kommandos benennen, die git selbst
-//     ausführt (core.fsmonitor, Filter-Driver). Nach dem Sub-Lauf ist dieses
-//     Repository nicht vertrauenswürdiger als der übrige Checkout.
+//   - core.quotepath=false: otherwise git (default true) escapes paths outside
+//     ASCII — "pr\303\274fung.go" instead of prüfung.go. The path would go
+//     mangled into changed_files and from there unchanged into the commit
+//     action. Together with -z at the caller the bytes come out raw and
+//     unquoted; that takes care of spaces and quotes as well.
+//   - childEnv: without the daemon's COVEY_* variables. git reads configuration
+//     FROM the repository, and that config can name commands git itself executes
+//     (core.fsmonitor, filter drivers). After the sub-run this repository is no
+//     more trustworthy than the rest of the checkout.
 func gitRun(ctx context.Context, dir string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-c", "core.quotepath=false"}, args...)...)
 	cmd.Dir = dir
@@ -380,9 +378,9 @@ func gitRun(ctx context.Context, dir string, args ...string) ([]byte, error) {
 	return cmd.Output()
 }
 
-// gitFields führt ein git-Kommando mit -z aus und liefert dessen
-// NUL-getrennte Felder. Ohne git oder ohne Repository leer: Dann meldet der
-// Sub-Lauf eben keine Dateiliste, statt zu scheitern.
+// gitFields executes a git command with -z and returns its NUL-separated
+// fields. Empty without git or without a repository: the sub-run then simply
+// reports no file list instead of failing.
 func gitFields(ctx context.Context, dir string, args ...string) []string {
 	out, err := gitRun(ctx, dir, args...)
 	if err != nil {

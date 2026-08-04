@@ -1,373 +1,373 @@
-# 16 — Runner (verteilte Data Plane)
+# 16 — Runner (the distributed data plane)
 
-Heute läuft die Data Plane auf **dem Host der Control Plane**: Der `docker`-Provider ruft die lokale Docker-CLI, das persistente Home liegt als Verzeichnis daneben, der Egress-Proxy ist ein Container auf derselben Maschine. Das trägt für eine Instanz und eine Handvoll Agenten, aber es macht die Größe der Belegschaft zu einer Frage der Größe *einer* Maschine.
+Today the data plane runs on **the control plane's host**: the `docker` provider calls the local Docker CLI, the persistent home sits as a directory next to it, the egress proxy is a container on the same machine. That carries one instance and a handful of agents, but it makes the size of the workforce a question of the size of *one* machine.
 
-Der **Runner** löst das: ein eigenständiger Prozess auf einem beliebigen Host, der sich bei der Control Plane **registriert** und von dort Sandboxen zugewiesen bekommt — dasselbe Muster wie GitLab-Runner. Die Control Plane bleibt der Single Point of Truth; die Runner sind, wie die Sandboxen selbst, dumm und ersetzbar.
+The **runner** solves this: a standalone process on an arbitrary host that **registers** with the control plane and gets sandboxes assigned to it from there — the same pattern as GitLab runners. The control plane remains the single point of truth; the runners are, like the sandboxes themselves, dumb and replaceable.
 
-Warum man das will: mehr Agenten als eine Maschine trägt; Datenresidenz pro Abteilung oder Mandant (siehe [`09-enterprise-modell.md`](09-enterprise-modell.md)); Hardware-Nähe (ARM-Builds, GPU, ein Runner im Netz des Zielsystems); und die saubere Trennung von Control Plane und Rechenlast, die heute nur konzeptionell existiert.
+Why you want this: more agents than one machine carries; data residency per department or tenant (see [`09-enterprise-model.md`](09-enterprise-model.md)); hardware proximity (ARM builds, GPU, a runner inside the target system's network); and the clean separation of control plane and compute load that today exists only conceptually.
 
-## Was bereits trägt
+## What already carries
 
-Die wichtigste Eigenschaft ist schon da: **Der Daemon wählt heraus.** `coveyd` liest `COVEY_WS_URL` und `COVEY_DAEMON_TOKEN` aus seiner Umgebung und baut die WebSocket-Verbindung zur Control Plane auf; die Control Plane wartet nur darauf. Sie ruft **nie** in eine Sandbox hinein.
+The most important property is already there: **the daemon dials out.** `coveyd` reads `COVEY_WS_URL` and `COVEY_DAEMON_TOKEN` from its environment and builds the WebSocket connection to the control plane; the control plane only waits for it. It **never** calls into a sandbox.
 
 ```
-Sandbox (irgendwo)  ──── WebSocket, ausgehend ────►  Control Plane
-                          COVEY_DAEMON_TOKEN
+Sandbox (somewhere)  ──── WebSocket, outbound ────►  Control plane
+                           COVEY_DAEMON_TOKEN
 ```
 
-Damit ist die Richtungsumkehr, die entfernte Ausführung überhaupt erst praktikabel macht, bereits im Daemon-Protokoll verankert ([`01-architektur.md`](01-architektur.md)) — eine Sandbox braucht keine eingehende Erreichbarkeit, nur einen Weg nach draußen. Ebenso trägt der Port `SandboxProvider`: Er hat genau eine Aufrufstelle im Orchestrator. Ein Provider, der statt der lokalen Docker-CLI einen registrierten Runner anspricht, ändert am Orchestrator nichts.
+The direction reversal that makes remote execution practical in the first place is therefore already anchored in the daemon protocol ([`01-architecture.md`](01-architecture.md)) — a sandbox needs no inbound reachability, only a way out. The `SandboxProvider` port carries just as well: it has exactly one call site in the orchestrator. A provider that addresses a registered runner instead of the local Docker CLI changes nothing about the orchestrator.
 
-Was noch am lokalen Host klebt, ist entsprechend überschaubar:
+What still sticks to the local host is correspondingly manageable:
 
-| Heute lokal | Warum das bricht |
+| Local today | Why it breaks |
 |---|---|
-| `docker run` über die lokale CLI | Die Control Plane muss auf dem Docker-Host sitzen |
-| Home als Host-Pfad `<data>/homes/<agent-id>` | Der Dateibrowser liest direkt vom Dateisystem |
-| Egress-Proxy als Container daneben | Erreichbar über `host.docker.internal` |
-| Ein einziger Provider ohne Auswahl | Kein Routing, kein Scheduling, keine Kapazität |
+| `docker run` through the local CLI | The control plane has to sit on the Docker host |
+| The home as the host path `<data>/homes/<agent-id>` | The file browser reads straight from the file system |
+| The egress proxy as a container next to it | Reachable through `host.docker.internal` |
+| A single provider without selection | No routing, no scheduling, no capacity |
 
-## Das Modell
+## The model
 
 ```
                      ┌──────────────────────────────┐
-                     │        Control Plane         │
-                     │  Scheduler · Registry · DB   │
+                     │        Control plane         │
+                     │  scheduler · registry · DB   │
                      └───────┬──────────────┬───────┘
-        Runner-Protokoll     │              │      Daemon-Protokoll
-        (langlebig, 1×/Host) │              │      (pro Wake, 1×/Sandbox)
+        runner protocol      │              │      daemon protocol
+        (long-lived, 1×/host)│              │      (per wake, 1×/sandbox)
                      ┌───────▼──────┐       │
                      │ covey-runner │       │
-                     │  Host A      │       │
+                     │  host A      │       │
                      │  ┌─────────┐ │       │
-                     │  │ Sandbox ├─┼───────┘
+                     │  │ sandbox ├─┼───────┘
                      │  └─────────┘ │
-                     │  homes/      │  ← Arbeitsbestand, verwerfbar
+                     │  homes/      │  ← working copy, disposable
                      └──────────────┘
 ```
 
-**Zwei Verbindungen, zwei Protokolle.** Der Runner-Link ist langlebig und besteht pro Host; der Daemon-Link entsteht pro Wake und pro Sandbox. Das ist bewusst nicht dasselbe Protokoll: Der Runner muss auch dann ansprechbar sein, wenn **keine** Sandbox läuft — für Kapazitätsmeldungen, für den Dateizugriff auf ein schlafendes Home, für das Aufräumen verwaister Container. Das Daemon-Protokoll an einen Host statt an eine Sandbox zu binden, würde beide Lebensdauern vermischen.
+**Two connections, two protocols.** The runner link is long-lived and exists per host; the daemon link arises per wake and per sandbox. That is deliberately not the same protocol: the runner has to be addressable even when **no** sandbox is running — for capacity reports, for file access to a sleeping home, for cleaning up orphaned containers. Binding the daemon protocol to a host instead of a sandbox would mix the two lifetimes.
 
-Der Datenpfad des Daemons bleibt davon **unberührt**: Die Sandbox spricht weiterhin direkt mit der Control Plane, nicht über den Runner. Der Runner startet und stoppt Compute — er ist kein Proxy für die Agentenarbeit und sieht deren Events nicht.
+The daemon's data path stays **untouched** by this: the sandbox still talks directly to the control plane, not through the runner. The runner starts and stops compute — it is not a proxy for the agent's work and does not see its events.
 
-## Registrierung
+## Registration
 
-Wie bei GitLab getrennt in ein **Registration-Token** (org-weit, in der UI erzeugbar und widerrufbar) und ein daraus abgeleitetes **Runner-Token** (langlebig, pro Runner, nur als Hash gespeichert):
+As with GitLab, split into a **registration token** (org-wide, creatable and revocable in the UI) and a **runner token** derived from it (long-lived, per runner, stored only as a hash):
 
 ```
 covey-runner register --url https://covey.example --token <registration-token> \
-                      --tag php --tag arm64 --description "Build-Host Frankfurt"
+                      --tag php --tag arm64 --description "Build host Frankfurt"
 ```
 
-`register` schreibt das erhaltene Runner-Token in eine **Konfigurationsdatei** (`/etc/covey-runner/config.toml`, überschreibbar) — Server-Adresse, Token, Tags, Arbeitsverzeichnis. Bewusst eine Datei und nicht nur Umgebungsvariablen: Der Runner läuft als Dienst auf einer Maschine, die sonst nichts mit Covey zu tun hat, und `register` muss sein Ergebnis irgendwo hinterlegen können.
+`register` writes the received runner token into a **configuration file** (`/etc/covey-runner/config.toml`, overridable) — server address, token, tags, working directory. Deliberately a file and not just environment variables: the runner runs as a service on a machine that otherwise has nothing to do with Covey, and `register` has to be able to deposit its result somewhere.
 
-Danach hält `covey-runner run` eine dauerhafte WebSocket-Verbindung auf `/api/runner/ws`, authentifiziert mit dem Runner-Token. Der Runner meldet beim Verbinden seine **Capabilities**:
+After that `covey-runner run` holds a permanent WebSocket connection on `/api/runner/ws`, authenticated with the runner token. On connecting, the runner reports its **capabilities**:
 
-- verfügbare Sandbox-Images (siehe unten),
-- Architektur (`amd64`/`arm64`), CPU/RAM, freier Plattenplatz,
-- die Tags aus der Registrierung,
-- seine eigene Version, damit die Control Plane Versions-Drift sichtbar machen kann,
-- die **Protokoll-Version**, die er spricht (siehe „Auslieferung").
+- available sandbox images (see below),
+- architecture (`amd64`/`arm64`), CPU/RAM, free disk space,
+- the tags from registration,
+- its own version, so that the control plane can make version drift visible,
+- the **protocol version** it speaks (see "Delivery").
 
-**Ein Prozess, eine Instanz.** Ein Runner registriert sich bei genau einem Covey-Server. Wer zwei Instanzen bedienen will, startet zwei Prozesse — das ist billiger als die Alternative: Ein geteilter Blockspeicher über zwei Organisationen hinweg wäre ein Kanal zwischen ihnen, und Kapazitätsverteilung zwischen fremden Mandanten wäre eine Politik, die niemand braucht.
+**One process, one instance.** A runner registers with exactly one Covey server. Whoever wants to serve two instances starts two processes — that is cheaper than the alternative: block storage shared across two organisations would be a channel between them, and distributing capacity between foreign tenants would be a policy nobody needs.
 
-Ein Runner ohne Verbindung ist **offline**, nicht gelöscht — die Unterscheidung ist für den Betrieb wichtig (Wartungsfenster vs. Abbau), für die Agenten aber folgenlos: Sie weichen auf einen anderen Runner aus (siehe „Das Home"). Ein gelöschter Runner nimmt nur seinen lokalen Arbeitsbestand mit, keinen Zustand der Plattform.
+A runner without a connection is **offline**, not deleted — the distinction matters for operations (a maintenance window vs. decommissioning) but is inconsequential for the agents: they move to a different runner (see "The home"). A deleted runner takes only its local working copy with it, no platform state.
 
-## Auslieferung
+## Delivery
 
-Der Runner wird **einzeln installiert**, auf Maschinen, auf denen sonst nichts von Covey liegt. Er ist deshalb ein eigenes Release-Artefakt mit eigener Versionsnummer: statisches Binary je Architektur, ein Docker-Image, eine systemd-Unit. Ein Operator lädt es herunter, ruft `register` mit einem Token auf und ist fertig — er merkt vom Rest des Projekts nichts.
+The runner is **installed individually**, on machines where nothing else of Covey lives. It is therefore a release artefact of its own with its own version number: a static binary per architecture, a Docker image, a systemd unit. An operator downloads it, calls `register` with a token and is done — they notice nothing of the rest of the project.
 
-**Der Code bleibt trotzdem im selben Repository** (`cmd/covey-runner/`), und zwar aus einem Grund, der sich hier schon bewährt hat: `coveyd` ist exakt derselbe Fall. Es ist ein eigenes Binary, läuft auf einer anderen Maschine (in der Sandbox), spricht ein Protokoll zur Control Plane — und `internal/daemon` definiert dieses Protokoll für **beide** Seiten. Genau deshalb ist eine Protokolländerung ein einziger Commit statt eines Kompatibilitätstanzes über zwei Repositories.
+**The code nevertheless stays in the same repository** (`cmd/covey-runner/`), for a reason that has already proven itself here: `coveyd` is exactly the same case. It is a separate binary, runs on a different machine (in the sandbox), speaks a protocol to the control plane — and `internal/daemon` defines that protocol for **both** sides. That is exactly why a protocol change is a single commit instead of a compatibility dance across two repositories.
 
-Ein getrenntes Repository nach dem Vorbild von `gitlab-runner` bliebe möglich, sobald das Protokoll steht. Solange es in Bewegung ist, kostet die Trennung mehr, als sie einbringt — und für den Operator ändert sie ohnehin nichts, weil er das Artefakt sieht und nicht das Repository.
+A separate repository modelled on `gitlab-runner` would remain possible once the protocol has settled. While it is in motion, the separation costs more than it brings — and for the operator it changes nothing anyway, because they see the artefact, not the repository.
 
-### Protokoll-Version
+### Protocol version
 
-Weil Runner und Server getrennt ausgeliefert werden, treffen zwangsläufig verschiedene Stände aufeinander — jemand aktualisiert Covey und vergisst drei Runner. Der Handshake nennt deshalb eine Protokoll-Version, und die Control Plane entscheidet:
+Because runner and server are delivered separately, different versions inevitably meet — someone updates Covey and forgets three runners. The handshake therefore names a protocol version, and the control plane decides:
 
-- **passend** → normale Zuweisung.
-- **älter, aber unterstützt** → Verbindung steht, in der Runner-Ansicht als veraltet markiert.
-- **zu alt oder neuer als bekannt** → Verbindung wird abgelehnt, mit einer Meldung, die sagt *welche* Seite zu aktualisieren ist.
+- **matching** → normal assignment.
+- **older, but supported** → the connection stands, marked as outdated in the runner view.
+- **too old or newer than known** → the connection is refused, with a message saying *which* side needs updating.
 
-Abgelehnt wird ausdrücklich mit Begründung, nicht stillschweigend: Ein Runner, der sich wortlos nicht verbindet, kostet einen Abend Suche.
+Refusal is explicit with a reason, not silent: a runner that quietly fails to connect costs an evening of searching.
 
-## Runner-Protokoll
+## Runner protocol
 
-### Control Plane → Runner
+### Control plane → runner
 
-| Nachricht | Zweck |
+| Message | Purpose |
 |---|---|
-| `start_sandbox` | Sandbox starten: Agent-ID, Image, Home-Kennung, Env (`COVEY_WS_URL`, `COVEY_DAEMON_TOKEN`, Egress-Token) |
-| `stop_sandbox` | Compute herunterfahren; das Home bleibt |
-| `sync_home` | Home als Snapshot in den Store schreiben — regulär nach dem Job, außerdem erzwingbar (Wartung, Runner-Abbau) |
-| `home_op` | Dateizugriff auf ein Home: auflisten, lesen, schreiben, löschen (siehe Dateizugriff) |
-| `set_allowlist` | Egress-Allowlist für den lokalen Proxy des Runners aktualisieren |
-| `prune` | Verwaiste Container und Homes gelöschter Agenten aufräumen |
+| `start_sandbox` | Start a sandbox: agent ID, image, home identifier, env (`COVEY_WS_URL`, `COVEY_DAEMON_TOKEN`, egress token) |
+| `stop_sandbox` | Shut compute down; the home stays |
+| `sync_home` | Write the home into the store as a snapshot — regularly after the job, and enforceable besides (maintenance, decommissioning a runner) |
+| `home_op` | File access to a home: list, read, write, delete (see file access) |
+| `set_allowlist` | Update the egress allowlist for the runner's local proxy |
+| `prune` | Clean up orphaned containers and the homes of deleted agents |
 
-### Runner → Control Plane
+### Runner → control plane
 
-| Nachricht | Zweck |
+| Message | Purpose |
 |---|---|
-| `registered` | Capabilities, Tags, Version — die erste Nachricht nach dem Verbinden |
-| `sandbox_started` / `sandbox_failed` | Ergebnis eines `start_sandbox` (der `ready`-Beweis kommt weiterhin vom Daemon selbst) |
-| `sandbox_exited` | Die Sandbox ist von sich aus beendet (Absturz, OOM) — die Control Plane erfährt es, ohne auf den Daemon-Timeout zu warten |
-| `home_synced` | Snapshot geschrieben: Kennung, übertragene Blöcke, Gesamtgröße — erst danach darf lokal aufgeräumt werden |
-| `home_result` | Antwort auf `home_op` |
-| `capacity` | Laufende Sandboxen, freier Platz — Grundlage für Scheduling und Warnungen |
-| `heartbeat` | Lebenszeichen |
+| `registered` | Capabilities, tags, version — the first message after connecting |
+| `sandbox_started` / `sandbox_failed` | The result of a `start_sandbox` (the `ready` proof still comes from the daemon itself) |
+| `sandbox_exited` | The sandbox ended on its own (crash, OOM) — the control plane learns of it without waiting for the daemon timeout |
+| `home_synced` | The snapshot is written: identifier, blocks transferred, total size — only afterwards may anything be cleaned up locally |
+| `home_result` | The answer to a `home_op` |
+| `capacity` | Running sandboxes, free space — the basis for scheduling and warnings |
+| `heartbeat` | Sign of life |
 
-`sandbox_exited` ist der Grund, warum der Runner den Container-Zustand überhaupt beobachten muss: Heute merkt die Control Plane einen Absturz erst am `ReadyTimeout` oder am abbrechenden Daemon-Link. Mit einem Runner, der den lokalen Docker-Daemon ohnehin fragt, wird daraus eine gemeldete Tatsache statt einer Vermutung.
+`sandbox_exited` is the reason the runner has to observe the container state at all: today the control plane notices a crash only at the `ReadyTimeout` or at the breaking daemon link. With a runner that asks the local Docker daemon anyway, that becomes a reported fact instead of a guess.
 
-## Das Home
+## The home
 
-Hier endet die GitLab-Analogie scheinbar: Ein CI-Runner darf frei gewählt werden, weil er **zustandslos** ist — ein Job klont neu, baut, wirft alles weg. Coveys Sandbox hat dagegen ein persistentes Home, und das *ist* Teil des Versprechens („geht eine Sandbox verloren, wird sie aus Config + Home neu aufgebaut", [`01-architektur.md`](01-architektur.md)).
+Here the GitLab analogy appears to end: a CI runner may be chosen freely because it is **stateless** — a job clones anew, builds, throws everything away. Covey's sandbox, by contrast, has a persistent home, and that *is* part of the promise ("if a sandbox is lost, it is rebuilt from config + home", [`01-architecture.md`](01-architecture.md)).
 
-Der Schein trügt. Ein vermessenes Entwickler-Home (7,1 GB) besteht fast vollständig aus Dingen, die **anderswo bereits eine Quelle haben**:
+The appearance deceives. A measured developer home (7.1 GB) consists almost entirely of things that **already have a source elsewhere**:
 
-| Anteil | Größe | Quelle der Wahrheit |
+| Share | Size | Source of truth |
 |---|---|---|
-| `repos/` | 3,0 GB | das Git-Remote des Projekts |
-| `flutter`, `.pub-cache`, `.gradle`, `.npm`, `jdk`, `.dartServer` | 4,0 GB | ableitbar — reiner Cache |
-| `wiki/`, `.claude/skills/` | wenige MB | die Control Plane (bereits zentral) |
-| **alles Übrige** | **48 MB** | *nirgends* |
+| `repos/` | 3.0 GB | the project's Git remote |
+| `flutter`, `.pub-cache`, `.gradle`, `.npm`, `jdk`, `.dartServer` | 4.0 GB | derivable — pure cache |
+| `wiki/`, `.claude/skills/` | a few MB | the control plane (already central) |
+| **everything else** | **48 MB** | *nowhere* |
 
-Die Tabelle zeigt zweierlei. Erstens: **Fast nichts darin ist einzigartig.** Die 4 GB Toolchain-Caches sind auf jedem Entwickler-Home byteweise dieselben, und selbst Checkouts überschneiden sich zwischen Agenten am selben Projekt. Zweitens: Der wirklich einzigartige Teil ist mit 48 MB winzig — und er liegt **quer im Home verstreut**. Neben den 30 MB Session-Transkripten finden sich dort `useSevenAssistant.ts` (95 KB extrahierter Code), `panel.json`, `subagent-223.json`, `fix223/`, `verify-729/` — direkt im Wurzelverzeichnis, nicht in einem dafür vorgesehenen Ordner. Ein Agent legt seine Zwischenstände, Auswertungen und selbstgeschriebenen Helfer dort ab, wo es ihm im Lauf sinnvoll erscheint. Sein Home ist sein Arbeitsplatz, kein Formular.
+The table shows two things. First: **almost nothing in it is unique.** The 4 GB of toolchain caches are byte-for-byte the same on every developer home, and even checkouts overlap between agents on the same project. Second: the genuinely unique part is tiny at 48 MB — and it lies **scattered all over the home**. Alongside the 30 MB of session transcripts you find `useSevenAssistant.ts` (95 KB of extracted code), `panel.json`, `subagent-223.json`, `fix223/`, `verify-729/` — directly in the root directory, not in a folder provided for it. An agent puts its interim results, analyses and self-written helpers wherever seems sensible to it during the run. Its home is its workplace, not a form.
 
-Daraus folgt, was **nicht** funktioniert: eine Liste. Weder eine Positivliste („sichere `work/` und `uploads/`") noch eine Negativliste („verwirf, was das Image-Profil als Cache kennt") überlebt den Kontakt mit einem Agenten, der sich morgen ein Verzeichnis `analyse/` anlegt. Jede Liste ist eine Regel, die falsch sein kann, und ihr Fehler kostet Arbeit, die schon bezahlt wurde.
+From this follows what does **not** work: a list. Neither a positive list ("save `work/` and `uploads/`") nor a negative one ("discard what the image profile knows as a cache") survives contact with an agent that creates itself a directory `analysis/` tomorrow. Every list is a rule that can be wrong, and its error costs work that has already been paid for.
 
-### Der zentrale Home-Store
+### The central home store
 
-**Entschieden: Nach jedem Job wird das Home als Ganzes in einen zentralen Store gesynct und beim Wake von dort materialisiert.** Kein Whitelisting, keine Negativliste, keine Prüfung, ob ein Checkout sauber ist — das Home geht vollständig hinein und vollständig heraus. Die Frage „was ist wertvoll?" wird damit gar nicht erst gestellt.
+**Decided: after every job the home is synced as a whole into a central store and materialised from there on wake.** No whitelisting, no negative list, no check whether a checkout is clean — the home goes in completely and comes out completely. The question "what is valuable?" is thereby never asked in the first place.
 
-Praktikabel wird das durch die Bauform des Stores — **inhaltsadressiert und blockweise dedupliziert**:
+What makes this practical is the store's construction — **content-addressed and deduplicated block-wise**:
 
-- Jede Datei zerfällt in Blöcke, der Block-Hash ist sein Schlüssel. Gleicher Inhalt heißt **ein** Block, org-weit über alle Agenten und alle Snapshots hinweg.
-- Nach dem Job wandern nur die **neuen** Blöcke nach oben. Ein typischer Lauf verändert Megabytes an einem 7-GB-Home.
-- Beim Wake kommen nur die **fehlenden** Blöcke herunter; was der Runner lokal schon hat, bleibt liegen.
-- Ein Snapshot pro Job. Historie und Rollback („das Home von vorgestern") fallen als Nebenprodukt ab.
+- Every file breaks into blocks, and the block hash is its key. The same content means **one** block, org-wide across all agents and all snapshots.
+- After the job only the **new** blocks travel upwards. A typical run changes megabytes in a 7 GB home.
+- On wake only the **missing** blocks come down; what the runner already has locally stays put.
+- One snapshot per job. History and rollback ("the home from the day before yesterday") fall out as a by-product.
 
-Der Effekt auf die gemessenen Zahlen ist der eigentliche Punkt: Die 4 GB Toolchain-Caches liegen zentral **einmal**, nicht einmal pro Agent — dedupliziert genau deshalb, weil sie überall identisch sind. Und die 48 MB einzigartiger Arbeit sind mitgesichert, **ohne dass irgendwo notiert werden musste, dass es sie gibt**.
+The effect on the measured figures is the actual point: the 4 GB of toolchain caches sit centrally **once**, not once per agent — deduplicated precisely because they are identical everywhere. And the 48 MB of unique work are backed up along with it, **without anyone having had to note anywhere that it exists**.
 
-Damit erledigen sich drei Sorgen auf einmal: Die Session-Transkripte reisen automatisch mit (ein geparkter Agent behält seinen `--resume`-Faden, wo immer er aufwacht, [`12-claude-code-adapter.md`](12-claude-code-adapter.md)); unveröffentlichte Änderungen in einem Checkout sind kein Sonderfall mehr; und selbstgeschriebene Werkzeuge brauchen keine Regel, die sie schützt.
+Three worries are thereby dealt with at once: the session transcripts travel along automatically (a parked agent keeps its `--resume` thread wherever it wakes up, [`12-claude-code-adapter.md`](12-claude-code-adapter.md)); unpublished changes in a checkout are no longer a special case; and self-written tools need no rule to protect them.
 
-### Cache für die Masse, einzige Kopie für den Rest
+### A cache for the mass, the only copy for the rest
 
-Der Store heißt „Cache", und für 99 % seines Inhalts stimmt das: Ginge er verloren, würden Toolchains neu geladen und Repos neu geklont — ärgerlich, nicht tragisch. Für die 48 MB stimmt es **nicht**. Sie existieren nirgends sonst.
+The store is called a "cache", and for 99 % of its content that is right: if it were lost, toolchains would be downloaded again and repos cloned again — annoying, not tragic. For the 48 MB it is **not** right. They exist nowhere else.
 
-Daraus folgt eine Betriebsregel, die man nicht überlesen darf: **Der Home-Store ist sicherungspflichtig wie die Datenbank.** Ihn als reinen Cache zu behandeln — beliebig löschbar, kein Backup — wäre genau der Datenverlust, den die ganze Konstruktion verhindern soll. Er ist ein Cache in seiner *Funktion*, nicht in seiner *Schutzwürdigkeit*.
+From this follows an operational rule that must not be skimmed over: **the home store requires backup like the database.** Treating it as a pure cache — deletable at will, no backup — would be exactly the data loss the whole construction is meant to prevent. It is a cache in its *function*, not in its *need for protection*.
 
-### Ausschlüsse sind Optimierung, nicht Politik
+### Exclusions are optimisation, not politics
 
-Einzelne Pfade vom Sync auszunehmen bleibt sinnvoll — reine Analyse-Caches wie `.dartServer` (317 MB) etwa gewinnen durch Dedup wenig und ändern sich ständig. Der Unterschied zum verworfenen Listen-Ansatz ist die **Rolle** der Liste:
+Excluding individual paths from the sync stays sensible — pure analysis caches like `.dartServer` (317 MB) gain little from dedup and change constantly. The difference from the rejected list approach is the **role** of the list:
 
-- Vorher war ihre Vollständigkeit **Voraussetzung für Korrektheit**. Ein vergessener Pfad hieß Datenverlust.
-- Jetzt ist sie eine **Kostenfrage**. Die Voreinstellung ist leer: Ohne Konfiguration wird alles gesynct.
+- Before, its completeness was a **prerequisite for correctness**. A forgotten path meant data loss.
+- Now it is a **cost question**. The default is empty: without configuration everything is synced.
 
-Ausschlüsse gelten deshalb nur für nachweislich ableitbare Pfade, und im Zweifel wird gesynct. Ein falsch gesetzter Ausschluss kostet dann immer noch etwas — nur muss ihn jemand ausdrücklich gesetzt haben, statt ihn zu vergessen.
+Exclusions therefore apply only to demonstrably derivable paths, and when in doubt it is synced. A wrongly set exclusion then still costs something — but someone has to have set it deliberately instead of forgetting it.
 
-### Was das kostet
+### What it costs
 
-Ehrlich zu nennen, weil es nicht gratis ist:
+Worth naming honestly, because it is not free:
 
-- **Der erste Sync** eines gewachsenen Entwickler-Homes ist ein voller Durchgang — 7 GB. Danach Deltas.
-- **Der Sleep-Pfad wird länger.** Der Sync läuft beim echten Einschlafen, nicht beim Parken einer warmen Sandbox — die warme Session ([`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)) bleibt davon unberührt.
-- **Ein Speicher für Blöcke.** Postgres ist für GB-große Binärdaten der falsche Ort (siehe unten).
-- **Aufräumen.** Snapshots häufen sich; ohne Retention wächst der Store unbegrenzt. Bedienbar in der Oberfläche, nicht nur per Umgebungsvariable — siehe „Oberfläche".
+- **The first sync** of a grown developer home is a full pass — 7 GB. Deltas after that.
+- **The sleep path gets longer.** The sync runs at real falling-asleep, not when a warm sandbox is parked — the warm session ([`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)) stays untouched by it.
+- **Storage for blocks.** Postgres is the wrong place for GB-sized binary data (see below).
+- **Cleaning up.** Snapshots accumulate; without retention the store grows unbounded. Operable in the interface, not only through an environment variable — see "Interface".
 
-### Wo die Blöcke liegen
+### Where the blocks live
 
-Ein weiterer Port nach dem Muster von `IdentityProvider` und `SecretStore` ([`10-architektur-stack.md`](10-architektur-stack.md), „batteries included, but swappable"): **`BlobStore`**, Interface vor Implementierung, zwei Umsetzungen.
+Another port following the pattern of `IdentityProvider` and `SecretStore` ([`10-architecture-stack.md`](10-architecture-stack.md), "batteries included, but swappable"): **`BlobStore`**, interface before implementation, two implementations.
 
-| Backend | Wann | Was es kostet |
+| Backend | When | What it costs |
 |---|---|---|
-| `builtin` (Voreinstellung) | ein Verzeichnis neben `data/homes`, Blöcke als `blocks/<xx>/<hash>` | nichts — kein Zusatzdienst, kein neues Betriebsteil |
-| `s3` | wenn Durabilität, Replikation oder Trennung von der Control-Plane-Platte gefordert ist | ein weiterer Dienst im Betrieb |
+| `builtin` (default) | a directory next to `data/homes`, blocks as `blocks/<xx>/<hash>` | nothing — no extra service, no new operational part |
+| `s3` | when durability, replication or separation from the control plane's disk is required | one more service to operate |
 
-Die Voreinstellung ist bewusst das Verzeichnis. Für eine Installation auf einer Maschine — der Normalfall von Covey — ist ein Objektspeicher unnötige Betriebsfläche, und das Versprechen „ein Binary + Postgres" soll nicht klammheimlich zu „ein Binary + Postgres + MinIO" werden.
+The default is deliberately the directory. For an installation on one machine — Covey's normal case — an object store is unnecessary operational surface, and the promise "one binary + Postgres" should not quietly become "one binary + Postgres + MinIO".
 
-**Wenn Objektspeicher, dann S3-kompatibel — nicht „AWS S3".** Das Protokoll ist der gemeinsame Nenner von Hetzner Object Storage, Garage, MinIO, Ceph RadosGW und SeaweedFS; Covey schreibt keinen Server vor, sondern spricht das Protokoll. Zur Auswahl auf der Betreiberseite: Was der Hoster ohnehin anbietet (auf der in [`10-architektur-stack.md`](10-architektur-stack.md) genannten Hetzner/Proxmox-Infra also Hetzner Object Storage), sonst **Garage** — leichtgewichtig und für genau solche kleinen, selbst betriebenen Cluster gebaut. MinIO, wenn es im Haus ohnehin läuft.
+**If an object store, then S3-compatible — not "AWS S3".** The protocol is the common denominator of Hetzner Object Storage, Garage, MinIO, Ceph RadosGW and SeaweedFS; Covey does not prescribe a server but speaks the protocol. For the operator's choice: whatever the hoster offers anyway (on the Hetzner/Proxmox infrastructure named in [`10-architecture-stack.md`](10-architecture-stack.md) that means Hetzner Object Storage), otherwise **Garage** — lightweight and built for exactly such small, self-operated clusters. MinIO, if it is running in-house anyway.
 
-**Die Client-Frage bleibt bis Stufe 7 offen** — bewusst, denn sie ist kleiner, als sie aussieht. Ein Block-Store braucht fünf Operationen: `PUT`, `GET`, `HEAD`, `DELETE` und das Signieren kurzlebiger URLs. Weil Blöcke klein und unveränderlich sind, entfällt der aufwendigste Teil eines S3-Clients komplett: **Multipart-Upload wird nie gebraucht.**
+**The client question stays open until stage 7** — deliberately, because it is smaller than it looks. A block store needs five operations: `PUT`, `GET`, `HEAD`, `DELETE` and the signing of short-lived URLs. Because blocks are small and immutable, the most laborious part of an S3 client falls away entirely: **multipart upload is never needed.**
 
-Gemessen, statt geschätzt:
+Measured rather than estimated:
 
-| Kandidat | Kosten | Anmerkung |
+| Candidate | Cost | Note |
 |---|---|---|
-| `minio-go/v7` | **18 indirekte Module, 41 kompilierte Fremdpakete** | Covey hat heute 22 Module *insgesamt*. Bringt `msgp`, `xxh3`, `crc64nvme`, `md5-simd`, `compress` für Replikation, ILM, Notifications, S3 Select — nichts davon wird je benutzt |
-| `aws-sdk-go-v2` | noch schwerer | Offiziell und gründlich, aber gegen fremde Endpunkte umständlicher |
-| eigener Minimal-Client | keine Abhängigkeit | SigV4 über `crypto/hmac` + `crypto/sha256`; die Presign-Variante ist die einfachere (Query-String-Auth) |
+| `minio-go/v7` | **18 indirect modules, 41 compiled foreign packages** | Covey has 22 modules *in total* today. It brings `msgp`, `xxh3`, `crc64nvme`, `md5-simd`, `compress` for replication, ILM, notifications, S3 Select — none of which will ever be used |
+| `aws-sdk-go-v2` | heavier still | Official and thorough, but more awkward against foreign endpoints |
+| a minimal client of our own | no dependency | SigV4 over `crypto/hmac` + `crypto/sha256`; the presign variant is the simpler one (query-string auth) |
 
-Der Eigenbau ist hier vertretbarer als üblich, weil sein **Fehlermodus laut und geschlossen** ist: Eine falsche Signatur ergibt ein `403`, sofort sichtbar — nicht eine still geschwächte Sicherheitseigenschaft. Das ist der Unterschied zwischen „Krypto-Primitive benutzen" und „Krypto-Protokoll erfinden": SigV4 ist ein Signatur-Rezept über HMAC-SHA256, kein Handshake.
+Building it ourselves is more defensible here than usual, because its **failure mode is loud and closed**: a wrong signature yields a `403`, immediately visible — not a silently weakened security property. That is the difference between "use crypto primitives" and "invent a crypto protocol": SigV4 is a signature recipe over HMAC-SHA256, not a handshake.
 
-Dagegen spricht das, was eine gereifte Bibliothek mitbringt: die Eigenheiten der einzelnen Anbieter (Path-Style vs. Virtual-Host, Regions-Ermittlung, Fehler-Parsing). Wer nur einen Anbieter bedient, merkt davon nichts; wer fünf bedient, merkt es an jedem.
+Against it stands what a matured library brings: the individual providers' idiosyncrasies (path style vs. virtual host, region determination, error parsing). Whoever serves only one provider notices none of it; whoever serves five notices it at every one.
 
-Entschieden wird das, wenn Stufe 7 ansteht. Bis dahin zählt allein, dass `BlobStore` ein Port ist und `builtin` **gar keine** Abhängigkeit braucht.
+This will be decided when stage 7 comes up. Until then all that counts is that `BlobStore` is a port and that `builtin` needs **no** dependency at all.
 
-### Wie die Blöcke zum Runner kommen
+### How the blocks reach the runner
 
-Ein Runner bekommt **niemals die Zugangsdaten des Stores** — das wäre dasselbe Versäumnis wie die Datenbank-URL im Egress-Proxy (siehe „Vertrauensgrenze"). Stattdessen stellt die Control Plane pro Transfer **kurzlebige, gescopte URLs** aus, genau nach dem Muster des Secrets-Brokers ([`04-identitaet-secrets.md`](04-identitaet-secrets.md)):
+A runner **never gets the store's credentials** — that would be the same omission as the database URL in the egress proxy (see "Trust boundary"). Instead the control plane issues **short-lived, scoped URLs** per transfer, exactly following the secrets broker's pattern ([`04-identity-secrets.md`](04-identity-secrets.md)):
 
-- Beim `s3`-Backend als **pre-signed URLs** — der Runner lädt direkt beim Objektspeicher, die Control Plane sieht die Bytes nie.
-- Beim `builtin`-Backend liefert die Control Plane gleichwertige kurzlebige URLs auf sich selbst.
+- With the `s3` backend as **pre-signed URLs** — the runner loads directly from the object store, the control plane never sees the bytes.
+- With the `builtin` backend the control plane delivers equivalent short-lived URLs onto itself.
 
-Beides verhindert zugleich, dass 7 GB durch die Runner-WebSocket müssen: Der Steuerkanal bleibt schmal, die Nutzlast geht daran vorbei.
+Both also prevent 7 GB from having to go through the runner WebSocket: the control channel stays narrow, the payload goes past it.
 
-> **Warum nicht Git als Transport?** Naheliegend, aber Git passt nur auf den kuratierten Textteil. `repos/` sind selbst Git-Checkouts (verschachtelte Repos plus Duplizierung eines existierenden Remotes), Caches und SDKs haben in einer Versionsgeschichte nichts verloren, und die Transkripte sind append-only JSONL, an dem Git aufbläht, ohne dass je ein Diff gelesen wird. Was Git hier attraktiv macht — Dedup und Historie — liefert der inhaltsadressierte Store ohnehin, und zwar ohne diese Nachteile. Das Wiki *mit* Git-Historie zu unterlegen bleibt eine eigenständig attraktive Idee, ist hier aber nicht mitentschieden.
+> **Why not Git as the transport?** An obvious thought, but Git only fits the curated text part. `repos/` are Git checkouts themselves (nested repos plus duplication of an existing remote), caches and SDKs have no business in a version history, and the transcripts are append-only JSONL on which Git bloats without a diff ever being read. What makes Git attractive here — dedup and history — the content-addressed store delivers anyway, and without those drawbacks. Underlaying the wiki *with* a Git history remains an independently attractive idea but is not decided along with this.
 
-### Affinität als Präferenz, nicht als Bindung
+### Affinity as a preference, not a binding
 
-Ist das Home aus dem Store wiederherstellbar, wird die Bindung an einen Runner von einer *Voraussetzung* zu einer *Optimierung*. Der Unterschied zeigt sich am Ausfall:
+If the home is restorable from the store, the binding to a runner turns from a *prerequisite* into an *optimisation*. The difference shows up at failure time:
 
-- **Präferenz:** Der Scheduler bevorzugt den Runner, auf dem der Agent zuletzt lief — dort liegen dessen Blöcke schon lokal, das Materialisieren ist fast umsonst.
-- **Auf einem anderen Runner** holt er nur die Blöcke, die dort fehlen. Das ist deutlich weniger als ein kalter Start im ursprünglichen Sinn: Nichts wird neu geklont oder aus dem Internet gezogen, es kommt aus dem eigenen Store — und alles, was andere Agenten dort schon abgelegt haben, ist bereits da.
-- Der schlimmste Fall bleibt ein **frischer** Runner ohne einen einzigen Block. Dann ist es ein voller Transfer, und ein Flutter-Agent braucht Minuten, bevor er die erste Zeile liest. Aber das ist **Zeit, nicht Datenverlust** — und es trifft den ersten Agenten auf einer neuen Maschine, nicht jeden Wechsel.
+- **Preference:** the scheduler prefers the runner the agent last ran on — its blocks already sit there locally, and materialising is almost free.
+- **On a different runner** it fetches only the blocks that are missing there. That is considerably less than a cold start in the original sense: nothing is cloned anew or pulled from the internet, it comes from our own store — and everything other agents have already deposited there is already present.
+- The worst case remains a **fresh** runner without a single block. Then it is a full transfer, and a Flutter agent needs minutes before it reads its first line. But that is **time, not data loss** — and it hits the first agent on a new machine, not every switch.
 
-Das Home auf einem Runner ist damit ein **echter Arbeitsbestand ohne Sonderregeln**: Der Runner darf ihn bei Platzmangel vollständig wegräumen (`prune`), sobald der Sync durch ist — es gibt nichts darin, das nicht im Store läge. Die einzige harte Regel lautet: **Kein `prune` vor erfolgreichem Sync.** Ein neu aufgesetzter Runner braucht keine Datenübernahme.
+The home on a runner is thereby a **genuine working copy without special rules**: the runner may clear it away entirely when short of space (`prune`) as soon as the sync is through — there is nothing in it that is not in the store. The only hard rule is: **no `prune` before a successful sync.** A newly set-up runner needs no data migration.
 
-Die Präferenz ist dabei **klebrig, aber ohne Rückkehr-Automatik**: Fällt ein Runner aus, wandern seine Agenten auf einen anderen und *bleiben dort*. Kommt der alte zurück, wird nicht zurückmigriert — sonst folgt auf die Ausfallwelle eine zweite Welle kalter Starts. Der Ausgleich passiert von selbst beim nächsten ohnehin kalten Start.
+The preference is **sticky, but without automatic return**: if a runner fails, its agents move to another one and *stay there*. When the old one comes back, nothing is migrated back — otherwise the failure wave would be followed by a second wave of cold starts. The balancing happens by itself at the next cold start that was due anyway.
 
-## Warmup: der lokale Blockspeicher
+## Warmup: the local block storage
 
-Warmup braucht **keinen eigenen Mechanismus** — es fällt aus dem Store ab, sobald der Runner die geholten Blöcke lokal behält statt sie wegzuwerfen. Ein Block gehört keinem Agenten: Er ist durch seinen Hash bestimmt, und wer denselben Inhalt braucht, bekommt denselben Block.
+Warmup needs **no mechanism of its own** — it falls out of the store as soon as the runner keeps the fetched blocks locally instead of throwing them away. A block belongs to no agent: it is determined by its hash, and whoever needs the same content gets the same block.
 
-Das trifft genau die Verschwendung, die heute unvermeidbar ist. Eine Sandbox hat aktuell **einen einzigen Mount**, ihr eigenes Home — jeder Cache ist privat, obwohl kein Byte daran agentenspezifisch ist:
+That hits exactly the waste that is unavoidable today. A sandbox currently has **a single mount**, its own home — every cache is private, even though not a byte of it is agent-specific:
 
-| | Größe im vermessenen Home | agentenspezifisch? |
+| | Size in the measured home | agent-specific? |
 |---|---|---|
-| `.pub-cache` | 1,0 GB | nein — dieselben Pakete |
-| `.gradle` | 951 MB | nein |
-| `flutter` (SDK) | 1,0 GB | nein — die Version steht im Projekt |
-| `.npm` | 402 MB | nein |
-| `jdk` | 346 MB | nein |
+| `.pub-cache` | 1.0 GB | no — the same packages |
+| `.gradle` | 951 MB | no |
+| `flutter` (SDK) | 1.0 GB | no — the version sits in the project |
+| `.npm` | 402 MB | no |
+| `jdk` | 346 MB | no |
 
-Zwei Entwickler-Agenten auf demselben Host halten heute zweimal dieselben 4 GB; fünf halten 20 GB. Mit blockweiser Deduplizierung liegen sie **einmal** im lokalen Speicher des Runners — und der zweite Agent materialisiert sein Home daraus, ohne ein Byte über die Leitung zu holen. Ein *neuer* Agent auf einem eingelaufenen Runner startet damit fast warm, obwohl er dort noch nie lief.
+Two developer agents on the same host today hold the same 4 GB twice; five hold 20 GB. With block-wise deduplication they sit **once** in the runner's local storage — and the second agent materialises its home from it without fetching a single byte over the wire. A *new* agent on a run-in runner therefore starts almost warm, even though it has never run there.
 
-### Warum das die Isolationsfrage auflöst
+### Why that dissolves the isolation question
 
-Ein geteilter Cache ist sonst ein **Kanal zwischen Agenten** und damit eine Isolationsfrage ([`06-observability-control.md`](06-observability-control.md)) — wer in einen gemeinsamen Paket-Cache schreiben darf, kann anderen etwas unterschieben. Bei Inhaltsadressierung entfällt das Problem **konstruktionsbedingt**:
+A shared cache is otherwise a **channel between agents** and therefore an isolation question ([`06-observability-control.md`](06-observability-control.md)) — whoever may write into a shared package cache can slip something to others. With content addressing the problem falls away **by construction**:
 
-- Ein Block wird über den Hash **seines Inhalts** angefordert. Liefert der lokale Speicher ihn, ist der Inhalt per Definition derselbe, den der Store liefern würde.
-- Welche Blöcke das Home eines Agenten bilden, steht in **seinem eigenen** Snapshot. Kein anderer Agent kann diese Zuordnung beeinflussen.
+- A block is requested by the hash of **its content**. If the local storage delivers it, the content is by definition the same one the store would deliver.
+- Which blocks make up an agent's home is written in **its own** snapshot. No other agent can influence that mapping.
 
-Es gibt damit keine Beförderungsregel, keine Hash-Prüfliste und keinen nur-lesbaren Unterbau, den jemand befüllen müsste. Das Teilen ist sicher, weil es gar nicht die Möglichkeit gibt, unter einem fremden Hash etwas anderes abzulegen.
+There is therefore no promotion rule, no hash checklist and no read-only substrate someone would have to populate. Sharing is safe because there is no possibility of depositing something else under a foreign hash in the first place.
 
-### Was das für den Ausfall bedeutet
+### What that means for a failure
 
-Fällt ein Runner aus, wandern **alle** seine Agenten gleichzeitig auf einen anderen. Ohne geteilte Blöcke zöge dort jeder für sich Gigabytes, zeitgleich. Mit ihnen holt der Ausweich-Runner **jeden Block genau einmal**, egal wie viele Agenten ihn brauchen — und alles, was andere Agenten dort schon abgelegt haben, ist bereits da.
+If a runner fails, **all** its agents move to another one at once. Without shared blocks each of them would pull gigabytes for itself there, simultaneously. With them, the fallback runner fetches **every block exactly once**, no matter how many agents need it — and everything other agents have already deposited there is already present.
 
-Der kalte Start ist damit keine Frage des Agentenwechsels mehr, sondern nur noch eine des **frischen Hosts**: Er trifft den ersten Agenten auf einer neuen Maschine, danach niemanden mehr.
+The cold start is therefore no longer a question of switching agents but only of the **fresh host**: it hits the first agent on a new machine and nobody after that.
 
 ## Scheduling
 
-Bewusst einfach, weil kein Runner „der richtige" sein muss — nur der günstigste:
+Deliberately simple, because no runner has to be "the right one" — only the cheapest:
 
-1. Kandidaten: alle **verbundenen** Runner, deren Tags die `runner_tags` des Agenten erfüllen **und** die sein Image vorhalten.
-2. Davon bevorzugt der, auf dem der Agent zuletzt lief (`last_runner_id`) — dort ist sein Arbeitsbestand warm.
-3. Sonst der mit den wenigsten laufenden Sandboxen. Kein Bin-Packing, keine Ressourcenmodellierung.
-4. Keiner passend → die Aufgabe bleibt liegen, mit erklärendem Zustand statt einer Fehlermeldung über einen fehlgeschlagenen Container-Start.
+1. Candidates: all **connected** runners whose tags satisfy the agent's `runner_tags` **and** that hold its image.
+2. Of those, preferably the one the agent last ran on (`last_runner_id`) — its working copy is warm there.
+3. Otherwise the one with the fewest running sandboxes. No bin packing, no resource modelling.
+4. None suitable → the task stays put, with an explanatory state instead of an error message about a failed container start.
 
-`last_runner_id` ist ausdrücklich ein **Hinweis, keine Zusage**: Der Scheduler darf ihn jederzeit übergehen, und nichts im System darf annehmen, dass ein Home noch da ist. Ein Agent, dessen bevorzugter Runner fehlt, wacht auf einem anderen auf — langsamer, aber ohne Zutun eines Menschen.
+`last_runner_id` is explicitly a **hint, not a promise**: the scheduler may override it at any time, and nothing in the system may assume a home is still there. An agent whose preferred runner is missing wakes up on a different one — slower, but without a human doing anything.
 
-## Sandbox-Images pro Agent
+## Sandbox images per agent
 
-Der Runner macht eine Lücke sichtbar, die auch ohne ihn schmerzt: Das Sandbox-Image ist heute **instanzweit** (`COVEY_SANDBOX_IMAGE`). Jeder Agent bekommt dasselbe — der Mail-Agent trägt die JVM des Entwickler-Agenten mit.
+The runner makes a gap visible that hurts even without it: the sandbox image is instance-wide today (`COVEY_SANDBOX_IMAGE`). Every agent gets the same one — the mail agent carries the developer agent's JVM along.
 
-Deshalb gehört das Image **an den Agenten** (D11 in [`07-offene-entscheidungen.md`](07-offene-entscheidungen.md)), als Profil:
+The image therefore belongs **on the agent** (D11 in [`07-open-decisions.md`](07-open-decisions.md)), as a profile:
 
-| Profil | Inhalt | für wen |
+| Profile | Contents | For whom |
 |---|---|---|
-| `base` | coveyd, Node, git, chromium, ripgrep | Support, Mail, QA, Recherche |
-| `dev` | + PHP, JDK, `fvm`, `uv` | Entwickler-Agenten |
-| org-eigen | beliebig | Sonderfälle, engere Sandboxen |
+| `base` | coveyd, Node, git, chromium, ripgrep | support, mail, QA, research |
+| `dev` | + PHP, JDK, `fvm`, `uv` | developer agents |
+| org-owned | anything | special cases, tighter sandboxes |
 
-Der Schnitt geht ausdrücklich **nicht** entlang einzelner Sprachen. Ein Profil ist eine *Vereinigung*: Ein Entwickler-Agent arbeitet legitim an einem PHP- und einem Flutter-Projekt, und ein Image pro Sprache brächte genau die Frage zurück, die „Version → Home, Toolchain → Image" bereits beantwortet hat — welches Image starte ich beim Wake, wenn noch nicht feststeht, welches Ticket kommt?
+The cut deliberately does **not** go along individual languages. A profile is a *union*: a developer agent legitimately works on a PHP and a Flutter project, and one image per language would bring back exactly the question that "version → home, toolchain → image" has already answered — which image do I start on wake, when it is not yet settled which ticket is coming?
 
-Für Runner ist das Image zugleich eine **Capability**: Ein Runner meldet, welche Images er vorhält, und bekommt nur passende Agenten. Der Preis ist bekannt und tragbar — der Warm-Pool fragmentiert pro Image.
+For runners the image is at the same time a **capability**: a runner reports which images it holds and gets only matching agents. The price is known and bearable — the warm pool fragments per image.
 
-## Vertrauensgrenze
+## Trust boundary
 
-Ein Runner erhält mit `start_sandbox` das `COVEY_DAEMON_TOKEN` und das Egress-Token eines Agenten, um sie in den Container zu injizieren. Er **kann** damit jeden Agenten imitieren, den er hostet. Das ist dasselbe Vertrauensniveau wie bei einem CI-Runner, der Job-Tokens sieht — aber es muss ausgesprochen sein:
+With `start_sandbox` a runner receives an agent's `COVEY_DAEMON_TOKEN` and egress token in order to inject them into the container. It **can** therefore impersonate every agent it hosts. That is the same trust level as a CI runner that sees job tokens — but it has to be said out loud:
 
-> **Runner sind vertrauenswürdige Infrastruktur der Organisation, keine fremden Kisten.** Ein Runner ist kein Weg, nicht vertrauenswürdige Rechenkapazität einzubinden.
+> **Runners are trusted infrastructure of the organisation, not foreign boxes.** A runner is not a way of bringing in untrusted compute capacity.
 
-Daraus folgen harte Regeln:
+From this follow hard rules:
 
-- **Kein Datenbankzugriff und keine Store-Zugangsdaten.** Ein Runner spricht ausschließlich das Runner-Protokoll; Blöcke holt und schreibt er über kurzlebige, gescopte URLs (siehe „Wie die Blöcke zum Runner kommen"). Das betrifft heute konkret den Egress-Proxy: Er bekommt im harten Isolationsmodus `COVEY_DATABASE_URL` und liest seine Allowlist selbst aus Postgres. Auf einem entfernten Runner hieße das, die Postgres-Zugangsdaten auf jeden Host zu verteilen — das kippt die Vertrauensgrenze und ist **Voraussetzung** für alles Weitere: Die Allowlist muss über die authentifizierte Control-Plane-API kommen (siehe unten).
-- **Kein langlebiges Zielsystem-Secret.** Der Runner sieht Daemon- und Egress-Token, nie die gebrokerten Zugangsdaten — die gehen weiterhin direkt an den Daemon ([`04-identitaet-secrets.md`](04-identitaet-secrets.md)).
-- **TLS ist Pflicht.** Die Control Plane muss von fremden Hosts erreichbar sein; `COVEY_PUBLIC_URL` über Klartext-HTTP wäre die Preisgabe jedes Daemon-Tokens.
-- **Widerruf und Audit pro Runner.** Ein Runner-Token ist einzeln widerrufbar; Registrierung, Verbindung, jede Sandbox-Zuweisung und jeder `home_op` sind auditierbare Ereignisse ([`06-observability-control.md`](06-observability-control.md)).
+- **No database access and no store credentials.** A runner speaks exclusively the runner protocol; it fetches and writes blocks through short-lived, scoped URLs (see "How the blocks reach the runner"). Concretely this concerns the egress proxy today: in hard isolation mode it receives `COVEY_DATABASE_URL` and reads its allowlist from Postgres itself. On a remote runner that would mean distributing the Postgres credentials to every host — that tips the trust boundary over and is a **prerequisite** for everything else: the allowlist has to come through the authenticated control-plane API (see below).
+- **No long-lived target-system secret.** The runner sees daemon and egress tokens, never the brokered credentials — those still go directly to the daemon ([`04-identity-secrets.md`](04-identity-secrets.md)).
+- **TLS is mandatory.** The control plane has to be reachable from foreign hosts; `COVEY_PUBLIC_URL` over plaintext HTTP would be the disclosure of every daemon token.
+- **Revocation and audit per runner.** A runner token is individually revocable; registration, connection, every sandbox assignment and every `home_op` are auditable events ([`06-observability-control.md`](06-observability-control.md)).
 
-## Egress bei verteilten Runnern
+## Egress with distributed runners
 
-Der harte Isolationsmodus (`network`) verlangt einen Proxy **im Netzsegment der Sandbox** — also pro Runner, vom Runner gestartet und gepflegt. Zwei Änderungen gegenüber heute:
+Hard isolation mode (`network`) requires a proxy **in the sandbox's network segment** — that is, per runner, started and maintained by the runner. Two changes compared with today:
 
-1. **Allowlist über die API statt über die DB.** Der Proxy fragt die Control Plane (mit dem Runner-Token authentifiziert) und cacht; Änderungen schiebt die Control Plane per `set_allowlist` nach. Das ist die oben genannte Voraussetzung und **auch ohne Runner die richtige Bauform** — der Proxy ist ein Enforcement-Punkt, kein Datenbank-Client.
-2. **Die Control Plane ist ein echter Fremdhost.** `host.docker.internal` wird zur öffentlichen Adresse; sie muss auf der internen Allowlist des Proxys stehen, damit der Daemon-Link durch den harten Modus kommt. Der Mechanismus dafür existiert (`COVEY_EGRESS_ALLOW`), nur der Wert stimmt nicht mehr automatisch.
+1. **The allowlist through the API instead of through the DB.** The proxy asks the control plane (authenticated with the runner token) and caches; the control plane pushes changes via `set_allowlist`. That is the prerequisite named above and **the right construction even without runners** — the proxy is an enforcement point, not a database client.
+2. **The control plane is a genuine foreign host.** `host.docker.internal` becomes the public address; it has to be on the proxy's internal allowlist so that the daemon link gets through hard mode. The mechanism for that exists (`COVEY_EGRESS_ALLOW`), only the value is no longer automatically right.
 
-## Dateizugriff
+## File access
 
-`FileAccess` liefert heute einen **Host-Pfad**, den der Dateibrowser direkt liest. Mit entfernten Runnern wird daraus `home_op` über den Runner-Link.
+`FileAccess` today delivers a **host path** that the file browser reads directly. With remote runners that becomes `home_op` over the runner link.
 
-Die Begründung, warum der Dateizugriff bewusst **nicht** durch das Daemon-Protokoll geht, bleibt dabei erhalten — sie wird sogar sauberer: Das Home muss auch dann lesbar sein, wenn die Sandbox schläft, und schlafend ist der Normalzustand. Der Runner-Link besteht durchgehend, der Daemon-Link nur während eines Laufs. Der Runner ist damit genau die richtige Naht für diese Anforderung; der Daemon wäre die falsche gewesen.
+The reasoning why file access deliberately does **not** go through the daemon protocol is preserved in the process — it even becomes cleaner: the home has to be readable even when the sandbox is asleep, and asleep is the normal state. The runner link exists continuously, the daemon link only during a run. The runner is therefore exactly the right seam for this requirement; the daemon would have been the wrong one.
 
-## Oberfläche
+## Interface
 
-Ein Store, der still im Hintergrund wächst und dessen Inhalt niemand sehen kann, ist ein Betriebsrisiko — man bemerkt ihn erst, wenn die Platte voll ist. Beides gehört deshalb in die UI und nicht nur in Umgebungsvariablen.
+A store that grows quietly in the background and whose content nobody can see is an operational risk — you notice it only when the disk is full. Both therefore belong in the UI and not only in environment variables.
 
-### Das Home eines Agenten
+### An agent's home
 
-Auf der Agenten-Seite, neben dem bestehenden Dateibrowser:
+On the agent page, next to the existing file browser:
 
-| Angabe | Warum sie dort steht |
+| Figure | Why it belongs there |
 |---|---|
-| Größe des Homes, davon **belegt nach Dedup** | Der Unterschied ist die eigentliche Aussage: 7,1 GB Home, aber vielleicht 200 MB, die nur dieser Agent hält |
-| Letzter Sync: Zeitpunkt, Dauer, übertragene Blöcke | Ob der Sync überhaupt läuft, und ob er teuer ist |
-| Anzahl Snapshots und Zeitraum | Was die Retention gerade übrig lässt |
-| Aktueller bzw. zuletzt genutzter Runner | Wo der Arbeitsbestand warm liegt |
-| Die größten Verzeichnisse | Beantwortet „warum ist das Home so groß?" ohne Shell-Zugang — und legt Kandidaten für einen Ausschluss offen |
+| The home's size, of which **occupied after dedup** | The difference is the actual statement: a 7.1 GB home, but perhaps 200 MB that only this agent holds |
+| Last sync: time, duration, blocks transferred | Whether the sync runs at all, and whether it is expensive |
+| Number of snapshots and their time span | What the retention currently leaves |
+| The current or last-used runner | Where the working copy sits warm |
+| The largest directories | Answers "why is this home so big?" without shell access — and reveals candidates for an exclusion |
 
-Dazu die Snapshot-Liste mit zwei Aktionen: **Wiederherstellen** (ein früherer Stand wird zum aktuellen — die Rollback-Fähigkeit, die aus der Bauform ohnehin abfällt) und **Jetzt sichern** (Sync erzwingen, etwa vor einer Wartung).
+Plus the snapshot list with two actions: **restore** (an earlier state becomes the current one — the rollback capability that falls out of the construction anyway) and **back up now** (force a sync, e.g. before maintenance).
 
-Wiederherstellen ist eine ändernde Aktion an fremder Arbeit und braucht deshalb dieselbe Behandlung wie andere Eingriffe: nur mit der passenden Rolle, mit Bestätigung, und als Audit-Ereignis ([`06-observability-control.md`](06-observability-control.md)). Sie ist außerdem nur zulässig, während der Agent **nicht** läuft — sonst schreibt die laufende Sandbox in ein Home, das sich unter ihr ändert.
+Restoring is a modifying action on someone else's work and therefore needs the same treatment as other interventions: only with the appropriate role, with confirmation, and as an audit event ([`06-observability-control.md`](06-observability-control.md)). It is furthermore only permitted while the agent is **not** running — otherwise the running sandbox writes into a home that changes underneath it.
 
 ### Retention
 
-Org-weite Einstellung, mit Knopf statt nur mit Variable:
+An org-wide setting, with a button rather than only a variable:
 
-- **Snapshots je Agent behalten:** die letzten *N* (Voreinstellung 10).
-- **Höchstalter:** Snapshots älter als *X* Tage entfernen (Voreinstellung 30).
-- **Immer behalten:** der jüngste Snapshot jedes Agenten — auch wenn beide Regeln ihn träfen. Eine Retention, die einem Agenten sein letztes Home nimmt, ist ein Löschbefehl mit Umweg.
-- **Jetzt aufräumen** als ausdrücklicher Knopf, mit Vorschau: was fiele weg, wie viel Platz käme frei.
+- **Keep snapshots per agent:** the last *N* (default 10).
+- **Maximum age:** remove snapshots older than *X* days (default 30).
+- **Always keep:** every agent's most recent snapshot — even if both rules would catch it. A retention that takes an agent's last home away is a delete command by a detour.
+- **Clean up now** as an explicit button, with a preview: what would fall away, how much space would be freed.
 
-Beim Aufräumen wird ein Block erst entfernt, wenn **kein** verbleibender Snapshot ihn mehr referenziert — das ist der Preis der Deduplizierung und der Grund, warum „diesen Snapshot löschen" nicht linear Platz freigibt. Die Vorschau nennt deshalb den tatsächlich frei werdenden Platz, nicht die Summe der Snapshot-Größen; alles andere wäre eine Zahl, die nie stimmt.
+During cleanup a block is only removed when **no** remaining snapshot references it any more — that is the price of deduplication and the reason why "delete this snapshot" does not free space linearly. The preview therefore names the space actually freed, not the sum of the snapshot sizes; anything else would be a number that is never right.
 
-Der Füllstand des Stores gehört zusätzlich auf das Dashboard: Gesamtgröße, Wachstum, und eine Warnung, bevor die Platte knapp wird — nicht danach.
+The store's fill level additionally belongs on the dashboard: total size, growth, and a warning before the disk runs short — not after.
 
-## Nicht im ersten Wurf
+## Not in the first pass
 
-Bewusst ausgeklammert, damit der erste Wurf klein bleibt:
+Deliberately left out so that the first pass stays small:
 
-- **Autoscaling** von Runnern (Cloud-API, Spot-Instanzen).
-- **Vorausschauendes Warmhalten** — Blöcke vorsorglich auf Runner spiegeln, auf denen ein Agent noch nie lief. Der lokale Blockcache wächst aus tatsächlicher Nutzung; ihn zu *antizipieren* ist eine spätere Optimierung.
-- **Rückmigration** nach einem Runner-Ausfall (siehe „Das Home": die Präferenz bleibt klebrig).
-- **Mehrere gleichzeitige Sandboxen pro Agent** — „seriell vor parallel" gilt weiter.
-- **Runner als Mandantengrenze.** Ein Runner pro Mandant ist naheliegend, aber die Isolationszusagen dafür gehören in [`09-enterprise-modell.md`](09-enterprise-modell.md) und sind eine eigene Entscheidung.
-- **Nicht-Docker-Runner** (Firecracker, Kubernetes-Pods). Das Runner-Protokoll ist so geschnitten, dass sie später dahinter passen — gebaut wird zuerst der Docker-Runner.
+- **Autoscaling** of runners (cloud API, spot instances).
+- **Anticipatory warming** — mirroring blocks onto runners an agent has never run on as a precaution. The local block cache grows out of actual use; *anticipating* it is a later optimisation.
+- **Migration back** after a runner failure (see "The home": the preference stays sticky).
+- **Several simultaneous sandboxes per agent** — "serial before parallel" still applies.
+- **The runner as a tenant boundary.** One runner per tenant is an obvious thought, but the isolation promises for it belong in [`09-enterprise-model.md`](09-enterprise-model.md) and are a decision of their own.
+- **Non-Docker runners** (Firecracker, Kubernetes pods). The runner protocol is cut so that they fit behind it later — the Docker runner is built first.
 
-## Bau-Reihenfolge
+## Build order
 
-Jede Stufe ist für sich nützlich und einzeln abnehmbar:
+Every stage is useful in itself and can be accepted individually:
 
-| Stufe | Inhalt | Wert für sich allein |
+| Stage | Contents | Value on its own |
 |---|---|---|
-| 0 | Egress-Proxy von der DB lösen (Allowlist über die API) | Richtige Bauform des Enforcement-Punkts, unabhängig von Runnern |
-| 1 | Image pro Agent (`sandbox_image`), Profile `base`/`dev` | Der Mail-Agent trägt keine JVM mehr |
-| 2 | Home-Store: inhaltsadressierter Blockspeicher, Sync nach dem Job, Materialisieren beim Wake, lokaler Blockcache | Ein verlorenes Home kostet Zeit statt Arbeit, und der zweite Agent auf demselben Host startet warm — **beides schon mit einem einzigen Host** |
-| 3 | `covey-runner` als drittes Binary: Registrierung samt Konfigurationsdatei, Protokoll-Handshake, `start_sandbox`/`stop_sandbox`, `RunnerPool` als `SandboxProvider`; dazu die Release-Artefakte (Binary je Architektur, Docker-Image, systemd-Unit) | Sandboxen laufen auf einem zweiten Host |
-| 4 | `home_op` — Dateibrowser über den Runner-Link | Der Dateibrowser funktioniert auch entfernt |
-| 5 | Tags, Kapazität, Runner-Ansicht in der UI | Betreibbarkeit ab mehr als zwei Runnern |
-| 6 | Oberfläche: Home-Info, Snapshot-Liste, Retention-Einstellung und -Knopf, Füllstand aufs Dashboard | Der Store ist sichtbar und bedienbar, statt still zu wachsen |
-| 7 | `BlobStore`-Backend `s3` (Port existiert ab Stufe 2, `builtin` genügt bis hierher) | Durabilität und Replikation, wenn die Control-Plane-Platte nicht reicht |
+| 0 | Detach the egress proxy from the DB (allowlist through the API) | The right construction for the enforcement point, independently of runners |
+| 1 | An image per agent (`sandbox_image`), profiles `base`/`dev` | The mail agent no longer carries a JVM |
+| 2 | The home store: content-addressed block storage, sync after the job, materialising on wake, a local block cache | A lost home costs time instead of work, and the second agent on the same host starts warm — **both already with a single host** |
+| 3 | `covey-runner` as a third binary: registration including a configuration file, the protocol handshake, `start_sandbox`/`stop_sandbox`, `RunnerPool` as a `SandboxProvider`; plus the release artefacts (a binary per architecture, a Docker image, a systemd unit) | Sandboxes run on a second host |
+| 4 | `home_op` — the file browser over the runner link | The file browser works remotely too |
+| 5 | Tags, capacity, a runner view in the UI | Operability from more than two runners onwards |
+| 6 | Interface: home info, snapshot list, retention setting and button, fill level on the dashboard | The store is visible and operable instead of growing quietly |
+| 7 | The `BlobStore` backend `s3` (the port exists from stage 2, `builtin` suffices up to here) | Durability and replication when the control plane's disk is not enough |
 
-Die Stufen 0 bis 2 sind vom Runner unabhängig und sollten zuerst laufen — jede ist für sich eine Verbesserung des Ist-Zustands. Stufe 0, weil sie sonst zur Sicherheitslücke wird, sobald ein Runner entfernt läuft. Stufe 1, weil die Image-Capability sonst in Stufe 3 nachgereicht werden müsste.
+Stages 0 to 2 are independent of the runner and should run first — each is an improvement on the current state in its own right. Stage 0 because it otherwise becomes a security hole as soon as a runner runs remotely. Stage 1 because the image capability would otherwise have to be retrofitted in stage 3.
 
-**Stufe 2 trägt das ganze Gebäude.** Sie macht das Home ersetzbar, und erst damit ist ein Runner-Wechsel kein Datenverlust; ohne sie müsste die Affinität doch wieder eine Bindung sein. Sie liefert das Warmup gleich mit — der Blockcache *ist* der geteilte Bestand. Und sie lohnt sich, bevor ein einziger zweiter Host existiert: Heute halten zwei Entwickler-Agenten auf derselben Maschine zweimal dieselben 4 GB, und ein gelöschtes Home ist unwiederbringlich.
+**Stage 2 carries the whole edifice.** It makes the home replaceable, and only then is a runner switch not data loss; without it the affinity would have to be a binding after all. It delivers the warmup along with it — the block cache *is* the shared holding. And it pays off before a single second host exists: today two developer agents on the same machine hold the same 4 GB twice, and a deleted home is unrecoverable.

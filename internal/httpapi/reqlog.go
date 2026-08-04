@@ -17,25 +17,25 @@ import (
 	reqlogstore "covey/internal/reqlog/store"
 )
 
-// --- Request-Log: die HTTP-Requests an den Rändern der Plattform (spec/06) ---
+// --- Request log: the HTTP requests at the platform's edges (spec/06) ---
 //
-// Zwei Quellen speisen es: die ausgehenden Requests der Zielsystem-Plugins
-// (über reqlog.Transport, aus der Sandbox per Daemon-Event) und die
-// eingehenden Webhooks/Trigger, die logIncoming hier mitschreibt. Gerade der
-// eingehende Pfad ist beim Anbinden eines Systems der interessante: ein an der
-// Signaturprüfung gescheiterter Teams-Webhook hinterließ bisher keine Spur.
+// Two sources feed it: the outgoing requests of the target-system plugins (via
+// reqlog.Transport, from the sandbox as a daemon event) and the incoming
+// webhooks/triggers that logIncoming records here. The incoming path in
+// particular is the interesting one when wiring up a system: a Teams webhook
+// that failed signature verification used to leave no trace at all.
 
-// maxLoggedBody kappt, was von einem eingehenden Request/einer Antwort ins Log
-// wandert — dieselbe Grenze wie beim ausgehenden Transport.
+// maxLoggedBody caps how much of an incoming request/response goes into the log
+// — the same limit as for the outgoing transport.
 const maxLoggedBody = reqlog.MaxBody
 
-// maxIncomingBody deckelt, wie viel von einem eingehenden Request überhaupt
-// gepuffert wird — dieselbe Grenze wie im Webhook-Handler.
+// maxIncomingBody caps how much of an incoming request is buffered at all —
+// the same limit as in the webhook handler.
 const maxIncomingBody = 4 << 20
 
-// logIncoming umhüllt einen Handler und protokolliert Request und Antwort.
-// system ist der Zielsystem-Name, sofern er aus dem Pfad ablesbar ist (leer =
-// generischer Trigger). Ohne Request-Log ist es ein reiner Pass-through.
+// logIncoming wraps a handler and logs request and response. system is the
+// target-system name, as far as it can be read from the path (empty = generic
+// trigger). Without a request log it is a plain pass-through.
 func (s *Server) logIncoming(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if s.ReqLog == nil {
@@ -44,11 +44,11 @@ func (s *Server) logIncoming(next http.HandlerFunc) http.HandlerFunc {
 		}
 		start := time.Now()
 
-		// Body mitlesen und für den Handler wiederherstellen. Der Rest wird
-		// mitgepuffert, aber gedeckelt: der Endpunkt ist unauthentifiziert,
-		// hier darf nichts unbegrenzt in den Speicher laufen. maxIncomingBody
-		// entspricht der Grenze, die die Handler selbst ziehen — was darüber
-		// liegt, hätten sie ohnehin verworfen.
+		// Read the body along the way and restore it for the handler. The rest
+		// is buffered too, but capped: the endpoint is unauthenticated, nothing
+		// may run into memory without a bound here. maxIncomingBody matches the
+		// limit the handlers draw themselves — anything beyond it they would
+		// have discarded anyway.
 		var body []byte
 		if r.Body != nil {
 			body, _ = io.ReadAll(io.LimitReader(r.Body, maxLoggedBody+1))
@@ -57,8 +57,8 @@ func (s *Server) logIncoming(next http.HandlerFunc) http.HandlerFunc {
 			r.Body = io.NopCloser(bytes.NewReader(append(append([]byte{}, body...), rest...)))
 		}
 
-		// Der Handler löst den Agenten erst auf — über den Context reicht er
-		// ihn zurück, damit der Eintrag Org/Agent trägt.
+		// The handler is the one that resolves the agent — it hands it back via
+		// the context so that the entry carries org/agent.
 		meta := &incomingMeta{}
 		rec := &recordingWriter{ResponseWriter: w, status: http.StatusOK}
 		next(rec, r.WithContext(withIncomingMeta(r.Context(), meta)))
@@ -91,11 +91,11 @@ func truncateBody(b []byte) string {
 	if len(b) <= maxLoggedBody {
 		return string(b)
 	}
-	return string(b[:maxLoggedBody]) + "\n… (gekürzt)"
+	return string(b[:maxLoggedBody]) + "\n… (truncated)"
 }
 
-// remoteHost ist die Absender-Adresse ohne Port; hinter einem Reverse-Proxy
-// gewinnt X-Forwarded-For (erster Eintrag).
+// remoteHost is the sender address without the port; behind a reverse proxy
+// X-Forwarded-For wins (first entry).
 func remoteHost(r *http.Request) string {
 	if fwd := r.Header.Get("X-Forwarded-For"); fwd != "" {
 		first, _, _ := strings.Cut(fwd, ",")
@@ -108,7 +108,7 @@ func remoteHost(r *http.Request) string {
 	return host
 }
 
-// recordingWriter merkt sich Status und den Anfang der Antwort.
+// recordingWriter remembers the status and the beginning of the response.
 type recordingWriter struct {
 	http.ResponseWriter
 	status int
@@ -130,8 +130,8 @@ func (w *recordingWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
-// incomingMeta trägt den erst im Handler aufgelösten Agenten zurück zur
-// Middleware.
+// incomingMeta carries the agent — resolved only inside the handler — back to
+// the middleware.
 type incomingMeta struct {
 	orgID   *uuid.UUID
 	agentID *uuid.UUID
@@ -143,8 +143,8 @@ func withIncomingMeta(ctx context.Context, m *incomingMeta) context.Context {
 	return context.WithValue(ctx, incomingMetaKey, m)
 }
 
-// noteWebhookAgent hinterlegt den aufgelösten Agenten für den Log-Eintrag.
-// No-op, wenn der Request nicht durch logIncoming läuft (Tests).
+// noteWebhookAgent records the resolved agent for the log entry. No-op if the
+// request does not pass through logIncoming (tests).
 func noteWebhookAgent(r *http.Request, a agents.Agent) {
 	m, _ := r.Context().Value(incomingMetaKey).(*incomingMeta)
 	if m == nil {
@@ -156,8 +156,9 @@ func noteWebhookAgent(r *http.Request, a agents.Agent) {
 
 // --- API: /api/v1/platform/requests ---
 
-// handleListRequests — GET /api/v1/platform/requests: die jüngsten Requests,
-// gefiltert. Ohne Bodies (die kommen im Detail), damit die Liste schlank bleibt.
+// handleListRequests — GET /api/v1/platform/requests: the most recent requests,
+// filtered. Without bodies (those come with the detail view) so the list stays
+// slim.
 func (s *Server) handleListRequests(w http.ResponseWriter, r *http.Request) {
 	if s.ReqLog == nil {
 		writeJSON(w, http.StatusOK, map[string]any{"enabled": false, "entries": []any{}})
@@ -199,16 +200,16 @@ func (s *Server) handleListRequests(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleGetRequest — GET /api/v1/platform/requests/{id}: ein Eintrag samt
-// (gekappten, redigierten) Bodies.
+// handleGetRequest — GET /api/v1/platform/requests/{id}: one entry including
+// its (truncated, redacted) bodies.
 func (s *Server) handleGetRequest(w http.ResponseWriter, r *http.Request) {
 	if s.ReqLog == nil {
-		writeErr(w, http.StatusNotFound, "request-log ist abgeschaltet")
+		writeErr(w, http.StatusNotFound, "request log is switched off")
 		return
 	}
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	entry, err := s.ReqLog.Get(r.Context(), principalFrom(r).OrgID, id)
@@ -219,10 +220,10 @@ func (s *Server) handleGetRequest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, entry)
 }
 
-// handleClearRequests — DELETE /api/v1/platform/requests: Log leeren.
+// handleClearRequests — DELETE /api/v1/platform/requests: empty the log.
 func (s *Server) handleClearRequests(w http.ResponseWriter, r *http.Request) {
 	if s.ReqLog == nil {
-		writeErr(w, http.StatusNotFound, "request-log ist abgeschaltet")
+		writeErr(w, http.StatusNotFound, "request log is switched off")
 		return
 	}
 	n, err := s.ReqLog.Clear(r.Context(), principalFrom(r).OrgID)

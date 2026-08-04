@@ -8,80 +8,79 @@ import (
 	"time"
 )
 
-// Der Config-Lint prüft Agenten-Konfigurationen gegen Muster, die in der Praxis
-// Endlosschleifen, verbrannte Budgets oder unbrauchbare Boards erzeugt haben.
+// The config lint checks agent configurations against patterns that in practice
+// have produced endless loops, burnt budgets or unusable boards.
 //
-// Warum als eigener Prüfschritt und nicht als Verbot beim Speichern: Es sind
-// **Warnungen mit Kontext**, keine harten Fehler. Ein 2-Minuten-Heartbeat ist
-// für einen Agenten, der nur ein Postfach sichtet, völlig in Ordnung und für
-// einen, der Repos klont, ruinös — die Regel kann das unterscheiden, aber nie
-// mit letzter Sicherheit. Wer es besser weiß, soll speichern dürfen.
+// Why as a separate check and not as a prohibition when saving: they are
+// **warnings with context**, not hard errors. A 2-minute heartbeat is perfectly
+// fine for an agent that only checks a mailbox and ruinous for one that clones
+// repos — the rule can tell the two apart, but never with final certainty.
+// Whoever knows better shall be allowed to save.
 //
-// Die Prüfung ist eine reine Funktion über Subject: Der Aufrufer sammelt die
-// Fakten (CLI aus der Datenbank), die Regeln entscheiden ohne I/O. So sind sie
-// testbar und später von UI oder API wiederverwendbar.
+// The check is a pure function over Subject: the caller collects the facts (the
+// CLI from the database), the rules decide without I/O. That makes them
+// testable and reusable from the UI or the API later on.
 
-// Severity eines Befunds.
+// Severity of a finding.
 const (
-	SeverityWarn = "warn" // sollte geändert werden
-	SeverityInfo = "info" // Hinweis, oft in Ordnung
+	SeverityWarn = "warn" // ought to be changed
+	SeverityInfo = "info" // a hint, often fine
 )
 
-// Finding ist ein einzelner Lint-Befund an einem Agenten.
+// Finding is a single lint finding on an agent.
 type Finding struct {
 	AgentSlug string `json:"agent_slug"`
 	Rule      string `json:"rule"`
 	Severity  string `json:"severity"`
-	// File/Line zeigen auf die Fundstelle in der Config. Leer bzw. 0 bei
-	// Befunden, die aus dem Laufzeit-Zustand kommen (Spalten, Abbrüche).
+	// File/Line point at the spot in the config. Empty resp. 0 for findings
+	// that come from the runtime state (columns, aborts).
 	File    string `json:"file,omitempty"`
 	Line    int    `json:"line,omitempty"`
 	Message string `json:"message"`
 	Hint    string `json:"hint"`
 }
 
-// Subject bündelt alles, was die Regeln über einen Agenten wissen müssen.
-// Die Laufzeit-Felder sind optional: Fehlen sie (Wert 0/nil), entfallen die
-// Regeln, die sie brauchen — der Lint läuft dann nur über die Config.
+// Subject bundles everything the rules need to know about an agent.
+// The runtime fields are optional: if they are missing (value 0/nil), the rules
+// that need them are dropped — the lint then runs over the config alone.
 type Subject struct {
 	Slug  string
 	Files map[string]string
 
-	// Skills sind die Fähigkeiten des Agenten (internal/skills): Skill-Name →
-	// Inhalt seiner Dateien. Sie gehören in die Prüfung, weil Prozeduren aus
-	// PLAYBOOKS.md dorthin wandern — ein Kommentar-Schritt in einem Skill ist
-	// derselbe Schritt. Sähe der Lint ihn nicht, warnte er bei jedem
-	// umgestellten Agenten falsch, und eine Regel, die bei guten Configs
-	// meckert, wird ignoriert.
+	// Skills are the agent's skills (internal/skills): skill name → the content
+	// of its files. They belong in the check because procedures migrate there
+	// from PLAYBOOKS.md — a comment step inside a skill is the same step. If the
+	// lint did not see it, it would warn wrongly on every migrated agent, and a
+	// rule that nags at good configs gets ignored.
 	Skills map[string]string
 
-	// AgentStages sind die Board-Spalten, die der Agent selbst angelegt hat
+	// AgentStages are the board columns the agent created itself
 	// (created_by='agent').
 	AgentStages []string
-	// TurnLimitFailures zählt Aufgaben, die am Turn-Limit abgebrochen sind.
+	// TurnLimitFailures counts tasks that were aborted at the turn limit.
 	TurnLimitFailures int
-	// MaxTurns ist das Turn-Limit des Agenten (0 = Runtime-Default).
+	// MaxTurns is the agent's turn limit (0 = runtime default).
 	MaxTurns int
 }
 
-// heavySystems sind Zielsysteme, deren Nutzung einen Lauf typischerweise in den
-// Minutenbereich hebt: Repos klonen, Builds, echte Browser-Sitzungen. Für sie
-// ist ein enger Heartbeat-Takt teuer und selten sinnvoll.
+// heavySystems are target systems whose use typically lifts a run into the
+// range of minutes: cloning repos, builds, real browser sessions. For them a
+// tight heartbeat cadence is expensive and rarely sensible.
 var heavySystems = map[string]bool{"gitlab": true, "dev": true, "browser": true}
 
-// commentActions sind die Aktionen, mit denen ein Agent eine sichtbare Spur im
-// Zielsystem hinterlässt. Ohne eine davon kippt die `nur-wenn:`-Flanke nie.
+// commentActions are the actions with which an agent leaves a visible trace in
+// the target system. Without one of them the `nur-wenn:` edge never tips.
 var commentActions = []string{"comment", "comment_mr", "comment_external", "reply", "create_issue"}
 
-// stageWithItemID erkennt Spaltennamen, die einen konkreten Vorgang benennen
-// statt eines Arbeitszustands ("#83 CSV-Import", "MR !1641").
+// stageWithItemID spots column names that name a concrete item instead of a
+// working state ("#83 CSV import", "MR !1641").
 var stageWithItemID = regexp.MustCompile(`[#!]\d+`)
 
-// maxAgentStages ist die Zahl selbst angelegter Spalten, ab der ein Board keine
-// Zustände mehr zeigt, sondern einen Verlauf.
+// maxAgentStages is the number of self-created columns from which on a board no
+// longer shows states but a history.
 const maxAgentStages = 8
 
-// Lint prüft einen Agenten und liefert die Befunde, schwerste zuerst.
+// Lint checks an agent and returns the findings, most severe first.
 func Lint(s Subject) []Finding {
 	var out []Finding
 	systems := lintSystems(s.Files["ACCESS.md"])
@@ -116,44 +115,44 @@ func (s Subject) hasHeavySystem(systems map[string]bool) bool {
 	return false
 }
 
-// lintIntervals: Das Intervall muss zur Dauer eines Laufs passen, nicht zur
-// gewünschten Reaktionszeit. Ein Agent, der ein Repo klont und Tests laufen
-// lässt, braucht Minuten bis Viertelstunden — bei `alle: 2m` beginnt der
-// nächste Lauf, bevor der vorige verstanden hat, worum es geht.
+// lintIntervals: the interval has to match the duration of a run, not the
+// desired reaction time. An agent that clones a repo and runs tests needs
+// minutes to quarter-hours — with `alle: 2m` the next run begins before the
+// previous one has understood what it is about.
 func lintIntervals(s Subject, hbs []Heartbeat, systems map[string]bool) []Finding {
 	heavy := s.hasHeavySystem(systems)
 	var out []Finding
 	for _, hb := range hbs {
 		if hb.Every <= 0 {
-			continue // Tageszeit-Form, kein Intervall
+			continue // time-of-day form, no interval
 		}
 		mins := hb.Every.Minutes()
 		switch {
 		case heavy && mins < 5:
 			out = append(out, Finding{
-				AgentSlug: s.Slug, Rule: "heartbeat-intervall-zu-kurz", Severity: SeverityWarn,
+				AgentSlug: s.Slug, Rule: "heartbeat-interval-too-short", Severity: SeverityWarn,
 				File: "HEARTBEAT.md", Line: heartbeatLine(s.Files["HEARTBEAT.md"], hb.Name),
-				Message: fmt.Sprintf("%q feuert alle %s, der Agent nutzt aber ein Zielsystem mit langen Läufen (%s)",
+				Message: fmt.Sprintf("%q fires every %s, but the agent uses a target system with long runs (%s)",
 					hb.Name, shortDur(hb.Every), joinHeavy(systems)),
-				Hint: "Läufe mit Checkout/Build/Browser dauern Minuten bis Viertelstunden — mindestens 5m, realistisch 15m.",
+				Hint: "Runs with checkout/build/browser take minutes to quarter-hours — at least 5m, realistically 15m.",
 			})
 		case !heavy && mins < 2:
 			out = append(out, Finding{
-				AgentSlug: s.Slug, Rule: "heartbeat-intervall-zu-kurz", Severity: SeverityWarn,
+				AgentSlug: s.Slug, Rule: "heartbeat-interval-too-short", Severity: SeverityWarn,
 				File: "HEARTBEAT.md", Line: heartbeatLine(s.Files["HEARTBEAT.md"], hb.Name),
-				Message: fmt.Sprintf("%q feuert alle %s", hb.Name, shortDur(hb.Every)),
-				Hint:    "Unter 2 Minuten lohnt kaum ein Lauf — jeder Wake kostet einen Runtime-Start.",
+				Message: fmt.Sprintf("%q fires every %s", hb.Name, shortDur(hb.Every)),
+				Hint:    "Below 2 minutes a run barely pays off — every wake costs a runtime start.",
 			})
 		}
 	}
 	return out
 }
 
-// lintVisibleTrace: Die `nur-wenn:`-Bedingung von GitLab triggert auf die
-// Flanke — ein Vorgang gilt als erledigt, sobald der letzte Nicht-System-
-// Kommentar vom Bot stammt. Ein Playbook, das arbeitet ohne zu kommentieren,
-// hinterlässt keine Flanke: derselbe Vorgang weckt den Agenten in jedem
-// Intervall erneut. Das ist die Ursache der teuersten Schleife im System.
+// lintVisibleTrace: GitLab's `nur-wenn:` condition triggers on the edge — an
+// item counts as handled as soon as the last non-system comment comes from the
+// bot. A playbook that works without commenting leaves no edge: the same item
+// wakes the agent again in every interval. That is the cause of the most
+// expensive loop in the system.
 func lintVisibleTrace(s Subject, hbs []Heartbeat) []Finding {
 	gated := false
 	var line int
@@ -174,22 +173,22 @@ func lintVisibleTrace(s Subject, hbs []Heartbeat) []Finding {
 		}
 	}
 	return []Finding{{
-		AgentSlug: s.Slug, Rule: "keine-sichtbare-spur", Severity: SeverityWarn,
+		AgentSlug: s.Slug, Rule: "no-visible-trace", Severity: SeverityWarn,
 		File: "PLAYBOOKS.md", Line: line,
-		Message: "Der Heartbeat ist über gitlab gegatet, aber kein Playbook-Schritt hinterlässt einen Kommentar",
-		Hint:    "Ein stiller Lauf hinterlässt keine Flanke — der Vorgang gilt beim nächsten Intervall wieder als unbearbeitet und weckt erneut. Wer arbeitet, kommentiert.",
+		Message: "The heartbeat is gated on gitlab, but no playbook step leaves a comment",
+		Hint:    "A silent run leaves no edge — at the next interval the item counts as unhandled again and wakes the agent anew. Whoever works, comments.",
 	}}
 }
 
-// lintBlockedOnPolling: GitLab und E-Mail haben keinen Webhook-Eingang, der eine
-// geparkte Aufgabe wieder aufweckt. Ein Agent, der dort auf `blocked` geht,
-// wartet auf ein Ereignis, das nie ankommt.
+// lintBlockedOnPolling: GitLab and email have no webhook inbound that wakes a
+// parked task again. An agent that goes `blocked` there is waiting for an event
+// that never arrives.
 func lintBlockedOnPolling(s Subject, systems map[string]bool) []Finding {
 	if !systems["gitlab"] && !systems["email"] {
 		return nil
 	}
-	// Quelle für Quelle statt über einen zusammengeklebten Text: Sonst zeigt der
-	// Befund auf eine Zeilennummer, die es in der genannten Datei nicht gibt.
+	// Source by source instead of over one glued-together text: otherwise the
+	// finding points at a line number that does not exist in the named file.
 	for _, src := range s.proseSources() {
 		for i, line := range strings.Split(src.text, "\n") {
 			low := strings.ToLower(line)
@@ -197,29 +196,30 @@ func lintBlockedOnPolling(s Subject, systems map[string]bool) []Finding {
 			if idx < 0 {
 				continue
 			}
-			// Verneinungen sind der Normalfall in guten Configs — und stehen dort
-			// selten direkt davor („ende mit done, NIE mit blocked"). Deshalb der
-			// Blick auf das Satzstück vor dem Wort statt auf feste Wortpaare.
+			// Negations are the normal case in good configs — and they rarely
+			// stand directly in front of the word there ("end with done, NEVER
+			// with blocked"). Hence the look at the clause before the word
+			// instead of at fixed word pairs.
 			if negatedBefore(low[:idx]) {
 				continue
 			}
 			return []Finding{{
-				AgentSlug: s.Slug, Rule: "blocked-bei-polling-system", Severity: SeverityInfo,
+				AgentSlug: s.Slug, Rule: "blocked-on-polling-system", Severity: SeverityInfo,
 				File: src.name, Line: i + 1,
-				Message: "Die Config erwähnt blocked, obwohl der Agent an einem Polling-Zielsystem hängt (gitlab/email)",
-				Hint:    "Diese Systeme haben keinen Webhook, der eine geparkte Aufgabe weckt — dort mit done enden und beim nächsten Heartbeat erneut aufgreifen.",
+				Message: "The config mentions blocked although the agent hangs off a polling target system (gitlab/email)",
+				Hint:    "These systems have no webhook that wakes a parked task — end with done there and pick it up again at the next heartbeat.",
 			}}
 		}
 	}
 	return nil
 }
 
-// proseSource ist ein prüfbarer Fließtext des Agenten samt seiner Herkunft.
+// proseSource is a checkable piece of an agent's prose together with its origin.
 type proseSource struct{ name, text string }
 
-// proseSources sind die Texte, die das Verhalten beschreiben: die beiden
-// Prompt-Dateien und die Skills. Skills nach Namen sortiert, damit derselbe
-// Agent nicht mal diesen und mal jenen Befund liefert.
+// proseSources are the texts that describe the behaviour: the two prompt files
+// and the skills. Skills sorted by name, so that the same agent does not report
+// now this and now that finding.
 func (s Subject) proseSources() []proseSource {
 	out := []proseSource{
 		{"SOUL.md", s.Files["SOUL.md"]},
@@ -236,8 +236,8 @@ func (s Subject) proseSources() []proseSource {
 	return out
 }
 
-// skillText klebt alle Skills zu einem Heuhaufen zusammen — für Regeln, die
-// nur suchen, ob etwas irgendwo vorkommt.
+// skillText glues all skills into one haystack — for rules that only search
+// whether something occurs anywhere.
 func (s Subject) skillText() string {
 	var b strings.Builder
 	for _, src := range s.proseSources()[2:] {
@@ -247,12 +247,18 @@ func (s Subject) skillText() string {
 	return b.String()
 }
 
-// negationTokens verneinen eine blocked-Erwähnung im selben Satz.
-var negationTokens = []string{"nie", "niemals", "nicht", "kein", "statt", "ohne"}
+// negationTokens negate a mention of blocked within the same sentence. Both
+// languages, because an agent config may be written in either: the shipped
+// templates exist in English and German, and the linter must not nag at a good
+// English config just because it says "never" instead of "nie".
+var negationTokens = []string{
+	"nie", "niemals", "nicht", "kein", "statt", "ohne",
+	"never", "not", "no", "instead", "without", "rather",
+}
 
-// negatedBefore sagt, ob im Satzstück vor einer Erwähnung eine Verneinung
-// steht. Betrachtet wird nur der aktuelle Satz — ein „nicht" zwei Sätze vorher
-// hat mit dieser Aussage nichts zu tun.
+// negatedBefore says whether a negation stands in the clause before a mention.
+// Only the current sentence is considered — a "not" two sentences earlier has
+// nothing to do with this statement.
 func negatedBefore(prefix string) bool {
 	if cut := strings.LastIndexAny(prefix, ".;"); cut >= 0 {
 		prefix = prefix[cut+1:]
@@ -269,44 +275,44 @@ func negatedBefore(prefix string) bool {
 	return false
 }
 
-// lintStages prüft das Board: Spalten sollen Arbeitszustände benennen. Ein
-// Name mit Vorgangs-ID passt auf genau eine Aufgabe und bleibt danach als tote
-// Spalte stehen; viele Spalten heißen meist, dass der Agent Tagebuch führt.
+// lintStages checks the board: columns should name working states. A name with
+// an item ID fits exactly one task and stays behind as a dead column
+// afterwards; many columns usually mean that the agent is keeping a diary.
 func lintStages(s Subject) []Finding {
 	var out []Finding
 	for _, name := range s.AgentStages {
 		if stageWithItemID.MatchString(name) {
 			out = append(out, Finding{
-				AgentSlug: s.Slug, Rule: "stage-benennt-vorgang", Severity: SeverityWarn,
-				Message: fmt.Sprintf("Board-Spalte %q benennt einen Vorgang statt eines Arbeitszustands", name),
-				Hint:    "Spaltennamen gelten für jede Aufgabe („Analyse\"), nicht für eine („#83 CSV-Import\"). Feste Spaltenliste in SOUL.md vorgeben.",
+				AgentSlug: s.Slug, Rule: "stage-names-item", Severity: SeverityWarn,
+				Message: fmt.Sprintf("Board column %q names an item instead of a working state", name),
+				Hint:    "Column names hold for every task (\"Analysis\"), not for one (\"#83 CSV import\"). Prescribe a fixed column list in SOUL.md.",
 			})
 		}
 	}
 	if n := len(s.AgentStages); n > maxAgentStages {
 		out = append(out, Finding{
-			AgentSlug: s.Slug, Rule: "stage-wildwuchs", Severity: SeverityWarn,
-			Message: fmt.Sprintf("%d selbst angelegte Board-Spalten", n),
-			Hint:    "Ein halbes Dutzend reicht für jeden Ablauf. Mehr heißt meist: verschiedene Namen für denselben Zustand. Feste Spaltenliste in SOUL.md vorgeben.",
+			AgentSlug: s.Slug, Rule: "stage-sprawl", Severity: SeverityWarn,
+			Message: fmt.Sprintf("%d self-created board columns", n),
+			Hint:    "Half a dozen is enough for any workflow. More usually means: different names for the same state. Prescribe a fixed column list in SOUL.md.",
 		})
 	}
 	return out
 }
 
-// lintTurnLimit meldet Läufe, die am Turn-Limit abgebrochen sind. Einzelne sind
-// normal — die Plattform fängt sie mit einer Folgeaufgabe auf. Häufen sie sich,
-// ist der Auftrag zu groß geschnitten oder max_turns zu klein.
+// lintTurnLimit reports runs that were aborted at the turn limit. Individual
+// ones are normal — the platform catches them with a follow-up task. If they
+// pile up, the assignment is cut too big or max_turns is too small.
 func lintTurnLimit(s Subject) []Finding {
 	if s.TurnLimitFailures < 3 {
 		return nil
 	}
-	hint := "Auftrag kleiner schneiden (Playbook-Schritt: Teilergebnis abschließen, Rest per covey/create_task anlegen)"
+	hint := "Cut the assignment smaller (playbook step: close off the partial result, file the rest via covey/create_task)"
 	if s.MaxTurns > 0 && s.MaxTurns < 50 {
-		hint += fmt.Sprintf(" oder max_turns anheben (aktuell %d)", s.MaxTurns)
+		hint += fmt.Sprintf(" or raise max_turns (currently %d)", s.MaxTurns)
 	}
 	return []Finding{{
-		AgentSlug: s.Slug, Rule: "haeufige-turn-limit-abbrueche", Severity: SeverityWarn,
-		Message: fmt.Sprintf("%d Läufe sind am Turn-Limit abgebrochen", s.TurnLimitFailures),
+		AgentSlug: s.Slug, Rule: "frequent-turn-limit-aborts", Severity: SeverityWarn,
+		Message: fmt.Sprintf("%d runs were aborted at the turn limit", s.TurnLimitFailures),
 		Hint:    hint + ".",
 	}}
 }
@@ -322,15 +328,15 @@ func joinHeavy(systems map[string]bool) string {
 	return strings.Join(names, ", ")
 }
 
-// shortDur formatiert ein Intervall so, wie es in HEARTBEAT.md steht (2m, 1h30m).
+// shortDur formats an interval the way it stands in HEARTBEAT.md (2m, 1h30m).
 func shortDur(d time.Duration) string {
 	return strings.TrimSuffix(d.String(), "0s")
 }
 
-// heartbeatLine findet die Zeile eines Heartbeats über seinen Titel. Der Parser
-// gibt die Zeilennummer nicht mit (sie steht auch nicht in der persistierten
-// Form) — für einen Befund, den ein Mensch nachschlagen soll, lohnt sie sich
-// trotzdem. Ohne Treffer: 0, der Ausgabe fehlt dann nur die Nummer.
+// heartbeatLine finds a heartbeat's line via its title. The parser does not
+// pass the line number along (it is not in the persisted form either) — for a
+// finding that a human is supposed to look up it is worth it nonetheless.
+// Without a hit: 0, the output then only lacks the number.
 func heartbeatLine(content, name string) int {
 	if name == "" {
 		return 0

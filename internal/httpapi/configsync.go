@@ -13,19 +13,24 @@ import (
 	"covey/internal/egress"
 )
 
-// Config-Sync: ACCESS.md und EGRESS.md sind die Text-Sicht auf Zustand, der
-// auch über die Oberfläche gepflegt wird (Zugänge + Tool-Zuweisung bzw.
-// Egress-Templates + eigene Hosts). Damit Text- und UI-Config nie divergieren,
-// gibt es jede Datei genau einmal und beide Richtungen schreiben denselben
-// Store: GET rendert die Dateien live aus der DB, PUT parst sie und wendet
-// sie an. Die Config-Version speichert den eingereichten Text als Snapshot.
+// Config sync: ACCESS.md and EGRESS.md are the text view onto state that is
+// also maintained through the UI (accesses + tool assignment resp. egress
+// templates + own hosts). So that text and UI config never diverge, each file
+// exists exactly once and both directions write the same store: GET renders
+// the files live from the DB, PUT parses and applies them. The config version
+// stores the submitted text as a snapshot.
+//
+// The keywords of both file formats stay German (system:/scope:/tools: with
+// the value "alle", templates: with "keine", - host: with notiz:) — they are
+// the data format that agents.ParseAccess and parseEgressFile read, and
+// existing config versions carry them.
 
-// errNeedsSecurityRole: der Principal will per Text-Edit etwas ändern, das
-// über die Oberfläche nur Security-Rollen dürfen (Tools, Egress).
-var errNeedsSecurityRole = errors.New("tool-zuweisung und egress ändern nur platform_admin oder security")
+// errNeedsSecurityRole: the principal wants to change something via text edit
+// that only security roles may change through the UI (tools, egress).
+var errNeedsSecurityRole = errors.New("only platform_admin or security may change tool assignment and egress")
 
-// renderAccessFile baut ACCESS.md aus den materialisierten Zugängen und der
-// Tool-Zuweisung — eine Zeile pro System, Attribute wie von ParseAccess gelesen.
+// renderAccessFile builds ACCESS.md from the materialized accesses and the
+// tool assignment — one line per system, attributes as read by ParseAccess.
 func (s *Server) renderAccessFile(ctx context.Context, agentID uuid.UUID) (string, error) {
 	accs, err := s.Registry.Accesses(ctx, agentID)
 	if err != nil {
@@ -34,11 +39,11 @@ func (s *Server) renderAccessFile(ctx context.Context, agentID uuid.UUID) (strin
 	sort.Slice(accs, func(i, j int) bool { return accs[i].System < accs[j].System })
 
 	var b strings.Builder
-	b.WriteString("# Zugänge — welche Zielsysteme dieser Agent nutzen darf (Referenzen, nie Secrets).\n")
-	b.WriteString("# scope: gebrokerte Berechtigungen · tools: Tool-Allowlist des Agenten („alle“ = keine Einschränkung).\n")
-	b.WriteString("# Synchron mit dem Reiter „Tools“ — Änderungen hier wirken dort und umgekehrt.\n\n")
+	b.WriteString("# Accesses — which target systems this agent may use (references, never secrets).\n")
+	b.WriteString("# scope: brokered permissions · tools: tool allowlist of the agent (\"alle\" = no restriction).\n")
+	b.WriteString("# In sync with the \"Tools\" tab — changes here take effect there and vice versa.\n\n")
 	if len(accs) == 0 {
-		b.WriteString("# (keine Systeme — der Broker verweigert jede Credential-Anfrage)\n")
+		b.WriteString("# (no systems — the broker refuses every credential request)\n")
 	}
 	for _, a := range accs {
 		fmt.Fprintf(&b, "- system: %s", a.System)
@@ -61,8 +66,8 @@ func (s *Server) renderAccessFile(ctx context.Context, agentID uuid.UUID) (strin
 	return b.String(), nil
 }
 
-// egressSpec ist der agent-editierbare Teil von EGRESS.md: Template-Namen
-// und eigene Hosts. Basis-Allowlist/ENV sind org-weit und nur informativ.
+// egressSpec is the agent-editable part of EGRESS.md: template names and own
+// hosts. Base allowlist/ENV are org-wide and informational only.
 type egressSpec struct {
 	Templates []string
 	Hosts     []hostSpec
@@ -79,7 +84,7 @@ func (e *egressSpec) hasHost(pattern string) bool {
 	return false
 }
 
-// renderEgressFile baut EGRESS.md aus dem Egress-Store des Agenten.
+// renderEgressFile builds EGRESS.md from the agent's egress store.
 func (s *Server) renderEgressFile(ctx context.Context, orgID, agentID uuid.UUID) (string, error) {
 	cfg, err := s.EgressStore.AgentConfig(ctx, agentID)
 	if err != nil {
@@ -107,19 +112,19 @@ func (s *Server) renderEgressFile(ctx context.Context, orgID, agentID uuid.UUID)
 	}
 
 	var b strings.Builder
-	b.WriteString("# Egress — welche Hosts dieser Agent ausgehend erreichen darf; alles andere\n")
-	b.WriteString("# blockt der Proxy fail-closed. Gepflegt werden hier Templates + eigene Hosts;\n")
-	b.WriteString("# synchron mit dem Reiter „Egress“ — Änderungen hier wirken dort und umgekehrt.\n")
+	b.WriteString("# Egress — which hosts this agent may reach outbound; everything else is\n")
+	b.WriteString("# blocked fail-closed by the proxy. Maintained here: templates + own hosts;\n")
+	b.WriteString("# in sync with the \"Egress\" tab — changes here take effect there and vice versa.\n")
 	var basis []string
 	for _, h := range defaults {
 		basis = append(basis, h.Pattern)
 	}
 	basis = append(basis, s.EgressDefaults...)
 	if len(basis) > 0 {
-		fmt.Fprintf(&b, "# Basis der Organisation (zentral gepflegt): %s\n", strings.Join(basis, ", "))
+		fmt.Fprintf(&b, "# Base of the organization (maintained centrally): %s\n", strings.Join(basis, ", "))
 	}
 	if len(allNames) > 0 {
-		fmt.Fprintf(&b, "# Verfügbare Templates: %s\n", strings.Join(allNames, ", "))
+		fmt.Fprintf(&b, "# Available templates: %s\n", strings.Join(allNames, ", "))
 	}
 	b.WriteString("\n")
 
@@ -149,9 +154,9 @@ func (s *Server) renderEgressFile(ctx context.Context, orgID, agentID uuid.UUID)
 	return b.String(), nil
 }
 
-// parseEgressFile liest EGRESS.md: eine "templates:"-Zeile (kommasepariert,
-// "keine" = leer) und "- host:"-Zeilen mit optionaler notiz. Kommentare (#)
-// und alles Übrige werden ignoriert.
+// parseEgressFile reads EGRESS.md: one "templates:" line (comma separated,
+// "keine" = empty) and "- host:" lines with an optional notiz. Comments (#)
+// and everything else are ignored.
 func parseEgressFile(content string) egressSpec {
 	var spec egressSpec
 	for _, line := range strings.Split(content, "\n") {
@@ -185,17 +190,17 @@ func parseEgressFile(content string) egressSpec {
 	return spec
 }
 
-// prepareConfigApply validiert ACCESS.md/EGRESS.md und liefert den Write-
-// Through in die UI-Stores. Ohne Security-Rolle sind Text-Edits an Tools und
-// Egress verboten (dieselbe RBAC wie die Reiter) — unveränderte Dateien
-// dürfen aber jederzeit mitgespeichert werden.
+// prepareConfigApply validates ACCESS.md/EGRESS.md and returns the
+// write-through into the UI stores. Without a security role, text edits to
+// tools and egress are forbidden (the same RBAC as the tabs) — unchanged files
+// may be saved along at any time, though.
 func (s *Server) prepareConfigApply(ctx context.Context, orgID, agentID uuid.UUID, files map[string]string, canSecurity bool) (func(context.Context) error, error) {
-	// Fehlt eine Datei im Request ganz, bleibt ihr Bereich unangetastet —
-	// eine ausgelassene EGRESS.md ist „keine Änderung", nicht „alles löschen".
+	// If a file is missing from the request entirely, its area stays untouched —
+	// an omitted EGRESS.md means "no change", not "delete everything".
 	accessContent, hasAccess := files["ACCESS.md"]
 	egressContent, hasEgress := files["EGRESS.md"]
 
-	// Nicht verdrahtete Stores (z. B. Test-Setups) → der Bereich entfällt.
+	// Stores that are not wired up (e.g. test setups) → the area drops out.
 	if s.Targets == nil {
 		hasAccess = false
 	}
@@ -208,7 +213,7 @@ func (s *Server) prepareConfigApply(ctx context.Context, orgID, agentID uuid.UUI
 		accs = agents.ParseAccess(accessContent)
 	}
 
-	// Egress: Template-Namen auflösen, bevor irgendetwas gespeichert wird.
+	// Egress: resolve template names before anything is saved.
 	var spec egressSpec
 	var cfg egress.AgentEgress
 	wantTemplates := map[uuid.UUID]bool{}
@@ -227,7 +232,7 @@ func (s *Server) prepareConfigApply(ctx context.Context, orgID, agentID uuid.UUI
 		for _, name := range spec.Templates {
 			t, ok := byName[name]
 			if !ok {
-				return nil, fmt.Errorf("EGRESS.md: unbekanntes Template %q (verfügbar: %s)", name, strings.Join(names, ", "))
+				return nil, fmt.Errorf("EGRESS.md: unknown template %q (available: %s)", name, strings.Join(names, ", "))
 			}
 			wantTemplates[t.ID] = true
 		}
@@ -236,7 +241,7 @@ func (s *Server) prepareConfigApply(ctx context.Context, orgID, agentID uuid.UUI
 		}
 	}
 
-	// Änderungs-Erkennung für RBAC: was würde der Write-Through umstellen?
+	// Change detection for RBAC: what would the write-through switch around?
 	egressChanged := hasEgress && len(wantTemplates) != len(cfg.TemplateIDs)
 	for _, id := range cfg.TemplateIDs {
 		if hasEgress && !wantTemplates[id] {
@@ -273,7 +278,7 @@ func (s *Server) prepareConfigApply(ctx context.Context, orgID, agentID uuid.UUI
 	return func(ctx context.Context) error {
 		for _, a := range accs {
 			if err := s.Targets.SetAgentTools(ctx, agentID, a.System, a.Tools); err != nil {
-				return fmt.Errorf("tools für %s: %w", a.System, err)
+				return fmt.Errorf("tools for %s: %w", a.System, err)
 			}
 		}
 		if !hasEgress {

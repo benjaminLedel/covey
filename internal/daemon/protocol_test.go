@@ -5,14 +5,14 @@ import (
 	"testing"
 )
 
-// responseTypes sind die Nachrichtentypen, mit denen die Control Plane eine
-// ANFRAGE des Daemons beantwortet. Jede davon muss ihren wartenden Aufrufer
-// finden; fehlt eine im Routing, kommt die Antwort nie an: Der Aufruf läuft in
-// seinen Timeout, und weil manche Anfragen vor dem Lauf im kritischen Pfad
-// sitzen, steht danach die ganze Aufgabe.
+// responseTypes are the message types with which the control plane answers a
+// REQUEST from the daemon. Each of them must find its waiting caller; if one is
+// missing from the routing, the answer never arrives: the call runs into its
+// timeout, and because some requests sit in the critical path before the run,
+// the whole task stalls afterwards.
 //
-// Genau das ist beim Einbau von inject_skills passiert — die Route fehlte, und
-// jeder Integrationstest lief in einen 15-Sekunden-Timeout.
+// That is exactly what happened when inject_skills was added — the route was
+// missing, and every integration test ran into a 15-second timeout.
 var responseTypes = []string{
 	TypeInjectCredentials,
 	TypeApprovalDecision,
@@ -23,10 +23,10 @@ var responseTypes = []string{
 	TypeInjectCreateTask,
 }
 
-// TestResponsesReachTheirCaller prüft die Zustellung am Verhalten statt am
-// Abgleich zweier Listen: Für jeden Antworttyp wartet ein echter Kanal, und die
-// Nachricht muss dort ankommen. Fehlt der Typ im Routing, schlägt der Test fehl
-// — dieselbe Wirkung wie im Betrieb, nur in Millisekunden.
+// TestResponsesReachTheirCaller checks delivery by behavior instead of by
+// comparing two lists: for every response type a real channel waits, and the
+// message must arrive there. If the type is missing from the routing, the test
+// fails — the same effect as in production, only in milliseconds.
 func TestResponsesReachTheirCaller(t *testing.T) {
 	c := &Client{pending: map[string]chan Message{}}
 
@@ -36,44 +36,43 @@ func TestResponsesReachTheirCaller(t *testing.T) {
 		msg := Message{Type: typ, Payload: json.RawMessage(`{"request_id":"req-1"}`)}
 
 		if !c.deliverIfResponse(msg) {
-			t.Errorf("%s wird nicht als Antwort erkannt — der Aufrufer läuft in seinen Timeout", typ)
+			t.Errorf("%s is not recognized as a response — the caller runs into its timeout", typ)
 			continue
 		}
 		select {
 		case got := <-ch:
 			if got.Type != typ {
-				t.Errorf("%s: falsche Nachricht zugestellt (%s)", typ, got.Type)
+				t.Errorf("%s: wrong message delivered (%s)", typ, got.Type)
 			}
 		default:
-			t.Errorf("%s: nichts am Kanal des Aufrufers angekommen", typ)
+			t.Errorf("%s: nothing arrived on the caller's channel", typ)
 		}
 	}
 }
 
-// Ein proaktiver Push trägt keine request_id — er gehört in den switch der
-// Lese-Schleife und darf nicht als Antwort verschluckt werden.
-// inject_credentials kommt in beiden Formen vor und ist deshalb der
-// interessante Fall.
+// A proactive push carries no request_id — it belongs in the read loop's switch
+// and must not be swallowed as a response. inject_credentials occurs in both
+// forms and is therefore the interesting case.
 func TestPushIsNotTreatedAsResponse(t *testing.T) {
 	c := &Client{pending: map[string]chan Message{}}
 	push := Message{Type: TypeInjectCredentials, Payload: json.RawMessage(`{"system":"gitlab"}`)}
 	if c.deliverIfResponse(push) {
-		t.Fatal("ein Push ohne request_id darf nicht als Antwort geroutet werden — sonst verschwindet er")
+		t.Fatal("a push without a request_id must not be routed as a response — otherwise it vanishes")
 	}
 }
 
-// Die Liste oben ist handgepflegt; diese Prüfung fängt wenigstens den Fall ab,
-// dass jemand routedInjectTypes erweitert, ohne den Verhaltenstest mitzuziehen.
-// Ein völlig neuer Typ, der in BEIDEN fehlt, bleibt unentdeckt — dagegen hilft
-// nur, ihn beim Einbau hier einzutragen.
+// The list above is maintained by hand; this check at least catches the case
+// that someone extends routedInjectTypes without pulling the behavior test
+// along. A completely new type missing from BOTH stays undetected — the only
+// remedy there is to add it here when it is built.
 func TestRoutingTableMatchesTestedTypes(t *testing.T) {
 	if len(routedInjectTypes) != len(responseTypes) {
-		t.Fatalf("routedInjectTypes hat %d Einträge, geprüft werden %d — neuen Antworttyp in responseTypes ergänzen",
+		t.Fatalf("routedInjectTypes has %d entries, %d are checked — add the new response type to responseTypes",
 			len(routedInjectTypes), len(responseTypes))
 	}
 	for _, typ := range responseTypes {
 		if !routedInjectTypes[typ] {
-			t.Errorf("%s fehlt in routedInjectTypes", typ)
+			t.Errorf("%s is missing from routedInjectTypes", typ)
 		}
 	}
 }

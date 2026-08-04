@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// httpHandler implementiert die vom Agenten genutzten Zammad-Endpunkte.
+// httpHandler implements the Zammad endpoints the agent uses.
 func httpHandler(f *fakeZammad) http.Handler {
 	mux := http.NewServeMux()
 

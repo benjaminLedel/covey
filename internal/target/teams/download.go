@@ -8,8 +8,8 @@ import (
 	"covey/internal/target"
 )
 
-// DownloadResult ist die Antwort der download_attachment-Aktion: wo die Datei in
-// der Sandbox liegt und wie der Agent sie ansieht.
+// DownloadResult is the answer of the download_attachment action: where the
+// file sits in the sandbox and how the agent looks at it.
 type DownloadResult struct {
 	Path        string `json:"path"`
 	Filename    string `json:"filename"`
@@ -18,14 +18,14 @@ type DownloadResult struct {
 	Hint        string `json:"hint"`
 }
 
-// DownloadAttachmentToSandbox holt einen Teams-Anhang gebrokert in die Sandbox —
-// das Connector-Token bleibt im Daemon, die Datei landet unter
-// <workdir>/attachments/. Der Agent liest sie danach mit dem Read-Tool (Bilder
-// per Vision, sonst als Datei). name ist optional; fehlt er, wird der Basename
-// aus der URL abgeleitet.
+// DownloadAttachmentToSandbox brokers a Teams attachment into the sandbox —
+// the connector token stays in the daemon, the file lands under
+// <workdir>/attachments/. The agent then reads it with the read tool (images
+// via vision, otherwise as a file). name is optional; if absent, the basename
+// is derived from the URL.
 func DownloadAttachmentToSandbox(ctx context.Context, c *Client, downloadURL, name, workdir string) (DownloadResult, error) {
 	if workdir == "" {
-		return DownloadResult{}, fmt.Errorf("download_attachment braucht eine Sandbox (kein Arbeitsverzeichnis im Kontext)")
+		return DownloadResult{}, fmt.Errorf("download_attachment needs a sandbox (no working directory in the context)")
 	}
 	limit := maxAttachmentBytes()
 	contentType, data, err := c.DownloadAttachment(ctx, downloadURL, limit)
@@ -33,7 +33,7 @@ func DownloadAttachmentToSandbox(ctx context.Context, c *Client, downloadURL, na
 		return DownloadResult{}, err
 	}
 	if int64(len(data)) > limit {
-		return DownloadResult{}, fmt.Errorf("anhang größer als %d MB — abgebrochen", limit>>20)
+		return DownloadResult{}, fmt.Errorf("attachment larger than %d MB — aborted", limit>>20)
 	}
 
 	filename := strings.TrimSpace(name)
@@ -41,18 +41,18 @@ func DownloadAttachmentToSandbox(ctx context.Context, c *Client, downloadURL, na
 		filename = Attachment{ContentURL: downloadURL}.Filename()
 	}
 
-	// Ablegen, Namenshärtung und Kollisionsschutz macht der gemeinsame Helfer
-	// (internal/target/sandboxdatei.go). Wichtig gerade hier: `attachments/`
-	// teilen sich teams und email in derselben Sandbox.
-	datei, err := target.DateiAblegen(workdir, "attachments", filename, data, contentType)
+	// Storing, name hardening and collision protection are done by the shared
+	// helper (internal/target/sandboxdatei.go). Important right here: teams and
+	// email share `attachments/` inside the same sandbox.
+	file, err := target.StoreFile(workdir, "attachments", filename, data, contentType)
 	if err != nil {
 		return DownloadResult{}, err
 	}
 	return DownloadResult{
-		Path:        datei.Pfad,
-		Filename:    datei.Dateiname,
-		ContentType: datei.ContentType,
-		Bytes:       datei.Bytes,
-		Hint:        datei.Hinweis,
+		Path:        file.Path,
+		Filename:    file.FileName,
+		ContentType: file.ContentType,
+		Bytes:       file.Bytes,
+		Hint:        file.Hint,
 	}, nil
 }

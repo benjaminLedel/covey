@@ -1,5 +1,6 @@
-// Package secrets definiert den SecretStore-Port (spec/10): get/put/delete.
-// Implementierungen: builtin (AES-GCM-Spalte in Postgres) — vault folgt post-MVP.
+// Package secrets defines the SecretStore port (spec/10): get/put/delete.
+// Implementations: builtin (AES-GCM column in Postgres) — vault follows
+// post-MVP.
 package secrets
 
 import (
@@ -9,33 +10,33 @@ import (
 	"github.com/google/uuid"
 )
 
-var ErrNotFound = errors.New("secret nicht gefunden")
+var ErrNotFound = errors.New("secret not found")
 
-// KeyPreview beschreibt ein Secret für die UI. Per Default ist ein Secret
-// eine einsehbare Variable (Servername, URL, Konfigwert): Value enthält den
-// vollständigen Klartext. Ist Sensitive=true, bleibt der Wert write-only —
-// dann trägt Prefix nur ein kurzes, absichtlich begrenztes Präfix als
-// Wiedererkennungshilfe (wie bei GitHub/Stripe); leer, wenn der Wert zu kurz
-// ist, um ihn ohne nennenswerte Offenlegung anzureißen.
-// AgentIDs sind die expliziten Zuweisungen eines org-weiten Secrets — leer
-// heißt: noch keinem Agenten zugewiesen, das Secret erreicht niemanden.
+// KeyPreview describes a secret for the UI. By default a secret is a readable
+// variable (server name, URL, config value): Value carries the full plaintext.
+// With Sensitive=true the value stays write-only — Prefix then only carries a
+// short, deliberately limited prefix as a recognition aid (as with
+// GitHub/Stripe); empty when the value is too short to hint at without
+// meaningful disclosure.
+// AgentIDs are the explicit assignments of an org-wide secret — empty means:
+// not assigned to any agent yet, the secret reaches nobody.
 type KeyPreview struct {
 	Key       string   `json:"key"`
 	Prefix    string   `json:"prefix"`
 	Sensitive bool     `json:"sensitive"`
-	Value     string   `json:"value,omitempty"` // nur gesetzt wenn Sensitive=false
+	Value     string   `json:"value,omitempty"` // only set when Sensitive=false
 	AgentIDs  []string `json:"agent_ids"`
 }
 
 const (
-	// previewMinLen: kürzere Werte bleiben komplett maskiert.
+	// previewMinLen: shorter values stay fully masked.
 	previewMinLen = 12
-	// previewChars: so viele führende Zeichen dürfen sichtbar werden.
+	// previewChars: this many leading characters may become visible.
 	previewChars = 4
 )
 
-// Preview reißt einen Wert für die UI an — write-only bleibt die Regel, dies
-// ist die eng begrenzte Ausnahme. Leerer String heißt „vollständig maskieren".
+// Preview hints at a value for the UI — write-only stays the rule, this is the
+// narrowly bounded exception. An empty string means "mask completely".
 func Preview(value string) string {
 	r := []rune(value)
 	if len(r) > previewMinLen {
@@ -45,33 +46,33 @@ func Preview(value string) string {
 }
 
 type Store interface {
-	// Get/Put/Delete arbeiten auf org-weiten Secrets (ohne Agent-Kontext,
-	// z. B. Bootstrap und Webhooks).
+	// Get/Put/Delete operate on org-wide secrets (without agent context, e.g.
+	// bootstrap and webhooks).
 	Get(ctx context.Context, orgID uuid.UUID, key string) (string, error)
 	Put(ctx context.Context, orgID uuid.UUID, key, value string) error
 	Delete(ctx context.Context, orgID uuid.UUID, key string) error
-	// Resolve löst ein Secret für einen Agenten auf: agent-eigenes Secret vor
-	// org-weitem. Org-Secrets erreichen einen Agenten nur bei expliziter
-	// Zuweisung — ohne Zuweisung erreicht ein Org-Secret keinen Agenten.
+	// Resolve resolves a secret for an agent: the agent's own secret before the
+	// org-wide one. Org secrets reach an agent only on explicit assignment —
+	// without an assignment an org secret reaches no agent.
 	Resolve(ctx context.Context, orgID, agentID uuid.UUID, key string) (string, error)
-	// PutAgent/DeleteAgent verwalten agent-eigene Secrets.
+	// PutAgent/DeleteAgent manage an agent's own secrets.
 	PutAgent(ctx context.Context, orgID, agentID uuid.UUID, key, value string) error
 	DeleteAgent(ctx context.Context, orgID, agentID uuid.UUID, key string) error
-	// Keys listet nur die Namen — Werte bleiben write-only für die API.
+	// Keys lists the names only — values stay write-only for the API.
 	Keys(ctx context.Context, orgID uuid.UUID) ([]string, error)
-	// Previews liefert Namen plus begrenztes Wert-Präfix (siehe Preview) der
-	// org-weiten Secrets, inklusive ihrer Zuweisungen.
+	// Previews returns names plus the limited value prefix (see Preview) of the
+	// org-wide secrets, including their assignments.
 	Previews(ctx context.Context, orgID uuid.UUID) ([]KeyPreview, error)
-	// AgentPreviews liefert die agent-eigenen Secrets eines Agenten.
+	// AgentPreviews returns an agent's own secrets.
 	AgentPreviews(ctx context.Context, orgID, agentID uuid.UUID) ([]KeyPreview, error)
-	// Assign/Unassign pflegen die explizite Zuweisung org-weiter Secrets.
+	// Assign/Unassign maintain the explicit assignment of org-wide secrets.
 	Assign(ctx context.Context, orgID uuid.UUID, key string, agentID uuid.UUID) error
 	Unassign(ctx context.Context, orgID uuid.UUID, key string, agentID uuid.UUID) error
-	// MarkSensitive/MarkAgentSensitive kennzeichnen ein Secret als besonders
-	// schützenswert (Token, Passwort): ab dann ist der Wert write-only, die
-	// Previews liefern nur noch das begrenzte Präfix. Bewusst einweg — den
-	// Schutz wieder aufheben hieße, den Wert doch offenzulegen. Zurück geht
-	// es nur durch Löschen und Neuanlegen; Überschreiben behält das Flag.
+	// MarkSensitive/MarkAgentSensitive mark a secret as particularly worth
+	// protecting (token, password): from then on the value is write-only and the
+	// previews only return the limited prefix. Deliberately one-way — lifting
+	// the protection again would mean disclosing the value after all. The way
+	// back is only through delete and re-create; overwriting keeps the flag.
 	MarkSensitive(ctx context.Context, orgID uuid.UUID, key string) error
 	MarkAgentSensitive(ctx context.Context, orgID, agentID uuid.UUID, key string) error
 }

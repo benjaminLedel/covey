@@ -8,11 +8,10 @@ import (
 	"strings"
 )
 
-// DefaultAllowedTools ist der Standard-Tool-Umfang eines Laufs, solange keine
-// Agent-Config etwas anderes vorgibt: Dateien lesen/schreiben/suchen, Shell,
-// Webseiten abrufen und durchsuchen, Aufgaben strukturieren. Die harte Grenze
-// bleibt außerhalb der Runtime (Broker, Egress, Guard-Rails) — diese Liste ist
-// die weiche Innen-Grenze aus spec/12.
+// DefaultAllowedTools is the default tool scope of a run as long as no agent
+// config says otherwise: read/write/search files, shell, fetch and search web
+// pages, structure tasks. The hard boundary stays outside the runtime (broker,
+// egress, guard-rails) — this list is the soft inner boundary from spec/12.
 var DefaultAllowedTools = []string{
 	"Bash", "BashOutput", "KillShell",
 	"Read", "Write", "Edit", "Glob", "Grep", "NotebookEdit",
@@ -20,30 +19,30 @@ var DefaultAllowedTools = []string{
 	"Task", "TodoWrite",
 }
 
-// RunSpec ist alles, was ein Runtime-Adapter für einen Lauf braucht.
+// RunSpec is everything a runtime adapter needs for one run.
 type RunSpec struct {
 	TaskID          string
 	Title           string
 	Body            string
 	SystemPrompt    string
 	MemoryContext   string
-	Model           string // gewünschtes LLM; leer = Default der Runtime
+	Model           string // desired LLM; empty = the runtime's default
 	AllowedTools    []string
 	MaxTurns        int
 	MaxBudgetUSD    float64
 	ResumeSessionID string
 	ResumeInput     string
 	HomeDir         string
-	// WorkDir ist das Arbeitsverzeichnis des Laufs. Leer = HomeDir. Getrennt
-	// vom Home, damit ein Sub-Run IM Projekt-Checkout starten kann (dort greift
-	// dessen eigener Claude-Code-Harness: CLAUDE.md, .claude/agents, skills),
-	// während HOME weiterhin auf das persistente Agenten-Home zeigt — dort
-	// liegen ~/.claude, die Wiki-Arbeitskopie und die Dependency-Caches.
+	// WorkDir is the run's working directory. Empty = HomeDir. Kept separate
+	// from the home so a sub-run can start INSIDE the project checkout (where
+	// the project's own Claude Code harness applies: CLAUDE.md, .claude/agents,
+	// skills), while HOME still points at the persistent agent home — that is
+	// where ~/.claude, the wiki working copy and the dependency caches live.
 	WorkDir string
-	Env     []string // zusätzliche ENV (z. B. COVEY_ACTION_PORT, gebrokerte Keys)
+	Env     []string // extra ENV (e.g. COVEY_ACTION_PORT, brokered keys)
 }
 
-// RunResult ist das normierte Ergebnis eines Runtime-Laufs.
+// RunResult is the normalized result of a runtime run.
 type RunResult struct {
 	Status         string // done | failed | escalated | blocked
 	Result         string
@@ -58,25 +57,25 @@ type RunResult struct {
 	Model          string
 }
 
-// Runtime ist der Adapter-Port (spec/01): dünn, übersetzt zwischen dem
-// Daemon-Protokoll und den Spezifika der jeweiligen Runtime.
+// Runtime is the adapter port (spec/01): thin, translating between the daemon
+// protocol and the specifics of the respective runtime.
 type Runtime interface {
 	Name() string
 	Run(ctx context.Context, spec RunSpec, onEvent func(kind string, payload json.RawMessage)) (RunResult, error)
 }
 
-// childEnv baut die Umgebung eines Subprozesses aus der Umgebung des Daemons —
-// OHNE dessen eigene COVEY_*-Variablen. Der Grund ist der Weg zum Broker:
-// COVEY_WS_URL und COVEY_DAEMON_TOKEN sind Zugangsdaten zur Control Plane, mit
-// denen ein Kindprozess eine eigene WebSocket aufmachen und `request_credential`
-// schicken könnte — also genau die gebrokerten Zugänge erreichen, die das
-// Weglassen von COVEY_ACTION_PORT aus der Reichweite hält.
+// childEnv builds a subprocess's environment out of the daemon's environment —
+// WITHOUT the daemon's own COVEY_* variables. The reason is the route to the
+// broker: COVEY_WS_URL and COVEY_DAEMON_TOKEN are credentials for the control
+// plane with which a child process could open its own WebSocket and send
+// `request_credential` — reaching exactly the brokered accesses that omitting
+// COVEY_ACTION_PORT keeps out of reach.
 //
-// Beim äußeren Lauf wäre das folgenlos (er führt die kompilierte Config des
-// Agenten aus), beim Sub-Lauf nicht: Dort ist Repo-Inhalt ausführbare
-// Konfiguration (Hooks, MCP-Server) — der Filter gilt deshalb für jeden
-// Subprozess. Was ein Lauf legitim braucht, kommt explizit über extra dazu
-// (COVEY_ACTION_PORT, gebrokerter LLM-Key), nicht durch Vererbung.
+// For the outer run that would be inconsequential (it executes the agent's
+// compiled config); for a sub-run it would not: there, repository content is
+// executable configuration (hooks, MCP servers) — so the filter applies to every
+// subprocess. Whatever a run legitimately needs comes in explicitly via extra
+// (COVEY_ACTION_PORT, brokered LLM key), not by inheritance.
 func childEnv(extra ...string) []string {
 	host := os.Environ()
 	env := make([]string, 0, len(host)+len(extra))
@@ -89,8 +88,8 @@ func childEnv(extra ...string) []string {
 	return append(env, extra...)
 }
 
-// covey_status ist die Abschluss-Zeile, die die kompilierte Config von der
-// Runtime verlangt (siehe agents.ProtocolInstructions).
+// covey_status is the closing line the compiled config demands from the runtime
+// (see agents.ProtocolInstructions).
 type covey_status struct {
 	Status         string `json:"status"`
 	Result         string `json:"result"`
@@ -101,17 +100,17 @@ type covey_status struct {
 
 const statusMarker = "COVEY_STATUS:"
 
-// ParseStatusLine sucht die letzte COVEY_STATUS-Zeile im Output.
-// Fehlt sie, gilt der Lauf als done mit dem Gesamttext als Ergebnis —
-// fail-open wäre falsch bei blocked, aber done ohne Marker ist das
-// gutmütige Default für triviale Aufgaben.
+// ParseStatusLine looks for the last COVEY_STATUS line in the output.
+// If it is missing, the run counts as done with the whole text as its result —
+// fail-open would be wrong for blocked, but done without a marker is the
+// forgiving default for trivial tasks.
 func ParseStatusLine(output string) (covey_status, bool) {
 	idx := strings.LastIndex(output, statusMarker)
 	if idx < 0 {
 		return covey_status{}, false
 	}
 	rest := strings.TrimSpace(output[idx+len(statusMarker):])
-	// Nur die JSON-Zeile, nicht eventuell folgender Text.
+	// Only the JSON line, not any text that may follow.
 	if nl := strings.IndexByte(rest, '\n'); nl >= 0 {
 		rest = rest[:nl]
 	}
@@ -125,7 +124,7 @@ func ParseStatusLine(output string) (covey_status, bool) {
 	return st, true
 }
 
-// applyStatus überträgt die COVEY_STATUS-Zeile in das RunResult.
+// applyStatus transfers the COVEY_STATUS line into the RunResult.
 func applyStatus(res *RunResult, output string) {
 	st, ok := ParseStatusLine(output)
 	if !ok {
@@ -136,9 +135,9 @@ func applyStatus(res *RunResult, output string) {
 	switch st.Status {
 	case "blocked":
 		if st.CorrelationKey == "" {
-			// blocked ohne Key kann nie geweckt werden → als failed behandeln.
+			// blocked without a key can never be woken → treat it as failed.
 			res.Status = "failed"
-			res.Error = "runtime meldete blocked ohne correlation_key"
+			res.Error = "runtime reported blocked without a correlation_key"
 			return
 		}
 		res.Status = "blocked"
@@ -150,6 +149,6 @@ func applyStatus(res *RunResult, output string) {
 		res.Memory = st.Memory
 	default:
 		res.Status = "failed"
-		res.Error = fmt.Sprintf("unbekannter COVEY_STATUS %q", st.Status)
+		res.Error = fmt.Sprintf("unknown COVEY_STATUS %q", st.Status)
 	}
 }

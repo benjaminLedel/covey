@@ -7,12 +7,12 @@ import (
 	"time"
 )
 
-// handleSSE streamt Live-Events (Agent-Status, Backlog, Recording, Approvals)
-// an die Admin-UI — das "WebSocket/SSE für Live-Updates" aus spec/10.
+// handleSSE streams live events (agent status, backlog, recording, approvals)
+// to the admin UI — the "WebSocket/SSE for live updates" from spec/10.
 func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		writeErr(w, http.StatusInternalServerError, "streaming nicht unterstützt")
+		writeErr(w, http.StatusInternalServerError, "streaming not supported")
 		return
 	}
 	w.Header().Set("Content-Type", "text/event-stream")

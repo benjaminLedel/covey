@@ -1,160 +1,159 @@
-# 15 — Microsoft-Teams-Integration (Zielsystem)
+# 15 — Microsoft Teams integration (target system)
 
-Bindet **Microsoft Teams** als Zielsystem an, damit Agenten dort Nachrichten **empfangen und senden** — der Chat wird zum Kanal zwischen Mensch und Agent, analog zum Helpdesk in [`13-zammad-integration.md`](13-zammad-integration.md). Teams ist das zweite Webhook-getriebene Zielsystem (nach Zammad) und das erste mit **OAuth2/JWT** statt eines langlebigen API-Tokens.
+Connects **Microsoft Teams** as a target system so that agents can **receive and send** messages there — the chat becomes the channel between human and agent, analogous to the helpdesk in [`13-zammad-integration.md`](13-zammad-integration.md). Teams is the second webhook-driven target system (after Zammad) and the first with **OAuth2/JWT** instead of a long-lived API token.
 
-Architektonisch ist Teams ein **kompiliertes Zielsystem-Plugin** (`internal/target/teams`, per Blank-Import eingebunden — siehe [`10-architektur-stack.md`](10-architektur-stack.md), „Zielsysteme als Plugins"): dieselbe `System`/`Webhooker`-Schnittstelle wie Zammad, derselbe Event-Router, dieselbe Dedup-/Korrelations-Mechanik. Neu ist nur die Auth-Fläche.
+Architecturally Teams is a **compiled target-system plugin** (`internal/target/teams`, pulled in by blank import — see [`10-architecture-stack.md`](10-architecture-stack.md), "Target systems as plugins"): the same `System`/`Webhooker` interface as Zammad, the same event router, the same dedup/correlation mechanics. Only the auth surface is new.
 
-## Der Weg: Azure Bot Framework
+## The route: Azure Bot Framework
 
-Teams-Bots laufen nicht direkt zwischen Teams und Covey, sondern über den **Azure Bot Service** (Bot Framework). Das ist der kanonische, dokumentierte Weg für bidirektionale Bots (@mention in Kanälen, 1:1-Chat) und passt exakt ins Covey-Muster: eingehend ein Webhook, ausgehend ein REST-Call.
+Teams bots do not run directly between Teams and Covey but through the **Azure Bot Service** (Bot Framework). That is the canonical, documented route for bidirectional bots (@mention in channels, 1:1 chat) and fits Covey's pattern exactly: a webhook inbound, a REST call outbound.
 
 ```
-Teams-Client  ──(User schreibt @Agent oder DM)──►  Azure Bot Service
-                                                         │  POST Activity (JWT)
+Teams client  ──(user writes @agent or a DM)──►  Azure Bot Service
+                                                         │  POST activity (JWT)
                                                          ▼
                                           {public_url}/api/webhooks/teams/<agent-slug>
-                                                         │  ParseWebhook → Wake
+                                                         │  ParseWebhook → wake
                                                          ▼
-                                                   Backlog / blocked-Aufgabe
-                                                         │  Agent antwortet (Action-Proxy)
+                                                   backlog / blocked task
+                                                         │  agent replies (action proxy)
                                                          ▼
-                               POST {serviceUrl}/v3/conversations/…/activities  (Bot Connector)
+                               POST {serviceUrl}/v3/conversations/…/activities  (bot connector)
 ```
 
-## Drei Integrationsflächen
+## Three integration surfaces
 
-### 1. Inbound: Wake über den Messaging-Endpoint
+### 1. Inbound: wake via the messaging endpoint
 
-Der Azure Bot Service stellt jede Nachricht als **Activity** (JSON) an den Messaging-Endpoint des Bots zu — bei Covey ist das `POST {public_url}/api/webhooks/teams/<agent-slug>`. Relevante Felder: `type` (`message`, `conversationUpdate`, …), `id` (Activity-ID), `text`, `from` (Absender), `recipient` (der Bot), `conversation` (`id`, `conversationType`, `tenantId`), `serviceUrl` (der Bot-Connector-Host für die Antwort).
+The Azure Bot Service delivers every message as an **activity** (JSON) to the bot's messaging endpoint — in Covey that is `POST {public_url}/api/webhooks/teams/<agent-slug>`. Relevant fields: `type` (`message`, `conversationUpdate`, …), `id` (the activity ID), `text`, `from` (the sender), `recipient` (the bot), `conversation` (`id`, `conversationType`, `tenantId`), `serviceUrl` (the bot connector host for the reply).
 
-- **Neue Nachricht / DM** → Activity → Event-Router → Agent wacht auf (Wake-Quelle).
-- **Folgenachricht in derselben Konversation** → Korrelation über die `conversation.id` → geblockter Agent wacht auf.
-- **Integrität:** Der Bot Service signiert jede Zustellung mit einem **JWT** im `Authorization: Bearer …`-Header (Issuer `https://api.botframework.com`, Audience = die Microsoft-App-ID des Bots, RS256, Schlüssel aus der Bot-Framework-JWKS). Covey validiert dieses Token, bevor es dem Event traut.
-- **Idempotenz:** Der Bot Service wiederholt Zustellungen bei Fehlern. Der Event-Router dedupliziert über die Activity-`id` (`teams:activity:<id>`), sodass dieselbe Nachricht nur einen Wake auslöst.
+- **New message / DM** → activity → event router → the agent wakes up (a wake source).
+- **A follow-up message in the same conversation** → correlation via the `conversation.id` → the blocked agent wakes up.
+- **Integrity:** the Bot Service signs every delivery with a **JWT** in the `Authorization: Bearer …` header (issuer `https://api.botframework.com`, audience = the bot's Microsoft app ID, RS256, keys from the Bot Framework JWKS). Covey validates this token before trusting the event.
+- **Idempotency:** the Bot Service retries deliveries on failure. The event router deduplicates via the activity `id` (`teams:activity:<id>`), so that the same message triggers only one wake.
 
-### 2. Outbound: Antworten über den Bot Connector
+### 2. Outbound: replying through the bot connector
 
-Antworten gehen an den **Bot-Connector-REST-Dienst** unter der `serviceUrl` aus der auslösenden Activity (regional, z. B. `https://smba.trafficmanager.net/emea/`):
+Replies go to the **bot connector REST service** at the `serviceUrl` from the triggering activity (regional, e.g. `https://smba.trafficmanager.net/emea/`):
 
-| Aktion | Aufruf |
+| Action | Call |
 |---|---|
-| Nachricht senden | `POST {serviceUrl}/v3/conversations/{conversationId}/activities` |
-| Auf Nachricht antworten | `POST {serviceUrl}/v3/conversations/{conversationId}/activities/{activityId}` |
-| 1:1-Chat proaktiv eröffnen | `POST {serviceUrl}/v3/conversations` → dann Activity senden |
+| Send a message | `POST {serviceUrl}/v3/conversations/{conversationId}/activities` |
+| Reply to a message | `POST {serviceUrl}/v3/conversations/{conversationId}/activities/{activityId}` |
+| Proactively open a 1:1 chat | `POST {serviceUrl}/v3/conversations` → then send an activity |
 
-Der Body ist eine minimale Activity (`{"type":"message","text":"…"}`); Absender/Empfänger/Konversation leitet der Connector aus URL und Token ab.
+The body is a minimal activity (`{"type":"message","text":"…"}`); the connector derives sender/recipient/conversation from the URL and the token.
 
-### 3. Auth: der Broker gegen den Bot Connector
+### 3. Auth: the broker against the bot connector
 
-Anders als Zammads statisches Token nutzt der Bot Connector **OAuth2 `client_credentials`**: Der Bot tauscht seine **App-ID + App-Passwort** (Client Secret) gegen ein kurzlebiges Access-Token (`scope=https://api.botframework.com/.default`), das er als `Bearer` an den Connector reicht.
+Unlike Zammad's static token, the bot connector uses **OAuth2 `client_credentials`**: the bot exchanges its **app ID + app password** (client secret) for a short-lived access token (`scope=https://api.botframework.com/.default`) that it passes to the connector as a `Bearer`.
 
-- Der **Secrets-Broker** hält App-ID und App-Passwort und injiziert sie dem Daemon zur Laufzeit — **nichts Langlebiges in der Sandbox** (siehe [`04-identitaet-secrets.md`](04-identitaet-secrets.md)). Konvention der gebrokerten Credentials:
-  - `teams_token` = `"{appId}:{appPassword}"` (App-ID vor dem ersten `:`, Rest = Passwort — analog zum `user:pass` des E-Mail-Plugins),
-  - `teams_url` = optionaler Token-Endpoint (Default: der Multi-Tenant-Bot-Framework-Endpoint).
-- Das **kurzlebige Connector-Token** wird pro Daemon-Prozess gecacht und vor Ablauf erneuert — es verlässt die Sandbox nicht.
+- The **secrets broker** holds the app ID and app password and injects them into the daemon at runtime — **nothing long-lived in the sandbox** (see [`04-identity-secrets.md`](04-identity-secrets.md)). The convention for the brokered credentials:
+  - `teams_token` = `"{appId}:{appPassword}"` (app ID before the first `:`, the rest = the password — analogous to the email plugin's `user:pass`),
+  - `teams_url` = an optional token endpoint (default: the multi-tenant Bot Framework endpoint).
+- The **short-lived connector token** is cached per daemon process and renewed before expiry — it does not leave the sandbox.
 
-> **Ehrliche Grenze.** Das App-Passwort selbst ist ein langlebiges Client Secret (wie Zammads Token fällt es in den „per Key angebundenes Zielsystem"-Fall aus [`10-architektur-stack.md`](10-architektur-stack.md)). Der Built-in-`SecretStore` verwahrt es verschlüsselt und reicht es kurzlebig durch; der eigentliche Laufzeit-Zugriff auf den Connector läuft dann bereits über ein **kurzlebiges, per `client_credentials` getauschtes** Token. Echter End-to-End-RFC-8693-Exchange bis zum Nutzer-Kontext bleibt späteren, delegierten Graph-Szenarien vorbehalten.
+> **An honest limit.** The app password itself is a long-lived client secret (like Zammad's token it falls into the "target system connected by key" case from [`10-architecture-stack.md`](10-architecture-stack.md)). The built-in `SecretStore` keeps it encrypted and passes it through short-lived; the actual runtime access to the connector then already runs through a **short-lived token exchanged via `client_credentials`**. Real end-to-end RFC 8693 exchange down to the user context remains reserved for later delegated Graph scenarios.
 
-## `blocked` ↔ Konversation (Korrelation)
+## `blocked` ↔ conversation (correlation)
 
-Teams hat keinen Ticket-Zustand wie Zammads `pending`. Der natürliche Korrelations-Anker ist die **`conversation.id`**, die in jeder Activity mitkommt:
+Teams has no ticket state like Zammad's `pending`. The natural correlation anchor is the **`conversation.id`** that comes along in every activity:
 
-1. Agent stellt eine Rückfrage (`send`/`reply`) und parkt die Aufgabe → `blocked`, **Korrelations-Key = `teams:conversation:<conversation_id>`**, dazu die Runtime-`session_id` (siehe [`12-claude-code-adapter.md`](12-claude-code-adapter.md)).
-2. Nutzer antwortet → Bot Service stellt die nächste Activity zu.
-3. Covey korreliert über die `conversation.id`, weckt den Agenten und setzt fort.
+1. The agent asks a follow-up question (`send`/`reply`) and parks the task → `blocked`, **correlation key = `teams:conversation:<conversation_id>`**, plus the runtime `session_id` (see [`12-claude-code-adapter.md`](12-claude-code-adapter.md)).
+2. The user replies → the Bot Service delivers the next activity.
+3. Covey correlates via the `conversation.id`, wakes the agent and continues.
 
-Wie bei Zammad ist die Korrelation damit „geschenkt" — kein eigener Key muss durch die Kommunikation zurückgeschleift werden.
+As with Zammad, correlation is therefore "free" — no key of its own has to be looped back through the communication.
 
-## Echo-Schutz
+## Echo protection
 
-Der Bot darf seine eigenen Nachrichten nicht als Arbeit aufnehmen. Eine Activity, deren `from.id` gleich der `recipient.id` (die Bot-Identität) ist, wird registriert (Dedup), löst aber **keinen Wake** aus (`Wake=false`) — dieselbe Mechanik wie der `Sender=Agent`-Filter bei Zammad. Ebenso wecken Nicht-`message`-Activities (`conversationUpdate`, `typing`, …) nicht.
+The bot must not take up its own messages as work. An activity whose `from.id` equals the `recipient.id` (the bot identity) is registered (dedup) but triggers **no wake** (`Wake=false`) — the same mechanic as the `Sender=Agent` filter at Zammad. Likewise, non-`message` activities (`conversationUpdate`, `typing`, …) do not wake.
 
-## Aufnahme-Filter
+## Intake filter
 
-Optionaler Betriebs-Filter über ENV (12-Factor, wie bei Zammad):
+An optional operational filter through ENV (12-factor, as with Zammad):
 
-- `COVEY_TEAMS_INTAKE_TENANTS="<tenant-id>, …"` — nur Nachrichten aus diesen Microsoft-365-Tenants lösen eine Aufgabe aus. Leer/ungesetzt → alle Tenants.
+- `COVEY_TEAMS_INTAKE_TENANTS="<tenant-id>, …"` — only messages from these Microsoft 365 tenants trigger a task. Empty/unset → all tenants.
 
-## Aktionen (Übersicht)
+## Actions (overview)
 
-| Aktion | Params | Wirkung |
+| Action | Params | Effect |
 |---|---|---|
-| `send` | `service_url`, `conversation_id`, `text` | Nachricht in eine bestehende Konversation. |
-| `reply` | `service_url`, `conversation_id`, `reply_to_activity_id`, `text` | Antwort auf eine Nachricht (ohne `reply_to_activity_id` → `send`). |
-| `create_conversation` | `service_url`, `tenant_id`, `user_id`, `text` | Proaktiver 1:1-Chat mit einem Nutzer. |
-| `download_attachment` | `url`, `name` | Lädt einen Datei-Anhang der Nachricht in die Sandbox. |
-| `send_file` | `service_url`, `conversation_id`, `path`, `description` | Fragt den Empfänger per Karte, ob er eine Datei annehmen will. |
-| `upload_file` | `upload_url`, `path`, `service_url`, `conversation_id`, … | Lädt die Bytes hoch, nachdem zugestimmt wurde. |
+| `send` | `service_url`, `conversation_id`, `text` | A message into an existing conversation. |
+| `reply` | `service_url`, `conversation_id`, `reply_to_activity_id`, `text` | A reply to a message (without `reply_to_activity_id` → `send`). |
+| `create_conversation` | `service_url`, `tenant_id`, `user_id`, `text` | A proactive 1:1 chat with a user. |
+| `download_attachment` | `url`, `name` | Loads a file attachment of the message into the sandbox. |
+| `send_file` | `service_url`, `conversation_id`, `path`, `description` | Asks the recipient by card whether they want to accept a file. |
+| `upload_file` | `upload_url`, `path`, `service_url`, `conversation_id`, … | Uploads the bytes after consent has been given. |
 
-`service_url` und `conversation_id` stammen aus der auslösenden Nachricht (stehen im Task-Body). Alle sind eigene Guard-Rail-Subjekte (`teams:send`, `teams:reply`, `teams:create_conversation`, `teams:download_attachment`, `teams:send_file`, `teams:upload_file`).
+`service_url` and `conversation_id` come from the triggering message (they sit in the task body). All of them are guard-rail subjects of their own (`teams:send`, `teams:reply`, `teams:create_conversation`, `teams:download_attachment`, `teams:send_file`, `teams:upload_file`).
 
-## Anhänge lesen
+## Reading attachments
 
-Nachrichten tragen oft Dateien — Screenshots, PDFs, Logs. Eine eingehende Activity führt sie im Feld `attachments` (Name, `contentType`, Download-URL). Covey reicht **die Bytes nicht durch die Control Plane**, sondern nach dem etablierten Muster von GitLab (`download_upload`): Der Event-Router listet die Anhänge als Text im Task-Body (Name, Typ, fertiger `download_attachment`-Aufruf), und der Agent holt die Datei bei Bedarf über die Action in seine Sandbox.
+Messages often carry files — screenshots, PDFs, logs. An incoming activity lists them in the field `attachments` (name, `contentType`, download URL). Covey does **not pass the bytes through the control plane** but follows the established pattern from GitLab (`download_upload`): the event router lists the attachments as text in the task body (name, type, a ready-made `download_attachment` call), and the agent fetches the file into its sandbox when needed.
 
-- **Materialisierung in die Sandbox:** `download_attachment` lädt die Bytes gebrokert (das Connector-Token bleibt im Daemon) nach `<workspace>/attachments/<datei>` und gibt Pfad + Content-Type zurück. Der Agent liest die Datei danach mit dem Read-Tool — Bilder per Vision. Pfad-Traversal wird auf den Basename reduziert, ein Größenlimit (`COVEY_TEAMS_ATTACHMENT_MAX_MB`, Default 25 MB) greift fail-closed.
-- **Zwei URL-Sorten:** geteilte Dateien kommen als `file.download.info` mit einer **vor-autorisierten** `content.downloadUrl` (kein Token); Inline-Bilder als `image/*` mit einer `contentUrl` auf dem Connector-Host (**Bearer-Token nötig**). `download_attachment` versucht erst ohne Auth und lädt bei `401/403` einmal mit dem Connector-Token nach — beide Sorten funktionieren so ohne Sonderfall im Prompt.
-- **Kurzlebige URLs:** Teams-Download-URLs laufen ab. Der Task-Body weist den Agenten an, Anhänge zeitnah zu laden; wacht ein `blocked`-Agent erst spät auf, kann eine URL ungültig sein — dann fordert der Agent die Datei erneut an.
-- Reine Anhang-Nachrichten (Datei ohne Text) lösen ebenfalls einen Wake aus.
+- **Materialisation into the sandbox:** `download_attachment` loads the bytes brokered (the connector token stays in the daemon) into `<workspace>/attachments/<file>` and returns the path + content type. The agent then reads the file with the read tool — images by vision. Path traversal is reduced to the basename, and a size limit (`COVEY_TEAMS_ATTACHMENT_MAX_MB`, default 25 MB) applies fail-closed.
+- **Two kinds of URL:** shared files arrive as `file.download.info` with a **pre-authorised** `content.downloadUrl` (no token); inline images as `image/*` with a `contentUrl` on the connector host (**a bearer token is needed**). `download_attachment` first tries without auth and, on `401/403`, retries once with the connector token — both kinds work this way without a special case in the prompt.
+- **Short-lived URLs:** Teams download URLs expire. The task body instructs the agent to fetch attachments promptly; if a `blocked` agent only wakes up late, a URL may be invalid — the agent then requests the file again.
+- Pure attachment messages (a file without text) also trigger a wake.
 
-## Dateien senden (File-Consent-Flow)
+## Sending files (the file consent flow)
 
-Teams lässt einen Bot Dateien **nicht einfach anhängen**. Der Weg führt über die
-Zustimmung des Empfängers, und erst sie erzeugt den Upload-Platz — das ist
-Plattform-Vorgabe und nicht abkürzbar:
+Teams does **not** let a bot simply attach files. The route goes through the
+recipient's consent, and only that creates the upload location — this is a
+platform requirement and cannot be short-cut:
 
-1. Agent ruft `send_file` mit dem Pfad einer Datei in seinem Arbeitsverzeichnis.
-   Covey postet eine Karte (`…card.file.consent`) mit Name, Beschreibung und
-   Größe; der `context.key` trägt den **angefragten Pfad** durch beide
-   Richtungen (nicht nur den Dateinamen — sonst zeigte er bei einer Datei im
-   Unterordner ins Leere).
-2. Agent beendet den Lauf mit `blocked` auf `teams:conversation:<id>` — genau
-   der Korrelations-Key, der auch normale Rückfragen trägt.
-3. Der Empfänger klickt „Annehmen". Teams schickt eine **`invoke`-Activity**
-   (`fileConsent/invoke`) mit `uploadInfo.uploadUrl` — einer SharePoint-/
-   OneDrive-Upload-Session in *seinem* Speicher.
-4. Der Event-Router weckt den geparkten Agenten mit dem **vollständigen**
-   `upload_file`-Aufruf — `path` aus dem zurückgelaufenen `context.key`, der
-   Rest aus `uploadInfo`. Der Agent muss nichts ergänzen und nichts raten.
-5. Agent ruft `upload_file`: PUT der Bytes mit `Content-Range` an die
-   Upload-URL — **ohne** Connector-Token, die URL autorisiert sich selbst —,
-   danach die Abschluss-Karte (`…card.file.info`), die die Datei im Verlauf
-   zeigt.
+1. The agent calls `send_file` with the path of a file in its working directory.
+   Covey posts a card (`…card.file.consent`) with name, description and
+   size; the `context.key` carries the **requested path** through both
+   directions (not just the file name — otherwise it would point into the void
+   for a file in a subfolder).
+2. The agent ends the run with `blocked` on `teams:conversation:<id>` — exactly
+   the correlation key that carries normal follow-up questions too.
+3. The recipient clicks "Accept". Teams sends an **`invoke` activity**
+   (`fileConsent/invoke`) with `uploadInfo.uploadUrl` — a SharePoint/
+   OneDrive upload session in *their* storage.
+4. The event router wakes the parked agent with the **complete**
+   `upload_file` call — `path` from the returned `context.key`, the
+   rest from `uploadInfo`. The agent has nothing to add and nothing to guess.
+5. The agent calls `upload_file`: a PUT of the bytes with `Content-Range` to the
+   upload URL — **without** the connector token, the URL authorises itself —
+   followed by the completion card (`…card.file.info`) that shows the file in
+   the history.
 
-Zwei Entwurfsentscheidungen dahinter:
+Two design decisions behind this:
 
-- **Die Bytes bleiben in der Sandbox.** Zwischen Karte und Klick können Minuten
-  liegen; die Datei wartet im **persistenten `/home`** des Agenten, nicht in der
-  Control Plane. Damit braucht der Flow keinen Zwischenspeicher und keine neue
-  Protokoll-Nachricht — er ist derselbe `blocked`-Zyklus wie jede Rückfrage,
-  und der Agent führt seine eigene Arbeit zu Ende.
-- **Ablehnung weckt genauso.** Ein „Nein" ist ein Ergebnis, kein Ausbleiben:
-  ohne Wake bliebe der Agent auf einer Zustimmung hängen, die nie kommt.
-- **Nur korrelieren, nie neu anlegen.** Die Antwort auf eine Zustimmungs-Karte
-  ist die Fortsetzung einer angefangenen Arbeit. Parkt niemand darauf — die
-  Aufgabe ist längst beendet, die Zustellung kommt verspätet —, verpufft das
-  Event (`CorrelateOnly`). Andernfalls entstünde eine Aufgabe, die einen
-  ahnungslosen Agenten aufforderte, eine Datei hochzuladen, von der er nichts
-  weiß.
+- **The bytes stay in the sandbox.** Minutes can pass between the card and the
+  click; the file waits in the agent's **persistent `/home`**, not in the
+  control plane. That way the flow needs no intermediate storage and no new
+  protocol message — it is the same `blocked` cycle as any follow-up question,
+  and the agent finishes its own work.
+- **A refusal wakes it just the same.** A "no" is a result, not an absence:
+  without a wake the agent would hang on a consent that never comes.
+- **Only correlate, never create anew.** The answer to a consent card is the
+  continuation of work already started. If nobody is parked on it — the task
+  finished long ago, the delivery arrives late — the event fizzles out
+  (`CorrelateOnly`). Otherwise a task would arise asking an
+  unsuspecting agent to upload a file it knows nothing about.
 
-Grenzen: `path` wird gegen das Arbeitsverzeichnis aufgelöst (kein `..`, keine
-absoluten Pfade hinaus), es gilt dasselbe Größenlimit wie für eingehende
-Anhänge, und der Flow trägt nur **1:1- und Gruppen-Chats**. In Kanälen gibt es
-keine Zustimmungs-Karte — dort führt der Weg über Graph in die Dateiablage des
-Teams und bleibt außerhalb dieser Integration.
+Limits: `path` is resolved against the working directory (no `..`, no
+absolute paths leading out), the same size limit as for incoming
+attachments applies, and the flow carries only **1:1 and group chats**. In channels there is
+no consent card — there the route goes through Graph into the team's file
+storage and stays outside this integration.
 
-## Scope dieser Integration
+## Scope of this integration
 
-- **Ein Bot / ein Agent**, App-ID + App-Passwort über den Built-in-`SecretStore`.
-- **Messaging-Endpoint** als Webhook, JWT-verifiziert, idempotent verarbeitet.
-- **Aktionen:** senden, antworten, 1:1-Chat eröffnen, Anhang in die Sandbox laden, Datei senden (Consent-Flow).
-- **Anhänge lesen** über `download_attachment` (Bytes in die Sandbox, nicht in die Control Plane).
-- **Anhänge senden** über `send_file`/`upload_file` in Chats — Bytes ebenfalls aus der Sandbox.
-- **`blocked`** über die Konversation, Korrelation über die `conversation.id` — für Rückfragen wie für Datei-Zustimmungen.
+- **One bot / one agent**, app ID + app password through the built-in `SecretStore`.
+- **The messaging endpoint** as a webhook, JWT-verified, processed idempotently.
+- **Actions:** send, reply, open a 1:1 chat, load an attachment into the sandbox, send a file (the consent flow).
+- **Reading attachments** through `download_attachment` (bytes into the sandbox, not into the control plane).
+- **Sending attachments** through `send_file`/`upload_file` in chats — bytes likewise from the sandbox.
+- **`blocked`** through the conversation, correlation through the `conversation.id` — for follow-up questions as for file consents.
 
-Später (nicht jetzt): Adaptive Cards statt Klartext, Dateien in **Kanäle** (Graph), Kanal-/Team-Verwaltung über Microsoft Graph, delegierter Nutzer-Kontext (Graph mit On-Behalf-Of), mehrere Bots pro Org.
+Later (not now): adaptive cards instead of plain text, files into **channels** (Graph), channel/team administration through Microsoft Graph, delegated user context (Graph with on-behalf-of), several bots per org.
 
-## Hinweise
+## Notes
 
-- Der Bot braucht eine **Azure-Bot-Registration** (Microsoft-App-ID + Client Secret) und den Messaging-Endpoint `{public_url}/api/webhooks/teams/<agent-slug>`; das Teams-Manifest bindet den Bot in Teams ein. Betriebsdetails: `docs/betrieb-teams.md`.
-- JWT-Validierung geprüft gegen die Bot-Framework-Auth-Doku (Stand Juli 2026) — vor produktivem Betrieb die aktuellen Issuer/JWKS-Endpunkte gegenchecken. Bei leerem `COVEY_TEAMS_WEBHOOK_SECRET` ist die Validierung deaktiviert (nur für lokale Tests / das `faketeams`-Double).
+- The bot needs an **Azure bot registration** (a Microsoft app ID + client secret) and the messaging endpoint `{public_url}/api/webhooks/teams/<agent-slug>`; the Teams manifest embeds the bot into Teams. Operational details: `docs/ops-teams.md`.
+- JWT validation checked against the Bot Framework auth documentation (as of July 2026) — check the current issuer/JWKS endpoints before production use. With an empty `COVEY_TEAMS_WEBHOOK_SECRET` validation is disabled (only for local tests / the `faketeams` double).

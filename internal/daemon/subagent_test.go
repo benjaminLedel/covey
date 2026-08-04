@@ -12,16 +12,16 @@ import (
 	"covey/internal/target"
 )
 
-// TestGitChangesSince sichert den Kern des Berichts: Gemessen wird gegen den
-// Baseline-COMMIT des Checkouts, nicht gegen ein `git status`-Abbild von
-// vorher. Der Sub-Agent darf im Checkout lokal committen — viele Projekte
-// verlangen das in ihrer CLAUDE.md —, und genau dann sieht `git status`
-// nichts mehr. Ohne diesen Test fiele die halbe Arbeit lautlos aus der Liste,
-// die an die commit-Aktion geht.
+// TestGitChangesSince secures the core of the report: it is measured against the
+// checkout's baseline COMMIT, not against a `git status` snapshot taken earlier.
+// The sub-agent may commit locally in the checkout — many projects demand it in
+// their CLAUDE.md — and precisely then `git status` shows nothing any more.
+// Without this test half the work would silently drop out of the list that goes
+// to the commit action.
 func TestGitChangesSince(t *testing.T) {
 	dir := gitRepo(t)
 
-	// Baseline wie nach einem Checkout: Upstream-Stand committet und getaggt.
+	// Baseline as after a checkout: upstream state committed and tagged.
 	writeFile(t, dir, "app.go", "package app")
 	writeFile(t, dir, "alt.go", "package app")
 	runGit(t, dir, "add", "-A")
@@ -30,36 +30,36 @@ func TestGitChangesSince(t *testing.T) {
 
 	base := gitRev(t.Context(), dir, target.BaselineRef)
 	if base == "" {
-		t.Fatal("Baseline-Tag muss auflösbar sein")
+		t.Fatal("the baseline tag must be resolvable")
 	}
 	if changed, deleted := gitChangesSince(t.Context(), dir, base); len(changed)+len(deleted) != 0 {
-		t.Fatalf("frische Baseline = keine Arbeit, war: %v / %v", changed, deleted)
+		t.Fatalf("a fresh baseline = no work, was: %v / %v", changed, deleted)
 	}
 
-	// Der Sub-Agent committet einen Teil seiner Arbeit lokal …
+	// The sub-agent commits part of its work locally …
 	writeFile(t, dir, "app.go", "package app // fix")
 	writeFile(t, dir, "committet.go", "package app")
 	runGit(t, dir, "rm", "-q", "alt.go")
 	runGit(t, dir, "add", "-A")
 	runGit(t, dir, "commit", "-q", "-m", "fix")
-	// … und lässt den Rest offen im Arbeitsverzeichnis liegen.
+	// … and leaves the rest lying open in the working tree.
 	writeFile(t, dir, "offen.go", "package app")
 
 	changed, deleted := gitChangesSince(t.Context(), dir, base)
 	wantChanged := []string{"app.go", "committet.go", "offen.go"}
 	if !reflect.DeepEqual(changed, wantChanged) {
-		t.Fatalf("changed falsch: %v (erwartet %v)", changed, wantChanged)
+		t.Fatalf("changed wrong: %v (expected %v)", changed, wantChanged)
 	}
 	if !reflect.DeepEqual(deleted, []string{"alt.go"}) {
-		t.Fatalf("deleted falsch: %v (erwartet [alt.go])", deleted)
+		t.Fatalf("deleted wrong: %v (expected [alt.go])", deleted)
 	}
 }
 
-// Gemeldet wird der GESAMTE Stand gegen die Baseline, nicht nur das, was
-// dieser eine Sub-Lauf angefasst hat. Das ist Absicht: Die Listen gehen
-// unverändert in die commit-Aktion, und was ein früherer Sub-Lauf derselben
-// Aufgabe geändert hat, gehört genauso in den Merge Request — sonst bliebe es
-// auf Platte liegen und käme nie im Zielsystem an.
+// What gets reported is the ENTIRE state against the baseline, not only what
+// this one sub-run touched. That is intentional: the lists go unchanged into the
+// commit action, and whatever an earlier sub-run of the same task changed
+// belongs into the merge request just as much — otherwise it would stay on disk
+// and never arrive in the target system.
 func TestGitChangesSinceIsCumulative(t *testing.T) {
 	dir := gitRepo(t)
 	writeFile(t, dir, "app.go", "package app")
@@ -68,24 +68,24 @@ func TestGitChangesSinceIsCumulative(t *testing.T) {
 	runGit(t, dir, "tag", target.BaselineRef)
 	base := gitRev(t.Context(), dir, target.BaselineRef)
 
-	writeFile(t, dir, "frueher.go", "package app") // Vorlauf, noch nicht committet
+	writeFile(t, dir, "frueher.go", "package app") // earlier run, not yet committed
 	writeFile(t, dir, "app.go", "package app // jetzt")
 
 	changed, _ := gitChangesSince(t.Context(), dir, base)
 	if !reflect.DeepEqual(changed, []string{"app.go", "frueher.go"}) {
-		t.Fatalf("changed falsch: %v (erwartet [app.go frueher.go])", changed)
+		t.Fatalf("changed wrong: %v (expected [app.go frueher.go])", changed)
 	}
 }
 
-// Umlaute, Leerzeichen und Anführungszeichen in Pfaden müssen ROH im Bericht
-// ankommen: Die Listen gehen unverändert in die commit-Aktion. git escaped
-// Pfade außerhalb ASCII per Default (core.quotepath=true, so steht es in der
-// Sandbox) — aus prüfung.go würde "pr\303\274fung.go", und genau dieser
-// verstümmelte Pfad landete im Zielsystem.
+// Umlauts, spaces and quotes in paths must arrive RAW in the report: the lists
+// go unchanged into the commit action. git escapes paths outside ASCII by
+// default (core.quotepath=true, which is how it is in the sandbox) — prüfung.go
+// would become "pr\303\274fung.go", and exactly that mangled path would land in
+// the target system.
 func TestGitChangesSinceRawPaths(t *testing.T) {
 	dir := gitRepo(t)
-	// Den Default der Sandbox lokal festschreiben, damit der Test unabhängig
-	// von der globalen Konfiguration des Entwicklerrechners reproduziert.
+	// Pin the sandbox's default locally so the test reproduces independently of
+	// the developer machine's global configuration.
 	runGit(t, dir, "config", "core.quotepath", "true")
 
 	writeFile(t, dir, "alt ümlaut.go", "package app")
@@ -94,47 +94,47 @@ func TestGitChangesSinceRawPaths(t *testing.T) {
 	runGit(t, dir, "tag", target.BaselineRef)
 	base := gitRev(t.Context(), dir, target.BaselineRef)
 
-	// Committet: eine Umbenennung, Umlaut und Leerzeichen auf beiden Seiten.
+	// Committed: a rename, umlaut and space on both sides.
 	runGit(t, dir, "mv", "alt ümlaut.go", "neu geprüft.go")
 	runGit(t, dir, "commit", "-q", "-m", "umbenannt")
-	// Offen im Arbeitsverzeichnis: eine neue Datei, ebenfalls mit Umlaut.
+	// Open in the working tree: a new file, likewise with an umlaut.
 	writeFile(t, dir, "änderung offen.txt", "x")
 
 	changed, deleted := gitChangesSince(t.Context(), dir, base)
 	if want := []string{"neu geprüft.go", "änderung offen.txt"}; !reflect.DeepEqual(changed, want) {
-		t.Fatalf("changed muss die rohen Pfade nennen: %q (erwartet %q)", changed, want)
+		t.Fatalf("changed must name the raw paths: %q (expected %q)", changed, want)
 	}
 	if want := []string{"alt ümlaut.go"}; !reflect.DeepEqual(deleted, want) {
-		t.Fatalf("Quelle der Umbenennung muss roh mitkommen: %q (erwartet %q)", deleted, want)
+		t.Fatalf("the source of the rename must come along raw: %q (expected %q)", deleted, want)
 	}
 }
 
-// Ohne Repository gibt es keinen Anker. Dann meldet der Sub-Lauf lieber keine
-// Dateiliste, als eine falsche — scheitern darf er deswegen nicht.
+// Without a repository there is no anchor. The sub-run then reports no file list
+// rather than a wrong one — but it must not fail because of it.
 func TestGitChangesSinceWithoutRepo(t *testing.T) {
 	dir := t.TempDir()
 	if got := gitRev(t.Context(), dir, "HEAD"); got != "" {
-		t.Fatalf("ohne Repository gibt es keinen Anker: %q", got)
+		t.Fatalf("without a repository there is no anchor: %q", got)
 	}
 	changed, deleted := gitChangesSince(t.Context(), dir, "")
 	if len(changed)+len(deleted) != 0 {
-		t.Fatalf("ohne Anker darf nichts gemeldet werden: %v / %v", changed, deleted)
+		t.Fatalf("without an anchor nothing may be reported: %v / %v", changed, deleted)
 	}
 }
 
-// Die Markierung eines Sub-Lauf-Events darf das Format der Runtime nicht
-// verdecken: Aufzeichnung und Timeline lesen stream-json direkt und würden den
-// Sub-Lauf sonst als JSON-Klumpen statt als Turn mit Tool-Aufrufen zeigen.
-// subAgentMarkOf liest die Marke aus einer markierten Zeile.
+// Marking a sub-run event must not hide the runtime's format: recording and
+// timeline read stream-json directly and would otherwise show the sub-run as a
+// JSON blob instead of a turn with its tool calls.
+// subAgentMarkOf reads the mark out of a marked line.
 func subAgentMarkOf(t *testing.T, line json.RawMessage) map[string]any {
 	t.Helper()
 	var obj map[string]any
 	if err := json.Unmarshal(line, &obj); err != nil {
-		t.Fatalf("markierte Zeile ist kein JSON: %s", line)
+		t.Fatalf("the marked line is not JSON: %s", line)
 	}
 	mark, ok := obj["covey_sub_agent"].(map[string]any)
 	if !ok {
-		t.Fatalf("Sub-Lauf-Markierung fehlt: %s", line)
+		t.Fatalf("sub-run mark missing: %s", line)
 	}
 	return mark
 }
@@ -142,7 +142,7 @@ func subAgentMarkOf(t *testing.T, line json.RawMessage) map[string]any {
 func TestMarkSubAgentKeepsStreamFormat(t *testing.T) {
 	got, stamped := markSubAgent(json.RawMessage(`{"type":"assistant","message":{"content":[]}}`), "/home/agent/repos/p", "7", "")
 	if !stamped {
-		t.Fatal("ein JSON-Objekt muss markiert werden")
+		t.Fatal("a JSON object must be marked")
 	}
 
 	var obj map[string]any
@@ -150,75 +150,75 @@ func TestMarkSubAgentKeepsStreamFormat(t *testing.T) {
 		t.Fatal(err)
 	}
 	if obj["type"] != "assistant" {
-		t.Fatalf("type muss oben stehen bleiben: %s", got)
+		t.Fatalf("type must stay at the top: %s", got)
 	}
 	mark := subAgentMarkOf(t, got)
 	if mark["dir"] != "/home/agent/repos/p" || mark["run"] != "7" {
-		t.Fatalf("Markierung unvollständig: %s", got)
+		t.Fatalf("mark incomplete: %s", got)
 	}
 	if _, ok := mark["task"]; ok {
-		t.Fatalf("ohne Auftrag darf kein task-Schlüssel entstehen: %s", got)
+		t.Fatalf("without a work order no task key may appear: %s", got)
 	}
 }
 
-// Zeilen, die kein JSON-Objekt sind, lässt der Adapter bewusst durch. Sie
-// dürfen weder verändert noch als markiert gemeldet werden — sonst gälte der
-// Auftrag als untergebracht, obwohl ihn niemand trägt.
+// Lines that are not JSON objects are deliberately passed through by the
+// adapter. They must neither be altered nor reported as marked — otherwise the
+// work order would count as placed although nobody carries it.
 func TestMarkSubAgentPassesNonObjects(t *testing.T) {
 	for _, line := range []string{"kein json", `["liste"]`, `null`} {
 		got, stamped := markSubAgent(json.RawMessage(line), "/repo", "1", "Auftrag")
 		if stamped || string(got) != line {
-			t.Fatalf("%q muss unverändert und unmarkiert durchgehen, war %q (stamped=%v)", line, got, stamped)
+			t.Fatalf("%q must pass through unchanged and unmarked, was %q (stamped=%v)", line, got, stamped)
 		}
 	}
 }
 
-// Der Arbeitsauftrag ist die Überschrift des Sub-Laufs in der Timeline. Er
-// steht deshalb in der Marke — gekürzt, weil er dort nur betiteln soll.
+// The work order is the sub-run's heading in the timeline. That is why it sits
+// in the mark — shortened, because there it is only meant to title.
 func TestMarkSubAgentCarriesTask(t *testing.T) {
 	got, _ := markSubAgent(json.RawMessage(`{"type":"system","subtype":"init"}`), "/repo", "1", "  Nullpointer beheben  ")
 	if task := subAgentMarkOf(t, got)["task"]; task != "Nullpointer beheben" {
-		t.Fatalf("Auftrag muss getrimmt in der Marke stehen: %s", got)
+		t.Fatalf("the work order must appear trimmed in the mark: %s", got)
 	}
 
-	// Lange Aufträge werden rune-sicher gekürzt — kein halbes Zeichen, keine
-	// Timeline, die am Auftragstext erstickt.
+	// Long orders are shortened rune-safely — no half character, no timeline
+	// choking on the order text.
 	got, _ = markSubAgent(json.RawMessage(`{"type":"system"}`), "/repo", "1", strings.Repeat("ä", maxMarkedTask+50))
 	task, _ := subAgentMarkOf(t, got)["task"].(string)
 	if r := []rune(task); len(r) != maxMarkedTask+1 || r[len(r)-1] != '…' {
-		t.Fatalf("Auftrag muss auf %d Runen plus Auslassung gekürzt werden, war %d", maxMarkedTask, len([]rune(task)))
+		t.Fatalf("the work order must be shortened to %d runes plus an ellipsis, was %d", maxMarkedTask, len([]rune(task)))
 	}
 }
 
-// Der Kern der Auszeichnung: dir und run stehen auf JEDER Zeile eines Laufs —
-// daran erkennt die Timeline seine Zeilen, auch wenn ein zweiter Sub-Lauf
-// dazwischenfunkt. Der Auftrag dagegen steht genau einmal, sonst ginge er mit
-// seiner Länge × Zeilenzahl in die Aufzeichnung.
+// The core of the marking: dir and run stand on EVERY line of a run — that is
+// how the timeline recognizes its lines, even when a second sub-run cuts in. The
+// work order, by contrast, appears exactly once, otherwise it would enter the
+// recording with its length × the number of lines.
 func TestSubAgentStamperGivesTaskOnce(t *testing.T) {
 	stamp := subAgentStamper("/repo", "3", "Nullpointer beheben")
 
-	// Eine Nicht-JSON-Zeile zuerst: Sie darf den Auftrag nicht aufbrauchen.
+	// A non-JSON line first: it must not use up the work order.
 	if got := stamp(json.RawMessage("Warnung aus dem Wrapper")); string(got) != "Warnung aus dem Wrapper" {
-		t.Fatalf("Nicht-JSON muss unverändert durchgehen: %s", got)
+		t.Fatalf("non-JSON must pass through unchanged: %s", got)
 	}
 
 	var withTask int
 	for i := range 3 {
 		mark := subAgentMarkOf(t, stamp(json.RawMessage(`{"type":"assistant"}`)))
 		if mark["dir"] != "/repo" || mark["run"] != "3" {
-			t.Fatalf("Zeile %d ohne vollständige Lauf-Kennung: %v", i, mark)
+			t.Fatalf("line %d without a complete run identifier: %v", i, mark)
 		}
 		if _, ok := mark["task"]; ok {
 			withTask++
 		}
 	}
 	if withTask != 1 {
-		t.Fatalf("genau eine Zeile trägt den Auftrag, waren %d", withTask)
+		t.Fatalf("exactly one line carries the work order, there were %d", withTask)
 	}
 }
 
-// Zwei Sub-Läufe desselben Daemons müssen unterscheidbare Kennungen bekommen —
-// sonst verschmelzen sie in der Timeline zu einem Block.
+// Two sub-runs of the same daemon must get distinguishable identifiers —
+// otherwise they merge into one block in the timeline.
 func TestSubAgentRunsAreDistinct(t *testing.T) {
 	bin, home := fakeClaude(t, `cat <<'EOF'
 {"type":"result","subtype":"success","session_id":"s","result":"fertig"}
@@ -235,17 +235,17 @@ EOF`)
 		t.Fatal(err)
 	}
 	if c.subRuns.Load() == first {
-		t.Fatal("jeder Sub-Lauf braucht eine eigene Kennung")
+		t.Fatal("every sub-run needs an identifier of its own")
 	}
 }
 
-// gitRepo legt ein leeres Repository an und überspringt den Test, wenn kein
-// git verfügbar ist (wie TestCheckoutGitBaseline im gitlab-Paket).
+// gitRepo creates an empty repository and skips the test if no git is available
+// (like TestCheckoutGitBaseline in the gitlab package).
 func gitRepo(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	if err := exec.Command("git", "-C", dir, "init", "-q").Run(); err != nil {
-		t.Skipf("kein git verfügbar: %v", err)
+		t.Skipf("no git available: %v", err)
 	}
 	return dir
 }
@@ -253,7 +253,8 @@ func gitRepo(t *testing.T) string {
 func runGit(t *testing.T, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
-	// Identität als ENV statt via git config — wie initGitBaseline im Checkout.
+	// Identity as ENV instead of via git config — like initGitBaseline in the
+	// checkout.
 	cmd.Env = append(os.Environ(),
 		"GIT_AUTHOR_NAME=Covey", "GIT_AUTHOR_EMAIL=covey@localhost",
 		"GIT_COMMITTER_NAME=Covey", "GIT_COMMITTER_EMAIL=covey@localhost")
@@ -269,12 +270,12 @@ func writeFile(t *testing.T, dir, name, content string) {
 	}
 }
 
-// Am Turn-Limit meldet der Adapter Status "incomplete" plus den Übergabe-Stand
-// statt eines Ergebnisses. Der Sub-Lauf muss das als turns_exhausted
-// durchreichen — sonst hält der beauftragende Agent die halbe Arbeit für fertig.
+// At the turn limit the adapter reports status "incomplete" plus the handover
+// state instead of a result. The sub-run must pass that on as turns_exhausted —
+// otherwise the commissioning agent takes half-finished work for finished.
 func TestSubAgentReportsTurnLimit(t *testing.T) {
-	// Erster Lauf endet am Turn-Limit; den Übergabe-Stand holt der Adapter
-	// danach per --resume aus derselben Session.
+	// The first run ends at the turn limit; the adapter then fetches the
+	// handover state via --resume from the same session.
 	bin, home := fakeClaude(t, `
 if printf '%s\n' "$@" | grep -q -- '--resume'; then
 cat <<'EOF'
@@ -293,20 +294,20 @@ fi`)
 		t.Fatal(err)
 	}
 	if !res.TurnsExhausted {
-		t.Fatalf("Turn-Limit muss als turns_exhausted ankommen: %+v", res)
+		t.Fatalf("the turn limit must arrive as turns_exhausted: %+v", res)
 	}
 	if !strings.Contains(res.Result, "Erledigt") {
-		t.Fatalf("Übergabe-Stand muss im Bericht stehen: %+v", res)
+		t.Fatalf("the handover state must appear in the report: %+v", res)
 	}
 }
 
-// Der Sub-Lauf ist hermetisch: kein COVEY_ACTION_PORT, also kein Weg zu
-// Zielsystemen — und auch nicht über die Hintertür der Daemon-Umgebung. Sie
-// enthält COVEY_WS_URL und COVEY_DAEMON_TOKEN; damit könnte ein Hook oder
-// MCP-Server aus dem Repo eine eigene WebSocket zur Control Plane öffnen und
-// selbst `request_credential` schicken, also genau die gebrokerten Zugänge
-// erreichen, die der fehlende Action-Proxy fernhält. Der gebrokerte LLM-Key
-// muss dagegen ankommen, sonst läuft die Runtime nicht.
+// The sub-run is hermetic: no COVEY_ACTION_PORT, hence no route to target
+// systems — and none through the back door of the daemon environment either. It
+// contains COVEY_WS_URL and COVEY_DAEMON_TOKEN; with those a hook or MCP server
+// from the repo could open its own WebSocket to the control plane and send
+// `request_credential` itself, reaching exactly the brokered accesses that the
+// missing action proxy keeps away. The brokered LLM key, by contrast, must
+// arrive, otherwise the runtime does not run.
 func TestSubAgentEnvIsHermetic(t *testing.T) {
 	t.Setenv("COVEY_DAEMON_TOKEN", "daemon-jwt-geheim")
 	t.Setenv("COVEY_WS_URL", "wss://covey.example/api/daemon/ws")
@@ -330,20 +331,20 @@ EOF`)
 		t.Fatal(err)
 	}
 	if !strings.HasPrefix(string(got), "port= ") {
-		t.Fatalf("Sub-Lauf darf keinen Action-Proxy sehen: %q", got)
+		t.Fatalf("the sub-run must not see an action proxy: %q", got)
 	}
 	if !strings.Contains(string(got), "sk-ant-api-geheim") {
-		t.Fatalf("gebrokerter LLM-Key fehlt: %q", got)
+		t.Fatalf("brokered LLM key missing: %q", got)
 	}
 	if !strings.Contains(string(got), "token= ws=") {
-		t.Fatalf("Zugangsdaten des Daemons dürfen nicht in den Sub-Lauf erben: %q", got)
+		t.Fatalf("the daemon's credentials must not be inherited into the sub-run: %q", got)
 	}
 }
 
-// Ein Sub-Lauf je Checkout. Zwei parallele Läufe im selben Verzeichnis
-// schrieben sich gegenseitig die Dateien um und meldeten beide denselben
-// kumulativen Stand — der beauftragende Agent bekäme zwei Berichte über eine
-// vermischte Arbeit. Verschiedene Verzeichnisse bleiben parallel möglich.
+// One sub-run per checkout. Two parallel runs in the same directory overwrote
+// each other's files and both reported the same cumulative state — the
+// commissioning agent would get two reports about one blended piece of work.
+// Different directories remain possible in parallel.
 func TestSubAgentOnePerDir(t *testing.T) {
 	bin, home := fakeClaude(t, `
 cat <<'EOF'
@@ -356,26 +357,26 @@ EOF`)
 		t.Fatal(err)
 	}
 
-	// Belegt, wie es ein noch laufender Sub-Agent hinterlässt.
+	// Occupied, as a still running sub-agent would leave it.
 	if err := c.claimSubAgentDir(home); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := c.runSubAgent(t.Context(), "task-1", target.SubAgentRequest{Dir: home, Task: "x"}); err == nil {
-		t.Fatal("zweiter Auftrag im selben Checkout muss abgelehnt werden")
+		t.Fatal("a second order in the same checkout must be rejected")
 	}
 	if _, err := c.runSubAgent(t.Context(), "task-1", target.SubAgentRequest{Dir: other, Task: "x"}); err != nil {
-		t.Fatalf("ein anderer Checkout ist davon nicht betroffen: %v", err)
+		t.Fatalf("another checkout is not affected by it: %v", err)
 	}
-	// Nach dem Bericht ist das Verzeichnis wieder frei.
+	// After the report the directory is free again.
 	c.releaseSubAgentDir(home)
 	if _, err := c.runSubAgent(t.Context(), "task-1", target.SubAgentRequest{Dir: home, Task: "x"}); err != nil {
-		t.Fatalf("nach Abschluss muss derselbe Checkout wieder gehen: %v", err)
+		t.Fatalf("after completion the same checkout must work again: %v", err)
 	}
 }
 
-// Ein cwd, das es nicht gibt, scheitert mit einer Meldung im Stil der anderen
-// Validierungen — nicht erst am chdir des Subprozesses („claude starten:
-// chdir …"), was dem Agenten nichts über seinen Fehler sagt.
+// A cwd that does not exist fails with a message in the style of the other
+// validations — not only at the subprocess's chdir ("starting claude: chdir …"),
+// which tells the agent nothing about its mistake.
 func TestSubAgentRejectsMissingDir(t *testing.T) {
 	bin, home := fakeClaude(t, `
 cat <<'EOF'
@@ -386,7 +387,7 @@ EOF`)
 
 	_, err := c.runSubAgent(t.Context(), "task-1",
 		target.SubAgentRequest{Dir: "repos/gibts-nicht", Task: "x"})
-	if err == nil || !strings.Contains(err.Error(), "checkout-Ergebnis") {
-		t.Fatalf("fehlendes cwd muss vorab abgelehnt werden, war: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "checkout result") {
+		t.Fatalf("a missing cwd must be rejected up front, was: %v", err)
 	}
 }

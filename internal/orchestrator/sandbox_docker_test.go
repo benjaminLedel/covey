@@ -17,11 +17,11 @@ func TestRewriteLoopbackForDocker(t *testing.T) {
 		"ws://127.0.0.1:8494/api/daemon/ws": "ws://host.docker.internal:8494/api/daemon/ws",
 		"ws://[::1]:8494/api/daemon/ws":     "ws://host.docker.internal:8494/api/daemon/ws",
 		"ws://localhost/api/daemon/ws":      "ws://host.docker.internal/api/daemon/ws",
-		// Echte Hostnamen bleiben unangetastet. Das ist die richtige Wahl —
-		// raten kann die Funktion hier nichts —, aber es ist auch die Stelle,
-		// an der eine falsch gesetzte COVEY_PUBLIC_URL ungebremst durchgeht:
-		// Die Sandbox wählt dann über das offene Netz zurück. Beim Start warnt
-		// deshalb config.DataPlaneWarnings davor.
+		// Real hostnames stay untouched. That is the right call — the function
+		// cannot guess here — but it is also the spot where a misconfigured
+		// COVEY_PUBLIC_URL passes through unchecked: the sandbox then dials back
+		// over the open network. config.DataPlaneWarnings warns about that at
+		// startup for exactly this reason.
 		"wss://covey.example.com/api/daemon/ws": "wss://covey.example.com/api/daemon/ws",
 		"ws://10.0.0.5:8494/api/daemon/ws":      "ws://10.0.0.5:8494/api/daemon/ws",
 	}
@@ -32,11 +32,11 @@ func TestRewriteLoopbackForDocker(t *testing.T) {
 	}
 }
 
-// TestDockerProviderStart prüft die Kommandozeile, die der Provider baut —
-// gegen ein Fake-docker-Binary, ohne echtes Docker.
+// TestDockerProviderStart checks the command line the provider builds —
+// against a fake docker binary, without real Docker.
 func TestDockerProviderStart(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("Fake-Binary ist ein Shell-Skript")
+		t.Skip("the fake binary is a shell script")
 	}
 	dir := t.TempDir()
 	argsFile := filepath.Join(dir, "args")
@@ -74,16 +74,16 @@ func TestDockerProviderStart(t *testing.T) {
 		"covey-sandbox:test",
 	} {
 		if !strings.Contains(got, want) {
-			t.Errorf("docker-Aufruf enthält %q nicht:\n%s", want, got)
+			t.Errorf("docker invocation does not contain %q:\n%s", want, got)
 		}
 	}
-	// Das Agenten-Home muss auf dem Host existieren und gemountet werden.
+	// The agent home has to exist on the host and be mounted.
 	home := filepath.Join(dir, "homes", agentID.String())
 	if _, err := os.Stat(home); err != nil {
-		t.Errorf("Agenten-Home %s wurde nicht angelegt: %v", home, err)
+		t.Errorf("agent home %s was not created: %v", home, err)
 	}
 	if !strings.Contains(got, home+":"+sandboxHome) {
-		t.Errorf("Volume-Mount %s:%s fehlt:\n%s", home, sandboxHome, got)
+		t.Errorf("volume mount %s:%s is missing:\n%s", home, sandboxHome, got)
 	}
 
 	if err := sb.Stop(context.Background()); err != nil {

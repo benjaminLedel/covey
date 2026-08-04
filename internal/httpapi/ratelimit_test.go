@@ -10,58 +10,59 @@ func TestLoginLimiter(t *testing.T) {
 	now := time.Now()
 	key := "1.2.3.4|user@example.com"
 
-	// Bis maxFails-1 Fehlversuche: noch nicht gesperrt.
+	// Up to maxFails-1 failed attempts: not yet blocked.
 	for i := 0; i < l.maxFails-1; i++ {
 		if l.blocked(key, now) {
-			t.Fatalf("nach %d Fehlversuchen fälschlich gesperrt", i)
+			t.Fatalf("wrongly blocked after %d failed attempts", i)
 		}
 		l.fail(key, now)
 	}
-	// Der maxFails-te Fehlversuch kippt in den gesperrten Zustand.
+	// The maxFails-th failed attempt tips it into the blocked state.
 	if l.blocked(key, now) {
-		t.Fatalf("vor dem letzten Fehlversuch bereits gesperrt")
+		t.Fatalf("already blocked before the last failed attempt")
 	}
 	l.fail(key, now)
 	if !l.blocked(key, now) {
-		t.Fatalf("nach %d Fehlversuchen nicht gesperrt", l.maxFails)
+		t.Fatalf("not blocked after %d failed attempts", l.maxFails)
 	}
 
-	// Erfolgreicher Login räumt den Schlüssel ab.
+	// A successful login clears the key.
 	l.reset(key)
 	if l.blocked(key, now) {
-		t.Fatalf("nach reset noch gesperrt")
+		t.Fatalf("still blocked after reset")
 	}
 
-	// Alte Versuche fallen aus dem Fenster.
+	// Old attempts drop out of the window.
 	for i := 0; i < l.maxFails; i++ {
 		l.fail(key, now)
 	}
 	if !l.blocked(key, now) {
-		t.Fatalf("erwartete Sperre")
+		t.Fatalf("expected a block")
 	}
 	if l.blocked(key, now.Add(l.window+time.Second)) {
-		t.Fatalf("Sperre nach Ablauf des Fensters nicht aufgehoben")
+		t.Fatalf("block not lifted after the window expired")
 	}
 }
 
 func TestLoginLimiterKeyIsolation(t *testing.T) {
 	l := newLoginLimiter()
 	now := time.Now()
-	// Verschiedene E-Mails von derselben IP sind unabhängig gedeckelt, damit
-	// ein Konto-Bruteforce nicht andere Konten (bzw. ein NAT-Büro) aussperrt.
+	// Different emails from the same IP are capped independently, so that a
+	// brute force against one account does not lock out other accounts (or a
+	// whole office behind a NAT).
 	for i := 0; i < l.maxFails; i++ {
 		l.fail("1.2.3.4|a@example.com", now)
 	}
 	if !l.blocked("1.2.3.4|a@example.com", now) {
-		t.Fatalf("Konto a sollte gesperrt sein")
+		t.Fatalf("account a should be blocked")
 	}
 	if l.blocked("1.2.3.4|b@example.com", now) {
-		t.Fatalf("Konto b darf nicht mitgesperrt werden")
+		t.Fatalf("account b must not be blocked along with it")
 	}
 }
 
-// Der Webhook-Limiter deckelt die Weckrate EINES Agenten. Anders als beim
-// Login zählt jeder Aufruf, auch der erfolgreiche — der ist ja der teure.
+// The webhook limiter caps the wake rate of ONE agent. Unlike the login, every
+// call counts, including the successful one — that is the expensive one.
 func TestWebhookLimiter(t *testing.T) {
 	l := newWebhookLimiter()
 	l.maxHits, l.window = 3, time.Minute
@@ -69,27 +70,27 @@ func TestWebhookLimiter(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		if !l.allow("agent-a", jetzt) {
-			t.Fatalf("Aufruf %d muss durchgehen", i+1)
+			t.Fatalf("call %d must get through", i+1)
 		}
 	}
 	if l.allow("agent-a", jetzt) {
-		t.Error("der vierte Aufruf im Fenster muss abgewiesen werden")
+		t.Error("the fourth call within the window must be rejected")
 	}
 
-	// Ein anderer Agent ist davon unberührt — sonst legte ein einziges
-	// überaktives Zielsystem die ganze Belegschaft still.
+	// Another agent is untouched by it — otherwise a single overactive target
+	// system would shut down the whole workforce.
 	if !l.allow("agent-b", jetzt) {
-		t.Error("ein anderer Agent darf nicht mitgesperrt werden")
+		t.Error("another agent must not be blocked along with it")
 	}
 
-	// Nach dem Fenster geht es weiter.
+	// After the window it continues.
 	if !l.allow("agent-a", jetzt.Add(61*time.Second)) {
-		t.Error("nach Ablauf des Fensters muss wieder zugestellt werden können")
+		t.Error("delivery must be possible again once the window has expired")
 	}
 }
 
-// Die Map darf nicht unbegrenzt wachsen: Wer wechselnde Agenten-Namen
-// durchprobiert, legte sonst je Name einen Eintrag an.
+// The map must not grow without bound: whoever tries out changing agent names
+// would otherwise create one entry per name.
 func TestWebhookLimiterRaeumtAuf(t *testing.T) {
 	l := newWebhookLimiter()
 	l.window = time.Minute
@@ -102,6 +103,6 @@ func TestWebhookLimiterRaeumtAuf(t *testing.T) {
 	groesse := len(l.hits)
 	l.mu.Unlock()
 	if groesse > 10000 {
-		t.Errorf("Map wächst unbegrenzt: %d Einträge", groesse)
+		t.Errorf("map grows without bound: %d entries", groesse)
 	}
 }

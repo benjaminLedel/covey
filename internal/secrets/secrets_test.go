@@ -8,11 +8,11 @@ func TestPreview(t *testing.T) {
 		value string
 		want  string
 	}{
-		{"leer", "", ""},
-		{"kurz bleibt maskiert", "short_pin123", ""},       // genau 12 → maskiert
-		{"ab 13 Zeichen Präfix", "sk_live_abcdef", "sk_l"}, // > 12 → erste 4
-		{"langer Token", "sk-ant-0123456789", "sk-a"},
-		{"multibyte sauber", "äöüßabcdefghij", "äöüß"}, // 14 Runen → erste 4 Runen
+		{"empty", "", ""},
+		{"short stays masked", "short_pin123", ""},              // exactly 12 → masked
+		{"prefix from 13 characters", "sk_live_abcdef", "sk_l"}, // > 12 → first 4
+		{"long token", "sk-ant-0123456789", "sk-a"},
+		{"multibyte clean", "äöüßabcdefghij", "äöüß"}, // 14 runes → first 4 runes
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

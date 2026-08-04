@@ -7,15 +7,15 @@ import (
 	"unicode/utf8"
 )
 
-// TestTruncationRuneSafe: lange Umlaut-Texte dürfen nicht mitten in einem Rune
-// geschnitten werden (sonst landet ungültiges UTF-8 im Prompt/Titel).
+// TestTruncationRuneSafe: long umlaut texts must not be cut in the middle of a
+// rune (otherwise invalid UTF-8 ends up in the prompt/title).
 func TestTruncationRuneSafe(t *testing.T) {
-	long := strings.Repeat("ä", 900) // 900 Runes = 1800 Bytes
+	long := strings.Repeat("ä", 900) // 900 runes = 1800 bytes
 	if got := FormatForPrompt([]Entry{{Title: "T", Slug: "s", Content: long}}); !utf8.ValidString(got) {
-		t.Fatalf("FormatForPrompt liefert ungültiges UTF-8")
+		t.Fatalf("FormatForPrompt returns invalid UTF-8")
 	}
 	if got := deriveTitle(long); !utf8.ValidString(got) || utf8.RuneCountInString(got) > 80 {
-		t.Fatalf("deriveTitle: ungültiges UTF-8 oder zu lang: %d Runes", utf8.RuneCountInString(got))
+		t.Fatalf("deriveTitle: invalid UTF-8 or too long: %d runes", utf8.RuneCountInString(got))
 	}
 }
 
@@ -28,7 +28,7 @@ func TestExtractLinks(t *testing.T) {
 		t.Fatalf("extractLinks = %v, want %v", got, want)
 	}
 	if got := extractLinks("keine links hier"); len(got) != 0 {
-		t.Fatalf("ohne Links → leer, got %v", got)
+		t.Fatalf("without links → empty, got %v", got)
 	}
 }
 
@@ -48,15 +48,15 @@ func TestSlugify(t *testing.T) {
 
 func TestFormatIndexForPrompt(t *testing.T) {
 	if got := FormatIndexForPrompt(nil); got != "" {
-		t.Fatalf("leerer Index → leerer String, got %q", got)
+		t.Fatalf("empty index → empty string, got %q", got)
 	}
 	got := FormatIndexForPrompt([]Entry{
 		{Slug: "kunde-acme", Title: "Kunde ACME"},
 		{Slug: "projekt-x", Title: "Projekt X"},
 	})
-	for _, want := range []string{"Dein Wiki (Index)", "- [[kunde-acme]] — Kunde ACME", "- [[projekt-x]] — Projekt X"} {
+	for _, want := range []string{"Your wiki (index)", "- [[kunde-acme]] — Kunde ACME", "- [[projekt-x]] — Projekt X"} {
 		if !strings.Contains(got, want) {
-			t.Fatalf("Index enthält %q nicht: %q", want, got)
+			t.Fatalf("index does not contain %q: %q", want, got)
 		}
 	}
 }
@@ -65,69 +65,69 @@ func TestUnionSlugs(t *testing.T) {
 	got := unionSlugs([]string{"a", "b"}, []string{"b", "c"}, nil, []string{"", "c", "d"})
 	want := []string{"a", "b", "c", "d"}
 	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("unionSlugs = %v, want %v (dedup, Reihenfolge, kein Leerstring)", got, want)
+		t.Fatalf("unionSlugs = %v, want %v (dedup, order, no empty string)", got, want)
 	}
 	if got := unionSlugs(); len(got) != 0 {
-		t.Fatalf("ohne Eingabe → leer (nicht nil-Panic), got %v", got)
+		t.Fatalf("without input → empty (not a nil panic), got %v", got)
 	}
 }
 
 func TestDeriveTitle(t *testing.T) {
 	if got := deriveTitle("Kunde ACME reagiert nur telefonisch. Rest egal."); got != "Kunde ACME reagiert nur telefonisch" {
-		t.Fatalf("deriveTitle Satzgrenze: %q", got)
+		t.Fatalf("deriveTitle sentence boundary: %q", got)
 	}
 	long := "Dies ist ein sehr langer Satz ohne Satzzeichen der weit über achtzig Zeichen hinausgeht und gekürzt werden muss"
 	if got := deriveTitle(long); utf8.RuneCountInString(got) > 80 {
-		t.Fatalf("deriveTitle muss auf 80 Zeichen kürzen, got %d: %q", utf8.RuneCountInString(got), got)
+		t.Fatalf("deriveTitle must truncate to 80 characters, got %d: %q", utf8.RuneCountInString(got), got)
 	}
-	// Punkt in einer Domain darf den Titel nicht zum 1-Wort-Fragment zerhacken.
+	// A dot inside a domain must not chop the title down to a one-word fragment.
 	if got := deriveTitle("x.educa-portal.de ist ein LMS-Demo-System der Digital Learning GmbH. Rest egal."); got != "x.educa-portal.de ist ein LMS-Demo-System der Digital Learning GmbH" {
-		t.Fatalf("deriveTitle Domain-Punkt: %q", got)
+		t.Fatalf("deriveTitle domain dot: %q", got)
 	}
-	// Abkürzung mit Punkt-vor-Buchstabe bricht ebenfalls nicht.
+	// An abbreviation with a letter in front of the dot does not break it either.
 	if got := deriveTitle("Antwort z.B. per Mail geht schneller als telefonisch. Ende."); got != "Antwort z.B. per Mail geht schneller als telefonisch" {
-		t.Fatalf("deriveTitle Abkürzung: %q", got)
+		t.Fatalf("deriveTitle abbreviation: %q", got)
 	}
-	// Auch die gesperrte Abkürzung "z. B." ist kein Satzende — daraus wurde am
-	// echten Bestand der Titel "Zugesagte Rückmeldungen (z".
+	// The spaced-out abbreviation "z. B." is no sentence end either — on the real
+	// corpus it produced the title "Zugesagte Rückmeldungen (z".
 	got := deriveTitle("Zugesagte Rückmeldungen (z. B. 'ich melde mich') erst nach Prüfung ins Wiki schreiben.")
 	if strings.HasSuffix(got, "(z") {
-		t.Fatalf("an der Abkürzung abgeschnitten: %q", got)
+		t.Fatalf("cut off at the abbreviation: %q", got)
 	}
 	if !strings.HasPrefix(got, "Zugesagte Rückmeldungen (z. B.") {
-		t.Fatalf("deriveTitle gesperrte Abkürzung: %q", got)
+		t.Fatalf("deriveTitle spaced-out abbreviation: %q", got)
 	}
 }
 
-// TestIsEpisodicTitle: der Befund "Tagebuch-Titel" hängt an der Kappungsgrenze
-// von deriveTitle — ein Titel, der sie erreicht, ist ein abgeschnittener Satz.
-// Beispiele aus dem echten Bestand.
+// TestIsEpisodicTitle: the "diary title" finding hangs off deriveTitle's
+// truncation limit — a title that reaches it is a cut-off sentence. Examples
+// taken from the real corpus.
 func TestIsEpisodicTitle(t *testing.T) {
 	episodic := []string{
-		// Auf 80 Zeichen gekappt → per Konstruktion auto-erzeugt.
+		// Capped at 80 characters → auto-generated by construction.
 		"educa-ai-web (148), Stand 30.07.2026 11:00 UTC: alpha hat neue Deps und der Buil",
 		"CI-Muster: MR-Pipelines von brunhilde.tatkraeftig in educa/educa laufen erst nach",
-		// Vollständiges Datum benennt einen Vorgang, keine Sache.
+		// A full date names an event, not a thing.
 		"Umstellung am 12.03.2026",
 	}
 	for _, s := range episodic {
 		if !isEpisodicTitle(s) {
-			t.Errorf("sollte als Tagebuch-Titel gelten (%d Zeichen): %q", utf8.RuneCountInString(s), s)
+			t.Errorf("should count as a diary title (%d characters): %q", utf8.RuneCountInString(s), s)
 		}
 	}
-	// Brauchbare Namen dürfen NICHT anschlagen — ein Befund, der fast alles
-	// markiert, sagt niemandem mehr, wo anzufassen ist.
+	// Usable names must NOT trigger — a finding that flags almost everything no
+	// longer tells anybody where to intervene.
 	fine := []string{
 		"Kunde ACME",
 		"In educa lms ist der Hauptbranch educa-x-bugfix",
 		"educa-ai-web (148): Review-/Merge-Wege meiner MRs",
-		"Sandbox: PHP 8.2 vorhanden — Laravel-Queries ohne das educa-Repo pruefen",
-		// Versionsnummern sind keine Daten.
+		"Sandbox: PHP 8.2 existing — Laravel-Queries ohne das educa-Repo pruefen",
+		// Version numbers are not dates.
 		"gpt_markdown 1.1.8: Emphase-Opener-Guard ist verdreht",
 	}
 	for _, s := range fine {
 		if isEpisodicTitle(s) {
-			t.Errorf("kein Tagebuch-Titel (%d Zeichen): %q", utf8.RuneCountInString(s), s)
+			t.Errorf("not a diary title (%d characters): %q", utf8.RuneCountInString(s), s)
 		}
 	}
 }

@@ -5,19 +5,19 @@ import (
 	"testing"
 )
 
-// Die Zustandsmaschine der Aufgabe ist der Kern des Backlogs — und war bisher
-// nur mittelbar geprüft: Der Durchstich in internal/integration lief zufällig
-// über einige Übergänge, hielt aber keinen einzigen davon fest. Wer
-// validTransitions umbaut, bekam von den Tests kein Wort dazu.
+// The state machine of a task is the core of the backlog — and until now it was
+// only checked indirectly: the end-to-end run in internal/integration happened
+// to pass through a few transitions, but pinned down not a single one of them.
+// Whoever rebuilt validTransitions got no word about it from the tests.
 //
-// Diese Tabelle ist deshalb bewusst in einer ANDEREN Form geschrieben als der
-// Produktivcode (dort eine map[string][]string, hier ein Raster). Eine Kopie
-// derselben Datenstruktur würde jede Änderung stillschweigend mitmachen; ein
-// Raster muss man lesen und bewusst umstellen. Nebenbei sieht man die
-// Maschine zum ersten Mal am Stück.
+// This table is therefore deliberately written in a DIFFERENT shape than the
+// production code (a map[string][]string there, a grid here). A copy of the same
+// data structure would silently follow every change; a grid has to be read and
+// deliberately rearranged. As a side effect, one sees the machine in one piece
+// for the first time.
 //
-// Zeile = Ausgangszustand, Spalte = Zielzustand, x = erlaubt.
-const uebergangsRaster = `
+// Row = source state, column = target state, x = allowed.
+const transitionGrid = `
               open in_progress blocked done failed cancelled
 open           .        x         .      .     .        x
 in_progress    x        .         x      x     x        x
@@ -27,114 +27,114 @@ failed         x        .         .      .     .        .
 cancelled      x        .         .      .     .        .
 `
 
-// parseRaster macht aus dem Raster die Menge der erlaubten Paare.
-func parseRaster(t *testing.T) (spalten []string, erlaubt map[[2]string]bool) {
+// parseGrid turns the grid into the set of allowed pairs.
+func parseGrid(t *testing.T) (columns []string, allowed map[[2]string]bool) {
 	t.Helper()
-	zeilen := []string{}
-	for _, z := range strings.Split(strings.TrimSpace(uebergangsRaster), "\n") {
-		if strings.TrimSpace(z) != "" {
-			zeilen = append(zeilen, z)
+	lines := []string{}
+	for _, l := range strings.Split(strings.TrimSpace(transitionGrid), "\n") {
+		if strings.TrimSpace(l) != "" {
+			lines = append(lines, l)
 		}
 	}
-	spalten = strings.Fields(zeilen[0])
-	erlaubt = map[[2]string]bool{}
-	for _, z := range zeilen[1:] {
-		f := strings.Fields(z)
-		if len(f) != len(spalten)+1 {
-			t.Fatalf("rasterzeile %q hat %d felder, erwartet %d", z, len(f), len(spalten)+1)
+	columns = strings.Fields(lines[0])
+	allowed = map[[2]string]bool{}
+	for _, l := range lines[1:] {
+		f := strings.Fields(l)
+		if len(f) != len(columns)+1 {
+			t.Fatalf("grid row %q has %d fields, expected %d", l, len(f), len(columns)+1)
 		}
-		von := f[0]
-		for i, zelle := range f[1:] {
-			if zelle == "x" {
-				erlaubt[[2]string{von, spalten[i]}] = true
+		from := f[0]
+		for i, cell := range f[1:] {
+			if cell == "x" {
+				allowed[[2]string{from, columns[i]}] = true
 			}
 		}
 	}
-	return spalten, erlaubt
+	return columns, allowed
 }
 
-// TestUebergangsMatrix prüft JEDE Kombination — auch die verbotenen. Ein Test,
-// der nur die erlaubten Wege abgeht, merkt nicht, wenn versehentlich ein
-// weiterer dazukommt.
-func TestUebergangsMatrix(t *testing.T) {
-	spalten, erlaubt := parseRaster(t)
+// TestTransitionMatrix checks EVERY combination — the forbidden ones too. A
+// test that only walks the allowed paths does not notice when another one is
+// added by accident.
+func TestTransitionMatrix(t *testing.T) {
+	columns, allowed := parseGrid(t)
 
-	// Das Raster muss alle Zustände kennen, die der Code kennt — sonst prüft
-	// es einen Ausschnitt und behauptet, es sei die ganze Maschine.
-	alle := []string{StateOpen, StateInProgress, StateBlocked, StateDone, StateFailed, StateCancelled}
-	if len(spalten) != len(alle) {
-		t.Fatalf("raster kennt %d zustände, der code %d", len(spalten), len(alle))
+	// The grid must know all the states the code knows — otherwise it checks a
+	// section and claims to be the whole machine.
+	all := []string{StateOpen, StateInProgress, StateBlocked, StateDone, StateFailed, StateCancelled}
+	if len(columns) != len(all) {
+		t.Fatalf("the grid knows %d states, the code %d", len(columns), len(all))
 	}
-	for i, s := range alle {
-		if spalten[i] != s {
-			t.Fatalf("spalte %d ist %q, erwartet %q", i, spalten[i], s)
+	for i, s := range all {
+		if columns[i] != s {
+			t.Fatalf("column %d is %q, expected %q", i, columns[i], s)
 		}
 	}
 
-	for _, von := range alle {
-		for _, nach := range alle {
-			want := erlaubt[[2]string{von, nach}]
-			if got := transitionAllowed(von, nach); got != want {
-				t.Errorf("%s → %s: transitionAllowed=%v, laut Raster %v", von, nach, got, want)
+	for _, from := range all {
+		for _, to := range all {
+			want := allowed[[2]string{from, to}]
+			if got := transitionAllowed(from, to); got != want {
+				t.Errorf("%s → %s: transitionAllowed=%v, per grid %v", from, to, got, want)
 			}
 		}
 	}
 }
 
-// Die Eigenschaften hinter der Tabelle — sie überleben auch eine bewusste
-// Umstellung des Rasters und sagen, WARUM die Maschine so aussieht.
-func TestUebergangsEigenschaften(t *testing.T) {
-	// „done" ist die einzige Sackgasse: Erledigtes wird nicht wieder aufgemacht.
-	// Fehlgeschlagenes (Retry) und Verworfenes (Wiederaufnahme) dagegen schon.
-	for _, nach := range []string{StateOpen, StateInProgress, StateBlocked, StateFailed, StateCancelled} {
-		if transitionAllowed(StateDone, nach) {
-			t.Errorf("aus done darf kein weg herausführen, gefunden: done → %s", nach)
+// The properties behind the table — they survive even a deliberate rearranging
+// of the grid and say WHY the machine looks the way it does.
+func TestTransitionProperties(t *testing.T) {
+	// "done" is the only dead end: what is completed is not reopened. What
+	// failed (retry) or was discarded (resumption), on the other hand, is.
+	for _, to := range []string{StateOpen, StateInProgress, StateBlocked, StateFailed, StateCancelled} {
+		if transitionAllowed(StateDone, to) {
+			t.Errorf("no way may lead out of done, found: done → %s", to)
 		}
 	}
-	for _, von := range []string{StateFailed, StateCancelled} {
-		if !transitionAllowed(von, StateOpen) {
-			t.Errorf("%s muss sich wieder öffnen lassen (Retry bzw. Wiederaufnahme)", von)
-		}
-	}
-
-	// In Arbeit geht ein Lauf NUR aus dem Backlog heraus: open ist der einzige
-	// Vorzustand von in_progress. Sonst könnte ein zweiter Lauf eine wartende
-	// Aufgabe an sich reißen.
-	for _, von := range []string{StateInProgress, StateBlocked, StateDone, StateFailed, StateCancelled} {
-		if transitionAllowed(von, StateInProgress) {
-			t.Errorf("nur open darf nach in_progress führen, gefunden: %s → in_progress", von)
+	for _, from := range []string{StateFailed, StateCancelled} {
+		if !transitionAllowed(from, StateOpen) {
+			t.Errorf("%s must be openable again (retry resp. resumption)", from)
 		}
 	}
 
-	// Abbrechen geht aus jedem nicht-terminalen Zustand — der Kill-Switch darf
-	// an keiner Stelle auflaufen.
-	for _, von := range []string{StateOpen, StateInProgress, StateBlocked} {
-		if !transitionAllowed(von, StateCancelled) {
-			t.Errorf("aus %s muss sich abbrechen lassen", von)
+	// A run goes into progress ONLY out of the backlog: open is the only
+	// predecessor of in_progress. Otherwise a second run could tear a waiting
+	// task away.
+	for _, from := range []string{StateInProgress, StateBlocked, StateDone, StateFailed, StateCancelled} {
+		if transitionAllowed(from, StateInProgress) {
+			t.Errorf("only open may lead to in_progress, found: %s → in_progress", from)
 		}
 	}
 
-	// Kein Zustand führt zu sich selbst: ein Übergang ist eine Änderung.
+	// Cancelling works from every non-terminal state — the kill switch must not
+	// run into a wall anywhere.
+	for _, from := range []string{StateOpen, StateInProgress, StateBlocked} {
+		if !transitionAllowed(from, StateCancelled) {
+			t.Errorf("it must be possible to cancel out of %s", from)
+		}
+	}
+
+	// No state leads to itself: a transition is a change.
 	for _, s := range []string{StateOpen, StateInProgress, StateBlocked, StateDone, StateFailed, StateCancelled} {
 		if transitionAllowed(s, s) {
-			t.Errorf("%s → %s (auf sich selbst) darf nicht erlaubt sein", s, s)
+			t.Errorf("%s → %s (onto itself) must not be allowed", s, s)
 		}
 	}
 }
 
-// Unbekannte Zustände sind kein Sonderfall, sondern schlicht nicht erlaubt —
-// fail-closed. Käme aus der Datenbank je ein Wert, den der Code nicht kennt,
-// wäre jeder Übergang gesperrt statt jeder erlaubt.
-func TestUnbekannteZustaende(t *testing.T) {
-	for _, paar := range [][2]string{
-		{"quatsch", StateOpen},
-		{StateOpen, "quatsch"},
+// Unknown states are not a special case, they are simply not allowed —
+// fail-closed. Should a value the code does not know ever come out of the
+// database, every transition would be barred instead of every one allowed.
+func TestUnknownStates(t *testing.T) {
+	for _, pair := range [][2]string{
+		{"nonsense", StateOpen},
+		{StateOpen, "nonsense"},
 		{"", StateOpen},
 		{StateOpen, ""},
-		{"OPEN", StateInProgress}, // Groß-/Kleinschreibung zählt
+		{"OPEN", StateInProgress}, // capitalization counts
 	} {
-		if transitionAllowed(paar[0], paar[1]) {
-			t.Errorf("%q → %q darf nicht erlaubt sein", paar[0], paar[1])
+		if transitionAllowed(pair[0], pair[1]) {
+			t.Errorf("%q → %q must not be allowed", pair[0], pair[1])
 		}
 	}
 }
@@ -146,20 +146,20 @@ func TestTerminalState(t *testing.T) {
 	}
 	for s, want := range terminal {
 		if got := terminalState(s); got != want {
-			t.Errorf("terminalState(%q)=%v, erwartet %v", s, got, want)
+			t.Errorf("terminalState(%q)=%v, expected %v", s, got, want)
 		}
 	}
-	if terminalState("quatsch") {
-		t.Error("ein unbekannter zustand ist nicht terminal")
+	if terminalState("nonsense") {
+		t.Error("an unknown state is not terminal")
 	}
 }
 
-// Jeder terminale Zustand hat eine Spalte auf dem Board, sonst bliebe eine
-// erledigte Aufgabe dort liegen, wo sie zuletzt stand (siehe syncStage).
-func TestTerminaleZustaendeHabenEineSpalte(t *testing.T) {
+// Every terminal state has a column on the board, otherwise a completed task
+// would stay lying where it last stood (see syncStage).
+func TestTerminalStatesHaveAStage(t *testing.T) {
 	for _, s := range []string{StateDone, StateFailed, StateCancelled} {
 		if stateStage[s] == "" {
-			t.Errorf("terminaler zustand %q hat keine Ziel-Spalte in stateStage", s)
+			t.Errorf("terminal state %q has no target column in stateStage", s)
 		}
 	}
 }

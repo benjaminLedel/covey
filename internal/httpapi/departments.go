@@ -11,7 +11,7 @@ import (
 	"covey/internal/org"
 )
 
-// deptColorRe erlaubt leere Farbe (Standard) oder 6-stelliges Hex.
+// deptColorRe allows an empty color (the default) or 6-digit hex.
 var deptColorRe = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
 func (s *Server) handleListDepartments(w http.ResponseWriter, r *http.Request) {
@@ -35,11 +35,11 @@ func (s *Server) handleCreateDepartment(w http.ResponseWriter, r *http.Request) 
 		Color       string `json:"color"`
 	}
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
 	}
 	if in.Color != "" && !deptColorRe.MatchString(in.Color) {
-		writeErr(w, http.StatusBadRequest, "ungültige farbe (erwartet #rrggbb)")
+		writeErr(w, http.StatusBadRequest, "invalid color (expected #rrggbb)")
 		return
 	}
 	d, err := s.Org.CreateDepartment(r.Context(), p.OrgID, in.Name, in.Description, in.Color)
@@ -53,7 +53,7 @@ func (s *Server) handleCreateDepartment(w http.ResponseWriter, r *http.Request) 
 func (s *Server) handleSetDepartmentColor(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	p := principalFrom(r)
@@ -61,11 +61,11 @@ func (s *Server) handleSetDepartmentColor(w http.ResponseWriter, r *http.Request
 		Color string `json:"color"`
 	}
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
 	}
 	if in.Color != "" && !deptColorRe.MatchString(in.Color) {
-		writeErr(w, http.StatusBadRequest, "ungültige farbe (erwartet #rrggbb)")
+		writeErr(w, http.StatusBadRequest, "invalid color (expected #rrggbb)")
 		return
 	}
 	if err := s.Org.SetDepartmentColor(r.Context(), p.OrgID, id, in.Color); err != nil {
@@ -78,7 +78,7 @@ func (s *Server) handleSetDepartmentColor(w http.ResponseWriter, r *http.Request
 func (s *Server) handleRenameDepartment(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	p := principalFrom(r)
@@ -86,12 +86,12 @@ func (s *Server) handleRenameDepartment(w http.ResponseWriter, r *http.Request) 
 		Name string `json:"name"`
 	}
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
 	}
 	if err := s.Org.RenameDepartment(r.Context(), p.OrgID, id, in.Name); err != nil {
 		if errors.Is(err, org.ErrDeptNotFound) {
-			writeErr(w, http.StatusNotFound, "nicht gefunden")
+			writeErr(w, http.StatusNotFound, "not found")
 			return
 		}
 		writeErr(w, http.StatusBadRequest, err.Error())
@@ -103,13 +103,13 @@ func (s *Server) handleRenameDepartment(w http.ResponseWriter, r *http.Request) 
 func (s *Server) handleDeleteDepartment(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	p := principalFrom(r)
 	if err := s.Org.DeleteDepartment(r.Context(), p.OrgID, id); err != nil {
 		if errors.Is(err, org.ErrDeptNotFound) {
-			writeErr(w, http.StatusNotFound, "nicht gefunden")
+			writeErr(w, http.StatusNotFound, "not found")
 			return
 		}
 		mapErr(w, err)
@@ -118,12 +118,12 @@ func (s *Server) handleDeleteDepartment(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// handleAddDepartmentLead nimmt ein Mitglied (Mensch oder Agent) in die
-// Leitung einer Abteilung auf — eine Abteilung kann mehrere Leitungen haben.
+// handleAddDepartmentLead takes a member (human or agent) into the leadership
+// of a department — a department can have several leads.
 func (s *Server) handleAddDepartmentLead(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	p := principalFrom(r)
@@ -132,16 +132,16 @@ func (s *Server) handleAddDepartmentLead(w http.ResponseWriter, r *http.Request)
 		MemberID string `json:"member_id"`
 	}
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
 	}
 	if in.Kind != "human" && in.Kind != "agent" {
-		writeErr(w, http.StatusBadRequest, "kind muss human oder agent sein")
+		writeErr(w, http.StatusBadRequest, "kind must be human or agent")
 		return
 	}
 	memberID, err := uuid.Parse(in.MemberID)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige member_id")
+		writeErr(w, http.StatusBadRequest, "invalid member_id")
 		return
 	}
 	if err := s.Org.AddDepartmentLead(r.Context(), p.OrgID, id, in.Kind, memberID); err != nil {
@@ -154,12 +154,12 @@ func (s *Server) handleAddDepartmentLead(w http.ResponseWriter, r *http.Request)
 func (s *Server) handleRemoveDepartmentLead(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	memberID, err := uuid.Parse(r.PathValue("member"))
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige member-id")
+		writeErr(w, http.StatusBadRequest, "invalid member id")
 		return
 	}
 	p := principalFrom(r)
@@ -173,7 +173,7 @@ func (s *Server) handleRemoveDepartmentLead(w http.ResponseWriter, r *http.Reque
 func (s *Server) handleSetAgentDepartment(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	p := principalFrom(r)
@@ -181,19 +181,19 @@ func (s *Server) handleSetAgentDepartment(w http.ResponseWriter, r *http.Request
 		DepartmentID string `json:"department_id"`
 	}
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
 	}
 	var deptID *uuid.UUID
 	if in.DepartmentID != "" {
 		did, err := uuid.Parse(in.DepartmentID)
 		if err != nil {
-			writeErr(w, http.StatusBadRequest, "ungültige department_id")
+			writeErr(w, http.StatusBadRequest, "invalid department_id")
 			return
 		}
 		if _, err := s.Org.GetDepartment(r.Context(), p.OrgID, did); err != nil {
 			if errors.Is(err, org.ErrDeptNotFound) {
-				writeErr(w, http.StatusNotFound, "abteilung nicht gefunden")
+				writeErr(w, http.StatusNotFound, "department not found")
 				return
 			}
 			mapErr(w, err)
@@ -203,7 +203,7 @@ func (s *Server) handleSetAgentDepartment(w http.ResponseWriter, r *http.Request
 	}
 	if err := s.Registry.SetDepartment(r.Context(), id, deptID); err != nil {
 		if errors.Is(err, agents.ErrNotFound) {
-			writeErr(w, http.StatusNotFound, "nicht gefunden")
+			writeErr(w, http.StatusNotFound, "not found")
 			return
 		}
 		mapErr(w, err)
@@ -215,7 +215,7 @@ func (s *Server) handleSetAgentDepartment(w http.ResponseWriter, r *http.Request
 func (s *Server) handleSetHumanDepartment(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	p := principalFrom(r)
@@ -223,19 +223,19 @@ func (s *Server) handleSetHumanDepartment(w http.ResponseWriter, r *http.Request
 		DepartmentID string `json:"department_id"`
 	}
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
 	}
 	var deptID *uuid.UUID
 	if in.DepartmentID != "" {
 		did, err := uuid.Parse(in.DepartmentID)
 		if err != nil {
-			writeErr(w, http.StatusBadRequest, "ungültige department_id")
+			writeErr(w, http.StatusBadRequest, "invalid department_id")
 			return
 		}
 		if _, err := s.Org.GetDepartment(r.Context(), p.OrgID, did); err != nil {
 			if errors.Is(err, org.ErrDeptNotFound) {
-				writeErr(w, http.StatusNotFound, "abteilung nicht gefunden")
+				writeErr(w, http.StatusNotFound, "department not found")
 				return
 			}
 			mapErr(w, err)

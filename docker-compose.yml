@@ -11,7 +11,7 @@
 #
 # Sandbox-Isolation: Default ist COVEY_SANDBOX_PROVIDER=local (Prozess-Isolation
 # im covey-Container) — perfekt zum Ausprobieren. Für echte Container-Isolation
-# siehe docs/schnellstart-docker.md.
+# siehe docs/quickstart-docker.md.
 
 # Gemeinsame Basis für bootstrap + covey (gleiches Image, gleiche Config).
 x-covey-base: &covey-base

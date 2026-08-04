@@ -12,14 +12,14 @@ import (
 	"strings"
 )
 
-// Die Home-Arbeitskopie des Wikis (spec/05, hybride Speicherung): Die Control
-// Plane ist die Quelle der Wahrheit, aber die Seiten werden zu Aufgabenbeginn
-// als echte Markdown-Dateien unter ~/wiki/ materialisiert, damit der Agent sie
-// mit normalen Datei-Tools (Read/Grep/Edit) lesen und bearbeiten kann. Direkt
-// bearbeitete oder neu angelegte Seiten fließen bei Aufgabenende zurück.
+// The home working copy of the wiki (spec/05, hybrid storage): the control
+// plane is the source of truth, but the pages are materialized as real Markdown
+// files under ~/wiki/ at the start of a task, so the agent can read and edit
+// them with ordinary file tools (Read/Grep/Edit). Pages edited directly or
+// newly created flow back when the task ends.
 
-// wikiPage ist die Daemon-lokale Sicht auf eine Wiki-Seite (das Paket daemon
-// kennt den Control-Plane-Store nicht — Schichtentrennung).
+// wikiPage is the daemon-local view of a wiki page (the daemon package does not
+// know the control plane's store — layer separation).
 type wikiPage struct {
 	Slug  string   `json:"slug"`
 	Title string   `json:"title"`
@@ -29,25 +29,26 @@ type wikiPage struct {
 	Tags  []string `json:"tags"`
 }
 
-const wikiReadme = `Dies ist dein Wiki — dein dauerhaftes Gedächtnis (spec/05).
+const wikiReadme = `This is your wiki — your durable memory (spec/05).
 
-Jede .md-Datei ist eine Seite über GENAU EINE Sache: einen Kunden, ein Projekt,
-einen Kollegen, ein System, ein wiederkehrendes Problem. Kein Tagebuch — was nur
-zu einer einzelnen Aufgabe gehört, ist eine Notiz, keine Seite.
+Every .md file is a page about EXACTLY ONE thing: a customer, a project, a
+colleague, a system, a recurring problem. Not a diary — whatever belongs to a
+single task only is a note, not a page.
 
-Kopf jeder Seite:
+The head of every page:
 
     ---
-    title: Kunde ACME
+    title: Customer ACME
     type: kunde
-    tags: abrechnung, eskalation
+    tags: billing, escalation
     ---
 
-type ist eines von: kunde, projekt, system, person, problem, thema.
-Verweise mit [[slug]] auf andere Seiten — die Verlinkung IST das Gedächtnis.
+type is one of: kunde, projekt, system, person, problem, thema.
+Refer to other pages with [[slug]] — the linking IS the memory.
 
-Du kannst hier direkt lesen und schreiben; Änderungen werden bei Aufgabenende
-in die Control Plane übernommen. Alternativ die Tools covey/wiki_read|write|append.
+You can read and write here directly; changes are taken over into the control
+plane when the task ends. Alternatively use the tools
+covey/wiki_read|write|append.
 `
 
 func wikiHash(title, body string) string {
@@ -55,15 +56,14 @@ func wikiHash(title, body string) string {
 	return hex.EncodeToString(sum[:8])
 }
 
-// writeWikiFiles materialisiert die Seiten als ~/wiki/<slug>.md (mit Titel-
-// Frontmatter) samt index.md und legt das Verzeichnis auch bei null Seiten an,
-// damit der Agent dort neue Seiten anlegen kann. Rückgabe: slug→Hash-Snapshot
-// zur späteren Änderungserkennung.
+// writeWikiFiles materializes the pages as ~/wiki/<slug>.md (with title
+// frontmatter) plus index.md, and creates the directory even when there are zero
+// pages so the agent can add new ones there. Returns: slug→hash snapshot for
+// detecting changes later.
 //
-// Seiten, die es in der Control Plane nicht mehr gibt, werden dabei aus dem
-// Home entfernt: die Control Plane ist die Quelle der Wahrheit, und eine
-// liegengebliebene Datei würde eine gelöschte oder verschmolzene Seite beim
-// nächsten Rücksync wieder auferstehen lassen.
+// Pages that no longer exist in the control plane are removed from the home in
+// the process: the control plane is the source of truth, and a leftover file
+// would resurrect a deleted or merged page at the next sync-back.
 func writeWikiFiles(dir string, pages []wikiPage) (map[string]string, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, err
@@ -79,15 +79,15 @@ func writeWikiFiles(dir string, pages []wikiPage) (map[string]string, error) {
 		snap[p.Slug] = wikiHash(p.Title, p.Body)
 	}
 	pruneWikiOrphans(dir, snap)
-	// index.md + README (sind selbst keine Seiten und werden nie zurückgesynct).
-	// Nach Typ gruppiert — so sieht der Agent beim Nachschlagen sofort, welche
-	// Entitäten er schon führt, statt nur eine alphabetische Halde.
+	// index.md + README (they are not pages themselves and are never synced
+	// back). Grouped by type — that way the agent sees at a glance which
+	// entities it already keeps, instead of just an alphabetical heap.
 	sorted := append([]wikiPage(nil), pages...)
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Slug < sorted[j].Slug })
 	var idx strings.Builder
-	idx.WriteString("# Wiki-Index\n\n")
+	idx.WriteString("# Wiki index\n\n")
 	if len(sorted) == 0 {
-		idx.WriteString("_(noch leer)_\n")
+		idx.WriteString("_(still empty)_\n")
 	}
 	for _, group := range []string{"kunde", "projekt", "system", "person", "problem", "thema", ""} {
 		var section []wikiPage
@@ -101,7 +101,7 @@ func writeWikiFiles(dir string, pages []wikiPage) (map[string]string, error) {
 		}
 		heading := group
 		if heading == "" {
-			heading = "ohne Typ — bitte einordnen"
+			heading = "no type — please categorize"
 		}
 		idx.WriteString("\n## " + heading + "\n\n")
 		for _, p := range section {
@@ -117,9 +117,9 @@ func writeWikiFiles(dir string, pages []wikiPage) (map[string]string, error) {
 	return snap, nil
 }
 
-// pruneWikiOrphans löscht Home-Dateien, zu denen es in der Control Plane keine
-// Seite (mehr) gibt. Best-effort: scheitert ein Remove, bleibt die Datei liegen
-// — der Rücksync fängt den Fall über den Live-Abgleich zusätzlich ab.
+// pruneWikiOrphans deletes home files for which the control plane has no page
+// (any more). Best-effort: if a remove fails, the file stays — the sync-back
+// additionally catches that case through its live comparison.
 func pruneWikiOrphans(dir string, live map[string]string) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -136,9 +136,9 @@ func pruneWikiOrphans(dir string, live map[string]string) {
 	}
 }
 
-// renderWikiFile schreibt eine Seite als Markdown mit Frontmatter. Typ und Tags
-// stehen nur da, wenn es sie gibt — eine leere `type:`-Zeile lädt dazu ein, sie
-// mit irgendetwas zu füllen.
+// renderWikiFile writes a page as Markdown with frontmatter. Type and tags only
+// appear if they exist — an empty `type:` line invites filling it with just
+// anything.
 func renderWikiFile(p wikiPage) string {
 	var b strings.Builder
 	b.WriteString("---\ntitle: ")
@@ -156,9 +156,9 @@ func renderWikiFile(p wikiPage) string {
 	return b.String()
 }
 
-// parseWikiFile trennt das Frontmatter vom Body. Gelesen werden title, type und
-// tags — bis hierher fiel alles außer title unter den Tisch, weshalb ein Agent
-// eine Seite gar nicht einordnen konnte, selbst wenn er es versuchte.
+// parseWikiFile separates the frontmatter from the body. Read are title, type
+// and tags — until now everything but the title fell by the wayside, which is
+// why an agent could not categorize a page at all, even when it tried.
 func parseWikiFile(content string) (p wikiPage) {
 	if !strings.HasPrefix(content, "---\n") {
 		return wikiPage{Body: content}
@@ -177,7 +177,7 @@ func parseWikiFile(content string) (p wikiPage) {
 			p.Type = strings.ToLower(strings.TrimSpace(strings.TrimPrefix(line, "type:")))
 		case strings.HasPrefix(line, "tags:"):
 			for _, t := range strings.Split(strings.TrimPrefix(line, "tags:"), ",") {
-				// YAML-Listenform "- tag" genauso annehmen wie "a, b".
+				// Accept the YAML list form "- tag" just like "a, b".
 				if t = strings.TrimSpace(strings.Trim(strings.TrimSpace(t), "[]-\"'")); t != "" {
 					p.Tags = append(p.Tags, t)
 				}
@@ -187,9 +187,9 @@ func parseWikiFile(content string) (p wikiPage) {
 	return p
 }
 
-// readWikiEdits liest die Home-Kopie und liefert die Seiten, die der Agent
-// gegenüber dem Snapshot geändert oder neu angelegt hat (index.md/README.txt
-// ausgenommen). Löschungen werden bewusst nicht zurückgespielt (fail-safe).
+// readWikiEdits reads the home copy and returns the pages the agent changed or
+// newly created relative to the snapshot (index.md/README.txt excluded).
+// Deletions are deliberately not played back (fail-safe).
 func readWikiEdits(dir string, snap map[string]string) ([]wikiPage, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -214,7 +214,7 @@ func readWikiEdits(dir string, snap map[string]string) ([]wikiPage, error) {
 			continue
 		}
 		if snap[slug] == wikiHash(pg.Title, pg.Body) {
-			continue // unverändert
+			continue // unchanged
 		}
 		pg.Slug = slug
 		out = append(out, pg)
@@ -223,7 +223,7 @@ func readWikiEdits(dir string, snap map[string]string) ([]wikiPage, error) {
 	return out, nil
 }
 
-// listWikiPages holt die aktuelle Seitenliste der Control Plane.
+// listWikiPages fetches the control plane's current page list.
 func (c *Client) listWikiPages(ctx context.Context) ([]wikiPage, bool) {
 	resp, err := c.wiki(ctx, RequestWiki{Op: "list"})
 	if err != nil || !resp.OK {
@@ -236,9 +236,9 @@ func (c *Client) listWikiPages(ctx context.Context) ([]wikiPage, bool) {
 	return pages, true
 }
 
-// materializeWiki holt alle Seiten von der Control Plane und schreibt die
-// Home-Arbeitskopie. Best-effort: schlägt der Abruf fehl, wird nicht angefasst
-// (nil-Snapshot → kein Zurücksynchronisieren, um nichts zu überschreiben).
+// materializeWiki fetches all pages from the control plane and writes the home
+// working copy. Best-effort: if the fetch fails, nothing is touched (nil
+// snapshot → no sync-back, so that nothing gets overwritten).
 func (c *Client) materializeWiki(ctx context.Context) map[string]string {
 	if c.homeDir == "" {
 		return nil
@@ -249,21 +249,21 @@ func (c *Client) materializeWiki(ctx context.Context) map[string]string {
 	}
 	snap, err := writeWikiFiles(filepath.Join(c.homeDir, "wiki"), pages)
 	if err != nil {
-		c.log.Warn("wiki-arbeitskopie konnte nicht geschrieben werden", "err", err)
+		c.log.Warn("wiki working copy could not be written", "err", err)
 		return nil
 	}
 	return snap
 }
 
-// partitionWikiEdits trennt echte Änderungen von Karteileichen. Eine Seite, die
-// zu Aufgabenbeginn existierte (steht im Snapshot) und in der Control Plane
-// inzwischen fehlt, wurde während des Laufs gelöscht oder verschmolzen — ihre
-// Home-Datei darf sie NICHT wieder auferstehen lassen, sonst macht der Rücksync
-// die Aufräumarbeit des Agenten im selben Lauf zunichte (spec/05).
+// partitionWikiEdits separates real changes from dead entries. A page that
+// existed at the start of the task (it is in the snapshot) and is meanwhile
+// missing in the control plane was deleted or merged during the run — its home
+// file must NOT resurrect it, otherwise the sync-back would undo the agent's own
+// cleanup within the same run (spec/05).
 //
-// Seiten, die der Snapshot nicht kennt, sind im Lauf neu entstanden und werden
-// geschrieben. Ist die Live-Liste nicht abrufbar (haveLive=false), gilt der
-// fail-safe Weg: lieber zu viel schreiben als eine neue Seite verlieren.
+// Pages the snapshot does not know were created during the run and are written.
+// If the live list is not retrievable (haveLive=false), the fail-safe path
+// applies: better to write too much than to lose a new page.
 func partitionWikiEdits(edits []wikiPage, snap map[string]string, live map[string]bool, haveLive bool) (writes []wikiPage, stale []string) {
 	for _, p := range edits {
 		_, known := snap[p.Slug]
@@ -276,8 +276,8 @@ func partitionWikiEdits(edits []wikiPage, snap map[string]string, live map[strin
 	return writes, stale
 }
 
-// syncWikiBack spielt vom Agenten geänderte/neu angelegte Seiten in die Control
-// Plane zurück (spec/05). Best-effort.
+// syncWikiBack plays pages changed/newly created by the agent back into the
+// control plane (spec/05). Best-effort.
 func (c *Client) syncWikiBack(ctx context.Context, snap map[string]string) {
 	if c.homeDir == "" || snap == nil {
 		return
@@ -285,7 +285,7 @@ func (c *Client) syncWikiBack(ctx context.Context, snap map[string]string) {
 	dir := filepath.Join(c.homeDir, "wiki")
 	edits, err := readWikiEdits(dir, snap)
 	if err != nil {
-		c.log.Warn("wiki-arbeitskopie konnte nicht gelesen werden", "err", err)
+		c.log.Warn("wiki working copy could not be read", "err", err)
 		return
 	}
 	if len(edits) == 0 {
@@ -299,15 +299,15 @@ func (c *Client) syncWikiBack(ctx context.Context, snap map[string]string) {
 	writes, stale := partitionWikiEdits(edits, snap, live, haveLive)
 	for _, slug := range stale {
 		_ = os.Remove(filepath.Join(dir, slug+".md"))
-		c.log.Info("wiki: im Lauf gelöschte Seite nicht zurückgeschrieben", "slug", slug)
+		c.log.Info("wiki: page deleted during the run was not written back", "slug", slug)
 	}
 	for _, p := range writes {
 		if _, err := c.wiki(ctx, RequestWiki{Op: "write", Slug: p.Slug, Title: p.Title,
 			Body: p.Body, Type: p.Type, Tags: p.Tags}); err != nil {
-			c.log.Warn("wiki-seite konnte nicht zurückgesynct werden", "slug", p.Slug, "err", err)
+			c.log.Warn("wiki page could not be synced back", "slug", p.Slug, "err", err)
 		}
 	}
 	if len(writes) > 0 {
-		c.log.Info(fmt.Sprintf("wiki: %d Seite(n) aus der Home-Kopie übernommen", len(writes)))
+		c.log.Info(fmt.Sprintf("wiki: took over %d page(s) from the home copy", len(writes)))
 	}
 }

@@ -1,6 +1,6 @@
-// Package gitlab bindet GitLab als Zielsystem-Plugin an (analog spec/13 für
-// Zammad): REST-Client (API v4) für die Agent-Aktionen und Webhook-Verarbeitung
-// (Token-verifiziert, idempotent). Einheit der Arbeit ist das Issue.
+// Package gitlab binds GitLab in as a target-system plugin (analogous to
+// spec/13 for Zammad): a REST client (API v4) for the agent actions and webhook
+// processing (token-verified, idempotent). The unit of work is the issue.
 package gitlab
 
 import (
@@ -20,8 +20,8 @@ import (
 	"covey/internal/reqlog"
 )
 
-// Client spricht die GitLab-REST-API (v4) mit einem (gebrokerten) API-Token.
-// Das Token kommt pro Aufruf aus dem SecretStore — es wird nie persistiert.
+// Client speaks the GitLab REST API (v4) with a (brokered) API token. The token
+// comes from the SecretStore per call — it is never persisted.
 type Client struct {
 	BaseURL string
 	Token   string
@@ -80,27 +80,27 @@ type Issue struct {
 	State       string   `json:"state"`
 	Labels      []string `json:"labels"`
 	WebURL      string   `json:"web_url"`
-	// Assignees macht die Zuweisung für den Agenten sichtbar — Playbooks wie
-	// „bearbeite nur dir zugewiesene Issues" brauchen diese Information.
+	// Assignees makes the assignment visible to the agent — playbooks such as
+	// "only work on issues assigned to you" need this information.
 	Assignees []struct {
 		Username string `json:"username"`
 	} `json:"assignees"`
-	// Milestone ordnet das Issue einem Vorhaben zu (Release, Ausschreibung,
-	// Sprint). Ein Agent, der ein ganzes Vorhaben führt, braucht den Titel, um
-	// zu erkennen, was zu seinem Auftrag gehört; GitLab liefert null, wenn das
-	// Issue keinem Meilenstein zugeordnet ist.
+	// Milestone attaches the issue to an undertaking (a release, a tender, a
+	// sprint). An agent running a whole undertaking needs the title to recognise
+	// what belongs to its assignment; GitLab returns null when the issue is
+	// attached to no milestone.
 	Milestone *struct {
 		Title   string `json:"title"`
 		DueDate string `json:"due_date"`
 		State   string `json:"state"`
 	} `json:"milestone"`
-	// Author ist der Melder: Wer den Bedarf aufgeschrieben hat, ist der
-	// natürliche Empfänger des Merge Requests, der ihn erledigt.
+	// Author is the reporter: whoever wrote the need down is the natural
+	// recipient of the merge request that settles it.
 	Author struct {
 		Username string `json:"username"`
 	} `json:"author"`
-	// References.Full ist die volle Referenz "gruppe/projekt#iid" — daraus
-	// lässt sich der Projektpfad für den Intake-Filter ableiten.
+	// References.Full is the full reference "group/project#iid" — the project
+	// path for the intake filter can be derived from it.
 	References struct {
 		Full string `json:"full"`
 	} `json:"references"`
@@ -124,9 +124,9 @@ type Note struct {
 	CreatedAt string `json:"created_at"`
 }
 
-// ListProjects — GET /projects?membership=true: alle Projekte, in denen der
-// Bot-Nutzer Mitglied ist. Der Einstieg für Agenten, die ihre project_ids
-// noch nicht kennen.
+// ListProjects — GET /projects?membership=true: all projects in which the bot
+// user is a member. The entry point for agents that do not yet know their
+// project_ids.
 func (c *Client) ListProjects(ctx context.Context) ([]Project, error) {
 	var out []Project
 	err := c.do(ctx, http.MethodGet,
@@ -134,13 +134,13 @@ func (c *Client) ListProjects(ctx context.Context) ([]Project, error) {
 	return out, err
 }
 
-// ListIssues findet Issues — mit projectID über GET /projects/{id}/issues,
-// ohne (projectID=0) über das globale GET /issues mit scope=all: alle Issues,
-// die das Token sehen darf. state ist "opened" (Default), "closed" oder "all";
-// labels (kommasepariert), search und milestone (Meilenstein-TITEL, wie er in
-// GitLab steht) schränken optional ein. assigned=true liefert nur Issues, die
-// dem Bot-Nutzer des Tokens zugewiesen sind (scope=assigned_to_me) — für
-// Agenten, die laut Playbook nur ihre eigene Zuweisung bearbeiten.
+// ListIssues finds issues — with projectID through GET /projects/{id}/issues,
+// without one (projectID=0) through the global GET /issues with scope=all: all
+// issues the token may see. state is "opened" (the default), "closed" or "all";
+// labels (comma-separated), search and milestone (the milestone TITLE as it
+// stands in GitLab) narrow it optionally. assigned=true returns only issues
+// assigned to the token's bot user (scope=assigned_to_me) — for agents that,
+// according to their playbook, only work on their own assignment.
 func (c *Client) ListIssues(ctx context.Context, projectID int, state, labels, search, milestone string, assigned bool) ([]Issue, error) {
 	q := url.Values{}
 	if state == "" {
@@ -181,11 +181,11 @@ func (c *Client) GetIssue(ctx context.Context, projectID, issueIID int) (Issue, 
 	return i, err
 }
 
-// CreateIssue — POST /projects/{id}/issues: legt ein neues Issue (Ticket) an.
-// Für den Intake von Bug-Reports, die NICHT aus GitLab selbst kommen (z. B. per
-// E-Mail gemeldet) — der Agent überführt die Meldung in ein nachverfolgbares
-// Ticket. title ist Pflicht; description (Markdown), labels (kommagetrennt) und
-// assignee (User-ID, 0 = keine Zuweisung) sind optional.
+// CreateIssue — POST /projects/{id}/issues: files a new issue (ticket). For the
+// intake of bug reports that do NOT come from GitLab itself (reported by email,
+// say) — the agent turns the report into a traceable ticket. title is
+// mandatory; description (Markdown), labels (comma-separated) and assignee (a
+// user id, 0 = no assignment) are optional.
 func (c *Client) CreateIssue(ctx context.Context, projectID int, title, description, labels string, assigneeID int) (Issue, error) {
 	body := map[string]any{"title": title}
 	if description != "" {
@@ -202,7 +202,7 @@ func (c *Client) CreateIssue(ctx context.Context, projectID int, title, descript
 	return out, err
 }
 
-// ListNotes — GET /projects/{id}/issues/{iid}/notes (chronologisch)
+// ListNotes — GET /projects/{id}/issues/{iid}/notes (chronological)
 func (c *Client) ListNotes(ctx context.Context, projectID, issueIID int) ([]Note, error) {
 	var out []Note
 	err := c.do(ctx, http.MethodGet,
@@ -210,9 +210,9 @@ func (c *Client) ListNotes(ctx context.Context, projectID, issueIID int) ([]Note
 	return out, err
 }
 
-// Comment — POST /projects/{id}/issues/{iid}/notes. internal=true ist eine
-// interne Notiz (nur für Projektmitglieder ab Reporter sichtbar), internal=false
-// ein öffentlicher Kommentar — auch für externe Reporter sichtbar.
+// Comment — POST /projects/{id}/issues/{iid}/notes. internal=true is an
+// internal note (visible only to project members from reporter upwards),
+// internal=false a public comment — visible to external reporters too.
 func (c *Client) Comment(ctx context.Context, projectID, issueIID int, body string, internal bool) (Note, error) {
 	var out Note
 	err := c.do(ctx, http.MethodPost, fmt.Sprintf("/projects/%d/issues/%d/notes", projectID, issueIID),
@@ -220,12 +220,11 @@ func (c *Client) Comment(ctx context.Context, projectID, issueIID int, body stri
 	return out, err
 }
 
-// DownloadArchive streamt das Repository-Archiv (tar.gz) —
-// GET /projects/{id}/repository/archive.tar.gz, optional auf einen Ref
-// (Branch, Tag, SHA) und ein Unterverzeichnis (subPath) eingeschränkt —
-// Letzteres macht große Repos per Teil-Checkout handhabbar. Bewusst nicht
-// über do(): der Body ist binär und kann groß sein; der Aufrufer schließt
-// den Reader.
+// DownloadArchive streams the repository archive (tar.gz) —
+// GET /projects/{id}/repository/archive.tar.gz, optionally narrowed to a ref
+// (branch, tag, SHA) and a subdirectory (subPath) — the latter makes large
+// repos manageable through a partial checkout. Deliberately not routed through
+// do(): the body is binary and can be large; the caller closes the reader.
 func (c *Client) DownloadArchive(ctx context.Context, projectID int, ref, subPath string) (io.ReadCloser, error) {
 	path := fmt.Sprintf("/projects/%d/repository/archive.tar.gz", projectID)
 	q := url.Values{}
@@ -243,8 +242,8 @@ func (c *Client) DownloadArchive(ctx context.Context, projectID int, ref, subPat
 		return nil, err
 	}
 	req.Header.Set("PRIVATE-TOKEN", c.Token)
-	// Eigener HTTP-Client ohne das knappe API-Timeout — der Download eines
-	// großen Repos darf länger dauern; die Grenze setzt der Aufruf-Context.
+	// A separate HTTP client without the tight API timeout — downloading a large
+	// repo may take longer; the limit is set by the call's context.
 	resp, err := reqlog.Client("gitlab", 0).Do(req)
 	if err != nil {
 		return nil, err
@@ -257,28 +256,28 @@ func (c *Client) DownloadArchive(ctx context.Context, projectID int, ref, subPat
 	return resp.Body, nil
 }
 
-// uploadRefRE zerlegt eine GitLab-Upload-Referenz in <secret>/<dateiname>.
-// GitLab bettet in Markdown angehängte Bilder als /uploads/<32-hex>/<name>
-// ein — projekt-relativ. Der Match funktioniert auf dem nackten Pfad
-// (/uploads/…), auf der vollen Web-URL (…/gruppe/projekt/uploads/…) und auf
-// der schon zerlegten Form <secret>/<name>.
+// uploadRefRE splits a GitLab upload reference into <secret>/<filename>.
+// GitLab embeds images attached in Markdown as /uploads/<32-hex>/<name> —
+// project-relative. The match works on the bare path (/uploads/…), on the full
+// web URL (…/group/project/uploads/…) and on the already split form
+// <secret>/<name>.
 var uploadRefRE = regexp.MustCompile(`([0-9a-fA-F]{32})/([^/?#\s]+)$`)
 
-// maxUploadBytes begrenzt einen einzelnen heruntergeladenen Upload — ein
-// Screenshot ist klein, ein versehentlich verlinktes Riesen-Asset soll die
-// Sandbox nicht fluten.
+// maxUploadBytes caps a single downloaded upload — a screenshot is small, an
+// accidentally linked huge asset should not flood the sandbox.
 const maxUploadBytes = 25 << 20 // 25 MB
 
-// DownloadUpload lädt einen an ein Issue/MR angehängten Upload (Screenshot)
-// gebrokert herunter — GET /projects/{id}/uploads/{secret}/{filename}. Wie
-// DownloadArchive läuft er am JSON-do() vorbei (der Body ist binär), das Token
-// bleibt im Daemon. ref ist die Referenz aus dem Markdown: der nackte Pfad
-// "/uploads/<secret>/<datei>", die volle Web-URL oder schon "<secret>/<datei>".
-// Rückgabe: Dateiname, Content-Type und der Reader (vom Aufrufer zu schließen).
+// DownloadUpload downloads an upload attached to an issue/MR (a screenshot) in
+// brokered fashion — GET /projects/{id}/uploads/{secret}/{filename}. Like
+// DownloadArchive it goes past the JSON do() (the body is binary), the token
+// stays in the daemon. ref is the reference from the Markdown: the bare path
+// "/uploads/<secret>/<file>", the full web URL or already "<secret>/<file>".
+// Returns: the file name, the content type and the reader (to be closed by the
+// caller).
 func (c *Client) DownloadUpload(ctx context.Context, projectID int, ref string) (filename, contentType string, body io.ReadCloser, err error) {
 	m := uploadRefRE.FindStringSubmatch(strings.TrimSpace(ref))
 	if m == nil {
-		return "", "", nil, fmt.Errorf("keine gültige Upload-Referenz in %q — erwartet /uploads/<secret>/<datei> aus der Issue-Beschreibung", ref)
+		return "", "", nil, fmt.Errorf("no valid upload reference in %q — /uploads/<secret>/<file> from the issue description is expected", ref)
 	}
 	secret, name := m[1], m[2]
 	if decoded, derr := url.PathUnescape(name); derr == nil {
@@ -299,15 +298,15 @@ func (c *Client) DownloadUpload(ctx context.Context, projectID int, ref string) 
 		resp.Body.Close()
 		hint := ""
 		if resp.StatusCode == http.StatusNotFound {
-			hint = " (der Upload-Endpoint braucht GitLab ≥ 16.6 bzw. Projekt-Zugriff)"
+			hint = " (the upload endpoint needs GitLab >= 16.6 respectively project access)"
 		}
 		return "", "", nil, fmt.Errorf("gitlab GET %s: HTTP %d%s: %.200s", path, resp.StatusCode, hint, data)
 	}
 	return name, resp.Header.Get("Content-Type"), resp.Body, nil
 }
 
-// UploadResult ist die Antwort von POST /projects/{id}/uploads: die Markdown-
-// Referenz, die man in einen Kommentar einbetten kann, plus die relative URL.
+// UploadResult is the answer of POST /projects/{id}/uploads: the Markdown
+// reference one can embed in a comment plus the relative URL.
 type UploadResult struct {
 	Alt      string `json:"alt"`
 	URL      string `json:"url"`
@@ -315,10 +314,10 @@ type UploadResult struct {
 	Markdown string `json:"markdown"`
 }
 
-// UploadFile lädt eine Datei (Screenshot) an ein Projekt — POST /projects/{id}/
-// uploads, multipart. Wie DownloadUpload läuft er am JSON-do() vorbei (der Body
-// ist multipart), das Token bleibt im Daemon. Das zurückgegebene "markdown"
-// (![alt](/uploads/<secret>/<datei>)) bettet man in einen comment_mr-Body ein.
+// UploadFile uploads a file (a screenshot) to a project — POST /projects/{id}/
+// uploads, multipart. Like DownloadUpload it goes past the JSON do() (the body
+// is multipart), the token stays in the daemon. The returned "markdown"
+// (![alt](/uploads/<secret>/<file>)) is embedded in a comment_mr body.
 func (c *Client) UploadFile(ctx context.Context, projectID int, filename string, data []byte) (UploadResult, error) {
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
@@ -350,21 +349,21 @@ func (c *Client) UploadFile(ctx context.Context, projectID int, filename string,
 	}
 	var out UploadResult
 	if err := json.Unmarshal(body, &out); err != nil {
-		return UploadResult{}, fmt.Errorf("upload-antwort: %w", err)
+		return UploadResult{}, fmt.Errorf("upload answer: %w", err)
 	}
 	return out, nil
 }
 
-// TreeEntry ist ein Eintrag des Repository-Baums (Datei oder Verzeichnis).
+// TreeEntry is an entry of the repository tree (a file or a directory).
 type TreeEntry struct {
 	Name string `json:"name"`
-	Type string `json:"type"` // "blob" (Datei) | "tree" (Verzeichnis)
+	Type string `json:"type"` // "blob" (file) | "tree" (directory)
 	Path string `json:"path"`
 }
 
-// ListTree — GET /projects/{id}/repository/tree: den Repository-Baum
-// durchblättern, ohne etwas herunterzuladen. Für Repos, die zu groß für
-// einen Checkout sind: erst navigieren, dann gezielt Dateien lesen.
+// ListTree — GET /projects/{id}/repository/tree: leafing through the repository
+// tree without downloading anything. For repos too large for a checkout:
+// navigate first, then read files selectively.
 func (c *Client) ListTree(ctx context.Context, projectID int, path, ref string, recursive bool) ([]TreeEntry, error) {
 	q := url.Values{}
 	if path != "" {
@@ -383,12 +382,12 @@ func (c *Client) ListTree(ctx context.Context, projectID int, path, ref string, 
 	return out, err
 }
 
-// maxReadFileBytes begrenzt eine einzelne per read_file gelesene Datei.
+// maxReadFileBytes caps a single file read via read_file.
 const maxReadFileBytes = 512 << 10 // 512 KB
 
-// ReadFile — GET /projects/{id}/repository/files/{path}/raw: eine einzelne
-// Datei lesen, ohne Checkout. Der Dateipfad wird komplett URL-kodiert
-// (inkl. "/"), wie die GitLab-API es verlangt.
+// ReadFile — GET /projects/{id}/repository/files/{path}/raw: reading a single
+// file without a checkout. The file path is URL-encoded completely (including
+// "/"), as the GitLab API demands.
 func (c *Client) ReadFile(ctx context.Context, projectID int, filePath, ref string) (content string, truncated bool, err error) {
 	path := fmt.Sprintf("/projects/%d/repository/files/%s/raw", projectID, url.QueryEscape(filePath))
 	if ref != "" {
@@ -417,8 +416,8 @@ func (c *Client) ReadFile(ctx context.Context, projectID int, filePath, ref stri
 	return string(data), false, nil
 }
 
-// Commit ist ein Eintrag der Commit-Historie — genug Kontext, um zu erkennen,
-// ob ein gemeldeter Bug inzwischen behoben wurde (Titel, Autor, Datum).
+// Commit is an entry of the commit history — enough context to recognise
+// whether a reported bug has been fixed in the meantime (title, author, date).
 type Commit struct {
 	ID         string `json:"id"`
 	ShortID    string `json:"short_id"`
@@ -428,11 +427,10 @@ type Commit struct {
 	WebURL     string `json:"web_url"`
 }
 
-// ListCommits — GET /projects/{id}/repository/commits: die Historie eines
-// Refs, optional auf einen Pfad (Datei/Verzeichnis) und ein Startdatum
-// (since, ISO 8601) eingeschränkt. Damit prüft ein Agent, ob es seit dem
-// Erstellen eines Issues Commits gibt, die den gemeldeten Fehler bereits
-// beheben.
+// ListCommits — GET /projects/{id}/repository/commits: the history of a ref,
+// optionally narrowed to a path (a file/directory) and a start date (since,
+// ISO 8601). With it an agent checks whether there are commits since an issue
+// was created that already fix the reported fault.
 func (c *Client) ListCommits(ctx context.Context, projectID int, ref, path, since string) ([]Commit, error) {
 	q := url.Values{}
 	if ref != "" {
@@ -451,10 +449,10 @@ func (c *Client) ListCommits(ctx context.Context, projectID int, ref, path, sinc
 	return out, err
 }
 
-// maxDiffBytesPerFile begrenzt den Diff einer einzelnen Datei in GetCommitDiff.
+// maxDiffBytesPerFile caps a single file's diff in GetCommitDiff.
 const maxDiffBytesPerFile = 16 << 10 // 16 KB
 
-// CommitDiff ist der Diff einer Datei innerhalb eines Commits.
+// CommitDiff is the diff of a file within a commit.
 type CommitDiff struct {
 	OldPath     string `json:"old_path"`
 	NewPath     string `json:"new_path"`
@@ -464,10 +462,9 @@ type CommitDiff struct {
 	Truncated   bool   `json:"truncated,omitempty"`
 }
 
-// GetCommitDiff — GET /projects/{id}/repository/commits/{sha}/diff: was ein
-// Commit tatsächlich ändert. Einzelne Datei-Diffs werden auf
-// maxDiffBytesPerFile gekürzt, damit Riesen-Commits den Kontext des Agenten
-// nicht sprengen.
+// GetCommitDiff — GET /projects/{id}/repository/commits/{sha}/diff: what a
+// commit actually changes. Individual file diffs are truncated to
+// maxDiffBytesPerFile so that huge commits do not blow up the agent's context.
 func (c *Client) GetCommitDiff(ctx context.Context, projectID int, sha string) ([]CommitDiff, error) {
 	var out []CommitDiff
 	err := c.do(ctx, http.MethodGet,
@@ -481,8 +478,8 @@ func (c *Client) GetCommitDiff(ctx context.Context, projectID int, sha string) (
 	return out, err
 }
 
-// MergeRequest ist ein Eintrag der MR-Liste — genug, um offene oder gemergte
-// Fixes zu einem Thema zu finden.
+// MergeRequest is an entry of the MR list — enough to find open or merged fixes
+// on a topic.
 type MergeRequest struct {
 	IID          int    `json:"iid"`
 	ProjectID    int    `json:"project_id"`
@@ -496,16 +493,16 @@ type MergeRequest struct {
 	Author       struct {
 		Username string `json:"username"`
 	} `json:"author"`
-	// References.Full ist die volle Referenz "gruppe/projekt!iid" — daraus
-	// lässt sich der Projektpfad für den Intake-Filter ableiten (analog Issue).
+	// References.Full is the full reference "group/project!iid" — the project
+	// path for the intake filter can be derived from it (as with Issue).
 	References struct {
 		Full string `json:"full"`
 	} `json:"references"`
 }
 
-// ListMergeRequests — GET /projects/{id}/merge_requests. state ist "opened",
-// "merged", "closed" oder "all" (Default: all); search filtert auf Titel und
-// Beschreibung, targetBranch auf den Ziel-Branch.
+// ListMergeRequests — GET /projects/{id}/merge_requests. state is "opened",
+// "merged", "closed" or "all" (default: all); search filters on title and
+// description, targetBranch on the target branch.
 func (c *Client) ListMergeRequests(ctx context.Context, projectID int, state, search, targetBranch string) ([]MergeRequest, error) {
 	q := url.Values{}
 	if state != "" && state != "all" {
@@ -526,10 +523,10 @@ func (c *Client) ListMergeRequests(ctx context.Context, projectID int, state, se
 }
 
 // ListMyOpenMergeRequests — GET /merge_requests?scope=created_by_me&state=opened:
-// die offenen Merge Requests, die der Bot-Nutzer des Tokens selbst eröffnet hat.
-// Der billige Vorab-Check für den Review-Loop (HasWork) — ohne project_id, also
-// projektübergreifend, wie ListIssues(0, …). Der Filter läuft über die Token-
-// Identität, es braucht keinen Username.
+// the open merge requests the token's bot user opened itself. The cheap
+// pre-check for the review loop (HasWork) — without a project_id, that is
+// across projects, like ListIssues(0, …). The filter runs through the token
+// identity, no username is needed.
 func (c *Client) ListMyOpenMergeRequests(ctx context.Context) ([]MergeRequest, error) {
 	var out []MergeRequest
 	err := c.do(ctx, http.MethodGet,
@@ -538,11 +535,11 @@ func (c *Client) ListMyOpenMergeRequests(ctx context.Context) ([]MergeRequest, e
 }
 
 // ListReviewMergeRequests — GET /merge_requests?reviewer_username=<user>&state=opened:
-// die offenen Merge Requests, in denen der Bot-Nutzer als Reviewer eingetragen
-// ist — die Review-Warteschlange eines QA-/Test-Agenten, projektübergreifend
-// (wie ListMyOpenMergeRequests, nur aus Reviewer- statt Autoren-Sicht). Trägt
-// den Review-Loop von der anderen Seite: der Entwickler-Agent setzt den
-// QA-Agenten als Reviewer, dieser findet den MR hierüber.
+// the open merge requests in which the bot user is entered as reviewer — the
+// review queue of a QA/test agent, across projects (like
+// ListMyOpenMergeRequests, only from the reviewer's rather than the author's
+// point of view). It carries the review loop from the other side: the developer
+// agent sets the QA agent as reviewer, who finds the MR through this.
 func (c *Client) ListReviewMergeRequests(ctx context.Context, reviewerUsername string) ([]MergeRequest, error) {
 	var out []MergeRequest
 	err := c.do(ctx, http.MethodGet,
@@ -550,18 +547,18 @@ func (c *Client) ListReviewMergeRequests(ctx context.Context, reviewerUsername s
 	return out, err
 }
 
-// CurrentUser — GET /user: das Profil des Token-Inhabers (der Bot-Nutzer).
-// Gebraucht, um in einem MR-Thread den eigenen letzten Kommentar von fremdem
-// Review-Feedback zu unterscheiden.
+// CurrentUser — GET /user: the profile of the token holder (the bot user).
+// Needed to tell one's own last comment in an MR thread apart from someone
+// else's review feedback.
 func (c *Client) CurrentUser(ctx context.Context) (User, error) {
 	var u User
 	err := c.do(ctx, http.MethodGet, "/user", nil, &u)
 	return u, err
 }
 
-// MergeRequestDetail ist der volle Blick auf einen einzelnen MR — inklusive
-// Review-Zustand (Merge-Status, Konflikte) und CI-Ergebnis (head_pipeline),
-// damit ein Agent seinen eigenen MR wie ein Entwickler betreuen kann.
+// MergeRequestDetail is the full view of a single MR — including the review
+// state (merge status, conflicts) and the CI result (head_pipeline), so that an
+// agent can look after its own MR like a developer.
 type MergeRequestDetail struct {
 	IID          int    `json:"iid"`
 	Title        string `json:"title"`
@@ -572,8 +569,8 @@ type MergeRequestDetail struct {
 	MergedAt     string `json:"merged_at"`
 	WebURL       string `json:"web_url"`
 	HasConflicts bool   `json:"has_conflicts"`
-	// DetailedMergeStatus, z. B. "mergeable", "ci_still_running",
-	// "conflict" — GitLabs eigene Zusammenfassung, warum ein MR (nicht) mergebar ist.
+	// DetailedMergeStatus, e.g. "mergeable", "ci_still_running", "conflict" —
+	// GitLab's own summary of why an MR is (not) mergeable.
 	DetailedMergeStatus string `json:"detailed_merge_status"`
 	Author              struct {
 		Username string `json:"username"`
@@ -581,8 +578,8 @@ type MergeRequestDetail struct {
 	HeadPipeline *Pipeline `json:"head_pipeline"`
 }
 
-// Pipeline ist der CI-Lauf eines Refs/MRs — Status "success", "failed",
-// "running" etc.
+// Pipeline is the CI run of a ref/MR — status "success", "failed", "running"
+// etc.
 type Pipeline struct {
 	ID        int    `json:"id"`
 	Status    string `json:"status"`
@@ -600,8 +597,8 @@ func (c *Client) GetMergeRequest(ctx context.Context, projectID, mrIID int) (Mer
 	return out, err
 }
 
-// ListMRNotes — GET /projects/{id}/merge_requests/{iid}/notes (chronologisch):
-// der Diskussionsstand eines MR inklusive Review-Kommentaren auf dem Diff.
+// ListMRNotes — GET /projects/{id}/merge_requests/{iid}/notes (chronological):
+// an MR's discussion state including review comments on the diff.
 func (c *Client) ListMRNotes(ctx context.Context, projectID, mrIID int) ([]Note, error) {
 	var out []Note
 	err := c.do(ctx, http.MethodGet,
@@ -609,8 +606,8 @@ func (c *Client) ListMRNotes(ctx context.Context, projectID, mrIID int) ([]Note,
 	return out, err
 }
 
-// CommentMR — POST /projects/{id}/merge_requests/{iid}/notes: die Antwort des
-// Agenten im Review-Dialog seines MR.
+// CommentMR — POST /projects/{id}/merge_requests/{iid}/notes: the agent's
+// answer in the review dialogue of its MR.
 func (c *Client) CommentMR(ctx context.Context, projectID, mrIID int, body string) (Note, error) {
 	var out Note
 	err := c.do(ctx, http.MethodPost,
@@ -619,10 +616,10 @@ func (c *Client) CommentMR(ctx context.Context, projectID, mrIID int, body strin
 	return out, err
 }
 
-// SetMRReviewer — PUT /projects/{id}/merge_requests/{iid} mit reviewer_ids:
-// trägt den/die Reviewer eines bestehenden MR ein. So übergibt der
-// Entwickler-Agent seinen MR gezielt an den QA-Agenten (bzw. gibt ihn zurück),
-// ohne dass die Zuweisung an den Vorgesetzten verlorengeht.
+// SetMRReviewer — PUT /projects/{id}/merge_requests/{iid} with reviewer_ids:
+// enters the reviewer(s) of an existing MR. That is how the developer agent
+// hands its MR over to the QA agent deliberately (or hands it back), without
+// the assignment to the manager getting lost.
 func (c *Client) SetMRReviewer(ctx context.Context, projectID, mrIID int, reviewerIDs []int) (MergeRequestDetail, error) {
 	var out MergeRequestDetail
 	err := c.do(ctx, http.MethodPut, fmt.Sprintf("/projects/%d/merge_requests/%d", projectID, mrIID),
@@ -630,19 +627,19 @@ func (c *Client) SetMRReviewer(ctx context.Context, projectID, mrIID int, review
 	return out, err
 }
 
-// ApproveMR — POST /projects/{id}/merge_requests/{iid}/approve: die formelle
-// Freigabe eines Reviewers. Der QA-Agent nutzt sie als grünes Signal an den
-// Vorgesetzten: „Feature getestet, alles grün" — das Mergen selbst bleibt beim
-// Menschen. Ist Approval im Projekt nicht aktiviert, meldet GitLab einen Fehler;
-// dann genügt der bestätigende comment_mr.
+// ApproveMR — POST /projects/{id}/merge_requests/{iid}/approve: a reviewer's
+// formal approval. The QA agent uses it as the green signal to the manager:
+// "feature tested, all green" — the merging itself stays with the human. If
+// approval is not enabled in the project, GitLab reports an error; the
+// confirming comment_mr then suffices.
 func (c *Client) ApproveMR(ctx context.Context, projectID, mrIID int) error {
 	return c.do(ctx, http.MethodPost,
 		fmt.Sprintf("/projects/%d/merge_requests/%d/approve", projectID, mrIID), nil, nil)
 }
 
-// ListPipelines — GET /projects/{id}/pipelines, optional auf einen Ref
-// eingeschränkt: Lief die CI auf meinem Branch durch, bevor ich den MR zum
-// Review gebe bzw. nach dem Nacharbeiten?
+// ListPipelines — GET /projects/{id}/pipelines, optionally narrowed to a ref:
+// did the CI on my branch pass, before I hand the MR over for review
+// respectively after reworking it?
 func (c *Client) ListPipelines(ctx context.Context, projectID int, ref string) ([]Pipeline, error) {
 	q := url.Values{}
 	if ref != "" {
@@ -655,8 +652,8 @@ func (c *Client) ListPipelines(ctx context.Context, projectID int, ref string) (
 	return out, err
 }
 
-// Job ist ein CI-Job eines Pipeline-Laufs — genug, um den fehlgeschlagenen
-// Job zu finden und sein Log zu ziehen.
+// Job is a CI job of a pipeline run — enough to find the failed job and pull
+// its log.
 type Job struct {
 	ID           int    `json:"id"`
 	Name         string `json:"name"`
@@ -666,8 +663,9 @@ type Job struct {
 	WebURL       string `json:"web_url"`
 }
 
-// ListPipelineJobs — GET /projects/{id}/pipelines/{pipeline_id}/jobs: die Jobs
-// eines CI-Laufs mit Status. Der Einstieg in die Diagnose einer roten Pipeline.
+// ListPipelineJobs — GET /projects/{id}/pipelines/{pipeline_id}/jobs: the jobs
+// of a CI run with their status. The entry point into diagnosing a red
+// pipeline.
 func (c *Client) ListPipelineJobs(ctx context.Context, projectID, pipelineID int) ([]Job, error) {
 	var out []Job
 	err := c.do(ctx, http.MethodGet,
@@ -675,12 +673,12 @@ func (c *Client) ListPipelineJobs(ctx context.Context, projectID, pipelineID int
 	return out, err
 }
 
-// maxJobLogBytes begrenzt das zurückgegebene Job-Log; behalten wird das ENDE —
-// dort stehen Fehlermeldungen und Test-Zusammenfassungen.
+// maxJobLogBytes caps the returned job log; what is kept is the END — that is
+// where error messages and test summaries stand.
 const maxJobLogBytes = 48 << 10
 
-// GetJobLog — GET /projects/{id}/jobs/{job_id}/trace: das Log eines CI-Jobs.
-// Traces können riesig sein; gelesen wird gedeckelt, geliefert das Log-Ende.
+// GetJobLog — GET /projects/{id}/jobs/{job_id}/trace: the log of a CI job.
+// Traces can be huge; reading is capped and the end of the log is returned.
 func (c *Client) GetJobLog(ctx context.Context, projectID, jobID int) (string, bool, error) {
 	path := fmt.Sprintf("/projects/%d/jobs/%d/trace", projectID, jobID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/api/v4"+path, nil)
@@ -706,10 +704,10 @@ func (c *Client) GetJobLog(ctx context.Context, projectID, jobID int) (string, b
 	return string(data), false, nil
 }
 
-// RetryPipeline — POST /projects/{id}/pipelines/{pipeline_id}/retry: startet
-// die fehlgeschlagenen Jobs eines CI-Laufs neu — für den Fall, dass die
-// Ursache außerhalb des Codes lag und inzwischen behoben ist (z. B.
-// nachträglich erteilter Repo-Zugriff, Runner wieder da).
+// RetryPipeline — POST /projects/{id}/pipelines/{pipeline_id}/retry: starts the
+// failed jobs of a CI run again — for the case that the cause lay outside the
+// code and has been fixed in the meantime (repo access granted afterwards, the
+// runner back again).
 func (c *Client) RetryPipeline(ctx context.Context, projectID, pipelineID int) (Pipeline, error) {
 	var out Pipeline
 	err := c.do(ctx, http.MethodPost,
@@ -717,8 +715,8 @@ func (c *Client) RetryPipeline(ctx context.Context, projectID, pipelineID int) (
 	return out, err
 }
 
-// Branch ist ein Eintrag der Branch-Liste. Default markiert den
-// Default-Branch des Projekts.
+// Branch is an entry of the branch list. Default marks the project's default
+// branch.
 type Branch struct {
 	Name    string `json:"name"`
 	Default bool   `json:"default"`
@@ -728,9 +726,9 @@ type Branch struct {
 	} `json:"commit"`
 }
 
-// ListBranches — GET /projects/{id}/repository/branches, optional mit
-// Namenssuche. Damit findet ein Agent den richtigen Ref, statt Branch-Namen
-// zu raten.
+// ListBranches — GET /projects/{id}/repository/branches, optionally with a name
+// search. With it an agent finds the right ref instead of guessing branch
+// names.
 func (c *Client) ListBranches(ctx context.Context, projectID int, search string) ([]Branch, error) {
 	q := url.Values{}
 	if search != "" {
@@ -743,9 +741,9 @@ func (c *Client) ListBranches(ctx context.Context, projectID int, search string)
 	return out, err
 }
 
-// ProjectDetail liefert die Projekt-Metadaten, die der Entwickler-Workflow
-// braucht — vor allem den Default-Branch als Basis für Feature-Branches und
-// als Ziel von Merge Requests.
+// ProjectDetail returns the project metadata the developer workflow needs —
+// above all the default branch as the basis for feature branches and as the
+// target of merge requests.
 type ProjectDetail struct {
 	ID                int    `json:"id"`
 	PathWithNamespace string `json:"path_with_namespace"`
@@ -760,9 +758,9 @@ func (c *Client) GetProject(ctx context.Context, projectID int) (ProjectDetail, 
 	return p, err
 }
 
-// FileExists — HEAD /projects/{id}/repository/files/{path}?ref=…: entscheidet,
-// ob ein Commit die Datei anlegt (create) oder ändert (update) — die
-// Commits-API verlangt die richtige Aktion und lehnt die falsche ab.
+// FileExists — HEAD /projects/{id}/repository/files/{path}?ref=…: decides
+// whether a commit creates the file (create) or changes it (update) — the
+// commits API demands the right action and refuses the wrong one.
 func (c *Client) FileExists(ctx context.Context, projectID int, filePath, ref string) (bool, error) {
 	path := fmt.Sprintf("/projects/%d/repository/files/%s?ref=%s",
 		projectID, url.QueryEscape(filePath), url.QueryEscape(ref))
@@ -786,9 +784,9 @@ func (c *Client) FileExists(ctx context.Context, projectID int, filePath, ref st
 	}
 }
 
-// CommitAction ist ein Eintrag im actions-Array der Commits-API: eine Datei
-// anlegen, ändern oder löschen. Inhalte laufen base64-kodiert — so überleben
-// auch Binärdateien und Sonderzeichen den JSON-Transport.
+// CommitAction is an entry in the actions array of the commits API: creating,
+// changing or deleting a file. Contents travel base64-encoded — that way binary
+// files and special characters survive the JSON transport too.
 type CommitAction struct {
 	Action   string `json:"action"` // "create" | "update" | "delete"
 	FilePath string `json:"file_path"`
@@ -796,10 +794,10 @@ type CommitAction struct {
 	Encoding string `json:"encoding,omitempty"`
 }
 
-// CommitFiles — POST /projects/{id}/repository/commits: ein Commit mit allen
-// Datei-Änderungen in einem API-Aufruf. startBranch != "" legt den Branch als
-// Kopie davon an (der Push-Weg des Agenten: das Token bleibt im Daemon, ein
-// git-Remote mit Credentials existiert nie).
+// CommitFiles — POST /projects/{id}/repository/commits: one commit with all
+// file changes in a single API call. startBranch != "" creates the branch as a
+// copy of it (the agent's push route: the token stays in the daemon, a git
+// remote with credentials never exists).
 func (c *Client) CommitFiles(ctx context.Context, projectID int, branch, startBranch, message string, actions []CommitAction) (Commit, error) {
 	body := map[string]any{
 		"branch":         branch,
@@ -814,10 +812,10 @@ func (c *Client) CommitFiles(ctx context.Context, projectID int, branch, startBr
 	return out, err
 }
 
-// CreateMergeRequest — POST /projects/{id}/merge_requests: eröffnet den MR
-// für einen gepushten Feature-Branch. assigneeID/reviewerID (idR der
-// Vorgesetzte des Agenten) sind optional (0 = nicht setzen); der
-// Source-Branch wird nach dem Merge automatisch entfernt.
+// CreateMergeRequest — POST /projects/{id}/merge_requests: opens the MR for a
+// pushed feature branch. assigneeID/reviewerID (as a rule the agent's manager)
+// are optional (0 = do not set); the source branch is removed automatically
+// after the merge.
 func (c *Client) CreateMergeRequest(ctx context.Context, projectID int, sourceBranch, targetBranch, title, description string, assigneeID, reviewerID int) (MergeRequest, error) {
 	body := map[string]any{
 		"source_branch":        sourceBranch,
@@ -837,16 +835,16 @@ func (c *Client) CreateMergeRequest(ctx context.Context, projectID int, sourceBr
 	return out, err
 }
 
-// SetState — PUT /projects/{id}/issues/{iid} mit state_event ("close"|"reopen").
+// SetState — PUT /projects/{id}/issues/{iid} with state_event ("close"|"reopen").
 func (c *Client) SetState(ctx context.Context, projectID, issueIID int, stateEvent string) error {
 	if stateEvent != "close" && stateEvent != "reopen" {
-		return fmt.Errorf("ungültiger state %q (erlaubt: close, reopen)", stateEvent)
+		return fmt.Errorf("invalid state %q (allowed: close, reopen)", stateEvent)
 	}
 	return c.do(ctx, http.MethodPut, fmt.Sprintf("/projects/%d/issues/%d", projectID, issueIID),
 		map[string]any{"state_event": stateEvent}, nil)
 }
 
-// User ist das Minimalprofil eines GitLab-Nutzers für die Zuweisung.
+// User is the minimal profile of a GitLab user for the assignment.
 type User struct {
 	ID       int    `json:"id"`
 	Username string `json:"username"`
@@ -854,40 +852,40 @@ type User struct {
 	State    string `json:"state"`
 }
 
-// LookupUser — GET /users?username=…: löst einen GitLab-Username in die
-// numerische User-ID auf (die Issue-API kennt nur assignee_ids). Der
-// Username-Filter der API matcht exakt, liefert aber eine Liste.
+// LookupUser — GET /users?username=…: resolves a GitLab username into the
+// numeric user id (the issue API knows only assignee_ids). The API's username
+// filter matches exactly but returns a list.
 func (c *Client) LookupUser(ctx context.Context, username string) (User, error) {
 	username = strings.TrimPrefix(strings.TrimSpace(username), "@")
 	if username == "" {
-		return User{}, fmt.Errorf("username fehlt")
+		return User{}, fmt.Errorf("username missing")
 	}
 	var out []User
 	if err := c.do(ctx, http.MethodGet, "/users?username="+url.QueryEscape(username), nil, &out); err != nil {
 		return User{}, err
 	}
 	if len(out) == 0 {
-		return User{}, fmt.Errorf("gitlab-nutzer %q nicht gefunden", username)
+		return User{}, fmt.Errorf("gitlab user %q not found", username)
 	}
 	return out[0], nil
 }
 
-// AssignIssue — PUT /projects/{id}/issues/{iid} mit assignee_ids: weist das
-// Issue einer Person zu (z. B. zum Testen einer Bugfix-Antwort).
+// AssignIssue — PUT /projects/{id}/issues/{iid} with assignee_ids: assigns the
+// issue to a person (for testing a bugfix answer, say).
 func (c *Client) AssignIssue(ctx context.Context, projectID, issueIID int, userIDs []int) error {
 	return c.do(ctx, http.MethodPut, fmt.Sprintf("/projects/%d/issues/%d", projectID, issueIID),
 		map[string]any{"assignee_ids": userIDs}, nil)
 }
 
-// SetLabels — PUT /projects/{id}/issues/{iid} mit add_labels/remove_labels:
-// setzt und entfernt Labels an einem BESTEHENDEN Issue, ohne die übrigen
-// anzutasten. Genau diese Teil-Operation braucht ein Agent, der den
-// Arbeitszustand eines Vorgangs im Board führt (etwa „bereit" → „in Arbeit"):
-// Würde er die volle labels-Liste schreiben, löschte jeder Zustandswechsel die
-// fachlichen Labels gleich mit.
+// SetLabels — PUT /projects/{id}/issues/{iid} with add_labels/remove_labels:
+// sets and removes labels on an EXISTING issue without touching the others.
+// Exactly this partial operation is what an agent needs that maintains an
+// item's working state on the board ("ready" → "in progress", say): were it to
+// write the full labels list, every state change would delete the
+// subject-matter labels along with it.
 //
-// GitLab antwortet mit dem aktualisierten Issue — das geben wir zurück, damit
-// der Agent den erreichten Zustand sieht, statt ihn erneut abzufragen.
+// GitLab answers with the updated issue — we return that so the agent sees the
+// state reached instead of querying it again.
 func (c *Client) SetLabels(ctx context.Context, projectID, issueIID int, add, remove []string) (Issue, error) {
 	body := map[string]any{}
 	joinedAdd, err := joinLabels(add)
@@ -905,7 +903,7 @@ func (c *Client) SetLabels(ctx context.Context, projectID, issueIID int, add, re
 		body["remove_labels"] = joinedRemove
 	}
 	if len(body) == 0 {
-		return Issue{}, fmt.Errorf("weder add_labels noch remove_labels angegeben")
+		return Issue{}, fmt.Errorf("neither add_labels nor remove_labels given")
 	}
 	var out Issue
 	err = c.do(ctx, http.MethodPut,
@@ -913,14 +911,15 @@ func (c *Client) SetLabels(ctx context.Context, projectID, issueIID int, add, re
 	return out, err
 }
 
-// joinLabels macht aus der Label-Liste des Agenten den kommaseparierten String,
-// den die GitLab-API erwartet. Leere Einträge fallen raus — ein versehentliches
-// "" im Array soll nicht als Label mit leerem Namen ankommen.
+// joinLabels turns the agent's label list into the comma-separated string the
+// GitLab API expects. Empty entries drop out — an accidental "" in the array
+// should not arrive as a label with an empty name.
 //
-// Ein Eintrag MIT Komma ist dagegen ein Fehler, kein stiller Split: Weil GitLab
-// fehlende Labels beim Setzen automatisch anlegt, würde aus einem einzelnen
-// falsch gebauten Eintrag ("a,b") dauerhaft zwei Projekt-Labels — sichtbar erst,
-// wenn das Board schon zugewachsen ist. Lieber der Fehler zurück an den Agenten.
+// An entry WITH a comma, by contrast, is an error, not a silent split: because
+// GitLab creates missing labels automatically when setting them, a single
+// wrongly built entry ("a,b") would permanently become two project labels —
+// visible only once the board has already overgrown. Better to hand the error
+// back to the agent.
 func joinLabels(labels []string) (string, error) {
 	out := make([]string, 0, len(labels))
 	for _, l := range labels {
@@ -929,15 +928,15 @@ func joinLabels(labels []string) (string, error) {
 			continue
 		}
 		if strings.Contains(l, ",") {
-			return "", fmt.Errorf("label %q enthält ein Komma — gib jedes Label als eigenen Listeneintrag an", l)
+			return "", fmt.Errorf("label %q contains a comma — give every label as its own list entry", l)
 		}
 		out = append(out, l)
 	}
 	return strings.Join(out, ","), nil
 }
 
-// Escalate setzt eine interne Notiz und entfernt die Zuweisung
-// (assignee_ids leer), damit ein Mensch das Issue übernimmt.
+// Escalate posts an internal note and removes the assignment (assignee_ids
+// empty) so that a human takes the issue over.
 func (c *Client) Escalate(ctx context.Context, projectID, issueIID int, note string) error {
 	if _, err := c.Comment(ctx, projectID, issueIID, note, true); err != nil {
 		return err

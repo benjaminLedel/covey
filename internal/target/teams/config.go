@@ -7,15 +7,15 @@ import (
 	"covey/internal/target"
 )
 
-// Betriebs-Konfiguration des Teams-Plugins aus ENV (12-Factor, wie die
-// Webhook-Secrets in internal/config und das Zammad-Plugin). Alles hat sichere
-// Defaults, sodass ein nicht gesetztes Feld das bisherige Verhalten beibehält.
+// Operational configuration of the Teams plugin from ENV (12-factor, like the
+// webhook secrets in internal/config and the Zammad plugin). Everything has
+// safe defaults, so an unset field keeps the previous behaviour.
 
-// defaultTokenEndpoint ist der OAuth2-Token-Endpoint für den Bot-Connector-
-// Zugriff (client_credentials). Default ist der Multi-Tenant-Bot-Framework-
-// Endpoint; über COVEY_TEAMS_TOKEN_URL für die ganze Instanz und über das
-// gebrokerte teams_url pro Agent überschreibbar (z. B. ein tenant-spezifischer
-// Endpoint für Single-Tenant-Bots).
+// defaultTokenEndpoint is the OAuth2 token endpoint for Bot Connector access
+// (client_credentials). The default is the multi-tenant Bot Framework
+// endpoint; overridable instance-wide via COVEY_TEAMS_TOKEN_URL and per agent
+// via the brokered teams_url (e.g. a tenant-specific endpoint for
+// single-tenant bots).
 func defaultTokenEndpoint() string {
 	if v := strings.TrimSpace(os.Getenv("COVEY_TEAMS_TOKEN_URL")); v != "" {
 		return v
@@ -23,31 +23,31 @@ func defaultTokenEndpoint() string {
 	return "https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token"
 }
 
-// connectorScope ist der OAuth2-Scope, den der Bot Connector erwartet.
+// connectorScope is the OAuth2 scope the Bot Connector expects.
 const connectorScope = "https://api.botframework.com/.default"
 
-// intakeTenants liefert die Allowlist der Microsoft-365-Tenant-IDs, aus denen
-// Nachrichten überhaupt eine Aufgabe auslösen dürfen. Format:
+// intakeTenants returns the allowlist of Microsoft 365 tenant IDs whose
+// messages may trigger a task at all. Format:
 //
 //	COVEY_TEAMS_INTAKE_TENANTS="11111111-2222-3333-4444-555555555555, …"
 //
-// Leer/ungesetzt → keine Einschränkung (alle Tenants). Vergleich
-// case-insensitiv, führende/abschließende Leerzeichen werden ignoriert.
+// Empty/unset → no restriction (all tenants). Comparison is case-insensitive,
+// leading/trailing whitespace is ignored.
 func intakeTenants() map[string]bool {
 	return parseSet(os.Getenv("COVEY_TEAMS_INTAKE_TENANTS"))
 }
 
-// maxAttachmentBytes ist die Obergrenze für einen einzelnen, in die Sandbox
-// materialisierten Anhang. Default 25 MB, via COVEY_TEAMS_ATTACHMENT_MAX_MB
-// überschreibbar (1 bis 1024 MB). Werte darüber werden geklemmt, Unlesbares
-// bleibt beim Default — beides mit einer Zeile im Log, siehe
-// target.MaxBytesAusEnv.
+// maxAttachmentBytes is the upper bound for a single attachment materialized
+// into the sandbox. Default 25 MB, overridable via
+// COVEY_TEAMS_ATTACHMENT_MAX_MB (1 up to 1024 MB). Larger values are clamped,
+// unparsable ones keep the default — both with a line in the log, see the
+// shared helper in internal/target.
 func maxAttachmentBytes() int64 {
-	return target.MaxBytesAusEnv("COVEY_TEAMS_ATTACHMENT_MAX_MB", 25, 1024)
+	return target.MaxBytesFromEnv("COVEY_TEAMS_ATTACHMENT_MAX_MB", 25, 1024)
 }
 
-// parseSet zerlegt eine kommaseparierte ENV-Liste in ein Set kleingeschriebener,
-// getrimmter Werte. Leere Einträge werden verworfen.
+// parseSet splits a comma-separated ENV list into a set of lower-cased,
+// trimmed values. Empty entries are discarded.
 func parseSet(raw string) map[string]bool {
 	out := map[string]bool{}
 	for _, part := range strings.Split(raw, ",") {

@@ -1,117 +1,117 @@
-# 12 — Claude-Code-Adapter (`-p` / Headless)
+# 12 — Claude Code adapter (`-p` / headless)
 
-Konkretisiert den Runtime-Adapter aus [`01-architektur.md`](01-architektur.md) für die **erste Runtime des MVP** (M1 in [`11-mvp-plan.md`](11-mvp-plan.md)). Claude Code wird **headless** über den `-p`/`--print`-Modus gesteuert: ein Prompt rein, der volle Agenten-Loop läuft, ein Ergebnis raus, Exit-Code. Genau die programmatische Steuerung, die der Daemon braucht — kein interaktives Terminal.
+Makes the runtime adapter from [`01-architecture.md`](01-architecture.md) concrete for the **MVP's first runtime** (M1 in [`11-mvp-plan.md`](11-mvp-plan.md)). Claude Code is driven **headless** through the `-p`/`--print` mode: a prompt in, the full agent loop runs, a result out, an exit code. Exactly the programmatic control the daemon needs — no interactive terminal.
 
-## Grundmechanik
+## Basic mechanics
 
-Der Daemon in der Sandbox ruft Claude Code als **Subprozess** auf:
+The daemon in the sandbox calls Claude Code as a **subprocess**:
 
 ```bash
-claude -p "<Aufgabe>" \
+claude -p "<task>" \
   --output-format stream-json \
-  --append-system-prompt "<kompilierte SOUL.md>" \
+  --append-system-prompt "<compiled SOUL.md>" \
   --allowedTools "Read,Edit,Bash" \
   --max-turns 20 \
   --max-budget-usd 0.50
 ```
 
-`-p` schaltet vom interaktiven REPL in einen einzelnen Batch-Lauf; alle CLI-Optionen funktionieren mit `-p`.
+`-p` switches from the interactive REPL into a single batch run; all CLI options work with `-p`.
 
-## Flag → Covey-Konzept
+## Flag → Covey concept
 
-Die Steuerung mappt fast 1:1 auf das Daemon-Protokoll:
+The control maps almost 1:1 onto the daemon protocol:
 
-| Claude-Code-Flag | Covey-Konzept |
+| Claude Code flag | Covey concept |
 |---|---|
-| `-p "<task>"` | `assign_task` — Aufgabe aus dem Backlog ([`03`](03-lifecycle-scheduling.md)) |
-| `--append-system-prompt` / `--system-prompt` | `inject_config` — kompilierte `SOUL.md` ([`02`](02-agenten-modell.md)) |
-| `--model <id\|alias>` | `inject_config.model` — Modell je Agent (Registry-Feld, PATCH `/agents/{id}/model`); leer = Default des Binaries/Accounts |
-| `--max-turns <n>` | `inject_config.max_turns` — Turn-Limit je Agent (Registry-Feld, PATCH `/agents/{id}/max-turns`); 0 = Orchestrator-Default (30) |
-| `--output-format stream-json` | `event`-Strom → Recording ([`06`](06-observability-control.md)) |
-| `--output-format json` → `total_cost_usd` | `cost` → Kostenkontrolle ([`06`](06-observability-control.md)) |
-| `--resume <session_id>` | `blocked → working` — Wiederaufnahme ([`03`](03-lifecycle-scheduling.md)) |
-| `--allowedTools` / `--permission-mode` | Tool-Guard-Rails ([`06`](06-observability-control.md)) |
-| `--max-turns`, `--max-budget-usd` | Budget-/Runaway-Guard-Rails ([`06`](06-observability-control.md)) |
-| `--mcp-config` | Tool-/Zielsystem-Anbindung ([`04`](04-identitaet-secrets.md)) |
-| Exit-Code ≠ 0 | Fehlerpfad → `task_done`(error) |
+| `-p "<task>"` | `assign_task` — a task from the backlog ([`03`](03-lifecycle-scheduling.md)) |
+| `--append-system-prompt` / `--system-prompt` | `inject_config` — the compiled `SOUL.md` ([`02`](02-agent-model.md)) |
+| `--model <id\|alias>` | `inject_config.model` — the model per agent (registry field, PATCH `/agents/{id}/model`); empty = the binary's/account's default |
+| `--max-turns <n>` | `inject_config.max_turns` — the turn limit per agent (registry field, PATCH `/agents/{id}/max-turns`); 0 = orchestrator default (30) |
+| `--output-format stream-json` | the `event` stream → recording ([`06`](06-observability-control.md)) |
+| `--output-format json` → `total_cost_usd` | `cost` → cost control ([`06`](06-observability-control.md)) |
+| `--resume <session_id>` | `blocked → working` — resumption ([`03`](03-lifecycle-scheduling.md)) |
+| `--allowedTools` / `--permission-mode` | tool guard rails ([`06`](06-observability-control.md)) |
+| `--max-turns`, `--max-budget-usd` | budget/runaway guard rails ([`06`](06-observability-control.md)) |
+| `--mcp-config` | tool/target-system connection ([`04`](04-identity-secrets.md)) |
+| exit code ≠ 0 | error path → `task_done`(error) |
 
-## `blocked` ↔ Session-Resume (der M4-Kern)
+## `blocked` ↔ session resume (the M4 core)
 
-Headless-Läufe sind per Default zustandslos, lassen sich aber **threaden**: `--output-format json` liefert eine `session_id`; ein späterer `claude -p --resume <session_id> "<neue Eingabe>"` lädt den Kontext des bestehenden Laufs.
+Headless runs are stateless by default but can be **threaded**: `--output-format json` delivers a `session_id`; a later `claude -p --resume <session_id> "<new input>"` loads the context of the existing run.
 
-Das mappt exakt auf Coveys `blocked`-Mechanik:
+That maps exactly onto Covey's `blocked` mechanic:
 
-1. Agent stellt eine Rückfrage → Daemon meldet `blocked` mit **Korrelations-Key**; zusätzlich wird die **`session_id`** des Claude-Code-Laufs zur geparkten Aufgabe gespeichert.
-2. Sandbox fährt runter (kein Compute).
-3. Korreliertes Event trifft ein (Ticket-Update) → Daemon startet die Sandbox und ruft `claude -p --resume <session_id> "<Antwort>"`.
-4. Claude Code stellt den Gesprächskontext **selbst** wieder her — Covey muss ihn nicht rekonstruieren.
+1. The agent asks a follow-up question → the daemon reports `blocked` with a **correlation key**; in addition the Claude Code run's **`session_id`** is stored on the parked task.
+2. The sandbox shuts down (no compute).
+3. A correlated event arrives (ticket update) → the daemon starts the sandbox and calls `claude -p --resume <session_id> "<answer>"`.
+4. Claude Code restores the conversation context **itself** — Covey does not have to reconstruct it.
 
-Damit ist die `blocked → working`-Kante aus [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md) mit Bordmitteln der Runtime realisiert.
+With that, the `blocked → working` edge from [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md) is realised with the runtime's own means.
 
-> **Kurzzeit vs. Langzeit.** Die Claude-Code-Session ist der *kurzzeitige Arbeitskontext* (begrenztes Kontextfenster, ggf. Ablauf). Das *dauerhafte* Gedächtnis über Aufgaben hinweg bleibt Coveys Memory-Schicht ([`05-gedaechtnis.md`](05-gedaechtnis.md)) — beim `done` einspeisen, beim `triage` abfragen. Auf die Session-Persistenz allein sollte man sich für Langzeitwissen nicht verlassen.
+> **Short term vs. long term.** The Claude Code session is the *short-term working context* (a limited context window, possibly expiring). *Durable* memory across tasks stays Covey's memory layer ([`05-memory.md`](05-memory.md)) — ingest at `done`, query at `triage`. Session persistence alone should not be relied on for long-term knowledge.
 
-## Streaming → Recording
+## Streaming → recording
 
-`--output-format stream-json` emittiert NDJSON (ein JSON-Event pro Zeile, Typ `assistant` / `tool_use` / `result`). Der Daemon liest den Strom und leitet jede Zeile als `event`-Nachricht an die Control Plane weiter → lückenloses **Session-Recording** ([`06-observability-control.md`](06-observability-control.md)) praktisch geschenkt, inklusive jedes Tool-Calls.
+`--output-format stream-json` emits NDJSON (one JSON event per line, type `assistant` / `tool_use` / `result`). The daemon reads the stream and forwards every line as an `event` message to the control plane → complete **session recording** ([`06-observability-control.md`](06-observability-control.md)) practically for free, including every tool call.
 
-## Kosten
+## Cost
 
-Das abschließende `result`-Event (bzw. `--output-format json`) enthält `total_cost_usd` samt Aufschlüsselung pro Modell → direkt in Coveys **Cost-Tracking** pro Agent ([`06-observability-control.md`](06-observability-control.md)), ohne separate Usage-Abfrage.
+The final `result` event (or `--output-format json`) contains `total_cost_usd` including a breakdown per model → straight into Covey's **cost tracking** per agent ([`06-observability-control.md`](06-observability-control.md)), without a separate usage query.
 
 ## Auth
 
-Headless braucht nicht-interaktive Credentials: `ANTHROPIC_API_KEY` als ENV, ein langlebiger OAuth-Token via `claude setup-token`, oder Provider-Credentials (Bedrock/Vertex/Foundry). In Covey ist dieser Key selbst ein **gebrokertes Secret** ([`04-identitaet-secrets.md`](04-identitaet-secrets.md)): der Daemon bekommt ihn zur Laufzeit injiziert, er liegt nicht dauerhaft in der Sandbox.
+Headless needs non-interactive credentials: `ANTHROPIC_API_KEY` as an ENV variable, a long-lived OAuth token via `claude setup-token`, or provider credentials (Bedrock/Vertex/Foundry). In Covey this key is itself a **brokered secret** ([`04-identity-secrets.md`](04-identity-secrets.md)): the daemon gets it injected at runtime, it does not sit permanently in the sandbox.
 
-## Permissions & Guard-Rails
+## Permissions & guard rails
 
-Für den vollen nicht-interaktiven Betrieb braucht es `--dangerously-skip-permissions` (überspringt die interaktiven Freigabe-Prompts). Das ist in Covey **vertretbar, weil die Sandbox isoliert ist und die harten Grenzen ohnehin extern erzwungen werden** — am Broker, am Egress, im Tool-Layer ([`06-observability-control.md`](06-observability-control.md)). Die interaktive Freigabe von Claude Code wäre innerhalb der Sandbox redundant; Coveys Guard-Rails sitzen eine Ebene darüber.
+Full non-interactive operation needs `--dangerously-skip-permissions` (it skips the interactive approval prompts). In Covey that is **defensible, because the sandbox is isolated and the hard limits are enforced externally anyway** — at the broker, at the egress, in the tool layer ([`06-observability-control.md`](06-observability-control.md)). Claude Code's interactive approval would be redundant inside the sandbox; Covey's guard rails sit one level above.
 
-Als **Defense-in-Depth** bleibt `--allowedTools` (und `--permission-mode`) trotzdem gesetzt, um den Tool-Umfang schon im Subprozess zu beschneiden — die weiche Innen-Grenze zusätzlich zur harten Außen-Grenze. Der Standard-Umfang (`daemon.DefaultAllowedTools`) deckt die produktive Grundausstattung ab: Dateien lesen/schreiben/bearbeiten/suchen (`Read`, `Write`, `Edit`, `Glob`, `Grep`, `NotebookEdit`), Shell (`Bash`, `BashOutput`, `KillShell`), Web (`WebFetch`, `WebSearch`) sowie `Task`/`TodoWrite`. Web-Zugriffe laufen dabei weiterhin durch den Egress-Proxy — die Allowlist bleibt die harte Grenze.
+As **defence in depth**, `--allowedTools` (and `--permission-mode`) is nevertheless set, to trim the tool scope in the subprocess as well — the soft inner limit in addition to the hard outer one. The standard scope (`daemon.DefaultAllowedTools`) covers the productive basics: reading/writing/editing/searching files (`Read`, `Write`, `Edit`, `Glob`, `Grep`, `NotebookEdit`), shell (`Bash`, `BashOutput`, `KillShell`), web (`WebFetch`, `WebSearch`) as well as `Task`/`TodoWrite`. Web access still runs through the egress proxy — the allowlist remains the hard limit.
 
-## Sub-Run im Projekt-Checkout
+## Sub-run in the project checkout
 
-Ein Lauf startet im **Agenten-Home** (`/home/agent`) — dort liegen `~/.claude`, die Wiki-Arbeitskopie und die Dependency-Caches. Der Quellcode eines Projekts landet dagegen unter `~/repos/<projekt>-<ref>/` ([`13-zammad-integration.md`](13-zammad-integration.md) beschreibt das Muster für Zielsysteme; die `checkout`-Aktion des GitLab-Plugins entpackt das Archiv dorthin). Claude Code sucht Projekt-Memory (`CLAUDE.md`), `.claude/agents`, Skills und Commands aber **relativ zum Arbeitsverzeichnis** — vom Home aus sieht ein Agent davon nichts.
+A run starts in the **agent home** (`/home/agent`) — that is where `~/.claude`, the wiki working copy and the dependency caches live. A project's source code, by contrast, lands under `~/repos/<project>-<ref>/` ([`13-zammad-integration.md`](13-zammad-integration.md) describes the pattern for target systems; the GitLab plugin's `checkout` action unpacks the archive there). Claude Code, however, looks for project memory (`CLAUDE.md`), `.claude/agents`, skills and commands **relative to the working directory** — from the home an agent sees none of it.
 
-Das kostet doppelt: Der Agent leitet die Projektstruktur bei jedem Heartbeat-Lauf neu her (frischer Prozess, gedeckeltes Turn-Budget), und die Konventionen des Projekts wirken nicht auf das Ergebnis.
+That costs twice over: the agent re-derives the project structure on every heartbeat run (a fresh process, a capped turn budget), and the project's conventions do not affect the result.
 
-Deshalb trennt `RunSpec` **Arbeitsverzeichnis und Home**: `WorkDir` setzt das cwd des Subprozesses, `HomeDir` bleibt `HOME`. Darauf setzt der **Sub-Run** auf — ein geschachtelter Lauf desselben Adapters, der im Checkout startet und dort den Harness des Projekts vollständig vorfindet. Der Agent stößt ihn über die Aktion `dev:agent` an; ausgeführt wird er vom Daemon (`SubAgentRunner`, per Context an das Plugin gereicht wie `Workdir` und die Artefakt-Senke).
+`RunSpec` therefore separates **working directory and home**: `WorkDir` sets the subprocess's cwd, `HomeDir` stays `HOME`. The **sub-run** builds on this — a nested run of the same adapter that starts in the checkout and finds the project's harness there in full. The agent kicks it off through the `dev:agent` action; it is executed by the daemon (`SubAgentRunner`, passed to the plugin via context like `Workdir` and the artefact sink).
 
-Die Rollenteilung ist der Kern:
+The division of roles is the core:
 
-| | Äußerer Lauf | Sub-Run |
+| | Outer run | Sub-run |
 |---|---|---|
-| Arbeitsverzeichnis | Agenten-Home | Projekt-Checkout |
-| Prompt | kompilierte Agenten-Config (`SOUL.md` …) | Harness des Projekts + knapper Auftragsrahmen |
-| Zielsysteme | über den Action-Proxy | **keine** — kein `COVEY_ACTION_PORT` |
-| Aufgabe | Triage, Kommunikation, `commit`, Merge Request, Gedächtnis | verstehen, ändern, bauen, testen |
+| Working directory | agent home | project checkout |
+| Prompt | the compiled agent config (`SOUL.md` …) | the project's harness + a terse assignment frame |
+| Target systems | through the action proxy | **none** — no `COVEY_ACTION_PORT` |
+| Task | triage, communication, `commit`, merge request, memory | understand, change, build, test |
 
-Der Sub-Run erreicht **keine Zielsysteme**: Ohne Action-Proxy kommt er weder an Ticketsystem noch an Mail und kann nicht einchecken. Das hält die Grenze scharf (die Kommunikation bleibt beim Agenten, der das Protokoll kennt) und nimmt zugleich Instruktionen aus fremdem Repo-Inhalt den Weg zu den gebrokerten Zugängen. Dazu gehört, dass **kein Subprozess die `COVEY_*`-Umgebung des Daemons erbt**: In ihr stehen `COVEY_WS_URL` und `COVEY_DAEMON_TOKEN` — damit ließe sich eine eigene WebSocket zur Control Plane öffnen und `request_credential` schicken, also der Broker direkt ansprechen. Der Adapter filtert diese Variablen deshalb aus der Umgebung jedes Laufs (`daemon.childEnv`); was ein Lauf legitim braucht, gibt der Aufrufer ausdrücklich mit. Auch die `git`-Aufrufe, mit denen der Daemon *nach* dem Sub-Run die Dateiliste zieht, laufen so — `git` führt Kommandos aus, die in der Repository-Konfiguration stehen (`core.fsmonitor`, Filter), und die ist nach dem Sub-Run nicht vertrauenswürdiger als der übrige Checkout.
+The sub-run reaches **no target systems**: without the action proxy it gets to neither the ticket system nor mail and cannot check anything in. That keeps the boundary sharp (communication stays with the agent that knows the protocol) and at the same time denies instructions from foreign repo content a path to the brokered credentials. Part of this is that **no subprocess inherits the daemon's `COVEY_*` environment**: it contains `COVEY_WS_URL` and `COVEY_DAEMON_TOKEN` — with those you could open your own WebSocket to the control plane and send `request_credential`, i.e. address the broker directly. The adapter therefore filters those variables out of every run's environment (`daemon.childEnv`); what a run legitimately needs is passed explicitly by the caller. The `git` calls with which the daemon pulls the file list *after* the sub-run run this way too — `git` executes commands that sit in the repository configuration (`core.fsmonitor`, filters), and after the sub-run that configuration is no more trustworthy than the rest of the checkout.
 
-**Was der Sub-Run trotzdem hat** — und was daraus folgt: Die Auto-Discovery, die ihn erst sinnvoll macht, lädt *ausführbare* Konfiguration aus dem Repository — Hooks, MCP-Server-Definitionen, Skills, Subagenten. Zusammen mit `--dangerously-skip-permissions` heißt das: **Repo-Inhalt ist Code, der in der Sandbox läuft.** Der äußere Lauf im Home tat das nie; mit dem Sub-Run ist es eine bewusste Erweiterung der Angriffsfläche. Die Zielsysteme sind sauber draußen (siehe oben), es bleiben aber drei Dinge in Reichweite:
+**What the sub-run does have** — and what follows from it: the auto-discovery that makes it useful in the first place loads *executable* configuration from the repository — hooks, MCP server definitions, skills, subagents. Together with `--dangerously-skip-permissions` that means: **repo content is code that runs in the sandbox.** The outer run in the home never did that; with the sub-run it is a deliberate widening of the attack surface. The target systems are cleanly out of reach (see above), but three things remain within reach:
 
-- der **gebrokerte LLM-Key** (er muss ins ENV, sonst läuft die Runtime nicht),
-- das **Netz innerhalb der Egress-Allowlist**,
-- das **Agenten-Home**. `HOME` bleibt bewusst geteilt — ohne `~/.claude` und die Dependency-Caches wäre der Sub-Run weder lauffähig noch inkrementell. Damit liest Repo-gelieferter Code aber auch die Wiki-Arbeitskopie (das Gedächtnis des Agenten), andere Checkouts unter `~/repos` und alles sonst im Home. Zusammen mit dem erlaubten Egress ist das ein Exfiltrationspfad.
+- the **brokered LLM key** (it has to be in the ENV, or the runtime does not run),
+- the **network within the egress allowlist**,
+- the **agent home**. `HOME` deliberately stays shared — without `~/.claude` and the dependency caches the sub-run would be neither runnable nor incremental. But that means repo-supplied code also reads the wiki working copy (the agent's memory), other checkouts under `~/repos` and everything else in the home. Together with the permitted egress, that is an exfiltration path.
 
-Für Repositories der eigenen Organisation ist das die richtige Abwägung — sie sind ohnehin die Quelle des Codes, den der Agent baut und ausführt. Bei fremden Repositories (Fork, externer Auftrag) ist es das nicht: Dort gehört der Sub-Run über die Guard-Rail auf `dev:agent` freigabepflichtig gemacht oder verboten, und die Egress-Allowlist eng gezogen. Ein Feingranular-Schalter („Harness laden, aber ohne Hooks/MCP") ist bislang nicht vorgesehen — die Runtime kennt ihn nicht.
+For repositories of your own organisation this is the right trade-off — they are the source of the code the agent builds and executes anyway. For foreign repositories (a fork, an external assignment) it is not: there the sub-run belongs behind an approval requirement or a ban through the guard rail on `dev:agent`, and the egress allowlist drawn tight. A fine-grained switch ("load the harness, but without hooks/MCP") is not currently provided for — the runtime does not know one.
 
-Beobachtbarkeit und Kostenkontrolle bleiben erhalten, weil der Sub-Run dieselben Protokoll-Nachrichten benutzt: Seine stream-json-Zeilen fließen (als Sub-Lauf markiert) als `event` in dieselbe Aufzeichnung, seine `cost`-Meldung geht durch `AddCost` und die Budget-Prüfung. **Der Deckel ist damit gröber als beim äußeren Lauf**: `total_cost_usd` liefert Claude Code erst mit dem Result-Event, also erst nach bis zu 200 Turns des Sub-Runs. Zwischen zwei Budget-Prüfungen kann jetzt mehr auflaufen als vorher — umgehen kann ein Sub-Run das Budget nicht, aber überziehen. Feinkörniger würde es nur mit Zwischen-Meldungen aus der laufenden Session (offener Punkt). Das Guard-Rail-Subjekt `dev:agent` macht den Sub-Run zentral verbietbar oder freigabepflichtig.
+Observability and cost control are preserved, because the sub-run uses the same protocol messages: its stream-json lines flow (marked as a sub-run) as `event` into the same recording, and its `cost` report goes through `AddCost` and the budget check. **The cap is therefore coarser than for the outer run**: Claude Code only delivers `total_cost_usd` with the result event, i.e. only after up to 200 turns of the sub-run. More can now accumulate between two budget checks than before — a sub-run cannot circumvent the budget, but it can overshoot it. It would only get finer-grained with interim reports from the running session (an open point). The guard-rail subject `dev:agent` makes the sub-run centrally forbiddable or subject to approval.
 
-Die Markierung ist ein zusätzlicher Schlüssel `covey_sub_agent` **im** Zeilen-Objekt, keine Hülle darum: Aufzeichnung und Timeline lesen das stream-json-Format direkt, eine Hülle würde `type` verdecken und der Sub-Run stünde als JSON-Klumpen in der Aufzeichnung statt als Turn mit seinen Tool-Aufrufen — ausgerechnet dort, wo die eigentliche Arbeit passiert. Sie trägt das Arbeitsverzeichnis (`dir`) und eine **Kennung des Laufs** (`run`) auf jeder Zeile, dazu **nur auf der ersten Zeile** den Arbeitsauftrag (`task`, gekürzt). Nur auf der ersten, weil er sonst mit seiner Länge × Zeilenzahl in die Aufzeichnung ginge; als Überschrift genügt er einmal.
+The marker is an additional key `covey_sub_agent` **inside** the line object, not a wrapper around it: recording and timeline read the stream-json format directly, a wrapper would hide `type` and the sub-run would sit in the recording as a JSON lump instead of as a turn with its tool calls — precisely where the actual work happens. It carries the working directory (`dir`) and an **identifier for the run** (`run`) on every line, plus, **only on the first line**, the assignment (`task`, truncated). Only on the first, because otherwise it would go into the recording at its length × the number of lines; as a headline it suffices once.
 
-Die Kennung ist nicht kosmetisch: Der Action-Proxy bedient nebenläufig (jeder Request eine Goroutine), zwei gleichzeitige `dev agent`-Aufrufe verschränken also ihre Zeilen unter derselben Aufgabe — im selben Checkout verhindert das der Single-Flight (siehe unten), in zwei verschiedenen Checkouts bleibt es möglich und erwünscht. Wer Läufe an ihrer Nachbarschaft im Strom erkennt, verschmilzt sie dann zu einem Block oder zerlegt einen Lauf in Bruchstücke, sobald ein Ereignis der Control Plane dazwischenfällt. Über die Kennung bleibt jeder Lauf ein Block — die Timeline gruppiert danach ([`06-observability-control.md`](06-observability-control.md)).
+The identifier is not cosmetic: the action proxy serves concurrently (a goroutine per request), so two simultaneous `dev agent` calls interleave their lines under the same task — within the same checkout single-flight prevents that (see below), across two different checkouts it stays possible and desirable. Whoever recognises runs by their proximity in the stream then merges them into one block or splits one run into fragments as soon as a control-plane event falls in between. Through the identifier every run stays one block — the timeline groups by it ([`06-observability-control.md`](06-observability-control.md)).
 
-Pro Checkout läuft **höchstens ein Sub-Run**: Der Action-Proxy bedient jede Anfrage in einer eigenen Goroutine und die Runtime ruft Werkzeuge durchaus parallel auf — zwei Läufe im selben Verzeichnis schrieben sich gegenseitig die Dateien um und meldeten beide denselben kumulativen Stand. Ein zweiter Auftrag mit demselben `cwd` wird deshalb abgelehnt, solange der erste arbeitet; verschiedene Verzeichnisse laufen parallel.
+**At most one sub-run runs per checkout**: the action proxy serves every request in its own goroutine and the runtime does call tools in parallel — two runs in the same directory would overwrite each other's files and both report the same cumulative state. A second assignment with the same `cwd` is therefore rejected while the first is working; different directories run in parallel.
 
-Damit der Agent hinterher weiß, **was** geändert wurde, legt der Checkout ein git-Repository mit dem Upstream-Stand als Baseline-Commit an (das Archiv bringt keine `.git` mit) und markiert ihn mit dem Tag `covey-baseline`. Der Sub-Run meldet die Differenz **zu diesem Commit** als `changed_files`/`deleted` zurück — genau die Listen, die die `commit`-Aktion erwartet. Gemessen wird gegen einen Commit und nicht gegen ein `git status`-Abbild von vorher, weil der Sub-Agent im Checkout lokal committen darf: Viele Projekte verlangen das in ihrer `CLAUDE.md`, und nach einem Commit zeigt `git status` nichts mehr — die Arbeit läge fertig auf Platte, der Bericht wäre leer. Erfasst wird deshalb beides zusammen: was seit der Baseline committet wurde und was daneben im Arbeitsverzeichnis offen liegt. Die Listen sind damit **kumulativ**: Sie beschreiben den gesamten Stand gegen Upstream, auch die Arbeit eines früheren Sub-Runs derselben Aufgabe — genau das, was in den Merge Request gehört. Gelesen werden sie NUL-getrennt und ohne git-Quoting (`-z`, `core.quotepath=false`); sonst käme `prüfung.go` als `pr\303\274fung.go` im Bericht an und ginge so weiter in die `commit`-Aktion. Nebeneffekt der Baseline: Projekt-Skripte, die `git` aufrufen, funktionieren.
+So that the agent knows afterwards **what** was changed, the checkout creates a git repository with the upstream state as a baseline commit (the archive brings no `.git` with it) and marks it with the tag `covey-baseline`. The sub-run reports the difference **against that commit** back as `changed_files`/`deleted` — exactly the lists the `commit` action expects. It is measured against a commit and not against a `git status` snapshot from before, because the sub-agent may commit locally in the checkout: many projects require that in their `CLAUDE.md`, and after a commit `git status` shows nothing any more — the work would sit finished on disk and the report would be empty. Both are therefore captured together: what has been committed since the baseline and what lies open alongside it in the working directory. The lists are consequently **cumulative**: they describe the entire state against upstream, including the work of an earlier sub-run of the same task — exactly what belongs in the merge request. They are read NUL-separated and without git quoting (`-z`, `core.quotepath=false`); otherwise `prüfung.go` would arrive in the report as `pr\303\274fung.go` and go on that way into the `commit` action. A side effect of the baseline: project scripts that call `git` work.
 
-## CLI (`-p`) vs. Agent SDK
+## CLI (`-p`) vs. the Agent SDK
 
-Anthropic bietet neben der CLI auch ein **Agent SDK** (Python/TypeScript) zum Einbetten als Bibliothek; die offizielle Empfehlung ist SDK für Produktions-Automatisierung, CLI für Skripte. Da Coveys Daemon in **Go** läuft und es kein offizielles Go-SDK gibt, ist der pragmatische Weg der **Subprozess-Aufruf von `claude -p`**: Prozess starten, stdin/stdout, Exit-Code — wie jedes andere CLI. Entstünde der Daemon-Teil je in Python/TS, wäre das SDK die reichere Alternative (native Message-Objekte, Tool-Approval-Callbacks).
+Alongside the CLI, Anthropic also offers an **Agent SDK** (Python/TypeScript) for embedding as a library; the official recommendation is the SDK for production automation, the CLI for scripts. Since Covey's daemon runs in **Go** and there is no official Go SDK, the pragmatic route is the **subprocess call to `claude -p`**: start a process, stdin/stdout, exit code — like any other CLI. If the daemon part ever arose in Python/TS, the SDK would be the richer alternative (native message objects, tool approval callbacks).
 
-## Hinweise / offene Punkte
+## Notes / open points
 
-- **`--bare`** überspringt Auto-Discovery (Hooks/Skills/MCP/CLAUDE.md) und macht Läufe deterministisch — empfohlen für Skripte, wird künftig Default für `-p`. Trade-off: MCP-Server müssen dann explizit per `--mcp-config` übergeben werden. Für den **äußeren** Lauf sinnvoll, weil Reproduzierbarkeit über lokale Zufalls-Config zählt. Für den **Sub-Run** wäre es das Gegenteil des Zwecks: Dort ist die Auto-Discovery des Projekt-Harness genau das, was gewollt ist (siehe oben) — falls `--bare` Default wird, muss der Sub-Run es explizit abwählen.
-- **Exit-Codes:** nicht-null bei Fehler (z. B. `--max-turns` erreicht), aber keine stabile globale Code-Tabelle — auf ≠ 0 prüfen, keine spezifischen Codes annehmen.
-- **Hintergrund-Tasks**, die Claude Code startet (z. B. Dev-Server), werden nach dem Ergebnis mit kurzer Gnadenfrist beendet; ein Deckel verhindert Blockieren. Für einen Support-Agenten selten relevant, für spätere Coding-Agenten zu beachten.
-- Geprüft gegen die Claude-Code-Headless-Doku (`code.claude.com/docs/en/headless`, Stand Juli 2026); die Flags entwickeln sich — vor Baubeginn kurz gegenchecken.
+- **`--bare`** skips auto-discovery (hooks/skills/MCP/CLAUDE.md) and makes runs deterministic — recommended for scripts, and it will become the default for `-p`. Trade-off: MCP servers then have to be passed explicitly via `--mcp-config`. Sensible for the **outer** run, because reproducibility beats local incidental config. For the **sub-run** it would be the opposite of the purpose: there the auto-discovery of the project harness is exactly what is wanted (see above) — if `--bare` becomes the default, the sub-run has to opt out of it explicitly.
+- **Exit codes:** non-zero on error (e.g. `--max-turns` reached), but no stable global code table — check for ≠ 0, do not assume specific codes.
+- **Background tasks** started by Claude Code (e.g. a dev server) are terminated after the result with a short grace period; a cap prevents blocking. Rarely relevant for a support agent, worth noting for later coding agents.
+- Checked against the Claude Code headless documentation (`code.claude.com/docs/en/headless`, as of July 2026); the flags evolve — check briefly before starting to build.

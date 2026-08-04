@@ -12,41 +12,40 @@ import (
 	"covey/internal/skills"
 )
 
-// Agenten-Skills: die Org-Bibliothek und die agent-eigenen Fähigkeiten.
+// Agent skills: the org library and the agent-owned capabilities.
 //
-// Nicht zu verwechseln mit skill.go — dort geht es um den mitgelieferten
-// Claude-Code-Skill FÜR MENSCHEN (covey-agent.zip, zum Bauen von Agenten). Hier
-// geht es um die Fähigkeiten, die ein Agent zur Laufzeit in sein Home
-// materialisiert bekommt (internal/skills, spec: Beschreibung immer im Kontext,
-// Rumpf nur bei Bedarf).
+// Not to be confused with skill.go — that one is about the bundled Claude Code
+// skill FOR HUMANS (covey-agent.zip, for building agents). Here it is about
+// the capabilities an agent gets materialized into its home at runtime
+// (internal/skills, spec: description always in context, body only on demand).
 //
-// Zwei Ebenen wie bei den Secrets: Bibliotheks-Skills (agent_id NULL) wirken
-// erst nach expliziter Verlinkung, agent-eigene gehören genau einem Agenten.
-// Deshalb ist die Bibliothek unter /api/v1/skills erreichbar, das Anlegen eines
-// agent-eigenen Skills unter /api/v1/agents/{id}/skills — bearbeitet und
-// gelöscht werden beide über ihre ID unter /api/v1/skills/{id}.
+// Two levels as with the secrets: library skills (agent_id NULL) only take
+// effect after being linked explicitly, agent-owned ones belong to exactly one
+// agent. That is why the library is reachable under /api/v1/skills and
+// creating an agent-owned skill under /api/v1/agents/{id}/skills — both are
+// edited and deleted by their ID under /api/v1/skills/{id}.
 //
-// Rechte: Lesen darf jede Rolle (wie die Agenten-Config — Skills sind
-// Prozeduren, keine Geheimnisse), Ändern nur die Manage-Rollen.
+// Permissions: every role may read (like the agent config — skills are
+// procedures, not secrets), only the manage roles may change.
 
-// skillsStore holt den Store und beantwortet den nicht-konfigurierten Fall
-// selbst. nil heißt: Feature abgeschaltet (wie bei Options.Skills im
-// Orchestrator) — dann ist die API ehrlich unverfügbar statt zu paniken.
+// skillsStore fetches the store and answers the not-configured case itself.
+// nil means: feature switched off (as with Options.Skills in the
+// orchestrator) — then the API is honestly unavailable instead of panicking.
 func (s *Server) skillsStore(w http.ResponseWriter) (*skills.Store, bool) {
 	if s.Skills == nil {
-		writeErr(w, http.StatusServiceUnavailable, "skills sind in dieser Instanz nicht konfiguriert")
+		writeErr(w, http.StatusServiceUnavailable, "skills are not configured on this instance")
 		return nil, false
 	}
 	return s.Skills, true
 }
 
-// requireAgent löst {id} auf und stellt sicher, dass der Agent zur Organisation
-// des Aufrufers gehört. Fremde Organisation = nicht gefunden; ein 403 würde
-// verraten, dass es die ID gibt.
+// requireAgent resolves {id} and makes sure the agent belongs to the caller's
+// organization. Foreign organization = not found; a 403 would give away that
+// the ID exists.
 func (s *Server) requireAgent(w http.ResponseWriter, r *http.Request) (agents.Agent, bool) {
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return agents.Agent{}, false
 	}
 	agent, err := s.Registry.Get(r.Context(), id)
@@ -55,22 +54,22 @@ func (s *Server) requireAgent(w http.ResponseWriter, r *http.Request) (agents.Ag
 		return agents.Agent{}, false
 	}
 	if agent.OrgID != principalFrom(r).OrgID {
-		writeErr(w, http.StatusNotFound, "agent nicht gefunden")
+		writeErr(w, http.StatusNotFound, "agent not found")
 		return agents.Agent{}, false
 	}
 	return agent, true
 }
 
-// skillInput ist der Request-Body zum Anlegen und Ersetzen.
+// skillInput is the request body for creating and replacing.
 type skillInput struct {
 	Name        string        `json:"name"`
 	Description string        `json:"description"`
 	Files       []skills.File `json:"files"`
 }
 
-// checked ist spec() mit der Frontmatter-Prüfung davor: Ein Schlüssel, den
-// Covey nicht führt, wird abgelehnt statt beim Speichern verworfen (siehe
-// skills.UnsupportedFrontmatterKeys). Alle Schreibpfade gehen hier durch.
+// checked is spec() with the frontmatter check in front of it: a key Covey
+// does not keep is rejected instead of being dropped on save (see
+// skills.UnsupportedFrontmatterKeys). All write paths go through here.
 func (in skillInput) checked(agentID *uuid.UUID) (skills.Spec, error) {
 	for _, f := range in.Files {
 		if f.Path != skills.EntryFile {
@@ -78,20 +77,20 @@ func (in skillInput) checked(agentID *uuid.UUID) (skills.Spec, error) {
 		}
 		if keys := skills.UnsupportedFrontmatterKeys(f.Content); len(keys) > 0 {
 			return skills.Spec{}, fmt.Errorf(
-				"%w: %s-Frontmatter führt %s — Covey speichert nur name und description, alles andere ginge beim Speichern verloren",
+				"%w: %s frontmatter carries %s — Covey only stores name and description, everything else would be lost on save",
 				skills.ErrInvalid, skills.EntryFile, strings.Join(keys, ", "))
 		}
 	}
 	return in.spec(agentID), nil
 }
 
-// spec macht aus der Eingabe eine Store-Spec.
+// spec turns the input into a store spec.
 //
-// Trägt die SKILL.md einen YAML-Frontmatter — weil jemand eine fertige Datei
-// hineinkopiert oder ein Bundle importiert hat —, wird er abgeschnitten und
-// füllt Name und Beschreibung, soweit die Formularfelder leer bleiben. Covey
-// hält die Beschreibung als Spalte; läge sie zusätzlich in der Datei, könnten
-// sich beide widersprechen und niemand wüsste, welche gilt.
+// If the SKILL.md carries a YAML frontmatter — because someone pasted a
+// finished file or imported a bundle — it is cut off and fills in name and
+// description as far as the form fields stay empty. Covey keeps the
+// description as a column; were it in the file as well, the two could
+// contradict each other and nobody would know which one applies.
 func (in skillInput) spec(agentID *uuid.UUID) skills.Spec {
 	spec := skills.Spec{
 		Name:        in.Name,
@@ -115,13 +114,13 @@ func (in skillInput) spec(agentID *uuid.UUID) skills.Spec {
 	return spec
 }
 
-// mapSkillErr übersetzt die Store-Fehler. Eingabefehler (ErrInvalid und alles,
-// was ihn einwickelt) sind 400 — sie sagen dem Aufrufer, was er falsch gemacht
-// hat, und gehören nicht in ein 500.
+// mapSkillErr translates the store errors. Input errors (ErrInvalid and
+// everything wrapping it) are 400 — they tell the caller what he did wrong and
+// do not belong in a 500.
 func mapSkillErr(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, skills.ErrNotFound):
-		writeErr(w, http.StatusNotFound, "skill nicht gefunden")
+		writeErr(w, http.StatusNotFound, "skill not found")
 	case errors.Is(err, skills.ErrExists):
 		writeErr(w, http.StatusConflict, err.Error())
 	case errors.Is(err, skills.ErrInvalid):
@@ -131,11 +130,11 @@ func mapSkillErr(w http.ResponseWriter, err error) {
 	}
 }
 
-// --- Org-Bibliothek ---
+// --- Org library ---
 
-// handleListSkills — GET /api/v1/skills. Ohne Dateien; jeder Eintrag trägt in
-// assigned_to die verlinkten Agenten, damit die UI zeigen kann, was tatsächlich
-// irgendwo wirkt (ein Bibliotheks-Skill ohne Verlinkung erreicht niemanden).
+// handleListSkills — GET /api/v1/skills. Without files; every entry carries
+// the linked agents in assigned_to so the UI can show what actually takes
+// effect somewhere (a library skill without a link reaches nobody).
 func (s *Server) handleListSkills(w http.ResponseWriter, r *http.Request) {
 	store, ok := s.skillsStore(w)
 	if !ok {
@@ -149,7 +148,7 @@ func (s *Server) handleListSkills(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, list)
 }
 
-// handleCreateSkill — POST /api/v1/skills (Bibliotheks-Skill anlegen).
+// handleCreateSkill — POST /api/v1/skills (create a library skill).
 func (s *Server) handleCreateSkill(w http.ResponseWriter, r *http.Request) {
 	store, ok := s.skillsStore(w)
 	if !ok {
@@ -157,7 +156,7 @@ func (s *Server) handleCreateSkill(w http.ResponseWriter, r *http.Request) {
 	}
 	var in skillInput
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
 	}
 	spec, err := in.checked(nil)
@@ -173,7 +172,7 @@ func (s *Server) handleCreateSkill(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, sk)
 }
 
-// handleGetSkill — GET /api/v1/skills/{id}, samt Dateien.
+// handleGetSkill — GET /api/v1/skills/{id}, files included.
 func (s *Server) handleGetSkill(w http.ResponseWriter, r *http.Request) {
 	store, ok := s.skillsStore(w)
 	if !ok {
@@ -181,7 +180,7 @@ func (s *Server) handleGetSkill(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	full, err := store.Get(r.Context(), principalFrom(r).OrgID, id)
@@ -192,14 +191,13 @@ func (s *Server) handleGetSkill(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, full)
 }
 
-// handlePutSkill — PUT /api/v1/skills/{id}: ersetzt Beschreibung und
-// Dateisatz vollständig (weggelassene Dateien sind gelöscht, siehe
-// skills.Store.Upsert).
+// handlePutSkill — PUT /api/v1/skills/{id}: replaces description and file set
+// completely (omitted files are deleted, see skills.Store.Upsert).
 //
-// Der Name bleibt unveränderlich: Er ist der Verzeichnisname im Agenten-Home
-// und damit der /slash-command, auf den Playbooks und andere Skills verweisen.
-// Umbenennen hieße, diese Verweise still ins Leere laufen zu lassen — dafür
-// neu anlegen und den alten löschen.
+// The name stays immutable: it is the directory name in the agent's home and
+// therefore the /slash-command that playbooks and other skills refer to.
+// Renaming would mean letting those references quietly run into the void —
+// create a new one for that and delete the old.
 func (s *Server) handlePutSkill(w http.ResponseWriter, r *http.Request) {
 	store, ok := s.skillsStore(w)
 	if !ok {
@@ -207,7 +205,7 @@ func (s *Server) handlePutSkill(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	orgID := principalFrom(r).OrgID
@@ -218,7 +216,7 @@ func (s *Server) handlePutSkill(w http.ResponseWriter, r *http.Request) {
 	}
 	var in skillInput
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
 	}
 	spec, err := in.checked(cur.AgentID)
@@ -228,7 +226,7 @@ func (s *Server) handlePutSkill(w http.ResponseWriter, r *http.Request) {
 	}
 	if spec.Name != "" && spec.Name != cur.Name {
 		writeErr(w, http.StatusConflict,
-			"der Name eines Skills ist sein Verzeichnis und sein /slash-command — zum Umbenennen neu anlegen und den alten löschen")
+			"the name of a skill is its directory and its /slash-command — to rename it, create a new one and delete the old")
 		return
 	}
 	spec.Name = cur.Name
@@ -240,9 +238,9 @@ func (s *Server) handlePutSkill(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, sk)
 }
 
-// handleDeleteSkill — DELETE /api/v1/skills/{id}. Zuweisungen und Dateien
-// gehen per ON DELETE CASCADE mit; die betroffenen Agenten verlieren das
-// Verzeichnis beim nächsten Lauf (der Daemon räumt entzogene Skills ab).
+// handleDeleteSkill — DELETE /api/v1/skills/{id}. Assignments and files go
+// along via ON DELETE CASCADE; the affected agents lose the directory on their
+// next run (the daemon cleans up revoked skills).
 func (s *Server) handleDeleteSkill(w http.ResponseWriter, r *http.Request) {
 	store, ok := s.skillsStore(w)
 	if !ok {
@@ -250,7 +248,7 @@ func (s *Server) handleDeleteSkill(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
 	if err := store.Delete(r.Context(), principalFrom(r).OrgID, id); err != nil {
@@ -260,7 +258,7 @@ func (s *Server) handleDeleteSkill(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// --- Verlinkung Bibliothek → Agent (Muster: secrets/{key}/agents/{agentID}) ---
+// --- Linking library → agent (pattern: secrets/{key}/agents/{agentID}) ---
 
 // handleAssignSkill — PUT /api/v1/skills/{id}/agents/{agentID}.
 func (s *Server) handleAssignSkill(w http.ResponseWriter, r *http.Request) {
@@ -288,9 +286,9 @@ func (s *Server) handleUnassignSkill(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// skillLink parst die beiden IDs beider Verlinkungs-Routen und prüft, dass der
-// Agent zur Organisation des Aufrufers gehört — der Fremdschlüssel allein
-// verhindert nur unbekannte Agenten, nicht fremde Organisationen.
+// skillLink parses the two IDs of both linking routes and checks that the
+// agent belongs to the caller's organization — the foreign key alone only
+// prevents unknown agents, not foreign organizations.
 func (s *Server) skillLink(w http.ResponseWriter, r *http.Request) (*skills.Store, uuid.UUID, uuid.UUID, bool) {
 	store, ok := s.skillsStore(w)
 	if !ok {
@@ -298,12 +296,12 @@ func (s *Server) skillLink(w http.ResponseWriter, r *http.Request) (*skills.Stor
 	}
 	skillID, err := parseID(r)
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige id")
+		writeErr(w, http.StatusBadRequest, "invalid id")
 		return nil, uuid.Nil, uuid.Nil, false
 	}
 	agentID, err := uuid.Parse(r.PathValue("agentID"))
 	if err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültige agent-id")
+		writeErr(w, http.StatusBadRequest, "invalid agent id")
 		return nil, uuid.Nil, uuid.Nil, false
 	}
 	agent, err := s.Registry.Get(r.Context(), agentID)
@@ -312,17 +310,17 @@ func (s *Server) skillLink(w http.ResponseWriter, r *http.Request) (*skills.Stor
 		return nil, uuid.Nil, uuid.Nil, false
 	}
 	if agent.OrgID != principalFrom(r).OrgID {
-		writeErr(w, http.StatusNotFound, "agent nicht gefunden")
+		writeErr(w, http.StatusNotFound, "agent not found")
 		return nil, uuid.Nil, uuid.Nil, false
 	}
 	return store, skillID, agentID, true
 }
 
-// --- Sicht des Agenten ---
+// --- The agent's view ---
 
-// agentSkill ist ein aufgelöster Skill mit Herkunftsvermerk. Dieselbe
-// Unterscheidung trägt später das Bundle (origin: agent|library), damit ein
-// Import weiß, was zum Agenten gehört und was aus der Bibliothek kam.
+// agentSkill is a resolved skill with a note on its origin. The bundle carries
+// the same distinction later on (origin: agent|library) so that an import
+// knows what belongs to the agent and what came from the library.
 type agentSkill struct {
 	skills.Full
 	Origin string `json:"origin"`
@@ -330,10 +328,10 @@ type agentSkill struct {
 
 // handleAgentSkills — GET /api/v1/agents/{id}/skills.
 //
-// Liefert, was der Agent tatsächlich bekommt: eigene plus verlinkte Skills,
-// bei Namensgleichheit gewinnt der eigene (skills.ForAgent). Ein verlinkter
-// Bibliotheks-Skill, den ein gleichnamiger eigener verdeckt, fehlt hier
-// deshalb bewusst — die Verlinkung selbst steht im assigned_to der Bibliothek.
+// Returns what the agent actually gets: own plus linked skills, on a name
+// clash its own wins (skills.ForAgent). A linked library skill shadowed by an
+// own one of the same name is therefore deliberately missing here — the link
+// itself shows up in the library's assigned_to.
 func (s *Server) handleAgentSkills(w http.ResponseWriter, r *http.Request) {
 	store, ok := s.skillsStore(w)
 	if !ok {
@@ -359,9 +357,9 @@ func (s *Server) handleAgentSkills(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// handleCreateAgentSkill — POST /api/v1/agents/{id}/skills: ein Skill, der nur
-// diesem Agenten gehört. Bearbeitet und gelöscht wird er danach wie jeder
-// andere über /api/v1/skills/{id}.
+// handleCreateAgentSkill — POST /api/v1/agents/{id}/skills: a skill that
+// belongs to this agent alone. Afterwards it is edited and deleted like every
+// other one via /api/v1/skills/{id}.
 func (s *Server) handleCreateAgentSkill(w http.ResponseWriter, r *http.Request) {
 	store, ok := s.skillsStore(w)
 	if !ok {
@@ -373,7 +371,7 @@ func (s *Server) handleCreateAgentSkill(w http.ResponseWriter, r *http.Request) 
 	}
 	var in skillInput
 	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "ungültiger request")
+		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
 	}
 	spec, err := in.checked(&agent.ID)

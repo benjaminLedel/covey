@@ -1,136 +1,136 @@
-# 06 — Guard-Rails, Observability & Control
+# 06 — Guard rails, observability & control
 
-Dies ist die **Vertrauensschicht** — der Teil, der am Ende über Adoption entscheidet. Der Anspruch: nicht Logging, sondern **EDR/SIEM für Agenten**. Ein IT-Admin muss zentral definieren dürfen, was Agenten *nicht* tun (Guard-Rails), sehen können, was sie tun (Recording), riskante Aktionen freigeben (Gates) und im Notfall stoppen (Kill-Switch).
+This is the **trust layer** — the part that ultimately decides adoption. The aspiration: not logging, but **EDR/SIEM for agents**. An IT admin must be able to define centrally what agents *must not* do (guard rails), to see what they do (recording), to approve risky actions (gates) and to stop them in an emergency (kill switch).
 
-Drei Wirkzeitpunkte, die zusammenspielen:
+Three points of effect that work together:
 
-- **präventiv** — Guard-Rails verhindern verbotene Aktionen, bevor sie passieren,
-- **interaktiv** — Approval-Gates halten riskante Aktionen an und holen eine Freigabe,
-- **retrospektiv** — Session-Recording macht alles nachvollziehbar, Supervisor + Kill-Switch reagieren.
+- **preventive** — guard rails stop forbidden actions before they happen,
+- **interactive** — approval gates halt risky actions and fetch an approval,
+- **retrospective** — session recording makes everything traceable, supervisor + kill switch react.
 
-## Guard-Rails (zentral, plattform-erzwungen)
+## Guard rails (central, platform-enforced)
 
-Der Kern: **Grenzen werden nicht dem Agenten überlassen.** Was in `SOUL.md` unter „Grenzen" steht, ist Selbstbindung über den Prompt — wertvoll zur Verhaltenssteuerung, aber **keine Sicherheitsgrenze**, weil ein Prompt umgangen oder per Injection ausgehebelt werden kann (siehe Threat-Model in [`04-identitaet-secrets.md`](04-identitaet-secrets.md)). Die *harten* Grenzen sind **Guard-Rails**: zentral definiert, versioniert und **außerhalb der Runtime erzwungen**, an den Stellen, an denen die Plattform ohnehin im Datenfluss sitzt. Ein kompromittierter Agent kann sie nicht umgehen, weil sie nicht in seinem Reasoning liegen.
+The core: **limits are not left to the agent.** What sits in `SOUL.md` under "Limits" is self-binding via the prompt — valuable for steering behaviour, but **not a security boundary**, because a prompt can be worked around or defeated by injection (see the threat model in [`04-identity-secrets.md`](04-identity-secrets.md)). The *hard* limits are **guard rails**: defined centrally, versioned and **enforced outside the runtime**, at the places where the platform sits in the data flow anyway. A compromised agent cannot circumvent them, because they do not live in its reasoning.
 
-### Enforcement-Punkte
+### Enforcement points
 
-Guard-Rails greifen genau dort, wo die Control Plane und der Daemon den Fluss kontrollieren:
+Guard rails take effect exactly where the control plane and the daemon control the flow:
 
-| Punkt | Was hier durchgesetzt wird |
+| Point | What is enforced here |
 |---|---|
-| **Secrets-Broker** | Auf welche Systeme und Scopes ein Agent überhaupt ein Token bekommt (siehe [`04-identitaet-secrets.md`](04-identitaet-secrets.md)). |
-| **Egress** | Ausgehende Kommunikation: erlaubte Empfänger/Domains, Blocklisten, Freigabepflicht bei externen Adressaten. |
-| **Tool-/Action-Layer** (im Daemon) | Welche Tools und Kommandos erlaubt sind; destruktive Operationen; Dateizugriffe außerhalb des Home. |
-| **Approval-Queue** | Aktionen, die nicht verboten, aber freigabepflichtig sind (siehe unten). |
-| **Rate- & Cost-Limits** | Frequenz von Aktionen, Budget-Deckel (siehe Kostenkontrolle). |
-| **Content-Filter** | Ein-/ausgehende Inhalte: PII-Redaction, verbotene Inhaltsklassen. |
+| **Secrets broker** | Which systems and scopes an agent can get a token for at all (see [`04-identity-secrets.md`](04-identity-secrets.md)). |
+| **Egress** | Outbound communication: permitted recipients/domains, blocklists, mandatory approval for external addressees. |
+| **Tool/action layer** (in the daemon) | Which tools and commands are allowed; destructive operations; file access outside the home. |
+| **Approval queue** | Actions that are not forbidden but require approval (see below). |
+| **Rate & cost limits** | Frequency of actions, budget caps (see cost control). |
+| **Content filter** | Incoming/outgoing content: PII redaction, forbidden content classes. |
 
-### Typen von Guard-Rails
+### Types of guard rail
 
-- **Allow/Deny für Systeme & Tools** — z. B. „darf nie auf das Personalsystem zugreifen", „kein Shell-Zugriff".
-- **Egress-Regeln** — z. B. „Mail nur an interne Domains ohne Freigabe", „keine ausgehenden Requests an unbekannte Hosts".
-- **Verbotene Aktionen** — harte No-Gos, die auch mit Freigabe nicht gehen.
-- **Approval-Pflichten** — Aktionen, die nur mit menschlicher Freigabe laufen.
-- **Rate-/Cost-Limits** — Obergrenzen pro Zeitfenster / pro Aufgabe / pro Agent.
-- **Content-/PII-Regeln** — Redaction, Klassifikation, Blockieren sensibler Inhalte.
+- **Allow/deny for systems & tools** — e.g. "must never access the HR system", "no shell access".
+- **Egress rules** — e.g. "mail only to internal domains without approval", "no outbound requests to unknown hosts".
+- **Forbidden actions** — hard no-gos that are impossible even with approval.
+- **Mandatory approvals** — actions that only run with a human sign-off.
+- **Rate/cost limits** — upper bounds per time window / per task / per agent.
+- **Content/PII rules** — redaction, classification, blocking of sensitive content.
 
-### Scope & Vererbung
+### Scope & inheritance
 
-Guard-Rails werden **zentral verwaltet** und wirken auf drei Ebenen, die sich überlagern:
+Guard rails are **managed centrally** and take effect on three overlapping levels:
 
-1. **Global** — gelten für *alle* Agenten (z. B. „kein Agent mailt ohne Freigabe an externe Adressen"). Nicht durch Agent-Config überschreibbar.
-2. **Rolle / Team** — gelten für eine Klasse von Agenten (z. B. alle Support-Agenten).
-3. **Pro Agent** — zusätzliche, engere Regeln für einen einzelnen Agenten.
+1. **Global** — apply to *all* agents (e.g. "no agent mails external addresses without approval"). Not overridable by agent config.
+2. **Role / team** — apply to a class of agents (e.g. all support agents).
+3. **Per agent** — additional, narrower rules for an individual agent.
 
-Regeln sind **additiv-restriktiv**: Eine engere Ebene kann verschärfen, aber eine globale Deny-Regel nie aufweichen. Der Default ist **fail-closed** — was nicht erlaubt ist, ist verboten; im Zweifel wird geblockt oder gegated.
+Rules are **additive-restrictive**: a narrower level can tighten but never soften a global deny rule. The default is **fail-closed** — what is not allowed is forbidden; in doubt it is blocked or gated.
 
-### Verwaltung
+### Administration
 
-Guard-Rails sind selbst **Config-as-Code**: zentral, versioniert, per Review geändert (analog zur Agent-Config in [`02-agenten-modell.md`](02-agenten-modell.md)). Sie werden von der Rolle **Security/Compliance** verwaltet — bewusst getrennt von den Agent-Ownern, damit ein einzelner Team-Lead die org-weiten Grenzen nicht aufweichen kann (siehe Rollen & RBAC in [`09-enterprise-modell.md`](09-enterprise-modell.md)). Jede Auslösung einer Guard-Rail (geblockt/gegated) fließt ins Recording und kann Alerts erzeugen. So sind sie nicht nur Schutz, sondern auch Signal: Häufig anschlagende Rails deuten auf einen fehlkonfigurierten — oder kompromittierten — Agenten hin.
+Guard rails are themselves **config as code**: central, versioned, changed by review (analogous to the agent config in [`02-agent-model.md`](02-agent-model.md)). They are administered by the **security/compliance** role — deliberately separate from the agent owners, so that a single team lead cannot soften the org-wide limits (see roles & RBAC in [`09-enterprise-model.md`](09-enterprise-model.md)). Every guard-rail trigger (blocked/gated) flows into the recording and can raise alerts. So they are not only protection but also signal: frequently tripping rails point to a misconfigured — or compromised — agent.
 
-Zwei Werkzeuge machen die Verwaltung praktikabel:
+Two tools make administration practical:
 
-- **Pausieren statt Löschen** — eine Regel lässt sich deaktivieren, ohne sie zu verlieren. Das hält die Regel-Historie intakt und macht Experimente reversibel; eine pausierte Regel greift nicht, bleibt aber sicht- und reaktivierbar.
-- **Regel-Tester (Dry-Run)** — ein Subjekt (System oder `system:aktion`, optional im Kontext eines Agenten) wird trocken gegen die aktuellen Regeln ausgewertet: Ergebnis ist die Entscheidung (allow / deny / require_approval) samt auslösender Regel und anwendbarem Budget-Deckel. So lässt sich eine Policy verifizieren, *bevor* ein Agent hineinläuft — ausgeführt wird nichts.
+- **Pause instead of delete** — a rule can be deactivated without losing it. That keeps the rule history intact and makes experiments reversible; a paused rule does not take effect but stays visible and reactivatable.
+- **Rule tester (dry run)** — a subject (a system or `system:action`, optionally in an agent's context) is evaluated dry against the current rules: the result is the decision (allow / deny / require_approval) including the triggering rule and the applicable budget cap. This lets a policy be verified *before* an agent runs into it — nothing is executed.
 
-## Session-Recording
+## Session recording
 
-Lückenlose Aufzeichnung jeder Agenten-Aktivität, gespeist aus den `event`-Nachrichten des Daemons (siehe [`01-architektur.md`](01-architektur.md)):
+Complete recording of every agent activity, fed from the daemon's `event` messages (see [`01-architecture.md`](01-architecture.md)):
 
-- **jeder LLM-Call** (Prompt, Antwort, Modell, Kosten),
-- **jeder Tool-Call** (welches Tool, welche Parameter, welches Ergebnis),
-- **jedes Kommando in der Sandbox** (Shell, Dateioperationen),
-- **jeder Credential-Request** (welches System, welcher Scope, gewährt/verweigert),
-- **jede Inter-Agent-Nachricht**.
+- **every LLM call** (prompt, answer, model, cost),
+- **every tool call** (which tool, which parameters, which result),
+- **every command in the sandbox** (shell, file operations),
+- **every credential request** (which system, which scope, granted/refused),
+- **every inter-agent message**.
 
-Recording ist die Grundlage für Audit, Debugging, Kostenanalyse und die Supervisor-Auswertung. Es ist unveränderlich und pro Agent/Aufgabe zeitlich navigierbar.
+Recording is the basis for audit, debugging, cost analysis and the supervisor evaluation. It is immutable and navigable in time per agent/task.
 
-**Sub-Läufe bleiben unterscheidbar.** Gibt ein Agent Arbeit an einen Sub-Agenten im Projekt-Checkout ab ([`12-claude-code-adapter.md`](12-claude-code-adapter.md)), landet dessen Arbeit unter derselben Agenten- und Aufgaben-ID in derselben Aufzeichnung — sonst wäre sie weder abrechenbar noch auditierbar. Damit man trotzdem sieht, **wer** was getan hat, tragen diese Zeilen eine Markierung mit einer Kennung des Laufs, und die Timeline fasst alles zu einer Kennung zu einem zugeklappten Block zusammen: Kopf mit Checkout, Arbeitsauftrag, Status und Kennzahlen (Tool-Aufrufe, Turns, Dauer, Kosten), aufgeklappt die Turns des Sub-Agenten. Ohne diese Klammer stünde seine Arbeit ununterscheidbar zwischen der des beauftragenden Agenten.
+**Sub-runs stay distinguishable.** When an agent hands work to a sub-agent in the project checkout ([`12-claude-code-adapter.md`](12-claude-code-adapter.md)), that work lands under the same agent and task ID in the same recording — otherwise it would be neither billable nor auditable. So that you can nevertheless see **who** did what, those lines carry a marker with an identifier for the run, and the timeline collapses everything under one identifier into a single folded block: a header with the checkout, the assignment, the status and key figures (tool calls, turns, duration, cost), and the sub-agent's turns when expanded. Without that bracket its work would stand indistinguishably among the commissioning agent's own.
 
-## Request-Log (Diagnose der Zielsystem-Anbindung)
+## Request log (diagnosing the target-system connection)
 
-Das Recording sagt, **was** ein Agent getan hat — welche Aktion mit welchen Parametern und ob sie glückte. Beim Anbinden eines Zielsystems ist die drängendere Frage aber, **was über die Leitung ging**: der Bot-Connector-Call nach Teams samt Antwort, der eingehende Webhook, der an der Signaturprüfung scheiterte. Genau das hält das **Request-Log** fest (Tabelle `request_log`, Sicht *Plattform → Requests*):
+The recording says **what** an agent did — which action with which parameters and whether it worked. When connecting a target system the more pressing question, however, is **what went over the wire**: the bot connector call to Teams including its answer, the incoming webhook that failed the signature check. That is exactly what the **request log** captures (table `request_log`, view *Platform → Requests*):
 
-- **ausgehend** — jeder Request eines Zielsystem-Plugins. Die Plugins bauen ihren HTTP-Client über `reqlog.Client(...)`; ob und wohin protokolliert wird, entscheidet eine Senke, nicht das Plugin. Aus der Sandbox reist der Eintrag als `event(kind=http)` über das Daemon-Protokoll und bekommt in der Control Plane Org-, Agenten- und Aufgabenbezug; Requests, die die Control Plane selbst stellt (Work-Checks der Heartbeat-Bedingung `nur-wenn:`, JWKS-Abruf), laufen über die Default-Senke.
-- **eingehend** — jeder Webhook und jeder generische Trigger, **auch der abgelehnte**. Ein Webhook, der an der Signatur, am Slug oder am nicht aktivierten Zielsystem scheitert, hinterlässt sonst keine Spur — und ist der häufigste Fehlerfall bei der Einrichtung.
+- **outbound** — every request from a target-system plugin. The plugins build their HTTP client through `reqlog.Client(...)`; whether and where anything is logged is decided by a sink, not by the plugin. From the sandbox the entry travels as `event(kind=http)` over the daemon protocol and gets its org, agent and task reference in the control plane; requests the control plane makes itself (work checks for the heartbeat condition `nur-wenn:`, JWKS fetches) run through the default sink.
+- **inbound** — every webhook and every generic trigger, **including the rejected ones**. A webhook that fails on the signature, the slug or a target system that is not enabled otherwise leaves no trace — and it is the most common failure during setup.
 
-Abgrenzung zum Recording, bewusst als eigene Tabelle: Das Request-Log ist **Diagnose, kein Audit-Trail**. Es hat sein eigenes, kurzes Aufbewahrungsfenster (`COVEY_REQUEST_LOG_RETENTION`, Default 72 h, dazu eine harte Zeilen-Obergrenze), es bläht die Agenten-Timeline nicht auf, und es ist ganz abschaltbar (`COVEY_REQUEST_LOG=false`). Geschrieben wird asynchron über einen gepufferten Kanal — ein Request-Pfad hängt nie an der Diagnose; läuft der Puffer voll, werden Einträge verworfen und gezählt.
+Distinction from the recording, deliberately as a separate table: the request log is **diagnostics, not an audit trail**. It has its own short retention window (`COVEY_REQUEST_LOG_RETENTION`, default 72 h, plus a hard row cap), it does not bloat the agent timeline, and it can be switched off entirely (`COVEY_REQUEST_LOG=false`). Writing happens asynchronously through a buffered channel — a request path never waits on diagnostics; if the buffer fills up, entries are dropped and counted.
 
-Zugangsdaten gehören nicht hinein: Header werden gar nicht erst gespeichert (dort steckt der Bearer), verdächtige Query-Parameter und Body-Felder (`token`, `secret`, `password`, `client_secret`, …) werden ersetzt, Bodies bei 8 KiB gekappt. Wer auch die Nutzinhalte (Chat-Nachrichten, Ticket-Texte) aus der Diagnose-Tabelle heraushalten will, setzt `COVEY_REQUEST_LOG_BODIES=false` — dann bleiben nur Metadaten. Die Sicht ist den Rollen `platform_admin` und `security` vorbehalten.
+Credentials do not belong in it: headers are not stored at all (that is where the bearer sits), suspicious query parameters and body fields (`token`, `secret`, `password`, `client_secret`, …) are replaced, bodies truncated at 8 KiB. Whoever also wants to keep the payloads (chat messages, ticket texts) out of the diagnostics table sets `COVEY_REQUEST_LOG_BODIES=false` — then only metadata remains. The view is reserved for the roles `platform_admin` and `security`.
 
-## Approval-Gates
+## Approval gates
 
-Approval-Gates sind der **interaktive** Guard-Rail-Typ: Riskante Aktionen laufen nicht durch, sondern warten auf **Freigabe**. Der Daemon meldet `request_approval`; die Control Plane hält die Aktion an, bis ein Mensch (oder eine Policy) `approve`/`deny` liefert.
+Approval gates are the **interactive** guard-rail type: risky actions do not go through but wait for **approval**. The daemon reports `request_approval`; the control plane halts the action until a human (or a policy) delivers `approve`/`deny`.
 
-Typische gate-pflichtige Aktionen:
+Typical actions requiring a gate:
 
-- externe Mail raus (v. a. an nicht-interne Empfänger),
-- Löschen / destruktive Operationen,
-- Massen-Operationen,
-- Zugriff auf besonders sensible Systeme/Scopes,
-- alles, was eine Policy als riskant markiert.
+- outbound external mail (above all to non-internal recipients),
+- deletion / destructive operations,
+- bulk operations,
+- access to particularly sensitive systems/scopes,
+- anything a policy marks as risky.
 
-Gates sind konfigurierbar pro Agent und pro Aktionstyp. Der Default ist konservativ — im Zweifel gaten.
+Gates are configurable per agent and per action type. The default is conservative — when in doubt, gate.
 
-## Supervisor-Agent (optional, KI-gestützt)
+## Supervisor agent (optional, AI-assisted)
 
-Ein optionaler Agent, der die Aktivität anderer Agenten **reviewt und Anomalien flaggt** — die KI-gestützte Überwachungskomponente, nach der auch aus IT-Admin-Sicht gefragt war. Er sieht die Recording-Streams und schlägt an bei:
+An optional agent that **reviews other agents' activity and flags anomalies** — the AI-assisted monitoring component that was also asked for from the IT admin's perspective. It sees the recording streams and responds to:
 
-- ungewöhnlichen Zugriffsmustern (untypische Systeme, Scopes, Frequenz),
-- verdächtigen Empfängern ausgehender Kommunikation,
-- Verhalten, das auf Prompt-Injection hindeutet (siehe Threat-Model in [`04-identitaet-secrets.md`](04-identitaet-secrets.md)),
-- Abweichungen vom in `SOUL.md`/`CAPABILITIES.md` definierten Auftrag.
+- unusual access patterns (atypical systems, scopes, frequency),
+- suspicious recipients of outbound communication,
+- behaviour suggesting prompt injection (see the threat model in [`04-identity-secrets.md`](04-identity-secrets.md)),
+- deviations from the mission defined in `SOUL.md`/`CAPABILITIES.md`.
 
-Der Supervisor entscheidet nicht autonom über harte Eingriffe; er flaggt und eskaliert an den Menschen bzw. löst Approval-Gates aus.
+The supervisor does not autonomously decide on hard interventions; it flags and escalates to the human or triggers approval gates.
 
-## Kill-Switch
+## Kill switch
 
-Ein Agent aus dem Ruder? **Sofort anhalten** — `pause`/`kill` an den Daemon (siehe [`01-architektur.md`](01-architektur.md)). Zwei Granularitäten:
+An agent out of control? **Stop it immediately** — `pause`/`kill` to the daemon (see [`01-architecture.md`](01-architecture.md)). Two granularities:
 
-- **einzeln** — ein bestimmter Agent wird gestoppt,
-- **flottenweit** — Notaus für alle Agenten (z. B. bei einem vermuteten systemischen Injection-Angriff).
+- **individual** — a particular agent is stopped,
+- **fleet-wide** — an emergency stop for all agents (e.g. on a suspected systemic injection attack).
 
-## Kostenkontrolle
+## Cost control
 
-Nicht optional, sondern Grundvoraussetzung für die always-on-Ökonomie (siehe [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)):
+Not optional but a prerequisite for the always-on economics (see [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)):
 
-- **Cost-Tracking pro Agent** — aus den `cost`-Events (Tokens/Compute je LLM-Call); aggregiert bis auf Abteilungs-/Cost-Center-Ebene für das Controlling (siehe [`09-enterprise-modell.md`](09-enterprise-modell.md)).
-- **Budget pro Agent** — konfigurierbares Deckel; bei Überschreitung wird der Agent gedrosselt oder pausiert.
-- **Idle ist idle** — der billige Dispatch-Loop verbraucht (nahezu) nichts; teure Runtime läuft nur in `working`. Sandboxen hibernieren in `sleeping`/`blocked`.
+- **Cost tracking per agent** — from the `cost` events (tokens/compute per LLM call); aggregated up to department/cost-centre level for controlling (see [`09-enterprise-model.md`](09-enterprise-model.md)).
+- **Budget per agent** — a configurable cap; on exceeding it the agent is throttled or paused.
+- **Idle is idle** — the cheap dispatch loop consumes (almost) nothing; the expensive runtime only runs in `working`. Sandboxes hibernate in `sleeping`/`blocked`.
 
-Ohne diese drei Mechanismen skaliert die Rechnung beim zehnten Agenten weg.
+Without these three mechanisms the bill scales away from you at the tenth agent.
 
-## Admin-Sicht
+## The admin view
 
-Die Plattform-Sichten sind **rollen-gescopt** (siehe RBAC in [`09-enterprise-modell.md`](09-enterprise-modell.md)): Ein Agent-Owner sieht seine Agenten, Security/Compliance die Guard-Rails, der Auditor read-only den Audit-Trail, Controlling die Kosten. In der jeweils zuständigen Sicht bekommt der Mensch:
+The platform views are **role-scoped** (see RBAC in [`09-enterprise-model.md`](09-enterprise-model.md)): an agent owner sees their agents, security/compliance the guard rails, the auditor the audit trail read-only, controlling the costs. In the respective view the human gets:
 
-- **Live-Status** aller Agenten (wer schläft, wer arbeitet, wer blockiert ist),
-- **Backlog-Einblick** (was liegt in wessen Liste),
-- **Recording-Timeline** pro Agent/Aufgabe,
-- **Request-Log** der Zielsystem-Anbindung (Plattform → Requests),
-- **Alerts** vom Supervisor und aus ausgelösten Guard-Rails,
-- **Kosten-Dashboard** pro Agent und aggregiert,
-- **Guard-Rail-Verwaltung** (global / Rolle / Agent, versioniert),
-- **Kontrollen**: Approval-Queue, Kill-Switch, Budget-Einstellungen.
+- **live status** of all agents (who is asleep, who is working, who is blocked),
+- **backlog insight** (what sits in whose list),
+- a **recording timeline** per agent/task,
+- the **request log** of the target-system connection (Platform → Requests),
+- **alerts** from the supervisor and from triggered guard rails,
+- a **cost dashboard** per agent and aggregated,
+- **guard-rail administration** (global / role / agent, versioned),
+- **controls**: approval queue, kill switch, budget settings.
 
-Diese Sicht ist das, was aus einer Sammlung von Agenten eine *führbare Organisation* macht.
+This view is what turns a collection of agents into a *manageable organisation*.

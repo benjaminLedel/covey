@@ -30,7 +30,7 @@ func TestParseConfig(t *testing.T) {
 		t.Errorf("Endpoints = %q / %q", cfg.GraphBase, cfg.LoginBase)
 	}
 	if cfg.Tenant != "tenant1" || cfg.ClientID != "client1" || cfg.ClientSecret != "secret:mit:doppelpunkt" {
-		t.Errorf("Tripel = %q %q %q", cfg.Tenant, cfg.ClientID, cfg.ClientSecret)
+		t.Errorf("triple = %q %q %q", cfg.Tenant, cfg.ClientID, cfg.ClientSecret)
 	}
 
 	cfg, err = ParseConfig("https://contoso.sharepoint.com/sites/X/Docs", "roher-bearer-token")
@@ -38,10 +38,10 @@ func TestParseConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	if cfg.StaticToken != "roher-bearer-token" || cfg.Tenant != "" {
-		t.Errorf("statischer Token nicht erkannt: %+v", cfg)
+		t.Errorf("static token not recognized: %+v", cfg)
 	}
 	if cfg.GraphBase != "https://graph.microsoft.com" {
-		t.Errorf("GraphBase-Default = %q", cfg.GraphBase)
+		t.Errorf("GraphBase default = %q", cfg.GraphBase)
 	}
 
 	for _, bad := range []struct{ url, token string }{
@@ -52,7 +52,7 @@ func TestParseConfig(t *testing.T) {
 		{"https://x.example/a", "tenant::secret"},
 	} {
 		if _, err := ParseConfig(bad.url, bad.token); err == nil {
-			t.Errorf("ParseConfig(%q, %q): Fehler erwartet", bad.url, bad.token)
+			t.Errorf("ParseConfig(%q, %q): expected an error", bad.url, bad.token)
 		}
 	}
 }
@@ -70,18 +70,18 @@ func TestCleanRemotePath(t *testing.T) {
 	} {
 		got, err := cleanRemotePath(in)
 		if err != nil || got != want {
-			t.Errorf("cleanRemotePath(%q) = %q, %v — will %q", in, got, err, want)
+			t.Errorf("cleanRemotePath(%q) = %q, %v — want %q", in, got, err, want)
 		}
 	}
 	for _, bad := range []string{"..", "../x", "a/../../x"} {
 		if _, err := cleanRemotePath(bad); err == nil {
-			t.Errorf("cleanRemotePath(%q): Fehler erwartet", bad)
+			t.Errorf("cleanRemotePath(%q): expected an error", bad)
 		}
 	}
 }
 
-// fakeGraph baut einen Test-Server, der Token-Endpoint und die vom Plugin
-// genutzten Graph-Routen bedient.
+// fakeGraph builds a test server that serves the token endpoint and the Graph
+// routes the plugin uses.
 func fakeGraph(t *testing.T, tokenCalls *atomic.Int32) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
@@ -101,12 +101,12 @@ func fakeGraph(t *testing.T, tokenCalls *atomic.Int32) *httptest.Server {
 
 	mux.HandleFunc("GET /v1.0/shares/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") == "" {
-			http.Error(w, "kein token", http.StatusUnauthorized)
+			http.Error(w, "no token", http.StatusUnauthorized)
 			return
 		}
 		enc := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/v1.0/shares/u!"), "/driveItem")
 		link, _ := base64.URLEncoding.DecodeString(enc + strings.Repeat("=", (4-len(enc)%4)%4))
-		if strings.Contains(string(link), "datei-link") {
+		if strings.Contains(string(link), "file-link") {
 			fmt.Fprint(w, `{"id":"f9","name":"bericht.docx","file":{},"parentReference":{"driveId":"d1"}}`)
 			return
 		}
@@ -138,7 +138,7 @@ func fakeGraph(t *testing.T, tokenCalls *atomic.Int32) *httptest.Server {
 			return
 		}
 		if r.ContentLength < 0 {
-			http.Error(w, "chunked upload — Content-Length fehlt", http.StatusBadRequest)
+			http.Error(w, "chunked upload — Content-Length missing", http.StatusBadRequest)
 			return
 		}
 		data, _ := io.ReadAll(r.Body)
@@ -159,7 +159,7 @@ func fakeGraph(t *testing.T, tokenCalls *atomic.Int32) *httptest.Server {
 			http.Error(w, "bad body", http.StatusBadRequest)
 			return
 		}
-		// Erstes Segment existiert bereits → Graph-409.
+		// The first segment already exists → Graph 409.
 		w.WriteHeader(http.StatusConflict)
 		fmt.Fprint(w, `{"error":{"code":"nameAlreadyExists","message":"existiert"}}`)
 	})
@@ -177,8 +177,8 @@ func fakeGraph(t *testing.T, tokenCalls *atomic.Int32) *httptest.Server {
 	return srv
 }
 
-// exec führt eine Aktion über das System-Interface aus — derselbe Weg, den
-// der Action-Proxy im Daemon nimmt.
+// exec runs an action through the System interface — the same path the action
+// proxy in the daemon takes.
 func exec(t *testing.T, ctx context.Context, cred target.Credential, action, params string) (any, error) {
 	t.Helper()
 	return System{}.Execute(ctx, action, json.RawMessage(params), cred)
@@ -197,7 +197,7 @@ func TestExecuteActions(t *testing.T) {
 	ctx := context.Background()
 	cred := testCred(srv, "https://contoso.sharepoint.com/sites/X/ordner-link")
 
-	// list auf der Wurzel
+	// list on the root
 	out, err := exec(t, ctx, cred, "list", `{}`)
 	if err != nil {
 		t.Fatal(err)
@@ -207,20 +207,20 @@ func TestExecuteActions(t *testing.T) {
 		t.Fatalf("list = %+v", m)
 	}
 
-	// list im Unterordner mit truncated-Hinweis
+	// list in the subfolder, with the truncated hint
 	out, err = exec(t, ctx, cred, "list", `{"path":"berichte"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	m = out.(map[string]any)
 	if m["truncated"] != true {
-		t.Errorf("truncated fehlt: %+v", m)
+		t.Errorf("truncated missing: %+v", m)
 	}
 	if e := m["entries"].([]Entry)[0]; e.Path != "berichte/q3.docx" || e.Type != "file" {
 		t.Errorf("entry = %+v", e)
 	}
 
-	// read einer Textdatei
+	// read of a text file
 	out, err = exec(t, ctx, cred, "read", `{"path":"notes.txt"}`)
 	if err != nil {
 		t.Fatal(err)
@@ -229,9 +229,9 @@ func TestExecuteActions(t *testing.T) {
 		t.Errorf("read = %q", got)
 	}
 
-	// read einer Binärdatei → Fehler mit download-Hinweis
+	// read of a binary file → an error carrying the download hint
 	if _, err = exec(t, ctx, cred, "read", `{"path":"blob.bin"}`); err == nil || !strings.Contains(err.Error(), "download") {
-		t.Errorf("read binaer: %v", err)
+		t.Errorf("read binary: %v", err)
 	}
 
 	// write
@@ -243,7 +243,7 @@ func TestExecuteActions(t *testing.T) {
 		t.Errorf("write = %+v", e)
 	}
 
-	// mkdir: erstes Segment existiert (409 toleriert), zweites wird angelegt
+	// mkdir: the first segment exists (409 tolerated), the second is created
 	out, err = exec(t, ctx, cred, "mkdir", `{"path":"eingang/2026"}`)
 	if err != nil {
 		t.Fatal(err)
@@ -256,22 +256,22 @@ func TestExecuteActions(t *testing.T) {
 	if _, err = exec(t, ctx, cred, "delete", `{"path":"old.txt"}`); err != nil {
 		t.Fatal(err)
 	}
-	// delete der Wurzel ist tabu
+	// deleting the root is off limits
 	if _, err = exec(t, ctx, cred, "delete", `{"path":""}`); err == nil {
-		t.Error("delete der Wurzel: Fehler erwartet")
+		t.Error("delete of the root: expected an error")
 	}
 
-	// Pfad-Ausbruch remote
+	// Path breakout, remote side
 	if _, err = exec(t, ctx, cred, "read", `{"path":"../geheim.txt"}`); err == nil {
-		t.Error("remote-Traversal: Fehler erwartet")
+		t.Error("remote traversal: expected an error")
 	}
 
-	// unbekannte Aktion
+	// Unknown action
 	if _, err = exec(t, ctx, cred, "kaputt", `{}`); err == nil {
-		t.Error("unbekannte Aktion: Fehler erwartet")
+		t.Error("unknown action: expected an error")
 	}
 	if tokenCalls.Load() != 0 {
-		t.Errorf("statischer Token darf den OAuth-Flow nicht anstossen (calls=%d)", tokenCalls.Load())
+		t.Errorf("a static token must not kick off the OAuth flow (calls=%d)", tokenCalls.Load())
 	}
 }
 
@@ -282,20 +282,20 @@ func TestExecuteSandboxTransfer(t *testing.T) {
 	ctx := target.WithWorkdir(context.Background(), workdir)
 	cred := testCred(srv, "https://contoso.sharepoint.com/sites/X/ordner-link")
 
-	// download in die Sandbox (Default-Zielpfad)
+	// download into the sandbox (default target path)
 	out, err := exec(t, ctx, cred, "download", `{"path":"notes.txt"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	local := out.(map[string]any)["path"].(string)
 	if want := filepath.Join(workdir, "sharepoint", "notes.txt"); local != want {
-		t.Errorf("download nach %q, will %q", local, want)
+		t.Errorf("download to %q, want %q", local, want)
 	}
 	if data, _ := os.ReadFile(local); string(data) != "hallo welt" {
-		t.Errorf("download-Inhalt = %q", data)
+		t.Errorf("download content = %q", data)
 	}
 
-	// upload aus der Sandbox
+	// upload out of the sandbox
 	src := filepath.Join(workdir, "ergebnis.txt")
 	if err := os.WriteFile(src, []byte("fertig"), 0o644); err != nil {
 		t.Fatal(err)
@@ -308,17 +308,17 @@ func TestExecuteSandboxTransfer(t *testing.T) {
 		t.Errorf("upload = %+v", e)
 	}
 
-	// Ausbruch aus dem Workdir
+	// Breaking out of the workdir
 	if _, err = exec(t, ctx, cred, "upload", `{"from":"../../etc/passwd","to":"x"}`); err == nil {
-		t.Error("upload-Traversal: Fehler erwartet")
+		t.Error("upload traversal: expected an error")
 	}
 	if _, err = exec(t, ctx, cred, "download", `{"path":"notes.txt","to":"../ausbruch.txt"}`); err == nil {
-		t.Error("download-Traversal: Fehler erwartet")
+		t.Error("download traversal: expected an error")
 	}
 
-	// ohne Sandbox-Workdir kein Transfer
+	// No transfer without a sandbox workdir
 	if _, err = exec(t, context.Background(), cred, "download", `{"path":"notes.txt"}`); err == nil {
-		t.Error("download ohne Workdir: Fehler erwartet")
+		t.Error("download without a workdir: expected an error")
 	}
 }
 
@@ -338,17 +338,17 @@ func TestExecuteClientCredentialsFlow(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := tokenCalls.Load(); got != 1 {
-		t.Errorf("Token-Endpoint %d-mal aufgerufen, will 1 (Cache)", got)
+		t.Errorf("token endpoint called %d times, want 1 (cache)", got)
 	}
 }
 
 func TestResolveRootRejectsFileLink(t *testing.T) {
 	var tokenCalls atomic.Int32
 	srv := fakeGraph(t, &tokenCalls)
-	cred := testCred(srv, "https://contoso.sharepoint.com/sites/X/datei-link")
+	cred := testCred(srv, "https://contoso.sharepoint.com/sites/X/file-link")
 	if _, err := exec(t, context.Background(), cred, "list", `{}`); err == nil ||
-		!strings.Contains(err.Error(), "Ordner") {
-		t.Errorf("Datei-Link muss abgelehnt werden: %v", err)
+		!strings.Contains(err.Error(), "folder") {
+		t.Errorf("a file link must be rejected: %v", err)
 	}
 }
 
@@ -359,13 +359,13 @@ func TestActionSubjectAndDocs(t *testing.T) {
 	doc := (System{}).PromptDoc()
 	for _, a := range []string{"list", "read", "write", "download", "upload", "mkdir", "delete"} {
 		if !strings.Contains(doc, a+" {") {
-			t.Errorf("PromptDoc ohne Aktion %q", a)
+			t.Errorf("PromptDoc without the action %q", a)
 		}
 	}
 	if ok := (System{}).VerifyWebhook("s", nil, nil); ok {
-		t.Error("VerifyWebhook muss false liefern (kein Webhook)")
+		t.Error("VerifyWebhook must return false (no webhook)")
 	}
 	if _, err := (System{}).ParseWebhook(nil); err == nil {
-		t.Error("ParseWebhook muss einen Fehler liefern (kein Webhook)")
+		t.Error("ParseWebhook must return an error (no webhook)")
 	}
 }

@@ -22,12 +22,12 @@ func TestCleanURL(t *testing.T) {
 	} {
 		got, err := cleanURL(in)
 		if err != nil || got != want {
-			t.Errorf("cleanURL(%q) = %q, %v — will %q", in, got, err, want)
+			t.Errorf("cleanURL(%q) = %q, %v — want %q", in, got, err, want)
 		}
 	}
 	for _, bad := range []string{"", "file:///etc/passwd", "ftp://x", "javascript:alert(1)"} {
 		if _, err := cleanURL(bad); err == nil {
-			t.Errorf("cleanURL(%q): Fehler erwartet", bad)
+			t.Errorf("cleanURL(%q): expected an error", bad)
 		}
 	}
 }
@@ -39,14 +39,14 @@ func TestActionSubjectAndDocs(t *testing.T) {
 	doc := (System{}).PromptDoc()
 	for _, a := range []string{"navigate", "content", "screenshot", "click", "type"} {
 		if !strings.Contains(doc, a+" {") {
-			t.Errorf("PromptDoc ohne Aktion %q", a)
+			t.Errorf("PromptDoc without action %q", a)
 		}
 	}
 	if (System{}).VerifyWebhook("s", nil, nil) {
-		t.Error("VerifyWebhook muss false liefern")
+		t.Error("VerifyWebhook must return false")
 	}
 	if _, err := (System{}).ParseWebhook(nil); err == nil {
-		t.Error("ParseWebhook muss einen Fehler liefern")
+		t.Error("ParseWebhook must return an error")
 	}
 }
 
@@ -65,14 +65,14 @@ func TestParseHasText(t *testing.T) {
 	for _, c := range cases {
 		css, needle, ok := parseHasText(c.sel)
 		if ok != c.ok || (ok && (css != c.css || needle != c.needle)) {
-			t.Errorf("parseHasText(%q) = (%q,%q,%v) — will (%q,%q,%v)", c.sel, css, needle, ok, c.css, c.needle, c.ok)
+			t.Errorf("parseHasText(%q) = (%q,%q,%v) — want (%q,%q,%v)", c.sel, css, needle, ok, c.css, c.needle, c.ok)
 		}
 	}
 }
 
-// findChromium sucht einen Chromium/Chrome für den End-to-End-Test; fehlt er,
-// werden die browser-treibenden Tests übersprungen (wie Integrationstests
-// ohne Dev-DB).
+// findChromium looks for a Chromium/Chrome for the end-to-end test; if it is
+// missing, the browser-driving tests are skipped (like integration tests
+// without the dev DB).
 func findChromium(t *testing.T) string {
 	t.Helper()
 	if p := strings.TrimSpace(os.Getenv("COVEY_BROWSER_CHROME_PATH")); p != "" {
@@ -83,7 +83,7 @@ func findChromium(t *testing.T) string {
 			return p
 		}
 	}
-	t.Skip("kein Chromium gefunden — End-to-End-Browsertest übersprungen")
+	t.Skip("no Chromium found — end-to-end browser test skipped")
 	return ""
 }
 
@@ -123,7 +123,7 @@ func TestBrowserEndToEnd(t *testing.T) {
 		t.Errorf("navigate = %+v", m)
 	}
 
-	// content der ganzen Seite
+	// content of the whole page
 	out, err = exec2(t, ctx, "content", `{}`)
 	if err != nil {
 		t.Fatal(err)
@@ -132,7 +132,7 @@ func TestBrowserEndToEnd(t *testing.T) {
 		t.Errorf("content = %q", txt)
 	}
 
-	// content per Selektor
+	// content via selector
 	out, err = exec2(t, ctx, "content", `{"selector":"#head"}`)
 	if err != nil {
 		t.Fatal(err)
@@ -141,38 +141,38 @@ func TestBrowserEndToEnd(t *testing.T) {
 		t.Errorf("content selector = %q", txt)
 	}
 
-	// screenshot in die Sandbox
+	// screenshot into the sandbox
 	out, err = exec2(t, ctx, "screenshot", `{}`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	shot := out.(map[string]any)["path"].(string)
 	if !strings.HasPrefix(shot, filepath.Join(workdir, "browser")) {
-		t.Errorf("screenshot-pfad = %q", shot)
+		t.Errorf("screenshot path = %q", shot)
 	}
 	if fi, err := os.Stat(shot); err != nil || fi.Size() == 0 {
-		t.Errorf("screenshot-datei leer/fehlt: %v", err)
+		t.Errorf("screenshot file empty/missing: %v", err)
 	}
 
-	// click ändert den Seiteninhalt
+	// click changes the page content
 	if _, err = exec2(t, ctx, "click", `{"selector":"#btn"}`); err != nil {
 		t.Fatal(err)
 	}
 	out, _ = exec2(t, ctx, "content", `{"selector":"#out"}`)
 	if txt := out.(map[string]any)["text"].(string); strings.TrimSpace(txt) != "geklickt" {
-		t.Errorf("nach click = %q", txt)
+		t.Errorf("after click = %q", txt)
 	}
 
-	// type spiegelt sich per oninput
+	// type is mirrored via oninput
 	if _, err = exec2(t, ctx, "type", `{"selector":"#inp","text":"covey"}`); err != nil {
 		t.Fatal(err)
 	}
 	out, _ = exec2(t, ctx, "content", `{"selector":"#echo"}`)
 	if txt := out.(map[string]any)["text"].(string); strings.TrimSpace(txt) != "covey" {
-		t.Errorf("nach type = %q", txt)
+		t.Errorf("after type = %q", txt)
 	}
 
-	// :has-text — content greift den innersten Treffer per sichtbarem Text
+	// :has-text — content grabs the innermost hit by visible text
 	out, err = exec2(t, ctx, "content", `{"selector":"div:has-text(\"covey\")"}`)
 	if err != nil {
 		t.Fatalf("has-text content: %v", err)
@@ -181,41 +181,41 @@ func TestBrowserEndToEnd(t *testing.T) {
 		t.Errorf("has-text content = %q", txt)
 	}
 
-	// :has-text — click findet den Button über seinen Beschriftungstext
+	// :has-text — click finds the button by its label text
 	if _, err = exec2(t, ctx, "click", `{"selector":"button:has-text(\"Klick\")"}`); err != nil {
 		t.Fatalf("has-text click: %v", err)
 	}
 
-	// :has-text ohne Treffer → klarer Fehler
+	// :has-text without a hit → clear error
 	if _, err = exec2(t, ctx, "click", `{"selector":"button:has-text(\"gibtsnicht\")"}`); err == nil {
-		t.Error("has-text ohne Treffer: Fehler erwartet")
+		t.Error("has-text without a hit: expected an error")
 	}
 
-	// screenshot mit Annotation (highlight + label) liefert ein gültiges PNG
+	// screenshot with annotation (highlight + label) yields a valid PNG
 	out, err = exec2(t, ctx, "screenshot", `{"to":"annot.png","highlight":"button:has-text(\"Klick\")","label":"Button reagiert nicht"}`)
 	if err != nil {
-		t.Fatalf("annotierter screenshot: %v", err)
+		t.Fatalf("annotated screenshot: %v", err)
 	}
 	annot := out.(map[string]any)["path"].(string)
 	if fi, err := os.Stat(annot); err != nil || fi.Size() == 0 {
-		t.Errorf("annotierter screenshot leer/fehlt: %v", err)
+		t.Errorf("annotated screenshot empty/missing: %v", err)
 	}
-	// Overlay muss nach dem Screenshot wieder entfernt sein (#covey-annot weg)
+	// the overlay must be removed again after the screenshot (#covey-annot gone)
 	if _, err = exec2(t, ctx, "content", `{"selector":"#covey-annot"}`); err == nil {
-		t.Error("Annotation-Overlay wurde nach dem Screenshot nicht entfernt")
+		t.Error("annotation overlay was not removed after the screenshot")
 	}
 
-	// highlight ohne Treffer → klarer Fehler
+	// highlight without a hit → clear error
 	if _, err = exec2(t, ctx, "screenshot", `{"to":"x.png","highlight":"button:has-text(\"gibtsnicht\")"}`); err == nil {
-		t.Error("highlight ohne Treffer: Fehler erwartet")
+		t.Error("highlight without a hit: expected an error")
 	}
 
-	// screenshot ohne Sandbox-Workdir → Fehler
+	// screenshot without a sandbox workdir → error
 	if _, err = exec2(t, context.Background(), "screenshot", `{}`); err == nil {
-		t.Error("screenshot ohne Workdir: Fehler erwartet")
+		t.Error("screenshot without a workdir: expected an error")
 	}
-	// unbekannte Aktion
+	// unknown action
 	if _, err = exec2(t, ctx, "kaputt", `{}`); err == nil {
-		t.Error("unbekannte Aktion: Fehler erwartet")
+		t.Error("unknown action: expected an error")
 	}
 }

@@ -17,20 +17,20 @@ import (
 	"covey/internal/skills"
 )
 
-// runConfigLint prüft die Agenten-Konfigurationen dieser Installation gegen die
-// Regeln aus agents.Lint und meldet, welche Agenten eine Änderung brauchen.
+// runConfigLint checks this installation's agent configurations against the
+// rules from agents.Lint and reports which agents need a change.
 //
-// Warum ein Subcommand und keine CI-Aufgabe: Nach einer Plattform-Änderung
-// bekommt jede Installation den neuen Plattform-Vertrag automatisch (der
-// System-Prompt wird zur Dispatch-Zeit kompiliert), aber die Agenten-Config
-// bleibt, wie ein Mensch sie geschrieben hat. Wer wissen will, welche seiner
-// Agenten nachgezogen werden müssen, braucht das Werkzeug **bei sich** — nicht
-// in der Pipeline dessen, der die Instanz betreibt, von der er das Binary hat.
+// Why a subcommand and not a CI job: after a platform change every installation
+// gets the new platform contract automatically (the system prompt is compiled
+// at dispatch time), but the agent config stays as a human wrote it. Whoever
+// wants to know which of their agents need catching up needs the tool **where
+// they are** — not in the pipeline of whoever runs the instance they got the
+// binary from.
 //
-// Der Lint ändert nichts. Er liest, bewertet und beschreibt.
+// The lint changes nothing. It reads, judges and describes.
 func runConfigLint(ctx context.Context, cfg config.Config, args []string) error {
 	if len(args) == 0 || args[0] != "lint" {
-		return fmt.Errorf("nutzung: covey config lint [--json]")
+		return fmt.Errorf("usage: covey config lint [--json]")
 	}
 	asJSON := false
 	for _, a := range args[1:] {
@@ -38,7 +38,7 @@ func runConfigLint(ctx context.Context, cfg config.Config, args []string) error 
 		case "--json":
 			asJSON = true
 		default:
-			return fmt.Errorf("unbekannte option %q (--json)", a)
+			return fmt.Errorf("unknown option %q (--json)", a)
 		}
 	}
 
@@ -67,16 +67,16 @@ func runConfigLint(ctx context.Context, cfg config.Config, args []string) error 
 	}
 	printLint(subjects, findings)
 	if len(findings) > 0 {
-		// Exit-Code 1 macht den Lint in einem Upgrade-Skript prüfbar, ohne dass
-		// jemand die Ausgabe parsen muss. Befunde sind kein Fehler des Werkzeugs.
+		// Exit code 1 makes the lint checkable from an upgrade script without
+		// anyone having to parse the output. Findings are not a tool failure.
 		os.Exit(1)
 	}
 	return nil
 }
 
-// lintSubjects sammelt je Agent die Fakten, die die Regeln brauchen: die
-// aktuelle Config, die selbst angelegten Board-Spalten und die Zahl der am
-// Turn-Limit abgebrochenen Läufe.
+// lintSubjects collects, per agent, the facts the rules need: the current
+// config, the self-created board columns and the number of runs aborted at the
+// turn limit.
 func lintSubjects(ctx context.Context, pool *pgxpool.Pool) ([]agents.Subject, error) {
 	rows, err := pool.Query(ctx, `
 		SELECT a.id, a.org_id, a.slug, a.max_turns,
@@ -92,11 +92,11 @@ func lintSubjects(ctx context.Context, pool *pgxpool.Pool) ([]agents.Subject, er
 	}
 	defer rows.Close()
 
-	// Ziel je Subject, nach Index geführt: Der Slug ist nur PRO Organisation
-	// eindeutig (migrations/0001: UNIQUE (org_id, slug)), und der Lint liest
-	// über alle Organisationen. Über den Slug geschlüsselt bekäme bei
-	// gleichnamigen Agenten einer die IDs des anderen — und damit eine
-	// Skill-Auflösung, die zu ihm nicht passt.
+	// The target per subject, kept by index: the slug is unique only PER
+	// organization (migrations/0001: UNIQUE (org_id, slug)), and the lint reads
+	// across all organizations. Keyed by slug, one of two agents with the same
+	// name would get the other's IDs — and with it a skill resolution that does
+	// not belong to it.
 	type target struct{ id, orgID uuid.UUID }
 	var out []agents.Subject
 	var targets []target
@@ -112,7 +112,7 @@ func lintSubjects(ctx context.Context, pool *pgxpool.Pool) ([]agents.Subject, er
 			return nil, err
 		}
 		if err := json.Unmarshal(raw, &s.Files); err != nil {
-			return nil, fmt.Errorf("config von %s: %w", s.Slug, err)
+			return nil, fmt.Errorf("config of %s: %w", s.Slug, err)
 		}
 		if maxTurns != nil {
 			s.MaxTurns = *maxTurns
@@ -140,14 +140,14 @@ func lintSubjects(ctx context.Context, pool *pgxpool.Pool) ([]agents.Subject, er
 	return out, nil
 }
 
-// agentSkills sammelt die Fähigkeiten, die dem Agenten tatsächlich zustehen —
-// eigene plus verlinkte Bibliotheks-Skills. Ohne sie prüfte der Lint eine halbe
-// Config: Prozeduren, die aus PLAYBOOKS.md in Skills gewandert sind, wären
-// unsichtbar, und Regeln wie „wer arbeitet, kommentiert" schlügen fälschlich an.
+// agentSkills collects the skills the agent is actually entitled to — its own
+// plus linked library skills. Without them the lint would check half a config:
+// procedures that moved out of PLAYBOOKS.md into skills would be invisible, and
+// rules such as "whoever works, comments" would fire wrongly.
 //
-// Über den Store und nicht per eigener Abfrage: Die Vorrang-Regel bei
-// Namensgleichheit (agent-eigen schlägt Bibliothek) darf es nur einmal geben,
-// sonst prüft der Lint irgendwann etwas anderes, als der Agent bekommt.
+// Through the store and not by a query of its own: the precedence rule on name
+// collision (the agent's own beats the library) may exist only once, otherwise
+// the lint eventually checks something other than what the agent gets.
 func agentSkills(ctx context.Context, store *skills.Store, orgID, agentID uuid.UUID) (map[string]string, error) {
 	found, err := store.ForAgent(ctx, orgID, agentID)
 	if err != nil {
@@ -183,12 +183,13 @@ func agentStages(ctx context.Context, pool *pgxpool.Pool, agentID uuid.UUID) ([]
 	return out, rows.Err()
 }
 
-// turnLimitFailures zählt die Läufe, die am Turn-Limit abgebrochen sind — die
-// Control Plane schreibt den Grund in den Fehlertext der Aufgabe.
+// turnLimitFailures counts the runs that were aborted at the turn limit — the
+// control plane writes the reason into the task's error text. The prefix must
+// stay in step with the runtime adapters' message (internal/daemon).
 func turnLimitFailures(ctx context.Context, pool *pgxpool.Pool, agentID uuid.UUID) (int, error) {
 	var n int
 	err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM backlog_tasks
-		WHERE agent_id=$1 AND error LIKE 'Turn-Limit%'`, agentID).Scan(&n)
+		WHERE agent_id=$1 AND error LIKE 'turn limit reached%'`, agentID).Scan(&n)
 	return n, err
 }
 
@@ -203,14 +204,14 @@ func printLint(subjects []agents.Subject, findings []agents.Finding) {
 	}
 	sort.Strings(slugs)
 
-	betroffen := 0
+	affected := 0
 	for _, slug := range slugs {
 		fs := byAgent[slug]
 		if len(fs) == 0 {
-			fmt.Printf("%-24s ✓ keine Befunde\n", slug)
+			fmt.Printf("%-24s ✓ no findings\n", slug)
 			continue
 		}
-		betroffen++
+		affected++
 		for i, f := range fs {
 			mark := "⚠"
 			if f.Severity == agents.SeverityInfo {
@@ -230,15 +231,15 @@ func printLint(subjects []agents.Subject, findings []agents.Finding) {
 		}
 	}
 	fmt.Println()
-	if betroffen == 0 {
-		fmt.Printf("%d Agenten geprüft, keine Befunde.\n", len(slugs))
+	if affected == 0 {
+		fmt.Printf("%d agents checked, no findings.\n", len(slugs))
 		return
 	}
-	verb := "brauchen"
-	if betroffen == 1 {
-		verb = "braucht"
+	verb := "need"
+	if affected == 1 {
+		verb = "needs"
 	}
-	fmt.Printf("%d von %d Agenten %s eine Änderung.\n", betroffen, len(slugs), verb)
-	fmt.Println("Der Lint ändert nichts — Configs bearbeitest du im Config-Tab der Oberfläche")
-	fmt.Println("oder per POST /api/v1/agents/{id}/config/import (versioniert, mit Historie).")
+	fmt.Printf("%d of %d agents %s a change.\n", affected, len(slugs), verb)
+	fmt.Println("The lint changes nothing — you edit configs in the config tab of the interface")
+	fmt.Println("or via POST /api/v1/agents/{id}/config/import (versioned, with history).")
 }

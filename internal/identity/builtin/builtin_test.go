@@ -13,7 +13,7 @@ import (
 
 func newTestProvider(t *testing.T) *Provider {
 	t.Helper()
-	p, err := New(nil) // pool nur für AuthenticateHuman nötig
+	p, err := New(nil) // the pool is only needed for AuthenticateHuman
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestAgentTokenWrongAudience(t *testing.T) {
 	tok, _ := p.IssueAgentToken(context.Background(), uuid.New(),
 		identity.Scope{Audience: "daemon"}, time.Minute)
 	if _, err := p.VerifyAgentToken(context.Background(), tok.Value, "zammad"); err == nil {
-		t.Fatal("Token mit falscher Audience muss abgelehnt werden")
+		t.Fatal("a token with the wrong audience must be rejected")
 	}
 }
 
@@ -51,7 +51,7 @@ func TestAgentTokenExpired(t *testing.T) {
 	tok, _ := p.IssueAgentToken(context.Background(), uuid.New(),
 		identity.Scope{Audience: "daemon"}, -time.Minute)
 	if _, err := p.VerifyAgentToken(context.Background(), tok.Value, "daemon"); err == nil {
-		t.Fatal("abgelaufenes Token muss abgelehnt werden")
+		t.Fatal("an expired token must be rejected")
 	}
 }
 
@@ -61,7 +61,7 @@ func TestAgentTokenTampered(t *testing.T) {
 		identity.Scope{Audience: "daemon"}, time.Minute)
 	tampered := tok.Value[:len(tok.Value)-4] + "AAAA"
 	if _, err := p.VerifyAgentToken(context.Background(), tampered, "daemon"); err == nil {
-		t.Fatal("manipuliertes Token muss abgelehnt werden")
+		t.Fatal("a tampered token must be rejected")
 	}
 }
 
@@ -71,15 +71,15 @@ func TestPasswordHashRoundtrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !strings.HasPrefix(hash, "$argon2id$") {
-		t.Fatalf("PHC-Format erwartet, got %q", hash)
+		t.Fatalf("expected PHC format, got %q", hash)
 	}
 	if !VerifyPassword("geheim123", hash) {
-		t.Fatal("korrektes Passwort muss verifizieren")
+		t.Fatal("the correct password must verify")
 	}
-	if VerifyPassword("falsch", hash) {
-		t.Fatal("falsches Passwort darf nicht verifizieren")
+	if VerifyPassword("wrong", hash) {
+		t.Fatal("a wrong password must not verify")
 	}
-	if VerifyPassword("geheim123", "kaputt") {
-		t.Fatal("kaputter Hash darf nicht verifizieren")
+	if VerifyPassword("geheim123", "broken") {
+		t.Fatal("a broken hash must not verify")
 	}
 }

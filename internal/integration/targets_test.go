@@ -14,9 +14,9 @@ import (
 	"covey/internal/backlog"
 )
 
-// TestTargetActivation: Ein deaktiviertes Zielsystem nimmt keine Webhooks an
-// und bekommt keine Credentials (fail-closed); Reaktivierung stellt beides
-// wieder her — ohne Neustart, ohne Deploy.
+// TestTargetActivation: a disabled target system accepts no webhooks and gets no
+// credentials (fail-closed); re-enabling restores both — without a restart,
+// without a deploy.
 func TestTargetActivation(t *testing.T) {
 	s := newStack(t)
 	zammad := newFakeZammad(t)
@@ -30,8 +30,8 @@ func TestTargetActivation(t *testing.T) {
 
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 
-	// Das Built-in erscheint in der Liste; die Test-Org hat es (wie eine echte
-	// Organisation im UI) explizit aktiviert — Aktivierung ist opt-in.
+	// The built-in appears in the list; the test org enabled it explicitly (as a
+	// real organization would in the UI) — activation is opt-in.
 	var plugins []map[string]any
 	respList := admin.do(http.MethodGet, "/api/v1/targets", nil)
 	json.NewDecoder(respList.Body).Decode(&plugins)
@@ -43,10 +43,10 @@ func TestTargetActivation(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatalf("zammad-built-in fehlt oder deaktiviert: %v", plugins)
+		t.Fatalf("the zammad built-in is missing or disabled: %v", plugins)
 	}
 
-	// Deaktivieren → der Webhook-Eingang ist zu.
+	// Disable it → the webhook entrance is closed.
 	admin.expect(http.MethodPatch, "/api/v1/targets/zammad", map[string]any{"enabled": false}, http.StatusOK)
 	body := []byte(`{"ticket":{"id":1,"number":"1","title":"x","state":"open"},"article":{"id":1,"sender":"Customer","body":"hi","internal":false}}`)
 	req, _ := http.NewRequest(http.MethodPost, s.http.URL+"/api/webhooks/zammad/support", bytes.NewReader(body))
@@ -57,34 +57,34 @@ func TestTargetActivation(t *testing.T) {
 	}
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("deaktiviertes system muss 404 liefern, got %d", resp.StatusCode)
+		t.Fatalf("a disabled system has to return 404, got %d", resp.StatusCode)
 	}
 
-	// … und der Broker verweigert Credentials: die Aktion scheitert zentral.
-	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Direktauftrag",
+	// … and the broker refuses credentials: the action fails centrally.
+	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Direct assignment",
 		`[mock:action zammad/get_ticket {"ticket_id":1}]`, "manual", 3)
 	if err != nil {
 		t.Fatal(err)
 	}
-	waitFor(t, "aufgabe scheitert am deaktivierten system", 15*time.Second, func() bool {
+	waitFor(t, "task fails on the disabled system", 15*time.Second, func() bool {
 		return s.taskState(task.ID) == backlog.StateFailed
 	})
 	got, err := s.backlog.Get(ctx, task.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Error == nil || !strings.Contains(*got.Error, "nicht aktiviert") {
-		t.Fatalf("fehler soll die deaktivierung nennen, got %v", got.Error)
+	if got.Error == nil || !strings.Contains(*got.Error, "not enabled") {
+		t.Fatalf("the error should name the deactivation, got %v", got.Error)
 	}
 
-	// Reaktivieren → der Webhook geht wieder durch.
+	// Re-enable it → the webhook gets through again.
 	admin.expect(http.MethodPatch, "/api/v1/targets/zammad", map[string]any{"enabled": true}, http.StatusOK)
 	if outcome := postWebhookRaw(t, s, "support", body); !strings.Contains(outcome, "created") {
-		t.Fatalf("nach reaktivierung erwarte ich created, got %s", outcome)
+		t.Fatalf("after re-enabling I expect created, got %s", outcome)
 	}
 
-	// Opt-in-Semantik: eine frische Organisation startet ohne aktivierte
-	// Zielsysteme — Built-ins sind erst nach expliziter Aktivierung an.
+	// Opt-in semantics: a fresh organization starts without enabled target
+	// systems — built-ins are on only after an explicit activation.
 	admin.expect(http.MethodPost, "/api/v1/orgs", map[string]any{
 		"name": "Frisch-Org", "admin_email": "frisch@test.local",
 		"admin_name": "Frisch-Admin", "admin_password": "frisch-passwort",
@@ -96,12 +96,12 @@ func TestTargetActivation(t *testing.T) {
 	respFresh.Body.Close()
 	for _, p := range freshPlugins {
 		if p["kind"] == "builtin" && p["enabled"] == true {
-			t.Fatalf("frische Organisation darf kein aktiviertes Built-in haben: %v", p)
+			t.Fatalf("a fresh organization must not have an enabled built-in: %v", p)
 		}
 	}
 }
 
-// fakeHelpdesk ist ein Nicht-Zammad-Zielsystem für das Manifest-Plugin.
+// fakeHelpdesk is a non-Zammad target system for the manifest plugin.
 type fakeHelpdesk struct {
 	mu       sync.Mutex
 	requests []string
@@ -128,9 +128,9 @@ func (f *fakeHelpdesk) calls() []string {
 	return append([]string(nil), f.requests...)
 }
 
-// TestCustomManifestPlugin: Ein hochgeladenes Manifest bindet ein neues
-// Zielsystem komplett an — Webhook-Eingang, gebrokerte Credentials und
-// Aktionen über die generische REST-Engine — ohne eine Zeile Go-Code.
+// TestCustomManifestPlugin: an uploaded manifest wires up a new target system
+// completely — webhook entrance, brokered credentials and actions through the
+// generic REST engine — without a line of Go code.
 func TestCustomManifestPlugin(t *testing.T) {
 	s := newStack(t)
 	helpdesk := newFakeHelpdesk(t)
@@ -155,7 +155,7 @@ func TestCustomManifestPlugin(t *testing.T) {
 	}
 	admin.expect(http.MethodPost, "/api/v1/targets", manifest, http.StatusOK)
 
-	// Agent mit Zugang zum neuen System; Secrets nach der <system>_token/_url-Konvention.
+	// An agent with access to the new system; secrets follow the <system>_token/_url convention.
 	agent, err := s.registry.Create(ctx, s.orgID, "helper", "Helpdesk-Agent", "mock", &s.adminID)
 	if err != nil {
 		t.Fatal(err)
@@ -171,8 +171,8 @@ func TestCustomManifestPlugin(t *testing.T) {
 	s.secrets.Assign(ctx, s.orgID, "helpdesk_token", agent.ID)
 	s.secrets.Assign(ctx, s.orgID, "helpdesk_url", agent.ID)
 
-	// Webhook des neuen Systems weckt den Agenten; die Mock-Direktiven im
-	// Kommentar treiben die Aktionen über die generische Engine.
+	// The new system's webhook wakes the agent; the mock directives inside the
+	// comment drive the actions through the generic engine.
 	payload := []byte(`{"issue":{"id":7,"title":"Drucker brennt"},
 		"comment":{"id":3,"author_type":"customer","text":"Es qualmt! [mock:action helpdesk/get_issue {\"issue_id\":7}] [mock:action helpdesk/comment {\"issue_id\":7,\"text\":\"Feuerwehr ist unterwegs.\"}] [mock:result Brand gemeldet]"}}`)
 	req, _ := http.NewRequest(http.MethodPost, s.http.URL+"/api/webhooks/helpdesk/helper", bytes.NewReader(payload))
@@ -184,26 +184,26 @@ func TestCustomManifestPlugin(t *testing.T) {
 	buf.ReadFrom(resp.Body)
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusOK || !strings.Contains(buf.String(), "created") {
-		t.Fatalf("helpdesk-webhook: HTTP %d %s", resp.StatusCode, buf.String())
+		t.Fatalf("helpdesk webhook: HTTP %d %s", resp.StatusCode, buf.String())
 	}
 
-	waitFor(t, "helpdesk-aufgabe done", 15*time.Second, func() bool {
+	waitFor(t, "helpdesk task done", 15*time.Second, func() bool {
 		tasks, _ := s.backlog.ListByAgent(ctx, agent.ID, false)
 		return len(tasks) == 1 && tasks[0].State == backlog.StateDone
 	})
 
 	calls := helpdesk.calls()
 	if len(calls) != 2 || calls[0] != "GET /issues/7" || calls[1] != "POST /issues/7/comments" {
-		t.Fatalf("engine-aufrufe falsch: %v", calls)
+		t.Fatalf("wrong engine calls: %v", calls)
 	}
 	helpdesk.mu.Lock()
 	key := helpdesk.apiKeys[0]
 	helpdesk.mu.Unlock()
 	if key != "hd-secret-token" {
-		t.Fatalf("gebrokertes token fehlt im auth-header: %q", key)
+		t.Fatalf("the brokered token is missing from the auth header: %q", key)
 	}
 
-	// Custom-Plugins lassen sich löschen — danach ist der Eingang zu.
+	// Custom plugins can be deleted — after that the entrance is closed.
 	admin.expect(http.MethodDelete, "/api/v1/targets/helpdesk", nil, http.StatusOK)
 	req, _ = http.NewRequest(http.MethodPost, s.http.URL+"/api/webhooks/helpdesk/helper", bytes.NewReader(payload))
 	resp, err = http.DefaultClient.Do(req)
@@ -212,14 +212,14 @@ func TestCustomManifestPlugin(t *testing.T) {
 	}
 	resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
-		t.Fatalf("nach löschen erwarte ich 404, got %d", resp.StatusCode)
+		t.Fatalf("after the deletion I expect 404, got %d", resp.StatusCode)
 	}
 }
 
-// TestAgentSystemsView prüft die Agenten-Sicht auf die Zielsysteme
-// (GET /agents/{id}/systems, spec/02): Zugang aus ACCESS.md, org-weite
-// Aktivierung und die Aktionsliste im Wortlaut des System-Prompts an einer
-// Stelle — die Antwort auf „was kann dieser Agent wo tun?".
+// TestAgentSystemsView checks the agent view of the target systems
+// (GET /agents/{id}/systems, spec/02): access from ACCESS.md, org-wide
+// activation and the action list in the wording of the system prompt, all in one
+// place — the answer to "what can this agent do where?".
 func TestAgentSystemsView(t *testing.T) {
 	s := newStack(t)
 	agent := s.newSupportAgent("systemsicht") // ACCESS.md: zammad read,write
@@ -240,44 +240,44 @@ func TestAgentSystemsView(t *testing.T) {
 		}
 	}
 	if zammad == nil || teams == nil {
-		t.Fatalf("zammad und teams müssen gelistet sein: %v", systems)
+		t.Fatalf("zammad and teams have to be listed: %v", systems)
 	}
 
-	// Der Zugang aus ACCESS.md steht drin — samt Scopes und Aktionen.
+	// The access from ACCESS.md is in there — including scopes and actions.
 	if zammad["access"] != true || zammad["enabled"] != true {
-		t.Fatalf("zammad muss Zugang und Aktivierung zeigen: %v", zammad)
+		t.Fatalf("zammad has to show access and activation: %v", zammad)
 	}
 	scopes, _ := zammad["scopes"].([]any)
 	if len(scopes) != 2 {
-		t.Fatalf("scopes aus ACCESS.md fehlen: %v", zammad["scopes"])
+		t.Fatalf("the scopes from ACCESS.md are missing: %v", zammad["scopes"])
 	}
 	doc, _ := zammad["doc"].(string)
 	if !strings.Contains(doc, "get_ticket") {
-		t.Fatalf("aktionsliste muss der prompt-doku entsprechen: %q", doc)
+		t.Fatalf("the action list has to match the prompt documentation: %q", doc)
 	}
 
-	// Aktiviert, aber ohne Zugang: sichtbar, und der Unterschied ist ablesbar.
+	// Enabled but without access: visible, and the difference is readable.
 	if teams["access"] == true || teams["enabled"] != true {
-		t.Fatalf("teams ist aktiviert, hat aber keinen Zugang in ACCESS.md: %v", teams)
+		t.Fatalf("teams is enabled but has no access in ACCESS.md: %v", teams)
 	}
-	// Zugänge stehen vorn — die UI zeigt sie zuerst.
+	// Systems with access come first — the UI shows them first.
 	if systems[0]["access"] != true {
-		t.Fatalf("systeme mit Zugang gehören an den Anfang: %v", systems[0])
+		t.Fatalf("systems with access belong at the front: %v", systems[0])
 	}
 
-	// Ein deaktiviertes Zielsystem hat keine Aktionen: fail-closed gilt auch
-	// für die Anzeige, sonst liest sich Deaktiviertes wie Verfügbares.
+	// A disabled target system has no actions: fail-closed applies to the display
+	// as well, otherwise something disabled reads like something available.
 	admin.expect(http.MethodPatch, "/api/v1/targets/zammad", map[string]any{"enabled": false}, http.StatusOK)
-	// Frische Ziel-Slice: in eine befüllte hinein dekodiert, mischt
-	// encoding/json die alten Map-Schlüssel mit den neuen — der alte Stand
-	// stünde dann im „neuen" Ergebnis.
+	// A fresh target slice: decoded into a filled one, encoding/json mixes the old
+	// map keys with the new ones — the old state would then stand in the "new"
+	// result.
 	var nachher []map[string]any
 	resp = admin.do(http.MethodGet, "/api/v1/agents/"+agent.ID.String()+"/systems", nil)
 	json.NewDecoder(resp.Body).Decode(&nachher)
 	resp.Body.Close()
 	for _, sys := range nachher {
 		if sys["name"] == "zammad" && sys["doc"] != nil {
-			t.Fatalf("deaktiviertes system darf keine aktionen zeigen: %v", sys)
+			t.Fatalf("a disabled system must not show any actions: %v", sys)
 		}
 	}
 }

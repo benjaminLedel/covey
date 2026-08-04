@@ -10,67 +10,67 @@ import (
 	"covey/internal/target"
 )
 
-// System bindet GitLab als Zielsystem-Plugin an die target-Registry:
-// Webhook-Eingang (Token-Prüfung, Idempotenz, Korrelation), die
-// Agent-Aktionen und die Aktions-Doku für den System-Prompt.
+// System binds GitLab in as a target-system plugin to the target registry: the
+// webhook entry (token check, idempotency, correlation), the agent actions and
+// the action documentation for the system prompt.
 type System struct{}
 
 func init() {
 	target.Register(target.Descriptor{
 		Name:        "gitlab",
 		Label:       "GitLab",
-		Description: "GitLab-Issues als Arbeitsvorrat: Issues finden (list_projects/list_issues, auch nach Meilenstein), extern gemeldete Bugs als Ticket anlegen (create_issue), den Arbeitszustand im Board führen (set_labels/assign), Quellcode auschecken, Projekt aufsetzen und Bugs am Code verifizieren (checkout + Sandbox-Shell), an Issues angehängte Screenshots/Bilder lesen (download_upload + Vision), eigene Screenshots an einen MR/ein Issue anhängen (upload + comment_mr), Fixes entwickeln — auf Feature-Branch committen (commit), Merge Request an den Vorgesetzten eröffnen (create_merge_request, optional mit QA-Agent als reviewer) und den Review-Loop leben: bei jedem Heartbeat-Lauf offene MRs auf neues Review-Feedback prüfen (list_merge_requests/list_mr_notes/comment_mr), rote CI selbst diagnostizieren (list_pipelines/list_pipeline_jobs/get_job_log) und auf den Merge reagieren. Auch als QA-/Test-Agent nutzbar: fremde MRs, in denen man als Reviewer eingetragen ist, end-to-end testen und Feedback geben (set_reviewer/approve_mr, nur-wenn: gitlab:review). Intake per HEARTBEAT.md (Polling), Auth per API-Token (Secrets gitlab_token + gitlab_url).",
+		Description: "GitLab issues as the working set: find issues (list_projects/list_issues, by milestone too), file externally reported bugs as a ticket (create_issue), maintain the working state on the board (set_labels/assign), check out source code, set the project up and verify bugs against the code (checkout + sandbox shell), read screenshots/images attached to issues (download_upload + vision), attach your own screenshots to an MR/an issue (upload + comment_mr), develop fixes — commit onto a feature branch (commit), open a merge request to your manager (create_merge_request, optionally with a QA agent as reviewer) and live the review loop: on every heartbeat run check open MRs for new review feedback (list_merge_requests/list_mr_notes/comment_mr), diagnose red CI yourself (list_pipelines/list_pipeline_jobs/get_job_log) and react to the merge. Usable as a QA/test agent too: test others' MRs in which you are entered as reviewer end to end and give feedback (set_reviewer/approve_mr, nur-wenn: gitlab:review). Intake through HEARTBEAT.md (polling), auth by API token (the secrets gitlab_token + gitlab_url).",
 		Kind:        "builtin",
 		Category:    target.CategoryCode,
 		System:      System{},
-		SetupDoc: `1. In GitLab einen eigenen Bot-Nutzer anlegen (z. B. covey-bot), den
-   Zielprojekten hinzufügen und als dieser Nutzer ein Access Token mit
-   Scope "api" erzeugen. Rolle: Reporter reicht fürs Lesen/Kommentieren;
-   soll der Agent Fixes pushen und Merge Requests eröffnen (commit /
-   create_merge_request), braucht er Developer.
+		SetupDoc: `1. Create a bot user of its own in GitLab (covey-bot, say), add it to the
+   target projects and, as that user, generate an access token with the
+   scope "api". Role: reporter suffices for reading/commenting; if the agent
+   is to push fixes and open merge requests (commit /
+   create_merge_request), it needs developer.
 
-2. Unter Secrets hinterlegen und dem Agenten zuweisen:
-   gitlab_url   = https://gitlab.example.com   (ohne /api/v4)
-   gitlab_token = das Token aus Schritt 1
+2. Store under Secrets and assign to the agent:
+   gitlab_url   = https://gitlab.example.com   (without /api/v4)
+   gitlab_token = the token from step 1
 
-3. In der ACCESS.md des Agenten freischalten:
+3. Enable in the agent's ACCESS.md:
    - system: gitlab scope: read,write,comment
 
-4. Intake per Heartbeat (GitLab hat keinen Webhook — der Agent nimmt Arbeit
-   ausschließlich per Polling auf) — in der HEARTBEAT.md des Agenten zwei
-   getrennte, je eigen gegatete Einträge:
-   - alle: 15m nur-wenn: gitlab:issues titel: GitLab-Issues sichten aufgabe:
-     Finde offene Issues (list_issues state=opened), bearbeite neue und prüfe
-     per list_notes, ob auf deine Rückfragen geantwortet wurde. Bei Bugs: Code
-     per checkout holen und die Behauptung am Quelltext verifizieren.
-   - alle: 15m nur-wenn: gitlab:mr titel: Merge Requests betreuen aufgabe:
-     Prüfe deine offenen Merge Requests (list_merge_requests state=opened) auf
-     neues Review-Feedback (list_mr_notes), arbeite es ein und reagiere auf
-     Merge/Close.
-   (Der Unterscope nach dem Doppelpunkt spart den teuren Agenten-Lauf gezielt:
-    nur-wenn: gitlab:issues feuert bei IRGENDEINEM offenen Issue im Intake-Scope
-    (für Agenten, die alle offenen Issues triagieren),
-    nur-wenn: gitlab:mr nur, wenn einer deiner offenen MRs unbeantwortetes
-    Review-Feedback hat. So laufen beide Tasks getrennt, ohne dass der eine
-    für die Arbeit des anderen mit-feuert. nur-wenn: gitlab ohne Unterscope
-    prüft beides gemeinsam — nur nötig, wenn du beide Jobs in EINEM Task willst.)
-    WICHTIG — bearbeitet dein Playbook nur DIR ZUGEWIESENE Issues (list_issues
-    assigned=true), nutze nur-wenn: gitlab:issues:assigned. Dann weckt dich nur
-    ein dir zugewiesenes offenes Issue — sonst würde jedes fremde offene Issue
-    im Scope deinen Agenten in jedem Intervall unnötig starten.
-   Optionaler Projekt-Filter (gilt für list_issues/list_projects):
-   COVEY_GITLAB_INTAKE_PROJECTS="gruppe/support"   (leer = alle)
+4. Intake by heartbeat (GitLab has no webhook — the agent takes up work
+   exclusively by polling) — two separate entries in the agent's
+   HEARTBEAT.md, each gated on its own:
+   - alle: 15m nur-wenn: gitlab:issues titel: Review GitLab issues aufgabe:
+     Find open issues (list_issues state=opened), work on the new ones and check
+     with list_notes whether your queries have been answered. For bugs: fetch the
+     code with checkout and verify the claim against the source.
+   - alle: 15m nur-wenn: gitlab:mr titel: Look after merge requests aufgabe:
+     Check your open merge requests (list_merge_requests state=opened) for
+     new review feedback (list_mr_notes), work it in and react to
+     merge/close.
+   (The sub-scope after the colon saves the expensive agent run deliberately:
+    nur-wenn: gitlab:issues fires on ANY open issue in the intake scope
+    (for agents that triage all open issues),
+    nur-wenn: gitlab:mr only when one of your open MRs has unanswered
+    review feedback. That way both tasks run separately without one of them
+    firing for the other's work. nur-wenn: gitlab without a sub-scope
+    checks both together — only needed if you want both jobs in ONE task.)
+    IMPORTANT — if your playbook works only on issues ASSIGNED TO YOU (list_issues
+    assigned=true), use nur-wenn: gitlab:issues:assigned. Then only an open issue
+    assigned to you wakes you — otherwise every open issue of someone else's
+    in the scope would start your agent needlessly in every interval.
+   Optional project filter (applies to list_issues/list_projects):
+   COVEY_GITLAB_INTAKE_PROJECTS="group/support"   (empty = all)
 
-Details: docs/betrieb-gitlab.md im Repository.`,
+Details: docs/ops-gitlab.md in the repository.`,
 	})
 }
 
 func (System) Name() string { return "gitlab" }
 
-// issueProjectPath leitet den Projektpfad aus der vollen Referenz
-// ("gruppe/support#23") ab — die Issue-API liefert path_with_namespace nicht
-// direkt. Leerer Rückgabewert, wenn keine Referenz vorhanden ist; der
-// Intake-Filter matcht dann nur noch über die numerische Projekt-id.
+// issueProjectPath derives the project path from the full reference
+// ("group/support#23") — the issue API does not return path_with_namespace
+// directly. An empty return value when no reference is present; the intake
+// filter then only matches through the numeric project id.
 func issueProjectPath(i Issue) string {
 	if idx := strings.LastIndex(i.References.Full, "#"); idx > 0 {
 		return i.References.Full[:idx]
@@ -78,8 +78,8 @@ func issueProjectPath(i Issue) string {
 	return ""
 }
 
-// mrProjectPath leitet den Projektpfad aus der vollen MR-Referenz
-// ("gruppe/projekt!9") ab — analog issueProjectPath, aber getrennt am "!".
+// mrProjectPath derives the project path from the full MR reference
+// ("group/project!9") — as issueProjectPath, but split at the "!".
 func mrProjectPath(m MergeRequest) string {
 	if idx := strings.LastIndex(m.References.Full, "!"); idx > 0 {
 		return m.References.Full[:idx]
@@ -87,59 +87,59 @@ func mrProjectPath(m MergeRequest) string {
 	return ""
 }
 
-// HasWork (target.WorkChecker): billiger Vorab-Check der Control Plane für
-// nur-wenn:-Heartbeats. Ohne Webhook nimmt GitLab rein per Polling auf; dieser
-// Check spart den (teuren) Agenten-Wake, wenn es gerade nichts zu tun gibt.
-// Arbeit liegt vor, wenn EINES gilt:
+// HasWork (target.WorkChecker): the control plane's cheap pre-check for
+// nur-wenn: heartbeats. Without a webhook GitLab takes up work purely by
+// polling; this check saves the (expensive) agent wake-up when there is nothing
+// to do at the moment. Work is present when ONE of the following holds:
 //
-//   - Es gibt ein offenes Issue im Intake-Scope (globales GET /issues, danach
-//     COVEY_GITLAB_INTAKE_PROJECTS-Filter) — was der Agent nicht sähe, weckt
-//     ihn auch nicht —, auf das der Bot noch nicht als Letzter geantwortet hat.
-//   - Der Bot hat einen offenen, selbst eröffneten Merge Request mit
-//     unbeantwortetem Review-Feedback (der letzte Nicht-System-Kommentar stammt
-//     von jemand anderem als dem Bot). Das trägt den Review-Loop ohne Webhook.
+//   - There is an open issue in the intake scope (the global GET /issues,
+//     followed by the COVEY_GITLAB_INTAKE_PROJECTS filter) — what the agent
+//     would not see does not wake it either — on which the bot has not yet
+//     answered last.
+//   - The bot has an open merge request it opened itself with unanswered
+//     review feedback (the last non-system comment comes from someone other
+//     than the bot). That carries the review loop without a webhook.
 //
-// Der Merge-Abschluss braucht keinen eigenen Zweig: ist das zugehörige Issue
-// noch offen, weckt es über den Issue-Zweig; ist es beim Merge automatisch
-// geschlossen worden, gibt es nichts mehr zu tun. Maßgeblich ist überall die
-// **Flanke** (hat sich seit dem letzten Zug des Bots etwas getan?), nicht der
-// Pegel (steht irgendwo etwas offen?) — sonst weckt derselbe unerledigte Vorgang
-// den Agenten in jedem Intervall erneut.
+// The completion of a merge needs no branch of its own: if the associated issue
+// is still open, it wakes through the issue branch; if it was closed
+// automatically on the merge, there is nothing left to do. What counts
+// everywhere is the **edge** (has something happened since the bot's last
+// move?), not the level (is anything open anywhere?) — otherwise the same
+// unfinished item wakes the agent afresh in every interval.
 func (System) HasWork(ctx context.Context, cred target.Credential) (bool, error) {
 	has, _, err := System{}.HasWorkSigned(ctx, cred, "")
 	return has, err
 }
 
-// HasWorkKind (target.KindWorkChecker) gatet eine einzelne Arbeits-Art, damit
-// mehrere Heartbeats (nur-wenn: gitlab:issues, :mr, :review) getrennt feuern:
+// HasWorkKind (target.KindWorkChecker) gates a single kind of work so that
+// several heartbeats (nur-wenn: gitlab:issues, :mr, :review) fire separately:
 //
-//   - "issues"/"issue"  → wartet IRGENDEIN offenes Issue im Intake-Scope auf
-//     eine Reaktion (für Agenten, die alle offenen Issues triagieren)?
-//   - "issues:assigned"/"assigned" → wartet ein offenes Issue, das dem Bot-
-//     Nutzer selbst ZUGEWIESEN ist (scope=assigned_to_me)? Genau das braucht ein
-//     Agent, dessen Playbook nur seine eigenen Issues bearbeitet (list_issues
-//     assigned=true) — sonst weckt ihn jedes fremde offene Issue im Scope.
-//     „Wartet" heißt in beiden Fällen: der Bot hat dort noch nicht als Letzter
-//     kommentiert (siehe issueWorkPending).
-//   - "mr"/"mrs"        → wartet einer der SELBST eröffneten MRs des Bots auf
-//     Antwort (Autoren-Sicht, der Entwickler-Review-Loop)?
-//   - "review"/"reviews" → wartet einer der MRs, in denen der Bot als REVIEWER
-//     eingetragen ist, auf sein Review (QA-/Test-Sicht)?
-//   - sonst             → beides von HasWork, fail-open bei unbekanntem Scope.
+//   - "issues"/"issue"  → is ANY open issue in the intake scope waiting for a
+//     reaction (for agents that triage all open issues)?
+//   - "issues:assigned"/"assigned" → is an open issue waiting that is ASSIGNED
+//     to the bot user itself (scope=assigned_to_me)? Exactly that is what an
+//     agent needs whose playbook only works on its own issues (list_issues
+//     assigned=true) — otherwise every open issue of someone else's in the
+//     scope wakes it. "Waiting" means in both cases: the bot has not yet
+//     commented there last (see issueWorkPending).
+//   - "mr"/"mrs"        → is one of the MRs the bot opened ITSELF waiting for
+//     an answer (the author's view, the developer review loop)?
+//   - "review"/"reviews" → is one of the MRs in which the bot is entered as
+//     REVIEWER waiting for its review (the QA/test view)?
+//   - otherwise         → both of HasWork, fail-open on an unknown scope.
 func (System) HasWorkKind(ctx context.Context, cred target.Credential, kind string) (bool, error) {
 	has, _, err := System{}.HasWorkSigned(ctx, cred, kind)
 	return has, err
 }
 
-// HasWorkSigned (target.SignedWorkChecker) ist die eigentliche Prüfung: sie
-// liefert neben dem Ja/Nein die Signatur der wartenden Vorgänge, damit die
-// Control Plane nicht zweimal auf denselben Stand weckt. Ein Agent darf einen
-// Lauf dadurch schweigend beenden — die Rückmeldung des QA-Kollegen war eine
-// Freigabe, es gibt nichts zu tun — ohne im nächsten Intervall erneut geweckt
-// zu werden. Kommt dagegen ein neuer Beitrag oder ein Push dazu, ändert sich
-// die Signatur und der Agent wacht auf. Ob eine Rückmeldung Arbeit bedeutet
-// (gemeldete Mängel) oder nur Information (Freigabe), entscheidet damit der
-// Agent und nicht das Gate.
+// HasWorkSigned (target.SignedWorkChecker) is the actual check: besides the
+// yes/no it returns the signature of the waiting items so that the control
+// plane does not wake twice on the same state. An agent may thereby end a run
+// silently — the QA colleague's feedback was an approval, there is nothing to
+// do — without being woken again in the next interval. If, by contrast, a new
+// contribution or a push comes along, the signature changes and the agent wakes
+// up. Whether a piece of feedback means work (reported defects) or only
+// information (an approval) is thus decided by the agent and not by the gate.
 func (System) HasWorkSigned(ctx context.Context, cred target.Credential, kind string) (bool, string, error) {
 	gc := NewClient(cred.BaseURL, cred.Token)
 	var (
@@ -156,7 +156,7 @@ func (System) HasWorkSigned(ctx context.Context, cred target.Credential, kind st
 	case "review", "reviews":
 		waiting, err = mrReviewAssignedPending(ctx, gc)
 	default:
-		// Ohne Unterscope zählt beides — Issues UND der eigene Review-Loop.
+		// Without a sub-scope both count — issues AND one's own review loop.
 		waiting, err = issueWorkPending(ctx, gc, false)
 		if err == nil {
 			var mrs []string
@@ -171,31 +171,31 @@ func (System) HasWorkSigned(ctx context.Context, cred target.Credential, kind st
 	return len(waiting) > 0, workSig(waiting), nil
 }
 
-// issueMaxNotesChecks begrenzt die Kommentar-Prüfung von issueWorkPending: der
-// Check läuft in jedem Heartbeat-Intervall und darf nicht mit der Zahl offener
-// Issues davonlaufen. Wer mehr offene Issues hat als das, wird geweckt — die
-// Zuordnung „was davon ist neu" trifft dann der Agent selbst.
+// issueMaxNotesChecks caps the comment check of issueWorkPending: the check
+// runs in every heartbeat interval and must not run away with the number of
+// open issues. Whoever has more open issues than that gets woken — the call
+// "which of them is new" is then made by the agent itself.
 const issueMaxNotesChecks = 30
 
-// issueWorkPending: wartet mindestens ein offenes Issue im Intake-Scope auf den
-// Agenten? Globales GET /issues, danach COVEY_GITLAB_INTAKE_PROJECTS-Filter —
-// was der Agent per list_issues nicht sähe, weckt ihn auch nicht.
-// assignedOnly=true zählt nur die dem Bot-Nutzer zugewiesenen Issues
-// (scope=assigned_to_me) — passend zu einem Playbook, das ausschließlich
-// zugewiesene Issues bearbeitet; sonst würde jedes fremde offene Issue im Scope
-// den Agenten wecken.
+// issueWorkPending: is at least one open issue in the intake scope waiting for
+// the agent? The global GET /issues, followed by the
+// COVEY_GITLAB_INTAKE_PROJECTS filter — what the agent would not see through
+// list_issues does not wake it either. assignedOnly=true counts only the issues
+// assigned to the bot user (scope=assigned_to_me) — fitting for a playbook that
+// works exclusively on assigned issues; otherwise every open issue of someone
+// else's in the scope would wake the agent.
 //
-// Entscheidend ist die Flanke, nicht der Pegel: Ein offenes Issue ist Arbeit,
-// solange der letzte Nicht-System-Kommentar NICHT vom Bot stammt (oder es noch
-// gar keinen gibt — dann steht die Erst-Triage aus). Hat der Bot zuletzt
-// geschrieben, ruht das Issue, bis jemand antwortet. Ohne diese Kante bliebe ein
-// dauerhaft zugewiesenes Issue „ewig Arbeit" und der Heartbeat weckte den
-// Agenten in jedem Intervall neu auf dieselbe, längst erledigte Sache — dieselbe
-// Logik trägt bereits mrReviewPending/mrReviewAssignedPending.
+// What is decisive is the edge, not the level: an open issue is work as long as
+// the last non-system comment does NOT come from the bot (or there is none at
+// all yet — then the first triage is outstanding). If the bot wrote last, the
+// issue rests until someone answers. Without that edge a permanently assigned
+// issue would remain "work for ever" and the heartbeat would wake the agent
+// afresh in every interval on the same, long-settled matter — the same logic
+// already carries mrReviewPending/mrReviewAssignedPending.
 //
-// Der Vertrag daraus: **Ein Agent, der an einem Issue gearbeitet hat, muss dort
-// kommentieren.** Ein stiller Lauf gilt als „noch nicht bearbeitet" und weckt
-// erneut. Das Playbook „Issue-Triage" hält das so.
+// The contract that follows: **an agent that has worked on an issue must
+// comment there.** A silent run counts as "not yet worked on" and wakes again.
+// The playbook "issue triage" holds it that way.
 func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) ([]string, error) {
 	issues, err := gc.ListIssues(ctx, 0, "opened", "", "", "", assignedOnly)
 	if err != nil {
@@ -211,9 +211,9 @@ func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) ([]str
 		return nil, nil
 	}
 	if len(inScope) > issueMaxNotesChecks {
-		// Zu viele offene Issues für die Kommentar-Prüfung: wecken, ohne sie
-		// einzeln anzusehen. Die Signatur trägt dann nur die Anzahl — sie
-		// ändert sich, sobald ein Issue dazukommt oder wegfällt.
+		// Too many open issues for the comment check: wake without looking at
+		// them one by one. The signature then carries only the count — it
+		// changes as soon as an issue comes along or drops out.
 		return []string{fmt.Sprintf("issues:many@%d", len(inScope))}, nil
 	}
 	me, err := gc.CurrentUser(ctx)
@@ -227,18 +227,18 @@ func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) ([]str
 			return nil, err
 		}
 		if lastHumanNoteIsMine(notes, me.Username) {
-			continue // schon beantwortet — ruht, bis jemand darauf antwortet
+			continue // already answered — rests until someone replies to it
 		}
 		waiting = append(waiting, threadSig("issue", i.ProjectID, i.IID, notes))
 	}
 	return waiting, nil
 }
 
-// threadSig beschreibt einen wartenden Vorgang so, dass sich die Beschreibung
-// genau dann ändert, wenn dort etwas Neues passiert ist: Projekt, Nummer und
-// die höchste Note-ID des Threads. GitLab vergibt Note-IDs monoton und
-// vermerkt auch Pushes als System-Note — neue Commits ändern die Signatur
-// also mit, ohne dass es einen zusätzlichen Request kostet.
+// threadSig describes a waiting item in such a way that the description changes
+// exactly when something new has happened there: the project, the number and
+// the highest note id of the thread. GitLab hands out note ids monotonically
+// and records pushes as a system note too — new commits therefore change the
+// signature along with them without costing an additional request.
 func threadSig(kind string, projectID, iid int, notes []Note) string {
 	last := 0
 	for _, n := range notes {
@@ -249,9 +249,9 @@ func threadSig(kind string, projectID, iid int, notes []Note) string {
 	return fmt.Sprintf("%s%d!%d@%d", kind, projectID, iid, last)
 }
 
-// workSig fasst die wartenden Vorgänge zu einer stabilen Signatur zusammen.
-// Sortiert, weil GitLab nach updated_at liefert — sonst wechselte die Signatur
-// allein durch die Reihenfolge.
+// workSig condenses the waiting items into a stable signature. Sorted, because
+// GitLab returns them by updated_at — otherwise the signature would change
+// through the order alone.
 func workSig(waiting []string) string {
 	if len(waiting) == 0 {
 		return ""
@@ -261,9 +261,9 @@ func workSig(waiting []string) string {
 	return strings.Join(sorted, ",")
 }
 
-// lastHumanNoteIsMine sagt, ob der letzte Nicht-System-Kommentar eines Threads
-// vom Bot selbst stammt. Ohne jeden menschlichen Kommentar ist die Antwort
-// false: ein unkommentierter Thread wartet auf den ersten Zug.
+// lastHumanNoteIsMine says whether a thread's last non-system comment comes
+// from the bot itself. Without any human comment the answer is false: an
+// uncommented thread is waiting for the first move.
 func lastHumanNoteIsMine(notes []Note, me string) bool {
 	for i := len(notes) - 1; i >= 0; i-- {
 		if notes[i].System {
@@ -274,11 +274,11 @@ func lastHumanNoteIsMine(notes []Note, me string) bool {
 	return false
 }
 
-// mrReviewPending prüft, ob einer der offenen, selbst eröffneten Merge Requests
-// des Bots auf eine Antwort wartet: Der letzte menschliche (Nicht-System-)
-// Kommentar im Thread stammt nicht vom Bot. Frische MRs ganz ohne Kommentare
-// (der Bot hat gerade eröffnet, das Review steht noch aus) zählen NICHT als
-// Arbeit — sonst würde jeder offene MR den Agenten in jedem Intervall wecken.
+// mrReviewPending checks whether one of the bot's open, self-opened merge
+// requests is waiting for an answer: the last human (non-system) comment in the
+// thread does not come from the bot. Fresh MRs with no comments at all (the bot
+// has just opened it, the review is still outstanding) do NOT count as work —
+// otherwise every open MR would wake the agent in every interval.
 func mrReviewPending(ctx context.Context, gc *Client) ([]string, error) {
 	mrs, err := gc.ListMyOpenMergeRequests(ctx)
 	if err != nil {
@@ -303,9 +303,9 @@ func mrReviewPending(ctx context.Context, gc *Client) ([]string, error) {
 		if err != nil {
 			return nil, err
 		}
-		// Notes kommen chronologisch (sort=asc); der letzte Nicht-System-
-		// Kommentar entscheidet. Ist er von jemand anderem als dem Bot, wartet
-		// Review-Feedback auf Bearbeitung.
+		// Notes arrive chronologically (sort=asc); the last non-system comment
+		// decides. If it is from someone other than the bot, review feedback is
+		// waiting to be worked on.
 		for i := len(notes) - 1; i >= 0; i-- {
 			if notes[i].System {
 				continue
@@ -313,25 +313,25 @@ func mrReviewPending(ctx context.Context, gc *Client) ([]string, error) {
 			if notes[i].Author.Username != me.Username {
 				waiting = append(waiting, threadSig("mr", m.ProjectID, m.IID, notes))
 			}
-			break // letzter menschlicher Kommentar ist vom Bot → schon beantwortet
+			break // the last human comment is the bot's → already answered
 		}
 	}
 	return waiting, nil
 }
 
-// mrReviewAssignedPending ist das Spiegelbild von mrReviewPending aus der
-// Reviewer-Sicht: Wartet einer der offenen Merge Requests, in denen der Bot als
-// REVIEWER eingetragen ist, auf sein Review? Das trägt den Review-Loop für einen
-// QA-/Test-Agenten ohne Webhook, gegatet über nur-wenn: gitlab:review.
+// mrReviewAssignedPending is the mirror image of mrReviewPending from the
+// reviewer's point of view: is one of the open merge requests in which the bot
+// is entered as REVIEWER waiting for its review? That carries the review loop
+// for a QA/test agent without a webhook, gated through nur-wenn: gitlab:review.
 //
-// Arbeit liegt vor, wenn seit dem letzten eigenen Kommentar ein Mensch
-// geschrieben hat oder der Autor NEUE COMMITS gepusht hat — oder wenn der Bot
-// hier noch gar nichts gesagt hat. Anders als beim Autoren-Loop zählt ein
-// frischer, an mich zum Review übergebener MR (noch ohne Kommentar) SEHR WOHL
-// als Arbeit: genau er wartet auf mein Erst-Review. Hat der Bot zuletzt
-// kommentiert, ruht der MR, bis der Autor mit Code reagiert — eine bloße
-// Textantwort des Autoren-Agenten („danke für das Review") ist kein Anlass für
-// eine neue Review-Runde, sonst schaukeln sich beide Agenten gegenseitig hoch.
+// Work is present when a human has written since one's own last comment or the
+// author has pushed NEW COMMITS — or when the bot has said nothing here at all
+// yet. Unlike in the author loop, a fresh MR handed to me for review (still
+// without a comment) VERY MUCH counts as work: it is precisely that one waiting
+// for my first review. If the bot commented last, the MR rests until the author
+// reacts with code — a mere text answer from the author agent ("thanks for the
+// review") is no occasion for a new review round, otherwise the two agents work
+// each other up.
 func mrReviewAssignedPending(ctx context.Context, gc *Client) ([]string, error) {
 	me, err := gc.CurrentUser(ctx)
 	if err != nil {
@@ -357,8 +357,8 @@ func mrReviewAssignedPending(ctx context.Context, gc *Client) ([]string, error) 
 	return waiting, nil
 }
 
-// ActionSubject: öffentliche Kommentare (internal=false) sind ein eigenes,
-// schärfer regelbares Guard-Rail-Subjekt — analog zammad:reply_external.
+// ActionSubject: public comments (internal=false) are a guard-rail subject of
+// their own that can be ruled more sharply — analogous to zammad:reply_external.
 func (System) ActionSubject(action string, params json.RawMessage) string {
 	if action == "comment" {
 		var p struct {
@@ -373,11 +373,11 @@ func (System) ActionSubject(action string, params json.RawMessage) string {
 	return "gitlab:" + action
 }
 
-// isDuplicateComment ist die Server-Bremse gegen Kommentar-Loops: ist der neue
-// Kommentar-Body identisch zum jüngsten EIGENEN (nicht-System-)Kommentar des
-// Bots, wird er nicht erneut gepostet. Fail-open: geht der Wer-bin-ich-Check
-// schief, wird normal kommentiert (kein legitimer Kommentar soll blockiert
-// werden). Nur die Wiederholung des eigenen letzten Kommentars wird unterdrückt.
+// isDuplicateComment is the server-side brake against comment loops: if the new
+// comment body is identical to the bot's most recent OWN (non-system) comment,
+// it is not posted again. Fail-open: if the who-am-I check goes wrong, the
+// comment is posted as usual (no legitimate comment should be blocked). Only
+// the repetition of one's own last comment is suppressed.
 func isDuplicateComment(ctx context.Context, gc *Client, notes []Note, body string) bool {
 	me, err := gc.CurrentUser(ctx)
 	if err != nil || me.Username == "" {
@@ -388,17 +388,17 @@ func isDuplicateComment(ctx context.Context, gc *Client, notes []Note, body stri
 		if n.System || n.Author.Username != me.Username {
 			continue
 		}
-		if n.CreatedAt >= lastAt { // ISO8601 ist lexikografisch sortierbar
+		if n.CreatedAt >= lastAt { // ISO8601 sorts lexicographically
 			lastAt, lastOwn = n.CreatedAt, n.Body
 		}
 	}
 	return lastOwn != "" && strings.TrimSpace(lastOwn) == strings.TrimSpace(body)
 }
 
-// aktionsParams ist die Vereinigung aller Parameter, die irgendeine
-// GitLab-Aktion braucht. Ein gemeinsames Struct statt eines je Aktion: Der
-// Agent schickt ein flaches JSON-Objekt, und was darin fehlt, bleibt schlicht
-// leer — das ist die Schnittstelle zum Modell, nicht unsere Wunschform.
+// aktionsParams is the union of all parameters any GitLab action needs. One
+// shared struct instead of one per action: the agent sends a flat JSON object,
+// and whatever is missing from it simply stays empty — that is the interface to
+// the model, not the shape we would wish for.
 type aktionsParams struct {
 	ProjectID  int    `json:"project_id"`
 	IssueIID   int    `json:"issue_iid"`
@@ -414,9 +414,9 @@ type aktionsParams struct {
 	Milestone  string `json:"milestone"`
 	Ref        string `json:"ref"`
 	Assigned   bool   `json:"assigned"`
-	// set_labels arbeitet additiv/subtraktiv statt die ganze Liste zu
-	// überschreiben — sonst nimmt jeder Zustandswechsel die fachlichen
-	// Labels mit.
+	// set_labels works additively/subtractively instead of overwriting the
+	// whole list — otherwise every state change takes the subject-matter labels
+	// along with it.
 	AddLabels    []string `json:"add_labels"`
 	RemoveLabels []string `json:"remove_labels"`
 	Path         string   `json:"path"`
@@ -427,7 +427,7 @@ type aktionsParams struct {
 	Since        string   `json:"since"`
 	Target       string   `json:"target_branch"`
 	Username     string   `json:"username"`
-	// Entwickler-Workflow: commit + create_merge_request.
+	// The developer workflow: commit + create_merge_request.
 	Branch       string   `json:"branch"`
 	StartBranch  string   `json:"start_branch"`
 	Message      string   `json:"message"`
@@ -441,14 +441,14 @@ type aktionsParams struct {
 	Reviewer     string   `json:"reviewer"`
 }
 
-// aktion fuehrt EINE GitLab-Aktion aus. Frueher lag jede davon als Fall in
-// einem 300-Zeilen-switch; eine Aktion dazuzunehmen hiess, diese Funktion
-// anzufassen. Jetzt ist jede fuer sich lesbar und die Verteilung eine Tabelle.
+// aktion carries out ONE GitLab action. Formerly each of them lay as a case in
+// a 300-line switch; taking on one more action meant touching that function.
+// Now each is readable on its own and the dispatch is a table.
 type aktion func(ctx context.Context, gc *Client, in aktionsParams) (any, error)
 
-// aktionen ist die Verteilung: Name aus dem Daemon-Protokoll auf Ausfuehrung.
-// Wer eine Aktion sucht, liest hier einen Namen und springt an eine Stelle,
-// statt sich durch die Nachbarn zu scrollen.
+// aktionen is the dispatch: a name from the daemon protocol onto its execution.
+// Whoever looks for an action reads one name here and jumps to one place
+// instead of scrolling through its neighbours.
 var aktionen = map[string]aktion{
 	"list_projects": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		ps, err := gc.ListProjects(ctx)
@@ -481,31 +481,31 @@ var aktionen = map[string]aktion{
 	},
 	"download_upload": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || strings.TrimSpace(in.URL) == "" {
-			return nil, fmt.Errorf("project_id oder url fehlt")
+			return nil, fmt.Errorf("project_id or url missing")
 		}
 		return DownloadUploadToSandbox(ctx, gc, in.ProjectID, in.URL, target.Workdir(ctx))
 	},
 	"upload": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || strings.TrimSpace(in.Path) == "" {
-			return nil, fmt.Errorf("project_id oder path fehlt")
+			return nil, fmt.Errorf("project_id or path missing")
 		}
 		return UploadFromSandbox(ctx, gc, in.ProjectID, in.Path, target.Workdir(ctx))
 	},
 	"checkout": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
-			return nil, fmt.Errorf("project_id fehlt")
+			return nil, fmt.Errorf("project_id missing")
 		}
 		return Checkout(ctx, gc, in.ProjectID, in.Ref, in.Path, target.Workdir(ctx))
 	},
 	"list_tree": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
-			return nil, fmt.Errorf("project_id fehlt")
+			return nil, fmt.Errorf("project_id missing")
 		}
 		return gc.ListTree(ctx, in.ProjectID, in.Path, in.Ref, in.Recursive)
 	},
 	"read_file": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.FilePath == "" {
-			return nil, fmt.Errorf("project_id oder file_path fehlt")
+			return nil, fmt.Errorf("project_id or file_path missing")
 		}
 		content, truncated, err := gc.ReadFile(ctx, in.ProjectID, in.FilePath, in.Ref)
 		if err != nil {
@@ -516,47 +516,47 @@ var aktionen = map[string]aktion{
 	},
 	"list_commits": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
-			return nil, fmt.Errorf("project_id fehlt")
+			return nil, fmt.Errorf("project_id missing")
 		}
 		return gc.ListCommits(ctx, in.ProjectID, in.Ref, in.Path, in.Since)
 	},
 	"get_commit": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.Sha == "" {
-			return nil, fmt.Errorf("project_id oder sha fehlt")
+			return nil, fmt.Errorf("project_id or sha missing")
 		}
 		return gc.GetCommitDiff(ctx, in.ProjectID, in.Sha)
 	},
 	"list_merge_requests": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
-			return nil, fmt.Errorf("project_id fehlt")
+			return nil, fmt.Errorf("project_id missing")
 		}
 		return gc.ListMergeRequests(ctx, in.ProjectID, in.State, in.Search, in.Target)
 	},
 	"get_merge_request": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.MRIID == 0 {
-			return nil, fmt.Errorf("project_id oder mr_iid fehlt")
+			return nil, fmt.Errorf("project_id or mr_iid missing")
 		}
 		return gc.GetMergeRequest(ctx, in.ProjectID, in.MRIID)
 	},
 	"list_mr_notes": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.MRIID == 0 {
-			return nil, fmt.Errorf("project_id oder mr_iid fehlt")
+			return nil, fmt.Errorf("project_id or mr_iid missing")
 		}
 		return gc.ListMRNotes(ctx, in.ProjectID, in.MRIID)
 	},
 	"comment_mr": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.MRIID == 0 || strings.TrimSpace(in.Body) == "" {
-			return nil, fmt.Errorf("project_id, mr_iid oder body fehlt")
+			return nil, fmt.Errorf("project_id, mr_iid or body missing")
 		}
 		if notes, err := gc.ListMRNotes(ctx, in.ProjectID, in.MRIID); err == nil && isDuplicateComment(ctx, gc, notes, in.Body) {
 			return map[string]any{"skipped": "duplicate",
-				"reason": "identisch zum letzten eigenen Kommentar — nicht erneut gepostet"}, nil
+				"reason": "identical to your own last comment — not posted again"}, nil
 		}
 		return gc.CommentMR(ctx, in.ProjectID, in.MRIID, in.Body)
 	},
 	"set_reviewer": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.MRIID == 0 {
-			return nil, fmt.Errorf("project_id oder mr_iid fehlt")
+			return nil, fmt.Errorf("project_id or mr_iid missing")
 		}
 		u, err := gc.LookupUser(ctx, in.Username)
 		if err != nil {
@@ -569,7 +569,7 @@ var aktionen = map[string]aktion{
 	},
 	"approve_mr": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.MRIID == 0 {
-			return nil, fmt.Errorf("project_id oder mr_iid fehlt")
+			return nil, fmt.Errorf("project_id or mr_iid missing")
 		}
 		if err := gc.ApproveMR(ctx, in.ProjectID, in.MRIID); err != nil {
 			return nil, err
@@ -578,25 +578,25 @@ var aktionen = map[string]aktion{
 	},
 	"list_pipelines": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
-			return nil, fmt.Errorf("project_id fehlt")
+			return nil, fmt.Errorf("project_id missing")
 		}
 		return gc.ListPipelines(ctx, in.ProjectID, in.Ref)
 	},
 	"list_pipeline_jobs": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.PipelineID == 0 {
-			return nil, fmt.Errorf("project_id oder pipeline_id fehlt")
+			return nil, fmt.Errorf("project_id or pipeline_id missing")
 		}
 		return gc.ListPipelineJobs(ctx, in.ProjectID, in.PipelineID)
 	},
 	"retry_pipeline": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.PipelineID == 0 {
-			return nil, fmt.Errorf("project_id oder pipeline_id fehlt")
+			return nil, fmt.Errorf("project_id or pipeline_id missing")
 		}
 		return gc.RetryPipeline(ctx, in.ProjectID, in.PipelineID)
 	},
 	"get_job_log": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.JobID == 0 {
-			return nil, fmt.Errorf("project_id oder job_id fehlt")
+			return nil, fmt.Errorf("project_id or job_id missing")
 		}
 		logText, truncated, err := gc.GetJobLog(ctx, in.ProjectID, in.JobID)
 		if err != nil {
@@ -606,20 +606,20 @@ var aktionen = map[string]aktion{
 	},
 	"list_branches": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
-			return nil, fmt.Errorf("project_id fehlt")
+			return nil, fmt.Errorf("project_id missing")
 		}
 		return gc.ListBranches(ctx, in.ProjectID, in.Search)
 	},
 	"commit": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
-			return nil, fmt.Errorf("project_id fehlt")
+			return nil, fmt.Errorf("project_id missing")
 		}
 		return CommitFromCheckout(ctx, gc, in.ProjectID, in.Branch, in.StartBranch,
 			in.Message, in.CheckoutPath, in.Files, in.Deleted, target.Workdir(ctx))
 	},
 	"create_merge_request": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || strings.TrimSpace(in.SourceBranch) == "" || strings.TrimSpace(in.Title) == "" {
-			return nil, fmt.Errorf("project_id, source_branch oder title fehlt")
+			return nil, fmt.Errorf("project_id, source_branch or title missing")
 		}
 		targetBranch := strings.TrimSpace(in.Target)
 		if targetBranch == "" {
@@ -630,14 +630,13 @@ var aktionen = map[string]aktion{
 			targetBranch = proj.DefaultBranch
 		}
 		if in.SourceBranch == targetBranch {
-			return nil, fmt.Errorf("source_branch und target_branch sind identisch (%q)", targetBranch)
+			return nil, fmt.Errorf("source_branch and target_branch are identical (%q)", targetBranch)
 		}
-		// Der Assignee muss auflösbar sein — ein MR ohne benannten Menschen als
-		// Empfänger ist hier nicht vorgesehen. Fehlt er, aber ist das
-		// zugrundeliegende Issue benannt, fällt der MR an dessen MELDER: Wer den
-		// Bedarf aufgeschrieben hat, entscheidet über den Merge. Pauschal den
-		// Vorgesetzten einzutragen macht ihn zum Flaschenhals für Arbeit, die er
-		// nie angefragt hat.
+		// The assignee must be resolvable — an MR without a named human as its
+		// recipient is not provided for here. If it is missing but the underlying
+		// issue is named, the MR falls to that issue's REPORTER: whoever wrote the
+		// need down decides on the merge. Entering the manager across the board
+		// makes them the bottleneck for work they never asked for.
 		assignee := strings.TrimSpace(in.Assignee)
 		if assignee == "" && in.IssueIID != 0 {
 			iss, err := gc.GetIssue(ctx, in.ProjectID, in.IssueIID)
@@ -647,15 +646,15 @@ var aktionen = map[string]aktion{
 			assignee = iss.Author.Username
 		}
 		if assignee == "" {
-			return nil, fmt.Errorf("assignee fehlt — trage den GitLab-Username des Issue-Melders ein (ersatzweise deinen Vorgesetzten) oder gib issue_iid mit")
+			return nil, fmt.Errorf("assignee missing — enter the GitLab username of the issue reporter (failing that, your manager) or pass issue_iid along")
 		}
 		u, err := gc.LookupUser(ctx, assignee)
 		if err != nil {
 			return nil, err
 		}
-		// reviewer optional: ist ein QA-/Test-Agent zuständig, trägst du ihn als
-		// Reviewer ein (Assignee bleibt der Vorgesetzte). Ohne reviewer prüft der
-		// Assignee selbst — Reviewer = Assignee wie bisher.
+		// reviewer is optional: if a QA/test agent is responsible, you enter it as
+		// the reviewer (the assignee stays the manager). Without a reviewer the
+		// assignee checks it itself — reviewer = assignee as before.
 		reviewerID := u.ID
 		if r := strings.TrimSpace(in.Reviewer); r != "" && r != assignee {
 			ru, err := gc.LookupUser(ctx, r)
@@ -669,7 +668,7 @@ var aktionen = map[string]aktion{
 	},
 	"create_issue": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || strings.TrimSpace(in.Title) == "" {
-			return nil, fmt.Errorf("project_id oder title fehlt")
+			return nil, fmt.Errorf("project_id or title missing")
 		}
 		assigneeID := 0
 		if a := strings.TrimSpace(in.Assignee); a != "" {
@@ -688,19 +687,19 @@ var aktionen = map[string]aktion{
 		internal := in.Internal == nil || *in.Internal
 		if notes, err := gc.ListNotes(ctx, in.ProjectID, in.IssueIID); err == nil && isDuplicateComment(ctx, gc, notes, in.Body) {
 			return map[string]any{"skipped": "duplicate",
-				"reason": "identisch zum letzten eigenen Kommentar — nicht erneut gepostet"}, nil
+				"reason": "identical to your own last comment — not posted again"}, nil
 		}
 		return gc.Comment(ctx, in.ProjectID, in.IssueIID, in.Body, internal)
 	},
 	"set_state": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.State == "" {
-			return nil, fmt.Errorf("state fehlt")
+			return nil, fmt.Errorf("state missing")
 		}
 		return nil, gc.SetState(ctx, in.ProjectID, in.IssueIID, in.State)
 	},
 	"assign": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.IssueIID == 0 {
-			return nil, fmt.Errorf("project_id oder issue_iid fehlt")
+			return nil, fmt.Errorf("project_id or issue_iid missing")
 		}
 		u, err := gc.LookupUser(ctx, in.Username)
 		if err != nil {
@@ -713,7 +712,7 @@ var aktionen = map[string]aktion{
 	},
 	"set_labels": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.IssueIID == 0 {
-			return nil, fmt.Errorf("project_id oder issue_iid fehlt")
+			return nil, fmt.Errorf("project_id or issue_iid missing")
 		}
 		iss, err := gc.SetLabels(ctx, in.ProjectID, in.IssueIID, in.AddLabels, in.RemoveLabels)
 		if err != nil {
@@ -724,7 +723,7 @@ var aktionen = map[string]aktion{
 	"escalate": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		note := in.Note
 		if note == "" {
-			note = "Eskalation durch Covey-Agent."
+			note = "Escalated by a Covey agent."
 		}
 		return nil, gc.Escalate(ctx, in.ProjectID, in.IssueIID, note)
 	},
@@ -733,7 +732,7 @@ var aktionen = map[string]aktion{
 func (System) Execute(ctx context.Context, action string, params json.RawMessage, cred target.Credential) (any, error) {
 	fn, ok := aktionen[action]
 	if !ok {
-		return nil, fmt.Errorf("unbekannte aktion %q", strings.TrimSpace(action))
+		return nil, fmt.Errorf("unknown action %q", strings.TrimSpace(action))
 	}
 	var in aktionsParams
 	if err := json.Unmarshal(params, &in); err != nil {
@@ -743,156 +742,156 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 }
 
 func (System) PromptDoc() string {
-	return `Verfügbare GitLab-Aktionen: list_projects {}, list_issues {"project_id":N,"state":"opened"|"closed"|"all","labels":"...","search":"...","milestone":"...","assigned":true|false}
-   (alle Felder optional; ohne project_id alle für dich sichtbaren Issues; assigned=true nur die deinem
-   Bot-Nutzer zugewiesenen — nutze das, wenn dein Playbook nur zugewiesene Issues vorsieht; milestone ist der
-   TITEL des Meilensteins exakt wie in GitLab und ist der zuverlässigste Filter, wenn dein Auftrag an einem
-   Vorhaben hängt — jedes Issue trägt seinen Meilenstein im Feld "milestone" zurück).
-   ACHTUNG: list_issues liefert höchstens 100 Treffer und sagt dir NICHT, dass abgeschnitten wurde. Bekommst du
-   genau 100 zurück, ist die Liste vermutlich unvollständig — grenze mit project_id, milestone, labels oder
-   state weiter ein, statt sie für vollständig zu halten, get_issue {"project_id":N,"issue_iid":N},
-   download_upload {"project_id":N,"url":"/uploads/<secret>/<datei>.png"} — lädt einen an ein Issue/MR angehängten
-   Upload (Screenshot, Bild) in deine Sandbox und liefert den lokalen Pfad; sieh ihn dir dann mit dem Read-Tool an
-   (Vision). WICHTIG: Enthält eine Issue-Beschreibung oder ein Kommentar einen Bild-Anhang — in der Markdown-Syntax
-   ![...](/uploads/<32-hex-secret>/<datei>) —, kannst du das Bild NICHT aus dem Text erschließen. Lade es IMMER erst
-   mit download_upload herunter und SIEH ES DIR AN (Read), bevor du einen Screenshot/ein Bild in deiner Analyse
-   berücksichtigst; übergib in "url" die Referenz exakt so, wie sie im Markdown zwischen den Klammern steht.
-   upload {"project_id":N,"path":"browser/shot.png"} — lädt eine Datei aus deiner Sandbox (z. B. einen Browser-
-   Screenshot) an das Projekt und liefert eine Markdown-Referenz (Feld "markdown", z. B. ![shot](/uploads/<secret>/shot.png)).
-   Diese Referenz baust du in den comment_mr-Body ein, damit der Screenshot direkt im Merge Request sichtbar ist — so
-   belegst du ein UI-Verhalten oder einen Mangel mit Bild, nicht nur mit Worten.
-   checkout {"project_id":N,"ref":"branch|tag|sha (optional, Default: Default-Branch)","path":"unterverzeichnis (optional)"} —
-   lädt den Quellcode des Projekts in deine Sandbox und liefert den lokalen Pfad; schlägt er wegen Repo-Größe fehl,
-   checke gezielt ein Unterverzeichnis aus (path) oder arbeite ohne Checkout:
-   list_tree {"project_id":N,"path":"...","ref":"...","recursive":true|false} listet den Repository-Baum (max. 100 Einträge —
-   mit path eingrenzen), read_file {"project_id":N,"file_path":"pfad/zur/datei","ref":"..."} liest eine einzelne Datei,
+	return `Available GitLab actions: list_projects {}, list_issues {"project_id":N,"state":"opened"|"closed"|"all","labels":"...","search":"...","milestone":"...","assigned":true|false}
+   (all fields optional; without project_id all the issues visible to you; assigned=true only the ones assigned
+   to your bot user — use that when your playbook only provides for assigned issues; milestone is the
+   TITLE of the milestone exactly as in GitLab and is the most reliable filter when your assignment hangs off an
+   engagement — every issue carries its milestone back in the field "milestone").
+   CAUTION: list_issues returns at most 100 hits and does NOT tell you that it truncated. If you get exactly
+   100 back, the list is probably incomplete — narrow it further with project_id, milestone, labels or
+   state instead of taking it for complete, get_issue {"project_id":N,"issue_iid":N},
+   download_upload {"project_id":N,"url":"/uploads/<secret>/<file>.png"} — loads an upload attached to an issue/MR
+   (a screenshot, an image) into your sandbox and returns the local path; then look at it with the read tool
+   (vision). IMPORTANT: if an issue description or a comment contains an image attachment — in the Markdown syntax
+   ![...](/uploads/<32-hex-secret>/<file>) — you can NOT derive the image from the text. ALWAYS download it first
+   with download_upload and LOOK AT IT (Read) before you take a screenshot/an image into account in your analysis;
+   pass in "url" the reference exactly as it stands between the brackets in the Markdown.
+   upload {"project_id":N,"path":"browser/shot.png"} — uploads a file from your sandbox (e.g. a browser
+   screenshot) to the project and returns a Markdown reference (the field "markdown", e.g. ![shot](/uploads/<secret>/shot.png)).
+   You build that reference into the comment_mr body so that the screenshot is visible directly in the merge request — that
+   is how you support a UI behaviour or a defect with a picture, not only with words.
+   checkout {"project_id":N,"ref":"branch|tag|sha (optional, default: the default branch)","path":"subdirectory (optional)"} —
+   loads the project's source into your sandbox and returns the local path; if it fails because of the repo size,
+   check a subdirectory out deliberately (path) or work without a checkout:
+   list_tree {"project_id":N,"path":"...","ref":"...","recursive":true|false} lists the repository tree (max. 100 entries —
+   narrow it with path), read_file {"project_id":N,"file_path":"path/to/file","ref":"..."} reads a single file,
    create_issue {"project_id":N,"title":"...","description":"... (Markdown)","labels":"bug,intake (optional)","assignee":"gitlab-username (optional)"} —
-   legt ein NEUES Ticket an; nutze es, um einen NICHT aus GitLab stammenden Bug-Report (z. B. per E-Mail gemeldet) in ein
-   nachverfolgbares Issue zu überführen. Braucht eine project_id — kennst du das Zielprojekt nicht sicher, RATE NICHT:
-   frag beim Melder nach, zu welchem Projekt der Fehler gehört (list_projects zeigt dir die dir zugänglichen Projekte),
-   und lege das Ticket erst an, wenn das Projekt feststeht,
+   files a NEW ticket; use it to turn a bug report that does NOT come from GitLab (reported by email, say) into a
+   traceable issue. It needs a project_id — if you do not know the target project for certain, DO NOT GUESS:
+   ask the reporter which project the fault belongs to (list_projects shows you the projects available to you),
+   and only file the ticket once the project is settled,
    list_notes {"project_id":N,"issue_iid":N}, comment {"project_id":N,"issue_iid":N,"body":"...","internal":true|false}
-   (ein Kommentar identisch zu deinem letzten eigenen wird NICHT erneut gepostet — Antwort {"skipped":"duplicate"} ist kein Fehler, sondern der Loop-Schutz),
+   (a comment identical to your own last one is NOT posted again — the answer {"skipped":"duplicate"} is not an error but the loop protection),
    set_state {"project_id":N,"issue_iid":N,"state":"close"|"reopen"}, escalate {"project_id":N,"issue_iid":N,"note":"..."},
-   assign {"project_id":N,"issue_iid":N,"username":"gitlab-username"} weist das Issue einer Person zu — z. B. nach einem
-   Fix dem Teammitglied, das laut Team-Verzeichnis fürs Testen zuständig ist; nimm den GitLab-Username exakt aus dem
-   Abschnitt "Team (menschliche Mitarbeiter)" deines Prompts und erkläre die Übergabe in einem Kommentar,
-   set_labels {"project_id":N,"issue_iid":N,"add_labels":["…"],"remove_labels":["…"]} setzt und entfernt Labels an einem
-   BESTEHENDEN Issue, ohne die übrigen anzutasten (mindestens eine der beiden Listen angeben; die Antwort enthält den
-   erreichten Label-Stand). Damit führst du den Arbeitszustand eines Vorgangs sichtbar im Board — Zustand und Wechsel
-   beim selben Schritt: beim Weiterreichen das alte Zustands-Label entfernen und das neue setzen, nie nur hinzufügen,
-   sonst trägt ein Issue am Ende drei widersprüchliche Zustände. Fachliche Labels (Komponente, Typ) fasst du dabei
-   nicht an. WICHTIG: Ein Label, das es im Projekt noch nicht gibt, legt GitLab beim Setzen STILL NEU AN — ein
-   Vertipper ("in_arbeit" statt "in-arbeit") erzeugt also dauerhaft ein Projekt-Label, das niemand mehr wegräumt.
-   Nimm die Zustandsnamen zeichengenau aus deinem Playbook und erfinde keine Varianten. Jedes Label ist ein eigener
-   Listeneintrag; ein Eintrag mit Komma darin wird abgelehnt,
-   list_branches {"project_id":N,"search":"..."} listet Branches (Default-Branch ist markiert — rate keine Branch-Namen),
-   list_commits {"project_id":N,"ref":"...","path":"datei/oder/verzeichnis","since":"ISO-Datum"} listet die Commit-Historie
-   (alle Filter optional), get_commit {"project_id":N,"sha":"..."} liefert den Diff eines Commits,
+   assign {"project_id":N,"issue_iid":N,"username":"gitlab-username"} assigns the issue to a person — after a fix,
+   for instance, to the team member responsible for testing according to the team directory; take the GitLab user name
+   exactly from the section "Team (human employees)" of your prompt and explain the handover in a comment,
+   set_labels {"project_id":N,"issue_iid":N,"add_labels":["…"],"remove_labels":["…"]} sets and removes labels on an
+   EXISTING issue without touching the others (give at least one of the two lists; the answer contains the
+   label state reached). That is how you maintain an item's working state visibly on the board — state and change
+   in the same step: when passing it on, remove the old state label and set the new one, never only add, or an
+   issue ends up carrying three contradictory states. The subject-matter labels (component, type) you do
+   not touch. IMPORTANT: a label that does not yet exist in the project is created SILENTLY by GitLab when set — a
+   typo ("in_progress" instead of "in-progress") therefore produces a permanent project label nobody clears away.
+   Take the state names character for character from your playbook and invent no variants. Every label is its own
+   list entry; an entry with a comma in it is refused,
+   list_branches {"project_id":N,"search":"..."} lists branches (the default branch is marked — do not guess branch names),
+   list_commits {"project_id":N,"ref":"...","path":"file/or/directory","since":"ISO date"} lists the commit history
+   (all filters optional), get_commit {"project_id":N,"sha":"..."} returns a commit's diff,
    list_merge_requests {"project_id":N,"state":"opened"|"merged"|"closed"|"all","search":"...","target_branch":"..."},
-   get_merge_request {"project_id":N,"mr_iid":N} liefert einen einzelnen MR mit Review-Zustand (detailed_merge_status,
-   has_conflicts) und CI-Ergebnis (head_pipeline), list_mr_notes {"project_id":N,"mr_iid":N} den Diskussionsstand eines MR
-   (Review-Kommentare), comment_mr {"project_id":N,"mr_iid":N,"body":"..."} antwortet im Review-Dialog,
-   set_reviewer {"project_id":N,"mr_iid":N,"username":"gitlab-username"} trägt einen Reviewer in einen bestehenden MR ein —
-   z. B. übergibst du als Entwickler den MR damit an den QA-/Test-Agenten aus dem Team-Verzeichnis; erkläre die Übergabe in
-   einem comment_mr, approve_mr {"project_id":N,"mr_iid":N} gibt einen MR formell frei (als Reviewer/QA — das grüne Signal an
-   den Vorgesetzten; das Mergen selbst bleibt beim Menschen),
-   list_pipelines {"project_id":N,"ref":"branch (optional)"} listet CI-Läufe — prüfe damit nach jedem Push, ob die
-   Pipeline deines Branches grün ist. Ist sie ROT, diagnostiziere selbst statt zu raten oder zu fragen:
-   list_pipeline_jobs {"project_id":N,"pipeline_id":N} zeigt die Jobs mit Status, get_job_log {"project_id":N,"job_id":N}
-   liefert das Log-Ende des fehlgeschlagenen Jobs — Ursache beheben, erneut committen, Pipeline erneut prüfen.
-   Scheitert ein Job an Infrastruktur (Runner fehlt, Registry down, fehlender Repo-Zugriff), gehört das als
-   Befund in den MR-Kommentar. Ist so eine externe Ursache später behoben (z. B. Zugriff nachträglich erteilt),
-   starte den Lauf mit retry_pipeline {"project_id":N,"pipeline_id":N} neu und prüfe danach das Ergebnis —
-   melde grün gewordene Pipelines kurz per comment_mr.
-   WICHTIG — kein Busy-Waiting auf CI: Läuft eine Pipeline noch, prüfe ihren Status höchstens zweimal.
-   Ist sie dann immer noch nicht fertig, beende deinen Lauf regulär mit done (Zwischenstand als add_note) —
-   dein nächster Heartbeat-Lauf prüft das Ergebnis. Minutenlanges Status-Polling verschwendet dein Turn-Budget.
-   Schreibende Entwickler-Aktionen:
-   commit {"project_id":N,"branch":"fix/…","start_branch":"main (optional, Default: Default-Branch)","message":"...",
-   "checkout_path":"<Pfad aus dem checkout-Ergebnis>","files":["repo/relativer/pfad.go",...],"deleted":["alt.go",...]} —
-   pusht deine lokal editierten Dateien als EINEN Commit auf den Branch; existiert der Branch nicht, wird er vom
-   start_branch abgezweigt. Direkte Commits auf den Default-Branch sind verboten — der Weg dorthin führt über:
-   create_merge_request {"project_id":N,"source_branch":"fix/…","target_branch":"main (optional, Default: Default-Branch)",
+   get_merge_request {"project_id":N,"mr_iid":N} returns a single MR with its review state (detailed_merge_status,
+   has_conflicts) and CI result (head_pipeline), list_mr_notes {"project_id":N,"mr_iid":N} an MR's discussion state
+   (review comments), comment_mr {"project_id":N,"mr_iid":N,"body":"..."} answers in the review dialogue,
+   set_reviewer {"project_id":N,"mr_iid":N,"username":"gitlab-username"} enters a reviewer on an existing MR —
+   as a developer you hand the MR over to the QA/test agent from the team directory with it, for instance; explain the
+   handover in a comment_mr, approve_mr {"project_id":N,"mr_iid":N} formally approves an MR (as reviewer/QA — the green
+   signal to the manager; the merging itself stays with the human),
+   list_pipelines {"project_id":N,"ref":"branch (optional)"} lists CI runs — use it after every push to check whether your
+   branch's pipeline is green. If it is RED, diagnose it yourself instead of guessing or asking:
+   list_pipeline_jobs {"project_id":N,"pipeline_id":N} shows the jobs with their status, get_job_log {"project_id":N,"job_id":N}
+   returns the end of the failed job's log — fix the cause, commit again, check the pipeline again.
+   If a job fails on infrastructure (a missing runner, a registry down, missing repo access), that belongs in the MR
+   comment as a finding. If such an external cause is fixed later (access granted afterwards, say),
+   start the run again with retry_pipeline {"project_id":N,"pipeline_id":N} and check the result afterwards —
+   report pipelines that have gone green briefly by comment_mr.
+   IMPORTANT — no busy-waiting on CI: if a pipeline is still running, check its status at most twice.
+   If it is still not finished then, end your run regularly with done (the interim state as add_note) —
+   your next heartbeat run checks the result. Minutes of status polling waste your turn budget.
+   Writing developer actions:
+   commit {"project_id":N,"branch":"fix/…","start_branch":"main (optional, default: the default branch)","message":"...",
+   "checkout_path":"<the path from the checkout result>","files":["repo/relative/path.go",...],"deleted":["old.go",...]} —
+   pushes your locally edited files as ONE commit onto the branch; if the branch does not exist, it is branched off the
+   start_branch. Direct commits onto the default branch are forbidden — the route there goes through:
+   create_merge_request {"project_id":N,"source_branch":"fix/…","target_branch":"main (optional, default: the default branch)",
    "title":"...","description":"...","assignee":"gitlab-username (optional)","issue_iid":N (optional),
-   "reviewer":"gitlab-username (optional)"} — eröffnet den Merge Request. Als assignee trägst du den MELDER des
-   zugrundeliegenden Issues ein (dessen author) — er hat den Bedarf angemeldet und entscheidet über den Merge. Gib
-   stattdessen einfach issue_iid mit, dann setzt Covey den Melder selbst ein. Nur wenn es kein Issue gibt oder der Melder
-   ein Kollegen-Agent ist (KI-Kollegen mergen nicht), trägst du deinen Vorgesetzten aus dem Team-Verzeichnis ein — NIE
-   pauschal: der Vorgesetzte wird sonst zum Flaschenhals für Arbeit, die er nie angefragt hat. Ohne reviewer wird der
-   Assignee auch Reviewer (wie bisher). Gibt es im Abschnitt "Team (KI-Kollegen)" einen QA-/Test-Agenten, der fürs Testen
-   zuständig ist, trägst du IHN als reviewer ein (seinen GitLab-Username exakt aus dem Verzeichnis) — bevorzugt einen
-   Kollegen aus DEINEM TEAM (gleiche Abteilung); gibt es dort keinen, nimm den organisationsweit fürs Testen Zuständigen.
-   Der QA-Agent testet das Feature und gibt Feedback, gemergt wird beim Assignee. Der Source-Branch wird nach dem Merge
-   automatisch entfernt.
-   Arbeitsweise als Entwickler — wenn du einen Bug nicht nur bestätigst, sondern behebst:
-   1. checkout des Projekts, den Fehler am Code nachvollziehen (Datei:Zeile).
-   2. Projekt AUFSETZEN wie ein neuer Kollege: README/CONTRIBUTING lesen, Abhängigkeiten installieren
-      (npm install / pip install / go mod download …), einmal Build und Tests laufen lassen, BEVOR du etwas
-      änderst — so kennst du den grünen Ausgangszustand und siehst, ob ein Fehlschlag von dir kommt.
-   3. Fix lokal im Checkout editieren — minimal-invasiv, Stil der Umgebung übernehmen.
-   4. VERIFIZIEREN, bevor du pushst: die Tests des Projekts im Checkout ausführen (bzw. Build/Kompilier-Check,
-      wenn es keine Tests gibt) und für den Fix möglichst einen Test ergänzen. Schlagen Tests fehl, pushe NICHT.
-   5. commit auf einen sprechenden Feature-Branch (z. B. fix/issue-<iid>-kurzbeschreibung).
-   6. create_merge_request an deinen Vorgesetzten; verweise in der description auf das Issue (#<iid>),
-      beschreibe Ursache, Fix und wie du ihn verifiziert hast (welche Tests liefen). Hat das Projekt CI,
-      prüfe mit get_merge_request bzw. list_pipelines, ob die Pipeline deines Branches grün wird.
-   7. Im Issue kommentieren: Link zum MR, kurze Zusammenfassung. Das Issue NICHT selbst schließen —
-      das passiert beim Merge bzw. durch deinen Vorgesetzten.
-   8. Aufgabe mit done beenden — NICHT blocken. GitLab hat keinen Webhook; auf Review wird per Polling
-      gewartet, nicht mit Status blocked. Dein nächster Heartbeat-Lauf prüft deine offenen MRs auf
-      Review-Feedback und den Merge-Zustand. (Ein blocked würde hier nie geweckt und blockierte deinen
-      Heartbeat dauerhaft.)
-   Review-Feedback einarbeiten — bei JEDEM Heartbeat-Lauf, nicht nur bei neuen Issues: hole mit
-   list_merge_requests {"state":"opened"} deine offenen MRs und prüfe jeden mit list_mr_notes auf neue
-   Review-Kommentare seit deiner letzten Antwort. Verlangt Feedback Änderungen, hole dir mit checkout
-   (ref=source_branch) den Branch, arbeite JEDEN Punkt ein, führe die Tests erneut aus und pushe mit commit
-   auf denselben Branch (ohne start_branch — der Branch existiert). Antworte mit comment_mr, was du geändert
-   hast. Bist du anderer Meinung, begründe das im comment_mr am Code statt blind zu ändern. Prüfe mit
-   list_merge_requests {"state":"merged"} bzw. get_merge_request, ob ein MR inzwischen gemergt wurde —
-   dann kommentiere im zugehörigen Issue das Ergebnis; wurde er ohne Merge geschlossen (state="closed"),
-   prüfe per list_mr_notes warum und eskaliere, wenn unklar. Prüfe vor jeder MR-Antwort mit list_mr_notes,
-   ob du auf den aktuellen Stand schon reagiert hast — so bearbeitest du bei wiederkehrenden Läufen nichts doppelt.
-   Deinen Arbeitsvorrat findest du selbst: list_issues {"state":"opened"} liefert die offenen Issues.
-   Arbeitsweise bei Bug-Reports und technischen Fragen: Antworte NIE nur aus Plausibilität oder Vorwissen.
-   Prüfe IMMER ZUERST, ob der gemeldete Fehler inzwischen schon behoben ist: list_commits auf dem relevanten
-   Branch mit since=Erstellungsdatum des Issues (und ohne path-Filter — der Fix kann in einer ganz anderen
-   Schicht liegen als vermutet, z. B. Frontend statt Backend), dazu list_merge_requests mit passenden
-   Suchbegriffen. Klingt ein Commit-Titel nach dem gemeldeten Problem, prüfe seinen Diff mit get_commit.
-   Ist der Fehler bereits behoben, antworte genau das — nenne Commit (SHA, Titel, Datum) — und bestätige
-   den Bug NICHT erneut; schlage vor, das Issue zu schließen, sobald der Fix deployt ist.
-   Erst danach: hole dir mit checkout den Quellcode, suche die betroffene Stelle (Grep/Read) und prüfe die
-   Behauptung am Code. Verfolge dabei den gemeldeten Weg vollständig — vom UI-Element über den tatsächlich
-   aufgerufenen Endpoint bis zur Verarbeitung; bestätige keinen Verdacht in einer Schicht, ohne die anderen
-   (Frontend, Routing, Backend) zumindest geprüft zu haben. Bestätige den Bug nur, wenn du ihn im Quelltext
-   nachvollziehen kannst — nenne dann Datei, Zeile und die fehlerhafte Logik. Findest du ihn nicht, beschreibe,
-   was du geprüft hast, und stelle eine gezielte Rückfrage (z. B. nach Version oder Reproduktionsschritten).
-   Zitiere in jedem Kommentar die konkreten Fundstellen (Datei:Zeile) — eine Antwort ohne Code-Beleg ist nur
-   bei rein organisatorischen Issues zulässig.
-   Prüfe vor dem Kommentieren mit list_notes, ob du (dein Bot-Nutzer) schon geantwortet hast und ob seitdem
-   eine neue Antwort kam — so bearbeitest du bei wiederkehrenden Läufen nichts doppelt.
-   WICHTIG — NIE mit Status blocked enden: GitLab nimmt Arbeit rein per Polling auf, es gibt keinen Webhook,
-   der eine geblockte Aufgabe wieder weckt. Warte weder auf eine Issue-Antwort noch auf ein MR-Review mit
-   blocked — beende jeden Lauf mit done und lass offene Issues/MRs von deinem nächsten Heartbeat-Lauf
-   erneut aufgreifen.
-   Arbeitsweise als QA-/Test-Agent (Reviewer) — wenn du fremde Merge Requests testest, statt selbst zu entwickeln:
-   Deinen Arbeitsvorrat findest du mit list_merge_requests {"state":"opened"} und, projektübergreifend, über die MRs, in
-   denen du als Reviewer eingetragen bist (dein nur-wenn: gitlab:review-Heartbeat feuert genau dann). Für JEDEN zu prüfenden MR:
-   1. get_merge_request lesen: Titel, Beschreibung, verlinktes Issue (#iid) — daraus die ABNAHMEKRITERIEN ableiten
-      (was soll das Feature können?). Fehlen sie, hol das Issue mit get_issue.
-   2. checkout {"ref":"<source_branch des MR>"} — den Branch in deine Sandbox holen, NICHT den Default-Branch.
-   3. Projekt wie ein neuer Kollege AUFSETZEN: README/CONTRIBUTING lesen, Abhängigkeiten installieren, einmal Build und die
-      vorhandenen Tests laufen lassen — so kennst du den Ausgangszustand.
-   4. Das Feature END-TO-END TESTEN, nicht nur den Diff lesen: die Anwendung bzw. den betroffenen Teil tatsächlich STARTEN
-      und ausführen (App/Server hochfahren, Endpoint/CLI/Skript aufrufen, den beschriebenen Ablauf durchspielen) und prüfen,
-      ob sie die Abnahmekriterien erfüllt. Fahre auch die Fehlerfälle und Ränder an, die die Beschreibung nahelegt.
-   5. KONSISTENZ prüfen: Passt die Änderung zum Stil und zu den Konventionen der Umgebung? Bricht sie bestehende Tests oder
-      andere Features? Gibt es Regressionen, fehlende Tests, offene Enden gegenüber dem Issue? Führe die volle Testsuite aus.
-   6. Ergebnis als comment_mr melden — konkret und umsetzbar: was du getestet hast (Schritte/Kommandos), was funktioniert,
-      und JEDEN Mangel mit Datei:Zeile und Reproduktion. Kein pauschales „sieht gut aus"; belege Befunde am Code/am Lauf.
-      Bei Mängeln: bleib Reviewer (der Entwickler-Agent sieht dein Feedback bei seinem nächsten gitlab:mr-Lauf und arbeitet es
-      ein). Ist alles grün und die Abnahmekriterien erfüllt: sag das explizit im comment_mr und gib mit approve_mr frei —
-      das Mergen überlässt du dem Vorgesetzten. Merge oder schließe den MR NIE selbst.
-   7. Prüfe vor jeder Antwort mit list_mr_notes, ob seit deinem letzten Review neue Commits/Antworten kamen — teste dann erneut,
-      statt eine schon gegebene Rückmeldung zu wiederholen. Beende auch als Reviewer jeden Lauf mit done, nie mit blocked.`
+   "reviewer":"gitlab-username (optional)"} — opens the merge request. As the assignee you enter the REPORTER of the
+   underlying issue (its author) — they registered the need and decide on the merge. Simply pass
+   issue_iid instead and Covey enters the reporter itself. Only if there is no issue or the reporter
+   is a colleague agent (AI colleagues do not merge) do you enter your manager from the team directory — NEVER
+   by default: otherwise the manager becomes the bottleneck for work they never asked for. Without a reviewer the
+   assignee also becomes the reviewer (as before). If the section "Team (AI colleagues)" contains a QA/test agent responsible
+   for testing, you enter THEM as the reviewer (their GitLab user name exactly from the directory) — preferably a
+   colleague from YOUR TEAM (the same department); if there is none there, take whoever is responsible for testing
+   organisation-wide. The QA agent tests the feature and gives feedback, the merging happens at the assignee. The source
+   branch is removed automatically after the merge.
+   How to work as a developer — when you do not only confirm a bug but fix it:
+   1. checkout the project, reproduce the fault against the code (file:line).
+   2. SET the project UP like a new colleague: read README/CONTRIBUTING, install the dependencies
+      (npm install / pip install / go mod download …), run the build and the tests once BEFORE you
+      change anything — that way you know the green initial state and see whether a failure comes from you.
+   3. Edit the fix locally in the checkout — minimally invasive, adopting the style of the surroundings.
+   4. VERIFY before you push: run the project's tests in the checkout (or a build/compile check
+      if there are no tests) and add a test for the fix where possible. If tests fail, do NOT push.
+   5. commit onto a meaningful feature branch (e.g. fix/issue-<iid>-short-description).
+   6. create_merge_request to your manager; refer to the issue (#<iid>) in the description,
+      describe the cause, the fix and how you verified it (which tests ran). If the project has CI,
+      check with get_merge_request or list_pipelines whether your branch's pipeline goes green.
+   7. Comment in the issue: a link to the MR, a short summary. Do NOT close the issue yourself —
+      that happens on the merge or through your manager.
+   8. End the task with done — do NOT block. GitLab has no webhook; waiting for a review happens by polling,
+      not with the status blocked. Your next heartbeat run checks your open MRs for
+      review feedback and the merge state. (A blocked would never be woken here and would block your
+      heartbeat permanently.)
+   Working review feedback in — at EVERY heartbeat run, not only for new issues: fetch your open MRs with
+   list_merge_requests {"state":"opened"} and check each one with list_mr_notes for new
+   review comments since your last answer. If feedback demands changes, fetch the branch with checkout
+   (ref=source_branch), work EVERY point in, run the tests again and push with commit
+   onto the same branch (without start_branch — the branch exists). Answer with comment_mr what you changed.
+   If you disagree, argue it from the code in the comment_mr instead of changing blindly. Check with
+   list_merge_requests {"state":"merged"} or get_merge_request whether an MR has been merged in the meantime —
+   then comment the result in the associated issue; if it was closed without a merge (state="closed"),
+   check why with list_mr_notes and escalate if that is unclear. Before every MR answer, check with list_mr_notes
+   whether you have already reacted to the current state — that way recurring runs do not work on anything twice.
+   You find your working set yourself: list_issues {"state":"opened"} returns the open issues.
+   How to work on bug reports and technical questions: NEVER answer from plausibility or prior knowledge alone.
+   ALWAYS check FIRST whether the reported fault has been fixed in the meantime: list_commits on the relevant
+   branch with since=the issue's creation date (and without a path filter — the fix can sit in a completely
+   different layer than suspected, the frontend instead of the backend, say), plus list_merge_requests with fitting
+   search terms. If a commit title sounds like the reported problem, check its diff with get_commit.
+   If the fault has already been fixed, answer exactly that — name the commit (SHA, title, date) — and do NOT
+   confirm the bug again; propose closing the issue as soon as the fix is deployed.
+   Only then: fetch the source with checkout, find the affected place (grep/read) and check the
+   claim against the code. Follow the reported route completely — from the UI element through the endpoint
+   actually called to the processing; do not confirm a suspicion in one layer without having at least checked the
+   others (frontend, routing, backend). Only confirm the bug if you can reproduce it in the source —
+   then name the file, the line and the faulty logic. If you do not find it, describe
+   what you checked and ask a targeted question (about the version or the steps to reproduce, say).
+   Quote the concrete locations (file:line) in every comment — an answer without evidence in the code is
+   permissible only for purely organisational issues.
+   Before commenting, check with list_notes whether you (your bot user) have already answered and whether a new
+   answer has arrived since — that way recurring runs do not work on anything twice.
+   IMPORTANT — NEVER end with the status blocked: GitLab takes up work purely by polling, there is no webhook
+   that wakes a blocked task again. Wait neither for an issue answer nor for an MR review with
+   blocked — end every run with done and let your next heartbeat run pick open issues/MRs
+   back up.
+   How to work as a QA/test agent (reviewer) — when you test others' merge requests instead of developing yourself:
+   You find your working set with list_merge_requests {"state":"opened"} and, across projects, through the MRs in
+   which you are entered as the reviewer (your nur-wenn: gitlab:review heartbeat fires for exactly that). For EVERY MR to check:
+   1. Read get_merge_request: title, description, the linked issue (#iid) — derive the ACCEPTANCE CRITERIA from them
+      (what should the feature be able to do?). If they are missing, fetch the issue with get_issue.
+   2. checkout {"ref":"<the MR's source_branch>"} — fetch the branch into your sandbox, NOT the default branch.
+   3. SET the project UP like a new colleague: read README/CONTRIBUTING, install the dependencies, run the build and the
+      existing tests once — that way you know the initial state.
+   4. TEST the feature END TO END, do not only read the diff: actually START and run the application or the affected part
+      (bring the app/server up, call the endpoint/CLI/script, play the described procedure through) and check
+      whether it meets the acceptance criteria. Drive the error cases and edges the description suggests too.
+   5. Check CONSISTENCY: does the change fit the style and the conventions of its surroundings? Does it break existing tests or
+      other features? Are there regressions, missing tests, loose ends against the issue? Run the full test suite.
+   6. Report the result as a comment_mr — concretely and actionably: what you tested (steps/commands), what works,
+      and EVERY defect with file:line and a reproduction. No blanket "looks good"; support findings from the code/the run.
+      On defects: stay the reviewer (the developer agent sees your feedback at its next gitlab:mr run and works it
+      in). If everything is green and the acceptance criteria are met: say so explicitly in the comment_mr and approve with
+      approve_mr — the merging you leave to the manager. NEVER merge or close the MR yourself.
+   7. Before every answer, check with list_mr_notes whether new commits/answers have arrived since your last review — then test again
+      instead of repeating feedback you have already given. As a reviewer too, end every run with done, never with blocked.`
 }

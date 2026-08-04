@@ -7,31 +7,31 @@ import (
 	"net/http"
 	"strings"
 
-	// Alias, weil in diesem Paket auch covey/internal/skills vorkommt (die
-	// Fähigkeiten der Agenten, siehe agentskills.go) — das hier sind die
-	// mitgelieferten Claude-Code-Skills für Menschen.
+	// Aliased because covey/internal/skills also appears in this package (the
+	// agents' capabilities, see agentskills.go) — these here are the bundled
+	// Claude Code skills for humans.
 	embedskills "covey/skills"
 )
 
-// handleDownloadSkill liefert einen mitgelieferten Claude-Code-Skill als ZIP —
-// für Nutzer, die nicht auf das Git-Repo zugreifen können. Das Archiv enthält
-// den Ordner covey-agent/ (SKILL.md + reference.md); entpackt nach
-// ~/.claude/skills/ ist der Skill in Claude Code sofort nutzbar.
+// handleDownloadSkill serves a bundled Claude Code skill as a ZIP — for users
+// who cannot reach the git repo. The archive contains the folder covey-agent/
+// (SKILL.md + reference.md); unpacked into ~/.claude/skills/ the skill is
+// immediately usable in Claude Code.
 //
-// Damit der geladene Skill direkt gegen DIESE Instanz arbeitet, wird die
-// Basis-URL der Instanz oben in die SKILL.md eingespritzt (kein manuelles
-// COVEY_URL nötig). Der Server-Binary selbst wird NICHT mitgeliefert — nur die
-// Skill-Anleitung samt Ziel-URL.
+// So that the downloaded skill works against THIS instance directly, the
+// instance's base URL is injected at the top of SKILL.md (no manual COVEY_URL
+// needed). The server binary itself is NOT shipped — only the skill
+// instructions plus the target URL.
 func (s *Server) handleDownloadSkill(w http.ResponseWriter, r *http.Request) {
 	const skillDir = "covey-agent"
 
-	// Dieselbe Ableitung wie für Website und Webhook-URLs (seo.go): Der Skill
-	// wird auf einem fremden Rechner ausgeführt und muss die Instanz von außen
-	// erreichen — nicht unter der Adresse, über die Sandboxen zurückverbinden.
+	// The same derivation as for website and webhook URLs (seo.go): the skill
+	// runs on someone else's machine and has to reach the instance from the
+	// outside — not under the address sandboxes connect back through.
 	base := s.origin(r)
-	header := fmt.Sprintf("> **Diese Covey-Instanz:** `COVEY_URL=%s`\n"+
-		"> Dieser Skill wurde von obiger Instanz geladen — nutze diese URL als Standard-Ziel\n"+
-		"> für „live anlegen\"/Update (Workflow D). Auth (Token/Session) erfragst du beim Nutzer.\n\n",
+	header := fmt.Sprintf("> **This Covey instance:** `COVEY_URL=%s`\n"+
+		"> This skill was downloaded from the instance above — use this URL as the default target\n"+
+		"> for \"creating it live\"/update (Workflow D). Ask the user for auth (token/session).\n\n",
 		base)
 
 	w.Header().Set("Content-Type", "application/zip")
@@ -48,11 +48,11 @@ func (s *Server) handleDownloadSkill(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return err
 		}
-		// Instanz-URL in die SKILL.md voranstellen (nach der Frontmatter).
+		// Prepend the instance URL to SKILL.md (after the frontmatter).
 		if strings.HasSuffix(path, "SKILL.md") {
 			data = injectInstanceURL(data, header)
 		}
-		f, err := zw.Create(path) // path beginnt mit "covey-agent/"
+		f, err := zw.Create(path) // path starts with "covey-agent/"
 		if err != nil {
 			return err
 		}
@@ -60,13 +60,13 @@ func (s *Server) handleDownloadSkill(w http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	if err != nil && s.Log != nil {
-		// Header sind evtl. schon raus — best effort, Fehler still ins Log.
-		s.Log.Warn("skill-download fehlgeschlagen", "err", err)
+		// Headers may already be out — best effort, log the error quietly.
+		s.Log.Warn("skill download failed", "err", err)
 	}
 }
 
-// injectInstanceURL setzt den Instanz-Hinweis hinter die YAML-Frontmatter der
-// SKILL.md (der zweite `---`-Marker), sonst an den Anfang.
+// injectInstanceURL places the instance note behind the YAML frontmatter of
+// SKILL.md (the second `---` marker), otherwise at the very beginning.
 func injectInstanceURL(md []byte, header string) []byte {
 	s := string(md)
 	if strings.HasPrefix(s, "---\n") {

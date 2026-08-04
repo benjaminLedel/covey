@@ -1,69 +1,69 @@
-# 13 — Zammad-Integration (MVP-Zielsystem)
+# 13 — Zammad integration (the MVP target system)
 
-Konkretisiert das „eine Zielsystem" aus M5 in [`11-mvp-plan.md`](11-mvp-plan.md) als **Zammad** (Open-Source-Helpdesk, self-hostbar, REST/JSON-API, Trigger + Webhooks). Zammad berührt drei MVP-Meilensteine: den Event-Wake (M3), die Event-Korrelation (M4) und Broker + API-Aktionen (M5).
+Makes the "one target system" from M5 in [`11-mvp-plan.md`](11-mvp-plan.md) concrete as **Zammad** (an open-source helpdesk, self-hostable, REST/JSON API, triggers + webhooks). Zammad touches three MVP milestones: the event wake (M3), event correlation (M4) and broker + API actions (M5).
 
-Architektonisch ist Zammad das **erste kompilierte Zielsystem-Plugin** (`internal/target/zammad`, per Blank-Import eingebunden — siehe [`10-architektur-stack.md`](10-architektur-stack.md), „Zielsysteme als Plugins"): Covey lässt sich ohne Zammad schlank bauen, und weitere Zielsysteme kommen als weitere Plugins oder als hochgeladene JSON-Manifeste dazu, ohne diesen Kern anzufassen.
+Architecturally Zammad is the **first compiled target-system plugin** (`internal/target/zammad`, pulled in by blank import — see [`10-architecture-stack.md`](10-architecture-stack.md), "Target systems as plugins"): Covey can be built lean without Zammad, and further target systems arrive as further plugins or as uploaded JSON manifests without touching this core.
 
-Passt gut, weil Zammad im DACH-Raum verbreitet und wie Covey self-hostbar ist — beides läuft auf derselben Infra.
+It fits well because Zammad is widespread in German-speaking countries and, like Covey, self-hostable — both run on the same infrastructure.
 
-## Drei Integrationsflächen
+## Three integration surfaces
 
-### 1. Inbound: Wake über Trigger + Webhooks (M3/M4)
+### 1. Inbound: wake via triggers + webhooks (M3/M4)
 
-Zammad kennt **Triggers** (reagieren auf Ticket-Lifecycle-Events: erstellt, Status geändert, neue Nachricht) und **Webhooks** (POST an eine externe URL). Ein Trigger feuert den Webhook an Coveys Event-Router.
+Zammad knows **triggers** (they react to ticket lifecycle events: created, status changed, new message) and **webhooks** (a POST to an external URL). A trigger fires the webhook at Covey's event router.
 
-- **Neues Ticket** → Trigger → Webhook → Event-Router → Support-Agent wacht auf (M3-Wake-Quelle).
-- **Kundenantwort / Ticket-Update** → Trigger → Webhook → Korrelation → geblockter Agent wacht auf (M4).
-- Der Webhook-Payload ist JSON und enthält das Ticket (inkl. **`id`** und `article_ids`), den Artikel, Gruppe und User; die Integrität ist per **HMAC-SHA1-Signatur** im Header verifizierbar (optionaler Signatur-Token) — Covey prüft die Signatur, bevor es dem Event traut.
-- Betriebs-Realität: Webhooks kommen **nicht garantiert sofort** (gleiche Priorität/Reihenfolge wie E-Mail-Trigger) und werden bei Fehlern bis zu viermal wiederholt. Der Event-Router muss also idempotent sein (dasselbe Ticket-Update darf nicht zwei Wakes auslösen).
+- **New ticket** → trigger → webhook → event router → the support agent wakes up (the M3 wake source).
+- **Customer reply / ticket update** → trigger → webhook → correlation → the blocked agent wakes up (M4).
+- The webhook payload is JSON and contains the ticket (including the **`id`** and `article_ids`), the article, the group and the user; its integrity is verifiable through an **HMAC-SHA1 signature** in the header (an optional signature token) — Covey checks the signature before trusting the event.
+- Operational reality: webhooks are **not guaranteed to arrive immediately** (the same priority/ordering as email triggers) and are retried up to four times on failure. The event router therefore has to be idempotent (the same ticket update must not trigger two wakes).
 
-### 2. Outbound: Aktionen über die REST-API (M5)
+### 2. Outbound: actions through the REST API (M5)
 
-Base `/api/v1/`, `Content-Type: application/json`. Die Aktionen, die der Support-Agent im MVP braucht:
+Base `/api/v1/`, `Content-Type: application/json`. The actions the support agent needs in the MVP:
 
-| Aktion | Aufruf |
+| Action | Call |
 |---|---|
-| Ticket lesen | `GET /tickets/{id}` |
-| Verlauf lesen (Artikel) | `GET /ticket_articles/by_ticket/{ticket_id}` |
-| Antwort/Kommentar schreiben | `POST /ticket_articles` (bzw. `article`-Objekt im Ticket-Update) |
-| Status/Owner/Priorität setzen | `PUT /tickets/{id}` |
+| Read the ticket | `GET /tickets/{id}` |
+| Read the history (articles) | `GET /ticket_articles/by_ticket/{ticket_id}` |
+| Write a reply/comment | `POST /ticket_articles` (or an `article` object in the ticket update) |
+| Set status/owner/priority | `PUT /tickets/{id}` |
 
-Bei Artikeln steuert `internal: true|false` die Sichtbarkeit (interne Notiz vs. für den Kunden sichtbar) und `type` die Art (note, email, …). Damit deckt der Agent triagieren, antworten, intern kommentieren und eskalieren (Gruppe/Owner ändern) ab.
+On articles, `internal: true|false` controls visibility (an internal note vs. visible to the customer) and `type` the kind (note, email, …). With that the agent covers triaging, replying, commenting internally and escalating (changing group/owner).
 
-### 3. Auth: der Broker gegen Zammad (M5)
+### 3. Auth: the broker against Zammad (M5)
 
-Zammad unterstützt drei Auth-Methoden: HTTP-Basic, **Token-Access** (permission-gescopte API-Tokens) und OAuth2. Für Covey:
+Zammad supports three auth methods: HTTP basic, **token access** (permission-scoped API tokens) and OAuth2. For Covey:
 
-- **Token-Access** ist der Weg: ein **eigener Rolle** mit exakt den nötigen Rechten (z. B. `ticket.agent` für bestimmte Gruppen — Least Privilege), Token in der Admin-Oberfläche unter *System → API* („Token access allowed").
-- Der **Secrets-Broker** hält dieses Token und injiziert es dem Daemon zur Laufzeit — **nichts Langlebiges in der Sandbox** (siehe [`04-identitaet-secrets.md`](04-identitaet-secrets.md)).
+- **Token access** is the way: a **dedicated role** with exactly the necessary rights (e.g. `ticket.agent` for particular groups — least privilege), with the token created in the admin interface under *System → API* ("Token access allowed").
+- The **secrets broker** holds this token and injects it into the daemon at runtime — **nothing long-lived in the sandbox** (see [`04-identity-secrets.md`](04-identity-secrets.md)).
 
-> **Ehrliche Grenze.** Zammads API-Token ist ein permission-gescoptes, aber **langlebiges** Token — **kein** kurzlebiges, per RFC-8693 getauschtes Token. Zammad fällt damit in den „simpel per API-Key angebundenes Zielsystem"-Fall aus [`10-architektur-stack.md`](10-architektur-stack.md): Der Built-in-`SecretStore` verwahrt das Zammad-Token verschlüsselt und reicht es kurzlebig durch; echter Token-Exchange greift erst bei OAuth-fähigen Zielsystemen. Für den MVP ist genau das ausreichend und ehrlich abgegrenzt.
+> **An honest limit.** Zammad's API token is a permission-scoped but **long-lived** token — **not** a short-lived one exchanged per RFC 8693. Zammad therefore falls into the "target system connected simply by API key" case from [`10-architecture-stack.md`](10-architecture-stack.md): the built-in `SecretStore` keeps the Zammad token encrypted and passes it through short-lived; real token exchange only applies to OAuth-capable target systems. For the MVP exactly that is sufficient and honestly delineated.
 
-## `blocked` ↔ Zammad `pending`-State (M4)
+## `blocked` ↔ Zammad's `pending` state (M4)
 
-Zammad hat einen **`pending reminder`/`pending close`**-State mit `pending_time` — das bildet Coveys `blocked` nativ ab und hält zugleich die **menschliche Sicht konsistent**: Das Ticket steht sichtbar auf „warten auf Kunde", nicht offen und nicht geschlossen.
+Zammad has a **`pending reminder`/`pending close`** state with a `pending_time` — that maps Covey's `blocked` natively and at the same time keeps the **human view consistent**: the ticket visibly sits at "waiting for the customer", neither open nor closed.
 
-Ablauf:
+Sequence:
 
-1. Agent stellt eine Rückfrage an den Kunden (`POST /ticket_articles`, `internal: false`) und setzt das Ticket auf `pending reminder` (`PUT /tickets/{id}`).
-2. Covey parkt die Aufgabe → `blocked`, **Korrelations-Key = Zammad-Ticket-`id`**, dazu die Claude-Code-`session_id` (siehe [`12-claude-code-adapter.md`](12-claude-code-adapter.md)).
-3. Kunde antwortet → Zammad-Trigger feuert den Webhook (Ticket-Update, `sender: Customer`).
-4. Covey korreliert über die Ticket-`id`, weckt den Agenten und setzt via `claude -p --resume <session_id>` fort.
+1. The agent asks the customer a follow-up question (`POST /ticket_articles`, `internal: false`) and sets the ticket to `pending reminder` (`PUT /tickets/{id}`).
+2. Covey parks the task → `blocked`, **correlation key = the Zammad ticket `id`**, plus the Claude Code `session_id` (see [`12-claude-code-adapter.md`](12-claude-code-adapter.md)).
+3. The customer replies → a Zammad trigger fires the webhook (ticket update, `sender: Customer`).
+4. Covey correlates via the ticket `id`, wakes the agent and continues via `claude -p --resume <session_id>`.
 
-## Korrelation — für Zammad quasi geschenkt
+## Correlation — practically free for Zammad
 
-Die offene Entscheidung D1 (Event-Korrelation, siehe [`07-offene-entscheidungen.md`](07-offene-entscheidungen.md)) ist für Zammad einfach: Die **Ticket-`id` ist ein stabiler, natürlicher Korrelations-Key**, der in jedem Webhook-Payload mitkommt. Es braucht keinen eigenen Key, der durch die Kundenkommunikation zurückgeschleift wird — der **zentrale Event-Router** mappt schlicht `ticket.id` → geparkte Aufgabe. Das ist der pragmatische Startpunkt; der allgemeine, kanalunabhängige Mechanismus bleibt für spätere Zielsysteme relevant.
+The open decision D1 (event correlation, see [`07-open-decisions.md`](07-open-decisions.md)) is simple for Zammad: the **ticket `id` is a stable, natural correlation key** that comes along in every webhook payload. No key of its own has to be looped back through the customer communication — the **central event router** simply maps `ticket.id` → parked task. That is the pragmatic starting point; the general, channel-independent mechanism stays relevant for later target systems.
 
-## MVP-Scope dieser Integration
+## MVP scope of this integration
 
-- **Eine Gruppe / ein Support-Agent**, Token-Auth über den Built-in-`SecretStore`.
-- **Trigger + Webhook** auf „Ticket erstellt" und „Kundenantwort", HMAC-verifiziert, idempotent verarbeitet.
-- **Aktionen:** lesen, antworten (intern/extern), Status/Owner setzen.
-- **`blocked`** über den Zammad-`pending`-State, Korrelation über die Ticket-`id`.
+- **One group / one support agent**, token auth through the built-in `SecretStore`.
+- **Trigger + webhook** on "ticket created" and "customer reply", HMAC-verified, processed idempotently.
+- **Actions:** read, reply (internal/external), set status/owner.
+- **`blocked`** through Zammad's `pending` state, correlation through the ticket `id`.
 
-Später (nicht MVP): OAuth2 statt Token, mehrere Gruppen/Agenten, Attachments (Webhook liefert nur Links, Auth nötig), weitere Zielsysteme über dasselbe Broker-Interface.
+Later (not MVP): OAuth2 instead of a token, several groups/agents, attachments (the webhook only delivers links, auth needed), further target systems through the same broker interface.
 
-## Hinweise
+## Notes
 
-- Zammad-Webhooks gibt es seit 3.6, frei anpassbare Payloads seit 6.0. Geprüft gegen die Zammad-Doku (`docs.zammad.org`, `admin-docs.zammad.org`, Stand Juli 2026) — vor Bau kurz gegenchecken.
-- Beide Systeme (Covey und Zammad) laufen self-hosted; der Webhook-Weg Zammad → Covey und der API-Weg Covey → Zammad bleiben intern, kein Umweg über Dritte.
+- Zammad webhooks have existed since 3.6, freely customisable payloads since 6.0. Checked against the Zammad documentation (`docs.zammad.org`, `admin-docs.zammad.org`, as of July 2026) — check briefly before building.
+- Both systems (Covey and Zammad) run self-hosted; the webhook path Zammad → Covey and the API path Covey → Zammad stay internal, with no detour through third parties.

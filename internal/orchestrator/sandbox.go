@@ -9,12 +9,12 @@ import (
 	"covey/internal/sandboxfs"
 )
 
-// SandboxProvider ist der Port zur Data Plane. Die Sandbox ist bewusst dumm
-// und ersetzbar (spec/01): persistentes Home, ephemere Compute. Ausgeliefert
-// ist der docker-Provider (sandbox_docker.go, echte Container-Isolation);
-// E2B/Beam kommen über dasselbe Interface, ohne den Orchestrator zu ändern.
+// SandboxProvider is the port to the data plane. The sandbox is deliberately
+// dumb and replaceable (spec/01): persistent home, ephemeral compute. Shipped
+// is the docker provider (sandbox_docker.go, real container isolation);
+// E2B/Beam plug into the same interface without changing the orchestrator.
 type SandboxProvider interface {
-	// Start weckt die Sandbox: Compute hochfahren, Home mounten, Daemon starten.
+	// Start wakes the sandbox: bring up compute, mount the home, start the daemon.
 	Start(ctx context.Context, spec SandboxSpec) (Sandbox, error)
 }
 
@@ -22,44 +22,44 @@ type SandboxSpec struct {
 	AgentID uuid.UUID
 	HomeDir string
 	Env     map[string]string // COVEY_WS_URL, COVEY_DAEMON_TOKEN, …
-	// EgressToken ist das per-Sandbox-Token, mit dem sich die Sandbox am
-	// Egress-Proxy als dieser Agent ausweist (Proxy-Authorization). Leer =
-	// kein Egress-Enforcement für diese Sandbox.
+	// EgressToken is the per-sandbox token the sandbox uses to identify itself
+	// as this agent to the egress proxy (Proxy-Authorization). Empty = no
+	// egress enforcement for this sandbox.
 	EgressToken string
 }
 
 type Sandbox interface {
-	// Stop fährt die Compute-Instanz herunter; das Home bleibt bestehen.
+	// Stop shuts the compute instance down; the home stays.
 	Stop(ctx context.Context) error
 }
 
-// FileAccess ist der optionale Zweit-Port eines SandboxProviders: der Weg zum
-// persistenten Home eines Agenten. Er hängt am Provider, weil nur der weiß, wo
-// das Home liegt — beim docker-Provider ein Verzeichnis auf dem Host, bei einem
-// künftigen Remote-Provider etwas anderes. Wer ihn nicht implementiert, hat
-// keinen Dateibrowser; das Feature schaltet sich dann ab, statt zu raten.
+// FileAccess is the optional second port of a SandboxProvider: the route to an
+// agent's persistent home. It hangs off the provider because only the provider
+// knows where the home lives — a directory on the host for the docker provider,
+// something else for a future remote provider. Whoever does not implement it
+// has no file browser; the feature then switches itself off instead of guessing.
 //
-// Der Zugriff geht bewusst *nicht* durch das Daemon-Protokoll: Das Home ist
-// auch dann da, wenn die Sandbox schläft — und schlafend ist der Normalzustand.
+// Access deliberately does *not* go through the daemon protocol: the home is
+// there even while the sandbox sleeps — and asleep is the normal state.
 type FileAccess interface {
-	// AgentHome liefert das Home eines Agenten. Es muss nicht existieren: ein
-	// nie geweckter Agent hat noch keines.
+	// AgentHome returns an agent's home. It need not exist: an agent that was
+	// never woken does not have one yet.
 	AgentHome(agentID uuid.UUID) (Home, error)
 }
 
-// Home beschreibt das persistente Home eines Agenten auf dem Host.
+// Home describes an agent's persistent home on the host.
 type Home struct {
-	// Path ist das Verzeichnis, das in der Sandbox als /home/agent erscheint.
+	// Path is the directory that appears as /home/agent inside the sandbox.
 	Path string
-	// UID/GID ist der Besitzer innerhalb der Sandbox; -1 = nicht setzen.
+	// UID/GID is the owner inside the sandbox; -1 = do not set.
 	UID, GID int
 }
 
-// ErrNoFileAccess: der konfigurierte Provider kennt kein erreichbares Home.
-var ErrNoFileAccess = errors.New("dateizugriff: der sandbox-provider hat kein erreichbares home")
+// ErrNoFileAccess: the configured provider knows no reachable home.
+var ErrNoFileAccess = errors.New("file access: the sandbox provider has no reachable home")
 
-// AgentFiles öffnet das Home eines Agenten als Dateibaum (spec/02: der
-// Arbeitsplatz). Fehlt dem Provider der FileAccess-Port, kommt ErrNoFileAccess.
+// AgentFiles opens an agent's home as a file tree (spec/02: the workplace). If
+// the provider lacks the FileAccess port, ErrNoFileAccess is returned.
 func (o *Orchestrator) AgentFiles(agentID uuid.UUID) (*sandboxfs.FS, error) {
 	fa, ok := o.Provider.(FileAccess)
 	if !ok {

@@ -1,13 +1,13 @@
 package httpapi
 
-// robots.txt und sitemap.xml. Beide kommen aus dem Binary und nicht als feste
-// Dateien aus dist/, weil ihr Inhalt die Adresse der Installation enthält —
-// und die kennt erst der laufende Server. Covey wird selbst gehostet; eine
-// einbetonierte Domain wäre für jede Installation außer einer falsch.
+// robots.txt and sitemap.xml. Both come out of the binary and not as fixed
+// files from dist/, because their content contains the address of the
+// installation — and only the running server knows it. Covey is self-hosted; a
+// hard-wired domain would be wrong for every installation but one.
 //
-// Die Liste der Adressen selbst kommt aus dist/seo.json, das der Build beim
-// Vorrendern schreibt (web/prerender.mjs). Damit gibt es eine Quelle für
-// Routing, Vorrendern und Sitemap: web/src/public/seo.ts.
+// The list of addresses itself comes from dist/seo.json, which the build writes
+// while prerendering (web/prerender.mjs). That way there is one source for
+// routing, prerendering and sitemap: web/src/public/seo.ts.
 
 import (
 	"encoding/json"
@@ -19,7 +19,7 @@ import (
 	"strings"
 )
 
-// seoURL ist eine indexierbare Adresse mit ihren Sprachgegenstücken.
+// seoURL is an indexable address together with its language counterparts.
 type seoURL struct {
 	Path     string            `json:"path"`
 	Lang     string            `json:"lang"`
@@ -27,17 +27,17 @@ type seoURL struct {
 	Alt      map[string]string `json:"alt"`
 }
 
-// seoIndex ist dist/seo.json: was öffentlich ist und was zur angemeldeten
-// Oberfläche gehört.
+// seoIndex is dist/seo.json: what is public and what belongs to the signed-in
+// interface.
 type seoIndex struct {
 	URLs        []seoURL `json:"urls"`
 	AppPrefixes []string `json:"appPrefixes"`
 }
 
-// ladeSEOIndex liest dist/seo.json. Fehlt die Datei (Tests mit einem
-// handgebauten FS, ein Build ohne Vorrendern), bleibt der Index leer: Die
-// Sitemap ist dann leer und jeder unbekannte Pfad gilt als App-Pfad — also
-// genau das Verhalten von vorher.
+// ladeSEOIndex reads dist/seo.json. If the file is missing (tests with a
+// hand-built FS, a build without prerendering) the index stays empty: the
+// sitemap is then empty and every unknown path counts as an app path — exactly
+// the behaviour from before.
 func ladeSEOIndex(dist fs.FS) seoIndex {
 	var idx seoIndex
 	if dist == nil {
@@ -51,39 +51,39 @@ func ladeSEOIndex(dist fs.FS) seoIndex {
 	return idx
 }
 
-// vorgerendert meldet, ob der Build die öffentlichen Seiten vorgerendert hat.
-// Nur dann darf ein unbekannter Pfad eine 404 werden — sonst wüsste der Server
-// nicht, welche Pfade es öffentlich gibt, und würde echte Seiten wegwerfen.
+// vorgerendert reports whether the build prerendered the public pages. Only
+// then may an unknown path become a 404 — otherwise the server would not know
+// which public paths exist and would throw away real pages.
 func (i seoIndex) vorgerendert() bool { return len(i.URLs) > 0 }
 
-// istAppPfad erkennt die Pfade der angemeldeten Oberfläche. Sie fallen auf die
-// SPA-Hülle zurück; alles andere bekommt eine 404.
-func (i seoIndex) istAppPfad(pfad string) bool {
+// istAppPfad recognises the paths of the signed-in interface. They fall back to
+// the SPA shell; everything else gets a 404.
+func (i seoIndex) istAppPfad(path string) bool {
 	if !i.vorgerendert() {
-		return true // ohne Index keine Unterscheidung — lieber ausliefern
+		return true // without an index there is no distinction — better to serve
 	}
-	if !strings.HasPrefix(pfad, "/") {
-		pfad = "/" + pfad
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
 	}
 	for _, p := range i.AppPrefixes {
-		if pfad == p || strings.HasPrefix(pfad, p+"/") {
+		if path == p || strings.HasPrefix(path, p+"/") {
 			return true
 		}
 	}
 	return false
 }
 
-// origin ist die Adresse, unter der die öffentliche Website erreichbar ist —
-// Grundlage für Canonical, hreflang und Sitemap.
+// origin is the address under which the public website is reachable — the basis
+// for canonical, hreflang and sitemap.
 //
-// Bewusst NICHT PublicURL: Die ist die Adresse, über die Sandboxen die Control
-// Plane erreichen, und damit eine interne Betriebsadresse (beim docker-Provider
-// oft ein Loopback, das für die Sandbox zu host.docker.internal wird). Beides
-// an eine Variable zu hängen hieße, dass niemand die Website-Adresse setzen
-// kann, ohne die Data Plane vom Netz zu nehmen.
+// Deliberately NOT PublicURL: that is the address over which sandboxes reach the
+// control plane, and therefore an internal operational address (with the docker
+// provider often a loopback that becomes host.docker.internal for the sandbox).
+// Hanging both on one variable would mean nobody can set the website address
+// without taking the data plane off the network.
 //
-// Default ist deshalb die Herkunft des Requests; COVEY_SITE_URL ist der
-// Ausweg für Aufbauten, in denen der Proxy sie nicht durchreicht.
+// The default is therefore the request's own origin; COVEY_SITE_URL is the way
+// out for setups in which the proxy does not pass it through.
 func (s *Server) origin(r *http.Request) string {
 	if s.SiteURL != "" {
 		return strings.TrimRight(s.SiteURL, "/")
@@ -92,26 +92,26 @@ func (s *Server) origin(r *http.Request) string {
 	if r.TLS != nil {
 		schema = "https"
 	}
-	// Hinter einem Reverse Proxy endet TLS davor. Der Header ist nicht
-	// vertrauenswürdig, kann hier aber nur die Adresse in der eigenen Antwort
-	// verfälschen — wer sie ernst nimmt, ist der Crawler, nicht der Server.
-	// Wem das zu locker ist, setzt COVEY_PUBLIC_URL.
+	// Behind a reverse proxy TLS terminates in front of us. The header is not
+	// trustworthy, but here it can only distort the address in our own response
+	// — the one who takes it seriously is the crawler, not the server. Whoever
+	// finds that too lax sets COVEY_PUBLIC_URL.
 	if p := r.Header.Get("X-Forwarded-Proto"); p == "https" {
 		schema = "https"
 	}
 	return schema + "://" + r.Host
 }
 
-// handleRobots — die Wegbeschreibung für Crawler.
+// handleRobots — the directions for crawlers.
 func (s *Server) handleRobots(w http.ResponseWriter, r *http.Request) {
 	origin := s.origin(r)
 
 	var b strings.Builder
 	b.WriteString("User-agent: *\n")
 	b.WriteString("Allow: /\n")
-	// Die API und die angemeldete Oberfläche gehören nicht in den Index: Ohne
-	// Sitzung liefern sie ohnehin nichts Lesbares, und ihr Adressraum ist
-	// unendlich (jede Agenten-ID eine eigene URL).
+	// The API and the signed-in interface do not belong in the index: without a
+	// session they deliver nothing readable anyway, and their address space is
+	// infinite (every agent ID its own URL).
 	b.WriteString("Disallow: /api/\n")
 	for _, p := range s.seo.AppPrefixes {
 		fmt.Fprintf(&b, "Disallow: %s\n", p)
@@ -123,9 +123,9 @@ func (s *Server) handleRobots(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.WriteString(w, b.String())
 }
 
-/* sitemap.xml. Die Sprachgegenstücke stehen als xhtml:link mit dabei — ohne
-   sie wertet Google die deutsche und die englische Fassung als zwei Seiten,
-   die um dieselbe Suchanfrage konkurrieren, statt als Übersetzungen. */
+/* sitemap.xml. The language counterparts are included as xhtml:link — without
+   them Google reads the German and the English version as two pages competing
+   for the same query instead of as translations. */
 
 type sitemapURLSet struct {
 	XMLName xml.Name       `xml:"urlset"`

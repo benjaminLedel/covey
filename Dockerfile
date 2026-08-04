@@ -1,4 +1,4 @@
-# Multi-Stage-Build aus spec/10-architektur-stack.md:
+# Multi-Stage-Build aus spec/10-architecture-stack.md:
 # Node baut das Frontend → Go bettet es ein → distroless-Endimage.
 FROM node:26 AS web
 WORKDIR /web

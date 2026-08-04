@@ -11,17 +11,16 @@ import (
 	identbuiltin "covey/internal/identity/builtin"
 )
 
-// TestExportImportRoundtrip prüft das Ziel „Config von Bots komplett
-// exportierbar und importierbar": ein voll konfigurierter Agent wird als
-// JSON-Bundle exportiert, unter neuem Slug importiert, und der Import trägt
-// alles wieder ein — Stammdaten, Config-Dateien, Board, Tools, Egress,
-// Guard-Rails, Secret-Zuweisungen (Namen, nie Werte) und Webhook (frisches
-// Token).
+// TestExportImportRoundtrip checks the goal "bot config completely exportable
+// and importable": a fully configured agent is exported as a JSON bundle,
+// imported under a new slug, and the import restores everything — master data,
+// config files, board, tools, egress, guard rails, secret assignments (names,
+// never values) and webhook (with a fresh token).
 func TestExportImportRoundtrip(t *testing.T) {
 	s := newStack(t)
 	c := login(t, s, "admin@test.local", "admin-passwort")
 
-	// --- Quell-Agent voll konfigurieren. ---
+	// --- Configure the source agent fully. ---
 	created := c.expect(http.MethodPost, "/api/v1/agents",
 		map[string]string{"slug": "exportling", "display_name": "Exportling", "runtime": "mock"}, http.StatusCreated)
 	id := created["id"].(string)
@@ -65,7 +64,7 @@ func TestExportImportRoundtrip(t *testing.T) {
 		t.Fatalf("export: HTTP %d", resp.StatusCode)
 	}
 	if cd := resp.Header.Get("Content-Disposition"); !strings.Contains(cd, "exportling-config.json") {
-		t.Errorf("Content-Disposition fehlt/falsch: %q", cd)
+		t.Errorf("Content-Disposition missing/wrong: %q", cd)
 	}
 	var bundle map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&bundle); err != nil {
@@ -74,7 +73,7 @@ func TestExportImportRoundtrip(t *testing.T) {
 	resp.Body.Close()
 	raw, _ := json.Marshal(bundle)
 	if strings.Contains(string(raw), "geheim-1234567890") || strings.Contains(string(raw), srcToken) {
-		t.Fatal("bundle enthält Secret-Werte oder das Webhook-Token")
+		t.Fatal("the bundle contains secret values or the webhook token")
 	}
 	if bundle["kind"] != "covey.agent-config" {
 		t.Fatalf("kind = %v", bundle["kind"])
@@ -82,11 +81,11 @@ func TestExportImportRoundtrip(t *testing.T) {
 	files := bundle["files"].(map[string]any)
 	if !strings.Contains(files["ACCESS.md"].(string), "tools: close, reply") &&
 		!strings.Contains(files["ACCESS.md"].(string), "tools: reply, close") {
-		t.Fatalf("ACCESS.md ohne Tool-Allowlist: %q", files["ACCESS.md"])
+		t.Fatalf("ACCESS.md without a tool allowlist: %q", files["ACCESS.md"])
 	}
 	if !strings.Contains(files["EGRESS.md"].(string), "templates: beispiel-apis") ||
 		!strings.Contains(files["EGRESS.md"].(string), "solo.example.com") {
-		t.Fatalf("EGRESS.md unvollständig: %q", files["EGRESS.md"])
+		t.Fatalf("EGRESS.md incomplete: %q", files["EGRESS.md"])
 	}
 	sec := bundle["secrets"].(map[string]any)
 	if got, _ := json.Marshal(sec["org_keys"]); string(got) != `["zammad_token"]` {
@@ -96,32 +95,32 @@ func TestExportImportRoundtrip(t *testing.T) {
 		t.Fatalf("agent_keys = %s", got)
 	}
 	if n := len(bundle["guardrails"].([]any)); n != 1 {
-		t.Fatalf("guardrails im Bundle: %d", n)
+		t.Fatalf("guardrails in the bundle: %d", n)
 	}
 
-	// --- Import: Slug-Kollision, dann Kopie unter neuem Slug. ---
+	// --- Import: slug collision, then a copy under a new slug. ---
 	c.expect(http.MethodPost, "/api/v1/agents/import", bundle, http.StatusConflict)
 	imported := c.expect(http.MethodPost, "/api/v1/agents/import?slug=importling", bundle, http.StatusCreated)
 	na := imported["agent"].(map[string]any)
 	nid := na["id"].(string)
 	if na["slug"] != "importling" || na["model"] != "claude-test-1" ||
 		na["max_turns"].(float64) != 7 || na["budget_usd"].(float64) != 12.5 {
-		t.Fatalf("importierter Agent unvollständig: %v", na)
+		t.Fatalf("the imported agent is incomplete: %v", na)
 	}
 	warnJSON, _ := json.Marshal(imported["warnings"])
 	if !strings.Contains(string(warnJSON), "private_key") {
-		t.Fatalf("warnung zum agent-eigenen Secret fehlt: %s", warnJSON)
+		t.Fatalf("the warning about the agent-owned secret is missing: %s", warnJSON)
 	}
 
-	// --- Der Import hat alles wieder eingetragen. ---
+	// --- The import has restored everything. ---
 	cfg := c.expect(http.MethodGet, "/api/v1/agents/"+nid+"/config", nil, http.StatusOK)
 	nfiles := cfg["files"].(map[string]any)
 	if nfiles["SOUL.md"] != files["SOUL.md"] {
-		t.Fatalf("SOUL.md verändert: %q", nfiles["SOUL.md"])
+		t.Fatalf("SOUL.md changed: %q", nfiles["SOUL.md"])
 	}
 	if !strings.Contains(nfiles["EGRESS.md"].(string), "templates: beispiel-apis") ||
 		!strings.Contains(nfiles["EGRESS.md"].(string), "solo.example.com") {
-		t.Fatalf("EGRESS.md nicht übernommen: %q", nfiles["EGRESS.md"])
+		t.Fatalf("EGRESS.md not carried over: %q", nfiles["EGRESS.md"])
 	}
 
 	var count int
@@ -133,33 +132,33 @@ func TestExportImportRoundtrip(t *testing.T) {
 		return count
 	}
 	if n := mustScan("SELECT COUNT(*) FROM agent_target_tools WHERE agent_id=$1 AND system='zammad'", nid); n != 2 {
-		t.Errorf("tool-allowlist: %d Einträge (erwartet 2)", n)
+		t.Errorf("tool allowlist: %d entries (expected 2)", n)
 	}
 	if n := mustScan("SELECT COUNT(*) FROM agent_heartbeats WHERE agent_id=$1 AND name='Posteingang'", nid); n != 1 {
-		t.Errorf("heartbeat nicht materialisiert")
+		t.Errorf("heartbeat not materialized")
 	}
 	if n := mustScan("SELECT COUNT(*) FROM agent_stages WHERE agent_id=$1", nid); n != 4 {
-		t.Errorf("stages: %d (erwartet 4: 3 Defaults + Review)", n)
+		t.Errorf("stages: %d (expected 4: 3 defaults + Review)", n)
 	}
 	if n := mustScan("SELECT COUNT(*) FROM guardrails WHERE agent_id=$1 AND rule_type='require_approval'", nid); n != 1 {
-		t.Errorf("agent-guardrail nicht importiert")
+		t.Errorf("agent guardrail not imported")
 	}
 	if n := mustScan("SELECT COUNT(*) FROM secret_assignments WHERE agent_id=$1 AND key='zammad_token'", nid); n != 1 {
-		t.Errorf("org-secret-zuweisung nicht importiert")
+		t.Errorf("org secret assignment not imported")
 	}
 	nwebhook := c.expect(http.MethodGet, "/api/v1/agents/"+nid+"/webhook", nil, http.StatusOK)
 	if nwebhook["enabled"] != true {
-		t.Error("webhook nicht aktiviert")
+		t.Error("webhook not enabled")
 	} else if nwebhook["token"] == srcToken {
-		t.Error("webhook-token wurde kopiert statt neu erzeugt")
+		t.Error("the webhook token was copied instead of newly generated")
 	}
 }
 
-// TestBundleSkills prüft die Skills im Bundle: Sie reisen mit vollem Inhalt
-// und Herkunftsvermerk mit, ein Import stellt sie auf der Zielseite wieder her
-// — agent-eigene als eigene, Bibliotheks-Skills in der Bibliothek und dem
-// Agenten verlinkt. Ohne das importierte jemand einen Agenten, dessen
-// Prozeduren fehlen, und merkte es erst im Lauf.
+// TestBundleSkills checks the skills in the bundle: they travel along with
+// their full content and a note of origin, and an import restores them on the
+// receiving side — agent-owned ones as agent-owned, library skills in the
+// library and linked to the agent. Without that, people imported an agent whose
+// procedures were missing and only noticed during the run.
 func TestBundleSkills(t *testing.T) {
 	s := newStack(t)
 	c := login(t, s, "admin@test.local", "admin-passwort")
@@ -171,7 +170,7 @@ func TestBundleSkills(t *testing.T) {
 		"SOUL.md": "# Skill-Quelle\n\n## Rolle\nTrägt Fähigkeiten.",
 	}}, http.StatusOK)
 
-	// Ein Skill aus der Bibliothek (verlinkt) und einer, der nur ihm gehört.
+	// One skill from the library (linked) and one that belongs to it alone.
 	lib := c.expect(http.MethodPost, "/api/v1/skills", map[string]any{
 		"name": "gemeinsam", "description": "Nutze dies, wenn: alle es brauchen",
 		"files": skillFiles(
@@ -187,7 +186,7 @@ func TestBundleSkills(t *testing.T) {
 	}, http.StatusCreated)
 	ownID := own["id"].(string)
 
-	// --- Export: beide Skills mit vollem Inhalt und Herkunft. ---
+	// --- Export: both skills with full content and origin. ---
 	resp := c.do(http.MethodGet, "/api/v1/agents/"+sid+"/export", nil)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("export: HTTP %d", resp.StatusCode)
@@ -209,22 +208,22 @@ func TestBundleSkills(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(exported) != 2 {
-		t.Fatalf("zwei Skills erwartet: %s", rawSkills)
+		t.Fatalf("expected two skills: %s", rawSkills)
 	}
 	byName := map[string]int{}
 	for i, sk := range exported {
 		byName[sk.Name] = i
 	}
 	if e := exported[byName["eigen"]]; e.Origin != "agent" {
-		t.Fatalf("agent-eigener Skill braucht origin=agent: %+v", e)
+		t.Fatalf("an agent-owned skill needs origin=agent: %+v", e)
 	}
 	g := exported[byName["gemeinsam"]]
 	if g.Origin != "library" || g.Files["referenz.md"] == "" ||
 		!strings.Contains(g.Files["SKILL.md"], "# Gemeinsam") {
-		t.Fatalf("Bibliotheks-Skill unvollständig exportiert: %+v", g)
+		t.Fatalf("library skill exported incompletely: %+v", g)
 	}
 
-	// --- Zielseite ohne diese Skills: löschen simuliert die fremde Instanz. ---
+	// --- Receiving side without these skills: deleting simulates the foreign instance. ---
 	c.expect(http.MethodDelete, "/api/v1/skills/"+libID, nil, http.StatusOK)
 	c.expect(http.MethodDelete, "/api/v1/skills/"+ownID, nil, http.StatusOK)
 
@@ -233,24 +232,24 @@ func TestBundleSkills(t *testing.T) {
 
 	got := getSkillList(t, c, "/api/v1/agents/"+nid+"/skills")
 	if len(got) != 2 {
-		t.Fatalf("importierter Agent braucht beide Skills: %+v", got)
+		t.Fatalf("the imported agent needs both skills: %+v", got)
 	}
 	origins := map[string]string{}
 	for _, sk := range got {
 		origins[sk.Name] = sk.Origin
 	}
 	if origins["eigen"] != "agent" || origins["gemeinsam"] != "library" {
-		t.Fatalf("Herkunft nach dem Import falsch: %+v", origins)
+		t.Fatalf("origin wrong after the import: %+v", origins)
 	}
-	// Der Bibliotheks-Skill liegt wieder in der Bibliothek — nicht als Kopie
-	// beim Agenten, sonst wäre er beim nächsten Agenten wieder weg.
+	// The library skill is back in the library — not as a copy at the agent,
+	// otherwise it would be gone again for the next agent.
 	libNow := getSkillList(t, c, "/api/v1/skills")
 	if len(libNow) != 1 || libNow[0].Name != "gemeinsam" || len(libNow[0].AssignedTo) != 1 {
-		t.Fatalf("Bibliothek nach dem Import: %+v", libNow)
+		t.Fatalf("library after the import: %+v", libNow)
 	}
 
-	// --- Zweiter Import: der Bibliotheks-Skill existiert jetzt. Er wird
-	// verlinkt statt überschrieben (er kann anderen Agenten gehören). ---
+	// --- Second import: the library skill now exists. It is linked instead of
+	// overwritten (it may belong to other agents). ---
 	c.expect(http.MethodPut, "/api/v1/skills/"+libNow[0].ID, map[string]any{
 		"description": "Örtlich angepasste Fassung",
 		"files":       skillFiles([2]string{"SKILL.md", "# Lokal angepasst\n"}),
@@ -258,17 +257,17 @@ func TestBundleSkills(t *testing.T) {
 	second := c.expect(http.MethodPost, "/api/v1/agents/import?slug=skill-ziel-2", bundle, http.StatusCreated)
 	warnJSON, _ := json.Marshal(second["warnings"])
 	if !strings.Contains(string(warnJSON), "gemeinsam") {
-		t.Fatalf("Hinweis auf den vorhandenen Bibliotheks-Skill fehlt: %s", warnJSON)
+		t.Fatalf("the note about the existing library skill is missing: %s", warnJSON)
 	}
 	libAfter := getSkillList(t, c, "/api/v1/skills")
 	if len(libAfter) != 1 || libAfter[0].Description != "Örtlich angepasste Fassung" {
-		t.Fatalf("vorhandene Bibliotheks-Fassung darf nicht überschrieben werden: %+v", libAfter)
+		t.Fatalf("an existing library version must not be overwritten: %+v", libAfter)
 	}
 	if len(libAfter[0].AssignedTo) != 2 {
-		t.Fatalf("zweiter Agent muss verlinkt sein: %+v", libAfter[0])
+		t.Fatalf("the second agent must be linked: %+v", libAfter[0])
 	}
 
-	// --- Kaputter Skill im Bundle: 400, und kein halb angelegter Agent. ---
+	// --- A broken skill in the bundle: 400, and no half-created agent. ---
 	broken := map[string]any{}
 	rawBundle, _ := json.Marshal(bundle)
 	json.Unmarshal(rawBundle, &broken)
@@ -285,23 +284,23 @@ func TestBundleSkills(t *testing.T) {
 	agentList.Body.Close()
 	for _, a := range all {
 		if a.Slug == "nie-angelegt" {
-			t.Fatal("ein abgelehntes Bundle darf keinen Agenten hinterlassen")
+			t.Fatal("a rejected bundle must not leave an agent behind")
 		}
 	}
 
-	// --- Der Config-Import auf einen bestehenden Agenten zieht Skills nach. ---
+	// --- The config import onto an existing agent pulls the skills along. ---
 	tgt := c.expect(http.MethodPost, "/api/v1/agents",
 		map[string]string{"slug": "skill-nachzieher", "display_name": "Nachzieher", "runtime": "mock"}, http.StatusCreated)
 	tid := tgt["id"].(string)
 	c.expect(http.MethodPost, "/api/v1/agents/"+tid+"/config/import", bundle, http.StatusOK)
 	pulled := getSkillList(t, c, "/api/v1/agents/"+tid+"/skills")
 	if len(pulled) != 2 {
-		t.Fatalf("Config-Import muss die Skills mitbringen: %+v", pulled)
+		t.Fatalf("the config import must bring the skills along: %+v", pulled)
 	}
 	c.expect(http.MethodPost, "/api/v1/agents/"+tid+"/config/import", broken, http.StatusBadRequest)
 
-	// --- Scheitert die Config an der Rollen-Grenze, dürfen auch die Skills
-	// nicht angelegt worden sein. Ein Fehler muss heißen: nichts passiert. ---
+	// --- If the config fails at the role boundary, the skills must not have
+	// been created either. An error has to mean: nothing happened. ---
 	hash, _ := identbuiltin.HashPassword("owner-passwort")
 	if _, err := s.pool.Exec(t.Context(), `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
 		VALUES ($1,$2,'owner@test.local','Owner',$3,'agent_owner')`, uuid.New(), s.orgID, hash); err != nil {
@@ -313,8 +312,8 @@ func TestBundleSkills(t *testing.T) {
 		map[string]string{"slug": "rbac-ziel", "display_name": "RBAC-Ziel", "runtime": "mock"}, http.StatusCreated)
 	uid := unberührt["id"].(string)
 
-	// Tool-Allowlists ändert nur platform_admin/security — für den agent_owner
-	// ist dasselbe Bundle ein 403.
+	// Tool allowlists are changed only by platform_admin/security — for the
+	// agent_owner the same bundle is a 403.
 	mitTools := map[string]any{}
 	json.Unmarshal(rawBundle, &mitTools)
 	files := mitTools["files"].(map[string]any)
@@ -322,19 +321,18 @@ func TestBundleSkills(t *testing.T) {
 	owner.expect(http.MethodPost, "/api/v1/agents/"+uid+"/config/import", mitTools, http.StatusForbidden)
 
 	if got := getSkillList(t, c, "/api/v1/agents/"+uid+"/skills"); len(got) != 0 {
-		t.Fatalf("ein an der RBAC gescheiterter Import darf keine Skills hinterlassen: %+v", got)
+		t.Fatalf("an import that failed on RBAC must not leave skills behind: %+v", got)
 	}
 }
 
-// TestImportConfigOverwrite prüft das Überschreiben eines BESTEHENDEN Agenten
-// aus einem Bundle, bei dem NUR die Config-Dateien übernommen werden: die
-// Config des Ziels wird die des Bundles, seine Stammdaten (Slug, Name, Model)
-// bleiben unangetastet.
+// TestImportConfigOverwrite checks overwriting an EXISTING agent from a bundle
+// where ONLY the config files are taken over: the target's config becomes the
+// bundle's, its master data (slug, name, model) stays untouched.
 func TestImportConfigOverwrite(t *testing.T) {
 	s := newStack(t)
 	c := login(t, s, "admin@test.local", "admin-passwort")
 
-	// Quell-Agent mit einer bestimmten Config, dann exportieren.
+	// Source agent with a particular config, then export.
 	src := c.expect(http.MethodPost, "/api/v1/agents",
 		map[string]string{"slug": "quelle", "display_name": "Quelle", "runtime": "mock"}, http.StatusCreated)
 	sid := src["id"].(string)
@@ -353,7 +351,7 @@ func TestImportConfigOverwrite(t *testing.T) {
 	}
 	resp.Body.Close()
 
-	// Ziel-Agent mit ANDERER Config und eigenen Stammdaten.
+	// Target agent with a DIFFERENT config and its own master data.
 	tgt := c.expect(http.MethodPost, "/api/v1/agents",
 		map[string]string{"slug": "ziel", "display_name": "Ziel", "runtime": "mock"}, http.StatusCreated)
 	tid := tgt["id"].(string)
@@ -362,32 +360,32 @@ func TestImportConfigOverwrite(t *testing.T) {
 		"SOUL.md": "# Ziel\n\nAlte Config, wird überschrieben.",
 	}}, http.StatusOK)
 
-	// Bundle-Config-Import auf den bestehenden Ziel-Agenten.
+	// Bundle config import onto the existing target agent.
 	c.expect(http.MethodPost, "/api/v1/agents/"+tid+"/config/import", bundle, http.StatusOK)
 
-	// Config des Ziels ist jetzt die des Bundles ...
+	// The target's config is now the bundle's ...
 	cfg := c.expect(http.MethodGet, "/api/v1/agents/"+tid+"/config", nil, http.StatusOK)
 	nfiles := cfg["files"].(map[string]any)
 	if nfiles["SOUL.md"] != "# Quelle\n\nGeteilte Basis-Config." {
-		t.Fatalf("SOUL.md nicht überschrieben: %q", nfiles["SOUL.md"])
+		t.Fatalf("SOUL.md not overwritten: %q", nfiles["SOUL.md"])
 	}
-	// ... aber die Stammdaten des Ziels bleiben unangetastet (nur Config übernommen).
+	// ... but the target's master data stays untouched (only the config is taken over).
 	after := c.expect(http.MethodGet, "/api/v1/agents/"+tid, nil, http.StatusOK)
 	if after["slug"] != "ziel" || after["display_name"] != "Ziel" || after["model"] != "claude-test-9" {
-		t.Fatalf("Stammdaten des Ziels wurden verändert: %v", after)
+		t.Fatalf("the target's master data was changed: %v", after)
 	}
 
-	// Heartbeat aus dem Bundle wurde materialisiert (Config-Write-Through).
+	// The heartbeat from the bundle was materialized (config write-through).
 	var count int
 	if err := s.pool.QueryRow(t.Context(),
 		"SELECT COUNT(*) FROM agent_heartbeats WHERE agent_id=$1 AND name='Ping'", tid).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 1 {
-		t.Errorf("heartbeat aus dem Bundle nicht materialisiert: %d", count)
+		t.Errorf("heartbeat from the bundle not materialized: %d", count)
 	}
 
-	// Fehlerfälle: unbekannter Agent → 404, kaputtes Bundle → 400.
+	// Error cases: unknown agent → 404, broken bundle → 400.
 	c.expect(http.MethodPost, "/api/v1/agents/00000000-0000-0000-0000-000000000000/config/import",
 		bundle, http.StatusNotFound)
 	c.expect(http.MethodPost, "/api/v1/agents/"+tid+"/config/import",

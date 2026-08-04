@@ -13,11 +13,11 @@ func TestWriteSkillDirsLayout(t *testing.T) {
 		Name:        "deploy",
 		Description: "Nutze dies, wenn: das Release ansteht",
 		Files: map[string]string{
-			"SKILL.md":          "# Deploy\n\nSchritt 1.",
-			"checkliste.md":     "- [ ] Backup",
-			"vorlagen/mail.md":  "Betreff: …",
-			"../../boeser-pfad": "darf nicht rausbrechen",
-			"/absolut":          "auch nicht",
+			"SKILL.md":         "# Deploy\n\nSchritt 1.",
+			"checkliste.md":    "- [ ] Backup",
+			"vorlagen/mail.md": "Betreff: …",
+			"../../evil-path":  "darf nicht rausbrechen",
+			"/absolut":         "auch nicht",
 		},
 	}})
 	if err != nil {
@@ -26,43 +26,43 @@ func TestWriteSkillDirsLayout(t *testing.T) {
 
 	entry, err := os.ReadFile(filepath.Join(dir, "deploy", "SKILL.md"))
 	if err != nil {
-		t.Fatalf("SKILL.md fehlt: %v", err)
+		t.Fatalf("SKILL.md missing: %v", err)
 	}
-	// Der Frontmatter entsteht beim Schreiben — er darf nicht aus dem
-	// gespeicherten Rumpf kommen, sonst stünde die Beschreibung doppelt.
+	// The frontmatter is produced while writing — it must not come out of the
+	// stored body, otherwise the description would appear twice.
 	if !strings.HasPrefix(string(entry), "---\nname: deploy\n") {
-		t.Fatalf("Frontmatter fehlt oder falsch:\n%s", entry)
+		t.Fatalf("frontmatter missing or wrong:\n%s", entry)
 	}
 	if !strings.Contains(string(entry), `description: "Nutze dies, wenn: das Release ansteht"`) {
-		t.Fatalf("Beschreibung muss quotiert im Frontmatter stehen:\n%s", entry)
+		t.Fatalf("the description must appear quoted in the frontmatter:\n%s", entry)
 	}
 	if !strings.Contains(string(entry), "# Deploy") {
-		t.Fatalf("Rumpf fehlt:\n%s", entry)
+		t.Fatalf("body missing:\n%s", entry)
 	}
 
-	// Zusatzdateien, auch in Unterverzeichnissen — das ist der Kern des
-	// Features: schweres Material, das nur bei Bedarf gelesen wird.
+	// Additional files, including in subdirectories — that is the core of the
+	// feature: heavy material that is only read when needed.
 	if _, err := os.Stat(filepath.Join(dir, "deploy", "checkliste.md")); err != nil {
-		t.Fatalf("Zusatzdatei fehlt: %v", err)
+		t.Fatalf("additional file missing: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "deploy", "vorlagen", "mail.md")); err != nil {
-		t.Fatalf("Datei im Unterverzeichnis fehlt: %v", err)
+		t.Fatalf("file in a subdirectory missing: %v", err)
 	}
 
-	// Traversal darf nichts außerhalb angelegt haben.
-	if _, err := os.Stat(filepath.Join(filepath.Dir(filepath.Dir(dir)), "boeser-pfad")); err == nil {
-		t.Fatal("Pfad-Traversal hat außerhalb geschrieben")
+	// Traversal must not have created anything outside.
+	if _, err := os.Stat(filepath.Join(filepath.Dir(filepath.Dir(dir)), "evil-path")); err == nil {
+		t.Fatal("path traversal wrote outside")
 	}
 	if _, err := os.Stat("/absolut"); err == nil {
-		t.Fatal("absoluter Pfad wurde geschrieben")
+		t.Fatal("an absolute path was written")
 	}
 }
 
-// Der wichtigste Test des Features: Das Home überlebt den Lauf (warm_sandbox,
-// persistentes /home). Wird ein Skill in der Control Plane gelöscht oder einem
-// Agenten abgehängt, MUSS er aus dem Home verschwinden — sonst bliebe eine
-// entzogene Fähigkeit für immer wirksam, und die zentrale Verwaltung wäre eine
-// Fiktion.
+// The most important test of the feature: the home outlives the run
+// (warm_sandbox, persistent /home). If a skill is deleted in the control plane
+// or detached from an agent, it MUST disappear from the home — otherwise a
+// withdrawn capability would stay effective forever, and central management
+// would be a fiction.
 func TestWriteSkillDirsRemovesWithdrawnSkills(t *testing.T) {
 	dir := t.TempDir()
 	first := []SkillDir{
@@ -70,38 +70,39 @@ func TestWriteSkillDirsRemovesWithdrawnSkills(t *testing.T) {
 		{Name: "triage", Description: "t", Files: map[string]string{"SKILL.md": "b"}},
 	}
 	if err := writeSkillDirs(dir, first); err != nil {
-		t.Fatalf("erster Lauf: %v", err)
+		t.Fatalf("first run: %v", err)
 	}
 
-	// Zweiter Lauf: triage ist abgehängt, deploy hat alt.md verloren.
+	// Second run: triage is detached, deploy has lost alt.md.
 	second := []SkillDir{
 		{Name: "deploy", Description: "d", Files: map[string]string{"SKILL.md": "a2"}},
 	}
 	if err := writeSkillDirs(dir, second); err != nil {
-		t.Fatalf("zweiter Lauf: %v", err)
+		t.Fatalf("second run: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "triage")); !os.IsNotExist(err) {
-		t.Fatal("abgehängter Skill muss aus dem Home verschwinden")
+		t.Fatal("a detached skill must disappear from the home")
 	}
 	if _, err := os.Stat(filepath.Join(dir, "deploy", "alt.md")); !os.IsNotExist(err) {
-		t.Fatal("entfernte Datei eines Skills muss verschwinden")
+		t.Fatal("a removed file of a skill must disappear")
 	}
 	if _, err := os.Stat(filepath.Join(dir, "deploy", "SKILL.md")); err != nil {
-		t.Fatalf("verbliebener Skill muss erhalten bleiben: %v", err)
+		t.Fatalf("a remaining skill must be preserved: %v", err)
 	}
 
-	// Ohne Skills bleibt ein leeres, aber vorhandenes Verzeichnis zurück.
+	// Without skills an empty but existing directory remains.
 	if err := writeSkillDirs(dir, nil); err != nil {
-		t.Fatalf("leerer Lauf: %v", err)
+		t.Fatalf("empty run: %v", err)
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil || len(entries) != 0 {
-		t.Fatalf("Verzeichnis muss leer sein: %v %d", err, len(entries))
+		t.Fatalf("the directory must be empty: %v %d", err, len(entries))
 	}
 }
 
-// Fremde Dateien im Skills-Verzeichnis räumt Covey mit ab. Das Verzeichnis
-// gehört der Control Plane — was der Agent dort ablegt, überlebt bewusst nicht.
+// Covey also clears away foreign files in the skills directory. The directory
+// belongs to the control plane — whatever the agent puts there deliberately does
+// not survive.
 func TestWriteSkillDirsRejectsUnsafeNames(t *testing.T) {
 	dir := t.TempDir()
 	err := writeSkillDirs(dir, []SkillDir{
@@ -122,14 +123,14 @@ func TestWriteSkillDirsRejectsUnsafeNames(t *testing.T) {
 		for _, e := range entries {
 			got = append(got, e.Name())
 		}
-		t.Fatalf("nur der gültige Name darf angelegt werden, bekam: %v", got)
+		t.Fatalf("only the valid name may be created, got: %v", got)
 	}
 }
 
-// Bleibt die Antwort der Control Plane aus, muss das Verzeichnis GELEERT
-// werden. Das Home überlebt den Lauf: Ohne diesen Schritt liefe die Aufgabe
-// nicht „ohne Skills", sondern mit den alten — ein gerade entzogener Skill
-// wirkte weiter, und der Entzug wäre fail-open.
+// If the control plane's answer fails to arrive, the directory must be EMPTIED.
+// The home outlives the run: without this step the task would not run "without
+// skills" but with the old ones — a skill just withdrawn would keep working, and
+// the withdrawal would be fail-open.
 func TestClearSkillDirsRemovesEverything(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), ".claude", "skills")
 	if err := writeSkillDirs(dir, []SkillDir{
@@ -145,10 +146,10 @@ func TestClearSkillDirsRemovesEverything(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(entries) != 0 {
-		t.Fatalf("nach dem Abräumen darf nichts übrig sein, bekam: %+v", entries)
+		t.Fatalf("after clearing nothing may be left, got: %+v", entries)
 	}
-	// Nie materialisiert: kein Verzeichnis, kein Fehler.
+	// Never materialized: no directory, no error.
 	if err := clearSkillDirs(filepath.Join(t.TempDir(), "gibtsnicht")); err != nil {
-		t.Fatalf("fehlendes Verzeichnis ist kein Fehler: %v", err)
+		t.Fatalf("a missing directory is not an error: %v", err)
 	}
 }

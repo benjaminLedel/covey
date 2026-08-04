@@ -12,9 +12,9 @@ import (
 	"covey/internal/agents"
 )
 
-// testDist baut ein dist/ nach, wie es web/prerender.mjs erzeugt: eine
-// vorgerenderte Startseite, eine Unterseite, die englische Fassung, die
-// 404-Seiten, die Hülle für die angemeldete Oberfläche und seo.json.
+// testDist rebuilds a dist/ the way web/prerender.mjs produces it: a
+// prerendered start page, a subpage, the English version, the 404 pages, the
+// shell for the signed-in interface and seo.json.
 func testDist() fs.FS {
 	seo := seoIndex{
 		URLs: []seoURL{
@@ -53,50 +53,50 @@ func testServer() *Server {
 	return s
 }
 
-func hole(t *testing.T, s *Server, pfad string) *httptest.ResponseRecorder {
+func hole(t *testing.T, s *Server, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	rec := httptest.NewRecorder()
-	s.spaHandler(s.WebFS).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, pfad, nil))
+	s.spaHandler(s.WebFS).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, path, nil))
 	return rec
 }
 
 func TestSPAVorgerenderteSeiten(t *testing.T) {
 	s := testServer()
 
-	for pfad, erwartet := range map[string]string{
+	for path, erwartet := range map[string]string{
 		"/":         "Startseite",
 		"/funktion": "Funktion",
 		"/en":       "Home",
 	} {
-		rec := hole(t, s, pfad)
+		rec := hole(t, s, path)
 		if rec.Code != http.StatusOK {
-			t.Fatalf("%s: Status %d, erwartet 200", pfad, rec.Code)
+			t.Fatalf("%s: status %d, expected 200", path, rec.Code)
 		}
 		if !strings.Contains(rec.Body.String(), erwartet) {
-			t.Fatalf("%s: liefert nicht die vorgerenderte Seite %q", pfad, erwartet)
+			t.Fatalf("%s: does not serve the prerendered page %q", path, erwartet)
 		}
 	}
 }
 
-// Der Kern der Änderung: Ein unbekannter Pfad ist eine 404 und nicht mehr die
-// Startseite mit Status 200.
+// The heart of the change: an unknown path is a 404 and no longer the start
+// page with status 200.
 func TestSPAUnbekannterPfadIst404(t *testing.T) {
 	s := testServer()
 
 	rec := hole(t, s, "/gibt-es-nicht")
 	if rec.Code != http.StatusNotFound {
-		t.Fatalf("Status %d, erwartet 404", rec.Code)
+		t.Fatalf("status %d, expected 404", rec.Code)
 	}
 	if !strings.Contains(rec.Body.String(), "Nicht gefunden") {
-		t.Fatalf("liefert nicht die deutsche 404-Seite: %s", rec.Body.String())
+		t.Fatalf("does not serve the German 404 page: %s", rec.Body.String())
 	}
 
 	rec = hole(t, s, "/en/nope")
 	if rec.Code != http.StatusNotFound {
-		t.Fatalf("Status %d, erwartet 404", rec.Code)
+		t.Fatalf("status %d, expected 404", rec.Code)
 	}
 	if !strings.Contains(rec.Body.String(), "Not found") {
-		t.Fatalf("liefert nicht die englische 404-Seite: %s", rec.Body.String())
+		t.Fatalf("does not serve the English 404 page: %s", rec.Body.String())
 	}
 }
 
@@ -105,13 +105,13 @@ func TestSPAAppPfadeLiefernDieHuelle(t *testing.T) {
 
 	rec := hole(t, s, "/agents/7f3e")
 	if rec.Code != http.StatusOK {
-		t.Fatalf("Status %d, erwartet 200", rec.Code)
+		t.Fatalf("status %d, expected 200", rec.Code)
 	}
 	if !strings.Contains(rec.Body.String(), "Control Plane") {
-		t.Fatalf("App-Pfad bekommt nicht die Hülle: %s", rec.Body.String())
+		t.Fatalf("app path does not get the shell: %s", rec.Body.String())
 	}
 	if got := rec.Header().Get("X-Robots-Tag"); got != "noindex" {
-		t.Fatalf("X-Robots-Tag = %q, erwartet noindex", got)
+		t.Fatalf("X-Robots-Tag = %q, expected noindex", got)
 	}
 }
 
@@ -119,20 +119,20 @@ func TestSPAStatischeDateienUndSchraegstrich(t *testing.T) {
 	s := testServer()
 
 	if rec := hole(t, s, "/assets/index-abc.js"); rec.Code != http.StatusOK {
-		t.Fatalf("Asset: Status %d, erwartet 200", rec.Code)
+		t.Fatalf("asset: status %d, expected 200", rec.Code)
 	}
 
 	rec := hole(t, s, "/funktion/")
 	if rec.Code != http.StatusMovedPermanently {
-		t.Fatalf("Status %d, erwartet 301", rec.Code)
+		t.Fatalf("status %d, expected 301", rec.Code)
 	}
 	if got := rec.Header().Get("Location"); got != "/funktion" {
-		t.Fatalf("Location = %q, erwartet /funktion", got)
+		t.Fatalf("Location = %q, expected /funktion", got)
 	}
 }
 
-// Ohne vorgerendertes dist/ (alter Build) bleibt es beim alten Verhalten:
-// alles fällt auf die index.html, niemand bekommt eine 404 zu sehen.
+// Without a prerendered dist/ (old build) the old behaviour remains:
+// everything falls back to index.html, nobody gets to see a 404.
 func TestSPAOhneVorrendernUnveraendert(t *testing.T) {
 	s := &Server{WebFS: fstest.MapFS{
 		"index.html": {Data: []byte("<html><body><div id=\"root\"></div></body></html>")},
@@ -140,27 +140,27 @@ func TestSPAOhneVorrendernUnveraendert(t *testing.T) {
 	s.seo = ladeSEOIndex(s.WebFS)
 
 	if rec := hole(t, s, "/agents/7f3e"); rec.Code != http.StatusOK {
-		t.Fatalf("Status %d, erwartet 200", rec.Code)
+		t.Fatalf("status %d, expected 200", rec.Code)
 	}
 	if rec := hole(t, s, "/beliebig"); rec.Code != http.StatusOK {
-		t.Fatalf("Status %d, erwartet 200", rec.Code)
+		t.Fatalf("status %d, expected 200", rec.Code)
 	}
 }
 
-// Die Adresse der Installation steht erst zur Laufzeit fest — im
-// vorgerenderten HTML steht ein Platzhalter, der nie beim Besucher ankommen darf.
+// The installation's address is only settled at runtime — the prerendered HTML
+// contains a placeholder that must never reach the visitor.
 func TestOriginPlatzhalterWirdErsetzt(t *testing.T) {
 	s := testServer()
 	body := hole(t, s, "/").Body.String()
 
 	if strings.Contains(body, platzhalterOrigin) {
-		t.Fatalf("Platzhalter steht noch im ausgelieferten HTML")
+		t.Fatalf("placeholder still present in the served HTML")
 	}
 	if !strings.Contains(body, `href="https://covey.example/"`) {
-		t.Fatalf("Canonical trägt nicht die konfigurierte Adresse: %s", body)
+		t.Fatalf("canonical does not carry the configured address: %s", body)
 	}
 
-	// Ohne Konfiguration kommt die Adresse aus dem Request.
+	// Without configuration the address comes from the request.
 	ohne := testServerOhneSiteURL()
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -168,25 +168,25 @@ func TestOriginPlatzhalterWirdErsetzt(t *testing.T) {
 	req.Header.Set("X-Forwarded-Proto", "https")
 	ohne.spaHandler(ohne.WebFS).ServeHTTP(rec, req)
 	if !strings.Contains(rec.Body.String(), "https://covey.intern:8494/") {
-		t.Fatalf("Adresse nicht aus dem Request abgeleitet: %s", rec.Body.String())
+		t.Fatalf("address not derived from the request: %s", rec.Body.String())
 	}
 }
 
-// Alles, was eine Adresse dieser Instanz nach außen gibt, leitet sie aus dem
-// Request ab: die Website, die Trigger-URL zum Kopieren, die Ziel-URL im Skill.
-// Der Anlass ist ein Ausfall — solange all das an COVEY_PUBLIC_URL hing, konnte
-// niemand die nach außen sichtbare Adresse richtig stellen, ohne die Adresse zu
-// verstellen, über die die Sandboxen zurückverbinden. Am Ende stand eine
-// Instanz mit korrekten Webhook-URLs und einer toten Data Plane.
+// Everything that hands an address of this instance outwards derives it from
+// the request: the website, the trigger URL to copy, the target URL in the
+// skill. The occasion was an outage — as long as all of that hung on
+// COVEY_PUBLIC_URL, nobody could correct the externally visible address without
+// misadjusting the address over which the sandboxes connect back. The result was
+// an instance with correct webhook URLs and a dead data plane.
 //
-// Dass PublicURL hier nicht mehr hineinreicht, hält inzwischen der Compiler
-// fest: httpapi.Server kennt das Feld nicht mehr. Dieser Test deckt die andere
-// Hälfte ab — dass die Ableitung aus dem Request auch stimmt.
+// That PublicURL no longer reaches in here is by now held in place by the
+// compiler: httpapi.Server does not know the field any more. This test covers
+// the other half — that the derivation from the request is also correct.
 func TestExterneAdressenKommenAusDemRequest(t *testing.T) {
 	s := testServerOhneSiteURL()
 
-	anfrage := func(pfad string) *http.Request {
-		req := httptest.NewRequest(http.MethodGet, pfad, nil)
+	anfrage := func(path string) *http.Request {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
 		req.Host = "covey.example"
 		req.Header.Set("X-Forwarded-Proto", "https")
 		return req
@@ -196,22 +196,22 @@ func TestExterneAdressenKommenAusDemRequest(t *testing.T) {
 	rec := httptest.NewRecorder()
 	s.spaHandler(s.WebFS).ServeHTTP(rec, anfrage("/"))
 	if !strings.Contains(rec.Body.String(), `href="https://covey.example/"`) {
-		t.Fatalf("Canonical nicht aus dem Request:\n%s", rec.Body.String())
+		t.Fatalf("canonical not taken from the request:\n%s", rec.Body.String())
 	}
 
-	// Trigger-URL — die kopiert jemand in ein Fremdsystem; eine interne
-	// Adresse wäre dort wertlos.
+	// Trigger URL — someone copies this into a foreign system; an internal
+	// address would be worthless there.
 	token := "geheim"
 	view := s.webhookView(anfrage("/api/v1/agents/x/webhook"), agents.Agent{WebhookToken: &token})
 	if got := view["url"]; got != "https://covey.example/api/trigger/geheim" {
-		t.Fatalf("Trigger-URL = %v", got)
+		t.Fatalf("trigger URL = %v", got)
 	}
 
-	// Und mit gesetzter SiteURL gewinnt die Konfiguration.
+	// And with SiteURL set the configuration wins.
 	s.SiteURL = "https://covey.beispiel.de"
 	view = s.webhookView(anfrage("/api/v1/agents/x/webhook"), agents.Agent{WebhookToken: &token})
 	if got := view["url"]; got != "https://covey.beispiel.de/api/trigger/geheim" {
-		t.Fatalf("SiteURL sticht den Request nicht: %v", got)
+		t.Fatalf("SiteURL does not beat the request: %v", got)
 	}
 }
 
@@ -228,7 +228,7 @@ func TestRobotsUndSitemap(t *testing.T) {
 		"Sitemap: https://covey.example/sitemap.xml",
 	} {
 		if !strings.Contains(robots, zeile) {
-			t.Fatalf("robots.txt ohne %q:\n%s", zeile, robots)
+			t.Fatalf("robots.txt without %q:\n%s", zeile, robots)
 		}
 	}
 
@@ -241,12 +241,12 @@ func TestRobotsUndSitemap(t *testing.T) {
 		`hreflang="x-default" href="https://covey.example/funktion"`,
 	} {
 		if !strings.Contains(sitemap, teil) {
-			t.Fatalf("sitemap.xml ohne %q:\n%s", teil, sitemap)
+			t.Fatalf("sitemap.xml without %q:\n%s", teil, sitemap)
 		}
 	}
-	// Die Anmeldeseite ist nicht indexierbar und darf nicht auftauchen.
+	// The sign-in page is not indexable and must not show up.
 	if strings.Contains(sitemap, "/anmelden") {
-		t.Fatalf("sitemap.xml enthält die Anmeldeseite:\n%s", sitemap)
+		t.Fatalf("sitemap.xml contains the sign-in page:\n%s", sitemap)
 	}
 }
 

@@ -4,24 +4,22 @@ import (
 	"net/http"
 )
 
-// Onboarding: die ersten Schritte zum ersten arbeitenden Agenten — nicht als
-// geklickte Tour, sondern als Checkliste, die den **echten Zustand der
-// Organisation** liest.
+// Onboarding: the first steps towards the first working agent — not a clicked
+// tour, but a checklist that reads the **actual state of the organisation**.
 //
-// Der Unterschied ist der Punkt: Eine Tour erzählt, was man tun soll, und
-// erzählt es weiter, wenn man es längst getan hat — oder wenn die Oberfläche
-// sich geändert hat und die Tour auf einen Knopf zeigt, den es nicht mehr
-// gibt. Diese Liste fragt stattdessen die Datenbank: Liegt ein
-// Runtime-Credential? Gibt es einen Agenten? Hat er eine SOUL.md? Lag je eine
-// Aufgabe an? Ist je ein Lauf gelaufen? Jeder Haken ist damit eine Tatsache,
-// keine Behauptung, und die Liste verschwindet von selbst, sobald sie nichts
-// mehr zu sagen hat.
+// The difference is the point: a tour tells you what to do, and keeps telling
+// you long after you have done it — or after the UI has changed and the tour
+// points at a button that no longer exists. This list asks the database
+// instead: is a runtime credential present? Does an agent exist? Does it have
+// a SOUL.md? Was a task ever queued? Did a run ever happen? Every tick is
+// therefore a fact, not a claim, and the list disappears by itself once it has
+// nothing left to say.
 //
-// Die Schritte sind dieselben wie in der Hilfe („Erste Schritte") — eine
-// Reihenfolge, nicht zwei.
+// The steps are the same as in the help ("Getting started") — one order, not
+// two.
 
-// onboardingStep ist ein Schritt samt Erledigt-Status. Der Text steht in der
-// Oberfläche (i18n), hier steht nur, was wahr ist.
+// onboardingStep is a single step plus its done status. The text lives in the
+// UI (i18n), here we only record what is true.
 type onboardingStep struct {
 	Key  string `json:"key"`
 	Done bool   `json:"done"`
@@ -29,23 +27,23 @@ type onboardingStep struct {
 
 type onboardingState struct {
 	Steps []onboardingStep `json:"steps"`
-	// Done ist true, wenn alle Schritte erledigt sind — dann blendet die
-	// Oberfläche die Liste aus, ohne sie durchzählen zu müssen.
+	// Done is true once every step is done — the UI then hides the list
+	// without having to count through it.
 	Done bool `json:"done"`
 }
 
-// runtimeCredentialKeys sind die Secret-Namen, mit denen die Claude-Code-
-// Runtime startet. Ohne einen davon schlägt jede Aufgabe fehl — deshalb ist
-// das der erste Schritt und nicht das Anlegen eines Agenten.
+// runtimeCredentialKeys are the secret names the Claude Code runtime starts
+// with. Without one of them every task fails — which is why this is the first
+// step and not creating an agent.
 var runtimeCredentialKeys = []string{"anthropic_api_key", "claude_code_oauth_token"}
 
-// Die eine Abfrage geht bewusst am Store-Schnitt vorbei: Sie fragt fünf
-// Domänen gleichzeitig (Secrets, Agenten, Config, Backlog, Recording) und
-// interessiert sich für keine davon inhaltlich — nur dafür, ob es überhaupt
-// etwas gibt. Auf fünf Store-Aufrufe verteilt wären es fünf Rundreisen zur
-// Datenbank für eine Ansicht, die bei jedem Laden der Agenten-Übersicht
-// mitläuft; in einem Store untergebracht gehörte sie dort nicht hin. Das ist
-// die Aufgabe eines BFF: aus vielen Quellen eine Ansicht bauen.
+// The single query deliberately bypasses the store boundary: it asks five
+// domains at once (secrets, agents, config, backlog, recording) and cares
+// about none of them in substance — only whether anything exists at all. Split
+// across five store calls it would be five round trips to the database for a
+// view that runs along with every load of the agent overview; parked inside
+// one store it would not belong there. This is the job of a BFF: build one
+// view out of many sources.
 func (s *Server) handleOnboarding(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 
