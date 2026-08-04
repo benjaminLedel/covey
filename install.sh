@@ -164,11 +164,11 @@ installieren() {
         fehler "keine Schreibrechte auf ${ziel} und kein sudo — mit --bin-dir ein eigenes Verzeichnis wählen"
     fi
 
-    for bin in covey coveyd; do
-        [ -f "${quelle}/${bin}" ] || continue
-        $sudo_cmd install -m 0755 "${quelle}/${bin}" "${ziel}/${bin}"
-        info "installiert: ${ziel}/${bin}"
-    done
+    # Nur covey. coveyd läuft ausschließlich IN der Sandbox — es ins
+    # Host-Verzeichnis zu legen, hieße ein Programm zu installieren, das dort
+    # nie startet. Dockerfile.sandbox baut es sich selbst.
+    $sudo_cmd install -m 0755 "${quelle}/covey" "${ziel}/covey"
+    info "installiert: ${ziel}/covey"
 }
 
 abschluss() {
