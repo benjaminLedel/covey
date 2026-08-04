@@ -87,6 +87,55 @@ var Builtins = []BuiltinTemplate{
 		},
 	},
 	{
+		Slug:        "composer",
+		Name:        "PHP / Composer",
+		Description: "Pakete via composer installieren",
+		Hosts: []BuiltinHost{
+			{Pattern: "packagist.org", Note: "Paket-Index"},
+			{Pattern: "repo.packagist.org", Note: "Metadaten (p2/…); die dist-Archive kommen über GitHub"},
+		},
+	},
+	{
+		Slug:        "dart-flutter",
+		Name:        "Dart / Flutter",
+		Description: "Flutter-SDKs via fvm holen und Pakete via pub installieren",
+		Hosts: []BuiltinHost{
+			{Pattern: "pub.dev", Note: "Paket-Registry inkl. der Archive (pub get)"},
+			// storage.googleapis.com ist der Bezugsweg für SDK- und Engine-Artefakte
+			// (flutter_infra_release, download.flutter.io). Der Proxy terminiert TLS
+			// nicht und matcht nur den CONNECT-Host — eine pfadgenaue Fassung ist
+			// deshalb nicht möglich, und der Eintrag öffnet zwangsläufig JEDEN
+			// öffentlichen GCS-Bucket. Wer das nicht will, spiegelt die Artefakte
+			// selbst und setzt FLUTTER_STORAGE_BASE_URL in der Sandbox.
+			{Pattern: "storage.googleapis.com", Note: "Flutter-SDK- und Engine-Artefakte — ACHTUNG: deckt alle öffentlichen GCS-Buckets ab"},
+		},
+	},
+	{
+		Slug:        "maven-gradle",
+		Name:        "Maven / Gradle",
+		Description: "Abhängigkeiten und Gradle-Distributionen für JVM-Projekte laden",
+		Hosts: []BuiltinHost{
+			{Pattern: "repo1.maven.org", Note: "Maven Central"},
+			{Pattern: "plugins.gradle.org", Note: "Gradle Plugin Portal (Metadaten)"},
+			// Das Plugin Portal liefert die Artefakte selbst nicht aus, sondern
+			// leitet auf plugins-artifacts.gradle.org um. Ohne diesen Host scheitert
+			// jedes `plugins { id … }` — der Proxy folgt keinem Redirect, er sieht
+			// nur den nächsten CONNECT-Host.
+			{Pattern: "plugins-artifacts.gradle.org", Note: "Artefakt-Downloads des Plugin Portals (Redirect-Ziel)"},
+			{Pattern: "services.gradle.org", Note: "Wrapper-Distributionen; leitet auf GitHub Releases um — GitHub-Template nötig"},
+			{Pattern: "api.foojay.io", Note: "JDK-Beschaffung für Gradle-Toolchains; leitet auf GitHub Releases um"},
+		},
+	},
+	{
+		Slug:        "android",
+		Name:        "Android / Google Maven",
+		Description: "Android-Abhängigkeiten für Gradle- und Flutter-Builds laden",
+		Hosts: []BuiltinHost{
+			{Pattern: "maven.google.com", Note: "Google-Maven-Index (leitet auf dl.google.com um)"},
+			{Pattern: "dl.google.com", Note: "Artefakt-Downloads des Google-Maven-Repos"},
+		},
+	},
+	{
 		Slug:        "container",
 		Name:        "Container-Registries",
 		Description: "Images von Docker Hub, GitHub und Quay ziehen",

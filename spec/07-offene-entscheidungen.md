@@ -1,6 +1,6 @@
 # 07 — Offene Entscheidungen & MVP-Scope
 
-Stand: Ergebnis des Brainstorms. Diese Punkte sind bewusst offen und sollten früh festgenagelt werden, weil sie stark kaskadieren.
+Stand: Ergebnis des Brainstorms. Diese Punkte sind bewusst offen und sollten früh festgenagelt werden, weil sie stark kaskadieren. Entschiedene Punkte bleiben mit `✅ *entschieden*` stehen — die Begründung gehört zur Entscheidung und geht sonst verloren.
 
 ## Offene Entscheidungen
 
@@ -14,7 +14,7 @@ Diese Entscheidung bestimmt, wie „echt" die E-Mail-als-Bus-Idee trägt, und be
 
 ### D2 — Sandbox: Build vs. Buy
 
-Firecracker/gVisor selbst betreiben vs. Sandbox-as-a-Service (E2B, Beam, Northflank). Persistentes Volume + ephemere Compute ist gesetzt; die Frage ist die Betriebsform. Empfehlung aus dem Brainstorm: **die Sandbox-Infra nicht from scratch bauen** — der differenzierte Teil ist die Control Plane (Details in [`01-architektur.md`](01-architektur.md)). Marktbefunde und konkrete Bausteine in [`08-marktumfeld.md`](08-marktumfeld.md) (u. a. Daytona-Wechsel auf closed-source Juni 2026).
+Firecracker/gVisor selbst betreiben vs. Sandbox-as-a-Service (E2B, Beam, Northflank). Persistentes Volume + ephemere Compute ist gesetzt; die Frage ist die Betriebsform. Empfehlung aus dem Brainstorm: **die Sandbox-Infra nicht from scratch bauen** — der differenzierte Teil ist die Control Plane (Details in [`01-architektur.md`](01-architektur.md)). Marktbefunde und konkrete Bausteine in [`08-marktumfeld.md`](08-marktumfeld.md) (u. a. Daytona-Wechsel auf closed-source Juni 2026). Wie die projektspezifische Toolchain in die Sandbox kommt, ist davon unabhängig entschieden — siehe D11.
 
 ### D3 — Agent-Identität: echter User vs. Service-Account
 
@@ -47,6 +47,16 @@ Single-org self-hosted (ein Unternehmen, eine Instanz) vs. mehr-mandanten-fähig
 ### D10 — Backend-Sprache: Go vs. Kotlin
 
 Beide tragfähig für den nebenläufigkeits-schweren Orchestration-Core. **Tendenz Go** (single-binary-Deployment, Ökosystem-Nähe zu kagent/Sandbox-SDKs, KI schreibt idiomatisches Go) vs. **Kotlin** (reicheres Typsystem für die Policy-Engine, strukturierte Nebenläufigkeit). Frontend bleibt in beiden Fällen TS/Tailwind. Trade-off-Tabelle in [`10-architektur-stack.md`](10-architektur-stack.md).
+
+### D11 — Projektpassende Sandbox-Umgebung ✅ *entschieden*
+
+Wie kommt die projektspezifische Toolchain in eine Sandbox, die am **Agenten** hängt? Ein Entwickler-Agent arbeitet an mehreren Projekten mit verschiedenen Technologien und Versionen; sein Container startet aber beim Wake, bevor feststeht, welches Ticket aus welchem Projekt drankommt. „Ein Image pro Projekt" setzt deshalb einen Agenten pro Projekt voraus.
+
+Entschieden: **Version → Home, Toolchain → Image.** Das Image trägt Systempakete (PHP, JDK) und die Versionsmanager (`fvm`, `uv`); die SDK-**Versionen** zieht sich der Agent nach dem Pin im Projekt-Repo selbst ins persistente Home. Ein Image für alle Agenten — ein `sandbox_image` pro Agent lohnt erst, wenn ein Agent bewusst *weniger* können soll, nicht für mehr Sprachen.
+
+Verworfen: **Pakete zur Laufzeit über die UI nachinstallieren.** Drei Gründe, alle strukturell — der Agent läuft als Nicht-Root (Claude Code verweigert `--dangerously-skip-permissions` als root); ein Paketmanager auf der Egress-Allowlist ist ein generischer Code-Ausführungskanal und kein Zielsystem-Host; und eine Sandbox, deren Werkzeuge aus einer Klickliste plus dem Zustand eines Mirrors entstehen, ist nicht mehr aus Config + Home rekonstruierbar — der Kern der „dumm und ersetzbar"-Zusage aus [`01-architektur.md`](01-architektur.md).
+
+Betriebsseite samt Egress-Templates in [`../docs/betrieb-deployment.md`](../docs/betrieb-deployment.md).
 
 ## Vorgeschlagener MVP-Scope
 

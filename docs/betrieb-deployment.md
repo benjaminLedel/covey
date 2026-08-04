@@ -51,6 +51,74 @@ Deploy-Compose vs. lokales Compose:
 | `docker-compose.yml` | lokal ausprobieren | `build: .` (baut lokal) |
 | `docker-compose.deploy.yml` | Host-Deployment via CI | `image: ${COVEY_IMAGE}` (aus Registry) |
 
+### Was ins Sandbox-Image gehört — und was nicht
+
+Ein Entwickler-Agent arbeitet an mehreren Projekten mit unterschiedlichen
+Technologien und Versionen. Die Sandbox hängt aber am **Agenten**, nicht am
+Projekt: Der Container startet beim Wake, bevor feststeht, welches Ticket aus
+welchem Projekt drankommt. Ein Image pro Projekt ist deshalb kein gangbarer Weg.
+Stattdessen gilt:
+
+> **Version → Home, Toolchain → Image.**
+
+| Schicht | Inhalt | Lebensdauer |
+|---|---|---|
+| Image | Systempakete (PHP, JDK) und die Versionsmanager selbst | pro Build |
+| Home `/home/agent` | die SDK-Versionen, die das Projekt pinnt | persistent je Agent |
+| Checkout | `vendor/`, `node_modules/`, Gradle-Cache | persistent je Agent |
+
+Das Image bringt deshalb `fvm` (Flutter/Dart) und `uv` (Python) mit, aber
+**keine SDKs**: Die zieht sich jeder Agent beim ersten Bedarf in sein Home,
+gesteuert durch die Version, die im Projekt-Repo steht (`.fvmrc`,
+`.python-version`, `gradle-wrapper.properties`). Weil das Home persistent ist,
+passiert das einmal und nicht bei jedem Lauf.
+
+**Beim Erweitern des Images beachten:** Die Control Plane mountet das Home über
+`/home/agent`. Alles, was ein Installer zur Build-Zeit dorthin schreibt, ist zur
+Laufzeit maskiert und unsichtbar — Werkzeuge gehören in einen Systempfad
+(`/usr/local/bin`, `/opt`), ihre Caches ins Home. Aus demselben Grund lässt sich
+SDKMAN nicht vorinstallieren; es liegt konstruktionsbedingt in `$HOME/.sdkman`
+und wird bei Bedarf vom Agenten selbst installiert (bleibt dann liegen).
+
+**Nachinstallieren zur Laufzeit ist kein Weg.** Der Agent läuft als Nicht-Root,
+und ein Paketmanager auf der Egress-Allowlist wäre ein generischer
+Code-Ausführungskanal. Die Begründung steht als **D11** in
+[`spec/07-offene-entscheidungen.md`](../spec/07-offene-entscheidungen.md).
+
+### Egress für Entwickler-Agenten
+
+Im Isolationsmodus `network` erreicht die Sandbox nur, was auf der Allowlist
+steht — ohne die passenden Templates scheitern `composer install`,
+`fvm install` und `gradlew`. Der eingebaute Katalog
+(`internal/egress/builtin.go`) hält dafür fertige Host-Sets bereit; einem
+Entwickler-Agenten weist man üblicherweise zu:
+
+| Template | Wofür |
+|---|---|
+| GitHub | Git-Klone und Release-Downloads. **Praktisch immer nötig:** `fvm`, Composer-VCS-Pakete, `uv`s CPython, der Gradle-Wrapper und die JDK-Toolchains landen alle auf GitHub Releases |
+| PHP / Composer | `packagist.org` (die dist-Archive kommen über GitHub) |
+| Dart / Flutter | `pub.dev` und die SDK-Artefakte |
+| Maven / Gradle | Maven Central, Plugin Portal, Wrapper-Distributionen, JDK-Toolchains |
+| Android / Google Maven | Android-Abhängigkeiten — für Gradle- **und** Flutter-Builds |
+| Node.js / npm | `registry.npmjs.org` |
+
+Dazu das eigene GitLab bzw. Zammad als org-eigenes Template — die stehen
+bewusst nicht im Katalog.
+
+Zwei Dinge, die beim Zuschneiden der Allowlist regelmäßig Zeit kosten:
+
+- **Der Proxy folgt keinem Redirect.** Er sieht nur den CONNECT-Host der
+  jeweiligen Verbindung, und er ist fail-closed. Leitet ein Dienst auf einen
+  anderen Host um, muss auch das Ziel auf der Liste stehen — deshalb liegt
+  `plugins-artifacts.gradle.org` neben `plugins.gradle.org`, und deshalb ist
+  das GitHub-Template praktisch Pflicht.
+- **`storage.googleapis.com` im Flutter-Template ist breit.** Der Proxy
+  terminiert TLS nicht, kann also nicht auf Pfade filtern — der Eintrag öffnet
+  jeden öffentlich lesbaren GCS-Bucket, nicht nur die Flutter-Artefakte. Für
+  Agenten, bei denen das nicht tragbar ist, führt der Weg über einen eigenen
+  Spiegel und `FLUTTER_STORAGE_BASE_URL` in der Sandbox statt über dieses
+  Template.
+
 ---
 
 ## Einmalige Einrichtung
