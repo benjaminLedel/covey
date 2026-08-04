@@ -45,7 +45,7 @@ type Provider interface {
 	AuthenticateHuman(ctx context.Context, creds Credentials) (Principal, error)
 }
 
-// Menschliche Rollen (RBAC, spec/09-enterprise-modell.md).
+// Menschliche Rollen (RBAC, spec/09-enterprise-model.md).
 const (
 	RolePlatformAdmin = "platform_admin"
 	RoleAgentOwner    = "agent_owner"

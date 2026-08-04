@@ -308,7 +308,7 @@ Die Control Plane braucht noch Postgres (mit pgvector) und Docker fuer die Sandb
   4) Starten:  covey serve
 
 Der ausfuehrliche Weg samt docker-compose steht in der Betriebsdoku:
-https://github.com/${REPO}/blob/main/docs/betrieb-deployment.md
+https://github.com/${REPO}/blob/main/docs/ops-deployment.md
 
 EOF
                 ;;

@@ -354,7 +354,7 @@ var accessKeywords = map[string]bool{"system:": true, "scope:": true, "scopes:":
 //
 //   - system: ticketing   scope: read,write,comment   tools: get_ticket, reply
 //
-// Referenzen auf Systeme + Scopes — niemals Secrets (spec/02-agenten-modell.md).
+// Referenzen auf Systeme + Scopes — niemals Secrets (spec/02-agent-model.md).
 // tools ist die Tool-Allowlist des Agenten für das System (MCP): fehlt das
 // Attribut oder steht dort "alle", sind alle Tools des Systems erlaubt.
 func ParseAccess(content string) []SystemAccess {

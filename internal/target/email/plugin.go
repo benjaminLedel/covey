@@ -63,7 +63,7 @@ func init() {
 6. Die IMAP-/SMTP-Hosts müssen aus der Sandbox erreichbar sein
    (Egress-Freigabe für beide Hosts).
 
-Details: docs/betrieb-email.md im Repository.`,
+Details: docs/ops-email.md im Repository.`,
 	})
 }
 

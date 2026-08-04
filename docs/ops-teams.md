@@ -353,7 +353,7 @@ Details: [`../spec/15-teams-integration.md`](../spec/15-teams-integration.md).
 > (`download_attachment`).
 >
 > Details und der harte network-Isolationsmodus wie im Zammad-Runbook
-> ([`betrieb-zammad.md`](betrieb-zammad.md), Abschnitt 6.1).
+> ([`ops-zammad.md`](ops-zammad.md), Abschnitt 6.1).
 
 ---
 
@@ -399,7 +399,7 @@ Port 9998. So testet man Outbound ohne Azure-Registration:
   (spec/15, Abschnitt „Scope").
 - Die allgemeinen MVP-Grenzen (Egress-Härtung, Retry/Reconnect, Budget-Deckel,
   `webhook_events`-Retention) gelten wie im Zammad-Runbook
-  ([`betrieb-zammad.md`](betrieb-zammad.md), Abschnitt 7).
+  ([`ops-zammad.md`](ops-zammad.md), Abschnitt 7).
 
 ---
 

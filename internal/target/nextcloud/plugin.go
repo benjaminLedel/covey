@@ -59,7 +59,7 @@ B) Konto-Zugang (das ganze Datei-Verzeichnis eines Nutzers):
    - alle: 30m titel: Ablage sichten aufgabe: Liste mit list den
      Eingangsordner und bearbeite neue Dateien nach Playbook.
 
-Details: docs/betrieb-nextcloud.md im Repository.`,
+Details: docs/ops-nextcloud.md im Repository.`,
 	})
 }
 

@@ -17,7 +17,7 @@ zur Vorlage, indem man es hier ablegt und im `manifest` in `builtin.go` einträg
 | `log-triage-agent.bundle.json` | `covey-logtriage` | Log-Triage: per E-Mail gemeldete Logs analysieren, vor dem Anlegen auf Duplikate prüfen (`list_issues search=…`, Vorfälle am bestehenden Ticket bündeln), für relevante Befunde Tickets anlegen und echte Code-Bugs per `assignee` an einen Entwickler-Agenten übergeben. |
 
 Zusammen bilden sie das Zwei-Agenten-Setup aus
-[`docs/betrieb-gitlab.md`](../docs/betrieb-gitlab.md) §2.7: Der Entwickler-Agent
+[`docs/ops-gitlab.md`](../docs/ops-gitlab.md) §2.7: Der Entwickler-Agent
 trägt den QA-Agenten als `reviewer` seiner MRs ein (er findet ihn automatisch im
 Prompt-Abschnitt „Team (KI-Kollegen)"), der QA-Agent testet und kommentiert, der
 Entwickler arbeitet das Feedback über seinen `gitlab:mr`-Loop ein.
@@ -53,13 +53,13 @@ Auftrag — nicht der Ticket-Titel.
 Damit derselbe Agent das nächste Vorhaben führen kann, steht nichts
 Vorhabensspezifisches in seiner Config — Projekt, Meilenstein, Frist, Reihenfolge
 und WIP-Limit stehen in einer Wiki-Seite, dem Vorhaben-Steckbrief. Vorlage und
-Begründung der Felder: [`docs/betrieb-gitlab.md`](../docs/betrieb-gitlab.md)
+Begründung der Felder: [`docs/ops-gitlab.md`](../docs/ops-gitlab.md)
 §2.9.1. **Ein Lead führt genau ein Vorhaben**; für ein zweites wird ein zweiter
 Lead angelegt (dieselbe Config, eigener Steckbrief), weil seine Heartbeats keinen
 Meilenstein nennen und er zwei Steckbriefe nicht auseinanderhalten könnte.
 
 **Ein Bundle trägt nur die Config-Dateien**, keine Stammdaten. Nach dem Import
-noch nötig (siehe `docs/betrieb-gitlab.md` 2.2, 2.7 und — für den Lead — 2.9):
+noch nötig (siehe `docs/ops-gitlab.md` 2.2, 2.7 und — für den Lead — 2.9):
 
 - Secrets `gitlab_token` + `gitlab_url` zuweisen, GitLab- und `dev`-Zielsystem
   aktivieren. Entwickler-, QA- und Lead-Agent brauchen **je einen eigenen
@@ -74,7 +74,7 @@ noch nötig (siehe `docs/betrieb-gitlab.md` 2.2, 2.7 und — für den Lead — 2
   findet seine Entwickler.
 - **Für den Mail-Intake des QA-Agenten** zusätzlich ein eigenes Postfach
   einrichten und die Secrets `email_url` + `email_token` zuweisen (siehe
-  `docs/betrieb-email.md`). Damit der Agent Bug-Reports dem richtigen GitLab-
+  `docs/ops-email.md`). Damit der Agent Bug-Reports dem richtigen GitLab-
   Projekt zuordnen kann, im Profil des QA-Agenten die **Produkt→Projekt-Zuordnung**
   hinterlegen (welches Postfach/Produkt gehört zu welchem GitLab-Projekt); ist die
   Zuordnung unklar, fragt er beim Melder nach, statt ins falsche Projekt zu ticketen.
@@ -87,5 +87,5 @@ Zusätzlich nur für den **Delivery Lead**:
 - Einen **menschlichen Vorgesetzten** eintragen, **dessen GitLab-Kennung im
   Profil hinterlegt sein muss**. Ohne sie scheitert `assign` bei jeder offenen
   Fachfrage — also genau in dem Pfad, der Menschen einbindet.
-- Die Wiki-Seite mit dem Steckbrief anlegen (Vorlage: `docs/betrieb-gitlab.md`
+- Die Wiki-Seite mit dem Steckbrief anlegen (Vorlage: `docs/ops-gitlab.md`
   §2.9.1), bevor der erste Heartbeat feuert.

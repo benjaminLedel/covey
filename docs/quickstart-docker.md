@@ -82,7 +82,7 @@ dem Agenten hinterlegbar:
    „Not logged in", weil die Sandbox ein eigenes, leeres `HOME` hat.
 2. **Ein Zielsystem** — z. B. Zammad. Zum Ausprobieren ohne echtes Zammad gibt
    es das Double `demo/fakezammad`; für den Anschluss an eine echte Instanz das
-   Runbook [`betrieb-zammad.md`](betrieb-zammad.md).
+   Runbook [`ops-zammad.md`](ops-zammad.md).
 
 ---
 
@@ -97,7 +97,7 @@ der covey-Container Zugriff auf einen Docker-Daemon (Socket-Mount oder
 Docker-in-Docker) und das Sandbox-Image `covey-sandbox:latest`
 ([`Dockerfile.sandbox`](../Dockerfile.sandbox)). Das ist bewusst **nicht** Teil
 dieses Einsteiger-Setups — Details dazu in
-[`spec/01-architektur.md`](../spec/01-architektur.md) und der README.
+[`spec/01-architecture.md`](../spec/01-architecture.md) und der README.
 
 ---
 

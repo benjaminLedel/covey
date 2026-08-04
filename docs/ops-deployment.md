@@ -5,7 +5,7 @@ Runbook beschreibt die einmalige Einrichtung und was im laufenden Betrieb
 passiert.
 
 > Für lokales Ausprobieren ohne CI siehe stattdessen
-> [`schnellstart-docker.md`](schnellstart-docker.md).
+> [`quickstart-docker.md`](quickstart-docker.md).
 
 ---
 
@@ -83,7 +83,7 @@ und wird bei Bedarf vom Agenten selbst installiert (bleibt dann liegen).
 **Nachinstallieren zur Laufzeit ist kein Weg.** Der Agent läuft als Nicht-Root,
 und ein Paketmanager auf der Egress-Allowlist wäre ein generischer
 Code-Ausführungskanal. Die Begründung steht als **D11** in
-[`spec/07-offene-entscheidungen.md`](../spec/07-offene-entscheidungen.md).
+[`spec/07-open-decisions.md`](../spec/07-open-decisions.md).
 
 ### Egress für Entwickler-Agenten
 
@@ -227,7 +227,7 @@ COVEY_IMAGE=<registry>/covey:<älterer-sha> docker compose up -d
 
 ## Wiki-Gedächtnis: Embedding wählen
 
-Die Wiki-Suche der Agenten (siehe [`spec/05`](../spec/05-gedaechtnis.md)) liegt
+Die Wiki-Suche der Agenten (siehe [`spec/05`](../spec/05-memory.md)) liegt
 auf einem Vektor-Index. Welches Embedding ihn füllt, entscheidet
 `COVEY_EMBEDDING_PROVIDER` in der `.env` des Deploy-Ordners.
 
@@ -290,7 +290,7 @@ Agenten überschreiben den Eintrag über einen gleichnamigen Punkt in ihrer
 ## Vor echtem Produktivbetrieb
 
 Das Setup ist bewusst schlank. Für echten Betrieb zusätzlich (vgl.
-[`schnellstart-docker.md`](schnellstart-docker.md#für-den-produktivbetrieb)):
+[`quickstart-docker.md`](quickstart-docker.md#für-den-produktivbetrieb)):
 
 - **HTTPS davor:** Reverse-Proxy mit TLS-Terminierung, `COVEY_PUBLIC_URL` auf
   `https://…` — das Secure-Cookie schaltet sich dann automatisch an.

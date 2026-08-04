@@ -38,7 +38,7 @@ Dann **[http://localhost:8494](http://localhost:8494)** öffnen — Login `admin
 
 Das mitgelieferte [`docker-compose.yml`](docker-compose.yml) bringt Postgres (pgvector) und das covey-Binary mit eingebetteter Admin-UI; `bootstrap` legt Organisation, Admin und einen Demo-Agenten an, Migrationen laufen automatisch.
 
-*Lieber das blanke Binary?* [`install.sh`](#installation) holt es aus dem [neuesten Release](https://github.com/benjaminLedel/covey/releases/latest) und prüft die Checksumme. *Lieber erst schauen?* Die laufende Instanz steht unter **[covey.work](https://covey.work)**. Vollständige Anleitung inkl. erstem Agenten und Produktions-Checkliste: [`docs/schnellstart-docker.md`](docs/schnellstart-docker.md).
+*Lieber das blanke Binary?* [`install.sh`](#installation) holt es aus dem [neuesten Release](https://github.com/benjaminLedel/covey/releases/latest) und prüft die Checksumme. *Lieber erst schauen?* Die laufende Instanz steht unter **[covey.work](https://covey.work)**. Vollständige Anleitung inkl. erstem Agenten und Produktions-Checkliste: [`docs/quickstart-docker.md`](docs/quickstart-docker.md).
 
 ---
 
@@ -78,7 +78,7 @@ Das mitgelieferte [`docker-compose.yml`](docker-compose.yml) bringt Postgres (pg
 
 **CI:** Jeder Push und jeder Pull Request prüft Formatierung, `go vet`, die Go- und Frontend-Tests, `govulncheck` und CodeQL — auf GitHub über [Actions](.github/workflows/), auf GitLab über die Pipeline unten.
 
-**Automatisches Deployment (main → Host):** Jeder Push auf `main` rollt Covey über die GitLab-Pipeline (`test → build → deploy`) auf einen Zielhost aus — so entsteht [covey.work](https://covey.work): das gebaute Image auf den Commit-Tag gepinnt, via [`docker-compose.deploy.yml`](docker-compose.deploy.yml) auf einem Shell-Runner am Host gestartet. Siehe [`docs/betrieb-deployment.md`](docs/betrieb-deployment.md).
+**Automatisches Deployment (main → Host):** Jeder Push auf `main` rollt Covey über die GitLab-Pipeline (`test → build → deploy`) auf einen Zielhost aus — so entsteht [covey.work](https://covey.work): das gebaute Image auf den Commit-Tag gepinnt, via [`docker-compose.deploy.yml`](docker-compose.deploy.yml) auf einem Shell-Runner am Host gestartet. Siehe [`docs/ops-deployment.md`](docs/ops-deployment.md).
 
 ## Die Leitmetapher
 
@@ -120,7 +120,7 @@ flowchart LR
     CP --- DB[("PostgreSQL + pgvector")]
 ```
 
-Das System zerfällt in eine **Control Plane** (zustandsführend, immer aktiv: Scheduler, Agent-Registry, Backlog-Store, Identitäts- & Secrets-Broker, Guard-Rail-Engine, Observability) und eine **Data Plane** aus isolierten, ephemeren **Sandboxen** mit persistentem Home. In jeder Sandbox läuft ein schlanker **Daemon**, der ein einheitliches Protokoll spricht und die konkrete **Runtime** (Claude Code, …) über einen dünnen **Adapter** bootstrappt. Die Plattform managt die Sandbox, nicht das Framework — dadurch bleibt die Runtime austauschbar. Details in [`spec/01-architektur.md`](spec/01-architektur.md).
+Das System zerfällt in eine **Control Plane** (zustandsführend, immer aktiv: Scheduler, Agent-Registry, Backlog-Store, Identitäts- & Secrets-Broker, Guard-Rail-Engine, Observability) und eine **Data Plane** aus isolierten, ephemeren **Sandboxen** mit persistentem Home. In jeder Sandbox läuft ein schlanker **Daemon**, der ein einheitliches Protokoll spricht und die konkrete **Runtime** (Claude Code, …) über einen dünnen **Adapter** bootstrappt. Die Plattform managt die Sandbox, nicht das Framework — dadurch bleibt die Runtime austauschbar. Details in [`spec/01-architecture.md`](spec/01-architecture.md).
 
 ## Designprinzipien
 
@@ -142,7 +142,7 @@ Das System zerfällt in eine **Control Plane** (zustandsführend, immer aktiv: S
 - **Datenhaltung:** PostgreSQL als Anker — State, Backlog, RBAC, Job-Queue (`SKIP LOCKED`), Pub/Sub (`LISTEN/NOTIFY`), Memory (`pgvector`), verschlüsselte Secret-Spalten (AES-GCM).
 - **Default:** `builtin` überall — faktisch **Binary + Postgres + Docker, sonst nichts**. Keycloak/Vault/Redis sind optional zuschaltbar, nicht Voraussetzung.
 
-Details in [`spec/10-architektur-stack.md`](spec/10-architektur-stack.md).
+Details in [`spec/10-architecture-stack.md`](spec/10-architecture-stack.md).
 
 ## Installation
 
@@ -169,7 +169,7 @@ curl -sSLO https://raw.githubusercontent.com/benjaminLedel/covey/main/installer/
 less install.sh && sh install.sh
 ```
 
-Das installiert nur Binaries. Die Control Plane braucht zusätzlich PostgreSQL (mit pgvector) und Docker für die Sandboxen; die restlichen Schritte nennt das Skript am Ende, der ausführliche Weg samt docker-compose steht in [`docs/betrieb-deployment.md`](docs/betrieb-deployment.md).
+Das installiert nur Binaries. Die Control Plane braucht zusätzlich PostgreSQL (mit pgvector) und Docker für die Sandboxen; die restlichen Schritte nennt das Skript am Ende, der ausführliche Weg samt docker-compose steht in [`docs/ops-deployment.md`](docs/ops-deployment.md).
 
 ## Entwicklung
 
@@ -179,7 +179,7 @@ make bootstrap    # Frontend + Binaries bauen, migrieren, Org/Admin/Agent anlege
 make run          # covey serve auf http://localhost:8494
 ```
 
-**Sandbox-Isolation.** Die Control Plane startet Sandboxen als Container (**docker-Provider**, Default) — echte Isolation auf Container-Ebene. Vor dem ersten Start `make sandbox-image` bauen ([`Dockerfile.sandbox`](Dockerfile.sandbox): coveyd + Claude Code + chromium für das `browser`-Plugin, dazu PHP, JDK und die Versionsmanager `fvm`/`uv` für Entwickler-Agenten). Das persistente Agenten-Home wird als Volume gemountet; der Container erbt nichts von der Host-Umgebung. Image überschreibbar via `COVEY_SANDBOX_IMAGE`. Die Regel beim Erweitern: **Version → Home, Toolchain → Image** — SDK-Versionen zieht sich der Agent nach dem Pin im Projekt-Repo selbst ins persistente Home ([`docs/betrieb-deployment.md`](docs/betrieb-deployment.md)).
+**Sandbox-Isolation.** Die Control Plane startet Sandboxen als Container (**docker-Provider**, Default) — echte Isolation auf Container-Ebene. Vor dem ersten Start `make sandbox-image` bauen ([`Dockerfile.sandbox`](Dockerfile.sandbox): coveyd + Claude Code + chromium für das `browser`-Plugin, dazu PHP, JDK und die Versionsmanager `fvm`/`uv` für Entwickler-Agenten). Das persistente Agenten-Home wird als Volume gemountet; der Container erbt nichts von der Host-Umgebung. Image überschreibbar via `COVEY_SANDBOX_IMAGE`. Die Regel beim Erweitern: **Version → Home, Toolchain → Image** — SDK-Versionen zieht sich der Agent nach dem Pin im Projekt-Repo selbst ins persistente Home ([`docs/ops-deployment.md`](docs/ops-deployment.md)).
 
 **Anmeldung.** `admin@covey.local` / `covey-admin`, überschreibbar via `COVEY_ADMIN_EMAIL` / `COVEY_ADMIN_PASSWORD` beim Bootstrap.
 
@@ -217,15 +217,15 @@ Exit-Code 1 bei Befunden, damit ein Upgrade-Skript darauf reagieren kann. Geänd
 
 | Dokument | Inhalt |
 |---|---|
-| [`docs/schnellstart-docker.md`](docs/schnellstart-docker.md) | Compose-Setup, erster Agent, Produktions-Checkliste |
-| [`docs/betrieb-deployment.md`](docs/betrieb-deployment.md) | CI-Pipeline, Auto-Deploy auf einen Zielhost |
-| [`docs/betrieb-zammad.md`](docs/betrieb-zammad.md) | Zammad anbinden: API-Token, Webhook + Trigger, kundensichtbare Antworten |
-| [`docs/betrieb-gitlab.md`](docs/betrieb-gitlab.md) | GitLab: Issues, Merge Requests, Checkout in der Sandbox |
-| [`docs/betrieb-email.md`](docs/betrieb-email.md) | E-Mail-Postfach als Wake-Quelle (IMAP/SMTP) |
-| [`docs/betrieb-teams.md`](docs/betrieb-teams.md) | Microsoft Teams als Kanal zwischen Mensch und Agent |
-| [`docs/betrieb-sharepoint.md`](docs/betrieb-sharepoint.md) | SharePoint/Teams-Dateien via Microsoft Graph |
-| [`docs/betrieb-nextcloud.md`](docs/betrieb-nextcloud.md) | Nextcloud-Dateien via WebDAV |
-| [`docs/betrieb-browser.md`](docs/betrieb-browser.md) | Headless Chrome: Web-UIs bedienen, Screenshots ins Recording |
+| [`docs/quickstart-docker.md`](docs/quickstart-docker.md) | Compose-Setup, erster Agent, Produktions-Checkliste |
+| [`docs/ops-deployment.md`](docs/ops-deployment.md) | CI-Pipeline, Auto-Deploy auf einen Zielhost |
+| [`docs/ops-zammad.md`](docs/ops-zammad.md) | Zammad anbinden: API-Token, Webhook + Trigger, kundensichtbare Antworten |
+| [`docs/ops-gitlab.md`](docs/ops-gitlab.md) | GitLab: Issues, Merge Requests, Checkout in der Sandbox |
+| [`docs/ops-email.md`](docs/ops-email.md) | E-Mail-Postfach als Wake-Quelle (IMAP/SMTP) |
+| [`docs/ops-teams.md`](docs/ops-teams.md) | Microsoft Teams als Kanal zwischen Mensch und Agent |
+| [`docs/ops-sharepoint.md`](docs/ops-sharepoint.md) | SharePoint/Teams-Dateien via Microsoft Graph |
+| [`docs/ops-nextcloud.md`](docs/ops-nextcloud.md) | Nextcloud-Dateien via WebDAV |
+| [`docs/ops-browser.md`](docs/ops-browser.md) | Headless Chrome: Web-UIs bedienen, Screenshots ins Recording |
 
 ## Repository-Inhalt
 
@@ -250,20 +250,20 @@ Exit-Code 1 bei Befunden, damit ein Upgrade-Skript darauf reagieren kann. Geänd
 
 | Datei | Inhalt |
 |---|---|
-| [`spec/01-architektur.md`](spec/01-architektur.md) | System-Übersicht, Control/Data Plane, Runtime-Abstraktion, Daemon-Protokoll |
-| [`spec/02-agenten-modell.md`](spec/02-agenten-modell.md) | Der Agent als Entität: Identität, Sandbox, Zugänge, Config-as-Code, Org-Chart |
+| [`spec/01-architecture.md`](spec/01-architecture.md) | System-Übersicht, Control/Data Plane, Runtime-Abstraktion, Daemon-Protokoll |
+| [`spec/02-agent-model.md`](spec/02-agent-model.md) | Der Agent als Entität: Identität, Sandbox, Zugänge, Config-as-Code, Org-Chart |
 | [`spec/03-lifecycle-scheduling.md`](spec/03-lifecycle-scheduling.md) | Zustandsmaschine, Dispatch-Loop, Wake-Quellen, Backlog, Blocking, Korrelation |
-| [`spec/04-identitaet-secrets.md`](spec/04-identitaet-secrets.md) | Keycloak, RFC 8693 Token Exchange, Secrets-Broker, Threat-Model |
-| [`spec/05-gedaechtnis.md`](spec/05-gedaechtnis.md) | Memory-Schichten, LLM-Wiki (Markdown + pgvector), persistentes Home |
+| [`spec/04-identity-secrets.md`](spec/04-identity-secrets.md) | Keycloak, RFC 8693 Token Exchange, Secrets-Broker, Threat-Model |
+| [`spec/05-memory.md`](spec/05-memory.md) | Memory-Schichten, LLM-Wiki (Markdown + pgvector), persistentes Home |
 | [`spec/06-observability-control.md`](spec/06-observability-control.md) | Guard-Rails, Session-Recording, Approval-Gates, Kill-Switch, Kosten, Supervisor |
-| [`spec/07-offene-entscheidungen.md`](spec/07-offene-entscheidungen.md) | Offene Fragen, Build-vs-Buy, MVP-Scope |
-| [`spec/08-marktumfeld.md`](spec/08-marktumfeld.md) | Marktrecherche: Konkurrenz, Open-Source-Bausteine, Build-vs-Adopt |
-| [`spec/09-enterprise-modell.md`](spec/09-enterprise-modell.md) | Organisation als Einheit: Rollen & RBAC, SSO, Mandanten, Cost-Center, Compliance |
-| [`spec/10-architektur-stack.md`](spec/10-architektur-stack.md) | Frontend, Backend-Sprache, „batteries included, but swappable", Postgres-Anker |
+| [`spec/07-open-decisions.md`](spec/07-open-decisions.md) | Offene Fragen, Build-vs-Buy, MVP-Scope |
+| [`spec/08-market.md`](spec/08-market.md) | Marktrecherche: Konkurrenz, Open-Source-Bausteine, Build-vs-Adopt |
+| [`spec/09-enterprise-model.md`](spec/09-enterprise-model.md) | Organisation als Einheit: Rollen & RBAC, SSO, Mandanten, Cost-Center, Compliance |
+| [`spec/10-architecture-stack.md`](spec/10-architecture-stack.md) | Frontend, Backend-Sprache, „batteries included, but swappable", Postgres-Anker |
 | [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md) | Bau-Reihenfolge M0–M7, kritischer Pfad, Abnahme-Checkliste |
 | [`spec/12-claude-code-adapter.md`](spec/12-claude-code-adapter.md) | Erster Runtime-Adapter: Claude Code headless via `claude -p` |
 | [`spec/13-zammad-integration.md`](spec/13-zammad-integration.md) | Zielsystem Zammad: Wake via Webhook, REST-Aktionen, `blocked`↔`pending` |
-| [`spec/14-companion-gedaechtnis.md`](spec/14-companion-gedaechtnis.md) | Companion: Brain-Dump & Kontext aus dem Wissen der Menschen |
+| [`spec/14-companion-memory.md`](spec/14-companion-memory.md) | Companion: Brain-Dump & Kontext aus dem Wissen der Menschen |
 | [`spec/15-teams-integration.md`](spec/15-teams-integration.md) | Microsoft Teams als Zielsystem: OAuth2/JWT, Chat als Kanal |
 | [`spec/16-runner.md`](spec/16-runner.md) | Verteilte Data Plane: registrierte Runner, der zentrale Home-Store, Sandbox-Images pro Agent |
 
@@ -275,7 +275,7 @@ Exit-Code 1 bei Befunden, damit ein Upgrade-Skript darauf reagieren kann. Geänd
 
 ## Mitwirken
 
-Änderungen an Konzept und Architektur gehen über die Spec: Vorschläge als Merge Request gegen [`spec/`](spec/), Diskussion offener Punkte in [`spec/07-offene-entscheidungen.md`](spec/07-offene-entscheidungen.md). Für Code gilt die Bau-Reihenfolge aus dem MVP-Plan — dünnster vertikaler Durchstich zuerst, `builtin` als Default, Interface vor Implementierung.
+Änderungen an Konzept und Architektur gehen über die Spec: Vorschläge als Merge Request gegen [`spec/`](spec/), Diskussion offener Punkte in [`spec/07-open-decisions.md`](spec/07-open-decisions.md). Für Code gilt die Bau-Reihenfolge aus dem MVP-Plan — dünnster vertikaler Durchstich zuerst, `builtin` als Default, Interface vor Implementierung.
 
 ## Lizenz
 

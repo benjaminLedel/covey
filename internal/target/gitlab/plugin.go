@@ -61,7 +61,7 @@ func init() {
    Optionaler Projekt-Filter (gilt für list_issues/list_projects):
    COVEY_GITLAB_INTAKE_PROJECTS="gruppe/support"   (leer = alle)
 
-Details: docs/betrieb-gitlab.md im Repository.`,
+Details: docs/ops-gitlab.md im Repository.`,
 	})
 }
 

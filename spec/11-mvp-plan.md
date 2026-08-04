@@ -1,120 +1,120 @@
-# 11 — MVP-Plan
+# 11 — MVP plan
 
-Übersetzt den MVP-Scope aus [`07-offene-entscheidungen.md`](07-offene-entscheidungen.md), die BUILD-Zeilen der Matrix aus [`08-marktumfeld.md`](08-marktumfeld.md) und den Stack aus [`10-architektur-stack.md`](10-architektur-stack.md) in eine konkrete Bau-Reihenfolge.
+Translates the MVP scope from [`07-open-decisions.md`](07-open-decisions.md), the BUILD rows of the matrix from [`08-market.md`](08-market.md) and the stack from [`10-architecture-stack.md`](10-architecture-stack.md) into a concrete build order.
 
-## Ziel (Definition of Done)
+## Goal (definition of done)
 
-Ein **Support-Agent**, der ein Ticket triagiert, selbst beantwortet oder eskaliert, bei einer Rückfrage sauber `blocked` geht, durch die eingehende Antwort korrekt wieder aufwacht und die Lösung ins Gedächtnis schreibt — **vollständig aufgezeichnet, durch zentrale Guard-Rails eingehegt und mit Kill-Switch**. Wenn dieser eine Durchstich läuft, steht Coveys Kern.
+A **support agent** that triages a ticket, answers it itself or escalates it, goes cleanly `blocked` on a follow-up question, wakes up correctly again on the incoming answer and writes the solution into memory — **fully recorded, fenced in by central guard rails and with a kill switch**. When this one vertical slice runs, Covey's core stands.
 
-## MVP-Prinzipien
+## MVP principles
 
-- **Dünnster vertikaler Durchstich zuerst.** Nicht Layer für Layer horizontal, sondern früh eine end-to-end lauffähige (wenn auch triviale) Kette.
-- **`builtin` überall.** Keine externen Schwergewichte im MVP (Identität/Secrets/Queue/Observability als Built-in, siehe [`10-architektur-stack.md`](10-architektur-stack.md)).
-- **Genau eins von allem.** Ein Agenten-Typ (Support), eine Runtime (Claude Code via ACP), ein Zielsystem (Ticketsystem), seriell.
-- **Den `blocked`-Loop früh entrisiken.** Er ist das Definierende *und* das Riskanteste — Design vor Bau (D1 klären).
-- **Jeder Meilenstein ist demonstrierbar.** Kein Meilenstein ohne sichtbares Ergebnis in der UI oder im Log.
+- **The thinnest vertical slice first.** Not layer by layer horizontally, but an end-to-end runnable (if trivial) chain early.
+- **`builtin` everywhere.** No external heavyweights in the MVP (identity/secrets/queue/observability as built-ins, see [`10-architecture-stack.md`](10-architecture-stack.md)).
+- **Exactly one of everything.** One agent type (support), one runtime (Claude Code via ACP), one target system (the ticket system), serial.
+- **De-risk the `blocked` loop early.** It is both the defining *and* the riskiest part — design before build (settle D1).
+- **Every milestone is demonstrable.** No milestone without a visible result in the UI or in the log.
 
-## Meilenstein-Übersicht
+## Milestone overview
 
-| # | Fokus | Größe | Risiko | Kernabhängigkeit |
+| # | Focus | Size | Risk | Core dependency |
 |---|---|---|---|---|
-| **M0** | Walking Skeleton (Binary + Postgres + UI-Shell + Migrations) | M | niedrig | — |
-| **M1** | Sandbox + Daemon-Protokoll + eine Runtime | L | **hoch** | M0 |
-| **M2** | Config-as-Code (`SOUL.md` → Prompt) | S | niedrig | M1 |
-| **M3** | Backlog + State-Machine (seriell, ohne `blocked`) | M | mittel | M2 |
-| **M4** | **`blocked`-Loop + Event-Korrelation** | M | **hoch** | M3, D1 |
-| **M5** | Secrets-Broker + ein Zielsystem (Ticketsystem) | M | mittel | M2 |
-| **M6** | Guard-Rails + Recording + Kill-Switch + Cost + RBAC | L | mittel | M3 |
-| **M7** | Memory (pgvector: query@triage, ingest@done) | S | niedrig | M3 |
+| **M0** | Walking skeleton (binary + Postgres + UI shell + migrations) | M | low | — |
+| **M1** | Sandbox + daemon protocol + one runtime | L | **high** | M0 |
+| **M2** | Config as code (`SOUL.md` → prompt) | S | low | M1 |
+| **M3** | Backlog + state machine (serial, without `blocked`) | M | medium | M2 |
+| **M4** | **The `blocked` loop + event correlation** | M | **high** | M3, D1 |
+| **M5** | Secrets broker + one target system (ticket system) | M | medium | M2 |
+| **M6** | Guard rails + recording + kill switch + cost + RBAC | L | medium | M3 |
+| **M7** | Memory (pgvector: query@triage, ingest@done) | S | low | M3 |
 
-Reihenfolge ist nicht strikt linear: **M5** hängt an M2 (nicht an M4) und kann parallel zu M3/M4 laufen; **M6** und **M7** setzen auf M3 auf.
+The order is not strictly linear: **M5** depends on M2 (not on M4) and can run in parallel with M3/M4; **M6** and **M7** build on M3.
 
 ---
 
-## M0 — Walking Skeleton
+## M0 — Walking skeleton
 
-**Ziel:** Die deploybare Wirbelsäule steht, noch ohne alles Agentische.
+**Goal:** the deployable spine stands, still without anything agentic.
 
-- **Bauen:** Go-Binary mit `serve`/`migrate`/`bootstrap`; Postgres-Schema (Agent-Registry, Orgs, Rollen) via eingebettete Migrationen; eingebettete React/Tailwind-Admin-Shell, die Agenten listet/anlegt; Config über ENV; `/healthz` + `/readyz`.
-- **Adoptieren:** —
-- **Ergebnis:** `covey migrate up && covey serve` läuft; ein Agent lässt sich anlegen und erscheint in der UI. Beweist den Stack aus [`10-architektur-stack.md`](10-architektur-stack.md) end-to-end.
+- **Build:** a Go binary with `serve`/`migrate`/`bootstrap`; a Postgres schema (agent registry, orgs, roles) via embedded migrations; an embedded React/Tailwind admin shell that lists/creates agents; config through ENV; `/healthz` + `/readyz`.
+- **Adopt:** —
+- **Result:** `covey migrate up && covey serve` runs; an agent can be created and appears in the UI. Proves the stack from [`10-architecture-stack.md`](10-architecture-stack.md) end to end.
 
-## M1 — Sandbox + Daemon-Protokoll + eine Runtime
+## M1 — Sandbox + daemon protocol + one runtime
 
-**Ziel:** Die Data-Plane lebt; ein Agent kann in einer Sandbox denken.
+**Goal:** the data plane is alive; an agent can think inside a sandbox.
 
-- **Bauen:** Das bidirektionale **Daemon-Protokoll** (`wake`/`assign_task`/`event`/`sleep`, siehe [`01-architektur.md`](01-architektur.md)) in Minimalform; ein schlanker Daemon, der in der Sandbox läuft; **ein Adapter** für Claude Code, konkret über den **Headless-Modus `claude -p`** (Details in [`12-claude-code-adapter.md`](12-claude-code-adapter.md)).
-- **Adoptieren:** Sandbox-Infra (E2B oder Beam, siehe [`08-marktumfeld.md`](08-marktumfeld.md)); Claude Code als Runtime. (ACP als generischer Multi-Runtime-Standard erst post-MVP für weitere Runtimes.)
-- **Ergebnis:** Aus der UI „wecken" → Sandbox startet → Daemon verbindet → triviale Aufgabe zuweisen → Output/Events streamen zurück. **Höchstes Infrastruktur-Risiko — deshalb früh.**
+- **Build:** the bidirectional **daemon protocol** (`wake`/`assign_task`/`event`/`sleep`, see [`01-architecture.md`](01-architecture.md)) in minimal form; a slim daemon that runs in the sandbox; **one adapter** for Claude Code, concretely through the **headless mode `claude -p`** (details in [`12-claude-code-adapter.md`](12-claude-code-adapter.md)).
+- **Adopt:** the sandbox infrastructure (E2B or Beam, see [`08-market.md`](08-market.md)); Claude Code as the runtime. (ACP as a generic multi-runtime standard only post-MVP, for further runtimes.)
+- **Result:** "wake" from the UI → the sandbox starts → the daemon connects → assign a trivial task → output/events stream back. **The highest infrastructure risk — hence early.**
 
-## M2 — Config-as-Code
+## M2 — Config as code
 
-**Ziel:** Das Verhalten des Agenten kommt aus seiner Konfiguration.
+**Goal:** the agent's behaviour comes from its configuration.
 
-- **Bauen:** `SOUL.md` + minimaler MD-Satz in DB/Git; Kompilierung zu System-Prompt + Runtime-Config; Injektion via `inject_config` beim Wake (siehe [`02-agenten-modell.md`](02-agenten-modell.md)).
-- **Ergebnis:** `SOUL.md` ändern → geändertes Verhalten beim nächsten Wake. Versioniert, per Review.
+- **Build:** `SOUL.md` + a minimal MD set in DB/Git; compilation into a system prompt + runtime config; injection via `inject_config` on wake (see [`02-agent-model.md`](02-agent-model.md)).
+- **Result:** change `SOUL.md` → changed behaviour at the next wake. Versioned, by review.
 
-## M3 — Backlog + State-Machine (seriell)
+## M3 — Backlog + state machine (serial)
 
-**Ziel:** Der Agent hat ein echtes Arbeitsleben — außer Blocken.
+**Goal:** the agent has a real working life — apart from blocking.
 
-- **Bauen:** Backlog als First-Class-Postgres-Objekt (State/Priorität/Herkunft/Historie); die Zustandsmaschine `sleeping → triggered → triage → working → done`; der **Dispatch-Loop** (Postgres `SKIP LOCKED` + `LISTEN/NOTIFY`); Wake-Quellen Event (neues Ticket per **Zammad-Trigger → Webhook**, siehe [`13-zammad-integration.md`](13-zammad-integration.md)) + manuell; strikt seriell (siehe [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)).
-- **Ergebnis:** Aufgabe ins Backlog → Agent wacht auf, arbeitet sie seriell ab, markiert `done`, schläft. Live-Status in der UI.
+- **Build:** the backlog as a first-class Postgres object (state/priority/origin/history); the state machine `sleeping → triggered → triage → working → done`; the **dispatch loop** (Postgres `SKIP LOCKED` + `LISTEN/NOTIFY`); the wake sources event (a new ticket via a **Zammad trigger → webhook**, see [`13-zammad-integration.md`](13-zammad-integration.md)) + manual; strictly serial (see [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)).
+- **Result:** put a task into the backlog → the agent wakes, works it serially, marks it `done`, sleeps. Live status in the UI.
 
-## M4 — Der `blocked`-Loop + Event-Korrelation
+## M4 — The `blocked` loop + event correlation
 
-**Ziel:** Der Agent wird zum Angestellten — er parkt und wacht korrekt wieder auf. **Das Herz des MVP.**
+**Goal:** the agent becomes an employee — it parks and wakes up correctly again. **The heart of the MVP.**
 
-- **Voraussetzung:** Entscheidung **D1** (Korrelations-Key vs. zentraler Event-Router vs. Hybrid) — *als Design-Spike vor dem Bau klären*, siehe [`07-offene-entscheidungen.md`](07-offene-entscheidungen.md).
-- **Bauen:** `blocked`-Zustand mit Suspendierung; Korrelations-Key beim Parken; **ein** Wake-Kanal (Ticket-Update). Für Zammad ist der Korrelations-Key die **Ticket-`id`** (kommt im Webhook mit) und `blocked` bildet sich auf den Zammad-**`pending`-State** ab — siehe [`13-zammad-integration.md`](13-zammad-integration.md). Die Wiederaufnahme nutzt bei Claude Code die native **`--resume <session_id>`**-Mechanik (die `session_id` wird zur geparkten Aufgabe gespeichert) — siehe [`12-claude-code-adapter.md`](12-claude-code-adapter.md).
-- **Ergebnis:** Agent stellt eine Rückfrage, geht `blocked`, Sandbox fährt runter; die eingehende Antwort korreliert und weckt ihn zum Fortsetzen. Kein Pollen, kein Halluzinieren.
+- **Prerequisite:** decision **D1** (correlation key vs. central event router vs. hybrid) — *to be settled as a design spike before building*, see [`07-open-decisions.md`](07-open-decisions.md).
+- **Build:** the `blocked` state with suspension; a correlation key on parking; **one** wake channel (ticket update). For Zammad the correlation key is the ticket **`id`** (it comes along in the webhook) and `blocked` maps onto Zammad's **`pending` state** — see [`13-zammad-integration.md`](13-zammad-integration.md). Resumption uses Claude Code's native **`--resume <session_id>`** mechanic (the `session_id` is stored on the parked task) — see [`12-claude-code-adapter.md`](12-claude-code-adapter.md).
+- **Result:** the agent asks a follow-up question, goes `blocked`, the sandbox shuts down; the incoming answer correlates and wakes it to continue. No polling, no hallucinating.
 
-## M5 — Secrets-Broker + ein Zielsystem
+## M5 — Secrets broker + one target system
 
-**Ziel:** Der Agent handelt in einem echten System — ohne Secrets in der Sandbox.
+**Goal:** the agent acts in a real system — without secrets in the sandbox.
 
-- **Bauen:** `IdentityProvider` + `SecretStore` in der **Built-in-Variante** (signierte JWTs, AES-GCM-Secrets in Postgres, siehe [`10-architektur-stack.md`](10-architektur-stack.md)); Broker verwahrt das **Zammad-API-Token** (permission-gescopte Rolle) und injiziert es kurzlebig; Least-Privilege-Anbindung an **Zammad** (Ticket lesen / antworten / Status setzen), siehe [`13-zammad-integration.md`](13-zammad-integration.md).
-- **Adoptieren:** **Zammad** als Zielsystem (self-hosted, REST-API + Webhooks); optional Keycloak, falls vorhanden (sonst `builtin`).
-- **Ergebnis:** Der Agent liest/schreibt echte Zammad-Tickets über gebrokerte Credentials — nichts Langlebiges in der Sandbox (siehe [`04-identitaet-secrets.md`](04-identitaet-secrets.md)).
+- **Build:** `IdentityProvider` + `SecretStore` in the **built-in variant** (signed JWTs, AES-GCM secrets in Postgres, see [`10-architecture-stack.md`](10-architecture-stack.md)); the broker keeps the **Zammad API token** (a permission-scoped role) and injects it short-lived; a least-privilege connection to **Zammad** (read tickets / reply / set status), see [`13-zammad-integration.md`](13-zammad-integration.md).
+- **Adopt:** **Zammad** as the target system (self-hosted, REST API + webhooks); optionally Keycloak, if available (otherwise `builtin`).
+- **Result:** the agent reads/writes real Zammad tickets through brokered credentials — nothing long-lived in the sandbox (see [`04-identity-secrets.md`](04-identity-secrets.md)).
 
-## M6 — Guard-Rails + Recording + Kill-Switch + Cost
+## M6 — Guard rails + recording + kill switch + cost
 
-**Ziel:** Die Vertrauensschicht — ohne die es keine Adoption gibt.
+**Goal:** the trust layer — without which there is no adoption.
 
-- **Bauen:** minimaler **zentraler Guard-Rail-Satz** (Egress-Deny ohne Freigabe, Deny nicht-freigegebener Systeme/Tools, Approval-Pflicht für destruktive Aktionen, fail-closed); Session-Recording in Postgres; Kill-Switch (einzeln + flottenweit); simples Cost-Tracking pro Agent; **rollen-gescopte Sichten** (Basis-RBAC, siehe [`06-observability-control.md`](06-observability-control.md), [`09-enterprise-modell.md`](09-enterprise-modell.md)).
-- **Ergebnis:** Alles, was der Agent tut, ist aufgezeichnet und inspizierbar; riskante Aktionen gaten; der Agent lässt sich sofort stoppen; Kosten pro Agent sichtbar.
+- **Build:** a minimal **central guard-rail set** (egress deny without approval, deny for non-approved systems/tools, mandatory approval for destructive actions, fail-closed); session recording in Postgres; the kill switch (individual + fleet-wide); simple cost tracking per agent; **role-scoped views** (basic RBAC, see [`06-observability-control.md`](06-observability-control.md), [`09-enterprise-model.md`](09-enterprise-model.md)).
+- **Result:** everything the agent does is recorded and inspectable; risky actions are gated; the agent can be stopped immediately; cost per agent is visible.
 
 ## M7 — Memory
 
-**Ziel:** Der Agent kennt den Laden.
+**Goal:** the agent knows the shop.
 
-- **Bauen:** Built-in-Memory über **pgvector**; Abfrage im `triage`-Schritt, Einspeisung im `done`-Schritt (siehe [`05-gedaechtnis.md`](05-gedaechtnis.md)). MVP-Baseline: flacher Schnipsel-Store; Weiterentwicklung zum **Wiki** (verlinkte Markdown-Seiten + pgvector-Index, Konsolidierungs-Pass) über dieselbe Naht.
-- **Adoptieren:** Graphiti erst post-MVP, falls echtes temporales Reasoning über das Wiki hinaus gebraucht wird.
-- **Ergebnis:** „Mit diesem Kunden hatte ich letzte Woche zu tun, die Lösung war Y."
+- **Build:** built-in memory over **pgvector**; query in the `triage` step, ingest in the `done` step (see [`05-memory.md`](05-memory.md)). MVP baseline: a flat snippet store; evolution into the **wiki** (linked Markdown pages + pgvector index, consolidation pass) through the same seam.
+- **Adopt:** Graphiti only post-MVP, if real temporal reasoning beyond the wiki is needed.
+- **Result:** "I dealt with this customer last week, the solution was Y."
 
 ---
 
-## Kritischer Pfad
+## Critical path
 
-Zwei Meilensteine tragen das Risiko: **M1** (Sandbox/Daemon/Runtime — Infrastruktur) und **M4** (`blocked` + Korrelation — die definierende Mechanik). Beide früh angehen; M1 als erstes technisches Risiko, M4 mit einem Design-Spike (D1) *vor* dem Bau. Der Rest (M0, M2, M3, M5, M6, M7) ist vergleichsweise Standard-Engineering.
+Two milestones carry the risk: **M1** (sandbox/daemon/runtime — infrastructure) and **M4** (`blocked` + correlation — the defining mechanic). Tackle both early; M1 as the first technical risk, M4 with a design spike (D1) *before* building. The rest (M0, M2, M3, M5, M6, M7) is comparatively standard engineering.
 
-## Explizit später (nicht MVP)
+## Explicitly later (not MVP)
 
-Weitere Runtimes/Adapter · Supervisor-Agent (KI-Anomalie-Erkennung) · geteiltes Org-weites Gedächtnis · Inter-Agent-Kommunikation via A2A/MCP · voll ausgebautes Admin-Dashboard · Externalisierung auf Keycloak/Vault/Redis/Langfuse/Graphiti · Mehr-Mandanten-Fähigkeit (D9). Alle kommen über die bereits gezogenen Interfaces hinzu, ohne den Kern zu ändern.
+Further runtimes/adapters · the supervisor agent (AI anomaly detection) · a shared org-wide memory · inter-agent communication via A2A/MCP · a fully built-out admin dashboard · externalisation onto Keycloak/Vault/Redis/Langfuse/Graphiti · multi-tenancy (D9). All of them arrive through the interfaces already drawn, without changing the core.
 
-## Abnahme-Checkliste (der eine Durchstich)
+## Acceptance checklist (the one vertical slice)
 
-Ein neues **Zammad**-Ticket trifft ein und der Support-Agent durchläuft nachweislich:
+A new **Zammad** ticket arrives and the support agent demonstrably runs through:
 
-- [ ] **Wake** durch den Zammad-Webhook (Trigger auf „Ticket erstellt", nicht durch Polling).
-- [ ] **Triage:** Backlog + Memory geprüft, priorisiert.
-- [ ] **Working:** Zugriff auf Zammad über das gebrokerte API-Token (kein Secret in der Sandbox).
-- [ ] **Blocked:** Rückfrage an den Kunden gestellt, Ticket auf `pending` gesetzt, sauber `blocked` gegangen, Sandbox heruntergefahren.
-- [ ] **Wake-on-correlation:** eingehende Kundenantwort korreliert über die Ticket-`id`, Agent setzt via `--resume` fort.
-- [ ] **Done:** gelöst oder eskaliert; Lösung ins Memory geschrieben.
-- [ ] **Guard-Rails:** eine riskante Aktion (z. B. externe Mail) wird gegated.
-- [ ] **Recording:** die gesamte Session ist lückenlos aufgezeichnet und inspizierbar.
-- [ ] **Kill-Switch:** der Agent lässt sich jederzeit sofort stoppen.
-- [ ] **Cost:** verbrauchte Tokens/Compute pro Agent sichtbar.
+- [ ] **Wake** by the Zammad webhook (a trigger on "ticket created", not by polling).
+- [ ] **Triage:** backlog + memory checked, prioritised.
+- [ ] **Working:** access to Zammad through the brokered API token (no secret in the sandbox).
+- [ ] **Blocked:** a follow-up question put to the customer, the ticket set to `pending`, gone cleanly `blocked`, the sandbox shut down.
+- [ ] **Wake on correlation:** the incoming customer reply correlates via the ticket `id`, the agent continues via `--resume`.
+- [ ] **Done:** solved or escalated; the solution written into memory.
+- [ ] **Guard rails:** a risky action (e.g. external mail) is gated.
+- [ ] **Recording:** the entire session is completely recorded and inspectable.
+- [ ] **Kill switch:** the agent can be stopped immediately at any time.
+- [ ] **Cost:** tokens/compute consumed per agent are visible.
 
-Sind alle Punkte grün, ist die MVP-Leitfrage beantwortet.
+If all the points are green, the MVP guiding question is answered.

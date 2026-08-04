@@ -12,7 +12,7 @@ import (
 // Warum ENV und nicht DB: Der Built-in-SecretStore und die Webhook-Secrets
 // laufen bereits über ENV, und die Control Plane ist im MVP single-node. Eine
 // per-Org-Konfiguration in der DB (mehrere Support-Queues auf mehreren Agenten)
-// ist der nächste Schritt — siehe docs/betrieb-zammad.md, Abschnitt „Ausblick".
+// ist der nächste Schritt — siehe docs/ops-zammad.md, Abschnitt „Ausblick".
 
 // intakeGroups liefert die Allowlist der Zammad-Gruppen (Queues), aus denen
 // Tickets überhaupt eine Aufgabe auslösen dürfen. Format:

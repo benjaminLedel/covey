@@ -1,5 +1,5 @@
 // Package agents hält die Agent-Registry und die Config-Kompilierung
-// (SOUL.md & Co. → System-Prompt), siehe spec/02-agenten-modell.md.
+// (SOUL.md & Co. → System-Prompt), siehe spec/02-agent-model.md.
 package agents
 
 import (

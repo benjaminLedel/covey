@@ -43,7 +43,7 @@ func init() {
    COVEY_ZAMMAD_INTAKE_GROUPS="Support L1"   (leer = alle Gruppen)
    COVEY_ZAMMAD_REPLY_TYPE=email             (web für Chat-Instanzen)
 
-Details: docs/betrieb-zammad.md im Repository.`,
+Details: docs/ops-zammad.md im Repository.`,
 	})
 }
 

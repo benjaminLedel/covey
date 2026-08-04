@@ -1407,7 +1407,7 @@ func TestActionSubject(t *testing.T) {
 	if got := sys.ActionSubject("set_state", nil); got != "gitlab:set_state" {
 		t.Fatalf("set_state: %s", got)
 	}
-	// docs/betrieb-gitlab.md §5.1 sichert dieses Subjekt zu — daran hängen
+	// docs/ops-gitlab.md §5.1 sichert dieses Subjekt zu — daran hängen
 	// Guard-Rail-Regeln, die den Zustandswechsel im Board gaten sollen.
 	if got := sys.ActionSubject("set_labels", nil); got != "gitlab:set_labels" {
 		t.Fatalf("set_labels: %s", got)

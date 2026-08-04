@@ -11,7 +11,7 @@ Enterprise-Plattform, die **KI-Agenten wie Mitarbeiter** behandelt: Identität, 
 **Deutlich über den MVP hinaus.** Der MVP-Durchstich (M0–M7 aus `spec/11-mvp-plan.md`) steht längst; darauf aufgesetzt sind u. a. Org-Chart & Abteilungen, Mitarbeiter-Profile, weitere Zielsystem-Plugins (GitLab, E-Mail/IMAP, MCP), Docker-Sandboxen, Egress-Kontrolle, ein QA-Agent-Bundle und das **Wiki-Gedächtnis** (verlinkte Markdown-Seiten + pgvector-Index statt flacher Schnipsel, spec/05). „M0–M7" markiert also die Grundlinie, nicht den aktuellen Umfang. Das Repo enthält:
 
 - `spec/` — die vollständige Spezifikation (13 Dokumente, **deutschsprachig**). Einstieg: `spec/README.md`.
-- Den Code gemäß dem Layout aus `spec/10-architektur-stack.md`: `cmd/covey` (Control Plane), `cmd/coveyd` (Sandbox-Daemon), `internal/…`, `web/` (React-SPA, eingebettet), `migrations/` (eingebettet).
+- Den Code gemäß dem Layout aus `spec/10-architecture-stack.md`: `cmd/covey` (Control Plane), `cmd/coveyd` (Sandbox-Daemon), `internal/…`, `web/` (React-SPA, eingebettet), `migrations/` (eingebettet).
 - `internal/integration/` — die Abnahme-Checkliste aus `spec/11-mvp-plan.md` als Integrationstest-Suite (echtes Postgres auf Port 5433, In-Process-Daemon über echten WebSocket, Mock-Runtime, Fake-Zammad).
 - `demo/fakezammad/` — Zammad-Double für lokale Demos.
 - `mockup/covey-ui-mockup.html` — statischer HTML-Mockup; die React-UI übernimmt seine Design-Sprache (CSS-Variablen, Inter/Lora).
@@ -26,14 +26,14 @@ Entwicklungs-Workflow: `make dev-db && make bootstrap && make run` (siehe README
 
 - **Spec und Doku sind auf Deutsch.** Schreibe Spec/Runbooks/Kommentare, die in dieses Repo gehen, auf Deutsch, im Ton der bestehenden Dokumente (nüchtern, präzise, Fachbegriffe englisch belassen: *Control Plane*, *Guard-Rail*, *Daemon*, *Backlog*, *blocked*).
 - **Ausnahme README:** `README.md` ist **englisch** — es ist die Visitenkarte für Dritte, die Covey von GitHub installieren. Die deutsche Fassung liegt daneben in `README.de.md`. Beide beim Ändern gleichziehen; sie sind Übersetzungen voneinander, keine getrennten Dokumente.
-- Spec-Dokumente verlinken sich gegenseitig relativ (`[`04-…`](04-identitaet-secrets.md)`). Diese Verlinkung beim Ändern konsistent halten.
+- Spec-Dokumente verlinken sich gegenseitig relativ (`[`04-…`](04-identity-secrets.md)`). Diese Verlinkung beim Ändern konsistent halten.
 - Jede Datei in `spec/` hat einen klaren Zuständigkeitsbereich (siehe Tabelle in `spec/README.md`) — Inhalt in die richtige Datei schreiben, nicht duplizieren.
 
 ## Kernarchitektur (zum schnellen Nachschlagen)
 
 - **Control Plane** (zustandsführend, immer aktiv): Scheduler/Dispatcher, Agent-Registry & Org-Chart, Backlog-Store, Identitäts- & Secrets-Broker, Guard-Rail-/Policy-Engine, Observability, Config-Sync.
 - **Data Plane**: isolierte, ephemere Sandboxen mit persistentem `/home`. „Dumm und ersetzbar" — geht eine Sandbox verloren, wird sie aus Config + Home neu gebaut.
-- **Daemon-Protokoll**: bidirektional (WebSocket/gRPC) zwischen Control Plane und Sandbox-Daemon. Stabile Naht — Runtimes ändern sich, das Protokoll bleibt. Nachrichten in `spec/01-architektur.md`.
+- **Daemon-Protokoll**: bidirektional (WebSocket/gRPC) zwischen Control Plane und Sandbox-Daemon. Stabile Naht — Runtimes ändern sich, das Protokoll bleibt. Nachrichten in `spec/01-architecture.md`.
 - **Runtime-Adapter**: dünn, übersetzen zwischen Daemon-Protokoll und Runtime-Spezifika. Erster Adapter: Claude Code headless via `claude -p` (`spec/12-claude-code-adapter.md`).
 
 ## Geplanter Stack (Referenz)
@@ -46,7 +46,7 @@ Entwicklungs-Workflow: `make dev-db && make bootstrap && make run` (siehe README
 
 ## Wo der Code liegen soll
 
-Single-Binary-Go-Projekt mit **`go.mod` im Repo-Wurzelverzeichnis** — der Code liegt **neben `spec/`**, nicht in einem Unterordner. Frontend und Migrationen werden via `//go:embed` mitkompiliert und müssen deshalb im selben Modulbaum liegen. Layout aus `spec/10-architektur-stack.md`:
+Single-Binary-Go-Projekt mit **`go.mod` im Repo-Wurzelverzeichnis** — der Code liegt **neben `spec/`**, nicht in einem Unterordner. Frontend und Migrationen werden via `//go:embed` mitkompiliert und müssen deshalb im selben Modulbaum liegen. Layout aus `spec/10-architecture-stack.md`:
 
 ```
 covey/                    ← Repo-Wurzel = Go-Modul-Wurzel (go.mod hier)

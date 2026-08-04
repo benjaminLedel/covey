@@ -38,7 +38,7 @@ Then open **[http://localhost:8494](http://localhost:8494)** — log in with `ad
 
 The bundled [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector) and the covey binary with its embedded admin UI; `bootstrap` creates the organisation, the admin and a demo agent, and migrations run automatically.
 
-*Rather have the plain binary?* [`install.sh`](#install) fetches it from the [latest release](https://github.com/benjaminLedel/covey/releases/latest) and verifies its checksum. *Rather look before you install?* The running instance is at **[covey.work](https://covey.work)**. Full walkthrough including your first agent and a production checklist: [`docs/schnellstart-docker.md`](docs/schnellstart-docker.md) (German).
+*Rather have the plain binary?* [`install.sh`](#install) fetches it from the [latest release](https://github.com/benjaminLedel/covey/releases/latest) and verifies its checksum. *Rather look before you install?* The running instance is at **[covey.work](https://covey.work)**. Full walkthrough including your first agent and a production checklist: [`docs/quickstart-docker.md`](docs/quickstart-docker.md) (German).
 
 ---
 
@@ -78,7 +78,7 @@ The bundled [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector
 
 **CI:** every push and pull request runs format checks, `go vet`, the Go and frontend test suites, `govulncheck` and CodeQL — on GitHub via [Actions](.github/workflows/), on GitLab via the pipeline below.
 
-**Automatic deployment (main → host):** every push to `main` rolls Covey out to a target host through the GitLab pipeline (`test → build → deploy`) — that is how [covey.work](https://covey.work) stays current: the built image pinned to the commit tag, started on a shell runner via [`docker-compose.deploy.yml`](docker-compose.deploy.yml). See [`docs/betrieb-deployment.md`](docs/betrieb-deployment.md).
+**Automatic deployment (main → host):** every push to `main` rolls Covey out to a target host through the GitLab pipeline (`test → build → deploy`) — that is how [covey.work](https://covey.work) stays current: the built image pinned to the commit tag, started on a shell runner via [`docker-compose.deploy.yml`](docker-compose.deploy.yml). See [`docs/ops-deployment.md`](docs/ops-deployment.md).
 
 ## The guiding metaphor
 
@@ -120,7 +120,7 @@ flowchart LR
     CP --- DB[("PostgreSQL + pgvector")]
 ```
 
-The system splits into a **control plane** (stateful, always on: scheduler, agent registry, backlog store, identity & secrets broker, guard-rail engine, observability) and a **data plane** of isolated, ephemeral **sandboxes** with a persistent home. Each sandbox runs a slim **daemon** that speaks one uniform protocol and bootstraps the concrete **runtime** (Claude Code, …) through a thin **adapter**. The platform manages the sandbox, not the framework — which is what keeps the runtime swappable. Details in [`spec/01-architektur.md`](spec/01-architektur.md).
+The system splits into a **control plane** (stateful, always on: scheduler, agent registry, backlog store, identity & secrets broker, guard-rail engine, observability) and a **data plane** of isolated, ephemeral **sandboxes** with a persistent home. Each sandbox runs a slim **daemon** that speaks one uniform protocol and bootstraps the concrete **runtime** (Claude Code, …) through a thin **adapter**. The platform manages the sandbox, not the framework — which is what keeps the runtime swappable. Details in [`spec/01-architecture.md`](spec/01-architecture.md).
 
 ## Design principles
 
@@ -142,7 +142,7 @@ The system splits into a **control plane** (stateful, always on: scheduler, agen
 - **Storage:** PostgreSQL as the anchor — state, backlog, RBAC, job queue (`SKIP LOCKED`), pub/sub (`LISTEN/NOTIFY`), memory (`pgvector`), encrypted secret columns (AES-GCM).
 - **Default:** `builtin` everywhere — effectively **binary + Postgres + Docker, nothing else**. Keycloak/Vault/Redis are optional, never prerequisites.
 
-Details in [`spec/10-architektur-stack.md`](spec/10-architektur-stack.md).
+Details in [`spec/10-architecture-stack.md`](spec/10-architecture-stack.md).
 
 ## Install
 
@@ -169,7 +169,7 @@ curl -sSLO https://raw.githubusercontent.com/benjaminLedel/covey/main/installer/
 less install.sh && sh install.sh
 ```
 
-This installs binaries only. The control plane also needs PostgreSQL (with pgvector) and Docker for the sandboxes; the script prints the remaining steps, and [`docs/betrieb-deployment.md`](docs/betrieb-deployment.md) has the full path including docker-compose.
+This installs binaries only. The control plane also needs PostgreSQL (with pgvector) and Docker for the sandboxes; the script prints the remaining steps, and [`docs/ops-deployment.md`](docs/ops-deployment.md) has the full path including docker-compose.
 
 ## Development
 
@@ -179,7 +179,7 @@ make bootstrap    # build frontend + binaries, migrate, create org/admin/agent
 make run          # covey serve on http://localhost:8494
 ```
 
-**Sandbox isolation.** The control plane starts sandboxes as containers (**docker provider**, the default) — real isolation at the container level. Build the image once before the first start with `make sandbox-image` ([`Dockerfile.sandbox`](Dockerfile.sandbox): coveyd + Claude Code + chromium for the `browser` plugin, plus PHP, a JDK and the version managers `fvm`/`uv` for developer agents). The persistent agent home is mounted as a volume; the container inherits nothing from the host environment. Override the image via `COVEY_SANDBOX_IMAGE`. The rule when extending it: **version → home, toolchain → image** — SDK versions are fetched by the agent itself into its persistent home, following the pin in the project repo ([`docs/betrieb-deployment.md`](docs/betrieb-deployment.md)).
+**Sandbox isolation.** The control plane starts sandboxes as containers (**docker provider**, the default) — real isolation at the container level. Build the image once before the first start with `make sandbox-image` ([`Dockerfile.sandbox`](Dockerfile.sandbox): coveyd + Claude Code + chromium for the `browser` plugin, plus PHP, a JDK and the version managers `fvm`/`uv` for developer agents). The persistent agent home is mounted as a volume; the container inherits nothing from the host environment. Override the image via `COVEY_SANDBOX_IMAGE`. The rule when extending it: **version → home, toolchain → image** — SDK versions are fetched by the agent itself into its persistent home, following the pin in the project repo ([`docs/ops-deployment.md`](docs/ops-deployment.md)).
 
 **Login.** `admin@covey.local` / `covey-admin`, overridable via `COVEY_ADMIN_EMAIL` / `COVEY_ADMIN_PASSWORD` at bootstrap time.
 
@@ -219,15 +219,15 @@ All runbooks are in German.
 
 | Document | Contents |
 |---|---|
-| [`docs/schnellstart-docker.md`](docs/schnellstart-docker.md) | Compose setup, first agent, production checklist |
-| [`docs/betrieb-deployment.md`](docs/betrieb-deployment.md) | CI pipeline, auto-deploy to a target host |
-| [`docs/betrieb-zammad.md`](docs/betrieb-zammad.md) | Connecting Zammad: API token, webhook + trigger, customer-visible replies |
-| [`docs/betrieb-gitlab.md`](docs/betrieb-gitlab.md) | GitLab: issues, merge requests, checkout inside the sandbox |
-| [`docs/betrieb-email.md`](docs/betrieb-email.md) | An email mailbox as a wake source (IMAP/SMTP) |
-| [`docs/betrieb-teams.md`](docs/betrieb-teams.md) | Microsoft Teams as the channel between human and agent |
-| [`docs/betrieb-sharepoint.md`](docs/betrieb-sharepoint.md) | SharePoint / Teams files via Microsoft Graph |
-| [`docs/betrieb-nextcloud.md`](docs/betrieb-nextcloud.md) | Nextcloud files via WebDAV |
-| [`docs/betrieb-browser.md`](docs/betrieb-browser.md) | Headless Chrome: driving web UIs, screenshots into the recording |
+| [`docs/quickstart-docker.md`](docs/quickstart-docker.md) | Compose setup, first agent, production checklist |
+| [`docs/ops-deployment.md`](docs/ops-deployment.md) | CI pipeline, auto-deploy to a target host |
+| [`docs/ops-zammad.md`](docs/ops-zammad.md) | Connecting Zammad: API token, webhook + trigger, customer-visible replies |
+| [`docs/ops-gitlab.md`](docs/ops-gitlab.md) | GitLab: issues, merge requests, checkout inside the sandbox |
+| [`docs/ops-email.md`](docs/ops-email.md) | An email mailbox as a wake source (IMAP/SMTP) |
+| [`docs/ops-teams.md`](docs/ops-teams.md) | Microsoft Teams as the channel between human and agent |
+| [`docs/ops-sharepoint.md`](docs/ops-sharepoint.md) | SharePoint / Teams files via Microsoft Graph |
+| [`docs/ops-nextcloud.md`](docs/ops-nextcloud.md) | Nextcloud files via WebDAV |
+| [`docs/ops-browser.md`](docs/ops-browser.md) | Headless Chrome: driving web UIs, screenshots into the recording |
 
 ## Repository layout
 
@@ -252,20 +252,20 @@ All runbooks are in German.
 
 | File | Contents |
 |---|---|
-| [`spec/01-architektur.md`](spec/01-architektur.md) | System overview, control/data plane, runtime abstraction, daemon protocol |
-| [`spec/02-agenten-modell.md`](spec/02-agenten-modell.md) | The agent as an entity: identity, sandbox, access, config as code, org chart |
+| [`spec/01-architecture.md`](spec/01-architecture.md) | System overview, control/data plane, runtime abstraction, daemon protocol |
+| [`spec/02-agent-model.md`](spec/02-agent-model.md) | The agent as an entity: identity, sandbox, access, config as code, org chart |
 | [`spec/03-lifecycle-scheduling.md`](spec/03-lifecycle-scheduling.md) | State machine, dispatch loop, wake sources, backlog, blocking, correlation |
-| [`spec/04-identitaet-secrets.md`](spec/04-identitaet-secrets.md) | Keycloak, RFC 8693 token exchange, secrets broker, threat model |
-| [`spec/05-gedaechtnis.md`](spec/05-gedaechtnis.md) | Memory layers, LLM wiki (Markdown + pgvector), persistent home |
+| [`spec/04-identity-secrets.md`](spec/04-identity-secrets.md) | Keycloak, RFC 8693 token exchange, secrets broker, threat model |
+| [`spec/05-memory.md`](spec/05-memory.md) | Memory layers, LLM wiki (Markdown + pgvector), persistent home |
 | [`spec/06-observability-control.md`](spec/06-observability-control.md) | Guard rails, session recording, approval gates, kill switch, cost, supervisor |
-| [`spec/07-offene-entscheidungen.md`](spec/07-offene-entscheidungen.md) | Open questions, build vs. buy, MVP scope |
-| [`spec/08-marktumfeld.md`](spec/08-marktumfeld.md) | Market research: competitors, open-source building blocks, build vs. adopt |
-| [`spec/09-enterprise-modell.md`](spec/09-enterprise-modell.md) | The organisation as the unit: roles & RBAC, SSO, tenants, cost centres, compliance |
-| [`spec/10-architektur-stack.md`](spec/10-architektur-stack.md) | Frontend, backend language, "batteries included, but swappable", the Postgres anchor |
+| [`spec/07-open-decisions.md`](spec/07-open-decisions.md) | Open questions, build vs. buy, MVP scope |
+| [`spec/08-market.md`](spec/08-market.md) | Market research: competitors, open-source building blocks, build vs. adopt |
+| [`spec/09-enterprise-model.md`](spec/09-enterprise-model.md) | The organisation as the unit: roles & RBAC, SSO, tenants, cost centres, compliance |
+| [`spec/10-architecture-stack.md`](spec/10-architecture-stack.md) | Frontend, backend language, "batteries included, but swappable", the Postgres anchor |
 | [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md) | Build order M0–M7, critical path, acceptance checklist |
 | [`spec/12-claude-code-adapter.md`](spec/12-claude-code-adapter.md) | First runtime adapter: Claude Code headless via `claude -p` |
 | [`spec/13-zammad-integration.md`](spec/13-zammad-integration.md) | Target system Zammad: wake via webhook, REST actions, `blocked`↔`pending` |
-| [`spec/14-companion-gedaechtnis.md`](spec/14-companion-gedaechtnis.md) | Companion: brain dump & context from what the humans know |
+| [`spec/14-companion-memory.md`](spec/14-companion-memory.md) | Companion: brain dump & context from what the humans know |
 | [`spec/15-teams-integration.md`](spec/15-teams-integration.md) | Microsoft Teams as a target system: OAuth2/JWT, chat as the channel |
 | [`spec/16-runner.md`](spec/16-runner.md) | Distributed data plane: registered runners, the central home store, sandbox images per agent |
 
@@ -277,7 +277,7 @@ All runbooks are in German.
 
 ## Contributing
 
-Changes to concept and architecture go through the spec: proposals as a merge request against [`spec/`](spec/), open points discussed in [`spec/07-offene-entscheidungen.md`](spec/07-offene-entscheidungen.md). For code, the build order from the MVP plan applies — thinnest vertical slice first, `builtin` as the default, interface before implementation.
+Changes to concept and architecture go through the spec: proposals as a merge request against [`spec/`](spec/), open points discussed in [`spec/07-open-decisions.md`](spec/07-open-decisions.md). For code, the build order from the MVP plan applies — thinnest vertical slice first, `builtin` as the default, interface before implementation.
 
 ## License
 

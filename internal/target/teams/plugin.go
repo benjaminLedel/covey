@@ -52,7 +52,7 @@ func init() {
 7. Ein Teams-App-Manifest mit der App-ID als bot-id in Teams hochladen/seitwärts
    laden, damit Nutzer den Agenten anschreiben können.
 
-Details: docs/betrieb-teams.md im Repository.`,
+Details: docs/ops-teams.md im Repository.`,
 	})
 }
 

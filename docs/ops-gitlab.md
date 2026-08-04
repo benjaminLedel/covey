@@ -2,7 +2,7 @@
 
 Praktisches Runbook für das Zielsystem **GitLab** (`internal/target/gitlab`).
 Aufbau und Datenfluss folgen dem Zammad-Adapter
-([`betrieb-zammad.md`](betrieb-zammad.md)) — die Einheit der Arbeit ist hier das
+([`ops-zammad.md`](ops-zammad.md)) — die Einheit der Arbeit ist hier das
 **Issue** statt des Tickets.
 
 > Kurzfassung: Token-Auth gegen die REST-API (`/api/v4`). Der Agent findet
@@ -290,7 +290,7 @@ GitLab-Nutzern, und der Review-Loop unterscheidet „Autor" von „Reviewer" sau
 
 > **Egress:** Damit der QA-Agent die Anwendung wirklich starten kann, braucht
 > seine Sandbox dieselben Paket-Registries wie der Entwickler-Agent (npm/PyPI/Go
-> über die Built-in-Egress-Templates) — siehe `docs/betrieb-deployment.md`.
+> über die Built-in-Egress-Templates) — siehe `docs/ops-deployment.md`.
 
 ### 2.9 Der Delivery Lead: ein ganzes Vorhaben führen
 
@@ -594,4 +594,4 @@ GitLab hat keinen Webhook-Eingang — die früheren Variablen `COVEY_PUBLIC_URL`
 entfallen für dieses Plugin.
 
 Die allgemeinen Variablen (Egress, Daemon-Token-TTL, …) stehen in
-[`betrieb-zammad.md`](betrieb-zammad.md), Abschnitt 6.
+[`ops-zammad.md`](ops-zammad.md), Abschnitt 6.
