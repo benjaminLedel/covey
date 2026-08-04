@@ -315,7 +315,7 @@ func (s *ManifestSystem) PromptDoc() string {
 	for name := range s.M.Actions {
 		names = append(names, name)
 	}
-	return fmt.Sprintf("Verfügbare %s-Aktionen: %s.", s.M.Name, strings.Join(names, ", "))
+	return fmt.Sprintf("Available %s actions: %s.", s.M.Name, strings.Join(names, ", "))
 }
 
 // jsonPath liest einen Punkt-Pfad ("ticket.id") aus einem entpackten

@@ -193,49 +193,49 @@ func runExec(ctx context.Context, command, dir string, timeoutSecs int) (any, er
 }
 
 func (System) PromptDoc() string {
-	return `Verfügbare dev-Aktionen — deine Sandbox ist dein eigener Rechner, alles hier läuft lokal darin:
-   agent {"cwd":"<Pfad aus dem checkout-Ergebnis>","task":"<Arbeitsauftrag>","max_turns":60} —
-   übergibt die eigentliche PROGRAMMIERARBEIT an einen Sub-Agenten, der IM Projekt-Checkout startet.
-   Das ist der wichtigste Unterschied zu allem anderen hier: Nur dort gelten die Regeln des Projekts —
-   seine CLAUDE.md, seine .claude/agents (z. B. getrennte Frontend-/Backend-Spezialisten), Skills und
-   Commands. Du selbst arbeitest im Home und siehst davon nichts; deshalb liest du den Code nicht
-   selbst zusammen, sondern beauftragst den Sub-Agenten.
-   Der Auftrag ist eine ÜBERGABE an einen Kollegen ohne deinen Kontext — schreibe hinein: was kaputt ist
-   bzw. gebaut werden soll, wie man es reproduziert, die Abnahmekriterien, bekannte Fundstellen
-   (Datei:Zeile) und Auflagen (minimal-invasiv, Tests ausführen, Test ergänzen). Kein "siehe oben".
-   Der Sub-Agent kann lesen, ändern, bauen und testen — er erreicht WEDER GitLab NOCH E-Mail und kann
-   nicht committen. Das Einchecken und die gesamte Kommunikation bleiben bei dir.
-   Ein Auftrag je Checkout: Solange dort ein Sub-Agent arbeitet, wird ein zweiter Aufruf mit demselben
-   cwd abgelehnt — warte auf den Bericht, sonst überschreiben sich zwei Läufe die Dateien.
-   Ergebnis: {"result":"<Bericht: Ursache, Änderung, Verifikation>","changed_files":[…],"deleted":[…],
-   "cost_usd":…,"turns_exhausted":true|false,"error":"<nur wenn der Lauf scheiterte>"}. Die Dateilisten
-   gehen unverändert in die commit-Aktion; sie nennen den GESAMTEN Stand gegenüber dem Checkout — also
-   auch die Arbeit eines früheren Auftrags an derselben Aufgabe, nicht nur die des letzten.
-   PRÜFE "error": Es steht IM Ergebnis, der Aufruf selbst gilt trotzdem als erfolgreich (status ok).
-   Ist es gesetzt, ist der Sub-Lauf gescheitert — dann nicht committen, sondern den Fehler lesen und
-   entweder nachbeauftragen oder mit dem, was du weißt, im Issue eskalieren.
-   Bei "turns_exhausted":true war der Auftrag zu groß: Schließe mit dem Teilergebnis ab und lege den
-   Rest per covey/create_task an, statt es erneut im selben Lauf zu versuchen.
-   exec {"cmd":"npm test","cwd":"unterordner (optional, relativ zu deinem Home)","timeout_secs":120} —
-   führt einen Shell-Befehl aus und liefert exit_code + output (letzte Ausgabe, gekappt). Für Builds,
-   Tests, Installationen; ein Exit-Code ungleich 0 kommt als Ergebnis zurück, lies den Output.
-   start {"name":"app","cmd":"npm run dev","cwd":"..."} — startet einen LANGLAUFENDEN Prozess im
-   Hintergrund (Dev-Server, Datenbank, headless Browser); er läuft weiter, während du andere Aktionen
-   ausführst. logs {"name":"app","tail_lines":100} zeigt seine letzte Ausgabe, list {} alle Prozesse
-   mit Status, stop {"name":"app"} beendet die ganze Prozessgruppe (SIGTERM, nach 5s SIGKILL).
-   Typischer Ablauf, um eine Web-App wirklich laufen zu sehen statt nur ihren Code zu lesen:
-   1. Abhängigkeiten installieren: exec {"cmd":"npm install"} (bzw. pip/go — die Paket-Registries
-      müssen im Egress freigegeben sein).
-   2. App hochfahren: start {"name":"app","cmd":"npm run dev"} und mit logs prüfen, ob sie lauscht.
-   3. Dagegen testen: exec {"cmd":"curl -s http://localhost:PORT/..."} — oder mit einem headless
-      Browser, z. B. start {"name":"chrome","cmd":"chromium --headless=new --remote-debugging-port=9222 --no-sandbox"}
-      und dann per DevTools-Protokoll bzw. einem selbst installierten Playwright/Puppeteer steuern.
-   4. Die App auch ANSEHEN, nicht nur ancurlen — Screenshot mit headless Chrome/Chromium:
+	return `Available dev actions — your sandbox is your own machine, everything here runs locally in it:
+   agent {"cwd":"<the path from the checkout result>","task":"<assignment>","max_turns":60} —
+   hands the actual PROGRAMMING WORK to a sub-agent that starts INSIDE the project checkout.
+   That is the most important difference from everything else here: only there do the project's rules
+   apply — its CLAUDE.md, its .claude/agents (e.g. separate frontend/backend specialists), skills and
+   commands. You yourself work in the home and see none of it; that is why you do not piece the code
+   together yourself but commission the sub-agent.
+   The assignment is a HANDOVER to a colleague without your context — write into it: what is broken
+   or is to be built, how to reproduce it, the acceptance criteria, known locations
+   (file:line) and the conditions (minimally invasive, run the tests, add a test). No "see above".
+   The sub-agent can read, change, build and test — it reaches NEITHER GitLab NOR email and cannot
+   commit. Checking in and all communication stay with you.
+   One assignment per checkout: while a sub-agent is working there, a second call with the same
+   cwd is refused — wait for the report, otherwise two runs overwrite each other's files.
+   The result: {"result":"<report: cause, change, verification>","changed_files":[…],"deleted":[…],
+   "cost_usd":…,"turns_exhausted":true|false,"error":"<only if the run failed>"}. The file lists
+   go into the commit action unchanged; they name the ENTIRE state against the checkout — including
+   the work of an earlier assignment on the same task, not only that of the last one.
+   CHECK "error": it stands IN the result, the call itself still counts as successful (status ok).
+   If it is set, the sub-run failed — then do not commit but read the error and either
+   commission it again or escalate in the issue with what you know.
+   With "turns_exhausted":true the assignment was too big: close off with the partial result and file
+   the rest with covey/create_task instead of trying again in the same run.
+   exec {"cmd":"npm test","cwd":"subfolder (optional, relative to your home)","timeout_secs":120} —
+   runs a shell command and returns exit_code + output (the last output, truncated). For builds,
+   tests, installations; an exit code other than 0 comes back as the result, read the output.
+   start {"name":"app","cmd":"npm run dev","cwd":"..."} — starts a LONG-RUNNING process in the
+   background (a dev server, a database, a headless browser); it keeps running while you perform other
+   actions. logs {"name":"app","tail_lines":100} shows its last output, list {} all processes
+   with their status, stop {"name":"app"} ends the whole process group (SIGTERM, SIGKILL after 5s).
+   The typical procedure for really seeing a web app run instead of only reading its code:
+   1. Install the dependencies: exec {"cmd":"npm install"} (or pip/go — the package registries
+      have to be released in the egress).
+   2. Bring the app up: start {"name":"app","cmd":"npm run dev"} and check with logs whether it is listening.
+   3. Test against it: exec {"cmd":"curl -s http://localhost:PORT/..."} — or with a headless
+      browser, e.g. start {"name":"chrome","cmd":"chromium --headless=new --remote-debugging-port=9222 --no-sandbox"}
+      and then drive it through the DevTools protocol or a Playwright/Puppeteer you installed yourself.
+   4. Also LOOK at the app, do not only curl it — a screenshot with headless Chrome/Chromium:
       exec {"cmd":"chromium --headless=new --disable-gpu --screenshot=shot.png --window-size=1280,900 http://localhost:PORT/"}
-      (der Binary-Name variiert: chromium, google-chrome oder der volle Pfad — prüfe mit exec, was da ist).
-      Das PNG liegt danach in deinem Home: öffne es mit deinem Read-Tool — du kannst Bilder sehen und so
-      Layout-Fehler, leere Seiten oder Fehlermeldungen im UI selbst erkennen.
-   5. Befunde aus logs ziehen, am Ende stop für alles, was du gestartet hast.
-   Prozesse leben nur bis zum Ende deiner Wach-Phase — die Plattform räumt sie beim Einschlafen ab;
-   starte sie in einer neuen Wach-Phase neu, statt dich auf alte zu verlassen.`
+      (the binary name varies: chromium, google-chrome or the full path — check with exec what is there).
+      The PNG then lies in your home: open it with your read tool — you can see images and thereby
+      recognise layout errors, empty pages or error messages in the UI yourself.
+   5. Pull findings from logs, at the end stop everything you started.
+   Processes only live until the end of your waking phase — the platform clears them away when you fall
+   asleep; start them anew in a new waking phase instead of relying on old ones.`
 }

@@ -260,21 +260,22 @@ func localPath(ctx context.Context, p string) (string, error) {
 }
 
 func (System) PromptDoc() string {
-	return `Verfügbare Nextcloud-Datei-Aktionen (eine dir freigegebene Dateiablage; alle Pfade relativ zu deren
-   Wurzel): list {"path":"unterordner (optional, leer = Wurzel)"} listet Dateien und Ordner,
-   read {"path":"a/b.txt"} liefert den Inhalt einer Textdatei direkt (bis 1 MB, nur Text),
-   write {"path":"a/b.txt","content":"..."} legt eine Textdatei an oder überschreibt sie (fehlende
-   Zwischenordner werden angelegt),
-   download {"path":"a/bericht.pdf","to":"lokaler/pfad (optional)"} holt eine Datei in deine Sandbox
-   (Default: nextcloud/<pfad>) und liefert den lokalen Pfad,
-   upload {"from":"lokaler/pfad","to":"remote/pfad (optional, Default: Dateiname in der Wurzel)"} legt eine
-   Datei aus deiner Sandbox ab (ersetzt Vorhandenes),
-   mkdir {"path":"a/b/c"} legt Ordner an (fehlende Zwischenordner inklusive),
-   delete {"path":"a/alt.txt"} löscht eine Datei oder einen Ordner.
-   Arbeitsweise: Für Binär- und Office-Dateien (docx, xlsx, pdf, …) IMMER download → lokal bearbeiten →
-   upload auf denselben Remote-Pfad; read/write sind nur für reine Textdateien (md, txt, csv, json).
-   upload überschreibt ohne Rückfrage — prüfe mit list, ob der Zielpfad schon belegt ist, wenn du nicht
-   bewusst ersetzen willst. Lösche nichts, was du nicht selbst angelegt hast, ohne expliziten Auftrag.
-   WARTEN auf neue Dateien: Nextcloud hat hier keinen Webhook — nutze KEINEN blocked-Status; beende deinen
-   Lauf regulär mit done, der nächste Heartbeat-Lauf sichtet die Ablage erneut.`
+	return `Available Nextcloud file actions (a file store shared with you; all paths relative to its
+   root): list {"path":"subfolder (optional, empty = the root)"} lists files and folders,
+   read {"path":"a/b.txt"} returns the content of a text file directly (up to 1 MB, text only),
+   write {"path":"a/b.txt","content":"..."} creates a text file or overwrites it (missing
+   intermediate folders are created),
+   download {"path":"a/report.pdf","to":"local/path (optional)"} fetches a file into your sandbox
+   (default: nextcloud/<path>) and returns the local path,
+   upload {"from":"local/path","to":"remote/path (optional, default: the file name in the root)"} deposits a
+   file from your sandbox (replacing what is there),
+   mkdir {"path":"a/b/c"} creates folders (including missing intermediate ones),
+   delete {"path":"a/old.txt"} deletes a file or a folder.
+   How to work: for binary and Office files (docx, xlsx, pdf, …) ALWAYS download → edit locally →
+   upload onto the same remote path; read/write are only for plain text files (md, txt, csv, json).
+   upload overwrites without asking — check with list whether the target path is already taken if you do
+   not deliberately want to replace it. Delete nothing you did not create yourself without an explicit
+   assignment.
+   WAITING for new files: Nextcloud has no webhook here — do NOT use the blocked status; end your
+   run regularly with done, the next heartbeat run reviews the store again.`
 }

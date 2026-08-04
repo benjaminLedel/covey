@@ -159,8 +159,8 @@ func (s *System) promptDoc(only map[string]bool) string {
 	if label == "" {
 		label = s.Cfg.Name
 	}
-	return fmt.Sprintf("**%s** (MCP-Server, system=`%s`) — verfügbare Tools:\n%s\n"+
-		"Aufruf: `curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/%s/<tool> -d '<json-argumente>'`.",
+	return fmt.Sprintf("**%s** (MCP server, system=`%s`) — available tools:\n%s\n"+
+		"Call: `curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/%s/<tool> -d '<json-arguments>'`.",
 		label, s.Cfg.Name, strings.Join(lines, "\n"), s.Cfg.Name)
 }
 

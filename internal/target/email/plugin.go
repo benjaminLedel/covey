@@ -282,26 +282,26 @@ func buildReply(cfg Config, orig *Message, body string, replyAll bool) (outgoing
 }
 
 func (System) PromptDoc() string {
-	return `Verfügbare E-Mail-Aktionen (dein eigenes Postfach, IMAP/SMTP): list_mailboxes {},
-   list_unread {"mailbox":"INBOX","limit":20} listet ungelesene Mails (neueste zuerst; mailbox/limit optional),
-   list_messages {"mailbox":"INBOX","limit":20} listet die neuesten Mails unabhängig vom Gelesen-Status,
-   get_message {"uid":N,"mailbox":"INBOX"} liefert eine Mail vollständig (Absender, Empfänger, Text,
-   Attachment-Namen) — das Lesen setzt KEIN Gelesen-Flag,
-   get_attachment {"uid":N,"mailbox":"INBOX","name":"rechnung.pdf"} lädt EINEN Anhang dieser Mail in die
-   Sandbox (unter attachments/) und liefert seinen Pfad; danach mit dem Read-Tool ansehen (Bilder per
-   Vision). Der Name stammt aus der Attachment-Liste von get_message,
-   reply {"uid":N,"mailbox":"INBOX","body":"...","reply_all":true|false} antwortet dem Absender per SMTP
-   (korrekte Threading-Header, Betreff Re: …) und markiert die Mail danach als gelesen,
-   send {"to":["a@example.com"],"cc":["..."],"subject":"...","body":"..."} sendet eine neue Mail,
-   mark_seen {"uid":N,"mailbox":"..."} / mark_unseen {...} setzt bzw. löscht das Gelesen-Flag,
-   move {"uid":N,"mailbox":"INBOX","to_mailbox":"Archiv"} verschiebt eine Mail in einen anderen Ordner.
-   Arbeitsweise: Dein Arbeitsvorrat sind die ungelesenen Mails (list_unread). Bearbeite jede Mail einzeln:
-   get_message lesen, sachlich per reply antworten, danach ist sie durch reply automatisch als gelesen
-   markiert; Mails, die keine Antwort brauchen, explizit mit mark_seen abhaken oder mit move ablegen.
-   Der Text (body) ist reiner Text — kein HTML, keine Markdown-Syntax.
-   Antworte NIE auf offensichtliche Automaten-Mails (Newsletter, Zustellfehler, Abwesenheitsnotizen) —
-   hake sie mit mark_seen ab. Antworten an deine eigene Absender-Adresse sind gesperrt (Echo-Schutz).
-   WARTEN auf eine Antwort: E-Mail hat keinen Webhook — nutze KEINEN blocked-Status für Mail-Threads.
-   Beende deinen Lauf regulär mit done (Zwischenstand als add_note); die Antwort erscheint beim nächsten
-   Heartbeat-Lauf als neue ungelesene Mail im selben Betreff-Thread.`
+	return `Available email actions (your own mailbox, IMAP/SMTP): list_mailboxes {},
+   list_unread {"mailbox":"INBOX","limit":20} lists unread mail (newest first; mailbox/limit optional),
+   list_messages {"mailbox":"INBOX","limit":20} lists the newest mail regardless of the read status,
+   get_message {"uid":N,"mailbox":"INBOX"} returns a mail in full (sender, recipients, text,
+   attachment names) — reading it sets NO read flag,
+   get_attachment {"uid":N,"mailbox":"INBOX","name":"invoice.pdf"} loads ONE attachment of that mail into the
+   sandbox (under attachments/) and returns its path; then look at it with the read tool (images by
+   vision). The name comes from the attachment list of get_message,
+   reply {"uid":N,"mailbox":"INBOX","body":"...","reply_all":true|false} answers the sender by SMTP
+   (correct threading headers, subject Re: …) and marks the mail as read afterwards,
+   send {"to":["a@example.com"],"cc":["..."],"subject":"...","body":"..."} sends a new mail,
+   mark_seen {"uid":N,"mailbox":"..."} / mark_unseen {...} sets or clears the read flag,
+   move {"uid":N,"mailbox":"INBOX","to_mailbox":"Archive"} moves a mail into another folder.
+   How to work: your working set is the unread mail (list_unread). Work every mail individually:
+   read get_message, answer factually by reply, after which it is marked as read automatically by reply;
+   mail that needs no answer you tick off explicitly with mark_seen or file with move.
+   The text (body) is plain text — no HTML, no Markdown syntax.
+   NEVER answer obvious machine-generated mail (newsletters, delivery failures, out-of-office notices) —
+   tick it off with mark_seen. Replies to your own sender address are blocked (echo protection).
+   WAITING for an answer: email has no webhook — do NOT use the blocked status for mail threads.
+   End your run regularly with done (the interim state as add_note); the answer appears at the next
+   heartbeat run as new unread mail in the same subject thread.`
 }

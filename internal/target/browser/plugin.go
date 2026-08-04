@@ -339,23 +339,23 @@ func localPath(ctx context.Context, p string) (string, error) {
 }
 
 func (System) PromptDoc() string {
-	return `Verfügbare Browser-Aktionen (ein headless Chrome, den du wie ein Nutzer bedienst; die Sitzung bleibt
-   über mehrere Aktionen erhalten — Cookies/Login bleiben):
-   navigate {"url":"https://…"} öffnet eine Seite und liefert Titel + finale URL,
-   content {"selector":"CSS-Selektor (optional, leer = ganze Seite)"} liefert den sichtbaren Text (bis 20k Zeichen),
-   screenshot {"to":"lokaler/pfad (optional)","full":true,"highlight":"CSS-Selektor|:has-text(…) (optional)","label":"Text (optional)"}
-   schreibt ein PNG in deine Sandbox (Default: browser/shot-N.png) und liefert den Pfad — danach die Datei lesen,
-   um die Seite zu sehen; full=true nimmt die ganze scrollbare Seite statt nur den sichtbaren Bereich; highlight
-   umrahmt das getroffene Element rot (mit optionalem label als Beschriftung) — so markierst du visuell, WO ein
-   Mangel sitzt,
-   click {"selector":"CSS-Selektor"} klickt das Element,
-   type {"selector":"CSS-Selektor","text":"…"} tippt Text in ein Feld.
-   Selektoren: reines CSS plus die Erweiterung :has-text("…") — trifft den innersten sichtbaren
-   Treffer, dessen Text den String enthält (z. B. button:has-text("Anmelden"), a:has-text("Weiter")).
-   Nützlich, wenn ein Button keine stabile id/class hat. Funktioniert in click, type und content.
-   Arbeitsweise: erst navigate, dann mit content ODER screenshot orientieren, dann gezielt click/type. Für
-   visuelle Seiten (Dashboards, Canvas) screenshot + lesen; für Text-Extraktion content mit passendem
-   Selektor. WARTEN: der Browser hat keinen Webhook — nutze KEINEN blocked-Status; beende deinen Lauf mit done.
-   Erreichbarkeit: Seiten laden nur, wenn ihr Host in der Egress-Allowlist steht — schlägt eine Navigation
-   fehl, ist das oft die Ursache.`
+	return `Available browser actions (a headless Chrome you operate like a user; the session persists
+   across several actions — cookies/login are kept):
+   navigate {"url":"https://…"} opens a page and returns the title + final URL,
+   content {"selector":"CSS selector (optional, empty = the whole page)"} returns the visible text (up to 20k characters),
+   screenshot {"to":"local/path (optional)","full":true,"highlight":"CSS selector|:has-text(…) (optional)","label":"text (optional)"}
+   writes a PNG into your sandbox (default: browser/shot-N.png) and returns the path — then read the file
+   to see the page; full=true takes the whole scrollable page instead of just the visible area; highlight
+   frames the matched element in red (with an optional label as a caption) — that is how you mark visually WHERE a
+   defect sits,
+   click {"selector":"CSS selector"} clicks the element,
+   type {"selector":"CSS selector","text":"…"} types text into a field.
+   Selectors: plain CSS plus the extension :has-text("…") — it matches the innermost visible
+   hit whose text contains the string (e.g. button:has-text("Sign in"), a:has-text("Next")).
+   Useful when a button has no stable id/class. Works in click, type and content.
+   How to work: navigate first, then orient yourself with content OR screenshot, then click/type deliberately. For
+   visual pages (dashboards, canvas) screenshot + read; for text extraction content with a fitting
+   selector. WAITING: the browser has no webhook — do NOT use the blocked status; end your run with done.
+   Reachability: pages only load when their host is on the egress allowlist — if a navigation
+   fails, that is often the cause.`
 }

@@ -266,14 +266,14 @@ func requireFields(action string, vals ...string) error {
 }
 
 func (System) PromptDoc() string {
-	return `Verfügbare Microsoft-Teams-Aktionen:
-   send {"service_url":"...","conversation_id":"...","text":"..."} — Nachricht in eine bestehende Konversation.
-   reply {"service_url":"...","conversation_id":"...","reply_to_activity_id":"...","text":"..."} — Antwort auf eine Nachricht (ohne reply_to_activity_id → send).
-   create_conversation {"service_url":"...","tenant_id":"...","user_id":"...","text":"..."} — proaktiver 1:1-Chat mit einem Nutzer.
-   download_attachment {"url":"...","name":"..."} — lädt einen Datei-Anhang der Nachricht in die Sandbox (unter attachments/); danach mit dem Read-Tool ansehen. url/name stehen im Task-Body.
-   send_file {"service_url":"...","conversation_id":"...","path":"bericht.pdf","description":"..."} — fragt den Empfänger, ob er die Datei annehmen will (Zustimmungs-Karte). path zeigt in dein Arbeitsverzeichnis. Danach beendest du mit blocked; der Klick des Empfängers weckt dich mit der Upload-URL.
-   upload_file {"upload_url":"...","path":"bericht.pdf", ...} — schiebt die Bytes hoch, nachdem zugestimmt wurde. Der vollständige Aufruf steht fertig im Aufgaben-Body; die Upload-URL ist kurzlebig, also sofort ausführen.
-   Dateien senden geht nur in zwei Schritten — ohne Zustimmung des Empfängers gibt es keine Upload-URL, das ist Teams-Vorgabe und nicht umgehbar.
-   service_url und conversation_id stammen aus der auslösenden Nachricht (steht im Task-Body).
-   Korrelations-Key für Status blocked: teams:conversation:<conversation_id>.`
+	return `Available Microsoft Teams actions:
+   send {"service_url":"...","conversation_id":"...","text":"..."} — a message into an existing conversation.
+   reply {"service_url":"...","conversation_id":"...","reply_to_activity_id":"...","text":"..."} — a reply to a message (without reply_to_activity_id → send).
+   create_conversation {"service_url":"...","tenant_id":"...","user_id":"...","text":"..."} — a proactive 1:1 chat with a user.
+   download_attachment {"url":"...","name":"..."} — loads a file attachment of the message into the sandbox (under attachments/); then look at it with the read tool. url/name are in the task body.
+   send_file {"service_url":"...","conversation_id":"...","path":"report.pdf","description":"..."} — asks the recipient whether they want to accept the file (a consent card). path points into your working directory. Afterwards you end with blocked; the recipient's click wakes you with the upload URL.
+   upload_file {"upload_url":"...","path":"report.pdf", ...} — pushes the bytes up after consent has been given. The complete call stands ready in the task body; the upload URL is short-lived, so run it immediately.
+   Sending files only works in two steps — without the recipient's consent there is no upload URL; that is a Teams requirement and cannot be circumvented.
+   service_url and conversation_id come from the triggering message (they are in the task body).
+   Correlation key for status blocked: teams:conversation:<conversation_id>.`
 }
