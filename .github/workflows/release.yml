@@ -1,0 +1,125 @@
+# Release-Pipeline: Tag `v*` → gebaute Binaries als GitHub Release.
+#
+# Warum GitHub und nicht die GitLab-Seite: Die GitLab-Pipeline deployt die
+# eigene Instanz (covey.work) und schiebt Images in eine private Registry —
+# beides für Dritte unerreichbar. Wer Covey installieren will, holt es von
+# GitHub, und dafür braucht es dort veröffentlichte Artefakte. Betriebs- und
+# Installationswerkzeug gehört ins Produkt, nicht in die interne CI.
+#
+# `install.sh` im Repo-Wurzelverzeichnis lädt genau die Dateien, die hier
+# entstehen. Wer das Namensschema der Archive ändert, muss das Skript
+# mitändern — es gibt keine dritte Stelle, die vermittelt.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  # Manuell auslösbar, um die Pipeline ohne Tag zu proben. Ohne Tag entsteht
+  # kein Release, nur die Artefakte am Lauf — sonst wäre ein Probelauf eine
+  # Veröffentlichung.
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Für `git describe` und damit für eine sprechende Version, wenn der
+          # Lauf ohne Tag von Hand angestoßen wird.
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      # Ohne web/dist scheitert der Go-Build: //go:embed zieht das Frontend
+      # ins Binary. Ein Release ohne Oberfläche gibt es nicht.
+      - run: npm run build
+        working-directory: web
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache: true
+
+      - name: Herkunft bestimmen
+        id: meta
+        run: |
+          set -eu
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            version="${GITHUB_REF_NAME}"
+          else
+            version="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
+          fi
+          {
+            echo "version=${version}"
+            echo "commit=$(git rev-parse --short HEAD)"
+            echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } >> "$GITHUB_OUTPUT"
+
+      # Cross-Build ohne CGO — dasselbe Binary läuft auf jeder Distribution,
+      # unabhängig von deren libc. Genau das macht die Installation per Skript
+      # überhaupt erst so einfach.
+      #
+      # darwin ist dabei, weil Covey lokal auf macOS entwickelt und
+      # ausprobiert wird; die Sandbox-Provider brauchen dort trotzdem Docker.
+      - name: Bauen
+        env:
+          VERSION: ${{ steps.meta.outputs.version }}
+          COMMIT: ${{ steps.meta.outputs.commit }}
+          DATE: ${{ steps.meta.outputs.date }}
+        run: |
+          set -eu
+          mkdir -p dist
+          ldflags="-s -w \
+            -X covey/internal/buildinfo.version=${VERSION} \
+            -X covey/internal/buildinfo.commit=${COMMIT} \
+            -X covey/internal/buildinfo.date=${DATE}"
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            os="${target%/*}"; arch="${target#*/}"
+            work="$(mktemp -d)"
+            for cmd in covey coveyd; do
+              CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
+                go build -trimpath -ldflags "$ldflags" -o "$work/$cmd" "./cmd/$cmd"
+            done
+            tar -czf "dist/covey_${VERSION}_${os}_${arch}.tar.gz" -C "$work" .
+            rm -rf "$work"
+          done
+
+      # Eine Prüfsumme je Archiv, in einer Datei. install.sh lädt sie und
+      # vergleicht, bevor es irgendetwas auspackt — ohne diesen Schritt wäre
+      # `curl | sh` genau das, wovor zu Recht gewarnt wird.
+      - name: Prüfsummen
+        run: |
+          set -eu
+          cd dist
+          # Ohne "./"-Präfix: install.sh sucht die Zeile über den blanken
+          # Dateinamen, und ein Präfix wäre eine Stolperfalle ohne Nutzen.
+          sha256sum covey_*.tar.gz > SHA256SUMS
+          cat SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: covey-dist
+          path: dist/
+          retention-days: 7
+
+      # Nur bei einem echten Tag. Ein Probelauf via workflow_dispatch endet
+      # oben mit den Artefakten.
+      - name: Veröffentlichen
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          gh release create "${GITHUB_REF_NAME}" dist/* \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            --verify-tag

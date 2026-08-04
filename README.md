@@ -141,6 +141,23 @@ The system splits into a **control plane** (stateful, always on: scheduler, agen
 
 Details in [`spec/10-architektur-stack.md`](spec/10-architektur-stack.md).
 
+## Install
+
+```bash
+curl -sSL https://raw.githubusercontent.com/benjaminLedel/covey/main/install.sh | sh
+```
+
+Picks the binary for your OS and architecture from the latest [release](https://github.com/benjaminLedel/covey/releases), **verifies its SHA-256 checksum** and puts it in `/usr/local/bin`. Pin a version with `--version v0.2.0`, choose a different target with `--bin-dir ~/bin`.
+
+Not keen on piping a script into a shell? Reasonable — read it first:
+
+```bash
+curl -sSLO https://raw.githubusercontent.com/benjaminLedel/covey/main/install.sh
+less install.sh && sh install.sh
+```
+
+This installs the binaries only. Covey also needs PostgreSQL (with pgvector) and Docker for the sandboxes; the script prints the remaining steps, and [`docs/betrieb-deployment.md`](docs/betrieb-deployment.md) has the full path including docker-compose.
+
 ## Development
 
 ```bash

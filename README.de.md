@@ -141,6 +141,23 @@ Das System zerfällt in eine **Control Plane** (zustandsführend, immer aktiv: S
 
 Details in [`spec/10-architektur-stack.md`](spec/10-architektur-stack.md).
 
+## Installation
+
+```bash
+curl -sSL https://raw.githubusercontent.com/benjaminLedel/covey/main/install.sh | sh
+```
+
+Holt das Binary für System und Architektur aus dem neuesten [Release](https://github.com/benjaminLedel/covey/releases), **prüft die SHA-256-Summe** und legt es nach `/usr/local/bin`. Version festnageln mit `--version v0.2.0`, anderes Ziel mit `--bin-dir ~/bin`.
+
+Wer ein Skript nicht ungelesen in eine Shell pipen mag — eine gesunde Haltung — nimmt den zweistufigen Weg:
+
+```bash
+curl -sSLO https://raw.githubusercontent.com/benjaminLedel/covey/main/install.sh
+less install.sh && sh install.sh
+```
+
+Das installiert nur die Binaries. Covey braucht zusätzlich PostgreSQL (mit pgvector) und Docker für die Sandboxen; die restlichen Schritte nennt das Skript am Ende, der ausführliche Weg samt docker-compose steht in [`docs/betrieb-deployment.md`](docs/betrieb-deployment.md).
+
 ## Entwicklung
 
 ```bash
