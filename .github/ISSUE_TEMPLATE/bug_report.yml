@@ -1,0 +1,93 @@
+name: Bug report
+description: Something in Covey behaves differently than it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time. If this is a **security** issue, please stop
+        here and follow [SECURITY.md](../blob/main/SECURITY.md) instead — do not
+        describe it in a public issue.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, and what Covey did instead of what you expected.
+      placeholder: |
+        I assigned a GitLab target system to an agent and woke it via webhook.
+        The task went to `blocked` and never came back, even after the merge
+        request was commented on.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: |
+        The shortest path you know of. If you cannot reproduce it reliably, say
+        so and describe how often it happens — an intermittent report is still
+        worth having.
+      placeholder: |
+        1. …
+        2. …
+        3. …
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The output of `covey version`, or the image tag you are running.
+      placeholder: "dev · 0107a84 · 2026-08-04"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: How are you running Covey
+      options:
+        - docker compose (the bundled docker-compose.yml)
+        - Binary from a release
+        - Built from source
+        - covey.work (the hosted instance)
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: input
+    id: runtime-targets
+    attributes:
+      label: Runtime and target systems involved
+      description: Which runtime the agent uses, and which target plugins are in play.
+      placeholder: "claude-code; GitLab + email (IMAP)"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Relevant lines from the control plane (`covey serve`) and, if it is about
+        a run, from the agent's recording. **Redact tokens, secrets and anything
+        your organisation would not want public** — this issue is world-readable.
+      render: text
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched the existing issues and did not find this one.
+          required: true
+        - label: I removed secrets, tokens and confidential content from the logs above.
+          required: true

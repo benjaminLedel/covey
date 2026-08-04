@@ -1,0 +1,14 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Question or idea
+    url: https://github.com/benjaminLedel/covey/discussions
+    about: Anything that is not yet a bug or a concrete request — how to model an agent, whether Covey fits your setup, what a part of the spec means.
+  - name: Try it without installing
+    url: https://covey.work
+    about: The platform running live, so you can look before you file.
+  - name: Operations runbooks
+    url: https://github.com/benjaminLedel/covey/tree/main/docs
+    about: Connecting Zammad, GitLab, Teams, SharePoint, Nextcloud, email or a headless browser — including the parts that usually go wrong.
+  - name: Report a vulnerability
+    url: https://github.com/benjaminLedel/covey/security/policy
+    about: Please do not use a public issue for security findings.
