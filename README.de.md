@@ -46,8 +46,6 @@ Das mitgelieferte [`docker-compose.yml`](docker-compose.yml) bringt Postgres (pg
 
 **Coveys Einheit ist die Organisation, nicht der einzelne Nutzer.** Das ist die tragende Abgrenzung zu den Single-User-„AI-Employee"-Apps: Covey ist die Plattform, die ein *Unternehmen* betreibt, um seine gesamte Agenten-Belegschaft zu verwalten und zu governen — mit vielen menschlichen Stakeholdern (IT, Team-Leads, Security/Compliance, Audit, Controlling), zentraler Governance und unternehmensweitem Org-Chart.
 
-> **Zur Sprache:** Oberfläche, Spezifikation in [`spec/`](spec/) und die Runbooks in [`docs/`](docs/) sind auf Deutsch. Das englische [`README.md`](README.md) ist der Einstieg des Repositories — diese Fassung hier ist die deutsche Übersetzung davon.
-
 ## Die Oberfläche
 
 ![Agenten-Übersicht](web/public/shots/agents.jpg)
@@ -214,6 +212,8 @@ Der Plattform-Anteil des System-Prompts (Abschluss-Protokoll, `covey/`-Meta-Akti
 Exit-Code 1 bei Befunden, damit ein Upgrade-Skript darauf reagieren kann. Geändert wird im Config-Tab der Oberfläche oder per `POST /api/v1/agents/{id}/config/import` — beides versioniert.
 
 ## Betriebs-Doku
+
+Spezifikation und Runbooks sind auf **Englisch** — sie richten sich an alle, die Covey installieren und betreiben, nicht nur an den deutschsprachigen Teil davon. Die Oberfläche gibt es in beiden Sprachen.
 
 | Dokument | Inhalt |
 |---|---|

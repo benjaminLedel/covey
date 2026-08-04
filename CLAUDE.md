@@ -10,7 +10,7 @@ Enterprise-Plattform, die **KI-Agenten wie Mitarbeiter** behandelt: Identität, 
 
 **Deutlich über den MVP hinaus.** Der MVP-Durchstich (M0–M7 aus `spec/11-mvp-plan.md`) steht längst; darauf aufgesetzt sind u. a. Org-Chart & Abteilungen, Mitarbeiter-Profile, weitere Zielsystem-Plugins (GitLab, E-Mail/IMAP, MCP), Docker-Sandboxen, Egress-Kontrolle, ein QA-Agent-Bundle und das **Wiki-Gedächtnis** (verlinkte Markdown-Seiten + pgvector-Index statt flacher Schnipsel, spec/05). „M0–M7" markiert also die Grundlinie, nicht den aktuellen Umfang. Das Repo enthält:
 
-- `spec/` — die vollständige Spezifikation (13 Dokumente, **deutschsprachig**). Einstieg: `spec/README.md`.
+- `spec/` — die vollständige Spezifikation (16 Dokumente, **englisch**). Einstieg: `spec/README.md`.
 - Den Code gemäß dem Layout aus `spec/10-architecture-stack.md`: `cmd/covey` (Control Plane), `cmd/coveyd` (Sandbox-Daemon), `internal/…`, `web/` (React-SPA, eingebettet), `migrations/` (eingebettet).
 - `internal/integration/` — die Abnahme-Checkliste aus `spec/11-mvp-plan.md` als Integrationstest-Suite (echtes Postgres auf Port 5433, In-Process-Daemon über echten WebSocket, Mock-Runtime, Fake-Zammad).
 - `demo/fakezammad/` — Zammad-Double für lokale Demos.
@@ -24,8 +24,11 @@ Entwicklungs-Workflow: `make dev-db && make bootstrap && make run` (siehe README
 
 ## Sprache & Konventionen
 
-- **Spec und Doku sind auf Deutsch.** Schreibe Spec/Runbooks/Kommentare, die in dieses Repo gehen, auf Deutsch, im Ton der bestehenden Dokumente (nüchtern, präzise, Fachbegriffe englisch belassen: *Control Plane*, *Guard-Rail*, *Daemon*, *Backlog*, *blocked*).
-- **Ausnahme README:** `README.md` ist **englisch** — es ist die Visitenkarte für Dritte, die Covey von GitHub installieren. Die deutsche Fassung liegt daneben in `README.de.md`. Beide beim Ändern gleichziehen; sie sind Übersetzungen voneinander, keine getrennten Dokumente.
+- **Spec und Runbooks sind auf Englisch.** `spec/` und `docs/` richten sich an alle, die Covey von GitHub installieren und betreiben — schreibe dort englisch, im Ton der bestehenden Dokumente (nüchtern, präzise, keine Marketing-Sprache). Dateinamen ebenfalls englisch (`spec/01-architecture.md`, `docs/ops-zammad.md`).
+- **Nicht übersetzt werden Zeichenketten, die aus dem Programm kommen:** Fehlermeldungen, Log-Zeilen, UI-Labels und Config-Syntax, die ein Parser liest (die `HEARTBEAT.md`-Schlüssel `alle:`/`täglich:`/`nur-wenn:`/`titel:`/`aufgabe:`). Sie stehen im Original, mit Erklärung daneben — eine übersetzte Fehlermeldung dokumentiert etwas, das so nie erscheint.
+- **Commit-Messages und Code-Kommentare bleiben deutsch**, im Stil der bestehenden Historie.
+- **README:** `README.md` ist **englisch** — die Visitenkarte für Dritte. Die deutsche Fassung liegt daneben in `README.de.md`. Beide beim Ändern gleichziehen; sie sind Übersetzungen voneinander, keine getrennten Dokumente.
+- **Die Oberfläche ist zweisprachig** (`web/src/locales/de.json`, `en.json`) — neue UI-Texte immer in beiden Dateien pflegen.
 - Spec-Dokumente verlinken sich gegenseitig relativ (`[`04-…`](04-identity-secrets.md)`). Diese Verlinkung beim Ändern konsistent halten.
 - Jede Datei in `spec/` hat einen klaren Zuständigkeitsbereich (siehe Tabelle in `spec/README.md`) — Inhalt in die richtige Datei schreiben, nicht duplizieren.
 

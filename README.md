@@ -38,15 +38,13 @@ Then open **[http://localhost:8494](http://localhost:8494)** — log in with `ad
 
 The bundled [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector) and the covey binary with its embedded admin UI; `bootstrap` creates the organisation, the admin and a demo agent, and migrations run automatically.
 
-*Rather have the plain binary?* [`install.sh`](#install) fetches it from the [latest release](https://github.com/benjaminLedel/covey/releases/latest) and verifies its checksum. *Rather look before you install?* The running instance is at **[covey.work](https://covey.work)**. Full walkthrough including your first agent and a production checklist: [`docs/quickstart-docker.md`](docs/quickstart-docker.md) (German).
+*Rather have the plain binary?* [`install.sh`](#install) fetches it from the [latest release](https://github.com/benjaminLedel/covey/releases/latest) and verifies its checksum. *Rather look before you install?* The running instance is at **[covey.work](https://covey.work)**. Full walkthrough including your first agent and a production checklist: [`docs/quickstart-docker.md`](docs/quickstart-docker.md).
 
 ---
 
 > **Codename: Covey.** A *covey* is a small, coordinated flock — a group that moves together. That is exactly what this platform is: many agents, centrally orchestrated.
 
 **Covey's unit is the organisation, not the individual user.** That is the load-bearing distinction from single-user "AI employee" apps: Covey is the platform a *company* operates to manage and govern its entire agent workforce — with many human stakeholders (IT, team leads, security/compliance, audit, controlling), central governance and a company-wide org chart.
-
-> **A note on language:** the UI, the specification in [`spec/`](spec/) and the runbooks in [`docs/`](docs/) are written in **German**. This README is the English entry point; the German one lives at [`README.de.md`](README.de.md).
 
 ## The interface
 
@@ -215,7 +213,7 @@ Exit code 1 when there are findings, so an upgrade script can react to it. Chang
 
 ## Operations docs
 
-All runbooks are in German.
+All runbooks are in English.
 
 | Document | Contents |
 |---|---|
@@ -233,7 +231,7 @@ All runbooks are in German.
 
 | Path | Contents |
 |---|---|
-| [`spec/`](spec/) | The full specification, in German (start at [`spec/README.md`](spec/README.md)) |
+| [`spec/`](spec/) | The full specification (start at [`spec/README.md`](spec/README.md)) |
 | [`docs/`](docs/) | Operations and integration runbooks |
 | `cmd/covey/` | Control-plane binary: `serve`, `migrate`, `bootstrap`, `passwd`, `genkey` |
 | `cmd/coveyd/` | Sandbox daemon (speaks the daemon protocol, bootstraps the runtime) |
