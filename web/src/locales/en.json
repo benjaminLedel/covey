@@ -680,7 +680,11 @@
       "onlyIf": "only if {{system}} reports work",
       "onlyIfHint": "Before each run the control plane asks the target system {{system}} whether there is work (e.g. unread mail) — otherwise the run is skipped without waking the agent.",
       "system": "Platform",
-      "systemHint": "Platform-wide default heartbeat (not from HEARTBEAT.md) — override per agent with a same-titled HEARTBEAT.md entry."
+      "systemHint": "Platform-wide default heartbeat (not from HEARTBEAT.md) — override per agent with a same-titled HEARTBEAT.md entry.",
+      "pausedWhileStopped": "paused — the agent is stopped, the scheduler does not fire",
+      "stopped": "stopped",
+      "stoppedHint": "While the agent is stopped no tick creates a task. “Resume” starts the schedule again.",
+      "serverTime": "HEARTBEAT.md says {{time}} (server time)"
     },
     "webhook": {
       "desc": "Optional webhook trigger: a POST to the URL creates a backlog task and wakes the agent — for external systems without a target plugin (CI, cron, Zapier, monitoring).",
@@ -1500,5 +1504,8 @@
     "timeJustNow": "just now",
     "timeMinutes": "{{n}} min ago",
     "timeHours": "{{n}} h ago"
+  },
+  "common": {
+    "loading": "loading …"
   }
 }

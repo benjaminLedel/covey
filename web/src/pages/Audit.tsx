@@ -34,7 +34,12 @@ export default function Audit() {
     <div>
       <div className="flex items-center gap-3 mb-1 flex-wrap">
         <h1 className="text-[22px]">{t("audit.title")}</h1>
-        <span className="muted text-sm">{t("audit.count", { count: eintraege.length })}</span>
+        {/* Waehrend die Abfrage laeuft, stand hier „0 Eintraege" — bei einer
+            Audit-Spur die denkbar schlechteste Falschaussage: ihr Fehlen sieht
+            aus wie „nichts ist passiert". */}
+        <span className="muted text-sm">
+          {spur.isLoading ? t("common.loading") : t("audit.count", { count: eintraege.length })}
+        </span>
       </div>
       <p className="muted text-xs mb-4" style={{ maxWidth: 720 }}>
         {t("audit.lead")}

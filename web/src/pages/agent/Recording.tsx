@@ -58,7 +58,12 @@ export function Recording({
         </div>
       </div>
       <div className="card">
-        {list.length === 0 && (
+        {/* Solange die Abfrage laeuft, ist die Liste leer — und „noch keine
+            Aufzeichnung" ist dann eine Falschaussage, die aussieht wie ein
+            Befund. Bei einem Agenten mit 178 Laeufen liest man sie als Fehler
+            und sucht an der falschen Stelle. */}
+        {events.isLoading && <p className="muted m-0">{t("common.loading")}</p>}
+        {!events.isLoading && list.length === 0 && (
           <p className="muted m-0">
             {taskFilter ? t("agent.recording.emptyFiltered") : t("agent.recording.emptyAll")}
           </p>
