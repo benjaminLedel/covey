@@ -27,7 +27,9 @@ func init() {
    target projects and, as that user, generate an access token with the
    scope "api". Role: reporter suffices for reading/commenting; if the agent
    is to push fixes and open merge requests (commit /
-   create_merge_request), it needs developer.
+   create_merge_request), it needs developer. A QA agent that is to close its
+   acceptance with the merge (merge_mr) needs developer as well — maintainer on
+   protected target branches.
 
 2. Store under Secrets and assign to the agent:
    gitlab_url   = https://gitlab.example.com   (without /api/v4)
@@ -35,6 +37,11 @@ func init() {
 
 3. Enable in the agent's ACCESS.md:
    - system: gitlab scope: read,write,comment
+   For a QA agent that is to merge, add the scope merge. Whoever wants to
+   forbid the merge for a particular agent despite the role either lists the
+   tools explicitly in ACCESS.md (tools: without merge_mr) or rules the subject
+   gitlab:merge_mr by a guard rail — with "ask" every merge goes through the
+   Approvals page.
 
 4. Intake by heartbeat (GitLab has no webhook — the agent takes up work
    exclusively by polling) — two separate entries in the agent's

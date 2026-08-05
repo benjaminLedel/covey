@@ -20,7 +20,7 @@ optional.
 | Bundle | Slug | Role |
 |---|---|---|
 | `coding-agent.bundle.json` | `covey-dev` | Developer: pick up issues **assigned to it** (`nur-wenn: gitlab:issues:assigned`), verify bugs against the code, have fixes developed, open merge requests and live the review loop. |
-| `qa-agent.bundle.json` | `covey-qa` | QA/test: accept others' merge requests end to end as the reviewer and give feedback; additionally take in bug reports by email and file them as GitLab tickets (`create_issue`). |
+| `qa-agent.bundle.json` | `covey-qa` | QA/test: accept others' merge requests end to end as the reviewer — set the project up once per project and keep it, operate the application in the browser, support states and defects with screenshots, run the test suite as a job that outlives the run, and close a green acceptance with `approve_mr` + `merge_mr`. |
 | `delivery-lead.bundle.json` | `covey-lead` | Delivery lead: drive a GitLab milestone to its deadline — make tickets implementable (acceptance criteria, affected code locations), keep dependent tickets in order, dispatch work to the developers within a WIP limit, report the state, escalate open subject-matter questions to the human. |
 | `log-triage-agent.bundle.json` | `covey-logtriage` | Log triage: analyse logs reported by email, check for duplicates before filing (`list_issues search=…`, bundle occurrences onto the existing ticket), file tickets for relevant findings and hand real code bugs to a developer agent by `assignee`. |
 | `web-researcher.bundle.json` | `covey-webresearch` | Web researcher: research questions on the open web with a real browser, capture evidence as screenshots and deliver a concise, sourced answer. |
@@ -82,13 +82,20 @@ after the import (see `docs/ops-gitlab.md` 2.2, 2.7 and — for the lead — 2.9
 - Assign all the agents to **the same department** — then the developer sees the
   QA agent as `YOUR TEAM` and prefers them as the reviewer, and the lead finds
   its developers.
-- **For the QA agent's mail intake** additionally set up a mailbox of its own
-  and assign the secrets `email_url` + `email_token` (see
-  `docs/ops-email.md`). So that the agent can assign bug reports to the right
-  GitLab project, deposit the **product→project mapping** in the QA agent's
-  profile (which mailbox/product belongs to which GitLab project); if the
-  mapping is unclear it asks the reporter rather than ticketing into the wrong
-  project.
+- **The QA agent takes in no bug reports** — it accepts merge requests and
+  nothing else. Reports from outside belong to an intake agent of its own
+  (`log-triage-agent.bundle.json` as the pattern, or one with an email access);
+  the QA agent finds it through the team directory. The separation is
+  deliberate: intake fires every few minutes, an acceptance runs for a quarter
+  of an hour with a checked-out project — in one agent the cheap job keeps
+  interrupting the expensive one.
+- **The QA agent needs a warm sandbox** (it is set in the bundle). It keeps one
+  working tree per project including `node_modules`/`vendor`; without it every
+  acceptance starts with a cold setup and the run is over before the test suite
+  has anything to say.
+- **If the QA agent is to merge itself**, its GitLab bot user needs at least
+  `developer` (better `maintainer`) on the target projects and the tool
+  `merge_mr`. The bundle carries it; without it the approval is its last word.
 
 Additionally for the **delivery lead** only:
 
