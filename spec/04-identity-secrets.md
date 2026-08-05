@@ -50,7 +50,11 @@ Secrets in the store have two levels; the broker resolves them per agent:
 - **Org-wide secrets** are deposited centrally but only take effect through **explicit assignment** to individual agents (least privilege at the secret level). An org secret without an assignment reaches **no** agent.
 - **Agent-owned secrets** hang off exactly one agent and, for the same key, take **precedence** over the assigned org secret — e.g. a target-system account of its own or a per-agent Anthropic credential.
 
-The broker's resolution order: agent-owned secret → explicitly assigned org secret → otherwise refusal (`no secret deposited or assigned`). By default a secret is a simple **variable** (server name, URL) and readable through the API. Values marked **sensitive** (tokens, passwords) are write-only with a prefix preview — the marking is deliberately one-way (lifting the protection would mean disclosing the value after all; the way back is deletion and recreation). Both apply at both levels; in the built-in implementation the AES-GCM AAD additionally binds the ciphertext to org, agent and key.
+The broker's resolution order: agent-owned secret → explicitly assigned org secret → otherwise refusal (`no secret deposited or assigned`).
+
+Two kinds of target system are exempt from that refusal, and the difference between them matters. A system that runs **entirely inside the sandbox** (the dev toolbox, the browser) never sees a credential at all — the broker grants an empty one. A system whose secret only **raises what it may do** — a public API where a key lifts a rate limit — is usable without one: there the broker resolves best effort and grants either way, so that a missing optional key does not look like a missing mandatory one. Both stay subject to `ACCESS.md`, activation and guard rails; what is waived is the secret, not the entitlement.
+
+ By default a secret is a simple **variable** (server name, URL) and readable through the API. Values marked **sensitive** (tokens, passwords) are write-only with a prefix preview — the marking is deliberately one-way (lifting the protection would mean disclosing the value after all; the way back is deletion and recreation). Both apply at both levels; in the built-in implementation the AES-GCM AAD additionally binds the ciphertext to org, agent and key.
 
 ## Threat model
 
