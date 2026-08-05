@@ -146,10 +146,15 @@ func pruneExceptPreserved(dir string) error {
 	return nil
 }
 
-// securePath anchors an archive entry under root: the assembled destination
-// path must stay inside root. The prefix test for ".." on the name already
-// catches the regular case beforehand — this check is the promise on the
-// FINISHED path and therefore the one that matters (zip slip, CWE-22).
+// securePath anchors the checkout DIRECTORY under root: the assembled path must
+// stay inside root. It is used for the one path built from agent input outside
+// the archive — the destination directory name (see stableCheckoutDir) — and
+// there a string comparison is enough, because nothing has been created yet
+// that a symlink could point through.
+//
+// The archive entries themselves deliberately do NOT go through here; they are
+// written through os.Root, which the file system enforces (see
+// extractTarGzInto for why the difference matters).
 func securePath(root, name string) (string, error) {
 	dest := filepath.Clean(filepath.Join(root, name))
 	if dest != filepath.Clean(root) && !strings.HasPrefix(dest, filepath.Clean(root)+string(filepath.Separator)) {
@@ -214,14 +219,40 @@ func initGitBaseline(ctx context.Context, dir string) {
 // extractTarGzInto unpacks a GitHub repository archive into destDir and strips
 // the top-level directory (GitHub: <owner>-<repo>-<sha>) in doing so, so that
 // the contents lie directly in destDir — the precondition for a stable,
-// cache-preserving destination directory. Security: paths are checked against
-// traversal, symlinks are skipped, the unpacked total size is capped.
+// cache-preserving destination directory.
+//
+// Every write goes through os.Root, and that is the point rather than a detail.
+// A comparison of path STRINGS — the obvious way to write this, and how it was
+// written first — checks one thing and then writes another: the check runs on
+// the assembled path, the write resolves that path AGAIN through the file
+// system and follows any symlink it meets on the way. Between the two sits a
+// window.
+//
+// The window is not theoretical here. pruneExceptPreserved deliberately keeps
+// the dependency caches (node_modules, .venv, vendor …) across checkouts, and
+// the agent runs `npm install` in that checkout as a matter of course — with
+// whatever postinstall scripts the project's third-party dependencies bring
+// along. A link left behind in node_modules is still there when the next
+// archive is unpacked over it, and an entry "node_modules/x" then lands
+// wherever the link points. The agent's home is a host directory mounted into
+// the sandbox, so that is a write on the HOST, outside the home.
+//
+// os.Root closes it: the operating system resolves beneath destDir, and a
+// symlink leading outside fails there — when opening, not in a check before it.
+// The textual test for ".." and absolute paths stays, but as a clear early
+// error rather than as the thing containment rests on.
 func extractTarGzInto(r io.Reader, destDir string) (files int, err error) {
 	gz, err := gzip.NewReader(r)
 	if err != nil {
 		return 0, fmt.Errorf("read archive: %w", err)
 	}
 	defer gz.Close()
+
+	root, err := os.OpenRoot(destDir)
+	if err != nil {
+		return 0, err
+	}
+	defer root.Close()
 
 	maxBytes := checkoutMaxBytes()
 	var total int64
@@ -242,30 +273,34 @@ func extractTarGzInto(r io.Reader, destDir string) (files int, err error) {
 			return 0, fmt.Errorf("unsafe path in the archive: %q", hdr.Name)
 		}
 		// Strip the top-level directory (owner-repo-sha).
-		rel := strings.SplitN(name, string(filepath.Separator), 2)
-		if len(rel) < 2 || rel[1] == "" {
+		parts := strings.SplitN(name, string(filepath.Separator), 2)
+		if len(parts) < 2 || parts[1] == "" {
 			continue // the shell directory itself
 		}
-		dest, err := securePath(destDir, rel[1])
-		if err != nil {
-			return 0, err
-		}
+		rel := parts[1]
 		switch hdr.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(dest, 0o755); err != nil {
-				return 0, err
+			if err := root.MkdirAll(rel, 0o755); err != nil {
+				return 0, unsafePath(hdr.Name, err)
 			}
 		case tar.TypeReg:
 			total += hdr.Size
 			if total > maxBytes {
 				return 0, fmt.Errorf("archive larger than %d MB — GitHub's archive endpoint cannot narrow to a subdirectory, so navigate with list_tree and read selectively via read_file; the limit is set by COVEY_GITHUB_CHECKOUT_MAX_MB", maxBytes>>20)
 			}
-			if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-				return 0, err
+			if dir := filepath.Dir(rel); dir != "." {
+				if err := root.MkdirAll(dir, 0o755); err != nil {
+					return 0, unsafePath(hdr.Name, err)
+				}
 			}
-			f, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(hdr.Mode)&0o777)
+			// A link that stays INSIDE the checkout is still followed here —
+			// os.Root only refuses the ones leading out. That is deliberate:
+			// everything inside the checkout is the agent's own working copy,
+			// which it may write by any route it likes; the boundary being
+			// defended is the one around it.
+			f, err := root.OpenFile(rel, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(hdr.Mode)&0o777)
 			if err != nil {
-				return 0, err
+				return 0, unsafePath(hdr.Name, err)
 			}
 			if _, err := io.Copy(f, io.LimitReader(tr, maxBytes)); err != nil {
 				f.Close()
@@ -279,4 +314,12 @@ func extractTarGzInto(r io.Reader, destDir string) (files int, err error) {
 		}
 	}
 	return files, nil
+}
+
+// unsafePath turns os.Root's refusal into this package's error. To the caller
+// an escape blocked by the kernel is the same case as a textual "..": the entry
+// does not belong in this checkout. The original is kept for the log — "not
+// permitted" alone says nothing about which archive entry caused it.
+func unsafePath(name string, err error) error {
+	return fmt.Errorf("unsafe path in the archive: %q: %w", name, err)
 }
