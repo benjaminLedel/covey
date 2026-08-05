@@ -578,6 +578,32 @@ func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid
 	return has, sig
 }
 
+// releaseWorkSignature takes the suppression off a heartbeat again: the state it
+// last fired on counts as unseen, so the next tick wakes the agent for it once
+// more.
+//
+// It exists because of a silent standstill. The signature is remembered at
+// DISPATCH — before the run has done anything. Ends that run without a result
+// (turn limit, escalation, error), the state is nevertheless marked as seen, and
+// as long as nothing changes on the merge request or issue, no further heartbeat
+// fires: the agent has consumed its own alarm clock without doing the work. On
+// covey.work that stopped a QA agent for over an hour with three merge requests
+// waiting for its review — no error message anywhere, only a log line saying
+// "work backlog unchanged".
+//
+// Anchored on the TITLE, because the heartbeat gives its task exactly that name
+// (Backlog.Create with d.name) and a continuation keeps it deliberately.
+func (o *Orchestrator) releaseWorkSignature(ctx context.Context, agentID uuid.UUID, title string) {
+	if strings.TrimSpace(title) == "" {
+		return
+	}
+	if _, err := o.Pool.Exec(ctx,
+		"UPDATE agent_heartbeats SET last_work_sig='' WHERE agent_id=$1 AND name=$2 AND last_work_sig<>''",
+		agentID, title); err != nil {
+		o.Log.Warn("release heartbeat signature", "agent", agentID, "name", title, "err", err)
+	}
+}
+
 // rememberWorkSignature advances the signature that was last fired on. Best
 // effort: if it fails, the next tick wakes the agent at most once too often —
 // which is more harmless than a missed run.
@@ -1496,6 +1522,13 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		if _, err := o.Backlog.Complete(ctx, taskID, state, result, d.Error); err != nil {
 			return true, err
 		}
+		// A run that ended without a result must not keep its wake-up: the work
+		// it was woken for is still lying there.
+		if state == backlog.StateFailed || d.Status == "escalated" {
+			if t, err := o.Backlog.Get(ctx, taskID); err == nil {
+				o.releaseWorkSignature(ctx, agent.ID, t.Title)
+			}
+		}
 		// done step: feed what was learned into the wiki (spec/05). The
 		// consolidation (merging near-duplicates) runs task-independently in the
 		// paced maintenance job, not here in the hot path.
@@ -1630,6 +1663,9 @@ func (o *Orchestrator) handleIncomplete(ctx context.Context, agent agents.Agent,
 		if _, err := o.Backlog.Complete(ctx, taskID, backlog.StateFailed, result, reason); err != nil {
 			return err
 		}
+		// The chain is exhausted without a result — the state that woke the
+		// agent is unfinished and has to wake it again.
+		o.releaseWorkSignature(ctx, agent.ID, task.Title)
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
 			map[string]string{"status": "task_escalated", "reason": "max_turns", "continuations": strconv.Itoa(depth)})
 		o.publishTask(taskID, agent.ID)
