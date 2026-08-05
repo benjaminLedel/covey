@@ -8,7 +8,7 @@ Enterprise-Plattform, die **KI-Agenten wie Mitarbeiter** behandelt: Identität, 
 
 ## Aktueller Zustand
 
-**Deutlich über den MVP hinaus.** Der MVP-Durchstich (M0–M7 aus `spec/11-mvp-plan.md`) steht längst; darauf aufgesetzt sind u. a. Org-Chart & Abteilungen, Mitarbeiter-Profile, weitere Zielsystem-Plugins (GitLab, E-Mail/IMAP, MCP), Docker-Sandboxen, Egress-Kontrolle, ein QA-Agent-Bundle und das **Wiki-Gedächtnis** (verlinkte Markdown-Seiten + pgvector-Index statt flacher Schnipsel, spec/05). „M0–M7" markiert also die Grundlinie, nicht den aktuellen Umfang. Das Repo enthält:
+**Deutlich über den MVP hinaus.** Der MVP-Durchstich (M0–M7 aus `spec/11-mvp-plan.md`) steht längst; darauf aufgesetzt sind u. a. Org-Chart & Abteilungen, Mitarbeiter-Profile, weitere Zielsystem-Plugins (GitHub, GitLab, E-Mail/IMAP, MCP), Docker-Sandboxen, Egress-Kontrolle, ein QA-Agent-Bundle und das **Wiki-Gedächtnis** (verlinkte Markdown-Seiten + pgvector-Index statt flacher Schnipsel, spec/05). „M0–M7" markiert also die Grundlinie, nicht den aktuellen Umfang. Das Repo enthält:
 
 - `spec/` — die vollständige Spezifikation (16 Dokumente, **englisch**). Einstieg: `spec/README.md`.
 - Den Code gemäß dem Layout aus `spec/10-architecture-stack.md`: `cmd/covey` (Control Plane), `cmd/coveyd` (Sandbox-Daemon), `internal/…`, `web/` (React-SPA, eingebettet), `migrations/` (eingebettet).

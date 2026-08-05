@@ -35,8 +35,12 @@ var Builtins = []BuiltinTemplate{
 		Hosts: []BuiltinHost{
 			{Pattern: "github.com", Note: "Git over HTTPS, web URLs"},
 			{Pattern: "api.github.com", Note: "REST and GraphQL API"},
-			{Pattern: "codeload.github.com", Note: "archive downloads (zip/tar)"},
-			{Pattern: "*.githubusercontent.com", Note: "raw content, release assets, avatars"},
+			{Pattern: "codeload.github.com", Note: "archive downloads (zip/tar) — the github plugin's checkout"},
+			{Pattern: "*.githubusercontent.com", Note: "raw content, release assets, avatars, issue attachments"},
+			// GitHub Actions hands job logs out as a redirect to Azure blob
+			// storage. Without this host get_job_log fails at the redirect, and
+			// the agent cannot diagnose a red CI run.
+			{Pattern: "*.blob.core.windows.net", Note: "GitHub Actions job logs (redirect target)"},
 		},
 	},
 	{

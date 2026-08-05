@@ -124,6 +124,10 @@
           "t": "Zammad",
           "d": "Read tickets, reply, set state, escalate. A trigger wakes the agent the moment a customer answers — it doesn't wait around, it gets fetched."
         },
+        "github": {
+          "t": "GitHub",
+          "d": "Issues and pull requests as the work queue: source checked out, a fix on a feature branch, a pull request with a QA agent as reviewer — review loop and red Actions runs included. The webhook wakes, the heartbeat sweeps."
+        },
         "gitlab": {
           "t": "GitLab",
           "d": "Issues as the work queue, source checked out, a fix on a feature branch, a merge request to the supervisor — and the review loop afterwards, red CI included."

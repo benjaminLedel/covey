@@ -124,6 +124,10 @@
           "t": "Zammad",
           "d": "Tickets sichten, beantworten, Status setzen, eskalieren. Ein Trigger weckt den Agenten, sobald ein Kunde antwortet — er wartet nicht, er wird geholt."
         },
+        "github": {
+          "t": "GitHub",
+          "d": "Issues und Pull Requests als Arbeitsvorrat: Quellcode auschecken, Fix auf einem Feature-Branch, Pull Request mit QA-Agent als Reviewer — Review-Loop und rote Actions-Läufe eingeschlossen. Der Webhook weckt, der Heartbeat sichtet."
+        },
         "gitlab": {
           "t": "GitLab",
           "d": "Issues als Arbeitsvorrat, Quellcode auschecken, Fix auf einem Feature-Branch, Merge Request an den Vorgesetzten — und den Review-Loop danach leben, rote CI eingeschlossen."

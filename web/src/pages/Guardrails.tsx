@@ -15,7 +15,7 @@ import {
 
 const canEdit = (role: string) => role === "platform_admin" || role === "security";
 
-const patternSuggestions = ["zammad:reply_external", "zammad:*", "gitlab:comment_external", "gitlab:*", "mail:*", "hr*", "*"];
+const patternSuggestions = ["zammad:reply_external", "zammad:*", "gitlab:comment_external", "gitlab:*", "github:comment", "github:*", "mail:*", "hr*", "*"];
 
 const decisionClass: Record<string, string> = {
   allow: "st-done",
