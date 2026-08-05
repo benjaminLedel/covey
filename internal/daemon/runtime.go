@@ -40,6 +40,10 @@ type RunSpec struct {
 	// where ~/.claude, the wiki working copy and the dependency caches live.
 	WorkDir string
 	Env     []string // extra ENV (e.g. COVEY_ACTION_PORT, brokered keys)
+	// MCPConfig is the MCP server document the runtime is started with — the
+	// action proxy, so target actions arrive as typed tools instead of as a curl
+	// in the shell (actionmcp.go). Empty = without, the shell route as before.
+	MCPConfig string
 }
 
 // RunResult is the normalized result of a runtime run.

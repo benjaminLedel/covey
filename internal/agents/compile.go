@@ -10,6 +10,24 @@ import (
 // ACCESS.md is NOT compiled in — it is a broker reference, not a prompt.
 var promptOrder = []string{"SOUL.md", "CAPABILITIES.md", "PLAYBOOKS.md", "ORG.md"}
 
+// CoveyActionsDoc describes the platform's own meta actions the way the target
+// systems describe theirs. It is what the action proxy shows as the description
+// of the "covey" tool on the MCP route (internal/daemon/actionmcp.go) — short,
+// because the detail (when a wiki page is a page, what a column is) stands in
+// ProtocolInstructions and is in the prompt anyway.
+const CoveyActionsDoc = `The platform's own actions — your board, your memory, your colleagues:
+   set_stage {"stage":"<state>"} — move the current task into a column of your board.
+   add_note {"content":"<note>"} — a note on the task (interim states, findings, what you tried).
+   remember {"page":"<slug>","content":"<insight>"} — an insight into the named wiki page.
+   wiki_search {"query":"<keywords>"} · wiki_read {"slug":"..."} · wiki_append {"slug":"...","text":"..."} ·
+   wiki_write {"slug":"...","title":"...","type":"...","body":"<markdown>"} · wiki_delete {"slug":"..."} —
+   your durable memory of linked pages. A page is a THING (customer, project, system,
+   recurring problem), not a diary entry about a single case.
+   org_chart {} — who else works here, and for what.
+   create_task {"title":"...","body":"<assignment with all names>","agent":"<slug, optional>"} —
+   a task of your own for the rest, or a delegation to a colleague. The assignment is a
+   handover to somebody without your context.`
+
 // ProtocolInstructions is the platform's share of the prompt: the contract
 // between runtime and daemon. The agent acts in target systems exclusively
 // through the daemon's action proxy (guard rails take hold centrally, secrets

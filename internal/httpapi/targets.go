@@ -54,7 +54,8 @@ type agentSystem struct {
 	// Tools is the agent's tool allowlist (MCP only); empty = all.
 	Tools []string `json:"tools,omitempty"`
 	// Doc are the actions in the wording of the prompt; empty as long as the
-	// system is not enabled for the organization (then there are none).
+	// system is not enabled for the organization or the agent has no line for
+	// it in ACCESS.md — in both cases nothing of it reaches its prompt.
 	Doc string `json:"doc,omitempty"`
 }
 

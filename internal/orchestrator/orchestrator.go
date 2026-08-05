@@ -1221,14 +1221,31 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	// team directory below follow the same logic.
 	compiled := agents.CompilePrompt(cfg.Files)
 	// Append the target-system docs at dispatch time — they reflect the
-	// organization's currently enabled plugins (including manifest uploads), not
-	// the state at the time the config was compiled.
+	// organization's currently enabled plugins (including manifest uploads) and
+	// the agent's current ACCESS.md, not the state at the time the config was
+	// compiled.
+	var actionTools []daemon.ActionTool
 	if o.Targets != nil {
-		if docs, err := o.Targets.EnabledDocsForAgent(ctx, agent.OrgID, agent.ID); err == nil {
-			if section := agents.TargetDocs(docs); section != "" {
+		if docs, err := o.Targets.DocsForAgent(ctx, agent.OrgID, agent.ID); err == nil {
+			texts := make([]string, 0, len(docs))
+			for _, d := range docs {
+				texts = append(texts, d.Doc)
+				actionTools = append(actionTools, daemon.ActionTool{Name: d.System, Description: d.Doc})
+			}
+			if section := agents.TargetDocs(texts); section != "" {
 				compiled += "\n\n" + section
 			}
 		}
+	}
+	// The platform's own meta actions (board, notes, wiki, delegation) are not a
+	// target system, but they are callable in exactly the same way — so on the
+	// MCP route they belong in the tool list too. Their description is the
+	// platform protocol, which stands in the prompt anyway.
+	if len(actionTools) > 0 {
+		actionTools = append(actionTools, daemon.ActionTool{
+			Name:        "covey",
+			Description: agents.CoveyActionsDoc,
+		})
 	}
 	// The team directory likewise at dispatch time: the employee profiles
 	// (responsibilities, GitLab usernames) tell the agent whom it hands things
@@ -1253,6 +1270,7 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 		Model:        agent.Model,
 		AllowedTools: daemon.DefaultAllowedTools,
 		MaxTurns:     maxTurns,
+		ActionTools:  actionTools,
 	}); err != nil {
 		return err
 	}

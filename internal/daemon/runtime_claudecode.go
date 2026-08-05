@@ -166,8 +166,17 @@ func (c *ClaudeCode) buildArgs(spec RunSpec) ([]string, string) {
 	if systemPrompt != "" {
 		args = append(args, "--append-system-prompt", systemPrompt)
 	}
-	if len(spec.AllowedTools) > 0 {
-		args = append(args, "--allowedTools", strings.Join(spec.AllowedTools, ","))
+	// The action proxy as an MCP server. Its tools have to stand in the SAME
+	// --allowedTools list: the flag is a whitelist, it may appear only once, and
+	// without the entry the run would ask for permission on every action — which
+	// nobody answers in headless mode.
+	allowed := spec.AllowedTools
+	if spec.MCPConfig != "" {
+		args = append(args, "--mcp-config", spec.MCPConfig)
+		allowed = append(append([]string{}, allowed...), "mcp__covey")
+	}
+	if len(allowed) > 0 {
+		args = append(args, "--allowedTools", strings.Join(allowed, ","))
 	}
 	if spec.MaxTurns > 0 {
 		args = append(args, "--max-turns", strconv.Itoa(spec.MaxTurns))
