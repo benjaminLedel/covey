@@ -92,8 +92,9 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 
 // raw carries out a request and hands the still-open response back — for binary
 // bodies (the repository archive, a job log) that do not belong in memory. The
-// caller closes the body. Errors are already unwrapped here, so that every
-// caller reports the same message.
+// caller closes the body and passes the http.Client, because those two bodies
+// need a different timeout from the API's. Errors are already unwrapped here,
+// so that every caller reports the same message.
 func (c *Client) raw(ctx context.Context, method, path string, body any, hc *http.Client) (*http.Response, error) {
 	var reader io.Reader
 	if body != nil {
@@ -115,9 +116,6 @@ func (c *Client) raw(ctx context.Context, method, path string, body any, hc *htt
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
-	}
-	if hc == nil {
-		hc = c.HTTP
 	}
 	resp, err := hc.Do(req)
 	if err != nil {
