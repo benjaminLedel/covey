@@ -80,14 +80,13 @@ special cases, checklists, templates, reference tables.
 
 ## Target-system catalogue
 
-Registered built-in systems (as of this repo): `github`, `gitlab`, `email`, `dev`, `browser`,
-`teams`, `zammad`, `sharepoint`, `nextcloud`, `mcp`. **Authoritative** are the `SetupDoc()`/`PromptDoc()` in the
+Registered built-in systems (as of this repo): `gitlab`, `email`, `dev`, `browser`, `teams`,
+`zammad`, `sharepoint`, `mcp`. **Authoritative** are the `SetupDoc()`/`PromptDoc()` in the
 respective `internal/target/<name>/plugin.go` — the exact scopes and actions are there.
 Frequently used:
 
 | System | Scopes (ACCESS) | What for / core actions |
 |---|---|---|
-| `github` | `read,write,comment` | Issues/PRs: list_repos, list_issues (`repo` is `"owner/name"`), get_issue, checkout, read_file, create_issue, comment, list_comments, assign, set_labels, set_state, commit, create_pull_request, comment_pr, approve_pr, request_changes, list_workflow_runs, get_job_log, download_attachment. NOTE: no internal comments, no attachment upload |
 | `gitlab` | `read,write,comment` | Issues/MRs: list_issues (including `milestone`), get_issue, checkout, read_file, create_issue, comment, list_notes, assign, set_labels, set_state, commit, create_merge_request, comment_mr, approve_mr, upload, download_upload |
 | `email` | `read,write` | IMAP/SMTP: list_unread, get_message, reply, mark_seen, get_attachment (the attachment into the sandbox, then the read tool/vision) |
 | `dev` | `exec,processes` | The sandbox shell: exec, start/stop/logs/list (bring a dev server up) |
