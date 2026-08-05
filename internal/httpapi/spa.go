@@ -40,8 +40,21 @@ func (s *Server) spaHandler(dist fs.FS) http.Handler {
 	fileServer := http.FileServer(http.FS(dist))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// /funktion/ and /funktion would be two addresses with the same content.
+		//
+		// The target is built from the request path, so it has to stay a path.
+		// `//evil.com/` would become `//evil.com` — for a browser that is not a
+		// path but a protocol-relative URL, and thus an open redirect off our
+		// own host. In production http.ServeMux normalises that away before we
+		// see it (a 307 to /evil.com/), but that is a property of the mounting,
+		// not of this handler: whoever mounts it differently would inherit the
+		// hole. So the check belongs here, where the target is built.
 		if r.URL.Path != "/" && strings.HasSuffix(r.URL.Path, "/") {
-			http.Redirect(w, r, strings.TrimRight(r.URL.Path, "/"), http.StatusMovedPermanently)
+			ziel := strings.TrimRight(r.URL.Path, "/")
+			if !istLokalerPfad(ziel) {
+				http.NotFound(w, r)
+				return
+			}
+			http.Redirect(w, r, ziel, http.StatusMovedPermanently)
 			return
 		}
 
@@ -91,6 +104,19 @@ func (s *Server) spaHandler(dist fs.FS) http.Handler {
 		}
 		s.schreibeHTML(w, r, daten, http.StatusNotFound)
 	})
+}
+
+// istLokalerPfad says whether a redirect target stays on this host: exactly one
+// leading slash. A browser reads `//host` as an address somewhere else, and
+// `/\host` the same way — some proxies turn the backslash into a slash before
+// the browser ever sees it.
+//
+// A scheme needs no check of its own: anything starting with a slash can no
+// longer be one.
+func istLokalerPfad(ziel string) bool {
+	return strings.HasPrefix(ziel, "/") &&
+		!strings.HasPrefix(ziel, "//") &&
+		!strings.HasPrefix(ziel, "/\\")
 }
 
 // schreibeHTML inserts the address of this installation into the prerendered
