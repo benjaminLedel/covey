@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -243,13 +244,27 @@ func (s *ManifestSystem) Execute(ctx context.Context, action string, params json
 
 	// Substitute {param} placeholders in the path; the params used that way
 	// drop out of the body candidate.
+	//
+	// The value is ESCAPED, and that is not cosmetic. The path of a manifest
+	// action is the boundary the action is scoped to — the guard rails govern
+	// `system:action`, and the manifest author decided which endpoint that
+	// reaches. An unescaped value breaks out of it: a parameter `../../admin`
+	// turns an action on /tickets/{id} into a call to a completely different
+	// endpoint of the same system. The value comes from the agent, and by our
+	// own threat model (spec/04) the agent is not a trustworthy source — a
+	// prompt-injected agent is exactly the case this is written for.
 	path := a.Path
 	for key, raw := range p {
 		ph := "{" + key + "}"
-		if strings.Contains(path, ph) {
-			path = strings.ReplaceAll(path, ph, rawToString(raw))
-			delete(p, key)
+		if !strings.Contains(path, ph) {
+			continue
 		}
+		value := rawToString(raw)
+		if err := checkPathParam(key, value); err != nil {
+			return nil, err
+		}
+		path = strings.ReplaceAll(path, ph, url.PathEscape(value))
+		delete(p, key)
 	}
 	if strings.Contains(path, "{") {
 		return nil, fmt.Errorf("action %q: unresolved placeholder in %q", action, path)
@@ -357,6 +372,27 @@ func jsonEqual(a, b json.RawMessage) bool {
 	ar, _ := json.Marshal(av)
 	br, _ := json.Marshal(bv)
 	return bytes.Equal(ar, br)
+}
+
+// checkPathParam rejects values that would change the MEANING of a path
+// instead of filling a slot in it. url.PathEscape alone is not enough: it
+// encodes the separator, but leaves the dot segments "." and ".." untouched —
+// and a segment consisting solely of ".." shifts the request up one level even
+// without a slash of its own.
+//
+// Control characters are refused on top of that. They have no business in a
+// path segment, and a value with CR/LF in it is the classic building block of
+// request smuggling as soon as a proxy sits in between.
+func checkPathParam(key, value string) error {
+	if value == "." || value == ".." {
+		return fmt.Errorf("parameter %q: %q is a path segment, not a value", key, value)
+	}
+	for _, r := range value {
+		if r < 0x20 || r == 0x7f {
+			return fmt.Errorf("parameter %q contains a control character", key)
+		}
+	}
+	return nil
 }
 
 func rawToString(raw json.RawMessage) string {

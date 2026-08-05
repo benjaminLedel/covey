@@ -43,10 +43,14 @@ func TestEscapeAttempts(t *testing.T) {
 		}
 	}
 	// Absolute paths are read as relative to the root, not as a host path.
-	if _, _, err := fs.resolve("/etc/passwd"); err != nil {
+	if c, err := clean("/etc/passwd"); err != nil {
 		t.Fatalf("absolute path: %v", err)
-	} else if abs, _, _ := fs.resolve("/etc/passwd"); abs != filepath.Join(root, "etc", "passwd") {
-		t.Errorf("absolute path lands at %q, expected below the root", abs)
+	} else if c != "etc/passwd" {
+		t.Errorf("absolute path becomes %q, expected etc/passwd (below the root)", c)
+	}
+	// And it stays a claim about the file below the home, not about the host's.
+	if _, err := fs.Read("/etc/passwd"); err == nil {
+		t.Error("Read(\"/etc/passwd\") found something — that must not be the host's file")
 	}
 }
 
