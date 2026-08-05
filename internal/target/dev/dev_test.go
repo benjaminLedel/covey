@@ -289,3 +289,93 @@ func groupHasLive(pgid int) bool {
 	}
 	return false
 }
+
+// TestJobOutlivesTheRun is the case that cost the QA agent its acceptances: a
+// test suite runs as a job, the run ends before it — and the next run has to be
+// able to read the result. "The next run" is simulated here by a supervisor that
+// no longer knows the process, with the same home.
+func TestJobOutlivesTheRun(t *testing.T) {
+	home := t.TempDir()
+	execute(t, home, "start", `{"name":"suite-mr1685","cmd":"echo 'Tests: 336, Failures: 7'; exit 1"}`)
+
+	// Wait for the end of the process — the record is only complete then.
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if rec, ok := readJobRecord(home, "suite-mr1685"); ok && rec.EndedAt != "" {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	// The new run: a fresh supervisor without any memory of the process.
+	old := super
+	super = &supervisor{procs: map[string]*process{}}
+	t.Cleanup(func() { super = old })
+
+	logs := execute(t, home, "logs", `{"name":"suite-mr1685"}`).(map[string]any)
+	if logs["from_earlier_run"] != true {
+		t.Fatalf("the answer has to say that it comes from an earlier run: %+v", logs)
+	}
+	if !strings.Contains(logs["logs"].(string), "Failures: 7") {
+		t.Fatalf("the suite's output has to survive the run: %+v", logs)
+	}
+	if exit, _ := logs["exit"].(string); !strings.Contains(exit, "exit status 1") {
+		t.Fatalf("the exit code has to survive the run: %+v", logs)
+	}
+
+	list := execute(t, home, "list", `{}`).([]map[string]any)
+	if len(list) != 1 || list[0]["name"] != "suite-mr1685" || list[0]["running"] != false {
+		t.Fatalf("list has to show the job of the earlier run: %+v", list)
+	}
+}
+
+// A job that never ended (sandbox gone) must not look green — the missing
+// outcome is a finding, not a pass.
+func TestUnfinishedJobIsNotAResult(t *testing.T) {
+	home := t.TempDir()
+	writeJobRecord(home, jobRecord{Name: "suite-mr1686", Cmd: "phpunit",
+		StartedAt: time.Now().UTC().Format(time.RFC3339)})
+
+	logs := execute(t, home, "logs", `{"name":"suite-mr1686"}`).(map[string]any)
+	exit, _ := logs["exit"].(string)
+	if !strings.Contains(exit, "unknown") {
+		t.Fatalf("an unfinished job must not report an exit code: %+v", logs)
+	}
+}
+
+// A job name is a file name — separators must not let it write outside the jobs
+// directory.
+func TestJobNameStaysInsideTheJobsDirectory(t *testing.T) {
+	home := t.TempDir()
+	execute(t, home, "start", `{"name":"../../escape","cmd":"echo x"}`)
+	time.Sleep(100 * time.Millisecond)
+	t.Cleanup(func() { super.shutdown() })
+
+	if _, err := os.Stat(filepath.Join(home, "escape.log")); err == nil {
+		t.Fatal("the job name must not write outside the jobs directory")
+	}
+	entries, err := os.ReadDir(filepath.Join(home, jobsSubdir))
+	if err != nil {
+		t.Fatalf("the jobs directory has to exist: %v", err)
+	}
+	for _, e := range entries {
+		if strings.Contains(e.Name(), "/") || strings.HasPrefix(e.Name(), "..") {
+			t.Fatalf("unsafe file name: %q", e.Name())
+		}
+	}
+}
+
+// Without a home (action outside a sandbox) the persistence switches off
+// silently — it must not break start.
+func TestJobWithoutHomeStillStarts(t *testing.T) {
+	ctx := context.Background() // no workdir in the context
+	res, err := System{}.Execute(ctx, "start",
+		json.RawMessage(`{"name":"ohne-home","cmd":"sleep 30"}`), target.Credential{})
+	if err != nil {
+		t.Fatalf("start without a home: %v", err)
+	}
+	t.Cleanup(func() { super.shutdown() })
+	if res.(map[string]any)["status"] != "running" {
+		t.Fatalf("start: %+v", res)
+	}
+}
