@@ -665,6 +665,17 @@ export type FileListing = {
   entries: FileEntry[];
 };
 
+/** Wieviel Platz das Home des Agenten belegt — und welche Arbeitskopien ihn
+ *  fressen. Vorher hat das nichts gemessen: Checkouts stapeln sich im
+ *  persistenten Home, bis ein Lauf am vollen Overlay stirbt. */
+export type FilesUsage = {
+  exists: boolean;
+  total_bytes: number;
+  free_bytes: number;
+  checkout_bytes: number;
+  checkouts: { name: string; bytes: number; mod_time: string }[];
+};
+
 export type FileContent = {
   path: string;
   size: number;

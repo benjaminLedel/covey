@@ -594,7 +594,10 @@
       "csvRows": "{{rows}} Zeilen · {{cols}} Spalten",
       "csvTruncated": "Erste {{shown}} Zeilen · {{cols}} Spalten — vollständig im Quelltext.",
       "save": "Speichern",
-      "saving": "Speichert …"
+      "saving": "Speichert …",
+      "disk": "Platte",
+      "diskUsed": "{{used}} von {{total}} belegt ({{pct}} %)",
+      "diskCheckouts": "{{count}} Checkouts · {{size}}"
     },
     "cost": {
       "total": "Kosten gesamt",
