@@ -933,6 +933,9 @@
       "collapse": "Zuklappen",
       "undo": "Rückgängig",
       "undone": "zurückgenommen"
+    },
+    "lint": {
+      "title": "Konfiguration: {{count}} Befund(e)"
     }
   },
   "approvals": {

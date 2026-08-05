@@ -183,3 +183,63 @@ func TestLintCleanConfigIsSilent(t *testing.T) {
 		}
 	}
 }
+
+// The turn-limit finding has to name the limit even when the agent sets none of
+// its own. The condition used to read `MaxTurns > 0 && MaxTurns < 50` and so
+// kept quiet in exactly the case where it matters most: 0 means the agent runs
+// against the default of 30, the tightest value there is. That was the
+// situation of tester-1 — 22 of 23 failures at the turn limit, and the rule
+// that would have said so said nothing about it.
+func TestLintTurnLimitNamesTheDefault(t *testing.T) {
+	f := Lint(Subject{
+		Slug:              "tester-1",
+		Files:             map[string]string{"ACCESS.md": "- system: email scope: read"},
+		TurnLimitFailures: 22,
+		MaxTurns:          0,
+	})
+	hint := findingHint(t, f, "frequent-turn-limit-aborts")
+	if !strings.Contains(hint, "max_turns") || !strings.Contains(hint, "30") {
+		t.Fatalf("the hint has to name the effective limit: %q", hint)
+	}
+}
+
+// With a heavy system the recommendation tips: whoever checks out a repo,
+// installs dependencies and runs a test suite does not manage it in 30 turns,
+// however small the assignment is cut.
+func TestLintTurnLimitPointsAtTheSubAgentForRepoWork(t *testing.T) {
+	f := Lint(Subject{
+		Slug:              "tester-1",
+		Files:             map[string]string{"ACCESS.md": "- system: gitlab scope: read,write\n- system: dev scope: exec"},
+		TurnLimitFailures: 22,
+		MaxTurns:          0,
+	})
+	hint := findingHint(t, f, "frequent-turn-limit-aborts")
+	if !strings.Contains(hint, "dev agent") {
+		t.Fatalf("for repo work the sub-agent is the way out, not a smaller assignment: %q", hint)
+	}
+}
+
+// An agent that has raised its limit far enough is not nagged about max_turns.
+func TestLintTurnLimitStaysQuietAboutAGenerousLimit(t *testing.T) {
+	f := Lint(Subject{
+		Slug:              "x",
+		Files:             map[string]string{"ACCESS.md": "- system: gitlab scope: read"},
+		TurnLimitFailures: 5,
+		MaxTurns:          150,
+	})
+	hint := findingHint(t, f, "frequent-turn-limit-aborts")
+	if strings.Contains(hint, "max_turns") {
+		t.Fatalf("at 150 turns the limit is not the problem: %q", hint)
+	}
+}
+
+func findingHint(t *testing.T, findings []Finding, rule string) string {
+	t.Helper()
+	for _, f := range findings {
+		if f.Rule == rule {
+			return f.Hint
+		}
+	}
+	t.Fatalf("finding %q missing from %+v", rule, findings)
+	return ""
+}

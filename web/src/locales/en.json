@@ -933,6 +933,9 @@
       "collapse": "Collapse",
       "undo": "Undo",
       "undone": "undone"
+    },
+    "lint": {
+      "title": "Configuration: {{count}} finding(s)"
     }
   },
   "approvals": {

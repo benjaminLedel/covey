@@ -39,10 +39,6 @@ import (
 	targetstore "covey/internal/target/store"
 )
 
-// defaultMaxTurns is the runaway guard per runtime run when the agent has not
-// set a turn limit of its own (agents.max_turns = 0).
-const defaultMaxTurns = 30
-
 // DaemonLink abstracts the bidirectional connection to a sandbox daemon. The
 // HTTP layer implements it over WebSocket; tests do it in-process.
 type DaemonLink interface {
@@ -1262,7 +1258,7 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 
 	maxTurns := agent.MaxTurns
 	if maxTurns <= 0 {
-		maxTurns = defaultMaxTurns
+		maxTurns = agents.DefaultMaxTurns
 	}
 	if err := o.sendMsg(ctx, link, daemon.TypeInjectConfig, daemon.InjectConfig{
 		SystemPrompt: compiled,

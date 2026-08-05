@@ -86,6 +86,12 @@ var stageWithItemID = regexp.MustCompile(`[#!]\d+`)
 // longer shows states but a history.
 const maxAgentStages = 8
 
+// DefaultMaxTurns is the runaway guard per runtime run when the agent has not
+// set a turn limit of its own (agents.max_turns = 0). It lives here rather than
+// in the orchestrator because the lint has to name it: a finding that says "too
+// few turns" without saying how few is not actionable.
+const DefaultMaxTurns = 30
+
 // Lint checks an agent and returns the findings, most severe first.
 func Lint(s Subject) []Finding {
 	var out []Finding
@@ -317,9 +323,28 @@ func lintTurnLimit(s Subject) []Finding {
 	if s.TurnLimitFailures < 3 {
 		return nil
 	}
+	// The effective limit, not the configured one. The condition used to read
+	// `s.MaxTurns > 0 && s.MaxTurns < 50` and so kept quiet about max_turns in
+	// exactly the case where it matters most: 0 means the agent has set NO limit
+	// of its own and runs against the default of 30 — the tightest value there
+	// is. That was the situation of tester-1, which had 22 of its 23 failures at
+	// the turn limit and never got told.
+	limit, source := s.MaxTurns, "currently %d"
+	if limit <= 0 {
+		limit, source = DefaultMaxTurns, "currently the default of %d, because the agent sets none of its own"
+	}
 	hint := "Cut the assignment smaller (playbook step: close off the partial result, file the rest via covey/create_task)"
-	if s.MaxTurns > 0 && s.MaxTurns < 50 {
-		hint += fmt.Sprintf(" or raise max_turns (currently %d)", s.MaxTurns)
+	if limit < 50 {
+		hint += fmt.Sprintf(" or raise max_turns ("+source+")", limit)
+	}
+	// Heavy systems tip the recommendation the other way: whoever checks out a
+	// repo, installs dependencies and runs a test suite does not manage it in 30
+	// turns, no matter how small the assignment is cut.
+	if heavy := joinHeavy(lintSystems(s.Files["ACCESS.md"])); heavy != "" && limit < 50 {
+		hint = fmt.Sprintf("With %s a run needs turns for checkout, setup, build and test — %d is too few for that. "+
+			"Raise max_turns (100–150 is realistic for repo work) and hand the heavy part to a sub-agent "+
+			"(dev agent with its own turn budget) instead of doing it yourself, step by step, in the main run",
+			heavy, limit)
 	}
 	return []Finding{{
 		AgentSlug: s.Slug, Rule: "frequent-turn-limit-aborts", Severity: SeverityWarn,

@@ -200,6 +200,19 @@ export type OrgCostReport = Tokens & {
   models: ModelCost[] | null;
 };
 
+/** Ein Befund des Config-Lints (internal/agents/lint.go). Warnungen mit
+ *  Kontext, keine harten Fehler: eine 2-Minuten-Frequenz ist für ein Postfach
+ *  in Ordnung und für einen Repo-Klon ruinös. */
+export type LintFinding = {
+  agent_slug: string;
+  rule: string;
+  severity: "warn" | "info";
+  file?: string;
+  line?: number;
+  message: string;
+  hint: string;
+};
+
 export type Human = {
   id: string;
   org_id: string;
