@@ -88,13 +88,13 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 	case "agent":
 		return runSubAgent(ctx, in.Cwd, in.Task, in.Model, in.MaxTurns)
 	case "start":
-		return super.start(in.Name, in.Cmd, dir)
+		return super.start(in.Name, in.Cmd, dir, target.Workdir(ctx))
 	case "stop":
 		return super.stop(in.Name)
 	case "logs":
-		return super.logs(in.Name, in.TailLines)
+		return super.logs(in.Name, in.TailLines, target.Workdir(ctx))
 	case "list":
-		return super.list(), nil
+		return super.list(target.Workdir(ctx)), nil
 	default:
 		return nil, fmt.Errorf("unknown action %q", strings.TrimSpace(action))
 	}
@@ -223,6 +223,15 @@ func (System) PromptDoc() string {
    background (a dev server, a database, a headless browser); it keeps running while you perform other
    actions. logs {"name":"app","tail_lines":100} shows its last output, list {} all processes
    with their status, stop {"name":"app"} ends the whole process group (SIGTERM, SIGKILL after 5s).
+   A JOB OUTLIVES YOUR RUN. exec breaks off after at most 15 minutes — anything longer (a full test
+   suite, a long build) belongs in start, and there is a second reason for that: output and exit code
+   of a started job are recorded in your home. Should your run end before the job does — at the turn
+   limit, say — the NEXT run reads the outcome with logs {"name":"…"}, even after a sandbox restart.
+   Such an answer carries "from_earlier_run":true and, in "exit", either the exit code or the note that
+   the job did not outlive its sandbox. So take the FIRST step of a run over an unfinished job to be
+   list {} — never start a suite a second time whose result is already lying there. Choose a name that
+   still says something in the next run ("suite-mr1685", not "test1"): the record belongs to the name,
+   and a new start under the same name overwrites its predecessor's log.
    The typical procedure for really seeing a web app run instead of only reading its code:
    1. Install the dependencies: exec {"cmd":"npm install"} (or pip/go — the package registries
       have to be released in the egress).
@@ -236,6 +245,7 @@ func (System) PromptDoc() string {
       The PNG then lies in your home: open it with your read tool — you can see images and thereby
       recognise layout errors, empty pages or error messages in the UI yourself.
    5. Pull findings from logs, at the end stop everything you started.
-   Processes only live until the end of your waking phase — the platform clears them away when you fall
-   asleep; start them anew in a new waking phase instead of relying on old ones.`
+   The PROCESSES only live until the end of your waking phase — the platform clears them away when you
+   fall asleep; start a dev server anew in a new waking phase instead of relying on an old one. What
+   survives is the RECORD of a job: its log and its exit code stay readable with logs/list.`
 }

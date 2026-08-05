@@ -242,15 +242,23 @@ the QA agent's intake side is needed.
    non-system comment is not from the QA bot). A freshly handed-over MR without
    a comment **does** count as work here — it is waiting for the first review
    (unlike in the developer loop, where a fresh MR waits for the reviewer).
-3. The QA agent checks the **source branch** out, sets the project up, **starts
-   the application and plays the feature through end to end** (not just reading
-   the diff), checks it against the acceptance criteria from the issue/MR and
-   runs the full test suite.
+3. The QA agent brings its **working tree for the project** to the source branch
+   (one tree per project, kept across acceptances — not one per MR), **starts
+   the application and plays the feature through end to end** in the browser
+   (not just reading the diff) and supports states and defects with screenshots
+   it attaches to the MR. The full test suite runs as a **job** (`dev start`):
+   its result is recorded in the sandbox home and stays readable in the next run
+   even if this one ends at the turn limit.
 4. The result by `comment_mr`: on defects concretely with file:line and a
    reproduction (the developer agent works them in through its `gitlab:mr`
    loop); if everything is green, the QA agent says so explicitly and releases
-   it with `approve_mr`. Merging is done **by the human** — the QA agent never
-   merges itself.
+   it with `approve_mr`.
+5. **The merge**, where the tool `merge_mr` is assigned to the agent: it merges
+   only its own acceptance. The action checks fail-closed beforehand that the MR
+   is open and free of conflicts, every blocking discussion is resolved, the
+   pipeline of the head commit is green and the agent's own approval is on
+   record — and merges exactly the commit it saw. Without `merge_mr` the
+   approval stays its last word and the merging is done by the human.
 
 **Setting up the QA agent.** A ready-made example sits under
 `examples/qa-agent.bundle.json` (SOUL/CAPABILITIES/PLAYBOOKS/ACCESS/HEARTBEAT
@@ -281,9 +289,18 @@ remaining three are **master data** the bundle deliberately does not carry
 
 Its own bot user has to exist in GitLab (e.g. `covey-qa`, the Reporter role is
 enough for commenting; for `approve_mr` Reporter suffices too, provided the
-project allows approvals). Its token sits in the QA agent's `gitlab_token` — so
-the developer and QA agents write under **different** GitLab users, and the
-review loop distinguishes "author" from "reviewer" cleanly.
+project allows approvals). For `merge_mr` it needs at least **developer**, and
+`maintainer` on protected target branches. Its token sits in the QA agent's
+`gitlab_token` — so the developer and QA agents write under **different** GitLab
+users, and the review loop distinguishes "author" from "reviewer" cleanly. That
+separation is what carries the merge gate: GitLab lets nobody approve their own
+merge request, so a developer agent can never merge its own work, whatever its
+tool assignment says.
+
+Whoever does not want an autonomous merge takes the tool `merge_mr` out of the
+QA agent's ACCESS.md (then only `approve_mr` remains) or denies the subject
+`gitlab:merge_mr` organisation-wide by a guard rail — with the decision
+`ask` the merge lands on the Approvals page and a human clicks it through.
 
 > **Egress:** for the QA agent to really be able to start the application, its
 > sandbox needs the same package registries as the developer agent (npm/PyPI/Go

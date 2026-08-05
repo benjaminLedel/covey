@@ -2111,3 +2111,170 @@ func TestPlain401StaysATokenProblem(t *testing.T) {
 		t.Fatalf("a plain 401 stays a credential problem: %v", err)
 	}
 }
+
+// mergeGateServer is a GitLab double for the merge gate: it delivers one MR,
+// its approval state and takes the merge. mrState/approvals are set by the test
+// beforehand; mergeBody records what was actually merged.
+type mergeGateServer struct {
+	mr        MergeRequestDetail
+	approvals MRApprovals
+	me        string
+	mergeBody map[string]any
+	merges    int
+}
+
+func (g *mergeGateServer) start(t *testing.T) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v4/user":
+			json.NewEncoder(w).Encode(User{ID: 8, Username: g.me})
+		case r.URL.Path == "/api/v4/projects/40/merge_requests/1685" && r.Method == http.MethodGet:
+			json.NewEncoder(w).Encode(g.mr)
+		case r.URL.Path == "/api/v4/projects/40/merge_requests/1685/approvals":
+			json.NewEncoder(w).Encode(g.approvals)
+		case r.URL.Path == "/api/v4/projects/40/merge_requests/1685/merge" && r.Method == http.MethodPut:
+			g.merges++
+			json.NewDecoder(r.Body).Decode(&g.mergeBody)
+			merged := g.mr
+			merged.State = "merged"
+			json.NewEncoder(w).Encode(merged)
+		default:
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// greenMR is the state in which a merge is permitted: open, free of conflicts,
+// discussions resolved, pipeline green — the approval comes from the approvals
+// object.
+func greenMR() MergeRequestDetail {
+	return MergeRequestDetail{
+		IID: 1685, State: "opened", SHA: "f47dacf6", TargetBranch: "educa-x-bugfix",
+		DetailedMergeStatus:         "mergeable",
+		BlockingDiscussionsResolved: true,
+		HeadPipeline:                &Pipeline{ID: 47720, Status: "success"},
+	}
+}
+
+// TestMergeMROnlyAfterOwnApproval: the reviewer merges what they themselves
+// accepted — and merges exactly the commit they saw (sha).
+func TestMergeMROnlyAfterOwnApproval(t *testing.T) {
+	g := &mergeGateServer{mr: greenMR(), me: "egon.rastlos",
+		approvals: MRApprovals{UserHasApproved: true}}
+	srv := g.start(t)
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	out, err := sys.Execute(context.Background(), "merge_mr", []byte(`{"project_id":40,"mr_iid":1685}`), cred)
+	if err != nil {
+		t.Fatalf("merge_mr on a green MR: %v", err)
+	}
+	if m := out.(map[string]any); m["merged"] != true || m["sha"] != "f47dacf6" {
+		t.Fatalf("the merge result is wrong: %+v", out)
+	}
+	if g.mergeBody["sha"] != "f47dacf6" {
+		t.Fatalf("the reviewed commit has to be pinned on the merge: %+v", g.mergeBody)
+	}
+	if g.mergeBody["should_remove_source_branch"] != true {
+		t.Fatalf("the source branch is removed after the merge: %+v", g.mergeBody)
+	}
+}
+
+// TestMergeMRRefusesUnacceptedStates is the actual point of the gate: everything
+// the agent cannot judge from its own run blocks the merge — and the refusal
+// says why, so the agent can pass the reason on per comment_mr.
+func TestMergeMRRefusesUnacceptedStates(t *testing.T) {
+	cases := map[string]struct {
+		mutate func(*mergeGateServer)
+		reason string
+	}{
+		"not approved by oneself": {
+			func(g *mergeGateServer) { g.approvals = MRApprovals{} },
+			"your own approval is not on record",
+		},
+		"approved by someone else": {
+			func(g *mergeGateServer) {
+				g.approvals = MRApprovals{}
+				json.Unmarshal([]byte(`{"approved_by":[{"user":{"username":"tabea.schwarz"}}]}`), &g.approvals)
+			},
+			"your own approval is not on record",
+		},
+		"pipeline red": {
+			func(g *mergeGateServer) { g.mr.HeadPipeline = &Pipeline{ID: 1, Status: "failed"} },
+			"not green",
+		},
+		"pipeline still running": {
+			func(g *mergeGateServer) { g.mr.HeadPipeline = &Pipeline{ID: 1, Status: "running"} },
+			"not green",
+		},
+		"no pipeline at all": {
+			func(g *mergeGateServer) { g.mr.HeadPipeline = nil },
+			"no pipeline has run",
+		},
+		"discussion open": {
+			func(g *mergeGateServer) { g.mr.BlockingDiscussionsResolved = false },
+			"unresolved discussions",
+		},
+		"conflicts": {
+			func(g *mergeGateServer) { g.mr.HasConflicts = true },
+			"conflicts",
+		},
+		"already merged": {
+			func(g *mergeGateServer) { g.mr.State = "merged" },
+			"not open",
+		},
+		"gitlab says not mergeable": {
+			func(g *mergeGateServer) { g.mr.DetailedMergeStatus = "ci_still_running" },
+			"not consider the merge request mergeable",
+		},
+		"further approval required": {
+			func(g *mergeGateServer) {
+				g.approvals = MRApprovals{UserHasApproved: true, ApprovalsLeft: 1}
+			},
+			"further approval",
+		},
+		"no head commit": {
+			func(g *mergeGateServer) { g.mr.SHA = "" },
+			"no head commit",
+		},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			g := &mergeGateServer{mr: greenMR(), me: "egon.rastlos",
+				approvals: MRApprovals{UserHasApproved: true}}
+			tc.mutate(g)
+			srv := g.start(t)
+
+			sys := System{}
+			cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+			_, err := sys.Execute(context.Background(), "merge_mr", []byte(`{"project_id":40,"mr_iid":1685}`), cred)
+			if err == nil {
+				t.Fatal("the merge has to be refused")
+			}
+			if !strings.Contains(err.Error(), tc.reason) {
+				t.Fatalf("the refusal has to name the reason %q: %v", tc.reason, err)
+			}
+			if !strings.Contains(err.Error(), "comment_mr") {
+				t.Fatalf("the refusal has to say what to do instead: %v", err)
+			}
+			if g.merges != 0 {
+				t.Fatal("nothing may be merged in the refused case")
+			}
+		})
+	}
+}
+
+// TestMergeMRNeedsIDs — as with every action, missing parameters are an error,
+// not a merge on a guessed MR.
+func TestMergeMRNeedsIDs(t *testing.T) {
+	sys := System{}
+	cred := target.Credential{BaseURL: "http://127.0.0.1:1", Token: "t"}
+	for _, params := range []string{`{"project_id":40}`, `{"mr_iid":1685}`, `{}`} {
+		if _, err := sys.Execute(context.Background(), "merge_mr", []byte(params), cred); err == nil {
+			t.Fatalf("merge_mr must refuse %s", params)
+		}
+	}
+}
