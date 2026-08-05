@@ -334,7 +334,9 @@
     "runsN": "{{count}} runs",
     "byAgent": "By agent",
     "byModel": "By model",
-    "empty": "No cost data in the selected period."
+    "empty": "No cost data in the selected period.",
+    "ofWhichCached": "of it cached",
+    "cachedShare": "{{pct}}% out of the prompt cache"
   },
   "lang": {
     "toggle": "DE",
@@ -605,7 +607,8 @@
       "tokens": "Tokens (in / out)",
       "runs": "LLM runs",
       "budget": "Budget",
-      "noCap": "no cap"
+      "noCap": "no cap",
+      "cached": "{{n}} of it from the cache"
     },
     "backlog": {
       "newTask": "New task",

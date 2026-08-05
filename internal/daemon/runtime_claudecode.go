@@ -73,27 +73,44 @@ type streamEvent struct {
 	// "api_error", …). For the turn limit it is the more reliable source than
 	// subtype, because there only error_max_turns arrives.
 	TerminalReason string `json:"terminal_reason"`
-	Usage          struct {
-		InputTokens  int64 `json:"input_tokens"`
-		OutputTokens int64 `json:"output_tokens"`
+	// Usage: input_tokens counts ONLY the uncached input. With Claude Code
+	// practically the entire context comes out of the prompt cache, so that
+	// field stays in the low three digits while the run reads millions of
+	// tokens. Without the two cache fields the input side of the billing is
+	// off by three orders of magnitude — measured on a single run: 56
+	// input_tokens against 2,341,568 cache_read_input_tokens.
+	Usage struct {
+		InputTokens         int64 `json:"input_tokens"`
+		OutputTokens        int64 `json:"output_tokens"`
+		CacheReadTokens     int64 `json:"cache_read_input_tokens"`
+		CacheCreationTokens int64 `json:"cache_creation_input_tokens"`
 	} `json:"usage"`
+	// Message carries the model on the assistant events. The result event does
+	// NOT name it, which is why cost entries used to end up with an empty model
+	// and the cost breakdown reported everything as "unknown".
+	Message struct {
+		Model string `json:"model"`
+	} `json:"message"`
 }
 
 // outcome is the raw result of a single `claude` process, before it is mapped
 // onto a RunResult.
 type outcome struct {
-	sessionID    string
-	resultText   string
-	subtype      string
-	terminal     string
-	numTurns     int
-	isError      bool
-	errors       []string
-	costUSD      float64
-	inputTokens  int64
-	outputTokens int64
-	sawResult    bool
-	waitErr      error
+	sessionID           string
+	resultText          string
+	subtype             string
+	terminal            string
+	model               string
+	numTurns            int
+	isError             bool
+	errors              []string
+	costUSD             float64
+	inputTokens         int64
+	outputTokens        int64
+	cacheReadTokens     int64
+	cacheCreationTokens int64
+	sawResult           bool
+	waitErr             error
 }
 
 // truncated recognizes the run that ended at the turn limit: Claude Code then
@@ -105,8 +122,12 @@ func (o outcome) truncated() bool {
 }
 
 // maxTurnsSummaryPrompt fetches the interim state from the aborted session.
-// Deliberately terse and without tools: one turn on the already cached context
-// is practically free compared to the run that would otherwise be lost.
+// Deliberately terse and without tools: one turn against the already cached
+// context, and cheap compared to the run that would otherwise be lost — but not
+// free. Measured on a real handover: 0.63 USD for that single turn, because
+// --resume rewrites the cache (58,843 cache-creation tokens). That is the price
+// of the follow-up task, and it belongs in the billing, hence res is updated in
+// summarize().
 const maxTurnsSummaryPrompt = `Your run was cut off at the turn limit — you are NOT finished.
 Do not continue working now and do not call any tools. Answer only with a short
 handover state (max. 15 lines, Markdown) in exactly this structure:
@@ -203,6 +224,12 @@ func (c *ClaudeCode) stream(ctx context.Context, spec RunSpec, args []string, on
 		if ev.SessionID != "" {
 			out.sessionID = ev.SessionID
 		}
+		// The model is only named on the way past (system/init and every
+		// assistant event), never on the result. Whoever wants it has to pick it
+		// up here.
+		if ev.Message.Model != "" {
+			out.model = ev.Message.Model
+		}
 		if ev.Type == "result" {
 			out.sawResult = true
 			out.resultText = ev.Result
@@ -214,6 +241,8 @@ func (c *ClaudeCode) stream(ctx context.Context, spec RunSpec, args []string, on
 			out.costUSD = ev.TotalCostUSD
 			out.inputTokens = ev.Usage.InputTokens
 			out.outputTokens = ev.Usage.OutputTokens
+			out.cacheReadTokens = ev.Usage.CacheReadTokens
+			out.cacheCreationTokens = ev.Usage.CacheCreationTokens
 		}
 	}
 	out.waitErr = cmd.Wait()
@@ -231,10 +260,13 @@ func (c *ClaudeCode) Run(ctx context.Context, spec RunSpec, onEvent func(kind st
 	}
 
 	res := RunResult{
-		SessionID:    out.sessionID,
-		CostUSD:      out.costUSD,
-		InputTokens:  out.inputTokens,
-		OutputTokens: out.outputTokens,
+		SessionID:           out.sessionID,
+		CostUSD:             out.costUSD,
+		InputTokens:         out.inputTokens,
+		OutputTokens:        out.outputTokens,
+		CacheReadTokens:     out.cacheReadTokens,
+		CacheCreationTokens: out.cacheCreationTokens,
+		Model:               out.model,
 	}
 	resultText := out.resultText
 	if out.isError {
@@ -316,6 +348,11 @@ func (c *ClaudeCode) summarize(ctx context.Context, spec RunSpec, sessionID stri
 	res.CostUSD += out.costUSD
 	res.InputTokens += out.inputTokens
 	res.OutputTokens += out.outputTokens
+	res.CacheReadTokens += out.cacheReadTokens
+	res.CacheCreationTokens += out.cacheCreationTokens
+	if res.Model == "" {
+		res.Model = out.model
+	}
 	if err != nil || out.isError {
 		return ""
 	}

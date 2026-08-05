@@ -334,7 +334,9 @@
     "runsN": "{{count}} Läufe",
     "byAgent": "Nach Agent",
     "byModel": "Nach Modell",
-    "empty": "Keine Kostendaten im gewählten Zeitraum."
+    "empty": "Keine Kostendaten im gewählten Zeitraum.",
+    "ofWhichCached": "davon Cache",
+    "cachedShare": "{{pct}} % aus dem Prompt-Cache"
   },
   "lang": {
     "toggle": "EN",
@@ -605,7 +607,8 @@
       "tokens": "Tokens (in / out)",
       "runs": "LLM-Läufe",
       "budget": "Budget",
-      "noCap": "kein Deckel"
+      "noCap": "kein Deckel",
+      "cached": "davon {{n}} aus dem Cache"
     },
     "backlog": {
       "newTask": "Neue Aufgabe",

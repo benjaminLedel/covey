@@ -210,7 +210,13 @@ type Cost struct {
 	USD          float64 `json:"usd"`
 	InputTokens  int64   `json:"input_tokens"`
 	OutputTokens int64   `json:"output_tokens"`
-	Model        string  `json:"model,omitempty"`
+	// The cached input side, reported separately because it is priced
+	// separately. A daemon of an older build does not send the two fields; they
+	// then stay 0 and the entry looks the way it always did — no migration of
+	// running sandboxes needed.
+	CacheReadTokens     int64  `json:"cache_read_tokens,omitempty"`
+	CacheCreationTokens int64  `json:"cache_creation_tokens,omitempty"`
+	Model               string `json:"model,omitempty"`
 }
 
 // RequestWiki/InjectWiki broker the agent's wiki tools (covey/wiki_*) and the

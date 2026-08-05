@@ -212,3 +212,33 @@ EOF`)
 		t.Fatalf("without a WorkDir the run must start in the home, was %q", cwd)
 	}
 }
+
+// The cached input side is the point of the billing: input_tokens counts only
+// what did NOT come out of the prompt cache. With Claude Code that is a handful
+// of tokens against millions of cache reads — a run booked without the two
+// cache fields looks a thousand times cheaper than it is. The numbers are those
+// of a real run of tester-1.
+func TestClaudeCodeAdapterCountsCachedInputAndModel(t *testing.T) {
+	bin, home := fakeClaude(t, `
+cat <<'EOF'
+{"type":"assistant","session_id":"s","message":{"model":"claude-opus-5","content":"arbeite"}}
+{"type":"result","subtype":"success","session_id":"s","result":"fertig","total_cost_usd":2.39,"usage":{"input_tokens":56,"output_tokens":15804,"cache_read_input_tokens":2341568,"cache_creation_input_tokens":81936}}
+EOF`)
+	adapter := &ClaudeCode{Binary: bin}
+	res, err := adapter.Run(context.Background(), RunSpec{TaskID: "t", Title: "x", HomeDir: home},
+		func(string, json.RawMessage) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.InputTokens != 56 || res.CacheReadTokens != 2341568 || res.CacheCreationTokens != 81936 {
+		t.Fatalf("cached input side lost: %+v", res)
+	}
+	if got, want := res.TotalInputTokens(), int64(56+2341568+81936); got != want {
+		t.Fatalf("TotalInputTokens = %d, want %d", got, want)
+	}
+	// The result event does not name the model — it has to be picked up from the
+	// assistant events, otherwise every cost entry reads "unknown".
+	if res.Model != "claude-opus-5" {
+		t.Fatalf("model not recorded: %q", res.Model)
+	}
+}
