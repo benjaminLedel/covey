@@ -1914,6 +1914,19 @@ func (o *Orchestrator) brokerCredential(ctx context.Context, agent agents.Agent,
 		return daemon.InjectCredentials{RequestID: req.RequestID, System: req.System,
 			Granted: true, TTLSecs: int(o.DaemonTokenTTL.Seconds())}
 	}
+	// Systems whose secret only RAISES what they may do (CredentialsOptional,
+	// e.g. an NVD API key that lifts the public rate limit): a missing secret
+	// must not deny — the plugin works without one, only more slowly. Whatever
+	// is stored is passed on.
+	if d, ok := target.Describe(req.System); ok && d.CredentialsOptional {
+		token, _ := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_token")
+		baseURL, _ := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_url")
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
+			map[string]any{"system": req.System, "granted": true, "optional": true,
+				"authenticated": token != "", "ttl_secs": int(o.DaemonTokenTTL.Seconds())})
+		return daemon.InjectCredentials{RequestID: req.RequestID, System: req.System,
+			Granted: true, Token: token, BaseURL: baseURL, TTLSecs: int(o.DaemonTokenTTL.Seconds())}
+	}
 	// MCP servers carry their endpoint in the config; auth is optional. A
 	// missing token therefore does NOT deny — the server may be reachable
 	// without auth. The URL secret remains an optional override.

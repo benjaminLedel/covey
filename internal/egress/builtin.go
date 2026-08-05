@@ -136,6 +136,27 @@ var Builtins = []BuiltinTemplate{
 		},
 	},
 	{
+		Slug:        "vulndb",
+		Name:        "Vulnerability databases",
+		Description: "Look known vulnerabilities of package dependencies up (vulndb target system)",
+		Hosts: []BuiltinHost{
+			{Pattern: "api.osv.dev", Note: "OSV API — npm, Packagist and Pub in one batch query"},
+			{Pattern: "osv.dev", Note: "the advisory pages linked from the findings"},
+			{Pattern: "api.github.com", Note: "GitHub Advisory Database (public, 60 requests/hour without a token)"},
+			{Pattern: "services.nvd.nist.gov", Note: "NVD CVE API for the CVSS vector — 5 requests/30 s without a key"},
+			// Die Registries stehen auch in den Ökosystem-Templates (npm,
+			// composer, dart-flutter). Hier stehen sie erneut, weil ein
+			// Security-Agent NICHT baut: er braucht die Metadaten, um die
+			// nächste sichere Version zu bestimmen, aber keine der übrigen
+			// Hosts jener Templates. Doppelte Muster über Templates hinweg
+			// sind eine Vereinigungsmenge, kein Konflikt.
+			{Pattern: "registry.npmjs.org", Note: "npm metadata and the advisory endpoint of npm audit"},
+			{Pattern: "packagist.org", Note: "the security advisories composer audit reads"},
+			{Pattern: "repo.packagist.org", Note: "Composer metadata (p2/…) for the next safe version"},
+			{Pattern: "pub.dev", Note: "Dart/Flutter package metadata for the next safe version"},
+		},
+	},
+	{
 		Slug:        "container",
 		Name:        "Container registries",
 		Description: "Pull images from Docker Hub, GitHub and Quay",
