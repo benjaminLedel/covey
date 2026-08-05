@@ -41,7 +41,17 @@ const basisRouten = {
     total_usd: 0,
     input_tokens: 0,
     output_tokens: 0,
+    cache_read_tokens: 0,
+    cache_creation_tokens: 0,
     entries: 0,
+  },
+  [`/api/v1/agents/${AGENT_ID}/lint`]: [],
+  [`/api/v1/agents/${AGENT_ID}/files/usage`]: {
+    exists: false,
+    total_bytes: 0,
+    free_bytes: 0,
+    checkout_bytes: 0,
+    checkouts: [],
   },
   [`/api/v1/agents/${AGENT_ID}/backlog`]: [],
   [`/api/v1/agents/${AGENT_ID}/stages`]: [],
@@ -153,4 +163,45 @@ describe("Umleitung alter Reiter-Links", () => {
       expect(tab).toHaveAttribute("aria-selected", "true");
     });
   }
+});
+
+// Ein unbekannter ?tab=-Wert fiel vorher durch das `|| "backlog"` hindurch —
+// es greift nur bei null und leer —, und die Seite rendete unter der
+// Reiterleiste nichts. Ein von Hand getippter oder aus einer älteren Fassung
+// mitgebrachter Link soll irgendwo landen.
+describe("Unbekannte und englische Reiter-Namen", () => {
+  it("?tab=quatsch zeigt das Backlog statt einer leeren Seite", async () => {
+    zeigeAgent(`/agents/${AGENT_ID}?tab=quatsch`);
+    await screen.findByRole("heading", { name: "Test-Agent" });
+    expect(await screen.findByPlaceholderText("Titel")).toBeInTheDocument();
+  });
+
+  // Die englischen Namen der deutschen Slugs: wer „workspace" oder „settings"
+  // tippt, meint den Arbeitsplatz bzw. die Einstellungen.
+  for (const englisch of ["workspace", "files"]) {
+    it(`?tab=${englisch} oeffnet den Arbeitsplatz`, async () => {
+      const { netz } = zeigeAgent(`/agents/${AGENT_ID}?tab=${englisch}`);
+      await screen.findByRole("heading", { name: "Test-Agent" });
+      await waitFor(() => expect(netz.calls.some((c) => c.includes("/files"))).toBe(true));
+    });
+  }
+
+  it("?tab=settings landet unter Einstellungen → Allgemein", async () => {
+    zeigeAgent(`/agents/${AGENT_ID}?tab=settings`);
+    await screen.findByRole("heading", { name: "Test-Agent" });
+    const tab = await screen.findByRole("tab", { name: "Allgemein" });
+    expect(tab).toHaveAttribute("aria-selected", "true");
+  });
+});
+
+// Das Recording behauptete „noch keine Aufzeichnung", solange die Abfrage lief
+// — bei einem Agenten mit 178 Läufen liest man das als Befund und sucht an der
+// falschen Stelle weiter.
+describe("Ladezustand ist kein Befund", () => {
+  it("zeigt beim Recording erst den Ladehinweis, dann die Leermeldung", async () => {
+    zeigeAgent(`/agents/${AGENT_ID}?tab=recording`);
+    expect(await screen.findByText("lädt …")).toBeInTheDocument();
+    expect(await screen.findByText(/noch keine Aufzeichnung/i)).toBeInTheDocument();
+    expect(screen.queryByText("lädt …")).not.toBeInTheDocument();
+  });
 });

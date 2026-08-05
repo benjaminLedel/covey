@@ -761,8 +761,13 @@ func (System) PromptDoc() string {
    You build that reference into the comment_mr body so that the screenshot is visible directly in the merge request — that
    is how you support a UI behaviour or a defect with a picture, not only with words.
    checkout {"project_id":N,"ref":"branch|tag|sha (optional, default: the default branch)","path":"subdirectory (optional)"} —
-   loads the project's source into your sandbox and returns the local path; if it fails because of the repo size,
-   check a subdirectory out deliberately (path) or work without a checkout:
+   loads the project's source into your sandbox and returns the repository root in "path". ONE checkout without
+   "path" is the normal case and gets you the whole project. Only if that fails on the repo size do you fetch
+   subdirectories with "path": they land at their upstream place UNDER the same root and grow into one working
+   tree, so fetch everything the project needs to build BEFORE you start working — every checkout redraws the
+   baseline commit. Do not check a repository out subdirectory by subdirectory as a matter of course; each call
+   costs you a turn, and half a project builds and tests as badly as none. If you only want to READ, do without
+   a checkout entirely:
    list_tree {"project_id":N,"path":"...","ref":"...","recursive":true|false} lists the repository tree (max. 100 entries —
    narrow it with path), read_file {"project_id":N,"file_path":"path/to/file","ref":"..."} reads a single file,
    create_issue {"project_id":N,"title":"...","description":"... (Markdown)","labels":"bug,intake (optional)","assignee":"gitlab-username (optional)"} —

@@ -377,12 +377,27 @@ type SystemDoc struct {
 }
 
 // DocsForAgent collects the prompt docs of the target systems activated for
-// the organization (built-ins, manifest and MCP plugins), for MCP filtered down
-// to the tools assigned to the agent (an empty assignment = all tools).
+// the organization (built-ins, manifest and MCP plugins) AND granted to the
+// agent in ACCESS.md, for MCP filtered down to the tools assigned to the agent
+// (an empty assignment = all tools).
 //
-// Activation is opt-in (fail-closed): a built-in without a row with
-// enabled=TRUE does not show up.
+// Two conditions, and the second one used to be missing. The organisation's
+// activation decided alone which docs went into a prompt — so every agent
+// carried the instructions for every enabled system around, including the ones
+// whose credentials the broker refuses it (HasAccess, ACCESS.md). That is wrong
+// twice over: it invites the agent to attempt something that cannot work, and
+// it is expensive. The built-in docs measure around 11,000 tokens in total,
+// GitLab and GitHub about 4,000 each — and they sit in the context of EVERY
+// turn. A run of tester-1 read 2.34 million cached tokens across 31 turns;
+// every token that need not be in there is saved 31 times over.
+//
+// Activation is opt-in (fail-closed) on both sides: neither a built-in without
+// a row with enabled=TRUE nor a system without a line in ACCESS.md shows up.
 func (s *Store) DocsForAgent(ctx context.Context, orgID, agentID uuid.UUID) ([]SystemDoc, error) {
+	granted, err := s.agentSystemSet(ctx, agentID)
+	if err != nil {
+		return nil, err
+	}
 	rows, err := s.pool.Query(ctx,
 		`SELECT name, kind, enabled, manifest FROM target_plugins WHERE org_id=$1`, orgID)
 	if err != nil {
@@ -398,7 +413,7 @@ func (s *Store) DocsForAgent(ctx context.Context, orgID, agentID uuid.UUID) ([]S
 		if err := rows.Scan(&name, &kind, &enabled, &manifest); err != nil {
 			return nil, err
 		}
-		if !enabled {
+		if !enabled || !granted[name] {
 			continue
 		}
 		switch kind {
@@ -425,7 +440,7 @@ func (s *Store) DocsForAgent(ctx context.Context, orgID, agentID uuid.UUID) ([]S
 	}
 	// Built-ins only with explicit activation (opt-in, fail-closed).
 	for _, d := range target.All() {
-		if enabledBuiltin[d.Name] && d.System != nil {
+		if enabledBuiltin[d.Name] && granted[d.Name] && d.System != nil {
 			docs = append(docs, SystemDoc{System: d.Name, Doc: d.System.PromptDoc()})
 		}
 	}
@@ -444,6 +459,27 @@ func (s *Store) EnabledDocsForAgent(ctx context.Context, orgID, agentID uuid.UUI
 		out = append(out, d.Doc)
 	}
 	return out, nil
+}
+
+// agentSystemSet is the set of target systems the agent has a line for in
+// ACCESS.md — the same table the credential broker asks (agents.HasAccess).
+// Read here rather than through the agent registry so the target store does not
+// have to depend on it for one query.
+func (s *Store) agentSystemSet(ctx context.Context, agentID uuid.UUID) (map[string]bool, error) {
+	rows, err := s.pool.Query(ctx, `SELECT system FROM system_accesses WHERE agent_id=$1`, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	set := map[string]bool{}
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		set[strings.TrimSpace(name)] = true
+	}
+	return set, rows.Err()
 }
 
 // AgentTools returns the tools assigned to an agent for a system. An empty

@@ -338,7 +338,9 @@
     "runsN": "{{count}} runs",
     "byAgent": "By agent",
     "byModel": "By model",
-    "empty": "No cost data in the selected period."
+    "empty": "No cost data in the selected period.",
+    "ofWhichCached": "of it cached",
+    "cachedShare": "{{pct}}% out of the prompt cache"
   },
   "lang": {
     "toggle": "DE",
@@ -602,14 +604,18 @@
       "csvRows": "{{rows}} rows · {{cols}} columns",
       "csvTruncated": "First {{shown}} rows · {{cols}} columns — see the source for all of it.",
       "save": "Save",
-      "saving": "Saving …"
+      "saving": "Saving …",
+      "disk": "Disk",
+      "diskUsed": "{{used}} of {{total}} used ({{pct}}%)",
+      "diskCheckouts": "{{count}} checkouts · {{size}}"
     },
     "cost": {
       "total": "Total cost",
       "tokens": "Tokens (in / out)",
       "runs": "LLM runs",
       "budget": "Budget",
-      "noCap": "no cap"
+      "noCap": "no cap",
+      "cached": "{{n}} of it from the cache"
     },
     "backlog": {
       "newTask": "New task",
@@ -678,7 +684,11 @@
       "onlyIf": "only if {{system}} reports work",
       "onlyIfHint": "Before each run the control plane asks the target system {{system}} whether there is work (e.g. unread mail) — otherwise the run is skipped without waking the agent.",
       "system": "Platform",
-      "systemHint": "Platform-wide default heartbeat (not from HEARTBEAT.md) — override per agent with a same-titled HEARTBEAT.md entry."
+      "systemHint": "Platform-wide default heartbeat (not from HEARTBEAT.md) — override per agent with a same-titled HEARTBEAT.md entry.",
+      "pausedWhileStopped": "paused — the agent is stopped, the scheduler does not fire",
+      "stopped": "stopped",
+      "stoppedHint": "While the agent is stopped no tick creates a task. “Resume” starts the schedule again.",
+      "serverTime": "HEARTBEAT.md says {{time}} (server time)"
     },
     "webhook": {
       "desc": "Optional webhook trigger: a POST to the URL creates a backlog task and wakes the agent — for external systems without a target plugin (CI, cron, Zapier, monitoring).",
@@ -931,6 +941,9 @@
       "collapse": "Collapse",
       "undo": "Undo",
       "undone": "undone"
+    },
+    "lint": {
+      "title": "Configuration: {{count}} finding(s)"
     }
   },
   "approvals": {
@@ -1495,5 +1508,8 @@
     "timeJustNow": "just now",
     "timeMinutes": "{{n}} min ago",
     "timeHours": "{{n}} h ago"
+  },
+  "common": {
+    "loading": "loading …"
   }
 }

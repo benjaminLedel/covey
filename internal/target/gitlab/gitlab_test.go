@@ -1978,3 +1978,136 @@ func TestExecuteRestlicheAktionen(t *testing.T) {
 		t.Error("an unknown action must produce an error")
 	}
 }
+
+// Partial checkouts of one ref belong in ONE working tree. They used to each
+// get a directory of their own, because the subPath went into the directory
+// NAME — five subdirectories then lay side by side as five stumps and nothing
+// in them could be built. Since the size error advises exactly this route, the
+// documented way out led into a dead end.
+func TestCheckoutPartialsGrowIntoOneTree(t *testing.T) {
+	app := tarGz(t, map[string]string{
+		"stupla-abc123/":           "",
+		"stupla-abc123/Kernel.php": "<?php // app",
+	})
+	tests := tarGz(t, map[string]string{
+		"stupla-abc123/":             "",
+		"stupla-abc123/UnitTest.php": "<?php // tests",
+	})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.RawQuery, "path=stupla%2Ftests") {
+			w.Write(tests)
+			return
+		}
+		w.Write(app)
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "t"}
+	workdir := t.TempDir()
+	ctx := target.WithWorkdir(context.Background(), workdir)
+
+	first, err := sys.Execute(ctx, "checkout", []byte(`{"project_id":40,"ref":"main","path":"stupla/app"}`), cred)
+	if err != nil {
+		t.Fatalf("checkout app: %v", err)
+	}
+	second, err := sys.Execute(ctx, "checkout", []byte(`{"project_id":40,"ref":"main","path":"stupla/tests"}`), cred)
+	if err != nil {
+		t.Fatalf("checkout tests: %v", err)
+	}
+	a, b := first.(CheckoutResult), second.(CheckoutResult)
+	if a.Path != b.Path {
+		t.Fatalf("both partial checkouts must share one repository root: %s vs %s", a.Path, b.Path)
+	}
+	// The subtrees lie where they lie upstream — and the first survives the
+	// second (only the fetched subtree is pruned).
+	for _, rel := range []string{"stupla/app/Kernel.php", "stupla/tests/UnitTest.php"} {
+		if _, err := os.Stat(filepath.Join(a.Path, filepath.FromSlash(rel))); err != nil {
+			t.Fatalf("%s is missing in the shared tree: %v", rel, err)
+		}
+	}
+	// The git baseline belongs at the root, not into the subtree — otherwise
+	// commit compares against the wrong root.
+	if _, err := os.Stat(filepath.Join(a.Path, ".git")); err != nil {
+		t.Fatalf("baseline missing at the repository root: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(a.Path, "stupla", "app", ".git")); err == nil {
+		t.Fatal("a partial checkout must not leave a nested git repository behind")
+	}
+	if b.LocalPath != filepath.Join(b.Path, "stupla", "tests") {
+		t.Fatalf("local_path must name the subtree: %s", b.LocalPath)
+	}
+}
+
+// A path leading out of the repository is refused before anything is written.
+func TestCheckoutRefusesEscapingSubPath(t *testing.T) {
+	sys := System{}
+	ctx := target.WithWorkdir(context.Background(), t.TempDir())
+	cred := target.Credential{BaseURL: "http://unused", Token: "t"}
+	for _, p := range []string{"../../etc", "/etc"} {
+		if _, err := sys.Execute(ctx, "checkout",
+			[]byte(`{"project_id":1,"ref":"main","path":"`+p+`"}`), cred); err == nil {
+			t.Fatalf("path %q must be refused", p)
+		}
+	}
+}
+
+// Two long refs agreeing in their first 48 characters must not share a
+// directory — one checkout would silently overwrite the other.
+func TestRepoDirNameKeepsLongRefsApart(t *testing.T) {
+	long := "feature/a-very-long-branch-name-that-goes-past-48-chars"
+	a := repoDirName(40, long+"-eins")
+	b := repoDirName(40, long+"-zwei")
+	if a == b {
+		t.Fatalf("long refs collide into the same directory: %s", a)
+	}
+}
+
+// GitLab answers the approve endpoint with 401 when approving is not permitted
+// — the merge request is already merged or closed, the caller is its author, or
+// an approval rule stands in the way. Raw, that reads like a credential
+// problem: the agent concludes its token is broken and reports a broken GitLab
+// connection, while in truth somebody simply closed the merge request. Reported
+// from production.
+func TestApproveOnClosedMRExplainsThe401(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"message":"401 Unauthorized"}`))
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "gueltiges-token"}
+	ctx := target.WithWorkdir(context.Background(), t.TempDir())
+
+	_, err := sys.Execute(ctx, "approve_mr", []byte(`{"project_id":40,"mr_iid":1685}`), cred)
+	if err == nil {
+		t.Fatal("a 401 is an error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "not permitted") || !strings.Contains(msg, "get_merge_request") {
+		t.Fatalf("the message has to say what it really means and what to do: %q", msg)
+	}
+	if !strings.Contains(msg, "401") {
+		t.Fatalf("the original status stays as the evidence: %q", msg)
+	}
+}
+
+// Everywhere else a 401 IS a token problem — the hint must not turn that on its
+// head.
+func TestPlain401StaysATokenProblem(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"message":"401 Unauthorized"}`))
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "abgelaufen"}
+	ctx := target.WithWorkdir(context.Background(), t.TempDir())
+
+	_, err := sys.Execute(ctx, "list_issues", []byte(`{"project_id":40}`), cred)
+	if err == nil || !strings.Contains(err.Error(), "token is rejected") {
+		t.Fatalf("a plain 401 stays a credential problem: %v", err)
+	}
+}

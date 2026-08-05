@@ -8,9 +8,37 @@ import { canFiles, canKill, canManage, canSecrets } from "./agent/roles";
 import { AgentTooling } from "./agent/Tooling";
 import { AgentSettings } from "./agent/Settings";
 import { CostBar } from "./agent/CostBar";
+import { LintFindings } from "./agent/LintFindings";
 import { Backlog } from "./agent/Backlog";
 import { Recording } from "./agent/Recording";
 import { Memories } from "./agent/Memories";
+
+// Die gueltigen Werte von ?tab=. Die zweite Gruppe ist zusammengelegt, als URL
+// aber weiterhin gueltig: geteilte Links und Lesezeichen sollen nicht ins Leere
+// laufen, sondern dort landen, wo der Inhalt jetzt wohnt (siehe MOVED unten).
+// Dazu die englischen Namen der deutschen Slugs — wer "workspace" oder
+// "settings" tippt, meint den Arbeitsplatz bzw. die Einstellungen.
+const TABS = [
+  "backlog", "recording", "memory", "dateien", "werkzeuge", "einstellungen",
+  "heartbeat", "tools", "skills", "webhook", "config", "secrets", "egress", "dreams",
+  "workspace", "files", "settings",
+] as const;
+type TabKey = (typeof TABS)[number];
+
+// MOVED: alter Reiter → [neuer Reiter, Parametername, Wert].
+const MOVED: Partial<Record<TabKey, [TabKey, string, string]>> = {
+  heartbeat: ["einstellungen", "sub", "heartbeat"],
+  webhook: ["einstellungen", "sub", "webhook"],
+  config: ["einstellungen", "sub", "config"],
+  secrets: ["einstellungen", "sub", "secrets"],
+  egress: ["einstellungen", "sub", "egress"],
+  settings: ["einstellungen", "sub", "general"],
+  tools: ["werkzeuge", "sub", "mcp"],
+  skills: ["werkzeuge", "sub", "skills"],
+  dreams: ["memory", "view", "dreams"],
+  workspace: ["dateien", "dir", ""],
+  files: ["dateien", "dir", ""],
+};
 
 export default function AgentPage({ me }: { me: Principal }) {
   const { t } = useTranslation();
@@ -20,24 +48,13 @@ export default function AgentPage({ me }: { me: Principal }) {
   // Tab-Zustand lebt in der URL (?tab=…) — echte Navigation: teilbare Links,
   // Browser-Vor/Zurück. Der memory-Tab führt zusätzlich ?page=<slug> mit.
   const [sp, setSp] = useSearchParams();
-  const tab = ((sp.get("tab") as
-    | "backlog"
-    | "recording"
-    | "memory"
-    | "dateien"
-    | "werkzeuge"
-    | "einstellungen"
-    // Zusammengelegt, aber als URL weiterhin gueltig: geteilte Links und
-    // Lesezeichen sollen nicht ins Leere laufen, sondern dort landen, wo der
-    // Inhalt jetzt wohnt (siehe Umleitung unten).
-    | "heartbeat"
-    | "tools"
-    | "skills"
-    | "webhook"
-    | "config"
-    | "secrets"
-    | "egress"
-    | "dreams") || "backlog");
+  // Nur bekannte Reiter zaehlen. Vorher fiel jeder unbekannte Wert durch das
+  // `|| "backlog"` hindurch — es greift nur bei null und "" —, und ?tab=workspace
+  // zeigte eine leere Seite statt des Arbeitsplatzes. Ein Link, den jemand von
+  // Hand tippt oder aus einer aelteren Fassung mitbringt, soll irgendwo landen.
+  const tab = (TABS as readonly string[]).includes(sp.get("tab") ?? "")
+    ? (sp.get("tab") as TabKey)
+    : "backlog";
   const setTab = (key: typeof tab) =>
     setSp(
       (prev) => {
@@ -59,23 +76,14 @@ export default function AgentPage({ me }: { me: Principal }) {
   // gehoert, unter einem Reiter. Alte Links landen am neuen Ort statt auf dem
   // Backlog — geteilte Links und Lesezeichen sollen nicht ins Leere laufen.
   useEffect(() => {
-    const moved: Record<string, [string, string, string]> = {
-      heartbeat: ["einstellungen", "sub", "heartbeat"],
-      webhook: ["einstellungen", "sub", "webhook"],
-      config: ["einstellungen", "sub", "config"],
-      secrets: ["einstellungen", "sub", "secrets"],
-      egress: ["einstellungen", "sub", "egress"],
-      tools: ["werkzeuge", "sub", "mcp"],
-      skills: ["werkzeuge", "sub", "skills"],
-      dreams: ["memory", "view", "dreams"],
-    };
-    const to = moved[tab];
+    const to = MOVED[tab];
     if (!to) return;
     setSp(
       (prev) => {
         const n = new URLSearchParams(prev);
         n.set("tab", to[0]);
-        n.set(to[1], to[2]);
+        if (to[2] === "") n.delete(to[1]);
+        else n.set(to[1], to[2]);
         return n;
       },
       { replace: true },
@@ -134,6 +142,8 @@ export default function AgentPage({ me }: { me: Principal }) {
       </div>
 
       <CostBar agentId={a.id} budget={a.budget_usd} />
+
+      <LintFindings agentId={a.id} />
 
       <div className="flex gap-1 mb-4 mt-5" style={{ borderBottom: "0.5px solid var(--border)" }}>
         {(

@@ -212,3 +212,85 @@ EOF`)
 		t.Fatalf("without a WorkDir the run must start in the home, was %q", cwd)
 	}
 }
+
+// The cached input side is the point of the billing: input_tokens counts only
+// what did NOT come out of the prompt cache. With Claude Code that is a handful
+// of tokens against millions of cache reads — a run booked without the two
+// cache fields looks a thousand times cheaper than it is. The numbers are those
+// of a real run of tester-1.
+func TestClaudeCodeAdapterCountsCachedInputAndModel(t *testing.T) {
+	bin, home := fakeClaude(t, `
+cat <<'EOF'
+{"type":"assistant","session_id":"s","message":{"model":"claude-opus-5","content":"arbeite"}}
+{"type":"result","subtype":"success","session_id":"s","result":"fertig","total_cost_usd":2.39,"usage":{"input_tokens":56,"output_tokens":15804,"cache_read_input_tokens":2341568,"cache_creation_input_tokens":81936}}
+EOF`)
+	adapter := &ClaudeCode{Binary: bin}
+	res, err := adapter.Run(context.Background(), RunSpec{TaskID: "t", Title: "x", HomeDir: home},
+		func(string, json.RawMessage) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.InputTokens != 56 || res.CacheReadTokens != 2341568 || res.CacheCreationTokens != 81936 {
+		t.Fatalf("cached input side lost: %+v", res)
+	}
+	if got, want := res.TotalInputTokens(), int64(56+2341568+81936); got != want {
+		t.Fatalf("TotalInputTokens = %d, want %d", got, want)
+	}
+	// The result event does not name the model — it has to be picked up from the
+	// assistant events, otherwise every cost entry reads "unknown".
+	if res.Model != "claude-opus-5" {
+		t.Fatalf("model not recorded: %q", res.Model)
+	}
+}
+
+// With an MCP config the action proxy is handed to the runtime as a tool server
+// — and its tools have to stand in the SAME --allowedTools list. The flag is a
+// whitelist and may appear only once; a second occurrence would overwrite the
+// first, and the run would ask for permission on every action, which nobody
+// answers in headless mode.
+func TestClaudeCodeAdapterPassesMCPConfigInOneAllowlist(t *testing.T) {
+	bin, dir := fakeClaude(t, `
+cat <<'EOF'
+{"type":"result","subtype":"success","session_id":"s","result":"fertig"}
+EOF`)
+	adapter := &ClaudeCode{Binary: bin}
+	if _, err := adapter.Run(context.Background(), RunSpec{
+		TaskID: "t", Title: "x", HomeDir: dir,
+		AllowedTools: []string{"Bash", "Read"},
+		MCPConfig:    `{"mcpServers":{"covey":{"type":"http","url":"http://127.0.0.1:4711/mcp"}}}`,
+	}, func(string, json.RawMessage) {}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(dir, "args.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(got)
+	if !strings.Contains(s, "--mcp-config") || !strings.Contains(s, "127.0.0.1:4711/mcp") {
+		t.Fatalf("the MCP server is missing from the arguments:\n%s", s)
+	}
+	if n := strings.Count(s, "--allowedTools"); n != 1 {
+		t.Fatalf("--allowedTools must appear exactly once, appeared %d times:\n%s", n, s)
+	}
+	if !strings.Contains(s, "Bash,Read,mcp__covey") {
+		t.Fatalf("the proxy's tools belong in the allowlist alongside the others:\n%s", s)
+	}
+}
+
+// Without an MCP config nothing changes — the shell route as before.
+func TestClaudeCodeAdapterWithoutMCPStaysAsBefore(t *testing.T) {
+	bin, dir := fakeClaude(t, `
+cat <<'EOF'
+{"type":"result","subtype":"success","session_id":"s","result":"fertig"}
+EOF`)
+	adapter := &ClaudeCode{Binary: bin}
+	if _, err := adapter.Run(context.Background(), RunSpec{
+		TaskID: "t", Title: "x", HomeDir: dir, AllowedTools: []string{"Bash"},
+	}, func(string, json.RawMessage) {}); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(filepath.Join(dir, "args.txt"))
+	if strings.Contains(string(got), "--mcp-config") || strings.Contains(string(got), "mcp__covey") {
+		t.Fatalf("without an MCP config no MCP flags:\n%s", got)
+	}
+}

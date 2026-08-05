@@ -152,49 +152,65 @@ export type GuardrailVerdict = {
   budget_limit_usd?: number;
 };
 
-export type CostSummary = {
+// Tokens: input_tokens counts only the UNCACHED input. With Claude Code
+// practically the whole context comes out of the prompt cache, so that number
+// alone is meaningless — use totalInput() everywhere a human reads "input".
+export type Tokens = {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_creation_tokens: number;
+};
+
+export const totalInput = (t: Tokens) =>
+  t.input_tokens + t.cache_read_tokens + t.cache_creation_tokens;
+
+export type CostSummary = Tokens & {
   agent_id: string;
   total_usd: number;
-  input_tokens: number;
-  output_tokens: number;
   entries: number;
 };
 
-export type CostBucket = {
+export type CostBucket = Tokens & {
   period: string;
   total_usd: number;
-  input_tokens: number;
-  output_tokens: number;
   entries: number;
 };
 
-export type AgentCost = {
+export type AgentCost = Tokens & {
   agent_id: string;
   slug: string;
   display_name: string;
   total_usd: number;
-  input_tokens: number;
-  output_tokens: number;
   entries: number;
 };
 
-export type ModelCost = {
+export type ModelCost = Tokens & {
   model: string;
   total_usd: number;
-  input_tokens: number;
-  output_tokens: number;
   entries: number;
 };
 
-export type OrgCostReport = {
+export type OrgCostReport = Tokens & {
   total_usd: number;
-  input_tokens: number;
-  output_tokens: number;
   entries: number;
   bucket: string;
   series: CostBucket[] | null;
   agents: AgentCost[] | null;
   models: ModelCost[] | null;
+};
+
+/** Ein Befund des Config-Lints (internal/agents/lint.go). Warnungen mit
+ *  Kontext, keine harten Fehler: eine 2-Minuten-Frequenz ist für ein Postfach
+ *  in Ordnung und für einen Repo-Klon ruinös. */
+export type LintFinding = {
+  agent_slug: string;
+  rule: string;
+  severity: "warn" | "info";
+  file?: string;
+  line?: number;
+  message: string;
+  hint: string;
 };
 
 export type Human = {
@@ -660,6 +676,17 @@ export type FileListing = {
   exists: boolean;
   truncated: boolean;
   entries: FileEntry[];
+};
+
+/** Wieviel Platz das Home des Agenten belegt — und welche Arbeitskopien ihn
+ *  fressen. Vorher hat das nichts gemessen: Checkouts stapeln sich im
+ *  persistenten Home, bis ein Lauf am vollen Overlay stirbt. */
+export type FilesUsage = {
+  exists: boolean;
+  total_bytes: number;
+  free_bytes: number;
+  checkout_bytes: number;
+  checkouts: { name: string; bytes: number; mod_time: string }[];
 };
 
 export type FileContent = {

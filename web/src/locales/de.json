@@ -338,7 +338,9 @@
     "runsN": "{{count}} Läufe",
     "byAgent": "Nach Agent",
     "byModel": "Nach Modell",
-    "empty": "Keine Kostendaten im gewählten Zeitraum."
+    "empty": "Keine Kostendaten im gewählten Zeitraum.",
+    "ofWhichCached": "davon Cache",
+    "cachedShare": "{{pct}} % aus dem Prompt-Cache"
   },
   "lang": {
     "toggle": "EN",
@@ -602,14 +604,18 @@
       "csvRows": "{{rows}} Zeilen · {{cols}} Spalten",
       "csvTruncated": "Erste {{shown}} Zeilen · {{cols}} Spalten — vollständig im Quelltext.",
       "save": "Speichern",
-      "saving": "Speichert …"
+      "saving": "Speichert …",
+      "disk": "Platte",
+      "diskUsed": "{{used}} von {{total}} belegt ({{pct}} %)",
+      "diskCheckouts": "{{count}} Checkouts · {{size}}"
     },
     "cost": {
       "total": "Kosten gesamt",
       "tokens": "Tokens (in / out)",
       "runs": "LLM-Läufe",
       "budget": "Budget",
-      "noCap": "kein Deckel"
+      "noCap": "kein Deckel",
+      "cached": "davon {{n}} aus dem Cache"
     },
     "backlog": {
       "newTask": "Neue Aufgabe",
@@ -678,7 +684,11 @@
       "onlyIf": "nur wenn {{system}} Arbeit meldet",
       "onlyIfHint": "Die Control Plane prüft vor jedem Lauf beim Zielsystem {{system}}, ob Arbeit vorliegt (z. B. ungelesene Mails) — sonst entfällt der Lauf ohne den Agenten zu wecken.",
       "system": "Plattform",
-      "systemHint": "Plattformweiter Standard-Heartbeat (nicht aus HEARTBEAT.md) — pro Agent per HEARTBEAT.md-Eintrag gleichen Titels überschreibbar."
+      "systemHint": "Plattformweiter Standard-Heartbeat (nicht aus HEARTBEAT.md) — pro Agent per HEARTBEAT.md-Eintrag gleichen Titels überschreibbar.",
+      "pausedWhileStopped": "ausgesetzt — der Agent ist gestoppt, der Scheduler feuert nicht",
+      "stopped": "gestoppt",
+      "stoppedHint": "Solange der Agent gestoppt ist, legt kein Tick eine Aufgabe an. Mit „Fortsetzen“ läuft der Zeitplan weiter.",
+      "serverTime": "In HEARTBEAT.md steht {{time}} (Serverzeit)"
     },
     "webhook": {
       "desc": "Optionaler Webhook-Trigger: ein POST auf die URL legt eine Backlog-Aufgabe an und weckt den Agenten — für Fremdsysteme ohne Zielsystem-Plugin (CI, Cron, Zapier, Monitoring).",
@@ -931,6 +941,9 @@
       "collapse": "Zuklappen",
       "undo": "Rückgängig",
       "undone": "zurückgenommen"
+    },
+    "lint": {
+      "title": "Konfiguration: {{count}} Befund(e)"
     }
   },
   "approvals": {
@@ -1495,5 +1508,8 @@
     "timeJustNow": "gerade eben",
     "timeMinutes": "vor {{n}} Min",
     "timeHours": "vor {{n}} Std"
+  },
+  "common": {
+    "loading": "lädt …"
   }
 }

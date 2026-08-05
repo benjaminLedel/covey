@@ -449,7 +449,7 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 	c.mu.Unlock()
 	defer cancel()
 
-	proxy, err := c.startActionProxy(runCtx, task.TaskID)
+	proxy, err := c.startActionProxy(runCtx, task.TaskID, cfg.ActionTools)
 	if err != nil {
 		_ = c.send(TypeTaskDone, TaskDone{TaskID: task.TaskID, Status: "failed", Error: err.Error()})
 		return
@@ -479,6 +479,10 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 		ResumeInput:     task.ResumeInput,
 		HomeDir:         c.homeDir,
 		Env:             env,
+		// The action proxy as an MCP server: with it the runtime calls a target
+		// action as a typed tool instead of assembling a curl in the shell
+		// (actionmcp.go). Empty = the shell route as before.
+		MCPConfig: proxy.mcpConfig(),
 	}
 	// Materialize the wiki working copy into the home (spec/05) so the agent can
 	// read and edit it with ordinary file tools.
@@ -500,9 +504,11 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 		res.Status = "failed"
 		res.Error = err.Error()
 	}
-	if res.CostUSD > 0 || res.InputTokens > 0 {
+	if res.CostUSD > 0 || res.TotalInputTokens() > 0 {
 		_ = c.send(TypeCost, Cost{TaskID: task.TaskID, USD: res.CostUSD,
-			InputTokens: res.InputTokens, OutputTokens: res.OutputTokens, Model: res.Model})
+			InputTokens: res.InputTokens, OutputTokens: res.OutputTokens,
+			CacheReadTokens: res.CacheReadTokens, CacheCreationTokens: res.CacheCreationTokens,
+			Model: res.Model})
 	}
 	if res.Status == "blocked" {
 		_ = c.send(TypeBlocked, Blocked{TaskID: task.TaskID, CorrelationKey: res.CorrelationKey,

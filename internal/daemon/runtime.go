@@ -40,6 +40,10 @@ type RunSpec struct {
 	// where ~/.claude, the wiki working copy and the dependency caches live.
 	WorkDir string
 	Env     []string // extra ENV (e.g. COVEY_ACTION_PORT, brokered keys)
+	// MCPConfig is the MCP server document the runtime is started with — the
+	// action proxy, so target actions arrive as typed tools instead of as a curl
+	// in the shell (actionmcp.go). Empty = without, the shell route as before.
+	MCPConfig string
 }
 
 // RunResult is the normalized result of a runtime run.
@@ -54,7 +58,20 @@ type RunResult struct {
 	CostUSD        float64
 	InputTokens    int64
 	OutputTokens   int64
-	Model          string
+	// CacheReadTokens/CacheCreationTokens are the input side that actually
+	// carries the weight: with a cached context InputTokens counts only the few
+	// uncached tokens. Kept separate rather than added into InputTokens, because
+	// the three are priced differently — a cache read costs a tenth of fresh
+	// input, writing the cache costs a quarter more.
+	CacheReadTokens     int64
+	CacheCreationTokens int64
+	Model               string
+}
+
+// TotalInputTokens is the input side as a human means it: everything the model
+// read this run, cached or not.
+func (r RunResult) TotalInputTokens() int64 {
+	return r.InputTokens + r.CacheReadTokens + r.CacheCreationTokens
 }
 
 // Runtime is the adapter port (spec/01): thin, translating between the daemon

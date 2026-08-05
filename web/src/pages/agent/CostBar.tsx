@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "../../i18n";
 import {
   api,
+  totalInput,
   type CostSummary,
 } from "../../api";
 
@@ -24,7 +25,12 @@ export function CostBar({ agentId, budget }: { agentId: string; budget: number }
       <div>
         <div className="muted text-xs">{t("agent.cost.tokens")}</div>
         <div className="font-medium">
-          {c.input_tokens.toLocaleString(locale)} / {c.output_tokens.toLocaleString(locale)}
+          {totalInput(c).toLocaleString(locale)} / {c.output_tokens.toLocaleString(locale)}
+        </div>
+        <div className="muted text-xs">
+          {t("agent.cost.cached", {
+            n: (c.cache_read_tokens + c.cache_creation_tokens).toLocaleString(locale),
+          })}
         </div>
       </div>
       <div>
