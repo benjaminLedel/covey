@@ -66,11 +66,17 @@ type Subject struct {
 // heavySystems are target systems whose use typically lifts a run into the
 // range of minutes: cloning repos, builds, real browser sessions. For them a
 // tight heartbeat cadence is expensive and rarely sensible.
-var heavySystems = map[string]bool{"gitlab": true, "dev": true, "browser": true}
+var heavySystems = map[string]bool{"gitlab": true, "github": true, "dev": true, "browser": true}
+
+// edgeGatedSystems are the target systems whose `nur-wenn:` check triggers on
+// the EDGE: an item counts as handled as soon as the last contribution comes
+// from the bot. A playbook that works without commenting leaves no edge there
+// (see lintVisibleTrace).
+var edgeGatedSystems = []string{"gitlab", "github"}
 
 // commentActions are the actions with which an agent leaves a visible trace in
 // the target system. Without one of them the `nur-wenn:` edge never tips.
-var commentActions = []string{"comment", "comment_mr", "comment_external", "reply", "create_issue"}
+var commentActions = []string{"comment", "comment_mr", "comment_pr", "comment_external", "reply", "create_issue"}
 
 // stageWithItemID spots column names that name a concrete item instead of a
 // working state ("#83 CSV import", "MR !1641").
@@ -148,21 +154,26 @@ func lintIntervals(s Subject, hbs []Heartbeat, systems map[string]bool) []Findin
 	return out
 }
 
-// lintVisibleTrace: GitLab's `nur-wenn:` condition triggers on the edge — an
-// item counts as handled as soon as the last non-system comment comes from the
-// bot. A playbook that works without commenting leaves no edge: the same item
-// wakes the agent again in every interval. That is the cause of the most
-// expensive loop in the system.
+// lintVisibleTrace: the `nur-wenn:` condition of GitLab and GitHub triggers on
+// the edge — an item counts as handled as soon as the last contribution comes
+// from the bot. A playbook that works without commenting leaves no edge: the
+// same item wakes the agent again in every interval. That is the cause of the
+// most expensive loop in the system.
 func lintVisibleTrace(s Subject, hbs []Heartbeat) []Finding {
-	gated := false
+	var gatedOn string
 	var line int
 	for _, hb := range hbs {
-		if strings.HasPrefix(strings.ToLower(hb.OnlyIf), "gitlab") {
-			gated, line = true, heartbeatLine(s.Files["HEARTBEAT.md"], hb.Name)
+		for _, sys := range edgeGatedSystems {
+			if strings.HasPrefix(strings.ToLower(hb.OnlyIf), sys) {
+				gatedOn, line = sys, heartbeatLine(s.Files["HEARTBEAT.md"], hb.Name)
+				break
+			}
+		}
+		if gatedOn != "" {
 			break
 		}
 	}
-	if !gated {
+	if gatedOn == "" {
 		return nil
 	}
 	haystack := strings.ToLower(s.Files["PLAYBOOKS.md"] + "\n" + s.Files["HEARTBEAT.md"] + "\n" +
@@ -175,7 +186,7 @@ func lintVisibleTrace(s Subject, hbs []Heartbeat) []Finding {
 	return []Finding{{
 		AgentSlug: s.Slug, Rule: "no-visible-trace", Severity: SeverityWarn,
 		File: "PLAYBOOKS.md", Line: line,
-		Message: "The heartbeat is gated on gitlab, but no playbook step leaves a comment",
+		Message: "The heartbeat is gated on " + gatedOn + ", but no playbook step leaves a comment",
 		Hint:    "A silent run leaves no edge — at the next interval the item counts as unhandled again and wakes the agent anew. Whoever works, comments.",
 	}}
 }

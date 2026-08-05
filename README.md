@@ -69,7 +69,7 @@ The bundled [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector
 |---|---|
 | 🧑‍💼 **Agents with an identity** | Their own sandbox, their own home directory, their own credentials — and a place on the org chart next to the humans. |
 | 📥 **Backlog & wake sources** | Tasks as first-class objects; agents wake on a webhook, a heartbeat or a nudge, then go back to sleep. |
-| 🔌 **Target systems as plugins** | Zammad, GitLab, Microsoft Teams, SharePoint, Nextcloud, email (IMAP/SMTP), headless browser, MCP — each driven by a manifest, no special case in the core. |
+| 🔌 **Target systems as plugins** | Zammad, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, email (IMAP/SMTP), headless browser, MCP — each driven by a manifest, no special case in the core. |
 | 🛡️ **Guard rails & approvals** | Enforced centrally, outside the runtime, fail-closed. Critical actions go to a human first. |
 | 🔑 **Secrets broker** | No long-lived secrets inside the sandbox — access is brokered at runtime, short-lived and scoped. |
 | 🧩 **Skills** | Procedures an agent loads only when they apply: the description stays in context, the instructions and any extra files are read on demand. Kept in an org-wide library, linked per agent — a delivery lead run that finds nothing to do no longer pays for five playbooks. |
@@ -118,7 +118,7 @@ flowchart LR
     end
 
     CP <-->|daemon protocol| DP
-    CP --> TS["Targets: Zammad · GitLab · Teams · SharePoint · Nextcloud · Email · Browser · MCP"]
+    CP --> TS["Targets: Zammad · GitHub · GitLab · Teams · SharePoint · Nextcloud · Email · Browser · MCP"]
     CP --- DB[("PostgreSQL + pgvector")]
 ```
 
@@ -224,6 +224,7 @@ All runbooks are in English.
 | [`docs/quickstart-docker.md`](docs/quickstart-docker.md) | Compose setup, first agent, production checklist |
 | [`docs/ops-deployment.md`](docs/ops-deployment.md) | CI pipeline, auto-deploy to a target host |
 | [`docs/ops-zammad.md`](docs/ops-zammad.md) | Connecting Zammad: API token, webhook + trigger, customer-visible replies |
+| [`docs/ops-github.md`](docs/ops-github.md) | GitHub: issues, pull requests, Actions, checkout inside the sandbox |
 | [`docs/ops-gitlab.md`](docs/ops-gitlab.md) | GitLab: issues, merge requests, checkout inside the sandbox |
 | [`docs/ops-email.md`](docs/ops-email.md) | An email mailbox as a wake source (IMAP/SMTP) |
 | [`docs/ops-teams.md`](docs/ops-teams.md) | Microsoft Teams as the channel between human and agent |
@@ -276,7 +277,7 @@ All runbooks are in English.
 
 ## Status
 
-**Well beyond the MVP.** The end-to-end path from [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md) (M0–M7) is in place; built on top of it are the org chart & departments, employee profiles, further target plugins (GitLab, Teams, SharePoint, Nextcloud, email, browser, MCP), Docker sandboxes, egress control, agent templates and the wiki memory. The acceptance checklist runs as an integration test suite (`internal/integration/`).
+**Well beyond the MVP.** The end-to-end path from [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md) (M0–M7) is in place; built on top of it are the org chart & departments, employee profiles, further target plugins (GitHub, GitLab, Teams, SharePoint, Nextcloud, email, browser, MCP), Docker sandboxes, egress control, agent templates and the wiki memory. The acceptance checklist runs as an integration test suite (`internal/integration/`).
 
 ## Contributing
 

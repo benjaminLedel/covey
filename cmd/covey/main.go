@@ -51,6 +51,7 @@ import (
 	_ "covey/internal/target/browser"
 	_ "covey/internal/target/dev"
 	_ "covey/internal/target/email"
+	_ "covey/internal/target/github"
 	_ "covey/internal/target/gitlab"
 	_ "covey/internal/target/nextcloud"
 	_ "covey/internal/target/sharepoint"
