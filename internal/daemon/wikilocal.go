@@ -57,10 +57,23 @@ covey/wiki_read|write|append.
 // with Grep/Read — which is exactly what one QA agent noted as "wiki_search
 // still returns hits from a stale index".
 //
-// The slug comes from the agent, so it is contained here: only a plain name
-// without a path separator is allowed. Anything else is not removed — the file
-// name would then no longer be the page's, and deleting the wrong file is worse
-// than leaving one lying about.
+// The slug comes from the AGENT, and that makes this the one place in this file
+// where the path is not the control plane's own (everywhere else the slug comes
+// out of a page list and has been through slugify). It is therefore contained
+// twice, for the same reason internal/sandboxfs is:
+//
+//   - The name is checked: a plain file name, no path separator, no leading dot.
+//     That is the early, comprehensible refusal.
+//   - The deletion goes through os.Root, so the OPERATING SYSTEM enforces that
+//     it stays inside the wiki directory.
+//
+// The second one is not closing a hole the first one leaves open — with a
+// single-segment name and os.Remove, which does not follow the final symlink,
+// the textual check already holds. It is here because containment should not
+// depend on that argument being made correctly every time: whoever later
+// relaxes the name check (a slug with a subdirectory, say) inherits a safe
+// deletion instead of a hole, and it is the same decision internal/sandboxfs
+// took for the whole workplace.
 //
 // Best effort: the deletion in the control plane has happened, that is what
 // counts. A file that will not go away is corrected by the next
@@ -71,7 +84,12 @@ func (p *actionProxy) removeLocalWikiFile(slug string) {
 	if home == "" || slug == "" || slug != filepath.Base(slug) || strings.HasPrefix(slug, ".") {
 		return
 	}
-	_ = os.Remove(filepath.Join(home, "wiki", slug+".md"))
+	root, err := os.OpenRoot(filepath.Join(home, "wiki"))
+	if err != nil {
+		return
+	}
+	defer root.Close()
+	_ = root.Remove(slug + ".md")
 }
 
 func wikiHash(title, body string) string {

@@ -277,3 +277,69 @@ func TestAdvisoryAllSourcesDown(t *testing.T) {
 		t.Fatal("expected an error when no source answers")
 	}
 }
+
+// scan_lockfile war ein Leseprimitiv auf alles, was der Daemon lesen darf: ein
+// absoluter Pfad ging unveraendert durch, ein relativer per Join — also auch
+// "../../package-lock.json". Der Pfad kommt vom Agenten, und der ist nach
+// unserem eigenen Bedrohungsmodell (spec/04) keine vertrauenswuerdige Quelle.
+//
+// Die Datei ausserhalb heisst bewusst package-lock.json und traegt gueltigen
+// Inhalt: ParseLockfile entscheidet den Typ am DATEINAMEN und den Erfolg am
+// Inhalt. Mit einem anderen Namen oder leeren Paketen waere der Test auch ohne
+// Eindaemmung gruen — er scheiterte dann am Parser statt am Pfad und belegte
+// nichts.
+func TestScanLockfileStaysInTheWorkdir(t *testing.T) {
+	defer fakeOSV(t, "nothing-matches")()
+
+	const valid = `{"lockfileVersion":3,"packages":{"":{},"node_modules/express":{"version":"4.18.0"}}}`
+
+	aussen := t.TempDir()
+	workdir := filepath.Join(aussen, "sandbox")
+	if err := os.MkdirAll(filepath.Join(workdir, "repo"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Ein vollwertiges Lockfile EINE EBENE UEBER dem Arbeitsverzeichnis.
+	beute := filepath.Join(aussen, "package-lock.json")
+	if err := os.WriteFile(beute, []byte(valid), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, p := range []string{
+		beute,                          // absolut
+		"../package-lock.json",         // relativ hinaus
+		"repo/../../package-lock.json", // ueber einen Umweg hinaus
+	} {
+		if _, err := scanLockfile(context.Background(), workdir, p); err == nil {
+			t.Errorf("Pfad %q fuehrt aus dem Arbeitsverzeichnis heraus und muss zurueckgewiesen werden", p)
+		}
+	}
+
+	// Ohne Sandbox gar nichts.
+	if _, err := scanLockfile(context.Background(), "", "package-lock.json"); err == nil {
+		t.Error("ohne Arbeitsverzeichnis muss die Aktion scheitern")
+	}
+}
+
+// Der normale Weg bleibt offen — sonst waere die Eindaemmung nur eine
+// Abschaltung.
+func TestScanLockfileReadsInsideTheWorkdir(t *testing.T) {
+	defer fakeOSV(t, "nothing-matches")()
+
+	workdir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(workdir, "repo"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := `{"lockfileVersion":3,"packages":{"":{},"node_modules/express":{"version":"4.18.0"}}}`
+	if err := os.WriteFile(filepath.Join(workdir, "repo", "package-lock.json"), []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	res, err := scanLockfile(context.Background(), workdir, "repo/package-lock.json")
+	if err != nil {
+		t.Fatalf("die Datei im Arbeitsverzeichnis muss lesbar bleiben: %v", err)
+	}
+	// Der Anzeigename geht an den Agenten zurueck — das Host-Praefix des
+	// Arbeitsverzeichnisses hat dort nichts zu suchen.
+	if filepath.IsAbs(res.Lockfile) || strings.Contains(res.Lockfile, workdir) {
+		t.Fatalf("der Anzeigename darf das Arbeitsverzeichnis nicht verraten: %q", res.Lockfile)
+	}
+}
