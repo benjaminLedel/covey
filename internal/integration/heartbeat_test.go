@@ -139,3 +139,110 @@ func TestHeartbeatManualFire(t *testing.T) {
 		t.Fatalf("expected the kill error, got %v", conflict)
 	}
 }
+
+// TestHeartbeatSignatureSurvivesAFailedRun covers the standstill that stopped a
+// QA agent on covey.work: the signature the nur-wenn check fired on is
+// remembered at DISPATCH. If that run then ends without a result, the state
+// counts as seen anyway — and as long as nothing changes in the target system,
+// no further heartbeat fires. The agent has consumed its own alarm clock without
+// doing the work.
+//
+// The test drives the two halves the orchestrator connects: a heartbeat with a
+// signature, and a task of that name that ends as failed. Afterwards the
+// signature has to be released.
+func TestHeartbeatSignatureSurvivesAFailedRun(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+
+	agent, err := s.registry.Create(ctx, s.orgID, "puls-abbruch", "Puls Abbruch", "mock", &s.adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 1h: the scheduler must not fire alongside within the test window.
+	if _, err := s.registry.SaveConfig(ctx, agent.ID, map[string]string{
+		"SOUL.md":      "# Puls Abbruch",
+		"HEARTBEAT.md": "- alle: 1h titel: Abnahme aufgabe: Nimm ab. [mock:fail Sub-Agent kaputt]",
+	}, &s.adminID); err != nil {
+		t.Fatal(err)
+	}
+
+	// The state the check fired on — as the dispatch would have noted it.
+	if _, err := s.pool.Exec(ctx,
+		"UPDATE agent_heartbeats SET last_work_sig=$2 WHERE agent_id=$1 AND name='Abnahme'",
+		agent.ID, "mr40!1692@815"); err != nil {
+		t.Fatal(err)
+	}
+
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	admin.expect(http.MethodPost,
+		"/api/v1/agents/"+agent.ID.String()+"/heartbeats/Abnahme/fire", nil, http.StatusOK)
+
+	waitFor(t, "run ends as failed", 20*time.Second, func() bool {
+		tasks, _ := s.backlog.ListByAgent(ctx, agent.ID, true)
+		for _, task := range tasks {
+			if task.Title == "Abnahme" && task.State == "failed" {
+				return true
+			}
+		}
+		return false
+	})
+
+	waitFor(t, "signature released", 10*time.Second, func() bool {
+		var sig string
+		if err := s.pool.QueryRow(ctx,
+			"SELECT last_work_sig FROM agent_heartbeats WHERE agent_id=$1 AND name='Abnahme'",
+			agent.ID).Scan(&sig); err != nil {
+			return false
+		}
+		return sig == ""
+	})
+}
+
+// The counterpart: a run that DID deliver a result keeps the suppression —
+// otherwise the agent would be woken again for a state it deliberately left as
+// it was, and would have to comment just to switch off its own alarm clock.
+func TestHeartbeatSignatureStaysAfterASuccessfulRun(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+
+	agent, err := s.registry.Create(ctx, s.orgID, "puls-fertig", "Puls fertig", "mock", &s.adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.registry.SaveConfig(ctx, agent.ID, map[string]string{
+		"SOUL.md":      "# Puls fertig",
+		"HEARTBEAT.md": "- alle: 1h titel: Abnahme aufgabe: Nimm ab. [mock:result abgenommen]",
+	}, &s.adminID); err != nil {
+		t.Fatal(err)
+	}
+	const sig = "mr40!1688@900"
+	if _, err := s.pool.Exec(ctx,
+		"UPDATE agent_heartbeats SET last_work_sig=$2 WHERE agent_id=$1 AND name='Abnahme'",
+		agent.ID, sig); err != nil {
+		t.Fatal(err)
+	}
+
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	admin.expect(http.MethodPost,
+		"/api/v1/agents/"+agent.ID.String()+"/heartbeats/Abnahme/fire", nil, http.StatusOK)
+
+	waitFor(t, "run done", 20*time.Second, func() bool {
+		tasks, _ := s.backlog.ListByAgent(ctx, agent.ID, true)
+		for _, task := range tasks {
+			if task.Title == "Abnahme" && task.State == "done" {
+				return true
+			}
+		}
+		return false
+	})
+
+	var got string
+	if err := s.pool.QueryRow(ctx,
+		"SELECT last_work_sig FROM agent_heartbeats WHERE agent_id=$1 AND name='Abnahme'",
+		agent.ID).Scan(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got != sig {
+		t.Fatalf("a completed run keeps the suppression, signature is now %q", got)
+	}
+}
