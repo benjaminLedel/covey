@@ -4,9 +4,11 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import {
   api,
+  totalInput,
   type Agent,
   type CostBucket,
   type OrgCostReport,
+  type Tokens,
 } from "../api";
 
 // --- Formatierung -----------------------------------------------------------
@@ -68,7 +70,7 @@ function CostChart({
   const barW = Math.min(38, slot * 0.62);
 
   const valueOf = (b: CostBucket) =>
-    metric === "cost" ? b.total_usd : b.input_tokens + b.output_tokens;
+    metric === "cost" ? b.total_usd : totalInput(b) + b.output_tokens;
   const max = Math.max(1e-9, ...data.map(valueOf));
 
   // „schöne" Obergrenze für die Y-Achse.
@@ -127,8 +129,10 @@ function CostChart({
               </g>
             );
           }
-          // Tokens: gestapelt input (unten) + output (oben)
-          const inH = ((b.input_tokens / niceMax) * plotH) || 0;
+          // Tokens: gestapelt input (unten) + output (oben). Eingabe heißt hier
+          // ALLES, was das Modell gelesen hat — der Cache-Anteil ist der
+          // Löwenanteil und stand vorher in keinem Balken.
+          const inH = ((totalInput(b) / niceMax) * plotH) || 0;
           const outH = ((b.output_tokens / niceMax) * plotH) || 0;
           const inY = padT + plotH - inH;
           const outY = inY - outH;
@@ -183,7 +187,11 @@ function CostChart({
             <>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                 <span style={{ color: "var(--text-accent)" }}>■ {t("costs.input")}</span>
-                <span style={{ fontWeight: 600 }}>{hb.input_tokens.toLocaleString(locale)}</span>
+                <span style={{ fontWeight: 600 }}>{totalInput(hb).toLocaleString(locale)}</span>
+              </div>
+              <div className="muted" style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 11 }}>
+                <span>{t("costs.ofWhichCached")}</span>
+                <span>{(hb.cache_read_tokens + hb.cache_creation_tokens).toLocaleString(locale)}</span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                 <span style={{ color: "var(--clay)" }}>■ {t("costs.output")}</span>
@@ -312,12 +320,19 @@ export default function Costs() {
 
   // Kennzahlen fürs aktuelle Scope.
   const totals = useMemo(() => {
+    const cached = (t: Tokens) => t.cache_read_tokens + t.cache_creation_tokens;
     if (isOrg && rep) {
-      return { usd: rep.total_usd, input: rep.input_tokens, output: rep.output_tokens, entries: rep.entries };
+      return { usd: rep.total_usd, input: totalInput(rep), cached: cached(rep), output: rep.output_tokens, entries: rep.entries };
     }
     return series.reduce(
-      (a, b) => ({ usd: a.usd + b.total_usd, input: a.input + b.input_tokens, output: a.output + b.output_tokens, entries: a.entries + b.entries }),
-      { usd: 0, input: 0, output: 0, entries: 0 },
+      (a, b) => ({
+        usd: a.usd + b.total_usd,
+        input: a.input + totalInput(b),
+        cached: a.cached + cached(b),
+        output: a.output + b.output_tokens,
+        entries: a.entries + b.entries,
+      }),
+      { usd: 0, input: 0, cached: 0, output: 0, entries: 0 },
     );
   }, [isOrg, rep, series]);
 
@@ -363,7 +378,13 @@ export default function Costs() {
       {/* KPIs */}
       <div className="flex flex-wrap gap-3 mb-4">
         <Kpi label={t("costs.totalCost")} value={fmtUSD(totals.usd)} sub={t("costs.runsN", { count: totals.entries })} />
-        <Kpi label={t("costs.inputTokens")} value={fmtTokens(totals.input, locale)} sub={totals.input.toLocaleString(locale)} />
+        <Kpi
+          label={t("costs.inputTokens")}
+          value={fmtTokens(totals.input, locale)}
+          sub={t("costs.cachedShare", {
+            pct: totals.input > 0 ? Math.round((totals.cached / totals.input) * 100) : 0,
+          })}
+        />
         <Kpi label={t("costs.outputTokens")} value={fmtTokens(totals.output, locale)} sub={totals.output.toLocaleString(locale)} />
         <Kpi label={t("costs.totalTokens")} value={fmtTokens(totals.input + totals.output, locale)} />
       </div>

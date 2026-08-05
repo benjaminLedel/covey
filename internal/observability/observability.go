@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -110,54 +111,80 @@ type Approval struct {
 	DecidedBy   *uuid.UUID      `json:"decided_by,omitempty"`
 }
 
+// Tokens is the token side of a cost total.
+//
+// Three fields rather than one, because the three are priced differently: fresh
+// input, a read out of the prompt cache (about a tenth of it) and writing the
+// cache (about a quarter more). Input alone used to be reported — with Claude
+// Code that is the smallest of the three by far and made every token figure in
+// the interface look absurd (5,497 in against 1,842,222 out for one agent).
+type Tokens struct {
+	// Input is the UNCACHED input only — keep TotalInput() in mind when
+	// displaying it.
+	Input         int64 `json:"input_tokens"`
+	Output        int64 `json:"output_tokens"`
+	CacheRead     int64 `json:"cache_read_tokens"`
+	CacheCreation int64 `json:"cache_creation_tokens"`
+}
+
+// TotalInput is the input side as a human means it: everything read, cached or
+// not.
+func (t Tokens) TotalInput() int64 { return t.Input + t.CacheRead + t.CacheCreation }
+
 type CostSummary struct {
-	AgentID      uuid.UUID `json:"agent_id"`
-	TotalUSD     float64   `json:"total_usd"`
-	InputTokens  int64     `json:"input_tokens"`
-	OutputTokens int64     `json:"output_tokens"`
-	Entries      int64     `json:"entries"`
+	AgentID  uuid.UUID `json:"agent_id"`
+	TotalUSD float64   `json:"total_usd"`
+	Tokens
+	Entries int64 `json:"entries"`
 }
 
 // CostBucket is one time window (hour/day/week) of the cost time series.
 type CostBucket struct {
-	Period       time.Time `json:"period"`
-	TotalUSD     float64   `json:"total_usd"`
-	InputTokens  int64     `json:"input_tokens"`
-	OutputTokens int64     `json:"output_tokens"`
-	Entries      int64     `json:"entries"`
+	Period   time.Time `json:"period"`
+	TotalUSD float64   `json:"total_usd"`
+	Tokens
+	Entries int64 `json:"entries"`
 }
 
 // AgentCost is an agent's cost total for the org breakdown.
 type AgentCost struct {
-	AgentID      uuid.UUID `json:"agent_id"`
-	Slug         string    `json:"slug"`
-	DisplayName  string    `json:"display_name"`
-	TotalUSD     float64   `json:"total_usd"`
-	InputTokens  int64     `json:"input_tokens"`
-	OutputTokens int64     `json:"output_tokens"`
-	Entries      int64     `json:"entries"`
+	AgentID     uuid.UUID `json:"agent_id"`
+	Slug        string    `json:"slug"`
+	DisplayName string    `json:"display_name"`
+	TotalUSD    float64   `json:"total_usd"`
+	Tokens
+	Entries int64 `json:"entries"`
 }
 
 // ModelCost is the cost total per LLM model.
 type ModelCost struct {
-	Model        string  `json:"model"`
-	TotalUSD     float64 `json:"total_usd"`
-	InputTokens  int64   `json:"input_tokens"`
-	OutputTokens int64   `json:"output_tokens"`
-	Entries      int64   `json:"entries"`
+	Model    string  `json:"model"`
+	TotalUSD float64 `json:"total_usd"`
+	Tokens
+	Entries int64 `json:"entries"`
 }
 
 // OrgCostReport bundles org-wide costs: totals, time series, breakdown per
 // agent and per model — the data basis for the chart.
 type OrgCostReport struct {
-	TotalUSD     float64      `json:"total_usd"`
-	InputTokens  int64        `json:"input_tokens"`
-	OutputTokens int64        `json:"output_tokens"`
-	Entries      int64        `json:"entries"`
-	Bucket       string       `json:"bucket"`
-	Series       []CostBucket `json:"series"`
-	Agents       []AgentCost  `json:"agents"`
-	Models       []ModelCost  `json:"models"`
+	TotalUSD float64 `json:"total_usd"`
+	Tokens
+	Entries int64        `json:"entries"`
+	Bucket  string       `json:"bucket"`
+	Series  []CostBucket `json:"series"`
+	Agents  []AgentCost  `json:"agents"`
+	Models  []ModelCost  `json:"models"`
+}
+
+// tokenSums is the token part of every cost aggregation — one place, so a
+// fourth token sort does not have to be chased through five queries. The prefix
+// is the table alias ("" or "ce.").
+func tokenSums(prefix string) string {
+	cols := []string{"input_tokens", "output_tokens", "cache_read_tokens", "cache_creation_tokens"}
+	for i, c := range cols {
+		cols[i] = "COALESCE(SUM(" + prefix + c + "),0)"
+	}
+	return strings.Join(cols, ", ")
 }
 
 var ErrNotFound = errors.New("not found")
@@ -292,17 +319,19 @@ func (s *Store) OrgEventsByKind(ctx context.Context, orgID uuid.UUID, kind strin
 }
 
 // AddCost books costs from a cost event of the daemon.
-func (s *Store) AddCost(ctx context.Context, agentID uuid.UUID, taskID *uuid.UUID, usd float64, inputTokens, outputTokens int64, model string) error {
-	_, err := s.pool.Exec(ctx, `INSERT INTO cost_entries (agent_id, task_id, usd, input_tokens, output_tokens, model)
-		VALUES ($1,$2,$3,$4,$5,$6)`, agentID, taskID, usd, inputTokens, outputTokens, model)
+func (s *Store) AddCost(ctx context.Context, agentID uuid.UUID, taskID *uuid.UUID, usd float64, tok Tokens, model string) error {
+	_, err := s.pool.Exec(ctx, `INSERT INTO cost_entries
+		(agent_id, task_id, usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, model)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+		agentID, taskID, usd, tok.Input, tok.Output, tok.CacheRead, tok.CacheCreation, model)
 	return err
 }
 
 func (s *Store) CostByAgent(ctx context.Context, agentID uuid.UUID) (CostSummary, error) {
 	c := CostSummary{AgentID: agentID}
-	err := s.pool.QueryRow(ctx, `SELECT COALESCE(SUM(usd),0), COALESCE(SUM(input_tokens),0),
-		COALESCE(SUM(output_tokens),0), COUNT(*) FROM cost_entries WHERE agent_id=$1`, agentID).
-		Scan(&c.TotalUSD, &c.InputTokens, &c.OutputTokens, &c.Entries)
+	err := s.pool.QueryRow(ctx, `SELECT COALESCE(SUM(usd),0), `+tokenSums("")+`, COUNT(*)
+		FROM cost_entries WHERE agent_id=$1`, agentID).
+		Scan(&c.TotalUSD, &c.Input, &c.Output, &c.CacheRead, &c.CacheCreation, &c.Entries)
 	return c, err
 }
 
@@ -322,7 +351,7 @@ func scanBuckets(rows pgx.Rows) ([]CostBucket, error) {
 	out := []CostBucket{}
 	for rows.Next() {
 		var b CostBucket
-		if err := rows.Scan(&b.Period, &b.TotalUSD, &b.InputTokens, &b.OutputTokens, &b.Entries); err != nil {
+		if err := rows.Scan(&b.Period, &b.TotalUSD, &b.Input, &b.Output, &b.CacheRead, &b.CacheCreation, &b.Entries); err != nil {
 			return nil, err
 		}
 		out = append(out, b)
@@ -334,7 +363,7 @@ func scanBuckets(rows pgx.Rows) ([]CostBucket, error) {
 // windows (bucket) and starting at since. For the cost/token chart.
 func (s *Store) CostSeriesByAgent(ctx context.Context, agentID uuid.UUID, bucket string, since time.Time) ([]CostBucket, error) {
 	rows, err := s.pool.Query(ctx, `SELECT date_trunc($2, created_at) AS period,
-		COALESCE(SUM(usd),0), COALESCE(SUM(input_tokens),0), COALESCE(SUM(output_tokens),0), COUNT(*)
+		COALESCE(SUM(usd),0), `+tokenSums("")+`, COUNT(*)
 		FROM cost_entries WHERE agent_id=$1 AND created_at >= $3
 		GROUP BY period ORDER BY period`, agentID, normalizeBucket(bucket), since)
 	if err != nil {
@@ -350,17 +379,16 @@ func (s *Store) OrgCostReport(ctx context.Context, orgID uuid.UUID, bucket strin
 	rep := OrgCostReport{Bucket: normalizeBucket(bucket), Series: []CostBucket{}, Agents: []AgentCost{}, Models: []ModelCost{}}
 
 	// Totals.
-	if err := s.pool.QueryRow(ctx, `SELECT COALESCE(SUM(ce.usd),0), COALESCE(SUM(ce.input_tokens),0),
-		COALESCE(SUM(ce.output_tokens),0), COUNT(*)
+	if err := s.pool.QueryRow(ctx, `SELECT COALESCE(SUM(ce.usd),0), `+tokenSums("ce.")+`, COUNT(*)
 		FROM cost_entries ce JOIN agents a ON a.id=ce.agent_id
 		WHERE a.org_id=$1 AND ce.created_at >= $2`, orgID, since).
-		Scan(&rep.TotalUSD, &rep.InputTokens, &rep.OutputTokens, &rep.Entries); err != nil {
+		Scan(&rep.TotalUSD, &rep.Input, &rep.Output, &rep.CacheRead, &rep.CacheCreation, &rep.Entries); err != nil {
 		return rep, err
 	}
 
 	// Time series.
 	rows, err := s.pool.Query(ctx, `SELECT date_trunc($2, ce.created_at) AS period,
-		COALESCE(SUM(ce.usd),0), COALESCE(SUM(ce.input_tokens),0), COALESCE(SUM(ce.output_tokens),0), COUNT(*)
+		COALESCE(SUM(ce.usd),0), `+tokenSums("ce.")+`, COUNT(*)
 		FROM cost_entries ce JOIN agents a ON a.id=ce.agent_id
 		WHERE a.org_id=$1 AND ce.created_at >= $3
 		GROUP BY period ORDER BY period`, orgID, rep.Bucket, since)
@@ -373,7 +401,7 @@ func (s *Store) OrgCostReport(ctx context.Context, orgID uuid.UUID, bucket strin
 
 	// Per agent.
 	arows, err := s.pool.Query(ctx, `SELECT a.id, a.slug, a.display_name,
-		COALESCE(SUM(ce.usd),0), COALESCE(SUM(ce.input_tokens),0), COALESCE(SUM(ce.output_tokens),0), COUNT(ce.id)
+		COALESCE(SUM(ce.usd),0), `+tokenSums("ce.")+`, COUNT(ce.id)
 		FROM agents a LEFT JOIN cost_entries ce ON ce.agent_id=a.id AND ce.created_at >= $2
 		WHERE a.org_id=$1
 		GROUP BY a.id, a.slug, a.display_name
@@ -386,7 +414,8 @@ func (s *Store) OrgCostReport(ctx context.Context, orgID uuid.UUID, bucket strin
 		defer arows.Close()
 		for arows.Next() {
 			var ac AgentCost
-			if err = arows.Scan(&ac.AgentID, &ac.Slug, &ac.DisplayName, &ac.TotalUSD, &ac.InputTokens, &ac.OutputTokens, &ac.Entries); err != nil {
+			if err = arows.Scan(&ac.AgentID, &ac.Slug, &ac.DisplayName, &ac.TotalUSD,
+				&ac.Input, &ac.Output, &ac.CacheRead, &ac.CacheCreation, &ac.Entries); err != nil {
 				return
 			}
 			rep.Agents = append(rep.Agents, ac)
@@ -399,7 +428,7 @@ func (s *Store) OrgCostReport(ctx context.Context, orgID uuid.UUID, bucket strin
 
 	// Per model.
 	mrows, err := s.pool.Query(ctx, `SELECT COALESCE(NULLIF(ce.model,''),'unknown'),
-		COALESCE(SUM(ce.usd),0), COALESCE(SUM(ce.input_tokens),0), COALESCE(SUM(ce.output_tokens),0), COUNT(*)
+		COALESCE(SUM(ce.usd),0), `+tokenSums("ce.")+`, COUNT(*)
 		FROM cost_entries ce JOIN agents a ON a.id=ce.agent_id
 		WHERE a.org_id=$1 AND ce.created_at >= $2
 		GROUP BY 1 ORDER BY SUM(ce.usd) DESC`, orgID, since)
@@ -409,7 +438,7 @@ func (s *Store) OrgCostReport(ctx context.Context, orgID uuid.UUID, bucket strin
 	defer mrows.Close()
 	for mrows.Next() {
 		var mc ModelCost
-		if err := mrows.Scan(&mc.Model, &mc.TotalUSD, &mc.InputTokens, &mc.OutputTokens, &mc.Entries); err != nil {
+		if err := mrows.Scan(&mc.Model, &mc.TotalUSD, &mc.Input, &mc.Output, &mc.CacheRead, &mc.CacheCreation, &mc.Entries); err != nil {
 			return rep, err
 		}
 		rep.Models = append(rep.Models, mc)

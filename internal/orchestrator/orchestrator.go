@@ -1385,7 +1385,10 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		if err != nil {
 			return false, nil
 		}
-		_ = o.Obs.AddCost(ctx, agent.ID, &taskID, c.USD, c.InputTokens, c.OutputTokens, c.Model)
+		_ = o.Obs.AddCost(ctx, agent.ID, &taskID, c.USD, observability.Tokens{
+			Input: c.InputTokens, Output: c.OutputTokens,
+			CacheRead: c.CacheReadTokens, CacheCreation: c.CacheCreationTokens,
+		}, c.Model)
 		return false, o.enforceBudget(ctx, agent, link, taskID, s)
 
 	case daemon.TypeRequestCredential:

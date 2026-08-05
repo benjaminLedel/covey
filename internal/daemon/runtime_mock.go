@@ -54,12 +54,17 @@ var mockDirective = regexp.MustCompile(`\[mock:(action|block|fail|result|memory|
 
 func (Mock) Run(ctx context.Context, spec RunSpec, onEvent func(kind string, payload json.RawMessage)) (RunResult, error) {
 	res := RunResult{
-		Status:       "done",
-		SessionID:    "mock-session-" + spec.TaskID,
-		CostUSD:      0.0123,
-		InputTokens:  1000,
-		OutputTokens: 200,
-		Model:        "mock-model",
+		Status:    "done",
+		SessionID: "mock-session-" + spec.TaskID,
+		CostUSD:   0.0123,
+		// Deliberately with the cache share dominating, as in a real run — that
+		// way the integration tests fail if the cached input side is dropped
+		// somewhere along the way again.
+		InputTokens:         1000,
+		OutputTokens:        200,
+		CacheReadTokens:     40000,
+		CacheCreationTokens: 3000,
+		Model:               "mock-model",
 	}
 	if spec.ResumeSessionID != "" {
 		res.SessionID = spec.ResumeSessionID

@@ -500,9 +500,11 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 		res.Status = "failed"
 		res.Error = err.Error()
 	}
-	if res.CostUSD > 0 || res.InputTokens > 0 {
+	if res.CostUSD > 0 || res.TotalInputTokens() > 0 {
 		_ = c.send(TypeCost, Cost{TaskID: task.TaskID, USD: res.CostUSD,
-			InputTokens: res.InputTokens, OutputTokens: res.OutputTokens, Model: res.Model})
+			InputTokens: res.InputTokens, OutputTokens: res.OutputTokens,
+			CacheReadTokens: res.CacheReadTokens, CacheCreationTokens: res.CacheCreationTokens,
+			Model: res.Model})
 	}
 	if res.Status == "blocked" {
 		_ = c.send(TypeBlocked, Blocked{TaskID: task.TaskID, CorrelationKey: res.CorrelationKey,

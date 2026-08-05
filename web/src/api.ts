@@ -152,44 +152,47 @@ export type GuardrailVerdict = {
   budget_limit_usd?: number;
 };
 
-export type CostSummary = {
+// Tokens: input_tokens counts only the UNCACHED input. With Claude Code
+// practically the whole context comes out of the prompt cache, so that number
+// alone is meaningless — use totalInput() everywhere a human reads "input".
+export type Tokens = {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_creation_tokens: number;
+};
+
+export const totalInput = (t: Tokens) =>
+  t.input_tokens + t.cache_read_tokens + t.cache_creation_tokens;
+
+export type CostSummary = Tokens & {
   agent_id: string;
   total_usd: number;
-  input_tokens: number;
-  output_tokens: number;
   entries: number;
 };
 
-export type CostBucket = {
+export type CostBucket = Tokens & {
   period: string;
   total_usd: number;
-  input_tokens: number;
-  output_tokens: number;
   entries: number;
 };
 
-export type AgentCost = {
+export type AgentCost = Tokens & {
   agent_id: string;
   slug: string;
   display_name: string;
   total_usd: number;
-  input_tokens: number;
-  output_tokens: number;
   entries: number;
 };
 
-export type ModelCost = {
+export type ModelCost = Tokens & {
   model: string;
   total_usd: number;
-  input_tokens: number;
-  output_tokens: number;
   entries: number;
 };
 
-export type OrgCostReport = {
+export type OrgCostReport = Tokens & {
   total_usd: number;
-  input_tokens: number;
-  output_tokens: number;
   entries: number;
   bucket: string;
   series: CostBucket[] | null;

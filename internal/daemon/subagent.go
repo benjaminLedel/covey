@@ -149,9 +149,11 @@ func (c *Client) runSubAgent(ctx context.Context, taskID string, req target.SubA
 	if err != nil {
 		return target.SubAgentResult{}, err
 	}
-	if res.CostUSD > 0 || res.InputTokens > 0 {
+	if res.CostUSD > 0 || res.TotalInputTokens() > 0 {
 		_ = c.send(TypeCost, Cost{TaskID: taskID, USD: res.CostUSD,
-			InputTokens: res.InputTokens, OutputTokens: res.OutputTokens, Model: res.Model})
+			InputTokens: res.InputTokens, OutputTokens: res.OutputTokens,
+			CacheReadTokens: res.CacheReadTokens, CacheCreationTokens: res.CacheCreationTokens,
+			Model: res.Model})
 	}
 
 	changed, deleted := gitChangesSince(ctx, dir, base)
