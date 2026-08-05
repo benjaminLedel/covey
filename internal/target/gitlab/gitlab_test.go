@@ -1360,7 +1360,7 @@ func TestExtractTarGzRejectsTraversal(t *testing.T) {
 		"repo-main/":          "",
 		"../../etc/evil.conf": "böse",
 	})
-	if _, _, err := extractTarGz(bytes.NewReader(archive), t.TempDir()); err == nil {
+	if _, err := extractTarGzInto(bytes.NewReader(archive), t.TempDir()); err == nil {
 		t.Fatal("path traversal in the archive must be refused")
 	}
 }

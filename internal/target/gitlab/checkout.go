@@ -112,8 +112,9 @@ func Checkout(ctx context.Context, gc *Client, projectID int, ref, subPath, work
 	// The directory name arises from the project id and the ref, that is from
 	// values the agent supplies. stableCheckoutDir lets no path separator
 	// through — securePath pins that promise down explicitly on the finished
-	// path instead of leaving it implicit two functions away. Everything below
-	// (unpacking, the git baseline) relies on it.
+	// path instead of leaving it implicit two functions away. The archive
+	// entries below are contained separately, by os.Root (see
+	// extractTarGzInto).
 	destDir, err := securePath(filepath.Join(workdir, "repos"), stableCheckoutDir(projectID, ref, subPath))
 	if err != nil {
 		return CheckoutResult{}, err
@@ -139,10 +140,15 @@ func Checkout(ctx context.Context, gc *Client, projectID int, ref, subPath, work
 	}, nil
 }
 
-// securePath anchors an archive entry under root: the assembled destination
-// path must stay inside root. The prefix test for ".." on the name already
-// catches the regular case beforehand — this check is the promise on the
-// FINISHED path and therefore the one that matters (zip slip, CWE-22).
+// securePath anchors the checkout DIRECTORY under root: the assembled path must
+// stay inside root. It is used for the one path built from agent input outside
+// the archive — the destination directory name (see stableCheckoutDir) — and
+// there a string comparison is enough, because nothing has been created yet
+// that a symlink could point through.
+//
+// The archive entries themselves deliberately do NOT go through here; they are
+// written through os.Root, which the file system enforces (see
+// extractTarGzInto for why the difference matters).
 func securePath(root, name string) (string, error) {
 	dest := filepath.Clean(filepath.Join(root, name))
 	if dest != filepath.Clean(root) && !strings.HasPrefix(dest, filepath.Clean(root)+string(filepath.Separator)) {
@@ -203,96 +209,44 @@ func initGitBaseline(ctx context.Context, dir string) {
 	_ = git("tag", "-f", target.BaselineRef)
 }
 
-// extractTarGz unpacks a GitLab repository archive into destRoot and returns
-// the name of the top-level directory (GitLab: <project>-<ref>-<sha>).
-// Security: paths are checked against traversal, symlinks are skipped, the
-// unpacked total size is capped.
-func extractTarGz(r io.Reader, destRoot string) (topDir string, files int, err error) {
-	gz, err := gzip.NewReader(r)
-	if err != nil {
-		return "", 0, fmt.Errorf("read archive: %w", err)
-	}
-	defer gz.Close()
-
-	maxBytes := checkoutMaxBytes()
-	var total int64
-	tr := tar.NewReader(gz)
-	for {
-		hdr, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return "", 0, fmt.Errorf("read archive: %w", err)
-		}
-		name := filepath.Clean(hdr.Name)
-		if name == "." || name == "pax_global_header" {
-			continue
-		}
-		if strings.HasPrefix(name, "..") || filepath.IsAbs(name) {
-			return "", 0, fmt.Errorf("unsafe path in the archive: %q", hdr.Name)
-		}
-		if topDir == "" {
-			topDir = strings.SplitN(name, string(filepath.Separator), 2)[0]
-			// Replace the previous state of the same archive (a fresh checkout).
-			old, err := securePath(destRoot, topDir)
-			if err != nil {
-				return "", 0, err
-			}
-			if err := os.RemoveAll(old); err != nil {
-				return "", 0, err
-			}
-		}
-		dest, err := securePath(destRoot, name)
-		if err != nil {
-			return "", 0, err
-		}
-		switch hdr.Typeflag {
-		case tar.TypeDir:
-			if err := os.MkdirAll(dest, 0o755); err != nil {
-				return "", 0, err
-			}
-		case tar.TypeReg:
-			total += hdr.Size
-			if total > maxBytes {
-				return "", 0, fmt.Errorf("archive larger than %d MB — use checkout with \"path\" (a subdirectory) or navigate with list_tree and read selectively via read_file; the limit is set by COVEY_GITLAB_CHECKOUT_MAX_MB", maxBytes>>20)
-			}
-			if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-				return "", 0, err
-			}
-			f, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(hdr.Mode)&0o777)
-			if err != nil {
-				return "", 0, err
-			}
-			if _, err := io.Copy(f, io.LimitReader(tr, maxBytes)); err != nil {
-				f.Close()
-				return "", 0, err
-			}
-			f.Close()
-			files++
-		default:
-			// Symlinks & the rest: unnecessary for reading code, risky as an
-			// escape vector — deliberately skipped.
-		}
-	}
-	if topDir == "" {
-		return "", 0, fmt.Errorf("empty archive")
-	}
-	return topDir, files, nil
-}
-
 // extractTarGzInto unpacks a GitLab repository archive into destDir and strips
 // the top-level directory (the SHA-bearing shell) in doing so, so that the
 // contents lie directly in destDir — the precondition for a stable,
-// cache-preserving destination directory. Unlike extractTarGz it does NOT clear
-// destDir (the caller prunes cache-sparingly). Security as in extractTarGz:
-// traversal protection, symlinks skipped, total size capped.
+// cache-preserving destination directory. It does NOT clear destDir (the caller
+// prunes cache-sparingly).
+//
+// Every write goes through os.Root, and that is the point rather than a detail.
+// A comparison of path STRINGS — the obvious way to write this, and how it was
+// written first — checks one thing and then writes another: the check runs on
+// the assembled path, the write resolves that path AGAIN through the file
+// system and follows any symlink it meets. Between the two sits a window.
+//
+// The window is not theoretical here. pruneExceptPreserved deliberately keeps
+// the dependency caches (node_modules, .venv, vendor …) across checkouts, and
+// the agent runs `npm install` in that checkout as a matter of course — with
+// whatever postinstall scripts the project's third-party dependencies bring
+// along. A link left behind in node_modules is still there when the next
+// archive is unpacked over it, and an entry "node_modules/x" then lands
+// wherever the link points. The agent's home is a host directory mounted
+// writable into the sandbox, so that is a write on the HOST, outside the home.
+//
+// os.Root closes it: the operating system resolves beneath destDir, and a
+// symlink leading outside fails there — when opening, not in a check before it.
+// The textual test for ".." and absolute paths stays, but as a clear early
+// error rather than as the thing containment rests on. Same reasoning as
+// internal/sandboxfs and internal/target/github.
 func extractTarGzInto(r io.Reader, destDir string) (files int, err error) {
 	gz, err := gzip.NewReader(r)
 	if err != nil {
 		return 0, fmt.Errorf("read archive: %w", err)
 	}
 	defer gz.Close()
+
+	root, err := os.OpenRoot(destDir)
+	if err != nil {
+		return 0, err
+	}
+	defer root.Close()
 
 	maxBytes := checkoutMaxBytes()
 	var total int64
@@ -313,30 +267,34 @@ func extractTarGzInto(r io.Reader, destDir string) (files int, err error) {
 			return 0, fmt.Errorf("unsafe path in the archive: %q", hdr.Name)
 		}
 		// Strip the top-level directory (projname-ref-sha).
-		rel := strings.SplitN(name, string(filepath.Separator), 2)
-		if len(rel) < 2 || rel[1] == "" {
+		parts := strings.SplitN(name, string(filepath.Separator), 2)
+		if len(parts) < 2 || parts[1] == "" {
 			continue // the shell directory itself
 		}
-		dest, err := securePath(destDir, rel[1])
-		if err != nil {
-			return 0, err
-		}
+		rel := parts[1]
 		switch hdr.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(dest, 0o755); err != nil {
-				return 0, err
+			if err := root.MkdirAll(rel, 0o755); err != nil {
+				return 0, unsafePath(hdr.Name, err)
 			}
 		case tar.TypeReg:
 			total += hdr.Size
 			if total > maxBytes {
 				return 0, fmt.Errorf("archive larger than %d MB — use checkout with \"path\" (a subdirectory) or navigate with list_tree and read selectively via read_file; the limit is set by COVEY_GITLAB_CHECKOUT_MAX_MB", maxBytes>>20)
 			}
-			if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
-				return 0, err
+			if dir := filepath.Dir(rel); dir != "." {
+				if err := root.MkdirAll(dir, 0o755); err != nil {
+					return 0, unsafePath(hdr.Name, err)
+				}
 			}
-			f, err := os.OpenFile(dest, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(hdr.Mode)&0o777)
+			// A link that stays INSIDE the checkout is still followed here —
+			// os.Root only refuses the ones leading out. That is deliberate:
+			// everything inside the checkout is the agent's own working copy,
+			// which it may write by any route it likes; the boundary being
+			// defended is the one around it.
+			f, err := root.OpenFile(rel, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(hdr.Mode)&0o777)
 			if err != nil {
-				return 0, err
+				return 0, unsafePath(hdr.Name, err)
 			}
 			if _, err := io.Copy(f, io.LimitReader(tr, maxBytes)); err != nil {
 				f.Close()
@@ -349,4 +307,12 @@ func extractTarGzInto(r io.Reader, destDir string) (files int, err error) {
 		}
 	}
 	return files, nil
+}
+
+// unsafePath turns os.Root's refusal into this package's error. To the caller
+// an escape blocked by the kernel is the same case as a textual "..": the entry
+// does not belong in this checkout. The original is kept for the log — "not
+// permitted" alone says nothing about which archive entry caused it.
+func unsafePath(name string, err error) error {
+	return fmt.Errorf("unsafe path in the archive: %q: %w", name, err)
 }
