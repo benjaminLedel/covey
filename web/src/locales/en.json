@@ -155,6 +155,10 @@
         "dev": {
           "t": "Dev sandbox",
           "d": "The agent's own computer: run shell commands, start dev servers and databases, check them, tear them down again."
+        },
+        "vulndb": {
+          "t": "Vulnerability databases",
+          "d": "Known vulnerabilities in the declared dependencies: a lock file goes in, findings with advisory ID, severity and the fix version for exactly this version branch come out. npm, Composer, Dart/Flutter."
         }
       },
       "extendLead": "Two ways to get there without waiting for a release — both in the UI, neither needs a deploy.",

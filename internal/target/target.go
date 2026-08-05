@@ -254,6 +254,13 @@ type Descriptor struct {
 	// <name>_token/_url) — it works purely locally in the sandbox (e.g. the
 	// dev plugin). ACCESS.md, activation and guard-rails still apply.
 	NoCredentials bool `json:"-"`
+	// CredentialsOptional: the system is usable WITHOUT a secret, and a stored
+	// <name>_token only raises what it may do — e.g. an API key that lifts a
+	// public rate limit (vulndb/NVD). The broker then resolves token and URL
+	// best effort and grants even when nothing is stored, instead of denying.
+	// The difference from NoCredentials: there the plugin never sees a
+	// credential; here it sees one as soon as the organization stores one.
+	CredentialsOptional bool `json:"-"`
 	// BaseURLOptional: the plugin knows its target system's endpoint itself
 	// (a fixed default, e.g. the Bot Framework token endpoint for Teams).
 	// <name>_url is then an override for special cases, not a mandatory

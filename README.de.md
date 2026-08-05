@@ -231,6 +231,7 @@ Spezifikation und Runbooks sind auf **Englisch** — sie richten sich an alle, d
 | [`docs/ops-sharepoint.md`](docs/ops-sharepoint.md) | SharePoint/Teams-Dateien via Microsoft Graph |
 | [`docs/ops-nextcloud.md`](docs/ops-nextcloud.md) | Nextcloud-Dateien via WebDAV |
 | [`docs/ops-browser.md`](docs/ops-browser.md) | Headless Chrome: Web-UIs bedienen, Screenshots ins Recording |
+| [`docs/ops-vulndb.md`](docs/ops-vulndb.md) | Bekannte Schwachstellen in Paket-Abhängigkeiten (npm, Composer, Dart/Flutter) |
 
 ## Repository-Inhalt
 

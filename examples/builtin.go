@@ -125,6 +125,13 @@ var manifest = []struct {
 		NameDe:        "Web-Rechercheur (Browser)",
 		DescriptionDe: "Recherchiert Fragen im offenen Web mit einem echten Browser: sucht, öffnet und liest Quellen, hält Belege als Screenshot fest und liefert eine belegte, knappe Antwort mit Quellen.",
 	},
+	{
+		File:          "dependency-security-agent.bundle.json",
+		Name:          "Dependency security agent (vulndb + GitLab)",
+		Description:   "Scans the lock files of the projects in its register for known vulnerabilities (npm, Composer, Dart/Flutter), assesses every hit against the project — direct or transitive, which fix branch applies — and files traceable GitLab tickets with evidence, after a mandatory duplicate check. The upgrade goes to a developer colleague.",
+		NameDe:        "Dependency-Security-Agent (vulndb + GitLab)",
+		DescriptionDe: "Scannt die Lockdateien der Projekte aus seinem Verzeichnis auf bekannte Schwachstellen (npm, Composer, Dart/Flutter), bewertet jeden Treffer am Projekt — direkt oder transitiv, welcher Fix-Zweig gilt — und legt nach verpflichtender Duplikatsprüfung belegte GitLab-Tickets an. Das Upgrade geht an einen Entwickler-Kollegen.",
+	},
 }
 
 // builtins is built once at package load; malformed embedded bundles fail the

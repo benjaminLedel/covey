@@ -56,6 +56,7 @@ import (
 	_ "covey/internal/target/nextcloud"
 	_ "covey/internal/target/sharepoint"
 	_ "covey/internal/target/teams"
+	_ "covey/internal/target/vulndb"
 	_ "covey/internal/target/zammad"
 )
 
