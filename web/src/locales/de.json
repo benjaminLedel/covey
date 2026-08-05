@@ -337,6 +337,12 @@
     "current": "DE",
     "switchTo": "Sprache: English"
   },
+  "theme": {
+    "label": "Erscheinungsbild",
+    "system": "System",
+    "light": "Hell",
+    "dark": "Dunkel"
+  },
   "version": {
     "builtAt": "gebaut am {{when}}",
     "source": "AGPL-3.0 · Quelltext"

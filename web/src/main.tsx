@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router";
 import App from "./App";
 import { istVorgerendert } from "./i18n";
+import { initTheme } from "./theme";
 
 /* Inter und Lora liegen im Binary, nicht bei Google. Zwei Gründe: Die eigene
    CSP erlaubt keine fremden Stylesheet- und Font-Hosts (script-src/font-src
@@ -35,6 +36,12 @@ const root = document.getElementById("root")!;
    kein JavaScript ausführen — sie sollen keinen Text vorfinden, der auf
    opacity: 0 steht. */
 document.documentElement.classList.add("js");
+
+/* Eine ausdrückliche Wahl fürs Erscheinungsbild vor dem ersten Rendervorgang
+   anlegen, damit sie nicht erst nach dem Aufbau der Oberfläche durchschlägt.
+   Ohne Wahl passiert hier nichts — dann entscheidet das Stylesheet nach der
+   Systemeinstellung (siehe src/theme.ts). */
+initTheme();
 
 const tree = (
   <React.StrictMode>
