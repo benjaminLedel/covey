@@ -12,6 +12,7 @@ import {
   type FileContent,
   type FileEntry,
   type FileListing,
+  type FilesUsage,
 } from "../api";
 import { fmtBytes } from "../format";
 import { Markdown } from "./Markdown";
@@ -91,6 +92,57 @@ function FileGlyph({ entry }: { entry: FileEntry }) {
   );
 }
 
+// Die Platzanzeige. Der Grund, dass es sie gibt: das persistente Home ist
+// Absicht (Caches überleben, der nächste Lauf startet warm), aber niemand
+// konnte die Folge sehen. Ein QA-Agent hat sich selbst ins Wiki geschrieben,
+// dass sein 40-G-Overlay durch Alt-Checkouts vollläuft — kurz darauf endete ein
+// Lauf mit „claude exit: signal: killed". Die Information gab es, nur nicht hier.
+function DiskGauge({ usage, onOpenRepos }: { usage?: FilesUsage; onOpenRepos: () => void }) {
+  const { t } = useTranslation();
+  if (!usage?.exists || usage.total_bytes <= 0) return null;
+  const used = usage.total_bytes - usage.free_bytes;
+  const pct = Math.min(100, Math.round((used / usage.total_bytes) * 100));
+  // Ab 85 % wird es eng: ein npm install oder ein Checkout braucht Luft.
+  const tight = pct >= 85;
+  const top = usage.checkouts.slice(0, 3);
+  return (
+    <div className="card mb-3" style={{ padding: "10px 14px" }}>
+      <div className="flex items-baseline gap-2 flex-wrap text-xs">
+        <span style={{ fontWeight: 600 }}>{t("agent.files.disk")}</span>
+        <span className={tight ? "" : "muted"} style={tight ? { color: "var(--text-warning)" } : undefined}>
+          {t("agent.files.diskUsed", {
+            used: fmtBytes(used),
+            total: fmtBytes(usage.total_bytes),
+            pct,
+          })}
+        </span>
+        {usage.checkouts.length > 0 && (
+          <button className="btn sm" style={{ border: "none" }} onClick={onOpenRepos}>
+            {t("agent.files.diskCheckouts", {
+              count: usage.checkouts.length,
+              size: fmtBytes(usage.checkout_bytes),
+            })}
+          </button>
+        )}
+      </div>
+      <div style={{ height: 6, background: "var(--surface-1)", borderRadius: 3, overflow: "hidden", marginTop: 6 }}>
+        <div
+          style={{
+            width: `${pct}%`,
+            height: "100%",
+            background: tight ? "var(--text-warning)" : "var(--text-accent)",
+          }}
+        />
+      </div>
+      {top.length > 0 && (
+        <div className="muted text-xs mono" style={{ marginTop: 6 }}>
+          {top.map((c) => `${c.name} ${fmtBytes(c.bytes)}`).join(" · ")}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -116,6 +168,12 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
     retry: false,
   });
   const inval = () => qc.invalidateQueries({ queryKey: ["agent-files", agent.id] });
+
+  const usage = useQuery({
+    queryKey: ["agent-files-usage", agent.id],
+    queryFn: () => api<FilesUsage>(`/agents/${agent.id}/files/usage`),
+    retry: false,
+  });
 
   const [dropping, setDropping] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -210,6 +268,8 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
       {dir.split("/")[0] === "wiki" && (
         <p className="muted text-xs mb-3">{t("agent.files.wikiHint")}</p>
       )}
+
+      <DiskGauge usage={usage.data} onOpenRepos={() => setParam("dir", "repos")} />
 
       {/* Pfadleiste und Werkzeuge in einer Zeile: der Ort, an dem man ist, und
           was man dort tun kann, gehören zusammen. */}

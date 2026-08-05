@@ -600,7 +600,10 @@
       "csvRows": "{{rows}} rows · {{cols}} columns",
       "csvTruncated": "First {{shown}} rows · {{cols}} columns — see the source for all of it.",
       "save": "Save",
-      "saving": "Saving …"
+      "saving": "Saving …",
+      "disk": "Disk",
+      "diskUsed": "{{used}} of {{total}} used ({{pct}}%)",
+      "diskCheckouts": "{{count}} checkouts · {{size}}"
     },
     "cost": {
       "total": "Total cost",

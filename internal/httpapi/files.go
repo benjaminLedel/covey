@@ -43,6 +43,18 @@ func (s *Server) handleListFiles(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, list)
 }
 
+// handleFilesUsage: GET /agents/{id}/files/usage — how full the sandbox is and
+// which working copies are eating it. Nothing measured this before, and the
+// consequence (checkouts pile up in the persistent home until a run is killed)
+// was only visible to the agent itself.
+func (s *Server) handleFilesUsage(w http.ResponseWriter, r *http.Request) {
+	fs, _, ok := s.agentFS(w, r)
+	if !ok {
+		return
+	}
+	writeJSON(w, http.StatusOK, fs.Usage())
+}
+
 // handleReadFile: GET /agents/{id}/files/content?path=…
 func (s *Server) handleReadFile(w http.ResponseWriter, r *http.Request) {
 	fs, _, ok := s.agentFS(w, r)

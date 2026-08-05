@@ -120,7 +120,8 @@ func Checkout(ctx context.Context, gc *Client, repo, ref, workdir string) (Check
 		Repo:  repo,
 		Ref:   ref,
 		Files: files,
-		Hint:  "The source code is local — search and read it directly (Grep/Read/Bash). For the actual change hand the path to dev agent: the sub-agent works IN the project and gets that project's own rules there (CLAUDE.md, .claude/agents, skills), which you yourself do not see. The directory is a git repo with the upstream state as its baseline commit; the sub-agent reports changed files back. Dependency caches (node_modules and the like) survive across runs, so npm/pip/go install then runs incrementally.",
+		Hint: "The source code is local — search and read it directly (Grep/Read/Bash). For the actual change hand the path to dev agent: the sub-agent works IN the project and gets that project's own rules there (CLAUDE.md, .claude/agents, skills), which you yourself do not see. The directory is a git repo with the upstream state as its baseline commit; the sub-agent reports changed files back. Dependency caches (node_modules and the like) survive across runs, so npm/pip/go install then runs incrementally." +
+			target.CheckoutPruneNote(target.PruneOldCheckouts(workdir, destDir)),
 	}, nil
 }
 
