@@ -199,6 +199,37 @@ Every further push to main pulls the new images and restarts. The DB volume
 (`covey-db`), the agent homes (`/opt/covey/data/homes/…`) and the `.env` are
 preserved.
 
+### Checking configurations after an upgrade
+
+The platform's share of an agent's system prompt is compiled at dispatch time,
+so every agent gets a new platform contract with the deploy. What a human wrote
+— `SOUL.md`, `PLAYBOOKS.md`, `HEARTBEAT.md` — stays as it is, and it can fall out
+of step with it. `covey config lint` names the agents that need catching up,
+across all organizations, and exits with `1` when there are findings — enough
+for an upgrade script:
+
+```bash
+docker compose exec covey /covey config lint          # readable
+docker compose exec covey /covey config lint --json   # for a pipeline
+```
+
+The same findings stand on each agent's own page, above the tabs — that is where
+they are read when somebody looks after an agent because something is wrong with
+it.
+
+### Turning the MCP route on for target actions
+
+By default an agent issues a target action as a shell command (`curl` against
+the local action proxy). The proxy additionally speaks MCP, and on that route
+the same action is a typed tool call — no JSON inside a quoted shell string,
+which is where a good part of the wasted turns come from.
+
+It is **opt-in**, because a failed handshake would take all target actions with
+it: set `COVEY_ACTION_MCP=1` in the `.env`, restart, and watch one agent's
+recording for a run (the actions appear as `mcp__covey` tool calls instead of
+`Bash`). The shell route stays open either way, so an agent config that
+describes it keeps working.
+
 ### Emergency password reset
 
 You change your own password in the UI (account settings); other people's are

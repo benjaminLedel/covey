@@ -51,6 +51,29 @@ plane when the task ends. Alternatively use the tools
 covey/wiki_read|write|append.
 `
 
+// removeLocalWikiFile deletes a page's working copy in the home after
+// covey/wiki_delete has removed it in the control plane. Without it the file
+// stays for the rest of the run and the agent finds its own deleted page again
+// with Grep/Read — which is exactly what one QA agent noted as "wiki_search
+// still returns hits from a stale index".
+//
+// The slug comes from the agent, so it is contained here: only a plain name
+// without a path separator is allowed. Anything else is not removed — the file
+// name would then no longer be the page's, and deleting the wrong file is worse
+// than leaving one lying about.
+//
+// Best effort: the deletion in the control plane has happened, that is what
+// counts. A file that will not go away is corrected by the next
+// materialisation (writeWikiFiles prunes orphans).
+func (p *actionProxy) removeLocalWikiFile(slug string) {
+	home := p.client.homeDir
+	slug = strings.TrimSpace(slug)
+	if home == "" || slug == "" || slug != filepath.Base(slug) || strings.HasPrefix(slug, ".") {
+		return
+	}
+	_ = os.Remove(filepath.Join(home, "wiki", slug+".md"))
+}
+
 func wikiHash(title, body string) string {
 	sum := sha256.Sum256([]byte(strings.TrimSpace(title) + "\x00" + strings.TrimSpace(body)))
 	return hex.EncodeToString(sum[:8])

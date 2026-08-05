@@ -162,3 +162,46 @@ func TestParseWikiTagsListForm(t *testing.T) {
 		t.Fatalf("tags in list form: %v", pg.Tags)
 	}
 }
+
+// After covey/wiki_delete the working copy in the home has to go too. It used
+// to stay for the rest of the run, and the agent found its own deleted page
+// again with Grep/Read — one QA agent noted that as "wiki_search still returns
+// hits from a stale index". The index was fine; its own working copy was not.
+func TestRemoveLocalWikiFileAfterDelete(t *testing.T) {
+	home := t.TempDir()
+	dir := filepath.Join(home, "wiki")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	page := filepath.Join(dir, "projekt-40.md")
+	if err := os.WriteFile(page, []byte("# Projekt 40"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	p := &actionProxy{client: &Client{homeDir: home}}
+
+	p.removeLocalWikiFile("projekt-40")
+	if _, err := os.Stat(page); !os.IsNotExist(err) {
+		t.Fatalf("the working copy has to go: %v", err)
+	}
+}
+
+// The slug comes from the agent — a name with a path separator or a leading dot
+// must not delete anything. Deleting the wrong file is worse than leaving one
+// lying about.
+func TestRemoveLocalWikiFileRefusesEscapingSlugs(t *testing.T) {
+	home := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(home, "wiki"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	victim := filepath.Join(home, "geheim.md")
+	if err := os.WriteFile(victim, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	p := &actionProxy{client: &Client{homeDir: home}}
+	for _, slug := range []string{"../geheim", "/etc/passwd", "..", ".ssh/id_rsa", ""} {
+		p.removeLocalWikiFile(slug)
+	}
+	if _, err := os.Stat(victim); err != nil {
+		t.Fatalf("nothing outside the wiki directory may be touched: %v", err)
+	}
+}

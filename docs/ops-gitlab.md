@@ -457,9 +457,18 @@ Sequence and security model:
   the token stays in the daemon's RAM and **never** lands in the sandbox's file
   system (unlike a `git clone` with a credential remote, which would persist the
   token in `.git/config`).
-- It is unpacked into `<home>/repos/<project>-<ref>-<sha>/`; the action returns
-  the path, and the agent then works locally with grep/read/bash. A renewed
-  checkout replaces the old state (always fresh code).
+- It is unpacked into `<home>/repos/p<project>-<ref>/`; the action returns that
+  directory as `path`, and the agent then works locally with grep/read/bash. A
+  renewed checkout replaces the old state (always fresh code). A **partial**
+  checkout (`path`) lands underneath, at the place it occupies upstream, so
+  several partial checkouts of one ref grow into ONE working tree — `path` in
+  the result stays the repository root, `local_path` names the subtree.
+- The home is persistent, so working copies would pile up in it without bound.
+  After every checkout the least recently used ones fall away; five survive
+  (`COVEY_CHECKOUT_KEEP`, `0` switches the cleanup off). Which ones went is in
+  the checkout result, because the agent may be holding a path from an earlier
+  run. How full the sandbox is, and which working copies are eating it, is on
+  the agent's **Workplace** tab.
 - Protections: path traversal is refused, symlinks are skipped, and the unpacked
   size is limited (default 512 MB, `COVEY_GITLAB_CHECKOUT_MAX_MB`).
 - Guard-rail subjects: `gitlab:checkout`, `gitlab:list_tree`,
@@ -471,6 +480,9 @@ are also in the error message the agent sees:
 
 - **A partial checkout**: `checkout {"project_id":N, "path":"web/upload"}` loads
   only the subdirectory (the `path` parameter of the GitLab archive API).
+  Several of them share one working tree, so everything the project needs to
+  build has to be fetched BEFORE the work starts — every checkout redraws the
+  baseline commit and would swallow changes made in between.
 - **Browsing without a checkout**: `list_tree {"project_id":N, "path":"...",
   "recursive":true}` lists the repository tree (max. 100 entries per
   call), `read_file {"project_id":N, "file_path":"path/to/file"}` reads a
@@ -589,6 +601,7 @@ Two idiosyncrasies you have to know when designing such an agent:
 |---|---|---|
 | `COVEY_GITLAB_INTAKE_PROJECTS` | *(empty = all)* | An allowlist of projects (path or id) — filters `list_issues`/`list_projects` and the `nur-wenn:` advance check |
 | `COVEY_GITLAB_CHECKOUT_MAX_MB` | `512` | The upper bound on the unpacked size of a `checkout` (section 4) |
+| `COVEY_CHECKOUT_KEEP` | `5` | How many working copies survive under `<home>/repos`; `0` switches the cleanup off (section 4) |
 | `COVEY_EGRESS_ALLOW` | *(empty)* | Additional permitted egress hosts, e.g. the GitLab host |
 
 GitLab has no webhook intake — the former variables `COVEY_PUBLIC_URL`
