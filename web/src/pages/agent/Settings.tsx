@@ -80,7 +80,7 @@ export function AgentSettings({
       </nav>
       <div className="min-w-0">
         {sub === "allgemein" && <AgentSettingsGeneral agent={agent} editable={editable} />}
-        {sub === "heartbeat" && <Heartbeats agentId={agent.id} canManage={canManage} />}
+        {sub === "heartbeat" && <Heartbeats agentId={agent.id} canManage={canManage} killed={agent.killed} />}
         {sub === "webhook" && canManage && <WebhookTrigger agentId={agent.id} />}
         {sub === "config" && (
           <Config

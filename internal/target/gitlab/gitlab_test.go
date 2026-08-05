@@ -2062,3 +2062,52 @@ func TestRepoDirNameKeepsLongRefsApart(t *testing.T) {
 		t.Fatalf("long refs collide into the same directory: %s", a)
 	}
 }
+
+// GitLab answers the approve endpoint with 401 when approving is not permitted
+// — the merge request is already merged or closed, the caller is its author, or
+// an approval rule stands in the way. Raw, that reads like a credential
+// problem: the agent concludes its token is broken and reports a broken GitLab
+// connection, while in truth somebody simply closed the merge request. Reported
+// from production.
+func TestApproveOnClosedMRExplainsThe401(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"message":"401 Unauthorized"}`))
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "gueltiges-token"}
+	ctx := target.WithWorkdir(context.Background(), t.TempDir())
+
+	_, err := sys.Execute(ctx, "approve_mr", []byte(`{"project_id":40,"mr_iid":1685}`), cred)
+	if err == nil {
+		t.Fatal("a 401 is an error")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "not permitted") || !strings.Contains(msg, "get_merge_request") {
+		t.Fatalf("the message has to say what it really means and what to do: %q", msg)
+	}
+	if !strings.Contains(msg, "401") {
+		t.Fatalf("the original status stays as the evidence: %q", msg)
+	}
+}
+
+// Everywhere else a 401 IS a token problem — the hint must not turn that on its
+// head.
+func TestPlain401StaysATokenProblem(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"message":"401 Unauthorized"}`))
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "abgelaufen"}
+	ctx := target.WithWorkdir(context.Background(), t.TempDir())
+
+	_, err := sys.Execute(ctx, "list_issues", []byte(`{"project_id":40}`), cred)
+	if err == nil || !strings.Contains(err.Error(), "token is rejected") {
+		t.Fatalf("a plain 401 stays a credential problem: %v", err)
+	}
+}

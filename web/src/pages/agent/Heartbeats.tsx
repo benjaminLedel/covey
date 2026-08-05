@@ -9,9 +9,25 @@ import {
 } from "../../api";
 import { fmtDelta } from "../../format";
 
+// Der Zeitplan in der Zeit des Lesers.
+//
+// daily_at ist eine nackte Uhrzeit in der Zeitzone des Servers, next_run ein
+// absoluter Zeitpunkt. Die Karte zeigte beides nebeneinander — „taeglich um
+// 03:00" und daneben „(Do 05:00)" —, und darueber stand, die Zeiten seien
+// Serverzeit. Zwei Uhrzeiten fuer denselben Lauf, eine Ueberschrift, die nur
+// fuer eine davon stimmt: das liest sich wie ein Fehler in der Planung.
+//
+// Weil next_run derselbe Lauf ist, nur absolut, laesst sich die Ortszeit daraus
+// ableiten. Der Serverwert bleibt als title erhalten — wer ihn braucht (er
+// steht so in HEARTBEAT.md), findet ihn dort.
 function scheduleLabel(hb: HeartbeatStatus): string {
   if (hb.every_seconds) return i18n.t("agent.heartbeat.schedule_interval", { delta: fmtDelta(hb.every_seconds * 1000) });
-  return i18n.t("agent.heartbeat.schedule_daily", { time: hb.daily_at });
+  const locale = i18n.language === "de" ? "de-DE" : "en-US";
+  const next = new Date(hb.next_run);
+  const time = isNaN(next.getTime())
+    ? (hb.daily_at ?? "")
+    : next.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  return i18n.t("agent.heartbeat.schedule_daily", { time });
 }
 
 function fmtRunChip(d: Date): string {
@@ -84,11 +100,13 @@ function HeartbeatCard({
   horizonMs,
   agentId,
   canManage,
+  killed,
 }: {
   hb: HeartbeatStatus;
   horizonMs: number;
   agentId: string;
   canManage: boolean;
+  killed: boolean;
 }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -106,7 +124,14 @@ function HeartbeatCard({
     <div className="card mb-4">
       <div className="flex items-center gap-2 mb-2 flex-wrap">
         <span className="font-medium">{hb.name}</span>
-        <span className="badge">{scheduleLabel(hb)}</span>
+        <span className="badge" title={hb.daily_at ? t("agent.heartbeat.serverTime", { time: hb.daily_at }) : undefined}>
+          {scheduleLabel(hb)}
+        </span>
+        {killed && (
+          <span className="badge st-killed" title={t("agent.heartbeat.stoppedHint")}>
+            {t("agent.heartbeat.stopped")}
+          </span>
+        )}
         {hb.source === "system" && (
           <span className="badge st-pro" title={t("agent.heartbeat.systemHint")}>
             {t("agent.heartbeat.system")}
@@ -144,13 +169,20 @@ function HeartbeatCard({
       <p className="muted text-xs mb-2" style={{ maxWidth: 680 }}>
         {hb.task}
       </p>
+      {/* Bei einem gestoppten Agenten feuert der Scheduler NICHT (die Abfrage
+          in orchestrator.go filtert `WHERE NOT a.killed`). Die Karte behauptete
+          trotzdem „ueberfaellig — der naechste Tick legt die Aufgabe an", also
+          Arbeit, die nicht stattfindet. Wer nach einem stillstehenden Agenten
+          sieht, liest das als „laeuft ja" und sucht woanders weiter. */}
       <p className="text-xs font-medium mb-2">
-        {overdue
+        {killed
+          ? t("agent.heartbeat.pausedWhileStopped")
+          : overdue
           ? hb.pending
             ? t("agent.heartbeat.overdueWithPending")
             : t("agent.heartbeat.overdue")
           : t("agent.heartbeat.nextRun", { delta: fmtDelta(next.getTime() - Date.now()) })}
-        {runs.length > 0 && (
+        {!killed && runs.length > 0 && (
           <span className="muted font-normal">
             {" "}
             ({runs.slice(0, 3).map(fmtRunChip).join(" · ")}
@@ -158,12 +190,20 @@ function HeartbeatCard({
           </span>
         )}
       </p>
-      <HeartbeatTimeline runs={runs} horizonMs={horizonMs} />
+      {!killed && <HeartbeatTimeline runs={runs} horizonMs={horizonMs} />}
     </div>
   );
 }
 
-export function Heartbeats({ agentId, canManage }: { agentId: string; canManage: boolean }) {
+export function Heartbeats({
+  agentId,
+  canManage,
+  killed,
+}: {
+  agentId: string;
+  canManage: boolean;
+  killed: boolean;
+}) {
   const { t } = useTranslation();
   const horizonMs = 24 * 3600 * 1000;
   const hbs = useQuery({
@@ -171,20 +211,32 @@ export function Heartbeats({ agentId, canManage }: { agentId: string; canManage:
     queryFn: () => api<HeartbeatStatus[]>(`/agents/${agentId}/heartbeats`),
     refetchInterval: 15000,
   });
-  if (hbs.isLoading) return null;
   const list = hbs.data ?? [];
   return (
     <div>
       <p className="muted text-xs mb-3" style={{ maxWidth: 680 }}>
         {t("agent.heartbeat.desc")}
       </p>
-      {list.length === 0 && (
+      {/* Waehrend die Abfrage laeuft, wurde bisher null gerendert — der
+          Direktaufruf von ?tab=einstellungen&sub=heartbeat zeigte damit eine
+          leere Seite, und erst ein Klick auf einen anderen Unterpunkt und
+          zurueck brachte den Inhalt. Ein Ladezustand sieht nicht aus wie ein
+          Fehler; nichts zu rendern schon. */}
+      {hbs.isLoading && <p className="muted text-sm">{t("common.loading")}</p>}
+      {!hbs.isLoading && list.length === 0 && (
         <div className="kc-empty">
           {t("agent.heartbeat.noHeartbeats")}
         </div>
       )}
       {list.map((hb) => (
-        <HeartbeatCard key={hb.name} hb={hb} horizonMs={horizonMs} agentId={agentId} canManage={canManage} />
+        <HeartbeatCard
+          key={hb.name}
+          hb={hb}
+          horizonMs={horizonMs}
+          agentId={agentId}
+          canManage={canManage}
+          killed={killed}
+        />
       ))}
     </div>
   );

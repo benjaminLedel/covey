@@ -63,12 +63,56 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 		return err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("gitlab %s %s: HTTP %d: %.300s", method, path, resp.StatusCode, data)
+		return httpErr(method, path, resp.StatusCode, data)
 	}
 	if out != nil {
 		return json.Unmarshal(data, out)
 	}
 	return nil
+}
+
+// httpErr turns a GitLab error status into a sentence the agent can act on.
+//
+// The reason it exists is one particular quirk: GitLab answers the approve
+// endpoint with **401 Unauthorized** when approving is not permitted — because
+// the merge request is already merged or closed, because the caller is its
+// author, or because an approval rule forbids it. Raw, that reads like a
+// credential problem: an agent gets "HTTP 401" and concludes its token is
+// broken, reports a broken GitLab connection and stops — while in truth
+// somebody simply closed the merge request in the meantime. Reported from
+// production about a QA agent, and it is a plausible mistake, because 401 means
+// exactly the opposite everywhere else in this API.
+//
+// Only the interpretation is added; the original text stays, because it is the
+// evidence.
+func httpErr(method, path string, status int, data []byte) error {
+	hint := ""
+	switch {
+	case status == http.StatusUnauthorized && isMergeRequestDecision(path):
+		hint = " — with this endpoint GitLab means 'not permitted', NOT a bad token:" +
+			" the merge request is already merged or closed, you are its author, or an approval rule stands in the way." +
+			" Check its state with get_merge_request; if it is no longer open, the work is done — close your task with done" +
+			" instead of trying again"
+	case status == http.StatusUnauthorized:
+		hint = " — the brokered token is rejected (expired, revoked or scoped too narrowly)"
+	case status == http.StatusForbidden:
+		hint = " — the token is valid, but its scope does not cover this action"
+	}
+	return fmt.Errorf("gitlab %s %s: HTTP %d%s: %.300s", method, path, status, hint, data)
+}
+
+// isMergeRequestDecision spots the endpoints on which GitLab uses 401 as "not
+// permitted" instead of "not authenticated".
+func isMergeRequestDecision(path string) bool {
+	if !strings.Contains(path, "/merge_requests/") {
+		return false
+	}
+	for _, suffix := range []string{"/approve", "/unapprove", "/merge"} {
+		if strings.HasSuffix(path, suffix) {
+			return true
+		}
+	}
+	return false
 }
 
 type Issue struct {

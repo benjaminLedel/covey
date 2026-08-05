@@ -674,7 +674,11 @@
       "onlyIf": "nur wenn {{system}} Arbeit meldet",
       "onlyIfHint": "Die Control Plane prüft vor jedem Lauf beim Zielsystem {{system}}, ob Arbeit vorliegt (z. B. ungelesene Mails) — sonst entfällt der Lauf ohne den Agenten zu wecken.",
       "system": "Plattform",
-      "systemHint": "Plattformweiter Standard-Heartbeat (nicht aus HEARTBEAT.md) — pro Agent per HEARTBEAT.md-Eintrag gleichen Titels überschreibbar."
+      "systemHint": "Plattformweiter Standard-Heartbeat (nicht aus HEARTBEAT.md) — pro Agent per HEARTBEAT.md-Eintrag gleichen Titels überschreibbar.",
+      "pausedWhileStopped": "ausgesetzt — der Agent ist gestoppt, der Scheduler feuert nicht",
+      "stopped": "gestoppt",
+      "stoppedHint": "Solange der Agent gestoppt ist, legt kein Tick eine Aufgabe an. Mit „Fortsetzen“ läuft der Zeitplan weiter.",
+      "serverTime": "In HEARTBEAT.md steht {{time}} (Serverzeit)"
     },
     "webhook": {
       "desc": "Optionaler Webhook-Trigger: ein POST auf die URL legt eine Backlog-Aufgabe an und weckt den Agenten — für Fremdsysteme ohne Zielsystem-Plugin (CI, Cron, Zapier, Monitoring).",
@@ -1494,5 +1498,8 @@
     "timeJustNow": "gerade eben",
     "timeMinutes": "vor {{n}} Min",
     "timeHours": "vor {{n}} Std"
+  },
+  "common": {
+    "loading": "lädt …"
   }
 }
