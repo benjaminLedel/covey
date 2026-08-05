@@ -239,6 +239,16 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 		if !resp.OK {
 			return map[string]string{"status": "error", "error": resp.Error}
 		}
+		// The working copy in the home follows along. The wiki is materialised
+		// into ~/wiki before every run so the agent can read and edit it with
+		// ordinary file tools — but a deletion used to reach only the control
+		// plane, and the file stayed. Within the same run the agent then found
+		// its own deleted page again through Grep and Read and reported it as
+		// "wiki_search still returns hits from a stale index". The index was
+		// fine; its own working copy was not.
+		if op == "delete" {
+			p.removeLocalWikiFile(in.Slug)
+		}
 		audit, _ := json.Marshal(map[string]any{"action": "covey:" + action, "slug": in.Slug, "query": in.Query})
 		_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
 		return map[string]any{"status": "ok", "data": resp.Data}
