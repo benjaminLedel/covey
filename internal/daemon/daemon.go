@@ -449,7 +449,7 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 	c.mu.Unlock()
 	defer cancel()
 
-	proxy, err := c.startActionProxy(runCtx, task.TaskID)
+	proxy, err := c.startActionProxy(runCtx, task.TaskID, cfg.ActionTools)
 	if err != nil {
 		_ = c.send(TypeTaskDone, TaskDone{TaskID: task.TaskID, Status: "failed", Error: err.Error()})
 		return
@@ -479,6 +479,10 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 		ResumeInput:     task.ResumeInput,
 		HomeDir:         c.homeDir,
 		Env:             env,
+		// The action proxy as an MCP server: with it the runtime calls a target
+		// action as a typed tool instead of assembling a curl in the shell
+		// (actionmcp.go). Empty = the shell route as before.
+		MCPConfig: proxy.mcpConfig(),
 	}
 	// Materialize the wiki working copy into the home (spec/05) so the agent can
 	// read and edit it with ordinary file tools.

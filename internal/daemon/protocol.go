@@ -60,6 +60,21 @@ type InjectConfig struct {
 	AllowedTools []string `json:"allowed_tools,omitempty"`
 	MaxTurns     int      `json:"max_turns,omitempty"`
 	MaxBudgetUSD float64  `json:"max_budget_usd,omitempty"`
+	// ActionTools are the target systems this agent may use, in the wording of
+	// its prompt. The action proxy serves them as MCP tools, so a runtime that
+	// speaks MCP can call an action directly instead of assembling a curl by
+	// hand in the shell. An older daemon does not know the field and keeps to
+	// the curl route — both paths stay open.
+	ActionTools []ActionTool `json:"action_tools,omitempty"`
+}
+
+// ActionTool is one target system as a callable tool: the name the action proxy
+// listens on and the description the runtime shows the model. The description
+// is the plugin's PromptDoc — the same text that otherwise stands in the system
+// prompt, so there is one wording, not two.
+type ActionTool struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
 }
 
 type AssignTask struct {

@@ -24,16 +24,22 @@ type actionProxy struct {
 	taskID string
 	srv    *http.Server
 	ln     net.Listener
+	// tools are the target systems granted to the agent — the tool list of the
+	// MCP route (actionmcp.go). Empty means: only the shell route exists.
+	tools []ActionTool
 }
 
-func (c *Client) startActionProxy(ctx context.Context, taskID string) (*actionProxy, error) {
+func (c *Client) startActionProxy(ctx context.Context, taskID string, tools []ActionTool) (*actionProxy, error) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, err
 	}
-	p := &actionProxy{client: c, taskID: taskID, ln: ln}
+	p := &actionProxy{client: c, taskID: taskID, ln: ln, tools: tools}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /actions/{system}/{action}", p.handle)
+	// The same actions once more as MCP tools — one door onto the same room
+	// (see actionmcp.go for why).
+	mux.HandleFunc("POST /mcp", p.handleMCP)
 	p.srv = &http.Server{
 		Handler:     mux,
 		BaseContext: func(net.Listener) context.Context { return ctx },
@@ -58,43 +64,44 @@ func writeJSON(w http.ResponseWriter, v any) {
 }
 
 func (p *actionProxy) handle(w http.ResponseWriter, r *http.Request) {
-	system, action := r.PathValue("system"), r.PathValue("action")
 	var params json.RawMessage
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&params); err != nil {
 		params = json.RawMessage(`{}`)
 	}
+	writeJSON(w, p.run(r.Context(), r.PathValue("system"), r.PathValue("action"), params))
+}
 
+// run is the one path an action takes, whichever door it came through (shell or
+// MCP): guard-rail decision, brokered execution, recording. Returns what the
+// caller sends back — a map, so a plugin's arbitrary result travels unchanged.
+func (p *actionProxy) run(ctx context.Context, system, action string, params json.RawMessage) any {
 	// "covey" is not an external target system but a meta action towards the
 	// control plane itself (no credentials, no guard-rail check).
 	if system == "covey" {
-		p.handleControlPlane(r.Context(), w, action, params)
-		return
+		return p.controlPlane(ctx, action, params)
 	}
 
-	subject := p.actionSubject(r.Context(), system, action, params)
+	subject := p.actionSubject(ctx, system, action, params)
 
-	dec, err := p.client.checkAction(r.Context(), p.taskID, subject, params)
+	dec, err := p.client.checkAction(ctx, p.taskID, subject, params)
 	if err != nil {
-		writeJSON(w, map[string]string{"status": "error", "error": err.Error()})
-		return
+		return map[string]string{"status": "error", "error": err.Error()}
 	}
 	switch dec.Status {
 	case "denied":
-		writeJSON(w, map[string]string{"status": "denied", "reason": dec.Reason})
-		return
+		return map[string]string{"status": "denied", "reason": dec.Reason}
 	case "pending":
-		writeJSON(w, map[string]string{
+		return map[string]string{
 			"status":          "pending_approval",
 			"approval_id":     dec.ApprovalID,
 			"correlation_key": dec.CorrelationKey,
-		})
-		return
+		}
 	}
 
 	// Artifact sink: a plugin (e.g. browser screenshot) can pass an image
 	// through for the recording without putting it into the runtime result.
 	var artifact *target.Artifact
-	ctx := target.WithArtifactSink(r.Context(), func(a target.Artifact) { artifact = &a })
+	ctx = target.WithArtifactSink(ctx, func(a target.Artifact) { artifact = &a })
 	// Request sink: the HTTP requests the plugin makes along the way go to the
 	// control plane as separate events (request log). The sink hangs off the
 	// context so it applies to this action only.
@@ -115,7 +122,7 @@ func (p *actionProxy) handle(w http.ResponseWriter, r *http.Request) {
 	}
 	audit, _ := json.Marshal(auditMap)
 	_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
-	writeJSON(w, result)
+	return result
 }
 
 // httpSink sends every HTTP request of a plugin as event(kind=http) to the
@@ -143,19 +150,18 @@ func (p *actionProxy) httpSink(system string) reqlog.Sink {
 // (insight straight into the memory), org_chart (query the org chart),
 // create_task (subtask/delegation) and the wiki tools
 // wiki_search/wiki_read/wiki_write/wiki_delete (spec/05).
-func (p *actionProxy) handleControlPlane(ctx context.Context, w http.ResponseWriter, action string, params json.RawMessage) {
+func (p *actionProxy) controlPlane(ctx context.Context, action string, params json.RawMessage) any {
 	switch action {
 	case "create_task":
-		p.handleCreateTask(ctx, w, params)
+		return p.createTask(ctx, params)
 	case "org_chart":
 		chart, err := p.client.orgChart(ctx)
 		if err != nil {
-			writeJSON(w, map[string]string{"status": "error", "error": err.Error()})
-			return
+			return map[string]string{"status": "error", "error": err.Error()}
 		}
 		audit, _ := json.Marshal(map[string]any{"action": "covey:org_chart"})
 		_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
-		writeJSON(w, map[string]any{"status": "ok", "data": chart})
+		return map[string]any{"status": "ok", "data": chart}
 	case "add_note", "remember":
 		var in struct {
 			Content string `json:"content"`
@@ -163,8 +169,7 @@ func (p *actionProxy) handleControlPlane(ctx context.Context, w http.ResponseWri
 			Page    string `json:"page"`
 		}
 		if err := json.Unmarshal(params, &in); err != nil || strings.TrimSpace(in.Content) == "" {
-			writeJSON(w, map[string]string{"status": "error", "error": "content missing"})
-			return
+			return map[string]string{"status": "error", "error": "content missing"}
 		}
 		// remember with a page reference appends to exactly that page. Without a
 		// reference the platform has to guess which page is meant — and that is
@@ -173,17 +178,14 @@ func (p *actionProxy) handleControlPlane(ctx context.Context, w http.ResponseWri
 		if action == "remember" && strings.TrimSpace(in.Page) != "" {
 			resp, err := p.client.wiki(ctx, RequestWiki{Op: "append", Slug: in.Page, Text: in.Content})
 			if err != nil {
-				writeJSON(w, map[string]string{"status": "error", "error": err.Error()})
-				return
+				return map[string]string{"status": "error", "error": err.Error()}
 			}
 			if !resp.OK {
-				writeJSON(w, map[string]string{"status": "error", "error": resp.Error})
-				return
+				return map[string]string{"status": "error", "error": resp.Error}
 			}
 			audit, _ := json.Marshal(map[string]any{"action": "covey:remember", "page": in.Page, "content": in.Content})
 			_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
-			writeJSON(w, map[string]any{"status": "ok", "data": resp.Data})
-			return
+			return map[string]any{"status": "ok", "data": resp.Data}
 		}
 		taskID := in.TaskID
 		if taskID == "" {
@@ -194,32 +196,29 @@ func (p *actionProxy) handleControlPlane(ctx context.Context, w http.ResponseWri
 			scope = "memory"
 		}
 		if err := p.client.send(TypeNote, Note{TaskID: taskID, Scope: scope, Content: in.Content}); err != nil {
-			writeJSON(w, map[string]string{"status": "error", "error": err.Error()})
-			return
+			return map[string]string{"status": "error", "error": err.Error()}
 		}
 		audit, _ := json.Marshal(map[string]any{"action": "covey:" + action, "scope": scope, "content": in.Content})
 		_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
-		writeJSON(w, map[string]string{"status": "ok", "scope": scope})
+		return map[string]string{"status": "ok", "scope": scope}
 	case "set_stage":
 		var in struct {
 			Stage  string `json:"stage"`
 			TaskID string `json:"task_id"`
 		}
 		if err := json.Unmarshal(params, &in); err != nil || strings.TrimSpace(in.Stage) == "" {
-			writeJSON(w, map[string]string{"status": "error", "error": "stage missing"})
-			return
+			return map[string]string{"status": "error", "error": "stage missing"}
 		}
 		taskID := in.TaskID
 		if taskID == "" {
 			taskID = p.taskID
 		}
 		if err := p.client.send(TypeSetStage, SetStage{TaskID: taskID, Stage: in.Stage}); err != nil {
-			writeJSON(w, map[string]string{"status": "error", "error": err.Error()})
-			return
+			return map[string]string{"status": "error", "error": err.Error()}
 		}
 		audit, _ := json.Marshal(map[string]any{"action": "covey:set_stage", "stage": in.Stage})
 		_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
-		writeJSON(w, map[string]string{"status": "ok", "stage": in.Stage})
+		return map[string]string{"status": "ok", "stage": in.Stage}
 	case "wiki_search", "wiki_read", "wiki_write", "wiki_append", "wiki_delete":
 		var in struct {
 			Query string   `json:"query"`
@@ -235,18 +234,16 @@ func (p *actionProxy) handleControlPlane(ctx context.Context, w http.ResponseWri
 		resp, err := p.client.wiki(ctx, RequestWiki{Op: op, Query: in.Query, Slug: in.Slug,
 			Title: in.Title, Body: in.Body, Type: in.Type, Tags: in.Tags, Text: in.Text})
 		if err != nil {
-			writeJSON(w, map[string]string{"status": "error", "error": err.Error()})
-			return
+			return map[string]string{"status": "error", "error": err.Error()}
 		}
 		if !resp.OK {
-			writeJSON(w, map[string]string{"status": "error", "error": resp.Error})
-			return
+			return map[string]string{"status": "error", "error": resp.Error}
 		}
 		audit, _ := json.Marshal(map[string]any{"action": "covey:" + action, "slug": in.Slug, "query": in.Query})
 		_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
-		writeJSON(w, map[string]any{"status": "ok", "data": resp.Data})
+		return map[string]any{"status": "ok", "data": resp.Data}
 	default:
-		writeJSON(w, map[string]string{"status": "error", "error": fmt.Sprintf("unknown covey action %q", action)})
+		return map[string]string{"status": "error", "error": fmt.Sprintf("unknown covey action %q", action)}
 	}
 }
 
@@ -255,7 +252,7 @@ func (p *actionProxy) handleControlPlane(ctx context.Context, w http.ResponseWri
 // other covey actions it goes through the guard-rails — a task produces work
 // and cost, and delegation (subject covey:create_task:foreign) must be
 // forbiddable separately.
-func (p *actionProxy) handleCreateTask(ctx context.Context, w http.ResponseWriter, params json.RawMessage) {
+func (p *actionProxy) createTask(ctx context.Context, params json.RawMessage) any {
 	var in struct {
 		Title    string `json:"title"`
 		Body     string `json:"body"`
@@ -263,8 +260,7 @@ func (p *actionProxy) handleCreateTask(ctx context.Context, w http.ResponseWrite
 		Priority int    `json:"priority"`
 	}
 	if err := json.Unmarshal(params, &in); err != nil || strings.TrimSpace(in.Title) == "" {
-		writeJSON(w, map[string]string{"status": "error", "error": "title missing"})
-		return
+		return map[string]string{"status": "error", "error": "title missing"}
 	}
 	subject := "covey:create_task"
 	if strings.TrimSpace(in.Agent) != "" {
@@ -272,38 +268,33 @@ func (p *actionProxy) handleCreateTask(ctx context.Context, w http.ResponseWrite
 	}
 	dec, err := p.client.checkAction(ctx, p.taskID, subject, params)
 	if err != nil {
-		writeJSON(w, map[string]string{"status": "error", "error": err.Error()})
-		return
+		return map[string]string{"status": "error", "error": err.Error()}
 	}
 	switch dec.Status {
 	case "denied":
-		writeJSON(w, map[string]string{"status": "denied", "reason": dec.Reason})
-		return
+		return map[string]string{"status": "denied", "reason": dec.Reason}
 	case "pending":
-		writeJSON(w, map[string]string{
+		return map[string]string{
 			"status":          "pending_approval",
 			"approval_id":     dec.ApprovalID,
 			"correlation_key": dec.CorrelationKey,
-		})
-		return
+		}
 	}
 
 	resp, err := p.client.createTask(ctx, RequestCreateTask{
 		TaskID: p.taskID, Agent: in.Agent, Title: in.Title, Body: in.Body, Priority: in.Priority,
 	})
 	if err != nil {
-		writeJSON(w, map[string]string{"status": "error", "error": err.Error()})
-		return
+		return map[string]string{"status": "error", "error": err.Error()}
 	}
 	audit, _ := json.Marshal(map[string]any{"action": subject, "params": params,
 		"ok": resp.OK, "created_task": resp.TaskID, "agent": resp.Agent})
 	_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
 	if !resp.OK {
-		writeJSON(w, map[string]string{"status": "error", "error": resp.Error})
-		return
+		return map[string]string{"status": "error", "error": resp.Error}
 	}
-	writeJSON(w, map[string]any{"status": "ok",
-		"data": map[string]string{"task_id": resp.TaskID, "agent": resp.Agent}})
+	return map[string]any{"status": "ok",
+		"data": map[string]string{"task_id": resp.TaskID, "agent": resp.Agent}}
 }
 
 // actionSubject maps the action onto the guard-rail subject — each plugin knows
