@@ -42,6 +42,8 @@ The home is open in the web interface as a **file browser** (the *Workspace* tab
 
 **Look instead of download.** The browser displays the usual files in place: Markdown rendered, images (including SVG) as images, PDF embedded, CSV/TSV as a table, everything else in the editor. Where there is a source text, it is one click away and stays editable — the preview comes *before* the editor, it does not replace it. The kind of a file is determined by the control plane in one place (`sandboxfs.PreviewKind`) so that display and delivery cannot drift apart.
 
+**How full it is, and what is filling it.** The tab shows the file system's occupancy and, next to it, the project checkouts under `repos/` — the one directory that grows without bound, because the home is persistent and every checkout stays. That measurement was missing, and the consequence was only visible to the agent itself: one wrote into its own wiki that its 40 GB overlay was running full "through old checkouts", and shortly after a run died of it. Since then the checkouts are also **bounded**: after every checkout the least recently used working copies fall away (measured by last use, not by age; the count is configurable). Which ones went is part of the checkout's answer — the agent may be holding a path from an earlier run, and "no such file or directory" is a poor way to learn about it.
+
 Four decisions carry this:
 
 - **Past the daemon, straight onto the home.** Access runs through the sandbox provider's `FileAccess` port onto the home directory, not through the daemon protocol. Otherwise the workplace would only exist while the sandbox is running — and normally it is not (see [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)). A provider without a reachable home has no feature, rather than a guessed one.
@@ -114,6 +116,10 @@ The prompt is therefore assembled **at dispatch time** from the config files plu
 The same principle already carries the target-system documentation (which mirrors the organisation's currently enabled plugins) and the team directory (which mirrors the current org chart). The stored `compiled_prompt` is retained as a **snapshot** for audit and display.
 
 Practical consequence for operations: **a deploy rolls out platform changes by itself.** The only thing to bring along afterwards is what is genuinely config — for instance when a playbook should use a new action.
+
+**Which configs need catching up is a question the platform answers.** A config lint checks the population against patterns that in practice have produced endless loops, burnt budgets and unusable boards: heartbeat intervals too tight for the systems in use, runs piling up at the turn limit, self-created board columns naming an item instead of a state, work that leaves no visible trace and therefore counts as open again at the next interval. They are **warnings with context**, not prohibitions — a two-minute interval is fine for a mailbox and ruinous for a repo clone, and whoever knows better must be allowed to save.
+
+The findings sit in two places, deliberately: on the agent's own page, because that is where somebody looks who is looking after an agent because something is wrong with it — and in `covey config lint` across all organisations, which is how an instance is checked after an upgrade without a browser (exit code `1` on findings). A check that exists only as a subcommand effectively does not exist: the rule about frequent turn-limit aborts would have described one QA agent's state from day one — 22 of 23 failures at the limit, several hundred dollars spent without a single merge request tested through — and nobody ran it, because nobody runs a subcommand on a hunch.
 
 ### Export & import
 
