@@ -5,14 +5,31 @@
 // currently running; a sleeping agent is not a blind spot.
 //
 // The entire surface is path handling on foreign input, which is why the whole
-// package is built around one rule: **no path leads out of the root.** Every
-// path is normalised (`..` falls away) and then checked against the deepest
-// existing ancestor — a symlink pointing out of the home is an escape attempt,
-// not a shortcut.
+// package is built around one rule: **no path leads out of the root.** Paths are
+// normalised (`..` falls away) and every file operation runs through an
+// os.Root — the operating system resolves beneath the home, and a symlink
+// pointing outward fails there.
+//
+// The containment deliberately does NOT sit in a check of our own any more. A
+// check is a separate step, and between checking and opening lies a window in
+// which a directory can be swapped for a symlink. That is not theoretical here:
+// the home lies on the host, is mounted into the sandbox writable, and the agent
+// has a shell in it (dev exec) — it can create links in its own home and swap
+// them in a loop. os.Root has no such window; the check happens in the kernel at
+// the moment of opening.
+//
+// One consequence worth knowing: os.Root follows no ABSOLUTE symlinks, even
+// when their target would lie inside the home. That is without consequence
+// here — what the sandbox links absolutely points at /home/agent/…, a path that
+// does not exist on the host at all, so those links were already dead in the
+// file browser. Relative links inside the home (the form toolchains create)
+// keep working.
 package sandboxfs
 
 import (
 	"archive/zip"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -199,16 +216,16 @@ type File struct {
 // List returns the entries of a directory, directories first and alphabetically
 // within each group — the ordering a file browser is expected to have.
 func (f *FS) List(rel string) (Listing, error) {
-	abs, clean, err := f.resolve(rel)
+	c, err := clean(rel)
 	if err != nil {
 		return Listing{}, err
 	}
-	out := Listing{Path: clean, Entries: []Entry{}}
+	out := Listing{Path: c, Entries: []Entry{}}
 
-	info, err := os.Stat(abs)
+	root, err := f.openRoot()
 	if errors.Is(err, os.ErrNotExist) {
-		// Only the root may be missing: the home comes into being on first wake.
-		if clean == "" {
+		// Only the home itself may be missing: it comes into being on first wake.
+		if c == "" {
 			return out, nil
 		}
 		return Listing{}, ErrNotFound
@@ -216,12 +233,29 @@ func (f *FS) List(rel string) (Listing, error) {
 	if err != nil {
 		return Listing{}, err
 	}
+	defer root.Close()
+
+	info, err := root.Stat(forRoot(c))
+	if errors.Is(err, os.ErrNotExist) {
+		if c == "" {
+			return out, nil
+		}
+		return Listing{}, ErrNotFound
+	}
+	if err != nil {
+		return Listing{}, mapEscape(err)
+	}
 	if !info.IsDir() {
 		return Listing{}, ErrNotDir
 	}
 	out.Exists = true
 
-	des, err := os.ReadDir(abs)
+	dir, err := root.Open(forRoot(c))
+	if err != nil {
+		return Listing{}, mapEscape(err)
+	}
+	des, err := dir.ReadDir(-1)
+	dir.Close()
 	if err != nil {
 		return Listing{}, err
 	}
@@ -236,31 +270,32 @@ func (f *FS) List(rel string) (Listing, error) {
 		out.Truncated = true
 	}
 	for _, de := range des {
-		out.Entries = append(out.Entries, f.entry(abs, clean, de.Name()))
+		out.Entries = append(out.Entries, entry(root, c, de.Name()))
 	}
 	return out, nil
 }
 
 // entry builds the entry for a name; symlinks are shown as such (including
 // their target and the hint whether they point out of the home).
-func (f *FS) entry(dirAbs, dirRel, name string) Entry {
-	full := filepath.Join(dirAbs, name)
-	e := Entry{Name: name, Path: path.Join(dirRel, name)}
+func entry(root *os.Root, dirRel, name string) Entry {
+	rel := path.Join(dirRel, name)
+	e := Entry{Name: name, Path: rel}
 
-	li, err := os.Lstat(full)
+	li, err := root.Lstat(forRoot(rel))
 	if err != nil {
 		return e
 	}
 	if li.Mode()&os.ModeSymlink != 0 {
-		if target, err := os.Readlink(full); err == nil {
+		if target, err := root.Readlink(forRoot(rel)); err == nil {
 			e.Symlink = target
 		}
-		e.Outside = f.ensureInside(full) != nil
-		// Look at the target for size/type — unless it points outward.
-		if !e.Outside {
-			if si, err := os.Stat(full); err == nil {
-				li = si
-			}
+		// Whether the link leads outward no longer needs a check of its own:
+		// os.Root refuses to follow it. A Stat that fails while the Lstat
+		// succeeded IS the answer.
+		si, err := root.Stat(forRoot(rel))
+		e.Outside = err != nil
+		if err == nil {
+			li = si // size/type of the target
 		}
 	}
 	e.IsDir = li.IsDir()
@@ -277,22 +312,28 @@ func (f *FS) entry(dirAbs, dirRel, name string) Entry {
 // that), binary content as metadata only — carrying bytes through JSON helps
 // nobody, that is what Open (download) is for.
 func (f *FS) Read(rel string) (File, error) {
-	abs, clean, err := f.resolve(rel)
+	c, err := clean(rel)
 	if err != nil {
 		return File{}, err
 	}
-	info, err := os.Stat(abs)
+	root, err := f.openRoot()
+	if err != nil {
+		return File{}, mapEscape(err)
+	}
+	defer root.Close()
+
+	info, err := root.Stat(forRoot(c))
 	if errors.Is(err, os.ErrNotExist) {
 		return File{}, ErrNotFound
 	}
 	if err != nil {
-		return File{}, err
+		return File{}, mapEscape(err)
 	}
 	if info.IsDir() {
 		return File{}, ErrIsDir
 	}
 	out := File{
-		Path:    clean,
+		Path:    c,
 		Size:    info.Size(),
 		Mode:    info.Mode().String(),
 		ModTime: info.ModTime().UTC().Format("2006-01-02T15:04:05Z"),
@@ -306,9 +347,9 @@ func (f *FS) Read(rel string) (File, error) {
 		return out, nil
 	}
 
-	fh, err := os.Open(abs)
+	fh, err := root.Open(forRoot(c))
 	if err != nil {
-		return File{}, err
+		return File{}, mapEscape(err)
 	}
 	defer fh.Close()
 
@@ -343,23 +384,31 @@ func (f *FS) Read(rel string) (File, error) {
 
 // Open returns the file for download — unchanged, at full length.
 func (f *FS) Open(rel string) (io.ReadCloser, os.FileInfo, error) {
-	abs, _, err := f.resolve(rel)
+	c, err := clean(rel)
 	if err != nil {
 		return nil, nil, err
 	}
-	info, err := os.Stat(abs)
+	root, err := f.openRoot()
+	if err != nil {
+		return nil, nil, mapEscape(err)
+	}
+	// The root may be closed right after opening: the returned file descriptor
+	// stands on its own, the caller reads through it afterwards.
+	defer root.Close()
+
+	info, err := root.Stat(forRoot(c))
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil, ErrNotFound
 	}
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, mapEscape(err)
 	}
 	if info.IsDir() {
 		return nil, nil, ErrIsDir
 	}
-	fh, err := os.Open(abs)
+	fh, err := root.Open(forRoot(c))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, mapEscape(err)
 	}
 	return fh, info, nil
 }
@@ -377,9 +426,15 @@ type ZipPlan struct {
 	items []zipItem
 }
 
-// zipItem is one entry in the archive: source on disk, name inside the archive.
+// zipItem is one entry in the archive: source relative to the home, name inside
+// the archive.
+//
+// The source is deliberately NOT an absolute host path any more. Planning and
+// writing are two passes, and an absolute path carried between them would be
+// opened in the second pass without the root — exactly the gap this change is
+// about.
 type zipItem struct {
-	abs  string
+	rel  string // relative to the home, "/" as the separator
 	name string // path inside the archive, "/" as the separator
 	dir  bool
 	size int64
@@ -394,25 +449,31 @@ func (f *FS) PlanZip(rels []string) (ZipPlan, error) {
 	var plan ZipPlan
 	seen := map[string]bool{}
 
+	root, err := f.openRoot()
+	if err != nil {
+		return ZipPlan{}, mapEscape(err)
+	}
+	defer root.Close()
+
 	for _, rel := range rels {
-		abs, clean, err := f.resolve(rel)
+		c, err := clean(rel)
 		if err != nil {
 			return ZipPlan{}, err
 		}
-		info, err := os.Stat(abs)
+		info, err := root.Stat(forRoot(c))
 		if errors.Is(err, os.ErrNotExist) {
 			return ZipPlan{}, ErrNotFound
 		}
 		if err != nil {
-			return ZipPlan{}, err
+			return ZipPlan{}, mapEscape(err)
 		}
 		// The name inside the archive is relative to the parent of the chosen
 		// path; for the root itself relative to the root.
-		base := path.Dir(clean)
-		if clean == "" || base == "." {
+		base := path.Dir(c)
+		if c == "" || base == "." {
 			base = ""
 		}
-		if err := f.walkZip(abs, clean, base, info, seen, &plan); err != nil {
+		if err := walkZip(root, c, base, info, seen, &plan); err != nil {
 			return ZipPlan{}, err
 		}
 	}
@@ -424,18 +485,18 @@ func (f *FS) PlanZip(rels []string) (ZipPlan, error) {
 }
 
 // walkZip takes a path (file or directory) into the archive recursively.
-func (f *FS) walkZip(abs, clean, base string, info os.FileInfo, seen map[string]bool, plan *ZipPlan) error {
-	if seen[abs] {
+func walkZip(root *os.Root, rel, base string, info os.FileInfo, seen map[string]bool, plan *ZipPlan) error {
+	if seen[rel] {
 		return nil // a duplicate selection (folder + a file within it) only once
 	}
-	seen[abs] = true
+	seen[rel] = true
 
-	name := clean
+	name := rel
 	if base != "" {
-		name = strings.TrimPrefix(clean, base+"/")
+		name = strings.TrimPrefix(rel, base+"/")
 	}
 	if name == "" {
-		name = path.Base(clean)
+		name = path.Base(rel)
 	}
 
 	if !info.IsDir() {
@@ -445,29 +506,33 @@ func (f *FS) walkZip(abs, clean, base string, info os.FileInfo, seen map[string]
 		if plan.Bytes+info.Size() > MaxZipBytes {
 			return ErrTooLarge
 		}
-		plan.items = append(plan.items, zipItem{abs: abs, name: name, size: info.Size(), mod: info.ModTime()})
+		plan.items = append(plan.items, zipItem{rel: rel, name: name, size: info.Size(), mod: info.ModTime()})
 		plan.Files++
 		plan.Bytes += info.Size()
 		return nil
 	}
 
-	plan.items = append(plan.items, zipItem{abs: abs, name: name + "/", dir: true, mod: info.ModTime()})
-	des, err := os.ReadDir(abs)
+	plan.items = append(plan.items, zipItem{rel: rel, name: name + "/", dir: true, mod: info.ModTime()})
+	dir, err := root.Open(forRoot(rel))
+	if err != nil {
+		return mapEscape(err)
+	}
+	des, err := dir.ReadDir(-1)
+	dir.Close()
 	if err != nil {
 		return err
 	}
 	for _, de := range des {
-		childAbs := filepath.Join(abs, de.Name())
-		// A symlink pointing out of the home does not belong in the archive:
-		// otherwise the download would pack up files of the host as well.
-		if err := f.ensureInside(childAbs); err != nil {
-			continue
-		}
-		childInfo, err := os.Stat(childAbs)
+		childRel := path.Join(rel, de.Name())
+		// A symlink pointing out of the home does not belong in the archive —
+		// otherwise the download would pack up files of the host as well. The
+		// Stat answers that on its own now: os.Root does not follow it, so it
+		// fails and the entry drops out.
+		childInfo, err := root.Stat(forRoot(childRel))
 		if err != nil {
-			continue // broken link or similar — skip, do not abort
+			continue // link outward, broken link or similar — skip, do not abort
 		}
-		if err := f.walkZip(childAbs, path.Join(clean, de.Name()), base, childInfo, seen, plan); err != nil {
+		if err := walkZip(root, childRel, base, childInfo, seen, plan); err != nil {
 			return err
 		}
 	}
@@ -476,6 +541,12 @@ func (f *FS) walkZip(abs, clean, base string, info os.FileInfo, seen map[string]
 
 // WriteZip writes the planned archive as a stream.
 func (f *FS) WriteZip(w io.Writer, plan ZipPlan) error {
+	root, err := f.openRoot()
+	if err != nil {
+		return mapEscape(err)
+	}
+	defer root.Close()
+
 	zw := zip.NewWriter(w)
 	for _, it := range plan.items {
 		hdr := &zip.FileHeader{Name: it.name, Modified: it.mod}
@@ -492,10 +563,12 @@ func (f *FS) WriteZip(w io.Writer, plan ZipPlan) error {
 		if err != nil {
 			return err
 		}
-		src, err := os.Open(it.abs)
+		src, err := root.Open(forRoot(it.rel))
 		if err != nil {
 			// Vanished between planning and writing — the agent keeps working.
-			// No reason to drop the whole archive.
+			// No reason to drop the whole archive. A path that has become a
+			// link outward in the meantime lands here too, and is skipped for
+			// the same reason.
 			continue
 		}
 		_, err = io.Copy(dst, src)
@@ -524,29 +597,46 @@ func zipName(rels []string) string {
 // being with it — an upload to `project/new/` should not fail just because
 // `new` does not exist yet.
 func (f *FS) Write(rel string, r io.Reader) (Entry, error) {
-	abs, clean, err := f.resolve(rel)
+	c, err := clean(rel)
 	if err != nil {
 		return Entry{}, err
 	}
-	if clean == "" {
+	if c == "" {
 		return Entry{}, ErrInvalidPath
 	}
-	if info, err := os.Stat(abs); err == nil && info.IsDir() {
+	root, err := f.openRoot()
+	if errors.Is(err, os.ErrNotExist) {
+		// The home comes into being with the first upload — an agent that has
+		// never run should still be able to receive a file.
+		if err := os.MkdirAll(f.root, 0o755); err != nil {
+			return Entry{}, err
+		}
+		root, err = f.openRoot()
+	}
+	if err != nil {
+		return Entry{}, mapEscape(err)
+	}
+	defer root.Close()
+
+	if info, err := root.Stat(forRoot(c)); err == nil && info.IsDir() {
 		return Entry{}, ErrIsDir
 	}
-	if err := f.mkdirAll(filepath.Dir(abs)); err != nil {
+	elternRel := path.Dir(c)
+	if elternRel == "." {
+		elternRel = ""
+	}
+	if err := f.mkdirAll(root, elternRel); err != nil {
 		return Entry{}, err
 	}
 
 	// Write to a neighbouring file first, then rename: otherwise an aborted
 	// upload leaves half a file under the right name — and the agent keeps
 	// working with it.
-	tmp, err := os.CreateTemp(filepath.Dir(abs), ".covey-upload-*")
+	tmpRel, tmp, err := createTemp(root, elternRel)
 	if err != nil {
 		return Entry{}, err
 	}
-	tmpName := tmp.Name()
-	defer os.Remove(tmpName) // no-op after a successful rename
+	defer root.Remove(forRoot(tmpRel)) // no-op after a successful rename
 
 	n, err := io.Copy(tmp, io.LimitReader(r, MaxWriteBytes+1))
 	if err != nil {
@@ -560,174 +650,238 @@ func (f *FS) Write(rel string, r io.Reader) (Entry, error) {
 	if err := tmp.Close(); err != nil {
 		return Entry{}, err
 	}
-	if err := os.Chmod(tmpName, 0o644); err != nil {
+	if err := root.Chmod(forRoot(tmpRel), 0o644); err != nil {
 		return Entry{}, err
 	}
-	f.chown(tmpName)
-	if err := os.Rename(tmpName, abs); err != nil {
-		return Entry{}, err
+	f.chown(root, tmpRel)
+	if err := root.Rename(forRoot(tmpRel), forRoot(c)); err != nil {
+		return Entry{}, mapEscape(err)
 	}
-	return f.entry(filepath.Dir(abs), path.Dir(clean), path.Base(clean)), nil
+	return entry(root, path.Dir(c), path.Base(c)), nil
+}
+
+// createTemp lays a temporary file next to the target — inside the root, so
+// that even the intermediate step cannot leave the home. os.CreateTemp is no
+// use here: it takes a directory path, not a root.
+func createTemp(root *os.Root, dirRel string) (string, *os.File, error) {
+	for versuch := 0; versuch < 100; versuch++ {
+		var b [8]byte
+		if _, err := rand.Read(b[:]); err != nil {
+			return "", nil, err
+		}
+		rel := path.Join(dirRel, ".covey-upload-"+hex.EncodeToString(b[:]))
+		// O_EXCL: whoever gets the name has it — a collision is a repetition,
+		// never a silently taken-over foreign file.
+		fh, err := root.OpenFile(forRoot(rel), os.O_RDWR|os.O_CREATE|os.O_EXCL, 0o600)
+		if err == nil {
+			return rel, fh, nil
+		}
+		if !errors.Is(err, os.ErrExist) {
+			return "", nil, mapEscape(err)
+		}
+	}
+	return "", nil, fmt.Errorf("sandboxfs: no free temporary name")
 }
 
 // Mkdir creates a directory (including missing parents).
 func (f *FS) Mkdir(rel string) (Entry, error) {
-	abs, clean, err := f.resolve(rel)
+	c, err := clean(rel)
 	if err != nil {
 		return Entry{}, err
 	}
-	if clean == "" {
+	if c == "" {
 		return Entry{}, ErrInvalidPath
 	}
-	if _, err := os.Lstat(abs); err == nil {
+	root, err := f.openRoot()
+	if errors.Is(err, os.ErrNotExist) {
+		if err := os.MkdirAll(f.root, 0o755); err != nil {
+			return Entry{}, err
+		}
+		root, err = f.openRoot()
+	}
+	if err != nil {
+		return Entry{}, mapEscape(err)
+	}
+	defer root.Close()
+
+	if _, err := root.Lstat(forRoot(c)); err == nil {
 		return Entry{}, ErrExists
 	}
-	if err := f.mkdirAll(abs); err != nil {
+	if err := f.mkdirAll(root, c); err != nil {
 		return Entry{}, err
 	}
-	return f.entry(filepath.Dir(abs), path.Dir(clean), path.Base(clean)), nil
+	return entry(root, path.Dir(c), path.Base(c)), nil
 }
 
 // Remove deletes a file or a directory including its content. The root itself
 // is off limits: one does not delete an agent's home from the file browser.
 func (f *FS) Remove(rel string) error {
-	abs, clean, err := f.resolve(rel)
+	c, err := clean(rel)
 	if err != nil {
 		return err
 	}
-	if clean == "" {
+	if c == "" {
 		return ErrInvalidPath
 	}
-	if _, err := os.Lstat(abs); errors.Is(err, os.ErrNotExist) {
+	root, err := f.openRoot()
+	if errors.Is(err, os.ErrNotExist) {
 		return ErrNotFound
 	}
-	return os.RemoveAll(abs)
+	if err != nil {
+		return mapEscape(err)
+	}
+	defer root.Close()
+
+	// Lstat, not Stat: a symlink pointing outward is itself an entry of this
+	// home and may be removed. What must not happen is following it — and
+	// RemoveAll does not, it works within the root.
+	if _, err := root.Lstat(forRoot(c)); errors.Is(err, os.ErrNotExist) {
+		return ErrNotFound
+	}
+	return root.RemoveAll(forRoot(c))
 }
 
 // Move renames or moves. A taken target is not overwritten — a move that
 // silently deletes something else is a trap.
 func (f *FS) Move(fromRel, toRel string) (Entry, error) {
-	fromAbs, fromClean, err := f.resolve(fromRel)
+	von, err := clean(fromRel)
 	if err != nil {
 		return Entry{}, err
 	}
-	toAbs, toClean, err := f.resolve(toRel)
+	nach, err := clean(toRel)
 	if err != nil {
 		return Entry{}, err
 	}
-	if fromClean == "" || toClean == "" {
+	if von == "" || nach == "" {
 		return Entry{}, ErrInvalidPath
 	}
-	if _, err := os.Lstat(fromAbs); errors.Is(err, os.ErrNotExist) {
+	root, err := f.openRoot()
+	if errors.Is(err, os.ErrNotExist) {
 		return Entry{}, ErrNotFound
 	}
-	if _, err := os.Lstat(toAbs); err == nil {
+	if err != nil {
+		return Entry{}, mapEscape(err)
+	}
+	defer root.Close()
+
+	if _, err := root.Lstat(forRoot(von)); errors.Is(err, os.ErrNotExist) {
+		return Entry{}, ErrNotFound
+	}
+	if _, err := root.Lstat(forRoot(nach)); err == nil {
 		return Entry{}, ErrExists
 	}
-	if err := f.mkdirAll(filepath.Dir(toAbs)); err != nil {
+	zielEltern := path.Dir(nach)
+	if zielEltern == "." {
+		zielEltern = ""
+	}
+	if err := f.mkdirAll(root, zielEltern); err != nil {
 		return Entry{}, err
 	}
-	if err := os.Rename(fromAbs, toAbs); err != nil {
-		return Entry{}, err
+	if err := root.Rename(forRoot(von), forRoot(nach)); err != nil {
+		return Entry{}, mapEscape(err)
 	}
-	return f.entry(filepath.Dir(toAbs), path.Dir(toClean), path.Base(toClean)), nil
+	return entry(root, path.Dir(nach), path.Base(nach)), nil
 }
 
 // mkdirAll creates the chain and adjusts the ownership on every newly created
 // directory (MkdirAll alone would give it to the control plane).
-func (f *FS) mkdirAll(abs string) error {
-	if !strings.HasPrefix(abs, f.root) {
-		return ErrInvalidPath
+func (f *FS) mkdirAll(root *os.Root, rel string) error {
+	if rel == "" {
+		return nil // the home itself is already there — the root is open
 	}
-	var missing []string
-	for p := abs; len(p) >= len(f.root); p = filepath.Dir(p) {
-		if _, err := os.Stat(p); err == nil {
+	// Which parts are missing has to be established BEFORE creating; afterwards
+	// everything exists and the ownership would be adjusted on foreign
+	// directories too.
+	var fehlend []string
+	for p := rel; p != "" && p != "."; p = elternteil(p) {
+		if _, err := root.Stat(forRoot(p)); err == nil {
 			break
 		}
-		missing = append(missing, p)
-		if p == f.root {
-			break
-		}
+		fehlend = append(fehlend, p)
 	}
-	if err := os.MkdirAll(abs, 0o755); err != nil {
-		return err
+	if err := root.MkdirAll(forRoot(rel), 0o755); err != nil {
+		return mapEscape(err)
 	}
-	for _, p := range missing {
-		f.chown(p)
+	for _, p := range fehlend {
+		f.chown(root, p)
 	}
 	return nil
 }
 
+// elternteil is path.Dir without its "." for the top level — that way the loop
+// in mkdirAll ends at the home instead of one step below it.
+func elternteil(p string) string {
+	d := path.Dir(p)
+	if d == "." || d == "/" {
+		return ""
+	}
+	return d
+}
+
 // chown adjusts the sandbox ownership — best effort: as an ordinary user (local
 // development) it fails, and there it does not matter either.
-func (f *FS) chown(abs string) {
+func (f *FS) chown(root *os.Root, rel string) {
 	if f.UID < 0 || f.GID < 0 {
 		return
 	}
-	_ = os.Chown(abs, f.UID, f.GID)
+	_ = root.Chown(forRoot(rel), f.UID, f.GID)
 }
 
-// resolve normalises a path coming from the client and makes sure it stays
-// inside the home. Returns: absolute host path and the cleaned relative path
-// ("" = root).
-func (f *FS) resolve(rel string) (abs, clean string, err error) {
+// clean normalises a path coming from the client into a relative path below the
+// home ("" = the home itself).
+//
+// This is only normalisation, no longer a security check — containment is
+// enforced by os.Root when opening (see openRoot). That separation is the whole
+// point of the change: as long as the check was a separate step, there was a
+// window between checking and opening, and in that window a symlink can be
+// swapped in. The agent can do exactly that: its home lies on the host and is
+// mounted into the sandbox writable, and it has a shell in there.
+func clean(rel string) (string, error) {
 	rel = strings.TrimSpace(rel)
 	if strings.ContainsRune(rel, 0) {
-		return "", "", ErrInvalidPath
+		return "", ErrInvalidPath
 	}
 	// Taking the detour via "/" makes every `..` fall away, a leading one too.
-	clean = strings.TrimPrefix(path.Clean("/"+strings.ReplaceAll(rel, "\\", "/")), "/")
-	if clean == "." {
-		clean = ""
+	c := strings.TrimPrefix(path.Clean("/"+strings.ReplaceAll(rel, "\\", "/")), "/")
+	if c == "." {
+		return "", nil
 	}
-	abs = f.root
-	if clean != "" {
-		abs = filepath.Join(f.root, filepath.FromSlash(clean))
-	}
-	if err := f.ensureInside(abs); err != nil {
-		return "", "", err
-	}
-	return abs, clean, nil
+	return c, nil
 }
 
-// ensureInside checks the path against symlink escapes: the deepest *existing*
-// ancestor is resolved and must lie inside the root. Trailing pieces that do
-// not exist yet cannot be links, so that is enough.
-func (f *FS) ensureInside(abs string) error {
-	rootReal, err := filepath.EvalSymlinks(f.root)
-	if err != nil {
-		// Home not created yet: then there is no link anyone could escape
-		// through either — the purely textual comparison suffices.
-		if errors.Is(err, os.ErrNotExist) {
-			if within(f.root, abs) {
-				return nil
-			}
-			return ErrInvalidPath
-		}
-		return err
-	}
-	probe := abs
-	for {
-		real, err := filepath.EvalSymlinks(probe)
-		if err == nil {
-			if !within(rootReal, real) {
-				return ErrInvalidPath
-			}
-			return nil
-		}
-		if !errors.Is(err, os.ErrNotExist) {
-			return ErrInvalidPath
-		}
-		parent := filepath.Dir(probe)
-		if parent == probe {
-			return ErrInvalidPath
-		}
-		probe = parent
-	}
+// openRoot opens the home as an os.Root. Every path handed to a method of the
+// returned root is resolved BENEATH it by the operating system — a symlink
+// pointing outward fails, and it fails at the moment of opening rather than in
+// a check beforehand. That closes the race the old ensureInside had.
+//
+// The home need not exist: an agent that has never been woken has none yet.
+// Callers turn that into an empty listing resp. ErrNotFound.
+func (f *FS) openRoot() (*os.Root, error) {
+	return os.OpenRoot(f.root)
 }
 
-func within(root, p string) bool {
-	return p == root || strings.HasPrefix(p, root+string(os.PathSeparator))
+// rootRelPath is what os.Root expects for the home itself.
+const selbst = "."
+
+// forRoot maps the cleaned relative path onto the form os.Root reads.
+func forRoot(c string) string {
+	if c == "" {
+		return selbst
+	}
+	return filepath.FromSlash(c)
+}
+
+// mapEscape turns the refusal of os.Root into our error. os.Root reports an
+// escape as a path error; for the caller it is the same case as a textual
+// `..` — the path does not belong to this home.
+func mapEscape(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return ErrNotFound
+	}
+	return ErrInvalidPath
 }
 
 // isBinary decides from a sample whether the content works as text: a NUL byte
