@@ -19,7 +19,7 @@ func init() {
 	target.Register(target.Descriptor{
 		Name:        "gitlab",
 		Label:       "GitLab",
-		Description: "GitLab issues as the working set: find issues (list_projects/list_issues, by milestone too), file externally reported bugs as a ticket (create_issue), maintain the working state on the board (set_labels/assign), check out source code, set the project up and verify bugs against the code (checkout + sandbox shell), read screenshots/images attached to issues (download_upload + vision), attach your own screenshots to an MR/an issue (upload + comment_mr), develop fixes — commit onto a feature branch (commit), open a merge request to your manager (create_merge_request, optionally with a QA agent as reviewer) and live the review loop: on every heartbeat run check open MRs for new review feedback (list_merge_requests/list_mr_notes/comment_mr), diagnose red CI yourself (list_pipelines/list_pipeline_jobs/get_job_log) and react to the merge. Usable as a QA/test agent too: test others' MRs in which you are entered as reviewer end to end and give feedback (set_reviewer/approve_mr, nur-wenn: gitlab:review). Intake through HEARTBEAT.md (polling), auth by API token (the secrets gitlab_token + gitlab_url).",
+		Description: "GitLab issues as the working set: find issues (list_projects/list_issues, by milestone too), file externally reported bugs as a ticket (create_issue), maintain the working state on the board (set_labels/assign), check out source code, set the project up and verify bugs against the code (checkout + sandbox shell), read screenshots/images attached to issues (download_upload + vision), attach your own screenshots to an MR/an issue (upload + comment_mr), develop fixes — commit onto a feature branch (commit), open a merge request to your manager (create_merge_request, optionally with a QA agent as reviewer) and live the review loop: on every heartbeat run check open MRs for new review feedback (list_merge_requests/list_mr_notes/comment_mr), diagnose red CI yourself (list_pipelines/list_pipeline_jobs/get_job_log) and react to the merge. Usable as a QA/test agent too: test others' MRs in which you are entered as reviewer end to end, give feedback and, where assigned, close the acceptance with the merge (set_reviewer/approve_mr/merge_mr, nur-wenn: gitlab:review). Intake through HEARTBEAT.md (polling), auth by API token (the secrets gitlab_token + gitlab_url).",
 		Kind:        "builtin",
 		Category:    target.CategoryCode,
 		System:      System{},
@@ -373,6 +373,67 @@ func (System) ActionSubject(action string, params json.RawMessage) string {
 	return "gitlab:" + action
 }
 
+// mergeBlockedReason is the merge gate: it returns the reason why this MR must
+// NOT be merged by the agent — empty means the way is clear. Fail-closed
+// throughout: what cannot be established (approval state not readable, pipeline
+// missing) counts as a reason against, never for. The four conditions are the
+// ones the QA agent cannot judge from its own run:
+//
+//   - the MR is open and free of conflicts,
+//   - every blocking discussion is resolved,
+//   - the head pipeline has passed,
+//   - the agent's OWN approval is on record.
+//
+// The last one is what keeps a developer agent from merging its own work: in
+// GitLab nobody can approve their own MR, so an author never gets past this
+// point — quite apart from the tool assignment (ACCESS.md tools:) and the
+// guard-rail subject gitlab:merge_mr, with which the merge can additionally be
+// denied or put behind an approval gate for the whole organization.
+func mergeBlockedReason(ctx context.Context, gc *Client, projectID int, mr MergeRequestDetail) string {
+	if mr.State != "opened" {
+		return fmt.Sprintf("the merge request is not open (state %q)", mr.State)
+	}
+	if mr.SHA == "" {
+		return "GitLab reports no head commit (sha) — without it the reviewed state cannot be pinned"
+	}
+	if mr.HasConflicts {
+		return "the merge request has conflicts with the target branch"
+	}
+	if !mr.BlockingDiscussionsResolved {
+		return "there are unresolved discussions on the merge request"
+	}
+	if s := mr.DetailedMergeStatus; s != "" && s != "mergeable" {
+		return fmt.Sprintf("GitLab does not consider the merge request mergeable (detailed_merge_status %q)", s)
+	}
+	if mr.HeadPipeline == nil {
+		return "no pipeline has run on the head commit"
+	}
+	if mr.HeadPipeline.Status != "success" {
+		return fmt.Sprintf("the pipeline of the head commit is not green (status %q)", mr.HeadPipeline.Status)
+	}
+	me, err := gc.CurrentUser(ctx)
+	if err != nil || me.Username == "" {
+		return "one's own user could not be established (fail-closed)"
+	}
+	approvals, err := gc.GetMRApprovals(ctx, projectID, mr.IID)
+	if err != nil {
+		return "the approval state could not be read (fail-closed): " + err.Error()
+	}
+	approvedByMe := approvals.UserHasApproved
+	for _, a := range approvals.ApprovedBy {
+		if a.User.Username == me.Username {
+			approvedByMe = true
+		}
+	}
+	if !approvedByMe {
+		return "your own approval is not on record — test first, then approve_mr, only then merge"
+	}
+	if approvals.ApprovalsLeft > 0 {
+		return fmt.Sprintf("the project still requires %d further approval(s)", approvals.ApprovalsLeft)
+	}
+	return ""
+}
+
 // isDuplicateComment is the server-side brake against comment loops: if the new
 // comment body is identical to the bot's most recent OWN (non-system) comment,
 // it is not posted again. Fail-open: if the who-am-I check goes wrong, the
@@ -575,6 +636,24 @@ var aktionen = map[string]aktion{
 			return nil, err
 		}
 		return map[string]any{"approved": true, "mr_iid": in.MRIID}, nil
+	},
+	"merge_mr": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
+		if in.ProjectID == 0 || in.MRIID == 0 {
+			return nil, fmt.Errorf("project_id or mr_iid missing")
+		}
+		mr, err := gc.GetMergeRequest(ctx, in.ProjectID, in.MRIID)
+		if err != nil {
+			return nil, err
+		}
+		if reason := mergeBlockedReason(ctx, gc, in.ProjectID, mr); reason != "" {
+			return nil, fmt.Errorf("merge refused: %s — report the state per comment_mr and leave the merge to the human", reason)
+		}
+		merged, err := gc.MergeMR(ctx, in.ProjectID, in.MRIID, mr.SHA, true)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"merged": true, "mr_iid": in.MRIID, "sha": mr.SHA,
+			"target_branch": merged.TargetBranch, "web_url": merged.WebURL}, nil
 	},
 	"list_pipelines": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 {
@@ -800,7 +879,14 @@ func (System) PromptDoc() string {
    set_reviewer {"project_id":N,"mr_iid":N,"username":"gitlab-username"} enters a reviewer on an existing MR —
    as a developer you hand the MR over to the QA/test agent from the team directory with it, for instance; explain the
    handover in a comment_mr, approve_mr {"project_id":N,"mr_iid":N} formally approves an MR (as reviewer/QA — the green
-   signal to the manager; the merging itself stays with the human),
+   signal after a completed acceptance),
+   merge_mr {"project_id":N,"mr_iid":N} merges the merge request and removes the source branch. Only for the
+   REVIEWER after their own acceptance, never for the author of the MR — and only if your ACCESS.md carries the tool.
+   The action checks fail-closed before merging: MR open and free of conflicts, every blocking discussion resolved,
+   pipeline of the head commit green, your OWN approval on record. If one of them does not hold, it refuses with the
+   reason instead of merging — write that reason per comment_mr and leave the merge to the human. Merged is exactly
+   the commit you saw (sha); if a new commit has arrived in the meantime, GitLab refuses — then test again,
+
    list_pipelines {"project_id":N,"ref":"branch (optional)"} lists CI runs — use it after every push to check whether your
    branch's pipeline is green. If it is RED, diagnose it yourself instead of guessing or asking:
    list_pipeline_jobs {"project_id":N,"pipeline_id":N} shows the jobs with their status, get_job_log {"project_id":N,"job_id":N}
@@ -896,7 +982,10 @@ func (System) PromptDoc() string {
       and EVERY defect with file:line and a reproduction. No blanket "looks good"; support findings from the code/the run.
       On defects: stay the reviewer (the developer agent sees your feedback at its next gitlab:mr run and works it
       in). If everything is green and the acceptance criteria are met: say so explicitly in the comment_mr and approve with
-      approve_mr — the merging you leave to the manager. NEVER merge or close the MR yourself.
+      approve_mr. Whether you then merge yourself depends on your ACCESS.md: is merge_mr assigned to you, the
+      acceptance ends with the merge (merge_mr checks the four conditions itself and refuses with a reason —
+      pass that reason on per comment_mr). Without merge_mr the approval is your final word and the merging
+      stays with the human. Never close an MR yourself in either case.
    7. Before every answer, check with list_mr_notes whether new commits/answers have arrived since your last review — then test again
       instead of repeating feedback you have already given. As a reviewer too, end every run with done, never with blocked.`
 }

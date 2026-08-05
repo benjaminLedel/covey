@@ -616,10 +616,36 @@ type MergeRequestDetail struct {
 	// DetailedMergeStatus, e.g. "mergeable", "ci_still_running", "conflict" —
 	// GitLab's own summary of why an MR is (not) mergeable.
 	DetailedMergeStatus string `json:"detailed_merge_status"`
-	Author              struct {
+	// BlockingDiscussionsResolved: are all threads that block the merge
+	// resolved? False means an open review discussion — the QA agent must not
+	// merge over that.
+	BlockingDiscussionsResolved bool `json:"blocking_discussions_resolved"`
+	// SHA is the head of the diff at read time. Passed back on the merge, it is
+	// the guarantee that exactly the reviewed state gets merged: if a commit has
+	// arrived in the meantime, GitLab refuses with 409.
+	SHA    string `json:"sha"`
+	Author struct {
 		Username string `json:"username"`
 	} `json:"author"`
+	Reviewers []struct {
+		Username string `json:"username"`
+	} `json:"reviewers"`
 	HeadPipeline *Pipeline `json:"head_pipeline"`
+}
+
+// MRApprovals is the approval state of an MR — GET
+// /merge_requests/{iid}/approvals. approved_by carries the users who have
+// approved; that is how an agent checks whether ITS OWN approval is on record
+// before it merges.
+type MRApprovals struct {
+	ApprovalsRequired int  `json:"approvals_required"`
+	ApprovalsLeft     int  `json:"approvals_left"`
+	UserHasApproved   bool `json:"user_has_approved"`
+	ApprovedBy        []struct {
+		User struct {
+			Username string `json:"username"`
+		} `json:"user"`
+	} `json:"approved_by"`
 }
 
 // Pipeline is the CI run of a ref/MR — status "success", "failed", "running"
@@ -679,6 +705,33 @@ func (c *Client) SetMRReviewer(ctx context.Context, projectID, mrIID int, review
 func (c *Client) ApproveMR(ctx context.Context, projectID, mrIID int) error {
 	return c.do(ctx, http.MethodPost,
 		fmt.Sprintf("/projects/%d/merge_requests/%d/approve", projectID, mrIID), nil, nil)
+}
+
+// GetMRApprovals — GET /projects/{id}/merge_requests/{iid}/approvals: who has
+// approved. The merge gate reads it to establish that the agent's own approval
+// is on record — merging something one has not oneself accepted is exactly what
+// the gate is meant to prevent.
+func (c *Client) GetMRApprovals(ctx context.Context, projectID, mrIID int) (MRApprovals, error) {
+	var out MRApprovals
+	err := c.do(ctx, http.MethodGet,
+		fmt.Sprintf("/projects/%d/merge_requests/%d/approvals", projectID, mrIID), nil, &out)
+	return out, err
+}
+
+// MergeMR — PUT /projects/{id}/merge_requests/{iid}/merge. sha pins the state
+// to be merged: GitLab merges only if the head is still that commit, so a
+// commit pushed after the review can never be merged unseen. Passing an empty
+// sha is deliberately not supported — the gate in the plugin always has the
+// state it checked.
+func (c *Client) MergeMR(ctx context.Context, projectID, mrIID int, sha string, removeSourceBranch bool) (MergeRequestDetail, error) {
+	var out MergeRequestDetail
+	body := map[string]any{
+		"sha":                         sha,
+		"should_remove_source_branch": removeSourceBranch,
+	}
+	err := c.do(ctx, http.MethodPut,
+		fmt.Sprintf("/projects/%d/merge_requests/%d/merge", projectID, mrIID), body, &out)
+	return out, err
 }
 
 // ListPipelines — GET /projects/{id}/pipelines, optionally narrowed to a ref:
