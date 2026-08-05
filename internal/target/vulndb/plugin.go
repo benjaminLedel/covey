@@ -146,27 +146,53 @@ type ScanResult struct {
 	Notes []string `json:"notes,omitempty"`
 }
 
+// scanLockfile liest eine Lock-Datei AUS DER SANDBOX — und nur daraus.
+//
+// Der Pfad kommt vom Agenten, und vorher wurde er unverändert benutzt: ein
+// absoluter Pfad ("/etc/shadow") ging durch, ein relativer per Join, also auch
+// "../../etc/passwd". Damit war die Aktion ein Leseprimitiv auf alles, was der
+// Daemon lesen darf, statt auf das Projekt. Nach unserem eigenen Bedrohungsmodell
+// (spec/04) ist der Agent keine vertrauenswürdige Quelle — ein per Prompt
+// injizierter Agent ist genau der Fall, für den das hier steht.
+//
+// Zwei Riegel, dieselbe Aufteilung wie in internal/sandboxfs und beim
+// GitLab-Checkout: die Textprüfung ist der frühe, verständliche Fehler, os.Root
+// ist die Zusicherung, die das Betriebssystem durchsetzt — es löst unterhalb
+// des Arbeitsverzeichnisses auf, und ein Symlink nach draußen scheitert beim
+// Öffnen, nicht in einer Prüfung davor.
 func scanLockfile(ctx context.Context, workdir, path string) (*ScanResult, error) {
 	if strings.TrimSpace(path) == "" {
 		return nil, fmt.Errorf("path missing — name the lock file, e.g. \"repo/package-lock.json\"")
 	}
-	full := path
-	if !filepath.IsAbs(full) {
-		full = filepath.Join(workdir, path)
+	if workdir == "" {
+		return nil, fmt.Errorf("scan_lockfile needs a sandbox (no working directory in the context)")
 	}
-	info, err := os.Stat(full)
+	rel, err := relInWorkdir(path)
+	if err != nil {
+		return nil, err
+	}
+	root, err := os.OpenRoot(workdir)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+
+	info, err := root.Stat(rel)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	if info.Size() > maxLockfileSize {
 		return nil, fmt.Errorf("%s is %d MB — that is no longer a lock file", path, info.Size()>>20)
 	}
-	data, err := os.ReadFile(full)
+	data, err := root.ReadFile(rel)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 
-	parsed, err := ParseLockfile(full, data)
+	// Der Anzeigename trägt nur den relativen Pfad — ParseLockfile entscheidet
+	// daran den Typ, und das Ergebnis geht an den Agenten zurück; das
+	// Host-Präfix des Arbeitsverzeichnisses hat dort nichts zu suchen.
+	parsed, err := ParseLockfile(rel, data)
 	if err != nil {
 		return nil, err
 	}
@@ -362,4 +388,26 @@ func (System) PromptDoc() string {
    a finding of its own, not a clean result.
    Every call goes out through the egress proxy. If an action reports a host as unreachable, that host
    is missing from the allowlist — name it in your answer instead of retrying.`
+}
+
+// relInWorkdir normalisiert den Pfad, den der Agent nennt, auf einen relativen
+// innerhalb des Arbeitsverzeichnisses — und weist alles zurück, was hinausführt.
+//
+// Absolut ist bewusst ein Fehler und nicht "wird relativ gemacht": Wer
+// "/etc/passwd" schickt, meint nicht "repo/etc/passwd", und eine stille
+// Umdeutung verschleiert die Absicht. Die Meldung sagt, was gemeint ist.
+func relInWorkdir(path string) (string, error) {
+	p := strings.TrimSpace(path)
+	if filepath.IsAbs(p) {
+		return "", fmt.Errorf("path must be relative to your working directory, was %q — "+
+			"name the lock file inside the checkout, e.g. \"repo/package-lock.json\"", path)
+	}
+	p = filepath.Clean(filepath.FromSlash(p))
+	if p == ".." || strings.HasPrefix(p, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path must not lead out of your working directory, was %q", path)
+	}
+	if p == "." {
+		return "", fmt.Errorf("path names a directory, not a lock file: %q", path)
+	}
+	return p, nil
 }
