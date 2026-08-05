@@ -11,7 +11,7 @@ func TestCompareVersions(t *testing.T) {
 		{"1.0.0", "1.0.1", -1, true},
 		{"4.17.21", "4.17.20", 1, true},
 		{"2.0.0", "2.0.0", 0, true},
-		{"1.2", "1.2.0", 0, true},   // fehlende Stellen zählen als 0
+		{"1.2", "1.2.0", 0, true},    // fehlende Stellen zählen als 0
 		{"v2.3.0", "2.3.0", 0, true}, // führendes v ist Schreibweise
 		{"1.10.0", "1.9.0", 1, true}, // stellenweise numerisch, nicht lexikalisch
 		{"1.0.0+abc", "1.0.0+def", 0, true},

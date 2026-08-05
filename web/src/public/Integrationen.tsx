@@ -31,6 +31,7 @@ const GROUPS: { g: string; items: Item[] }[] = [
     items: [
       { name: "browser", category: "web", tag: "nosecret" },
       { name: "dev", category: "dev", tag: "nosecret" },
+      { name: "vulndb", category: "dev", tag: "nosecret" },
     ],
   },
 ];

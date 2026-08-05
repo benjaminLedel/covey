@@ -50,11 +50,12 @@ func TestBuiltinsLoad(t *testing.T) {
 // instantiation links break — deliberately a regression guard.
 func TestBuiltinIDsStable(t *testing.T) {
 	want := map[string]string{
-		"builtin:coding-agent":     "",
-		"builtin:qa-agent":         "",
-		"builtin:delivery-lead":    "",
-		"builtin:log-triage-agent": "",
-		"builtin:web-researcher":   "",
+		"builtin:coding-agent":              "",
+		"builtin:qa-agent":                  "",
+		"builtin:delivery-lead":             "",
+		"builtin:log-triage-agent":          "",
+		"builtin:web-researcher":            "",
+		"builtin:dependency-security-agent": "",
 	}
 	for _, b := range Builtins() {
 		if _, ok := want[b.Key]; !ok {

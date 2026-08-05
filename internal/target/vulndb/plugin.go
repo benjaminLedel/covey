@@ -70,7 +70,10 @@ pubspec.yaml) declares ranges, and a range is not a fact.
 yarn.lock and pnpm-lock.yaml are deliberately not parsed (their formats change
 between major versions; a half-read lock file reports fewer packages than
 there are). Extract the name/version pairs from them yourself and send them
-through the action query_batch.`,
+through the action query_batch.
+
+Details: docs/ops-vulndb.md in the repository. A ready-made agent that uses all
+of this: examples/dependency-security-agent.bundle.json.`,
 	})
 }
 

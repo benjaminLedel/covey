@@ -24,6 +24,7 @@ optional.
 | `delivery-lead.bundle.json` | `covey-lead` | Delivery lead: drive a GitLab milestone to its deadline — make tickets implementable (acceptance criteria, affected code locations), keep dependent tickets in order, dispatch work to the developers within a WIP limit, report the state, escalate open subject-matter questions to the human. |
 | `log-triage-agent.bundle.json` | `covey-logtriage` | Log triage: analyse logs reported by email, check for duplicates before filing (`list_issues search=…`, bundle occurrences onto the existing ticket), file tickets for relevant findings and hand real code bugs to a developer agent by `assignee`. |
 | `web-researcher.bundle.json` | `covey-webresearch` | Web researcher: research questions on the open web with a real browser, capture evidence as screenshots and deliver a concise, sourced answer. |
+| `dependency-security-agent.bundle.json` | `covey-depsec` | Dependency security: scan the lock files of the projects in its register (`vulndb scan_lockfile`), assess every hit against the project — direct or transitive, which fix branch applies — and file traceable GitLab tickets with evidence after a mandatory duplicate check; hand the upgrade to a developer agent. |
 
 Together they form the two-agent setup from
 [`docs/ops-gitlab.md`](../docs/ops-gitlab.md) §2.7: the developer agent enters
@@ -99,3 +100,32 @@ Additionally for the **delivery lead** only:
   question — that is, in exactly the path that involves humans.
 - Create the wiki page with the brief (template: `docs/ops-gitlab.md`
   §2.9.1) before the first heartbeat fires.
+
+Additionally for the **dependency security agent** only:
+
+- Enable the **`vulndb` target system**. It needs no secret — all four sources
+  (OSV.dev, the GitHub Advisory Database, NVD, the package registries) are
+  publicly reachable. Only NVD limits noticeably (5 requests per 30 seconds
+  anonymously, 50 with a key); whoever scans many projects requests a key at
+  <https://nvd.nist.gov/developers/request-an-api-key> and assigns it as
+  `vulndb_token`.
+- Import the **egress template "Vulnerability databases"** from the built-in
+  catalogue and assign it to the agent. The vulndb actions run in the sandbox
+  and therefore go through the egress proxy — without the hosts every action
+  fails. The template is deliberately not part of the bundle: egress is a
+  security-role matter, and a bundle carrying it could only be instantiated by
+  `platform_admin`/`security` instead of by `manage`.
+- Create the wiki page **"Dependency scan register"** before the first heartbeat
+  fires — project ID, branch and expected lock files per watched project. Which
+  projects are scanned is not in the config on purpose: it changes far more
+  often than the agent's behaviour. Without the page the agent proposes a
+  register instead of scanning into the blue.
+- Give it a **developer agent in the same department**. It hands upgrades over
+  by `assign`; without a developer colleague every finding lands with the human
+  manager.
+
+Its intake needs no bot user of its own for the wake logic (its scan runs on a
+fixed schedule, `täglich: 06:00`, not on a `nur-wenn` edge) — but a separate
+GitLab token is still the better choice, so that the security tickets are
+attributable and the second heartbeat (`nur-wenn: gitlab:issues:assigned`) only
+sees what really belongs to it.

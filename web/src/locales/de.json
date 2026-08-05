@@ -151,6 +151,10 @@
         "dev": {
           "t": "Dev-Sandbox",
           "d": "Der eigene Computer des Agenten: Shell-Befehle ausführen, Dev-Server und Datenbanken starten, prüfen und wieder abräumen."
+        },
+        "vulndb": {
+          "t": "Schwachstellen-Datenbanken",
+          "d": "Bekannte Schwachstellen in den deklarierten Abhängigkeiten: rein geht eine Lockdatei, raus kommen Befunde mit Advisory-ID, Schwere und der Fix-Version für genau diesen Versionszweig. npm, Composer, Dart/Flutter."
         }
       },
       "extendLead": "Zwei Wege, ohne auf ein Release zu warten — beide in der Oberfläche, ohne Deploy.",

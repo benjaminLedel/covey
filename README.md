@@ -230,6 +230,7 @@ All runbooks are in English.
 | [`docs/ops-sharepoint.md`](docs/ops-sharepoint.md) | SharePoint / Teams files via Microsoft Graph |
 | [`docs/ops-nextcloud.md`](docs/ops-nextcloud.md) | Nextcloud files via WebDAV |
 | [`docs/ops-browser.md`](docs/ops-browser.md) | Headless Chrome: driving web UIs, screenshots into the recording |
+| [`docs/ops-vulndb.md`](docs/ops-vulndb.md) | Known vulnerabilities in package dependencies (npm, Composer, Dart/Flutter) |
 
 ## Repository layout
 
