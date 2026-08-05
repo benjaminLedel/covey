@@ -172,6 +172,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/agents/{id}/config", s.agentScoped(anyRole, s.handleGetConfig))
 	mux.Handle("GET /api/v1/agents/{id}/export", s.agentScoped(append(manage, identity.RoleSecurity), s.handleExportAgent))
 	mux.Handle("GET /api/v1/agents/{id}/diagnostics", s.agentScoped(append(manage, identity.RoleSecurity), s.handleAgentDiagnostics))
+	mux.Handle("GET /api/v1/agents/{id}/lint", s.agentScoped(append(manage, identity.RoleSecurity), s.handleAgentLint))
 	// The workplace: the persistent home as a file tree (files.go). Security
 	// may read on top of that — whoever investigates an agent has to see what
 	// lies with it. Writing stays with the administrators: a file in the home

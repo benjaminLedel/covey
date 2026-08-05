@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"covey/internal/agents"
 	"covey/internal/config"
@@ -48,13 +47,18 @@ func runConfigLint(ctx context.Context, cfg config.Config, args []string) error 
 	}
 	defer pool.Close()
 
-	subjects, err := lintSubjects(ctx, pool)
+	skillStore := skills.NewStore(pool)
+	// uuid.Nil = across all organizations: whoever runs the instance looks at
+	// all of it, not at one tenant.
+	subjects, err := agents.LintSubjects(ctx, pool, uuid.Nil, func(ctx context.Context, orgID, agentID uuid.UUID) (map[string]string, error) {
+		return agentSkills(ctx, skillStore, orgID, agentID)
+	})
 	if err != nil {
 		return err
 	}
 	var findings []agents.Finding
 	for _, s := range subjects {
-		findings = append(findings, agents.Lint(s)...)
+		findings = append(findings, agents.Lint(s.Subject)...)
 	}
 
 	if asJSON {
@@ -72,72 +76,6 @@ func runConfigLint(ctx context.Context, cfg config.Config, args []string) error 
 		os.Exit(1)
 	}
 	return nil
-}
-
-// lintSubjects collects, per agent, the facts the rules need: the current
-// config, the self-created board columns and the number of runs aborted at the
-// turn limit.
-func lintSubjects(ctx context.Context, pool *pgxpool.Pool) ([]agents.Subject, error) {
-	rows, err := pool.Query(ctx, `
-		SELECT a.id, a.org_id, a.slug, a.max_turns,
-		       COALESCE(c.files, '{}'::jsonb)
-		FROM agents a
-		LEFT JOIN LATERAL (
-			SELECT files FROM agent_config_versions v
-			WHERE v.agent_id = a.id ORDER BY v.version DESC LIMIT 1
-		) c ON TRUE
-		ORDER BY a.slug`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	// The target per subject, kept by index: the slug is unique only PER
-	// organization (migrations/0001: UNIQUE (org_id, slug)), and the lint reads
-	// across all organizations. Keyed by slug, one of two agents with the same
-	// name would get the other's IDs — and with it a skill resolution that does
-	// not belong to it.
-	type target struct{ id, orgID uuid.UUID }
-	var out []agents.Subject
-	var targets []target
-	for rows.Next() {
-		var (
-			id       uuid.UUID
-			orgID    uuid.UUID
-			s        agents.Subject
-			maxTurns *int
-			raw      []byte
-		)
-		if err := rows.Scan(&id, &orgID, &s.Slug, &maxTurns, &raw); err != nil {
-			return nil, err
-		}
-		if err := json.Unmarshal(raw, &s.Files); err != nil {
-			return nil, fmt.Errorf("config of %s: %w", s.Slug, err)
-		}
-		if maxTurns != nil {
-			s.MaxTurns = *maxTurns
-		}
-		targets = append(targets, target{id: id, orgID: orgID})
-		out = append(out, s)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	skillStore := skills.NewStore(pool)
-	for i := range out {
-		t := targets[i]
-		if out[i].AgentStages, err = agentStages(ctx, pool, t.id); err != nil {
-			return nil, err
-		}
-		if out[i].TurnLimitFailures, err = turnLimitFailures(ctx, pool, t.id); err != nil {
-			return nil, err
-		}
-		if out[i].Skills, err = agentSkills(ctx, skillStore, t.orgID, t.id); err != nil {
-			return nil, err
-		}
-	}
-	return out, nil
 }
 
 // agentSkills collects the skills the agent is actually entitled to — its own
@@ -165,35 +103,7 @@ func agentSkills(ctx context.Context, store *skills.Store, orgID, agentID uuid.U
 	return out, nil
 }
 
-func agentStages(ctx context.Context, pool *pgxpool.Pool, agentID uuid.UUID) ([]string, error) {
-	rows, err := pool.Query(ctx,
-		"SELECT name FROM agent_stages WHERE agent_id=$1 AND created_by='agent' ORDER BY position, created_at", agentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []string
-	for rows.Next() {
-		var name string
-		if err := rows.Scan(&name); err != nil {
-			return nil, err
-		}
-		out = append(out, name)
-	}
-	return out, rows.Err()
-}
-
-// turnLimitFailures counts the runs that were aborted at the turn limit — the
-// control plane writes the reason into the task's error text. The prefix must
-// stay in step with the runtime adapters' message (internal/daemon).
-func turnLimitFailures(ctx context.Context, pool *pgxpool.Pool, agentID uuid.UUID) (int, error) {
-	var n int
-	err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM backlog_tasks
-		WHERE agent_id=$1 AND error LIKE 'turn limit reached%'`, agentID).Scan(&n)
-	return n, err
-}
-
-func printLint(subjects []agents.Subject, findings []agents.Finding) {
+func printLint(subjects []agents.LintSubject, findings []agents.Finding) {
 	byAgent := map[string][]agents.Finding{}
 	for _, f := range findings {
 		byAgent[f.AgentSlug] = append(byAgent[f.AgentSlug], f)

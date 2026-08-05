@@ -8,6 +8,7 @@ import { canFiles, canKill, canManage, canSecrets } from "./agent/roles";
 import { AgentTooling } from "./agent/Tooling";
 import { AgentSettings } from "./agent/Settings";
 import { CostBar } from "./agent/CostBar";
+import { LintFindings } from "./agent/LintFindings";
 import { Backlog } from "./agent/Backlog";
 import { Recording } from "./agent/Recording";
 import { Memories } from "./agent/Memories";
@@ -134,6 +135,8 @@ export default function AgentPage({ me }: { me: Principal }) {
       </div>
 
       <CostBar agentId={a.id} budget={a.budget_usd} />
+
+      <LintFindings agentId={a.id} />
 
       <div className="flex gap-1 mb-4 mt-5" style={{ borderBottom: "0.5px solid var(--border)" }}>
         {(
