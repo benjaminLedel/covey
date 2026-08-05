@@ -115,7 +115,8 @@ An agent out of control? **Stop it immediately** — `pause`/`kill` to the daemo
 Not optional but a prerequisite for the always-on economics (see [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)):
 
 - **Cost tracking per agent** — from the `cost` events (tokens/compute per LLM call); aggregated up to department/cost-centre level for controlling (see [`09-enterprise-model.md`](09-enterprise-model.md)).
-- **Budget per agent** — a configurable cap; on exceeding it the agent is throttled or paused.
+  **The input side is counted in three parts**: fresh input, a read out of the prompt cache and writing the cache. Not a detail — with a runtime that caches its context, the uncached share is the smallest of the three by orders of magnitude. Counting `input_tokens` alone gave one agent 5,497 input tokens against 1,842,222 output tokens, while a single one of its runs read 2.34 million cached tokens. The three are also priced differently (a cache read about a tenth of fresh input, writing it about a quarter more), so they are stored apart and only added up for display.
+- **Budget per agent** — a configurable cap; on exceeding it the agent is paused (kill switch, the running task goes back into the backlog). It is measured against the agent's **cumulative** cost, so it is a lifetime ceiling and not a per-run or per-period allowance: once passed, the agent stays paused until somebody raises the number. A cap per run or per time window does not exist yet.
 - **Idle is idle** — the cheap dispatch loop consumes (almost) nothing; the expensive runtime only runs in `working`. Sandboxes hibernate in `sleeping`/`blocked`.
 
 Without these three mechanisms the bill scales away from you at the tenth agent.

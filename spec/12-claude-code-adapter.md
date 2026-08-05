@@ -32,8 +32,10 @@ The control maps almost 1:1 onto the daemon protocol:
 | `--resume <session_id>` | `blocked → working` — resumption ([`03`](03-lifecycle-scheduling.md)) |
 | `--allowedTools` / `--permission-mode` | tool guard rails ([`06`](06-observability-control.md)) |
 | `--max-turns`, `--max-budget-usd` | budget/runaway guard rails ([`06`](06-observability-control.md)) |
-| `--mcp-config` | tool/target-system connection ([`04`](04-identity-secrets.md)) |
+| `--mcp-config` | the action proxy as a tool server — target actions as typed tool calls instead of `curl` in the shell ([`01`](01-architecture.md)) |
 | exit code ≠ 0 | error path → `task_done`(error) |
+
+**On `--mcp-config`:** the action proxy serves its actions as MCP tools as well (see [`01-architecture.md`](01-architecture.md)), and the adapter hands the runtime that server. Its tools have to go into the **same** `--allowedTools` list: the flag is a whitelist and may appear only once, and without the entry a headless run would ask for permission on every action — which nobody answers. The route is **opt-in for now** (`COVEY_ACTION_MCP`): the shell form is what every existing agent config describes, and a failed handshake would take all target actions with it. Switch it on per instance, watch one agent's recording for a run, then make it the default.
 
 ## `blocked` ↔ session resume (the M4 core)
 
