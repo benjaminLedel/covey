@@ -194,6 +194,8 @@ make run          # covey serve auf http://localhost:8494
 
 Ohne eines von beiden scheitern Aufgaben mit „Not logged in · Please run /login": die Sandbox hat ein eigenes, leeres `HOME`, die lokale `claude`-Anmeldung ist dort nicht sichtbar.
 
+Beide Namen vertragen ein `_Suffix` — `claude_code_oauth_token_team_a`, `anthropic_api_key_kostenstelle_b`. So hält eine Organisation mehrere Credentials nebeneinander, und jeder Agent wird unter *Secrets* am Agenten auf eines festgelegt (Rolle Platform Admin oder Security). Nicht festgelegte Agenten behalten die bisherige Reihenfolge: API-Key vor Abo-Token.
+
 **Welcher Stand läuft?** `covey version` zeigt Version, Commit und Bauzeit — dieselbe Angabe steht in der Startzeile von `covey serve`, unter `GET /api/v1/version` (angemeldet) und im Fuß der Sidebar in der UI. In einer Sandbox beantwortet `coveyd version` dasselbe für das Sandbox-Image. Die Werte kommen beim Bauen ins Binary: `make build` zieht sie aus Git, die Container-Builds aus den Build-Args `VERSION` / `COMMIT` / `DATE` (die CI füllt sie aus `$CI_COMMIT_*`).
 
 **Tests.** `make test` (Unit) und `make test-integration` (voller Durchstich gegen die Dev-DB, mit Mock-Runtime und Fake-Zammad; skippt, wenn Port 5433 nicht erreichbar ist). Für Demos ohne echtes Zammad: `go run ./demo/fakezammad`, dann die Secrets `zammad_url` = `http://localhost:9999` und `zammad_token` (beliebig) setzen.

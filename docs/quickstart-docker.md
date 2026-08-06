@@ -79,7 +79,9 @@ agent:
 1. **Anthropic access** — the secret `anthropic_api_key` (an API key) *or*
    `claude_code_oauth_token` (a subscription account; generate the token once
    with `claude setup-token`). Without one of the two, tasks fail with
-   "Not logged in", because the sandbox has its own empty `HOME`.
+   "Not logged in", because the sandbox has its own empty `HOME`. Both names
+   accept an `_suffix` (`claude_code_oauth_token_team_a`) if you want several
+   credentials in one organisation and a different one per agent.
 2. **A target system** — e.g. Zammad. For trying things out without a real
    Zammad there is the double `demo/fakezammad`; for connecting to a real
    instance see the runbook [`ops-zammad.md`](ops-zammad.md).

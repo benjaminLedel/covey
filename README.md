@@ -194,6 +194,8 @@ make run          # covey serve on http://localhost:8494
 
 Without either, tasks fail with "Not logged in · Please run /login": the sandbox has its own empty `HOME`, so your local `claude` login is not visible in there.
 
+Both names accept an `_suffix` — `claude_code_oauth_token_team_a`, `anthropic_api_key_cost_centre_b`. That way an organisation holds several credentials side by side, and each agent is pinned to one of them under *Secrets* on the agent (platform admin or security role). Unpinned agents keep the previous order: API key before subscription token.
+
 **Which build is running?** `covey version` prints version, commit and build time — the same information appears in the `covey serve` startup line, at `GET /api/v1/version` (session required) and at the bottom of the sidebar in the UI. Inside a sandbox, `coveyd version` answers the same question for the sandbox image. The values are stamped into the binary at build time: `make build` takes them from Git, the container builds from the `VERSION` / `COMMIT` / `DATE` build args (the CI pipeline fills them from `$CI_COMMIT_*`).
 
 **Tests.** `make test` (unit) and `make test-integration` (the full end-to-end path against the dev DB, with a mock runtime and a fake Zammad; it skips when port 5433 is unreachable). For demos without a real Zammad: run `go run ./demo/fakezammad`, then set the secrets `zammad_url` = `http://localhost:9999` and `zammad_token` (any value).

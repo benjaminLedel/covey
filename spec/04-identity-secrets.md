@@ -52,6 +52,19 @@ Secrets in the store have two levels; the broker resolves them per agent:
 
 The broker's resolution order: agent-owned secret → explicitly assigned org secret → otherwise refusal (`no secret deposited or assigned`).
 
+### The runtime credential
+
+The credential the runtime itself authenticates with (for Claude Code: an Anthropic API key or a subscription token) follows the same two levels, with one addition — an organisation may hold **several of them side by side**, and each agent is **pinned** to one.
+
+Which is which is carried by the **name**, not by the value. A secret whose name is `anthropic_api_key` or begins with `anthropic_api_key_` is an API key; `claude_code_oauth_token` and `claude_code_oauth_token_` likewise a subscription token. Everything else — `anthropic_api_keyring` — is an ordinary secret. So `claude_code_oauth_token_team_a` and `anthropic_api_key_cost_centre_b` can live in one organisation, and `agents.runtime_credential_key` records which one an agent uses. The value's own prefix (`sk-ant-oat…` / `sk-ant-api…`) is never used to decide: it is checked against the name when the secret is saved, so a misfiled value is reported there rather than at the next run.
+
+Two consequences follow from the pin being about **billing**:
+
+- A pin **does not fall back**. If the pinned secret is deleted or its assignment withdrawn, the wake is refused with a stated reason instead of quietly reaching for the next credential — reaching would charge an account nobody chose. Deleting or unassigning a pinned secret is therefore refused as long as an agent still points at it.
+- Setting the pin is a **security-role** action, not a manager's, and it assigns the org secret along the way. Whoever may direct an agent at an account could grant it the secret anyway; splitting the two would only produce a pin that silently does nothing.
+
+Without a pin the previous order applies unchanged: `anthropic_api_key`, then `claude_code_oauth_token`, then any remaining resolvable credential in a fixed order (agent-owned before org-wide, API key before subscription token, then by name). An installation that has only the two classic names behaves exactly as before.
+
 Two kinds of target system are exempt from that refusal, and the difference between them matters. A system that runs **entirely inside the sandbox** (the dev toolbox, the browser) never sees a credential at all — the broker grants an empty one. A system whose secret only **raises what it may do** — a public API where a key lifts a rate limit — is usable without one: there the broker resolves best effort and grants either way, so that a missing optional key does not look like a missing mandatory one. Both stay subject to `ACCESS.md`, activation and guard rails; what is waived is the secret, not the entitlement.
 
  By default a secret is a simple **variable** (server name, URL) and readable through the API. Values marked **sensitive** (tokens, passwords) are write-only with a prefix preview — the marking is deliberately one-way (lifting the protection would mean disclosing the value after all; the way back is deletion and recreation). Both apply at both levels; in the built-in implementation the AES-GCM AAD additionally binds the ciphertext to org, agent and key.

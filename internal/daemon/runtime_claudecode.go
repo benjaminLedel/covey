@@ -49,6 +49,7 @@ func init() {
 				Items: []string{
 					"Subscription token → key `claude_code_oauth_token`",
 					"API key → key `anthropic_api_key`",
+					"An `_suffix` is allowed (`claude_code_oauth_token_team_a`): that way an organization holds several credentials side by side and each agent is pinned to one of them under `Secrets` on the agent.",
 				},
 			},
 			{Text: "Set this agent's runtime to `claude-code`."},
@@ -313,7 +314,9 @@ func (c *ClaudeCode) Run(ctx context.Context, spec RunSpec, onEvent func(kind st
 			res.Error = fmt.Sprintf(
 				"Claude Code has no credential in the sandbox (%q). "+
 					"Store `anthropic_api_key` (API key) or `claude_code_oauth_token` "+
-					"(subscription, via `claude setup-token`) in Covey under Secrets.",
+					"(subscription, via `claude setup-token`) in Covey under Secrets — "+
+					"and if this agent is pinned to a particular credential, check that "+
+					"the secret of that name still exists and still reaches the agent.",
 				res.Error)
 		}
 		// "Invalid bearer token" (401): the brokered subscription token has
@@ -324,7 +327,8 @@ func (c *ClaudeCode) Run(ctx context.Context, spec RunSpec, onEvent func(kind st
 				"The stored subscription token is rejected by the Anthropic API (%q). "+
 					"Subscription tokens expire and are revoked on a new login — run "+
 					"`claude setup-token` in a terminal and save the new token in Covey under "+
-					"Secrets as `claude_code_oauth_token`.",
+					"Secrets, under the same name it is stored as (`claude_code_oauth_token`, "+
+					"possibly with an _suffix).",
 				res.Error)
 		}
 		return res, nil

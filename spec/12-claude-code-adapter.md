@@ -64,6 +64,8 @@ The final `result` event (or `--output-format json`) contains `total_cost_usd` i
 
 Headless needs non-interactive credentials: `ANTHROPIC_API_KEY` as an ENV variable, a long-lived OAuth token via `claude setup-token`, or provider credentials (Bedrock/Vertex/Foundry). In Covey this key is itself a **brokered secret** ([`04-identity-secrets.md`](04-identity-secrets.md)): the daemon gets it injected at runtime, it does not sit permanently in the sandbox.
 
+Which env variable it lands in is decided by the **secret's name**, not by the token's prefix: `anthropic_api_key` (optionally with an `_suffix`) → `ANTHROPIC_API_KEY`, `claude_code_oauth_token` → `CLAUDE_CODE_OAUTH_TOKEN`. The suffix lets an organisation keep several credentials and pin each agent to one of them; the resolution rules are in [`04-identity-secrets.md`](04-identity-secrets.md). The push happens on every wake, warm sandbox included, so a changed pin takes effect at the next wake and a withdrawn one clears the credential the daemon still holds.
+
 ## Permissions & guard rails
 
 Full non-interactive operation needs `--dangerously-skip-permissions` (it skips the interactive approval prompts). In Covey that is **defensible, because the sandbox is isolated and the hard limits are enforced externally anyway** — at the broker, at the egress, in the tool layer ([`06-observability-control.md`](06-observability-control.md)). Claude Code's interactive approval would be redundant inside the sandbox; Covey's guard rails sit one level above.
