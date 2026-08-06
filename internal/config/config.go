@@ -122,6 +122,16 @@ type Config struct {
 	// EmbeddingURL overrides the endpoint (proxy, Azure, compatible services).
 	// COVEY_EMBEDDING_URL.
 	EmbeddingURL string
+	// RuntimeTools is the runs' built-in tool scope (COVEY_RUNTIME_TOOLS,
+	// comma-separated). Empty = daemon.DefaultAllowedTools, which is the
+	// measured default: it takes the runtime's built-in set down from 20.811 to
+	// 11.045 prompt tokens, and the prompt is read afresh on every turn.
+	//
+	// It is worth setting where an agent needs a built-in tool the default does
+	// not carry — the entry has to be added, not just permitted, otherwise the
+	// tool does not exist for the run at all. MCP tools (the action proxy) are
+	// not affected; they reach the run through their own route.
+	RuntimeTools []string
 }
 
 func FromEnv() (Config, error) {
@@ -147,6 +157,7 @@ func FromEnv() (Config, error) {
 		EgressIsolation:  getenv("COVEY_EGRESS_ISOLATION", "proxy"),
 		EgressProxyAddr:  getenv("COVEY_EGRESS_PROXY_ADDR", ":8888"),
 		WikiCleanup:      strings.TrimSpace(os.Getenv("COVEY_WIKI_CLEANUP")),
+		RuntimeTools:     splitList(os.Getenv("COVEY_RUNTIME_TOOLS")),
 
 		EmbeddingProvider: getenv("COVEY_EMBEDDING_PROVIDER", "builtin"),
 		EmbeddingModel:    strings.TrimSpace(os.Getenv("COVEY_EMBEDDING_MODEL")),

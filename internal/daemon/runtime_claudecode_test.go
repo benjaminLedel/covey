@@ -277,6 +277,72 @@ EOF`)
 	}
 }
 
+// --tools carries the loading scope and must stay clean of MCP names: the flag
+// knows only built-in tools. The MCP tool reaches the run through
+// --allowedTools — that is the whole division of labour between the two flags.
+func TestClaudeCodeAdapterLimitsBuiltinToolsWithoutMCPNames(t *testing.T) {
+	bin, dir := fakeClaude(t, `
+cat <<'EOF'
+{"type":"result","subtype":"success","session_id":"s","result":"fertig"}
+EOF`)
+	adapter := &ClaudeCode{Binary: bin}
+	if _, err := adapter.Run(context.Background(), RunSpec{
+		TaskID: "t", Title: "x", HomeDir: dir,
+		AllowedTools: []string{"Bash", "Read"},
+		MCPConfig:    `{"mcpServers":{"covey":{"type":"http","url":"http://127.0.0.1:4711/mcp"}}}`,
+	}, func(string, json.RawMessage) {}); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile(filepath.Join(dir, "args.txt"))
+	s := string(got)
+	if !strings.Contains(s, "--tools") {
+		t.Fatalf("--tools is missing; without it every built-in tool stays in the prompt:\n%s", s)
+	}
+	// The line after --tools is the list itself (one argument per line).
+	lines := strings.Split(s, "\n")
+	var list string
+	for i, l := range lines {
+		if l == "--tools" && i+1 < len(lines) {
+			list = lines[i+1]
+		}
+	}
+	if list != "Bash,Read" {
+		t.Fatalf("--tools should carry exactly the built-in names, got %q:\n%s", list, s)
+	}
+}
+
+// Without materialized skills the Skill tool stays out — it would only drag the
+// built-in skills' descriptions into every turn (+2.454 tokens, measured).
+func TestClaudeCodeAdapterSkillToolFollowsMaterializedSkills(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		skills bool
+		want   string
+	}{
+		{"ohne Skills", false, "Bash,Read"},
+		{"mit Skills", true, "Bash,Read,Skill"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			bin, dir := fakeClaude(t, `
+cat <<'EOF'
+{"type":"result","subtype":"success","session_id":"s","result":"fertig"}
+EOF`)
+			adapter := &ClaudeCode{Binary: bin}
+			if _, err := adapter.Run(context.Background(), RunSpec{
+				TaskID: "t", Title: "x", HomeDir: dir,
+				AllowedTools: []string{"Bash", "Read"},
+				Skills:       tc.skills,
+			}, func(string, json.RawMessage) {}); err != nil {
+				t.Fatal(err)
+			}
+			got, _ := os.ReadFile(filepath.Join(dir, "args.txt"))
+			if !strings.Contains(string(got), "\n"+tc.want+"\n") {
+				t.Fatalf("expected tool list %q:\n%s", tc.want, got)
+			}
+		})
+	}
+}
+
 // Without an MCP config nothing changes — the shell route as before.
 func TestClaudeCodeAdapterWithoutMCPStaysAsBefore(t *testing.T) {
 	bin, dir := fakeClaude(t, `

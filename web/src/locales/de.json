@@ -334,13 +334,31 @@
     "totalTokens": "Token gesamt",
     "input": "Input",
     "output": "Output",
-    "runs": "Läufe",
+    "runs": {
+      "title": "Teuerste Läufe",
+      "hint": "Welcher einzelne Lauf das Geld verbraucht hat — und ob er dabei etwas verändert hat.",
+      "task": "Aufgabe",
+      "agent": "Agent",
+      "cost": "Kosten",
+      "cached": "Kontext gelesen",
+      "actions": "Aktionen",
+      "idle": "Leerlauf",
+      "idleHint": "Dieser Lauf hat kein Zielsystem angefasst — gelesen, nachgedacht, wieder schlafen gelegt."
+    },
     "runsN": "{{count}} Läufe",
     "byAgent": "Nach Agent",
     "byModel": "Nach Modell",
     "empty": "Keine Kostendaten im gewählten Zeitraum.",
     "ofWhichCached": "davon Cache",
-    "cachedShare": "{{pct}} % aus dem Prompt-Cache"
+    "cachedShare": "{{pct}} % aus dem Prompt-Cache",
+    "mix": {
+      "title": "Kostenarten",
+      "hint": "Das Gewicht liegt auf der gecachten Eingabeseite, nicht auf dem, was die Agenten schreiben — der Prompt wird in jedem Turn neu gelesen.",
+      "cacheRead": "Cache gelesen",
+      "cacheWrite": "Cache geschrieben",
+      "inputFresh": "Eingabe (ungecacht)",
+      "output": "Ausgabe"
+    }
   },
   "lang": {
     "toggle": "EN",

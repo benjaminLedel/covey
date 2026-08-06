@@ -164,6 +164,35 @@ type ModelCost struct {
 	Entries int64 `json:"entries"`
 }
 
+// RunCost is what ONE run cost — a single backlog task with its consumption.
+//
+// It exists because the aggregates above answer "how much did the day cost" but
+// not "which run cost it". The costs were bookable per task from the start
+// (AddCost takes a task_id), the number just never came back out; whoever wanted
+// to know where a burning day came from had to correlate cost buckets with the
+// backlog by hand over timestamps.
+//
+// Actions is the decisive column next to the money: the number of recorded
+// target-system actions of the run. A run with actions=0 changed nothing
+// outside itself — it read, thought and went back to sleep. That is the
+// difference between an agent that works and one that only wakes up, and
+// without it an expensive idle run looks in every statistic exactly like an
+// expensive productive one.
+type RunCost struct {
+	TaskID   uuid.UUID `json:"task_id"`
+	AgentID  uuid.UUID `json:"agent_id"`
+	Slug     string    `json:"slug"`
+	Title    string    `json:"title"`
+	State    string    `json:"state"`
+	Origin   string    `json:"origin"`
+	TotalUSD float64   `json:"total_usd"`
+	Tokens
+	Entries   int64     `json:"entries"`
+	Actions   int64     `json:"actions"`
+	StartedAt time.Time `json:"started_at"`
+	EndedAt   time.Time `json:"ended_at"`
+}
+
 // OrgCostReport bundles org-wide costs: totals, time series, breakdown per
 // agent and per model — the data basis for the chart.
 type OrgCostReport struct {
@@ -370,6 +399,52 @@ func (s *Store) CostSeriesByAgent(ctx context.Context, agentID uuid.UUID, bucket
 		return nil, err
 	}
 	return scanBuckets(rows)
+}
+
+// RunCosts returns the organization's most expensive runs since `since`,
+// costliest first — with agentID set, only that agent's.
+//
+// Grouped by task, not by cost entry: a run books several entries (the run
+// itself, its sub-runs), and what a human wants to know is what the RUN cost.
+// Runs whose task has since been deleted fall out of the join; their cost stays
+// in the aggregates, so the sum of the runs may be smaller than the day's total
+// — that is intended, this list ranks, it does not settle accounts.
+//
+// The action count comes from the recording as a separate aggregation instead
+// of a second join: joined in directly it would multiply the cost sums by the
+// number of events.
+func (s *Store) RunCosts(ctx context.Context, orgID uuid.UUID, agentID *uuid.UUID, since time.Time, limit int) ([]RunCost, error) {
+	if limit <= 0 || limit > 500 {
+		limit = 50
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT t.id, t.agent_id, a.slug, t.title, t.state, t.origin,
+		       COALESCE(SUM(ce.usd),0), `+tokenSums("ce.")+`, COUNT(ce.id),
+		       COALESCE((SELECT COUNT(*) FROM recording_events re
+		                 WHERE re.task_id = t.id AND re.kind = 'action'), 0),
+		       t.created_at, t.updated_at
+		FROM cost_entries ce
+		JOIN backlog_tasks t ON t.id = ce.task_id
+		JOIN agents a ON a.id = t.agent_id
+		WHERE a.org_id = $1 AND ce.created_at >= $2 AND ($3::uuid IS NULL OR t.agent_id = $3)
+		GROUP BY t.id, t.agent_id, a.slug, t.title, t.state, t.origin, t.created_at, t.updated_at
+		ORDER BY SUM(ce.usd) DESC
+		LIMIT $4`, orgID, since, agentID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []RunCost{}
+	for rows.Next() {
+		var r RunCost
+		if err := rows.Scan(&r.TaskID, &r.AgentID, &r.Slug, &r.Title, &r.State, &r.Origin,
+			&r.TotalUSD, &r.Input, &r.Output, &r.CacheRead, &r.CacheCreation,
+			&r.Entries, &r.Actions, &r.StartedAt, &r.EndedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
 }
 
 // OrgCostReport aggregates an organization's costs: totals, time series,

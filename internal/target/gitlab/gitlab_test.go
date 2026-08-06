@@ -2278,3 +2278,47 @@ func TestMergeMRNeedsIDs(t *testing.T) {
 		}
 	}
 }
+
+// The scope split must not reword anything: with all scopes granted, exactly
+// the old doc stands. Otherwise the filter would change agent behaviour instead
+// of only shortening the prompt.
+func TestPromptDocForScopesFullEqualsPromptDoc(t *testing.T) {
+	full := (System{}).PromptDocForScopes([]string{"read", "write", "comment", "merge"})
+	if full != (System{}).PromptDoc() {
+		t.Fatal("with all scopes the doc must be identical to PromptDoc()")
+	}
+}
+
+// Without the merge scope the reviewer playbook falls away — that is the part a
+// developer agent could never act on. The action catalogue stays.
+func TestPromptDocForScopesDropsReviewerWithoutMerge(t *testing.T) {
+	doc := (System{}).PromptDocForScopes([]string{"read", "write", "comment"})
+	if strings.Contains(doc, "How to work as a QA/test agent") {
+		t.Fatal("without merge the reviewer playbook has no business being there")
+	}
+	if !strings.Contains(doc, "Available GitLab actions") {
+		t.Fatal("the action catalogue applies to everyone")
+	}
+	if !strings.Contains(doc, "Writing developer actions") {
+		t.Fatal("with write the developer actions stay")
+	}
+	if len(doc) >= len((System{}).PromptDoc()) {
+		t.Fatal("the narrowed doc has to be shorter — that is the whole point")
+	}
+}
+
+// Read-only: neither writing actions nor either playbook.
+func TestPromptDocForScopesReadOnly(t *testing.T) {
+	doc := (System{}).PromptDocForScopes([]string{"read"})
+	if strings.Contains(doc, "Writing developer actions") ||
+		strings.Contains(doc, "How to work as a QA/test agent") {
+		t.Fatal("read alone carries neither writing actions nor the reviewer playbook")
+	}
+}
+
+// Fail-open: no recorded scopes must not take anything away.
+func TestPromptDocForScopesEmptyStaysFull(t *testing.T) {
+	if (System{}).PromptDocForScopes(nil) != (System{}).PromptDoc() {
+		t.Fatal("without scopes the full doc stands")
+	}
+}

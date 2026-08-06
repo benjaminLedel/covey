@@ -103,3 +103,39 @@ func TestMockRuntimeDirectives(t *testing.T) {
 		t.Fatalf("fail directive wrong: %+v", res)
 	}
 }
+
+// BuiltinTools separates the two flags: built-in names go into --tools, MCP
+// names do not — the flag would drop them silently while the tool disappears
+// from the run.
+func TestBuiltinToolsDropsMCPNames(t *testing.T) {
+	got := BuiltinTools([]string{"Bash", "mcp__covey", "Read"}, false)
+	want := []string{"Bash", "Read"}
+	if len(got) != len(want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	}
+}
+
+// With skills the Skill tool joins them — but only once, even if the scope
+// already names it.
+func TestBuiltinToolsAddsSkillOnlyOnce(t *testing.T) {
+	if got := BuiltinTools([]string{"Bash"}, true); len(got) != 2 || got[1] != "Skill" {
+		t.Fatalf("Skill should be appended: %v", got)
+	}
+	if got := BuiltinTools([]string{"Bash", "Skill"}, true); len(got) != 2 {
+		t.Fatalf("Skill must not be doubled: %v", got)
+	}
+}
+
+// A scope of nothing but MCP names yields nil so the caller leaves the flag
+// off: an EMPTY --tools list means "no tools at all" to the runtime, which
+// would silently strip the run of its shell.
+func TestBuiltinToolsEmptyStaysNil(t *testing.T) {
+	if got := BuiltinTools([]string{"mcp__covey"}, false); got != nil {
+		t.Fatalf("expected nil, got %v", got)
+	}
+}

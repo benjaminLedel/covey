@@ -669,6 +669,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		DaemonTokenTTL: cfg.DaemonTokenTTL,
 		TickInterval:   cfg.TickInterval,
 		BoardRetention: cfg.BoardRetention,
+		RuntimeTools:   cfg.RuntimeTools,
 		Log:            log,
 	})
 

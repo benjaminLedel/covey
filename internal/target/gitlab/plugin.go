@@ -827,8 +827,43 @@ func (System) Execute(ctx context.Context, action string, params json.RawMessage
 	return fn(ctx, NewClient(cred.BaseURL, cred.Token), in)
 }
 
+// The prompt doc in four blocks. Split by SCOPE, not rewritten: an agent reads
+// the same wording it always did, only the parts its ACCESS.md does not cover
+// fall away. That matters because the doc sits in the context of every turn —
+// the reviewer block alone is around 900 tokens, and a developer agent without
+// the merge scope carried it along on every one of its turns without ever being
+// able to act on it.
+//
+// The boundaries follow the granted permissions: writing developer actions and
+// the developer playbook need write, the QA/reviewer playbook needs merge. The
+// action catalogue and the rules for bug reports apply to everyone.
 func (System) PromptDoc() string {
-	return `Available GitLab actions: list_projects {}, list_issues {"project_id":N,"state":"opened"|"closed"|"all","labels":"...","search":"...","milestone":"...","assigned":true|false}
+	return promptDocActions + promptDocDeveloper + promptDocIssues + promptDocReviewer
+}
+
+// PromptDocForScopes (target.ScopedDocSystem) narrows the doc to the scopes
+// granted in ACCESS.md. Fail-open: without scopes the full doc stands — a
+// missing entry must not silently take capabilities away from an agent.
+func (System) PromptDocForScopes(scopes []string) string {
+	if len(scopes) == 0 {
+		return System{}.PromptDoc()
+	}
+	granted := make(map[string]bool, len(scopes))
+	for _, s := range scopes {
+		granted[strings.ToLower(strings.TrimSpace(s))] = true
+	}
+	doc := promptDocActions
+	if granted["write"] {
+		doc += promptDocDeveloper
+	}
+	doc += promptDocIssues
+	if granted["merge"] {
+		doc += promptDocReviewer
+	}
+	return doc
+}
+
+const promptDocActions = `Available GitLab actions: list_projects {}, list_issues {"project_id":N,"state":"opened"|"closed"|"all","labels":"...","search":"...","milestone":"...","assigned":true|false}
    (all fields optional; without project_id all the issues visible to you; assigned=true only the ones assigned
    to your bot user — use that when your playbook only provides for assigned issues; milestone is the
    TITLE of the milestone exactly as in GitLab and is the most reliable filter when your assignment hangs off an
@@ -905,7 +940,11 @@ func (System) PromptDoc() string {
    IMPORTANT — no busy-waiting on CI: if a pipeline is still running, check its status at most twice.
    If it is still not finished then, end your run regularly with done (the interim state as add_note) —
    your next heartbeat run checks the result. Minutes of status polling waste your turn budget.
-   Writing developer actions:
+`
+
+// promptDocDeveloper needs the write scope: actions that change the repository,
+// and the procedure that goes with them.
+const promptDocDeveloper = `   Writing developer actions:
    commit {"project_id":N,"branch":"fix/…","start_branch":"main (optional, default: the default branch)","message":"...",
    "checkout_path":"<the path from the checkout result>","files":["repo/relative/path.go",...],"deleted":["old.go",...]} —
    pushes your locally edited files as ONE commit onto the branch; if the branch does not exist, it is branched off the
@@ -950,7 +989,11 @@ func (System) PromptDoc() string {
    then comment the result in the associated issue; if it was closed without a merge (state="closed"),
    check why with list_mr_notes and escalate if that is unclear. Before every MR answer, check with list_mr_notes
    whether you have already reacted to the current state — that way recurring runs do not work on anything twice.
-   You find your working set yourself: list_issues {"state":"opened"} returns the open issues.
+`
+
+// promptDocIssues applies to everyone: how to find your working set and how to
+// deal with a bug report — reading and commenting, no scope of its own.
+const promptDocIssues = `   You find your working set yourself: list_issues {"state":"opened"} returns the open issues.
    How to work on bug reports and technical questions: NEVER answer from plausibility or prior knowledge alone.
    ALWAYS check FIRST whether the reported fault has been fixed in the meantime: list_commits on the relevant
    branch with since=the issue's creation date (and without a path filter — the fix can sit in a completely
@@ -972,7 +1015,12 @@ func (System) PromptDoc() string {
    that wakes a blocked task again. Wait neither for an issue answer nor for an MR review with
    blocked — end every run with done and let your next heartbeat run pick open issues/MRs
    back up.
-   How to work as a QA/test agent (reviewer) — when you test others' merge requests instead of developing yourself:
+`
+
+// promptDocReviewer needs the merge scope: the acceptance procedure of a
+// QA/test agent. A developer agent cannot act on it and would only carry it
+// through every turn.
+const promptDocReviewer = `   How to work as a QA/test agent (reviewer) — when you test others' merge requests instead of developing yourself:
    You find your working set with list_merge_requests {"state":"opened"} and, across projects, through the MRs in
    which you are entered as the reviewer (your nur-wenn: gitlab:review heartbeat fires for exactly that). For EVERY MR to check:
    1. Read get_merge_request: title, description, the linked issue (#iid) — derive the ACCEPTANCE CRITERIA from them
@@ -995,4 +1043,3 @@ func (System) PromptDoc() string {
       stays with the human. Never close an MR yourself in either case.
    7. Before every answer, check with list_mr_notes whether new commits/answers have arrived since your last review — then test again
       instead of repeating feedback you have already given. As a reviewer too, end every run with done, never with blocked.`
-}

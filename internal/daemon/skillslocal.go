@@ -63,7 +63,11 @@ func (c *Client) requestSkills(ctx context.Context) (InjectSkills, error) {
 // working. "I do not know which ones apply" must have the same effect as "none";
 // the control plane keeps the same promise by answering with an empty list even
 // on database errors (orchestrator.skillsFor).
-func (c *Client) materializeSkills(ctx context.Context) {
+// Returns how many skills are effective for this run. The run needs the number
+// because the Skill tool only belongs in the loading scope when there is
+// anything to load (runtime.BuiltinTools) — every failure path therefore
+// answers 0, exactly like the empty list.
+func (c *Client) materializeSkills(ctx context.Context) int {
 	dir := filepath.Join(c.homeDir, filepath.FromSlash(skillsDirName))
 	res, err := c.requestSkills(ctx)
 	if err != nil || !res.OK {
@@ -77,11 +81,13 @@ func (c *Client) materializeSkills(ctx context.Context) {
 		if err := clearSkillDirs(dir); err != nil {
 			c.log.Warn("old skills could not be cleared", "err", err)
 		}
-		return
+		return 0
 	}
 	if err := writeSkillDirs(dir, res.Skills); err != nil {
 		c.log.Warn("skills could not be materialized — running without skills", "err", err)
+		return 0
 	}
+	return len(res.Skills)
 }
 
 // clearSkillDirs removes everything Covey previously put under dir, without

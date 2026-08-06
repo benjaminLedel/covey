@@ -934,10 +934,19 @@ func FormatForPrompt(entries []Entry) string {
 	return b.String()
 }
 
-// FormatIndexForPrompt turns the pages into the compact wiki index (title +
-// slug) for the triage context: this way the agent sees its entire body of
-// knowledge at a glance, not just the vector hits — which helps it navigate and
-// avoid duplicates.
+// FormatIndexForPrompt turns the pages into the compact wiki index for the
+// triage context: this way the agent sees its entire body of knowledge at a
+// glance, not just the vector hits — which helps it navigate and avoid
+// duplicates.
+//
+// Slugs only, one line, no titles. The index sits in the context of every turn,
+// so its price is paid per turn — but its job is precisely COVERAGE: a page the
+// agent does not see there it writes a second time. Shortening the list would
+// therefore save tokens at the price of the duplicates the wiki cleanup then
+// deletes again at night (measured on covey.work: 38 stray pages in one day).
+// The slug carries the title almost entirely — it is derived from it — and it
+// is what wiki_read needs anyway. Measured on an agent with 50 pages: 40 pages
+// with titles cost 1.059 tokens, all 50 as slugs 539.
 func FormatIndexForPrompt(entries []Entry) string {
 	if len(entries) == 0 {
 		return ""
@@ -945,8 +954,12 @@ func FormatIndexForPrompt(entries []Entry) string {
 	var b strings.Builder
 	b.WriteString("## Your wiki (index)\n\n")
 	b.WriteString("You already have these pages — extend an existing one (covey/wiki_read + wiki_write) instead of duplicating:\n")
-	for _, e := range entries {
-		b.WriteString("- [[" + e.Slug + "]] — " + strings.TrimSpace(e.Title) + "\n")
+	for i, e := range entries {
+		if i > 0 {
+			b.WriteString(" ")
+		}
+		b.WriteString("[[" + e.Slug + "]]")
 	}
+	b.WriteString("\n")
 	return b.String()
 }
