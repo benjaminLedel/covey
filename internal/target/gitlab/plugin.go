@@ -970,7 +970,13 @@ func (System) PromptDoc() string {
    traceable issue. It needs a project_id — if you do not know the target project for certain, DO NOT GUESS:
    ask the reporter which project the fault belongs to (list_projects shows you the projects available to you),
    and only file the ticket once the project is settled,
-   list_notes {"project_id":N,"issue_iid":N}, comment {"project_id":N,"issue_iid":N,"body":"...","internal":true|false}
+   list_notes {"project_id":N,"issue_iid":N,"limit":N (optional, default 20, max 100),"page":N (optional)} —
+   returns the NEWEST comments of the ticket, not all of them. The answer says in "window"/"total"/"has_more" how it
+   relates to the whole; if "truncated" is set, page=2 fetches the next-older window (page=3 the one before that).
+   For long-running tickets that is normal — take the current state from page 1 and only page back when you really
+   need the earlier history. Comments longer than 4000 characters arrive cut off ("body_truncated":true);
+   get_note {"project_id":N,"issue_iid":N|"mr_iid":N,"note_id":N} fetches such a comment in full,
+   comment {"project_id":N,"issue_iid":N,"body":"...","internal":true|false}
    (a comment identical to your own last one is NOT posted again — the answer {"skipped":"duplicate"} is not an error but the loop protection),
    set_state {"project_id":N,"issue_iid":N,"state":"close"|"reopen"}, escalate {"project_id":N,"issue_iid":N,"note":"..."},
    assign {"project_id":N,"issue_iid":N,"username":"gitlab-username"} assigns the issue to a person — after a fix,
@@ -990,8 +996,9 @@ func (System) PromptDoc() string {
    (all filters optional), get_commit {"project_id":N,"sha":"..."} returns a commit's diff,
    list_merge_requests {"project_id":N,"state":"opened"|"merged"|"closed"|"all","search":"...","target_branch":"..."},
    get_merge_request {"project_id":N,"mr_iid":N} returns a single MR with its review state (detailed_merge_status,
-   has_conflicts) and CI result (head_pipeline), list_mr_notes {"project_id":N,"mr_iid":N} an MR's discussion state
-   (review comments), comment_mr {"project_id":N,"mr_iid":N,"body":"..."} answers in the review dialogue,
+   has_conflicts) and CI result (head_pipeline), list_mr_notes {"project_id":N,"mr_iid":N,"limit":N,"page":N} an MR's
+   discussion state (review comments) — windowed exactly like list_notes,
+   comment_mr {"project_id":N,"mr_iid":N,"body":"..."} answers in the review dialogue,
    set_reviewer {"project_id":N,"mr_iid":N,"username":"gitlab-username"} enters a reviewer on an existing MR —
    as a developer you hand the MR over to the QA/test agent from the team directory with it, for instance; explain the
    handover in a comment_mr, approve_mr {"project_id":N,"mr_iid":N} formally approves an MR (as reviewer/QA — the green
