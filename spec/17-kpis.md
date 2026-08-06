@@ -78,7 +78,22 @@ Like `ACCESS.md`, this file is **not** part of the system prompt. That is not an
 
 This is what the whole thing is for. Three derived figures, in the order of how much they say:
 
-**Unit cost** — total cost ÷ KPI count. "3.20 $ per resolved ticket." It is the number a managing director understands, and the only one that can be held against a human hourly rate. Deliberately computed over **all** costs of the period, including the runs that delivered nothing: the idle runs are paid for too, and a unit cost that quietly drops them flatters the agent.
+**Unit cost, per indicator** — total cost ÷ count, computed for **each** indicator separately, never summed across them:
+
+```
+Tickets resolved      142      3.20 $ / unit
+Code reviews           38      1.05 $ / unit
+Bug reports filed      12      0.90 $ / unit
+```
+
+This is the figure a managing director understands, and the only one that can be held against a human hourly rate. Reading the workforce as a **price list** also sidesteps the question of which indicator "counts": nothing is added up across kinds, a support agent and a QA agent simply carry different lines.
+
+Two properties of the number have to be stated wherever it appears, because both invite a wrong reading:
+
+- **The column must not be totalled.** Each line divides the agent's *entire* cost by the count of that one indicator — a full-cost attribution that answers its own question ("what does a resolved ticket cost me, everything in"). For an agent with three indicators, the same dollars appear in three lines.
+- **Idle runs are in the numerator, deliberately.** The alternative — attributing only the cost of the runs that produced the indicator — drops the runs that delivered nothing, although they are paid for, and forces a split for a run that resolves a ticket *and* files a bug. That variant belongs next to the figure as detail, not in its place. For the common case, an agent with one dominant indicator, the two nearly coincide.
+
+Org-wide, indicators with the same `kennzahl:` key are summed across agents, and the denominator is the cost of exactly those agents that carry the key — otherwise the price of a resolved ticket would include a QA agent that never touched one.
 
 **Productive share** — the share of runs in which at least one KPI event occurred. This extends the `actions = 0` signal that the run-cost list already carries: an agent whose heartbeat wakes it forty times a day and delivers on three of them is not a cheap agent, it is a badly scheduled one. This figure is what tells them apart.
 
@@ -92,7 +107,8 @@ Performance is not a second subject next to cost, it is the other half of the sa
 
 | Element there today | What it becomes |
 |---|---|
-| Four tiles, three of them token variants (input / output / total) | *Delivered* (KPI sum for the period) and *unit cost* take two of those slots — the first row then answers both halves instead of three variants of one |
+| Four tiles, three of them token variants (input / output / total) | one of those slots becomes *delivered* — the count of the leading indicator for the current filter. The first row then answers both halves instead of three variants of one |
+| *By model* bars (a list with a figure per row) | the same shape carries the **price list**: one row per indicator, count and unit cost. It is the block the whole feature is for, and it needs no new kind of element |
 | Chart toggle `cost \| tokens` | a third position *unit cost*, the derived curve over the same time axis — one more segment, not another chart |
 | *By agent* bars, sorted by USD | unit cost as the second figure on the bar: "which agent is expensive" becomes "which agent is expensive **per result**" |
 | *Costliest runs* with its `actions` column and `idle` marker | the run's KPI hits replace the raw action count — same table, sharper column |
