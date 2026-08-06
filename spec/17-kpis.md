@@ -12,6 +12,29 @@ An agent asked "how many tickets did you resolve today" answers with a plausible
 
 A KPI here is therefore defined as a **counting rule over events the control plane recorded itself**: the actions the action proxy executed against a target system, and the state transitions of the backlog. Both are written outside the runtime, by the control plane, at the moment they happen. The agent cannot write them, cannot revise them, and cannot talk them up.
 
+### No model is involved in the counting
+
+Worth stating explicitly, because "KPIs for AI agents" invites the assumption that something judges: the path from event to figure runs entirely through Go and SQL.
+
+The action proxy writes the record itself, after the call returned ([`internal/daemon/actionproxy.go`](../internal/daemon/actionproxy.go)):
+
+```go
+data, err := p.execute(ctx, system, action, params)
+auditMap := map[string]any{"action": subject, "params": params, "ok": err == nil}
+```
+
+`subject` is the action name from the routing, not from the model's answer; `ok` is the plugin's verdict on the call. The runtime chooses *whether* to invoke an action — it does not get to name it, and it cannot claim success. The orchestrator stores the record unchanged.
+
+The rule is then a string comparison: `zählt: aktion gitlab:comment_mr` becomes `WHERE kind='action' AND payload->>'action'='gitlab:comment_mr' AND payload->>'ok'='true'`. Same data plus same rule gives the same figure, today and in a year, and every figure can be unfolded down to the individual events behind it.
+
+The one place a model would be needed is the question whether a closed ticket was closed *rightly*. That is a judgement, not a count, and it has no business in this number — see the limits at the end.
+
+### The figure is current, not daily
+
+There is no batch run. The indicator is a query, not a stored counter: every view computes it on request over the events present at that moment, and the action event is in the database in the same second the agent acts. A period like "today" is a `WHERE` on `created_at`, not a storage interval.
+
+It can even count up without a reload. The orchestrator already publishes a live event for every action (`Event{Type: "recording", …}`) and the SPA hangs off that stream — hooking the indicator query into the same invalidation is one line. The daily roll-up mentioned under [implementation](#implementation-sketch) is therefore a cache for *past* periods only; the running day stays live. A roll-up that determined today's figure would show every agent as it was yesterday, which is the opposite of what the number is for.
+
 ## What is countable today
 
 No new instrumentation is needed for the first version. Three tables already carry it:
