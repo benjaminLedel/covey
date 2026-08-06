@@ -422,7 +422,7 @@ Why these fields:
 ## 3. Which issues does the agent take up?
 
 The agent decides for itself: `list_issues` delivers only open issues, and the
-project allowlist (3.2) filters the results of `list_issues`/`list_projects`
+project allowlist (3.3) filters the results of `list_issues`/`list_projects`
 server-side. If the agent should work **only on issues assigned directly to it**,
 there is `list_issues {"assigned":true}` (GitLab `scope=assigned_to_me`,
 relative to the token's bot user) — the rule itself belongs in the agent's
@@ -444,7 +444,25 @@ checks by `list_notes` (or `list_mr_notes` for MRs) whether its own comment is
 already the last state, and reacts only to answers newly added since then. The
 plugin's prompt documentation commits it to that.
 
-### 3.2 The project allowlist
+### 3.2 Long comment threads
+
+`list_notes`/`list_mr_notes` deliver a **window at the new end** of a thread: by
+default the newest 20 comments, `limit` up to 100, `page` counts backwards into
+the history (`page=2` the 20 before them). The answer describes itself —
+`window`, `total`, `has_more`, and `truncated` where something is missing — so
+that an agent can tell a full window from a complete history.
+
+That matters for tickets which run for months: an issue taking a daily report
+carries hundreds of comments, and whoever loads them all pays for them in the
+context of every single call. Comments longer than 4000 characters therefore
+arrive cut off as well (`body_truncated`); `get_note` fetches an individual one
+in full.
+
+The internal readers — the duplicate check and the `nur-wenn:` advance check —
+are not affected by the small window: their answer never reaches an agent, so
+they read the last 100 comments of a thread.
+
+### 3.3 The project allowlist
 
 ```bash
 COVEY_GITLAB_INTAKE_PROJECTS="group/support, 42"
