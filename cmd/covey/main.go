@@ -715,16 +715,20 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	}()
 
 	// The agents' night rest: once a night each of them tidies up its wiki. The
-	// credential comes per agent from the organization — without one there is
-	// no dreaming, quietly and without an error.
+	// credential is the agent's own — the same one its runs use, pinned or from
+	// the fallback order, so the dream bills the account the agent works on.
+	// Without one there is no dreaming, quietly and without an error.
 	if at := strings.TrimSpace(cfg.DreamAt); at != "" && at != "off" {
 		go dreams.RunNightly(ctx, at, func(ctx context.Context, agentID uuid.UUID) (dream.Credential, bool) {
 			a, err := registry.Get(ctx, agentID)
 			if err != nil {
 				return dream.Credential{}, false
 			}
-			cred, oauth, ok := claudeapi.ResolveOrg(ctx, secretStore, a.OrgID)
-			return dream.Credential{Value: cred, OAuth: oauth}, ok
+			res, err := claudeapi.ResolveAgent(ctx, secretStore, a.OrgID, a.ID, a.RuntimeCredentialKey)
+			if err != nil {
+				return dream.Credential{}, false
+			}
+			return dream.Credential{Value: res.Value, OAuth: res.Kind.OAuth()}, true
 		}, log)
 	}
 	// Egress log retention: clear out old decisions periodically.

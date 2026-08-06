@@ -65,6 +65,13 @@ type Agent struct {
 	// (opt-in): dev servers and caches survive, the next run starts without a
 	// cold build-up. Default false → ephemeral like everyone else (spec/01).
 	WarmSandbox bool `json:"warm_sandbox"`
+	// RuntimeCredentialKey pins the NAME of the secret the runtime
+	// authenticates with (spec/04) — this is how an organization runs several
+	// subscription tokens or API keys side by side and each agent burns exactly
+	// its own. Empty = the fallback order (anthropic_api_key before
+	// claude_code_oauth_token). The name, not the value, carries the kind; see
+	// internal/claudeapi/runtimecred.go.
+	RuntimeCredentialKey string `json:"runtime_credential_key"`
 	// WebhookToken is the secret of the optional generic webhook trigger
 	// (nil = disabled). Deliberately not in the JSON — readable only through
 	// the dedicated webhook endpoint (manager roles).
@@ -105,13 +112,14 @@ type Registry struct {
 
 func NewRegistry(pool *pgxpool.Pool) *Registry { return &Registry{pool: pool} }
 
-const agentCols = "id, org_id, slug, display_name, runtime, model, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, webhook_token, COALESCE(recording_level,''), warm_sandbox, created_at, updated_at"
+const agentCols = "id, org_id, slug, display_name, runtime, model, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, webhook_token, COALESCE(recording_level,''), warm_sandbox, runtime_credential_key, created_at, updated_at"
 
 func scanAgent(row pgx.Row) (Agent, error) {
 	var a Agent
 	err := row.Scan(&a.ID, &a.OrgID, &a.Slug, &a.DisplayName, &a.Runtime, &a.Model, &a.MaxTurns, &a.Status,
 		&a.OwnerID, &a.SupervisorID, &a.DepartmentID, &a.JobTitle, &a.Identities, &a.Phone, &a.Responsibilities, &a.Custom,
-		&a.Killed, &a.BudgetUSD, &a.WebhookToken, &a.RecordingLevel, &a.WarmSandbox, &a.CreatedAt, &a.UpdatedAt)
+		&a.Killed, &a.BudgetUSD, &a.WebhookToken, &a.RecordingLevel, &a.WarmSandbox,
+		&a.RuntimeCredentialKey, &a.CreatedAt, &a.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, ErrNotFound
 	}
@@ -255,6 +263,41 @@ func (r *Registry) SetMaxTurns(ctx context.Context, id uuid.UUID, maxTurns int) 
 		return ErrNotFound
 	}
 	return err
+}
+
+// SetRuntimeCredentialKey pins the secret whose value the agent's runtime
+// authenticates with; empty = back to the fallback order. Takes effect at the
+// next wake — a running session keeps the credential it was brokered.
+func (r *Registry) SetRuntimeCredentialKey(ctx context.Context, id uuid.UUID, key string) error {
+	tag, err := r.pool.Exec(ctx,
+		"UPDATE agents SET runtime_credential_key=$2, updated_at=now() WHERE id=$1", id, key)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+// AgentsUsingCredential lists the agents that pin this secret name. Deleting or
+// unassigning such a secret has to refuse instead of quietly breaking them: the
+// pin deliberately does not fall back, so without this check the next wake dies
+// with no visible cause.
+func (r *Registry) AgentsUsingCredential(ctx context.Context, orgID uuid.UUID, key string) ([]Agent, error) {
+	rows, err := r.pool.Query(ctx,
+		"SELECT "+agentCols+" FROM agents WHERE org_id=$1 AND runtime_credential_key=$2 ORDER BY slug",
+		orgID, key)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Agent
+	for rows.Next() {
+		a, err := scanAgent(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
 }
 
 // SetRecordingLevel sets the agent override of the recording depth (spec/06);

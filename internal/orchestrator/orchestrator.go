@@ -25,6 +25,7 @@ import (
 
 	"covey/internal/agents"
 	"covey/internal/backlog"
+	"covey/internal/claudeapi"
 	"covey/internal/daemon"
 	"covey/internal/egress"
 	"covey/internal/guardrails"
@@ -1047,27 +1048,44 @@ func (o *Orchestrator) sendMsg(ctx context.Context, link DaemonLink, msgType str
 	return link.Send(ctx, msg)
 }
 
+// pushAnthropicKey hands the runtime credential to the sandbox — proactively,
+// on every wake, warm or cold. The secret's NAME determines the credential type
+// and hence the runtime env: anthropic_api_key* → ANTHROPIC_API_KEY,
+// claude_code_oauth_token* (subscription, via `claude setup-token`) →
+// CLAUDE_CODE_OAUTH_TOKEN. Do not guess from the token prefix — the name is the
+// binding intent. Which of several the agent gets is decided in one place, by
+// claudeapi.ResolveAgent.
 func (o *Orchestrator) pushAnthropicKey(ctx context.Context, agent agents.Agent, link DaemonLink) {
-	// The secret's name determines the credential type and hence the runtime
-	// env: anthropic_api_key → ANTHROPIC_API_KEY, claude_code_oauth_token
-	// (subscription, via `claude setup-token`) → CLAUDE_CODE_OAUTH_TOKEN. Do not
-	// guess from the token prefix — the name is the binding intent.
-	key, err := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, "anthropic_api_key")
-	envVar := "ANTHROPIC_API_KEY"
-	if err != nil {
-		key, err = o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, "claude_code_oauth_token")
-		envVar = "CLAUDE_CODE_OAUTH_TOKEN"
+	res, err := claudeapi.ResolveAgent(ctx, o.Secrets, agent.OrgID, agent.ID, agent.RuntimeCredentialKey)
+	if errors.Is(err, claudeapi.ErrPinnedMissing) {
+		// A pin that no longer resolves is stated, not worked around: falling
+		// back would bill somebody else's account, which is the very thing the
+		// pin exists to prevent. The denial also clears a credential the daemon
+		// may still hold from an earlier run on a warm sandbox.
+		reason := "runtime credential " + agent.RuntimeCredentialKey +
+			" is not stored for this agent, or the assignment was withdrawn"
+		_ = o.sendMsg(ctx, link, daemon.TypeInjectCredentials, daemon.InjectCredentials{
+			System: "anthropic", Granted: false, Reason: reason,
+		})
+		o.Log.Warn("pinned runtime credential does not resolve",
+			"agent", agent.Slug, "key", agent.RuntimeCredentialKey)
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
+			map[string]any{"system": "anthropic", "granted": false, "proactive": true,
+				"key": agent.RuntimeCredentialKey, "reason": reason})
+		return
 	}
 	if err != nil {
 		return // no credential stored — the runtime reports this as a task error
 	}
-	key = strings.TrimSpace(key) // catch copy-and-paste whitespace/newlines
 	_ = o.sendMsg(ctx, link, daemon.TypeInjectCredentials, daemon.InjectCredentials{
-		System: "anthropic", Granted: true, Token: key, EnvVar: envVar,
+		System: "anthropic", Granted: true, Token: res.Value, EnvVar: res.Kind.EnvVar(),
 		TTLSecs: int(o.DaemonTokenTTL.Seconds()),
 	})
+	// Name and env var, never the value: this is what finally answers which
+	// token a run burned.
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
-		map[string]any{"system": "anthropic", "granted": true, "proactive": true})
+		map[string]any{"system": "anthropic", "granted": true, "proactive": true,
+			"key": res.Key, "env_var": res.Kind.EnvVar()})
 }
 
 func (o *Orchestrator) isKilled(ctx context.Context, agent agents.Agent) (bool, error) {
