@@ -330,17 +330,22 @@ func (c *Client) notesWindow(ctx context.Context, base string, limit, page int) 
 	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
 		out[i], out[j] = out[j], out[i]
 	}
+	// From vague to precise: whoever comes later overrules. The starting guess
+	// only has the page size; the counts state it exactly; X-Next-Page is the
+	// direct answer. NOT judged by presence but by the numbers — a proxy that
+	// swallows X-Next-Page and lets X-Total-Pages through would otherwise turn
+	// page 1 of 7 into a complete thread, which is exactly the silent truncation
+	// this window is meant to abolish.
 	p := NotesPage{Notes: out, Page: page, Total: -1, HasMore: len(out) == limit}
 	if hdr != nil {
 		if n, err := strconv.Atoi(hdr.Get("X-Total")); err == nil {
-			p.Total = n
+			p.Total, p.HasMore = n, page*limit < n
 		}
-		if next := strings.TrimSpace(hdr.Get("X-Next-Page")); next != "" {
+		if n, err := strconv.Atoi(hdr.Get("X-Total-Pages")); err == nil {
+			p.HasMore = page < n
+		}
+		if strings.TrimSpace(hdr.Get("X-Next-Page")) != "" {
 			p.HasMore = true
-		} else if hdr.Get("X-Total-Pages") != "" {
-			// The header is there and says nothing follows — that beats the guess
-			// from the page size.
-			p.HasMore = false
 		}
 	}
 	return p, nil

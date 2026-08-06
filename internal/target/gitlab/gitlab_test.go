@@ -2470,10 +2470,14 @@ func TestNotesFensterOhneHeader(t *testing.T) {
 // is the cost driver, not the number. An over-long comment is cut, says so, and
 // stays reachable in full through get_note.
 func TestNotesBodyKappung(t *testing.T) {
-	lang := strings.Repeat("ä", notesBodyMax) // multi-byte: the cut must not tear a rune apart
+	// Umlauts: two bytes each. Measured in bytes the cut would already bite at
+	// 2000 characters — the limit counts CHARACTERS, as the prompt promises.
+	grenzwertig := strings.Repeat("ä", notesBodyMax)
+	lang := strings.Repeat("ä", notesBodyMax+500)
 	notes := []Note{
 		autorNote(1, "delivery-lead", "kurz", "2026-08-01T08:00:00Z"),
 		autorNote(2, "delivery-lead", lang, "2026-08-02T08:00:00Z"),
+		autorNote(3, "delivery-lead", grenzwertig, "2026-08-03T08:00:00Z"),
 	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -2499,14 +2503,20 @@ func TestNotesBodyKappung(t *testing.T) {
 	if got[0].BodyTruncated || got[0].Body != "kurz" {
 		t.Errorf("a short comment must stay untouched: %+v", got[0])
 	}
-	if !got[1].BodyTruncated || got[1].BodyChars != len(lang) {
-		t.Errorf("the long comment is not marked: truncated=%v chars=%d", got[1].BodyTruncated, got[1].BodyChars)
+	if !got[1].BodyTruncated || got[1].BodyChars != notesBodyMax+500 {
+		t.Errorf("the long comment is not marked: truncated=%v chars=%d (expected %d characters, NOT %d bytes)",
+			got[1].BodyTruncated, got[1].BodyChars, notesBodyMax+500, len(lang))
 	}
-	if len(got[1].Body) > notesBodyMax+64 {
-		t.Errorf("the cut is ineffective: %d bytes", len(got[1].Body))
+	if n := utf8.RuneCountInString(got[1].Body); n > notesBodyMax+64 {
+		t.Errorf("the cut is ineffective: %d characters", n)
 	}
 	if !utf8.ValidString(got[1].Body) {
 		t.Error("the cut tore a multi-byte character apart")
+	}
+	// Exactly at the limit nothing is cut — otherwise the marker would appear on
+	// comments the promise still covers.
+	if got[2].BodyTruncated || got[2].Body != grenzwertig {
+		t.Errorf("a comment of exactly %d characters must stay untouched: truncated=%v", notesBodyMax, got[2].BodyTruncated)
 	}
 
 	// get_note fetches the full text back.
@@ -2609,5 +2619,88 @@ func TestDuplikatSchutzLangerThread(t *testing.T) {
 	}
 	if posts != 1 {
 		t.Errorf("a new comment must be posted: posts=%d", posts)
+	}
+}
+
+// TestNotesFensterWeiterblaettern pins down the three cases in which a window
+// that describes itself wrongly does more damage than none at all: a follow-up
+// call that silently changes the grid, an instance whose X-Next-Page is
+// swallowed on the way, and a page behind the end of the thread.
+func TestNotesFensterWeiterblaettern(t *testing.T) {
+	notes := langerThread(130)
+	kopfLos := false // true = answer WITHOUT X-Next-Page (a proxy filters it out)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if kopfLos {
+			rec := httptest.NewRecorder()
+			serveNotes(rec, r, notes)
+			for k, v := range rec.Header() {
+				if k != "X-Next-Page" {
+					w.Header()[k] = v
+				}
+			}
+			w.Write(rec.Body.Bytes())
+			return
+		}
+		serveNotes(w, r, notes)
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "t"}
+	ctx := context.Background()
+	hole := func(params string) map[string]any {
+		t.Helper()
+		res, err := sys.Execute(ctx, "list_notes", []byte(params), cred)
+		if err != nil {
+			t.Fatalf("list_notes %s: %v", params, err)
+		}
+		return res.(map[string]any)
+	}
+
+	// 1. The hint has to carry the limit along. Whoever fetches 100 and then
+	// follows a hint without limit lands on window 21–40 of a 20-grid: comments
+	// they already have, while 100…31 fall through unnoticed.
+	out := hole(`{"project_id":7,"issue_iid":42,"limit":100}`)
+	if out["limit"] != 100 {
+		t.Errorf("the answer does not say which window size applies: %+v", out["limit"])
+	}
+	hint, _ := out["hint"].(string)
+	if !strings.Contains(hint, `"limit":100`) || !strings.Contains(hint, `"page":2`) {
+		t.Errorf("the hint drops the limit and thereby changes the grid: %q", hint)
+	}
+	weiter := hole(`{"project_id":7,"issue_iid":42,"limit":100,"page":2}`)
+	got := weiter["notes"].([]Note)
+	if len(got) != 30 || got[len(got)-1].ID != 30 {
+		t.Errorf("the second window does not join on seamlessly: %d comments up to id %d", len(got), got[len(got)-1].ID)
+	}
+
+	// 2. Last page, exactly full: 130 comments in windows of 65 — page 2 ends
+	// precisely at the last comment, and nothing more may be promised.
+	out = hole(`{"project_id":7,"issue_iid":42,"limit":65,"page":2}`)
+	if out["has_more"] != false {
+		t.Errorf("an exactly full last page must not promise more: %+v", out)
+	}
+
+	// 3. Without X-Next-Page the counts have to decide. Reading the header's mere
+	// presence turned page 1 of 7 into a "complete thread" — the very silent
+	// truncation this window exists to abolish.
+	kopfLos = true
+	out = hole(`{"project_id":7,"issue_iid":42}`)
+	if out["has_more"] != true || out["truncated"] != true || out["window"] != "newest 20 comments of 130" {
+		t.Errorf("without X-Next-Page the truncation falls under the table: %+v", out)
+	}
+	kopfLos = false
+
+	// 4. Behind the end of the thread: the answer must lead back, not further
+	// backwards.
+	out = hole(`{"project_id":7,"issue_iid":42,"page":9}`)
+	if len(out["notes"].([]Note)) != 0 {
+		t.Fatalf("page 9 of a 7-page thread must be empty: %+v", out["notes"])
+	}
+	if hint, _ = out["hint"].(string); !strings.Contains(hint, `"page":1`) {
+		t.Errorf("the empty page does not lead back to the current state: %q", hint)
+	}
+	if w, _ := out["window"].(string); !strings.Contains(w, "empty") {
+		t.Errorf("window = %q", w)
 	}
 }

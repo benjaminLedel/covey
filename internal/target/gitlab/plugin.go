@@ -475,18 +475,18 @@ func isDuplicateComment(ctx context.Context, gc *Client, notes []Note, body stri
 // deliberate.
 const notesBodyMax = 4000
 
-// cutBody shortens an over-long comment and says so. Cut on a rune boundary,
-// otherwise a chopped-up multi-byte character lands in the JSON.
+// cutBody shortens an over-long comment and says so. Counted in CHARACTERS, not
+// bytes: a German daily report carries umlauts, and in UTF-8 each of them takes
+// two bytes — measured in bytes the cut would bite at around 2000 characters for
+// one text and at 4000 for another, and the stated figure would not match what
+// the prompt promises.
 func cutBody(n Note) Note {
-	if len(n.Body) <= notesBodyMax {
+	zeichen := utf8.RuneCountInString(n.Body)
+	if zeichen <= notesBodyMax {
 		return n
 	}
-	cut := notesBodyMax
-	for cut > 0 && !utf8.RuneStart(n.Body[cut]) {
-		cut--
-	}
-	n.BodyChars, n.BodyTruncated = len(n.Body), true
-	n.Body = n.Body[:cut] + "\n\n[… cut off — full text with get_note …]"
+	n.BodyChars, n.BodyTruncated = zeichen, true
+	n.Body = string([]rune(n.Body)[:notesBodyMax]) + "\n\n[… cut off — full text with get_note …]"
 	return n
 }
 
@@ -507,15 +507,32 @@ func notesResult(p NotesPage, limit int, action, idFeld string, projectID, iid i
 	for _, n := range p.Notes {
 		notes = append(notes, cutBody(n))
 	}
-	res := map[string]any{"notes": notes, "page": p.Page, "has_more": p.HasMore}
+	// limit belongs in the answer: page counts in windows of this size, so
+	// whoever pages on without it lands somewhere else than they think.
+	res := map[string]any{"notes": notes, "page": p.Page, "limit": limit, "has_more": p.HasMore}
 	if p.Total >= 0 {
 		res["total"] = p.Total
+	}
+	// weiter builds the follow-up call — WITH limit, because page and limit only
+	// mean anything together: whoever fetched 100 and then follows a hint without
+	// limit gets window 21–40 of a 20-page grid, i.e. comments they already have,
+	// while everything in between silently falls through.
+	weiter := func(page int) string {
+		return fmt.Sprintf("%s {\"project_id\":%d,\"%s\":%d,\"limit\":%d,\"page\":%d}",
+			action, projectID, idFeld, iid, limit, page)
 	}
 	// The window is described counted from the NEWEST comment, because that is
 	// where it sits: page 1 is the current state of the thread, every further
 	// page one step further into the past.
 	von, bis := (p.Page-1)*limit+1, (p.Page-1)*limit+len(p.Notes)
 	switch {
+	case len(p.Notes) == 0 && p.Page > 1:
+		// Paged past the end. Saying "0 comments (older, 161–160)" here would send
+		// the agent off leafing further backwards.
+		res["window"] = fmt.Sprintf("empty — page %d lies behind the end of the thread", p.Page)
+		res["truncated"] = true
+		res["hint"] = "the thread is shorter than this page. " + weiter(1) + " fetches the current state"
+		return res
 	case p.Page == 1 && !p.HasMore:
 		res["window"] = fmt.Sprintf("complete thread, %s", kommentarZahl(len(p.Notes)))
 	case p.Page == 1:
@@ -528,15 +545,14 @@ func notesResult(p NotesPage, limit int, action, idFeld string, projectID, iid i
 	}
 	if p.HasMore || p.Page > 1 {
 		res["truncated"] = true
-		hinweis := fmt.Sprintf("this is NOT the whole thread. %s {\"project_id\":%d,\"%s\":%d,\"page\":%d}",
-			action, projectID, idFeld, iid, p.Page+1)
-		if !p.HasMore {
-			hinweis = fmt.Sprintf("this is NOT the whole thread — nothing older follows; page=%d holds the newer comments",
-				p.Page-1)
-		} else {
-			hinweis += " goes one window further back; limit (max 100) enlarges the window"
+		switch {
+		case p.HasMore:
+			res["hint"] = "this is NOT the whole thread. " + weiter(p.Page+1) +
+				" goes one window further back; a larger limit (max 100) enlarges the window"
+		default:
+			res["hint"] = "this is NOT the whole thread — nothing older follows; " + weiter(p.Page-1) +
+				" holds the newer comments"
 		}
-		res["hint"] = hinweis
 	}
 	return res
 }
