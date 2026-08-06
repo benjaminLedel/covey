@@ -193,6 +193,43 @@ type RunCost struct {
 	EndedAt   time.Time `json:"ended_at"`
 }
 
+// Indicator is a counting rule as the evaluation needs it (spec/17-kpis.md).
+//
+// Deliberately its own type and not the parsed `KPIS.md` entry: this package
+// counts, it does not know the config language. The translation happens where
+// both sides are known — a rule that arrives here has already been validated.
+type Indicator struct {
+	Key   string `json:"key"`
+	Title string `json:"title"`
+	// Action is the counted target-system action ("zammad:reply_external"), or
+	// "<system>:*" for any action of a system. Empty means the task form.
+	Action string `json:"action,omitempty"`
+	// Origin narrows the task form to a task origin.
+	Origin string `json:"origin,omitempty"`
+	// Per is the parameter identifying the business object. With it the count
+	// becomes DISTINCT: five replies in the same ticket are one resolved
+	// ticket, not five.
+	Per    string `json:"per,omitempty"`
+	Goal   int    `json:"goal,omitempty"`
+	Period string `json:"period,omitempty"`
+}
+
+// IndicatorResult is one line of the price list: how often, and at what price.
+//
+// UnitUSD is a pointer because below minCountForUnitCost there is no price —
+// a unit cost computed over three events is noise, and shown as a number it
+// ranks next to one computed over three hundred as if they were the same kind
+// of statement.
+type IndicatorResult struct {
+	Indicator
+	Count   int64    `json:"count"`
+	UnitUSD *float64 `json:"unit_usd,omitempty"`
+}
+
+// minCountForUnitCost is the number of events from which a unit cost is a
+// measurement rather than an accident.
+const minCountForUnitCost = 5
+
 // TaskCost is what ONE task cost — the small form of RunCost, without the
 // backlog columns a caller that holds the task already has in hand.
 type TaskCost struct {
@@ -391,6 +428,100 @@ func (s *Store) CostByTasks(ctx context.Context, taskIDs []uuid.UUID) (map[uuid.
 		out[id] = c
 	}
 	return out, rows.Err()
+}
+
+// CountIndicator counts one indicator over the given agents since a point in
+// time. The agent set is the caller's business: org-wide an indicator is
+// counted over exactly those agents that carry its key — otherwise the price of
+// a resolved ticket would include a QA agent that never touched one.
+//
+// Only successful actions count. An agent that tried to close a ticket and got
+// a 422 resolved nothing, and a figure that counts the attempt measures effort,
+// not delivery.
+func (s *Store) CountIndicator(ctx context.Context, ind Indicator, agentIDs []uuid.UUID, since time.Time) (int64, error) {
+	if len(agentIDs) == 0 {
+		return 0, nil
+	}
+	var n int64
+	if ind.Action == "" {
+		// The task form: a backlog task that reached `done`. updated_at is the
+		// moment of the last transition, which for a terminal task is when it
+		// got there.
+		err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM backlog_tasks
+			WHERE agent_id = ANY($1) AND state = 'done' AND updated_at >= $2
+			  AND ($3 = '' OR origin = $3)`, agentIDs, since, ind.Origin).Scan(&n)
+		return n, err
+	}
+
+	// The counted expression: with `je:` the business object, otherwise the
+	// events themselves.
+	what := "COUNT(*)"
+	if ind.Per != "" {
+		what = "COUNT(DISTINCT payload->'params'->>'" + sanitizeParam(ind.Per) + "')"
+	}
+	// A wildcard cannot use the index as a range scan (the collation decides
+	// how prefixes compare), so it scans the partial index. Acceptable: the
+	// form exists for the coarse "did it touch GitLab at all" and is rare.
+	match, arg := "payload->>'action' = $3", ind.Action
+	if strings.HasSuffix(ind.Action, ":*") {
+		match, arg = "payload->>'action' LIKE $3", strings.TrimSuffix(ind.Action, "*")+"%"
+	}
+	err := s.pool.QueryRow(ctx, `SELECT `+what+` FROM recording_events
+		WHERE agent_id = ANY($1) AND kind = 'action' AND created_at >= $2
+		  AND `+match+` AND payload->>'ok' = 'true'`, agentIDs, since, arg).Scan(&n)
+	return n, err
+}
+
+// sanitizeParam keeps the `je:` parameter name out of the SQL string. It cannot
+// be a bind parameter (it names a JSON key inside the expression), so it is
+// restricted instead — the parser only admits this shape, and this is the
+// second lock on the same door.
+func sanitizeParam(p string) string {
+	var b strings.Builder
+	for _, r := range p {
+		if r == '_' || r == '-' || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// CostOfAgents is the denominator of the unit cost: everything these agents
+// cost in the period — including the runs that delivered nothing. Those are
+// paid for too, and a unit cost that quietly drops them flatters the agent.
+func (s *Store) CostOfAgents(ctx context.Context, agentIDs []uuid.UUID, since time.Time) (float64, error) {
+	if len(agentIDs) == 0 {
+		return 0, nil
+	}
+	var usd float64
+	err := s.pool.QueryRow(ctx, `SELECT COALESCE(SUM(usd),0) FROM cost_entries
+		WHERE agent_id = ANY($1) AND created_at >= $2`, agentIDs, since).Scan(&usd)
+	return usd, err
+}
+
+// FailedTasks counts the runs that ended without a result — the counter-figure
+// that keeps the price list honest. Without it an agent that abandons every
+// hard case looks excellent on what remains.
+func (s *Store) FailedTasks(ctx context.Context, agentIDs []uuid.UUID, since time.Time) (int64, error) {
+	if len(agentIDs) == 0 {
+		return 0, nil
+	}
+	var n int64
+	err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM backlog_tasks
+		WHERE agent_id = ANY($1) AND state IN ('failed','cancelled') AND updated_at >= $2`,
+		agentIDs, since).Scan(&n)
+	return n, err
+}
+
+// UnitCost prices one indicator line, or leaves it unpriced below the minimum
+// count. Separate from the query so the rule sits in one place and is testable
+// without a database.
+func UnitCost(totalUSD float64, count int64) *float64 {
+	if count < minCountForUnitCost || totalUSD <= 0 {
+		return nil
+	}
+	u := totalUSD / float64(count)
+	return &u
 }
 
 func (s *Store) CostByAgent(ctx context.Context, agentID uuid.UUID) (CostSummary, error) {

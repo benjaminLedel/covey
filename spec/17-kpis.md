@@ -186,7 +186,11 @@ Exactly **one** place outside it: the **employee profile**, where the cost bar a
 
 **Aggregate live, do not materialise counters.** A KPI defined today then shows its history immediately, and a rule that turns out to be wrong can be corrected without a data migration and without a gap in the series. A counter table would fix today's definition into the past and would have to be backfilled on every change — the exact opposite of config as code.
 
-That puts the load on `recording_events`. The existing indexes (`agent_id, id` and `task_id, id`) do not carry an aggregation over kind, action and period; the report needs one on `(agent_id, kind, created_at)` plus access to `payload->>'action'`. **As an expression index, not a generated column** — `ADD COLUMN … GENERATED` rewrites the table and locks it while it does, which on a running instance is a maintenance window; `CREATE INDEX CONCURRENTLY … ((payload->>'action'))` gets there without one. On a table that only ever grows, that difference decides whether the migration is deployable at all.
+That puts the load on `recording_events`. The existing indexes (`agent_id, id` and `task_id, id`) do not carry an aggregation over kind, action and period — they are built for paging through one recording. The report needs `(agent_id, (payload->>'action'), created_at)`, partial on `kind = 'action'`: no indicator ever asks for anything else, and the action events are the smaller part of the table, so the index stays small enough to sit in cache.
+
+**As an expression index, not a generated column.** `ADD COLUMN … GENERATED` rewrites the whole table and locks it while it does; on a table that only ever grows (no retention — the entire history of the indicators rests on that) it would be a maintenance window for a column nobody reads.
+
+Not `CONCURRENTLY`, though: the migrator runs each migration inside a transaction, where it is not permitted. That is acceptable here because migrations run at `covey serve` start, when no agent is working and nobody is waiting to write an event — it would not be acceptable for a migration applied to a live system.
 
 If the scans do become expensive at some point, the answer is a **daily roll-up** as a cache in front of the live query — not instead of it. The live path stays the definition of truth.
 
