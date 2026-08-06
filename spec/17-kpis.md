@@ -122,6 +122,42 @@ Org-wide, indicators with the same `kennzahl:` key are summed across agents, and
 
 Because every KPI event hangs off a task and every task has costs, a fourth view is available cheaply — "what did the runs that produced this KPI cost" — but it stays secondary. It answers a diagnostic question, not the budget question.
 
+## Did it pay off — the figures that qualify the price
+
+A price says what a result cost, not whether the result was any good. Four figures qualify it, and three of them need no new instrumentation at all — the data is already recorded, it is only not evaluated.
+
+### Rework rate — did the case come back?
+
+The strongest quality proxy that gets by without a judgement. A ticket resolved today and reopened on Thursday was not resolved, and today it counts as delivery all the same.
+
+The mechanism is already in place, from the other side: `CorrelateWake` only wakes tasks in state `blocked`. An event arriving on a `correlation_key` whose task has already reached `done` therefore finds nothing to wake and produces a **new** task carrying the same key — which is exactly what a returning case looks like. `task_transitions` holds the history to go with it.
+
+The rework rate is then the share of objects that reappeared within a window after being closed. The window has to be chosen and named (seven days is a reasonable default for tickets, useless for merge requests), and it belongs next to the indicator rather than in a corner of its own: an indicator at 90 % rework is not delivery, it is a holding pattern, and its unit cost is fiction.
+
+### Rejection rate at the approval gates
+
+Here a human has already judged, and the verdict is recorded without interpretation in `approvals.status`. It is the only figure in this document that is not a proxy — somebody looked at a proposed action and said no. An agent whose proposals are rejected a third of the time produces review work rather than work.
+
+The same family: guard-rail hits — how often the agent attempted something it is not allowed to do. Not a performance figure, but it belongs in the same picture.
+
+### Response and lead time
+
+The value that has nothing to do with money, and is often the actual one. Time from the incoming event to the agent's first action, derivable from the task's `created_at` and the first `action` event of its run. As a **median, not a mean** — one run that hung for six hours must not make the picture look bad, and one that hung for six hours must not disappear into an average either, so the spread belongs next to it.
+
+An agent that answers at three in the morning in forty seconds delivers value even when it is not cheaper per ticket than a person. Without this figure the evaluation measures agents only on the axis where they convince least.
+
+### A reference value — and it stays an assumption
+
+"3.20 $ per ticket" only becomes a statement once what the alternative costs stands next to it. That is not a measurement but a parameter: a reference value per indicator, configured ("a ticket ties up twelve internal minutes"), off which a comparison can be computed.
+
+Two rules for it, and they matter more than the feature: it is **labelled as an assumption** wherever it appears, and the platform never merges it with the measured figures into one number. A "saving of 40,000 €" that is in truth somebody's estimate multiplied by a real count is the fastest way to lose the credibility that every other figure in this document was built to earn.
+
+### The limit: the honest answer needs a before
+
+Even all four together remain a bundle of proxies. The one hard proof would be a before-and-after against the target system's own history — how many tickets a week ran through before the agent, how fast, with what return rate. That data sits in the target system, not here; a one-off import when a system is connected would be the way to it.
+
+It is considerably more work than everything else in this document, and it is the difference between "the agent handles 142 tickets" and "the agent handles 142 tickets that somebody else used to handle".
+
 ## Where it shows: no new view
 
 Performance is not a second subject next to cost, it is the other half of the same one — so it does not get a page of its own. The **cost page turns into the economics page**, and every element it already has takes the second figure alongside:
@@ -134,7 +170,13 @@ Performance is not a second subject next to cost, it is the other half of the sa
 | *By agent* bars, sorted by USD | unit cost as the second figure on the bar: "which agent is expensive" becomes "which agent is expensive **per result**" |
 | *Costliest runs* with its `actions` column and `idle` marker | the run's KPI hits replace the raw action count — same table, sharper column |
 
-The price list carries the counter-figures (handed over, failed) in the same block, so nobody has to look for them somewhere else to read the prices correctly.
+The price list carries the counter-figures (handed over, failed) in the same block, so nobody has to look for them somewhere else to read the prices correctly. The **rework rate belongs in the same row as its indicator** for the same reason — a price whose quality figure sits on another screen gets quoted alone. Rejection rate, guard-rail hits and response time are per-agent figures and sit in the *Performance* block of the employee profile, where the run history already is.
+
+```
+Gelöste Tickets       142      3,20 $ / Stück      12 % zurückgekommen
+Code-Reviews           38      1,05 $ / Stück       —
+An Menschen abgegeben  19      —
+```
 
 The same on the data side: the indicators travel in the existing `OrgCostReport`, not through an endpoint of their own. One request, one filter bar, one period — the two sets of numbers cannot drift apart, and the period selector does not have to be built twice.
 
@@ -159,7 +201,9 @@ Who may see the figures is decided deliberately, not inherited: performance data
 
 A KPI counts events. It does not judge them. A ticket closed wrongly counts exactly like one resolved well, and an agent steered on comment count will comment more. That is Goodhart's law and no schema fixes it — which is why the numbers here are **reporting**, not a control loop: nothing in the platform rewards an agent for its KPI, nothing shows it its target, and no scheduler decision hangs off one.
 
-Quality stays where it already sits: in the recording, in the approval gates, and in the humans who read both.
+The qualifying figures above narrow the gap but do not close it. Rework, rejections and response time are **proxies for quality, not quality**: a case that never comes back may have been resolved well or merely abandoned by a resigned reporter, and an approval nobody rejects may mean the proposals were good or that the reviewer stopped reading. They are worth having because they are cheap and because they move in the right direction — not because they settle the question.
+
+The judgement itself stays where it already sits: in the recording, in the approval gates, and in the humans who read both.
 
 ---
 
