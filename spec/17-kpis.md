@@ -136,6 +136,8 @@ The obvious route does not work, and it is worth writing down so nobody rediscov
 
 The rate belongs next to its indicator rather than in a corner of its own: an indicator at 90 % rework is not delivery, it is a holding pattern, and its unit cost is fiction.
 
+**It does not read the same for every indicator, though**, and measured against real data that is the first thing one notices: on covey.work `engineer-1` touched four of five merge requests in more than one run. For a resolved support ticket that would be rework. For a review it is a conversation — comment, wait for the developer, comment again — and the same number means the opposite. The rate is a proxy for cases that came back, and it is only that where finishing a case is supposed to end the contact with it. Whoever defines an indicator for dialogue-shaped work should read it as "how many rounds", not as "how much went wrong".
+
 ### Rejection rate at the approval gates
 
 Here a human has already judged, and the verdict is recorded without interpretation in `approvals.status`. It is the only figure in this document that is not a proxy — somebody looked at a proposed action and said no. An agent whose proposals are rejected a third of the time produces review work rather than work.
