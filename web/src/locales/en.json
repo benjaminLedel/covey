@@ -866,7 +866,11 @@
       "runtimeCredDesc": "What this agent’s runtime authenticates with at Anthropic — the choice decides which account its runs bill. An org-wide secret is assigned along the way. Without a pin: API key before subscription token.",
       "runtimeCredEffective": "uses {{key}} → {{env}}",
       "runtimeCredNone": "no credential stored — tasks fail with “Not logged in”",
-      "runtimeCredDead": "{{key}} no longer reaches this agent (deleted, or the assignment was withdrawn). The next wake is refused rather than quietly billing another account — pick a different credential or store the secret again."
+      "runtimeCredDead": "{{key}} no longer reaches this agent (deleted, or the assignment was withdrawn). The next wake is refused rather than quietly billing another account — pick a different credential or store the secret again.",
+      "pinnedLocks": "pinned credential",
+      "pinnedLocksHint": "This credential is pinned as the agent’s runtime credential and therefore cannot be withdrawn — the pin deliberately does not fall back to another account. Pick a different one above (or the default order) and it will.",
+      "runtimeCredMoved": "Withdrew the assignment of {{key}} — the agent no longer uses it.",
+      "runtimeCredMoveNote": "Switching withdraws the assignment of the previous credential — what an agent does not use it should not reach either."
     },
     "settings": {
       "profile": "Profile",

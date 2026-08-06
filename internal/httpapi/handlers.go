@@ -845,6 +845,12 @@ func (s *Server) handleGetRuntimeCredential(w http.ResponseWriter, r *http.Reque
 // gated to the security roles and not to the managers: whoever may pin decides
 // which account an agent bills, and could grant the secret directly anyway.
 //
+// The pin takes that grant with it when it MOVES to another credential: an
+// agent that no longer uses a token has no business still reaching it, and
+// without this every re-pin would leave one more live grant behind. Unpinning
+// is the exception — the fallback order needs something assigned to find, so
+// there the grant stays.
+//
 // PATCH /api/v1/agents/{id}/runtime-credential  {"key": "..."}
 func (s *Server) handleSetRuntimeCredential(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
@@ -861,12 +867,20 @@ func (s *Server) handleSetRuntimeCredential(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	key := strings.TrimSpace(in.Key)
-	if key == "" { // unpin — back to the fallback order
+	// The previous pin decides whether a grant has to be cleaned up afterwards.
+	agent, err := s.Registry.Get(r.Context(), id)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	previous := agent.RuntimeCredentialKey
+
+	if key == "" { // unpin — back to the fallback order, grant stays
 		if err := s.Registry.SetRuntimeCredentialKey(r.Context(), id, ""); err != nil {
 			mapErr(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "key": "", "assigned": false})
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "key": "", "assigned": false, "unassigned": ""})
 		return
 	}
 	if claudeapi.Classify(key) == claudeapi.KindNone {
@@ -901,7 +915,16 @@ func (s *Server) handleSetRuntimeCredential(w http.ResponseWriter, r *http.Reque
 		mapErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "key": key, "assigned": assigned})
+	// The pin has moved: take back the grant the old pin had handed out. Only
+	// org-wide grants — an agent's own secret is nobody's to revoke here.
+	unassigned := ""
+	if previous != "" && previous != key {
+		if err := s.Secrets.Unassign(r.Context(), p.OrgID, previous, id); err == nil {
+			unassigned = previous
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok": true, "key": key, "assigned": assigned, "unassigned": unassigned})
 }
 
 // refusePinned refuses to take a secret away from agents that pin it. The pin
@@ -928,6 +951,14 @@ func (s *Server) refusePinned(w http.ResponseWriter, r *http.Request, orgID, onl
 	}
 	if len(slugs) == 0 {
 		return false
+	}
+	// Say what to do, not just what went wrong — and say it about the right
+	// agent: on the agent-scoped routes it is the one being edited, so "those
+	// agents" would send the reader looking for somebody else.
+	if onlyAgent != uuid.Nil {
+		writeErr(w, http.StatusConflict, key+" is the runtime credential of "+slugs[0]+
+			" — pick a different one (or the default order) under the runtime credential first")
+		return true
 	}
 	writeErr(w, http.StatusConflict, key+" is the runtime credential of "+
 		strings.Join(slugs, ", ")+" — pin those agents elsewhere first")

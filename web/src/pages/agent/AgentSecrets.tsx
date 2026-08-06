@@ -26,7 +26,10 @@ export function AgentSecrets({ agentId }: { agentId: string }) {
   const [value, setValue] = useState("");
   const [sensitive, setSensitive] = useState(false);
   const [check, setCheck] = useState<({ key: string } & SecretCheck) | null>(null);
-  const inval = () => qc.invalidateQueries({ queryKey: ["agent-secrets", agentId] });
+  const inval = () => {
+    qc.invalidateQueries({ queryKey: ["agent-secrets", agentId] });
+    qc.invalidateQueries({ queryKey: ["runtime-credential", agentId] });
+  };
 
   const save = useMutation({
     mutationFn: () =>
@@ -51,7 +54,12 @@ export function AgentSecrets({ agentId }: { agentId: string }) {
       patch(`/agents/${agentId}/secrets/${encodeURIComponent(k)}`, { sensitive: true }),
     onSuccess: inval,
   });
-  const invalOrg = () => qc.invalidateQueries({ queryKey: ["secrets"] });
+  const invalOrg = () => {
+    qc.invalidateQueries({ queryKey: ["secrets"] });
+    // Zuweisen und Entziehen verschieben, was der Agent erreicht — und damit
+    // auch, was sich auflösen lässt.
+    qc.invalidateQueries({ queryKey: ["runtime-credential", agentId] });
+  };
   const assign = useMutation({
     mutationFn: (k: string) => put(`/secrets/${encodeURIComponent(k)}/agents/${agentId}`, {}),
     onSuccess: invalOrg,
@@ -60,6 +68,17 @@ export function AgentSecrets({ agentId }: { agentId: string }) {
     mutationFn: (k: string) => del(`/secrets/${encodeURIComponent(k)}/agents/${agentId}`),
     onSuccess: invalOrg,
   });
+
+  // Dieselbe Query wie in RuntimeCredentialPin — react-query fasst sie über den
+  // Schlüssel zusammen, es bleibt eine Anfrage. Gebraucht wird sie hier, weil
+  // das festgelegte Credential nicht entzogen werden kann: das gehört an die
+  // Zeile, nicht in eine Fehlermeldung nach dem Klick.
+  const pinned = useQuery({
+    queryKey: ["runtime-credential", agentId],
+    queryFn: () => api<RuntimeCredential>(`/agents/${agentId}/runtime-credential`),
+    retry: false,
+  });
+  const pinnedKey = pinned.data?.pinned ?? "";
 
   const ownKeys = new Set((own.data ?? []).map((s) => s.key));
   const inherited = (org.data ?? []).filter((s) => s.agent_ids.includes(agentId));
@@ -112,11 +131,20 @@ export function AgentSecrets({ agentId }: { agentId: string }) {
                 <span className="muted text-xs">{t("agent.secrets.shadowed")}</span>
               )}
               <SecretValue secret={s} />
-              <button className="btn sm" disabled={unassign.isPending} onClick={() => unassign.mutate(s.key)}>
-                {t("agent.secrets.removeAssignment")}
-              </button>
+              {s.key === pinnedKey ? (
+                <span className="muted text-xs" title={t("agent.secrets.pinnedLocksHint")}>
+                  {t("agent.secrets.pinnedLocks")}
+                </span>
+              ) : (
+                <button className="btn sm" disabled={unassign.isPending} onClick={() => unassign.mutate(s.key)}>
+                  {t("agent.secrets.removeAssignment")}
+                </button>
+              )}
             </div>
           ))}
+          {unassign.isError && (
+            <p className="danger-text text-xs mt-1">{(unassign.error as Error).message}</p>
+          )}
         </>
       )}
       {inherited.length === 0 && (
@@ -183,11 +211,18 @@ export function AgentSecrets({ agentId }: { agentId: string }) {
               {t("secrets.protect")}
             </button>
           )}
-          <button className="btn sm" onClick={() => remove.mutate(s.key)}>
-            {t("agent.secrets.delete")}
-          </button>
+          {s.key === pinnedKey ? (
+            <span className="muted text-xs" title={t("agent.secrets.pinnedLocksHint")}>
+              {t("agent.secrets.pinnedLocks")}
+            </span>
+          ) : (
+            <button className="btn sm" onClick={() => remove.mutate(s.key)}>
+              {t("agent.secrets.delete")}
+            </button>
+          )}
         </div>
       ))}
+      {remove.isError && <p className="danger-text text-xs mt-1">{(remove.error as Error).message}</p>}
       {own.data?.length === 0 && <p className="muted mb-3">{t("agent.secrets.noOwn")}</p>}
     </div>
   );
@@ -208,9 +243,14 @@ function RuntimeCredentialPin({ agentId, candidates }: { agentId: string; candid
     queryFn: () => api<RuntimeCredential>(`/agents/${agentId}/runtime-credential`),
     retry: false,
   });
+  const [moved, setMoved] = useState("");
   const pin = useMutation({
-    mutationFn: (key: string) => patch(`/agents/${agentId}/runtime-credential`, { key }),
-    onSuccess: () => {
+    mutationFn: (key: string) =>
+      patch<{ unassigned: string }>(`/agents/${agentId}/runtime-credential`, { key }),
+    onSuccess: (res) => {
+      // Das Umstellen nimmt die Zuweisung des vorigen Credentials mit. Das
+      // stillschweigend zu tun wäre falsch — es ist ein Entzug.
+      setMoved(res.unassigned ?? "");
       qc.invalidateQueries({ queryKey: ["runtime-credential", agentId] });
       qc.invalidateQueries({ queryKey: ["secrets"] });
       qc.invalidateQueries({ queryKey: ["agent", agentId] });
@@ -256,13 +296,14 @@ function RuntimeCredentialPin({ agentId, candidates }: { agentId: string; candid
         )}
       </div>
       <p className="muted text-xs mt-2 mb-0" style={{ maxWidth: 640 }}>
-        {t("agent.secrets.runtimeCredDesc")}
+        {t("agent.secrets.runtimeCredDesc")} {t("agent.secrets.runtimeCredMoveNote")}
       </p>
       {dead && (
         <p className="text-xs mt-2 mb-0" style={{ color: "var(--danger, #b91c1c)" }}>
           {t("agent.secrets.runtimeCredDead", { key: c!.pinned })}
         </p>
       )}
+      {moved && <p className="muted text-xs mt-2 mb-0">{t("agent.secrets.runtimeCredMoved", { key: moved })}</p>}
       {pin.isError && <p className="danger-text text-xs mt-2 mb-0">{(pin.error as Error).message}</p>}
     </div>
   );

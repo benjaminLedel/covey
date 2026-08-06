@@ -244,6 +244,66 @@ func TestRuntimeCredentialNurSicherheitsrollen(t *testing.T) {
 	}
 }
 
+// Re-pinning must not leave the old grant behind. It did at first: every switch
+// added one more assignment, so an agent ended up reaching three tokens while
+// using one — and the two it did not use could not be withdrawn in an obvious
+// way. What an agent does not use it should not reach either.
+func TestRuntimeCredentialUmpinnenNimmtZuweisungMit(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	agent := s.newSupportAgent("cred-umpinnen")
+
+	for _, k := range []string{"claude_code_oauth_token_a", "claude_code_oauth_token_b"} {
+		if err := s.secrets.Put(ctx, s.orgID, k, "sk-ant-oat01-"+k); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pin := func(key string) map[string]any {
+		return admin.expect(http.MethodPatch, "/api/v1/agents/"+agent.ID.String()+"/runtime-credential",
+			map[string]string{"key": key}, http.StatusOK)
+	}
+	reaches := func(key string) bool {
+		t.Helper()
+		keys, err := s.secrets.ResolvableKeys(ctx, s.orgID, agent.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, k := range keys {
+			if k.Key == key {
+				return true
+			}
+		}
+		return false
+	}
+
+	pin("claude_code_oauth_token_a")
+	if !reaches("claude_code_oauth_token_a") {
+		t.Fatal("pinning has to grant the secret")
+	}
+
+	res := pin("claude_code_oauth_token_b")
+	if res["unassigned"] != "claude_code_oauth_token_a" {
+		t.Errorf("the answer has to name the withdrawal: %+v", res)
+	}
+	if reaches("claude_code_oauth_token_a") {
+		t.Error("the old credential still reaches the agent after re-pinning")
+	}
+	if !reaches("claude_code_oauth_token_b") {
+		t.Error("the new credential does not reach the agent")
+	}
+
+	// Unpinning is the exception: the fallback order needs something assigned
+	// to find, so the grant stays.
+	res = pin("")
+	if res["unassigned"] != "" {
+		t.Errorf("unpinning must not withdraw anything: %+v", res)
+	}
+	if !reaches("claude_code_oauth_token_b") {
+		t.Fatal("after unpinning the agent has nothing left to fall back on")
+	}
+}
+
 // ResolvableKeys is the basis for the choice — it must show exactly what
 // Resolve would find, and nothing of a foreign agent.
 func TestResolvableKeys(t *testing.T) {

@@ -866,7 +866,11 @@
       "runtimeCredDesc": "Womit sich die Runtime dieses Agenten bei Anthropic anmeldet — die Wahl entscheidet, welches Konto seine Läufe belastet. Ein organisationsweites Secret wird dabei gleich zugewiesen. Ohne Festlegung gilt: API-Key vor Abo-Token.",
       "runtimeCredEffective": "nutzt {{key}} → {{env}}",
       "runtimeCredNone": "kein Credential hinterlegt — Aufgaben scheitern mit „Not logged in“",
-      "runtimeCredDead": "{{key}} erreicht diesen Agenten nicht mehr (gelöscht oder Zuweisung entzogen). Der nächste Weckruf wird abgelehnt, statt still ein anderes Konto zu belasten — anderes Credential wählen oder das Secret wieder hinterlegen."
+      "runtimeCredDead": "{{key}} erreicht diesen Agenten nicht mehr (gelöscht oder Zuweisung entzogen). Der nächste Weckruf wird abgelehnt, statt still ein anderes Konto zu belasten — anderes Credential wählen oder das Secret wieder hinterlegen.",
+      "pinnedLocks": "festgelegtes Credential",
+      "pinnedLocksHint": "Dieses Credential ist als Laufzeit-Credential des Agenten festgelegt und lässt sich deshalb nicht entziehen — die Festlegung fällt bewusst nicht auf ein anderes Konto zurück. Oben ein anderes wählen (oder die Standardreihenfolge), dann geht es.",
+      "runtimeCredMoved": "Zuweisung von {{key}} zurückgenommen — der Agent nutzt sie nicht mehr.",
+      "runtimeCredMoveNote": "Beim Umstellen wird die Zuweisung des vorigen Credentials zurückgenommen — was der Agent nicht nutzt, soll er auch nicht erreichen."
     },
     "settings": {
       "profile": "Profil",
