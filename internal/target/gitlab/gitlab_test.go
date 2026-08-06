@@ -1687,6 +1687,16 @@ func TestHasWorkKindReview(t *testing.T) {
 			if r.URL.Query().Get("reviewer_username") != "qa-bot" {
 				t.Errorf("the reviewer_username filter is missing: %s", r.URL.RawQuery)
 			}
+			// GitLab's default for this endpoint is scope=created_by_me. Asking
+			// without a scope therefore only finds merge requests the bot
+			// opened ITSELF — and a QA agent opens none, so the answer is an
+			// empty list and the agent never wakes. The double answers here the
+			// way GitLab does, otherwise the test passes over exactly the bug
+			// it exists for.
+			if r.URL.Query().Get("scope") != "all" {
+				json.NewEncoder(w).Encode([]MergeRequest{})
+				return
+			}
 			json.NewEncoder(w).Encode(reviewMRs)
 		case strings.HasSuffix(r.URL.Path, "/notes"):
 			serveNotes(w, r, mrNotes)

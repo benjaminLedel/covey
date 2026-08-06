@@ -691,16 +691,24 @@ func (c *Client) ListMyOpenMergeRequests(ctx context.Context) ([]MergeRequest, e
 	return out, err
 }
 
-// ListReviewMergeRequests — GET /merge_requests?reviewer_username=<user>&state=opened:
+// ListReviewMergeRequests — GET /merge_requests?scope=all&reviewer_username=<user>&state=opened:
 // the open merge requests in which the bot user is entered as reviewer — the
 // review queue of a QA/test agent, across projects (like
 // ListMyOpenMergeRequests, only from the reviewer's rather than the author's
 // point of view). It carries the review loop from the other side: the developer
 // agent sets the QA agent as reviewer, who finds the MR through this.
+//
+// scope=all is what makes it work, and its absence is silent: GitLab defaults
+// this endpoint to scope=created_by_me, so without it the query asks for merge
+// requests the bot opened ITSELF and is also reviewer on. A QA agent opens
+// none — the answer is an empty list, HTTP 200, in fifty milliseconds. The
+// `nur-wenn: gitlab:review` heartbeat then reports "no work" every quarter of
+// an hour and the agent sleeps through its review queue, without a single error
+// anywhere.
 func (c *Client) ListReviewMergeRequests(ctx context.Context, reviewerUsername string) ([]MergeRequest, error) {
 	var out []MergeRequest
 	err := c.do(ctx, http.MethodGet,
-		"/merge_requests?reviewer_username="+url.QueryEscape(reviewerUsername)+"&state=opened&order_by=updated_at&per_page=50", nil, &out)
+		"/merge_requests?scope=all&reviewer_username="+url.QueryEscape(reviewerUsername)+"&state=opened&order_by=updated_at&per_page=50", nil, &out)
 	return out, err
 }
 
