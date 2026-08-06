@@ -664,7 +664,10 @@
       "originContinuation": "Fortsetzung",
       "originAgent": "angelegt von {{slug}}",
       "originHeartbeat": "Heartbeat",
-      "parentTask": "Ursprungsaufgabe"
+      "parentTask": "Ursprungsaufgabe",
+      "cost": "Kosten",
+      "costHint": "Was der Lauf dieser Aufgabe bisher gekostet hat — aus {{n}} Buchungen",
+      "costEntries": "aus {{n}} Buchungen"
     },
     "stageEditor": {
       "title": "Spalten (Stages)",

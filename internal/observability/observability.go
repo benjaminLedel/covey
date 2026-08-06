@@ -193,6 +193,13 @@ type RunCost struct {
 	EndedAt   time.Time `json:"ended_at"`
 }
 
+// TaskCost is what ONE task cost — the small form of RunCost, without the
+// backlog columns a caller that holds the task already has in hand.
+type TaskCost struct {
+	TotalUSD float64 `json:"total_usd"`
+	Entries  int64   `json:"entries"`
+}
+
 // OrgCostReport bundles org-wide costs: totals, time series, breakdown per
 // agent and per model — the data basis for the chart.
 type OrgCostReport struct {
@@ -354,6 +361,36 @@ func (s *Store) AddCost(ctx context.Context, agentID uuid.UUID, taskID *uuid.UUI
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
 		agentID, taskID, usd, tok.Input, tok.Output, tok.CacheRead, tok.CacheCreation, model)
 	return err
+}
+
+// CostByTasks liefert die Kosten einer Menge von Aufgaben in einem Rutsch —
+// task_id → Summe. Gedacht für Listenansichten (das Backlog), die neben jeder
+// Aufgabe zeigen wollen, was sie gekostet hat: einzeln abgefragt wäre das eine
+// Query pro Karte.
+//
+// Aufgaben ohne Kosten fehlen in der Map. Das ist der ehrliche Zustand und
+// nicht dasselbe wie 0,00 $: eine Aufgabe, die noch wartet, hat noch nichts
+// gekostet — eine, die lief und nichts kostete, gibt es praktisch nicht.
+func (s *Store) CostByTasks(ctx context.Context, taskIDs []uuid.UUID) (map[uuid.UUID]TaskCost, error) {
+	out := map[uuid.UUID]TaskCost{}
+	if len(taskIDs) == 0 {
+		return out, nil
+	}
+	rows, err := s.pool.Query(ctx, `SELECT task_id, COALESCE(SUM(usd),0), COUNT(*)
+		FROM cost_entries WHERE task_id = ANY($1) GROUP BY task_id`, taskIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id uuid.UUID
+		var c TaskCost
+		if err := rows.Scan(&id, &c.TotalUSD, &c.Entries); err != nil {
+			return nil, err
+		}
+		out[id] = c
+	}
+	return out, rows.Err()
 }
 
 func (s *Store) CostByAgent(ctx context.Context, agentID uuid.UUID) (CostSummary, error) {

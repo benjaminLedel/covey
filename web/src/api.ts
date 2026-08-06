@@ -52,6 +52,11 @@ export type Task = {
   archived_at?: string;
   created_at: string;
   updated_at: string;
+  // Was der Lauf dieser Aufgabe gekostet hat, in USD, und aus wie vielen
+  // Kostenbuchungen (Turns) er sich zusammensetzt. Fehlt, solange die Aufgabe
+  // nichts gekostet hat — das ist nicht 0,00 $, sondern „noch nicht gelaufen".
+  cost_usd?: number;
+  cost_entries?: number;
 };
 
 export type Stage = {

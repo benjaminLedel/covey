@@ -263,10 +263,39 @@ func (s *Server) handleBacklog(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	if tasks == nil {
-		tasks = []backlog.Task{}
+	ids := make([]uuid.UUID, 0, len(tasks))
+	for _, t := range tasks {
+		ids = append(ids, t.ID)
 	}
-	writeJSON(w, http.StatusOK, tasks)
+	costs, err := s.Obs.CostByTasks(r.Context(), ids)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	out := make([]taskWithCost, 0, len(tasks))
+	for _, t := range tasks {
+		e := taskWithCost{Task: t}
+		if c, ok := costs[t.ID]; ok {
+			e.CostUSD = &c.TotalUSD
+			e.CostEntries = c.Entries
+		}
+		out = append(out, e)
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// taskWithCost hängt an eine Backlog-Aufgabe, was ihr Lauf gekostet hat. Die
+// Zahl gehört nicht in backlog.Task — der Backlog weiß nichts von Kosten, das
+// ist die Observability. Sie wird hier erst für die Ansicht zusammengeführt,
+// eingebettet, damit die Aufgabe im JSON flach bleibt.
+//
+// CostUSD ist ein Zeiger: eine Aufgabe, die noch nicht gelaufen ist, hat keine
+// Kosten — und das ist nicht 0,00 $, sondern „noch nichts". Die Oberfläche
+// blendet das Feld dann aus, statt eine Null zu behaupten.
+type taskWithCost struct {
+	backlog.Task
+	CostUSD     *float64 `json:"cost_usd,omitempty"`
+	CostEntries int64    `json:"cost_entries,omitempty"`
 }
 
 func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {

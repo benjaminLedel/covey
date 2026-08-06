@@ -17,6 +17,16 @@ export function fmtBytes(n: number): string {
   return `${v.toFixed(v < 10 ? 1 : 0)} ${units[i]}`;
 }
 
+// fmtUSD bringt einen Betrag auf so viele Nachkommastellen, wie er noch trägt —
+// „1234 $", „12,30 $", „0,0042 $". Ein einzelner Lauf kostet oft Bruchteile
+// eines Cents; auf zwei Stellen gerundet stünde dort überall 0,00 $. Genutzt
+// von der Kostenseite und vom Backlog (Kosten an der Aufgabenkarte).
+export function fmtUSD(v: number): string {
+  if (v >= 1000) return `${v.toFixed(0)} $`;
+  if (v >= 1) return `${v.toFixed(2)} $`;
+  return `${v.toFixed(4)} $`;
+}
+
 // fmtDelta bringt eine Zeitspanne in Millisekunden auf die gröbste Einheit, die
 // sie noch beschreibt — „42 s", „3 min", „2 h 15 min", „4 d". Genutzt vom
 // Heartbeat (nächster/letzter Lauf) und vom Activity-Feed (Dauer eines Sub-Laufs).

@@ -11,6 +11,7 @@ import {
   type Task,
   type TaskNote,
 } from "../../api";
+import { fmtUSD } from "../../format";
 
 export function Backlog({
   agentId,
@@ -381,7 +382,17 @@ function TaskCard({
         {archived && <span className="muted text-[11px] shrink-0">{t("agent.backlog.archived")}</span>}
         <span className="kc-prio">P{task.priority}</span>
       </div>
-      <div className="t">{subtitle} · {originLabel(task.origin)}</div>
+      <div className="t">
+        {subtitle} · {originLabel(task.origin)}
+        {task.cost_usd !== undefined && (
+          <>
+            {" · "}
+            <span title={t("agent.backlog.costHint", { n: task.cost_entries ?? 0 })}>
+              {fmtUSD(task.cost_usd)}
+            </span>
+          </>
+        )}
+      </div>
       {open && (
         <div className="kc-detail fade">
           {task.body && (
@@ -391,6 +402,13 @@ function TaskCard({
             <p>
               <span className="muted">{t("agent.backlog.waitingOn", { key: "" }).replace(" ", "")}:</span>{" "}
               <span className="mono">{task.correlation_key}</span>
+            </p>
+          )}
+          {task.cost_usd !== undefined && (
+            <p>
+              <span className="muted">{t("agent.backlog.cost")}:</span>{" "}
+              <span className="mono">{fmtUSD(task.cost_usd)}</span>{" "}
+              <span className="muted">{t("agent.backlog.costEntries", { n: task.cost_entries ?? 0 })}</span>
             </p>
           )}
           {task.runtime_session_id && (

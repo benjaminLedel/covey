@@ -11,14 +11,9 @@ import {
   type RunCost,
   type Tokens,
 } from "../api";
+import { fmtUSD } from "../format";
 
 // --- Formatierung -----------------------------------------------------------
-
-function fmtUSD(v: number): string {
-  if (v >= 1000) return `${v.toFixed(0)} $`;
-  if (v >= 1) return `${v.toFixed(2)} $`;
-  return `${v.toFixed(4)} $`;
-}
 
 function fmtTokens(v: number, locale: string): string {
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(2)} M`;

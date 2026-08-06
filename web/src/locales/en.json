@@ -664,7 +664,10 @@
       "originContinuation": "continuation",
       "originAgent": "created by {{slug}}",
       "originHeartbeat": "heartbeat",
-      "parentTask": "parent task"
+      "parentTask": "parent task",
+      "cost": "Cost",
+      "costHint": "What this task's run has cost so far — from {{n}} entries",
+      "costEntries": "from {{n}} entries"
     },
     "stageEditor": {
       "title": "Columns (Stages)",

@@ -149,3 +149,71 @@ func TestRunCostsOverAPI(t *testing.T) {
 		}
 	}
 }
+
+// The cost hangs on the task in the backlog itself.
+//
+// The ranking answers "which run was expensive", but whoever looks at a task
+// asks the question the other way round: what did THIS one cost? Without the
+// number on the card that means a detour via the cost page and matching by
+// title. A task that has not run yet carries no zero — it carries nothing.
+func TestBacklogCarriesCostPerTask(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+
+	agent, err := s.registry.Create(ctx, s.orgID, "backlog-kosten", "Backlog Kosten", "mock", &s.adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gelaufen, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Hat gearbeitet", "", "heartbeat", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	offen, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Wartet noch", "", "manual:test", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Two turns of one run — the card shows the sum, not the last booking.
+	for _, usd := range []float64{0.75, 0.25} {
+		if err := s.obs.AddCost(ctx, agent.ID, &gelaufen.ID, usd,
+			observability.Tokens{Output: 100}, "claude-opus-5"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	resp := admin.do(http.MethodGet, "/api/v1/agents/"+agent.ID.String()+"/backlog", nil)
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		t.Fatalf("backlog: HTTP %d", resp.StatusCode)
+	}
+	var tasks []struct {
+		ID          string   `json:"id"`
+		CostUSD     *float64 `json:"cost_usd"`
+		CostEntries int64    `json:"cost_entries"`
+	}
+	err = json.NewDecoder(resp.Body).Decode(&tasks)
+	resp.Body.Close()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 2 {
+		t.Fatalf("expected both tasks, got %+v", tasks)
+	}
+	for _, tk := range tasks {
+		switch tk.ID {
+		case gelaufen.ID.String():
+			if tk.CostUSD == nil || *tk.CostUSD != 1.00 {
+				t.Fatalf("the run's two bookings have to add up to 1.00: %+v", tk)
+			}
+			if tk.CostEntries != 2 {
+				t.Fatalf("the number of bookings belongs on the task: %+v", tk)
+			}
+		case offen.ID.String():
+			if tk.CostUSD != nil {
+				t.Fatalf("a task that has not run carries no cost, not a zero: %+v", tk)
+			}
+		default:
+			t.Fatalf("unknown task in the backlog: %+v", tk)
+		}
+	}
+}
