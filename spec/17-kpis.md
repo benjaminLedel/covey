@@ -86,11 +86,20 @@ This is what the whole thing is for. Three derived figures, in the order of how 
 
 Because every KPI event hangs off a task and every task has costs, a fourth view is available cheaply — "what did the runs that produced this KPI cost" — but it stays secondary. It answers a diagnostic question, not the budget question.
 
-## Where it shows
+## Where it shows: no new view
 
-- **Employee profile** — a *Performance* section next to the cost bar. This is where the HR metaphor pays off: one page that says what this employee costs and what they deliver.
-- **Cost page** — a unit-cost column per agent, so the ranking of expensive agents can be read against their output instead of alone.
-- **Org dashboard** — the sum over the workforce, and the outliers in both directions.
+Performance is not a second subject next to cost, it is the other half of the same one — so it does not get a page of its own. The **cost page turns into the economics page**, and every element it already has takes the second figure alongside:
+
+| Element there today | What it becomes |
+|---|---|
+| Four tiles, three of them token variants (input / output / total) | *Delivered* (KPI sum for the period) and *unit cost* take two of those slots — the first row then answers both halves instead of three variants of one |
+| Chart toggle `cost \| tokens` | a third position *unit cost*, the derived curve over the same time axis — one more segment, not another chart |
+| *By agent* bars, sorted by USD | unit cost as the second figure on the bar: "which agent is expensive" becomes "which agent is expensive **per result**" |
+| *Costliest runs* with its `actions` column and `idle` marker | the run's KPI hits replace the raw action count — same table, sharper column |
+
+The same on the data side: the indicators travel in the existing `OrgCostReport`, not through an endpoint of their own. One request, one filter bar, one period — the two sets of numbers cannot drift apart, and the period selector does not have to be built twice.
+
+Exactly **one** place outside it: the **employee profile**, where the cost bar already sits. That is the HR view of the individual agent — a *Performance* block next to it, not a new menu entry. The org dashboard gets no aggregation of its own; it links to the cost page.
 
 ## Implementation sketch
 
