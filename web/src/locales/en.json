@@ -367,7 +367,8 @@
       "notSummable": "Each line divides the full cost by its own count — do not add the prices up.",
       "none": "No indicators defined. Set them up in the agent's KPIS.md.",
       "countsNothing": "counts nothing",
-      "countsNothingHint": "This indicator matched no event at all in the period. Usually the rule points at an action the agent never performs — the finding on its page names what it does instead."
+      "countsNothingHint": "This indicator matched no event at all in the period. Usually the rule points at an action the agent never performs — the finding on its page names what it does instead.",
+      "period": "Period"
     },
     "mix": {
       "title": "Cost types",
