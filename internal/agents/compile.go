@@ -342,7 +342,13 @@ func CompilePrompt(files map[string]string) string {
 	var b strings.Builder
 	// ACCESS/EGRESS/HEARTBEAT are platform config, not prompt material:
 	// the broker checks accesses, heartbeat work arrives as a backlog task.
-	seen := map[string]bool{"ACCESS.md": true, "TOOLS.md": true, "EGRESS.md": true, "HEARTBEAT.md": true}
+	//
+	// KPIS.md is excluded for a different reason, and it is the important one:
+	// an agent that knows it is measured on the number of comments writes more
+	// comments. The measurement has to stay outside the measured system
+	// (spec/17-kpis.md).
+	seen := map[string]bool{"ACCESS.md": true, "TOOLS.md": true, "EGRESS.md": true,
+		"HEARTBEAT.md": true, "KPIS.md": true}
 	for _, name := range promptOrder {
 		if content, ok := files[name]; ok && strings.TrimSpace(content) != "" {
 			b.WriteString(strings.TrimSpace(content))

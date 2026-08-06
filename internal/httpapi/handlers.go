@@ -172,6 +172,10 @@ func (s *Server) prepareConfigWrite(w http.ResponseWriter, r *http.Request, id u
 		writeErr(w, http.StatusBadRequest, "HEARTBEAT.md: "+err.Error())
 		return nil, false
 	}
+	if _, err := agents.ParseKPIs(files["KPIS.md"]); err != nil {
+		writeErr(w, http.StatusBadRequest, "KPIS.md: "+err.Error())
+		return nil, false
+	}
 	// Write-through into the UI stores (tools, egress) — validate and check
 	// RBAC first, so that a faulty file never produces a version.
 	canSecurity := p.Role == identity.RolePlatformAdmin || p.Role == identity.RoleSecurity
