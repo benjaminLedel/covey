@@ -87,7 +87,7 @@ Frequently used:
 
 | System | Scopes (ACCESS) | What for / core actions |
 |---|---|---|
-| `gitlab` | `read,write,comment` | Issues/MRs: list_issues (including `milestone`), get_issue, checkout, read_file, create_issue, comment, list_notes (window: newest 20, `limit`/`page`), get_note, assign, set_labels, set_state, commit, create_merge_request, comment_mr, approve_mr, upload, download_upload |
+| `gitlab` | `read,write,comment` | Issues/MRs: list_issues (including `milestone`), get_issue, checkout, read_file, create_issue, comment, list_notes, assign, set_labels, set_state, commit, create_merge_request, comment_mr, approve_mr, upload, download_upload |
 | `email` | `read,write` | IMAP/SMTP: list_unread, get_message, reply, mark_seen, get_attachment (the attachment into the sandbox, then the read tool/vision) |
 | `dev` | `exec,processes` | The sandbox shell: exec, start/stop/logs/list (bring a dev server up) |
 | `browser` | `navigate,content,screenshot,click,type` | Headless Chrome; CSS + `:has-text("…")`; screenshot with `highlight`+`label` |

@@ -61,6 +61,17 @@ type Subject struct {
 	TurnLimitFailures int
 	// MaxTurns is the agent's turn limit (0 = runtime default).
 	MaxTurns int
+
+	// ActionCounts are the target-system actions this agent actually executed
+	// in the observation window (action name → count, successful ones only).
+	//
+	// It is what makes the indicator rule decidable: a KPIS.md line pointing at
+	// an action that never occurs counts zero forever, and zero reads like a
+	// lazy agent rather than a configuration error. Empty (or nil) means the
+	// agent did no work in the window at all — then the rule is dropped, or
+	// every freshly created agent would be nagged about rules that simply have
+	// not had their first hit yet.
+	ActionCounts map[string]int
 }
 
 // heavySystems are target systems whose use typically lifts a run into the
@@ -103,6 +114,7 @@ func Lint(s Subject) []Finding {
 	out = append(out, lintBlockedOnPolling(s, systems)...)
 	out = append(out, lintStages(s)...)
 	out = append(out, lintTurnLimit(s)...)
+	out = append(out, lintDeadKPIs(s)...)
 
 	sort.SliceStable(out, func(i, j int) bool {
 		return out[i].Severity == SeverityWarn && out[j].Severity != SeverityWarn
@@ -351,6 +363,79 @@ func lintTurnLimit(s Subject) []Finding {
 		Message: fmt.Sprintf("%d runs were aborted at the turn limit", s.TurnLimitFailures),
 		Hint:    hint + ".",
 	}}
+}
+
+// lintDeadKPIs reports an indicator that counts nothing while the agent works
+// (spec/17-kpis.md).
+//
+// The failure mode this catches is quiet and expensive: a plugin renames an
+// action, the KPIS.md line keeps parsing, and the figure drops to zero. Zero
+// looks exactly like a lazy agent — nobody suspects the config, because the
+// config was never touched.
+//
+// Only fires when the agent has executed actions in the window. Without that
+// guard every freshly created agent would be nagged about rules that simply
+// have not had their first hit yet, and a lint that nags at correct configs is
+// one nobody reads.
+//
+// The task form (`zählt: aufgabe erledigt`) is not checked: there is no name
+// that could go stale.
+func lintDeadKPIs(s Subject) []Finding {
+	if len(s.ActionCounts) == 0 {
+		return nil
+	}
+	kpis, err := ParseKPIs(s.Files["KPIS.md"])
+	if err != nil {
+		return nil // a broken file is caught when saving, not here
+	}
+	var out []Finding
+	for _, k := range kpis {
+		if k.Action == "" || matchesAnyAction(k.Action, s.ActionCounts) {
+			continue
+		}
+		out = append(out, Finding{
+			AgentSlug: s.Slug, Rule: "kpi-never-matched", Severity: SeverityWarn,
+			Message: fmt.Sprintf("the indicator %q counts nothing: the action %q has not occurred once, "+
+				"although the agent worked", k.Key, k.Action),
+			Hint: fmt.Sprintf("Check the action name in KPIS.md against what the agent actually does (%s). "+
+				"Until then the indicator reads as 'delivered nothing', which is indistinguishable from a lazy agent",
+				strings.Join(topActions(s.ActionCounts, 3), ", ")),
+		})
+	}
+	return out
+}
+
+// matchesAnyAction answers whether a rule found anything — the wildcard form
+// `system:*` counts every action of that system.
+func matchesAnyAction(rule string, counts map[string]int) bool {
+	if prefix, ok := strings.CutSuffix(rule, "*"); ok {
+		for name := range counts {
+			if strings.HasPrefix(name, prefix) {
+				return true
+			}
+		}
+		return false
+	}
+	return counts[rule] > 0
+}
+
+// topActions names the actions the agent performs most often — without them the
+// finding says what is wrong but not what to write instead.
+func topActions(counts map[string]int, n int) []string {
+	names := make([]string, 0, len(counts))
+	for name := range counts {
+		names = append(names, name)
+	}
+	sort.Slice(names, func(i, j int) bool {
+		if counts[names[i]] != counts[names[j]] {
+			return counts[names[i]] > counts[names[j]]
+		}
+		return names[i] < names[j]
+	})
+	if len(names) > n {
+		names = names[:n]
+	}
+	return names
 }
 
 func joinHeavy(systems map[string]bool) string {

@@ -243,3 +243,63 @@ func findingHint(t *testing.T, findings []Finding, rule string) string {
 	t.Fatalf("finding %q missing from %+v", rule, findings)
 	return ""
 }
+
+// A renamed action breaks an indicator silently: the rule keeps parsing, the
+// figure drops to zero, and zero looks exactly like a lazy agent.
+func TestLintReportsAnIndicatorThatCountsNothing(t *testing.T) {
+	s := Subject{
+		Slug: "support",
+		Files: map[string]string{
+			"KPIS.md": "- kennzahl: geloeste-tickets zählt: aktion zammad:antwort_extern je: ticket_id\n" +
+				"- kennzahl: notizen zählt: aktion zammad:note",
+		},
+		ActionCounts: map[string]int{"zammad:reply_external": 40, "zammad:note": 3, "zammad:get_ticket": 90},
+	}
+	f := Lint(s)
+	hint := findingHint(t, f, "kpi-never-matched")
+	// The finding has to name what the agent actually does — otherwise it says
+	// what is wrong but not what to write instead.
+	if !strings.Contains(hint, "zammad:get_ticket") {
+		t.Errorf("the hint has to name the agent's actual actions: %q", hint)
+	}
+	// Only the broken rule, not the one that matches.
+	if n := countFindings(f, "kpi-never-matched"); n != 1 {
+		t.Errorf("expected exactly one finding, got %d: %+v", n, f)
+	}
+}
+
+// A wildcard rule counts every action of its system — it must not be reported
+// just because that exact string never appears.
+func TestLintAcceptsAWildcardIndicator(t *testing.T) {
+	f := Lint(Subject{
+		Slug:         "dev",
+		Files:        map[string]string{"KPIS.md": "- kennzahl: gitlab zählt: aktion gitlab:*"},
+		ActionCounts: map[string]int{"gitlab:comment_mr": 7},
+	})
+	if n := countFindings(f, "kpi-never-matched"); n != 0 {
+		t.Errorf("the wildcard matched — no finding belongs here: %+v", f)
+	}
+}
+
+// A fresh agent that has not worked yet is not nagged: its rules simply have
+// not had their first hit, and a lint that complains about correct configs is
+// one nobody reads.
+func TestLintStaysQuietWhileTheAgentHasNotWorked(t *testing.T) {
+	f := Lint(Subject{
+		Slug:  "neu",
+		Files: map[string]string{"KPIS.md": "- kennzahl: x zählt: aktion zammad:reply_external"},
+	})
+	if n := countFindings(f, "kpi-never-matched"); n != 0 {
+		t.Errorf("without actions in the window the rule is dropped: %+v", f)
+	}
+}
+
+func countFindings(findings []Finding, rule string) int {
+	n := 0
+	for _, f := range findings {
+		if f.Rule == rule {
+			n++
+		}
+	}
+	return n
+}
