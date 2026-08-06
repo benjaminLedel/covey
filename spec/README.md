@@ -40,6 +40,7 @@ The guiding metaphor from which the whole architecture follows: the platform is 
 | [`14-companion-memory.md`](14-companion-memory.md) | Companion app: universal brain dump (audio/mail/screen/documents) → curated wiki with media → context for agents; memory curator, bearer auth, data protection |
 | [`15-teams-integration.md`](15-teams-integration.md) | Target system Microsoft Teams (Azure Bot Framework): wake via messaging endpoint (JWT-verified), bot connector actions, OAuth2 broker, `blocked`↔conversation, correlation via `conversation.id` |
 | [`16-runner.md`](16-runner.md) | Distributed data plane: registered runners modelled on GitLab, runner protocol, central home store (content-addressed, deduplicated), per-agent sandbox images, trust boundary |
+| [`17-kpis.md`](17-kpis.md) | Performance indicators: KPIs as counting rules over recorded evidence, `KPIS.md` per agent, unit cost and productive share against the cost figures |
 
 ## Design principles
 
