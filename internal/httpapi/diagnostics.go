@@ -11,6 +11,7 @@ import (
 
 	"covey/internal/agents"
 	"covey/internal/backlog"
+	"covey/internal/claudeapi"
 	"covey/internal/egress"
 	"covey/internal/memory"
 	"covey/internal/observability"
@@ -66,6 +67,12 @@ type memoryDump struct {
 type secretKeyDump struct {
 	OrgKeys   []string `json:"org_keys"`
 	AgentKeys []string `json:"agent_keys"`
+	// RuntimeCredential is the name of the credential the runtime actually
+	// authenticates with, plus the pin it came from. In a support case this is
+	// often the whole answer: a pin that no longer resolves looks exactly like
+	// a broken token from the outside.
+	RuntimeCredential    string `json:"runtime_credential"`
+	RuntimeCredentialPin string `json:"runtime_credential_pin,omitempty"`
 }
 
 // Upper bounds: generous, but not unbounded (memory/response size).
@@ -211,5 +218,11 @@ func (s *Server) dumpSecretKeys(ctx context.Context, orgID, agentID uuid.UUID) *
 	}
 	sort.Strings(out.OrgKeys)
 	sort.Strings(out.AgentKeys)
+	if agent, err := s.Registry.Get(ctx, agentID); err == nil {
+		out.RuntimeCredentialPin = agent.RuntimeCredentialKey
+		if res, err := claudeapi.ResolveAgent(ctx, s.Secrets, orgID, agentID, agent.RuntimeCredentialKey); err == nil {
+			out.RuntimeCredential = res.Key
+		}
+	}
 	return out
 }

@@ -13,6 +13,7 @@ import (
 
 	"covey/internal/agents"
 	"covey/internal/backlog"
+	"covey/internal/claudeapi"
 	"covey/internal/daemon"
 	"covey/internal/guardrails"
 	"covey/internal/identity"
@@ -802,6 +803,137 @@ func (s *Server) handleSetMaxTurns(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// --- Runtime credential: which Anthropic token an agent burns ---
+
+// handleGetRuntimeCredential reports the pin AND what actually resolves. Two
+// separate facts: "pinned" is the intent, "effective_key" what the next wake
+// would really use — they only differ when the pin has gone stale, and that is
+// exactly the case worth seeing. Readable for managers too, so an agent owner
+// can see which token their agent burns without being able to redirect it.
+//
+// GET /api/v1/agents/{id}/runtime-credential
+func (s *Server) handleGetRuntimeCredential(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	agent, err := s.Registry.Get(r.Context(), id)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	out := map[string]any{"pinned": agent.RuntimeCredentialKey, "resolvable": false,
+		"effective_key": "", "kind": "", "env_var": ""}
+	res, err := claudeapi.ResolveAgent(r.Context(), s.Secrets, p.OrgID, id, agent.RuntimeCredentialKey)
+	if err == nil {
+		out["resolvable"] = true
+		out["effective_key"] = res.Key
+		out["kind"] = res.Kind.String()
+		out["env_var"] = res.Kind.EnvVar()
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// handleSetRuntimeCredential pins the secret the agent's runtime authenticates
+// with; an empty key returns it to the fallback order.
+//
+// An org-wide secret is assigned along the way, because a pin only takes effect
+// once the secret actually reaches the agent — pin without grant is a trap that
+// springs at the next wake and nowhere earlier. That is also why the route is
+// gated to the security roles and not to the managers: whoever may pin decides
+// which account an agent bills, and could grant the secret directly anyway.
+//
+// PATCH /api/v1/agents/{id}/runtime-credential  {"key": "..."}
+func (s *Server) handleSetRuntimeCredential(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var in struct {
+		Key string `json:"key"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "key missing")
+		return
+	}
+	key := strings.TrimSpace(in.Key)
+	if key == "" { // unpin — back to the fallback order
+		if err := s.Registry.SetRuntimeCredentialKey(r.Context(), id, ""); err != nil {
+			mapErr(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "key": "", "assigned": false})
+		return
+	}
+	if claudeapi.Classify(key) == claudeapi.KindNone {
+		writeErr(w, http.StatusBadRequest, "not a runtime credential: the name must be "+
+			claudeapi.KeyAPIKey+" or "+claudeapi.KeyOAuth+", optionally with an _suffix")
+		return
+	}
+
+	// Owned secret shadows the org one, so there is nothing to grant then.
+	owned := false
+	if keys, err := s.Secrets.ResolvableKeys(r.Context(), p.OrgID, id); err == nil {
+		for _, k := range keys {
+			if k.Key == key && k.Owned {
+				owned = true
+			}
+		}
+	}
+	assigned := false
+	if !owned {
+		if err := s.Secrets.Assign(r.Context(), p.OrgID, key, id); err != nil {
+			if errors.Is(err, secrets.ErrNotFound) {
+				writeErr(w, http.StatusConflict,
+					"no secret named "+key+" — store it first, org-wide or for this agent")
+				return
+			}
+			mapErr(w, err)
+			return
+		}
+		assigned = true
+	}
+	if err := s.Registry.SetRuntimeCredentialKey(r.Context(), id, key); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "key": key, "assigned": assigned})
+}
+
+// refusePinned refuses to take a secret away from agents that pin it. The pin
+// deliberately does not fall back (see orchestrator.pushAnthropicKey) — so
+// without this check deleting or unassigning would break the next wake with no
+// visible cause. onlyAgent narrows the question to a single agent for the
+// agent-scoped routes; uuid.Nil asks about the whole organization.
+//
+// Returns true when it has already answered with 409.
+func (s *Server) refusePinned(w http.ResponseWriter, r *http.Request, orgID, onlyAgent uuid.UUID, key string) bool {
+	users, err := s.Registry.AgentsUsingCredential(r.Context(), orgID, key)
+	if err != nil {
+		return false
+	}
+	slugs := make([]string, 0, len(users))
+	for _, a := range users {
+		// Deliberately blunt in the rare case where an agent both owns a secret
+		// of this name and has the org one assigned: it would keep resolving,
+		// yet refusing costs one extra click while a wrong guess costs a run.
+		if onlyAgent != uuid.Nil && a.ID != onlyAgent {
+			continue
+		}
+		slugs = append(slugs, a.Slug)
+	}
+	if len(slugs) == 0 {
+		return false
+	}
+	writeErr(w, http.StatusConflict, key+" is the runtime credential of "+
+		strings.Join(slugs, ", ")+" — pin those agents elsewhere first")
+	return true
+}
+
 // --- Recording, Cost, Memory (M6/M7) ---
 
 func (s *Server) handleRecording(w http.ResponseWriter, r *http.Request) {
@@ -1299,6 +1431,9 @@ func (s *Server) handlePutSecret(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDeleteSecret(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
+	if s.refusePinned(w, r, p.OrgID, uuid.Nil, r.PathValue("key")) {
+		return
+	}
 	if err := s.Secrets.Delete(r.Context(), p.OrgID, r.PathValue("key")); err != nil {
 		mapErr(w, err)
 		return
@@ -1378,6 +1513,9 @@ func (s *Server) handleUnassignSecret(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid agent id")
 		return
 	}
+	if s.refusePinned(w, r, p.OrgID, agentID, r.PathValue("key")) {
+		return
+	}
 	if err := s.Secrets.Unassign(r.Context(), p.OrgID, r.PathValue("key"), agentID); err != nil {
 		mapErr(w, err)
 		return
@@ -1438,6 +1576,9 @@ func (s *Server) handleDeleteAgentSecret(w http.ResponseWriter, r *http.Request)
 	agentID, err := parseID(r)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	if s.refusePinned(w, r, p.OrgID, agentID, r.PathValue("key")) {
 		return
 	}
 	if err := s.Secrets.DeleteAgent(r.Context(), p.OrgID, agentID, r.PathValue("key")); err != nil {

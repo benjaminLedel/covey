@@ -69,3 +69,41 @@ func TestCheckCredentialLive(t *testing.T) {
 		t.Errorf("unknown key was checked: %+v", c)
 	}
 }
+
+// Suffixed names are checked exactly like the classic ones — an organization
+// holding several credentials must not lose the save-time check for them.
+func TestCheckCredentialSuffixedNames(t *testing.T) {
+	var gotAuth, gotBeta, gotAPIKey string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		gotBeta = r.Header.Get("anthropic-beta")
+		gotAPIKey = r.Header.Get("x-api-key")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+	orig := anthropicBaseURL
+	anthropicBaseURL = srv.URL
+	defer func() { anthropicBaseURL = orig }()
+
+	c := checkCredential(context.Background(), "claude_code_oauth_token_team_a", "sk-ant-oat01-live")
+	if !c.Checked || !c.Valid || gotAuth != "Bearer sk-ant-oat01-live" || gotBeta == "" {
+		t.Errorf("suffixed OAuth token: %+v (auth=%q beta=%q)", c, gotAuth, gotBeta)
+	}
+	c = checkCredential(context.Background(), "anthropic_api_key_cost_centre_b", "sk-ant-api03-live")
+	if !c.Checked || !c.Valid || gotAPIKey != "sk-ant-api03-live" {
+		t.Errorf("suffixed API key: %+v (x-api-key=%q)", c, gotAPIKey)
+	}
+
+	// Wrong slot, still caught without touching the network.
+	c = checkCredential(context.Background(), "anthropic_api_key_v2", "sk-ant-oat01-xxx")
+	if !c.Checked || c.Valid || !strings.Contains(c.Hint, "claude_code_oauth_token") {
+		t.Errorf("suffixed wrong slot: %+v", c)
+	}
+
+	// A name that merely looks similar is not a runtime credential — this is
+	// what keeps the naming convention from swallowing arbitrary secrets.
+	c = checkCredential(context.Background(), "anthropic_api_keyring", "whatever")
+	if c.Checked || c.Hint != "" {
+		t.Errorf("anthropic_api_keyring must not be checked: %+v", c)
+	}
+}

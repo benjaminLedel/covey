@@ -82,11 +82,13 @@ func (s *Server) resolveOrgClaude(ctx context.Context, orgID uuid.UUID) (cred st
 
 // handleAssistStatus tells the UI whether the config copilot is available —
 // that is, whether an org-wide Claude credential can be resolved. Without one
-// the feature is not offered in the UI at all (no dead UI, no costs).
+// the feature is not offered in the UI at all (no dead UI, no costs). The name
+// comes along: with several credentials in the organization, "which one is the
+// copilot spending" should be readable, not guessable.
 func (s *Server) handleAssistStatus(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
-	_, _, ok := s.resolveOrgClaude(r.Context(), p.OrgID)
-	writeJSON(w, http.StatusOK, map[string]bool{"available": ok})
+	key, _, _, ok := claudeapi.ResolveOrgNamed(r.Context(), s.Secrets, p.OrgID)
+	writeJSON(w, http.StatusOK, map[string]any{"available": ok, "key": key})
 }
 
 // handleConfigAssist is the dialogue endpoint: it takes the conversation

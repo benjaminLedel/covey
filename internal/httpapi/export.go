@@ -49,6 +49,10 @@ type bundleAgent struct {
 	WebhookEnabled bool `json:"webhook_enabled,omitempty"`
 	// WarmSandbox keeps the sandbox alive between wake phases (opt-in, e.g. QA).
 	WarmSandbox bool `json:"warm_sandbox,omitempty"`
+	// RuntimeCredentialKey is the NAME of the Anthropic credential the agent
+	// runs on — like every secret in the bundle a name, never a value. On
+	// import it only takes effect if a secret of that name exists here.
+	RuntimeCredentialKey string `json:"runtime_credential_key,omitempty"`
 }
 
 type bundleStage struct {
@@ -152,8 +156,9 @@ func (s *Server) buildBundle(ctx context.Context, orgID, agentID uuid.UUID, incl
 		Agent: bundleAgent{
 			Slug: a.Slug, DisplayName: a.DisplayName, Runtime: a.Runtime,
 			Model: a.Model, MaxTurns: a.MaxTurns, BudgetUSD: a.BudgetUSD,
-			WebhookEnabled: a.WebhookToken != nil,
-			WarmSandbox:    a.WarmSandbox,
+			WebhookEnabled:       a.WebhookToken != nil,
+			WarmSandbox:          a.WarmSandbox,
+			RuntimeCredentialKey: a.RuntimeCredentialKey,
 		},
 	}
 	if a.SupervisorID != nil {
@@ -730,6 +735,27 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 			for _, k := range b.Secrets.AgentKeys {
 				warnings = append(warnings, "agent-owned secret "+k+" must be set again manually (values are never exported)")
 			}
+		}
+	}
+
+	// The runtime-credential pin comes after the secrets, because it only holds
+	// once the secret actually reaches the agent. Is it missing here, the pin
+	// stays empty and the agent falls back to the default order — a pin into
+	// the void would kill the first run with no visible cause.
+	if k := b.Agent.RuntimeCredentialKey; k != "" {
+		reaches := false
+		if keys, err := s.Secrets.ResolvableKeys(ctx, p.OrgID, a.ID); err == nil {
+			for _, rk := range keys {
+				if rk.Key == k {
+					reaches = true
+				}
+			}
+		}
+		if !reaches {
+			warnings = append(warnings, "runtime credential "+k+" is missing on this instance — the agent falls back to the default order")
+		} else if err := s.Registry.SetRuntimeCredentialKey(ctx, a.ID, k); err != nil {
+			mapErr(w, err)
+			return
 		}
 	}
 

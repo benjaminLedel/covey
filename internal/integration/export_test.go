@@ -58,6 +58,13 @@ func TestExportImportRoundtrip(t *testing.T) {
 	c.expect(http.MethodPut, "/api/v1/secrets/zammad_token/agents/"+id, nil, http.StatusOK)
 	c.expect(http.MethodPut, "/api/v1/agents/"+id+"/secrets/private_key", map[string]string{"value": "agent-geheim-1234567890"}, http.StatusOK)
 
+	// Runtime credential: the bundle carries its NAME, so a copy runs on the
+	// same account instead of silently falling back to another one.
+	c.expect(http.MethodPut, "/api/v1/secrets/claude_code_oauth_token_team_a",
+		map[string]string{"value": "sk-ant-oat01-geheim-1234567890"}, http.StatusOK)
+	c.expect(http.MethodPatch, "/api/v1/agents/"+id+"/runtime-credential",
+		map[string]string{"key": "claude_code_oauth_token_team_a"}, http.StatusOK)
+
 	// --- Export. ---
 	resp := c.do(http.MethodGet, "/api/v1/agents/"+id+"/export", nil)
 	if resp.StatusCode != http.StatusOK {
@@ -88,7 +95,7 @@ func TestExportImportRoundtrip(t *testing.T) {
 		t.Fatalf("EGRESS.md incomplete: %q", files["EGRESS.md"])
 	}
 	sec := bundle["secrets"].(map[string]any)
-	if got, _ := json.Marshal(sec["org_keys"]); string(got) != `["zammad_token"]` {
+	if got, _ := json.Marshal(sec["org_keys"]); string(got) != `["claude_code_oauth_token_team_a","zammad_token"]` {
 		t.Fatalf("org_keys = %s", got)
 	}
 	if got, _ := json.Marshal(sec["agent_keys"]); string(got) != `["private_key"]` {
@@ -107,9 +114,37 @@ func TestExportImportRoundtrip(t *testing.T) {
 		na["max_turns"].(float64) != 7 || na["budget_usd"].(float64) != 12.5 {
 		t.Fatalf("the imported agent is incomplete: %v", na)
 	}
+	// The credential exists here, so the pin holds — and the assignment it needs
+	// came from the secrets block just before.
+	if na["runtime_credential_key"] != "claude_code_oauth_token_team_a" {
+		t.Fatalf("the runtime credential was not carried over: %v", na["runtime_credential_key"])
+	}
 	warnJSON, _ := json.Marshal(imported["warnings"])
 	if !strings.Contains(string(warnJSON), "private_key") {
 		t.Fatalf("the warning about the agent-owned secret is missing: %s", warnJSON)
+	}
+
+	// A bundle whose runtime credential does not exist here must not carry the
+	// pin over: a pin into the void would kill the first run with no visible
+	// cause, so it says so and leaves the agent on the fallback order.
+	fremd := map[string]any{}
+	for k, v := range bundle {
+		fremd[k] = v
+	}
+	agentBlock := map[string]any{}
+	for k, v := range bundle["agent"].(map[string]any) {
+		agentBlock[k] = v
+	}
+	agentBlock["runtime_credential_key"] = "claude_code_oauth_token_gibt_es_hier_nicht"
+	fremd["agent"] = agentBlock
+	ohneCred := c.expect(http.MethodPost, "/api/v1/agents/import?slug=importling-ohne-cred", fremd, http.StatusCreated)
+	ohneAgent := ohneCred["agent"].(map[string]any)
+	if ohneAgent["runtime_credential_key"] != "" {
+		t.Fatalf("a missing credential must not be pinned: %v", ohneAgent["runtime_credential_key"])
+	}
+	ohneWarn, _ := json.Marshal(ohneCred["warnings"])
+	if !strings.Contains(string(ohneWarn), "claude_code_oauth_token_gibt_es_hier_nicht") {
+		t.Fatalf("the warning about the missing runtime credential is missing: %s", ohneWarn)
 	}
 
 	// --- The import has restored everything. ---

@@ -43,8 +43,17 @@ func TestOnboardingChecklist(t *testing.T) {
 		}
 	}
 
-	// Runtime credential.
-	admin.expect(http.MethodPut, "/api/v1/secrets/anthropic_api_key",
+	// A name that merely looks similar is not a runtime credential — otherwise
+	// the step would tick on a secret that never authenticates anything.
+	admin.expect(http.MethodPut, "/api/v1/secrets/anthropic_api_keyring",
+		map[string]string{"value": "kein-credential"}, http.StatusOK)
+	if got := steps(admin); got["credential"] {
+		t.Fatalf("anthropic_api_keyring must not tick the credential step: %v", got)
+	}
+
+	// Runtime credential — a suffixed name counts like the classic one, because
+	// an organization may hold several side by side.
+	admin.expect(http.MethodPut, "/api/v1/secrets/anthropic_api_key_team_a",
 		map[string]string{"value": "sk-ant-api03-test"}, http.StatusOK)
 	if got := steps(admin); !got["credential"] || got["agent"] {
 		t.Fatalf("after the secret: %v", got)

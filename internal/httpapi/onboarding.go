@@ -2,6 +2,8 @@ package httpapi
 
 import (
 	"net/http"
+
+	"covey/internal/claudeapi"
 )
 
 // Onboarding: the first steps towards the first working agent — not a clicked
@@ -32,10 +34,12 @@ type onboardingState struct {
 	Done bool `json:"done"`
 }
 
-// runtimeCredentialKeys are the secret names the Claude Code runtime starts
-// with. Without one of them every task fails — which is why this is the first
-// step and not creating an agent.
-var runtimeCredentialKeys = []string{"anthropic_api_key", "claude_code_oauth_token"}
+// The credential step asks only whether the organization holds ANY runtime
+// credential — a suffixed name (claude_code_oauth_token_team_a) counts like the
+// classic one, and an agent-owned secret counts too, which is why the query
+// below deliberately does not filter on agent_id IS NULL. The names themselves
+// come from claudeapi.RuntimePrefixes; starts_with rather than LIKE, because
+// '_' is a LIKE wildcard and would let anything through.
 
 // The single query deliberately bypasses the store boundary: it asks five
 // domains at once (secrets, agents, config, backlog, recording) and cares
@@ -49,13 +53,14 @@ func (s *Server) handleOnboarding(w http.ResponseWriter, r *http.Request) {
 
 	var cred, agent, config, task, run bool
 	err := s.Pool.QueryRow(r.Context(), `SELECT
-		EXISTS (SELECT 1 FROM secrets WHERE org_id=$1 AND key = ANY($2)),
+		EXISTS (SELECT 1 FROM secrets s, unnest($2::text[]) p
+		        WHERE s.org_id=$1 AND (s.key = p OR starts_with(s.key, p || '_'))),
 		EXISTS (SELECT 1 FROM agents WHERE org_id=$1),
 		EXISTS (SELECT 1 FROM agent_config_versions v JOIN agents a ON a.id = v.agent_id
 		        WHERE a.org_id=$1 AND coalesce(v.files->>'SOUL.md', '') <> ''),
 		EXISTS (SELECT 1 FROM backlog_tasks WHERE org_id=$1),
 		EXISTS (SELECT 1 FROM recording_events WHERE org_id=$1)`,
-		p.OrgID, runtimeCredentialKeys).Scan(&cred, &agent, &config, &task, &run)
+		p.OrgID, claudeapi.RuntimePrefixes).Scan(&cred, &agent, &config, &task, &run)
 	if err != nil {
 		mapErr(w, err)
 		return

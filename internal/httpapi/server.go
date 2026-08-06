@@ -213,6 +213,13 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/agents/{id}/max-turns", s.agentScoped(manage, s.handleSetMaxTurns))
 	mux.Handle("PATCH /api/v1/agents/{id}/recording-level", s.agentScoped(manage, s.handleSetRecordingLevel))
 	mux.Handle("PATCH /api/v1/agents/{id}/warm-sandbox", s.agentScoped(manage, s.handleSetWarmSandbox))
+	// Reading is a manager's business (which token does my agent burn), setting
+	// is the security roles': the pin decides which account a run bills, and it
+	// grants the secret along the way.
+	mux.Handle("GET /api/v1/agents/{id}/runtime-credential",
+		s.agentScoped(append(manage, identity.RoleSecurity), s.handleGetRuntimeCredential))
+	mux.Handle("PATCH /api/v1/agents/{id}/runtime-credential",
+		s.agentScoped(securityRoles, s.handleSetRuntimeCredential))
 	mux.Handle("GET /api/v1/org/recording-level", s.rbac(anyRole, s.handleGetOrgRecording))
 	mux.Handle("PATCH /api/v1/org/recording-level", s.rbac(securityRoles, s.handleSetOrgRecording))
 	mux.Handle("PATCH /api/v1/agents/{id}/supervisor", s.agentScoped(manage, s.handleSetSupervisor))

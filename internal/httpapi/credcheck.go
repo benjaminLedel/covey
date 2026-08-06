@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"covey/internal/claudeapi"
 )
 
 // anthropicBaseURL is the address the live validation probes — a variable
@@ -24,19 +26,24 @@ type CredCheck struct {
 // dead token shows up here — and not only when a task dies deep inside the
 // sandbox with a 401. Misfiled values (API key in the OAuth slot and vice
 // versa) are caught without touching the network.
+//
+// Which names count is claudeapi's business, not this file's — a suffixed name
+// such as claude_code_oauth_token_team_a is checked exactly like the classic
+// one. That is also what makes the naming convention safe: a typo lands in
+// KindNone and stays visibly unchecked here instead of failing at the next run.
 func checkCredential(ctx context.Context, key, value string) CredCheck {
 	value = strings.TrimSpace(value)
-	switch key {
-	case "anthropic_api_key":
+	switch claudeapi.Classify(key) {
+	case claudeapi.KindAPIKey:
 		if strings.HasPrefix(value, "sk-ant-oat") {
 			return CredCheck{Checked: true, Valid: false,
-				Hint: "This is a subscription OAuth token (sk-ant-oat…) — it belongs under the key claude_code_oauth_token."}
+				Hint: "This is a subscription OAuth token (sk-ant-oat…) — it belongs under a key starting with claude_code_oauth_token."}
 		}
 		return probeAnthropic(ctx, value, false)
-	case "claude_code_oauth_token":
+	case claudeapi.KindOAuth:
 		if strings.HasPrefix(value, "sk-ant-api") {
 			return CredCheck{Checked: true, Valid: false,
-				Hint: "This is an API key (sk-ant-api…) — it belongs under the key anthropic_api_key."}
+				Hint: "This is an API key (sk-ant-api…) — it belongs under a key starting with anthropic_api_key."}
 		}
 		return probeAnthropic(ctx, value, true)
 	}
