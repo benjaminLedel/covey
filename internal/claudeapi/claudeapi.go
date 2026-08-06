@@ -8,6 +8,12 @@
 //
 // Guard-rail as always: the credential never leaves the control plane. It goes
 // neither into the browser nor into a sandbox.
+//
+// The package is also the one place that knows what an Anthropic credential is
+// CALLED (runtimecred.go): which secret names count as one, which kind each is,
+// and which of several an agent or an organization gets. Everything that has to
+// answer that question — orchestrator, save-time check, onboarding, copilot,
+// dream — asks here, so the answer cannot drift apart.
 package claudeapi
 
 import (
@@ -153,19 +159,10 @@ func Messages(ctx context.Context, credential string, oauth bool, call Call, sys
 }
 
 // ResolveOrg finds an organization's Claude credential. The API key takes
-// precedence over the subscription OAuth token. Both callers — config copilot
-// and dream — must arrive at the same result here, which is why the order lives
-// in one place.
+// precedence over the subscription OAuth token. Callers that want to know WHICH
+// credential they got take ResolveOrgNamed — the order lives in one place
+// either way (runtimecred.go).
 func ResolveOrg(ctx context.Context, store secrets.Store, orgID uuid.UUID) (cred string, oauth, ok bool) {
-	if v, err := store.Get(ctx, orgID, "anthropic_api_key"); err == nil {
-		if v = strings.TrimSpace(v); v != "" {
-			return v, false, true
-		}
-	}
-	if v, err := store.Get(ctx, orgID, "claude_code_oauth_token"); err == nil {
-		if v = strings.TrimSpace(v); v != "" {
-			return v, true, true
-		}
-	}
-	return "", false, false
+	_, cred, oauth, ok = ResolveOrgNamed(ctx, store, orgID)
+	return cred, oauth, ok
 }

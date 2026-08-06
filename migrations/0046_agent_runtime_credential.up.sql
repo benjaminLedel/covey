@@ -1,0 +1,24 @@
+-- Das Laufzeit-Credential pro Agent: der NAME des Secrets, mit dem sich die
+-- Runtime bei Anthropic anmeldet.
+--
+-- Bisher standen die beiden Namen fest im Code — anthropic_api_key und
+-- claude_code_oauth_token. Da secrets auf (org_id, key) eindeutig ist, hielt
+-- eine Organisation damit genau eines von beidem. Wer einem zweiten Agenten ein
+-- anderes Abo-Token geben wollte, musste denselben Namen noch einmal
+-- agenteneigen anlegen: derselbe Wert doppelt, und nirgends abzulesen, welches
+-- Token ein Agent tatsaechlich verbraucht.
+--
+-- Jetzt traegt der Name die Unterscheidung. Ein Secret, dessen Name auf einen
+-- der beiden Staemme passt — der Stamm selbst oder Stamm + '_<Suffix>' —, ist
+-- ein Laufzeit-Credential dieser Sorte: anthropic_api_key_kostenstelle_b ist
+-- ein API-Key, claude_code_oauth_token_team_a ein Abo-Token,
+-- anthropic_api_keyring nichts davon. Das ist dieselbe Konvention, nach der die
+-- Zielsysteme ihre <system>_token lesen. Geraten wird nie am Wert des Tokens,
+-- immer am Namen: der Name ist die gemeinte Bindung.
+--
+-- runtime_credential_key haelt fest, welches davon dieser Agent nimmt. Leer =
+-- die bisherige Reihenfolge (anthropic_api_key vor claude_code_oauth_token),
+-- weshalb jede bestehende Installation sich unveraendert verhaelt. Die
+-- Klassifikation selbst steht an genau einer Stelle:
+-- internal/claudeapi/runtimecred.go.
+ALTER TABLE agents ADD COLUMN runtime_credential_key TEXT NOT NULL DEFAULT '';

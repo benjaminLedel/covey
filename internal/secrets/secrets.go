@@ -28,6 +28,13 @@ type KeyPreview struct {
 	AgentIDs  []string `json:"agent_ids"`
 }
 
+// ResolvableKey is a secret name that reaches an agent. Owned=true is the
+// agent's own secret — it shadows the org secret of the same name.
+type ResolvableKey struct {
+	Key   string `json:"key"`
+	Owned bool   `json:"owned"`
+}
+
 const (
 	// previewMinLen: shorter values stay fully masked.
 	previewMinLen = 12
@@ -60,6 +67,12 @@ type Store interface {
 	DeleteAgent(ctx context.Context, orgID, agentID uuid.UUID, key string) error
 	// Keys lists the names only — values stay write-only for the API.
 	Keys(ctx context.Context, orgID uuid.UUID) ([]string, error)
+	// ResolvableKeys lists every secret NAME that reaches this agent: its own
+	// secrets plus the org secrets explicitly assigned to it — exactly what
+	// Resolve would find. Values stay in the store; this is for callers that
+	// must CHOOSE among several secrets before resolving one of them (the
+	// runtime credential picks this way).
+	ResolvableKeys(ctx context.Context, orgID, agentID uuid.UUID) ([]ResolvableKey, error)
 	// Previews returns names plus the limited value prefix (see Preview) of the
 	// org-wide secrets, including their assignments.
 	Previews(ctx context.Context, orgID uuid.UUID) ([]KeyPreview, error)

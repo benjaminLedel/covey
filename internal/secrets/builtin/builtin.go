@@ -148,6 +148,38 @@ func (s *Store) Resolve(ctx context.Context, orgID, agentID uuid.UUID, key strin
 	return s.open(key, aad(orgID, rowAgent, key), nonce, ct)
 }
 
+// ResolvableKeys spiegelt die Auswahlregel aus Resolve, nur ohne die Werte
+// anzufassen: die eigenen Secrets des Agenten und die ihm zugewiesenen
+// organisationsweiten. Traegt der Agent ein eigenes Secret gleichen Namens,
+// steht der Name mit Owned=true vorn — das ist der, den Resolve nehmen wuerde.
+func (s *Store) ResolvableKeys(ctx context.Context, orgID, agentID uuid.UUID) ([]secrets.ResolvableKey, error) {
+	// DISTINCT ON: haelt der Agent ein eigenes Secret UND ist ihm das
+	// organisationsweite gleichen Namens zugewiesen, ist das ein Name, nicht
+	// zwei — und zwar der eigene, wie in Resolve.
+	rows, err := s.pool.Query(ctx, `
+		SELECT DISTINCT ON (key) key, owned FROM (
+			SELECT s.key, TRUE AS owned FROM secrets s
+				WHERE s.org_id=$1 AND s.agent_id=$2
+			UNION ALL
+			SELECT s.key, FALSE FROM secrets s
+				JOIN secret_assignments a ON a.org_id=s.org_id AND a.key=s.key AND a.agent_id=$2
+				WHERE s.org_id=$1 AND s.agent_id IS NULL
+		) t ORDER BY key, owned DESC`, orgID, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []secrets.ResolvableKey
+	for rows.Next() {
+		var rk secrets.ResolvableKey
+		if err := rows.Scan(&rk.Key, &rk.Owned); err != nil {
+			return nil, err
+		}
+		out = append(out, rk)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) Delete(ctx context.Context, orgID uuid.UUID, key string) error {
 	// Assignments hang off the org-wide secret — they disappear with it.
 	if _, err := s.pool.Exec(ctx,
