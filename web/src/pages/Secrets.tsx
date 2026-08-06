@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, del, put, patch, type Agent, type Principal, type SecretCheck, type SecretPreview } from "../api";
+import { classifyRuntimeCredential } from "../runtimecred";
 
 const canEdit = (role: string) => role === "platform_admin" || role === "security";
 
@@ -111,6 +112,7 @@ function SecretCard({ secret, agents, canEdit }: { secret: SecretPreview; agents
     <div className="card mb-2" style={{ padding: "11px 15px" }}>
       <div className="flex items-center gap-4">
         <span className="mono text-sm flex-1">{secret.key}</span>
+        <RuntimeCredentialBadge secretKey={secret.key} />
         {secret.sensitive && (
           <span className="badge st-blocked" title={t("secrets.sensitiveHint")}>
             {t("secrets.sensitive")}
@@ -138,6 +140,20 @@ function SecretCard({ secret, agents, canEdit }: { secret: SecretPreview; agents
       </div>
       <Assignments secret={secret} agents={agents} />
     </div>
+  );
+}
+
+// RuntimeCredentialBadge macht sichtbar, dass Covey diesen Namen als
+// Anmeldung der Runtime liest — der Name entscheidet über die Sorte, und ein
+// Tippfehler im Suffix fiele sonst erst im nächsten Lauf auf.
+export function RuntimeCredentialBadge({ secretKey }: { secretKey: string }) {
+  const { t } = useTranslation();
+  const kind = classifyRuntimeCredential(secretKey);
+  if (!kind) return null;
+  return (
+    <span className="badge st-triage" title={t("secrets.runtimeCredHint")}>
+      {kind === "api_key" ? t("secrets.runtimeCredApi") : t("secrets.runtimeCredOauth")}
+    </span>
   );
 }
 

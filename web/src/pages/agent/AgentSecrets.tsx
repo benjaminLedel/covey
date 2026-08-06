@@ -6,10 +6,12 @@ import {
   patch,
   del,
   put,
+  type RuntimeCredential,
   type SecretCheck,
   type SecretPreview,
 } from "../../api";
-import { SecretValue } from "../Secrets";
+import { RuntimeCredentialBadge, SecretValue } from "../Secrets";
+import { isRuntimeCredential } from "../../runtimecred";
 
 export function AgentSecrets({ agentId }: { agentId: string }) {
   const { t } = useTranslation();
@@ -69,6 +71,13 @@ export function AgentSecrets({ agentId }: { agentId: string }) {
         {t("agent.secrets.desc")}
       </p>
 
+      <RuntimeCredentialPin
+        agentId={agentId}
+        candidates={[...(own.data ?? []), ...(org.data ?? [])]
+          .map((s) => s.key)
+          .filter(isRuntimeCredential)}
+      />
+
       <div className="card mb-4 flex gap-3 items-end flex-wrap">
         <div className="min-w-64">
           <label>{t("agent.secrets.assignOrg")}</label>
@@ -98,6 +107,7 @@ export function AgentSecrets({ agentId }: { agentId: string }) {
           {inherited.map((s) => (
             <div key={s.key} className="card mb-2 flex items-center gap-4" style={{ padding: "11px 15px", opacity: ownKeys.has(s.key) ? 0.55 : 1 }}>
               <span className="mono text-sm flex-1">{s.key}</span>
+              <RuntimeCredentialBadge secretKey={s.key} />
               {ownKeys.has(s.key) && (
                 <span className="muted text-xs">{t("agent.secrets.shadowed")}</span>
               )}
@@ -154,6 +164,7 @@ export function AgentSecrets({ agentId }: { agentId: string }) {
       {(own.data ?? []).map((s) => (
         <div key={s.key} className="card mb-2 flex items-center gap-4" style={{ padding: "11px 15px" }}>
           <span className="mono text-sm flex-1">{s.key}</span>
+          <RuntimeCredentialBadge secretKey={s.key} />
           <span className="badge st-triage">{t("agent.secrets.agentOwn")}</span>
           {s.sensitive && (
             <span className="badge st-blocked" title={t("secrets.sensitiveHint")}>
@@ -178,6 +189,81 @@ export function AgentSecrets({ agentId }: { agentId: string }) {
         </div>
       ))}
       {own.data?.length === 0 && <p className="muted mb-3">{t("agent.secrets.noOwn")}</p>}
+    </div>
+  );
+}
+
+// RuntimeCredentialPin legt fest, mit welchem Anthropic-Credential dieser Agent
+// arbeitet — die Wahl entscheidet, welches Konto seine Läufe belastet.
+//
+// Die Festlegung weist das organisationsweite Secret gleich mit zu; ohne
+// Zuweisung erreichte es den Agenten nicht, und die Falle schnappte erst beim
+// nächsten Weckruf zu. Bleibt "Standardreihenfolge" stehen, gilt wie bisher:
+// API-Key vor Abo-Token.
+function RuntimeCredentialPin({ agentId, candidates }: { agentId: string; candidates: string[] }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const cur = useQuery({
+    queryKey: ["runtime-credential", agentId],
+    queryFn: () => api<RuntimeCredential>(`/agents/${agentId}/runtime-credential`),
+    retry: false,
+  });
+  const pin = useMutation({
+    mutationFn: (key: string) => patch(`/agents/${agentId}/runtime-credential`, { key }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["runtime-credential", agentId] });
+      qc.invalidateQueries({ queryKey: ["secrets"] });
+      qc.invalidateQueries({ queryKey: ["agent", agentId] });
+    },
+  });
+
+  // Eigene und organisationsweite Namen können sich decken — einmal reicht.
+  const options = [...new Set(candidates)].sort();
+  const c = cur.data;
+  // Zeigt die Festlegung ins Leere, muss das hier stehen: von außen sieht ein
+  // toter Pin genauso aus wie ein kaputtes Token.
+  const dead = !!c?.pinned && !c.resolvable;
+
+  return (
+    <div className="card mb-4">
+      <div className="flex gap-3 items-end flex-wrap">
+        <div className="min-w-64">
+          <label>{t("agent.secrets.runtimeCred")}</label>
+          <select
+            value={c?.pinned ?? ""}
+            onChange={(e) => pin.mutate(e.target.value)}
+            disabled={pin.isPending || cur.isLoading}
+          >
+            <option value="">{t("agent.secrets.runtimeCredDefault")}</option>
+            {options.map((k) => (
+              <option key={k} value={k}>
+                {k}
+              </option>
+            ))}
+            {/* Eine Festlegung auf ein inzwischen entzogenes Secret bliebe sonst
+                unsichtbar, weil sie in keiner Liste mehr vorkommt. */}
+            {c?.pinned && !options.includes(c.pinned) && (
+              <option value={c.pinned}>{c.pinned}</option>
+            )}
+          </select>
+        </div>
+        {c && !dead && (
+          <p className="muted text-xs m-0" style={{ marginBottom: 7 }}>
+            {c.resolvable
+              ? t("agent.secrets.runtimeCredEffective", { key: c.effective_key, env: c.env_var })
+              : t("agent.secrets.runtimeCredNone")}
+          </p>
+        )}
+      </div>
+      <p className="muted text-xs mt-2 mb-0" style={{ maxWidth: 640 }}>
+        {t("agent.secrets.runtimeCredDesc")}
+      </p>
+      {dead && (
+        <p className="text-xs mt-2 mb-0" style={{ color: "var(--danger, #b91c1c)" }}>
+          {t("agent.secrets.runtimeCredDead", { key: c!.pinned })}
+        </p>
+      )}
+      {pin.isError && <p className="danger-text text-xs mt-2 mb-0">{(pin.error as Error).message}</p>}
     </div>
   );
 }

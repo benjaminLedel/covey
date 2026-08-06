@@ -17,6 +17,9 @@ export type Agent = {
   max_turns: number;
   recording_level: string; // "" = erbt Org-Boden, sonst minimal|standard|full
   warm_sandbox: boolean; // hält die Sandbox zwischen Wach-Phasen live (opt-in)
+  // Name des Secrets, mit dem sich die Runtime anmeldet; "" = die
+  // Standardreihenfolge (API-Key vor Abo-Token).
+  runtime_credential_key: string;
   status: string;
   supervisor_id?: string;
   department_id?: string;
@@ -523,6 +526,18 @@ export type SecretPreview = {
   sensitive: boolean;
   value?: string;
   agent_ids: string[];
+};
+
+// Womit sich die Runtime dieses Agenten anmeldet. pinned ist die Absicht,
+// effective_key das, was der nächste Weckruf wirklich nähme — beide gehen nur
+// auseinander, wenn die Festlegung ins Leere zeigt, und genau das ist der Fall,
+// den man sehen will.
+export type RuntimeCredential = {
+  pinned: string;
+  effective_key: string;
+  kind: string; // "api_key" | "oauth" | ""
+  env_var: string;
+  resolvable: boolean;
 };
 
 // Ein Live-Check bekannter Credentials direkt nach dem Speichern.

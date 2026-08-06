@@ -388,7 +388,7 @@
     "steps": {
       "credential": {
         "title": "Runtime-Credential hinterlegen",
-        "hint": "anthropic_api_key (API-Schlüssel) oder claude_code_oauth_token (Abo-Konto). Ohne eines von beiden schlägt jede Aufgabe fehl.",
+        "hint": "anthropic_api_key (API-Schlüssel) oder claude_code_oauth_token (Abo-Konto), wahlweise mit _Suffix für mehrere nebeneinander. Ohne eines von beiden schlägt jede Aufgabe fehl.",
         "action": "Zu den Secrets"
       },
       "agent": {
@@ -860,7 +860,13 @@
       "savedOk": "{{key}} gespeichert.",
       "agentOwn": "agent-eigen",
       "noOwn": "Noch keine agent-eigenen Secrets.",
-      "delete": "Löschen"
+      "delete": "Löschen",
+      "runtimeCred": "Laufzeit-Credential",
+      "runtimeCredDefault": "— Standardreihenfolge —",
+      "runtimeCredDesc": "Womit sich die Runtime dieses Agenten bei Anthropic anmeldet — die Wahl entscheidet, welches Konto seine Läufe belastet. Ein organisationsweites Secret wird dabei gleich zugewiesen. Ohne Festlegung gilt: API-Key vor Abo-Token.",
+      "runtimeCredEffective": "nutzt {{key}} → {{env}}",
+      "runtimeCredNone": "kein Credential hinterlegt — Aufgaben scheitern mit „Not logged in“",
+      "runtimeCredDead": "{{key}} erreicht diesen Agenten nicht mehr (gelöscht oder Zuweisung entzogen). Der nächste Weckruf wird abgelehnt, statt still ein anderes Konto zu belasten — anderes Credential wählen oder das Secret wieder hinterlegen."
     },
     "settings": {
       "profile": "Profil",
@@ -902,7 +908,12 @@
       "deleteYes": "Ja, endgültig löschen",
       "cancel": "Abbrechen",
       "rollDice": "Zufälligen Namen würfeln",
-      "subGeneral": "Allgemein"
+      "subGeneral": "Allgemein",
+      "runtimeCred": "Laufzeit-Credential",
+      "runtimeCredPinned": "festgelegt — geändert wird das unter Secrets (Rolle Platform Admin oder Security)",
+      "runtimeCredFallback": "aus der Standardreihenfolge — unter Secrets auf ein bestimmtes festlegbar",
+      "runtimeCredNone": "kein Credential hinterlegt — Aufgaben scheitern mit „Not logged in“",
+      "runtimeCredDead": "festgelegt, erreicht den Agenten aber nicht mehr — unter Secrets richtigstellen"
     },
     "skills": {
       "desc": "Was dieser Agent an Fähigkeiten hat — eigene plus die ihm aus der Bibliothek verlinkten. Genau diese Liste landet vor jedem Lauf in seinem Home; von jedem Eintrag steht dauerhaft nur die Beschreibung im Kontext.",
@@ -1122,7 +1133,10 @@
     "sensitiveHint": "Besonders geschützt: der Wert ist write-only und nie wieder einsehbar.",
     "protect": "Schützen",
     "protectConfirm": "„{{key}}“ als sensibel markieren? Der Wert ist danach nie wieder einsehbar — rückgängig nur durch Löschen und Neuanlegen.",
-    "delete": "Löschen"
+    "delete": "Löschen",
+    "runtimeCredApi": "API-Key",
+    "runtimeCredOauth": "Abo-Token",
+    "runtimeCredHint": "Covey liest diesen Namen als Anmeldung der Claude-Code-Runtime. Der Name entscheidet über die Sorte — anthropic_api_key… wird API-Key, claude_code_oauth_token… Abo-Token."
   },
   "skills": {
     "title": "Skills",

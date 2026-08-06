@@ -8,6 +8,7 @@ import {
   patch,
   del,
   type Agent,
+  type RuntimeCredential,
   type RuntimeInfo,
 } from "../../api";
 import ProfileForm from "../../components/ProfileForm";
@@ -309,6 +310,7 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
         </label>
         <span className="muted text-xs">{t("agent.settings.warmHint")}</span>
       </div>
+      <RuntimeCredentialRow agentId={agent.id} row={row} />
       <div style={row}>
         <span className="text-sm">{t("agent.settings.budget")}</span>
         <input
@@ -374,5 +376,38 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
       )}
     </div>
     </>
+  );
+}
+
+// RuntimeCredentialRow zeigt nur an, mit welchem Anthropic-Credential dieser
+// Agent arbeitet — wer die Kosten trägt, gehört in die Übersicht. Geändert wird
+// es nebenan unter Secrets, und nur von den Sicherheitsrollen: die Wahl lenkt
+// ein Konto, nicht eine Einstellung.
+function RuntimeCredentialRow({ agentId, row }: { agentId: string; row: CSSProperties }) {
+  const { t } = useTranslation();
+  const cur = useQuery({
+    queryKey: ["runtime-credential", agentId],
+    queryFn: () => api<RuntimeCredential>(`/agents/${agentId}/runtime-credential`),
+    retry: false,
+  });
+  // Ohne Leserecht kein toter Platzhalter: die Zeile fällt weg.
+  if (cur.isError || !cur.data) return null;
+  const c = cur.data;
+  const dead = !!c.pinned && !c.resolvable;
+
+  return (
+    <div style={row}>
+      <span className="text-sm">{t("agent.settings.runtimeCred")}</span>
+      <span className="mono text-sm" style={dead ? { color: "var(--danger, #b91c1c)" } : undefined}>
+        {c.resolvable ? c.effective_key : c.pinned || "—"}
+      </span>
+      <span className="muted text-xs">
+        {dead
+          ? t("agent.settings.runtimeCredDead")
+          : c.resolvable
+            ? t(c.pinned ? "agent.settings.runtimeCredPinned" : "agent.settings.runtimeCredFallback")
+            : t("agent.settings.runtimeCredNone")}
+      </span>
+    </div>
   );
 }

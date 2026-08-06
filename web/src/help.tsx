@@ -243,7 +243,11 @@ const deTopics: HelpTopic[] = [
             <Term>anthropic_api_key</Term> — API-Key für die Claude-Code-Runtime, <i>oder</i>{" "}
             <Term>claude_code_oauth_token</Term> — OAuth-Token für Abo-Accounts (einmalig mit{" "}
             <Term>claude setup-token</Term> erzeugen). Ohne eines der beiden scheitern Aufgaben mit
-            einem Credential-Fehler.
+            einem Credential-Fehler. Beide Namen vertragen ein <Term>_Suffix</Term> (
+            <Term>claude_code_oauth_token_team_a</Term>): so hält eine Organisation mehrere
+            Credentials nebeneinander, und jeder Agent wird unter <i>Secrets</i> am Agenten auf
+            eines festgelegt. Eine Festlegung fällt bewusst nicht zurück — zeigt sie ins Leere,
+            wird der Weckruf abgelehnt, statt ein fremdes Konto zu belasten.
           </li>
           <li>
             <Term>&lt;system&gt;_url</Term> und <Term>&lt;system&gt;_token</Term> — Zielsysteme, z. B.{" "}
@@ -571,7 +575,11 @@ const enTopics: HelpTopic[] = [
             <Term>anthropic_api_key</Term> — API key for the Claude Code runtime, <i>or</i>{" "}
             <Term>claude_code_oauth_token</Term> — OAuth token for subscription accounts (generate
             once with <Term>claude setup-token</Term>). Without one of these, tasks fail with a
-            credential error.
+            credential error. Both names accept an <Term>_suffix</Term> (
+            <Term>claude_code_oauth_token_team_a</Term>): that way an organisation holds several
+            credentials side by side, and each agent is pinned to one of them under <i>Secrets</i>{" "}
+            on the agent. A pin deliberately does not fall back — if it points nowhere, the wake is
+            refused rather than billing somebody else's account.
           </li>
           <li>
             <Term>&lt;system&gt;_url</Term> and <Term>&lt;system&gt;_token</Term> — target systems,
