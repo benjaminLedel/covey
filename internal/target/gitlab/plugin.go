@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"covey/internal/target"
 )
@@ -229,14 +230,17 @@ func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) ([]str
 	}
 	var waiting []string
 	for _, i := range inScope {
-		notes, err := gc.ListNotes(ctx, i.ProjectID, i.IID)
+		// The internal window: the check needs the END of the thread — the last
+		// comment and the highest note id. It does not go into any context, so it
+		// may be generous.
+		p, err := gc.ListNotes(ctx, i.ProjectID, i.IID, notesWindowInternal, 1)
 		if err != nil {
 			return nil, err
 		}
-		if lastHumanNoteIsMine(notes, me.Username) {
+		if lastHumanNoteIsMine(p.Notes, me.Username) {
 			continue // already answered — rests until someone replies to it
 		}
-		waiting = append(waiting, threadSig("issue", i.ProjectID, i.IID, notes))
+		waiting = append(waiting, threadSig("issue", i.ProjectID, i.IID, p.Notes))
 	}
 	return waiting, nil
 }
@@ -306,13 +310,14 @@ func mrReviewPending(ctx context.Context, gc *Client) ([]string, error) {
 	}
 	var waiting []string
 	for _, m := range inScope {
-		notes, err := gc.ListMRNotes(ctx, m.ProjectID, m.IID)
+		p, err := gc.ListMRNotes(ctx, m.ProjectID, m.IID, notesWindowInternal, 1)
 		if err != nil {
 			return nil, err
 		}
-		// Notes arrive chronologically (sort=asc); the last non-system comment
-		// decides. If it is from someone other than the bot, review feedback is
-		// waiting to be worked on.
+		notes := p.Notes
+		// Within the window the notes arrive chronologically; the last non-system
+		// comment decides. If it is from someone other than the bot, review
+		// feedback is waiting to be worked on.
 		for i := len(notes) - 1; i >= 0; i-- {
 			if notes[i].System {
 				continue
@@ -353,12 +358,12 @@ func mrReviewAssignedPending(ctx context.Context, gc *Client) ([]string, error) 
 		if !projectInScope(m.ProjectID, mrProjectPath(m)) {
 			continue
 		}
-		notes, err := gc.ListMRNotes(ctx, m.ProjectID, m.IID)
+		p, err := gc.ListMRNotes(ctx, m.ProjectID, m.IID, notesWindowInternal, 1)
 		if err != nil {
 			return nil, err
 		}
-		if !lastHumanNoteIsMine(notes, me.Username) {
-			waiting = append(waiting, threadSig("mr", m.ProjectID, m.IID, notes))
+		if !lastHumanNoteIsMine(p.Notes, me.Username) {
+			waiting = append(waiting, threadSig("mr", m.ProjectID, m.IID, p.Notes))
 		}
 	}
 	return waiting, nil
@@ -463,6 +468,95 @@ func isDuplicateComment(ctx context.Context, gc *Client, notes []Note, body stri
 	return lastOwn != "" && strings.TrimSpace(lastOwn) == strings.TrimSpace(body)
 }
 
+// notesBodyMax caps a SINGLE comment in the agent-facing answer. On threads
+// that take a daily report the length per entry is the cost driver, not the
+// number: three reports of 12k characters each outweigh twenty short comments.
+// Whoever needs the full text fetches it with get_note — that is one turn, and
+// deliberate.
+const notesBodyMax = 4000
+
+// cutBody shortens an over-long comment and says so. Counted in CHARACTERS, not
+// bytes: a German daily report carries umlauts, and in UTF-8 each of them takes
+// two bytes — measured in bytes the cut would bite at around 2000 characters for
+// one text and at 4000 for another, and the stated figure would not match what
+// the prompt promises.
+func cutBody(n Note) Note {
+	zeichen := utf8.RuneCountInString(n.Body)
+	if zeichen <= notesBodyMax {
+		return n
+	}
+	n.BodyChars, n.BodyTruncated = zeichen, true
+	n.Body = string([]rune(n.Body)[:notesBodyMax]) + "\n\n[… cut off — full text with get_note …]"
+	return n
+}
+
+func kommentarZahl(n int) string {
+	if n == 1 {
+		return "1 comment"
+	}
+	return fmt.Sprintf("%d comments", n)
+}
+
+// notesResult is the answer of list_notes/list_mr_notes: the window plus the
+// statement of how it relates to the whole. The reason for the shape is a bug
+// report from production — the plain array said nothing about the thread being
+// longer than what was in it, and an agent cannot tell a full page from a
+// complete history.
+func notesResult(p NotesPage, limit int, action, idFeld string, projectID, iid int) map[string]any {
+	notes := make([]Note, 0, len(p.Notes))
+	for _, n := range p.Notes {
+		notes = append(notes, cutBody(n))
+	}
+	// limit belongs in the answer: page counts in windows of this size, so
+	// whoever pages on without it lands somewhere else than they think.
+	res := map[string]any{"notes": notes, "page": p.Page, "limit": limit, "has_more": p.HasMore}
+	if p.Total >= 0 {
+		res["total"] = p.Total
+	}
+	// weiter builds the follow-up call — WITH limit, because page and limit only
+	// mean anything together: whoever fetched 100 and then follows a hint without
+	// limit gets window 21–40 of a 20-page grid, i.e. comments they already have,
+	// while everything in between silently falls through.
+	weiter := func(page int) string {
+		return fmt.Sprintf("%s {\"project_id\":%d,\"%s\":%d,\"limit\":%d,\"page\":%d}",
+			action, projectID, idFeld, iid, limit, page)
+	}
+	// The window is described counted from the NEWEST comment, because that is
+	// where it sits: page 1 is the current state of the thread, every further
+	// page one step further into the past.
+	von, bis := (p.Page-1)*limit+1, (p.Page-1)*limit+len(p.Notes)
+	switch {
+	case len(p.Notes) == 0 && p.Page > 1:
+		// Paged past the end. Saying "0 comments (older, 161–160)" here would send
+		// the agent off leafing further backwards.
+		res["window"] = fmt.Sprintf("empty — page %d lies behind the end of the thread", p.Page)
+		res["truncated"] = true
+		res["hint"] = "the thread is shorter than this page. " + weiter(1) + " fetches the current state"
+		return res
+	case p.Page == 1 && !p.HasMore:
+		res["window"] = fmt.Sprintf("complete thread, %s", kommentarZahl(len(p.Notes)))
+	case p.Page == 1:
+		res["window"] = fmt.Sprintf("newest %s", kommentarZahl(len(p.Notes)))
+	default:
+		res["window"] = fmt.Sprintf("%s (older, %d–%d counted from the newest)", kommentarZahl(len(p.Notes)), von, bis)
+	}
+	if p.Total >= 0 && (p.HasMore || p.Page > 1) {
+		res["window"] = fmt.Sprintf("%s of %d", res["window"], p.Total)
+	}
+	if p.HasMore || p.Page > 1 {
+		res["truncated"] = true
+		switch {
+		case p.HasMore:
+			res["hint"] = "this is NOT the whole thread. " + weiter(p.Page+1) +
+				" goes one window further back; a larger limit (max 100) enlarges the window"
+		default:
+			res["hint"] = "this is NOT the whole thread — nothing older follows; " + weiter(p.Page-1) +
+				" holds the newer comments"
+		}
+	}
+	return res
+}
+
 // aktionsParams is the union of all parameters any GitLab action needs. One
 // shared struct instead of one per action: the agent sends a flat JSON object,
 // and whatever is missing from it simply stays empty — that is the interface to
@@ -507,6 +601,12 @@ type aktionsParams struct {
 	Description  string   `json:"description"`
 	Assignee     string   `json:"assignee"`
 	Reviewer     string   `json:"reviewer"`
+	// The comment window: limit is the number of comments per call, page counts
+	// backwards into the history (1 = the newest window), note_id fetches a
+	// single comment in full.
+	Limit  int `json:"limit"`
+	Page   int `json:"page"`
+	NoteID int `json:"note_id"`
 }
 
 // aktion carries out ONE GitLab action. Formerly each of them lay as a case in
@@ -610,13 +710,18 @@ var aktionen = map[string]aktion{
 		if in.ProjectID == 0 || in.MRIID == 0 {
 			return nil, fmt.Errorf("project_id or mr_iid missing")
 		}
-		return gc.ListMRNotes(ctx, in.ProjectID, in.MRIID)
+		limit := notesLimit(in.Limit)
+		p, err := gc.ListMRNotes(ctx, in.ProjectID, in.MRIID, limit, in.Page)
+		if err != nil {
+			return nil, err
+		}
+		return notesResult(p, limit, "list_mr_notes", "mr_iid", in.ProjectID, in.MRIID), nil
 	},
 	"comment_mr": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.MRIID == 0 || strings.TrimSpace(in.Body) == "" {
 			return nil, fmt.Errorf("project_id, mr_iid or body missing")
 		}
-		if notes, err := gc.ListMRNotes(ctx, in.ProjectID, in.MRIID); err == nil && isDuplicateComment(ctx, gc, notes, in.Body) {
+		if p, err := gc.ListMRNotes(ctx, in.ProjectID, in.MRIID, notesWindowInternal, 1); err == nil && isDuplicateComment(ctx, gc, p.Notes, in.Body) {
 			return map[string]any{"skipped": "duplicate",
 				"reason": "identical to your own last comment — not posted again"}, nil
 		}
@@ -767,11 +872,31 @@ var aktionen = map[string]aktion{
 		return gc.CreateIssue(ctx, in.ProjectID, in.Title, in.Description, in.Labels, assigneeID)
 	},
 	"list_notes": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
-		return gc.ListNotes(ctx, in.ProjectID, in.IssueIID)
+		if in.ProjectID == 0 || in.IssueIID == 0 {
+			return nil, fmt.Errorf("project_id or issue_iid missing")
+		}
+		limit := notesLimit(in.Limit)
+		p, err := gc.ListNotes(ctx, in.ProjectID, in.IssueIID, limit, in.Page)
+		if err != nil {
+			return nil, err
+		}
+		return notesResult(p, limit, "list_notes", "issue_iid", in.ProjectID, in.IssueIID), nil
+	},
+	"get_note": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
+		if in.ProjectID == 0 || in.NoteID == 0 {
+			return nil, fmt.Errorf("project_id or note_id missing")
+		}
+		switch {
+		case in.IssueIID != 0:
+			return gc.GetIssueNote(ctx, in.ProjectID, in.IssueIID, in.NoteID)
+		case in.MRIID != 0:
+			return gc.GetMRNote(ctx, in.ProjectID, in.MRIID, in.NoteID)
+		}
+		return nil, fmt.Errorf("issue_iid or mr_iid missing")
 	},
 	"comment": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		internal := in.Internal == nil || *in.Internal
-		if notes, err := gc.ListNotes(ctx, in.ProjectID, in.IssueIID); err == nil && isDuplicateComment(ctx, gc, notes, in.Body) {
+		if p, err := gc.ListNotes(ctx, in.ProjectID, in.IssueIID, notesWindowInternal, 1); err == nil && isDuplicateComment(ctx, gc, p.Notes, in.Body) {
 			return map[string]any{"skipped": "duplicate",
 				"reason": "identical to your own last comment — not posted again"}, nil
 		}
@@ -861,7 +986,13 @@ func (System) PromptDoc() string {
    traceable issue. It needs a project_id — if you do not know the target project for certain, DO NOT GUESS:
    ask the reporter which project the fault belongs to (list_projects shows you the projects available to you),
    and only file the ticket once the project is settled,
-   list_notes {"project_id":N,"issue_iid":N}, comment {"project_id":N,"issue_iid":N,"body":"...","internal":true|false}
+   list_notes {"project_id":N,"issue_iid":N,"limit":N (optional, default 20, max 100),"page":N (optional)} —
+   returns the NEWEST comments of the ticket, not all of them. The answer says in "window"/"total"/"has_more" how it
+   relates to the whole; if "truncated" is set, page=2 fetches the next-older window (page=3 the one before that).
+   For long-running tickets that is normal — take the current state from page 1 and only page back when you really
+   need the earlier history. Comments longer than 4000 characters arrive cut off ("body_truncated":true);
+   get_note {"project_id":N,"issue_iid":N|"mr_iid":N,"note_id":N} fetches such a comment in full,
+   comment {"project_id":N,"issue_iid":N,"body":"...","internal":true|false}
    (a comment identical to your own last one is NOT posted again — the answer {"skipped":"duplicate"} is not an error but the loop protection),
    set_state {"project_id":N,"issue_iid":N,"state":"close"|"reopen"}, escalate {"project_id":N,"issue_iid":N,"note":"..."},
    assign {"project_id":N,"issue_iid":N,"username":"gitlab-username"} assigns the issue to a person — after a fix,
@@ -881,8 +1012,9 @@ func (System) PromptDoc() string {
    (all filters optional), get_commit {"project_id":N,"sha":"..."} returns a commit's diff,
    list_merge_requests {"project_id":N,"state":"opened"|"merged"|"closed"|"all","search":"...","target_branch":"..."},
    get_merge_request {"project_id":N,"mr_iid":N} returns a single MR with its review state (detailed_merge_status,
-   has_conflicts) and CI result (head_pipeline), list_mr_notes {"project_id":N,"mr_iid":N} an MR's discussion state
-   (review comments), comment_mr {"project_id":N,"mr_iid":N,"body":"..."} answers in the review dialogue,
+   has_conflicts) and CI result (head_pipeline), list_mr_notes {"project_id":N,"mr_iid":N,"limit":N,"page":N} an MR's
+   discussion state (review comments) — windowed exactly like list_notes,
+   comment_mr {"project_id":N,"mr_iid":N,"body":"..."} answers in the review dialogue,
    set_reviewer {"project_id":N,"mr_iid":N,"username":"gitlab-username"} enters a reviewer on an existing MR —
    as a developer you hand the MR over to the QA/test agent from the team directory with it, for instance; explain the
    handover in a comment_mr, approve_mr {"project_id":N,"mr_iid":N} formally approves an MR (as reviewer/QA — the green

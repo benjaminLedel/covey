@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -37,17 +38,26 @@ func NewClient(baseURL, token string) *Client {
 }
 
 func (c *Client) do(ctx context.Context, method, path string, body any, out any) error {
+	_, err := c.doHeaders(ctx, method, path, body, out)
+	return err
+}
+
+// doHeaders is do() with the response headers handed back. GitLab describes
+// paginated collections exclusively in the headers (X-Total, X-Total-Pages,
+// X-Next-Page) — whoever discards them cannot tell a full first page from a
+// complete list. Everything that does not paginate keeps using do().
+func (c *Client) doHeaders(ctx context.Context, method, path string, body any, out any) (http.Header, error) {
 	var reader io.Reader
 	if body != nil {
 		raw, err := json.Marshal(body)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		reader = bytes.NewReader(raw)
 	}
 	req, err := http.NewRequestWithContext(ctx, method, c.BaseURL+"/api/v4"+path, reader)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	req.Header.Set("PRIVATE-TOKEN", c.Token)
 	if body != nil {
@@ -55,20 +65,20 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 	}
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return httpErr(method, path, resp.StatusCode, data)
+		return resp.Header, httpErr(method, path, resp.StatusCode, data)
 	}
 	if out != nil {
-		return json.Unmarshal(data, out)
+		return resp.Header, json.Unmarshal(data, out)
 	}
-	return nil
+	return resp.Header, nil
 }
 
 // httpErr turns a GitLab error status into a sentence the agent can act on.
@@ -166,6 +176,11 @@ type Note struct {
 		Username string `json:"username"`
 	} `json:"author"`
 	CreatedAt string `json:"created_at"`
+	// BodyTruncated/BodyChars are not filled by GitLab but by the action layer
+	// when it shortens an over-long comment for the agent (see cutBody). omitempty,
+	// so they only appear where they were actually set.
+	BodyTruncated bool `json:"body_truncated,omitempty"`
+	BodyChars     int  `json:"body_chars,omitempty"`
 }
 
 // ListProjects — GET /projects?membership=true: all projects in which the bot
@@ -246,11 +261,109 @@ func (c *Client) CreateIssue(ctx context.Context, projectID int, title, descript
 	return out, err
 }
 
-// ListNotes — GET /projects/{id}/issues/{iid}/notes (chronological)
-func (c *Client) ListNotes(ctx context.Context, projectID, issueIID int) ([]Note, error) {
+const (
+	// notesWindowDefault is what an agent gets without asking for a size: enough
+	// for a normal ticket history, small enough for one that has been running for
+	// a year.
+	notesWindowDefault = 20
+	// notesWindowMax is GitLab's limit for per_page — anything larger is silently
+	// capped to 100 by the API, so we cap it ourselves and stay honest.
+	notesWindowMax = 100
+	// notesWindowInternal is the window of the internal readers (heartbeat check,
+	// duplicate protection). They are allowed to be generous: their answer never
+	// reaches an agent's context and therefore costs no tokens — only one request.
+	notesWindowInternal = 100
+)
+
+// notesLimit clamps a requested window size to what GitLab actually serves.
+// Not a detail: whoever asks for 500 gets 100 from GitLab and would otherwise
+// have the 500 in their answer text — and describe a window that does not exist.
+func notesLimit(limit int) int {
+	switch {
+	case limit <= 0:
+		return notesWindowDefault
+	case limit > notesWindowMax:
+		return notesWindowMax
+	}
+	return limit
+}
+
+// NotesPage is ONE window of a comment thread plus what GitLab said about the
+// whole of it. It exists because a ticket's history grows without bound: an
+// issue that takes a daily report for a year carries hundreds of comments, and
+// whoever loads them all pushes them into the agent's context on every call.
+//
+// The window sits at the NEW end — that is where the current state of a thread
+// is. Within the window Notes runs chronologically ascending, exactly as before,
+// so that everything reading the thread from behind (lastHumanNoteIsMine,
+// threadSig) stays valid.
+type NotesPage struct {
+	Notes   []Note
+	Page    int
+	Total   int  // from X-Total; -1 when GitLab did not state it
+	HasMore bool // is there anything older behind this window?
+}
+
+// notesWindow fetches one window of a notes collection: sort=desc makes GitLab
+// deliver the NEWEST first, per_page determines the size, page counts backwards
+// into the history (page=1 the newest window, page=2 the one before it).
+// Afterwards the slice is turned round so the caller gets it chronologically.
+//
+// The size of the whole comes from the pagination headers. GitLab omits X-Total
+// for very large collections, and some proxies swallow the headers — hence the
+// fallback: a completely full page means there is probably more behind it.
+func (c *Client) notesWindow(ctx context.Context, base string, limit, page int) (NotesPage, error) {
+	limit = notesLimit(limit)
+	if page <= 0 {
+		page = 1
+	}
+	q := url.Values{}
+	q.Set("sort", "desc")
+	q.Set("order_by", "created_at")
+	q.Set("per_page", fmt.Sprint(limit))
+	q.Set("page", fmt.Sprint(page))
 	var out []Note
+	hdr, err := c.doHeaders(ctx, http.MethodGet, base+"/notes?"+q.Encode(), nil, &out)
+	if err != nil {
+		return NotesPage{}, err
+	}
+	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+		out[i], out[j] = out[j], out[i]
+	}
+	// From vague to precise: whoever comes later overrules. The starting guess
+	// only has the page size; the counts state it exactly; X-Next-Page is the
+	// direct answer. NOT judged by presence but by the numbers — a proxy that
+	// swallows X-Next-Page and lets X-Total-Pages through would otherwise turn
+	// page 1 of 7 into a complete thread, which is exactly the silent truncation
+	// this window is meant to abolish.
+	p := NotesPage{Notes: out, Page: page, Total: -1, HasMore: len(out) == limit}
+	if hdr != nil {
+		if n, err := strconv.Atoi(hdr.Get("X-Total")); err == nil {
+			p.Total, p.HasMore = n, page*limit < n
+		}
+		if n, err := strconv.Atoi(hdr.Get("X-Total-Pages")); err == nil {
+			p.HasMore = page < n
+		}
+		if strings.TrimSpace(hdr.Get("X-Next-Page")) != "" {
+			p.HasMore = true
+		}
+	}
+	return p, nil
+}
+
+// ListNotes — GET /projects/{id}/issues/{iid}/notes: the newest limit comments
+// of an issue (page counts backwards into the history), chronological within
+// the window.
+func (c *Client) ListNotes(ctx context.Context, projectID, issueIID, limit, page int) (NotesPage, error) {
+	return c.notesWindow(ctx, fmt.Sprintf("/projects/%d/issues/%d", projectID, issueIID), limit, page)
+}
+
+// GetIssueNote — GET /projects/{id}/issues/{iid}/notes/{note_id}: a single
+// comment in full. The way back for one that the action layer shortened.
+func (c *Client) GetIssueNote(ctx context.Context, projectID, issueIID, noteID int) (Note, error) {
+	var out Note
 	err := c.do(ctx, http.MethodGet,
-		fmt.Sprintf("/projects/%d/issues/%d/notes?sort=asc&order_by=created_at", projectID, issueIID), nil, &out)
+		fmt.Sprintf("/projects/%d/issues/%d/notes/%d", projectID, issueIID, noteID), nil, &out)
 	return out, err
 }
 
@@ -667,12 +780,18 @@ func (c *Client) GetMergeRequest(ctx context.Context, projectID, mrIID int) (Mer
 	return out, err
 }
 
-// ListMRNotes — GET /projects/{id}/merge_requests/{iid}/notes (chronological):
-// an MR's discussion state including review comments on the diff.
-func (c *Client) ListMRNotes(ctx context.Context, projectID, mrIID int) ([]Note, error) {
-	var out []Note
+// ListMRNotes — GET /projects/{id}/merge_requests/{iid}/notes: an MR's
+// discussion state including review comments on the diff, windowed like
+// ListNotes.
+func (c *Client) ListMRNotes(ctx context.Context, projectID, mrIID, limit, page int) (NotesPage, error) {
+	return c.notesWindow(ctx, fmt.Sprintf("/projects/%d/merge_requests/%d", projectID, mrIID), limit, page)
+}
+
+// GetMRNote — GET /projects/{id}/merge_requests/{iid}/notes/{note_id}.
+func (c *Client) GetMRNote(ctx context.Context, projectID, mrIID, noteID int) (Note, error) {
+	var out Note
 	err := c.do(ctx, http.MethodGet,
-		fmt.Sprintf("/projects/%d/merge_requests/%d/notes?sort=asc&order_by=created_at", projectID, mrIID), nil, &out)
+		fmt.Sprintf("/projects/%d/merge_requests/%d/notes/%d", projectID, mrIID, noteID), nil, &out)
 	return out, err
 }
 
