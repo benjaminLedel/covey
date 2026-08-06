@@ -130,9 +130,11 @@ A price says what a result cost, not whether the result was any good. Four figur
 
 The strongest quality proxy that gets by without a judgement. A ticket resolved today and reopened on Thursday was not resolved, and today it counts as delivery all the same.
 
-The mechanism is already in place, from the other side: `CorrelateWake` only wakes tasks in state `blocked`. An event arriving on a `correlation_key` whose task has already reached `done` therefore finds nothing to wake and produces a **new** task carrying the same key — which is exactly what a returning case looks like. `task_transitions` holds the history to go with it.
+Measured over the **object identity the indicator already counts on**: a case counts as returned when two DIFFERENT runs acted on the same object. One ticket, two runs — that is the shape of rework, and it needs no extra bookkeeping.
 
-The rework rate is then the share of objects that reappeared within a window after being closed. The window has to be chosen and named (seven days is a reasonable default for tickets, useless for merge requests), and it belongs next to the indicator rather than in a corner of its own: an indicator at 90 % rework is not delivery, it is a holding pattern, and its unit cost is fiction.
+The obvious route does not work, and it is worth writing down so nobody rediscovers it: the task's `correlation_key` is cleared by `Complete` when a task finishes. A completed task no longer knows which ticket it was, so "a new task on the key of a closed one" has nothing to compare against. The action parameters do know — which also means the rate is only available for indicators that carry `je:`. Without an object identity there is no rework rate, and none is invented: a zero would claim a quality nobody measured.
+
+The rate belongs next to its indicator rather than in a corner of its own: an indicator at 90 % rework is not delivery, it is a holding pattern, and its unit cost is fiction.
 
 ### Rejection rate at the approval gates
 
@@ -180,7 +182,7 @@ An Menschen abgegeben  19      —
 
 The same on the data side: the indicators travel in the existing `OrgCostReport`, not through an endpoint of their own. One request, one filter bar, one period — the two sets of numbers cannot drift apart, and the period selector does not have to be built twice.
 
-Exactly **one** place outside it: the **employee profile**, where the cost bar already sits. That is the HR view of the individual agent — a *Performance* block next to it, not a new menu entry. The org dashboard gets no aggregation of its own; it links to the cost page.
+Exactly **one** place outside it: the **employee profile**, where the cost bar already sits. That is the HR view of the individual agent — the same price list narrowed to this one agent, from the same component, so the two views cannot end up disagreeing. It hides itself when the agent defines no indicators; an empty box on every agent page is noise. The org dashboard gets no aggregation of its own; it links to the cost page.
 
 ## Implementation sketch
 

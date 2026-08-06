@@ -190,3 +190,60 @@ func TestIndicatorsGroupByKeyAndCountFailures(t *testing.T) {
 		t.Errorf("org total wrong: %+v", rep)
 	}
 }
+
+// The rework rate: did the case come back?
+//
+// A ticket resolved today and worked on again on Thursday was not resolved, and
+// in the price list it counts as delivery all the same. Recognised by two
+// DIFFERENT runs acting on the same object — the task's correlation_key cannot
+// serve, because Complete clears it when a task finishes; a completed task no
+// longer knows which ticket it was.
+func TestIndicatorsCountReturnedCases(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+
+	agent, err := s.registry.Create(ctx, s.orgID, "rueckl", "Rückläufer", "mock", &s.adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.registry.SaveConfig(ctx, agent.ID, map[string]string{
+		"KPIS.md": "- kennzahl: tickets titel: Tickets zählt: aktion zammad:reply_external je: ticket_id\n" +
+			"- kennzahl: ohne-je titel: Ohne Objekt zählt: aktion zammad:reply_external",
+	}, &s.adminID); err != nil {
+		t.Fatal(err)
+	}
+
+	// Three tickets are answered in a first run …
+	erster, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Erster Lauf", "", "webhook", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, ticket := range []int{1, 2, 3} {
+		aktion(t, s, agent.ID, erster.ID, "zammad:reply_external", map[string]any{"ticket_id": ticket}, true)
+	}
+	// … and one of them comes back: a second run has to touch it again.
+	zweiter, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Kunde meldet sich erneut", "", "webhook", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	aktion(t, s, agent.ID, zweiter.ID, "zammad:reply_external", map[string]any{"ticket_id": 1}, true)
+
+	rep := indicatorReport(t, admin, "/api/v1/agents/"+agent.ID.String()+"/cost/indicators?days=1")
+	byKey := map[string]observability.IndicatorResult{}
+	for _, ind := range rep.Indicators {
+		byKey[ind.Key] = ind
+	}
+	// Three tickets — the fourth reply was the same ticket again.
+	if got := byKey["tickets"].Count; got != 3 {
+		t.Errorf("expected 3 tickets, got %d", got)
+	}
+	if got := byKey["tickets"].Returned; got != 1 {
+		t.Errorf("exactly one case came back: %d (%+v)", got, byKey["tickets"])
+	}
+	// Without `je:` there is no object identity — and then no invented zero
+	// either, which would claim a quality nobody measured.
+	if got := byKey["ohne-je"].Returned; got != 0 {
+		t.Errorf("without je: no rework rate may be claimed: %+v", byKey["ohne-je"])
+	}
+}

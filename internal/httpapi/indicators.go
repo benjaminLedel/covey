@@ -30,6 +30,10 @@ type IndicatorReport struct {
 	// TotalUSD is the denominator behind every price — shown so the figures can
 	// be checked rather than believed.
 	TotalUSD float64 `json:"total_usd"`
+	// Quality qualifies the prices: came the case back, did a human refuse the
+	// proposal, how fast was the first reaction. A price without them gets
+	// quoted alone, and alone it says less than it appears to.
+	Quality observability.Quality `json:"quality"`
 }
 
 // handleOrgIndicators is the price list over the organization.
@@ -110,7 +114,7 @@ func (s *Server) indicatorReport(r *http.Request, agentIDs []uuid.UUID, since ti
 
 	for _, key := range keys {
 		ids := carriers[key]
-		count, err := s.Obs.CountIndicator(ctx, defs[key], ids, since)
+		count, returned, err := s.Obs.CountIndicator(ctx, defs[key], ids, since)
 		if err != nil {
 			return rep, err
 		}
@@ -119,7 +123,8 @@ func (s *Server) indicatorReport(r *http.Request, agentIDs []uuid.UUID, since ti
 			return rep, err
 		}
 		rep.Indicators = append(rep.Indicators, observability.IndicatorResult{
-			Indicator: defs[key], Count: count, UnitUSD: observability.UnitCost(usd, count),
+			Indicator: defs[key], Count: count, Returned: returned,
+			UnitUSD: observability.UnitCost(usd, count),
 		})
 	}
 	sort.SliceStable(rep.Indicators, func(i, j int) bool {
@@ -132,6 +137,9 @@ func (s *Server) indicatorReport(r *http.Request, agentIDs []uuid.UUID, since ti
 	}
 	rep.Failed = failed
 	if rep.TotalUSD, err = s.Obs.CostOfAgents(ctx, agentIDs, since); err != nil {
+		return rep, err
+	}
+	if rep.Quality, err = s.Obs.QualityReport(ctx, agentIDs, since); err != nil {
 		return rep, err
 	}
 	return rep, nil

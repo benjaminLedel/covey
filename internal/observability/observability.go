@@ -224,11 +224,40 @@ type IndicatorResult struct {
 	Indicator
 	Count   int64    `json:"count"`
 	UnitUSD *float64 `json:"unit_usd,omitempty"`
+	// Returned are the objects among Count that a SECOND run had to touch
+	// again — the rework rate, and the figure that keeps the price honest: a
+	// ticket resolved today and reopened on Thursday was not resolved, and it
+	// counts as delivery all the same.
+	//
+	// Only available with `je:`, because it needs the object identity. Without
+	// it the field stays 0 and the display leaves it out — an invented zero
+	// would claim a quality that was never measured.
+	Returned int64 `json:"returned,omitempty"`
 }
 
 // minCountForUnitCost is the number of events from which a unit cost is a
 // measurement rather than an accident.
 const minCountForUnitCost = 5
+
+// Quality are the figures that qualify a price (spec/17-kpis.md). A price says
+// what a result cost, not whether the result was any good.
+//
+// All three are proxies, and none of them settles the question: a case that
+// never comes back may have been resolved well or merely abandoned by a
+// resigned reporter. They are worth having because they are cheap and because
+// they move in the right direction.
+type Quality struct {
+	// Decided are the approval gates a human decided, Denied those refused.
+	// The only figure here that is not a proxy: somebody looked at a proposed
+	// action and said no.
+	Decided int64 `json:"decided"`
+	Denied  int64 `json:"denied"`
+	// ResponseSeconds is the MEDIAN time from the incoming event to the run's
+	// first action — the value that has nothing to do with money and is often
+	// the actual one. Median, not mean: one run that hung for six hours must
+	// not colour the picture. Nil when nothing is measurable in the period.
+	ResponseSeconds *float64 `json:"response_seconds,omitempty"`
+}
 
 // TaskCost is what ONE task cost — the small form of RunCost, without the
 // backlog columns a caller that holds the task already has in hand.
@@ -438,11 +467,21 @@ func (s *Store) CostByTasks(ctx context.Context, taskIDs []uuid.UUID) (map[uuid.
 // Only successful actions count. An agent that tried to close a ticket and got
 // a 422 resolved nothing, and a figure that counts the attempt measures effort,
 // not delivery.
-func (s *Store) CountIndicator(ctx context.Context, ind Indicator, agentIDs []uuid.UUID, since time.Time) (int64, error) {
+// The second return value is the rework count: objects that a SECOND run had to
+// take up again. It is only available with `je:` — without an object identity
+// there is nothing to recognise a returning case by.
+//
+// How it is recognised: two DIFFERENT tasks acting on the same object. The
+// obvious route — the task's correlation_key — does not work, because `Complete`
+// clears the key when a task finishes; a completed task no longer knows which
+// ticket it was. The action parameters do know, they are the same identity the
+// indicator counts on, and the signal is exactly the intended one: one case,
+// two runs.
+func (s *Store) CountIndicator(ctx context.Context, ind Indicator, agentIDs []uuid.UUID, since time.Time) (int64, int64, error) {
 	if len(agentIDs) == 0 {
-		return 0, nil
+		return 0, 0, nil
 	}
-	var n int64
+	var n, returned int64
 	if ind.Action == "" {
 		// The task form: a backlog task that reached `done`. updated_at is the
 		// moment of the last transition, which for a terminal task is when it
@@ -450,15 +489,9 @@ func (s *Store) CountIndicator(ctx context.Context, ind Indicator, agentIDs []uu
 		err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM backlog_tasks
 			WHERE agent_id = ANY($1) AND state = 'done' AND updated_at >= $2
 			  AND ($3 = '' OR origin = $3)`, agentIDs, since, ind.Origin).Scan(&n)
-		return n, err
+		return n, 0, err
 	}
 
-	// The counted expression: with `je:` the business object, otherwise the
-	// events themselves.
-	what := "COUNT(*)"
-	if ind.Per != "" {
-		what = "COUNT(DISTINCT payload->'params'->>'" + sanitizeParam(ind.Per) + "')"
-	}
 	// A wildcard cannot use the index as a range scan (the collation decides
 	// how prefixes compare), so it scans the partial index. Acceptable: the
 	// form exists for the coarse "did it touch GitLab at all" and is rare.
@@ -466,10 +499,22 @@ func (s *Store) CountIndicator(ctx context.Context, ind Indicator, agentIDs []uu
 	if strings.HasSuffix(ind.Action, ":*") {
 		match, arg = "payload->>'action' LIKE $3", strings.TrimSuffix(ind.Action, "*")+"%"
 	}
-	err := s.pool.QueryRow(ctx, `SELECT `+what+` FROM recording_events
+	where := `FROM recording_events
 		WHERE agent_id = ANY($1) AND kind = 'action' AND created_at >= $2
-		  AND `+match+` AND payload->>'ok' = 'true'`, agentIDs, since, arg).Scan(&n)
-	return n, err
+		  AND ` + match + ` AND payload->>'ok' = 'true'`
+
+	if ind.Per == "" {
+		err := s.pool.QueryRow(ctx, `SELECT COUNT(*) `+where, agentIDs, since, arg).Scan(&n)
+		return n, 0, err
+	}
+	obj := "payload->'params'->>'" + sanitizeParam(ind.Per) + "'"
+	err := s.pool.QueryRow(ctx, `
+		SELECT COUNT(*), COUNT(*) FILTER (WHERE laeufe > 1) FROM (
+			SELECT COUNT(DISTINCT task_id) AS laeufe
+			`+where+` AND `+obj+` IS NOT NULL
+			GROUP BY `+obj+`
+		) x`, agentIDs, since, arg).Scan(&n, &returned)
+	return n, returned, err
 }
 
 // sanitizeParam keeps the `je:` parameter name out of the SQL string. It cannot
@@ -511,6 +556,35 @@ func (s *Store) FailedTasks(ctx context.Context, agentIDs []uuid.UUID, since tim
 		WHERE agent_id = ANY($1) AND state IN ('failed','cancelled') AND updated_at >= $2`,
 		agentIDs, since).Scan(&n)
 	return n, err
+}
+
+// QualityReport collects the scope-wide figures that qualify the prices: the
+// human verdict at the approval gates, and how fast the first reaction was.
+//
+// The rework rate is NOT here — it hangs off the indicator, see CountIndicator.
+func (s *Store) QualityReport(ctx context.Context, agentIDs []uuid.UUID, since time.Time) (Quality, error) {
+	var q Quality
+	if len(agentIDs) == 0 {
+		return q, nil
+	}
+	if err := s.pool.QueryRow(ctx, `
+		SELECT COUNT(*), COUNT(*) FILTER (WHERE status = 'denied')
+		FROM approvals
+		WHERE agent_id = ANY($1) AND status <> 'pending' AND decided_at >= $2`,
+		agentIDs, since).Scan(&q.Decided, &q.Denied); err != nil {
+		return q, err
+	}
+	// The first action of a run against the moment its task appeared.
+	err := s.pool.QueryRow(ctx, `
+		SELECT PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (erste - angelegt)))
+		FROM (
+			SELECT t.created_at AS angelegt, MIN(e.created_at) AS erste
+			FROM backlog_tasks t
+			JOIN recording_events e ON e.task_id = t.id AND e.kind = 'action'
+			WHERE t.agent_id = ANY($1) AND t.created_at >= $2
+			GROUP BY t.id, t.created_at
+		) x`, agentIDs, since).Scan(&q.ResponseSeconds)
+	return q, err
 }
 
 // UnitCost prices one indicator line, or leaves it unpriced below the minimum
