@@ -904,6 +904,39 @@ func (s *Server) handleOrgCost(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, rep)
 }
 
+// handleOrgRunCosts ranks the organization's runs by cost — the answer to
+// "which run burned the money", which the aggregates cannot give. ?limit=
+// caps the list, ?days= the window.
+func (s *Server) handleOrgRunCosts(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	_, since := costWindow(r)
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	runs, err := s.Obs.RunCosts(r.Context(), p.OrgID, nil, since, limit)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, runs)
+}
+
+// handleAgentRunCosts is the same list for a single agent.
+func (s *Server) handleAgentRunCosts(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	_, since := costWindow(r)
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	runs, err := s.Obs.RunCosts(r.Context(), p.OrgID, &id, since, limit)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, runs)
+}
+
 func (s *Server) handleMemories(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {

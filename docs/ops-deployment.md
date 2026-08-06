@@ -315,6 +315,58 @@ through an item of the same name in their `HEARTBEAT.md`.
 
 ---
 
+## What a run costs — and where the tokens go
+
+The bill of an agent platform is not written by what the agents say. It is
+written by what they **read, on every turn**: the system prompt with all tool
+schemas, the target-system docs and the transcript so far go into the model
+again with each step. Measured on a live instance over 24 hours: 3.2 million
+output tokens against **112 million** cached input tokens.
+
+Two consequences follow, and both are worth knowing before tuning anything:
+
+- **A long run is disproportionately expensive.** The prefix is re-read per
+  turn, and the transcript grows on top. Measured on one run: turn 1 read 44.000
+  tokens, turn 70 read 155.000. Raising `max_turns` removes aborted runs, but it
+  does not make the runs cheaper — it makes them longer.
+- **The static prefix is the biggest single item**, because it is paid for on
+  every turn. `COVEY_RUNTIME_TOOLS` controls it (see below).
+
+### `COVEY_RUNTIME_TOOLS`
+
+The built-in tool scope of a run, comma-separated; empty = the default. The
+default deliberately carries only what a Covey agent uses — file, shell, search,
+web and task tools. The runtime's full built-in set costs 20.811 prompt tokens,
+the default 11.045.
+
+The list decides not only what a run **may** use but what **exists** for it at
+all. That distinction matters when extending it: a built-in tool an agent is to
+use has to be named here, not merely permitted. Target-system actions are not
+affected — they reach the run over their own route and follow `ACCESS.md`.
+
+```bash
+COVEY_RUNTIME_TOOLS="Bash,Read,Write,Edit,Glob,Grep,Task,WebFetch"
+```
+
+The `Skill` tool is added per run and only when skills have been materialized
+for the agent — it pulls the descriptions of all built-in skills into the prompt
+(+2.454 tokens) and is dead weight without skills of its own.
+
+### Where the money went
+
+Two views answer that, both under **Costs**:
+
+- **Cost types** shows the split across cached read, cache write, fresh input
+  and output. Whoever optimizes output length without this view optimizes the
+  wrong 3 %.
+- **Most expensive runs** ranks the individual runs (`GET /api/v1/cost/runs`,
+  per agent `GET /api/v1/agents/{id}/cost/runs`). The **Actions** column carries
+  the decisive signal: a run with `0` touched no target system — it read,
+  thought and went back to sleep. In every aggregate such a run looks exactly
+  like one that fixed three bugs.
+
+---
+
 ## Before real production use
 
 The setup is deliberately lean. For real operation, additionally (cf.

@@ -334,13 +334,31 @@
     "totalTokens": "Total tokens",
     "input": "Input",
     "output": "Output",
-    "runs": "Runs",
+    "runs": {
+      "title": "Most expensive runs",
+      "hint": "Which single run consumed the money — and whether it changed anything doing so.",
+      "task": "Task",
+      "agent": "Agent",
+      "cost": "Cost",
+      "cached": "Context read",
+      "actions": "Actions",
+      "idle": "idle",
+      "idleHint": "This run touched no target system — it read, thought and went back to sleep."
+    },
     "runsN": "{{count}} runs",
     "byAgent": "By agent",
     "byModel": "By model",
     "empty": "No cost data in the selected period.",
     "ofWhichCached": "of it cached",
-    "cachedShare": "{{pct}}% out of the prompt cache"
+    "cachedShare": "{{pct}}% out of the prompt cache",
+    "mix": {
+      "title": "Cost types",
+      "hint": "The weight sits on the cached input side, not on what the agents write — the prompt is read afresh on every turn.",
+      "cacheRead": "Cache read",
+      "cacheWrite": "Cache written",
+      "inputFresh": "Input (uncached)",
+      "output": "Output"
+    }
   },
   "lang": {
     "toggle": "DE",

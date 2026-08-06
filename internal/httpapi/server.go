@@ -253,6 +253,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/agents/{id}/cost", s.agentScoped(anyRole, s.handleCost))
 	mux.Handle("GET /api/v1/agents/{id}/cost/series", s.agentScoped(anyRole, s.handleCostSeries))
 	mux.Handle("GET /api/v1/cost/org", s.rbac(anyRole, s.handleOrgCost))
+	mux.Handle("GET /api/v1/cost/runs", s.rbac(anyRole, s.handleOrgRunCosts))
+	mux.Handle("GET /api/v1/agents/{id}/cost/runs", s.agentScoped(anyRole, s.handleAgentRunCosts))
 	mux.Handle("GET /api/v1/agents/{id}/memories", s.agentScoped(anyRole, s.handleMemories))
 	mux.Handle("POST /api/v1/agents/{id}/memories", s.agentScoped(manage, s.handleCreateMemory))
 	mux.Handle("GET /api/v1/agents/{id}/wiki/log", s.agentScoped(anyRole, s.handleWikiLog))

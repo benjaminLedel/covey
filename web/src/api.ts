@@ -191,6 +191,25 @@ export type ModelCost = Tokens & {
   entries: number;
 };
 
+/** Was EIN Lauf gekostet hat (observability.RunCost). Die Aggregate sagen, wie
+ *  teuer der Tag war — diese Liste sagt, welcher Lauf ihn teuer gemacht hat.
+ *  `actions` ist die Spalte neben dem Geld: ein Lauf mit actions=0 hat nichts
+ *  außerhalb seiner selbst verändert, sieht in jeder Summe aber aus wie einer,
+ *  der drei Fehler behoben hat. */
+export type RunCost = Tokens & {
+  task_id: string;
+  agent_id: string;
+  slug: string;
+  title: string;
+  state: string;
+  origin: string;
+  total_usd: number;
+  entries: number;
+  actions: number;
+  started_at: string;
+  ended_at: string;
+};
+
 export type OrgCostReport = Tokens & {
   total_usd: number;
   entries: number;

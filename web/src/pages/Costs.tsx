@@ -8,6 +8,7 @@ import {
   type Agent,
   type CostBucket,
   type OrgCostReport,
+  type RunCost,
   type Tokens,
 } from "../api";
 
@@ -283,6 +284,97 @@ const RANGES: { v: number; bucket: string }[] = [
   { v: 90, bucket: "week" },
 ];
 
+/** Die Kostenarten nebeneinander. Sie stehen hier, weil die USD-Zahl allein die
+ *  wichtigste Beobachtung verdeckt: das Gewicht liegt fast vollständig auf der
+ *  gecachten Eingabeseite, nicht auf dem, was die Agenten schreiben. Gemessen
+ *  auf covey.work: 112 Mio Cache-Read gegen 3,2 Mio Output in 24 Stunden — der
+ *  Prompt wird in jedem Turn neu gelesen. Wer das nicht sieht, optimiert die
+ *  Ausgabelänge und wundert sich, dass nichts passiert. */
+function TokenMix({ tokens, locale }: { tokens: Tokens; locale: string }) {
+  const { t } = useTranslation();
+  const parts = [
+    { key: "cacheRead", value: tokens.cache_read_tokens, color: "var(--text-accent)" },
+    { key: "cacheWrite", value: tokens.cache_creation_tokens, color: "var(--sage, #7a9)" },
+    { key: "inputFresh", value: tokens.input_tokens, color: "var(--muted, #999)" },
+    { key: "output", value: tokens.output_tokens, color: "var(--clay)" },
+  ];
+  const sum = parts.reduce((a, p) => a + p.value, 0);
+  if (sum === 0) return <div className="muted text-sm">{t("costs.empty")}</div>;
+  return (
+    <div>
+      <div style={{ display: "flex", height: 10, borderRadius: 5, overflow: "hidden", marginBottom: 12 }}>
+        {parts.map((p) => (
+          <div key={p.key} style={{ width: `${(p.value / sum) * 100}%`, background: p.color }} />
+        ))}
+      </div>
+      {parts.map((p) => (
+        <div key={p.key} className="flex items-center justify-between text-sm" style={{ padding: "3px 0" }}>
+          <span className="flex items-center gap-2">
+            <span style={{ color: p.color }}>■</span>
+            {t(`costs.mix.${p.key}`)}
+          </span>
+          <span className="muted">
+            {fmtTokens(p.value, locale)} · {sum > 0 ? Math.round((p.value / sum) * 100) : 0}%
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Die teuersten Läufe. Beantwortet die Frage, die die Aggregate offenlassen:
+ *  WELCHER Lauf hat das Geld verbrannt. Ein Lauf ohne Aktionen ist eigens
+ *  markiert — er hat gelesen, nachgedacht und sich wieder schlafen gelegt. */
+function ExpensiveRuns({ runs, locale }: { runs: RunCost[]; locale: string }) {
+  const { t } = useTranslation();
+  if (runs.length === 0) return <div className="muted text-sm">{t("costs.empty")}</div>;
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+        <thead>
+          <tr className="muted" style={{ textAlign: "left" }}>
+            <th style={{ padding: "4px 8px 8px 0" }}>{t("costs.runs.task")}</th>
+            <th style={{ padding: "4px 8px 8px 0" }}>{t("costs.runs.agent")}</th>
+            <th style={{ padding: "4px 8px 8px 0", textAlign: "right" }}>{t("costs.runs.cost")}</th>
+            <th style={{ padding: "4px 8px 8px 0", textAlign: "right" }}>{t("costs.runs.cached")}</th>
+            <th style={{ padding: "4px 0 8px 0", textAlign: "right" }}>{t("costs.runs.actions")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {runs.map((r) => (
+            <tr key={r.task_id} style={{ borderTop: "1px solid var(--border, #e5e5e5)" }}>
+              <td style={{ padding: "6px 8px 6px 0" }}>
+                <div style={{ maxWidth: 340, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {r.title}
+                </div>
+                <span className="muted text-xs">
+                  {r.origin} · {r.state} · {fmtPeriod(r.started_at, "hour", locale)}
+                </span>
+              </td>
+              <td style={{ padding: "6px 8px 6px 0" }}>
+                <Link to={`/agents/${r.agent_id}`}>{r.slug}</Link>
+              </td>
+              <td style={{ padding: "6px 8px 6px 0", textAlign: "right", fontWeight: 600 }}>{fmtUSD(r.total_usd)}</td>
+              <td style={{ padding: "6px 8px 6px 0", textAlign: "right" }} className="muted">
+                {fmtTokens(r.cache_read_tokens + r.cache_creation_tokens, locale)}
+              </td>
+              <td style={{ padding: "6px 0", textAlign: "right" }}>
+                {r.actions === 0 ? (
+                  <span title={t("costs.runs.idleHint")} style={{ color: "var(--clay)" }}>
+                    {t("costs.runs.idle")}
+                  </span>
+                ) : (
+                  <span className="muted">{r.actions}</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function Costs() {
   const { t, i18n } = useTranslation();
   const locale = i18n.language === "de" ? "de-DE" : "en-US";
@@ -305,6 +397,16 @@ export default function Costs() {
     queryKey: ["cost", "series", scope, days, bucket],
     queryFn: () => api<CostBucket[] | null>(`/agents/${scope}/cost/series?days=${days}&bucket=${bucket}`),
     enabled: scope !== "org",
+    refetchInterval: 30000,
+  });
+
+  // Die teuersten Läufe des Zeitraums — org-weit oder für den gewählten Agenten.
+  const runs = useQuery({
+    queryKey: ["cost", "runs", scope, days],
+    queryFn: () =>
+      api<RunCost[] | null>(
+        scope === "org" ? `/cost/runs?days=${days}&limit=25` : `/agents/${scope}/cost/runs?days=${days}&limit=25`,
+      ),
     refetchInterval: 30000,
   });
 
@@ -333,6 +435,21 @@ export default function Costs() {
         entries: a.entries + b.entries,
       }),
       { usd: 0, input: 0, cached: 0, output: 0, entries: 0 },
+    );
+  }, [isOrg, rep, series]);
+
+  // Die Kostenarten fürs aktuelle Scope: org-weit direkt aus dem Report, für
+  // einen Agenten aus seiner Zeitreihe aufsummiert.
+  const mix: Tokens = useMemo(() => {
+    if (isOrg && rep) return rep;
+    return series.reduce<Tokens>(
+      (a, b) => ({
+        input_tokens: a.input_tokens + b.input_tokens,
+        output_tokens: a.output_tokens + b.output_tokens,
+        cache_read_tokens: a.cache_read_tokens + b.cache_read_tokens,
+        cache_creation_tokens: a.cache_creation_tokens + b.cache_creation_tokens,
+      }),
+      { input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_creation_tokens: 0 },
     );
   }, [isOrg, rep, series]);
 
@@ -408,6 +525,20 @@ export default function Costs() {
           </div>
         </div>
         <CostChart data={series} metric={metric} bucket={bucket} locale={locale} />
+      </div>
+
+      {/* Kostenarten + teuerste Läufe: gelten für jedes Scope */}
+      <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
+        <div className="card">
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>{t("costs.mix.title")}</div>
+          <p className="muted text-xs mb-3">{t("costs.mix.hint")}</p>
+          <TokenMix tokens={mix} locale={locale} />
+        </div>
+        <div className="card" style={{ gridColumn: "span 1" }}>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>{t("costs.runs.title")}</div>
+          <p className="muted text-xs mb-3">{t("costs.runs.hint")}</p>
+          <ExpensiveRuns runs={runs.data ?? []} locale={locale} />
+        </div>
       </div>
 
       {/* Aufschlüsselung nur org-weit */}
