@@ -247,3 +247,66 @@ func TestIndicatorsCountReturnedCases(t *testing.T) {
 		t.Errorf("without je: no rework rate may be claimed: %+v", byKey["ohne-je"])
 	}
 }
+
+// The trend: the same span again, directly before — and the course over the
+// period.
+//
+// The previous period has to be measured against ITS OWN cost. Dividing the old
+// count by today's cost would report a change in price that never happened.
+func TestIndicatorsCarryTrendAndSeries(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+
+	agent, err := s.registry.Create(ctx, s.orgID, "trend", "Trend", "mock", &s.adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.registry.SaveConfig(ctx, agent.ID, map[string]string{
+		"KPIS.md": "- kennzahl: tickets titel: Tickets zaehlt: aktion zammad:reply_external je: ticket_id",
+	}, &s.adminID); err != nil {
+		t.Fatal(err)
+	}
+	task, err := s.backlog.Create(ctx, s.orgID, agent.ID, "Arbeit", "", "webhook", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Four tickets now …
+	for i := 1; i <= 4; i++ {
+		aktion(t, s, agent.ID, task.ID, "zammad:reply_external", map[string]any{"ticket_id": i}, true)
+	}
+	// … and two in the previous period, backdated past the window boundary.
+	// ?days=1 means: the last 24 hours against the 24 before them.
+	for i := 5; i <= 6; i++ {
+		aktion(t, s, agent.ID, task.ID, "zammad:reply_external", map[string]any{"ticket_id": i}, true)
+	}
+	if _, err := s.pool.Exec(ctx, `UPDATE recording_events SET created_at = now() - interval '30 hours'
+		WHERE agent_id=$1 AND payload->'params'->>'ticket_id' IN ('5','6')`, agent.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	rep := indicatorReport(t, admin, "/api/v1/agents/"+agent.ID.String()+"/cost/indicators?days=1")
+	if len(rep.Indicators) != 1 {
+		t.Fatalf("expected the one indicator: %+v", rep.Indicators)
+	}
+	ind := rep.Indicators[0]
+	if ind.Count != 4 {
+		t.Errorf("the current period holds four tickets: %d", ind.Count)
+	}
+	if ind.PrevCount != 2 {
+		t.Errorf("the previous period holds two: %d", ind.PrevCount)
+	}
+	// The course covers the current period only, and its buckets add up to what
+	// happened in it — with one bucket carrying everything, since the test
+	// writes it all at once.
+	if len(ind.Series) == 0 {
+		t.Fatalf("the sparkline needs points: %+v", ind)
+	}
+	var summe int64
+	for _, v := range ind.Series {
+		summe += v
+	}
+	if summe != 4 {
+		t.Errorf("the course must not contain the previous period: %v (sum %d)", ind.Series, summe)
+	}
+}

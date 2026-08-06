@@ -224,6 +224,18 @@ type IndicatorResult struct {
 	Indicator
 	Count   int64    `json:"count"`
 	UnitUSD *float64 `json:"unit_usd,omitempty"`
+	// PrevCount and PrevUnitUSD are the same figures for the equally long
+	// period directly before — the trend. Deliberately the raw values rather
+	// than a computed percentage: the direction is not the same kind of news
+	// for both. A falling unit cost is an improvement; twice the tickets can be
+	// twice the delivery or twice the incoming mail, and only the reader knows
+	// which. So the display colours the price and leaves the count neutral.
+	PrevCount   int64    `json:"prev_count"`
+	PrevUnitUSD *float64 `json:"prev_unit_usd,omitempty"`
+	// Series is the course over the period in fixed buckets (sparkline). With
+	// `je:` the buckets do not add up to Count — the same object in two buckets
+	// counts in both.
+	Series []int64 `json:"series,omitempty"`
 	// Returned are the objects among Count that a SECOND run had to touch
 	// again — the rework rate, and the figure that keeps the price honest: a
 	// ticket resolved today and reopened on Thursday was not resolved, and it
@@ -477,19 +489,28 @@ func (s *Store) CostByTasks(ctx context.Context, taskIDs []uuid.UUID) (map[uuid.
 // ticket it was. The action parameters do know, they are the same identity the
 // indicator counts on, and the signal is exactly the intended one: one case,
 // two runs.
-func (s *Store) CountIndicator(ctx context.Context, ind Indicator, agentIDs []uuid.UUID, since time.Time) (int64, int64, error) {
+// The third return value is the count of the SAME LENGTH of time directly
+// before `since` — the comparison a trend needs. It travels in the same query
+// (a FILTER over a doubled window) rather than in a second one: two queries
+// would read the same index twice for one number.
+func (s *Store) CountIndicator(ctx context.Context, ind Indicator, agentIDs []uuid.UUID, since time.Time) (int64, int64, int64, error) {
 	if len(agentIDs) == 0 {
-		return 0, 0, nil
+		return 0, 0, 0, nil
 	}
-	var n, returned int64
+	// The previous period: the same span again, directly before.
+	vor := since.Add(-time.Since(since))
+	var n, returned, prev int64
 	if ind.Action == "" {
 		// The task form: a backlog task that reached `done`. updated_at is the
 		// moment of the last transition, which for a terminal task is when it
 		// got there.
-		err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM backlog_tasks
-			WHERE agent_id = ANY($1) AND state = 'done' AND updated_at >= $2
-			  AND ($3 = '' OR origin = $3)`, agentIDs, since, ind.Origin).Scan(&n)
-		return n, 0, err
+		err := s.pool.QueryRow(ctx, `SELECT
+			COUNT(*) FILTER (WHERE updated_at >= $2),
+			COUNT(*) FILTER (WHERE updated_at < $2)
+			FROM backlog_tasks
+			WHERE agent_id = ANY($1) AND state = 'done' AND updated_at >= $4
+			  AND ($3 = '' OR origin = $3)`, agentIDs, since, ind.Origin, vor).Scan(&n, &prev)
+		return n, 0, prev, err
 	}
 
 	// A wildcard cannot use the index as a range scan (the collation decides
@@ -499,22 +520,106 @@ func (s *Store) CountIndicator(ctx context.Context, ind Indicator, agentIDs []uu
 	if strings.HasSuffix(ind.Action, ":*") {
 		match, arg = "payload->>'action' LIKE $3", strings.TrimSuffix(ind.Action, "*")+"%"
 	}
+	// The window spans BOTH periods; the FILTERs split them apart.
 	where := `FROM recording_events
-		WHERE agent_id = ANY($1) AND kind = 'action' AND created_at >= $2
+		WHERE agent_id = ANY($1) AND kind = 'action' AND created_at >= $4
 		  AND ` + match + ` AND payload->>'ok' = 'true'`
 
 	if ind.Per == "" {
-		err := s.pool.QueryRow(ctx, `SELECT COUNT(*) `+where, agentIDs, since, arg).Scan(&n)
-		return n, 0, err
+		err := s.pool.QueryRow(ctx, `SELECT
+			COUNT(*) FILTER (WHERE created_at >= $2),
+			COUNT(*) FILTER (WHERE created_at < $2) `+where,
+			agentIDs, since, arg, vor).Scan(&n, &prev)
+		return n, 0, prev, err
 	}
+	// With `je:` both periods count objects, and an object that appears in both
+	// counts in both — that is intended: it was worked on in both periods.
 	obj := "payload->'params'->>'" + sanitizeParam(ind.Per) + "'"
 	err := s.pool.QueryRow(ctx, `
-		SELECT COUNT(*), COUNT(*) FILTER (WHERE laeufe > 1) FROM (
-			SELECT COUNT(DISTINCT task_id) AS laeufe
+		SELECT
+			COUNT(*) FILTER (WHERE jetzt > 0),
+			COUNT(*) FILTER (WHERE laeufe > 1 AND jetzt > 0),
+			COUNT(*) FILTER (WHERE vorher > 0)
+		FROM (
+			SELECT COUNT(DISTINCT task_id) FILTER (WHERE created_at >= $2) AS laeufe,
+			       COUNT(*) FILTER (WHERE created_at >= $2) AS jetzt,
+			       COUNT(*) FILTER (WHERE created_at < $2) AS vorher
 			`+where+` AND `+obj+` IS NOT NULL
 			GROUP BY `+obj+`
-		) x`, agentIDs, since, arg).Scan(&n, &returned)
-	return n, returned, err
+		) x`, agentIDs, since, arg, vor).Scan(&n, &returned, &prev)
+	return n, returned, prev, err
+}
+
+// IndicatorSeries is the course of an indicator over the period, in a fixed
+// number of buckets — the sparkline next to the figure.
+//
+// Fixed buckets rather than days or hours, because the sparkline has a fixed
+// width: a 24-hour window and a 90-day one have to produce the same number of
+// points, or the same amount of pixels would mean something different per
+// period. width_bucket does the division in the database; gaps become zeros
+// here, since a period without work is a real value and not a missing one.
+//
+// The bucket values are NOT summable to the total when `je:` is set — the same
+// ticket in two buckets counts in both. That is right for a course ("how much
+// was going on then") and wrong for a total, which is why the total comes from
+// CountIndicator and not from this.
+func (s *Store) IndicatorSeries(ctx context.Context, ind Indicator, agentIDs []uuid.UUID, since time.Time, buckets int) ([]int64, error) {
+	if len(agentIDs) == 0 || buckets <= 0 {
+		return nil, nil
+	}
+	out := make([]int64, buckets)
+	von, bis := float64(since.Unix()), float64(time.Now().Unix())
+	if bis <= von {
+		return out, nil
+	}
+
+	var query string
+	var args []any
+	if ind.Action == "" {
+		query = `SELECT width_bucket(EXTRACT(EPOCH FROM updated_at), $4, $5, $6), COUNT(*)
+			FROM backlog_tasks
+			WHERE agent_id = ANY($1) AND state = 'done' AND updated_at >= $2
+			  AND ($3 = '' OR origin = $3)
+			GROUP BY 1`
+		args = []any{agentIDs, since, ind.Origin, von, bis, buckets}
+	} else {
+		match, arg := "payload->>'action' = $3", ind.Action
+		if strings.HasSuffix(ind.Action, ":*") {
+			match, arg = "payload->>'action' LIKE $3", strings.TrimSuffix(ind.Action, "*")+"%"
+		}
+		zaehl := "COUNT(*)"
+		if ind.Per != "" {
+			zaehl = "COUNT(DISTINCT payload->'params'->>'" + sanitizeParam(ind.Per) + "')"
+		}
+		query = `SELECT width_bucket(EXTRACT(EPOCH FROM created_at), $4, $5, $6), ` + zaehl + `
+			FROM recording_events
+			WHERE agent_id = ANY($1) AND kind = 'action' AND created_at >= $2
+			  AND ` + match + ` AND payload->>'ok' = 'true'
+			GROUP BY 1`
+		args = []any{agentIDs, since, arg, von, bis, buckets}
+	}
+
+	rows, err := s.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var b int
+		var n int64
+		if err := rows.Scan(&b, &n); err != nil {
+			return nil, err
+		}
+		// width_bucket answers 0 below and buckets+1 above the range; the last
+		// bucket takes the overflow, which is the events of the current second.
+		if b > buckets {
+			b = buckets
+		}
+		if b >= 1 {
+			out[b-1] += n
+		}
+	}
+	return out, rows.Err()
 }
 
 // sanitizeParam keeps the `je:` parameter name out of the SQL string. It cannot
@@ -541,6 +646,20 @@ func (s *Store) CostOfAgents(ctx context.Context, agentIDs []uuid.UUID, since ti
 	var usd float64
 	err := s.pool.QueryRow(ctx, `SELECT COALESCE(SUM(usd),0) FROM cost_entries
 		WHERE agent_id = ANY($1) AND created_at >= $2`, agentIDs, since).Scan(&usd)
+	return usd, err
+}
+
+// CostOfAgentsBetween is the same for a closed window — the denominator of the
+// previous period. Without it a trend in unit cost would divide the old count
+// by today's cost and report a change that never happened.
+func (s *Store) CostOfAgentsBetween(ctx context.Context, agentIDs []uuid.UUID, since, until time.Time) (float64, error) {
+	if len(agentIDs) == 0 {
+		return 0, nil
+	}
+	var usd float64
+	err := s.pool.QueryRow(ctx, `SELECT COALESCE(SUM(usd),0) FROM cost_entries
+		WHERE agent_id = ANY($1) AND created_at >= $2 AND created_at < $3`,
+		agentIDs, since, until).Scan(&usd)
 	return usd, err
 }
 

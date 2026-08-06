@@ -2,6 +2,58 @@ import { useTranslation } from "react-i18next";
 import { type IndicatorReport } from "../api";
 import { fmtDelta, fmtUSD } from "../format";
 
+/** Sparkline: der Verlauf als kleine Fläche, ohne Achsen und ohne Zahlen.
+ *
+ *  Sie beantwortet eine Frage, die die Gesamtzahl verschweigt: ob 25 Reviews
+ *  gleichmäßig über vier Wochen entstanden oder an einem einzigen Nachmittag.
+ *  Bewusst ohne Beschriftung — wer den genauen Verlauf braucht, geht auf die
+ *  Kostenseite; hier zählt die Form. */
+function Spark({ data, width = 54, height = 14 }: { data?: number[]; width?: number; height?: number }) {
+  if (!data || data.length < 2) return null;
+  const max = Math.max(...data);
+  if (max <= 0) return null;
+  const dx = width / (data.length - 1);
+  const y = (v: number) => height - 1 - (v / max) * (height - 2);
+  const punkte = data.map((v, i) => `${(i * dx).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  return (
+    <svg width={width} height={height} style={{ verticalAlign: "middle", overflow: "visible" }} aria-hidden="true">
+      <polyline
+        points={`0,${height} ${punkte} ${width},${height}`}
+        fill="var(--text-accent)"
+        opacity={0.16}
+        stroke="none"
+      />
+      <polyline points={punkte} fill="none" stroke="var(--text-accent)" strokeWidth={1.25} strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/** Die Veränderung gegenüber dem gleich langen Zeitraum davor.
+ *
+ *  `gutWennKleiner` färbt ein — und nur dort, wo die Richtung eindeutig ist.
+ *  Beim Stückpreis ist sie das (billiger ist besser), bei der Anzahl nicht:
+ *  doppelt so viele Tickets können doppelte Leistung oder doppelter
+ *  Posteingang sein, und das entscheidet nicht die Oberfläche.
+ *
+ *  Ohne Vorwert (die Kennzahl ist neu, oder der Preis lag unter der
+ *  Mindestmenge) gibt es keinen Trend — und keine 100 %, die nur bedeuten
+ *  würde, dass vorher nichts da war. */
+function Delta({ now, prev, gutWennKleiner = false }: { now?: number; prev?: number; gutWennKleiner?: boolean }) {
+  if (now === undefined || prev === undefined || prev <= 0) return null;
+  const pct = Math.round(((now - prev) / prev) * 100);
+  if (pct === 0) return null;
+  const farbe = !gutWennKleiner
+    ? "var(--text-muted)"
+    : pct < 0
+      ? "var(--text-success)"
+      : "var(--text-warning)";
+  return (
+    <span style={{ color: farbe, fontWeight: 400, fontSize: 11, whiteSpace: "nowrap" }}>
+      {pct > 0 ? "▲" : "▼"} {Math.abs(pct)} %
+    </span>
+  );
+}
+
 /** Die Preisliste: was die Belegschaft geliefert hat, und was eine Einheit
  *  davon gekostet hat.
  *
@@ -37,15 +89,19 @@ export function PriceList({ rep, compact = false }: { rep?: IndicatorReport; com
         <div key={r.key} style={{ marginBottom: 10 }}>
           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 3, gap: 8 }}>
             <span className="truncate" style={{ maxWidth: "50%" }} title={r.action || r.key}>{r.title}</span>
-            <span style={{ display: "flex", gap: 10, whiteSpace: "nowrap" }}>
+            <span style={{ display: "flex", gap: 10, whiteSpace: "nowrap", alignItems: "center" }}>
               <span style={{ fontWeight: 600 }}>{r.count}</span>
+              <Delta now={r.count} prev={r.prev_count} />
               {/* Drei Fälle, und sie bedeuten Verschiedenes: ein Preis; zu
                   wenige Ereignisse für einen belastbaren Preis; oder gar keine
                   Ereignisse. „Zu wenige" bei null zu schreiben behauptete, es
                   gäbe welche — und verdeckte genau den Fall, den der Lint auf
                   der Agentenseite meldet. */}
               {r.unit_usd !== undefined ? (
-                <span className="muted">{t("costs.indicators.perUnit", { price: fmtUSD(r.unit_usd) })}</span>
+                <>
+                  <span className="muted">{t("costs.indicators.perUnit", { price: fmtUSD(r.unit_usd) })}</span>
+                  <Delta now={r.unit_usd} prev={r.prev_unit_usd} gutWennKleiner />
+                </>
               ) : r.count === 0 ? (
                 <span style={{ color: "var(--text-warning)" }} title={t("costs.indicators.countsNothingHint")}>
                   {t("costs.indicators.countsNothing")}
@@ -55,8 +111,14 @@ export function PriceList({ rep, compact = false }: { rep?: IndicatorReport; com
               )}
             </span>
           </div>
-          <div style={{ height: 8, background: "var(--surface-1)", borderRadius: 4, overflow: "hidden" }}>
-            <div style={{ width: `${(r.count / max) * 100}%`, height: "100%", background: "var(--text-accent)", borderRadius: 4 }} />
+          {/* Balken und Kurve nebeneinander, weil sie Verschiedenes sagen: der
+              Balken vergleicht die Kennzahlen untereinander, die Kurve zeigt
+              den Verlauf dieser einen über den Zeitraum. */}
+          <div className="flex items-center" style={{ gap: 8 }}>
+            <div style={{ flex: 1, height: 8, background: "var(--surface-1)", borderRadius: 4, overflow: "hidden" }}>
+              <div style={{ width: `${(r.count / max) * 100}%`, height: "100%", background: "var(--text-accent)", borderRadius: 4 }} />
+            </div>
+            <Spark data={r.series} width={48} height={12} />
           </div>
           {/* Die Nacharbeitsquote steht in derselben Zeile wie ihre Kennzahl:
               ein Preis, dessen Qualitätszahl woanders liegt, wird allein
@@ -118,10 +180,15 @@ function PriceStrip({ rep, rows }: { rep: IndicatorReport; rows: NonNullable<Ind
       {rows.map((r) => (
         <div key={r.key} style={{ minWidth: 96 }}>
           <div className="muted text-xs truncate" style={{ maxWidth: 190 }} title={r.action || r.key}>{r.title}</div>
-          <div className="font-medium">
+          <div className="font-medium flex items-center" style={{ gap: 6 }}>
             {r.count}
+            <Delta now={r.count} prev={r.prev_count} />
+            <Spark data={r.series} width={42} />
             {r.unit_usd !== undefined ? (
-              <span className="muted" style={{ fontWeight: 400 }}> · {t("costs.indicators.perUnit", { price: fmtUSD(r.unit_usd) })}</span>
+              <>
+                <span className="muted" style={{ fontWeight: 400 }}>{t("costs.indicators.perUnit", { price: fmtUSD(r.unit_usd) })}</span>
+                <Delta now={r.unit_usd} prev={r.prev_unit_usd} gutWennKleiner />
+              </>
             ) : r.count === 0 ? (
               <span style={{ color: "var(--text-warning)", fontWeight: 400 }} title={t("costs.indicators.countsNothingHint")}>
                 {" · "}{t("costs.indicators.countsNothing")}

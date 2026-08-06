@@ -245,6 +245,17 @@ export type IndicatorResult = {
    *  Nacharbeitsquote. Nur mit `je:` messbar; ohne Objekt-Identität bleibt sie
    *  0 und wird ausgeblendet, statt eine nie gemessene Qualität zu behaupten. */
   returned?: number;
+  /** Dieselben Zahlen für den gleich langen Zeitraum davor — der Trend.
+   *  Bewusst die Rohwerte statt einer fertigen Prozentzahl: die Richtung ist
+   *  nicht für beide dieselbe Nachricht. Ein sinkender Stückpreis ist eine
+   *  Verbesserung; doppelt so viele Tickets können doppelte Leistung oder
+   *  doppelter Posteingang sein. */
+  prev_count: number;
+  prev_unit_usd?: number;
+  /** Der Verlauf über den Zeitraum in festen Abschnitten (Sparkline). Mit
+   *  `je:` summieren sich die Abschnitte NICHT zur Gesamtzahl — dasselbe
+   *  Objekt in zwei Abschnitten zählt in beiden. */
+  series?: number[];
 };
 
 /** Die Zahlen, die den Preis qualifizieren. Ein Preis sagt, was ein Ergebnis

@@ -20,6 +20,12 @@ import (
 // in the observability store — the store counts, the config defines, and the
 // two only meet here.
 
+// sparkBuckets is the number of points a course is drawn with. Fixed rather
+// than derived from the period, because the sparkline has a fixed width: 24
+// hours and 90 days have to yield the same number of points, or the same pixels
+// would mean something different depending on the filter.
+const sparkBuckets = 14
+
 // IndicatorReport is the price list for one scope (the whole org or one agent).
 type IndicatorReport struct {
 	Indicators []observability.IndicatorResult `json:"indicators"`
@@ -112,9 +118,12 @@ func (s *Server) indicatorReport(r *http.Request, agentIDs []uuid.UUID, since ti
 	}
 	sort.Strings(keys)
 
+	// The previous period, for the trend: the same span again, directly before.
+	vor := since.Add(-time.Since(since))
+
 	for _, key := range keys {
 		ids := carriers[key]
-		count, returned, err := s.Obs.CountIndicator(ctx, defs[key], ids, since)
+		count, returned, prevCount, err := s.Obs.CountIndicator(ctx, defs[key], ids, since)
 		if err != nil {
 			return rep, err
 		}
@@ -122,9 +131,22 @@ func (s *Server) indicatorReport(r *http.Request, agentIDs []uuid.UUID, since ti
 		if err != nil {
 			return rep, err
 		}
+		// The denominator of the previous period is that period's cost, not
+		// today's — otherwise the "trend" would only ever show the change in
+		// the count, dressed up as a price.
+		prevUSD, err := s.Obs.CostOfAgentsBetween(ctx, ids, vor, since)
+		if err != nil {
+			return rep, err
+		}
+		series, err := s.Obs.IndicatorSeries(ctx, defs[key], ids, since, sparkBuckets)
+		if err != nil {
+			return rep, err
+		}
 		rep.Indicators = append(rep.Indicators, observability.IndicatorResult{
-			Indicator: defs[key], Count: count, Returned: returned,
-			UnitUSD: observability.UnitCost(usd, count),
+			Indicator: defs[key], Count: count, Returned: returned, PrevCount: prevCount,
+			UnitUSD:     observability.UnitCost(usd, count),
+			PrevUnitUSD: observability.UnitCost(prevUSD, prevCount),
+			Series:      series,
 		})
 	}
 	sort.SliceStable(rep.Indicators, func(i, j int) bool {
