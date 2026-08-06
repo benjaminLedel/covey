@@ -351,6 +351,22 @@
     "empty": "Keine Kostendaten im gewählten Zeitraum.",
     "ofWhichCached": "davon Cache",
     "cachedShare": "{{pct}} % aus dem Prompt-Cache",
+    "indicators": {
+      "title": "Was dabei herauskam",
+      "hint": "Die Kennzahlen aus KPIS.md der Agenten, und was eine Einheit davon gekostet hat.",
+      "perUnit": "{{price}} / Stück",
+      "tooFew": "zu wenige",
+      "tooFewHint": "Zu wenige Ereignisse für einen belastbaren Stückpreis — die Rohzahl steht daneben.",
+      "failed": "Läufe ohne Ergebnis",
+      "returned": "{{pct}} % zurückgekommen",
+      "returnedHint": "Anteil der Vorgänge, die ein zweiter Lauf noch einmal anfassen musste. Ein Ticket, das wieder aufmacht, war nicht gelöst — zählt in der Preisliste aber als Leistung.",
+      "denied": "Abgelehnt an den Gates",
+      "deniedHint": "Anteil der Approval-Gates, die ein Mensch abgelehnt hat, mit der Zahl der Entscheidungen. Die einzige Zahl hier, die kein Näherungswert ist: jemand hat hingesehen und nein gesagt.",
+      "response": "Reaktionszeit (Median)",
+      "responseHint": "Vom eingehenden Ereignis bis zur ersten Aktion des Laufs. Median, nicht Mittelwert — ein einzelner Hänger darf das Bild nicht färben.",
+      "notSummable": "Jede Zeile rechnet die vollen Kosten gegen ihre eigene Anzahl — die Preise nicht addieren.",
+      "none": "Keine Kennzahlen definiert. Lege sie in der KPIS.md des Agenten an."
+    },
     "mix": {
       "title": "Kostenarten",
       "hint": "Das Gewicht liegt auf der gecachten Eingabeseite, nicht auf dem, was die Agenten schreiben — der Prompt wird in jedem Turn neu gelesen.",
@@ -965,6 +981,11 @@
     },
     "lint": {
       "title": "Konfiguration: {{count}} Befund(e)"
+    },
+    "performance": {
+      "title": "Was dabei herauskam",
+      "window": "letzte 30 Tage",
+      "hint": "Die Kennzahlen dieses Mitarbeiters aus seiner KPIS.md, und was eine Einheit davon gekostet hat."
     }
   },
   "approvals": {

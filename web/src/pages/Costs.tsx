@@ -7,11 +7,13 @@ import {
   totalInput,
   type Agent,
   type CostBucket,
+  type IndicatorReport,
   type OrgCostReport,
   type RunCost,
   type Tokens,
 } from "../api";
 import { fmtUSD } from "../format";
+import { PriceList } from "../components/PriceList";
 
 // --- Formatierung -----------------------------------------------------------
 
@@ -405,6 +407,18 @@ export default function Costs() {
     refetchInterval: 30000,
   });
 
+  // Die Preisliste hängt am selben Scope und Zeitraum wie alles andere auf
+  // dieser Seite — Leistung ist kein zweites Thema neben den Kosten, sondern
+  // die andere Hälfte desselben.
+  const indicators = useQuery({
+    queryKey: ["cost", "indicators", scope, days],
+    queryFn: () =>
+      api<IndicatorReport>(
+        scope === "org" ? `/cost/indicators?days=${days}` : `/agents/${scope}/cost/indicators?days=${days}`,
+      ),
+    refetchInterval: 30000,
+  });
+
   const setRange = (v: number) => {
     setDays(v);
     const r = RANGES.find((x) => x.v === v);
@@ -522,8 +536,13 @@ export default function Costs() {
         <CostChart data={series} metric={metric} bucket={bucket} locale={locale} />
       </div>
 
-      {/* Kostenarten + teuerste Läufe: gelten für jedes Scope */}
+      {/* Preisliste + Kostenarten + teuerste Läufe: gelten für jedes Scope */}
       <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" }}>
+        <div className="card">
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>{t("costs.indicators.title")}</div>
+          <p className="muted text-xs mb-3">{t("costs.indicators.hint")}</p>
+          <PriceList rep={indicators.data} />
+        </div>
         <div className="card">
           <div style={{ fontWeight: 600, marginBottom: 4 }}>{t("costs.mix.title")}</div>
           <p className="muted text-xs mb-3">{t("costs.mix.hint")}</p>

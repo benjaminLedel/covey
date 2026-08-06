@@ -435,6 +435,12 @@ func (r *Registry) SaveConfig(ctx context.Context, agentID uuid.UUID, files map[
 	if err != nil {
 		return ConfigVersion{}, fmt.Errorf("HEARTBEAT.md: %w", err)
 	}
+	// The indicators are not stored here — they are read from the config when
+	// the evaluation runs. Parsing them is a validation: a rule with a typo
+	// would count nothing, and nothing looks exactly like a lazy agent.
+	if _, err := ParseKPIs(files["KPIS.md"]); err != nil {
+		return ConfigVersion{}, fmt.Errorf("KPIS.md: %w", err)
+	}
 
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {

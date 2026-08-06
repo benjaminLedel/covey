@@ -224,6 +224,52 @@ export type OrgCostReport = Tokens & {
   models: ModelCost[] | null;
 };
 
+/** Eine Zeile der Preisliste (spec/17-kpis.md): wie oft die Kennzahl im
+ *  Zeitraum zählte und was eine Einheit davon gekostet hat.
+ *
+ *  unit_usd fehlt unter einer Mindestmenge — ein Stückpreis aus drei
+ *  Ereignissen ist Rauschen und stünde als Zahl gleichberechtigt neben einem
+ *  aus dreihundert. Die Spalte darf man NICHT aufsummieren: jede Zeile teilt
+ *  die vollen Kosten durch die Anzahl ihrer eigenen Kennzahl. */
+export type IndicatorResult = {
+  key: string;
+  title: string;
+  action?: string;
+  origin?: string;
+  per?: string;
+  goal?: number;
+  period?: string;
+  count: number;
+  unit_usd?: number;
+  /** Objekte, die ein ZWEITER Lauf nochmal anfassen musste — die
+   *  Nacharbeitsquote. Nur mit `je:` messbar; ohne Objekt-Identität bleibt sie
+   *  0 und wird ausgeblendet, statt eine nie gemessene Qualität zu behaupten. */
+  returned?: number;
+};
+
+/** Die Zahlen, die den Preis qualifizieren. Ein Preis sagt, was ein Ergebnis
+ *  gekostet hat, nicht ob es taugte. */
+export type Quality = {
+  /** Von Menschen entschiedene Approval-Gates und davon abgelehnte — die
+   *  einzige Zahl hier, die kein Proxy ist. */
+  decided: number;
+  denied: number;
+  /** Median der Zeit vom eingehenden Ereignis bis zur ersten Aktion des Laufs.
+   *  Median, nicht Mittelwert: ein einzelner Hänger darf das Bild nicht
+   *  färben. */
+  response_seconds?: number;
+};
+
+export type IndicatorReport = {
+  indicators: IndicatorResult[] | null;
+  /** Läufe, die ohne Ergebnis endeten — die Gegenzahl, ohne die die
+   *  Preisliste Drückebergerei belohnt. */
+  failed: number;
+  /** Der Nenner hinter jedem Preis, damit die Zahlen prüfbar sind. */
+  total_usd: number;
+  quality: Quality;
+};
+
 /** Ein Befund des Config-Lints (internal/agents/lint.go). Warnungen mit
  *  Kontext, keine harten Fehler: eine 2-Minuten-Frequenz ist für ein Postfach
  *  in Ordnung und für einen Repo-Klon ruinös. */

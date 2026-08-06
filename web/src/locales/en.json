@@ -351,6 +351,22 @@
     "empty": "No cost data in the selected period.",
     "ofWhichCached": "of it cached",
     "cachedShare": "{{pct}}% out of the prompt cache",
+    "indicators": {
+      "title": "What came of it",
+      "hint": "The indicators from the agents' KPIS.md, and what a unit of each cost.",
+      "perUnit": "{{price}} / unit",
+      "tooFew": "too few",
+      "tooFewHint": "Too few events for a meaningful unit price — the raw count stands next to it.",
+      "failed": "Runs without a result",
+      "returned": "{{pct}} % came back",
+      "returnedHint": "Share of cases a second run had to take up again. A ticket that reopens was not resolved — and counts as delivery in the price list all the same.",
+      "denied": "Denied at the gates",
+      "deniedHint": "Share of approval gates a human refused, with the number of decisions. The only figure here that is not an approximation: somebody looked and said no.",
+      "response": "Response time (median)",
+      "responseHint": "From the incoming event to the run's first action. Median, not mean — a single stalled run must not colour the picture.",
+      "notSummable": "Each line divides the full cost by its own count — do not add the prices up.",
+      "none": "No indicators defined. Set them up in the agent's KPIS.md."
+    },
     "mix": {
       "title": "Cost types",
       "hint": "The weight sits on the cached input side, not on what the agents write — the prompt is read afresh on every turn.",
@@ -965,6 +981,11 @@
     },
     "lint": {
       "title": "Configuration: {{count}} finding(s)"
+    },
+    "performance": {
+      "title": "What came of it",
+      "window": "last 30 days",
+      "hint": "This employee's indicators from its KPIS.md, and what a unit of each cost."
     }
   },
   "approvals": {

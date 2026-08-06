@@ -255,6 +255,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/cost/org", s.rbac(anyRole, s.handleOrgCost))
 	mux.Handle("GET /api/v1/cost/runs", s.rbac(anyRole, s.handleOrgRunCosts))
 	mux.Handle("GET /api/v1/agents/{id}/cost/runs", s.agentScoped(anyRole, s.handleAgentRunCosts))
+	// The price list: delivery next to the cost, same scope, same period
+	// (spec/17-kpis.md).
+	mux.Handle("GET /api/v1/cost/indicators", s.rbac(anyRole, s.handleOrgIndicators))
+	mux.Handle("GET /api/v1/agents/{id}/cost/indicators", s.agentScoped(anyRole, s.handleAgentIndicators))
 	mux.Handle("GET /api/v1/agents/{id}/memories", s.agentScoped(anyRole, s.handleMemories))
 	mux.Handle("POST /api/v1/agents/{id}/memories", s.agentScoped(manage, s.handleCreateMemory))
 	mux.Handle("GET /api/v1/agents/{id}/wiki/log", s.agentScoped(anyRole, s.handleWikiLog))

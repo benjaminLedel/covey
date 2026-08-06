@@ -82,6 +82,9 @@ func LintSubjects(ctx context.Context, pool *pgxpool.Pool, orgID uuid.UUID, skil
 		if out[i].TurnLimitFailures, err = turnLimitFailures(ctx, pool, out[i].AgentID); err != nil {
 			return nil, err
 		}
+		if out[i].ActionCounts, err = actionCounts(ctx, pool, out[i].AgentID); err != nil {
+			return nil, err
+		}
 		if skills != nil {
 			if out[i].Skills, err = skills(ctx, out[i].OrgID, out[i].AgentID); err != nil {
 				return nil, err
@@ -138,6 +141,39 @@ func agentStages(ctx context.Context, pool *pgxpool.Pool, agentID uuid.UUID) ([]
 // reports "2 aborts" where there are 22 — and a lint that undercounts is worse
 // than none, because the finding stays below its own threshold and never
 // appears.
+// actionCounts reads which target-system actions the agent actually executed
+// recently — the basis for the rule about indicators that count nothing.
+//
+// Thirty days: long enough that an agent running once a week still appears,
+// short enough that an action abolished half a year ago does not keep a dead
+// rule alive. Only successful actions, for the same reason the indicators only
+// count those — an action that always fails has no business propping up a rule.
+//
+// One query per agent instead of one per indicator: the rule matches in
+// memory, including the `system:*` form, which no index could serve as a range
+// anyway.
+func actionCounts(ctx context.Context, pool *pgxpool.Pool, agentID uuid.UUID) (map[string]int, error) {
+	rows, err := pool.Query(ctx, `SELECT payload->>'action', COUNT(*)
+		FROM recording_events
+		WHERE agent_id=$1 AND kind='action' AND created_at > now() - interval '30 days'
+		  AND payload->>'ok' = 'true' AND payload->>'action' IS NOT NULL
+		GROUP BY 1`, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var name string
+		var n int
+		if err := rows.Scan(&name, &n); err != nil {
+			return nil, err
+		}
+		out[name] = n
+	}
+	return out, rows.Err()
+}
+
 func turnLimitFailures(ctx context.Context, pool *pgxpool.Pool, agentID uuid.UUID) (int, error) {
 	var n int
 	err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM backlog_tasks
