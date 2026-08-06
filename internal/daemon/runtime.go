@@ -12,11 +12,62 @@ import (
 // config says otherwise: read/write/search files, shell, fetch and search web
 // pages, structure tasks. The hard boundary stays outside the runtime (broker,
 // egress, guard-rails) — this list is the soft inner boundary from spec/12.
+//
+// The list is at the same time the LOADING scope of the run: it is passed to
+// Claude Code both as --allowedTools (permission) and as --tools (which
+// built-in tools exist at all). That distinction is the whole point —
+// --allowedTools leaves every built-in tool's schema in the context and only
+// gates its use, --tools keeps it out. Measured on an idle run: the runtime's
+// full built-in set costs 20.811 prompt tokens, this list 11.045. The prefix is
+// read afresh on EVERY turn, so a run of 70 turns saves some 680.000 cache-read
+// tokens by it.
+//
+// Deliberately WITHOUT "Skill": the tool pulls the descriptions of all built-in
+// skills into the prompt (+2.454 tokens, measured) and an agent needs them only
+// if skills have been materialized for it. buildArgs adds the entry for exactly
+// that run (RunSpec.Skills).
 var DefaultAllowedTools = []string{
 	"Bash", "BashOutput", "KillShell",
 	"Read", "Write", "Edit", "Glob", "Grep", "NotebookEdit",
 	"WebFetch", "WebSearch",
 	"Task", "TodoWrite",
+}
+
+// skillTool is the runtime's built-in tool through which materialized skills
+// (skillslocal.go) become reachable. Without it in --tools Claude Code loads no
+// skill at all — including the agent's own ones.
+const skillTool = "Skill"
+
+// mcpToolPrefix marks the tools of an MCP server (the action proxy). They are
+// not part of the built-in set and must therefore NOT land in --tools — the
+// flag knows only built-in names, an MCP entry there would be silently dropped
+// while the tool disappears from the permission list.
+const mcpToolPrefix = "mcp__"
+
+// BuiltinTools filters a tool scope down to the built-in names --tools accepts.
+// With skills the Skill tool joins them, otherwise it deliberately stays out
+// (see DefaultAllowedTools). The result is nil if the scope contains no
+// built-in name — the caller then leaves the flag off rather than passing an
+// empty list, which Claude Code reads as "no tools at all".
+func BuiltinTools(scope []string, withSkills bool) []string {
+	out := make([]string, 0, len(scope)+1)
+	hasSkill := false
+	for _, t := range scope {
+		if strings.HasPrefix(t, mcpToolPrefix) {
+			continue
+		}
+		if t == skillTool {
+			hasSkill = true
+		}
+		out = append(out, t)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	if withSkills && !hasSkill {
+		out = append(out, skillTool)
+	}
+	return out
 }
 
 // RunSpec is everything a runtime adapter needs for one run.
@@ -28,7 +79,12 @@ type RunSpec struct {
 	MemoryContext   string
 	Model           string // desired LLM; empty = the runtime's default
 	AllowedTools    []string
-	MaxTurns        int
+	// Skills says whether skills were materialized into the home for this run
+	// (skillslocal.go). Only then does the Skill tool belong in the loading
+	// scope — otherwise it costs prompt tokens for skills the agent does not
+	// have.
+	Skills   bool
+	MaxTurns int
 	MaxBudgetUSD    float64
 	ResumeSessionID string
 	ResumeInput     string

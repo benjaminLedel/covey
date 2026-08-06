@@ -54,10 +54,20 @@ func TestFormatIndexForPrompt(t *testing.T) {
 		{Slug: "kunde-acme", Title: "Kunde ACME"},
 		{Slug: "projekt-x", Title: "Projekt X"},
 	})
-	for _, want := range []string{"Your wiki (index)", "- [[kunde-acme]] — Kunde ACME", "- [[projekt-x]] — Projekt X"} {
+	// Slugs only, one line: the index is paid for on every turn, and the slug
+	// carries the title (it is derived from it) as well as being what wiki_read
+	// needs. What must not fall away is the coverage — every page belongs in it.
+	for _, want := range []string{"Your wiki (index)", "[[kunde-acme]]", "[[projekt-x]]"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("index does not contain %q: %q", want, got)
 		}
+	}
+	if strings.Contains(got, "Kunde ACME") {
+		t.Fatalf("titles are redundant next to the slug and cost tokens per turn: %q", got)
+	}
+	lines := strings.Split(strings.TrimSpace(got), "\n")
+	if last := lines[len(lines)-1]; last != "[[kunde-acme]] [[projekt-x]]" {
+		t.Fatalf("the page list belongs on ONE line, got %q", last)
 	}
 }
 

@@ -394,9 +394,13 @@ type SystemDoc struct {
 // Activation is opt-in (fail-closed) on both sides: neither a built-in without
 // a row with enabled=TRUE nor a system without a line in ACCESS.md shows up.
 func (s *Store) DocsForAgent(ctx context.Context, orgID, agentID uuid.UUID) ([]SystemDoc, error) {
-	granted, err := s.agentSystemSet(ctx, agentID)
+	grantedScopes, err := s.agentScopeSet(ctx, agentID)
 	if err != nil {
 		return nil, err
+	}
+	granted := make(map[string]bool, len(grantedScopes))
+	for name := range grantedScopes {
+		granted[name] = true
 	}
 	rows, err := s.pool.Query(ctx,
 		`SELECT name, kind, enabled, manifest FROM target_plugins WHERE org_id=$1`, orgID)
@@ -438,10 +442,11 @@ func (s *Store) DocsForAgent(ctx context.Context, orgID, agentID uuid.UUID) ([]S
 	if rows.Err() != nil {
 		return nil, rows.Err()
 	}
-	// Built-ins only with explicit activation (opt-in, fail-closed).
+	// Built-ins only with explicit activation (opt-in, fail-closed) — and only
+	// with the part of their doc the agent's scopes cover (scopedDoc).
 	for _, d := range target.All() {
 		if enabledBuiltin[d.Name] && granted[d.Name] && d.System != nil {
-			docs = append(docs, SystemDoc{System: d.Name, Doc: d.System.PromptDoc()})
+			docs = append(docs, SystemDoc{System: d.Name, Doc: scopedDoc(d.System, grantedScopes[d.Name])})
 		}
 	}
 	return docs, nil
@@ -461,25 +466,38 @@ func (s *Store) EnabledDocsForAgent(ctx context.Context, orgID, agentID uuid.UUI
 	return out, nil
 }
 
-// agentSystemSet is the set of target systems the agent has a line for in
-// ACCESS.md — the same table the credential broker asks (agents.HasAccess).
-// Read here rather than through the agent registry so the target store does not
-// have to depend on it for one query.
-func (s *Store) agentSystemSet(ctx context.Context, agentID uuid.UUID) (map[string]bool, error) {
-	rows, err := s.pool.Query(ctx, `SELECT system FROM system_accesses WHERE agent_id=$1`, agentID)
+// agentScopeSet is the set of target systems the agent has a line for in
+// ACCESS.md, each with its scopes — the same table the credential broker asks
+// (agents.HasAccess). Read here rather than through the agent registry so the
+// target store does not have to depend on it for one query. The scopes narrow
+// the prompt doc of systems that support it (target.ScopedDocSystem).
+func (s *Store) agentScopeSet(ctx context.Context, agentID uuid.UUID) (map[string][]string, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT system, scopes FROM system_accesses WHERE agent_id=$1`, agentID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	set := map[string]bool{}
+	set := map[string][]string{}
 	for rows.Next() {
 		var name string
-		if err := rows.Scan(&name); err != nil {
+		var scopes []string
+		if err := rows.Scan(&name, &scopes); err != nil {
 			return nil, err
 		}
-		set[strings.TrimSpace(name)] = true
+		set[strings.TrimSpace(name)] = scopes
 	}
 	return set, rows.Err()
+}
+
+// scopedDoc is a built-in's prompt doc, narrowed to the granted scopes where
+// the plugin supports it. Fail-open on both sides: a system without
+// ScopedDocSystem and an agent without recorded scopes both get the full doc.
+func scopedDoc(sys target.System, scopes []string) string {
+	if sc, ok := sys.(target.ScopedDocSystem); ok && len(scopes) > 0 {
+		return sc.PromptDocForScopes(scopes)
+	}
+	return sys.PromptDoc()
 }
 
 // AgentTools returns the tools assigned to an agent for a system. An empty

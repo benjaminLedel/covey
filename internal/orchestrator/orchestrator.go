@@ -77,7 +77,11 @@ type Options struct {
 	// a human at the "clean up" button. 0 → default.
 	BoardRetention time.Duration
 	ReadyTimeout   time.Duration
-	Log            *slog.Logger
+	// RuntimeTools is the runs' built-in tool scope (COVEY_RUNTIME_TOOLS).
+	// Empty → daemon.DefaultAllowedTools. The list decides not only what a run
+	// may use but what exists for it at all — see daemon.DefaultAllowedTools.
+	RuntimeTools []string
+	Log          *slog.Logger
 }
 
 type Orchestrator struct {
@@ -116,6 +120,9 @@ func New(opts Options) *Orchestrator {
 	if opts.BoardRetention == 0 {
 		opts.BoardRetention = 24 * time.Hour
 	}
+	if len(opts.RuntimeTools) == 0 {
+		opts.RuntimeTools = daemon.DefaultAllowedTools
+	}
 	if opts.Log == nil {
 		opts.Log = slog.Default()
 	}
@@ -131,6 +138,12 @@ func New(opts Options) *Orchestrator {
 // warmIdleTTL: after this much idle time a parked warm sandbox is torn down
 // after all, so it does not hold resources indefinitely.
 const warmIdleTTL = 30 * time.Minute
+
+// wikiIndexLimit caps the wiki index in the triage context. It is a backstop,
+// not a budget: the index carries slugs only, so even a large wiki stays cheap
+// (50 pages ≈ 540 tokens), and cutting it earlier would buy tokens with
+// duplicates — the agent writes a second time what it does not see there.
+const wikiIndexLimit = 150
 
 // warmSession is a sandbox plus daemon link kept open between waking phases.
 // While idle, a goroutine drains the daemon's heartbeats (otherwise the WS
@@ -1217,7 +1230,12 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	if entries, err := o.Memory.Query(ctx, agent.ID, task.Title+" "+task.Body, 5); err == nil {
 		memCtx = memory.FormatForPrompt(entries)
 	}
-	if idx, err := o.Memory.List(ctx, agent.ID, 40); err == nil {
+	// The index deliberately reaches further than the 40 pages it used to: it
+	// only carries slugs now (FormatIndexForPrompt), so full coverage costs less
+	// than the truncated list with titles did — and coverage is the point, a
+	// page the agent does not see there it writes a second time. The cap stays
+	// as a backstop against a wiki that has run away.
+	if idx, err := o.Memory.List(ctx, agent.ID, wikiIndexLimit); err == nil {
 		if section := memory.FormatIndexForPrompt(idx); section != "" {
 			if memCtx != "" {
 				memCtx += "\n"
@@ -1290,7 +1308,7 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 		SystemPrompt: compiled,
 		Runtime:      agent.Runtime,
 		Model:        agent.Model,
-		AllowedTools: daemon.DefaultAllowedTools,
+		AllowedTools: o.RuntimeTools,
 		MaxTurns:     maxTurns,
 		ActionTools:  actionTools,
 	}); err != nil {

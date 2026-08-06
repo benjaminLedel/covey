@@ -46,6 +46,22 @@ type System interface {
 	PromptDoc() string
 }
 
+// ScopedDocSystem is an optional plugin interface for target systems whose
+// prompt doc can be narrowed to the scopes granted in ACCESS.md. It pays off
+// where a system carries procedures for several roles: GitLab describes both
+// the developer and the QA/reviewer loop, and an agent without the merge scope
+// dragged the reviewer part through every turn without ever being able to act
+// on it — the doc stands in the context of EVERY turn, so what is unusable
+// there is not paid for once but on every one.
+//
+// Systems without this interface keep delivering their full PromptDoc; the
+// store falls back to it (fail-open). A plugin that implements it has to answer
+// the full doc for an empty scope list for the same reason — a missing entry
+// must never silently take a capability away from an agent.
+type ScopedDocSystem interface {
+	PromptDocForScopes(scopes []string) string
+}
+
 // Webhooker is an optional plugin interface for target systems with an
 // incoming webhook (Zammad, manifest plugins). The event router
 // (httpapi.handleTargetWebhook) checks for it; a system without Webhooker

@@ -178,6 +178,19 @@ func (c *ClaudeCode) buildArgs(spec RunSpec) ([]string, string) {
 	if len(allowed) > 0 {
 		args = append(args, "--allowedTools", strings.Join(allowed, ","))
 	}
+	// --tools next to --allowedTools, and the two are not the same thing:
+	// --allowedTools decides what the run MAY use, --tools what EXISTS at all.
+	// Only the latter keeps a tool's schema out of the prompt — and the prompt
+	// is read afresh on every turn, so it is the schemas, not the calls, that
+	// carry the cost. Without this flag a run drags the runtime's whole built-in
+	// set along (Cron*, Workflow, ScheduleWakeup, RemoteTrigger, Task*, … — none
+	// of which a Covey agent ever touches).
+	//
+	// MCP tools stay out of it: --tools knows only built-in names, and the
+	// action proxy reaches the run through --allowedTools.
+	if builtin := BuiltinTools(spec.AllowedTools, spec.Skills); len(builtin) > 0 {
+		args = append(args, "--tools", strings.Join(builtin, ","))
+	}
 	if spec.MaxTurns > 0 {
 		args = append(args, "--max-turns", strconv.Itoa(spec.MaxTurns))
 	}
