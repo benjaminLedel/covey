@@ -6,16 +6,60 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"covey/internal/target"
 )
+
+// serveNotes answers a notes request the way GitLab does: sort=desc delivers
+// the NEWEST first, per_page/page cut one window out of it, and the pagination
+// headers state the size of the whole. Without per_page GitLab falls back to 20
+// — precisely the default that used to leave agents with the twenty OLDEST
+// comments of a ticket.
+//
+// The fake servers used to hand out the whole array and thereby hid exactly the
+// behaviour that matters here.
+func serveNotes(w http.ResponseWriter, r *http.Request, notes []Note) {
+	q := r.URL.Query()
+	all := append([]Note(nil), notes...) // as the test wrote them: chronological
+	if q.Get("sort") == "desc" {
+		for i, j := 0, len(all)-1; i < j; i, j = i+1, j-1 {
+			all[i], all[j] = all[j], all[i]
+		}
+	}
+	perPage, _ := strconv.Atoi(q.Get("per_page"))
+	if perPage <= 0 {
+		perPage = 20
+	}
+	page, _ := strconv.Atoi(q.Get("page"))
+	if page <= 0 {
+		page = 1
+	}
+	pages := (len(all) + perPage - 1) / perPage
+	von := (page - 1) * perPage
+	if von > len(all) {
+		von = len(all)
+	}
+	bis := von + perPage
+	if bis > len(all) {
+		bis = len(all)
+	}
+	w.Header().Set("X-Total", strconv.Itoa(len(all)))
+	w.Header().Set("X-Total-Pages", strconv.Itoa(pages))
+	if page < pages {
+		w.Header().Set("X-Next-Page", strconv.Itoa(page+1))
+	}
+	json.NewEncoder(w).Encode(all[von:bis])
+}
 
 // TestProjectInScope checks the intake filter (COVEY_GITLAB_INTAKE_PROJECTS),
 // which without a webhook only bounds the discovery actions
@@ -53,7 +97,7 @@ func TestClientActions(t *testing.T) {
 		case r.URL.Path == "/api/v4/projects/15/issues/23" && r.Method == http.MethodGet:
 			json.NewEncoder(w).Encode(Issue{IID: 23, ProjectID: 15, Title: "Login kaputt", State: "opened"})
 		case r.URL.Path == "/api/v4/projects/15/issues/23/notes" && r.Method == http.MethodGet:
-			json.NewEncoder(w).Encode([]Note{{ID: 1, Body: "Hilfe"}})
+			serveNotes(w, r, []Note{{ID: 1, Body: "Hilfe"}})
 		case r.URL.Path == "/api/v4/projects/15/issues/23/notes" && r.Method == http.MethodPost:
 			json.NewEncoder(w).Encode(Note{ID: 2})
 		default:
@@ -74,9 +118,9 @@ func TestClientActions(t *testing.T) {
 		t.Fatalf("PRIVATE-TOKEN header wrong: %q", gotAuth)
 	}
 
-	notes, err := c.ListNotes(ctx, 15, 23)
-	if err != nil || len(notes) != 1 {
-		t.Fatalf("ListNotes: %v %+v", err, notes)
+	p, err := c.ListNotes(ctx, 15, 23, 0, 0)
+	if err != nil || len(p.Notes) != 1 {
+		t.Fatalf("ListNotes: %v %+v", err, p)
 	}
 
 	if _, err := c.Comment(ctx, 15, 23, "Bitte Screenshot schicken", false); err != nil {
@@ -390,7 +434,7 @@ func TestHasWork(t *testing.T) {
 		case r.URL.Path == "/api/v4/user":
 			json.NewEncoder(w).Encode(User{ID: 1, Username: "covey-bot"})
 		case strings.HasSuffix(r.URL.Path, "/notes"):
-			json.NewEncoder(w).Encode(mrNotes)
+			serveNotes(w, r, mrNotes)
 		default:
 			t.Errorf("unexpected request: %s?%s", r.URL.Path, r.URL.RawQuery)
 		}
@@ -487,7 +531,7 @@ func TestHasWorkKind(t *testing.T) {
 		case r.URL.Path == "/api/v4/user":
 			json.NewEncoder(w).Encode(User{ID: 1, Username: "covey-bot"})
 		case strings.HasSuffix(r.URL.Path, "/notes"):
-			json.NewEncoder(w).Encode(mrNotes)
+			serveNotes(w, r, mrNotes)
 		default:
 			t.Errorf("unexpected request: %s", r.URL.Path)
 		}
@@ -1173,7 +1217,7 @@ func TestCommentDedup(t *testing.T) {
 		case r.URL.Path == "/api/v4/user":
 			json.NewEncoder(w).Encode(User{ID: 7, Username: "covey-dev"})
 		case r.URL.Path == "/api/v4/projects/15/issues/23/notes" && r.Method == http.MethodGet:
-			json.NewEncoder(w).Encode([]Note{
+			serveNotes(w, r, []Note{
 				{ID: 1, Body: "Fremd-Kommentar", Author: struct {
 					Username string `json:"username"`
 				}{Username: "mensch"}, CreatedAt: "2026-07-01T10:00:00Z"},
@@ -1226,7 +1270,7 @@ func TestMRReviewActions(t *testing.T) {
 		case r.URL.Path == "/api/v4/user" && r.Method == http.MethodGet:
 			json.NewEncoder(w).Encode(User{ID: 7, Username: "covey-dev"})
 		case r.URL.Path == "/api/v4/projects/15/merge_requests/9/notes" && r.Method == http.MethodGet:
-			json.NewEncoder(w).Encode([]Note{{ID: 120, Body: "Bitte noch einen Test ergänzen"}})
+			serveNotes(w, r, []Note{{ID: 120, Body: "Bitte noch einen Test ergänzen"}})
 		case r.URL.Path == "/api/v4/projects/15/merge_requests/9/notes" && r.Method == http.MethodPost:
 			json.NewDecoder(r.Body).Decode(&commentBody)
 			json.NewEncoder(w).Encode(Note{ID: 121, Body: "Erledigt"})
@@ -1258,8 +1302,8 @@ func TestMRReviewActions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list_mr_notes: %v", err)
 	}
-	if notes := res.([]Note); len(notes) != 1 || notes[0].ID != 120 {
-		t.Fatalf("the mr notes are wrong: %+v", notes)
+	if out := res.(map[string]any); len(out["notes"].([]Note)) != 1 || out["notes"].([]Note)[0].ID != 120 {
+		t.Fatalf("the mr notes are wrong: %+v", out)
 	}
 
 	if _, err = sys.Execute(ctx, "comment_mr", []byte(`{"project_id":15,"mr_iid":9,"body":"Erledigt"}`), cred); err != nil {
@@ -1568,7 +1612,7 @@ func TestHasWorkKindIssuesAssigned(t *testing.T) {
 		case r.URL.Path == "/api/v4/user":
 			json.NewEncoder(w).Encode(User{ID: 1, Username: "covey-bot"})
 		case strings.HasSuffix(r.URL.Path, "/notes"):
-			json.NewEncoder(w).Encode(notes)
+			serveNotes(w, r, notes)
 		default:
 			t.Errorf("unexpected request: %s", r.URL.Path)
 		}
@@ -1645,7 +1689,7 @@ func TestHasWorkKindReview(t *testing.T) {
 			}
 			json.NewEncoder(w).Encode(reviewMRs)
 		case strings.HasSuffix(r.URL.Path, "/notes"):
-			json.NewEncoder(w).Encode(mrNotes)
+			serveNotes(w, r, mrNotes)
 		default:
 			t.Errorf("unexpected request: %s", r.URL.Path)
 		}
@@ -1822,7 +1866,7 @@ func TestWorkSignature(t *testing.T) {
 		case r.URL.Path == "/api/v4/user":
 			json.NewEncoder(w).Encode(User{ID: 1, Username: "covey-bot"})
 		case strings.HasSuffix(r.URL.Path, "/notes"):
-			json.NewEncoder(w).Encode(mrNotes)
+			serveNotes(w, r, mrNotes)
 		default:
 			t.Errorf("unexpected request: %s", r.URL.Path)
 		}
@@ -1899,7 +1943,7 @@ func TestExecuteRestlicheAktionen(t *testing.T) {
 		rufe = append(rufe, ruf{r.Method, r.URL.Path, gotBody})
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/notes") && r.Method == http.MethodGet:
-			json.NewEncoder(w).Encode([]Note{{ID: 1, Body: "first Notiz"}})
+			serveNotes(w, r, []Note{{ID: 1, Body: "first Notiz"}})
 		case strings.HasSuffix(r.URL.Path, "/notes"):
 			json.NewEncoder(w).Encode(Note{ID: 2, Body: "angelegt"})
 		default:
@@ -1932,8 +1976,14 @@ func TestExecuteRestlicheAktionen(t *testing.T) {
 	if gotPath != "/api/v4/projects/7/issues/42/notes" {
 		t.Errorf("list_notes calls %s", gotPath)
 	}
-	if notes, ok := res.([]Note); !ok || len(notes) != 1 {
+	out, ok := res.(map[string]any)
+	if !ok || len(out["notes"].([]Note)) != 1 {
 		t.Errorf("list_notes returns %#v", res)
+	}
+	// A short thread is complete — then no truncation marker may be attached to
+	// it either, otherwise the agent goes leafing through pages that do not exist.
+	if out["truncated"] != nil || out["window"] != "complete thread, 1 comment" {
+		t.Errorf("a complete thread is described wrongly: %+v", out)
 	}
 
 	// escalate does TWO things: first an internal comment, then dropping the
@@ -2276,5 +2326,288 @@ func TestMergeMRNeedsIDs(t *testing.T) {
 		if _, err := sys.Execute(context.Background(), "merge_mr", []byte(params), cred); err == nil {
 			t.Fatalf("merge_mr must refuse %s", params)
 		}
+	}
+}
+
+// autorNote builds a comment by a specific user — the Author field is an
+// anonymous struct, and writing it out inline three times makes every test that
+// works with threads unreadable.
+func autorNote(id int, user, body, wann string) Note {
+	n := Note{ID: id, Body: body, CreatedAt: wann}
+	n.Author.Username = user
+	return n
+}
+
+// langerThread builds a ticket the way it looks in operation when an agent
+// writes a daily report into it: chronological, oldest first.
+func langerThread(n int) []Note {
+	notes := make([]Note, 0, n)
+	for i := 1; i <= n; i++ {
+		notes = append(notes, autorNote(i, "delivery-lead",
+			fmt.Sprintf("Tagesbericht %d", i),
+			fmt.Sprintf("2026-01-%02dT08:00:00Z", (i%28)+1)))
+	}
+	return notes
+}
+
+// TestNotesFenster pins down the behaviour that was reported from operation:
+// list_notes used to deliver the twenty OLDEST comments of a ticket and did not
+// mention the truncation. Today the window sits at the new end, and the answer
+// says how it relates to the whole.
+func TestNotesFenster(t *testing.T) {
+	notes := langerThread(130)
+	var sawQuery string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/notes"):
+			sawQuery = r.URL.RawQuery
+			serveNotes(w, r, notes)
+		default:
+			t.Errorf("unexpected request: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "t"}
+	ctx := context.Background()
+
+	res, err := sys.Execute(ctx, "list_notes", []byte(`{"project_id":7,"issue_iid":42}`), cred)
+	if err != nil {
+		t.Fatalf("list_notes: %v", err)
+	}
+	out := res.(map[string]any)
+	got := out["notes"].([]Note)
+	if len(got) != notesWindowDefault {
+		t.Fatalf("without a limit the window is %d comments, expected %d", len(got), notesWindowDefault)
+	}
+	// The NEWEST, and chronological within the window — 111…130, not 1…20.
+	if got[0].ID != 111 || got[len(got)-1].ID != 130 {
+		t.Errorf("the window is at the wrong end: %d…%d", got[0].ID, got[len(got)-1].ID)
+	}
+	if out["total"] != 130 || out["has_more"] != true || out["truncated"] != true {
+		t.Errorf("the truncation is not stated: %+v", out)
+	}
+	if out["window"] != "newest 20 comments of 130" {
+		t.Errorf("window = %q", out["window"])
+	}
+	if hint, _ := out["hint"].(string); !strings.Contains(hint, `"page":2`) {
+		t.Errorf("the answer does not say how to page back: %q", hint)
+	}
+	if !strings.Contains(sawQuery, "per_page=20") || !strings.Contains(sawQuery, "sort=desc") {
+		t.Errorf("the query does not fetch a window at the new end: %s", sawQuery)
+	}
+
+	// page=2 goes one window further into the past — without overlap.
+	res, err = sys.Execute(ctx, "list_notes", []byte(`{"project_id":7,"issue_iid":42,"page":2}`), cred)
+	if err != nil {
+		t.Fatalf("list_notes page=2: %v", err)
+	}
+	out = res.(map[string]any)
+	got = out["notes"].([]Note)
+	if len(got) != 20 || got[0].ID != 91 || got[len(got)-1].ID != 110 {
+		t.Errorf("page 2 is wrong: %d comments %d…%d", len(got), got[0].ID, got[len(got)-1].ID)
+	}
+	if out["window"] != "20 comments (older, 21–40 counted from the newest) of 130" {
+		t.Errorf("window page 2 = %q", out["window"])
+	}
+
+	// limit enlarges the window, but only up to GitLab's maximum.
+	res, err = sys.Execute(ctx, "list_notes", []byte(`{"project_id":7,"issue_iid":42,"limit":500}`), cred)
+	if err != nil {
+		t.Fatalf("list_notes limit=500: %v", err)
+	}
+	if got = res.(map[string]any)["notes"].([]Note); len(got) != notesWindowMax {
+		t.Errorf("limit=500 delivers %d comments, expected the cap of %d", len(got), notesWindowMax)
+	}
+
+	// Mandatory parameters: list_notes used to be the only listing action that
+	// did not check them.
+	for name, params := range map[string]string{
+		"without issue_iid":  `{"project_id":7}`,
+		"without project_id": `{"issue_iid":42}`,
+	} {
+		if _, err := sys.Execute(ctx, "list_notes", []byte(params), cred); err == nil {
+			t.Errorf("list_notes %s must fail", name)
+		}
+	}
+}
+
+// TestNotesFensterOhneHeader: not every instance (or proxy in front of it)
+// delivers the pagination headers. Then the answer may not claim a total, but
+// must still not describe a full page as a complete thread.
+func TestNotesFensterOhneHeader(t *testing.T) {
+	notes := langerThread(130)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Deliberately without X-Total/X-Total-Pages/X-Next-Page.
+		perPage, _ := strconv.Atoi(r.URL.Query().Get("per_page"))
+		umgedreht := append([]Note(nil), notes...)
+		for i, j := 0, len(umgedreht)-1; i < j; i, j = i+1, j-1 {
+			umgedreht[i], umgedreht[j] = umgedreht[j], umgedreht[i]
+		}
+		json.NewEncoder(w).Encode(umgedreht[:perPage])
+	}))
+	defer srv.Close()
+
+	res, err := System{}.Execute(context.Background(), "list_notes",
+		[]byte(`{"project_id":7,"issue_iid":42}`), target.Credential{BaseURL: srv.URL, Token: "t"})
+	if err != nil {
+		t.Fatalf("list_notes: %v", err)
+	}
+	out := res.(map[string]any)
+	if _, da := out["total"]; da {
+		t.Errorf("without X-Total no total may be claimed: %+v", out)
+	}
+	if out["has_more"] != true || out["truncated"] != true {
+		t.Errorf("a full page must count as truncated: %+v", out)
+	}
+	if out["window"] != "newest 20 comments" {
+		t.Errorf("window = %q", out["window"])
+	}
+}
+
+// TestNotesBodyKappung: on threads carrying daily reports the LENGTH per entry
+// is the cost driver, not the number. An over-long comment is cut, says so, and
+// stays reachable in full through get_note.
+func TestNotesBodyKappung(t *testing.T) {
+	lang := strings.Repeat("ä", notesBodyMax) // multi-byte: the cut must not tear a rune apart
+	notes := []Note{
+		autorNote(1, "delivery-lead", "kurz", "2026-08-01T08:00:00Z"),
+		autorNote(2, "delivery-lead", lang, "2026-08-02T08:00:00Z"),
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/notes/2"):
+			json.NewEncoder(w).Encode(notes[1])
+		case strings.HasSuffix(r.URL.Path, "/notes"):
+			serveNotes(w, r, notes)
+		default:
+			t.Errorf("unexpected request: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "t"}
+	ctx := context.Background()
+
+	res, err := sys.Execute(ctx, "list_notes", []byte(`{"project_id":7,"issue_iid":42}`), cred)
+	if err != nil {
+		t.Fatalf("list_notes: %v", err)
+	}
+	got := res.(map[string]any)["notes"].([]Note)
+	if got[0].BodyTruncated || got[0].Body != "kurz" {
+		t.Errorf("a short comment must stay untouched: %+v", got[0])
+	}
+	if !got[1].BodyTruncated || got[1].BodyChars != len(lang) {
+		t.Errorf("the long comment is not marked: truncated=%v chars=%d", got[1].BodyTruncated, got[1].BodyChars)
+	}
+	if len(got[1].Body) > notesBodyMax+64 {
+		t.Errorf("the cut is ineffective: %d bytes", len(got[1].Body))
+	}
+	if !utf8.ValidString(got[1].Body) {
+		t.Error("the cut tore a multi-byte character apart")
+	}
+
+	// get_note fetches the full text back.
+	res, err = sys.Execute(ctx, "get_note", []byte(`{"project_id":7,"issue_iid":42,"note_id":2}`), cred)
+	if err != nil {
+		t.Fatalf("get_note: %v", err)
+	}
+	if n := res.(Note); n.Body != lang {
+		t.Errorf("get_note does not deliver the full text: %d instead of %d bytes", len(n.Body), len(lang))
+	}
+	if _, err := sys.Execute(ctx, "get_note", []byte(`{"project_id":7,"note_id":2}`), cred); err == nil {
+		t.Error("get_note without issue_iid/mr_iid must fail")
+	}
+}
+
+// TestWeckungLangerThread is the regression for the second, less visible half
+// of the bug: threadSig formed the signature from the highest note id of the
+// notes fetched. As long as those were always the same twenty OLDEST, the
+// signature stopped changing — and a long thread stopped waking its agent.
+func TestWeckungLangerThread(t *testing.T) {
+	notes := langerThread(130)
+	// The last word is a human's, so there is something waiting.
+	notes = append(notes, autorNote(131, "mensch", "Und was ist mit Punkt 3?", "2026-02-01T09:00:00Z"))
+	issue := Issue{IID: 42, ProjectID: 7}
+	issue.References.Full = "gruppe/support#42"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v4/issues":
+			json.NewEncoder(w).Encode([]Issue{issue})
+		case r.URL.Path == "/api/v4/user":
+			json.NewEncoder(w).Encode(User{ID: 1, Username: "delivery-lead"})
+		case strings.HasSuffix(r.URL.Path, "/notes"):
+			serveNotes(w, r, notes)
+		default:
+			t.Errorf("unexpected request: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	cred := target.Credential{BaseURL: srv.URL, Token: "t"}
+	ctx := context.Background()
+
+	has, sig, err := System{}.HasWorkSigned(ctx, cred, "issues")
+	if err != nil || !has {
+		t.Fatalf("the open question must wake: has=%v err=%v", has, err)
+	}
+
+	// A new comment arrives — the signature must change, otherwise the control
+	// plane takes the wake-up as already served.
+	notes = append(notes, autorNote(132, "mensch", "Ping?", "2026-02-02T09:00:00Z"))
+	has2, sig2, err := System{}.HasWorkSigned(ctx, cred, "issues")
+	if err != nil || !has2 {
+		t.Fatalf("the follow-up must wake too: has=%v err=%v", has2, err)
+	}
+	if sig == sig2 {
+		t.Errorf("the signature does not change on a new comment: %q", sig)
+	}
+}
+
+// TestDuplikatSchutzLangerThread: the loop protection compares against one's own
+// LAST comment. Fetched from the wrong end of a long thread it never found it —
+// and the agent wrote the same text into the ticket in every run.
+func TestDuplikatSchutzLangerThread(t *testing.T) {
+	notes := langerThread(130)
+	notes = append(notes, autorNote(131, "delivery-lead", "Tagesbericht 131", "2026-02-01T08:00:00Z"))
+	var posts int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/v4/user":
+			json.NewEncoder(w).Encode(User{ID: 1, Username: "delivery-lead"})
+		case strings.HasSuffix(r.URL.Path, "/notes") && r.Method == http.MethodPost:
+			posts++
+			json.NewEncoder(w).Encode(Note{ID: 999})
+		case strings.HasSuffix(r.URL.Path, "/notes"):
+			serveNotes(w, r, notes)
+		default:
+			t.Errorf("unexpected request: %s", r.URL.Path)
+		}
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "t"}
+	ctx := context.Background()
+
+	res, err := sys.Execute(ctx, "comment", []byte(`{"project_id":7,"issue_iid":42,"body":"Tagesbericht 131"}`), cred)
+	if err != nil {
+		t.Fatalf("comment: %v", err)
+	}
+	if out, ok := res.(map[string]any); !ok || out["skipped"] != "duplicate" {
+		t.Errorf("the repetition of one's own last comment must be suppressed: %#v", res)
+	}
+	if posts != 0 {
+		t.Errorf("despite the duplicate %d comments were posted", posts)
+	}
+
+	// Something new goes through, of course.
+	if _, err := sys.Execute(ctx, "comment", []byte(`{"project_id":7,"issue_iid":42,"body":"Tagesbericht 132"}`), cred); err != nil {
+		t.Fatalf("comment (new): %v", err)
+	}
+	if posts != 1 {
+		t.Errorf("a new comment must be posted: posts=%d", posts)
 	}
 }
