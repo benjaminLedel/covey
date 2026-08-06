@@ -56,9 +56,10 @@ A KPI has a stable key, a title, a counting rule and — optionally — a target
 `KPIS.md`, in the line style of `HEARTBEAT.md` (German keys, because a parser reads them and the other config files do it the same way):
 
 ```
-- kennzahl: geloeste-tickets  titel: Gelöste Tickets       zählt: aktion zammad:reply_external  ziel: 20 pro woche
-- kennzahl: code-reviews      titel: Code-Reviews          zählt: aktion gitlab:comment_mr
+- kennzahl: geloeste-tickets  titel: Gelöste Tickets       zählt: aktion zammad:reply_external  je: ticket_id  ziel: 20 pro woche
+- kennzahl: code-reviews      titel: Code-Reviews          zählt: aktion gitlab:comment_mr      je: mr_iid
 - kennzahl: bugs-erfasst      titel: Bug-Reports erfasst   zählt: aktion gitlab:create_issue
+- kennzahl: abgegeben         titel: An Menschen abgegeben zählt: aktion zammad:escalate        je: ticket_id
 - kennzahl: laeufe-erledigt   titel: Erledigte Aufgaben    zählt: aufgabe erledigt
 ```
 
@@ -68,7 +69,21 @@ Deliberately few rule forms, because every additional one is a query shape that 
 - `aktion <system>:*` — any action of a system, for a coarse "did it touch GitLab at all".
 - `aufgabe erledigt` — a backlog task that reached `done`, optionally narrowed by `herkunft:` (origin).
 
+### `je:` counts objects, not events
+
+The most important qualifier, and the one that decides whether the figures mean anything. **"Tickets resolved" is a count of tickets, not of replies.** An agent that answers five times in the same ticket produced five `reply_external` events and resolved one ticket; counted raw, its unit cost drops to a fifth and it looks excellent for having been chatty.
+
+`je: <param>` therefore turns the `COUNT(*)` into a `COUNT(DISTINCT params->>'<param>')` over the period. The parameters are in the event payload, so this needs no new instrumentation — but it does mean a rule without `je:` should be the exception, chosen deliberately (as with `bugs-erfasst` above, where every event really is a new object).
+
 **`kennzahl:` is the comparison anchor.** Two agents that both define `geloeste-tickets` are counted into the same column org-wide, even though each defines it in its own config. That gives per-agent freedom (a support agent has no code reviews; a QA agent has no tickets) without an org-wide catalogue having to exist first. A catalogue of templates can sit on top later — it does not need to come first.
+
+### A rule that counts nothing has to say so
+
+If a plugin renames an action, the rule keeps parsing and silently counts zero — and zero reads like a lazy agent, not like a configuration error. The platform already has the place for this: the **config lint** above the tab bar on the agent page (`GET /agents/{id}/lint`), the same one that reports frequent turn-limit aborts. Its `Subject` takes runtime figures alongside the config (`TurnLimitFailures`); a per-indicator match count fits the same way.
+
+The rule: an indicator that matched **nothing** while the agent did run is a `warn` finding naming the action it waits for. Deliberately not a parse error — a fresh agent has no matches yet, and a lint that nags at correct configs is a lint nobody reads.
+
+Validating the action name against a catalogue instead would be better, but only works halfway today: manifest plugins carry their actions (`Actions map[string]ManifestAction`), the built-in ones (GitLab, Zammad, GitHub) expose only `ActionSubject` and `PromptDoc`. Giving `target.System` an `Actions() []string` is the clean fix and can come later — the empirical hint carries the case that actually hurts.
 
 ### `KPIS.md` is not compiled into the prompt
 
@@ -84,7 +99,13 @@ This is what the whole thing is for. Three derived figures, in the order of how 
 Tickets resolved      142      3.20 $ / unit
 Code reviews           38      1.05 $ / unit
 Bug reports filed      12      0.90 $ / unit
+Handed to a human      19      —
+Runs failed             7      —
 ```
+
+The **count carries as much as the price** and is shown next to it, never replaced by it: 3.20 $ per ticket says nothing about whether the agent handled five tickets or five hundred, and a unit cost computed over three events is noise ranked as if it were a measurement. Below a minimum count the price is therefore left out and only the raw figure stands.
+
+The last two lines are the counter-figures, and without them the price list rewards shirking: an agent that hands every hard case to a human has excellent unit costs on the easy remainder. **Handing over is itself an action** — Zammad, GitLab and GitHub each have an `escalate` action, so it is counted by exactly the same mechanism and needs no special path. It is only *displayed* differently: beside the delivery, without a price, because it is not a service being bought. Tasks that ended in `failed`/`cancelled` sit next to it for the same reason.
 
 This is the figure a managing director understands, and the only one that can be held against a human hourly rate. Reading the workforce as a **price list** also sidesteps the question of which indicator "counts": nothing is added up across kinds, a support agent and a QA agent simply carry different lines.
 
@@ -113,6 +134,8 @@ Performance is not a second subject next to cost, it is the other half of the sa
 | *By agent* bars, sorted by USD | unit cost as the second figure on the bar: "which agent is expensive" becomes "which agent is expensive **per result**" |
 | *Costliest runs* with its `actions` column and `idle` marker | the run's KPI hits replace the raw action count — same table, sharper column |
 
+The price list carries the counter-figures (handed over, failed) in the same block, so nobody has to look for them somewhere else to read the prices correctly.
+
 The same on the data side: the indicators travel in the existing `OrgCostReport`, not through an endpoint of their own. One request, one filter bar, one period — the two sets of numbers cannot drift apart, and the period selector does not have to be built twice.
 
 Exactly **one** place outside it: the **employee profile**, where the cost bar already sits. That is the HR view of the individual agent — a *Performance* block next to it, not a new menu entry. The org dashboard gets no aggregation of its own; it links to the cost page.
@@ -121,9 +144,16 @@ Exactly **one** place outside it: the **employee profile**, where the cost bar a
 
 **Aggregate live, do not materialise counters.** A KPI defined today then shows its history immediately, and a rule that turns out to be wrong can be corrected without a data migration and without a gap in the series. A counter table would fix today's definition into the past and would have to be backfilled on every change — the exact opposite of config as code.
 
-That puts the load on `recording_events`. The existing indexes (`agent_id, id` and `task_id, id`) do not carry an aggregation over kind, action and period; the KPI report needs one on `(agent_id, kind, created_at)` plus access to `payload->>'action'` — practical as a generated column with its own index, so the action name does not have to be extracted from JSONB per row.
+That puts the load on `recording_events`. The existing indexes (`agent_id, id` and `task_id, id`) do not carry an aggregation over kind, action and period; the report needs one on `(agent_id, kind, created_at)` plus access to `payload->>'action'`. **As an expression index, not a generated column** — `ADD COLUMN … GENERATED` rewrites the table and locks it while it does, which on a running instance is a maintenance window; `CREATE INDEX CONCURRENTLY … ((payload->>'action'))` gets there without one. On a table that only ever grows, that difference decides whether the migration is deployable at all.
 
 If the scans do become expensive at some point, the answer is a **daily roll-up** as a cache in front of the live query — not instead of it. The live path stays the definition of truth.
+
+Two invariants this rests on, worth writing down because both are quiet today and would be expensive to discover later:
+
+- **Every cost entry hangs off a task.** `cost_entries.task_id` is nullable, but there is exactly one caller of `AddCost` (`orchestrator.go`) and it always passes one. If costs without a task ever get booked — a maintenance action, a system run — they silently leave the denominator and every unit cost drops. That is a thing to notice at the moment it is introduced, not afterwards from a suspiciously good price.
+- **`recording_events` has no retention.** The whole approach depends on it. If one is ever introduced, the roll-up has to exist *first*, or the history of every indicator disappears with the events.
+
+Who may see the figures is decided deliberately, not inherited: performance data per agent is more sensitive than a cost total, and "whoever may see costs may see this" is an answer, but it should be a chosen one.
 
 ## Limits, stated plainly
 
