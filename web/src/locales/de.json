@@ -351,6 +351,16 @@
     "empty": "Keine Kostendaten im gewählten Zeitraum.",
     "ofWhichCached": "davon Cache",
     "cachedShare": "{{pct}} % aus dem Prompt-Cache",
+    "indicators": {
+      "title": "Was dabei herauskam",
+      "hint": "Die Kennzahlen aus KPIS.md der Agenten, und was eine Einheit davon gekostet hat.",
+      "perUnit": "{{price}} / Stück",
+      "tooFew": "zu wenige",
+      "tooFewHint": "Zu wenige Ereignisse für einen belastbaren Stückpreis — die Rohzahl steht daneben.",
+      "failed": "Läufe ohne Ergebnis",
+      "notSummable": "Jede Zeile rechnet die vollen Kosten gegen ihre eigene Anzahl — die Preise nicht addieren.",
+      "none": "Keine Kennzahlen definiert. Lege sie in der KPIS.md des Agenten an."
+    },
     "mix": {
       "title": "Kostenarten",
       "hint": "Das Gewicht liegt auf der gecachten Eingabeseite, nicht auf dem, was die Agenten schreiben — der Prompt wird in jedem Turn neu gelesen.",
