@@ -419,14 +419,24 @@ func matchesAnyAction(rule string, counts map[string]int) bool {
 	return counts[rule] > 0
 }
 
-// topActions names the actions the agent performs most often — without them the
+// topActions names actions the agent actually performs — without them the
 // finding says what is wrong but not what to write instead.
+//
+// Sorted by effect before frequency, and that order matters: by count alone the
+// list is almost always reading actions. Measured on covey.work the hint read
+// "email:mark_seen, gitlab:list_merge_requests, email:get_message" — all true,
+// and none of it anything one would want to count as delivery. An indicator is
+// looking for the actions that change something in the target system, so those
+// go first.
 func topActions(counts map[string]int, n int) []string {
 	names := make([]string, 0, len(counts))
 	for name := range counts {
 		names = append(names, name)
 	}
 	sort.Slice(names, func(i, j int) bool {
+		if wi, wj := effectful(names[i]), effectful(names[j]); wi != wj {
+			return wi
+		}
 		if counts[names[i]] != counts[names[j]] {
 			return counts[names[i]] > counts[names[j]]
 		}
@@ -436,6 +446,30 @@ func topActions(counts map[string]int, n int) []string {
 		names = names[:n]
 	}
 	return names
+}
+
+// effectful answers whether an action changes something in the target system
+// rather than only reading from it. Deliberately by verb rather than by a list
+// per plugin: the naming is uniform across the built-ins, and a new plugin that
+// follows it is covered without anybody remembering to extend a table here.
+func effectful(action string) bool {
+	verb := action
+	if _, after, ok := strings.Cut(action, ":"); ok {
+		verb = after
+	}
+	for _, prefix := range effectfulVerbs {
+		if strings.HasPrefix(verb, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// effectfulVerbs are the beginnings of action names that leave a trace: reply,
+// comment, create, merge, approve, escalate, upload, set_state …
+var effectfulVerbs = []string{
+	"reply", "comment", "create", "merge", "approve", "escalate",
+	"upload", "send", "set_state", "close", "assign", "push", "commit",
 }
 
 func joinHeavy(systems map[string]bool) string {

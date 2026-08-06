@@ -365,7 +365,9 @@
       "response": "Reaktionszeit (Median)",
       "responseHint": "Vom eingehenden Ereignis bis zur ersten Aktion des Laufs. Median, nicht Mittelwert — ein einzelner Hänger darf das Bild nicht färben.",
       "notSummable": "Jede Zeile rechnet die vollen Kosten gegen ihre eigene Anzahl — die Preise nicht addieren.",
-      "none": "Keine Kennzahlen definiert. Lege sie in der KPIS.md des Agenten an."
+      "none": "Keine Kennzahlen definiert. Lege sie in der KPIS.md des Agenten an.",
+      "countsNothing": "zählt nichts",
+      "countsNothingHint": "Diese Kennzahl hat im Zeitraum kein einziges Ereignis getroffen. Meist zeigt die Regel auf eine Aktion, die der Agent gar nicht ausführt — der Befund auf seiner Seite nennt, was er stattdessen tut."
     },
     "mix": {
       "title": "Kostenarten",

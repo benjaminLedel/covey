@@ -28,8 +28,17 @@ export function PriceList({ rep }: { rep?: IndicatorReport }) {
             <span className="truncate" style={{ maxWidth: "50%" }} title={r.action || r.key}>{r.title}</span>
             <span style={{ display: "flex", gap: 10, whiteSpace: "nowrap" }}>
               <span style={{ fontWeight: 600 }}>{r.count}</span>
+              {/* Drei Fälle, und sie bedeuten Verschiedenes: ein Preis; zu
+                  wenige Ereignisse für einen belastbaren Preis; oder gar keine
+                  Ereignisse. „Zu wenige" bei null zu schreiben behauptete, es
+                  gäbe welche — und verdeckte genau den Fall, den der Lint auf
+                  der Agentenseite meldet. */}
               {r.unit_usd !== undefined ? (
                 <span className="muted">{t("costs.indicators.perUnit", { price: fmtUSD(r.unit_usd) })}</span>
+              ) : r.count === 0 ? (
+                <span style={{ color: "var(--text-warning)" }} title={t("costs.indicators.countsNothingHint")}>
+                  {t("costs.indicators.countsNothing")}
+                </span>
               ) : (
                 <span className="muted" title={t("costs.indicators.tooFewHint")}>{t("costs.indicators.tooFew")}</span>
               )}

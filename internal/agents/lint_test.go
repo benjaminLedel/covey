@@ -287,7 +287,7 @@ func TestLintAcceptsAWildcardIndicator(t *testing.T) {
 func TestLintStaysQuietWhileTheAgentHasNotWorked(t *testing.T) {
 	f := Lint(Subject{
 		Slug:  "neu",
-		Files: map[string]string{"KPIS.md": "- kennzahl: x zählt: aktion zammad:reply_external"},
+		Files: map[string]string{"KPIS.md": "- kennzahl: geloeste-tickets zählt: aktion zammad:reply_external"},
 	})
 	if n := countFindings(f, "kpi-never-matched"); n != 0 {
 		t.Errorf("without actions in the window the rule is dropped: %+v", f)
@@ -302,4 +302,26 @@ func countFindings(findings []Finding, rule string) int {
 		}
 	}
 	return n
+}
+
+// The hint has to name actions one would actually want to count. Sorted by
+// frequency alone it lists reading actions — measured on covey.work it read
+// "email:mark_seen, gitlab:list_merge_requests, email:get_message", all true
+// and none of it delivery.
+func TestLintHintPrefersActionsWithEffect(t *testing.T) {
+	f := Lint(Subject{
+		Slug:  "support",
+		Files: map[string]string{"KPIS.md": "- kennzahl: geloeste-tickets zählt: aktion zammad:gibtsnicht"},
+		ActionCounts: map[string]int{
+			"zammad:get_ticket": 500, "zammad:list_articles": 300,
+			"zammad:reply_external": 12, "zammad:set_state": 4,
+		},
+	})
+	hint := findingHint(t, f, "kpi-never-matched")
+	if !strings.Contains(hint, "zammad:reply_external") || !strings.Contains(hint, "zammad:set_state") {
+		t.Errorf("the writing actions belong up front: %q", hint)
+	}
+	if strings.Contains(hint, "zammad:list_articles") {
+		t.Errorf("with two effectful actions a read action must not push in: %q", hint)
+	}
 }
