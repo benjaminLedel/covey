@@ -72,19 +72,19 @@ func BuiltinTools(scope []string, withSkills bool) []string {
 
 // RunSpec is everything a runtime adapter needs for one run.
 type RunSpec struct {
-	TaskID          string
-	Title           string
-	Body            string
-	SystemPrompt    string
-	MemoryContext   string
-	Model           string // desired LLM; empty = the runtime's default
-	AllowedTools    []string
+	TaskID        string
+	Title         string
+	Body          string
+	SystemPrompt  string
+	MemoryContext string
+	Model         string // desired LLM; empty = the runtime's default
+	AllowedTools  []string
 	// Skills says whether skills were materialized into the home for this run
 	// (skillslocal.go). Only then does the Skill tool belong in the loading
 	// scope — otherwise it costs prompt tokens for skills the agent does not
 	// have.
-	Skills   bool
-	MaxTurns int
+	Skills          bool
+	MaxTurns        int
 	MaxBudgetUSD    float64
 	ResumeSessionID string
 	ResumeInput     string
