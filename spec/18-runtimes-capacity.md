@@ -41,9 +41,11 @@ Capacity comes in two kinds, and confusing them produces the worst of both:
 
 Distributing load evenly across a mixed pool therefore optimises the wrong thing in both halves at once: every subscription ends up partly unused, and an API bill arrives anyway.
 
-The correct policy is a **merit order**, as in dispatching a power grid: load the sunk-cost capacity to its ceiling first, in order, and let the metered capacity cover only the peak. Applied to runtimes this is pleasantly literal — the order in which an organisation lists its runtimes *is* the merit order, and it is a statement somebody made on purpose rather than a heuristic nobody can see.
+The correct policy is a **merit order**, as in dispatching a power grid: use the sunk-cost capacity first, and let the metered capacity cover only the peak. Within a runtime that order is literal — the sequence its credentials are written in, a statement somebody made on purpose rather than a heuristic nobody can see.
 
-The merit order does not fight the stickiness described below, because it governs **assignment**, and an assignment is long-lived. It is not re-evaluated per run.
+But the merit order applies **between unlike capacity only**. Within like capacity the opposite is right: three subscription seats are interchangeable and each has its own window, so stacking agents onto the first would let it hit its limit while the other two idle — and every agent that then dodges loses its prompt cache. Among equals the load is therefore **spread**, to the least loaded one, and at equal load to the one fewest agents sit on.
+
+Neither rule fights the stickiness described below, because both govern where an agent is *placed*, and a placement is long-lived. Neither is re-evaluated per run.
 
 ## The human picks the contract, the platform picks the token
 
@@ -261,9 +263,11 @@ Calling both "a pool" invites someone to eventually balance load across bot acco
 
 ## Where this stands, and what is open
 
-Built today: the credential pool with sticky per-agent assignment, soft limits over a rolling window, the hard signal from a refused credential, deferral when nothing is free, and cost attribution per credential ([`04-identity-secrets.md`](04-identity-secrets.md)).
+Built: everything described above, apart from the two points below. The runtime as a named contract with its credentials in merit order, the assignment of agents to it, sticky selection with dodging and return, limits over a rolling window, the hard signal from a refused credential, deferral when nothing is free, cost attribution per credential, the engine's declaration of its credentials (environment variable or file) and its capabilities, reported utilisation via the engine, and the price list for engines that report no money.
 
-Not built: the engine/runtime split as separate objects — an agent still names its engine directly and its LLM credential is still found by convention over fixed secret names, which is the constraint the rest of this document removes. Nor: the merit order, reported utilisation, the fixed/variable cost split, and capacity as a dispatch input.
+The selection rule got a sharper shape while it was being built than this document originally gave it, and the difference matters: merit order applies between UNLIKE capacity (a paid-for seat before a metered key), and within LIKE capacity the load is spread instead. Three subscription seats are interchangeable and each has its own window — stacking agents onto the first would let it hit its limit while the others idle, and every agent that then dodges loses its prompt cache.
+
+Not built: **capacity as a dispatch input**. A shortage is still noticed when the credential is brokered, so a wake happens and is then postponed, rather than the scheduler picking an agent that can actually run. And **Codex is declared but its run is unverified** ([`19-codex-adapter.md`](19-codex-adapter.md)) — above all whether it can resume a session, which is why its declaration says it cannot and the assignment refuses a blocking agent on it.
 
 Decided: a runtime is **org-scoped** (see above). That was the one question here whose answer is a data question rather than a policy one; everything below can be retrofitted.
 

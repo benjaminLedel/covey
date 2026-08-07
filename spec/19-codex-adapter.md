@@ -2,7 +2,7 @@
 
 The second engine, and the first one from another provider. It matters less for what it adds than for what it *proves*: the seams described in [`18-runtimes-capacity.md`](18-runtimes-capacity.md) either hold at the second engine or they were never seams. Two of them do not hold as originally written, and this document is where that shows.
 
-Status: **planned, not built.** What is stated here as fact is taken from OpenAI's documentation; everything not yet verified against a running binary is marked as such, because an adapter written against a guessed flag is worse than no adapter.
+Status: **declared, run unverified.** The engine is registered, its two credential forms are implemented (the API key as an environment variable, the ChatGPT login as a file the daemon writes for the run and removes afterwards), and it carries a price list because it reports no money. What is NOT verified is the run itself. What is stated here as fact is taken from OpenAI's documentation; everything not yet verified against a running binary is marked as such, because an adapter written against a guessed flag is worse than no adapter.
 
 ## Basic mechanics
 
