@@ -731,7 +731,14 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 		if errors.As(credErr, &pe) && !pe.Until.IsZero() {
 			payload["free_at"] = pe.Until
 		}
-		o.Log.Info("wake postponed — no LLM credential free", "agent", agent.Slug, "err", credErr)
+		// Deliberately CHOSEN fields rather than the error object. Nothing that
+		// reaches here carries a secret value — the store's errors name the
+		// secret, never its contents — but an error assembled deep in the stack
+		// is an unbounded string, and a log line is the one place where "it
+		// probably contains nothing bad" is not good enough. Whoever adds the
+		// error back is widening what can be printed without deciding to.
+		o.Log.Info("wake postponed — no LLM credential free",
+			"agent", agent.Slug, "runtime", agent.RuntimeID, "free_at", payload["free_at"])
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential, payload)
 		return nil
 	}
