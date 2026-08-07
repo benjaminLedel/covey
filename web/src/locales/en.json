@@ -56,16 +56,16 @@
           "d": "Target systems are self-registering plugins with a manifest — dock new integrations without touching the core."
         },
         "gitlab": {
-          "t": "GitLab & code",
-          "d": "Agents work in real repositories: branches, merge requests, pipelines — full teammates in the development process."
+          "t": "GitLab, GitHub & code",
+          "d": "Agents work in real repositories: branches, merge and pull requests, reviews, pipelines — full teammates in the development process."
         },
         "email": {
           "t": "Email & IMAP",
           "d": "Mailboxes as a target system: agents read and answer mail, triggered by webhooks or polling."
         },
         "runtimes": {
-          "t": "Swappable runtimes",
-          "d": "The runtime (first: Claude Code headless) is a thin adapter behind a stable protocol — swappable without changing the platform."
+          "t": "Runtimes as contracts",
+          "d": "A runtime is a named workplace: an engine plus the capacity to run it. Hold several subscription seats or API keys and you put them underneath — the platform spreads agents across them, dodges rate limits, and books the cost against the contract that carried it."
         },
         "sandbox": {
           "t": "Isolated sandboxes",
@@ -98,6 +98,10 @@
         "companion": {
           "t": "Companion link",
           "d": "People can share their own knowledge (via the Companion app) with their agents — enforced centrally, fail-closed. In development."
+        },
+        "indicators": {
+          "t": "Indicators & unit cost",
+          "d": "Every agent declares in KPIS.md what it delivers. The platform counts it from what it records anyway and works out the price per unit — with the counter-figures beside it, so an agent cannot look good by handing the hard cases away."
         }
       },
       "ctaTitle": "Try Covey",
@@ -198,6 +202,10 @@
         "control": {
           "t": "Central control",
           "d": "Guard-rails, approvals, recording, cost and a kill switch — enforced outside the runtime, fail-closed."
+        },
+        "delivery": {
+          "t": "Delivery you can show",
+          "d": "What the workforce delivers is counted rather than estimated — a unit price per indicator, beside the figures that qualify it: rework, rejections, response time."
         }
       },
       "whoTitle": "For the whole organization",

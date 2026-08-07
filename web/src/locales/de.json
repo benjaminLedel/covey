@@ -56,16 +56,16 @@
           "d": "Zielsysteme sind selbstregistrierende Plugins mit Manifest — neue Integrationen andocken, ohne den Kern anzufassen."
         },
         "gitlab": {
-          "t": "GitLab & Code",
-          "d": "Agenten arbeiten in echten Repositories: Branches, Merge Requests, Pipelines — als vollwertige Teammitglieder im Entwicklungsprozess."
+          "t": "GitLab, GitHub & Code",
+          "d": "Agenten arbeiten in echten Repositories: Branches, Merge und Pull Requests, Reviews, Pipelines — vollwertige Kollegen im Entwicklungsprozess."
         },
         "email": {
           "t": "E-Mail & IMAP",
           "d": "Postfächer als Zielsystem: Agenten lesen und beantworten Mails, ausgelöst über Webhooks oder Abruf."
         },
         "runtimes": {
-          "t": "Austauschbare Runtimes",
-          "d": "Die Runtime (erste: Claude Code headless) ist ein dünner Adapter hinter einem stabilen Protokoll — austauschbar, ohne die Plattform zu ändern."
+          "t": "Runtimes als Verträge",
+          "d": "Eine Runtime ist ein benannter Arbeitsplatz: Engine plus die Kapazität, sie zu betreiben. Wer mehrere Abo-Sitze oder API-Schlüssel hält, hinterlegt sie darunter — die Plattform verteilt die Agenten darauf, weicht bei Rate-Limits aus und bucht die Kosten auf den Vertrag, der sie getragen hat."
         },
         "sandbox": {
           "t": "Isolierte Sandboxen",
@@ -98,6 +98,10 @@
         "companion": {
           "t": "Companion-Anbindung",
           "d": "Menschen können ihr eigenes Wissen (über die Companion-App) an ihre Agenten freigeben — zentral durchgesetzt, fail-closed. In Entwicklung."
+        },
+        "indicators": {
+          "t": "Kennzahlen & Stückkosten",
+          "d": "Jeder Agent erklärt in KPIS.md, was er liefert. Die Plattform zählt es aus dem, was sie ohnehin aufzeichnet, und rechnet den Preis je Einheit aus — mit den Gegen-Zahlen daneben, damit ein Agent nicht dadurch gut aussieht, dass er die schweren Fälle abgibt."
         }
       },
       "ctaTitle": "Covey ausprobieren",
@@ -198,6 +202,10 @@
         "control": {
           "t": "Zentrale Kontrolle",
           "d": "Guard-Rails, Freigaben, Recording, Kosten und Kill-Switch — außerhalb der Runtime erzwungen, fail-closed."
+        },
+        "delivery": {
+          "t": "Nachweisbare Leistung",
+          "d": "Was die Belegschaft liefert, wird gezählt statt geschätzt — je Kennzahl der Stückpreis, daneben die Zahlen, die ihn qualifizieren: Nacharbeit, Ablehnungen, Reaktionszeit."
         }
       },
       "whoTitle": "Für die ganze Organisation",
