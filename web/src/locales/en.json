@@ -1148,7 +1148,48 @@
     "showInfo": "Show setup",
     "needsCredential": "● needs credential (Secrets)",
     "noCredential": "● no credentials needed",
-    "setup": "Setup — {{label}}"
+    "setup": "Setup — {{label}}",
+    "instances": {
+      "title": "Workplaces",
+      "subtitle": "an engine plus the capacity to run it",
+      "desc": "A workplace is a contract: which engine, on whose credential, with which model. Agents are assigned to it — that is a commercial decision, not a technical one. Several credentials under it are used up in the order written down: the paid-for seats first, then whatever costs per token.",
+      "none": "No workplaces created yet.",
+      "add": "Create workplace",
+      "create": "Create",
+      "engine": "Engine",
+      "name": "Name",
+      "namePlaceholder": "e.g. Claude subscription team",
+      "deleteConfirm": "Really delete the workplace “{{name}}”? Assigned agents lose their assignment.",
+      "noCapacity": "No capacity configured — nobody can work on this workplace.",
+      "addCredential": "Add capacity",
+      "removeCredentialConfirm": "Really remove this capacity?",
+      "worksHere": "works here:",
+      "nobody": "nobody",
+      "noResume": "no resume",
+      "noResumeHint": "This engine cannot continue a session. It cannot carry agents that wait for an answer (blocked).",
+      "kindLabel": "Kind",
+      "kind": {
+        "api_key": "API key",
+        "subscription": "Subscription"
+      },
+      "kindHint": {
+        "api_key": "Metered: every token costs money. You want to leave it as empty as possible.",
+        "subscription": "Quota: paid for anyway. Unused quota is wasted money — you want to fill it."
+      },
+      "value": "Value",
+      "unnamed": "unlabelled (#{{ord}})",
+      "missingSecret": "No secret named “{{key}}” is stored — create it there first.",
+      "usedOfLimit": "{{used}} of {{limit}} in {{window}} (estimated)",
+      "usedNoLimit": "${{usd}} · {{tokens}} tokens in {{window}} — no limit set",
+      "reported": "reported by the provider: {{window}}% of the window, {{week}}% of the week",
+      "stale": "up to an hour old",
+      "notionalHint": "The amount is a list-price equivalent — on a subscription seat you do not pay it.",
+      "limitHint": "The cap applies within a rolling window and limits what this capacity may consume here. For an API key dollars are the honest unit — that is real billing. For a subscription you do not pay the amount; there tokens are the closer proxy. A cap of 0 lifts the limit."
+    },
+    "engines": {
+      "title": "Engines",
+      "subtitle": "the code that runs the LLM loop"
+    }
   },
   "secrets": {
     "title": "Secrets",
@@ -1175,30 +1216,10 @@
       "values_other": "{{count}} values",
       "addValue": "Add value",
       "newValue": "New value",
-      "label": "Label",
-      "labelHint": "e.g. subscription Ben",
       "add": "Add",
       "cancel": "Cancel",
-      "unnamed": "unlabelled (#{{slot}})",
-      "parked": "parked until {{until}}",
-      "release": "release",
-      "limit": "Limit",
-      "amount": "Cap",
-      "unit": "Unit",
-      "unitUsd": "Dollars",
-      "unitTokens": "Tokens",
-      "windowHours": "Window (h)",
-      "saveLimit": "Save limit",
-      "limitHint": "The cap applies within a rolling window. For an API key dollars are the honest unit — that is real billing. For a subscription token you do not pay the amount; there tokens are the closer proxy for the provider's own limit. A cap of 0 lifts the limit.",
-      "usedOfLimit": "{{used}} of {{limit}} in {{window}}",
-      "usedNoLimit": "${{usd}} · {{tokens}} tokens in {{window}} — no limit set",
       "deleteConfirm": "Really remove value #{{slot}} from the pool?",
-      "reason": {
-        "initial": "first assignment",
-        "limit": "dodged — its own value was at the limit",
-        "error": "dodged — its own value was rejected",
-        "return": "back on its home seat"
-      }
+      "capacityHint": "What these values may consume and who sits on which is shown under Workplaces — here is only the value."
     }
   },
   "skills": {

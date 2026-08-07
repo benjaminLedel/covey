@@ -1148,7 +1148,48 @@
     "showInfo": "Einrichtung anzeigen",
     "needsCredential": "● braucht Credential (Secrets)",
     "noCredential": "● keine Credentials",
-    "setup": "Einrichtung — {{label}}"
+    "setup": "Einrichtung — {{label}}",
+    "instances": {
+      "title": "Arbeitsplätze",
+      "subtitle": "Engine plus die Kapazität, sie zu betreiben",
+      "desc": "Ein Arbeitsplatz ist ein Vertrag: welche Engine, auf wessen Credential, mit welchem Modell. Agenten werden ihm zugewiesen — das ist eine kaufmännische Entscheidung, keine technische. Mehrere Credentials darunter werden in der aufgeschriebenen Reihenfolge verbraucht: erst die bezahlten Sitze, dann was pro Token kostet.",
+      "none": "Noch keine Arbeitsplätze angelegt.",
+      "add": "Arbeitsplatz anlegen",
+      "create": "Anlegen",
+      "engine": "Engine",
+      "name": "Bezeichnung",
+      "namePlaceholder": "z. B. Claude Abo Team",
+      "deleteConfirm": "Arbeitsplatz „{{name}}“ wirklich löschen? Zugewiesene Agenten verlieren ihre Zuordnung.",
+      "noCapacity": "Keine Kapazität hinterlegt — auf diesem Arbeitsplatz kann niemand arbeiten.",
+      "addCredential": "Kapazität hinzufügen",
+      "removeCredentialConfirm": "Diese Kapazität wirklich entfernen?",
+      "worksHere": "arbeitet hier:",
+      "nobody": "niemand",
+      "noResume": "kein Resume",
+      "noResumeHint": "Diese Engine kann keine Sitzung fortsetzen. Agenten, die auf eine Antwort warten (blocked), kann sie nicht tragen.",
+      "kindLabel": "Art",
+      "kind": {
+        "api_key": "API-Key",
+        "subscription": "Abo"
+      },
+      "kindHint": {
+        "api_key": "Metered: jedes Token kostet Geld. Man will ihn so leer wie möglich lassen.",
+        "subscription": "Kontingent: ohnehin bezahlt. Ungenutztes ist verbranntes Geld — man will ihn voll fahren."
+      },
+      "value": "Wert",
+      "unnamed": "ohne Bezeichnung (#{{ord}})",
+      "missingSecret": "Unter Secrets ist kein Schlüssel „{{key}}“ hinterlegt — dort zuerst anlegen.",
+      "usedOfLimit": "{{used}} von {{limit}} in {{window}} (geschätzt)",
+      "usedNoLimit": "${{usd}} · {{tokens}} Tokens in {{window}} — kein Limit gesetzt",
+      "reported": "vom Anbieter gemeldet: {{window}} % im Fenster, {{week}} % in der Woche",
+      "stale": "Stand bis zu einer Stunde alt",
+      "notionalHint": "Der Betrag ist ein Listenpreis-Äquivalent — auf einem Abo-Sitz zahlst du ihn nicht.",
+      "limitHint": "Der Höchstwert gilt in einem rollierenden Fenster und deckelt, was diese Kapazität hier verbrauchen darf. Bei einem API-Key ist Dollar die ehrliche Einheit — es ist echte Abrechnung. Bei einem Abo zahlst du den Betrag nicht; dort sind Tokens die bessere Näherung. Höchstwert 0 hebt das Limit auf."
+    },
+    "engines": {
+      "title": "Engines",
+      "subtitle": "der Code, der die LLM-Schleife fährt"
+    }
   },
   "secrets": {
     "title": "Secrets",
@@ -1175,30 +1216,10 @@
       "values_other": "{{count}} Werte",
       "addValue": "Wert hinzufügen",
       "newValue": "Neuer Wert",
-      "label": "Bezeichnung",
-      "labelHint": "z. B. Abo Ben",
       "add": "Hinzufügen",
       "cancel": "Abbrechen",
-      "unnamed": "ohne Bezeichnung (#{{slot}})",
-      "parked": "geparkt bis {{until}}",
-      "release": "freigeben",
-      "limit": "Limit",
-      "amount": "Höchstwert",
-      "unit": "Einheit",
-      "unitUsd": "Dollar",
-      "unitTokens": "Tokens",
-      "windowHours": "Fenster (h)",
-      "saveLimit": "Limit speichern",
-      "limitHint": "Der Höchstwert gilt in einem rollierenden Fenster. Bei einem API-Key ist Dollar die ehrliche Einheit — es ist echte Abrechnung. Bei einem Abo-Token zahlst du den Betrag nicht; dort sind Tokens die bessere Näherung an das Limit des Anbieters. Höchstwert 0 hebt das Limit auf.",
-      "usedOfLimit": "{{used}} von {{limit}} in {{window}}",
-      "usedNoLimit": "${{usd}} · {{tokens}} Tokens in {{window}} — kein Limit gesetzt",
       "deleteConfirm": "Wert #{{slot}} wirklich aus dem Pool entfernen?",
-      "reason": {
-        "initial": "erste Zuordnung",
-        "limit": "ausgewichen — der eigene Wert war im Limit",
-        "error": "ausgewichen — der eigene Wert wurde abgewiesen",
-        "return": "zurück auf dem Stammplatz"
-      }
+      "capacityHint": "Was diese Werte verbrauchen dürfen und wer auf welchem sitzt, steht bei den Arbeitsplätzen — hier liegt nur der Wert."
     }
   },
   "skills": {

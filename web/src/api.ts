@@ -398,12 +398,73 @@ export type SetupStep = {
   items?: string[];
 };
 
+/** Eine Engine: der Code, der die LLM-Schleife fährt. Sie deklariert, welche
+ *  Credentials sie kennt und wie sie sie braucht — und was sie kann. */
 export type RuntimeInfo = {
   name: string;
   label: string;
   description: string;
-  needs_credential: boolean;
+  credentials: EngineCredential[];
+  capabilities: { resume: boolean; skills_dir?: string };
   setup: SetupStep[];
+};
+
+/** Genau eines von env_var und path ist gesetzt: die einen Engines nehmen ihr
+ *  Credential als Umgebungsvariable, die anderen als Datei (spec/19). */
+export type EngineCredential = {
+  kind: "api_key" | "subscription";
+  label: string;
+  secret: string;
+  env_var?: string;
+  path?: string;
+};
+
+/** Eine Runtime ist ein benannter Arbeitsplatz: Engine plus die Kapazität, sie
+ *  zu betreiben. Agenten werden ihr zugewiesen (spec/18). */
+export type RuntimeInstance = {
+  id: string;
+  engine: string;
+  display_name: string;
+  model: string;
+  creds: RuntimeCredential[];
+  bindings: RuntimeBinding[];
+  /** Ob die Engine eine Sitzung fortsetzen kann. Ohne das trägt sie keinen
+   *  Agenten, der auf eine Antwort wartet. */
+  can_carry_blocking: boolean;
+};
+
+/** ord IST die Merit Order: erst die bezahlten Sitze, dann metered Kapazität. */
+export type RuntimeCredential = {
+  ord: number;
+  kind: "api_key" | "subscription";
+  secret_key: string;
+  secret_slot: number;
+  label: string;
+  cooldown_until?: string;
+  cooldown_reason?: string;
+  limit: SecretLimit;
+  usage: { ord: number; usd: number; tokens: number; runs: number };
+  window_secs: number;
+  /** true = jedes Token kostet Geld; false = ein Kontingent, das ohnehin
+   *  bezahlt ist. Entscheidet, was die Zahlen bedeuten. */
+  metered: boolean;
+  /** Die Zahl des ANBIETERS, wo die Engine sie erfragen kann — eine Messung
+   *  statt unserer Hochrechnung. Prozente 0..100, negativ = nicht gemeldet. */
+  reported?: {
+    window_percent: number;
+    week_percent: number;
+    window_resets?: string;
+    week_resets?: string;
+    stale: boolean;
+  };
+};
+
+export type RuntimeBinding = {
+  agent_id: string;
+  ord: number;
+  home_ord?: number;
+  reason: string;
+  bound_at: string;
 };
 
 // Zielsystem-Plugin: kompiliertes Built-in (Registry), hochgeladenes

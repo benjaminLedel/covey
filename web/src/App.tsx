@@ -457,7 +457,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
             <Route path="/secrets" element={<Secrets me={me} />} />
             <Route path="/users" element={<Users me={me} />} />
             <Route path="/orgs" element={<Organizations me={me} />} />
-            <Route path="/runtimes" element={<Runtimes />} />
+            <Route path="/runtimes" element={<Runtimes me={me} />} />
             <Route path="/requests" element={<Requests me={me} />} />
             <Route path="/audit" element={<Audit />} />
             <Route path="/targets" element={<Targets me={me} />} />

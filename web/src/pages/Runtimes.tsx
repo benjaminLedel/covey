@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, type RuntimeInfo, type SetupStep } from "../api";
+import { api, type Principal, type RuntimeInfo, type SetupStep } from "../api";
+import RuntimeInstances from "./RuntimeInstances";
+
+const canEdit = (role: string) => role === "platform_admin" || role === "security";
 
 function renderText(text: string) {
   return text.split(/(`[^`]+`)/g).map((part, i) =>
@@ -34,7 +37,7 @@ function Steps({ steps }: { steps: SetupStep[] }) {
   );
 }
 
-export default function Runtimes() {
+export default function Runtimes({ me }: { me: Principal }) {
   const { t } = useTranslation();
   const [openInfo, setOpenInfo] = useState<string | null>(null);
   const runtimes = useQuery({
@@ -53,6 +56,13 @@ export default function Runtimes() {
       <p className="muted text-xs mb-5" style={{ maxWidth: 640 }}>
         {t("runtimes.desc")}
       </p>
+
+      <RuntimeInstances canEdit={canEdit(me.Role)} />
+
+      <div className="flex items-baseline gap-3 mb-2">
+        <h2 className="text-[18px]">{t("runtimes.engines.title")}</h2>
+        <span className="muted text-xs">{t("runtimes.engines.subtitle")}</span>
+      </div>
 
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))" }}>
         {list.map((rt) => (
@@ -74,10 +84,15 @@ export default function Runtimes() {
             <p className="muted text-xs mb-2">{rt.description}</p>
             <span
               className="text-[11px]"
-              style={{ color: rt.needs_credential ? "var(--clay)" : "var(--text-secondary)" }}
+              style={{ color: rt.credentials?.length ? "var(--clay)" : "var(--text-secondary)" }}
             >
-              {rt.needs_credential ? t("runtimes.needsCredential") : t("runtimes.noCredential")}
+              {rt.credentials?.length ? t("runtimes.needsCredential") : t("runtimes.noCredential")}
             </span>
+            {rt.capabilities && !rt.capabilities.resume && (
+              <span className="badge st-blocked ml-2" title={t("runtimes.instances.noResumeHint")}>
+                {t("runtimes.instances.noResume")}
+              </span>
+            )}
             {openInfo === rt.name && (
               <div className="mt-3 pt-3" style={{ borderTop: "0.5px solid var(--border)" }}>
                 <div className="text-xs font-medium mb-1">{t("runtimes.setup", { label: rt.label })}</div>

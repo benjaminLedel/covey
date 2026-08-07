@@ -164,18 +164,21 @@ type ModelCost struct {
 	Entries int64 `json:"entries"`
 }
 
-// CredentialCost is what one pool value paid for — the breakdown that answers
-// "is one seat too few, or one too many". Label is the value's recognition aid;
-// it can be empty, then the slot has to stand on its own.
+// CredentialCost is what one credential of a runtime paid for — the breakdown
+// that answers "is one seat too few, or one too many". Kind says what the money
+// column means there: real billing on a metered credential, a list-price
+// equivalent on a subscription seat (spec/17).
 //
 // Runs from before the pools carry no attribution and are missing here; they
 // still count towards the totals. The view has to be able to say that, so that
 // a gap does not read as "this value cost nothing".
 type CredentialCost struct {
-	SecretKey string  `json:"secret_key"`
-	Slot      int     `json:"slot"`
-	Label     string  `json:"label"`
-	TotalUSD  float64 `json:"total_usd"`
+	RuntimeID   uuid.UUID `json:"runtime_id"`
+	RuntimeName string    `json:"runtime_name"`
+	Ord         int       `json:"ord"`
+	Label       string    `json:"label"`
+	Kind        string    `json:"kind"`
+	TotalUSD    float64   `json:"total_usd"`
 	Tokens
 	Entries int64 `json:"entries"`
 }
@@ -977,17 +980,20 @@ func (s *Store) OrgCostReport(ctx context.Context, orgID uuid.UUID, bucket strin
 		return rep, err
 	}
 
-	// Per credential. The label comes from the secret; a value deleted in the
-	// meantime leaves its costs standing (LEFT JOIN) — they were incurred, and
-	// dropping them here would quietly shrink the sum against the totals above.
-	crows, err := s.pool.Query(ctx, `SELECT ce.secret_key, ce.secret_slot, COALESCE(sec.label,''),
+	// Per credential. The label comes from the runtime credential; one deleted
+	// in the meantime leaves its costs standing (LEFT JOIN) — they were
+	// incurred, and dropping them here would quietly shrink the sum against the
+	// totals above.
+	crows, err := s.pool.Query(ctx, `SELECT ce.runtime_id, ce.credential_ord,
+		COALESCE(r.display_name,''), COALESCE(rc.label,''), COALESCE(rc.kind,''),
 		COALESCE(SUM(ce.usd),0), `+tokenSums("ce.")+`, COUNT(*)
 		FROM cost_entries ce
 		JOIN agents a ON a.id=ce.agent_id
-		LEFT JOIN secrets sec ON sec.org_id=a.org_id AND sec.key=ce.secret_key
-			AND sec.slot=ce.secret_slot AND sec.agent_id IS NULL
-		WHERE a.org_id=$1 AND ce.created_at >= $2 AND ce.secret_key IS NOT NULL
-		GROUP BY ce.secret_key, ce.secret_slot, sec.label
+		LEFT JOIN runtimes r ON r.id=ce.runtime_id
+		LEFT JOIN runtime_credentials rc
+			ON rc.runtime_id=ce.runtime_id AND rc.ord=ce.credential_ord
+		WHERE a.org_id=$1 AND ce.created_at >= $2 AND ce.runtime_id IS NOT NULL
+		GROUP BY ce.runtime_id, ce.credential_ord, r.display_name, rc.label, rc.kind
 		ORDER BY SUM(ce.usd) DESC`, orgID, since)
 	if err != nil {
 		return rep, err
@@ -995,8 +1001,9 @@ func (s *Store) OrgCostReport(ctx context.Context, orgID uuid.UUID, bucket strin
 	defer crows.Close()
 	for crows.Next() {
 		var cc CredentialCost
-		if err := crows.Scan(&cc.SecretKey, &cc.Slot, &cc.Label, &cc.TotalUSD,
-			&cc.Input, &cc.Output, &cc.CacheRead, &cc.CacheCreation, &cc.Entries); err != nil {
+		if err := crows.Scan(&cc.RuntimeID, &cc.Ord, &cc.RuntimeName, &cc.Label, &cc.Kind,
+			&cc.TotalUSD, &cc.Input, &cc.Output, &cc.CacheRead, &cc.CacheCreation,
+			&cc.Entries); err != nil {
 			return rep, err
 		}
 		rep.Credentials = append(rep.Credentials, cc)
