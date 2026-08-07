@@ -121,6 +121,29 @@ type Picked struct {
 // must not depend on it — the dependency would run the wrong way round.
 type UsageFunc func(ctx context.Context, runtimeID uuid.UUID, ord int, window time.Duration) (usd float64, tokens int64, err error)
 
+// ReportedFunc gives the PROVIDER's own utilisation of a credential, where the
+// engine can ask for it and the answer is recent. ok=false means: nothing
+// known, fall back on what we booked ourselves.
+type ReportedFunc func(runtimeID uuid.UUID, ord int) (percent float64, ok bool)
+
+// Signals is what the capacity layer can learn about a credential from outside:
+// what we booked against it, and what the provider says about it. Both are
+// optional — with neither, only cooldowns apply.
+type Signals struct {
+	Usage    UsageFunc
+	Reported ReportedFunc
+}
+
+// reportedFull: from this share of its window a credential counts as used up,
+// regardless of any configured limit.
+//
+// This is not a policy cap but a FACT about capacity: a seat the provider
+// reports at 98% will not carry a run of any length, and starting one costs a
+// wake and a sandbox to arrive at the error we already knew about. The
+// remaining two per cent are left as the margin in which a short run can still
+// succeed — and if it does not, the hard signal parks the credential anyway.
+const reportedFull = 98.0
+
 // SecretReader is the storage half: read one exact value. Deliberately narrow —
 // the capacity layer needs to read values and nothing else about secrets.
 type SecretReader interface {

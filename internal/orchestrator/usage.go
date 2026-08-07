@@ -116,3 +116,20 @@ func (o *Orchestrator) noteUsage(rep daemon.UsageReport, runtimeID uuid.UUID, or
 			"stale", rep.Usage.Stale)
 	}
 }
+
+// reportedUtilisation is the capacity layer's view of what the provider said —
+// the share of the current window, if the engine could ask and the answer is
+// recent enough to act on.
+//
+// A STALE figure is withheld rather than passed on with a flag. It is up to an
+// hour old (the engine serves it from its own cache when the provider's
+// endpoint is rate limited), and the decision it would feed is "skip this
+// credential" — taking a seat out of play on an hour-old number would cost
+// exactly the capacity this whole mechanism exists to use up.
+func (o *Orchestrator) reportedUtilisation(runtimeID uuid.UUID, ord int) (float64, bool) {
+	u, ok := o.Usage(runtimeID, ord)
+	if !ok || u.Stale || u.WindowPercent < 0 {
+		return 0, false
+	}
+	return u.WindowPercent, true
+}

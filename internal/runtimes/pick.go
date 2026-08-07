@@ -32,8 +32,8 @@ import (
 //     agent that then dodges loses its cache. So among equals the least loaded
 //     one wins — at equal load, the one fewest agents sit on.
 //
-// usage may be nil; then limits are not checked (cooldowns still are).
-func (s *Store) Pick(ctx context.Context, orgID, agentID, runtimeID uuid.UUID, usage UsageFunc) (Picked, error) {
+// Both signals are optional; with neither, only cooldowns apply.
+func (s *Store) Pick(ctx context.Context, orgID, agentID, runtimeID uuid.UUID, sig Signals) (Picked, error) {
 	rt, err := s.Get(ctx, orgID, runtimeID)
 	if err != nil {
 		return Picked{}, err
@@ -63,9 +63,26 @@ func (s *Store) Pick(ctx context.Context, orgID, agentID, runtimeID uuid.UUID, u
 			note(*c.CooldownUntil)
 			continue
 		}
-		if usage != nil && c.Limit.Active() {
+		// What the PROVIDER says beats what we inferred, and it applies without
+		// a configured limit: an exhausted seat is a fact, not a policy. This
+		// is the difference between an agent that moves to the free seat and
+		// one that walks into the same wall every fifteen minutes.
+		//
+		// A stale figure is deliberately NOT acted on. It is up to an hour old
+		// (the engine serves it from its own cache when the provider's endpoint
+		// is rate limited), and a window that has since reset would take a
+		// working seat out of play.
+		if sig.Reported != nil {
+			if pct, ok := sig.Reported(rt.ID, c.Ord); ok && pct >= reportedFull {
+				// We do not know WHEN it frees up — the message states a reset
+				// time, but reading it is a guess we decline to make. The
+				// caller then falls back on its own interval.
+				continue
+			}
+		}
+		if sig.Usage != nil && c.Limit.Active() {
 			window := time.Duration(c.Limit.WindowSecs) * time.Second
-			usd, tokens, uerr := usage(ctx, rt.ID, c.Ord, window)
+			usd, tokens, uerr := sig.Usage(ctx, rt.ID, c.Ord, window)
 			if uerr != nil {
 				// Fail-open: a broken measurement must not stall the fleet,
 				// which is exactly what a limit assumed to be reached would do.

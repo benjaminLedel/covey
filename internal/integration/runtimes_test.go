@@ -13,8 +13,8 @@ import (
 	"covey/internal/runtimes"
 )
 
-// noUsage is the choice without a limit check — cooldowns still apply.
-var noUsage runtimes.UsageFunc
+// noUsage is the choice without any outside signal — cooldowns still apply.
+var noUsage runtimes.Signals
 
 // seat deposits a secret value and hangs it on a runtime as capacity.
 func (s *stack) seat(t *testing.T, rt uuid.UUID, kind, key, value, label string) int {
@@ -178,7 +178,7 @@ func TestRuntimeLimitAndExhaustion(t *testing.T) {
 		}
 	}
 	alice := s.newSupportAgent("alice")
-	usage := runtimes.UsageFunc(s.obs.CredentialUsage)
+	usage := runtimes.Signals{Usage: s.obs.CredentialUsage}
 
 	first, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, usage)
 	if err != nil {
@@ -300,5 +300,63 @@ func TestRuntimeRefusesUndeclaredCredentialKind(t *testing.T) {
 	// And an unknown engine cannot be configured in the first place.
 	if _, err := s.runtimes.Create(ctx, s.orgID, "gibtsnicht", "X", ""); err == nil {
 		t.Fatal("an unknown engine has to be refused")
+	}
+}
+
+// TestRuntimeSkipsSeatTheProviderReportsFull is the case that actually
+// happened in production: an agent sat on a subscription seat whose window was
+// used up, and went back to it every fifteen minutes because nothing in Covey
+// knew the seat was full.
+//
+// The knowledge exists — the engine can ask the provider — and this pins that
+// it REACHES THE DECISION and not just the interface. It applies without any
+// configured limit, because an exhausted seat is a fact and not a policy.
+func TestRuntimeSkipsSeatTheProviderReportsFull(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+
+	rt, _ := s.runtimes.Create(ctx, s.orgID, "claude-code", "Claude Team", "")
+	full := s.seat(t, rt.ID, daemon.CredSubscription, "claude_code_oauth_token", "sitz-voll", "Abo A")
+	free := s.seat(t, rt.ID, daemon.CredSubscription, "claude_code_oauth_token", "sitz-frei", "Abo B")
+	alice := s.newSupportAgent("alice")
+
+	// Pin alice to the seat that is about to be reported as full, so the test
+	// checks a MOVE and not a lucky first choice.
+	if got, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, noUsage); err != nil || got.Ord != full {
+		// The distribution picks the emptiest; if it chose the other one,
+		// swap the roles so the test still asserts what it means to.
+		full, free = free, full
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	reported := runtimes.Signals{Reported: func(_ uuid.UUID, ord int) (float64, bool) {
+		if ord == full {
+			return 100, true
+		}
+		return 3, true
+	}}
+	got, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, reported)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Ord != free {
+		t.Fatalf("a seat the provider reports as full must not be used (got ord %d)", got.Ord)
+	}
+
+	// Both full: the runtime refuses, so the wake is postponed instead of a run
+	// being burnt on a certain failure.
+	bothFull := runtimes.Signals{Reported: func(uuid.UUID, int) (float64, bool) { return 100, true }}
+	if _, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, bothFull); !errors.Is(err, runtimes.ErrExhausted) {
+		t.Fatalf("with every seat full the runtime has to refuse: %v", err)
+	}
+
+	// A STALE figure is not acted on — it is up to an hour old, and a window
+	// that has since reset would lose us the seat for nothing. The orchestrator
+	// withholds those, so here it simply reports nothing.
+	unknown := runtimes.Signals{Reported: func(uuid.UUID, int) (float64, bool) { return 0, false }}
+	if _, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, unknown); err != nil {
+		t.Fatalf("without a usable figure the runtime has to deliver: %v", err)
 	}
 }

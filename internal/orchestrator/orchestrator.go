@@ -779,9 +779,16 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 	if credErr == nil {
 		o.pushAnthropicKey(ctx, agent, link, cred)
 		// Ask the engine what this credential has consumed — once the link is
-		// up, cached per credential, never per run (usage.go). The answer
-		// arrives asynchronously and no run waits for it.
-		defer o.refreshUsage(context.WithoutCancel(ctx), link, cred.RuntimeID, cred.Ord)
+		// up, cached per credential, never per run (usage.go). No run waits for
+		// the answer; it arrives on the message loop and serves the NEXT
+		// decision.
+		//
+		// Asked HERE and not deferred to the end of the waking phase, which is
+		// what the first version did: by then the loop that reads the reply has
+		// stopped, so the request went out and the answer fell into a closed
+		// room. Nothing failed, no figure ever arrived, and the interface
+		// simply showed none.
+		o.refreshUsage(ctx, link, cred.RuntimeID, cred.Ord)
 	}
 
 	for ctx.Err() == nil {
@@ -1125,11 +1132,11 @@ func (o *Orchestrator) llmCredentialFor(ctx context.Context, agent agents.Agent)
 	if o.Runtimes == nil || agent.RuntimeID == nil {
 		return llmCredential{}, errNoRuntime
 	}
-	usage := runtimes.UsageFunc(nil)
+	sig := runtimes.Signals{Reported: o.reportedUtilisation}
 	if o.Obs != nil {
-		usage = o.Obs.CredentialUsage
+		sig.Usage = o.Obs.CredentialUsage
 	}
-	p, err := o.Runtimes.Pick(ctx, agent.OrgID, agent.ID, *agent.RuntimeID, usage)
+	p, err := o.Runtimes.Pick(ctx, agent.OrgID, agent.ID, *agent.RuntimeID, sig)
 	if err != nil {
 		return llmCredential{}, err
 	}
