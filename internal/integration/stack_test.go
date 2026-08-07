@@ -35,6 +35,7 @@ import (
 	"covey/internal/orchestrator"
 	"covey/internal/org"
 	reqlogstore "covey/internal/reqlog/store"
+	"covey/internal/runtimes"
 	secbuiltin "covey/internal/secrets/builtin"
 	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
@@ -101,6 +102,7 @@ type stack struct {
 	obs       *observability.Store
 	rails     *guardrails.Store
 	secrets   *secbuiltin.Store
+	runtimes  *runtimes.Store
 	mem       *memory.Store
 	targets   *targetstore.Store
 	egress    *egress.Store
@@ -163,6 +165,7 @@ func newStack(t *testing.T) *stack {
 		obs:      observability.NewStore(pool),
 		rails:    guardrails.NewStore(pool),
 		secrets:  secretStore,
+		runtimes: runtimes.New(pool, secretStore),
 		mem:      memory.NewStore(pool, memory.HashEmbedder{}),
 	}
 
@@ -184,7 +187,7 @@ func newStack(t *testing.T) *stack {
 
 	s.orch = orchestrator.New(orchestrator.Options{
 		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
-		Rails: s.rails, Secrets: secretStore, Identity: idp, Memory: s.mem,
+		Rails: s.rails, Secrets: secretStore, Runtimes: s.runtimes, Identity: idp, Memory: s.mem,
 		Targets:        s.targets,
 		Skills:         s.skills,
 		ReqLog:         s.reqlog,
@@ -197,7 +200,7 @@ func newStack(t *testing.T) *stack {
 
 	srv := &httpapi.Server{
 		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
-		Rails: s.rails, Secrets: secretStore, Identity: idp, Memory: s.mem,
+		Rails: s.rails, Secrets: secretStore, Runtimes: s.runtimes, Identity: idp, Memory: s.mem,
 		Org: org.NewStore(pool), Targets: s.targets,
 		Templates: s.templates, Dreams: s.dreams, Audit: s.audit,
 		Skills:      s.skills,
