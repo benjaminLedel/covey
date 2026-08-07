@@ -55,6 +55,16 @@ Two decisions, at two different speeds, and they must not be collapsed:
 
 So: **the human chooses the pot, the platform chooses the token.** A runtime holding exactly one credential and no fallback is a legitimate configuration, but it is one where an agent simply stops when that credential is limited — the elasticity comes from the pool, and giving it up is a choice that should be made knowingly.
 
+### What an engine declares about its credentials
+
+The engine, not the platform, knows which secret it needs and how it wants it. It declares them in order of precedence — an API key before a subscription token, so that an organisation holding both uses the one it is billed for deliberately rather than by accident. Each entry carries:
+
+- the **secret name** it is looked up under, which is also the binding statement of intent (`anthropic_api_key` → an API key, `claude_code_oauth_token` → a subscription token). Never inferred from the value's prefix.
+- the **kind** — metered or quota — from which the honest default unit of a limit follows: money where money is spent, the window quota where it is not.
+- **how it is delivered.** Claude Code takes its credential as an environment variable; Codex takes an API key the same way but its ChatGPT-plan login as a **file** (`~/.codex/auth.json`, see [`19-codex-adapter.md`](19-codex-adapter.md)). An engine therefore declares an environment variable *or* a path in the agent home. Without that distinction the second engine's subscription case becomes a special case in the orchestrator — exactly what the registry exists to prevent.
+
+The file form is subject to the same rule as the variable: written for the run, gone afterwards. A credential left lying in the home would be a long-lived secret in the sandbox ([`04-identity-secrets.md`](04-identity-secrets.md)).
+
 Two admission questions sit on top and are deliberately kept apart:
 
 - **Can it** — capability. An engine can only use credentials of the providers it speaks. This follows from the engine and is static.
@@ -90,18 +100,53 @@ A shortage then expresses itself as an **order** rather than as a delay, and acr
 
 ## What this does to the cost figures
 
-This is where the model earns its keep, and where getting it wrong is expensive because the error is silent.
+**One figure, and it is named for what it is.** The engine reports a dollar amount per run, and the platform books it unchanged — for every credential, of either kind. There is deliberately no second cost model beside it, no fixed amount per seat entered by hand, no apportionment at period close.
 
-A subscription seat's per-run dollar figure is **notional** — the engine reports it, but nobody pays it. Summed into a total alongside real API spend, it overstates what the workforce cost, and it does so in the one number the organisation cares about most: the unit cost per delivered result in [`17-kpis.md`](17-kpis.md). An agent on a subscription seat can look expensive while costing nothing on the margin.
+What that figure *is*, though, has to be stated once and then carried in the labels, because it differs by credential kind:
 
-Two cost kinds therefore have to be carried separately:
+> It is computed from token counts at **standard list prices**. On a metered credential that is what was billed. On a subscription seat it is a **list-price equivalent** — what the same work would have cost through the API. Nobody pays it; the seat costs what the seat costs.
 
-- **Fixed** — what a subscription seat costs per period, regardless of use. It is attributed to the runs that used it, spread over the period. The per-run notional figure is useful here only as a *relative weight* for that spread, never as an amount.
-- **Variable** — what metered use actually billed. This is the figure that already exists and it stays as it is.
+Read as consumption, the number is sound in both cases and comparable across them: it says correctly how hard an agent made the machine work, whichever contract it ran on. Read as money spent, it is right on a metered credential and an overstatement on a seat.
 
-The consequences run through the evaluations: a total is only honest if it says which of the two it means; a unit cost mixing them is wrong by whatever share the subscriptions carry; and the *marginal* question — "what does one more ticket cost me" — has a different answer on a seat that is paid for anyway than on a metered key. Both answers are legitimate and they are different figures, so the view has to name which one it is showing.
+The overstatement runs in the harmless direction for the question that matters most. An agent on a subscription seat looks *more* expensive than it is, so "is this workforce worth it" is answered conservatively rather than flatteringly. It runs the wrong way only for the marginal question — "should we hand it this next case as well" — where the honest answer on a seat with headroom is closer to nothing than to the reported figure. Where that question is actually being asked, the seat's utilisation is the figure to look at, not the price.
+
+For an authoritative statement about money, the platform is the wrong place to ask: on a metered credential the provider's own billing view is the record, and on a subscription the record is the invoice for the seats. Covey reports consumption and attributes it; it does not reconcile a bill.
+
+**And an engine that reports no figure at all is not hypothetical.** Codex reports token counts and leaves the pricing to the caller ([`19-codex-adapter.md`](19-codex-adapter.md)). So "book what the engine reports" holds only where an engine reports something, and the platform needs a **price list** — per model, per token kind — with which it prices the rest itself.
+
+That is a lookup table, not a second cost model: it produces the same list-price equivalent that Claude Code computes locally, only computed one level further in. It is also why the token kinds are stored separately and not just the money ([`06-observability-control.md`](06-observability-control.md)) — the three are priced differently, and an engine's kinds may not map one to one onto ours.
+
+A price list ages, and a wrong one is worse than an absent one because it looks like a measurement. It therefore belongs with the engine plugin, versioned with the binary, and a model it does not know has to yield **no figure** rather than a guessed one — a run whose price is unknown is honest; a run priced at zero is a lie in the direction nobody checks.
 
 Cost must therefore be attributed not only to the agent and the task but to the **credential** the run went out on ([`06-observability-control.md`](06-observability-control.md)). Without that attribution there is no per-credential limit, no utilisation, and no answer to the question this whole model exists to make answerable: *is one seat too few, or one too many.*
+
+## Driving an API directly — when that is a new engine, and when it is not
+
+"Go straight through the provider's API" covers three different things, and only one of them is a new engine.
+
+**A different credential on the same engine is not one.** Codex against an API key instead of a ChatGPT plan is the same binary, the same event stream, the same adapter — only another entry in the credential declaration above. Whoever builds a second engine for it maintains two adapters for one program and gets to keep both in step forever.
+
+**A different provider behind the same engine is not one either**, where the engine supports it. Claude Code speaks to Bedrock, Vertex and Foundry as well as to Anthropic directly; that is a matter of which credential and which endpoint the engine is handed, not of a new adapter.
+
+**Covey implementing the agent loop itself is a new engine — and one to think twice about.** What the existing engines provide is not the model call; it is everything around it: tool use, file editing, patch application, shell execution, context compaction, session persistence and resume, and a system prompt that has been tuned against real work. Rebuilding that means becoming a harness vendor, and it contradicts two of the design principles this platform rests on — the control plane is the product, and runtimes are swappable ([`README.md`](README.md), principles 2 and 3). Session resume in particular is not a detail: the whole `blocked` mechanism hangs off it ([`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)).
+
+There is, however, a fourth case that is worth having and is often what is actually meant:
+
+### The direct engine for work that needs no harness
+
+Not every task an organisation gives an agent is agentic. Classify this ticket. Summarise this thread. Extract these fields. Such work needs **one model call**, no tools, no turns, no sandbox — and driving it through a coding harness pays for a system prompt, tool definitions and a multi-turn loop in order to answer a single question.
+
+Covey already does this, it is just not modelled as an engine: `internal/claudeapi` is a narrow, tool-less path to the Messages API, used by the config copilot and by the dream. It is control-plane work rather than agent work, and it is wired to one provider.
+
+Turning that into a **direct engine** would be tidy rather than ambitious: single turn, no tools, an answer instead of a run. It has three properties the harness engines do not:
+
+- It needs **no sandbox**, so it can run in the control plane and is cheap enough for high-frequency work.
+- It should be **provider-agnostic by construction** — Anthropic and OpenAI behind one interface — because there is nothing provider-specific about a single call, and that is exactly where a second provider costs nothing.
+- Its cost is **exact**: the API returns token counts and the platform holds the price list, with no notional figure anywhere.
+
+The distinction to keep is therefore not "CLI versus API" but **agentic versus not**. A harness engine drives work that needs tools and turns; the direct engine answers questions. Building the second one to do the first one's job is where this goes wrong.
+
+Whether Covey ships a direct engine at all is [`07-open-decisions.md`](07-open-decisions.md), D14.
 
 ## An LLM credential is not a target-system token
 

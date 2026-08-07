@@ -35,13 +35,14 @@ The guiding metaphor from which the whole architecture follows: the platform is 
 | [`09-enterprise-model.md`](09-enterprise-model.md) | The organisation as the unit: human roles & RBAC, SSO, tenants, cost centres, compliance |
 | [`10-architecture-stack.md`](10-architecture-stack.md) | Frontend, backend language (Go/Kotlin), "batteries included, but swappable", pluggable interfaces, the Postgres anchor |
 | [`11-mvp-plan.md`](11-mvp-plan.md) | Build order: milestones M0–M7, critical path, acceptance checklist |
-| [`12-claude-code-adapter.md`](12-claude-code-adapter.md) | First runtime adapter: driving Claude Code headless via `claude -p`, flag mapping, `blocked`↔`--resume` |
+| [`12-claude-code-adapter.md`](12-claude-code-adapter.md) | First engine adapter: driving Claude Code headless via `claude -p`, flag mapping, `blocked`↔`--resume` |
 | [`13-zammad-integration.md`](13-zammad-integration.md) | MVP target system Zammad: wake via trigger/webhook, REST actions, broker token, `blocked`↔`pending`, correlation via ticket ID |
 | [`14-companion-memory.md`](14-companion-memory.md) | Companion app: universal brain dump (audio/mail/screen/documents) → curated wiki with media → context for agents; memory curator, bearer auth, data protection |
 | [`15-teams-integration.md`](15-teams-integration.md) | Target system Microsoft Teams (Azure Bot Framework): wake via messaging endpoint (JWT-verified), bot connector actions, OAuth2 broker, `blocked`↔conversation, correlation via `conversation.id` |
 | [`16-runner.md`](16-runner.md) | Distributed data plane: registered runners modelled on GitLab, runner protocol, central home store (content-addressed, deduplicated), per-agent sandbox images, trust boundary |
 | [`17-kpis.md`](17-kpis.md) | Performance indicators: KPIs as counting rules over recorded evidence, `KPIS.md` per agent, unit cost and productive share against the cost figures |
-| [`18-runtimes-capacity.md`](18-runtimes-capacity.md) | Runtimes as contracts: engine vs. configured workplace, credential pools per provider, merit order, reported utilisation, fixed vs. variable cost |
+| [`18-runtimes-capacity.md`](18-runtimes-capacity.md) | Runtimes as contracts: engine vs. configured workplace, credential pools per provider, merit order, reported utilisation, what a cost figure means |
+| [`19-codex-adapter.md`](19-codex-adapter.md) | Second engine (planned): `codex exec`, credential as a file vs. an environment variable, tokens without a price, no utilisation source |
 
 ## Design principles
 

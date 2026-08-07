@@ -118,14 +118,15 @@ Org-wide, indicators with the same `kennzahl:` key are summed across agents, and
 
 ### Which dollars are in the numerator
 
-A third property has to be stated, and it is the one that can make the figure wrong by a factor rather than by a nuance. **Not every dollar the runtime reports is a dollar that was spent.** On a metered credential — an API key — it is real billing. On a subscription seat it is *notional*: the runtime prices the run as if it had been billed, but the seat was paid for regardless of whether the agent used it ([`18-runtimes-capacity.md`](18-runtimes-capacity.md)).
+A third property has to be stated, because the price list invites a reading it cannot quite carry. **Not every dollar in the numerator is a dollar that was spent.** The figure is computed from token counts at standard list prices: on a metered credential — an API key — that is what was billed, on a subscription seat it is what the same work *would* have cost through the API. The seat is paid for regardless ([`18-runtimes-capacity.md`](18-runtimes-capacity.md)).
 
-Mixing the two produces a unit cost nobody can act on. An agent on a subscription seat shows a price per ticket that it does not cost; the same agent moved to an API key shows the same price and now it does. The figure has to name which of the two it is built from:
+Covey keeps one figure rather than two, and labels it. A second cost model — fixed seat amounts, entered by hand and apportioned at period close — would buy a more exact number at the price of an apparatus that has to be maintained and can be wrong in its own ways, and it would still not be the invoice.
 
-- **Full cost** — fixed seat costs, spread over the runs that used the seat, plus real metered spend. This is the number a managing director wants and the only one comparable to a human hourly rate. It is also the number that answers "should we keep doing this".
-- **Marginal cost** — what one more unit of delivery costs *right now*, on the capacity we already own. On a subscription seat with headroom that is near zero; on a metered key it is the full price. This is the number that answers "should we hand it this next case", and it is a different question.
+What that means for reading the price list:
 
-Both are legitimate and they routinely disagree by an order of magnitude. The view therefore shows one of them at a time and says which — a price list without that label reads as full cost, which is the more conservative reading and the wrong one when somebody is deciding whether to route more work to an agent that is running on quota already bought.
+- **As a comparison it is sound.** Between agents, between periods, between indicators, the figure measures the same thing on both kinds of credential — how much work the agent made the model do.
+- **As spend it is an upper bound on a subscription seat**, exact on a metered one. So an agent on a seat looks *more* expensive than it is, and "is this worth what a human costs" is answered conservatively rather than flatteringly. That is the right direction for the decision the number is usually used for.
+- **It is not the marginal price.** On a seat with headroom, one more resolved ticket costs close to nothing, not the figure in the list. Whoever is deciding whether to route more work to an agent should read the seat's utilisation, not its unit cost.
 
 The counter-figures are unaffected: a failed run wastes quota exactly as it wastes money.
 
