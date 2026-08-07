@@ -315,6 +315,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PUT /api/v1/secrets/{key}", s.rbac(securityRoles, s.handlePutSecret))
 	mux.Handle("PATCH /api/v1/secrets/{key}", s.rbac(securityRoles, s.handlePatchSecret))
 	mux.Handle("DELETE /api/v1/secrets/{key}", s.rbac(securityRoles, s.handleDeleteSecret))
+	// Pool: several values under one key (spec/04).
+	mux.Handle("GET /api/v1/secrets/{key}/pool", s.rbac(securityRoles, s.handleSecretPool))
+	mux.Handle("POST /api/v1/secrets/{key}/values", s.rbac(securityRoles, s.handleAddSecretValue))
+	mux.Handle("PATCH /api/v1/secrets/{key}/values/{slot}", s.rbac(securityRoles, s.handlePatchSecretValue))
+	mux.Handle("DELETE /api/v1/secrets/{key}/values/{slot}", s.rbac(securityRoles, s.handleDeleteSecretValue))
 	mux.Handle("PUT /api/v1/secrets/{key}/agents/{agentID}", s.rbac(securityRoles, s.handleAssignSecret))
 	mux.Handle("DELETE /api/v1/secrets/{key}/agents/{agentID}", s.rbac(securityRoles, s.handleUnassignSecret))
 	mux.Handle("GET /api/v1/agents/{id}/secrets", s.agentScoped(securityRoles, s.handleListAgentSecrets))

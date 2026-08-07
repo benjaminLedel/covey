@@ -164,6 +164,22 @@ type ModelCost struct {
 	Entries int64 `json:"entries"`
 }
 
+// CredentialCost is what one pool value paid for — the breakdown that answers
+// "is one seat too few, or one too many". Label is the value's recognition aid;
+// it can be empty, then the slot has to stand on its own.
+//
+// Runs from before the pools carry no attribution and are missing here; they
+// still count towards the totals. The view has to be able to say that, so that
+// a gap does not read as "this value cost nothing".
+type CredentialCost struct {
+	SecretKey string  `json:"secret_key"`
+	Slot      int     `json:"slot"`
+	Label     string  `json:"label"`
+	TotalUSD  float64 `json:"total_usd"`
+	Tokens
+	Entries int64 `json:"entries"`
+}
+
 // RunCost is what ONE run cost — a single backlog task with its consumption.
 //
 // It exists because the aggregates above answer "how much did the day cost" but
@@ -288,6 +304,9 @@ type OrgCostReport struct {
 	Series  []CostBucket `json:"series"`
 	Agents  []AgentCost  `json:"agents"`
 	Models  []ModelCost  `json:"models"`
+	// Credentials is the breakdown per pool value. Empty as long as nobody
+	// keeps several values under one key — then there is nothing to break down.
+	Credentials []CredentialCost `json:"credentials"`
 }
 
 // tokenSums is the token part of every cost aggregation — one place, so a
@@ -433,12 +452,85 @@ func (s *Store) OrgEventsByKind(ctx context.Context, orgID uuid.UUID, kind strin
 }
 
 // AddCost books costs from a cost event of the daemon.
-func (s *Store) AddCost(ctx context.Context, agentID uuid.UUID, taskID *uuid.UUID, usd float64, tok Tokens, model string) error {
+//
+// secretKey/secretSlot say WHICH credential paid for the run — the pool value
+// the control plane picked for it (spec/04). An empty secretKey means: not
+// attributable, the entry then only counts towards the totals and not towards
+// the breakdown per value. That is the case for every run from before the pools
+// and for runs on an agent-owned credential.
+func (s *Store) AddCost(ctx context.Context, agentID uuid.UUID, taskID *uuid.UUID, usd float64, tok Tokens, model, secretKey string, secretSlot int) error {
+	var (
+		key  *string
+		slot *int
+	)
+	if secretKey != "" {
+		key, slot = &secretKey, &secretSlot
+	}
 	_, err := s.pool.Exec(ctx, `INSERT INTO cost_entries
-		(agent_id, task_id, usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, model)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-		agentID, taskID, usd, tok.Input, tok.Output, tok.CacheRead, tok.CacheCreation, model)
+		(agent_id, task_id, usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, model, secret_key, secret_slot)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		agentID, taskID, usd, tok.Input, tok.Output, tok.CacheRead, tok.CacheCreation, model, key, slot)
 	return err
+}
+
+// SlotUsage is what one pool value has consumed in the rolling window — the
+// measurement behind the per-value limit (secrets.UsageFunc).
+//
+// The token figure is the sum of all four kinds. For an API key the USD column
+// is the honest one (it is real billing); for a subscription token USD is
+// notional and the token count is the closest available proxy for the
+// provider's own rolling window. Neither is the provider's actual counter —
+// they steer, and the hard signal (a rejected credential) corrects them.
+func (s *Store) SlotUsage(ctx context.Context, orgID uuid.UUID, key string, slot int, window time.Duration) (float64, int64, error) {
+	var (
+		usd    float64
+		tokens int64
+	)
+	// cost_entries carries no org_id (see CostByOrg) — the org comes from the
+	// agent. Without it a second organisation's consumption would count against
+	// a value of the same name here.
+	err := s.pool.QueryRow(ctx, `SELECT COALESCE(SUM(ce.usd),0),
+			COALESCE(SUM(ce.input_tokens + ce.output_tokens + ce.cache_read_tokens + ce.cache_creation_tokens),0)
+		FROM cost_entries ce JOIN agents a ON a.id=ce.agent_id
+		WHERE a.org_id=$1 AND ce.secret_key=$2 AND ce.secret_slot=$3 AND ce.created_at >= $4`,
+		orgID, key, slot, time.Now().Add(-window)).Scan(&usd, &tokens)
+	return usd, tokens, err
+}
+
+// SlotConsumption is one value's consumption for the pool view.
+type SlotConsumption struct {
+	Slot   int     `json:"slot"`
+	USD    float64 `json:"usd"`
+	Tokens int64   `json:"tokens"`
+	Runs   int64   `json:"runs"`
+}
+
+// PoolUsage is SlotUsage for every value of a key in one go — the figures
+// behind the utilisation bars in the secrets view. Values without any
+// consumption in the window are missing from the result; that is the honest
+// state and not the same as zero (a value that nobody has been sitting on has
+// not consumed nothing, it has not been asked).
+func (s *Store) PoolUsage(ctx context.Context, orgID uuid.UUID, key string, window time.Duration) ([]SlotConsumption, error) {
+	rows, err := s.pool.Query(ctx, `SELECT ce.secret_slot, COALESCE(SUM(ce.usd),0),
+			COALESCE(SUM(ce.input_tokens + ce.output_tokens + ce.cache_read_tokens + ce.cache_creation_tokens),0),
+			COUNT(*)
+		FROM cost_entries ce JOIN agents a ON a.id=ce.agent_id
+		WHERE a.org_id=$1 AND ce.secret_key=$2 AND ce.created_at >= $3
+		GROUP BY ce.secret_slot ORDER BY ce.secret_slot`,
+		orgID, key, time.Now().Add(-window))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []SlotConsumption{}
+	for rows.Next() {
+		var c SlotConsumption
+		if err := rows.Scan(&c.Slot, &c.USD, &c.Tokens, &c.Runs); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
 }
 
 // CostByTasks liefert die Kosten einer Menge von Aufgaben in einem Rutsch —
@@ -812,7 +904,8 @@ func (s *Store) RunCosts(ctx context.Context, orgID uuid.UUID, agentID *uuid.UUI
 // breakdown per agent and per model. cost_entries has no org_id — we therefore
 // join via agents.
 func (s *Store) OrgCostReport(ctx context.Context, orgID uuid.UUID, bucket string, since time.Time) (OrgCostReport, error) {
-	rep := OrgCostReport{Bucket: normalizeBucket(bucket), Series: []CostBucket{}, Agents: []AgentCost{}, Models: []ModelCost{}}
+	rep := OrgCostReport{Bucket: normalizeBucket(bucket), Series: []CostBucket{}, Agents: []AgentCost{},
+		Models: []ModelCost{}, Credentials: []CredentialCost{}}
 
 	// Totals.
 	if err := s.pool.QueryRow(ctx, `SELECT COALESCE(SUM(ce.usd),0), `+tokenSums("ce.")+`, COUNT(*)
@@ -871,15 +964,46 @@ func (s *Store) OrgCostReport(ctx context.Context, orgID uuid.UUID, bucket strin
 	if err != nil {
 		return rep, err
 	}
-	defer mrows.Close()
-	for mrows.Next() {
-		var mc ModelCost
-		if err := mrows.Scan(&mc.Model, &mc.TotalUSD, &mc.Input, &mc.Output, &mc.CacheRead, &mc.CacheCreation, &mc.Entries); err != nil {
+	func() {
+		defer mrows.Close()
+		for mrows.Next() {
+			var mc ModelCost
+			if err = mrows.Scan(&mc.Model, &mc.TotalUSD, &mc.Input, &mc.Output, &mc.CacheRead, &mc.CacheCreation, &mc.Entries); err != nil {
+				return
+			}
+			rep.Models = append(rep.Models, mc)
+		}
+		err = mrows.Err()
+	}()
+	if err != nil {
+		return rep, err
+	}
+
+	// Per credential. The label comes from the secret; a value deleted in the
+	// meantime leaves its costs standing (LEFT JOIN) — they were incurred, and
+	// dropping them here would quietly shrink the sum against the totals above.
+	crows, err := s.pool.Query(ctx, `SELECT ce.secret_key, ce.secret_slot, COALESCE(sec.label,''),
+		COALESCE(SUM(ce.usd),0), `+tokenSums("ce.")+`, COUNT(*)
+		FROM cost_entries ce
+		JOIN agents a ON a.id=ce.agent_id
+		LEFT JOIN secrets sec ON sec.org_id=a.org_id AND sec.key=ce.secret_key
+			AND sec.slot=ce.secret_slot AND sec.agent_id IS NULL
+		WHERE a.org_id=$1 AND ce.created_at >= $2 AND ce.secret_key IS NOT NULL
+		GROUP BY ce.secret_key, ce.secret_slot, sec.label
+		ORDER BY SUM(ce.usd) DESC`, orgID, since)
+	if err != nil {
+		return rep, err
+	}
+	defer crows.Close()
+	for crows.Next() {
+		var cc CredentialCost
+		if err := crows.Scan(&cc.SecretKey, &cc.Slot, &cc.Label, &cc.TotalUSD,
+			&cc.Input, &cc.Output, &cc.CacheRead, &cc.CacheCreation, &cc.Entries); err != nil {
 			return rep, err
 		}
-		rep.Models = append(rep.Models, mc)
+		rep.Credentials = append(rep.Credentials, cc)
 	}
-	return rep, mrows.Err()
+	return rep, crows.Err()
 }
 
 // --- Approval queue ---

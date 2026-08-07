@@ -1,7 +1,19 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, del, put, patch, type Agent, type Principal, type SecretCheck, type SecretPreview } from "../api";
+import {
+  api,
+  del,
+  post,
+  put,
+  patch,
+  type Agent,
+  type Principal,
+  type SecretCheck,
+  type SecretLimit,
+  type SecretPool,
+  type SecretPreview,
+} from "../api";
 
 const canEdit = (role: string) => role === "platform_admin" || role === "security";
 
@@ -137,9 +149,264 @@ function SecretCard({ secret, agents, canEdit }: { secret: SecretPreview; agents
         )}
       </div>
       <Assignments secret={secret} agents={agents} />
+      <Pool secret={secret} agents={agents} canEdit={canEdit} />
     </div>
   );
 }
+
+// Pool: mehrere Werte unter einem Schlüssel.
+//
+// Eingeklappt, solange es nur einen Wert gibt — das ist der Normalfall, und
+// eine Liste mit einem Eintrag ist keine Liste. Sobald ein zweiter dazukommt,
+// steht die Auslastung im Vordergrund: sie ist die Zahl, an der man abliest, ob
+// ein Sitz zu wenig oder einer zu viel ist.
+function Pool({ secret, agents, canEdit }: { secret: SecretPreview; agents: Agent[]; canEdit: boolean }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const count = secret.values?.length ?? 1;
+  const [open, setOpen] = useState(count > 1);
+  const path = `/secrets/${encodeURIComponent(secret.key)}`;
+
+  const pool = useQuery({
+    queryKey: ["secret-pool", secret.key],
+    queryFn: () => api<SecretPool>(`${path}/pool`),
+    enabled: open,
+  });
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["secret-pool", secret.key] });
+    qc.invalidateQueries({ queryKey: ["secrets"] });
+  };
+
+  const [adding, setAdding] = useState(false);
+  const [value, setValue] = useState("");
+  const [label, setLabel] = useState("");
+  const add = useMutation({
+    mutationFn: () => post<{ ok: boolean; slot: number; check: SecretCheck }>(`${path}/values`, { value, label }),
+    onSuccess: () => {
+      setValue("");
+      setLabel("");
+      setAdding(false);
+      invalidate();
+    },
+  });
+
+  const name = (id: string) => agents.find((a) => a.id === id)?.display_name ?? id.slice(0, 8);
+  const seats = (slot: number) => (pool.data?.bindings ?? []).filter((b) => b.slot === slot);
+
+  return (
+    <div className="mt-2 text-xs">
+      <button className="btn sm" onClick={() => setOpen(!open)}>
+        {open ? "▾" : "▸"} {t("secrets.pool.values", { count })}
+      </button>
+
+      {open && (
+        <div className="mt-2">
+          {(pool.data?.values ?? []).map((v) => (
+            <PoolValueRow
+              key={v.slot}
+              secretKey={secret.key}
+              value={v}
+              seats={seats(v.slot).map((b) => ({ name: name(b.agent_id), reason: b.reason }))}
+              canEdit={canEdit}
+              deletable={(pool.data?.values.length ?? 0) > 1}
+              onChanged={invalidate}
+            />
+          ))}
+
+          {canEdit &&
+            (adding ? (
+              <form
+                className="flex gap-2 items-end flex-wrap mt-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  add.mutate();
+                }}
+              >
+                <div className="flex-1 min-w-52">
+                  <label>{t("secrets.pool.newValue")}</label>
+                  <input type={secret.sensitive ? "password" : "text"} value={value} onChange={(e) => setValue(e.target.value)} required />
+                </div>
+                <div className="min-w-40">
+                  <label>{t("secrets.pool.label")}</label>
+                  <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("secrets.pool.labelHint")} />
+                </div>
+                <button className="btn primary sm" disabled={add.isPending}>
+                  {t("secrets.pool.add")}
+                </button>
+                <button type="button" className="btn sm" onClick={() => setAdding(false)}>
+                  {t("secrets.pool.cancel")}
+                </button>
+              </form>
+            ) : (
+              <button className="btn sm mt-2" onClick={() => setAdding(true)}>
+                {t("secrets.pool.addValue")}
+              </button>
+            ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PoolValueRow({
+  secretKey,
+  value: v,
+  seats,
+  canEdit,
+  deletable,
+  onChanged,
+}: {
+  secretKey: string;
+  value: SecretPool["values"][number];
+  seats: { name: string; reason: string }[];
+  canEdit: boolean;
+  deletable: boolean;
+  onChanged: () => void;
+}) {
+  const { t } = useTranslation();
+  const path = `/secrets/${encodeURIComponent(secretKey)}/values/${v.slot}`;
+  const [editing, setEditing] = useState(false);
+
+  const setLimit = useMutation({
+    mutationFn: (limit: SecretLimit) => patch<{ ok: boolean }>(path, { limit }),
+    onSuccess: () => {
+      setEditing(false);
+      onChanged();
+    },
+  });
+  const release = useMutation({
+    mutationFn: () => patch<{ ok: boolean }>(path, { cooldown: false }),
+    onSuccess: onChanged,
+  });
+  const remove = useMutation({ mutationFn: () => del(path), onSuccess: onChanged });
+
+  const used = v.limit.unit === "tokens" ? v.usage.tokens : v.usage.usd;
+  const share = v.limit.window_secs > 0 && v.limit.amount > 0 ? Math.min(1, used / v.limit.amount) : 0;
+  const parked = !!v.cooldown_until && new Date(v.cooldown_until) > new Date();
+
+  return (
+    <div className="mt-2" style={{ borderTop: "1px solid var(--border)", paddingTop: 8 }}>
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="mono" style={{ color: "var(--text-secondary)", minWidth: 90 }}>
+          {v.sensitive ? `${v.prefix || ""}••••••••` : v.value}
+        </span>
+        <span className="flex-1">{v.label || t("secrets.pool.unnamed", { slot: v.slot })}</span>
+        {parked && (
+          <span className="badge st-blocked" title={v.cooldown_reason}>
+            {t("secrets.pool.parked", { until: new Date(v.cooldown_until!).toLocaleString() })}
+          </span>
+        )}
+        {seats.map((s) => (
+          <span key={s.name} className="badge st-triage" title={t(`secrets.pool.reason.${s.reason}`)}>
+            {s.name}
+          </span>
+        ))}
+        {canEdit && (
+          <>
+            {parked && (
+              <button className="btn sm" onClick={() => release.mutate()}>
+                {t("secrets.pool.release")}
+              </button>
+            )}
+            <button className="btn sm" onClick={() => setEditing(!editing)}>
+              {t("secrets.pool.limit")}
+            </button>
+            {deletable && (
+              <button
+                className="btn sm"
+                onClick={() => {
+                  if (confirm(t("secrets.pool.deleteConfirm", { slot: v.slot }))) remove.mutate();
+                }}
+              >
+                {t("secrets.delete")}
+              </button>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Auslastung: gegen das Limit, wenn eines gesetzt ist — sonst der nackte
+          Verbrauch im Anzeigefenster. Eine Prozentzahl ohne Limit wäre erfunden. */}
+      <div className="flex items-center gap-2 mt-1">
+        {v.limit.window_secs > 0 ? (
+          <>
+            <div style={{ flex: 1, height: 5, background: "var(--border)", borderRadius: 3 }}>
+              <div
+                style={{
+                  width: `${share * 100}%`,
+                  height: "100%",
+                  borderRadius: 3,
+                  background: share >= 1 ? "var(--danger, #b91c1c)" : share > 0.8 ? "var(--warning, #b45309)" : "var(--accent, #2563eb)",
+                }}
+              />
+            </div>
+            <span className="muted">
+              {t("secrets.pool.usedOfLimit", {
+                used: fmtAmount(used, v.limit.unit),
+                limit: fmtAmount(v.limit.amount, v.limit.unit),
+                window: fmtWindow(v.window_secs),
+              })}
+            </span>
+          </>
+        ) : (
+          <span className="muted">
+            {t("secrets.pool.usedNoLimit", {
+              usd: v.usage.usd.toFixed(2),
+              tokens: v.usage.tokens.toLocaleString(),
+              window: fmtWindow(v.window_secs),
+            })}
+          </span>
+        )}
+      </div>
+
+      {editing && <LimitForm limit={v.limit} pending={setLimit.isPending} onSave={(l) => setLimit.mutate(l)} />}
+    </div>
+  );
+}
+
+function LimitForm({ limit, pending, onSave }: { limit: SecretLimit; pending: boolean; onSave: (l: SecretLimit) => void }) {
+  const { t } = useTranslation();
+  const [amount, setAmount] = useState(String(limit.amount || ""));
+  const [unit, setUnit] = useState<SecretLimit["unit"]>(limit.unit || "usd");
+  const [hours, setHours] = useState(String(limit.window_secs ? limit.window_secs / 3600 : 5));
+
+  return (
+    <form
+      className="flex gap-2 items-end flex-wrap mt-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSave({ amount: Number(amount) || 0, unit, window_secs: Math.round((Number(hours) || 0) * 3600) });
+      }}
+    >
+      <div style={{ width: 110 }}>
+        <label>{t("secrets.pool.amount")}</label>
+        <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" />
+      </div>
+      <div style={{ width: 110 }}>
+        <label>{t("secrets.pool.unit")}</label>
+        <select value={unit} onChange={(e) => setUnit(e.target.value as SecretLimit["unit"])}>
+          <option value="usd">{t("secrets.pool.unitUsd")}</option>
+          <option value="tokens">{t("secrets.pool.unitTokens")}</option>
+        </select>
+      </div>
+      <div style={{ width: 110 }}>
+        <label>{t("secrets.pool.windowHours")}</label>
+        <input value={hours} onChange={(e) => setHours(e.target.value)} inputMode="decimal" />
+      </div>
+      <button className="btn primary sm" disabled={pending}>
+        {t("secrets.pool.saveLimit")}
+      </button>
+      <p className="muted w-full m-0" style={{ maxWidth: 560 }}>
+        {t("secrets.pool.limitHint")}
+      </p>
+    </form>
+  );
+}
+
+const fmtAmount = (n: number, unit: string) =>
+  unit === "tokens" ? n.toLocaleString(undefined, { maximumFractionDigits: 0 }) : `$${n.toFixed(2)}`;
+
+const fmtWindow = (secs: number) => (secs % 86400 === 0 ? `${secs / 86400} d` : `${Math.round(secs / 3600)} h`);
 
 // SecretValue zeigt Variablen im Klartext, sensible Secrets nur als
 // Präfix + Maske.

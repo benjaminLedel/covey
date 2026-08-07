@@ -222,6 +222,18 @@ export type OrgCostReport = Tokens & {
   series: CostBucket[] | null;
   agents: AgentCost[] | null;
   models: ModelCost[] | null;
+  /** Aufschlüsselung pro Pool-Wert — leer, solange kein Schlüssel mehrere
+   *  Werte trägt. Läufe von vor den Pools tragen keine Zuordnung und fehlen
+   *  hier; sie zählen weiter in die Summen. */
+  credentials: CredentialCost[] | null;
+};
+
+export type CredentialCost = Tokens & {
+  secret_key: string;
+  slot: number;
+  label: string;
+  total_usd: number;
+  entries: number;
 };
 
 /** Eine Zeile der Preisliste (spec/17-kpis.md): wie oft die Kennzahl im
@@ -604,6 +616,44 @@ export type SecretPreview = {
   sensitive: boolean;
   value?: string;
   agent_ids: string[];
+  values: SecretPoolValue[];
+};
+
+// Ein Schlüssel darf mehrere Werte tragen (spec/04): mehrere Abo-Sitze, mehrere
+// Bot-Konten. Welcher Agent auf welchem sitzt, entscheidet die Auswahl in der
+// Control Plane — klebrig, bis der Wert erschöpft oder abgewiesen ist.
+export type SecretPoolValue = {
+  slot: number;
+  label: string;
+  prefix: string;
+  value?: string;
+  sensitive: boolean;
+  cooldown_until?: string;
+  cooldown_reason?: string;
+  limit: SecretLimit;
+  updated_at: string;
+};
+
+// window_secs = 0 heißt: kein Limit. amount ist je nach unit Geld oder Tokens.
+export type SecretLimit = {
+  amount: number;
+  unit: "usd" | "tokens";
+  window_secs: number;
+};
+
+export type SecretPool = {
+  key: string;
+  values: (SecretPoolValue & {
+    usage: { slot: number; usd: number; tokens: number; runs: number };
+    window_secs: number;
+  })[];
+  bindings: {
+    agent_id: string;
+    slot: number;
+    home_slot?: number;
+    reason: string;
+    bound_at: string;
+  }[];
 };
 
 // Ein Live-Check bekannter Credentials direkt nach dem Speichern.

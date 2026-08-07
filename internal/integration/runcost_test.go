@@ -38,11 +38,11 @@ func TestRunCostsRankRunsAndExposeIdleOnes(t *testing.T) {
 	}
 
 	if err := s.obs.AddCost(ctx, agent.ID, &leer.ID, 4.50,
-		observability.Tokens{Input: 10, Output: 2000, CacheRead: 3_000_000}, "claude-opus-5"); err != nil {
+		observability.Tokens{Input: 10, Output: 2000, CacheRead: 3_000_000}, "claude-opus-5", "", 0); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.obs.AddCost(ctx, agent.ID, &arbeit.ID, 1.25,
-		observability.Tokens{Input: 5, Output: 900, CacheRead: 700_000}, "claude-opus-5"); err != nil {
+		observability.Tokens{Input: 5, Output: 900, CacheRead: 700_000}, "claude-opus-5", "", 0); err != nil {
 		t.Fatal(err)
 	}
 	// Only the second run touched a target system.
@@ -121,7 +121,7 @@ func TestRunCostsOverAPI(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := s.obs.AddCost(ctx, agent.ID, &task.ID, 2.00,
-		observability.Tokens{Output: 100, CacheRead: 500_000}, "claude-opus-5"); err != nil {
+		observability.Tokens{Output: 100, CacheRead: 500_000}, "claude-opus-5", "", 0); err != nil {
 		t.Fatal(err)
 	}
 
@@ -176,7 +176,7 @@ func TestBacklogCarriesCostPerTask(t *testing.T) {
 	// Two turns of one run — the card shows the sum, not the last booking.
 	for _, usd := range []float64{0.75, 0.25} {
 		if err := s.obs.AddCost(ctx, agent.ID, &gelaufen.ID, usd,
-			observability.Tokens{Output: 100}, "claude-opus-5"); err != nil {
+			observability.Tokens{Output: 100}, "claude-opus-5", "", 0); err != nil {
 			t.Fatal(err)
 		}
 	}

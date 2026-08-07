@@ -467,6 +467,7 @@ export default function Costs() {
 
   const maxAgent = Math.max(1, ...(rep?.agents ?? []).map((a) => a.total_usd));
   const maxModel = Math.max(1, ...(rep?.models ?? []).map((m) => m.total_usd));
+  const maxCredential = Math.max(1, ...(rep?.credentials ?? []).map((c) => c.total_usd));
 
   return (
     <div>
@@ -585,6 +586,24 @@ export default function Costs() {
               />
             ))}
           </div>
+          {/* Pro Credential — nur wenn überhaupt etwas zugeordnet ist. Bei
+              einem Schlüssel mit einem Wert sagt die Karte nichts, was die
+              Gesamtsumme nicht schon sagt. */}
+          {(rep?.credentials ?? []).length > 0 && (
+            <div className="card">
+              <div style={{ fontWeight: 600, marginBottom: 12 }}>{t("costs.byCredential")}</div>
+              {(rep?.credentials ?? []).map((c) => (
+                <BreakdownBar
+                  key={`${c.secret_key}#${c.slot}`}
+                  label={c.label || `${c.secret_key} #${c.slot}`}
+                  value={c.total_usd}
+                  max={maxCredential}
+                  display={fmtUSD(c.total_usd)}
+                />
+              ))}
+              <p className="muted text-xs mt-2 mb-0">{t("costs.credentialHint")}</p>
+            </div>
+          )}
         </div>
       )}
     </div>

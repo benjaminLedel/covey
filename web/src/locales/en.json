@@ -377,7 +377,9 @@
       "cacheWrite": "Cache written",
       "inputFresh": "Input (uncached)",
       "output": "Output"
-    }
+    },
+    "byCredential": "By credential",
+    "credentialHint": "Runs from before the attribution are missing here; they still count towards the total."
   },
   "lang": {
     "toggle": "DE",
@@ -1167,7 +1169,37 @@
     "sensitiveHint": "Specially protected: the value is write-only and can never be viewed again.",
     "protect": "Protect",
     "protectConfirm": "Mark \"{{key}}\" as sensitive? The value can never be viewed again — to undo, delete and re-create it.",
-    "delete": "Delete"
+    "delete": "Delete",
+    "pool": {
+      "values": "{{count}} value",
+      "values_other": "{{count}} values",
+      "addValue": "Add value",
+      "newValue": "New value",
+      "label": "Label",
+      "labelHint": "e.g. subscription Ben",
+      "add": "Add",
+      "cancel": "Cancel",
+      "unnamed": "unlabelled (#{{slot}})",
+      "parked": "parked until {{until}}",
+      "release": "release",
+      "limit": "Limit",
+      "amount": "Cap",
+      "unit": "Unit",
+      "unitUsd": "Dollars",
+      "unitTokens": "Tokens",
+      "windowHours": "Window (h)",
+      "saveLimit": "Save limit",
+      "limitHint": "The cap applies within a rolling window. For an API key dollars are the honest unit — that is real billing. For a subscription token you do not pay the amount; there tokens are the closer proxy for the provider's own limit. A cap of 0 lifts the limit.",
+      "usedOfLimit": "{{used}} of {{limit}} in {{window}}",
+      "usedNoLimit": "${{usd}} · {{tokens}} tokens in {{window}} — no limit set",
+      "deleteConfirm": "Really remove value #{{slot}} from the pool?",
+      "reason": {
+        "initial": "first assignment",
+        "limit": "dodged — its own value was at the limit",
+        "error": "dodged — its own value was rejected",
+        "return": "back on its home seat"
+      }
+    }
   },
   "skills": {
     "title": "Skills",

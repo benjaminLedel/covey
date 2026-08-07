@@ -377,7 +377,9 @@
       "cacheWrite": "Cache geschrieben",
       "inputFresh": "Eingabe (ungecacht)",
       "output": "Ausgabe"
-    }
+    },
+    "byCredential": "Nach Credential",
+    "credentialHint": "Läufe von vor der Zuordnung fehlen hier; sie zählen weiter in die Gesamtsumme."
   },
   "lang": {
     "toggle": "EN",
@@ -1167,7 +1169,37 @@
     "sensitiveHint": "Besonders geschützt: der Wert ist write-only und nie wieder einsehbar.",
     "protect": "Schützen",
     "protectConfirm": "„{{key}}“ als sensibel markieren? Der Wert ist danach nie wieder einsehbar — rückgängig nur durch Löschen und Neuanlegen.",
-    "delete": "Löschen"
+    "delete": "Löschen",
+    "pool": {
+      "values": "{{count}} Wert",
+      "values_other": "{{count}} Werte",
+      "addValue": "Wert hinzufügen",
+      "newValue": "Neuer Wert",
+      "label": "Bezeichnung",
+      "labelHint": "z. B. Abo Ben",
+      "add": "Hinzufügen",
+      "cancel": "Abbrechen",
+      "unnamed": "ohne Bezeichnung (#{{slot}})",
+      "parked": "geparkt bis {{until}}",
+      "release": "freigeben",
+      "limit": "Limit",
+      "amount": "Höchstwert",
+      "unit": "Einheit",
+      "unitUsd": "Dollar",
+      "unitTokens": "Tokens",
+      "windowHours": "Fenster (h)",
+      "saveLimit": "Limit speichern",
+      "limitHint": "Der Höchstwert gilt in einem rollierenden Fenster. Bei einem API-Key ist Dollar die ehrliche Einheit — es ist echte Abrechnung. Bei einem Abo-Token zahlst du den Betrag nicht; dort sind Tokens die bessere Näherung an das Limit des Anbieters. Höchstwert 0 hebt das Limit auf.",
+      "usedOfLimit": "{{used}} von {{limit}} in {{window}}",
+      "usedNoLimit": "${{usd}} · {{tokens}} Tokens in {{window}} — kein Limit gesetzt",
+      "deleteConfirm": "Wert #{{slot}} wirklich aus dem Pool entfernen?",
+      "reason": {
+        "initial": "erste Zuordnung",
+        "limit": "ausgewichen — der eigene Wert war im Limit",
+        "error": "ausgewichen — der eigene Wert wurde abgewiesen",
+        "return": "zurück auf dem Stammplatz"
+      }
+    }
   },
   "skills": {
     "title": "Skills",
