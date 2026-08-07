@@ -779,9 +779,16 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 	if credErr == nil {
 		o.pushAnthropicKey(ctx, agent, link, cred)
 		// Ask the engine what this credential has consumed — once the link is
-		// up, cached per credential, never per run (usage.go). The answer
-		// arrives asynchronously and no run waits for it.
-		defer o.refreshUsage(context.WithoutCancel(ctx), link, cred.RuntimeID, cred.Ord)
+		// up, cached per credential, never per run (usage.go). No run waits for
+		// the answer; it arrives on the message loop and serves the NEXT
+		// decision.
+		//
+		// Asked HERE and not deferred to the end of the waking phase, which is
+		// what the first version did: by then the loop that reads the reply has
+		// stopped, so the request went out and the answer fell into a closed
+		// room. Nothing failed, no figure ever arrived, and the interface
+		// simply showed none.
+		o.refreshUsage(ctx, link, cred.RuntimeID, cred.Ord)
 	}
 
 	for ctx.Err() == nil {
@@ -1125,11 +1132,11 @@ func (o *Orchestrator) llmCredentialFor(ctx context.Context, agent agents.Agent)
 	if o.Runtimes == nil || agent.RuntimeID == nil {
 		return llmCredential{}, errNoRuntime
 	}
-	usage := runtimes.UsageFunc(nil)
+	sig := runtimes.Signals{Reported: o.reportedUtilisation}
 	if o.Obs != nil {
-		usage = o.Obs.CredentialUsage
+		sig.Usage = o.Obs.CredentialUsage
 	}
-	p, err := o.Runtimes.Pick(ctx, agent.OrgID, agent.ID, *agent.RuntimeID, usage)
+	p, err := o.Runtimes.Pick(ctx, agent.OrgID, agent.ID, *agent.RuntimeID, sig)
 	if err != nil {
 		return llmCredential{}, err
 	}
@@ -1157,6 +1164,19 @@ var errNoRuntime = errors.New("no LLM credential to broker")
 const (
 	cooldownRateLimit = time.Hour
 	cooldownRejected  = 24 * time.Hour
+	// cooldownSeatWindow: a subscription seat whose window is used up.
+	//
+	// An hour, not the five the window nominally lasts. The window ROLLS, so it
+	// frees up gradually rather than at a stroke, and the message even states
+	// when ("resets 4:10pm") — parking until then would be exact. Parsing that
+	// timestamp is the obvious refinement and deliberately not done here: it
+	// carries a timezone and an implied date, and a wrong reading would park a
+	// working seat for hours.
+	//
+	// An hour is the self-correcting choice. Is the window still full, the next
+	// run parks the seat again; is it free, the agent returns to it. The cost of
+	// being wrong is one run, and meanwhile the agent works on another seat.
+	cooldownSeatWindow = time.Hour
 )
 
 // noteCredentialRejection reads the runtime's error text and parks the value
@@ -1178,14 +1198,39 @@ func rejectionCooldown(errText string) (time.Duration, string) {
 	if errText == "" {
 		return 0, ""
 	}
+	// Matched case-insensitively on purpose. These are the provider's own
+	// sentences, and their casing and punctuation are not ours to rely on — the
+	// first version of this rule matched "Rate limit" exactly and would have
+	// missed "rate limit" for no reason anybody could have foreseen.
+	t := strings.ToLower(errText)
+	has := func(needles ...string) bool {
+		for _, n := range needles {
+			if strings.Contains(t, n) {
+				return true
+			}
+		}
+		return false
+	}
 	switch {
-	case strings.Contains(errText, "Invalid bearer token"),
-		strings.Contains(errText, "OAuth token has expired"),
-		strings.Contains(errText, "authentication_error"):
+	// The credential itself is bad: expired, revoked, wrong. It does not
+	// recover on its own.
+	case has("invalid bearer token", "oauth token has expired", "authentication_error"):
 		return cooldownRejected, runtimes.ReasonError
-	case strings.Contains(errText, "rate_limit"),
-		strings.Contains(errText, "Rate limit"),
-		strings.Contains(errText, "429"):
+
+	// A SUBSCRIPTION seat that has used up its window. This is the common case
+	// for a fleet on seats and the one the first version of this rule missed
+	// entirely: the message is "You've hit your session limit · resets 4:10pm
+	// (UTC)" — no "rate limit" anywhere in it, so nothing matched and the seat
+	// was handed out again fifteen minutes later, run after run.
+	//
+	// Deliberately without the apostrophe: "you've" appears with a typographic
+	// and an ASCII one depending on where the text travelled through.
+	case has("hit your session limit", "hit your weekly limit", "hit your opus limit",
+		"usage limit reached"):
+		return cooldownSeatWindow, runtimes.ReasonLimit
+
+	// A rate limit on the API side.
+	case has("rate_limit", "rate limit", "429"):
 		return cooldownRateLimit, runtimes.ReasonError
 	}
 	return 0, ""

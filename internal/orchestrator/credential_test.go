@@ -20,24 +20,36 @@ import (
 // decide which value is out of play.
 func TestRejectionCooldown(t *testing.T) {
 	cases := []struct {
-		name string
-		text string
-		want time.Duration
+		name   string
+		text   string
+		want   time.Duration
+		reason string
 	}{
-		{"revoked subscription token", `The stored subscription token is rejected ("Invalid bearer token")`, cooldownRejected},
-		{"expired token", `claude exit: OAuth token has expired`, cooldownRejected},
-		{"authentication error", `{"type":"authentication_error","message":"invalid x-api-key"}`, cooldownRejected},
-		{"rate limit, snake case", `{"type":"rate_limit_error"}`, cooldownRateLimit},
-		{"rate limit, prose", `Rate limit exceeded — try again later`, cooldownRateLimit},
-		{"rate limit, status code", `API error 429`, cooldownRateLimit},
+		{"revoked subscription token", `The stored subscription token is rejected ("Invalid bearer token")`, cooldownRejected, runtimes.ReasonError},
+		{"expired token", `claude exit: OAuth token has expired`, cooldownRejected, runtimes.ReasonError},
+		{"authentication error", `{"type":"authentication_error","message":"invalid x-api-key"}`, cooldownRejected, runtimes.ReasonError},
+		{"rate limit, snake case", `{"type":"rate_limit_error"}`, cooldownRateLimit, runtimes.ReasonError},
+		{"rate limit, prose", `Rate limit exceeded — try again later`, cooldownRateLimit, runtimes.ReasonError},
+		{"rate limit, status code", `API error 429`, cooldownRateLimit, runtimes.ReasonError},
+
+		// The subscription case, taken verbatim from a failed run on the live
+		// instance. It carries no "rate limit" anywhere, which is exactly why
+		// the first version of the rule missed it — and a fleet on seats hits
+		// this far more often than anything else here.
+		{"session limit", "You've hit your session limit · resets 4:10pm (UTC)", cooldownSeatWindow, runtimes.ReasonLimit},
+		{"session limit, ascii apostrophe", "You've hit your session limit", cooldownSeatWindow, runtimes.ReasonLimit},
+		{"weekly limit", "You've hit your weekly limit · resets Aug 9 at 6:59am", cooldownSeatWindow, runtimes.ReasonLimit},
+		{"model limit", "You've hit your Opus limit", cooldownSeatWindow, runtimes.ReasonLimit},
+		// Casing is the provider's business, not ours.
+		{"lower case rate limit", "the request hit a rate limit", cooldownRateLimit, runtimes.ReasonError},
 
 		// Everything else is NOT a credential problem. A run that failed on the
 		// task must not park a working token — that would take a value out of
 		// the pool for a fault it had nothing to do with.
-		{"turn limit", `turn limit reached (40 turns) — run cut off before it produced a result`, 0},
-		{"missing credential", `Claude Code has no credential in the sandbox ("Not logged in · Please run /login")`, 0},
-		{"plain failure", `claude exit: signal: killed`, 0},
-		{"empty", "", 0},
+		{"turn limit", `turn limit reached (40 turns) — run cut off before it produced a result`, 0, ""},
+		{"missing credential", `Claude Code has no credential in the sandbox ("Not logged in · Please run /login")`, 0, ""},
+		{"plain failure", `claude exit: signal: killed`, 0, ""},
+		{"empty", "", 0, ""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -48,8 +60,11 @@ func TestRejectionCooldown(t *testing.T) {
 			if c.want == 0 && reason != "" {
 				t.Fatalf("no cooldown, but reason %q", reason)
 			}
-			if c.want != 0 && reason != runtimes.ReasonError {
-				t.Fatalf("reason %q, expected %q", reason, runtimes.ReasonError)
+			// Der Grund unterscheidet Normalbetrieb von Stoerung: ein
+			// aufgebrauchtes Fenster ist erwartbar, ein abgewiesenes Token
+			// muss sich jemand ansehen.
+			if c.want != 0 && reason != c.reason {
+				t.Fatalf("reason %q, expected %q", reason, c.reason)
 			}
 		})
 	}
