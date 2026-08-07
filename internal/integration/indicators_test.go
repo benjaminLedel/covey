@@ -80,7 +80,7 @@ func TestIndicatorsCountObjectsNotEvents(t *testing.T) {
 	aktion(t, s, agent.ID, task.ID, "zammad:get_ticket", map[string]any{"ticket_id": 4711}, true)
 
 	if err := s.obs.AddCost(ctx, agent.ID, &task.ID, 6.00,
-		observability.Tokens{Output: 500}, "claude-opus-5"); err != nil {
+		observability.Tokens{Output: 500}, "claude-opus-5", uuid.Nil, 0); err != nil {
 		t.Fatal(err)
 	}
 
@@ -139,7 +139,7 @@ func TestIndicatorsGroupByKeyAndCountFailures(t *testing.T) {
 			aktion(t, s, a.ID, task.ID, "zammad:reply_external",
 				map[string]any{"ticket_id": fmt.Sprintf("%s-%d", slug, i)}, true)
 		}
-		if err := s.obs.AddCost(ctx, a.ID, &task.ID, 3.00, observability.Tokens{}, "claude-opus-5"); err != nil {
+		if err := s.obs.AddCost(ctx, a.ID, &task.ID, 3.00, observability.Tokens{}, "claude-opus-5", uuid.Nil, 0); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -162,7 +162,7 @@ func TestIndicatorsGroupByKeyAndCountFailures(t *testing.T) {
 	if _, err := s.backlog.Complete(ctx, kaputt.ID, "failed", "", "kaputt"); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.obs.AddCost(ctx, stumm.ID, &kaputt.ID, 90.00, observability.Tokens{}, "claude-opus-5"); err != nil {
+	if err := s.obs.AddCost(ctx, stumm.ID, &kaputt.ID, 90.00, observability.Tokens{}, "claude-opus-5", uuid.Nil, 0); err != nil {
 		t.Fatal(err)
 	}
 

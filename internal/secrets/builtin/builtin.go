@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -51,12 +52,22 @@ func GenerateMasterKey() (string, error) {
 }
 
 // aad binds the ciphertext to its place (no row swapping): org+key for org-wide
-// secrets, org+agent+key for an agent's own.
-func aad(orgID uuid.UUID, agentID *uuid.UUID, key string) []byte {
+// secrets, org+agent+key for an agent's own — plus the slot, since a key can
+// hold several values and swapping two of them within one pool would otherwise
+// go unnoticed.
+//
+// Slot 0 stays without a suffix on purpose: everything written before the pools
+// is slot 0, and its AAD has to keep matching, otherwise every existing secret
+// would become undecryptable in one migration.
+func aad(orgID uuid.UUID, agentID *uuid.UUID, key string, slot int) []byte {
+	base := orgID.String() + "/" + key
 	if agentID != nil {
-		return []byte(orgID.String() + "/" + agentID.String() + "/" + key)
+		base = orgID.String() + "/" + agentID.String() + "/" + key
 	}
-	return []byte(orgID.String() + "/" + key)
+	if slot != 0 {
+		base += "#" + strconv.Itoa(slot)
+	}
+	return []byte(base)
 }
 
 func (s *Store) seal(aad []byte, value string) (nonce, ciphertext []byte, err error) {
@@ -75,14 +86,18 @@ func (s *Store) open(key string, aad, nonce, ciphertext []byte) (string, error) 
 	return string(plain), nil
 }
 
+// Put writes the key's FIRST value (slot 0) — creating the secret and, for a
+// key that already carries a pool, correcting its first value. Further values
+// come from AddValue; overwriting a whole pool from a single Put would silently
+// destroy values nobody named here.
 func (s *Store) Put(ctx context.Context, orgID uuid.UUID, key, value string) error {
-	nonce, ct, err := s.seal(aad(orgID, nil, key), value)
+	nonce, ct, err := s.seal(aad(orgID, nil, key, 0), value)
 	if err != nil {
 		return err
 	}
-	_, err = s.pool.Exec(ctx, `INSERT INTO secrets (org_id, key, nonce, ciphertext)
-		VALUES ($1,$2,$3,$4)
-		ON CONFLICT (org_id, key) WHERE agent_id IS NULL
+	_, err = s.pool.Exec(ctx, `INSERT INTO secrets (org_id, key, slot, nonce, ciphertext)
+		VALUES ($1,$2,0,$3,$4)
+		ON CONFLICT (org_id, key, slot) WHERE agent_id IS NULL
 		DO UPDATE SET nonce=$3, ciphertext=$4, updated_at=now()`,
 		orgID, key, nonce, ct)
 	return err
@@ -91,14 +106,14 @@ func (s *Store) Put(ctx context.Context, orgID uuid.UUID, key, value string) err
 // PutAgent creates an agent's own secret. The agent must belong to the org —
 // otherwise ErrNotFound (no cross-org writing via guessed agent IDs).
 func (s *Store) PutAgent(ctx context.Context, orgID, agentID uuid.UUID, key, value string) error {
-	nonce, ct, err := s.seal(aad(orgID, &agentID, key), value)
+	nonce, ct, err := s.seal(aad(orgID, &agentID, key, 0), value)
 	if err != nil {
 		return err
 	}
-	tag, err := s.pool.Exec(ctx, `INSERT INTO secrets (org_id, agent_id, key, nonce, ciphertext)
-		SELECT $1, $2, $3, $4, $5
+	tag, err := s.pool.Exec(ctx, `INSERT INTO secrets (org_id, agent_id, key, slot, nonce, ciphertext)
+		SELECT $1, $2, $3, 0, $4, $5
 		WHERE EXISTS (SELECT 1 FROM agents WHERE id=$2 AND org_id=$1)
-		ON CONFLICT (org_id, agent_id, key) WHERE agent_id IS NOT NULL
+		ON CONFLICT (org_id, agent_id, key, slot) WHERE agent_id IS NOT NULL
 		DO UPDATE SET nonce=$4, ciphertext=$5, updated_at=now()`,
 		orgID, agentID, key, nonce, ct)
 	if err != nil {
@@ -110,42 +125,55 @@ func (s *Store) PutAgent(ctx context.Context, orgID, agentID uuid.UUID, key, val
 	return nil
 }
 
+// Get reads an org-wide secret without an agent context (bootstrap, webhooks,
+// the org's own LLM calls). Out of several values it takes the lowest: there is
+// no agent here whose seat could be kept, and no capacity decision to make —
+// this caller has no run it could postpone.
 func (s *Store) Get(ctx context.Context, orgID uuid.UUID, key string) (string, error) {
-	var nonce, ct []byte
-	err := s.pool.QueryRow(ctx,
-		"SELECT nonce, ciphertext FROM secrets WHERE org_id=$1 AND key=$2 AND agent_id IS NULL",
-		orgID, key).Scan(&nonce, &ct)
+	var (
+		nonce, ct []byte
+		slot      int
+	)
+	err := s.pool.QueryRow(ctx, `SELECT nonce, ciphertext, slot FROM secrets
+		WHERE org_id=$1 AND key=$2 AND agent_id IS NULL
+		ORDER BY slot LIMIT 1`, orgID, key).Scan(&nonce, &ct, &slot)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", secrets.ErrNotFound
 	}
 	if err != nil {
 		return "", err
 	}
-	return s.open(key, aad(orgID, nil, key), nonce, ct)
+	return s.open(key, aad(orgID, nil, key, slot), nonce, ct)
 }
 
 // Resolve prefers the agent's own secret; otherwise the org-wide one applies —
-// but only on explicit assignment. An org secret without assignments reaches no
-// agent.
+// but only on explicit assignment. An org secret without an assignment reaches
+// no agent.
+//
+// Out of several values it takes the lowest. Which one an agent SHOULD get when
+// there are several is a capacity decision and is made one layer up
+// (internal/runtimes, spec/18); this path serves target systems, where a key
+// carries exactly one value.
 func (s *Store) Resolve(ctx context.Context, orgID, agentID uuid.UUID, key string) (string, error) {
 	var (
 		nonce, ct []byte
 		rowAgent  *uuid.UUID
+		slot      int
 	)
-	err := s.pool.QueryRow(ctx, `SELECT nonce, ciphertext, agent_id FROM secrets s
+	err := s.pool.QueryRow(ctx, `SELECT nonce, ciphertext, agent_id, slot FROM secrets s
 		WHERE s.org_id=$1 AND s.key=$2 AND (
 			s.agent_id=$3
 			OR (s.agent_id IS NULL AND EXISTS (SELECT 1 FROM secret_assignments a
 				WHERE a.org_id=$1 AND a.key=$2 AND a.agent_id=$3)))
-		ORDER BY s.agent_id NULLS LAST LIMIT 1`,
-		orgID, key, agentID).Scan(&nonce, &ct, &rowAgent)
+		ORDER BY s.agent_id NULLS LAST, s.slot LIMIT 1`,
+		orgID, key, agentID).Scan(&nonce, &ct, &rowAgent, &slot)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", secrets.ErrNotFound
 	}
 	if err != nil {
 		return "", err
 	}
-	return s.open(key, aad(orgID, rowAgent, key), nonce, ct)
+	return s.open(key, aad(orgID, rowAgent, key, slot), nonce, ct)
 }
 
 func (s *Store) Delete(ctx context.Context, orgID uuid.UUID, key string) error {
@@ -184,15 +212,35 @@ func (s *Store) Keys(ctx context.Context, orgID uuid.UUID) ([]string, error) {
 }
 
 // Previews decrypts every value: non-sensitive secrets are variables and yield
-// the full plaintext, sensitive ones only their limited prefix.
+// the full plaintext, sensitive ones only their limited prefix. A key with
+// several values yields ONE entry whose Values carries the whole pool; the
+// fields at the top describe its lowest value.
+//
+// Deliberately two queries instead of one join: the assignments hang off the
+// key, the values off the slot — joined in one go, every assignment would be
+// multiplied by the pool size and would have to be de-duplicated afterwards.
 func (s *Store) Previews(ctx context.Context, orgID uuid.UUID) ([]secrets.KeyPreview, error) {
-	rows, err := s.pool.Query(ctx, `SELECT s.key, s.nonce, s.ciphertext, s.sensitive,
-			COALESCE(array_agg(a.agent_id::text ORDER BY a.created_at)
-				FILTER (WHERE a.agent_id IS NOT NULL), '{}')
-		FROM secrets s
-		LEFT JOIN secret_assignments a ON a.org_id=s.org_id AND a.key=s.key
-		WHERE s.org_id=$1 AND s.agent_id IS NULL
-		GROUP BY s.key, s.nonce, s.ciphertext, s.sensitive ORDER BY s.key`, orgID)
+	assigned := map[string][]string{}
+	arows, err := s.pool.Query(ctx,
+		"SELECT key, agent_id::text FROM secret_assignments WHERE org_id=$1 ORDER BY created_at", orgID)
+	if err != nil {
+		return nil, err
+	}
+	for arows.Next() {
+		var k, a string
+		if err := arows.Scan(&k, &a); err != nil {
+			arows.Close()
+			return nil, err
+		}
+		assigned[k] = append(assigned[k], a)
+	}
+	arows.Close()
+	if err := arows.Err(); err != nil {
+		return nil, err
+	}
+
+	rows, err := s.pool.Query(ctx, `SELECT key, slot, nonce, ciphertext, sensitive, updated_at
+		FROM secrets WHERE org_id=$1 AND agent_id IS NULL ORDER BY key, slot`, orgID)
 	if err != nil {
 		return nil, err
 	}
@@ -200,27 +248,34 @@ func (s *Store) Previews(ctx context.Context, orgID uuid.UUID) ([]secrets.KeyPre
 	var out []secrets.KeyPreview
 	for rows.Next() {
 		var (
-			k         string
+			k  string
+			pv secrets.PoolValue
+			// nonce/ciphertext stay local — nothing encrypted leaves this loop.
 			nonce, ct []byte
-			sensitive bool
-			agentIDs  []string
 		)
-		if err := rows.Scan(&k, &nonce, &ct, &sensitive, &agentIDs); err != nil {
+		if err := rows.Scan(&k, &pv.Slot, &nonce, &ct, &pv.Sensitive, &pv.UpdatedAt); err != nil {
 			return nil, err
 		}
-		kp := secrets.KeyPreview{
-			Key:       k,
-			Sensitive: sensitive,
-			AgentIDs:  agentIDs,
+		pv.Value, pv.Prefix = s.expose(k, aad(orgID, nil, k, pv.Slot), nonce, ct, pv.Sensitive)
+		if n := len(out); n > 0 && out[n-1].Key == k {
+			out[n-1].Values = append(out[n-1].Values, pv)
+			continue
 		}
-		kp.Value, kp.Prefix = s.expose(k, aad(orgID, nil, k), nonce, ct, sensitive)
-		out = append(out, kp)
+		ids := assigned[k]
+		if ids == nil {
+			ids = []string{}
+		}
+		out = append(out, secrets.KeyPreview{
+			Key: k, Sensitive: pv.Sensitive, Value: pv.Value, Prefix: pv.Prefix,
+			AgentIDs: ids, Values: []secrets.PoolValue{pv},
+		})
 	}
 	return out, rows.Err()
 }
 
 // MarkSensitive is deliberately one-way (see the port documentation): only
-// false→true.
+// false→true. It covers the whole pool — half a key being readable and the
+// other half write-only would be a trap for whoever administers it.
 func (s *Store) MarkSensitive(ctx context.Context, orgID uuid.UUID, key string) error {
 	tag, err := s.pool.Exec(ctx,
 		"UPDATE secrets SET sensitive=true WHERE org_id=$1 AND key=$2 AND agent_id IS NULL",
@@ -249,7 +304,8 @@ func (s *Store) MarkAgentSensitive(ctx context.Context, orgID, agentID uuid.UUID
 
 func (s *Store) AgentPreviews(ctx context.Context, orgID, agentID uuid.UUID) ([]secrets.KeyPreview, error) {
 	rows, err := s.pool.Query(ctx,
-		"SELECT key, nonce, ciphertext, sensitive FROM secrets WHERE org_id=$1 AND agent_id=$2 ORDER BY key",
+		`SELECT key, slot, nonce, ciphertext, sensitive, updated_at
+		 FROM secrets WHERE org_id=$1 AND agent_id=$2 ORDER BY key, slot`,
 		orgID, agentID)
 	if err != nil {
 		return nil, err
@@ -259,15 +315,17 @@ func (s *Store) AgentPreviews(ctx context.Context, orgID, agentID uuid.UUID) ([]
 	for rows.Next() {
 		var (
 			k         string
+			pv        secrets.PoolValue
 			nonce, ct []byte
-			sensitive bool
 		)
-		if err := rows.Scan(&k, &nonce, &ct, &sensitive); err != nil {
+		if err := rows.Scan(&k, &pv.Slot, &nonce, &ct, &pv.Sensitive, &pv.UpdatedAt); err != nil {
 			return nil, err
 		}
-		kp := secrets.KeyPreview{Key: k, Sensitive: sensitive, AgentIDs: []string{}}
-		kp.Value, kp.Prefix = s.expose(k, aad(orgID, &agentID, k), nonce, ct, sensitive)
-		out = append(out, kp)
+		pv.Value, pv.Prefix = s.expose(k, aad(orgID, &agentID, k, pv.Slot), nonce, ct, pv.Sensitive)
+		out = append(out, secrets.KeyPreview{
+			Key: k, Sensitive: pv.Sensitive, Value: pv.Value, Prefix: pv.Prefix,
+			AgentIDs: []string{}, Values: []secrets.PoolValue{pv},
+		})
 	}
 	return out, rows.Err()
 }

@@ -11,6 +11,7 @@ const PILLARS: { icon: keyof typeof icons; k: string }[] = [
   { icon: "box", k: "sandbox" },
   { icon: "lock", k: "broker" },
   { icon: "shield", k: "control" },
+  { icon: "chart", k: "delivery" },
 ];
 
 export default function ProductCovey() {

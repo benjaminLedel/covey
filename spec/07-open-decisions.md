@@ -28,9 +28,17 @@ Repurpose an existing ticket system (a shared task reality with humans, a strong
 
 Per agent, per team or shared (with access rules at wiki page level, `scope` frontmatter)? Probably a per-agent core + a shared org layer. Details in [`05-memory.md`](05-memory.md).
 
-### D6 — First runtime(s)
+### D6 — Which engines
 
-Which runtime does the adapter set start with? The obvious choice: Claude Code (familiar, CLI-based, easy to bootstrap) as the first adapter, then OpenHands/Harness.
+Which engine does the adapter set start with, and which follows? Claude Code first (familiar, CLI-based, easy to bootstrap) — that is built ([`12-claude-code-adapter.md`](12-claude-code-adapter.md)).
+
+**Second is Codex, not OpenHands.** The reason is coverage rather than preference: an organisation wants Claude *and* ChatGPT, each through an API key or a subscription, and those four cells are the realistic demand. Codex fills the two that are missing, and being from another provider it is also the harder test of whether the engine seams hold — two of them did not, and that is written up in [`19-codex-adapter.md`](19-codex-adapter.md).
+
+Three of the four cells are straightforward. The fourth, Codex on a ChatGPT plan, is the awkward one: its credential is a **file** rather than an environment variable, and the documentation treats non-interactive use of it as a special case.
+
+Whether the cells are equally *capable* is open and hangs on one question — whether `codex exec` can resume a session. If it cannot, ChatGPT is not "also supported" but "supported for the agents that never block", which excludes the MVP's core case. That is why resume is a declared engine capability, checked at assignment ([`18-runtimes-capacity.md`](18-runtimes-capacity.md)).
+
+Beyond that: OpenHands/Harness stay possible but are not the next step, and D14 asks whether a harness-less direct engine belongs alongside them.
 
 ### D7 — Codename ✅ *decided*
 
@@ -87,6 +95,40 @@ Rejected: **binding with an explicit move** (the agent is pinned to a runner, a 
 **The prerequisite that carries this decision in the first place:** the home store has to be in place before the first agent runs on a second host. It is at the same time the only stage that pays off even **without** runners: today a deleted home is unrecoverable, and two developer agents on the same machine hold the same 4 GB twice.
 
 A runner is **trusted infrastructure of the organisation** — it sees the daemon and egress tokens of the agents it hosts and can therefore impersonate them. It is not a way of bringing in foreign compute capacity. From this follows in particular: no database access from the runner, mandatory TLS, revocation and audit per runner.
+
+### D13 — Runtimes as contracts: scope, utilisation, fixed cost ✅ *decided*
+
+Once an organisation holds several LLM credentials, "which runtime" stops being a technical property and becomes a commercial one — a runtime is then an **engine plus the capacity to run it**, and an agent is assigned to it the way an employee is assigned to a cost centre. The model is described in [`18-runtimes-capacity.md`](18-runtimes-capacity.md). All three questions it raised are settled; they are kept here with their reasoning because two of them constrain the implementation.
+
+**Is a runtime bound to one organisation? ✅ Yes.** A runtime carries credentials, and a credential reaching across tenants would be a channel between them — the same reason a runner serves exactly one Covey instance ([`16-runner.md`](16-runner.md)). The storage layer had in fact already decided it: the built-in secret store binds every ciphertext to its organisation through the AES-GCM AAD, so a shared credential would not decrypt for the second tenant at all. The schema follows that instead of fighting it.
+
+The cost is real and accepted: a group with one provider contract and several subsidiary tenants deposits the credential per tenant, and its seats cannot be pooled across them. That is a **billing** problem rather than a credential one — costs can be rolled up across organisations later without any tenant holding another's secret, which is the cheaper direction to solve it from. This was the one question in D13 that is a data question rather than a policy one; the two below can be retrofitted.
+
+**What is the scope of an engine's utilisation figure? ✅ Account-wide, but rate limited.** Settled from the Claude Code documentation. The plan usage bars come from a **server-side usage endpoint**, not from local history — the documentation gives it away in the failure case ("when the request for your plan limits fails, most often because the usage endpoint is rate limited, `/usage` shows the last usage bars it loaded on this machine within the past 60 minutes"). The caveat about "local session history on this machine" applies to the *attribution* breakdown underneath (which skill, which MCP server contributed), which Covey does not need.
+
+Three consequences for the implementation:
+
+- **Query centrally per credential, cached — never per run.** The endpoint has a rate limit of its own, and a fleet asking on every wake will hit it. Three agents on one seat get the same answer anyway.
+- **Read the staleness note.** A rate-limited request yields bars up to 60 minutes old with a `Showing last-known usage` marker; treating that as fresh would be worse than having no figure.
+- **Prefer a real API where the plan offers one.** On Team/Enterprise plans an Enterprise Analytics API (`read:analytics`) returns usage and cost per user as structured data, and Teams plans export a spend report; `/usage` scraping is the fallback for individual Pro/Max subscriptions, and the platform's own estimate the last resort.
+
+One property of seats is worth carrying into capacity planning: the allowance is **shared with Claude chat and Cowork**, so a seat a human also works on has less left for agents than the contract suggests.
+
+**How is a fixed cost entered and spread? ✅ It is not.** Covey keeps **one** cost figure — the one the engine reports, computed from token counts at standard list prices — and books it unchanged for every credential. No fixed seat amount entered by hand, no apportionment at period close.
+
+The exactness that would buy is not worth its apparatus: a second cost model has to be maintained, can be wrong in its own ways, and still would not be the invoice. What is required instead is a **label**, because the same number means two things: billed spend on a metered credential, and a list-price equivalent on a subscription seat. As a measure of consumption it is comparable across both; as spend it is exact on one and an upper bound on the other — and it errs by making agents look more expensive than they are, which is the safe direction for the decision the figure is used for. Spelled out in [`18-runtimes-capacity.md`](18-runtimes-capacity.md) and [`17-kpis.md`](17-kpis.md).
+
+**One addendum, found at the second engine:** "take what the engine reports" presumes an engine that reports something. Codex returns token counts and no money ([`19-codex-adapter.md`](19-codex-adapter.md)), so the platform needs a **price list** per model and token kind to price those itself. That is a lookup table producing the same list-price equivalent one level further in — not the fixed-cost apparatus rejected above. A model the list does not know yields *no* figure rather than a guessed one.
+
+### D14 — A direct engine for work that needs no harness
+
+Should Covey ship an engine that talks to a provider API directly — single turn, no tools, no sandbox — alongside the harness engines (Claude Code, Codex)?
+
+The case for it: not every task is agentic. Classifying a ticket, summarising a thread, extracting fields — that is one model call, and driving it through a coding harness pays for a tuned system prompt, tool definitions and a multi-turn loop in order to answer one question. Such an engine would need no sandbox (so it could run in the control plane and be cheap enough for high-frequency work), would be provider-agnostic by construction, and its cost would be exact rather than notional.
+
+The embryo exists: `internal/claudeapi` is exactly this path — tool-less, single-shot — used today by the config copilot and the dream. It is simply not modelled as an engine, and it is wired to one provider.
+
+The case against, and the line not to cross: this must not become **Covey implementing an agent loop**. Tool use, context compaction and above all session resume — on which the whole `blocked` mechanism rests ([`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)) — are what the harness engines provide, and rebuilding them makes the platform a harness vendor, against design principles 2 and 3. The distinction to hold is **agentic versus not**, not CLI versus API. Discussion in [`18-runtimes-capacity.md`](18-runtimes-capacity.md).
 
 ## Proposed MVP scope
 

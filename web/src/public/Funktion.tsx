@@ -34,6 +34,7 @@ const GROUPS: { g: string; items: { icon: keyof typeof icons; k: string }[] }[] 
       { icon: "net", k: "egress" },
       { icon: "eye", k: "observability" },
       { icon: "coins", k: "costs" },
+      { icon: "chart", k: "indicators" },
     ],
   },
   {

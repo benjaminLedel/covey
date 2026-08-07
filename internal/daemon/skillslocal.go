@@ -27,7 +27,12 @@ import (
 // centrally managed config; a run that could write itself new capabilities
 // would undermine the very control that justifies the feature.
 
-// skillsDirName is the directory in which Claude Code looks for personal skills.
+// skillsDirName is the directory in which Claude Code looks for personal
+// skills. It is the fallback for an engine that declares none; the path itself
+// belongs to the ENGINE (RuntimeCapabilities.SkillsDir), because it is that
+// engine's convention and another one looks elsewhere. Writing skills where
+// nothing reads them is the worst failure mode available — configured, visible
+// in the interface, without effect.
 const skillsDirName = ".claude/skills"
 
 // skillsRequestTimeout is deliberately shorter than the 30 s of the other broker
@@ -67,8 +72,18 @@ func (c *Client) requestSkills(ctx context.Context) (InjectSkills, error) {
 // because the Skill tool only belongs in the loading scope when there is
 // anything to load (runtime.BuiltinTools) — every failure path therefore
 // answers 0, exactly like the empty list.
-func (c *Client) materializeSkills(ctx context.Context) int {
-	dir := filepath.Join(c.homeDir, filepath.FromSlash(skillsDirName))
+func (c *Client) materializeSkills(ctx context.Context, engine string) int {
+	// The path is the engine's convention. An engine that declares none knows
+	// no skills — then nothing is written, because a skill in a directory the
+	// engine never reads is worse than no skill: it looks configured.
+	sub := skillsDirName
+	if d, ok := Describe(engine); ok {
+		if d.Capabilities.SkillsDir == "" {
+			return 0
+		}
+		sub = d.Capabilities.SkillsDir
+	}
+	dir := filepath.Join(c.homeDir, filepath.FromSlash(sub))
 	res, err := c.requestSkills(ctx)
 	if err != nil || !res.OK {
 		reason := "unknown"

@@ -57,6 +57,10 @@ type Agent struct {
 	org.Profile
 	Killed    bool    `json:"killed"`
 	BudgetUSD float64 `json:"budget_usd"`
+	// RuntimeID is the contract this agent works on (spec/18). nil = not yet
+	// assigned; Runtime then still names the engine, for the migration window
+	// and for agents created before the assignment existed.
+	RuntimeID *uuid.UUID `json:"runtime_id,omitempty"`
 	// RecordingLevel is the optional agent override of the recording depth
 	// (spec/06); empty = inherits the org floor. It only ever tightens (max with
 	// the floor), enforced in the control plane.
@@ -105,13 +109,13 @@ type Registry struct {
 
 func NewRegistry(pool *pgxpool.Pool) *Registry { return &Registry{pool: pool} }
 
-const agentCols = "id, org_id, slug, display_name, runtime, model, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, webhook_token, COALESCE(recording_level,''), warm_sandbox, created_at, updated_at"
+const agentCols = "id, org_id, slug, display_name, runtime, model, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, runtime_id, webhook_token, COALESCE(recording_level,''), warm_sandbox, created_at, updated_at"
 
 func scanAgent(row pgx.Row) (Agent, error) {
 	var a Agent
 	err := row.Scan(&a.ID, &a.OrgID, &a.Slug, &a.DisplayName, &a.Runtime, &a.Model, &a.MaxTurns, &a.Status,
 		&a.OwnerID, &a.SupervisorID, &a.DepartmentID, &a.JobTitle, &a.Identities, &a.Phone, &a.Responsibilities, &a.Custom,
-		&a.Killed, &a.BudgetUSD, &a.WebhookToken, &a.RecordingLevel, &a.WarmSandbox, &a.CreatedAt, &a.UpdatedAt)
+		&a.Killed, &a.BudgetUSD, &a.RuntimeID, &a.WebhookToken, &a.RecordingLevel, &a.WarmSandbox, &a.CreatedAt, &a.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, ErrNotFound
 	}

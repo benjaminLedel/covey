@@ -32,6 +32,7 @@ import (
 	"covey/internal/orchestrator"
 	"covey/internal/org"
 	reqlogstore "covey/internal/reqlog/store"
+	"covey/internal/runtimes"
 	"covey/internal/secrets"
 	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
@@ -45,6 +46,7 @@ type Server struct {
 	Obs      *observability.Store
 	Rails    *guardrails.Store
 	Secrets  secrets.Store
+	Runtimes *runtimes.Store
 	Identity identity.Provider
 	Memory   *memory.Store
 	Dreams   *dream.Store
@@ -236,6 +238,16 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/org/profile-fields/{id}", s.rbac([]string{identity.RolePlatformAdmin}, s.handleRenameProfileField))
 	mux.Handle("DELETE /api/v1/org/profile-fields/{id}", s.rbac([]string{identity.RolePlatformAdmin}, s.handleDeleteProfileField))
 	mux.Handle("GET /api/v1/runtimes", s.rbac(anyRole, s.handleListRuntimes))
+	// The configured workplaces: engine + capacity, assignable (spec/18).
+	mux.Handle("GET /api/v1/runtime-instances", s.rbac(anyRole, s.handleListRuntimeInstances))
+	mux.Handle("POST /api/v1/runtime-instances", s.rbac(securityRoles, s.handleCreateRuntime))
+	mux.Handle("PUT /api/v1/runtime-instances/{id}", s.rbac(securityRoles, s.handleUpdateRuntime))
+	mux.Handle("DELETE /api/v1/runtime-instances/{id}", s.rbac(securityRoles, s.handleDeleteRuntime))
+	mux.Handle("POST /api/v1/runtime-instances/{id}/credentials", s.rbac(securityRoles, s.handleAddRuntimeCredential))
+	mux.Handle("POST /api/v1/runtime-instances/{id}/credentials/order", s.rbac(securityRoles, s.handleReorderRuntimeCredentials))
+	mux.Handle("PATCH /api/v1/runtime-instances/{id}/credentials/{ord}", s.rbac(securityRoles, s.handlePatchRuntimeCredential))
+	mux.Handle("DELETE /api/v1/runtime-instances/{id}/credentials/{ord}", s.rbac(securityRoles, s.handleDeleteRuntimeCredential))
+	mux.Handle("POST /api/v1/agents/{id}/runtime-instance", s.agentScoped(manage, s.handleAssignRuntime))
 	mux.Handle("GET /api/v1/targets", s.rbac(anyRole, s.handleListTargets))
 	mux.Handle("POST /api/v1/targets", s.rbac(securityRoles, s.handleUploadTarget))
 	mux.Handle("POST /api/v1/targets/mcp", s.rbac(securityRoles, s.handleCreateMCP))
@@ -315,6 +327,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PUT /api/v1/secrets/{key}", s.rbac(securityRoles, s.handlePutSecret))
 	mux.Handle("PATCH /api/v1/secrets/{key}", s.rbac(securityRoles, s.handlePatchSecret))
 	mux.Handle("DELETE /api/v1/secrets/{key}", s.rbac(securityRoles, s.handleDeleteSecret))
+	// Several values under one key (spec/04) — storage only; what they are used
+	// for lives under /runtimes.
+	mux.Handle("POST /api/v1/secrets/{key}/values", s.rbac(securityRoles, s.handleAddSecretValue))
+	mux.Handle("DELETE /api/v1/secrets/{key}/values/{slot}", s.rbac(securityRoles, s.handleDeleteSecretValue))
 	mux.Handle("PUT /api/v1/secrets/{key}/agents/{agentID}", s.rbac(securityRoles, s.handleAssignSecret))
 	mux.Handle("DELETE /api/v1/secrets/{key}/agents/{agentID}", s.rbac(securityRoles, s.handleUnassignSecret))
 	mux.Handle("GET /api/v1/agents/{id}/secrets", s.agentScoped(securityRoles, s.handleListAgentSecrets))

@@ -56,16 +56,16 @@
           "d": "Target systems are self-registering plugins with a manifest — dock new integrations without touching the core."
         },
         "gitlab": {
-          "t": "GitLab & code",
-          "d": "Agents work in real repositories: branches, merge requests, pipelines — full teammates in the development process."
+          "t": "GitLab, GitHub & code",
+          "d": "Agents work in real repositories: branches, merge and pull requests, reviews, pipelines — full teammates in the development process."
         },
         "email": {
           "t": "Email & IMAP",
           "d": "Mailboxes as a target system: agents read and answer mail, triggered by webhooks or polling."
         },
         "runtimes": {
-          "t": "Swappable runtimes",
-          "d": "The runtime (first: Claude Code headless) is a thin adapter behind a stable protocol — swappable without changing the platform."
+          "t": "Runtimes as contracts",
+          "d": "A runtime is a named workplace: an engine plus the capacity to run it. Hold several subscription seats or API keys and you put them underneath — the platform spreads agents across them, dodges rate limits, and books the cost against the contract that carried it."
         },
         "sandbox": {
           "t": "Isolated sandboxes",
@@ -98,6 +98,10 @@
         "companion": {
           "t": "Companion link",
           "d": "People can share their own knowledge (via the Companion app) with their agents — enforced centrally, fail-closed. In development."
+        },
+        "indicators": {
+          "t": "Indicators & unit cost",
+          "d": "Every agent declares in KPIS.md what it delivers. The platform counts it from what it records anyway and works out the price per unit — with the counter-figures beside it, so an agent cannot look good by handing the hard cases away."
         }
       },
       "ctaTitle": "Try Covey",
@@ -198,6 +202,10 @@
         "control": {
           "t": "Central control",
           "d": "Guard-rails, approvals, recording, cost and a kill switch — enforced outside the runtime, fail-closed."
+        },
+        "delivery": {
+          "t": "Delivery you can show",
+          "d": "What the workforce delivers is counted rather than estimated — a unit price per indicator, beside the figures that qualify it: rework, rejections, response time."
         }
       },
       "whoTitle": "For the whole organization",
@@ -377,7 +385,9 @@
       "cacheWrite": "Cache written",
       "inputFresh": "Input (uncached)",
       "output": "Output"
-    }
+    },
+    "byCredential": "By credential",
+    "credentialHint": "Runs from before the attribution are missing here; they still count towards the total."
   },
   "lang": {
     "toggle": "DE",
@@ -1146,7 +1156,65 @@
     "showInfo": "Show setup",
     "needsCredential": "● needs credential (Secrets)",
     "noCredential": "● no credentials needed",
-    "setup": "Setup — {{label}}"
+    "setup": "Setup — {{label}}",
+    "instances": {
+      "title": "Workplaces",
+      "subtitle": "an engine plus the capacity to run it",
+      "desc": "A workplace is a contract: which engine, on whose credential, with which model. Agents are assigned to it — that is a commercial decision, not a technical one. Several credentials under it are used up in the order written down: the paid-for seats first, then whatever costs per token.",
+      "none": "No workplaces created yet.",
+      "add": "Create workplace",
+      "create": "Create",
+      "engine": "Engine",
+      "name": "Name",
+      "namePlaceholder": "e.g. Claude subscription team",
+      "deleteConfirm": "Really delete the workplace “{{name}}”? Assigned agents lose their assignment.",
+      "noCapacity": "No capacity configured — nobody can work on this workplace.",
+      "addCredential": "Add capacity",
+      "removeCredentialConfirm": "Really remove this capacity?",
+      "worksHere": "works here:",
+      "nobody": "nobody",
+      "noResume": "no resume",
+      "noResumeHint": "This engine cannot continue a session. It cannot carry agents that wait for an answer (blocked).",
+      "kindLabel": "Kind",
+      "kind": {
+        "api_key": "API key",
+        "subscription": "Subscription"
+      },
+      "kindHint": {
+        "api_key": "Metered: every token costs money. You want to leave it as empty as possible.",
+        "subscription": "Quota: paid for anyway. Unused quota is wasted money — you want to fill it."
+      },
+      "value": "Value",
+      "unnamed": "unlabelled (#{{ord}})",
+      "missingSecret": "No secret named “{{key}}” is stored — create it there first.",
+      "usedOfLimit": "{{used}} of {{limit}} in {{window}} (estimated)",
+      "usedNoLimit": "${{usd}} · {{tokens}} tokens in {{window}} — no limit set",
+      "reported": "reported by the provider: {{window}}% of the window, {{week}}% of the week",
+      "stale": "up to an hour old",
+      "notionalHint": "The amount is a list-price equivalent — on a subscription seat you do not pay it.",
+      "limitHint": "The cap applies within a rolling window and limits what this capacity may consume here. For an API key dollars are the honest unit — that is real billing. For a subscription you do not pay the amount; there tokens are the closer proxy. A cap of 0 lifts the limit.",
+      "label": "Label",
+      "labelHint": "e.g. subscription Ben",
+      "limit": "Limit",
+      "parked": "parked until {{until}}",
+      "release": "release",
+      "amount": "Cap",
+      "unit": "Unit",
+      "unitUsd": "Dollars",
+      "unitTokens": "Tokens",
+      "windowHours": "Window (h)",
+      "saveLimit": "Save limit",
+      "reason": {
+        "initial": "first assignment",
+        "limit": "dodged — its own capacity was at the limit",
+        "error": "dodged — its own capacity was rejected",
+        "return": "back on its home seat"
+      }
+    },
+    "engines": {
+      "title": "Engines",
+      "subtitle": "the code that runs the LLM loop"
+    }
   },
   "secrets": {
     "title": "Secrets",
@@ -1167,7 +1235,17 @@
     "sensitiveHint": "Specially protected: the value is write-only and can never be viewed again.",
     "protect": "Protect",
     "protectConfirm": "Mark \"{{key}}\" as sensitive? The value can never be viewed again — to undo, delete and re-create it.",
-    "delete": "Delete"
+    "delete": "Delete",
+    "pool": {
+      "values_one": "{{count}} value",
+      "values_other": "{{count}} values",
+      "addValue": "Add value",
+      "newValue": "New value",
+      "add": "Add",
+      "cancel": "Cancel",
+      "deleteConfirm": "Really remove value #{{slot}} from the pool?",
+      "capacityHint": "What these values may consume and who sits on which is shown under Workplaces — here is only the value."
+    }
   },
   "skills": {
     "title": "Skills",

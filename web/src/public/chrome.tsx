@@ -378,6 +378,12 @@ export const icons: Record<string, React.JSX.Element> = {
       <path d="M6 11a6 6 0 0 0 12 0M12 17v4M9 21h6" />
     </>
   ),
+  chart: (
+    <>
+      <path d="M4 20V4M4 20h16" />
+      <path d="M8 20v-6M13 20V8M18 20v-9" />
+    </>
+  ),
   coins: (
     <>
       <ellipse cx="12" cy="6" rx="7" ry="3" />

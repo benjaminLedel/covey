@@ -86,6 +86,19 @@ func (m *manager) ensureLocked() (context.Context, error) {
 	if p := strings.TrimSpace(os.Getenv("COVEY_BROWSER_CHROME_PATH")); p != "" {
 		opts = append(opts, chromedp.ExecPath(p))
 	}
+	// How long we wait for Chromium to announce its DevTools websocket.
+	//
+	// chromedp's default is 20 seconds, and that is too tight for a COLD start
+	// on a loaded machine: the end-to-end test failed in CI roughly every other
+	// run, always at exactly 20.0 s, always with "websocket url timeout
+	// reached". Re-running turned it green, which is the signature of a bound
+	// that is merely too small — and re-running a red build until it passes is
+	// not a fix, it is a habit that eventually hides a real failure.
+	//
+	// Tied to the action timeout on purpose: whoever grants a slow environment
+	// more time per action means the browser too, and a start that takes longer
+	// than a whole action is broken in a way no bound should paper over.
+	opts = append(opts, chromedp.WSURLReadTimeout(actionTimeout()))
 
 	// Detached from any single action: the session is the whole point of this
 	// plugin — cookies and login are meant to survive across several actions.

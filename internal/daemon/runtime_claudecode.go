@@ -31,11 +31,19 @@ func NewClaudeCode() *ClaudeCode {
 
 func init() {
 	RegisterRuntime(RuntimeDescriptor{
-		Name:            "claude-code",
-		Label:           "Claude Code",
-		Description:     "Real Claude Code sandbox (claude -p, headless). Needs an Anthropic credential under Secrets.",
-		NeedsCredential: true,
-		New:             func() Runtime { return NewClaudeCode() },
+		Name:        "claude-code",
+		Label:       "Claude Code",
+		Description: "Real Claude Code sandbox (claude -p, headless). Needs an Anthropic credential under Secrets.",
+		Credentials: []RuntimeCredential{
+			// API key before subscription token: whoever has both should use
+			// the one they are billed for on purpose, not by accident.
+			{Kind: CredAPIKey, Label: "API key",
+				Secret: "anthropic_api_key", EnvVar: "ANTHROPIC_API_KEY"},
+			{Kind: CredSubscription, Label: "Subscription",
+				Secret: "claude_code_oauth_token", EnvVar: "CLAUDE_CODE_OAUTH_TOKEN"},
+		},
+		Capabilities: RuntimeCapabilities{Resume: true, SkillsDir: ".claude/skills"},
+		New:          func() Runtime { return NewClaudeCode() },
 		Setup: []SetupStep{
 			{
 				Text: "Obtain a credential — one of the two variants:",

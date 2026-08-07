@@ -63,6 +63,8 @@ An agent is given targeted access to the systems its role needs. Support agent, 
 
 > **Security note:** a support agent with access to tickets + Confluence + Teams that gets prompt-injected through a prepared ticket is a genuine security incident (data exfiltration through *legitimate* access). The threat model for this is in [`04-identity-secrets.md`](04-identity-secrets.md) and has to be thought through from the start.
 
+Separate from these are the credentials the agent needs in order to **think** rather than to act: the LLM credential of its runtime. It is brokered the same way and never sits permanently in the sandbox, but it is a different kind of thing — target-system access is an *identity* that appears in the audit trail, an LLM credential is *capacity*. Which runtime an agent works on is accordingly not a technical detail but a durable, assigned property, on a par with its department and its budget: it says which contract pays for its thinking. See [`18-runtimes-capacity.md`](18-runtimes-capacity.md).
+
 ## Personality: config as code
 
 An agent's behaviour is defined as a set of Markdown files in Git — **one source of truth per agent** (one repo or directory per agent). The platform compiles a system prompt + runtime config from it. Benefits: versioning, rollback, review. Changes to agent behaviour go through a PR, not through a deploy — GitOps for agents, with audit falling out for free.

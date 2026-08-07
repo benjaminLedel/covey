@@ -1,7 +1,17 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, del, put, patch, type Agent, type Principal, type SecretCheck, type SecretPreview } from "../api";
+import {
+  api,
+  del,
+  patch,
+  post,
+  put,
+  type Agent,
+  type Principal,
+  type SecretCheck,
+  type SecretPreview,
+} from "../api";
 
 const canEdit = (role: string) => role === "platform_admin" || role === "security";
 
@@ -137,9 +147,109 @@ function SecretCard({ secret, agents, canEdit }: { secret: SecretPreview; agents
         )}
       </div>
       <Assignments secret={secret} agents={agents} />
+      <Pool secret={secret} canEdit={canEdit} />
     </div>
   );
 }
+
+// Die Werte eines Schlüssels.
+//
+// Eingeklappt, solange es nur einen gibt — das ist der Normalfall, und eine
+// Liste mit einem Eintrag ist keine Liste. Was mit den Werten GESCHIEHT (wer
+// darauf sitzt, was sie verbrauchen dürfen) steht bei den Arbeitsplätzen: hier
+// ist nur der Speicher (spec/18).
+function Pool({ secret, canEdit }: { secret: SecretPreview; canEdit: boolean }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const values = secret.values ?? [];
+  const [open, setOpen] = useState(values.length > 1);
+  const path = `/secrets/${encodeURIComponent(secret.key)}`;
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["secrets"] });
+
+  const [adding, setAdding] = useState(false);
+  const [value, setValue] = useState("");
+  const add = useMutation({
+    mutationFn: () => post<{ ok: boolean; slot: number; check: SecretCheck }>(`${path}/values`, { value }),
+    onSuccess: () => {
+      setValue("");
+      setAdding(false);
+      invalidate();
+    },
+  });
+  const remove = useMutation({
+    mutationFn: (slot: number) => del(`${path}/values/${slot}`),
+    onSuccess: invalidate,
+  });
+
+  return (
+    <div className="mt-2 text-xs">
+      <button className="btn sm" onClick={() => setOpen(!open)}>
+        {open ? "▾" : "▸"} {t("secrets.pool.values", { count: values.length })}
+      </button>
+
+      {open && (
+        <div className="mt-2">
+          {values.map((v) => (
+            <div
+              key={v.slot}
+              className="flex items-center gap-3 mt-1"
+              style={{ borderTop: "1px solid var(--border)", paddingTop: 6 }}
+            >
+              <span className="mono" style={{ color: "var(--text-secondary)", minWidth: 90 }}>
+                {v.sensitive ? `${v.prefix || ""}••••••••` : v.value}
+              </span>
+              <span className="flex-1 muted">#{v.slot}</span>
+              {canEdit && values.length > 1 && (
+                <button
+                  className="btn sm"
+                  onClick={() => {
+                    if (confirm(t("secrets.pool.deleteConfirm", { slot: v.slot }))) remove.mutate(v.slot);
+                  }}
+                >
+                  {t("secrets.delete")}
+                </button>
+              )}
+            </div>
+          ))}
+          <p className="muted mt-2 mb-0">{t("secrets.pool.capacityHint")}</p>
+
+          {canEdit &&
+            (adding ? (
+              <form
+                className="flex gap-2 items-end flex-wrap mt-2"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  add.mutate();
+                }}
+              >
+                <div className="flex-1 min-w-52">
+                  <label htmlFor={`pool-value-${secret.key}`}>{t("secrets.pool.newValue")}</label>
+                  <input
+                    id={`pool-value-${secret.key}`}
+                    type={secret.sensitive ? "password" : "text"}
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    required
+                  />
+                </div>
+                <button className="btn primary sm" disabled={add.isPending}>
+                  {t("secrets.pool.add")}
+                </button>
+                <button type="button" className="btn sm" onClick={() => setAdding(false)}>
+                  {t("secrets.pool.cancel")}
+                </button>
+              </form>
+            ) : (
+              <button className="btn sm mt-2" onClick={() => setAdding(true)}>
+                {t("secrets.pool.addValue")}
+              </button>
+            ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 // SecretValue zeigt Variablen im Klartext, sensible Secrets nur als
 // Präfix + Maske.

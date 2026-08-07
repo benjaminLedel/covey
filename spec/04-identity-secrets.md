@@ -54,6 +54,29 @@ The broker's resolution order: agent-owned secret → explicitly assigned org se
 
 Two kinds of target system are exempt from that refusal, and the difference between them matters. A system that runs **entirely inside the sandbox** (the dev toolbox, the browser) never sees a credential at all — the broker grants an empty one. A system whose secret only **raises what it may do** — a public API where a key lifts a rate limit — is usable without one: there the broker resolves best effort and grants either way, so that a missing optional key does not look like a missing mandatory one. Both stay subject to `ACCESS.md`, activation and guard rails; what is waived is the secret, not the entitlement.
 
+## Pools: several values under one key
+
+A key may carry **several values**. The occasion is the runtime credential — whoever holds several Claude subscription seats wants them spread across the agents instead of pushing every agent through one token and running into its limit — but the mechanism sits under *every* key, so several bot accounts for GitLab or GitHub work the same way. The explicit assignment stays at **key level**: which value an agent then gets is decided by the choice, not by the administration, otherwise every added token would mean reworking every assignment.
+
+> **What a pool is *for* differs by what it holds, even though the mechanics are identical.** An LLM credential is **capacity**: fungible, invisible outside, more of it means more throughput. A target-system token is an **identity**: it stands in the audit trail and carries permissions, so more of them means more identities, and rotating between them costs traceability rather than buying anything. The commercial model above LLM credentials — which contracts an organisation holds, which agent works on which one, what each one costs — is described in [`18-runtimes-capacity.md`](18-runtimes-capacity.md). Everything below here is the mechanism both share.
+
+The choice is **sticky**. An agent keeps its value as long as that value is healthy, for two reasons that both cost real money if ignored: the runtime caches the prompt prefix per credential, so a value swapped at every wake throws the cache away each time; and in a target system the token *is* the visible identity, so rotating it makes the audit trail unreadable. The seat is therefore stored (`secret_bindings`) and not computed from a hash of the agent id — a computed seat would reshuffle every agent the moment a value is added, and every cache would go cold as a side effect of an addition that should have hurt nobody.
+
+An agent moves only for a reason, and the reason is recorded:
+
+- **soft** — the value has used up its **limit** in the current rolling window. Two units, because "consumption" differs by credential: for an API key it is money (real billing), for a subscription token money is notional and tokens are the closer proxy for the provider's own window.
+- **hard** — the target system **rejected** the credential (rate limit, expired, revoked). That beats every estimate the limit makes.
+
+Both park the value; the agent then takes the least loaded healthy one (at equal load: the one fewest agents sit on) and keeps its previous seat as its **home**, so it returns there once that value is healthy again instead of the pool redistributing at every choice. Is **no** value usable, the broker refuses with the moment the pool frees up again, and the control plane **postpones** the wake rather than starting a run that cannot work — a rate limit thereby becomes a delay and not a failed task.
+
+> Least-loaded is the right rule for a pool of **like** values, which is what a set of subscription seats is. It is the wrong one as soon as a pool mixes paid-for quota with metered capacity, because the two pull in opposite directions — see the merit order in [`18-runtimes-capacity.md`](18-runtimes-capacity.md).
+
+> **Where the line runs.** Of all of this, only **one** thing is really a property of a secret: that a key can carry several values. That is a storage statement, and it belongs here, next to the encryption, the AAD and the sensitivity rule. Choosing among the values — stickiness, cooldown, limits — is capacity policy and belongs to the runtime ([`18-runtimes-capacity.md`](18-runtimes-capacity.md)). It currently sits here because that layer does not exist yet, and the seams are already visible: the selection has to be handed a usage function because this store does not own the data its own decision needs, and its cooldown is triggered by an LLM API error, of which a secret store should know nothing. The precedence rule and the assignment check stay here in any case — those *are* secret concerns.
+
+For the limit to be measurable at all, consumption is booked **against the value** it ran on (`cost_entries.secret_key/secret_slot`). Without that attribution there is no per-value limit, no utilisation, and no answer to whether one seat is too few or one too many. Where the engine can report the provider's own utilisation figure instead, that beats the platform's estimate; both, and the difference between them, are covered in [`18-runtimes-capacity.md`](18-runtimes-capacity.md).
+
+An agent-owned secret takes precedence over the pool as before; such an agent does not take part in the distribution.
+
  By default a secret is a simple **variable** (server name, URL) and readable through the API. Values marked **sensitive** (tokens, passwords) are write-only with a prefix preview — the marking is deliberately one-way (lifting the protection would mean disclosing the value after all; the way back is deletion and recreation). Both apply at both levels; in the built-in implementation the AES-GCM AAD additionally binds the ciphertext to org, agent and key.
 
 ## Threat model

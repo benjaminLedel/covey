@@ -164,6 +164,25 @@ type ModelCost struct {
 	Entries int64 `json:"entries"`
 }
 
+// CredentialCost is what one credential of a runtime paid for — the breakdown
+// that answers "is one seat too few, or one too many". Kind says what the money
+// column means there: real billing on a metered credential, a list-price
+// equivalent on a subscription seat (spec/17).
+//
+// Runs from before the pools carry no attribution and are missing here; they
+// still count towards the totals. The view has to be able to say that, so that
+// a gap does not read as "this value cost nothing".
+type CredentialCost struct {
+	RuntimeID   uuid.UUID `json:"runtime_id"`
+	RuntimeName string    `json:"runtime_name"`
+	Ord         int       `json:"ord"`
+	Label       string    `json:"label"`
+	Kind        string    `json:"kind"`
+	TotalUSD    float64   `json:"total_usd"`
+	Tokens
+	Entries int64 `json:"entries"`
+}
+
 // RunCost is what ONE run cost — a single backlog task with its consumption.
 //
 // It exists because the aggregates above answer "how much did the day cost" but
@@ -288,6 +307,9 @@ type OrgCostReport struct {
 	Series  []CostBucket `json:"series"`
 	Agents  []AgentCost  `json:"agents"`
 	Models  []ModelCost  `json:"models"`
+	// Credentials is the breakdown per pool value. Empty as long as nobody
+	// keeps several values under one key — then there is nothing to break down.
+	Credentials []CredentialCost `json:"credentials"`
 }
 
 // tokenSums is the token part of every cost aggregation — one place, so a
@@ -433,12 +455,83 @@ func (s *Store) OrgEventsByKind(ctx context.Context, orgID uuid.UUID, kind strin
 }
 
 // AddCost books costs from a cost event of the daemon.
-func (s *Store) AddCost(ctx context.Context, agentID uuid.UUID, taskID *uuid.UUID, usd float64, tok Tokens, model string) error {
+//
+// runtimeID/ord say WHICH credential paid for the run — the one the capacity
+// layer picked for it (spec/18). A nil runtime means: not attributable, and the
+// entry then counts towards the totals but not towards the breakdown per
+// credential. That is the case for every run from before the runtimes.
+func (s *Store) AddCost(ctx context.Context, agentID uuid.UUID, taskID *uuid.UUID, usd float64, tok Tokens, model string, runtimeID uuid.UUID, ord int) error {
+	var (
+		rt  *uuid.UUID
+		crd *int
+	)
+	if runtimeID != uuid.Nil {
+		rt, crd = &runtimeID, &ord
+	}
 	_, err := s.pool.Exec(ctx, `INSERT INTO cost_entries
-		(agent_id, task_id, usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, model)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-		agentID, taskID, usd, tok.Input, tok.Output, tok.CacheRead, tok.CacheCreation, model)
+		(agent_id, task_id, usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, model, runtime_id, credential_ord)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+		agentID, taskID, usd, tok.Input, tok.Output, tok.CacheRead, tok.CacheCreation, model, rt, crd)
 	return err
+}
+
+// CredentialUsage is what one credential of a runtime consumed in the rolling
+// window — the measurement behind its limit (runtimes.UsageFunc).
+//
+// The token figure is the sum of all four kinds. For an API key the USD column
+// is the honest one (it is real billing); for a subscription token USD is
+// notional and the token count is the closest available proxy for the
+// provider's own rolling window. Neither is the provider's actual counter —
+// they steer, and the hard signal (a rejected credential) corrects them.
+func (s *Store) CredentialUsage(ctx context.Context, runtimeID uuid.UUID, ord int, window time.Duration) (float64, int64, error) {
+	var (
+		usd    float64
+		tokens int64
+	)
+	// No org filter needed here: a runtime belongs to exactly one organisation
+	// (spec/18, D13), so its id already scopes the query.
+	err := s.pool.QueryRow(ctx, `SELECT COALESCE(SUM(usd),0),
+			COALESCE(SUM(input_tokens + output_tokens + cache_read_tokens + cache_creation_tokens),0)
+		FROM cost_entries
+		WHERE runtime_id=$1 AND credential_ord=$2 AND created_at >= $3`,
+		runtimeID, ord, time.Now().Add(-window)).Scan(&usd, &tokens)
+	return usd, tokens, err
+}
+
+// SlotConsumption is one value's consumption for the pool view.
+type SlotConsumption struct {
+	Ord    int     `json:"ord"`
+	USD    float64 `json:"usd"`
+	Tokens int64   `json:"tokens"`
+	Runs   int64   `json:"runs"`
+}
+
+// RuntimeUsage is CredentialUsage for every credential of a runtime in one go —
+// the figures behind the utilisation bars. Credentials without any consumption
+// in the window are missing from the result; that is the honest state and not
+// the same as zero (capacity nobody has been sitting on has not consumed
+// nothing, it has not been asked).
+func (s *Store) RuntimeUsage(ctx context.Context, runtimeID uuid.UUID, window time.Duration) ([]SlotConsumption, error) {
+	rows, err := s.pool.Query(ctx, `SELECT credential_ord, COALESCE(SUM(usd),0),
+			COALESCE(SUM(input_tokens + output_tokens + cache_read_tokens + cache_creation_tokens),0),
+			COUNT(*)
+		FROM cost_entries
+		WHERE runtime_id=$1 AND credential_ord IS NOT NULL AND created_at >= $2
+		GROUP BY credential_ord ORDER BY credential_ord`,
+		runtimeID, time.Now().Add(-window))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []SlotConsumption{}
+	for rows.Next() {
+		var c SlotConsumption
+		if err := rows.Scan(&c.Ord, &c.USD, &c.Tokens, &c.Runs); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
 }
 
 // CostByTasks liefert die Kosten einer Menge von Aufgaben in einem Rutsch —
@@ -812,7 +905,8 @@ func (s *Store) RunCosts(ctx context.Context, orgID uuid.UUID, agentID *uuid.UUI
 // breakdown per agent and per model. cost_entries has no org_id — we therefore
 // join via agents.
 func (s *Store) OrgCostReport(ctx context.Context, orgID uuid.UUID, bucket string, since time.Time) (OrgCostReport, error) {
-	rep := OrgCostReport{Bucket: normalizeBucket(bucket), Series: []CostBucket{}, Agents: []AgentCost{}, Models: []ModelCost{}}
+	rep := OrgCostReport{Bucket: normalizeBucket(bucket), Series: []CostBucket{}, Agents: []AgentCost{},
+		Models: []ModelCost{}, Credentials: []CredentialCost{}}
 
 	// Totals.
 	if err := s.pool.QueryRow(ctx, `SELECT COALESCE(SUM(ce.usd),0), `+tokenSums("ce.")+`, COUNT(*)
@@ -871,15 +965,50 @@ func (s *Store) OrgCostReport(ctx context.Context, orgID uuid.UUID, bucket strin
 	if err != nil {
 		return rep, err
 	}
-	defer mrows.Close()
-	for mrows.Next() {
-		var mc ModelCost
-		if err := mrows.Scan(&mc.Model, &mc.TotalUSD, &mc.Input, &mc.Output, &mc.CacheRead, &mc.CacheCreation, &mc.Entries); err != nil {
+	func() {
+		defer mrows.Close()
+		for mrows.Next() {
+			var mc ModelCost
+			if err = mrows.Scan(&mc.Model, &mc.TotalUSD, &mc.Input, &mc.Output, &mc.CacheRead, &mc.CacheCreation, &mc.Entries); err != nil {
+				return
+			}
+			rep.Models = append(rep.Models, mc)
+		}
+		err = mrows.Err()
+	}()
+	if err != nil {
+		return rep, err
+	}
+
+	// Per credential. The label comes from the runtime credential; one deleted
+	// in the meantime leaves its costs standing (LEFT JOIN) — they were
+	// incurred, and dropping them here would quietly shrink the sum against the
+	// totals above.
+	crows, err := s.pool.Query(ctx, `SELECT ce.runtime_id, ce.credential_ord,
+		COALESCE(r.display_name,''), COALESCE(rc.label,''), COALESCE(rc.kind,''),
+		COALESCE(SUM(ce.usd),0), `+tokenSums("ce.")+`, COUNT(*)
+		FROM cost_entries ce
+		JOIN agents a ON a.id=ce.agent_id
+		LEFT JOIN runtimes r ON r.id=ce.runtime_id
+		LEFT JOIN runtime_credentials rc
+			ON rc.runtime_id=ce.runtime_id AND rc.ord=ce.credential_ord
+		WHERE a.org_id=$1 AND ce.created_at >= $2 AND ce.runtime_id IS NOT NULL
+		GROUP BY ce.runtime_id, ce.credential_ord, r.display_name, rc.label, rc.kind
+		ORDER BY SUM(ce.usd) DESC`, orgID, since)
+	if err != nil {
+		return rep, err
+	}
+	defer crows.Close()
+	for crows.Next() {
+		var cc CredentialCost
+		if err := crows.Scan(&cc.RuntimeID, &cc.Ord, &cc.RuntimeName, &cc.Label, &cc.Kind,
+			&cc.TotalUSD, &cc.Input, &cc.Output, &cc.CacheRead, &cc.CacheCreation,
+			&cc.Entries); err != nil {
 			return rep, err
 		}
-		rep.Models = append(rep.Models, mc)
+		rep.Credentials = append(rep.Credentials, cc)
 	}
-	return rep, mrows.Err()
+	return rep, crows.Err()
 }
 
 // --- Approval queue ---

@@ -56,16 +56,16 @@
           "d": "Zielsysteme sind selbstregistrierende Plugins mit Manifest — neue Integrationen andocken, ohne den Kern anzufassen."
         },
         "gitlab": {
-          "t": "GitLab & Code",
-          "d": "Agenten arbeiten in echten Repositories: Branches, Merge Requests, Pipelines — als vollwertige Teammitglieder im Entwicklungsprozess."
+          "t": "GitLab, GitHub & Code",
+          "d": "Agenten arbeiten in echten Repositories: Branches, Merge und Pull Requests, Reviews, Pipelines — vollwertige Kollegen im Entwicklungsprozess."
         },
         "email": {
           "t": "E-Mail & IMAP",
           "d": "Postfächer als Zielsystem: Agenten lesen und beantworten Mails, ausgelöst über Webhooks oder Abruf."
         },
         "runtimes": {
-          "t": "Austauschbare Runtimes",
-          "d": "Die Runtime (erste: Claude Code headless) ist ein dünner Adapter hinter einem stabilen Protokoll — austauschbar, ohne die Plattform zu ändern."
+          "t": "Runtimes als Verträge",
+          "d": "Eine Runtime ist ein benannter Arbeitsplatz: Engine plus die Kapazität, sie zu betreiben. Wer mehrere Abo-Sitze oder API-Schlüssel hält, hinterlegt sie darunter — die Plattform verteilt die Agenten darauf, weicht bei Rate-Limits aus und bucht die Kosten auf den Vertrag, der sie getragen hat."
         },
         "sandbox": {
           "t": "Isolierte Sandboxen",
@@ -98,6 +98,10 @@
         "companion": {
           "t": "Companion-Anbindung",
           "d": "Menschen können ihr eigenes Wissen (über die Companion-App) an ihre Agenten freigeben — zentral durchgesetzt, fail-closed. In Entwicklung."
+        },
+        "indicators": {
+          "t": "Kennzahlen & Stückkosten",
+          "d": "Jeder Agent erklärt in KPIS.md, was er liefert. Die Plattform zählt es aus dem, was sie ohnehin aufzeichnet, und rechnet den Preis je Einheit aus — mit den Gegen-Zahlen daneben, damit ein Agent nicht dadurch gut aussieht, dass er die schweren Fälle abgibt."
         }
       },
       "ctaTitle": "Covey ausprobieren",
@@ -198,6 +202,10 @@
         "control": {
           "t": "Zentrale Kontrolle",
           "d": "Guard-Rails, Freigaben, Recording, Kosten und Kill-Switch — außerhalb der Runtime erzwungen, fail-closed."
+        },
+        "delivery": {
+          "t": "Nachweisbare Leistung",
+          "d": "Was die Belegschaft liefert, wird gezählt statt geschätzt — je Kennzahl der Stückpreis, daneben die Zahlen, die ihn qualifizieren: Nacharbeit, Ablehnungen, Reaktionszeit."
         }
       },
       "whoTitle": "Für die ganze Organisation",
@@ -377,7 +385,9 @@
       "cacheWrite": "Cache geschrieben",
       "inputFresh": "Eingabe (ungecacht)",
       "output": "Ausgabe"
-    }
+    },
+    "byCredential": "Nach Credential",
+    "credentialHint": "Läufe von vor der Zuordnung fehlen hier; sie zählen weiter in die Gesamtsumme."
   },
   "lang": {
     "toggle": "EN",
@@ -1146,7 +1156,65 @@
     "showInfo": "Einrichtung anzeigen",
     "needsCredential": "● braucht Credential (Secrets)",
     "noCredential": "● keine Credentials",
-    "setup": "Einrichtung — {{label}}"
+    "setup": "Einrichtung — {{label}}",
+    "instances": {
+      "title": "Arbeitsplätze",
+      "subtitle": "Engine plus die Kapazität, sie zu betreiben",
+      "desc": "Ein Arbeitsplatz ist ein Vertrag: welche Engine, auf wessen Credential, mit welchem Modell. Agenten werden ihm zugewiesen — das ist eine kaufmännische Entscheidung, keine technische. Mehrere Credentials darunter werden in der aufgeschriebenen Reihenfolge verbraucht: erst die bezahlten Sitze, dann was pro Token kostet.",
+      "none": "Noch keine Arbeitsplätze angelegt.",
+      "add": "Arbeitsplatz anlegen",
+      "create": "Anlegen",
+      "engine": "Engine",
+      "name": "Bezeichnung",
+      "namePlaceholder": "z. B. Claude Abo Team",
+      "deleteConfirm": "Arbeitsplatz „{{name}}“ wirklich löschen? Zugewiesene Agenten verlieren ihre Zuordnung.",
+      "noCapacity": "Keine Kapazität hinterlegt — auf diesem Arbeitsplatz kann niemand arbeiten.",
+      "addCredential": "Kapazität hinzufügen",
+      "removeCredentialConfirm": "Diese Kapazität wirklich entfernen?",
+      "worksHere": "arbeitet hier:",
+      "nobody": "niemand",
+      "noResume": "kein Resume",
+      "noResumeHint": "Diese Engine kann keine Sitzung fortsetzen. Agenten, die auf eine Antwort warten (blocked), kann sie nicht tragen.",
+      "kindLabel": "Art",
+      "kind": {
+        "api_key": "API-Key",
+        "subscription": "Abo"
+      },
+      "kindHint": {
+        "api_key": "Metered: jedes Token kostet Geld. Man will ihn so leer wie möglich lassen.",
+        "subscription": "Kontingent: ohnehin bezahlt. Ungenutztes ist verbranntes Geld — man will ihn voll fahren."
+      },
+      "value": "Wert",
+      "unnamed": "ohne Bezeichnung (#{{ord}})",
+      "missingSecret": "Unter Secrets ist kein Schlüssel „{{key}}“ hinterlegt — dort zuerst anlegen.",
+      "usedOfLimit": "{{used}} von {{limit}} in {{window}} (geschätzt)",
+      "usedNoLimit": "${{usd}} · {{tokens}} Tokens in {{window}} — kein Limit gesetzt",
+      "reported": "vom Anbieter gemeldet: {{window}} % im Fenster, {{week}} % in der Woche",
+      "stale": "Stand bis zu einer Stunde alt",
+      "notionalHint": "Der Betrag ist ein Listenpreis-Äquivalent — auf einem Abo-Sitz zahlst du ihn nicht.",
+      "limitHint": "Der Höchstwert gilt in einem rollierenden Fenster und deckelt, was diese Kapazität hier verbrauchen darf. Bei einem API-Key ist Dollar die ehrliche Einheit — es ist echte Abrechnung. Bei einem Abo zahlst du den Betrag nicht; dort sind Tokens die bessere Näherung. Höchstwert 0 hebt das Limit auf.",
+      "label": "Bezeichnung",
+      "labelHint": "z. B. Abo Ben",
+      "limit": "Limit",
+      "parked": "geparkt bis {{until}}",
+      "release": "freigeben",
+      "amount": "Höchstwert",
+      "unit": "Einheit",
+      "unitUsd": "Dollar",
+      "unitTokens": "Tokens",
+      "windowHours": "Fenster (h)",
+      "saveLimit": "Limit speichern",
+      "reason": {
+        "initial": "erste Zuordnung",
+        "limit": "ausgewichen — die eigene Kapazität war im Limit",
+        "error": "ausgewichen — die eigene Kapazität wurde abgewiesen",
+        "return": "zurück auf dem Stammplatz"
+      }
+    },
+    "engines": {
+      "title": "Engines",
+      "subtitle": "der Code, der die LLM-Schleife fährt"
+    }
   },
   "secrets": {
     "title": "Secrets",
@@ -1167,7 +1235,17 @@
     "sensitiveHint": "Besonders geschützt: der Wert ist write-only und nie wieder einsehbar.",
     "protect": "Schützen",
     "protectConfirm": "„{{key}}“ als sensibel markieren? Der Wert ist danach nie wieder einsehbar — rückgängig nur durch Löschen und Neuanlegen.",
-    "delete": "Löschen"
+    "delete": "Löschen",
+    "pool": {
+      "values_one": "{{count}} Wert",
+      "values_other": "{{count}} Werte",
+      "addValue": "Wert hinzufügen",
+      "newValue": "Neuer Wert",
+      "add": "Hinzufügen",
+      "cancel": "Abbrechen",
+      "deleteConfirm": "Wert #{{slot}} wirklich aus dem Pool entfernen?",
+      "capacityHint": "Was diese Werte verbrauchen dürfen und wer auf welchem sitzt, steht bei den Arbeitsplätzen — hier liegt nur der Wert."
+    }
   },
   "skills": {
     "title": "Skills",

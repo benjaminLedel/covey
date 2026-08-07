@@ -39,6 +39,7 @@ import (
 	"covey/internal/org"
 	"covey/internal/reqlog"
 	reqlogstore "covey/internal/reqlog/store"
+	"covey/internal/runtimes"
 	secbuiltin "covey/internal/secrets/builtin"
 	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
@@ -656,10 +657,16 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		log.Info("request log active", "retention", cfg.RequestLogRetention, "bodies", cfg.RequestLogBodies)
 	}
 
+	// The capacity layer: which contract an agent works on, and which of its
+	// credentials this run uses (spec/18). It reads values from the secret
+	// store and decides nothing about them itself.
+	runtimeStore := runtimes.New(pool, secretStore)
+
 	wsURL := strings.Replace(cfg.PublicURL, "http", "ws", 1) + "/api/daemon/ws"
 	orch := orchestrator.New(orchestrator.Options{
 		Pool: pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Identity: idp, Memory: mem,
+		Runtimes:       runtimeStore,
 		Targets:        targets,
 		Skills:         skillStore,
 		Egress:         egressStore,
@@ -681,7 +688,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		BaseCtx: ctx,
 		Audit:   auditStore,
 		Pool:    pool, Registry: registry, Backlog: backlogStore, Obs: obs,
-		Rails: rails, Secrets: secretStore, Identity: idp, Memory: mem, Dreams: dreams,
+		Rails: rails, Secrets: secretStore, Runtimes: runtimeStore, Identity: idp, Memory: mem, Dreams: dreams,
 		Org: org.NewStore(pool), Targets: targets, Templates: templateStore,
 		Skills: skillStore,
 		Orch:   orch, WebFS: dist, Log: log,
