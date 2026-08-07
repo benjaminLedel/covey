@@ -6,6 +6,21 @@
 // caches the prompt prefix per credential) and its identity in the target
 // system stable (a comment appears under the bot account whose token wrote it).
 // It moves only for a reason, and the reason is recorded.
+//
+// PROVISIONALLY PLACED. Of everything in this file, only the fact that a key can
+// hold several values really belongs to a secret store — that is a storage
+// statement, and it sits correctly next to the encryption and the AAD. The
+// CHOICE among those values is capacity policy and belongs to the runtime
+// (spec/18-runtimes-capacity.md), which does not exist yet. Three seams show it
+// already: Pick has to be handed a UsageFunc because this store does not own the
+// data its own decision needs, Cooldown is triggered by an LLM API error of
+// which a secret store should know nothing, and secret_bindings is an
+// agent↔credential assignment living in the secrets schema.
+//
+// When that layer arrives, this file splits along a line it nearly draws
+// already: "which values may this agent use for key K" stays here (the
+// precedence of an agent's own secret and the assignment check ARE secret
+// concerns), the health and load decision moves up.
 package builtin
 
 import (
