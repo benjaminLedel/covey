@@ -272,11 +272,11 @@ function CredentialRow({
         <span className="flex-1">{c.label || t("runtimes.instances.unnamed", { ord: c.ord })}</span>
         {parked && (
           <span className="badge st-blocked" title={c.cooldown_reason}>
-            {t("secrets.pool.parked", { until: new Date(c.cooldown_until!).toLocaleString() })}
+            {t("runtimes.instances.parked", { until: new Date(c.cooldown_until!).toLocaleString() })}
           </span>
         )}
         {seats.map((s) => (
-          <span key={s.name} className="badge st-triage" title={t(`secrets.pool.reason.${s.reason}`)}>
+          <span key={s.name} className="badge st-triage" title={t(`runtimes.instances.reason.${s.reason}`)}>
             {s.name}
           </span>
         ))}
@@ -284,11 +284,11 @@ function CredentialRow({
           <>
             {parked && (
               <button className="btn sm" onClick={() => release.mutate()}>
-                {t("secrets.pool.release")}
+                {t("runtimes.instances.release")}
               </button>
             )}
             <button className="btn sm" onClick={() => setEditing(!editing)}>
-              {t("secrets.pool.limit")}
+              {t("runtimes.instances.limit")}
             </button>
             <button
               className="btn sm"
@@ -446,8 +446,8 @@ function AddCredential({
         </select>
       </div>
       <div style={{ width: 150 }}>
-        <label htmlFor={`l-${runtimeID}`}>{t("secrets.pool.label")}</label>
-        <input id={`l-${runtimeID}`} value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("secrets.pool.labelHint")} />
+        <label htmlFor={`l-${runtimeID}`}>{t("runtimes.instances.label")}</label>
+        <input id={`l-${runtimeID}`} value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("runtimes.instances.labelHint")} />
       </div>
       <button className="btn primary sm" disabled={add.isPending || !declared || values.length === 0}>
         {t("secrets.pool.add")}
@@ -493,22 +493,22 @@ function LimitForm({
       }}
     >
       <div style={{ width: 110 }}>
-        <label htmlFor={`${id}-amount`}>{t("secrets.pool.amount")}</label>
+        <label htmlFor={`${id}-amount`}>{t("runtimes.instances.amount")}</label>
         <input id={`${id}-amount`} value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" />
       </div>
       <div style={{ width: 110 }}>
-        <label htmlFor={`${id}-unit`}>{t("secrets.pool.unit")}</label>
+        <label htmlFor={`${id}-unit`}>{t("runtimes.instances.unit")}</label>
         <select id={`${id}-unit`} value={unit} onChange={(e) => setUnit(e.target.value as SecretLimit["unit"])}>
-          <option value="usd">{t("secrets.pool.unitUsd")}</option>
-          <option value="tokens">{t("secrets.pool.unitTokens")}</option>
+          <option value="usd">{t("runtimes.instances.unitUsd")}</option>
+          <option value="tokens">{t("runtimes.instances.unitTokens")}</option>
         </select>
       </div>
       <div style={{ width: 110 }}>
-        <label htmlFor={`${id}-window`}>{t("secrets.pool.windowHours")}</label>
+        <label htmlFor={`${id}-window`}>{t("runtimes.instances.windowHours")}</label>
         <input id={`${id}-window`} value={hours} onChange={(e) => setHours(e.target.value)} inputMode="decimal" />
       </div>
       <button className="btn primary sm" disabled={pending}>
-        {t("secrets.pool.saveLimit")}
+        {t("runtimes.instances.saveLimit")}
       </button>
       <p className="muted w-full m-0" style={{ maxWidth: 620 }}>
         {t("runtimes.instances.limitHint")}

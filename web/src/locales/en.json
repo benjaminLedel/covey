@@ -1184,7 +1184,24 @@
       "reported": "reported by the provider: {{window}}% of the window, {{week}}% of the week",
       "stale": "up to an hour old",
       "notionalHint": "The amount is a list-price equivalent — on a subscription seat you do not pay it.",
-      "limitHint": "The cap applies within a rolling window and limits what this capacity may consume here. For an API key dollars are the honest unit — that is real billing. For a subscription you do not pay the amount; there tokens are the closer proxy. A cap of 0 lifts the limit."
+      "limitHint": "The cap applies within a rolling window and limits what this capacity may consume here. For an API key dollars are the honest unit — that is real billing. For a subscription you do not pay the amount; there tokens are the closer proxy. A cap of 0 lifts the limit.",
+      "label": "Label",
+      "labelHint": "e.g. subscription Ben",
+      "limit": "Limit",
+      "parked": "parked until {{until}}",
+      "release": "release",
+      "amount": "Cap",
+      "unit": "Unit",
+      "unitUsd": "Dollars",
+      "unitTokens": "Tokens",
+      "windowHours": "Window (h)",
+      "saveLimit": "Save limit",
+      "reason": {
+        "initial": "first assignment",
+        "limit": "dodged — its own capacity was at the limit",
+        "error": "dodged — its own capacity was rejected",
+        "return": "back on its home seat"
+      }
     },
     "engines": {
       "title": "Engines",

@@ -1184,7 +1184,24 @@
       "reported": "vom Anbieter gemeldet: {{window}} % im Fenster, {{week}} % in der Woche",
       "stale": "Stand bis zu einer Stunde alt",
       "notionalHint": "Der Betrag ist ein Listenpreis-Äquivalent — auf einem Abo-Sitz zahlst du ihn nicht.",
-      "limitHint": "Der Höchstwert gilt in einem rollierenden Fenster und deckelt, was diese Kapazität hier verbrauchen darf. Bei einem API-Key ist Dollar die ehrliche Einheit — es ist echte Abrechnung. Bei einem Abo zahlst du den Betrag nicht; dort sind Tokens die bessere Näherung. Höchstwert 0 hebt das Limit auf."
+      "limitHint": "Der Höchstwert gilt in einem rollierenden Fenster und deckelt, was diese Kapazität hier verbrauchen darf. Bei einem API-Key ist Dollar die ehrliche Einheit — es ist echte Abrechnung. Bei einem Abo zahlst du den Betrag nicht; dort sind Tokens die bessere Näherung. Höchstwert 0 hebt das Limit auf.",
+      "label": "Bezeichnung",
+      "labelHint": "z. B. Abo Ben",
+      "limit": "Limit",
+      "parked": "geparkt bis {{until}}",
+      "release": "freigeben",
+      "amount": "Höchstwert",
+      "unit": "Einheit",
+      "unitUsd": "Dollar",
+      "unitTokens": "Tokens",
+      "windowHours": "Fenster (h)",
+      "saveLimit": "Limit speichern",
+      "reason": {
+        "initial": "erste Zuordnung",
+        "limit": "ausgewichen — die eigene Kapazität war im Limit",
+        "error": "ausgewichen — die eigene Kapazität wurde abgewiesen",
+        "return": "zurück auf dem Stammplatz"
+      }
     },
     "engines": {
       "title": "Engines",
