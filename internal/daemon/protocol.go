@@ -94,7 +94,11 @@ type InjectCredentials struct {
 	Reason    string `json:"reason,omitempty"`
 	Token     string `json:"token,omitempty"`
 	BaseURL   string `json:"base_url,omitempty"`
-	TTLSecs   int    `json:"ttl_secs,omitempty"`
+	// Path delivers the value as a FILE at this path in the agent home instead
+	// of as an environment variable — the form some engines require for their
+	// subscription login (spec/19). Written for the run, removed after it.
+	Path    string `json:"path,omitempty"`
+	TTLSecs int    `json:"ttl_secs,omitempty"`
 	// EnvVar names the runtime's target environment variable when the control
 	// plane knows the credential type (from the secret's name). If it is empty,
 	// the daemon guesses from the token prefix (backwards compatibility).

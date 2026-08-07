@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"covey/internal/secrets"
+	"covey/internal/runtimes"
 )
 
 // TestRejectionCooldown pins the hard signal: which error text parks a value,
@@ -48,8 +48,8 @@ func TestRejectionCooldown(t *testing.T) {
 			if c.want == 0 && reason != "" {
 				t.Fatalf("no cooldown, but reason %q", reason)
 			}
-			if c.want != 0 && reason != secrets.ReasonError {
-				t.Fatalf("reason %q, expected %q", reason, secrets.ReasonError)
+			if c.want != 0 && reason != runtimes.ReasonError {
+				t.Fatalf("reason %q, expected %q", reason, runtimes.ReasonError)
 			}
 		})
 	}

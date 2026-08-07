@@ -492,7 +492,7 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 	// BEFORE the run — afterwards it would have no effect. The count decides
 	// whether the Skill tool belongs in the run's loading scope: without skills
 	// it would only drag the built-in ones' descriptions into every turn.
-	spec.Skills = c.materializeSkills(runCtx) > 0
+	spec.Skills = c.materializeSkills(runCtx, cfg.Runtime) > 0
 
 	res, err := runtime.Run(runCtx, spec, func(kind string, payload json.RawMessage) {
 		_ = c.send(TypeEvent, Event{TaskID: task.TaskID, Kind: kind, Payload: payload})

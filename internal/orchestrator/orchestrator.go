@@ -33,6 +33,7 @@ import (
 	"covey/internal/observability"
 	"covey/internal/reqlog"
 	reqlogstore "covey/internal/reqlog/store"
+	"covey/internal/runtimes"
 	"covey/internal/secrets"
 	"covey/internal/skills"
 	"covey/internal/target"
@@ -54,6 +55,9 @@ type Options struct {
 	Obs      *observability.Store
 	Rails    *guardrails.Store
 	Secrets  secrets.Store
+	// Runtimes is the capacity layer: which contract an agent works on and
+	// which of its credentials this waking phase runs on (spec/18).
+	Runtimes *runtimes.Store
 	Identity identity.Provider
 	Memory   *memory.Store
 	// Skills are the agents' skills (library + agent-owned). nil = feature
@@ -253,8 +257,8 @@ type session struct {
 	// prefix per credential and a swap would throw that cache away in the middle
 	// of the work. The costs are booked against it, and it is what a rejection
 	// from the API puts into cooldown.
-	credKey  string
-	credSlot int
+	credRuntime uuid.UUID
+	credOrd     int
 }
 
 // Run starts the dispatch loop: cheap, permanent, no LLM (spec/03).
@@ -714,10 +718,10 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 	// instead of a container being started for a run that cannot work. A rate
 	// limit thereby becomes a delay and not a failed task — the work stays in
 	// the backlog and is picked up when the value is free again.
-	cred, credErr := o.anthropicCredential(ctx, agent)
-	if errors.Is(credErr, secrets.ErrPoolExhausted) {
+	cred, credErr := o.llmCredentialFor(ctx, agent)
+	if errors.Is(credErr, runtimes.ErrExhausted) {
 		payload := map[string]any{"system": "anthropic", "granted": false, "reason": "pool exhausted"}
-		var pe *secrets.PoolExhausted
+		var pe *runtimes.Exhausted
 		if errors.As(credErr, &pe) && !pe.Until.IsZero() {
 			payload["free_at"] = pe.Until
 		}
@@ -725,7 +729,7 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential, payload)
 		return nil
 	}
-	s.credKey, s.credSlot = cred.Secret, cred.Slot
+	s.credRuntime, s.credOrd = cred.RuntimeID, cred.Ord
 
 	o.setStatus(ctx, agent, nil, agents.StatusTriggered)
 
@@ -1096,38 +1100,34 @@ func (o *Orchestrator) sendMsg(ctx context.Context, link DaemonLink, msgType str
 // there is no point starting a container just to have the runtime fail on a
 // missing credential. The caller then postpones the wake.
 //
-// The secret's name determines the credential type and hence the runtime env:
-// anthropic_api_key → ANTHROPIC_API_KEY, claude_code_oauth_token
-// (subscription, via `claude setup-token`) → CLAUDE_CODE_OAUTH_TOKEN. Do not
-// guess from the token prefix — the name is the binding intent.
-func (o *Orchestrator) anthropicCredential(ctx context.Context, agent agents.Agent) (llmCredential, error) {
-	usage := secrets.UsageFunc(nil)
+// Which credential and how it reaches the sandbox comes from the ENGINE's
+// declaration (daemon.RuntimeCredential) via the agent's runtime — never from a
+// list here. That list was the reason a second provider could not be added
+// without touching the orchestrator (spec/18).
+func (o *Orchestrator) llmCredentialFor(ctx context.Context, agent agents.Agent) (llmCredential, error) {
+	if o.Runtimes == nil || agent.RuntimeID == nil {
+		return llmCredential{}, errNoRuntime
+	}
+	usage := runtimes.UsageFunc(nil)
 	if o.Obs != nil {
-		usage = o.Obs.SlotUsage
+		usage = o.Obs.CredentialUsage
 	}
-	var err error
-	for _, c := range []struct{ name, env string }{
-		{"anthropic_api_key", "ANTHROPIC_API_KEY"},
-		{"claude_code_oauth_token", "CLAUDE_CODE_OAUTH_TOKEN"},
-	} {
-		v, perr := o.Secrets.Pick(ctx, agent.OrgID, agent.ID, c.name, usage)
-		if perr == nil {
-			// TrimSpace catches copy-and-paste whitespace/newlines.
-			return llmCredential{Token: strings.TrimSpace(v.Value), EnvVar: c.env,
-				Secret: c.name, Slot: v.Slot}, nil
-		}
-		// Exhausted is not "missing": the pool exists, it is just too early.
-		// Report it up rather than quietly falling through to the next name —
-		// otherwise an API key at its limit would be answered with the
-		// subscription token, which is exactly the mix-up the limit is meant to
-		// prevent.
-		if errors.Is(perr, secrets.ErrPoolExhausted) {
-			return llmCredential{}, perr
-		}
-		err = perr
+	p, err := o.Runtimes.Pick(ctx, agent.OrgID, agent.ID, *agent.RuntimeID, usage)
+	if err != nil {
+		return llmCredential{}, err
 	}
-	return llmCredential{}, err // nothing stored — the runtime reports this as a task error
+	if p.Ord < 0 {
+		return llmCredential{}, errNoRuntime // an engine that needs none (the mock)
+	}
+	// TrimSpace catches copy-and-paste whitespace/newlines.
+	return llmCredential{Token: strings.TrimSpace(p.Value), EnvVar: p.EnvVar, Path: p.Path,
+		RuntimeID: p.RuntimeID, Ord: p.Ord, Label: p.Label}, nil
 }
+
+// errNoRuntime: nothing to broker — either the agent has no runtime assigned or
+// its engine needs no credential. Not an error the run should fail on; the
+// runtime reports a missing credential itself, with an actionable hint.
+var errNoRuntime = errors.New("no LLM credential to broker")
 
 // How long a rejected value stays parked.
 //
@@ -1165,56 +1165,63 @@ func rejectionCooldown(errText string) (time.Duration, string) {
 	case strings.Contains(errText, "Invalid bearer token"),
 		strings.Contains(errText, "OAuth token has expired"),
 		strings.Contains(errText, "authentication_error"):
-		return cooldownRejected, secrets.ReasonError
+		return cooldownRejected, runtimes.ReasonError
 	case strings.Contains(errText, "rate_limit"),
 		strings.Contains(errText, "Rate limit"),
 		strings.Contains(errText, "429"):
-		return cooldownRateLimit, secrets.ReasonError
+		return cooldownRateLimit, runtimes.ReasonError
 	}
 	return 0, ""
 }
 
 func (o *Orchestrator) noteCredentialRejection(ctx context.Context, agent agents.Agent, s *session, errText string) {
-	if s == nil || s.credKey == "" {
+	if s == nil || s.credRuntime == uuid.Nil || o.Runtimes == nil {
 		return
 	}
 	until, reason := rejectionCooldown(errText)
 	if until == 0 {
 		return
 	}
-	if err := o.Secrets.Cooldown(ctx, agent.OrgID, s.credKey, s.credSlot,
+	if err := o.Runtimes.Cooldown(ctx, s.credRuntime, s.credOrd,
 		time.Now().Add(until), reason); err != nil {
 		o.Log.Warn("credential could not be parked",
-			"secret", s.credKey, "slot", s.credSlot, "err", err)
+			"runtime", s.credRuntime, "ord", s.credOrd, "err", err)
 		return
 	}
 	o.Log.Warn("credential rejected — value parked",
-		"agent", agent.Slug, "secret", s.credKey, "slot", s.credSlot, "until", until)
+		"agent", agent.Slug, "runtime", s.credRuntime, "ord", s.credOrd, "until", until)
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
 		map[string]any{"system": "anthropic", "granted": false, "reason": "rejected",
-			"secret": s.credKey, "slot": s.credSlot, "cooldown_secs": int(until.Seconds())})
+			"runtime": s.credRuntime, "ord": s.credOrd, "cooldown_secs": int(until.Seconds())})
 }
 
 // llmCredential is the credential of one waking phase plus its origin: which
 // secret and which value of it. The origin is what makes consumption
 // attributable and a rejection assignable to exactly one value.
 type llmCredential struct {
-	Token  string
+	Token string
+	// Exactly one of these, from the engine's declaration: the value arrives as
+	// an environment variable, or as a file at this path in the agent home.
 	EnvVar string
-	Secret string
-	Slot   int
+	Path   string
+	// Where it came from, so consumption is attributable and a rejection lands
+	// on exactly one credential.
+	RuntimeID uuid.UUID
+	Ord       int
+	Label     string
 }
 
 // pushAnthropicKey hands the already picked credential to the daemon. Never
 // permanently in the sandbox — it arrives per waking phase and with a TTL.
 func (o *Orchestrator) pushAnthropicKey(ctx context.Context, agent agents.Agent, link DaemonLink, cred llmCredential) {
 	_ = o.sendMsg(ctx, link, daemon.TypeInjectCredentials, daemon.InjectCredentials{
-		System: "anthropic", Granted: true, Token: cred.Token, EnvVar: cred.EnvVar,
+		System: "anthropic", Granted: true, Token: cred.Token,
+		EnvVar: cred.EnvVar, Path: cred.Path,
 		TTLSecs: int(o.DaemonTokenTTL.Seconds()),
 	})
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
 		map[string]any{"system": "anthropic", "granted": true, "proactive": true,
-			"secret": cred.Secret, "slot": cred.Slot})
+			"runtime": cred.RuntimeID, "ord": cred.Ord, "label": cred.Label})
 }
 
 func (o *Orchestrator) isKilled(ctx context.Context, agent agents.Agent) (bool, error) {
@@ -1583,7 +1590,7 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		_ = o.Obs.AddCost(ctx, agent.ID, &taskID, c.USD, observability.Tokens{
 			Input: c.InputTokens, Output: c.OutputTokens,
 			CacheRead: c.CacheReadTokens, CacheCreation: c.CacheCreationTokens,
-		}, c.Model, s.credKey, s.credSlot)
+		}, c.Model, s.credRuntime, s.credOrd)
 		return false, o.enforceBudget(ctx, agent, link, taskID, s)
 
 	case daemon.TypeRequestCredential:

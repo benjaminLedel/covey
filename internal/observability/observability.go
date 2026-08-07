@@ -453,71 +453,69 @@ func (s *Store) OrgEventsByKind(ctx context.Context, orgID uuid.UUID, kind strin
 
 // AddCost books costs from a cost event of the daemon.
 //
-// secretKey/secretSlot say WHICH credential paid for the run — the pool value
-// the control plane picked for it (spec/04). An empty secretKey means: not
-// attributable, the entry then only counts towards the totals and not towards
-// the breakdown per value. That is the case for every run from before the pools
-// and for runs on an agent-owned credential.
-func (s *Store) AddCost(ctx context.Context, agentID uuid.UUID, taskID *uuid.UUID, usd float64, tok Tokens, model, secretKey string, secretSlot int) error {
+// runtimeID/ord say WHICH credential paid for the run — the one the capacity
+// layer picked for it (spec/18). A nil runtime means: not attributable, and the
+// entry then counts towards the totals but not towards the breakdown per
+// credential. That is the case for every run from before the runtimes.
+func (s *Store) AddCost(ctx context.Context, agentID uuid.UUID, taskID *uuid.UUID, usd float64, tok Tokens, model string, runtimeID uuid.UUID, ord int) error {
 	var (
-		key  *string
-		slot *int
+		rt  *uuid.UUID
+		crd *int
 	)
-	if secretKey != "" {
-		key, slot = &secretKey, &secretSlot
+	if runtimeID != uuid.Nil {
+		rt, crd = &runtimeID, &ord
 	}
 	_, err := s.pool.Exec(ctx, `INSERT INTO cost_entries
-		(agent_id, task_id, usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, model, secret_key, secret_slot)
+		(agent_id, task_id, usd, input_tokens, output_tokens, cache_read_tokens, cache_creation_tokens, model, runtime_id, credential_ord)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-		agentID, taskID, usd, tok.Input, tok.Output, tok.CacheRead, tok.CacheCreation, model, key, slot)
+		agentID, taskID, usd, tok.Input, tok.Output, tok.CacheRead, tok.CacheCreation, model, rt, crd)
 	return err
 }
 
-// SlotUsage is what one pool value has consumed in the rolling window — the
-// measurement behind the per-value limit (secrets.UsageFunc).
+// CredentialUsage is what one credential of a runtime consumed in the rolling
+// window — the measurement behind its limit (runtimes.UsageFunc).
 //
 // The token figure is the sum of all four kinds. For an API key the USD column
 // is the honest one (it is real billing); for a subscription token USD is
 // notional and the token count is the closest available proxy for the
 // provider's own rolling window. Neither is the provider's actual counter —
 // they steer, and the hard signal (a rejected credential) corrects them.
-func (s *Store) SlotUsage(ctx context.Context, orgID uuid.UUID, key string, slot int, window time.Duration) (float64, int64, error) {
+func (s *Store) CredentialUsage(ctx context.Context, runtimeID uuid.UUID, ord int, window time.Duration) (float64, int64, error) {
 	var (
 		usd    float64
 		tokens int64
 	)
-	// cost_entries carries no org_id (see CostByOrg) — the org comes from the
-	// agent. Without it a second organisation's consumption would count against
-	// a value of the same name here.
-	err := s.pool.QueryRow(ctx, `SELECT COALESCE(SUM(ce.usd),0),
-			COALESCE(SUM(ce.input_tokens + ce.output_tokens + ce.cache_read_tokens + ce.cache_creation_tokens),0)
-		FROM cost_entries ce JOIN agents a ON a.id=ce.agent_id
-		WHERE a.org_id=$1 AND ce.secret_key=$2 AND ce.secret_slot=$3 AND ce.created_at >= $4`,
-		orgID, key, slot, time.Now().Add(-window)).Scan(&usd, &tokens)
+	// No org filter needed here: a runtime belongs to exactly one organisation
+	// (spec/18, D13), so its id already scopes the query.
+	err := s.pool.QueryRow(ctx, `SELECT COALESCE(SUM(usd),0),
+			COALESCE(SUM(input_tokens + output_tokens + cache_read_tokens + cache_creation_tokens),0)
+		FROM cost_entries
+		WHERE runtime_id=$1 AND credential_ord=$2 AND created_at >= $3`,
+		runtimeID, ord, time.Now().Add(-window)).Scan(&usd, &tokens)
 	return usd, tokens, err
 }
 
 // SlotConsumption is one value's consumption for the pool view.
 type SlotConsumption struct {
-	Slot   int     `json:"slot"`
+	Ord    int     `json:"ord"`
 	USD    float64 `json:"usd"`
 	Tokens int64   `json:"tokens"`
 	Runs   int64   `json:"runs"`
 }
 
-// PoolUsage is SlotUsage for every value of a key in one go — the figures
-// behind the utilisation bars in the secrets view. Values without any
-// consumption in the window are missing from the result; that is the honest
-// state and not the same as zero (a value that nobody has been sitting on has
-// not consumed nothing, it has not been asked).
-func (s *Store) PoolUsage(ctx context.Context, orgID uuid.UUID, key string, window time.Duration) ([]SlotConsumption, error) {
-	rows, err := s.pool.Query(ctx, `SELECT ce.secret_slot, COALESCE(SUM(ce.usd),0),
-			COALESCE(SUM(ce.input_tokens + ce.output_tokens + ce.cache_read_tokens + ce.cache_creation_tokens),0),
+// RuntimeUsage is CredentialUsage for every credential of a runtime in one go —
+// the figures behind the utilisation bars. Credentials without any consumption
+// in the window are missing from the result; that is the honest state and not
+// the same as zero (capacity nobody has been sitting on has not consumed
+// nothing, it has not been asked).
+func (s *Store) RuntimeUsage(ctx context.Context, runtimeID uuid.UUID, window time.Duration) ([]SlotConsumption, error) {
+	rows, err := s.pool.Query(ctx, `SELECT credential_ord, COALESCE(SUM(usd),0),
+			COALESCE(SUM(input_tokens + output_tokens + cache_read_tokens + cache_creation_tokens),0),
 			COUNT(*)
-		FROM cost_entries ce JOIN agents a ON a.id=ce.agent_id
-		WHERE a.org_id=$1 AND ce.secret_key=$2 AND ce.created_at >= $3
-		GROUP BY ce.secret_slot ORDER BY ce.secret_slot`,
-		orgID, key, time.Now().Add(-window))
+		FROM cost_entries
+		WHERE runtime_id=$1 AND credential_ord IS NOT NULL AND created_at >= $2
+		GROUP BY credential_ord ORDER BY credential_ord`,
+		runtimeID, time.Now().Add(-window))
 	if err != nil {
 		return nil, err
 	}
@@ -525,7 +523,7 @@ func (s *Store) PoolUsage(ctx context.Context, orgID uuid.UUID, key string, wind
 	out := []SlotConsumption{}
 	for rows.Next() {
 		var c SlotConsumption
-		if err := rows.Scan(&c.Slot, &c.USD, &c.Tokens, &c.Runs); err != nil {
+		if err := rows.Scan(&c.Ord, &c.USD, &c.Tokens, &c.Runs); err != nil {
 			return nil, err
 		}
 		out = append(out, c)

@@ -90,9 +90,6 @@ func (s *Store) open(key string, aad, nonce, ciphertext []byte) (string, error) 
 // key that already carries a pool, correcting its first value. Further values
 // come from AddValue; overwriting a whole pool from a single Put would silently
 // destroy values nobody named here.
-//
-// An overwrite lifts the cooldown of that value: whoever deposits a new value
-// is answering exactly the case the cooldown parked it for.
 func (s *Store) Put(ctx context.Context, orgID uuid.UUID, key, value string) error {
 	nonce, ct, err := s.seal(aad(orgID, nil, key, 0), value)
 	if err != nil {
@@ -101,8 +98,7 @@ func (s *Store) Put(ctx context.Context, orgID uuid.UUID, key, value string) err
 	_, err = s.pool.Exec(ctx, `INSERT INTO secrets (org_id, key, slot, nonce, ciphertext)
 		VALUES ($1,$2,0,$3,$4)
 		ON CONFLICT (org_id, key, slot) WHERE agent_id IS NULL
-		DO UPDATE SET nonce=$3, ciphertext=$4, updated_at=now(),
-			cooldown_until=NULL, cooldown_reason=''`,
+		DO UPDATE SET nonce=$3, ciphertext=$4, updated_at=now()`,
 		orgID, key, nonce, ct)
 	return err
 }
@@ -118,8 +114,7 @@ func (s *Store) PutAgent(ctx context.Context, orgID, agentID uuid.UUID, key, val
 		SELECT $1, $2, $3, 0, $4, $5
 		WHERE EXISTS (SELECT 1 FROM agents WHERE id=$2 AND org_id=$1)
 		ON CONFLICT (org_id, agent_id, key, slot) WHERE agent_id IS NOT NULL
-		DO UPDATE SET nonce=$4, ciphertext=$5, updated_at=now(),
-			cooldown_until=NULL, cooldown_reason=''`,
+		DO UPDATE SET nonce=$4, ciphertext=$5, updated_at=now()`,
 		orgID, agentID, key, nonce, ct)
 	if err != nil {
 		return err
@@ -131,11 +126,9 @@ func (s *Store) PutAgent(ctx context.Context, orgID, agentID uuid.UUID, key, val
 }
 
 // Get reads an org-wide secret without an agent context (bootstrap, webhooks,
-// the org's own LLM calls). Out of a pool it takes the lowest HEALTHY value —
-// there is no agent here whose seat could be kept, so stickiness has no anchor;
-// what matters is only that a parked value is not handed out. If every value is
-// in cooldown, the lowest one applies anyway: a caller without an agent has no
-// run it could postpone, and refusing would help nobody.
+// the org's own LLM calls). Out of several values it takes the lowest: there is
+// no agent here whose seat could be kept, and no capacity decision to make —
+// this caller has no run it could postpone.
 func (s *Store) Get(ctx context.Context, orgID uuid.UUID, key string) (string, error) {
 	var (
 		nonce, ct []byte
@@ -143,8 +136,7 @@ func (s *Store) Get(ctx context.Context, orgID uuid.UUID, key string) (string, e
 	)
 	err := s.pool.QueryRow(ctx, `SELECT nonce, ciphertext, slot FROM secrets
 		WHERE org_id=$1 AND key=$2 AND agent_id IS NULL
-		ORDER BY (cooldown_until IS NOT NULL AND cooldown_until > now()), slot
-		LIMIT 1`, orgID, key).Scan(&nonce, &ct, &slot)
+		ORDER BY slot LIMIT 1`, orgID, key).Scan(&nonce, &ct, &slot)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", secrets.ErrNotFound
 	}
@@ -154,25 +146,40 @@ func (s *Store) Get(ctx context.Context, orgID uuid.UUID, key string) (string, e
 	return s.open(key, aad(orgID, nil, key, slot), nonce, ct)
 }
 
-// Resolve is Pick without a limit check, for every caller that only wants the
-// value and books no consumption against it (the target-system broker, the
-// heartbeat work check). Cooldowns still apply — a value the target system has
-// rejected must not be handed out again just because nobody is measuring here.
+// Resolve prefers the agent's own secret; otherwise the org-wide one applies —
+// but only on explicit assignment. An org secret without an assignment reaches
+// no agent.
+//
+// Out of several values it takes the lowest. Which one an agent SHOULD get when
+// there are several is a capacity decision and is made one layer up
+// (internal/runtimes, spec/18); this path serves target systems, where a key
+// carries exactly one value.
 func (s *Store) Resolve(ctx context.Context, orgID, agentID uuid.UUID, key string) (string, error) {
-	v, err := s.Pick(ctx, orgID, agentID, key, nil)
-	return v.Value, err
+	var (
+		nonce, ct []byte
+		rowAgent  *uuid.UUID
+		slot      int
+	)
+	err := s.pool.QueryRow(ctx, `SELECT nonce, ciphertext, agent_id, slot FROM secrets s
+		WHERE s.org_id=$1 AND s.key=$2 AND (
+			s.agent_id=$3
+			OR (s.agent_id IS NULL AND EXISTS (SELECT 1 FROM secret_assignments a
+				WHERE a.org_id=$1 AND a.key=$2 AND a.agent_id=$3)))
+		ORDER BY s.agent_id NULLS LAST, s.slot LIMIT 1`,
+		orgID, key, agentID).Scan(&nonce, &ct, &rowAgent, &slot)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", secrets.ErrNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	return s.open(key, aad(orgID, rowAgent, key, slot), nonce, ct)
 }
 
 func (s *Store) Delete(ctx context.Context, orgID uuid.UUID, key string) error {
-	// Assignments and seat bindings hang off the org-wide secret — they
-	// disappear with it. A binding left behind would send the next pool under
-	// the same name to a slot that no longer exists.
+	// Assignments hang off the org-wide secret — they disappear with it.
 	if _, err := s.pool.Exec(ctx,
 		"DELETE FROM secret_assignments WHERE org_id=$1 AND key=$2", orgID, key); err != nil {
-		return err
-	}
-	if _, err := s.pool.Exec(ctx,
-		"DELETE FROM secret_bindings WHERE org_id=$1 AND key=$2", orgID, key); err != nil {
 		return err
 	}
 	_, err := s.pool.Exec(ctx,
@@ -232,8 +239,7 @@ func (s *Store) Previews(ctx context.Context, orgID uuid.UUID) ([]secrets.KeyPre
 		return nil, err
 	}
 
-	rows, err := s.pool.Query(ctx, `SELECT key, slot, label, nonce, ciphertext, sensitive,
-			cooldown_until, cooldown_reason, limit_amount, limit_unit, limit_window_secs, updated_at
+	rows, err := s.pool.Query(ctx, `SELECT key, slot, nonce, ciphertext, sensitive, updated_at
 		FROM secrets WHERE org_id=$1 AND agent_id IS NULL ORDER BY key, slot`, orgID)
 	if err != nil {
 		return nil, err
@@ -247,9 +253,7 @@ func (s *Store) Previews(ctx context.Context, orgID uuid.UUID) ([]secrets.KeyPre
 			// nonce/ciphertext stay local — nothing encrypted leaves this loop.
 			nonce, ct []byte
 		)
-		if err := rows.Scan(&k, &pv.Slot, &pv.Label, &nonce, &ct, &pv.Sensitive,
-			&pv.CooldownUntil, &pv.CooldownReason,
-			&pv.Limit.Amount, &pv.Limit.Unit, &pv.Limit.WindowSecs, &pv.UpdatedAt); err != nil {
+		if err := rows.Scan(&k, &pv.Slot, &nonce, &ct, &pv.Sensitive, &pv.UpdatedAt); err != nil {
 			return nil, err
 		}
 		pv.Value, pv.Prefix = s.expose(k, aad(orgID, nil, k, pv.Slot), nonce, ct, pv.Sensitive)
@@ -300,7 +304,7 @@ func (s *Store) MarkAgentSensitive(ctx context.Context, orgID, agentID uuid.UUID
 
 func (s *Store) AgentPreviews(ctx context.Context, orgID, agentID uuid.UUID) ([]secrets.KeyPreview, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT key, slot, label, nonce, ciphertext, sensitive, updated_at
+		`SELECT key, slot, nonce, ciphertext, sensitive, updated_at
 		 FROM secrets WHERE org_id=$1 AND agent_id=$2 ORDER BY key, slot`,
 		orgID, agentID)
 	if err != nil {
@@ -314,7 +318,7 @@ func (s *Store) AgentPreviews(ctx context.Context, orgID, agentID uuid.UUID) ([]
 			pv        secrets.PoolValue
 			nonce, ct []byte
 		)
-		if err := rows.Scan(&k, &pv.Slot, &pv.Label, &nonce, &ct, &pv.Sensitive, &pv.UpdatedAt); err != nil {
+		if err := rows.Scan(&k, &pv.Slot, &nonce, &ct, &pv.Sensitive, &pv.UpdatedAt); err != nil {
 			return nil, err
 		}
 		pv.Value, pv.Prefix = s.expose(k, aad(orgID, &agentID, k, pv.Slot), nonce, ct, pv.Sensitive)

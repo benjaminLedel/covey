@@ -37,11 +37,13 @@ func (Mock) Name() string { return "mock" }
 
 func init() {
 	RegisterRuntime(RuntimeDescriptor{
-		Name:            "mock",
-		Label:           "Mock",
-		Description:     "Scriptable test runtime without a real LLM — no cost, no credentials. For demos and offline tests.",
-		NeedsCredential: false,
-		New:             func() Runtime { return Mock{} },
+		Name:        "mock",
+		Label:       "Mock",
+		Description: "Scriptable test runtime without a real LLM — no cost, no credentials. For demos and offline tests.",
+		// No credentials: the mock needs none, and NeedsCredential() derives
+		// from that rather than being declared a second time.
+		Capabilities: RuntimeCapabilities{Resume: true, SkillsDir: ".claude/skills"},
+		New:          func() Runtime { return Mock{} },
 		Setup: []SetupStep{
 			{Text: "Set this agent's runtime to `mock`."},
 			{Text: "Switch to the agent (`Agents` → agent) and put a task into its `Backlog`."},
