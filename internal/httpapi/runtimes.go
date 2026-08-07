@@ -27,6 +27,10 @@ type credentialView struct {
 	// Metered mirrors the engine's declaration so the interface can say what
 	// the numbers mean: money spent, or quota drawn on that is paid for anyway.
 	Metered bool `json:"metered"`
+	// Reported is the PROVIDER's own figure, where the engine can ask for it
+	// (spec/18). It beats our estimate and is labelled differently in the
+	// interface, because one is a measurement and the other an inference.
+	Reported *daemon.Usage `json:"reported,omitempty"`
 }
 
 type runtimeView struct {
@@ -86,6 +90,11 @@ func (s *Server) view(r *http.Request, rt runtimes.Runtime) runtimeView {
 		}
 		if u, ok := usage[c.Ord]; ok {
 			cv.Usage = u
+		}
+		if s.Orch != nil {
+			if rep, ok := s.Orch.Usage(rt.ID, c.Ord); ok {
+				cv.Reported = &rep
+			}
 		}
 		out.Creds = append(out.Creds, cv)
 	}

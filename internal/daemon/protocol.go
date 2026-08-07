@@ -27,8 +27,14 @@ const (
 	TypeInjectOrgChart    = "inject_org_chart"
 	TypeInjectWiki        = "inject_wiki"
 	TypeInjectSkills      = "inject_skills"
-	TypeKill              = "kill"
-	TypeSleep             = "sleep"
+	// TypeRequestUsage/TypeUsageReport: the control plane asks the daemon what
+	// the credential in effect has consumed (spec/18). It runs in the sandbox
+	// because that is where the credential is; the control plane receives a
+	// figure, not a binary.
+	TypeRequestUsage = "request_usage"
+	TypeUsageReport  = "usage_report"
+	TypeKill         = "kill"
+	TypeSleep        = "sleep"
 )
 
 // Daemon → control plane.
@@ -332,4 +338,19 @@ func DecodePayload[T any](m Message) (T, error) {
 		return v, fmt.Errorf("%s: %w", m.Type, err)
 	}
 	return v, nil
+}
+
+// RequestUsage asks the daemon for the engine's own utilisation figure.
+type RequestUsage struct {
+	RequestID string `json:"request_id"`
+}
+
+// UsageReport answers it. Supported=false means the engine cannot ask its
+// provider — then the platform's own estimate stays the source, which for at
+// least one engine is the only one there is.
+type UsageReport struct {
+	RequestID string `json:"request_id"`
+	Supported bool   `json:"supported"`
+	Usage     Usage  `json:"usage"`
+	Error     string `json:"error,omitempty"`
 }

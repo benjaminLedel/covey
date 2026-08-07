@@ -109,6 +109,11 @@ type Orchestrator struct {
 	lastWikiSweep time.Time
 
 	events *Broadcaster
+
+	// usage holds the engines' own utilisation figures per credential — asked
+	// centrally and briefly cached, because the provider's endpoint has a rate
+	// limit of its own (usage.go).
+	usage *usageCache
 }
 
 func New(opts Options) *Orchestrator {
@@ -132,6 +137,7 @@ func New(opts Options) *Orchestrator {
 	}
 	return &Orchestrator{
 		Options:  opts,
+		usage:    newUsageCache(),
 		sessions: map[uuid.UUID]*session{},
 		waiting:  map[uuid.UUID]chan DaemonLink{},
 		warm:     map[uuid.UUID]*warmSession{},
@@ -765,6 +771,10 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 	// as a task error with an actionable hint (spec/12).
 	if credErr == nil {
 		o.pushAnthropicKey(ctx, agent, link, cred)
+		// Ask the engine what this credential has consumed — once the link is
+		// up, cached per credential, never per run (usage.go). The answer
+		// arrives asynchronously and no run waits for it.
+		defer o.refreshUsage(context.WithoutCancel(ctx), link, cred.RuntimeID, cred.Ord)
 	}
 
 	for ctx.Err() == nil {
@@ -1592,6 +1602,14 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 			CacheRead: c.CacheReadTokens, CacheCreation: c.CacheCreationTokens,
 		}, c.Model, s.credRuntime, s.credOrd)
 		return false, o.enforceBudget(ctx, agent, link, taskID, s)
+
+	case daemon.TypeUsageReport:
+		rep, err := daemon.DecodePayload[daemon.UsageReport](msg)
+		if err != nil {
+			return false, nil
+		}
+		o.noteUsage(rep, s.credRuntime, s.credOrd)
+		return false, nil
 
 	case daemon.TypeRequestCredential:
 		req, err := daemon.DecodePayload[daemon.RequestCredential](msg)

@@ -206,6 +206,12 @@ func (c *Client) Run(ctx context.Context) error {
 			}
 			c.mu.Unlock()
 			return ErrKilled
+		case TypeRequestUsage:
+			req, err := DecodePayload[RequestUsage](msg)
+			if err != nil {
+				return err
+			}
+			go c.reportUsage(ctx, req)
 		case TypeSleep:
 			return nil
 		}
@@ -519,4 +525,33 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 	}
 	_ = c.send(TypeTaskDone, TaskDone{TaskID: task.TaskID, Status: res.Status,
 		Result: res.Result, Error: res.Error, Memory: res.Memory, SessionID: res.SessionID})
+}
+
+// reportUsage answers the control plane's question about the engine's own
+// utilisation figure.
+//
+// Best effort throughout: an engine that cannot ask, a binary that fails, a
+// text that no longer parses — all of it answers "not supported" rather than an
+// error the caller has to handle. The figure is a nicety on top of the
+// platform's own estimate, never a precondition for anything.
+func (c *Client) reportUsage(ctx context.Context, req RequestUsage) {
+	out := UsageReport{RequestID: req.RequestID}
+	c.mu.Lock()
+	engine := c.cfg.Runtime
+	c.mu.Unlock()
+
+	rt := c.runtimes[engine]
+	reporter, ok := rt.(UsageReporter)
+	if !ok || rt == nil {
+		_ = c.send(TypeUsageReport, out)
+		return
+	}
+	u, err := reporter.Usage(ctx, c.runtimeKeyEnv())
+	if err != nil {
+		out.Error = err.Error()
+		_ = c.send(TypeUsageReport, out)
+		return
+	}
+	out.Supported, out.Usage = u.Reported(), u
+	_ = c.send(TypeUsageReport, out)
 }
