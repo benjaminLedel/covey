@@ -24,6 +24,10 @@ A runtime carries:
 - the **model** it uses, because that is a property of the contract and not of the agent (a subscription seat can afford the large model where a metered key cannot),
 - its **limits**, in the sense given below.
 
+A runtime belongs to **exactly one organisation**. It carries credentials, and a credential reaching across tenants would be a channel between them — the same reason a runner serves exactly one Covey instance ([`16-runner.md`](16-runner.md)). It is not only policy: the built-in secret store binds every ciphertext to its organisation through the AES-GCM AAD ([`04-identity-secrets.md`](04-identity-secrets.md)), so a shared credential would not decrypt for the second tenant in the first place. The schema follows the storage rather than fighting it.
+
+The price is worth stating: a group with one provider contract and three subsidiary tenants deposits that credential three times, and its seats cannot be pooled across them. That is a **billing** problem, not a credential problem — costs can be rolled up across organisations later without any tenant ever holding another's secret, and that is the cheaper direction to solve it from.
+
 Several credentials under one runtime are not redundancy, they are its size. An organisation with three subscription seats has one runtime with three values, not three runtimes — the seats are substitutable for the same work, and whoever administers them wants to think about "our Claude subscriptions" and not about three separate workplaces that happen to be interchangeable.
 
 This is also why the pool hangs off the runtime and not off the secret's *name*. Two credentials of the same provider can live under different names (`claude_code_oauth_token` and `anthropic_api_key`) and still belong to the same pot; a pot cut along key names cannot express "use the subscriptions first, then the API key", because those halves are called different things.
@@ -114,8 +118,9 @@ Built today: the credential pool with sticky per-agent assignment, soft limits o
 
 Not built: the engine/runtime split as separate objects — an agent still names its engine directly and its LLM credential is still found by convention over fixed secret names, which is the constraint the rest of this document removes. Nor: the merit order, reported utilisation, the fixed/variable cost split, and capacity as a dispatch input.
 
+Decided: a runtime is **org-scoped** (see above). That was the one question here whose answer is a data question rather than a policy one; everything below can be retrofitted.
+
 Open points, carried in [`07-open-decisions.md`](07-open-decisions.md):
 
-- **Is a runtime bound to one organisation?** Whether several tenants may share one contract decides whether the runtime is org-scoped in the schema. It is the one decision here that is expensive to reverse afterwards, because it is a data question rather than a policy one.
 - **What is the scope of a reported utilisation figure** per engine — account-wide, or only the machine that asked? For ephemeral sandboxes the difference decides whether the figure is usable at all.
 - **How is a fixed cost entered and spread?** A monthly amount per runtime is the simple answer; whether that is enough for organisations with mid-period changes to their seat count is not settled.
