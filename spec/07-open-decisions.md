@@ -28,9 +28,17 @@ Repurpose an existing ticket system (a shared task reality with humans, a strong
 
 Per agent, per team or shared (with access rules at wiki page level, `scope` frontmatter)? Probably a per-agent core + a shared org layer. Details in [`05-memory.md`](05-memory.md).
 
-### D6 — First runtime(s)
+### D6 — Which engines
 
-Which runtime does the adapter set start with? The obvious choice: Claude Code (familiar, CLI-based, easy to bootstrap) as the first adapter, then OpenHands/Harness.
+Which engine does the adapter set start with, and which follows? Claude Code first (familiar, CLI-based, easy to bootstrap) — that is built ([`12-claude-code-adapter.md`](12-claude-code-adapter.md)).
+
+**Second is Codex, not OpenHands.** The reason is coverage rather than preference: an organisation wants Claude *and* ChatGPT, each through an API key or a subscription, and those four cells are the realistic demand. Codex fills the two that are missing, and being from another provider it is also the harder test of whether the engine seams hold — two of them did not, and that is written up in [`19-codex-adapter.md`](19-codex-adapter.md).
+
+Three of the four cells are straightforward. The fourth, Codex on a ChatGPT plan, is the awkward one: its credential is a **file** rather than an environment variable, and the documentation treats non-interactive use of it as a special case.
+
+Whether the cells are equally *capable* is open and hangs on one question — whether `codex exec` can resume a session. If it cannot, ChatGPT is not "also supported" but "supported for the agents that never block", which excludes the MVP's core case. That is why resume is a declared engine capability, checked at assignment ([`18-runtimes-capacity.md`](18-runtimes-capacity.md)).
+
+Beyond that: OpenHands/Harness stay possible but are not the next step, and D14 asks whether a harness-less direct engine belongs alongside them.
 
 ### D7 — Codename ✅ *decided*
 

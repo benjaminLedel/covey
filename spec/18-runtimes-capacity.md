@@ -65,6 +65,15 @@ The engine, not the platform, knows which secret it needs and how it wants it. I
 
 The file form is subject to the same rule as the variable: written for the run, gone afterwards. A credential left lying in the home would be a long-lived secret in the sandbox ([`04-identity-secrets.md`](04-identity-secrets.md)).
 
+### And what else an engine declares
+
+The credential was the first thing that turned out not to be uniform across engines. It is not the last, and the pattern is always the same: something the platform assumed was universal is in fact a convention of the first engine.
+
+- **Where materialised files go.** Covey writes an agent's skills into its home before every run ([`02-agent-model.md`](02-agent-model.md)); the path it writes to is Claude Code's convention (`~/.claude/skills/<name>/SKILL.md`), and another engine looks elsewhere or nowhere. So the engine declares the path — otherwise skills would silently do nothing on the second engine, which is the worst failure mode available: configured, visible in the interface, without effect.
+- **What the engine can do.** Not every engine covers the whole agent model. The decisive one is **session resume**, on which the entire `blocked` mechanism rests ([`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)): an engine that cannot resume can carry agents that finish their work in one run, and cannot carry an agent that waits for an answer. That has to be a declared property, checked when an agent is assigned — a support agent placed on an engine without resume must be refused at assignment time, not discovered when the first customer query comes back.
+
+Both follow the rule that makes the registry worth having: a difference between engines belongs in the engine's declaration, never in a conditional in the orchestrator.
+
 Two admission questions sit on top and are deliberately kept apart:
 
 - **Can it** — capability. An engine can only use credentials of the providers it speaks. This follows from the engine and is static.
@@ -147,6 +156,99 @@ Turning that into a **direct engine** would be tidy rather than ambitious: singl
 The distinction to keep is therefore not "CLI versus API" but **agentic versus not**. A harness engine drives work that needs tools and turns; the direct engine answers questions. Building the second one to do the first one's job is where this goes wrong.
 
 Whether Covey ships a direct engine at all is [`07-open-decisions.md`](07-open-decisions.md), D14.
+
+## Moving an agent: within an engine it is cheap, across engines it is not
+
+Reassigning an agent to another runtime looks like one operation in the interface and is two very different ones underneath.
+
+**Within the same engine** it is a credential swap. The agent notices nothing: its home is unchanged, a parked task resumes as before, only the seat it sits on is another. This is the case the merit order and the pool produce automatically, and it is safe to do at any run boundary.
+
+**Across engines it is a change of job.** Three things do not travel:
+
+- **A parked task.** A `blocked` task holds a session identifier belonging to the engine that created it. On another engine it cannot be resumed, so the task is orphaned — it has to be finished, or explicitly reset to `open` and started over, before the move.
+- **The home.** `~/.claude` and `~/.codex` are different worlds: session transcripts, engine configuration, materialised skills. What the old engine left behind is dead weight to the new one, and what the new one needs is not there.
+- **Behaviour.** The same `SOUL.md` compiles into a different system prompt and meets a different harness. The agent stays the same employee on paper and does not necessarily behave the same way.
+
+None of this makes the move wrong — it makes it an operation that has to say so. An interface offering both as one dropdown implies an interchangeability that does not exist.
+
+## The target data structure
+
+Four questions, one table each. The credential *values* stay in the secret store; everything about *choosing* one sits here.
+
+```sql
+-- The contract. Named, because people talk about it ("Claude subscription team").
+CREATE TABLE runtimes (
+    id           UUID PRIMARY KEY,
+    org_id       UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    engine       TEXT NOT NULL,              -- 'claude-code' | 'codex' | 'mock'
+    display_name TEXT NOT NULL,
+    model        TEXT NOT NULL DEFAULT '',   -- belongs to the contract, not the agent
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- The capacity. ord IS the merit order: the paid-for seats first,
+-- the metered fallback last.
+CREATE TABLE runtime_credentials (
+    runtime_id        UUID     NOT NULL REFERENCES runtimes(id) ON DELETE CASCADE,
+    ord               SMALLINT NOT NULL,
+    kind              TEXT     NOT NULL,  -- name from the engine's credential
+                                          -- declaration; from it the engine knows
+                                          -- env var vs. file, metered vs. quota
+    secret_key        TEXT     NOT NULL,  -- pointer into the secret store
+    secret_slot       SMALLINT NOT NULL,
+    label             TEXT     NOT NULL DEFAULT '',    -- "subscription Ben"
+    cooldown_until    TIMESTAMPTZ,
+    cooldown_reason   TEXT     NOT NULL DEFAULT '',
+    limit_amount      NUMERIC(14,4) NOT NULL DEFAULT 0,
+    limit_unit        TEXT     NOT NULL DEFAULT 'usd',
+    limit_window_secs INTEGER  NOT NULL DEFAULT 0,
+    PRIMARY KEY (runtime_id, ord)
+);
+
+-- Who sits where. The stickiness.
+CREATE TABLE runtime_bindings (
+    runtime_id UUID     NOT NULL REFERENCES runtimes(id) ON DELETE CASCADE,
+    agent_id   UUID     NOT NULL REFERENCES agents(id)   ON DELETE CASCADE,
+    ord        SMALLINT NOT NULL,           -- the chosen credential
+    home_ord   SMALLINT,                    -- home seat, while standing in elsewhere
+    reason     TEXT     NOT NULL DEFAULT 'initial',
+    bound_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (runtime_id, agent_id)
+);
+
+ALTER TABLE agents       ADD COLUMN runtime_id     UUID REFERENCES runtimes(id);
+ALTER TABLE cost_entries ADD COLUMN runtime_id     UUID,
+                         ADD COLUMN credential_ord SMALLINT;
+```
+
+`agents.runtime_id` replaces the engine name held as a string today — the assignment moves from "which framework" to "which contract", which is the whole point of the model.
+
+### Storage below, policy above
+
+The split this produces in the secret store is worth stating, because otherwise nobody will later reconstruct why the pool lives half here and half there.
+
+**The secret store keeps exactly one thing from the pool: `slot`.** That a key can carry several values is a *storage* statement — encrypted, org-bound, listable — and it stays where the encryption, the AAD and the sensitivity rule already are. Building a second credential store for runtimes would mean having all three twice.
+
+**Everything about choosing among those values moves up.** Stickiness, cooldown, limits and labels are capacity policy, not a property of a secret, and the current implementation shows it in three places: the selection has to be handed a usage function because the store does not own the data its own decision needs; the cooldown is triggered by an LLM API error, of which a secret store should know nothing; and the agent↔credential binding is orchestration living in the secrets schema.
+
+So the port splits in two, along a line the implementation nearly draws already:
+
+```go
+// secrets — storage: which values may this agent use for key K?
+Values(ctx, orgID, agentID, key) ([]Value, error)
+
+// capacity — policy: which of them does it get right now?
+Pick(runtime, agent) (Value, error)
+```
+
+The precedence rule (an agent's own secret before an assigned org secret) and the assignment check are *secret* concerns and stay below; the health and load decision goes up. `secret_assignments` likewise stays and keeps governing target-system secrets — for LLM credentials the assignment is now `agents.runtime_id`.
+
+### Deliberately not in it
+
+**No fixed cost per seat.** Rejected in [`07-open-decisions.md`](07-open-decisions.md) (D13); if it is ever wanted, `runtime_credentials` is the place, with an amount and a validity range.
+
+**No merit order between runtimes.** A `position` column suggests itself and collides with the assignment: if a person assigns an agent to *one* runtime, nothing reads an order across them. Either the order stays inside a runtime — as described above — or agents are assigned to a *group* of runtimes and the order applies within the group. Left out until somebody actually has the case, rather than building a second selection layer nobody uses.
 
 ## An LLM credential is not a target-system token
 
