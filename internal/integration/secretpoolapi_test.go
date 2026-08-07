@@ -144,4 +144,27 @@ func TestSecretPoolAPIRefusals(t *testing.T) {
 	admin.expect(http.MethodPatch, "/api/v1/secrets/zammad_token/values/0",
 		map[string]any{"limit": map[string]any{"amount": 5, "unit": "bananen", "window_secs": 3600}},
 		http.StatusBadRequest)
+
+	// A slot that is a number but does not exist has to be answered as missing,
+	// for each of the three things a PATCH can change. Silently doing nothing
+	// and reporting success is the failure mode worth guarding: the interface
+	// would show the old limit and everyone would assume the new one applies.
+	for _, body := range []map[string]any{
+		{"label": "x"},
+		{"limit": map[string]any{"amount": 5, "unit": "usd", "window_secs": 3600}},
+		{"cooldown": false},
+	} {
+		admin.expect(http.MethodPatch, "/api/v1/secrets/zammad_token/values/9", body, http.StatusNotFound)
+	}
+	admin.expect(http.MethodDelete, "/api/v1/secrets/zammad_token/values/9", nil, http.StatusNotFound)
+
+	// A malformed body is a bad request, not a server fault.
+	resp := admin.do(http.MethodPatch, "/api/v1/secrets/zammad_token/values/0", "kein objekt")
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("malformed PATCH body: HTTP %d", resp.StatusCode)
+	}
+	// An added value without one is likewise.
+	admin.expect(http.MethodPost, "/api/v1/secrets/zammad_token/values",
+		map[string]any{"label": "ohne Wert"}, http.StatusBadRequest)
 }

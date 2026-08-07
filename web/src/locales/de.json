@@ -1171,7 +1171,7 @@
     "protectConfirm": "„{{key}}“ als sensibel markieren? Der Wert ist danach nie wieder einsehbar — rückgängig nur durch Löschen und Neuanlegen.",
     "delete": "Löschen",
     "pool": {
-      "values": "{{count}} Wert",
+      "values_one": "{{count}} Wert",
       "values_other": "{{count}} Werte",
       "addValue": "Wert hinzufügen",
       "newValue": "Neuer Wert",

@@ -223,12 +223,23 @@ function Pool({ secret, agents, canEdit }: { secret: SecretPreview; agents: Agen
                 }}
               >
                 <div className="flex-1 min-w-52">
-                  <label>{t("secrets.pool.newValue")}</label>
-                  <input type={secret.sensitive ? "password" : "text"} value={value} onChange={(e) => setValue(e.target.value)} required />
+                  <label htmlFor={`pool-value-${secret.key}`}>{t("secrets.pool.newValue")}</label>
+                  <input
+                    id={`pool-value-${secret.key}`}
+                    type={secret.sensitive ? "password" : "text"}
+                    value={value}
+                    onChange={(e) => setValue(e.target.value)}
+                    required
+                  />
                 </div>
                 <div className="min-w-40">
-                  <label>{t("secrets.pool.label")}</label>
-                  <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("secrets.pool.labelHint")} />
+                  <label htmlFor={`pool-label-${secret.key}`}>{t("secrets.pool.label")}</label>
+                  <input
+                    id={`pool-label-${secret.key}`}
+                    value={label}
+                    onChange={(e) => setLabel(e.target.value)}
+                    placeholder={t("secrets.pool.labelHint")}
+                  />
                 </div>
                 <button className="btn primary sm" disabled={add.isPending}>
                   {t("secrets.pool.add")}
@@ -359,12 +370,29 @@ function PoolValueRow({
         )}
       </div>
 
-      {editing && <LimitForm limit={v.limit} pending={setLimit.isPending} onSave={(l) => setLimit.mutate(l)} />}
+      {editing && (
+        <LimitForm
+          id={`limit-${secretKey}-${v.slot}`}
+          limit={v.limit}
+          pending={setLimit.isPending}
+          onSave={(l) => setLimit.mutate(l)}
+        />
+      )}
     </div>
   );
 }
 
-function LimitForm({ limit, pending, onSave }: { limit: SecretLimit; pending: boolean; onSave: (l: SecretLimit) => void }) {
+function LimitForm({
+  id,
+  limit,
+  pending,
+  onSave,
+}: {
+  id: string;
+  limit: SecretLimit;
+  pending: boolean;
+  onSave: (l: SecretLimit) => void;
+}) {
   const { t } = useTranslation();
   const [amount, setAmount] = useState(String(limit.amount || ""));
   const [unit, setUnit] = useState<SecretLimit["unit"]>(limit.unit || "usd");
@@ -379,19 +407,19 @@ function LimitForm({ limit, pending, onSave }: { limit: SecretLimit; pending: bo
       }}
     >
       <div style={{ width: 110 }}>
-        <label>{t("secrets.pool.amount")}</label>
-        <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" />
+        <label htmlFor={`${id}-amount`}>{t("secrets.pool.amount")}</label>
+        <input id={`${id}-amount`} value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" />
       </div>
       <div style={{ width: 110 }}>
-        <label>{t("secrets.pool.unit")}</label>
-        <select value={unit} onChange={(e) => setUnit(e.target.value as SecretLimit["unit"])}>
+        <label htmlFor={`${id}-unit`}>{t("secrets.pool.unit")}</label>
+        <select id={`${id}-unit`} value={unit} onChange={(e) => setUnit(e.target.value as SecretLimit["unit"])}>
           <option value="usd">{t("secrets.pool.unitUsd")}</option>
           <option value="tokens">{t("secrets.pool.unitTokens")}</option>
         </select>
       </div>
       <div style={{ width: 110 }}>
-        <label>{t("secrets.pool.windowHours")}</label>
-        <input value={hours} onChange={(e) => setHours(e.target.value)} inputMode="decimal" />
+        <label htmlFor={`${id}-window`}>{t("secrets.pool.windowHours")}</label>
+        <input id={`${id}-window`} value={hours} onChange={(e) => setHours(e.target.value)} inputMode="decimal" />
       </div>
       <button className="btn primary sm" disabled={pending}>
         {t("secrets.pool.saveLimit")}

@@ -1171,7 +1171,7 @@
     "protectConfirm": "Mark \"{{key}}\" as sensitive? The value can never be viewed again — to undo, delete and re-create it.",
     "delete": "Delete",
     "pool": {
-      "values": "{{count}} value",
+      "values_one": "{{count}} value",
       "values_other": "{{count}} values",
       "addValue": "Add value",
       "newValue": "New value",

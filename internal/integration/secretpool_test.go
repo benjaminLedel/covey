@@ -191,6 +191,168 @@ func TestPoolLimitAndExhaustion(t *testing.T) {
 	}
 }
 
+// TestPoolAdminRefusals covers the paths that only run when something is wrong.
+// They matter more than they look: every one of them is a case where the store
+// could plausibly do nothing and report success, and a pool that silently
+// ignores a limit is worse than one that has none.
+func TestPoolAdminRefusals(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+
+	// A pool grows out of an existing secret — never out of nothing.
+	if _, err := s.secrets.AddValue(ctx, s.orgID, "gibtsnicht", "wert", ""); !errors.Is(err, secrets.ErrNotFound) {
+		t.Fatalf("AddValue on an unknown key: %v", err)
+	}
+
+	if err := s.secrets.Put(ctx, s.orgID, "anthropic_api_key", "schluessel-a"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Every administrative operation on a slot that does not exist has to say
+	// so rather than quietly affect nothing.
+	limit := secrets.Limit{Amount: 5, Unit: "usd", WindowSecs: 3600}
+	for _, c := range []struct {
+		name string
+		err  error
+	}{
+		{"SetLimit", s.secrets.SetLimit(ctx, s.orgID, "anthropic_api_key", 7, limit)},
+		{"SetLabel", s.secrets.SetLabel(ctx, s.orgID, "anthropic_api_key", 7, "x")},
+		{"Cooldown", s.secrets.Cooldown(ctx, s.orgID, "anthropic_api_key", 7, time.Now().Add(time.Hour), "error")},
+		{"SetLimit/unknown key", s.secrets.SetLimit(ctx, s.orgID, "gibtsnicht", 0, limit)},
+		{"SetLabel/unknown key", s.secrets.SetLabel(ctx, s.orgID, "gibtsnicht", 0, "x")},
+		{"Cooldown/unknown key", s.secrets.Cooldown(ctx, s.orgID, "gibtsnicht", 0, time.Time{}, "")},
+	} {
+		if !errors.Is(c.err, secrets.ErrNotFound) {
+			t.Fatalf("%s on a missing value: %v", c.name, c.err)
+		}
+	}
+
+	// An unknown unit must not be storable — a limit in a unit nothing measures
+	// against would stand in the view looking valid.
+	if err := s.secrets.SetLimit(ctx, s.orgID, "anthropic_api_key", 0,
+		secrets.Limit{Amount: 5, Unit: "bananen", WindowSecs: 3600}); err == nil {
+		t.Fatal("an unknown limit unit has to be refused")
+	}
+	// An empty unit is filled in rather than refused — the caller meant money.
+	if err := s.secrets.SetLimit(ctx, s.orgID, "anthropic_api_key", 0,
+		secrets.Limit{Amount: 5, WindowSecs: 3600}); err != nil {
+		t.Fatalf("an empty unit has to default: %v", err)
+	}
+
+	// The last value only goes with the key.
+	if err := s.secrets.DeleteValue(ctx, s.orgID, "anthropic_api_key", 0); !errors.Is(err, secrets.ErrLastValue) {
+		t.Fatalf("deleting the last value: %v", err)
+	}
+	if _, err := s.secrets.AddValue(ctx, s.orgID, "anthropic_api_key", "schluessel-b", "B"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.secrets.DeleteValue(ctx, s.orgID, "anthropic_api_key", 7); !errors.Is(err, secrets.ErrNotFound) {
+		t.Fatalf("deleting a value that does not exist: %v", err)
+	}
+
+	// Lifting a limit also lifts a cooldown the limit itself imposed —
+	// otherwise the value stays parked over a rule that no longer exists.
+	if err := s.secrets.Cooldown(ctx, s.orgID, "anthropic_api_key", 1, time.Now().Add(time.Hour), "limit"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.secrets.SetLimit(ctx, s.orgID, "anthropic_api_key", 1, secrets.Limit{}); err != nil {
+		t.Fatal(err)
+	}
+	if v := poolValue(t, s, "anthropic_api_key", 1); v.CooldownUntil != nil {
+		t.Fatalf("lifting the limit has to free the value it parked: %+v", v)
+	}
+	// A cooldown from the HARD signal survives it — that one was not the
+	// limit's doing, and clearing it would hand out a rejected credential.
+	if err := s.secrets.Cooldown(ctx, s.orgID, "anthropic_api_key", 1,
+		time.Now().Add(time.Hour), secrets.ReasonError); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.secrets.SetLimit(ctx, s.orgID, "anthropic_api_key", 1, secrets.Limit{}); err != nil {
+		t.Fatal(err)
+	}
+	if v := poolValue(t, s, "anthropic_api_key", 1); v.CooldownUntil == nil {
+		t.Fatal("a cooldown from a rejection must survive a limit being lifted")
+	}
+}
+
+// TestDeleteSecretClearsBindings: a binding left behind would send the next
+// pool of the same name to a seat that no longer exists.
+func TestDeleteSecretClearsBindings(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+
+	alice := s.newSupportAgent("alice")
+	if err := s.secrets.Put(ctx, s.orgID, "claude_code_oauth_token", "sitz-a"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.secrets.AddValue(ctx, s.orgID, "claude_code_oauth_token", "sitz-b", "B"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.secrets.Assign(ctx, s.orgID, "claude_code_oauth_token", alice.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.secrets.Pick(ctx, s.orgID, alice.ID, "claude_code_oauth_token", nil); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := s.secrets.Bindings(ctx, s.orgID, "claude_code_oauth_token"); len(b) != 1 {
+		t.Fatalf("a seat should have been recorded: %+v", b)
+	}
+
+	if err := s.secrets.Delete(ctx, s.orgID, "claude_code_oauth_token"); err != nil {
+		t.Fatal(err)
+	}
+	if b, err := s.secrets.Bindings(ctx, s.orgID, "claude_code_oauth_token"); err != nil || len(b) != 0 {
+		t.Fatalf("bindings have to go with the key: %+v, %v", b, err)
+	}
+	// The assignment too — otherwise a new secret of the same name would reach
+	// an agent nobody assigned it to.
+	if err := s.secrets.Put(ctx, s.orgID, "claude_code_oauth_token", "neu"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.secrets.Resolve(ctx, s.orgID, alice.ID, "claude_code_oauth_token"); !errors.Is(err, secrets.ErrNotFound) {
+		t.Fatalf("a recreated secret must not inherit the old assignment: %v", err)
+	}
+}
+
+// TestDeleteValueDropsItsSeats: whoever sat on the removed value gets a new
+// seat, and a home seat pointing at it is dropped rather than left dangling.
+func TestDeleteValueDropsItsSeats(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+
+	alice := s.newSupportAgent("alice")
+	if err := s.secrets.Put(ctx, s.orgID, "claude_code_oauth_token", "sitz-a"); err != nil {
+		t.Fatal(err)
+	}
+	for _, v := range []string{"sitz-b", "sitz-c"} {
+		if _, err := s.secrets.AddValue(ctx, s.orgID, "claude_code_oauth_token", v, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.secrets.Assign(ctx, s.orgID, "claude_code_oauth_token", alice.ID); err != nil {
+		t.Fatal(err)
+	}
+	seat, err := s.secrets.Pick(ctx, s.orgID, alice.ID, "claude_code_oauth_token", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.secrets.DeleteValue(ctx, s.orgID, "claude_code_oauth_token", seat.Slot); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := s.secrets.Bindings(ctx, s.orgID, "claude_code_oauth_token"); len(b) != 0 {
+		t.Fatalf("the seat of a removed value has to go with it: %+v", b)
+	}
+	// And the agent simply gets another one on its next choice.
+	next, err := s.secrets.Pick(ctx, s.orgID, alice.ID, "claude_code_oauth_token", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if next.Slot == seat.Slot {
+		t.Fatalf("the removed value must not be handed out (slot %d)", next.Slot)
+	}
+}
+
 // TestPoolGetSkipsParkedValues: Get has no agent whose seat it could keep — it
 // takes the lowest HEALTHY value. That path carries the org's own LLM calls
 // (config copilot, dream), and handing them a value the API has just rejected

@@ -334,30 +334,37 @@ func (s *Store) AddValue(ctx context.Context, orgID uuid.UUID, key, value, label
 // new seat on their next choice. Their home seat is deliberately dropped too —
 // it points at a value that no longer exists.
 func (s *Store) DeleteValue(ctx context.Context, orgID uuid.UUID, key string, slot int) error {
-	var n int
+	// Existence before the guard, and the order matters for the answer: asked to
+	// remove a slot that is not there, "this value does not exist" is the truth
+	// and "you cannot remove the last one" is a misleading accident of the key
+	// happening to hold exactly one.
+	var (
+		n      int
+		exists bool
+	)
 	if err := s.pool.QueryRow(ctx,
-		"SELECT COUNT(*) FROM secrets WHERE org_id=$1 AND key=$2 AND agent_id IS NULL",
-		orgID, key).Scan(&n); err != nil {
+		`SELECT COUNT(*), COALESCE(BOOL_OR(slot=$3), false)
+		 FROM secrets WHERE org_id=$1 AND key=$2 AND agent_id IS NULL`,
+		orgID, key, slot).Scan(&n, &exists); err != nil {
 		return err
+	}
+	if !exists {
+		return secrets.ErrNotFound
 	}
 	if n <= 1 {
 		return secrets.ErrLastValue
 	}
-	tag, err := s.pool.Exec(ctx,
+	if _, err := s.pool.Exec(ctx,
 		"DELETE FROM secrets WHERE org_id=$1 AND key=$2 AND agent_id IS NULL AND slot=$3",
-		orgID, key, slot)
-	if err != nil {
+		orgID, key, slot); err != nil {
 		return err
 	}
-	if tag.RowsAffected() == 0 {
-		return secrets.ErrNotFound
-	}
-	_, err = s.pool.Exec(ctx,
-		"DELETE FROM secret_bindings WHERE org_id=$1 AND key=$2 AND slot=$3", orgID, key, slot)
-	if err != nil {
+	if _, err := s.pool.Exec(ctx,
+		"DELETE FROM secret_bindings WHERE org_id=$1 AND key=$2 AND slot=$3",
+		orgID, key, slot); err != nil {
 		return err
 	}
-	_, err = s.pool.Exec(ctx,
+	_, err := s.pool.Exec(ctx,
 		"UPDATE secret_bindings SET home_slot=NULL WHERE org_id=$1 AND key=$2 AND home_slot=$3",
 		orgID, key, slot)
 	return err
