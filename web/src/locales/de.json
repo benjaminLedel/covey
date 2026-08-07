@@ -1160,7 +1160,7 @@
     "instances": {
       "title": "Arbeitsplätze",
       "subtitle": "Engine plus die Kapazität, sie zu betreiben",
-      "desc": "Ein Arbeitsplatz ist ein Vertrag: welche Engine, auf wessen Credential, mit welchem Modell. Agenten werden ihm zugewiesen — das ist eine kaufmännische Entscheidung, keine technische. Mehrere Credentials darunter werden in der aufgeschriebenen Reihenfolge verbraucht: erst die bezahlten Sitze, dann was pro Token kostet.",
+      "desc": "Ein Arbeitsplatz ist ein Vertrag: welche Engine, auf wessen Credential, mit welchem Modell. Für den einfachen Fall musst du hier nichts tun — wer ein Token unter Secrets hinterlegt und einen Agenten anlegt, bekommt den Arbeitsplatz automatisch. Interessant wird die Seite ab dem zweiten Credential: mehrere Werte darunter werden in der aufgeschriebenen Reihenfolge verbraucht, erst die bezahlten Sitze, dann was pro Token kostet.",
       "none": "Noch keine Arbeitsplätze angelegt.",
       "add": "Arbeitsplatz anlegen",
       "create": "Anlegen",

@@ -57,6 +57,11 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 	if err := s.Backlog.SeedDefaultStages(r.Context(), a.ID); err != nil {
 		s.Log.Warn("seeding default stages failed", "agent", a.ID, "err", err)
 	}
+	// And on a workplace, set up from whatever is already deposited. The simple
+	// case — one token, one agent — must not require creating a contract by
+	// hand first; that model earns its keep with the SECOND credential and
+	// should carry the first one silently (spec/18).
+	s.attachDefaultRuntime(r.Context(), p.OrgID, a)
 	writeJSON(w, http.StatusCreated, a)
 }
 
@@ -1357,6 +1362,9 @@ func (s *Server) handlePutSecret(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// An LLM credential goes straight onto its engine's workplace — so that the
+	// simple setup stays two steps (deposit, create agent) and not four.
+	s.syncDefaultRuntime(r.Context(), p.OrgID, key)
 	// Check known credentials live right away — a dead token should stand out
 	// here, not first at the 401 inside the sandbox.
 	check := checkCredential(r.Context(), key, in.Value)
