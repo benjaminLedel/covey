@@ -326,7 +326,7 @@ func (s *Store) DeleteValue(ctx context.Context, orgID uuid.UUID, key string, sl
 		return err
 	}
 	if n <= 1 {
-		return errors.New("the last value of a secret cannot be removed on its own — delete the secret instead")
+		return secrets.ErrLastValue
 	}
 	tag, err := s.pool.Exec(ctx,
 		"DELETE FROM secrets WHERE org_id=$1 AND key=$2 AND agent_id IS NULL AND slot=$3",

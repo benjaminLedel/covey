@@ -21,6 +21,15 @@ var ErrNotFound = errors.New("secret not found")
 // fail it (see PoolExhausted.Until).
 var ErrPoolExhausted = errors.New("all values of this secret are exhausted or in cooldown")
 
+// ErrLastValue: the last value of a key cannot be removed on its own —
+// otherwise a secret would be left standing with no value at all, which is not
+// gone but unusable, and a state nothing else in the store expects. Deleting
+// the key is the way, and it clears assignments and bindings along with it.
+//
+// Its own error so the API can answer this as what it is: a request that is
+// well-formed and refused by the state, not a server fault.
+var ErrLastValue = errors.New("the last value of a secret cannot be removed on its own — delete the secret instead")
+
 // PoolExhausted carries the moment at which the pool frees up again — the
 // earliest cooldown across all its values. Zero means unknown; then the caller
 // has to fall back on its own interval.

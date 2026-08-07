@@ -1149,24 +1149,37 @@ const (
 // the provider's message through, and the control plane never sees an HTTP
 // status of its own. The adapter (spec/12) already recognises the same phrases
 // in order to explain them; here they decide which value is out of play.
-func (o *Orchestrator) noteCredentialRejection(ctx context.Context, agent agents.Agent, s *session, errText string) {
-	if s == nil || s.credKey == "" || errText == "" {
-		return
+// rejectionCooldown is the rule itself, apart from the plumbing: how long an
+// error text parks the value it occurred on. Zero means "not a credential
+// problem" — the run failed for some other reason and the value stays in play.
+//
+// Kept as a pure function because THIS is the part worth checking. Whether the
+// cooldown then reaches the database is a matter of two lines; whether a
+// rate limit is told apart from a revoked token decides whether an agent waits
+// an hour or a day.
+func rejectionCooldown(errText string) (time.Duration, string) {
+	if errText == "" {
+		return 0, ""
 	}
-	var (
-		until  time.Duration
-		reason string
-	)
 	switch {
 	case strings.Contains(errText, "Invalid bearer token"),
 		strings.Contains(errText, "OAuth token has expired"),
 		strings.Contains(errText, "authentication_error"):
-		until, reason = cooldownRejected, secrets.ReasonError
+		return cooldownRejected, secrets.ReasonError
 	case strings.Contains(errText, "rate_limit"),
 		strings.Contains(errText, "Rate limit"),
 		strings.Contains(errText, "429"):
-		until, reason = cooldownRateLimit, secrets.ReasonError
-	default:
+		return cooldownRateLimit, secrets.ReasonError
+	}
+	return 0, ""
+}
+
+func (o *Orchestrator) noteCredentialRejection(ctx context.Context, agent agents.Agent, s *session, errText string) {
+	if s == nil || s.credKey == "" {
+		return
+	}
+	until, reason := rejectionCooldown(errText)
+	if until == 0 {
 		return
 	}
 	if err := o.Secrets.Cooldown(ctx, agent.OrgID, s.credKey, s.credSlot,

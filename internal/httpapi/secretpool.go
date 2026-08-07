@@ -7,6 +7,7 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -33,6 +34,24 @@ type poolView struct {
 	Bindings []secrets.Binding `json:"bindings"`
 }
 
+// poolWindows groups a pool's values by the window their consumption is
+// measured over: its own, if the value carries a limit, otherwise the display
+// window.
+func poolWindows(values []secrets.PoolValue) map[time.Duration]map[int]bool {
+	out := map[time.Duration]map[int]bool{}
+	for _, v := range values {
+		window := poolDisplayWindow
+		if v.Limit.Active() {
+			window = time.Duration(v.Limit.WindowSecs) * time.Second
+		}
+		if out[window] == nil {
+			out[window] = map[int]bool{}
+		}
+		out[window][v.Slot] = true
+	}
+	return out
+}
+
 func (s *Server) handleSecretPool(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	key := r.PathValue("key")
@@ -54,6 +73,28 @@ func (s *Server) handleSecretPool(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Consumption per DISTINCT window, not per value: each value is measured
+	// over its own window, so a single shared query would over-report every
+	// value whose limit window is narrower than the widest one — and it would
+	// over-report it right next to the limit it is being compared against.
+	// In practice a pool has one or two distinct windows, so this is one or two
+	// queries and not one per value.
+	//
+	// Best effort: a failing figure must not topple the view — administering the
+	// pool has to stay possible even when the evaluation does not answer.
+	usage := map[int]observability.SlotConsumption{}
+	for window, slots := range poolWindows(values) {
+		rows, err := s.Obs.PoolUsage(r.Context(), p.OrgID, key, window)
+		if err != nil {
+			continue
+		}
+		for _, c := range rows {
+			if slots[c.Slot] {
+				usage[c.Slot] = c
+			}
+		}
+	}
+
 	out := poolView{Key: key, Values: make([]poolValueView, 0, len(values)), Bindings: []secrets.Binding{}}
 	for _, v := range values {
 		window := poolDisplayWindow
@@ -62,11 +103,8 @@ func (s *Server) handleSecretPool(w http.ResponseWriter, r *http.Request) {
 		}
 		view := poolValueView{PoolValue: v, WindowSecs: int(window.Seconds()),
 			Usage: observability.SlotConsumption{Slot: v.Slot}}
-		// Best effort: a failing figure must not topple the view — the
-		// administration of the pool has to stay usable even when the
-		// evaluation does not answer.
-		if usd, tokens, err := s.Obs.SlotUsage(r.Context(), p.OrgID, key, v.Slot, window); err == nil {
-			view.Usage.USD, view.Usage.Tokens = usd, tokens
+		if c, ok := usage[v.Slot]; ok {
+			view.Usage = c
 		}
 		out.Values = append(out.Values, view)
 	}
@@ -129,6 +167,13 @@ func (s *Server) handlePatchSecretValue(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 	if in.Limit != nil {
+		// Checked here and not only in the store: an unknown unit is a bad
+		// request, not a server fault, and a limit in a unit nothing measures
+		// would otherwise stand in the view looking valid.
+		if u := in.Limit.Unit; u != "" && u != "usd" && u != "tokens" {
+			writeErr(w, http.StatusBadRequest, `limit unit must be "usd" or "tokens"`)
+			return
+		}
 		if err := s.Secrets.SetLimit(r.Context(), p.OrgID, key, slot, *in.Limit); err != nil {
 			mapErr(w, err)
 			return
@@ -155,6 +200,12 @@ func (s *Server) handleDeleteSecretValue(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if err := s.Secrets.DeleteValue(r.Context(), p.OrgID, r.PathValue("key"), slot); err != nil {
+		// The state refuses, the request was fine — that is a 409 and not the
+		// 500 a generic mapping would make of it.
+		if errors.Is(err, secrets.ErrLastValue) {
+			writeErr(w, http.StatusConflict, err.Error())
+			return
+		}
 		mapErr(w, err)
 		return
 	}

@@ -191,6 +191,43 @@ func TestPoolLimitAndExhaustion(t *testing.T) {
 	}
 }
 
+// TestPoolGetSkipsParkedValues: Get has no agent whose seat it could keep — it
+// takes the lowest HEALTHY value. That path carries the org's own LLM calls
+// (config copilot, dream), and handing them a value the API has just rejected
+// would let them fail for a reason the pool already knows about.
+func TestPoolGetSkipsParkedValues(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+
+	if err := s.secrets.Put(ctx, s.orgID, "anthropic_api_key", "schluessel-a"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.secrets.AddValue(ctx, s.orgID, "anthropic_api_key", "schluessel-b", "Konto B"); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := s.secrets.Get(ctx, s.orgID, "anthropic_api_key"); err != nil || v != "schluessel-a" {
+		t.Fatalf("without a cooldown the lowest value applies: %q, %v", v, err)
+	}
+
+	if err := s.secrets.Cooldown(ctx, s.orgID, "anthropic_api_key", 0,
+		time.Now().Add(time.Hour), secrets.ReasonError); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := s.secrets.Get(ctx, s.orgID, "anthropic_api_key"); err != nil || v != "schluessel-b" {
+		t.Fatalf("a parked value must be skipped: %q, %v", v, err)
+	}
+
+	// Everything parked: the lowest one applies anyway. A caller without an
+	// agent has no run it could postpone, and refusing would help nobody.
+	if err := s.secrets.Cooldown(ctx, s.orgID, "anthropic_api_key", 1,
+		time.Now().Add(time.Hour), secrets.ReasonError); err != nil {
+		t.Fatal(err)
+	}
+	if v, err := s.secrets.Get(ctx, s.orgID, "anthropic_api_key"); err != nil || v != "schluessel-a" {
+		t.Fatalf("with everything parked Get still has to deliver: %q, %v", v, err)
+	}
+}
+
 // TestPoolLeavesSingleValueBehaviourAlone: a key with one value must behave
 // exactly as before — that is the case for practically every target-system
 // token, and Resolve runs through the choice on every brokered credential.

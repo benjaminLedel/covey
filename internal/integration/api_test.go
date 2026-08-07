@@ -64,6 +64,21 @@ func (c *apiClient) expect(method, path string, body any, wantStatus int) map[st
 	return out
 }
 
+// expectList is expect for endpoints that answer with a list.
+func (c *apiClient) expectList(method, path string, body any, wantStatus int) []map[string]any {
+	c.t.Helper()
+	resp := c.do(method, path, body)
+	defer resp.Body.Close()
+	if resp.StatusCode != wantStatus {
+		buf := new(bytes.Buffer)
+		buf.ReadFrom(resp.Body)
+		c.t.Fatalf("%s %s: HTTP %d (expected %d): %s", method, path, resp.StatusCode, wantStatus, buf.String())
+	}
+	var out []map[string]any
+	json.NewDecoder(resp.Body).Decode(&out)
+	return out
+}
+
 func TestAPIAndRBAC(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
