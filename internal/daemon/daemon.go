@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -431,6 +433,12 @@ func (c *Client) runtimeKeyEnv() []string {
 		return nil
 	}
 	token := strings.TrimSpace(cred.Token)
+	// Delivered as a FILE rather than as a variable (spec/19): then there is no
+	// environment to add. The file itself is written by writeCredentialFile
+	// before the run and removed after it.
+	if cred.Path != "" {
+		return nil
+	}
 	// The control plane names the target env var (from the secret's name). If it
 	// is missing, we guess from the prefix: subscription accounts yield OAuth
 	// tokens (`claude setup-token`, sk-ant-oat…), which Claude Code only uses
@@ -463,6 +471,8 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 	defer proxy.Close()
 
 	env := append([]string{"COVEY_ACTION_PORT=" + proxy.Port()}, c.runtimeKeyEnv()...)
+	// Engines that take their credential as a file get it for this run only.
+	defer c.writeCredentialFile()()
 
 	runtime := c.runtimes[cfg.Runtime]
 	if runtime == nil {
@@ -554,4 +564,57 @@ func (c *Client) reportUsage(ctx context.Context, req RequestUsage) {
 	}
 	out.Supported, out.Usage = u.Reported(), u
 	_ = c.send(TypeUsageReport, out)
+}
+
+// writeCredentialFile puts a brokered credential into the agent home for the
+// duration of one run, for engines that read it from a file instead of the
+// environment (spec/19). Returns the cleanup, which the caller defers.
+//
+// The rule is the same as for the environment form and it is the reason this
+// cleanup is not optional: a credential is brokered per waking phase and must
+// not survive it. The home is persistent — a file left behind would be exactly
+// the long-lived secret in the sandbox that spec/04 forbids.
+func (c *Client) writeCredentialFile() func() {
+	c.mu.Lock()
+	cred, ok := c.creds["anthropic"]
+	c.mu.Unlock()
+	if !ok || !cred.Granted || cred.Path == "" || strings.TrimSpace(cred.Token) == "" {
+		return func() {}
+	}
+	if !safeCredentialPath(cred.Path) {
+		c.log.Warn("credential path refused", "path", cred.Path)
+		return func() {}
+	}
+	target := filepath.Join(c.homeDir, filepath.FromSlash(cred.Path))
+	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+		c.log.Warn("credential directory could not be created", "err", err)
+		return func() {}
+	}
+	if err := os.WriteFile(target, []byte(cred.Token), 0o600); err != nil {
+		c.log.Warn("credential file could not be written", "err", err)
+		return func() {}
+	}
+	return func() {
+		if err := os.Remove(target); err != nil && !os.IsNotExist(err) {
+			// Loud on purpose: a credential left lying in a persistent home is
+			// the failure this whole mechanism exists to prevent.
+			c.log.Error("credential file could not be removed — it stays in the home",
+				"path", cred.Path, "err", err)
+		}
+	}
+}
+
+// safeCredentialPath keeps the engine's declared path inside the home. The
+// declaration comes from our own code, not from a request — this is the second
+// door, on the principle that whoever writes to a file system checks.
+func safeCredentialPath(p string) bool {
+	if p == "" || strings.HasPrefix(p, "/") || strings.Contains(p, "\\") {
+		return false
+	}
+	for _, part := range strings.Split(p, "/") {
+		if part == "" || part == "." || part == ".." {
+			return false
+		}
+	}
+	return true
 }
