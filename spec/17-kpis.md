@@ -116,6 +116,19 @@ Two properties of the number have to be stated wherever it appears, because both
 
 Org-wide, indicators with the same `kennzahl:` key are summed across agents, and the denominator is the cost of exactly those agents that carry the key — otherwise the price of a resolved ticket would include a QA agent that never touched one.
 
+### Which dollars are in the numerator
+
+A third property has to be stated, and it is the one that can make the figure wrong by a factor rather than by a nuance. **Not every dollar the runtime reports is a dollar that was spent.** On a metered credential — an API key — it is real billing. On a subscription seat it is *notional*: the runtime prices the run as if it had been billed, but the seat was paid for regardless of whether the agent used it ([`18-runtimes-capacity.md`](18-runtimes-capacity.md)).
+
+Mixing the two produces a unit cost nobody can act on. An agent on a subscription seat shows a price per ticket that it does not cost; the same agent moved to an API key shows the same price and now it does. The figure has to name which of the two it is built from:
+
+- **Full cost** — fixed seat costs, spread over the runs that used the seat, plus real metered spend. This is the number a managing director wants and the only one comparable to a human hourly rate. It is also the number that answers "should we keep doing this".
+- **Marginal cost** — what one more unit of delivery costs *right now*, on the capacity we already own. On a subscription seat with headroom that is near zero; on a metered key it is the full price. This is the number that answers "should we hand it this next case", and it is a different question.
+
+Both are legitimate and they routinely disagree by an order of magnitude. The view therefore shows one of them at a time and says which — a price list without that label reads as full cost, which is the more conservative reading and the wrong one when somebody is deciding whether to route more work to an agent that is running on quota already bought.
+
+The counter-figures are unaffected: a failed run wastes quota exactly as it wastes money.
+
 **Productive share** — the share of runs in which at least one KPI event occurred. This extends the `actions = 0` signal that the run-cost list already carries: an agent whose heartbeat wakes it forty times a day and delivers on three of them is not a cheap agent, it is a badly scheduled one. This figure is what tells them apart.
 
 **The two curves together** — cost and KPI count over the same time axis, with unit cost as the derived line. A rising cost curve is neutral information; a rising cost curve next to a flat delivery curve is a finding.
@@ -215,4 +228,4 @@ The judgement itself stays where it already sits: in the recording, in the appro
 
 ---
 
-**Related:** [`06-observability-control.md`](06-observability-control.md) (recording, cost control) · [`02-agent-model.md`](02-agent-model.md) (config as code) · [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md) (backlog, heartbeat)
+**Related:** [`06-observability-control.md`](06-observability-control.md) (recording, cost control) · [`18-runtimes-capacity.md`](18-runtimes-capacity.md) (fixed vs. variable cost, capacity) · [`02-agent-model.md`](02-agent-model.md) (config as code) · [`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md) (backlog, heartbeat)

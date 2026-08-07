@@ -32,6 +32,16 @@ Per agent, per team or shared (with access rules at wiki page level, `scope` fro
 
 Which runtime does the adapter set start with? The obvious choice: Claude Code (familiar, CLI-based, easy to bootstrap) as the first adapter, then OpenHands/Harness.
 
+### D13 — Runtimes as contracts: scope, utilisation, fixed cost
+
+Once an organisation holds several LLM credentials, "which runtime" stops being a technical property and becomes a commercial one — a runtime is then an **engine plus the capacity to run it**, and an agent is assigned to it the way an employee is assigned to a cost centre. The model is described in [`18-runtimes-capacity.md`](18-runtimes-capacity.md); three questions in it are open, and only the first is expensive to get wrong.
+
+**Is a runtime bound to one organisation?** Whether several tenants may share one contract decides whether the runtime is org-scoped in the schema. It is a data question, not a policy one, and therefore the one decision here that cannot be cheaply reversed later. Everything else in the model — merit order, entitlement, reported utilisation — can be retrofitted.
+
+**What is the scope of an engine's utilisation figure?** Claude Code answers `/usage` headless and free of charge, but notes that its contribution breakdown covers only local sessions on that machine. With a fresh sandbox per waking phase that would be a fraction of the credential's real use. Whether the headline window percentages are account-wide is cheap to settle — query the same credential from a fresh sandbox after it has been used elsewhere — and it decides whether reported utilisation is usable at all or whether the platform's own estimate stays the primary source.
+
+**How is a fixed cost entered and spread?** A subscription seat costs a fixed amount per period whether or not it is used, and that amount has to reach the unit costs ([`17-kpis.md`](17-kpis.md)). A monthly figure per runtime is the simple answer; whether it suffices for organisations that change their seat count mid-period is not settled.
+
 ### D7 — Codename ✅ *decided*
 
 **Covey.** A *covey* is a small, coordinated flock — abstract on the surface, with a quiet meaning underneath. "A covey of agents" as the guiding image.

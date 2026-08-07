@@ -41,6 +41,7 @@ The guiding metaphor from which the whole architecture follows: the platform is 
 | [`15-teams-integration.md`](15-teams-integration.md) | Target system Microsoft Teams (Azure Bot Framework): wake via messaging endpoint (JWT-verified), bot connector actions, OAuth2 broker, `blocked`↔conversation, correlation via `conversation.id` |
 | [`16-runner.md`](16-runner.md) | Distributed data plane: registered runners modelled on GitLab, runner protocol, central home store (content-addressed, deduplicated), per-agent sandbox images, trust boundary |
 | [`17-kpis.md`](17-kpis.md) | Performance indicators: KPIs as counting rules over recorded evidence, `KPIS.md` per agent, unit cost and productive share against the cost figures |
+| [`18-runtimes-capacity.md`](18-runtimes-capacity.md) | Runtimes as contracts: engine vs. configured workplace, credential pools per provider, merit order, reported utilisation, fixed vs. variable cost |
 
 ## Design principles
 
@@ -59,7 +60,9 @@ The guiding metaphor from which the whole architecture follows: the platform is 
 
 - **Agent** — A configured, persistent entity with an identity, a sandbox, credentials and a backlog. The counterpart to the employee. An email address of its own is optional, not mandatory.
 - **Guard rail** — A centrally defined, platform-enforced limit on agent behaviour (e.g. an egress rule, a forbidden system/tool, a mandatory approval). It takes effect outside the runtime and cannot be circumvented by the agent.
-- **Runtime** — The agent framework that runs the actual LLM loop (OpenHands, Harness, Claude Code …). Swappable.
+- **Engine** — The agent framework that runs the actual LLM loop (OpenHands, Harness, Claude Code …). A self-registering plugin, shipped with the binary, swappable. There is one of each.
+- **Runtime** — A configured workplace: an engine plus the capacity to run it — credential(s), model, limits. Data, not code; it has a name a person chose ("Claude subscription Ben"), and an agent is assigned to it. See [`18-runtimes-capacity.md`](18-runtimes-capacity.md).
+- **Capacity** — What a runtime can do before it runs out. Two kinds that pull in opposite directions: **quota** (a subscription seat, paid for regardless — unused quota is wasted money) and **metered** (an API key, billed per use — every token costs).
 - **Daemon** — The slim process inside the sandbox that speaks the uniform platform protocol and bootstraps the runtime.
 - **Control plane** — The central service: scheduler, identity broker, backlog store, observability. Knows the state of every agent.
 - **Data plane** — The totality of sandboxes in which agents actually work.

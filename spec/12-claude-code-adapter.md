@@ -60,9 +60,22 @@ With that, the `blocked → working` edge from [`03-lifecycle-scheduling.md`](03
 
 The final `result` event (or `--output-format json`) contains `total_cost_usd` including a breakdown per model → straight into Covey's **cost tracking** per agent ([`06-observability-control.md`](06-observability-control.md)), without a separate usage query.
 
+On a **subscription seat that figure is notional** — Claude Code prices the run as if it had been billed, but the seat is paid for regardless. It is booked as it arrives and labelled by the credential it came from; what that means for totals and unit costs is in [`18-runtimes-capacity.md`](18-runtimes-capacity.md) and [`17-kpis.md`](17-kpis.md). An adapter for another engine may not report a dollar figure at all, in which case it has to be derived from tokens and a price list — which is why the token counts are stored separately and not only the money.
+
+## Utilisation
+
+Claude Code can report what its credential has consumed: `claude -p "/usage"` answers **headless and without a model turn** (`num_turns: 0`, `total_cost_usd: 0`, `duration_api_ms: 0`) with the share of the current rolling window and of the week, plus the reset times. That is the provider's own figure, and it beats anything the platform can infer from what it booked itself.
+
+The adapter therefore implements the optional **utilisation capability** described in [`18-runtimes-capacity.md`](18-runtimes-capacity.md). Two constraints come with it:
+
+- The numbers arrive as **prose in the `result` field**, not structured, even under `--output-format json`. Reading them is text matching against a format that will change between versions, so it is handled **fail-open**: an answer that no longer parses leaves the fleet running and falls back to the platform's own estimate. It never blocks.
+- The **scope** of the figure needs verifying. Claude Code notes that its contribution breakdown covers only local sessions on that machine; with a fresh sandbox per waking phase that would be a fraction of the credential's real use. Whether the headline window percentages are account-wide is an open point ([`07-open-decisions.md`](07-open-decisions.md)) and decides whether this source carries in Covey at all.
+
 ## Auth
 
 Headless needs non-interactive credentials: `ANTHROPIC_API_KEY` as an ENV variable, a long-lived OAuth token via `claude setup-token`, or provider credentials (Bedrock/Vertex/Foundry). In Covey this key is itself a **brokered secret** ([`04-identity-secrets.md`](04-identity-secrets.md)): the daemon gets it injected at runtime, it does not sit permanently in the sandbox.
+
+Which secret and which ENV variable is a property of the **engine**, not of the platform: the name binds the intent (`anthropic_api_key` → `ANTHROPIC_API_KEY`, `claude_code_oauth_token` → `CLAUDE_CODE_OAUTH_TOKEN`; do not guess from the token prefix). The engine declares its credentials in order of precedence, and everything above them — several seats, distribution, limits, cost attribution — follows from [`18-runtimes-capacity.md`](18-runtimes-capacity.md) without the adapter knowing about it.
 
 ## Permissions & guard rails
 
