@@ -12,11 +12,12 @@ Postgres installation**. Docker and Docker Compose suffice.
 
 - **Docker** with the Compose plugin (`docker compose version` ≥ 2.x).
 - **OpenSSL** (for the master key; pre-installed on macOS/Linux).
-- The repository checked out locally (the image is built from the `Dockerfile`).
+- The repository checked out locally (the images are built from the
+  `Dockerfile`s).
 
 ---
 
-## In four steps
+## In five steps
 
 ```bash
 # 1. Create the configuration
@@ -25,10 +26,13 @@ cp .env.example .env
 # 2. Generate a master key and write it into .env (32 bytes / 64 hex characters)
 echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env
 
-# 3. Start (builds the image the first time)
+# 3. Build the sandbox image agents work in (once, a few minutes)
+docker build -f Dockerfile.sandbox -t covey-sandbox:latest .
+
+# 4. Start (builds the control plane image the first time)
 docker compose up -d --build
 
-# 4. Open
+# 5. Open
 open http://localhost:8494        # or call it up in the browser
 ```
 
@@ -40,8 +44,21 @@ That's it. `docker compose` starts three things:
 | Service | Job |
 |---|---|
 | `db` | PostgreSQL with `pgvector` (persistent in the volume `covey-db`) |
-| `bootstrap` | Creates the organisation, the admin login and a demo agent once, then the container exits (idempotent) |
+| `bootstrap` | Creates the organisation, the admin login, a demo agent and its workplace once, then the container exits (idempotent) |
 | `covey` | The control plane: API + orchestrator + the embedded admin UI on port **8494**. Migrations run automatically at start |
+
+### Why step 3 is a step of its own
+
+An agent works inside its own container, and that image is not part of the
+compose build. It is deliberately separate: it carries chromium, a JDK and a
+Node toolchain and takes minutes, while everything else here takes seconds.
+
+Skipping it costs nothing at first — the platform starts, the interface works,
+agents and configs can be created. Only the first wake fails, with
+`sandbox image "covey-sandbox:latest" is missing`. Covey checks for this at
+`serve` start and says so in the log, and the **first steps** on the agent
+overview say so too, so the answer is not buried in the recording of a task
+that never ran.
 
 ---
 
@@ -51,8 +68,10 @@ That's it. `docker compose` starts three things:
 docker compose logs -f covey      # live logs of the control plane
 docker compose ps                 # status of all services
 docker compose restart covey      # restart only the control plane
-docker compose down               # stop (data stays in the volumes)
-docker compose down -v            # stop AND delete all data (a fresh start)
+docker compose down               # stop (data stays: DB volume + ./data)
+docker compose down -v            # stop AND drop the database (the agent homes
+                                  # live in ./data — delete that too for a truly
+                                  # fresh start)
 docker compose up -d --build      # rebuild & start after code changes
 ```
 
@@ -72,32 +91,44 @@ task → watch it work. It reads the organisation's actual state, so it ticks
 itself off and disappears once everything is done. The same steps are described
 in more detail in the help (key `?`).
 
-After logging in a **demo support agent** already exists. For it to actually be
-able to work, it needs two things — both depositable in the admin UI under the
-agent:
+After logging in a **demo agent** already exists, with a workplace and a board.
+It needs exactly one thing to be able to work: **Anthropic access** — the secret
+`anthropic_api_key` (an API key) *or* `claude_code_oauth_token` (a subscription
+account; generate the token once with `claude setup-token`). Deposit it under
+Secrets and it attaches itself to the workplace; without it every task fails
+with "Not logged in", because the sandbox has its own empty `HOME`.
 
-1. **Anthropic access** — the secret `anthropic_api_key` (an API key) *or*
-   `claude_code_oauth_token` (a subscription account; generate the token once
-   with `claude setup-token`). Without one of the two, tasks fail with
-   "Not logged in", because the sandbox has its own empty `HOME`.
-2. **A target system** — e.g. Zammad. For trying things out without a real
-   Zammad there is the double `demo/fakezammad`; for connecting to a real
-   instance see the runbook [`ops-zammad.md`](ops-zammad.md).
+The demo agent has **no target system** on purpose — it works on the task text
+and writes down what it found, which is enough to see a whole run: dispatch,
+recording, cost, memory. Give it a real job by connecting a target system
+([`ops-zammad.md`](ops-zammad.md), [`ops-github.md`](ops-github.md),
+[`ops-email.md`](ops-email.md) …) or by importing one of the ready-made bundles
+from [`examples/`](../examples/). For trying out Zammad without a real instance
+there is the double `demo/fakezammad`.
 
 ---
 
 ## Sandbox isolation
 
-The Compose setup uses the default **`COVEY_SANDBOX_PROVIDER=local`**: sandboxes
-run as subprocesses *inside* the covey container. That is honest and ideal for
-trying things out, but it offers **process isolation only**.
+Every agent gets its own container — real isolation at the namespace level, and
+there is no weaker mode to fall back to. Two things in the compose setup carry
+that, and both are easy to lose when adapting the file:
 
-For real container isolation per agent (`COVEY_SANDBOX_PROVIDER=docker`) the
-covey container needs access to a Docker daemon (a socket mount or
-Docker-in-Docker) and the sandbox image `covey-sandbox:latest`
-([`Dockerfile.sandbox`](../Dockerfile.sandbox)). That is deliberately **not**
-part of this beginner setup — details in
-[`spec/01-architecture.md`](../spec/01-architecture.md) and the README.
+- **The Docker socket** is mounted into the covey container
+  (`/var/run/docker.sock`). The control plane starts each sandbox as a *sibling*
+  container through the host's daemon. Without the socket every wake fails with
+  `no Docker daemon reachable`.
+- **The data directory has the same path** on the host and in the container
+  (`COVEY_DATA_DIR`, by default `$PWD/data`). The agent homes are mounted into
+  the sandbox with `-v`, and that path is resolved by the *host's* daemon — a
+  named volume or a differing path would mount something that exists nowhere,
+  and every agent would find an empty home on each wake.
+
+The sandbox image itself is [`Dockerfile.sandbox`](../Dockerfile.sandbox)
+(coveyd + Claude Code + chromium for the browser plugin). Extending it follows
+one rule: **version → home, toolchain → image**. Details in
+[`spec/01-architecture.md`](../spec/01-architecture.md) and
+[`ops-deployment.md`](ops-deployment.md).
 
 ---
 

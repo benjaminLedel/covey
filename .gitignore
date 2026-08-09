@@ -10,7 +10,7 @@
 serve.log
 covey.log
 
-# Laufzeitdaten (Sandbox-Homes des local-Providers)
+# Laufzeitdaten (die persistenten Agenten-Homes, COVEY_DATA_DIR)
 /data/
 
 # Frontend
