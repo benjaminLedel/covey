@@ -1737,6 +1737,14 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		resp := o.brokerCredential(ctx, agent, req)
 		return false, o.sendMsg(ctx, link, daemon.TypeInjectCredentials, resp)
 
+	case daemon.TypeRequestSecret:
+		req, err := daemon.DecodePayload[daemon.RequestSecret](msg)
+		if err != nil {
+			return false, nil
+		}
+		resp := o.brokerSecret(ctx, agent, req)
+		return false, o.sendMsg(ctx, link, daemon.TypeInjectSecret, resp)
+
 	case daemon.TypeRequestApproval:
 		req, err := daemon.DecodePayload[daemon.RequestApproval](msg)
 		if err != nil {
@@ -2313,6 +2321,30 @@ func (o *Orchestrator) brokerCredential(ctx context.Context, agent agents.Agent,
 		map[string]any{"system": req.System, "granted": true, "ttl_secs": int(o.DaemonTokenTTL.Seconds())})
 	return daemon.InjectCredentials{RequestID: req.RequestID, System: req.System,
 		Granted: true, Token: token, BaseURL: baseURL, TTLSecs: int(o.DaemonTokenTTL.Seconds())}
+}
+
+// brokerSecret resolves one custom, agent-scoped secret for the
+// {{secret:<key>}} placeholder substitution in action params (spec/04): the
+// agent's own secret (PutAgent) before an org-wide one explicitly assigned to
+// it (Assign) — same precedence as brokerCredential's <system>_token/_url
+// lookups. Unlike brokerCredential there is no ACCESS.md/target-system gate to
+// check first: the key is not a target system, and the explicit
+// PutAgent/Assign onto this specific agent already IS the authorization —
+// nothing reaches an agent it was not put there for.
+func (o *Orchestrator) brokerSecret(ctx context.Context, agent agents.Agent, req daemon.RequestSecret) daemon.InjectSecret {
+	value, err := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.Key)
+	if err != nil {
+		reason := "no secret named " + req.Key + " set for this agent"
+		if !errors.Is(err, secrets.ErrNotFound) {
+			reason = "secret lookup failed"
+		}
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
+			map[string]any{"system": "secret:" + req.Key, "granted": false, "reason": reason})
+		return daemon.InjectSecret{RequestID: req.RequestID, Key: req.Key, Granted: false, Reason: reason}
+	}
+	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
+		map[string]any{"system": "secret:" + req.Key, "granted": true})
+	return daemon.InjectSecret{RequestID: req.RequestID, Key: req.Key, Granted: true, Value: value}
 }
 
 // brokerTarget passes the definition of a manifest plugin into the sandbox —

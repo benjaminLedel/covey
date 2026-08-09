@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -337,6 +338,15 @@ func (p *actionProxy) execute(ctx context.Context, system, action string, params
 	if err != nil {
 		return nil, err
 	}
+	// {{secret:<key>}} inside a string parameter (e.g. the text of a browser
+	// "type" action, so an agent can fill a login form without a password ever
+	// sitting in its own prompt/context) — substituted here, after the model has
+	// already committed to the call, before the plugin ever sees the params. A
+	// no-op (no RPC) when the params contain no placeholder.
+	params, err = p.substituteSecrets(ctx, params)
+	if err != nil {
+		return nil, err
+	}
 	// Workdir for actions that materialize files into the sandbox (e.g. gitlab
 	// checkout) — the credential itself stays in the daemon.
 	ctx = target.WithWorkdir(ctx, p.client.homeDir)
@@ -344,4 +354,55 @@ func (p *actionProxy) execute(ctx context.Context, system, action string, params
 	// the project checkout without knowing the daemon.
 	ctx = target.WithSubAgent(ctx, p.client.subAgentRunner(p.taskID))
 	return sys.Execute(ctx, action, params, target.Credential{BaseURL: cred.BaseURL, Token: cred.Token})
+}
+
+// secretPlaceholder matches {{secret:<key>}} — key restricted to the charset
+// secret keys are created with (PUT /api/v1/agents/{id}/secrets/{key}), so a
+// stray "{{" in unrelated text (e.g. a Handlebars-looking snippet an agent
+// quotes) can never be mistaken for one.
+var secretPlaceholder = regexp.MustCompile(`\{\{secret:([A-Za-z0-9_.-]+)\}\}`)
+
+// substituteSecrets resolves every distinct {{secret:<key>}} placeholder in
+// params and replaces it with the real value, JSON-string-escaped so it slots
+// back into the surrounding string literal unchanged. Deliberately operates on
+// the raw JSON text, not a decoded map: the plugin-specific param struct is
+// unknown here, and a placeholder can sit in any string field of it.
+//
+// This is what keeps a secret like a staging login out of the model's own
+// context: the model writes the placeholder into its tool call, this
+// substitution happens locally in the sandbox right before execution, and the
+// audit log (actionProxy.run) still records the params as the model wrote
+// them — with the placeholder, never the value.
+func (p *actionProxy) substituteSecrets(ctx context.Context, params json.RawMessage) (json.RawMessage, error) {
+	matches := secretPlaceholder.FindAllStringSubmatch(string(params), -1)
+	if len(matches) == 0 {
+		return params, nil
+	}
+	out := string(params)
+	seen := map[string]bool{}
+	for _, m := range matches {
+		key := m[1]
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		sec, err := p.client.secret(ctx, key, p.taskID)
+		if err != nil {
+			return nil, fmt.Errorf("secret %q: %w", key, err)
+		}
+		out = strings.ReplaceAll(out, "{{secret:"+key+"}}", jsonStringEscape(sec.Value))
+	}
+	return json.RawMessage(out), nil
+}
+
+// jsonStringEscape renders s the way it would appear INSIDE a JSON string
+// literal (quotes/backslashes/control characters escaped, but without the
+// literal's own surrounding quotes — those already sit in params around the
+// placeholder).
+func jsonStringEscape(s string) string {
+	b, _ := json.Marshal(s)
+	if len(b) < 2 {
+		return ""
+	}
+	return string(b[1 : len(b)-1])
 }

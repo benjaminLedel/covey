@@ -21,6 +21,7 @@ var responseTypes = []string{
 	TypeInjectWiki,
 	TypeInjectSkills,
 	TypeInjectCreateTask,
+	TypeInjectSecret,
 }
 
 // TestResponsesReachTheirCaller checks delivery by behavior instead of by
