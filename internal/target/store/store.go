@@ -40,6 +40,10 @@ type Plugin struct {
 	Enabled   bool            `json:"enabled"`
 	Manifest  json.RawMessage `json:"manifest,omitempty"` // custom: manifest, mcp: config
 	UpdatedAt *time.Time      `json:"updated_at,omitempty"`
+	// Scopes are the access levels the plugin understands in ACCESS.md — the
+	// UI offers exactly these instead of letting somebody type a word that is
+	// then silently ignored. Empty for manifest/MCP plugins.
+	Scopes []string `json:"scopes,omitempty"`
 	// SetupDoc is the setup guide for the UI: for built-ins from the plugin
 	// descriptor, for manifest/MCP plugins generated generically.
 	SetupDoc string `json:"setup_doc,omitempty"`
@@ -72,7 +76,7 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 
 	var out []Plugin
 	for _, d := range target.All() {
-		p := Plugin{Name: d.Name, Label: d.Label, Description: d.Description, Kind: "builtin", Category: d.Category, Enabled: false, SetupDoc: d.SetupDoc}
+		p := Plugin{Name: d.Name, Label: d.Label, Description: d.Description, Kind: "builtin", Category: d.Category, Enabled: false, SetupDoc: d.SetupDoc, Scopes: d.Scopes}
 		if row, ok := stored[d.Name]; ok {
 			p.Enabled = row.Enabled
 			p.UpdatedAt = row.UpdatedAt

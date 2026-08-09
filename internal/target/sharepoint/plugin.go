@@ -30,6 +30,7 @@ func init() {
 		Description: "A SharePoint/Teams document library through a share link: list files (list), read them (read/download into the sandbox), deposit and edit them (write/upload), create folders (mkdir), delete (delete). Auth through an Entra ID app registration (client credentials), secrets sharepoint_url (share link) + sharepoint_token (tenant:client:secret). Intake through HEARTBEAT.md (polling, no webhook).",
 		Kind:        "builtin",
 		Category:    target.CategoryFiles,
+		Scopes:      []string{"read", "write"},
 		System:      System{},
 		SetupDoc: `1. In Entra ID (Azure portal → App registrations) register an app for the
    agent. Under API permissions add the application permission

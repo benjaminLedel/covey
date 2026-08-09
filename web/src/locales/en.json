@@ -585,7 +585,29 @@
     "invalidJson": "File is not a valid JSON bundle.",
     "selectRuntime": "Runtime",
     "slug": "Slug",
-    "budget": "Budget"
+    "budget": "Budget",
+    "guided": {
+      "step": {
+        "who": "Who",
+        "job": "Job",
+        "may": "May",
+        "org": "Reports to"
+      },
+      "nameHint": "The name the agent appears under in the workforce, in the org chart and in its own comments.",
+      "slugHint": "The slug appears in addresses — among them the end of the webhook URL a target system uses to wake this agent. Lower case, no spaces.",
+      "runtimeHint": "The engine it works on, and with it the contract its cost runs through. Changeable later without it losing its history.",
+      "roleLabel": "What is its job?",
+      "roleHint": "In your own words, two to five sentences. This becomes SOUL.md — the role description compiled into its prompt on every run. Specific beats general: \"You answer questions about the billing system\" carries further than \"You are a helpful assistant\".",
+      "rolePlaceholder": "You triage incoming tickets in the billing system, answer the solvable cases yourself and escalate anything contractual to the responsible human.",
+      "remitLabel": "What is it responsible for — and what not?",
+      "remitHint": "One line that draws the boundary. It lands in CAPABILITIES.md and helps the agent recognise when to hand over.",
+      "mayHint": "An activated target system does not yet mean this agent may use it — its ACCESS.md decides that. What you tick here ends up there.",
+      "noTargets": "No target system is activated yet. The agent can still be created and work on the task text; access can be added at any time.",
+      "supervisorLabel": "Reports to",
+      "supervisorHint": "The human to escalate to when the agent gets stuck or needs an approval.",
+      "departmentLabel": "Department",
+      "departmentHint": "Determines its place in the org chart and the cost centre. May stay empty."
+    }
   },
   "agent": {
     "notFound": "Agent not found.",
@@ -1339,7 +1361,37 @@
     "mcpFormDesc": "Covey connects via Streamable HTTP to the MCP server, discovers the tool list and shows it here. Guard rails and broker apply unchanged.",
     "tokenPlaceholder": "Token (if auth required)",
     "discoverSuccess": "\"{{name}}\" connected — {{count}} tool(s) discovered.",
-    "discoverError": "Created, but tool discovery failed: {{err}}"
+    "discoverError": "Created, but tool discovery failed: {{err}}",
+    "wizard": {
+      "title": "Set up",
+      "titleFor": "Set up {{system}}",
+      "open": "Set up",
+      "step": {
+        "activate": "Activate",
+        "credentials": "Access",
+        "access": "Agent",
+        "webhook": "Webhook",
+        "probe": "Connection"
+      },
+      "activateHint": "A target system is only unlocked once the organisation activates it — until then the broker refuses every request, no matter what an ACCESS.md says.",
+      "credHint": "The values belong to the organisation, not to the agent, and are brokered at runtime. A token stays unreadable after saving; replacing works, looking does not.",
+      "accessHint": "Activated does not yet mean responsible: an agent reaches the system when it is in its ACCESS.md. The assistant writes that line and shows what the file will look like first.",
+      "pickAgent": "Which agent?",
+      "writeAccess": "Write ACCESS.md",
+      "saving": "Saving …",
+      "webhookHint": "This is the address the target system calls so Covey hears about what happens there. The slug at the end is the agent that gets woken.",
+      "webhookNoAgent": "Pick an agent in the previous step and its finished address appears here.",
+      "secretSet": "{{env}} is set — incoming calls are signature-checked.",
+      "secretMissing": "{{env}} is not set. The endpoint accepts calls but verifies no signature — set it before going live.",
+      "probeHint": "The test calls the target system read-only with the stored credentials and reports who Covey arrives as.",
+      "probeBtn": "Test connection",
+      "probing": "Testing …",
+      "probeOk": "Connected as {{identity}}",
+      "docSummary": "What to do in the target system itself",
+      "copy": "Copy",
+      "optional": "optional",
+      "stored": "stored"
+    }
   },
   "egress": {
     "title": "Egress",

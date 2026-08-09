@@ -1,0 +1,240 @@
+package httpapi
+
+import (
+	"context"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+
+	"covey/internal/agents"
+	"covey/internal/target"
+)
+
+// Einrichtung eines Zielsystems — der Zustand, den der Assistent führt.
+//
+// Bisher stand die Einrichtung als Fließtext in SetupDoc, und jeder Schritt
+// darin führte woandershin: Secrets auf die eine Seite, ACCESS.md in den
+// Config-Editor des Agenten, die Webhook-URL musste man sich aus der
+// öffentlichen Adresse und einem Agenten-Slug selbst zusammensetzen. Ob es am
+// Ende zusammenpasste, zeigte sich beim ersten Lauf.
+//
+// Dieser Endpunkt beantwortet dieselben Fragen als Zustand statt als Prosa:
+// Welche Zugangsdaten braucht das Plugin und liegen sie? Welche Scopes kennt
+// es? Nimmt es Webhooks an, und wie lautet die Adresse dann konkret? Welcher
+// Agent hat es schon in seiner ACCESS.md? Der Prosa-Teil bleibt — aber nur für
+// das, was im FREMDEN System zu tun ist, denn das kann diese Oberfläche nicht
+// für jemanden erledigen.
+
+type setupCredential struct {
+	Key  string `json:"key"`
+	Kind string `json:"kind"` // "url" | "token"
+	// Stored: ein Wert liegt org-weit vor. Nicht der Wert selbst — der ist
+	// write-only und bleibt es auch für einen Assistenten.
+	Stored bool `json:"stored"`
+	// Optional: das Plugin arbeitet auch ohne diesen Wert.
+	Optional bool `json:"optional"`
+}
+
+type setupWebhook struct {
+	Supported bool `json:"supported"`
+	// URL mit der echten öffentlichen Adresse; <agent-slug> bleibt als
+	// Platzhalter stehen, bis der Assistent den Agenten kennt.
+	URL string `json:"url,omitempty"`
+	// SecretEnv ist die Prozess-Variable mit dem HMAC-Geheimnis, SecretSet
+	// sagt, ob sie gesetzt ist. Ohne sie nimmt der Endpunkt zwar an, aber
+	// ungeprüft — und das sollte man sehen, bevor man es produktiv nutzt.
+	SecretEnv string `json:"secret_env,omitempty"`
+	SecretSet bool   `json:"secret_set"`
+}
+
+type setupAgent struct {
+	ID          uuid.UUID `json:"id"`
+	Slug        string    `json:"slug"`
+	DisplayName string    `json:"display_name"`
+	// Access: der Agent hat das System in seiner ACCESS.md.
+	Access bool     `json:"access"`
+	Scopes []string `json:"scopes,omitempty"`
+}
+
+type setupState struct {
+	Name        string            `json:"name"`
+	Label       string            `json:"label"`
+	Enabled     bool              `json:"enabled"`
+	Credentials []setupCredential `json:"credentials"`
+	Scopes      []string          `json:"scopes,omitempty"`
+	Webhook     setupWebhook      `json:"webhook"`
+	// Probe: das Plugin kann eine Verbindung prüfen. Wo es das nicht kann,
+	// überspringt der Assistent den Schritt sichtbar, statt ein Häkchen zu
+	// setzen, für das er keinen Beleg hat.
+	Probe    bool         `json:"probe"`
+	Agents   []setupAgent `json:"agents"`
+	SetupDoc string       `json:"setup_doc,omitempty"`
+}
+
+func (s *Server) handleTargetSetup(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	name := r.PathValue("name")
+
+	list, err := s.Targets.List(r.Context(), p.OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	var found bool
+	var state setupState
+	for _, pl := range list {
+		if pl.Name != name {
+			continue
+		}
+		found = true
+		state = setupState{
+			Name:     pl.Name,
+			Label:    pl.Label,
+			Enabled:  pl.Enabled,
+			SetupDoc: strings.ReplaceAll(pl.SetupDoc, "{public_url}", s.origin(r)),
+		}
+	}
+	if !found {
+		writeErr(w, http.StatusNotFound, "unknown target system")
+		return
+	}
+	// Die Flags (welche Zugangsdaten, welche Scopes) stehen im Descriptor des
+	// kompilierten Plugins. Manifest- und MCP-Plugins haben keinen — dort
+	// bleiben die Felder leer, und der Assistent zeigt entsprechend weniger.
+	plugin, _ := target.Describe(name)
+	state.Scopes = plugin.Scopes
+
+	// Welche Zugangsdaten das Plugin braucht, steht in seinen Flags — die
+	// Namenskonvention <system>_url/<system>_token ist dieselbe, die der
+	// Broker zur Laufzeit auflöst.
+	if !plugin.NoCredentials {
+		keys, err := s.Secrets.Keys(r.Context(), p.OrgID)
+		if err != nil {
+			mapErr(w, err)
+			return
+		}
+		has := map[string]bool{}
+		for _, k := range keys {
+			has[k] = true
+		}
+		if !plugin.BaseURLOptional {
+			state.Credentials = append(state.Credentials, setupCredential{
+				Key: name + "_url", Kind: "url", Stored: has[name+"_url"],
+			})
+		} else {
+			state.Credentials = append(state.Credentials, setupCredential{
+				Key: name + "_url", Kind: "url", Stored: has[name+"_url"], Optional: true,
+			})
+		}
+		state.Credentials = append(state.Credentials, setupCredential{
+			Key: name + "_token", Kind: "token", Stored: has[name+"_token"],
+			Optional: plugin.CredentialsOptional,
+		})
+	}
+
+	// Webhook: Ob ein Plugin welche annimmt, steht nicht in einer Liste,
+	// sondern in dem, was es implementiert (target.Webhooker). Deshalb wird
+	// hier gefragt und nicht nachgeschlagen.
+	if sys, ok := target.Get(name); ok {
+		if _, isHook := sys.(target.Webhooker); isHook {
+			env := "COVEY_" + strings.ToUpper(name) + "_WEBHOOK_SECRET"
+			state.Webhook = setupWebhook{
+				Supported: true,
+				URL:       s.origin(r) + "/api/webhooks/" + name + "/<agent-slug>",
+				SecretEnv: env,
+				SecretSet: s.WebhookSecrets[name] != "",
+			}
+		}
+		_, state.Probe = sys.(target.Prober)
+	}
+
+	// Wer hat das System schon? Die Antwort steht in der ACCESS.md der
+	// Agenten, also dort, wo sie auch gilt.
+	agentList, err := s.Registry.List(r.Context(), p.OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	for _, a := range agentList {
+		entry := setupAgent{ID: a.ID, Slug: a.Slug, DisplayName: a.DisplayName}
+		if cfg, err := s.Registry.CurrentConfig(r.Context(), a.ID); err == nil {
+			for _, acc := range agents.ParseAccess(cfg.Files["ACCESS.md"]) {
+				if acc.System == name {
+					entry.Access = true
+					entry.Scopes = acc.Scopes
+					break
+				}
+			}
+		}
+		state.Agents = append(state.Agents, entry)
+	}
+	if state.Agents == nil {
+		state.Agents = []setupAgent{}
+	}
+
+	writeJSON(w, http.StatusOK, state)
+}
+
+// handleTargetProbe stellt die eine Frage, die "gespeichert" von "funktioniert"
+// unterscheidet: Antwortet das System auf die hinterlegten Zugangsdaten, und
+// als wen.
+//
+// Der Aufruf ist lesend und läuft in der Control Plane — das Token verlässt
+// sie dabei nicht Richtung Sandbox.
+type probeResult struct {
+	OK       bool   `json:"ok"`
+	Identity string `json:"identity,omitempty"`
+	Error    string `json:"error,omitempty"`
+}
+
+func (s *Server) handleTargetProbe(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	name := r.PathValue("name")
+
+	sys, ok := target.Get(name)
+	if !ok {
+		writeErr(w, http.StatusNotFound, "unknown target system")
+		return
+	}
+	prober, ok := sys.(target.Prober)
+	if !ok {
+		writeErr(w, http.StatusBadRequest, "this target system cannot test its connection")
+		return
+	}
+
+	d, _ := target.Describe(name)
+	var cred target.Credential
+	if !d.NoCredentials {
+		token, err := s.orgSecret(r.Context(), p.OrgID, name+"_token")
+		if err != nil {
+			writeJSON(w, http.StatusOK, probeResult{Error: "no " + name + "_token stored"})
+			return
+		}
+		base, err := s.orgSecret(r.Context(), p.OrgID, name+"_url")
+		if err != nil && !d.BaseURLOptional {
+			writeJSON(w, http.StatusOK, probeResult{Error: "no " + name + "_url stored"})
+			return
+		}
+		cred = target.Credential{BaseURL: base, Token: token}
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
+	defer cancel()
+	identity, err := prober.Probe(ctx, cred)
+	if err != nil {
+		// Die Fehlermeldung des Zielsystems steht hier bewusst so, wie sie
+		// kam: "HTTP 401" ist für den, der gerade einen Token eingesetzt hat,
+		// die brauchbarste Auskunft, die es gibt.
+		writeJSON(w, http.StatusOK, probeResult{Error: err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, probeResult{OK: true, Identity: identity})
+}
+
+// orgSecret liest einen org-weiten Wert (Slot 0) — den, den der Broker zur
+// Laufzeit auch nähme.
+func (s *Server) orgSecret(ctx context.Context, orgID uuid.UUID, key string) (string, error) {
+	return s.Secrets.Value(ctx, orgID, key, 0)
+}

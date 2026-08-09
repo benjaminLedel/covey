@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { api, del, patch, post, type MCPTool, type Principal, type TargetPlugin } from "../api";
 import { ConfirmDialog, Modal } from "../components/Modal";
 import { TargetIcon, hasBrandMark } from "../components/TargetIcon";
+import { TargetSetupWizard } from "./targets/SetupWizard";
 
 const kindKey: Record<TargetPlugin["kind"], string> = {
   builtin: "targets.kindBuiltin",
@@ -67,6 +68,7 @@ export default function Targets({ me }: { me: Principal }) {
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("all");
   const [detail, setDetail] = useState<string | null>(null);
+  const [wizard, setWizard] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState<TargetPlugin | null>(null);
   const [form, setForm] = useState<null | "manifest" | "mcp">(null);
 
@@ -210,10 +212,12 @@ export default function Targets({ me }: { me: Principal }) {
             store={tab === "store"}
             busy={toggle.isPending}
             onDetails={() => setDetail(p.name)}
+            onSetup={() => setWizard(p.name)}
             onToggle={() => toggle.mutate({ name: p.name, enabled: !p.enabled })}
           />
         ))}
       </div>
+      {wizard && <TargetSetupWizard name={wizard} onClose={() => setWizard(null)} />}
       {list.length > 0 && shown.length === 0 && (
         <p className="muted text-sm">
           {tab === "active" && !query ? (
@@ -289,6 +293,7 @@ function TargetCard({
   store,
   busy,
   onDetails,
+  onSetup,
   onToggle,
 }: {
   plugin: TargetPlugin;
@@ -296,6 +301,7 @@ function TargetCard({
   store: boolean;
   busy: boolean;
   onDetails: () => void;
+  onSetup: () => void;
   onToggle: () => void;
 }) {
   const { t } = useTranslation();
@@ -331,12 +337,8 @@ function TargetCard({
           {t("targets.details")}
         </button>
         {canEdit && (
-          <button
-            className={`btn sm${store && !p.enabled ? " cta" : ""}`}
-            disabled={busy}
-            onClick={onToggle}
-          >
-            {p.enabled ? t("targets.deactivate") : t("targets.activate")}
+          <button className={`btn sm${p.enabled ? "" : " cta"}`} onClick={onSetup}>
+            {t("targets.wizard.open")}
           </button>
         )}
       </div>

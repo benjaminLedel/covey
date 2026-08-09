@@ -2,8 +2,9 @@ import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, post, ApiError, type Agent, type AgentTemplate, type Principal, type RuntimeInfo } from "../api";
+import { api, post, ApiError, type Agent, type AgentTemplate, type Principal } from "../api";
 import { generateAgentName, slugify } from "../names";
+import { GuidedCreate } from "./agents/GuidedCreate";
 import { Modal } from "../components/Modal";
 import { Onboarding } from "../components/Onboarding";
 
@@ -162,7 +163,7 @@ function CreateAgentModal({ onClose, onDone }: { onClose: () => void; onDone: (i
         <TemplateStep onBack={() => setPath("choose")} onDone={handleDone} />
       )}
       {path === "manual" && (
-        <ManualStep onBack={() => setPath("choose")} onDone={handleDone} />
+        <GuidedCreate onBack={() => setPath("choose")} onDone={handleDone} />
       )}
       {path === "import" && (
         <ImportStep onBack={() => setPath("choose")} onDone={handleDone} />
@@ -376,96 +377,6 @@ function TemplateStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agen
           <button type="button" className="btn" onClick={() => setSelected(null)}>{t("dashboard.back")}</button>
           <button type="submit" className="btn primary" disabled={mut.isPending}>
             {mut.isPending ? t("dashboard.creating") : t("dashboard.createAgentBtn")}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
-function ManualStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agent) => void }) {
-  const { t } = useTranslation();
-  const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [runtime, setRuntime] = useState("claude-code");
-
-  const runtimes = useQuery({
-    queryKey: ["runtimes"],
-    queryFn: () => api<RuntimeInfo[]>("/runtimes"),
-  });
-
-  const mut = useMutation({
-    mutationFn: () => post<Agent>("/agents", { slug: slug.trim(), display_name: name.trim(), runtime }),
-    onSuccess: (agent) => onDone(agent),
-  });
-
-  const rtList = runtimes.data ?? [];
-
-  return (
-    <div>
-      <BackLink onBack={onBack} />
-      <form
-        onSubmit={(e) => { e.preventDefault(); mut.mutate(); }}
-        style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 8 }}
-      >
-        <div>
-          <label>{t("dashboard.displayName")}</label>
-          <div className="flex gap-2">
-            <input
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                setSlug(slugify(e.target.value));
-              }}
-              autoFocus
-              required
-              style={{ flex: 1 }}
-            />
-            <button
-              type="button"
-              className="btn"
-              title={t("dashboard.rollDice")}
-              onClick={() => {
-                const g = generateAgentName();
-                setName(g.name);
-                setSlug(g.slug);
-              }}
-            >
-              🎲
-            </button>
-          </div>
-        </div>
-        <div>
-          <label>{t("dashboard.slug")}</label>
-          <input
-            value={slug}
-            onChange={(e) => setSlug(e.target.value)}
-            className="mono"
-            required
-          />
-          <div className="muted text-xs" style={{ marginTop: 3 }}>{t("dashboard.slugHint")}</div>
-        </div>
-        <div>
-          <label>{t("dashboard.selectRuntime")}</label>
-          <select value={runtime} onChange={(e) => setRuntime(e.target.value)}>
-            {rtList.length === 0 && (
-              <>
-                <option value="claude-code">claude-code</option>
-                <option value="mock">mock</option>
-              </>
-            )}
-            {rtList.map((rt) => (
-              <option key={rt.name} value={rt.name}>{rt.name}</option>
-            ))}
-          </select>
-        </div>
-        {mut.isError && (
-          <div className="danger-text text-xs">{String((mut.error as Error)?.message ?? mut.error)}</div>
-        )}
-        <div className="flex gap-2 justify-end" style={{ marginTop: 4 }}>
-          <button type="button" className="btn" onClick={onBack}>{t("dashboard.back")}</button>
-          <button type="submit" className="btn primary" disabled={mut.isPending}>
-            {mut.isPending ? t("dashboard.creatingAgent") : t("dashboard.createAgentBtn")}
           </button>
         </div>
       </form>

@@ -23,6 +23,7 @@ func init() {
 		Description: "A mail account of its own for the agent: sift through the inbox by IMAP (list_unread/get_message), load attachments into the sandbox and read them (get_attachment), reply or send by SMTP (reply/send), file mail by mark_seen/move. Intake by HEARTBEAT.md (polling, no webhook). Auth by the secrets email_url (mail server host, e.g. mail.example.com) and email_token (address:password).",
 		Kind:        "builtin",
 		Category:    target.CategoryComms,
+		Scopes:      []string{"read", "write"},
 		System:      System{},
 		SetupDoc: `1. At the mail provider, create a mail account of its own for the agent
    (e.g. support-agent@example.com) and generate an app password —

@@ -33,6 +33,7 @@ func init() {
 		Description: "Known vulnerabilities in declared package dependencies: scan a lock file (package-lock.json, composer.lock, pubspec.lock) against OSV.dev in one batch (scan_lockfile), check individual packages (query/query_batch), fetch an advisory's details merged from OSV, the GitHub Advisory Database and NVD (advisory) and look up the next safe version in the registry (latest_version). Covers npm, Packagist (Composer) and Pub (Dart/Flutter). Works without secrets; an NVD API key stored as vulndb_token only raises the rate limit.",
 		Kind:        "builtin",
 		Category:    target.CategoryDev,
+		Scopes:      []string{"read"},
 		System:      System{},
 		// Alle Quellen sind öffentlich erreichbar. Ein Schlüssel erweitert
 		// nur, was erlaubt ist (NVD: 5 → 50 Anfragen je 30 Sekunden) — ohne

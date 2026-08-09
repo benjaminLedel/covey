@@ -261,6 +261,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/targets/mcp", s.rbac(securityRoles, s.handleCreateMCP))
 	mux.Handle("POST /api/v1/targets/{name}/discover", s.rbac(securityRoles, s.handleDiscoverMCP))
 	mux.Handle("GET /api/v1/targets/{name}/tools", s.rbac(anyRole, s.handleListMCPTools))
+	mux.Handle("GET /api/v1/targets/{name}/setup", s.rbac(anyRole, s.handleTargetSetup))
+	mux.Handle("POST /api/v1/targets/{name}/probe", s.rbac(securityRoles, s.handleTargetProbe))
 	mux.Handle("PATCH /api/v1/targets/{name}", s.rbac(securityRoles, s.handleToggleTarget))
 	mux.Handle("DELETE /api/v1/targets/{name}", s.rbac(securityRoles, s.handleDeleteTarget))
 	// What the agent can do in which target system — plugin, access and action

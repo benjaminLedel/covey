@@ -26,6 +26,7 @@ func init() {
 		Description:   "The agent's own computer: run shell commands in the sandbox (exec), manage long-running processes (start/stop/logs/list) — dev servers, databases, headless Chrome — and hand the actual programming work to a sub-agent inside the project checkout (agent). The sub-agent works with the project's own Claude Code harness (CLAUDE.md, .claude/agents, skills, commands) and reaches no target systems while doing so. Runs entirely in the sandbox daemon; needs no secrets.",
 		Kind:          "builtin",
 		Category:      target.CategoryDev,
+		Scopes:        []string{"exec", "processes", "agent"},
 		System:        System{},
 		NoCredentials: true,
 		SetupDoc: `1. Activate the plugin here — no secrets are needed, all actions run

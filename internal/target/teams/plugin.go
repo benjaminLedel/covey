@@ -22,6 +22,7 @@ func init() {
 		Description: "Chat channel via the Azure Bot Service (spec/15): receive messages (messaging endpoint, JWT-verified) and send them (Bot Connector). Auth via OAuth2 (secrets teams_token = appId:appPassword + optional teams_url).",
 		Kind:        "builtin",
 		Category:    target.CategoryComms,
+		Scopes:      []string{"read", "write"},
 		System:      System{},
 		// teams_url is the token endpoint — without it the multi-tenant default
 		// from config.go applies. Only single-tenant bots set it, hence not a
