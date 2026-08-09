@@ -1339,7 +1339,37 @@
     "mcpFormDesc": "Covey verbindet sich per Streamable-HTTP zum MCP-Server, entdeckt die Tool-Liste und zeigt sie hier an. Guard-Rails und Broker greifen unverändert.",
     "tokenPlaceholder": "Token (falls Auth nötig)",
     "discoverSuccess": "„{{name}}“ angebunden — {{count}} Tool(s) entdeckt.",
-    "discoverError": "Angelegt, aber Tool-Discovery fehlgeschlagen: {{err}}"
+    "discoverError": "Angelegt, aber Tool-Discovery fehlgeschlagen: {{err}}",
+    "wizard": {
+      "title": "Einrichten",
+      "titleFor": "{{system}} einrichten",
+      "open": "Einrichten",
+      "step": {
+        "activate": "Aktivieren",
+        "credentials": "Zugang",
+        "access": "Agent",
+        "webhook": "Webhook",
+        "probe": "Verbindung"
+      },
+      "activateHint": "Ein Zielsystem ist erst freigeschaltet, wenn die Organisation es aktiviert — bis dahin lehnt der Broker jede Anfrage ab, unabhängig davon, was in einer ACCESS.md steht.",
+      "credHint": "Die Werte liegen bei der Organisation, nicht beim Agenten, und werden zur Laufzeit gebrokert. Ein Token bleibt nach dem Speichern unlesbar; ersetzen geht, ansehen nicht.",
+      "accessHint": "Aktiviert heißt noch nicht zuständig: Ein Agent kommt an das System, wenn es in seiner ACCESS.md steht. Der Assistent schreibt die Zeile und zeigt vorher, wie die Datei danach aussieht.",
+      "pickAgent": "Welcher Agent?",
+      "writeAccess": "ACCESS.md schreiben",
+      "saving": "Speichert …",
+      "webhookHint": "Diese Adresse trägt das Zielsystem ein, damit es Covey ruft, wenn dort etwas passiert. Der Slug am Ende ist der Agent, der geweckt wird.",
+      "webhookNoAgent": "Wählen Sie im vorigen Schritt einen Agenten, dann steht hier seine fertige Adresse.",
+      "secretSet": "{{env}} ist gesetzt — eingehende Aufrufe werden signaturgeprüft.",
+      "secretMissing": "{{env}} ist nicht gesetzt. Der Endpunkt nimmt Aufrufe an, prüft aber keine Signatur — vor dem produktiven Einsatz setzen.",
+      "probeHint": "Der Test ruft das Zielsystem lesend mit den hinterlegten Zugangsdaten auf und sagt, als wer Covey dort ankommt.",
+      "probeBtn": "Verbindung testen",
+      "probing": "Testet …",
+      "probeOk": "Verbunden als {{identity}}",
+      "docSummary": "Was im Zielsystem selbst zu tun ist",
+      "copy": "Kopieren",
+      "optional": "optional",
+      "stored": "hinterlegt"
+    }
   },
   "egress": {
     "title": "Egress",
