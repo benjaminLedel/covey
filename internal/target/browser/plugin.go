@@ -27,6 +27,7 @@ func init() {
 		Description:   "A full headless Chrome as the universal adapter for web applications without a plugin of their own: open pages (navigate), read visible text/DOM (content), write screenshots into the sandbox (screenshot), click (click) and type (type). Runs locally in the daemon (chromedp/DevTools protocol), needs no secrets. Which pages are reachable is gated by the egress allowlist.",
 		Kind:          "builtin",
 		Category:      target.CategoryWeb,
+		Scopes:        []string{"navigate", "content", "screenshot", "click", "type"},
 		System:        System{},
 		NoCredentials: true,
 		SetupDoc: `1. Activate the plugin here — no secrets are needed, everything runs locally

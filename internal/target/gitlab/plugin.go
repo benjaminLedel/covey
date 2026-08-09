@@ -23,6 +23,7 @@ func init() {
 		Description: "GitLab issues as the working set: find issues (list_projects/list_issues, by milestone too), file externally reported bugs as a ticket (create_issue), maintain the working state on the board (set_labels/assign), check out source code, set the project up and verify bugs against the code (checkout + sandbox shell), read screenshots/images attached to issues (download_upload + vision), attach your own screenshots to an MR/an issue (upload + comment_mr), develop fixes — commit onto a feature branch (commit), open a merge request to your manager (create_merge_request, optionally with a QA agent as reviewer) and live the review loop: on every heartbeat run check open MRs for new review feedback (list_merge_requests/list_mr_notes/comment_mr), diagnose red CI yourself (list_pipelines/list_pipeline_jobs/get_job_log) and react to the merge. Usable as a QA/test agent too: test others' MRs in which you are entered as reviewer end to end, give feedback and, where assigned, close the acceptance with the merge (set_reviewer/approve_mr/merge_mr, nur-wenn: gitlab:review). Intake through HEARTBEAT.md (polling), auth by API token (the secrets gitlab_token + gitlab_url).",
 		Kind:        "builtin",
 		Category:    target.CategoryCode,
+		Scopes:      []string{"read", "write", "comment", "merge"},
 		System:      System{},
 		SetupDoc: `1. Create a bot user of its own in GitLab (covey-bot, say), add it to the
    target projects and, as that user, generate an access token with the

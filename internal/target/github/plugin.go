@@ -24,6 +24,7 @@ func init() {
 		Description: "GitHub issues and pull requests as the working set: find issues (list_repos/list_issues, by milestone too), file externally reported bugs as a ticket (create_issue), maintain the working state on the board (set_labels/assign), check out source code and verify bugs against the code (checkout + sandbox shell), look at screenshots attached to issues (download_attachment + vision), develop fixes — commit onto a feature branch (commit), open a pull request (create_pull_request, optionally with a QA agent as reviewer) and live the review loop: check open PRs for new review feedback (list_pull_requests/list_pr_comments/comment_pr), diagnose red Actions runs yourself (list_workflow_runs/list_run_jobs/get_job_log) and react to the merge. Usable as a QA/test agent too: test others' pull requests in which you are entered as reviewer end to end and give feedback (approve_pr/request_changes, nur-wenn: github:review). Intake either through HEARTBEAT.md (polling) or through the webhook; auth by API token (the secret github_token; github_url only for GitHub Enterprise Server).",
 		Kind:        "builtin",
 		Category:    target.CategoryCode,
+		Scopes:      []string{"read", "write", "comment", "merge"},
 		System:      System{},
 		// github.com is the default endpoint — a github_url is only needed for
 		// GitHub Enterprise Server.

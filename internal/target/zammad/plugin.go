@@ -22,6 +22,7 @@ func init() {
 		Description: "Open-source helpdesk (spec/13): read tickets, reply, set state, escalate. Webhook wake via triggers, auth by API token (secrets zammad_token + zammad_url).",
 		Kind:        "builtin",
 		Category:    target.CategoryTicketing,
+		Scopes:      []string{"read", "write", "comment"},
 		System:      System{},
 		SetupDoc: `1. Create an agent user in Zammad with a least-privilege role (ticket.agent
    for the target groups) and generate an API token as that user

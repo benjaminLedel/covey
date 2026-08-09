@@ -287,7 +287,36 @@ type Descriptor struct {
 	// Placeholders: {public_url} is replaced by the API with the configured
 	// COVEY_PUBLIC_URL; <agent-slug> stays as it is and means the slug of the
 	// responsible agent (the webhook endpoint accepts its ID instead).
+	//
+	// It describes what has to happen in the FOREIGN system — create a token,
+	// hang in a trigger. What happens in Covey itself is not prose but the
+	// fields below: the setup assistant acts on those, and a step it can carry
+	// out itself has no business being an instruction.
 	SetupDoc string `json:"setup_doc,omitempty"`
+	// Scopes are the access levels this plugin understands in ACCESS.md
+	// (`- system: zammad scope: read,write,comment`). The plugin declares them
+	// because only it knows them; the assistant offers exactly these instead of
+	// letting somebody guess a word that is then silently ignored.
+	//
+	// Empty = the plugin does not distinguish (manifest and MCP plugins), and
+	// the assistant leaves the scope out.
+	Scopes []string `json:"scopes,omitempty"`
+}
+
+// Prober is an optional plugin interface: one cheap, read-only call that shows
+// whether the stored credentials actually work — and as whom.
+//
+// It exists because "saved" and "works" are two different things, and until
+// now the difference showed up at the first run of an agent, inside a
+// recording, hours later. The returned string is the identity the target
+// system reports back (a user name, a login, an address); it is displayed as
+// is, so it should be short and recognisable.
+//
+// Read-only, by contract. A probe that changes anything in the foreign system
+// would be a poor kind of test — nobody expects a connection test to leave
+// traces.
+type Prober interface {
+	Probe(ctx context.Context, cred Credential) (string, error)
 }
 
 // Categories for the target system store. Purely for placement in the UI —
