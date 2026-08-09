@@ -23,7 +23,9 @@ credentials, a backlog and a manager. Plus the tooling to supervise them.
 
 ---
 
-## Start in two minutes
+<a id="start-in-two-minutes" name="start-in-two-minutes"></a>
+
+## Start
 
 **No Go, no Node, no local Postgres** — Docker is all you need:
 
@@ -31,12 +33,15 @@ credentials, a backlog and a manager. Plus the tooling to supervise them.
 git clone https://github.com/benjaminLedel/covey.git && cd covey
 cp .env.example .env
 echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env   # 32-byte key
+docker build -f Dockerfile.sandbox -t covey-sandbox:latest .   # the agents' workplace, once
 docker compose up -d --build                              # start Postgres + Covey
 ```
 
 Then open **[http://localhost:8494](http://localhost:8494)** — log in with `admin@covey.local` / `covey-admin`. A **first steps** checklist on the agent overview walks you to your first working agent; it reads your organisation's actual state, ticks itself off and disappears once you are done.
 
-The bundled [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector) and the covey binary with its embedded admin UI; `bootstrap` creates the organisation, the admin and a demo agent, and migrations run automatically.
+The bundled [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector) and the covey binary with its embedded admin UI; `bootstrap` creates the organisation, the admin, a demo agent and its workplace, and migrations run automatically.
+
+Everything but the third line takes seconds. That one builds the container an agent works inside ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, a Node and Java toolchain) and takes a few minutes — you can skip it to look around first: the platform starts without it and says at startup, and on the agent overview, that the first wake will fail until it exists.
 
 *Rather have the plain binary?* [`install.sh`](#install) fetches it from the [latest release](https://github.com/benjaminLedel/covey/releases/latest) and verifies its checksum. *Rather look before you install?* The running instance is at **[covey.work](https://covey.work)**. Full walkthrough including your first agent and a production checklist: [`docs/quickstart-docker.md`](docs/quickstart-docker.md).
 

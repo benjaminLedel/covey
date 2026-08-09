@@ -783,6 +783,11 @@ export const buildInfo = () => api<BuildInfo>("/version");
 export type OnboardingState = {
   steps: Array<{ key: string; done: boolean }>;
   done: boolean;
+  // Was zwischen der Plattform und einer laufenden Sandbox steht (fehlender
+  // Docker-Socket, ungebautes Sandbox-Image). Kein Schritt der Liste: hier
+  // klickt niemand ein fehlendes Image weg, die Meldungen kommen fertig
+  // formuliert vom Server und richten sich an den Betreiber.
+  data_plane?: { ready: boolean; problems?: string[] };
 };
 
 // Ein Eintrag der Audit-Spur (GET /audit): wer wann was an der Plattform

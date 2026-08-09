@@ -409,6 +409,21 @@ func (s *Store) EnsureDefault(ctx context.Context, orgID uuid.UUID, engine strin
 			}
 		}
 	}
+
+	// And whoever has no workplace at all moves in here. An agent without an
+	// assignment reaches no credential (spec/18) and fails every run at the
+	// login — with the token sitting right there under Secrets. That is not a
+	// decision anybody made, it is a gap, and the default is the only sensible
+	// place to close it.
+	//
+	// Deliberately only agents WITHOUT an assignment: whoever was put on a
+	// different contract by hand made a commercial decision, and this function
+	// does not overrule it. That is also what makes the call repeatable — it
+	// takes in orphans and touches nothing else.
+	if _, err := s.pool.Exec(ctx, `UPDATE agents SET runtime_id=$3, updated_at=now()
+		WHERE org_id=$1 AND runtime=$2 AND runtime_id IS NULL`, orgID, engine, rt.ID); err != nil {
+		return Runtime{}, err
+	}
 	return s.Get(ctx, orgID, rt.ID)
 }
 

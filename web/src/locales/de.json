@@ -432,6 +432,9 @@
     "lead": "Der Weg zum ersten arbeitenden Agenten. Die Haken kommen aus dem tatsächlichen Zustand Ihrer Organisation — ist alles erledigt, verschwindet diese Liste von selbst.",
     "progress": "{{done}} von {{total}}",
     "hide": "Ausblenden",
+    "dataPlane": {
+      "title": "Die Data Plane ist noch nicht bereit — Läufe scheitern beim Start der Sandbox:"
+    },
     "steps": {
       "credential": {
         "title": "Runtime-Credential hinterlegen",

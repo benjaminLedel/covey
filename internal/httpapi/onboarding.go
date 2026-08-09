@@ -1,7 +1,10 @@
 package httpapi
 
 import (
+	"context"
 	"net/http"
+	"sync"
+	"time"
 )
 
 // Onboarding: the first steps towards the first working agent — not a clicked
@@ -30,6 +33,42 @@ type onboardingState struct {
 	// Done is true once every step is done — the UI then hides the list
 	// without having to count through it.
 	Done bool `json:"done"`
+	// DataPlane carries what stands between the platform and a running
+	// sandbox. Deliberately NOT a sixth step: no click in this interface fixes
+	// a missing Docker socket, and a step nobody can tick off would keep the
+	// list on screen forever. It is a warning, and it appears whether or not
+	// the steps are done.
+	DataPlane *dataPlaneState `json:"data_plane,omitempty"`
+}
+
+type dataPlaneState struct {
+	Ready    bool     `json:"ready"`
+	Problems []string `json:"problems,omitempty"`
+}
+
+// cachedCheck holds the data plane's answer for a short while. The check runs
+// two docker CLI calls, and the first steps are fetched with every load of the
+// agent overview — asking every time would put a process spawn behind a view
+// that is polled. Half a minute is short enough that whoever builds the image
+// in the terminal sees the tick shortly afterwards, without having to know
+// they should reload.
+type cachedCheck struct {
+	mu       sync.Mutex
+	at       time.Time
+	problems []string
+}
+
+const dataPlaneCheckTTL = 30 * time.Second
+
+func (s *Server) dataPlaneProblems(ctx context.Context) []string {
+	s.dataPlane.mu.Lock()
+	defer s.dataPlane.mu.Unlock()
+	if time.Since(s.dataPlane.at) < dataPlaneCheckTTL {
+		return s.dataPlane.problems
+	}
+	s.dataPlane.problems = s.DataPlane.Check(ctx)
+	s.dataPlane.at = time.Now()
+	return s.dataPlane.problems
 }
 
 // runtimeCredentialKeys are the secret names the Claude Code runtime starts
@@ -74,6 +113,10 @@ func (s *Server) handleOnboarding(w http.ResponseWriter, r *http.Request) {
 			state.Done = false
 			break
 		}
+	}
+	if s.DataPlane != nil {
+		problems := s.dataPlaneProblems(r.Context())
+		state.DataPlane = &dataPlaneState{Ready: len(problems) == 0, Problems: problems}
 	}
 	writeJSON(w, http.StatusOK, state)
 }

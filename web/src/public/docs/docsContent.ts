@@ -189,54 +189,106 @@ Every platform capability has a DB-backed built-in default and a thin interface 
         body: {
           de: `# Schnellstart (Docker)
 
-Covey läuft als einzelnes Binary neben einer Postgres-Datenbank. Für einen lokalen Durchstich genügen Docker und wenige Schritte.
+Covey läuft als einzelnes Binary neben einer Postgres-Datenbank. Ohne Go, ohne Node, ohne lokale Postgres — Docker genügt.
 
 ## Voraussetzungen
 
-- Docker (mit Docker-Daemon)
-- Ein Master-Key für die Secret-Verschlüsselung
+- **Docker** mit Compose-Plugin (\`docker compose version\` ≥ 2.x)
+- **OpenSSL** für den Master-Key (auf macOS/Linux vorinstalliert)
 
-## Ablauf
-
-1. **Datenbank starten** — ein Postgres-Container mit aktivierter \`pgvector\`-Extension.
-2. **Migrationen laufen automatisch** beim \`serve\`-Start (Auto-Migrate mit Advisory-Lock).
-3. **Bootstrap** legt die erste Organisation und einen Admin-Benutzer an.
-4. **Server starten** — die Control Plane bedient API und eingebettete Web-UI auf demselben Port.
+## Installieren
 
 \`\`\`
-make dev-db      # Postgres bereitstellen
-make bootstrap   # Org + Admin anlegen
-make run         # Control Plane starten
+git clone https://github.com/benjaminLedel/covey.git && cd covey
+cp .env.example .env
+echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env
+
+docker build -f Dockerfile.sandbox -t covey-sandbox:latest .
+docker compose up -d --build
 \`\`\`
 
-## Anmelden
+Dann **http://localhost:8494** öffnen, Login \`admin@covey.local\` / \`covey-admin\` (änderbar in der \`.env\` über \`COVEY_ADMIN_EMAIL\` / \`COVEY_ADMIN_PASSWORD\`).
 
-Die Web-UI ist ins Binary eingebettet (kein separater Web-Server). Nach dem Start meldet man sich mit den Bootstrap-Zugangsdaten an und legt den ersten Agenten aus einem Template an.`,
+Der \`COVEY_MASTER_KEY\` ver- und entschlüsselt alle hinterlegten Secrets. Geht er verloren, ist jedes hinterlegte Credential unlesbar — die \`.env\` gehört gesichert und nicht ins Git.
+
+## Warum der Image-Build eine eigene Zeile ist
+
+Alles außer \`docker build\` dauert Sekunden. Diese Zeile baut den Container, **in dem ein Agent arbeitet** (Claude Code, chromium, eine Node- und Java-Toolchain) und braucht ein paar Minuten.
+
+Zum Umsehen kann man sie weglassen: Die Plattform startet, die Oberfläche funktioniert, Agenten und Configs lassen sich anlegen. Erst der erste Lauf scheitert dann — und sagt auch, woran. Covey prüft das beim Start und meldet es in den **ersten Schritten** auf der Agenten-Übersicht.
+
+## Was \`docker compose\` startet
+
+- \`db\` — PostgreSQL mit \`pgvector\`.
+- \`bootstrap\` — legt einmalig Organisation, Admin, Demo-Agent und dessen Arbeitsplatz an (idempotent) und beendet sich.
+- \`covey\` — die Control Plane: API + Orchestrator + eingebettete Admin-UI auf Port 8494. Migrationen laufen beim Start automatisch.
+
+Zwei Dinge tragen dabei die Sandbox-Isolation und gehen beim Anpassen leicht verloren: der **Docker-Socket** im covey-Container (er startet jede Sandbox als Geschwister-Container) und ein **Datenverzeichnis unter identischem Pfad** auf Host und im Container (die Agenten-Homes werden vom Host-Daemon gemountet).
+
+## Der erste Agent
+
+Nach dem Login steht ein Demo-Agent bereit. Er braucht genau eines, um arbeiten zu können: **Anthropic-Zugang** — das Secret \`anthropic_api_key\` (API-Schlüssel) oder \`claude_code_oauth_token\` (Abo-Konto, Token einmalig mit \`claude setup-token\` erzeugen). Unter *Secrets* hinterlegen, den Rest verdrahtet Covey selbst.
+
+Die Checkliste **Erste Schritte** auf der Agenten-Übersicht führt den Weg zu Ende; sie liest den tatsächlichen Zustand der Organisation und verschwindet, wenn alles erledigt ist.
+
+## Lieber das blanke Binary?
+
+\`\`\`
+curl -sSL https://raw.githubusercontent.com/benjaminLedel/covey/main/installer/install.sh | sh
+\`\`\`
+
+Holt das passende Binary aus dem neuesten Release und prüft die SHA-256-Summe. Die Control Plane braucht dann noch PostgreSQL (mit pgvector) und Docker für die Sandboxen; das Skript nennt die verbleibenden Schritte.`,
           en: `# Quick start (Docker)
 
-Covey runs as a single binary next to a Postgres database. For a local end-to-end slice, Docker and a few steps are enough.
+Covey runs as a single binary next to a Postgres database. No Go, no Node, no local Postgres — Docker is all you need.
 
 ## Prerequisites
 
-- Docker (with the Docker daemon)
-- A master key for secret encryption
+- **Docker** with the Compose plugin (\`docker compose version\` ≥ 2.x)
+- **OpenSSL** for the master key (pre-installed on macOS/Linux)
 
-## Steps
-
-1. **Start the database** — a Postgres container with the \`pgvector\` extension enabled.
-2. **Migrations run automatically** at \`serve\` start (auto-migrate with an advisory lock).
-3. **Bootstrap** creates the first organization and an admin user.
-4. **Start the server** — the control plane serves the API and the embedded web UI on the same port.
+## Install
 
 \`\`\`
-make dev-db      # provision Postgres
-make bootstrap   # create org + admin
-make run         # start the control plane
+git clone https://github.com/benjaminLedel/covey.git && cd covey
+cp .env.example .env
+echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env
+
+docker build -f Dockerfile.sandbox -t covey-sandbox:latest .
+docker compose up -d --build
 \`\`\`
 
-## Sign in
+Then open **http://localhost:8494** and sign in with \`admin@covey.local\` / \`covey-admin\` (changeable in \`.env\` through \`COVEY_ADMIN_EMAIL\` / \`COVEY_ADMIN_PASSWORD\`).
 
-The web UI is embedded in the binary (no separate web server). After starting, sign in with the bootstrap credentials and create your first agent from a template.`,
+The \`COVEY_MASTER_KEY\` en- and decrypts every deposited secret. Lose it and every stored credential is unreadable — keep the \`.env\` safe, and out of Git.
+
+## Why the image build is a line of its own
+
+Everything except \`docker build\` takes seconds. That line builds the container **an agent works inside** (Claude Code, chromium, a Node and Java toolchain) and takes a few minutes.
+
+You can skip it to look around first: the platform starts, the interface works, agents and configs can be created. Only the first run fails then — and it says why. Covey checks for this at startup and reports it in the **first steps** on the agent overview.
+
+## What \`docker compose\` starts
+
+- \`db\` — PostgreSQL with \`pgvector\`.
+- \`bootstrap\` — creates the organisation, the admin, a demo agent and its workplace once (idempotent), then exits.
+- \`covey\` — the control plane: API + orchestrator + embedded admin UI on port 8494. Migrations run automatically at start.
+
+Two things carry the sandbox isolation and are easy to lose when adapting the file: the **Docker socket** inside the covey container (it starts every sandbox as a sibling container) and a **data directory under an identical path** on host and container (agent homes are mounted by the host's daemon).
+
+## Your first agent
+
+After signing in, a demo agent is waiting. It needs exactly one thing to be able to work: **Anthropic access** — the secret \`anthropic_api_key\` (an API key) or \`claude_code_oauth_token\` (a subscription account; generate the token once with \`claude setup-token\`). Deposit it under *Secrets*; Covey wires up the rest itself.
+
+The **first steps** checklist on the agent overview walks the rest of the way; it reads the organisation's actual state and disappears once everything is done.
+
+## Rather have the plain binary?
+
+\`\`\`
+curl -sSL https://raw.githubusercontent.com/benjaminLedel/covey/main/installer/install.sh | sh
+\`\`\`
+
+It fetches the right binary from the latest release and verifies its SHA-256 checksum. The control plane then still needs PostgreSQL (with pgvector) and Docker for the sandboxes; the script prints the remaining steps.`,
         },
       },
       {

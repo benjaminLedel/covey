@@ -2768,6 +2768,18 @@ kbd {
 .onboarding-steps li.next .dot { border-color: var(--text-accent); }
 .onboarding-steps li.done .mark .file-ic { opacity: 1; stroke-width: 2.2; }
 
+/* Der Zustand der Data Plane: kein Schritt, sondern ein Hinweis. Deshalb
+   farbig abgesetzt und über der Liste — was hier steht, erledigt niemand mit
+   einem Klick in dieser Oberfläche, sondern im Terminal des Betreibers. */
+.onboarding-warn {
+  background: var(--bg-warning);
+  color: var(--text-warning);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.onboarding-warn ul { list-style: none; margin: 0; padding: 0; }
+.onboarding-warn li { margin-top: 3px; line-height: 1.5; }
+
 /* Datei-Symbole im Arbeitsplatz: Strichstil wie die übrige Navigation. Ohne
    eigene Regel griffe keine der `.ic`-Regeln (die hängen alle an .nav-item)
    und die Pfade kämen schwarz gefüllt heraus. */

@@ -604,6 +604,10 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
+	// An imported agent needs a workplace just as much as a hand-made one — a
+	// ready-made bundle from examples/ is for many people the FIRST agent, and
+	// it must not be the one that cannot work.
+	s.attachDefaultRuntime(ctx, p.OrgID, a)
 	if b.Agent.Model != "" {
 		if err := s.Registry.SetModel(ctx, a.ID, b.Agent.Model); err != nil {
 			mapErr(w, err)

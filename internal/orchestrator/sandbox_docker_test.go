@@ -90,3 +90,46 @@ func TestDockerProviderStart(t *testing.T) {
 		t.Errorf("Stop: %v", err)
 	}
 }
+
+// TestDockerProviderCheck: the self-check has to name the two ways a fresh
+// installation fails — and stay silent when nothing is in the way. Both
+// answers matter equally: a check that cries wolf gets ignored, and one that
+// says nothing lets the first wake do the explaining.
+func TestDockerProviderCheck(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	// fakeDocker writes a script that fails for exactly the given first
+	// argument ("version", "image") and succeeds otherwise.
+	fakeDocker := func(t *testing.T, failOn string) string {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), "docker")
+		script := "#!/bin/sh\nif [ \"$1\" = \"" + failOn + "\" ]; then\n" +
+			"  echo 'Cannot connect to the Docker daemon' >&2\n  exit 1\nfi\necho ok\n"
+		if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+
+	// No daemon: everything else is beside the point, so only that is said.
+	p := &DockerProvider{Image: "covey-sandbox:test", DockerBin: fakeDocker(t, "version")}
+	problems := p.Check(context.Background())
+	if len(problems) != 1 || !strings.Contains(problems[0], "docker.sock") {
+		t.Fatalf("a missing daemon has to name the socket: %v", problems)
+	}
+
+	// Daemon there, image missing: the message has to carry the build command,
+	// otherwise the reader is left looking for it.
+	p = &DockerProvider{Image: "covey-sandbox:test", DockerBin: fakeDocker(t, "image")}
+	problems = p.Check(context.Background())
+	if len(problems) != 1 || !strings.Contains(problems[0], "Dockerfile.sandbox") {
+		t.Fatalf("a missing image has to name how to build it: %v", problems)
+	}
+
+	// Everything in place: nothing to report.
+	p = &DockerProvider{Image: "covey-sandbox:test", DockerBin: fakeDocker(t, "nothing")}
+	if problems = p.Check(context.Background()); len(problems) != 0 {
+		t.Fatalf("a working data plane has to stay silent: %v", problems)
+	}
+}

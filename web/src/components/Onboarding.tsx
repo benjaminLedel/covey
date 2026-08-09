@@ -44,7 +44,12 @@ export function Onboarding({ me }: { me: Principal }) {
     refetchOnMount: "always",
   });
 
-  if (!mayAct || dismissed || !state.data || state.data.done) return null;
+  // Eine kaputte Data Plane hält die Karte sichtbar, auch wenn die Liste
+  // durch ist: Wer alle Haken hat und trotzdem keinen Lauf zustande bringt,
+  // soll den Grund dort finden, wo er den Weg begonnen hat.
+  const problems = state.data?.data_plane?.problems ?? [];
+  if (!mayAct || dismissed || !state.data) return null;
+  if (state.data.done && problems.length === 0) return null;
   const done = state.data.steps.filter((s) => s.done).length;
 
   return (
@@ -71,6 +76,16 @@ export function Onboarding({ me }: { me: Principal }) {
       <p className="muted text-xs mb-3" style={{ maxWidth: 640 }}>
         {t("onboarding.lead")}
       </p>
+      {problems.length > 0 && (
+        <div className="onboarding-warn mb-3" style={{ maxWidth: 640 }}>
+          <strong className="text-xs">{t("onboarding.dataPlane.title")}</strong>
+          <ul className="text-xs mt-1">
+            {problems.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <ol className="onboarding-steps">
         {STEPS.map(({ key, to }) => {
           const step = state.data!.steps.find((s) => s.key === key);

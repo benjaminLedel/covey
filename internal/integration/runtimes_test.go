@@ -449,3 +449,75 @@ func TestSecondTokenNeedsNoSecondPlace(t *testing.T) {
 		t.Fatalf("a correction must not add capacity: %+v", again[0].Credentials)
 	}
 }
+
+// TestAgentWithoutWorkplaceIsTakenIn: an agent that did not come through the
+// API — `covey bootstrap` creates one, so does a bundle import — must not stay
+// without a workplace. Until this was fixed, exactly the agent that a fresh
+// installation is handed as its entry point was the one that could not work:
+// the token lay under Secrets, the run failed at the login, and nothing in the
+// interface said why.
+func TestAgentWithoutWorkplaceIsTakenIn(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+
+	// Created past the HTTP layer, exactly as bootstrap does it.
+	agent, err := s.registry.Create(ctx, s.orgID, "demo", "Demo agent", "claude-code", &s.adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if agent.RuntimeID != nil {
+		t.Fatalf("test premise gone: this route assigns nothing (%v)", agent.RuntimeID)
+	}
+
+	// The one step the checklist asks for.
+	admin.expect(http.MethodPut, "/api/v1/secrets/claude_code_oauth_token",
+		map[string]any{"value": "sk-ant-oat-token", "sensitive": true}, http.StatusOK)
+
+	list, err := s.runtimes.List(ctx, s.orgID)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("exactly one workplace should have appeared: %+v, %v", list, err)
+	}
+	got, err := s.registry.Get(ctx, agent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.RuntimeID == nil || *got.RuntimeID != list[0].ID {
+		t.Fatalf("the agent standing there without a workplace has to be taken in: %+v", got.RuntimeID)
+	}
+	if _, err := s.runtimes.Pick(ctx, s.orgID, agent.ID, list[0].ID, noUsage); err != nil {
+		t.Fatalf("and reach a credential: %v", err)
+	}
+}
+
+// TestDeliberateAssignmentSurvives: taking in orphans must not turn into
+// redistribution. Whoever puts an agent on a particular contract has made a
+// commercial decision, and the next deposited token does not overrule it.
+func TestDeliberateAssignmentSurvives(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+
+	special, err := s.runtimes.Create(ctx, s.orgID, "claude-code", "Team contract", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	created := admin.expect(http.MethodPost, "/api/v1/agents",
+		map[string]any{"slug": "erster", "display_name": "Erster", "runtime": "claude-code"},
+		http.StatusCreated)
+	agentID, _ := uuid.Parse(created["id"].(string))
+	if err := s.runtimes.Assign(ctx, s.orgID, agentID, special.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	admin.expect(http.MethodPut, "/api/v1/secrets/claude_code_oauth_token",
+		map[string]any{"value": "sk-ant-oat-token", "sensitive": true}, http.StatusOK)
+
+	got, err := s.registry.Get(ctx, agentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.RuntimeID == nil || *got.RuntimeID != special.ID {
+		t.Fatalf("the chosen contract has to stand: %+v", got.RuntimeID)
+	}
+}

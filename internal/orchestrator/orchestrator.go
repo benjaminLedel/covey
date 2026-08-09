@@ -108,6 +108,14 @@ type Orchestrator struct {
 	wikiSweepMu   sync.Mutex
 	lastWikiSweep time.Time
 
+	// noCredNoted: when this agent's missing credential was last put on the
+	// record. The tick comes back every thirty seconds and finds the same open
+	// task, and a state that changes only when a human acts does not need to be
+	// stated twice a minute — that would bury the recording of the run people
+	// are actually looking for.
+	noCredMu    sync.Mutex
+	noCredNoted map[uuid.UUID]time.Time
+
 	events *Broadcaster
 
 	// usage holds the engines' own utilisation figures per credential — asked
@@ -742,6 +750,21 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential, payload)
 		return nil
 	}
+	// No credential at all, for an engine that cannot work without one: then the
+	// sandbox stays down too. Starting it anyway is what the first version did,
+	// and the runtime inside reported "Not logged in · run /login" — a sentence
+	// that sends whoever deposited their token an hour ago looking in exactly
+	// the wrong place. The reason is HERE, so it is said here.
+	if credErr != nil && engineNeedsCredential(agent.Runtime) {
+		if o.noteMissingCredential(agent.ID) {
+			o.Log.Warn("wake cancelled — the agent reaches no credential",
+				"agent", agent.Slug, "engine", agent.Runtime, "runtime", agent.RuntimeID, "err", credErr)
+			_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential, map[string]any{
+				"system": agent.Runtime, "granted": false, "reason": noCredentialReason(agent),
+			})
+		}
+		return nil
+	}
 	s.credRuntime, s.credOrd = cred.RuntimeID, cred.Ord
 
 	o.setStatus(ctx, agent, nil, agents.StatusTriggered)
@@ -1149,9 +1172,52 @@ func (o *Orchestrator) llmCredentialFor(ctx context.Context, agent agents.Agent)
 }
 
 // errNoRuntime: nothing to broker — either the agent has no runtime assigned or
-// its engine needs no credential. Not an error the run should fail on; the
-// runtime reports a missing credential itself, with an actionable hint.
+// its engine needs no credential. Whether that is a defect depends on the
+// engine, and only the engine knows: the mock in the test suite works without
+// one, Claude Code does not (engineNeedsCredential).
 var errNoRuntime = errors.New("no LLM credential to broker")
+
+// engineNeedsCredential: does a run without a brokered credential stand a
+// chance? Read from the engine's declaration, never from a list here — that
+// list is exactly what made a second provider impossible to add (spec/18).
+// An unknown engine gets the benefit of the doubt: a wake refused because of a
+// name we do not know would be worse than a run that fails and says why.
+func engineNeedsCredential(engine string) bool {
+	d, ok := daemon.Describe(engine)
+	return ok && d.NeedsCredential()
+}
+
+// noCredentialInterval is how often a missing credential is worth saying again.
+// Long enough not to fill the recording of an unattended instance, short enough
+// that whoever comes back to the interface after a coffee finds the reason
+// rather than silence.
+const noCredentialInterval = 15 * time.Minute
+
+// noteMissingCredential reports whether this agent's missing credential should
+// be put on the record now. In memory and not in the database: it throttles a
+// log line, and after a restart saying it once more is the right answer anyway.
+func (o *Orchestrator) noteMissingCredential(agentID uuid.UUID) bool {
+	o.noCredMu.Lock()
+	defer o.noCredMu.Unlock()
+	if last, ok := o.noCredNoted[agentID]; ok && time.Since(last) < noCredentialInterval {
+		return false
+	}
+	if o.noCredNoted == nil {
+		o.noCredNoted = map[uuid.UUID]time.Time{}
+	}
+	o.noCredNoted[agentID] = time.Now()
+	return true
+}
+
+// noCredentialReason names the case in the recording, in the words of whoever
+// has to fix it. The two cases have different remedies, and "no credential" for
+// both would send half the readers to the wrong screen.
+func noCredentialReason(agent agents.Agent) string {
+	if agent.RuntimeID == nil {
+		return "the agent has no workplace — assign one under Runtimes"
+	}
+	return "the workplace has no usable credential — deposit anthropic_api_key or claude_code_oauth_token under Secrets"
+}
 
 // How long a rejected value stays parked.
 //

@@ -432,6 +432,9 @@
     "lead": "The path to your first working agent. The checkmarks come from your organisation's actual state — once everything is done, this list disappears on its own.",
     "progress": "{{done}} of {{total}}",
     "hide": "Hide",
+    "dataPlane": {
+      "title": "The data plane is not ready yet — runs fail at starting the sandbox:"
+    },
     "steps": {
       "credential": {
         "title": "Add a runtime credential",

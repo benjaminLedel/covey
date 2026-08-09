@@ -1,34 +1,46 @@
-# Covey — Beispiel-Setup zum Ausprobieren.
+# Covey — the setup for trying it out.
 #
 #   1. cp .env.example .env
-#   2. echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env   # 32-Byte-Schlüssel
-#   3. docker compose up -d --build
-#   4. http://localhost:8494  →  admin@covey.local / covey-admin
+#   2. echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env   # 32-byte key
+#   3. docker build -f Dockerfile.sandbox -t covey-sandbox:latest .   # once, ~5 min
+#   4. docker compose up -d --build
+#   5. http://localhost:8494  →  admin@covey.local / covey-admin
 #
-# Enthält alles, was Covey braucht: Postgres (pgvector) + das covey-Binary mit
-# eingebetteter Admin-UI. `bootstrap` legt einmalig Organisation, Admin und einen
-# Demo-Agenten an; danach startet `covey serve` (Migrationen laufen automatisch).
+# Contains everything Covey needs: Postgres (pgvector) and the covey binary with
+# its embedded admin UI. `bootstrap` creates the organisation, the admin, a demo
+# agent and its workplace once; after that `covey serve` starts (migrations run
+# automatically).
 #
-# Sandbox-Isolation: Default ist COVEY_SANDBOX_PROVIDER=local (Prozess-Isolation
-# im covey-Container) — perfekt zum Ausprobieren. Für echte Container-Isolation
-# siehe docs/quickstart-docker.md.
+# Step 3 is the one that is easy to skip and impossible to do without: agents
+# work inside their own container, and that image is not part of this build. It
+# is deliberately separate — it carries chromium, a JDK and a Node toolchain and
+# takes minutes, while everything else here takes seconds. Skip it and the
+# platform starts, the interface works, and the first wake fails at
+# "sandbox image is missing". `covey serve` says so at startup, and the first
+# steps on the agent overview say so too.
 
-# Gemeinsame Basis für bootstrap + covey (gleiches Image, gleiche Config).
+# Shared base for bootstrap + covey (same image, same config).
 x-covey-base: &covey-base
   build: .
-  # Alternativ statt `build: .` ein fertiges Image nutzen (Zugriff auf die
-  # Registry vorausgesetzt):
+  # Instead of `build: .` a ready-made image can be used (registry access
+  # required):
   # image: registry.lapco.legal/private_bl/covey:latest
   environment:
     COVEY_DATABASE_URL: postgres://covey:covey@db:5432/covey?sslmode=disable
-    COVEY_MASTER_KEY: ${COVEY_MASTER_KEY:?Bitte in .env setzen — z. B. echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env}
+    COVEY_MASTER_KEY: ${COVEY_MASTER_KEY:?set it in .env — e.g. echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env}
     COVEY_PUBLIC_URL: ${COVEY_PUBLIC_URL:-http://localhost:8494}
     COVEY_LISTEN_ADDR: ":8494"
-    COVEY_DATA_DIR: /data
+    # The data directory has the SAME path on the host and in the container, and
+    # that is not cosmetic: sandboxes run as sibling containers, so the `-v` path
+    # for an agent's home is resolved by the host's Docker daemon. A named volume
+    # or a differing path would produce a mount that exists nowhere, and the
+    # agent would find an empty home on every wake.
+    COVEY_DATA_DIR: ${PWD}/data
     COVEY_ADMIN_EMAIL: ${COVEY_ADMIN_EMAIL:-admin@covey.local}
     COVEY_ADMIN_PASSWORD: ${COVEY_ADMIN_PASSWORD:-covey-admin}
+    COVEY_SANDBOX_IMAGE: ${COVEY_SANDBOX_IMAGE:-covey-sandbox:latest}
   volumes:
-    - covey-data:/data
+    - ${PWD}/data:${PWD}/data
 
 services:
   db:
@@ -45,8 +57,8 @@ services:
       timeout: 5s
       retries: 15
 
-  # Einmaliger Init: Organisation + Admin + Demo-Agent (idempotent, läuft bei
-  # jedem `up` harmlos durch). Beendet sich danach.
+  # One-off init: organisation + admin + demo agent + workplace (idempotent, runs
+  # harmlessly on every `up`). Exits afterwards.
   bootstrap:
     <<: *covey-base
     command: ["bootstrap"]
@@ -55,7 +67,7 @@ services:
       db:
         condition: service_healthy
 
-  # Die Control Plane: API + Orchestrator + eingebettete Admin-UI.
+  # The control plane: API + orchestrator + embedded admin UI.
   covey:
     <<: *covey-base
     command: ["serve"]
@@ -66,8 +78,14 @@ services:
         condition: service_completed_successfully
     ports:
       - "8494:8494"
+    # A YAML merge replaces lists wholesale — hence both mounts spelled out here:
+    # the data directory (as in the base) plus the Docker socket. The socket is
+    # what lets the control plane start a sandbox per agent as a sibling
+    # container; without it every wake fails at "no Docker daemon reachable".
+    volumes:
+      - ${PWD}/data:${PWD}/data
+      - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
 
 volumes:
   covey-db:
-  covey-data:
