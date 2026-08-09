@@ -183,6 +183,65 @@ func (s *dockerSandbox) Stop(ctx context.Context) error {
 	return nil
 }
 
+// Check reports what stands between this platform and a running sandbox —
+// before an agent has to find out.
+//
+// The two things it asks about are the two ways a fresh installation fails, and
+// both used to become visible only in the recording of a task that had already
+// been waiting for its first run: no Docker daemon reachable (typically the
+// control plane in a container without the socket mounted), and no sandbox
+// image built. Neither is an error in the platform, and neither can be guessed
+// from the log line the agent produces.
+//
+// Empty result = nothing in the way. Messages are written for whoever operates
+// the instance and each one names its remedy.
+func (p *DockerProvider) Check(ctx context.Context) []string {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	if out, err := exec.CommandContext(ctx, p.docker(), "version", "--format", "{{.Server.Version}}").CombinedOutput(); err != nil {
+		return []string{fmt.Sprintf(
+			"no Docker daemon reachable — every wake fails at starting the sandbox. "+
+				"Running the control plane in a container? Then it needs the host's socket: "+
+				"`-v /var/run/docker.sock:/var/run/docker.sock`. (%s)",
+			firstLine(string(out), err))}
+	}
+
+	var problems []string
+	if out, err := exec.CommandContext(ctx, p.docker(), "image", "inspect", p.Image).CombinedOutput(); err != nil {
+		problems = append(problems, fmt.Sprintf(
+			"sandbox image %q is missing — build it once: "+
+				"`docker build -f Dockerfile.sandbox -t %s .` (%s)",
+			p.Image, p.Image, firstLine(string(out), err)))
+	}
+	if p.EgressIsolation == "network" && p.EgressProxyImage != "" {
+		if out, err := exec.CommandContext(ctx, p.docker(), "image", "inspect", p.EgressProxyImage).CombinedOutput(); err != nil {
+			problems = append(problems, fmt.Sprintf(
+				"egress proxy image %q is missing, and hard isolation needs it — "+
+					"build it once: `docker build -f Dockerfile.egress -t %s .` (%s)",
+				p.EgressProxyImage, p.EgressProxyImage, firstLine(string(out), err)))
+		}
+	}
+	return problems
+}
+
+// firstLine keeps a CLI error to the one line that says something. Docker
+// prints its usage help after some errors, and a wall of it in a log line or in
+// the interface buries the sentence that matters.
+//
+// "[]" is skipped explicitly: `docker image inspect` writes the empty result
+// list to stdout and its reason to stderr, so the first line of the two
+// combined is a pair of brackets — technically the output, and useless to
+// everyone reading it.
+func firstLine(out string, fallback error) string {
+	for _, l := range strings.Split(out, "\n") {
+		if l = strings.TrimSpace(l); l != "" && l != "[]" {
+			return l
+		}
+	}
+	return fallback.Error()
+}
+
 // containerName derives a stable, docker-compatible name from the agent ID —
 // at most one sandbox exists per agent (serial, spec/03).
 func containerName(agentID string) string {

@@ -222,25 +222,50 @@ func runBootstrap(ctx context.Context, cfg config.Config, log *slog.Logger) erro
 		}
 	}
 
-	// Demo support agent including SOUL.md & co.
+	// A demo agent including SOUL.md & co — but only into an organisation that
+	// has none yet. Tied to "are there any agents at all" and no longer to one
+	// fixed slug: whoever already runs a workforce does not need a stranger
+	// reappearing on the overview after every deploy, and whoever is starting
+	// out should not face an empty page.
 	registry := agents.NewRegistry(pool)
-	agent, err := registry.GetBySlug(ctx, orgID, "support")
-	if errors.Is(err, agents.ErrNotFound) {
-		agent, err = registry.Create(ctx, orgID, "support", "Support agent", "claude-code", &adminID)
+	workforce, err := registry.List(ctx, orgID)
+	if err != nil {
+		return err
+	}
+	var agent agents.Agent
+	if len(workforce) == 0 {
+		agent, err = registry.Create(ctx, orgID, "demo", "Demo agent", "claude-code", &adminID)
 		if err != nil {
 			return err
 		}
-		if _, err := registry.SaveConfig(ctx, agent.ID, defaultSupportConfig(), &adminID); err != nil {
+		if _, err := registry.SaveConfig(ctx, agent.ID, defaultDemoConfig(), &adminID); err != nil {
 			return err
 		}
-		log.Info("support agent created", "id", agent.ID)
-	} else if err != nil {
-		return err
+		log.Info("demo agent created", "id", agent.ID)
+	} else {
+		agent = workforce[0]
 	}
 	// Make sure the default board exists (idempotent) — also for a demo agent
 	// that already came out of an earlier bootstrap round.
 	if err := backlog.NewStore(pool).SeedDefaultStages(ctx, agent.ID); err != nil {
 		return err
+	}
+
+	// And a workplace. Without one the demo agent reaches no credential, so its
+	// first run fails at the login even though the token has long been
+	// deposited — the checklist would tick off cleanly and lead nowhere.
+	// EnsureDefault is idempotent and takes in every agent still without an
+	// assignment, so a bootstrap repeated after the fact fixes an installation
+	// that came from an older version.
+	//
+	// Not fatal: an organisation, an admin and an agent are the point of this
+	// command; the workplace can be added in the UI, but a bootstrap that
+	// aborts halfway leaves nobody able to log in at all.
+	if secretStore, serr := secbuiltin.New(pool, cfg.MasterKeyHex); serr != nil {
+		log.Warn("no workplace set up: the secret store is unavailable", "err", serr)
+	} else if _, rerr := runtimes.New(pool, secretStore).EnsureDefault(ctx, orgID, agent.Runtime); rerr != nil {
+		log.Warn("no workplace set up — agents reach no credential until one exists",
+			"engine", agent.Runtime, "err", rerr)
 	}
 
 	// Default guard-rails (fail-closed base set, spec/06).
@@ -341,44 +366,53 @@ func readNewPassword() (string, error) {
 	return strings.TrimRight(line, "\r\n"), nil
 }
 
-func defaultSupportConfig() map[string]string {
+// defaultDemoConfig is the agent a fresh installation starts with.
+//
+// Deliberately WITHOUT a target system. Its predecessor was a support agent
+// wired to Zammad, and it was a dead end for everyone who had no Zammad: the
+// first steps led up to "watch it work", and the agent could not do a single
+// thing it had been described as doing. An agent that works on the task text
+// and writes down what it found needs nothing but a credential — and it
+// demonstrates the same loop (task → run → recording → memory).
+func defaultDemoConfig() map[string]string {
 	return map[string]string{
-		"SOUL.md": `# Support agent
+		"SOUL.md": `# Demo agent
 
 ## Role
-First-level support for customer enquiries in the ticket system.
+The first agent of this installation. There to be given work and to show
+what a run looks like from the inside.
 
 ## Assignment
-Triage tickets, answer the solvable cases yourself,
-escalate complex cases to the human in charge.
+Work on the task as it is written. If it names no target system, do the
+work with what is in the sandbox — think, research in your memory, write.
+Record the result in the task itself, so a human can read it there.
 
 ## Tone
-Friendly, terse, solution-oriented. Answer in the customer's language.
+Terse and factual. Say what you did and what you could not do.
 
 ## Limits
-- No commitments about prices or contracts.
-- On legal questions always escalate.
-- No actions that delete customer data without approval.`,
+- No target system is connected yet. Do not act as if one were.
+- Where information is missing, say so rather than inventing it.`,
 		"CAPABILITIES.md": `# Capabilities
 
-- Responsible for: incoming support tickets (Zammad).
-- Not responsible for: sales, legal questions, HR topics — always escalate.`,
+- Responsible for: whatever is put in this agent's backlog.
+- Not responsible for: anything with real-world effects — this agent has no
+  target system, and it is meant for getting to know the platform.
+
+Replace this file as soon as the agent has a real job. Ready-made bundles for
+common jobs (coding, QA, research, log triage) are in examples/.`,
 		"PLAYBOOKS.md": `# Playbooks
 
-## Ticket triage
-1. Read the ticket and its history through the action proxy (get_ticket, list_articles).
-2. Mind the memory context: has this case come up before?
-3. Solvable → draft the answer as an internal note, then reply externally.
-4. Information missing from the customer → ask back (reply, internal=false),
-   set the ticket to "pending reminder" and park it with status blocked
-   (correlation_key: zammad:ticket:<id>).
-5. Not solvable → escalate with a reason.`,
-		"ACCESS.md": `# Access
-
-- system: zammad scope: read,write,comment`,
+## Working through a task
+1. Read the task and check your memory: has this come up before?
+2. Do the work. Without a target system that means: think it through and
+   write the result down.
+3. Note the result in the task, in a form a human can read.
+4. Write down what is worth keeping for next time — the wiki memory is
+   yours, and it is what makes the second run better than the first.`,
 		"ORG.md": `# Organization
 
-Supervisor: team lead support (human). Escalate there, always.`,
+Supervisor: the platform admin (human). Ask there when a task is unclear.`,
 	}
 }
 
@@ -645,6 +679,19 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		return fmt.Errorf("sandbox provider %q: only 'docker' is implemented", cfg.SandboxProvider)
 	}
 
+	// Ask the data plane at startup whether it could start a sandbox at all.
+	// Without this the answer arrives at the first wake, inside the recording of
+	// a task — the one place where nobody looks who is still setting the
+	// platform up. A warning and not an abort: an instance whose image is built
+	// afterwards is a normal case, and everything that is not a run (config,
+	// backlog, org chart) works meanwhile.
+	dataPlane, _ := provider.(orchestrator.DataPlaneChecker)
+	if dataPlane != nil {
+		for _, problem := range dataPlane.Check(ctx) {
+			log.Warn("data-plane: " + problem)
+		}
+	}
+
 	// Request log: the HTTP requests at the edges of the platform (spec/06).
 	// The store is at the same time the default sink — that way the target
 	// system calls the control plane makes itself (work checks, JWKS fetch) are
@@ -700,6 +747,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		EgressEnforced: egressEnforced,
 		EgressDefaults: egressBaseAllow(cfg),
 		ReqLog:         reqLog,
+		DataPlane:      dataPlane,
 	}
 
 	httpServer := &http.Server{

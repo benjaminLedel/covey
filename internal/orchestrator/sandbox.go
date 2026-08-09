@@ -33,6 +33,18 @@ type Sandbox interface {
 	Stop(ctx context.Context) error
 }
 
+// DataPlaneChecker is the optional self-check of a SandboxProvider: can it
+// start a sandbox at all, asked without starting one.
+//
+// Optional because the answer is provider-specific and some providers have no
+// meaningful way to give it in advance. Whoever implements it lets the platform
+// say at startup — and in the interface — what an agent would otherwise run
+// into on its first wake. An empty result means nothing is in the way; each
+// message names its own remedy.
+type DataPlaneChecker interface {
+	Check(ctx context.Context) []string
+}
+
 // FileAccess is the optional second port of a SandboxProvider: the route to an
 // agent's persistent home. It hangs off the provider because only the provider
 // knows where the home lives — a directory on the host for the docker provider,

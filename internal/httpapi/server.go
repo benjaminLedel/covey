@@ -79,6 +79,14 @@ type Server struct {
 	// calls out). nil = switched off (COVEY_REQUEST_LOG=false).
 	ReqLog *reqlogstore.Store
 
+	// DataPlane answers whether a sandbox could be started at all — the first
+	// steps read it so that a setup which cannot run anything says so on the
+	// agent overview instead of in the recording of a task that never ran.
+	// nil = the provider cannot say (tests, future providers); the question is
+	// then left unasked rather than answered by guessing.
+	DataPlane orchestrator.DataPlaneChecker
+	dataPlane cachedCheck
+
 	// WebhookSecrets: target-system name → signature secret
 	// (ENV COVEY_<SYSTEM>_WEBHOOK_SECRET, e.g. COVEY_ZAMMAD_WEBHOOK_SECRET).
 	WebhookSecrets map[string]string
