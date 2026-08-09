@@ -95,11 +95,22 @@ func (p *DockerProvider) Start(ctx context.Context, spec SandboxSpec) (Sandbox, 
 	if abs, err := filepath.Abs(home); err == nil {
 		home = abs
 	}
-	if err := os.MkdirAll(home, 0o700); err != nil {
+	// 0o755, not 0o700: the chown below is best-effort (only succeeds as root —
+	// the deployment container; locally the control plane runs as a normal host
+	// user and Docker Desktop is left to map the ownership). When that mapping
+	// does not happen — observed on Docker Desktop for Mac, bind mount owned by
+	// root regardless of the chown call below — a 0o700 directory leaves the
+	// sandbox user with no traverse permission on its OWN home. Go's os/exec
+	// chdir()s into cmd.Dir (this path, via runtime_claudecode.go) as part of
+	// starting the runtime; that chdir then fails EACCES, and Go's error
+	// wrapping folds it into "fork/exec <runtime>: permission denied" — which
+	// reads like the runtime binary itself is unrunnable, not like a directory
+	// the agent cannot even enter. 0o755 keeps the directory traversable no
+	// matter which uid ends up owning it; secrets never live here regardless
+	// (spec/04), so the wider "other" read/traverse bit is not a new exposure.
+	if err := os.MkdirAll(home, 0o755); err != nil {
 		return nil, err
 	}
-	// Best effort: only succeeds as root (deployment container); locally the
-	// process runs as a normal user and Docker Desktop maps the ownership.
 	_ = os.Chown(home, sandboxUID, sandboxGID)
 
 	name := containerName(spec.AgentID.String())

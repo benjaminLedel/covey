@@ -79,11 +79,26 @@ func TestDockerProviderStart(t *testing.T) {
 	}
 	// The agent home has to exist on the host and be mounted.
 	home := filepath.Join(dir, "homes", agentID.String())
-	if _, err := os.Stat(home); err != nil {
+	info, err := os.Stat(home)
+	if err != nil {
 		t.Errorf("agent home %s was not created: %v", home, err)
 	}
 	if !strings.Contains(got, home+":"+sandboxHome) {
 		t.Errorf("volume mount %s:%s is missing:\n%s", home, sandboxHome, got)
+	}
+	// Regression: the chown to sandboxUID is best-effort (only succeeds as
+	// root) and was observed to silently not take effect on Docker Desktop for
+	// Mac — the bind mount kept the caller's own uid. A 0o700 directory then
+	// leaves the sandbox user with no traverse permission on its own home; Go's
+	// os/exec chdir()s into it when starting the runtime (cmd.Dir), and that
+	// EACCES surfaces as "fork/exec <runtime>: permission denied" — reading
+	// like the runtime binary itself is broken, not like a directory the agent
+	// cannot enter. The mode has to grant "other" traverse (x) regardless of
+	// which uid ends up owning it.
+	if info != nil && info.Mode().Perm()&0o001 == 0 {
+		t.Errorf("agent home %s is not traversable by \"other\" (mode %o) — "+
+			"a failed chown to the sandbox uid would then lock that user out of its own home",
+			home, info.Mode().Perm())
 	}
 
 	if err := sb.Stop(context.Background()); err != nil {
