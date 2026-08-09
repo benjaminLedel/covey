@@ -44,6 +44,7 @@ type Client struct {
 	mu           sync.Mutex
 	cfg          InjectConfig
 	creds        map[string]InjectCredentials // system → brokered credential (RAM only)
+	secrets      map[string]InjectSecret      // key → brokered custom secret (RAM only)
 	targets      map[string]target.System     // system → brokered manifest plugin (RAM only)
 	pending      map[string]chan Message      // request_id → response channel
 	subAgentDirs map[string]bool              // directories with a running sub-agent
@@ -63,6 +64,7 @@ func NewClient(wsURL, token, agentID, homeDir string, log *slog.Logger) *Client 
 		homeDir:  homeDir,
 		runtimes: newRuntimes(),
 		creds:    map[string]InjectCredentials{},
+		secrets:  map[string]InjectSecret{},
 		targets:  map[string]target.System{},
 		pending:  map[string]chan Message{},
 		log:      log,
@@ -238,6 +240,7 @@ var routedInjectTypes = map[string]bool{
 	TypeInjectWiki:        true,
 	TypeInjectSkills:      true,
 	TypeInjectCreateTask:  true,
+	TypeInjectSecret:      true,
 }
 
 // deliverIfResponse hands an answer to one of our own requests to its waiting
@@ -317,6 +320,39 @@ func (c *Client) credential(ctx context.Context, system, taskID string) (InjectC
 	c.creds[system] = cred
 	c.mu.Unlock()
 	return cred, nil
+}
+
+// secret fetches a custom, agent-scoped secret by key (RAM cache per
+// connection) for the {{secret:<key>}} placeholder substitution in action
+// params. Unlike credential this is not keyed by target system — the key is
+// whatever name the secret was stored under.
+func (c *Client) secret(ctx context.Context, key, taskID string) (InjectSecret, error) {
+	c.mu.Lock()
+	if sec, ok := c.secrets[key]; ok && sec.Granted {
+		c.mu.Unlock()
+		return sec, nil
+	}
+	c.mu.Unlock()
+
+	reqID := uuid.NewString()
+	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	msg, err := c.request(reqCtx, TypeRequestSecret, reqID,
+		RequestSecret{RequestID: reqID, Key: key, TaskID: taskID})
+	if err != nil {
+		return InjectSecret{}, err
+	}
+	sec, err := DecodePayload[InjectSecret](msg)
+	if err != nil {
+		return InjectSecret{}, err
+	}
+	if !sec.Granted {
+		return sec, fmt.Errorf("secret %q denied: %s", key, sec.Reason)
+	}
+	c.mu.Lock()
+	c.secrets[key] = sec
+	c.mu.Unlock()
+	return sec, nil
 }
 
 // manifestSystem fetches the definition of a manifest plugin from the control

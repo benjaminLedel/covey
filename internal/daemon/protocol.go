@@ -27,6 +27,8 @@ const (
 	TypeInjectOrgChart    = "inject_org_chart"
 	TypeInjectWiki        = "inject_wiki"
 	TypeInjectSkills      = "inject_skills"
+	// #nosec G101 — the name of a message kind, not a secret.
+	TypeInjectSecret = "inject_secret"
 	// TypeRequestUsage/TypeUsageReport: the control plane asks the daemon what
 	// the credential in effect has consumed (spec/18). It runs in the sandbox
 	// because that is where the credential is; the control plane receives a
@@ -54,6 +56,8 @@ const (
 	TypeRequestWiki       = "request_wiki"
 	TypeRequestSkills     = "request_skills"
 	TypeRequestCreateTask = "request_create_task"
+	// #nosec G101 — the name of a message kind, not a secret.
+	TypeRequestSecret = "request_secret"
 )
 
 // Control plane → daemon (answer to request_create_task).
@@ -181,6 +185,30 @@ type RequestCredential struct {
 	System    string   `json:"system"`
 	Scopes    []string `json:"scopes,omitempty"`
 	TaskID    string   `json:"task_id,omitempty"`
+}
+
+// RequestSecret/InjectSecret broker one custom, agent-scoped secret value
+// (spec/04) for the {{secret:<key>}} placeholder in an action's params: the
+// action proxy substitutes it server-side (in the sandbox, after the model
+// has already committed to the tool call) so the plaintext value never enters
+// the model's own context. Unlike RequestCredential/InjectCredentials this is
+// not tied to a target system — the key is whatever name the secret was
+// stored under (PUT /api/v1/agents/{id}/secrets/{key} or an org secret
+// assigned to the agent). The explicit PutAgent/Assign onto this agent IS the
+// authorization; there is no separate ACCESS.md scope for it.
+type RequestSecret struct {
+	RequestID string `json:"request_id"`
+	Key       string `json:"key"`
+	TaskID    string `json:"task_id,omitempty"`
+}
+
+// #nosec G101 — a message payload struct, not a hardcoded secret.
+type InjectSecret struct {
+	RequestID string `json:"request_id"`
+	Key       string `json:"key"`
+	Granted   bool   `json:"granted"`
+	Reason    string `json:"reason,omitempty"`
+	Value     string `json:"value,omitempty"`
 }
 
 type RequestApproval struct {

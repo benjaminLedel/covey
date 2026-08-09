@@ -100,6 +100,27 @@ The secrets a system needs (e.g. `gitlab_token` + `gitlab_url`, IMAP/SMTP access
 `SetupDoc()` — name them to the user for assignment after the import; values never travel in the
 bundle.
 
+## Custom secrets in action parameters (`{{secret:<key>}}`)
+
+An agent sometimes needs a credential that is not a target-system token — e.g. a login for a
+staging environment it drives through `browser`. Store it as a **custom, agent-scoped secret**
+(`PUT /api/v1/agents/{id}/secrets/{key}`, body `{"value":"…","sensitive":true}` — set once through
+the API/UI, never in the bundle) and reference it inside any action's string parameter with the
+placeholder `{{secret:<key>}}`, e.g.:
+
+```json
+{"action": "browser:type", "params": {"selector": "#password", "text": "{{secret:misavo_staging_pass}}"}}
+```
+
+The action proxy substitutes it **inside the sandbox, after the model has already committed to the
+tool call, right before the plugin runs** — the plaintext value never sits in the model's own
+context/prompt, and the audit log still records the placeholder, not the value. No `ACCESS.md`
+entry is needed for the key; the explicit `PUT .../secrets/{key}` onto that specific agent (or an
+org secret assigned to it) is itself the authorization — nothing resolves for an agent it was not
+stored/assigned for. Keep the placeholder in `PLAYBOOKS.md` exactly as written above; do not resolve
+it yourself or ask the runtime to print it — the point is that no one, including the model, ever
+sees the value.
+
 ## Platform actions (`covey/…`)
 
 Besides the target systems, the action proxy knows the pseudo-system `covey` — actions on the
