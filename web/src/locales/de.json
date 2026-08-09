@@ -110,13 +110,34 @@
     },
     "integrations": {
       "eyebrow": "Integrationen",
-      "title": "Wo Ihre Agenten arbeiten",
-      "lead": "Ein Zielsystem ist bei Covey kein einmal verdrahteter Konnektor, sondern ein Plugin mit Manifest: Aktionen, Webhook-Verarbeitung, Prompt-Doku. Aktivieren, Zugang hinterlegen, dem Agenten zuweisen — fertig.",
+      "title": "Womit und woran Ihre Agenten arbeiten",
+      "lead": "Zwei Achsen. Womit ein Agent arbeitet, ist die Engine — Claude heute, ChatGPT als zweite. Woran er arbeitet, ist das Zielsystem: kein einmal verdrahteter Konnektor, sondern ein Plugin mit Manifest aus Aktionen, Webhook-Verarbeitung und Prompt-Doku. Beides wird in der Oberfläche aktiviert, mit Zugang versehen und einem Agenten zugewiesen.",
       "groups": {
+        "engines": "Womit sie arbeiten",
         "work": "Arbeit, die hereinkommt",
         "files": "Dateien & Dokumente",
         "sandbox": "Web & Sandbox",
         "extend": "Fehlt eines? Andocken statt warten."
+      },
+      "enginesLead": "Die Engine ist der Harness, der das Modell fährt. Hinterlegt wird der Vertrag darunter: ein Abo-Sitz oder ein API-Schlüssel. Mehrere davon unter einem Namen sind die Größe des Arbeitsplatzes — die Plattform verteilt darauf, lässt jeden Agenten auf seinem Sitz sitzen, solange der gesund ist, und weicht einem aufgebrauchten Fenster aus, statt in dieselbe Wand zu laufen.",
+      "engineTag": {
+        "ready": "Im Einsatz",
+        "planned": "In Vorbereitung",
+        "seam": "Plugin-Naht"
+      },
+      "eng": {
+        "claude-code": {
+          "t": "Claude Code (Anthropic)",
+          "d": "Die Engine, auf der Covey heute fährt: claude -p, headless in der Sandbox. Sie kann eine Sitzung fortsetzen — daran hängt, dass ein Agent auf eine Kundenantwort warten darf statt neu anzufangen — und meldet ihre Kosten und die Auslastung des Abo-Fensters selbst, statt sie schätzen zu lassen. Abo-Sitz oder API-Schlüssel, beides."
+        },
+        "codex": {
+          "t": "Codex (OpenAI)",
+          "d": "Als zweite Engine registriert, mit beiden Zugangsformen: der API-Schlüssel als Umgebungsvariable, der ChatGPT-Login als Datei, die nur für die Dauer des Laufs existiert. Der Lauf selbst ist noch nicht gegen das Binary geprüft — und solange er das nicht ist, steht hier „in Vorbereitung“ und nicht „unterstützt“."
+        },
+        "own": {
+          "t": "Weitere Engines",
+          "d": "Eine Engine ist ein selbstregistrierendes Plugin: eine Datei, die deklariert, welches Secret sie braucht und in welcher Form es ankommt, ob sie eine Sitzung fortsetzen kann und wo sie Skills sucht. Was sie deklariert, prüft die Plattform beim Zuweisen — der Orchestrator bekommt für die nächste Engine keine Sonderfälle."
+        }
       },
       "tag": {
         "webhook": "Webhook weckt",

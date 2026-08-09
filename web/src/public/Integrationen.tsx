@@ -1,13 +1,27 @@
 import PubLink from "./PubLink";
 import { useTranslation } from "react-i18next";
 import { TargetIcon } from "../components/TargetIcon";
+import { EngineIcon } from "../components/EngineIcon";
 
-/* Integrationen — die Zielsysteme, an die ein Agent andocken kann. Die Liste
-   ist bewusst statisch: die öffentliche Seite ist unangemeldet und fragt
-   keine API. Sie spiegelt die Built-ins aus internal/target/ und muss beim
-   Anlegen eines neuen Plugins mitgepflegt werden. */
+/* Integrationen — zwei Achsen: WOMIT ein Agent arbeitet (die Engine) und
+   WORAN (das Zielsystem). Beide Listen sind bewusst statisch: die öffentliche
+   Seite ist unangemeldet und fragt keine API. Sie spiegeln die Built-ins aus
+   internal/daemon/ (Engines) und internal/target/ (Zielsysteme) und müssen
+   beim Anlegen eines neuen Plugins mitgepflegt werden. */
 
 type Item = { name: string; category: string; tag: "webhook" | "poll" | "nosecret" };
+
+/* Die Engines stehen zuerst, weil sie die grundlegendere Frage beantworten:
+   ohne Vertrag mit einem Anbieter läuft kein Agent, egal wie viele Zielsysteme
+   angeschlossen sind. Der Stand ist der aus der Registry — "planned" für Codex
+   ist keine Zurückhaltung, sondern spec/19: deklariert, Lauf unbelegt. */
+type Engine = { name: string; tag: "ready" | "planned" | "seam" };
+
+const ENGINES: Engine[] = [
+  { name: "claude-code", tag: "ready" },
+  { name: "codex", tag: "planned" },
+  { name: "own", tag: "seam" },
+];
 
 const GROUPS: { g: string; items: Item[] }[] = [
   {
@@ -51,6 +65,29 @@ export default function Integrationen() {
         <h1>{t("public.integrations.title")}</h1>
         <p className="pub-hero-lead">{t("public.integrations.lead")}</p>
       </header>
+
+      <section className="pub-group">
+        <h2 className="reveal">{t("public.integrations.groups.engines")}</h2>
+        <p className="int-note reveal">{t("public.integrations.enginesLead")}</p>
+        <div className="landing-grid">
+          {ENGINES.map((eng, i) => (
+            <div
+              className="landing-feature reveal"
+              style={{ transitionDelay: `${i * 0.06}s` }}
+              key={eng.name}
+            >
+              <div className="int-head">
+                <span className="int-logo" aria-hidden="true">
+                  <EngineIcon name={eng.name} size={21} />
+                </span>
+                <span className="int-tag">{t(`public.integrations.engineTag.${eng.tag}`)}</span>
+              </div>
+              <h3>{t(`public.integrations.eng.${eng.name}.t`)}</h3>
+              <p>{t(`public.integrations.eng.${eng.name}.d`)}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {GROUPS.map((group) => (
         <section className="pub-group" key={group.g}>
