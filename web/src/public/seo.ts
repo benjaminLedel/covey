@@ -33,6 +33,13 @@ export type PublicRoute = {
   priority: number;
   /** Abschnitt im Docs-Baum — die mittlere Stufe der Brotkrumen. */
   section?: Localized;
+  /* Kanonische Adresse, wenn sie nicht die eigene ist.
+     Genau ein Fall bisher: /docs zeigt denselben Inhalt wie die erste
+     Docs-Seite (Docs.tsx fällt ohne Slug auf FIRST_DOC zurück). Zwei
+     Adressen mit demselben Text, beide mit Canonical auf sich selbst, sind
+     für eine Suchmaschine zwei konkurrierende Seiten — und keine von beiden
+     gewinnt. */
+  canonical?: Localized;
   /** Die Fragen der Seite, für die FAQ-Auszeichnung (Head.tsx). */
   faq?: Record<Lang, Faq[]>;
 };
@@ -117,9 +124,10 @@ const PAGES: PublicRoute[] = [
       en: "Documentation — Covey",
     },
     description: {
-      de: "Konzept, Architektur und Betrieb von Covey: Agenten anlegen, Zielsysteme anbinden, Guard-Rails setzen, Sandboxen betreiben.",
-      en: "Concept, architecture and operations: create agents, connect target systems, set guard-rails and run sandboxes.",
+      de: "Covey selbst hosten und betreiben: Installation mit Docker, den ersten KI-Agenten anlegen, Zielsysteme anbinden, Guard-Rails setzen, Sandboxen betreiben.",
+      en: "Self-host and operate Covey: install with Docker, create your first AI agent, connect target systems, set guard-rails and run sandboxes.",
     },
+    canonical: { de: "/docs/was-ist-covey", en: "/en/docs/what-is-covey" },
     indexable: true,
     priority: 0.7,
   },

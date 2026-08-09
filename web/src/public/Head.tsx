@@ -157,8 +157,14 @@ export function seoTags(
 
   // Die 404-Seite erscheint unter jeder falschen Adresse — ein Canonical wäre
   // eine Behauptung über eine Seite, die es nicht gibt.
+  //
+  // Sonst zeigt der Canonical auf die eigene Adresse — außer die Seite weiß es
+  // besser: /docs rendert denselben Inhalt wie die erste Docs-Seite und
+  // verweist deshalb dorthin, statt mit ihr um dieselben Wörter zu
+  // konkurrieren.
   if (route.id !== "404") {
-    tags.push({ tag: "link", attrs: { rel: "canonical", href: url } });
+    const canonical = `${origin}${route.canonical?.[lang] ?? route.path[lang]}`;
+    tags.push({ tag: "link", attrs: { rel: "canonical", href: canonical } });
   }
 
   // hreflang: beide Fassungen zeigen aufeinander, x-default auf die deutsche.
