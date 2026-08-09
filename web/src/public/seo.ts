@@ -78,12 +78,12 @@ const PAGES: PublicRoute[] = [
     id: "integrationen",
     path: { de: "/integrationen", en: "/en/integrations" },
     title: {
-      de: "Integrationen — Zielsysteme für Ihre KI-Agenten",
-      en: "Integrations — target systems for your AI agents",
+      de: "Integrationen — Engines und Zielsysteme für Ihre KI-Agenten",
+      en: "Integrations — engines and target systems for your AI agents",
     },
     description: {
-      de: "Zammad, GitLab, E-Mail, Microsoft Teams und MCP: Covey bindet Agenten über Zielsystem-Plugins an die Werkzeuge an, in denen Ihr Team ohnehin arbeitet.",
-      en: "Zammad, GitLab, email, Microsoft Teams and MCP: Covey connects agents to the tools your team already works in, through target-system plugins.",
+      de: "Läuft mit Claude, Codex/ChatGPT als zweite Engine — und dockt über Zielsystem-Plugins an Zammad, GitHub, GitLab, E-Mail, Microsoft Teams und MCP an.",
+      en: "Works with Claude, with Codex/ChatGPT as the second engine — and connects to Zammad, GitHub, GitLab, email, Microsoft Teams and MCP through target-system plugins.",
     },
     indexable: true,
     priority: 0.8,

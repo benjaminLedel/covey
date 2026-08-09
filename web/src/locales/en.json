@@ -110,13 +110,34 @@
     },
     "integrations": {
       "eyebrow": "Integrations",
-      "title": "Where your agents do the work",
-      "lead": "In Covey a target system isn't a connector someone wired up once — it's a plugin with a manifest: actions, webhook handling, prompt docs. Enable it, store the credentials, assign it to an agent. Done.",
+      "title": "What your agents run on, and what they work on",
+      "lead": "Two axes. What an agent runs on is the engine — Claude today, ChatGPT as the second. What it works on is the target system: not a connector someone wired up once, but a plugin with a manifest of actions, webhook handling and prompt docs. Both are enabled in the interface, given their credentials, and assigned to an agent.",
       "groups": {
+        "engines": "What they run on",
         "work": "Where the work comes from",
         "files": "Files & documents",
         "sandbox": "Web & sandbox",
         "extend": "Missing one? Plug it in instead of waiting."
+      },
+      "enginesLead": "The engine is the harness that drives the model. What you deposit is the contract underneath: a subscription seat or an API key. Several of them under one name are the size of the workplace — the platform spreads across them, leaves every agent on its own seat for as long as that seat is healthy, and dodges a window that is used up instead of running into the same wall.",
+      "engineTag": {
+        "ready": "In production",
+        "planned": "Planned",
+        "seam": "Plugin seam"
+      },
+      "eng": {
+        "claude-code": {
+          "t": "Claude Code (Anthropic)",
+          "d": "The engine Covey runs on today: claude -p, headless in the sandbox. It can resume a session — which is what lets an agent wait for a customer's answer instead of starting over — and it reports its own cost and subscription-window utilisation rather than leaving both to an estimate. Subscription seat or API key, either one."
+        },
+        "codex": {
+          "t": "Codex (OpenAI)",
+          "d": "Registered as the second engine, with both credential forms: the API key as an environment variable, the ChatGPT login as a file that exists only for the duration of the run. The run itself is not yet verified against the binary — and until it is, this says “planned” rather than “supported”."
+        },
+        "own": {
+          "t": "Further engines",
+          "d": "An engine is a self-registering plugin: one file declaring which secret it needs and in what form it arrives, whether it can resume a session, and where it looks for skills. What it declares is checked when an agent is assigned — the orchestrator gets no special cases for the next engine."
+        }
       },
       "tag": {
         "webhook": "Woken by webhook",
