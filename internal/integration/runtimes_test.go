@@ -3,6 +3,7 @@ package integration
 import (
 	"context"
 	"errors"
+	"net/http"
 	"testing"
 	"time"
 
@@ -358,5 +359,93 @@ func TestRuntimeSkipsSeatTheProviderReportsFull(t *testing.T) {
 	unknown := runtimes.Signals{Reported: func(uuid.UUID, int) (float64, bool) { return 0, false }}
 	if _, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, unknown); err != nil {
 		t.Fatalf("without a usable figure the runtime has to deliver: %v", err)
+	}
+}
+
+// TestFreshSetupNeedsNoWorkplaceStep walks the path of somebody installing
+// Covey: deposit one token, create one agent, done. No workplace is created by
+// hand, because the contract model only earns its keep with the SECOND
+// credential and has to carry the first one silently.
+//
+// This is a regression test in the literal sense. The runtime layer broke
+// exactly this: the migration builds workplaces from EXISTING agents, so a
+// fresh database got none, a new agent got no assignment, and its first run
+// failed on a missing credential — with the token sitting right there under
+// Secrets.
+func TestFreshSetupNeedsNoWorkplaceStep(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+
+	// Step 1 of the checklist: the credential.
+	admin.expect(http.MethodPut, "/api/v1/secrets/claude_code_oauth_token",
+		map[string]any{"value": "sk-ant-oat-erstes-token", "sensitive": true}, http.StatusOK)
+
+	// Step 2: the agent. Nothing else.
+	created := admin.expect(http.MethodPost, "/api/v1/agents",
+		map[string]any{"slug": "erster", "display_name": "Erster Agent", "runtime": "claude-code"},
+		http.StatusCreated)
+	agentID, _ := uuid.Parse(created["id"].(string))
+
+	// It has to be able to work now — that means: a workplace with capacity,
+	// and the agent sitting on it.
+	list, err := s.runtimes.List(ctx, s.orgID)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("exactly one workplace should have appeared: %+v, %v", list, err)
+	}
+	if len(list[0].Credentials) != 1 {
+		t.Fatalf("the deposited token has to become capacity: %+v", list[0].Credentials)
+	}
+	got, err := s.registry.Get(ctx, agentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.RuntimeID == nil || *got.RuntimeID != list[0].ID {
+		t.Fatalf("the agent has to be assigned: %+v", got.RuntimeID)
+	}
+
+	// And the decisive one: a credential can actually be picked for it.
+	p, err := s.runtimes.Pick(ctx, s.orgID, agentID, list[0].ID, noUsage)
+	if err != nil {
+		t.Fatalf("the agent has to reach a credential: %v", err)
+	}
+	if p.Value != "sk-ant-oat-erstes-token" || p.EnvVar != "CLAUDE_CODE_OAUTH_TOKEN" {
+		t.Fatalf("wrong credential brokered: %+v", p)
+	}
+}
+
+// TestSecondTokenNeedsNoSecondPlace: adding a seat later must also not require
+// visiting a second screen. Whoever deposits a further value gets further
+// capacity.
+func TestSecondTokenNeedsNoSecondPlace(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+
+	admin.expect(http.MethodPut, "/api/v1/secrets/claude_code_oauth_token",
+		map[string]any{"value": "sk-ant-oat-erstes", "sensitive": true}, http.StatusOK)
+	admin.expect(http.MethodPost, "/api/v1/agents",
+		map[string]any{"slug": "erster", "display_name": "Erster", "runtime": "claude-code"},
+		http.StatusCreated)
+
+	// The second seat, deposited the obvious way: another value under the same
+	// key.
+	admin.expect(http.MethodPost, "/api/v1/secrets/claude_code_oauth_token/values",
+		map[string]any{"value": "sk-ant-oat-zweites"}, http.StatusOK)
+
+	list, err := s.runtimes.List(ctx, s.orgID)
+	if err != nil || len(list) != 1 {
+		t.Fatalf("workplaces: %+v, %v", list, err)
+	}
+	if len(list[0].Credentials) != 2 {
+		t.Fatalf("the second token has to become capacity by itself: %+v", list[0].Credentials)
+	}
+
+	// Idempotent: depositing again must not pile up duplicates.
+	admin.expect(http.MethodPut, "/api/v1/secrets/claude_code_oauth_token",
+		map[string]any{"value": "sk-ant-oat-erstes-korrigiert", "sensitive": true}, http.StatusOK)
+	again, _ := s.runtimes.List(ctx, s.orgID)
+	if len(again[0].Credentials) != 2 {
+		t.Fatalf("a correction must not add capacity: %+v", again[0].Credentials)
 	}
 }

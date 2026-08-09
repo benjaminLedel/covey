@@ -28,6 +28,9 @@ func (s *Server) handleAddSecretValue(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
+	// A further value of an LLM credential becomes further capacity on the
+	// workplace — the second seat should not need a second place to configure.
+	s.syncDefaultRuntime(r.Context(), p.OrgID, key)
 	// The same live check as when depositing a secret: a dead token should show
 	// up here and not first at the 401 inside the sandbox.
 	check := checkCredential(r.Context(), key, in.Value)

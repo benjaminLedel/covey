@@ -1160,7 +1160,7 @@
     "instances": {
       "title": "Workplaces",
       "subtitle": "an engine plus the capacity to run it",
-      "desc": "A workplace is a contract: which engine, on whose credential, with which model. Agents are assigned to it — that is a commercial decision, not a technical one. Several credentials under it are used up in the order written down: the paid-for seats first, then whatever costs per token.",
+      "desc": "A workplace is a contract: which engine, on whose credential, with which model. For the simple case there is nothing to do here — deposit a token under Secrets, create an agent, and the workplace appears by itself. The page starts to matter with the second credential: several under one workplace are used up in the order written down, the paid-for seats first, then whatever costs per token.",
       "none": "No workplaces created yet.",
       "add": "Create workplace",
       "create": "Create",

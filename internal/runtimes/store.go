@@ -3,6 +3,7 @@ package runtimes
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -344,4 +345,92 @@ func (s *Store) Assign(ctx context.Context, orgID, agentID, runtimeID uuid.UUID)
 func CanCarryBlocking(engine string) bool {
 	d, ok := daemon.Describe(engine)
 	return ok && d.Capabilities.Resume
+}
+
+// EnsureDefault gets or creates the organisation's runtime for an engine and
+// attaches whatever capacity is already deposited under the names that engine
+// declares.
+//
+// This exists so that the SIMPLE case needs no extra step. Whoever installs
+// Covey deposits one token and creates one agent; being told to also create a
+// workplace and hang the token on it would be three steps for what is one
+// decision — and the contract model only starts paying off with the second
+// credential. The first one it should carry silently.
+//
+// Idempotent in both directions: an existing runtime keeps its name and order,
+// and a secret already attached is not attached twice. So it can be called from
+// anywhere the state might have just become completable — creating an agent,
+// depositing a secret — without anybody tracking who called it before.
+func (s *Store) EnsureDefault(ctx context.Context, orgID uuid.UUID, engine string) (Runtime, error) {
+	d, ok := daemon.Describe(engine)
+	if !ok {
+		return Runtime{}, errors.New("unknown engine: " + engine)
+	}
+
+	list, err := s.List(ctx, orgID)
+	if err != nil {
+		return Runtime{}, err
+	}
+	var rt Runtime
+	for _, r := range list {
+		if r.Engine == engine {
+			rt = r
+			break
+		}
+	}
+	if rt.ID == uuid.Nil {
+		label := d.Label
+		if label == "" {
+			label = engine
+		}
+		if rt, err = s.Create(ctx, orgID, engine, label, ""); err != nil {
+			return Runtime{}, err
+		}
+	}
+
+	// Attach every declared credential the organisation has actually deposited,
+	// in the engine's order of precedence — that order IS the merit order, and
+	// the engine states it for exactly this reason.
+	attached := map[string]bool{}
+	for _, c := range rt.Credentials {
+		attached[c.SecretKey+"#"+strconv.Itoa(c.SecretSlot)] = true
+	}
+	for _, want := range d.Credentials {
+		slots, err := s.depositedSlots(ctx, orgID, want.Secret)
+		if err != nil {
+			return Runtime{}, err
+		}
+		for _, slot := range slots {
+			if attached[want.Secret+"#"+strconv.Itoa(slot)] {
+				continue
+			}
+			if _, err := s.AddCredential(ctx, orgID, rt.ID, want.Kind, want.Secret, slot, ""); err != nil {
+				return Runtime{}, err
+			}
+		}
+	}
+	return s.Get(ctx, orgID, rt.ID)
+}
+
+// depositedSlots lists the values an org-wide secret actually holds. Reading
+// the secrets table directly is deliberate: the capacity layer needs to know
+// WHICH values exist in order to offer them, and asking the store for each
+// possible slot would be a guess loop.
+func (s *Store) depositedSlots(ctx context.Context, orgID uuid.UUID, key string) ([]int, error) {
+	rows, err := s.pool.Query(ctx,
+		"SELECT slot FROM secrets WHERE org_id=$1 AND key=$2 AND agent_id IS NULL ORDER BY slot",
+		orgID, key)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []int
+	for rows.Next() {
+		var slot int
+		if err := rows.Scan(&slot); err != nil {
+			return nil, err
+		}
+		out = append(out, slot)
+	}
+	return out, rows.Err()
 }
