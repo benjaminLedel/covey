@@ -69,18 +69,66 @@ function jsonLd(route: PublicRoute, lang: Lang, origin: string): object | null {
   }
 
   if (route.id.startsWith("docs-")) {
-    return {
-      "@context": "https://schema.org",
-      "@type": "TechArticle",
-      headline: route.title[lang].replace(/ — Covey Docs$/, ""),
-      description: route.description[lang],
-      inLanguage: lang,
-      url: `${origin}${route.path[lang]}`,
-      publisher: { "@id": `${origin}/#organization` },
-    };
+    const docsPath = lang === "de" ? "/docs" : "/en/docs";
+    const graph: object[] = [
+      {
+        "@type": "TechArticle",
+        headline: route.title[lang].replace(/ — Covey Docs$/, ""),
+        description: route.description[lang],
+        inLanguage: lang,
+        url: `${origin}${route.path[lang]}`,
+        publisher: { "@id": `${origin}/#organization` },
+      },
+      // Brotkrumen: Docs → Abschnitt → Seite. Der Abschnitt hat keine eigene
+      // Adresse — die Docs-Navigation ist eine Gliederung, keine Seitenfolge —,
+      // deshalb trägt seine Stufe nur einen Namen. Das ist erlaubt und
+      // ehrlicher, als eine URL zu erfinden, die auf nichts zeigt.
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Docs", item: `${origin}${docsPath}` },
+          ...(route.section ? [{ "@type": "ListItem", position: 2, name: route.section[lang] }] : []),
+          {
+            "@type": "ListItem",
+            position: route.section ? 3 : 2,
+            name: route.title[lang].replace(/ — Covey Docs$/, ""),
+            item: `${origin}${route.path[lang]}`,
+          },
+        ],
+      },
+    ];
+
+    // FAQ nur, wenn die Fragen auch auf der Seite stehen — Docs.tsx rendert
+    // dieselbe Quelle. Dass Google FAQ-Rich-Results inzwischen nur noch für
+    // wenige Seitenarten anzeigt, ändert daran nichts: Die Auszeichnung bleibt
+    // gültig, sie wird von anderen Diensten gelesen, und sie kostet nichts.
+    const faq = route.faq?.[lang];
+    if (faq && faq.length > 0) {
+      graph.push({
+        "@type": "FAQPage",
+        mainEntity: faq.map((f) => ({
+          "@type": "Question",
+          name: f.q,
+          acceptedAnswer: { "@type": "Answer", text: plainText(f.a) },
+        })),
+      });
+    }
+
+    return { "@context": "https://schema.org", "@graph": graph };
   }
 
   return null;
+}
+
+/* Markdown-Auszeichnung aus einer Antwort nehmen. In den strukturierten Daten
+   steht Text, kein Markdown: Backticks und Sternchen würden im Suchergebnis
+   genau so erscheinen, wie sie hier stehen. */
+function plainText(md: string): string {
+  return md
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replace(/[*_`]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 /** Alle Kopf-Elemente einer Seite. origin ohne abschließenden Schrägstrich. */

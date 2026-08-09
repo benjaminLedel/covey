@@ -3341,20 +3341,23 @@ kbd {
   min-width: 0;
 }
 .docs-body { color: var(--text-secondary); }
-.docs-body h4.md-h {
+/* h1/h2/h3, seit der Renderer im Docs-Bereich mit baseLevel 1 arbeitet. Die
+   Größen sind dieselben wie vorher — an der Optik ändert sich nichts, nur an
+   dem, was im Dokument steht. */
+.docs-body h1.md-h {
   font-family: var(--voice);
   font-size: 27px;
   letter-spacing: -0.015em;
   color: var(--text-primary);
   margin: 0 0 16px;
 }
-.docs-body h5.md-h {
+.docs-body h2.md-h {
   font-family: var(--voice);
   font-size: 19px;
   color: var(--text-primary);
   margin: 30px 0 10px;
 }
-.docs-body h6.md-h {
+.docs-body h3.md-h {
   font-size: 15px;
   font-weight: 600;
   color: var(--text-primary);
@@ -3383,6 +3386,36 @@ kbd {
 .docs-body .md-pre code { background: none; padding: 0; font-size: 12.5px; line-height: 1.6; }
 .docs-body a { color: var(--text-accent); text-decoration: underline; text-underline-offset: 2px; }
 .docs-body blockquote { margin: 0 0 14px; }
+/* Häufige Fragen: derselbe Satz wie der Fließtext, nur als Frage/Antwort-Paar
+   abgesetzt. Kein Aufklapp-Element — was zugeklappt ist, liest niemand, und
+   eine Antwort, die nur nach einem Klick sichtbar wird, ist als Inhalt der
+   Seite schwächer. */
+.docs-faq { margin-top: 36px; padding-top: 24px; border-top: 0.5px solid var(--border); }
+.docs-faq h2 {
+  font-family: var(--voice);
+  font-size: 19px;
+  color: var(--text-primary);
+  margin: 0 0 14px;
+}
+.docs-faq dl { margin: 0; }
+.docs-faq dl > div + div { margin-top: 16px; }
+.docs-faq dt {
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+.docs-faq dd { margin: 0; color: var(--text-secondary); }
+.docs-faq dd p.md-p { margin: 0 0 8px; font-size: 14.5px; line-height: 1.72; }
+.docs-faq dd p.md-p:last-child { margin-bottom: 0; }
+.docs-faq dd code {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  background: var(--surface-2);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.docs-faq dd a { color: var(--text-accent); text-decoration: underline; text-underline-offset: 2px; }
 .docs-pager {
   margin-top: 32px;
   padding-top: 20px;

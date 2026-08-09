@@ -289,7 +289,8 @@
       "aria": "Dokumentations-Navigation",
       "title": "Dokumentation",
       "prev": "Zurück",
-      "next": "Weiter"
+      "next": "Weiter",
+      "faq": "Häufige Fragen"
     },
     "notFound": {
       "title": "Diese Seite gibt es nicht",

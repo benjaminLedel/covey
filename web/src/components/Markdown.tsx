@@ -36,6 +36,14 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
         nodes.push(
           <a key={key} href={href} target="_blank" rel="noopener noreferrer">{label}</a>,
         );
+      } else if (/^\/(?!\/)/.test(href)) {
+        // Absolut-relative Adresse auf dieser Instanz (/docs/…). Ohne diesen
+        // Zweig blieb jeder interne Verweis stummer Text — die Docs konnten
+        // sich nicht untereinander verlinken, weder für Leser noch für
+        // Suchmaschinen. Kein target="_blank": das eigene Haus öffnet man
+        // nicht in einem neuen Fenster. Das (?!\/) hält "//fremde.example"
+        // draußen, das protokollrelativ nach außen führt.
+        nodes.push(<a key={key} href={href}>{label}</a>);
       } else {
         nodes.push(label);
       }
@@ -46,7 +54,19 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
   return nodes;
 }
 
-export function Markdown({ text }: { text: string }) {
+// baseLevel: welche HTML-Ebene ein `#` bekommt.
+//
+// Der Vorgabewert 4 gilt für die Stellen, an denen dieser Renderer eine
+// Antwort INNERHALB einer Seite darstellt — Assistent-Bubbles, Dateivorschau,
+// Wiki-Ausschnitte. Dort wäre ein h1 gelogen: die Seite hat ihre Überschrift
+// schon, und ein zweites h1 im Dokument ist für Screenreader wie für
+// Suchmaschinen eine falsche Aussage über den Aufbau.
+//
+// Wo der Markdown-Text DIE Seite ist — der Docs-Bereich der Website —, ist
+// genau das Gegenteil richtig, und dort steht baseLevel={1}. Vorher rendete
+// auch dort jedes `#` als h4, und keine einzige Docs-Seite hatte eine
+// Hauptüberschrift.
+export function Markdown({ text, baseLevel = 4 }: { text: string; baseLevel?: number }) {
   const lines = text.replace(/\r\n/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let i = 0;
@@ -76,13 +96,12 @@ export function Markdown({ text }: { text: string }) {
     // Überschrift # / ## / ###
     const h = /^(#{1,3})\s+(.*)$/.exec(line);
     if (h) {
-      const level = h[1].length;
       const content = renderInline(h[2], `h${key}`);
-      blocks.push(
-        level === 1 ? <h4 key={key++} className="md-h">{content}</h4>
-        : level === 2 ? <h5 key={key++} className="md-h">{content}</h5>
-        : <h6 key={key++} className="md-h">{content}</h6>,
-      );
+      // h1..h6 — tiefer geht HTML nicht, und eine vierte Ebene braucht der
+      // Renderer nicht zu können.
+      const level = Math.min(baseLevel + h[1].length - 1, 6);
+      const Tag = `h${level}` as "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+      blocks.push(<Tag key={key++} className="md-h">{content}</Tag>);
       i++; // Zeile konsumieren — sonst Endlosschleife bei Überschriften
       continue;
     }
