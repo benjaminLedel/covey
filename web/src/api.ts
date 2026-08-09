@@ -482,6 +482,10 @@ export type TargetPlugin = {
   manifest?: { url?: string; tools?: MCPTool[]; auth?: { header?: string; format?: string } };
   updated_at?: string;
   setup_doc?: string;
+  // Die Scopes, die das Plugin in ACCESS.md versteht — die Oberfläche bietet
+  // genau diese an, statt jemanden ein Wort tippen zu lassen, das dann still
+  // ignoriert wird. Leer bei Manifest-/MCP-Plugins.
+  scopes?: string[];
 };
 
 // Ein Zielsystem aus der Sicht eines Agenten (GET /agents/{id}/systems):

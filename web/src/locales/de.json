@@ -585,7 +585,29 @@
     "invalidJson": "Datei ist kein gültiges JSON-Bundle.",
     "selectRuntime": "Runtime",
     "slug": "Slug",
-    "budget": "Budget"
+    "budget": "Budget",
+    "guided": {
+      "step": {
+        "who": "Wer",
+        "job": "Auftrag",
+        "may": "Darf",
+        "org": "Zuständig"
+      },
+      "nameHint": "Der Name, unter dem der Agent in der Belegschaft, im Org-Chart und in seinen Kommentaren auftritt.",
+      "slugHint": "Das Kürzel steht in Adressen — unter anderem am Ende der Webhook-URL, mit der ein Zielsystem diesen Agenten weckt. Kleinbuchstaben, keine Leerzeichen.",
+      "runtimeHint": "Die Engine, auf der er arbeitet, und damit der Vertrag, über den seine Kosten laufen. Später änderbar, ohne dass er seine Geschichte verliert.",
+      "roleLabel": "Was ist sein Auftrag?",
+      "roleHint": "In eigenen Worten, zwei bis fünf Sätze. Daraus entsteht die SOUL.md — die Rollenbeschreibung, die bei jedem Lauf in seinen Prompt kompiliert wird. Konkret schlägt allgemein: „Du beantwortest Fragen zum Abrechnungssystem\" trägt weiter als „Du bist ein hilfreicher Assistent\".",
+      "rolePlaceholder": "Du sichtest eingehende Tickets im Abrechnungssystem, beantwortest die lösbaren Fälle selbst und eskalierst alles Vertragliche an den zuständigen Menschen.",
+      "remitLabel": "Wofür ist er zuständig — und wofür nicht?",
+      "remitHint": "Eine Zeile, die die Grenze zieht. Sie landet in der CAPABILITIES.md und hilft dem Agenten zu erkennen, wann er abgeben muss.",
+      "mayHint": "Ein aktiviertes Zielsystem heißt noch nicht, dass dieser Agent es benutzen darf — das entscheidet seine ACCESS.md. Was Sie hier ankreuzen, steht danach dort.",
+      "noTargets": "Es ist noch kein Zielsystem aktiviert. Der Agent kann trotzdem angelegt werden und am Aufgabentext arbeiten; Zugänge lassen sich jederzeit nachtragen.",
+      "supervisorLabel": "Vorgesetzt",
+      "supervisorHint": "Der Mensch, an den eskaliert wird, wenn der Agent nicht weiterkommt oder eine Freigabe braucht.",
+      "departmentLabel": "Abteilung",
+      "departmentHint": "Bestimmt die Einordnung im Org-Chart und die Kostenstelle. Kann leer bleiben."
+    }
   },
   "agent": {
     "notFound": "Agent nicht gefunden.",

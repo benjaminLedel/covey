@@ -585,7 +585,29 @@
     "invalidJson": "File is not a valid JSON bundle.",
     "selectRuntime": "Runtime",
     "slug": "Slug",
-    "budget": "Budget"
+    "budget": "Budget",
+    "guided": {
+      "step": {
+        "who": "Who",
+        "job": "Job",
+        "may": "May",
+        "org": "Reports to"
+      },
+      "nameHint": "The name the agent appears under in the workforce, in the org chart and in its own comments.",
+      "slugHint": "The slug appears in addresses — among them the end of the webhook URL a target system uses to wake this agent. Lower case, no spaces.",
+      "runtimeHint": "The engine it works on, and with it the contract its cost runs through. Changeable later without it losing its history.",
+      "roleLabel": "What is its job?",
+      "roleHint": "In your own words, two to five sentences. This becomes SOUL.md — the role description compiled into its prompt on every run. Specific beats general: \"You answer questions about the billing system\" carries further than \"You are a helpful assistant\".",
+      "rolePlaceholder": "You triage incoming tickets in the billing system, answer the solvable cases yourself and escalate anything contractual to the responsible human.",
+      "remitLabel": "What is it responsible for — and what not?",
+      "remitHint": "One line that draws the boundary. It lands in CAPABILITIES.md and helps the agent recognise when to hand over.",
+      "mayHint": "An activated target system does not yet mean this agent may use it — its ACCESS.md decides that. What you tick here ends up there.",
+      "noTargets": "No target system is activated yet. The agent can still be created and work on the task text; access can be added at any time.",
+      "supervisorLabel": "Reports to",
+      "supervisorHint": "The human to escalate to when the agent gets stuck or needs an approval.",
+      "departmentLabel": "Department",
+      "departmentHint": "Determines its place in the org chart and the cost centre. May stay empty."
+    }
   },
   "agent": {
     "notFound": "Agent not found.",
