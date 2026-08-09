@@ -27,7 +27,7 @@
     "function": {
       "eyebrow": "Funktion",
       "title": "Alles, was eine Organisation braucht, um Agenten arbeiten zu lassen",
-      "lead": "Von der Einstellung über den Arbeitsalltag bis zur Kontrolle — die Fähigkeiten im Überblick.",
+      "lead": "Von der Einstellung über den Arbeitsalltag bis zur Abnahme. Was hier steht, ist gebaut und läuft — die Plattform ist deutlich über den MVP hinaus.",
       "groups": {
         "structure": "Identität & Struktur",
         "work": "Arbeit & Zielsysteme",
@@ -104,8 +104,8 @@
           "d": "Jeder Agent erklärt in KPIS.md, was er liefert. Die Plattform zählt es aus dem, was sie ohnehin aufzeichnet, und rechnet den Preis je Einheit aus — mit den Gegen-Zahlen daneben, damit ein Agent nicht dadurch gut aussieht, dass er die schweren Fälle abgibt."
         }
       },
-      "ctaTitle": "Covey ausprobieren",
-      "ctaLead": "Melden Sie sich an und sehen Sie Covey in Aktion.",
+      "ctaTitle": "Selbst installieren",
+      "ctaLead": "Installiert ist es in fünf Zeilen: klonen, Master-Key erzeugen, Sandbox-Image bauen, starten. Danach führt eine Checkliste zum ersten arbeitenden Agenten.",
       "ctaCovey": "Mehr über Covey"
     },
     "integrations": {
@@ -289,7 +289,8 @@
       "aria": "Dokumentations-Navigation",
       "title": "Dokumentation",
       "prev": "Zurück",
-      "next": "Weiter"
+      "next": "Weiter",
+      "faq": "Häufige Fragen"
     },
     "notFound": {
       "title": "Diese Seite gibt es nicht",

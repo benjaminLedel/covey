@@ -27,7 +27,7 @@
     "function": {
       "eyebrow": "Function",
       "title": "Everything an organization needs to put agents to work",
-      "lead": "From hiring through the working day to control — the capabilities at a glance.",
+      "lead": "From hiring through the working day to sign-off. What is listed here is built and running — the platform is well beyond its MVP.",
       "groups": {
         "structure": "Identity & Structure",
         "work": "Work & Target Systems",
@@ -104,8 +104,8 @@
           "d": "Every agent declares in KPIS.md what it delivers. The platform counts it from what it records anyway and works out the price per unit — with the counter-figures beside it, so an agent cannot look good by handing the hard cases away."
         }
       },
-      "ctaTitle": "Try Covey",
-      "ctaLead": "Sign in and see Covey in action.",
+      "ctaTitle": "Install it yourself",
+      "ctaLead": "Installing takes five lines: clone, generate a master key, build the sandbox image, start. A checklist then walks you to your first working agent.",
       "ctaCovey": "More about Covey"
     },
     "integrations": {
@@ -289,7 +289,8 @@
       "aria": "Documentation navigation",
       "title": "Documentation",
       "prev": "Back",
-      "next": "Next"
+      "next": "Next",
+      "faq": "Frequently asked questions"
     },
     "notFound": {
       "title": "This page does not exist",

@@ -13,7 +13,7 @@
    für Suchmaschinen nicht: eine Sprache, die nur im localStorage umschaltet,
    hat keine Adresse, unter der sie indexiert werden könnte. */
 
-import { DOC_PAGES } from "./docs/docsContent";
+import { DOC_SECTIONS, type Faq } from "./docs/docsContent";
 
 export type Lang = "de" | "en";
 export type Localized = Record<Lang, string>;
@@ -31,6 +31,17 @@ export type PublicRoute = {
   indexable: boolean;
   /** Gewicht in der Sitemap. */
   priority: number;
+  /** Abschnitt im Docs-Baum — die mittlere Stufe der Brotkrumen. */
+  section?: Localized;
+  /* Kanonische Adresse, wenn sie nicht die eigene ist.
+     Genau ein Fall bisher: /docs zeigt denselben Inhalt wie die erste
+     Docs-Seite (Docs.tsx fällt ohne Slug auf FIRST_DOC zurück). Zwei
+     Adressen mit demselben Text, beide mit Canonical auf sich selbst, sind
+     für eine Suchmaschine zwei konkurrierende Seiten — und keine von beiden
+     gewinnt. */
+  canonical?: Localized;
+  /** Die Fragen der Seite, für die FAQ-Auszeichnung (Head.tsx). */
+  faq?: Record<Lang, Faq[]>;
 };
 
 /* Die festen Seiten. Reihenfolge = Reihenfolge in der Sitemap. */
@@ -113,9 +124,10 @@ const PAGES: PublicRoute[] = [
       en: "Documentation — Covey",
     },
     description: {
-      de: "Konzept, Architektur und Betrieb von Covey: Agenten anlegen, Zielsysteme anbinden, Guard-Rails setzen, Sandboxen betreiben.",
-      en: "Concept, architecture and operations: create agents, connect target systems, set guard-rails and run sandboxes.",
+      de: "Covey selbst hosten und betreiben: Installation mit Docker, den ersten KI-Agenten anlegen, Zielsysteme anbinden, Guard-Rails setzen, Sandboxen betreiben.",
+      en: "Self-host and operate Covey: install with Docker, create your first AI agent, connect target systems, set guard-rails and run sandboxes.",
     },
+    canonical: { de: "/docs/was-ist-covey", en: "/en/docs/what-is-covey" },
     indexable: true,
     priority: 0.7,
   },
@@ -168,21 +180,33 @@ export function descriptionFromMarkdown(md: string, max = 160): string {
 }
 
 /* Die Docs-Seiten kommen aus dem Inhalt selbst — eine neue Seite in
-   docsContent.ts steht damit ohne weiteres Zutun in der Sitemap. */
-const DOCS: PublicRoute[] = DOC_PAGES.map((p) => ({
-  id: `docs-${p.slug}`,
-  path: { de: `/docs/${p.slug}`, en: `/en/docs/${p.slug}` },
-  title: {
-    de: `${p.title.de} — Covey Docs`,
-    en: `${p.title.en} — Covey Docs`,
-  },
-  description: {
-    de: descriptionFromMarkdown(p.body.de),
-    en: descriptionFromMarkdown(p.body.en),
-  },
-  indexable: true,
-  priority: 0.6,
-}));
+   docsContent.ts steht damit ohne weiteres Zutun in der Sitemap.
+
+   Der Slug kommt je Sprache aus dem Inhalt: Die englische Fassung lief vorher
+   unter dem deutschen (/en/docs/gedaechtnis), und eine Adresse ist das Erste,
+   was von einer Seite gelesen wird.
+
+   Die Description ebenso — geschrieben, nicht geschnitten. Der Automatismus
+   bleibt als Rückfallweg stehen, damit eine neue Seite ohne Description keine
+   leere im Suchergebnis bekommt, sondern eine mittelgute. */
+const DOCS: PublicRoute[] = DOC_SECTIONS.flatMap((sec) =>
+  sec.pages.map((p) => ({
+    id: `docs-${p.slug.de}`,
+    path: { de: `/docs/${p.slug.de}`, en: `/en/docs/${p.slug.en}` },
+    title: {
+      de: `${p.title.de} — Covey Docs`,
+      en: `${p.title.en} — Covey Docs`,
+    },
+    description: {
+      de: p.description.de || descriptionFromMarkdown(p.body.de),
+      en: p.description.en || descriptionFromMarkdown(p.body.en),
+    },
+    indexable: true,
+    priority: 0.6,
+    section: sec.title,
+    faq: p.faq,
+  })),
+);
 
 /** Die festen Seiten — sie tragen das Routing; die Docs-Einträge nicht. */
 export const PAGE_ROUTES: PublicRoute[] = PAGES;

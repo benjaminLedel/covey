@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 // Der Quelltext von App.tsx als Text — Vite löst ?raw auf, damit der Test ohne
 // Node-Typen auskommt (tsc -b prüft die Tests mit).
 import appQuelltext from "../App.tsx?raw";
+import { DOC_PAGES } from "./docs/docsContent";
 import {
   APP_ROUTE_PREFIXES,
   LANGS,
@@ -103,6 +104,51 @@ describe("App-Präfixe", () => {
     const oeffentlich = PUBLIC_ROUTES.flatMap((r) => LANGS.map((l) => r.path[l]));
     for (const prefix of APP_ROUTE_PREFIXES) {
       expect(oeffentlich).not.toContain(prefix);
+    }
+  });
+});
+
+/* Die Docs-Seiten tragen ihre Auffindbarkeit selbst: eigener Slug je Sprache,
+   geschriebene Description, Fragen in beiden Fassungen. Das hier hält fest,
+   dass eine neue Seite das nicht vergessen kann. */
+describe("Docs-Seiten", () => {
+  it("gibt jeder Sprache einen eigenen Slug-Raum ohne Dubletten", () => {
+    for (const l of LANGS) {
+      const slugs = DOC_PAGES.map((p) => p.slug[l]);
+      expect(new Set(slugs).size, `Slugs ${l}`).toBe(slugs.length);
+    }
+  });
+
+  it("schreibt englische Slugs englisch", () => {
+    // Ein paar Wörter, die im Deutschen wie im Englischen gleich aussehen
+    // (guard-rails, companion), sind erlaubt — Umlaut-Transkriptionen und
+    // deutsche Wörter nicht: /en/docs/gedaechtnis war genau der Fehler.
+    const deutsch = /(gedaechtnis|schnellstart|zielsysteme|betrieb|identitaet|kernkonzepte|ersten)/;
+    for (const p of DOC_PAGES) {
+      expect(p.slug.en, `englischer Slug von ${p.slug.de}`).not.toMatch(deutsch);
+    }
+  });
+
+  it("gibt jeder Seite eine geschriebene Description", () => {
+    for (const p of DOC_PAGES) {
+      for (const l of LANGS) {
+        expect(p.description[l].length, `Description ${p.slug.de}/${l}`).toBeGreaterThan(60);
+      }
+    }
+  });
+
+  it("hält die Fragen in beiden Sprachen gleich lang", () => {
+    // Eine FAQ, die es nur auf Deutsch gibt, wäre in der englischen Fassung
+    // eine ausgezeichnete Frage ohne sichtbare Antwort.
+    for (const p of DOC_PAGES) {
+      if (!p.faq) continue;
+      expect(p.faq.en.length, `FAQ-Anzahl ${p.slug.de}`).toBe(p.faq.de.length);
+      for (const l of LANGS) {
+        for (const f of p.faq[l]) {
+          expect(f.q.length, `Frage ${p.slug.de}/${l}`).toBeGreaterThan(10);
+          expect(f.a.length, `Antwort ${p.slug.de}/${l}`).toBeGreaterThan(40);
+        }
+      }
     }
   });
 });
