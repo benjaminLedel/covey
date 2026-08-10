@@ -107,6 +107,11 @@ function BriefProgress({ result, onOpen }: { result: BriefResult; onOpen: (a: Ag
     queryKey: ["brief", result.task.id],
     queryFn: () => api<BriefStatus>(`/hiring/brief/${result.task.id}`),
     refetchInterval: q => {
+      // Wartet der Auftrag auf die Einstellung, passiert hier nichts mehr:
+      // ein Entwurf wird nicht dispatcht, und was das ändert, ist ein Mensch
+      // an einer anderen Stelle der Oberfläche. Alle drei Sekunden nachzusehen
+      // wäre ein Poll, der per Konstruktion nie etwas findet.
+      if (result.waiting_for_hire) return false;
       const s = (q.state.data as BriefStatus | undefined)?.task.state;
       return s === "done" || s === "failed" || s === "cancelled" ? false : 3000;
     },
