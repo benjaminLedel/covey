@@ -2,11 +2,12 @@ import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, post, ApiError, type Agent, type AgentTemplate, type Principal } from "../api";
+import { api, post, ApiError, isDraft, type Agent, type AgentTemplate, type Principal } from "../api";
 import { generateAgentName, slugify } from "../names";
 import { GuidedCreate } from "./agents/GuidedCreate";
 import { Modal } from "../components/Modal";
 import { Onboarding } from "../components/Onboarding";
+import { HireDialog } from "../components/HireDialog";
 
 const canManage = (role: string) => role === "platform_admin" || role === "agent_owner";
 const canSecurity = (role: string) => role === "platform_admin" || role === "security";
@@ -20,6 +21,11 @@ export default function Dashboard({ me }: { me: Principal }) {
     queryFn: () => api<{ fleet_killed: boolean }>("/fleet"),
   });
   const [showCreate, setShowCreate] = useState(false);
+  const [hiring, setHiring] = useState<Agent | null>(null);
+
+  const all = agents.data ?? [];
+  const drafts = all.filter(isDraft);
+  const staff = all.filter((a) => !isDraft(a));
 
   const fleetMut = useMutation({
     mutationFn: (kill: boolean) => post(kill ? "/fleet/kill" : "/fleet/resume"),
@@ -81,14 +87,33 @@ export default function Dashboard({ me }: { me: Principal }) {
         </div>
       )}
 
+      {/* Entwürfe zuerst und getrennt: ein Agent, der noch nicht eingestellt
+          ist, arbeitet nicht — er stünde zwischen den anderen wie ein
+          Kollege da und wäre doch keiner. */}
+      {drafts.length > 0 && (
+        <div className="mb-5">
+          <div className="flex items-baseline gap-2 mb-1">
+            <h2 className="text-sm" style={{ fontWeight: 600 }}>{t("dashboard.draftsTitle")}</h2>
+            <span className="muted text-xs">{t("dashboard.draftsHint")}</span>
+          </div>
+          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))" }}>
+            {drafts.map((a) => (
+              <AgentCard key={a.id} agent={a} onHire={canManage(me.Role) ? setHiring : undefined} />
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))" }}>
-        {agents.data?.map((a) => (
+        {staff.map((a) => (
           <AgentCard key={a.id} agent={a} />
         ))}
         {agents.data?.length === 0 && (
           <p className="muted">{t("dashboard.noAgents")}</p>
         )}
       </div>
+
+      {hiring && <HireDialog agent={hiring} onClose={() => setHiring(null)} />}
 
       {showCreate && (
         <CreateAgentModal
@@ -103,8 +128,9 @@ export default function Dashboard({ me }: { me: Principal }) {
   );
 }
 
-function AgentCard({ agent }: { agent: Agent }) {
+function AgentCard({ agent, onHire }: { agent: Agent; onHire?: (a: Agent) => void }) {
   const { t } = useTranslation();
+  const draft = isDraft(agent);
   const initials = agent.display_name
     .split(/\s+/)
     .map((w) => w[0])
@@ -121,14 +147,30 @@ function AgentCard({ agent }: { agent: Agent }) {
             <div className="muted text-xs">{agent.slug}</div>
           </div>
         </div>
-        <span className={`badge st-${agent.killed ? "killed" : agent.status}`}>
-          {t(`status.${agent.killed ? "killed" : agent.status}`, agent.killed ? "gestoppt" : agent.status)}
-        </span>
+        {draft ? (
+          <span className="badge st-draft">{t("dashboard.draftBadge")}</span>
+        ) : (
+          <span className={`badge st-${agent.killed ? "killed" : agent.status}`}>
+            {t(`status.${agent.killed ? "killed" : agent.status}`, agent.killed ? "gestoppt" : agent.status)}
+          </span>
+        )}
       </div>
       <div className="muted text-xs">
         Runtime: <span className="mono">{agent.runtime}</span>
         {agent.budget_usd > 0 && <> · {t("dashboard.budget")} {agent.budget_usd.toFixed(2)} $</>}
       </div>
+      {draft && onHire && (
+        <button
+          className="btn sm primary"
+          style={{ marginTop: 10 }}
+          onClick={(e) => {
+            e.preventDefault(); // die Karte ist ein Link — der Knopf ist es nicht
+            onHire(agent);
+          }}
+        >
+          {t("hire.action")}
+        </button>
+      )}
     </Link>
   );
 }

@@ -143,6 +143,21 @@ h1, h2, h3 { font-weight: 500; margin: 0; }
 .st-sleeping, .st-cancelled { background: var(--surface-1); color: var(--text-secondary); border: 0.5px solid var(--border); }
 .st-killed, .st-failed, .st-denied { background: transparent; color: var(--text-danger); border: 0.5px solid var(--border-danger); }
 .st-open { background: var(--surface-1); color: var(--text-secondary); border: 0.5px dashed var(--clay); }
+/* Entwurf: angelegt, aber noch nicht eingestellt. Gestrichelt wie „offen" —
+   es ist derselbe Gedanke, nur über einen Mitarbeiter statt über eine
+   Aufgabe: da ist etwas, und es fehlt noch eine Entscheidung. */
+.st-draft { background: transparent; color: var(--text-secondary); border: 0.5px dashed var(--text-secondary); }
+
+/* Die Zusammenfassung im Einstellungs-Dialog: Label links, Wert rechts. */
+.hire-summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 16px;
+  align-items: baseline;
+  margin: 0;
+}
+.hire-summary dd { margin: 0; }
+.hire-systems { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; font-size: 13px; }
 
 /* Einzeilige Felder deckeln: seit der Rahmen die volle Bildschirmbreite nutzt,
    liefe ein `width: 100%`-Feld sonst über 2000px — bedienbar wird es dadurch

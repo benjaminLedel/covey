@@ -69,6 +69,11 @@ type Agent struct {
 	// (opt-in): dev servers and caches survive, the next run starts without a
 	// cold build-up. Default false → ephemeral like everyone else (spec/01).
 	WarmSandbox bool `json:"warm_sandbox"`
+	// HiredAt is the agent's first day. nil = a draft: it exists and can be
+	// configured, but it is not dispatched, has no heartbeat, no live webhook,
+	// no sandbox and no cost (spec/20). Hiring is a human act — no action of the
+	// platform's own target system can perform it.
+	HiredAt *time.Time `json:"hired_at,omitempty"`
 	// WebhookToken is the secret of the optional generic webhook trigger
 	// (nil = disabled). Deliberately not in the JSON — readable only through
 	// the dedicated webhook endpoint (manager roles).
@@ -76,6 +81,10 @@ type Agent struct {
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
+
+// Draft: created, not yet hired. Read at every point that would otherwise
+// start a waking phase.
+func (a Agent) Draft() bool { return a.HiredAt == nil }
 
 type ConfigVersion struct {
 	ID             uuid.UUID         `json:"id"`
@@ -109,13 +118,13 @@ type Registry struct {
 
 func NewRegistry(pool *pgxpool.Pool) *Registry { return &Registry{pool: pool} }
 
-const agentCols = "id, org_id, slug, display_name, runtime, model, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, runtime_id, webhook_token, COALESCE(recording_level,''), warm_sandbox, created_at, updated_at"
+const agentCols = "id, org_id, slug, display_name, runtime, model, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, runtime_id, webhook_token, COALESCE(recording_level,''), warm_sandbox, hired_at, created_at, updated_at"
 
 func scanAgent(row pgx.Row) (Agent, error) {
 	var a Agent
 	err := row.Scan(&a.ID, &a.OrgID, &a.Slug, &a.DisplayName, &a.Runtime, &a.Model, &a.MaxTurns, &a.Status,
 		&a.OwnerID, &a.SupervisorID, &a.DepartmentID, &a.JobTitle, &a.Identities, &a.Phone, &a.Responsibilities, &a.Custom,
-		&a.Killed, &a.BudgetUSD, &a.RuntimeID, &a.WebhookToken, &a.RecordingLevel, &a.WarmSandbox, &a.CreatedAt, &a.UpdatedAt)
+		&a.Killed, &a.BudgetUSD, &a.RuntimeID, &a.WebhookToken, &a.RecordingLevel, &a.WarmSandbox, &a.HiredAt, &a.CreatedAt, &a.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, ErrNotFound
 	}
@@ -123,13 +132,43 @@ func scanAgent(row pgx.Row) (Agent, error) {
 }
 
 func (r *Registry) Create(ctx context.Context, orgID uuid.UUID, slug, displayName, runtime string, ownerID *uuid.UUID) (Agent, error) {
+	return r.create(ctx, orgID, slug, displayName, runtime, ownerID, false)
+}
+
+// CreateDraft creates an agent that has not been hired yet: it exists, can be
+// configured and looked at, and is skipped by the dispatch loop until a human
+// hires it (spec/20). The way in for everything that produces an agent without
+// somebody having finished thinking about it — a template, an import, and above
+// all the People department, whose output is other agents.
+func (r *Registry) CreateDraft(ctx context.Context, orgID uuid.UUID, slug, displayName, runtime string, ownerID *uuid.UUID) (Agent, error) {
+	return r.create(ctx, orgID, slug, displayName, runtime, ownerID, true)
+}
+
+func (r *Registry) create(ctx context.Context, orgID uuid.UUID, slug, displayName, runtime string, ownerID *uuid.UUID, draft bool) (Agent, error) {
 	if runtime == "" {
 		runtime = "claude-code"
 	}
-	row := r.pool.QueryRow(ctx, `INSERT INTO agents (id, org_id, slug, display_name, runtime, owner_id)
-		VALUES ($1,$2,$3,$4,$5,$6) RETURNING `+agentCols,
+	hired := "now()"
+	if draft {
+		hired = "NULL"
+	}
+	row := r.pool.QueryRow(ctx, `INSERT INTO agents (id, org_id, slug, display_name, runtime, owner_id, hired_at)
+		VALUES ($1,$2,$3,$4,$5,$6,`+hired+`) RETURNING `+agentCols,
 		uuid.New(), orgID, slug, displayName, runtime, ownerID)
 	return scanAgent(row)
+}
+
+// Hire ends the draft state: from this moment the agent is dispatched, its
+// heartbeat is scheduled and its queued tasks are released. Idempotent — the
+// hiring date is not overwritten, because it is a fact about a day that has
+// already happened.
+func (r *Registry) Hire(ctx context.Context, id uuid.UUID) error {
+	tag, err := r.pool.Exec(ctx,
+		"UPDATE agents SET hired_at=COALESCE(hired_at, now()), updated_at=now() WHERE id=$1", id)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
 }
 
 func (r *Registry) Get(ctx context.Context, id uuid.UUID) (Agent, error) {

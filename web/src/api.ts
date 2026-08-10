@@ -29,8 +29,18 @@ export type Agent = {
   custom: Record<string, string>;
   killed: boolean;
   budget_usd: number;
+  // Der erste Arbeitstag. Fehlt er, ist der Agent ein Entwurf: angelegt,
+  // konfigurierbar, aber nicht dispatcht — kein Heartbeat, kein scharfer
+  // Webhook, keine Sandbox, keine Kosten (spec/20).
+  hired_at?: string;
   created_at: string;
 };
+
+/** Entwurf: angelegt, aber noch nicht eingestellt. */
+export const isDraft = (a: Agent) => !a.hired_at;
+
+/** Einstellen — der eine Weg aus dem Entwurf, und ihn geht ein Mensch. */
+export const hireAgent = (id: string) => post<Agent>(`/agents/${id}/hire`);
 
 export type Task = {
   id: string;

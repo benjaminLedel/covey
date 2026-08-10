@@ -550,6 +550,9 @@ func (s *Server) handleWake(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
+	if a, err := s.Registry.Get(r.Context(), id); err == nil && draftBlocked(w, a) {
+		return
+	}
 	s.Orch.EnsureRunning(id)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }

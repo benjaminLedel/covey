@@ -628,7 +628,10 @@
       "supervisorHint": "The human to escalate to when the agent gets stuck or needs an approval.",
       "departmentLabel": "Department",
       "departmentHint": "Determines its place in the org chart and the cost centre. May stay empty."
-    }
+    },
+    "draftsTitle": "In hiring",
+    "draftsHint": "created, not hired yet — they are not working",
+    "draftBadge": "Draft"
   },
   "agent": {
     "notFound": "Agent not found.",
@@ -1711,5 +1714,23 @@
   },
   "common": {
     "loading": "loading …"
+  },
+  "hire": {
+    "action": "Hire",
+    "title": "Hire {{name}}",
+    "lead": "After this the agent works: it gets woken, its heartbeat runs, waiting tasks start. Access that has not been approved yet is requested.",
+    "confirm": "Hire",
+    "hiring": "hiring …",
+    "role": "Role",
+    "supervisor": "Supervisor",
+    "department": "Department",
+    "budget": "Budget",
+    "noRole": "no job title yet",
+    "noBudget": "no cap",
+    "systems": "Target systems it should use",
+    "noSystems": "none — the agent works in its sandbox only",
+    "systemPending": "not enabled yet",
+    "bannerTitle": "This agent is a draft",
+    "bannerLead": "It exists and can be configured, but it does not work yet: no dispatch, no heartbeat, no sandbox, no cost. Look through the configuration, then hire it."
   }
 }

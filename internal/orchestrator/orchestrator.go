@@ -356,7 +356,7 @@ func (o *Orchestrator) tick(ctx context.Context) {
 	rows, err := o.Pool.Query(ctx, `SELECT DISTINCT a.id FROM agents a
 		JOIN backlog_tasks t ON t.agent_id=a.id AND t.state='open'
 		JOIN organizations org ON org.id=a.org_id
-		WHERE NOT a.killed AND NOT org.fleet_killed`)
+		WHERE NOT a.killed AND NOT org.fleet_killed AND a.hired_at IS NOT NULL`)
 	if err != nil {
 		o.Log.Warn("tick query", "err", err)
 		return
@@ -460,7 +460,7 @@ func (o *Orchestrator) fireHeartbeats(ctx context.Context) {
 		FROM agent_heartbeats h
 		JOIN agents a ON a.id=h.agent_id
 		JOIN organizations org ON org.id=a.org_id
-		WHERE NOT a.killed AND NOT org.fleet_killed
+		WHERE NOT a.killed AND NOT org.fleet_killed AND a.hired_at IS NOT NULL
 		  AND ((h.every_seconds IS NOT NULL
 		        AND h.last_fired_at + make_interval(secs => h.every_seconds) <= now())
 		    OR (h.daily_at IS NOT NULL AND CURRENT_TIME >= h.daily_at
@@ -717,6 +717,11 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 	}
 	s.agent = agent
 	if agent.Killed {
+		return nil
+	}
+	// A draft has no first day, so it has no waking phase either. Queued tasks
+	// stay where they are — hiring is what releases them (spec/20).
+	if agent.Draft() {
 		return nil
 	}
 	if fleetKilled, err := o.Registry.FleetKilled(ctx, agent.OrgID); err != nil || fleetKilled {
@@ -1452,7 +1457,8 @@ func (o *Orchestrator) agentTeamSection(ctx context.Context, self agents.Agent) 
 		dr.Close()
 	}
 	rows, err := o.Pool.Query(ctx, `SELECT id, display_name, job_title, identities, responsibilities, department_id
-		FROM agents WHERE org_id=$1 AND id<>$2 AND NOT killed ORDER BY created_at`, self.OrgID, self.ID)
+		FROM agents WHERE org_id=$1 AND id<>$2 AND NOT killed AND hired_at IS NOT NULL
+		ORDER BY created_at`, self.OrgID, self.ID)
 	if err != nil {
 		return ""
 	}
@@ -2102,6 +2108,9 @@ func (o *Orchestrator) createAgentTask(ctx context.Context, agent agents.Agent, 
 		}
 		if found.Killed {
 			return fail(fmt.Sprintf("agent %q is paused — no delegation", slug))
+		}
+		if found.Draft() {
+			return fail(fmt.Sprintf("agent %q has not been hired yet — no delegation", slug))
 		}
 		targetAgent = found
 	}

@@ -599,11 +599,17 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 	// --- Creating. From here on the agent exists; subsequent errors would be a
 	// half import, which is why everything parse-/RBAC-critical was checked
 	// above. ---
-	a, err := s.Registry.Create(ctx, p.OrgID, b.Agent.Slug, b.Agent.DisplayName, b.Agent.Runtime, &p.ID)
+	// As a draft (spec/20). An imported agent is precisely the case where
+	// something is regularly still missing — a secret the bundle could only name,
+	// an access that has to be approved, a playbook written for a different
+	// organisation. Until now it started working with all of that open; now
+	// somebody looks at it and hires it.
+	a, err := s.Registry.CreateDraft(ctx, p.OrgID, b.Agent.Slug, b.Agent.DisplayName, b.Agent.Runtime, &p.ID)
 	if err != nil {
 		mapErr(w, err)
 		return
 	}
+	warnings = append(warnings, "the agent was created as a draft — check it and hire it, then it starts working")
 	// An imported agent needs a workplace just as much as a hand-made one — a
 	// ready-made bundle from examples/ is for many people the FIRST agent, and
 	// it must not be the one that cannot work.

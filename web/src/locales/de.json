@@ -628,7 +628,10 @@
       "supervisorHint": "Der Mensch, an den eskaliert wird, wenn der Agent nicht weiterkommt oder eine Freigabe braucht.",
       "departmentLabel": "Abteilung",
       "departmentHint": "Bestimmt die Einordnung im Org-Chart und die Kostenstelle. Kann leer bleiben."
-    }
+    },
+    "draftsTitle": "Im Einstellungsverfahren",
+    "draftsHint": "angelegt, aber noch nicht eingestellt — sie arbeiten noch nicht",
+    "draftBadge": "Entwurf"
   },
   "agent": {
     "notFound": "Agent nicht gefunden.",
@@ -1711,5 +1714,23 @@
   },
   "common": {
     "loading": "lädt …"
+  },
+  "hire": {
+    "action": "Einstellen",
+    "title": "{{name}} einstellen",
+    "lead": "Danach arbeitet dieser Agent: Er wird geweckt, sein Heartbeat läuft, wartende Aufgaben starten. Zugänge, die noch keine Freigabe haben, werden beantragt.",
+    "confirm": "Einstellen",
+    "hiring": "wird eingestellt …",
+    "role": "Rolle",
+    "supervisor": "Vorgesetzt",
+    "department": "Abteilung",
+    "budget": "Budget",
+    "noRole": "noch keine Funktion hinterlegt",
+    "noBudget": "kein Deckel",
+    "systems": "Zielsysteme, die er nutzen soll",
+    "noSystems": "keine — der Agent arbeitet nur in seiner Sandbox",
+    "systemPending": "noch nicht freigegeben",
+    "bannerTitle": "Dieser Agent ist ein Entwurf",
+    "bannerLead": "Er ist angelegt und konfigurierbar, arbeitet aber noch nicht: kein Dispatch, kein Heartbeat, keine Sandbox, keine Kosten. Sieh die Konfiguration durch und stelle ihn dann ein."
   }
 }
