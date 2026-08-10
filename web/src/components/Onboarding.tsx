@@ -18,7 +18,10 @@ import { api, type OnboardingState, type Principal } from "../api";
 // Aufgaben, die er nicht erledigen kann.
 
 const STEPS: Array<{ key: string; to: string }> = [
-  { key: "credential", to: "/secrets" },
+  // Der Zugang führt auf die Einrichtung, nicht mehr auf die Secrets-Seite:
+  // dort wird der Wert geprüft, der Arbeitsplatz drumherum entsteht mit, und
+  // die beiden nächsten Fragen stehen gleich daneben (spec/20).
+  { key: "credential", to: "/setup" },
   { key: "agent", to: "/" },
   { key: "config", to: "/" },
   { key: "task", to: "/" },

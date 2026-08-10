@@ -1741,5 +1741,40 @@
     "systemPending": "not enabled yet",
     "bannerTitle": "This agent is a draft",
     "bannerLead": "It exists and can be configured, but it does not work yet: no dispatch, no heartbeat, no sandbox, no cost. Look through the configuration, then hire it."
+  },
+  "setup": {
+    "title": "Setup",
+    "subtitle": "three questions, each one skippable",
+    "lead": "The credential first — without it nothing this interface offers can actually run. After that most of the rest can be done for you rather than by you. Everything here can also be done by hand later.",
+    "saving": "saving …",
+    "engine": {
+      "title": "Engine and credential",
+      "hint": "What your agents think with, and on whose contract. The value is checked before it is stored.",
+      "engine": "Engine",
+      "kind": "Kind of credential",
+      "value": "Value",
+      "valueHint": "Stored as the secret {{key}} and from here on carries the sandbox runs, the config assistant and the People department.",
+      "save": "Check and save",
+      "checking": "checking …",
+      "done": "A credential is stored, and the workplace around it exists."
+    },
+    "org": {
+      "title": "What does your company do?",
+      "hint": "Three to five sentences. They go into every hiring brief, into the config of newly drafted agents and into the config assistant.",
+      "name": "Name of the organisation",
+      "description": "Description",
+      "placeholder": "We do … Our customers are … What matters to us is …",
+      "save": "Save"
+    },
+    "people": {
+      "title": "Your People department",
+      "hint": "An agent whose job is drafting the others.",
+      "lead": "From a few sentences it writes a complete agent — character, remit, procedures, access — and leaves it as a draft. Hiring it is up to you.",
+      "noLLM": "Without an Anthropic credential in the control plane it is created from the template, without being tailored to your description.",
+      "onboard": "Have it propose the first three colleagues right after hiring",
+      "create": "Create the People department",
+      "creating": "creating …",
+      "open": "Open the People department"
+    }
   }
 }

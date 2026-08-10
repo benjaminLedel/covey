@@ -23,6 +23,7 @@ import Egress from "./pages/Egress";
 import Requests from "./pages/Requests";
 import Audit from "./pages/Audit";
 import Templates from "./pages/Templates";
+import Setup from "./pages/Setup";
 import Costs from "./pages/Costs";
 
 // useLiveEvents hält die UI über SSE aktuell: jedes Server-Event invalidiert
@@ -446,6 +447,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
           <Routes>
             <Route path="/" element={<Dashboard me={me} />} />
             <Route path="/agents/:id" element={<AgentPage me={me} />} />
+            <Route path="/setup" element={<Setup />} />
             <Route path="/templates" element={<Templates me={me} />} />
             <Route path="/skills" element={<Skills me={me} />} />
             <Route path="/org" element={<Org />} />

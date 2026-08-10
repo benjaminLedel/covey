@@ -148,6 +148,21 @@ h1, h2, h3 { font-weight: 500; margin: 0; }
    Aufgabe: da ist etwas, und es fehlt noch eine Entscheidung. */
 .st-draft { background: transparent; color: var(--text-secondary); border: 0.5px dashed var(--text-secondary); }
 
+/* Die Nummern der Setup-Karten: erledigte tragen einen Haken statt der Ziffer. */
+.setup-n {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 0.5px solid var(--border);
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.setup-n.done { border-color: var(--text-success); color: var(--text-success); }
+
 /* Die Zusammenfassung im Einstellungs-Dialog: Label links, Wert rechts. */
 .hire-summary {
   display: grid;

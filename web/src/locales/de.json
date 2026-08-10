@@ -1741,5 +1741,40 @@
     "systemPending": "noch nicht freigegeben",
     "bannerTitle": "Dieser Agent ist ein Entwurf",
     "bannerLead": "Er ist angelegt und konfigurierbar, arbeitet aber noch nicht: kein Dispatch, kein Heartbeat, keine Sandbox, keine Kosten. Sieh die Konfiguration durch und stelle ihn dann ein."
+  },
+  "setup": {
+    "title": "Einrichtung",
+    "subtitle": "drei Fragen, jede überspringbar",
+    "lead": "Der Zugang zuerst — ohne ihn kann nichts laufen, was diese Oberfläche anbietet. Danach lässt sich das meiste für Sie erledigen statt von Ihnen. Alles hier geht auch später von Hand.",
+    "saving": "speichert …",
+    "engine": {
+      "title": "Motor und Zugang",
+      "hint": "Womit denken Ihre Agenten, und auf wessen Vertrag. Der Wert wird geprüft, bevor er gespeichert wird.",
+      "engine": "Engine",
+      "kind": "Art des Zugangs",
+      "value": "Wert",
+      "valueHint": "Wird als Secret {{key}} abgelegt und trägt von hier an die Sandbox-Läufe, den Config-Assistenten und die Personalabteilung.",
+      "save": "Prüfen und speichern",
+      "checking": "wird geprüft …",
+      "done": "Ein Zugang ist hinterlegt, der Arbeitsplatz darum herum steht."
+    },
+    "org": {
+      "title": "Was macht Ihr Unternehmen?",
+      "hint": "Drei bis fünf Sätze. Sie gehen in jede Ausschreibung, in die Config neu entworfener Agenten und in den Config-Assistenten ein.",
+      "name": "Name der Organisation",
+      "description": "Beschreibung",
+      "placeholder": "Wir machen … Unsere Kunden sind … Wichtig ist uns …",
+      "save": "Speichern"
+    },
+    "people": {
+      "title": "Ihre Personalabteilung",
+      "hint": "Ein Agent, dessen Aufgabe es ist, die anderen zu entwerfen.",
+      "lead": "Sie beschreibt aus ein paar Sätzen einen vollständigen Agenten — Charakter, Zuständigkeit, Verfahren, Zugänge — und legt ihn als Entwurf hin. Eingestellt wird er von Ihnen.",
+      "noLLM": "Ohne Anthropic-Zugang in der Control Plane entsteht sie aus der Vorlage, ohne auf Ihre Beschreibung zugeschnitten zu werden.",
+      "onboard": "Gleich nach dem Einstellen die ersten drei Kollegen vorschlagen lassen",
+      "create": "Personalabteilung anlegen",
+      "creating": "wird angelegt …",
+      "open": "Personalabteilung öffnen"
+    }
   }
 }

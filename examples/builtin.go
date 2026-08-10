@@ -91,6 +91,13 @@ var manifest = []struct {
 	DescriptionDe string
 }{
 	{
+		File:          "people-department.bundle.json",
+		Name:          "People department (drafts agents)",
+		Description:   "The organisation's own HR: turns a few sentences about what somebody should do into a complete agent — character, remit, procedures, access, place in the org chart — and leaves it as a draft for a human to hire. Set up during setup; installable here for anyone who skipped that.",
+		NameDe:        "Personalabteilung (entwirft Agenten)",
+		DescriptionDe: "Die Personalabteilung der Organisation: macht aus ein paar Sätzen darüber, was jemand tun soll, einen vollständigen Agenten — Charakter, Zuständigkeit, Verfahren, Zugänge, Platz im Org-Chart — und legt ihn als Entwurf hin, den ein Mensch einstellt. Wird beim Setup eingerichtet; hier für alle, die das übersprungen haben.",
+	},
+	{
 		File:          "coding-agent.bundle.json",
 		Name:          "Developer agent (GitLab)",
 		Description:   "Picks up GitLab issues, verifies bugs against the source and has a sub-agent develop the fix inside the project checkout — where the project's own CLAUDE.md, skills and subagents apply. Commits the result and runs the review loop.",

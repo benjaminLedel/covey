@@ -168,6 +168,14 @@ func (s *Server) Handler() http.Handler {
 	manage := []string{identity.RolePlatformAdmin, identity.RoleAgentOwner}
 	securityRoles := []string{identity.RolePlatformAdmin, identity.RoleSecurity}
 
+	// Setup: the credential first, then the company, then the People department
+	// (setup.go, spec/20). Everything here is also reachable by hand — the setup
+	// buys order, not exclusivity.
+	mux.Handle("GET /api/v1/setup/state", s.rbac(manage, s.handleSetupState))
+	mux.Handle("POST /api/v1/setup/engine", s.rbac(manage, s.handleSetupEngine))
+	mux.Handle("POST /api/v1/setup/org", s.rbac(manage, s.handleSetupOrg))
+	mux.Handle("POST /api/v1/setup/people", s.rbac(manage, s.handleSetupPeople))
+
 	// First steps as a checklist over the real org state (onboarding.go).
 	// The audit trail may be read by those it concerns: platform admin,
 	// security and auditor. Agent owner and controlling may not — they appear

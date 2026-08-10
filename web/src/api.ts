@@ -412,6 +412,19 @@ export type SetupStep = {
 
 /** Eine Engine: der Code, der die LLM-Schleife fährt. Sie deklariert, welche
  *  Credentials sie kennt und wie sie sie braucht — und was sie kann. */
+/** Der Zustand der Einrichtung (spec/20): was steht, und was zu wählen ist. */
+export type SetupState = {
+  engine_done: boolean;
+  org_done: boolean;
+  people_done: boolean;
+  people_id?: string;
+  engines: RuntimeInfo[];
+  org_name: string;
+  org_description: string;
+  /** Kann die Control Plane die Personalabteilung personalisieren (Stufe 2)? */
+  llm_available: boolean;
+};
+
 export type RuntimeInfo = {
   name: string;
   label: string;

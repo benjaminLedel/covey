@@ -44,6 +44,11 @@ type bundleAgent struct {
 	MaxTurns        int     `json:"max_turns,omitempty"`
 	BudgetUSD       float64 `json:"budget_usd,omitempty"`
 	SupervisorEmail string  `json:"supervisor_email,omitempty"`
+	// JobTitle is the function in the employee profile. Part of the bundle
+	// because agents are employees (spec/02): a template that describes a role
+	// but leaves the function empty produces a colleague nobody can find in the
+	// team directory by what they do.
+	JobTitle string `json:"job_title,omitempty"`
 	// WebhookEnabled: on import a FRESH token is generated — the token itself
 	// is a secret and is never part of the bundle.
 	WebhookEnabled bool `json:"webhook_enabled,omitempty"`
@@ -154,6 +159,7 @@ func (s *Server) buildBundle(ctx context.Context, orgID, agentID uuid.UUID, incl
 			Model: a.Model, MaxTurns: a.MaxTurns, BudgetUSD: a.BudgetUSD,
 			WebhookEnabled: a.WebhookToken != nil,
 			WarmSandbox:    a.WarmSandbox,
+			JobTitle:       a.JobTitle,
 		},
 	}
 	if a.SupervisorID != nil {
@@ -634,6 +640,12 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	if b.Agent.WarmSandbox {
 		if err := s.Registry.SetWarmSandbox(ctx, a.ID, true); err != nil {
+			mapErr(w, err)
+			return
+		}
+	}
+	if jt := strings.TrimSpace(b.Agent.JobTitle); jt != "" {
+		if _, err := s.Registry.UpdateProfile(ctx, p.OrgID, a.ID, agents.ProfileUpdate{JobTitle: &jt}); err != nil {
 			mapErr(w, err)
 			return
 		}
