@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
-  api, patch,
+  api, patch, isDraft,
   createDepartment, renameDepartment, deleteDepartment, setDepartmentColor,
   setAgentDepartment, setAgentSupervisor,
   setHumanDepartment, setHumanManager,
@@ -637,6 +637,7 @@ function MemberNode({
   // Agenten dürfen auf beides fallen.
   const canDrop = !!dragging && dragging.member.id !== member.id
     && (dragging.kind === "agent" || !isAgent);
+  const draft = agent ? isDraft(agent) : false;
   const status = agent ? (agent.killed ? "killed" : agent.status) : "";
   const nextSeen = new Set(seen).add(member.id);
   const deptId = (member.department_id ?? null) as string | null;
@@ -680,9 +681,13 @@ function MemberNode({
               {isAgent ? (agent!.job_title || agent!.slug) : (human!.job_title || t(`role.${human!.role}`, human!.role))}
             </div>
           </div>
-          {isAgent
-            ? <span className={`badge st-${status}`}>{t(`status.${status}`, status)}</span>
-            : <span className="ntag">{t("org.nodeHuman")}</span>}
+          {isAgent ? (
+            draft
+              ? <span className="badge st-draft">{t("dashboard.draftBadge")}</span>
+              : <span className={`badge st-${status}`}>{t(`status.${status}`, status)}</span>
+          ) : (
+            <span className="ntag">{t("org.nodeHuman")}</span>
+          )}
         </Link>
         {isLead && (
           <span className="lead-pill" title={t("org.leadLabel")}>
