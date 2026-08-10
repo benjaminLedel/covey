@@ -513,7 +513,9 @@ Zwei Dinge tragen dabei die Sandbox-Isolation und gehen beim Anpassen leicht ver
 
 ## Der erste Agent
 
-Nach dem Login steht ein Demo-Agent bereit. Er braucht genau eines, um arbeiten zu können: **Anthropic-Zugang** — das Secret \`anthropic_api_key\` (API-Schlüssel) oder \`claude_code_oauth_token\` (Abo-Konto, Token einmalig mit \`claude setup-token\` erzeugen). Unter *Secrets* hinterlegen, den Rest verdrahtet Covey selbst.
+Nach dem Login führt die **Einrichtung** durch drei Fragen, jede überspringbar: die Engine und ihr Zugang — bei Claude Code das Secret \`anthropic_api_key\` (API-Schlüssel) oder \`claude_code_oauth_token\` (Abo-Konto, Token einmalig mit \`claude setup-token\` erzeugen), geprüft bevor er gespeichert wird —, dann drei Sätze darüber, was Ihr Unternehmen macht, und zuletzt die **Personalabteilung**: ein Agent, dessen Aufgabe es ist, die anderen zu entwerfen.
+
+Danach ist *Neuer Agent → Ausschreibung* der kürzeste Weg zur ersten Kollegin: in ein paar Sätzen beschreiben, was sie tun soll. Was dabei herauskommt, ist ein **Entwurf** — er arbeitet erst, wenn Sie ihn einstellen. Der Demo-Agent, der nach dem Login bereitsteht, ist bereits eingestellt und läuft, sobald der Zugang steht.
 
 Die Checkliste **Erste Schritte** auf der Agenten-Übersicht führt den Weg zu Ende; sie liest den tatsächlichen Zustand der Organisation und verschwindet, wenn alles erledigt ist.
 
@@ -569,7 +571,9 @@ Two things carry the sandbox isolation and are easy to lose when adapting the fi
 
 ## Your first agent
 
-After signing in, a demo agent is waiting. It needs exactly one thing to be able to work: **Anthropic access** — the secret \`anthropic_api_key\` (an API key) or \`claude_code_oauth_token\` (a subscription account; generate the token once with \`claude setup-token\`). Deposit it under *Secrets*; Covey wires up the rest itself.
+After signing in, **Setup** walks you through three questions, each one skippable: the engine and its credential — for Claude Code the secret \`anthropic_api_key\` (an API key) or \`claude_code_oauth_token\` (a subscription account; generate the token once with \`claude setup-token\`), checked before it is stored — then three sentences on what your company does, and finally the **People department**: an agent whose job is drafting the others.
+
+After that, *New agent → brief* is the shortest way to your first colleague: describe in a few sentences what they should do. What comes out is a **draft** — it only starts working once you hire it. The demo agent waiting after sign-in is already hired and runs as soon as the credential is there.
 
 The **first steps** checklist on the agent overview walks the rest of the way; it reads the organisation's actual state and disappears once everything is done.
 
@@ -637,8 +641,8 @@ It fetches the right binary from the latest release and verifies its SHA-256 che
         slug: { de: "ersten-agenten", en: "first-agent" },
         title: { de: "Den ersten Agenten anlegen", en: "Create your first agent" },
         description: {
-          de: "In fünf Schritten vom leeren Covey zum arbeitenden KI-Agenten: Credential hinterlegen, Agenten anlegen, SOUL.md schreiben, Aufgabe stellen, Lauf im Recording ansehen.",
-          en: "Five steps from an empty Covey to a working AI agent: deposit a credential, create the agent, write SOUL.md, give it a task, watch the run in the recording.",
+          de: "In fünf Schritten vom leeren Covey zum arbeitenden KI-Agenten: einrichten, ausschreiben, Entwurf durchsehen und einstellen, Aufgabe stellen, Lauf im Recording ansehen.",
+          en: "Five steps from an empty Covey to a working AI agent: set it up, write a brief, look the draft through and hire it, give it a task, watch the run in the recording.",
         },
         body: {
           de: `# Den ersten Agenten anlegen
@@ -647,25 +651,29 @@ Einen Agenten anzulegen ist ein Onboarding: Identität, Rolle, Zugänge, Vorgese
 
 Fünf Schritte, und die Checkliste **Erste Schritte** auf der Agenten-Übersicht hakt sie mit, während Sie sie tun. Sie liest den echten Zustand Ihrer Organisation, nicht Ihren Fortschritt in einer Tour — was einmal steht, steht.
 
-## 1. Credential hinterlegen
+## 1. Einrichtung
 
-Unter *Secrets* eines von beiden:
+Die Seite *Einrichtung* stellt drei Fragen, jede überspringbar:
 
-- \`anthropic_api_key\` — ein API-Schlüssel, Abrechnung nach Verbrauch
-- \`claude_code_oauth_token\` — ein Abo-Konto; den Token einmalig im Terminal mit \`claude setup-token\` erzeugen
+- **Motor und Zugang.** Welche Engine Ihre Agenten denken lässt, und das Credential dazu — bei Claude Code ein API-Schlüssel (Abrechnung nach Verbrauch) oder ein Abo-Token (einmalig im Terminal mit \`claude setup-token\` erzeugt), bei Codex ein API-Schlüssel oder der Inhalt von \`~/.codex/auth.json\`. Der Wert wird gegen den Anbieter geprüft, **bevor** er gespeichert wird — besser hier als eine Stunde später im Lauf eines Agenten. Der Arbeitsplatz entsteht dabei von selbst; ein zweiter Token wird automatisch zu weiterer Kapazität.
+- **Was Ihr Unternehmen macht.** Drei bis fünf Sätze. Sie bleiben an der Organisation und gehen von da an in jede Ausschreibung, in die Konfiguration neu entworfener Agenten und in den Config-Assistenten ein.
+- **Ihre Personalabteilung.** Ein Agent, dessen Aufgabe es ist, die anderen zu entwerfen.
 
-Sobald der Wert liegt, prüft Covey ihn sofort gegen die API und sagt Ihnen, wenn er abgelehnt wird — besser hier als eine Stunde später im Lauf eines Agenten. Der Arbeitsplatz für die Engine entsteht dabei von selbst; ein zweiter Token unter demselben Schlüssel wird automatisch zu weiterer Kapazität.
+Alles davon geht auch später von Hand (Secrets, Runtimes, Vorlagenbibliothek). Was die Einrichtung kauft, ist die Reihenfolge: ohne Zugang kann nichts laufen, was die Oberfläche anbietet.
 
-## 2. Agenten anlegen
+## 2. Die Ausschreibung
 
-Name, Kürzel, Runtime — mehr braucht es nicht. Wer nicht bei null anfangen will, importiert ein fertiges Bündel aus \`examples/\` (Coding-Agent, QA-Agent, Web-Rechercheur, Log-Triage) oder legt den Agenten aus einem Template an.
+*Neuer Agent* bietet vier Wege. Der kürzeste ist die **Ausschreibung**: ein Freitextfeld — was soll die neue Kollegin tun? — plus Abteilung und Vorgesetzter. Daraus wird ein Auftrag an die Personalabteilung, und die Oberfläche zeigt danach das laufende Einstellungsgespräch. Ist die Beschreibung zu dünn, fragt der Agent zurück, statt zu raten.
 
-## 3. SOUL.md schreiben
+Daneben bleiben die anderen drei Wege: eine **Vorlage** aus der Bibliothek, das **manuelle** Formular für den, der genau weiß, was er will, und der **Bundle-Import** aus \`examples/\` (Coding-Agent, QA-Agent, Web-Rechercheur, Log-Triage).
 
-Die \`SOUL.md\` ist die Rollenbeschreibung: Wer bist du, wofür bist du zuständig, in welchem Ton antwortest du, wo hörst du auf. Sie wird bei jedem Lauf in den Prompt kompiliert, ist versioniert und lässt sich mit Verlauf zurückrollen.
+## 3. Durchsehen und einstellen
 
-Daneben liegen die anderen Dateien der Konfiguration:
+Was dabei herauskommt, ist ein **Entwurf** — bei jedem der vier Wege. Er steht auf der Agenten-Übersicht im Feld *Bewerbungen*: angelegt, ansehbar, änderbar, und er arbeitet nicht. Kein Dispatch, kein Heartbeat, kein scharfer Webhook, keine Sandbox, keine Kosten.
 
+Sehen Sie sich seine Konfiguration an — das ist der eigentliche Sinn des Zustands:
+
+- \`SOUL.md\` — die Rollenbeschreibung: Wer bist du, wofür bist du zuständig, in welchem Ton antwortest du, wo hörst du auf. Sie wird bei jedem Lauf in den Prompt kompiliert, ist versioniert und lässt sich mit Verlauf zurückrollen.
 - \`PLAYBOOKS.md\` — Arbeitsabläufe, Schritt für Schritt
 - \`CAPABILITIES.md\` — wofür der Agent zuständig ist und wofür nicht
 - \`ACCESS.md\` — die Zugänge, in der Form \`- system: zammad scope: read,write,comment\`
@@ -673,6 +681,8 @@ Daneben liegen die anderen Dateien der Konfiguration:
 - \`ORG.md\` — der Vorgesetzte, an den eskaliert wird
 
 Ein guter erster Satz in der \`SOUL.md\` ist konkreter, als man denkt: „Du beantwortest Fragen zum Abrechnungssystem" trägt weiter als „Du bist ein hilfreicher Assistent".
+
+**Einstellen** zeigt vorher eine Zusammenfassung — Rolle, angefragte Zielsysteme mit Scopes, Vorgesetzter, Runtime, Budgetdeckel — und gibt danach die wartenden Aufgaben frei. Passt der Entwurf nicht, verwirft ihn **Ablehnen**; er hat nie gearbeitet, es gibt nichts aufzuräumen.
 
 ## 4. Erste Aufgabe
 
@@ -697,32 +707,38 @@ Creating an agent is an onboarding: identity, role, access, supervisor. The diff
 
 Five steps, and the **first steps** checklist on the agent overview ticks them off while you do them. It reads your organisation's real state rather than your progress through a tour — once something stands, it stands.
 
-## 1. Deposit a credential
+## 1. Setup
 
-Under *Secrets*, one of these two:
+The *Setup* page asks three questions, each one skippable:
 
-- \`anthropic_api_key\` — an API key, billed per use
-- \`claude_code_oauth_token\` — a subscription account; generate the token once in a terminal with \`claude setup-token\`
+- **Engine and credential.** Which engine your agents think on, and the credential for it — for Claude Code an API key (billed per use) or a subscription token (generate it once in the terminal with \`claude setup-token\`), for Codex an API key or the contents of \`~/.codex/auth.json\`. The value is checked against the provider **before** it is stored — better here than an hour later inside an agent's run. The workplace is created around it; a second token automatically becomes further capacity.
+- **What your company does.** Three to five sentences. They stay on the organisation and from then on go into every hiring brief, into the configuration of newly drafted agents and into the config assistant.
+- **Your People department.** An agent whose job is drafting the others.
 
-As soon as the value is stored, Covey checks it against the API and tells you if it is rejected — better here than an hour later inside an agent's run. The workplace for the engine appears by itself; a second token under the same key automatically becomes further capacity.
+All of it can also be done by hand later (secrets, runtimes, the template library). What the setup buys is the order: without a credential nothing the interface offers can actually run.
 
-## 2. Create the agent
+## 2. The brief
 
-Name, slug, runtime — that is all it takes. If you would rather not start from nothing, import a ready-made bundle from \`examples/\` (coding agent, QA agent, web researcher, log triage) or create the agent from a template.
+*New agent* offers four ways in. The shortest is the **brief**: one free-text field — what should the new colleague do? — plus department and supervisor. That becomes an assignment for the People department, and the interface then shows the hiring conversation as it happens. If the description is too thin, the agent asks back instead of guessing.
 
-## 3. Write SOUL.md
+The other three ways remain: a **template** from the library, the **manual** form for whoever knows exactly what they want, and the **bundle import** from \`examples/\` (coding agent, QA agent, web researcher, log triage).
 
-\`SOUL.md\` is the role description: who you are, what you are responsible for, in what tone you answer, where you stop. It is compiled into the prompt on every run, it is versioned, and it can be rolled back with its history.
+## 3. Look it through and hire it
 
-Next to it are the other configuration files:
+What comes out is a **draft** — on all four ways in. It sits on the agent overview under *Applications*: created, inspectable, changeable, and not working. No dispatch, no heartbeat, no live webhook, no sandbox, no cost.
 
+Look at its configuration — that is what the state is for:
+
+- \`SOUL.md\` — the role description: who you are, what you are responsible for, in what tone you answer, where you stop. It is compiled into the prompt on every run, is versioned and can be rolled back with its history.
 - \`PLAYBOOKS.md\` — procedures, step by step
-- \`CAPABILITIES.md\` — what the agent is responsible for, and what it is not
-- \`ACCESS.md\` — access, in the form \`- system: zammad scope: read,write,comment\`
+- \`CAPABILITIES.md\` — what the agent is responsible for and what not
+- \`ACCESS.md\` — the access, in the form \`- system: zammad scope: read,write,comment\`
 - \`HEARTBEAT.md\` — recurring tasks, e.g. \`- alle: 30m titel: Inbox aufgabe: Triage new tickets.\`
 - \`ORG.md\` — the supervisor to escalate to
 
-A good opening line in \`SOUL.md\` is more specific than people expect: "You answer questions about the billing system" carries further than "You are a helpful assistant".
+A good first sentence in \`SOUL.md\` is more concrete than you would think: "You answer questions about the billing system" carries further than "You are a helpful assistant".
+
+**Hire** shows a summary first — role, requested target systems with their scopes, supervisor, runtime, budget cap — and then releases the waiting tasks. If the draft does not fit, **Reject** discards it; it never worked, so there is nothing to clean up.
 
 ## 4. First task
 
@@ -805,6 +821,14 @@ Jeder Agent hat eine eigene Identität in der Plattform — nicht die des Mensch
 
 Das ist der Unterschied zu einem Skript, das unter dem Konto eines Administrators läuft. Wenn hinterher jemand fragt, wer diesen Kommentar geschrieben hat, gibt es eine Antwort.
 
+## Der erste Tag
+
+Ein Agent trägt den Zeitpunkt, an dem er eingestellt wurde. Fehlt er, ist er ein **Entwurf**: angelegt, konfigurierbar, im Org-Chart sichtbar — und er arbeitet nicht. Kein Dispatch, kein Heartbeat, kein scharfer Webhook, keine Sandbox, keine Kosten. Aufgaben dürfen trotzdem in seinem Backlog liegen und starten am ersten Tag.
+
+Der Kill-Switch hätte technisch gereicht, würde aber zwei verschiedene Tatsachen in dasselbe Feld legen: „der wurde gestoppt" und „der hat noch nicht angefangen". Und das Einstellen ist keine Fahne, sondern ein Zeitpunkt — er steht später im Mitarbeiterprofil neben dem eines Menschen.
+
+So entsteht jeder Agent, den niemand von Hand geschrieben hat: aus einer Vorlage, aus einem Bundle-Import und vor allem dort, wo ein *Agent* den Agenten entwirft. Einstellen bleibt ein menschlicher Akt; es gibt dafür keine Aktion, die ein Agent aufrufen könnte.
+
 ## Sandbox mit persistentem Home
 
 Gearbeitet wird in einem Container, der zum Wecken entsteht und danach verschwindet. Was bleibt, ist \`/home/agent\`: geklonte Repositories, heruntergeladene Anhänge, Notizen, die Wiki-Seiten des Agenten. Beim nächsten Lauf findet er seinen Arbeitsplatz so vor, wie er ihn verlassen hat — die Maschine darum herum ist neu.
@@ -843,6 +867,14 @@ An agent is not a prompt and not a chat history. It is an entity that persists w
 Every agent has its own identity in the platform — not that of the human who created it. Its access hangs off it, so does its place in the org chart and every trace it leaves. Optionally it gets its own email address, and then a target system sees it for what it is: a sender with a name.
 
 That is the difference from a script running under an administrator's account. When somebody later asks who wrote this comment, there is an answer.
+
+## The first day
+
+An agent carries the moment it was hired. Without one it is a **draft**: created, configurable, visible in the org chart — and not working. No dispatch, no heartbeat, no live webhook, no sandbox, no cost. Tasks may still sit in its backlog and start on the first day.
+
+The kill switch would have been technically sufficient, but it would put two different facts in the same field: "this one was stopped" and "this one has not started yet". And hiring is not a flag but a moment in time — it later sits in the employee profile next to a human's.
+
+That is how every agent comes about that nobody wrote by hand: from a template, from a bundle import, and above all where an *agent* drafts the agent. Hiring stays a human act; there is no action for it that an agent could call.
 
 ## Sandbox with a persistent home
 

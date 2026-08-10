@@ -29,16 +29,20 @@ const deTopics: HelpTopic[] = [
         </p>
         <ol>
           <li>
-            Unter <b>Secrets</b> das Runtime-Credential hinterlegen: <Term>anthropic_api_key</Term>{" "}
-            (API-Key) oder <Term>claude_code_oauth_token</Term> (Abo-Account, Token aus{" "}
-            <Term>claude setup-token</Term>). Ohne dieses Secret schlagen Aufgaben fehl.
+            Die <b>Einrichtung</b> durchgehen (drei Karten, jede überspringbar): Engine und Zugang —
+            der Wert wird geprüft, bevor er gespeichert wird, und der Arbeitsplatz entsteht gleich
+            mit. Dann in drei Sätzen, was Ihr Unternehmen macht. Zuletzt die{" "}
+            <b>Personalabteilung</b>: ein Agent, dessen Aufgabe es ist, die anderen zu entwerfen.
           </li>
           <li>
-            Unter <b>Agenten</b> einen Agenten anlegen (Runtime <Term>claude-code</Term>).
+            Unter <b>Agenten → Neuer Agent</b> eine <b>Ausschreibung</b> schreiben: ein paar Sätze,
+            was die neue Kollegin tun soll. Die Personalabteilung macht daraus einen vollständigen
+            Entwurf und fragt nach, wenn etwas Wesentliches fehlt. Wer lieber selbst formuliert,
+            nimmt daneben Vorlage, manuell oder Bundle-Import.
           </li>
           <li>
-            Auf der Agenten-Seite unter <b>Einstellungen → Config</b> die <Term>SOUL.md</Term> schreiben — Rolle,
-            Ton, Arbeitsweise des Agenten.
+            Den Entwurf im Feld <b>Bewerbungen</b> durchsehen und <b>Einstellen</b> — vorher arbeitet
+            er nicht. Passt er nicht, <b>Ablehnen</b>.
           </li>
           <li>
             Im Tab <b>Backlog</b> eine Aufgabe anlegen und den Agenten mit <b>Wecken</b> starten.
@@ -63,6 +67,15 @@ const deTopics: HelpTopic[] = [
         <p>
           Die Übersicht zeigt alle Agenten der Organisation mit ihrem Lebenszyklus-Status. Agenten
           sind ereignisgetrieben: sie schlafen, bis Arbeit da ist, und kosten dabei nichts.
+        </p>
+        <p>
+          Oben stehen die <b>Bewerbungen</b>: Agenten, die angelegt, aber noch nicht eingestellt
+          sind. Sie werden nicht dispatcht, ihr Heartbeat läuft nicht, ihr Webhook ist nicht scharf,
+          sie bekommen keine Sandbox und kosten nichts — Aufgaben dürfen trotzdem im Backlog liegen
+          und starten beim Einstellen. So entstehen alle Agenten, die nicht von Hand angelegt
+          wurden: aus einer Vorlage, aus einem Bundle-Import und aus einer Ausschreibung.{" "}
+          <b>Einstellen</b> zeigt vorher die Zusammenfassung — Rolle, Zugänge, Vorgesetzter,
+          Budget —, <b>Ablehnen</b> verwirft den Entwurf.
         </p>
         <dl>
           <dt><Badge st="sleeping">schläft</Badge></dt>
@@ -355,16 +368,20 @@ const enTopics: HelpTopic[] = [
         </p>
         <ol>
           <li>
-            Under <b>Secrets</b>, store the runtime credential: <Term>anthropic_api_key</Term>{" "}
-            (API key) or <Term>claude_code_oauth_token</Term> (subscription account, token from{" "}
-            <Term>claude setup-token</Term>). Without this secret, tasks will fail.
+            Walk through <b>Setup</b> (three cards, each one skippable): the engine and its
+            credential — the value is checked before it is stored, and the workplace is created
+            around it. Then three sentences on what your company does. Finally the{" "}
+            <b>People department</b>: an agent whose job is drafting the others.
           </li>
           <li>
-            Under <b>Agents</b>, create an agent (Runtime <Term>claude-code</Term>).
+            Under <b>Agents → New Agent</b>, write a <b>brief</b>: a few sentences on what the new
+            colleague should do. The People department turns that into a complete draft and asks
+            back if something essential is missing. Prefer to write it yourself? Template, manual
+            and bundle import sit right next to it.
           </li>
           <li>
-            On the agent page under <b>Settings → Config</b>, write <Term>SOUL.md</Term> — the agent's
-            role, tone, and working style.
+            Look the draft through under <b>Applications</b> and <b>hire</b> it — until then it does
+            not work. If it does not fit, <b>reject</b> it.
           </li>
           <li>
             In the <b>Backlog</b> tab, create a task and start the agent with <b>Wake</b>.
@@ -389,6 +406,14 @@ const enTopics: HelpTopic[] = [
         <p>
           The overview shows all agents in the organization with their lifecycle status. Agents are
           event-driven: they sleep until there is work, costing nothing in the meantime.
+        </p>
+        <p>
+          At the top sit the <b>Applications</b>: agents that have been created but not hired yet.
+          They are not dispatched, their heartbeat does not fire, their webhook is not live, they
+          get no sandbox and cost nothing — tasks may still be queued against them and start on
+          hiring. That is how every agent comes about that was not written by hand: from a template,
+          from a bundle import, and from a brief. <b>Hire</b> shows the summary first — role,
+          access, supervisor, budget — and <b>Reject</b> discards the draft.
         </p>
         <dl>
           <dt><Badge st="sleeping">sleeping</Badge></dt>

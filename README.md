@@ -37,7 +37,7 @@ docker build -f Dockerfile.sandbox -t covey-sandbox:latest .   # the agents' wor
 docker compose up -d --build                              # start Postgres + Covey
 ```
 
-Then open **[http://localhost:8494](http://localhost:8494)** — log in with `admin@covey.local` / `covey-admin`. A **first steps** checklist on the agent overview walks you to your first working agent; it reads your organisation's actual state, ticks itself off and disappears once you are done.
+Then open **[http://localhost:8494](http://localhost:8494)** — log in with `admin@covey.local` / `covey-admin`. The **setup** asks three questions, each one skippable: the engine and its credential (checked before it is stored), three sentences on what your company does, and whether you want a **People department** — an agent whose job is drafting the others. After that, *New agent → brief* is the shortest way to your first colleague: describe in a few sentences what they should do, and the People department writes the configuration. A **first steps** checklist on the agent overview reads your organisation's actual state, ticks itself off and disappears once you are done.
 
 The bundled [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector) and the covey binary with its embedded admin UI; `bootstrap` creates the organisation, the admin, a demo agent and its workplace, and migrations run automatically.
 
@@ -73,6 +73,7 @@ Everything but the third line takes seconds. That one builds the container an ag
 | | |
 |---|---|
 | 🧑‍💼 **Agents with an identity** | Their own sandbox, their own home directory, their own credentials — and a place on the org chart next to the humans. |
+| 🧑‍🎓 **Hiring instead of a form** | Describe what a new colleague should do; the org's own People department — an agent — turns that into a complete configuration and asks back when the brief is too thin. What comes out is a **draft**: it exists, it can be looked at and changed, and it does not work until a human hires it. |
 | 📥 **Backlog & wake sources** | Tasks as first-class objects; agents wake on a webhook, a heartbeat or a nudge, then go back to sleep. |
 | 🔌 **Target systems as plugins** | Zammad, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, email (IMAP/SMTP), headless browser, MCP — each driven by a manifest, no special case in the core. |
 | 🛡️ **Guard rails & approvals** | Enforced centrally, outside the runtime, fail-closed. Critical actions go to a human first. |
