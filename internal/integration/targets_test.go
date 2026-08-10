@@ -321,3 +321,31 @@ func TestKeinPhantomWebhook(t *testing.T) {
 		t.Fatal("zammad hat einen Webhook-Eingang — der muss in der Einrichtung stehen")
 	}
 }
+
+// TestEinrichtungOhneZugangsdaten: der Assistent eines Systems ohne
+// Zugangsdaten muss sich öffnen lassen.
+//
+// `credentials` ist im JSON ein Array ohne omitempty, und die Oberfläche liest
+// es als Array. Ein nil-Slice wird dort aber zu `null`, und `null.length` in
+// einem useMemo beendet nicht den Schritt, sondern den ganzen Assistenten mit
+// einem TypeError — sichtbar als leerer Bildschirm beim Klick auf „Einrichten".
+// Getroffen hat es genau die Systeme, die keine Secrets brauchen.
+func TestEinrichtungOhneZugangsdaten(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+
+	// browser und dev sind die beiden Systeme mit NoCredentials.
+	for _, system := range []string{"browser", "dev", "zammad"} {
+		state := admin.expect(http.MethodGet, "/api/v1/targets/"+system+"/setup", nil, http.StatusOK)
+		for _, feld := range []string{"credentials", "agents"} {
+			wert, da := state[feld]
+			if !da || wert == nil {
+				t.Errorf("%s: %q ist null — die Oberfläche liest es als Liste", system, feld)
+				continue
+			}
+			if _, liste := wert.([]any); !liste {
+				t.Errorf("%s: %q ist keine Liste, sondern %T", system, feld, wert)
+			}
+		}
+	}
+}

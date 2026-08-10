@@ -54,16 +54,22 @@ export function TargetSetupWizard({ name, onClose }: { name: string; onClose: ()
   // Ein System ohne Webhook bekommt keinen Webhook-Schritt — eine leere Seite
   // mit "trifft nicht zu" ist ein Schritt, den man liest, ohne etwas davon zu
   // haben.
+  /* Listen aus dem Server werden defensiv gelesen. Ein leeres Array kommt als
+     `null` zurueck, sobald jemand serverseitig ein `omitempty` setzt oder ein
+     nil-Slice durchreicht — und `null.length` beendet hier nicht den Schritt,
+     sondern den ganzen Assistenten mit einem TypeError im Render. */
+  const credentials = s?.credentials ?? [];
+
   const steps = useMemo<StepKey[]>(() => {
     if (!s) return [];
     const out: StepKey[] = [];
     if (!s.enabled) out.push("activate");
-    if (s.credentials.length > 0) out.push("credentials");
+    if (credentials.length > 0) out.push("credentials");
     out.push("access");
     if (s.webhook.supported) out.push("webhook");
     if (s.probe) out.push("probe");
     return out;
-  }, [s]);
+  }, [s, credentials]);
 
   const done = (k: StepKey): boolean => {
     if (!s) return false;
@@ -71,7 +77,7 @@ export function TargetSetupWizard({ name, onClose }: { name: string; onClose: ()
       case "activate":
         return s.enabled;
       case "credentials":
-        return s.credentials.every((c) => c.stored || c.optional);
+        return credentials.every((c) => c.stored || c.optional);
       case "access":
         return s.agents.some((a) => a.access);
       case "webhook":
@@ -156,7 +162,7 @@ export function TargetSetupWizard({ name, onClose }: { name: string; onClose: ()
 
         {current === "credentials" && (
           <CredentialStep
-            credentials={s.credentials}
+            credentials={credentials}
             onSaved={() => qc.invalidateQueries({ queryKey: ["target-setup", name] })}
           />
         )}

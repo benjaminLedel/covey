@@ -170,6 +170,15 @@ func (s *Server) handleTargetSetup(w http.ResponseWriter, r *http.Request) {
 		}
 		state.Agents = append(state.Agents, entry)
 	}
+	// Leere Listen sind leere Listen und nicht null. Das Feld heisst
+	// `credentials` ohne omitempty, die Oberflaeche liest es als Array — ein
+	// nil-Slice wird in JSON aber zu null, und `null.length` beendet die
+	// Einrichtung mit einem TypeError, bevor sie etwas anzeigt. Getroffen hat
+	// es genau die Systeme, die keine Zugangsdaten brauchen (browser, dev):
+	// dort haengt an der Fallunterscheidung oben nie ein append.
+	if state.Credentials == nil {
+		state.Credentials = []setupCredential{}
+	}
 	if state.Agents == nil {
 		state.Agents = []setupAgent{}
 	}
