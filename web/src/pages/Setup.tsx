@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { api, post, type Agent, type RuntimeInfo, type SetupState } from "../api";
+import i18n from "../i18n";
 
 /* Die Einrichtung: der Zugang zuerst, dann darf der Zugang arbeiten.
  *
@@ -200,7 +201,7 @@ function PeopleCard({ state, onDone }: { state: SetupState; onDone: () => void }
   const [onboard, setOnboard] = useState(true);
 
   const create = useMutation({
-    mutationFn: () => post<{ agent: Agent }>("/setup/people", { onboard }),
+    mutationFn: () => post<{ agent: Agent }>(`/setup/people?lang=${encodeURIComponent(i18n.language)}`, { onboard }),
     onSuccess: res => {
       onDone();
       navigate(`/agents/${res.agent.id}`);

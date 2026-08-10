@@ -3,6 +3,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { api, post, type Agent, type OrgChart, type Task, type TaskNote } from "../../api";
+import i18n from "../../i18n";
 
 /* Die Ausschreibung: ein Formular, das in einer Aufgabe endet.
  *
@@ -31,7 +32,11 @@ export function Brief({ onBack, onOpen }: { onBack: () => void; onOpen: (a: Agen
 
   const send = useMutation({
     mutationFn: () =>
-      post<BriefResult>("/hiring/brief", { description, department, supervisor }),
+      post<BriefResult>(`/hiring/brief?lang=${encodeURIComponent(i18n.language)}`, {
+        description,
+        department,
+        supervisor,
+      }),
     onSuccess: setStarted,
   });
 
@@ -123,7 +128,7 @@ function BriefProgress({ result, onOpen }: { result: BriefResult; onOpen: (a: Ag
       )}
 
       <div className="flex items-baseline gap-2 mb-2">
-        <span className={`badge st-${task.state}`}>{t(`taskState.${task.state}`, task.state)}</span>
+        <span className={`badge st-${task.state}`}>{t(`status.${task.state}`, task.state)}</span>
         <span className="text-sm">{task.title}</span>
       </div>
 
