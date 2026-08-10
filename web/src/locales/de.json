@@ -341,7 +341,8 @@
     "profile": "Profil & Einstellungen",
     "audit": "Audit",
     "requests": "Requests",
-    "skills": "Skills"
+    "skills": "Skills",
+    "setupPage": "Einrichtung"
   },
   "costs": {
     "title": "Kosten & Token",
@@ -459,9 +460,9 @@
     },
     "steps": {
       "credential": {
-        "title": "Runtime-Credential hinterlegen",
-        "hint": "anthropic_api_key (API-Schlüssel) oder claude_code_oauth_token (Abo-Konto). Ohne eines von beiden schlägt jede Aufgabe fehl.",
-        "action": "Zu den Secrets"
+        "title": "Einrichtung durchgehen",
+        "hint": "Engine und Zugang, was Ihr Unternehmen macht, und die Personalabteilung. Ohne Zugang schlägt jede Aufgabe fehl.",
+        "action": "Zur Einrichtung"
       },
       "agent": {
         "title": "Agenten anlegen",

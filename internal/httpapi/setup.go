@@ -112,7 +112,7 @@ func (s *Server) handleSetupEngine(w http.ResponseWriter, r *http.Request) {
 		// Deliberately a 400 and not a warning: this is the one moment where
 		// somebody is looking, and the hint says what is wrong.
 		writeJSON(w, http.StatusBadRequest, map[string]any{
-			"error": check.Hint, "check": check,
+			"error": setupHint(d, cred, check.Hint), "check": check,
 		})
 		return
 	}
@@ -476,4 +476,23 @@ func onboardingBody(lang, orgName, orgDescription string) string {
    need and what the human has to decide before hiring.
 `)
 	return b.String()
+}
+
+// setupHint translates a credential check's hint into the language of THIS
+// form.
+//
+// The check names the secret key the value belongs under ("…it belongs under
+// the key claude_code_oauth_token") — right on the secrets page, where keys are
+// what one types. Here there is a dropdown with labels, and the key never
+// appears: somebody reading it would have to know that "claude_code_oauth_token"
+// and the entry "Subscription" are the same thing. So the sentence that says
+// what to DO is put in front, and the original hint stays behind it.
+func setupHint(engine daemon.RuntimeDescriptor, chosen daemon.RuntimeCredential, hint string) string {
+	for _, other := range engine.Credentials {
+		if other.Kind == chosen.Kind || !strings.Contains(hint, other.Secret) {
+			continue
+		}
+		return "This value belongs under \"" + other.Label + "\" — pick that above. (" + hint + ")"
+	}
+	return hint
 }

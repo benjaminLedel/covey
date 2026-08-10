@@ -73,6 +73,13 @@ export default function App() {
 
 // Icon-Pfade aus mockup/covey-ui-mockup.html — die Nav übernimmt die Design-Sprache des Mockups.
 const icons: Record<string, React.JSX.Element> = {
+  checklist: (
+    <>
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <path d="M8 9.5l1.6 1.6L12.5 8" />
+      <path d="M8 15.5h8" />
+    </>
+  ),
   robot: (
     <>
       <rect x="5" y="8" width="14" height="11" rx="2" />
@@ -350,6 +357,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
         </div>
         <div className="nav-sec">{t("nav.setup")}</div>
         <div className="nav-group">
+          <NavItem to="/setup" icon="checklist" label={t("nav.setupPage")} />
           <NavItem to="/secrets" icon="key" label={t("nav.secrets")} />
           <NavItem to="/targets" icon="plug" label={t("nav.targets")} />
           <NavItem to="/skills" icon="book" label={t("nav.skills")} />

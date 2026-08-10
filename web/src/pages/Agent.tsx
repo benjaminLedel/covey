@@ -143,7 +143,9 @@ export default function AgentPage({ me }: { me: Principal }) {
             {t("hire.action")}
           </button>
         )}
-        {canKill(me.Role) &&
+        {/* Kill-Switch nur für einen, der laufen kann. Einen Entwurf zu stoppen
+            ist keine Handlung — er hat nicht angefangen. */}
+        {canKill(me.Role) && !isDraft(a) &&
           (a.killed ? (
             <button className="btn sm" onClick={() => act.mutate("resume")}>
               {t("agent.resume")}
