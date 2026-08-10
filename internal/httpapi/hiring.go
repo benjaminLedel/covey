@@ -15,6 +15,13 @@ import (
 	"covey/internal/agents"
 )
 
+// handleRollName rolls an agent name. The generator lives in the binary because
+// setup and the People department need it too; the interface asks here so that
+// there is one pool and not two that drift apart (spec/20).
+func (s *Server) handleRollName(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, agents.RollName(langFrom(r)))
+}
+
 func (s *Server) handleHire(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {

@@ -12,7 +12,7 @@ import {
   type RuntimeInfo,
   type TargetPlugin,
 } from "../../api";
-import { generateAgentName, slugify } from "../../names";
+import { rollAgentName, slugify } from "../../names";
 
 /* Einen Agenten anlegen, als Onboarding gedacht.
  *
@@ -120,8 +120,8 @@ export function GuidedCreate({ onBack, onDone }: { onBack: () => void; onDone: (
                   type="button"
                   className="btn"
                   title={t("dashboard.rollDice")}
-                  onClick={() => {
-                    const g = generateAgentName();
+                  onClick={async () => {
+                    const g = await rollAgentName();
                     setName(g.name);
                     setSlug(g.slug);
                   }}

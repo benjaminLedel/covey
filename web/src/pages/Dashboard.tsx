@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { api, post, ApiError, isDraft, type Agent, type AgentTemplate, type Principal } from "../api";
-import { generateAgentName, slugify } from "../names";
+import { rollAgentName, slugify } from "../names";
 import { GuidedCreate } from "./agents/GuidedCreate";
 import { Modal } from "../components/Modal";
 import { Onboarding } from "../components/Onboarding";
@@ -392,8 +392,8 @@ function TemplateStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agen
               type="button"
               className="btn"
               title={t("dashboard.rollDice")}
-              onClick={() => {
-                const g = generateAgentName();
+              onClick={async () => {
+                const g = await rollAgentName();
                 setDisplayName(g.name);
                 setSlug(g.slug);
               }}
