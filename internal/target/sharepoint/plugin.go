@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -64,14 +63,10 @@ Details: docs/ops-sharepoint.md in the repository.`,
 
 func (System) Name() string { return "sharepoint" }
 
-// VerifyWebhook/ParseWebhook: no webhook entry — Graph subscriptions (change
-// notifications) need a publicly reachable, validated HTTPS URL; the intake
-// runs by heartbeat polling.
-func (System) VerifyWebhook(string, []byte, http.Header) bool { return false }
-
-func (System) ParseWebhook([]byte) (target.WebhookEvent, error) {
-	return target.WebhookEvent{}, fmt.Errorf("sharepoint has no webhook entry (intake by heartbeat)")
-}
+// Kein target.Webhooker: Graph-Subscriptions brauchen eine oeffentlich
+// erreichbare, validierte HTTPS-Adresse; der Eingang laeuft ueber
+// Heartbeat-Polling. Die Schnittstelle bleibt deshalb weg statt ablehnend
+// erfuellt.
 
 // ActionSubject: every action is its own guard-rail subject — that way delete
 // and write can be ruled on more sharply than plain reading.

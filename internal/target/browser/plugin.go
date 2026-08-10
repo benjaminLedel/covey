@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -51,12 +50,11 @@ chromium (COVEY_BROWSER_CHROME_PATH overrides the path).`,
 
 func (System) Name() string { return "browser" }
 
-// No webhook inbound — the browser accepts no external events.
-func (System) VerifyWebhook(string, []byte, http.Header) bool { return false }
-
-func (System) ParseWebhook([]byte) (target.WebhookEvent, error) {
-	return target.WebhookEvent{}, fmt.Errorf("browser has no webhook inbound")
-}
+// Kein target.Webhooker: der Browser nimmt keine externen Ereignisse an. Die
+// Schnittstelle wird deshalb weggelassen und nicht mit ablehnenden Rueempfen
+// erfuellt — wer sie implementiert, meldet damit eine Faehigkeit an, und die
+// Einrichtung baut daraufhin einen Webhook-Schritt samt Adresse und
+// Secret-Hinweis, den niemand befolgen kann.
 
 // ActionSubject: every action gets its own guard-rail subject — navigate/click
 // can thus be governed more strictly than plain reading.

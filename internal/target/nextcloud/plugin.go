@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,13 +65,9 @@ Details: docs/ops-nextcloud.md in the repository.`,
 
 func (System) Name() string { return "nextcloud" }
 
-// VerifyWebhook/ParseWebhook: no webhook entry — the intake runs by heartbeat
-// polling.
-func (System) VerifyWebhook(string, []byte, http.Header) bool { return false }
-
-func (System) ParseWebhook([]byte) (target.WebhookEvent, error) {
-	return target.WebhookEvent{}, fmt.Errorf("nextcloud has no webhook entry (intake by heartbeat)")
-}
+// Kein target.Webhooker: der Eingang laeuft ueber Heartbeat-Polling. Die
+// Schnittstelle bleibt weg statt ablehnend erfuellt — sonst meldet das Plugin
+// eine Faehigkeit an, die es verweigert.
 
 // ActionSubject: every action is its own guard-rail subject — that way delete
 // and write can be ruled on more sharply than plain reading.

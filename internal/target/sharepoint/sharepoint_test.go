@@ -362,10 +362,9 @@ func TestActionSubjectAndDocs(t *testing.T) {
 			t.Errorf("PromptDoc without the action %q", a)
 		}
 	}
-	if ok := (System{}).VerifyWebhook("s", nil, nil); ok {
-		t.Error("VerifyWebhook must return false (no webhook)")
-	}
-	if _, err := (System{}).ParseWebhook(nil); err == nil {
-		t.Error("ParseWebhook must return an error (no webhook)")
+	// Eingang per Heartbeat, kein Webhook — also auch nicht die Schnittstelle
+	// dafuer erfuellen (siehe browser_test.go).
+	if _, hook := any(System{}).(target.Webhooker); hook {
+		t.Error("sharepoint liest per Heartbeat und darf target.Webhooker nicht erfuellen")
 	}
 }

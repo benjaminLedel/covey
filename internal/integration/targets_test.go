@@ -281,3 +281,43 @@ func TestAgentSystemsView(t *testing.T) {
 		}
 	}
 }
+
+// TestKeinPhantomWebhook: ein Zielsystem, das keine Webhooks annimmt, darf auch
+// keinen anbieten.
+//
+// Die Fähigkeit wird daran erkannt, was ein Plugin implementiert
+// (target.Webhooker) — und vier Plugins erfüllten die Schnittstelle mit
+// ablehnenden Rümpfen, statt sie wegzulassen. Der Einrichtungs-Assistent baute
+// daraufhin einen Webhook-Schritt: mit einer Adresse zum Kopieren, die ins
+// Leere zeigt, und dem Hinweis, man möge COVEY_BROWSER_WEBHOOK_SECRET setzen —
+// eine Anweisung, die niemand befolgen kann, weil es den Eingang nicht gibt.
+//
+// Geprüft wird an beiden Enden, denn es ist dieselbe Aussage: der Assistent
+// zeigt den Schritt nicht, und der Router weist den Aufruf fail-closed ab.
+func TestKeinPhantomWebhook(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+
+	for _, system := range []string{"browser", "nextcloud", "sharepoint"} {
+		state := admin.expect(http.MethodGet, "/api/v1/targets/"+system+"/setup", nil, http.StatusOK)
+		hook, _ := state["webhook"].(map[string]any)
+		if hook["supported"] == true {
+			t.Errorf("%s nimmt keine Webhooks an, bietet in der Einrichtung aber einen an", system)
+		}
+		if _, da := hook["url"]; da {
+			t.Errorf("%s: eine Webhook-Adresse, die ins Leere zeigt, gehört nicht in die Einrichtung", system)
+		}
+
+		resp := admin.do(http.MethodPost, "/api/webhooks/"+system+"/irgendwer", map[string]any{"x": 1})
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("%s: Webhook-Eingang muss fail-closed 404 antworten, war %d", system, resp.StatusCode)
+		}
+	}
+
+	// Die Gegenprobe: wer wirklich einen Eingang hat, behält ihn.
+	state := admin.expect(http.MethodGet, "/api/v1/targets/zammad/setup", nil, http.StatusOK)
+	if hook, _ := state["webhook"].(map[string]any); hook["supported"] != true {
+		t.Fatal("zammad hat einen Webhook-Eingang — der muss in der Einrichtung stehen")
+	}
+}

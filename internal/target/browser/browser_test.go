@@ -42,11 +42,12 @@ func TestActionSubjectAndDocs(t *testing.T) {
 			t.Errorf("PromptDoc without action %q", a)
 		}
 	}
-	if (System{}).VerifyWebhook("s", nil, nil) {
-		t.Error("VerifyWebhook must return false")
-	}
-	if _, err := (System{}).ParseWebhook(nil); err == nil {
-		t.Error("ParseWebhook must return an error")
+	// Kein Webhook-Eingang — und das heisst: die Schnittstelle wird gar nicht
+	// erst erfuellt. Vorher stand hier, dass die Ruempfe ablehnen; genau daran
+	// erkannte die Einrichtung faelschlich eine Faehigkeit und baute einen
+	// Webhook-Schritt, dessen Adresse ins Leere zeigte.
+	if _, hook := any(System{}).(target.Webhooker); hook {
+		t.Error("browser nimmt keine Webhooks an und darf target.Webhooker nicht erfuellen")
 	}
 }
 

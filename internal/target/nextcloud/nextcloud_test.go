@@ -337,10 +337,9 @@ func TestActionSubjectAndDocs(t *testing.T) {
 			t.Errorf("PromptDoc without the action %q", a)
 		}
 	}
-	if (System{}).VerifyWebhook("s", nil, nil) {
-		t.Error("VerifyWebhook must return false (no webhook)")
-	}
-	if _, err := (System{}).ParseWebhook(nil); err == nil {
-		t.Error("ParseWebhook must return an error (no webhook)")
+	// Eingang per Heartbeat, kein Webhook — also auch nicht die Schnittstelle
+	// dafuer erfuellen (siehe browser_test.go).
+	if _, hook := any(System{}).(target.Webhooker); hook {
+		t.Error("nextcloud liest per Heartbeat und darf target.Webhooker nicht erfuellen")
 	}
 }
