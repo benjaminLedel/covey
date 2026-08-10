@@ -102,6 +102,10 @@
         "indicators": {
           "t": "Indicators & unit cost",
           "d": "Every agent declares in KPIS.md what it delivers. The platform counts it from what it records anyway and works out the price per unit — with the counter-figures beside it, so an agent cannot look good by handing the hard cases away."
+        },
+        "hiring": {
+          "t": "Hiring instead of a form",
+          "d": "Describe what a new colleague should do — the organisation’s own People department, itself an agent, turns that into a complete configuration and asks back when something is missing. What comes out is an application that only starts working once a human hires it."
         }
       },
       "ctaTitle": "Install it yourself",
@@ -287,7 +291,7 @@
       "lead": "Real views from the control plane — workforce, structure, work, memory and cost.",
       "agents": {
         "t": "The workforce",
-        "d": "Every agent with status, runtime and role at a glance."
+        "d": "Every agent with its state, runtime and role — above them the applications still waiting to be hired."
       },
       "org": {
         "t": "Org chart",

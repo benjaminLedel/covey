@@ -659,7 +659,7 @@ Die Seite *Einrichtung* stellt drei Fragen, jede überspringbar:
 - **Was Ihr Unternehmen macht.** Drei bis fünf Sätze. Sie bleiben an der Organisation und gehen von da an in jede Ausschreibung, in die Konfiguration neu entworfener Agenten und in den Config-Assistenten ein.
 - **Ihre Personalabteilung.** Ein Agent, dessen Aufgabe es ist, die anderen zu entwerfen.
 
-Alles davon geht auch später von Hand (Secrets, Runtimes, Vorlagenbibliothek). Was die Einrichtung kauft, ist die Reihenfolge: ohne Zugang kann nichts laufen, was die Oberfläche anbietet.
+Die Seite läuft für sich, ohne Navigation daneben, und verschwindet aus dem Menü, sobald die drei Karten stehen. Alles davon geht auch später von Hand (Secrets, Runtimes, Vorlagenbibliothek). Was die Einrichtung kauft, ist die Reihenfolge: ohne Zugang kann nichts laufen, was die Oberfläche anbietet.
 
 ## 2. Die Ausschreibung
 
@@ -682,7 +682,7 @@ Sehen Sie sich seine Konfiguration an — das ist der eigentliche Sinn des Zusta
 
 Ein guter erster Satz in der \`SOUL.md\` ist konkreter, als man denkt: „Du beantwortest Fragen zum Abrechnungssystem" trägt weiter als „Du bist ein hilfreicher Assistent".
 
-**Einstellen** zeigt vorher eine Zusammenfassung — Rolle, angefragte Zielsysteme mit Scopes, Vorgesetzter, Runtime, Budgetdeckel — und gibt danach die wartenden Aufgaben frei. Passt der Entwurf nicht, verwirft ihn **Ablehnen**; er hat nie gearbeitet, es gibt nichts aufzuräumen.
+Die Entwürfe stehen auf der Agenten-Übersicht in einem eigenen Feld **Bewerbungen**, abgesetzt von der Belegschaft darunter. **Einstellen** zeigt vorher eine Zusammenfassung — Rolle, angefragte Zielsysteme mit Scopes, Vorgesetzter, Runtime, Budgetdeckel — und gibt danach die wartenden Aufgaben frei. Passt der Entwurf nicht, verwirft ihn **Ablehnen**; er hat nie gearbeitet, es gibt nichts aufzuräumen.
 
 ## 4. Erste Aufgabe
 
@@ -715,7 +715,7 @@ The *Setup* page asks three questions, each one skippable:
 - **What your company does.** Three to five sentences. They stay on the organisation and from then on go into every hiring brief, into the configuration of newly drafted agents and into the config assistant.
 - **Your People department.** An agent whose job is drafting the others.
 
-All of it can also be done by hand later (secrets, runtimes, the template library). What the setup buys is the order: without a credential nothing the interface offers can actually run.
+The page runs on its own, with no navigation next to it, and disappears from the menu once the three cards are done. All of it can also be done by hand later (secrets, runtimes, the template library). What the setup buys is the order: without a credential nothing the interface offers can actually run.
 
 ## 2. The brief
 
@@ -738,7 +738,7 @@ Look at its configuration — that is what the state is for:
 
 A good first sentence in \`SOUL.md\` is more concrete than you would think: "You answer questions about the billing system" carries further than "You are a helpful assistant".
 
-**Hire** shows a summary first — role, requested target systems with their scopes, supervisor, runtime, budget cap — and then releases the waiting tasks. If the draft does not fit, **Reject** discards it; it never worked, so there is nothing to clean up.
+The drafts sit on the agent overview in their own **Applications** panel, set apart from the workforce below. **Hire** shows a summary first — role, requested target systems with their scopes, supervisor, runtime, budget cap — and then releases the waiting tasks. If the draft does not fit, **Reject** discards it; it never worked, so there is nothing to clean up.
 
 ## 4. First task
 

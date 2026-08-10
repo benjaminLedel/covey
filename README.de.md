@@ -59,7 +59,7 @@ Alles außer der dritten Zeile dauert Sekunden. Sie baut den Container, in dem e
 
 ![Agenten-Übersicht](web/public/shots/agents.de.jpg)
 
-*Die Belegschaft einer Organisation auf einen Blick — Zustand, Runtime und Budget pro Agent und der Notaus für alle.*
+*Die Belegschaft einer Organisation auf einen Blick — Zustand, Runtime und Budget pro Agent und der Notaus für alle. Darüber die **Bewerbungen**: entworfene Agenten, die auf ihre Einstellung warten.*
 
 | | |
 |---|---|

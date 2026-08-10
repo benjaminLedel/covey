@@ -102,9 +102,11 @@ of which may be skipped:
    description of a job it writes a complete agent — character, remit,
    procedures, access — and leaves it as a **draft** that you hire.
 
-Everything here can also be done by hand later (Secrets, Runtimes, the template
-library). What the setup buys is the order: the credential first, because
-without it nothing the interface offers can actually run.
+The page runs on its own — no navigation next to it — and disappears from the
+menu once the three cards are done. Everything here can also be done by hand
+later (Secrets, Runtimes, the template library). What the setup buys is the
+order: the credential first, because without it nothing the interface offers can
+actually run.
 
 ## Your first agent
 
@@ -121,8 +123,10 @@ it stay the ready-made **templates**, the **manual** form for whoever knows
 exactly what they want, and the **bundle import**.
 
 Whatever the way, what comes out is a **draft**: it exists, it can be looked at
-and changed, and it does not work until you hire it. A summary of role, access,
-supervisor and budget comes up before you do.
+and changed, and it does not work until you hire it. Drafts sit in their own
+*Applications* panel above the workforce; hiring shows a summary of role,
+access, supervisor and budget first, and rejecting discards the draft — nothing
+ran, so there is nothing to clean up.
 
 After logging in a **demo agent** already exists, with a workplace and a board —
 hired, so it works as soon as the credential from step 1 is there.

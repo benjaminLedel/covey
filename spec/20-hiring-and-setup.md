@@ -26,6 +26,8 @@ What the card does on submit, in one transaction:
 
 Skipping is safe in both directions. Skip card 1 and cards 2 and 3 still work: the People department is created as a draft and waits for capacity, which is exactly the state a draft is for. Skip cards 2 and 3 and the instance is in the state it is in today, with the checklist pointing at what is missing.
 
+**The setup runs outside the interface's shell** — no sidebar, no help drawer, only the three cards in a reading column with the way out in the corner. That is not decoration: this is the one thing somebody should do on their first visit, and a navigation offering thirteen other places next to it is an invitation to leave. For the same reason the entry disappears from the navigation once all three cards are done; a menu item that is permanently there and permanently finished becomes furniture. Nothing is lost with it — the company description then lives on the org chart, the credential under Secrets and Runtimes, and the page stays reachable by address.
+
 ## The company description is master data, not a prompt
 
 The description from card 2 hangs on the **organisation**, next to its name (the `organizations` table carries a name and a kill switch today and nothing else). It is editable afterwards under *Organisations*, like every other piece of org master data ([`09-enterprise-model.md`](09-enterprise-model.md)).
@@ -122,6 +124,8 @@ Four rules, enforced in the control plane and not in a prompt — the distinctio
 3. **Provenance is written by the platform.** `create_agent` records which task the agent came out of, into the recording. The interface finds the draft through that, instead of trusting a model to hand back an ID it also invented the format for — and because it is the recording and not a process-local note, an assignment that goes `blocked` and resumes hours later still knows its own drafts.
 4. **Only its own children.** `set_agent_config` reaches exactly the agents created in the same assignment. A compromised People department cannot rewrite the QA agent's soul — nor its own.
 
+And one property that is not a guard rail but a lesson from the first real run: **`set_agent_config` merges.** A model writes a configuration in two calls — first the character, then the procedures — and a call that replaced the whole set silently deleted the first one. What came out looked complete, had no `SOUL.md`, and the agent reported it as "complete and checked". So what is sent replaces those files and the rest stays; nothing here needs to delete a file. On top of that the platform refuses to save a configuration without a `SOUL.md` at all — the refusal reaches the agent while it can still act, instead of reaching the human afterwards.
+
 ## The draft state
 
 An agent that has been drafted but not yet hired needs a real state, not a repurposed one. The kill switch would be technically sufficient — a killed agent does not run — but it would label something that never ran as switched off, and it would confuse two different facts in the same field: *this one was stopped* and *this one has not started yet*.
@@ -131,6 +135,8 @@ An agent that has been drafted but not yet hired needs a real state, not a repur
 **What a draft does not do:** it is not dispatched, its heartbeat does not fire, its webhook is not live, it gets no sandbox and it costs nothing ([`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)). Tasks may be queued against it and simply wait — the first assignment is often clear before the contract is signed, and refusing it would force the person to remember it instead.
 
 **What a draft does:** it can be edited, renamed, reconfigured and discarded freely, without the care owed to a running agent. This is where a person tries something out.
+
+**Rejecting it** is the other way out, and it deletes the draft. That is defensible precisely here: nothing ran, so there is no recording, no cost and no trace anybody needs later. What stays is the brief it came out of — that is a task, and the reason for the rejection belongs in it rather than in a tombstone record of an agent that never worked.
 
 **Hiring it** is not a confirmation dialog but a summary: the role, the target systems it asks for with their scopes, the supervisor, the runtime it will be assigned to and its budget ceiling. Confirming sets the hiring date, sends the access requests down the approval path, and wakes the agent for its first task. It is the one point in this whole document where a human unambiguously takes responsibility for a new employee — which is why it looks like a decision and not like a toggle.
 
@@ -146,7 +152,7 @@ The name generator is a frontend module today (German and English pools, virtue 
 
 Cut so that every slice is worth shipping on its own — all eight are built:
 
-1. **The draft state** — hiring date, dispatch, and the *In hiring* section in the interface. Pays off immediately for templates and imports, before any of the rest exists.
+1. **The draft state** — hiring date, dispatch, and the *Applications* panel in the interface. Pays off immediately for templates and imports, before any of the rest exists.
 2. **The name generator** into the binary, with an endpoint for the interface.
 3. **The company description** on the organisation, editable, and one paragraph in the config copilot's system prompt.
 4. **The control-plane LLM port**, with the two existing callers moved onto it (D15).
@@ -159,4 +165,3 @@ Cut so that every slice is worth shipping on its own — all eight are built:
 
 - **Tier 2 without Anthropic.** Whether the control-plane port gets an OpenAI implementation immediately or Codex organisations live on tier 1 for a while. It decides whether card 2's payoff is visible during setup or only after the first sandbox run. (D15)
 - **Where the description ends up in the prompt.** Every agent's system prompt, or only the ones being drafted? It is a paragraph in every run of every agent, and it is exactly the kind of thing that is added once and never measured again.
-- **Discarding drafts.** Whether an unhired agent is deleted outright or kept as a record. Nothing ran, so there is nothing to audit — but the brief it came out of is a task, and that one stays regardless.

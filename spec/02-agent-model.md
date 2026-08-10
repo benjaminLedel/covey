@@ -34,7 +34,7 @@ An agent carries the moment it was **hired**. One that has none yet is a **draft
 
 The kill switch would have been technically sufficient for this — a killed agent does not run either — but it would confuse two different facts in one field: *this one was stopped* and *this one has not started yet*. And the hiring date is not a flag but a fact with a time, which is why it belongs in the employee profile next to a human's ([`09-enterprise-model.md`](09-enterprise-model.md)).
 
-The state pays for itself wherever an agent comes into existence without a person having finished thinking about it: instantiating from a template, importing a bundle (see below), leaving the creation form half-filled — and above all where an *agent* drafts the agent ([`20-hiring-and-setup.md`](20-hiring-and-setup.md)). Hiring stays a human act in every one of those cases.
+The state pays for itself wherever an agent comes into existence without a person having finished thinking about it: instantiating from a template, importing a bundle (see below), leaving the creation form half-filled — and above all where an *agent* drafts the agent ([`20-hiring-and-setup.md`](20-hiring-and-setup.md)). Hiring stays a human act in every one of those cases, and so does the other way out: a draft that does not fit is **discarded**, and it leaves nothing behind, because nothing ran.
 
 ## Workplace (sandbox)
 

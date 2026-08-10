@@ -102,6 +102,10 @@
         "indicators": {
           "t": "Kennzahlen & Stückkosten",
           "d": "Jeder Agent erklärt in KPIS.md, was er liefert. Die Plattform zählt es aus dem, was sie ohnehin aufzeichnet, und rechnet den Preis je Einheit aus — mit den Gegen-Zahlen daneben, damit ein Agent nicht dadurch gut aussieht, dass er die schweren Fälle abgibt."
+        },
+        "hiring": {
+          "t": "Einstellen statt Formular",
+          "d": "Beschreiben, was eine neue Kollegin tun soll — die eigene Personalabteilung, selbst ein Agent, macht daraus eine vollständige Konfiguration und fragt nach, wenn etwas fehlt. Heraus kommt eine Bewerbung, die erst arbeitet, wenn ein Mensch sie einstellt."
         }
       },
       "ctaTitle": "Selbst installieren",
@@ -287,7 +291,7 @@
       "lead": "Echte Ansichten aus der Control Plane — Belegschaft, Struktur, Arbeit, Gedächtnis und Kosten.",
       "agents": {
         "t": "Die Belegschaft",
-        "d": "Alle Agenten mit Status, Runtime und Rolle auf einen Blick."
+        "d": "Alle Agenten mit Status, Runtime und Rolle — darüber die Bewerbungen, die noch auf ihre Einstellung warten."
       },
       "org": {
         "t": "Org-Chart",

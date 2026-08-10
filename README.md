@@ -59,7 +59,7 @@ Everything but the third line takes seconds. That one builds the container an ag
 
 ![Agent overview](web/public/shots/agents.jpg)
 
-*An organisation's workforce at a glance — state, the runtime and budget per agent, and the kill switch for all of them.*
+*An organisation's workforce at a glance — state, the runtime and budget per agent, and the kill switch for all of them. Above them the **applications**: agents that have been drafted and are waiting to be hired.*
 
 | | |
 |---|---|
