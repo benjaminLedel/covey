@@ -433,6 +433,36 @@ func (s *Store) LogDecision(ctx context.Context, agentID uuid.UUID, host, method
 	return err
 }
 
+// LogDecisions writes a batch that a runner's proxy has reported. The
+// organisation is not a parameter of the rows but of the writing: only
+// decisions about agents of this organisation land in the log, everything else
+// is dropped silently. That is not a cosmetic check — a runner speaks for one
+// tenant, and a log entry under a foreign agent ID would be the one way it
+// could write into somebody else's records.
+//
+// The filter therefore sits in the statement, not in a loop in front of it: one
+// round trip, and no path past it.
+func (s *Store) LogDecisions(ctx context.Context, orgID uuid.UUID, batch []Decision) error {
+	if len(batch) == 0 {
+		return nil
+	}
+	ids := make([]uuid.UUID, len(batch))
+	hosts := make([]string, len(batch))
+	methods := make([]string, len(batch))
+	allowed := make([]bool, len(batch))
+	for i, d := range batch {
+		ids[i], hosts[i], methods[i], allowed[i] = d.AgentID, d.Host, d.Method, d.Allowed
+	}
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO egress_log (agent_id, host, method, allowed)
+		SELECT b.agent_id, b.host, b.method, b.allowed
+		  FROM unnest($1::uuid[], $2::text[], $3::text[], $4::bool[])
+		       AS b(agent_id, host, method, allowed)
+		  JOIN agents a ON a.id = b.agent_id AND a.org_id = $5`,
+		ids, hosts, methods, allowed, orgID)
+	return err
+}
+
 // ListLog returns the organisation's most recent decisions, optionally only
 // blocked ones or only those of one agent, with the agent slug for display.
 func (s *Store) ListLog(ctx context.Context, orgID, agentID uuid.UUID, onlyBlocked bool, limit int) ([]LogEntry, error) {

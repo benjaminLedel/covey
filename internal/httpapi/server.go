@@ -32,6 +32,7 @@ import (
 	"covey/internal/orchestrator"
 	"covey/internal/org"
 	reqlogstore "covey/internal/reqlog/store"
+	"covey/internal/runner"
 	"covey/internal/runtimes"
 	"covey/internal/secrets"
 	"covey/internal/skills"
@@ -68,6 +69,11 @@ type Server struct {
 	EgressStore    *egress.Store
 	EgressEnforced bool
 	EgressDefaults []string
+
+	// Runners are the execution nodes (spec/16). They authenticate with their
+	// own token against /api/runner/v1/… — the only interface they have to the
+	// platform. nil = the runner API answers 503 (tests).
+	Runners *runner.Store
 
 	Templates *templates.Store
 
@@ -420,6 +426,13 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/webhooks/{system}/{agent}", s.logIncoming(s.handleTargetWebhook))
 	mux.HandleFunc("POST /api/trigger/{token}", s.logIncoming(s.handleAgentTrigger))
 	mux.HandleFunc("GET /api/daemon/ws", s.handleDaemonWS)
+
+	// The runner API (spec/16): a runner's only interface to the platform,
+	// authenticated with its own token and scoped to its organisation. Its
+	// first user is the egress proxy, which used to read its allowlist from
+	// Postgres itself.
+	mux.Handle("GET /api/runner/v1/egress/allowlist", s.runnerAuth(s.handleRunnerAllowlist))
+	mux.Handle("POST /api/runner/v1/egress/decisions", s.runnerAuth(s.handleRunnerDecisions))
 
 	// This instance's installation script — deliberately without a login:
 	// whoever fetches it has nothing yet to log in with. It ships its own

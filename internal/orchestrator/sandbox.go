@@ -20,6 +20,11 @@ type SandboxProvider interface {
 
 type SandboxSpec struct {
 	AgentID uuid.UUID
+	// OrgID is the agent's organisation. It decides which runner carries this
+	// sandbox — and with it which egress segment it hangs in: a runner serves
+	// exactly one organisation (spec/16), so two tenants never share an
+	// internal network.
+	OrgID   uuid.UUID
 	HomeDir string
 	Env     map[string]string // COVEY_WS_URL, COVEY_DAEMON_TOKEN, …
 	// EgressToken is the per-sandbox token the sandbox uses to identify itself

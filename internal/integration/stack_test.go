@@ -35,6 +35,7 @@ import (
 	"covey/internal/orchestrator"
 	"covey/internal/org"
 	reqlogstore "covey/internal/reqlog/store"
+	"covey/internal/runner"
 	"covey/internal/runtimes"
 	secbuiltin "covey/internal/secrets/builtin"
 	"covey/internal/skills"
@@ -109,6 +110,7 @@ type stack struct {
 	mem       *memory.Store
 	targets   *targetstore.Store
 	egress    *egress.Store
+	runners   *runner.Store
 	skills    *skills.Store
 	reqlog    *reqlogstore.Store
 	templates *templates.Store
@@ -174,6 +176,7 @@ func newStack(t *testing.T) *stack {
 
 	s.targets = targetstore.NewStore(pool)
 	s.egress = egress.NewStore(pool)
+	s.runners = runner.NewStore(pool)
 	s.skills = skills.NewStore(pool)
 	// Request log as in production, but without reqlog.SetDefault: the sink is
 	// process-wide, and stacks running in parallel would push their entries at
@@ -208,6 +211,7 @@ func newStack(t *testing.T) *stack {
 		Templates: s.templates, Dreams: s.dreams, Audit: s.audit,
 		Skills:      s.skills,
 		EgressStore: s.egress,
+		Runners:     s.runners,
 		ReqLog:      s.reqlog,
 		Orch:        s.orch, Log: log,
 		WebhookSecrets: map[string]string{"zammad": webhookSecret},

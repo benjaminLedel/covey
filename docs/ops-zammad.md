@@ -200,6 +200,8 @@ otherwise a blocked agent never wakes up again.
 | `COVEY_EGRESS_ALLOW` | *(empty)* | Additional permitted egress hosts, e.g. the Zammad host (`*.suffix` allowed) |
 | `COVEY_EGRESS_ISOLATION` | `proxy` | `proxy` (cooperative) or `network` (hard isolation, see 6.1) |
 | `COVEY_EGRESS_PROXY_ADDR` | `:8888` | The proxy's bind address (network mode, in the container) |
+| `COVEY_CONTROL_URL` | *(set by the control plane)* | The control plane's address as the proxy container sees it — set automatically, only relevant when running `covey egress-proxy` by hand |
+| `COVEY_RUNNER_TOKEN` | *(set by the control plane)* | The token of the runner the proxy belongs to — likewise set automatically |
 
 > **Egress:** with `COVEY_SANDBOX_PROVIDER=docker` and `COVEY_EGRESS_ENFORCE=true`
 > the sandbox traffic runs through an allowlist proxy. `api.anthropic.com` (the
@@ -240,10 +242,24 @@ COVEY_EGRESS_ALLOW="helpdesk.example.com"   # target-system hosts (UI hosts are 
 ```
 
 The control plane sets up the network and the proxy container automatically
-(`covey-egress-internal`, `covey-egress-proxy`, image `make egress-image`). The
-proxy identifies the requesting agent through a per-sandbox token
-(proxy authorization, set on wake) and applies that agent's effective allowlist
-(DB + ENV + default), with a ~15 s cache.
+(image `make egress-image`), **one set per runner**:
+`covey-egress-internal-<runner>` and `covey-egress-proxy-<runner>`. A runner
+serves exactly one organisation, so two tenants never share an internal segment
+— `--internal` cuts the way out, not the way sideways. Whoever operates a single
+organisation sees one of each, as before.
+
+The proxy identifies the requesting agent through a per-sandbox token (proxy
+authorization, set on wake) and applies that agent's effective allowlist, with a
+~15 s cache. It fetches that allowlist **from the control plane**
+(`COVEY_CONTROL_URL` + `COVEY_RUNNER_TOKEN`, endpoint `/api/runner/v1/…`) and no
+longer from Postgres: the proxy is an enforcement point, not a database client,
+and on a remote runner the old construction would mean distributing the database
+credentials to every host that runs sandboxes (`spec/16-runner.md`).
+
+Two consequences for operations: the control plane has to be reachable from the
+proxy container (it is attached to the bridge network for that anyway), and the
+proxy container is renewed once per control-plane start — its runner token is
+rolled at every start, and a leftover container would carry the old one.
 
 **Prerequisite:** the control plane has to be reachable over **TLS/wss**. In
 network mode the daemon↔control-plane WebSocket also runs through the proxy by

@@ -11,13 +11,34 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// DBResolver resolves the per-agent allowlist from the store (with a short
-// cache), validates the per-sandbox token and writes the decision log
-// asynchronously. It serves both the cooperative proxy (inside the control
-// plane process) and the standalone proxy container (network mode) — both talk
-// to the same database.
-type DBResolver struct {
-	store    *Store
+// Decision is a single proxy decision — the unit of the decision log. It leaves
+// the process in this shape too: the standalone proxy posts it to the control
+// plane instead of writing it to the database itself (spec/16, trust boundary).
+type Decision struct {
+	AgentID uuid.UUID `json:"agent_id"`
+	Host    string    `json:"host"`
+	Method  string    `json:"method"`
+	Allowed bool      `json:"allowed"`
+}
+
+// loadFunc fetches an agent's effective allowlist and the hash of its
+// per-sandbox token. An empty hash with a nil error means "no valid token
+// stored" — a fail-closed state that is worth caching, in contrast to an error.
+type loadFunc func(ctx context.Context, agentID uuid.UUID) (patterns []string, tokenHash string, err error)
+
+// sinkFunc takes a batch of decisions.
+type sinkFunc func(ctx context.Context, batch []Decision) error
+
+// resolver is what both resolvers have in common: the short cache in front of
+// the source, the token check against it, and the decision log that never
+// blocks the proxy. What differs is only where the two come from — the database
+// (in the control plane's process) or the control-plane API (in the proxy
+// container). That is the same distinction the runner draws between the
+// in-process and the remote transport, and it is drawn here for the same
+// reason: one implementation of the logic, two ways to reach the data.
+type resolver struct {
+	load     loadFunc
+	sink     sinkFunc
 	defaults []string // always-allowed additions from the environment (COVEY_EGRESS_ALLOW, e.g. host.docker.internal)
 	ttl      time.Duration
 	log      *slog.Logger
@@ -25,7 +46,7 @@ type DBResolver struct {
 	mu    sync.Mutex
 	cache map[uuid.UUID]cachedEntry
 
-	logCh   chan logItem
+	logCh   chan Decision
 	dropped int64
 }
 
@@ -36,28 +57,26 @@ type cachedEntry struct {
 	expires   time.Time
 }
 
-type logItem struct {
-	agent   uuid.UUID
-	host    string
-	method  string
-	allowed bool
-}
+// maxBatch bounds a single write of the decision log. Without it a proxy that
+// has been logging into a broken sink for minutes would deliver its whole
+// backlog in one request the moment the sink comes back.
+const maxBatch = 100
 
-// NewDBResolver starts the resolver together with its log writer, bound to ctx.
-func NewDBResolver(ctx context.Context, store *Store, defaults []string, ttl time.Duration, log *slog.Logger) *DBResolver {
+func newResolver(ctx context.Context, load loadFunc, sink sinkFunc, defaults []string, ttl time.Duration, log *slog.Logger) *resolver {
 	if log == nil {
 		log = slog.Default()
 	}
 	if ttl <= 0 {
 		ttl = 15 * time.Second
 	}
-	r := &DBResolver{
-		store:    store,
+	r := &resolver{
+		load:     load,
+		sink:     sink,
 		defaults: defaults,
 		ttl:      ttl,
 		log:      log,
 		cache:    map[uuid.UUID]cachedEntry{},
-		logCh:    make(chan logItem, 2048),
+		logCh:    make(chan Decision, 2048),
 	}
 	go r.writeLoop(ctx)
 	return r
@@ -65,7 +84,7 @@ func NewDBResolver(ctx context.Context, store *Store, defaults []string, ttl tim
 
 // Resolve validates (agentID, token) and returns the agent's effective
 // allowlist (defaults + templates + own hosts). Fail-closed on any error.
-func (r *DBResolver) Resolve(ctx context.Context, agentID, token string) (*Allowlist, uuid.UUID, bool) {
+func (r *resolver) Resolve(ctx context.Context, agentID, token string) (*Allowlist, uuid.UUID, bool) {
 	id, err := uuid.Parse(agentID)
 	if err != nil {
 		return nil, uuid.Nil, false
@@ -85,7 +104,7 @@ func (r *DBResolver) Resolve(ctx context.Context, agentID, token string) (*Allow
 		// The token rotates when the sandbox wakes — a cached, stale hash must
 		// not lock the fresh sandbox out with 407 until the TTL expires. Reload
 		// once and check again; the minimum freshness bounds how often wrong
-		// tokens can trigger a database round-trip.
+		// tokens can trigger a round-trip to the source.
 		if time.Since(entry.loaded) < 2*time.Second {
 			return nil, uuid.Nil, false
 		}
@@ -99,45 +118,29 @@ func (r *DBResolver) Resolve(ctx context.Context, agentID, token string) (*Allow
 	return entry.allow, id, true
 }
 
-// reload loads an agent's cache entry freshly from the database and replaces
-// it in the cache. Errors are logged and propagated (fail-closed, without
-// caching the failure state).
-func (r *DBResolver) reload(ctx context.Context, id uuid.UUID) (cachedEntry, error) {
-	entry, err := r.load(ctx, id)
+// reload loads an agent's cache entry freshly from the source and replaces it
+// in the cache. Errors are logged and propagated (fail-closed, without caching
+// the failure state).
+func (r *resolver) reload(ctx context.Context, id uuid.UUID) (cachedEntry, error) {
+	now := time.Now()
+	patterns, tokenHash, err := r.load(ctx, id)
 	if err != nil {
 		r.log.Warn("egress resolver: load failed", "agent", id, "err", err)
 		return cachedEntry{}, err
 	}
+	all := append(append([]string{}, r.defaults...), patterns...)
+	entry := cachedEntry{allow: NewAllowlist(all), tokenHash: tokenHash, loaded: now, expires: now.Add(r.ttl)}
 	r.mu.Lock()
 	r.cache[id] = entry
 	r.mu.Unlock()
 	return entry, nil
 }
 
-func (r *DBResolver) load(ctx context.Context, id uuid.UUID) (cachedEntry, error) {
-	now := time.Now()
-	hash, err := r.store.AgentTokenHash(ctx, id)
-	if errors.Is(err, pgx.ErrNoRows) {
-		// No token stored → no valid access (fail-closed). Cache it with an empty
-		// hash anyway so that not every request hits the database.
-		return cachedEntry{allow: NewAllowlist(r.defaults), tokenHash: "", loaded: now, expires: now.Add(r.ttl)}, nil
-	}
-	if err != nil {
-		return cachedEntry{}, err
-	}
-	patterns, err := r.store.EffectiveAllowlist(ctx, id)
-	if err != nil {
-		return cachedEntry{}, err
-	}
-	all := append(append([]string{}, r.defaults...), patterns...)
-	return cachedEntry{allow: NewAllowlist(all), tokenHash: hash, loaded: now, expires: now.Add(r.ttl)}, nil
-}
-
 // Log queues a decision without blocking; if the buffer is full the entry is
-// dropped (and counted) so that the proxy never hangs on the database.
-func (r *DBResolver) Log(agent uuid.UUID, host, method string, allowed bool) {
+// dropped (and counted) so that the proxy never hangs on the log.
+func (r *resolver) Log(agent uuid.UUID, host, method string, allowed bool) {
 	select {
-	case r.logCh <- logItem{agent: agent, host: host, method: method, allowed: allowed}:
+	case r.logCh <- Decision{AgentID: agent, Host: host, Method: method, Allowed: allowed}:
 	default:
 		r.mu.Lock()
 		r.dropped++
@@ -145,17 +148,70 @@ func (r *DBResolver) Log(agent uuid.UUID, host, method string, allowed bool) {
 	}
 }
 
-func (r *DBResolver) writeLoop(ctx context.Context) {
+func (r *resolver) writeLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case it := <-r.logCh:
+		case first := <-r.logCh:
+			batch := append(make([]Decision, 0, maxBatch), first)
+			// Whatever is already queued travels along — under load that turns a
+			// request per decision into one per batch.
+			for len(batch) < maxBatch {
+				select {
+				case next := <-r.logCh:
+					batch = append(batch, next)
+					continue
+				default:
+				}
+				break
+			}
 			wctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-			if err := r.store.LogDecision(wctx, it.agent, it.host, it.method, it.allowed); err != nil {
-				r.log.Warn("writing egress log failed", "err", err)
+			if err := r.sink(wctx, batch); err != nil {
+				r.log.Warn("writing egress log failed", "entries", len(batch), "err", err)
 			}
 			cancel()
 		}
 	}
+}
+
+// DBResolver reads the allowlist straight from the store. It belongs to the
+// cooperative proxy, which runs inside the control plane's process — there the
+// database is not a foreign resource but the process's own.
+type DBResolver struct {
+	*resolver
+	store *Store
+}
+
+// NewDBResolver starts the resolver together with its log writer, bound to ctx.
+func NewDBResolver(ctx context.Context, store *Store, defaults []string, ttl time.Duration, log *slog.Logger) *DBResolver {
+	d := &DBResolver{store: store}
+	d.resolver = newResolver(ctx, d.load, d.write, defaults, ttl, log)
+	return d
+}
+
+func (d *DBResolver) load(ctx context.Context, id uuid.UUID) ([]string, string, error) {
+	hash, err := d.store.AgentTokenHash(ctx, id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// No token stored → no valid access (fail-closed). Cached with an empty
+		// hash anyway so that not every request hits the database.
+		return nil, "", nil
+	}
+	if err != nil {
+		return nil, "", err
+	}
+	patterns, err := d.store.EffectiveAllowlist(ctx, id)
+	if err != nil {
+		return nil, "", err
+	}
+	return patterns, hash, nil
+}
+
+func (d *DBResolver) write(ctx context.Context, batch []Decision) error {
+	for _, it := range batch {
+		if err := d.store.LogDecision(ctx, it.AgentID, it.Host, it.Method, it.Allowed); err != nil {
+			return err
+		}
+	}
+	return nil
 }

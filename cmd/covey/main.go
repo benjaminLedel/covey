@@ -39,6 +39,7 @@ import (
 	"covey/internal/org"
 	"covey/internal/reqlog"
 	reqlogstore "covey/internal/reqlog/store"
+	"covey/internal/runner"
 	"covey/internal/runtimes"
 	secbuiltin "covey/internal/secrets/builtin"
 	"covey/internal/skills"
@@ -433,18 +434,19 @@ func egressBaseAllow(cfg config.Config) []string {
 	return append([]string{}, cfg.EgressAllow...)
 }
 
-// rewriteDBForContainer bends a loopback DB URL onto host.docker.internal so
-// the egress proxy container reaches the Postgres instance on the host.
-// Non-loopback hosts (a real DB deployment) stay untouched.
-func rewriteDBForContainer(dsn string) string {
-	u, err := url.Parse(dsn)
+// rewriteLoopbackForContainer bends a loopback URL onto host.docker.internal so
+// that a container reaches the service on the host — the control plane for the
+// egress proxy, say. Non-loopback hosts (a real deployment address) stay
+// untouched.
+func rewriteLoopbackForContainer(raw string) string {
+	u, err := url.Parse(raw)
 	if err != nil {
-		return dsn
+		return raw
 	}
 	switch u.Hostname() {
 	case "localhost", "127.0.0.1", "::1":
 	default:
-		return dsn
+		return raw
 	}
 	host := "host.docker.internal"
 	if port := u.Port(); port != "" {
@@ -456,30 +458,26 @@ func rewriteDBForContainer(dsn string) string {
 
 // runEgressProxy runs the egress allowlist proxy as a standalone process
 // (network isolation mode: it runs in the proxy container as the isolated
-// sandbox's only way out). The allowlist comes from DB + ENV + code default and
-// is reloaded periodically so UI changes take effect without a restart.
+// sandbox's only way out). The allowlist comes from the control plane + ENV +
+// code default and is reloaded periodically so UI changes take effect without
+// a restart.
+//
+// It asks the control plane and no longer the database. On a remote runner the
+// old construction would mean distributing the Postgres credentials to every
+// host that runs sandboxes — the proxy is an enforcement point, not a database
+// client (spec/16, "Trust boundary").
 func runEgressProxy(ctx context.Context, cfg config.Config, log *slog.Logger) error {
-	// The DB may not be reachable yet at startup: in network mode the internal
-	// network is attached to the bridge network only AFTER the container has
-	// started. Retry until then — the process stays alive (container
-	// "running") so that `docker network connect` has something to work with.
-	var store *egress.Store
-	for store == nil {
-		pool, err := db.Connect(ctx, cfg.DatabaseURL)
-		if err != nil {
-			log.Warn("egress-proxy: DB not reachable yet, retrying", "err", err)
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(3 * time.Second):
-			}
-			continue
-		}
-		defer pool.Close()
-		store = egress.NewStore(pool)
+	if cfg.ControlURL == "" || cfg.RunnerToken == "" {
+		return fmt.Errorf("egress-proxy: COVEY_CONTROL_URL and COVEY_RUNNER_TOKEN are required — " +
+			"the proxy fetches its allowlist from the control plane")
 	}
 
-	resolver := egress.NewDBResolver(ctx, store, egressBaseAllow(cfg), 15*time.Second, log)
+	// No reachability check at startup: in network mode the container is
+	// attached to the bridge network only AFTER it has started, so the control
+	// plane is unreachable for the first moments. The resolver retries by
+	// itself on every request, and until then it answers fail-closed — which is
+	// the correct answer for a proxy whose allowlist it does not know.
+	resolver := egress.NewAPIResolver(ctx, cfg.ControlURL, cfg.RunnerToken, egressBaseAllow(cfg), 15*time.Second, log)
 	proxy := egress.New(resolver, log)
 	addr, err := proxy.Start(cfg.EgressProxyAddr)
 	if err != nil {
@@ -604,6 +602,12 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		return err
 	}
 
+	runnerStore := runner.NewStore(pool)
+	// The built-in runner: one per organisation, created by the platform
+	// itself. At this stage it is only the identity the egress proxy
+	// authenticates with; it becomes an execution node in stage 2 (spec/16).
+	builtinRunners := runner.NewBuiltinTokens(runnerStore)
+
 	registry := agents.NewRegistry(pool)
 	// Platform-wide wiki cleanup heartbeat (COVEY_WIKI_CLEANUP): the control
 	// plane periodically files a backlog task for every agent in which it tends
@@ -654,15 +658,18 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			switch cfg.EgressIsolation {
 			case "network":
 				// Hard isolation: sandbox without internet, the proxy container
-				// as its only way out. The proxy reads the allowlist from the DB
-				// itself (live reload by polling) — hence no host-side reload.
+				// as its only way out. The proxy fetches the allowlist from the
+				// control plane (live reload by polling) — hence no host-side
+				// reload, and no database URL: one segment and one proxy per
+				// runner, each authenticated with that runner's token.
 				dp.EgressIsolation = "network"
 				dp.EgressProxyImage = "covey-egress:latest"
 				dp.EgressProxyEnv = map[string]string{
-					"COVEY_DATABASE_URL":      rewriteDBForContainer(cfg.DatabaseURL),
+					"COVEY_CONTROL_URL":       rewriteLoopbackForContainer(cfg.PublicURL),
 					"COVEY_EGRESS_ALLOW":      strings.Join(append(append([]string{}, cfg.EgressAllow...), "host.docker.internal"), ","),
 					"COVEY_EGRESS_PROXY_ADDR": ":8888",
 				}
+				dp.EgressRunnerFor = builtinRunners.For
 				log.Info("egress enforcement: hard network isolation active", "proxy-image", dp.EgressProxyImage)
 			default:
 				// Cooperative: proxy inside the control plane process, container via HTTP_PROXY.
@@ -746,6 +753,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		EgressStore:    egressStore,
 		EgressEnforced: egressEnforced,
 		EgressDefaults: egressBaseAllow(cfg),
+		Runners:        runnerStore,
 		ReqLog:         reqLog,
 		DataPlane:      dataPlane,
 	}

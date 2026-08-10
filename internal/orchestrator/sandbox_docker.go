@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -41,17 +42,45 @@ type DockerProvider struct {
 	EgressIsolation string
 	// EgressProxyImage is the proxy image for network mode (make egress-image).
 	EgressProxyImage string
-	// EgressProxyEnv are the proxy container's env variables (DB URL,
-	// COVEY_EGRESS_ALLOW incl. control plane host, COVEY_EGRESS_PROXY_ADDR).
+	// EgressProxyEnv are the proxy container's env variables that are the same
+	// for every runner (COVEY_CONTROL_URL, COVEY_EGRESS_ALLOW incl. the control
+	// plane host, COVEY_EGRESS_PROXY_ADDR). The runner token comes per runner
+	// from EgressRunnerFor — deliberately NOT the database URL: the proxy is an
+	// enforcement point, not a database client (spec/16, "Trust boundary").
 	EgressProxyEnv map[string]string
+	// EgressRunnerFor resolves an organisation's runner and its token. In hard
+	// isolation mode each runner gets its own segment and its own proxy, so
+	// this is what decides where a sandbox lands.
+	EgressRunnerFor func(ctx context.Context, orgID uuid.UUID) (runnerID uuid.UUID, token string, err error)
+
+	// proxyFresh notes the runners whose proxy container this process has
+	// already renewed. See ensureEgressProxy for why that is necessary.
+	proxyMu    sync.Mutex
+	proxyFresh map[uuid.UUID]bool
 }
 
-// Names of the building blocks of the hard isolation mode.
-const (
-	egressNetwork    = "covey-egress-internal" // internal network without internet
-	egressProxyName  = "covey-egress-proxy"    // the proxy container
-	egressProxyAlias = "covey-egress"          // DNS alias on the internal network
-)
+// egressProxyAlias is the proxy's DNS name on its internal network. It may stay
+// the same for every runner because the networks are separate — the name only
+// has to be unambiguous within one segment.
+const egressProxyAlias = "covey-egress"
+
+// The internal network and the proxy container carry the runner they belong to
+// in their name. Instance-wide singletons would put the sandboxes of every
+// organisation into the same segment, and `--internal` only cuts the way out,
+// not the way sideways — so two tenants' agents could reach each other
+// directly, past every allowlist (spec/16, "Egress with distributed runners").
+//
+// The short form of the ID suffices: it is unambiguous on one host, and the
+// full one makes container names that no longer fit in a terminal.
+func egressNetworkFor(runnerID uuid.UUID) string {
+	return "covey-egress-internal-" + short(runnerID)
+}
+
+func egressProxyNameFor(runnerID uuid.UUID) string {
+	return "covey-egress-proxy-" + short(runnerID)
+}
+
+func short(id uuid.UUID) string { return id.String()[:8] }
 
 // sandboxHome is the fixed home path inside the container (user `agent` in the image).
 const sandboxHome = "/home/agent"
@@ -133,11 +162,15 @@ func (p *DockerProvider) Start(ctx context.Context, spec SandboxSpec) (Sandbox, 
 		// it via CONNECT too — hence NO host.docker.internal add-host here, but
 		// the proxy as HTTP(S)_PROXY. Loopback (the daemon's action proxy) stays
 		// direct.
-		if err := p.ensureNetworkIsolation(ctx); err != nil {
+		runnerID, runnerToken, err := p.egressRunner(ctx, spec.OrgID)
+		if err != nil {
+			return nil, fmt.Errorf("resolve egress runner: %w", err)
+		}
+		if err := p.ensureNetworkIsolation(ctx, runnerID, runnerToken); err != nil {
 			return nil, fmt.Errorf("prepare egress network: %w", err)
 		}
 		proxyURL := egressURLWithCreds("http://"+egressProxyAlias+":8888", spec.AgentID.String(), spec.EgressToken)
-		args = append(args, "--network", egressNetwork)
+		args = append(args, "--network", egressNetworkFor(runnerID))
 		for _, e := range proxyEnvVars(proxyURL, "localhost,127.0.0.1,::1") {
 			args = append(args, "-e", e)
 		}
@@ -284,21 +317,33 @@ func proxyEnvVars(proxyURL, noProxy string) []string {
 	}
 }
 
+// egressRunner resolves the organisation's runner. Without a resolver the
+// provider cannot say which segment a sandbox belongs in — and guessing would
+// mean putting it into a foreign one, so it fails instead.
+func (p *DockerProvider) egressRunner(ctx context.Context, orgID uuid.UUID) (uuid.UUID, string, error) {
+	if p.EgressRunnerFor == nil {
+		return uuid.Nil, "", fmt.Errorf("hard isolation without a runner resolver — the egress segment is unknown")
+	}
+	return p.EgressRunnerFor(ctx, orgID)
+}
+
 // ensureNetworkIsolation idempotently establishes the internal network and the
-// running proxy container — the two building blocks of the hard egress mode.
-func (p *DockerProvider) ensureNetworkIsolation(ctx context.Context) error {
-	if err := p.ensureEgressNetwork(ctx); err != nil {
+// running proxy container — the two building blocks of the hard egress mode,
+// one set per runner.
+func (p *DockerProvider) ensureNetworkIsolation(ctx context.Context, runnerID uuid.UUID, runnerToken string) error {
+	if err := p.ensureEgressNetwork(ctx, runnerID); err != nil {
 		return err
 	}
-	return p.ensureEgressProxy(ctx)
+	return p.ensureEgressProxy(ctx, runnerID, runnerToken)
 }
 
 // ensureEgressNetwork creates the internal network (no gateway to the outside).
-func (p *DockerProvider) ensureEgressNetwork(ctx context.Context) error {
-	if err := exec.CommandContext(ctx, p.docker(), "network", "inspect", egressNetwork).Run(); err == nil {
+func (p *DockerProvider) ensureEgressNetwork(ctx context.Context, runnerID uuid.UUID) error {
+	name := egressNetworkFor(runnerID)
+	if err := exec.CommandContext(ctx, p.docker(), "network", "inspect", name).Run(); err == nil {
 		return nil // already exists
 	}
-	out, err := exec.CommandContext(ctx, p.docker(), "network", "create", "--internal", egressNetwork).CombinedOutput()
+	out, err := exec.CommandContext(ctx, p.docker(), "network", "create", "--internal", name).CombinedOutput()
 	if err != nil && !strings.Contains(string(out), "already exists") {
 		return fmt.Errorf("create internal network: %v: %s", err, strings.TrimSpace(string(out)))
 	}
@@ -308,28 +353,48 @@ func (p *DockerProvider) ensureEgressNetwork(ctx context.Context) error {
 // ensureEgressProxy starts the proxy container if it is not running: on the
 // internal network (alias covey-egress) as the only way out, plus the default
 // bridge network for internet access.
-func (p *DockerProvider) ensureEgressProxy(ctx context.Context) error {
-	// Already running?
-	out, _ := exec.CommandContext(ctx, p.docker(), "inspect", "-f", "{{.State.Running}}", egressProxyName).Output()
-	if strings.TrimSpace(string(out)) == "true" {
-		return nil
+//
+// The first call per process renews the container even when it is running. The
+// reason is the runner token: the built-in runner rolls a new one at every
+// start of the control plane, and a proxy left over from the previous one would
+// carry the old one in its environment. It would then get a 401 on its next
+// allowlist fetch and — fail-closed, correctly — block everything. A container
+// restart is cheap; the proxy holds no state.
+func (p *DockerProvider) ensureEgressProxy(ctx context.Context, runnerID uuid.UUID, runnerToken string) error {
+	name := egressProxyNameFor(runnerID)
+
+	p.proxyMu.Lock()
+	if p.proxyFresh == nil {
+		p.proxyFresh = map[uuid.UUID]bool{}
+	}
+	fresh := p.proxyFresh[runnerID]
+	p.proxyFresh[runnerID] = true
+	p.proxyMu.Unlock()
+
+	if fresh {
+		// Already renewed in this process — from here on, running is enough.
+		out, _ := exec.CommandContext(ctx, p.docker(), "inspect", "-f", "{{.State.Running}}", name).Output()
+		if strings.TrimSpace(string(out)) == "true" {
+			return nil
+		}
 	}
 	// Clear leftovers so the name is free.
-	_ = exec.CommandContext(ctx, p.docker(), "rm", "-f", egressProxyName).Run()
+	_ = exec.CommandContext(ctx, p.docker(), "rm", "-f", name).Run()
 
 	image := p.EgressProxyImage
 	if image == "" {
 		image = "covey-egress:latest"
 	}
 	args := []string{"run", "-d", "--restart", "unless-stopped",
-		"--name", egressProxyName,
-		"--network", egressNetwork,
+		"--name", name,
+		"--network", egressNetworkFor(runnerID),
 		"--network-alias", egressProxyAlias,
 		"--add-host", "host.docker.internal:host-gateway",
 	}
 	for k, v := range p.EgressProxyEnv {
 		args = append(args, "-e", k+"="+v)
 	}
+	args = append(args, "-e", "COVEY_RUNNER_TOKEN="+runnerToken)
 	args = append(args, image)
 	if runOut, err := exec.CommandContext(ctx, p.docker(), args...).CombinedOutput(); err != nil {
 		msg := strings.TrimSpace(string(runOut))
@@ -339,8 +404,8 @@ func (p *DockerProvider) ensureEgressProxy(ctx context.Context) error {
 		return fmt.Errorf("start egress proxy: %v: %s", err, msg)
 	}
 	// Internet side: attach the default bridge network so the proxy reaches the
-	// outside (and the DB/control plane via host-gateway).
-	if connOut, err := exec.CommandContext(ctx, p.docker(), "network", "connect", "bridge", egressProxyName).CombinedOutput(); err != nil {
+	// outside (and the control plane via host-gateway).
+	if connOut, err := exec.CommandContext(ctx, p.docker(), "network", "connect", "bridge", name).CombinedOutput(); err != nil {
 		msg := strings.TrimSpace(string(connOut))
 		if !strings.Contains(msg, "already exists") && !strings.Contains(msg, "already connected") {
 			return fmt.Errorf("attach egress proxy to the bridge network: %v: %s", err, msg)

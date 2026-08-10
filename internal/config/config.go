@@ -86,6 +86,14 @@ type Config struct {
 	// EgressProxyAddr is the bind address of the standalone egress proxy
 	// (subcommand `covey egress-proxy`, a container in network mode).
 	EgressProxyAddr string
+	// ControlURL is the control plane's address as seen by the standalone
+	// egress proxy, and RunnerToken is the token of the runner it belongs to.
+	// Together they replace the database URL the proxy used to be given: it is
+	// an enforcement point, not a database client, and on a remote runner the
+	// old construction would mean handing the Postgres credentials to every
+	// host that runs sandboxes (spec/16, "Trust boundary").
+	ControlURL  string
+	RunnerToken string
 	// RequestLog enables the request log (on by default): the HTTP requests at
 	// the platform's edges — incoming webhooks and outgoing target-system
 	// calls — end up in the request_log table and can be inspected under
@@ -156,6 +164,8 @@ func FromEnv() (Config, error) {
 		EgressAllow:      splitList(os.Getenv("COVEY_EGRESS_ALLOW")),
 		EgressIsolation:  getenv("COVEY_EGRESS_ISOLATION", "proxy"),
 		EgressProxyAddr:  getenv("COVEY_EGRESS_PROXY_ADDR", ":8888"),
+		ControlURL:       getenv("COVEY_CONTROL_URL", ""),
+		RunnerToken:      getenv("COVEY_RUNNER_TOKEN", ""),
 		WikiCleanup:      strings.TrimSpace(os.Getenv("COVEY_WIKI_CLEANUP")),
 		RuntimeTools:     splitList(os.Getenv("COVEY_RUNTIME_TOOLS")),
 

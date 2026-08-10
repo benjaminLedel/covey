@@ -886,6 +886,7 @@ func (o *Orchestrator) wake(ctx context.Context, agent agents.Agent) (DaemonLink
 
 	sandbox, err := o.Provider.Start(ctx, SandboxSpec{
 		AgentID:     agent.ID,
+		OrgID:       agent.OrgID,
 		EgressToken: egressToken,
 		Env: map[string]string{
 			"COVEY_WS_URL":       o.PublicWSURL,
