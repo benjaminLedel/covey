@@ -42,6 +42,10 @@ func TestEntwurfArbeitetNicht(t *testing.T) {
 	// Waking by hand is refused — the button does not exist in the interface,
 	// and the endpoint must not be the back door around it.
 	admin.expect(http.MethodPost, "/api/v1/agents/"+agentID+"/wake", nil, http.StatusConflict)
+	// The dream likewise: it costs a control-plane model call, and "a draft costs
+	// nothing" is the whole point of the state. There is also nothing to tidy up —
+	// an agent that never ran has no memory.
+	admin.expect(http.MethodPost, "/api/v1/agents/"+agentID+"/dreams", nil, http.StatusConflict)
 
 	// The dispatcher leaves it alone. Deliberately over a stretch of real time:
 	// the tick comes back, and it has to keep NOT picking the task up.

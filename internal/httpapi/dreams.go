@@ -39,8 +39,15 @@ func (s *Server) handleStartDream(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	if _, err := s.Registry.Get(r.Context(), id); err != nil {
+	a, err := s.Registry.Get(r.Context(), id)
+	if err != nil {
 		mapErr(w, err)
+		return
+	}
+	// A draft does not dream. It has no run behind it, so there is nothing to
+	// tidy up — and a dream costs money at the control plane, which is exactly
+	// what a draft must not do (spec/20).
+	if draftBlocked(w, a) {
 		return
 	}
 	p := principalFrom(r)
