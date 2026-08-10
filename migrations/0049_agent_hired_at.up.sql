@@ -15,6 +15,8 @@ ALTER TABLE agents ADD COLUMN hired_at TIMESTAMPTZ;
 -- Anlage.
 UPDATE agents SET hired_at = created_at;
 
--- Der Dispatcher fragt bei jedem Tick nach offener Arbeit und filtert dabei
--- ueber diese Spalte mit.
-CREATE INDEX agents_hired_idx ON agents (hired_at) WHERE hired_at IS NULL;
+-- Kein Index auf dieser Spalte. Jede Abfrage, die ueber sie filtert — der Tick,
+-- die Heartbeats, das Team-Verzeichnis — sucht `hired_at IS NOT NULL`, und das
+-- trifft so gut wie jede Zeile: ein Index darauf wird nicht benutzt. Der
+-- umgekehrte Teilindex (IS NULL) faende die Entwuerfe schnell, aber danach
+-- fragt niemand in SQL — die Oberflaeche sortiert die Liste im Browser.
