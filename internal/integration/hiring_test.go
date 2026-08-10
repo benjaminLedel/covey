@@ -3,6 +3,7 @@ package integration
 import (
 	"context"
 	"net/http"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -230,4 +231,110 @@ func TestEinstellenNurMitZugang(t *testing.T) {
 	if !strings.Contains(p, "hire") {
 		t.Fatal("the prompt has to say that hiring is not its job")
 	}
+}
+
+// TestEntwerfenSchreibtInMehrerenZuegen pins the two properties the first real
+// run got wrong (spec/20):
+//
+//   - set_agent_config MERGES. A model writes a config in two calls — first the
+//     character, then the procedures — and the second call used to delete the
+//     first silently. What came out looked complete and had no soul.
+//   - No config without a SOUL.md. The refusal has to reach the agent while it
+//     can still act, not the human afterwards.
+//
+// Everything happens in ONE task, because that is the rule: an assignment may
+// configure exactly the drafts it created itself.
+func TestEntwerfenSchreibtInMehrerenZuegen(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+
+	drafter, err := s.registry.Create(ctx, s.orgID, "personal-2", "Personal", "mock", &s.adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.registry.SaveConfig(ctx, drafter.ID, map[string]string{
+		"SOUL.md":   "# Personal\n\n## Rolle\nEntwirft Kollegen.",
+		"ACCESS.md": "- system: covey scope: agents:write",
+	}, &s.adminID); err != nil {
+		t.Fatal(err)
+	}
+
+	run := func(name, body string) string {
+		t.Helper()
+		task, err := s.backlog.Create(ctx, s.orgID, drafter.ID, name, body, "manual", 3)
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitFor(t, "task done", 30*time.Second, func() bool {
+			st := s.taskState(task.ID)
+			return st == backlog.StateDone || st == backlog.StateFailed
+		})
+		got, err := s.backlog.Get(ctx, task.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.State == backlog.StateFailed && got.Error != nil {
+			return *got.Error
+		}
+		if got.Result == nil {
+			return ""
+		}
+		return *got.Result
+	}
+
+	// Draft and configure in one assignment, the config in two calls — the
+	// second without SOUL.md.
+	run("Entwerfen",
+		`[mock:action covey/create_agent {"display_name":"Testkollege","slug":"testkollege","runtime":"mock"}]`+
+			` [mock:action covey/set_agent_config {"agent":"testkollege","files":{"SOUL.md":"# Testkollege","CAPABILITIES.md":"# Zustaendigkeit"}}]`+
+			` [mock:action covey/set_agent_config {"agent":"testkollege","files":{"PLAYBOOKS.md":"# Verfahren"}}]`)
+
+	drafted, err := s.registry.GetBySlug(ctx, s.orgID, "testkollege")
+	if err != nil {
+		t.Fatalf("the draft is missing: %v", err)
+	}
+	if !drafted.Draft() {
+		t.Fatal("what an agent creates is a draft")
+	}
+	cfg, err := s.registry.CurrentConfig(ctx, drafted.ID)
+	if err != nil {
+		t.Fatalf("the draft has no config at all: %v", err)
+	}
+	for _, want := range []string{"SOUL.md", "CAPABILITIES.md", "PLAYBOOKS.md"} {
+		if strings.TrimSpace(cfg.Files[want]) == "" {
+			t.Fatalf("%s was lost by the second call — set_agent_config has to merge (files: %v)",
+				want, sortedFileNames(cfg.Files))
+		}
+	}
+
+	// A first config without a soul is refused, with the reason.
+	refused := run("Seelenlos entwerfen",
+		`[mock:action covey/create_agent {"display_name":"Seelenlos","slug":"seelenlos","runtime":"mock"}]`+
+			` [mock:action covey/set_agent_config {"agent":"seelenlos","files":{"PLAYBOOKS.md":"# Verfahren"}}]`)
+	if !strings.Contains(refused, "SOUL.md") {
+		t.Fatalf("a config without SOUL.md has to be refused with the reason: %s", refused)
+	}
+	soulless, err := s.registry.GetBySlug(ctx, s.orgID, "seelenlos")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.registry.CurrentConfig(ctx, soulless.ID); err == nil {
+		t.Fatal("the refused config must not have been saved")
+	}
+
+	// And rule 4: a SECOND assignment may not touch the first one's draft.
+	fremd := run("Fremden Entwurf anfassen",
+		`[mock:action covey/set_agent_config {"agent":"testkollege","files":{"SOUL.md":"# Uebernommen"}}]`)
+	if !strings.Contains(fremd, "not drafted in this assignment") {
+		t.Fatalf("only its own children may be configured: %s", fremd)
+	}
+}
+
+func sortedFileNames(files map[string]string) []string {
+	out := make([]string, 0, len(files))
+	for k := range files {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }

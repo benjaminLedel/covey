@@ -360,8 +360,13 @@ other one:
      human hires it. That is deliberate; do not ask for it to be otherwise.
 
    ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/set_agent_config -d '{\"agent\":\"<slug>\",\"files\":{\"SOUL.md\":\"…\",\"CAPABILITIES.md\":\"…\"}}'`" + `
-   — write its config. Complete file contents, not diffs. You may only configure
-     drafts from your own current assignment.
+   — write its config. Always the COMPLETE content of each file, never a diff.
+     You may call this several times: what you send replaces those files, the
+     ones you do not mention stay as they are. You may only configure drafts
+     from your own current assignment.
+
+     Every agent needs a ` + "`SOUL.md`" + ` — without it it has no character and the
+     platform refuses to save.
 
 What you may not do, and what no action exists for: hire. Employing somebody is
 a human decision. Your assignment ends with a draft plus a short report on what

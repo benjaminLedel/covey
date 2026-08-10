@@ -26,6 +26,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/google/uuid"
@@ -254,19 +255,57 @@ func (o *Orchestrator) hiringSetConfig(ctx context.Context, agent agents.Agent, 
 	if len(req.Files) == 0 {
 		return fail("files is missing (file name → complete content)")
 	}
+	// MERGED into what is already there, not replacing it.
+	//
+	// The first version replaced the whole set, and the first real run showed why
+	// that is wrong: a model writes a config in two calls — first the character,
+	// then the procedures — and the second call silently deleted SOUL.md. What
+	// came out looked complete and had no soul. Nothing here needs to DELETE a
+	// file, so the forgiving semantics are also the correct ones; whoever wants a
+	// file gone writes it empty.
+	files := map[string]string{}
+	if current, err := o.Registry.CurrentConfig(ctx, target.ID); err == nil {
+		for name, content := range current.Files {
+			files[name] = content
+		}
+	}
+	for name, content := range req.Files {
+		files[name] = content
+	}
 	// Rule 2: no self-propagation. An agent that could hand on the platform's own
 	// target system would be a workforce that grows by itself.
-	for _, acc := range agents.ParseAccess(req.Files["ACCESS.md"]) {
-		if acc.System == "covey" {
+	for _, acc := range agents.ParseAccess(files["ACCESS.md"]) {
+		if acc.System == hiringSystem {
 			return fail("a drafted agent may not get the system `covey` — drafting colleagues stays with the People department")
 		}
 	}
-	if _, err := o.Registry.SaveConfig(ctx, target.ID, req.Files, nil); err != nil {
+	// A config without a SOUL.md is an agent without a character: the platform
+	// would compile a prompt that says nothing about who this is. Refused with
+	// the reason, so the drafting agent writes the file instead of finishing.
+	if strings.TrimSpace(files["SOUL.md"]) == "" {
+		return fail("SOUL.md is missing or empty — without it the agent has no character. Write it before you finish.")
+	}
+	if _, err := o.Registry.SaveConfig(ctx, target.ID, files, nil); err != nil {
 		return fail("%v", err)
 	}
+	written := make([]string, 0, len(req.Files))
+	for name := range req.Files {
+		written = append(written, name)
+	}
+	sort.Strings(written)
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
-		map[string]string{"status": "agent_configured", "drafted_agent": target.ID.String(), "slug": target.Slug})
-	return ok(map[string]any{"agent": target.Slug, "files": len(req.Files)})
+		map[string]string{"status": "agent_configured", "drafted_agent": target.ID.String(),
+			"slug": target.Slug, "files": strings.Join(written, ", ")})
+	return ok(map[string]any{"agent": target.Slug, "written": written, "config": sortedKeys(files)})
+}
+
+func sortedKeys(m map[string]string) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // --- Provenance: which drafts came out of which assignment ---
