@@ -28,23 +28,30 @@ export default function Setup() {
 
   return (
     <div className="setup-page">
+      {/* Die Kopfleiste liegt auf derselben Spalte wie die Karten: die Marke
+          steht über deren linker Kante, der Ausgang über der rechten. Vorher
+          lief sie über die volle Breite, und der Knopf schwebte weit rechts
+          ohne Bezug zu irgendetwas. */}
       <header className="setup-head">
-        <span className="brand">
-          <span className="mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="18" height="18">
-              <path d="M7 15 Q9.75 11.8 12.5 15 Q15.25 11.8 18 15" />
-              <path d="M3.5 10 Q5.5 7.7 7.5 10 Q9.5 7.7 11.5 10" />
-              <path d="M13 8 Q14.5 6.3 16 8 Q17.5 6.3 19 8" />
-            </svg>
+        <div className="setup-head-in">
+          <span className="brand">
+            <span className="mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24" width="18" height="18">
+                <path d="M7 15 Q9.75 11.8 12.5 15 Q15.25 11.8 18 15" />
+                <path d="M3.5 10 Q5.5 7.7 7.5 10 Q9.5 7.7 11.5 10" />
+                <path d="M13 8 Q14.5 6.3 16 8 Q17.5 6.3 19 8" />
+              </svg>
+            </span>
+            Covey
           </span>
-          Covey
-        </span>
-        <span className="secondary text-xs">{t("setup.progress", { done, total: 3 })}</span>
-        {/* Der Weg heraus, immer sichtbar: überspringbar heißt, dass man es
-            sieht — nicht, dass man es erraten muss. */}
-        <Link className="btn sm ml-auto" to="/">
-          {done === 3 ? t("setup.finish") : t("setup.later")}
-        </Link>
+          <span className="ml-auto" />
+          <span className="secondary text-xs">{t("setup.progress", { done, total: 3 })}</span>
+          {/* Der Weg heraus, immer sichtbar: überspringbar heißt, dass man es
+              sieht — nicht, dass man es erraten muss. */}
+          <Link className="btn sm" to="/">
+            {done === 3 ? t("setup.finish") : t("setup.later")}
+          </Link>
+        </div>
       </header>
 
       <div className="setup-body">

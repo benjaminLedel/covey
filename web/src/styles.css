@@ -192,13 +192,22 @@ h1, h2, h3 { font-weight: 500; margin: 0; }
   flex-direction: column;
 }
 .setup-head {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px 26px;
+  padding: 12px 22px;
   border-bottom: 0.5px solid var(--border);
   background: var(--surface-2);
 }
+.setup-head-in {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+/* Die Wortmarke bringt aus der Seitenleiste einen Abstand nach unten mit —
+   in einer Kopfzeile sitzt sie damit schief. */
+.setup-head .brand { margin: 0; font-size: 15px; }
+.setup-head .brand .mark { width: 24px; height: 24px; border-radius: 8px; }
 .setup-body {
   width: 100%;
   max-width: 720px;

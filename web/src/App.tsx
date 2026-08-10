@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, buildInfo, post, type Approval, type Principal } from "./api";
+import { api, buildInfo, post, type Approval, type Principal, type SetupState } from "./api";
 import i18n, { gespeicherteSprache, istVorgerendert, merkeSprache } from "./i18n";
 import HelpDrawer from "./components/HelpDrawer";
 import ThemeSwitch from "./components/ThemeSwitch";
@@ -320,6 +320,22 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
   });
   const pending = approvals.data?.length ?? 0;
 
+  /* Die Einrichtung steht nur im Menue, solange sie etwas zu tun hat.
+     Ein Punkt, der dauerhaft bleibt und dauerhaft erledigt ist, wird zu
+     Moebel — dieselbe Ueberlegung wie bei der Checkliste auf der
+     Agenten-Uebersicht, die von selbst verschwindet. Verloren geht nichts:
+     die Unternehmensbeschreibung liegt danach im Org-Chart, der Zugang unter
+     Secrets und Runtimes, und /setup bleibt erreichbar, wer es tippt.
+     Wer nicht einrichten darf, bekommt vom Endpunkt eine 403 — und damit
+     den Punkt gar nicht erst zu sehen. */
+  const setup = useQuery({
+    queryKey: ["setup"],
+    queryFn: () => api<SetupState>("/setup/state"),
+    retry: false,
+    staleTime: 60_000,
+  });
+  const setupOpen = !!setup.data && !(setup.data.engine_done && setup.data.org_done && setup.data.people_done);
+
   const logout = async () => {
     await post("/auth/logout");
     onLogout();
@@ -367,7 +383,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
         </div>
         <div className="nav-sec">{t("nav.setup")}</div>
         <div className="nav-group">
-          <NavItem to="/setup" icon="checklist" label={t("nav.setupPage")} />
+          {setupOpen && <NavItem to="/setup" icon="checklist" label={t("nav.setupPage")} />}
           <NavItem to="/secrets" icon="key" label={t("nav.secrets")} />
           <NavItem to="/targets" icon="plug" label={t("nav.targets")} />
           <NavItem to="/skills" icon="book" label={t("nav.skills")} />
