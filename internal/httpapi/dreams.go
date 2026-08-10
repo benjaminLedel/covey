@@ -44,10 +44,10 @@ func (s *Server) handleStartDream(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := principalFrom(r)
-	cred, oauth, ok := s.resolveOrgClaude(r.Context(), p.OrgID)
-	if !ok {
+	provider, err := s.resolveOrgLLM(r.Context(), p.OrgID)
+	if err != nil {
 		writeErr(w, http.StatusPreconditionFailed,
-			"no org-wide Claude credential configured — the agent cannot dream")
+			"no control-plane LLM credential configured — the agent cannot dream")
 		return
 	}
 
@@ -73,7 +73,7 @@ func (s *Server) handleStartDream(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		ctx, cancel := context.WithTimeout(s.baseCtx(), 10*time.Minute)
 		defer cancel()
-		s.Dreams.Run(ctx, d, dream.Credential{Value: cred, OAuth: oauth})
+		s.Dreams.Run(ctx, d, provider)
 	}()
 	writeJSON(w, http.StatusAccepted, d)
 }

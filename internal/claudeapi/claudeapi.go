@@ -1,10 +1,11 @@
 // Package claudeapi is the control plane's narrow access to the Messages API.
 //
-// The control plane calls Claude itself in two places: the config copilot helps
-// writing the agent config, and the dream tidies up the memory at night. Both
-// need the same auth mechanics (API key or the organization's subscription
-// OAuth token) and must not depend on each other — which is why it lives here
-// and not in either of the two callers.
+// It is one implementation behind internal/llm and no longer called directly:
+// the features that need a model (config copilot, dream, the setup's
+// personalisation) ask the port, and the port picks the provider. What stays
+// here is what is specific to this one — the auth mechanics, which are subtle
+// enough to have exactly one home (API key via x-api-key, the organisation's
+// subscription OAuth token via Bearer plus the Claude Code identity block).
 //
 // Guard-rail as always: the credential never leaves the control plane. It goes
 // neither into the browser nor into a sandbox.

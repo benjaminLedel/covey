@@ -25,7 +25,6 @@ import (
 	"covey/internal/audit"
 	"covey/internal/backlog"
 	"covey/internal/buildinfo"
-	"covey/internal/claudeapi"
 	"covey/internal/config"
 	"covey/internal/db"
 	"covey/internal/dream"
@@ -33,6 +32,7 @@ import (
 	"covey/internal/guardrails"
 	"covey/internal/httpapi"
 	identbuiltin "covey/internal/identity/builtin"
+	"covey/internal/llm"
 	"covey/internal/memory"
 	"covey/internal/observability"
 	"covey/internal/orchestrator"
@@ -774,13 +774,13 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	// credential comes per agent from the organization — without one there is
 	// no dreaming, quietly and without an error.
 	if at := strings.TrimSpace(cfg.DreamAt); at != "" && at != "off" {
-		go dreams.RunNightly(ctx, at, func(ctx context.Context, agentID uuid.UUID) (dream.Credential, bool) {
+		go dreams.RunNightly(ctx, at, func(ctx context.Context, agentID uuid.UUID) (llm.Provider, bool) {
 			a, err := registry.Get(ctx, agentID)
 			if err != nil {
-				return dream.Credential{}, false
+				return nil, false
 			}
-			cred, oauth, ok := claudeapi.ResolveOrg(ctx, secretStore, a.OrgID)
-			return dream.Credential{Value: cred, OAuth: oauth}, ok
+			p, err := llm.Resolve(ctx, secretStore, a.OrgID)
+			return p, err == nil
 		}, log)
 	}
 	// Egress log retention: clear out old decisions periodically.

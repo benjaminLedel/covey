@@ -27,7 +27,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"covey/internal/claudeapi"
+	"covey/internal/llm"
 	"covey/internal/memory"
 )
 
@@ -272,15 +272,12 @@ func (s *Store) SleepersSince(ctx context.Context, since time.Time) ([]uuid.UUID
 
 // --- The dream itself ---
 
-// Credential is the organization's resolved Claude credential.
-type Credential struct {
-	Value string
-	OAuth bool
-}
+// Provider is the control plane's path to a model — resolved by the caller
+// (internal/llm), so that the dream does not care which provider answers.
 
 // Run dreams: merge, then rename. Every outcome — the failure too — leaves a
 // terminal state behind, otherwise the agent counts as dreaming forever.
-func (s *Store) Run(ctx context.Context, d Dream, cred Credential) {
+func (s *Store) Run(ctx context.Context, d Dream, provider llm.Provider) {
 	fail := func(err error) { s.finish(ctx, d.ID, "error", err.Error()) }
 
 	// 1. Merge — purely computational via the vector index, without a model.
@@ -317,9 +314,10 @@ func (s *Store) Run(ctx context.Context, d Dream, cred Credential) {
 		return
 	}
 
-	raw, err := claudeapi.Messages(ctx, cred.Value, cred.OAuth,
-		claudeapi.Call{Model: Model, MaxTokens: MaxTokens, Effort: Effort},
-		retitleSystem, []claudeapi.Message{{Role: "user", Content: retitlePrompt(todo)}})
+	raw, err := provider.Complete(ctx, llm.Request{
+		Tier: llm.TierBest, MaxTokens: MaxTokens, Effort: Effort, System: retitleSystem,
+		Messages: []llm.Message{{Role: "user", Content: retitlePrompt(todo)}},
+	})
 	if err != nil {
 		fail(err)
 		return
@@ -346,7 +344,7 @@ func (s *Store) Run(ctx context.Context, d Dream, cred Credential) {
 	}
 	// 3. Tell what it dreamt of — only if there is anything to tell.
 	if len(items) > 0 || merged > 0 {
-		if story := s.tellStory(ctx, cred, merged, items, bySlug); story != "" {
+		if story := s.tellStory(ctx, provider, merged, items, bySlug); story != "" {
 			_, _ = s.pool.Exec(ctx, `UPDATE dreams SET story=$2 WHERE id=$1`, d.ID, story)
 		}
 	}
@@ -356,7 +354,7 @@ func (s *Store) Run(ctx context.Context, d Dream, cred Credential) {
 // tellStory has the model tell in two or three sentences what the agent dreamt
 // of. Pure ornament: if the call fails, the narrative stays empty and the dream
 // still counts as successful — memory upkeep must not fail over a story.
-func (s *Store) tellStory(ctx context.Context, cred Credential, merged int, items []retitleItem, bySlug map[string]memory.Entry) string {
+func (s *Store) tellStory(ctx context.Context, provider llm.Provider, merged int, items []retitleItem, bySlug map[string]memory.Entry) string {
 	var b strings.Builder
 	b.WriteString("What happened this night:\n\n")
 	if merged > 0 {
@@ -365,9 +363,10 @@ func (s *Store) tellStory(ctx context.Context, cred Credential, merged int, item
 	for _, it := range items {
 		b.WriteString("- renamed: \"" + bySlug[it.Slug].Title + "\" → \"" + it.Title + "\"\n")
 	}
-	raw, err := claudeapi.Messages(ctx, cred.Value, cred.OAuth,
-		claudeapi.Call{Model: Model, MaxTokens: storyMaxTokens, Effort: Effort},
-		storySystem, []claudeapi.Message{{Role: "user", Content: b.String()}})
+	raw, err := provider.Complete(ctx, llm.Request{
+		Tier: llm.TierBest, MaxTokens: storyMaxTokens, Effort: Effort, System: storySystem,
+		Messages: []llm.Message{{Role: "user", Content: b.String()}},
+	})
 	if err != nil {
 		s.log.Info("dream: narrative not possible", "err", err)
 		return ""
@@ -504,10 +503,10 @@ func parseRetitle(raw string, known map[string]memory.Entry) []retitleItem {
 
 // --- Nightly run ---
 
-// CredentialFor resolves the Claude credential for an agent. Passed in as a
-// function so that this package needs to know neither the registry nor the
+// ProviderFor resolves the control-plane model access for an agent. Passed in
+// as a function so that this package needs to know neither the registry nor the
 // secrets broker — it dreams, it does not look for keys.
-type CredentialFor func(ctx context.Context, agentID uuid.UUID) (Credential, bool)
+type ProviderFor func(ctx context.Context, agentID uuid.UUID) (llm.Provider, bool)
 
 // nightlyCheck: how often it is checked whether dream time has been reached.
 // Fine-grained enough that a restart shortly before the hour does not swallow
@@ -521,7 +520,7 @@ const nightlyCheck = 5 * time.Minute
 //
 // Who has already dreamt, the run reads off the history itself — no separate
 // marker that could drift apart from it.
-func (s *Store) RunNightly(ctx context.Context, at string, credFor CredentialFor, log *slog.Logger) {
+func (s *Store) RunNightly(ctx context.Context, at string, providerFor ProviderFor, log *slog.Logger) {
 	hh, mm, err := parseClock(at)
 	if err != nil {
 		log.Warn("dream time unreadable — nightly run off", "at", at, "err", err)
@@ -547,7 +546,7 @@ func (s *Store) RunNightly(ctx context.Context, at string, credFor CredentialFor
 			continue
 		}
 		for _, id := range ids {
-			cred, ok := credFor(ctx, id)
+			provider, ok := providerFor(ctx, id)
 			if !ok {
 				continue // without a credential no dream; no reason to make noise
 			}
@@ -559,7 +558,7 @@ func (s *Store) RunNightly(ctx context.Context, at string, credFor CredentialFor
 				continue
 			}
 			log.Info("agent is dreaming", "agent", id)
-			s.Run(ctx, d, cred)
+			s.Run(ctx, d, provider)
 		}
 	}
 }
