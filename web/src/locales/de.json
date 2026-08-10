@@ -1155,7 +1155,16 @@
     "unassigned": "Ohne Abteilung ({{count}})",
     "unassignedHint": "Agenten und Personen ohne Abteilung",
     "assignDept": "Abteilung zuweisen",
-    "removeDept": "Zuweisung lösen"
+    "removeDept": "Zuweisung lösen",
+    "company": {
+      "label": "— was dieses Unternehmen macht",
+      "edit": "bearbeiten",
+      "add": "beschreiben",
+      "empty": "Noch nicht beschrieben. Drei bis fünf Sätze genügen — sie gehen in jede Ausschreibung an die Personalabteilung und in den Config-Assistenten ein.",
+      "placeholder": "Wir machen … Unsere Kunden sind … Wichtig ist uns …",
+      "hint": "Geht in die Config neu entworfener Agenten, in jede Ausschreibung und in den Config-Assistenten ein.",
+      "save": "Speichern"
+    }
   },
   "orgs": {
     "title": "Organisationen",

@@ -28,8 +28,12 @@ var (
 )
 
 type Organization struct {
-	ID          uuid.UUID `json:"id"`
-	Name        string    `json:"name"`
+	ID   uuid.UUID `json:"id"`
+	Name string    `json:"name"`
+	// Description: what this organisation does, in a few sentences. Master data,
+	// not a setup prompt — it goes into the config of newly drafted agents, into
+	// every hiring brief and into the config copilot's system prompt (spec/20).
+	Description string    `json:"description"`
 	FleetKilled bool      `json:"fleet_killed"`
 	HumanCount  int       `json:"human_count"`
 	AgentCount  int       `json:"agent_count"`
@@ -328,7 +332,7 @@ func ensureOtherAdmin(ctx context.Context, tx pgx.Tx, orgID, exceptID uuid.UUID)
 // is at the same time the operator role of the deployment instance — a
 // dedicated super-admin level only follows with the OIDC build-out.
 func (s *Store) ListOrgs(ctx context.Context) ([]Organization, error) {
-	rows, err := s.pool.Query(ctx, `SELECT o.id, o.name, o.fleet_killed, o.created_at,
+	rows, err := s.pool.Query(ctx, `SELECT o.id, o.name, o.description, o.fleet_killed, o.created_at,
 			(SELECT count(*) FROM humans h WHERE h.org_id=o.id),
 			(SELECT count(*) FROM agents a WHERE a.org_id=o.id)
 		FROM organizations o ORDER BY o.created_at`)
@@ -339,7 +343,7 @@ func (s *Store) ListOrgs(ctx context.Context) ([]Organization, error) {
 	var list []Organization
 	for rows.Next() {
 		var o Organization
-		if err := rows.Scan(&o.ID, &o.Name, &o.FleetKilled, &o.CreatedAt, &o.HumanCount, &o.AgentCount); err != nil {
+		if err := rows.Scan(&o.ID, &o.Name, &o.Description, &o.FleetKilled, &o.CreatedAt, &o.HumanCount, &o.AgentCount); err != nil {
 			return nil, err
 		}
 		list = append(list, o)
@@ -381,6 +385,33 @@ func (s *Store) CreateOrg(ctx context.Context, name, adminEmail, adminName, admi
 
 func (s *Store) RenameOrg(ctx context.Context, id uuid.UUID, name string) error {
 	tag, err := s.pool.Exec(ctx, `UPDATE organizations SET name=$1 WHERE id=$2`, name, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+// GetOrg reads one organisation's master data (without the counts — whoever
+// wants those asks ListOrgs).
+func (s *Store) GetOrg(ctx context.Context, id uuid.UUID) (Organization, error) {
+	var o Organization
+	err := s.pool.QueryRow(ctx,
+		`SELECT id, name, description, fleet_killed, created_at FROM organizations WHERE id=$1`, id).
+		Scan(&o.ID, &o.Name, &o.Description, &o.FleetKilled, &o.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return o, ErrNotFound
+	}
+	return o, err
+}
+
+// SetOrgDescription stores what this organisation does (spec/20). Empty is
+// allowed — the description is an offer, not an obligation; without it the
+// platform simply asks less well-informed questions.
+func (s *Store) SetOrgDescription(ctx context.Context, id uuid.UUID, description string) error {
+	tag, err := s.pool.Exec(ctx, `UPDATE organizations SET description=$1 WHERE id=$2`, description, id)
 	if err != nil {
 		return err
 	}

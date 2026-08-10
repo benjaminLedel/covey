@@ -152,6 +152,18 @@ An agent on Covey is configured through markdown files (config-as-code). You may
 Your task: draft concrete, well-phrased config content from the human's description, or revise existing content in a targeted way. Only propose behaviour the platform actually permits (do not invent target systems/actions that are not listed below; respect the applicable guard rails). For ACCESS.md/EGRESS.md only use systems/templates that really exist (see the context below).
 
 `)
+	// Whose house this is. Until now the assistant knew the agent, its target
+	// systems and its guard rails — but not the company it writes for, which is
+	// the one thing every one of its proposals depends on (spec/20).
+	if o, err := s.Org.GetOrg(ctx, orgID); err == nil {
+		b.WriteString("## The organisation\n")
+		b.WriteString("Name: " + o.Name + "\n")
+		if d := strings.TrimSpace(o.Description); d != "" {
+			b.WriteString(d + "\n")
+		}
+		b.WriteString("\n")
+	}
+
 	b.WriteString("## Platform protocol (applies to every agent)\n")
 	b.WriteString(agents.ProtocolInstructions)
 	b.WriteString("\n\n")

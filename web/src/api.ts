@@ -397,6 +397,8 @@ export const setHumanManager = (humanId: string, managerId: string | null) =>
 export type Organization = {
   id: string;
   name: string;
+  /** Was dieses Unternehmen macht — Stammdaten, siehe spec/20. */
+  description: string;
   fleet_killed: boolean;
   human_count: number;
   agent_count: number;

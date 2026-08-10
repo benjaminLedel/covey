@@ -1,0 +1,12 @@
+-- Was macht diese Organisation eigentlich.
+--
+-- Drei bis fuenf Saetze, im Setup gefragt und danach unter Organisationen
+-- pflegbar. Bewusst Stammdaten und kein Setup-Prompt: dieselben Saetze
+-- beantworten dieselbe Frage an mehreren Stellen — in der Config neu
+-- entworfener Agenten, in jeder Ausschreibung an die Personalabteilung und im
+-- Systemprompt des Config-Copiloten, der bis heute den Agenten kennt, seine
+-- Zielsysteme und seine Leitplanken, aber nicht die Firma, fuer die er
+-- schreibt. Einmal gesagt statt in jedem Prompt wiederholt.
+--
+-- spec/20-hiring-and-setup.md, spec/09-enterprise-model.md.
+ALTER TABLE organizations ADD COLUMN description TEXT NOT NULL DEFAULT '';

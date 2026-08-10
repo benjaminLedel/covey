@@ -1155,7 +1155,16 @@
     "unassigned": "Without department ({{count}})",
     "unassignedHint": "Agents and people without a department",
     "assignDept": "Assign department",
-    "removeDept": "Remove assignment"
+    "removeDept": "Remove assignment",
+    "company": {
+      "label": "— what this company does",
+      "edit": "edit",
+      "add": "describe",
+      "empty": "Not described yet. Three to five sentences are enough — they go into every hiring brief and into the config assistant.",
+      "placeholder": "We do … Our customers are … What matters to us is …",
+      "hint": "Goes into the config of newly drafted agents, into every hiring brief and into the config assistant.",
+      "save": "Save"
+    }
   },
   "orgs": {
     "title": "Organizations",

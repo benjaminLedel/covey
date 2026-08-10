@@ -243,6 +243,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/agents/{id}/webhook", s.agentScoped(manage, s.handleGetAgentWebhook))
 	mux.Handle("POST /api/v1/agents/{id}/webhook", s.agentScoped(manage, s.handleEnableAgentWebhook))
 	mux.Handle("DELETE /api/v1/agents/{id}/webhook", s.agentScoped(manage, s.handleDisableAgentWebhook))
+	// The organisation's own master data: name and what this company does — the
+	// context every agent works in (spec/20).
+	mux.Handle("GET /api/v1/org", s.rbac(anyRole, s.handleGetOwnOrg))
+	mux.Handle("PATCH /api/v1/org/description", s.rbac(manage, s.handleSetOwnOrgDescription))
 	mux.Handle("GET /api/v1/org/chart", s.rbac(anyRole, s.handleOrgChart))
 	mux.Handle("GET /api/v1/org/humans/{id}", s.rbac(anyRole, s.handleGetHuman))
 	mux.Handle("GET /api/v1/org/profile-fields", s.rbac(anyRole, s.handleListProfileFields))
