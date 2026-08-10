@@ -1561,22 +1561,29 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 			}
 		}
 	}
-	// The platform's own meta actions (board, notes, wiki, delegation) are not a
-	// target system, but they are callable in exactly the same way — so on the
-	// MCP route they belong in the tool list too. Their description is the
-	// platform protocol, which stands in the prompt anyway.
-	if len(actionTools) > 0 {
-		actionTools = append(actionTools, daemon.ActionTool{
-			Name:        "covey",
-			Description: agents.CoveyActionsDoc,
-		})
-	}
 	// Hiring only for whoever has the access for it: `system: covey` in
 	// ACCESS.md. Otherwise every agent would read in its prompt that it can draft
 	// colleagues, and would then run into a refusal in the control plane — a
 	// capability by suggestion, which is the worst kind (spec/20).
-	if o.mayDraftAgents(ctx, agent) {
+	mayDraft := o.mayDraftAgents(ctx, agent)
+	if mayDraft {
 		compiled += "\n\n" + agents.HiringDoc
+	}
+	// The platform's own meta actions (board, notes, wiki, delegation) are not a
+	// target system, but they are callable in exactly the same way — so on the
+	// MCP route they belong in the tool list too. Their description is the
+	// platform protocol, which stands in the prompt anyway.
+	//
+	// The list used to be tied to having at least one target system, and for the
+	// People department that is exactly wrong: its whole job runs through these
+	// actions, and it reaches no external system at all. So whoever may draft
+	// agents gets the tool even with an otherwise empty list.
+	if len(actionTools) > 0 || mayDraft {
+		doc := agents.CoveyActionsDoc
+		if mayDraft {
+			doc += "\n\n" + agents.HiringDoc
+		}
+		actionTools = append(actionTools, daemon.ActionTool{Name: "covey", Description: doc})
 	}
 	// The team directory likewise at dispatch time: the employee profiles
 	// (responsibilities, GitLab usernames) tell the agent whom it hands things
