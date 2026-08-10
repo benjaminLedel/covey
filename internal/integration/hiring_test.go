@@ -72,6 +72,32 @@ func TestEntwurfArbeitetNicht(t *testing.T) {
 	})
 }
 
+// TestJederWegEndetImEntwurf: no door into the workforce goes past the hiring.
+//
+// The import path had it from the start; the manual form did not, and that was
+// the wrong way round — it is the path that produces the LEAST configuration
+// (a slug, a name, nothing else) and the one that used to hand that straight to
+// the dispatcher (spec/20, § Who else benefits).
+func TestJederWegEndetImEntwurf(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+
+	created := admin.expect(http.MethodPost, "/api/v1/agents",
+		map[string]any{"slug": "von-hand", "display_name": "Von Hand", "runtime": "mock"},
+		http.StatusCreated)
+	if created["hired_at"] != nil {
+		t.Fatalf("the manual form has to produce a draft: %v", created["hired_at"])
+	}
+	agentID := created["id"].(string)
+	admin.expect(http.MethodPost, "/api/v1/agents/"+agentID+"/wake", nil, http.StatusConflict)
+
+	hired := admin.expect(http.MethodPost, "/api/v1/agents/"+agentID+"/hire", nil, http.StatusOK)
+	if hired["hired_at"] == nil {
+		t.Fatal("after hiring the first day has to be recorded")
+	}
+	admin.expect(http.MethodPost, "/api/v1/agents/"+agentID+"/wake", nil, http.StatusOK)
+}
+
 // TestSetupStrecke walks the three cards: the credential creates the workplace,
 // the company description sticks to the organisation, and the People department
 // comes into being — as a draft with a waiting first assignment.

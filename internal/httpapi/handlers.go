@@ -47,7 +47,11 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "slug and display_name are required")
 		return
 	}
-	a, err := s.Registry.Create(r.Context(), p.OrgID, in.Slug, in.DisplayName, in.Runtime, &p.ID)
+	// Als Entwurf (spec/20). „Später fertig machen" hat hier bis eben einen
+	// halb konfigurierten Agenten hinterlassen, der bereits scharf war — und das
+	// ist genau der Weg, auf dem die wenigste Konfiguration entsteht: ein Slug,
+	// ein Name, sonst nichts. Erst das Einstellen macht daraus einen Kollegen.
+	a, err := s.Registry.CreateDraft(r.Context(), p.OrgID, in.Slug, in.DisplayName, in.Runtime, &p.ID)
 	if err != nil {
 		mapErr(w, err)
 		return

@@ -140,7 +140,7 @@ An agent that has been drafted but not yet hired needs a real state, not a repur
 
 **Hiring it** is not a confirmation dialog but a summary: the role, the target systems it asks for with their scopes, the supervisor, the runtime it will be assigned to and its budget ceiling. Confirming sets the hiring date, sends the access requests down the approval path, and wakes the agent for its first task. It is the one point in this whole document where a human unambiguously takes responsibility for a new employee — which is why it looks like a decision and not like a toggle.
 
-**Who else benefits.** The draft state is worth having independently of hiring: instantiating from a template, importing a bundle ([`02-agent-model.md`](02-agent-model.md) § *Export & import*), and the manual form, where "finish later" currently produces a half-configured agent that is already live.
+**Who else benefits.** The draft state is worth having independently of hiring, and every path that produces an agent goes through it: instantiating from a template, importing a bundle ([`02-agent-model.md`](02-agent-model.md) § *Export & import*), and the manual form, where "finish later" used to produce a half-configured agent that was already live. There is no second way in — an agent that nobody hired has never worked, whichever door it came through.
 
 **And the rule that closes the loop:** there is no `hire` action. Not a forbidden one — a missing one, so there is nothing to forget to check. Drafting is something an agent may do; hiring is something only a person does. Everything else in this design — the review diff, the approval path, the draft that queues its first task and waits — is a variation on that one line.
 
