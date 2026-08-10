@@ -6,6 +6,8 @@ The **runner** solves this: a standalone process on an arbitrary host that **reg
 
 Why you want this: more agents than one machine carries; data residency per department or tenant (see [`09-enterprise-model.md`](09-enterprise-model.md)); hardware proximity (ARM builds, GPU, a runner inside the target system's network); and the clean separation of control plane and compute load that today exists only conceptually.
 
+But the runner is **not an add-on that has to be set up**. The control plane starts every sandbox through a runner, and in the normal case through one it runs itself — see "The built-in runner". Whoever installs Covey on one machine notices none of this and installs nothing extra; whoever needs a second host adds one, and nothing about the first changes.
+
 ## What already carries
 
 The most important property is already there: **the daemon dials out.** `coveyd` reads `COVEY_WS_URL` and `COVEY_DAEMON_TOKEN` from its environment and builds the WebSocket connection to the control plane; the control plane only waits for it. It **never** calls into a sandbox.
@@ -30,28 +32,54 @@ What still sticks to the local host is correspondingly manageable:
 
 ```
                      ┌──────────────────────────────┐
-                     │        Control plane         │
+                     │        covey serve           │
                      │  scheduler · registry · DB   │
-                     └───────┬──────────────┬───────┘
-        runner protocol      │              │      daemon protocol
-        (long-lived, 1×/host)│              │      (per wake, 1×/sandbox)
-                     ┌───────▼──────┐       │
+   runner protocol,  │  ┌────────────────────────┐  │
+   in process ───────┼─►│ built-in runner        │  │
+                     │  │  1× per organisation   │  │
+                     │  │ sandbox · homes/ blocks│  │
+                     │  └────────────────────────┘  │
+                     └───────▲──────────────▲───────┘
+    runner protocol          │              │  daemon protocol
+    (long-lived, 1×/runner)  │              │  (per wake, 1×/sandbox)
+                     ┌───────┴──────┐       │
                      │ covey-runner │       │
                      │  host A      │       │
                      │  ┌─────────┐ │       │
                      │  │ sandbox ├─┼───────┘
                      │  └─────────┘ │
-                     │  homes/      │  ← working copy, disposable
+                     │ homes/blocks │  ← working copy, disposable
                      └──────────────┘
 ```
 
-**Two connections, two protocols.** The runner link is long-lived and exists per host; the daemon link arises per wake and per sandbox. That is deliberately not the same protocol: the runner has to be addressable even when **no** sandbox is running — for capacity reports, for file access to a sleeping home, for cleaning up orphaned containers. Binding the daemon protocol to a host instead of a sandbox would mix the two lifetimes.
+**Two connections, two protocols.** The runner link is long-lived and exists per runner; the daemon link arises per wake and per sandbox. That is deliberately not the same protocol: the runner has to be addressable even when **no** sandbox is running — for capacity reports, for file access to a sleeping home, for cleaning up orphaned containers. Binding the daemon protocol to a host instead of a sandbox would mix the two lifetimes.
 
-The daemon's data path stays **untouched** by this: the sandbox still talks directly to the control plane, not through the runner. The runner starts and stops compute — it is not a proxy for the agent's work and does not see its events.
+The daemon's data path stays **untouched** by this: the sandbox still talks directly to the control plane, not through the runner. The runner starts and stops compute — it is not a proxy for the agent's work and does not see its events. That holds for the built-in runner too: a sandbox it starts dials the control plane like any other, not its parent process.
+
+## The built-in runner
+
+A distributed data plane that has to be assembled before anything runs at all would be the wrong trade for an installation on one machine — which is Covey's normal case. Hence: **the runner protocol is the only way a sandbox starts, and by default the control plane speaks it with a runner of its own**, running inside the `covey serve` process.
+
+For whoever operates it, that means the setup does not change at all. No token, no registration, no configuration file, no second artefact. The built-in runner appears in the interface as *this host* — visible, so that the model is comprehensible, but neither revocable nor deletable. `COVEY_RUNNER_LOCAL=off` switches it off for the case where a control plane is only supposed to feed foreign runners.
+
+For the code it means something more important: **the default path and the remote path are the same code.** What differs is a transport — a channel pair in one case, a WebSocket in the other:
+
+```go
+type Transport interface {
+    Send(context.Context, Message) error
+    Receive(context.Context) (Message, error)
+}
+```
+
+That is the same seam `internal/daemon` already draws between the control plane and the sandbox, and it is drawn here for the same reason. A built-in runner that took a shortcut past the protocol — calling the Docker CLI directly because it happens to be in the same process — would defeat the whole point: the remote path would then be exercised only by whoever actually operates two hosts, and would rot everywhere else. Every message in the table below is handled by one implementation, and the normal installation runs it every day.
+
+Two things stay genuinely cheaper in process, and both are transport details rather than exceptions: blocks are read and written through the `BlobStore` directly instead of over a signed URL, and file access reads the home from the local file system instead of through `home_op`.
 
 ## Registration
 
-As with GitLab, split into a **registration token** (org-wide, creatable and revocable in the UI) and a **runner token** derived from it (long-lived, per runner, stored only as a hash):
+Registration concerns the *added* runner. The built-in one is created by the platform itself — one per organisation, at bootstrap and whenever an organisation is added — and needs neither token nor configuration file.
+
+For everything else, as with GitLab, split into a **registration token** (org-wide, creatable and revocable in the UI) and a **runner token** derived from it (long-lived, per runner, stored only as a hash):
 
 ```
 covey-runner register --url https://covey.example --token <registration-token> \
@@ -68,13 +96,30 @@ After that `covey-runner run` holds a permanent WebSocket connection on `/api/ru
 - its own version, so that the control plane can make version drift visible,
 - the **protocol version** it speaks (see "Delivery").
 
-**One process, one instance.** A runner registers with exactly one Covey server. Whoever wants to serve two instances starts two processes — that is cheaper than the alternative: block storage shared across two organisations would be a channel between them, and distributing capacity between foreign tenants would be a policy nobody needs.
+### One runner, one organisation
+
+A runner registers with exactly one Covey server **and belongs there to exactly one organisation**. It inherits that organisation from the registration token and cannot change it. Whoever wants to serve two instances or two organisations starts two processes.
+
+The reason is the one this document already gives for the block store: shared block storage across two organisations would be a channel between them, and distributing capacity between foreign tenants would be a policy nobody needs. The same argument that makes an instance boundary out of it makes an organisation boundary out of it — a runner holds homes and daemon tokens, and both are the property of exactly one tenant. `runtimes` carries the identical reasoning for the identical reason (`org_id NOT NULL`, migration 0048): whatever holds the material of an organisation is bound to it in the schema, not by a query someone has to remember to write.
+
+**Also for the built-in runner.** It is not the exception to this, it is one runner per organisation, each with its own working directory and its own local block storage:
+
+```
+<data>/runners/<org-id>/homes/    working copies
+<data>/runners/<org-id>/blocks/   local block storage
+```
+
+The price is worth naming: with several organisations on one machine the toolchain caches sit once per organisation rather than once in total. That is exactly what the boundary costs, and for the normal installation with one organisation it costs nothing.
+
+Deleting an organisation therefore takes its runner rows with it — and `prune` has to clear away the working directory and blocks belonging to it. Otherwise what stays behind is precisely the part that exists nowhere else.
 
 A runner without a connection is **offline**, not deleted — the distinction matters for operations (a maintenance window vs. decommissioning) but is inconsequential for the agents: they move to a different runner (see "The home"). A deleted runner takes only its local working copy with it, no platform state.
 
 ## Delivery
 
 The runner is **installed individually**, on machines where nothing else of Covey lives. It is therefore a release artefact of its own with its own version number: a static binary per architecture, a Docker image, a systemd unit. An operator downloads it, calls `register` with a token and is done — they notice nothing of the rest of the project.
+
+**A binary of its own, not a subcommand of `covey`.** The tempting simplification would be to spare the extra artefact and let the same binary serve as the runner. It is the wrong one: on a runner host `serve`, `migrate` and `bootstrap` should not exist at all, and the trust boundary below ("no database access") reads badly when the database code is compiled in beside it. The easy path is bought by the built-in runner, which requires no artefact whatsoever — not by merging two that have different jobs.
 
 **The code nevertheless stays in the same repository** (`cmd/covey-runner/`), for a reason that has already proven itself here: `coveyd` is exactly the same case. It is a separate binary, runs on a different machine (in the sandbox), speaks a protocol to the control plane — and `internal/daemon` defines that protocol for **both** sides. That is exactly why a protocol change is a single commit instead of a compatibility dance across two repositories.
 
@@ -138,9 +183,9 @@ From this follows what does **not** work: a list. Neither a positive list ("save
 
 **Decided: after every job the home is synced as a whole into a central store and materialised from there on wake.** No whitelisting, no negative list, no check whether a checkout is clean — the home goes in completely and comes out completely. The question "what is valuable?" is thereby never asked in the first place.
 
-What makes this practical is the store's construction — **content-addressed and deduplicated block-wise**:
+What makes this practical is the store's construction — **content-addressed and deduplicated** (at what granularity: see below):
 
-- Every file breaks into blocks, and the block hash is its key. The same content means **one** block, org-wide across all agents and all snapshots.
+- Content is addressed by its hash. The same content means **one** block, across all agents and all snapshots of **one organisation** — the block namespace is keyed by `(org_id, hash)` and the boundary is structural, not a filter someone has to remember. A namespace shared across tenants would be an existence oracle over hashes: whoever may ask whether a block is already there learns whether somebody else holds that exact content.
 - After the job only the **new** blocks travel upwards. A typical run changes megabytes in a 7 GB home.
 - On wake only the **missing** blocks come down; what the runner already has locally stays put.
 - One snapshot per job. History and rollback ("the home from the day before yesterday") fall out as a by-product.
@@ -148,6 +193,18 @@ What makes this practical is the store's construction — **content-addressed an
 The effect on the measured figures is the actual point: the 4 GB of toolchain caches sit centrally **once**, not once per agent — deduplicated precisely because they are identical everywhere. And the 48 MB of unique work are backed up along with it, **without anyone having had to note anywhere that it exists**.
 
 Three worries are thereby dealt with at once: the session transcripts travel along automatically (a parked agent keeps its `--resume` thread wherever it wakes up, [`12-claude-code-adapter.md`](12-claude-code-adapter.md)); unpublished changes in a checkout are no longer a special case; and self-written tools need no rule to protect them.
+
+### Granularity: whole files, chunks only for the large ones
+
+"Block-wise" leaves open how big a block is, and the answer decides how much machinery this needs. A home consists overwhelmingly of **many small files** — package caches, `node_modules`, SDK trees. For those, the hash of the whole file collects practically the entire dedup benefit: they are identical or they are new, and a file that changes at all is usually rewritten wholesale by the tool that owns it.
+
+So: **whole-file addressing up to a threshold (8 MB), content-defined chunking above it.** The chunking then applies to exactly the cases where it pays — archives, SDK tarballs, and above all the append-only JSONL transcripts, where a rolling-hash cut keeps everything but the tail unchanged. Whoever chunks everything pays for a rolling hash over gigabytes of small files and receives, for that, a few per cent.
+
+### Materialising: reflink, otherwise a copy
+
+Handing a file from the local block storage into the working copy must not be a **hard link**: it shares the inode, and the first agent that writes into the file corrupts the store for everyone who references that block. A store whose content changes behind its own hash is worse than no store.
+
+The right instrument is a copy-on-write clone (`clonefile` on APFS, `FICLONE` on btrfs and XFS) with a plain copy as the fallback. On a file system without reflink support the local block storage therefore costs real disk space a second time — which is why keeping blocks is a **setting with an LRU cap**, not an assumption. Two things bound the cost: only missing or changed files are ever materialised, so the full pass hits a fresh runner and nothing else, and a working copy that already matches the target snapshot is left completely untouched.
 
 ### A cache for the mass, the only copy for the rest
 
@@ -171,6 +228,7 @@ Worth naming honestly, because it is not free:
 - **The first sync** of a grown developer home is a full pass — 7 GB. Deltas after that.
 - **The sleep path gets longer.** The sync runs at real falling-asleep, not when a warm sandbox is parked — the warm session ([`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)) stays untouched by it.
 - **Storage for blocks.** Postgres is the wrong place for GB-sized binary data (see below).
+- **Space next to the working copy.** The store holds what the runner also has on disk. With a *single* agent that is close to a doubling; from the second developer agent onwards the dedup of the 4 GB of toolchain caches turns it into a saving. `COVEY_HOME_STORE=off` exists for the smallest installations — then homes stay as they are today: directories, without snapshots, without rollback, and unrecoverable when lost.
 - **Cleaning up.** Snapshots accumulate; without retention the store grows unbounded. Operable in the interface, not only through an environment variable — see "Interface".
 
 ### Where the blocks live
@@ -179,14 +237,16 @@ Another port following the pattern of `IdentityProvider` and `SecretStore` ([`10
 
 | Backend | When | What it costs |
 |---|---|---|
-| `builtin` (default) | a directory next to `data/homes`, blocks as `blocks/<xx>/<hash>` | nothing — no extra service, no new operational part |
+| `builtin` (default) | a directory next to `data/homes`, blocks as `blocks/<org-id>/<xx>/<hash>` | nothing — no extra service, no new operational part |
 | `s3` | when durability, replication or separation from the control plane's disk is required | one more service to operate |
+
+The organisation is part of the key in both backends — the first path element with `builtin`, the object prefix with `s3`. Garbage collection walks per organisation for the same reason: a block is released when no remaining snapshot of **this** organisation references it any more.
 
 The default is deliberately the directory. For an installation on one machine — Covey's normal case — an object store is unnecessary operational surface, and the promise "one binary + Postgres" should not quietly become "one binary + Postgres + MinIO".
 
 **If an object store, then S3-compatible — not "AWS S3".** The protocol is the common denominator of Hetzner Object Storage, Garage, MinIO, Ceph RadosGW and SeaweedFS; Covey does not prescribe a server but speaks the protocol. For the operator's choice: whatever the hoster offers anyway (on the Hetzner/Proxmox infrastructure named in [`10-architecture-stack.md`](10-architecture-stack.md) that means Hetzner Object Storage), otherwise **Garage** — lightweight and built for exactly such small, self-operated clusters. MinIO, if it is running in-house anyway.
 
-**The client question stays open until stage 7** — deliberately, because it is smaller than it looks. A block store needs five operations: `PUT`, `GET`, `HEAD`, `DELETE` and the signing of short-lived URLs. Because blocks are small and immutable, the most laborious part of an S3 client falls away entirely: **multipart upload is never needed.**
+**The client question stays open until stage 8** — deliberately, because it is smaller than it looks. A block store needs five operations: `PUT`, `GET`, `HEAD`, `DELETE` and the signing of short-lived URLs. Because blocks are small and immutable, the most laborious part of an S3 client falls away entirely: **multipart upload is never needed.**
 
 Measured rather than estimated:
 
@@ -200,7 +260,7 @@ Building it ourselves is more defensible here than usual, because its **failure 
 
 Against it stands what a matured library brings: the individual providers' idiosyncrasies (path style vs. virtual host, region determination, error parsing). Whoever serves only one provider notices none of it; whoever serves five notices it at every one.
 
-This will be decided when stage 7 comes up. Until then all that counts is that `BlobStore` is a port and that `builtin` needs **no** dependency at all.
+This will be decided when stage 8 comes up. Until then all that counts is that `BlobStore` is a port and that `builtin` needs **no** dependency at all.
 
 ### How the blocks reach the runner
 
@@ -209,7 +269,7 @@ A runner **never gets the store's credentials** — that would be the same omiss
 - With the `s3` backend as **pre-signed URLs** — the runner loads directly from the object store, the control plane never sees the bytes.
 - With the `builtin` backend the control plane delivers equivalent short-lived URLs onto itself.
 
-Both also prevent 7 GB from having to go through the runner WebSocket: the control channel stays narrow, the payload goes past it.
+Both also prevent 7 GB from having to go through the runner WebSocket: the control channel stays narrow, the payload goes past it. The built-in runner skips the detour and calls the `BlobStore` directly — it sits in the process that owns it. That is a transport detail; the sync and materialisation logic above it does not know the difference.
 
 > **Why not Git as the transport?** An obvious thought, but Git only fits the curated text part. `repos/` are Git checkouts themselves (nested repos plus duplication of an existing remote), caches and SDKs have no business in a version history, and the transcripts are append-only JSONL on which Git bloats without a diff ever being read. What makes Git attractive here — dedup and history — the content-addressed store delivers anyway, and without those drawbacks. Underlaying the wiki *with* a Git history remains an independently attractive idea but is not decided along with this.
 
@@ -227,7 +287,7 @@ The preference is **sticky, but without automatic return**: if a runner fails, i
 
 ## Warmup: the local block storage
 
-Warmup needs **no mechanism of its own** — it falls out of the store as soon as the runner keeps the fetched blocks locally instead of throwing them away. A block belongs to no agent: it is determined by its hash, and whoever needs the same content gets the same block.
+Warmup needs **no mechanism of its own** — it falls out of the store as soon as the runner keeps the fetched blocks locally instead of throwing them away. A block belongs to no agent: it is determined by its hash, and whoever needs the same content gets the same block. It does belong to an organisation, and that needs no enforcement of its own either — a runner serves exactly one, so its local storage holds exactly one organisation's blocks.
 
 That hits exactly the waste that is unavoidable today. A sandbox currently has **a single mount**, its own home — every cache is private, even though not a byte of it is agent-specific:
 
@@ -239,7 +299,7 @@ That hits exactly the waste that is unavoidable today. A sandbox currently has *
 | `.npm` | 402 MB | no |
 | `jdk` | 346 MB | no |
 
-Two developer agents on the same host today hold the same 4 GB twice; five hold 20 GB. With block-wise deduplication they sit **once** in the runner's local storage — and the second agent materialises its home from it without fetching a single byte over the wire. A *new* agent on a run-in runner therefore starts almost warm, even though it has never run there.
+Two developer agents on the same host today hold the same 4 GB twice; five hold 20 GB. With content-addressed deduplication they sit **once** in the runner's local storage — and the second agent materialises its home from it without fetching a single byte over the wire. A *new* agent on a run-in runner therefore starts almost warm, even though it has never run there.
 
 ### Why that dissolves the isolation question
 
@@ -247,6 +307,7 @@ A shared cache is otherwise a **channel between agents** and therefore an isolat
 
 - A block is requested by the hash of **its content**. If the local storage delivers it, the content is by definition the same one the store would deliver.
 - Which blocks make up an agent's home is written in **its own** snapshot. No other agent can influence that mapping.
+- The sharing never reaches across the tenant boundary, because there is nothing on the runner to reach across to.
 
 There is therefore no promotion rule, no hash checklist and no read-only substrate someone would have to populate. Sharing is safe because there is no possibility of depositing something else under a foreign hash in the first place.
 
@@ -260,10 +321,12 @@ The cold start is therefore no longer a question of switching agents but only of
 
 Deliberately simple, because no runner has to be "the right one" — only the cheapest:
 
-1. Candidates: all **connected** runners whose tags satisfy the agent's `runner_tags` **and** that hold its image.
+1. Candidates: the **connected** runners of the agent's **organisation** whose tags satisfy its `runner_tags` **and** that hold its image. The organisation comes first and is not a filter among others: a runner of a foreign tenant is not a worse candidate, it is none.
 2. Of those, preferably the one the agent last ran on (`last_runner_id`) — its working copy is warm there.
 3. Otherwise the one with the fewest running sandboxes. No bin packing, no resource modelling.
 4. None suitable → the task stays put, with an explanatory state instead of an error message about a failed container start.
+
+The last case deserves its own wording per cause, because the causes call for different actions: *this organisation has no runner at all* (the built-in one is switched off, none registered) reads differently from *no runner holds this image* and differently again from *every runner is offline*. One collective "no capacity" would send whoever reads it looking in the wrong place.
 
 `last_runner_id` is explicitly a **hint, not a promise**: the scheduler may override it at any time, and nothing in the system may assume a home is still there. An agent whose preferred runner is missing wakes up on a different one — slower, but without a human doing anything.
 
@@ -291,23 +354,27 @@ With `start_sandbox` a runner receives an agent's `COVEY_DAEMON_TOKEN` and egres
 
 From this follow hard rules:
 
-- **No database access and no store credentials.** A runner speaks exclusively the runner protocol; it fetches and writes blocks through short-lived, scoped URLs (see "How the blocks reach the runner"). Concretely this concerns the egress proxy today: in hard isolation mode it receives `COVEY_DATABASE_URL` and reads its allowlist from Postgres itself. On a remote runner that would mean distributing the Postgres credentials to every host — that tips the trust boundary over and is a **prerequisite** for everything else: the allowlist has to come through the authenticated control-plane API (see below).
+- **No database access and no store credentials.** A runner speaks exclusively the runner protocol; it fetches and writes blocks through short-lived, scoped URLs (see "How the blocks reach the runner"). Concretely this concerns the egress proxy today: in hard isolation mode it receives `COVEY_DATABASE_URL` and reads its allowlist from Postgres itself. On a remote runner that would mean distributing the Postgres credentials to every host — that tips the trust boundary over and is a **prerequisite** for everything else: the allowlist has to come through the authenticated control-plane API (see below). For the built-in runner no process boundary enforces this — it lives in the process that holds the pool. The rule holds for it all the same, and as a rule about the code: it reaches for the runner protocol, not for the database. Whoever weakens that here has quietly written a second implementation, which is the one thing the built-in runner exists to avoid.
 - **No long-lived target-system secret.** The runner sees daemon and egress tokens, never the brokered credentials — those still go directly to the daemon ([`04-identity-secrets.md`](04-identity-secrets.md)).
+- **The organisation is a property of the runner, not of the request.** Every message it receives and every answer it may ask for is scoped to its own organisation; a runner that asks after a foreign agent gets a "not found", not an allowlist. That the trust is limited to one tenant is the reason this trust level is bearable at all.
 - **TLS is mandatory.** The control plane has to be reachable from foreign hosts; `COVEY_PUBLIC_URL` over plaintext HTTP would be the disclosure of every daemon token.
 - **Revocation and audit per runner.** A runner token is individually revocable; registration, connection, every sandbox assignment and every `home_op` are auditable events ([`06-observability-control.md`](06-observability-control.md)).
 
 ## Egress with distributed runners
 
-Hard isolation mode (`network`) requires a proxy **in the sandbox's network segment** — that is, per runner, started and maintained by the runner. Two changes compared with today:
+Hard isolation mode (`network`) requires a proxy **in the sandbox's network segment** — that is, per runner, started and maintained by the runner. Three changes compared with today:
 
-1. **The allowlist through the API instead of through the DB.** The proxy asks the control plane (authenticated with the runner token) and caches; the control plane pushes changes via `set_allowlist`. That is the prerequisite named above and **the right construction even without runners** — the proxy is an enforcement point, not a database client.
-2. **The control plane is a genuine foreign host.** `host.docker.internal` becomes the public address; it has to be on the proxy's internal allowlist so that the daemon link gets through hard mode. The mechanism for that exists (`COVEY_EGRESS_ALLOW`), only the value is no longer automatically right.
+1. **The segment belongs to the runner.** Today the internal network and the proxy container are instance-wide singletons (`covey-egress-internal`, `covey-egress-proxy`), so every sandbox of every organisation hangs off the same segment. The allowlist still applies per agent — the proxy identifies the agent by its per-sandbox token — but sandbox-to-sandbox traffic never reaches the proxy at all: `--internal` cuts the way out, not the way sideways. Both objects therefore carry the runner's identity in their name, one segment per runner. Since a runner serves one organisation, the tenant boundary falls out of it. **This is a gap that exists today**, independently of any runner, and it can be closed on its own before the rest of this.
+2. **The allowlist through the API instead of through the DB.** The proxy asks the control plane (authenticated with the runner token) and caches; the control plane pushes changes via `set_allowlist`. That is the prerequisite named above and **the right construction even without runners** — the proxy is an enforcement point, not a database client.
+3. **The control plane is a genuine foreign host.** `host.docker.internal` becomes the public address; it has to be on the proxy's internal allowlist so that the daemon link gets through hard mode. The mechanism for that exists (`COVEY_EGRESS_ALLOW`), only the value is no longer automatically right.
 
 ## File access
 
 `FileAccess` today delivers a **host path** that the file browser reads directly. With remote runners that becomes `home_op` over the runner link.
 
 The reasoning why file access deliberately does **not** go through the daemon protocol is preserved in the process — it even becomes cleaner: the home has to be readable even when the sandbox is asleep, and asleep is the normal state. The runner link exists continuously, the daemon link only during a run. The runner is therefore exactly the right seam for this requirement; the daemon would have been the wrong one.
+
+The built-in runner keeps the short path: the directory sits in the same process, and `home_op` reads it without a round trip. And once the home store exists, one more case falls out that has no answer today — a home whose runner is **offline** stays readable from its last snapshot. Read-only, with the state named plainly in the interface; browsing the work of an agent whose host is down is precisely the moment someone needs it.
 
 ## Interface
 
@@ -350,7 +417,7 @@ Deliberately left out so that the first pass stays small:
 - **Anticipatory warming** — mirroring blocks onto runners an agent has never run on as a precaution. The local block cache grows out of actual use; *anticipating* it is a later optimisation.
 - **Migration back** after a runner failure (see "The home": the preference stays sticky).
 - **Several simultaneous sandboxes per agent** — "serial before parallel" still applies.
-- **The runner as a tenant boundary.** One runner per tenant is an obvious thought, but the isolation promises for it belong in [`09-enterprise-model.md`](09-enterprise-model.md) and are a decision of their own.
+- **The runner as a promise of dedicated hardware.** That a runner belongs to exactly one organisation is decided (see "One runner, one organisation") — its state, its blocks and its network segment are the property of one tenant. What is *not* promised is that no second organisation's runner runs on the same machine: two built-in runners share a host by construction. Whether Covey ever guarantees a tenant its own iron is a question of the offering, not of this protocol, and it belongs in [`09-enterprise-model.md`](09-enterprise-model.md).
 - **Non-Docker runners** (Firecracker, Kubernetes pods). The runner protocol is cut so that they fit behind it later — the Docker runner is built first.
 
 ## Build order
@@ -359,15 +426,20 @@ Every stage is useful in itself and can be accepted individually:
 
 | Stage | Contents | Value on its own |
 |---|---|---|
-| 0 | Detach the egress proxy from the DB (allowlist through the API) | The right construction for the enforcement point, independently of runners |
+| 0 | Detach the egress proxy from the DB (allowlist through the API), the `runners` table with one built-in entry per organisation as the identity the proxy authenticates with, network segment and proxy container per runner | The right construction for the enforcement point, and the shared internal segment closed — both independently of runners |
 | 1 | An image per agent (`sandbox_image`), profiles `base`/`dev` | The mail agent no longer carries a JVM |
-| 2 | The home store: content-addressed block storage, sync after the job, materialising on wake, a local block cache | A lost home costs time instead of work, and the second agent on the same host starts warm — **both already with a single host** |
-| 3 | `covey-runner` as a third binary: registration including a configuration file, the protocol handshake, `start_sandbox`/`stop_sandbox`, `RunnerPool` as a `SandboxProvider`; plus the release artefacts (a binary per architecture, a Docker image, a systemd unit) | Sandboxes run on a second host |
-| 4 | `home_op` — the file browser over the runner link | The file browser works remotely too |
-| 5 | Tags, capacity, a runner view in the UI | Operability from more than two runners onwards |
-| 6 | Interface: home info, snapshot list, retention setting and button, fill level on the dashboard | The store is visible and operable instead of growing quietly |
-| 7 | The `BlobStore` backend `s3` (the port exists from stage 2, `builtin` suffices up to here) | Durability and replication when the control plane's disk is not enough |
+| 2 | The seam: runner protocol, `Transport` with the in-process implementation, the built-in runner, the Docker provider moved behind it, `RunnerPool` as `SandboxProvider` | A crashed sandbox is reported instead of running into the `ReadyTimeout`, and what stands in the way of a wake becomes visible per host |
+| 3 | The home store: content-addressed storage, sync after the job, materialising on wake, local block storage | A lost home costs time instead of work, and the second agent on the same host starts warm — **both already with a single host** |
+| 4 | The remote runner: the WebSocket transport, `register` including a configuration file, the protocol handshake and version, `covey-runner` as a third binary plus its release artefacts (a binary per architecture, a Docker image, a systemd unit) | Sandboxes run on a second host |
+| 5 | `home_op` — the file browser over the runner link, and reading from the snapshot while a runner is offline | The file browser works remotely too, and does not fail when a host does |
+| 6 | Tags, capacity, a runner view in the UI | Operability from more than two runners onwards |
+| 7 | Interface: home info, snapshot list, retention setting and button, fill level on the dashboard | The store is visible and operable instead of growing quietly |
+| 8 | The `BlobStore` backend `s3` (the port exists from stage 3, `builtin` suffices up to here) | Durability and replication when the control plane's disk is not enough |
 
-Stages 0 to 2 are independent of the runner and should run first — each is an improvement on the current state in its own right. Stage 0 because it otherwise becomes a security hole as soon as a runner runs remotely. Stage 1 because the image capability would otherwise have to be retrofitted in stage 3.
+Stages 0 and 1 are independent of the runner and should run first — each is an improvement on the current state in its own right. Stage 0 because it otherwise becomes a security hole as soon as a runner runs remotely, and because the shared internal segment is one already. Stage 1 because the image capability would otherwise have to be retrofitted in stage 2.
 
-**Stage 2 carries the whole edifice.** It makes the home replaceable, and only then is a runner switch not data loss; without it the affinity would have to be a binding after all. It delivers the warmup along with it — the block cache *is* the shared holding. And it pays off before a single second host exists: today two developer agents on the same machine hold the same 4 GB twice, and a deleted home is unrecoverable.
+**The seam comes before the store.** That is the opposite of the obvious order, and the reason is the built-in runner: sync and materialising are the runner's job, and whoever builds them into the local provider first writes them a second time as soon as the runner arrives. With the seam standing, the store is written once — for a runner that happens to be in the same process.
+
+Stage 2 is at bottom a refactoring, and that is worth paying for anyway, because it does not come away empty-handed: a runner that watches the container state reports a crash or an OOM instead of leaving the control plane to infer it from a `ReadyTimeout` — and the provider's self-check (missing image, no Docker socket) becomes a per-host statement instead of an instance-wide one.
+
+**Stage 3 carries the whole edifice.** It makes the home replaceable, and only then is a runner switch not data loss; without it the affinity would have to be a binding after all. It delivers the warmup along with it — the local block storage *is* the shared holding. And it pays off before a single second host exists: today two developer agents on the same machine hold the same 4 GB twice, and a deleted home is unrecoverable.
