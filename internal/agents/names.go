@@ -14,6 +14,12 @@ package agents
 // Names are rolled rather than derived: an agent called `support-agent-2` is an
 // artefact of a process, an agent called Renate Büroklammer is a colleague.
 
+// math/rand and not crypto/rand, deliberately, and the four #nosec G404 below
+// say so at each site: nothing here guards anything. The dice decide whether an
+// agent is called Renate Büroklammer or Wuselbert Wibbelzahn. Two identical
+// rolls are a coincidence somebody smiles at and renames, not a collision that
+// costs something — what has to be unique is the slug, and that is the
+// database's job, not the dice's.
 import (
 	"math/rand"
 	"regexp"
@@ -131,9 +137,11 @@ func poolFor(lang string) namePool {
 
 var nameInitials = strings.Split("ABCDEFGHIJKLMNOPRSTUVW", "")
 
+// #nosec G404 — a name, not a secret (see the note at the import).
 func pick(list []string) string { return list[rand.Intn(len(list))] }
 
 // surname: the office objects (the joke) a little more often.
+// #nosec G404 — a name, not a secret (see the note at the import).
 func (p namePool) surname() string {
 	if rand.Float64() < 0.55 {
 		return pick(p.officeSurnames)
@@ -175,6 +183,7 @@ func (p namePool) fantasySurname() string { return collapse(pick(p.fSurPre) + pi
 
 // baseName applies the shared patterns (double-barrelled, title, initial,
 // nobility gag) to a given first name and a surname generator.
+// #nosec G404 — a name, not a secret (see the note at the import).
 func (p namePool) baseName(first string, sur func() string) string {
 	switch r := rand.Float64(); {
 	case r < 0.6:
@@ -199,6 +208,7 @@ type RolledName struct {
 
 // RollName generates an agent name for the given language ("de"/"en", anything
 // else falls back to German). ~40% made-up names, otherwise down-to-earth ones.
+// #nosec G404 — a name, not a secret (see the note at the import).
 func RollName(lang string) RolledName {
 	p := poolFor(lang)
 	fantasy := rand.Float64() < 0.4
