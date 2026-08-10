@@ -629,11 +629,16 @@
       "departmentLabel": "Department",
       "departmentHint": "Determines its place in the org chart and the cost centre. May stay empty."
     },
-    "draftsTitle": "In hiring",
-    "draftsHint": "created, not hired yet — they are not working",
-    "draftBadge": "Draft",
+    "draftBadge": "Application",
     "pathBrief": "Brief",
-    "pathBriefDesc": "Describe what the new colleague should do — the People department drafts an agent from it."
+    "pathBriefDesc": "Describe what the new colleague should do — the People department drafts an agent from it.",
+    "applications": "Applications",
+    "applicationsHint": "drafted, not hired yet — they are not working",
+    "employed": "Employed",
+    "employedHint": "hired and on duty",
+    "reject": "Reject",
+    "rejectTitle": "Reject {{name}}?",
+    "rejectLead": "The draft is discarded. It never worked — there is no run and no cost. The brief it came out of stays as a task."
   },
   "agent": {
     "notFound": "Agent not found.",

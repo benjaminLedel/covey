@@ -148,6 +148,18 @@ h1, h2, h3 { font-weight: 500; margin: 0; }
    Aufgabe: da ist etwas, und es fehlt noch eine Entscheidung. */
 .st-draft { background: transparent; color: var(--text-secondary); border: 0.5px dashed var(--text-secondary); }
 
+/* Die Bewerbungen: ein eigenes Feld, nicht nur eine Überschrift.
+   Ein Agent, der noch nicht eingestellt ist, arbeitet nicht — zwischen den
+   Kollegen stünde er da wie einer und wäre keiner. Deshalb gestrichelt
+   abgesetzt, mit ruhigem Grund: es ist ein Wartebereich, keine Warnung. */
+.applications {
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  padding: 14px 16px 16px;
+  background: var(--surface-1);
+}
+.applications .card { background: var(--surface); }
+
 /* Die Notizen im laufenden Einstellungsgespräch. */
 .brief-notes { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; font-size: 13px; }
 .brief-notes li { padding-left: 10px; border-left: 2px solid var(--border); }

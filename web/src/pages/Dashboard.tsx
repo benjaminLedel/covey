@@ -2,11 +2,11 @@ import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, post, ApiError, isDraft, type Agent, type AgentTemplate, type Principal } from "../api";
+import { api, post, del, ApiError, isDraft, type Agent, type AgentTemplate, type Principal } from "../api";
 import { rollAgentName, slugify } from "../names";
 import { GuidedCreate } from "./agents/GuidedCreate";
 import { Brief } from "./agents/Brief";
-import { Modal } from "../components/Modal";
+import { Modal, ConfirmDialog } from "../components/Modal";
 import { Onboarding } from "../components/Onboarding";
 import { HireDialog } from "../components/HireDialog";
 
@@ -23,6 +23,19 @@ export default function Dashboard({ me }: { me: Principal }) {
   });
   const [showCreate, setShowCreate] = useState(false);
   const [hiring, setHiring] = useState<Agent | null>(null);
+  const [rejecting, setRejecting] = useState<Agent | null>(null);
+
+  // Ablehnen heißt löschen, und das ist hier verantwortbar: der Entwurf hat nie
+  // gearbeitet, es gibt keinen Lauf, keine Kosten und keine Spur, die jemand
+  // später bräuchte. Die Ausschreibung, aus der er hervorging, bleibt als
+  // Aufgabe stehen — dort steht auch die Begründung.
+  const reject = useMutation({
+    mutationFn: (id: string) => del<{ ok: boolean }>(`/agents/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agents"] });
+      setRejecting(null);
+    },
+  });
 
   const all = agents.data ?? [];
   const drafts = all.filter(isDraft);
@@ -88,21 +101,35 @@ export default function Dashboard({ me }: { me: Principal }) {
         </div>
       )}
 
-      {/* Entwürfe zuerst und getrennt: ein Agent, der noch nicht eingestellt
-          ist, arbeitet nicht — er stünde zwischen den anderen wie ein
-          Kollege da und wäre doch keiner. */}
+      {/* Bewerbungen zuerst und in einem eigenen Feld: ein Agent, der noch
+          nicht eingestellt ist, arbeitet nicht — zwischen den anderen stünde er
+          da wie ein Kollege und wäre doch keiner. Die Trennung ist deshalb
+          nicht Dekoration, sondern die Aussage. */}
       {drafts.length > 0 && (
-        <div className="mb-5">
-          <div className="flex items-baseline gap-2 mb-1">
-            <h2 className="text-sm" style={{ fontWeight: 600 }}>{t("dashboard.draftsTitle")}</h2>
-            <span className="muted text-xs">{t("dashboard.draftsHint")}</span>
+        <section className="applications mb-5">
+          <div className="flex items-baseline gap-2 mb-2">
+            <h2 className="text-sm" style={{ fontWeight: 600 }}>{t("dashboard.applications")}</h2>
+            <span className="badge st-draft">{drafts.length}</span>
+            <span className="muted text-xs">{t("dashboard.applicationsHint")}</span>
           </div>
           <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))" }}>
             {drafts.map((a) => (
-              <AgentCard key={a.id} agent={a} onHire={canManage(me.Role) ? setHiring : undefined} />
+              <AgentCard
+                key={a.id}
+                agent={a}
+                onHire={canManage(me.Role) ? setHiring : undefined}
+                onReject={canManage(me.Role) ? setRejecting : undefined}
+              />
             ))}
           </div>
-        </div>
+        </section>
+      )}
+
+      {drafts.length > 0 && staff.length > 0 && (
+        <h2 className="text-sm mb-2" style={{ fontWeight: 600 }}>
+          {t("dashboard.employed")}{" "}
+          <span className="muted text-xs" style={{ fontWeight: 400 }}>{t("dashboard.employedHint")}</span>
+        </h2>
       )}
 
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))" }}>
@@ -115,6 +142,17 @@ export default function Dashboard({ me }: { me: Principal }) {
       </div>
 
       {hiring && <HireDialog agent={hiring} onClose={() => setHiring(null)} />}
+      {rejecting && (
+        <ConfirmDialog
+          title={t("dashboard.rejectTitle", { name: rejecting.display_name })}
+          confirmLabel={t("dashboard.reject")}
+          pending={reject.isPending}
+          onClose={() => setRejecting(null)}
+          onConfirm={() => reject.mutate(rejecting.id)}
+        >
+          <p className="text-sm">{t("dashboard.rejectLead")}</p>
+        </ConfirmDialog>
+      )}
 
       {showCreate && (
         <CreateAgentModal
@@ -129,7 +167,15 @@ export default function Dashboard({ me }: { me: Principal }) {
   );
 }
 
-function AgentCard({ agent, onHire }: { agent: Agent; onHire?: (a: Agent) => void }) {
+function AgentCard({
+  agent,
+  onHire,
+  onReject,
+}: {
+  agent: Agent;
+  onHire?: (a: Agent) => void;
+  onReject?: (a: Agent) => void;
+}) {
   const { t } = useTranslation();
   const draft = isDraft(agent);
   const initials = agent.display_name
@@ -160,17 +206,31 @@ function AgentCard({ agent, onHire }: { agent: Agent; onHire?: (a: Agent) => voi
         Runtime: <span className="mono">{agent.runtime}</span>
         {agent.budget_usd > 0 && <> · {t("dashboard.budget")} {agent.budget_usd.toFixed(2)} $</>}
       </div>
-      {draft && onHire && (
-        <button
-          className="btn sm primary"
-          style={{ marginTop: 10 }}
-          onClick={(e) => {
-            e.preventDefault(); // die Karte ist ein Link — der Knopf ist es nicht
-            onHire(agent);
-          }}
-        >
-          {t("hire.action")}
-        </button>
+      {draft && (onHire || onReject) && (
+        <div className="flex gap-2" style={{ marginTop: 10 }}>
+          {onHire && (
+            <button
+              className="btn sm primary"
+              onClick={(e) => {
+                e.preventDefault(); // die Karte ist ein Link — der Knopf ist es nicht
+                onHire(agent);
+              }}
+            >
+              {t("hire.action")}
+            </button>
+          )}
+          {onReject && (
+            <button
+              className="btn sm"
+              onClick={(e) => {
+                e.preventDefault();
+                onReject(agent);
+              }}
+            >
+              {t("dashboard.reject")}
+            </button>
+          )}
+        </div>
       )}
     </Link>
   );
