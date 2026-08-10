@@ -181,6 +181,31 @@ h1, h2, h3 { font-weight: 500; margin: 0; }
 .brief-notes { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; font-size: 13px; }
 .brief-notes li { padding-left: 10px; border-left: 2px solid var(--border); }
 
+/* Die Einrichtung als eigene Flaeche: keine Seitenleiste, kein Hilfe-Regal.
+   Der Kopf traegt die Wortmarke, den Stand und den Weg heraus; darunter steht
+   mittig, was zu tun ist — in Lesebreite, damit die drei Karten eine Strecke
+   ergeben und keine Wand. */
+.setup-page {
+  min-height: 100vh;
+  background: var(--surface-0);
+  display: flex;
+  flex-direction: column;
+}
+.setup-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 26px;
+  border-bottom: 0.5px solid var(--border);
+  background: var(--surface-2);
+}
+.setup-body {
+  width: 100%;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 34px 22px 80px;
+}
+
 /* Die Nummern der Setup-Karten: erledigte tragen einen Haken statt der Ziffer. */
 .setup-n {
   display: inline-flex;

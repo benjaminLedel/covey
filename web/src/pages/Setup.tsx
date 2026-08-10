@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { api, post, type Agent, type RuntimeInfo, type SetupState } from "../api";
 import i18n from "../i18n";
@@ -24,18 +24,40 @@ export default function Setup() {
 
   if (!state.data) return null;
   const st = state.data;
+  const done = [st.engine_done, st.org_done, st.people_done].filter(Boolean).length;
 
   return (
-    <div style={{ maxWidth: 720 }}>
-      <div className="flex items-baseline gap-3 mb-2">
-        <h1 className="text-[22px]">{t("setup.title")}</h1>
-        <span className="muted">{t("setup.subtitle")}</span>
-      </div>
-      <p className="muted text-xs mb-4">{t("setup.lead")}</p>
+    <div className="setup-page">
+      <header className="setup-head">
+        <span className="brand">
+          <span className="mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="18" height="18">
+              <path d="M7 15 Q9.75 11.8 12.5 15 Q15.25 11.8 18 15" />
+              <path d="M3.5 10 Q5.5 7.7 7.5 10 Q9.5 7.7 11.5 10" />
+              <path d="M13 8 Q14.5 6.3 16 8 Q17.5 6.3 19 8" />
+            </svg>
+          </span>
+          Covey
+        </span>
+        <span className="secondary text-xs">{t("setup.progress", { done, total: 3 })}</span>
+        {/* Der Weg heraus, immer sichtbar: überspringbar heißt, dass man es
+            sieht — nicht, dass man es erraten muss. */}
+        <Link className="btn sm ml-auto" to="/">
+          {done === 3 ? t("setup.finish") : t("setup.later")}
+        </Link>
+      </header>
 
-      <EngineCard state={st} onDone={refresh} />
-      <OrgCard state={st} onDone={refresh} />
-      <PeopleCard state={st} onDone={refresh} />
+      <div className="setup-body">
+        <div className="flex items-baseline gap-3 mb-2">
+          <h1 className="text-[22px]">{t("setup.title")}</h1>
+          <span className="secondary">{t("setup.subtitle")}</span>
+        </div>
+        <p className="secondary text-xs mb-4">{t("setup.lead")}</p>
+
+        <EngineCard state={st} onDone={refresh} />
+        <OrgCard state={st} onDone={refresh} />
+        <PeopleCard state={st} onDone={refresh} />
+      </div>
     </div>
   );
 }

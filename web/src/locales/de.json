@@ -1783,7 +1783,10 @@
       "create": "Personalabteilung anlegen",
       "creating": "wird angelegt …",
       "open": "Personalabteilung öffnen"
-    }
+    },
+    "progress": "{{done}} von {{total}} erledigt",
+    "later": "Später",
+    "finish": "Fertig"
   },
   "brief": {
     "lead": "Ihre Personalabteilung macht daraus einen vollständigen Entwurf: Charakter, Zuständigkeit, Verfahren, Zugänge. Eingestellt wird er von Ihnen.",

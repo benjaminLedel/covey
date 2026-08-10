@@ -1783,7 +1783,10 @@
       "create": "Create the People department",
       "creating": "creating …",
       "open": "Open the People department"
-    }
+    },
+    "progress": "{{done}} of {{total}} done",
+    "later": "Later",
+    "finish": "Done"
   },
   "brief": {
     "lead": "Your People department turns this into a complete draft: character, remit, procedures, access. Hiring it is up to you.",

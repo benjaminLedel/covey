@@ -325,6 +325,16 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
     onLogout();
   };
 
+  /* Die Einrichtung laeuft ohne die Huelle: kein Seitenmenue, kein Hilfe-Regal,
+     nichts, was nebenher ruft. Das ist keine Kosmetik — die drei Karten sind
+     das Einzige, was jemand beim ersten Mal tun soll, und eine Navigation, die
+     schon dreizehn andere Orte anbietet, laedt genau dazu ein, sie
+     wegzuklicken. Der Weg heraus steht deshalb sichtbar oben rechts: die
+     Einrichtung ist ueberspringbar, aber sie soll nicht nebenbei passieren. */
+  if (location.pathname === "/setup") {
+    return <Setup />;
+  }
+
   const toggleLang = () => {
     const next = i18n.language === "de" ? "en" : "de";
     i18n.changeLanguage(next);
@@ -455,7 +465,6 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
           <Routes>
             <Route path="/" element={<Dashboard me={me} />} />
             <Route path="/agents/:id" element={<AgentPage me={me} />} />
-            <Route path="/setup" element={<Setup />} />
             <Route path="/templates" element={<Templates me={me} />} />
             <Route path="/skills" element={<Skills me={me} />} />
             <Route path="/org" element={<Org />} />
