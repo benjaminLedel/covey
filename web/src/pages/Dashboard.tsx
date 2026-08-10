@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { api, post, ApiError, isDraft, type Agent, type AgentTemplate, type Principal } from "../api";
 import { rollAgentName, slugify } from "../names";
 import { GuidedCreate } from "./agents/GuidedCreate";
+import { Brief } from "./agents/Brief";
 import { Modal } from "../components/Modal";
 import { Onboarding } from "../components/Onboarding";
 import { HireDialog } from "../components/HireDialog";
@@ -176,10 +177,16 @@ function AgentCard({ agent, onHire }: { agent: Agent; onHire?: (a: Agent) => voi
 }
 
 // ---------------------------------------------------------------------------
-// Anlege-Modal mit drei Pfaden: Vorlage · Manuell · Bundle-Import
+// Anlege-Modal mit vier Pfaden: Ausschreibung · Vorlage · Manuell · Import
+//
+// Die Ausschreibung steht vorn und ist der Vorgabeweg: sie stellt die eine
+// Frage, die jemand beantworten kann, ohne die Plattform zu kennen. Der
+// manuelle Weg bleibt vollständig daneben — als Weg für den, der genau weiß,
+// was er will, und als Rückfalltür, wenn die Personalabteilung nicht arbeiten
+// kann (spec/20).
 // ---------------------------------------------------------------------------
 
-type CreatePath = "choose" | "template" | "manual" | "import";
+type CreatePath = "choose" | "brief" | "template" | "manual" | "import";
 
 function CreateAgentModal({ onClose, onDone }: { onClose: () => void; onDone: (id: string) => void }) {
   const { t } = useTranslation();
@@ -193,6 +200,7 @@ function CreateAgentModal({ onClose, onDone }: { onClose: () => void; onDone: (i
 
   const titles: Record<CreatePath, string> = {
     choose: t("dashboard.createAgent"),
+    brief: t("dashboard.pathBrief"),
     template: t("dashboard.fromTemplate"),
     manual: t("dashboard.manualCreate"),
     import: t("dashboard.importBundle"),
@@ -201,6 +209,9 @@ function CreateAgentModal({ onClose, onDone }: { onClose: () => void; onDone: (i
   return (
     <Modal title={titles[path]} onClose={onClose} size={path === "template" ? "lg" : "md"}>
       {path === "choose" && <ChoosePath onPick={setPath} />}
+      {path === "brief" && (
+        <Brief onBack={() => setPath("choose")} onOpen={handleDone} />
+      )}
       {path === "template" && (
         <TemplateStep onBack={() => setPath("choose")} onDone={handleDone} />
       )}
@@ -215,6 +226,13 @@ function CreateAgentModal({ onClose, onDone }: { onClose: () => void; onDone: (i
 }
 
 const pathIcons: Record<string, React.JSX.Element> = {
+  brief: (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9" />
+      <path d="M14 3v6h6" />
+      <path d="M9 13h5M9 17h3" />
+    </svg>
+  ),
   template: (
     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
       <rect x="9" y="9" width="12" height="13" rx="2" />
@@ -243,6 +261,11 @@ const pathIcons: Record<string, React.JSX.Element> = {
 function ChoosePath({ onPick }: { onPick: (p: CreatePath) => void }) {
   const { t } = useTranslation();
   const paths: { key: CreatePath; title: string; desc: string }[] = [
+    {
+      key: "brief",
+      title: t("dashboard.pathBrief"),
+      desc: t("dashboard.pathBriefDesc"),
+    },
     {
       key: "template",
       title: t("dashboard.pathTemplate"),

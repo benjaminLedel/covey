@@ -631,7 +631,9 @@
     },
     "draftsTitle": "In hiring",
     "draftsHint": "created, not hired yet — they are not working",
-    "draftBadge": "Draft"
+    "draftBadge": "Draft",
+    "pathBrief": "Brief",
+    "pathBriefDesc": "Describe what the new colleague should do — the People department drafts an agent from it."
   },
   "agent": {
     "notFound": "Agent not found.",
@@ -1776,5 +1778,25 @@
       "creating": "creating …",
       "open": "Open the People department"
     }
+  },
+  "brief": {
+    "lead": "Your People department turns this into a complete draft: character, remit, procedures, access. Hiring it is up to you.",
+    "what": "What should the new colleague do?",
+    "placeholder": "They should take first-level support in the ticket system: triage new tickets, answer the simple ones, hand everything else to the right team.",
+    "whatHint": "A few sentences are enough. Whatever you leave out, the People department asks about.",
+    "send": "Send to the People department",
+    "sending": "handing over …",
+    "fallback": "You can create the agent yourself instead — go back and pick \"Create manually\".",
+    "waitingForHire": "{{name}} has not been hired yet. The brief is ready and starts as soon as you hire them.",
+    "openPeople": "Open the People department",
+    "running": "The hiring conversation is running. You can close this window — the task keeps going.",
+    "question": "The People department is asking",
+    "questionFallback": "Something is missing from the brief.",
+    "answer": "Answer",
+    "drafts": "{{count}} draft ready",
+    "drafts_plural": "{{count}} drafts ready",
+    "draftsHint": "Look them through and hire them — until then none of them works.",
+    "noDrafts": "The task finished, but no draft came out of it. The report is in the People department’s backlog.",
+    "failed": "The brief failed."
   }
 }

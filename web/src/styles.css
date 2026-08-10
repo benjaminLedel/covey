@@ -148,6 +148,10 @@ h1, h2, h3 { font-weight: 500; margin: 0; }
    Aufgabe: da ist etwas, und es fehlt noch eine Entscheidung. */
 .st-draft { background: transparent; color: var(--text-secondary); border: 0.5px dashed var(--text-secondary); }
 
+/* Die Notizen im laufenden Einstellungsgespräch. */
+.brief-notes { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; font-size: 13px; }
+.brief-notes li { padding-left: 10px; border-left: 2px solid var(--border); }
+
 /* Die Nummern der Setup-Karten: erledigte tragen einen Haken statt der Ziffer. */
 .setup-n {
   display: inline-flex;

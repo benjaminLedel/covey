@@ -631,7 +631,9 @@
     },
     "draftsTitle": "Im Einstellungsverfahren",
     "draftsHint": "angelegt, aber noch nicht eingestellt — sie arbeiten noch nicht",
-    "draftBadge": "Entwurf"
+    "draftBadge": "Entwurf",
+    "pathBrief": "Ausschreibung",
+    "pathBriefDesc": "Beschreiben, was die neue Kollegin tun soll — die Personalabteilung entwirft daraus einen Agenten."
   },
   "agent": {
     "notFound": "Agent nicht gefunden.",
@@ -1776,5 +1778,25 @@
       "creating": "wird angelegt …",
       "open": "Personalabteilung öffnen"
     }
+  },
+  "brief": {
+    "lead": "Ihre Personalabteilung macht daraus einen vollständigen Entwurf: Charakter, Zuständigkeit, Verfahren, Zugänge. Eingestellt wird er von Ihnen.",
+    "what": "Was soll die neue Kollegin tun?",
+    "placeholder": "Sie soll die Erstlinie im Ticketsystem übernehmen: neue Tickets sichten, einfache selbst beantworten, alles andere an das richtige Team weiterreichen.",
+    "whatHint": "Ein paar Sätze reichen. Was Sie nicht sagen, fragt die Personalabteilung nach.",
+    "send": "An die Personalabteilung",
+    "sending": "wird übergeben …",
+    "fallback": "Sie können den Agenten stattdessen selbst anlegen — zurück und „Manuell anlegen\".",
+    "waitingForHire": "{{name}} ist noch nicht eingestellt. Die Ausschreibung liegt bereit und startet, sobald Sie sie einstellen.",
+    "openPeople": "Personalabteilung öffnen",
+    "running": "Das Einstellungsgespräch läuft. Sie können dieses Fenster schließen — die Aufgabe läuft weiter.",
+    "question": "Rückfrage der Personalabteilung",
+    "questionFallback": "Es fehlt etwas in der Ausschreibung.",
+    "answer": "Antworten",
+    "drafts": "{{count}} Entwurf bereit",
+    "drafts_plural": "{{count}} Entwürfe bereit",
+    "draftsHint": "Durchsehen und einstellen — vorher arbeitet keiner von ihnen.",
+    "noDrafts": "Die Aufgabe ist fertig, es ist aber kein Entwurf entstanden. Der Bericht steht im Backlog der Personalabteilung.",
+    "failed": "Die Ausschreibung ist fehlgeschlagen."
   }
 }
