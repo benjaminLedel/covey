@@ -55,7 +55,9 @@ This tier exposes an existing constraint that has to be dealt with rather than w
 
 This runs in the sandbox, so it works on any engine, costs money that is attributed like any other run, and ends with **three draft agents** for a human to review. That turns the end of setup from "you can get started now" into "here are three applications" — and the platform has demonstrated itself once before anyone had to explain it.
 
-One rule constrains it: **the People department may not write its own config directly.** It writes a new, unactivated config version (the versioning exists), and a human activates it. An agent that quietly rewrites its own `SOUL.md` at night is precisely the door the rest of this platform keeps shut — config as code means a change is somebody's deliberate act ([`02-agent-model.md`](02-agent-model.md)).
+One rule constrains it: **the People department may not write its own config.** An agent that quietly rewrites its own `SOUL.md` at night is precisely the door the rest of this platform keeps shut — config as code means a change is somebody's deliberate act ([`02-agent-model.md`](02-agent-model.md)). It is enforced by the same rule that governs everything else it writes: it may configure exactly the agents it drafted in the current assignment, and it did not draft itself.
+
+The gentler variant — *propose* its own config as an unactivated version for a human to accept — is not built. The config versioning has no notion of a version that is stored but not in effect (the latest version is the active one), so it would need a flag through the write and read paths plus a review surface of its own. That is worth doing when a second case for it turns up; until then the self-onboarding sharpens the organisation's picture of the role by drafting *colleagues*, and its own config stays as delivered.
 
 ## Hiring is a task, not a form
 
@@ -95,25 +97,30 @@ The copilot exists and could do this server-side. It is the wrong tool here, for
 
 Against that, honestly: a sandbox start is seconds to a minute where the copilot answers immediately, and this makes the friendliest path through setup depend on a working data plane at the moment the platform is least likely to have one. Hence the manual path as a first-class fallback, not as an apology.
 
-## The `covey` target system: self-service on the control plane
+## `covey` self-service: meta actions, not a plugin
 
-An agent that creates agents needs actions for it. That is a **target system plugin** like any other — self-registering, in the registry, documented in the agent's prompt, enforceable by guard rails — with the peculiarity that the system it targets is Covey itself. It therefore needs no credentials and no broker: it runs in the control plane and calls the registry directly, instead of taking the detour through its own HTTP API with a token that would have to exist somewhere.
+An agent that creates agents needs actions for it. The first sketch made that a target system plugin like any other; building it showed why that is the wrong shelf. **Plugin actions execute in the sandbox** — that is what the plugin interface is for, and what the action proxy does with every `Execute`. These actions have to touch the registry, which lives in the control plane.
 
-| Scope | Actions |
+The right home already existed: the `covey/…` **meta actions**, where `create_task` and `org_chart` sit. They travel over the daemon protocol, are decided and executed in the control plane, and need neither a credential nor a broker.
+
+| Action | What it answers |
 |---|---|
-| `org:read` | `list_departments`, `list_people`, `list_engines` |
-| `targets:read` | `list_targets` — which plugins are enabled, with their actions and scopes |
-| `agents:read` | `list_agents`, `get_agent_config` |
-| `agents:write` | `create_agent`, `set_agent_config`, `set_supervisor`, `set_department` |
+| `covey/list_targets` | which target systems this organisation has connected, with their scopes, and which engines exist |
+| `covey/get_agent_config` | a colleague's config — the house style is in there, not in the model's imagination |
+| `covey/create_agent` | creates the draft, with job title, department and supervisor |
+| `covey/set_agent_config` | writes its config (complete files) |
+| `covey/org_chart` | already existed: departments, people, agents |
 
-Deliberately absent: everything to do with secrets, runtimes and guard rails. Access to a target system for a newly drafted agent is **requested**, not granted — it goes through the approval path that already exists ([`06-observability-control.md`](06-observability-control.md)), so that the org-wide rule "who may reach which system" stays a human decision.
+Deliberately absent: everything to do with secrets, runtimes and guard rails — and, above all, hiring. Access to a target system for a newly drafted agent is **requested** rather than granted: it goes through the approval path that already exists ([`06-observability-control.md`](06-observability-control.md)), so that "who may reach which system" stays a human decision.
 
-Four guard rails, enforced in the plugin and not in a prompt — the distinction from [`02-agent-model.md`](02-agent-model.md) applies here more than anywhere: a limit that lives in `SOUL.md` is self-binding, and this agent's output is other agents.
+Two gates sit in front of all of it. The **access entry** `- system: covey` in `ACCESS.md` decides whether these actions exist for an agent at all — and only an agent that has it gets the section about them in its prompt, because a capability that is described in the prompt and refused by the control plane is the worst kind. On top of that every action carries a **guard-rail subject** (`covey:create_agent` and so on), so an organisation can forbid drafting centrally without touching a config.
+
+Four rules, enforced in the control plane and not in a prompt — the distinction from [`02-agent-model.md`](02-agent-model.md) applies here more than anywhere: a limit that lives in `SOUL.md` is self-binding, and this agent's output is other agents.
 
 1. **What it creates is a draft.** `create_agent` produces an agent that does not run until a human hires it. See the next section.
 2. **No self-propagation.** An agent created this way may not carry the `covey` system in its own `ACCESS.md`. Rejected at the action, not discussed in the prompt.
-3. **Provenance is written by the platform.** `create_agent` records which task the agent came out of, server-side. The interface finds the draft through that, instead of trusting a model to hand back an ID it also invented the format for.
-4. **Only its own children.** `set_agent_config` reaches exactly the agents created in the same assignment. A compromised People department cannot rewrite the QA agent's soul.
+3. **Provenance is written by the platform.** `create_agent` records which task the agent came out of, into the recording. The interface finds the draft through that, instead of trusting a model to hand back an ID it also invented the format for — and because it is the recording and not a process-local note, an assignment that goes `blocked` and resumes hours later still knows its own drafts.
+4. **Only its own children.** `set_agent_config` reaches exactly the agents created in the same assignment. A compromised People department cannot rewrite the QA agent's soul — nor its own.
 
 ## The draft state
 
@@ -129,7 +136,7 @@ An agent that has been drafted but not yet hired needs a real state, not a repur
 
 **Who else benefits.** The draft state is worth having independently of hiring: instantiating from a template, importing a bundle ([`02-agent-model.md`](02-agent-model.md) § *Export & import*), and the manual form, where "finish later" currently produces a half-configured agent that is already live.
 
-**And the rule that closes the loop:** the `covey` plugin has no `hire` action. Drafting is something an agent may do; hiring is something only a person does. Everything else in this design — the review diff, the approval path, the unactivated self-config — is a variation on that one line.
+**And the rule that closes the loop:** there is no `hire` action. Not a forbidden one — a missing one, so there is nothing to forget to check. Drafting is something an agent may do; hiring is something only a person does. Everything else in this design — the review diff, the approval path, the draft that queues its first task and waits — is a variation on that one line.
 
 ## The dice move into the binary
 
@@ -137,18 +144,16 @@ The name generator is a frontend module today (German and English pools, virtue 
 
 ## Build order
 
-Cut so that every slice is worth shipping on its own:
+Cut so that every slice is worth shipping on its own — all eight are built:
 
 1. **The draft state** — hiring date, dispatch, and the *In hiring* section in the interface. Pays off immediately for templates and imports, before any of the rest exists.
 2. **The name generator** into the binary, with an endpoint for the interface.
 3. **The company description** on the organisation, editable, and one paragraph in the config copilot's system prompt.
 4. **The control-plane LLM port**, with the two existing callers moved onto it (D15).
 5. **The setup page** — three cards, tiers 1 and 2.
-6. **The `covey` target system** with its four guard rails.
+6. **The `covey` self-service actions** with their four rules.
 7. **The People department bundle** and the self-onboarding (tier 3).
 8. **The brief** — form → task → live conversation → draft review.
-
-After slice 5 the setup described here exists end to end. Slices 6 to 8 close the circle.
 
 ## Open points
 
