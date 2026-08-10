@@ -168,6 +168,14 @@ func (s *Server) Handler() http.Handler {
 	manage := []string{identity.RolePlatformAdmin, identity.RoleAgentOwner}
 	securityRoles := []string{identity.RolePlatformAdmin, identity.RoleSecurity}
 
+	// Setup: the credential first, then the company, then the People department
+	// (setup.go, spec/20). Everything here is also reachable by hand — the setup
+	// buys order, not exclusivity.
+	mux.Handle("GET /api/v1/setup/state", s.rbac(manage, s.handleSetupState))
+	mux.Handle("POST /api/v1/setup/engine", s.rbac(manage, s.handleSetupEngine))
+	mux.Handle("POST /api/v1/setup/org", s.rbac(manage, s.handleSetupOrg))
+	mux.Handle("POST /api/v1/setup/people", s.rbac(manage, s.handleSetupPeople))
+
 	// First steps as a checklist over the real org state (onboarding.go).
 	// The audit trail may be read by those it concerns: platform admin,
 	// security and auditor. Agent owner and controlling may not — they appear
@@ -212,6 +220,14 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/agents/{id}/backlog", s.agentScoped(anyRole, s.handleBacklog))
 	mux.Handle("POST /api/v1/agents/{id}/tasks", s.agentScoped(manage, s.handleCreateTask))
 	mux.Handle("POST /api/v1/agents/{id}/wake", s.agentScoped(manage, s.handleWake))
+	// Hiring: the one way out of the draft state, and only a human walks it
+	// (hiring.go, spec/20).
+	mux.Handle("POST /api/v1/agents/{id}/hire", s.agentScoped(manage, s.handleHire))
+	mux.Handle("GET /api/v1/names/roll", s.rbac(manage, s.handleRollName))
+	// The brief: the agent form ends in an assignment to the People department
+	// (hiring.go, spec/20).
+	mux.Handle("POST /api/v1/hiring/brief", s.rbac(manage, s.handleHiringBrief))
+	mux.Handle("GET /api/v1/hiring/brief/{id}", s.rbac(manage, s.handleHiringBriefStatus))
 	mux.Handle("POST /api/v1/agents/{id}/kill", s.agentScoped(append(manage, identity.RoleSecurity), s.handleKill))
 	mux.Handle("POST /api/v1/agents/{id}/resume", s.agentScoped(append(manage, identity.RoleSecurity), s.handleResumeAgent))
 	mux.Handle("POST /api/v1/agents/{id}/budget", s.agentScoped(manage, s.handleSetBudget))
@@ -239,6 +255,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/agents/{id}/webhook", s.agentScoped(manage, s.handleGetAgentWebhook))
 	mux.Handle("POST /api/v1/agents/{id}/webhook", s.agentScoped(manage, s.handleEnableAgentWebhook))
 	mux.Handle("DELETE /api/v1/agents/{id}/webhook", s.agentScoped(manage, s.handleDisableAgentWebhook))
+	// The organisation's own master data: name and what this company does — the
+	// context every agent works in (spec/20).
+	mux.Handle("GET /api/v1/org", s.rbac(anyRole, s.handleGetOwnOrg))
+	mux.Handle("PATCH /api/v1/org/description", s.rbac(manage, s.handleSetOwnOrgDescription))
 	mux.Handle("GET /api/v1/org/chart", s.rbac(anyRole, s.handleOrgChart))
 	mux.Handle("GET /api/v1/org/humans/{id}", s.rbac(anyRole, s.handleGetHuman))
 	mux.Handle("GET /api/v1/org/profile-fields", s.rbac(anyRole, s.handleListProfileFields))

@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useParams, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, post, type Agent, type Principal } from "../api";
+import { api, post, isDraft, type Agent, type Principal } from "../api";
 import { AgentFiles } from "../components/AgentFiles";
+import { HireDialog } from "../components/HireDialog";
 import { canFiles, canKill, canManage, canSecrets } from "./agent/roles";
 import { AgentTooling } from "./agent/Tooling";
 import { AgentSettings } from "./agent/Settings";
@@ -72,6 +73,7 @@ export default function AgentPage({ me }: { me: Principal }) {
       { replace: false },
     );
   const [recTask, setRecTask] = useState<{ id: string; title: string } | null>(null);
+  const [hiring, setHiring] = useState(false);
 
   // Was man einmal einrichtet, wohnt unter den Einstellungen; was zusammen
   // gehoert, unter einem Reiter. Alte Links landen am neuen Ort statt auf dem
@@ -114,9 +116,13 @@ export default function AgentPage({ me }: { me: Principal }) {
 
       <div className="flex items-center gap-3 mb-5 flex-wrap">
         <h1 className="text-[22px]">{a.display_name}</h1>
-        <span className={`badge st-${a.killed ? "killed" : a.status}`}>
-          {t(`status.${a.killed ? "killed" : a.status}`, a.status)}
-        </span>
+        {isDraft(a) ? (
+          <span className="badge st-draft">{t("dashboard.draftBadge")}</span>
+        ) : (
+          <span className={`badge st-${a.killed ? "killed" : a.status}`}>
+            {t(`status.${a.killed ? "killed" : a.status}`, a.status)}
+          </span>
+        )}
         {(a.status === "working" || a.status === "triage" || a.status === "triggered") && (
           <span className="live-dot" title={t("agent.sandbox")} />
         )}
@@ -125,12 +131,21 @@ export default function AgentPage({ me }: { me: Principal }) {
           {a.model && ` · ${a.model}`}
         </span>
         <span className="ml-auto" />
-        {canManage(me.Role) && (
+        {/* Ein Entwurf hat keinen ersten Tag — „wecken" wäre der falsche Knopf
+            an der Stelle, an der „einstellen" steht. */}
+        {canManage(me.Role) && !isDraft(a) && (
           <button className="btn sm" onClick={() => act.mutate("wake")}>
             {t("agent.wake")}
           </button>
         )}
-        {canKill(me.Role) &&
+        {canManage(me.Role) && isDraft(a) && (
+          <button className="btn sm primary" onClick={() => setHiring(true)}>
+            {t("hire.action")}
+          </button>
+        )}
+        {/* Kill-Switch nur für einen, der laufen kann. Einen Entwurf zu stoppen
+            ist keine Handlung — er hat nicht angefangen. */}
+        {canKill(me.Role) && !isDraft(a) &&
           (a.killed ? (
             <button className="btn sm" onClick={() => act.mutate("resume")}>
               {t("agent.resume")}
@@ -141,6 +156,17 @@ export default function AgentPage({ me }: { me: Principal }) {
             </button>
           ))}
       </div>
+
+      {isDraft(a) && (
+        <div className="card mb-4" style={{ borderStyle: "dashed" }}>
+          <div className="text-sm" style={{ fontWeight: 600, marginBottom: 2 }}>
+            {t("hire.bannerTitle")}
+          </div>
+          <p className="muted text-xs" style={{ maxWidth: 640 }}>{t("hire.bannerLead")}</p>
+        </div>
+      )}
+
+      {hiring && <HireDialog agent={a} onClose={() => setHiring(false)} />}
 
       <CostBar agentId={a.id} budget={a.budget_usd} />
 

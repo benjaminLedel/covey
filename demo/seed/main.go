@@ -72,8 +72,12 @@ type agentSpec struct {
 	// Nur schlafend, geweckt oder gestoppt: einen Agenten auf "working" zu
 	// setzen hielte nicht, weil die Control Plane einen arbeitenden Agenten
 	// ohne lebende Sandbox-Sitzung zu Recht wieder schlafen legt.
-	status           string // sleeping | triggered | killed
-	killed           bool
+	status string // sleeping | triggered | killed
+	killed bool
+	// draft: angelegt, aber noch nicht eingestellt — im Bild das Feld
+	// "Bewerbungen" (spec/20). Ein Entwurf hat keinen Status, der etwas
+	// bedeutet: er wird nicht dispatcht.
+	draft            bool
 	budget           float64
 	supervisor       string // E-Mail eines Menschen ODER slug eines Agenten
 	systems          []string
@@ -205,6 +209,59 @@ verify every batch against the source before you call it done.
 If a batch does not reconcile, you stop the whole migration and say so. A
 migration that continues past a mismatch is a migration nobody can trust.`,
 	},
+	{
+		slug: "hedda", name: "Hedda Ruiz", jobTitle: "People & Culture", dept: "Operations",
+		model: "claude-opus-5", status: "sleeping", budget: 60, supervisor: "admin",
+		systems: []string{"covey"}, ageDays: 41,
+		responsibilities: "Turns a description of a job into a complete agent — character, remit, procedures, access — and leaves it as a draft for a human to hire.",
+		soul: `# People department
+
+## Role
+You are this organisation's People department. You do not hire humans, you hire
+agents: from a description of what somebody should do, you make a complete,
+honest agent.
+
+## Attitude
+You invent nothing — no target system this organisation has not connected, no
+responsibility nobody assigned. What you do not know, you ask about.
+
+## Limits
+You hire nobody. That is a human decision, and there is no action for it.`,
+	},
+	// Zwei Bewerbungen: entworfen, noch nicht eingestellt. Sie stehen im Bild
+	// oben in ihrem eigenen Feld und arbeiten nicht — deshalb auch kein Budget
+	// und kein Status, der etwas verspricht.
+	{
+		slug: "tamsin", name: "Tamsin Vogel", jobTitle: "Release Notes", dept: "Engineering",
+		model: "claude-sonnet-5", status: "sleeping", draft: true, supervisor: "priya.raman@northgate.example",
+		systems: []string{"gitlab"}, ageDays: 2,
+		responsibilities: "Drafted by Hedda: turns merged merge requests into release notes a customer can read.",
+		soul: `# Release notes
+
+## Role
+You turn merged merge requests into release notes somebody outside engineering
+can read: what changed, for whom it matters, and what they have to do about it.
+
+## The rule that matters
+A note nobody outside the team understands is not a note. If you cannot say what
+a change means for a customer, ask the author instead of paraphrasing the diff.`,
+	},
+	{
+		slug: "bruno", name: "Bruno Achterberg", jobTitle: "Incident Intake", dept: "Customer Support",
+		model: "claude-sonnet-5", status: "sleeping", draft: true, supervisor: "sam.okafor@northgate.example",
+		systems: []string{"email", "zammad"}, ageDays: 1,
+		responsibilities: "Drafted by Hedda: recognises duplicate incident reports and opens exactly one ticket per real incident.",
+		soul: `# Incident intake
+
+## Role
+You read incident reports from the shared mailbox, recognise when three mails
+describe the same outage, and open exactly one ticket for it — the others become
+notes on that ticket.
+
+## What you do not do
+You do not answer the reporter and you do not judge the incident. You make sure
+that what reaches the queue is one incident per ticket.`,
+	},
 }
 
 func run(ctx context.Context, dbURL string, force bool) error {
@@ -257,7 +314,12 @@ func run(ctx context.Context, dbURL string, force bool) error {
 	// die README-Bilder bei jedem Lauf denselben Datensatz zeigen.
 	rnd := rand.New(rand.NewSource(20260804))
 
-	if _, err := pool.Exec(ctx, `UPDATE organizations SET name='Northgate Systems' WHERE id=$1`, orgID); err != nil {
+	// Name UND Beschreibung: die Beschreibung ist Stammdaten (spec/20) und geht
+	// in jede Ausschreibung ein — eine Demo-Organisation, die sich nicht
+	// beschreibt, zeigt im Org-Chart einen leeren Kasten.
+	if _, err := pool.Exec(ctx, `UPDATE organizations SET name='Northgate Systems',
+		description='We run the order and billing platform for mid-sized retailers: about 200 customers in Europe, self-service portal, support in three languages. Our customers care about two things — that an order is never lost, and that somebody answers within a day.'
+		WHERE id=$1`, orgID); err != nil {
 		return err
 	}
 
@@ -322,7 +384,11 @@ func run(ctx context.Context, dbURL string, force bool) error {
 	agentIDs := map[string]uuid.UUID{}
 	for _, spec := range agentSpecs {
 		owner := humans[ownerFor(spec)]
-		a, err := registry.Create(ctx, orgID, spec.slug, spec.name, "claude-code", &owner)
+		create := registry.Create
+		if spec.draft {
+			create = registry.CreateDraft
+		}
+		a, err := create(ctx, orgID, spec.slug, spec.name, "claude-code", &owner)
 		if err != nil {
 			return fmt.Errorf("Agent %s: %w", spec.slug, err)
 		}
@@ -348,8 +414,10 @@ func run(ctx context.Context, dbURL string, force bool) error {
 		if err := registry.SetModel(ctx, a.ID, spec.model); err != nil {
 			return err
 		}
-		if err := registry.SetBudget(ctx, a.ID, spec.budget); err != nil {
-			return err
+		if spec.budget > 0 {
+			if err := registry.SetBudget(ctx, a.ID, spec.budget); err != nil {
+				return err
+			}
 		}
 		for _, sys := range spec.systems {
 			if _, err := pool.Exec(ctx, `INSERT INTO system_accesses (agent_id, system, scopes)
@@ -359,8 +427,14 @@ func run(ctx context.Context, dbURL string, force bool) error {
 			}
 		}
 		// Status und Einstellungsdatum schreibt sonst die Control Plane.
+		// Status, Kill-Schalter und Alter schreibt sonst die Control Plane. Das
+		// Einstellungsdatum eines eingestellten Agenten wandert mit dem Alter
+		// mit — sonst waere jeder seit heute im Haus.
 		if _, err := pool.Exec(ctx, `UPDATE agents SET status=$2, killed=$3,
-			created_at=now() - make_interval(days => $4) WHERE id=$1`,
+			created_at=now() - make_interval(days => $4),
+			hired_at = CASE WHEN hired_at IS NULL THEN NULL
+			                ELSE now() - make_interval(days => $4) END
+			WHERE id=$1`,
 			a.ID, spec.status, spec.killed, spec.ageDays); err != nil {
 			return err
 		}
@@ -370,7 +444,9 @@ func run(ctx context.Context, dbURL string, force bool) error {
 	// der zum Zeitpunkt seiner Anlage noch nicht existierte.
 	for _, spec := range agentSpecs {
 		var supervisorID uuid.UUID
-		if id, ok := humans[spec.supervisor]; ok {
+		if spec.supervisor == "admin" {
+			supervisorID = adminID
+		} else if id, ok := humans[spec.supervisor]; ok {
 			supervisorID = id
 		} else if id, ok := agentIDs[spec.supervisor]; ok {
 			supervisorID = id

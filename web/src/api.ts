@@ -29,8 +29,18 @@ export type Agent = {
   custom: Record<string, string>;
   killed: boolean;
   budget_usd: number;
+  // Der erste Arbeitstag. Fehlt er, ist der Agent ein Entwurf: angelegt,
+  // konfigurierbar, aber nicht dispatcht — kein Heartbeat, kein scharfer
+  // Webhook, keine Sandbox, keine Kosten (spec/20).
+  hired_at?: string;
   created_at: string;
 };
+
+/** Entwurf: angelegt, aber noch nicht eingestellt. */
+export const isDraft = (a: Agent) => !a.hired_at;
+
+/** Einstellen — der eine Weg aus dem Entwurf, und ihn geht ein Mensch. */
+export const hireAgent = (id: string) => post<Agent>(`/agents/${id}/hire`);
 
 export type Task = {
   id: string;
@@ -387,6 +397,8 @@ export const setHumanManager = (humanId: string, managerId: string | null) =>
 export type Organization = {
   id: string;
   name: string;
+  /** Was dieses Unternehmen macht — Stammdaten, siehe spec/20. */
+  description: string;
   fleet_killed: boolean;
   human_count: number;
   agent_count: number;
@@ -400,6 +412,19 @@ export type SetupStep = {
 
 /** Eine Engine: der Code, der die LLM-Schleife fährt. Sie deklariert, welche
  *  Credentials sie kennt und wie sie sie braucht — und was sie kann. */
+/** Der Zustand der Einrichtung (spec/20): was steht, und was zu wählen ist. */
+export type SetupState = {
+  engine_done: boolean;
+  org_done: boolean;
+  people_done: boolean;
+  people_id?: string;
+  engines: RuntimeInfo[];
+  org_name: string;
+  org_description: string;
+  /** Kann die Control Plane die Personalabteilung personalisieren (Stufe 2)? */
+  llm_available: boolean;
+};
+
 export type RuntimeInfo = {
   name: string;
   label: string;

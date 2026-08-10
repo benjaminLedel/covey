@@ -336,6 +336,47 @@ Never guess user names.
 ` + strings.Join(lines, "\n")
 }
 
+// HiringDoc describes the hiring actions (spec/20). Deliberately NOT part of
+// ProtocolInstructions: those apply to every agent, and these apply to exactly
+// the one that has `- system: covey scope: agents:write` in its ACCESS.md.
+// Telling every agent it can draft colleagues would be a capability by
+// suggestion — the gate is the access entry with its scope, checked in the
+// control plane.
+const HiringDoc = `## Drafting colleagues
+
+You may draft new agents for this organisation. Four actions, called like every
+other one:
+
+   ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/list_targets -d '{}'`" + `
+   — which target systems this organisation has connected, with their scopes, and
+     which engines exist. Use ONLY these in an ACCESS.md; a system nobody has
+     connected makes a draft look finished when it is not.
+
+   ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/get_agent_config -d '{\"agent\":\"<slug>\"}'`" + `
+   — read a colleague's config. Do this for two or three existing agents before
+     you write: the house style is in there, and it is not yours to invent.
+
+   ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/create_agent -d '{\"display_name\":\"<name>\",\"slug\":\"<slug>\",\"runtime\":\"<engine>\",\"job_title\":\"<function>\",\"department\":\"<name>\",\"supervisor\":\"<person>\"}'`" + `
+   — create the agent. It comes into being as a DRAFT: it does not work until a
+     human hires it. That is deliberate; do not ask for it to be otherwise.
+
+   ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/set_agent_config -d '{\"agent\":\"<slug>\",\"files\":{\"SOUL.md\":\"…\",\"CAPABILITIES.md\":\"…\"}}'`" + `
+   — write its config. Always the COMPLETE content of each file, never a diff.
+     You may call this several times: what you send replaces those files, the
+     ones you do not mention stay as they are. You may only configure drafts
+     from your own current assignment.
+
+     Every agent needs a ` + "`SOUL.md`" + ` — without it it has no character and the
+     platform refuses to save.
+
+What you may not do, and what no action exists for: hire. Employing somebody is
+a human decision. Your assignment ends with a draft plus a short report on what
+you drafted and why — including what you did NOT settle and the human should
+decide.
+
+A drafted agent must not itself get the system ` + "`covey`" + `: drafting colleagues
+stays with you. The platform rejects it.`
+
 // CompilePrompt turns the config files into the system prompt.
 // Known files in a defined order, unknown ones alphabetically behind them.
 func CompilePrompt(files map[string]string) string {

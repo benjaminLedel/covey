@@ -37,7 +37,7 @@ docker build -f Dockerfile.sandbox -t covey-sandbox:latest .   # der Arbeitsplat
 docker compose up -d --build                              # Postgres + Covey starten
 ```
 
-Dann **[http://localhost:8494](http://localhost:8494)** öffnen — Login `admin@covey.local` / `covey-admin`. Eine Checkliste **Erste Schritte** auf der Agenten-Übersicht führt zum ersten arbeitenden Agenten; sie liest den tatsächlichen Zustand der Organisation, hakt sich selbst ab und verschwindet, wenn alles erledigt ist.
+Dann **[http://localhost:8494](http://localhost:8494)** öffnen — Login `admin@covey.local` / `covey-admin`. Die **Einrichtung** stellt drei Fragen, jede überspringbar: die Engine und ihr Zugang (geprüft, bevor er gespeichert wird), drei Sätze darüber, was Ihr Unternehmen macht, und ob Sie eine **Personalabteilung** wollen — einen Agenten, dessen Aufgabe es ist, die anderen zu entwerfen. Danach ist *Neuer Agent → Ausschreibung* der kürzeste Weg zur ersten Kollegin: in ein paar Sätzen beschreiben, was sie tun soll, und die Personalabteilung schreibt die Konfiguration. Eine Checkliste **Erste Schritte** auf der Agenten-Übersicht liest den tatsächlichen Zustand der Organisation, hakt sich selbst ab und verschwindet, wenn alles erledigt ist.
 
 Das mitgelieferte [`docker-compose.yml`](docker-compose.yml) bringt Postgres (pgvector) und das covey-Binary mit eingebetteter Admin-UI; `bootstrap` legt Organisation, Admin, einen Demo-Agenten und dessen Arbeitsplatz an, Migrationen laufen automatisch.
 
@@ -59,7 +59,7 @@ Alles außer der dritten Zeile dauert Sekunden. Sie baut den Container, in dem e
 
 ![Agenten-Übersicht](web/public/shots/agents.de.jpg)
 
-*Die Belegschaft einer Organisation auf einen Blick — Zustand, Runtime und Budget pro Agent und der Notaus für alle.*
+*Die Belegschaft einer Organisation auf einen Blick — Zustand, Runtime und Budget pro Agent und der Notaus für alle. Darüber die **Bewerbungen**: entworfene Agenten, die auf ihre Einstellung warten.*
 
 | | |
 |---|---|
@@ -73,6 +73,7 @@ Alles außer der dritten Zeile dauert Sekunden. Sie baut den Container, in dem e
 | | |
 |---|---|
 | 🧑‍💼 **Agenten mit Identität** | Eigene Sandbox, eigenes Home, eigene Zugänge — und ein Platz im Org-Chart neben den Menschen. |
+| 🧑‍🎓 **Einstellen statt Formular** | Beschreiben, was eine neue Kollegin tun soll; die eigene Personalabteilung — ein Agent — macht daraus eine vollständige Konfiguration und fragt nach, wenn die Ausschreibung zu dünn ist. Heraus kommt ein **Entwurf**: angelegt, ansehbar, änderbar — und er arbeitet erst, wenn ein Mensch ihn einstellt. |
 | 📥 **Backlog & Wake-Quellen** | Aufgaben als First-Class-Objekte; Agenten wachen per Webhook, Heartbeat oder Zuruf auf und schlafen danach wieder. |
 | 🔌 **Zielsysteme als Plugins** | Zammad, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, E-Mail (IMAP/SMTP), headless Browser, MCP — jedes über ein Manifest, kein Sonderweg im Kern. |
 | 🛡️ **Guard-Rails & Freigaben** | Zentral erzwungen, außerhalb der Runtime, fail-closed. Kritische Aktionen gehen an einen Menschen. |

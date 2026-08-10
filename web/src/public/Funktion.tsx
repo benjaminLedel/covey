@@ -11,6 +11,7 @@ const GROUPS: { g: string; items: { icon: keyof typeof icons; k: string }[] }[] 
     g: "structure",
     items: [
       { icon: "sitemap", k: "orgchart" },
+      { icon: "bolt", k: "hiring" },
       { icon: "users", k: "profiles" },
       { icon: "key", k: "identity" },
     ],

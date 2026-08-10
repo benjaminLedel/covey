@@ -44,6 +44,11 @@ type bundleAgent struct {
 	MaxTurns        int     `json:"max_turns,omitempty"`
 	BudgetUSD       float64 `json:"budget_usd,omitempty"`
 	SupervisorEmail string  `json:"supervisor_email,omitempty"`
+	// JobTitle is the function in the employee profile. Part of the bundle
+	// because agents are employees (spec/02): a template that describes a role
+	// but leaves the function empty produces a colleague nobody can find in the
+	// team directory by what they do.
+	JobTitle string `json:"job_title,omitempty"`
 	// WebhookEnabled: on import a FRESH token is generated — the token itself
 	// is a secret and is never part of the bundle.
 	WebhookEnabled bool `json:"webhook_enabled,omitempty"`
@@ -154,6 +159,7 @@ func (s *Server) buildBundle(ctx context.Context, orgID, agentID uuid.UUID, incl
 			Model: a.Model, MaxTurns: a.MaxTurns, BudgetUSD: a.BudgetUSD,
 			WebhookEnabled: a.WebhookToken != nil,
 			WarmSandbox:    a.WarmSandbox,
+			JobTitle:       a.JobTitle,
 		},
 	}
 	if a.SupervisorID != nil {
@@ -599,11 +605,17 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 	// --- Creating. From here on the agent exists; subsequent errors would be a
 	// half import, which is why everything parse-/RBAC-critical was checked
 	// above. ---
-	a, err := s.Registry.Create(ctx, p.OrgID, b.Agent.Slug, b.Agent.DisplayName, b.Agent.Runtime, &p.ID)
+	// As a draft (spec/20). An imported agent is precisely the case where
+	// something is regularly still missing — a secret the bundle could only name,
+	// an access that has to be approved, a playbook written for a different
+	// organisation. Until now it started working with all of that open; now
+	// somebody looks at it and hires it.
+	a, err := s.Registry.CreateDraft(ctx, p.OrgID, b.Agent.Slug, b.Agent.DisplayName, b.Agent.Runtime, &p.ID)
 	if err != nil {
 		mapErr(w, err)
 		return
 	}
+	warnings = append(warnings, "the agent was created as a draft — check it and hire it, then it starts working")
 	// An imported agent needs a workplace just as much as a hand-made one — a
 	// ready-made bundle from examples/ is for many people the FIRST agent, and
 	// it must not be the one that cannot work.
@@ -628,6 +640,12 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	if b.Agent.WarmSandbox {
 		if err := s.Registry.SetWarmSandbox(ctx, a.ID, true); err != nil {
+			mapErr(w, err)
+			return
+		}
+	}
+	if jt := strings.TrimSpace(b.Agent.JobTitle); jt != "" {
+		if _, err := s.Registry.UpdateProfile(ctx, p.OrgID, a.ID, agents.ProfileUpdate{JobTitle: &jt}); err != nil {
 			mapErr(w, err)
 			return
 		}

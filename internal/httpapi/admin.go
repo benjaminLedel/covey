@@ -213,12 +213,53 @@ func (s *Server) handleUpdateOrg(w http.ResponseWriter, r *http.Request) {
 	}
 	var in struct {
 		Name string `json:"name"`
+		// Description is optional and may be cleared — hence a pointer: an
+		// absent field must not silently wipe what somebody wrote.
+		Description *string `json:"description"`
 	}
 	if err := readJSON(r, &in); err != nil || strings.TrimSpace(in.Name) == "" {
 		writeErr(w, http.StatusBadRequest, "name is required")
 		return
 	}
 	if err := s.Org.RenameOrg(r.Context(), id, strings.TrimSpace(in.Name)); err != nil {
+		mapErr(w, err)
+		return
+	}
+	if in.Description != nil {
+		if err := s.Org.SetOrgDescription(r.Context(), id, strings.TrimSpace(*in.Description)); err != nil {
+			mapErr(w, err)
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handleGetOwnOrg — the signed-in human's own organisation: name and what it
+// does. Readable by every role (it is the context every agent works in),
+// writable through handleSetOwnOrgDescription.
+func (s *Server) handleGetOwnOrg(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	o, err := s.Org.GetOrg(r.Context(), p.OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, o)
+}
+
+// handleSetOwnOrgDescription stores the company description without needing the
+// tenant administration: the setup asks for it, and afterwards it is edited
+// where it is read — in one's own organisation (spec/20).
+func (s *Server) handleSetOwnOrgDescription(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	var in struct {
+		Description string `json:"description"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "body not readable")
+		return
+	}
+	if err := s.Org.SetOrgDescription(r.Context(), p.OrgID, strings.TrimSpace(in.Description)); err != nil {
 		mapErr(w, err)
 		return
 	}

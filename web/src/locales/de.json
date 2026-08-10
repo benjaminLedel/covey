@@ -102,6 +102,10 @@
         "indicators": {
           "t": "Kennzahlen & Stückkosten",
           "d": "Jeder Agent erklärt in KPIS.md, was er liefert. Die Plattform zählt es aus dem, was sie ohnehin aufzeichnet, und rechnet den Preis je Einheit aus — mit den Gegen-Zahlen daneben, damit ein Agent nicht dadurch gut aussieht, dass er die schweren Fälle abgibt."
+        },
+        "hiring": {
+          "t": "Einstellen statt Formular",
+          "d": "Beschreiben, was eine neue Kollegin tun soll — die eigene Personalabteilung, selbst ein Agent, macht daraus eine vollständige Konfiguration und fragt nach, wenn etwas fehlt. Heraus kommt eine Bewerbung, die erst arbeitet, wenn ein Mensch sie einstellt."
         }
       },
       "ctaTitle": "Selbst installieren",
@@ -287,7 +291,7 @@
       "lead": "Echte Ansichten aus der Control Plane — Belegschaft, Struktur, Arbeit, Gedächtnis und Kosten.",
       "agents": {
         "t": "Die Belegschaft",
-        "d": "Alle Agenten mit Status, Runtime und Rolle auf einen Blick."
+        "d": "Alle Agenten mit Status, Runtime und Rolle — darüber die Bewerbungen, die noch auf ihre Einstellung warten."
       },
       "org": {
         "t": "Org-Chart",
@@ -341,7 +345,8 @@
     "profile": "Profil & Einstellungen",
     "audit": "Audit",
     "requests": "Requests",
-    "skills": "Skills"
+    "skills": "Skills",
+    "setupPage": "Einrichtung"
   },
   "costs": {
     "title": "Kosten & Token",
@@ -459,9 +464,9 @@
     },
     "steps": {
       "credential": {
-        "title": "Runtime-Credential hinterlegen",
-        "hint": "anthropic_api_key (API-Schlüssel) oder claude_code_oauth_token (Abo-Konto). Ohne eines von beiden schlägt jede Aufgabe fehl.",
-        "action": "Zu den Secrets"
+        "title": "Einrichtung durchgehen",
+        "hint": "Engine und Zugang, was Ihr Unternehmen macht, und die Personalabteilung. Ohne Zugang schlägt jede Aufgabe fehl.",
+        "action": "Zur Einrichtung"
       },
       "agent": {
         "title": "Agenten anlegen",
@@ -628,7 +633,17 @@
       "supervisorHint": "Der Mensch, an den eskaliert wird, wenn der Agent nicht weiterkommt oder eine Freigabe braucht.",
       "departmentLabel": "Abteilung",
       "departmentHint": "Bestimmt die Einordnung im Org-Chart und die Kostenstelle. Kann leer bleiben."
-    }
+    },
+    "draftBadge": "Bewerbung",
+    "pathBrief": "Ausschreibung",
+    "pathBriefDesc": "Beschreiben, was die neue Kollegin tun soll — die Personalabteilung entwirft daraus einen Agenten.",
+    "applications": "Bewerbungen",
+    "applicationsHint": "entworfen, aber noch nicht eingestellt — sie arbeiten nicht",
+    "employed": "Im Haus",
+    "employedHint": "eingestellt und im Dienst",
+    "reject": "Ablehnen",
+    "rejectTitle": "{{name}} ablehnen?",
+    "rejectLead": "Der Entwurf wird verworfen. Er hat nie gearbeitet — es gibt keinen Lauf und keine Kosten. Die Ausschreibung, aus der er hervorging, bleibt als Aufgabe stehen."
   },
   "agent": {
     "notFound": "Agent nicht gefunden.",
@@ -1152,7 +1167,16 @@
     "unassigned": "Ohne Abteilung ({{count}})",
     "unassignedHint": "Agenten und Personen ohne Abteilung",
     "assignDept": "Abteilung zuweisen",
-    "removeDept": "Zuweisung lösen"
+    "removeDept": "Zuweisung lösen",
+    "company": {
+      "label": "— was dieses Unternehmen macht",
+      "edit": "bearbeiten",
+      "add": "beschreiben",
+      "empty": "Noch nicht beschrieben. Drei bis fünf Sätze genügen — sie gehen in jede Ausschreibung an die Personalabteilung und in den Config-Assistenten ein.",
+      "placeholder": "Wir machen … Unsere Kunden sind … Wichtig ist uns …",
+      "hint": "Geht in die Config neu entworfener Agenten, in jede Ausschreibung und in den Config-Assistenten ein.",
+      "save": "Speichern"
+    }
   },
   "orgs": {
     "title": "Organisationen",
@@ -1711,5 +1735,81 @@
   },
   "common": {
     "loading": "lädt …"
+  },
+  "hire": {
+    "action": "Einstellen",
+    "title": "{{name}} einstellen",
+    "lead": "Danach arbeitet dieser Agent: Er wird geweckt, sein Heartbeat läuft, wartende Aufgaben starten. Zugänge, die noch keine Freigabe haben, werden beantragt.",
+    "confirm": "Einstellen",
+    "hiring": "wird eingestellt …",
+    "role": "Rolle",
+    "supervisor": "Vorgesetzt",
+    "department": "Abteilung",
+    "budget": "Budget",
+    "noRole": "noch keine Funktion hinterlegt",
+    "noBudget": "kein Deckel",
+    "systems": "Zielsysteme, die er nutzen soll",
+    "noSystems": "keine — der Agent arbeitet nur in seiner Sandbox",
+    "systemPending": "noch nicht freigegeben",
+    "bannerTitle": "Dieser Agent ist ein Entwurf",
+    "bannerLead": "Er ist angelegt und konfigurierbar, arbeitet aber noch nicht: kein Dispatch, kein Heartbeat, keine Sandbox, keine Kosten. Sieh die Konfiguration durch und stelle ihn dann ein."
+  },
+  "setup": {
+    "title": "Einrichtung",
+    "subtitle": "drei Fragen, jede überspringbar",
+    "lead": "Der Zugang zuerst — ohne ihn kann nichts laufen, was diese Oberfläche anbietet. Danach lässt sich das meiste für Sie erledigen statt von Ihnen. Alles hier geht auch später von Hand.",
+    "saving": "speichert …",
+    "engine": {
+      "title": "Motor und Zugang",
+      "hint": "Womit denken Ihre Agenten, und auf wessen Vertrag. Der Wert wird geprüft, bevor er gespeichert wird.",
+      "engine": "Engine",
+      "kind": "Art des Zugangs",
+      "value": "Wert",
+      "valueHint": "Wird als Secret {{key}} abgelegt und trägt von hier an die Sandbox-Läufe, den Config-Assistenten und die Personalabteilung.",
+      "save": "Prüfen und speichern",
+      "checking": "wird geprüft …",
+      "done": "Ein Zugang ist hinterlegt, der Arbeitsplatz darum herum steht."
+    },
+    "org": {
+      "title": "Was macht Ihr Unternehmen?",
+      "hint": "Drei bis fünf Sätze. Sie gehen in jede Ausschreibung, in die Config neu entworfener Agenten und in den Config-Assistenten ein.",
+      "name": "Name der Organisation",
+      "description": "Beschreibung",
+      "placeholder": "Wir machen … Unsere Kunden sind … Wichtig ist uns …",
+      "save": "Speichern"
+    },
+    "people": {
+      "title": "Ihre Personalabteilung",
+      "hint": "Ein Agent, dessen Aufgabe es ist, die anderen zu entwerfen.",
+      "lead": "Sie beschreibt aus ein paar Sätzen einen vollständigen Agenten — Charakter, Zuständigkeit, Verfahren, Zugänge — und legt ihn als Entwurf hin. Eingestellt wird er von Ihnen.",
+      "noLLM": "Ohne Anthropic-Zugang in der Control Plane entsteht sie aus der Vorlage, ohne auf Ihre Beschreibung zugeschnitten zu werden.",
+      "onboard": "Gleich nach dem Einstellen die ersten drei Kollegen vorschlagen lassen",
+      "create": "Personalabteilung anlegen",
+      "creating": "wird angelegt …",
+      "open": "Personalabteilung öffnen"
+    },
+    "progress": "{{done}} von {{total}} erledigt",
+    "later": "Später",
+    "finish": "Fertig"
+  },
+  "brief": {
+    "lead": "Ihre Personalabteilung macht daraus einen vollständigen Entwurf: Charakter, Zuständigkeit, Verfahren, Zugänge. Eingestellt wird er von Ihnen.",
+    "what": "Was soll die neue Kollegin tun?",
+    "placeholder": "Sie soll die Erstlinie im Ticketsystem übernehmen: neue Tickets sichten, einfache selbst beantworten, alles andere an das richtige Team weiterreichen.",
+    "whatHint": "Ein paar Sätze reichen. Was Sie nicht sagen, fragt die Personalabteilung nach.",
+    "send": "An die Personalabteilung",
+    "sending": "wird übergeben …",
+    "fallback": "Sie können den Agenten stattdessen selbst anlegen — zurück und „Manuell anlegen\".",
+    "waitingForHire": "{{name}} ist noch nicht eingestellt. Die Ausschreibung liegt bereit und startet, sobald Sie sie einstellen.",
+    "openPeople": "Personalabteilung öffnen",
+    "running": "Das Einstellungsgespräch läuft. Sie können dieses Fenster schließen — die Aufgabe läuft weiter.",
+    "question": "Rückfrage der Personalabteilung",
+    "questionFallback": "Es fehlt etwas in der Ausschreibung.",
+    "answer": "Antworten",
+    "drafts": "{{count}} Entwurf bereit",
+    "drafts_plural": "{{count}} Entwürfe bereit",
+    "draftsHint": "Durchsehen und einstellen — vorher arbeitet keiner von ihnen.",
+    "noDrafts": "Die Aufgabe ist fertig, es ist aber kein Entwurf entstanden. Der Bericht steht im Backlog der Personalabteilung.",
+    "failed": "Die Ausschreibung ist fehlgeschlagen."
   }
 }

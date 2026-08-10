@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"covey/internal/agents"
-	"covey/internal/claudeapi"
+	"covey/internal/llm"
 )
 
 // AI assistant for adapting agents ("config copilot", FR-001).
@@ -25,11 +25,10 @@ import (
 // the human reviews as a diff and saves deliberately (config-as-code stays
 // intact).
 
-// assistModel: fixed model of the config copilot — the most recent Opus.
-const assistModel = "claude-opus-4-8"
-
 // assistMaxTokens caps the response; non-streamed, so stay below the SDK
-// timeout range (~16k).
+// timeout range (~16k). The model itself is not named here any more — the
+// copilot asks for the best tier and the provider knows which one that is
+// (internal/llm).
 const assistMaxTokens = 8000
 
 // anthropicBaseURL is shared from credcheck.go (a variable so tests can slip
@@ -58,8 +57,8 @@ var assistFileOrder = []string{
 }
 
 // assistMessage is one turn in the dialogue human↔assistant. Content is a
-// plain string — the Messages API accepts that as a single text block.
-type assistMessage = claudeapi.Message
+// plain string — every provider accepts that as a single text block.
+type assistMessage = llm.Message
 
 // assistProposal is a proposed new content for a config file.
 type assistProposal struct {
@@ -74,19 +73,20 @@ type assistResponse struct {
 	Proposals []assistProposal `json:"proposals"`
 }
 
-// resolveOrgClaude finds the org-wide Claude credential (order and key names
-// live in claudeapi so that copilot and dream see the same).
-func (s *Server) resolveOrgClaude(ctx context.Context, orgID uuid.UUID) (cred string, oauth, ok bool) {
-	return claudeapi.ResolveOrg(ctx, s.Secrets, orgID)
+// resolveOrgLLM finds the provider the control plane may use for this
+// organisation (order and key names live in internal/llm, so that copilot,
+// dream and setup see the same).
+func (s *Server) resolveOrgLLM(ctx context.Context, orgID uuid.UUID) (llm.Provider, error) {
+	return llm.Resolve(ctx, s.Secrets, orgID)
 }
 
 // handleAssistStatus tells the UI whether the config copilot is available —
-// that is, whether an org-wide Claude credential can be resolved. Without one
-// the feature is not offered in the UI at all (no dead UI, no costs).
+// that is, whether a control-plane credential can be resolved. Without one the
+// feature is not offered in the UI at all (no dead UI, no costs).
 func (s *Server) handleAssistStatus(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
-	_, _, ok := s.resolveOrgClaude(r.Context(), p.OrgID)
-	writeJSON(w, http.StatusOK, map[string]bool{"available": ok})
+	_, err := s.resolveOrgLLM(r.Context(), p.OrgID)
+	writeJSON(w, http.StatusOK, map[string]bool{"available": err == nil})
 }
 
 // handleConfigAssist is the dialogue endpoint: it takes the conversation
@@ -99,10 +99,10 @@ func (s *Server) handleConfigAssist(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	p := principalFrom(r)
-	cred, oauth, ok := s.resolveOrgClaude(r.Context(), p.OrgID)
-	if !ok {
+	provider, err := s.resolveOrgLLM(r.Context(), p.OrgID)
+	if err != nil {
 		writeErr(w, http.StatusPreconditionFailed,
-			"no org-wide Claude credential configured — the AI assistant is not available")
+			"no control-plane LLM credential configured — the AI assistant is not available")
 		return
 	}
 	var in struct {
@@ -122,8 +122,10 @@ func (s *Server) handleConfigAssist(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 90*time.Second)
 	defer cancel()
-	raw, err := claudeapi.Messages(ctx, cred, oauth,
-		claudeapi.Call{Model: assistModel, MaxTokens: assistMaxTokens}, system, in.Messages)
+	raw, err := provider.Complete(ctx, llm.Request{
+		Tier: llm.TierBest, MaxTokens: assistMaxTokens,
+		System: system, Messages: in.Messages,
+	})
 	if err != nil {
 		s.Log.Error("config-assist", "agent", id, "err", err)
 		writeErr(w, http.StatusBadGateway, "AI assistant unreachable: "+err.Error())
@@ -152,6 +154,18 @@ An agent on Covey is configured through markdown files (config-as-code). You may
 Your task: draft concrete, well-phrased config content from the human's description, or revise existing content in a targeted way. Only propose behaviour the platform actually permits (do not invent target systems/actions that are not listed below; respect the applicable guard rails). For ACCESS.md/EGRESS.md only use systems/templates that really exist (see the context below).
 
 `)
+	// Whose house this is. Until now the assistant knew the agent, its target
+	// systems and its guard rails — but not the company it writes for, which is
+	// the one thing every one of its proposals depends on (spec/20).
+	if o, err := s.Org.GetOrg(ctx, orgID); err == nil {
+		b.WriteString("## The organisation\n")
+		b.WriteString("Name: " + o.Name + "\n")
+		if d := strings.TrimSpace(o.Description); d != "" {
+			b.WriteString(d + "\n")
+		}
+		b.WriteString("\n")
+	}
+
 	b.WriteString("## Platform protocol (applies to every agent)\n")
 	b.WriteString(agents.ProtocolInstructions)
 	b.WriteString("\n\n")

@@ -28,6 +28,14 @@ Two options, with consequences for the whole system:
 
 Recommended default: **(a) for systems where real identity + native audit matter** (mail, Teams, Confluence), **(b) for purely technical access**. Whichever model — access never runs through long-lived secrets baked into the sandbox, but through the broker (see [`04-identity-secrets.md`](04-identity-secrets.md)).
 
+### Before the first day: the draft
+
+An agent carries the moment it was **hired**. One that has none yet is a **draft**: it has a name, a config and a place in the org chart, but it is not dispatched, its heartbeat does not fire, its webhook is not live, it gets no sandbox and it costs nothing. Tasks may be queued against it and wait for the first day.
+
+The kill switch would have been technically sufficient for this — a killed agent does not run either — but it would confuse two different facts in one field: *this one was stopped* and *this one has not started yet*. And the hiring date is not a flag but a fact with a time, which is why it belongs in the employee profile next to a human's ([`09-enterprise-model.md`](09-enterprise-model.md)).
+
+The state pays for itself wherever an agent comes into existence without a person having finished thinking about it: instantiating from a template, importing a bundle (see below), leaving the creation form half-filled — and above all where an *agent* drafts the agent ([`20-hiring-and-setup.md`](20-hiring-and-setup.md)). Hiring stays a human act in every one of those cases, and so does the other way out: a draft that does not fit is **discarded**, and it leaves nothing behind, because nothing ran.
+
 ## Workplace (sandbox)
 
 The "employee's PC": an isolated sandbox with a **persistent home directory** that survives across sessions. Files, accumulated artefacts and local notes are preserved. Compute is ephemeral, the volume persistent (see [`01-architecture.md`](01-architecture.md)).

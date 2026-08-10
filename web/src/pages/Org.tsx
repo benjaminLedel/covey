@@ -3,12 +3,13 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
-  api,
+  api, patch, isDraft,
   createDepartment, renameDepartment, deleteDepartment, setDepartmentColor,
   setAgentDepartment, setAgentSupervisor,
   setHumanDepartment, setHumanManager,
   addDepartmentLead, removeDepartmentLead,
   type Agent, type Human, type OrgChart, type Department, type DeptLead,
+  type Organization,
 } from "../api";
 import { Avatar } from "../components/person";
 import { ConfirmDialog } from "../components/Modal";
@@ -57,6 +58,74 @@ function ColorSwatches({ value, onPick }: { value: string; onPick: (c: string) =
 type DragItem =
   | { kind: "agent"; member: Agent }
   | { kind: "human"; member: Human };
+
+/* Was dieses Unternehmen macht — Stammdaten der Organisation, nicht Deko.
+ *
+ * Derselbe Absatz beantwortet dieselbe Frage an mehreren Stellen: in der
+ * Config neu entworfener Agenten, in jeder Ausschreibung an die
+ * Personalabteilung und im Systemprompt des Config-Assistenten. Deshalb steht
+ * er hier, wo man ihn beim Lesen des Org-Charts sowieso vor Augen hat — und
+ * nicht in der Mandantenverwaltung, in die die meisten nie kommen. */
+function CompanyDescription() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const own = useQuery({ queryKey: ["own-org"], queryFn: () => api<Organization>("/org") });
+  const [draft, setDraft] = useState<string | null>(null);
+
+  const save = useMutation({
+    mutationFn: (description: string) => patch<{ ok: boolean }>("/org/description", { description }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["own-org"] });
+      setDraft(null);
+    },
+  });
+
+  if (!own.data) return null;
+  const text = own.data.description ?? "";
+  const editing = draft !== null;
+
+  return (
+    <div className="card mb-4">
+      <div className="flex items-baseline gap-2 mb-1">
+        <h2 className="text-sm" style={{ fontWeight: 600 }}>{own.data.name}</h2>
+        <span className="muted text-xs">{t("org.company.label")}</span>
+        {!editing && (
+          <button className="btn sm ml-auto" style={{ border: "none" }} onClick={() => setDraft(text)}>
+            {text ? t("org.company.edit") : t("org.company.add")}
+          </button>
+        )}
+      </div>
+      {!editing && (
+        <p className={`text-xs ${text ? "" : "muted"}`} style={{ maxWidth: 640 }}>
+          {text || t("org.company.empty")}
+        </p>
+      )}
+      {editing && (
+        <form
+          onSubmit={e => { e.preventDefault(); save.mutate(draft); }}
+          style={{ maxWidth: 640 }}
+        >
+          <textarea
+            rows={4}
+            value={draft}
+            autoFocus
+            placeholder={t("org.company.placeholder")}
+            onChange={e => setDraft(e.target.value)}
+          />
+          <div className="muted text-xs" style={{ margin: "3px 0 6px" }}>{t("org.company.hint")}</div>
+          <div className="flex gap-2">
+            <button className="btn sm primary" type="submit" disabled={save.isPending}>
+              {t("org.company.save")}
+            </button>
+            <button className="btn sm" type="button" onClick={() => setDraft(null)}>
+              {t("modal.cancel")}
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
 
 export default function Org() {
   const { t } = useTranslation();
@@ -119,6 +188,8 @@ export default function Org() {
       <p className="muted text-xs mb-4" style={{ maxWidth: 640 }}>
         {t("org.desc")}
       </p>
+
+      <CompanyDescription />
 
       {/* Legende + Aktionsleiste */}
       <div className="org-legend">
@@ -566,6 +637,7 @@ function MemberNode({
   // Agenten dürfen auf beides fallen.
   const canDrop = !!dragging && dragging.member.id !== member.id
     && (dragging.kind === "agent" || !isAgent);
+  const draft = agent ? isDraft(agent) : false;
   const status = agent ? (agent.killed ? "killed" : agent.status) : "";
   const nextSeen = new Set(seen).add(member.id);
   const deptId = (member.department_id ?? null) as string | null;
@@ -609,9 +681,13 @@ function MemberNode({
               {isAgent ? (agent!.job_title || agent!.slug) : (human!.job_title || t(`role.${human!.role}`, human!.role))}
             </div>
           </div>
-          {isAgent
-            ? <span className={`badge st-${status}`}>{t(`status.${status}`, status)}</span>
-            : <span className="ntag">{t("org.nodeHuman")}</span>}
+          {isAgent ? (
+            draft
+              ? <span className="badge st-draft">{t("dashboard.draftBadge")}</span>
+              : <span className={`badge st-${status}`}>{t(`status.${status}`, status)}</span>
+          ) : (
+            <span className="ntag">{t("org.nodeHuman")}</span>
+          )}
         </Link>
         {isLead && (
           <span className="lead-pill" title={t("org.leadLabel")}>

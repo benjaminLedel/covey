@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, buildInfo, post, type Approval, type Principal } from "./api";
+import { api, buildInfo, post, type Approval, type Principal, type SetupState } from "./api";
 import i18n, { gespeicherteSprache, istVorgerendert, merkeSprache } from "./i18n";
 import HelpDrawer from "./components/HelpDrawer";
 import ThemeSwitch from "./components/ThemeSwitch";
@@ -23,6 +23,7 @@ import Egress from "./pages/Egress";
 import Requests from "./pages/Requests";
 import Audit from "./pages/Audit";
 import Templates from "./pages/Templates";
+import Setup from "./pages/Setup";
 import Costs from "./pages/Costs";
 
 // useLiveEvents hält die UI über SSE aktuell: jedes Server-Event invalidiert
@@ -72,6 +73,13 @@ export default function App() {
 
 // Icon-Pfade aus mockup/covey-ui-mockup.html — die Nav übernimmt die Design-Sprache des Mockups.
 const icons: Record<string, React.JSX.Element> = {
+  checklist: (
+    <>
+      <rect x="4" y="4" width="16" height="16" rx="2" />
+      <path d="M8 9.5l1.6 1.6L12.5 8" />
+      <path d="M8 15.5h8" />
+    </>
+  ),
   robot: (
     <>
       <rect x="5" y="8" width="14" height="11" rx="2" />
@@ -312,10 +320,36 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
   });
   const pending = approvals.data?.length ?? 0;
 
+  /* Die Einrichtung steht nur im Menue, solange sie etwas zu tun hat.
+     Ein Punkt, der dauerhaft bleibt und dauerhaft erledigt ist, wird zu
+     Moebel — dieselbe Ueberlegung wie bei der Checkliste auf der
+     Agenten-Uebersicht, die von selbst verschwindet. Verloren geht nichts:
+     die Unternehmensbeschreibung liegt danach im Org-Chart, der Zugang unter
+     Secrets und Runtimes, und /setup bleibt erreichbar, wer es tippt.
+     Wer nicht einrichten darf, bekommt vom Endpunkt eine 403 — und damit
+     den Punkt gar nicht erst zu sehen. */
+  const setup = useQuery({
+    queryKey: ["setup"],
+    queryFn: () => api<SetupState>("/setup/state"),
+    retry: false,
+    staleTime: 60_000,
+  });
+  const setupOpen = !!setup.data && !(setup.data.engine_done && setup.data.org_done && setup.data.people_done);
+
   const logout = async () => {
     await post("/auth/logout");
     onLogout();
   };
+
+  /* Die Einrichtung laeuft ohne die Huelle: kein Seitenmenue, kein Hilfe-Regal,
+     nichts, was nebenher ruft. Das ist keine Kosmetik — die drei Karten sind
+     das Einzige, was jemand beim ersten Mal tun soll, und eine Navigation, die
+     schon dreizehn andere Orte anbietet, laedt genau dazu ein, sie
+     wegzuklicken. Der Weg heraus steht deshalb sichtbar oben rechts: die
+     Einrichtung ist ueberspringbar, aber sie soll nicht nebenbei passieren. */
+  if (location.pathname === "/setup") {
+    return <Setup />;
+  }
 
   const toggleLang = () => {
     const next = i18n.language === "de" ? "en" : "de";
@@ -349,6 +383,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
         </div>
         <div className="nav-sec">{t("nav.setup")}</div>
         <div className="nav-group">
+          {setupOpen && <NavItem to="/setup" icon="checklist" label={t("nav.setupPage")} />}
           <NavItem to="/secrets" icon="key" label={t("nav.secrets")} />
           <NavItem to="/targets" icon="plug" label={t("nav.targets")} />
           <NavItem to="/skills" icon="book" label={t("nav.skills")} />

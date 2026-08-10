@@ -280,6 +280,7 @@ export const APP_ROUTE_PREFIXES = [
   "/requests",
   "/runtimes",
   "/secrets",
+  "/setup",
   "/skills",
   "/targets",
   "/templates",

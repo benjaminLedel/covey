@@ -79,11 +79,20 @@ describe("Description aus Markdown", () => {
 /* Die Präfixe der angemeldeten Oberfläche stehen in seo.ts, die Routen in
    App.tsx. Der Go-Handler entscheidet anhand der Präfixe, ob ein Pfad die
    SPA-Hülle bekommt oder eine 404 — eine vergessene Route wäre damit ab sofort
-   nicht mehr erreichbar. Deshalb hier der Abgleich. */
+   nicht mehr erreichbar. Deshalb hier der Abgleich.
+
+   „Erreichbar" heißt dabei nicht „steht in <Routes>". Eine ganzflächige Seite
+   wie die Einrichtung wird bewusst vor der Hülle abgezweigt, an einem Vergleich
+   auf location.pathname, und hat deshalb kein <Route> — erreichbar ist sie
+   trotzdem, und ein Präfix braucht sie genauso. Beide Schreibweisen zählen
+   hier, sonst prüft der Abgleich nicht die Erreichbarkeit, sondern eine
+   Schreibweise. */
 describe("App-Präfixe", () => {
-  const pfade = [...appQuelltext.matchAll(/<Route\s+path="([^"]+)"/g)]
-    .map((m) => m[1])
-    .filter((p) => p !== "/" && p !== "*");
+  const ausRouten = [...appQuelltext.matchAll(/<Route\s+path="([^"]+)"/g)].map((m) => m[1]);
+  const ausAbzweigung = [...appQuelltext.matchAll(/location\.pathname === "([^"]+)"/g)].map(
+    (m) => m[1],
+  );
+  const pfade = [...ausRouten, ...ausAbzweigung].filter((p) => p !== "/" && p !== "*");
 
   it("deckt jede Route aus App.tsx ab", () => {
     expect(pfade.length).toBeGreaterThan(10);

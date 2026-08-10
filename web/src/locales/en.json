@@ -102,6 +102,10 @@
         "indicators": {
           "t": "Indicators & unit cost",
           "d": "Every agent declares in KPIS.md what it delivers. The platform counts it from what it records anyway and works out the price per unit — with the counter-figures beside it, so an agent cannot look good by handing the hard cases away."
+        },
+        "hiring": {
+          "t": "Hiring instead of a form",
+          "d": "Describe what a new colleague should do — the organisation’s own People department, itself an agent, turns that into a complete configuration and asks back when something is missing. What comes out is an application that only starts working once a human hires it."
         }
       },
       "ctaTitle": "Install it yourself",
@@ -287,7 +291,7 @@
       "lead": "Real views from the control plane — workforce, structure, work, memory and cost.",
       "agents": {
         "t": "The workforce",
-        "d": "Every agent with status, runtime and role at a glance."
+        "d": "Every agent with its state, runtime and role — above them the applications still waiting to be hired."
       },
       "org": {
         "t": "Org chart",
@@ -341,7 +345,8 @@
     "profile": "Profile & Settings",
     "audit": "Audit",
     "requests": "Requests",
-    "skills": "Skills"
+    "skills": "Skills",
+    "setupPage": "Setup"
   },
   "costs": {
     "title": "Cost & Tokens",
@@ -459,9 +464,9 @@
     },
     "steps": {
       "credential": {
-        "title": "Add a runtime credential",
-        "hint": "anthropic_api_key (API key) or claude_code_oauth_token (subscription account). Without one of them every task fails.",
-        "action": "Go to Secrets"
+        "title": "Walk through setup",
+        "hint": "Engine and credential, what your company does, and the People department. Without a credential every task fails.",
+        "action": "Go to setup"
       },
       "agent": {
         "title": "Create an agent",
@@ -628,7 +633,17 @@
       "supervisorHint": "The human to escalate to when the agent gets stuck or needs an approval.",
       "departmentLabel": "Department",
       "departmentHint": "Determines its place in the org chart and the cost centre. May stay empty."
-    }
+    },
+    "draftBadge": "Application",
+    "pathBrief": "Brief",
+    "pathBriefDesc": "Describe what the new colleague should do — the People department drafts an agent from it.",
+    "applications": "Applications",
+    "applicationsHint": "drafted, not hired yet — they are not working",
+    "employed": "Employed",
+    "employedHint": "hired and on duty",
+    "reject": "Reject",
+    "rejectTitle": "Reject {{name}}?",
+    "rejectLead": "The draft is discarded. It never worked — there is no run and no cost. The brief it came out of stays as a task."
   },
   "agent": {
     "notFound": "Agent not found.",
@@ -1152,7 +1167,16 @@
     "unassigned": "Without department ({{count}})",
     "unassignedHint": "Agents and people without a department",
     "assignDept": "Assign department",
-    "removeDept": "Remove assignment"
+    "removeDept": "Remove assignment",
+    "company": {
+      "label": "— what this company does",
+      "edit": "edit",
+      "add": "describe",
+      "empty": "Not described yet. Three to five sentences are enough — they go into every hiring brief and into the config assistant.",
+      "placeholder": "We do … Our customers are … What matters to us is …",
+      "hint": "Goes into the config of newly drafted agents, into every hiring brief and into the config assistant.",
+      "save": "Save"
+    }
   },
   "orgs": {
     "title": "Organizations",
@@ -1711,5 +1735,81 @@
   },
   "common": {
     "loading": "loading …"
+  },
+  "hire": {
+    "action": "Hire",
+    "title": "Hire {{name}}",
+    "lead": "After this the agent works: it gets woken, its heartbeat runs, waiting tasks start. Access that has not been approved yet is requested.",
+    "confirm": "Hire",
+    "hiring": "hiring …",
+    "role": "Role",
+    "supervisor": "Supervisor",
+    "department": "Department",
+    "budget": "Budget",
+    "noRole": "no job title yet",
+    "noBudget": "no cap",
+    "systems": "Target systems it should use",
+    "noSystems": "none — the agent works in its sandbox only",
+    "systemPending": "not enabled yet",
+    "bannerTitle": "This agent is a draft",
+    "bannerLead": "It exists and can be configured, but it does not work yet: no dispatch, no heartbeat, no sandbox, no cost. Look through the configuration, then hire it."
+  },
+  "setup": {
+    "title": "Setup",
+    "subtitle": "three questions, each one skippable",
+    "lead": "The credential first — without it nothing this interface offers can actually run. After that most of the rest can be done for you rather than by you. Everything here can also be done by hand later.",
+    "saving": "saving …",
+    "engine": {
+      "title": "Engine and credential",
+      "hint": "What your agents think with, and on whose contract. The value is checked before it is stored.",
+      "engine": "Engine",
+      "kind": "Kind of credential",
+      "value": "Value",
+      "valueHint": "Stored as the secret {{key}} and from here on carries the sandbox runs, the config assistant and the People department.",
+      "save": "Check and save",
+      "checking": "checking …",
+      "done": "A credential is stored, and the workplace around it exists."
+    },
+    "org": {
+      "title": "What does your company do?",
+      "hint": "Three to five sentences. They go into every hiring brief, into the config of newly drafted agents and into the config assistant.",
+      "name": "Name of the organisation",
+      "description": "Description",
+      "placeholder": "We do … Our customers are … What matters to us is …",
+      "save": "Save"
+    },
+    "people": {
+      "title": "Your People department",
+      "hint": "An agent whose job is drafting the others.",
+      "lead": "From a few sentences it writes a complete agent — character, remit, procedures, access — and leaves it as a draft. Hiring it is up to you.",
+      "noLLM": "Without an Anthropic credential in the control plane it is created from the template, without being tailored to your description.",
+      "onboard": "Have it propose the first three colleagues right after hiring",
+      "create": "Create the People department",
+      "creating": "creating …",
+      "open": "Open the People department"
+    },
+    "progress": "{{done}} of {{total}} done",
+    "later": "Later",
+    "finish": "Done"
+  },
+  "brief": {
+    "lead": "Your People department turns this into a complete draft: character, remit, procedures, access. Hiring it is up to you.",
+    "what": "What should the new colleague do?",
+    "placeholder": "They should take first-level support in the ticket system: triage new tickets, answer the simple ones, hand everything else to the right team.",
+    "whatHint": "A few sentences are enough. Whatever you leave out, the People department asks about.",
+    "send": "Send to the People department",
+    "sending": "handing over …",
+    "fallback": "You can create the agent yourself instead — go back and pick \"Create manually\".",
+    "waitingForHire": "{{name}} has not been hired yet. The brief is ready and starts as soon as you hire them.",
+    "openPeople": "Open the People department",
+    "running": "The hiring conversation is running. You can close this window — the task keeps going.",
+    "question": "The People department is asking",
+    "questionFallback": "Something is missing from the brief.",
+    "answer": "Answer",
+    "drafts": "{{count}} draft ready",
+    "drafts_plural": "{{count}} drafts ready",
+    "draftsHint": "Look them through and hire them — until then none of them works.",
+    "noDrafts": "The task finished, but no draft came out of it. The report is in the People department’s backlog.",
+    "failed": "The brief failed."
   }
 }

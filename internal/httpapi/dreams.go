@@ -39,15 +39,22 @@ func (s *Server) handleStartDream(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	if _, err := s.Registry.Get(r.Context(), id); err != nil {
+	a, err := s.Registry.Get(r.Context(), id)
+	if err != nil {
 		mapErr(w, err)
 		return
 	}
+	// A draft does not dream. It has no run behind it, so there is nothing to
+	// tidy up — and a dream costs money at the control plane, which is exactly
+	// what a draft must not do (spec/20).
+	if draftBlocked(w, a) {
+		return
+	}
 	p := principalFrom(r)
-	cred, oauth, ok := s.resolveOrgClaude(r.Context(), p.OrgID)
-	if !ok {
+	provider, err := s.resolveOrgLLM(r.Context(), p.OrgID)
+	if err != nil {
 		writeErr(w, http.StatusPreconditionFailed,
-			"no org-wide Claude credential configured — the agent cannot dream")
+			"no control-plane LLM credential configured — the agent cannot dream")
 		return
 	}
 
@@ -73,7 +80,7 @@ func (s *Server) handleStartDream(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		ctx, cancel := context.WithTimeout(s.baseCtx(), 10*time.Minute)
 		defer cancel()
-		s.Dreams.Run(ctx, d, dream.Credential{Value: cred, OAuth: oauth})
+		s.Dreams.Run(ctx, d, provider)
 	}()
 	writeJSON(w, http.StatusAccepted, d)
 }

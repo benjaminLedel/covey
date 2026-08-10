@@ -57,6 +57,12 @@ Two decisions, at two different speeds, and they must not be collapsed:
 
 So: **the human chooses the pot, the platform chooses the token.** A runtime holding exactly one credential and no fallback is a legitimate configuration, but it is one where an agent simply stops when that credential is limited — the elasticity comes from the pool, and giving it up is a choice that should be made knowingly.
 
+### The first credential creates the first runtime
+
+On an empty instance the two decisions collapse into one, and the setup makes that explicit: the very first credential an organisation enters is entered *as* a runtime — engine chosen from the registry, credential fields rendered from that engine's own declaration, checked once against the provider, and stored with the runtime created around it in the same step ([`20-hiring-and-setup.md`](20-hiring-and-setup.md)).
+
+That is the reason the credential is the first question the platform asks at all. It is not one consumer's setting but three at once: the sandbox runs, the control plane's own LLM calls (config copilot, dream), and the agent that drafts other agents. Before it exists, nothing the interface offers can actually run; after it exists, most of the rest can be done for the person rather than by them.
+
 ### What an engine declares about its credentials
 
 The engine, not the platform, knows which secret it needs and how it wants it. It declares them in order of precedence — an API key before a subscription token, so that an organisation holding both uses the one it is billed for deliberately rather than by accident. Each entry carries:

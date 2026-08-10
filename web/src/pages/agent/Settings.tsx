@@ -11,7 +11,7 @@ import {
   type RuntimeInfo,
 } from "../../api";
 import ProfileForm from "../../components/ProfileForm";
-import { generateAgentName } from "../../names";
+import { rollAgentName } from "../../names";
 
 import { AgentEgress } from "./AgentEgress";
 import { AgentSecrets } from "./AgentSecrets";
@@ -197,7 +197,7 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
               className="btn sm"
               title={t("agent.settings.rollDice")}
               disabled={setName.isPending}
-              onClick={() => setName.mutate(generateAgentName().name)}
+              onClick={async () => setName.mutate((await rollAgentName()).name)}
             >
               🎲
             </button>

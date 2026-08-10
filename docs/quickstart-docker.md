@@ -83,20 +83,53 @@ docker compose run --rm bootstrap
 
 ---
 
+## Setup
+
+After the first login the **setup** page (`/setup`) asks three questions, each
+of which may be skipped:
+
+1. **Engine and credential.** Which engine your agents think on, and the
+   credential for it — for Claude Code an API key or a subscription token
+   (generate the latter once with `claude setup-token`); for Codex an API key or
+   the contents of `~/.codex/auth.json`. The value is checked against the
+   provider before it is stored, and the workplace (runtime) is created around
+   it. Without this every task fails with "Not logged in", because the sandbox
+   has its own empty `HOME`.
+2. **What your company does.** Three to five sentences. They stay on the
+   organisation and go into every hiring brief, into the configuration of newly
+   drafted agents and into the config assistant's system prompt.
+3. **Your People department.** An agent whose job is drafting the others: from a
+   description of a job it writes a complete agent — character, remit,
+   procedures, access — and leaves it as a **draft** that you hire.
+
+The page runs on its own — no navigation next to it — and disappears from the
+menu once the three cards are done. Everything here can also be done by hand
+later (Secrets, Runtimes, the template library). What the setup buys is the
+order: the credential first, because without it nothing the interface offers can
+actually run.
+
 ## Your first agent
 
-There is a **first steps** checklist on the agent overview for this:
-deposit a runtime credential → create an agent → write `SOUL.md` → create a
-task → watch it work. It reads the organisation's actual state, so it ticks
-itself off and disappears once everything is done. The same steps are described
-in more detail in the help (key `?`).
+There is a **first steps** checklist on the agent overview: deposit a runtime
+credential → create an agent → write `SOUL.md` → create a task → watch it work.
+It reads the organisation's actual state, so it ticks itself off and disappears
+once everything is done. The same steps are described in more detail in the help
+(key `?`).
 
-After logging in a **demo agent** already exists, with a workplace and a board.
-It needs exactly one thing to be able to work: **Anthropic access** — the secret
-`anthropic_api_key` (an API key) *or* `claude_code_oauth_token` (a subscription
-account; generate the token once with `claude setup-token`). Deposit it under
-Secrets and it attaches itself to the workplace; without it every task fails
-with "Not logged in", because the sandbox has its own empty `HOME`.
+*New agent* offers four ways in. The **brief** is the shortest: describe in a few
+sentences what the new colleague should do, and the People department drafts the
+agent from it — asking back if the description is too thin to work from. Next to
+it stay the ready-made **templates**, the **manual** form for whoever knows
+exactly what they want, and the **bundle import**.
+
+Whatever the way, what comes out is a **draft**: it exists, it can be looked at
+and changed, and it does not work until you hire it. Drafts sit in their own
+*Applications* panel above the workforce; hiring shows a summary of role,
+access, supervisor and budget first, and rejecting discards the draft — nothing
+ran, so there is nothing to clean up.
+
+After logging in a **demo agent** already exists, with a workplace and a board —
+hired, so it works as soon as the credential from step 1 is there.
 
 The demo agent has **no target system** on purpose — it works on the task text
 and writes down what it found, which is enough to see a whole run: dispatch,

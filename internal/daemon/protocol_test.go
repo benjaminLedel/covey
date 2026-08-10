@@ -2,6 +2,10 @@ package daemon
 
 import (
 	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"strings"
 	"testing"
 )
 
@@ -21,6 +25,7 @@ var responseTypes = []string{
 	TypeInjectWiki,
 	TypeInjectSkills,
 	TypeInjectCreateTask,
+	TypeInjectHiring,
 	TypeInjectSecret,
 }
 
@@ -62,10 +67,8 @@ func TestPushIsNotTreatedAsResponse(t *testing.T) {
 	}
 }
 
-// The list above is maintained by hand; this check at least catches the case
-// that someone extends routedInjectTypes without pulling the behavior test
-// along. A completely new type missing from BOTH stays undetected — the only
-// remedy there is to add it here when it is built.
+// The list above is maintained by hand; this check catches the case that
+// someone extends routedInjectTypes without pulling the behavior test along.
 func TestRoutingTableMatchesTestedTypes(t *testing.T) {
 	if len(routedInjectTypes) != len(responseTypes) {
 		t.Fatalf("routedInjectTypes has %d entries, %d are checked — add the new response type to responseTypes",
@@ -75,5 +78,59 @@ func TestRoutingTableMatchesTestedTypes(t *testing.T) {
 		if !routedInjectTypes[typ] {
 			t.Errorf("%s is missing from routedInjectTypes", typ)
 		}
+	}
+}
+
+// TestEveryInjectTypeIsRouted closes the hole the two lists above leave open: a
+// response type missing from BOTH of them used to stay undetected, and that is
+// not a hypothetical — it happened to inject_skills, and then again to
+// inject_hiring, where every hiring action of an agent ran into its timeout
+// while the run looked healthy from the outside.
+//
+// So the expectation is not maintained by hand any more but read off the
+// protocol itself: every constant whose VALUE begins with "inject_" is an
+// answer from the control plane and has to find its caller. Whoever adds one
+// and forgets the routing gets a failing unit test instead of a thirty-second
+// silence inside a sandbox.
+func TestEveryInjectTypeIsRouted(t *testing.T) {
+	// Pushes: the control plane sends these unprompted, so there is no caller
+	// waiting and they belong in the read loop's switch. Named individually and
+	// with a reason — an exemption list one can extend thoughtlessly would give
+	// back exactly the hole this test closes.
+	pushOnly := map[string]string{
+		"inject_config": "sent once at the start of a run, nobody requested it",
+	}
+
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "protocol.go", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := 0
+	ast.Inspect(file, func(n ast.Node) bool {
+		spec, ok := n.(*ast.ValueSpec)
+		if !ok || len(spec.Names) != 1 || len(spec.Values) != 1 {
+			return true
+		}
+		lit, ok := spec.Values[0].(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return true
+		}
+		value := strings.Trim(lit.Value, `"`)
+		if !strings.HasPrefix(value, "inject_") {
+			return true
+		}
+		found++
+		if _, exempt := pushOnly[value]; exempt {
+			return true
+		}
+		if !routedInjectTypes[value] {
+			t.Errorf("%s (%s) is an answer from the control plane and is missing from routedInjectTypes — "+
+				"its caller would run into its timeout", spec.Names[0].Name, value)
+		}
+		return true
+	})
+	if found == 0 {
+		t.Fatal("no inject_ type found — the parse is not doing what it claims")
 	}
 }

@@ -2,11 +2,13 @@ import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, post, ApiError, type Agent, type AgentTemplate, type Principal } from "../api";
-import { generateAgentName, slugify } from "../names";
+import { api, post, del, ApiError, isDraft, type Agent, type AgentTemplate, type Principal } from "../api";
+import { rollAgentName, slugify } from "../names";
 import { GuidedCreate } from "./agents/GuidedCreate";
-import { Modal } from "../components/Modal";
+import { Brief } from "./agents/Brief";
+import { Modal, ConfirmDialog } from "../components/Modal";
 import { Onboarding } from "../components/Onboarding";
+import { HireDialog } from "../components/HireDialog";
 
 const canManage = (role: string) => role === "platform_admin" || role === "agent_owner";
 const canSecurity = (role: string) => role === "platform_admin" || role === "security";
@@ -20,6 +22,24 @@ export default function Dashboard({ me }: { me: Principal }) {
     queryFn: () => api<{ fleet_killed: boolean }>("/fleet"),
   });
   const [showCreate, setShowCreate] = useState(false);
+  const [hiring, setHiring] = useState<Agent | null>(null);
+  const [rejecting, setRejecting] = useState<Agent | null>(null);
+
+  // Ablehnen heißt löschen, und das ist hier verantwortbar: der Entwurf hat nie
+  // gearbeitet, es gibt keinen Lauf, keine Kosten und keine Spur, die jemand
+  // später bräuchte. Die Ausschreibung, aus der er hervorging, bleibt als
+  // Aufgabe stehen — dort steht auch die Begründung.
+  const reject = useMutation({
+    mutationFn: (id: string) => del<{ ok: boolean }>(`/agents/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["agents"] });
+      setRejecting(null);
+    },
+  });
+
+  const all = agents.data ?? [];
+  const drafts = all.filter(isDraft);
+  const staff = all.filter((a) => !isDraft(a));
 
   const fleetMut = useMutation({
     mutationFn: (kill: boolean) => post(kill ? "/fleet/kill" : "/fleet/resume"),
@@ -81,14 +101,59 @@ export default function Dashboard({ me }: { me: Principal }) {
         </div>
       )}
 
+      {/* Bewerbungen zuerst und in einem eigenen Feld: ein Agent, der noch
+          nicht eingestellt ist, arbeitet nicht — zwischen den anderen stünde er
+          da wie ein Kollege und wäre doch keiner. Die Trennung ist deshalb
+          nicht Dekoration, sondern die Aussage. */}
+      {drafts.length > 0 && (
+        <section className="applications mb-5">
+          <div className="flex items-baseline gap-2 mb-2">
+            <h2 className="text-sm" style={{ fontWeight: 600 }}>{t("dashboard.applications")}</h2>
+            <span className="badge st-draft">{drafts.length}</span>
+            <span className="secondary text-xs">{t("dashboard.applicationsHint")}</span>
+          </div>
+          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))" }}>
+            {drafts.map((a) => (
+              <AgentCard
+                key={a.id}
+                agent={a}
+                onHire={canManage(me.Role) ? setHiring : undefined}
+                onReject={canManage(me.Role) ? setRejecting : undefined}
+                labelled
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {drafts.length > 0 && staff.length > 0 && (
+        <h2 className="text-sm mb-2" style={{ fontWeight: 600 }}>
+          {t("dashboard.employed")}{" "}
+          <span className="secondary text-xs" style={{ fontWeight: 400 }}>{t("dashboard.employedHint")}</span>
+        </h2>
+      )}
+
       <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))" }}>
-        {agents.data?.map((a) => (
+        {staff.map((a) => (
           <AgentCard key={a.id} agent={a} />
         ))}
         {agents.data?.length === 0 && (
           <p className="muted">{t("dashboard.noAgents")}</p>
         )}
       </div>
+
+      {hiring && <HireDialog agent={hiring} onClose={() => setHiring(null)} />}
+      {rejecting && (
+        <ConfirmDialog
+          title={t("dashboard.rejectTitle", { name: rejecting.display_name })}
+          confirmLabel={t("dashboard.reject")}
+          pending={reject.isPending}
+          onClose={() => setRejecting(null)}
+          onConfirm={() => reject.mutate(rejecting.id)}
+        >
+          <p className="text-sm">{t("dashboard.rejectLead")}</p>
+        </ConfirmDialog>
+      )}
 
       {showCreate && (
         <CreateAgentModal
@@ -103,41 +168,104 @@ export default function Dashboard({ me }: { me: Principal }) {
   );
 }
 
-function AgentCard({ agent }: { agent: Agent }) {
-  const { t } = useTranslation();
-  const initials = agent.display_name
-    .split(/\s+/)
-    .map((w) => w[0])
-    .join("")
+/* Die Initialen: nur Buchstaben und Ziffern.
+   Sonst wird aus „QA-Agent (GitLab)" ein Kreis mit „Q(" — die Klammer ist der
+   erste Buchstabe des zweiten Wortes. */
+function initialsOf(name: string): string {
+  return name
+    .split(/[\s-]+/)
+    .map((w) => w.replace(/[^\p{L}\p{N}]/gu, "")[0])
+    .filter(Boolean)
     .slice(0, 2)
+    .join("")
     .toUpperCase();
+}
+
+/* Eine Agentenkarte.
+ *
+ * Der Zustand steht rechts oben, der Name links — und der Name darf umbrechen,
+ * ohne dem Zustand den Platz zu nehmen: `min-w-0` am Textblock, `shrink-0` am
+ * Badge. Ohne das schob ein zweizeiliger Name das Badge in die Überschrift.
+ *
+ * Im Bewerbungsfeld bleibt das Badge weg (`labelled`): der Kasten heißt schon
+ * „Bewerbungen", ein „Bewerbung" auf jeder Karte darin sagt nichts dazu und
+ * kostet genau den Platz, an dem es klemmt. */
+function AgentCard({
+  agent,
+  onHire,
+  onReject,
+  labelled = false,
+}: {
+  agent: Agent;
+  onHire?: (a: Agent) => void;
+  onReject?: (a: Agent) => void;
+  labelled?: boolean;
+}) {
+  const { t } = useTranslation();
+  const draft = isDraft(agent);
   return (
-    <Link to={`/agents/${agent.id}`} className="card block no-underline" style={{ color: "inherit" }}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2.5">
-          <div className="avatar">{initials}</div>
-          <div>
-            <div className="font-medium text-sm">{agent.display_name}</div>
-            <div className="muted text-xs">{agent.slug}</div>
-          </div>
+    <Link to={`/agents/${agent.id}`} className="card agent-card no-underline">
+      <div className="flex items-start gap-2.5 mb-3">
+        <div className="avatar shrink-0">{initialsOf(agent.display_name)}</div>
+        <div className="min-w-0" style={{ flex: 1 }}>
+          <div className="font-medium text-sm agent-card-name">{agent.display_name}</div>
+          <div className="secondary text-xs agent-card-name">{agent.slug}</div>
         </div>
-        <span className={`badge st-${agent.killed ? "killed" : agent.status}`}>
-          {t(`status.${agent.killed ? "killed" : agent.status}`, agent.killed ? "gestoppt" : agent.status)}
-        </span>
+        {!(draft && labelled) && (
+          <span
+            className={`badge shrink-0 ${draft ? "st-draft" : `st-${agent.killed ? "killed" : agent.status}`}`}
+          >
+            {draft
+              ? t("dashboard.draftBadge")
+              : t(`status.${agent.killed ? "killed" : agent.status}`, agent.status)}
+          </span>
+        )}
       </div>
-      <div className="muted text-xs">
+      <div className="secondary text-xs">
         Runtime: <span className="mono">{agent.runtime}</span>
         {agent.budget_usd > 0 && <> · {t("dashboard.budget")} {agent.budget_usd.toFixed(2)} $</>}
       </div>
+      {draft && (onHire || onReject) && (
+        <div className="flex gap-2 agent-card-actions">
+          {onHire && (
+            <button
+              className="btn sm primary"
+              onClick={(e) => {
+                e.preventDefault(); // die Karte ist ein Link — der Knopf ist es nicht
+                onHire(agent);
+              }}
+            >
+              {t("hire.action")}
+            </button>
+          )}
+          {onReject && (
+            <button
+              className="btn sm"
+              onClick={(e) => {
+                e.preventDefault();
+                onReject(agent);
+              }}
+            >
+              {t("dashboard.reject")}
+            </button>
+          )}
+        </div>
+      )}
     </Link>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Anlege-Modal mit drei Pfaden: Vorlage · Manuell · Bundle-Import
+// Anlege-Modal mit vier Pfaden: Ausschreibung · Vorlage · Manuell · Import
+//
+// Die Ausschreibung steht vorn und ist der Vorgabeweg: sie stellt die eine
+// Frage, die jemand beantworten kann, ohne die Plattform zu kennen. Der
+// manuelle Weg bleibt vollständig daneben — als Weg für den, der genau weiß,
+// was er will, und als Rückfalltür, wenn die Personalabteilung nicht arbeiten
+// kann (spec/20).
 // ---------------------------------------------------------------------------
 
-type CreatePath = "choose" | "template" | "manual" | "import";
+type CreatePath = "choose" | "brief" | "template" | "manual" | "import";
 
 function CreateAgentModal({ onClose, onDone }: { onClose: () => void; onDone: (id: string) => void }) {
   const { t } = useTranslation();
@@ -151,6 +279,7 @@ function CreateAgentModal({ onClose, onDone }: { onClose: () => void; onDone: (i
 
   const titles: Record<CreatePath, string> = {
     choose: t("dashboard.createAgent"),
+    brief: t("dashboard.pathBrief"),
     template: t("dashboard.fromTemplate"),
     manual: t("dashboard.manualCreate"),
     import: t("dashboard.importBundle"),
@@ -159,6 +288,9 @@ function CreateAgentModal({ onClose, onDone }: { onClose: () => void; onDone: (i
   return (
     <Modal title={titles[path]} onClose={onClose} size={path === "template" ? "lg" : "md"}>
       {path === "choose" && <ChoosePath onPick={setPath} />}
+      {path === "brief" && (
+        <Brief onBack={() => setPath("choose")} onOpen={handleDone} />
+      )}
       {path === "template" && (
         <TemplateStep onBack={() => setPath("choose")} onDone={handleDone} />
       )}
@@ -173,6 +305,13 @@ function CreateAgentModal({ onClose, onDone }: { onClose: () => void; onDone: (i
 }
 
 const pathIcons: Record<string, React.JSX.Element> = {
+  brief: (
+    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-9" />
+      <path d="M14 3v6h6" />
+      <path d="M9 13h5M9 17h3" />
+    </svg>
+  ),
   template: (
     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
       <rect x="9" y="9" width="12" height="13" rx="2" />
@@ -201,6 +340,11 @@ const pathIcons: Record<string, React.JSX.Element> = {
 function ChoosePath({ onPick }: { onPick: (p: CreatePath) => void }) {
   const { t } = useTranslation();
   const paths: { key: CreatePath; title: string; desc: string }[] = [
+    {
+      key: "brief",
+      title: t("dashboard.pathBrief"),
+      desc: t("dashboard.pathBriefDesc"),
+    },
     {
       key: "template",
       title: t("dashboard.pathTemplate"),
@@ -350,8 +494,8 @@ function TemplateStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agen
               type="button"
               className="btn"
               title={t("dashboard.rollDice")}
-              onClick={() => {
-                const g = generateAgentName();
+              onClick={async () => {
+                const g = await rollAgentName();
                 setDisplayName(g.name);
                 setSlug(g.slug);
               }}

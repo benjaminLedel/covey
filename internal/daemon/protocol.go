@@ -56,12 +56,16 @@ const (
 	TypeRequestWiki       = "request_wiki"
 	TypeRequestSkills     = "request_skills"
 	TypeRequestCreateTask = "request_create_task"
+	TypeRequestHiring     = "request_hiring"
 	// #nosec G101 — the name of a message kind, not a secret.
 	TypeRequestSecret = "request_secret"
 )
 
-// Control plane → daemon (answer to request_create_task).
-const TypeInjectCreateTask = "inject_create_task"
+// Control plane → daemon (answers to request_create_task / request_hiring).
+const (
+	TypeInjectCreateTask = "inject_create_task"
+	TypeInjectHiring     = "inject_hiring"
+)
 
 type InjectConfig struct {
 	SystemPrompt string   `json:"system_prompt"`
@@ -345,6 +349,43 @@ type InjectCreateTask struct {
 	Error     string `json:"error,omitempty"`
 	TaskID    string `json:"task_id,omitempty"` // the created task
 	Agent     string `json:"agent,omitempty"`   // resolved target agent (slug)
+}
+
+// RequestHiring/InjectHiring are the meta actions with which an agent drafts
+// another agent (covey/list_targets, get_agent_config, create_agent,
+// set_agent_config — spec/20). The platform's own target system, so to speak:
+// no external system, no credential, executed in the control plane.
+//
+// Like create_task and unlike the other meta actions they go through the
+// guard-rails (subject covey:<op>) — what comes out of them is a colleague, and
+// that must be governable centrally rather than in a prompt.
+//
+// What is deliberately NOT in here: hiring. An agent may draft another agent;
+// employing one is a human act (spec/20). There is no op for it, so there is
+// nothing to forget to check.
+type RequestHiring struct {
+	RequestID string `json:"request_id"`
+	Op        string `json:"op"` // list_targets | get_agent_config | create_agent | set_agent_config
+	TaskID    string `json:"task_id,omitempty"`
+	// Agent addresses an existing agent by slug (get_agent_config,
+	// set_agent_config).
+	Agent string `json:"agent,omitempty"`
+	// The new colleague (create_agent).
+	Slug        string `json:"slug,omitempty"`
+	DisplayName string `json:"display_name,omitempty"`
+	Runtime     string `json:"runtime,omitempty"`
+	JobTitle    string `json:"job_title,omitempty"`
+	Department  string `json:"department,omitempty"` // name, not ID — the model reads names
+	Supervisor  string `json:"supervisor,omitempty"` // human's email or display name
+	// Files is the config (set_agent_config): file name → complete content.
+	Files map[string]string `json:"files,omitempty"`
+}
+
+type InjectHiring struct {
+	RequestID string          `json:"request_id"`
+	OK        bool            `json:"ok"`
+	Error     string          `json:"error,omitempty"`
+	Data      json.RawMessage `json:"data,omitempty"`
 }
 
 // Encode builds an envelope; never panics, because all payloads are marshalable.

@@ -179,6 +179,13 @@ func (s *Server) handleAgentTrigger(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusConflict, "agent is stopped")
 		return
 	}
+	// A draft's webhook is not live: the address exists, the agent behind it does
+	// not work yet (spec/20). Rejected here rather than silently queued, so
+	// whoever wired the trigger up learns about it now.
+	if agent.Draft() {
+		writeErr(w, http.StatusConflict, "agent has not been hired yet")
+		return
+	}
 
 	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
 	if err != nil {
