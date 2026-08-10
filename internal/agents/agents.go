@@ -511,8 +511,17 @@ func (r *Registry) SaveConfig(ctx context.Context, agentID uuid.UUID, files map[
 		return ConfigVersion{}, err
 	}
 	for _, acc := range accesses {
+		// Ohne Scope ist die leere Liste, nicht NULL. `- system: zammad` ohne
+		// `scope:` ist eine Zeile, die ein Mensch schreibt — sie bedeutet „kein
+		// Scope vergeben" und muss sich speichern lassen. Vorher ging sie als
+		// NULL in eine NOT-NULL-Spalte, und der Mensch bekam beim Speichern der
+		// Config einen SQLSTATE-Fehler statt eines Agenten ohne Zugriff.
+		scopes := acc.Scopes
+		if scopes == nil {
+			scopes = []string{}
+		}
 		if _, err := tx.Exec(ctx, "INSERT INTO system_accesses (agent_id, system, scopes) VALUES ($1,$2,$3)",
-			agentID, acc.System, acc.Scopes); err != nil {
+			agentID, acc.System, scopes); err != nil {
 			return ConfigVersion{}, err
 		}
 	}

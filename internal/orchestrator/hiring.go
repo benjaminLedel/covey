@@ -52,16 +52,37 @@ var hiringOps = map[string]string{
 // config uses, so the entry says what it does.
 const hiringSystem = "covey"
 
+// hiringScope is the one scope this system knows — and it is READ, not
+// decoration. A scope that stands in an ACCESS.md, gets reviewed like a limit
+// and turns out to be none is worse than no scope at all: it makes the line
+// look narrower than it is, and this is the line whose output is other agents.
+//
+// One scope and not a read/write pair: the two reading actions exist to serve
+// the drafting — list_targets so that an ACCESS.md names systems that really
+// exist, get_agent_config so that the house style is met. Nobody has yet needed
+// them without the writing ones. If that case turns up, a second scope belongs
+// here and in mayDraftAgents, and the prompt section has to be narrowed with
+// it — an agent that reads about create_agent and is then refused is exactly
+// the capability-by-suggestion this file is built to avoid.
+const hiringScope = "agents:write"
+
 // mayDraftAgents: does this agent have the platform's own system in its
-// ACCESS.md? Fail-closed — an access that cannot be read is no access.
+// ACCESS.md, with the scope that carries it? Fail-closed — an access that
+// cannot be read is no access, and an entry without the scope is no access
+// either.
 func (o *Orchestrator) mayDraftAgents(ctx context.Context, agent agents.Agent) bool {
 	accesses, err := o.Registry.Accesses(ctx, agent.ID)
 	if err != nil {
 		return false
 	}
 	for _, a := range accesses {
-		if a.System == hiringSystem {
-			return true
+		if a.System != hiringSystem {
+			continue
+		}
+		for _, scope := range a.Scopes {
+			if strings.EqualFold(strings.TrimSpace(scope), hiringScope) {
+				return true
+			}
 		}
 	}
 	return false
@@ -84,11 +105,15 @@ func (o *Orchestrator) hiring(ctx context.Context, agent agents.Agent, taskID uu
 	if !known {
 		return fail("unknown hiring action %q", op)
 	}
-	// The gate: without `system: covey` in ACCESS.md these actions do not exist
-	// for this agent. Checked here and not only in the prompt — a prompt can be
-	// worked around, and what comes out of these actions is a colleague.
+	// The gate: without `- system: covey scope: agents:write` in ACCESS.md these
+	// actions do not exist for this agent. Checked here and not only in the
+	// prompt — a prompt can be worked around, and what comes out of these
+	// actions is a colleague. The error names the whole line, scope included:
+	// whoever reads it is a human editing a config, and half a line is a second
+	// round trip.
 	if !o.mayDraftAgents(ctx, agent) {
-		return fail("this agent has no access to the platform's own system (`- system: covey` in ACCESS.md)")
+		return fail("this agent has no access to the platform's own system " +
+			"(`- system: " + hiringSystem + " scope: " + hiringScope + "` in ACCESS.md)")
 	}
 	// Through the guard-rails, like create_task: what comes out of these actions
 	// is a colleague, and that has to be governable centrally.

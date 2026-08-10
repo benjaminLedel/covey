@@ -338,9 +338,10 @@ Never guess user names.
 
 // HiringDoc describes the hiring actions (spec/20). Deliberately NOT part of
 // ProtocolInstructions: those apply to every agent, and these apply to exactly
-// the one that has `system: covey` in its ACCESS.md. Telling every agent it can
-// draft colleagues would be a capability by suggestion — the gate is the access
-// entry, checked in the control plane.
+// the one that has `- system: covey scope: agents:write` in its ACCESS.md.
+// Telling every agent it can draft colleagues would be a capability by
+// suggestion — the gate is the access entry with its scope, checked in the
+// control plane.
 const HiringDoc = `## Drafting colleagues
 
 You may draft new agents for this organisation. Four actions, called like every

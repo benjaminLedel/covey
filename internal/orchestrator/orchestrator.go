@@ -1552,9 +1552,10 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 			}
 		}
 	}
-	// Hiring only for whoever has the access for it: `system: covey` in
-	// ACCESS.md. Otherwise every agent would read in its prompt that it can draft
-	// colleagues, and would then run into a refusal in the control plane — a
+	// Hiring only for whoever has the access for it: `- system: covey scope:
+	// agents:write` in ACCESS.md. The same check the actions themselves run, and
+	// that is the point — otherwise an agent would read in its prompt that it can
+	// draft colleagues and then run into a refusal in the control plane, a
 	// capability by suggestion, which is the worst kind (spec/20).
 	mayDraft := o.mayDraftAgents(ctx, agent)
 	if mayDraft {

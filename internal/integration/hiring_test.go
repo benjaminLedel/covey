@@ -231,6 +231,31 @@ func TestEinstellenNurMitZugang(t *testing.T) {
 	if !strings.Contains(p, "hire") {
 		t.Fatal("the prompt has to say that hiring is not its job")
 	}
+
+	// The scope carries the entry, and the entry alone carries nothing.
+	//
+	// The second case is the one that was silently open: a scope that IS there,
+	// gets read like a limit and was never compared against anything — so
+	// `scope: agents:read` looked narrow in review and granted create_agent.
+	for _, fall := range []struct{ slug, access string }{
+		{"ohne-scope", "- system: covey"},
+		{"falscher-scope", "- system: covey scope: agents:read"},
+	} {
+		a, err := s.registry.Create(ctx, s.orgID, fall.slug, fall.slug, "mock", &s.adminID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := s.registry.SaveConfig(ctx, a.ID, map[string]string{
+			"SOUL.md":   "# " + fall.slug + "\n\n## Rolle\nHat den Eintrag, nicht den Scope.",
+			"ACCESS.md": fall.access,
+		}, &s.adminID); err != nil {
+			t.Fatalf("%q has to be storable — it is a line a human writes: %v", fall.access, err)
+		}
+		if p := prompt(a.ID); strings.Contains(p, "covey/create_agent") {
+			t.Fatalf("%q must not put the hiring section in the prompt either — "+
+				"otherwise the agent reads a capability the control plane refuses it", fall.access)
+		}
+	}
 }
 
 // TestEntwerfenSchreibtInMehrerenZuegen pins the two properties the first real
