@@ -95,6 +95,10 @@ func (s *Server) handleSetupEngine(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "engine, kind and value are required")
 		return
 	}
+	// Trimmed once, here. A token arrives from a clipboard and regularly brings a
+	// line break along; checking the raw value and storing the trimmed one would
+	// mean the check passes for a string nobody ever uses again.
+	in.Value = strings.TrimSpace(in.Value)
 	d, ok := daemon.Describe(strings.TrimSpace(in.Engine))
 	if !ok {
 		writeErr(w, http.StatusBadRequest, "unknown engine: "+in.Engine)
@@ -116,7 +120,7 @@ func (s *Server) handleSetupEngine(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if err := s.Secrets.Put(r.Context(), p.OrgID, cred.Secret, strings.TrimSpace(in.Value)); err != nil {
+	if err := s.Secrets.Put(r.Context(), p.OrgID, cred.Secret, in.Value); err != nil {
 		mapErr(w, err)
 		return
 	}
@@ -202,6 +206,27 @@ func (s *Server) handleSetupPeople(w http.ResponseWriter, r *http.Request) {
 	}
 	org, _ := s.Org.GetOrg(ctx, p.OrgID)
 
+	dept, err := s.ensureDepartment(ctx, p.OrgID, peopleDepartment)
+	if err != nil {
+		s.Log.Warn("setup: People & Culture department not created", "err", err)
+	}
+
+	// The draft comes into being FIRST, before the model is asked anything.
+	//
+	// Personalisation is one call that may take up to a minute, and the guard
+	// against a second click is the unique slug in the database — not the
+	// GetBySlug above, which in that minute still finds nothing. Creating first
+	// closes the window: the second click runs into "slug taken" instead of
+	// building a second People department beside the first.
+	created, err := s.Registry.CreateDraft(ctx, p.OrgID, slug, name, bundle.Agent.Runtime, &p.ID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	if err := s.Backlog.SeedDefaultStages(ctx, created.ID); err != nil {
+		s.Log.Warn("setup: board not seeded", "agent", created.Slug, "err", err)
+	}
+
 	// Tier 2: personalise on top of the base. Best effort by design — the base
 	// bundle is a working agent, and a provider that does not answer must not
 	// cost the card.
@@ -216,19 +241,6 @@ func (s *Server) handleSetupPeople(w http.ResponseWriter, r *http.Request) {
 	// model rephrased it or not, the agent has to know whose house it is in.
 	bundle.Files["ORG.md"] = appendCompanySection(bundle.Files["ORG.md"], org.Name, org.Description)
 
-	dept, err := s.ensureDepartment(ctx, p.OrgID, peopleDepartmentName(langFrom(r)))
-	if err != nil {
-		s.Log.Warn("setup: People & Culture department not created", "err", err)
-	}
-
-	created, err := s.Registry.CreateDraft(ctx, p.OrgID, slug, name, bundle.Agent.Runtime, &p.ID)
-	if err != nil {
-		mapErr(w, err)
-		return
-	}
-	if err := s.Backlog.SeedDefaultStages(ctx, created.ID); err != nil {
-		s.Log.Warn("setup: board not seeded", "agent", created.Slug, "err", err)
-	}
 	s.attachDefaultRuntime(ctx, p.OrgID, created)
 	if jt := strings.TrimSpace(bundle.Agent.JobTitle); jt != "" {
 		if _, err := s.Registry.UpdateProfile(ctx, p.OrgID, created.ID, agents.ProfileUpdate{JobTitle: &jt}); err != nil {
@@ -290,15 +302,21 @@ func (s *Server) ensureDepartment(ctx context.Context, orgID uuid.UUID, name str
 	return d.ID, nil
 }
 
-func peopleDepartmentName(lang string) string {
-	if strings.HasPrefix(strings.ToLower(lang), "de") {
-		return "People & Culture"
-	}
-	return "People & Culture"
-}
+// peopleDepartment is the department the People department sits in. Not
+// translated: it is the same name in both bundles (examples/people-department*),
+// and a department whose name depends on the browser language of whoever
+// clicked setup would exist twice in a bilingual organisation.
+const peopleDepartment = "People & Culture"
 
-// appendCompanySection puts the company description into ORG.md — as its own
-// section, so a later edit of the description can find and replace it.
+// appendCompanySection puts the company description into ORG.md, as its own
+// section under the company's name.
+//
+// It appends and does not replace: this runs exactly once, while the People
+// department is being created. Editing the description later does NOT rewrite
+// this section — the config is versioned and belongs to whoever edits it
+// (config-as-code), and a setup endpoint reaching back into a file a human has
+// since changed would be the opposite of that. Whoever changes the description
+// afterwards changes ORG.md where ORG.md is edited.
 func appendCompanySection(orgMD, name, description string) string {
 	description = strings.TrimSpace(description)
 	if description == "" {
