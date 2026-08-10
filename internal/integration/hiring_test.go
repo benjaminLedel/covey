@@ -1,10 +1,15 @@
 package integration
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
+
+	"covey/internal/backlog"
 )
 
 // TestEntwurfArbeitetNicht: a draft exists, can be configured — and does not
@@ -168,5 +173,61 @@ func TestAusschreibung(t *testing.T) {
 	}
 	if drafts, ok := status["drafts"].([]any); !ok || len(drafts) != 0 {
 		t.Fatalf("nothing has been drafted yet: %v", status["drafts"])
+	}
+}
+
+// TestEinstellenNurMitZugang: the hiring actions exist for an agent only if its
+// ACCESS.md says so — and only then does its prompt describe them.
+//
+// The two halves belong together, and that is the point of the test. A
+// capability that is described in the prompt and refused by the control plane is
+// the worst kind of gate: the agent tries, fails, and reports a platform error
+// for something it was never meant to do.
+func TestEinstellenNurMitZugang(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+
+	prompt := func(agentID uuid.UUID) string {
+		t.Helper()
+		task, err := s.backlog.Create(ctx, s.orgID, agentID, "Prompt zeigen", "[mock:prompt]", "manual", 3)
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitFor(t, "task done", 20*time.Second, func() bool {
+			return s.taskState(task.ID) == backlog.StateDone
+		})
+		got, err := s.backlog.Get(ctx, task.ID)
+		if err != nil || got.Result == nil {
+			t.Fatalf("the run has to deliver the system prompt: %v", err)
+		}
+		return *got.Result
+	}
+
+	// Ordinary agent: no word about drafting colleagues.
+	ordinary := s.newSupportAgent("gewoehnlich")
+	if p := prompt(ordinary.ID); strings.Contains(p, "covey/create_agent") {
+		t.Fatal("an agent without the access must not read in its prompt that it can draft colleagues")
+	}
+
+	// With the access entry: the section is there.
+	drafter, err := s.registry.Create(ctx, s.orgID, "personal", "Personal", "mock", &s.adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.registry.SaveConfig(ctx, drafter.ID, map[string]string{
+		"SOUL.md":   "# Personal\n\n## Rolle\nEntwirft Kollegen.",
+		"ACCESS.md": "- system: covey scope: agents:write",
+	}, &s.adminID); err != nil {
+		t.Fatal(err)
+	}
+	p := prompt(drafter.ID)
+	for _, want := range []string{"covey/create_agent", "covey/set_agent_config", "covey/list_targets"} {
+		if !strings.Contains(p, want) {
+			t.Fatalf("the hiring section is incomplete — %q is missing", want)
+		}
+	}
+	// And the one sentence that has to survive every rewrite of that section.
+	if !strings.Contains(p, "hire") {
+		t.Fatal("the prompt has to say that hiring is not its job")
 	}
 }
