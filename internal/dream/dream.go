@@ -31,9 +31,10 @@ import (
 	"covey/internal/memory"
 )
 
-// Model: the dream runs on the latest Opus available. The tasks are short but
-// require judgement about what the thing behind a note actually is.
-const Model = "claude-opus-5"
+// Das Modell steht nicht mehr hier: der Traum fragt nach der besten Stufe
+// (llm.TierBest), und der Provider weiß, welches Modell das ist. Die Aufgaben
+// sind kurz, verlangen aber ein Urteil darüber, was hinter einer Notiz
+// eigentlich steckt — dafür die beste Stufe und nicht die schnelle.
 
 // MaxTokens generously: from Opus 5 on, the limit caps thinking *and* answer.
 const MaxTokens = 16000

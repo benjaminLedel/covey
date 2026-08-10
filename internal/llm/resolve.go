@@ -45,9 +45,11 @@ type anthropic struct {
 func (anthropic) Name() string { return "anthropic" }
 
 // Models per tier. Here and nowhere else: the callers say what kind of job it
-// is, this table says which model does it.
+// is, this table says which model does it. „Best" means the latest Opus — the
+// dream ran on it before this table existed, and the config copilot has always
+// wanted it.
 const (
-	anthropicBest = "claude-opus-4-8"
+	anthropicBest = "claude-opus-5"
 	anthropicFast = "claude-haiku-4-5-20251001"
 )
 
