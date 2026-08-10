@@ -409,8 +409,15 @@ func TestBacklogCleanupAndRetry(t *testing.T) {
 	})
 
 	// Open tasks are not archivable (fail-closed for anything active).
+	//
+	// Die Schlafdauer ist kurz, und das ist der Punkt: der Agent arbeitet seine
+	// Aufgaben nacheinander ab. Was hier liegt, liegt gleich dem Retry weiter
+	// unten im Weg — mit 30s war das Warten darauf laenger als sein eigenes
+	// Fenster, und der Test fiel unter Last um, waehrend er allein durchlief.
+	// Lang genug muss sie nur fuer die zwei Pruefungen direkt danach sein: bis
+	// dahin ist die Aufgabe offen oder in Arbeit, in beiden Faellen aktiv.
 	open, _ := s.backlog.Create(ctx, s.orgID, agent.ID, "Bleibt offen",
-		"[mock:sleep 30s]", "manual", 9)
+		"[mock:sleep 3s]", "manual", 9)
 	if _, err := s.backlog.Archive(ctx, open.ID); err == nil {
 		t.Fatalf("an open task must not be archivable")
 	}
