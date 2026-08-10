@@ -110,7 +110,7 @@ export default function Dashboard({ me }: { me: Principal }) {
           <div className="flex items-baseline gap-2 mb-2">
             <h2 className="text-sm" style={{ fontWeight: 600 }}>{t("dashboard.applications")}</h2>
             <span className="badge st-draft">{drafts.length}</span>
-            <span className="muted text-xs">{t("dashboard.applicationsHint")}</span>
+            <span className="secondary text-xs">{t("dashboard.applicationsHint")}</span>
           </div>
           <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))" }}>
             {drafts.map((a) => (
@@ -129,7 +129,7 @@ export default function Dashboard({ me }: { me: Principal }) {
       {drafts.length > 0 && staff.length > 0 && (
         <h2 className="text-sm mb-2" style={{ fontWeight: 600 }}>
           {t("dashboard.employed")}{" "}
-          <span className="muted text-xs" style={{ fontWeight: 400 }}>{t("dashboard.employedHint")}</span>
+          <span className="secondary text-xs" style={{ fontWeight: 400 }}>{t("dashboard.employedHint")}</span>
         </h2>
       )}
 
@@ -209,7 +209,7 @@ function AgentCard({
         <div className="avatar shrink-0">{initialsOf(agent.display_name)}</div>
         <div className="min-w-0" style={{ flex: 1 }}>
           <div className="font-medium text-sm agent-card-name">{agent.display_name}</div>
-          <div className="muted text-xs mono agent-card-name">{agent.slug}</div>
+          <div className="secondary text-xs agent-card-name">{agent.slug}</div>
         </div>
         {!(draft && labelled) && (
           <span
@@ -221,7 +221,7 @@ function AgentCard({
           </span>
         )}
       </div>
-      <div className="muted text-xs">
+      <div className="secondary text-xs">
         Runtime: <span className="mono">{agent.runtime}</span>
         {agent.budget_usd > 0 && <> · {t("dashboard.budget")} {agent.budget_usd.toFixed(2)} $</>}
       </div>

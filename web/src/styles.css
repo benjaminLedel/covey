@@ -172,7 +172,10 @@ h1, h2, h3 { font-weight: 500; margin: 0; }
   padding: 14px 16px 16px;
   background: var(--surface-1);
 }
-.applications .card { background: var(--surface); }
+/* Die Karten behalten ihren eigenen, helleren Grund — sonst laufen sie
+   auf dem Grau des Feldes, und die kleine Schrift verliert genau den
+   Kontrast, den sie am nötigsten hat. */
+.applications .card { background: var(--surface-2); }
 
 /* Die Notizen im laufenden Einstellungsgespräch. */
 .brief-notes { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; font-size: 13px; }
