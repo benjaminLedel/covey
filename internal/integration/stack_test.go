@@ -28,6 +28,7 @@ import (
 	"covey/internal/dream"
 	"covey/internal/egress"
 	"covey/internal/guardrails"
+	"covey/internal/homestore"
 	"covey/internal/httpapi"
 	identbuiltin "covey/internal/identity/builtin"
 	"covey/internal/memory"
@@ -35,6 +36,7 @@ import (
 	"covey/internal/orchestrator"
 	"covey/internal/org"
 	reqlogstore "covey/internal/reqlog/store"
+	"covey/internal/runner"
 	runnerstore "covey/internal/runner/store"
 	"covey/internal/runtimes"
 	secbuiltin "covey/internal/secrets/builtin"
@@ -117,11 +119,20 @@ type stack struct {
 	audit     *audit.Store
 	dreams    *dream.Store
 	orch      *orchestrator.Orchestrator
+	srv       *httpapi.Server
 	http      *httptest.Server
 	orgID     uuid.UUID
 	adminID   uuid.UUID
 	homeBase  string
 	cancel    context.CancelFunc
+}
+
+// setRunnerPool hands the pool and the home store to the HTTP server, so that
+// a remote runner can connect and reach its blocks. Done after the fact
+// because the pool only comes into being with the provider.
+func (s *stack) setRunnerPool(pool *runner.Pool, blobs homestore.BlobStore) {
+	s.srv.RunnerPool = pool
+	s.srv.Blobs = blobs
 }
 
 const webhookSecret = "test-webhook-secret"
@@ -248,6 +259,7 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		WebhookSecrets: map[string]string{"zammad": webhookSecret},
 		SessionTTL:     time.Hour,
 	}
+	s.srv = srv
 	s.http = httptest.NewServer(srv.Handler())
 	t.Cleanup(s.http.Close)
 	s.orch.PublicWSURL = strings.Replace(s.http.URL, "http", "ws", 1) + "/api/daemon/ws"

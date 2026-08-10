@@ -12,7 +12,7 @@ LDFLAGS := -X covey/internal/buildinfo.version=$(VERSION) \
            -X covey/internal/buildinfo.commit=$(COMMIT) \
            -X covey/internal/buildinfo.date=$(DATE)
 
-.PHONY: build web test test-integration run bootstrap dev-db sandbox-image egress-image clean skill-sync
+.PHONY: build web test test-integration run bootstrap dev-db sandbox-image sandbox-image-dev sandbox-images runner egress-image clean skill-sync
 
 # npm ci instead of npm install — deliberately: it installs exactly the lockfile
 # and never rewrites it. npm install on macOS throws the Linux/wasm branches
@@ -64,6 +64,12 @@ sandbox-image-dev: sandbox-image
 # Both profiles at once — what an installation that has developer agents needs.
 sandbox-images: sandbox-image-dev
 
+# The standalone runner (spec/16). Its own artefact on purpose: on a runner host
+# `serve`, `migrate` and `bootstrap` should not exist at all, and "no database
+# access" reads badly when the database code is compiled in beside it.
+runner:
+	$(GO) build -ldflags "$(LDFLAGS)" -o covey-runner ./cmd/covey-runner
+
 # Egress proxy image for COVEY_EGRESS_ISOLATION=network (hard network isolation).
 egress-image:
 	docker build -f Dockerfile.egress -t covey-egress:latest .
@@ -77,5 +83,5 @@ test-integration:
 	$(GO) test ./internal/integration/ -v
 
 clean:
-	rm -f covey coveyd
+	rm -f covey coveyd covey-runner
 	rm -rf data web/dist

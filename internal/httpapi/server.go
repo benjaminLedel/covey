@@ -26,12 +26,14 @@ import (
 	"covey/internal/dream"
 	"covey/internal/egress"
 	"covey/internal/guardrails"
+	"covey/internal/homestore"
 	"covey/internal/identity"
 	"covey/internal/memory"
 	"covey/internal/observability"
 	"covey/internal/orchestrator"
 	"covey/internal/org"
 	reqlogstore "covey/internal/reqlog/store"
+	"covey/internal/runner"
 	runnerstore "covey/internal/runner/store"
 	"covey/internal/runtimes"
 	"covey/internal/secrets"
@@ -74,6 +76,12 @@ type Server struct {
 	// own token against /api/runner/v1/… — the only interface they have to the
 	// platform. nil = the runner API answers 503 (tests).
 	Runners *runnerstore.Store
+	// RunnerPool is the control plane's side of the protocol: a foreign runner
+	// that connects is taken into it. nil = only the built-in one (tests).
+	RunnerPool *runner.Pool
+	// Blobs is the home store. A remote runner reaches its blocks through the
+	// runner API — it never gets the store's credentials (spec/16).
+	Blobs homestore.BlobStore
 
 	Templates *templates.Store
 
@@ -246,6 +254,12 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/agents/{id}/recording-level", s.agentScoped(manage, s.handleSetRecordingLevel))
 	mux.Handle("PATCH /api/v1/agents/{id}/warm-sandbox", s.agentScoped(manage, s.handleSetWarmSandbox))
 	mux.Handle("PATCH /api/v1/agents/{id}/sandbox-image", s.agentScoped(manage, s.handleSetSandboxImage))
+
+	// Runners (spec/16). Reading is for everyone who may look at the platform;
+	// adding and decommissioning a host is a management act.
+	mux.Handle("GET /api/v1/runners", s.rbac(anyRole, s.handleListRunners))
+	mux.Handle("POST /api/v1/runners/registration-tokens", s.rbac(manage, s.handleCreateRegistrationToken))
+	mux.Handle("DELETE /api/v1/runners/{id}", s.rbac(manage, s.handleDeleteRunner))
 	mux.Handle("GET /api/v1/org/recording-level", s.rbac(anyRole, s.handleGetOrgRecording))
 	mux.Handle("PATCH /api/v1/org/recording-level", s.rbac(securityRoles, s.handleSetOrgRecording))
 	mux.Handle("PATCH /api/v1/agents/{id}/supervisor", s.agentScoped(manage, s.handleSetSupervisor))
@@ -434,6 +448,17 @@ func (s *Server) Handler() http.Handler {
 	// Postgres itself.
 	mux.Handle("GET /api/runner/v1/egress/allowlist", s.runnerAuth(s.handleRunnerAllowlist))
 	mux.Handle("POST /api/runner/v1/egress/decisions", s.runnerAuth(s.handleRunnerDecisions))
+	mux.Handle("GET /api/runner/ws", s.runnerAuth(s.handleRunnerWS))
+	mux.Handle("GET /api/runner/v1/whoami", s.runnerAuth(s.handleRunnerWhoami))
+	// Registration carries its own authentication: whoever registers has
+	// nothing to log in with, and the registration token names the
+	// organisation the runner will belong to.
+	mux.HandleFunc("POST /api/runner/v1/register", s.handleRunnerRegister)
+	// The home store for a remote runner. One path, three methods: is the block
+	// there, give it to me, take it.
+	for _, method := range []string{"HEAD", "GET", "PUT"} {
+		mux.Handle(method+" /api/runner/v1/blocks/{hash}", s.runnerAuth(s.handleRunnerBlock))
+	}
 
 	// This instance's installation script — deliberately without a login:
 	// whoever fetches it has nothing yet to log in with. It ships its own

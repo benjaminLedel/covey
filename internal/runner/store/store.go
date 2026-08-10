@@ -36,10 +36,17 @@ var ErrNotFound = errors.New("runner not found")
 // homes and daemon tokens, and both are the property of one tenant (spec/16,
 // "One runner, one organisation").
 type Runner struct {
-	ID         uuid.UUID  `json:"id"`
-	OrgID      uuid.UUID  `json:"org_id"`
-	Kind       string     `json:"kind"`
-	Name       string     `json:"name"`
+	ID          uuid.UUID `json:"id"`
+	OrgID       uuid.UUID `json:"org_id"`
+	Kind        string    `json:"kind"`
+	Name        string    `json:"name"`
+	Description string    `json:"description,omitempty"`
+	Tags        []string  `json:"tags,omitempty"`
+	// Version, Arch and Protocol are what the runner reported when it
+	// connected — the basis for making version drift visible.
+	Version    string     `json:"version,omitempty"`
+	Arch       string     `json:"arch,omitempty"`
+	Protocol   int        `json:"protocol,omitempty"`
 	CreatedAt  time.Time  `json:"created_at"`
 	LastSeenAt *time.Time `json:"last_seen_at,omitempty"`
 }
@@ -68,11 +75,12 @@ func NewToken() (string, error) {
 	return hex.EncodeToString(buf), nil
 }
 
-const columns = `id, org_id, kind, name, created_at, last_seen_at`
+const columns = `id, org_id, kind, name, description, tags, version, arch, protocol, created_at, last_seen_at`
 
 func scan(row pgx.Row) (Runner, error) {
 	var r Runner
-	err := row.Scan(&r.ID, &r.OrgID, &r.Kind, &r.Name, &r.CreatedAt, &r.LastSeenAt)
+	err := row.Scan(&r.ID, &r.OrgID, &r.Kind, &r.Name, &r.Description, &r.Tags,
+		&r.Version, &r.Arch, &r.Protocol, &r.CreatedAt, &r.LastSeenAt)
 	return r, err
 }
 
@@ -147,4 +155,107 @@ func (s *Store) ListForOrg(ctx context.Context, orgID uuid.UUID) ([]Runner, erro
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// --- Registration (spec/16) ---
+
+// ErrTokenInvalid: no usable registration token.
+var ErrTokenInvalid = errors.New("registration token invalid or revoked")
+
+// CreateRegistrationToken issues an organisation's registration token and
+// returns it in the clear — the only moment it exists outside a hash.
+func (s *Store) CreateRegistrationToken(ctx context.Context, orgID uuid.UUID, description string, createdBy *uuid.UUID) (string, error) {
+	token, err := NewToken()
+	if err != nil {
+		return "", err
+	}
+	_, err = s.pool.Exec(ctx,
+		`INSERT INTO runner_registration_tokens (id, org_id, token_hash, description, created_by)
+		 VALUES ($1,$2,$3,$4,$5)`,
+		uuid.New(), orgID, HashToken(token), description, createdBy)
+	if err != nil {
+		return "", err
+	}
+	return token, nil
+}
+
+// RevokeRegistrationToken makes a token unusable without removing it: whoever
+// wants to know which token a runner came in on should still be able to answer
+// that afterwards.
+func (s *Store) RevokeRegistrationToken(ctx context.Context, orgID, id uuid.UUID) error {
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE runner_registration_tokens SET revoked_at = now()
+		  WHERE id = $1 AND org_id = $2 AND revoked_at IS NULL`, id, orgID)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+// Register turns a registration token into a runner and its own token. The
+// runner inherits the organisation from the registration token and cannot
+// change it.
+func (s *Store) Register(ctx context.Context, registrationToken, description string, tags []string) (Runner, string, error) {
+	var orgID uuid.UUID
+	err := s.pool.QueryRow(ctx,
+		`SELECT org_id FROM runner_registration_tokens
+		  WHERE token_hash = $1 AND revoked_at IS NULL`, HashToken(registrationToken)).Scan(&orgID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Runner{}, "", ErrTokenInvalid
+	}
+	if err != nil {
+		return Runner{}, "", err
+	}
+
+	token, err := NewToken()
+	if err != nil {
+		return Runner{}, "", err
+	}
+	if tags == nil {
+		// A runner without tags is the normal case, and nil would land in the
+		// NOT NULL column as NULL — the registration would then fail for the
+		// most ordinary host there is.
+		tags = []string{}
+	}
+	r, err := scan(s.pool.QueryRow(ctx,
+		`INSERT INTO runners (id, org_id, kind, name, token_hash, description, tags)
+		 VALUES ($1,$2,'remote',$3,$4,$3,$5) RETURNING `+columns,
+		uuid.New(), orgID, description, HashToken(token), tags))
+	if err != nil {
+		return Runner{}, "", err
+	}
+	return r, token, nil
+}
+
+// NoteCapabilities records what a runner reported when it connected — version,
+// architecture and protocol version, so that version drift becomes visible
+// instead of merely being suspected.
+func (s *Store) NoteCapabilities(ctx context.Context, id uuid.UUID, version, arch string, protocol int) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE runners SET version = $2, arch = $3, protocol = $4, last_seen_at = now() WHERE id = $1`,
+		id, version, arch, protocol)
+	return err
+}
+
+// HasRemote answers whether an organisation has registered a runner of its
+// own. It is the whole of the rule for the built-in one: an organisation has
+// it exactly as long as it has no registered runner (spec/16). Counted are
+// registered runners, not connected ones — a maintenance window must not move
+// the whole workforce back onto the control plane's host.
+func (s *Store) HasRemote(ctx context.Context, orgID uuid.UUID) (bool, error) {
+	var n int
+	err := s.pool.QueryRow(ctx,
+		`SELECT count(*) FROM runners WHERE org_id = $1 AND kind = 'remote'`, orgID).Scan(&n)
+	return n > 0, err
+}
+
+// Delete removes a runner. Its local working copy goes with it, no platform
+// state — everything that mattered is in the home store.
+func (s *Store) Delete(ctx context.Context, orgID, id uuid.UUID) error {
+	tag, err := s.pool.Exec(ctx,
+		`DELETE FROM runners WHERE id = $1 AND org_id = $2 AND kind = 'remote'`, id, orgID)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
 }

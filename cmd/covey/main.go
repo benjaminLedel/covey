@@ -722,6 +722,19 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	// too. Each carries its own egress segment: a runner serves exactly one
 	// tenant, and `--internal` cuts the way out, not the way sideways.
 	runnerPool.EnsureLocal = func(ctx context.Context, orgID uuid.UUID) error {
+		// An organisation has the built-in runner exactly as long as it has no
+		// registered one. Whoever adds a runner has said that compute leaves
+		// this machine; a control plane that kept quietly running sandboxes on
+		// the side has not been told that (spec/16).
+		//
+		// Counted are REGISTERED runners, not connected ones: a maintenance
+		// window on the only runner must not silently move the whole workforce
+		// back onto the control plane's host.
+		if remote, err := runnerStore.HasRemote(ctx, orgID); err != nil {
+			return err
+		} else if remote {
+			return fmt.Errorf("organisation %s has its own runner — the built-in one has stood down", orgID)
+		}
 		runnerID, runnerToken, err := builtinRunners.For(ctx, orgID)
 		if err != nil {
 			return err
@@ -767,6 +780,10 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		return err
 	}
 	for _, o := range orgs {
+		if remote, err := runnerStore.HasRemote(ctx, o.ID); err == nil && remote {
+			log.Info("organisation has its own runner — the built-in one stays down", "org", o.ID)
+			continue
+		}
 		if err := runnerPool.EnsureLocal(ctx, o.ID); err != nil {
 			// Not an abort: an organisation whose runner does not come up is a
 			// problem for its agents, not for the instance. The self-check
@@ -848,6 +865,8 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		EgressEnforced: egressEnforced,
 		EgressDefaults: egressBaseAllow(cfg),
 		Runners:        runnerStore,
+		RunnerPool:     runnerPool,
+		Blobs:          blobs,
 		ReqLog:         reqLog,
 		DataPlane:      dataPlane,
 	}

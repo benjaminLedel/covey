@@ -76,6 +76,7 @@ type conn struct {
 	builtin  bool
 	protocol int
 	version  string
+	arch     string
 	tags     []string
 	t        Transport
 	pool     *Pool
@@ -111,6 +112,31 @@ func (p *Pool) Attach(ctx context.Context, t Transport, builtin bool) error {
 	return c.readLoop(ctx)
 }
 
+// AttachRemote takes a runner that has authenticated with its token. The
+// identity from the handshake is checked against the token's: a runner that
+// named a foreign ID would otherwise take another one's place in the pool, and
+// with it another organisation's sandboxes.
+//
+// noteCapabilities receives what the runner reported about itself, so that
+// version drift becomes visible instead of merely being suspected.
+func (p *Pool) AttachRemote(ctx context.Context, t Transport, runnerID, orgID uuid.UUID,
+	noteCapabilities func(version, arch string, protocol int)) error {
+	c, err := p.register(ctx, t, false)
+	if err != nil {
+		return err
+	}
+	if c.runnerID != runnerID || c.orgID != orgID {
+		p.detach(c)
+		return fmt.Errorf("runner %s reports a different identity (%s/%s) than its token — refused",
+			runnerID, c.runnerID, c.orgID)
+	}
+	if noteCapabilities != nil {
+		noteCapabilities(c.version, c.arch, c.protocol)
+	}
+	defer p.detach(c)
+	return c.readLoop(ctx)
+}
+
 // register performs the handshake and takes the runner into the pool.
 func (p *Pool) register(ctx context.Context, t Transport, builtin bool) (*conn, error) {
 	// The first message has to be `registered`: without an identity the pool
@@ -140,7 +166,7 @@ func (p *Pool) register(ctx context.Context, t Transport, builtin bool) (*conn, 
 
 	c := &conn{
 		runnerID: reg.RunnerID, orgID: reg.OrgID, builtin: builtin,
-		protocol: reg.Protocol, version: reg.Version, tags: reg.Tags,
+		protocol: reg.Protocol, version: reg.Version, arch: reg.Arch, tags: reg.Tags,
 		t: t, pool: p, waiters: map[string]chan Message{},
 	}
 	p.mu.Lock()

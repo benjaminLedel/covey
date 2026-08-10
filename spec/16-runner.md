@@ -285,7 +285,7 @@ This will be decided when stage 8 comes up. Until then all that counts is that `
 A runner **never gets the store's credentials** — that would be the same omission as the database URL in the egress proxy (see "Trust boundary"). Instead the control plane issues **short-lived, scoped URLs** per transfer, exactly following the secrets broker's pattern ([`04-identity-secrets.md`](04-identity-secrets.md)):
 
 - With the `s3` backend as **pre-signed URLs** — the runner loads directly from the object store, the control plane never sees the bytes.
-- With the `builtin` backend the control plane delivers equivalent short-lived URLs onto itself.
+- With the `builtin` backend the control plane hands out the bytes itself, over the runner API (`/api/runner/v1/blocks/<hash>`, authenticated with the runner token). A signed URL onto itself would be the same thing with one indirection more; what matters is the property, and that is: the runner is a client with a token, not a participant in the storage layer.
 
 Both also prevent 7 GB from having to go through the runner WebSocket: the control channel stays narrow, the payload goes past it. The built-in runner skips the detour and calls the `BlobStore` directly — it sits in the process that owns it. That is a transport detail; the sync and materialisation logic above it does not know the difference.
 
@@ -450,7 +450,7 @@ Every stage is useful in itself and can be accepted individually:
 | 1 | An image per agent (`sandbox_image`), profiles `base`/`dev` | The mail agent no longer carries a JVM |
 | 2 | The seam: runner protocol, `Transport` with the in-process implementation, the built-in runner, the Docker provider moved behind it, `RunnerPool` as `SandboxProvider` | A crashed sandbox is reported instead of running into the `ReadyTimeout`, and what stands in the way of a wake becomes visible per host |
 | 3 | The home store: content-addressed storage, sync after the job, materialising on wake, local block storage | A lost home costs time instead of work, and the second agent on the same host starts warm — **both already with a single host** |
-| 4 | The remote runner: the WebSocket transport, `register` including a configuration file, the protocol handshake and version, `covey-runner` as a third binary plus its release artefacts (a binary per architecture, a Docker image, a systemd unit); and with it the built-in runner draining and standing down | Sandboxes run on a second host — and only there |
+| 4 | The remote runner: the WebSocket transport, `register` including a configuration file, the protocol handshake and version, `covey-runner` as a third binary plus its release artefacts (a binary per architecture, a Docker image, a systemd unit); and with it the built-in runner standing down | Sandboxes run on a second host — and only there |
 | 5 | `home_op` — the file browser over the runner link, and reading from the snapshot while a runner is offline | The file browser works remotely too, and does not fail when a host does |
 | 6 | Tags, capacity, a runner view in the UI | Operability from more than two runners onwards |
 | 7 | Interface: home info, snapshot list, retention setting and button, fill level on the dashboard | The store is visible and operable instead of growing quietly |
