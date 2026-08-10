@@ -40,6 +40,17 @@ type Pool struct {
 	// being while the process runs. nil = nothing is created, and the
 	// organisation simply has no runner.
 	EnsureLocal func(ctx context.Context, orgID uuid.UUID) error
+	// LatestSnapshot is the state an agent's home is materialised to on wake.
+	// nil or an empty hash = the working copy on the runner applies, which is
+	// what the very first wake looks like.
+	LatestSnapshot func(ctx context.Context, agentID uuid.UUID) (string, error)
+	// SnapshotTaken files a completed sync. Only afterwards may anything be
+	// cleaned up locally — no prune before a successful sync (spec/16).
+	SnapshotTaken func(ctx context.Context, agentID, runnerID uuid.UUID, res HomeSynced) error
+	// HomeExcludes are the paths left out of the sync. Empty = everything is
+	// synced, which is the default on purpose: the list is a cost question, not
+	// a prerequisite for correctness.
+	HomeExcludes []string
 	// StartTimeout bounds how long a start may take before it counts as
 	// failed. Without it a runner that has gone quiet would hold the wake
 	// until the orchestrator's ReadyTimeout — and the message would then blame
@@ -345,6 +356,20 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 	if timeout <= 0 {
 		timeout = defaultStartTimeout
 	}
+	// Which state the home is brought to. A failure here is not fatal: the
+	// working copy on the runner is then what applies — slower or older, but
+	// an agent that cannot start at all because a lookup failed would be the
+	// worse outcome.
+	snapshot := ""
+	if p.LatestSnapshot != nil {
+		if hash, err := p.LatestSnapshot(ctx, spec.AgentID); err != nil {
+			p.Log.Warn("last snapshot not readable — the working copy applies",
+				"agent", spec.AgentID, "err", err)
+		} else {
+			snapshot = hash
+		}
+	}
+
 	answer, err := c.ask(ctx, TypeStartSandbox, StartSandbox{
 		AgentID:     spec.AgentID,
 		OrgID:       spec.OrgID,
@@ -352,6 +377,7 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 		HomeDir:     spec.HomeDir,
 		Env:         spec.Env,
 		EgressToken: spec.EgressToken,
+		Snapshot:    snapshot,
 	}, timeout)
 	if err != nil {
 		return nil, err
@@ -366,15 +392,24 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 	c.mu.Lock()
 	c.sandboxes++
 	c.mu.Unlock()
-	return &poolSandbox{conn: c, agentID: spec.AgentID}, nil
+	return &poolSandbox{pool: p, conn: c, agentID: spec.AgentID, orgID: spec.OrgID}, nil
 }
 
 type poolSandbox struct {
+	pool    *Pool
 	conn    *conn
 	agentID uuid.UUID
+	orgID   uuid.UUID
 	once    sync.Once
 }
 
+// Stop shuts the compute down and writes the home into the store. In that
+// order: the scan runs on a home nothing is writing into any more.
+//
+// This is the real falling-asleep. A warm-parked sandbox never gets here — the
+// warm session (spec/03) stays untouched by the sync, which is what keeps the
+// sleep path from becoming the slow path for agents that wake every few
+// minutes.
 func (s *poolSandbox) Stop(ctx context.Context) error {
 	var err error
 	s.once.Do(func() {
@@ -385,11 +420,55 @@ func (s *poolSandbox) Stop(ctx context.Context) error {
 		s.conn.mu.Unlock()
 		// Without cancel: the stop has to go through even when the run that
 		// held this sandbox has just been cancelled — otherwise the container
-		// stays behind and the name is taken at the next wake.
-		_, err = s.conn.ask(context.WithoutCancel(ctx), TypeStopSandbox,
-			StopSandbox{AgentID: s.agentID}, 60*time.Second)
+		// stays behind and the name is taken at the next wake. The same for
+		// the sync: a cancelled run is exactly when the work in the home is
+		// worth keeping.
+		ctx = context.WithoutCancel(ctx)
+		_, err = s.conn.ask(ctx, TypeStopSandbox, StopSandbox{AgentID: s.agentID}, 60*time.Second)
+		s.pool.syncHome(ctx, s.conn, s.agentID, s.orgID)
 	})
 	return err
+}
+
+// syncHome writes the home into the store after the job. A failure is logged
+// and not passed on: the run is over, the sandbox is down, and there is
+// nothing left for the caller to do about it. What it costs is the next start
+// on another runner — which is time, not data loss, as long as the working
+// copy is still there. And precisely because it might not be, no prune may
+// follow a failed sync.
+func (p *Pool) syncHome(ctx context.Context, c *conn, agentID, orgID uuid.UUID) {
+	if p.SnapshotTaken == nil {
+		return
+	}
+	answer, err := c.ask(ctx, TypeSyncHome, SyncHome{
+		AgentID: agentID, OrgID: orgID, Excludes: p.HomeExcludes,
+	}, 30*time.Minute) // the first sync of a grown home is a full pass
+	if err != nil {
+		p.Log.Warn("home not synced", "agent", agentID, "err", err)
+		return
+	}
+	res, err := decode[HomeSynced](answer)
+	if err != nil || res.Err != "" {
+		p.Log.Warn("home not synced", "agent", agentID, "err", firstNonEmpty(errString(err), res.Err))
+		return
+	}
+	if err := p.SnapshotTaken(ctx, agentID, c.runnerID, res); err != nil {
+		p.Log.Warn("snapshot not recorded", "agent", agentID, "err", err)
+	}
+}
+
+func errString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
 
 // AgentHome satisfies orchestrator.FileAccess. The built-in runner answers

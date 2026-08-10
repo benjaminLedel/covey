@@ -52,6 +52,20 @@ type Config struct {
 	// (Dockerfile.sandbox) — the `base` profile and at the same time the
 	// default for agents that name no workplace of their own.
 	SandboxImage string
+	// HomeStore switches the central home store on (default on): after every
+	// job an agent's home goes into it as a whole and is materialised from it
+	// on wake (spec/16). Off = homes stay directories on the runner, without
+	// snapshots, without rollback — and unrecoverable when lost.
+	//
+	// The store holds what the runner also has on disk. With a single agent
+	// that is close to a doubling; from the second developer agent onwards the
+	// deduplication of the toolchain caches turns it into a saving.
+	HomeStore bool
+	// HomeExcludes are paths left out of the sync (comma-separated). Their role
+	// is a cost question, not a prerequisite for correctness: the default is
+	// empty, and without configuration everything is synced. Only demonstrably
+	// derivable paths belong here (analysis caches such as .dartServer).
+	HomeExcludes []string
 	// SandboxImageDev is the image of the `dev` profile
 	// (Dockerfile.sandbox.dev): base plus PHP, JDK, fvm, uv and the native
 	// build toolchain. The image hangs off the agent (spec/16) — a mail agent
@@ -162,6 +176,8 @@ func FromEnv() (Config, error) {
 		DataDir:          getenv("COVEY_DATA_DIR", "./data"),
 		SandboxImage:     getenv("COVEY_SANDBOX_IMAGE", "covey-sandbox:latest"),
 		SandboxImageDev:  getenv("COVEY_SANDBOX_IMAGE_DEV", "covey-sandbox-dev:latest"),
+		HomeStore:        getenvBool("COVEY_HOME_STORE", true),
+		HomeExcludes:     splitList(os.Getenv("COVEY_HOME_EXCLUDES")),
 		WebhookSecrets:   webhookSecretsFromEnv(),
 		TickInterval:     getenvDuration("COVEY_TICK_INTERVAL", 30*time.Second),
 		DreamAt:          getenv("COVEY_DREAM_AT", "03:00"),

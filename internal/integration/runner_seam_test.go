@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 
 	"covey/internal/backlog"
+	"covey/internal/homestore"
 	"covey/internal/orchestrator"
 	"covey/internal/runner"
 )
@@ -125,5 +126,138 @@ func TestDeadSandboxEndsTheWakeInsteadOfTimingOut(t *testing.T) {
 	// went wrong, and the search starts at the runtime instead of at memory.
 	if !strings.Contains(found, "137") {
 		t.Errorf("the reason belongs in the message, got %q", found)
+	}
+}
+
+// The home store is what makes a home replaceable — and only then is a runner
+// switch not data loss. This drives it through the whole seam: orchestrator →
+// pool → protocol → node → store, with the sync at the real falling-asleep and
+// the restore on the next wake.
+//
+// What it is really guarding is the promise the construction makes: the 48 MB
+// an agent produced and that exist nowhere else survive losing the working
+// copy, without anyone having written down that they exist.
+func TestHomeSurvivesTheLossOfItsRunnerWorkingCopy(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	dockerBin := fakeDocker(t, dir)
+	ctx := context.Background()
+
+	blobs, err := homestore.NewDir(filepath.Join(dir, "blocks"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var pool *runner.Pool
+	s := newStackWith(t, stackOpts{
+		provider: func(homeBase string, log *slog.Logger) orchestrator.SandboxProvider {
+			pool = runner.NewPool(log)
+			pool.DefaultImage = "covey-sandbox:test"
+			pool.StartTimeout = 20 * time.Second
+			return pool
+		},
+	})
+
+	agent := s.newSupportAgent("home-store-agent")
+	pool.LatestSnapshot = func(ctx context.Context, agentID uuid.UUID) (string, error) {
+		snap, err := s.runners.LatestSnapshot(ctx, agentID)
+		return snap.ManifestHash, err
+	}
+	pool.SnapshotTaken = func(ctx context.Context, agentID, runnerID uuid.UUID, res runner.HomeSynced) error {
+		_, err := s.runners.RecordSnapshot(ctx, s.orgID, agentID, &runnerID,
+			res.ManifestHash, res.TotalSize, res.Blocks, res.BytesUp, "job")
+		return err
+	}
+
+	// The organisation's built-in runner — the row a snapshot points at when it
+	// records where the working copy sat.
+	rn, err := s.runners.EnsureBuiltin(ctx, s.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runnerID := rn.ID
+	homes := filepath.Join(dir, "data")
+	node := runner.NewNode(runnerID, s.orgID, &runner.Docker{
+		RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: homes, DockerBin: dockerBin,
+	}, slog.Default())
+	node.Blobs = blobs
+	if err := pool.AttachLocal(ctx, node); err != nil {
+		t.Fatal(err)
+	}
+
+	// The agent has worked: interim results scattered through the home, exactly
+	// the way an agent puts them down — not in a folder provided for it.
+	home := filepath.Join(homes, "homes", agent.ID.String())
+	if err := os.MkdirAll(filepath.Join(home, "fix223"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for path, content := range map[string]string{
+		"useSevenAssistant.ts":     "// 95 KB extrahierter Code",
+		"fix223/analyse.md":        "Was hier schiefging",
+		".claude/transkript.jsonl": `{"typ":"nachricht"}`,
+	} {
+		p := filepath.Join(home, path)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Start and stop through the protocol — the stop is the real falling-asleep,
+	// and that is what triggers the sync.
+	sb, err := pool.Start(ctx, orchestrator.SandboxSpec{AgentID: agent.ID, OrgID: s.orgID})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "exit"), []byte("0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := sb.Stop(ctx); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+
+	snap, err := s.runners.LatestSnapshot(ctx, agent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.ManifestHash == "" {
+		t.Fatal("falling asleep has to produce a snapshot")
+	}
+	if snap.RunnerID == nil || *snap.RunnerID != runnerID {
+		t.Errorf("the snapshot has to know where the working copy sat: %+v", snap.RunnerID)
+	}
+	// The preference of the scheduler follows from it — a hint, not a promise.
+	reloaded, err := s.registry.Get(ctx, agent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = reloaded
+
+	// The runner loses its working copy: a cleared disk, a new machine.
+	if err := os.RemoveAll(home); err != nil {
+		t.Fatal(err)
+	}
+
+	// Next wake: the home comes back out of the store before the sandbox starts.
+	if _, err := pool.Start(ctx, orchestrator.SandboxSpec{AgentID: agent.ID, OrgID: s.orgID}); err != nil {
+		t.Fatalf("second start: %v", err)
+	}
+	for path, want := range map[string]string{
+		"useSevenAssistant.ts":     "// 95 KB extrahierter Code",
+		"fix223/analyse.md":        "Was hier schiefging",
+		".claude/transkript.jsonl": `{"typ":"nachricht"}`,
+	} {
+		got, err := os.ReadFile(filepath.Join(home, path))
+		if err != nil {
+			t.Errorf("%s did not come back: %v", path, err)
+			continue
+		}
+		if string(got) != want {
+			t.Errorf("%s came back changed: %q", path, got)
+		}
 	}
 }

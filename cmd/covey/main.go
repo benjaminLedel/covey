@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -30,6 +31,7 @@ import (
 	"covey/internal/dream"
 	"covey/internal/egress"
 	"covey/internal/guardrails"
+	"covey/internal/homestore"
 	"covey/internal/httpapi"
 	identbuiltin "covey/internal/identity/builtin"
 	"covey/internal/llm"
@@ -604,6 +606,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	}
 
 	runnerStore := runnerstore.NewStore(pool)
+	snapshotStore := runnerStore
 	// The built-in runner: one per organisation, created by the platform
 	// itself. At this stage it is only the identity the egress proxy
 	// authenticates with; it becomes an execution node in stage 2 (spec/16).
@@ -665,6 +668,43 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	// taken as an image reference of its own.
 	runnerPool.Profiles = map[string]string{"base": cfg.SandboxImage, "dev": cfg.SandboxImageDev}
 	runnerPool.AgentImages = registry.SandboxImagesInUse
+	runnerPool.HomeExcludes = cfg.HomeExcludes
+
+	// The home store: after every job the home goes into it as a whole and is
+	// materialised from it on wake (spec/16). It makes the home replaceable —
+	// and only then is a runner switch not data loss. It pays off before a
+	// second host exists: two developer agents on one machine hold the same
+	// 4 GB of toolchain twice today, and a deleted home is unrecoverable.
+	//
+	// It requires backup like the database. 99 % of it would only have to be
+	// downloaded again, but the rest exists nowhere else — it is a cache in its
+	// function, not in its need for protection.
+	var blobs homestore.BlobStore
+	if cfg.HomeStore {
+		dir, err := homestore.NewDir(filepath.Join(cfg.DataDir, "blocks"))
+		if err != nil {
+			return err
+		}
+		blobs = dir
+		runnerPool.LatestSnapshot = func(ctx context.Context, agentID uuid.UUID) (string, error) {
+			snap, err := snapshotStore.LatestSnapshot(ctx, agentID)
+			return snap.ManifestHash, err
+		}
+		runnerPool.SnapshotTaken = func(ctx context.Context, agentID, runnerID uuid.UUID, res runner.HomeSynced) error {
+			agent, err := registry.Get(ctx, agentID)
+			if err != nil {
+				return err
+			}
+			_, err = snapshotStore.RecordSnapshot(ctx, agent.OrgID, agentID, &runnerID,
+				res.ManifestHash, res.TotalSize, res.Blocks, res.BytesUp, "job")
+			return err
+		}
+		log.Info("home store active", "blocks", dir.Root(),
+			"note", "needs backup like the database — 48 MB of a typical home exist nowhere else")
+	} else {
+		log.Warn("home store switched off (COVEY_HOME_STORE=false) — " +
+			"a lost home is unrecoverable, and an agent cannot move to another runner")
+	}
 
 	var proxyURL string
 	if egressEnforced && cfg.EgressIsolation != "network" {
@@ -710,7 +750,9 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 				docker.EgressProxyURL = proxyURL
 			}
 		}
-		return runnerPool.AttachLocal(ctx, runner.NewNode(runnerID, orgID, docker, log))
+		node := runner.NewNode(runnerID, orgID, docker, log)
+		node.Blobs = blobs
+		return runnerPool.AttachLocal(ctx, node)
 	}
 
 	if egressEnforced && cfg.EgressIsolation == "network" {

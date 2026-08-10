@@ -214,7 +214,9 @@ Three worries are thereby dealt with at once: the session transcripts travel alo
 
 "Block-wise" leaves open how big a block is, and the answer decides how much machinery this needs. A home consists overwhelmingly of **many small files** — package caches, `node_modules`, SDK trees. For those, the hash of the whole file collects practically the entire dedup benefit: they are identical or they are new, and a file that changes at all is usually rewritten wholesale by the tool that owns it.
 
-So: **whole-file addressing up to a threshold (8 MB), content-defined chunking above it.** The chunking then applies to exactly the cases where it pays — archives, SDK tarballs, and above all the append-only JSONL transcripts, where a rolling-hash cut keeps everything but the tail unchanged. Whoever chunks everything pays for a rolling hash over gigabytes of small files and receives, for that, a few per cent.
+So: **whole-file addressing up to a threshold (8 MB), fixed-size blocks (4 MB) above it.** The chunking then applies to exactly the cases where it pays — archives, SDK tarballs, and above all the append-only JSONL transcripts. Whoever chunks everything pays for it over gigabytes of small files and receives, for that, a few per cent.
+
+Fixed-size and not content-defined, which is the unusual half of this: content-defined chunking exists to survive an **insertion in the middle**, where every following byte shifts and a fixed grid would re-cut everything after it. What large files in a home actually do is **append** — a transcript grows at the end, and every preceding block stays byte-identical because no offset moves. For that case a rolling hash buys nothing and costs a pass over every byte. If a home ever produces large files that are edited in the middle, this is the decision to revisit; the manifest format does not have to change for it, only how the block boundaries are found.
 
 ### Materialising: reflink, otherwise a copy
 

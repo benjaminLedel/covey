@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"covey/internal/buildinfo"
+	"covey/internal/homestore"
 )
 
 // Node is the runner side of the protocol: it starts and stops sandboxes and
@@ -21,6 +22,11 @@ type Node struct {
 	Docker   *Docker
 	Log      *slog.Logger
 	Tags     []string
+	// Blobs is the home store. The built-in runner reaches it directly — it
+	// sits in the process that owns it; that is a transport detail, and the
+	// sync logic above does not know the difference. nil = no store, and the
+	// home stays what lies in the working copy.
+	Blobs homestore.BlobStore
 
 	mu      sync.Mutex
 	running map[uuid.UUID]*sandboxProc
@@ -95,6 +101,13 @@ func (n *Node) handle(ctx context.Context, t Transport, msg Message) {
 			return
 		}
 		n.stop(ctx, t, msg.ID, spec.AgentID)
+	case TypeSyncHome:
+		req, err := decode[SyncHome](msg)
+		if err != nil {
+			n.reply(ctx, t, msg.ID, TypeHomeSynced, HomeSynced{Err: err.Error()})
+			return
+		}
+		n.sync(ctx, t, msg.ID, req)
 	case TypeCheck:
 		req, err := decode[Check](msg)
 		if err != nil {
@@ -106,7 +119,47 @@ func (n *Node) handle(ctx context.Context, t Transport, msg Message) {
 	}
 }
 
+// sync writes the home into the store. Only after home_synced may anything be
+// cleaned up locally — that is the one hard rule of the working copy.
+func (n *Node) sync(ctx context.Context, t Transport, id string, req SyncHome) {
+	if n.Blobs == nil {
+		n.reply(ctx, t, id, TypeHomeSynced, HomeSynced{AgentID: req.AgentID, Err: "no home store configured"})
+		return
+	}
+	home, _, _ := n.Docker.AgentHome(req.AgentID)
+	res, err := homestore.Sync(ctx, n.Blobs, req.OrgID, home, req.Excludes)
+	if err != nil {
+		n.reply(ctx, t, id, TypeHomeSynced, HomeSynced{AgentID: req.AgentID, Err: err.Error()})
+		return
+	}
+	n.reply(ctx, t, id, TypeHomeSynced, HomeSynced{
+		AgentID: req.AgentID, ManifestHash: res.ManifestHash,
+		TotalSize: res.TotalSize, Blocks: res.Blocks, BytesUp: res.BytesUp,
+	})
+}
+
 func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSandbox) {
+	// The home comes out of the store before the sandbox goes in. Only what
+	// differs is written — on the runner an agent last ran on that is the
+	// normal case, and then this costs nothing at all.
+	if spec.Snapshot != "" && n.Blobs != nil {
+		home, _, _ := n.Docker.AgentHome(spec.AgentID)
+		m, err := homestore.Load(ctx, n.Blobs, spec.OrgID, spec.Snapshot)
+		if err == nil {
+			_, err = homestore.Materialize(ctx, n.Blobs, spec.OrgID, home, m)
+		}
+		if err != nil {
+			// Refused rather than started on a home that is not the one the
+			// snapshot describes: an agent that silently works on a half state
+			// produces work nobody can place afterwards.
+			n.reply(ctx, t, id, TypeSandboxFailed, SandboxResult{
+				AgentID: spec.AgentID,
+				Err:     "materialising the home failed: " + err.Error(),
+			})
+			return
+		}
+	}
+
 	container, err := n.Docker.Start(ctx, spec)
 	if err != nil {
 		n.reply(ctx, t, id, TypeSandboxFailed, SandboxResult{AgentID: spec.AgentID, Err: err.Error()})

@@ -37,6 +37,9 @@ type Message struct {
 const (
 	TypeStartSandbox = "start_sandbox"
 	TypeStopSandbox  = "stop_sandbox"
+	// TypeSyncHome writes the home into the store as a snapshot — after the
+	// job, and enforceable besides (maintenance, decommissioning a runner).
+	TypeSyncHome = "sync_home"
 	// TypeCheck asks what stands between this runner and a running sandbox —
 	// no Docker daemon, a missing image. Asked instead of guessed, because the
 	// answer is specific to the host and only it can give it.
@@ -54,6 +57,7 @@ const (
 	// from a ReadyTimeout minutes later.
 	TypeSandboxExited = "sandbox_exited"
 	TypeCheckResult   = "check_result"
+	TypeHomeSynced    = "home_synced"
 	TypeHeartbeat     = "heartbeat"
 )
 
@@ -88,6 +92,31 @@ type StartSandbox struct {
 	// EgressToken identifies the sandbox to the egress proxy as this agent.
 	// Empty = no egress enforcement for this sandbox.
 	EgressToken string `json:"egress_token,omitempty"`
+	// Snapshot is the state the home is materialised to before the sandbox
+	// starts. Empty = whatever lies in the working copy — which is the case on
+	// the very first wake, and after that only when the store is switched off.
+	Snapshot string `json:"snapshot,omitempty"`
+}
+
+// SyncHome writes an agent's home into the store.
+type SyncHome struct {
+	AgentID uuid.UUID `json:"agent_id"`
+	OrgID   uuid.UUID `json:"org_id"`
+	// Excludes are the paths left out. Their role is a cost question, not a
+	// prerequisite for correctness: the default is empty, and without
+	// configuration everything is synced (spec/16).
+	Excludes []string `json:"excludes,omitempty"`
+}
+
+// HomeSynced reports a completed sync. Only afterwards may anything be cleaned
+// up locally.
+type HomeSynced struct {
+	AgentID      uuid.UUID `json:"agent_id"`
+	ManifestHash string    `json:"manifest_hash"`
+	TotalSize    int64     `json:"total_size"`
+	Blocks       int       `json:"blocks"`
+	BytesUp      int64     `json:"bytes_up"`
+	Err          string    `json:"err,omitempty"`
 }
 
 // StopSandbox shuts compute down; the home stays.
