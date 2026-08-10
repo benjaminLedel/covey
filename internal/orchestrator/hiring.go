@@ -203,7 +203,6 @@ func (o *Orchestrator) hiringCreateAgent(ctx context.Context, agent agents.Agent
 	if err := o.Backlog.SeedDefaultStages(ctx, created.ID); err != nil {
 		o.Log.Warn("hiring: board not seeded", "agent", created.Slug, "err", err)
 	}
-	o.rememberDraft(taskID, created.ID)
 
 	return ok(map[string]any{
 		"agent": created.Slug, "id": created.ID.String(), "draft": true,
@@ -249,7 +248,7 @@ func (o *Orchestrator) hiringSetConfig(ctx context.Context, agent agents.Agent, 
 	// Rule 4: only its own children. Deliberately checked against the drafts of
 	// THIS assignment and not against "is a draft" — otherwise one hiring
 	// assignment could rewrite the drafts of another.
-	if !o.draftedHere(taskID, target.ID) {
+	if !o.draftedHere(ctx, taskID, target.ID) {
 		return fail("agent %q was not drafted in this assignment — you can only configure your own drafts", slug)
 	}
 	if len(req.Files) == 0 {
@@ -310,27 +309,22 @@ func sortedKeys(m map[string]string) []string {
 
 // --- Provenance: which drafts came out of which assignment ---
 
-// rememberDraft is a no-op by design: the provenance is already written, by
-// Obs.Record with status=agent_drafted. A second bookkeeping place would be a
-// second truth, and this one survives a restart — which matters, because an
-// assignment that goes `blocked` and resumes hours later has to be allowed to
-// keep configuring its own drafts.
-func (o *Orchestrator) rememberDraft(uuid.UUID, uuid.UUID) {}
-
-// draftedHere answers whether this assignment drafted that agent. Read off the
-// recording, the same place the interface reads it from.
-func (o *Orchestrator) draftedHere(taskID, agentID uuid.UUID) bool {
+// draftedHere answers whether this assignment drafted that agent.
+//
+// Read off the recording, the same place the interface reads it from, and
+// nowhere else: a second bookkeeping place in memory would be a second truth,
+// and this one survives a restart — which matters, because an assignment that
+// goes `blocked` and resumes hours later has to be allowed to keep configuring
+// its own drafts.
+func (o *Orchestrator) draftedHere(ctx context.Context, taskID, agentID uuid.UUID) bool {
 	var found bool
-	err := o.Pool.QueryRow(context.Background(), `SELECT EXISTS (
+	err := o.Pool.QueryRow(ctx, `SELECT EXISTS (
 		SELECT 1 FROM recording_events
 		WHERE task_id=$1 AND kind=$2 AND payload->>'status'='agent_drafted'
 		  AND payload->>'drafted_agent'=$3)`,
 		taskID, observability.KindLifecycle, agentID.String()).Scan(&found)
 	return err == nil && found
 }
-
-// forgetDrafts: nothing to forget — see rememberDraft.
-func (o *Orchestrator) forgetDrafts(uuid.UUID) {}
 
 // findDepartment resolves a department by name, case-insensitively. The model
 // reads and writes names, not IDs — asking it to carry a UUID through a

@@ -108,12 +108,6 @@ type Orchestrator struct {
 	wikiSweepMu   sync.Mutex
 	lastWikiSweep time.Time
 
-	// drafts records which agents were drafted in which assignment (hiring.go).
-	// That is what "only its own children" is checked against: an assignment may
-	// configure exactly the drafts it created itself.
-	draftsMu sync.Mutex
-	drafts   map[uuid.UUID][]uuid.UUID
-
 	// noCredNoted: when this agent's missing credential was last put on the
 	// record. The tick comes back every thirty seconds and finds the same open
 	// task, and a state that changes only when a human acts does not need to be
@@ -1502,9 +1496,6 @@ func (o *Orchestrator) publishTask(taskID, agentID uuid.UUID) {
 // processTask drives a task through triage → working → done/blocked/failed.
 func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link DaemonLink, task backlog.Task, s *session) error {
 	taskID := task.ID
-	// Whatever this assignment drafts, it may configure — and only for as long as
-	// it runs (hiring.go).
-	defer o.forgetDrafts(taskID)
 	o.setStatus(ctx, agent, &taskID, agents.StatusTriage)
 	o.publishTask(taskID, agent.ID)
 
