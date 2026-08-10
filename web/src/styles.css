@@ -148,6 +148,20 @@ h1, h2, h3 { font-weight: 500; margin: 0; }
    Aufgabe: da ist etwas, und es fehlt noch eine Entscheidung. */
 .st-draft { background: transparent; color: var(--text-secondary); border: 0.5px dashed var(--text-secondary); }
 
+/* Die Agentenkarte: gleich hoch wie ihre Nachbarn, Knöpfe am Fuß.
+   Ohne das standen in einer Reihe drei verschieden hohe Karten, je nachdem
+   wie lang der Name war — und die Knöpfe klebten jeweils woanders. */
+.agent-card {
+  display: flex;
+  flex-direction: column;
+  color: inherit;
+  height: 100%;
+}
+.agent-card-actions { margin-top: auto; padding-top: 10px; }
+/* Lange Namen brechen um statt die Karte zu sprengen; erfundene Bot-Namen
+   ohne Leerzeichen („Anlagenüberwachungs-Agent") notfalls im Wort. */
+.agent-card-name { overflow-wrap: anywhere; }
+
 /* Die Bewerbungen: ein eigenes Feld, nicht nur eine Überschrift.
    Ein Agent, der noch nicht eingestellt ist, arbeitet nicht — zwischen den
    Kollegen stünde er da wie einer und wäre keiner. Deshalb gestrichelt

@@ -119,6 +119,7 @@ export default function Dashboard({ me }: { me: Principal }) {
                 agent={a}
                 onHire={canManage(me.Role) ? setHiring : undefined}
                 onReject={canManage(me.Role) ? setRejecting : undefined}
+                labelled
               />
             ))}
           </div>
@@ -167,38 +168,56 @@ export default function Dashboard({ me }: { me: Principal }) {
   );
 }
 
+/* Die Initialen: nur Buchstaben und Ziffern.
+   Sonst wird aus „QA-Agent (GitLab)" ein Kreis mit „Q(" — die Klammer ist der
+   erste Buchstabe des zweiten Wortes. */
+function initialsOf(name: string): string {
+  return name
+    .split(/[\s-]+/)
+    .map((w) => w.replace(/[^\p{L}\p{N}]/gu, "")[0])
+    .filter(Boolean)
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+}
+
+/* Eine Agentenkarte.
+ *
+ * Der Zustand steht rechts oben, der Name links — und der Name darf umbrechen,
+ * ohne dem Zustand den Platz zu nehmen: `min-w-0` am Textblock, `shrink-0` am
+ * Badge. Ohne das schob ein zweizeiliger Name das Badge in die Überschrift.
+ *
+ * Im Bewerbungsfeld bleibt das Badge weg (`labelled`): der Kasten heißt schon
+ * „Bewerbungen", ein „Bewerbung" auf jeder Karte darin sagt nichts dazu und
+ * kostet genau den Platz, an dem es klemmt. */
 function AgentCard({
   agent,
   onHire,
   onReject,
+  labelled = false,
 }: {
   agent: Agent;
   onHire?: (a: Agent) => void;
   onReject?: (a: Agent) => void;
+  labelled?: boolean;
 }) {
   const { t } = useTranslation();
   const draft = isDraft(agent);
-  const initials = agent.display_name
-    .split(/\s+/)
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
   return (
-    <Link to={`/agents/${agent.id}`} className="card block no-underline" style={{ color: "inherit" }}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2.5">
-          <div className="avatar">{initials}</div>
-          <div>
-            <div className="font-medium text-sm">{agent.display_name}</div>
-            <div className="muted text-xs">{agent.slug}</div>
-          </div>
+    <Link to={`/agents/${agent.id}`} className="card agent-card no-underline">
+      <div className="flex items-start gap-2.5 mb-3">
+        <div className="avatar shrink-0">{initialsOf(agent.display_name)}</div>
+        <div className="min-w-0" style={{ flex: 1 }}>
+          <div className="font-medium text-sm agent-card-name">{agent.display_name}</div>
+          <div className="muted text-xs mono agent-card-name">{agent.slug}</div>
         </div>
-        {draft ? (
-          <span className="badge st-draft">{t("dashboard.draftBadge")}</span>
-        ) : (
-          <span className={`badge st-${agent.killed ? "killed" : agent.status}`}>
-            {t(`status.${agent.killed ? "killed" : agent.status}`, agent.killed ? "gestoppt" : agent.status)}
+        {!(draft && labelled) && (
+          <span
+            className={`badge shrink-0 ${draft ? "st-draft" : `st-${agent.killed ? "killed" : agent.status}`}`}
+          >
+            {draft
+              ? t("dashboard.draftBadge")
+              : t(`status.${agent.killed ? "killed" : agent.status}`, agent.status)}
           </span>
         )}
       </div>
@@ -207,7 +226,7 @@ function AgentCard({
         {agent.budget_usd > 0 && <> · {t("dashboard.budget")} {agent.budget_usd.toFixed(2)} $</>}
       </div>
       {draft && (onHire || onReject) && (
-        <div className="flex gap-2" style={{ marginTop: 10 }}>
+        <div className="flex gap-2 agent-card-actions">
           {onHire && (
             <button
               className="btn sm primary"
