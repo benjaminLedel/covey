@@ -238,6 +238,11 @@ h1, h2, h3 { font-weight: 500; margin: 0; }
    dort ist 100% ohnehin kleiner. Textareas bleiben ungedeckelt: Config-Editor
    und Seiten-Bearbeitung wollen den Platz. */
 input, select { max-width: 640px; }
+/* Ankreuz- und Auswahlfelder sind keine Textfelder. Die Regel darunter gibt
+   jedem input volle Breite und Innenabstand — bei einer Checkbox ergibt das
+   einen leeren Kasten ueber der Beschriftung statt eines Hakens davor. Das
+   fiel in dichten Listen nie auf und auf der Einrichtungsseite sofort. */
+input[type="checkbox"], input[type="radio"] { width: auto; padding: 0; }
 input, textarea, select {
   width: 100%;
   padding: 8px 10px;
