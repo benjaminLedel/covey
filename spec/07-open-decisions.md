@@ -130,6 +130,14 @@ The embryo exists: `internal/claudeapi` is exactly this path — tool-less, sing
 
 The case against, and the line not to cross: this must not become **Covey implementing an agent loop**. Tool use, context compaction and above all session resume — on which the whole `blocked` mechanism rests ([`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)) — are what the harness engines provide, and rebuilding them makes the platform a harness vendor, against design principles 2 and 3. The distinction to hold is **agentic versus not**, not CLI versus API. Discussion in [`18-runtimes-capacity.md`](18-runtimes-capacity.md).
 
+### D15 — The control plane's own LLM access is Anthropic-only
+
+Two features call a model from the control plane rather than from a sandbox: the config copilot and the dream ([`05-memory.md`](05-memory.md)). Both sit directly on `internal/claudeapi`, which resolves an Anthropic API key or a subscription token and speaks the Messages API. An organisation that operates Covey on Codex therefore has agents that work and a control plane that cannot think — the copilot is not offered at all, and the personalisation step of the setup silently falls back to a static template ([`20-hiring-and-setup.md`](20-hiring-and-setup.md)).
+
+The fix is the pattern the platform already uses for identity and secrets: a narrow port with the provider implementations behind it, and the two existing callers moved onto it ([`10-architecture-stack.md`](10-architecture-stack.md), principle 10). What is open is not whether but **how far**: a two-implementation port solves it in a day and leaves a third provider as another implementation — or the whole thing is folded into D14, where the direct engine already is this call, only modelled as an engine with a runtime, credentials and cost attribution behind it. The second is the better structure and the larger step; the first unblocks the setup.
+
+Whichever way it goes, the resolution rule has to stop being "find an Anthropic credential" and become "find the credential of the runtime this organisation actually operates on".
+
 ## Proposed MVP scope
 
 The goal: the shortest path to **one real agent that behaves like an employee**, not the full fleet.

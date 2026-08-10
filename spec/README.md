@@ -43,6 +43,7 @@ The guiding metaphor from which the whole architecture follows: the platform is 
 | [`17-kpis.md`](17-kpis.md) | Performance indicators: KPIs as counting rules over recorded evidence, `KPIS.md` per agent, unit cost and productive share against the cost figures |
 | [`18-runtimes-capacity.md`](18-runtimes-capacity.md) | Runtimes as contracts: engine vs. configured workplace, credential pools per provider, merit order, reported utilisation, what a cost figure means |
 | [`19-codex-adapter.md`](19-codex-adapter.md) | Second engine (planned): `codex exec`, credential as a file vs. an environment variable, tokens without a price, no utilisation source |
+| [`20-hiring-and-setup.md`](20-hiring-and-setup.md) | Setup (the credential first, the company description as org master data) and hiring: the People department as an agent, the `covey` target system, the draft state |
 
 ## Design principles
 
@@ -76,5 +77,7 @@ The guiding metaphor from which the whole architecture follows: the platform is 
 - **Organisation / tenant** — The unit a Covey instance is operated for. All agents, roles, guard rails, budgets and audits are org-scoped.
 - **Human role** — A person with defined rights on the platform (e.g. platform admin, agent owner, security/compliance, auditor, controlling). Governed by RBAC, authenticated via SSO.
 - **Agent owner** — The person (usually a department's team lead) accountable for a particular agent: its config, its backlog priority, its approvals.
+- **Draft** — An agent that has been created but not yet hired: it has a config, a name and a place, but it is not dispatched, has no heartbeat, no sandbox and no cost. It becomes an employee when a person hires it. See [`20-hiring-and-setup.md`](20-hiring-and-setup.md).
+- **People department** — The org-owned agent whose job is hiring other agents: it turns a person's description of a job into a complete agent config and drafts the agent. Config as code instead of a hardcoded generation call — the same principle as the memory curator.
 - **Companion** — The dedicated (mobile/desktop) app for offloading the entire brain load (audio, mail, screen recording, documents, links) in one place. The memory curator condenses it into a wiki with media (linked pages + `pgvector`); private by default, shareable with your own agents on request — as their context. See [`14-companion-memory.md`](14-companion-memory.md).
 - **Memory curator** — An org-owned agent that cuts a person's raw brain dump (captures) into linked wiki pages — config as code instead of a hardcoded LLM call. See [`14-companion-memory.md`](14-companion-memory.md).

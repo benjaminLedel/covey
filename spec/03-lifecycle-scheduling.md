@@ -20,6 +20,8 @@ A permanent, **cheap** dispatch loop runs per agent — **no LLM**, pure orchest
 
 Only when one of these sources fires is the expensive agent runtime in the sandbox woken (`wake` → `assign_task`, see [`01-architecture.md`](01-architecture.md)).
 
+An agent that has not been **hired** yet is skipped by the loop entirely, whichever source fires: a draft has no first day, so it has no waking phases ([`02-agent-model.md`](02-agent-model.md)). Its heartbeat is not scheduled and its webhook is not live; tasks queued against it simply wait, and the hiring is what releases them.
+
 ### Heartbeat: recurring tasks (`HEARTBEAT.md`)
 
 The schedule source is config as code: every line in `HEARTBEAT.md` ([`02-agent-model.md`](02-agent-model.md)) defines a recurring task.

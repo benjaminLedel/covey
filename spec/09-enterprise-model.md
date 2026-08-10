@@ -44,6 +44,12 @@ Beyond a login and an RBAC role, every human has a **profile**: function (job ti
 
 The purpose is not address-book cosmetics but **handovers agent → human**: the profiles are appended at dispatch time as the section *"Team (human employees)"* to every agent's system prompt (analogous to the target-system documentation, so that profile changes take effect immediately without recompiling the agent config). An agent picks the person by their responsibility and uses exactly the stored identifier — it never guesses usernames. That way the GitLab bot, for instance, knows whom to assign an issue to for testing after a fix (the GitLab plugin's `assign` action: username → user ID → `assignee_ids`).
 
+### The organisation's own profile
+
+The organisation carries the same kind of master data one level up: its name, and a short **description of what this company does**. It is asked for once during setup and stays editable under *Organisations* ([`20-hiring-and-setup.md`](20-hiring-and-setup.md)).
+
+It is master data rather than a setup prompt because the same three sentences answer the same question in several places: in the config of newly drafted agents, in every hiring brief, and in the system prompt of the config copilot — which today knows the agent, its target systems and its guard rails, but not the company they belong to. Stated once, used wherever the platform would otherwise have to guess or ask again.
+
 ## Organisational structure: departments, cost centres, tenants
 
 - **Departments / teams** — agents are assigned to organisational units. The org chart maps the real structure (team lead → their agents), and guard rails as well as budgets can be scoped **per department** (see guard-rail scope in [`06-observability-control.md`](06-observability-control.md)).
