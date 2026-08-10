@@ -445,6 +445,21 @@ func (c *Client) createTask(ctx context.Context, req RequestCreateTask) (InjectC
 	return DecodePayload[InjectCreateTask](msg)
 }
 
+// hiring brokers a hiring meta action (covey/create_agent & co., spec/20) to
+// the control plane. Every one of them is decided and executed there — the
+// registry is there, and so are the four rules that keep an agent from
+// employing anybody.
+func (c *Client) hiring(ctx context.Context, req RequestHiring) (InjectHiring, error) {
+	req.RequestID = uuid.NewString()
+	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	msg, err := c.request(reqCtx, TypeRequestHiring, req.RequestID, req)
+	if err != nil {
+		return InjectHiring{}, err
+	}
+	return DecodePayload[InjectHiring](msg)
+}
+
 // checkAction fetches the central policy decision for an action.
 func (c *Client) checkAction(ctx context.Context, taskID, action string, params json.RawMessage) (ApprovalDecision, error) {
 	reqID := uuid.NewString()
