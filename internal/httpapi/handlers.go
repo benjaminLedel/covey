@@ -820,6 +820,28 @@ func (s *Server) handleSetSandboxImage(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "sandbox_image": strings.TrimSpace(in.Image)})
 }
 
+// handleSetRunnerTags sets the capabilities an agent needs of its host
+// (spec/16). Empty = any runner of the organisation, which is the normal case.
+func (s *Server) handleSetRunnerTags(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var in struct {
+		Tags []string `json:"runner_tags"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "runner_tags missing")
+		return
+	}
+	if err := s.Registry.SetRunnerTags(r.Context(), id, in.Tags); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "runner_tags": in.Tags})
+}
+
 // handleOrgRecording reads (GET) and sets (PATCH) the org floor of the
 // recording depth — the org-wide minimum depth (security/compliance).
 func (s *Server) handleGetOrgRecording(w http.ResponseWriter, r *http.Request) {

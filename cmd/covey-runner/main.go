@@ -91,7 +91,7 @@ type config struct {
 	URL     string
 	Token   string
 	WorkDir string
-	Image   string
+	Images  []string
 	Tags    []string
 }
 
@@ -102,7 +102,8 @@ func runRegister(ctx context.Context, args []string, log *slog.Logger) error {
 	description := fs.String("description", "", "what this host is, for the runner view")
 	configPath := fs.String("config", defaultConfigPath, "where the configuration is written")
 	workDir := fs.String("work-dir", "/var/lib/covey-runner", "working copies and local blocks")
-	image := fs.String("image", "covey-sandbox:latest", "the sandbox image this host holds")
+	var images stringList
+	fs.Var(&images, "image", "a sandbox image this host holds (repeatable); default covey-sandbox:latest")
 	var tags stringList
 	fs.Var(&tags, "tag", "a capability of this host (repeatable), e.g. arm64")
 	if err := fs.Parse(args); err != nil {
@@ -116,7 +117,10 @@ func runRegister(ctx context.Context, args []string, log *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	cfg := config{URL: strings.TrimRight(*url, "/"), Token: runnerToken, WorkDir: *workDir, Image: *image, Tags: tags}
+	if len(images) == 0 {
+		images = stringList{"covey-sandbox:latest"}
+	}
+	cfg := config{URL: strings.TrimRight(*url, "/"), Token: runnerToken, WorkDir: *workDir, Images: images, Tags: tags}
 	if err := writeConfig(*configPath, cfg); err != nil {
 		return fmt.Errorf("writing %s: %w — the runner token is lost with it, register again", *configPath, err)
 	}
@@ -151,11 +155,12 @@ func runRun(ctx context.Context, args []string, log *slog.Logger) error {
 
 	docker := &runner.Docker{
 		RunnerID: me.RunnerID,
-		Image:    cfg.Image,
+		Image:    firstOr(cfg.Images, "covey-sandbox:latest"),
 		DataDir:  cfg.WorkDir,
 	}
 	node := runner.NewNode(me.RunnerID, me.OrgID, docker, log)
 	node.Tags = cfg.Tags
+	node.Images = cfg.Images
 	// The blocks come through the control plane: a runner never gets the
 	// store's credentials (spec/16, "Trust boundary").
 	node.Blobs = homestore.NewHTTPStore(cfg.URL, cfg.Token)
@@ -178,7 +183,7 @@ func writeConfig(path string, cfg config) error {
 	fmt.Fprintf(&b, "url = %q\n", cfg.URL)
 	fmt.Fprintf(&b, "token = %q\n", cfg.Token)
 	fmt.Fprintf(&b, "work_dir = %q\n", cfg.WorkDir)
-	fmt.Fprintf(&b, "image = %q\n", cfg.Image)
+	fmt.Fprintf(&b, "images = [%s]\n", quoteList(cfg.Images))
 	fmt.Fprintf(&b, "tags = [%s]\n", quoteList(cfg.Tags))
 	return os.WriteFile(path, []byte(b.String()), 0o600)
 }
@@ -191,7 +196,7 @@ func readConfig(path string) (config, error) {
 	if err != nil {
 		return config{}, fmt.Errorf("%s: %w — run `covey-runner register` first", path, err)
 	}
-	cfg := config{WorkDir: "/var/lib/covey-runner", Image: "covey-sandbox:latest"}
+	cfg := config{WorkDir: "/var/lib/covey-runner", Images: []string{"covey-sandbox:latest"}}
 	for _, line := range strings.Split(string(raw), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
@@ -203,8 +208,12 @@ func readConfig(path string) (config, error) {
 		}
 		key = strings.TrimSpace(key)
 		value = strings.TrimSpace(value)
-		if key == "tags" {
+		switch key {
+		case "tags":
 			cfg.Tags = parseList(value)
+			continue
+		case "images":
+			cfg.Images = parseList(value)
 			continue
 		}
 		value = strings.Trim(value, `"`)
@@ -215,8 +224,6 @@ func readConfig(path string) (config, error) {
 			cfg.Token = value
 		case "work_dir":
 			cfg.WorkDir = value
-		case "image":
-			cfg.Image = value
 		}
 	}
 	return cfg, nil
@@ -240,6 +247,13 @@ func parseList(value string) []string {
 		}
 	}
 	return out
+}
+
+func firstOr(items []string, fallback string) string {
+	if len(items) > 0 {
+		return items[0]
+	}
+	return fallback
 }
 
 // stringList collects a repeatable flag.

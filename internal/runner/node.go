@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"runtime"
 	"sync"
 
 	"github.com/google/uuid"
@@ -22,6 +23,10 @@ type Node struct {
 	Docker   *Docker
 	Log      *slog.Logger
 	Tags     []string
+	// Images this host holds. On a runner the image is a statement of
+	// capacity — it gets only agents whose workplace it can provide. Empty =
+	// it makes no claim and is not excluded on that ground.
+	Images []string
 	// Blobs is the home store. The built-in runner reaches it directly — it
 	// sits in the process that owns it; that is a transport detail, and the
 	// sync logic above does not know the difference. nil = no store, and the
@@ -64,7 +69,9 @@ func (n *Node) Run(ctx context.Context, t Transport) error {
 		OrgID:    n.OrgID,
 		Protocol: Protocol,
 		Version:  buildinfo.String(),
+		Arch:     runtime.GOARCH,
 		Tags:     n.Tags,
+		Images:   n.Images,
 	})
 	if err != nil {
 		return err

@@ -74,6 +74,12 @@ type Registered struct {
 	Version string   `json:"version,omitempty"`
 	Arch    string   `json:"arch,omitempty"`
 	Tags    []string `json:"tags,omitempty"`
+	// Images this runner holds. On a runner the image is a statement of
+	// capacity: it gets only agents whose workplace it can actually provide.
+	// Empty = it makes no claim, and then it is not excluded on that ground —
+	// which is what the built-in runner does, since the control plane can look
+	// at its images itself.
+	Images []string `json:"images,omitempty"`
 }
 
 // Protocol is the version this build speaks. It is raised when a message

@@ -254,6 +254,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/agents/{id}/recording-level", s.agentScoped(manage, s.handleSetRecordingLevel))
 	mux.Handle("PATCH /api/v1/agents/{id}/warm-sandbox", s.agentScoped(manage, s.handleSetWarmSandbox))
 	mux.Handle("PATCH /api/v1/agents/{id}/sandbox-image", s.agentScoped(manage, s.handleSetSandboxImage))
+	mux.Handle("PATCH /api/v1/agents/{id}/runner-tags", s.agentScoped(manage, s.handleSetRunnerTags))
 
 	// Runners (spec/16). Reading is for everyone who may look at the platform;
 	// adding and decommissioning a host is a management act.

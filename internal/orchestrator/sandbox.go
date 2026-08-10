@@ -28,9 +28,13 @@ type SandboxSpec struct {
 	// Image is the agent's workplace: a profile name (`base`, `dev`), an image
 	// reference of its own, or empty for the provider's default. The provider
 	// resolves it — only it knows what a profile is called in its world.
-	Image   string
-	HomeDir string
-	Env     map[string]string // COVEY_WS_URL, COVEY_DAEMON_TOKEN, …
+	Image string
+	// RunnerTags are the capabilities the agent needs of its host. The provider
+	// decides what to do with them — for the docker provider on one machine,
+	// nothing.
+	RunnerTags []string
+	HomeDir    string
+	Env        map[string]string // COVEY_WS_URL, COVEY_DAEMON_TOKEN, …
 	// EgressToken is the per-sandbox token the sandbox uses to identify itself
 	// as this agent to the egress proxy (Proxy-Authorization). Empty = no
 	// egress enforcement for this sandbox.

@@ -43,13 +43,18 @@ On the new host — Docker, the sandbox image, and the runner binary:
 ```bash
 make sandbox-image                       # or pull it; the runner needs the image locally
 covey-runner register --url https://covey.example --token <registration token> \
-                      --description "Build host Frankfurt" --tag arm64
+                      --description "Build host Frankfurt" \
+                      --tag arm64 --image covey-sandbox:latest
 covey-runner run
 ```
 
 `register` writes `/etc/covey-runner/config.toml` (overridable with
-`--config`): the server address, the runner token, the working directory and
-the image this host holds. The token is what this host acts for its
+`--config`): the server address, the runner token, the working directory, and
+the tags and images this host holds. Both are capability statements —
+`--tag arm64` says what this host is, `--image` says which workplaces it can
+provide, and the scheduler assigns only agents that fit both. An agent asks for
+tags through `PATCH /api/v1/agents/{id}/runner-tags`; empty is the normal case
+and means any runner of the organisation. The token is what this host acts for its
 organisation with — the file is written `0600` and belongs treated as such.
 
 As a service:

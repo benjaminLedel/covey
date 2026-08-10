@@ -249,3 +249,66 @@ func TestProtocolMismatchIsRefusedWithAReason(t *testing.T) {
 		t.Errorf("the message has to name which side is behind: %v", err)
 	}
 }
+
+// Scheduling has to be able to say why nothing fits, because the three causes
+// call for different things: no runner at all, none with the tags, none with
+// the image. One collective "no capacity" would send whoever reads it looking
+// in the wrong place — and this is the message the transition to a registered
+// runner produces first.
+func TestSchedulingNamesWhyNothingFits(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	orgID := uuid.New()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	p := NewPool(quietLog())
+	p.DefaultImage = "covey-sandbox:test"
+	p.Profiles = map[string]string{"base": "covey-sandbox:test", "dev": "covey-sandbox-dev:test"}
+	p.StartTimeout = 5 * time.Second
+
+	// No runner at all.
+	_, err := p.Start(ctx, orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: orgID})
+	if err == nil || !strings.Contains(err.Error(), "no connected runner") {
+		t.Fatalf("without a runner the message has to say so: %v", err)
+	}
+
+	// An arm64 build host that holds only the base image — the case that
+	// catches people out after registering their first runner.
+	id := uuid.New()
+	node := NewNode(id, orgID, &Docker{
+		RunnerID: id, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, "nothing"),
+	}, quietLog())
+	node.Tags = []string{"arm64"}
+	node.Images = []string{"covey-sandbox:test"}
+	if err := p.AttachLocal(ctx, node); err != nil {
+		t.Fatal(err)
+	}
+
+	// The agent wants a tag nobody carries.
+	_, err = p.Start(ctx, orchestrator.SandboxSpec{
+		AgentID: uuid.New(), OrgID: orgID, RunnerTags: []string{"gpu"},
+	})
+	if err == nil || !strings.Contains(err.Error(), "tags") {
+		t.Errorf("a missing tag has to be named: %v", err)
+	}
+
+	// The agent wants the dev workplace, which this host does not hold. The
+	// remedy has to be in the message — there is deliberately no fallback.
+	_, err = p.Start(ctx, orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: orgID, Image: "dev"})
+	if err == nil || !strings.Contains(err.Error(), "covey-sandbox-dev:test") {
+		t.Errorf("a missing image has to be named: %v", err)
+	}
+	if err != nil && !strings.Contains(err.Error(), "build it there") {
+		t.Errorf("the message has to name the remedy: %v", err)
+	}
+
+	// What fits, runs — including the tag the host does carry.
+	if _, err := p.Start(ctx, orchestrator.SandboxSpec{
+		AgentID: uuid.New(), OrgID: orgID, Image: "base", RunnerTags: []string{"arm64"},
+	}); err != nil {
+		t.Errorf("a matching runner has to be used: %v", err)
+	}
+}

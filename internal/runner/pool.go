@@ -78,6 +78,7 @@ type conn struct {
 	version  string
 	arch     string
 	tags     []string
+	images   []string
 	t        Transport
 	pool     *Pool
 
@@ -90,6 +91,12 @@ type conn struct {
 
 // ErrNoRunner: this organisation has nothing that could carry the sandbox.
 var ErrNoRunner = errors.New("no runner available")
+
+// errNoneInOrg is the one case where creating a built-in runner is the answer:
+// the organisation has none at all. A runner that is there but does not fit is
+// a different situation — and creating a built-in one beside it would be the
+// mixed pool through the back door.
+var errNoneInOrg = fmt.Errorf("%w: this organisation has no connected runner", ErrNoRunner)
 
 const defaultStartTimeout = 2 * time.Minute
 
@@ -166,7 +173,8 @@ func (p *Pool) register(ctx context.Context, t Transport, builtin bool) (*conn, 
 
 	c := &conn{
 		runnerID: reg.RunnerID, orgID: reg.OrgID, builtin: builtin,
-		protocol: reg.Protocol, version: reg.Version, arch: reg.Arch, tags: reg.Tags,
+		protocol: reg.Protocol, version: reg.Version, arch: reg.Arch,
+		tags: reg.Tags, images: reg.Images,
 		t: t, pool: p, waiters: map[string]chan Message{},
 	}
 	p.mu.Lock()
@@ -295,28 +303,59 @@ func (c *conn) ask(ctx context.Context, msgType string, payload any, timeout tim
 // ensureAndPick gives an organisation without a runner its built-in one and
 // tries again. Serialised per organisation: two simultaneous wakes must not
 // each start one.
-func (p *Pool) ensureAndPick(ctx context.Context, orgID uuid.UUID) (*conn, error) {
-	if p.EnsureLocal == nil {
-		return nil, fmt.Errorf("%w: this organisation has no connected runner", ErrNoRunner)
-	}
+func (p *Pool) ensureAndPick(ctx context.Context, want need) (*conn, error) {
 	p.mu.Lock()
-	lock := p.ensuring[orgID]
+	lock := p.ensuring[want.orgID]
 	if lock == nil {
 		lock = &sync.Mutex{}
-		p.ensuring[orgID] = lock
+		p.ensuring[want.orgID] = lock
 	}
 	p.mu.Unlock()
 
 	lock.Lock()
 	defer lock.Unlock()
 	// Whoever waited on the lock may find the runner already there.
-	if c, err := p.pick(orgID); err == nil {
+	if c, err := p.pick(want); err == nil {
 		return c, nil
 	}
-	if err := p.EnsureLocal(ctx, orgID); err != nil {
+	if err := p.EnsureLocal(ctx, want.orgID); err != nil {
 		return nil, err
 	}
-	return p.pick(orgID)
+	return p.pick(want)
+}
+
+// hasAll: every tag the agent asks for has to be on the runner. The other
+// direction does not hold — a runner may carry more than is asked of it.
+func hasAll(has, wanted []string) bool {
+	for _, w := range wanted {
+		found := false
+		for _, h := range has {
+			if strings.EqualFold(strings.TrimSpace(h), strings.TrimSpace(w)) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+// holdsImage: a runner that names no images makes no claim and is therefore
+// not excluded on that ground. That is the built-in runner's case — the
+// control plane can look at its images itself, and a claim it would have to
+// keep up to date would only be one more thing that can be wrong.
+func holdsImage(has []string, wanted string) bool {
+	if len(has) == 0 || wanted == "" {
+		return true
+	}
+	for _, h := range has {
+		if strings.TrimSpace(h) == wanted {
+			return true
+		}
+	}
+	return false
 }
 
 // imageFor resolves an agent's workplace. One rule, in this order: nothing
@@ -333,22 +372,51 @@ func (p *Pool) imageFor(want string) string {
 	return want
 }
 
+// need describes what a sandbox requires of its runner.
+type need struct {
+	orgID uuid.UUID
+	image string
+	tags  []string
+}
+
 // pick chooses the runner for an agent. Deliberately simple, because no runner
 // has to be "the right one" — only the cheapest.
-func (p *Pool) pick(orgID uuid.UUID) (*conn, error) {
+//
+// The message when nothing fits is worth as much as the choice itself: *this
+// organisation has no runner* calls for something different from *no runner
+// holds this image*, and a collective "no capacity" would send whoever reads it
+// looking in the wrong place. So the reason is carried along instead of
+// reconstructed.
+func (p *Pool) pick(want need) (*conn, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	var candidates []*conn
+	var inOrg, byTags, candidates []*conn
 	for _, c := range p.conns {
 		// The organisation comes first and is not a filter among others: a
 		// runner of a foreign tenant is not a worse candidate, it is none.
-		if c.orgID == orgID {
-			candidates = append(candidates, c)
+		if c.orgID != want.orgID {
+			continue
 		}
+		inOrg = append(inOrg, c)
+		if !hasAll(c.tags, want.tags) {
+			continue
+		}
+		byTags = append(byTags, c)
+		if !holdsImage(c.images, want.image) {
+			continue
+		}
+		candidates = append(candidates, c)
 	}
-	if len(candidates) == 0 {
-		return nil, fmt.Errorf("%w: this organisation has no connected runner", ErrNoRunner)
+	switch {
+	case len(inOrg) == 0:
+		return nil, errNoneInOrg
+	case len(byTags) == 0:
+		return nil, fmt.Errorf("%w: no runner of this organisation carries the tags %v",
+			ErrNoRunner, want.tags)
+	case len(candidates) == 0:
+		return nil, fmt.Errorf("%w: no runner holds the image %q — build it there, "+
+			"or change the agent's workplace", ErrNoRunner, want.image)
 	}
 	// The fewest running sandboxes wins; the runner ID breaks ties so that the
 	// choice does not depend on map order.
@@ -370,12 +438,12 @@ func (p *Pool) pick(orgID uuid.UUID) (*conn, error) {
 
 // Start satisfies orchestrator.SandboxProvider.
 func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orchestrator.Sandbox, error) {
-	c, err := p.pick(spec.OrgID)
-	if errors.Is(err, ErrNoRunner) {
-		if c, err = p.ensureAndPick(ctx, spec.OrgID); err != nil {
-			return nil, err
-		}
-	} else if err != nil {
+	want := need{orgID: spec.OrgID, image: p.imageFor(spec.Image), tags: spec.RunnerTags}
+	c, err := p.pick(want)
+	if errors.Is(err, errNoneInOrg) && p.EnsureLocal != nil {
+		c, err = p.ensureAndPick(ctx, want)
+	}
+	if err != nil {
 		return nil, err
 	}
 	timeout := p.StartTimeout

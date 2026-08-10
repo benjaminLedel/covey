@@ -72,6 +72,10 @@ type Agent struct {
 	// the image is at the same time a statement of capacity: it reports which
 	// ones it holds and gets only matching agents (spec/16).
 	SandboxImage string `json:"sandbox_image"`
+	// RunnerTags are the capabilities this agent needs of its host: arm64, gpu,
+	// a runner inside the target system's network. Empty = any runner of the
+	// organisation (spec/16, "Scheduling").
+	RunnerTags []string `json:"runner_tags,omitempty"`
 	// WarmSandbox keeps this agent's sandbox alive between waking phases
 	// (opt-in): dev servers and caches survive, the next run starts without a
 	// cold build-up. Default false → ephemeral like everyone else (spec/01).
@@ -125,13 +129,13 @@ type Registry struct {
 
 func NewRegistry(pool *pgxpool.Pool) *Registry { return &Registry{pool: pool} }
 
-const agentCols = "id, org_id, slug, display_name, runtime, model, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, runtime_id, webhook_token, COALESCE(recording_level,''), sandbox_image, warm_sandbox, hired_at, created_at, updated_at"
+const agentCols = "id, org_id, slug, display_name, runtime, model, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, runtime_id, webhook_token, COALESCE(recording_level,''), sandbox_image, runner_tags, warm_sandbox, hired_at, created_at, updated_at"
 
 func scanAgent(row pgx.Row) (Agent, error) {
 	var a Agent
 	err := row.Scan(&a.ID, &a.OrgID, &a.Slug, &a.DisplayName, &a.Runtime, &a.Model, &a.MaxTurns, &a.Status,
 		&a.OwnerID, &a.SupervisorID, &a.DepartmentID, &a.JobTitle, &a.Identities, &a.Phone, &a.Responsibilities, &a.Custom,
-		&a.Killed, &a.BudgetUSD, &a.RuntimeID, &a.WebhookToken, &a.RecordingLevel, &a.SandboxImage, &a.WarmSandbox, &a.HiredAt, &a.CreatedAt, &a.UpdatedAt)
+		&a.Killed, &a.BudgetUSD, &a.RuntimeID, &a.WebhookToken, &a.RecordingLevel, &a.SandboxImage, &a.RunnerTags, &a.WarmSandbox, &a.HiredAt, &a.CreatedAt, &a.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, ErrNotFound
 	}
@@ -347,6 +351,22 @@ func (r *Registry) SandboxImagesInUse(ctx context.Context) (map[string]int, erro
 func (r *Registry) SetSandboxImage(ctx context.Context, id uuid.UUID, image string) error {
 	tag, err := r.pool.Exec(ctx, "UPDATE agents SET sandbox_image=$2, updated_at=now() WHERE id=$1",
 		id, strings.TrimSpace(image))
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+// SetRunnerTags sets the capabilities an agent needs of its host. Empty = any
+// runner of the organisation. Takes effect at the next cold start.
+func (r *Registry) SetRunnerTags(ctx context.Context, id uuid.UUID, tags []string) error {
+	clean := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		if tag = strings.TrimSpace(tag); tag != "" {
+			clean = append(clean, tag)
+		}
+	}
+	tag, err := r.pool.Exec(ctx, "UPDATE agents SET runner_tags=$2, updated_at=now() WHERE id=$1", id, clean)
 	if err == nil && tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
