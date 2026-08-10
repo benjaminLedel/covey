@@ -65,6 +65,13 @@ type Agent struct {
 	// (spec/06); empty = inherits the org floor. It only ever tightens (max with
 	// the floor), enforced in the control plane.
 	RecordingLevel string `json:"recording_level"`
+	// SandboxImage is the workplace this agent runs in: either a profile name
+	// (`base`, `dev`) or an image reference of its own. Empty = the instance
+	// default. The image hangs off the agent and not off the instance (D11) —
+	// a mail agent should not carry a developer agent's JVM, and on a runner
+	// the image is at the same time a statement of capacity: it reports which
+	// ones it holds and gets only matching agents (spec/16).
+	SandboxImage string `json:"sandbox_image"`
 	// WarmSandbox keeps this agent's sandbox alive between waking phases
 	// (opt-in): dev servers and caches survive, the next run starts without a
 	// cold build-up. Default false → ephemeral like everyone else (spec/01).
@@ -118,13 +125,13 @@ type Registry struct {
 
 func NewRegistry(pool *pgxpool.Pool) *Registry { return &Registry{pool: pool} }
 
-const agentCols = "id, org_id, slug, display_name, runtime, model, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, runtime_id, webhook_token, COALESCE(recording_level,''), warm_sandbox, hired_at, created_at, updated_at"
+const agentCols = "id, org_id, slug, display_name, runtime, model, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, runtime_id, webhook_token, COALESCE(recording_level,''), sandbox_image, warm_sandbox, hired_at, created_at, updated_at"
 
 func scanAgent(row pgx.Row) (Agent, error) {
 	var a Agent
 	err := row.Scan(&a.ID, &a.OrgID, &a.Slug, &a.DisplayName, &a.Runtime, &a.Model, &a.MaxTurns, &a.Status,
 		&a.OwnerID, &a.SupervisorID, &a.DepartmentID, &a.JobTitle, &a.Identities, &a.Phone, &a.Responsibilities, &a.Custom,
-		&a.Killed, &a.BudgetUSD, &a.RuntimeID, &a.WebhookToken, &a.RecordingLevel, &a.WarmSandbox, &a.HiredAt, &a.CreatedAt, &a.UpdatedAt)
+		&a.Killed, &a.BudgetUSD, &a.RuntimeID, &a.WebhookToken, &a.RecordingLevel, &a.SandboxImage, &a.WarmSandbox, &a.HiredAt, &a.CreatedAt, &a.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, ErrNotFound
 	}
@@ -305,6 +312,41 @@ func (r *Registry) SetMaxTurns(ctx context.Context, id uuid.UUID, maxTurns int) 
 // max(org floor, override) — enforced on the control plane side.
 func (r *Registry) SetRecordingLevel(ctx context.Context, id uuid.UUID, level string) error {
 	tag, err := r.pool.Exec(ctx, "UPDATE agents SET recording_level=NULLIF($2,''), updated_at=now() WHERE id=$1", id, level)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+// SandboxImagesInUse counts the agents per configured workplace — the basis for
+// the startup check "is the image these agents need actually there?". Drafts
+// count too: they are hired at some point, and then the image has to exist.
+func (r *Registry) SandboxImagesInUse(ctx context.Context) (map[string]int, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT sandbox_image, count(*) FROM agents WHERE NOT killed GROUP BY sandbox_image`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var image string
+		var n int
+		if err := rows.Scan(&image, &n); err != nil {
+			return nil, err
+		}
+		out[image] = n
+	}
+	return out, rows.Err()
+}
+
+// SetSandboxImage sets the agent's workplace: a profile name (`base`, `dev`),
+// an image reference of its own, or empty for the instance default. Takes
+// effect at the next cold start — a running or warm-parked sandbox keeps the
+// image it was started with.
+func (r *Registry) SetSandboxImage(ctx context.Context, id uuid.UUID, image string) error {
+	tag, err := r.pool.Exec(ctx, "UPDATE agents SET sandbox_image=$2, updated_at=now() WHERE id=$1",
+		id, strings.TrimSpace(image))
 	if err == nil && tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}

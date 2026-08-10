@@ -47,10 +47,22 @@ run: build
 # The sandbox image agents work in (coveyd + Claude Code + chromium). Needed
 # before the first wake, not before the first start: `covey serve` comes up
 # without it and says at startup that it is missing.
+#
+# Two profiles (spec/16): `base` carries what every agent needs, `dev` adds the
+# toolchains of a developer agent (PHP, JDK, fvm, uv, node-gyp). The image hangs
+# off the agent — a mail agent no longer carries a JVM.
 sandbox-image:
 	docker build -f Dockerfile.sandbox \
 		--build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) --build-arg DATE=$(DATE) \
 		-t covey-sandbox:latest .
+
+sandbox-image-dev: sandbox-image
+	docker build -f Dockerfile.sandbox.dev \
+		--build-arg BASE_IMAGE=covey-sandbox:latest \
+		-t covey-sandbox-dev:latest .
+
+# Both profiles at once — what an installation that has developer agents needs.
+sandbox-images: sandbox-image-dev
 
 # Egress proxy image for COVEY_EGRESS_ISOLATION=network (hard network isolation).
 egress-image:

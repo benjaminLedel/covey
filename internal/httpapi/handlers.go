@@ -792,6 +792,34 @@ func (s *Server) handleSetWarmSandbox(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true, "warm_sandbox": in.Warm})
 }
 
+// handleSetSandboxImage sets an agent's workplace: a profile name (`base`,
+// `dev`) or an image reference of its own; empty = the instance default.
+// Takes effect at the next cold start.
+//
+// The value is not validated against a list of profiles. That is deliberate:
+// the third row of the profile table is "org-owned: anything" (spec/16), and a
+// check here would have to know every image an organisation builds for itself.
+// A wrong value fails loudly at the next wake, with the image named.
+func (s *Server) handleSetSandboxImage(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var in struct {
+		Image string `json:"sandbox_image"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "sandbox_image missing")
+		return
+	}
+	if err := s.Registry.SetSandboxImage(r.Context(), id, in.Image); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "sandbox_image": strings.TrimSpace(in.Image)})
+}
+
 // handleOrgRecording reads (GET) and sets (PATCH) the org floor of the
 // recording depth — the org-wide minimum depth (security/compliance).
 func (s *Server) handleGetOrgRecording(w http.ResponseWriter, r *http.Request) {

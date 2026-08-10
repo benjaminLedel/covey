@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -23,7 +24,18 @@ import (
 // exclusively of what the control plane puts into SandboxSpec.Env.
 type DockerProvider struct {
 	// Image is the sandbox image (coveyd + runtime), see Dockerfile.sandbox.
+	// It applies to agents that name none of their own.
 	Image string
+	// Profiles maps a profile name to its image (`base`, `dev` — spec/16).
+	// An agent's value that is not a profile is taken as an image reference:
+	// that is the "org-owned: anything" row of the profile table, and it needs
+	// no second field to hold it.
+	Profiles map[string]string
+	// AgentImages reports which workplaces the agents are configured for
+	// (value from the agent → number of agents). Used only by Check, to ask
+	// about the images that are actually in use. nil = unknown; then only the
+	// instance default is asked about.
+	AgentImages func(ctx context.Context) (map[string]int, error)
 	// DataDir holds the persistent agent homes on the host.
 	DataDir string
 	// DockerBin overrides the CLI path (default "docker") — for tests.
@@ -92,6 +104,20 @@ const (
 	sandboxUID = 1001
 	sandboxGID = 1001
 )
+
+// imageFor resolves an agent's workplace. One rule, in this order: nothing
+// named → the instance default; a known profile → its image; anything else →
+// taken literally.
+func (p *DockerProvider) imageFor(want string) string {
+	want = strings.TrimSpace(want)
+	if want == "" {
+		return p.Image
+	}
+	if img, ok := p.Profiles[want]; ok && img != "" {
+		return img
+	}
+	return want
+}
 
 func (p *DockerProvider) docker() string {
 	if p.DockerBin != "" {
@@ -196,14 +222,16 @@ func (p *DockerProvider) Start(ctx context.Context, spec SandboxSpec) (Sandbox, 
 		}
 		args = append(args, "-e", k+"="+v)
 	}
-	args = append(args, p.Image)
+	image := p.imageFor(spec.Image)
+	args = append(args, image)
 
 	out, err := exec.CommandContext(ctx, p.docker(), args...).CombinedOutput()
 	if err != nil {
 		msg := strings.TrimSpace(string(out))
 		if strings.Contains(msg, "No such image") || strings.Contains(msg, "pull access denied") ||
 			strings.Contains(msg, "Unable to find image") {
-			return nil, fmt.Errorf("sandbox image %q is missing — build it with `make sandbox-image`: %s", p.Image, msg)
+			return nil, fmt.Errorf("sandbox image %q is missing — build it with `%s`: %s",
+				image, buildHint(image), msg)
 		}
 		return nil, fmt.Errorf("docker run: %v: %s", err, msg)
 	}
@@ -252,12 +280,26 @@ func (p *DockerProvider) Check(ctx context.Context) []string {
 	}
 
 	var problems []string
-	if out, err := exec.CommandContext(ctx, p.docker(), "image", "inspect", p.Image).CombinedOutput(); err != nil {
+	// Since the image hangs off the agent, "is the image there?" is no longer
+	// one question but one per image in use. Asking about every configured
+	// profile instead would warn every fresh installation about a dev image
+	// nobody wants — the answer has to follow the agents, not the config.
+	for image, agents := range p.imagesInUse(ctx) {
+		out, err := exec.CommandContext(ctx, p.docker(), "image", "inspect", image).CombinedOutput()
+		if err == nil {
+			continue
+		}
+		// The number of agents only when it is known: "0 agents work in it"
+		// would be a statement about the data source, not about the platform.
+		who := ""
+		if agents > 0 {
+			who = fmt.Sprintf(", and %d agent(s) work in it", agents)
+		}
 		problems = append(problems, fmt.Sprintf(
-			"sandbox image %q is missing — build it once: "+
-				"`docker build -f Dockerfile.sandbox -t %s .` (%s)",
-			p.Image, p.Image, firstLine(string(out), err)))
+			"sandbox image %q is missing%s — build it once: `%s` (%s)",
+			image, who, buildHint(image), firstLine(string(out), err)))
 	}
+	sort.Strings(problems) // map iteration order must not shuffle the startup log
 	if p.EgressIsolation == "network" && p.EgressProxyImage != "" {
 		if out, err := exec.CommandContext(ctx, p.docker(), "image", "inspect", p.EgressProxyImage).CombinedOutput(); err != nil {
 			problems = append(problems, fmt.Sprintf(
@@ -267,6 +309,35 @@ func (p *DockerProvider) Check(ctx context.Context) []string {
 		}
 	}
 	return problems
+}
+
+// imagesInUse returns the resolved images the agents actually work in, with
+// how many of them each one carries. Without a source of that information the
+// instance default is the only thing that can be asked about — which is what
+// the answer was before the image hung off the agent.
+func (p *DockerProvider) imagesInUse(ctx context.Context) map[string]int {
+	if p.AgentImages == nil {
+		return map[string]int{p.Image: 0}
+	}
+	wanted, err := p.AgentImages(ctx)
+	if err != nil || len(wanted) == 0 {
+		return map[string]int{p.Image: 0}
+	}
+	out := map[string]int{}
+	for want, n := range wanted {
+		out[p.imageFor(want)] += n
+	}
+	return out
+}
+
+// buildHint names the make target that produces this image. A message that
+// sends someone to `make sandbox-image` while the dev image is what is missing
+// costs them the build twice — and the second one still does not help.
+func buildHint(image string) string {
+	if strings.Contains(image, "sandbox-dev") {
+		return "make sandbox-image-dev"
+	}
+	return "make sandbox-image"
 }
 
 // firstLine keeps a CLI error to the one line that says something. Docker

@@ -350,7 +350,7 @@ The middle one is the message that has to be genuinely good, because it is the o
 
 ## Sandbox images per agent
 
-The runner makes a gap visible that hurts even without it: the sandbox image is instance-wide today (`COVEY_SANDBOX_IMAGE`). Every agent gets the same one — the mail agent carries the developer agent's JVM along.
+The runner made a gap visible that hurt even without it: the sandbox image used to be instance-wide (`COVEY_SANDBOX_IMAGE`). Every agent got the same one — the mail agent carried the developer agent's JVM along.
 
 The image therefore belongs **on the agent** (D11 in [`07-open-decisions.md`](07-open-decisions.md)), as a profile:
 

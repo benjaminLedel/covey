@@ -653,7 +653,17 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	var provider orchestrator.SandboxProvider
 	switch cfg.SandboxProvider {
 	case "docker":
-		dp := &orchestrator.DockerProvider{Image: cfg.SandboxImage, DataDir: cfg.DataDir}
+		dp := &orchestrator.DockerProvider{
+			Image:   cfg.SandboxImage,
+			DataDir: cfg.DataDir,
+			// The profiles from spec/16. An agent's value that names none of
+			// them is taken as an image reference of its own.
+			Profiles: map[string]string{
+				"base": cfg.SandboxImage,
+				"dev":  cfg.SandboxImageDev,
+			},
+			AgentImages: registry.SandboxImagesInUse,
+		}
 		if egressEnforced {
 			switch cfg.EgressIsolation {
 			case "network":

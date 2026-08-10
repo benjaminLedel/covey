@@ -16,6 +16,9 @@ export type Agent = {
   model: string;
   max_turns: number;
   recording_level: string; // "" = erbt Org-Boden, sonst minimal|standard|full
+  // Der Arbeitsplatz: Profilname (base, dev) oder ein eigenes Image;
+  // leer = Voreinstellung der Instanz (spec/16).
+  sandbox_image: string;
   warm_sandbox: boolean; // hält die Sandbox zwischen Wach-Phasen live (opt-in)
   status: string;
   supervisor_id?: string;

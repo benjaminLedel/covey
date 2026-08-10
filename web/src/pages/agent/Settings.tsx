@@ -138,6 +138,14 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
     mutationFn: (warm: boolean) => patch(`/agents/${agent.id}/warm-sandbox`, { warm }),
     onSuccess: invalidate,
   });
+  const setSandboxImage = useMutation({
+    mutationFn: (image: string) => patch(`/agents/${agent.id}/sandbox-image`, { sandbox_image: image }),
+    onSuccess: invalidate,
+  });
+  // Ob der Agent auf einem Profil sitzt oder auf einem selbst gebauten Image:
+  // beides steht im selben Feld, und die Auswahl muss das auseinanderhalten.
+  const knownProfile = ["", "base", "dev"].includes(agent.sandbox_image);
+  const [ownImage, setOwnImage] = useState(!knownProfile);
   const setBudget = useMutation({
     mutationFn: (budgetUSD: number) => post(`/agents/${agent.id}/budget`, { budget_usd: budgetUSD }),
     onSuccess: invalidate,
@@ -295,6 +303,42 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
           <option value="full">{t("agent.settings.recordingFull")}</option>
         </select>
         <span className="muted text-xs">{t("agent.settings.recordingHint")}</span>
+      </div>
+      <div style={row}>
+        <span className="text-sm">{t("agent.settings.sandboxImage")}</span>
+        {/* Ein eigenes Image der Organisation ist ein gültiger Wert (spec/16),
+            deshalb bleibt neben der Auswahl ein Textfeld: die Liste kennt die
+            Profile, nicht alles, was jemand selbst baut. */}
+        <div className="flex items-center gap-2">
+          <select
+            value={ownImage ? "custom" : agent.sandbox_image}
+            disabled={!editable || setSandboxImage.isPending}
+            onChange={(e) => {
+              setOwnImage(e.target.value === "custom");
+              if (e.target.value === "custom") return;
+              if (e.target.value !== agent.sandbox_image) setSandboxImage.mutate(e.target.value);
+            }}
+          >
+            <option value="">{t("agent.settings.sandboxImageDefault")}</option>
+            <option value="base">{t("agent.settings.sandboxImageBase")}</option>
+            <option value="dev">{t("agent.settings.sandboxImageDev")}</option>
+            <option value="custom">{t("agent.settings.sandboxImageOwn")}</option>
+          </select>
+          {ownImage && (
+            <input
+              key={`sbimgown:${agent.sandbox_image}`}
+              defaultValue={knownProfile ? "" : agent.sandbox_image}
+              placeholder="registry.example.com/team/sandbox:tag"
+              disabled={!editable || setSandboxImage.isPending}
+              onBlur={(e) => {
+                if (e.target.value.trim() !== agent.sandbox_image) setSandboxImage.mutate(e.target.value);
+              }}
+              onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+              className="mono"
+            />
+          )}
+        </div>
+        <span className="muted text-xs">{t("agent.settings.sandboxImageHint")}</span>
       </div>
       <div style={row}>
         <span className="text-sm">{t("agent.settings.warmSandbox")}</span>

@@ -48,8 +48,15 @@ type Config struct {
 	SandboxProvider string
 	// DataDir holds the persistent sandbox homes (docker provider).
 	DataDir string
-	// SandboxImage is the container image of the docker provider (Dockerfile.sandbox).
+	// SandboxImage is the container image of the docker provider
+	// (Dockerfile.sandbox) — the `base` profile and at the same time the
+	// default for agents that name no workplace of their own.
 	SandboxImage string
+	// SandboxImageDev is the image of the `dev` profile
+	// (Dockerfile.sandbox.dev): base plus PHP, JDK, fvm, uv and the native
+	// build toolchain. The image hangs off the agent (spec/16) — a mail agent
+	// no longer carries a developer agent's JVM.
+	SandboxImageDev string
 	// WebhookSecrets verify signatures of incoming target-system webhooks:
 	// COVEY_<SYSTEM>_WEBHOOK_SECRET → entry under the lowercased system name
 	// (e.g. COVEY_ZAMMAD_WEBHOOK_SECRET → "zammad").
@@ -154,6 +161,7 @@ func FromEnv() (Config, error) {
 		SandboxProvider:  getenv("COVEY_SANDBOX_PROVIDER", "docker"),
 		DataDir:          getenv("COVEY_DATA_DIR", "./data"),
 		SandboxImage:     getenv("COVEY_SANDBOX_IMAGE", "covey-sandbox:latest"),
+		SandboxImageDev:  getenv("COVEY_SANDBOX_IMAGE_DEV", "covey-sandbox-dev:latest"),
 		WebhookSecrets:   webhookSecretsFromEnv(),
 		TickInterval:     getenvDuration("COVEY_TICK_INTERVAL", 30*time.Second),
 		DreamAt:          getenv("COVEY_DREAM_AT", "03:00"),

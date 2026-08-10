@@ -24,7 +24,11 @@ type SandboxSpec struct {
 	// sandbox — and with it which egress segment it hangs in: a runner serves
 	// exactly one organisation (spec/16), so two tenants never share an
 	// internal network.
-	OrgID   uuid.UUID
+	OrgID uuid.UUID
+	// Image is the agent's workplace: a profile name (`base`, `dev`), an image
+	// reference of its own, or empty for the provider's default. The provider
+	// resolves it — only it knows what a profile is called in its world.
+	Image   string
 	HomeDir string
 	Env     map[string]string // COVEY_WS_URL, COVEY_DAEMON_TOKEN, …
 	// EgressToken is the per-sandbox token the sandbox uses to identify itself
