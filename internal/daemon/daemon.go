@@ -240,6 +240,7 @@ var routedInjectTypes = map[string]bool{
 	TypeInjectWiki:        true,
 	TypeInjectSkills:      true,
 	TypeInjectCreateTask:  true,
+	TypeInjectHiring:      true,
 	TypeInjectSecret:      true,
 }
 
