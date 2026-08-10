@@ -94,6 +94,11 @@ type Orchestrator struct {
 	mu       sync.Mutex
 	sessions map[uuid.UUID]*session
 	waiting  map[uuid.UUID]chan DaemonLink
+	// dying receives the reason when the sandbox of an agent currently being
+	// woken has ended before its daemon ever connected. Without it, a crashed
+	// or OOM-killed container costs the full ReadyTimeout and produces a
+	// message about a daemon that never had a chance to connect.
+	dying map[uuid.UUID]chan string
 	// baseCtx is the control plane's lifecycle, set by Run. Sessions hang off it
 	// instead of context.Background(): on shutdown, running runs should be
 	// aborted and not linger as orphaned goroutines with an open sandbox. Before
@@ -148,6 +153,7 @@ func New(opts Options) *Orchestrator {
 		usage:    newUsageCache(),
 		sessions: map[uuid.UUID]*session{},
 		waiting:  map[uuid.UUID]chan DaemonLink{},
+		dying:    map[uuid.UUID]chan string{},
 		warm:     map[uuid.UUID]*warmSession{},
 		events:   NewBroadcaster(),
 	}
@@ -681,6 +687,23 @@ func (o *Orchestrator) EnsureRunning(agentID uuid.UUID) {
 	}()
 }
 
+// SandboxDied reports a sandbox that ended without being asked to — the runner
+// watches the container and says so (spec/16). Whoever is waiting for this
+// agent's daemon stops waiting; for everyone else it is a log line, because a
+// sandbox that dies outside a wake has already been given up on.
+func (o *Orchestrator) SandboxDied(agentID uuid.UUID, reason string) {
+	o.mu.Lock()
+	ch := o.dying[agentID]
+	o.mu.Unlock()
+	if ch == nil {
+		return
+	}
+	select {
+	case ch <- reason:
+	default:
+	}
+}
+
 // AttachDaemon hands an authenticated daemon connection to the waiting session.
 // Does not block: without a waiting session it is rejected.
 func (o *Orchestrator) AttachDaemon(agentID uuid.UUID, link DaemonLink) error {
@@ -778,6 +801,14 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 	link, sandbox, err := o.acquireSandbox(ctx, agent)
 	if err != nil {
 		o.setStatus(ctx, agent, nil, agents.StatusSleeping)
+		// Into the recording, not only into the log: a wake that fails is the
+		// most common thing an operator has to explain, and the reason lives in
+		// the process's stderr while they are looking at the agent's page. The
+		// runner names what happened (a dead container, a missing image) — that
+		// sentence belongs where the question is asked.
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindLifecycle, map[string]any{
+			"status": "wake_failed", "error": err.Error(),
+		})
 		return fmt.Errorf("wake: %w", err)
 	}
 	s.link = link
@@ -861,12 +892,15 @@ func (o *Orchestrator) wake(ctx context.Context, agent agents.Agent) (DaemonLink
 	}
 
 	ch := make(chan DaemonLink, 1)
+	died := make(chan string, 1)
 	o.mu.Lock()
 	o.waiting[agent.ID] = ch
+	o.dying[agent.ID] = died
 	o.mu.Unlock()
 	defer func() {
 		o.mu.Lock()
 		delete(o.waiting, agent.ID)
+		delete(o.dying, agent.ID)
 		o.mu.Unlock()
 	}()
 
@@ -911,6 +945,12 @@ func (o *Orchestrator) wake(ctx context.Context, agent agents.Agent) (DaemonLink
 			return nil, nil, fmt.Errorf("daemon not ready: %v (%s)", err, msg.Type)
 		}
 		return link, sandbox, nil
+	case reason := <-died:
+		// The runner watched the container and says it is gone. Reported
+		// instead of waited out: the ReadyTimeout would give the same outcome
+		// minutes later and blame the daemon for it.
+		sandbox.Stop(context.WithoutCancel(ctx))
+		return nil, nil, fmt.Errorf("the sandbox did not survive its start: %s", reason)
 	case <-time.After(o.ReadyTimeout):
 		sandbox.Stop(context.WithoutCancel(ctx))
 		// The address belongs in the message: the most common reason for this

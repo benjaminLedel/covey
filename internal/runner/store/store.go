@@ -1,10 +1,12 @@
-// Package runner is the control plane's side of the data plane: the runners on
-// which sandboxes actually run (spec/16-runner.md).
+// Package store keeps the runners in Postgres: the row a runner authenticates
+// against, and the built-in runner an organisation gets from the platform
+// itself (spec/16-runner.md).
 //
-// At this stage the package carries only the identity — the row a runner
-// authenticates against. The protocol, the pool and the remote runner follow
-// (stages 2 and 4 of the build order in spec/16).
-package runner
+// Deliberately its own package next to internal/runner. That one holds the
+// protocol and the runner side of it and must stay free of the database —
+// on a remote host the runner is precisely the component that must not be a
+// database client. internal/daemon carries the same cut for the same reason.
+package store
 
 import (
 	"context"

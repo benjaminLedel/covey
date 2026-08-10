@@ -32,7 +32,7 @@ import (
 	"covey/internal/orchestrator"
 	"covey/internal/org"
 	reqlogstore "covey/internal/reqlog/store"
-	"covey/internal/runner"
+	runnerstore "covey/internal/runner/store"
 	"covey/internal/runtimes"
 	"covey/internal/secrets"
 	"covey/internal/skills"
@@ -73,7 +73,7 @@ type Server struct {
 	// Runners are the execution nodes (spec/16). They authenticate with their
 	// own token against /api/runner/v1/… — the only interface they have to the
 	// platform. nil = the runner API answers 503 (tests).
-	Runners *runner.Store
+	Runners *runnerstore.Store
 
 	Templates *templates.Store
 

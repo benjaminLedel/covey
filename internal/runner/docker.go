@@ -1,4 +1,4 @@
-package orchestrator
+package runner
 
 import (
 	"context"
@@ -15,27 +15,31 @@ import (
 	"github.com/google/uuid"
 )
 
-// DockerProvider starts coveyd in a container — real isolation at the
-// namespace level instead of the process level (spec/01: the sandbox is dumb
-// and replaceable; only the home is persistent and gets mounted as a volume).
-// It deliberately talks to the docker CLI instead of the SDK libs: no heavy
-// dependency, and `docker run`/`docker stop` are the whole truth.
-// The container inherits nothing from the host — the environment consists
-// exclusively of what the control plane puts into SandboxSpec.Env.
-type DockerProvider struct {
-	// Image is the sandbox image (coveyd + runtime), see Dockerfile.sandbox.
-	// It applies to agents that name none of their own.
+// Docker starts coveyd in a container — real isolation at the namespace level
+// instead of the process level (spec/01: the sandbox is dumb and replaceable;
+// only the home is persistent and gets mounted as a volume). It deliberately
+// talks to the docker CLI instead of the SDK libs: no heavy dependency, and
+// `docker run`/`docker stop` are the whole truth. The container inherits
+// nothing from the host — the environment consists exclusively of what the
+// control plane puts into StartSandbox.Env.
+//
+// It is the runner's arm, not the orchestrator's: which image an agent belongs
+// in is decided on the control plane, which knows the agent. Here only images
+// exist.
+type Docker struct {
+	// RunnerID is the runner this executor belongs to. It names the egress
+	// segment and the proxy container: one set per runner, because a runner
+	// serves exactly one organisation and `--internal` cuts the way out, not
+	// the way sideways.
+	RunnerID uuid.UUID
+	// EgressRunnerToken is what the proxy container authenticates to the
+	// control plane with.
+	EgressRunnerToken string
+	// Image is the fallback for a start that names none, and the image the
+	// self-check asks about when the control plane names none. What an agent's
+	// profile resolves to is decided over there — a runner knows images, not
+	// agents.
 	Image string
-	// Profiles maps a profile name to its image (`base`, `dev` — spec/16).
-	// An agent's value that is not a profile is taken as an image reference:
-	// that is the "org-owned: anything" row of the profile table, and it needs
-	// no second field to hold it.
-	Profiles map[string]string
-	// AgentImages reports which workplaces the agents are configured for
-	// (value from the agent → number of agents). Used only by Check, to ask
-	// about the images that are actually in use. nil = unknown; then only the
-	// instance default is asked about.
-	AgentImages func(ctx context.Context) (map[string]int, error)
 	// DataDir holds the persistent agent homes on the host.
 	DataDir string
 	// DockerBin overrides the CLI path (default "docker") — for tests.
@@ -54,21 +58,17 @@ type DockerProvider struct {
 	EgressIsolation string
 	// EgressProxyImage is the proxy image for network mode (make egress-image).
 	EgressProxyImage string
-	// EgressProxyEnv are the proxy container's env variables that are the same
-	// for every runner (COVEY_CONTROL_URL, COVEY_EGRESS_ALLOW incl. the control
-	// plane host, COVEY_EGRESS_PROXY_ADDR). The runner token comes per runner
-	// from EgressRunnerFor — deliberately NOT the database URL: the proxy is an
-	// enforcement point, not a database client (spec/16, "Trust boundary").
+	// EgressProxyEnv are the proxy container's env variables (COVEY_CONTROL_URL,
+	// COVEY_EGRESS_ALLOW incl. the control plane host,
+	// COVEY_EGRESS_PROXY_ADDR) — deliberately NOT the database URL: the proxy
+	// is an enforcement point, not a database client (spec/16, "Trust
+	// boundary"). The runner token is added from EgressRunnerToken.
 	EgressProxyEnv map[string]string
-	// EgressRunnerFor resolves an organisation's runner and its token. In hard
-	// isolation mode each runner gets its own segment and its own proxy, so
-	// this is what decides where a sandbox lands.
-	EgressRunnerFor func(ctx context.Context, orgID uuid.UUID) (runnerID uuid.UUID, token string, err error)
 
-	// proxyFresh notes the runners whose proxy container this process has
-	// already renewed. See ensureEgressProxy for why that is necessary.
+	// proxyFresh: whether this process has already renewed its proxy
+	// container. See ensureEgressProxy for why that is necessary.
 	proxyMu    sync.Mutex
-	proxyFresh map[uuid.UUID]bool
+	proxyFresh bool
 }
 
 // egressProxyAlias is the proxy's DNS name on its internal network. It may stay
@@ -105,36 +105,25 @@ const (
 	sandboxGID = 1001
 )
 
-// imageFor resolves an agent's workplace. One rule, in this order: nothing
-// named → the instance default; a known profile → its image; anything else →
-// taken literally.
-func (p *DockerProvider) imageFor(want string) string {
-	want = strings.TrimSpace(want)
-	if want == "" {
-		return p.Image
-	}
-	if img, ok := p.Profiles[want]; ok && img != "" {
-		return img
-	}
-	return want
-}
-
-func (p *DockerProvider) docker() string {
+func (p *Docker) docker() string {
 	if p.DockerBin != "" {
 		return p.DockerBin
 	}
 	return "docker"
 }
 
-// AgentHome satisfies FileAccess: the home lives as a directory on the host
-// (`<DataDir>/homes/<agent-id>`) and is mounted into the sandbox — readable and
-// writable even while no container is running.
-func (p *DockerProvider) AgentHome(agentID uuid.UUID) (Home, error) {
-	return Home{Path: p.homePath(agentID.String()), UID: sandboxUID, GID: sandboxGID}, nil
+// AgentHome is the route to an agent's home: a directory on this host,
+// mounted into the sandbox — readable and writable even while no container is
+// running, and asleep is the normal state.
+//
+// uid/gid belong with it: the directory is chowned to the sandbox user, and
+// whoever reads or writes it from outside has to know whose it is.
+func (p *Docker) AgentHome(agentID uuid.UUID) (path string, uid, gid int) {
+	return p.homePath(agentID.String()), sandboxUID, sandboxGID
 }
 
 // homePath is the single place where a home's host path is formed.
-func (p *DockerProvider) homePath(agentID string) string {
+func (p *Docker) homePath(agentID string) string {
 	home := filepath.Join(p.DataDir, "homes", agentID)
 	if abs, err := filepath.Abs(home); err == nil {
 		return abs
@@ -142,7 +131,8 @@ func (p *DockerProvider) homePath(agentID string) string {
 	return home
 }
 
-func (p *DockerProvider) Start(ctx context.Context, spec SandboxSpec) (Sandbox, error) {
+// Start brings up the sandbox and returns the container's name.
+func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, error) {
 	home := spec.HomeDir
 	if home == "" {
 		home = p.homePath(spec.AgentID.String())
@@ -164,7 +154,7 @@ func (p *DockerProvider) Start(ctx context.Context, spec SandboxSpec) (Sandbox, 
 	// matter which uid ends up owning it; secrets never live here regardless
 	// (spec/04), so the wider "other" read/traverse bit is not a new exposure.
 	if err := os.MkdirAll(home, 0o755); err != nil {
-		return nil, err
+		return "", err
 	}
 	_ = os.Chown(home, sandboxUID, sandboxGID)
 
@@ -188,15 +178,11 @@ func (p *DockerProvider) Start(ctx context.Context, spec SandboxSpec) (Sandbox, 
 		// it via CONNECT too — hence NO host.docker.internal add-host here, but
 		// the proxy as HTTP(S)_PROXY. Loopback (the daemon's action proxy) stays
 		// direct.
-		runnerID, runnerToken, err := p.egressRunner(ctx, spec.OrgID)
-		if err != nil {
-			return nil, fmt.Errorf("resolve egress runner: %w", err)
-		}
-		if err := p.ensureNetworkIsolation(ctx, runnerID, runnerToken); err != nil {
-			return nil, fmt.Errorf("prepare egress network: %w", err)
+		if err := p.ensureNetworkIsolation(ctx); err != nil {
+			return "", fmt.Errorf("prepare egress network: %w", err)
 		}
 		proxyURL := egressURLWithCreds("http://"+egressProxyAlias+":8888", spec.AgentID.String(), spec.EgressToken)
-		args = append(args, "--network", egressNetworkFor(runnerID))
+		args = append(args, "--network", egressNetworkFor(p.RunnerID))
 		for _, e := range proxyEnvVars(proxyURL, "localhost,127.0.0.1,::1") {
 			args = append(args, "-e", e)
 		}
@@ -222,7 +208,10 @@ func (p *DockerProvider) Start(ctx context.Context, spec SandboxSpec) (Sandbox, 
 		}
 		args = append(args, "-e", k+"="+v)
 	}
-	image := p.imageFor(spec.Image)
+	image := spec.Image
+	if image == "" {
+		image = p.Image
+	}
 	args = append(args, image)
 
 	out, err := exec.CommandContext(ctx, p.docker(), args...).CombinedOutput()
@@ -230,29 +219,51 @@ func (p *DockerProvider) Start(ctx context.Context, spec SandboxSpec) (Sandbox, 
 		msg := strings.TrimSpace(string(out))
 		if strings.Contains(msg, "No such image") || strings.Contains(msg, "pull access denied") ||
 			strings.Contains(msg, "Unable to find image") {
-			return nil, fmt.Errorf("sandbox image %q is missing — build it with `%s`: %s",
+			return "", fmt.Errorf("sandbox image %q is missing — build it with `%s`: %s",
 				image, buildHint(image), msg)
 		}
-		return nil, fmt.Errorf("docker run: %v: %s", err, msg)
+		return "", fmt.Errorf("docker run: %v: %s", err, msg)
 	}
-	return &dockerSandbox{docker: p.docker(), name: name}, nil
+	return name, nil
 }
 
-type dockerSandbox struct {
-	docker string
-	name   string
-}
-
-func (s *dockerSandbox) Stop(ctx context.Context) error {
+// Stop shuts the compute instance down; the home stays.
+func (p *Docker) Stop(ctx context.Context, name string) error {
 	// docker stop = SIGTERM, SIGKILL after the timeout; --rm removes the container.
 	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(stopCtx, s.docker, "stop", "-t", "5", s.name).CombinedOutput()
+	out, err := exec.CommandContext(stopCtx, p.docker(), "stop", "-t", "5", name).CombinedOutput()
 	if err != nil && !strings.Contains(string(out), "No such container") {
 		// Force cleanup so the name is free for the next wake.
-		_ = exec.CommandContext(stopCtx, s.docker, "rm", "-f", s.name).Run()
+		_ = exec.CommandContext(stopCtx, p.docker(), "rm", "-f", name).Run()
 	}
 	return nil
+}
+
+// Wait blocks until the container has ended and describes how. This is what
+// turns a crash into a reported fact: until now the control plane inferred it
+// from a ReadyTimeout minutes later, or from a daemon link that went quiet.
+func (p *Docker) Wait(ctx context.Context, name string) string {
+	out, err := exec.CommandContext(ctx, p.docker(), "wait", name).CombinedOutput()
+	if ctx.Err() != nil {
+		return ""
+	}
+	code := strings.TrimSpace(string(out))
+	if err != nil {
+		// The container is already gone — with --rm that is the normal end of
+		// a `docker stop`, and the caller decides whether anyone asked for it.
+		return "container gone: " + firstLine(string(out), err)
+	}
+	switch code {
+	case "0":
+		return "sandbox ended by itself (exit 0)"
+	case "137":
+		// 128+9: killed. In a container that is nearly always the OOM killer,
+		// and naming it saves a search that otherwise starts at the runtime.
+		return "sandbox killed (exit 137 — out of memory?)"
+	default:
+		return "sandbox ended by itself (exit " + code + ")"
+	}
 }
 
 // Check reports what stands between this platform and a running sandbox —
@@ -267,7 +278,7 @@ func (s *dockerSandbox) Stop(ctx context.Context) error {
 //
 // Empty result = nothing in the way. Messages are written for whoever operates
 // the instance and each one names its remedy.
-func (p *DockerProvider) Check(ctx context.Context) []string {
+func (p *Docker) Check(ctx context.Context, images []string) []string {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
@@ -284,22 +295,15 @@ func (p *DockerProvider) Check(ctx context.Context) []string {
 	// one question but one per image in use. Asking about every configured
 	// profile instead would warn every fresh installation about a dev image
 	// nobody wants — the answer has to follow the agents, not the config.
-	for image, agents := range p.imagesInUse(ctx) {
+	for _, image := range p.imagesWanted(images) {
 		out, err := exec.CommandContext(ctx, p.docker(), "image", "inspect", image).CombinedOutput()
 		if err == nil {
 			continue
 		}
-		// The number of agents only when it is known: "0 agents work in it"
-		// would be a statement about the data source, not about the platform.
-		who := ""
-		if agents > 0 {
-			who = fmt.Sprintf(", and %d agent(s) work in it", agents)
-		}
 		problems = append(problems, fmt.Sprintf(
-			"sandbox image %q is missing%s — build it once: `%s` (%s)",
-			image, who, buildHint(image), firstLine(string(out), err)))
+			"sandbox image %q is missing — build it once: `%s` (%s)",
+			image, buildHint(image), firstLine(string(out), err)))
 	}
-	sort.Strings(problems) // map iteration order must not shuffle the startup log
 	if p.EgressIsolation == "network" && p.EgressProxyImage != "" {
 		if out, err := exec.CommandContext(ctx, p.docker(), "image", "inspect", p.EgressProxyImage).CombinedOutput(); err != nil {
 			problems = append(problems, fmt.Sprintf(
@@ -311,23 +315,15 @@ func (p *DockerProvider) Check(ctx context.Context) []string {
 	return problems
 }
 
-// imagesInUse returns the resolved images the agents actually work in, with
-// how many of them each one carries. Without a source of that information the
-// instance default is the only thing that can be asked about — which is what
-// the answer was before the image hung off the agent.
-func (p *DockerProvider) imagesInUse(ctx context.Context) map[string]int {
-	if p.AgentImages == nil {
-		return map[string]int{p.Image: 0}
+// imagesWanted is what to ask about: the images the control plane named,
+// which are the ones the agents actually work in. Without a list, the runner's
+// own default is all it can say something about.
+func (p *Docker) imagesWanted(images []string) []string {
+	if len(images) == 0 {
+		return []string{p.Image}
 	}
-	wanted, err := p.AgentImages(ctx)
-	if err != nil || len(wanted) == 0 {
-		return map[string]int{p.Image: 0}
-	}
-	out := map[string]int{}
-	for want, n := range wanted {
-		out[p.imageFor(want)] += n
-	}
-	return out
+	sort.Strings(images) // a stable order keeps the startup log comparable
+	return images
 }
 
 // buildHint names the make target that produces this image. A message that
@@ -388,29 +384,19 @@ func proxyEnvVars(proxyURL, noProxy string) []string {
 	}
 }
 
-// egressRunner resolves the organisation's runner. Without a resolver the
-// provider cannot say which segment a sandbox belongs in — and guessing would
-// mean putting it into a foreign one, so it fails instead.
-func (p *DockerProvider) egressRunner(ctx context.Context, orgID uuid.UUID) (uuid.UUID, string, error) {
-	if p.EgressRunnerFor == nil {
-		return uuid.Nil, "", fmt.Errorf("hard isolation without a runner resolver — the egress segment is unknown")
-	}
-	return p.EgressRunnerFor(ctx, orgID)
-}
-
 // ensureNetworkIsolation idempotently establishes the internal network and the
 // running proxy container — the two building blocks of the hard egress mode,
 // one set per runner.
-func (p *DockerProvider) ensureNetworkIsolation(ctx context.Context, runnerID uuid.UUID, runnerToken string) error {
-	if err := p.ensureEgressNetwork(ctx, runnerID); err != nil {
+func (p *Docker) ensureNetworkIsolation(ctx context.Context) error {
+	if err := p.ensureEgressNetwork(ctx); err != nil {
 		return err
 	}
-	return p.ensureEgressProxy(ctx, runnerID, runnerToken)
+	return p.ensureEgressProxy(ctx)
 }
 
 // ensureEgressNetwork creates the internal network (no gateway to the outside).
-func (p *DockerProvider) ensureEgressNetwork(ctx context.Context, runnerID uuid.UUID) error {
-	name := egressNetworkFor(runnerID)
+func (p *Docker) ensureEgressNetwork(ctx context.Context) error {
+	name := egressNetworkFor(p.RunnerID)
 	if err := exec.CommandContext(ctx, p.docker(), "network", "inspect", name).Run(); err == nil {
 		return nil // already exists
 	}
@@ -431,15 +417,12 @@ func (p *DockerProvider) ensureEgressNetwork(ctx context.Context, runnerID uuid.
 // carry the old one in its environment. It would then get a 401 on its next
 // allowlist fetch and — fail-closed, correctly — block everything. A container
 // restart is cheap; the proxy holds no state.
-func (p *DockerProvider) ensureEgressProxy(ctx context.Context, runnerID uuid.UUID, runnerToken string) error {
-	name := egressProxyNameFor(runnerID)
+func (p *Docker) ensureEgressProxy(ctx context.Context) error {
+	name := egressProxyNameFor(p.RunnerID)
 
 	p.proxyMu.Lock()
-	if p.proxyFresh == nil {
-		p.proxyFresh = map[uuid.UUID]bool{}
-	}
-	fresh := p.proxyFresh[runnerID]
-	p.proxyFresh[runnerID] = true
+	fresh := p.proxyFresh
+	p.proxyFresh = true
 	p.proxyMu.Unlock()
 
 	if fresh {
@@ -458,14 +441,14 @@ func (p *DockerProvider) ensureEgressProxy(ctx context.Context, runnerID uuid.UU
 	}
 	args := []string{"run", "-d", "--restart", "unless-stopped",
 		"--name", name,
-		"--network", egressNetworkFor(runnerID),
+		"--network", egressNetworkFor(p.RunnerID),
 		"--network-alias", egressProxyAlias,
 		"--add-host", "host.docker.internal:host-gateway",
 	}
 	for k, v := range p.EgressProxyEnv {
 		args = append(args, "-e", k+"="+v)
 	}
-	args = append(args, "-e", "COVEY_RUNNER_TOKEN="+runnerToken)
+	args = append(args, "-e", "COVEY_RUNNER_TOKEN="+p.EgressRunnerToken)
 	args = append(args, image)
 	if runOut, err := exec.CommandContext(ctx, p.docker(), args...).CombinedOutput(); err != nil {
 		msg := strings.TrimSpace(string(runOut))

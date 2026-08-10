@@ -1,4 +1,4 @@
-package orchestrator
+package runner
 
 import (
 	"context"
@@ -32,9 +32,9 @@ func TestRewriteLoopbackForDocker(t *testing.T) {
 	}
 }
 
-// TestDockerProviderStart checks the command line the provider builds —
+// TestDockerStart checks the command line the provider builds —
 // against a fake docker binary, without real Docker.
-func TestDockerProviderStart(t *testing.T) {
+func TestDockerStart(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the fake binary is a shell script")
 	}
@@ -47,8 +47,8 @@ func TestDockerProviderStart(t *testing.T) {
 	}
 
 	agentID := uuid.New()
-	p := &DockerProvider{Image: "covey-sandbox:test", DataDir: dir, DockerBin: fake}
-	sb, err := p.Start(context.Background(), SandboxSpec{
+	p := &Docker{Image: "covey-sandbox:test", DataDir: dir, DockerBin: fake}
+	container, err := p.Start(context.Background(), StartSandbox{
 		AgentID: agentID,
 		Env: map[string]string{
 			"COVEY_WS_URL":       "ws://localhost:8494/api/daemon/ws",
@@ -101,16 +101,16 @@ func TestDockerProviderStart(t *testing.T) {
 			home, info.Mode().Perm())
 	}
 
-	if err := sb.Stop(context.Background()); err != nil {
+	if err := p.Stop(context.Background(), container); err != nil {
 		t.Errorf("Stop: %v", err)
 	}
 }
 
-// TestDockerProviderCheck: the self-check has to name the two ways a fresh
+// TestDockerCheck: the self-check has to name the two ways a fresh
 // installation fails — and stay silent when nothing is in the way. Both
 // answers matter equally: a check that cries wolf gets ignored, and one that
 // says nothing lets the first wake do the explaining.
-func TestDockerProviderCheck(t *testing.T) {
+func TestDockerCheck(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the fake binary is a shell script")
 	}
@@ -128,91 +128,37 @@ func TestDockerProviderCheck(t *testing.T) {
 	}
 
 	// No daemon: everything else is beside the point, so only that is said.
-	p := &DockerProvider{Image: "covey-sandbox:test", DockerBin: fakeDocker(t, "version")}
-	problems := p.Check(context.Background())
+	p := &Docker{Image: "covey-sandbox:test", DockerBin: fakeDocker(t, "version")}
+	problems := p.Check(context.Background(), nil)
 	if len(problems) != 1 || !strings.Contains(problems[0], "docker.sock") {
 		t.Fatalf("a missing daemon has to name the socket: %v", problems)
 	}
 
 	// Daemon there, image missing: the message has to carry the build command,
 	// otherwise the reader is left looking for it.
-	p = &DockerProvider{Image: "covey-sandbox:test", DockerBin: fakeDocker(t, "image")}
-	problems = p.Check(context.Background())
+	p = &Docker{Image: "covey-sandbox:test", DockerBin: fakeDocker(t, "image")}
+	problems = p.Check(context.Background(), nil)
 	if len(problems) != 1 || !strings.Contains(problems[0], "make sandbox-image") {
 		t.Fatalf("a missing image has to name how to build it: %v", problems)
 	}
 
-	// Since the image hangs off the agent, the check follows the agents and no
-	// longer the config: it asks about the images that are actually in use, and
-	// names how many agents are waiting on the missing one. Asking about every
-	// configured profile instead would warn every fresh installation about a
-	// dev image nobody wants.
-	p = &DockerProvider{
-		Image:     "covey-sandbox:test",
-		Profiles:  map[string]string{"base": "covey-sandbox:test", "dev": "covey-sandbox-dev:test"},
-		DockerBin: fakeDocker(t, "image"),
-		AgentImages: func(context.Context) (map[string]int, error) {
-			return map[string]int{"dev": 3}, nil // nobody on base
-		},
+	// The images to ask about come from the control plane: it knows the
+	// agents, a runner knows only images. Asking about every configured profile
+	// instead would warn every fresh installation about a dev image nobody
+	// wants.
+	p = &Docker{Image: "covey-sandbox:test", DockerBin: fakeDocker(t, "image")}
+	problems = p.Check(context.Background(), []string{"covey-sandbox:test", "covey-sandbox-dev:test"})
+	if len(problems) != 2 {
+		t.Fatalf("both named images have to be reported: %v", problems)
 	}
-	problems = p.Check(context.Background())
-	if len(problems) != 1 {
-		t.Fatalf("only the image in use may be reported: %v", problems)
-	}
-	if !strings.Contains(problems[0], "covey-sandbox-dev:test") || !strings.Contains(problems[0], "3 agent(s)") {
-		t.Errorf("the message has to name the image and how many wait on it: %q", problems[0])
-	}
-	if !strings.Contains(problems[0], "make sandbox-image-dev") {
-		t.Errorf("the build hint has to name the right target, got %q", problems[0])
+	joined := strings.Join(problems, "\n")
+	if !strings.Contains(joined, "make sandbox-image-dev") || !strings.Contains(joined, "covey-sandbox-dev:test") {
+		t.Errorf("the dev image needs its own hint and its own name:\n%s", joined)
 	}
 
 	// Everything in place: nothing to report.
-	p = &DockerProvider{Image: "covey-sandbox:test", DockerBin: fakeDocker(t, "nothing")}
-	if problems = p.Check(context.Background()); len(problems) != 0 {
+	p = &Docker{Image: "covey-sandbox:test", DockerBin: fakeDocker(t, "nothing")}
+	if problems = p.Check(context.Background(), nil); len(problems) != 0 {
 		t.Fatalf("a working data plane has to stay silent: %v", problems)
-	}
-}
-
-// The image hangs off the agent (spec/16). One column carries both a profile
-// name and an image of an organisation's own, so the resolution is the whole
-// rule — and if it is wrong, an agent silently works in a foreign workplace:
-// either without the toolchain it needs, or with one it should not have.
-func TestImageForResolvesProfilesAndOwnImages(t *testing.T) {
-	p := &DockerProvider{
-		Image: "covey-sandbox:latest",
-		Profiles: map[string]string{
-			"base": "covey-sandbox:latest",
-			"dev":  "covey-sandbox-dev:latest",
-		},
-	}
-	faelle := []struct {
-		name, want, expected string
-	}{
-		{"nothing named → the instance default", "", "covey-sandbox:latest"},
-		{"profile base", "base", "covey-sandbox:latest"},
-		{"profile dev", "dev", "covey-sandbox-dev:latest"},
-		// The third row of the profile table: an organisation builds its own
-		// image and names it. Without this the field would need a second one
-		// beside it that says how to read the first.
-		{"own image", "registry.example.com/team/sandbox:2026-08", "registry.example.com/team/sandbox:2026-08"},
-		// Whitespace comes from a text field in the interface, not from a
-		// malicious client — and a trailing blank must not produce an image
-		// name nobody can find.
-		{"trimmed", "  dev  ", "covey-sandbox-dev:latest"},
-	}
-	for _, f := range faelle {
-		t.Run(f.name, func(t *testing.T) {
-			if got := p.imageFor(f.want); got != f.expected {
-				t.Errorf("imageFor(%q) = %q, expected %q", f.want, got, f.expected)
-			}
-		})
-	}
-
-	// A profile without a configured image must not swallow the value: an
-	// instance without COVEY_SANDBOX_IMAGE_DEV would otherwise start every dev
-	// agent in an empty image name.
-	leer := &DockerProvider{Image: "covey-sandbox:latest", Profiles: map[string]string{"dev": ""}}
-	if got := leer.imageFor("dev"); got != "dev" {
-		t.Errorf("an unconfigured profile stays the literal value, got %q", got)
 	}
 }

@@ -9,7 +9,7 @@ import (
 	"github.com/google/uuid"
 
 	"covey/internal/egress"
-	"covey/internal/runner"
+	runnerstore "covey/internal/runner/store"
 )
 
 // The runner API is the only interface a runner has to the platform
@@ -25,7 +25,7 @@ import (
 
 // runnerAuth resolves the runner token and hands the runner to the handler.
 // Without a valid token: 401, and no hint as to which part was wrong.
-func (s *Server) runnerAuth(next func(http.ResponseWriter, *http.Request, runner.Runner)) http.Handler {
+func (s *Server) runnerAuth(next func(http.ResponseWriter, *http.Request, runnerstore.Runner)) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if s.Runners == nil {
 			writeErr(w, http.StatusServiceUnavailable, "runner API not available")
@@ -34,7 +34,7 @@ func (s *Server) runnerAuth(next func(http.ResponseWriter, *http.Request, runner
 		token := strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
 		rn, err := s.Runners.ByToken(r.Context(), token)
 		if err != nil {
-			if !errors.Is(err, runner.ErrNotFound) {
+			if !errors.Is(err, runnerstore.ErrNotFound) {
 				s.Log.Warn("runner auth failed", "err", err)
 			}
 			writeErr(w, http.StatusUnauthorized, "runner token invalid")
@@ -56,7 +56,7 @@ func (s *Server) runnerAuth(next func(http.ResponseWriter, *http.Request, runner
 // An agent of a foreign organisation is answered with 404 and not with 403: to
 // this runner it does not exist, and the difference between "not there" and
 // "not yours" is one it has no business learning.
-func (s *Server) handleRunnerAllowlist(w http.ResponseWriter, r *http.Request, rn runner.Runner) {
+func (s *Server) handleRunnerAllowlist(w http.ResponseWriter, r *http.Request, rn runnerstore.Runner) {
 	agentID, err := uuid.Parse(r.URL.Query().Get("agent"))
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, "agent: no valid ID")
@@ -88,7 +88,7 @@ func (s *Server) handleRunnerAllowlist(w http.ResponseWriter, r *http.Request, r
 // organisation filter sits in the insert (see egress.Store.LogDecisions), so a
 // foreign agent ID in the batch drops out instead of landing in someone else's
 // records.
-func (s *Server) handleRunnerDecisions(w http.ResponseWriter, r *http.Request, rn runner.Runner) {
+func (s *Server) handleRunnerDecisions(w http.ResponseWriter, r *http.Request, rn runnerstore.Runner) {
 	var req egress.DecisionsRequest
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		writeErr(w, http.StatusBadRequest, "body is not valid JSON")

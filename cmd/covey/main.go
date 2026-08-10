@@ -40,6 +40,7 @@ import (
 	"covey/internal/reqlog"
 	reqlogstore "covey/internal/reqlog/store"
 	"covey/internal/runner"
+	runnerstore "covey/internal/runner/store"
 	"covey/internal/runtimes"
 	secbuiltin "covey/internal/secrets/builtin"
 	"covey/internal/skills"
@@ -602,11 +603,11 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		return err
 	}
 
-	runnerStore := runner.NewStore(pool)
+	runnerStore := runnerstore.NewStore(pool)
 	// The built-in runner: one per organisation, created by the platform
 	// itself. At this stage it is only the identity the egress proxy
 	// authenticates with; it becomes an execution node in stage 2 (spec/16).
-	builtinRunners := runner.NewBuiltinTokens(runnerStore)
+	builtinRunners := runnerstore.NewBuiltinTokens(runnerStore)
 
 	registry := agents.NewRegistry(pool)
 	// Platform-wide wiki cleanup heartbeat (COVEY_WIKI_CLEANUP): the control
@@ -650,51 +651,88 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	// Egress enforcement can only be enforced with real network isolation (docker).
 	egressEnforced := cfg.EgressEnforce && cfg.SandboxProvider == "docker"
 
-	var provider orchestrator.SandboxProvider
-	switch cfg.SandboxProvider {
-	case "docker":
-		dp := &orchestrator.DockerProvider{
-			Image:   cfg.SandboxImage,
-			DataDir: cfg.DataDir,
-			// The profiles from spec/16. An agent's value that names none of
-			// them is taken as an image reference of its own.
-			Profiles: map[string]string{
-				"base": cfg.SandboxImage,
-				"dev":  cfg.SandboxImageDev,
-			},
-			AgentImages: registry.SandboxImagesInUse,
+	if cfg.SandboxProvider != "docker" {
+		return fmt.Errorf("sandbox provider %q: only 'docker' is implemented", cfg.SandboxProvider)
+	}
+
+	// The data plane runs through the runner protocol — including here, where
+	// the runner sits in this very process (spec/16). That is not a detour: it
+	// is what keeps the path to a foreign host from being a second
+	// implementation that only whoever operates two machines ever exercises.
+	runnerPool := runner.NewPool(log)
+	runnerPool.DefaultImage = cfg.SandboxImage
+	// The profiles from spec/16. An agent's value that names none of them is
+	// taken as an image reference of its own.
+	runnerPool.Profiles = map[string]string{"base": cfg.SandboxImage, "dev": cfg.SandboxImageDev}
+	runnerPool.AgentImages = registry.SandboxImagesInUse
+
+	var proxyURL string
+	if egressEnforced && cfg.EgressIsolation != "network" {
+		// Cooperative: proxy inside the control plane process, container via HTTP_PROXY.
+		url, closeProxy, err := startEgressProxy(ctx, cfg, egressStore, log)
+		if err != nil {
+			return err
+		}
+		defer closeProxy()
+		proxyURL = url
+	}
+
+	// One built-in runner per organisation, created on first use — an
+	// organisation that comes into being while the process runs gets its own
+	// too. Each carries its own egress segment: a runner serves exactly one
+	// tenant, and `--internal` cuts the way out, not the way sideways.
+	runnerPool.EnsureLocal = func(ctx context.Context, orgID uuid.UUID) error {
+		runnerID, runnerToken, err := builtinRunners.For(ctx, orgID)
+		if err != nil {
+			return err
+		}
+		docker := &runner.Docker{
+			RunnerID: runnerID,
+			Image:    cfg.SandboxImage,
+			DataDir:  cfg.DataDir,
 		}
 		if egressEnforced {
 			switch cfg.EgressIsolation {
 			case "network":
 				// Hard isolation: sandbox without internet, the proxy container
 				// as its only way out. The proxy fetches the allowlist from the
-				// control plane (live reload by polling) — hence no host-side
-				// reload, and no database URL: one segment and one proxy per
-				// runner, each authenticated with that runner's token.
-				dp.EgressIsolation = "network"
-				dp.EgressProxyImage = "covey-egress:latest"
-				dp.EgressProxyEnv = map[string]string{
+				// control plane and no longer from Postgres — it is an
+				// enforcement point, not a database client.
+				docker.EgressIsolation = "network"
+				docker.EgressProxyImage = "covey-egress:latest"
+				docker.EgressRunnerToken = runnerToken
+				docker.EgressProxyEnv = map[string]string{
 					"COVEY_CONTROL_URL":       rewriteLoopbackForContainer(cfg.PublicURL),
 					"COVEY_EGRESS_ALLOW":      strings.Join(append(append([]string{}, cfg.EgressAllow...), "host.docker.internal"), ","),
 					"COVEY_EGRESS_PROXY_ADDR": ":8888",
 				}
-				dp.EgressRunnerFor = builtinRunners.For
-				log.Info("egress enforcement: hard network isolation active", "proxy-image", dp.EgressProxyImage)
 			default:
-				// Cooperative: proxy inside the control plane process, container via HTTP_PROXY.
-				proxyURL, closeProxy, err := startEgressProxy(ctx, cfg, egressStore, log)
-				if err != nil {
-					return err
-				}
-				defer closeProxy()
-				dp.EgressProxyURL = proxyURL
+				docker.EgressProxyURL = proxyURL
 			}
 		}
-		provider = dp
-	default:
-		return fmt.Errorf("sandbox provider %q: only 'docker' is implemented", cfg.SandboxProvider)
+		return runnerPool.AttachLocal(ctx, runner.NewNode(runnerID, orgID, docker, log))
 	}
+
+	if egressEnforced && cfg.EgressIsolation == "network" {
+		log.Info("egress enforcement: hard network isolation active", "proxy-image", "covey-egress:latest")
+	}
+
+	// Bring the existing organisations' runners up at startup rather than at
+	// the first wake: the self-check below is meant to say what is in the way
+	// BEFORE an agent runs into it, and it can only ask a runner that is there.
+	orgs, err := org.NewStore(pool).ListOrgs(ctx)
+	if err != nil {
+		return err
+	}
+	for _, o := range orgs {
+		if err := runnerPool.EnsureLocal(ctx, o.ID); err != nil {
+			// Not an abort: an organisation whose runner does not come up is a
+			// problem for its agents, not for the instance. The self-check
+			// below says so, and everything that is not a run keeps working.
+			log.Warn("built-in runner did not come up", "org", o.ID, "err", err)
+		}
+	}
+	provider := orchestrator.SandboxProvider(runnerPool)
 
 	// Ask the data plane at startup whether it could start a sandbox at all.
 	// Without this the answer arrives at the first wake, inside the recording of
@@ -743,6 +781,10 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		RuntimeTools:   cfg.RuntimeTools,
 		Log:            log,
 	})
+	// A sandbox that dies is reported by the runner instead of being inferred
+	// from a ReadyTimeout minutes later — that is what watching the container
+	// buys (spec/16).
+	runnerPool.SandboxDied = orch.SandboxDied
 
 	dist, err := web.Dist()
 	if err != nil {

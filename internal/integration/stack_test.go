@@ -35,7 +35,7 @@ import (
 	"covey/internal/orchestrator"
 	"covey/internal/org"
 	reqlogstore "covey/internal/reqlog/store"
-	"covey/internal/runner"
+	runnerstore "covey/internal/runner/store"
 	"covey/internal/runtimes"
 	secbuiltin "covey/internal/secrets/builtin"
 	"covey/internal/skills"
@@ -110,7 +110,7 @@ type stack struct {
 	mem       *memory.Store
 	targets   *targetstore.Store
 	egress    *egress.Store
-	runners   *runner.Store
+	runners   *runnerstore.Store
 	skills    *skills.Store
 	reqlog    *reqlogstore.Store
 	templates *templates.Store
@@ -126,7 +126,26 @@ type stack struct {
 
 const webhookSecret = "test-webhook-secret"
 
+// stackOpts lets a test replace the pieces of the data plane. Empty = the
+// normal stack: in-process daemon, mock runtime.
+type stackOpts struct {
+	// provider replaces the sandbox provider. Used by the runner tests, which
+	// want the real pool in front of a fake docker instead of the shortcut.
+	provider func(homeBase string, log *slog.Logger) orchestrator.SandboxProvider
+	// readyTimeout shortens the wait for the daemon. A test that checks
+	// something is reported INSTEAD of waited out must not itself wait it out.
+	readyTimeout time.Duration
+	// afterOrch runs once the orchestrator exists — for wiring that points
+	// back at it (the runner reporting a dead sandbox, say).
+	afterOrch func(*orchestrator.Orchestrator)
+}
+
 func newStack(t *testing.T) *stack {
+	t.Helper()
+	return newStackWith(t, stackOpts{})
+}
+
+func newStackWith(t *testing.T, opts stackOpts) *stack {
 	t.Helper()
 	ctx := context.Background()
 
@@ -176,7 +195,7 @@ func newStack(t *testing.T) *stack {
 
 	s.targets = targetstore.NewStore(pool)
 	s.egress = egress.NewStore(pool)
-	s.runners = runner.NewStore(pool)
+	s.runners = runnerstore.NewStore(pool)
 	s.skills = skills.NewStore(pool)
 	// Request log as in production, but without reqlog.SetDefault: the sink is
 	// process-wide, and stacks running in parallel would push their entries at
@@ -191,18 +210,30 @@ func newStack(t *testing.T) *stack {
 	s.dreams = dream.NewStore(pool, s.mem, log)
 	s.homeBase = t.TempDir()
 
+	var provider orchestrator.SandboxProvider = &inprocProvider{homeBase: s.homeBase, log: log}
+	if opts.provider != nil {
+		provider = opts.provider(s.homeBase, log)
+	}
+	readyTimeout := 10 * time.Second
+	if opts.readyTimeout > 0 {
+		readyTimeout = opts.readyTimeout
+	}
+
 	s.orch = orchestrator.New(orchestrator.Options{
 		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
 		Rails: s.rails, Secrets: secretStore, Runtimes: s.runtimes, Identity: idp, Memory: s.mem,
 		Targets:        s.targets,
 		Skills:         s.skills,
 		ReqLog:         s.reqlog,
-		Provider:       &inprocProvider{homeBase: s.homeBase, log: log},
+		Provider:       provider,
 		DaemonTokenTTL: 5 * time.Minute,
 		TickInterval:   300 * time.Millisecond,
-		ReadyTimeout:   10 * time.Second,
+		ReadyTimeout:   readyTimeout,
 		Log:            log,
 	})
+	if opts.afterOrch != nil {
+		opts.afterOrch(s.orch)
+	}
 
 	srv := &httpapi.Server{
 		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,

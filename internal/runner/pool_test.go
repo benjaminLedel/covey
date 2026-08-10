@@ -1,0 +1,251 @@
+package runner
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+
+	"covey/internal/orchestrator"
+)
+
+func quietLog() *slog.Logger {
+	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
+}
+
+// fakeDockerBin writes a docker stand-in that records its arguments and can be
+// told to fail for one subcommand. `wait` blocks until the file `stopped`
+// appears — that is how a container that is still running is modelled.
+func fakeDockerBin(t *testing.T, dir string, failOn string) string {
+	t.Helper()
+	path := filepath.Join(dir, "docker")
+	script := `#!/bin/sh
+printf '%s ' "$@" >> ` + filepath.Join(dir, "args") + `
+printf '\n' >> ` + filepath.Join(dir, "args") + `
+if [ "$1" = "` + failOn + `" ]; then echo 'boom' >&2; exit 1; fi
+if [ "$1" = "wait" ]; then
+  while [ ! -f ` + filepath.Join(dir, "stopped") + ` ]; do sleep 0.05; done
+  cat ` + filepath.Join(dir, "stopped") + `
+  exit 0
+fi
+echo ok
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+// newLocalPool wires a pool with a built-in runner — exactly the way the
+// control plane does on a normal installation.
+func newLocalPool(t *testing.T, dir, dockerBin string, orgID uuid.UUID) (*Pool, uuid.UUID) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	runnerID := uuid.New()
+	p := NewPool(quietLog())
+	p.DefaultImage = "covey-sandbox:test"
+	p.Profiles = map[string]string{"base": "covey-sandbox:test", "dev": "covey-sandbox-dev:test"}
+	p.StartTimeout = 10 * time.Second
+
+	node := NewNode(runnerID, orgID, &Docker{
+		RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: dir, DockerBin: dockerBin,
+	}, quietLog())
+	if err := p.AttachLocal(ctx, node); err != nil {
+		t.Fatalf("built-in runner: %v", err)
+	}
+	return p, runnerID
+}
+
+// The built-in runner is the default path, and it speaks the same protocol as
+// one on a foreign host. That is the whole point of the seam: if the in-process
+// case took a shortcut past the protocol, the remote path would be exercised
+// only by whoever operates two machines — and would rot everywhere else.
+func TestBuiltInRunnerStartsAndStopsThroughTheProtocol(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	orgID := uuid.New()
+	p, _ := newLocalPool(t, dir, fakeDockerBin(t, dir, "nothing"), orgID)
+
+	agentID := uuid.New()
+	sb, err := p.Start(context.Background(), orchestrator.SandboxSpec{
+		AgentID: agentID, OrgID: orgID, Image: "dev",
+		Env: map[string]string{"COVEY_DAEMON_TOKEN": "tok"},
+	})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	args, err := os.ReadFile(filepath.Join(dir, "args"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The profile is resolved on the control plane: a runner knows images, not
+	// agents. If this ever moved to the node, every runner would need the
+	// profile table — and a runner is precisely what should know nothing about
+	// the platform.
+	if !strings.Contains(string(args), "covey-sandbox-dev:test") {
+		t.Errorf("the profile dev has to be resolved to its image:\n%s", args)
+	}
+	if !strings.Contains(string(args), "covey-sandbox-"+agentID.String()) {
+		t.Errorf("the container has to carry the agent's name:\n%s", args)
+	}
+
+	// Ending it deliberately must NOT be reported as a death.
+	var died []string
+	p.SandboxDied = func(_ uuid.UUID, reason string) { died = append(died, reason) }
+	if err := os.WriteFile(filepath.Join(dir, "stopped"), []byte("0\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := sb.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	time.Sleep(300 * time.Millisecond)
+	if len(died) != 0 {
+		t.Errorf("a stop somebody asked for is not a death: %v", died)
+	}
+}
+
+// The value this seam delivers on its own: a sandbox that dies is a reported
+// fact instead of a ReadyTimeout minutes later. Without it the control plane
+// waits out the full timeout and then blames the daemon for an end the runner
+// saw immediately.
+func TestSandboxDeathIsReportedNotInferred(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	orgID := uuid.New()
+	p, _ := newLocalPool(t, dir, fakeDockerBin(t, dir, "nothing"), orgID)
+
+	reported := make(chan string, 1)
+	p.SandboxDied = func(_ uuid.UUID, reason string) { reported <- reason }
+
+	agentID := uuid.New()
+	if _, err := p.Start(context.Background(), orchestrator.SandboxSpec{AgentID: agentID, OrgID: orgID}); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	// The container ends on its own — 137 is what an OOM kill looks like.
+	if err := os.WriteFile(filepath.Join(dir, "stopped"), []byte("137\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case reason := <-reported:
+		if !strings.Contains(reason, "137") || !strings.Contains(reason, "memory") {
+			t.Errorf("the reason has to be usable to a human, got %q", reason)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the end of the sandbox was not reported")
+	}
+}
+
+// A runner serves exactly one organisation (spec/16). A runner of a foreign
+// tenant is not a worse candidate, it is none — otherwise one organisation's
+// homes and daemon tokens would land on another's machine.
+func TestPoolNeverAssignsAcrossOrganisations(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	ourOrg := uuid.New()
+	p, _ := newLocalPool(t, dir, fakeDockerBin(t, dir, "nothing"), ourOrg)
+
+	_, err := p.Start(context.Background(), orchestrator.SandboxSpec{
+		AgentID: uuid.New(), OrgID: uuid.New(), // a foreign organisation
+	})
+	if !errors.Is(err, ErrNoRunner) {
+		t.Fatalf("a foreign organisation must not be served, got %v", err)
+	}
+
+	// And the organisation without a runner gets its own built-in one when the
+	// platform offers to create it — organisations come into being while the
+	// process runs.
+	other := uuid.New()
+	p.EnsureLocal = func(ctx context.Context, orgID uuid.UUID) error {
+		id := uuid.New()
+		return p.AttachLocal(ctx, NewNode(id, orgID, &Docker{
+			RunnerID: id, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, "nothing"),
+		}, quietLog()))
+	}
+	if _, err := p.Start(context.Background(), orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: other}); err != nil {
+		t.Fatalf("the new organisation should have got its built-in runner: %v", err)
+	}
+}
+
+// The image hangs off the agent (spec/16). One column carries both a profile
+// name and an image of an organisation's own, so the resolution is the whole
+// rule — and if it is wrong, an agent silently works in a foreign workplace:
+// either without the toolchain it needs, or with one it should not have.
+func TestImageForResolvesProfilesAndOwnImages(t *testing.T) {
+	p := &Pool{
+		DefaultImage: "covey-sandbox:latest",
+		Profiles: map[string]string{
+			"base": "covey-sandbox:latest",
+			"dev":  "covey-sandbox-dev:latest",
+		},
+	}
+	faelle := []struct {
+		name, want, expected string
+	}{
+		{"nothing named → the instance default", "", "covey-sandbox:latest"},
+		{"profile base", "base", "covey-sandbox:latest"},
+		{"profile dev", "dev", "covey-sandbox-dev:latest"},
+		// The third row of the profile table: an organisation builds its own
+		// image and names it. Without this the field would need a second one
+		// beside it that says how to read the first.
+		{"own image", "registry.example.com/team/sandbox:2026-08", "registry.example.com/team/sandbox:2026-08"},
+		// Whitespace comes from a text field in the interface — and a trailing
+		// blank must not produce an image name nobody can find.
+		{"trimmed", "  dev  ", "covey-sandbox-dev:latest"},
+	}
+	for _, f := range faelle {
+		t.Run(f.name, func(t *testing.T) {
+			if got := p.imageFor(f.want); got != f.expected {
+				t.Errorf("imageFor(%q) = %q, expected %q", f.want, got, f.expected)
+			}
+		})
+	}
+
+	// A profile without a configured image must not swallow the value: an
+	// instance without COVEY_SANDBOX_IMAGE_DEV would otherwise start every dev
+	// agent in an empty image name.
+	leer := &Pool{DefaultImage: "covey-sandbox:latest", Profiles: map[string]string{"dev": ""}}
+	if got := leer.imageFor("dev"); got != "dev" {
+		t.Errorf("an unconfigured profile stays the literal value, got %q", got)
+	}
+}
+
+// Runner and server are delivered separately, so different versions inevitably
+// meet. A refusal has to name which side is behind — a runner that quietly
+// fails to connect costs an evening of searching.
+func TestProtocolMismatchIsRefusedWithAReason(t *testing.T) {
+	p := NewPool(quietLog())
+	control, node := NewInProc()
+	defer control.Close()
+
+	go func() {
+		msg, _ := encode(TypeRegistered, "", Registered{
+			RunnerID: uuid.New(), OrgID: uuid.New(), Protocol: Protocol + 1, Version: "9.9.9",
+		})
+		_ = node.Send(context.Background(), msg)
+	}()
+
+	err := p.Attach(context.Background(), control, false)
+	if err == nil {
+		t.Fatal("a foreign protocol version has to be refused")
+	}
+	if !strings.Contains(err.Error(), "the control plane needs updating") {
+		t.Errorf("the message has to name which side is behind: %v", err)
+	}
+}

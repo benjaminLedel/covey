@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"covey/internal/egress"
-	"covey/internal/runner"
+	runnerstore "covey/internal/runner/store"
 )
 
 // The egress proxy used to read its allowlist from Postgres itself, which meant
@@ -45,18 +45,18 @@ func (s *stack) runnerGET(t *testing.T, path, token string) (int, []byte) {
 
 // builtinToken gives an organisation's built-in runner a fresh token, the way
 // the control plane does at every start.
-func (s *stack) builtinToken(t *testing.T, orgID uuid.UUID) (runner.Runner, string) {
+func (s *stack) builtinToken(t *testing.T, orgID uuid.UUID) (runnerstore.Runner, string) {
 	t.Helper()
 	ctx := context.Background()
 	rn, err := s.runners.EnsureBuiltin(ctx, orgID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	token, err := runner.NewToken()
+	token, err := runnerstore.NewToken()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.runners.SetTokenHash(ctx, rn.ID, runner.HashToken(token)); err != nil {
+	if err := s.runners.SetTokenHash(ctx, rn.ID, runnerstore.HashToken(token)); err != nil {
 		t.Fatal(err)
 	}
 	return rn, token
