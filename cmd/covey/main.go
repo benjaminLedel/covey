@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
 	"net"
@@ -21,6 +22,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/term"
 
+	"covey/internal/accounts"
 	"covey/internal/agents"
 	"covey/internal/audit"
 	"covey/internal/backlog"
@@ -45,6 +47,7 @@ import (
 	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
 	"covey/internal/templates"
+	"covey/internal/waitlist"
 	"covey/migrations"
 	"covey/web"
 
@@ -105,6 +108,8 @@ func main() {
 		err = runConfigLint(ctx, cfg, os.Args[2:])
 	case "settings":
 		err = runSettings(ctx, cfg, os.Args[2:], log)
+	case "waitlist":
+		err = runWaitlist(ctx, cfg, os.Args[2:])
 	case "genkey":
 		var key string
 		if key, err = secbuiltin.GenerateMasterKey(); err == nil {
@@ -130,6 +135,7 @@ func usage() {
   covey egress-proxy      egress allowlist proxy (network isolation mode, in the container)
   covey config lint       check agent configs for known pitfalls (changes nothing)
   covey settings [k v]    show the instance's settings, or set one (e.g. signup.mode waitlist)
+  covey waitlist          list waitlist codes | new [-label L] [-uses N] [-days D] | revoke <hash>
   covey genkey            generate a new COVEY_MASTER_KEY
   covey version           version, commit and build time of this binary
 
@@ -342,6 +348,84 @@ func runSettings(ctx context.Context, cfg config.Config, args []string, log *slo
 	default:
 		return errors.New("usage: covey settings [<key> <value>]")
 	}
+}
+
+// runWaitlist manages the codes with which the instance opens in stages.
+//
+// The plaintext is printed exactly once, here — stored is only its hash, as
+// for the session tokens. Whoever loses a code gets a new one; that is the
+// price of a database dump containing no valid codes.
+func runWaitlist(ctx context.Context, cfg config.Config, args []string) error {
+	pool, err := db.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	store := waitlist.New(pool)
+
+	befehl := "list"
+	if len(args) > 0 {
+		befehl = args[0]
+		args = args[1:]
+	}
+
+	switch befehl {
+	case "list":
+		codes, err := store.List(ctx)
+		if err != nil {
+			return err
+		}
+		if len(codes) == 0 {
+			fmt.Println("no codes yet — create one with `covey waitlist new`")
+			return nil
+		}
+		for _, c := range codes {
+			zustand := "open"
+			switch {
+			case c.RevokedAt != nil:
+				zustand = "revoked"
+			case !c.Open():
+				zustand = "used up/expired"
+			}
+			fmt.Printf("%s  %-20s %d/%d  %-16s %s\n",
+				c.Hash[:12], c.Label, c.UsedCount, c.MaxUses, zustand,
+				c.CreatedAt.Format("2006-01-02"))
+		}
+		return nil
+
+	case "new":
+		fs := flag.NewFlagSet("waitlist new", flag.ContinueOnError)
+		label := fs.String("label", "", "note, e.g. the occasion the code is for")
+		uses := fs.Int("uses", 1, "how often the code may be redeemed")
+		days := fs.Int("days", 0, "validity in days (0 = unlimited)")
+		email := fs.String("email", "", "restrict to an address or a domain (@firma.de)")
+		if err := fs.Parse(args); err != nil {
+			return err
+		}
+		opt := waitlist.Options{Label: *label, MaxUses: *uses, EmailPattern: *email}
+		if *days > 0 {
+			bis := time.Now().AddDate(0, 0, *days)
+			opt.ExpiresAt = &bis
+		}
+		code, err := store.Create(ctx, opt)
+		if err != nil {
+			return err
+		}
+		fmt.Println(code)
+		fmt.Fprintln(os.Stderr, "\nWrite it down — only its hash is stored, it cannot be shown again.")
+		return nil
+
+	case "revoke":
+		if len(args) != 1 {
+			return errors.New("usage: covey waitlist revoke <hash prefix>")
+		}
+		if err := store.Revoke(ctx, args[0]); err != nil {
+			return err
+		}
+		fmt.Println("revoked")
+		return nil
+	}
+	return fmt.Errorf("unknown: covey waitlist %s (list|new|revoke)", befehl)
 }
 
 func runPasswd(ctx context.Context, cfg config.Config, args []string, log *slog.Logger) error {
@@ -782,7 +866,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Pool:    pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Runtimes: runtimeStore, Identity: idp, Memory: mem, Dreams: dreams,
 		Org: org.NewStore(pool), Targets: targets, Templates: templateStore,
-		Settings: settings.New(pool),
+		Settings: settings.New(pool), Accounts: accounts.New(pool), Waitlist: waitlist.New(pool),
 		Skills: skillStore,
 		Orch:   orch, WebFS: dist, Log: log,
 		WebhookSecrets: cfg.WebhookSecrets,

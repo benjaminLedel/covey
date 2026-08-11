@@ -31,20 +31,21 @@ export default function SignUp() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [fertig, setFertig] = useState(false);
+  /* null = noch nicht abgeschickt; sonst: ob eine Bestätigung unterwegs ist. */
+  const [fertig, setFertig] = useState<boolean | null>(null);
 
   const absenden = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
     setError("");
     try {
-      await signup({
+      const res = await signup({
         code: code.trim(),
         email: email.trim(),
         display_name: name.trim(),
         password,
       });
-      setFertig(true);
+      setFertig(res.verification_sent);
     } catch (err) {
       /* Die Fehlermeldung des Servers ist die genauere: sie unterscheidet den
          verbrauchten Code vom unbekannten und die vergebene Adresse von der
@@ -90,11 +91,16 @@ export default function SignUp() {
     );
   }
 
-  if (fertig) {
+  if (fertig !== null) {
+    /* Zwei Abschlüsse, weil zwei verschiedene Dinge passiert sind. Wer keine
+       Mail bekommt, darf nicht auf eine warten. */
+    const zweig = fertig ? "done" : "created";
     return rahmen(
       <div className="login-card login-rise" style={{ animationDelay: "0.24s" }}>
-        <h2 className="login-card-title">{t("public.signup.done.title")}</h2>
-        <p className="landing-pitch">{t("public.signup.done.text", { email: email.trim() })}</p>
+        <h2 className="login-card-title">{t(`public.signup.${zweig}.title`)}</h2>
+        <p className="landing-pitch">
+          {t(`public.signup.${zweig}.text`, { email: email.trim() })}
+        </p>
       </div>,
     );
   }

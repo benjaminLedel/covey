@@ -60,6 +60,22 @@ func newWebhookLimiter() *webhookLimiter {
 	}
 }
 
+// newSignupLimiter throttles the sign-up. Same mechanism as for the webhooks,
+// different numbers and a different reason: what is being throttled here is
+// GUESSING — every attempt, not just the failed one, because an attacker who
+// hits a valid code on the twentieth try has succeeded, not failed.
+//
+// The key is the client address. Ten attempts an hour is far above what a
+// person needs who is typing a code off a screen, and far below what makes a
+// 50-bit code worth attacking.
+func newSignupLimiter() *webhookLimiter {
+	return &webhookLimiter{
+		hits:    make(map[string][]time.Time),
+		maxHits: 10,
+		window:  time.Hour,
+	}
+}
+
 // allow books a call and reports whether it is still within bounds.
 func (l *webhookLimiter) allow(key string, now time.Time) bool {
 	l.mu.Lock()

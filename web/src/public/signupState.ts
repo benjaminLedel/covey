@@ -55,8 +55,17 @@ export type SignupInput = {
   password: string;
 };
 
+export type SignupResult = {
+  ok: boolean;
+  /* Ob eine Bestätigungsmail unterwegs ist. Das entscheidet der Server, nicht
+     die Seite: solange kein Mailversand eingerichtet ist, gilt die Adresse
+     sofort als bestätigt — und dann wäre "wir haben Ihnen geschrieben" eine
+     Auskunft über eine Mail, die es nicht gibt. */
+  verification_sent: boolean;
+};
+
 export const signup = (input: SignupInput) =>
-  api<{ ok: boolean }>("/public/signup", {
+  api<SignupResult>("/public/signup", {
     method: "POST",
     body: JSON.stringify(input),
   });

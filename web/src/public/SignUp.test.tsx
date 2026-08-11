@@ -53,7 +53,7 @@ describe("SignUp", () => {
   it("schickt Code, Name, Adresse und Passwort — und bestätigt danach per Mail", async () => {
     const { calls } = mockFetch({
       [STATE]: { mode: "waitlist", site_name: "Covey" },
-      [SIGNUP]: { ok: true },
+      [SIGNUP]: { ok: true, verification_sent: true },
     });
     renderWithProviders(<SignUp />);
 
@@ -69,6 +69,27 @@ describe("SignUp", () => {
     // eines, und die Seite sagt genau das, samt der Adresse, an die sie ging.
     expect(await screen.findByText("Fast geschafft")).toBeInTheDocument();
     expect(screen.getByText(/erika@example\.de/)).toBeInTheDocument();
+  });
+
+  it("verspricht keine Mail, wenn keine verschickt wurde", async () => {
+    // Ohne eingerichteten Mailversand gilt die Adresse sofort als bestätigt.
+    // Die Seite darf dann nicht auf eine Bestätigung verweisen, auf die
+    // jemand sonst wartet, bis er aufgibt.
+    mockFetch({
+      [STATE]: { mode: "waitlist", site_name: "Covey" },
+      [SIGNUP]: { ok: true, verification_sent: false },
+    });
+    renderWithProviders(<SignUp />);
+
+    await screen.findByLabelText("Wartelisten-Code");
+    await userEvent.type(screen.getByLabelText("Wartelisten-Code"), "COVEY-1234");
+    await userEvent.type(screen.getByLabelText("Name"), "Erika Musterfrau");
+    await userEvent.type(screen.getByLabelText("E-Mail"), "erika@example.de");
+    await userEvent.type(screen.getByLabelText("Passwort"), "hinreichend-lang");
+    await userEvent.click(screen.getByRole("button", { name: "Konto anlegen" }));
+
+    expect(await screen.findByText("Konto angelegt")).toBeInTheDocument();
+    expect(screen.queryByText("Fast geschafft")).not.toBeInTheDocument();
   });
 
   it("zeigt die Begründung des Servers, statt sie zu verallgemeinern", async () => {

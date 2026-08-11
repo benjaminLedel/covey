@@ -344,6 +344,10 @@
       "done": {
         "title": "Fast geschafft",
         "text": "Wir haben eine Bestätigung an {{email}} geschickt. Der Link darin schaltet das Konto frei — danach treten Sie einer Organisation bei oder gründen Ihre eigene."
+      },
+      "created": {
+        "title": "Konto angelegt",
+        "text": "{{email}} ist registriert. Der nächste Schritt — einer Organisation beitreten oder eine eigene gründen — folgt, sobald die Anmeldung auf Konten umgestellt ist."
       }
     }
   },

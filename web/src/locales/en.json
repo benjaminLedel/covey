@@ -344,6 +344,10 @@
       "done": {
         "title": "Almost there",
         "text": "We sent a confirmation to {{email}}. The link in it activates the account — after that you join an organisation or start your own."
+      },
+      "created": {
+        "title": "Account created",
+        "text": "{{email}} is registered. The next step — joining an organisation or founding your own — follows once sign-in has moved to accounts."
       }
     }
   },

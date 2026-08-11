@@ -160,8 +160,13 @@ session mechanism, no second cookie.
 
 ### Waitlist codes
 
+*Gebaut* als `migrations/0058_accounts_waitlist.up.sql` — zusammen mit
+`accounts`, weil die Einlösung auf ein Konto zeigt und beide in derselben
+Transaktion entstehen müssen. Das Format des Codes steht in
+`internal/waitlist/code.go`: `COVEY-4K7MQ-P2D9X`, Crockford-Base32, 50 Bit.
+
 ```sql
--- 0054_waitlist.up.sql
+-- 0058_accounts_waitlist.up.sql (hier als 0054 skizziert)
 CREATE TABLE waitlist_codes (
     code_hash     TEXT PRIMARY KEY,        -- only the hash, like http_sessions
     label         TEXT NOT NULL DEFAULT '',-- "batch march", "conference X"

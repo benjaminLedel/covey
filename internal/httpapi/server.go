@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"covey/internal/accounts"
 	"covey/internal/agents"
 	"covey/internal/audit"
 	"covey/internal/backlog"
@@ -38,6 +39,7 @@ import (
 	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
 	"covey/internal/templates"
+	"covey/internal/waitlist"
 )
 
 type Server struct {
@@ -56,6 +58,11 @@ type Server struct {
 	// Settings are the instance's own switches (internal/settings).
 	// nil = the defaults apply, which for signup.mode means: closed.
 	Settings *settings.Store
+	// Accounts and Waitlist carry self-registration (FR-002). nil = the public
+	// sign-up endpoints answer 404 — an instance that cannot register anybody
+	// does not advertise the attempt.
+	Accounts *accounts.Store
+	Waitlist *waitlist.Store
 	// Skills are the agents' capabilities (library + agent-owned).
 	// nil = feature switched off; the skill routes then answer with 503
 	// (the same meaning as orchestrator.Options.Skills == nil).
@@ -118,6 +125,7 @@ type Server struct {
 	// loginLimiter slows brute force on /auth/login, webhookLimiter the
 	// unauthenticated webhook endpoints (both initialized lazily in Handler).
 	loginLimiter   *loginLimiter
+	signupLimiter  *webhookLimiter
 	webhookLimiter *webhookLimiter
 
 	// seo is the map of the public website from dist/seo.json
@@ -129,6 +137,9 @@ type Server struct {
 func (s *Server) Handler() http.Handler {
 	if s.loginLimiter == nil {
 		s.loginLimiter = newLoginLimiter()
+	}
+	if s.signupLimiter == nil {
+		s.signupLimiter = newSignupLimiter()
 	}
 	if s.webhookLimiter == nil {
 		s.webhookLimiter = newWebhookLimiter()
@@ -159,6 +170,7 @@ func (s *Server) Handler() http.Handler {
 	// The public website's own question, without a session: does this
 	// installation accept registrations (public.go).
 	mux.HandleFunc("GET /api/v1/public/signup-state", s.handleSignupState)
+	mux.HandleFunc("POST /api/v1/public/signup", s.handleSignup)
 
 	// Auth.
 	mux.HandleFunc("POST /api/v1/auth/login", s.handleLogin)

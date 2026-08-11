@@ -20,6 +20,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"covey/internal/accounts"
 	"covey/internal/agents"
 	"covey/internal/audit"
 	"covey/internal/backlog"
@@ -37,9 +38,11 @@ import (
 	reqlogstore "covey/internal/reqlog/store"
 	"covey/internal/runtimes"
 	secbuiltin "covey/internal/secrets/builtin"
+	"covey/internal/settings"
 	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
 	"covey/internal/templates"
+	"covey/internal/waitlist"
 
 	_ "covey/internal/target/browser"
 	_ "covey/internal/target/dev"
@@ -205,6 +208,9 @@ func newStack(t *testing.T) *stack {
 		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
 		Rails: s.rails, Secrets: secretStore, Runtimes: s.runtimes, Identity: idp, Memory: s.mem,
 		Org: org.NewStore(pool), Targets: s.targets,
+		// Self-registration (FR-002): the public endpoints answer 404 without
+		// these, so a stack that lacks them would test the wrong thing.
+		Settings: settings.New(pool), Accounts: accounts.New(pool), Waitlist: waitlist.New(pool),
 		Templates: s.templates, Dreams: s.dreams, Audit: s.audit,
 		Skills:      s.skills,
 		EgressStore: s.egress,
