@@ -49,15 +49,15 @@ export default function Diagnostics({ me }: { me: Principal }) {
   });
 
   return (
-    <div className="stack-lg">
+    <div className="flex flex-col gap-6">
       <div>
-        <h1>{t("diagnostics.title")}</h1>
+        <h1 className="text-[22px]">{t("diagnostics.title")}</h1>
         <p className="muted text-sm">{t("diagnostics.intro")}</p>
       </div>
 
       {isAdmin && (
-        <div className="card p-4 stack-sm">
-          <h2 className="text-sm">{t("diagnostics.stateTitle")}</h2>
+        <div className="card p-4 flex flex-col gap-2">
+          <h2 className="text-[15px]">{t("diagnostics.stateTitle")}</h2>
           <p className="muted text-xs">{t("diagnostics.stateHint")}</p>
           {doctor.isLoading && <p className="muted text-sm">{t("common.loading")}</p>}
           {doctor.isError && (
@@ -100,8 +100,8 @@ export default function Diagnostics({ me }: { me: Principal }) {
         </div>
       )}
 
-      <div className="card p-4 stack-sm">
-        <h2 className="text-sm">{t("diagnostics.lintTitle")}</h2>
+      <div className="card p-4 flex flex-col gap-2">
+        <h2 className="text-[15px]">{t("diagnostics.lintTitle")}</h2>
         <p className="muted text-xs">{t("diagnostics.lintHint")}</p>
         {lint.isLoading && <p className="muted text-sm">{t("common.loading")}</p>}
         {lint.data && lint.data.length === 0 && (

@@ -64,7 +64,7 @@ export function AgentHome({ agent, canWrite }: { agent: Agent; canWrite: boolean
   if (!home.data) return null;
   if (!home.data.enabled) {
     return (
-      <p className="muted text-xs" style={{ padding: "8px 0" }}>
+      <p className="muted text-xs card p-4" style={{ marginTop: 16 }}>
         {t("agent.home.disabled")}
       </p>
     );
@@ -74,14 +74,14 @@ export function AgentHome({ agent, canWrite }: { agent: Agent; canWrite: boolean
   const latest = home.data.latest;
 
   return (
-    <div className="stack-sm" style={{ paddingTop: 12 }}>
-      <h3 className="text-sm">{t("agent.home.title")}</h3>
+    <div className="card p-4 flex flex-col gap-2" style={{ marginTop: 16 }}>
+      <h3 className="text-[15px]">{t("agent.home.title")}</h3>
 
       {!latest && <p className="muted text-xs">{t("agent.home.noSnapshot")}</p>}
 
       {latest && (
         <>
-          <div className="text-xs stack-sm">
+          <div className="text-xs flex flex-col gap-1">
             {/* Die Differenz ist die eigentliche Aussage. */}
             <div>
               {t("agent.home.size", {

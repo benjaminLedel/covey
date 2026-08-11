@@ -69,6 +69,7 @@ export default function Runners({ me }: { me: Principal }) {
   const qc = useQueryClient();
   const manage = me.Role === "platform_admin" || me.Role === "agent_owner";
   const [token, setToken] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [cleanup, setCleanup] = useState<CleanupView | null>(null);
 
   const runners = useQuery({
@@ -109,13 +110,13 @@ export default function Runners({ me }: { me: Principal }) {
   const list = runners.data ?? [];
 
   return (
-    <div className="stack-lg">
+    <div className="flex flex-col gap-6">
       <div>
-        <h1>{t("runners.title")}</h1>
+        <h1 className="text-[22px]">{t("runners.title")}</h1>
         <p className="muted text-sm">{t("runners.intro")}</p>
       </div>
 
-      <div className="card">
+      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         {runners.isLoading && <p className="muted text-sm p-4">{t("common.loading")}</p>}
         {list.length > 0 && (
           <table className="tbl">
@@ -194,8 +195,8 @@ export default function Runners({ me }: { me: Principal }) {
       </div>
 
       {manage && (
-        <div className="card p-4 stack">
-          <h2 className="text-sm">{t("runners.addTitle")}</h2>
+        <div className="card p-4 flex flex-col gap-3">
+          <h2 className="text-[15px]">{t("runners.addTitle")}</h2>
           <p className="muted text-xs">{t("runners.addHint")}</p>
           <div>
             <button className="btn" onClick={() => createToken.mutate()} disabled={createToken.isPending}>
@@ -203,24 +204,38 @@ export default function Runners({ me }: { me: Principal }) {
             </button>
           </div>
           {token && (
-            <div className="stack-sm">
-              {/* Einmal im Klartext, danach nur noch als Hash. */}
+            <div className="flex flex-col gap-2" style={{ marginTop: 4 }}>
+              {/* Einmal im Klartext, danach nur noch als Hash — deshalb zum
+                  Kopieren und nicht zum Abtippen. Der Befehl ist so gebaut,
+                  dass er sich einfügen lässt: kein Platzhalter, den jemand
+                  versehentlich mit überträgt. */}
               <p className="text-xs">{t("runners.tokenOnce")}</p>
-              <pre className="mono text-xs" style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-                {`covey-runner register --url ${window.location.origin} \\
-  --token ${token} \\
-  --description "…" --tag arm64`}
+              <pre className="code text-xs" style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                {registerCommand(token)}
               </pre>
+              <div>
+                <button
+                  className="btn sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(registerCommand(token)).then(() => {
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 1500);
+                    });
+                  }}
+                >
+                  {copied ? t("runners.copied") : t("runners.copy")}
+                </button>
+              </div>
             </div>
           )}
         </div>
       )}
 
       {store.data?.enabled && (
-        <div className="card p-4 stack">
-          <h2 className="text-sm">{t("runners.storeTitle")}</h2>
+        <div className="card p-4 flex flex-col gap-3">
+          <h2 className="text-[15px]">{t("runners.storeTitle")}</h2>
           <p className="muted text-xs">{t("runners.storeHint")}</p>
-          <div className="text-sm">
+          <div className="text-sm" style={{ marginTop: 4 }}>
             {t("runners.storeSize", {
               size: formatBytes(store.data.bytes),
               snapshots: store.data.snapshots,
@@ -228,7 +243,7 @@ export default function Runners({ me }: { me: Principal }) {
             })}
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-4 flex-wrap" style={{ marginTop: 4 }}>
             <label className="text-xs">
               {t("runners.keepPerAgent")}{" "}
               <input
@@ -278,7 +293,6 @@ export default function Runners({ me }: { me: Principal }) {
               </>
             )}
           </div>
-          <p className="muted text-xs">{t("runners.alwaysKeepLast")}</p>
           {cleanup && (
             /* Genannt wird der tatsaechlich frei werdende Platz, nicht die
                Summe der Snapshot-Groessen: ein Block gehoert keinem einzelnen
@@ -297,10 +311,19 @@ export default function Runners({ me }: { me: Principal }) {
                   })}
             </p>
           )}
+          <p className="muted text-xs">{t("runners.alwaysKeepLast")}</p>
         </div>
       )}
     </div>
   );
+}
+
+// registerCommand ist, was auf dem neuen Host laufen muss — als Ganzes zum
+// Einfügen. Ohne Beschreibung und Tags: beides ist optional, und ein
+// Platzhalter im Befehl ist etwas, das jemand mitkopiert und dann sucht,
+// warum sein Runner „…" heißt.
+function registerCommand(token: string): string {
+  return `covey-runner register --url ${window.location.origin} --token ${token}`;
 }
 
 // DiskBar zeigt den Fuellstand des Dateisystems, auf dem die Arbeitskopien
