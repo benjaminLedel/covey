@@ -142,16 +142,16 @@ export default function Runners({ me }: { me: Principal }) {
                   </td>
                   <td>
                     {r.live?.connected ? (
-                      <span className="badge ok">{t("runners.connected")}</span>
+                      <span className="pill ok">{t("runners.connected")}</span>
                     ) : (
-                      <span className="badge" title={t("runners.offlineHint")}>
+                      <span className="pill mut" title={t("runners.offlineHint")}>
                         {t("runners.offline")}
                       </span>
                     )}
                     {/* Versionsversatz wird benannt, nicht bloss geduldet:
                         Runner und Server werden getrennt ausgeliefert. */}
                     {r.live?.outdated && (
-                      <span className="badge warn" style={{ marginLeft: 6 }}>
+                      <span className="pill err" style={{ marginLeft: 6 }}>
                         {t("runners.outdated")}
                       </span>
                     )}
@@ -306,6 +306,7 @@ export default function Runners({ me }: { me: Principal }) {
 // DiskBar zeigt den Fuellstand des Dateisystems, auf dem die Arbeitskopien
 // liegen — genau die Zahl, die entscheidet, ob das naechste Home noch passt.
 function DiskBar({ free, total }: { free: number; total: number }) {
+  const { t } = useTranslation();
   const used = total - free;
   const pct = Math.round((used / total) * 100);
   return (
@@ -326,7 +327,7 @@ function DiskBar({ free, total }: { free: number; total: number }) {
           }}
         />
       </div>
-      <div className="muted text-xs">{formatBytes(free)} frei</div>
+      <div className="muted text-xs">{t("runners.free", { size: formatBytes(free) })}</div>
     </div>
   );
 }

@@ -1877,7 +1877,8 @@
     "runCleanup": "Clean up now",
     "confirmCleanup": "Run the cleanup? The snapshots it named will be removed.",
     "cleanupPreview": "{{snapshots}} snapshots and {{blocks}} blocks would fall away — {{freed}} would be freed.",
-    "cleanupDone": "Removed {{snapshots}} snapshots and {{blocks}} blocks, {{freed}} freed."
+    "cleanupDone": "Removed {{snapshots}} snapshots and {{blocks}} blocks, {{freed}} freed.",
+    "free": "{{size}} free"
   },
   "diagnostics": {
     "title": "Diagnostics",
