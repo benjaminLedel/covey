@@ -144,6 +144,24 @@ const PAGES: PublicRoute[] = [
     indexable: false,
     priority: 0.1,
   },
+  {
+    id: "registrieren",
+    path: { de: "/registrieren", en: "/en/sign-up" },
+    title: {
+      de: "Registrieren — Covey",
+      en: "Sign up — Covey",
+    },
+    description: {
+      de: "Mit einem Wartelisten-Code ein Konto anlegen, einer Organisation beitreten oder eine eigene gründen.",
+      en: "Create an account with a waitlist code, then join an organisation or start your own.",
+    },
+    /* Anders als die Anmeldemaske gehört diese Seite sehr wohl in den Index:
+       Sie ist der Einstieg für Leute, die Covey noch nicht haben — also genau
+       die Landung, nach der jemand sucht. Ob die Registrierung offen ist,
+       entscheidet der Server zur Laufzeit (signup-state), nicht der Index. */
+    indexable: true,
+    priority: 0.6,
+  },
 ];
 
 /* Die 404-Seite steht bewusst nicht in PUBLIC_ROUTES: Sie hat keine eigene

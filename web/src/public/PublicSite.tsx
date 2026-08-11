@@ -5,6 +5,7 @@ import i18n from "../i18n";
 import { PublicBackground, useReveal, BirdMark } from "./chrome";
 import PublicNav from "./PublicNav";
 import LoginCard from "./LoginCard";
+import SignUp from "./SignUp";
 import Home from "./Home";
 import Funktion from "./Funktion";
 import Integrationen from "./Integrationen";
@@ -138,6 +139,7 @@ export default function PublicSite({ onLogin }: { onLogin: () => void }) {
     "produkt-companion": <ProductCompanion />,
     docs: <Docs />,
     anmelden: <AnmeldenPage onLogin={onLogin} />,
+    registrieren: <SignUp />,
   };
 
   return (

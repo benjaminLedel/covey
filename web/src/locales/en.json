@@ -321,6 +321,30 @@
       "title": "This page does not exist",
       "text": "The address leads nowhere — most likely a typo, or a link older than the page it points to.",
       "home": "Go to the homepage"
+    },
+    "signup": {
+      "title": "Sign up",
+      "subtitle": "Your AI workforce, professionally run.",
+      "code": "Waitlist code",
+      "codeHint": "Covey opens in stages. The code is in the invitation that brought you here.",
+      "name": "Name",
+      "email": "E-mail",
+      "password": "Password",
+      "passwordHint": "At least {{min}} characters.",
+      "submit": "Create account",
+      "submitting": "Creating account…",
+      "error": "Sign-up did not work. Please check the code and the e-mail address.",
+      "noAccount": "No account yet?",
+      "haveAccount": "Already have an account?",
+      "signIn": "Sign in",
+      "closed": {
+        "title": "Sign-up is closed",
+        "text": "This installation is not accepting new accounts at the moment. If you are meant to work here, your administrators will create the account."
+      },
+      "done": {
+        "title": "Almost there",
+        "text": "We sent a confirmation to {{email}}. The link in it activates the account — after that you join an organisation or start your own."
+      }
     }
   },
   "nav": {
