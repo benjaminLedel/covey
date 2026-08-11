@@ -140,3 +140,43 @@ func (d *Dir) List(_ context.Context, orgID uuid.UUID) ([]string, error) {
 	})
 	return out, err
 }
+
+// Size is what an organisation's blocks occupy. Walked rather than counted:
+// the store's fill level belongs on the dashboard, and a figure derived from
+// the manifests would answer a different question — what the snapshots
+// reference, not what lies on the disk. The difference between the two is
+// exactly the rubbish a cleanup would remove.
+func (d *Dir) Size(_ context.Context, orgID uuid.UUID) (int64, error) {
+	var total int64
+	err := filepath.WalkDir(filepath.Join(d.root, orgID.String()), func(_ string, entry os.DirEntry, err error) error {
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			return err
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return nil
+		}
+		total += info.Size()
+		return nil
+	})
+	return total, err
+}
+
+// BlockSize is how much one block occupies — what the cleanup preview adds up.
+func (d *Dir) BlockSize(_ context.Context, orgID uuid.UUID, hash string) (int64, error) {
+	p, err := d.path(orgID, hash)
+	if err != nil {
+		return 0, err
+	}
+	info, err := os.Stat(p)
+	if err != nil {
+		return 0, err
+	}
+	return info.Size(), nil
+}

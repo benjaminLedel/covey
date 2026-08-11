@@ -29,8 +29,9 @@ workforce back onto the control plane's host; the agents wait instead.
 
 ## Adding a host
 
-On the control plane, create a registration token for the organisation
-(currently through the API; the runner view in the UI follows):
+Under **Runners** in the interface: *Create a registration token*. It is shown
+once and the page prints the command to run on the new host. The same through
+the API, if you prefer:
 
 ```bash
 curl -X POST https://covey.example/api/v1/runners/registration-tokens \
@@ -73,6 +74,26 @@ RestartSec=5
 WantedBy=multi-user.target
 ```
 
+## The runner view
+
+**Runners** shows, per host: whether it is connected, which tags and images it
+carries, how many sandboxes are running on it, and how full the file system
+holding its working copies is. The built-in runner is in that list too — visible
+so the model is comprehensible, but with no token to revoke and no delete
+button.
+
+Two things it says that are easy to miss:
+
+- **outdated protocol** — the runner speaks an older one than this control
+  plane. Runner and server are delivered separately, so version drift is
+  normal; it is named rather than merely tolerated.
+- **offline** — the row stays. Offline is not "no runner", so the built-in one
+  does not come back and the agents wait.
+
+An agent asks for a host's capabilities through **Host requirements** in its
+settings (`arm64`, `gpu`, a runner inside the target system's network). Empty is
+the normal case and means any runner of the organisation.
+
 ## What a runner needs, and what it must never have
 
 It needs Docker on its host and a way out to the control plane. That is all.
@@ -109,10 +130,25 @@ switch cost time instead of work.
   again; the rest exists nowhere else. It is a cache in its function, not in
   its need for protection.
 
-Snapshots accumulate. Retention is applied per organisation (the last *N* per
-agent, a maximum age, and always the most recent one); the blocks are freed by
-a sweep over the surviving manifests — which is why deleting a snapshot does
-not free space linearly.
+Snapshots accumulate. Retention is set per organisation under **Runners** — the
+last *N* per agent and a maximum age, with every agent's most recent snapshot
+always kept. *Preview* measures what a cleanup would free before anything
+happens.
+
+That number is the space **actually** freed and not the sum of the snapshot
+sizes: a block belongs to no single snapshot, so removing one frees only what
+nothing else references. Any other figure would be one that is never right.
+
+Per agent, next to the file browser, the **home store** panel shows how big the
+home is, how much of it only that agent holds (the figure that says whether a
+loss costs time or work), what the last sync cost, and the largest directories —
+which is also where you find the candidates for `COVEY_HOME_EXCLUDES`. *Back up
+now* forces a sync; a snapshot in the list can be restored, but only while the
+agent is asleep — otherwise the running sandbox would write into a home that
+changes underneath it.
+
+The store's fill level is on the dashboard, so it is seen before the disk runs
+short rather than after.
 
 ## Hard egress isolation with runners
 

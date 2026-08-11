@@ -9,6 +9,7 @@ import { Brief } from "./agents/Brief";
 import { Modal, ConfirmDialog } from "../components/Modal";
 import { Onboarding } from "../components/Onboarding";
 import { HireDialog } from "../components/HireDialog";
+import { fmtBytes } from "../format";
 
 const canManage = (role: string) => role === "platform_admin" || role === "agent_owner";
 const canSecurity = (role: string) => role === "platform_admin" || role === "security";
@@ -75,6 +76,11 @@ export default function Dashboard({ me }: { me: Principal }) {
       </div>
 
       <Onboarding me={me} />
+
+      {/* Der Füllstand des Home-Stores. Ein Speicher, der still im Hintergrund
+          wächst, ist ein Betriebsrisiko — man merkt ihn, wenn die Platte voll
+          ist. Deshalb hier, und mit einer Warnung davor statt danach. */}
+      <StoreLevel />
 
       {fleetKilled && (
         <div
@@ -670,5 +676,31 @@ function BackLink({ onBack, label }: { onBack: () => void; label?: string }) {
     >
       {label ?? `← ${t("dashboard.back")}`}
     </button>
+  );
+}
+
+// StoreLevel zeigt, was der Home-Store belegt, und wird laut, bevor der Platz
+// knapp wird. Die Zahl kommt aus einem Verzeichnis-Durchlauf mit kurzem Cache:
+// sie bewegt sich in Gigabyte über Stunden, nicht in Bytes über Sekunden.
+function StoreLevel() {
+  const { t } = useTranslation();
+  const store = useQuery({
+    queryKey: ["home-store"],
+    queryFn: () => api<{ enabled: boolean; bytes: number; snapshots: number; agents: number }>("/platform/home-store"),
+  });
+  if (!store.data?.enabled || store.data.snapshots === 0) return null;
+  return (
+    <Link to="/runners" className="card mb-4 no-underline" style={{ padding: "10px 16px", display: "block" }}>
+      <span className="text-sm">
+        {t("dashboard.storeLevel", {
+          size: fmtBytes(store.data.bytes),
+          snapshots: store.data.snapshots,
+          agents: store.data.agents,
+        })}
+      </span>
+      <span className="muted text-xs" style={{ marginLeft: 8 }}>
+        {t("dashboard.storeBackup")}
+      </span>
+    </Link>
   );
 }

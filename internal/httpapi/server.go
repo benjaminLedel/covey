@@ -82,6 +82,9 @@ type Server struct {
 	// Blobs is the home store. A remote runner reaches its blocks through the
 	// runner API — it never gets the store's credentials (spec/16).
 	Blobs homestore.BlobStore
+	// storeSizes caches the store's fill level per organisation — walking the
+	// block directory is a disk pass, and the dashboard asks on every visit.
+	storeSizes storeSizeCache
 
 	Templates *templates.Store
 
@@ -261,6 +264,17 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/runners", s.rbac(anyRole, s.handleListRunners))
 	mux.Handle("POST /api/v1/runners/registration-tokens", s.rbac(manage, s.handleCreateRegistrationToken))
 	mux.Handle("DELETE /api/v1/runners/{id}", s.rbac(manage, s.handleDeleteRunner))
+
+	// The home store (spec/16, "Interface"). A store that grows quietly and
+	// whose content nobody can see is an operational risk — you notice it when
+	// the disk is full.
+	mux.Handle("GET /api/v1/agents/{id}/home", s.agentScoped(append(manage, identity.RoleSecurity), s.handleAgentHome))
+	mux.Handle("GET /api/v1/agents/{id}/home/snapshots", s.agentScoped(append(manage, identity.RoleSecurity), s.handleListSnapshots))
+	mux.Handle("POST /api/v1/agents/{id}/home/snapshots", s.agentScoped(manage, s.handleBackupNow))
+	mux.Handle("POST /api/v1/agents/{id}/home/restore", s.agentScoped(manage, s.handleRestoreSnapshot))
+	mux.Handle("GET /api/v1/platform/home-store", s.rbac(anyRole, s.handleGetStore))
+	mux.Handle("PATCH /api/v1/platform/home-store", s.rbac(manage, s.handleSetRetention))
+	mux.Handle("POST /api/v1/platform/home-store/cleanup", s.rbac(manage, s.handleCleanupStore))
 	mux.Handle("GET /api/v1/org/recording-level", s.rbac(anyRole, s.handleGetOrgRecording))
 	mux.Handle("PATCH /api/v1/org/recording-level", s.rbac(securityRoles, s.handleSetOrgRecording))
 	mux.Handle("PATCH /api/v1/agents/{id}/supervisor", s.agentScoped(manage, s.handleSetSupervisor))

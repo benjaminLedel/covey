@@ -232,3 +232,69 @@ func blocksOf(path string, size int64, put func(hash string, data []byte) error)
 	}
 	return out, nil
 }
+
+// DirUsage is one directory of a home with what it holds.
+type DirUsage struct {
+	Path  string `json:"path"`
+	Bytes int64  `json:"bytes"`
+	Files int    `json:"files"`
+}
+
+// TopDirs answers "why is this home so big?" without shell access — and
+// reveals the candidates for an exclusion. Top level only: it is the level at
+// which the answer is actionable, and walking deeper would produce a list
+// nobody reads.
+func (m Manifest) TopDirs(limit int) []DirUsage {
+	byDir := map[string]*DirUsage{}
+	for _, e := range m.Entries {
+		if e.Dir || e.Size == 0 {
+			continue
+		}
+		top, _, _ := strings.Cut(e.Path, "/")
+		d := byDir[top]
+		if d == nil {
+			d = &DirUsage{Path: top}
+			byDir[top] = d
+		}
+		d.Bytes += e.Size
+		d.Files++
+	}
+	out := make([]DirUsage, 0, len(byDir))
+	for _, d := range byDir {
+		out = append(out, *d)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Bytes > out[j].Bytes })
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out
+}
+
+// ExclusiveBytes is what only this home holds — the figure that actually says
+// something. A 7 GB home of which 200 MB are exclusive is one whose loss costs
+// time; one that is exclusive throughout is one whose loss costs work.
+//
+// Attributed per file and not per block: a block carries no size of its own in
+// the manifest, and a file all of whose blocks are shared is shared. The
+// approximation errs on the small side for large chunked files that share some
+// of their blocks — and understating what is exclusive is the safer direction
+// for a figure people use to judge a risk.
+func (m Manifest) ExclusiveBytes(shared map[string]bool) int64 {
+	var out int64
+	for _, e := range m.Entries {
+		if e.Dir || len(e.Blocks) == 0 {
+			continue
+		}
+		exclusive := false
+		for _, b := range e.Blocks {
+			if !shared[b] {
+				exclusive = true
+				break
+			}
+		}
+		if exclusive {
+			out += e.Size
+		}
+	}
+	return out
+}

@@ -138,6 +138,10 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
     mutationFn: (warm: boolean) => patch(`/agents/${agent.id}/warm-sandbox`, { warm }),
     onSuccess: invalidate,
   });
+  const setRunnerTags = useMutation({
+    mutationFn: (tags: string[]) => patch(`/agents/${agent.id}/runner-tags`, { runner_tags: tags }),
+    onSuccess: invalidate,
+  });
   const setSandboxImage = useMutation({
     mutationFn: (image: string) => patch(`/agents/${agent.id}/sandbox-image`, { sandbox_image: image }),
     onSuccess: invalidate,
@@ -339,6 +343,22 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
           )}
         </div>
         <span className="muted text-xs">{t("agent.settings.sandboxImageHint")}</span>
+      </div>
+      <div style={row}>
+        <span className="text-sm">{t("agent.settings.runnerTags")}</span>
+        <input
+          key={`rtags:${(agent.runner_tags ?? []).join(",")}`}
+          defaultValue={(agent.runner_tags ?? []).join(", ")}
+          placeholder="arm64, gpu"
+          disabled={!editable || setRunnerTags.isPending}
+          className="mono"
+          onBlur={(e) => {
+            const tags = e.target.value.split(",").map((x) => x.trim()).filter(Boolean);
+            if (tags.join(",") !== (agent.runner_tags ?? []).join(",")) setRunnerTags.mutate(tags);
+          }}
+          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+        />
+        <span className="muted text-xs">{t("agent.settings.runnerTagsHint")}</span>
       </div>
       <div style={row}>
         <span className="text-sm">{t("agent.settings.warmSandbox")}</span>

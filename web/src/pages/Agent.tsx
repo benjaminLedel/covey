@@ -4,6 +4,7 @@ import { Link, useParams, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { api, post, isDraft, type Agent, type Principal } from "../api";
 import { AgentFiles } from "../components/AgentFiles";
+import { AgentHome } from "../components/AgentHome";
 import { HireDialog } from "../components/HireDialog";
 import { canFiles, canKill, canManage, canSecrets } from "./agent/roles";
 import { AgentTooling } from "./agent/Tooling";
@@ -223,7 +224,12 @@ export default function AgentPage({ me }: { me: Principal }) {
       )}
       {tab === "memory" && <Memories agentId={a.id} canManage={canManage(me.Role)} />}
       {tab === "dateien" && canFiles(me.Role) && (
-        <AgentFiles agent={a} canWrite={canManage(me.Role)} />
+        <>
+          <AgentFiles agent={a} canWrite={canManage(me.Role)} />
+          {/* Der Home-Store neben dem Dateibrowser (spec/16): was das Home
+              wiegt, wovon nur dieser Agent es hält, und die Snapshots. */}
+          <AgentHome agent={a} canWrite={canManage(me.Role)} />
+        </>
       )}
       {tab === "werkzeuge" && (
         <AgentTooling

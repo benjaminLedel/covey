@@ -717,8 +717,8 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			if err != nil {
 				return err
 			}
-			_, err = snapshotStore.RecordSnapshot(ctx, agent.OrgID, agentID, &runnerID,
-				res.ManifestHash, res.TotalSize, res.Blocks, res.BytesUp, "job")
+			_, err = snapshotStore.RecordSnapshotTimed(ctx, agent.OrgID, agentID, &runnerID,
+				res.ManifestHash, res.TotalSize, res.Blocks, res.BytesUp, res.DurationMS, res.Reason)
 			return err
 		}
 		log.Info("home store active", "blocks", dir.Root(),

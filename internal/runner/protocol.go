@@ -51,6 +51,10 @@ const (
 	// no Docker daemon, a missing image. Asked instead of guessed, because the
 	// answer is specific to the host and only it can give it.
 	TypeCheck = "check"
+	// TypeCapacity asks what this runner is carrying: running sandboxes, free
+	// disk. The basis for scheduling and for the warning before the disk runs
+	// short — not after.
+	TypeCapacity = "capacity"
 )
 
 // Runner → control plane.
@@ -62,12 +66,21 @@ const (
 	// TypeSandboxExited: the sandbox ended on its own — a crash, an OOM. The
 	// control plane learns of it as a reported fact instead of inferring it
 	// from a ReadyTimeout minutes later.
-	TypeSandboxExited = "sandbox_exited"
-	TypeCheckResult   = "check_result"
-	TypeHomeSynced    = "home_synced"
-	TypeHomeResult    = "home_result"
-	TypeHeartbeat     = "heartbeat"
+	TypeSandboxExited  = "sandbox_exited"
+	TypeCheckResult    = "check_result"
+	TypeHomeSynced     = "home_synced"
+	TypeHomeResult     = "home_result"
+	TypeCapacityReport = "capacity_report"
+	TypeHeartbeat      = "heartbeat"
 )
+
+// CapacityReport is what a runner is carrying.
+type CapacityReport struct {
+	Sandboxes  int    `json:"sandboxes"`
+	TotalBytes int64  `json:"total_bytes"`
+	FreeBytes  int64  `json:"free_bytes"`
+	WorkDir    string `json:"work_dir,omitempty"`
+}
 
 // The file operations of home_op. One message with an operation name rather
 // than one message kind per operation: they share their answer shape, and a
@@ -84,6 +97,9 @@ const (
 	OpRemove = "remove"
 	OpMove   = "move"
 	OpUsage  = "usage"
+	// OpRestore materialises a snapshot over the working copy — the rollback
+	// that falls out of the construction anyway (spec/16).
+	OpRestore = "restore"
 )
 
 // HomeOp is one file operation on an agent's home.
@@ -97,6 +113,10 @@ type HomeOp struct {
 	// Data is the content of a write, in one message. Bounded by
 	// sandboxfs.MaxWriteBytes, which the control plane checks before sending.
 	Data []byte `json:"data,omitempty"`
+	// Snapshot and OrgID belong to a restore: which state to bring the working
+	// copy to, and whose blocks to read.
+	Snapshot string    `json:"snapshot,omitempty"`
+	OrgID    uuid.UUID `json:"org_id,omitempty"`
 }
 
 // HomeResult answers a home_op. Streaming answers (open, zip) arrive as
@@ -197,6 +217,10 @@ type HomeSynced struct {
 	Blocks       int       `json:"blocks"`
 	BytesUp      int64     `json:"bytes_up"`
 	Err          string    `json:"err,omitempty"`
+	// DurationMS and Reason are filled in by the control plane, not the runner:
+	// it is the one that knows how long it waited and what asked for the sync.
+	DurationMS int    `json:"-"`
+	Reason     string `json:"-"`
 }
 
 // StopSandbox shuts compute down; the home stays.

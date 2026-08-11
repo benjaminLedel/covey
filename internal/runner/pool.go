@@ -601,24 +601,35 @@ func (s *poolSandbox) Stop(ctx context.Context) error {
 // copy is still there. And precisely because it might not be, no prune may
 // follow a failed sync.
 func (p *Pool) syncHome(ctx context.Context, c *conn, agentID, orgID uuid.UUID) {
+	_ = p.syncHomeReason(ctx, c, agentID, orgID, "job")
+}
+
+// syncHomeReason is the same with a reason for the snapshot — what triggered
+// it: the end of a job, the file browser, a maintenance window.
+func (p *Pool) syncHomeReason(ctx context.Context, c *conn, agentID, orgID uuid.UUID, reason string) error {
 	if p.SnapshotTaken == nil {
-		return
+		return nil
 	}
+	started := time.Now()
 	answer, err := c.ask(ctx, TypeSyncHome, SyncHome{
 		AgentID: agentID, OrgID: orgID, Excludes: p.HomeExcludes,
 	}, 30*time.Minute) // the first sync of a grown home is a full pass
 	if err != nil {
 		p.Log.Warn("home not synced", "agent", agentID, "err", err)
-		return
+		return err
 	}
 	res, err := decode[HomeSynced](answer)
 	if err != nil || res.Err != "" {
 		p.Log.Warn("home not synced", "agent", agentID, "err", firstNonEmpty(errString(err), res.Err))
-		return
+		return errors.New(firstNonEmpty(errString(err), res.Err))
 	}
+	res.DurationMS = int(time.Since(started).Milliseconds())
+	res.Reason = reason
 	if err := p.SnapshotTaken(ctx, agentID, c.runnerID, res); err != nil {
 		p.Log.Warn("snapshot not recorded", "agent", agentID, "err", err)
+		return err
 	}
+	return nil
 }
 
 func errString(err error) string {

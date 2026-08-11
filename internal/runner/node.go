@@ -124,6 +124,8 @@ func (n *Node) handle(ctx context.Context, t Transport, msg Message) {
 		// In its own goroutine: a download of a few gigabytes must not stop the
 		// runner from starting a sandbox in the meantime.
 		go n.homeOp(context.WithoutCancel(ctx), t, msg.ID, op)
+	case TypeCapacity:
+		n.reply(ctx, t, msg.ID, TypeCapacityReport, n.capacity())
 	case TypeCheck:
 		req, err := decode[Check](msg)
 		if err != nil {
@@ -260,6 +262,19 @@ func (n *Node) reply(ctx context.Context, t Transport, id, msgType string, paylo
 	if err := t.Send(ctx, msg); err != nil && !errors.Is(err, ErrTransportClosed) {
 		n.Log.Warn("runner: sending the answer failed", "type", msgType, "err", err)
 	}
+}
+
+// capacity is what this runner is carrying. The free space comes from the file
+// system the working copies lie on — exactly the figure that decides whether
+// the next home still fits.
+func (n *Node) capacity() CapacityReport {
+	n.mu.Lock()
+	running := len(n.running)
+	n.mu.Unlock()
+
+	work := n.Docker.DataDir
+	total, free := diskSpace(work)
+	return CapacityReport{Sandboxes: running, TotalBytes: total, FreeBytes: free, WorkDir: work}
 }
 
 // AgentHome is the local route to an agent's home. Only the built-in runner

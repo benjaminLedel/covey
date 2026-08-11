@@ -19,6 +19,9 @@ export type Agent = {
   // Der Arbeitsplatz: Profilname (base, dev) oder ein eigenes Image;
   // leer = Voreinstellung der Instanz (spec/16).
   sandbox_image: string;
+  // Welche Fähigkeiten der Host haben muss (arm64, gpu, ein Runner im Netz des
+  // Zielsystems). Leer = jeder Runner der Organisation (spec/16).
+  runner_tags?: string[];
   warm_sandbox: boolean; // hält die Sandbox zwischen Wach-Phasen live (opt-in)
   status: string;
   supervisor_id?: string;

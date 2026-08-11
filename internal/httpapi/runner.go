@@ -241,10 +241,37 @@ func (s *Server) handleListRunners(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	if list == nil {
-		list = []runnerstore.Runner{}
+
+	// The row says what a runner IS, the pool what it is DOING. Only both
+	// together answer the question somebody comes to this page with: is
+	// anything running, and can it carry more.
+	live := map[uuid.UUID]runner.Live{}
+	if s.RunnerPool != nil {
+		live = s.RunnerPool.LiveFor(p.OrgID)
 	}
-	writeJSON(w, http.StatusOK, list)
+	out := make([]RunnerView, 0, len(list))
+	for _, rn := range list {
+		view := RunnerView{Runner: rn}
+		if l, ok := live[rn.ID]; ok {
+			view.Live = &l
+			// Free disk is asked, not remembered: it changes while nobody is
+			// looking, and a cached figure is the kind that reassures right up
+			// to the moment the disk is full.
+			if cap, err := s.RunnerPool.Capacity(r.Context(), rn.ID); err == nil {
+				view.Capacity = &cap
+			}
+		}
+		out = append(out, view)
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// RunnerView is one runner as the runner page shows it: what it is, and — while
+// it is connected — what it is carrying.
+type RunnerView struct {
+	runnerstore.Runner
+	Live     *runner.Live           `json:"live,omitempty"`
+	Capacity *runner.CapacityReport `json:"capacity,omitempty"`
 }
 
 // handleCreateRegistrationToken issues the organisation's registration token.

@@ -346,7 +346,8 @@
     "audit": "Audit",
     "requests": "Requests",
     "skills": "Skills",
-    "setupPage": "Einrichtung"
+    "setupPage": "Einrichtung",
+    "runners": "Runner"
   },
   "costs": {
     "title": "Kosten & Token",
@@ -643,7 +644,9 @@
     "employedHint": "eingestellt und im Dienst",
     "reject": "Ablehnen",
     "rejectTitle": "{{name}} ablehnen?",
-    "rejectLead": "Der Entwurf wird verworfen. Er hat nie gearbeitet — es gibt keinen Lauf und keine Kosten. Die Ausschreibung, aus der er hervorging, bleibt als Aufgabe stehen."
+    "rejectLead": "Der Entwurf wird verworfen. Er hat nie gearbeitet — es gibt keinen Lauf und keine Kosten. Die Ausschreibung, aus der er hervorging, bleibt als Aufgabe stehen.",
+    "storeLevel": "Home-Store: {{size}} · {{snapshots}} Snapshots von {{agents}} Agenten",
+    "storeBackup": "braucht Backup wie die Datenbank"
   },
   "agent": {
     "notFound": "Agent nicht gefunden.",
@@ -1021,7 +1024,9 @@
       "deleteYes": "Ja, endgültig löschen",
       "cancel": "Abbrechen",
       "rollDice": "Zufälligen Namen würfeln",
-      "subGeneral": "Allgemein"
+      "subGeneral": "Allgemein",
+      "runnerTags": "Host-Anforderungen",
+      "runnerTagsHint": "Tags, die der Runner tragen muss, damit dieser Agent dort laufen darf — etwa arm64 oder ein Host im Netz des Zielsystems. Leer heißt: jeder Runner der Organisation. Ein Runner darf mehr tragen, als verlangt wird; fehlt eine geforderte Fähigkeit, wartet der Agent und die Meldung nennt das Tag."
     },
     "skills": {
       "desc": "Was dieser Agent an Fähigkeiten hat — eigene plus die ihm aus der Bibliothek verlinkten. Genau diese Liste landet vor jedem Lauf in seinem Home; von jedem Eintrag steht dauerhaft nur die Beschreibung im Kontext.",
@@ -1068,6 +1073,26 @@
       "title": "Was dabei herauskam",
       "window": "letzte 30 Tage",
       "hint": "Die Kennzahlen dieses Mitarbeiters aus seiner KPIS.md, und was eine Einheit davon gekostet hat."
+    },
+    "home": {
+      "title": "Home-Store",
+      "disabled": "Der Home-Store ist abgeschaltet (COVEY_HOME_STORE=false). Ohne ihn gibt es keine Snapshots, kein Zurückrollen — und ein verlorenes Home ist nicht wiederherstellbar.",
+      "noSnapshot": "Noch kein Snapshot — der erste entsteht, wenn der Agent das nächste Mal wirklich einschläft.",
+      "size": "{{total}} groß, davon {{exclusive}}, die nur dieser Agent hält",
+      "lastSync": "Letzter Sync {{when}} · {{blocks}} Blöcke, {{bytes}} übertragen, {{seconds}} s",
+      "snapshots": "{{count}} Snapshots, ältester vom {{since}}",
+      "runner": "Arbeitskopie zuletzt auf: {{runner}}",
+      "files": "{{count}} Dateien",
+      "backupNow": "Jetzt sichern",
+      "history": "Snapshots",
+      "restore": "Wiederherstellen",
+      "confirmRestore": "Home auf den Stand vom {{when}} zurücksetzen? Der aktuelle Inhalt der Arbeitskopie wird dabei überschrieben.",
+      "reason": {
+        "job": "nach dem Lauf",
+        "manual": "von Hand",
+        "file-browser": "Dateibrowser",
+        "restore": "nach dem Zurückrollen"
+      }
     }
   },
   "approvals": {
@@ -1818,5 +1843,39 @@
     "draftsHint": "Durchsehen und einstellen — vorher arbeitet keiner von ihnen.",
     "noDrafts": "Die Aufgabe ist fertig, es ist aber kein Entwurf entstanden. Der Bericht steht im Backlog der Personalabteilung.",
     "failed": "Die Ausschreibung ist fehlgeschlagen."
+  },
+  "runners": {
+    "title": "Runner",
+    "intro": "Wo die Sandboxen laufen. Jede Sandbox startet über das Runner-Protokoll — auf einer Einzelmaschine über einen Runner, den die Control Plane selbst betreibt.",
+    "colHost": "Host",
+    "colState": "Zustand",
+    "colTags": "Tags & Images",
+    "colLoad": "Läuft",
+    "colDisk": "Platte",
+    "colVersion": "Version",
+    "builtin": "Dieser Host (eingebaut)",
+    "builtinHint": "Tritt ab, sobald diese Organisation einen eigenen Runner registriert.",
+    "connected": "verbunden",
+    "offline": "offline",
+    "offlineHint": "Offline ist nicht „kein Runner“: Die Agenten warten, statt auf den Control-Plane-Host zurückzuwandern.",
+    "outdated": "veraltetes Protokoll",
+    "sandboxes": "{{count}} Sandbox(en)",
+    "decommission": "Abbauen",
+    "confirmDelete": "Diesen Runner abbauen? Er nimmt nur seine lokale Arbeitskopie mit — alles Wesentliche liegt im Home-Store.",
+    "addTitle": "Host hinzufügen",
+    "addHint": "Der Runner braucht Docker und einen Weg nach draußen. Keine Datenbank, keine Speicher-Zugangsdaten — er spricht ausschließlich das Runner-Protokoll.",
+    "newToken": "Registrierungs-Token erzeugen",
+    "tokenOnce": "Einmal im Klartext. Auf dem neuen Host ausführen:",
+    "storeTitle": "Home-Store",
+    "storeHint": "Nach jedem Job wandert das Home als Ganzes hier hinein. Braucht Backup wie die Datenbank — 99 % davon wären nur ein erneuter Download, der Rest existiert nirgendwo sonst.",
+    "storeSize": "{{size}} belegt · {{snapshots}} Snapshots von {{agents}} Agenten",
+    "keepPerAgent": "Snapshots je Agent (0 = unbegrenzt)",
+    "maxAgeDays": "Höchstalter in Tagen (0 = unbegrenzt)",
+    "alwaysKeepLast": "Der jüngste Snapshot jedes Agenten bleibt immer — eine Aufbewahrung, die einem Agenten sein letztes Home nimmt, wäre ein Löschbefehl auf Umwegen.",
+    "previewCleanup": "Vorschau",
+    "runCleanup": "Jetzt aufräumen",
+    "confirmCleanup": "Aufräumen ausführen? Die vorgemerkten Snapshots werden entfernt.",
+    "cleanupPreview": "Es würden {{snapshots}} Snapshots und {{blocks}} Blöcke wegfallen — {{freed}} werden frei.",
+    "cleanupDone": "{{snapshots}} Snapshots und {{blocks}} Blöcke entfernt, {{freed}} frei geworden."
   }
 }

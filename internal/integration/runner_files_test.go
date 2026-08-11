@@ -64,9 +64,12 @@ func filesStack(t *testing.T, dir string) (*stack, *runner.Pool, *runner.Node, h
 		}
 		return s.orgID, last, snap.ManifestHash, nil
 	}
+	// Wired as in production, so that what triggered a sync survives into the
+	// snapshot — the interface shows it, and a harness that flattened it would
+	// make the test pass for the wrong reason.
 	pool.SnapshotTaken = func(ctx context.Context, agentID, runnerID uuid.UUID, res runner.HomeSynced) error {
-		_, err := s.runners.RecordSnapshot(ctx, s.orgID, agentID, &runnerID,
-			res.ManifestHash, res.TotalSize, res.Blocks, res.BytesUp, "file-browser")
+		_, err := s.runners.RecordSnapshotTimed(ctx, s.orgID, agentID, &runnerID,
+			res.ManifestHash, res.TotalSize, res.Blocks, res.BytesUp, res.DurationMS, res.Reason)
 		return err
 	}
 

@@ -12,6 +12,59 @@ type SweepResult struct {
 	Kept    int
 }
 
+// SweepPlan is what a cleanup would free — measured, not estimated.
+type SweepPlan struct {
+	Blocks int
+	Bytes  int64
+}
+
+// Plan measures a sweep without performing it. It is what the preview shows,
+// and it has to be the space ACTUALLY freed: a block goes only when no
+// remaining snapshot references it, so the sum of the snapshot sizes would be
+// a number that is never right (spec/16, "Retention").
+func Plan(ctx context.Context, blobs BlobStore, orgID uuid.UUID, live []string) (SweepPlan, error) {
+	keep, err := liveBlocks(ctx, blobs, orgID, live)
+	if err != nil {
+		return SweepPlan{}, err
+	}
+	all, err := blobs.List(ctx, orgID)
+	if err != nil {
+		return SweepPlan{}, err
+	}
+	sizer, _ := blobs.(interface {
+		BlockSize(context.Context, uuid.UUID, string) (int64, error)
+	})
+	var out SweepPlan
+	for _, hash := range all {
+		if keep[hash] {
+			continue
+		}
+		out.Blocks++
+		if sizer != nil {
+			if n, err := sizer.BlockSize(ctx, orgID, hash); err == nil {
+				out.Bytes += n
+			}
+		}
+	}
+	return out, nil
+}
+
+// liveBlocks is everything the surviving snapshots reference.
+func liveBlocks(ctx context.Context, blobs BlobStore, orgID uuid.UUID, live []string) (map[string]bool, error) {
+	keep := map[string]bool{}
+	for _, manifestHash := range live {
+		keep[manifestHash] = true
+		m, err := Load(ctx, blobs, orgID, manifestHash)
+		if err != nil {
+			return nil, err
+		}
+		for block := range m.BlockSet() {
+			keep[block] = true
+		}
+	}
+	return keep, nil
+}
+
 // Sweep removes every block of an organisation that no surviving snapshot
 // references. live are the manifest hashes that remain.
 //
@@ -25,21 +78,12 @@ type SweepResult struct {
 // actually freed and not the sum of the snapshot sizes — anything else is a
 // number that is never right (spec/16, "Retention").
 func Sweep(ctx context.Context, blobs BlobStore, orgID uuid.UUID, live []string) (SweepResult, error) {
-	keep := map[string]bool{}
-	for _, manifestHash := range live {
-		// The manifest itself has to survive — without it the snapshot is a
-		// hash pointing at nothing.
-		keep[manifestHash] = true
-		m, err := Load(ctx, blobs, orgID, manifestHash)
-		if err != nil {
-			// A manifest that cannot be read is the one case where deleting
-			// would be unforgivable: we do not know what it references, so
-			// everything stays and the cleanup reports the failure instead.
-			return SweepResult{}, err
-		}
-		for block := range m.BlockSet() {
-			keep[block] = true
-		}
+	// A manifest that cannot be read is the one case where deleting would be
+	// unforgivable: we do not know what it references, so everything stays and
+	// the cleanup reports the failure instead.
+	keep, err := liveBlocks(ctx, blobs, orgID, live)
+	if err != nil {
+		return SweepResult{}, err
 	}
 
 	all, err := blobs.List(ctx, orgID)

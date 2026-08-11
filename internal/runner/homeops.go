@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 
+	"covey/internal/homestore"
 	"covey/internal/sandboxfs"
 )
 
@@ -51,6 +52,8 @@ func (n *Node) homeOp(ctx context.Context, t Transport, id string, op HomeOp) {
 		n.answer(ctx, t, id, HomeResult{Plan: &ZipMeasure{
 			Name: plan.Name, Files: plan.Files, Bytes: plan.Bytes, Paths: plan.Paths,
 		}}, err)
+	case OpRestore:
+		n.restore(ctx, t, id, op)
 	case OpOpen:
 		n.stream(ctx, t, id, tree, op)
 	case OpZip:
@@ -80,6 +83,22 @@ func (n *Node) answer(ctx context.Context, t Transport, id string, res HomeResul
 func (n *Node) write(ctx context.Context, t Transport, id string, tree *sandboxfs.FS, op HomeOp) {
 	entry, err := tree.Write(op.Path, bytesReader(op.Data))
 	n.answer(ctx, t, id, HomeResult{Entry: &entry}, err)
+}
+
+// restore brings the working copy back to an earlier state. A modifying action
+// on somebody else's work, so it is guarded up there where the roles live; down
+// here it is the same materialisation the wake does.
+func (n *Node) restore(ctx context.Context, t Transport, id string, op HomeOp) {
+	if n.Blobs == nil {
+		n.replyHome(ctx, t, id, HomeResult{Err: "no home store configured"}, true)
+		return
+	}
+	home, _, _ := n.Docker.AgentHome(op.AgentID)
+	m, err := homestore.Load(ctx, n.Blobs, op.OrgID, op.Snapshot)
+	if err == nil {
+		_, err = homestore.Materialize(ctx, n.Blobs, op.OrgID, home, m)
+	}
+	n.answer(ctx, t, id, HomeResult{}, err)
 }
 
 // stream sends a file in chunks. The first message carries the file's
