@@ -100,26 +100,6 @@ func (s *Store) ListSnapshots(ctx context.Context, agentID uuid.UUID, limit int)
 	return out, rows.Err()
 }
 
-// LiveManifests are the manifest hashes of an organisation that have to
-// survive a cleanup — the input of the mark-and-sweep.
-func (s *Store) LiveManifests(ctx context.Context, orgID uuid.UUID) ([]string, error) {
-	rows, err := s.pool.Query(ctx,
-		`SELECT DISTINCT manifest_hash FROM home_snapshots WHERE org_id = $1`, orgID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []string
-	for rows.Next() {
-		var h string
-		if err := rows.Scan(&h); err != nil {
-			return nil, err
-		}
-		out = append(out, h)
-	}
-	return out, rows.Err()
-}
-
 // Retention is the org-wide rule for how many snapshots survive.
 type Retention struct {
 	// KeepPerAgent: the last N per agent. 0 = no limit by count.
@@ -202,17 +182,6 @@ func (s *Store) HomeSummaryFor(ctx context.Context, agentID uuid.UUID) (HomeSumm
 		}
 	}
 	return out, nil
-}
-
-// DeleteSnapshot removes one snapshot row. It frees no space by itself — a
-// block belongs to no single snapshot, and only the sweep over the surviving
-// manifests decides that.
-func (s *Store) DeleteSnapshot(ctx context.Context, orgID, id uuid.UUID) error {
-	tag, err := s.pool.Exec(ctx, `DELETE FROM home_snapshots WHERE id = $1 AND org_id = $2`, id, orgID)
-	if err == nil && tag.RowsAffected() == 0 {
-		return ErrNotFound
-	}
-	return err
 }
 
 // GetSnapshot reads one snapshot of an organisation.

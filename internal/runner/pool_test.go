@@ -312,3 +312,125 @@ func TestSchedulingNamesWhyNothingFits(t *testing.T) {
 		t.Errorf("a matching runner has to be used: %v", err)
 	}
 }
+
+// The self-check is what says at startup what an agent would otherwise run into
+// at its first wake — and it has to ask the runners, because only they can see
+// their own host. What it asks about follows the agents: asking about every
+// configured profile would warn every fresh installation about a dev image
+// nobody wants.
+func TestPoolCheckAsksTheRunnersAboutTheImagesInUse(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Nothing connected: that is itself the answer, and it names what to do.
+	empty := NewPool(quietLog())
+	problems := empty.Check(ctx)
+	if len(problems) != 1 || !strings.Contains(problems[0], "no runner connected") {
+		t.Fatalf("without a runner the check has to say so: %v", problems)
+	}
+
+	dir := t.TempDir()
+	orgID := uuid.New()
+	p := NewPool(quietLog())
+	p.DefaultImage = "covey-sandbox:test"
+	p.Profiles = map[string]string{"base": "covey-sandbox:test", "dev": "covey-sandbox-dev:test"}
+	p.AgentImages = func(context.Context) (map[string]int, error) {
+		return map[string]int{"dev": 2}, nil // nobody on base
+	}
+	id := uuid.New()
+	node := NewNode(id, orgID, &Docker{
+		RunnerID: id, Image: "covey-sandbox:test", DataDir: dir,
+		DockerBin: fakeDockerBin(t, dir, "image"), // every image inspect fails
+	}, quietLog())
+	if err := p.AttachLocal(ctx, node); err != nil {
+		t.Fatal(err)
+	}
+
+	problems = p.Check(ctx)
+	if len(problems) != 1 {
+		t.Fatalf("exactly the image in use has to be reported: %v", problems)
+	}
+	if !strings.Contains(problems[0], "covey-sandbox-dev:test") {
+		t.Errorf("the resolved image has to be named: %q", problems[0])
+	}
+	// The profile is resolved on this side — a runner knows images, not agents.
+	if strings.Contains(problems[0], "\"dev\"") {
+		t.Errorf("the profile name must not reach the runner: %q", problems[0])
+	}
+
+	// With everything in place the check stays silent. One that cries wolf gets
+	// ignored, and then the one that matters is ignored too.
+	quiet := NewPool(quietLog())
+	quiet.DefaultImage = "covey-sandbox:test"
+	quietID := uuid.New()
+	quietDir := t.TempDir()
+	if err := quiet.AttachLocal(ctx, NewNode(quietID, orgID, &Docker{
+		RunnerID: quietID, Image: "covey-sandbox:test", DataDir: quietDir,
+		DockerBin: fakeDockerBin(t, quietDir, "nothing"),
+	}, quietLog())); err != nil {
+		t.Fatal(err)
+	}
+	if problems := quiet.Check(ctx); len(problems) != 0 {
+		t.Errorf("a working data plane has to stay silent: %v", problems)
+	}
+}
+
+// What a runner reports it is carrying — the basis for the runner view and for
+// the warning before the disk runs short.
+func TestCapacityReportsWhatTheRunnerCarries(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	orgID := uuid.New()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	runnerID := uuid.New()
+	p := NewPool(quietLog())
+	p.DefaultImage = "covey-sandbox:test"
+	node := NewNode(runnerID, orgID, &Docker{
+		RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: dir,
+		DockerBin: fakeDockerBin(t, dir, "nothing"),
+	}, quietLog())
+	if err := p.AttachLocal(ctx, node); err != nil {
+		t.Fatal(err)
+	}
+
+	cap, err := p.Capacity(ctx, runnerID)
+	if err != nil {
+		t.Fatalf("Capacity: %v", err)
+	}
+	if cap.Sandboxes != 0 {
+		t.Errorf("nothing is running yet: %d", cap.Sandboxes)
+	}
+	// The free space is that of the file system the working copies lie on —
+	// exactly the figure that decides whether the next home still fits.
+	if cap.TotalBytes == 0 || cap.FreeBytes == 0 || cap.WorkDir != dir {
+		t.Errorf("the capacity is about the wrong thing: %+v", cap)
+	}
+
+	if _, err := p.Start(ctx, orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: orgID}); err != nil {
+		t.Fatal(err)
+	}
+	if cap, err = p.Capacity(ctx, runnerID); err != nil || cap.Sandboxes != 1 {
+		t.Errorf("the running sandbox has to show up: %+v, %v", cap, err)
+	}
+
+	// A runner that is not connected has no capacity to report, and says so.
+	if _, err := p.Capacity(ctx, uuid.New()); !errors.Is(err, ErrNoRunner) {
+		t.Errorf("an unknown runner: %v", err)
+	}
+
+	// The live view the runner page is built from.
+	live := p.LiveFor(orgID)
+	if l, ok := live[runnerID]; !ok || !l.Connected || l.Sandboxes != 1 || l.Outdated {
+		t.Errorf("the live view is wrong: %+v", live)
+	}
+	if len(p.LiveFor(uuid.New())) != 0 {
+		t.Error("a foreign organisation sees no runners")
+	}
+}

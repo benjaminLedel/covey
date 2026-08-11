@@ -61,6 +61,26 @@ type Config struct {
 	// that is close to a doubling; from the second developer agent onwards the
 	// deduplication of the toolchain caches turns it into a saving.
 	HomeStore bool
+	// BlobStore selects where the home store's blocks live: "builtin" (a
+	// directory next to data/homes — the default, and no extra operational
+	// surface) or "s3" (an S3-compatible object store, when durability,
+	// replication or separation from the control plane's disk is wanted).
+	//
+	// S3-compatible and not "AWS S3": the protocol is the common denominator of
+	// Hetzner Object Storage, Garage, MinIO, Ceph RadosGW and SeaweedFS.
+	BlobStore string
+	// S3Endpoint/S3Bucket/S3Prefix and the credentials apply with
+	// COVEY_BLOB_STORE=s3.
+	S3Endpoint  string
+	S3Bucket    string
+	S3Prefix    string
+	S3Region    string
+	S3AccessKey string
+	S3SecretKey string
+	// S3PathStyle addresses the bucket in the path instead of in the host name.
+	// On by default: it is what the self-hosted servers speak without a
+	// wildcard certificate, and those are what this is mostly pointed at.
+	S3PathStyle bool
 	// HomeExcludes are paths left out of the sync (comma-separated). Their role
 	// is a cost question, not a prerequisite for correctness: the default is
 	// empty, and without configuration everything is synced. Only demonstrably
@@ -178,6 +198,14 @@ func FromEnv() (Config, error) {
 		SandboxImageDev:  getenv("COVEY_SANDBOX_IMAGE_DEV", "covey-sandbox-dev:latest"),
 		HomeStore:        getenvBool("COVEY_HOME_STORE", true),
 		HomeExcludes:     splitList(os.Getenv("COVEY_HOME_EXCLUDES")),
+		BlobStore:        getenv("COVEY_BLOB_STORE", "builtin"),
+		S3Endpoint:       getenv("COVEY_S3_ENDPOINT", ""),
+		S3Bucket:         getenv("COVEY_S3_BUCKET", ""),
+		S3Prefix:         getenv("COVEY_S3_PREFIX", ""),
+		S3Region:         getenv("COVEY_S3_REGION", ""),
+		S3AccessKey:      getenv("COVEY_S3_ACCESS_KEY", ""),
+		S3SecretKey:      getenv("COVEY_S3_SECRET_KEY", ""),
+		S3PathStyle:      getenvBool("COVEY_S3_PATH_STYLE", true),
 		WebhookSecrets:   webhookSecretsFromEnv(),
 		TickInterval:     getenvDuration("COVEY_TICK_INTERVAL", 30*time.Second),
 		DreamAt:          getenv("COVEY_DREAM_AT", "03:00"),

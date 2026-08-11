@@ -264,7 +264,7 @@ The default is deliberately the directory. For an installation on one machine �
 
 **If an object store, then S3-compatible — not "AWS S3".** The protocol is the common denominator of Hetzner Object Storage, Garage, MinIO, Ceph RadosGW and SeaweedFS; Covey does not prescribe a server but speaks the protocol. For the operator's choice: whatever the hoster offers anyway (on the Hetzner/Proxmox infrastructure named in [`10-architecture-stack.md`](10-architecture-stack.md) that means Hetzner Object Storage), otherwise **Garage** — lightweight and built for exactly such small, self-operated clusters. MinIO, if it is running in-house anyway.
 
-**The client question stays open until stage 8** — deliberately, because it is smaller than it looks. A block store needs five operations: `PUT`, `GET`, `HEAD`, `DELETE` and the signing of short-lived URLs. Because blocks are small and immutable, the most laborious part of an S3 client falls away entirely: **multipart upload is never needed.**
+**Decided in stage 8: a minimal client of our own** — the row below that costs no dependency. The reasoning it was measured against held: a block store needs five operations, and it is smaller than it looks. A block store needs five operations: `PUT`, `GET`, `HEAD`, `DELETE` and the signing of short-lived URLs. Because blocks are small and immutable, the most laborious part of an S3 client falls away entirely: **multipart upload is never needed.**
 
 Measured rather than estimated:
 
@@ -278,7 +278,9 @@ Building it ourselves is more defensible here than usual, because its **failure 
 
 Against it stands what a matured library brings: the individual providers' idiosyncrasies (path style vs. virtual host, region determination, error parsing). Whoever serves only one provider notices none of it; whoever serves five notices it at every one.
 
-This will be decided when stage 8 comes up. Until then all that counts is that `BlobStore` is a port and that `builtin` needs **no** dependency at all.
+What tipped it was that the counter-argument shrinks in exactly this case. The idiosyncrasies a matured library absorbs are those of *several* providers; an installation speaks to one, and the two knobs that differ — path style versus virtual host, and the region that servers without regions still want in the signature — are one field each. What remains is SigV4, and that is checked against the documented AWS test vector: if the implementation reproduces a signature somebody else computed, the canonical request, the signing key chain and the header handling are all right at once.
+
+`builtin` still needs **no** dependency at all, and `s3` needs none either.
 
 ### How the blocks reach the runner
 

@@ -276,10 +276,3 @@ func (n *Node) capacity() CapacityReport {
 	total, free := diskSpace(work)
 	return CapacityReport{Sandboxes: running, TotalBytes: total, FreeBytes: free, WorkDir: work}
 }
-
-// AgentHome is the local route to an agent's home. Only the built-in runner
-// answers this directly — for a remote one the way there is home_op over the
-// runner link.
-func (n *Node) AgentHome(agentID uuid.UUID) (string, int, int) {
-	return n.Docker.AgentHome(agentID)
-}

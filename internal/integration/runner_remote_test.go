@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -18,6 +19,7 @@ import (
 	"covey/internal/homestore"
 	"covey/internal/orchestrator"
 	"covey/internal/runner"
+	runnerstore "covey/internal/runner/store"
 )
 
 // The remote runner is the same implementation as the built-in one with a
@@ -336,5 +338,122 @@ func TestBuiltInRunnerStandsDownForARegisteredOne(t *testing.T) {
 	}
 	if remote, err := s.runners.HasRemote(ctx, s.orgID); err != nil || remote {
 		t.Error("a foreign organisation's runner must not make ours stand down")
+	}
+}
+
+// The built-in runner's token: rolled once per control-plane start, only its
+// hash in the database. Two things have to hold — the same organisation gets
+// the same token for the life of the process (otherwise the egress proxy would
+// be locked out mid-run), and a second process rolls a new one (otherwise it
+// would be a long-lived secret at rest for no gain).
+func TestBuiltInTokensAreStableWithinAProcessAndFreshAcross(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+
+	first := runnerstore.NewBuiltinTokens(s.runners)
+	idA, tokenA, err := first.For(ctx, s.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	idB, tokenB, err := first.For(ctx, s.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if idA != idB || tokenA != tokenB {
+		t.Error("within a process the same organisation has to get the same runner and token")
+	}
+	// And it works: the proxy authenticates with exactly this.
+	if rn, err := s.runners.ByToken(ctx, tokenA); err != nil || rn.ID != idA {
+		t.Fatalf("the issued token has to be usable: %v", err)
+	}
+
+	// A second organisation gets its own — a runner belongs to exactly one.
+	other := uuid.New()
+	if _, err := s.pool.Exec(ctx, "INSERT INTO organizations (id, name) VALUES ($1,'Zweit-Org')", other); err != nil {
+		t.Fatal(err)
+	}
+	idC, tokenC, err := first.For(ctx, other)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if idC == idA || tokenC == tokenA {
+		t.Error("two organisations must not share a runner or a token")
+	}
+
+	// A restart: new process, new token — and the old one stops working, which
+	// is the point of not keeping it at rest.
+	second := runnerstore.NewBuiltinTokens(s.runners)
+	idD, tokenD, err := second.For(ctx, s.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if idD != idA {
+		t.Error("the runner row survives a restart")
+	}
+	if tokenD == tokenA {
+		t.Error("a restart has to roll a new token")
+	}
+	if _, err := s.runners.ByToken(ctx, tokenA); err == nil {
+		t.Error("the old token must not keep working")
+	}
+}
+
+// A registration token is revocable, and revoking it has to take effect at
+// once — it is the credential with which a foreign host joins an organisation.
+// Revoked rather than deleted, so that "which token did this runner come in
+// on?" stays answerable afterwards.
+func TestRegistrationTokenCanBeRevoked(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+
+	token, err := s.runners.CreateRegistrationToken(ctx, s.orgID, "einmalig", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var id uuid.UUID
+	if err := s.pool.QueryRow(ctx,
+		`SELECT id FROM runner_registration_tokens WHERE org_id = $1`, s.orgID).Scan(&id); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.runners.Register(ctx, token, "erster Host", nil); err != nil {
+		t.Fatalf("before the revocation it has to work: %v", err)
+	}
+
+	if err := s.runners.RevokeRegistrationToken(ctx, s.orgID, id); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.runners.Register(ctx, token, "zweiter Host", nil); !errors.Is(err, runnerstore.ErrTokenInvalid) {
+		t.Errorf("after the revocation it must not work: %v", err)
+	}
+	// The row stays — otherwise the question which token a runner came in on
+	// would be unanswerable exactly when somebody asks it.
+	var revoked bool
+	if err := s.pool.QueryRow(ctx,
+		`SELECT revoked_at IS NOT NULL FROM runner_registration_tokens WHERE id = $1`, id).Scan(&revoked); err != nil {
+		t.Fatalf("the token row has to stay: %v", err)
+	}
+	if !revoked {
+		t.Error("the token has to be marked as revoked")
+	}
+
+	// A foreign organisation cannot revoke ours.
+	fremd := uuid.New()
+	if _, err := s.pool.Exec(ctx, "INSERT INTO organizations (id, name) VALUES ($1,'Fremd-Revoke')", fremd); err != nil {
+		t.Fatal(err)
+	}
+	zweites, err := s.runners.CreateRegistrationToken(ctx, s.orgID, "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var zweitesID uuid.UUID
+	if err := s.pool.QueryRow(ctx,
+		`SELECT id FROM runner_registration_tokens WHERE org_id = $1 AND revoked_at IS NULL`, s.orgID).Scan(&zweitesID); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.runners.RevokeRegistrationToken(ctx, fremd, zweitesID); err == nil {
+		t.Error("a foreign organisation must not revoke our token")
+	}
+	if _, _, err := s.runners.Register(ctx, zweites, "dritter Host", nil); err != nil {
+		t.Errorf("our token has to keep working: %v", err)
 	}
 }

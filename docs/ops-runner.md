@@ -130,6 +130,41 @@ switch cost time instead of work.
   again; the rest exists nowhere else. It is a cache in its function, not in
   its need for protection.
 
+### Blocks in an object store
+
+`COVEY_BLOB_STORE=s3` puts the blocks into an S3-compatible store instead —
+for durability, replication, or simply to keep them off the control plane's
+disk. The default stays the directory: for an installation on one machine an
+object store is unnecessary operational surface.
+
+```bash
+COVEY_BLOB_STORE=s3
+COVEY_S3_ENDPOINT=https://s3.eu-central-1.example.com
+COVEY_S3_BUCKET=covey-blocks
+COVEY_S3_ACCESS_KEY=…
+COVEY_S3_SECRET_KEY=…
+COVEY_S3_REGION=eu-central-1     # servers without regions still want one signed
+COVEY_S3_PREFIX=covey            # optional, for a bucket that holds more
+COVEY_S3_PATH_STYLE=true         # default; false addresses the bucket in the host
+```
+
+**S3-compatible, not "AWS S3".** The protocol is the common denominator of
+Hetzner Object Storage, Garage, MinIO, Ceph RadosGW and SeaweedFS — Covey does
+not prescribe a server. Whatever your hoster offers is usually the right answer;
+otherwise Garage, which is built for exactly this kind of small self-operated
+cluster.
+
+At startup the store is probed once (write, read, delete). A wrong key or a
+missing bucket therefore says so in the log at start, not inside the recording
+of the first agent that tried to fall asleep. It is a warning and not an abort:
+everything that is not a run keeps working, and an object store that comes back
+in two minutes is a normal case.
+
+Switching backends does **not** move the blocks. Point a running installation at
+an empty bucket and the snapshots stay in the database while their content is
+gone — copy the block directory over first, or accept that every home is
+rebuilt from scratch on its next wake.
+
 Snapshots accumulate. Retention is set per organisation under **Runners** — the
 last *N* per agent and a maximum age, with every agent's most recent snapshot
 always kept. *Preview* measures what a cleanup would free before anything

@@ -162,3 +162,106 @@ func TestDockerCheck(t *testing.T) {
 		t.Fatalf("a working data plane has to stay silent: %v", problems)
 	}
 }
+
+// The internal network and the proxy container carry the runner they belong to
+// in their name. That is not cosmetics: as instance-wide singletons the
+// sandboxes of every organisation hung off the same segment, and `--internal`
+// cuts the way out, not the way sideways. Two tenants' agents could reach each
+// other directly, past every allowlist.
+func TestEgressSegmentIsPerRunner(t *testing.T) {
+	a, b := uuid.New(), uuid.New()
+	if egressNetworkFor(a) == egressNetworkFor(b) {
+		t.Error("two runners must not share an internal network")
+	}
+	if egressProxyNameFor(a) == egressProxyNameFor(b) {
+		t.Error("two runners must not share a proxy container")
+	}
+	// Names have to be usable: docker allows [a-zA-Z0-9][a-zA-Z0-9_.-]*, and a
+	// name that is merely long is one nobody can read in a terminal.
+	for _, name := range []string{egressNetworkFor(a), egressProxyNameFor(a)} {
+		if len(name) > 40 {
+			t.Errorf("name too long for a terminal: %q", name)
+		}
+		if strings.ContainsAny(name, " /:") {
+			t.Errorf("name not usable as a docker name: %q", name)
+		}
+	}
+}
+
+// The per-sandbox token identifies the agent to the proxy. If it ever stopped
+// travelling, the proxy would answer 407 fail-closed — correct, and completely
+// opaque from the agent's side.
+func TestEgressProxyURLCarriesThePerSandboxToken(t *testing.T) {
+	agent := uuid.New().String()
+	got := egressURLWithCreds("http://covey-egress:8888", agent, "geheim")
+	if !strings.Contains(got, agent+":geheim@") {
+		t.Errorf("the token has to be in the proxy URL: %s", got)
+	}
+	// Without a token the URL stays untouched — the proxy then answers 407 by
+	// itself, which is the right answer and not one to fake here.
+	if got := egressURLWithCreds("http://covey-egress:8888", agent, ""); got != "http://covey-egress:8888" {
+		t.Errorf("without a token the URL has to stay unchanged: %s", got)
+	}
+}
+
+// In hard isolation mode the sandbox has no way out but the proxy — and the
+// control plane connection runs through it too. If NO_PROXY ever covered the
+// control plane there, the daemon link would bypass the allowlist; if the proxy
+// variables were missing, nothing would reach the outside at all.
+func TestNetworkIsolationRoutesEverythingThroughTheProxy(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	fake := filepath.Join(dir, "docker")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" >> " + argsFile + "\necho ok\n"
+	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	runnerID := uuid.New()
+	p := &Docker{
+		RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fake,
+		EgressIsolation: "network", EgressProxyImage: "covey-egress:test",
+		EgressRunnerToken: "runner-token",
+		EgressProxyEnv:    map[string]string{"COVEY_CONTROL_URL": "https://covey.example"},
+	}
+	agentID := uuid.New()
+	if _, err := p.Start(context.Background(), StartSandbox{
+		AgentID: agentID, EgressToken: "sandbox-token",
+		Env: map[string]string{"COVEY_WS_URL": "wss://covey.example/api/daemon/ws"},
+	}); err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	raw, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(raw)
+	for _, want := range []string{
+		egressNetworkFor(runnerID),                // the sandbox's own segment
+		egressProxyNameFor(runnerID),              // and its own proxy
+		"HTTPS_PROXY=http://" + agentID.String(),  // through the proxy, as this agent
+		"COVEY_RUNNER_TOKEN=runner-token",         // the proxy authenticates as the runner
+		"COVEY_CONTROL_URL=https://covey.example", // …against the control plane
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("missing from the docker invocation: %q\n%s", want, got)
+		}
+	}
+	// The control plane must NOT be in NO_PROXY here: in hard mode the daemon
+	// link runs through the proxy by CONNECT, and an exception would be a way
+	// past the allowlist.
+	for _, line := range strings.Split(got, "\n") {
+		if strings.HasPrefix(line, "NO_PROXY=") && strings.Contains(line, "host.docker.internal") {
+			t.Errorf("in hard mode the control plane must not bypass the proxy: %q", line)
+		}
+	}
+	// And the database URL is gone for good — the proxy is an enforcement
+	// point, not a database client.
+	if strings.Contains(got, "COVEY_DATABASE_URL") {
+		t.Error("the egress proxy must not be given the database URL")
+	}
+}

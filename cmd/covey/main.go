@@ -437,6 +437,44 @@ func egressBaseAllow(cfg config.Config) []string {
 	return append([]string{}, cfg.EgressAllow...)
 }
 
+// openBlobStore builds the home store's backend — a port following the pattern
+// of IdentityProvider and SecretStore (spec/10, "batteries included, but
+// swappable"). The default is deliberately the directory: for an installation
+// on one machine an object store is unnecessary operational surface, and the
+// promise "one binary + Postgres" should not quietly become "one binary +
+// Postgres + MinIO".
+func openBlobStore(ctx context.Context, cfg config.Config, log *slog.Logger) (homestore.BlobStore, string, error) {
+	switch strings.ToLower(strings.TrimSpace(cfg.BlobStore)) {
+	case "", "builtin":
+		dir, err := homestore.NewDir(filepath.Join(cfg.DataDir, "blocks"))
+		if err != nil {
+			return nil, "", err
+		}
+		return dir, dir.Root(), nil
+	case "s3":
+		store, err := homestore.NewS3(cfg.S3Endpoint, cfg.S3Bucket, cfg.S3Prefix, homestore.Credentials{
+			AccessKey: cfg.S3AccessKey, SecretKey: cfg.S3SecretKey, Region: cfg.S3Region,
+		}, cfg.S3PathStyle)
+		if err != nil {
+			return nil, "", err
+		}
+		// Asked at startup: a wrong key or a missing bucket should say so here
+		// and not at the first agent's falling asleep, where the message would
+		// arrive inside the recording of a task that has long since run.
+		checkCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+		defer cancel()
+		if err := store.Check(checkCtx); err != nil {
+			// A warning and not an abort: everything that is not a run works
+			// meanwhile, and an object store that comes back in two minutes is
+			// a normal case.
+			log.Warn("object store not usable — homes cannot be synced until it is", "err", err)
+		}
+		return store, cfg.S3Endpoint + "/" + cfg.S3Bucket, nil
+	default:
+		return nil, "", fmt.Errorf("COVEY_BLOB_STORE %q: only 'builtin' and 's3' are implemented", cfg.BlobStore)
+	}
+}
+
 // rewriteLoopbackForContainer bends a loopback URL onto host.docker.internal so
 // that a container reaches the service on the host — the control plane for the
 // egress proxy, say. Non-loopback hosts (a real deployment address) stay
@@ -702,12 +740,12 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 
 	var blobs homestore.BlobStore
 	if cfg.HomeStore {
-		dir, err := homestore.NewDir(filepath.Join(cfg.DataDir, "blocks"))
+		store, where, err := openBlobStore(ctx, cfg, log)
 		if err != nil {
 			return err
 		}
-		blobs = dir
-		runnerPool.Blobs = dir
+		blobs = store
+		runnerPool.Blobs = store
 		runnerPool.LatestSnapshot = func(ctx context.Context, agentID uuid.UUID) (string, error) {
 			snap, err := snapshotStore.LatestSnapshot(ctx, agentID)
 			return snap.ManifestHash, err
@@ -721,7 +759,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 				res.ManifestHash, res.TotalSize, res.Blocks, res.BytesUp, res.DurationMS, res.Reason)
 			return err
 		}
-		log.Info("home store active", "blocks", dir.Root(),
+		log.Info("home store active", "blocks", where,
 			"note", "needs backup like the database — 48 MB of a typical home exist nowhere else")
 	} else {
 		log.Warn("home store switched off (COVEY_HOME_STORE=false) — " +

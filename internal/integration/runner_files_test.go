@@ -376,3 +376,45 @@ func TestReadOnlyHomeAnswersWithConflict(t *testing.T) {
 		t.Errorf("the file from the snapshot is missing from the listing: %s", body.String())
 	}
 }
+
+// Mkdir over the runner link — the one mutating operation the other file tests
+// do not take, and it marks the home dirty like the rest. A folder that lived
+// only in the working copy would vanish at the next materialise just as an
+// upload would.
+func TestMkdirOverTheLinkIsSyncedToo(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	ctx := context.Background()
+	s, pool, _, blobs, _ := filesStack(t, dir)
+	agent := s.newSupportAgent("mkdir-agent")
+
+	tree, err := s.orch.AgentFiles(agent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry, err := tree.Mkdir("uebergabe")
+	if err != nil {
+		t.Fatalf("Mkdir: %v", err)
+	}
+	if !entry.IsDir || entry.Name != "uebergabe" {
+		t.Errorf("the created entry is wrong: %+v", entry)
+	}
+	pool.FlushHomes(ctx)
+
+	snap, err := s.runners.LatestSnapshot(ctx, agent.ID)
+	if err != nil || snap.ManifestHash == "" {
+		t.Fatalf("the folder did not trigger a sync: %v", err)
+	}
+	m, err := homestore.Load(ctx, blobs, s.orgID, snap.ManifestHash)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range m.Entries {
+		if e.Path == "uebergabe" && e.Dir {
+			return
+		}
+	}
+	t.Errorf("the folder is missing from the snapshot: %+v", m.Entries)
+}
