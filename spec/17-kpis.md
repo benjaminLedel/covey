@@ -227,7 +227,7 @@ The qualifying figures above narrow the gap but do not close it. Rework, rejecti
 
 The judgement itself stays where it already sits: in the recording, in the approval gates, and in the humans who read both.
 
-The People department's development role reads all of it and judges — but its output is a **proposal**, never a change in effect ([`21-feedback-and-development.md`](21-feedback-and-development.md)). That keeps the sentences above true rather than rewriting them: still nothing rewards an agent for a figure, still nothing shows it its target, still no scheduler decision hangs off one. The humans get the judgement prepared instead of having to assemble it.
+The improvement engineer reads all of it and judges — but its output is a **proposal**, never a change in effect ([`21-operations-and-improvement.md`](21-operations-and-improvement.md)). That keeps the sentences above true rather than rewriting them: still nothing rewards an agent for a figure, still nothing shows it its target, still no scheduler decision hangs off one. The humans get the judgement prepared instead of having to assemble it.
 
 ---
 
