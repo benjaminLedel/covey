@@ -839,6 +839,15 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 			if errors.Is(err, errBudgetExceeded) {
 				return nil // task has already been reopened, agent is paused
 			}
+			if errors.Is(err, errDaemonConnection) {
+				// The link is dead either way — no point trying to claim another
+				// task over it. Reopen this one instead of failing it: the sandbox
+				// dropped out from under the agent, that says nothing about
+				// whether the work itself was going fine.
+				_, _ = o.Backlog.Reopen(context.WithoutCancel(ctx), task.ID, "daemon connection lost — retrying")
+				o.publishTask(task.ID, agent.ID)
+				return err
+			}
 			_, _ = o.Backlog.Complete(context.WithoutCancel(ctx), task.ID, backlog.StateFailed, "", err.Error())
 			o.publishTask(task.ID, agent.ID)
 			return err
@@ -1606,7 +1615,7 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	for {
 		msg, err := link.Receive(ctx)
 		if err != nil {
-			return fmt.Errorf("daemon connection: %w", err)
+			return fmt.Errorf("%w: %w", errDaemonConnection, err)
 		}
 		done, err := o.handleDaemonMessage(ctx, agent, link, taskID, msg, s)
 		if err != nil {
@@ -2050,6 +2059,16 @@ func (o *Orchestrator) enforceBudget(ctx context.Context, agent agents.Agent, li
 // errBudgetExceeded marks the budget stop: the task is open again, the agent is
 // paused — not a failed completion.
 var errBudgetExceeded = errors.New("budget exceeded")
+
+// errDaemonConnection marks a lost sandbox connection mid-task (container
+// killed, Docker under resource pressure, network blip) — an infrastructure
+// event, not a verdict on the agent's work. Observed in practice: several
+// agents' daemon links dropped within the same second under concurrent
+// sandbox load, and every one of those tasks landed on StateFailed with no
+// automatic way back — real backlog items sitting there until someone
+// happens to notice and retries them by hand via the task API. Treated the
+// same way as errBudgetExceeded: reopen, don't fail.
+var errDaemonConnection = errors.New("daemon connection lost")
 
 const (
 	// originAgentTask marks a task an agent created itself (covey/create_task) —
