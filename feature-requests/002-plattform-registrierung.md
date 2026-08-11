@@ -259,8 +259,13 @@ needs a ceiling one level up, and the dispatcher needs a reason to refuse — se
 The instance's own configuration — one row per setting, no wide table that
 needs a migration for every new switch.
 
+*Gebaut* als `migrations/0057_system_settings.up.sql` — die Nummern in diesem
+Dokument sind Reihenfolge, nicht Vergabe: 0051–0056 liegen in den offenen
+Zweigen (Runner, Aufgaben-Wiederholung), und eine doppelte Nummer gilt als
+längst angewandt und wird still übersprungen.
+
 ```sql
--- 0058_system_settings.up.sql
+-- 0057_system_settings.up.sql
 CREATE TABLE system_settings (
     key        TEXT PRIMARY KEY,
     -- Plain value. NULL for secret settings, which live in the two columns below.

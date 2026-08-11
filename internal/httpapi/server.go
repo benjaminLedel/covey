@@ -34,6 +34,7 @@ import (
 	reqlogstore "covey/internal/reqlog/store"
 	"covey/internal/runtimes"
 	"covey/internal/secrets"
+	"covey/internal/settings"
 	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
 	"covey/internal/templates"
@@ -52,6 +53,9 @@ type Server struct {
 	Dreams   *dream.Store
 	Org      *org.Store
 	Targets  *targetstore.Store
+	// Settings are the instance's own switches (internal/settings).
+	// nil = the defaults apply, which for signup.mode means: closed.
+	Settings *settings.Store
 	// Skills are the agents' capabilities (library + agent-owned).
 	// nil = feature switched off; the skill routes then answer with 503
 	// (the same meaning as orchestrator.Options.Skills == nil).
@@ -151,6 +155,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/version", s.auth(func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, buildinfo.Get())
 	}))
+
+	// The public website's own question, without a session: does this
+	// installation accept registrations (public.go).
+	mux.HandleFunc("GET /api/v1/public/signup-state", s.handleSignupState)
 
 	// Auth.
 	mux.HandleFunc("POST /api/v1/auth/login", s.handleLogin)

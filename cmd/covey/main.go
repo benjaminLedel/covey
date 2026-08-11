@@ -41,6 +41,7 @@ import (
 	reqlogstore "covey/internal/reqlog/store"
 	"covey/internal/runtimes"
 	secbuiltin "covey/internal/secrets/builtin"
+	"covey/internal/settings"
 	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
 	"covey/internal/templates"
@@ -102,6 +103,8 @@ func main() {
 		err = runEgressProxy(ctx, cfg, log)
 	case "config":
 		err = runConfigLint(ctx, cfg, os.Args[2:])
+	case "settings":
+		err = runSettings(ctx, cfg, os.Args[2:], log)
 	case "genkey":
 		var key string
 		if key, err = secbuiltin.GenerateMasterKey(); err == nil {
@@ -126,6 +129,7 @@ func usage() {
   covey serve             start API + orchestrator + admin UI
   covey egress-proxy      egress allowlist proxy (network isolation mode, in the container)
   covey config lint       check agent configs for known pitfalls (changes nothing)
+  covey settings [k v]    show the instance's settings, or set one (e.g. signup.mode waitlist)
   covey genkey            generate a new COVEY_MASTER_KEY
   covey version           version, commit and build time of this binary
 
@@ -299,6 +303,47 @@ func runBootstrap(ctx context.Context, cfg config.Config, log *slog.Logger) erro
 // self-service reset). The password never comes from argv (process list!) but
 // from the terminal without echo or as a single line from stdin. All of the
 // user's running sessions are invalidated.
+// runSettings shows the instance's settings and changes one of them. The same
+// switches the System page will offer later (FR-002) — the command exists
+// because the first of them has to be flippable before there is a page, and
+// because an installation that has locked itself out of its own interface
+// still has a terminal.
+//
+// Validation is not repeated here: it sits in the store, so the CLI cannot
+// permit what the API refuses.
+func runSettings(ctx context.Context, cfg config.Config, args []string, log *slog.Logger) error {
+	pool, err := db.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	store := settings.New(pool)
+
+	switch len(args) {
+	case 0:
+		werte, err := store.All(ctx)
+		if err != nil {
+			return err
+		}
+		for _, k := range settings.Keys() {
+			markierung := ""
+			if werte[k] == settings.Defaults[k] {
+				markierung = "   (default)"
+			}
+			fmt.Printf("%-20s %s%s\n", k, werte[k], markierung)
+		}
+		return nil
+	case 2:
+		if err := store.Set(ctx, args[0], args[1], nil); err != nil {
+			return err
+		}
+		log.Info("setting changed", "key", args[0], "value", args[1])
+		return nil
+	default:
+		return errors.New("usage: covey settings [<key> <value>]")
+	}
+}
+
 func runPasswd(ctx context.Context, cfg config.Config, args []string, log *slog.Logger) error {
 	if len(args) != 1 {
 		return errors.New("usage: covey passwd <email>")
@@ -737,6 +782,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Pool:    pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Runtimes: runtimeStore, Identity: idp, Memory: mem, Dreams: dreams,
 		Org: org.NewStore(pool), Targets: targets, Templates: templateStore,
+		Settings: settings.New(pool),
 		Skills: skillStore,
 		Orch:   orch, WebFS: dist, Log: log,
 		WebhookSecrets: cfg.WebhookSecrets,
