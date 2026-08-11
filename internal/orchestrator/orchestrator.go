@@ -1570,6 +1570,13 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	if mayDraft {
 		compiled += "\n\n" + agents.HiringDoc
 	}
+	// Und dasselbe fuer die andere Haelfte: `scope: agents:review` schaltet das
+	// Lesen und Vorschlagen frei (spec/21). Zwei Scopes, zwei Abschnitte — wer
+	// nur begutachten darf, liest nichts ueber das Entwerfen und umgekehrt.
+	mayReview := o.mayReviewAgents(ctx, agent)
+	if mayReview {
+		compiled += "\n\n" + agents.ReviewDoc
+	}
 	// The platform's own meta actions (board, notes, wiki, delegation) are not a
 	// target system, but they are callable in exactly the same way — so on the
 	// MCP route they belong in the tool list too. Their description is the
@@ -1579,10 +1586,13 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	// People department that is exactly wrong: its whole job runs through these
 	// actions, and it reaches no external system at all. So whoever may draft
 	// agents gets the tool even with an otherwise empty list.
-	if len(actionTools) > 0 || mayDraft {
+	if len(actionTools) > 0 || mayDraft || mayReview {
 		doc := agents.CoveyActionsDoc
 		if mayDraft {
 			doc += "\n\n" + agents.HiringDoc
+		}
+		if mayReview {
+			doc += "\n\n" + agents.ReviewDoc
 		}
 		actionTools = append(actionTools, daemon.ActionTool{Name: "covey", Description: doc})
 	}
@@ -2506,7 +2516,7 @@ func (o *Orchestrator) decideAction(ctx context.Context, agent agents.Agent, tas
 			Reason: "forbidden by guard rail " + verdict.Rule.Pattern}
 
 	case guardrails.RequireApproval:
-		v := o.approvalGate(ctx, agent, taskID, req.Action, json.RawMessage(req.Params))
+		v := o.approvalGate(ctx, agent, taskID, req.Action, json.RawMessage(req.Params), "")
 		switch {
 		case v.Error != "":
 			return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied", Reason: v.Error}
@@ -2547,16 +2557,21 @@ type gateVerdict struct {
 //
 // Die Freigabe ist EINMALIG verbrauchbar (approvals.used). Eine erteilte
 // Freigabe ist die Antwort auf eine Handlung, keine Lizenz auf die Aktion.
+// binding schnürt eine Freigabe auf EINEN Gegenstand fest (leer = auf die
+// Aktion). covey:read_recording braucht das: eine erteilte Freigabe ist die
+// Antwort auf „darf er dieses Gespräch lesen" und nicht auf „darf er Gespräche
+// lesen" — sonst wäre die Freigabe für Lauf A die Eintrittskarte für Lauf B.
 func (o *Orchestrator) approvalGate(ctx context.Context, agent agents.Agent, taskID uuid.UUID,
-	action string, params json.RawMessage) gateVerdict {
+	action string, params json.RawMessage, binding string) gateVerdict {
 
 	// Eine unverbrauchte Freigabe für genau diese Aktion? Dann verbrauchen.
 	var approvalID uuid.UUID
 	err := o.Pool.QueryRow(ctx, `UPDATE approvals SET used=TRUE
 		WHERE id = (SELECT id FROM approvals
 			WHERE agent_id=$1 AND action=$2 AND status='approved' AND NOT used
+			  AND ($3='' OR params->>'binding' = $3)
 			ORDER BY decided_at DESC LIMIT 1)
-		RETURNING id`, agent.ID, action).Scan(&approvalID)
+		RETURNING id`, agent.ID, action, binding).Scan(&approvalID)
 	if err == nil {
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindApproval,
 			map[string]any{"action": action, "decision": "approved", "approval_id": approvalID.String()})

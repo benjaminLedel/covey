@@ -351,10 +351,22 @@ type InjectCreateTask struct {
 	Agent     string `json:"agent,omitempty"`   // resolved target agent (slug)
 }
 
-// RequestHiring/InjectHiring are the meta actions with which an agent drafts
-// another agent (covey/list_targets, get_agent_config, create_agent,
-// set_agent_config — spec/20). The platform's own target system, so to speak:
-// no external system, no credential, executed in the control plane.
+// RequestHiring/InjectHiring are the meta actions an agent runs against the
+// platform's own registry. Two halves, unlocked by two different scopes in
+// ACCESS.md:
+//
+//   - DRAFTING a colleague (list_targets, get_agent_config, create_agent,
+//     set_agent_config — spec/20, `scope: agents:write`).
+//   - REVIEWING one (work_record, read_recording, propose_agent_config —
+//     spec/21, `scope: agents:review`), plus get_agent_config, which both
+//     halves need.
+//
+// An agent may hold both scopes; the People department and the improvement
+// engineer deliberately do not — neither can do the other's job with the
+// other's credentials.
+//
+// The platform's own target system, so to speak: no external system, no
+// credential, executed in the control plane.
 //
 // Like create_task and unlike the other meta actions they go through the
 // guard-rails (subject covey:<op>) — what comes out of them is a colleague, and
@@ -377,8 +389,21 @@ type RequestHiring struct {
 	JobTitle    string `json:"job_title,omitempty"`
 	Department  string `json:"department,omitempty"` // name, not ID — the model reads names
 	Supervisor  string `json:"supervisor,omitempty"` // human's email or display name
-	// Files is the config (set_agent_config): file name → complete content.
+	// Files is the config (set_agent_config) or the changed files of a proposal
+	// (propose_agent_config): file name → complete content.
 	Files map[string]string `json:"files,omitempty"`
+
+	// --- Review (spec/21), unlocked by `scope: agents:review` ---
+
+	// Task addresses one run (read_recording): the id of the backlog task,
+	// which the work record names in its task lines.
+	Task string `json:"task,omitempty"`
+	// Days is the period of a work record (default 30).
+	Days int `json:"days,omitempty"`
+	// Title and Rationale carry a proposal: what it changes, and out of which
+	// observation. The rationale is what a human reads before the diff.
+	Title     string `json:"title,omitempty"`
+	Rationale string `json:"rationale,omitempty"`
 }
 
 // InjectHiring is the answer to a meta action. Pending is the third outcome

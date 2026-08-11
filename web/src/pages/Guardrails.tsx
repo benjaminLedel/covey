@@ -29,6 +29,7 @@ const patternSuggestions = [
   "github:*",
   "mail:*",
   "covey:set_agent_config",
+  "covey:read_recording",
   "covey:*",
   "hr*",
   "*",

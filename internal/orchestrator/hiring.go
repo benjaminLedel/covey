@@ -37,14 +37,37 @@ import (
 	"covey/internal/observability"
 )
 
-// hiringOps are the ops and their guard-rail subjects. Everything an agent may
-// do towards the platform itself stands here — what is missing cannot be
-// called, which is why hiring is missing.
-var hiringOps = map[string]string{
-	"list_targets":     "covey:list_targets",
-	"get_agent_config": "covey:get_agent_config",
-	"create_agent":     "covey:create_agent",
-	"set_agent_config": "covey:set_agent_config",
+// coveyOp ist eine Meta-Action: ihr Guard-Rail-Subjekt, die Scopes, von denen
+// EINER genügt, und ob sie immer einen Menschen fragt.
+type coveyOp struct {
+	Subject string
+	Scopes  []string
+	// AlwaysApprove: die Aktion legt jedes Mal eine Freigabe an, auch ohne
+	// Guard-Rail-Regel. Genau eine hat das — covey:read_recording, und dort ist
+	// es die Regel selbst und keine Voreinstellung: „er liest Fakten. Ein
+	// Gespräch ist nur über eine Freigabe erreichbar, ein Lauf auf einmal"
+	// (spec/21). Eine Organisation kann das Subjekt zusätzlich ganz verbieten;
+	// lockerer als hier geht es nicht.
+	AlwaysApprove bool
+}
+
+// coveyOps sind die Ops und ihre Subjekte. Alles, was ein Agent gegenüber der
+// Plattform selbst tun darf, steht hier — was fehlt, kann nicht aufgerufen
+// werden, und deshalb fehlt das Einstellen (spec/20) wie das Entlassen
+// (spec/21). Nicht verboten: nicht vorhanden, damit es nichts zu vergessen
+// gibt.
+var coveyOps = map[string]coveyOp{
+	"list_targets":     {Subject: "covey:list_targets", Scopes: []string{scopeWrite}},
+	"create_agent":     {Subject: "covey:create_agent", Scopes: []string{scopeWrite}},
+	"set_agent_config": {Subject: "covey:set_agent_config", Scopes: []string{scopeWrite}},
+	// Die Config eines Kollegen zu LESEN brauchen beide Seiten: wer entwirft,
+	// um den Hausstil zu treffen, und wer begutachtet, um zu wissen, worüber er
+	// urteilt (spec/21).
+	"get_agent_config": {Subject: "covey:get_agent_config", Scopes: []string{scopeWrite, scopeReview}},
+
+	"work_record":          {Subject: "covey:work_record", Scopes: []string{scopeReview}},
+	"read_recording":       {Subject: "covey:read_recording", Scopes: []string{scopeReview}, AlwaysApprove: true},
+	"propose_agent_config": {Subject: "covey:propose_agent_config", Scopes: []string{scopeReview}},
 }
 
 // hiringSystem is the name of the access in ACCESS.md that unlocks these
@@ -52,25 +75,27 @@ var hiringOps = map[string]string{
 // config uses, so the entry says what it does.
 const hiringSystem = "covey"
 
-// hiringScope is the one scope this system knows — and it is READ, not
-// decoration. A scope that stands in an ACCESS.md, gets reviewed like a limit
-// and turns out to be none is worse than no scope at all: it makes the line
-// look narrower than it is, and this is the line whose output is other agents.
+// Die beiden Scopes dieses Systems — und sie sind ERNST, nicht Zierde. Ein
+// Scope, der in einer ACCESS.md steht, wie eine Grenze gelesen wird und keine
+// ist, ist schlimmer als gar keiner: er lässt die Zeile schmaler aussehen, als
+// sie ist, und das hier ist die Zeile, deren Ausgabe andere Agenten sind.
 //
-// One scope and not a read/write pair: the two reading actions exist to serve
-// the drafting — list_targets so that an ACCESS.md names systems that really
-// exist, get_agent_config so that the house style is met. Nobody has yet needed
-// them without the writing ones. If that case turns up, a second scope belongs
-// here and in mayDraftAgents, and the prompt section has to be narrowed with
-// it — an agent that reads about create_agent and is then refused is exactly
-// the capability-by-suggestion this file is built to avoid.
-const hiringScope = "agents:write"
+// scopeWrite stellt ein (entwirft), scopeReview liest und schlägt vor. Ein
+// Agent darf beide halten; die Personalabteilung und der Betriebsingenieur tun
+// es bewusst nicht — keiner von beiden kann mit den Zugängen des anderen
+// dessen Arbeit machen (spec/21).
+const (
+	scopeWrite  = "agents:write"
+	scopeReview = "agents:review"
+	// hiringScope bleibt als Name stehen, wo der Entwurfs-Pfad ihn nennt.
+	hiringScope = scopeWrite
+)
 
-// mayDraftAgents: does this agent have the platform's own system in its
-// ACCESS.md, with the scope that carries it? Fail-closed — an access that
-// cannot be read is no access, and an entry without the scope is no access
-// either.
-func (o *Orchestrator) mayDraftAgents(ctx context.Context, agent agents.Agent) bool {
+// mayUseCovey: hat dieser Agent das eigene System der Plattform in seiner
+// ACCESS.md, mit einem der Scopes, die die Aktion trägt? Fail-closed — ein
+// Zugang, der sich nicht lesen lässt, ist keiner, und ein Eintrag ohne den
+// Scope ebenfalls nicht.
+func (o *Orchestrator) mayUseCovey(ctx context.Context, agent agents.Agent, scopes ...string) bool {
 	accesses, err := o.Registry.Accesses(ctx, agent.ID)
 	if err != nil {
 		return false
@@ -79,13 +104,27 @@ func (o *Orchestrator) mayDraftAgents(ctx context.Context, agent agents.Agent) b
 		if a.System != hiringSystem {
 			continue
 		}
-		for _, scope := range a.Scopes {
-			if strings.EqualFold(strings.TrimSpace(scope), hiringScope) {
-				return true
+		for _, have := range a.Scopes {
+			for _, want := range scopes {
+				if strings.EqualFold(strings.TrimSpace(have), want) {
+					return true
+				}
 			}
 		}
 	}
 	return false
+}
+
+// mayDraftAgents/mayReviewAgents sind die beiden Fragen, die auch der Prompt
+// stellt: der Abschnitt folgt dem Scope. Ein Agent, der in seinem Prompt von
+// create_agent liest und dann abgewiesen wird, ist genau die
+// Fähigkeit-durch-Andeutung, gegen die diese Datei gebaut ist.
+func (o *Orchestrator) mayDraftAgents(ctx context.Context, agent agents.Agent) bool {
+	return o.mayUseCovey(ctx, agent, scopeWrite)
+}
+
+func (o *Orchestrator) mayReviewAgents(ctx context.Context, agent agents.Agent) bool {
+	return o.mayUseCovey(ctx, agent, scopeReview)
 }
 
 func (o *Orchestrator) hiring(ctx context.Context, agent agents.Agent, taskID uuid.UUID, req daemon.RequestHiring) daemon.InjectHiring {
@@ -101,29 +140,36 @@ func (o *Orchestrator) hiring(ctx context.Context, agent agents.Agent, taskID uu
 	}
 
 	op := strings.TrimSpace(req.Op)
-	subject, known := hiringOps[op]
+	def, known := coveyOps[op]
 	if !known {
-		return fail("unknown hiring action %q", op)
+		return fail("unknown covey action %q", op)
 	}
-	// The gate: without `- system: covey scope: agents:write` in ACCESS.md these
-	// actions do not exist for this agent. Checked here and not only in the
-	// prompt — a prompt can be worked around, and what comes out of these
-	// actions is a colleague. The error names the whole line, scope included:
-	// whoever reads it is a human editing a config, and half a line is a second
-	// round trip.
-	if !o.mayDraftAgents(ctx, agent) {
-		return fail("this agent has no access to the platform's own system " +
-			"(`- system: " + hiringSystem + " scope: " + hiringScope + "` in ACCESS.md)")
+	// The gate: without `- system: covey` with the matching scope in ACCESS.md
+	// these actions do not exist for this agent. Checked here and not only in
+	// the prompt — a prompt can be worked around, and what comes out of these
+	// actions is a colleague or a judgement about one. The error names the whole
+	// line, scope included: whoever reads it is a human editing a config, and
+	// half a line is a second round trip.
+	if !o.mayUseCovey(ctx, agent, def.Scopes...) {
+		return fail("%s", "this agent has no access to the platform's own system "+
+			"(`- system: "+hiringSystem+" scope: "+strings.Join(def.Scopes, "` or `")+"` in ACCESS.md)")
 	}
-	// Through the guard-rails: what comes out of these actions is a colleague,
-	// and that has to be governable centrally rather than in a prompt.
+	// Through the guard-rails: what comes out of these actions is a colleague or
+	// an assessment of one, and that has to be governable centrally rather than
+	// in a prompt.
 	//
-	// Drei Ausgänge, nicht zwei. Steht die Regel auf require_approval, ist die
-	// Aktion NICHT ausgeführt: der Agent bekommt den Korrelationsschlüssel,
-	// seine Aufgabe geht blocked, und nach der Entscheidung eines Menschen
-	// wiederholt er sie — derselbe Weg, den eine Zielsystem-Aktion seit dem
-	// MVP geht (spec/21).
-	verdict := o.railsAllow(ctx, agent, taskID, subject, hiringParams(req))
+	// Drei Ausgänge, nicht zwei. Steht die Regel auf require_approval — oder
+	// fragt die Aktion ohnehin immer —, ist die Aktion NICHT ausgeführt: der
+	// Agent bekommt den Korrelationsschlüssel, seine Aufgabe geht blocked, und
+	// nach der Entscheidung eines Menschen wiederholt er sie (spec/21).
+	params := hiringParams(req)
+	if def.AlwaysApprove {
+		// Die Freigabe wird an DIESEN Lauf gebunden: eine erteilte Freigabe ist
+		// die Antwort auf „darf er dieses Gespräch lesen", nicht auf „darf er
+		// Gespräche lesen".
+		params["binding"] = strings.TrimSpace(req.Task)
+	}
+	verdict := o.railsAllow(ctx, agent, taskID, def.Subject, params, def.AlwaysApprove)
 	if verdict.Pending {
 		return daemon.InjectHiring{RequestID: req.RequestID, Pending: true,
 			ApprovalID: verdict.ApprovalID, CorrelationKey: verdict.CorrelationKey}
@@ -141,8 +187,14 @@ func (o *Orchestrator) hiring(ctx context.Context, agent agents.Agent, taskID uu
 		return o.hiringCreateAgent(ctx, agent, taskID, req, ok, fail)
 	case "set_agent_config":
 		return o.hiringSetConfig(ctx, agent, taskID, req, ok, fail)
+	case "work_record":
+		return o.reviewWorkRecord(ctx, agent, req, ok, fail)
+	case "read_recording":
+		return o.reviewReadRecording(ctx, agent, req, ok, fail)
+	case "propose_agent_config":
+		return o.reviewPropose(ctx, agent, taskID, req, ok, fail)
 	}
-	return fail("unknown hiring action %q", op)
+	return fail("unknown covey action %q", op)
 }
 
 // hiringTarget is one connectable target system as the drafting agent sees it:
@@ -429,9 +481,27 @@ type railsVerdict struct {
 // Die Parameter gehen in die Freigabe: was ein Mensch entscheiden soll, muss
 // er lesen können — welcher Agent, welche Datei, welcher Lauf.
 func (o *Orchestrator) railsAllow(ctx context.Context, agent agents.Agent, taskID uuid.UUID,
-	subject string, params any) railsVerdict {
+	subject string, params map[string]any, alwaysApprove bool) railsVerdict {
+
+	frage := func() railsVerdict {
+		raw, err := json.Marshal(params)
+		if err != nil {
+			raw = json.RawMessage(`{}`)
+		}
+		gate := o.approvalGate(ctx, agent, taskID, subject, raw, bindingOf(params))
+		switch {
+		case gate.Error != "":
+			return railsVerdict{Reason: "approval could not be created: " + gate.Error}
+		case gate.Approved:
+			return railsVerdict{Allowed: true}
+		}
+		return railsVerdict{Pending: true, ApprovalID: gate.ApprovalID, CorrelationKey: gate.CorrelationKey}
+	}
 
 	if o.Rails == nil {
+		if alwaysApprove {
+			return frage()
+		}
 		return railsVerdict{Allowed: true}
 	}
 	rules, err := o.Rails.List(ctx, agent.OrgID)
@@ -446,18 +516,22 @@ func (o *Orchestrator) railsAllow(ctx context.Context, agent agents.Agent, taskI
 				"action": subject, "decision": "denied"})
 		return railsVerdict{Reason: "forbidden by guard rail: " + subject}
 	case guardrails.RequireApproval:
-		raw, err := json.Marshal(params)
-		if err != nil {
-			raw = json.RawMessage(`{}`)
-		}
-		gate := o.approvalGate(ctx, agent, taskID, subject, raw)
-		switch {
-		case gate.Error != "":
-			return railsVerdict{Reason: "approval could not be created: " + gate.Error}
-		case gate.Approved:
-			return railsVerdict{Allowed: true}
-		}
-		return railsVerdict{Pending: true, ApprovalID: gate.ApprovalID, CorrelationKey: gate.CorrelationKey}
+		return frage()
+	}
+	// Erlaubt — und trotzdem gefragt, wenn die Aktion es immer tut. EIN Gate
+	// und nicht zwei: sonst erzeugte eine require_approval-Regel auf derselben
+	// Aktion zwei Freigaben hintereinander für einen Handgriff.
+	if alwaysApprove {
+		return frage()
 	}
 	return railsVerdict{Allowed: true}
+}
+
+// bindingOf zieht die Bindung aus den Parametern. Leer = die Freigabe gilt für
+// die Aktion; gesetzt = für genau diesen einen Gegenstand.
+func bindingOf(params map[string]any) string {
+	if v, ok := params["binding"].(string); ok {
+		return v
+	}
+	return ""
 }
