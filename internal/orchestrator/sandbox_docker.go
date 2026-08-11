@@ -53,6 +53,16 @@ const (
 	egressProxyAlias = "covey-egress"          // DNS alias on the internal network
 )
 
+// DindImage is the Docker-in-Docker sidecar image (make dind-image is not a
+// thing — this is a stock image pulled once and cached, unlike the
+// covey-sandbox/covey-egress images that are project-specific builds).
+const DindImage = "docker:27-dind"
+
+// dindAlias is the DNS name the sandbox reaches its own Docker-in-Docker
+// sidecar under (DOCKER_HOST) — an alias, not the container name, so it stays
+// the same across the container's rm+recreate on every wake.
+const dindAlias = "dind"
+
 // sandboxHome is the fixed home path inside the container (user `agent` in the image).
 const sandboxHome = "/home/agent"
 
@@ -157,6 +167,16 @@ func (p *DockerProvider) Start(ctx context.Context, spec SandboxSpec) (Sandbox, 
 		}
 	}
 
+	var dind *dindSidecar
+	if spec.EnableDocker {
+		d, err := p.startDind(ctx, spec)
+		if err != nil {
+			return nil, fmt.Errorf("start docker-in-docker sidecar: %w", err)
+		}
+		dind = d
+		args = append(args, "-e", "DOCKER_HOST=tcp://"+dindAlias+":2375")
+	}
+
 	for k, v := range spec.Env {
 		if k == "COVEY_WS_URL" {
 			v = rewriteLoopbackForDocker(v)
@@ -167,6 +187,9 @@ func (p *DockerProvider) Start(ctx context.Context, spec SandboxSpec) (Sandbox, 
 
 	out, err := exec.CommandContext(ctx, p.docker(), args...).CombinedOutput()
 	if err != nil {
+		if dind != nil {
+			dind.stop(ctx, p.docker())
+		}
 		msg := strings.TrimSpace(string(out))
 		if strings.Contains(msg, "No such image") || strings.Contains(msg, "pull access denied") ||
 			strings.Contains(msg, "Unable to find image") {
@@ -174,12 +197,26 @@ func (p *DockerProvider) Start(ctx context.Context, spec SandboxSpec) (Sandbox, 
 		}
 		return nil, fmt.Errorf("docker run: %v: %s", err, msg)
 	}
-	return &dockerSandbox{docker: p.docker(), name: name}, nil
+	if dind != nil {
+		// Only now, with the sandbox container created, can it be attached to
+		// the sidecar's network — "docker run --network" takes only one
+		// network, and the egress network (if hard isolation is active) already
+		// claimed that slot above.
+		connOut, err := exec.CommandContext(ctx, p.docker(), "network", "connect", dind.network, name).CombinedOutput()
+		if err != nil {
+			dind.stop(ctx, p.docker())
+			_ = exec.CommandContext(ctx, p.docker(), "rm", "-f", name).Run()
+			return nil, fmt.Errorf("attach sandbox to its docker-in-docker network: %v: %s", err, strings.TrimSpace(string(connOut)))
+		}
+	}
+	return &dockerSandbox{docker: p.docker(), name: name, dind: dind}, nil
 }
 
 type dockerSandbox struct {
 	docker string
 	name   string
+	// dind is the agent's Docker-in-Docker sidecar, nil if it never got one.
+	dind *dindSidecar
 }
 
 func (s *dockerSandbox) Stop(ctx context.Context) error {
@@ -190,6 +227,9 @@ func (s *dockerSandbox) Stop(ctx context.Context) error {
 	if err != nil && !strings.Contains(string(out), "No such container") {
 		// Force cleanup so the name is free for the next wake.
 		_ = exec.CommandContext(stopCtx, s.docker, "rm", "-f", s.name).Run()
+	}
+	if s.dind != nil {
+		s.dind.stop(stopCtx, s.docker)
 	}
 	return nil
 }
@@ -347,6 +387,108 @@ func (p *DockerProvider) ensureEgressProxy(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+// dindSidecar is one agent's own nested Docker daemon: real container
+// isolation for whatever the agent starts inside it (e.g. `docker compose
+// up`), fully separate from the host's own Docker socket and from every other
+// agent's sidecar.
+type dindSidecar struct {
+	container string
+	network   string // per-agent — torn down with the sidecar, never shared
+}
+
+func dindContainerName(agentID string) string { return "covey-dind-" + agentID }
+func dindNetworkName(agentID string) string   { return "covey-dind-net-" + agentID }
+
+// startDind brings up this agent's Docker-in-Docker sidecar, fresh on every
+// wake (ephemeral compute, like the sandbox itself — spec/01). --privileged is
+// required for a nested Docker daemon and is confined to this one sidecar
+// container; the sandbox that talks to it over DOCKER_HOST stays exactly as
+// unprivileged as any sandbox without Docker. This is the same pattern
+// GitLab's own CI already relies on for Docker-in-Docker jobs, not a new
+// risk invented here.
+//
+// The sidecar's own egress (image pulls) is routed through the SAME
+// allowlist proxy as the sandbox's other traffic, by the same mechanism
+// (cooperative HTTP(S)_PROXY, or attached to the hard-isolation network) —
+// Docker-in-Docker must not become a side door around the org's egress
+// policy, only a place to run containers.
+func (p *DockerProvider) startDind(ctx context.Context, spec SandboxSpec) (*dindSidecar, error) {
+	container := dindContainerName(spec.AgentID.String())
+	network := dindNetworkName(spec.AgentID.String())
+
+	// Clear leftovers of a crashed predecessor — both names have to be free.
+	_ = exec.CommandContext(ctx, p.docker(), "rm", "-f", container).Run()
+	_ = exec.CommandContext(ctx, p.docker(), "network", "rm", network).Run()
+
+	if out, err := exec.CommandContext(ctx, p.docker(), "network", "create", network).CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("create docker-in-docker network: %v: %s", err, strings.TrimSpace(string(out)))
+	}
+
+	args := []string{"run", "-d", "--rm", "--privileged",
+		"--name", container,
+		"--network", network,
+		"--network-alias", dindAlias,
+		// Plaintext daemon: the private per-agent network is the boundary
+		// here, not TLS — nothing outside this sandbox+sidecar pair can reach
+		// this network at all.
+		"-e", "DOCKER_TLS_CERTDIR=",
+	}
+	switch p.EgressIsolation {
+	case "network":
+		if err := p.ensureNetworkIsolation(ctx); err != nil {
+			_ = exec.CommandContext(ctx, p.docker(), "network", "rm", network).Run()
+			return nil, fmt.Errorf("prepare egress network: %w", err)
+		}
+		proxyURL := egressURLWithCreds("http://"+egressProxyAlias+":8888", spec.AgentID.String(), spec.EgressToken)
+		for _, e := range proxyEnvVars(proxyURL, "localhost,127.0.0.1,::1") {
+			args = append(args, "-e", e)
+		}
+	default:
+		args = append(args, "--add-host", "host.docker.internal:host-gateway")
+		if p.EgressProxyURL != "" {
+			proxyURL := egressURLWithCreds(p.EgressProxyURL, spec.AgentID.String(), spec.EgressToken)
+			for _, e := range proxyEnvVars(proxyURL, "host.docker.internal,localhost,127.0.0.1,::1") {
+				args = append(args, "-e", e)
+			}
+		}
+	}
+	args = append(args, DindImage)
+
+	out, err := exec.CommandContext(ctx, p.docker(), args...).CombinedOutput()
+	if err != nil {
+		_ = exec.CommandContext(ctx, p.docker(), "network", "rm", network).Run()
+		msg := strings.TrimSpace(string(out))
+		if strings.Contains(msg, "No such image") || strings.Contains(msg, "Unable to find image") {
+			return nil, fmt.Errorf("docker-in-docker image %q is missing — pull it once: `docker pull %s`: %s", DindImage, DindImage, msg)
+		}
+		return nil, fmt.Errorf("start docker-in-docker sidecar: %v: %s", err, msg)
+	}
+
+	if p.EgressIsolation == "network" {
+		// Second network, for the same reason the sandbox itself cannot take
+		// both at `run` time: the egress network only carries the proxy route,
+		// the per-agent network is what makes the sidecar reachable as "dind".
+		if connOut, err := exec.CommandContext(ctx, p.docker(), "network", "connect", egressNetwork, container).CombinedOutput(); err != nil {
+			_ = exec.CommandContext(ctx, p.docker(), "rm", "-f", container).Run()
+			_ = exec.CommandContext(ctx, p.docker(), "network", "rm", network).Run()
+			return nil, fmt.Errorf("attach docker-in-docker sidecar to the egress network: %v: %s", err, strings.TrimSpace(string(connOut)))
+		}
+	}
+
+	return &dindSidecar{container: container, network: network}, nil
+}
+
+// stop tears the sidecar and its own per-agent network down — best-effort,
+// mirroring dockerSandbox.Stop: a wake that never reaches Stop (crash, force
+// kill) leaves both names free again on the NEXT wake's leftover-clearing in
+// startDind, so nothing here needs to be perfect.
+func (d *dindSidecar) stop(ctx context.Context, docker string) {
+	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
+	_ = exec.CommandContext(stopCtx, docker, "rm", "-f", d.container).Run()
+	_ = exec.CommandContext(stopCtx, docker, "network", "rm", d.network).Run()
 }
 
 // rewriteLoopbackForDocker rewrites a loopback URL of the control plane to

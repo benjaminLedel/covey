@@ -884,9 +884,20 @@ func (o *Orchestrator) wake(ctx context.Context, agent agents.Agent) (DaemonLink
 		}
 	}
 
+	// Docker-in-sandbox is opt-in per agent (ACCESS.md: system: dev, scope
+	// incl. "docker") — fail closed on a lookup error, same as a missing
+	// grant: the provider must never guess an agent into a wider capability.
+	enableDocker := false
+	if ok, err := o.Registry.HasAccess(ctx, agent.ID, "dev", "docker"); err != nil {
+		o.Log.Warn("checking dev:docker access failed — starting without Docker", "agent", agent.ID, "err", err)
+	} else {
+		enableDocker = ok
+	}
+
 	sandbox, err := o.Provider.Start(ctx, SandboxSpec{
-		AgentID:     agent.ID,
-		EgressToken: egressToken,
+		AgentID:      agent.ID,
+		EgressToken:  egressToken,
+		EnableDocker: enableDocker,
 		Env: map[string]string{
 			"COVEY_WS_URL":       o.PublicWSURL,
 			"COVEY_DAEMON_TOKEN": tok.Value,

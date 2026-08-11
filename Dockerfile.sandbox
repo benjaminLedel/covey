@@ -130,6 +130,35 @@ RUN set -eux; \
 # PATH, sonst findet der Agent, was er selbst installiert hat, nicht wieder.
 ENV PATH=/home/agent/.npm-global/bin:/home/agent/.local/bin:/home/agent/fvm/default/bin:${PATH}
 
+# Docker-CLI + Compose-Plugin — NUR der Client, kein Daemon im Image. Wer
+# echte Container/einen vollen Stack starten soll (dev:docker-Scope in
+# ACCESS.md), bekommt dafür einen eigenen Docker-in-Docker-Sidecar
+# (sandbox_docker.go: startDind) und spricht ihn über DOCKER_HOST an; der
+# Client hier ist nur das Werkzeug dazu. Ohne die Freigabe ist DOCKER_HOST
+# leer, "docker ..." läuft dann ins Leere ("cannot connect") statt gegen den
+# Host — kein zweiter Weg zur echten Docker-Kontrolle.
+# Statische, versionsgepinnte Binaries wie bei fvm/uv oben: kein weiteres
+# APT-Fremdrepo, das anschließend wieder entfernt werden müsste.
+ARG DOCKER_CLI_VERSION=27.5.1
+ARG DOCKER_COMPOSE_VERSION=2.32.4
+RUN set -eux; \
+    case "$(dpkg --print-architecture)" in \
+        amd64) docker_arch=x86_64; compose_arch=x86_64 ;; \
+        arm64) docker_arch=aarch64; compose_arch=aarch64 ;; \
+        *) echo "nicht unterstützte Architektur: $(dpkg --print-architecture)" >&2; exit 1 ;; \
+    esac; \
+    tmp="$(mktemp -d)"; \
+    curl -fsSL -o "$tmp/docker.tgz" \
+        "https://download.docker.com/linux/static/stable/${docker_arch}/docker-${DOCKER_CLI_VERSION}.tgz"; \
+    tar -xzf "$tmp/docker.tgz" -C "$tmp" docker/docker; \
+    install -m 0755 "$tmp/docker/docker" /usr/local/bin/docker; \
+    mkdir -p /usr/local/libexec/docker/cli-plugins; \
+    curl -fsSL -o /usr/local/libexec/docker/cli-plugins/docker-compose \
+        "https://github.com/docker/compose/releases/download/v${DOCKER_COMPOSE_VERSION}/docker-compose-linux-${compose_arch}"; \
+    chmod 0755 /usr/local/libexec/docker/cli-plugins/docker-compose; \
+    rm -rf "$tmp"; \
+    docker --version
+
 # Browser-Testrunner auf das vorhandene chromium zeigen. Playwright und
 # Puppeteer laden sonst beim ersten Lauf ihren eigenen Browser aus einem CDN —
 # das steht in keiner Egress-Allowlist und läuft fail-closed ins Leere, während
