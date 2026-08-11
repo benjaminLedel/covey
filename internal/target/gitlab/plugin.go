@@ -907,7 +907,17 @@ var aktionen = map[string]aktion{
 		if in.State == "" {
 			return nil, fmt.Errorf("state missing")
 		}
-		return nil, gc.SetState(ctx, in.ProjectID, in.IssueIID, in.State)
+		switch {
+		case in.IssueIID != 0:
+			return nil, gc.SetState(ctx, in.ProjectID, in.IssueIID, in.State)
+		case in.MRIID != 0:
+			if err := gc.SetMRState(ctx, in.ProjectID, in.MRIID, in.State); err != nil {
+				return nil, err
+			}
+			return map[string]any{"mr_iid": in.MRIID, "state": in.State}, nil
+		default:
+			return nil, fmt.Errorf("issue_iid or mr_iid missing")
+		}
 	},
 	"assign": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		if in.ProjectID == 0 || in.IssueIID == 0 {
@@ -1044,7 +1054,9 @@ const promptDocActions = `Available GitLab actions: list_projects {}, list_issue
    get_note {"project_id":N,"issue_iid":N|"mr_iid":N,"note_id":N} fetches such a comment in full,
    comment {"project_id":N,"issue_iid":N,"body":"...","internal":true|false}
    (a comment identical to your own last one is NOT posted again — the answer {"skipped":"duplicate"} is not an error but the loop protection),
-   set_state {"project_id":N,"issue_iid":N,"state":"close"|"reopen"}, escalate {"project_id":N,"issue_iid":N,"note":"..."},
+   set_state {"project_id":N,"issue_iid":N|"mr_iid":N,"state":"close"|"reopen"} — works on an issue OR a merge request
+   (whichever id you give); closing an MR this way is NOT a merge, use it for one that is superseded/redundant/withdrawn
+   and was never meant to land, escalate {"project_id":N,"issue_iid":N,"note":"..."},
    assign {"project_id":N,"issue_iid":N,"username":"gitlab-username"} assigns the issue to a person — after a fix,
    for instance, to the team member responsible for testing according to the team directory; take the GitLab user name
    exactly from the section "Team (human employees)" of your prompt and explain the handover in a comment,

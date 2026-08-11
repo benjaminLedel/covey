@@ -423,6 +423,46 @@ func TestExecuteSetLabelsOnMergeRequest(t *testing.T) {
 	}
 }
 
+// TestExecuteSetStateOnMergeRequest: closing a merge request (e.g. one
+// superseded by an already-merged sibling) has no dedicated GitLab endpoint —
+// it is the same state_event field issues use, just on the MR resource.
+func TestExecuteSetStateOnMergeRequest(t *testing.T) {
+	var gotMethod, gotPath string
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath = r.Method, r.URL.Path
+		gotBody = map[string]any{}
+		json.NewDecoder(r.Body).Decode(&gotBody)
+		json.NewEncoder(w).Encode(MergeRequest{IID: 45, ProjectID: 15})
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	res, err := sys.Execute(ctx, "set_state",
+		[]byte(`{"project_id":15,"mr_iid":45,"state":"close"}`), cred)
+	if err != nil {
+		t.Fatalf("set_state (close) on a merge request: %v", err)
+	}
+	if gotMethod != http.MethodPut || gotPath != "/api/v4/projects/15/merge_requests/45" {
+		t.Fatalf("wrong API call: %s %s (must be the MR endpoint, not the issue one)", gotMethod, gotPath)
+	}
+	if gotBody["state_event"] != "close" {
+		t.Fatalf("state_event does not arrive: %+v", gotBody)
+	}
+	out := res.(map[string]any)
+	if out["mr_iid"] != 45 || out["state"] != "close" {
+		t.Fatalf("the answer must name the MR and the state reached: %+v", out)
+	}
+
+	// Neither ID at all → refused, same as the issue path.
+	if _, err := sys.Execute(ctx, "set_state", []byte(`{"project_id":15,"state":"close"}`), cred); err == nil {
+		t.Fatal("set_state without issue_iid or mr_iid must fail")
+	}
+}
+
 func TestListActionsRespectIntakeScope(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

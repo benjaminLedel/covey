@@ -1069,6 +1069,18 @@ func (c *Client) SetState(ctx context.Context, projectID, issueIID int, stateEve
 		map[string]any{"state_event": stateEvent}, nil)
 }
 
+// SetMRState — same idea as SetState, for a merge request: PUT
+// /projects/{id}/merge_requests/{iid} with state_event ("close"|"reopen").
+// GitLab has no separate close endpoint for MRs, just this field on the same
+// resource merge/approve already write to.
+func (c *Client) SetMRState(ctx context.Context, projectID, mrIID int, stateEvent string) error {
+	if stateEvent != "close" && stateEvent != "reopen" {
+		return fmt.Errorf("invalid state %q (allowed: close, reopen)", stateEvent)
+	}
+	return c.do(ctx, http.MethodPut, fmt.Sprintf("/projects/%d/merge_requests/%d", projectID, mrIID),
+		map[string]any{"state_event": stateEvent}, nil)
+}
+
 // User is the minimal profile of a GitLab user for the assignment.
 type User struct {
 	ID       int    `json:"id"`
