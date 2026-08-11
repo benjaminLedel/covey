@@ -263,6 +263,53 @@ input, textarea, select {
   font-size: 13px;
 }
 textarea.code { font-family: var(--mono); font-size: 12px; line-height: 1.55; }
+
+/* Ein Block, den man in eine Shell einfügt — und der auch so aussieht. Dunkel
+   in beiden Themes, weil das die Aussage ist: hier hört die Oberfläche auf und
+   fängt die Kommandozeile an. Die Farbe kommt trotzdem aus der warmen Palette
+   und nicht aus einem fremden Schwarz.
+
+   Der Kopieren-Knopf sitzt im Block, nicht darunter: was zum Kopieren da ist,
+   soll den Knopf dort haben, wo der Inhalt ist. */
+.console {
+  --console-bg: light-dark(#211f1a, #131210);
+  --console-fg: light-dark(#eae6dc, #e8e4da);
+  position: relative;
+  background: var(--console-bg);
+  color: var(--console-fg);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.7;
+  border-radius: var(--radius);
+  /* Rechts Platz für den Knopf, damit eine lange Zeile nicht darunter läuft. */
+  padding: 12px 84px 12px 14px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  margin: 0;
+}
+
+/* Die Eingabeaufforderung gehört zum Bild und nicht in den kopierten Text —
+   deshalb als ::before und nicht als Zeichen im Inhalt. */
+.console .line { display: block; }
+.console .line::before {
+  content: "$ ";
+  color: light-dark(#9c978b, #7d776b);
+  user-select: none;
+}
+
+.console .copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  border: 0.5px solid rgba(242, 238, 228, 0.22);
+  background: rgba(242, 238, 228, 0.08);
+  color: var(--console-fg);
+  cursor: pointer;
+}
+.console .copy:hover { background: rgba(242, 238, 228, 0.16); }
 label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0 0 6px; }
 
 /* Sidebar-Navigation (Design-Sprache aus dem Mockup, weiterentwickelt) */

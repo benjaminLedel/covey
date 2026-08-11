@@ -222,12 +222,16 @@ export default function Runners({ me }: { me: Principal }) {
                   dass er sich einfügen lässt: kein Platzhalter, den jemand
                   versehentlich mit überträgt. */}
               <p className="text-xs">{t("runners.tokenOnce")}</p>
-              <pre className="code text-xs" style={{ whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-                {registerCommand(token)}
-              </pre>
-              <div>
+              <pre className="console">
+                {registerCommand(token)
+                  .split("\n")
+                  .map((line) => (
+                    <span className="line" key={line}>
+                      {line}
+                    </span>
+                  ))}
                 <button
-                  className="btn sm"
+                  className="copy"
                   onClick={() => {
                     navigator.clipboard.writeText(registerCommand(token)).then(() => {
                       setCopied(true);
@@ -237,7 +241,7 @@ export default function Runners({ me }: { me: Principal }) {
                 >
                   {copied ? t("runners.copied") : t("runners.copy")}
                 </button>
-              </div>
+              </pre>
             </div>
           )}
         </div>

@@ -1881,7 +1881,7 @@
     "cleanupPreview": "{{snapshots}} snapshots and {{blocks}} blocks would fall away — {{freed}} would be freed.",
     "cleanupDone": "Removed {{snapshots}} snapshots and {{blocks}} blocks, {{freed}} freed.",
     "free": "{{size}} free",
-    "copy": "Copy the command",
+    "copy": "Copy",
     "copied": "Copied",
     "lastSeen": "last seen {{when}}",
     "agoJustNow": "just now",

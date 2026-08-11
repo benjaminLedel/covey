@@ -1881,7 +1881,7 @@
     "cleanupPreview": "Es würden {{snapshots}} Snapshots und {{blocks}} Blöcke wegfallen — {{freed}} werden frei.",
     "cleanupDone": "{{snapshots}} Snapshots und {{blocks}} Blöcke entfernt, {{freed}} frei geworden.",
     "free": "{{size}} frei",
-    "copy": "Befehl kopieren",
+    "copy": "Kopieren",
     "copied": "Kopiert",
     "lastSeen": "zuletzt gesehen {{when}}",
     "agoJustNow": "gerade eben",
