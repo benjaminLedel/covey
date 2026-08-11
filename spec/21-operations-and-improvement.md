@@ -32,7 +32,7 @@ An agent that reads indicators and rewrites configurations closes exactly that l
 Four consequences, and the last is the one that is easy to miss:
 
 1. A proposal is a **stored, inactive configuration version** — see below. There is no path from this agent to a running config.
-2. It **does not review itself.** The same reason `20` gives for the People department not writing its own `SOUL.md`: an agent that grades its own work at night is the door this platform keeps shut.
+2. It **does not read its own figures.** The work record of the agent asking for it is refused, for the same reason `KPIS.md` is kept out of the system prompt (rule 4 below): an agent that knows what it is measured on works towards the measure. Its own *proposal* is a different matter and is allowed — see the note under "The proposal" below.
 3. **A proposal may go deep, and the depth decides who may accept it.** Nothing here restricts *what* a proposal may change — a role that has drifted belongs in `SOUL.md`, not in a footnote. But `ACCESS.md` and `EGRESS.md` are the text view onto state whose write path is reserved for `platform_admin`/`security` ([`02-agent-model.md`](02-agent-model.md)), and that boundary is inherited rather than bypassed: a proposal that widens a colleague's access cannot be accepted by the team lead who owns the agent. The acceptance surface therefore reads the proposal's files and asks the right person — a review dialog that lets everything through because the *proposal* was harmless would move the access decision from security to whoever clicked first.
 4. **It may not quote an agent its own figures.** `KPIS.md` is deliberately not compiled into the system prompt — *"an agent that knows it is measured on the number of comments writes more comments"* ([`internal/agents/kpi.go`](../internal/agents/kpi.go)). A proposed `SOUL.md` containing "you resolved 12 tickets last week, aim for 20" would smuggle the target into the prompt through the back door and undo that decision without anyone noticing. A proposal describes **behaviour and procedure** — "close the partial result before the turn limit, file the rest as a subtask" — never scores. Enforced by review, not by a parser: a human reads the diff, and this rule is what they are reading for.
 
@@ -74,7 +74,9 @@ The change is small where it counts. `agent_config_versions` numbers versions pe
 Two properties fall out and both are worth having:
 
 - **Proposals are diffs against a base.** A proposal written against version 7 and accepted after the agent was edited to version 9 must not silently overwrite the edit. It is shown as stale and re-based or discarded — the same conflict a pull request has, and the same answer.
-- **`20`'s open item closes with it.** Once an inactive version exists, the People department can propose its own configuration after the self-onboarding, which `20` wanted and could not have.
+- **`20`'s open item closes with it.** Once an inactive version exists, the People department can propose its own configuration after the self-onboarding, which `20` wanted and could not have. It needs no review scope for that: `agents:write` reaches `propose_agent_config` for the caller's **own** configuration and for nothing else. Proposing for a colleague is what `agents:review` is for, and the separation of the two scopes survives.
+
+  The first draft of this document forbade the self-proposal along with the self-review. That was one rule too many, and the reason it fell is the reason the whole mechanism is defensible: a proposal does not run. What a self-review would buy an agent is a private opinion about its own numbers; what a self-proposal buys it is a sentence a human reads and signs. Only the first is the door this platform keeps shut.
 
 The review surface is the one the platform already uses twice: the diff that the config copilot and the drafted agent are accepted through.
 
@@ -178,7 +180,7 @@ Four things it needs, and none of them is new machinery:
 Mirroring the four rules in [`20-hiring-and-setup.md`](20-hiring-and-setup.md), enforced in the control plane and not in a prompt:
 
 1. **It proposes, it does not activate.** There is no path from this agent to a config that runs.
-2. **It does not review itself**, and it cannot propose its own configuration — the same line `20` draws, and for the same reason.
+2. **It does not read its own work record.** Its own configuration it may propose like anybody else's — nothing about that is in effect until a human accepts it, which is exactly the argument that made the inactive version safe in the first place.
 3. **It reads facts by default.** A conversation is reachable only through an approval, one run at a time.
 4. **Nothing else about a colleague is reachable**: not its secrets, not its guard rails, not its runtime, not its budget, not its kill switch.
 

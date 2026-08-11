@@ -19,10 +19,19 @@ package orchestrator
 //     schwächer. Ein kompromittierter Betriebsingenieur erzeugt eine
 //     Warteschlange schlechter Vorschläge, die ein Mensch ablehnt — ein
 //     Ärgernis, kein Vorfall.
-//  2. ER BEGUTACHTET SICH NICHT SELBST. Weder work_record noch
-//     propose_agent_config erreichen den Aufrufer. Ein Agent, der sich nachts
-//     selbst benotet, ist die Tür, die diese Plattform zuhält — und einer, der
-//     seine eigenen Zahlen liest, schreibt danach für die Zahlen.
+//  2. ER LIEST SEINE EIGENEN ZAHLEN NICHT. work_record erreicht den Aufrufer
+//     nicht. Das ist derselbe Grund, aus dem die KPIS.md nicht in den
+//     Systemprompt kompiliert wird (internal/agents/kpi.go): wer weiß, woran
+//     er gemessen wird, arbeitet auf das Maß hin statt auf die Sache.
+//
+//     Der VORSCHLAG an sich selbst ist dagegen erlaubt — eine bewusste
+//     Abweichung von der ersten Fassung der Regel. Der Grund, der sie trug,
+//     trägt hier nicht: nichts von hier läuft, ein Mensch nimmt jeden
+//     Vorschlag an oder lehnt ihn ab. Damit ist auch der offene Punkt aus
+//     spec/20 geschlossen — die Personalabteilung darf nach ihrem
+//     Self-Onboarding ihre eigene Konfiguration vorschlagen. Mit
+//     `agents:write` allein aber NUR die eigene: für die eines Kollegen
+//     braucht es `agents:review`, sonst wäre der zweite Scope umgangen.
 //  3. ER LIEST FAKTEN. Die Arbeitsakte ist, was die Control Plane selbst
 //     aufgeschrieben hat. Ein Gespräch — ein Recording — ist nur über eine
 //     Freigabe erreichbar, ein Lauf auf einmal, und die Freigabe ist an genau
@@ -54,23 +63,24 @@ import (
 // schon der Befund.
 const maxRecordingEvents = 400
 
-// reviewTarget löst den Kollegen auf, um den es geht — innerhalb der eigenen
-// Organisation, und niemals der Aufrufer selbst.
-//
-// Die Selbst-Prüfung steht hier und nicht in drei Aufrufern: sie ist Regel 2,
-// und eine Regel, die an drei Stellen wiederholt wird, fehlt irgendwann an
-// einer vierten.
-func (o *Orchestrator) reviewTarget(ctx context.Context, agent agents.Agent, slug string) (agents.Agent, string) {
+// reviewTarget löst den Agenten auf, um den es geht — innerhalb der eigenen
+// Organisation. allowSelf trennt die beiden Hälften von Regel 2: die eigene
+// Arbeitsakte bleibt zu (er soll seine Zahlen nicht kennen), der eigene
+// Vorschlag ist offen (ein Mensch entscheidet ihn ohnehin).
+func (o *Orchestrator) reviewTarget(ctx context.Context, agent agents.Agent, slug string,
+	allowSelf bool) (agents.Agent, string) {
+
 	slug = strings.TrimSpace(slug)
 	if slug == "" {
-		return agents.Agent{}, "agent is missing (the slug of the colleague this is about)"
+		return agents.Agent{}, "agent is missing (the slug of the agent this is about)"
 	}
 	other, err := o.Registry.GetBySlug(ctx, agent.OrgID, slug)
 	if err != nil {
 		return agents.Agent{}, "no agent \"" + slug + "\" in this organisation"
 	}
-	if other.ID == agent.ID {
-		return agents.Agent{}, "you do not review yourself — read a colleague's record, not your own"
+	if other.ID == agent.ID && !allowSelf {
+		return agents.Agent{}, "you do not read your own record — an agent that knows " +
+			"what it is measured on works towards the measure. Read a colleague's."
 	}
 	return other, ""
 }
@@ -80,7 +90,7 @@ func (o *Orchestrator) reviewTarget(ctx context.Context, agent agents.Agent, slu
 func (o *Orchestrator) reviewWorkRecord(ctx context.Context, agent agents.Agent, req daemon.RequestHiring,
 	ok func(any) daemon.InjectHiring, fail func(string, ...any) daemon.InjectHiring) daemon.InjectHiring {
 
-	other, reason := o.reviewTarget(ctx, agent, req.Agent)
+	other, reason := o.reviewTarget(ctx, agent, req.Agent, false)
 	if reason != "" {
 		return fail("%s", reason)
 	}
@@ -110,7 +120,7 @@ func (o *Orchestrator) reviewWorkRecord(ctx context.Context, agent agents.Agent,
 func (o *Orchestrator) reviewReadRecording(ctx context.Context, agent agents.Agent, req daemon.RequestHiring,
 	ok func(any) daemon.InjectHiring, fail func(string, ...any) daemon.InjectHiring) daemon.InjectHiring {
 
-	other, reason := o.reviewTarget(ctx, agent, req.Agent)
+	other, reason := o.reviewTarget(ctx, agent, req.Agent, false)
 	if reason != "" {
 		return fail("%s", reason)
 	}
@@ -154,9 +164,18 @@ func (o *Orchestrator) reviewPropose(ctx context.Context, agent agents.Agent, ta
 	req daemon.RequestHiring, ok func(any) daemon.InjectHiring,
 	fail func(string, ...any) daemon.InjectHiring) daemon.InjectHiring {
 
-	other, reason := o.reviewTarget(ctx, agent, req.Agent)
+	other, reason := o.reviewTarget(ctx, agent, req.Agent, true)
 	if reason != "" {
 		return fail("%s", reason)
+	}
+	// Der Selbstvorschlag ist die eine Ausnahme, die `agents:write` allein
+	// trägt (spec/20): wer entwirft, darf nach seinem Self-Onboarding seine
+	// eigene Konfiguration vorschlagen. Für die eines KOLLEGEN braucht es den
+	// Review-Scope — sonst hätte die Personalabteilung sich über die
+	// Hintertür genau die Reichweite geholt, die zwei Scopes verhindern sollen.
+	if other.ID != agent.ID && !o.mayUseCovey(ctx, agent, scopeReview) {
+		return fail("%s", "with `scope: "+scopeWrite+"` you may propose only your OWN "+
+			"configuration — proposing for a colleague needs `scope: "+scopeReview+"`")
 	}
 	if len(req.Files) == 0 {
 		return fail("files is missing (file name → complete content, only the files you change)")

@@ -99,21 +99,63 @@ func TestReviewScopeTrenntDieBeidenHaelften(t *testing.T) {
 	}
 }
 
-// TestReviewBegutachtetSichNichtSelbst: weder die eigene Akte noch ein
-// Vorschlag an sich selbst. Ein Agent, der sich nachts selbst benotet, ist die
-// Tür, die diese Plattform zuhält — und einer, der seine eigenen Zahlen liest,
-// arbeitet danach für die Zahlen (spec/21, Regel 2).
-func TestReviewBegutachtetSichNichtSelbst(t *testing.T) {
+// TestReviewLiestDieEigenenZahlenNicht: die eine Hälfte von Regel 2, die
+// stehen bleibt. Der Grund ist derselbe, aus dem die KPIS.md nicht in den
+// Systemprompt kompiliert wird: wer weiß, woran er gemessen wird, arbeitet auf
+// das Maß hin statt auf die Sache.
+//
+// Der VORSCHLAG an sich selbst ist dagegen offen — von dort läuft nichts, ein
+// Mensch entscheidet ihn ohnehin (spec/20, der offene Punkt).
+func TestReviewLiestDieEigenenZahlenNicht(t *testing.T) {
 	s := newStack(t)
+	ctx := context.Background()
 	betrieb := reviewAgent(t, s, "betrieb", "agents:review")
 
 	if _, msg := laufLassen(t, s, betrieb, "Eigene Akte",
-		`[mock:action covey/work_record {"agent":"betrieb"}]`); !strings.Contains(msg, "yourself") {
-		t.Fatalf("die eigene Akte muss abgelehnt werden: %s", msg)
+		`[mock:action covey/work_record {"agent":"betrieb"}]`); !strings.Contains(msg, "your own record") {
+		t.Fatalf("die eigene Arbeitsakte muss abgelehnt werden: %s", msg)
 	}
-	if _, msg := laufLassen(t, s, betrieb, "Eigener Vorschlag",
-		`[mock:action covey/propose_agent_config {"agent":"betrieb","title":"Freier","rationale":"Weil.","files":{"SOUL.md":"# Frei"}}]`); !strings.Contains(msg, "yourself") {
-		t.Fatalf("der Vorschlag an sich selbst muss abgelehnt werden: %s", msg)
+
+	task, _ := laufLassen(t, s, betrieb, "Eigener Vorschlag",
+		`[mock:action covey/propose_agent_config {"agent":"betrieb","title":"Rolle schaerfen",`+
+			`"rationale":"Nach dem ersten Auftrag weiss ich mehr.","files":{"SOUL.md":"# Betrieb\n\nGeschaerft."}}]`)
+	if task.State != backlog.StateDone {
+		t.Fatalf("der Vorschlag an sich selbst muss durchgehen: %v", task.State)
+	}
+	items, err := s.registry.ListImprovements(ctx, s.orgID, agents.ImprovementFilter{})
+	if err != nil || len(items) != 1 {
+		t.Fatalf("genau ein Vorschlag erwartet: %v %v", items, err)
+	}
+	if items[0].AgentID != betrieb.ID || *items[0].AuthorAgentID != betrieb.ID {
+		t.Fatalf("Absender und Betroffener sind derselbe: %v", items[0])
+	}
+}
+
+// TestSelbstvorschlagBrauchtKeinenReviewScope: der offene Punkt aus spec/20.
+// Wer entwerfen darf, darf nach seinem Self-Onboarding die EIGENE Konfiguration
+// vorschlagen — und nur die. Für die eines Kollegen braucht es den zweiten
+// Scope, sonst wäre die Trennung über die Hintertür aufgehoben.
+func TestSelbstvorschlagBrauchtKeinenReviewScope(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	personal := reviewAgent(t, s, "personal", "agents:write")
+	reviewAgent(t, s, "kollege", "")
+
+	task, _ := laufLassen(t, s, personal, "Eigene Config vorschlagen",
+		`[mock:action covey/propose_agent_config {"agent":"personal","title":"Rolle schaerfen",`+
+			`"rationale":"Das Self-Onboarding hat gezeigt, was fehlt.","files":{"SOUL.md":"# Personal\n\nGeschaerft."}}]`)
+	if task.State != backlog.StateDone {
+		t.Fatalf("der Selbstvorschlag muss mit agents:write gehen: %v", task.State)
+	}
+
+	if _, msg := laufLassen(t, s, personal, "Fremde Config vorschlagen",
+		`[mock:action covey/propose_agent_config {"agent":"kollege","title":"Anders",`+
+			`"rationale":"Weil.","files":{"SOUL.md":"# Anders"}}]`); !strings.Contains(msg, "agents:review") {
+		t.Fatalf("fuer einen Kollegen braucht es den Review-Scope: %s", msg)
+	}
+	items, err := s.registry.ListImprovements(ctx, s.orgID, agents.ImprovementFilter{})
+	if err != nil || len(items) != 1 {
+		t.Fatalf("nur der Selbstvorschlag darf entstanden sein: %v %v", items, err)
 	}
 }
 

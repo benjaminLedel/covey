@@ -57,9 +57,6 @@ const (
 var (
 	// ErrProposalEmpty: ein Vorschlag ohne Dateien ist kein Vorschlag.
 	ErrProposalEmpty = errors.New("a proposal has to change at least one file")
-	// ErrSelfReview: er begutachtet sich nicht selbst (spec/21, Regel 2).
-	// Dieselbe Linie, die spec/20 für die Personalabteilung zieht.
-	ErrSelfReview = errors.New("an agent cannot propose its own configuration")
 	// ErrNotPending: entschieden wird einmal. Der zweite Klick ist kein
 	// zweiter Beschluss.
 	ErrNotPending = errors.New("this item has already been decided")
@@ -108,6 +105,14 @@ type ImprovementFilter struct {
 // Plattform: die Basisversion wird hier gelesen und nicht übergeben — ein
 // Modell, das seine eigene Basis benennen darf, kann einen Konflikt
 // wegdefinieren.
+//
+// Bewusst OHNE Prüfung, ob ein Agent über sich selbst schreibt. Ein Vorschlag
+// an sich selbst ist erlaubt und war der Sinn der ganzen Übung: die
+// Personalabteilung darf nach ihrem Self-Onboarding ihre eigene Konfiguration
+// vorschlagen (spec/20), und was daran gefährlich wäre — dass ein Agent sich
+// nachts selbst umschreibt — kann hier nicht passieren, weil nichts von hier
+// läuft. Ein Mensch nimmt an, oder es bleibt liegen. Wer das darf, entscheidet
+// der Scope, und der wohnt im Orchestrator.
 func (r *Registry) CreateImprovement(ctx context.Context, item ImprovementItem) (ImprovementItem, error) {
 	target, err := r.Get(ctx, item.AgentID)
 	if err != nil {
@@ -115,11 +120,6 @@ func (r *Registry) CreateImprovement(ctx context.Context, item ImprovementItem) 
 	}
 	if target.OrgID != item.OrgID {
 		return item, ErrNotFound
-	}
-	// Er begutachtet sich nicht selbst. Hier und nicht im Prompt: eine Grenze,
-	// die ein Agent selbst einhalten soll, ist keine.
-	if item.AuthorAgentID != nil && *item.AuthorAgentID == item.AgentID {
-		return item, ErrSelfReview
 	}
 	switch item.Kind {
 	case KindProposal:

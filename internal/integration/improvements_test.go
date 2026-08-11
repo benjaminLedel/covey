@@ -2,7 +2,6 @@ package integration
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -193,19 +192,38 @@ func TestVorschlagUeberschreibtKeineFremdeÄnderung(t *testing.T) {
 		map[string]any{"accept": true}, http.StatusOK)
 }
 
-// TestKeinSelbstReview: er begutachtet sich nicht selbst. Dieselbe Linie, die
-// spec/20 für die Personalabteilung zieht, und aus demselben Grund — ein
-// Agent, der sich nachts selbst benotet, ist die Tür, die diese Plattform
-// zuhält.
-func TestKeinSelbstReview(t *testing.T) {
+// TestSelbstvorschlagLiegtWieJederAndere: ein Agent darf seine EIGENE Config
+// vorschlagen — das ist der offene Punkt aus spec/20, und er ist ungefährlich,
+// weil von hier nichts läuft. Bis ein Mensch ihn annimmt, ändert er nichts.
+func TestSelbstvorschlagLiegtWieJederAndere(t *testing.T) {
 	s := newStack(t)
-	autor := s.newSupportAgent("betrieb")
+	ctx := context.Background()
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	autor := s.newSupportAgent("personal")
 
-	_, err := s.registry.CreateImprovement(context.Background(), agents.ImprovementItem{
-		OrgID: s.orgID, AgentID: autor.ID, Kind: agents.KindProposal, Title: "Ich wäre gerne freier",
-		Files: map[string]string{"SOUL.md": "# Frei"}, AuthorAgentID: &autor.ID,
+	item, err := s.registry.CreateImprovement(ctx, agents.ImprovementItem{
+		OrgID: s.orgID, AgentID: autor.ID, Kind: agents.KindProposal,
+		Title: "Meine Rolle schaerfen", Rationale: "Nach dem ersten Auftrag weiss ich mehr.",
+		Files: map[string]string{"SOUL.md": "# Personal\n\nGeschaerft."}, AuthorAgentID: &autor.ID,
 	})
-	if !errors.Is(err, agents.ErrSelfReview) {
-		t.Fatalf("ein Vorschlag an sich selbst muss abgelehnt werden: %v", err)
+	if err != nil {
+		t.Fatalf("der Vorschlag an sich selbst muss angelegt werden koennen: %v", err)
+	}
+
+	cfg, err := s.registry.CurrentConfig(ctx, autor.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(cfg.Files["SOUL.md"], "Geschaerft") {
+		t.Fatal("ein Vorschlag darf sich nicht selbst in Kraft setzen")
+	}
+
+	admin.expect(http.MethodPost, "/api/v1/improvements/"+item.ID.String()+"/decide",
+		map[string]any{"accept": true}, http.StatusOK)
+	if cfg, err = s.registry.CurrentConfig(ctx, autor.ID); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(cfg.Files["SOUL.md"], "Geschaerft") {
+		t.Fatal("nach der Annahme durch einen Menschen laeuft er")
 	}
 }

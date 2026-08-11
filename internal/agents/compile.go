@@ -381,7 +381,17 @@ you drafted and why — including what you did NOT settle and the human should
 decide.
 
 A drafted agent must not itself get the system ` + "`covey`" + `: drafting colleagues
-stays with you. The platform rejects it.`
+stays with you. The platform rejects it.
+
+**Your own configuration you may PROPOSE, not write.**
+
+   ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/propose_agent_config -d '{\"agent\":\"<your own slug>\",\"title\":\"…\",\"rationale\":\"…\",\"files\":{\"SOUL.md\":\"…\"}}'`" + `
+
+That writes a stored version which is NOT in effect; a human accepts it or
+declines it. Use it when your assignment has taught you something about your
+own role — after your first task, say. For a COLLEAGUE'"'"'s configuration this
+action is closed to you: that is somebody else'"'"'s job and needs a different
+access.`
 
 // ReviewDoc describes the review actions (spec/21). Like HiringDoc it follows
 // the SCOPE, not the agent: it stands in the prompt of whoever has
@@ -435,8 +445,9 @@ guard rails, its runtime, its budget, its kill switch. And there is no action
 to dismiss anybody. You may say that a colleague is not working out; ending
 that is a human's act, the same way starting it was.
 
-You do not review yourself. Both reading your own record and proposing your own
-configuration are refused.`
+You do not read your own work record — an agent that knows what it is measured
+on works towards the measure instead of the job. Your OWN configuration you may
+propose like anybody else'"'"'s; a human decides it either way.`
 
 // CompilePrompt turns the config files into the system prompt.
 // Known files in a defined order, unknown ones alphabetically behind them.

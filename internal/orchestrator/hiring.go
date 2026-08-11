@@ -65,9 +65,13 @@ var coveyOps = map[string]coveyOp{
 	// urteilt (spec/21).
 	"get_agent_config": {Subject: "covey:get_agent_config", Scopes: []string{scopeWrite, scopeReview}},
 
-	"work_record":          {Subject: "covey:work_record", Scopes: []string{scopeReview}},
-	"read_recording":       {Subject: "covey:read_recording", Scopes: []string{scopeReview}, AlwaysApprove: true},
-	"propose_agent_config": {Subject: "covey:propose_agent_config", Scopes: []string{scopeReview}},
+	"work_record":    {Subject: "covey:work_record", Scopes: []string{scopeReview}},
+	"read_recording": {Subject: "covey:read_recording", Scopes: []string{scopeReview}, AlwaysApprove: true},
+	// Der Vorschlag trägt beide Scopes, aber nicht dieselbe Reichweite:
+	// `agents:write` erreicht damit NUR die eigene Konfiguration (spec/20, der
+	// Selbstvorschlag nach dem Self-Onboarding), `agents:review` auch die eines
+	// Kollegen. Geprüft in reviewPropose, wo der Betroffene bekannt ist.
+	"propose_agent_config": {Subject: "covey:propose_agent_config", Scopes: []string{scopeReview, scopeWrite}},
 }
 
 // hiringSystem is the name of the access in ACCESS.md that unlocks these
@@ -154,9 +158,15 @@ func (o *Orchestrator) hiring(ctx context.Context, agent agents.Agent, taskID uu
 		return fail("%s", "this agent has no access to the platform's own system "+
 			"(`- system: "+hiringSystem+" scope: "+strings.Join(def.Scopes, "` or `")+"` in ACCESS.md)")
 	}
-	// Through the guard-rails: what comes out of these actions is a colleague or
-	// an assessment of one, and that has to be governable centrally rather than
-	// in a prompt.
+	// Through the guard-rails, like create_task: what comes out of these actions
+	// is a colleague or an assessment of one, and that has to be governable
+	// centrally rather than in a prompt.
+	//
+	// create_task geht denselben Weg an einer anderen Stelle — der Action-Proxy
+	// fragt dafür checkAction (Subjekt `covey:create_task`, beim Delegieren
+	// `covey:create_task:foreign`), was in decideAction landet. Wer hier nach
+	// railsAllow sucht, findet es dort nicht und hält die Prüfung für
+	// vergessen; sie ist es nicht.
 	//
 	// Drei Ausgänge, nicht zwei. Steht die Regel auf require_approval — oder
 	// fragt die Aktion ohnehin immer —, ist die Aktion NICHT ausgeführt: der
