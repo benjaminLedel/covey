@@ -242,6 +242,16 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 		if err != nil {
 			return map[string]string{"status": "error", "error": err.Error()}
 		}
+		// Vor der OK-Prüfung: die Aktion ist nicht fehlgeschlagen, sie hat
+		// nicht stattgefunden. Dieselbe Antwort wie bei einer Zielsystem-
+		// Aktion, damit die Runtime nur EIN Muster kennen muss.
+		if resp.Pending {
+			return map[string]string{
+				"status":          "pending_approval",
+				"approval_id":     resp.ApprovalID,
+				"correlation_key": resp.CorrelationKey,
+			}
+		}
 		if !resp.OK {
 			return map[string]string{"status": "error", "error": resp.Error}
 		}

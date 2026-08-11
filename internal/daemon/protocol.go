@@ -381,11 +381,20 @@ type RequestHiring struct {
 	Files map[string]string `json:"files,omitempty"`
 }
 
+// InjectHiring is the answer to a meta action. Pending is the third outcome
+// next to OK and Error, and it is the reason this type is not just a boolean:
+// a guard rail may put a meta action in front of a human (spec/21). The action
+// has then NOT happened — the agent blocks on CorrelationKey and repeats it
+// once somebody has decided, exactly as with a target-system action.
 type InjectHiring struct {
 	RequestID string          `json:"request_id"`
 	OK        bool            `json:"ok"`
 	Error     string          `json:"error,omitempty"`
 	Data      json.RawMessage `json:"data,omitempty"`
+
+	Pending        bool   `json:"pending,omitempty"`
+	ApprovalID     string `json:"approval_id,omitempty"`
+	CorrelationKey string `json:"correlation_key,omitempty"`
 }
 
 // Encode builds an envelope; never panics, because all payloads are marshalable.

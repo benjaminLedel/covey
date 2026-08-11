@@ -2506,34 +2506,74 @@ func (o *Orchestrator) decideAction(ctx context.Context, agent agents.Agent, tas
 			Reason: "forbidden by guard rail " + verdict.Rule.Pattern}
 
 	case guardrails.RequireApproval:
-		// An unused approval for exactly this action? Then consume it.
-		var approvalID uuid.UUID
-		err := o.Pool.QueryRow(ctx, `UPDATE approvals SET used=TRUE
-			WHERE id = (SELECT id FROM approvals
-				WHERE agent_id=$1 AND action=$2 AND status='approved' AND NOT used
-				ORDER BY decided_at DESC LIMIT 1)
-			RETURNING id`, agent.ID, req.Action).Scan(&approvalID)
-		if err == nil {
-			_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindApproval,
-				map[string]any{"action": req.Action, "decision": "approved", "approval_id": approvalID.String()})
+		v := o.approvalGate(ctx, agent, taskID, req.Action, json.RawMessage(req.Params))
+		switch {
+		case v.Error != "":
+			return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied", Reason: v.Error}
+		case v.Approved:
 			return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "approved"}
 		}
-		appr, err := o.Obs.CreateApproval(ctx, agent.OrgID, agent.ID, &taskID, req.Action, json.RawMessage(req.Params))
-		if err != nil {
-			return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied", Reason: err.Error()}
-		}
-		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindApproval,
-			map[string]any{"action": req.Action, "decision": "pending", "approval_id": appr.ID.String()})
-		o.events.Publish(Event{Type: "approval", AgentID: agent.ID.String(),
-			Data: map[string]string{"approval_id": appr.ID.String(), "action": req.Action}})
 		return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "pending",
-			ApprovalID: appr.ID.String(), CorrelationKey: "approval:" + appr.ID.String()}
+			ApprovalID: v.ApprovalID, CorrelationKey: v.CorrelationKey}
 
 	default:
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindApproval,
 			map[string]any{"action": req.Action, "decision": "auto-allow"})
 		return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "approved"}
 	}
+}
+
+// gateVerdict ist die Antwort des Freigabe-Gates: entweder lag eine erteilte,
+// unverbrauchte Freigabe vor (Approved) — oder es wurde eine angelegt, und die
+// Aufgabe muss auf einen Menschen warten (CorrelationKey).
+type gateVerdict struct {
+	Approved       bool
+	ApprovalID     string
+	CorrelationKey string
+	// Error steht, wenn die Freigabe gar nicht erst angelegt werden konnte.
+	// Fail-closed: der Aufrufer verbietet dann.
+	Error string
+}
+
+// approvalGate ist der require_approval-Zweig der Guard-Rails.
+//
+// Bewusst herausgelöst und nicht beim Zielsystem-Pfad gelassen: dieselbe
+// Mechanik trägt die Meta-Actions der Plattform (spec/21). Dort lehnte eine
+// require_approval-Regel bisher hart ab — „requires an approval and cannot be
+// performed unattended". Das ist eine Leitplanke, die für eine Klasse von
+// Aktionen still zu einem Verbot wird, und damit eine Governance-Oberfläche,
+// die über sich selbst die Unwahrheit sagt: wer die Regel setzt, meint
+// „jemand schaut drauf" und bekommt „geht nicht".
+//
+// Die Freigabe ist EINMALIG verbrauchbar (approvals.used). Eine erteilte
+// Freigabe ist die Antwort auf eine Handlung, keine Lizenz auf die Aktion.
+func (o *Orchestrator) approvalGate(ctx context.Context, agent agents.Agent, taskID uuid.UUID,
+	action string, params json.RawMessage) gateVerdict {
+
+	// Eine unverbrauchte Freigabe für genau diese Aktion? Dann verbrauchen.
+	var approvalID uuid.UUID
+	err := o.Pool.QueryRow(ctx, `UPDATE approvals SET used=TRUE
+		WHERE id = (SELECT id FROM approvals
+			WHERE agent_id=$1 AND action=$2 AND status='approved' AND NOT used
+			ORDER BY decided_at DESC LIMIT 1)
+		RETURNING id`, agent.ID, action).Scan(&approvalID)
+	if err == nil {
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindApproval,
+			map[string]any{"action": action, "decision": "approved", "approval_id": approvalID.String()})
+		return gateVerdict{Approved: true, ApprovalID: approvalID.String()}
+	}
+	if len(params) == 0 {
+		params = json.RawMessage(`{}`)
+	}
+	appr, err := o.Obs.CreateApproval(ctx, agent.OrgID, agent.ID, &taskID, action, params)
+	if err != nil {
+		return gateVerdict{Error: err.Error()}
+	}
+	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindApproval,
+		map[string]any{"action": action, "decision": "pending", "approval_id": appr.ID.String()})
+	o.events.Publish(Event{Type: "approval", AgentID: agent.ID.String(),
+		Data: map[string]string{"approval_id": appr.ID.String(), "action": action}})
+	return gateVerdict{ApprovalID: appr.ID.String(), CorrelationKey: "approval:" + appr.ID.String()}
 }
 
 // OnApprovalDecided closes the loop of the approval gate: the decision wakes

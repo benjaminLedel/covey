@@ -369,6 +369,12 @@ other one:
      Every agent needs a ` + "`SOUL.md`" + ` — without it it has no character and the
      platform refuses to save.
 
+An organisation may put any of these actions in front of a human. If one
+answers ` + "`{\"status\":\"pending_approval\", \"correlation_key\":\"…\"}`" + `, it has NOT
+happened — end your work with status blocked and that correlation key, exactly
+as with a target-system action. You will be woken once somebody has decided,
+and then you repeat the action.
+
 What you may not do, and what no action exists for: hire. Employing somebody is
 a human decision. Your assignment ends with a draft plus a short report on what
 you drafted and why — including what you did NOT settle and the human should

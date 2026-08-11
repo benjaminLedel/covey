@@ -115,10 +115,21 @@ func (o *Orchestrator) hiring(ctx context.Context, agent agents.Agent, taskID uu
 		return fail("this agent has no access to the platform's own system " +
 			"(`- system: " + hiringSystem + " scope: " + hiringScope + "` in ACCESS.md)")
 	}
-	// Through the guard-rails, like create_task: what comes out of these actions
-	// is a colleague, and that has to be governable centrally.
-	if allowed, reason := o.railsAllow(ctx, agent, subject); !allowed {
-		return fail("%s", reason)
+	// Through the guard-rails: what comes out of these actions is a colleague,
+	// and that has to be governable centrally rather than in a prompt.
+	//
+	// Drei Ausgänge, nicht zwei. Steht die Regel auf require_approval, ist die
+	// Aktion NICHT ausgeführt: der Agent bekommt den Korrelationsschlüssel,
+	// seine Aufgabe geht blocked, und nach der Entscheidung eines Menschen
+	// wiederholt er sie — derselbe Weg, den eine Zielsystem-Aktion seit dem
+	// MVP geht (spec/21).
+	verdict := o.railsAllow(ctx, agent, taskID, subject, hiringParams(req))
+	if verdict.Pending {
+		return daemon.InjectHiring{RequestID: req.RequestID, Pending: true,
+			ApprovalID: verdict.ApprovalID, CorrelationKey: verdict.CorrelationKey}
+	}
+	if !verdict.Allowed {
+		return fail("%s", verdict.Reason)
 	}
 
 	switch op {
@@ -323,6 +334,30 @@ func (o *Orchestrator) hiringSetConfig(ctx context.Context, agent agents.Agent, 
 	return ok(map[string]any{"agent": target.Slug, "written": written, "config": sortedKeys(files)})
 }
 
+// hiringParams ist das, was in der Freigabe steht — was ein Mensch lesen muss,
+// um zu entscheiden. Bewusst nicht die ganze Anfrage: die Dateien einer Config
+// sind seitenlang und gehören nicht in eine Zeile im Posteingang. Ihre NAMEN
+// beantworten die Frage schon („er will die SOUL.md umschreiben").
+func hiringParams(req daemon.RequestHiring) map[string]any {
+	out := map[string]any{"op": req.Op}
+	add := func(key, value string) {
+		if strings.TrimSpace(value) != "" {
+			out[key] = value
+		}
+	}
+	add("agent", req.Agent)
+	add("slug", req.Slug)
+	add("display_name", req.DisplayName)
+	add("runtime", req.Runtime)
+	add("job_title", req.JobTitle)
+	add("department", req.Department)
+	add("supervisor", req.Supervisor)
+	if len(req.Files) > 0 {
+		out["files"] = sortedKeys(req.Files)
+	}
+	return out
+}
+
 func sortedKeys(m map[string]string) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
@@ -370,17 +405,38 @@ func (o *Orchestrator) findHuman(ctx context.Context, orgID uuid.UUID, who strin
 	return id, err
 }
 
+// railsVerdict ist, was die Guard-Rails zu einer Meta-Action sagen. Drei
+// Ausgänge statt zwei: erlaubt, verboten — und „ein Mensch entscheidet".
+type railsVerdict struct {
+	Allowed        bool
+	Reason         string
+	Pending        bool
+	ApprovalID     string
+	CorrelationKey string
+}
+
 // railsAllow applies the org-wide guard rails to a meta action. Fail-closed:
-// rules that cannot be read forbid, they do not wave through. An action that
-// would need an approval counts as forbidden here rather than being parked —
-// drafting a colleague is not something anybody watches a dialog for.
-func (o *Orchestrator) railsAllow(ctx context.Context, agent agents.Agent, subject string) (bool, string) {
+// rules that cannot be read forbid, they do not wave through.
+//
+// Eine require_approval-Regel legt eine Freigabe an und meldet Pending — sie
+// verbietet NICHT mehr. Der alte Satz („requires an approval and cannot be
+// performed unattended") war der bequeme Ausweg: die Meta-Actions kannten den
+// Freigabe-Pfad nicht, den die Zielsystem-Aktionen seit dem MVP gehen. Eine
+// Leitplanke, die für eine Klasse von Aktionen still zu einem Verbot wird,
+// sagt über sich selbst die Unwahrheit — wer sie setzt, meint „jemand schaut
+// drauf" und bekommt „geht nicht" (spec/21).
+//
+// Die Parameter gehen in die Freigabe: was ein Mensch entscheiden soll, muss
+// er lesen können — welcher Agent, welche Datei, welcher Lauf.
+func (o *Orchestrator) railsAllow(ctx context.Context, agent agents.Agent, taskID uuid.UUID,
+	subject string, params any) railsVerdict {
+
 	if o.Rails == nil {
-		return true, ""
+		return railsVerdict{Allowed: true}
 	}
 	rules, err := o.Rails.List(ctx, agent.OrgID)
 	if err != nil {
-		return false, "guard rails not readable (fail-closed)"
+		return railsVerdict{Reason: "guard rails not readable (fail-closed)"}
 	}
 	verdict := guardrails.Evaluate(rules, agent.ID, subject)
 	switch verdict.Decision {
@@ -388,9 +444,20 @@ func (o *Orchestrator) railsAllow(ctx context.Context, agent agents.Agent, subje
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindGuardrail,
 			map[string]any{"rule": verdict.Rule.RuleType, "pattern": verdict.Rule.Pattern,
 				"action": subject, "decision": "denied"})
-		return false, "forbidden by guard rail: " + subject
+		return railsVerdict{Reason: "forbidden by guard rail: " + subject}
 	case guardrails.RequireApproval:
-		return false, "this action requires an approval and cannot be performed unattended: " + subject
+		raw, err := json.Marshal(params)
+		if err != nil {
+			raw = json.RawMessage(`{}`)
+		}
+		gate := o.approvalGate(ctx, agent, taskID, subject, raw)
+		switch {
+		case gate.Error != "":
+			return railsVerdict{Reason: "approval could not be created: " + gate.Error}
+		case gate.Approved:
+			return railsVerdict{Allowed: true}
+		}
+		return railsVerdict{Pending: true, ApprovalID: gate.ApprovalID, CorrelationKey: gate.CorrelationKey}
 	}
-	return true, ""
+	return railsVerdict{Allowed: true}
 }
