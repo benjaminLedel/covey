@@ -129,6 +129,8 @@ Practical consequence for operations: **a deploy rolls out platform changes by i
 
 **Which configs need catching up is a question the platform answers.** A config lint checks the population against patterns that in practice have produced endless loops, burnt budgets and unusable boards: heartbeat intervals too tight for the systems in use, runs piling up at the turn limit, self-created board columns naming an item instead of a state, work that leaves no visible trace and therefore counts as open again at the next interval. They are **warnings with context**, not prohibitions — a two-minute interval is fine for a mailbox and ruinous for a repo clone, and whoever knows better must be allowed to save.
 
+The rules are mechanical, and that is their strength and their ceiling: they see the pattern and not the case. The reader that judges the case is the People department's development role, which takes these findings as one input among several ([`21-feedback-and-development.md`](21-feedback-and-development.md)).
+
 The findings sit in two places, deliberately: on the agent's own page, because that is where somebody looks who is looking after an agent because something is wrong with it — and in `covey config lint` across all organisations, which is how an instance is checked after an upgrade without a browser (exit code `1` on findings). A check that exists only as a subcommand effectively does not exist: the rule about frequent turn-limit aborts would have described one QA agent's state from day one — 22 of 23 failures at the limit, several hundred dollars spent without a single merge request tested through — and nobody ran it, because nobody runs a subcommand on a hunch.
 
 ### Export & import

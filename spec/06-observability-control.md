@@ -103,6 +103,8 @@ An optional agent that **reviews other agents' activity and flags anomalies** �
 
 The supervisor does not autonomously decide on hard interventions; it flags and escalates to the human or triggers approval gates.
 
+**Not to be confused with the People department's development role** ([`21-feedback-and-development.md`](21-feedback-and-development.md)), which also reads other agents' work. The two differ in what they are looking for and therefore in what they are allowed to see: the supervisor watches for **danger** — injection, unusual access, exfiltration — and needs the raw stream to spot it; the development role asks whether an agent is **working well** and gets facts the control plane recorded, with a raw recording only through an approval. Merging them would give one agent the widest read access on the platform *and* the ability to propose configurations, which is the combination both designs are built to avoid.
+
 ## Kill switch
 
 An agent out of control? **Stop it immediately** — `pause`/`kill` to the daemon (see [`01-architecture.md`](01-architecture.md)). Two granularities:
