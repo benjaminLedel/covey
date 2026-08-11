@@ -330,7 +330,6 @@
     "costs": "Costs",
     "setup": "Setup",
     "control": "Oversight",
-    "approvals": "Approvals",
     "guardrails": "Guard Rails",
     "secrets": "Secrets",
     "targets": "Target Systems",
@@ -347,7 +346,7 @@
     "requests": "Requests",
     "skills": "Skills",
     "setupPage": "Setup",
-    "improvements": "Open items"
+    "inbox": "Inbox"
   },
   "costs": {
     "title": "Cost & Tokens",
@@ -1065,31 +1064,49 @@
     }
   },
   "approvals": {
-    "title": "Approvals",
-    "pending": "{{count}} pending",
-    "noPending": "Nothing waiting for approval.",
-    "requested": "requested {{date}}",
     "approve": "Approve",
-    "deny": "Deny",
-    "decided": "Decided"
+    "deny": "Deny"
   },
-  "improvements": {
-    "title": "Open items",
+  "inbox": {
+    "title": "Inbox",
     "open": "{{count}} open",
+    "hint": "Everything waiting for your decision. An approval holds an agent still — it only carries on once you have decided. An open item from operations holds nothing up: it is a proposal, a finding or an issue, and none of it takes effect before you accept it.",
+    "todo": "To decide",
+    "nothingToDo": "Nothing is waiting for a decision.",
+    "all": "All items",
+    "more": "Load more ({{count}})",
+    "collapse": "Collapse",
     "onlyMine": "Only my agents",
-    "hint": "What operations found about a colleague: a proposal for its configuration, a finding about its assignment, or an issue against the platform. None of it is in effect — a proposal becomes the running config only once you accept it.",
-    "noOpen": "Nothing open.",
-    "decided": "{{count}} decided",
-    "by": "by {{name}} ·",
-    "kind": {
+    "allAgents": "All agents",
+    "allTypes": "All kinds",
+    "filterAgent": "Filter by agent",
+    "filterType": "Filter by kind",
+    "filterStatus": "Filter by status",
+    "statusAll": "Open and decided",
+    "statusOpen": "Open only",
+    "statusDecided": "Decided only",
+    "sort": "Sort order",
+    "sortUrgent": "Urgency",
+    "sortNewest": "Newest first",
+    "sortOldest": "Oldest first",
+    "agentWaiting": "The task stands still until you decide.",
+    "type": {
+      "approval": "Approval",
       "proposal": "Proposal",
       "finding": "Finding",
       "issue": "Issue"
     },
     "status": {
+      "pending": "Open",
+      "approved": "Approved",
+      "denied": "Denied",
+      "expired": "Expired",
       "accepted": "Accepted",
       "rejected": "Rejected"
-    },
+    }
+  },
+  "improvements": {
+    "by": "by {{name}} ·",
     "needsSecurity": "Changes access — security decides",
     "conflict": "Conflict: {{files}} has been changed since",
     "stale": "Written against version {{base}}, current is {{current}}",
@@ -1101,7 +1118,8 @@
     "done": "Done",
     "reject": "Reject",
     "blockedConflict": "The configuration has changed since this proposal was written — it has to be rewritten or discarded.",
-    "blockedSecurity": "This proposal changes ACCESS.md or EGRESS.md. Only platform_admin or security may accept it."
+    "blockedSecurity": "This proposal changes ACCESS.md or EGRESS.md. Only platform_admin or security may accept it.",
+    "appliedAs": "Applied as version {{v}}"
   },
   "guardrails": {
     "title": "Guard Rails",

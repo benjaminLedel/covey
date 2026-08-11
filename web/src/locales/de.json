@@ -330,7 +330,6 @@
     "costs": "Kosten",
     "setup": "Einrichtung",
     "control": "Aufsicht",
-    "approvals": "Freigaben",
     "guardrails": "Guard-Rails",
     "secrets": "Secrets",
     "targets": "Zielsysteme",
@@ -347,7 +346,7 @@
     "requests": "Requests",
     "skills": "Skills",
     "setupPage": "Einrichtung",
-    "improvements": "Offene Punkte"
+    "inbox": "Posteingang"
   },
   "costs": {
     "title": "Kosten & Token",
@@ -1065,31 +1064,49 @@
     }
   },
   "approvals": {
-    "title": "Freigaben",
-    "pending": "{{count}} ausstehend",
-    "noPending": "Nichts wartet auf Freigabe.",
-    "requested": "angefragt {{date}}",
     "approve": "Freigeben",
-    "deny": "Ablehnen",
-    "decided": "Entschieden"
+    "deny": "Ablehnen"
   },
-  "improvements": {
-    "title": "Offene Punkte",
+  "inbox": {
+    "title": "Posteingang",
     "open": "{{count}} offen",
+    "hint": "Alles, was auf Ihre Entscheidung wartet. Eine Freigabe hält einen Agenten an — er arbeitet erst weiter, wenn Sie entschieden haben. Ein offener Punkt aus dem Betrieb hält nichts an: er ist ein Vorschlag, ein Befund oder ein Issue, und wirksam wird davon nichts, bevor Sie es annehmen.",
+    "todo": "Zu entscheiden",
+    "nothingToDo": "Nichts wartet auf eine Entscheidung.",
+    "all": "Alle Vorgänge",
+    "more": "Weitere laden ({{count}})",
+    "collapse": "Zuklappen",
     "onlyMine": "Nur meine Agenten",
-    "hint": "Was der Betrieb an einem Kollegen gefunden hat: ein Vorschlag für seine Konfiguration, ein Befund zu seinem Auftrag oder ein Issue gegen die Plattform. Nichts davon ist in Kraft — ein Vorschlag wird erst zur laufenden Config, wenn Sie ihn annehmen.",
-    "noOpen": "Nichts offen.",
-    "decided": "{{count}} entschieden",
-    "by": "von {{name}} ·",
-    "kind": {
+    "allAgents": "Alle Agenten",
+    "allTypes": "Alle Sorten",
+    "filterAgent": "Nach Agent filtern",
+    "filterType": "Nach Sorte filtern",
+    "filterStatus": "Nach Status filtern",
+    "statusAll": "Offen und entschieden",
+    "statusOpen": "Nur offen",
+    "statusDecided": "Nur entschieden",
+    "sort": "Sortierung",
+    "sortUrgent": "Dringlichkeit",
+    "sortNewest": "Neueste zuerst",
+    "sortOldest": "Älteste zuerst",
+    "agentWaiting": "Die Aufgabe steht still, bis Sie entscheiden.",
+    "type": {
+      "approval": "Freigabe",
       "proposal": "Vorschlag",
       "finding": "Befund",
       "issue": "Issue"
     },
     "status": {
+      "pending": "Offen",
+      "approved": "Freigegeben",
+      "denied": "Abgelehnt",
+      "expired": "Verfallen",
       "accepted": "Angenommen",
       "rejected": "Abgelehnt"
-    },
+    }
+  },
+  "improvements": {
+    "by": "von {{name}} ·",
     "needsSecurity": "Ändert Zugänge — Security entscheidet",
     "conflict": "Konflikt: {{files}} wurde zwischenzeitlich geändert",
     "stale": "Gegen Version {{base}} geschrieben, aktuell ist {{current}}",
@@ -1101,7 +1118,8 @@
     "done": "Erledigt",
     "reject": "Ablehnen",
     "blockedConflict": "Die Konfiguration hat sich seit diesem Vorschlag geändert — er muss neu geschrieben oder verworfen werden.",
-    "blockedSecurity": "Dieser Vorschlag ändert ACCESS.md oder EGRESS.md. Nur platform_admin oder security dürfen ihn annehmen."
+    "blockedSecurity": "Dieser Vorschlag ändert ACCESS.md oder EGRESS.md. Nur platform_admin oder security dürfen ihn annehmen.",
+    "appliedAs": "Übernommen als Version {{v}}"
   },
   "guardrails": {
     "title": "Guard-Rails",

@@ -3914,6 +3914,27 @@ kbd {
   border-top: 0.5px dashed var(--border);
   border-bottom: 0.5px dashed var(--border);
 }
+/* Die Freigabe ist die einzige Sorte, bei der jemand wartet — sie traegt
+   deshalb die Warnfarbe, die der Rest der Oberflaeche fuer „blockiert" nutzt. */
+.badge.kind-approval { background: var(--bg-warning); color: var(--text-warning); }
 .badge.kind-proposal { background: var(--bg-accent); color: var(--text-accent); }
 .badge.kind-finding { background: var(--bg-warning); color: var(--text-warning); }
 .badge.kind-issue { background: var(--surface-1); color: var(--text-secondary); border: 0.5px solid var(--border); }
+
+/* Die schmale Zeile der Auflistung: klappt zur ganzen Karte auf. */
+.inbox-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  padding: 8px 15px;
+  margin-bottom: 6px;
+  background: var(--surface-2);
+  border: 0.5px solid var(--border);
+  border-radius: 10px;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.inbox-row:hover { background: var(--surface-1); }

@@ -188,11 +188,16 @@ const deTopics: HelpTopic[] = [
     ),
   },
   {
-    id: "freigaben",
-    title: "Freigaben",
-    match: (p) => p.startsWith("/approvals"),
+    id: "posteingang",
+    title: "Posteingang",
+    match: (p) => p.startsWith("/inbox") || p.startsWith("/approvals") || p.startsWith("/improvements"),
     body: (
       <>
+        <p>
+          Alles, was auf die Entscheidung eines Menschen wartet, in einer Liste. Oben der
+          Arbeitsvorrat — was offen ist, Freigaben zuerst, das Älteste oben; darunter alle Vorgänge
+          nach Sorte gruppiert, mit Filter und nachladbar.
+        </p>
         <p>
           Verlangt eine Guard-Rail für eine Aktion eine Freigabe (z. B.{" "}
           <Term>zammad:reply_external</Term>), pausiert die Aufgabe als{" "}
@@ -204,21 +209,11 @@ const deTopics: HelpTopic[] = [
           <li><b>Ablehnen</b> — der Agent wird geweckt und muss ohne die Aktion weiterarbeiten.</li>
         </ul>
         <p>
-          Entscheidungen sind Teil des Recordings und damit auditierbar. Die Zahl an „Freigaben" in
-          der Navigation zeigt offene Anfragen.
+          Entscheidungen sind Teil des Recordings und damit auditierbar.
         </p>
-      </>
-    ),
-  },
-  {
-    id: "offene-punkte",
-    title: "Offene Punkte",
-    match: (p) => p.startsWith("/improvements"),
-    body: (
-      <>
         <p>
-          Was der Betrieb an einem Kollegen gefunden hat, landet hier — und nur hier. Drei Sorten,
-          eine Liste, weil alle drei denselben Menschen brauchen:
+          <b>Offene Punkte aus dem Betrieb</b> stehen in derselben Liste, halten aber nichts an —
+          drei Sorten, die alle denselben Menschen brauchen:
         </p>
         <dl>
           <dt><Badge st="working">Vorschlag</Badge></dt>
@@ -567,11 +562,16 @@ const enTopics: HelpTopic[] = [
     ),
   },
   {
-    id: "freigaben",
-    title: "Approvals",
-    match: (p) => p.startsWith("/approvals"),
+    id: "posteingang",
+    title: "Inbox",
+    match: (p) => p.startsWith("/inbox") || p.startsWith("/approvals") || p.startsWith("/improvements"),
     body: (
       <>
+        <p>
+          Everything waiting for a human decision, in one list. At the top the work queue — what is
+          open, approvals first, oldest first; below that every item grouped by kind, filterable and
+          loaded in pages.
+        </p>
         <p>
           When a guard rail requires an approval for an action (e.g.{" "}
           <Term>zammad:reply_external</Term>), the task pauses as{" "}
@@ -583,21 +583,11 @@ const enTopics: HelpTopic[] = [
           <li><b>Deny</b> — the agent is woken and must continue without the action.</li>
         </ul>
         <p>
-          Decisions are part of the recording and thus auditable. The "Approvals" count in the
-          navigation shows pending requests.
+          Decisions are part of the recording and thus auditable.
         </p>
-      </>
-    ),
-  },
-  {
-    id: "offene-punkte",
-    title: "Open items",
-    match: (p) => p.startsWith("/improvements"),
-    body: (
-      <>
         <p>
-          What operations found about a colleague lands here, and nowhere else. Three kinds, one
-          list, because all three need the same person:
+          <b>Open items from operations</b> sit in the same list but hold nothing up — three kinds,
+          all of which need the same person:
         </p>
         <dl>
           <dt><Badge st="working">Proposal</Badge></dt>

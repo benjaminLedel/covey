@@ -66,9 +66,12 @@ export function mockFetch(routes: Record<string, unknown>) {
     for (const [pattern, body] of Object.entries(routes)) {
       const [pMethod, pPath] = pattern.includes(" ") ? pattern.split(" ") : ["GET", pattern];
       if (method !== pMethod) continue;
-      // Pfad ohne Query vergleichen; ein Muster mit "?" prüft die Query mit.
+      // Pfad ohne Query vergleichen. Ein Muster MIT "?" prüft die Query mit —
+      // als Präfix, weil der Aufrufer weitere Parameter anhängt (Sortierung,
+      // Seitengröße). Muster mit Query gehören deshalb VOR das ohne: die erste
+      // Übereinstimmung gewinnt.
       const target = pPath.includes("?") ? url : url.split("?")[0];
-      if (target === pPath || target.endsWith(pPath)) {
+      if (target === pPath || target.endsWith(pPath) || (pPath.includes("?") && url.includes(pPath))) {
         return new Response(JSON.stringify(body), {
           status: 200,
           headers: { "Content-Type": "application/json" },

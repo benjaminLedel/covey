@@ -188,6 +188,44 @@ export type ImprovementItem = {
 export const decideImprovement = (id: string, accept: boolean, note: string) =>
   post<ImprovementItem>(`/improvements/${id}/decide`, { accept, note });
 
+export const decideApproval = (id: string, approve: boolean) =>
+  post<Approval>(`/approvals/${id}/decide`, { approve });
+
+// Eine Zeile des Posteingangs: Freigabe oder offener Punkt. Der Kopf ist für
+// beide gleich, damit serverseitig sortiert und geblättert werden kann; das
+// Sortenspezifische hängt unverändert darunter.
+export type InboxEntry = {
+  type: "approval" | "proposal" | "finding" | "issue";
+  id: string;
+  agent_id: string;
+  agent_slug: string;
+  agent_name: string;
+  task_id?: string;
+  title: string;
+  status: string;
+  pending: boolean;
+  created_at: string;
+  decided_at?: string;
+  approval?: Approval;
+  item?: ImprovementItem;
+};
+
+export type InboxPage = {
+  items: InboxEntry[];
+  /** Alle Zeilen, auf die die Filter passen — daran hängt „mehr laden". */
+  total: number;
+  /** Die offenen unter denselben Filtern, ohne den Statusfilter (Zähler). */
+  pending: number;
+};
+
+export const inbox = (params: Record<string, string | number | undefined>) => {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== "") q.set(k, String(v));
+  }
+  return api<InboxPage>(`/inbox?${q.toString()}`);
+};
+
 export type Guardrail = {
   id: string;
   scope_level: string;

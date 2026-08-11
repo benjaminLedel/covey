@@ -330,6 +330,12 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/approvals", s.rbac(anyRole, s.handleListApprovals))
 	mux.Handle("POST /api/v1/approvals/{id}/decide", s.rbac(append(manage, identity.RoleSecurity), s.handleDecideApproval))
 
+	// Der Posteingang (inbox.go): Freigaben und offene Punkte in EINER Liste,
+	// sortier-, filter- und blätterbar. Alle Rollen dürfen ihn abrufen —
+	// Controlling bekommt daraus nur die Freigaben, die Arbeitsakten-Seite
+	// filtert der Handler heraus.
+	mux.Handle("GET /api/v1/inbox", s.rbac(anyRole, s.handleInbox))
+
 	// Die offenen Punkte aus dem Betrieb (improvements.go, spec/21): Vorschlag,
 	// Befund, Issue. Lesen darf, wen es angeht — Controlling fehlt bewusst,
 	// entschieden wird wie bei den Freigaben.
