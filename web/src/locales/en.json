@@ -666,7 +666,8 @@
       "skills": "Skills",
       "files": "Workspace",
       "toolsSkills": "Tools & Skills",
-      "dreams": "Dreams"
+      "dreams": "Dreams",
+      "record": "Work record"
     },
     "files": {
       "desc": "The agent's persistent home — its workspace. Files outlive the sandbox, so you can browse or drop something here even while the agent sleeps. Every change is recorded.",
@@ -1061,6 +1062,40 @@
       "title": "What came of it",
       "window": "last 30 days",
       "hint": "This employee's indicators from its KPIS.md, and what a unit of each cost."
+    },
+    "record": {
+      "hint": "What the platform itself recorded about this colleague's work — facts, not conversations. The question behind it: why is it not delivering? Three causes are possible — its configuration, its assignment, or the platform underneath it.",
+      "days": "{{count}} days",
+      "throughput": "Throughput",
+      "tasksTotal": "Tasks in total",
+      "byOrigin": "By origin",
+      "aborts": "Aborts",
+      "noAborts": "No run was cut short.",
+      "srcLifecycle": "lifecycle events",
+      "abort": {
+        "max_turns": "At the turn limit",
+        "error": "Error",
+        "budget": "Budget exhausted",
+        "killed": "Kill switch"
+      },
+      "cost": "Cost",
+      "total": "Total",
+      "perTask": "Per task",
+      "costTasks": "Tasks with cost",
+      "work": "Work",
+      "noWork": "No action was executed.",
+      "indicators": "Indicators",
+      "noIndicators": "No indicators in KPIS.md.",
+      "friction": "Friction",
+      "approvals": "Approvals for its actions",
+      "denied": "Forbidden attempts",
+      "ownProposals": "Its own proposals",
+      "noFriction": "Nothing held up, nothing refused.",
+      "stuck": "Stuck ({{count}})",
+      "stuckHint": "Tasks waiting for an event. This is the failure mode nobody sees, because nothing errors.",
+      "findings": "Standing findings ({{count}})",
+      "tasks": "Tasks in the period",
+      "noTasks": "No tasks in the period."
     }
   },
   "approvals": {

@@ -395,6 +395,43 @@ export type LintFinding = {
   hint: string;
 };
 
+// Die Arbeitsakte eines Kollegen (spec/21): acht Abschnitte aus acht benannten
+// Quellen. Kein Freitext eines Agenten oder eines Zielsystems — mit einer
+// Ausnahme, den Aufgabentiteln, die aus der Weck-Quelle stammen können.
+export type WorkRecordCount = { key: string; count: number };
+
+export type WorkRecord = {
+  agent_id: string;
+  slug: string;
+  display_name: string;
+  job_title?: string;
+  from: string;
+  to: string;
+  throughput: {
+    by_state: WorkRecordCount[];
+    by_origin: WorkRecordCount[];
+    tasks: {
+      id: string;
+      title: string;
+      state: string;
+      origin: string;
+      created_at: string;
+      finished_at?: string;
+      cost_usd: number;
+    }[];
+  };
+  aborts: WorkRecordCount[];
+  work: { action: string; ok: number; failed: number }[];
+  indicators: { key: string; title: string; goal: number; period?: string; count: number; unit_usd?: number }[];
+  cost: { total_usd: number; tasks: number; per_task_usd: number };
+  friction: { approvals: WorkRecordCount[]; denied: WorkRecordCount[]; proposals: WorkRecordCount[] };
+  findings: LintFinding[];
+  stuck: { id: string; title: string; correlation_key: string; question?: string; blocked_since: string }[];
+  // Was gekürzt wurde. Eine Akte, die still bei 200 Aufgaben aufhört, liest
+  // sich wie eine vollständige.
+  notes?: string[];
+};
+
 export type Human = {
   id: string;
   org_id: string;

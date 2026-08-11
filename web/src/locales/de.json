@@ -666,7 +666,8 @@
       "skills": "Skills",
       "files": "Arbeitsplatz",
       "toolsSkills": "Tools & Skills",
-      "dreams": "Träume"
+      "dreams": "Träume",
+      "record": "Arbeitsakte"
     },
     "files": {
       "desc": "Das persistente Home des Agenten — sein Arbeitsplatz. Dateien überleben die Sandbox: Sie können hier auch dann etwas ablegen oder ansehen, wenn der Agent schläft. Jede Änderung landet im Recording.",
@@ -1061,6 +1062,40 @@
       "title": "Was dabei herauskam",
       "window": "letzte 30 Tage",
       "hint": "Die Kennzahlen dieses Mitarbeiters aus seiner KPIS.md, und was eine Einheit davon gekostet hat."
+    },
+    "record": {
+      "hint": "Was die Plattform selbst über die Arbeit dieses Kollegen aufgeschrieben hat — Fakten, keine Gespräche. Die Frage dahinter: warum liefert er nicht? Drei Ursachen kommen in Betracht — seine Konfiguration, sein Auftrag, oder die Plattform unter ihm.",
+      "days": "{{count}} Tage",
+      "throughput": "Durchsatz",
+      "tasksTotal": "Aufgaben gesamt",
+      "byOrigin": "Nach Herkunft",
+      "aborts": "Abbrüche",
+      "noAborts": "Kein Lauf ist abgebrochen.",
+      "srcLifecycle": "Lifecycle-Ereignisse",
+      "abort": {
+        "max_turns": "Am Turn-Limit",
+        "error": "Fehler",
+        "budget": "Budget erschöpft",
+        "killed": "Notaus"
+      },
+      "cost": "Kosten",
+      "total": "Gesamt",
+      "perTask": "Je Aufgabe",
+      "costTasks": "Aufgaben mit Kosten",
+      "work": "Arbeit",
+      "noWork": "Keine Aktion ausgeführt.",
+      "indicators": "Kennzahlen",
+      "noIndicators": "Keine Kennzahlen in der KPIS.md.",
+      "friction": "Reibung",
+      "approvals": "Freigaben zu seinen Aktionen",
+      "denied": "Verbotene Versuche",
+      "ownProposals": "Eigene Vorschläge",
+      "noFriction": "Nichts angehalten, nichts abgelehnt.",
+      "stuck": "Hängt fest ({{count}})",
+      "stuckHint": "Aufgaben, die auf ein Ereignis warten. Das ist die Fehlerform, die niemand sieht, weil nichts fehlschlägt.",
+      "findings": "Stehende Befunde ({{count}})",
+      "tasks": "Aufgaben im Zeitraum",
+      "noTasks": "Keine Aufgaben im Zeitraum."
     }
   },
   "approvals": {

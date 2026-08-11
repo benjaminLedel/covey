@@ -191,6 +191,10 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/agents/{id}/export", s.agentScoped(append(manage, identity.RoleSecurity), s.handleExportAgent))
 	mux.Handle("GET /api/v1/agents/{id}/diagnostics", s.agentScoped(append(manage, identity.RoleSecurity), s.handleAgentDiagnostics))
 	mux.Handle("GET /api/v1/agents/{id}/lint", s.agentScoped(append(manage, identity.RoleSecurity), s.handleAgentLint))
+	// Die Arbeitsakte (workrecord.go, spec/21). Sie folgt den Recordings und
+	// nicht den Kostenzahlen: eine Summe sagt, was ausgegeben wurde, eine Akte
+	// sagt, wie jemand gearbeitet hat.
+	mux.Handle("GET /api/v1/agents/{id}/work-record", s.agentScoped(workRecordRoles(), s.handleWorkRecord))
 	// The workplace: the persistent home as a file tree (files.go). Security
 	// may read on top of that — whoever investigates an agent has to see what
 	// lies with it. Writing stays with the administrators: a file in the home
@@ -300,7 +304,10 @@ func (s *Server) Handler() http.Handler {
 	// The price list: delivery next to the cost, same scope, same period
 	// (spec/17-kpis.md).
 	mux.Handle("GET /api/v1/cost/indicators", s.rbac(anyRole, s.handleOrgIndicators))
-	mux.Handle("GET /api/v1/agents/{id}/cost/indicators", s.agentScoped(anyRole, s.handleAgentIndicators))
+	// Die Kennzahlen EINES Agenten sind der Kennzahlen-Abschnitt der Akte —
+	// dieselbe Grenze. Die org-weite Preisliste daneben bleibt offen: sie
+	// gruppiert ueber Kennzahl-Schluessel, nicht ueber Personen (spec/17).
+	mux.Handle("GET /api/v1/agents/{id}/cost/indicators", s.agentScoped(workRecordRoles(), s.handleAgentIndicators))
 	mux.Handle("GET /api/v1/agents/{id}/memories", s.agentScoped(anyRole, s.handleMemories))
 	mux.Handle("POST /api/v1/agents/{id}/memories", s.agentScoped(manage, s.handleCreateMemory))
 	mux.Handle("GET /api/v1/agents/{id}/wiki/log", s.agentScoped(anyRole, s.handleWikiLog))

@@ -153,6 +153,16 @@ const deTopics: HelpTopic[] = [
             Credential-Entscheidungen, Lifecycle.
           </li>
           <li>
+            <b>Arbeitsakte</b> — was die Plattform selbst über die Arbeit dieses Kollegen
+            aufgeschrieben hat: Durchsatz, Abbrüche mit ihrem Grund, ausgeführte Aktionen,
+            Kennzahlen, Kosten, Reibung, stehende Lint-Befunde und die Aufgaben, die auf ein
+            Ereignis warten. Fakten aus benannten Quellen, keine Gespräche — die Frage dahinter
+            ist „warum liefert er nicht?", und die drei möglichen Ursachen sind seine
+            Konfiguration, sein Auftrag oder die Plattform unter ihm. Controlling sieht sie
+            nicht: eine Kostensumme sagt, was ausgegeben wurde, eine Akte sagt, wie jemand
+            gearbeitet hat.
+          </li>
+          <li>
             <b>Gedächtnis</b> — das Wiki des Agenten: verlinkte Seiten, was er aus erledigten
             Aufgaben gelernt hat, und die Träume seiner Nachtläufe.
           </li>
@@ -526,6 +536,15 @@ const enTopics: HelpTopic[] = [
           <li>
             <b>Recording</b> — Complete audit trail: runtime events, actions, guard-rail and
             credential decisions, lifecycle.
+          </li>
+          <li>
+            <b>Work record</b> — what the platform itself recorded about this colleague's work:
+            throughput, aborts with their reason, executed actions, indicators, cost, friction,
+            standing lint findings and the tasks waiting for an event. Facts from named sources,
+            not conversations — the question behind it is "why is it not delivering?", and the
+            three possible causes are its configuration, its assignment, or the platform
+            underneath it. Controlling does not see it: a cost total says what was spent, a work
+            record says how somebody worked.
           </li>
           <li>
             <b>Memory</b> — the agent's wiki: linked pages, what it learned from completed tasks,

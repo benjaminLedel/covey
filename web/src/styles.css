@@ -3938,3 +3938,18 @@ kbd {
   cursor: pointer;
 }
 .inbox-row:hover { background: var(--surface-1); }
+
+/* Arbeitsakte (spec/21): die Abschnitte nebeneinander, solange Platz ist —
+   sie beantworten dieselbe Frage aus verschiedenen Quellen und werden
+   nebeneinander gelesen, nicht nacheinander. */
+.rec-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 10px;
+}
+.rec-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 2px 0;
+}
