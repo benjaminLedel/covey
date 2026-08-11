@@ -106,6 +106,70 @@ func TestDockerProviderStart(t *testing.T) {
 	}
 }
 
+// TestDockerProviderStartWithDocker checks the Docker-in-Docker wiring for an
+// agent with EnableDocker set: a sidecar comes up, the sandbox is attached to
+// its private network and told where to find it, and Stop tears both down.
+func TestDockerProviderStartWithDocker(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	fake := filepath.Join(dir, "docker")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" >> " + argsFile + "\necho containerid\n"
+	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	agentID := uuid.New()
+	p := &DockerProvider{Image: "covey-sandbox:test", DataDir: dir, DockerBin: fake}
+	sb, err := p.Start(context.Background(), SandboxSpec{
+		AgentID:      agentID,
+		EnableDocker: true,
+		Env:          map[string]string{"COVEY_AGENT_ID": agentID.String()},
+	})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	raw, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(raw)
+	dindContainer := dindContainerName(agentID.String())
+	dindNet := dindNetworkName(agentID.String())
+	for _, want := range []string{
+		"--privileged",
+		dindContainer,
+		dindNet,
+		"--network-alias\ndind",
+		DindImage,
+		"DOCKER_HOST=tcp://dind:2375",
+		"network\nconnect\n" + dindNet,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("docker invocations do not contain %q:\n%s", want, got)
+		}
+	}
+
+	if err := os.WriteFile(argsFile, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := sb.Stop(context.Background()); err != nil {
+		t.Errorf("Stop: %v", err)
+	}
+	stopArgs, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{dindContainer, dindNet} {
+		if !strings.Contains(string(stopArgs), want) {
+			t.Errorf("Stop did not tear down %q:\n%s", want, string(stopArgs))
+		}
+	}
+}
+
 // TestDockerProviderCheck: the self-check has to name the two ways a fresh
 // installation fails — and stay silent when nothing is in the way. Both
 // answers matter equally: a check that cries wolf gets ignored, and one that

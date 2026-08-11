@@ -752,6 +752,11 @@ type MergeRequestDetail struct {
 		Username string `json:"username"`
 	} `json:"reviewers"`
 	HeadPipeline *Pipeline `json:"head_pipeline"`
+	// MergeWhenPipelineSucceeds: GitLab's own auto-merge — set, the merge
+	// completes by itself once the head pipeline turns green (and every other
+	// merge condition still holds at that moment; GitLab re-checks them then,
+	// not just now).
+	MergeWhenPipelineSucceeds bool `json:"merge_when_pipeline_succeeds"`
 }
 
 // MRApprovals is the approval state of an MR — GET
@@ -855,6 +860,25 @@ func (c *Client) MergeMR(ctx context.Context, projectID, mrIID int, sha string, 
 	body := map[string]any{
 		"sha":                         sha,
 		"should_remove_source_branch": removeSourceBranch,
+	}
+	err := c.do(ctx, http.MethodPut,
+		fmt.Sprintf("/projects/%d/merge_requests/%d/merge", projectID, mrIID), body, &out)
+	return out, err
+}
+
+// SetMergeWhenPipelineSucceeds — same endpoint as MergeMR, but with
+// merge_when_pipeline_succeeds instead of an immediate merge: GitLab queues
+// the merge and completes it itself once the head pipeline (still pinned by
+// sha) turns green, re-checking every other merge condition at that moment.
+// For an MR whose pipeline just has not concluded yet — everything else about
+// it already checks out — so a second heartbeat does not have to come back
+// and ask again.
+func (c *Client) SetMergeWhenPipelineSucceeds(ctx context.Context, projectID, mrIID int, sha string, removeSourceBranch bool) (MergeRequestDetail, error) {
+	var out MergeRequestDetail
+	body := map[string]any{
+		"sha":                          sha,
+		"should_remove_source_branch":  removeSourceBranch,
+		"merge_when_pipeline_succeeds": true,
 	}
 	err := c.do(ctx, http.MethodPut,
 		fmt.Sprintf("/projects/%d/merge_requests/%d/merge", projectID, mrIID), body, &out)
@@ -1065,6 +1089,18 @@ func (c *Client) SetState(ctx context.Context, projectID, issueIID int, stateEve
 		return fmt.Errorf("invalid state %q (allowed: close, reopen)", stateEvent)
 	}
 	return c.do(ctx, http.MethodPut, fmt.Sprintf("/projects/%d/issues/%d", projectID, issueIID),
+		map[string]any{"state_event": stateEvent}, nil)
+}
+
+// SetMRState — same idea as SetState, for a merge request: PUT
+// /projects/{id}/merge_requests/{iid} with state_event ("close"|"reopen").
+// GitLab has no separate close endpoint for MRs, just this field on the same
+// resource merge/approve already write to.
+func (c *Client) SetMRState(ctx context.Context, projectID, mrIID int, stateEvent string) error {
+	if stateEvent != "close" && stateEvent != "reopen" {
+		return fmt.Errorf("invalid state %q (allowed: close, reopen)", stateEvent)
+	}
+	return c.do(ctx, http.MethodPut, fmt.Sprintf("/projects/%d/merge_requests/%d", projectID, mrIID),
 		map[string]any{"state_event": stateEvent}, nil)
 }
 

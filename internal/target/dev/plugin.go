@@ -37,6 +37,17 @@ func init() {
 3. If the agent is to install packages or load a browser, release the
    necessary hosts via the egress templates (npm, PyPI, Go, …).
 
+4. Add "docker" to the scope list (system: dev scope: exec,processes,docker)
+   to give the agent a real, isolated Docker daemon — a Docker-in-Docker
+   sidecar started alongside its sandbox (sandbox_docker.go), never the
+   host's own socket. Needed for agents that have to run a project's own
+   "docker compose" stack rather than a single process (e.g. QA verifying a
+   branch against its own full local environment instead of a shared staging
+   deployment that only ever runs main). The sidecar's own image pulls go
+   through the same egress allowlist as the rest of the sandbox — release the
+   registries it needs (Container registries template, plus whatever the
+   compose stack pulls from) the same way as any other egress.
+
 Note: processes started with start live until the end of the agent's waking
 phase — they are terminated when the sandbox goes to sleep.
 
@@ -247,5 +258,21 @@ func (System) PromptDoc() string {
    5. Pull findings from logs, at the end stop everything you started.
    The PROCESSES only live until the end of your waking phase — the platform clears them away when you
    fall asleep; start a dev server anew in a new waking phase instead of relying on an old one. What
-   survives is the RECORD of a job: its log and its exit code stay readable with logs/list.`
+   survives is the RECORD of a job: its log and its exit code stay readable with logs/list.
+
+   REAL DOCKER (only if your ACCESS.md grants "dev" scope "docker" — check DOCKER_HOST with
+   exec {"cmd":"echo $DOCKER_HOST"} if unsure; empty means you do not have it): "docker" and
+   "docker compose" work as normal shell commands via exec/start — not against the host, against
+   your OWN Docker-in-Docker sidecar, so containers you start there are yours alone and gone when
+   your sandbox sleeps. This is for running a project's real docker-compose stack — e.g. verifying a
+   specific branch/MR end-to-end against its OWN backend+database+auth instead of a shared staging
+   deployment that only ever reflects main and can therefore never show a branch's actual behavior.
+   Typical shape: checkout the branch (gitlab:checkout or equivalent), clone whatever sibling repos
+   the stack's own README asks for (also via checkout, into the right relative path), read that
+   README for the real compose/start commands instead of guessing, start {"name":"stack","cmd":"docker compose up -d"},
+   wait for it to become healthy (the project's own wait/health script, or repeated
+   exec {"cmd":"docker compose ps"}), run your actual verification against localhost, then
+   exec {"cmd":"docker compose down -v"} to tear it down. Image pulls go through the same egress
+   allowlist as everything else you do — a registry host missing there fails the pull, not silently
+   ignores it.`
 }

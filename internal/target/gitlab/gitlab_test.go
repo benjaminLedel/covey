@@ -423,6 +423,46 @@ func TestExecuteSetLabelsOnMergeRequest(t *testing.T) {
 	}
 }
 
+// TestExecuteSetStateOnMergeRequest: closing a merge request (e.g. one
+// superseded by an already-merged sibling) has no dedicated GitLab endpoint —
+// it is the same state_event field issues use, just on the MR resource.
+func TestExecuteSetStateOnMergeRequest(t *testing.T) {
+	var gotMethod, gotPath string
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath = r.Method, r.URL.Path
+		gotBody = map[string]any{}
+		json.NewDecoder(r.Body).Decode(&gotBody)
+		json.NewEncoder(w).Encode(MergeRequest{IID: 45, ProjectID: 15})
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	res, err := sys.Execute(ctx, "set_state",
+		[]byte(`{"project_id":15,"mr_iid":45,"state":"close"}`), cred)
+	if err != nil {
+		t.Fatalf("set_state (close) on a merge request: %v", err)
+	}
+	if gotMethod != http.MethodPut || gotPath != "/api/v4/projects/15/merge_requests/45" {
+		t.Fatalf("wrong API call: %s %s (must be the MR endpoint, not the issue one)", gotMethod, gotPath)
+	}
+	if gotBody["state_event"] != "close" {
+		t.Fatalf("state_event does not arrive: %+v", gotBody)
+	}
+	out := res.(map[string]any)
+	if out["mr_iid"] != 45 || out["state"] != "close" {
+		t.Fatalf("the answer must name the MR and the state reached: %+v", out)
+	}
+
+	// Neither ID at all → refused, same as the issue path.
+	if _, err := sys.Execute(ctx, "set_state", []byte(`{"project_id":15,"state":"close"}`), cred); err == nil {
+		t.Fatal("set_state without issue_iid or mr_iid must fail")
+	}
+}
+
 func TestListActionsRespectIntakeScope(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -2243,6 +2283,7 @@ type mergeGateServer struct {
 	me        string
 	mergeBody map[string]any
 	merges    int
+	queued    int
 }
 
 func (g *mergeGateServer) start(t *testing.T) *httptest.Server {
@@ -2256,11 +2297,18 @@ func (g *mergeGateServer) start(t *testing.T) *httptest.Server {
 		case r.URL.Path == "/api/v4/projects/40/merge_requests/1685/approvals":
 			json.NewEncoder(w).Encode(g.approvals)
 		case r.URL.Path == "/api/v4/projects/40/merge_requests/1685/merge" && r.Method == http.MethodPut:
-			g.merges++
 			json.NewDecoder(r.Body).Decode(&g.mergeBody)
-			merged := g.mr
-			merged.State = "merged"
-			json.NewEncoder(w).Encode(merged)
+			result := g.mr
+			if g.mergeBody["merge_when_pipeline_succeeds"] == true {
+				// Real GitLab does not complete the merge here either — it stays
+				// open until the pipeline it is pinned against turns green.
+				g.queued++
+				result.MergeWhenPipelineSucceeds = true
+			} else {
+				g.merges++
+				result.State = "merged"
+			}
+			json.NewEncoder(w).Encode(result)
 		default:
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
@@ -2328,9 +2376,12 @@ func TestMergeMRRefusesUnacceptedStates(t *testing.T) {
 			func(g *mergeGateServer) { g.mr.HeadPipeline = &Pipeline{ID: 1, Status: "failed"} },
 			"not green",
 		},
-		"pipeline still running": {
-			func(g *mergeGateServer) { g.mr.HeadPipeline = &Pipeline{ID: 1, Status: "running"} },
-			"not green",
+		"pipeline still running, not approved yet": {
+			func(g *mergeGateServer) {
+				g.mr.HeadPipeline = &Pipeline{ID: 1, Status: "running"}
+				g.approvals = MRApprovals{}
+			},
+			"your own approval is not on record",
 		},
 		"no pipeline at all": {
 			func(g *mergeGateServer) { g.mr.HeadPipeline = nil },
@@ -2384,6 +2435,59 @@ func TestMergeMRRefusesUnacceptedStates(t *testing.T) {
 			}
 			if g.merges != 0 {
 				t.Fatal("nothing may be merged in the refused case")
+			}
+			if g.queued != 0 {
+				t.Fatal("nothing may be queued for auto-merge in the refused case either")
+			}
+		})
+	}
+}
+
+// TestMergeMRQueuesWhenPipelineStillRunning is the actual point of the
+// auto-merge path: an MR that is otherwise fully accepted (approved, no
+// conflicts, discussions resolved) but whose pipeline just has not concluded
+// yet must not be refused — GitLab's own merge_when_pipeline_succeeds queues
+// it, so nobody has to come back and ask again once it turns green.
+func TestMergeMRQueuesWhenPipelineStillRunning(t *testing.T) {
+	g := &mergeGateServer{mr: greenMR(), me: "egon.rastlos",
+		approvals: MRApprovals{UserHasApproved: true}}
+	g.mr.HeadPipeline = &Pipeline{ID: 1, Status: "running"}
+	srv := g.start(t)
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	out, err := sys.Execute(context.Background(), "merge_mr", []byte(`{"project_id":40,"mr_iid":1685}`), cred)
+	if err != nil {
+		t.Fatalf("merge_mr with a still-running pipeline must queue, not refuse: %v", err)
+	}
+	m := out.(map[string]any)
+	if m["queued_for_pipeline"] != true || m["pipeline_status"] != "running" {
+		t.Fatalf("the result has to say it was queued and why: %+v", out)
+	}
+	if g.mergeBody["merge_when_pipeline_succeeds"] != true {
+		t.Fatalf("the request has to ask GitLab for merge_when_pipeline_succeeds: %+v", g.mergeBody)
+	}
+	if g.mergeBody["sha"] != "f47dacf6" {
+		t.Fatalf("the reviewed commit has to be pinned even when queuing: %+v", g.mergeBody)
+	}
+	if g.queued != 1 || g.merges != 0 {
+		t.Fatalf("exactly one queue call and no immediate merge: queued=%d merges=%d", g.queued, g.merges)
+	}
+
+	// A pipeline that has already concluded negatively must still refuse —
+	// waiting longer would not help, so queuing would just leave it in limbo.
+	for _, status := range []string{"failed", "canceled", "skipped"} {
+		t.Run("terminal "+status, func(t *testing.T) {
+			g := &mergeGateServer{mr: greenMR(), me: "egon.rastlos",
+				approvals: MRApprovals{UserHasApproved: true}}
+			g.mr.HeadPipeline = &Pipeline{ID: 1, Status: status}
+			srv := g.start(t)
+			cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+			if _, err := sys.Execute(context.Background(), "merge_mr", []byte(`{"project_id":40,"mr_iid":1685}`), cred); err == nil {
+				t.Fatalf("a %s pipeline must still refuse, not queue", status)
+			}
+			if g.queued != 0 {
+				t.Fatalf("a %s pipeline must never be queued for auto-merge", status)
 			}
 		})
 	}
