@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"covey/internal/config"
 	"covey/internal/homestore"
 	"covey/internal/orchestrator"
 )
@@ -396,5 +397,105 @@ func TestStoreViewReportsTheFillLevel(t *testing.T) {
 	// The defaults from the migration, so the page shows a rule and not zeroes.
 	if view.KeepPerAgent != 10 || view.MaxAgeDays != 30 {
 		t.Errorf("the retention defaults are wrong: %+v", view)
+	}
+}
+
+// The platform diagnostics: the same checks `covey doctor` runs, and the same
+// lint `covey config lint` runs, in the browser. Both existed only as
+// subcommands — that is, only for whoever has a shell on the host — and the
+// agent config lint had already learned that a check nobody runs is one that
+// effectively does not exist.
+func TestPlatformDiagnosticsAnswerInTheBrowser(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	c := login(t, s, "admin@test.local", "admin-passwort")
+
+	// Without the process configuration the question is left unasked rather
+	// than answered by guessing.
+	resp := c.do(http.MethodGet, "/api/v1/platform/doctor", nil)
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("without a configuration: %s", resp.Status)
+	}
+
+	s.srv.Config = &config.Config{
+		DatabaseURL:     "unused — the pool is handed in",
+		DataDir:         t.TempDir(),
+		SandboxImage:    "covey-sandbox:test",
+		SandboxImageDev: "covey-sandbox-dev:test",
+		HomeStore:       true,
+		BlobStore:       "builtin",
+	}
+	agent := s.newSupportAgent("doctor-agent")
+	if _, err := s.pool.Exec(ctx, "UPDATE agents SET sandbox_image='dev' WHERE id=$1", agent.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	var report struct {
+		Blocking int `json:"blocking"`
+		Findings []struct {
+			OK       bool   `json:"ok"`
+			Blocking bool   `json:"blocking"`
+			What     string `json:"what"`
+			Detail   string `json:"detail"`
+			Remedy   string `json:"remedy"`
+		} `json:"findings"`
+	}
+	resp = c.do(http.MethodGet, "/api/v1/platform/doctor", nil)
+	if err := json.NewDecoder(resp.Body).Decode(&report); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	by := map[string]string{}
+	for _, f := range report.Findings {
+		by[f.What] = f.Detail
+	}
+	if by["migrations"] != "up to date" {
+		t.Errorf("the test database is migrated: %q", by["migrations"])
+	}
+	// The one that matters at an upgrade: the image an agent is pointed at is
+	// named, with how many wait on it — and with the remedy.
+	var missing bool
+	for _, f := range report.Findings {
+		if strings.Contains(f.What, "covey-sandbox-dev:test") {
+			missing = true
+			if !f.Blocking {
+				t.Error("a missing image keeps agents from working")
+			}
+			if !strings.Contains(f.Detail, "1 agent") {
+				t.Errorf("the number of waiting agents is missing: %q", f.Detail)
+			}
+			if !strings.Contains(f.Remedy, "make sandbox-image-dev") {
+				t.Errorf("the remedy has to name the right target: %q", f.Remedy)
+			}
+		}
+	}
+	// Only meaningful where Docker answers at all; without it the check reports
+	// the daemon instead, which is the honest order.
+	if !missing && by["docker"] != "" {
+		t.Errorf("the image in use was not checked: %+v", by)
+	}
+	// The home store's backup obligation is named rather than assumed known.
+	if !strings.Contains(by["home store"], "blocks") {
+		t.Errorf("the home store is missing from the report: %q", by["home store"])
+	}
+
+	// And the org-wide lint, which used to be reachable only from a shell.
+	resp = c.do(http.MethodGet, "/api/v1/platform/lint", nil)
+	var lint []struct {
+		Slug     string `json:"slug"`
+		Findings []struct {
+			Rule string `json:"rule"`
+		} `json:"findings"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&lint); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	for _, a := range lint {
+		if len(a.Findings) == 0 {
+			t.Errorf("an agent without findings must not be in the list: %s", a.Slug)
+		}
 	}
 }

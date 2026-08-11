@@ -347,7 +347,8 @@
     "requests": "Requests",
     "skills": "Skills",
     "setupPage": "Einrichtung",
-    "runners": "Runner"
+    "runners": "Runner",
+    "diagnostics": "Diagnose"
   },
   "costs": {
     "title": "Kosten & Token",
@@ -1877,5 +1878,18 @@
     "confirmCleanup": "Aufräumen ausführen? Die vorgemerkten Snapshots werden entfernt.",
     "cleanupPreview": "Es würden {{snapshots}} Snapshots und {{blocks}} Blöcke wegfallen — {{freed}} werden frei.",
     "cleanupDone": "{{snapshots}} Snapshots und {{blocks}} Blöcke entfernt, {{freed}} frei geworden."
+  },
+  "diagnostics": {
+    "title": "Diagnose",
+    "intro": "Was ein Neustart auf dieser Installation anträfe, und welche Agenten-Konfigurationen nachziehen müssen. Beides liest nur — es ändert nichts.",
+    "stateTitle": "Zustand der Installation",
+    "stateHint": "Dieselben Prüfungen wie `covey doctor`: Migrationen, Sandbox-Images, Home-Store, Egress, Runner. Vor einem Upgrade die schnellste Antwort auf „was fehlt hier noch“.",
+    "blocking": "{{count}} Punkt(e) hindern Agenten am Arbeiten.",
+    "markBlocking": "hindert Agenten am Arbeiten",
+    "markNote": "Hinweis",
+    "markOk": "in Ordnung",
+    "lintTitle": "Agenten-Konfigurationen",
+    "lintHint": "Nach einer Plattform-Änderung bekommt jede Installation den neuen Plattform-Vertrag automatisch — die Konfiguration eines Agenten bleibt aber, wie ein Mensch sie geschrieben hat. Hier steht, welche nachziehen sollten.",
+    "lintClean": "Nichts zu tun — keine Konfiguration fällt auf."
   }
 }

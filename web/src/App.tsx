@@ -22,6 +22,7 @@ import Targets from "./pages/Targets";
 import Egress from "./pages/Egress";
 import Requests from "./pages/Requests";
 import Runners from "./pages/Runners";
+import Diagnostics from "./pages/Diagnostics";
 import Audit from "./pages/Audit";
 import Templates from "./pages/Templates";
 import Setup from "./pages/Setup";
@@ -128,6 +129,14 @@ const icons: Record<string, React.JSX.Element> = {
       <rect x="7" y="7" width="10" height="10" rx="1.5" />
       <rect x="10" y="10" width="4" height="4" />
       <path d="M10 3v3M14 3v3M10 18v3M14 18v3M3 10h3M3 14h3M18 10h3M18 14h3" />
+    </>
+  ),
+  stethoscope: (
+    <>
+      <path d="M6 3v5a5 5 0 0 0 10 0V3" />
+      <path d="M4 3h3M15 3h3" />
+      <path d="M11 13v3a4 4 0 0 0 8 0v-1" />
+      <circle cx="19" cy="10" r="2" />
     </>
   ),
   server: (
@@ -416,6 +425,9 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
           {(me.Role === "platform_admin" || me.Role === "security") && (
             <NavItem to="/requests" icon="exchange" label={t("nav.requests")} />
           )}
+          {(me.Role === "platform_admin" || me.Role === "security" || me.Role === "agent_owner") && (
+            <NavItem to="/diagnostics" icon="stethoscope" label={t("nav.diagnostics")} />
+          )}
         </div>
         <div className="mt-auto">
           {me.Role === "platform_admin" && (
@@ -504,6 +516,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
             <Route path="/runtimes" element={<Runtimes me={me} />} />
             <Route path="/requests" element={<Requests me={me} />} />
             <Route path="/runners" element={<Runners me={me} />} />
+            <Route path="/diagnostics" element={<Diagnostics me={me} />} />
             <Route path="/audit" element={<Audit />} />
             <Route path="/targets" element={<Targets me={me} />} />
             <Route path="/egress/*" element={<Egress me={me} />} />

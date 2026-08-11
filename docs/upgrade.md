@@ -13,6 +13,9 @@ to be built, backed up or decided beforehand. Newest first.
 covey doctor
 ```
 
+Or, in the browser: **Platform → Diagnostics** — the same checks, plus which
+agent configurations should catch up after the upgrade.
+
 It reads and changes nothing, and it answers the questions this page can only
 ask in general: which images **your** agents need and whether they are on this
 host, what **your** database is about to migrate, where **your** blocks lie and

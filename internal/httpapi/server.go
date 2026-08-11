@@ -23,6 +23,7 @@ import (
 	"covey/internal/audit"
 	"covey/internal/backlog"
 	"covey/internal/buildinfo"
+	"covey/internal/config"
 	"covey/internal/dream"
 	"covey/internal/egress"
 	"covey/internal/guardrails"
@@ -71,6 +72,11 @@ type Server struct {
 	EgressStore    *egress.Store
 	EgressEnforced bool
 	EgressDefaults []string
+
+	// Config is the process configuration — read by the platform diagnostics,
+	// which answer what a restart would run into here (images, store, egress).
+	// nil = the question is left unasked rather than answered by guessing.
+	Config *config.Config
 
 	// Runners are the execution nodes (spec/16). They authenticate with their
 	// own token against /api/runner/v1/… — the only interface they have to the
@@ -272,6 +278,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/agents/{id}/home/snapshots", s.agentScoped(append(manage, identity.RoleSecurity), s.handleListSnapshots))
 	mux.Handle("POST /api/v1/agents/{id}/home/snapshots", s.agentScoped(manage, s.handleBackupNow))
 	mux.Handle("POST /api/v1/agents/{id}/home/restore", s.agentScoped(manage, s.handleRestoreSnapshot))
+	// Platform diagnostics: what a restart would run into, and which agent
+	// configs need catching up after an upgrade. Both existed only as
+	// subcommands, which is to say: only for whoever has a shell on the host.
+	mux.Handle("GET /api/v1/platform/doctor", s.rbac([]string{identity.RolePlatformAdmin}, s.handleDoctor))
+	mux.Handle("GET /api/v1/platform/lint", s.rbac(append(manage, identity.RoleSecurity), s.handleOrgLint))
 	mux.Handle("GET /api/v1/platform/home-store", s.rbac(anyRole, s.handleGetStore))
 	mux.Handle("PATCH /api/v1/platform/home-store", s.rbac(manage, s.handleSetRetention))
 	mux.Handle("POST /api/v1/platform/home-store/cleanup", s.rbac(manage, s.handleCleanupStore))

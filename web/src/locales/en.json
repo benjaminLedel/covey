@@ -347,7 +347,8 @@
     "requests": "Requests",
     "skills": "Skills",
     "setupPage": "Setup",
-    "runners": "Runners"
+    "runners": "Runners",
+    "diagnostics": "Diagnostics"
   },
   "costs": {
     "title": "Cost & Tokens",
@@ -1877,5 +1878,18 @@
     "confirmCleanup": "Run the cleanup? The snapshots it named will be removed.",
     "cleanupPreview": "{{snapshots}} snapshots and {{blocks}} blocks would fall away — {{freed}} would be freed.",
     "cleanupDone": "Removed {{snapshots}} snapshots and {{blocks}} blocks, {{freed}} freed."
+  },
+  "diagnostics": {
+    "title": "Diagnostics",
+    "intro": "What a restart would run into on this installation, and which agent configurations need catching up. Both only read — nothing is changed.",
+    "stateTitle": "State of the installation",
+    "stateHint": "The same checks as `covey doctor`: migrations, sandbox images, home store, egress, runners. Before an upgrade, the fastest answer to “what is still missing here”.",
+    "blocking": "{{count}} item(s) keep agents from working.",
+    "markBlocking": "keeps agents from working",
+    "markNote": "note",
+    "markOk": "fine",
+    "lintTitle": "Agent configurations",
+    "lintHint": "After a platform change every installation gets the new platform contract automatically — but an agent's configuration stays as a human wrote it. This is which ones should catch up.",
+    "lintClean": "Nothing to do — no configuration stands out."
   }
 }

@@ -933,6 +933,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		EgressStore:    egressStore,
 		EgressEnforced: egressEnforced,
 		EgressDefaults: egressBaseAllow(cfg),
+		Config:         &cfg,
 		Runners:        runnerStore,
 		RunnerPool:     runnerPool,
 		Blobs:          blobs,
