@@ -638,15 +638,16 @@ func (c *Client) GetCommitDiff(ctx context.Context, projectID int, sha string) (
 // MergeRequest is an entry of the MR list — enough to find open or merged fixes
 // on a topic.
 type MergeRequest struct {
-	IID          int    `json:"iid"`
-	ProjectID    int    `json:"project_id"`
-	Title        string `json:"title"`
-	State        string `json:"state"`
-	SourceBranch string `json:"source_branch"`
-	TargetBranch string `json:"target_branch"`
-	MergedAt     string `json:"merged_at"`
-	UpdatedAt    string `json:"updated_at"`
-	WebURL       string `json:"web_url"`
+	IID          int      `json:"iid"`
+	ProjectID    int      `json:"project_id"`
+	Title        string   `json:"title"`
+	State        string   `json:"state"`
+	SourceBranch string   `json:"source_branch"`
+	TargetBranch string   `json:"target_branch"`
+	MergedAt     string   `json:"merged_at"`
+	UpdatedAt    string   `json:"updated_at"`
+	WebURL       string   `json:"web_url"`
+	Labels       []string `json:"labels"`
 	Author       struct {
 		Username string `json:"username"`
 	} `json:"author"`
@@ -1123,14 +1124,52 @@ func (c *Client) AssignIssue(ctx context.Context, projectID, issueIID int, userI
 // GitLab answers with the updated issue — we return that so the agent sees the
 // state reached instead of querying it again.
 func (c *Client) SetLabels(ctx context.Context, projectID, issueIID int, add, remove []string) (Issue, error) {
+	body, err := labelsBody(add, remove)
+	if err != nil {
+		return Issue{}, err
+	}
+	var out Issue
+	err = c.do(ctx, http.MethodPut,
+		fmt.Sprintf("/projects/%d/issues/%d", projectID, issueIID), body, &out)
+	return out, err
+}
+
+// SetMRLabels is SetLabels for a merge request instead of an issue: same
+// additive/subtractive add_labels/remove_labels body, but PUT
+// /projects/{id}/merge_requests/{iid} — GitLab does not accept an issue path
+// for MR labels or vice versa, they are genuinely separate resources.
+//
+// This exists because the label-driven handoffs several agents' playbooks
+// rely on (needs-arch-review, ready-for-qa, qa-passed/qa-failed,
+// security-veto) all live on merge requests, not issues — set_labels used to
+// hard-require issue_iid and had no way to reach an MR at all. Every one of
+// those calls failed with "project_id or issue_iid missing" whenever an
+// agent passed mr_iid instead, which one agent worked around by inventing a
+// comment-based convention instead of labels (see the org's wiki) rather
+// than recognizing the tool itself was missing this path.
+func (c *Client) SetMRLabels(ctx context.Context, projectID, mrIID int, add, remove []string) (MergeRequest, error) {
+	body, err := labelsBody(add, remove)
+	if err != nil {
+		return MergeRequest{}, err
+	}
+	var out MergeRequest
+	err = c.do(ctx, http.MethodPut,
+		fmt.Sprintf("/projects/%d/merge_requests/%d", projectID, mrIID), body, &out)
+	return out, err
+}
+
+// labelsBody builds the add_labels/remove_labels PUT body shared by
+// SetLabels and SetMRLabels — GitLab takes the exact same shape for both
+// resources, only the URL differs.
+func labelsBody(add, remove []string) (map[string]any, error) {
 	body := map[string]any{}
 	joinedAdd, err := joinLabels(add)
 	if err != nil {
-		return Issue{}, fmt.Errorf("add_labels: %w", err)
+		return nil, fmt.Errorf("add_labels: %w", err)
 	}
 	joinedRemove, err := joinLabels(remove)
 	if err != nil {
-		return Issue{}, fmt.Errorf("remove_labels: %w", err)
+		return nil, fmt.Errorf("remove_labels: %w", err)
 	}
 	if joinedAdd != "" {
 		body["add_labels"] = joinedAdd
@@ -1139,12 +1178,9 @@ func (c *Client) SetLabels(ctx context.Context, projectID, issueIID int, add, re
 		body["remove_labels"] = joinedRemove
 	}
 	if len(body) == 0 {
-		return Issue{}, fmt.Errorf("neither add_labels nor remove_labels given")
+		return nil, fmt.Errorf("neither add_labels nor remove_labels given")
 	}
-	var out Issue
-	err = c.do(ctx, http.MethodPut,
-		fmt.Sprintf("/projects/%d/issues/%d", projectID, issueIID), body, &out)
-	return out, err
+	return body, nil
 }
 
 // joinLabels turns the agent's label list into the comma-separated string the

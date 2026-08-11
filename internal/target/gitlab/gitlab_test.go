@@ -375,6 +375,54 @@ func TestExecuteSetLabelsAndMilestone(t *testing.T) {
 	}
 }
 
+// TestExecuteSetLabelsOnMergeRequest guards the fix for a real production
+// incident: set_labels required issue_iid and had no path to a merge
+// request at all, so every label-driven handoff on an MR (needs-arch-review,
+// ready-for-qa, qa-passed/qa-failed, security-veto) failed with "project_id
+// or issue_iid missing" whenever an agent passed mr_iid instead — one agent
+// even talked itself into a comment-based workaround rather than recognizing
+// the tool was missing this path.
+func TestExecuteSetLabelsOnMergeRequest(t *testing.T) {
+	var gotMethod, gotPath string
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod, gotPath = r.Method, r.URL.Path
+		gotBody = map[string]any{}
+		json.NewDecoder(r.Body).Decode(&gotBody)
+		json.NewEncoder(w).Encode(MergeRequest{IID: 47, ProjectID: 15,
+			Labels: []string{"needs-arch-review"}})
+	}))
+	defer srv.Close()
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	ctx := context.Background()
+
+	res, err := sys.Execute(ctx, "set_labels",
+		[]byte(`{"project_id":15,"mr_iid":47,"add_labels":["needs-arch-review"]}`), cred)
+	if err != nil {
+		t.Fatalf("set_labels on a merge request: %v", err)
+	}
+	if gotMethod != http.MethodPut || gotPath != "/api/v4/projects/15/merge_requests/47" {
+		t.Fatalf("wrong API call: %s %s (must be the MR endpoint, not the issue one)", gotMethod, gotPath)
+	}
+	if gotBody["add_labels"] != "needs-arch-review" {
+		t.Fatalf("add_labels does not arrive: %+v", gotBody)
+	}
+	out := res.(map[string]any)
+	if out["mr_iid"] != 47 {
+		t.Fatalf("the answer must name the MR: %+v", out)
+	}
+	if labels, ok := out["labels"].([]string); !ok || len(labels) != 1 {
+		t.Fatalf("the answer must carry the label state reached: %+v", out)
+	}
+
+	// Neither ID at all → refused, same as the issue path.
+	if _, err := sys.Execute(ctx, "set_labels", []byte(`{"project_id":15,"add_labels":["x"]}`), cred); err == nil {
+		t.Fatal("set_labels without issue_iid or mr_iid must fail")
+	}
+}
+
 // TestExecuteSetStateOnMergeRequest: closing a merge request (e.g. one
 // superseded by an already-merged sibling) has no dedicated GitLab endpoint —
 // it is the same state_event field issues use, just on the MR resource.
