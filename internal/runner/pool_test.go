@@ -434,3 +434,123 @@ func TestCapacityReportsWhatTheRunnerCarries(t *testing.T) {
 		t.Error("a foreign organisation sees no runners")
 	}
 }
+
+// A TCP connection can be dead without either side noticing — a NAT that
+// dropped the entry, a network partition, a laptop that closed. Before the
+// heartbeat, such a runner sat in the pool as "connected" for ever: every wake
+// went to it, waited out the start timeout and then failed, instead of going to
+// a runner that works.
+//
+// The test forces the case a real network only produces occasionally: a
+// transport that accepts and then says nothing at all.
+func TestSilentRunnerLeavesThePool(t *testing.T) {
+	orgID := uuid.New()
+	p := NewPool(quietLog())
+	p.DefaultImage = "covey-sandbox:test"
+	// A silence, at the speed of a test rather than of a network.
+	p.HeartbeatEvery = 50 * time.Millisecond
+	p.SilenceAfter = 150 * time.Millisecond
+
+	control, node := NewInProc()
+	defer control.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// The node registers and then goes quiet — no heartbeat, no answers.
+	go func() {
+		msg, _ := encode(TypeRegistered, "", Registered{
+			RunnerID: uuid.New(), OrgID: orgID, Protocol: Protocol,
+		})
+		_ = node.Send(ctx, msg)
+		<-ctx.Done()
+	}()
+
+	attached := make(chan error, 1)
+	go func() { attached <- p.Attach(ctx, control, false) }()
+
+	// It is in the pool at first — the handshake was fine, and nothing has
+	// happened yet that would say otherwise.
+	waitUntil(t, 3*time.Second, func() bool { return len(p.LiveFor(orgID)) == 1 })
+
+	// And it leaves by itself: nothing arrives, so the watchdog closes the
+	// connection and the read loop returns.
+	waitUntil(t, 5*time.Second, func() bool { return len(p.LiveFor(orgID)) == 0 })
+
+	// Which means a start is refused straight away instead of waiting out its
+	// timeout: the whole point.
+	_, err := p.Start(ctx, orchestrator.SandboxSpec{AgentID: uuid.New(), OrgID: orgID})
+	if !errors.Is(err, ErrNoRunner) {
+		t.Errorf("a runner that has gone quiet must not be offered: %v", err)
+	}
+	select {
+	case <-attached:
+	case <-time.After(5 * time.Second):
+		t.Error("Attach did not return after the connection was closed")
+	}
+}
+
+// Any message counts as a sign of life, and a heartbeat arrives even when a
+// runner has nothing else to say. Both together are what keeps "last seen" from
+// being the moment a runner CONNECTED — which is the one thing nobody wants to
+// know about one that has since gone away.
+func TestHeartbeatKeepsARunnerAliveAndRefreshesLastSeen(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	orgID := uuid.New()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	heard := make(chan uuid.UUID, 8)
+	p := NewPool(quietLog())
+	p.DefaultImage = "covey-sandbox:test"
+	p.Heard = func(id uuid.UUID) {
+		select {
+		case heard <- id:
+		default:
+		}
+	}
+
+	id := uuid.New()
+	node := NewNode(id, orgID, &Docker{
+		RunnerID: id, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, "nothing"),
+	}, quietLog())
+	if err := p.AttachLocal(ctx, node); err != nil {
+		t.Fatal(err)
+	}
+
+	// Traffic is proof of life: an answered request reports in as much as a
+	// heartbeat does.
+	if _, err := p.Capacity(ctx, id); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case got := <-heard:
+		if got != id {
+			t.Errorf("reported in for the wrong runner: %s", got)
+		}
+	case <-time.After(3 * time.Second):
+		t.Error("an answer has to count as a sign of life")
+	}
+
+	// And the connection stays: the watchdog must not tear down a runner that
+	// is simply idle.
+	time.Sleep(500 * time.Millisecond)
+	if len(p.LiveFor(orgID)) != 1 {
+		t.Error("an idle runner must not be dropped")
+	}
+}
+
+func waitUntil(t *testing.T, timeout time.Duration, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("condition not met within %s", timeout)
+}

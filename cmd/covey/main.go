@@ -710,6 +710,14 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	runnerPool.Profiles = map[string]string{"base": cfg.SandboxImage, "dev": cfg.SandboxImageDev}
 	runnerPool.AgentImages = registry.SandboxImagesInUse
 	runnerPool.HomeExcludes = cfg.HomeExcludes
+	// "Last seen" only means something if it moves while a runner is there.
+	// Best effort: a missing timestamp is a display flaw, not a reason to do
+	// anything about the connection it describes.
+	runnerPool.Heard = func(runnerID uuid.UUID) {
+		if err := runnerStore.Seen(context.WithoutCancel(ctx), runnerID); err != nil {
+			log.Debug("runner heartbeat not recorded", "runner", runnerID, "err", err)
+		}
+	}
 
 	// The home store: after every job the home goes into it as a whole and is
 	// materialised from it on wake (spec/16). It makes the home replaceable —

@@ -58,6 +58,16 @@ tags through `PATCH /api/v1/agents/{id}/runner-tags`; empty is the normal case
 and means any runner of the organisation. The token is what this host acts for its
 organisation with — the file is written `0600` and belongs treated as such.
 
+`register` checks the connection before it reports success — the WebSocket, not
+just the HTTP call that created the runner. If that fails, the registration
+still stands and the configuration is written; fix the connection and start it
+with `covey-runner run`.
+
+Once running, the runner reports in every 30 seconds. After three missed beats
+the control plane closes the connection, and the runner shows as **offline**
+rather than as a host that is there but hears nothing — the state in which every
+wake would sit out its timeout before failing.
+
 As a service:
 
 ```ini

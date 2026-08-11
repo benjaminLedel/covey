@@ -17,6 +17,7 @@ package runner
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -71,7 +72,22 @@ const (
 	TypeHomeSynced     = "home_synced"
 	TypeHomeResult     = "home_result"
 	TypeCapacityReport = "capacity_report"
-	TypeHeartbeat      = "heartbeat"
+	// TypeHeartbeat is the sign of life. It is not decoration: a TCP connection
+	// can be dead without either side noticing — a NAT that dropped the entry,
+	// a network partition, a laptop that closed. The pool would then keep
+	// assigning sandboxes to a runner that no longer hears anything, and every
+	// wake would sit out its timeout before failing, instead of going to a
+	// runner that works.
+	TypeHeartbeat = "heartbeat"
+)
+
+// HeartbeatInterval is how often a runner reports in, and Silence how long the
+// control plane waits before it treats a connection as gone. Three missed beats
+// — short enough that a dead link is noticed within a wake, long enough that a
+// slow moment does not tear down a working runner.
+const (
+	HeartbeatInterval = 30 * time.Second
+	Silence           = 3 * HeartbeatInterval
 )
 
 // CapacityReport is what a runner is carrying.

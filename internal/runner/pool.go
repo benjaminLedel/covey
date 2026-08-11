@@ -37,6 +37,11 @@ type Pool struct {
 	// SandboxDied is called when a runner reports the end of a sandbox nobody
 	// asked for. nil = the report is only logged.
 	SandboxDied func(agentID uuid.UUID, reason string)
+	// Heard is called when a runner reports in — the moment "last seen"
+	// actually means something. Without it the figure would be the time a
+	// runner CONNECTED, which is the one thing nobody wants to know about a
+	// runner that has since gone away.
+	Heard func(runnerID uuid.UUID)
 	// EnsureLocal is asked when an organisation has no connected runner: the
 	// built-in one is created on first use, because organisations come into
 	// being while the process runs. nil = nothing is created, and the
@@ -61,6 +66,12 @@ type Pool struct {
 	// synced, which is the default on purpose: the list is a cost question, not
 	// a prerequisite for correctness.
 	HomeExcludes []string
+	// HeartbeatEvery is how often the watchdog looks, and SilenceAfter how long
+	// a runner may be quiet before its connection is treated as gone. 0 = the
+	// protocol's defaults. Settable because a test must not have to wait out a
+	// real silence to check what happens after one.
+	HeartbeatEvery time.Duration
+	SilenceAfter   time.Duration
 	// StartTimeout bounds how long a start may take before it counts as
 	// failed. Without it a runner that has gone quiet would hold the wake
 	// until the orchestrator's ReadyTimeout — and the message would then blame
@@ -99,6 +110,10 @@ type conn struct {
 
 	mu      sync.Mutex
 	waiters map[string]chan Message
+	// lastHeard is when anything last arrived from this runner. Any message
+	// counts, not only a heartbeat: traffic is proof of life, and a runner
+	// busy answering does not have to say so twice.
+	lastHeard time.Time
 	// streams marks the correlations that answer with several messages. Without
 	// it the first chunk would end the correlation and the rest would arrive
 	// with nobody waiting.
@@ -199,6 +214,7 @@ func (p *Pool) register(ctx context.Context, t Transport, builtin bool) (*conn, 
 		protocol: reg.Protocol, version: reg.Version, arch: reg.Arch,
 		tags: reg.Tags, images: reg.Images,
 		t: t, pool: p, waiters: map[string]chan Message{}, streams: map[string]bool{},
+		lastHeard: time.Now(),
 	}
 	p.mu.Lock()
 	p.conns[reg.RunnerID] = c
@@ -250,8 +266,20 @@ func (p *Pool) AttachLocal(ctx context.Context, node *Node) error {
 }
 
 func (c *conn) readLoop(ctx context.Context) error {
+	watch, stopWatch := context.WithCancel(ctx)
+	defer stopWatch()
+	go c.watchdog(watch)
+
 	for {
 		msg, err := c.t.Receive(ctx)
+		if err == nil {
+			c.mu.Lock()
+			c.lastHeard = time.Now()
+			c.mu.Unlock()
+			if c.pool.Heard != nil {
+				c.pool.Heard(c.runnerID)
+			}
+		}
 		if err != nil {
 			if errors.Is(err, ErrTransportClosed) || errors.Is(err, context.Canceled) {
 				return nil
@@ -333,6 +361,39 @@ func (c *conn) askStream(ctx context.Context, msgType string, payload any) (<-ch
 		return nil, func() {}, err
 	}
 	return ch, stop, nil
+}
+
+// watchdog closes a connection that has gone quiet. Receive would otherwise
+// block for ever on a half-open link — the kernel has no reason to notice that
+// the other end is gone, and the pool would keep offering a runner that hears
+// nothing. Closing the transport is what makes the read loop return and the
+// runner leave the pool.
+func (c *conn) watchdog(ctx context.Context) {
+	every, silence := c.pool.HeartbeatEvery, c.pool.SilenceAfter
+	if every <= 0 {
+		every = HeartbeatInterval
+	}
+	if silence <= 0 {
+		silence = Silence
+	}
+	ticker := time.NewTicker(every)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			c.mu.Lock()
+			quiet := time.Since(c.lastHeard)
+			c.mu.Unlock()
+			if quiet > silence {
+				c.pool.Log.Warn("runner has gone quiet — connection closed",
+					"runner", c.runnerID, "silent_for", quiet.Round(time.Second))
+				_ = c.t.Close()
+				return
+			}
+		}
+	}
 }
 
 // ask sends a request and waits for its answer.

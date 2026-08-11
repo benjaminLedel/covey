@@ -129,9 +129,34 @@ func runRegister(ctx context.Context, args []string, log *slog.Logger) error {
 	// otherwise register a build host in the wrong one and search for why its
 	// agents never arrive.
 	log.Info("runner registered", "runner", rn.RunnerID, "organisation", rn.OrgID, "config", *configPath)
-	fmt.Printf("Registered as runner %s (organisation %s).\nStart it with: covey-runner run --config %s\n",
-		rn.RunnerID, rn.OrgID, *configPath)
+	fmt.Printf("Registered as runner %s (organisation %s).\n", rn.RunnerID, rn.OrgID)
+
+	// And then actually connect once. Registering is an HTTP call; running is a
+	// WebSocket, and the two fail differently — a reverse proxy that does not
+	// upgrade, a TLS chain the host does not trust, a firewall that lets 443
+	// through but not the upgrade. Finding that out here, while somebody is
+	// standing at this shell, is worth the two seconds.
+	if err := verifyConnection(ctx, cfg); err != nil {
+		fmt.Printf("\nBut the connection does not come up:\n  %v\n\n"+
+			"The registration stands and the configuration is written — fix the connection\n"+
+			"and start it with: covey-runner run --config %s\n", err, *configPath)
+		return err
+	}
+	fmt.Printf("Connection checked.\nStart it with: covey-runner run --config %s\n", *configPath)
 	return nil
+}
+
+// verifyConnection opens the runner link once and lets it go again. It proves
+// what `register` alone cannot: that this host can reach the control plane the
+// way a runner has to.
+func verifyConnection(ctx context.Context, cfg config) error {
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	t, err := runner.Dial(ctx, cfg.URL, cfg.Token)
+	if err != nil {
+		return err
+	}
+	return t.Close()
 }
 
 func runRun(ctx context.Context, args []string, log *slog.Logger) error {

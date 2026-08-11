@@ -102,6 +102,8 @@ covey-runner register --url https://covey.example --token <registration-token> \
                       --tag php --tag arm64 --description "Build host Frankfurt"
 ```
 
+`register` then opens the connection once and lets it go again. Registering is an HTTP call and running is a WebSocket, and the two fail differently: a reverse proxy that does not upgrade, a TLS chain this host does not trust, a firewall that lets 443 through but not the upgrade. Finding that out while somebody is standing at that shell is worth the two seconds; finding it out later means reading a log on a machine nobody logged into again.
+
 `register` writes the received runner token into a **configuration file** (`/etc/covey-runner/config.toml`, overridable) — server address, token, tags, working directory. Deliberately a file and not just environment variables: the runner runs as a service on a machine that otherwise has nothing to do with Covey, and `register` has to be able to deposit its result somewhere.
 
 After that `covey-runner run` holds a permanent WebSocket connection on `/api/runner/ws`, authenticated with the runner token. On connecting, the runner reports its **capabilities**:
@@ -175,6 +177,10 @@ Refusal is explicit with a reason, not silent: a runner that quietly fails to co
 | `home_result` | The answer to a `home_op` |
 | `capacity` | Running sandboxes, free space — the basis for scheduling and warnings |
 | `heartbeat` | Sign of life |
+
+The heartbeat is not decoration. A TCP connection can be dead without either side noticing — a NAT that dropped the entry, a network partition, a host that went to sleep — and a runner in that state stays in the pool as *connected*. Every wake would then be assigned to a runner that hears nothing and would sit out its start timeout before failing, instead of going to one that works. So: a sign of life every 30 seconds, and after three missed ones the control plane closes the connection itself. Any message counts, not only a heartbeat; traffic is proof of life, and a runner busy answering need not say so twice.
+
+It is also what makes "last seen" mean anything. Without it the figure would be the moment a runner **connected** — which is the one thing nobody wants to know about a runner that has since gone away.
 
 `sandbox_exited` is the reason the runner has to observe the container state at all: today the control plane notices a crash only at the `ReadyTimeout` or at the breaking daemon link. With a runner that asks the local Docker daemon anyway, that becomes a reported fact instead of a guess.
 

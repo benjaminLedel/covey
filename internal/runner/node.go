@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -79,6 +80,13 @@ func (n *Node) Run(ctx context.Context, t Transport) error {
 	if err := t.Send(ctx, hello); err != nil {
 		return err
 	}
+	// Said once, and only on success: whoever starts `covey-runner run` and
+	// sees nothing cannot tell a working connection from a silent failure.
+	n.Log.Info("connected to the control plane", "runner", n.RunnerID, "organisation", n.OrgID)
+
+	beat, stopBeat := context.WithCancel(ctx)
+	defer stopBeat()
+	go n.heartbeat(beat, t)
 
 	for {
 		msg, err := t.Receive(ctx)
@@ -89,6 +97,30 @@ func (n *Node) Run(ctx context.Context, t Transport) error {
 			return err
 		}
 		n.handle(ctx, t, msg)
+	}
+}
+
+// heartbeat reports in while the connection stands. Without it a half-open
+// connection is invisible to the control plane: it would keep assigning
+// sandboxes to a runner that no longer hears anything.
+func (n *Node) heartbeat(ctx context.Context, t Transport) {
+	ticker := time.NewTicker(HeartbeatInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			msg, err := encode(TypeHeartbeat, "", nil)
+			if err != nil {
+				return
+			}
+			if err := t.Send(ctx, msg); err != nil {
+				// The connection is gone; the read loop notices it too and ends
+				// the run. Nothing to report twice.
+				return
+			}
+		}
 	}
 }
 
