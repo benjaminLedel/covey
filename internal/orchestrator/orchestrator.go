@@ -849,7 +849,7 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 				// task over it. Reopen this one instead of failing it: the sandbox
 				// dropped out from under the agent, that says nothing about
 				// whether the work itself was going fine.
-				_, _ = o.Backlog.Reopen(context.WithoutCancel(ctx), task.ID, "daemon connection lost — retrying")
+				o.requeueAfterDaemonLoss(context.WithoutCancel(ctx), task)
 				o.publishTask(task.ID, agent.ID)
 				return err
 			}
@@ -2098,6 +2098,55 @@ var errBudgetExceeded = errors.New("budget exceeded")
 // happens to notice and retries them by hand via the task API. Treated the
 // same way as errBudgetExceeded: reopen, don't fail.
 var errDaemonConnection = errors.New("daemon connection lost")
+
+// maxDaemonLossRetries is where "reopen, don't fail" stops. Requeueing without
+// a limit is right for the sporadic case above, and wrong for the
+// reproducible one: a broken sandbox image after a deploy, an OOM on container
+// start, an agent config that reliably tears the container down. There the
+// task runs open → ClaimNext → sandbox dies → open in circles, each round
+// paying for a full sandbox start, and nothing in the system shows that this
+// is stuck rather than working.
+//
+// Five in a row is the point where a blip stops being a plausible explanation.
+// The counter lives on the task (backlog_tasks.daemon_retries), not in this
+// process: a control-plane restart is one of the things that produces these
+// losses, and an in-memory count would be back at zero right afterwards.
+const maxDaemonLossRetries = 5
+
+// givesUpAfterDaemonLoss decides, for a task that has already lost its sandbox
+// connection `previous` times and just lost it once more, whether to fail it
+// instead of requeueing. It returns the failure text along with the verdict, so
+// the count that led to it cannot drift apart from the message that explains
+// it.
+//
+// Separate from requeueAfterDaemonLoss because this is where the off-by-one
+// lives: `previous` is the count as it stood when this run CLAIMED the task,
+// i.e. it does not yet include the loss being handled.
+func givesUpAfterDaemonLoss(previous int) (bool, string) {
+	losses := previous + 1
+	if losses < maxDaemonLossRetries {
+		return false, ""
+	}
+	return true, fmt.Sprintf(
+		"sandbox connection lost %d times in a row — giving up instead of requeueing again", losses)
+}
+
+// requeueAfterDaemonLoss puts a task whose sandbox connection dropped back into
+// the backlog — or gives up on it, once that has happened
+// maxDaemonLossRetries times in a row.
+func (o *Orchestrator) requeueAfterDaemonLoss(ctx context.Context, task backlog.Task) {
+	if giveUp, why := givesUpAfterDaemonLoss(task.DaemonRetries); giveUp {
+		// The error text names the infrastructure cause, so this stays
+		// distinguishable in the backlog from a task the agent itself ran into
+		// the ground — that difference is the whole reason errDaemonConnection
+		// exists.
+		_, _ = o.Backlog.Complete(ctx, task.ID, backlog.StateFailed, "", why)
+		o.Log.Warn("task failed after repeated sandbox connection losses",
+			"task", task.ID, "agent", task.AgentID, "losses", task.DaemonRetries+1)
+		return
+	}
+	_, _ = o.Backlog.ReopenAfterDaemonLoss(ctx, task.ID, "daemon connection lost — retrying")
+}
 
 const (
 	// originAgentTask marks a task an agent created itself (covey/create_task) —
