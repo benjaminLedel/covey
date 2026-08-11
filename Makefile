@@ -12,7 +12,7 @@ LDFLAGS := -X covey/internal/buildinfo.version=$(VERSION) \
            -X covey/internal/buildinfo.commit=$(COMMIT) \
            -X covey/internal/buildinfo.date=$(DATE)
 
-.PHONY: build web test test-integration run bootstrap dev-db sandbox-image sandbox-image-dev sandbox-images runner egress-image clean skill-sync
+.PHONY: build web test test-integration run bootstrap dev-db sandbox-image sandbox-image-dev sandbox-images upgrade runner egress-image clean skill-sync
 
 # npm ci instead of npm install — deliberately: it installs exactly the lockfile
 # and never rewrites it. npm install on macOS throws the Linux/wasm branches
@@ -63,6 +63,12 @@ sandbox-image-dev: sandbox-image
 
 # Both profiles at once — what an installation that has developer agents needs.
 sandbox-images: sandbox-image-dev
+
+# What an upgrade needs: the new binaries and both sandbox profiles. Afterwards
+# `covey doctor` says whether anything is still in the way on THIS installation.
+upgrade: build sandbox-images
+	@echo
+	@echo "Built. Now:  covey doctor   (says what a restart would run into here)" 
 
 # The standalone runner (spec/16). Its own artefact on purpose: on a runner host
 # `serve`, `migrate` and `bootstrap` should not exist at all, and "no database

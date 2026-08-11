@@ -106,6 +106,8 @@ func main() {
 		err = runEgressProxy(ctx, cfg, log)
 	case "config":
 		err = runConfigLint(ctx, cfg, os.Args[2:])
+	case "doctor":
+		err = runDoctor(ctx, cfg, os.Args[2:])
 	case "genkey":
 		var key string
 		if key, err = secbuiltin.GenerateMasterKey(); err == nil {
@@ -130,6 +132,7 @@ func usage() {
   covey serve             start API + orchestrator + admin UI
   covey egress-proxy      egress allowlist proxy (network isolation mode, in the container)
   covey config lint       check agent configs for known pitfalls (changes nothing)
+  covey doctor            what a restart or upgrade would run into here (changes nothing)
   covey genkey            generate a new COVEY_MASTER_KEY
   covey version           version, commit and build time of this binary
 

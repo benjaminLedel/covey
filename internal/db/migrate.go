@@ -76,6 +76,31 @@ func loadMigrations(fsys fs.FS) ([]migration, error) {
 }
 
 // MigrateUp applies all pending migrations, guarded by pg_advisory_lock.
+// Pending names the migrations this database has not seen yet — read, without
+// applying anything. It exists so that an operator can ask what a restart is
+// about to do to their database BEFORE they restart, which is the moment they
+// would want to have a backup.
+func Pending(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS) ([]string, error) {
+	all, err := loadMigrations(fsys)
+	if err != nil {
+		return nil, err
+	}
+	var current int
+	// A database that has never been migrated has no table yet — and then
+	// everything is pending, which is the right answer and not an error.
+	err = pool.QueryRow(ctx, "SELECT COALESCE(MAX(version),0) FROM schema_migrations").Scan(&current)
+	if err != nil && !strings.Contains(err.Error(), "schema_migrations") {
+		return nil, err
+	}
+	var out []string
+	for _, m := range all {
+		if m.version > current {
+			out = append(out, m.name)
+		}
+	}
+	return out, nil
+}
+
 func MigrateUp(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS) (applied int, err error) {
 	ms, err := loadMigrations(fsys)
 	if err != nil {

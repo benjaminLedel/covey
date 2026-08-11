@@ -7,6 +7,25 @@ An upgrade is therefore usually "pull the new binary, restart".
 This page lists the upgrades where that is **not** enough — where something has
 to be built, backed up or decided beforehand. Newest first.
 
+## Ask your own installation first
+
+```bash
+covey doctor
+```
+
+It reads and changes nothing, and it answers the questions this page can only
+ask in general: which images **your** agents need and whether they are on this
+host, what **your** database is about to migrate, where **your** blocks lie and
+how big they are. It exits non-zero when something would stop an agent from
+working, so it can stand in a deploy script before the restart.
+
+The short version of an upgrade is therefore:
+
+```bash
+make upgrade     # binaries + both sandbox profiles
+covey doctor     # what is still in the way here
+```
+
 ---
 
 ## To the runner release (`spec/16`)
@@ -34,8 +53,8 @@ make sandbox-images     # builds both: base, then dev on top of it
 ```
 
 Without it every wake fails with *sandbox image "covey-sandbox-dev:latest" is
-missing*. The startup check says so too, with how many agents are waiting on it
-— but it says it in the log, and by then the first task is already queued.
+missing*. `covey doctor` names it before the restart, with how many agents are
+waiting on it; the startup check and the agent overview say it afterwards.
 
 Afterwards, move the agents that do not need a toolchain to `base` (agent →
 settings → *workplace*). That is what the split is for: a mail agent should not
@@ -99,6 +118,15 @@ Nothing to do for these; they are listed so the log lines make sense.
   [`ops-runner.md`](ops-runner.md)). Switching backends does **not** move the
   blocks — copy the directory over first, or accept that every home is rebuilt
   from scratch on its next wake.
+
+### Rolling back past earlier releases
+
+Everything before this release upgraded without a manual step: no environment
+variable was ever removed or renamed, and every migration carried its own data
+over. One boundary is worth knowing about anyway — **v0.3.0 cannot be rolled
+back without loss.** Migration 0048 moved credential policy from the secret key
+up to the runtime; going back restores the columns but not which runtime had set
+which cap, because two runtimes can share a key. The migration says so itself.
 
 ### Rolling back
 
