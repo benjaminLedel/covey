@@ -39,6 +39,7 @@ type RunnerView = {
 type StoreView = {
   enabled: boolean;
   bytes: number;
+  logical_bytes: number;
   snapshots: number;
   agents: number;
   keep_per_agent: number;
@@ -145,9 +146,20 @@ export default function Runners({ me }: { me: Principal }) {
                     {r.live?.connected ? (
                       <span className="pill ok">{t("runners.connected")}</span>
                     ) : (
-                      <span className="pill mut" title={t("runners.offlineHint")}>
-                        {t("runners.offline")}
-                      </span>
+                      <>
+                        <span className="pill mut" title={t("runners.offlineHint")}>
+                          {t("runners.offline")}
+                        </span>
+                        {/* Bei einem Runner, der weg ist, ist „seit wann" die
+                            eigentliche Auskunft — ein Wartungsfenster liest
+                            sich anders als ein Host, der seit Tagen nicht mehr
+                            gesehen wurde. */}
+                        {r.last_seen_at && (
+                          <div className="muted text-xs" style={{ marginTop: 2 }}>
+                            {t("runners.lastSeen", { when: ago(r.last_seen_at, t) })}
+                          </div>
+                        )}
+                      </>
                     )}
                     {/* Versionsversatz wird benannt, nicht bloss geduldet:
                         Runner und Server werden getrennt ausgeliefert. */}
@@ -242,6 +254,25 @@ export default function Runners({ me }: { me: Principal }) {
               agents: store.data.agents,
             })}
           </div>
+          {/* Der Vergleich ist die Erklaerung: die Homes wiegen zusammen ein
+              Vielfaches dessen, was der Speicher belegt, weil die Toolchain-
+              Caches auf jedem Entwickler-Home byteweise dieselben sind und
+              deshalb einmal liegen. Ohne diese Zeile ist der Store ein
+              Verzeichnis, das aus unsichtbaren Gruenden waechst. */}
+          {store.data.logical_bytes > 0 && store.data.bytes > 0 && (
+            <div className="text-sm">
+              {/* Unter 1,1× ist „x-mal kleiner" albern — und der Speicher liegt
+                  sogar leicht darueber, weil die Manifeste selbst Bloecke sind.
+                  Dann sagt der Satz, wann die Ersparnis kommt, statt eine zu
+                  behaupten, die es nicht gibt. */}
+              {store.data.logical_bytes / store.data.bytes >= 1.1
+                ? t("runners.storeDedup", {
+                    logical: formatBytes(store.data.logical_bytes),
+                    factor: (store.data.logical_bytes / store.data.bytes).toFixed(1),
+                  })
+                : t("runners.storeNoDedupYet", { logical: formatBytes(store.data.logical_bytes) })}
+            </div>
+          )}
 
           <div className="flex items-center gap-4 flex-wrap" style={{ marginTop: 4 }}>
             <label className="text-xs">
@@ -324,6 +355,17 @@ export default function Runners({ me }: { me: Principal }) {
 // warum sein Runner „…" heißt.
 function registerCommand(token: string): string {
   return `covey-runner register --url ${window.location.origin} --token ${token}`;
+}
+
+// ago ist „vor …" in grober Koernung. Genauer waere unnuetz: bei einem Runner,
+// der weg ist, entscheidet die Groessenordnung — Minuten sind ein Neustart,
+// Tage sind ein Host, um den sich niemand mehr kuemmert.
+function ago(iso: string, t: (k: string, o?: Record<string, unknown>) => string): string {
+  const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (seconds < 90) return t("runners.agoJustNow");
+  if (seconds < 3600) return t("runners.agoMinutes", { count: Math.round(seconds / 60) });
+  if (seconds < 86400) return t("runners.agoHours", { count: Math.round(seconds / 3600) });
+  return t("runners.agoDays", { count: Math.round(seconds / 86400) });
 }
 
 // DiskBar zeigt den Fuellstand des Dateisystems, auf dem die Arbeitskopien

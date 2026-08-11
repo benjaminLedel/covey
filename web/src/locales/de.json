@@ -1081,9 +1081,7 @@
       "noSnapshot": "Noch kein Snapshot — der erste entsteht, wenn der Agent das nächste Mal wirklich einschläft.",
       "size": "{{total}} groß, davon {{exclusive}}, die nur dieser Agent hält",
       "lastSync": "Letzter Sync {{when}} · {{blocks}} Blöcke, {{bytes}} übertragen, {{seconds}} s",
-      "snapshots": "{{count}} Snapshots, ältester vom {{since}}",
       "runner": "Arbeitskopie zuletzt auf: {{runner}}",
-      "files": "{{count}} Dateien",
       "backupNow": "Jetzt sichern",
       "history": "Snapshots",
       "restore": "Wiederherstellen",
@@ -1093,7 +1091,12 @@
         "manual": "von Hand",
         "file-browser": "Dateibrowser",
         "restore": "nach dem Zurückrollen"
-      }
+      },
+      "sizeHint": "Der Rest steckt in Inhalten, die andere Agenten auch halten — Toolchains, Caches, Checkouts. Ihn zu verlieren kostet Zeit; den exklusiven Teil zu verlieren kostet Arbeit.",
+      "snapshots_one": "{{count}} Snapshot, vom {{since}}",
+      "snapshots_other": "{{count}} Snapshots, ältester vom {{since}}",
+      "files_one": "{{count}} Datei",
+      "files_other": "{{count}} Dateien"
     }
   },
   "approvals": {
@@ -1860,7 +1863,6 @@
     "offline": "offline",
     "offlineHint": "Offline ist nicht „kein Runner“: Die Agenten warten, statt auf den Control-Plane-Host zurückzuwandern.",
     "outdated": "veraltetes Protokoll",
-    "sandboxes": "{{count}} Sandbox(en)",
     "decommission": "Abbauen",
     "confirmDelete": "Diesen Runner abbauen? Er nimmt nur seine lokale Arbeitskopie mit — alles Wesentliche liegt im Home-Store.",
     "addTitle": "Host hinzufügen",
@@ -1880,19 +1882,32 @@
     "cleanupDone": "{{snapshots}} Snapshots und {{blocks}} Blöcke entfernt, {{freed}} frei geworden.",
     "free": "{{size}} frei",
     "copy": "Befehl kopieren",
-    "copied": "Kopiert"
+    "copied": "Kopiert",
+    "lastSeen": "zuletzt gesehen {{when}}",
+    "agoJustNow": "gerade eben",
+    "storeDedup": "Die Homes wiegen zusammen {{logical}} — der Speicher hält sie {{factor}}× kleiner, weil gleiche Inhalte nur einmal liegen.",
+    "storeNoDedupYet": "Die Homes wiegen zusammen {{logical}} — sie teilen bisher kaum Inhalte. Der Speicher spart, sobald zwei Agenten dieselben Toolchains halten.",
+    "sandboxes_one": "{{count}} Sandbox",
+    "sandboxes_other": "{{count}} Sandboxen",
+    "agoMinutes_one": "vor 1 min",
+    "agoMinutes_other": "vor {{count}} min",
+    "agoHours_one": "vor 1 h",
+    "agoHours_other": "vor {{count}} h",
+    "agoDays_one": "vor 1 Tag",
+    "agoDays_other": "vor {{count}} Tagen"
   },
   "diagnostics": {
     "title": "Diagnose",
     "intro": "Was ein Neustart auf dieser Installation anträfe, und welche Agenten-Konfigurationen nachziehen müssen. Beides liest nur — es ändert nichts.",
     "stateTitle": "Zustand der Installation",
     "stateHint": "Dieselben Prüfungen wie `covey doctor`: Migrationen, Sandbox-Images, Home-Store, Egress, Runner. Vor einem Upgrade die schnellste Antwort auf „was fehlt hier noch“.",
-    "blocking": "{{count}} Punkt(e) hindern Agenten am Arbeiten.",
     "markBlocking": "hindert Agenten am Arbeiten",
     "markNote": "Hinweis",
     "markOk": "in Ordnung",
     "lintTitle": "Agenten-Konfigurationen",
     "lintHint": "Nach einer Plattform-Änderung bekommt jede Installation den neuen Plattform-Vertrag automatisch — die Konfiguration eines Agenten bleibt aber, wie ein Mensch sie geschrieben hat. Hier steht, welche nachziehen sollten.",
-    "lintClean": "Nichts zu tun — keine Konfiguration fällt auf."
+    "lintClean": "Nichts zu tun — keine Konfiguration fällt auf.",
+    "blocking_one": "{{count}} Punkt hindert Agenten am Arbeiten.",
+    "blocking_other": "{{count}} Punkte hindern Agenten am Arbeiten."
   }
 }

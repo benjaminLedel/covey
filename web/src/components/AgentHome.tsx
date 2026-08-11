@@ -82,13 +82,15 @@ export function AgentHome({ agent, canWrite }: { agent: Agent; canWrite: boolean
       {latest && (
         <>
           <div className="text-xs flex flex-col gap-1">
-            {/* Die Differenz ist die eigentliche Aussage. */}
+            {/* Die Differenz ist die eigentliche Aussage — und sie braucht
+                den Satz daneben, sonst sind es zwei Zahlen ohne Bedeutung. */}
             <div>
               {t("agent.home.size", {
                 total: fmtBytes(home.data.total_bytes),
                 exclusive: fmtBytes(home.data.exclusive_bytes),
               })}
             </div>
+            <div className="muted">{t("agent.home.sizeHint")}</div>
             <div className="muted">
               {t("agent.home.lastSync", {
                 when: fmtDate(latest.created_at),

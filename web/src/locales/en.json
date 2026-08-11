@@ -1081,9 +1081,7 @@
       "noSnapshot": "No snapshot yet — the first one appears when the agent next really falls asleep.",
       "size": "{{total}} in size, of which {{exclusive}} only this agent holds",
       "lastSync": "Last sync {{when}} · {{blocks}} blocks, {{bytes}} transferred, {{seconds}} s",
-      "snapshots": "{{count}} snapshots, the oldest from {{since}}",
       "runner": "Working copy last on: {{runner}}",
-      "files": "{{count}} files",
       "backupNow": "Back up now",
       "history": "Snapshots",
       "restore": "Restore",
@@ -1093,7 +1091,12 @@
         "manual": "by hand",
         "file-browser": "file browser",
         "restore": "after the rollback"
-      }
+      },
+      "sizeHint": "The rest is content other agents hold too — toolchains, caches, checkouts. Losing that costs time; losing the exclusive part costs work.",
+      "snapshots_one": "{{count}} snapshot, from {{since}}",
+      "snapshots_other": "{{count}} snapshots, the oldest from {{since}}",
+      "files_one": "{{count}} file",
+      "files_other": "{{count}} files"
     }
   },
   "approvals": {
@@ -1860,7 +1863,6 @@
     "offline": "offline",
     "offlineHint": "Offline is not “no runner”: the agents wait rather than moving back onto the control plane's host.",
     "outdated": "outdated protocol",
-    "sandboxes": "{{count}} sandbox(es)",
     "decommission": "Decommission",
     "confirmDelete": "Decommission this runner? It takes only its local working copy with it — everything that matters is in the home store.",
     "addTitle": "Add a host",
@@ -1880,19 +1882,32 @@
     "cleanupDone": "Removed {{snapshots}} snapshots and {{blocks}} blocks, {{freed}} freed.",
     "free": "{{size}} free",
     "copy": "Copy the command",
-    "copied": "Copied"
+    "copied": "Copied",
+    "lastSeen": "last seen {{when}}",
+    "agoJustNow": "just now",
+    "storeDedup": "The homes weigh {{logical}} together — the store holds them {{factor}}× smaller, because identical content is stored once.",
+    "storeNoDedupYet": "The homes weigh {{logical}} together — they share little so far. The store starts saving as soon as two agents hold the same toolchains.",
+    "sandboxes_one": "{{count}} sandbox",
+    "sandboxes_other": "{{count}} sandboxes",
+    "agoMinutes_one": "1 min ago",
+    "agoMinutes_other": "{{count}} min ago",
+    "agoHours_one": "1 h ago",
+    "agoHours_other": "{{count}} h ago",
+    "agoDays_one": "1 day ago",
+    "agoDays_other": "{{count}} days ago"
   },
   "diagnostics": {
     "title": "Diagnostics",
     "intro": "What a restart would run into on this installation, and which agent configurations need catching up. Both only read — nothing is changed.",
     "stateTitle": "State of the installation",
     "stateHint": "The same checks as `covey doctor`: migrations, sandbox images, home store, egress, runners. Before an upgrade, the fastest answer to “what is still missing here”.",
-    "blocking": "{{count}} item(s) keep agents from working.",
     "markBlocking": "keeps agents from working",
     "markNote": "note",
     "markOk": "fine",
     "lintTitle": "Agent configurations",
     "lintHint": "After a platform change every installation gets the new platform contract automatically — but an agent's configuration stays as a human wrote it. This is which ones should catch up.",
-    "lintClean": "Nothing to do — no configuration stands out."
+    "lintClean": "Nothing to do — no configuration stands out.",
+    "blocking_one": "{{count}} item keeps agents from working.",
+    "blocking_other": "{{count}} items keep agents from working."
   }
 }

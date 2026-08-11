@@ -216,8 +216,17 @@ func (s *Server) handleRestoreSnapshot(w http.ResponseWriter, r *http.Request) {
 // StoreView is the fill level for the dashboard: total size, growth, and a
 // warning before the disk runs short — not after.
 type StoreView struct {
-	Enabled      bool  `json:"enabled"`
+	Enabled bool `json:"enabled"`
+	// Bytes is what lies on the disk, LogicalBytes what the homes weigh as
+	// their agents see them. The pair is the whole explanation of this
+	// construction in two numbers: the second is regularly a multiple of the
+	// first, because the toolchain caches are byte-for-byte identical on every
+	// developer home and are therefore stored once.
+	//
+	// Without the comparison the store is a directory that grows for reasons
+	// nobody can see. With it, one line says what it is doing.
 	Bytes        int64 `json:"bytes"`
+	LogicalBytes int64 `json:"logical_bytes"`
 	Snapshots    int   `json:"snapshots"`
 	Agents       int   `json:"agents"`
 	KeepPerAgent int   `json:"keep_per_agent"`
@@ -278,6 +287,15 @@ func (s *Server) handleGetStore(w http.ResponseWriter, r *http.Request) {
 	_ = s.Pool.QueryRow(r.Context(),
 		`SELECT count(*), count(DISTINCT agent_id) FROM home_snapshots WHERE org_id = $1`, p.OrgID).
 		Scan(&view.Snapshots, &view.Agents)
+	// The CURRENT homes, not the sum over all snapshots: an agent's ten
+	// snapshots are ten versions of one home, and adding them up would produce
+	// a figure that says nothing about anything.
+	_ = s.Pool.QueryRow(r.Context(), `
+		SELECT COALESCE(SUM(total_size), 0) FROM (
+			SELECT DISTINCT ON (agent_id) total_size
+			  FROM home_snapshots WHERE org_id = $1
+			 ORDER BY agent_id, created_at DESC
+		) aktuell`, p.OrgID).Scan(&view.LogicalBytes)
 	view.Bytes = s.storeSize(r.Context(), p.OrgID)
 	writeJSON(w, http.StatusOK, view)
 }
