@@ -1653,27 +1653,33 @@ func TestHasWorkKindIssuesAssigned(t *testing.T) {
 		t.Fatalf("with an assignment: has=%v err=%v", has, err)
 	}
 
-	// The bot commented last → worked on, rests until the answer. Exactly here
-	// the agent ran into the endless loop before: the issue stayed assigned to
-	// it, so it counted as work afresh in every 2-minute interval.
+	// Comment authorship used to decide "already answered" here by comparing
+	// the last commenter against the bot's own username — broken in an
+	// organization without per-role bot accounts, where a colleague agent's
+	// comment is indistinguishable from the bot's own (see issueWorkPending's
+	// doc comment). Every assigned, open issue now counts as work
+	// unconditionally, regardless of who commented or how many times —
+	// avoiding an endless re-wake on a truly settled issue is the job of the
+	// signature-based dedup one layer up (heartbeatHasWork in the
+	// orchestrator, exercised by TestWorkSignature for the MR case; the same
+	// threadSig mechanism carries the issue case here), not of this boolean.
 	notes = []Note{
 		{ID: 1, Body: "Bitte fixen", Author: by("leaddev")},
 		{ID: 2, Body: "Erledigt via MR !12", Author: by("covey-bot")},
 	}
-	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || has {
-		t.Fatalf("an issue answered by the bot must not wake it: has=%v err=%v", has, err)
+	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || !has {
+		t.Fatalf("an assigned issue always counts as work: has=%v err=%v", has, err)
 	}
 
-	// A system comment after that (a label changed) changes nothing …
+	// Further notes, system or not, change nothing about that boolean either
+	// way — only the signature moves, tested separately.
 	notes = append(notes, Note{ID: 3, System: true, Body: "added label", Author: by("leaddev")})
-	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || has {
-		t.Fatalf("a system note must not wake it: has=%v err=%v", has, err)
+	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || !has {
+		t.Fatalf("still work after a system note: has=%v err=%v", has, err)
 	}
-
-	// … a real answer does.
 	notes = append(notes, Note{ID: 4, Body: "Noch ein Fall", Author: by("leaddev")})
 	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || !has {
-		t.Fatalf("a new answer must wake it: has=%v err=%v", has, err)
+		t.Fatalf("still work after a real note: has=%v err=%v", has, err)
 	}
 }
 
