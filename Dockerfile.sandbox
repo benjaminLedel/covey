@@ -85,6 +85,42 @@ RUN set -eux; \
     ln -s "/usr/lib/jvm/java-21-openjdk-$(dpkg --print-architecture)" /opt/java
 ENV JAVA_HOME=/opt/java
 
+# Android SDK für KMP/Android-Projekte (order-system-app). Anders als bei
+# fvm/uv unten bewusst NICHT als Manager mit leerem Cache, sondern mit fest
+# eingebauten Paketen: compileSdk/targetSdk eines Projekts ändern sich selten
+# (grob jährlich mit einer neuen API-Ebene), und ein Runtime-Download über
+# sdkmanager bräuchte zusätzlich dl.google.com auf der Egress-Allowlist plus
+# Lizenzakzeptanz beim ersten Lauf jedes Agenten — beides zusätzliche
+# Fehlerfläche für einen Gewinn, der die Mehrkosten nicht rechtfertigt. Version
+# unten ist exakt das, was order-system-app aktuell deklariert (compileSdk=
+# targetSdk=36, gradle/libs.versions.toml); ein Bump dort zieht einen Bump hier
+# nach sich, wie beim JDK oben. Nur `cmdline-tools` + `platform-tools` +
+# `build-tools` + eine Plattform — kein Emulator/System-Image: ein AVD braucht
+# Hardware-Beschleunigung (KVM), die ein gewöhnlicher Sandbox-Container nicht
+# hat; UI-Instrumentierungstests bleiben damit weiterhin Sache der CI. Was hier
+# entsteht, ist genau das, was lokal fehlte: `./gradlew assembleDebug`,
+# `compileDebugKotlin`, Unit-Tests und Lint laufen lassen, ohne auf einen
+# Pipeline-Lauf warten zu müssen. Lizenz wird non-interaktiv akzeptiert
+# (`yes |`) — im Container ist niemand da, der ein Prompt beantworten könnte.
+ARG ANDROID_CMDLINE_TOOLS_REVISION=13114758
+ARG ANDROID_PLATFORM=36
+ARG ANDROID_BUILD_TOOLS=36.0.0
+ENV ANDROID_HOME=/opt/android-sdk
+ENV ANDROID_SDK_ROOT=/opt/android-sdk
+RUN set -eux; \
+    tmp="$(mktemp -d)"; \
+    curl -fsSL -o "$tmp/cmdline-tools.zip" \
+        "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_CMDLINE_TOOLS_REVISION}_latest.zip"; \
+    mkdir -p "$ANDROID_HOME/cmdline-tools"; \
+    unzip -q "$tmp/cmdline-tools.zip" -d "$ANDROID_HOME/cmdline-tools"; \
+    mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"; \
+    rm -rf "$tmp"; \
+    yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null; \
+    "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" \
+        "platform-tools" "platforms;android-${ANDROID_PLATFORM}" "build-tools;${ANDROID_BUILD_TOOLS}" >/dev/null; \
+    chmod -R a+rX "$ANDROID_HOME"
+ENV PATH=${ANDROID_HOME}/cmdline-tools/latest/bin:${ANDROID_HOME}/platform-tools:${PATH}
+
 # Versionsmanager für Toolchains, deren VERSION am Projekt hängt statt am Agenten.
 # Sie gehören ins Image, ihre SDKs NICHT: Die Control Plane mountet das
 # persistente Home über /home/agent (sandbox_docker.go) — was hier nach
