@@ -344,6 +344,29 @@ func (r *Registry) SandboxImagesInUse(ctx context.Context) (map[string]int, erro
 	return out, rows.Err()
 }
 
+// SandboxImagesInUseForOrg is the same count for one organisation — what the
+// workplace list in the interface shows. The instance-wide figure belongs to
+// the doctor, which asks for the host; whoever is looking at their own
+// organisation must not be told how many agents the neighbours run.
+func (r *Registry) SandboxImagesInUseForOrg(ctx context.Context, orgID uuid.UUID) (map[string]int, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT sandbox_image, count(*) FROM agents WHERE NOT killed AND org_id=$1 GROUP BY sandbox_image`, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var image string
+		var n int
+		if err := rows.Scan(&image, &n); err != nil {
+			return nil, err
+		}
+		out[image] = n
+	}
+	return out, rows.Err()
+}
+
 // SetSandboxImage sets the agent's workplace: a profile name (`base`, `dev`),
 // an image reference of its own, or empty for the instance default. Takes
 // effect at the next cold start — a running or warm-parked sandbox keeps the

@@ -419,12 +419,12 @@ func TestPlatformDiagnosticsAnswerInTheBrowser(t *testing.T) {
 	}
 
 	s.srv.Config = &config.Config{
-		DatabaseURL:     "unused — the pool is handed in",
-		DataDir:         t.TempDir(),
-		SandboxImage:    "covey-sandbox:test",
-		SandboxImageDev: "covey-sandbox-dev:test",
-		HomeStore:       true,
-		BlobStore:       "builtin",
+		DatabaseURL:   "unused — the pool is handed in",
+		DataDir:       t.TempDir(),
+		SandboxImage:  "covey-sandbox:test",
+		SandboxImages: map[string]string{"base": "covey-sandbox:test", "dev": "covey-sandbox-dev:test"},
+		HomeStore:     true,
+		BlobStore:     "builtin",
 	}
 	agent := s.newSupportAgent("doctor-agent")
 	if _, err := s.pool.Exec(ctx, "UPDATE agents SET sandbox_image='dev' WHERE id=$1", agent.ID); err != nil {
@@ -497,5 +497,72 @@ func TestPlatformDiagnosticsAnswerInTheBrowser(t *testing.T) {
 		if len(a.Findings) == 0 {
 			t.Errorf("an agent without findings must not be in the list: %s", a.Slug)
 		}
+	}
+}
+
+// The workplaces come from the catalogue (internal/sandbox) and no longer from
+// a list the interface keeps of its own. The point of that is nothing one sees:
+// the third profile appears everywhere, instead of in three of four places.
+//
+// What is worth testing about it is the part that is not the catalogue — the
+// instance's image per profile, and how many of THIS organisation's agents work
+// in it.
+func TestWorkplacesComeFromTheCatalogue(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	c := login(t, s, "admin@test.local", "admin-passwort")
+
+	s.srv.Config = &config.Config{
+		SandboxImage:  "covey-sandbox:test",
+		SandboxImages: map[string]string{"base": "covey-sandbox:test", "dev": "eigenes-dev:2026"},
+	}
+	agent := s.newSupportAgent("workplace-agent")
+	if _, err := s.pool.Exec(ctx, "UPDATE agents SET sandbox_image='dev' WHERE id=$1", agent.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	var list []struct {
+		Name      string `json:"name"`
+		Image     string `json:"image"`
+		Build     string `json:"build"`
+		Default   bool   `json:"default"`
+		Available *bool  `json:"available"`
+		InUse     int    `json:"in_use"`
+	}
+	resp := c.do(http.MethodGet, "/api/v1/workplaces", nil)
+	if resp.StatusCode != http.StatusOK {
+		resp.Body.Close()
+		t.Fatalf("workplaces: %s", resp.Status)
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+
+	if len(list) < 2 {
+		t.Fatalf("the catalogue has to carry at least base and dev: %+v", list)
+	}
+	byName := map[string]int{}
+	for i, w := range list {
+		byName[w.Name] = i
+	}
+	dev, ok := byName["dev"]
+	if !ok {
+		t.Fatalf("no dev profile in %+v", list)
+	}
+	if list[dev].Image != "eigenes-dev:2026" {
+		t.Errorf("the instance's image did not come through: %q", list[dev].Image)
+	}
+	if list[dev].Build == "" {
+		t.Error("a profile without a build command leaves whoever reads it looking")
+	}
+	if list[dev].InUse != 1 {
+		t.Errorf("dev: %d agents, expected 1", list[dev].InUse)
+	}
+	// Nobody could be asked here — and that is not the same as "not there".
+	// Shown as unavailable, the interface would advise a build that has already
+	// happened.
+	if list[dev].Available != nil {
+		t.Errorf("without a runner nothing may be claimed about the image: %v", *list[dev].Available)
 	}
 }

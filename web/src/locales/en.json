@@ -1005,8 +1005,6 @@
       "budgetHint": "Kill switch on exceeded budget — the task goes back to the backlog.",
       "sandboxImage": "Workplace",
       "sandboxImageDefault": "Instance default",
-      "sandboxImageBase": "base — Node, git, chromium, ripgrep",
-      "sandboxImageDev": "dev — plus PHP, JDK, fvm, uv",
       "sandboxImageOwn": "Own image …",
       "sandboxImageHint": "The image this agent works in. A profile is a union of toolchains, not a cut along languages: a developer agent works on PHP and Flutter projects, a mail agent on neither. Takes effect at the next cold start; a running or warm-parked sandbox keeps its image.",
       "filesReadOnly": "Read-only — from the last snapshot",
@@ -1027,7 +1025,12 @@
       "rollDice": "Roll random name",
       "subGeneral": "General",
       "runnerTags": "Host requirements",
-      "runnerTagsHint": "Tags a runner has to carry for this agent to run there — arm64, say, or a host inside the target system's network. Empty means any runner of the organisation. A runner may carry more than is asked of it; if a required capability is missing the agent waits and the message names the tag."
+      "runnerTagsHint": "Tags a runner has to carry for this agent to run there — arm64, say, or a host inside the target system's network. Empty means any runner of the organisation. A runner may carry more than is asked of it; if a required capability is missing the agent waits and the message names the tag.",
+      "sandboxProfile": {
+        "base": "base — Node, git, chromium, ripgrep",
+        "dev": "dev — plus PHP, JDK, fvm, uv"
+      },
+      "sandboxImageMissing": "The image {{image}} is on no runner of this organisation — until it is built, every wake fails. Once: {{build}}"
     },
     "skills": {
       "desc": "The capabilities this agent has — its own plus those linked from the library. Exactly this list is written into its home before every run; of each entry, only the description stays in context permanently.",

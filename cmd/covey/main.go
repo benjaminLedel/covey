@@ -705,9 +705,9 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	// implementation that only whoever operates two machines ever exercises.
 	runnerPool := runner.NewPool(log)
 	runnerPool.DefaultImage = cfg.SandboxImage
-	// The profiles from spec/16. An agent's value that names none of them is
-	// taken as an image reference of its own.
-	runnerPool.Profiles = map[string]string{"base": cfg.SandboxImage, "dev": cfg.SandboxImageDev}
+	// The profiles from the catalogue (spec/16). An agent's value that names
+	// none of them is taken as an image reference of its own.
+	runnerPool.Profiles = cfg.SandboxImages
 	runnerPool.AgentImages = registry.SandboxImagesInUse
 	runnerPool.HomeExcludes = cfg.HomeExcludes
 	// "Last seen" only means something if it moves while a runner is there.

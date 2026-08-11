@@ -2,6 +2,7 @@ import { useState, type CSSProperties } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import {
   api,
   post,
@@ -146,9 +147,23 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
     mutationFn: (image: string) => patch(`/agents/${agent.id}/sandbox-image`, { sandbox_image: image }),
     onSuccess: invalidate,
   });
+  // Die Arbeitsplätze kommen aus dem Katalog des Servers (internal/sandbox),
+  // nicht aus einer Liste hier: eine zweite Liste ist die, in der das dritte
+  // Profil fehlt. Die Oberfläche steuert nur bei, was der Server nicht wissen
+  // kann — Übersetzungen, und dass „eigenes Image" auch eine Antwort ist.
+  const workplaces = useQuery({
+    queryKey: ["workplaces"],
+    queryFn: () => api<Workplace[]>("/workplaces"),
+  });
+  const profiles = workplaces.data ?? [];
   // Ob der Agent auf einem Profil sitzt oder auf einem selbst gebauten Image:
   // beides steht im selben Feld, und die Auswahl muss das auseinanderhalten.
-  const knownProfile = ["", "base", "dev"].includes(agent.sandbox_image);
+  // Solange der Katalog noch lädt, gilt jeder Wert als Profil — sonst springt
+  // das Feld für einen Wimpernschlag auf „eigenes Image".
+  const knownProfile =
+    agent.sandbox_image === "" ||
+    !workplaces.isSuccess ||
+    profiles.some((p) => p.name === agent.sandbox_image);
   const [ownImage, setOwnImage] = useState(!knownProfile);
   const setBudget = useMutation({
     mutationFn: (budgetUSD: number) => post(`/agents/${agent.id}/budget`, { budget_usd: budgetUSD }),
@@ -314,9 +329,15 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
             deshalb bleibt neben der Auswahl ein Textfeld: die Liste kennt die
             Profile, nicht alles, was jemand selbst baut. */}
         <div className="flex items-center gap-2">
+          {/* Solange der Katalog lädt, fehlt dem Feld die Option des Agenten —
+              der Browser zeigt dann die erste an, also „Voreinstellung der
+              Instanz" für einen Agenten, der auf `dev` sitzt. Gesperrt, bis die
+              Liste da ist: das ist das einzige Fenster, in dem die Anzeige
+              etwas anderes behauptet als der Datenstand, und ein Feld, das in
+              diesem Moment eine Änderung annähme, schriebe sie auch weg. */}
           <select
             value={ownImage ? "custom" : agent.sandbox_image}
-            disabled={!editable || setSandboxImage.isPending}
+            disabled={!editable || setSandboxImage.isPending || !workplaces.isSuccess}
             onChange={(e) => {
               setOwnImage(e.target.value === "custom");
               if (e.target.value === "custom") return;
@@ -324,8 +345,11 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
             }}
           >
             <option value="">{t("agent.settings.sandboxImageDefault")}</option>
-            <option value="base">{t("agent.settings.sandboxImageBase")}</option>
-            <option value="dev">{t("agent.settings.sandboxImageDev")}</option>
+            {profiles.map((p) => (
+              <option key={p.name} value={p.name}>
+                {profileLabel(t, p)}
+              </option>
+            ))}
             <option value="custom">{t("agent.settings.sandboxImageOwn")}</option>
           </select>
           {ownImage && (
@@ -342,7 +366,23 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
             />
           )}
         </div>
-        <span className="muted text-xs">{t("agent.settings.sandboxImageHint")}</span>
+        {/* Das Raster hat drei Zellen je Zeile — Warnung und Erklärung teilen
+            sich deshalb die dritte, statt die Zeile umbrechen zu lassen. */}
+        <span className="text-xs flex flex-col gap-1">
+          {/* Ein Arbeitsplatz, dessen Image auf keinem Runner liegt, ist
+              wählbar — er weckt dann aber nichts. Das gehört an die Auswahl und
+              nicht in die Aufzeichnung des ersten Laufs, der daran scheitert. */}
+          {(() => {
+            const chosen = profiles.find((p) => p.name === (agent.sandbox_image || defaultProfile(profiles)));
+            if (!chosen || chosen.available !== false) return null;
+            return (
+              <span className="warn-text">
+                {t("agent.settings.sandboxImageMissing", { image: chosen.image, build: chosen.build })}
+              </span>
+            );
+          })()}
+          <span className="muted">{t("agent.settings.sandboxImageHint")}</span>
+        </span>
       </div>
       <div style={row}>
         <span className="text-sm">{t("agent.settings.runnerTags")}</span>
@@ -439,4 +479,31 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
     </div>
     </>
   );
+}
+
+// Workplace ist ein Profil aus dem Katalog des Servers (spec/16).
+type Workplace = {
+  name: string;
+  label: string;
+  description: string;
+  image: string;
+  build: string;
+  dockerfile: string;
+  default?: boolean;
+  // available fehlt, wenn niemand gefragt werden konnte — das ist etwas
+  // anderes als „nicht da" und darf nicht so aussehen.
+  available?: boolean;
+  in_use: number;
+};
+
+function defaultProfile(profiles: Workplace[]): string {
+  return profiles.find((p) => p.default)?.name ?? "";
+}
+
+// Der Katalog liefert seine Beschreibung englisch, wie die Zielsystem-Plugins
+// auch. Wo die Oberfläche eine Übersetzung hat, nimmt sie die — und ein morgen
+// hinzugefügtes Profil ist trotzdem lesbar, ohne die Sprachdateien anzufassen.
+function profileLabel(t: TFunction, p: Workplace): string {
+  const translated = t(`agent.settings.sandboxProfile.${p.name}`, { defaultValue: "" });
+  return translated || `${p.label} — ${p.description}`;
 }

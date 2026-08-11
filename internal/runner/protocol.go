@@ -212,6 +212,12 @@ type StartSandbox struct {
 	// starts. Empty = whatever lies in the working copy — which is the case on
 	// the very first wake, and after that only when the store is switched off.
 	Snapshot string `json:"snapshot,omitempty"`
+	// ImageHint is how one obtains this image, for the case that it is not
+	// there. It travels along because only the control plane can answer it: the
+	// runner sees an image reference, and which profile it belongs to — and
+	// whether the instance has renamed it — is known here. Empty = an image
+	// the catalogue does not know.
+	ImageHint string `json:"image_hint,omitempty"`
 }
 
 // SyncHome writes an agent's home into the store.
@@ -261,11 +267,22 @@ type SandboxExited struct {
 // the agents, not the configuration.
 type Check struct {
 	Images []string `json:"images,omitempty"`
+	// Hints maps image → how one obtains it, for the same reason as
+	// StartSandbox.ImageHint: the catalogue lives on the control plane.
+	Hints map[string]string `json:"hints,omitempty"`
+	// Report are images whose presence is asked about WITHOUT it being a
+	// problem when they are missing — the interface's list of workplaces. The
+	// difference from Images matters: a fresh installation must not be warned
+	// about a dev image nobody wants, but it may still show that it is not
+	// there.
+	Report []string `json:"report,omitempty"`
 }
 
 // CheckResult lists what stands in the way. Empty = nothing does.
 type CheckResult struct {
 	Problems []string `json:"problems,omitempty"`
+	// Present answers Check.Report: image → is it here.
+	Present map[string]bool `json:"present,omitempty"`
 }
 
 // encode packs a payload into a message.

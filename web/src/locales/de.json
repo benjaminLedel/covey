@@ -1005,8 +1005,6 @@
       "budgetHint": "Kill-Switch bei Überschreitung — die Aufgabe geht zurück ins Backlog.",
       "sandboxImage": "Arbeitsplatz",
       "sandboxImageDefault": "Voreinstellung der Instanz",
-      "sandboxImageBase": "base — Node, git, chromium, ripgrep",
-      "sandboxImageDev": "dev — zusätzlich PHP, JDK, fvm, uv",
       "sandboxImageOwn": "Eigenes Image …",
       "sandboxImageHint": "Das Image, in dem dieser Agent arbeitet. Ein Profil ist eine Vereinigung von Toolchains, kein Sprachschnitt: ein Entwickler-Agent arbeitet an PHP- und Flutter-Projekten, ein Mail-Agent an keinem von beiden. Gilt ab dem nächsten Kaltstart; eine laufende oder warm geparkte Sandbox behält ihr Image.",
       "filesReadOnly": "Nur lesbar — aus dem letzten Snapshot",
@@ -1027,7 +1025,12 @@
       "rollDice": "Zufälligen Namen würfeln",
       "subGeneral": "Allgemein",
       "runnerTags": "Host-Anforderungen",
-      "runnerTagsHint": "Tags, die der Runner tragen muss, damit dieser Agent dort laufen darf — etwa arm64 oder ein Host im Netz des Zielsystems. Leer heißt: jeder Runner der Organisation. Ein Runner darf mehr tragen, als verlangt wird; fehlt eine geforderte Fähigkeit, wartet der Agent und die Meldung nennt das Tag."
+      "runnerTagsHint": "Tags, die der Runner tragen muss, damit dieser Agent dort laufen darf — etwa arm64 oder ein Host im Netz des Zielsystems. Leer heißt: jeder Runner der Organisation. Ein Runner darf mehr tragen, als verlangt wird; fehlt eine geforderte Fähigkeit, wartet der Agent und die Meldung nennt das Tag.",
+      "sandboxProfile": {
+        "base": "base — Node, git, chromium, ripgrep",
+        "dev": "dev — zusätzlich PHP, JDK, fvm, uv"
+      },
+      "sandboxImageMissing": "Das Image {{image}} liegt auf keinem Runner dieser Organisation — bis es gebaut ist, scheitert jedes Aufwachen. Einmalig: {{build}}"
     },
     "skills": {
       "desc": "Was dieser Agent an Fähigkeiten hat — eigene plus die ihm aus der Bibliothek verlinkten. Genau diese Liste landet vor jedem Lauf in seinem Home; von jedem Eintrag steht dauerhaft nur die Beschreibung im Kontext.",

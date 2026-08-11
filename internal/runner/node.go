@@ -163,7 +163,8 @@ func (n *Node) handle(ctx context.Context, t Transport, msg Message) {
 		if err != nil {
 			req = Check{}
 		}
-		n.reply(ctx, t, msg.ID, TypeCheckResult, CheckResult{Problems: n.Docker.Check(ctx, req.Images)})
+		problems, present := n.Docker.Check(ctx, req)
+		n.reply(ctx, t, msg.ID, TypeCheckResult, CheckResult{Problems: problems, Present: present})
 	default:
 		n.Log.Warn("runner: unknown message", "type", msg.Type)
 	}

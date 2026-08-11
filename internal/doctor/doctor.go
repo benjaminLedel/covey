@@ -28,6 +28,7 @@ import (
 	"covey/internal/db"
 	"covey/internal/homestore"
 	runnerstore "covey/internal/runner/store"
+	"covey/internal/sandbox"
 	"covey/migrations"
 )
 
@@ -150,7 +151,7 @@ func (d *doctor) checkImages(ctx context.Context, pool *pgxpool.Pool) {
 		d.problem("sandbox images", "not readable: "+err.Error(), "", false)
 		return
 	}
-	profiles := map[string]string{"base": d.cfg.SandboxImage, "dev": d.cfg.SandboxImageDev}
+	profiles := d.cfg.SandboxImages
 
 	byImage := map[string]int{}
 	for value, n := range wanted {
@@ -187,9 +188,11 @@ func (d *doctor) checkImages(ctx context.Context, pool *pgxpool.Pool) {
 			d.ok("image "+image, fmt.Sprintf("present, %d agent(s)", byImage[image]))
 			continue
 		}
-		target := "make sandbox-image"
-		if strings.Contains(image, "sandbox-dev") {
-			target = "make sandbox-image-dev"
+		target := sandbox.BuildHint(profiles, image)
+		if target == "" {
+			// Somebody's own image: this repository has no command that would
+			// build it, and naming one anyway would send the reader in circles.
+			target = "docker pull " + image
 		}
 		d.problem("image "+image,
 			fmt.Sprintf("missing, %d agent(s) work in it", byImage[image]),

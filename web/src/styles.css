@@ -628,6 +628,7 @@ label { display: block; font-size: 12px; color: var(--text-secondary); margin: 0
 .muted { color: var(--text-muted); }
 .secondary { color: var(--text-secondary); }
 .danger-text { color: var(--text-danger); }
+.warn-text { color: var(--text-warning); }
 .ok-text { color: var(--text-success); }
 
 .timeline-item {

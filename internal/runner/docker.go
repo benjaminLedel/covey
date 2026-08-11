@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"covey/internal/sandbox"
 )
 
 // Docker starts coveyd in a container — real isolation at the namespace level
@@ -220,8 +222,8 @@ func (p *Docker) Start(ctx context.Context, spec StartSandbox) (string, error) {
 		msg := strings.TrimSpace(string(out))
 		if strings.Contains(msg, "No such image") || strings.Contains(msg, "pull access denied") ||
 			strings.Contains(msg, "Unable to find image") {
-			return "", fmt.Errorf("sandbox image %q is missing — build it with `%s`: %s",
-				image, buildHint(image), msg)
+			return "", fmt.Errorf("sandbox image %q is missing — %s: %s",
+				image, buildHint(map[string]string{image: spec.ImageHint}, image), msg)
 		}
 		return "", fmt.Errorf("docker run: %v: %s", err, msg)
 	}
@@ -279,16 +281,20 @@ func (p *Docker) Wait(ctx context.Context, name string) string {
 //
 // Empty result = nothing in the way. Messages are written for whoever operates
 // the instance and each one names its remedy.
-func (p *Docker) Check(ctx context.Context, images []string) []string {
+func (p *Docker) Check(ctx context.Context, req Check) ([]string, map[string]bool) {
+	images, hints := req.Images, req.Hints
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	if out, err := exec.CommandContext(ctx, p.docker(), "version", "--format", "{{.Server.Version}}").CombinedOutput(); err != nil {
+		// No daemon: then nothing can be said about any image either. An empty
+		// presence map is the honest answer — "not there" would claim a finding
+		// that was never made.
 		return []string{fmt.Sprintf(
 			"no Docker daemon reachable — every wake fails at starting the sandbox. "+
 				"Running the control plane in a container? Then it needs the host's socket: "+
 				"`-v /var/run/docker.sock:/var/run/docker.sock`. (%s)",
-			firstLine(string(out), err))}
+			firstLine(string(out), err))}, nil
 	}
 
 	var problems []string
@@ -302,8 +308,8 @@ func (p *Docker) Check(ctx context.Context, images []string) []string {
 			continue
 		}
 		problems = append(problems, fmt.Sprintf(
-			"sandbox image %q is missing — build it once: `%s` (%s)",
-			image, buildHint(image), firstLine(string(out), err)))
+			"sandbox image %q is missing — %s (%s)",
+			image, buildHint(hints, image), firstLine(string(out), err)))
 	}
 	if p.EgressIsolation == "network" && p.EgressProxyImage != "" {
 		if out, err := exec.CommandContext(ctx, p.docker(), "image", "inspect", p.EgressProxyImage).CombinedOutput(); err != nil {
@@ -313,7 +319,22 @@ func (p *Docker) Check(ctx context.Context, images []string) []string {
 				p.EgressProxyImage, p.EgressProxyImage, firstLine(string(out), err)))
 		}
 	}
-	return problems
+
+	// The interface's list of workplaces: asked for, not warned about. A fresh
+	// installation has no dev image and needs none — but the dropdown may say
+	// so before somebody picks it and finds out at the next wake.
+	var present map[string]bool
+	for _, image := range req.Report {
+		if present == nil {
+			present = map[string]bool{}
+		}
+		if _, seen := present[image]; seen {
+			continue
+		}
+		err := exec.CommandContext(ctx, p.docker(), "image", "inspect", image).Run()
+		present[image] = err == nil
+	}
+	return problems, present
 }
 
 // imagesWanted is what to ask about: the images the control plane named,
@@ -327,14 +348,25 @@ func (p *Docker) imagesWanted(images []string) []string {
 	return images
 }
 
-// buildHint names the make target that produces this image. A message that
-// sends someone to `make sandbox-image` while the dev image is what is missing
-// costs them the build twice — and the second one still does not help.
-func buildHint(image string) string {
-	if strings.Contains(image, "sandbox-dev") {
-		return "make sandbox-image-dev"
+// buildHint names how one obtains this image. A message that sends someone to
+// `make sandbox-image` while the dev image is what is missing costs them the
+// build twice — and the second one still does not help.
+//
+// The hint comes from the control plane, because only it can give it: the
+// runner sees an image reference, and which profile it belongs to — and whether
+// the instance has renamed it — is known over there. The catalogue is asked
+// only as a fallback, for a message that reaches here without one; and it stays
+// silent about a foreign image, because a `make` target that would build
+// something else is worse than no advice.
+func buildHint(hints map[string]string, image string) string {
+	hint := strings.TrimSpace(hints[image])
+	if hint == "" {
+		hint = sandbox.BuildHint(nil, image)
 	}
-	return "make sandbox-image"
+	if hint != "" {
+		return "build it once: `" + hint + "`"
+	}
+	return "it is not one of the profiles from the catalogue — pull or build it yourself"
 }
 
 // firstLine keeps a CLI error to the one line that says something. Docker

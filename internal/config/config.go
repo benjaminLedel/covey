@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"covey/internal/sandbox"
 )
 
 type Config struct {
@@ -48,9 +50,9 @@ type Config struct {
 	SandboxProvider string
 	// DataDir holds the persistent sandbox homes (docker provider).
 	DataDir string
-	// SandboxImage is the container image of the docker provider
-	// (Dockerfile.sandbox) — the `base` profile and at the same time the
-	// default for agents that name no workplace of their own.
+	// SandboxImage is the image of the default profile and at the same time the
+	// default for agents that name no workplace of their own. Derived from
+	// SandboxImages — not read separately.
 	SandboxImage string
 	// HomeStore switches the central home store on (default on): after every
 	// job an agent's home goes into it as a whole and is materialised from it
@@ -86,11 +88,15 @@ type Config struct {
 	// empty, and without configuration everything is synced. Only demonstrably
 	// derivable paths belong here (analysis caches such as .dartServer).
 	HomeExcludes []string
-	// SandboxImageDev is the image of the `dev` profile
-	// (Dockerfile.sandbox.dev): base plus PHP, JDK, fvm, uv and the native
-	// build toolchain. The image hangs off the agent (spec/16) — a mail agent
-	// no longer carries a developer agent's JVM.
-	SandboxImageDev string
+	// SandboxImages maps every profile of the catalogue (internal/sandbox) to
+	// the image this instance uses for it — the default from the catalogue, or
+	// the override from COVEY_SANDBOX_IMAGE_<PROFILE>. The image hangs off the
+	// agent (spec/16): a mail agent no longer carries a developer agent's JVM.
+	//
+	// It is a map and no longer a field per profile, because a field per
+	// profile is a list that has to be extended in four places — which is the
+	// reason the catalogue exists.
+	SandboxImages map[string]string
 	// WebhookSecrets verify signatures of incoming target-system webhooks:
 	// COVEY_<SYSTEM>_WEBHOOK_SECRET → entry under the lowercased system name
 	// (e.g. COVEY_ZAMMAD_WEBHOOK_SECRET → "zammad").
@@ -194,8 +200,7 @@ func FromEnv() (Config, error) {
 		SecretStore:      getenv("COVEY_SECRET_STORE", "builtin"),
 		SandboxProvider:  getenv("COVEY_SANDBOX_PROVIDER", "docker"),
 		DataDir:          getenv("COVEY_DATA_DIR", "./data"),
-		SandboxImage:     getenv("COVEY_SANDBOX_IMAGE", "covey-sandbox:latest"),
-		SandboxImageDev:  getenv("COVEY_SANDBOX_IMAGE_DEV", "covey-sandbox-dev:latest"),
+		SandboxImages:    sandboxImages(),
 		HomeStore:        getenvBool("COVEY_HOME_STORE", true),
 		HomeExcludes:     splitList(os.Getenv("COVEY_HOME_EXCLUDES")),
 		BlobStore:        getenv("COVEY_BLOB_STORE", "builtin"),
@@ -230,6 +235,9 @@ func FromEnv() (Config, error) {
 		RequestLogBodies:    getenvBool("COVEY_REQUEST_LOG_BODIES", true),
 		RequestLogRetention: getenvDuration("COVEY_REQUEST_LOG_RETENTION", 72*time.Hour),
 	}
+	// The default image is the default profile's — one value, derived, so that
+	// "the instance default" and "the base profile" cannot drift apart.
+	c.SandboxImage = c.SandboxImages[sandbox.DefaultName()]
 	// Secure cookie on by default as soon as the public URL is HTTPS.
 	c.CookieSecure = getenvBool("COVEY_COOKIE_SECURE", strings.HasPrefix(c.PublicURL, "https://"))
 	if c.IdentityProvider != "builtin" {
@@ -386,4 +394,23 @@ func getenvDuration(key string, fallback time.Duration) time.Duration {
 		return time.Duration(secs) * time.Second
 	}
 	return fallback
+}
+
+// sandboxImages reads the image of every profile in the catalogue from the
+// environment. COVEY_SANDBOX_IMAGE stays valid for the default profile: it is
+// the name from before the split, it is documented, and it is set in existing
+// installations — an upgrade must not silently drop a configured image.
+func sandboxImages() map[string]string {
+	overrides := map[string]string{}
+	for _, p := range sandbox.All() {
+		if v := strings.TrimSpace(os.Getenv(sandbox.EnvVar(p.Name))); v != "" {
+			overrides[p.Name] = v
+		}
+	}
+	if v := strings.TrimSpace(os.Getenv("COVEY_SANDBOX_IMAGE")); v != "" {
+		if _, set := overrides[sandbox.DefaultName()]; !set {
+			overrides[sandbox.DefaultName()] = v
+		}
+	}
+	return sandbox.Images(overrides)
 }

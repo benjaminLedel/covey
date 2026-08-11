@@ -14,6 +14,7 @@ import (
 
 	"covey/internal/homestore"
 	"covey/internal/orchestrator"
+	"covey/internal/sandbox"
 	"covey/internal/sandboxfs"
 )
 
@@ -603,6 +604,7 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 		Env:         spec.Env,
 		EgressToken: spec.EgressToken,
 		Snapshot:    snapshot,
+		ImageHint:   p.imageHints()[p.imageFor(spec.Image)],
 	}, timeout)
 	if err != nil {
 		return nil, err
@@ -783,7 +785,7 @@ func (p *Pool) Check(ctx context.Context) []string {
 	images := p.wantedImages(ctx)
 	var problems []string
 	for _, c := range conns {
-		answer, err := c.ask(ctx, TypeCheck, Check{Images: images}, 30*time.Second)
+		answer, err := c.ask(ctx, TypeCheck, Check{Images: images, Hints: p.imageHints()}, 30*time.Second)
 		if err != nil {
 			problems = append(problems, fmt.Sprintf("runner %s does not answer: %v", short(c.runnerID), err))
 			continue
@@ -826,5 +828,68 @@ func (p *Pool) wantedImages(ctx context.Context) []string {
 		out = append(out, image)
 	}
 	sort.Strings(out)
+	return out
+}
+
+// imageHints maps image → how one obtains it. It belongs on this side: the
+// runner sees a reference, the catalogue and the instance's overrides are
+// known here (spec/16).
+func (p *Pool) imageHints() map[string]string {
+	out := map[string]string{}
+	for name, image := range p.Profiles {
+		if image == "" {
+			continue
+		}
+		if prof, ok := sandbox.Get(name); ok && prof.Build != "" {
+			out[image] = prof.Build
+		}
+	}
+	return out
+}
+
+// Workplaces answers, for the profiles of the catalogue, whether their image
+// lies ready on a runner of this organisation — the list the interface offers
+// as workplaces.
+//
+// Presence is a question to the runner and not to the control plane: the image
+// lies where the sandbox starts. With several runners "there" means: on at
+// least one that could take the agent — anything else would call a workplace
+// unavailable that works.
+func (p *Pool) Workplaces(ctx context.Context, orgID uuid.UUID) map[string]bool {
+	seen := map[string]bool{}
+	var report []string
+	for _, prof := range sandbox.All() {
+		image := p.imageFor(prof.Name)
+		if image == "" || seen[image] {
+			continue
+		}
+		seen[image] = true
+		report = append(report, image)
+	}
+	sort.Strings(report)
+
+	p.mu.Lock()
+	var conns []*conn
+	for _, c := range p.conns {
+		if c.orgID == orgID {
+			conns = append(conns, c)
+		}
+	}
+	p.mu.Unlock()
+
+	out := map[string]bool{}
+	for _, c := range conns {
+		answer, err := c.ask(ctx, TypeCheck, Check{Report: report}, 20*time.Second)
+		if err != nil {
+			continue
+		}
+		res, err := decode[CheckResult](answer)
+		if err != nil {
+			continue
+		}
+		for image, ok := range res.Present {
+			out[image] = out[image] || ok
+		}
+	}
 	return out
 }

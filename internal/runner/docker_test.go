@@ -129,17 +129,40 @@ func TestDockerCheck(t *testing.T) {
 
 	// No daemon: everything else is beside the point, so only that is said.
 	p := &Docker{Image: "covey-sandbox:test", DockerBin: fakeDocker(t, "version")}
-	problems := p.Check(context.Background(), nil)
+	problems, present := p.Check(context.Background(), Check{})
 	if len(problems) != 1 || !strings.Contains(problems[0], "docker.sock") {
 		t.Fatalf("a missing daemon has to name the socket: %v", problems)
 	}
+	if present != nil {
+		t.Errorf("without a daemon nothing may be claimed about images: %v", present)
+	}
 
 	// Daemon there, image missing: the message has to carry the build command,
-	// otherwise the reader is left looking for it.
+	// otherwise the reader is left looking for it. It comes from the control
+	// plane, which is the side that knows the profile behind the reference.
 	p = &Docker{Image: "covey-sandbox:test", DockerBin: fakeDocker(t, "image")}
-	problems = p.Check(context.Background(), nil)
+	problems, _ = p.Check(context.Background(), Check{
+		Hints: map[string]string{"covey-sandbox:test": "make sandbox-image"},
+	})
 	if len(problems) != 1 || !strings.Contains(problems[0], "make sandbox-image") {
 		t.Fatalf("a missing image has to name how to build it: %v", problems)
+	}
+
+	// Without a hint the catalogue answers — for its own images. This is the
+	// path a message takes that reaches the runner from an older control plane.
+	p = &Docker{Image: "covey-sandbox:latest", DockerBin: fakeDocker(t, "image")}
+	problems, _ = p.Check(context.Background(), Check{})
+	if len(problems) != 1 || !strings.Contains(problems[0], "make sandbox-image") {
+		t.Fatalf("the catalogue has to carry an unhinted profile image: %v", problems)
+	}
+
+	// A foreign image gets no make target — it would build something else.
+	// Guessing here used to be a `strings.Contains` on the image name, and it
+	// advised wrongly exactly where somebody had configured their own image.
+	p = &Docker{Image: "registry.example.com/team/sandbox:2026-08", DockerBin: fakeDocker(t, "image")}
+	problems, _ = p.Check(context.Background(), Check{})
+	if len(problems) != 1 || strings.Contains(problems[0], "make sandbox-image") {
+		t.Fatalf("a foreign image must not be advised with a make target: %v", problems)
 	}
 
 	// The images to ask about come from the control plane: it knows the
@@ -147,7 +170,10 @@ func TestDockerCheck(t *testing.T) {
 	// instead would warn every fresh installation about a dev image nobody
 	// wants.
 	p = &Docker{Image: "covey-sandbox:test", DockerBin: fakeDocker(t, "image")}
-	problems = p.Check(context.Background(), []string{"covey-sandbox:test", "covey-sandbox-dev:test"})
+	problems, _ = p.Check(context.Background(), Check{
+		Images: []string{"covey-sandbox:test", "covey-sandbox-dev:test"},
+		Hints:  map[string]string{"covey-sandbox-dev:test": "make sandbox-image-dev"},
+	})
 	if len(problems) != 2 {
 		t.Fatalf("both named images have to be reported: %v", problems)
 	}
@@ -156,10 +182,27 @@ func TestDockerCheck(t *testing.T) {
 		t.Errorf("the dev image needs its own hint and its own name:\n%s", joined)
 	}
 
-	// Everything in place: nothing to report.
+	// Report asks, it does not warn: a workplace that is not built here belongs
+	// in the interface's list — as unavailable, not as a problem of the
+	// installation.
+	p = &Docker{Image: "covey-sandbox:test", DockerBin: fakeDocker(t, "image")}
+	problems, present = p.Check(context.Background(), Check{Report: []string{"covey-sandbox-dev:test"}})
+	if len(problems) != 1 {
+		// The one problem is the runner's own default image; Report adds none.
+		t.Fatalf("Report must not produce problems of its own: %v", problems)
+	}
+	if present["covey-sandbox-dev:test"] {
+		t.Errorf("a missing image must not be reported as present: %v", present)
+	}
+
+	// Everything in place: nothing to report, and what is asked about is there.
 	p = &Docker{Image: "covey-sandbox:test", DockerBin: fakeDocker(t, "nothing")}
-	if problems = p.Check(context.Background(), nil); len(problems) != 0 {
+	problems, present = p.Check(context.Background(), Check{Report: []string{"covey-sandbox:test"}})
+	if len(problems) != 0 {
 		t.Fatalf("a working data plane has to stay silent: %v", problems)
+	}
+	if !present["covey-sandbox:test"] {
+		t.Errorf("a present image has to be reported as present: %v", present)
 	}
 }
 

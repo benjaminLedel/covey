@@ -374,6 +374,15 @@ The cut deliberately does **not** go along individual languages. A profile is a 
 
 For runners the image is at the same time a **capability**: a runner reports which images it holds and gets only matching agents. The price is known and bearable — the warm pool fragments per image.
 
+The profiles are a **catalogue in the code** (`internal/sandbox`), not a list in each place that needs one — the same shape the target-system plugins have. A profile declares its name, what is inside it, the image it defaults to, and the command that builds it. The last part is the reason the catalogue exists: without it, "how do I get this image?" was answered four times over, once by a `strings.Contains(image, "sandbox-dev")` that guessed the build command from the image name, and guessed wrongly for anyone who had configured an image of their own.
+
+Two consequences follow, and they are what a third profile is worth:
+
+- The instance overrides a profile's image with `COVEY_SANDBOX_IMAGE_<PROFILE>` — derived from the name, so a new profile needs no new configuration code. `COVEY_SANDBOX_IMAGE` remains valid for the default profile; it is the name from before the split and it is set in existing installations.
+- The interface offers what is registered (`GET /api/v1/workplaces`) instead of a list of its own, together with the answer to whether the image lies ready. That answer comes from the runner and not from the control plane: an image is available where the sandbox starts. Asked, not warned about — a fresh installation has no `dev` image and needs none, but the choice may say so before somebody picks it and finds out at the next wake.
+
+An image that no profile knows is somebody's own, and about those the repository knows nothing. It says so rather than naming a `make` target that would build something else.
+
 ## Trust boundary
 
 With `start_sandbox` a runner receives an agent's `COVEY_DAEMON_TOKEN` and egress token in order to inject them into the container. It **can** therefore impersonate every agent it hosts. That is the same trust level as a CI runner that sees job tokens — but it has to be said out loud:
