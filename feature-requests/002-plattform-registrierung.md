@@ -62,14 +62,22 @@ conversation:
 | Humans are created by an admin, never by themselves. | `internal/httpapi/admin.go` | no — plus self-registration |
 | The control plane never sends e-mail. SMTP exists only as an agent target plugin. | `internal/target/email/` | no — needs a mailer |
 | Every instance-level setting is an environment variable, read once at start. | `internal/config/config.go` | no — the ones an admin operates move into `system_settings` |
-| Tenant isolation on the read/write paths is enforced by middleware. | `agentScoped` / `taskScoped` / `stageScoped` / `pageScoped`, `server.go:552-627` | yes — this part is already sound |
+| Tenant isolation on the read/write paths is enforced by middleware. | `agentScoped` / `taskScoped` / `stageScoped` / `pageScoped`, `server.go:552-627` | mostly — seven gaps, see [`003`](003-mandantentrennung.md) |
 | All sandboxes are Docker containers on the control-plane host; runners ([`16-runner.md`](../spec/16-runner.md)) are spec, not code. | `cmd/covey/main.go:649-688` | **this is the gating risk**, see *Capacity and abuse* |
 
-The good news is the last-but-one row: the org boundary is already a middleware
-you have to pass through, not a line 67 handlers must remember. The work below
-does not have to re-secure the application — it has to introduce a person above
-the organisation, a system admin above the instance, and the instance's own
-configuration somewhere an admin can actually reach it.
+The last-but-one row is the load-bearing one: the org boundary is largely a
+middleware you have to pass through, not a line 67 handlers must remember. The
+work below therefore mostly does not have to re-secure the application — it has
+to introduce a person above the organisation, a system admin above the instance,
+and the instance's own configuration somewhere an admin can actually reach it.
+
+"Largely", because an audit of the running code found seven places where the
+boundary does not in fact hold — a live event bus that broadcasts across
+tenants, webhooks that resolve an agent by slug across organisations, and four
+smaller gaps. They are written up separately in
+[`003-mandantentrennung.md`](003-mandantentrennung.md), and that request is a
+**prerequisite** for this one: self-registration on an instance where those
+stand would hand every new tenant a view into all the others.
 
 ## The target flow
 
