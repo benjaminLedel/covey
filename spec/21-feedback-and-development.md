@@ -19,11 +19,12 @@ This document adds the reader: a **second role in the People department** whose 
 
 An agent that reads indicators and rewrites configurations closes exactly that loop, and Goodhart's law arrives with it. The resolution is not to weaken the sentence but to keep it true: **the feedback agent's output is never in effect.** It writes a proposal; a human accepts it. Nothing in the platform changes on an indicator alone, no scheduler decision hangs off one, and the last line of `17` still holds — the judgement stays with the humans, who now get it prepared instead of having to assemble it.
 
-Three consequences, and the third is the one that is easy to miss:
+Four consequences, and the last is the one that is easy to miss:
 
 1. A proposal is a **stored, inactive configuration version** — see below. There is no path from the feedback agent to a running config.
 2. It **does not review itself.** The same reason `20` gives for the People department not writing its own `SOUL.md`: an agent that grades its own work at night is the door this platform keeps shut.
-3. **It may not quote an agent its own figures.** `KPIS.md` is deliberately not compiled into the system prompt — *"an agent that knows it is measured on the number of comments writes more comments"* ([`internal/agents/kpi.go`](../internal/agents/kpi.go)). A proposed `SOUL.md` containing "you resolved 12 tickets last week, aim for 20" would smuggle the target into the prompt through the back door and undo that decision without anyone noticing. Feedback describes **behaviour and procedure** — "close the partial result before the turn limit, file the rest as a subtask" — never scores. Enforced by review, not by a parser: a human reads the diff, and this rule is what they are reading for.
+3. **A proposal may go deep, and the depth decides who may accept it.** Nothing here restricts *what* a proposal may change — a role that has drifted belongs in `SOUL.md`, not in a footnote. But `ACCESS.md` and `EGRESS.md` are the text view onto state whose write path is reserved for `platform_admin`/`security` ([`02-agent-model.md`](02-agent-model.md)), and that boundary is inherited rather than bypassed: a proposal that widens a colleague's access cannot be accepted by the team lead who owns the agent. The acceptance surface therefore reads the proposal's files and asks the right person — a review dialog that lets everything through because the *proposal* was harmless would move the access decision from security to whoever clicked first.
+4. **It may not quote an agent its own figures.** `KPIS.md` is deliberately not compiled into the system prompt — *"an agent that knows it is measured on the number of comments writes more comments"* ([`internal/agents/kpi.go`](../internal/agents/kpi.go)). A proposed `SOUL.md` containing "you resolved 12 tickets last week, aim for 20" would smuggle the target into the prompt through the back door and undo that decision without anyone noticing. Feedback describes **behaviour and procedure** — "close the partial result before the turn limit, file the rest as a subtask" — never scores. Enforced by review, not by a parser: a human reads the diff, and this rule is what they are reading for.
 
 ## The personnel file: facts, not conversations
 
@@ -43,6 +44,8 @@ So the default is a **personnel file the control plane assembles**: facts it rec
 | Stuck | `blocked` tasks without resumption | the failure mode nobody sees, because nothing errors |
 
 None of this is free text produced by the agent or by a target system — with **one honest exception**: task titles, which frequently come from the wake source and can therefore carry a ticket subject. It is one line per task rather than a thread, and the file cannot be read without it, so it stays and is named here rather than discovered later.
+
+**Who may read it** is decided here rather than inherited, which is what [`17-kpis.md`](17-kpis.md) asks for when it says performance data per agent is more sensitive than a cost total. The file follows **the recordings, not the cost figures**: `platform_admin`, `security`, the agent's own owner, and `auditor` reading. Costs are visible more widely because a total says what was spent; a personnel file says how somebody worked, and "whoever may see the bill may see this" is the answer that would make it unusable in any organisation with a works council. The same boundary then covers the indicators that `17` left open, because reading them out of the file is the same act as reading the file.
 
 **The recording is reachable, but through the gate.** Where the file says "eleven runs died at the turn limit" and the question is *why*, the feedback agent asks for one specific run — and that request goes through the approval gate that already exists ([`06-observability-control.md`](06-observability-control.md)): a human sees which run, for which agent, out of which review, and approves once. The approval is one-time consumable (`approvals.used`), so the answer is one recording and not a licence.
 
@@ -98,10 +101,32 @@ A review is a task like any other, and it is worth being deliberate about what t
 **What the run produces**, in this order, because the order is the judgement:
 
 1. It reads the personnel file and the current config.
-2. It decides what kind of problem it is looking at. This is the whole skill of the role, and the three answers are genuinely different: *this agent's configuration is wrong* → a proposal. *This agent's assignment is wrong* → a note to the human who owns it, because the platform does not let an agent redirect a colleague's remit. *The platform is wrong* → an issue, see below.
+2. It decides what kind of problem it is looking at. This is the whole skill of the role, and the three answers are genuinely different: *this agent's configuration is wrong* → a proposal. *This agent's assignment is wrong* → a finding addressed to the human who owns it, because the platform does not let an agent redirect a colleague's remit. *The platform is wrong* → an issue, see below.
 3. It writes the review. Where it lands is the HR metaphor finishing itself: on the **employee profile** ([`09-enterprise-model.md`](09-enterprise-model.md)), dated, next to the run history and the cost bar that are already there. A personnel file with a review history is what the profile has been missing, and it is the page a person opens when they wonder what is going on with an agent.
 
-**Nothing about it is secret from the reviewed agent** — the profile is visible to whoever may see the agent. An organisation that wants agents not to read their own reviews is welcome to that policy, but it is not this platform's job to build a locked drawer for text about a config file. What must not happen is the review *reaching the agent's prompt*, which is the KPI rule from the first section and is enforced by what a proposal may contain, not by hiding the page.
+**The reviewed agent does not see any of this, and that is structural rather than a policy.** The question is worth answering precisely, because the wrong answer would be a quiet defect: an agent that reads an unaccepted judgement about itself is being steered by a change nobody made. Three independent properties keep it out:
+
+- **The prompt carries the active version only.** It is assembled at dispatch from the config files plus the current platform part ([`02-agent-model.md`](02-agent-model.md)). A proposal is not a version, so there is no assembly step it could enter.
+- **The review lives on a page.** The employee profile is a human surface; nothing materialises it into a sandbox.
+- **Memory is scoped to the agent itself.** The wiki actions resolve against the calling agent's own pages ([`internal/orchestrator/orchestrator.go`](../internal/orchestrator/orchestrator.go)), so the feedback agent cannot write into a colleague's memory even if a prompt told it to.
+
+The rule to state is therefore not who may hide the page but the one those three properties already enforce: **an open proposal reaches the reviewed agent by no path at all** — not through the prompt, not through a task body, not through memory. One future path has to be closed before it opens: if the shared organisation-wide memory layer from [`05-memory.md`](05-memory.md) (D5) ever exists, a review filed there would be retrievable by its subject. Reviews stay out of it.
+
+Once a proposal is **accepted** it is an ordinary config version and the agent reads it like any other — as a changed instruction, not as a verdict. That is the difference the KPI rule in the first section protects: the agent learns what to do differently, never how it scored.
+
+### How it reaches a human: the list, not a notification
+
+The three outcomes above have one thing in common — each needs a person, and two of them are not proposals. The temptation is to build a way to *tell* somebody, and that is the wrong shape: the platform has no notion of a message to a human, and inventing one for this feature would produce a second, worse inbox next to the one that already has to exist.
+
+Because slice 1 needs an accept/reject surface anyway, that surface **is** the channel: a list of open items per agent owner, carrying all three outcomes — proposals with their diff, findings without one, and issues already filed. It is the shape the approval gates already use, with a filter and a count on it. A finding that only a person can act on is then not a message that can be missed but an open item that stays open.
+
+**Email is a notifier on top of it, never the channel itself.** Where the feedback agent has an address ([`02-agent-model.md`](02-agent-model.md) — optional, not mandatory), it can tell an owner there is something waiting and link to it. Building the reverse would make the department's core function depend on optional infrastructure, and it would put the content somewhere a proposal cannot be accepted.
+
+## Who reviews the reviewer
+
+Nobody on the platform, and that is the answer rather than a gap: **its reviewer is a human**, the same one who accepts or declines everything it produces. The rejection rate on its own proposals is the figure that says whether it is any good, and it sits in its own personnel file like anyone else's.
+
+That is enough because of the shape of the role, not because the risk is small. A feedback agent that drifts produces proposals a person declines — visible, cheap, and self-limiting at exactly the rate a human reads. The alternative, a second agent reviewing the first, buys an extra opinion and one more agent with the widest read access on the platform, which is the trade this whole document has been declining. Written down here so that a later reader does not fill the gap by reflex.
 
 ## The channel from colleagues: nothing to build
 
@@ -136,7 +161,7 @@ Mirroring the four rules in [`20-hiring-and-setup.md`](20-hiring-and-setup.md), 
 
 Each slice is worth shipping on its own:
 
-1. **The inactive config version** — schema, write and read path, the accept/reject surface with the diff. Closes `20`'s open item on its own, before anything else here exists.
+1. **The inactive config version** — schema, write and read path, and the accept/reject surface as a **list per agent owner**, with the diff and the role check on the files it touches. That list is also the channel, so it is not a detail of this slice but its point. Closes `20`'s open item on its own, before anything else here exists.
 2. **The approval path for meta actions** — `pending` + correlation key + resume, instead of the flat refusal. Every future sensitive meta action inherits it.
 3. **The personnel file** — as a control-plane query first, visible on the employee profile. Useful to a human reading it directly, before any agent reads it.
 4. **The three actions** with the `agents:review` scope and their guard-rail subjects, and the prompt section that follows the scope.
@@ -147,9 +172,13 @@ Each slice is worth shipping on its own:
 
 ## Open points
 
-- **The review cycle's cost is the feature's price.** A weekly review across a population of thirty is thirty runs a week with a large reading context, and it competes for the same capacity as the work ([`18-runtimes-capacity.md`](18-runtimes-capacity.md)). Reviewing on a trigger — an agent whose abort rate or unit cost moved — is cheaper and more targeted, but it makes the platform's most judgement-heavy agent fire on the indicators that `17` deliberately keeps out of any control loop. Cycle first, because it is honest about what it costs; the trigger is worth revisiting once there is a population to measure it on.
-- **Who may see a personnel file.** `17` already leaves this open for the indicators (*"performance data per agent is more sensitive than a cost total"*). The file is sharper than the indicators, and the answer decides both.
-- **Reviews across organisations.** Nothing here is org-scoped by accident — every action resolves within the sender's org, as delegation does. Whether a group of organisations on one instance ever wants a shared People function is a question for [`09-enterprise-model.md`](09-enterprise-model.md), not for this document.
+**The review cycle's cost is the feature's price, and it is the one thing left open.** A weekly review across a population of thirty is thirty runs a week with a large reading context, competing for the same capacity as the work itself ([`18-runtimes-capacity.md`](18-runtimes-capacity.md)). Reviewing on a **trigger** instead — an agent whose abort rate or unit cost moved — is cheaper and better aimed.
+
+The argument against the trigger is narrower than it first looks, and worth stating precisely rather than hiding behind a rule. It violates the *letter* of [`17-kpis.md`](17-kpis.md) — "no scheduler decision hangs off one" — but not its *purpose*, which is that no agent has anything to gain from its own numbers. The reviewed agent never sees them, so there is nothing to play towards; what changes is only which colleague gets read this week. That is a defensible reading, and it is exactly the kind of reading that should be written down before it is acted on rather than discovered in a diff afterwards.
+
+**Cycle first**, because at the population size where this is built the difference is nothing, and because a fixed rhythm is honest about what it costs. The trigger becomes the question at the point where the cycle stops being affordable — which is a fact about a real instance, not something to decide here.
+
+*Settled while writing:* who may read a personnel file (with the recordings, above) and whether reviews cross organisations (they do not — every action resolves within the sender's org, as delegation does; a shared People function across organisations would be a question for [`09-enterprise-model.md`](09-enterprise-model.md), and nobody has asked it).
 
 ---
 
