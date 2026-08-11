@@ -925,14 +925,28 @@ var aktionen = map[string]aktion{
 		return map[string]any{"assigned_to": u.Username, "user_id": u.ID}, nil
 	},
 	"set_labels": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
-		if in.ProjectID == 0 || in.IssueIID == 0 {
-			return nil, fmt.Errorf("project_id or issue_iid missing")
+		// Works on either an issue or a merge request — GitLab exposes labels
+		// as two separate resources (there is no shared path), so the target
+		// is whichever ID the caller actually supplied. issue_iid wins if an
+		// agent somehow sends both, which should not happen in practice.
+		switch {
+		case in.ProjectID == 0:
+			return nil, fmt.Errorf("project_id missing")
+		case in.IssueIID != 0:
+			iss, err := gc.SetLabels(ctx, in.ProjectID, in.IssueIID, in.AddLabels, in.RemoveLabels)
+			if err != nil {
+				return nil, err
+			}
+			return map[string]any{"issue_iid": iss.IID, "labels": iss.Labels}, nil
+		case in.MRIID != 0:
+			mr, err := gc.SetMRLabels(ctx, in.ProjectID, in.MRIID, in.AddLabels, in.RemoveLabels)
+			if err != nil {
+				return nil, err
+			}
+			return map[string]any{"mr_iid": mr.IID, "labels": mr.Labels}, nil
+		default:
+			return nil, fmt.Errorf("issue_iid or mr_iid missing")
 		}
-		iss, err := gc.SetLabels(ctx, in.ProjectID, in.IssueIID, in.AddLabels, in.RemoveLabels)
-		if err != nil {
-			return nil, err
-		}
-		return map[string]any{"issue_iid": iss.IID, "labels": iss.Labels}, nil
 	},
 	"escalate": func(ctx context.Context, gc *Client, in aktionsParams) (any, error) {
 		note := in.Note
@@ -1038,13 +1052,17 @@ const promptDocActions = `Available GitLab actions: list_projects {}, list_issue
    exactly from the section "Team (human employees)" of your prompt and explain the handover in a comment,
    set_labels {"project_id":N,"issue_iid":N,"add_labels":["…"],"remove_labels":["…"]} sets and removes labels on an
    EXISTING issue without touching the others (give at least one of the two lists; the answer contains the
-   label state reached). That is how you maintain an item's working state visibly on the board — state and change
-   in the same step: when passing it on, remove the old state label and set the new one, never only add, or an
-   issue ends up carrying three contradictory states. The subject-matter labels (component, type) you do
-   not touch. IMPORTANT: a label that does not yet exist in the project is created SILENTLY by GitLab when set — a
-   typo ("in_progress" instead of "in-progress") therefore produces a permanent project label nobody clears away.
-   Take the state names character for character from your playbook and invent no variants. Every label is its own
-   list entry; an entry with a comma in it is refused,
+   label state reached). Give "mr_iid" instead of "issue_iid" to do the exact same thing on a merge request
+   — issues and merge requests are separate GitLab resources with separate label endpoints, but this one action
+   covers both; give exactly one of the two IDs, never both. This is the action behind every label-driven handoff
+   between agents on a merge request (needs-arch-review, ready-for-qa, qa-passed/qa-failed, security-veto) — there
+   is no separate MR-labels action to look for. That is how you maintain an item's working state visibly on the
+   board — state and change in the same step: when passing it on, remove the old state label and set the new one,
+   never only add, or an issue/MR ends up carrying three contradictory states. The subject-matter labels
+   (component, type) you do not touch. IMPORTANT: a label that does not yet exist in the project is created
+   SILENTLY by GitLab when set — a typo ("in_progress" instead of "in-progress") therefore produces a permanent
+   project label nobody clears away. Take the state names character for character from your playbook and invent
+   no variants. Every label is its own list entry; an entry with a comma in it is refused,
    list_branches {"project_id":N,"search":"..."} lists branches (the default branch is marked — do not guess branch names),
    list_commits {"project_id":N,"ref":"...","path":"file/or/directory","since":"ISO date"} lists the commit history
    (all filters optional), get_commit {"project_id":N,"sha":"..."} returns a commit's diff,
