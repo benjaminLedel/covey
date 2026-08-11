@@ -295,8 +295,7 @@ func notesLimit(limit int) int {
 //
 // The window sits at the NEW end — that is where the current state of a thread
 // is. Within the window Notes runs chronologically ascending, exactly as before,
-// so that everything reading the thread from behind (lastHumanNoteIsMine,
-// threadSig) stays valid.
+// so that everything reading the thread from behind (threadSig) stays valid.
 type NotesPage struct {
 	Notes   []Note
 	Page    int

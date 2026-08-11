@@ -479,7 +479,11 @@ func TestHasWork(t *testing.T) {
 		t.Fatalf("fresh MR without feedback: has=%v err=%v", has, err)
 	}
 
-	// The last comment is the bot's own → already answered, no work.
+	// A conversation has started → might be waiting on the bot. Comment
+	// authorship can't disambiguate "the bot answered last" from "a
+	// colleague agent commented under the same shared identity" (this
+	// organization has no per-role bot accounts), so any non-system comment
+	// counts as possible work — see mrReviewPending's doc comment.
 	mrNotes = []Note{
 		{ID: 1, Body: "Bitte Test ergänzen", Author: struct {
 			Username string `json:"username"`
@@ -488,8 +492,8 @@ func TestHasWork(t *testing.T) {
 			Username string `json:"username"`
 		}{Username: "covey-bot"}},
 	}
-	if has, err := sys.HasWork(ctx, cred); err != nil || has {
-		t.Fatalf("MR already answered: has=%v err=%v", has, err)
+	if has, err := sys.HasWork(ctx, cred); err != nil || !has {
+		t.Fatalf("MR with any comment: has=%v err=%v", has, err)
 	}
 
 	// New foreign feedback after the bot's answer → work. A closing system
@@ -1649,27 +1653,33 @@ func TestHasWorkKindIssuesAssigned(t *testing.T) {
 		t.Fatalf("with an assignment: has=%v err=%v", has, err)
 	}
 
-	// The bot commented last → worked on, rests until the answer. Exactly here
-	// the agent ran into the endless loop before: the issue stayed assigned to
-	// it, so it counted as work afresh in every 2-minute interval.
+	// Comment authorship used to decide "already answered" here by comparing
+	// the last commenter against the bot's own username — broken in an
+	// organization without per-role bot accounts, where a colleague agent's
+	// comment is indistinguishable from the bot's own (see issueWorkPending's
+	// doc comment). Every assigned, open issue now counts as work
+	// unconditionally, regardless of who commented or how many times —
+	// avoiding an endless re-wake on a truly settled issue is the job of the
+	// signature-based dedup one layer up (heartbeatHasWork in the
+	// orchestrator, exercised by TestWorkSignature for the MR case; the same
+	// threadSig mechanism carries the issue case here), not of this boolean.
 	notes = []Note{
 		{ID: 1, Body: "Bitte fixen", Author: by("leaddev")},
 		{ID: 2, Body: "Erledigt via MR !12", Author: by("covey-bot")},
 	}
-	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || has {
-		t.Fatalf("an issue answered by the bot must not wake it: has=%v err=%v", has, err)
+	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || !has {
+		t.Fatalf("an assigned issue always counts as work: has=%v err=%v", has, err)
 	}
 
-	// A system comment after that (a label changed) changes nothing …
+	// Further notes, system or not, change nothing about that boolean either
+	// way — only the signature moves, tested separately.
 	notes = append(notes, Note{ID: 3, System: true, Body: "added label", Author: by("leaddev")})
-	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || has {
-		t.Fatalf("a system note must not wake it: has=%v err=%v", has, err)
+	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || !has {
+		t.Fatalf("still work after a system note: has=%v err=%v", has, err)
 	}
-
-	// … a real answer does.
 	notes = append(notes, Note{ID: 4, Body: "Noch ein Fall", Author: by("leaddev")})
 	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || !has {
-		t.Fatalf("a new answer must wake it: has=%v err=%v", has, err)
+		t.Fatalf("still work after a real note: has=%v err=%v", has, err)
 	}
 }
 
@@ -1734,18 +1744,19 @@ func TestHasWorkKindReview(t *testing.T) {
 	reviewMRs, mrNotes = nil, nil
 	check(false)
 
-	// A freshly assigned MR without a comment → the first review is outstanding
-	// (work).
+	// An MR assigned to me for review → work, regardless of its notes. This
+	// kind collapses to level detection (see mrReviewAssignedPending's doc
+	// comment): comment authorship can't tell "the author reworked it" from
+	// "I already reviewed it" apart under a shared identity, so unlike the
+	// old contract, `mine`/`author` no longer change the outcome — kept as
+	// unused local vars here only to document what used to matter.
+	_, _ = author, mine
 	reviewMRs, mrNotes = []MergeRequest{mrIn}, nil
 	check(true)
-
-	// The author answered last (reworked it) → check again (work).
 	reviewMRs, mrNotes = []MergeRequest{mrIn}, author
 	check(true)
-
-	// I (qa-bot) commented last → the round is answered, no work.
 	reviewMRs, mrNotes = []MergeRequest{mrIn}, mine
-	check(false)
+	check(true)
 }
 
 // TestCheckoutGitBaseline secures the ground on which the sub-agent works in
@@ -1898,8 +1909,11 @@ func TestWorkSignature(t *testing.T) {
 	mr.References.Full = "gruppe/support!9"
 	myMRs = []MergeRequest{mr}
 
-	// Without work the signature is empty — it then suppresses nothing.
-	mrNotes = []Note{{ID: 1, Body: "erledigt", Author: author("covey-bot")}}
+	// Without work the signature is empty — it then suppresses nothing. A
+	// fresh MR with zero comments is the only case this can still tell
+	// without relying on comment authorship (see mrReviewPending's doc
+	// comment) — once anyone has said anything, it counts as possible work.
+	mrNotes = nil
 	has, sig, err := sys.HasWorkSigned(ctx, cred, "mr")
 	if err != nil || has || sig != "" {
 		t.Fatalf("without work: has=%v sig=%q err=%v", has, sig, err)
