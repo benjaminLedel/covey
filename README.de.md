@@ -41,7 +41,7 @@ Dann **[http://localhost:8494](http://localhost:8494)** öffnen — Login `admin
 
 Das mitgelieferte [`docker-compose.yml`](docker-compose.yml) bringt Postgres (pgvector) und das covey-Binary mit eingebetteter Admin-UI; `bootstrap` legt Organisation, Admin, einen Demo-Agenten und dessen Arbeitsplatz an, Migrationen laufen automatisch.
 
-Alles außer der dritten Zeile dauert Sekunden. Sie baut den Container, in dem ein Agent arbeitet ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, eine Node- und Java-Toolchain) und braucht ein paar Minuten — man kann sie zum Umsehen auch weglassen: die Plattform startet ohne sie und sagt beim Start und auf der Agenten-Übersicht, dass der erste Lauf scheitern wird, solange sie fehlt.
+Alles außer der dritten Zeile dauert Sekunden. Sie baut den Container, in dem ein Agent arbeitet ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, git, ripgrep — das Profil `base`) und braucht ein paar Minuten. Entwickler-Agenten wollen darauf das Profil `dev` (`make sandbox-image-dev`: zusätzlich PHP, JDK und die Versionsmanager `fvm`/`uv`); es wird je Agent gesetzt — man kann sie zum Umsehen auch weglassen: die Plattform startet ohne sie und sagt beim Start und auf der Agenten-Übersicht, dass der erste Lauf scheitern wird, solange sie fehlt.
 
 *Lieber das blanke Binary?* [`install.sh`](#installation) holt es aus dem [neuesten Release](https://github.com/benjaminLedel/covey/releases/latest) und prüft die Checksumme. *Lieber erst schauen?* Die laufende Instanz steht unter **[covey.work](https://covey.work)**. Vollständige Anleitung inkl. erstem Agenten und Produktions-Checkliste: [`docs/quickstart-docker.md`](docs/quickstart-docker.md).
 
@@ -228,6 +228,8 @@ Spezifikation und Runbooks sind auf **Englisch** — sie richten sich an alle, d
 | Dokument | Inhalt |
 |---|---|
 | [`docs/quickstart-docker.md`](docs/quickstart-docker.md) | Compose-Setup, erster Agent, Produktions-Checkliste |
+| [`docs/upgrade.md`](docs/upgrade.md) | Upgrades, die mehr als einen Neustart brauchen — was vorher zu bauen und zu sichern ist |
+| [`docs/ops-runner.md`](docs/ops-runner.md) | Runner: Sandboxen auf mehr als einem Host, der Home-Store, harte Egress-Isolation |
 | [`docs/ops-deployment.md`](docs/ops-deployment.md) | CI-Pipeline, Auto-Deploy auf einen Zielhost |
 | [`docs/ops-zammad.md`](docs/ops-zammad.md) | Zammad anbinden: API-Token, Webhook + Trigger, kundensichtbare Antworten |
 | [`docs/ops-github.md`](docs/ops-github.md) | GitHub: Issues, Pull Requests, Actions, Checkout in der Sandbox |

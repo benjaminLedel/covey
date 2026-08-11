@@ -832,6 +832,12 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		log.Info("egress enforcement: hard network isolation active", "proxy-image", "covey-egress:latest")
 	}
 
+	// Clear away the egress objects of earlier versions: the segment carries
+	// the runner's identity now, so the instance-wide ones are left behind at
+	// an upgrade. In the binary rather than in an upgrade guide — a step that
+	// has to be read and typed is one that is skipped.
+	runner.PruneLegacyEgress(ctx, "", log)
+
 	// Bring the existing organisations' runners up at startup rather than at
 	// the first wake: the self-check below is meant to say what is in the way
 	// BEFORE an agent runs into it, and it can only ask a runner that is there.

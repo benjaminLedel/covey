@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"os/exec"
@@ -488,4 +489,45 @@ func rewriteLoopbackForDocker(rawURL string) string {
 	}
 	u.Host = host
 	return u.String()
+}
+
+// Names of the egress objects as they were before they carried a runner: one
+// internal network and one proxy container for the whole instance. Nothing
+// uses them any more.
+const (
+	legacyEgressNetwork = "covey-egress-internal"
+	legacyEgressProxy   = "covey-egress-proxy"
+)
+
+// PruneLegacyEgress clears away the instance-wide egress objects of earlier
+// versions. Since the segment carries the runner's identity, the old ones are
+// left behind at an upgrade — an orphaned container that keeps restarting and
+// an internal network nobody joins.
+//
+// In the binary and not in the upgrade guide, on purpose: whoever installs
+// Covey from GitHub gets the tooling with it, and an upgrade step that has to
+// be read and typed is one that is skipped.
+//
+// Best effort throughout. A network that still has a sandbox from before
+// attached cannot be removed, and that is not worth an error — the next start
+// tries again, and until then the leftover costs nothing but a line in
+// `docker network ls`.
+func PruneLegacyEgress(ctx context.Context, dockerBin string, log *slog.Logger) {
+	if dockerBin == "" {
+		dockerBin = "docker"
+	}
+	out, err := exec.CommandContext(ctx, dockerBin, "inspect", "-f", "{{.Id}}", legacyEgressProxy).Output()
+	if err != nil && len(out) == 0 {
+		// Neither of them is there: a fresh installation, or already cleaned.
+		if err := exec.CommandContext(ctx, dockerBin, "network", "inspect", legacyEgressNetwork).Run(); err != nil {
+			return
+		}
+	}
+	if err := exec.CommandContext(ctx, dockerBin, "rm", "-f", legacyEgressProxy).Run(); err == nil {
+		log.Info("egress proxy of an earlier version removed — the segment now carries the runner",
+			"container", legacyEgressProxy)
+	}
+	if err := exec.CommandContext(ctx, dockerBin, "network", "rm", legacyEgressNetwork).Run(); err == nil {
+		log.Info("internal egress network of an earlier version removed", "network", legacyEgressNetwork)
+	}
 }

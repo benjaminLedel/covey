@@ -41,7 +41,7 @@ Then open **[http://localhost:8494](http://localhost:8494)** — log in with `ad
 
 The bundled [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector) and the covey binary with its embedded admin UI; `bootstrap` creates the organisation, the admin, a demo agent and its workplace, and migrations run automatically.
 
-Everything but the third line takes seconds. That one builds the container an agent works inside ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, a Node and Java toolchain) and takes a few minutes — you can skip it to look around first: the platform starts without it and says at startup, and on the agent overview, that the first wake will fail until it exists.
+Everything but the third line takes seconds. That one builds the container an agent works inside ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, git, ripgrep — the `base` profile) and takes a few minutes. Developer agents want the `dev` profile on top of it (`make sandbox-image-dev`: plus PHP, a JDK and the version managers `fvm`/`uv`); it is set per agent — you can skip it to look around first: the platform starts without it and says at startup, and on the agent overview, that the first wake will fail until it exists.
 
 *Rather have the plain binary?* [`install.sh`](#install) fetches it from the [latest release](https://github.com/benjaminLedel/covey/releases/latest) and verifies its checksum. *Rather look before you install?* The running instance is at **[covey.work](https://covey.work)**. Full walkthrough including your first agent and a production checklist: [`docs/quickstart-docker.md`](docs/quickstart-docker.md).
 
@@ -229,6 +229,8 @@ All runbooks are in English.
 |---|---|
 | [`docs/quickstart-docker.md`](docs/quickstart-docker.md) | Compose setup, first agent, production checklist |
 | [`docs/ops-deployment.md`](docs/ops-deployment.md) | CI pipeline, auto-deploy to a target host |
+| [`docs/upgrade.md`](docs/upgrade.md) | Upgrades that need more than a restart — what to build and back up beforehand |
+| [`docs/ops-runner.md`](docs/ops-runner.md) | Runners: sandboxes on more than one host, the home store, hard egress isolation |
 | [`docs/ops-zammad.md`](docs/ops-zammad.md) | Connecting Zammad: API token, webhook + trigger, customer-visible replies |
 | [`docs/ops-github.md`](docs/ops-github.md) | GitHub: issues, pull requests, Actions, checkout inside the sandbox |
 | [`docs/ops-gitlab.md`](docs/ops-gitlab.md) | GitLab: issues, merge requests, checkout inside the sandbox |
