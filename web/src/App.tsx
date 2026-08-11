@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, buildInfo, post, type Approval, type Principal, type SetupState } from "./api";
+import { api, buildInfo, post, type Approval, type ImprovementItem, type Principal, type SetupState } from "./api";
 import i18n, { gespeicherteSprache, istVorgerendert, merkeSprache } from "./i18n";
 import HelpDrawer from "./components/HelpDrawer";
 import ThemeSwitch from "./components/ThemeSwitch";
@@ -10,6 +10,7 @@ import PublicSite from "./public/PublicSite";
 import Dashboard from "./pages/Dashboard";
 import AgentPage from "./pages/Agent";
 import Approvals from "./pages/Approvals";
+import Improvements from "./pages/Improvements";
 import Guardrails from "./pages/Guardrails";
 import Secrets from "./pages/Secrets";
 import Skills from "./pages/Skills";
@@ -104,6 +105,12 @@ const icons: Record<string, React.JSX.Element> = {
     </>
   ),
   shield: <path d="M12 3l7 3v5c0 5-3 8-7 10c-4-2-7-5-7-10V6z" />,
+  wrench: (
+    <>
+      <path d="M14.5 4.5a4.5 4.5 0 0 0 5.6 5.9l-8.4 8.4a2.4 2.4 0 0 1-3.4-3.4l8.4-8.4a4.5 4.5 0 0 0-2.2-2.5z" />
+      <circle cx="7.5" cy="17.5" r="0.8" />
+    </>
+  ),
   key: (
     <>
       <circle cx="8" cy="8" r="3.5" />
@@ -320,6 +327,17 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
   });
   const pending = approvals.data?.length ?? 0;
 
+  // Der Zaehler der offenen Punkte. Fehlerhaft (403 fuer Controlling) heisst
+  // hier schlicht: keine Zahl.
+  const improvements = useQuery({
+    queryKey: ["improvements", "pending-count"],
+    queryFn: () => api<ImprovementItem[] | null>("/improvements?status=pending"),
+    refetchInterval: 60000,
+    retry: false,
+    enabled: me.Role !== "controlling",
+  });
+  const offenePunkte = improvements.data?.length ?? 0;
+
   /* Die Einrichtung steht nur im Menue, solange sie etwas zu tun hat.
      Ein Punkt, der dauerhaft bleibt und dauerhaft erledigt ist, wird zu
      Moebel — dieselbe Ueberlegung wie bei der Checkliste auf der
@@ -378,6 +396,14 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
         <div className="nav-group">
           <NavItem to="/" end icon="robot" label={t("nav.agents")} />
           <NavItem to="/approvals" icon="bell" label={t("nav.approvals")} count={pending} />
+          {/* Die offenen Punkte aus dem Betrieb (spec/21). Neben den Freigaben,
+              weil es dieselbe Handbewegung ist: etwas liegt da und wartet auf
+              die Entscheidung eines Menschen. Controlling sieht den Punkt
+              nicht — der Endpunkt liesse es nicht durch, und ein Menuepunkt,
+              der in einer 403 endet, ist keiner. */}
+          {me.Role !== "controlling" && (
+            <NavItem to="/improvements" icon="wrench" label={t("nav.improvements")} count={offenePunkte} />
+          )}
           <NavItem to="/costs" icon="chart" label={t("nav.costs")} />
           <NavItem to="/org" icon="sitemap" label={t("nav.org")} />
         </div>
@@ -488,6 +514,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
             <Route path="/people/:id" element={<PersonPage me={me} />} />
             <Route path="/profile" element={<Navigate to={`/people/${me.ID}`} replace />} />
             <Route path="/approvals" element={<Approvals />} />
+            <Route path="/improvements" element={<Improvements me={me} />} />
             <Route path="/guardrails" element={<Guardrails me={me} />} />
             <Route path="/secrets" element={<Secrets me={me} />} />
             <Route path="/users" element={<Users me={me} />} />

@@ -147,6 +147,47 @@ export type Approval = {
   requested_at: string;
 };
 
+// Ein offener Punkt aus dem Betrieb (spec/21). Drei Sorten, eine Liste, weil
+// alle drei denselben Menschen brauchen: der Vorschlag mit Diff, der Befund
+// ohne einen (den Auftrag eines Kollegen kann nur der Mensch ändern, der ihn
+// verantwortet) und das Issue, das schon im Tracker liegt.
+export type ImprovementItem = {
+  id: string;
+  agent_id: string;
+  kind: "proposal" | "finding" | "issue";
+  title: string;
+  rationale: string;
+  base_version: number;
+  files: Record<string, string>;
+  author_agent_id?: string;
+  task_id?: string;
+  status: "pending" | "accepted" | "rejected";
+  decided_by?: string;
+  decided_at?: string;
+  decision_note: string;
+  applied_version: number;
+  created_at: string;
+  // Vom Server angereichert:
+  agent_slug: string;
+  agent_name: string;
+  agent_owner_id?: string;
+  author_slug?: string;
+  author_name?: string;
+  current_version: number;
+  // Gegen eine ältere Version geschrieben. Für sich noch kein Hinderungsgrund.
+  stale: boolean;
+  // Dateien, die seit der Basis von jemand anderem geändert wurden. Solange
+  // die Liste nicht leer ist, wird der Vorschlag nicht angenommen.
+  conflicts?: string[];
+  // Fasst ACCESS.md oder EGRESS.md an — dann entscheidet platform_admin oder
+  // security, nicht der Teamleiter, dem der Agent gehört (spec/02).
+  needs_security: boolean;
+  diff?: { file: string; before: string; after: string }[];
+};
+
+export const decideImprovement = (id: string, accept: boolean, note: string) =>
+  post<ImprovementItem>(`/improvements/${id}/decide`, { accept, note });
+
 export type Guardrail = {
   id: string;
   scope_level: string;

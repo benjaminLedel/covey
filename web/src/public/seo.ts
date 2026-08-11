@@ -273,6 +273,7 @@ export const APP_ROUTE_PREFIXES = [
   "/costs",
   "/egress",
   "/guardrails",
+  "/improvements",
   "/org",
   "/orgs",
   "/people",

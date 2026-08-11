@@ -329,6 +329,14 @@ func (s *Server) Handler() http.Handler {
 	// Trust layer.
 	mux.Handle("GET /api/v1/approvals", s.rbac(anyRole, s.handleListApprovals))
 	mux.Handle("POST /api/v1/approvals/{id}/decide", s.rbac(append(manage, identity.RoleSecurity), s.handleDecideApproval))
+
+	// Die offenen Punkte aus dem Betrieb (improvements.go, spec/21): Vorschlag,
+	// Befund, Issue. Lesen darf, wen es angeht — Controlling fehlt bewusst,
+	// entschieden wird wie bei den Freigaben.
+	mux.Handle("GET /api/v1/improvements", s.rbac(improvementReadRoles(), s.handleListImprovements))
+	mux.Handle("GET /api/v1/improvements/{id}", s.rbac(improvementReadRoles(), s.handleGetImprovement))
+	mux.Handle("POST /api/v1/improvements/{id}/decide",
+		s.rbac(append(manage, identity.RoleSecurity), s.handleDecideImprovement))
 	mux.Handle("GET /api/v1/guardrails", s.rbac(anyRole, s.handleListGuardrails))
 	mux.Handle("POST /api/v1/guardrails", s.rbac(securityRoles, s.handleCreateGuardrail))
 	mux.Handle("PATCH /api/v1/guardrails/{id}", s.rbac(securityRoles, s.handleUpdateGuardrail))

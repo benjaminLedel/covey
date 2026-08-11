@@ -639,6 +639,28 @@ func (r *Registry) CurrentConfig(ctx context.Context, agentID uuid.UUID) (Config
 	return cv, nil
 }
 
+// ConfigAtVersion returns one specific config version — the basis a proposal
+// was written against (spec/21). Everything else reads the latest one; this is
+// the only place that needs an older one, and it needs it to answer whether
+// somebody edited the same file underneath an open proposal.
+func (r *Registry) ConfigAtVersion(ctx context.Context, agentID uuid.UUID, version int) (ConfigVersion, error) {
+	var cv ConfigVersion
+	var filesJSON []byte
+	err := r.pool.QueryRow(ctx, `SELECT id, agent_id, version, files, compiled_prompt, created_at
+		FROM agent_config_versions WHERE agent_id=$1 AND version=$2`, agentID, version).
+		Scan(&cv.ID, &cv.AgentID, &cv.Version, &filesJSON, &cv.CompiledPrompt, &cv.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return cv, ErrNotFound
+	}
+	if err != nil {
+		return cv, err
+	}
+	if err := json.Unmarshal(filesJSON, &cv.Files); err != nil {
+		return cv, fmt.Errorf("config files: %w", err)
+	}
+	return cv, nil
+}
+
 // Accesses returns the materialised accesses from ACCESS.md (broker check).
 func (r *Registry) Accesses(ctx context.Context, agentID uuid.UUID) ([]SystemAccess, error) {
 	rows, err := r.pool.Query(ctx, "SELECT system, scopes FROM system_accesses WHERE agent_id=$1", agentID)

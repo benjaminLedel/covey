@@ -346,7 +346,8 @@
     "audit": "Audit",
     "requests": "Requests",
     "skills": "Skills",
-    "setupPage": "Setup"
+    "setupPage": "Setup",
+    "improvements": "Open items"
   },
   "costs": {
     "title": "Cost & Tokens",
@@ -1071,6 +1072,36 @@
     "approve": "Approve",
     "deny": "Deny",
     "decided": "Decided"
+  },
+  "improvements": {
+    "title": "Open items",
+    "open": "{{count}} open",
+    "onlyMine": "Only my agents",
+    "hint": "What operations found about a colleague: a proposal for its configuration, a finding about its assignment, or an issue against the platform. None of it is in effect — a proposal becomes the running config only once you accept it.",
+    "noOpen": "Nothing open.",
+    "decided": "{{count}} decided",
+    "by": "by {{name}} ·",
+    "kind": {
+      "proposal": "Proposal",
+      "finding": "Finding",
+      "issue": "Issue"
+    },
+    "status": {
+      "accepted": "Accepted",
+      "rejected": "Rejected"
+    },
+    "needsSecurity": "Changes access — security decides",
+    "conflict": "Conflict: {{files}} has been changed since",
+    "stale": "Written against version {{base}}, current is {{current}}",
+    "showDiff": "Show the change ({{files}})",
+    "newFile": "new file",
+    "skipped": "… {{count}} unchanged lines",
+    "notePlaceholder": "Note on the decision (optional)",
+    "accept": "Accept",
+    "done": "Done",
+    "reject": "Reject",
+    "blockedConflict": "The configuration has changed since this proposal was written — it has to be rewritten or discarded.",
+    "blockedSecurity": "This proposal changes ACCESS.md or EGRESS.md. Only platform_admin or security may accept it."
   },
   "guardrails": {
     "title": "Guard Rails",

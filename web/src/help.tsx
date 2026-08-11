@@ -211,6 +211,45 @@ const deTopics: HelpTopic[] = [
     ),
   },
   {
+    id: "offene-punkte",
+    title: "Offene Punkte",
+    match: (p) => p.startsWith("/improvements"),
+    body: (
+      <>
+        <p>
+          Was der Betrieb an einem Kollegen gefunden hat, landet hier — und nur hier. Drei Sorten,
+          eine Liste, weil alle drei denselben Menschen brauchen:
+        </p>
+        <dl>
+          <dt><Badge st="working">Vorschlag</Badge></dt>
+          <dd>
+            Eine Änderung an der Konfiguration, mit Diff. Sie ist <b>nicht in Kraft</b>: erst das
+            Annehmen schreibt eine neue Version — auf demselben Weg, den ein Mensch von Hand geht,
+            und mit ihm als Urheber.
+          </dd>
+          <dt><Badge st="pending">Befund</Badge></dt>
+          <dd>
+            Der Auftrag passt nicht. Den kann die Plattform nicht ändern, das kann nur der Mensch,
+            der ihn verantwortet — der Punkt bleibt offen, bis er abgehakt wird.
+          </dd>
+          <dt><Badge st="sleeping">Issue</Badge></dt>
+          <dd>Die Plattform ist die Ursache. Der Bericht liegt schon im Tracker.</dd>
+        </dl>
+        <p>
+          <b>Wer annehmen darf, hängt an den Dateien.</b> Ein Vorschlag zu <Term>SOUL.md</Term> oder{" "}
+          <Term>PLAYBOOKS.md</Term> gehört dem Verwalter des Agenten. Fasst er{" "}
+          <Term>ACCESS.md</Term> oder <Term>EGRESS.md</Term> an, weitet er einen Zugang — dann
+          entscheidet <Term>platform_admin</Term> oder <Term>security</Term>, wie überall sonst.
+        </p>
+        <p>
+          Ein Vorschlag ist ein Diff gegen eine Basis. Wurde dieselbe Datei zwischenzeitlich von
+          Hand geändert, wird er nicht angenommen, sondern als Konflikt gezeigt — er muss neu
+          geschrieben oder verworfen werden. Abgelehnte Punkte bleiben mit ihrem Grund stehen.
+        </p>
+      </>
+    ),
+  },
+  {
     id: "guardrails",
     title: "Guard-Rails",
     match: (p) => p.startsWith("/guardrails"),
@@ -546,6 +585,45 @@ const enTopics: HelpTopic[] = [
         <p>
           Decisions are part of the recording and thus auditable. The "Approvals" count in the
           navigation shows pending requests.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: "offene-punkte",
+    title: "Open items",
+    match: (p) => p.startsWith("/improvements"),
+    body: (
+      <>
+        <p>
+          What operations found about a colleague lands here, and nowhere else. Three kinds, one
+          list, because all three need the same person:
+        </p>
+        <dl>
+          <dt><Badge st="working">Proposal</Badge></dt>
+          <dd>
+            A change to the configuration, with a diff. It is <b>not in effect</b>: only accepting
+            it writes a new version — on the same path a human takes by hand, and with them as the
+            author.
+          </dd>
+          <dt><Badge st="pending">Finding</Badge></dt>
+          <dd>
+            The assignment is wrong. The platform cannot change that; only the person who owns it
+            can — the item stays open until it is ticked off.
+          </dd>
+          <dt><Badge st="sleeping">Issue</Badge></dt>
+          <dd>The platform is the cause. The report is already in the tracker.</dd>
+        </dl>
+        <p>
+          <b>Who may accept depends on the files.</b> A proposal to <Term>SOUL.md</Term> or{" "}
+          <Term>PLAYBOOKS.md</Term> belongs to whoever manages the agent. If it touches{" "}
+          <Term>ACCESS.md</Term> or <Term>EGRESS.md</Term> it widens an access — then{" "}
+          <Term>platform_admin</Term> or <Term>security</Term> decides, as everywhere else.
+        </p>
+        <p>
+          A proposal is a diff against a base. If the same file was edited by hand in the meantime,
+          it is not accepted but shown as a conflict — it has to be rewritten or discarded. Rejected
+          items stay, with their reason.
         </p>
       </>
     ),

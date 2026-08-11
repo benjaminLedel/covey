@@ -346,7 +346,8 @@
     "audit": "Audit",
     "requests": "Requests",
     "skills": "Skills",
-    "setupPage": "Einrichtung"
+    "setupPage": "Einrichtung",
+    "improvements": "Offene Punkte"
   },
   "costs": {
     "title": "Kosten & Token",
@@ -1071,6 +1072,36 @@
     "approve": "Freigeben",
     "deny": "Ablehnen",
     "decided": "Entschieden"
+  },
+  "improvements": {
+    "title": "Offene Punkte",
+    "open": "{{count}} offen",
+    "onlyMine": "Nur meine Agenten",
+    "hint": "Was der Betrieb an einem Kollegen gefunden hat: ein Vorschlag für seine Konfiguration, ein Befund zu seinem Auftrag oder ein Issue gegen die Plattform. Nichts davon ist in Kraft — ein Vorschlag wird erst zur laufenden Config, wenn Sie ihn annehmen.",
+    "noOpen": "Nichts offen.",
+    "decided": "{{count}} entschieden",
+    "by": "von {{name}} ·",
+    "kind": {
+      "proposal": "Vorschlag",
+      "finding": "Befund",
+      "issue": "Issue"
+    },
+    "status": {
+      "accepted": "Angenommen",
+      "rejected": "Abgelehnt"
+    },
+    "needsSecurity": "Ändert Zugänge — Security entscheidet",
+    "conflict": "Konflikt: {{files}} wurde zwischenzeitlich geändert",
+    "stale": "Gegen Version {{base}} geschrieben, aktuell ist {{current}}",
+    "showDiff": "Änderung ansehen ({{files}})",
+    "newFile": "neue Datei",
+    "skipped": "… {{count}} unveränderte Zeilen",
+    "notePlaceholder": "Notiz zur Entscheidung (optional)",
+    "accept": "Annehmen",
+    "done": "Erledigt",
+    "reject": "Ablehnen",
+    "blockedConflict": "Die Konfiguration hat sich seit diesem Vorschlag geändert — er muss neu geschrieben oder verworfen werden.",
+    "blockedSecurity": "Dieser Vorschlag ändert ACCESS.md oder EGRESS.md. Nur platform_admin oder security dürfen ihn annehmen."
   },
   "guardrails": {
     "title": "Guard-Rails",
