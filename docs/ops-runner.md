@@ -39,15 +39,22 @@ curl -X POST https://covey.example/api/v1/runners/registration-tokens \
      -d '{"description":"Build host Frankfurt"}'
 ```
 
-On the new host — Docker, the sandbox image, and the runner binary:
+On the new host. The runner view prints these three lines with the token
+already in them — the installation script comes from your own instance, so the
+runner matches the server it will talk to:
 
 ```bash
-make sandbox-image                       # or pull it; the runner needs the image locally
+curl -fsSL https://covey.example/install.sh | sh -s -- --runner
 covey-runner register --url https://covey.example --token <registration token> \
                       --description "Build host Frankfurt" \
                       --tag arm64 --image covey-sandbox:latest
 covey-runner run
 ```
+
+The host also needs the sandbox image the agents work in — `make sandbox-image`
+there, or pull it from your registry. A runner reports which images it holds and
+gets only matching agents, so a host without the image is simply not a candidate
+rather than a failure at wake time.
 
 `register` writes `/etc/covey-runner/config.toml` (overridable with
 `--config`): the server address, the runner token, the working directory, and

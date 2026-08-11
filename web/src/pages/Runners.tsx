@@ -350,11 +350,24 @@ export default function Runners({ me }: { me: Principal }) {
 }
 
 // registerCommand ist, was auf dem neuen Host laufen muss — als Ganzes zum
-// Einfügen. Ohne Beschreibung und Tags: beides ist optional, und ein
-// Platzhalter im Befehl ist etwas, das jemand mitkopiert und dann sucht,
-// warum sein Runner „…" heißt.
+// Einfügen, und zwar ab dem Punkt, an dem dieser Host wirklich steht: ohne
+// covey-runner. Der Befehl, der ein Binary voraussetzt, das es dort nicht gibt,
+// ist einer, nach dem man erst noch suchen muss.
+//
+// Das Installationsskript kommt von dieser Instanz und bringt die zu ihr
+// passende Version mit (spec/16, „Protokollversion") — deshalb die eigene
+// Adresse und nicht die von GitHub.
+//
+// Ohne Beschreibung und Tags: beides ist optional, und ein Platzhalter im
+// Befehl ist etwas, das jemand mitkopiert und dann sucht, warum sein Runner
+// „…" heißt.
 function registerCommand(token: string): string {
-  return `covey-runner register --url ${window.location.origin} --token ${token}`;
+  const origin = window.location.origin;
+  return [
+    `curl -fsSL ${origin}/install.sh | sh -s -- --runner`,
+    `covey-runner register --url ${origin} --token ${token}`,
+    `covey-runner run`,
+  ].join("\n");
 }
 
 // ago ist „vor …" in grober Koernung. Genauer waere unnuetz: bei einem Runner,

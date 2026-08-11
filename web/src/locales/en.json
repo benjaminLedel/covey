@@ -1866,7 +1866,7 @@
     "decommission": "Decommission",
     "confirmDelete": "Decommission this runner? It takes only its local working copy with it — everything that matters is in the home store.",
     "addTitle": "Add a host",
-    "addHint": "The runner needs Docker and a way out. No database, no store credentials — it speaks exclusively the runner protocol.",
+    "addHint": "The runner needs Docker and a way out. No database, no store credentials — it speaks exclusively the runner protocol. The installation script comes from this instance and brings the matching version with it.",
     "newToken": "Create a registration token",
     "tokenOnce": "Shown once. On the new host, run:",
     "storeTitle": "Home store",

@@ -1866,7 +1866,7 @@
     "decommission": "Abbauen",
     "confirmDelete": "Diesen Runner abbauen? Er nimmt nur seine lokale Arbeitskopie mit — alles Wesentliche liegt im Home-Store.",
     "addTitle": "Host hinzufügen",
-    "addHint": "Der Runner braucht Docker und einen Weg nach draußen. Keine Datenbank, keine Speicher-Zugangsdaten — er spricht ausschließlich das Runner-Protokoll.",
+    "addHint": "Der Runner braucht Docker und einen Weg nach draußen. Keine Datenbank, keine Speicher-Zugangsdaten — er spricht ausschließlich das Runner-Protokoll. Das Installationsskript kommt von dieser Instanz und bringt die dazu passende Version mit.",
     "newToken": "Registrierungs-Token erzeugen",
     "tokenOnce": "Einmal im Klartext. Auf dem neuen Host ausführen:",
     "storeTitle": "Home-Store",
