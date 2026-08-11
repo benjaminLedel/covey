@@ -169,7 +169,7 @@ func (p *DockerProvider) Start(ctx context.Context, spec SandboxSpec) (Sandbox, 
 
 	var dind *dindSidecar
 	if spec.EnableDocker {
-		d, err := p.startDind(ctx, spec)
+		d, err := p.startDind(ctx, spec, home)
 		if err != nil {
 			return nil, fmt.Errorf("start docker-in-docker sidecar: %w", err)
 		}
@@ -409,12 +409,23 @@ func dindNetworkName(agentID string) string   { return "covey-dind-net-" + agent
 // GitLab's own CI already relies on for Docker-in-Docker jobs, not a new
 // risk invented here.
 //
+// home is mounted into the sidecar at the SAME path as into the sandbox
+// (sandboxHome). Without this, a bind mount in a `docker compose` file the
+// agent runs resolves its source path against the DAEMON's filesystem — which
+// is the sidecar container's own, not the sandbox's — so Docker silently
+// creates an empty directory there instead of finding the real file (a real
+// failure observed live: e2e-sumup-callback-relay in a stocki-e2e compose
+// stack couldn't find its bind-mounted script). Sharing the SAME home the
+// sandbox already has doesn't widen the trust boundary — this sidecar exists
+// 1:1 for this one agent already, --privileged and all; it just makes the
+// files the agent itself put there visible from the daemon side too.
+//
 // The sidecar's own egress (image pulls) is routed through the SAME
 // allowlist proxy as the sandbox's other traffic, by the same mechanism
 // (cooperative HTTP(S)_PROXY, or attached to the hard-isolation network) —
 // Docker-in-Docker must not become a side door around the org's egress
 // policy, only a place to run containers.
-func (p *DockerProvider) startDind(ctx context.Context, spec SandboxSpec) (*dindSidecar, error) {
+func (p *DockerProvider) startDind(ctx context.Context, spec SandboxSpec, home string) (*dindSidecar, error) {
 	container := dindContainerName(spec.AgentID.String())
 	network := dindNetworkName(spec.AgentID.String())
 
@@ -430,6 +441,7 @@ func (p *DockerProvider) startDind(ctx context.Context, spec SandboxSpec) (*dind
 		"--name", container,
 		"--network", network,
 		"--network-alias", dindAlias,
+		"-v", home + ":" + sandboxHome,
 		// Plaintext daemon: the private per-agent network is the boundary
 		// here, not TLS — nothing outside this sandbox+sidecar pair can reach
 		// this network at all.

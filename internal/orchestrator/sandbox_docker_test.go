@@ -152,6 +152,17 @@ func TestDockerProviderStartWithDocker(t *testing.T) {
 			t.Errorf("docker invocations do not contain %q:\n%s", want, got)
 		}
 	}
+	// The sidecar must get the SAME home mount as the sandbox — otherwise a
+	// bind mount in a compose file the agent runs resolves against the
+	// sidecar's own, empty filesystem instead of the checkout the agent
+	// actually put there (the real failure this closes: a compose service
+	// couldn't find its bind-mounted script). Both the sandbox's own `run`
+	// and the sidecar's `run` must carry it, so the mount line has to appear
+	// twice, not once.
+	homeMount := "-v\n" + filepath.Join(dir, "homes", agentID.String()) + ":" + sandboxHome
+	if n := strings.Count(got, homeMount); n != 2 {
+		t.Errorf("home mount %q must appear twice (sandbox + sidecar), appeared %d times:\n%s", homeMount, n, got)
+	}
 
 	if err := os.WriteFile(argsFile, nil, 0o644); err != nil {
 		t.Fatal(err)
