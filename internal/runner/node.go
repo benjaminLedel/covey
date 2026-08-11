@@ -115,6 +115,15 @@ func (n *Node) handle(ctx context.Context, t Transport, msg Message) {
 			return
 		}
 		n.sync(ctx, t, msg.ID, req)
+	case TypeHomeOp:
+		op, err := decode[HomeOp](msg)
+		if err != nil {
+			n.reply(ctx, t, msg.ID, TypeHomeResult, HomeResult{Err: err.Error()})
+			return
+		}
+		// In its own goroutine: a download of a few gigabytes must not stop the
+		// runner from starting a sandbox in the meantime.
+		go n.homeOp(context.WithoutCancel(ctx), t, msg.ID, op)
 	case TypeCheck:
 		req, err := decode[Check](msg)
 		if err != nil {

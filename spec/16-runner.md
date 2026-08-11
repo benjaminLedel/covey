@@ -394,7 +394,18 @@ Hard isolation mode (`network`) requires a proxy **in the sandbox's network segm
 
 The reasoning why file access deliberately does **not** go through the daemon protocol is preserved in the process — it even becomes cleaner: the home has to be readable even when the sandbox is asleep, and asleep is the normal state. The runner link exists continuously, the daemon link only during a run. The runner is therefore exactly the right seam for this requirement; the daemon would have been the wrong one.
 
-The built-in runner keeps the short path: the directory sits in the same process, and `home_op` reads it without a round trip. And once the home store exists, one more case falls out that has no answer today — a home whose runner is **offline** stays readable from its last snapshot. Read-only, with the state named plainly in the interface; browsing the work of an agent whose host is down is precisely the moment someone needs it.
+So there are three places a home can be read from, behind one interface: the **connected runner** (the live truth, and the only one that can be written to), the **last snapshot** when that runner is not connected, and nothing at all when there is neither — which is answered as "no reachable home" rather than as an empty listing that reads like an empty home. The built-in runner takes the same route; in its case `home_op` is a channel send and not a round trip.
+
+Reading from the snapshot is **read-only**, and not out of caution: a snapshot is a state that was, and writing into it would produce a second state beside the working copy that is coming back, with nothing to say which of the two is the home. The interface names that state in the listing itself and not only when a write fails — whoever is about to upload something should learn it beforehand.
+
+### What the browser writes has to be synced
+
+A change made through the browser lands in the runner's working copy. That is right — it is the live truth, and while the agent sleeps it is the only place it can land. But the snapshot is what the next wake materialises, and **on another runner it is the only thing there is**. Between the two lies a window in which an upload disappears without anyone having deleted it.
+
+So a change through the browser marks the home and a sync follows. Two things make that reliable rather than merely likely:
+
+- **Debounced, not per operation.** A sync walks the whole home; doing it per file would turn a fifty-file drag-and-drop into minutes of scanning. A short settling period turns it into one sync.
+- **Flushed before every start, and at shutdown.** The settling period is an optimisation, not the guarantee. The guarantee is that whatever it has not yet carried out is carried out at the moment where getting it wrong actually costs something — immediately before the home is materialised over the working copy.
 
 ## Interface
 
@@ -451,7 +462,7 @@ Every stage is useful in itself and can be accepted individually:
 | 2 | The seam: runner protocol, `Transport` with the in-process implementation, the built-in runner, the Docker provider moved behind it, `RunnerPool` as `SandboxProvider` | A crashed sandbox is reported instead of running into the `ReadyTimeout`, and what stands in the way of a wake becomes visible per host |
 | 3 | The home store: content-addressed storage, sync after the job, materialising on wake, local block storage | A lost home costs time instead of work, and the second agent on the same host starts warm — **both already with a single host** |
 | 4 | The remote runner: the WebSocket transport, `register` including a configuration file, the protocol handshake and version, `covey-runner` as a third binary plus its release artefacts (a binary per architecture, a Docker image, a systemd unit); and with it the built-in runner standing down | Sandboxes run on a second host — and only there |
-| 5 | `home_op` — the file browser over the runner link, and reading from the snapshot while a runner is offline | The file browser works remotely too, and does not fail when a host does |
+| 5 | `home_op` — the file browser over the runner link, reading from the snapshot while a runner is offline, and the sync of what the browser writes | The file browser works remotely too, does not fail when a host does, and no longer loses an upload when the agent moves |
 | 6 | Tags, capacity, a runner view in the UI | Operability from more than two runners onwards |
 | 7 | Interface: home info, snapshot list, retention setting and button, fill level on the dashboard | The store is visible and operable instead of growing quietly |
 | 8 | The `BlobStore` backend `s3` (the port exists from stage 3, `builtin` suffices up to here) | Durability and replication when the control plane's disk is not enough |

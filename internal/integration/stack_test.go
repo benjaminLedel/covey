@@ -8,6 +8,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha1"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http/httptest"
@@ -39,6 +40,7 @@ import (
 	"covey/internal/runner"
 	runnerstore "covey/internal/runner/store"
 	"covey/internal/runtimes"
+	"covey/internal/sandboxfs"
 	secbuiltin "covey/internal/secrets/builtin"
 	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
@@ -79,11 +81,11 @@ func (p *inprocProvider) Start(ctx context.Context, spec orchestrator.SandboxSpe
 	return &inprocSandbox{cancel: cancel, done: done}, nil
 }
 
-// AgentHome satisfies orchestrator.FileAccess: in-process too, the home lives on
-// disk. Without it the file browser (spec/02) could not be checked in the
+// AgentFiles satisfies orchestrator.FileAccess: in-process too, the home lives
+// on disk. Without it the file browser (spec/02) could not be checked in the
 // vertical slice — it hangs on exactly this port.
-func (p *inprocProvider) AgentHome(agentID uuid.UUID) (orchestrator.Home, error) {
-	return orchestrator.Home{Path: p.homeBase + "/" + agentID.String(), UID: -1, GID: -1}, nil
+func (p *inprocProvider) AgentFiles(agentID uuid.UUID) (sandboxfs.Tree, error) {
+	return sandboxfs.New(p.homeBase+"/"+agentID.String(), -1, -1)
 }
 
 type inprocSandbox struct {
@@ -101,30 +103,31 @@ func (s *inprocSandbox) Stop(ctx context.Context) error {
 }
 
 type stack struct {
-	t         *testing.T
-	pool      *pgxpool.Pool
-	registry  *agents.Registry
-	backlog   *backlog.Store
-	obs       *observability.Store
-	rails     *guardrails.Store
-	secrets   *secbuiltin.Store
-	runtimes  *runtimes.Store
-	mem       *memory.Store
-	targets   *targetstore.Store
-	egress    *egress.Store
-	runners   *runnerstore.Store
-	skills    *skills.Store
-	reqlog    *reqlogstore.Store
-	templates *templates.Store
-	audit     *audit.Store
-	dreams    *dream.Store
-	orch      *orchestrator.Orchestrator
-	srv       *httpapi.Server
-	http      *httptest.Server
-	orgID     uuid.UUID
-	adminID   uuid.UUID
-	homeBase  string
-	cancel    context.CancelFunc
+	t          *testing.T
+	pool       *pgxpool.Pool
+	registry   *agents.Registry
+	backlog    *backlog.Store
+	obs        *observability.Store
+	rails      *guardrails.Store
+	secrets    *secbuiltin.Store
+	runtimes   *runtimes.Store
+	mem        *memory.Store
+	targets    *targetstore.Store
+	egress     *egress.Store
+	runners    *runnerstore.Store
+	skills     *skills.Store
+	reqlog     *reqlogstore.Store
+	templates  *templates.Store
+	audit      *audit.Store
+	dreams     *dream.Store
+	orch       *orchestrator.Orchestrator
+	srv        *httpapi.Server
+	stopRunner context.CancelFunc
+	http       *httptest.Server
+	orgID      uuid.UUID
+	adminID    uuid.UUID
+	homeBase   string
+	cancel     context.CancelFunc
 }
 
 // setRunnerPool hands the pool and the home store to the HTTP server, so that
@@ -134,6 +137,19 @@ func (s *stack) setRunnerPool(pool *runner.Pool, blobs homestore.BlobStore) {
 	s.srv.RunnerPool = pool
 	s.srv.Blobs = blobs
 }
+
+// cancelRunner cuts the connection to the built-in runner — a host that is
+// down, a maintenance window. What the tests want to know is what remains
+// answerable then.
+func (s *stack) cancelRunner() {
+	if s.stopRunner != nil {
+		s.stopRunner()
+	}
+}
+
+// errorsAs is errors.As, in a spelling the tests can pass a **T to without
+// importing errors everywhere.
+func errorsAs(err error, target any) bool { return errors.As(err, target) }
 
 const webhookSecret = "test-webhook-secret"
 

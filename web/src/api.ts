@@ -900,6 +900,10 @@ export type FileEntry = {
 };
 
 export type FileListing = {
+  // read_only: das Home wird aus dem letzten Snapshot gelesen, weil sein Runner
+  // nicht verbunden ist (spec/16). Schreiben ist dann abgelehnt.
+  read_only?: boolean;
+  read_only_reason?: string;
   path: string;
   /** false = das Home wurde noch nie angelegt (Agent nie geweckt). */
   exists: boolean;

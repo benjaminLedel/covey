@@ -1005,6 +1005,7 @@
       "sandboxImageDev": "dev — plus PHP, JDK, fvm, uv",
       "sandboxImageOwn": "Own image …",
       "sandboxImageHint": "The image this agent works in. A profile is a union of toolchains, not a cut along languages: a developer agent works on PHP and Flutter projects, a mail agent on neither. Takes effect at the next cold start; a running or warm-parked sandbox keeps its image.",
+      "filesReadOnly": "Read-only — from the last snapshot",
       "warmSandbox": "Warm sandbox",
       "warmOn": "on — sandbox stays live between runs",
       "warmOff": "off — sandbox is ephemeral",

@@ -19,6 +19,8 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+
+	"covey/internal/sandboxfs"
 )
 
 // Message is the envelope for both directions (JSON, transport-agnostic).
@@ -40,6 +42,11 @@ const (
 	// TypeSyncHome writes the home into the store as a snapshot — after the
 	// job, and enforceable besides (maintenance, decommissioning a runner).
 	TypeSyncHome = "sync_home"
+	// TypeHomeOp is file access to a home: list, read, write, delete. It does
+	// not go through the daemon protocol on purpose — the home has to be
+	// readable while the sandbox is asleep, and asleep is the normal state. The
+	// runner link exists continuously, the daemon link only during a run.
+	TypeHomeOp = "home_op"
 	// TypeCheck asks what stands between this runner and a running sandbox —
 	// no Docker daemon, a missing image. Asked instead of guessed, because the
 	// answer is specific to the host and only it can give it.
@@ -58,8 +65,75 @@ const (
 	TypeSandboxExited = "sandbox_exited"
 	TypeCheckResult   = "check_result"
 	TypeHomeSynced    = "home_synced"
+	TypeHomeResult    = "home_result"
 	TypeHeartbeat     = "heartbeat"
 )
+
+// The file operations of home_op. One message with an operation name rather
+// than one message kind per operation: they share their answer shape, and a
+// dozen near-identical kinds would only spread the same switch over the
+// protocol.
+const (
+	OpList   = "list"
+	OpRead   = "read"
+	OpOpen   = "open" // stream a file in chunks
+	OpPlan   = "plan" // measure an archive before the first byte is out
+	OpZip    = "zip"  // stream the archive in chunks
+	OpWrite  = "write"
+	OpMkdir  = "mkdir"
+	OpRemove = "remove"
+	OpMove   = "move"
+	OpUsage  = "usage"
+)
+
+// HomeOp is one file operation on an agent's home.
+type HomeOp struct {
+	AgentID uuid.UUID `json:"agent_id"`
+	Op      string    `json:"op"`
+	Path    string    `json:"path,omitempty"`
+	// To is the destination of a move; Paths the selection of an archive.
+	To    string   `json:"to,omitempty"`
+	Paths []string `json:"paths,omitempty"`
+	// Data is the content of a write, in one message. Bounded by
+	// sandboxfs.MaxWriteBytes, which the control plane checks before sending.
+	Data []byte `json:"data,omitempty"`
+}
+
+// HomeResult answers a home_op. Streaming answers (open, zip) arrive as
+// several results with the same correlation ID; the last one carries EOF.
+type HomeResult struct {
+	Err string `json:"err,omitempty"`
+	// ErrKind names the error so the other side can map it back to the one the
+	// HTTP layer already knows — "not found" has to stay a 404 across the link,
+	// not become a 500.
+	ErrKind string `json:"err_kind,omitempty"`
+
+	Listing *sandboxfs.Listing  `json:"listing,omitempty"`
+	File    *sandboxfs.File     `json:"file,omitempty"`
+	Entry   *sandboxfs.Entry    `json:"entry,omitempty"`
+	Usage   *sandboxfs.Usage    `json:"usage,omitempty"`
+	Info    *sandboxfs.FileInfo `json:"info,omitempty"`
+	Plan    *ZipMeasure         `json:"plan,omitempty"`
+
+	Data []byte `json:"data,omitempty"`
+	EOF  bool   `json:"eof,omitempty"`
+}
+
+// ZipMeasure is a ZipPlan as it travels: what was selected and how big it is.
+// The items themselves stay on the runner — planning is cheap, and planning
+// afresh when writing is cheaper than carrying a file list of a whole home
+// through the control channel.
+type ZipMeasure struct {
+	Name  string   `json:"name"`
+	Files int      `json:"files"`
+	Bytes int64    `json:"bytes"`
+	Paths []string `json:"paths"`
+}
+
+// chunkLimit bounds one message's payload. The control channel is meant to stay
+// narrow — a 4 GB download travels as many small messages rather than as one
+// that no read limit would survive.
+const chunkLimit = 512 << 10
 
 // Registered is the runner's first message: what it is and what it can carry.
 type Registered struct {

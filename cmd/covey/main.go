@@ -679,6 +679,27 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	// It requires backup like the database. 99 % of it would only have to be
 	// downloaded again, but the rest exists nowhere else — it is a cache in its
 	// function, not in its need for protection.
+	// What the file browser needs about an agent: whose organisation it is,
+	// where its home last lay, and which snapshot it was last synced to. The
+	// last two are what make a home readable when its runner is not connected.
+	runnerPool.HomeInfo = func(ctx context.Context, agentID uuid.UUID) (uuid.UUID, uuid.UUID, string, error) {
+		agent, err := registry.Get(ctx, agentID)
+		if err != nil {
+			return uuid.Nil, uuid.Nil, "", err
+		}
+		snap, err := runnerStore.LatestSnapshot(ctx, agentID)
+		if err != nil {
+			// Not fatal: without a snapshot the connected runner is still the
+			// answer, and that is the normal case anyway.
+			log.Warn("last snapshot not readable", "agent", agentID, "err", err)
+		}
+		last := uuid.Nil
+		if snap.RunnerID != nil {
+			last = *snap.RunnerID
+		}
+		return agent.OrgID, last, snap.ManifestHash, nil
+	}
+
 	var blobs homestore.BlobStore
 	if cfg.HomeStore {
 		dir, err := homestore.NewDir(filepath.Join(cfg.DataDir, "blocks"))
@@ -686,6 +707,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			return err
 		}
 		blobs = dir
+		runnerPool.Blobs = dir
 		runnerPool.LatestSnapshot = func(ctx context.Context, agentID uuid.UUID) (string, error) {
 			snap, err := snapshotStore.LatestSnapshot(ctx, agentID)
 			return snap.ManifestHash, err
@@ -925,6 +947,11 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		httpServer.Shutdown(shutdownCtx)
+		// Whatever the file browser has changed and not yet synced goes in now.
+		// A settling period that is still running would otherwise fire into a
+		// connection that is already gone, and the change would live only in the
+		// working copy — which is exactly the case this is meant to prevent.
+		runnerPool.FlushHomes(shutdownCtx)
 	}()
 
 	log.Info("covey serve", "addr", cfg.ListenAddr, "public", cfg.PublicURL, "build", buildinfo.String())

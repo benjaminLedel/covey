@@ -12,7 +12,9 @@ import (
 
 	"github.com/google/uuid"
 
+	"covey/internal/homestore"
 	"covey/internal/orchestrator"
+	"covey/internal/sandboxfs"
 )
 
 // Pool is the control plane's side of the runner protocol and at the same time
@@ -47,6 +49,14 @@ type Pool struct {
 	// SnapshotTaken files a completed sync. Only afterwards may anything be
 	// cleaned up locally — no prune before a successful sync (spec/16).
 	SnapshotTaken func(ctx context.Context, agentID, runnerID uuid.UUID, res HomeSynced) error
+	// AgentHome answers the three things file access needs about an agent:
+	// whose organisation it is, which runner it last ran on, and which snapshot
+	// its home was last synced to. nil = the pool can only serve agents whose
+	// runner is connected, and nothing from a snapshot.
+	HomeInfo func(ctx context.Context, agentID uuid.UUID) (orgID, lastRunner uuid.UUID, snapshot string, err error)
+	// Blobs is the home store. With it a home stays readable while its runner
+	// is offline — from its last snapshot, read-only.
+	Blobs homestore.BlobStore
 	// HomeExcludes are the paths left out of the sync. Empty = everything is
 	// synced, which is the default on purpose: the list is a cost question, not
 	// a prerequisite for correctness.
@@ -63,6 +73,11 @@ type Pool struct {
 	// simultaneous wakes in a fresh organisation would each start a built-in
 	// runner, and the second would take the first one's place.
 	ensuring map[uuid.UUID]*sync.Mutex
+	// dirty are the homes the file browser has changed since the last sync. A
+	// write through the browser lives only in the runner's working copy, and an
+	// agent that wakes elsewhere in the meantime would materialise a snapshot
+	// that does not have it.
+	dirty map[uuid.UUID]*dirtyHome
 	// local is the built-in runner when it runs in this process. It is kept
 	// only for the short path to the home: reading a file from the directory
 	// next door does not need a round trip through the protocol.
@@ -84,6 +99,10 @@ type conn struct {
 
 	mu      sync.Mutex
 	waiters map[string]chan Message
+	// streams marks the correlations that answer with several messages. Without
+	// it the first chunk would end the correlation and the rest would arrive
+	// with nobody waiting.
+	streams map[string]bool
 	// sandboxes counts what is running here — the whole of the scheduling
 	// weight for now: no bin packing, no resource modelling.
 	sandboxes int
@@ -104,7 +123,11 @@ func NewPool(log *slog.Logger) *Pool {
 	if log == nil {
 		log = slog.Default()
 	}
-	return &Pool{Log: log, conns: map[uuid.UUID]*conn{}, ensuring: map[uuid.UUID]*sync.Mutex{}}
+	return &Pool{
+		Log: log, conns: map[uuid.UUID]*conn{},
+		ensuring: map[uuid.UUID]*sync.Mutex{},
+		dirty:    map[uuid.UUID]*dirtyHome{},
+	}
 }
 
 // Attach takes a connected runner into the pool and speaks the protocol with
@@ -175,7 +198,7 @@ func (p *Pool) register(ctx context.Context, t Transport, builtin bool) (*conn, 
 		runnerID: reg.RunnerID, orgID: reg.OrgID, builtin: builtin,
 		protocol: reg.Protocol, version: reg.Version, arch: reg.Arch,
 		tags: reg.Tags, images: reg.Images,
-		t: t, pool: p, waiters: map[string]chan Message{},
+		t: t, pool: p, waiters: map[string]chan Message{}, streams: map[string]bool{},
 	}
 	p.mu.Lock()
 	p.conns[reg.RunnerID] = c
@@ -239,11 +262,21 @@ func (c *conn) readLoop(ctx context.Context) error {
 		// else the runner says by itself is handled here.
 		if msg.ID != "" {
 			c.mu.Lock()
-			ch := c.waiters[msg.ID]
-			delete(c.waiters, msg.ID)
+			ch, streaming := c.waiters[msg.ID], c.streams[msg.ID]
+			if !streaming {
+				delete(c.waiters, msg.ID)
+			}
 			c.mu.Unlock()
 			if ch != nil {
-				ch <- msg
+				// A streaming answer (a download, an archive) arrives as several
+				// messages under one ID. Blocking here is on purpose: it is what
+				// keeps a slow reader from letting the runner fill our memory
+				// with a 4 GB file.
+				select {
+				case ch <- msg:
+				case <-ctx.Done():
+					return nil
+				}
 				continue
 			}
 		}
@@ -268,6 +301,34 @@ func (c *conn) readLoop(ctx context.Context) error {
 			c.pool.Log.Warn("runner: unexpected message", "type", msg.Type, "runner", c.runnerID)
 		}
 	}
+}
+
+// askStream sends a request whose answer arrives as several messages. The
+// caller reads until a message carries EOF and must always call the returned
+// stop — otherwise the correlation stays registered and the connection
+// accumulates readers nobody serves.
+func (c *conn) askStream(ctx context.Context, msgType string, payload any) (<-chan Message, func(), error) {
+	id := uuid.NewString()
+	msg, err := encode(msgType, id, payload)
+	if err != nil {
+		return nil, func() {}, err
+	}
+	ch := make(chan Message, 4)
+	c.mu.Lock()
+	c.waiters[id] = ch
+	c.streams[id] = true
+	c.mu.Unlock()
+	stop := func() {
+		c.mu.Lock()
+		delete(c.waiters, id)
+		delete(c.streams, id)
+		c.mu.Unlock()
+	}
+	if err := c.t.Send(ctx, msg); err != nil {
+		stop()
+		return nil, func() {}, err
+	}
+	return ch, stop, nil
 }
 
 // ask sends a request and waits for its answer.
@@ -438,6 +499,11 @@ func (p *Pool) pick(want need) (*conn, error) {
 
 // Start satisfies orchestrator.SandboxProvider.
 func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orchestrator.Sandbox, error) {
+	// Whatever the file browser wrote goes into the store BEFORE the home is
+	// materialised over it. Otherwise a snapshot from before the upload would
+	// win, and the file would be gone without anyone having deleted it.
+	p.flushHome(ctx, spec.AgentID)
+
 	want := need{orgID: spec.OrgID, image: p.imageFor(spec.Image), tags: spec.RunnerTags}
 	c, err := p.pick(want)
 	if errors.Is(err, errNoneInOrg) && p.EnsureLocal != nil {
@@ -565,19 +631,58 @@ func firstNonEmpty(a, b string) string {
 	return b
 }
 
-// AgentHome satisfies orchestrator.FileAccess. The built-in runner answers
-// from the file system next door; a remote one needs home_op over the runner
-// link, which is not built yet — and until it is, the honest answer is that
-// this provider has no reachable home rather than a path that is not there.
-func (p *Pool) AgentHome(agentID uuid.UUID) (orchestrator.Home, error) {
-	p.mu.Lock()
-	local := p.local
-	p.mu.Unlock()
-	if local == nil {
-		return orchestrator.Home{}, orchestrator.ErrNoFileAccess
+// AgentFiles satisfies orchestrator.FileAccess: it opens an agent's home
+// wherever it happens to lie.
+//
+// Three places, one interface. The runner that holds the working copy is the
+// live truth and the only one that can be written to. When it is not
+// connected, the last snapshot is still readable — read-only, because writing
+// into a snapshot would produce a state nobody can reconcile with the working
+// copy that is coming back. And when there is neither, the honest answer is
+// that this provider has no reachable home rather than an empty listing that
+// reads like an empty home.
+func (p *Pool) AgentFiles(agentID uuid.UUID) (sandboxfs.Tree, error) {
+	ctx := context.Background()
+	if p.HomeInfo == nil {
+		return nil, orchestrator.ErrNoFileAccess
 	}
-	path, uid, gid := local.AgentHome(agentID)
-	return orchestrator.Home{Path: path, UID: uid, GID: gid}, nil
+	orgID, lastRunner, snapshot, err := p.HomeInfo(ctx, agentID)
+	if err != nil {
+		return nil, err
+	}
+
+	if c := p.connFor(orgID, lastRunner); c != nil {
+		return &remoteTree{pool: p, conn: c, agentID: agentID, orgID: orgID}, nil
+	}
+	if snapshot != "" && p.Blobs != nil {
+		m, err := homestore.Load(ctx, p.Blobs, orgID, snapshot)
+		if err != nil {
+			return nil, err
+		}
+		return newSnapshotTree(p.Blobs, orgID, m), nil
+	}
+	return nil, orchestrator.ErrNoFileAccess
+}
+
+// connFor prefers the runner the home last lay on — its working copy is the
+// one the snapshot was taken from. Any other runner of the organisation would
+// answer about a home it may not even have.
+func (p *Pool) connFor(orgID, preferred uuid.UUID) *conn {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if c := p.conns[preferred]; c != nil && c.orgID == orgID {
+		return c
+	}
+	// Without a preference (an agent that has never run) any runner of the
+	// organisation will do: they all answer about the same, empty home.
+	if preferred == uuid.Nil {
+		for _, c := range p.conns {
+			if c.orgID == orgID {
+				return c
+			}
+		}
+	}
+	return nil
 }
 
 // Check satisfies orchestrator.DataPlaneChecker: it asks every connected
