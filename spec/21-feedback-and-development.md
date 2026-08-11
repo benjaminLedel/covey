@@ -98,6 +98,8 @@ A review is a task like any other, and it is worth being deliberate about what t
 
 **The heartbeat, per period rather than per agent.** One task per review cycle that names the agents due — not one heartbeat per colleague, which multiplies the population by the cycle and makes the People department the most expensive department in the house. Which colleagues are due comes out of the org chart and the last review's date.
 
+**The cycle is weekly**, written as `alle: 7d`. Worth knowing what that is and is not: `HEARTBEAT.md` has an interval form and a time-of-day form and no weekday ([`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)), so "Mondays at eight" cannot be said. A seven-day interval measures from the last firing and therefore drifts — after a few restarts the review lands on a Saturday night, and its findings wait for a person until Monday anyway. That is tolerable for a cycle whose whole point is regularity rather than punctuality. If it becomes annoying, the fix is a `wöchentlich: Mo 08:00` form in the parser, which is a small addition and useful well beyond this feature — not something this document needs first.
+
 **What the run produces**, in this order, because the order is the judgement:
 
 1. It reads the personnel file and the current config.
@@ -172,13 +174,13 @@ Each slice is worth shipping on its own:
 
 ## Open points
 
-**The review cycle's cost is the feature's price, and it is the one thing left open.** A weekly review across a population of thirty is thirty runs a week with a large reading context, competing for the same capacity as the work itself ([`18-runtimes-capacity.md`](18-runtimes-capacity.md)). Reviewing on a **trigger** instead — an agent whose abort rate or unit cost moved — is cheaper and better aimed.
+**The review cycle's cost is the feature's price.** It is settled for now — **weekly**, on the heartbeat, as described above — and the reason it can be settled so lightly is that the setting is a line in a config file. What is not settled is the shape it takes when the population grows: a weekly review across thirty agents is thirty runs a week with a large reading context, competing for the same capacity as the work itself ([`18-runtimes-capacity.md`](18-runtimes-capacity.md)). Reviewing on a **trigger** instead — an agent whose abort rate or unit cost moved — is cheaper and better aimed.
 
 The argument against the trigger is narrower than it first looks, and worth stating precisely rather than hiding behind a rule. It violates the *letter* of [`17-kpis.md`](17-kpis.md) — "no scheduler decision hangs off one" — but not its *purpose*, which is that no agent has anything to gain from its own numbers. The reviewed agent never sees them, so there is nothing to play towards; what changes is only which colleague gets read this week. That is a defensible reading, and it is exactly the kind of reading that should be written down before it is acted on rather than discovered in a diff afterwards.
 
-**Cycle first**, because at the population size where this is built the difference is nothing, and because a fixed rhythm is honest about what it costs. The trigger becomes the question at the point where the cycle stops being affordable — which is a fact about a real instance, not something to decide here.
+So: **the cycle now, the trigger as the open question** — to be reopened at the point where the cycle stops being affordable, which is a fact about a real instance rather than something to decide here.
 
-*Settled while writing:* who may read a personnel file (with the recordings, above) and whether reviews cross organisations (they do not — every action resolves within the sender's org, as delegation does; a shared People function across organisations would be a question for [`09-enterprise-model.md`](09-enterprise-model.md), and nobody has asked it).
+*Settled while writing:* who may read a personnel file (with the recordings, above); whether reviews cross organisations (they do not — every action resolves within the sender's org, as delegation does; a shared People function across organisations would be a question for [`09-enterprise-model.md`](09-enterprise-model.md), and nobody has asked it); and who reviews the reviewer (a human, deliberately — see above).
 
 ---
 
