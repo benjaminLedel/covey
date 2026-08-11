@@ -147,6 +147,14 @@ The backlog is **not a transient queue** but a persistent, inspectable object in
 - **Retry:** `failed → open` and `cancelled → open` are permitted transitions — a failed or discarded task can be **rescheduled** manually (result/error are cleared, the history stays in the transitions, the agent is woken). `done` stays final.
 - **Archive instead of delete:** terminal tasks (`done`/`failed`/`cancelled`) can be **archived** individually or in bulk ("Clean up") (`archived_at`). Archived means: hidden from the active backlog but fully preserved — history and recording references stay valid, and the UI shows the archive on request. Active tasks (`open`/`in_progress`/`blocked`) are deliberately not archivable.
 
+**A lost sandbox is not a failed task — but not an infinite retry either.**
+
+When the daemon connection drops mid-run (container killed, the host under resource pressure, a network blip), that is an infrastructure event and says nothing about the work. The task therefore goes back to `open` instead of to `failed`, and the next dispatch picks it up again. Without this, a resource spike that disconnects several sandboxes at once strands every task that was running at the time: terminal, with no automatic way back, until somebody notices and retries them by hand.
+
+Requeueing without a limit would be right for a sporadic drop and wrong for a reproducible one — a broken sandbox image after a deploy, an OOM on container start, an agent config that reliably tears its container down. There the task circles `open → in_progress → connection lost → open`, paying for a full sandbox start every round, and nothing shows that it is stuck rather than working. After **five losses in a row** the task is therefore failed after all, with an error text naming the connection as the cause so it stays distinguishable from an error the agent itself produced. A manual retry starts from a clean count.
+
+The count sits on the task, not in the control plane's memory: a restart is one of the things that produces these losses, so an in-process counter would be back at zero immediately afterwards. Any run that ends for a different reason — blocked, the budget stop, a manual retry — clears it. Only a genuine series counts.
+
 ### Stages: a kanban overlay on top of the state
 
 The **state** is the machine truth — the scheduler hangs off it (`ClaimNext` takes `open`), as do `blocked` suspension and completion. It is fixed and must not become free-form, or the orchestrator loses its footing.
