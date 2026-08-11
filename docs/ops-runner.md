@@ -142,3 +142,28 @@ There is deliberately **no fallback** onto the built-in runner when a
 registered one does not fit: that would restore the mixed pool through the back
 door. Register an `arm64` build host and nothing else, and your developer
 agents have candidates on paper and none in fact — the message says so.
+
+## The file browser
+
+An agent's home is reachable from the interface no matter where it lies. Three
+cases, and the interface says which one it is in:
+
+| Situation | What you get |
+|---|---|
+| The runner holding the home is connected | the live working copy: read and write |
+| It is not connected | the last snapshot: **read-only**, marked as such in the listing |
+| No runner and no snapshot | "no reachable home" — an agent that has never run |
+
+The second case is the one worth knowing about, because it is when you most
+want it: looking at the work of an agent whose host is down. Writing is refused
+there with a 409 and a reason. That is not caution — a change to a snapshot
+would be a second state beside the working copy that is coming back, and
+nothing could then say which of the two is the home.
+
+**What you write is synced.** An upload lands in the runner's working copy, but
+the next wake materialises the snapshot — and on another runner the snapshot is
+all there is. So a change through the browser triggers a sync: debounced by a
+few seconds, so a fifty-file drag-and-drop is one sync and not fifty, and
+forced before the next start of the sandbox and at shutdown of the control
+plane. If you ever see an upload survive in the browser but not in the agent's
+next run, that chain is where to look.

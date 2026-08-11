@@ -297,6 +297,10 @@ func (c *conn) readLoop(ctx context.Context) error {
 				c.pool.SandboxDied(ev.AgentID, ev.Reason)
 			}
 		case TypeHeartbeat:
+		case TypeHomeResult:
+			// A chunk whose reader has gone: a download the browser cancelled.
+			// Dropped silently — the alternative is a warning per chunk, which
+			// turns one cancelled download into a page of log.
 		default:
 			c.pool.Log.Warn("runner: unexpected message", "type", msg.Type, "runner", c.runnerID)
 		}
