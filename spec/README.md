@@ -43,6 +43,7 @@ The guiding metaphor from which the whole architecture follows: the platform is 
 | [`17-kpis.md`](17-kpis.md) | Performance indicators: KPIs as counting rules over recorded evidence, `KPIS.md` per agent, unit cost and productive share against the cost figures |
 | [`18-runtimes-capacity.md`](18-runtimes-capacity.md) | Runtimes as contracts: engine vs. configured workplace, credential pools per provider, merit order, reported utilisation, what a cost figure means |
 | [`19-codex-adapter.md`](19-codex-adapter.md) | Second engine (planned): `codex exec`, credential as a file vs. an environment variable, tokens without a price, no utilisation source |
+| [`20-agent-templates.md`](20-agent-templates.md) | Agent templates with declared requirements (secrets, plugins, egress, sandbox capabilities), the setup wizard that resolves them, typed template inputs, and the repeatable functional test |
 
 ## Design principles
 
