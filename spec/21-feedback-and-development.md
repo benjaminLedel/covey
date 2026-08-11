@@ -148,6 +148,21 @@ Nothing needs building for this: the `gitlab` and `github` plugins can `create_i
 
 **The discipline is that an issue costs a human's attention**, and an agent that files one per review turns the tracker into noise. Three rules, all of them prompt-level because they are judgement and not safety: it files when the same limit hit **more than one agent**, it looks for an existing issue first, and it names the evidence — which agents, which runs, what it cost. A report that says "the turn limit is too low" is worthless; one that says "eleven runs across three agents ended at the limit, $340, and in nine of them the work was nearly done" is a specification.
 
+### It reads the source too, and that is what makes the report worth reading
+
+An agent that may only *write* issues reports symptoms. Give it the platform's own repository to **read** and the same finding arrives as a diagnosis: not "runs die at the turn limit" but "runs die at the turn limit because there is no way to hand back a partial result — `covey/create_task` would be the way and refuses at `maxAgentTaskDepth`, which is exactly this case." The evidence for the first half is in the personnel file; the second half needs the code, and nobody else in the organisation is holding both.
+
+This is also the honest completion of the three-way judgement above. An agent is not only as good as its configuration — it is as good as the platform underneath it, and a People department that can only ever conclude "your config is wrong" will eventually be wrong about a colleague who was configured perfectly well.
+
+Four things it needs, and none of them is new machinery:
+
+- **Read access, in the ordinary way.** An `ACCESS.md` entry on the same target system the issues go to, scoped to reading the code and searching issues. The checkout mechanism is the existing one, and the working copy counts against the agent's checkout budget like any other ([`internal/target/repos.go`](../internal/target/repos.go) — five kept per agent by default, least recently used dropped).
+- **Pinned to the commit the instance is running.** `internal/buildinfo` carries version and commit, and the startup log and the interface's footer already show them. An agent reading `main` reports against code this instance does not execute — half of those findings are already fixed and the other half are not there yet, and both kinds cost a maintainer the same read. The running commit is the anchor, and it is available without asking anybody.
+- **The same repository the issues go to**, from the same configuration. An organisation on the internal GitLab reads the internal GitLab.
+- **A boundary: it reports, it does not fix.** Read access plus a language model invites the patch, and the patch is somebody else's job — the coding agent that already exists as a template (`examples/coding-agent.bundle.json`) picks the issue up. That is the org chart doing what an org chart is for, and it keeps this agent's output what it has been throughout: a proposal for a human, in the tracker where such proposals are decided.
+
+**One risk, named rather than left to be worked out.** An agent reading the control plane's source sees how the guard rails are implemented. That is not a new exposure: guard rails are enforced *outside* the runtime, at the broker, the egress and the tool layer ([`06-observability-control.md`](06-observability-control.md)), the security model has never rested on an agent not knowing how they work, and the source is public on GitHub in any case. What would be a genuine change is write access to that repository — which is why this entry is read-only and the issue is the only thing it produces.
+
 ## What it may never do
 
 Mirroring the four rules in [`20-hiring-and-setup.md`](20-hiring-and-setup.md), enforced in the control plane and not in a prompt:
@@ -170,7 +185,7 @@ Each slice is worth shipping on its own:
 5. **The bundle** — the People department's second employee, with its playbook, its `HEARTBEAT.md` and the review cycle.
 6. **The review on the employee profile** — history, dated, linked to the task it came out of.
 7. **The colleague channel** — the `PLAYBOOKS.md` section for the rest of the population.
-8. **Issues in the platform's repository** — the target as configuration, and the discipline in the playbook.
+8. **The platform's own repository** — read access pinned to the running commit, the issue target as configuration, and the discipline in the playbook. Read before write: the checkout alone already sharpens every finding the earlier slices produce, and it is the half that needs no tracker.
 
 ## Open points
 
