@@ -1,6 +1,7 @@
 package config
 
 import (
+	"net/netip"
 	"strings"
 	"testing"
 )
@@ -149,5 +150,48 @@ func TestDataPlaneWarnings(t *testing.T) {
 	foreign := Config{SandboxProvider: "e2b", PublicURL: "https://covey.example.com"}
 	if w := foreign.DataPlaneWarnings(); len(w) != 0 {
 		t.Fatalf("warning for a foreign provider: %q", w[0])
+	}
+}
+
+// A malformed proxy entry has to be an error at startup. Skipping it silently
+// would leave the installation with a limit that counts everybody into one
+// bucket — and that only shows up in production, where it looks like a limit
+// set too low rather than like a typo in the configuration.
+func TestParseTrustedProxies(t *testing.T) {
+	if _, err := parseTrustedProxies("10.0.0.0/8, nicht-eine-adresse"); err == nil {
+		t.Fatal("a malformed entry has to be an error")
+	}
+
+	// A single address counts as itself, a CIDR as its range, and "private"
+	// stands for the ranges a proxy in a docker network lives in.
+	p, err := parseTrustedProxies("10.0.0.2, 172.16.0.0/12, private")
+	if err != nil {
+		t.Fatal(err)
+	}
+	drin := func(s string) bool {
+		addr := netip.MustParseAddr(s)
+		for _, prefix := range p {
+			if prefix.Contains(addr) {
+				return true
+			}
+		}
+		return false
+	}
+	for _, addr := range []string{"10.0.0.2", "172.16.5.5", "127.0.0.1", "192.168.1.1"} {
+		if !drin(addr) {
+			t.Errorf("%s should count as a proxy", addr)
+		}
+	}
+	// A single address really is only itself, not its /24.
+	if _, err := parseTrustedProxies("10.0.0.2"); err != nil {
+		t.Fatal(err)
+	}
+	einzeln, _ := parseTrustedProxies("203.0.113.5")
+	if len(einzeln) != 1 || einzeln[0].Contains(netip.MustParseAddr("203.0.113.6")) {
+		t.Fatalf("a single address must not open a range: %v", einzeln)
+	}
+	// Empty means: trust nobody.
+	if leer, _ := parseTrustedProxies(""); len(leer) != 0 {
+		t.Fatalf("empty configuration must trust nobody: %v", leer)
 	}
 }

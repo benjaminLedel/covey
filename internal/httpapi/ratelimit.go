@@ -3,6 +3,7 @@ package httpapi
 import (
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -165,10 +166,64 @@ func (l *loginLimiter) sweep(now time.Time) {
 	}
 }
 
-// clientIP extracts the client IP from RemoteAddr (without the port). Behind a
-// reverse proxy that is the proxy IP; X-Forwarded-For is deliberately not
-// trusted (spoofable).
-func clientIP(r *http.Request) string {
+// clientIP is who a rate limit counts against.
+//
+// Without configured proxies it is the peer address, and X-Forwarded-For is
+// ignored: the header is written by whoever sends the request, so an instance
+// reachable directly would let every attacker pick their own bucket.
+//
+// Behind a reverse proxy — the setup docs/ops-deployment.md recommends for
+// production — the peer address is the PROXY, the same one for everybody.
+// Every limit keyed on it then becomes one shared bucket: ten sign-up attempts
+// an hour for the whole installation, and the eleventh guest at the conference
+// the codes were handed out for gets a 429. COVEY_TRUSTED_PROXIES therefore
+// names the addresses whose X-Forwarded-For may be believed.
+//
+// Read from the RIGHT: the proxy appends the peer it saw, so the rightmost
+// entry is the only one written by something we trust. Everything to the left
+// of it comes from the request and may be invented — an attacker sending
+// "X-Forwarded-For: 1.2.3.4" produces "1.2.3.4, <their real address>" after
+// the proxy has appended, and the first untrusted address from the right is
+// still theirs. Chained proxies are skipped as long as they are trusted too.
+func (s *Server) clientIP(r *http.Request) string {
+	peer := peerIP(r)
+	if len(s.TrustedProxies) == 0 {
+		return peer
+	}
+	addr, err := netip.ParseAddr(peer)
+	if err != nil || !s.trustedProxy(addr) {
+		return peer
+	}
+	fields := strings.Split(strings.Join(r.Header.Values("X-Forwarded-For"), ","), ",")
+	for i := len(fields) - 1; i >= 0; i-- {
+		hop, ok := parseForwarded(fields[i])
+		if !ok {
+			// Unreadable entry: from here leftwards nothing can be
+			// established any more. The peer is the honest answer — it is what
+			// we would have used without the header at all.
+			return peer
+		}
+		if s.trustedProxy(hop) {
+			continue // one more proxy of our own in the chain
+		}
+		return hop.String()
+	}
+	return peer
+}
+
+// trustedProxy reports whether an address is one of the configured proxies.
+func (s *Server) trustedProxy(addr netip.Addr) bool {
+	addr = addr.Unmap() // ::ffff:10.0.0.1 is 10.0.0.1
+	for _, p := range s.TrustedProxies {
+		if p.Contains(addr) {
+			return true
+		}
+	}
+	return false
+}
+
+// peerIP is the address of the direct connection, without the port.
+func peerIP(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr
@@ -176,7 +231,25 @@ func clientIP(r *http.Request) string {
 	return host
 }
 
+// parseForwarded reads one X-Forwarded-For entry. Bare addresses are the rule;
+// some proxies write "ip:port", which is accepted as well.
+func parseForwarded(field string) (netip.Addr, bool) {
+	field = strings.TrimSpace(field)
+	if field == "" {
+		return netip.Addr{}, false
+	}
+	if addr, err := netip.ParseAddr(field); err == nil {
+		return addr.Unmap(), true
+	}
+	if host, _, err := net.SplitHostPort(field); err == nil {
+		if addr, err := netip.ParseAddr(host); err == nil {
+			return addr.Unmap(), true
+		}
+	}
+	return netip.Addr{}, false
+}
+
 // loginKey is the rate-limit key: client IP + lowercased email.
-func loginKey(r *http.Request, email string) string {
-	return clientIP(r) + "|" + strings.ToLower(strings.TrimSpace(email))
+func (s *Server) loginKey(r *http.Request, email string) string {
+	return s.clientIP(r) + "|" + strings.ToLower(strings.TrimSpace(email))
 }

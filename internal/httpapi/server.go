@@ -13,6 +13,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"time"
 
 	"github.com/google/uuid"
@@ -114,6 +115,11 @@ type Server struct {
 	SiteURL string
 	// CookieSecure sets the Secure flag on the session cookie (HTTPS only).
 	CookieSecure bool
+	// TrustedProxies are the addresses whose X-Forwarded-For is believed —
+	// empty (the default) means: none, the peer address counts. It decides who
+	// a rate limit and an audit entry are attributed to (clientIP in
+	// ratelimit.go, COVEY_TRUSTED_PROXIES in the config).
+	TrustedProxies []netip.Prefix
 
 	// BaseCtx is the server's lifecycle. Background work that is meant to
 	// outlive a request (an agent's night run, say) hangs off it instead of
@@ -737,7 +743,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now()
-	key := loginKey(r, in.Email)
+	key := s.loginKey(r, in.Email)
 	if s.loginLimiter.blocked(key, now) {
 		writeErr(w, http.StatusTooManyRequests, "too many failed attempts — please try again later")
 		return

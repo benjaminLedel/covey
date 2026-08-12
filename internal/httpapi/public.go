@@ -83,7 +83,7 @@ func (s *Server) handleSignup(w http.ResponseWriter, r *http.Request) {
 	// The rate limit sits before every check that touches the database, and it
 	// counts the attempt rather than the failure: guessing codes is the point
 	// of the exercise here, and every guess is one request.
-	if !s.signupLimiter.allow(clientIP(r), time.Now()) {
+	if !s.signupLimiter.allow(s.clientIP(r), time.Now()) {
 		writeErr(w, http.StatusTooManyRequests, "too many attempts — please try again later")
 		return
 	}
