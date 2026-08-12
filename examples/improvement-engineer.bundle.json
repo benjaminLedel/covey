@@ -2,8 +2,8 @@
   "kind": "covey.agent-config",
   "version": 1,
   "agent": {
-    "slug": "covey-betrieb",
-    "display_name": "Improvement engineer",
+    "slug": "covey-doctor",
+    "display_name": "Covey Doctor",
     "runtime": "claude-code",
     "job_title": "Operations & Improvement"
   },

@@ -154,9 +154,37 @@ func (r *Registry) CreateDraft(ctx context.Context, orgID uuid.UUID, slug, displ
 // the same question as create() answers.
 const DefaultRuntime = "claude-code"
 
+// Der Betriebsingenieur trägt einen festen Namen.
+//
+// Er ist kein Kollege, den eine Organisation sich ausdenkt, sondern die
+// Plattform, die sich selbst betrachtet (spec/21) — dieselbe Rolle, die
+// `covey doctor` vor einem Upgrade einnimmt. Ein Agent, der jeden Kollegen
+// beurteilen und für ihn Änderungen vorschlagen darf, soll überall gleich
+// heißen: wer in einem fremden Recording „Covey Doctor" liest, weiß, was das
+// war, ohne die ACCESS.md nachzuschlagen. Deshalb Name und Slug reserviert und
+// gegen Umbenennen gesperrt — ein umbenannter Doctor wäre ein Agent mit den
+// Rechten des Doctors und dem Namen eines Kollegen.
+const (
+	DoctorSlug = "covey-doctor"
+	DoctorName = "Covey Doctor"
+)
+
+// IsDoctor erkennt den Betriebsingenieur am reservierten Slug. Der Slug ist
+// der Anker und nicht der Anzeigename, weil er eindeutig je Organisation ist —
+// und er ist mitgesperrt, sonst wäre das Umbenennen des Slugs der Umweg um die
+// Namenssperre.
+func IsDoctor(a Agent) bool { return a.Slug == DoctorSlug }
+
 func (r *Registry) create(ctx context.Context, orgID uuid.UUID, slug, displayName, runtime string, ownerID *uuid.UUID, draft bool) (Agent, error) {
 	if runtime == "" {
 		runtime = DefaultRuntime
+	}
+	// Der reservierte Slug bringt den Namen mit — hier und nicht im Handler,
+	// damit jeder Weg ihn erbt: Oberfläche, Bundle-Import, Entwurf. Sonst hinge
+	// die feste Identität daran, welchen Weg jemand genommen hat, und die
+	// Sperre gegen Umbenennen fände beim Import schon einen falschen Namen vor.
+	if slug == DoctorSlug {
+		displayName = DoctorName
 	}
 	hired := "now()"
 	if draft {

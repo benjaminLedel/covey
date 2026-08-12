@@ -200,6 +200,13 @@ Each slice is worth shipping on its own:
 3. **The work record** — as a control-plane query first, visible on the employee profile. Useful to a human reading it directly, before any agent reads it.
 4. **The three actions** with the `agents:review` scope and their guard-rail subjects, and the prompt section that follows the scope.
 5. **The bundle** — the department and its agent, with the playbook, the `HEARTBEAT.md` and the review cycle.
+   The agent's identity is **fixed by the platform**: slug `covey-doctor`, display name `Covey Doctor`, on every
+   instance and in both language versions of the bundle. Creating it under the reserved slug sets the name, and
+   renaming either the name or the slug is refused with a 409 — the slug is locked because renaming it would
+   otherwise be the way around the locked name. The reason is not tidiness: this is the one agent that may read
+   every colleague's work and propose changes to it, and an agent holding those permissions under an
+   inconspicuous name is one that nobody recognises for what it is in the org chart. The same reasoning that puts
+   guard rails outside the runtime puts this outside the input field.
 6. **The review on the employee profile** — history, dated, linked to the task it came out of.
 7. **The colleague channel** — the `PLAYBOOKS.md` section for the rest of the population.
 8. **The platform's own repository** — read access pinned to the running commit, the issue target as configuration, and the discipline in the playbook. Read before write: the checkout alone already sharpens every finding the earlier slices produce, and it is the half that needs no tracker.
