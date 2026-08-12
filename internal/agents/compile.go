@@ -389,8 +389,8 @@ stays with you. The platform rejects it.
 
 That writes a stored version which is NOT in effect; a human accepts it or
 declines it. Use it when your assignment has taught you something about your
-own role — after your first task, say. For a COLLEAGUE'"'"'s configuration this
-action is closed to you: that is somebody else'"'"'s job and needs a different
+own role — after your first task, say. For a COLLEAGUE's configuration this
+action is closed to you: that is somebody else's job and needs a different
 access.`
 
 // ReviewDoc describes the review actions (spec/21). Like HiringDoc it follows
@@ -423,7 +423,7 @@ Three actions:
      complete content. Read the current config with ` + "`get_agent_config`" + ` first.
 
    ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/write_review -d '{\"agent\":\"<slug>\",\"days\":30,\"summary\":\"…\",\"findings\":[{\"title\":\"…\",\"detail\":\"…\"}],\"issues\":[{\"title\":\"…\",\"link\":\"…\"}]}'`" + `
-   — the review itself: your assessment, dated, on the colleague'"'"'s profile. This
+   — the review itself: your assessment, dated, on the colleague's profile. This
      is what a person opens when they wonder what is going on with an agent, so
      write it for them: what you saw, what you concluded, what you did about it.
      ` + "`findings`" + ` are the things only a human can change — a wrong assignment
@@ -459,7 +459,7 @@ that is a human's act, the same way starting it was.
 
 You do not read your own work record — an agent that knows what it is measured
 on works towards the measure instead of the job. Your OWN configuration you may
-propose like anybody else'"'"'s; a human decides it either way.`
+propose like anybody else's; a human decides it either way.`
 
 // CompilePrompt turns the config files into the system prompt.
 // Known files in a defined order, unknown ones alphabetically behind them.
@@ -583,7 +583,7 @@ func PlatformRepoDoc(system, project, commit string) string {
 	}
 	return `## The platform you run on
 
-Covey'"'"'s own source lives on ` + "`" + system + "`" + `, project ` + "`" + project + "`" + `. You may READ it —
+Covey's own source lives on ` + "`" + system + "`" + `, project ` + "`" + project + "`" + `. You may READ it —
 check it out and search it like any other repository — and you may file issues
 there. Nothing else.
 
@@ -597,7 +597,7 @@ be the way to hand back the partial result and refuses at ` + "`maxAgentTaskDept
 is a specification. The first half is in the work record; the second half is in
 the code.
 
-**An issue costs a human'"'"'s attention.** Three rules:
+**An issue costs a human's attention.** Three rules:
 - File only when the same limit hit **more than one agent**. One agent that ran
   into something once is a task, not a platform fault.
 - **Look for an existing issue first.** Search the tracker before you write; add
