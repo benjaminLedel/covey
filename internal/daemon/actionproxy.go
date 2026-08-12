@@ -28,6 +28,10 @@ type actionProxy struct {
 	// tools are the target systems granted to the agent — the tool list of the
 	// MCP route (actionmcp.go). Empty means: only the shell route exists.
 	tools []ActionTool
+	// fetchSecret resolves a {{secret:<key>}} placeholder. Defaults to
+	// client.secret (a real, uncached control-plane round-trip); tests set
+	// this directly to a stub instead of standing up a fake connection.
+	fetchSecret func(ctx context.Context, key, taskID string) (InjectSecret, error)
 }
 
 func (c *Client) startActionProxy(ctx context.Context, taskID string, tools []ActionTool) (*actionProxy, error) {
@@ -35,7 +39,7 @@ func (c *Client) startActionProxy(ctx context.Context, taskID string, tools []Ac
 	if err != nil {
 		return nil, err
 	}
-	p := &actionProxy{client: c, taskID: taskID, ln: ln, tools: tools}
+	p := &actionProxy{client: c, taskID: taskID, ln: ln, tools: tools, fetchSecret: c.secret}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /actions/{system}/{action}", p.handle)
 	// The same actions once more as MCP tools — one door onto the same room
@@ -386,7 +390,7 @@ func (p *actionProxy) substituteSecrets(ctx context.Context, params json.RawMess
 			continue
 		}
 		seen[key] = true
-		sec, err := p.client.secret(ctx, key, p.taskID)
+		sec, err := p.fetchSecret(ctx, key, p.taskID)
 		if err != nil {
 			return nil, fmt.Errorf("secret %q: %w", key, err)
 		}
