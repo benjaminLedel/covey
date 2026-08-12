@@ -2594,9 +2594,12 @@ type gateVerdict struct {
 // Die Freigabe ist EINMALIG verbrauchbar (approvals.used). Eine erteilte
 // Freigabe ist die Antwort auf eine Handlung, keine Lizenz auf die Aktion.
 // binding schnürt eine Freigabe auf EINEN Gegenstand fest (leer = auf die
-// Aktion). covey:read_recording braucht das: eine erteilte Freigabe ist die
-// Antwort auf „darf er dieses Gespräch lesen" und nicht auf „darf er Gespräche
-// lesen" — sonst wäre die Freigabe für Lauf A die Eintrittskarte für Lauf B.
+// Aktion). Die Meta-Actions setzen es ausnahmslos (bindingOf in hiring.go): eine
+// erteilte Freigabe ist die Antwort auf die Parameter, die ein Mensch gelesen
+// hat, und nicht auf die Aktion als solche — sonst wäre die Freigabe für Lauf A
+// die Eintrittskarte für Lauf B, und die für `slug: "helper"` die für
+// `slug: "backdoor"`. Nur der Zielsystem-Pfad kommt noch mit leerem binding
+// hierher; dort ist die Aktion selbst der Gegenstand.
 func (o *Orchestrator) approvalGate(ctx context.Context, agent agents.Agent, taskID uuid.UUID,
 	action string, params json.RawMessage, binding string) gateVerdict {
 

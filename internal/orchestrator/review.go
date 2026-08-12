@@ -117,23 +117,24 @@ func (o *Orchestrator) reviewWorkRecord(ctx context.Context, agent agents.Agent,
 // Kollegen gehört, für den gefragt wurde: die Freigabe nennt einen Agenten und
 // eine Aufgabe, und beides muss zusammenpassen, sonst hat ein Mensch etwas
 // anderes freigegeben, als er gelesen hat.
-func (o *Orchestrator) reviewReadRecording(ctx context.Context, agent agents.Agent, req daemon.RequestHiring,
+func (o *Orchestrator) reviewReadRecording(ctx context.Context, agent agents.Agent, taskID uuid.UUID,
+	req daemon.RequestHiring,
 	ok func(any) daemon.InjectHiring, fail func(string, ...any) daemon.InjectHiring) daemon.InjectHiring {
 
 	other, reason := o.reviewTarget(ctx, agent, req.Agent, false)
 	if reason != "" {
 		return fail("%s", reason)
 	}
-	taskID, err := uuid.Parse(strings.TrimSpace(req.Task))
+	readID, err := uuid.Parse(strings.TrimSpace(req.Task))
 	if err != nil {
 		return fail("task is missing or not an id (the run you want to read; the work record names it)")
 	}
-	task, err := o.Backlog.Get(ctx, taskID)
+	task, err := o.Backlog.Get(ctx, readID)
 	if err != nil || task.AgentID != other.ID {
 		return fail("no run %q at agent %q", req.Task, other.Slug)
 	}
 
-	events, err := o.Obs.Events(ctx, other.ID, &taskID, 0, maxRecordingEvents)
+	events, err := o.Obs.Events(ctx, other.ID, &readID, 0, maxRecordingEvents)
 	if err != nil {
 		return fail("recording not readable: %v", err)
 	}
@@ -143,13 +144,19 @@ func (o *Orchestrator) reviewReadRecording(ctx context.Context, agent agents.Age
 	// hat; sonst prüft man ihn an dem, was er geschrieben hat, ohne zu wissen,
 	// was er gelesen hat. Als Lifecycle-Ereignis wie bei den Entwurfs-Aktionen:
 	// die Aktion selbst schreibt der Proxy, die Herkunft schreibt die Plattform.
+	//
+	// Der Eintrag hängt an der EIGENEN Aufgabe (taskID), nicht am gelesenen Lauf
+	// (readID): Obs.Events filtert immer über agent_id UND task_id, ein Eintrag
+	// unter fremder Aufgabe wäre also im Recording des Lesenden unsichtbar — und
+	// der Verweis führte in einen Lauf, der ihm nicht gehört. Welcher Lauf
+	// gelesen wurde, steht daneben in "run".
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
 		map[string]string{"status": "recording_read", "about_agent": other.ID.String(),
-			"slug": other.Slug, "run": taskID.String(),
+			"slug": other.Slug, "run": readID.String(),
 			"events": strconv.Itoa(len(events))})
 
 	out := map[string]any{
-		"agent": other.Slug, "task": taskID.String(), "title": task.Title,
+		"agent": other.Slug, "task": readID.String(), "title": task.Title,
 		"state": task.State, "events": events,
 	}
 	if len(events) == maxRecordingEvents {

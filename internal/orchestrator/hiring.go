@@ -24,6 +24,8 @@ package orchestrator
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -201,7 +203,7 @@ func (o *Orchestrator) hiring(ctx context.Context, agent agents.Agent, taskID uu
 	case "work_record":
 		return o.reviewWorkRecord(ctx, agent, req, ok, fail)
 	case "read_recording":
-		return o.reviewReadRecording(ctx, agent, req, ok, fail)
+		return o.reviewReadRecording(ctx, agent, taskID, req, ok, fail)
 	case "propose_agent_config":
 		return o.reviewPropose(ctx, agent, taskID, req, ok, fail)
 	case "write_review":
@@ -497,11 +499,16 @@ func (o *Orchestrator) railsAllow(ctx context.Context, agent agents.Agent, taskI
 	subject string, params map[string]any, alwaysApprove bool) railsVerdict {
 
 	frage := func() railsVerdict {
+		// Die Bindung MUSS vor dem Marshalling in die Parameter: verbraucht wird
+		// über `params->>'binding'`, also steht eine Bindung, die nur als
+		// Argument mitgeht, beim Verbrauch nicht zur Verfügung.
+		binding := bindingOf(params)
+		params["binding"] = binding
 		raw, err := json.Marshal(params)
 		if err != nil {
 			raw = json.RawMessage(`{}`)
 		}
-		gate := o.approvalGate(ctx, agent, taskID, subject, raw, bindingOf(params))
+		gate := o.approvalGate(ctx, agent, taskID, subject, raw, binding)
 		switch {
 		case gate.Error != "":
 			return railsVerdict{Reason: "approval could not be created: " + gate.Error}
@@ -540,11 +547,41 @@ func (o *Orchestrator) railsAllow(ctx context.Context, agent agents.Agent, taskI
 	return railsVerdict{Allowed: true}
 }
 
-// bindingOf zieht die Bindung aus den Parametern. Leer = die Freigabe gilt für
-// die Aktion; gesetzt = für genau diesen einen Gegenstand.
+// bindingOf schnürt eine Freigabe auf das fest, was der Mensch GELESEN hat.
+//
+// Bisher stand hier nur ein explizit gesetzter Wert, und den setzte genau eine
+// Aktion (read_recording). Für alle anderen blieb die Bindung leer, und leer
+// heißt beim Verbrauch: die Freigabe gilt der AKTION. Solange eine
+// require_approval-Regel auf einer Meta-Action hart ablehnte, war das folgenlos.
+// Seit sie parkt und der Agent die Aktion nach der Entscheidung WIEDERHOLT, ist
+// es eine Lücke: er wiederholt sie nicht zwingend mit denselben Parametern. Wer
+// `{op: create_agent, slug: "helper"}` freigegeben hat, hat
+// `{op: create_agent, slug: "backdoor"}` nicht freigegeben — die alte Bedingung
+// (agent + action) sah zwischen beiden keinen Unterschied.
+//
+// Also bindet jede Freigabe an einen Fingerabdruck genau der Parameter, die in
+// ihr stehen und die die Oberfläche anzeigt. Ein explizit gesetzter Wert (der
+// Lauf bei read_recording) bleibt davor erhalten, damit die Bindung dort
+// lesbar bleibt und zusätzlich den Rest abdeckt.
 func bindingOf(params map[string]any) string {
-	if v, ok := params["binding"].(string); ok {
-		return v
+	fields := make(map[string]any, len(params))
+	for k, v := range params {
+		if k != "binding" {
+			fields[k] = v
+		}
 	}
-	return ""
+	// json.Marshal sortiert Map-Schlüssel, der Fingerabdruck ist also stabil
+	// über zwei Läufe hinweg. fmt %v tut dasselbe und trägt den Fall, in dem
+	// sich ein Parameter nicht serialisieren lässt — ein leerer Rückgabewert
+	// wäre hier der gefährliche Ausgang, nicht der bequeme.
+	raw, err := json.Marshal(fields)
+	if err != nil {
+		raw = []byte(fmt.Sprintf("%v", fields))
+	}
+	sum := sha256.Sum256(raw)
+	fp := hex.EncodeToString(sum[:8])
+	if v, ok := params["binding"].(string); ok && v != "" {
+		return v + ":" + fp
+	}
+	return fp
 }

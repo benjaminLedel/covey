@@ -250,8 +250,15 @@ func TestReviewRecordingNurMitFreigabe(t *testing.T) {
 		t.Fatalf("genau eine Freigabe fuer das Lesen erwartet: %v", approvals)
 	}
 	params := approvals[0]["params"].(map[string]any)
-	if params["agent"] != "kollege" || params["binding"] != laufA.ID.String() {
+	binding, _ := params["binding"].(string)
+	// Die Bindung nennt den Lauf — und trägt dahinter den Fingerabdruck der
+	// übrigen Parameter, damit die Freigabe nicht nur an DIESEN Lauf, sondern
+	// an genau diese Anfrage gebunden ist (bindingOf in hiring.go).
+	if params["agent"] != "kollege" || !strings.HasPrefix(binding, laufA.ID.String()+":") {
 		t.Fatalf("die Freigabe muss den Lauf benennen: %v", params)
+	}
+	if binding == laufA.ID.String() {
+		t.Fatalf("die Bindung muss ueber den Lauf hinaus die Parameter abdecken: %v", params)
 	}
 	admin.expect(http.MethodPost, "/api/v1/approvals/"+approvals[0]["id"].(string)+"/decide",
 		map[string]any{"approve": true}, http.StatusOK)
@@ -283,7 +290,8 @@ func TestReviewRecordingNurMitFreigabe(t *testing.T) {
 		t.Fatalf("die Freigabe fuer Lauf A darf Lauf B nicht oeffnen: %v", zweite.State)
 	}
 	offen := admin.expectList(http.MethodGet, "/api/v1/approvals?status=pending", nil, http.StatusOK)
-	if len(offen) != 1 || offen[0]["params"].(map[string]any)["binding"] != laufB.ID.String() {
+	zweiteBindung, _ := offen[0]["params"].(map[string]any)["binding"].(string)
+	if len(offen) != 1 || !strings.HasPrefix(zweiteBindung, laufB.ID.String()+":") {
 		t.Fatalf("die zweite Freigabe muss den zweiten Lauf benennen: %v", offen)
 	}
 }
