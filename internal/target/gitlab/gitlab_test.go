@@ -2391,6 +2391,58 @@ func TestMergeMRQueuesWhenPipelineStillRunning(t *testing.T) {
 	}
 }
 
+// TestMergeMRDoesNotQueueWhenPipelineIsNotTheOnlyBlocker protects the
+// distinction between "waiting for CI" and "not mergeable". GitLab would
+// keep an invalid auto-merge request pending, hiding the actionable refusal
+// from the agent, so every non-pipeline gate must be checked before queuing.
+func TestMergeMRDoesNotQueueWhenPipelineIsNotTheOnlyBlocker(t *testing.T) {
+	cases := map[string]struct {
+		mutate func(*MergeRequestDetail)
+		reason string
+	}{
+		"not open": {
+			func(mr *MergeRequestDetail) { mr.State = "closed" },
+			"not open",
+		},
+		"missing head commit": {
+			func(mr *MergeRequestDetail) { mr.SHA = "" },
+			"no head commit",
+		},
+		"conflicts": {
+			func(mr *MergeRequestDetail) { mr.HasConflicts = true },
+			"conflicts",
+		},
+		"unresolved discussion": {
+			func(mr *MergeRequestDetail) { mr.BlockingDiscussionsResolved = false },
+			"unresolved discussions",
+		},
+		"not mergeable": {
+			func(mr *MergeRequestDetail) { mr.DetailedMergeStatus = "blocked_status" },
+			"not consider the merge request mergeable",
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			g := &mergeGateServer{mr: greenMR(), me: "egon.rastlos",
+				approvals: MRApprovals{UserHasApproved: true}}
+			g.mr.HeadPipeline = &Pipeline{ID: 1, Status: "running"}
+			tc.mutate(&g.mr)
+			srv := g.start(t)
+
+			_, err := (System{}).Execute(context.Background(), "merge_mr",
+				[]byte(`{"project_id":40,"mr_iid":1685}`),
+				target.Credential{BaseURL: srv.URL, Token: "test-token"})
+			if err == nil || !strings.Contains(err.Error(), tc.reason) {
+				t.Fatalf("must refuse with %q, got %v", tc.reason, err)
+			}
+			if g.queued != 0 || g.merges != 0 {
+				t.Fatalf("invalid MR must neither queue nor merge: queued=%d merges=%d", g.queued, g.merges)
+			}
+		})
+	}
+}
+
 // TestMergeMRNeedsIDs — as with every action, missing parameters are an error,
 // not a merge on a guessed MR.
 func TestMergeMRNeedsIDs(t *testing.T) {

@@ -403,6 +403,19 @@ func (System) ActionSubject(action string, params json.RawMessage) string {
 // guard-rail subject gitlab:merge_mr, with which the merge can additionally be
 // denied or put behind an approval gate for the whole organization.
 func mergeBlockedReason(ctx context.Context, gc *Client, projectID int, mr MergeRequestDetail) string {
+	if reason := mergePreflightReason(mr); reason != "" {
+		return reason
+	}
+	if reason := pipelineGapReason(mr); reason != "" {
+		return reason
+	}
+	return approvalGapReason(ctx, gc, projectID, mr)
+}
+
+// mergePreflightReason checks the merge conditions that remain invalid even
+// when a running pipeline later turns green. Auto-merge may wait for CI, but
+// it must not hide an actionable conflict, discussion, or state error.
+func mergePreflightReason(mr MergeRequestDetail) string {
 	if mr.State != "opened" {
 		return fmt.Sprintf("the merge request is not open (state %q)", mr.State)
 	}
@@ -418,13 +431,18 @@ func mergeBlockedReason(ctx context.Context, gc *Client, projectID int, mr Merge
 	if s := mr.DetailedMergeStatus; s != "" && s != "mergeable" {
 		return fmt.Sprintf("GitLab does not consider the merge request mergeable (detailed_merge_status %q)", s)
 	}
+	return ""
+}
+
+// pipelineGapReason is the one gate auto-merge is allowed to wait for.
+func pipelineGapReason(mr MergeRequestDetail) string {
 	if mr.HeadPipeline == nil {
 		return "no pipeline has run on the head commit"
 	}
 	if mr.HeadPipeline.Status != "success" {
 		return fmt.Sprintf("the pipeline of the head commit is not green (status %q)", mr.HeadPipeline.Status)
 	}
-	return approvalGapReason(ctx, gc, projectID, mr)
+	return ""
 }
 
 // approvalGapReason checks only the approval half of mergeBlockedReason,
@@ -782,23 +800,27 @@ var aktionen = map[string]aktion{
 		if err != nil {
 			return nil, err
 		}
-		if reason := mergeBlockedReason(ctx, gc, in.ProjectID, mr); reason != "" {
-			// Everything but the pipeline itself already checks out, and the
-			// pipeline just has not concluded yet (still running, not failed):
-			// queue GitLab's own auto-merge instead of failing outright, so the
-			// merge happens the moment it turns green without needing another
-			// heartbeat to come back and poll for it.
-			if mr.HeadPipeline != nil && pipelineInProgress(mr.HeadPipeline.Status) {
-				if gapReason := approvalGapReason(ctx, gc, in.ProjectID, mr); gapReason != "" {
-					return nil, fmt.Errorf("merge refused: %s — report the state per comment_mr and leave the merge to the human", gapReason)
-				}
-				queued, err := gc.SetMergeWhenPipelineSucceeds(ctx, in.ProjectID, in.MRIID, mr.SHA, true)
-				if err != nil {
-					return nil, err
-				}
-				return map[string]any{"queued_for_pipeline": true, "mr_iid": in.MRIID,
-					"pipeline_status": mr.HeadPipeline.Status, "merge_when_pipeline_succeeds": queued.MergeWhenPipelineSucceeds}, nil
+		if reason := mergePreflightReason(mr); reason != "" {
+			return nil, fmt.Errorf("merge refused: %s — report the state per comment_mr and leave the merge to the human", reason)
+		}
+		if reason := pipelineGapReason(mr); reason != "" {
+			if mr.HeadPipeline == nil || !pipelineInProgress(mr.HeadPipeline.Status) {
+				return nil, fmt.Errorf("merge refused: %s — report the state per comment_mr and leave the merge to the human", reason)
 			}
+			// Preflight is clear and the pipeline is the only technical gate
+			// still in motion. Approval must already be on record before Covey
+			// asks GitLab to complete the merge later.
+			if gapReason := approvalGapReason(ctx, gc, in.ProjectID, mr); gapReason != "" {
+				return nil, fmt.Errorf("merge refused: %s — report the state per comment_mr and leave the merge to the human", gapReason)
+			}
+			queued, err := gc.SetMergeWhenPipelineSucceeds(ctx, in.ProjectID, in.MRIID, mr.SHA, true)
+			if err != nil {
+				return nil, err
+			}
+			return map[string]any{"queued_for_pipeline": true, "mr_iid": in.MRIID,
+				"pipeline_status": mr.HeadPipeline.Status, "merge_when_pipeline_succeeds": queued.MergeWhenPipelineSucceeds}, nil
+		}
+		if reason := mergeBlockedReason(ctx, gc, in.ProjectID, mr); reason != "" {
 			return nil, fmt.Errorf("merge refused: %s — report the state per comment_mr and leave the merge to the human", reason)
 		}
 		merged, err := gc.MergeMR(ctx, in.ProjectID, in.MRIID, mr.SHA, true)
