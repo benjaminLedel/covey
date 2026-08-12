@@ -426,3 +426,34 @@ func (System) PromptDoc() string {
    is deliberately absent. If you find yourself wanting one, what you actually want is either a
    merge request or a human.`
 }
+
+// PromptDocForScopes keeps the model's action contract aligned with ACCESS.md.
+// Kubernetes RBAC remains the hard authorization boundary, but an agent should
+// not be invited to call operations its Covey role does not carry.
+func (System) PromptDocForScopes(scopes []string) string {
+	if len(scopes) == 0 {
+		return (System{}).PromptDoc()
+	}
+	granted := make(map[string]bool, len(scopes))
+	for _, scope := range scopes {
+		granted[strings.TrimSpace(scope)] = true
+	}
+
+	doc := (System{}).PromptDoc()
+	if !granted["logs"] {
+		start := strings.Index(doc, `   logs {`)
+		end := strings.Index(doc, `   events {`)
+		if start >= 0 && end > start {
+			doc = doc[:start] + doc[end:]
+		}
+		doc = strings.Replace(doc,
+			"A restart count that keeps climbing is the finding; the reason is in the next two actions.",
+			"A restart count that keeps climbing is the finding; events explain many causes.", 1)
+	}
+	if !granted["write"] {
+		if start := strings.Index(doc, "\n   Two exceptions exist because"); start >= 0 {
+			doc = strings.TrimRight(doc[:start], " \n")
+		}
+	}
+	return doc
+}
