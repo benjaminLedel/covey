@@ -25,6 +25,7 @@ import (
 
 	"covey/internal/agents"
 	"covey/internal/backlog"
+	"covey/internal/buildinfo"
 	"covey/internal/daemon"
 	"covey/internal/egress"
 	"covey/internal/guardrails"
@@ -1576,6 +1577,19 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	mayReview := o.mayReviewAgents(ctx, agent)
 	if mayReview {
 		compiled += "\n\n" + agents.ReviewDoc
+		// Die dritte Schicht: der eigene Quelltext, auf den laufenden Commit
+		// gepinnt (spec/21). Nur wenn die Organisation ihn eingerichtet hat —
+		// wo er liegt, entscheidet sie und nicht der Agent, und ohne Eintrag
+		// steht davon nichts im Prompt.
+		var repoSystem, repoProject string
+		if err := o.Pool.QueryRow(ctx,
+			"SELECT platform_repo_system, platform_repo_project FROM organizations WHERE id=$1",
+			agent.OrgID).Scan(&repoSystem, &repoProject); err == nil {
+			if section := agents.PlatformRepoDoc(repoSystem, repoProject,
+				buildinfo.Get().Commit); section != "" {
+				compiled += "\n\n" + section
+			}
+		}
 	}
 	// The platform's own meta actions (board, notes, wiki, delegation) are not a
 	// target system, but they are callable in exactly the same way — so on the

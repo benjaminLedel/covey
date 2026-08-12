@@ -264,6 +264,9 @@ func (s *Server) Handler() http.Handler {
 	// context every agent works in (spec/20).
 	mux.Handle("GET /api/v1/org", s.rbac(anyRole, s.handleGetOwnOrg))
 	mux.Handle("PATCH /api/v1/org/description", s.rbac(manage, s.handleSetOwnOrgDescription))
+	// Wo der Quelltext dieser Plattform liegt (spec/21). Stammdaten wie die
+	// Unternehmensbeschreibung — wer sie pflegt, pflegt auch das.
+	mux.Handle("PATCH /api/v1/org/platform-repo", s.rbac(manage, s.handleSetPlatformRepo))
 	mux.Handle("GET /api/v1/org/chart", s.rbac(anyRole, s.handleOrgChart))
 	mux.Handle("GET /api/v1/org/humans/{id}", s.rbac(anyRole, s.handleGetHuman))
 	mux.Handle("GET /api/v1/org/profile-fields", s.rbac(anyRole, s.handleListProfileFields))

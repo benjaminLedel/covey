@@ -555,3 +555,56 @@ func splitCSV(s string) []string {
 	}
 	return out
 }
+
+// PlatformRepoDoc is the third layer: the platform's own source (spec/21).
+//
+// An agent that may only WRITE issues reports symptoms. Give it the source to
+// READ and the same finding arrives as a diagnosis — not "runs die at the turn
+// limit" but "runs die at the turn limit because there is no way to hand back a
+// partial result". The evidence for the first half is in the work record; the
+// second half needs the code, and nobody else in the organisation holds both.
+//
+// Pinned to the RUNNING commit, and that is the point of the section: an agent
+// reading the default branch reports against code this instance does not
+// execute — half of those findings are already fixed and the other half are not
+// there yet, and both kinds cost a maintainer the same read.
+func PlatformRepoDoc(system, project, commit string) string {
+	if strings.TrimSpace(system) == "" || strings.TrimSpace(project) == "" {
+		return ""
+	}
+	ref := strings.TrimSpace(commit)
+	pinned := "`ref: " + ref + "` — the commit this instance is running"
+	if ref == "" {
+		// Ohne Provenance (Build ohne -ldflags) gibt es keinen Anker. Dann
+		// ehrlich sagen, dass die Zuordnung fehlt, statt den Default-Branch als
+		// „den laufenden Stand" auszugeben.
+		pinned = "the default branch — this instance carries no commit information, " +
+			"so say in every report which state you read"
+	}
+	return `## The platform you run on
+
+Covey'"'"'s own source lives on ` + "`" + system + "`" + `, project ` + "`" + project + "`" + `. You may READ it —
+check it out and search it like any other repository — and you may file issues
+there. Nothing else.
+
+**Check out ` + pinned + `.** Reading the default branch would have you report
+against code this instance does not execute.
+
+**Read before you write.** A report that says "the turn limit is too low" is
+worthless. One that says "eleven runs across three agents ended at the limit,
+$340, and in nine of them the work was nearly done — ` + "`covey/create_task`" + ` would
+be the way to hand back the partial result and refuses at ` + "`maxAgentTaskDepth`" + `"
+is a specification. The first half is in the work record; the second half is in
+the code.
+
+**An issue costs a human'"'"'s attention.** Three rules:
+- File only when the same limit hit **more than one agent**. One agent that ran
+  into something once is a task, not a platform fault.
+- **Look for an existing issue first.** Search the tracker before you write; add
+  your evidence to what is there rather than opening a second one.
+- **Name the evidence**: which agents, which runs, what it cost.
+
+**You report, you do not fix.** No branch, no merge request, no patch. Somebody
+else picks the issue up — that is what an org chart is for, and it keeps your
+output what it is everywhere else: a proposal a human decides on.`
+}

@@ -1265,6 +1265,15 @@
       "placeholder": "Wir machen … Unsere Kunden sind … Wichtig ist uns …",
       "hint": "Geht in die Config neu entworfener Agenten, in jede Ausschreibung und in den Config-Assistenten ein.",
       "save": "Speichern"
+    },
+    "repo": {
+      "title": "Quelltext dieser Plattform",
+      "empty": "Nicht eingerichtet. Ohne ihn meldet der Betriebsingenieur Symptome statt Diagnosen — und ohne Ziel gar nichts.",
+      "system": "Zielsystem",
+      "project": "Projekt",
+      "none": "— keines —",
+      "projectPlaceholder": "z. B. 42 oder gruppe/covey",
+      "hint": "Wo Covey selbst liegt: dort liest der Betriebsingenieur den Quelltext (auf den laufenden Commit gepinnt) und meldet dorthin seine Fehlerberichte. Nur angeschlossene Zielsysteme; leer lassen schaltet beides ab."
     }
   },
   "orgs": {

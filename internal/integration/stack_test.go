@@ -44,6 +44,11 @@ import (
 	_ "covey/internal/target/browser"
 	_ "covey/internal/target/dev"
 	_ "covey/internal/target/email"
+	// gitlab ist im Testbinary registriert, weil die Organisation es als
+	// Zielsystem aktiviert — und weil target/store Zeilen fuer Plugins
+	// verwirft, die dieses Binary nicht einkompiliert hat. Ohne den Import
+	// waere die Aktivierung in newStack eine Zeile ohne Wirkung.
+	_ "covey/internal/target/gitlab"
 	_ "covey/internal/target/mcp"
 	_ "covey/internal/target/nextcloud"
 	_ "covey/internal/target/sharepoint"

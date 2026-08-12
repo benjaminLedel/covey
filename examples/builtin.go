@@ -100,9 +100,9 @@ var manifest = []struct {
 	{
 		File:          "improvement-engineer.bundle.json",
 		Name:          "Improvement engineer (reviews colleagues)",
-		Description:   "Reads what a colleague actually did — throughput, aborts with their reason, cost, stuck tasks — works out whether the configuration, the assignment or the platform is at fault, and proposes a change a human accepts. Weekly, one task per cycle. Needs `scope: agents:review`.",
+		Description:   "Reads what a colleague actually did — throughput, aborts with their reason, cost, stuck tasks — works out whether the configuration, the assignment or the platform is at fault, and proposes a change a human accepts. Weekly, one task per cycle. Needs `scope: agents:review`; give it read access to Covey's own repository (Org chart → this platform's source) and its findings become diagnoses instead of symptoms.",
 		NameDe:        "Betriebsingenieur (begutachtet Kollegen)",
-		DescriptionDe: "Liest, was ein Kollege tatsächlich getan hat — Durchsatz, Abbrüche mit ihrem Grund, Kosten, hängende Aufgaben —, entscheidet, ob die Konfiguration, der Auftrag oder die Plattform schuld ist, und schlägt eine Änderung vor, die ein Mensch annimmt. Wöchentlich, ein Auftrag je Zyklus. Braucht `scope: agents:review`.",
+		DescriptionDe: "Liest, was ein Kollege tatsächlich getan hat — Durchsatz, Abbrüche mit ihrem Grund, Kosten, hängende Aufgaben —, entscheidet, ob die Konfiguration, der Auftrag oder die Plattform schuld ist, und schlägt eine Änderung vor, die ein Mensch annimmt. Wöchentlich, ein Auftrag je Zyklus. Braucht `scope: agents:review`; gib ihm zusätzlich Lesezugriff auf Coveys eigenes Repository (Organigramm → Quelltext dieser Plattform), dann werden aus Symptomen Diagnosen.",
 	},
 	{
 		File:          "coding-agent.bundle.json",

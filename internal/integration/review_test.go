@@ -13,6 +13,7 @@ import (
 	"covey/examples"
 	"covey/internal/agents"
 	"covey/internal/backlog"
+	"covey/internal/buildinfo"
 )
 
 // reviewAgent legt einen Agenten mit dem angegebenen covey-Scope an.
@@ -453,5 +454,60 @@ func TestReviewLandetAufDemProfil(t *testing.T) {
 	if _, msg := laufLassen(t, s, betrieb, "Reviews lesen versuchen",
 		`[mock:action covey/read_reviews {"agent":"kollege"}]`); !strings.Contains(msg, "unknown covey action") {
 		t.Fatalf("es darf keine Aktion geben, die Reviews liest: %s", msg)
+	}
+}
+
+// TestPlattformRepoStehtImPrompt: die dritte Schicht (spec/21).
+//
+// Ein Agent, der nur Issues SCHREIBEN darf, meldet Symptome. Mit Lesezugriff
+// auf den Quelltext wird aus demselben Befund eine Diagnose — aber nur, wenn er
+// den Stand liest, der auch laeuft. Der Test haelt beides fest: dass die
+// Adresse aus der Konfiguration der Organisation kommt und nicht aus dem
+// Modell, und dass der Prompt auf den laufenden Commit zeigt.
+func TestPlattformRepoStehtImPrompt(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	betrieb := reviewAgent(t, s, "betrieb", "agents:review")
+	andere := reviewAgent(t, s, "kollege", "")
+
+	prompt := func(a agents.Agent) string {
+		_, out := laufLassen(t, s, a, "Prompt zeigen", "[mock:prompt]")
+		return out
+	}
+
+	// Ohne Eintrag steht davon nichts im Prompt — niemand liest ueber ein
+	// Repository, das niemand angeschlossen hat.
+	if p := prompt(betrieb); strings.Contains(p, "The platform you run on") {
+		t.Fatal("ohne Konfiguration darf der Abschnitt nicht erscheinen")
+	}
+
+	// Halbe Adressen werden abgewiesen: eine halbe Adresse im Prompt ist
+	// schlimmer als keine.
+	admin.expect(http.MethodPatch, "/api/v1/org/platform-repo",
+		map[string]any{"system": "gitlab"}, http.StatusBadRequest)
+	// Und ein Zielsystem, das die Organisation nicht angeschlossen hat, auch.
+	admin.expect(http.MethodPatch, "/api/v1/org/platform-repo",
+		map[string]any{"system": "erfunden", "project": "x/y"}, http.StatusBadRequest)
+
+	admin.expect(http.MethodPatch, "/api/v1/org/platform-repo",
+		map[string]any{"system": "gitlab", "project": "covey/covey"}, http.StatusOK)
+
+	p := prompt(betrieb)
+	if !strings.Contains(p, "The platform you run on") || !strings.Contains(p, "covey/covey") {
+		t.Fatalf("die Adresse gehoert in den Prompt: %.400s", p)
+	}
+	if c := buildinfo.Get().Commit; c != "" && !strings.Contains(p, c) {
+		t.Fatalf("der Prompt muss auf den laufenden Commit zeigen (%s)", c)
+	}
+	// Er berichtet, er repariert nicht — die Grenze steht im Prompt und nicht
+	// nur im Playbook des Bundles.
+	if !strings.Contains(p, "you do not fix") {
+		t.Fatal("die Grenze „melden statt reparieren\" gehoert in den Abschnitt")
+	}
+
+	// Ein Kollege ohne Review-Scope liest davon nichts: die dritte Schicht
+	// gehoert zu dieser Rolle und nicht zu jedem, der GitLab hat.
+	if p := prompt(andere); strings.Contains(p, "The platform you run on") {
+		t.Fatal("ohne agents:review gehoert der Abschnitt nicht in den Prompt")
 	}
 }
