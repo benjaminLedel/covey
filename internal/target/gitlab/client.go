@@ -752,6 +752,15 @@ type MergeRequestDetail struct {
 		Username string `json:"username"`
 	} `json:"reviewers"`
 	HeadPipeline *Pipeline `json:"head_pipeline"`
+	// MergeWhenPipelineSucceeds: GitLab's own auto-merge — set, the merge
+	// completes by itself once the head pipeline turns green (and every other
+	// merge condition still holds at that moment; GitLab re-checks them then,
+	// not just now).
+	//
+	// The field keeps the old name on the RESPONSE side even where the request
+	// parameter is already called auto_merge (checked against 19.2-ee, which
+	// still reports merge_when_pipeline_succeeds) — hence no rename here.
+	MergeWhenPipelineSucceeds bool `json:"merge_when_pipeline_succeeds"`
 }
 
 // MRApprovals is the approval state of an MR — GET
@@ -855,6 +864,34 @@ func (c *Client) MergeMR(ctx context.Context, projectID, mrIID int, sha string, 
 	body := map[string]any{
 		"sha":                         sha,
 		"should_remove_source_branch": removeSourceBranch,
+	}
+	err := c.do(ctx, http.MethodPut,
+		fmt.Sprintf("/projects/%d/merge_requests/%d/merge", projectID, mrIID), body, &out)
+	return out, err
+}
+
+// SetAutoMerge — same endpoint as MergeMR, but instead of an immediate merge it
+// hands the merge over to GitLab: it completes it itself once the head pipeline
+// (still pinned by sha) turns green, re-checking every other merge condition at
+// that moment. For an MR whose pipeline just has not concluded yet — everything
+// else about it already checks out — so a second heartbeat does not have to
+// come back and ask again.
+//
+// Both parameters are sent on purpose. `auto_merge` is the current name;
+// `merge_when_pipeline_succeeds` has been deprecated in its favour since GitLab
+// 17.11 but is what older instances understand — and Covey is installed against
+// whatever GitLab an organization runs. The endpoint links the two with an OR
+// (`to_boolean(params[:merge_when_pipeline_succeeds]) || to_boolean(params[:auto_merge])`),
+// and undeclared parameters are dropped rather than rejected, so both ends of
+// that range work with one request. When the deprecated name disappears, this
+// is one line.
+func (c *Client) SetAutoMerge(ctx context.Context, projectID, mrIID int, sha string, removeSourceBranch bool) (MergeRequestDetail, error) {
+	var out MergeRequestDetail
+	body := map[string]any{
+		"sha":                          sha,
+		"should_remove_source_branch":  removeSourceBranch,
+		"auto_merge":                   true,
+		"merge_when_pipeline_succeeds": true,
 	}
 	err := c.do(ctx, http.MethodPut,
 		fmt.Sprintf("/projects/%d/merge_requests/%d/merge", projectID, mrIID), body, &out)

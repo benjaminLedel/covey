@@ -457,6 +457,19 @@ func (System) ActionSubject(action string, params json.RawMessage) string {
 // guard-rail subject gitlab:merge_mr, with which the merge can additionally be
 // denied or put behind an approval gate for the whole organization.
 func mergeBlockedReason(ctx context.Context, gc *Client, projectID int, mr MergeRequestDetail) string {
+	if reason := mergePreflightReason(mr); reason != "" {
+		return reason
+	}
+	if reason := pipelineGapReason(mr); reason != "" {
+		return reason
+	}
+	return approvalGapReason(ctx, gc, projectID, mr)
+}
+
+// mergePreflightReason checks the merge conditions that remain invalid even
+// when a running pipeline later turns green. Auto-merge may wait for CI, but
+// it must not hide an actionable conflict, discussion, or state error.
+func mergePreflightReason(mr MergeRequestDetail) string {
 	if mr.State != "opened" {
 		return fmt.Sprintf("the merge request is not open (state %q)", mr.State)
 	}
@@ -469,15 +482,50 @@ func mergeBlockedReason(ctx context.Context, gc *Client, projectID int, mr Merge
 	if !mr.BlockingDiscussionsResolved {
 		return "there are unresolved discussions on the merge request"
 	}
-	if s := mr.DetailedMergeStatus; s != "" && s != "mergeable" {
+	if s := mr.DetailedMergeStatus; s != "" && s != "mergeable" && !ciMergeStatuses[s] {
 		return fmt.Sprintf("GitLab does not consider the merge request mergeable (detailed_merge_status %q)", s)
 	}
+	return ""
+}
+
+// ciMergeStatuses are the detailed_merge_status values that say nothing more
+// than "the pipeline". They belong to pipelineGapReason and NOT to the
+// preflight, because they are exactly the state auto-merge exists for: a
+// project with "pipelines must succeed" reports ci_still_running while the
+// pipeline runs and ci_must_pass when it has to pass first — never
+// "mergeable". Judging them in the preflight would make every MR that
+// auto-merge is meant for fail before the pipeline branch is ever reached, and
+// the whole path would be dead exactly where it is needed.
+var ciMergeStatuses = map[string]bool{"ci_still_running": true, "ci_must_pass": true}
+
+// pipelineGapReason is the one gate auto-merge is allowed to wait for.
+func pipelineGapReason(mr MergeRequestDetail) string {
 	if mr.HeadPipeline == nil {
 		return "no pipeline has run on the head commit"
 	}
 	if mr.HeadPipeline.Status != "success" {
 		return fmt.Sprintf("the pipeline of the head commit is not green (status %q)", mr.HeadPipeline.Status)
 	}
+	// Green head pipeline and GitLab is still waiting for CI: a required
+	// pipeline other than this one, or a status GitLab has not recomputed yet.
+	// An immediate merge would run into GitLab's refusal, and queuing is out of
+	// the question too — nothing here is in motion any more.
+	if ciMergeStatuses[mr.DetailedMergeStatus] {
+		return fmt.Sprintf("GitLab is still waiting for a pipeline (detailed_merge_status %q) although the head pipeline is green",
+			mr.DetailedMergeStatus)
+	}
+	return ""
+}
+
+// approvalGapReason checks only the approval half of mergeBlockedReason,
+// independent of pipeline state — the auto-merge-on-green path below needs
+// this BEFORE the pipeline has concluded, precisely so that queuing
+// merge_when_pipeline_succeeds still requires the calling agent's own
+// approval to already be on record. GitLab re-validates approvals itself at
+// the moment the pipeline actually turns green, so this is belt-and-suspenders,
+// not the only gate — but a merge_mr call that queues without ever having
+// approved would otherwise read as if approval were optional here.
+func approvalGapReason(ctx context.Context, gc *Client, projectID int, mr MergeRequestDetail) string {
 	me, err := gc.CurrentUser(ctx)
 	if err != nil || me.Username == "" {
 		return "one's own user could not be established (fail-closed)"
@@ -499,6 +547,18 @@ func mergeBlockedReason(ctx context.Context, gc *Client, projectID int, mr Merge
 		return fmt.Sprintf("the project still requires %d further approval(s)", approvals.ApprovalsLeft)
 	}
 	return ""
+}
+
+// pipelineInProgress reports whether a pipeline status is still on its way to
+// a result — as opposed to already failed/canceled/skipped, where waiting
+// longer changes nothing.
+func pipelineInProgress(status string) bool {
+	switch status {
+	case "created", "waiting_for_resource", "preparing", "pending", "running", "scheduled":
+		return true
+	default:
+		return false
+	}
 }
 
 // isDuplicateComment is the server-side brake against comment loops: if the new
@@ -811,6 +871,41 @@ var aktionen = map[string]aktion{
 		mr, err := gc.GetMergeRequest(ctx, in.ProjectID, in.MRIID)
 		if err != nil {
 			return nil, err
+		}
+		if reason := mergePreflightReason(mr); reason != "" {
+			return nil, fmt.Errorf("merge refused: %s — report the state per comment_mr and leave the merge to the human", reason)
+		}
+		if reason := pipelineGapReason(mr); reason != "" {
+			if mr.HeadPipeline == nil || !pipelineInProgress(mr.HeadPipeline.Status) {
+				return nil, fmt.Errorf("merge refused: %s — report the state per comment_mr and leave the merge to the human", reason)
+			}
+			// Preflight is clear and the pipeline is the only technical gate
+			// still in motion. Approval must already be on record before Covey
+			// asks GitLab to complete the merge later.
+			if gapReason := approvalGapReason(ctx, gc, in.ProjectID, mr); gapReason != "" {
+				return nil, fmt.Errorf("merge refused: %s — report the state per comment_mr and leave the merge to the human", gapReason)
+			}
+			queued, err := gc.SetAutoMerge(ctx, in.ProjectID, in.MRIID, mr.SHA, true)
+			if err != nil {
+				return nil, err
+			}
+			// What GitLab answers decides, not what was asked for. If the
+			// pipeline turned green between the read and this call, GitLab
+			// merges right away instead of queuing — and if it neither queued
+			// nor merged, the agent must not be told "done", or it hands in a
+			// merge that never happens (the prompt tells it not to ask again).
+			switch {
+			case queued.State == "merged":
+				return map[string]any{"merged": true, "mr_iid": in.MRIID, "sha": mr.SHA,
+					"target_branch": queued.TargetBranch, "web_url": queued.WebURL}, nil
+			case queued.MergeWhenPipelineSucceeds:
+				return map[string]any{"queued_for_pipeline": true, "mr_iid": in.MRIID,
+					"pipeline_status": mr.HeadPipeline.Status, "merge_when_pipeline_succeeds": true}, nil
+			default:
+				return nil, fmt.Errorf("merge refused: GitLab neither merged nor queued the merge request "+
+					"(state %q, detailed_merge_status %q) — report the state per comment_mr and leave the merge to the human",
+					queued.State, queued.DetailedMergeStatus)
+			}
 		}
 		if reason := mergeBlockedReason(ctx, gc, in.ProjectID, mr); reason != "" {
 			return nil, fmt.Errorf("merge refused: %s — report the state per comment_mr and leave the merge to the human", reason)
@@ -1143,7 +1238,13 @@ const promptDocActions = `Available GitLab actions: list_projects {}, list_issue
    REVIEWER after their own acceptance, never for the author of the MR — and only if your ACCESS.md carries the tool.
    The action checks fail-closed before merging: MR open and free of conflicts, every blocking discussion resolved,
    pipeline of the head commit green, your OWN approval on record. If one of them does not hold, it refuses with the
-   reason instead of merging — write that reason per comment_mr and leave the merge to the human. Merged is exactly
+   reason instead of merging — write that reason per comment_mr and leave the merge to the human. EXCEPTION: if the
+   ONLY thing not holding is the pipeline (still running, not failed) and your own approval already IS on record, it
+   does not refuse — it queues GitLab's own auto-merge instead ({"queued_for_pipeline":true,"pipeline_status":"..."}).
+   GitLab completes the merge itself the moment that pipeline turns green (re-checking every condition again then,
+   not trusting this moment); nothing more to do, no need to call merge_mr again once it is queued. Read the answer
+   rather than assuming it: {"merged":true} means the pipeline had just turned green and it is already done, and a
+   refusal stays a refusal to be reported per comment_mr. Merged is exactly
    the commit you saw (sha); if a new commit has arrived in the meantime, GitLab refuses — then test again,
 
    list_pipelines {"project_id":N,"ref":"branch (optional)"} lists CI runs — use it after every push to check whether your
