@@ -205,6 +205,9 @@ func (c *ClaudeCode) buildArgs(spec RunSpec) ([]string, string) {
 	if spec.Model != "" {
 		args = append(args, "--model", spec.Model)
 	}
+	if spec.Effort != "" {
+		args = append(args, "--effort", spec.Effort)
+	}
 	return args, prompt
 }
 
