@@ -194,8 +194,40 @@ func runExec(ctx context.Context, command, dir string, timeoutSecs int) (any, er
 }
 
 func (System) PromptDoc() string {
-	return `Available dev actions — your sandbox is your own machine, everything here runs locally in it:
-   agent {"cwd":"<the path from the checkout result>","task":"<assignment>","max_turns":60} —
+	return docHead + docAgent + docRest
+}
+
+// PromptDocForScopes hides the sub-agent action from an agent whose ACCESS.md
+// does not grant "dev" scope "agent".
+//
+// Not a cosmetic saving. Advertising it unconditionally produced a silent
+// failure with a very expensive shape: the agent read that it could hand the
+// programming work to a sub-agent, researched and wrote a careful multi-
+// paragraph assignment, the scope check refused the call, and the model — which
+// had no reason to expect a refusal — reported the refusal as a success ("the
+// sub-agent is working in the background, I will check back") and finished the
+// task as done. No commit, no merge request, no comment on the issue: the whole
+// run evaporated, twice on the same ticket, and because nothing was written to
+// the issue the intake gate kept re-firing it as unprocessed.
+//
+// Fail-open on an empty scope list, as ScopedDocSystem requires: a missing
+// entry must never take a capability away.
+func (System) PromptDocForScopes(scopes []string) string {
+	if len(scopes) == 0 {
+		return docHead + docAgent + docRest
+	}
+	for _, s := range scopes {
+		if strings.TrimSpace(s) == "agent" {
+			return docHead + docAgent + docRest
+		}
+	}
+	return docHead + docRest
+}
+
+const docHead = `Available dev actions — your sandbox is your own machine, everything here runs locally in it:
+`
+
+const docAgent = `   agent {"cwd":"<the path from the checkout result>","task":"<assignment>","max_turns":60} —
    hands the actual PROGRAMMING WORK to a sub-agent that starts INSIDE the project checkout.
    That is the most important difference from everything else here: only there do the project's rules
    apply — its CLAUDE.md, its .claude/agents (e.g. separate frontend/backend specialists), skills and
@@ -217,7 +249,9 @@ func (System) PromptDoc() string {
    commission it again or escalate in the issue with what you know.
    With "turns_exhausted":true the assignment was too big: close off with the partial result and file
    the rest with covey/create_task instead of trying again in the same run.
-   exec {"cmd":"npm test","cwd":"subfolder (optional, relative to your home)","timeout_secs":120} —
+`
+
+const docRest = `   exec {"cmd":"npm test","cwd":"subfolder (optional, relative to your home)","timeout_secs":120} —
    runs a shell command and returns exit_code + output (the last output, truncated). For builds,
    tests, installations; an exit code other than 0 comes back as the result, read the output.
    start {"name":"app","cmd":"npm run dev","cwd":"..."} — starts a LONG-RUNNING process in the
@@ -249,4 +283,3 @@ func (System) PromptDoc() string {
    The PROCESSES only live until the end of your waking phase — the platform clears them away when you
    fall asleep; start a dev server anew in a new waking phase instead of relying on an old one. What
    survives is the RECORD of a job: its log and its exit code stay readable with logs/list.`
-}
