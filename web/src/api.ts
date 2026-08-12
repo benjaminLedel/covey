@@ -431,7 +431,10 @@ export type RuntimeInfo = {
   label: string;
   description: string;
   credentials: EngineCredential[];
-  capabilities: { resume: boolean; skills_dir?: string };
+  /** effort_levels: die Denkaufwand-Stufen dieser Engine, aufsteigend.
+   *  Fehlt/leer = die Engine kennt den Regler nicht — dann wird er auch nicht
+   *  angeboten. */
+  capabilities: { resume: boolean; skills_dir?: string; effort_levels?: string[] };
   setup: SetupStep[];
 };
 

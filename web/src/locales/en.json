@@ -989,7 +989,7 @@
       "modelHint": "Model ID or alias, e.g. claude-opus-4-8 or sonnet.",
       "effort": "Reasoning effort",
       "effortDefault": "empty = runtime default",
-      "effortHint": "Independent of the model — how hard it thinks per turn (Claude Code's --effort).",
+      "effortHint": "Independent of the model — how hard it thinks per turn. The engine decides which levels exist; engines without this control do not show the row.",
       "maxTurns": "Max turns per run",
       "maxTurnsPlaceholder": "0 = default (30)",
       "maxTurnsHint": "Runaway guard: aborts a run after n turns. Use a higher value for tasks with repo checkouts.",
