@@ -70,10 +70,51 @@ type RuntimeCapabilities struct {
 	// `.claude/skills`); empty means the engine knows no skills, and then none
 	// are written rather than being written where nothing reads them.
 	SkillsDir string `json:"skills_dir,omitempty"`
+	// EffortLevels are the reasoning-effort levels this engine accepts, in
+	// ascending order. The names are the engine's own — Claude Code spells them
+	// low/medium/high/xhigh/max, another engine spells them differently, and a
+	// level one engine knows is a run-time error at the next. Empty means the
+	// engine has no such control: then the field is not offered and not
+	// accepted, rather than being stored where nothing reads it.
+	EffortLevels []string `json:"effort_levels,omitempty"`
 }
 
 // NeedsCredential is derived rather than declared — one fact, one place.
 func (d RuntimeDescriptor) NeedsCredential() bool { return len(d.Credentials) > 0 }
+
+// AcceptsEffort reports whether a reasoning-effort level is valid for this
+// engine. The empty level always is: it means "the engine's own default".
+func (d RuntimeDescriptor) AcceptsEffort(level string) bool {
+	if level == "" {
+		return true
+	}
+	for _, l := range d.Capabilities.EffortLevels {
+		if l == level {
+			return true
+		}
+	}
+	return false
+}
+
+// EffortLevels returns the levels an engine accepts — by name, so the control
+// plane can validate without knowing the engine. Unknown runtime = no levels,
+// which makes the caller reject any non-empty effort (fail-closed).
+func EffortLevels(runtime string) []string {
+	d, ok := runtimeRegistry[runtime]
+	if !ok {
+		return nil
+	}
+	return d.Capabilities.EffortLevels
+}
+
+// AcceptsEffort is the registry-level lookup behind the HTTP validation.
+func AcceptsEffort(runtime, level string) bool {
+	d, ok := runtimeRegistry[runtime]
+	if !ok {
+		return level == ""
+	}
+	return d.AcceptsEffort(level)
+}
 
 // Credential returns the declared credential of a kind.
 func (d RuntimeDescriptor) Credential(kind string) (RuntimeCredential, bool) {

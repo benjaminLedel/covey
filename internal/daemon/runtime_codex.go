@@ -68,6 +68,12 @@ func init() {
 			// where nothing reads them — configured, visible, without effect is
 			// the worst of the available failures.
 			SkillsDir: "",
+			// Codex has a reasoning-effort control of its own, but neither its
+			// flag nor its level names are verified against the binary here,
+			// and Run() does not pass one. Declaring none is the same rule as
+			// above: not offered beats offered without effect. Filling this in
+			// is one of the open points of spec/19.
+			EffortLevels: nil,
 		},
 		New: func() Runtime { return NewCodex() },
 		Setup: []SetupStep{

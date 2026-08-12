@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, buildInfo, istSystemAdmin, post, type Approval, type Principal, type SetupState } from "./api";
+import { api, buildInfo, inbox, istSystemAdmin, post, type Principal, type SetupState } from "./api";
 import i18n, { gespeicherteSprache, istVorgerendert, merkeSprache } from "./i18n";
 import HelpDrawer from "./components/HelpDrawer";
 import ThemeSwitch from "./components/ThemeSwitch";
@@ -10,7 +10,7 @@ import PublicSite from "./public/PublicSite";
 import NoOrganization from "./pages/NoOrganization";
 import Dashboard from "./pages/Dashboard";
 import AgentPage from "./pages/Agent";
-import Approvals from "./pages/Approvals";
+import Inbox from "./pages/Inbox";
 import Guardrails from "./pages/Guardrails";
 import Secrets from "./pages/Secrets";
 import Skills from "./pages/Skills";
@@ -39,7 +39,7 @@ function useLiveEvents(enabled: boolean) {
       qc.invalidateQueries({ queryKey: ["agent"] });
       qc.invalidateQueries({ queryKey: ["backlog"] });
       qc.invalidateQueries({ queryKey: ["recording"] });
-      qc.invalidateQueries({ queryKey: ["approvals"] });
+      qc.invalidateQueries({ queryKey: ["inbox"] });
       qc.invalidateQueries({ queryKey: ["cost"] });
       qc.invalidateQueries({ queryKey: ["memories"] });
     };
@@ -324,12 +324,17 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const approvals = useQuery({
-    queryKey: ["approvals", "pending"],
-    queryFn: () => api<Approval[] | null>("/approvals?status=pending"),
+  /* Ein Zaehler fuer beides. Freigaben und offene Punkte sind verschiedene
+     Dinge (dort wartet ein Agent, hier wartet niemand) — aber sie brauchen
+     dieselbe Person, und zwei Zahlen nebeneinander sind eine Frage mehr, die
+     jemand beim Vorbeigehen beantworten muesste. Die Trennung steht auf der
+     Seite, wo sie hingehoert. */
+  const inboxCount = useQuery({
+    queryKey: ["inbox", "count"],
+    queryFn: () => inbox({ status: "open", limit: 1 }),
     refetchInterval: 15000,
   });
-  const pending = approvals.data?.length ?? 0;
+  const pending = inboxCount.data?.pending ?? 0;
 
   /* Die Einrichtung steht nur im Menue, solange sie etwas zu tun hat.
      Ein Punkt, der dauerhaft bleibt und dauerhaft erledigt ist, wird zu
@@ -388,7 +393,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
             einrichtet; dann die Aufsicht. */}
         <div className="nav-group">
           <NavItem to="/" end icon="robot" label={t("nav.agents")} />
-          <NavItem to="/approvals" icon="bell" label={t("nav.approvals")} count={pending} />
+          <NavItem to="/inbox" icon="bell" label={t("nav.inbox")} count={pending} />
           <NavItem to="/costs" icon="chart" label={t("nav.costs")} />
           <NavItem to="/org" icon="sitemap" label={t("nav.org")} />
         </div>
@@ -505,7 +510,10 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
             <Route path="/costs" element={<Costs />} />
             <Route path="/people/:id" element={<PersonPage me={me} />} />
             <Route path="/profile" element={<Navigate to={`/people/${me.ID}`} replace />} />
-            <Route path="/approvals" element={<Approvals />} />
+            <Route path="/inbox" element={<Inbox me={me} />} />
+            {/* Die alten Adressen bleiben gueltig: verlinkt wurde beides. */}
+            <Route path="/approvals" element={<Navigate to="/inbox" replace />} />
+            <Route path="/improvements" element={<Navigate to="/inbox" replace />} />
             <Route path="/guardrails" element={<Guardrails me={me} />} />
             <Route path="/secrets" element={<Secrets me={me} />} />
             <Route path="/users" element={<Users me={me} />} />

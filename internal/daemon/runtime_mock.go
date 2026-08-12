@@ -42,8 +42,13 @@ func init() {
 		Description: "Scriptable test runtime without a real LLM — no cost, no credentials. For demos and offline tests.",
 		// No credentials: the mock needs none, and NeedsCredential() derives
 		// from that rather than being declared a second time.
-		Capabilities: RuntimeCapabilities{Resume: true, SkillsDir: ".claude/skills"},
-		New:          func() Runtime { return Mock{} },
+		//
+		// Der Mock steht für Claude Code ein und deklariert deshalb dieselben
+		// Effort-Stufen — sonst liefe der Effort-Pfad im Test an einer Engine
+		// vorbei, die ihn gar nicht anbietet.
+		Capabilities: RuntimeCapabilities{Resume: true, SkillsDir: ".claude/skills",
+			EffortLevels: []string{"low", "medium", "high", "xhigh", "max"}},
+		New: func() Runtime { return Mock{} },
 		Setup: []SetupStep{
 			{Text: "Set this agent's runtime to `mock`."},
 			{Text: "Switch to the agent (`Agents` → agent) and put a task into its `Backlog`."},
@@ -52,7 +57,12 @@ func init() {
 	})
 }
 
-var mockDirective = regexp.MustCompile(`\[mock:(action|block|fail|result|memory|sleep|maxturns-always|maxturns|prompt)\s*([^\]]*)\]`)
+// Das Argument darf EINE Ebene eckiger Klammern tragen — sonst könnte kein
+// Aufruf ein JSON-Array übergeben, und die Direktive bräche mitten im
+// Parameter ab. Über ein nacktes `]` kommt die Gruppe weiterhin nicht hinweg,
+// zwei Direktiven in einer Zeile bleiben also getrennt.
+var mockDirective = regexp.MustCompile(
+	`\[mock:(action|block|fail|result|memory|sleep|maxturns-always|maxturns|prompt)\s*((?:[^\[\]]|\[[^\]]*\])*)\]`)
 
 func (Mock) Run(ctx context.Context, spec RunSpec, onEvent func(kind string, payload json.RawMessage)) (RunResult, error) {
 	res := RunResult{

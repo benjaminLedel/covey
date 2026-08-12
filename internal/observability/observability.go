@@ -454,6 +454,37 @@ func (s *Store) OrgEventsByKind(ctx context.Context, orgID uuid.UUID, kind strin
 	return out, rows.Err()
 }
 
+// ActionSubjectsSince lists the distinct subjects of the actions an agent has
+// executed SUCCESSFULLY since `since` (e.g. "gitlab:comment_mr").
+//
+// Deliberately over a period and not over a single task: the caller — the
+// heartbeat watermark — asks about a whole run, and a run can span several
+// tasks (a continuation carries on where the turn limit cut off). Anchored on
+// the task it would only see the last segment of the chain and take the comment
+// from the first one for foreign activity.
+//
+// Failed actions do not count: what did not go through cannot have changed
+// anything in the target system.
+func (s *Store) ActionSubjectsSince(ctx context.Context, agentID uuid.UUID, since time.Time) ([]string, error) {
+	rows, err := s.pool.Query(ctx, `SELECT DISTINCT payload->>'action'
+		FROM recording_events
+		WHERE agent_id=$1 AND kind='action' AND created_at >= $2
+		  AND payload->>'ok' = 'true' AND payload->>'action' IS NOT NULL`, agentID, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var subject string
+		if err := rows.Scan(&subject); err != nil {
+			return nil, err
+		}
+		out = append(out, subject)
+	}
+	return out, rows.Err()
+}
+
 // AddCost books costs from a cost event of the daemon.
 //
 // runtimeID/ord say WHICH credential paid for the run — the one the capacity

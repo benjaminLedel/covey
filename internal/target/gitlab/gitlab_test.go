@@ -567,7 +567,11 @@ func TestHasWork(t *testing.T) {
 		t.Fatalf("fresh MR without feedback: has=%v err=%v", has, err)
 	}
 
-	// The last comment is the bot's own → already answered, no work.
+	// A conversation has started → might be waiting on the bot. Comment
+	// authorship can't disambiguate "the bot answered last" from "a
+	// colleague agent commented under the same shared identity" (this
+	// organization has no per-role bot accounts), so any non-system comment
+	// counts as possible work — see mrReviewPending's doc comment.
 	mrNotes = []Note{
 		{ID: 1, Body: "Bitte Test ergänzen", Author: struct {
 			Username string `json:"username"`
@@ -576,8 +580,8 @@ func TestHasWork(t *testing.T) {
 			Username string `json:"username"`
 		}{Username: "covey-bot"}},
 	}
-	if has, err := sys.HasWork(ctx, cred); err != nil || has {
-		t.Fatalf("MR already answered: has=%v err=%v", has, err)
+	if has, err := sys.HasWork(ctx, cred); err != nil || !has {
+		t.Fatalf("MR with any comment: has=%v err=%v", has, err)
 	}
 
 	// New foreign feedback after the bot's answer → work. A closing system
@@ -1552,6 +1556,41 @@ func TestActionSubject(t *testing.T) {
 	}
 }
 
+// The watermark of a heartbeat is only advanced past a run when the run wrote
+// something itself (target.SignatureWriter) — otherwise the control plane would
+// mark foreign activity that arrived during the run as handled. So this list
+// decides whether a piece of feedback is picked up or gets lost.
+func TestWritesWorkSignature(t *testing.T) {
+	sys := System{}
+	// Everything that produces a note — including the system notes GitLab
+	// appends itself on assign, label, approval, push and merge.
+	for _, subject := range []string{
+		"gitlab:comment_internal", "gitlab:comment_external", "gitlab:comment_mr",
+		"gitlab:create_issue", "gitlab:create_merge_request", "gitlab:commit",
+		"gitlab:set_state", "gitlab:assign", "gitlab:set_labels",
+		"gitlab:set_reviewer", "gitlab:approve_mr", "gitlab:merge_mr", "gitlab:escalate",
+	} {
+		if !sys.WritesWorkSignature(subject) {
+			t.Errorf("%s writes in the target system and must count", subject)
+		}
+	}
+	// Reads change nothing — a run consisting only of these leaves the
+	// watermark where it is, so that a comment arriving meanwhile still wakes.
+	for _, subject := range []string{
+		"gitlab:list_issues", "gitlab:get_issue", "gitlab:list_mr_notes",
+		"gitlab:get_merge_request", "gitlab:read_file", "gitlab:checkout",
+		"gitlab:list_pipelines", "gitlab:get_job_log", "gitlab:get_note",
+	} {
+		if sys.WritesWorkSignature(subject) {
+			t.Errorf("%s only reads and must not advance the watermark", subject)
+		}
+	}
+	// An action of another system says nothing about this signature.
+	if sys.WritesWorkSignature("zammad:reply_external") {
+		t.Error("a foreign system's action must not count")
+	}
+}
+
 func TestAssignAction(t *testing.T) {
 	var gotPath, gotMethod, gotQuery string
 	var gotBody map[string]any
@@ -1737,27 +1776,33 @@ func TestHasWorkKindIssuesAssigned(t *testing.T) {
 		t.Fatalf("with an assignment: has=%v err=%v", has, err)
 	}
 
-	// The bot commented last → worked on, rests until the answer. Exactly here
-	// the agent ran into the endless loop before: the issue stayed assigned to
-	// it, so it counted as work afresh in every 2-minute interval.
+	// Comment authorship used to decide "already answered" here by comparing
+	// the last commenter against the bot's own username — broken in an
+	// organization without per-role bot accounts, where a colleague agent's
+	// comment is indistinguishable from the bot's own (see issueWorkPending's
+	// doc comment). Every assigned, open issue now counts as work
+	// unconditionally, regardless of who commented or how many times —
+	// avoiding an endless re-wake on a truly settled issue is the job of the
+	// signature-based dedup one layer up (heartbeatHasWork in the
+	// orchestrator, exercised by TestWorkSignature for the MR case; the same
+	// threadSig mechanism carries the issue case here), not of this boolean.
 	notes = []Note{
 		{ID: 1, Body: "Bitte fixen", Author: by("leaddev")},
 		{ID: 2, Body: "Erledigt via MR !12", Author: by("covey-bot")},
 	}
-	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || has {
-		t.Fatalf("an issue answered by the bot must not wake it: has=%v err=%v", has, err)
+	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || !has {
+		t.Fatalf("an assigned issue always counts as work: has=%v err=%v", has, err)
 	}
 
-	// A system comment after that (a label changed) changes nothing …
+	// Further notes, system or not, change nothing about that boolean either
+	// way — only the signature moves, tested separately.
 	notes = append(notes, Note{ID: 3, System: true, Body: "added label", Author: by("leaddev")})
-	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || has {
-		t.Fatalf("a system note must not wake it: has=%v err=%v", has, err)
+	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || !has {
+		t.Fatalf("still work after a system note: has=%v err=%v", has, err)
 	}
-
-	// … a real answer does.
 	notes = append(notes, Note{ID: 4, Body: "Noch ein Fall", Author: by("leaddev")})
 	if has, err := sys.HasWorkKind(ctx, cred, "assigned"); err != nil || !has {
-		t.Fatalf("a new answer must wake it: has=%v err=%v", has, err)
+		t.Fatalf("still work after a real note: has=%v err=%v", has, err)
 	}
 }
 
@@ -1822,16 +1867,14 @@ func TestHasWorkKindReview(t *testing.T) {
 	reviewMRs, mrNotes = nil, nil
 	check(false)
 
-	// A freshly assigned MR without a comment → the first review is outstanding
-	// (work).
+	// Keep the unused reviewer path on its existing edge-triggered behavior:
+	// fresh assignment and an author's response need review; my own last review
+	// rests. Shared identities must not silently turn this dormant path into a
+	// level-triggered loop before it is deliberately redesigned.
 	reviewMRs, mrNotes = []MergeRequest{mrIn}, nil
 	check(true)
-
-	// The author answered last (reworked it) → check again (work).
 	reviewMRs, mrNotes = []MergeRequest{mrIn}, author
 	check(true)
-
-	// I (qa-bot) commented last → the round is answered, no work.
 	reviewMRs, mrNotes = []MergeRequest{mrIn}, mine
 	check(false)
 }
@@ -1986,8 +2029,11 @@ func TestWorkSignature(t *testing.T) {
 	mr.References.Full = "gruppe/support!9"
 	myMRs = []MergeRequest{mr}
 
-	// Without work the signature is empty — it then suppresses nothing.
-	mrNotes = []Note{{ID: 1, Body: "erledigt", Author: author("covey-bot")}}
+	// Without work the signature is empty — it then suppresses nothing. A
+	// fresh MR with zero comments is the only case this can still tell
+	// without relying on comment authorship (see mrReviewPending's doc
+	// comment) — once anyone has said anything, it counts as possible work.
+	mrNotes = nil
 	has, sig, err := sys.HasWorkSigned(ctx, cred, "mr")
 	if err != nil || has || sig != "" {
 		t.Fatalf("without work: has=%v sig=%q err=%v", has, sig, err)
@@ -2269,6 +2315,12 @@ type mergeGateServer struct {
 	me        string
 	mergeBody map[string]any
 	merges    int
+	queued    int
+	// autoMergeOutcome is what GitLab makes of an auto-merge request: "" queues
+	// it as usual, "merged" merges right away (the pipeline turned green
+	// between read and call), "nothing" neither — an answer whose MR is
+	// unchanged, which does happen and must not be sold as a success.
+	autoMergeOutcome string
 }
 
 func (g *mergeGateServer) start(t *testing.T) *httptest.Server {
@@ -2282,11 +2334,28 @@ func (g *mergeGateServer) start(t *testing.T) *httptest.Server {
 		case r.URL.Path == "/api/v4/projects/40/merge_requests/1685/approvals":
 			json.NewEncoder(w).Encode(g.approvals)
 		case r.URL.Path == "/api/v4/projects/40/merge_requests/1685/merge" && r.Method == http.MethodPut:
-			g.merges++
 			json.NewDecoder(r.Body).Decode(&g.mergeBody)
-			merged := g.mr
-			merged.State = "merged"
-			json.NewEncoder(w).Encode(merged)
+			result := g.mr
+			// GitLab links the two parameters with an OR — the deprecated name
+			// works exactly like the current one.
+			if g.mergeBody["auto_merge"] == true || g.mergeBody["merge_when_pipeline_succeeds"] == true {
+				g.queued++
+				switch g.autoMergeOutcome {
+				case "merged":
+					result.State = "merged"
+				case "nothing":
+					// unchanged: neither merged nor queued
+				default:
+					// Real GitLab does not complete the merge here either — it
+					// stays open until the pipeline it is pinned against turns
+					// green.
+					result.MergeWhenPipelineSucceeds = true
+				}
+			} else {
+				g.merges++
+				result.State = "merged"
+			}
+			json.NewEncoder(w).Encode(result)
 		default:
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 		}
@@ -2354,9 +2423,12 @@ func TestMergeMRRefusesUnacceptedStates(t *testing.T) {
 			func(g *mergeGateServer) { g.mr.HeadPipeline = &Pipeline{ID: 1, Status: "failed"} },
 			"not green",
 		},
-		"pipeline still running": {
-			func(g *mergeGateServer) { g.mr.HeadPipeline = &Pipeline{ID: 1, Status: "running"} },
-			"not green",
+		"pipeline still running, not approved yet": {
+			func(g *mergeGateServer) {
+				g.mr.HeadPipeline = &Pipeline{ID: 1, Status: "running"}
+				g.approvals = MRApprovals{}
+			},
+			"your own approval is not on record",
 		},
 		"no pipeline at all": {
 			func(g *mergeGateServer) { g.mr.HeadPipeline = nil },
@@ -2375,8 +2447,16 @@ func TestMergeMRRefusesUnacceptedStates(t *testing.T) {
 			"not open",
 		},
 		"gitlab says not mergeable": {
-			func(g *mergeGateServer) { g.mr.DetailedMergeStatus = "ci_still_running" },
+			func(g *mergeGateServer) { g.mr.DetailedMergeStatus = "blocked_status" },
 			"not consider the merge request mergeable",
+		},
+		// The CI values of detailed_merge_status are not a hard refusal — they
+		// are the pipeline's business (see ciMergeStatuses). With a green head
+		// pipeline they nevertheless block: nothing is in motion any more that
+		// waiting could resolve.
+		"gitlab still waits for a pipeline": {
+			func(g *mergeGateServer) { g.mr.DetailedMergeStatus = "ci_must_pass" },
+			"still waiting for a pipeline",
 		},
 		"further approval required": {
 			func(g *mergeGateServer) {
@@ -2410,6 +2490,167 @@ func TestMergeMRRefusesUnacceptedStates(t *testing.T) {
 			}
 			if g.merges != 0 {
 				t.Fatal("nothing may be merged in the refused case")
+			}
+			if g.queued != 0 {
+				t.Fatal("nothing may be queued for auto-merge in the refused case either")
+			}
+		})
+	}
+}
+
+// TestMergeMRQueuesWhenPipelineStillRunning is the actual point of the
+// auto-merge path: an MR that is otherwise fully accepted (approved, no
+// conflicts, discussions resolved) but whose pipeline just has not concluded
+// yet must not be refused — GitLab's own auto-merge queues it, so nobody has to
+// come back and ask again once it turns green.
+//
+// detailed_merge_status is deliberately "ci_still_running" and not "mergeable":
+// that is what a project with "pipelines must succeed" reports while the
+// pipeline runs, i.e. the real state of exactly this case. Judged as a hard
+// refusal it kills the whole path in precisely the projects it is built for.
+func TestMergeMRQueuesWhenPipelineStillRunning(t *testing.T) {
+	g := &mergeGateServer{mr: greenMR(), me: "egon.rastlos",
+		approvals: MRApprovals{UserHasApproved: true}}
+	g.mr.HeadPipeline = &Pipeline{ID: 1, Status: "running"}
+	g.mr.DetailedMergeStatus = "ci_still_running"
+	srv := g.start(t)
+
+	sys := System{}
+	cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+	out, err := sys.Execute(context.Background(), "merge_mr", []byte(`{"project_id":40,"mr_iid":1685}`), cred)
+	if err != nil {
+		t.Fatalf("merge_mr with a still-running pipeline must queue, not refuse: %v", err)
+	}
+	m := out.(map[string]any)
+	if m["queued_for_pipeline"] != true || m["pipeline_status"] != "running" {
+		t.Fatalf("the result has to say it was queued and why: %+v", out)
+	}
+	// auto_merge is the current parameter; the deprecated twin travels along so
+	// that instances before GitLab 17.11 understand the request too.
+	if g.mergeBody["auto_merge"] != true || g.mergeBody["merge_when_pipeline_succeeds"] != true {
+		t.Fatalf("the request has to ask GitLab for auto-merge under both names: %+v", g.mergeBody)
+	}
+	if g.mergeBody["sha"] != "f47dacf6" {
+		t.Fatalf("the reviewed commit has to be pinned even when queuing: %+v", g.mergeBody)
+	}
+	if g.queued != 1 || g.merges != 0 {
+		t.Fatalf("exactly one queue call and no immediate merge: queued=%d merges=%d", g.queued, g.merges)
+	}
+
+	// A pipeline that has already concluded negatively must still refuse —
+	// waiting longer would not help, so queuing would just leave it in limbo.
+	for _, status := range []string{"failed", "canceled", "skipped"} {
+		t.Run("terminal "+status, func(t *testing.T) {
+			g := &mergeGateServer{mr: greenMR(), me: "egon.rastlos",
+				approvals: MRApprovals{UserHasApproved: true}}
+			g.mr.HeadPipeline = &Pipeline{ID: 1, Status: status}
+			srv := g.start(t)
+			cred := target.Credential{BaseURL: srv.URL, Token: "test-token"}
+			if _, err := sys.Execute(context.Background(), "merge_mr", []byte(`{"project_id":40,"mr_iid":1685}`), cred); err == nil {
+				t.Fatalf("a %s pipeline must still refuse, not queue", status)
+			}
+			if g.queued != 0 {
+				t.Fatalf("a %s pipeline must never be queued for auto-merge", status)
+			}
+		})
+	}
+}
+
+// TestMergeMRReportsWhatGitLabDid: the answer has to say what GitLab really
+// did, not what was asked of it. The prompt tells the agent it need not come
+// back after a queue — so a "queued" that nothing stands behind is a merge
+// that never happens and that nobody misses.
+func TestMergeMRReportsWhatGitLabDid(t *testing.T) {
+	sys := System{}
+	runningMR := func(g *mergeGateServer) {
+		g.mr = greenMR()
+		g.mr.HeadPipeline = &Pipeline{ID: 1, Status: "running"}
+		g.mr.DetailedMergeStatus = "ci_still_running"
+	}
+
+	// The pipeline turned green between reading and calling: GitLab merges
+	// straight away. Then the result is a merge, not a queue.
+	t.Run("merged right away", func(t *testing.T) {
+		g := &mergeGateServer{me: "egon.rastlos", approvals: MRApprovals{UserHasApproved: true},
+			autoMergeOutcome: "merged"}
+		runningMR(g)
+		srv := g.start(t)
+		out, err := sys.Execute(context.Background(), "merge_mr", []byte(`{"project_id":40,"mr_iid":1685}`),
+			target.Credential{BaseURL: srv.URL, Token: "test-token"})
+		if err != nil {
+			t.Fatalf("an immediate merge is not an error: %v", err)
+		}
+		m := out.(map[string]any)
+		if m["merged"] != true || m["queued_for_pipeline"] == true {
+			t.Fatalf("merged, so it must not read as queued: %+v", out)
+		}
+	})
+
+	// GitLab neither merged nor queued: that has to reach the agent as a
+	// refusal it can report, not as a success.
+	t.Run("neither merged nor queued", func(t *testing.T) {
+		g := &mergeGateServer{me: "egon.rastlos", approvals: MRApprovals{UserHasApproved: true},
+			autoMergeOutcome: "nothing"}
+		runningMR(g)
+		srv := g.start(t)
+		out, err := sys.Execute(context.Background(), "merge_mr", []byte(`{"project_id":40,"mr_iid":1685}`),
+			target.Credential{BaseURL: srv.URL, Token: "test-token"})
+		if err == nil {
+			t.Fatalf("without a queue there is nothing to report as done: %+v", out)
+		}
+		if !strings.Contains(err.Error(), "neither merged nor queued") {
+			t.Fatalf("the refusal has to name what happened: %v", err)
+		}
+	})
+}
+
+// TestMergeMRDoesNotQueueWhenPipelineIsNotTheOnlyBlocker protects the
+// distinction between "waiting for CI" and "not mergeable". GitLab would
+// keep an invalid auto-merge request pending, hiding the actionable refusal
+// from the agent, so every non-pipeline gate must be checked before queuing.
+func TestMergeMRDoesNotQueueWhenPipelineIsNotTheOnlyBlocker(t *testing.T) {
+	cases := map[string]struct {
+		mutate func(*MergeRequestDetail)
+		reason string
+	}{
+		"not open": {
+			func(mr *MergeRequestDetail) { mr.State = "closed" },
+			"not open",
+		},
+		"missing head commit": {
+			func(mr *MergeRequestDetail) { mr.SHA = "" },
+			"no head commit",
+		},
+		"conflicts": {
+			func(mr *MergeRequestDetail) { mr.HasConflicts = true },
+			"conflicts",
+		},
+		"unresolved discussion": {
+			func(mr *MergeRequestDetail) { mr.BlockingDiscussionsResolved = false },
+			"unresolved discussions",
+		},
+		"not mergeable": {
+			func(mr *MergeRequestDetail) { mr.DetailedMergeStatus = "blocked_status" },
+			"not consider the merge request mergeable",
+		},
+	}
+
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			g := &mergeGateServer{mr: greenMR(), me: "egon.rastlos",
+				approvals: MRApprovals{UserHasApproved: true}}
+			g.mr.HeadPipeline = &Pipeline{ID: 1, Status: "running"}
+			tc.mutate(&g.mr)
+			srv := g.start(t)
+
+			_, err := (System{}).Execute(context.Background(), "merge_mr",
+				[]byte(`{"project_id":40,"mr_iid":1685}`),
+				target.Credential{BaseURL: srv.URL, Token: "test-token"})
+			if err == nil || !strings.Contains(err.Error(), tc.reason) {
+				t.Fatalf("must refuse with %q, got %v", tc.reason, err)
+			}
+			if g.queued != 0 || g.merges != 0 {
+				t.Fatalf("invalid MR must neither queue nor merge: queued=%d merges=%d", g.queued, g.merges)
 			}
 		})
 	}

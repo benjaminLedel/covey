@@ -51,6 +51,7 @@ func TestBuiltinsLoad(t *testing.T) {
 func TestBuiltinIDsStable(t *testing.T) {
 	want := map[string]string{
 		"builtin:people-department":         "",
+		"builtin:improvement-engineer":      "",
 		"builtin:coding-agent":              "",
 		"builtin:qa-agent":                  "",
 		"builtin:delivery-lead":             "",
@@ -104,6 +105,50 @@ func TestBuiltinSkills(t *testing.T) {
 				t.Errorf("%s: neither PLAYBOOKS.md nor HEARTBEAT.md points at skill %q — it is never pulled",
 					b.Key, sk.Name)
 			}
+		}
+	}
+}
+
+// TestBuiltinMeldetNachOben pins the colleague channel (spec/21).
+//
+// It is the one of the three causes the evidence is genuinely poor at: a wrong
+// assignment produces runs that look perfectly ordinary, and a limit somebody
+// worked around silently leaves no trace at all. What closes that gap is not a
+// mechanism — `covey/create_task` carries it already, fail-closed in all three
+// directions that matter — but a section in every colleague's playbook. A
+// section that only some bundles carry is a channel that only sometimes exists,
+// which is why this is pinned rather than trusted.
+//
+// Covey Doctor is exempt: it is the recipient.
+func TestBuiltinMeldetNachOben(t *testing.T) {
+	// Two markers, one per language — the section is written out in each
+	// bundle, in its own language, and both name the action.
+	marker := []string{
+		"Wenn dich etwas aufhält, das nicht dein Auftrag war",
+		"When something that was not your assignment holds you up",
+	}
+	for _, b := range Builtins() {
+		if b.Key == "builtin:improvement-engineer" {
+			continue
+		}
+		var probe struct {
+			Files map[string]string `json:"files"`
+		}
+		if err := json.Unmarshal(b.Bundle, &probe); err != nil {
+			t.Fatalf("%s: %v", b.Key, err)
+		}
+		pb := probe.Files["PLAYBOOKS.md"]
+		var found bool
+		for _, m := range marker {
+			if strings.Contains(pb, m) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("%s: PLAYBOOKS.md has no section on reporting what held the agent up", b.Key)
+		}
+		if !strings.Contains(pb, "covey/create_task") {
+			t.Errorf("%s: the section has to name the action it runs through", b.Key)
 		}
 	}
 }

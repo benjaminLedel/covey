@@ -1,0 +1,28 @@
+-- Wie oft ist dieser Aufgabe hintereinander die Sandbox weggebrochen?
+--
+-- Reisst die Daemon-Verbindung mitten im Lauf ab (Docker unter Ressourcendruck,
+-- Netzwerk-Blip, gekillter Container), dann ist das ein Infrastruktur-Ereignis
+-- und kein Urteil ueber die Arbeit des Agenten — die Aufgabe wird deshalb neu
+-- eingereiht statt terminal auf failed gesetzt.
+--
+-- Bei einem *sporadischen* Abbruch ist das richtig. Bei einem
+-- *reproduzierbaren* nicht: kaputtes Sandbox-Image nach einem Deploy, OOM beim
+-- Container-Start, eine Agent-Config, die den Container zuverlaessig reisst.
+-- Dann laeuft open -> ClaimNext -> Sandbox stirbt -> open dauerhaft im Kreis,
+-- jede Runde mit einem vollen Sandbox-Start, und nichts im System zeigt an,
+-- dass hier etwas feststeckt statt zu arbeiten.
+--
+-- Dieser Zaehler ist die Obergrenze dagegen. Er steht an der AUFGABE und nicht
+-- im Prozessspeicher, weil ein Neustart der Control Plane einer der Faelle ist,
+-- die die Abbrueche ausloesen: ein In-Memory-Zaehler waere danach wieder bei
+-- null und die Schleife liefe weiter.
+--
+-- Zurueckgesetzt wird er, sobald ein Lauf aus einem ANDEREN Grund endet als dem
+-- Verbindungsabbruch (Reopen nach Budget-Stopp, Block, Retry von Hand) — sonst
+-- wuerde eine langlebige Aufgabe ueber Wochen an aufaddierten Einzel-Blips
+-- scheitern statt an einer echten Serie. "Hintereinander" ist der Punkt.
+--
+-- Kein Index: gelesen wird die Spalte nur zusammen mit der Zeile, die der
+-- Dispatcher ohnehin schon in der Hand hat.
+ALTER TABLE backlog_tasks
+    ADD COLUMN daemon_retries INT NOT NULL DEFAULT 0;

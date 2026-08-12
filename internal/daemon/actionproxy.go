@@ -220,9 +220,12 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 		audit, _ := json.Marshal(map[string]any{"action": "covey:set_stage", "stage": in.Stage})
 		_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
 		return map[string]string{"status": "ok", "stage": in.Stage}
-	case "list_targets", "get_agent_config", "create_agent", "set_agent_config":
-		// Hiring (spec/20). Everything is decided in the control plane, including
-		// the guard-rail check — the proxy only carries the request across.
+	case "list_targets", "get_agent_config", "create_agent", "set_agent_config",
+		"work_record", "read_recording", "propose_agent_config", "write_review":
+		// Die Meta-Actions an der Registry der Plattform: Entwerfen (spec/20)
+		// und Begutachten (spec/21). Alles wird in der Control Plane
+		// entschieden — Scope, Guard-Rails, Freigaben —, der Proxy trägt die
+		// Anfrage nur hinüber.
 		var in struct {
 			Agent       string            `json:"agent"`
 			Slug        string            `json:"slug"`
@@ -232,15 +235,34 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 			Department  string            `json:"department"`
 			Supervisor  string            `json:"supervisor"`
 			Files       map[string]string `json:"files"`
+			Task        string            `json:"task"`
+			Days        int               `json:"days"`
+			Title       string            `json:"title"`
+			Rationale   string            `json:"rationale"`
+			Summary     string            `json:"summary"`
+			Findings    []ReviewNote      `json:"findings"`
+			Issues      []ReviewNote      `json:"issues"`
 		}
 		_ = json.Unmarshal(params, &in)
 		resp, err := p.client.hiring(ctx, RequestHiring{
 			Op: action, TaskID: p.taskID, Agent: in.Agent, Slug: in.Slug,
 			DisplayName: in.DisplayName, Runtime: in.Runtime, JobTitle: in.JobTitle,
 			Department: in.Department, Supervisor: in.Supervisor, Files: in.Files,
+			Task: in.Task, Days: in.Days, Title: in.Title, Rationale: in.Rationale,
+			Summary: in.Summary, Findings: in.Findings, Issues: in.Issues,
 		})
 		if err != nil {
 			return map[string]string{"status": "error", "error": err.Error()}
+		}
+		// Vor der OK-Prüfung: die Aktion ist nicht fehlgeschlagen, sie hat
+		// nicht stattgefunden. Dieselbe Antwort wie bei einer Zielsystem-
+		// Aktion, damit die Runtime nur EIN Muster kennen muss.
+		if resp.Pending {
+			return map[string]string{
+				"status":          "pending_approval",
+				"approval_id":     resp.ApprovalID,
+				"correlation_key": resp.CorrelationKey,
+			}
 		}
 		if !resp.OK {
 			return map[string]string{"status": "error", "error": resp.Error}

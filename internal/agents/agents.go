@@ -41,6 +41,10 @@ type Agent struct {
 	// Model picks the LLM within the runtime (e.g. claude-opus-4-8);
 	// empty = the runtime uses its own default.
 	Model string `json:"model"`
+	// Effort sets the reasoning effort within the runtime (Claude Code's
+	// --effort: low, medium, high, xhigh, max); empty = the runtime's own
+	// default. Independent of Model — a model can run at any effort level.
+	Effort string `json:"effort"`
 	// MaxTurns caps the turns of a runtime run (runaway guard);
 	// 0 = the orchestrator's default.
 	MaxTurns int        `json:"max_turns"`
@@ -122,11 +126,11 @@ type Registry struct {
 
 func NewRegistry(pool *pgxpool.Pool) *Registry { return &Registry{pool: pool} }
 
-const agentCols = "id, org_id, slug, display_name, runtime, model, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, runtime_id, webhook_token, COALESCE(recording_level,''), warm_sandbox, hired_at, created_at, updated_at"
+const agentCols = "id, org_id, slug, display_name, runtime, model, effort, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, runtime_id, webhook_token, COALESCE(recording_level,''), warm_sandbox, hired_at, created_at, updated_at"
 
 func scanAgent(row pgx.Row) (Agent, error) {
 	var a Agent
-	err := row.Scan(&a.ID, &a.OrgID, &a.Slug, &a.DisplayName, &a.Runtime, &a.Model, &a.MaxTurns, &a.Status,
+	err := row.Scan(&a.ID, &a.OrgID, &a.Slug, &a.DisplayName, &a.Runtime, &a.Model, &a.Effort, &a.MaxTurns, &a.Status,
 		&a.OwnerID, &a.SupervisorID, &a.DepartmentID, &a.JobTitle, &a.Identities, &a.Phone, &a.Responsibilities, &a.Custom,
 		&a.Killed, &a.BudgetUSD, &a.RuntimeID, &a.WebhookToken, &a.RecordingLevel, &a.WarmSandbox, &a.HiredAt, &a.CreatedAt, &a.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -148,9 +152,43 @@ func (r *Registry) CreateDraft(ctx context.Context, orgID uuid.UUID, slug, displ
 	return r.create(ctx, orgID, slug, displayName, runtime, ownerID, true)
 }
 
+// DefaultRuntime is the engine an agent gets when none is named — the one every
+// bundle without a `runtime` field ends up on. Named here so that whoever has to
+// validate against the engine BEFORE the agent exists (the bundle import) asks
+// the same question as create() answers.
+const DefaultRuntime = "claude-code"
+
+// Covey Doctor trägt einen festen Namen.
+//
+// Er ist kein Kollege, den eine Organisation sich ausdenkt, sondern die
+// Plattform, die sich selbst betrachtet (spec/21) — dieselbe Rolle, die
+// `covey doctor` vor einem Upgrade einnimmt. Ein Agent, der jeden Kollegen
+// beurteilen und für ihn Änderungen vorschlagen darf, soll überall gleich
+// heißen: wer in einem fremden Recording „Covey Doctor" liest, weiß, was das
+// war, ohne die ACCESS.md nachzuschlagen. Deshalb Name und Slug reserviert und
+// gegen Umbenennen gesperrt — ein umbenannter Doctor wäre ein Agent mit den
+// Rechten des Doctors und dem Namen eines Kollegen.
+const (
+	DoctorSlug = "covey-doctor"
+	DoctorName = "Covey Doctor"
+)
+
+// IsDoctor erkennt Covey Doctor am reservierten Slug. Der Slug ist
+// der Anker und nicht der Anzeigename, weil er eindeutig je Organisation ist —
+// und er ist mitgesperrt, sonst wäre das Umbenennen des Slugs der Umweg um die
+// Namenssperre.
+func IsDoctor(a Agent) bool { return a.Slug == DoctorSlug }
+
 func (r *Registry) create(ctx context.Context, orgID uuid.UUID, slug, displayName, runtime string, ownerID *uuid.UUID, draft bool) (Agent, error) {
 	if runtime == "" {
-		runtime = "claude-code"
+		runtime = DefaultRuntime
+	}
+	// Der reservierte Slug bringt den Namen mit — hier und nicht im Handler,
+	// damit jeder Weg ihn erbt: Oberfläche, Bundle-Import, Entwurf. Sonst hinge
+	// die feste Identität daran, welchen Weg jemand genommen hat, und die
+	// Sperre gegen Umbenennen fände beim Import schon einen falschen Namen vor.
+	if slug == DoctorSlug {
+		displayName = DoctorName
 	}
 	hired := "now()"
 	if draft {
@@ -324,6 +362,17 @@ func (r *Registry) SetRuntime(ctx context.Context, id uuid.UUID, runtime string)
 // Takes effect at the next task dispatch, like SetRuntime.
 func (r *Registry) SetModel(ctx context.Context, id uuid.UUID, model string) error {
 	tag, err := r.pool.Exec(ctx, "UPDATE agents SET model=$2, updated_at=now() WHERE id=$1", id, model)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+// SetEffort sets the agent's reasoning effort (Claude Code's --effort: low,
+// medium, high, xhigh, max; empty = runtime default). Independent of the
+// model — takes effect at the next task dispatch, like SetModel.
+func (r *Registry) SetEffort(ctx context.Context, id uuid.UUID, effort string) error {
+	tag, err := r.pool.Exec(ctx, "UPDATE agents SET effort=$2, updated_at=now() WHERE id=$1", id, effort)
 	if err == nil && tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
@@ -666,6 +715,28 @@ func (r *Registry) CurrentConfig(ctx context.Context, agentID uuid.UUID) (Config
 	var filesJSON []byte
 	err := r.pool.QueryRow(ctx, `SELECT id, agent_id, version, files, compiled_prompt, created_at
 		FROM agent_config_versions WHERE agent_id=$1 ORDER BY version DESC LIMIT 1`, agentID).
+		Scan(&cv.ID, &cv.AgentID, &cv.Version, &filesJSON, &cv.CompiledPrompt, &cv.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return cv, ErrNotFound
+	}
+	if err != nil {
+		return cv, err
+	}
+	if err := json.Unmarshal(filesJSON, &cv.Files); err != nil {
+		return cv, fmt.Errorf("config files: %w", err)
+	}
+	return cv, nil
+}
+
+// ConfigAtVersion returns one specific config version — the basis a proposal
+// was written against (spec/21). Everything else reads the latest one; this is
+// the only place that needs an older one, and it needs it to answer whether
+// somebody edited the same file underneath an open proposal.
+func (r *Registry) ConfigAtVersion(ctx context.Context, agentID uuid.UUID, version int) (ConfigVersion, error) {
+	var cv ConfigVersion
+	var filesJSON []byte
+	err := r.pool.QueryRow(ctx, `SELECT id, agent_id, version, files, compiled_prompt, created_at
+		FROM agent_config_versions WHERE agent_id=$1 AND version=$2`, agentID, version).
 		Scan(&cv.ID, &cv.AgentID, &cv.Version, &filesJSON, &cv.CompiledPrompt, &cv.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return cv, ErrNotFound

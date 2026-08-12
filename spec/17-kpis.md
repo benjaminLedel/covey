@@ -65,8 +65,8 @@ A KPI has a stable key, a title, a counting rule and — optionally — a target
 
 Deliberately few rule forms, because every additional one is a query shape that has to stay fast:
 
-- `aktion <system>:<verb>` — one successful target-system action. Failed actions do not count; an agent that tried to close a ticket and got a 422 resolved nothing.
-- `aktion <system>:*` — any action of a system, for a coarse "did it touch GitLab at all".
+- `aktion <system>:<verb>` — one successful target-system action. Failed actions do not count; an agent that tried to close a ticket and got a 422 resolved nothing. Where a plugin qualifies a verb further, the qualifier is part of the name and is written out in full: `covey:create_task` and `covey:create_task:foreign` (delegating to a colleague) are separately forbiddable in the guard-rails and are counted just as separately.
+- `aktion <system>:*` — any action of a system, for a coarse "did it touch GitLab at all". The `*` stands for everything below the prefix and may only be the last segment (`covey:create_task:*` is allowed, `covey:*:foreign` is not) — the counting side turns it into a prefix comparison.
 - `aufgabe erledigt` — a backlog task that reached `done`, optionally narrowed by `herkunft:` (origin).
 
 ### `je:` counts objects, not events
@@ -226,6 +226,8 @@ A KPI counts events. It does not judge them. A ticket closed wrongly counts exac
 The qualifying figures above narrow the gap but do not close it. Rework, rejections and response time are **proxies for quality, not quality**: a case that never comes back may have been resolved well or merely abandoned by a resigned reporter, and an approval nobody rejects may mean the proposals were good or that the reviewer stopped reading. They are worth having because they are cheap and because they move in the right direction — not because they settle the question.
 
 The judgement itself stays where it already sits: in the recording, in the approval gates, and in the humans who read both.
+
+Covey Doctor reads all of it and judges — but its output is a **proposal**, never a change in effect ([`21-operations-and-improvement.md`](21-operations-and-improvement.md)). That keeps the sentences above true rather than rewriting them: still nothing rewards an agent for a figure, still nothing shows it its target, still no scheduler decision hangs off one. The humans get the judgement prepared instead of having to assemble it.
 
 ---
 

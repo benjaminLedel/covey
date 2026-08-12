@@ -117,16 +117,7 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	// ACCESS.md and EGRESS.md are the text view of the UI stores and are
 	// rendered live — never served from the version snapshot (configsync.go).
-	if access, err := s.renderAccessFile(r.Context(), id); err != nil {
-		s.Log.Warn("rendering ACCESS.md", "agent", id, "err", err)
-	} else {
-		cv.Files["ACCESS.md"] = access
-	}
-	if eg, err := s.renderEgressFile(r.Context(), p.OrgID, id); err != nil {
-		s.Log.Warn("rendering EGRESS.md", "agent", id, "err", err)
-	} else {
-		cv.Files["EGRESS.md"] = eg
-	}
+	s.overlayLiveFiles(r.Context(), p.OrgID, id, cv.Files)
 	delete(cv.Files, "TOOLS.md") // legacy: absorbed into ACCESS.md
 	writeJSON(w, http.StatusOK, cv)
 }
@@ -615,6 +606,34 @@ func (s *Server) handleListRuntimes(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleRename changes an agent's display name. The slug stays stable.
+// checkDoctorIdentity hält Name und Slug von Covey Doctor fest und gibt
+// die Meldung für einen 409 zurück (leer = in Ordnung).
+//
+// Zentral erzwungen und nicht in der Oberfläche: ein deaktiviertes Eingabefeld
+// ist eine Bitte, keine Leitplanke. Es geht nicht um Ästhetik — der Doctor darf
+// jeden Kollegen lesen und für ihn Änderungen vorschlagen, und wer ihm einen
+// unauffälligen Namen gäbe, hätte einen Agenten mit diesen Rechten, den im
+// Org-Chart niemand als solchen erkennt.
+//
+// Leere Argumente heißen „wird nicht geändert" — so kann jeder der beiden
+// Endpunkte dieselbe Prüfung mit seinem einen Feld aufrufen.
+func (s *Server) checkDoctorIdentity(ctx context.Context, id uuid.UUID, name, slug string) string {
+	a, err := s.Registry.Get(ctx, id)
+	if err != nil || !agents.IsDoctor(a) {
+		// Kein Doctor (oder nicht lesbar) — dann entscheidet der Endpunkt wie
+		// bisher, inklusive seiner eigenen Fehlerbehandlung.
+		return ""
+	}
+	if name != "" && name != agents.DoctorName {
+		return "the operations engineer is always called " + agents.DoctorName + " — the name is part of the platform, not of the organisation"
+	}
+	if slug != "" && slug != agents.DoctorSlug {
+		return "the operations engineer keeps the slug " + agents.DoctorSlug +
+			" — renaming it would be the detour around the fixed name"
+	}
+	return ""
+}
+
 func (s *Server) handleRename(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
@@ -626,6 +645,10 @@ func (s *Server) handleRename(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := readJSON(r, &in); err != nil || strings.TrimSpace(in.DisplayName) == "" {
 		writeErr(w, http.StatusBadRequest, "display_name missing")
+		return
+	}
+	if msg := s.checkDoctorIdentity(r.Context(), id, strings.TrimSpace(in.DisplayName), ""); msg != "" {
+		writeErr(w, http.StatusConflict, msg)
 		return
 	}
 	if err := s.Registry.Rename(r.Context(), id, strings.TrimSpace(in.DisplayName)); err != nil {
@@ -678,6 +701,10 @@ func (s *Server) handleSetSlug(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "slug missing")
 		return
 	}
+	if msg := s.checkDoctorIdentity(r.Context(), id, "", strings.TrimSpace(in.Slug)); msg != "" {
+		writeErr(w, http.StatusConflict, msg)
+		return
+	}
 	if err := s.Registry.SetSlug(r.Context(), id, strings.TrimSpace(in.Slug)); err != nil {
 		// Matched against the wording of agents.Registry.SetSlug: a slug already
 		// taken or a bad format is a conflict, not a server error.
@@ -714,6 +741,16 @@ func (s *Server) handleSetRuntime(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
+	// Der Denkaufwand gehört der Engine, nicht dem Agenten: `xhigh` ist eine
+	// Claude-Code-Stufe. Wer die Engine wechselt, nimmt die Stufe nicht mit —
+	// sie stünde sonst weiter im Profil, ohne dass sie noch jemand liest.
+	// Zurück auf den Default der neuen Engine, still, aber nicht heimlich: das
+	// Feld zeigt danach sichtbar „leer = Runtime-Default".
+	if a, err := s.Registry.Get(r.Context(), id); err == nil && !daemon.AcceptsEffort(in.Runtime, a.Effort) {
+		if err := s.Registry.SetEffort(r.Context(), id, ""); err != nil {
+			s.Log.Warn("effort reset on runtime change", "agent", id, "err", err)
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -735,6 +772,54 @@ func (s *Server) handleSetModel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.Registry.SetModel(r.Context(), id, strings.TrimSpace(in.Model)); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// checkEffort validates a reasoning-effort level against the ENGINE the agent
+// runs on, and returns the message for a 400 (empty = fine). The levels belong
+// to the runtime plugin, not to this layer: `xhigh` is a Claude Code level, and
+// storing it on an agent whose engine never reads it would be a setting that is
+// configured, visible and without effect. Empty always passes — it means "the
+// engine's own default".
+func checkEffort(runtime, effort string) string {
+	if daemon.AcceptsEffort(runtime, effort) {
+		return ""
+	}
+	levels := daemon.EffortLevels(runtime)
+	if len(levels) == 0 {
+		return "runtime " + runtime + " has no reasoning-effort setting — leave effort empty"
+	}
+	return "effort must be one of " + strings.Join(levels, ", ") +
+		" (or empty for the " + runtime + " default)"
+}
+
+func (s *Server) handleSetEffort(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var in struct {
+		Effort string `json:"effort"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "effort missing")
+		return
+	}
+	a, err := s.Registry.Get(r.Context(), id)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	effort := strings.TrimSpace(in.Effort)
+	if msg := checkEffort(a.Runtime, effort); msg != "" {
+		writeErr(w, http.StatusBadRequest, msg)
+		return
+	}
+	if err := s.Registry.SetEffort(r.Context(), id, effort); err != nil {
 		mapErr(w, err)
 		return
 	}

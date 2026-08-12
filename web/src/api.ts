@@ -23,6 +23,7 @@ export type Agent = {
   display_name: string;
   runtime: string;
   model: string;
+  effort: string; // "" = Runtime-Default, sonst low|medium|high|xhigh|max
   max_turns: number;
   recording_level: string; // "" = erbt Org-Boden, sonst minimal|standard|full
   warm_sandbox: boolean; // hält die Sandbox zwischen Wach-Phasen live (opt-in)
@@ -154,6 +155,87 @@ export type Approval = {
   params: unknown;
   status: string;
   requested_at: string;
+};
+
+// Ein offener Punkt aus dem Betrieb (spec/21). Drei Sorten, eine Liste, weil
+// alle drei denselben Menschen brauchen: der Vorschlag mit Diff, der Befund
+// ohne einen (den Auftrag eines Kollegen kann nur der Mensch ändern, der ihn
+// verantwortet) und das Issue, das schon im Tracker liegt.
+export type ImprovementItem = {
+  id: string;
+  agent_id: string;
+  kind: "proposal" | "finding" | "issue";
+  title: string;
+  rationale: string;
+  base_version: number;
+  files: Record<string, string>;
+  author_agent_id?: string;
+  task_id?: string;
+  status: "pending" | "accepted" | "rejected";
+  decided_by?: string;
+  decided_at?: string;
+  decision_note: string;
+  applied_version: number;
+  created_at: string;
+  // Vom Server angereichert:
+  agent_slug: string;
+  agent_name: string;
+  agent_owner_id?: string;
+  author_slug?: string;
+  author_name?: string;
+  current_version: number;
+  // Gegen eine ältere Version geschrieben. Für sich noch kein Hinderungsgrund.
+  stale: boolean;
+  // Dateien, die seit der Basis von jemand anderem geändert wurden. Solange
+  // die Liste nicht leer ist, wird der Vorschlag nicht angenommen.
+  conflicts?: string[];
+  // Fasst ACCESS.md oder EGRESS.md an — dann entscheidet platform_admin oder
+  // security, nicht der Teamleiter, dem der Agent gehört (spec/02).
+  needs_security: boolean;
+  diff?: { file: string; before: string; after: string }[];
+  // Nur beim Issue: wo der Bericht schon liegt.
+  link?: string;
+};
+
+export const decideImprovement = (id: string, accept: boolean, note: string) =>
+  post<ImprovementItem>(`/improvements/${id}/decide`, { accept, note });
+
+export const decideApproval = (id: string, approve: boolean) =>
+  post<Approval>(`/approvals/${id}/decide`, { approve });
+
+// Eine Zeile des Posteingangs: Freigabe oder offener Punkt. Der Kopf ist für
+// beide gleich, damit serverseitig sortiert und geblättert werden kann; das
+// Sortenspezifische hängt unverändert darunter.
+export type InboxEntry = {
+  type: "approval" | "proposal" | "finding" | "issue";
+  id: string;
+  agent_id: string;
+  agent_slug: string;
+  agent_name: string;
+  task_id?: string;
+  title: string;
+  status: string;
+  pending: boolean;
+  created_at: string;
+  decided_at?: string;
+  approval?: Approval;
+  item?: ImprovementItem;
+};
+
+export type InboxPage = {
+  items: InboxEntry[];
+  /** Alle Zeilen, auf die die Filter passen — daran hängt „mehr laden". */
+  total: number;
+  /** Die offenen unter denselben Filtern, ohne den Statusfilter (Zähler). */
+  pending: number;
+};
+
+export const inbox = (params: Record<string, string | number | undefined>) => {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== "") q.set(k, String(v));
+  }
+  return api<InboxPage>(`/inbox?${q.toString()}`);
 };
 
 export type Guardrail = {
@@ -325,6 +407,57 @@ export type LintFinding = {
   hint: string;
 };
 
+// Die Arbeitsakte eines Kollegen (spec/21): acht Abschnitte aus acht benannten
+// Quellen. Kein Freitext eines Agenten oder eines Zielsystems — mit einer
+// Ausnahme, den Aufgabentiteln, die aus der Weck-Quelle stammen können.
+export type WorkRecordCount = { key: string; count: number };
+
+export type WorkRecord = {
+  agent_id: string;
+  slug: string;
+  display_name: string;
+  job_title?: string;
+  from: string;
+  to: string;
+  throughput: {
+    by_state: WorkRecordCount[];
+    by_origin: WorkRecordCount[];
+    tasks: {
+      id: string;
+      title: string;
+      state: string;
+      origin: string;
+      created_at: string;
+      finished_at?: string;
+      cost_usd: number;
+    }[];
+  };
+  aborts: WorkRecordCount[];
+  work: { action: string; ok: number; failed: number }[];
+  indicators: { key: string; title: string; goal: number; period?: string; count: number; unit_usd?: number }[];
+  cost: { total_usd: number; tasks: number; per_task_usd: number };
+  friction: { approvals: WorkRecordCount[]; denied: WorkRecordCount[]; proposals: WorkRecordCount[] };
+  findings: LintFinding[];
+  stuck: { id: string; title: string; correlation_key: string; question?: string; blocked_since: string }[];
+  // Was gekürzt wurde. Eine Akte, die still bei 200 Aufgaben aufhört, liest
+  // sich wie eine vollständige.
+  notes?: string[];
+};
+
+// Ein Review: was der Betrieb über einen Kollegen geschrieben hat, datiert
+// (spec/21). Es wartet auf nichts — anders als ein offener Punkt braucht es
+// keine Entscheidung, sondern einen Leser.
+export type AgentReview = {
+  id: string;
+  agent_id: string;
+  author_agent_id?: string;
+  task_id?: string;
+  period_from: string;
+  period_to: string;
+  summary: string;
+  created_at: string;
+};
+
 export type Human = {
   id: string;
   org_id: string;
@@ -408,6 +541,11 @@ export type Organization = {
   name: string;
   /** Was dieses Unternehmen macht — Stammdaten, siehe spec/20. */
   description: string;
+  /** Wo der Quelltext dieser Plattform liegt (spec/21): Zielsystem und
+   *  Projekt. Covey Doctor liest ihn dort und meldet dorthin.
+   *  Leer = nicht eingerichtet, und dann steht davon auch nichts im Prompt. */
+  platform_repo_system: string;
+  platform_repo_project: string;
   fleet_killed: boolean;
   human_count: number;
   agent_count: number;
@@ -439,7 +577,10 @@ export type RuntimeInfo = {
   label: string;
   description: string;
   credentials: EngineCredential[];
-  capabilities: { resume: boolean; skills_dir?: string };
+  /** effort_levels: die Denkaufwand-Stufen dieser Engine, aufsteigend.
+   *  Fehlt/leer = die Engine kennt den Regler nicht — dann wird er auch nicht
+   *  angeboten. */
+  capabilities: { resume: boolean; skills_dir?: string; effort_levels?: string[] };
   setup: SetupStep[];
 };
 

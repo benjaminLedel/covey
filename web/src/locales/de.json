@@ -358,7 +358,6 @@
     "costs": "Kosten",
     "setup": "Einrichtung",
     "control": "Aufsicht",
-    "approvals": "Freigaben",
     "guardrails": "Guard-Rails",
     "secrets": "Secrets",
     "targets": "Zielsysteme",
@@ -374,7 +373,8 @@
     "audit": "Audit",
     "requests": "Requests",
     "skills": "Skills",
-    "setupPage": "Einrichtung"
+    "setupPage": "Einrichtung",
+    "inbox": "Posteingang"
   },
   "costs": {
     "title": "Kosten & Token",
@@ -417,6 +417,7 @@
     "indicators": {
       "title": "Was dabei herauskam",
       "hint": "Die Kennzahlen aus KPIS.md der Agenten, und was eine Einheit davon gekostet hat.",
+      "restricted": "Die Kennzahlen eines einzelnen Agenten gehören zu seiner Arbeitsakte — deine Rolle sieht sie nicht. Die org-weite Preisliste bleibt offen: wähle oben „Alle Agenten“.",
       "perUnit": "{{price}} / Stück",
       "tooFew": "zu wenige",
       "tooFewHint": "Zu wenige Ereignisse für einen belastbaren Stückpreis — die Rohzahl steht daneben.",
@@ -699,7 +700,8 @@
       "skills": "Skills",
       "files": "Arbeitsplatz",
       "toolsSkills": "Tools & Skills",
-      "dreams": "Träume"
+      "dreams": "Träume",
+      "record": "Arbeitsakte"
     },
     "files": {
       "desc": "Das persistente Home des Agenten — sein Arbeitsplatz. Dateien überleben die Sandbox: Sie können hier auch dann etwas ablegen oder ansehen, wenn der Agent schläft. Jede Änderung landet im Recording.",
@@ -1020,6 +1022,10 @@
       "model": "Modell",
       "modelPlaceholder": "leer = Runtime-Default",
       "modelHint": "Modell-ID oder Alias, z. B. claude-opus-4-8 oder sonnet.",
+      "fixedIdentity": "Fest vergeben: Covey Doctor heißt auf jeder Instanz „Covey Doctor“. Der Name gehört zur Plattform, damit ein Agent mit diesen Rechten überall als solcher erkennbar bleibt.",
+      "effort": "Denkaufwand",
+      "effortDefault": "leer = Runtime-Default",
+      "effortHint": "Unabhängig vom Modell — wie gründlich pro Turn gedacht wird. Welche Stufen es gibt, sagt die Engine; Engines ohne diesen Regler zeigen die Zeile nicht.",
       "maxTurns": "Max. Turns je Lauf",
       "maxTurnsPlaceholder": "0 = Default (30)",
       "maxTurnsHint": "Runaway-Guard: bricht einen Lauf nach n Turns ab. Für Aufgaben mit Repo-Checkout großzügig wählen.",
@@ -1094,16 +1100,104 @@
       "title": "Was dabei herauskam",
       "window": "letzte 30 Tage",
       "hint": "Die Kennzahlen dieses Mitarbeiters aus seiner KPIS.md, und was eine Einheit davon gekostet hat."
+    },
+    "record": {
+      "hint": "Was die Plattform selbst über die Arbeit dieses Kollegen aufgeschrieben hat — Fakten, keine Gespräche. Die Frage dahinter: warum liefert er nicht? Drei Ursachen kommen in Betracht — seine Konfiguration, sein Auftrag, oder die Plattform unter ihm.",
+      "days": "{{count}} Tage",
+      "throughput": "Durchsatz",
+      "tasksTotal": "Aufgaben gesamt",
+      "byOrigin": "Nach Herkunft",
+      "aborts": "Abbrüche",
+      "noAborts": "Kein Lauf ist abgebrochen.",
+      "srcLifecycle": "Lifecycle-Ereignisse",
+      "abort": {
+        "max_turns": "Am Turn-Limit",
+        "error": "Fehler",
+        "budget": "Budget erschöpft",
+        "killed": "Notaus"
+      },
+      "cost": "Kosten",
+      "total": "Gesamt",
+      "perTask": "Je Aufgabe",
+      "costTasks": "Aufgaben mit Kosten",
+      "work": "Arbeit",
+      "noWork": "Keine Aktion ausgeführt.",
+      "indicators": "Kennzahlen",
+      "noIndicators": "Keine Kennzahlen in der KPIS.md.",
+      "friction": "Reibung",
+      "approvals": "Freigaben zu seinen Aktionen",
+      "denied": "Verbotene Versuche",
+      "ownProposals": "Eigene Vorschläge",
+      "noFriction": "Nichts angehalten, nichts abgelehnt.",
+      "stuck": "Hängt fest ({{count}})",
+      "stuckHint": "Aufgaben, die auf ein Ereignis warten. Das ist die Fehlerform, die niemand sieht, weil nichts fehlschlägt.",
+      "findings": "Stehende Befunde ({{count}})",
+      "tasks": "Aufgaben im Zeitraum",
+      "noTasks": "Keine Aufgaben im Zeitraum.",
+      "reviews": "Beurteilungen",
+      "reviewPeriod": "Zeitraum {{from}} – {{to}}",
+      "fromTask": "aus dem Lauf",
+      "reviewsMore": "{{count}} ältere anzeigen",
+      "reviewsFewer": "Nur die neueste"
     }
   },
   "approvals": {
-    "title": "Freigaben",
-    "pending": "{{count}} ausstehend",
-    "noPending": "Nichts wartet auf Freigabe.",
-    "requested": "angefragt {{date}}",
     "approve": "Freigeben",
-    "deny": "Ablehnen",
-    "decided": "Entschieden"
+    "deny": "Ablehnen"
+  },
+  "inbox": {
+    "title": "Posteingang",
+    "open": "{{count}} offen",
+    "hint": "Alles, was auf Ihre Entscheidung wartet. Eine Freigabe hält einen Agenten an — er arbeitet erst weiter, wenn Sie entschieden haben. Ein offener Punkt aus dem Betrieb hält nichts an: er ist ein Vorschlag, ein Befund oder ein Issue, und wirksam wird davon nichts, bevor Sie es annehmen.",
+    "todo": "Zu entscheiden",
+    "nothingToDo": "Nichts wartet auf eine Entscheidung.",
+    "all": "Alle Vorgänge",
+    "more": "Weitere laden ({{count}})",
+    "collapse": "Zuklappen",
+    "onlyMine": "Nur meine Agenten",
+    "allAgents": "Alle Agenten",
+    "allTypes": "Alle Sorten",
+    "filterAgent": "Nach Agent filtern",
+    "filterType": "Nach Sorte filtern",
+    "filterStatus": "Nach Status filtern",
+    "statusAll": "Offen und entschieden",
+    "statusOpen": "Nur offen",
+    "statusDecided": "Nur entschieden",
+    "sort": "Sortierung",
+    "sortUrgent": "Dringlichkeit",
+    "sortNewest": "Neueste zuerst",
+    "sortOldest": "Älteste zuerst",
+    "agentWaiting": "Die Aufgabe steht still, bis Sie entscheiden.",
+    "type": {
+      "approval": "Freigabe",
+      "proposal": "Vorschlag",
+      "finding": "Befund",
+      "issue": "Issue"
+    },
+    "status": {
+      "pending": "Offen",
+      "approved": "Freigegeben",
+      "denied": "Abgelehnt",
+      "expired": "Verfallen",
+      "accepted": "Angenommen",
+      "rejected": "Abgelehnt"
+    }
+  },
+  "improvements": {
+    "by": "von {{name}} ·",
+    "needsSecurity": "Ändert Zugänge — Security entscheidet",
+    "conflict": "Konflikt: {{files}} wurde zwischenzeitlich geändert",
+    "stale": "Gegen Version {{base}} geschrieben, aktuell ist {{current}}",
+    "showDiff": "Änderung ansehen ({{files}})",
+    "newFile": "neue Datei",
+    "skipped": "… {{count}} unveränderte Zeilen",
+    "notePlaceholder": "Notiz zur Entscheidung (optional)",
+    "accept": "Annehmen",
+    "done": "Erledigt",
+    "reject": "Ablehnen",
+    "blockedConflict": "Die Konfiguration hat sich seit diesem Vorschlag geändert — er muss neu geschrieben oder verworfen werden.",
+    "blockedSecurity": "Dieser Vorschlag ändert ACCESS.md oder EGRESS.md. Nur platform_admin oder security dürfen ihn annehmen.",
+    "appliedAs": "Übernommen als Version {{v}}"
   },
   "guardrails": {
     "title": "Guard-Rails",
@@ -1209,6 +1303,15 @@
       "placeholder": "Wir machen … Unsere Kunden sind … Wichtig ist uns …",
       "hint": "Geht in die Config neu entworfener Agenten, in jede Ausschreibung und in den Config-Assistenten ein.",
       "save": "Speichern"
+    },
+    "repo": {
+      "title": "Quelltext dieser Plattform",
+      "empty": "Nicht eingerichtet. Ohne ihn meldet Covey Doctor Symptome statt Diagnosen — und ohne Ziel gar nichts.",
+      "system": "Zielsystem",
+      "project": "Projekt",
+      "none": "— keines —",
+      "projectPlaceholder": "z. B. 42 oder gruppe/covey",
+      "hint": "Wo Covey selbst liegt: dort liest Covey Doctor den Quelltext (auf den laufenden Commit gepinnt) und meldet dorthin seine Fehlerberichte. Nur angeschlossene Zielsysteme; leer lassen schaltet beides ab. Zweite Hälfte der Einrichtung: dasselbe Zielsystem muss in der ACCESS.md von Covey Doctor stehen — ohne diese Zeile bleibt der Abschnitt aus seinem Prompt."
     }
   },
   "orgs": {

@@ -19,6 +19,11 @@ export function Performance({ agentId }: { agentId: string }) {
   const rep = useQuery({
     queryKey: ["cost", "indicators", agentId, 30],
     queryFn: () => api<IndicatorReport>(`/agents/${agentId}/cost/indicators?days=30`),
+    // Die Kennzahlen EINES Agenten folgen der Arbeitsakte (spec/21):
+    // Controlling bekommt hier eine 403. Kein Wiederholen und kein Fehlertext —
+    // eine Rolle, die etwas nicht sehen darf, soll es nicht als kaputt
+    // angezeigt bekommen, sondern gar nicht.
+    retry: false,
   });
   const data = rep.data;
   if (!data || ((data.indicators ?? []).length === 0 && data.failed === 0)) return null;

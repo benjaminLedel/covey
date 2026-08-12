@@ -142,6 +142,13 @@ These rules come from real mistakes — always take them into account when desig
 - **Team reference:** refer in `SOUL.md`/`PLAYBOOKS.md` to "the team (AI colleagues)" instead of
   fixed names — Covey plays the team directory into the prompt (e.g. who gets entered as the
   reviewer).
+- **Every agent reports upwards.** `PLAYBOOKS.md` gets a section telling the agent to report what
+  held it up when it was NOT the assignment — a missing action, a tool it is not allowed, a limit
+  it keeps hitting — to Covey Doctor by `covey/create_task`, instead of quietly
+  working around it (spec/21). Write it so it degrades: the agent looks for such a colleague in
+  its prompt, and puts the report into its result if there is none. The platform can see THAT a
+  run went wrong; why it went wrong only the agent knows, and only while it still knows. The
+  shipped bundles carry the section verbatim — copy it from one of them.
 
 ## Self-check before creating
 
@@ -152,6 +159,7 @@ These rules come from real mistakes — always take them into account when desig
 - [ ] `HEARTBEAT.md` describes the end-with-`done` logic + idempotency/skip?
 - [ ] Loop protection (idempotency, no double comment, hand-off) anchored in the prompt?
 - [ ] Does every run leave a visible trace (a comment) — otherwise the edge wakes it again?
+- [ ] Does `PLAYBOOKS.md` have the section on reporting what held the agent up (spec/21)?
 - [ ] Does the interval fit the duration of a run (code agents ≥ 5m, realistically 15m)?
 - [ ] A fixed, small set of stage names in the playbook instead of freely invented columns?
 - [ ] `warm_sandbox` set deliberately (only for dev/test)?

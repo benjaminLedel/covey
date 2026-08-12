@@ -25,6 +25,7 @@ import (
 
 	"covey/internal/agents"
 	"covey/internal/backlog"
+	"covey/internal/buildinfo"
 	"covey/internal/daemon"
 	"covey/internal/egress"
 	"covey/internal/guardrails"
@@ -654,6 +655,88 @@ func (o *Orchestrator) rememberWorkSignature(ctx context.Context, agentID uuid.U
 	}
 }
 
+// refreshWorkSignature advances a successful heartbeat run to the target
+// system state visible after the work. Dispatch stores the state from before
+// the run; without this refresh an agent's own issue/MR comment changes the
+// note id and immediately wakes the same heartbeat again. Empty signatures
+// remain fail-open and therefore never overwrite a usable watermark.
+//
+// The state after the run, however, also contains what arrived from OUTSIDE
+// while the run was going on, and authorship cannot tell the two apart under a
+// shared identity (that is the whole reason the level check exists). Whatever
+// is written into the watermark here is thereby marked as handled — a foreign
+// comment caught in it wakes nobody again. The check therefore only advances
+// when the run has actually executed a signature-writing action
+// (target.SignatureWriter): without one, every change comes from outside and
+// the watermark has to stay where it is, so the next tick fires for it.
+//
+// What remains is the narrow case of a foreign comment landing on exactly the
+// thread the agent commented on itself, in exactly that window. Only the ids of
+// the notes written by the agent itself could separate that — the recording
+// carries the action, not the id of the note it produced (see
+// spec/03-lifecycle-scheduling.md).
+//
+// The check runs synchronously in the completion path, after the task is
+// already finished: the watermark has to be settled before the next tick can
+// read it. It costs one work check — and only for runs that wrote something at
+// all; a silent run does not even get that far.
+func (o *Orchestrator) refreshWorkSignature(ctx context.Context, agentID, orgID uuid.UUID, name string, since time.Time) {
+	var condition string
+	if err := o.Pool.QueryRow(ctx,
+		"SELECT only_if FROM agent_heartbeats WHERE agent_id=$1 AND name=$2",
+		agentID, name).Scan(&condition); err != nil {
+		// Also the normal case of a heartbeat removed or renamed while its run
+		// was going: then there is no watermark left to maintain.
+		o.Log.Debug("refresh heartbeat signature: heartbeat no longer present", "agent", agentID, "name", name, "err", err)
+		return
+	}
+	if strings.TrimSpace(condition) == "" {
+		return
+	}
+	if !o.runWroteSignature(ctx, agentID, condition, since) {
+		o.Log.Info("heartbeat watermark kept: the run wrote nothing itself",
+			"agent", agentID, "name", name, "system", condition)
+		return
+	}
+	has, sig := o.heartbeatHasWork(ctx, agentID, orgID, condition)
+	if !has {
+		o.rememberWorkSignature(ctx, agentID, name, "")
+	} else if sig != "" {
+		o.rememberWorkSignature(ctx, agentID, name, sig)
+	}
+}
+
+// runWroteSignature answers whether the run since `since` executed an action of
+// its own that can have moved the work signature.
+//
+// Fail-open in the sense of the old behaviour: a system without
+// target.SignatureWriter, an unreadable recording — in both cases the answer is
+// yes, and the watermark is advanced as before. The stricter answer belongs to
+// the systems that can give it.
+func (o *Orchestrator) runWroteSignature(ctx context.Context, agentID uuid.UUID, condition string, since time.Time) bool {
+	system, _, _ := strings.Cut(condition, ":")
+	sys, ok := target.Get(system)
+	if !ok {
+		return true
+	}
+	writer, ok := sys.(target.SignatureWriter)
+	if !ok {
+		return true
+	}
+	subjects, err := o.Obs.ActionSubjectsSince(ctx, agentID, since)
+	if err != nil {
+		o.Log.Warn("heartbeat watermark: actions of the run not readable — advancing anyway",
+			"agent", agentID, "system", system, "err", err)
+		return true
+	}
+	for _, s := range subjects {
+		if writer.WritesWorkSignature(s) {
+			return true
+		}
+	}
+	return false
+}
+
 // EnsureRunning starts an agent session if none is running (idempotent).
 func (o *Orchestrator) EnsureRunning(agentID uuid.UUID) {
 	o.mu.Lock()
@@ -849,7 +932,7 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 				// task over it. Reopen this one instead of failing it: the sandbox
 				// dropped out from under the agent, that says nothing about
 				// whether the work itself was going fine.
-				_, _ = o.Backlog.Reopen(context.WithoutCancel(ctx), task.ID, "daemon connection lost — retrying")
+				o.requeueAfterDaemonLoss(context.WithoutCancel(ctx), task)
 				o.publishTask(task.ID, agent)
 				return err
 			}
@@ -1550,11 +1633,17 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	// the agent's current ACCESS.md, not the state at the time the config was
 	// compiled.
 	var actionTools []daemon.ActionTool
+	// Welche Zielsysteme dieser Agent wirklich erreicht — DocsForAgent ist auf
+	// beiden Seiten fail-closed (von der Organisation aktiviert UND in der
+	// ACCESS.md des Agenten). Der Plattform-Repo-Abschnitt weiter unten haengt
+	// daran.
+	grantedSystems := map[string]bool{}
 	if o.Targets != nil {
 		if docs, err := o.Targets.DocsForAgent(ctx, agent.OrgID, agent.ID); err == nil {
 			texts := make([]string, 0, len(docs))
 			for _, d := range docs {
 				texts = append(texts, d.Doc)
+				grantedSystems[d.System] = true
 				actionTools = append(actionTools, daemon.ActionTool{Name: d.System, Description: d.Doc})
 			}
 			if section := agents.TargetDocs(texts); section != "" {
@@ -1571,6 +1660,41 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	if mayDraft {
 		compiled += "\n\n" + agents.HiringDoc
 	}
+	// Und dasselbe fuer die andere Haelfte: `scope: agents:review` schaltet das
+	// Lesen und Vorschlagen frei (spec/21). Zwei Scopes, zwei Abschnitte — wer
+	// nur begutachten darf, liest nichts ueber das Entwerfen und umgekehrt.
+	mayReview := o.mayReviewAgents(ctx, agent)
+	if mayReview {
+		compiled += "\n\n" + agents.ReviewDoc
+		// Die dritte Schicht: der eigene Quelltext, auf den laufenden Commit
+		// gepinnt (spec/21). Drei Bedingungen, und die dritte ist die, die beim
+		// ersten Bau fehlte:
+		//
+		//  1. Die Organisation hat das Repository eingerichtet — wo es liegt,
+		//     entscheidet sie und nicht der Agent.
+		//  2. Der Agent darf begutachten (mayReview, siehe oben).
+		//  3. Er hat dieses Zielsystem WIRKLICH in seiner ACCESS.md.
+		//
+		// Ohne (3) stuende im Prompt „you may READ it — check it out and search
+		// it like any other repository", und der Broker wiese den Checkout
+		// gleich darauf ab: Faehigkeit durch Andeutung, dieselbe, die der
+		// Abschnitt darueber fuer das Entwerfen ausdruecklich vermeidet. Das
+		// Stammdatum allein ist die halbe Einrichtung — die andere Haelfte ist
+		// eine Zeile in der ACCESS.md von Covey Doctor.
+		//
+		// Der Scope INNERHALB des Systems bleibt Sache dieser Zeile: welche
+		// Aktionen sie traegt, steht ohnehin im Zielsystem-Abschnitt des
+		// Prompts, der schon auf die Scopes des Agenten zugeschnitten ist.
+		var repoSystem, repoProject string
+		if err := o.Pool.QueryRow(ctx,
+			"SELECT platform_repo_system, platform_repo_project FROM organizations WHERE id=$1",
+			agent.OrgID).Scan(&repoSystem, &repoProject); err == nil && grantedSystems[repoSystem] {
+			if section := agents.PlatformRepoDoc(repoSystem, repoProject,
+				buildinfo.Get().Commit); section != "" {
+				compiled += "\n\n" + section
+			}
+		}
+	}
 	// The platform's own meta actions (board, notes, wiki, delegation) are not a
 	// target system, but they are callable in exactly the same way — so on the
 	// MCP route they belong in the tool list too. Their description is the
@@ -1580,10 +1704,13 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	// People department that is exactly wrong: its whole job runs through these
 	// actions, and it reaches no external system at all. So whoever may draft
 	// agents gets the tool even with an otherwise empty list.
-	if len(actionTools) > 0 || mayDraft {
+	if len(actionTools) > 0 || mayDraft || mayReview {
 		doc := agents.CoveyActionsDoc
 		if mayDraft {
 			doc += "\n\n" + agents.HiringDoc
+		}
+		if mayReview {
+			doc += "\n\n" + agents.ReviewDoc
 		}
 		actionTools = append(actionTools, daemon.ActionTool{Name: "covey", Description: doc})
 	}
@@ -1608,6 +1735,7 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 		SystemPrompt: compiled,
 		Runtime:      agent.Runtime,
 		Model:        agent.Model,
+		Effort:       agent.Effort,
 		AllowedTools: o.RuntimeTools,
 		MaxTurns:     maxTurns,
 		ActionTools:  actionTools,
@@ -1872,10 +2000,41 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 			return true, err
 		}
 		// A run that ended without a result must not keep its wake-up: the work
-		// it was woken for is still lying there.
-		if state == backlog.StateFailed || d.Status == "escalated" {
-			if t, err := o.Backlog.Get(ctx, taskID); err == nil {
-				o.releaseWorkSignature(ctx, agent.ID, t.Title)
+		// it was woken for is still lying there. A successful run does the
+		// converse and advances its watermark past any target-system action it
+		// performed itself, so that action cannot wake it again.
+		if t, err := o.Backlog.Get(ctx, taskID); err == nil {
+			heartbeatRun := t.Origin == "heartbeat"
+			if !heartbeatRun && strings.HasPrefix(t.Origin, originContinuation+":") {
+				n, ancestorErr := o.Backlog.AncestorsWithOrigin(ctx, taskID, "heartbeat")
+				if ancestorErr != nil {
+					// Whether the chain descends from a heartbeat is not
+					// determinable: treat it as one. Both branches then merely
+					// touch the watermark of a heartbeat with this task's title
+					// — releasing wakes it once too often, keeping it silences
+					// work that is lying there. Erring towards the former.
+					o.Log.Warn("heartbeat ancestry not determinable — treating the run as a heartbeat run",
+						"task", taskID, "err", ancestorErr)
+				}
+				heartbeatRun = ancestorErr != nil || n > 0
+			}
+			if heartbeatRun {
+				if state == backlog.StateFailed || d.Status == "escalated" {
+					o.releaseWorkSignature(ctx, agent.ID, t.Title)
+				} else {
+					// The beginning of the whole chain, not of this segment: the
+					// refresh asks what the RUN wrote itself, and a continuation
+					// carries on what an earlier task started. Unreadable (zero
+					// time) means "look at everything" — fail-open towards the
+					// previous behaviour of advancing unconditionally.
+					since, chainErr := o.Backlog.ChainStart(ctx, taskID)
+					if chainErr != nil {
+						o.Log.Warn("start of the run not determinable — watermark over the full history",
+							"task", taskID, "err", chainErr)
+						since = time.Time{}
+					}
+					o.refreshWorkSignature(ctx, agent.ID, agent.OrgID, t.Title, since)
+				}
 			}
 		}
 		// done step: feed what was learned into the wiki (spec/05). The
@@ -2099,6 +2258,55 @@ var errBudgetExceeded = errors.New("budget exceeded")
 // happens to notice and retries them by hand via the task API. Treated the
 // same way as errBudgetExceeded: reopen, don't fail.
 var errDaemonConnection = errors.New("daemon connection lost")
+
+// maxDaemonLossRetries is where "reopen, don't fail" stops. Requeueing without
+// a limit is right for the sporadic case above, and wrong for the
+// reproducible one: a broken sandbox image after a deploy, an OOM on container
+// start, an agent config that reliably tears the container down. There the
+// task runs open → ClaimNext → sandbox dies → open in circles, each round
+// paying for a full sandbox start, and nothing in the system shows that this
+// is stuck rather than working.
+//
+// Five in a row is the point where a blip stops being a plausible explanation.
+// The counter lives on the task (backlog_tasks.daemon_retries), not in this
+// process: a control-plane restart is one of the things that produces these
+// losses, and an in-memory count would be back at zero right afterwards.
+const maxDaemonLossRetries = 5
+
+// givesUpAfterDaemonLoss decides, for a task that has already lost its sandbox
+// connection `previous` times and just lost it once more, whether to fail it
+// instead of requeueing. It returns the failure text along with the verdict, so
+// the count that led to it cannot drift apart from the message that explains
+// it.
+//
+// Separate from requeueAfterDaemonLoss because this is where the off-by-one
+// lives: `previous` is the count as it stood when this run CLAIMED the task,
+// i.e. it does not yet include the loss being handled.
+func givesUpAfterDaemonLoss(previous int) (bool, string) {
+	losses := previous + 1
+	if losses < maxDaemonLossRetries {
+		return false, ""
+	}
+	return true, fmt.Sprintf(
+		"sandbox connection lost %d times in a row — giving up instead of requeueing again", losses)
+}
+
+// requeueAfterDaemonLoss puts a task whose sandbox connection dropped back into
+// the backlog — or gives up on it, once that has happened
+// maxDaemonLossRetries times in a row.
+func (o *Orchestrator) requeueAfterDaemonLoss(ctx context.Context, task backlog.Task) {
+	if giveUp, why := givesUpAfterDaemonLoss(task.DaemonRetries); giveUp {
+		// The error text names the infrastructure cause, so this stays
+		// distinguishable in the backlog from a task the agent itself ran into
+		// the ground — that difference is the whole reason errDaemonConnection
+		// exists.
+		_, _ = o.Backlog.Complete(ctx, task.ID, backlog.StateFailed, "", why)
+		o.Log.Warn("task failed after repeated sandbox connection losses",
+			"task", task.ID, "agent", task.AgentID, "losses", task.DaemonRetries+1)
+		return
+	}
+	_, _ = o.Backlog.ReopenAfterDaemonLoss(ctx, task.ID, "daemon connection lost — retrying")
+}
 
 const (
 	// originAgentTask marks a task an agent created itself (covey/create_task) —
@@ -2458,34 +2666,82 @@ func (o *Orchestrator) decideAction(ctx context.Context, agent agents.Agent, tas
 			Reason: "forbidden by guard rail " + verdict.Rule.Pattern}
 
 	case guardrails.RequireApproval:
-		// An unused approval for exactly this action? Then consume it.
-		var approvalID uuid.UUID
-		err := o.Pool.QueryRow(ctx, `UPDATE approvals SET used=TRUE
-			WHERE id = (SELECT id FROM approvals
-				WHERE agent_id=$1 AND action=$2 AND status='approved' AND NOT used
-				ORDER BY decided_at DESC LIMIT 1)
-			RETURNING id`, agent.ID, req.Action).Scan(&approvalID)
-		if err == nil {
-			_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindApproval,
-				map[string]any{"action": req.Action, "decision": "approved", "approval_id": approvalID.String()})
+		v := o.approvalGate(ctx, agent, taskID, req.Action, json.RawMessage(req.Params), "")
+		switch {
+		case v.Error != "":
+			return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied", Reason: v.Error}
+		case v.Approved:
 			return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "approved"}
 		}
-		appr, err := o.Obs.CreateApproval(ctx, agent.OrgID, agent.ID, &taskID, req.Action, json.RawMessage(req.Params))
-		if err != nil {
-			return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied", Reason: err.Error()}
-		}
-		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindApproval,
-			map[string]any{"action": req.Action, "decision": "pending", "approval_id": appr.ID.String()})
-		o.events.Publish(Event{Type: "approval", AgentID: agent.ID.String(), OrgID: agent.OrgID,
-			Data: map[string]string{"approval_id": appr.ID.String(), "action": req.Action}})
 		return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "pending",
-			ApprovalID: appr.ID.String(), CorrelationKey: "approval:" + appr.ID.String()}
+			ApprovalID: v.ApprovalID, CorrelationKey: v.CorrelationKey}
 
 	default:
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindApproval,
 			map[string]any{"action": req.Action, "decision": "auto-allow"})
 		return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "approved"}
 	}
+}
+
+// gateVerdict ist die Antwort des Freigabe-Gates: entweder lag eine erteilte,
+// unverbrauchte Freigabe vor (Approved) — oder es wurde eine angelegt, und die
+// Aufgabe muss auf einen Menschen warten (CorrelationKey).
+type gateVerdict struct {
+	Approved       bool
+	ApprovalID     string
+	CorrelationKey string
+	// Error steht, wenn die Freigabe gar nicht erst angelegt werden konnte.
+	// Fail-closed: der Aufrufer verbietet dann.
+	Error string
+}
+
+// approvalGate ist der require_approval-Zweig der Guard-Rails.
+//
+// Bewusst herausgelöst und nicht beim Zielsystem-Pfad gelassen: dieselbe
+// Mechanik trägt die Meta-Actions der Plattform (spec/21). Dort lehnte eine
+// require_approval-Regel bisher hart ab — „requires an approval and cannot be
+// performed unattended". Das ist eine Leitplanke, die für eine Klasse von
+// Aktionen still zu einem Verbot wird, und damit eine Governance-Oberfläche,
+// die über sich selbst die Unwahrheit sagt: wer die Regel setzt, meint
+// „jemand schaut drauf" und bekommt „geht nicht".
+//
+// Die Freigabe ist EINMALIG verbrauchbar (approvals.used). Eine erteilte
+// Freigabe ist die Antwort auf eine Handlung, keine Lizenz auf die Aktion.
+// binding schnürt eine Freigabe auf EINEN Gegenstand fest (leer = auf die
+// Aktion). Die Meta-Actions setzen es ausnahmslos (bindingOf in hiring.go): eine
+// erteilte Freigabe ist die Antwort auf die Parameter, die ein Mensch gelesen
+// hat, und nicht auf die Aktion als solche — sonst wäre die Freigabe für Lauf A
+// die Eintrittskarte für Lauf B, und die für `slug: "helper"` die für
+// `slug: "backdoor"`. Nur der Zielsystem-Pfad kommt noch mit leerem binding
+// hierher; dort ist die Aktion selbst der Gegenstand.
+func (o *Orchestrator) approvalGate(ctx context.Context, agent agents.Agent, taskID uuid.UUID,
+	action string, params json.RawMessage, binding string) gateVerdict {
+
+	// Eine unverbrauchte Freigabe für genau diese Aktion? Dann verbrauchen.
+	var approvalID uuid.UUID
+	err := o.Pool.QueryRow(ctx, `UPDATE approvals SET used=TRUE
+		WHERE id = (SELECT id FROM approvals
+			WHERE agent_id=$1 AND action=$2 AND status='approved' AND NOT used
+			  AND ($3='' OR params->>'binding' = $3)
+			ORDER BY decided_at DESC LIMIT 1)
+		RETURNING id`, agent.ID, action, binding).Scan(&approvalID)
+	if err == nil {
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindApproval,
+			map[string]any{"action": action, "decision": "approved", "approval_id": approvalID.String()})
+		return gateVerdict{Approved: true, ApprovalID: approvalID.String()}
+	}
+	if len(params) == 0 {
+		params = json.RawMessage(`{}`)
+	}
+	appr, err := o.Obs.CreateApproval(ctx, agent.OrgID, agent.ID, &taskID, action, params)
+	if err != nil {
+		return gateVerdict{Error: err.Error()}
+	}
+	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindApproval,
+		map[string]any{"action": action, "decision": "pending", "approval_id": appr.ID.String()})
+	o.events.Publish(Event{Type: "approval", AgentID: agent.ID.String(), OrgID: agent.OrgID,
+		Data: map[string]string{"approval_id": appr.ID.String(), "action": action}})
+	return gateVerdict{ApprovalID: appr.ID.String(), CorrelationKey: "approval:" + appr.ID.String()}
 }
 
 // OnApprovalDecided closes the loop of the approval gate: the decision wakes

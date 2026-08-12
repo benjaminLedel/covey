@@ -34,9 +34,13 @@ var kpiKeywords = map[string]bool{
 // org-wide evaluation, so it must not carry spaces or case.
 var kpiKeyRe = regexp.MustCompile(`^[a-z][a-z0-9_-]{1,47}$`)
 
-// kpiActionRe is the shape of a countable action: system:verb, verb "*" for all
-// actions of a system.
-var kpiActionRe = regexp.MustCompile(`^[a-z][a-z0-9_-]*:([a-z][a-z0-9_-]*|\*)$`)
+// kpiActionRe is the shape of a countable action: system:verb, with further
+// colon-separated qualifiers where a plugin distinguishes variants of the same
+// verb (covey:create_task:foreign is the delegating form of covey:create_task —
+// separately forbiddable, so separately countable). A trailing "*" stands for
+// everything below the prefix; it is only allowed as the last segment, since
+// the counting side turns it into a LIKE prefix and cannot match in the middle.
+var kpiActionRe = regexp.MustCompile(`^[a-z][a-z0-9_-]*:([a-z][a-z0-9_-]*:)*([a-z][a-z0-9_-]*|\*)$`)
 
 // kpiPeriods are the periods a goal may refer to.
 var kpiPeriods = map[string]bool{"tag": true, "woche": true, "monat": true}
@@ -131,7 +135,7 @@ func parseCounts(k *KPI, val []string, line string) error {
 	switch val[0] {
 	case "aktion":
 		if !kpiActionRe.MatchString(val[1]) {
-			return fmt.Errorf("kpi %q: %q is not an action of the form system:verb (verb may be *)", line, val[1])
+			return fmt.Errorf("kpi %q: %q is not an action of the form system:verb (last segment may be *)", line, val[1])
 		}
 		k.Action = val[1]
 	case "aufgabe":

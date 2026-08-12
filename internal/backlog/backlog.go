@@ -67,8 +67,12 @@ type Task struct {
 	StageID          *uuid.UUID `json:"stage_id,omitempty"`
 	ParentTaskID     *uuid.UUID `json:"parent_task_id,omitempty"`
 	ArchivedAt       *time.Time `json:"archived_at,omitempty"`
-	CreatedAt        time.Time  `json:"created_at"`
-	UpdatedAt        time.Time  `json:"updated_at"`
+	// DaemonRetries counts how often this task lost its sandbox connection in a
+	// row (see ReopenAfterDaemonLoss). Any run that ends for a different reason
+	// puts it back to zero — "in a row" is the whole point.
+	DaemonRetries int       `json:"daemon_retries"`
+	CreatedAt     time.Time `json:"created_at"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
 // Stage is a freely definable Kanban column of an agent (an overlay on top of
@@ -110,13 +114,13 @@ func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
 
 const taskCols = `id, org_id, agent_id, title, body, state, priority, origin,
 	correlation_key, runtime_session_id, resume_input, result, error, stage_id, parent_task_id,
-	archived_at, created_at, updated_at`
+	archived_at, daemon_retries, created_at, updated_at`
 
 func scanTask(row pgx.Row) (Task, error) {
 	var t Task
 	err := row.Scan(&t.ID, &t.OrgID, &t.AgentID, &t.Title, &t.Body, &t.State, &t.Priority, &t.Origin,
 		&t.CorrelationKey, &t.RuntimeSessionID, &t.ResumeInput, &t.Result, &t.Error, &t.StageID, &t.ParentTaskID,
-		&t.ArchivedAt, &t.CreatedAt, &t.UpdatedAt)
+		&t.ArchivedAt, &t.DaemonRetries, &t.CreatedAt, &t.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return t, ErrNotFound
 	}
@@ -205,6 +209,28 @@ func (s *Store) AncestorsWithOrigin(ctx context.Context, id uuid.UUID, originPre
 		)
 		SELECT COUNT(*) FROM chain WHERE origin LIKE $2 || '%'`, id, originPrefix).Scan(&n)
 	return n, err
+}
+
+// ChainStart is the moment the chain a task belongs to began: the created_at of
+// its oldest ancestor.
+//
+// The heartbeat watermark asks with it "what has this run done itself" — and a
+// run is the whole chain, not its last segment: a continuation carries on where
+// the turn limit cut off, and the comment written before it belongs to the same
+// run. Anchoring on the heartbeat's last_fired_at instead would be wrong, since
+// the schedule ticks on (and moves that timestamp) while a long run is still
+// going.
+func (s *Store) ChainStart(ctx context.Context, id uuid.UUID) (time.Time, error) {
+	var start time.Time
+	err := s.pool.QueryRow(ctx, `
+		WITH RECURSIVE chain AS (
+			SELECT id, parent_task_id, created_at FROM backlog_tasks WHERE id=$1
+			UNION ALL
+			SELECT t.id, t.parent_task_id, t.created_at
+			FROM backlog_tasks t JOIN chain c ON t.id = c.parent_task_id
+		)
+		SELECT MIN(created_at) FROM chain`, id).Scan(&start)
+	return start, err
 }
 
 // CountChildren counts the tasks that emerged directly from a task — the width
@@ -392,9 +418,12 @@ func (s *Store) transition(ctx context.Context, id uuid.UUID, to, note string, s
 }
 
 // Block parks the task: correlation key + runtime session for --resume (spec/12, spec/13).
+//
+// This clears daemon_retries: the run got far enough to ask a question, so
+// whatever connection losses came before it were not a series.
 func (s *Store) Block(ctx context.Context, id uuid.UUID, correlationKey, sessionID, question string) (Task, error) {
 	return s.transition(ctx, id, StateBlocked, "blocked: "+question,
-		"correlation_key=$3, runtime_session_id=$4, resume_input=NULL", correlationKey, sessionID)
+		"correlation_key=$3, runtime_session_id=$4, resume_input=NULL, daemon_retries=0", correlationKey, sessionID)
 }
 
 // Complete finishes the task (done) or fails it (failed).
@@ -405,9 +434,25 @@ func (s *Store) Complete(ctx context.Context, id uuid.UUID, state, result, errMs
 	return s.transition(ctx, id, state, "", "result=$3, error=NULLIF($4,''), correlation_key=NULL", result, errMsg)
 }
 
-// Reopen resets an in_progress task back to open (e.g. a kill mid-run).
+// Reopen resets an in_progress task back to open (e.g. a kill mid-run, or the
+// budget stop). The run ended for its own reasons, not because the link died —
+// so daemon_retries goes back to zero. Use ReopenAfterDaemonLoss for the other
+// case; the two are deliberately separate calls.
 func (s *Store) Reopen(ctx context.Context, id uuid.UUID, note string) (Task, error) {
-	return s.transition(ctx, id, StateOpen, note, "")
+	return s.transition(ctx, id, StateOpen, note, "daemon_retries=0")
+}
+
+// ReopenAfterDaemonLoss requeues a task whose sandbox connection dropped
+// mid-run and counts that loss. The returned task carries the new count, so the
+// caller can decide when a series has gone on long enough to be a standing
+// fault rather than a blip — see the orchestrator's maxDaemonLossRetries.
+//
+// The counting has to happen inside the same transaction as the state change:
+// a read-modify-write from outside would lose a loss whenever two runs of the
+// same task overlap on a restart, and it is precisely a restart that produces
+// these losses.
+func (s *Store) ReopenAfterDaemonLoss(ctx context.Context, id uuid.UUID, note string) (Task, error) {
+	return s.transition(ctx, id, StateOpen, note, "daemon_retries = daemon_retries + 1")
 }
 
 // RequeueOrphaned resets all in_progress tasks back to open at startup. A
@@ -416,6 +461,11 @@ func (s *Store) Reopen(ctx context.Context, id uuid.UUID, note string) (Task, er
 // process (crash/deploy). Without this it would stay stuck forever, because
 // tick/ClaimNext only see state='open'. blocked tasks stay untouched (they wake
 // up via correlation).
+//
+// daemon_retries is deliberately left alone here, unlike in Reopen. A restart
+// is not proof that the run was fine — a control plane crash-looping on the
+// same task is exactly the standing fault the counter exists to catch, and
+// clearing it on every start would hide precisely that case.
 //
 // HA note: correct for a single node (the current state). With several active
 // control-plane processes, a restart would reset the running tasks of other
@@ -464,9 +514,14 @@ func (s *Store) RequeueOrphaned(ctx context.Context) (int64, error) {
 // Retry reschedules a failed or discarded task: back to open, the old
 // result/error cleared (the history lives in task_transitions), and the agent
 // is woken.
+//
+// daemon_retries goes with it. Somebody is deliberately asking for another
+// attempt — including for a task that was failed BECAUSE of a connection
+// series — and that attempt has to start from a clean count, or the task would
+// fail again on its first hiccup.
 func (s *Store) Retry(ctx context.Context, id uuid.UUID, note string) (Task, error) {
 	t, err := s.transition(ctx, id, StateOpen, note,
-		"result=NULL, error=NULL, correlation_key=NULL, archived_at=NULL")
+		"result=NULL, error=NULL, correlation_key=NULL, archived_at=NULL, daemon_retries=0")
 	if err != nil {
 		return t, err
 	}

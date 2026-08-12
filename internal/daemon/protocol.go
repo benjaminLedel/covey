@@ -70,7 +70,8 @@ const (
 type InjectConfig struct {
 	SystemPrompt string   `json:"system_prompt"`
 	Runtime      string   `json:"runtime"`
-	Model        string   `json:"model,omitempty"` // empty = runtime default
+	Model        string   `json:"model,omitempty"`  // empty = runtime default
+	Effort       string   `json:"effort,omitempty"` // low/medium/high/xhigh/max; empty = runtime default
 	AllowedTools []string `json:"allowed_tools,omitempty"`
 	MaxTurns     int      `json:"max_turns,omitempty"`
 	MaxBudgetUSD float64  `json:"max_budget_usd,omitempty"`
@@ -351,10 +352,22 @@ type InjectCreateTask struct {
 	Agent     string `json:"agent,omitempty"`   // resolved target agent (slug)
 }
 
-// RequestHiring/InjectHiring are the meta actions with which an agent drafts
-// another agent (covey/list_targets, get_agent_config, create_agent,
-// set_agent_config — spec/20). The platform's own target system, so to speak:
-// no external system, no credential, executed in the control plane.
+// RequestHiring/InjectHiring are the meta actions an agent runs against the
+// platform's own registry. Two halves, unlocked by two different scopes in
+// ACCESS.md:
+//
+//   - DRAFTING a colleague (list_targets, get_agent_config, create_agent,
+//     set_agent_config — spec/20, `scope: agents:write`).
+//   - REVIEWING one (work_record, read_recording, propose_agent_config —
+//     spec/21, `scope: agents:review`), plus get_agent_config, which both
+//     halves need.
+//
+// An agent may hold both scopes; the People department and the improvement
+// engineer deliberately do not — neither can do the other's job with the
+// other's credentials.
+//
+// The platform's own target system, so to speak: no external system, no
+// credential, executed in the control plane.
 //
 // Like create_task and unlike the other meta actions they go through the
 // guard-rails (subject covey:<op>) — what comes out of them is a colleague, and
@@ -377,15 +390,54 @@ type RequestHiring struct {
 	JobTitle    string `json:"job_title,omitempty"`
 	Department  string `json:"department,omitempty"` // name, not ID — the model reads names
 	Supervisor  string `json:"supervisor,omitempty"` // human's email or display name
-	// Files is the config (set_agent_config): file name → complete content.
+	// Files is the config (set_agent_config) or the changed files of a proposal
+	// (propose_agent_config): file name → complete content.
 	Files map[string]string `json:"files,omitempty"`
+
+	// --- Review (spec/21), unlocked by `scope: agents:review` ---
+
+	// Task addresses one run (read_recording): the id of the backlog task,
+	// which the work record names in its task lines.
+	Task string `json:"task,omitempty"`
+	// Days is the period of a work record (default 30).
+	Days int `json:"days,omitempty"`
+	// Title and Rationale carry a proposal: what it changes, and out of which
+	// observation. The rationale is what a human reads before the diff.
+	Title     string `json:"title,omitempty"`
+	Rationale string `json:"rationale,omitempty"`
+	// Summary is the review itself (write_review): the assessment a human
+	// reads on the employee profile.
+	Summary string `json:"summary,omitempty"`
+	// Findings and Issues are what the review produced besides a proposal: an
+	// assignment only a human can change, and a bug already filed against the
+	// platform. They travel with the review because they come out of the same
+	// judgement — one call, one moment.
+	Findings []ReviewNote `json:"findings,omitempty"`
+	Issues   []ReviewNote `json:"issues,omitempty"`
 }
 
+// ReviewNote is one finding or one filed issue: a line a human reads, the
+// reasoning behind it, and — for an issue — where it now lives.
+type ReviewNote struct {
+	Title  string `json:"title"`
+	Detail string `json:"detail,omitempty"`
+	Link   string `json:"link,omitempty"`
+}
+
+// InjectHiring is the answer to a meta action. Pending is the third outcome
+// next to OK and Error, and it is the reason this type is not just a boolean:
+// a guard rail may put a meta action in front of a human (spec/21). The action
+// has then NOT happened — the agent blocks on CorrelationKey and repeats it
+// once somebody has decided, exactly as with a target-system action.
 type InjectHiring struct {
 	RequestID string          `json:"request_id"`
 	OK        bool            `json:"ok"`
 	Error     string          `json:"error,omitempty"`
 	Data      json.RawMessage `json:"data,omitempty"`
+
+	Pending        bool   `json:"pending,omitempty"`
+	ApprovalID     string `json:"approval_id,omitempty"`
+	CorrelationKey string `json:"correlation_key,omitempty"`
 }
 
 // Encode builds an envelope; never panics, because all payloads are marshalable.

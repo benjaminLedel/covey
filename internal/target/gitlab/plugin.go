@@ -180,6 +180,42 @@ func (System) HasWorkSigned(ctx context.Context, cred target.Credential, kind st
 	return len(waiting) > 0, workSig(waiting), nil
 }
 
+// sigWritingActions are the actions whose execution can move the signature of
+// HasWorkSigned. That signature is built from the newest note id per thread
+// (threadSig) plus the set of threads in scope, so everything that writes a
+// note — including the system notes GitLab itself appends on assign, label,
+// approval, push and merge — belongs in here, and only genuine reads stay out.
+//
+// The names are the ones from ActionSubject without the "gitlab:" prefix, hence
+// comment_internal/comment_external for the two forms of `comment`.
+//
+// A NEW WRITING ACTION HAS TO BE ADDED HERE. If one is missing, the control
+// plane takes the agent's own note for foreign activity and wakes it once more
+// for its own comment; the run then finds nothing to do and stays silent, so
+// the second wake settles the state — noisy, not endless.
+var sigWritingActions = map[string]bool{
+	"comment_internal":     true,
+	"comment_external":     true,
+	"comment_mr":           true,
+	"create_issue":         true,
+	"create_merge_request": true,
+	"commit":               true,
+	"set_state":            true,
+	"assign":               true,
+	"set_labels":           true,
+	"set_reviewer":         true,
+	"approve_mr":           true,
+	"merge_mr":             true,
+	"escalate":             true,
+}
+
+// WritesWorkSignature (target.SignatureWriter) answers whether an executed
+// action of this system can have changed the work signature — see the interface
+// for what the control plane concludes from a "no".
+func (System) WritesWorkSignature(subject string) bool {
+	return sigWritingActions[strings.TrimPrefix(subject, "gitlab:")]
+}
+
 // issueMaxNotesChecks caps the comment check of issueWorkPending: the check
 // runs in every heartbeat interval and must not run away with the number of
 // open issues. Whoever has more open issues than that gets woken — the call
@@ -194,17 +230,31 @@ const issueMaxNotesChecks = 30
 // works exclusively on assigned issues; otherwise every open issue of someone
 // else's in the scope would wake the agent.
 //
-// What is decisive is the edge, not the level: an open issue is work as long as
-// the last non-system comment does NOT come from the bot (or there is none at
-// all yet — then the first triage is outstanding). If the bot wrote last, the
-// issue rests until someone answers. Without that edge a permanently assigned
-// issue would remain "work for ever" and the heartbeat would wake the agent
-// afresh in every interval on the same, long-settled matter — the same logic
-// already carries mrReviewPending/mrReviewAssignedPending.
+// The original design tried edge detection: an open issue counted as work only
+// while the last non-system comment did NOT come from the bot — the same
+// author comparison mrReviewPending used to make, and broken for the identical
+// reason (see there): this organization has no per-role bot accounts, every
+// agent authenticates as the same shared identity, so a colleague agent's
+// triage comment is indistinguishable from the bot's own. The comparison could
+// therefore never observe a real handoff between roles; it just always saw
+// "the bot wrote last" and rested forever.
+//
+// Every open, in-scope issue now counts as work, unconditionally — level
+// detection, same fallback as mrReviewPending, for the same undecidability.
+// That sounds like it would wake every "Zugewiesene Issues sichten" heartbeat
+// on every already-commented issue in every interval, but it does not: the
+// signature this function returns per issue is the highest comment id seen
+// (threadSig), and the caller (heartbeatHasWork in the orchestrator) only
+// actually creates a task when that signature has CHANGED since the last
+// firing — an unchanged, already-triaged issue keeps producing the same
+// signature and stays silent. The volume risk was in re-inspecting the same
+// settled issue on every tick, not in waking on it once when it first
+// legitimately looks unprocessed.
 //
 // The contract that follows: **an agent that has worked on an issue must
-// comment there.** A silent run counts as "not yet worked on" and wakes again.
-// The playbook "issue triage" holds it that way.
+// comment there.** A silent run counts as "not yet worked on" and wakes again
+// — with a real handoff, that comment now needs to change the note count for
+// the new signature to differ, which any real comment does.
 func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) ([]string, error) {
 	issues, err := gc.ListIssues(ctx, 0, "opened", "", "", "", assignedOnly)
 	if err != nil {
@@ -225,10 +275,6 @@ func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) ([]str
 		// changes as soon as an issue comes along or drops out.
 		return []string{fmt.Sprintf("issues:many@%d", len(inScope))}, nil
 	}
-	me, err := gc.CurrentUser(ctx)
-	if err != nil {
-		return nil, err
-	}
 	var waiting []string
 	for _, i := range inScope {
 		// The internal window: the check needs the END of the thread — the last
@@ -237,9 +283,6 @@ func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) ([]str
 		p, err := gc.ListNotes(ctx, i.ProjectID, i.IID, notesWindowInternal, 1)
 		if err != nil {
 			return nil, err
-		}
-		if lastHumanNoteIsMine(p.Notes, me.Username) {
-			continue // already answered — rests until someone replies to it
 		}
 		waiting = append(waiting, threadSig("issue", i.ProjectID, i.IID, p.Notes))
 	}
@@ -273,9 +316,9 @@ func workSig(waiting []string) string {
 	return strings.Join(sorted, ",")
 }
 
-// lastHumanNoteIsMine says whether a thread's last non-system comment comes
-// from the bot itself. Without any human comment the answer is false: an
-// uncommented thread is waiting for the first move.
+// lastHumanNoteIsMine is retained only for the reviewer-assigned path. That
+// path is currently unused and must not be changed into level detection (and a
+// review loop) incidentally while the shared-identity author path is repaired.
 func lastHumanNoteIsMine(notes []Note, me string) bool {
 	for i := len(notes) - 1; i >= 0; i-- {
 		if notes[i].System {
@@ -287,10 +330,30 @@ func lastHumanNoteIsMine(notes []Note, me string) bool {
 }
 
 // mrReviewPending checks whether one of the bot's open, self-opened merge
-// requests is waiting for an answer: the last human (non-system) comment in the
-// thread does not come from the bot. Fresh MRs with no comments at all (the bot
-// has just opened it, the review is still outstanding) do NOT count as work —
-// otherwise every open MR would wake the agent in every interval.
+// requests might be waiting for an answer.
+//
+// The original check compared the last non-system comment's author against
+// the bot's own identity: someone else's comment meant feedback was waiting,
+// the bot's own comment meant already answered. That assumes every role
+// authenticates as its own GitLab account. This organization has none — the
+// architect, developer, QA and security agents all authenticate as the SAME
+// shared identity (no bot accounts exist here, see docs/ops-gitlab.md), so a
+// colleague agent's comment is indistinguishable from the bot's own last
+// remark. The author comparison can therefore never observe a real handoff;
+// it silently starves the heartbeat instead of catching it — measured in
+// production, every one of a real MR's back-and-forth review rounds sat
+// unpicked-up for hours because of exactly this (order-system-app!47).
+//
+// The fix drops to the coarser distinction that IS still decidable without
+// per-agent identity: has any conversation started on this MR at all? A
+// freshly opened MR with zero non-system comments is not yet waiting for
+// anything — nobody has said anything to react to. The moment a first
+// comment lands, from either side, the MR might be waiting on this bot; since
+// authorship can't disambiguate that, the answer defaults to yes. The cost is
+// an occasional unnecessary wake on an MR that is actually settled — the
+// agent's own idempotency check (list_mr_notes before acting) absorbs that
+// cheaply, run after run, at a fraction of the cost of never being woken at
+// all.
 func mrReviewPending(ctx context.Context, gc *Client) ([]string, error) {
 	mrs, err := gc.ListMyOpenMergeRequests(ctx)
 	if err != nil {
@@ -305,28 +368,17 @@ func mrReviewPending(ctx context.Context, gc *Client) ([]string, error) {
 	if len(inScope) == 0 {
 		return nil, nil
 	}
-	me, err := gc.CurrentUser(ctx)
-	if err != nil {
-		return nil, err
-	}
 	var waiting []string
 	for _, m := range inScope {
 		p, err := gc.ListMRNotes(ctx, m.ProjectID, m.IID, notesWindowInternal, 1)
 		if err != nil {
 			return nil, err
 		}
-		notes := p.Notes
-		// Within the window the notes arrive chronologically; the last non-system
-		// comment decides. If it is from someone other than the bot, review
-		// feedback is waiting to be worked on.
-		for i := len(notes) - 1; i >= 0; i-- {
-			if notes[i].System {
-				continue
+		for _, n := range p.Notes {
+			if !n.System {
+				waiting = append(waiting, threadSig("mr", m.ProjectID, m.IID, p.Notes))
+				break
 			}
-			if notes[i].Author.Username != me.Username {
-				waiting = append(waiting, threadSig("mr", m.ProjectID, m.IID, notes))
-			}
-			break // the last human comment is the bot's → already answered
 		}
 	}
 	return waiting, nil
@@ -334,17 +386,19 @@ func mrReviewPending(ctx context.Context, gc *Client) ([]string, error) {
 
 // mrReviewAssignedPending is the mirror image of mrReviewPending from the
 // reviewer's point of view: is one of the open merge requests in which the bot
-// is entered as REVIEWER waiting for its review? That carries the review loop
-// for a QA/test agent without a webhook, gated through nur-wenn: gitlab:review.
+// is entered as REVIEWER waiting for its review? That would carry the review
+// loop for a QA/test agent without a webhook, gated through
+// nur-wenn: gitlab:review — currently unused: no agent's HEARTBEAT.md in this
+// organization references "review"/"reviews" (reviewer assignment needs a
+// distinct identity per role, and this organization assigns none — see
+// mrReviewPending; the shared account is now kept OFF the reviewer field
+// entirely, see ACCESS.md notes on ditscheridou).
 //
-// Work is present when a human has written since one's own last comment or the
-// author has pushed NEW COMMITS — or when the bot has said nothing here at all
-// yet. Unlike in the author loop, a fresh MR handed to me for review (still
-// without a comment) VERY MUCH counts as work: it is precisely that one waiting
-// for my first review. If the bot commented last, the MR rests until the author
-// reacts with code — a mere text answer from the author agent ("thanks for the
-// review") is no occasion for a new review round, otherwise the two agents work
-// each other up.
+// Kept unchanged for the day a per-role identity exists. The shared account is
+// deliberately not assigned as reviewer today, so changing this dormant path
+// to level detection would only plant a review loop for future callers. Before
+// enabling nur-wenn: gitlab:review under a shared identity, it needs a durable
+// per-agent reviewed-head marker.
 func mrReviewAssignedPending(ctx context.Context, gc *Client) ([]string, error) {
 	me, err := gc.CurrentUser(ctx)
 	if err != nil {
@@ -403,6 +457,19 @@ func (System) ActionSubject(action string, params json.RawMessage) string {
 // guard-rail subject gitlab:merge_mr, with which the merge can additionally be
 // denied or put behind an approval gate for the whole organization.
 func mergeBlockedReason(ctx context.Context, gc *Client, projectID int, mr MergeRequestDetail) string {
+	if reason := mergePreflightReason(mr); reason != "" {
+		return reason
+	}
+	if reason := pipelineGapReason(mr); reason != "" {
+		return reason
+	}
+	return approvalGapReason(ctx, gc, projectID, mr)
+}
+
+// mergePreflightReason checks the merge conditions that remain invalid even
+// when a running pipeline later turns green. Auto-merge may wait for CI, but
+// it must not hide an actionable conflict, discussion, or state error.
+func mergePreflightReason(mr MergeRequestDetail) string {
 	if mr.State != "opened" {
 		return fmt.Sprintf("the merge request is not open (state %q)", mr.State)
 	}
@@ -415,15 +482,50 @@ func mergeBlockedReason(ctx context.Context, gc *Client, projectID int, mr Merge
 	if !mr.BlockingDiscussionsResolved {
 		return "there are unresolved discussions on the merge request"
 	}
-	if s := mr.DetailedMergeStatus; s != "" && s != "mergeable" {
+	if s := mr.DetailedMergeStatus; s != "" && s != "mergeable" && !ciMergeStatuses[s] {
 		return fmt.Sprintf("GitLab does not consider the merge request mergeable (detailed_merge_status %q)", s)
 	}
+	return ""
+}
+
+// ciMergeStatuses are the detailed_merge_status values that say nothing more
+// than "the pipeline". They belong to pipelineGapReason and NOT to the
+// preflight, because they are exactly the state auto-merge exists for: a
+// project with "pipelines must succeed" reports ci_still_running while the
+// pipeline runs and ci_must_pass when it has to pass first — never
+// "mergeable". Judging them in the preflight would make every MR that
+// auto-merge is meant for fail before the pipeline branch is ever reached, and
+// the whole path would be dead exactly where it is needed.
+var ciMergeStatuses = map[string]bool{"ci_still_running": true, "ci_must_pass": true}
+
+// pipelineGapReason is the one gate auto-merge is allowed to wait for.
+func pipelineGapReason(mr MergeRequestDetail) string {
 	if mr.HeadPipeline == nil {
 		return "no pipeline has run on the head commit"
 	}
 	if mr.HeadPipeline.Status != "success" {
 		return fmt.Sprintf("the pipeline of the head commit is not green (status %q)", mr.HeadPipeline.Status)
 	}
+	// Green head pipeline and GitLab is still waiting for CI: a required
+	// pipeline other than this one, or a status GitLab has not recomputed yet.
+	// An immediate merge would run into GitLab's refusal, and queuing is out of
+	// the question too — nothing here is in motion any more.
+	if ciMergeStatuses[mr.DetailedMergeStatus] {
+		return fmt.Sprintf("GitLab is still waiting for a pipeline (detailed_merge_status %q) although the head pipeline is green",
+			mr.DetailedMergeStatus)
+	}
+	return ""
+}
+
+// approvalGapReason checks only the approval half of mergeBlockedReason,
+// independent of pipeline state — the auto-merge-on-green path below needs
+// this BEFORE the pipeline has concluded, precisely so that queuing
+// merge_when_pipeline_succeeds still requires the calling agent's own
+// approval to already be on record. GitLab re-validates approvals itself at
+// the moment the pipeline actually turns green, so this is belt-and-suspenders,
+// not the only gate — but a merge_mr call that queues without ever having
+// approved would otherwise read as if approval were optional here.
+func approvalGapReason(ctx context.Context, gc *Client, projectID int, mr MergeRequestDetail) string {
 	me, err := gc.CurrentUser(ctx)
 	if err != nil || me.Username == "" {
 		return "one's own user could not be established (fail-closed)"
@@ -445,6 +547,18 @@ func mergeBlockedReason(ctx context.Context, gc *Client, projectID int, mr Merge
 		return fmt.Sprintf("the project still requires %d further approval(s)", approvals.ApprovalsLeft)
 	}
 	return ""
+}
+
+// pipelineInProgress reports whether a pipeline status is still on its way to
+// a result — as opposed to already failed/canceled/skipped, where waiting
+// longer changes nothing.
+func pipelineInProgress(status string) bool {
+	switch status {
+	case "created", "waiting_for_resource", "preparing", "pending", "running", "scheduled":
+		return true
+	default:
+		return false
+	}
 }
 
 // isDuplicateComment is the server-side brake against comment loops: if the new
@@ -757,6 +871,41 @@ var aktionen = map[string]aktion{
 		mr, err := gc.GetMergeRequest(ctx, in.ProjectID, in.MRIID)
 		if err != nil {
 			return nil, err
+		}
+		if reason := mergePreflightReason(mr); reason != "" {
+			return nil, fmt.Errorf("merge refused: %s — report the state per comment_mr and leave the merge to the human", reason)
+		}
+		if reason := pipelineGapReason(mr); reason != "" {
+			if mr.HeadPipeline == nil || !pipelineInProgress(mr.HeadPipeline.Status) {
+				return nil, fmt.Errorf("merge refused: %s — report the state per comment_mr and leave the merge to the human", reason)
+			}
+			// Preflight is clear and the pipeline is the only technical gate
+			// still in motion. Approval must already be on record before Covey
+			// asks GitLab to complete the merge later.
+			if gapReason := approvalGapReason(ctx, gc, in.ProjectID, mr); gapReason != "" {
+				return nil, fmt.Errorf("merge refused: %s — report the state per comment_mr and leave the merge to the human", gapReason)
+			}
+			queued, err := gc.SetAutoMerge(ctx, in.ProjectID, in.MRIID, mr.SHA, true)
+			if err != nil {
+				return nil, err
+			}
+			// What GitLab answers decides, not what was asked for. If the
+			// pipeline turned green between the read and this call, GitLab
+			// merges right away instead of queuing — and if it neither queued
+			// nor merged, the agent must not be told "done", or it hands in a
+			// merge that never happens (the prompt tells it not to ask again).
+			switch {
+			case queued.State == "merged":
+				return map[string]any{"merged": true, "mr_iid": in.MRIID, "sha": mr.SHA,
+					"target_branch": queued.TargetBranch, "web_url": queued.WebURL}, nil
+			case queued.MergeWhenPipelineSucceeds:
+				return map[string]any{"queued_for_pipeline": true, "mr_iid": in.MRIID,
+					"pipeline_status": mr.HeadPipeline.Status, "merge_when_pipeline_succeeds": true}, nil
+			default:
+				return nil, fmt.Errorf("merge refused: GitLab neither merged nor queued the merge request "+
+					"(state %q, detailed_merge_status %q) — report the state per comment_mr and leave the merge to the human",
+					queued.State, queued.DetailedMergeStatus)
+			}
 		}
 		if reason := mergeBlockedReason(ctx, gc, in.ProjectID, mr); reason != "" {
 			return nil, fmt.Errorf("merge refused: %s — report the state per comment_mr and leave the merge to the human", reason)
@@ -1089,7 +1238,13 @@ const promptDocActions = `Available GitLab actions: list_projects {}, list_issue
    REVIEWER after their own acceptance, never for the author of the MR — and only if your ACCESS.md carries the tool.
    The action checks fail-closed before merging: MR open and free of conflicts, every blocking discussion resolved,
    pipeline of the head commit green, your OWN approval on record. If one of them does not hold, it refuses with the
-   reason instead of merging — write that reason per comment_mr and leave the merge to the human. Merged is exactly
+   reason instead of merging — write that reason per comment_mr and leave the merge to the human. EXCEPTION: if the
+   ONLY thing not holding is the pipeline (still running, not failed) and your own approval already IS on record, it
+   does not refuse — it queues GitLab's own auto-merge instead ({"queued_for_pipeline":true,"pipeline_status":"..."}).
+   GitLab completes the merge itself the moment that pipeline turns green (re-checking every condition again then,
+   not trusting this moment); nothing more to do, no need to call merge_mr again once it is queued. Read the answer
+   rather than assuming it: {"merged":true} means the pipeline had just turned green and it is already done, and a
+   refusal stays a refusal to be reported per comment_mr. Merged is exactly
    the commit you saw (sha); if a new commit has arrived in the meantime, GitLab refuses — then test again,
 
    list_pipelines {"project_id":N,"ref":"branch (optional)"} lists CI runs — use it after every push to check whether your

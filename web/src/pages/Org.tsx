@@ -127,6 +127,114 @@ function CompanyDescription() {
   );
 }
 
+/* Wo der Quelltext dieser Plattform liegt (spec/21).
+ *
+ * Covey Doctor macht den wertvollsten Befund dort, wo er ihn nicht
+ * durch eine Config beheben kann — und er ist der Einzige in der Organisation,
+ * der ihn bei mehreren Kollegen gleichzeitig gesehen hat. Damit daraus eine
+ * Diagnose statt eines Symptoms wird, liest er den Quelltext; damit der Bericht
+ * ankommt, meldet er ins selbe Repository.
+ *
+ * WELCHES, entscheidet die Organisation. Eine Instanz gegen den öffentlichen
+ * GitHub-Spiegel hätte sonst einen Agenten, der Issues dorthin schreibt, wo die
+ * Welt mitliest. Deshalb steht das hier bei den Stammdaten und nicht in einem
+ * Prompt. Leer heißt: die dritte Schicht gibt es nicht, und im Prompt steht
+ * davon auch nichts. */
+function PlatformRepo() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const own = useQuery({ queryKey: ["own-org"], queryFn: () => api<Organization>("/org") });
+  const targets = useQuery({
+    queryKey: ["targets"],
+    queryFn: () => api<{ name: string; label: string; enabled: boolean }[] | null>("/targets"),
+  });
+  const [editing, setEditing] = useState(false);
+  const [system, setSystem] = useState("");
+  const [project, setProject] = useState("");
+  const [error, setError] = useState("");
+
+  const save = useMutation({
+    mutationFn: () => patch<{ ok: boolean }>("/org/platform-repo", { system, project }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["own-org"] });
+      setEditing(false);
+      setError("");
+    },
+    onError: (e: Error) => setError(e.message),
+  });
+
+  if (!own.data) return null;
+  const gesetzt = own.data.platform_repo_system && own.data.platform_repo_project;
+  // Nur angeschlossene Zielsysteme: eine Adresse auf einem System ohne
+  // Credential liefe erst beim Checkout ins Leere.
+  const wahl = (targets.data ?? []).filter((x) => x.enabled);
+
+  const start = () => {
+    setSystem(own.data!.platform_repo_system ?? "");
+    setProject(own.data!.platform_repo_project ?? "");
+    setEditing(true);
+  };
+
+  return (
+    <div className="card mb-4">
+      <div className="flex items-baseline gap-2 mb-1">
+        <h2 className="text-sm" style={{ fontWeight: 600 }}>{t("org.repo.title")}</h2>
+        {!editing && (
+          <button className="btn sm ml-auto" style={{ border: "none" }} onClick={start}>
+            {gesetzt ? t("org.company.edit") : t("org.company.add")}
+          </button>
+        )}
+      </div>
+      {!editing && (
+        <p className={`text-xs ${gesetzt ? "" : "muted"}`} style={{ maxWidth: 640 }}>
+          {gesetzt ? (
+            <>
+              <span className="mono">{own.data.platform_repo_system}</span>{" · "}
+              <span className="mono">{own.data.platform_repo_project}</span>
+            </>
+          ) : (
+            t("org.repo.empty")
+          )}
+        </p>
+      )}
+      {editing && (
+        <form onSubmit={(e) => { e.preventDefault(); save.mutate(); }} style={{ maxWidth: 640 }}>
+          <div className="flex gap-2 items-end flex-wrap">
+            <div>
+              <label>{t("org.repo.system")}</label>
+              <select value={system} onChange={(e) => setSystem(e.target.value)}>
+                <option value="">{t("org.repo.none")}</option>
+                {wahl.map((x) => (
+                  <option key={x.name} value={x.name}>{x.label || x.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1 min-w-52">
+              <label>{t("org.repo.project")}</label>
+              <input
+                className="mono"
+                value={project}
+                onChange={(e) => setProject(e.target.value)}
+                placeholder={t("org.repo.projectPlaceholder")}
+              />
+            </div>
+          </div>
+          <div className="muted text-xs" style={{ margin: "3px 0 6px" }}>{t("org.repo.hint")}</div>
+          {error && <div className="danger-text text-xs mb-2">{error}</div>}
+          <div className="flex gap-2">
+            <button className="btn sm primary" type="submit" disabled={save.isPending}>
+              {t("org.company.save")}
+            </button>
+            <button className="btn sm" type="button" onClick={() => { setEditing(false); setError(""); }}>
+              {t("modal.cancel")}
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+}
+
 export default function Org() {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -190,6 +298,7 @@ export default function Org() {
       </p>
 
       <CompanyDescription />
+      <PlatformRepo />
 
       {/* Legende + Aktionsleiste */}
       <div className="org-legend">

@@ -126,6 +126,10 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
     mutationFn: (model: string) => patch(`/agents/${agent.id}/model`, { model }),
     onSuccess: invalidate,
   });
+  const setEffort = useMutation({
+    mutationFn: (effort: string) => patch(`/agents/${agent.id}/effort`, { effort }),
+    onSuccess: invalidate,
+  });
   const setMaxTurns = useMutation({
     mutationFn: (maxTurns: number) => patch(`/agents/${agent.id}/max-turns`, { max_turns: maxTurns }),
     onSuccess: invalidate,
@@ -151,11 +155,22 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
   });
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const anyError = [setName, setSlug, setRuntime, setModel, setMaxTurns, setRecordingLevel, setBudget].find(
+  const anyError = [setName, setSlug, setRuntime, setModel, setEffort, setMaxTurns, setRecordingLevel, setBudget].find(
     (m) => m.isError,
   );
 
   const rtList = runtimes.data ?? [];
+  // Die Denkaufwand-Stufen kommen von der Engine, nicht aus dieser Datei: eine
+  // Engine ohne den Regler soll ihn auch nicht angeboten bekommen. Solange die
+  // Runtime-Liste noch lädt, zeigen wir die Zeile nur, wenn der Agent bereits
+  // eine Stufe gesetzt hat — sonst blitzt sie auf und verschwindet wieder.
+  const effortLevels = rtList.find((rt) => rt.name === agent.runtime)?.capabilities.effort_levels ?? [];
+  // Covey Doctor heisst ueberall gleich: Name und Slug gehoeren der
+  // Plattform, nicht der Organisation. Die Sperre steht im Server (409) — hier
+  // steht sie nur sichtbar davor, damit niemand gegen ein Feld tippt, dessen
+  // Antwort schon feststeht.
+  const isDoctor = agent.slug === "covey-doctor";
+  const showEffort = effortLevels.length > 0 || !!agent.effort;
   const row: CSSProperties = {
     display: "grid",
     gridTemplateColumns: "180px minmax(200px, 320px) 1fr",
@@ -184,7 +199,7 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
           <input
             key={`name:${agent.display_name}`}
             defaultValue={agent.display_name}
-            disabled={!editable || setName.isPending}
+            disabled={!editable || isDoctor || setName.isPending}
             onBlur={(e) => {
               const v = e.target.value.trim();
               if (v && v !== agent.display_name) setName.mutate(v);
@@ -192,7 +207,7 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
             onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
             style={{ flex: 1 }}
           />
-          {editable && (
+          {editable && !isDoctor && (
             <button
               className="btn sm"
               title={t("agent.settings.rollDice")}
@@ -203,7 +218,9 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
             </button>
           )}
         </span>
-        <span className="muted text-xs">{t("agent.settings.nameHint")}</span>
+        <span className="muted text-xs">
+          {isDoctor ? t("agent.settings.fixedIdentity") : t("agent.settings.nameHint")}
+        </span>
       </div>
       <div style={row}>
         <span className="text-sm">{t("agent.settings.slug")}</span>
@@ -211,7 +228,7 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
           <input
             key={`slug:${agent.slug}`}
             defaultValue={agent.slug}
-            disabled={!editable || setSlug.isPending}
+            disabled={!editable || isDoctor || setSlug.isPending}
             className="mono"
             onBlur={(e) => {
               const v = e.target.value.trim();
@@ -225,7 +242,9 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
         <span className="muted text-xs">
           {setSlug.isError
             ? <span style={{ color: "var(--error)" }}>{String((setSlug.error as Error)?.message ?? t("agent.settings.slugError"))}</span>
-            : t("agent.settings.slugHint")}
+            : isDoctor
+              ? t("agent.settings.fixedIdentity")
+              : t("agent.settings.slugHint")}
         </span>
       </div>
       <div style={row}>
@@ -261,6 +280,27 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
         />
         <span className="muted text-xs">{t("agent.settings.modelHint")}</span>
       </div>
+      {showEffort && (
+        <div style={row}>
+          <span className="text-sm">{t("agent.settings.effort")}</span>
+          <select
+            key={`effort:${agent.effort}`}
+            defaultValue={agent.effort || ""}
+            disabled={!editable || setEffort.isPending}
+            onChange={(e) => {
+              if (e.target.value !== (agent.effort || "")) setEffort.mutate(e.target.value);
+            }}
+          >
+            <option value="">{t("agent.settings.effortDefault")}</option>
+            {effortLevels.map((lvl) => (
+              <option key={lvl} value={lvl}>
+                {lvl}
+              </option>
+            ))}
+          </select>
+          <span className="muted text-xs">{t("agent.settings.effortHint")}</span>
+        </div>
+      )}
       <div style={row}>
         <span className="text-sm">{t("agent.settings.maxTurns")}</span>
         <input

@@ -42,8 +42,13 @@ func init() {
 			{Kind: CredSubscription, Label: "Subscription",
 				Secret: "claude_code_oauth_token", EnvVar: "CLAUDE_CODE_OAUTH_TOKEN"},
 		},
-		Capabilities: RuntimeCapabilities{Resume: true, SkillsDir: ".claude/skills"},
-		New:          func() Runtime { return NewClaudeCode() },
+		Capabilities: RuntimeCapabilities{Resume: true, SkillsDir: ".claude/skills",
+			// The levels of `--effort`, in the binary's own spelling and order.
+			// They are declared here rather than in the HTTP layer so that an
+			// agent on another engine is not offered a control its engine does
+			// not have (spec/12).
+			EffortLevels: []string{"low", "medium", "high", "xhigh", "max"}},
+		New: func() Runtime { return NewClaudeCode() },
 		Setup: []SetupStep{
 			{
 				Text: "Obtain a credential — one of the two variants:",
@@ -204,6 +209,9 @@ func (c *ClaudeCode) buildArgs(spec RunSpec) ([]string, string) {
 	}
 	if spec.Model != "" {
 		args = append(args, "--model", spec.Model)
+	}
+	if spec.Effort != "" {
+		args = append(args, "--effort", spec.Effort)
 	}
 	return args, prompt
 }
