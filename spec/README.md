@@ -44,6 +44,8 @@ The guiding metaphor from which the whole architecture follows: the platform is 
 | [`18-runtimes-capacity.md`](18-runtimes-capacity.md) | Runtimes as contracts: engine vs. configured workplace, credential pools per provider, merit order, reported utilisation, what a cost figure means |
 | [`19-codex-adapter.md`](19-codex-adapter.md) | Second engine (planned): `codex exec`, credential as a file vs. an environment variable, tokens without a price, no utilisation source |
 | [`20-hiring-and-setup.md`](20-hiring-and-setup.md) | Setup (the credential first, the company description as org master data) and hiring: the People department as an agent, the `covey` self-service actions, the draft state |
+| [`21-agent-templates.md`](21-agent-templates.md) | What an agent needs before it can work: requirements derived from its own config (secrets, plugins, egress, sandbox capabilities), the setup wizard that resolves them, typed template inputs, and the repeatable functional test that feeds the hire decision |
+| [`22-org-templates.md`](22-org-templates.md) | A whole team from one template: members and their relationships, composition from single-agent templates, the routing partition as data instead of prose, and the org-level checks that catch a hole or an overlap in it |
 
 ## Design principles
 
