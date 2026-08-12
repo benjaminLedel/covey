@@ -898,15 +898,21 @@ func (o *Orchestrator) wake(ctx context.Context, agent agents.Agent) (DaemonLink
 		enableDocker = ok
 	}
 
+	// Operational plugin configuration first (intake scope, limits — see
+	// pluginenv.go: the plugins that read it run in the sandbox, and an unset
+	// allowlist there means "no restriction"), the connection variables after
+	// it. That order is the point: the three below are assigned last and can
+	// therefore never be shadowed by a pass-through of the same name.
+	env := pluginEnv()
+	env["COVEY_WS_URL"] = o.PublicWSURL
+	env["COVEY_DAEMON_TOKEN"] = tok.Value
+	env["COVEY_AGENT_ID"] = agent.ID.String()
+
 	sandbox, err := o.Provider.Start(ctx, SandboxSpec{
 		AgentID:      agent.ID,
 		EgressToken:  egressToken,
 		EnableDocker: enableDocker,
-		Env: map[string]string{
-			"COVEY_WS_URL":       o.PublicWSURL,
-			"COVEY_DAEMON_TOKEN": tok.Value,
-			"COVEY_AGENT_ID":     agent.ID.String(),
-		},
+		Env:          env,
 	})
 	if err != nil {
 		return nil, nil, err
