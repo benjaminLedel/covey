@@ -15,7 +15,25 @@ import {
 
 const canEdit = (role: string) => role === "platform_admin" || role === "security";
 
-const patternSuggestions = ["zammad:reply_external", "zammad:*", "gitlab:comment_external", "gitlab:*", "github:comment", "github:*", "mail:*", "hr*", "*"];
+/* Vorschläge, keine Liste: das Muster ist frei, und was hier steht, ist das,
+   was jemand am häufigsten meint. `covey:*` deckt die Meta-Aktionen ab — das,
+   was ein Agent an der Plattform SELBST tut (Kollegen entwerfen, deren Config
+   lesen). Sie kennen seit spec/21 denselben Freigabe-Weg wie eine
+   Zielsystem-Aktion, und ohne einen Vorschlag hier fände sie niemand. */
+const patternSuggestions = [
+  "zammad:reply_external",
+  "zammad:*",
+  "gitlab:comment_external",
+  "gitlab:*",
+  "github:comment",
+  "github:*",
+  "mail:*",
+  "covey:set_agent_config",
+  "covey:read_recording",
+  "covey:*",
+  "hr*",
+  "*",
+];
 
 const decisionClass: Record<string, string> = {
   allow: "st-done",

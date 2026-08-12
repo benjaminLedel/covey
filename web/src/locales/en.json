@@ -330,7 +330,6 @@
     "costs": "Costs",
     "setup": "Setup",
     "control": "Oversight",
-    "approvals": "Approvals",
     "guardrails": "Guard Rails",
     "secrets": "Secrets",
     "targets": "Target Systems",
@@ -346,7 +345,8 @@
     "audit": "Audit",
     "requests": "Requests",
     "skills": "Skills",
-    "setupPage": "Setup"
+    "setupPage": "Setup",
+    "inbox": "Inbox"
   },
   "costs": {
     "title": "Cost & Tokens",
@@ -389,6 +389,7 @@
     "indicators": {
       "title": "What came of it",
       "hint": "The indicators from the agents' KPIS.md, and what a unit of each cost.",
+      "restricted": "A single agent's indicators belong to its work record — your role does not see them. The org-wide price list stays open: pick \"All agents\" above.",
       "perUnit": "{{price}} / unit",
       "tooFew": "too few",
       "tooFewHint": "Too few events for a meaningful unit price — the raw count stands next to it.",
@@ -666,7 +667,8 @@
       "skills": "Skills",
       "files": "Workspace",
       "toolsSkills": "Tools & Skills",
-      "dreams": "Dreams"
+      "dreams": "Dreams",
+      "record": "Work record"
     },
     "files": {
       "desc": "The agent's persistent home — its workspace. Files outlive the sandbox, so you can browse or drop something here even while the agent sleeps. Every change is recorded.",
@@ -987,6 +989,7 @@
       "model": "Model",
       "modelPlaceholder": "empty = runtime default",
       "modelHint": "Model ID or alias, e.g. claude-opus-4-8 or sonnet.",
+      "fixedIdentity": "Fixed: the operations engineer is called \"Covey Doctor\" on every instance. The name belongs to the platform, so that an agent with these permissions stays recognisable as one everywhere.",
       "effort": "Reasoning effort",
       "effortDefault": "empty = runtime default",
       "effortHint": "Independent of the model — how hard it thinks per turn. The engine decides which levels exist; engines without this control do not show the row.",
@@ -1064,16 +1067,104 @@
       "title": "What came of it",
       "window": "last 30 days",
       "hint": "This employee's indicators from its KPIS.md, and what a unit of each cost."
+    },
+    "record": {
+      "hint": "What the platform itself recorded about this colleague's work — facts, not conversations. The question behind it: why is it not delivering? Three causes are possible — its configuration, its assignment, or the platform underneath it.",
+      "days": "{{count}} days",
+      "throughput": "Throughput",
+      "tasksTotal": "Tasks in total",
+      "byOrigin": "By origin",
+      "aborts": "Aborts",
+      "noAborts": "No run was cut short.",
+      "srcLifecycle": "lifecycle events",
+      "abort": {
+        "max_turns": "At the turn limit",
+        "error": "Error",
+        "budget": "Budget exhausted",
+        "killed": "Kill switch"
+      },
+      "cost": "Cost",
+      "total": "Total",
+      "perTask": "Per task",
+      "costTasks": "Tasks with cost",
+      "work": "Work",
+      "noWork": "No action was executed.",
+      "indicators": "Indicators",
+      "noIndicators": "No indicators in KPIS.md.",
+      "friction": "Friction",
+      "approvals": "Approvals for its actions",
+      "denied": "Forbidden attempts",
+      "ownProposals": "Its own proposals",
+      "noFriction": "Nothing held up, nothing refused.",
+      "stuck": "Stuck ({{count}})",
+      "stuckHint": "Tasks waiting for an event. This is the failure mode nobody sees, because nothing errors.",
+      "findings": "Standing findings ({{count}})",
+      "tasks": "Tasks in the period",
+      "noTasks": "No tasks in the period.",
+      "reviews": "Reviews",
+      "reviewPeriod": "period {{from}} – {{to}}",
+      "fromTask": "from the run",
+      "reviewsMore": "Show {{count}} older",
+      "reviewsFewer": "Newest only"
     }
   },
   "approvals": {
-    "title": "Approvals",
-    "pending": "{{count}} pending",
-    "noPending": "Nothing waiting for approval.",
-    "requested": "requested {{date}}",
     "approve": "Approve",
-    "deny": "Deny",
-    "decided": "Decided"
+    "deny": "Deny"
+  },
+  "inbox": {
+    "title": "Inbox",
+    "open": "{{count}} open",
+    "hint": "Everything waiting for your decision. An approval holds an agent still — it only carries on once you have decided. An open item from operations holds nothing up: it is a proposal, a finding or an issue, and none of it takes effect before you accept it.",
+    "todo": "To decide",
+    "nothingToDo": "Nothing is waiting for a decision.",
+    "all": "All items",
+    "more": "Load more ({{count}})",
+    "collapse": "Collapse",
+    "onlyMine": "Only my agents",
+    "allAgents": "All agents",
+    "allTypes": "All kinds",
+    "filterAgent": "Filter by agent",
+    "filterType": "Filter by kind",
+    "filterStatus": "Filter by status",
+    "statusAll": "Open and decided",
+    "statusOpen": "Open only",
+    "statusDecided": "Decided only",
+    "sort": "Sort order",
+    "sortUrgent": "Urgency",
+    "sortNewest": "Newest first",
+    "sortOldest": "Oldest first",
+    "agentWaiting": "The task stands still until you decide.",
+    "type": {
+      "approval": "Approval",
+      "proposal": "Proposal",
+      "finding": "Finding",
+      "issue": "Issue"
+    },
+    "status": {
+      "pending": "Open",
+      "approved": "Approved",
+      "denied": "Denied",
+      "expired": "Expired",
+      "accepted": "Accepted",
+      "rejected": "Rejected"
+    }
+  },
+  "improvements": {
+    "by": "by {{name}} ·",
+    "needsSecurity": "Changes access — security decides",
+    "conflict": "Conflict: {{files}} has been changed since",
+    "stale": "Written against version {{base}}, current is {{current}}",
+    "showDiff": "Show the change ({{files}})",
+    "newFile": "new file",
+    "skipped": "… {{count}} unchanged lines",
+    "notePlaceholder": "Note on the decision (optional)",
+    "accept": "Accept",
+    "done": "Done",
+    "reject": "Reject",
+    "blockedConflict": "The configuration has changed since this proposal was written — it has to be rewritten or discarded.",
+    "blockedSecurity": "This proposal changes ACCESS.md or EGRESS.md. Only platform_admin or security may accept it.",
+    "appliedAs": "Applied as version {{v}}"
   },
   "guardrails": {
     "title": "Guard Rails",
@@ -1179,6 +1270,15 @@
       "placeholder": "We do … Our customers are … What matters to us is …",
       "hint": "Goes into the config of newly drafted agents, into every hiring brief and into the config assistant.",
       "save": "Save"
+    },
+    "repo": {
+      "title": "This platform's source",
+      "empty": "Not set up. Without it the improvement engineer reports symptoms instead of diagnoses — and without a target, nothing at all.",
+      "system": "Target system",
+      "project": "Project",
+      "none": "— none —",
+      "projectPlaceholder": "e.g. 42 or group/covey",
+      "hint": "Where Covey itself lives: the improvement engineer reads the source there (pinned to the running commit) and files its bug reports there. Enabled target systems only; leaving it empty switches both off. Second half of the setup: the same target system has to be in the improvement engineer's ACCESS.md — without that line the section stays out of its prompt."
     }
   },
   "orgs": {

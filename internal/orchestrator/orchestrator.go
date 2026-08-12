@@ -25,6 +25,7 @@ import (
 
 	"covey/internal/agents"
 	"covey/internal/backlog"
+	"covey/internal/buildinfo"
 	"covey/internal/daemon"
 	"covey/internal/egress"
 	"covey/internal/guardrails"
@@ -1549,11 +1550,17 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	// the agent's current ACCESS.md, not the state at the time the config was
 	// compiled.
 	var actionTools []daemon.ActionTool
+	// Welche Zielsysteme dieser Agent wirklich erreicht — DocsForAgent ist auf
+	// beiden Seiten fail-closed (von der Organisation aktiviert UND in der
+	// ACCESS.md des Agenten). Der Plattform-Repo-Abschnitt weiter unten haengt
+	// daran.
+	grantedSystems := map[string]bool{}
 	if o.Targets != nil {
 		if docs, err := o.Targets.DocsForAgent(ctx, agent.OrgID, agent.ID); err == nil {
 			texts := make([]string, 0, len(docs))
 			for _, d := range docs {
 				texts = append(texts, d.Doc)
+				grantedSystems[d.System] = true
 				actionTools = append(actionTools, daemon.ActionTool{Name: d.System, Description: d.Doc})
 			}
 			if section := agents.TargetDocs(texts); section != "" {
@@ -1570,6 +1577,41 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	if mayDraft {
 		compiled += "\n\n" + agents.HiringDoc
 	}
+	// Und dasselbe fuer die andere Haelfte: `scope: agents:review` schaltet das
+	// Lesen und Vorschlagen frei (spec/21). Zwei Scopes, zwei Abschnitte — wer
+	// nur begutachten darf, liest nichts ueber das Entwerfen und umgekehrt.
+	mayReview := o.mayReviewAgents(ctx, agent)
+	if mayReview {
+		compiled += "\n\n" + agents.ReviewDoc
+		// Die dritte Schicht: der eigene Quelltext, auf den laufenden Commit
+		// gepinnt (spec/21). Drei Bedingungen, und die dritte ist die, die beim
+		// ersten Bau fehlte:
+		//
+		//  1. Die Organisation hat das Repository eingerichtet — wo es liegt,
+		//     entscheidet sie und nicht der Agent.
+		//  2. Der Agent darf begutachten (mayReview, siehe oben).
+		//  3. Er hat dieses Zielsystem WIRKLICH in seiner ACCESS.md.
+		//
+		// Ohne (3) stuende im Prompt „you may READ it — check it out and search
+		// it like any other repository", und der Broker wiese den Checkout
+		// gleich darauf ab: Faehigkeit durch Andeutung, dieselbe, die der
+		// Abschnitt darueber fuer das Entwerfen ausdruecklich vermeidet. Das
+		// Stammdatum allein ist die halbe Einrichtung — die andere Haelfte ist
+		// eine Zeile in der ACCESS.md des Betriebsingenieurs.
+		//
+		// Der Scope INNERHALB des Systems bleibt Sache dieser Zeile: welche
+		// Aktionen sie traegt, steht ohnehin im Zielsystem-Abschnitt des
+		// Prompts, der schon auf die Scopes des Agenten zugeschnitten ist.
+		var repoSystem, repoProject string
+		if err := o.Pool.QueryRow(ctx,
+			"SELECT platform_repo_system, platform_repo_project FROM organizations WHERE id=$1",
+			agent.OrgID).Scan(&repoSystem, &repoProject); err == nil && grantedSystems[repoSystem] {
+			if section := agents.PlatformRepoDoc(repoSystem, repoProject,
+				buildinfo.Get().Commit); section != "" {
+				compiled += "\n\n" + section
+			}
+		}
+	}
 	// The platform's own meta actions (board, notes, wiki, delegation) are not a
 	// target system, but they are callable in exactly the same way — so on the
 	// MCP route they belong in the tool list too. Their description is the
@@ -1579,10 +1621,13 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	// People department that is exactly wrong: its whole job runs through these
 	// actions, and it reaches no external system at all. So whoever may draft
 	// agents gets the tool even with an otherwise empty list.
-	if len(actionTools) > 0 || mayDraft {
+	if len(actionTools) > 0 || mayDraft || mayReview {
 		doc := agents.CoveyActionsDoc
 		if mayDraft {
 			doc += "\n\n" + agents.HiringDoc
+		}
+		if mayReview {
+			doc += "\n\n" + agents.ReviewDoc
 		}
 		actionTools = append(actionTools, daemon.ActionTool{Name: "covey", Description: doc})
 	}
@@ -2507,34 +2552,82 @@ func (o *Orchestrator) decideAction(ctx context.Context, agent agents.Agent, tas
 			Reason: "forbidden by guard rail " + verdict.Rule.Pattern}
 
 	case guardrails.RequireApproval:
-		// An unused approval for exactly this action? Then consume it.
-		var approvalID uuid.UUID
-		err := o.Pool.QueryRow(ctx, `UPDATE approvals SET used=TRUE
-			WHERE id = (SELECT id FROM approvals
-				WHERE agent_id=$1 AND action=$2 AND status='approved' AND NOT used
-				ORDER BY decided_at DESC LIMIT 1)
-			RETURNING id`, agent.ID, req.Action).Scan(&approvalID)
-		if err == nil {
-			_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindApproval,
-				map[string]any{"action": req.Action, "decision": "approved", "approval_id": approvalID.String()})
+		v := o.approvalGate(ctx, agent, taskID, req.Action, json.RawMessage(req.Params), "")
+		switch {
+		case v.Error != "":
+			return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied", Reason: v.Error}
+		case v.Approved:
 			return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "approved"}
 		}
-		appr, err := o.Obs.CreateApproval(ctx, agent.OrgID, agent.ID, &taskID, req.Action, json.RawMessage(req.Params))
-		if err != nil {
-			return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied", Reason: err.Error()}
-		}
-		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindApproval,
-			map[string]any{"action": req.Action, "decision": "pending", "approval_id": appr.ID.String()})
-		o.events.Publish(Event{Type: "approval", AgentID: agent.ID.String(),
-			Data: map[string]string{"approval_id": appr.ID.String(), "action": req.Action}})
 		return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "pending",
-			ApprovalID: appr.ID.String(), CorrelationKey: "approval:" + appr.ID.String()}
+			ApprovalID: v.ApprovalID, CorrelationKey: v.CorrelationKey}
 
 	default:
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindApproval,
 			map[string]any{"action": req.Action, "decision": "auto-allow"})
 		return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "approved"}
 	}
+}
+
+// gateVerdict ist die Antwort des Freigabe-Gates: entweder lag eine erteilte,
+// unverbrauchte Freigabe vor (Approved) — oder es wurde eine angelegt, und die
+// Aufgabe muss auf einen Menschen warten (CorrelationKey).
+type gateVerdict struct {
+	Approved       bool
+	ApprovalID     string
+	CorrelationKey string
+	// Error steht, wenn die Freigabe gar nicht erst angelegt werden konnte.
+	// Fail-closed: der Aufrufer verbietet dann.
+	Error string
+}
+
+// approvalGate ist der require_approval-Zweig der Guard-Rails.
+//
+// Bewusst herausgelöst und nicht beim Zielsystem-Pfad gelassen: dieselbe
+// Mechanik trägt die Meta-Actions der Plattform (spec/21). Dort lehnte eine
+// require_approval-Regel bisher hart ab — „requires an approval and cannot be
+// performed unattended". Das ist eine Leitplanke, die für eine Klasse von
+// Aktionen still zu einem Verbot wird, und damit eine Governance-Oberfläche,
+// die über sich selbst die Unwahrheit sagt: wer die Regel setzt, meint
+// „jemand schaut drauf" und bekommt „geht nicht".
+//
+// Die Freigabe ist EINMALIG verbrauchbar (approvals.used). Eine erteilte
+// Freigabe ist die Antwort auf eine Handlung, keine Lizenz auf die Aktion.
+// binding schnürt eine Freigabe auf EINEN Gegenstand fest (leer = auf die
+// Aktion). Die Meta-Actions setzen es ausnahmslos (bindingOf in hiring.go): eine
+// erteilte Freigabe ist die Antwort auf die Parameter, die ein Mensch gelesen
+// hat, und nicht auf die Aktion als solche — sonst wäre die Freigabe für Lauf A
+// die Eintrittskarte für Lauf B, und die für `slug: "helper"` die für
+// `slug: "backdoor"`. Nur der Zielsystem-Pfad kommt noch mit leerem binding
+// hierher; dort ist die Aktion selbst der Gegenstand.
+func (o *Orchestrator) approvalGate(ctx context.Context, agent agents.Agent, taskID uuid.UUID,
+	action string, params json.RawMessage, binding string) gateVerdict {
+
+	// Eine unverbrauchte Freigabe für genau diese Aktion? Dann verbrauchen.
+	var approvalID uuid.UUID
+	err := o.Pool.QueryRow(ctx, `UPDATE approvals SET used=TRUE
+		WHERE id = (SELECT id FROM approvals
+			WHERE agent_id=$1 AND action=$2 AND status='approved' AND NOT used
+			  AND ($3='' OR params->>'binding' = $3)
+			ORDER BY decided_at DESC LIMIT 1)
+		RETURNING id`, agent.ID, action, binding).Scan(&approvalID)
+	if err == nil {
+		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindApproval,
+			map[string]any{"action": action, "decision": "approved", "approval_id": approvalID.String()})
+		return gateVerdict{Approved: true, ApprovalID: approvalID.String()}
+	}
+	if len(params) == 0 {
+		params = json.RawMessage(`{}`)
+	}
+	appr, err := o.Obs.CreateApproval(ctx, agent.OrgID, agent.ID, &taskID, action, params)
+	if err != nil {
+		return gateVerdict{Error: err.Error()}
+	}
+	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindApproval,
+		map[string]any{"action": action, "decision": "pending", "approval_id": appr.ID.String()})
+	o.events.Publish(Event{Type: "approval", AgentID: agent.ID.String(),
+		Data: map[string]string{"approval_id": appr.ID.String(), "action": action}})
+	return gateVerdict{ApprovalID: appr.ID.String(), CorrelationKey: "approval:" + appr.ID.String()}
 }
 
 // OnApprovalDecided closes the loop of the approval gate: the decision wakes

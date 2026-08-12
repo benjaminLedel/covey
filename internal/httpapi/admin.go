@@ -266,6 +266,60 @@ func (s *Server) handleSetOwnOrgDescription(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// handleSetPlatformRepo stores where this platform's own source lives
+// (spec/21): the target system and the project on it.
+//
+// Konfiguration und keine Entscheidung des Agenten. Eine Instanz, die gegen
+// den oeffentlichen GitHub-Spiegel laeuft, haette sonst einen Agenten, der
+// Issues dorthin schreibt, wo die Welt mitliest; eine Instanz, die in ihr
+// eigenes GitLab meldet, behaelt sie im Haus. Das entscheidet die
+// Organisation, einmal, und nicht ein Modell je Lauf.
+func (s *Server) handleSetPlatformRepo(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	var in struct {
+		System  string `json:"system"`
+		Project string `json:"project"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "body not readable")
+		return
+	}
+	system := strings.ToLower(strings.TrimSpace(in.System))
+	project := strings.TrimSpace(in.Project)
+	// Beides oder nichts: ein System ohne Projekt ist eine halbe Adresse, und
+	// eine halbe Adresse im Prompt ist schlimmer als keine.
+	if (system == "") != (project == "") {
+		writeErr(w, http.StatusBadRequest, "system and project belong together — set both, or clear both")
+		return
+	}
+	// Nur ein Zielsystem, das diese Organisation wirklich angeschlossen hat.
+	// Sonst stuende im Prompt eine Adresse auf einem System, fuer das es kein
+	// Credential gibt — und der Agent liefe erst beim Checkout dagegen.
+	if system != "" && s.Targets != nil {
+		plugins, err := s.Targets.List(r.Context(), p.OrgID)
+		if err != nil {
+			mapErr(w, err)
+			return
+		}
+		var known bool
+		for _, pl := range plugins {
+			if pl.Name == system && pl.Enabled {
+				known = true
+			}
+		}
+		if !known {
+			writeErr(w, http.StatusBadRequest,
+				"this organisation has no enabled target system "+system)
+			return
+		}
+	}
+	if err := s.Org.SetPlatformRepo(r.Context(), p.OrgID, system, project); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 func (s *Server) handleDeleteOrg(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {

@@ -33,11 +33,18 @@ type Organization struct {
 	// Description: what this organisation does, in a few sentences. Master data,
 	// not a setup prompt — it goes into the config of newly drafted agents, into
 	// every hiring brief and into the config copilot's system prompt (spec/20).
-	Description string    `json:"description"`
-	FleetKilled bool      `json:"fleet_killed"`
-	HumanCount  int       `json:"human_count"`
-	AgentCount  int       `json:"agent_count"`
-	CreatedAt   time.Time `json:"created_at"`
+	Description string `json:"description"`
+	// PlatformRepo names where this platform's own source lives — the target
+	// system and the project on it (spec/21). The improvement engineer reads
+	// the code there and files its issues there; both from the same address,
+	// because reporting against code you have not read produces symptoms.
+	// Empty = not set up, and then nothing about it stands in any prompt.
+	PlatformRepoSystem  string    `json:"platform_repo_system"`
+	PlatformRepoProject string    `json:"platform_repo_project"`
+	FleetKilled         bool      `json:"fleet_killed"`
+	HumanCount          int       `json:"human_count"`
+	AgentCount          int       `json:"agent_count"`
+	CreatedAt           time.Time `json:"created_at"`
 }
 
 type Human struct {
@@ -399,8 +406,10 @@ func (s *Store) RenameOrg(ctx context.Context, id uuid.UUID, name string) error 
 func (s *Store) GetOrg(ctx context.Context, id uuid.UUID) (Organization, error) {
 	var o Organization
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, name, description, fleet_killed, created_at FROM organizations WHERE id=$1`, id).
-		Scan(&o.ID, &o.Name, &o.Description, &o.FleetKilled, &o.CreatedAt)
+		`SELECT id, name, description, platform_repo_system, platform_repo_project,
+			fleet_killed, created_at FROM organizations WHERE id=$1`, id).
+		Scan(&o.ID, &o.Name, &o.Description, &o.PlatformRepoSystem, &o.PlatformRepoProject,
+			&o.FleetKilled, &o.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return o, ErrNotFound
 	}
@@ -452,4 +461,20 @@ func scanHumans(rows pgx.Rows) ([]Human, error) {
 func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
+// SetPlatformRepo stores where this platform's own source lives (spec/21).
+// Both empty switches the whole thing off again — the prompt section then
+// disappears with it, and nobody reads about a repository nobody connected.
+func (s *Store) SetPlatformRepo(ctx context.Context, id uuid.UUID, system, project string) error {
+	tag, err := s.pool.Exec(ctx,
+		`UPDATE organizations SET platform_repo_system=$1, platform_repo_project=$2 WHERE id=$3`,
+		system, project, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

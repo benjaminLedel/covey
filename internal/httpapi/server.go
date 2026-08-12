@@ -191,6 +191,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/agents/{id}/export", s.agentScoped(append(manage, identity.RoleSecurity), s.handleExportAgent))
 	mux.Handle("GET /api/v1/agents/{id}/diagnostics", s.agentScoped(append(manage, identity.RoleSecurity), s.handleAgentDiagnostics))
 	mux.Handle("GET /api/v1/agents/{id}/lint", s.agentScoped(append(manage, identity.RoleSecurity), s.handleAgentLint))
+	// Die Arbeitsakte (workrecord.go, spec/21). Sie folgt den Recordings und
+	// nicht den Kostenzahlen: eine Summe sagt, was ausgegeben wurde, eine Akte
+	// sagt, wie jemand gearbeitet hat.
+	mux.Handle("GET /api/v1/agents/{id}/work-record", s.agentScoped(workRecordRoles(), s.handleWorkRecord))
+	mux.Handle("GET /api/v1/agents/{id}/reviews", s.agentScoped(workRecordRoles(), s.handleAgentReviews))
 	// The workplace: the persistent home as a file tree (files.go). Security
 	// may read on top of that — whoever investigates an agent has to see what
 	// lies with it. Writing stays with the administrators: a file in the home
@@ -260,6 +265,9 @@ func (s *Server) Handler() http.Handler {
 	// context every agent works in (spec/20).
 	mux.Handle("GET /api/v1/org", s.rbac(anyRole, s.handleGetOwnOrg))
 	mux.Handle("PATCH /api/v1/org/description", s.rbac(manage, s.handleSetOwnOrgDescription))
+	// Wo der Quelltext dieser Plattform liegt (spec/21). Stammdaten wie die
+	// Unternehmensbeschreibung — wer sie pflegt, pflegt auch das.
+	mux.Handle("PATCH /api/v1/org/platform-repo", s.rbac(manage, s.handleSetPlatformRepo))
 	mux.Handle("GET /api/v1/org/chart", s.rbac(anyRole, s.handleOrgChart))
 	mux.Handle("GET /api/v1/org/humans/{id}", s.rbac(anyRole, s.handleGetHuman))
 	mux.Handle("GET /api/v1/org/profile-fields", s.rbac(anyRole, s.handleListProfileFields))
@@ -301,7 +309,10 @@ func (s *Server) Handler() http.Handler {
 	// The price list: delivery next to the cost, same scope, same period
 	// (spec/17-kpis.md).
 	mux.Handle("GET /api/v1/cost/indicators", s.rbac(anyRole, s.handleOrgIndicators))
-	mux.Handle("GET /api/v1/agents/{id}/cost/indicators", s.agentScoped(anyRole, s.handleAgentIndicators))
+	// Die Kennzahlen EINES Agenten sind der Kennzahlen-Abschnitt der Akte —
+	// dieselbe Grenze. Die org-weite Preisliste daneben bleibt offen: sie
+	// gruppiert ueber Kennzahl-Schluessel, nicht ueber Personen (spec/17).
+	mux.Handle("GET /api/v1/agents/{id}/cost/indicators", s.agentScoped(workRecordRoles(), s.handleAgentIndicators))
 	mux.Handle("GET /api/v1/agents/{id}/memories", s.agentScoped(anyRole, s.handleMemories))
 	mux.Handle("POST /api/v1/agents/{id}/memories", s.agentScoped(manage, s.handleCreateMemory))
 	mux.Handle("GET /api/v1/agents/{id}/wiki/log", s.agentScoped(anyRole, s.handleWikiLog))
@@ -330,6 +341,20 @@ func (s *Server) Handler() http.Handler {
 	// Trust layer.
 	mux.Handle("GET /api/v1/approvals", s.rbac(anyRole, s.handleListApprovals))
 	mux.Handle("POST /api/v1/approvals/{id}/decide", s.rbac(append(manage, identity.RoleSecurity), s.handleDecideApproval))
+
+	// Der Posteingang (inbox.go): Freigaben und offene Punkte in EINER Liste,
+	// sortier-, filter- und blätterbar. Alle Rollen dürfen ihn abrufen —
+	// Controlling bekommt daraus nur die Freigaben, die Arbeitsakten-Seite
+	// filtert der Handler heraus.
+	mux.Handle("GET /api/v1/inbox", s.rbac(anyRole, s.handleInbox))
+
+	// Die offenen Punkte aus dem Betrieb (improvements.go, spec/21): Vorschlag,
+	// Befund, Issue. Lesen darf, wen es angeht — Controlling fehlt bewusst,
+	// entschieden wird wie bei den Freigaben.
+	mux.Handle("GET /api/v1/improvements", s.rbac(improvementReadRoles(), s.handleListImprovements))
+	mux.Handle("GET /api/v1/improvements/{id}", s.rbac(improvementReadRoles(), s.handleGetImprovement))
+	mux.Handle("POST /api/v1/improvements/{id}/decide",
+		s.rbac(append(manage, identity.RoleSecurity), s.handleDecideImprovement))
 	mux.Handle("GET /api/v1/guardrails", s.rbac(anyRole, s.handleListGuardrails))
 	mux.Handle("POST /api/v1/guardrails", s.rbac(securityRoles, s.handleCreateGuardrail))
 	mux.Handle("PATCH /api/v1/guardrails/{id}", s.rbac(securityRoles, s.handleUpdateGuardrail))

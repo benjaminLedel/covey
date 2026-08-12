@@ -5,12 +5,13 @@ import { useTranslation } from "react-i18next";
 import { api, post, isDraft, type Agent, type Principal } from "../api";
 import { AgentFiles } from "../components/AgentFiles";
 import { HireDialog } from "../components/HireDialog";
-import { canFiles, canKill, canManage, canSecrets } from "./agent/roles";
+import { canFiles, canKill, canManage, canRecord, canSecrets } from "./agent/roles";
 import { AgentTooling } from "./agent/Tooling";
 import { AgentSettings } from "./agent/Settings";
 import { CostBar } from "./agent/CostBar";
 import { Performance } from "./agent/Performance";
 import { LintFindings } from "./agent/LintFindings";
+import { WorkRecord } from "./agent/WorkRecord";
 import { Backlog } from "./agent/Backlog";
 import { Recording } from "./agent/Recording";
 import { Memories } from "./agent/Memories";
@@ -21,7 +22,7 @@ import { Memories } from "./agent/Memories";
 // Dazu die englischen Namen der deutschen Slugs — wer "workspace" oder
 // "settings" tippt, meint den Arbeitsplatz bzw. die Einstellungen.
 const TABS = [
-  "backlog", "recording", "memory", "dateien", "werkzeuge", "einstellungen",
+  "backlog", "recording", "akte", "memory", "dateien", "werkzeuge", "einstellungen",
   "heartbeat", "tools", "skills", "webhook", "config", "secrets", "egress", "dreams",
   "workspace", "files", "settings",
 ] as const;
@@ -179,6 +180,7 @@ export default function AgentPage({ me }: { me: Principal }) {
           [
             ["backlog", t("agent.tabs.backlog")],
             ["recording", t("agent.tabs.recording")],
+            ["akte", t("agent.tabs.record")],
             ["memory", t("agent.tabs.memory")],
             ["dateien", t("agent.tabs.files")],
             ["werkzeuge", t("agent.tabs.toolsSkills")],
@@ -186,8 +188,12 @@ export default function AgentPage({ me }: { me: Principal }) {
           ] as const
         )
           // Der Arbeitsplatz zeigt, was im Home des Agenten liegt — das sehen
-          // nur seine Verwalter und Security, nicht jede Rolle.
+          // nur seine Verwalter und Security, nicht jede Rolle. Die Arbeitsakte
+          // folgt derselben Ueberlegung eine Stufe weiter (spec/21): eine
+          // Kostensumme sagt, was ausgegeben wurde, eine Akte sagt, wie jemand
+          // gearbeitet hat — Controlling sieht sie nicht.
           .filter(([key]) => key !== "dateien" || canFiles(me.Role))
+          .filter(([key]) => key !== "akte" || canRecord(me.Role))
           .map(([key, label]) => (
           <button
             key={key}
@@ -221,6 +227,7 @@ export default function AgentPage({ me }: { me: Principal }) {
       {tab === "recording" && (
         <Recording agentId={a.id} taskFilter={recTask} onClearFilter={() => setRecTask(null)} />
       )}
+      {tab === "akte" && canRecord(me.Role) && <WorkRecord agentId={a.id} />}
       {tab === "memory" && <Memories agentId={a.id} canManage={canManage(me.Role)} />}
       {tab === "dateien" && canFiles(me.Role) && (
         <AgentFiles agent={a} canWrite={canManage(me.Role)} />
