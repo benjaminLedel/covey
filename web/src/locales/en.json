@@ -347,7 +347,7 @@
       },
       "created": {
         "title": "Account created",
-        "text": "{{email}} is registered. The next step — joining an organisation or founding your own — follows once sign-in has moved to accounts."
+        "text": "{{email}} is registered — you can sign in now. Joining an organisation or founding your own follows as the next step."
       }
     }
   },
