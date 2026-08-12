@@ -32,7 +32,7 @@
 // läuft, sondern von einem Menschen unterschrieben wird.
 //
 // Das Paket steht bewusst neben httpapi und nicht darin: dieselbe Akte liest
-// später der Betriebsingenieur über covey/work_record, und der sitzt im
+// später Covey Doctor über covey/work_record, und der sitzt im
 // Orchestrator.
 package workrecord
 
@@ -141,7 +141,7 @@ type Friction struct {
 	Denied []Count `json:"denied"`
 	// Proposals sind die offenen Punkte, die DIESER Agent geschrieben hat,
 	// nach Ausgang. Die Ablehnungsquote auf die eigenen Vorschläge ist die
-	// Zahl, die sagt, ob ein Betriebsingenieur etwas taugt — und sie steht in
+	// Zahl, die sagt, ob Covey Doctor etwas taugt — und sie steht in
 	// seiner eigenen Akte wie bei jedem anderen auch (spec/21).
 	Proposals []Count `json:"proposals"`
 }

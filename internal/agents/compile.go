@@ -397,7 +397,7 @@ access.`
 // the SCOPE, not the agent: it stands in the prompt of whoever has
 // `- system: covey scope: agents:review` in its ACCESS.md, and in nobody
 // else's. The two scopes are deliberately separate — the People department
-// hires, the improvement engineer reads and proposes, and neither can do the
+// hires, Covey Doctor reads and proposes, and neither can do the
 // other's job with the other's credentials.
 const ReviewDoc = `## Reading colleagues, and proposing changes
 

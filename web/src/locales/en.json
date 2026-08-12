@@ -1273,12 +1273,12 @@
     },
     "repo": {
       "title": "This platform's source",
-      "empty": "Not set up. Without it the improvement engineer reports symptoms instead of diagnoses — and without a target, nothing at all.",
+      "empty": "Not set up. Without it Covey Doctor reports symptoms instead of diagnoses — and without a target, nothing at all.",
       "system": "Target system",
       "project": "Project",
       "none": "— none —",
       "projectPlaceholder": "e.g. 42 or group/covey",
-      "hint": "Where Covey itself lives: the improvement engineer reads the source there (pinned to the running commit) and files its bug reports there. Enabled target systems only; leaving it empty switches both off. Second half of the setup: the same target system has to be in the improvement engineer's ACCESS.md — without that line the section stays out of its prompt."
+      "hint": "Where Covey itself lives: Covey Doctor reads the source there (pinned to the running commit) and files its bug reports there. Enabled target systems only; leaving it empty switches both off. Second half of the setup: the same target system has to be in Covey Doctor's ACCESS.md — without that line the section stays out of its prompt."
     }
   },
   "orgs": {

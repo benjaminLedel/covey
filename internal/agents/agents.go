@@ -154,7 +154,7 @@ func (r *Registry) CreateDraft(ctx context.Context, orgID uuid.UUID, slug, displ
 // the same question as create() answers.
 const DefaultRuntime = "claude-code"
 
-// Der Betriebsingenieur trägt einen festen Namen.
+// Covey Doctor trägt einen festen Namen.
 //
 // Er ist kein Kollege, den eine Organisation sich ausdenkt, sondern die
 // Plattform, die sich selbst betrachtet (spec/21) — dieselbe Rolle, die
@@ -169,7 +169,7 @@ const (
 	DoctorName = "Covey Doctor"
 )
 
-// IsDoctor erkennt den Betriebsingenieur am reservierten Slug. Der Slug ist
+// IsDoctor erkennt Covey Doctor am reservierten Slug. Der Slug ist
 // der Anker und nicht der Anzeigename, weil er eindeutig je Organisation ist —
 // und er ist mitgesperrt, sonst wäre das Umbenennen des Slugs der Umweg um die
 // Namenssperre.

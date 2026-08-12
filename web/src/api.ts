@@ -533,7 +533,7 @@ export type Organization = {
   /** Was dieses Unternehmen macht — Stammdaten, siehe spec/20. */
   description: string;
   /** Wo der Quelltext dieser Plattform liegt (spec/21): Zielsystem und
-   *  Projekt. Der Betriebsingenieur liest ihn dort und meldet dorthin.
+   *  Projekt. Covey Doctor liest ihn dort und meldet dorthin.
    *  Leer = nicht eingerichtet, und dann steht davon auch nichts im Prompt. */
   platform_repo_system: string;
   platform_repo_project: string;

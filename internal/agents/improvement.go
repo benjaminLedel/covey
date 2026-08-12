@@ -16,7 +16,7 @@ package agents
 //   - Ein Vorschlag ist ein Diff gegen eine Basis. Wird der Agent zwischen dem
 //     Schreiben und dem Annehmen von Hand geändert, darf die Annahme diese
 //     Änderung nicht still überschreiben (ProposalConflicts).
-//   - Ein Vorschlag läuft nicht. Ein kompromittierter Betriebsingenieur
+//   - Ein Vorschlag läuft nicht. Ein kompromittierter Covey Doctor
 //     erzeugt eine Warteschlange schlechter Vorschläge, die ein Mensch
 //     ablehnt — ein Ärgernis, kein Vorfall.
 

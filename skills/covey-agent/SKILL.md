@@ -144,7 +144,7 @@ These rules come from real mistakes — always take them into account when desig
   reviewer).
 - **Every agent reports upwards.** `PLAYBOOKS.md` gets a section telling the agent to report what
   held it up when it was NOT the assignment — a missing action, a tool it is not allowed, a limit
-  it keeps hitting — to the improvement engineer by `covey/create_task`, instead of quietly
+  it keeps hitting — to Covey Doctor by `covey/create_task`, instead of quietly
   working around it (spec/21). Write it so it degrades: the agent looks for such a colleague in
   its prompt, and puts the report into its result if there is none. The platform can see THAT a
   run went wrong; why it went wrong only the agent knows, and only while it still knows. The

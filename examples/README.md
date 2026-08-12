@@ -138,7 +138,7 @@ GitLab token is still the better choice, so that the security tickets are
 attributable and the second heartbeat (`nur-wenn: gitlab:issues:assigned`) only
 sees what really belongs to it.
 
-Additionally for the **improvement engineer** only:
+Additionally for the **Covey Doctor** only:
 
 - Its `ACCESS.md` carries one line, `- system: covey scope: agents:review`, and
   that is everything it needs to read colleagues and propose configurations.

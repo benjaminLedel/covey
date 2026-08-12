@@ -11,7 +11,7 @@ Two facts sit unused next to each other:
 - **The evidence is complete.** Every action, every state transition, every abort, every cost entry is written by the control plane, outside the runtime, at the moment it happens — and `recording_events` has no retention ([`17-kpis.md`](17-kpis.md)). What an agent did in its first month is still there in its sixth.
 - **Nothing reads it as a whole.** The config lint reads a thin mechanical slice ([`internal/agents/lint.go`](../internal/agents/lint.go)) — heartbeats too tight, runs piling up at the turn limit, work that leaves no trace. Those rules were right about a QA agent from day one: 22 of 23 failures at the turn limit, several hundred dollars spent, not one merge request tested through. Nobody ran the check, because nobody runs a subcommand on a hunch.
 
-This document adds the reader: an **improvement engineer** in a department of its own, whose subject is not an employee but the **working conditions of the whole workforce**. It reads what a colleague actually did, works out which of the three causes it is looking at, and acts accordingly — a proposal for the config it may reach, a finding for the human who owns the assignment, an issue against the platform where the fault is the platform's.
+This document adds the reader: **Covey Doctor**, an agent in a department of its own, whose subject is not an employee but the **working conditions of the whole workforce**. It reads what a colleague actually did, works out which of the three causes it is looking at, and acts accordingly — a proposal for the config it may reach, a finding for the human who owns the assignment, an issue against the platform where the fault is the platform's.
 
 ## Why this is not the People department
 
@@ -27,7 +27,7 @@ The distinction earns its keep immediately. An HR framing forces every finding i
 
 > the numbers here are **reporting**, not a control loop: nothing in the platform rewards an agent for its KPI, nothing shows it its target, and no scheduler decision hangs off one. […] The judgement itself stays where it already sits: in the recording, in the approval gates, and in the humans who read both.
 
-An agent that reads indicators and rewrites configurations closes exactly that loop, and Goodhart's law arrives with it. The resolution is not to weaken the sentence but to keep it true: **the improvement engineer's output is never in effect.** It writes a proposal; a human accepts it. Nothing in the platform changes on an indicator alone, no scheduler decision hangs off one, and the last line of `17` still holds — the judgement stays with the humans, who now get it prepared instead of having to assemble it.
+An agent that reads indicators and rewrites configurations closes exactly that loop, and Goodhart's law arrives with it. The resolution is not to weaken the sentence but to keep it true: **Covey Doctor's output is never in effect.** It writes a proposal; a human accepts it. Nothing in the platform changes on an indicator alone, no scheduler decision hangs off one, and the last line of `17` still holds — the judgement stays with the humans, who now get it prepared instead of having to assemble it.
 
 Four consequences, and the last is the one that is easy to miss:
 
@@ -38,7 +38,7 @@ Four consequences, and the last is the one that is easy to miss:
 
 ## The work record: facts, not conversations
 
-The improvement engineer needs to see the work. The obvious implementation — hand it the recordings — is the wrong default in three ways at once: recordings carry ticket and mail content from other departments, so one agent would become an exfiltration path across the whole org chart; text from a target system reaching the agent that proposes configurations is the injection path from [`04-identity-secrets.md`](04-identity-secrets.md) pointed at the most valuable target on the platform; and a month of recordings does not fit in a context window at any sensible price.
+Covey Doctor needs to see the work. The obvious implementation — hand it the recordings — is the wrong default in three ways at once: recordings carry ticket and mail content from other departments, so one agent would become an exfiltration path across the whole org chart; text from a target system reaching the agent that proposes configurations is the injection path from [`04-identity-secrets.md`](04-identity-secrets.md) pointed at the most valuable target on the platform; and a month of recordings does not fit in a context window at any sensible price.
 
 So the default is a **work record the control plane assembles**: facts it recorded itself, per agent and period.
 
@@ -58,11 +58,11 @@ None of this is free text produced by the agent or by a target system — with *
 - **Task titles**, which frequently come from the wake source and can therefore carry a ticket subject.
 - **The question a stuck task is waiting on**, which the reviewed agent wrote itself in its `covey/block` directive and which routinely quotes what it is waiting for — a customer's reply, a ticket. Without it the section that matters most degrades to "something is blocked": *"waiting for an event"* is an observation, *"waiting on whether the customer comes back"* is a finding.
 
-Both stay, because the record cannot be read without them, and both are named here rather than discovered later. What keeps them from being an instruction to the reader is not a parser but the shape of the role: the improvement engineer is told in its prompt that this text is quotation, and its output does not run — a human signs every proposal. A record that promised "facts only" while carrying two free-text fields would be believed at exactly the point where it should be checked.
+Both stay, because the record cannot be read without them, and both are named here rather than discovered later. What keeps them from being an instruction to the reader is not a parser but the shape of the role: Covey Doctor is told in its prompt that this text is quotation, and its output does not run — a human signs every proposal. A record that promised "facts only" while carrying two free-text fields would be believed at exactly the point where it should be checked.
 
 **Who may read it** is decided here rather than inherited, which is what [`17-kpis.md`](17-kpis.md) asks for when it says performance data per agent is more sensitive than a cost total. The record follows **the recordings, not the cost figures**: `platform_admin`, `security`, the agent's own owner, and `auditor` reading. Costs are visible more widely because a total says what was spent; a work record says how somebody worked, and "whoever may see the bill may see this" is the answer that would make it unusable in any organisation with a works council. The same boundary then covers the indicators that `17` left open, because reading them out of the record is the same act as reading the record.
 
-**The recording is reachable, but through the gate.** Where the record says "eleven runs died at the turn limit" and the question is *why*, the improvement engineer asks for one specific run — and that request goes through the approval gate that already exists ([`06-observability-control.md`](06-observability-control.md)): a human sees which run, for which agent, out of which review, and approves once. The approval is one-time consumable (`approvals.used`), so the answer is one recording and not a licence.
+**The recording is reachable, but through the gate.** Where the record says "eleven runs died at the turn limit" and the question is *why*, Covey Doctor asks for one specific run — and that request goes through the approval gate that already exists ([`06-observability-control.md`](06-observability-control.md)): a human sees which run, for which agent, out of which review, and approves once. The approval is one-time consumable (`approvals.used`), so the answer is one recording and not a licence.
 
 This is the one place where the design costs real work rather than composition. The `covey/` meta actions do not know the approval path: where a target-system action creates an approval, returns `pending` with a correlation key and lets the task go `blocked` until a human decides ([`internal/orchestrator/orchestrator.go`](../internal/orchestrator/orchestrator.go)), the meta actions refuse outright — *"requires an approval and cannot be performed unattended"* ([`internal/orchestrator/hiring.go`](../internal/orchestrator/hiring.go)). That branch has to become real. It is worth building on its own: every future meta action that touches something sensitive inherits it, and a guard-rail type that silently degrades to a prohibition on one class of actions is a governance surface that lies about itself.
 
@@ -74,7 +74,7 @@ This is the one place where the design costs real work rather than composition. 
 
 This is the second case, and it is the better one to build it for: proposals about *other* agents need review far more than an agent's proposal about itself does.
 
-The change is small where it counts. `agent_config_versions` numbers versions per agent and treats the highest as the truth; a proposal is a row that is **not numbered into that sequence** — it carries the agent it is for, the version it was written against, the files it changes, the task it came out of, and a status (`pending`/`accepted`/`rejected`). Accepting it writes a normal new version through the existing path, with the human as `created_by`; rejecting it keeps the row and the reason, because a rejected proposal is the most useful thing somebody checking the improvement engineer can read.
+The change is small where it counts. `agent_config_versions` numbers versions per agent and treats the highest as the truth; a proposal is a row that is **not numbered into that sequence** — it carries the agent it is for, the version it was written against, the files it changes, the task it came out of, and a status (`pending`/`accepted`/`rejected`). Accepting it writes a normal new version through the existing path, with the human as `created_by`; rejecting it keeps the row and the reason, because a rejected proposal is the most useful thing somebody checking Covey Doctor can read.
 
 Two properties fall out and both are worth having:
 
@@ -89,7 +89,7 @@ The review surface is the one the platform already uses twice: the diff that the
 
 `set_agent_config` reaches exactly the agents drafted in the same assignment — *"A compromised People department cannot rewrite the QA agent's soul"* ([`internal/orchestrator/hiring.go`](../internal/orchestrator/hiring.go), rule 4). This agent's whole job is to reach agents it did not draft, and the tempting move is to widen that rule.
 
-Widening it would be the single most expensive change in this document. Instead the capability arrives as a **second action that cannot do what the first one does**: `propose_agent_config` writes an inactive version and nothing else. Rule 4 stays untouched for `set_agent_config`, and the new action needs no equivalent restriction, because its output does not run. A compromised improvement engineer produces a queue of bad proposals that a human declines — which is a nuisance, not an incident.
+Widening it would be the single most expensive change in this document. Instead the capability arrives as a **second action that cannot do what the first one does**: `propose_agent_config` writes an inactive version and nothing else. Rule 4 stays untouched for `set_agent_config`, and the new action needs no equivalent restriction, because its output does not run. A compromised Covey Doctor produces a queue of bad proposals that a human declines — which is a nuisance, not an incident.
 
 | New action | What it answers |
 |---|---|
@@ -105,7 +105,7 @@ Widening it would be the single most expensive change in this document. Instead 
 - system: covey   scope: agents:review
 ```
 
-`agents:review` unlocks the three actions above and **not** drafting; `agents:write` unlocks drafting and not these. An agent may hold both, and these two deliberately do not: the People department hires, the improvement engineer reads and proposes, and neither can do the other's job with the other's credentials. The prompt section follows the scope, as it does for hiring.
+`agents:review` unlocks the three actions above and **not** drafting; `agents:write` unlocks drafting and not these. An agent may hold both, and these two deliberately do not: the People department hires, Covey Doctor reads and proposes, and neither can do the other's job with the other's credentials. The prompt section follows the scope, as it does for hiring.
 
 **Guard-rail subjects per action** (`covey:work_record`, `covey:read_recording`, `covey:propose_agent_config`), so an organisation can switch off reading colleagues' evidence centrally without editing a config — and so `covey:read_recording` can be set to `require_approval`, which is where the gate above comes from.
 
@@ -127,7 +127,7 @@ A review is a task like any other, and it is worth being deliberate about what t
 
 - **The prompt carries the active version only.** It is assembled at dispatch from the config files plus the current platform part ([`02-agent-model.md`](02-agent-model.md)). A proposal is not a version, so there is no assembly step it could enter.
 - **The review lives on a page.** The employee profile is a human surface; nothing materialises it into a sandbox.
-- **Memory is scoped to the agent itself.** The wiki actions resolve against the calling agent's own pages ([`internal/orchestrator/orchestrator.go`](../internal/orchestrator/orchestrator.go)), so the improvement engineer cannot write into a colleague's memory even if a prompt told it to.
+- **Memory is scoped to the agent itself.** The wiki actions resolve against the calling agent's own pages ([`internal/orchestrator/orchestrator.go`](../internal/orchestrator/orchestrator.go)), so Covey Doctor cannot write into a colleague's memory even if a prompt told it to.
 
 The rule to state is therefore not who may hide the page but the one those three properties already enforce: **an open proposal reaches the reviewed agent by no path at all** — not through the prompt, not through a task body, not through memory. One future path has to be closed before it opens: if the shared organisation-wide memory layer from [`05-memory.md`](05-memory.md) (D5) ever exists, a review filed there would be retrievable by its subject. Reviews stay out of it.
 
@@ -139,13 +139,13 @@ The three outcomes above have one thing in common — each needs a person, and t
 
 Because slice 1 needs an accept/reject surface anyway, that surface **is** the channel: a list of open items per agent owner, carrying all three outcomes — proposals with their diff, findings without one, and issues already filed. It is the shape the approval gates already use, with a filter and a count on it. A finding that only a person can act on is then not a message that can be missed but an open item that stays open.
 
-**Email is a notifier on top of it, never the channel itself.** Where the improvement engineer has an address ([`02-agent-model.md`](02-agent-model.md) — optional, not mandatory), it can tell an owner there is something waiting and link to it. Building the reverse would make the department's core function depend on optional infrastructure, and it would put the content somewhere a proposal cannot be accepted.
+**Email is a notifier on top of it, never the channel itself.** Where Covey Doctor has an address ([`02-agent-model.md`](02-agent-model.md) — optional, not mandatory), it can tell an owner there is something waiting and link to it. Building the reverse would make the department's core function depend on optional infrastructure, and it would put the content somewhere a proposal cannot be accepted.
 
-## Who checks the improvement engineer
+## Who checks Covey Doctor
 
 Nobody on the platform, and that is the answer rather than a gap: **a human does**, the same one who accepts or declines everything it produces. The rejection rate on its own proposals is the figure that says whether it is any good, and it sits in its own work record like anyone else's.
 
-That is enough because of the shape of the role, not because the risk is small. An improvement engineer that drifts produces proposals a person declines — visible, cheap, and self-limiting at exactly the rate a human reads. The alternative, a second agent checking the first, buys an extra opinion and one more agent with the widest read access on the platform, which is the trade this whole document has been declining. Written down here so that a later reader does not fill the gap by reflex.
+That is enough because of the shape of the role, not because the risk is small. A drifting Covey Doctor produces proposals a person declines — visible, cheap, and self-limiting at exactly the rate a human reads. The alternative, a second agent checking the first, buys an extra opinion and one more agent with the widest read access on the platform, which is the trade this whole document has been declining. Written down here so that a later reader does not fill the gap by reflex.
 
 ## The channel from colleagues: nothing to build
 
@@ -153,7 +153,7 @@ Agents can already flag problems to it. `covey/create_task` delegates to a colle
 
 So the channel is a **section in `PLAYBOOKS.md`**, not a mechanism: when you were blocked by something that was not the assignment — a missing action, a tool that is not allowed, a limit you keep hitting — report it instead of working around it silently. What that buys is the thing the work record cannot show: the agent's own account of *why*, written while it still knew. It is also the only one of the three causes the evidence is genuinely poor at, because an assignment that is wrong produces runs that look ordinary.
 
-Two properties of `create_task` are worth watching rather than pre-empting: every report wakes the improvement engineer immediately, and every wake is a run that costs money. If the noise turns out to be real, the answer is a report that collects until the next heartbeat rather than dispatching — but that is a new concept next to the backlog, and it should be paid for by observed noise, not by anticipation.
+Two properties of `create_task` are worth watching rather than pre-empting: every report wakes Covey Doctor immediately, and every wake is a run that costs money. If the noise turns out to be real, the answer is a report that collects until the next heartbeat rather than dispatching — but that is a new concept next to the backlog, and it should be paid for by observed noise, not by anticipation.
 
 ## Issues in the platform's own repository
 
@@ -219,7 +219,7 @@ The argument against the trigger is narrower than it first looks, and worth stat
 
 So: **the cycle now, the trigger as the open question** — to be reopened at the point where the cycle stops being affordable, which is a fact about a real instance rather than something to decide here.
 
-*Settled while writing:* who may read a work record (with the recordings, above); whether reviews cross organisations (they do not — every action resolves within the sender's org, as delegation does); and who checks the improvement engineer (a human, deliberately — see above).
+*Settled while writing:* who may read a work record (with the recordings, above); whether reviews cross organisations (they do not — every action resolves within the sender's org, as delegation does); and who checks Covey Doctor (a human, deliberately — see above).
 
 ---
 

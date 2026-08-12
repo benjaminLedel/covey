@@ -35,7 +35,7 @@ type Organization struct {
 	// every hiring brief and into the config copilot's system prompt (spec/20).
 	Description string `json:"description"`
 	// PlatformRepo names where this platform's own source lives — the target
-	// system and the project on it (spec/21). The improvement engineer reads
+	// system and the project on it (spec/21). Covey Doctor reads
 	// the code there and files its issues there; both from the same address,
 	// because reporting against code you have not read produces symptoms.
 	// Empty = not set up, and then nothing about it stands in any prompt.

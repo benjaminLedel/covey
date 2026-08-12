@@ -989,7 +989,7 @@
       "model": "Modell",
       "modelPlaceholder": "leer = Runtime-Default",
       "modelHint": "Modell-ID oder Alias, z. B. claude-opus-4-8 oder sonnet.",
-      "fixedIdentity": "Fest vergeben: der Betriebsingenieur heißt auf jeder Instanz „Covey Doctor“. Der Name gehört zur Plattform, damit ein Agent mit diesen Rechten überall als solcher erkennbar bleibt.",
+      "fixedIdentity": "Fest vergeben: Covey Doctor heißt auf jeder Instanz „Covey Doctor“. Der Name gehört zur Plattform, damit ein Agent mit diesen Rechten überall als solcher erkennbar bleibt.",
       "effort": "Denkaufwand",
       "effortDefault": "leer = Runtime-Default",
       "effortHint": "Unabhängig vom Modell — wie gründlich pro Turn gedacht wird. Welche Stufen es gibt, sagt die Engine; Engines ohne diesen Regler zeigen die Zeile nicht.",
@@ -1273,12 +1273,12 @@
     },
     "repo": {
       "title": "Quelltext dieser Plattform",
-      "empty": "Nicht eingerichtet. Ohne ihn meldet der Betriebsingenieur Symptome statt Diagnosen — und ohne Ziel gar nichts.",
+      "empty": "Nicht eingerichtet. Ohne ihn meldet Covey Doctor Symptome statt Diagnosen — und ohne Ziel gar nichts.",
       "system": "Zielsystem",
       "project": "Projekt",
       "none": "— keines —",
       "projectPlaceholder": "z. B. 42 oder gruppe/covey",
-      "hint": "Wo Covey selbst liegt: dort liest der Betriebsingenieur den Quelltext (auf den laufenden Commit gepinnt) und meldet dorthin seine Fehlerberichte. Nur angeschlossene Zielsysteme; leer lassen schaltet beides ab. Zweite Hälfte der Einrichtung: dasselbe Zielsystem muss in der ACCESS.md des Betriebsingenieurs stehen — ohne diese Zeile bleibt der Abschnitt aus seinem Prompt."
+      "hint": "Wo Covey selbst liegt: dort liest Covey Doctor den Quelltext (auf den laufenden Commit gepinnt) und meldet dorthin seine Fehlerberichte. Nur angeschlossene Zielsysteme; leer lassen schaltet beides ab. Zweite Hälfte der Einrichtung: dasselbe Zielsystem muss in der ACCESS.md von Covey Doctor stehen — ohne diese Zeile bleibt der Abschnitt aus seinem Prompt."
     }
   },
   "orgs": {
