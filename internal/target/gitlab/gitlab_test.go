@@ -2924,3 +2924,172 @@ func TestNotesFensterWeiterblaettern(t *testing.T) {
 		t.Errorf("window = %q", w)
 	}
 }
+
+// TestIssueOverflowSignatureTracksEdits pins the bug this replaces. Above
+// issueMaxNotesChecks the gate cannot afford a ListNotes per issue, and its
+// fallback used to be len(inScope) alone. That made it count-sensitive and
+// otherwise blind: with a stable number of assigned issues the signature never
+// changed and "Zugewiesene Issues sichten" rested indefinitely — observed here
+// as 15 hours of silence across 100 assigned issues.
+//
+// The three cases below are exactly the ones a count cannot tell apart.
+func TestIssueOverflowSignatureTracksEdits(t *testing.T) {
+	many := func(n int, stamp string) []Issue {
+		out := make([]Issue, 0, n)
+		for i := 1; i <= n; i++ {
+			out = append(out, Issue{IID: i, ProjectID: 7, UpdatedAt: stamp})
+		}
+		return out
+	}
+
+	base := many(issueMaxNotesChecks+5, "2026-08-12T10:00:00Z")
+	sigBase := workSig(issueStampSigs(base))
+	if sigBase == "" {
+		t.Fatal("an overflowing issue set must produce a signature")
+	}
+
+	// 1. Nothing happened: the signature has to stay put, or every tick wakes.
+	if got := workSig(issueStampSigs(many(issueMaxNotesChecks+5, "2026-08-12T10:00:00Z"))); got != sigBase {
+		t.Error("an unchanged issue set must keep its signature")
+	}
+
+	// 2. A comment on ONE issue — same count. This is the case the old fallback
+	//    could not see at all.
+	edited := many(issueMaxNotesChecks+5, "2026-08-12T10:00:00Z")
+	edited[3].UpdatedAt = "2026-08-12T11:00:00Z"
+	if workSig(issueStampSigs(edited)) == sigBase {
+		t.Error("an edit to a single issue must change the signature (count is unchanged)")
+	}
+
+	// 3. One issue closes as another opens — count unchanged, membership not.
+	swapped := many(issueMaxNotesChecks+5, "2026-08-12T10:00:00Z")
+	swapped[0].IID = 9999
+	if workSig(issueStampSigs(swapped)) == sigBase {
+		t.Error("a swapped issue must change the signature (count is unchanged)")
+	}
+
+	// GitLab returns the list ordered by updated_at, so the same set arriving in
+	// a different order must not read as new work.
+	rev := many(issueMaxNotesChecks+5, "2026-08-12T10:00:00Z")
+	for i, j := 0, len(rev)-1; i < j; i, j = i+1, j-1 {
+		rev[i], rev[j] = rev[j], rev[i]
+	}
+	if workSig(issueStampSigs(rev)) != sigBase {
+		t.Error("reordering the same set must not change the signature")
+	}
+}
+
+// TestIssueOverflowSignatureWithoutTimestamp: a response without updated_at must
+// degrade to identity rather than collapsing every issue onto one entry.
+func TestIssueOverflowSignatureWithoutTimestamp(t *testing.T) {
+	sigs := issueStampSigs([]Issue{{IID: 1, ProjectID: 7}, {IID: 2, ProjectID: 7}})
+	if len(sigs) != 2 || sigs[0] == sigs[1] {
+		t.Fatalf("issues without updated_at must stay distinguishable, got %v", sigs)
+	}
+}
+
+// TestListIssuesPaginates pins the truncation this replaces: a single request
+// with per_page=100 cut the working set at 100, and order_by=updated_at
+// descending decided which issues fell off — the longest-untouched ones, i.e.
+// exactly what a triage run exists to surface. Observed as 74 of 174 assigned
+// issues invisible to every agent.
+func TestListIssuesPaginates(t *testing.T) {
+	var pagesServed []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		page := r.URL.Query().Get("page")
+		pagesServed = append(pagesServed, page)
+		if got := r.URL.Query().Get("per_page"); got != "100" {
+			t.Errorf("per_page = %q, want GitLab's maximum 100", got)
+		}
+		var out []Issue
+		switch page {
+		case "1":
+			for i := 1; i <= 100; i++ {
+				out = append(out, Issue{IID: i, ProjectID: 7})
+			}
+		case "2":
+			for i := 101; i <= 174; i++ { // short page → last page
+				out = append(out, Issue{IID: i, ProjectID: 7})
+			}
+		default:
+			t.Errorf("asked for page %q after a short page — the walk must stop", page)
+		}
+		json.NewEncoder(w).Encode(out)
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL, "t")
+	issues, err := c.ListIssues(context.Background(), 0, "opened", "", "", "", true)
+	if err != nil {
+		t.Fatalf("ListIssues: %v", err)
+	}
+	if len(issues) != 174 {
+		t.Fatalf("got %d issues, want all 174 across both pages", len(issues))
+	}
+	if len(pagesServed) != 2 {
+		t.Errorf("pages requested = %v, want exactly page 1 and 2", pagesServed)
+	}
+	// The tail is the point: these are the stale tickets the old cap hid.
+	if issues[len(issues)-1].IID != 174 {
+		t.Errorf("last issue IID = %d, want 174 — the tail must survive", issues[len(issues)-1].IID)
+	}
+}
+
+// TestListIssuesStopsOnExactMultiple: a full last page must not spin forever,
+// and must not lose the page that follows it.
+func TestListIssuesStopsOnExactMultiple(t *testing.T) {
+	calls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		var out []Issue
+		if r.URL.Query().Get("page") == "1" {
+			for i := 1; i <= 100; i++ {
+				out = append(out, Issue{IID: i, ProjectID: 7})
+			}
+		} // page 2 → empty, ends the walk
+		json.NewEncoder(w).Encode(out)
+	}))
+	defer srv.Close()
+
+	issues, err := NewClient(srv.URL, "t").ListIssues(context.Background(), 0, "opened", "", "", "", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(issues) != 100 || calls != 2 {
+		t.Errorf("got %d issues in %d calls, want 100 in 2", len(issues), calls)
+	}
+}
+
+// TestListIssuesFirstPageErrorIsAnError: a failure on page 1 must not read as
+// "no issues" — that would let a triage run report all clear on an outage.
+func TestListIssuesFirstPageErrorIsAnError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "boom", http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+	if _, err := NewClient(srv.URL, "t").ListIssues(context.Background(), 0, "opened", "", "", "", true); err == nil {
+		t.Fatal("a failing first page must return an error, not an empty list")
+	}
+}
+
+// TestAbridgeIssueMarksTruncation: the cut has to be visible, or an agent reads
+// a clipped description as an underspecified ticket.
+func TestAbridgeIssueMarksTruncation(t *testing.T) {
+	short := Issue{Description: "kurz und vollständig"}
+	if abridgeIssue(short).Description != short.Description {
+		t.Error("a short description must pass through untouched")
+	}
+
+	long := Issue{Description: strings.Repeat("ä", issueDescriptionSnippet+50)}
+	got := abridgeIssue(long).Description
+	if !strings.Contains(got, "get_issue") {
+		t.Error("a truncated description must say where the full text is")
+	}
+	// Multi-byte safety: cutting []byte would have produced invalid UTF-8.
+	if !utf8.ValidString(got) {
+		t.Error("truncation broke UTF-8 — cut runes, not bytes")
+	}
+	if runes := []rune(got); len(runes) <= issueDescriptionSnippet {
+		t.Errorf("expected snippet plus marker, got %d runes", len(runes))
+	}
+}

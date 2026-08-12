@@ -125,6 +125,15 @@ func isMergeRequestDecision(path string) bool {
 	return false
 }
 
+const (
+	// issuePageSize is GitLab's maximum for per_page on the issues endpoints.
+	issuePageSize = 100
+	// issueMaxPages bounds the walk at 1000 issues. A backlog past that has a
+	// different problem than pagination, and an unbounded loop against a foreign
+	// API is not something a heartbeat should be able to start.
+	issueMaxPages = 10
+)
+
 type Issue struct {
 	ID          int      `json:"id"`
 	IID         int      `json:"iid"`
@@ -134,6 +143,13 @@ type Issue struct {
 	State       string   `json:"state"`
 	Labels      []string `json:"labels"`
 	WebURL      string   `json:"web_url"`
+	// UpdatedAt carries the intake gate above its per-issue comment budget: with
+	// more open issues than issueMaxNotesChecks the gate cannot afford a
+	// ListNotes per issue, and this timestamp — which GitLab already ships in the
+	// list response — moves on every comment, label and edit. Without it the
+	// overflow signature could only count issues and went blind whenever the
+	// count stood still (see issueWorkPending).
+	UpdatedAt string `json:"updated_at"`
 	// Assignees makes the assignment visible to the agent — playbooks such as
 	// "only work on issues assigned to you" need this information.
 	Assignees []struct {
@@ -221,16 +237,41 @@ func (c *Client) ListIssues(ctx context.Context, projectID int, state, labels, s
 		q.Set("scope", "assigned_to_me")
 	}
 	q.Set("order_by", "updated_at")
-	q.Set("per_page", "100")
-	path := "/issues?" + q.Encode()
-	if projectID != 0 {
-		path = fmt.Sprintf("/projects/%d/issues?%s", projectID, q.Encode())
-	} else if !assigned {
-		path = "/issues?scope=all&" + q.Encode()
-	}
+	q.Set("per_page", strconv.Itoa(issuePageSize))
+
+	// Paginate. A single page silently truncated the working set at 100, and
+	// order_by=updated_at descending decided WHICH issues fell off: the ones
+	// nobody had touched in the longest time. Those are the ones a triage run
+	// exists to find, and they were invisible to every agent and — because the
+	// nur-wenn gate reads through this same call — could not even trigger a
+	// wake. Observed here as 74 of 174 assigned issues missing, among them the
+	// oldest security and data-protection tickets.
 	var out []Issue
-	err := c.do(ctx, http.MethodGet, path, nil, &out)
-	return out, err
+	for page := 1; page <= issueMaxPages; page++ {
+		q.Set("page", strconv.Itoa(page))
+		path := "/issues?" + q.Encode()
+		if projectID != 0 {
+			path = fmt.Sprintf("/projects/%d/issues?%s", projectID, q.Encode())
+		} else if !assigned {
+			path = "/issues?scope=all&" + q.Encode()
+		}
+		var pageItems []Issue
+		if err := c.do(ctx, http.MethodGet, path, nil, &pageItems); err != nil {
+			// Pages already fetched are better than nothing on a late failure —
+			// but an empty result has to stay an error, or a broken first request
+			// would read as "no issues" and let a triage run report all clear.
+			if len(out) == 0 {
+				return nil, err
+			}
+			return out, nil
+		}
+		out = append(out, pageItems...)
+		// A short page is the last page — GitLab has no more to give.
+		if len(pageItems) < issuePageSize {
+			break
+		}
+	}
+	return out, nil
 }
 
 // GetIssue — GET /projects/{id}/issues/{iid}

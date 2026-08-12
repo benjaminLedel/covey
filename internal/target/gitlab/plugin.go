@@ -233,10 +233,20 @@ func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) ([]str
 		return nil, nil
 	}
 	if len(inScope) > issueMaxNotesChecks {
-		// Too many open issues for the comment check: wake without looking at
-		// them one by one. The signature then carries only the count — it
-		// changes as soon as an issue comes along or drops out.
-		return []string{fmt.Sprintf("issues:many@%d", len(inScope))}, nil
+		// Too many open issues to afford a ListNotes per issue. Fall back to the
+		// timestamps GitLab already sent with the list — one request, no extra
+		// round-trips, and updated_at moves on every comment, label change and
+		// edit, which is what the per-issue signature was watching for.
+		//
+		// The earlier fallback carried only len(inScope). That made the gate
+		// count-sensitive and nothing else: with a stable number of assigned
+		// issues the signature never changed and the heartbeat rested for as long
+		// as that held — observed in this organization as "Zugewiesene Issues
+		// sichten" going silent for 15 hours across 100 assigned issues while
+		// the merge-request gate next to it kept firing every quarter of an hour.
+		// A count is also blind in the worst direction: one issue closing while
+		// another opens leaves it unchanged.
+		return issueStampSigs(inScope), nil
 	}
 	var waiting []string
 	for _, i := range inScope {
@@ -250,6 +260,49 @@ func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) ([]str
 		waiting = append(waiting, threadSig("issue", i.ProjectID, i.IID, p.Notes))
 	}
 	return waiting, nil
+}
+
+// issueDescriptionSnippet is how much of an issue description a LIST answer
+// carries. A triage run needs enough to tell tickets apart and decide which one
+// to open; the full text is one get_issue away.
+const issueDescriptionSnippet = 280
+
+// abridgeIssue shortens the description for a list answer. Once ListIssues
+// walks every page, a shared account with a real backlog returns a few hundred
+// issues, and full descriptions would put the entire backlog into the model's
+// context on every triage run — several times an hour, per agent. The
+// truncation is marked rather than silent: an agent that sees a cut text knows
+// to fetch the rest instead of concluding the ticket is underspecified.
+//
+// No plugin code reads Description from a list result (it is a write parameter
+// for create_issue/create_merge_request), so nothing downstream depends on the
+// full text being here.
+func abridgeIssue(i Issue) Issue {
+	r := []rune(i.Description)
+	if len(r) <= issueDescriptionSnippet {
+		return i
+	}
+	i.Description = string(r[:issueDescriptionSnippet]) +
+		" […gekürzt, get_issue liefert den vollen Text]"
+	return i
+}
+
+// issueStampSigs is the overflow signature of issueWorkPending: one entry per
+// issue, built from the data the list response already carried. Deliberately a
+// slice rather than one condensed string — workSig sorts and hashes it anyway,
+// and per-issue entries keep the signature stable against GitLab's updated_at
+// ordering of the list itself.
+//
+// A missing updated_at (an older GitLab, a trimmed response) degrades to the
+// issue's identity alone. That is the previous behavior for that issue, not an
+// error: the gate then still notices it arriving or leaving, just not edits to
+// it.
+func issueStampSigs(issues []Issue) []string {
+	out := make([]string, 0, len(issues))
+	for _, i := range issues {
+		out = append(out, fmt.Sprintf("issue%d!%d@%s", i.ProjectID, i.IID, i.UpdatedAt))
+	}
+	return out
 }
 
 // threadSig describes a waiting item in such a way that the description changes
@@ -666,7 +719,7 @@ var aktionen = map[string]aktion{
 		out := []Issue{}
 		for _, i := range issues {
 			if projectInScope(i.ProjectID, issueProjectPath(i)) {
-				out = append(out, i)
+				out = append(out, abridgeIssue(i))
 			}
 		}
 		return out, nil
