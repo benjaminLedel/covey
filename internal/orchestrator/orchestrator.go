@@ -1607,6 +1607,7 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 		SystemPrompt: compiled,
 		Runtime:      agent.Runtime,
 		Model:        agent.Model,
+		Effort:       agent.Effort,
 		AllowedTools: o.RuntimeTools,
 		MaxTurns:     maxTurns,
 		ActionTools:  actionTools,

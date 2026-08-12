@@ -714,6 +714,16 @@ func (s *Server) handleSetRuntime(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
+	// Der Denkaufwand gehört der Engine, nicht dem Agenten: `xhigh` ist eine
+	// Claude-Code-Stufe. Wer die Engine wechselt, nimmt die Stufe nicht mit —
+	// sie stünde sonst weiter im Profil, ohne dass sie noch jemand liest.
+	// Zurück auf den Default der neuen Engine, still, aber nicht heimlich: das
+	// Feld zeigt danach sichtbar „leer = Runtime-Default".
+	if a, err := s.Registry.Get(r.Context(), id); err == nil && !daemon.AcceptsEffort(in.Runtime, a.Effort) {
+		if err := s.Registry.SetEffort(r.Context(), id, ""); err != nil {
+			s.Log.Warn("effort reset on runtime change", "agent", id, "err", err)
+		}
+	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
@@ -735,6 +745,54 @@ func (s *Server) handleSetModel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.Registry.SetModel(r.Context(), id, strings.TrimSpace(in.Model)); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// checkEffort validates a reasoning-effort level against the ENGINE the agent
+// runs on, and returns the message for a 400 (empty = fine). The levels belong
+// to the runtime plugin, not to this layer: `xhigh` is a Claude Code level, and
+// storing it on an agent whose engine never reads it would be a setting that is
+// configured, visible and without effect. Empty always passes — it means "the
+// engine's own default".
+func checkEffort(runtime, effort string) string {
+	if daemon.AcceptsEffort(runtime, effort) {
+		return ""
+	}
+	levels := daemon.EffortLevels(runtime)
+	if len(levels) == 0 {
+		return "runtime " + runtime + " has no reasoning-effort setting — leave effort empty"
+	}
+	return "effort must be one of " + strings.Join(levels, ", ") +
+		" (or empty for the " + runtime + " default)"
+}
+
+func (s *Server) handleSetEffort(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var in struct {
+		Effort string `json:"effort"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "effort missing")
+		return
+	}
+	a, err := s.Registry.Get(r.Context(), id)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	effort := strings.TrimSpace(in.Effort)
+	if msg := checkEffort(a.Runtime, effort); msg != "" {
+		writeErr(w, http.StatusBadRequest, msg)
+		return
+	}
+	if err := s.Registry.SetEffort(r.Context(), id, effort); err != nil {
 		mapErr(w, err)
 		return
 	}

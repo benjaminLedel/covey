@@ -41,6 +41,7 @@ type bundleAgent struct {
 	DisplayName     string  `json:"display_name"`
 	Runtime         string  `json:"runtime"`
 	Model           string  `json:"model,omitempty"`
+	Effort          string  `json:"effort,omitempty"`
 	MaxTurns        int     `json:"max_turns,omitempty"`
 	BudgetUSD       float64 `json:"budget_usd,omitempty"`
 	SupervisorEmail string  `json:"supervisor_email,omitempty"`
@@ -156,7 +157,7 @@ func (s *Server) buildBundle(ctx context.Context, orgID, agentID uuid.UUID, incl
 		Kind: bundleKind, Version: bundleVersion,
 		Agent: bundleAgent{
 			Slug: a.Slug, DisplayName: a.DisplayName, Runtime: a.Runtime,
-			Model: a.Model, MaxTurns: a.MaxTurns, BudgetUSD: a.BudgetUSD,
+			Model: a.Model, Effort: a.Effort, MaxTurns: a.MaxTurns, BudgetUSD: a.BudgetUSD,
 			WebhookEnabled: a.WebhookToken != nil,
 			WarmSandbox:    a.WarmSandbox,
 			JobTitle:       a.JobTitle,
@@ -450,6 +451,28 @@ func (s *Server) handleImportConfig(w http.ResponseWriter, r *http.Request) {
 	for _, warn := range warnings {
 		s.Log.Warn("skill import", "agent", id, "note", warn)
 	}
+	// Dieser Endpunkt schreibt die KONFIGURATION eines bestehenden Agenten —
+	// Dateien und Skills. Die Stammdaten daneben (Engine, Modell, Denkaufwand,
+	// Turn-Limit) gehören den jeweiligen PATCH-Routen und werden hier bewusst
+	// nicht angefasst: ein Config-Import soll nicht nebenbei die Engine
+	// umstellen. Ein Bundle trägt sie trotzdem, weil `agents/import` sie
+	// braucht — also sagen wir, dass sie liegen bleiben, statt sie still zu
+	// schlucken.
+	var ignored []string
+	if b.Agent.Model != "" {
+		ignored = append(ignored, "model")
+	}
+	if b.Agent.Effort != "" {
+		ignored = append(ignored, "effort")
+	}
+	if b.Agent.MaxTurns > 0 {
+		ignored = append(ignored, "max_turns")
+	}
+	if len(ignored) > 0 {
+		s.Log.Warn("config import: agent fields not applied by this endpoint",
+			"agent", id, "fields", strings.Join(ignored, ", "),
+			"note", "set them through PATCH /agents/{id}/<field> or import as a new agent")
+	}
 	s.commitConfig(w, r, id, b.Files, apply)
 }
 
@@ -499,6 +522,20 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, err := agents.ParseHeartbeat(b.Files["HEARTBEAT.md"]); err != nil {
 		writeErr(w, http.StatusBadRequest, "HEARTBEAT.md: "+err.Error())
+		return
+	}
+	// Der Denkaufwand wird hier geprüft und nicht erst beim Setzen: eine
+	// Vertippung im Bundle ist sonst ein Agent, der sauber importiert und dann
+	// bei JEDEM Lauf am Runtime-Flag stirbt — mit einem Fehler, der nach
+	// Infrastruktur aussieht und nach Bundle-Tippfehler nicht. Gegen die Engine
+	// geprüft, auf der er landen wird, nicht gegen eine feste Liste.
+	b.Agent.Effort = strings.TrimSpace(b.Agent.Effort)
+	importRuntime := b.Agent.Runtime
+	if importRuntime == "" {
+		importRuntime = agents.DefaultRuntime
+	}
+	if msg := checkEffort(importRuntime, b.Agent.Effort); msg != "" {
+		writeErr(w, http.StatusBadRequest, "agent.effort: "+msg)
 		return
 	}
 	// Placeholder ID for the validation only — the agent does not exist yet.
@@ -622,6 +659,12 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 	s.attachDefaultRuntime(ctx, p.OrgID, a)
 	if b.Agent.Model != "" {
 		if err := s.Registry.SetModel(ctx, a.ID, b.Agent.Model); err != nil {
+			mapErr(w, err)
+			return
+		}
+	}
+	if b.Agent.Effort != "" {
+		if err := s.Registry.SetEffort(ctx, a.ID, b.Agent.Effort); err != nil {
 			mapErr(w, err)
 			return
 		}
