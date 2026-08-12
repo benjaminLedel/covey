@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import {
   api,
+  ApiError,
   totalInput,
   type Agent,
   type CostBucket,
@@ -417,7 +418,16 @@ export default function Costs() {
         scope === "org" ? `/cost/indicators?days=${days}` : `/agents/${scope}/cost/indicators?days=${days}`,
       ),
     refetchInterval: 30000,
+    // Die Kennzahlen EINES Agenten folgen der Arbeitsakte (spec/21):
+    // Controlling bekommt darauf eine 403. Ohne retry:false wären das drei
+    // Wiederholungen alle 30 Sekunden für eine Antwort, die sich nicht ändert.
+    // Performance.tsx macht es an derselben Route genauso.
+    retry: false,
   });
+  // Eine Rolle, die etwas nicht sehen darf, soll es nicht als leeren Kasten
+  // angezeigt bekommen: leer heißt „es gibt keine Kennzahlen", und das ist eine
+  // andere Aussage als „du siehst sie nicht".
+  const indicatorsForbidden = indicators.error instanceof ApiError && indicators.error.status === 403;
 
   const setRange = (v: number) => {
     setDays(v);
@@ -542,7 +552,11 @@ export default function Costs() {
         <div className="card">
           <div style={{ fontWeight: 600, marginBottom: 4 }}>{t("costs.indicators.title")}</div>
           <p className="muted text-xs mb-3">{t("costs.indicators.hint")}</p>
-          <PriceList rep={indicators.data} />
+          {indicatorsForbidden ? (
+            <p className="muted text-xs">{t("costs.indicators.restricted")}</p>
+          ) : (
+            <PriceList rep={indicators.data} />
+          )}
         </div>
         <div className="card">
           <div style={{ fontWeight: 600, marginBottom: 4 }}>{t("costs.mix.title")}</div>

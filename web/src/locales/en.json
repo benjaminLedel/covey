@@ -389,6 +389,7 @@
     "indicators": {
       "title": "What came of it",
       "hint": "The indicators from the agents' KPIS.md, and what a unit of each cost.",
+      "restricted": "A single agent's indicators belong to its work record — your role does not see them. The org-wide price list stays open: pick \"All agents\" above.",
       "perUnit": "{{price}} / unit",
       "tooFew": "too few",
       "tooFewHint": "Too few events for a meaningful unit price — the raw count stands next to it.",
@@ -988,6 +989,7 @@
       "model": "Model",
       "modelPlaceholder": "empty = runtime default",
       "modelHint": "Model ID or alias, e.g. claude-opus-4-8 or sonnet.",
+      "fixedIdentity": "Fixed: the operations engineer is called \"Covey Doctor\" on every instance. The name belongs to the platform, so that an agent with these permissions stays recognisable as one everywhere.",
       "effort": "Reasoning effort",
       "effortDefault": "empty = runtime default",
       "effortHint": "Independent of the model — how hard it thinks per turn. The engine decides which levels exist; engines without this control do not show the row.",

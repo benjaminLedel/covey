@@ -389,6 +389,7 @@
     "indicators": {
       "title": "Was dabei herauskam",
       "hint": "Die Kennzahlen aus KPIS.md der Agenten, und was eine Einheit davon gekostet hat.",
+      "restricted": "Die Kennzahlen eines einzelnen Agenten gehören zu seiner Arbeitsakte — deine Rolle sieht sie nicht. Die org-weite Preisliste bleibt offen: wähle oben „Alle Agenten“.",
       "perUnit": "{{price}} / Stück",
       "tooFew": "zu wenige",
       "tooFewHint": "Zu wenige Ereignisse für einen belastbaren Stückpreis — die Rohzahl steht daneben.",
@@ -988,6 +989,7 @@
       "model": "Modell",
       "modelPlaceholder": "leer = Runtime-Default",
       "modelHint": "Modell-ID oder Alias, z. B. claude-opus-4-8 oder sonnet.",
+      "fixedIdentity": "Fest vergeben: der Betriebsingenieur heißt auf jeder Instanz „Covey Doctor“. Der Name gehört zur Plattform, damit ein Agent mit diesen Rechten überall als solcher erkennbar bleibt.",
       "effort": "Denkaufwand",
       "effortDefault": "leer = Runtime-Default",
       "effortHint": "Unabhängig vom Modell — wie gründlich pro Turn gedacht wird. Welche Stufen es gibt, sagt die Engine; Engines ohne diesen Regler zeigen die Zeile nicht.",
