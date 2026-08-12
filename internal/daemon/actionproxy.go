@@ -221,7 +221,7 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 		_ = p.client.send(TypeEvent, Event{TaskID: p.taskID, Kind: "action", Payload: audit})
 		return map[string]string{"status": "ok", "stage": in.Stage}
 	case "list_targets", "get_agent_config", "create_agent", "set_agent_config",
-		"work_record", "read_recording", "propose_agent_config":
+		"work_record", "read_recording", "propose_agent_config", "write_review":
 		// Die Meta-Actions an der Registry der Plattform: Entwerfen (spec/20)
 		// und Begutachten (spec/21). Alles wird in der Control Plane
 		// entschieden — Scope, Guard-Rails, Freigaben —, der Proxy trägt die
@@ -239,6 +239,9 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 			Days        int               `json:"days"`
 			Title       string            `json:"title"`
 			Rationale   string            `json:"rationale"`
+			Summary     string            `json:"summary"`
+			Findings    []ReviewNote      `json:"findings"`
+			Issues      []ReviewNote      `json:"issues"`
 		}
 		_ = json.Unmarshal(params, &in)
 		resp, err := p.client.hiring(ctx, RequestHiring{
@@ -246,6 +249,7 @@ func (p *actionProxy) controlPlane(ctx context.Context, action string, params js
 			DisplayName: in.DisplayName, Runtime: in.Runtime, JobTitle: in.JobTitle,
 			Department: in.Department, Supervisor: in.Supervisor, Files: in.Files,
 			Task: in.Task, Days: in.Days, Title: in.Title, Rationale: in.Rationale,
+			Summary: in.Summary, Findings: in.Findings, Issues: in.Issues,
 		})
 		if err != nil {
 			return map[string]string{"status": "error", "error": err.Error()}

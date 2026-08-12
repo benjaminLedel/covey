@@ -195,6 +195,7 @@ func (s *Server) Handler() http.Handler {
 	// nicht den Kostenzahlen: eine Summe sagt, was ausgegeben wurde, eine Akte
 	// sagt, wie jemand gearbeitet hat.
 	mux.Handle("GET /api/v1/agents/{id}/work-record", s.agentScoped(workRecordRoles(), s.handleWorkRecord))
+	mux.Handle("GET /api/v1/agents/{id}/reviews", s.agentScoped(workRecordRoles(), s.handleAgentReviews))
 	// The workplace: the persistent home as a file tree (files.go). Security
 	// may read on top of that — whoever investigates an agent has to see what
 	// lies with it. Writing stays with the administrators: a file in the home

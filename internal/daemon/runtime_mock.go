@@ -52,7 +52,12 @@ func init() {
 	})
 }
 
-var mockDirective = regexp.MustCompile(`\[mock:(action|block|fail|result|memory|sleep|maxturns-always|maxturns|prompt)\s*([^\]]*)\]`)
+// Das Argument darf EINE Ebene eckiger Klammern tragen — sonst könnte kein
+// Aufruf ein JSON-Array übergeben, und die Direktive bräche mitten im
+// Parameter ab. Über ein nacktes `]` kommt die Gruppe weiterhin nicht hinweg,
+// zwei Direktiven in einer Zeile bleiben also getrennt.
+var mockDirective = regexp.MustCompile(
+	`\[mock:(action|block|fail|result|memory|sleep|maxturns-always|maxturns|prompt)\s*((?:[^\[\]]|\[[^\]]*\])*)\]`)
 
 func (Mock) Run(ctx context.Context, spec RunSpec, onEvent func(kind string, payload json.RawMessage)) (RunResult, error) {
 	res := RunResult{

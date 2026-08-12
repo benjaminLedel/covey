@@ -422,9 +422,21 @@ Three actions:
    — a proposal for its configuration. Only the files you CHANGE, each with its
      complete content. Read the current config with ` + "`get_agent_config`" + ` first.
 
+   ` + "`curl -s -X POST http://localhost:$COVEY_ACTION_PORT/actions/covey/write_review -d '{\"agent\":\"<slug>\",\"days\":30,\"summary\":\"…\",\"findings\":[{\"title\":\"…\",\"detail\":\"…\"}],\"issues\":[{\"title\":\"…\",\"link\":\"…\"}]}'`" + `
+   — the review itself: your assessment, dated, on the colleague'"'"'s profile. This
+     is what a person opens when they wonder what is going on with an agent, so
+     write it for them: what you saw, what you concluded, what you did about it.
+     ` + "`findings`" + ` are the things only a human can change — a wrong assignment
+     above all; ` + "`issues`" + ` are bugs you have already filed, with their link.
+     Both become open items somebody has to tick off. One call per colleague,
+     at the END of your review: the text and its consequences are one judgement.
+
 **Your proposal is not in effect.** It is stored as an inactive version; a
 human accepts it or declines it. That is the whole design, not a limitation to
 work around: nothing changes about a colleague on your say-so.
+
+**The colleague never reads any of this.** Not the review, not an open
+proposal. Write for the human, not around the agent.
 
 **Three causes, and telling them apart is the job.** An agent that is not
 delivering is misconfigured, or it has the wrong assignment, or the platform

@@ -221,6 +221,76 @@ func (o *Orchestrator) reviewPropose(ctx context.Context, agent agents.Agent, ta
 	})
 }
 
+// reviewWrite hält die Beurteilung fest — und mit ihr die Punkte, die aus ihr
+// hervorgingen und die nur ein Mensch erledigen kann.
+//
+// EIN Aufruf für beides, weil es ein Urteil ist: der Text sagt, was er gesehen
+// hat, der Befund sagt, wer es beheben muss, das Issue sagt, wo es schon liegt.
+// In zwei Aufrufen zerfiele das in einen Bericht ohne Folgen und Folgen ohne
+// Bericht — und zwischen den beiden kann ein Lauf am Turn-Limit enden.
+//
+// Das Review wartet auf nichts. Es geht nicht in den Vorrat der offenen
+// Punkte, sondern auf die Seite des Kollegen; die Befunde und Issues gehen in
+// beides, denn sie brauchen jemanden.
+func (o *Orchestrator) reviewWrite(ctx context.Context, agent agents.Agent, taskID uuid.UUID,
+	req daemon.RequestHiring, ok func(any) daemon.InjectHiring,
+	fail func(string, ...any) daemon.InjectHiring) daemon.InjectHiring {
+
+	other, reason := o.reviewTarget(ctx, agent, req.Agent, false)
+	if reason != "" {
+		return fail("%s", reason)
+	}
+	if strings.TrimSpace(req.Summary) == "" {
+		return fail("summary is missing — the review IS the text; a colleague " +
+			"with three proposals and no assessment is a diff without a diagnosis")
+	}
+	days := req.Days
+	if days <= 0 {
+		days = 30
+	}
+	now := time.Now()
+	rev, err := o.Registry.CreateReview(ctx, agents.Review{
+		OrgID: agent.OrgID, AgentID: other.ID, AuthorAgentID: &agent.ID, TaskID: &taskID,
+		PeriodFrom: now.AddDate(0, 0, -days), PeriodTo: now, Summary: req.Summary,
+	})
+	if err != nil {
+		return fail("%v", err)
+	}
+
+	// Befunde und Issues als offene Punkte. Ein Befund, den niemand abhaken
+	// muss, ist eine Nachricht — und Nachrichten gehen unter (spec/21).
+	angelegt := 0
+	for _, spec := range []struct {
+		kind  string
+		notes []daemon.ReviewNote
+	}{{agents.KindFinding, req.Findings}, {agents.KindIssue, req.Issues}} {
+		for _, n := range spec.notes {
+			if strings.TrimSpace(n.Title) == "" {
+				continue
+			}
+			if _, err := o.Registry.CreateImprovement(ctx, agents.ImprovementItem{
+				OrgID: agent.OrgID, AgentID: other.ID, Kind: spec.kind,
+				Title: n.Title, Rationale: n.Detail, Link: n.Link,
+				AuthorAgentID: &agent.ID, TaskID: &taskID,
+			}); err != nil {
+				o.Log.Warn("review: item not stored", "agent", other.Slug, "kind", spec.kind, "err", err)
+				continue
+			}
+			angelegt++
+		}
+	}
+
+	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
+		map[string]string{"status": "review_written", "about_agent": other.ID.String(),
+			"slug": other.Slug, "review": rev.ID.String(), "items": strconv.Itoa(angelegt)})
+
+	return ok(map[string]any{
+		"review": rev.ID.String(), "agent": other.Slug, "items": angelegt,
+		"note": "The review is on the colleague's profile, dated. It does not reach the " +
+			"colleague itself by any path — findings and issues wait for a human.",
+	})
+}
+
 // lintSkills gibt dem Config-Lint der Arbeitsakte die Skills des Agenten.
 // Ohne sie prüfte er eine halbe Config: Verfahren, die aus der PLAYBOOKS.md in
 // einen Skill gewandert sind, wären unsichtbar, und Regeln wie „wer arbeitet,

@@ -49,3 +49,21 @@ func (s *Server) workRecords() *workrecord.Builder {
 		Pool: s.Pool, Registry: s.Registry, Obs: s.Obs, Skills: s.lintSkills(),
 	}
 }
+
+// handleAgentReviews ist die Historie auf dem Mitarbeiter-Profil: was der
+// Betrieb ueber diesen Kollegen geschrieben hat, datiert, neueste zuerst.
+//
+// Dieselbe Rollengrenze wie die Arbeitsakte — ein Review ist die Akte in
+// Worten. Und bewusst nur ein LESE-Pfad fuer Menschen: es gibt keine Aktion,
+// mit der ein Agent Reviews abruft. Ein offener Vorschlag und eine Beurteilung
+// erreichen den beurteilten Agenten auf keinem Weg, und das bleibt so, weil
+// der Weg fehlt und nicht, weil eine Regel ihn verbietet.
+func (s *Server) handleAgentReviews(w http.ResponseWriter, r *http.Request) {
+	agent := agentFrom(r)
+	list, err := s.Registry.Reviews(r.Context(), agent.ID, 20)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, list)
+}

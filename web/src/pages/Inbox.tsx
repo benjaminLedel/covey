@@ -329,6 +329,14 @@ function ItemCard({
         </div>
       )}
 
+      {/* Beim Issue steht, wo der Bericht schon liegt — sonst muss ihn jeder
+          Leser suchen. */}
+      {item.link && (
+        <a className="text-xs" href={item.link} target="_blank" rel="noreferrer">
+          {item.link}
+        </a>
+      )}
+
       <div className="flex items-center gap-2 flex-wrap mb-2">
         {item.needs_security && <span className="badge st-pending">{t("improvements.needsSecurity")}</span>}
         {konflikt && (

@@ -72,6 +72,10 @@ type ImprovementItem struct {
 	Kind      string    `json:"kind"`
 	Title     string    `json:"title"`
 	Rationale string    `json:"rationale"`
+	// Link ist die Adresse eines Issues, das schon im Tracker liegt (nur bei
+	// KindIssue). Ein Bericht ohne den Link dorthin zwingt jeden Leser zur
+	// Suche.
+	Link string `json:"link,omitempty"`
 	// BaseVersion ist die Config-Version, gegen die geschrieben wurde
 	// (0 = keine/kein Vorschlag). Von der Plattform gesetzt, nicht gemeldet.
 	BaseVersion int `json:"base_version"`
@@ -154,20 +158,20 @@ func (r *Registry) CreateImprovement(ctx context.Context, item ImprovementItem) 
 		return item, err
 	}
 	err = r.pool.QueryRow(ctx, `INSERT INTO improvement_items
-		(id, org_id, agent_id, kind, title, rationale, base_version, files, author_agent_id, task_id)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING created_at`,
+		(id, org_id, agent_id, kind, title, rationale, link, base_version, files, author_agent_id, task_id)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING created_at`,
 		item.ID, item.OrgID, item.AgentID, item.Kind, strings.TrimSpace(item.Title), item.Rationale,
-		item.BaseVersion, filesJSON, item.AuthorAgentID, item.TaskID).Scan(&item.CreatedAt)
+		strings.TrimSpace(item.Link), item.BaseVersion, filesJSON, item.AuthorAgentID, item.TaskID).Scan(&item.CreatedAt)
 	return item, err
 }
 
-const improvementCols = `id, org_id, agent_id, kind, title, rationale, base_version, files,
+const improvementCols = `id, org_id, agent_id, kind, title, rationale, link, base_version, files,
 	author_agent_id, task_id, status, decided_by, decided_at, decision_note, applied_version, created_at`
 
 func scanImprovement(row pgx.Row) (ImprovementItem, error) {
 	var it ImprovementItem
 	var filesJSON []byte
-	if err := row.Scan(&it.ID, &it.OrgID, &it.AgentID, &it.Kind, &it.Title, &it.Rationale,
+	if err := row.Scan(&it.ID, &it.OrgID, &it.AgentID, &it.Kind, &it.Title, &it.Rationale, &it.Link,
 		&it.BaseVersion, &filesJSON, &it.AuthorAgentID, &it.TaskID, &it.Status,
 		&it.DecidedBy, &it.DecidedAt, &it.DecisionNote, &it.AppliedVersion, &it.CreatedAt); err != nil {
 		return it, err
@@ -323,4 +327,89 @@ func nonNilFiles(m map[string]string) map[string]string {
 		return map[string]string{}
 	}
 	return m
+}
+
+// --- Das Review: die Beurteilung selbst, datiert ---
+
+// Review ist, was der Betrieb ueber einen Kollegen geschrieben hat. Es wartet
+// auf nichts — anders als ein offener Punkt braucht es keine Entscheidung,
+// sondern nur einen Leser. Deshalb steht es in einer eigenen Tabelle und nicht
+// im Posteingang: was dort liegt, soll weggehen, wenn jemand entschieden hat.
+//
+// Es erreicht den BEURTEILTEN Agenten auf keinem Weg, und das ist strukturell
+// und keine Regel (spec/21): der Prompt traegt nur die aktive Config-Version,
+// diese Zeilen sind keine; das Gedaechtnis eines Agenten ist auf ihn selbst
+// gescopet, ein Kollege kann also nicht hineinschreiben; und es gibt keine
+// Aktion, die Reviews liest. Wer eine baut, macht aus drei Eigenschaften eine
+// Richtlinie — und Richtlinien vergisst man.
+type Review struct {
+	ID            uuid.UUID  `json:"id"`
+	OrgID         uuid.UUID  `json:"org_id"`
+	AgentID       uuid.UUID  `json:"agent_id"`
+	AuthorAgentID *uuid.UUID `json:"author_agent_id,omitempty"`
+	TaskID        *uuid.UUID `json:"task_id,omitempty"`
+	PeriodFrom    time.Time  `json:"period_from"`
+	PeriodTo      time.Time  `json:"period_to"`
+	Summary       string     `json:"summary"`
+	CreatedAt     time.Time  `json:"created_at"`
+}
+
+// CreateReview haelt eine Beurteilung fest.
+func (r *Registry) CreateReview(ctx context.Context, rev Review) (Review, error) {
+	target, err := r.Get(ctx, rev.AgentID)
+	if err != nil {
+		return rev, err
+	}
+	if target.OrgID != rev.OrgID {
+		return rev, ErrNotFound
+	}
+	if strings.TrimSpace(rev.Summary) == "" {
+		return rev, errors.New("summary is missing")
+	}
+	rev.ID = uuid.New()
+	err = r.pool.QueryRow(ctx, `INSERT INTO agent_reviews
+		(id, org_id, agent_id, author_agent_id, task_id, period_from, period_to, summary)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING created_at`,
+		rev.ID, rev.OrgID, rev.AgentID, rev.AuthorAgentID, rev.TaskID,
+		rev.PeriodFrom, rev.PeriodTo, strings.TrimSpace(rev.Summary)).Scan(&rev.CreatedAt)
+	return rev, err
+}
+
+// Reviews liefert die Historie eines Kollegen, neueste zuerst.
+func (r *Registry) Reviews(ctx context.Context, agentID uuid.UUID, limit int) ([]Review, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	rows, err := r.pool.Query(ctx, `SELECT id, org_id, agent_id, author_agent_id, task_id,
+			period_from, period_to, summary, created_at
+		FROM agent_reviews WHERE agent_id=$1 ORDER BY created_at DESC LIMIT $2`, agentID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []Review{}
+	for rows.Next() {
+		var rev Review
+		if err := rows.Scan(&rev.ID, &rev.OrgID, &rev.AgentID, &rev.AuthorAgentID, &rev.TaskID,
+			&rev.PeriodFrom, &rev.PeriodTo, &rev.Summary, &rev.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, rev)
+	}
+	return out, rows.Err()
+}
+
+// LastReviewedAt sagt, wann ein Kollege zuletzt beurteilt wurde (Nullzeit =
+// noch nie). Das ist die Zahl, aus der sich ergibt, wer als Naechstes faellig
+// ist — und sie steht hier, damit der Zyklus sie nicht raten muss.
+func (r *Registry) LastReviewedAt(ctx context.Context, agentID uuid.UUID) (time.Time, error) {
+	var at *time.Time
+	if err := r.pool.QueryRow(ctx,
+		"SELECT max(created_at) FROM agent_reviews WHERE agent_id=$1", agentID).Scan(&at); err != nil {
+		return time.Time{}, err
+	}
+	if at == nil {
+		return time.Time{}, nil
+	}
+	return *at, nil
 }

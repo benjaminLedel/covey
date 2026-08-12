@@ -72,6 +72,7 @@ var coveyOps = map[string]coveyOp{
 	// Selbstvorschlag nach dem Self-Onboarding), `agents:review` auch die eines
 	// Kollegen. Geprüft in reviewPropose, wo der Betroffene bekannt ist.
 	"propose_agent_config": {Subject: "covey:propose_agent_config", Scopes: []string{scopeReview, scopeWrite}},
+	"write_review":         {Subject: "covey:write_review", Scopes: []string{scopeReview}},
 }
 
 // hiringSystem is the name of the access in ACCESS.md that unlocks these
@@ -203,6 +204,8 @@ func (o *Orchestrator) hiring(ctx context.Context, agent agents.Agent, taskID uu
 		return o.reviewReadRecording(ctx, agent, req, ok, fail)
 	case "propose_agent_config":
 		return o.reviewPropose(ctx, agent, taskID, req, ok, fail)
+	case "write_review":
+		return o.reviewWrite(ctx, agent, taskID, req, ok, fail)
 	}
 	return fail("unknown covey action %q", op)
 }

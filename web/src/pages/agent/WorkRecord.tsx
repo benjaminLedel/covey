@@ -1,8 +1,10 @@
 import { useState } from "react";
+import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, type WorkRecord as Record } from "../../api";
+import { api, type AgentReview, type WorkRecord as Record } from "../../api";
 import { fmtUSD } from "../../format";
+import { Markdown } from "../../components/Markdown";
 
 /* Die Arbeitsakte (spec/21).
 
@@ -50,6 +52,8 @@ export function WorkRecord({ agentId }: { agentId: string }) {
           ))}
         </div>
       </div>
+
+      <Reviews agentId={agentId} />
 
       <div className="rec-grid">
         <Section title={t("agent.record.throughput")} source="backlog_tasks">
@@ -199,6 +203,61 @@ function FrictionList({ label, rows }: { label: string; rows: { key: string; cou
       {rows.map((c) => (
         <CountRow key={c.key} label={t(`status.${c.key}`, c.key)} value={String(c.count)} indent />
       ))}
+    </div>
+  );
+}
+
+/* Die Beurteilungen, neueste zuerst — die Seite, die jemand öffnet, wenn er
+   wissen will, was mit einem Agenten los ist. Über den Zahlen und nicht
+   darunter: die Zahlen sind der Beleg, der Text ist die Aussage.
+
+   Der beurteilte Agent sieht das hier nie. Das ist keine Einstellung, sondern
+   eine Folge: sein Prompt trägt nur die aktive Config-Version, sein Gedächtnis
+   ist auf ihn selbst gescopet, und es gibt keine Aktion, die Reviews liest. */
+function Reviews({ agentId }: { agentId: string }) {
+  const { t, i18n } = useTranslation();
+  const [alle, setAlle] = useState(false);
+  const q = useQuery({
+    queryKey: ["agent-reviews", agentId],
+    queryFn: () => api<AgentReview[] | null>(`/agents/${agentId}/reviews`),
+    retry: false,
+  });
+  const list = q.data ?? [];
+  if (list.length === 0) return null;
+  const locale = i18n.language === "de" ? "de-DE" : "en-US";
+  const gezeigt = alle ? list : list.slice(0, 1);
+
+  return (
+    <div className="mb-3">
+      <h3 className="text-sm secondary mb-2">{t("agent.record.reviews")}</h3>
+      {gezeigt.map((rev) => (
+        <div key={rev.id} className="card mb-2">
+          <div className="flex items-baseline gap-2 mb-2 flex-wrap">
+            <strong className="text-sm">
+              {new Date(rev.created_at).toLocaleDateString(locale)}
+            </strong>
+            <span className="muted text-xs">
+              {t("agent.record.reviewPeriod", {
+                from: new Date(rev.period_from).toLocaleDateString(locale),
+                to: new Date(rev.period_to).toLocaleDateString(locale),
+              })}
+            </span>
+            {rev.task_id && (
+              <Link className="muted text-xs ml-auto" to={`/agents/${agentId}?tab=recording`}>
+                {t("agent.record.fromTask")}
+              </Link>
+            )}
+          </div>
+          <div className="text-sm" style={{ maxWidth: 780 }}>
+            <Markdown text={rev.summary} />
+          </div>
+        </div>
+      ))}
+      {list.length > 1 && (
+        <button className="btn sm" onClick={() => setAlle((v) => !v)}>
+          {alle ? t("agent.record.reviewsFewer") : t("agent.record.reviewsMore", { count: list.length - 1 })}
+        </button>
+      )}
     </div>
   );
 }

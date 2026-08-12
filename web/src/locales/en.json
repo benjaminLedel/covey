@@ -1095,7 +1095,12 @@
       "stuckHint": "Tasks waiting for an event. This is the failure mode nobody sees, because nothing errors.",
       "findings": "Standing findings ({{count}})",
       "tasks": "Tasks in the period",
-      "noTasks": "No tasks in the period."
+      "noTasks": "No tasks in the period.",
+      "reviews": "Reviews",
+      "reviewPeriod": "period {{from}} – {{to}}",
+      "fromTask": "from the run",
+      "reviewsMore": "Show {{count}} older",
+      "reviewsFewer": "Newest only"
     }
   },
   "approvals": {

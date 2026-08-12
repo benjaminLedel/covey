@@ -183,6 +183,8 @@ export type ImprovementItem = {
   // security, nicht der Teamleiter, dem der Agent gehört (spec/02).
   needs_security: boolean;
   diff?: { file: string; before: string; after: string }[];
+  // Nur beim Issue: wo der Bericht schon liegt.
+  link?: string;
 };
 
 export const decideImprovement = (id: string, accept: boolean, note: string) =>
@@ -430,6 +432,20 @@ export type WorkRecord = {
   // Was gekürzt wurde. Eine Akte, die still bei 200 Aufgaben aufhört, liest
   // sich wie eine vollständige.
   notes?: string[];
+};
+
+// Ein Review: was der Betrieb über einen Kollegen geschrieben hat, datiert
+// (spec/21). Es wartet auf nichts — anders als ein offener Punkt braucht es
+// keine Entscheidung, sondern einen Leser.
+export type AgentReview = {
+  id: string;
+  agent_id: string;
+  author_agent_id?: string;
+  task_id?: string;
+  period_from: string;
+  period_to: string;
+  summary: string;
+  created_at: string;
 };
 
 export type Human = {

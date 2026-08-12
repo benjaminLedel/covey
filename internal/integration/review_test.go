@@ -379,3 +379,79 @@ func TestBetriebsingenieurBundle(t *testing.T) {
 		t.Fatalf("das Bundle darf nicht entwerfen koennen: %s", msg)
 	}
 }
+
+// TestReviewLandetAufDemProfil ist der Lauf, wie spec/21 ihn beschreibt: Akte
+// lesen, Ursache bestimmen, und dann das Review schreiben — datiert, auf der
+// Seite des Kollegen, mit den Punkten daneben, die nur ein Mensch erledigen
+// kann.
+//
+// Der Test haelt vor allem die Trennung fest: das Review wartet auf niemanden
+// und steht deshalb NICHT im Posteingang; der Befund und das Issue schon.
+func TestReviewLandetAufDemProfil(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	betrieb := reviewAgent(t, s, "betrieb", "agents:review")
+	kollege := reviewAgent(t, s, "kollege", "")
+
+	task, msg := laufLassen(t, s, betrieb, "Review schreiben",
+		`[mock:action covey/write_review {"agent":"kollege","days":30,`+
+			`"summary":"## Befund\n\nElf von dreizehn Laeufen endeten am Turn-Limit.",`+
+			`"findings":[{"title":"Zwei Warteschlangen mit widersprechenden Erwartungen",`+
+			`"detail":"Der Auftrag laesst sich so nicht erfuellen."}],`+
+			`"issues":[{"title":"Kein Weg, ein Teilergebnis zurueckzugeben","link":"https://gitlab.example/covey/-/issues/42"}]}]`)
+	if task.State != backlog.StateDone {
+		t.Fatalf("das Review sollte durchgehen: %v %s", task.State, msg)
+	}
+
+	// Auf dem Profil des KOLLEGEN, datiert, mit Zeitraum und Herkunft.
+	revs := admin.expectList(http.MethodGet,
+		"/api/v1/agents/"+kollege.ID.String()+"/reviews", nil, http.StatusOK)
+	if len(revs) != 1 {
+		t.Fatalf("genau ein Review erwartet: %v", revs)
+	}
+	if !strings.Contains(revs[0]["summary"].(string), "Turn-Limit") {
+		t.Fatalf("der Text gehoert dazu: %v", revs[0]["summary"])
+	}
+	if revs[0]["task_id"] != task.ID.String() {
+		t.Fatalf("das Review muss auf den Lauf zeigen, aus dem es kam: %v", revs[0]["task_id"])
+	}
+	if revs[0]["period_from"] == nil || revs[0]["period_to"] == nil {
+		t.Fatalf("ohne Zeitraum ist „elf Abbrueche\" keine Aussage: %v", revs[0])
+	}
+	// Und beim SCHREIBER steht keines — es ist eine Aussage ueber den anderen.
+	if own := admin.expectList(http.MethodGet,
+		"/api/v1/agents/"+betrieb.ID.String()+"/reviews", nil, http.StatusOK); len(own) != 0 {
+		t.Fatalf("das Review gehoert dem Beurteilten, nicht dem Autor: %v", own)
+	}
+
+	// Der Befund und das Issue warten auf einen Menschen — das Review nicht.
+	page := getInbox(t, admin, "?status=open")
+	if page.Total != 2 {
+		t.Fatalf("Befund und Issue gehoeren in den Posteingang, das Review nicht: %+v", page)
+	}
+	sorten := map[string]bool{}
+	for _, it := range page.Items {
+		sorten[it.Type] = true
+	}
+	if !sorten["finding"] || !sorten["issue"] {
+		t.Fatalf("beide Sorten erwartet: %+v", page.Items)
+	}
+	items := admin.expectList(http.MethodGet, "/api/v1/improvements?kind=issue", nil, http.StatusOK)
+	if len(items) != 1 || items[0]["link"] != "https://gitlab.example/covey/-/issues/42" {
+		t.Fatalf("beim Issue gehoert die Adresse dazu: %v", items)
+	}
+
+	// Ohne Text kein Review: ein Kollege mit drei Vorschlaegen und ohne
+	// Beurteilung ist ein Diff ohne Diagnose.
+	if _, msg := laufLassen(t, s, betrieb, "Review ohne Text",
+		`[mock:action covey/write_review {"agent":"kollege"}]`); !strings.Contains(msg, "summary") {
+		t.Fatalf("ohne summary muss es abgelehnt werden: %s", msg)
+	}
+
+	// Und der beurteilte Agent erreicht es auf keinem Weg: es gibt keine
+	// Aktion, die Reviews liest.
+	if _, msg := laufLassen(t, s, betrieb, "Reviews lesen versuchen",
+		`[mock:action covey/read_reviews {"agent":"kollege"}]`); !strings.Contains(msg, "unknown covey action") {
+		t.Fatalf("es darf keine Aktion geben, die Reviews liest: %s", msg)
+	}
+}

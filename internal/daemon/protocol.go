@@ -404,6 +404,23 @@ type RequestHiring struct {
 	// observation. The rationale is what a human reads before the diff.
 	Title     string `json:"title,omitempty"`
 	Rationale string `json:"rationale,omitempty"`
+	// Summary is the review itself (write_review): the assessment a human
+	// reads on the employee profile.
+	Summary string `json:"summary,omitempty"`
+	// Findings and Issues are what the review produced besides a proposal: an
+	// assignment only a human can change, and a bug already filed against the
+	// platform. They travel with the review because they come out of the same
+	// judgement — one call, one moment.
+	Findings []ReviewNote `json:"findings,omitempty"`
+	Issues   []ReviewNote `json:"issues,omitempty"`
+}
+
+// ReviewNote is one finding or one filed issue: a line a human reads, the
+// reasoning behind it, and — for an issue — where it now lives.
+type ReviewNote struct {
+	Title  string `json:"title"`
+	Detail string `json:"detail,omitempty"`
+	Link   string `json:"link,omitempty"`
 }
 
 // InjectHiring is the answer to a meta action. Pending is the third outcome

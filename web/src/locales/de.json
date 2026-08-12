@@ -1095,7 +1095,12 @@
       "stuckHint": "Aufgaben, die auf ein Ereignis warten. Das ist die Fehlerform, die niemand sieht, weil nichts fehlschlägt.",
       "findings": "Stehende Befunde ({{count}})",
       "tasks": "Aufgaben im Zeitraum",
-      "noTasks": "Keine Aufgaben im Zeitraum."
+      "noTasks": "Keine Aufgaben im Zeitraum.",
+      "reviews": "Beurteilungen",
+      "reviewPeriod": "Zeitraum {{from}} – {{to}}",
+      "fromTask": "aus dem Lauf",
+      "reviewsMore": "{{count}} ältere anzeigen",
+      "reviewsFewer": "Nur die neueste"
     }
   },
   "approvals": {
