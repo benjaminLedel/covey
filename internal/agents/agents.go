@@ -148,9 +148,15 @@ func (r *Registry) CreateDraft(ctx context.Context, orgID uuid.UUID, slug, displ
 	return r.create(ctx, orgID, slug, displayName, runtime, ownerID, true)
 }
 
+// DefaultRuntime is the engine an agent gets when none is named — the one every
+// bundle without a `runtime` field ends up on. Named here so that whoever has to
+// validate against the engine BEFORE the agent exists (the bundle import) asks
+// the same question as create() answers.
+const DefaultRuntime = "claude-code"
+
 func (r *Registry) create(ctx context.Context, orgID uuid.UUID, slug, displayName, runtime string, ownerID *uuid.UUID, draft bool) (Agent, error) {
 	if runtime == "" {
-		runtime = "claude-code"
+		runtime = DefaultRuntime
 	}
 	hired := "now()"
 	if draft {
