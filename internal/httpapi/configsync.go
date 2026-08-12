@@ -29,6 +29,37 @@ import (
 // that only security roles may change through the UI (tools, egress).
 var errNeedsSecurityRole = errors.New("only platform_admin or security may change tool assignment and egress")
 
+// overlayLiveFiles macht aus einer gespeicherten Config-Version den Stand, der
+// WIRKLICH LÄUFT: ACCESS.md und EGRESS.md werden aus den Stores gerendert und
+// überschreiben den Schnappschuss.
+//
+// Die beiden Dateien sind im Schnappschuss nicht maßgeblich. PUT
+// /agents/{id}/tools/{system} und die Egress-Routen ändern die Zuweisung, ohne
+// eine Config-Version zu schreiben — die Version bleibt also auf dem Text
+// stehen, der beim letzten Text-Edit galt. Wer den laufenden Stand meint und
+// den Schnappschuss liest, vergleicht gegen eine Datei, die niemand ausführt;
+// wer sie dann auch noch zurückschreibt, hebt die Einschränkung auf, die
+// jemand über die Oberfläche gesetzt hat.
+//
+// Fehler beim Rendern lassen die Datei stehen, wie sie war, und werden geloggt
+// — dieselbe Wahl wie in handleGetConfig: eine fehlende Berechtigungsansicht
+// ist besser als gar keine Antwort.
+func (s *Server) overlayLiveFiles(ctx context.Context, orgID, agentID uuid.UUID, files map[string]string) {
+	if files == nil {
+		return
+	}
+	if access, err := s.renderAccessFile(ctx, agentID); err != nil {
+		s.Log.Warn("rendering ACCESS.md", "agent", agentID, "err", err)
+	} else {
+		files["ACCESS.md"] = access
+	}
+	if eg, err := s.renderEgressFile(ctx, orgID, agentID); err != nil {
+		s.Log.Warn("rendering EGRESS.md", "agent", agentID, "err", err)
+	} else {
+		files["EGRESS.md"] = eg
+	}
+}
+
 // renderAccessFile builds ACCESS.md from the materialized accesses and the
 // tool assignment — one line per system, attributes as read by ParseAccess.
 func (s *Server) renderAccessFile(ctx context.Context, agentID uuid.UUID) (string, error) {

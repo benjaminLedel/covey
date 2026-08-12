@@ -177,13 +177,21 @@ func (s *Server) improvementViews(r *http.Request, items []agents.ImprovementIte
 		}
 		cur := lookupConfig(item.AgentID)
 		v.CurrentVersion = cur.Version
-		v.Stale = item.BaseVersion != cur.Version
 		v.NeedsSecurity = len(agents.RestrictedChanges(cur.Files, item.Files)) > 0
 		for _, name := range agents.ChangedFiles(cur.Files, item.Files) {
 			v.Diff = append(v.Diff, fileDiff{File: name, Before: cur.Files[name], After: item.Files[name]})
 		}
-		if v.Stale {
-			v.Conflicts = s.proposalConflicts(r, item, cur)
+		// Veraltet und in Konflikt sind Fragen an einen OFFENEN Vorschlag. Für
+		// einen angenommenen sind sie nicht nur überflüssig, sondern verkehrt:
+		// die laufende Version enthält danach genau seine Dateien, also meldet
+		// der Vergleich zuverlässig „zwischenzeitlich geändert" — und zwar für
+		// die Dateien, die die Annahme selbst geschrieben hat. Im Archiv stand
+		// so hinter jeder erfolgreichen Annahme ein roter Konflikt.
+		if item.Status == agents.ImprovementPending {
+			v.Stale = item.BaseVersion != cur.Version
+			if v.Stale {
+				v.Conflicts = s.proposalConflicts(r, item, cur)
+			}
 		}
 		out = append(out, v)
 	}
@@ -274,7 +282,32 @@ func (s *Server) handleDecideImprovement(w http.ResponseWriter, r *http.Request)
 	}
 
 	merged := agents.MergeConfig(cur.Files, item.Files)
-	apply, ok := s.prepareConfigWrite(w, r, item.AgentID, merged)
+	// Der Schreib-Durchgriff darf NUR anfassen, was der Vorschlag wirklich
+	// ändert.
+	//
+	// ACCESS.md und EGRESS.md stehen zwar im Schnappschuss, sind dort aber
+	// nicht maßgeblich: der Tools-Reiter und die Egress-Routen ändern die
+	// Zuweisung, ohne eine Config-Version zu schreiben. Ginge der Schnappschuss
+	// so in prepareConfigWrite, riefe dessen apply() SetAgentTools mit der
+	// veralteten Liste — und die Annahme eines Vorschlags zu PLAYBOOKS.md hübe
+	// die Werkzeug-Einschränkung auf, die jemand über die Oberfläche gesetzt
+	// hat. Für einen agent_owner wäre dieselbe Ursache ein 403 auf einen
+	// Vorschlag, der den Zugang gar nicht berührt.
+	//
+	// prepareConfigApply lässt einen Bereich in Ruhe, wenn seine Datei fehlt
+	// ("omitted EGRESS.md means no change"). Also fehlt sie dort — gespeichert
+	// wird die Version trotzdem vollständig, damit der Schnappschuss keine
+	// Lücke bekommt.
+	writeThrough := make(map[string]string, len(merged))
+	for k, v := range merged {
+		writeThrough[k] = v
+	}
+	for _, name := range []string{"ACCESS.md", "EGRESS.md"} {
+		if _, touched := item.Files[name]; !touched {
+			delete(writeThrough, name)
+		}
+	}
+	apply, ok := s.prepareConfigWrite(w, r, item.AgentID, writeThrough)
 	if !ok {
 		return
 	}

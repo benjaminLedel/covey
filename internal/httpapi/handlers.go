@@ -117,16 +117,7 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	// ACCESS.md and EGRESS.md are the text view of the UI stores and are
 	// rendered live — never served from the version snapshot (configsync.go).
-	if access, err := s.renderAccessFile(r.Context(), id); err != nil {
-		s.Log.Warn("rendering ACCESS.md", "agent", id, "err", err)
-	} else {
-		cv.Files["ACCESS.md"] = access
-	}
-	if eg, err := s.renderEgressFile(r.Context(), p.OrgID, id); err != nil {
-		s.Log.Warn("rendering EGRESS.md", "agent", id, "err", err)
-	} else {
-		cv.Files["EGRESS.md"] = eg
-	}
+	s.overlayLiveFiles(r.Context(), p.OrgID, id, cv.Files)
 	delete(cv.Files, "TOOLS.md") // legacy: absorbed into ACCESS.md
 	writeJSON(w, http.StatusOK, cv)
 }
@@ -615,6 +606,34 @@ func (s *Server) handleListRuntimes(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleRename changes an agent's display name. The slug stays stable.
+// checkDoctorIdentity hält Name und Slug des Betriebsingenieurs fest und gibt
+// die Meldung für einen 409 zurück (leer = in Ordnung).
+//
+// Zentral erzwungen und nicht in der Oberfläche: ein deaktiviertes Eingabefeld
+// ist eine Bitte, keine Leitplanke. Es geht nicht um Ästhetik — der Doctor darf
+// jeden Kollegen lesen und für ihn Änderungen vorschlagen, und wer ihm einen
+// unauffälligen Namen gäbe, hätte einen Agenten mit diesen Rechten, den im
+// Org-Chart niemand als solchen erkennt.
+//
+// Leere Argumente heißen „wird nicht geändert" — so kann jeder der beiden
+// Endpunkte dieselbe Prüfung mit seinem einen Feld aufrufen.
+func (s *Server) checkDoctorIdentity(ctx context.Context, id uuid.UUID, name, slug string) string {
+	a, err := s.Registry.Get(ctx, id)
+	if err != nil || !agents.IsDoctor(a) {
+		// Kein Doctor (oder nicht lesbar) — dann entscheidet der Endpunkt wie
+		// bisher, inklusive seiner eigenen Fehlerbehandlung.
+		return ""
+	}
+	if name != "" && name != agents.DoctorName {
+		return "the operations engineer is always called " + agents.DoctorName + " — the name is part of the platform, not of the organisation"
+	}
+	if slug != "" && slug != agents.DoctorSlug {
+		return "the operations engineer keeps the slug " + agents.DoctorSlug +
+			" — renaming it would be the detour around the fixed name"
+	}
+	return ""
+}
+
 func (s *Server) handleRename(w http.ResponseWriter, r *http.Request) {
 	id, err := parseID(r)
 	if err != nil {
@@ -626,6 +645,10 @@ func (s *Server) handleRename(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := readJSON(r, &in); err != nil || strings.TrimSpace(in.DisplayName) == "" {
 		writeErr(w, http.StatusBadRequest, "display_name missing")
+		return
+	}
+	if msg := s.checkDoctorIdentity(r.Context(), id, strings.TrimSpace(in.DisplayName), ""); msg != "" {
+		writeErr(w, http.StatusConflict, msg)
 		return
 	}
 	if err := s.Registry.Rename(r.Context(), id, strings.TrimSpace(in.DisplayName)); err != nil {
@@ -676,6 +699,10 @@ func (s *Server) handleSetSlug(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := readJSON(r, &in); err != nil || strings.TrimSpace(in.Slug) == "" {
 		writeErr(w, http.StatusBadRequest, "slug missing")
+		return
+	}
+	if msg := s.checkDoctorIdentity(r.Context(), id, "", strings.TrimSpace(in.Slug)); msg != "" {
+		writeErr(w, http.StatusConflict, msg)
 		return
 	}
 	if err := s.Registry.SetSlug(r.Context(), id, strings.TrimSpace(in.Slug)); err != nil {

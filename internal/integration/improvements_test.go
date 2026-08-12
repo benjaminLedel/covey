@@ -227,3 +227,111 @@ func TestSelbstvorschlagLiegtWieJederAndere(t *testing.T) {
 		t.Fatal("nach der Annahme durch einen Menschen laeuft er")
 	}
 }
+
+// TestAnnahmeLaesstDenZugangInRuhe: die Annahme eines Vorschlags darf NUR das
+// ändern, was im Vorschlag steht.
+//
+// ACCESS.md und EGRESS.md stehen zwar in jeder Config-Version, sind dort aber
+// nicht der laufende Stand: der Tools-Reiter schreibt die Werkzeug-Zuweisung,
+// ohne eine Version anzulegen. Ging der Schnappschuss ungefiltert in den
+// Schreib-Durchgriff, hob die Annahme eines Vorschlags zu PLAYBOOKS.md die
+// Einschränkung wieder auf, die jemand über die Oberfläche gesetzt hatte — aus
+// "nur get_ticket" wurde wieder "alle Werkzeuge", ohne dass es jemand sah.
+func TestAnnahmeLaesstDenZugangInRuhe(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	ziel := s.newSupportAgent("kollege")
+	autor := s.newSupportAgent("betrieb")
+
+	// Die Einschränkung kommt über den Tools-Reiter — ohne Config-Version.
+	admin.expect(http.MethodPut, "/api/v1/agents/"+ziel.ID.String()+"/tools/zammad",
+		map[string]any{"tools": []string{"get_ticket"}}, http.StatusOK)
+
+	tools := func() int {
+		t.Helper()
+		var n int
+		if err := s.pool.QueryRow(t.Context(),
+			"SELECT COUNT(*) FROM agent_target_tools WHERE agent_id=$1 AND system='zammad'", ziel.ID).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	if n := tools(); n != 1 {
+		t.Fatalf("Vorbedingung: genau ein erlaubtes Werkzeug erwartet, %d gefunden", n)
+	}
+
+	// Ein Vorschlag, der den Zugang gar nicht berührt.
+	item := vorschlag(t, s, ziel, autor, map[string]string{"PLAYBOOKS.md": "## Vorgehen\n\nErst lesen."})
+	admin.expect(http.MethodPost, "/api/v1/improvements/"+item.ID.String()+"/decide",
+		map[string]any{"accept": true}, http.StatusOK)
+
+	if n := tools(); n != 1 {
+		t.Fatalf("die Annahme hat die Werkzeug-Einschraenkung angetastet: %d Eintraege statt 1", n)
+	}
+}
+
+// TestAngenommenerVorschlagIstNichtVeraltet: „veraltet" und „in Konflikt" sind
+// Fragen an einen OFFENEN Vorschlag.
+//
+// Nach der Annahme enthält die laufende Version genau die Dateien des
+// Vorschlags — der Vergleich gegen seine Basisversion meldet also zuverlässig
+// eine Änderung, und zwar an den Dateien, die die Annahme selbst geschrieben
+// hat. Im Archiv stand so hinter jeder erfolgreichen Annahme ein roter
+// Konflikt-Hinweis.
+func TestAngenommenerVorschlagIstNichtVeraltet(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	ziel := s.newSupportAgent("kollege")
+	autor := s.newSupportAgent("betrieb")
+
+	item := vorschlag(t, s, ziel, autor, map[string]string{"PLAYBOOKS.md": "## Vorgehen\n\nErst lesen."})
+	entschieden := admin.expect(http.MethodPost, "/api/v1/improvements/"+item.ID.String()+"/decide",
+		map[string]any{"accept": true}, http.StatusOK)
+	if entschieden["stale"] == true || entschieden["conflicts"] != nil {
+		t.Fatalf("die Antwort auf die Annahme darf keinen Konflikt melden: %v", entschieden)
+	}
+
+	archiv := admin.expectList(http.MethodGet, "/api/v1/improvements?status=accepted", nil, http.StatusOK)
+	if len(archiv) != 1 {
+		t.Fatalf("genau ein angenommener Punkt erwartet: %v", archiv)
+	}
+	if archiv[0]["stale"] == true || archiv[0]["conflicts"] != nil {
+		t.Fatalf("im Archiv steht ein Konflikt hinter der erfolgreichen Annahme: %v", archiv[0])
+	}
+}
+
+// TestDoctorBehaeltSeinenNamen: der Betriebsingenieur heißt auf jeder Instanz
+// „Covey Doctor" — der Name gehört der Plattform, nicht der Organisation.
+//
+// Er darf jeden Kollegen lesen und für ihn Änderungen vorschlagen. Wer ihm
+// einen unauffälligen Namen gäbe, hätte einen Agenten mit genau diesen Rechten,
+// den im Org-Chart niemand als solchen erkennt — deshalb steht die Sperre im
+// Server und nicht im Eingabefeld.
+func TestDoctorBehaeltSeinenNamen(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+
+	// Schon beim Anlegen: der reservierte Slug bringt den Namen mit.
+	doctor, err := s.registry.Create(t.Context(), s.orgID, agents.DoctorSlug, "Karl Heinz", "mock", &s.adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doctor.DisplayName != agents.DoctorName {
+		t.Fatalf("der reservierte Slug muss den Namen mitbringen: %q", doctor.DisplayName)
+	}
+
+	admin.expect(http.MethodPatch, "/api/v1/agents/"+doctor.ID.String()+"/name",
+		map[string]any{"display_name": "Karl Heinz"}, http.StatusConflict)
+	admin.expect(http.MethodPatch, "/api/v1/agents/"+doctor.ID.String()+"/slug",
+		map[string]any{"slug": "karl-heinz"}, http.StatusConflict)
+
+	// Auf denselben Namen umbenennen bleibt erlaubt — sonst wäre jeder
+	// idempotente Aufruf ein Fehler.
+	admin.expect(http.MethodPatch, "/api/v1/agents/"+doctor.ID.String()+"/name",
+		map[string]any{"display_name": agents.DoctorName}, http.StatusOK)
+
+	// Jeder andere Agent bleibt frei benennbar.
+	normal := s.newSupportAgent("kollege")
+	admin.expect(http.MethodPatch, "/api/v1/agents/"+normal.ID.String()+"/name",
+		map[string]any{"display_name": "Karl Heinz"}, http.StatusOK)
+}
