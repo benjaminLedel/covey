@@ -49,6 +49,15 @@ func init() {
    registries it needs (Container registries template, plus whatever the
    compose stack pulls from) the same way as any other egress.
 
+   WARNING: this scope starts a privileged sidecar and therefore changes the
+   sandbox's trust model; it is not equivalent to exec/processes. In hard
+   network isolation the daemon can reach only its per-agent proxy network,
+   and workloads inside it have no direct internet route. A compose workload
+   that needs allowed HTTP(S) egress must receive the proxy variables itself.
+   In cooperative proxy mode nested workloads can choose not to use those
+   variables, just as ordinary sandbox processes can; use hard network
+   isolation where the allowlist must be enforceable rather than advisory.
+
 Note: processes started with start live until the end of the agent's waking
 phase — they are terminated when the sandbox goes to sleep.
 
@@ -273,7 +282,8 @@ func (System) PromptDoc() string {
    README for the real compose/start commands instead of guessing, start {"name":"stack","cmd":"docker compose up -d"},
    wait for it to become healthy (the project's own wait/health script, or repeated
    exec {"cmd":"docker compose ps"}), run your actual verification against localhost, then
-   exec {"cmd":"docker compose down -v"} to tear it down. Image pulls go through the same egress
-   allowlist as everything else you do — a registry host missing there fails the pull, not silently
-   ignores it.`
+   exec {"cmd":"docker compose down -v"} to tear it down. The daemon's image pulls use the configured
+   proxy. In hard network isolation nested workloads have no direct internet route; pass HTTP_PROXY,
+   HTTPS_PROXY and NO_PROXY into services that need allowed egress. In cooperative mode those variables
+   are advisory and a workload can bypass them — do not treat that mode as an enforceable workload allowlist.`
 }

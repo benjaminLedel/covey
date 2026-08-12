@@ -292,7 +292,15 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 	o.baseCtx = ctx
 	o.mu.Unlock()
 
-	// Startup reconcile: orphaned in_progress tasks (sandbox gone with the last
+	// Startup reconcile: provider-owned ephemeral resources may have survived a
+	// crash before Sandbox.Stop. Clean those before tasks can start new compute.
+	if reconciler, ok := o.Provider.(DataPlaneReconciler); ok {
+		if err := reconciler.Reconcile(ctx); err != nil {
+			o.Log.Warn("startup reconcile: data-plane cleanup failed", "err", err)
+		}
+	}
+
+	// Orphaned in_progress tasks (sandbox gone with the last
 	// process) back to open, otherwise they would hang forever after a
 	// crash/deploy. Has to run before the first tick so they are picked up again
 	// right away.

@@ -51,6 +51,13 @@ type DataPlaneChecker interface {
 	Check(ctx context.Context) []string
 }
 
+// DataPlaneReconciler is the optional startup cleanup port of a provider.
+// Compute is ephemeral, so provider-owned resources left behind by a crashed
+// control plane must not survive indefinitely.
+type DataPlaneReconciler interface {
+	Reconcile(ctx context.Context) error
+}
+
 // FileAccess is the optional second port of a SandboxProvider: the route to an
 // agent's persistent home. It hangs off the provider because only the provider
 // knows where the home lives — a directory on the host for the docker provider,

@@ -394,12 +394,16 @@ func (p *DockerProvider) ensureEgressProxy(ctx context.Context) error {
 // up`), fully separate from the host's own Docker socket and from every other
 // agent's sidecar.
 type dindSidecar struct {
-	container string
-	network   string // per-agent — torn down with the sidecar, never shared
+	container    string
+	network      string // sandbox ↔ daemon API, always internal and per-agent
+	proxyNetwork string // daemon egress leg, per-agent and never shared with sandboxes
 }
 
 func dindContainerName(agentID string) string { return "covey-dind-" + agentID }
 func dindNetworkName(agentID string) string   { return "covey-dind-net-" + agentID }
+func dindProxyNetworkName(agentID string) string {
+	return "covey-dind-proxy-net-" + agentID
+}
 
 // startDind brings up this agent's Docker-in-Docker sidecar, fresh on every
 // wake (ephemeral compute, like the sandbox itself — spec/01). --privileged is
@@ -420,21 +424,32 @@ func dindNetworkName(agentID string) string   { return "covey-dind-net-" + agent
 // 1:1 for this one agent already, --privileged and all; it just makes the
 // files the agent itself put there visible from the daemon side too.
 //
-// The sidecar's own egress (image pulls) is routed through the SAME
-// allowlist proxy as the sandbox's other traffic, by the same mechanism
-// (cooperative HTTP(S)_PROXY, or attached to the hard-isolation network) —
-// Docker-in-Docker must not become a side door around the org's egress
-// policy, only a place to run containers.
+// The sidecar API network is internal and per-agent. Its second leg is also
+// per-agent: cooperative mode gives only the daemon that ordinary route; hard
+// mode attaches only the daemon and the allowlist proxy to another internal
+// network. The privileged plaintext daemon therefore never appears on the
+// shared sandbox network.
 func (p *DockerProvider) startDind(ctx context.Context, spec SandboxSpec, home string) (*dindSidecar, error) {
 	container := dindContainerName(spec.AgentID.String())
 	network := dindNetworkName(spec.AgentID.String())
+	proxyNetwork := dindProxyNetworkName(spec.AgentID.String())
 
-	// Clear leftovers of a crashed predecessor — both names have to be free.
+	// Clear leftovers of a crashed predecessor — all names have to be free.
 	_ = exec.CommandContext(ctx, p.docker(), "rm", "-f", container).Run()
 	_ = exec.CommandContext(ctx, p.docker(), "network", "rm", network).Run()
+	_ = exec.CommandContext(ctx, p.docker(), "network", "rm", proxyNetwork).Run()
 
-	if out, err := exec.CommandContext(ctx, p.docker(), "network", "create", network).CombinedOutput(); err != nil {
+	if out, err := exec.CommandContext(ctx, p.docker(), "network", "create", "--internal", network).CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("create docker-in-docker network: %v: %s", err, strings.TrimSpace(string(out)))
+	}
+	proxyNetworkArgs := []string{"network", "create"}
+	if p.EgressIsolation == "network" {
+		proxyNetworkArgs = append(proxyNetworkArgs, "--internal")
+	}
+	proxyNetworkArgs = append(proxyNetworkArgs, proxyNetwork)
+	if out, err := exec.CommandContext(ctx, p.docker(), proxyNetworkArgs...).CombinedOutput(); err != nil {
+		_ = exec.CommandContext(ctx, p.docker(), "network", "rm", network).Run()
+		return nil, fmt.Errorf("create docker-in-docker proxy network: %v: %s", err, strings.TrimSpace(string(out)))
 	}
 
 	args := []string{"run", "-d", "--rm", "--privileged",
@@ -451,7 +466,13 @@ func (p *DockerProvider) startDind(ctx context.Context, spec SandboxSpec, home s
 	case "network":
 		if err := p.ensureNetworkIsolation(ctx); err != nil {
 			_ = exec.CommandContext(ctx, p.docker(), "network", "rm", network).Run()
+			_ = exec.CommandContext(ctx, p.docker(), "network", "rm", proxyNetwork).Run()
 			return nil, fmt.Errorf("prepare egress network: %w", err)
+		}
+		if connOut, err := exec.CommandContext(ctx, p.docker(), "network", "connect", "--alias", egressProxyAlias, proxyNetwork, egressProxyName).CombinedOutput(); err != nil {
+			_ = exec.CommandContext(ctx, p.docker(), "network", "rm", network).Run()
+			_ = exec.CommandContext(ctx, p.docker(), "network", "rm", proxyNetwork).Run()
+			return nil, fmt.Errorf("attach egress proxy to per-agent docker network: %v: %s", err, strings.TrimSpace(string(connOut)))
 		}
 		proxyURL := egressURLWithCreds("http://"+egressProxyAlias+":8888", spec.AgentID.String(), spec.EgressToken)
 		for _, e := range proxyEnvVars(proxyURL, "localhost,127.0.0.1,::1") {
@@ -471,6 +492,7 @@ func (p *DockerProvider) startDind(ctx context.Context, spec SandboxSpec, home s
 	out, err := exec.CommandContext(ctx, p.docker(), args...).CombinedOutput()
 	if err != nil {
 		_ = exec.CommandContext(ctx, p.docker(), "network", "rm", network).Run()
+		_ = exec.CommandContext(ctx, p.docker(), "network", "rm", proxyNetwork).Run()
 		msg := strings.TrimSpace(string(out))
 		if strings.Contains(msg, "No such image") || strings.Contains(msg, "Unable to find image") {
 			return nil, fmt.Errorf("docker-in-docker image %q is missing — pull it once: `docker pull %s`: %s", DindImage, DindImage, msg)
@@ -478,18 +500,18 @@ func (p *DockerProvider) startDind(ctx context.Context, spec SandboxSpec, home s
 		return nil, fmt.Errorf("start docker-in-docker sidecar: %v: %s", err, msg)
 	}
 
-	if p.EgressIsolation == "network" {
-		// Second network, for the same reason the sandbox itself cannot take
-		// both at `run` time: the egress network only carries the proxy route,
-		// the per-agent network is what makes the sidecar reachable as "dind".
-		if connOut, err := exec.CommandContext(ctx, p.docker(), "network", "connect", egressNetwork, container).CombinedOutput(); err != nil {
-			_ = exec.CommandContext(ctx, p.docker(), "rm", "-f", container).Run()
-			_ = exec.CommandContext(ctx, p.docker(), "network", "rm", network).Run()
-			return nil, fmt.Errorf("attach docker-in-docker sidecar to the egress network: %v: %s", err, strings.TrimSpace(string(connOut)))
-		}
+	// The daemon's second leg is per-agent too. In hard mode this internal
+	// network contains only the daemon and the egress proxy; in cooperative
+	// mode it supplies the daemon's ordinary outbound route without exposing
+	// port 2375 on the sandbox's network.
+	if connOut, err := exec.CommandContext(ctx, p.docker(), "network", "connect", proxyNetwork, container).CombinedOutput(); err != nil {
+		_ = exec.CommandContext(ctx, p.docker(), "rm", "-f", container).Run()
+		_ = exec.CommandContext(ctx, p.docker(), "network", "rm", network).Run()
+		_ = exec.CommandContext(ctx, p.docker(), "network", "rm", proxyNetwork).Run()
+		return nil, fmt.Errorf("attach docker-in-docker sidecar to its proxy network: %v: %s", err, strings.TrimSpace(string(connOut)))
 	}
 
-	return &dindSidecar{container: container, network: network}, nil
+	return &dindSidecar{container: container, network: network, proxyNetwork: proxyNetwork}, nil
 }
 
 // stop tears the sidecar and its own per-agent network down — best-effort,
@@ -501,6 +523,31 @@ func (d *dindSidecar) stop(ctx context.Context, docker string) {
 	defer cancel()
 	_ = exec.CommandContext(stopCtx, docker, "rm", "-f", d.container).Run()
 	_ = exec.CommandContext(stopCtx, docker, "network", "rm", d.network).Run()
+	_ = exec.CommandContext(stopCtx, docker, "network", "rm", d.proxyNetwork).Run()
+}
+
+// Reconcile removes DinD resources that survived a control-plane crash. The
+// prefix is provider-owned and agent IDs make the names unambiguous.
+func (p *DockerProvider) Reconcile(ctx context.Context) error {
+	containers, err := exec.CommandContext(ctx, p.docker(), "ps", "-a", "--filter", "name=^covey-dind-", "--format", "{{.Names}}").Output()
+	if err != nil {
+		return fmt.Errorf("list orphaned docker-in-docker containers: %w", err)
+	}
+	for _, name := range strings.Fields(string(containers)) {
+		if strings.HasPrefix(name, "covey-dind-") {
+			_ = exec.CommandContext(ctx, p.docker(), "rm", "-f", name).Run()
+		}
+	}
+	networks, err := exec.CommandContext(ctx, p.docker(), "network", "ls", "--filter", "name=^covey-dind-", "--format", "{{.Name}}").Output()
+	if err != nil {
+		return fmt.Errorf("list orphaned docker-in-docker networks: %w", err)
+	}
+	for _, name := range strings.Fields(string(networks)) {
+		if strings.HasPrefix(name, "covey-dind-net-") || strings.HasPrefix(name, "covey-dind-proxy-net-") {
+			_ = exec.CommandContext(ctx, p.docker(), "network", "rm", name).Run()
+		}
+	}
+	return nil
 }
 
 // rewriteLoopbackForDocker rewrites a loopback URL of the control plane to
