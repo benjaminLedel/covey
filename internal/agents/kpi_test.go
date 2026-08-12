@@ -49,6 +49,20 @@ Prose lines like this one are ignored.
 	}
 }
 
+// A qualified subject is a countable action like any other: covey:create_task
+// and covey:create_task:foreign are separately forbiddable in the guard-rails
+// and therefore recorded — and countable — separately.
+func TestParseKPIsQualifiedAction(t *testing.T) {
+	ks, err := ParseKPIs("- kennzahl: disposition zählt: aktion covey:create_task:foreign je: issue_iid\n" +
+		"- kennzahl: aufgaben-gesamt zählt: aktion covey:create_task:*")
+	if err != nil {
+		t.Fatalf("ParseKPIs: %v", err)
+	}
+	if len(ks) != 2 || ks[0].Action != "covey:create_task:foreign" || ks[1].Action != "covey:create_task:*" {
+		t.Fatalf("qualified subjects not accepted: %+v", ks)
+	}
+}
+
 func TestParseKPIsEmpty(t *testing.T) {
 	ks, err := ParseKPIs("")
 	if err != nil || len(ks) != 0 {
@@ -61,22 +75,26 @@ func TestParseKPIsEmpty(t *testing.T) {
 // a lazy agent.
 func TestParseKPIsErrors(t *testing.T) {
 	cases := map[string]string{
-		"key missing":           "- titel: X zählt: aktion zammad:reply",
-		"key not a slug":        "- kennzahl: Gelöste Tickets zählt: aktion zammad:reply",
-		"nothing counted":       "- kennzahl: x titel: X",
-		"action without verb":   "- kennzahl: x zählt: aktion zammad",
-		"action with spaces":    "- kennzahl: x zählt: aktion zammad reply",
-		"unknown count form":    "- kennzahl: x zählt: tickets zammad:reply",
-		"open tasks not valid":  "- kennzahl: x zählt: aufgabe offen",
-		"je without value":      "- kennzahl: x zählt: aktion zammad:reply je:",
-		"je with two values":    "- kennzahl: x zählt: aktion zammad:reply je: a b",
-		"je on the task form":   "- kennzahl: x zählt: aufgabe erledigt je: ticket_id",
-		"herkunft on an action": "- kennzahl: x zählt: aktion zammad:reply herkunft: heartbeat",
-		"goal without period":   "- kennzahl: x zählt: aufgabe erledigt ziel: 20",
-		"goal unknown period":   "- kennzahl: x zählt: aufgabe erledigt ziel: 20 pro quartal",
-		"goal not a number":     "- kennzahl: x zählt: aufgabe erledigt ziel: viele pro woche",
-		"goal zero":             "- kennzahl: x zählt: aufgabe erledigt ziel: 0 pro woche",
-		"key defined twice":     "- kennzahl: x zählt: aufgabe erledigt\n- kennzahl: x zählt: aktion zammad:reply",
+		"key missing":         "- titel: X zählt: aktion zammad:reply",
+		"key not a slug":      "- kennzahl: Gelöste Tickets zählt: aktion zammad:reply",
+		"nothing counted":     "- kennzahl: x titel: X",
+		"action without verb": "- kennzahl: x zählt: aktion zammad",
+		"action with spaces":  "- kennzahl: x zählt: aktion zammad reply",
+		"unknown count form":  "- kennzahl: x zählt: tickets zammad:reply",
+		// The counting side turns the wildcard into a LIKE prefix, so it can
+		// only stand at the end — a rule it cannot execute must not parse.
+		"wildcard in the middle": "- kennzahl: x zählt: aktion covey:*:foreign",
+		"empty segment":          "- kennzahl: x zählt: aktion covey::foreign",
+		"open tasks not valid":   "- kennzahl: x zählt: aufgabe offen",
+		"je without value":       "- kennzahl: x zählt: aktion zammad:reply je:",
+		"je with two values":     "- kennzahl: x zählt: aktion zammad:reply je: a b",
+		"je on the task form":    "- kennzahl: x zählt: aufgabe erledigt je: ticket_id",
+		"herkunft on an action":  "- kennzahl: x zählt: aktion zammad:reply herkunft: heartbeat",
+		"goal without period":    "- kennzahl: x zählt: aufgabe erledigt ziel: 20",
+		"goal unknown period":    "- kennzahl: x zählt: aufgabe erledigt ziel: 20 pro quartal",
+		"goal not a number":      "- kennzahl: x zählt: aufgabe erledigt ziel: viele pro woche",
+		"goal zero":              "- kennzahl: x zählt: aufgabe erledigt ziel: 0 pro woche",
+		"key defined twice":      "- kennzahl: x zählt: aufgabe erledigt\n- kennzahl: x zählt: aktion zammad:reply",
 	}
 	for name, content := range cases {
 		if _, err := ParseKPIs(content); err == nil {

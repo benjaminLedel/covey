@@ -65,8 +65,8 @@ A KPI has a stable key, a title, a counting rule and — optionally — a target
 
 Deliberately few rule forms, because every additional one is a query shape that has to stay fast:
 
-- `aktion <system>:<verb>` — one successful target-system action. Failed actions do not count; an agent that tried to close a ticket and got a 422 resolved nothing.
-- `aktion <system>:*` — any action of a system, for a coarse "did it touch GitLab at all".
+- `aktion <system>:<verb>` — one successful target-system action. Failed actions do not count; an agent that tried to close a ticket and got a 422 resolved nothing. Where a plugin qualifies a verb further, the qualifier is part of the name and is written out in full: `covey:create_task` and `covey:create_task:foreign` (delegating to a colleague) are separately forbiddable in the guard-rails and are counted just as separately.
+- `aktion <system>:*` — any action of a system, for a coarse "did it touch GitLab at all". The `*` stands for everything below the prefix and may only be the last segment (`covey:create_task:*` is allowed, `covey:*:foreign` is not) — the counting side turns it into a prefix comparison.
 - `aufgabe erledigt` — a backlog task that reached `done`, optionally narrowed by `herkunft:` (origin).
 
 ### `je:` counts objects, not events
