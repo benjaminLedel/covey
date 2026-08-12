@@ -165,7 +165,7 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
   // Runtime-Liste noch lädt, zeigen wir die Zeile nur, wenn der Agent bereits
   // eine Stufe gesetzt hat — sonst blitzt sie auf und verschwindet wieder.
   const effortLevels = rtList.find((rt) => rt.name === agent.runtime)?.capabilities.effort_levels ?? [];
-  // Der Betriebsingenieur heisst ueberall gleich: Name und Slug gehoeren der
+  // Covey Doctor heisst ueberall gleich: Name und Slug gehoeren der
   // Plattform, nicht der Organisation. Die Sperre steht im Server (409) — hier
   // steht sie nur sichtbar davor, damit niemand gegen ein Feld tippt, dessen
   // Antwort schon feststeht.

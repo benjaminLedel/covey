@@ -129,7 +129,7 @@ function CompanyDescription() {
 
 /* Wo der Quelltext dieser Plattform liegt (spec/21).
  *
- * Der Betriebsingenieur macht den wertvollsten Befund dort, wo er ihn nicht
+ * Covey Doctor macht den wertvollsten Befund dort, wo er ihn nicht
  * durch eine Config beheben kann — und er ist der Einzige in der Organisation,
  * der ihn bei mehreren Kollegen gleichzeitig gesehen hat. Damit daraus eine
  * Diagnose statt eines Symptoms wird, liest er den Quelltext; damit der Bericht

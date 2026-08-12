@@ -1,4 +1,4 @@
-// Zeilenweiser Diff für die Vorschläge des Betriebsingenieurs (spec/21).
+// Zeilenweiser Diff für die Vorschläge von Covey Doctor (spec/21).
 //
 // Bewusst keine Abhängigkeit: was hier gebraucht wird, ist der Vergleich
 // zweier Markdown-Dateien von ein paar Dutzend Zeilen, und dafür eine Bibliothek

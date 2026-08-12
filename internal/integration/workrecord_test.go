@@ -166,7 +166,7 @@ func TestArbeitsakteFolgtDenRecordings(t *testing.T) {
 		expect(http.MethodGet, "/api/v1/cost/indicators", nil, http.StatusOK)
 }
 
-// TestArbeitsakteZaehltEigeneVorschlaege: wer den Betriebsingenieur überprüfen
+// TestArbeitsakteZaehltEigeneVorschlaege: wer Covey Doctor überprüfen
 // will, liest seine Ablehnungsquote — und die steht in seiner eigenen Akte wie
 // bei jedem anderen auch (spec/21, „wer prüft den Prüfer").
 func TestArbeitsakteZaehltEigeneVorschlaege(t *testing.T) {

@@ -606,7 +606,7 @@ func (s *Server) handleListRuntimes(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleRename changes an agent's display name. The slug stays stable.
-// checkDoctorIdentity hält Name und Slug des Betriebsingenieurs fest und gibt
+// checkDoctorIdentity hält Name und Slug von Covey Doctor fest und gibt
 // die Meldung für einen 409 zurück (leer = in Ordnung).
 //
 // Zentral erzwungen und nicht in der Oberfläche: ein deaktiviertes Eingabefeld

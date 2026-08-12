@@ -3,7 +3,7 @@ package httpapi
 // Die Arbeitsakte auf dem Mitarbeiter-Profil (spec/21).
 //
 // Sie wird hier zuerst für MENSCHEN gebaut und erst danach für den
-// Betriebsingenieur, der sie über covey/work_record liest. Das ist keine
+// Covey Doctor, der sie über covey/work_record liest. Das ist keine
 // Reihenfolge aus Bequemlichkeit: was ein Mensch auf einer Seite nicht lesen
 // kann, kann er in einer Agenten-Antwort auch nicht überprüfen — und die
 // Antwort auf „warum liefert dieser Agent nicht" ist die erste, die jemand

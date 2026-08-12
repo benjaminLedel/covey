@@ -65,7 +65,7 @@ func laufLassen(t *testing.T, s *stack, agent agents.Agent, titel, body string) 
 
 // TestReviewScopeTrenntDieBeidenHaelften: `agents:review` schaltet Lesen und
 // Vorschlagen frei und NICHT das Entwerfen; `agents:write` umgekehrt. Die
-// Personalabteilung stellt ein, der Betriebsingenieur liest und schlägt vor,
+// Personalabteilung stellt ein, Covey Doctor liest und schlägt vor,
 // und keiner von beiden kann mit den Zugängen des anderen dessen Arbeit machen
 // (spec/21).
 func TestReviewScopeTrenntDieBeidenHaelften(t *testing.T) {
@@ -74,7 +74,7 @@ func TestReviewScopeTrenntDieBeidenHaelften(t *testing.T) {
 	personal := reviewAgent(t, s, "personal", "agents:write")
 	reviewAgent(t, s, "kollege", "")
 
-	// Der Betriebsingenieur darf lesen …
+	// Covey Doctor darf lesen …
 	if _, msg := laufLassen(t, s, betrieb, "Akte lesen",
 		`[mock:action covey/work_record {"agent":"kollege","days":30}]`); strings.Contains(msg, "no access") {
 		t.Fatalf("agents:review muss die Arbeitsakte freischalten: %s", msg)
@@ -324,7 +324,7 @@ func TestReviewPromptFolgtDemScope(t *testing.T) {
 	}
 }
 
-// TestBetriebsingenieurBundle nimmt das ausgelieferte Bundle den Weg, den ein
+// TestCoveyDoctorBundle nimmt das ausgelieferte Bundle den Weg, den ein
 // Mensch es nehmen lässt: Import über die API, und danach muss es das können,
 // wofür es gebaut ist.
 //
@@ -333,7 +333,7 @@ func TestReviewPromptFolgtDemScope(t *testing.T) {
 // Aktionen frei, der Prompt-Abschnitt folgt ihm, und der Review-Zyklus ist
 // wöchentlich — jede dieser drei Eigenschaften ist anderswo entschieden und
 // hier zusammen sichtbar.
-func TestBetriebsingenieurBundle(t *testing.T) {
+func TestCoveyDoctorBundle(t *testing.T) {
 	s := newStack(t)
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 	reviewAgent(t, s, "kollege", "")
@@ -345,7 +345,7 @@ func TestBetriebsingenieurBundle(t *testing.T) {
 		}
 	}
 	if bundle == nil {
-		t.Fatal("das ausgelieferte Bundle des Betriebsingenieurs fehlt")
+		t.Fatal("das ausgelieferte Bundle von Covey Doctor fehlt")
 	}
 	imported := admin.expect(http.MethodPost, "/api/v1/agents/import?slug=betrieb",
 		bundle, http.StatusCreated)
@@ -503,7 +503,7 @@ func TestPlattformRepoStehtImPrompt(t *testing.T) {
 	admin.expect(http.MethodPatch, "/api/v1/org/platform-repo",
 		map[string]any{"system": "gitlab", "project": "covey/covey"}, http.StatusOK)
 
-	// Das Stammdatum allein reicht NICHT. Der Betriebsingenieur hat GitLab
+	// Das Stammdatum allein reicht NICHT. Covey Doctor hat GitLab
 	// nicht in seiner ACCESS.md, also stuende im Prompt ein Repository, das der
 	// Broker ihm gleich darauf verweigert.
 	if p := prompt(betrieb); strings.Contains(p, "The platform you run on") {

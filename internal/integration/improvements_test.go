@@ -31,7 +31,7 @@ func vorschlag(t *testing.T, s *stack, ziel, autor agents.Agent, files map[strin
 }
 
 // TestVorschlagLiegtUndLaeuftNicht ist die Eigenschaft, auf der spec/21 steht:
-// der Betriebsingenieur schlägt vor, er entscheidet nicht. Ein offener
+// Covey Doctor schlägt vor, er entscheidet nicht. Ein offener
 // Vorschlag erreicht den bewerteten Agenten auf keinem Weg — er ist keine
 // Version, also gibt es keinen Zusammenbau, in den er geraten könnte.
 func TestVorschlagLiegtUndLaeuftNicht(t *testing.T) {
@@ -146,7 +146,7 @@ func TestVorschlagAufAccessBrauchtSecurity(t *testing.T) {
 	}
 
 	// Und der abgelehnte Vorschlag bleibt lesbar — er ist das Nützlichste,
-	// was jemand liest, der den Betriebsingenieur selbst überprüft.
+	// was jemand liest, der Covey Doctor selbst überprüft.
 	rejected := admin.expectList(http.MethodGet, "/api/v1/improvements?status=rejected", nil, http.StatusOK)
 	if len(rejected) != 1 {
 		t.Fatalf("abgelehnte Punkte bleiben stehen: %v", rejected)
@@ -300,7 +300,7 @@ func TestAngenommenerVorschlagIstNichtVeraltet(t *testing.T) {
 	}
 }
 
-// TestDoctorBehaeltSeinenNamen: der Betriebsingenieur heißt auf jeder Instanz
+// TestDoctorBehaeltSeinenNamen: Covey Doctor heißt auf jeder Instanz
 // „Covey Doctor" — der Name gehört der Plattform, nicht der Organisation.
 //
 // Er darf jeden Kollegen lesen und für ihn Änderungen vorschlagen. Wer ihm
