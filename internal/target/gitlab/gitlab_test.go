@@ -2182,6 +2182,11 @@ type mergeGateServer struct {
 	mergeBody map[string]any
 	merges    int
 	queued    int
+	// autoMergeOutcome is what GitLab makes of an auto-merge request: "" queues
+	// it as usual, "merged" merges right away (the pipeline turned green
+	// between read and call), "nothing" neither — an answer whose MR is
+	// unchanged, which does happen and must not be sold as a success.
+	autoMergeOutcome string
 }
 
 func (g *mergeGateServer) start(t *testing.T) *httptest.Server {
@@ -2197,11 +2202,21 @@ func (g *mergeGateServer) start(t *testing.T) *httptest.Server {
 		case r.URL.Path == "/api/v4/projects/40/merge_requests/1685/merge" && r.Method == http.MethodPut:
 			json.NewDecoder(r.Body).Decode(&g.mergeBody)
 			result := g.mr
-			if g.mergeBody["merge_when_pipeline_succeeds"] == true {
-				// Real GitLab does not complete the merge here either — it stays
-				// open until the pipeline it is pinned against turns green.
+			// GitLab links the two parameters with an OR — the deprecated name
+			// works exactly like the current one.
+			if g.mergeBody["auto_merge"] == true || g.mergeBody["merge_when_pipeline_succeeds"] == true {
 				g.queued++
-				result.MergeWhenPipelineSucceeds = true
+				switch g.autoMergeOutcome {
+				case "merged":
+					result.State = "merged"
+				case "nothing":
+					// unchanged: neither merged nor queued
+				default:
+					// Real GitLab does not complete the merge here either — it
+					// stays open until the pipeline it is pinned against turns
+					// green.
+					result.MergeWhenPipelineSucceeds = true
+				}
 			} else {
 				g.merges++
 				result.State = "merged"
@@ -2298,8 +2313,16 @@ func TestMergeMRRefusesUnacceptedStates(t *testing.T) {
 			"not open",
 		},
 		"gitlab says not mergeable": {
-			func(g *mergeGateServer) { g.mr.DetailedMergeStatus = "ci_still_running" },
+			func(g *mergeGateServer) { g.mr.DetailedMergeStatus = "blocked_status" },
 			"not consider the merge request mergeable",
+		},
+		// The CI values of detailed_merge_status are not a hard refusal — they
+		// are the pipeline's business (see ciMergeStatuses). With a green head
+		// pipeline they nevertheless block: nothing is in motion any more that
+		// waiting could resolve.
+		"gitlab still waits for a pipeline": {
+			func(g *mergeGateServer) { g.mr.DetailedMergeStatus = "ci_must_pass" },
+			"still waiting for a pipeline",
 		},
 		"further approval required": {
 			func(g *mergeGateServer) {
@@ -2344,12 +2367,18 @@ func TestMergeMRRefusesUnacceptedStates(t *testing.T) {
 // TestMergeMRQueuesWhenPipelineStillRunning is the actual point of the
 // auto-merge path: an MR that is otherwise fully accepted (approved, no
 // conflicts, discussions resolved) but whose pipeline just has not concluded
-// yet must not be refused — GitLab's own merge_when_pipeline_succeeds queues
-// it, so nobody has to come back and ask again once it turns green.
+// yet must not be refused — GitLab's own auto-merge queues it, so nobody has to
+// come back and ask again once it turns green.
+//
+// detailed_merge_status is deliberately "ci_still_running" and not "mergeable":
+// that is what a project with "pipelines must succeed" reports while the
+// pipeline runs, i.e. the real state of exactly this case. Judged as a hard
+// refusal it kills the whole path in precisely the projects it is built for.
 func TestMergeMRQueuesWhenPipelineStillRunning(t *testing.T) {
 	g := &mergeGateServer{mr: greenMR(), me: "egon.rastlos",
 		approvals: MRApprovals{UserHasApproved: true}}
 	g.mr.HeadPipeline = &Pipeline{ID: 1, Status: "running"}
+	g.mr.DetailedMergeStatus = "ci_still_running"
 	srv := g.start(t)
 
 	sys := System{}
@@ -2362,8 +2391,10 @@ func TestMergeMRQueuesWhenPipelineStillRunning(t *testing.T) {
 	if m["queued_for_pipeline"] != true || m["pipeline_status"] != "running" {
 		t.Fatalf("the result has to say it was queued and why: %+v", out)
 	}
-	if g.mergeBody["merge_when_pipeline_succeeds"] != true {
-		t.Fatalf("the request has to ask GitLab for merge_when_pipeline_succeeds: %+v", g.mergeBody)
+	// auto_merge is the current parameter; the deprecated twin travels along so
+	// that instances before GitLab 17.11 understand the request too.
+	if g.mergeBody["auto_merge"] != true || g.mergeBody["merge_when_pipeline_succeeds"] != true {
+		t.Fatalf("the request has to ask GitLab for auto-merge under both names: %+v", g.mergeBody)
 	}
 	if g.mergeBody["sha"] != "f47dacf6" {
 		t.Fatalf("the reviewed commit has to be pinned even when queuing: %+v", g.mergeBody)
@@ -2389,6 +2420,54 @@ func TestMergeMRQueuesWhenPipelineStillRunning(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestMergeMRReportsWhatGitLabDid: the answer has to say what GitLab really
+// did, not what was asked of it. The prompt tells the agent it need not come
+// back after a queue — so a "queued" that nothing stands behind is a merge
+// that never happens and that nobody misses.
+func TestMergeMRReportsWhatGitLabDid(t *testing.T) {
+	sys := System{}
+	runningMR := func(g *mergeGateServer) {
+		g.mr = greenMR()
+		g.mr.HeadPipeline = &Pipeline{ID: 1, Status: "running"}
+		g.mr.DetailedMergeStatus = "ci_still_running"
+	}
+
+	// The pipeline turned green between reading and calling: GitLab merges
+	// straight away. Then the result is a merge, not a queue.
+	t.Run("merged right away", func(t *testing.T) {
+		g := &mergeGateServer{me: "egon.rastlos", approvals: MRApprovals{UserHasApproved: true},
+			autoMergeOutcome: "merged"}
+		runningMR(g)
+		srv := g.start(t)
+		out, err := sys.Execute(context.Background(), "merge_mr", []byte(`{"project_id":40,"mr_iid":1685}`),
+			target.Credential{BaseURL: srv.URL, Token: "test-token"})
+		if err != nil {
+			t.Fatalf("an immediate merge is not an error: %v", err)
+		}
+		m := out.(map[string]any)
+		if m["merged"] != true || m["queued_for_pipeline"] == true {
+			t.Fatalf("merged, so it must not read as queued: %+v", out)
+		}
+	})
+
+	// GitLab neither merged nor queued: that has to reach the agent as a
+	// refusal it can report, not as a success.
+	t.Run("neither merged nor queued", func(t *testing.T) {
+		g := &mergeGateServer{me: "egon.rastlos", approvals: MRApprovals{UserHasApproved: true},
+			autoMergeOutcome: "nothing"}
+		runningMR(g)
+		srv := g.start(t)
+		out, err := sys.Execute(context.Background(), "merge_mr", []byte(`{"project_id":40,"mr_iid":1685}`),
+			target.Credential{BaseURL: srv.URL, Token: "test-token"})
+		if err == nil {
+			t.Fatalf("without a queue there is nothing to report as done: %+v", out)
+		}
+		if !strings.Contains(err.Error(), "neither merged nor queued") {
+			t.Fatalf("the refusal has to name what happened: %v", err)
+		}
+	})
 }
 
 // TestMergeMRDoesNotQueueWhenPipelineIsNotTheOnlyBlocker protects the
