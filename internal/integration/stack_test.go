@@ -242,8 +242,16 @@ func newStack(t *testing.T) *stack {
 	}
 	hash, _ := identbuiltin.HashPassword("admin-passwort")
 	s.adminID = uuid.New()
-	if _, err := pool.Exec(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
-		VALUES ($1,$2,'admin@test.local','Admin',$3,'platform_admin')`, s.adminID, s.orgID, hash); err != nil {
+	// Login sits on the account, the seat points at it (P1) — a stack that
+	// created only the seat would have an admin who cannot sign in.
+	accountID := uuid.New()
+	if _, err := pool.Exec(ctx, `INSERT INTO accounts (id, email, password_hash, display_name, email_verified_at)
+		VALUES ($1,'admin@test.local',$2,'Admin',now())`, accountID, hash); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO humans (id, org_id, account_id, email, display_name, password_hash, role)
+		VALUES ($1,$2,$3,'admin@test.local','Admin',$4,'platform_admin')`,
+		s.adminID, s.orgID, accountID, hash); err != nil {
 		t.Fatal(err)
 	}
 	return s
@@ -342,4 +350,30 @@ func signWebhook(body []byte) string {
 	mac := hmac.New(sha1.New, []byte(webhookSecret))
 	mac.Write(body)
 	return "sha1=" + hex.EncodeToString(mac.Sum(nil))
+}
+
+// mitglied legt einen Sitz samt Login an. Seit P1 gehoeren beide zusammen: ein
+// Mensch ohne Konto koennte sich nicht anmelden, und genau das haben die Tests
+// vorher unbemerkt gebaut.
+func (s *stack) mitglied(t *testing.T, email, name, rolle, passwort string) uuid.UUID {
+	t.Helper()
+	hash, err := identbuiltin.HashPassword(passwort)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	accountID := uuid.New()
+	if _, err := s.pool.Exec(ctx, `INSERT INTO accounts (id, email, password_hash, display_name, email_verified_at)
+		VALUES ($1,$2,$3,$4,now()) ON CONFLICT (email) DO NOTHING`, accountID, email, hash, name); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.pool.QueryRow(ctx, `SELECT id FROM accounts WHERE email=$1`, email).Scan(&accountID); err != nil {
+		t.Fatal(err)
+	}
+	id := uuid.New()
+	if _, err := s.pool.Exec(ctx, `INSERT INTO humans (id, org_id, account_id, email, display_name, password_hash, role)
+		VALUES ($1,$2,$3,$4,$5,$6,$7)`, id, s.orgID, accountID, email, name, hash, rolle); err != nil {
+		t.Fatal(err)
+	}
+	return id
 }

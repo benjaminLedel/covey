@@ -1,14 +1,9 @@
 package integration
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
-
-	"github.com/google/uuid"
-
-	identbuiltin "covey/internal/identity/builtin"
 )
 
 // TestWikiTransparencyAPI checks the wiki transparency in the web interface
@@ -55,11 +50,7 @@ func TestWikiTransparencyAPI(t *testing.T) {
 	}
 
 	// RBAC: the auditor may read the log but not consolidate.
-	hash, _ := identbuiltin.HashPassword("auditor-passwort")
-	if _, err := s.pool.Exec(context.Background(), `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
-		VALUES ($1,$2,'auditor@test.local','Auditor',$3,'auditor')`, uuid.New(), s.orgID, hash); err != nil {
-		t.Fatal(err)
-	}
+	s.mitglied(t, "auditor@test.local", "Auditor", "auditor", "auditor-passwort")
 	auditor := login(t, s, "auditor@test.local", "auditor-passwort")
 	auditor.expect(http.MethodGet, "/api/v1/agents/"+agentID+"/wiki/log", nil, http.StatusOK)
 	auditor.expect(http.MethodPost, "/api/v1/agents/"+agentID+"/wiki/consolidate", nil, http.StatusForbidden)

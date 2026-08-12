@@ -7,10 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
-
 	"covey/internal/backlog"
-	identbuiltin "covey/internal/identity/builtin"
 )
 
 // The emergency stop for the whole fleet (spec/06) had not a single test — of
@@ -85,7 +82,6 @@ func TestNotausDerFlotte(t *testing.T) {
 // on a multi-tenant platform.
 func TestNotausRollenUndOrgGrenze(t *testing.T) {
 	s := newStack(t)
-	ctx := context.Background()
 
 	for email, rolle := range map[string]string{
 		"sec-notaus@test.local":  "security",
@@ -93,11 +89,7 @@ func TestNotausRollenUndOrgGrenze(t *testing.T) {
 		"auditor2@test.local":    "auditor",
 		"controlling@test.local": "controlling",
 	} {
-		hash, _ := identbuiltin.HashPassword("passwort-1234")
-		if _, err := s.pool.Exec(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
-			VALUES ($1,$2,$3,$4,$5,$6)`, uuid.New(), s.orgID, email, rolle, hash, rolle); err != nil {
-			t.Fatal(err)
-		}
+		s.mitglied(t, email, rolle, rolle, "passwort-1234")
 	}
 
 	// May: security (and further down the platform admin).

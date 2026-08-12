@@ -6,10 +6,6 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-
-	"github.com/google/uuid"
-
-	identbuiltin "covey/internal/identity/builtin"
 )
 
 // triggerPost fires the public trigger endpoint without session auth — the way a
@@ -41,11 +37,7 @@ func TestAgentWebhookTrigger(t *testing.T) {
 	base := "/api/v1/agents/" + agent.ID.String() + "/webhook"
 
 	// A second user with a read-only role: must not manage the trigger.
-	hash, _ := identbuiltin.HashPassword("auditor-passwort")
-	if _, err := s.pool.Exec(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
-		VALUES ($1,$2,'auditor@test.local','Auditor',$3,'auditor')`, uuid.New(), s.orgID, hash); err != nil {
-		t.Fatal(err)
-	}
+	s.mitglied(t, "auditor@test.local", "Auditor", "auditor", "auditor-passwort")
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 	auditor := login(t, s, "auditor@test.local", "auditor-passwort")
 

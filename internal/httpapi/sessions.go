@@ -29,23 +29,46 @@ type Session struct {
 	ExpiresAt time.Time
 }
 
-// Create records a session.
-func (st sessionStore) Create(ctx context.Context, tokenHash string, humanID uuid.UUID, expires time.Time) error {
+// Create records a session. humanID is the ACTIVE membership and may be the
+// zero UUID: an account without an organisation is signed in, it just has no
+// seat to work from yet.
+func (st sessionStore) Create(ctx context.Context, tokenHash string, accountID, humanID uuid.UUID, expires time.Time) error {
+	var seat *uuid.UUID
+	if humanID != uuid.Nil {
+		seat = &humanID
+	}
 	_, err := st.pool.Exec(ctx,
-		`INSERT INTO http_sessions (token_hash, human_id, expires_at) VALUES ($1,$2,$3)`,
-		tokenHash, humanID, expires)
+		`INSERT INTO http_sessions (token_hash, account_id, human_id, expires_at) VALUES ($1,$2,$3,$4)`,
+		tokenHash, accountID, seat, expires)
 	return err
 }
 
-// Principal resolves a session to the signed-in human. Expired sessions count
-// as absent — the check sits inside the query so it cannot be forgotten.
+// Principal resolves a session to the signed-in account plus the seat it works
+// from. Expired sessions count as absent — the check sits inside the query so
+// it cannot be forgotten.
+//
+// The join to humans is a LEFT JOIN: a session without a seat is valid, and it
+// then carries the account with an empty organisation. An INNER JOIN would
+// make such a session look like no session at all — and whoever just
+// registered would be thrown back to the login form.
 func (st sessionStore) Principal(ctx context.Context, tokenHash string) (identity.Principal, error) {
 	var p identity.Principal
-	err := st.pool.QueryRow(ctx, `SELECT h.id, h.org_id, h.email, h.display_name, h.role
-		FROM http_sessions s JOIN humans h ON h.id = s.human_id
+	var humanID, orgID *uuid.UUID
+	var role *string
+	err := st.pool.QueryRow(ctx, `SELECT a.id, a.email, a.display_name, a.platform_role,
+			h.id, h.org_id, h.role
+		FROM http_sessions s
+		JOIN accounts a ON a.id = s.account_id
+		LEFT JOIN humans h ON h.id = s.human_id
 		WHERE s.token_hash = $1 AND s.expires_at > now()`, tokenHash).
-		Scan(&p.ID, &p.OrgID, &p.Email, &p.DisplayName, &p.Role)
-	return p, err
+		Scan(&p.AccountID, &p.Email, &p.DisplayName, &p.PlatformRole, &humanID, &orgID, &role)
+	if err != nil {
+		return identity.Principal{}, err
+	}
+	if humanID != nil {
+		p.ID, p.OrgID, p.Role = *humanID, *orgID, *role
+	}
+	return p, nil
 }
 
 // Delete ends a single session (sign-out).
@@ -54,10 +77,12 @@ func (st sessionStore) Delete(ctx context.Context, tokenHash string) error {
 	return err
 }
 
-// List returns a human's open sessions, newest first.
-func (st sessionStore) List(ctx context.Context, humanID uuid.UUID) ([]Session, error) {
+// List returns an account's open sessions, newest first. Deliberately per
+// ACCOUNT and not per seat: the list answers "where am I signed in?", and that
+// is a question about the person, not about one of their organisations.
+func (st sessionStore) List(ctx context.Context, accountID uuid.UUID) ([]Session, error) {
 	rows, err := st.pool.Query(ctx, `SELECT token_hash, created_at, expires_at
-		FROM http_sessions WHERE human_id=$1 AND expires_at > now() ORDER BY created_at DESC`, humanID)
+		FROM http_sessions WHERE account_id=$1 AND expires_at > now() ORDER BY created_at DESC`, accountID)
 	if err != nil {
 		return nil, err
 	}
@@ -74,9 +99,9 @@ func (st sessionStore) List(ctx context.Context, humanID uuid.UUID) ([]Session, 
 }
 
 // DeleteOthers signs out every other browser and leaves the current one alone.
-func (st sessionStore) DeleteOthers(ctx context.Context, humanID uuid.UUID, keep string) (int64, error) {
+func (st sessionStore) DeleteOthers(ctx context.Context, accountID uuid.UUID, keep string) (int64, error) {
 	tag, err := st.pool.Exec(ctx,
-		"DELETE FROM http_sessions WHERE human_id=$1 AND token_hash <> $2", humanID, keep)
+		"DELETE FROM http_sessions WHERE account_id=$1 AND token_hash <> $2", accountID, keep)
 	if err != nil {
 		return 0, err
 	}

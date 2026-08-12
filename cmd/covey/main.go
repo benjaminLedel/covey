@@ -223,9 +223,22 @@ func runBootstrap(ctx context.Context, cfg config.Config, log *slog.Logger) erro
 				return err
 			}
 			adminID = uuid.New()
-			if _, err := pool.Exec(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
-				VALUES ($1,$2,$3,'Platform Admin',$4,'platform_admin')`,
-				adminID, orgID, adminEmail, hash); err != nil {
+			// The login sits on the account (P1); the seat points at it. A
+			// bootstrap that created only the seat would leave an admin who
+			// cannot sign in — and that is exactly the situation bootstrap
+			// exists to prevent.
+			accountID := uuid.New()
+			if _, err := pool.Exec(ctx, `INSERT INTO accounts (id, email, password_hash, display_name, email_verified_at, platform_role)
+				VALUES ($1,$2,$3,'Platform Admin',now(),'system_admin')
+				ON CONFLICT (email) DO NOTHING`, accountID, adminEmail, hash); err != nil {
+				return err
+			}
+			if err := pool.QueryRow(ctx, `SELECT id FROM accounts WHERE email=$1`, adminEmail).Scan(&accountID); err != nil {
+				return err
+			}
+			if _, err := pool.Exec(ctx, `INSERT INTO humans (id, org_id, account_id, email, display_name, password_hash, role)
+				VALUES ($1,$2,$3,$4,'Platform Admin',$5,'platform_admin')`,
+				adminID, orgID, accountID, adminEmail, hash); err != nil {
 				return err
 			}
 			log.Info("admin created", "email", adminEmail)
@@ -448,18 +461,21 @@ func runPasswd(ctx context.Context, cfg config.Config, args []string, log *slog.
 	}
 	defer pool.Close()
 
+	// The emergency reset works on the ACCOUNT: that is where the password
+	// lives, and whoever is locked out is locked out as a person, not as the
+	// occupant of one seat.
 	var id uuid.UUID
-	if err := pool.QueryRow(ctx, "SELECT id FROM humans WHERE email=$1", email).Scan(&id); err != nil {
-		return fmt.Errorf("no user with e-mail %q", email)
+	if err := pool.QueryRow(ctx, "SELECT id FROM accounts WHERE email=$1", email).Scan(&id); err != nil {
+		return fmt.Errorf("no account with e-mail %q", email)
 	}
 	hash, err := identbuiltin.HashPassword(pw)
 	if err != nil {
 		return err
 	}
-	if _, err := pool.Exec(ctx, "UPDATE humans SET password_hash=$1 WHERE id=$2", hash, id); err != nil {
+	if _, err := pool.Exec(ctx, "UPDATE accounts SET password_hash=$1 WHERE id=$2", hash, id); err != nil {
 		return err
 	}
-	if _, err := pool.Exec(ctx, "DELETE FROM http_sessions WHERE human_id=$1", id); err != nil {
+	if _, err := pool.Exec(ctx, "DELETE FROM http_sessions WHERE account_id=$1", id); err != nil {
 		return err
 	}
 	log.Info("password set anew, all sessions invalidated", "email", email)

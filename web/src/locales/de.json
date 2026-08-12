@@ -548,6 +548,11 @@
     "localOnly": "nur lokal",
     "demoLogin": "Demo-Login (Admin)"
   },
+  "noOrg": {
+    "title": "Noch keine Organisation",
+    "text": "{{email}} ist angemeldet, gehört aber zu keiner Organisation. Beitreten oder eine eigene gründen kommt als nächster Schritt; bis dahin kann hier niemand für Sie etwas freischalten außer der Administration Ihrer Organisation.",
+    "signOut": "Abmelden"
+  },
   "landing": {
     "pitch": "Covey behandelt KI-Agenten wie Mitarbeiter: eigene Identität, isolierte Sandbox, gebrokerte Zugänge und ein Platz im Org-Chart. Sie stellen ein, weisen Aufgaben zu und behalten die Kontrolle — über einen Agenten oder die gesamte Belegschaft.",
     "point1": "Jeder Agent mit Rolle, Backlog und Vorgesetztem — geführt wie ein Mitarbeiter.",

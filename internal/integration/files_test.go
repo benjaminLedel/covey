@@ -14,8 +14,6 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-
-	identbuiltin "covey/internal/identity/builtin"
 )
 
 // TestSandboxFilesAPI checks an agent's workplace through the API (spec/02:
@@ -110,11 +108,7 @@ func TestSandboxFilesAPI(t *testing.T) {
 	// RBAC: the auditor does not see the workplace, security reads but does not write.
 	ctx := context.Background()
 	for email, role := range map[string]string{"auditor@test.local": "auditor", "sec@test.local": "security"} {
-		hash, _ := identbuiltin.HashPassword("passwort-1234")
-		if _, err := s.pool.Exec(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
-			VALUES ($1,$2,$3,$4,$5,$6)`, uuid.New(), s.orgID, email, role, hash, role); err != nil {
-			t.Fatal(err)
-		}
+		s.mitglied(t, email, role, role, "passwort-1234")
 	}
 	auditor := login(t, s, "auditor@test.local", "passwort-1234")
 	auditor.expect(http.MethodGet, base, nil, http.StatusForbidden)
@@ -313,12 +307,7 @@ func TestSandboxFilesZipUndOrdnerUpload(t *testing.T) {
 	admin.expect(http.MethodGet, base+"/zip?path="+url.QueryEscape("../../etc"), nil, http.StatusNotFound)
 
 	// Security may read, so it may download too — writing still not.
-	ctx := context.Background()
-	hash, _ := identbuiltin.HashPassword("passwort-1234")
-	if _, err := s.pool.Exec(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
-		VALUES ($1,$2,'zipsec@test.local','Security',$3,'security')`, uuid.New(), s.orgID, hash); err != nil {
-		t.Fatal(err)
-	}
+	s.mitglied(t, "zipsec@test.local", "Security", "security", "passwort-1234")
 	security := login(t, s, "zipsec@test.local", "passwort-1234")
 	security.expect(http.MethodGet, base+"/zip?path="+url.QueryEscape("projekt"), nil, http.StatusOK)
 }

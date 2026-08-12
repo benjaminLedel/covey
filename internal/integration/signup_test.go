@@ -183,8 +183,11 @@ func TestEinmalCodeHaeltGleichzeitigkeitStand(t *testing.T) {
 		t.Fatalf("%d von %d Anfragen kamen durch — ein Einmal-Code darf genau einmal gelten (%v)", erfolge, versuche, ergebnis)
 	}
 
+	// Gezählt werden nur die Konten aus dieser Registrierung — der Stack bringt
+	// das Admin-Konto mit, und ein Test, der das mitzählt, misst den Stack.
 	var konten int
-	if err := s.pool.QueryRow(ctx, "SELECT count(*) FROM accounts").Scan(&konten); err != nil {
+	if err := s.pool.QueryRow(ctx,
+		"SELECT count(*) FROM accounts WHERE email LIKE '%@example.de'").Scan(&konten); err != nil {
 		t.Fatal(err)
 	}
 	if konten != 1 {
@@ -236,7 +239,8 @@ func TestAbgelaufenUndZurueckgezogen(t *testing.T) {
 	res.Body.Close()
 
 	var konten int
-	if err := s.pool.QueryRow(ctx, "SELECT count(*) FROM accounts").Scan(&konten); err != nil {
+	if err := s.pool.QueryRow(ctx,
+		"SELECT count(*) FROM accounts WHERE email LIKE '%@example.de'").Scan(&konten); err != nil {
 		t.Fatal(err)
 	}
 	if konten != 0 {

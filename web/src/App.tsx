@@ -7,6 +7,7 @@ import i18n, { gespeicherteSprache, istVorgerendert, merkeSprache } from "./i18n
 import HelpDrawer from "./components/HelpDrawer";
 import ThemeSwitch from "./components/ThemeSwitch";
 import PublicSite from "./public/PublicSite";
+import NoOrganization from "./pages/NoOrganization";
 import Dashboard from "./pages/Dashboard";
 import AgentPage from "./pages/Agent";
 import Approvals from "./pages/Approvals";
@@ -56,6 +57,10 @@ function useLiveEvents(enabled: boolean) {
    allen anderen Pfaden bleibt es beim bisherigen Verhalten. */
 const prerendered = istVorgerendert();
 
+/* Die leere UUID ist die Antwort des Servers auf "noch keine Organisation" —
+   Principal.OrgID ist ein Wert, kein Zeiger, und hat deshalb keinen NULL. */
+const LEERE_UUID = "00000000-0000-0000-0000-000000000000";
+
 export default function App() {
   const me = useQuery({
     queryKey: ["me"],
@@ -68,6 +73,12 @@ export default function App() {
     return prerendered ? <PublicSite onLogin={() => me.refetch()} /> : null;
   }
   if (me.isError) return <PublicSite onLogin={() => me.refetch()} />;
+  /* Angemeldet, aber ohne Sitz: seit die Anmeldung am Konto hängt (FR-002),
+     kann ein Konto existieren, bevor eine Organisation es kennt. Die Shell
+     liefe dort in lauter 409er, deshalb kommt sie gar nicht erst dran. */
+  if (me.data!.OrgID === LEERE_UUID) {
+    return <NoOrganization me={me.data!} onLogout={() => me.refetch()} />;
+  }
   return <Shell me={me.data!} onLogout={() => me.refetch()} />;
 }
 

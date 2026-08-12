@@ -559,6 +559,19 @@ func (s *Server) auth(next http.HandlerFunc) http.Handler {
 func (s *Server) rbac(roles []string, next http.HandlerFunc) http.Handler {
 	return s.auth(func(w http.ResponseWriter, r *http.Request) {
 		p := principalFrom(r)
+		// Signed in, but no seat: since accounts were split off from
+		// memberships (FR-002), an account can exist before its organisation
+		// does. That is not a lack of RIGHTS but a lack of CONTEXT, and it
+		// needs an answer of its own — otherwise the interface reads the 403
+		// as "wrong password", throws the session away and sends whoever just
+		// registered back to the login form they came from.
+		if !p.HasOrg() {
+			writeJSON(w, http.StatusConflict, map[string]string{
+				"error": "no_organization",
+				"hint":  "this account does not belong to an organisation yet",
+			})
+			return
+		}
 		for _, role := range roles {
 			if p.Role == role {
 				next(w, r)
@@ -681,7 +694,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	buf := make([]byte, 32)
 	rand.Read(buf)
 	token := hex.EncodeToString(buf)
-	if err := s.sessions().Create(r.Context(), hashToken(token), p.ID, time.Now().Add(s.SessionTTL)); err != nil {
+	if err := s.sessions().Create(r.Context(), hashToken(token), p.AccountID, p.ID, time.Now().Add(s.SessionTTL)); err != nil {
 		mapErr(w, err)
 		return
 	}

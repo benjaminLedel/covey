@@ -548,6 +548,11 @@
     "localOnly": "local only",
     "demoLogin": "Demo Login (Admin)"
   },
+  "noOrg": {
+    "title": "No organisation yet",
+    "text": "{{email}} is signed in but belongs to no organisation. Joining one or founding your own follows as the next step; until then only your organisation's administrators can let you in.",
+    "signOut": "Sign out"
+  },
   "landing": {
     "pitch": "Covey treats AI agents like employees: their own identity, an isolated sandbox, brokered access and a place in the org chart. You hire them, assign tasks and stay in control — one agent or your entire workforce.",
     "point1": "Every agent with a role, a backlog and a supervisor — managed like an employee.",
