@@ -70,7 +70,8 @@ const (
 type InjectConfig struct {
 	SystemPrompt string   `json:"system_prompt"`
 	Runtime      string   `json:"runtime"`
-	Model        string   `json:"model,omitempty"` // empty = runtime default
+	Model        string   `json:"model,omitempty"`  // empty = runtime default
+	Effort       string   `json:"effort,omitempty"` // low/medium/high/xhigh/max; empty = runtime default
 	AllowedTools []string `json:"allowed_tools,omitempty"`
 	MaxTurns     int      `json:"max_turns,omitempty"`
 	MaxBudgetUSD float64  `json:"max_budget_usd,omitempty"`

@@ -26,6 +26,7 @@ The control maps almost 1:1 onto the daemon protocol:
 | `-p "<task>"` | `assign_task` — a task from the backlog ([`03`](03-lifecycle-scheduling.md)) |
 | `--append-system-prompt` / `--system-prompt` | `inject_config` — the compiled `SOUL.md` ([`02`](02-agent-model.md)) |
 | `--model <id\|alias>` | `inject_config.model` — the model per agent (registry field, PATCH `/agents/{id}/model`); empty = the binary's/account's default |
+| `--effort <low\|medium\|high\|xhigh\|max>` | `inject_config.effort` — the reasoning effort per agent (registry field, PATCH `/agents/{id}/effort`); empty = the binary's default. Independent of the model: a model runs at any level |
 | `--max-turns <n>` | `inject_config.max_turns` — the turn limit per agent (registry field, PATCH `/agents/{id}/max-turns`); 0 = orchestrator default (30) |
 | `--output-format stream-json` | the `event` stream → recording ([`06`](06-observability-control.md)) |
 | `--output-format json` → `total_cost_usd` | `cost` → cost control ([`06`](06-observability-control.md)) |
@@ -34,6 +35,10 @@ The control maps almost 1:1 onto the daemon protocol:
 | `--max-turns`, `--max-budget-usd` | budget/runaway guard rails ([`06`](06-observability-control.md)) |
 | `--mcp-config` | the action proxy as a tool server — target actions as typed tool calls instead of `curl` in the shell ([`01`](01-architecture.md)) |
 | exit code ≠ 0 | error path → `task_done`(error) |
+
+**On `--effort`:** the levels are a property of the **engine**, not of Covey, and are therefore declared by the runtime plugin (`RuntimeCapabilities.EffortLevels`) rather than listed in the API layer. The control plane validates a level against the engine the agent runs on, the interface offers only the levels that engine declares, and an engine without the control does not show the field at all. Switching an agent to an engine that does not know its level resets the level to that engine's default — a setting that is stored, displayed and read by nobody is the worst of the available outcomes.
+
+The flag is also **younger than some sandbox images**. The image installs the CLI unpinned (`npm install -g @anthropic-ai/claude-code`), so its version freezes at build time; a `claude` that predates `--effort` fails every run of an effort-configured agent with `unknown option '--effort'`. Rebuild the sandbox image (`make sandbox-image`) after adopting the field — that is the same step as for any other daemon-side change.
 
 **On `--mcp-config`:** the action proxy serves its actions as MCP tools as well (see [`01-architecture.md`](01-architecture.md)), and the adapter hands the runtime that server. Its tools have to go into the **same** `--allowedTools` list: the flag is a whitelist and may appear only once, and without the entry a headless run would ask for permission on every action — which nobody answers. The route is **opt-in for now** (`COVEY_ACTION_MCP`): the shell form is what every existing agent config describes, and a failed handshake would take all target actions with it. Switch it on per instance, watch one agent's recording for a run, then make it the default.
 

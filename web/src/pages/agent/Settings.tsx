@@ -126,6 +126,10 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
     mutationFn: (model: string) => patch(`/agents/${agent.id}/model`, { model }),
     onSuccess: invalidate,
   });
+  const setEffort = useMutation({
+    mutationFn: (effort: string) => patch(`/agents/${agent.id}/effort`, { effort }),
+    onSuccess: invalidate,
+  });
   const setMaxTurns = useMutation({
     mutationFn: (maxTurns: number) => patch(`/agents/${agent.id}/max-turns`, { max_turns: maxTurns }),
     onSuccess: invalidate,
@@ -151,11 +155,17 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
   });
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const anyError = [setName, setSlug, setRuntime, setModel, setMaxTurns, setRecordingLevel, setBudget].find(
+  const anyError = [setName, setSlug, setRuntime, setModel, setEffort, setMaxTurns, setRecordingLevel, setBudget].find(
     (m) => m.isError,
   );
 
   const rtList = runtimes.data ?? [];
+  // Die Denkaufwand-Stufen kommen von der Engine, nicht aus dieser Datei: eine
+  // Engine ohne den Regler soll ihn auch nicht angeboten bekommen. Solange die
+  // Runtime-Liste noch lädt, zeigen wir die Zeile nur, wenn der Agent bereits
+  // eine Stufe gesetzt hat — sonst blitzt sie auf und verschwindet wieder.
+  const effortLevels = rtList.find((rt) => rt.name === agent.runtime)?.capabilities.effort_levels ?? [];
+  const showEffort = effortLevels.length > 0 || !!agent.effort;
   const row: CSSProperties = {
     display: "grid",
     gridTemplateColumns: "180px minmax(200px, 320px) 1fr",
@@ -261,6 +271,27 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
         />
         <span className="muted text-xs">{t("agent.settings.modelHint")}</span>
       </div>
+      {showEffort && (
+        <div style={row}>
+          <span className="text-sm">{t("agent.settings.effort")}</span>
+          <select
+            key={`effort:${agent.effort}`}
+            defaultValue={agent.effort || ""}
+            disabled={!editable || setEffort.isPending}
+            onChange={(e) => {
+              if (e.target.value !== (agent.effort || "")) setEffort.mutate(e.target.value);
+            }}
+          >
+            <option value="">{t("agent.settings.effortDefault")}</option>
+            {effortLevels.map((lvl) => (
+              <option key={lvl} value={lvl}>
+                {lvl}
+              </option>
+            ))}
+          </select>
+          <span className="muted text-xs">{t("agent.settings.effortHint")}</span>
+        </div>
+      )}
       <div style={row}>
         <span className="text-sm">{t("agent.settings.maxTurns")}</span>
         <input

@@ -41,6 +41,10 @@ type Agent struct {
 	// Model picks the LLM within the runtime (e.g. claude-opus-4-8);
 	// empty = the runtime uses its own default.
 	Model string `json:"model"`
+	// Effort sets the reasoning effort within the runtime (Claude Code's
+	// --effort: low, medium, high, xhigh, max); empty = the runtime's own
+	// default. Independent of Model — a model can run at any effort level.
+	Effort string `json:"effort"`
 	// MaxTurns caps the turns of a runtime run (runaway guard);
 	// 0 = the orchestrator's default.
 	MaxTurns int        `json:"max_turns"`
@@ -118,11 +122,11 @@ type Registry struct {
 
 func NewRegistry(pool *pgxpool.Pool) *Registry { return &Registry{pool: pool} }
 
-const agentCols = "id, org_id, slug, display_name, runtime, model, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, runtime_id, webhook_token, COALESCE(recording_level,''), warm_sandbox, hired_at, created_at, updated_at"
+const agentCols = "id, org_id, slug, display_name, runtime, model, effort, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, runtime_id, webhook_token, COALESCE(recording_level,''), warm_sandbox, hired_at, created_at, updated_at"
 
 func scanAgent(row pgx.Row) (Agent, error) {
 	var a Agent
-	err := row.Scan(&a.ID, &a.OrgID, &a.Slug, &a.DisplayName, &a.Runtime, &a.Model, &a.MaxTurns, &a.Status,
+	err := row.Scan(&a.ID, &a.OrgID, &a.Slug, &a.DisplayName, &a.Runtime, &a.Model, &a.Effort, &a.MaxTurns, &a.Status,
 		&a.OwnerID, &a.SupervisorID, &a.DepartmentID, &a.JobTitle, &a.Identities, &a.Phone, &a.Responsibilities, &a.Custom,
 		&a.Killed, &a.BudgetUSD, &a.RuntimeID, &a.WebhookToken, &a.RecordingLevel, &a.WarmSandbox, &a.HiredAt, &a.CreatedAt, &a.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -144,9 +148,15 @@ func (r *Registry) CreateDraft(ctx context.Context, orgID uuid.UUID, slug, displ
 	return r.create(ctx, orgID, slug, displayName, runtime, ownerID, true)
 }
 
+// DefaultRuntime is the engine an agent gets when none is named — the one every
+// bundle without a `runtime` field ends up on. Named here so that whoever has to
+// validate against the engine BEFORE the agent exists (the bundle import) asks
+// the same question as create() answers.
+const DefaultRuntime = "claude-code"
+
 func (r *Registry) create(ctx context.Context, orgID uuid.UUID, slug, displayName, runtime string, ownerID *uuid.UUID, draft bool) (Agent, error) {
 	if runtime == "" {
-		runtime = "claude-code"
+		runtime = DefaultRuntime
 	}
 	hired := "now()"
 	if draft {
@@ -284,6 +294,17 @@ func (r *Registry) SetRuntime(ctx context.Context, id uuid.UUID, runtime string)
 // Takes effect at the next task dispatch, like SetRuntime.
 func (r *Registry) SetModel(ctx context.Context, id uuid.UUID, model string) error {
 	tag, err := r.pool.Exec(ctx, "UPDATE agents SET model=$2, updated_at=now() WHERE id=$1", id, model)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+// SetEffort sets the agent's reasoning effort (Claude Code's --effort: low,
+// medium, high, xhigh, max; empty = runtime default). Independent of the
+// model — takes effect at the next task dispatch, like SetModel.
+func (r *Registry) SetEffort(ctx context.Context, id uuid.UUID, effort string) error {
+	tag, err := r.pool.Exec(ctx, "UPDATE agents SET effort=$2, updated_at=now() WHERE id=$1", id, effort)
 	if err == nil && tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
