@@ -112,6 +112,8 @@ func main() {
 		err = runWaitlist(ctx, cfg, os.Args[2:])
 	case "system-admin":
 		err = runSystemAdmin(ctx, cfg, os.Args[2:])
+	case "doctor":
+		err = runDoctor(ctx, cfg)
 	case "genkey":
 		var key string
 		if key, err = secbuiltin.GenerateMasterKey(); err == nil {
@@ -139,6 +141,7 @@ func usage() {
   covey settings [k v]    show the instance's settings, or set one (e.g. signup.mode waitlist)
   covey waitlist          list waitlist codes | new [-label L] [-uses N] [-days D] | revoke <hash>
   covey system-admin      list | add <email> | remove <email> — the instance level, not an org role
+  covey doctor            check this installation BEFORE an upgrade (changes nothing)
   covey genkey            generate a new COVEY_MASTER_KEY
   covey version           version, commit and build time of this binary
 
@@ -364,6 +367,98 @@ func runSettings(ctx context.Context, cfg config.Config, args []string, log *slo
 	default:
 		return errors.New("usage: covey settings [<key> <value>]")
 	}
+}
+
+// runDoctor checks an installation before an upgrade — and changes nothing.
+//
+// The reason it exists: migrations run at the start of `covey serve`, and two
+// of them refuse to guess (0059). A refusal is the right answer — merging two
+// people into one login would hand one of them the other's access — but on an
+// instance that deploys automatically it arrives as "the service does not come
+// up", at a moment when nobody is looking for a database question. This
+// command asks it beforehand.
+func runDoctor(ctx context.Context, cfg config.Config) error {
+	pool, err := db.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+
+	var probleme int
+	melde := func(schwere, text string) {
+		fmt.Printf("%-8s %s\n", schwere, text)
+		if schwere == "BLOCKS" {
+			probleme++
+		}
+	}
+
+	// 1. Adressen, die sich nur in der Schreibweise unterscheiden. In humans
+	//    zwei Zeilen, in accounts ein Login — also ein Mensch mit dem Zugang
+	//    eines anderen.
+	rows, err := pool.Query(ctx, `SELECT lower(email), count(*) FROM humans
+		GROUP BY lower(email) HAVING count(*) > 1`)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var email string
+			var n int
+			if err := rows.Scan(&email, &n); err == nil {
+				melde("BLOCKS", fmt.Sprintf("%s exists %dx in humans (different spellings) — deduplicate before upgrading", email, n))
+			}
+		}
+	}
+
+	// 2. Ein selbstregistriertes Konto auf der Adresse eines bestehenden Sitzes.
+	//
+	// Welche Frage hier richtig ist, haengt vom Stand der Datenbank ab, und das
+	// ist keine Feinheit: VOR 0059 gibt es humans.account_id nicht, eine
+	// Abfrage darauf laeuft in einen Fehler — und ein verschluckter Fehler ist
+	// hier schlimmer als keine Pruefung, weil er wie eine bestandene aussieht.
+	// NACH 0059 traegt jeder Sitz ein Konto mit derselben Adresse, dann waere
+	// die unbedingte Abfrage lauter Fehlalarm.
+	var verknuepft bool
+	if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM information_schema.columns
+		WHERE table_name='humans' AND column_name='account_id')`).Scan(&verknuepft); err != nil {
+		return err
+	}
+	abfrage := `SELECT a.email FROM accounts a JOIN humans h ON lower(h.email) = a.email`
+	if verknuepft {
+		abfrage += ` WHERE h.account_id IS NULL`
+	}
+	krows, err := pool.Query(ctx, abfrage)
+	if err != nil {
+		// accounts gibt es erst ab 0058 — auf einer aelteren Datenbank ist die
+		// Frage gegenstandslos, nicht unbeantwortet.
+		melde("note", "no accounts table yet — this installation is older than the sign-up work")
+	} else {
+		defer krows.Close()
+		for krows.Next() {
+			var email string
+			if err := krows.Scan(&email); err == nil {
+				melde("BLOCKS", email+" has a self-registered account AND an existing seat — check and delete the account")
+			}
+		}
+	}
+
+	// 3. Wer verwaltet die Instanz? Nach dem Upgrade haengt die
+	//    Mandantenverwaltung daran.
+	var admins, orgs int
+	_ = pool.QueryRow(ctx, `SELECT count(*) FROM accounts WHERE platform_role='system_admin'`).Scan(&admins)
+	_ = pool.QueryRow(ctx, `SELECT count(*) FROM organizations`).Scan(&orgs)
+	switch {
+	case admins > 0:
+		melde("ok", fmt.Sprintf("%d system administrator(s)", admins))
+	case orgs == 1:
+		melde("note", "no system administrator yet — the upgrade appoints the platform_admin of the single organisation")
+	default:
+		melde("WARN", fmt.Sprintf("no system administrator, and %d organisations — nobody could administer the instance; use `covey system-admin add <email>`", orgs))
+	}
+
+	if probleme == 0 {
+		fmt.Println("\nNothing in the way of an upgrade.")
+		return nil
+	}
+	return fmt.Errorf("%d finding(s) block the upgrade — see above", probleme)
 }
 
 // runSystemAdmin manages the instance level.
