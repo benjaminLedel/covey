@@ -655,6 +655,30 @@ func (o *Orchestrator) rememberWorkSignature(ctx context.Context, agentID uuid.U
 	}
 }
 
+// refreshWorkSignature advances a successful heartbeat run to the target
+// system state visible after the work. Dispatch stores the state from before
+// the run; without this refresh an agent's own issue/MR comment changes the
+// note id and immediately wakes the same heartbeat again. Empty signatures
+// remain fail-open and therefore never overwrite a usable watermark.
+func (o *Orchestrator) refreshWorkSignature(ctx context.Context, agentID, orgID uuid.UUID, name string) {
+	var condition string
+	if err := o.Pool.QueryRow(ctx,
+		"SELECT only_if FROM agent_heartbeats WHERE agent_id=$1 AND name=$2",
+		agentID, name).Scan(&condition); err != nil {
+		o.Log.Warn("refresh heartbeat signature: heartbeat not readable", "agent", agentID, "name", name, "err", err)
+		return
+	}
+	if strings.TrimSpace(condition) == "" {
+		return
+	}
+	has, sig := o.heartbeatHasWork(ctx, agentID, orgID, condition)
+	if !has {
+		o.rememberWorkSignature(ctx, agentID, name, "")
+	} else if sig != "" {
+		o.rememberWorkSignature(ctx, agentID, name, sig)
+	}
+}
+
 // EnsureRunning starts an agent session if none is running (idempotent).
 func (o *Orchestrator) EnsureRunning(agentID uuid.UUID) {
 	o.mu.Lock()
@@ -1917,10 +1941,24 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 			return true, err
 		}
 		// A run that ended without a result must not keep its wake-up: the work
-		// it was woken for is still lying there.
-		if state == backlog.StateFailed || d.Status == "escalated" {
-			if t, err := o.Backlog.Get(ctx, taskID); err == nil {
-				o.releaseWorkSignature(ctx, agent.ID, t.Title)
+		// it was woken for is still lying there. A successful run does the
+		// converse and advances its watermark past any target-system action it
+		// performed itself, so that action cannot wake it again.
+		if t, err := o.Backlog.Get(ctx, taskID); err == nil {
+			heartbeatRun := t.Origin == "heartbeat"
+			if !heartbeatRun && strings.HasPrefix(t.Origin, originContinuation+":") {
+				if n, ancestorErr := o.Backlog.AncestorsWithOrigin(ctx, taskID, "heartbeat"); ancestorErr == nil {
+					heartbeatRun = n > 0
+				} else {
+					o.Log.Warn("heartbeat ancestry not determinable", "task", taskID, "err", ancestorErr)
+				}
+			}
+			if heartbeatRun {
+				if state == backlog.StateFailed || d.Status == "escalated" {
+					o.releaseWorkSignature(ctx, agent.ID, t.Title)
+				} else {
+					o.refreshWorkSignature(ctx, agent.ID, agent.OrgID, t.Title)
+				}
 			}
 		}
 		// done step: feed what was learned into the wiki (spec/05). The

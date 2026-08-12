@@ -194,17 +194,31 @@ const issueMaxNotesChecks = 30
 // works exclusively on assigned issues; otherwise every open issue of someone
 // else's in the scope would wake the agent.
 //
-// What is decisive is the edge, not the level: an open issue is work as long as
-// the last non-system comment does NOT come from the bot (or there is none at
-// all yet — then the first triage is outstanding). If the bot wrote last, the
-// issue rests until someone answers. Without that edge a permanently assigned
-// issue would remain "work for ever" and the heartbeat would wake the agent
-// afresh in every interval on the same, long-settled matter — the same logic
-// already carries mrReviewPending/mrReviewAssignedPending.
+// The original design tried edge detection: an open issue counted as work only
+// while the last non-system comment did NOT come from the bot — the same
+// author comparison mrReviewPending used to make, and broken for the identical
+// reason (see there): this organization has no per-role bot accounts, every
+// agent authenticates as the same shared identity, so a colleague agent's
+// triage comment is indistinguishable from the bot's own. The comparison could
+// therefore never observe a real handoff between roles; it just always saw
+// "the bot wrote last" and rested forever.
+//
+// Every open, in-scope issue now counts as work, unconditionally — level
+// detection, same fallback as mrReviewPending, for the same undecidability.
+// That sounds like it would wake every "Zugewiesene Issues sichten" heartbeat
+// on every already-commented issue in every interval, but it does not: the
+// signature this function returns per issue is the highest comment id seen
+// (threadSig), and the caller (heartbeatHasWork in the orchestrator) only
+// actually creates a task when that signature has CHANGED since the last
+// firing — an unchanged, already-triaged issue keeps producing the same
+// signature and stays silent. The volume risk was in re-inspecting the same
+// settled issue on every tick, not in waking on it once when it first
+// legitimately looks unprocessed.
 //
 // The contract that follows: **an agent that has worked on an issue must
-// comment there.** A silent run counts as "not yet worked on" and wakes again.
-// The playbook "issue triage" holds it that way.
+// comment there.** A silent run counts as "not yet worked on" and wakes again
+// — with a real handoff, that comment now needs to change the note count for
+// the new signature to differ, which any real comment does.
 func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) ([]string, error) {
 	issues, err := gc.ListIssues(ctx, 0, "opened", "", "", "", assignedOnly)
 	if err != nil {
@@ -225,10 +239,6 @@ func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) ([]str
 		// changes as soon as an issue comes along or drops out.
 		return []string{fmt.Sprintf("issues:many@%d", len(inScope))}, nil
 	}
-	me, err := gc.CurrentUser(ctx)
-	if err != nil {
-		return nil, err
-	}
 	var waiting []string
 	for _, i := range inScope {
 		// The internal window: the check needs the END of the thread — the last
@@ -237,9 +247,6 @@ func issueWorkPending(ctx context.Context, gc *Client, assignedOnly bool) ([]str
 		p, err := gc.ListNotes(ctx, i.ProjectID, i.IID, notesWindowInternal, 1)
 		if err != nil {
 			return nil, err
-		}
-		if lastHumanNoteIsMine(p.Notes, me.Username) {
-			continue // already answered — rests until someone replies to it
 		}
 		waiting = append(waiting, threadSig("issue", i.ProjectID, i.IID, p.Notes))
 	}
@@ -273,9 +280,9 @@ func workSig(waiting []string) string {
 	return strings.Join(sorted, ",")
 }
 
-// lastHumanNoteIsMine says whether a thread's last non-system comment comes
-// from the bot itself. Without any human comment the answer is false: an
-// uncommented thread is waiting for the first move.
+// lastHumanNoteIsMine is retained only for the reviewer-assigned path. That
+// path is currently unused and must not be changed into level detection (and a
+// review loop) incidentally while the shared-identity author path is repaired.
 func lastHumanNoteIsMine(notes []Note, me string) bool {
 	for i := len(notes) - 1; i >= 0; i-- {
 		if notes[i].System {
@@ -287,10 +294,30 @@ func lastHumanNoteIsMine(notes []Note, me string) bool {
 }
 
 // mrReviewPending checks whether one of the bot's open, self-opened merge
-// requests is waiting for an answer: the last human (non-system) comment in the
-// thread does not come from the bot. Fresh MRs with no comments at all (the bot
-// has just opened it, the review is still outstanding) do NOT count as work —
-// otherwise every open MR would wake the agent in every interval.
+// requests might be waiting for an answer.
+//
+// The original check compared the last non-system comment's author against
+// the bot's own identity: someone else's comment meant feedback was waiting,
+// the bot's own comment meant already answered. That assumes every role
+// authenticates as its own GitLab account. This organization has none — the
+// architect, developer, QA and security agents all authenticate as the SAME
+// shared identity (no bot accounts exist here, see docs/ops-gitlab.md), so a
+// colleague agent's comment is indistinguishable from the bot's own last
+// remark. The author comparison can therefore never observe a real handoff;
+// it silently starves the heartbeat instead of catching it — measured in
+// production, every one of a real MR's back-and-forth review rounds sat
+// unpicked-up for hours because of exactly this (order-system-app!47).
+//
+// The fix drops to the coarser distinction that IS still decidable without
+// per-agent identity: has any conversation started on this MR at all? A
+// freshly opened MR with zero non-system comments is not yet waiting for
+// anything — nobody has said anything to react to. The moment a first
+// comment lands, from either side, the MR might be waiting on this bot; since
+// authorship can't disambiguate that, the answer defaults to yes. The cost is
+// an occasional unnecessary wake on an MR that is actually settled — the
+// agent's own idempotency check (list_mr_notes before acting) absorbs that
+// cheaply, run after run, at a fraction of the cost of never being woken at
+// all.
 func mrReviewPending(ctx context.Context, gc *Client) ([]string, error) {
 	mrs, err := gc.ListMyOpenMergeRequests(ctx)
 	if err != nil {
@@ -305,28 +332,17 @@ func mrReviewPending(ctx context.Context, gc *Client) ([]string, error) {
 	if len(inScope) == 0 {
 		return nil, nil
 	}
-	me, err := gc.CurrentUser(ctx)
-	if err != nil {
-		return nil, err
-	}
 	var waiting []string
 	for _, m := range inScope {
 		p, err := gc.ListMRNotes(ctx, m.ProjectID, m.IID, notesWindowInternal, 1)
 		if err != nil {
 			return nil, err
 		}
-		notes := p.Notes
-		// Within the window the notes arrive chronologically; the last non-system
-		// comment decides. If it is from someone other than the bot, review
-		// feedback is waiting to be worked on.
-		for i := len(notes) - 1; i >= 0; i-- {
-			if notes[i].System {
-				continue
+		for _, n := range p.Notes {
+			if !n.System {
+				waiting = append(waiting, threadSig("mr", m.ProjectID, m.IID, p.Notes))
+				break
 			}
-			if notes[i].Author.Username != me.Username {
-				waiting = append(waiting, threadSig("mr", m.ProjectID, m.IID, notes))
-			}
-			break // the last human comment is the bot's → already answered
 		}
 	}
 	return waiting, nil
@@ -334,17 +350,19 @@ func mrReviewPending(ctx context.Context, gc *Client) ([]string, error) {
 
 // mrReviewAssignedPending is the mirror image of mrReviewPending from the
 // reviewer's point of view: is one of the open merge requests in which the bot
-// is entered as REVIEWER waiting for its review? That carries the review loop
-// for a QA/test agent without a webhook, gated through nur-wenn: gitlab:review.
+// is entered as REVIEWER waiting for its review? That would carry the review
+// loop for a QA/test agent without a webhook, gated through
+// nur-wenn: gitlab:review — currently unused: no agent's HEARTBEAT.md in this
+// organization references "review"/"reviews" (reviewer assignment needs a
+// distinct identity per role, and this organization assigns none — see
+// mrReviewPending; the shared account is now kept OFF the reviewer field
+// entirely, see ACCESS.md notes on ditscheridou).
 //
-// Work is present when a human has written since one's own last comment or the
-// author has pushed NEW COMMITS — or when the bot has said nothing here at all
-// yet. Unlike in the author loop, a fresh MR handed to me for review (still
-// without a comment) VERY MUCH counts as work: it is precisely that one waiting
-// for my first review. If the bot commented last, the MR rests until the author
-// reacts with code — a mere text answer from the author agent ("thanks for the
-// review") is no occasion for a new review round, otherwise the two agents work
-// each other up.
+// Kept unchanged for the day a per-role identity exists. The shared account is
+// deliberately not assigned as reviewer today, so changing this dormant path
+// to level detection would only plant a review loop for future callers. Before
+// enabling nur-wenn: gitlab:review under a shared identity, it needs a durable
+// per-agent reviewed-head marker.
 func mrReviewAssignedPending(ctx context.Context, gc *Client) ([]string, error) {
 	me, err := gc.CurrentUser(ctx)
 	if err != nil {
