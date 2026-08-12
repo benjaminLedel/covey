@@ -2,11 +2,46 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
+
+	"covey/internal/target"
 )
+
+type heartbeatSignatureTestSystem struct{}
+
+var heartbeatSignatureState struct {
+	sync.Mutex
+	sig string
+}
+
+func init() {
+	target.Register(target.Descriptor{
+		Name: "heartbeatsigtest", Kind: "builtin", NoCredentials: true,
+		System: heartbeatSignatureTestSystem{},
+	})
+}
+
+func (heartbeatSignatureTestSystem) Name() string { return "heartbeatsigtest" }
+func (heartbeatSignatureTestSystem) ActionSubject(action string, _ json.RawMessage) string {
+	return "heartbeatsigtest:" + action
+}
+func (heartbeatSignatureTestSystem) Execute(context.Context, string, json.RawMessage, target.Credential) (any, error) {
+	return nil, nil
+}
+func (heartbeatSignatureTestSystem) PromptDoc() string { return "" }
+func (heartbeatSignatureTestSystem) HasWork(context.Context, target.Credential) (bool, error) {
+	return true, nil
+}
+func (heartbeatSignatureTestSystem) HasWorkSigned(context.Context, target.Credential, string) (bool, string, error) {
+	heartbeatSignatureState.Lock()
+	defer heartbeatSignatureState.Unlock()
+	return true, heartbeatSignatureState.sig, nil
+}
 
 // TestHeartbeat checks the schedule trigger from spec/03: HEARTBEAT.md is
 // materialized on save, does not fire immediately, then periodically creates a
@@ -244,5 +279,58 @@ func TestHeartbeatSignatureStaysAfterASuccessfulRun(t *testing.T) {
 	}
 	if got != sig {
 		t.Fatalf("a completed run keeps the suppression, signature is now %q", got)
+	}
+}
+
+// TestHeartbeatSignatureAdvancesAfterASuccessfulRun covers the self-comment
+// loop: dispatch remembers the note id before work starts, then the agent's own
+// comment changes it. Completion must advance the watermark to that handled
+// state, otherwise the next interval treats the agent's own action as new work.
+func TestHeartbeatSignatureAdvancesAfterASuccessfulRun(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+
+	agent, err := s.registry.Create(ctx, s.orgID, "puls-wasserstand", "Puls Wasserstand", "mock", &s.adminID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.registry.SaveConfig(ctx, agent.ID, map[string]string{
+		"SOUL.md":      "# Puls Wasserstand",
+		"HEARTBEAT.md": "- alle: 1h nur-wenn: heartbeatsigtest titel: Abnahme aufgabe: Nimm ab. [mock:result abgenommen]",
+	}, &s.adminID); err != nil {
+		t.Fatal(err)
+	}
+	const before = "issue15!23@41"
+	if _, err := s.pool.Exec(ctx,
+		"UPDATE agent_heartbeats SET last_work_sig=$2 WHERE agent_id=$1 AND name='Abnahme'",
+		agent.ID, before); err != nil {
+		t.Fatal(err)
+	}
+	heartbeatSignatureState.Lock()
+	heartbeatSignatureState.sig = "issue15!23@42"
+	heartbeatSignatureState.Unlock()
+
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	admin.expect(http.MethodPost,
+		"/api/v1/agents/"+agent.ID.String()+"/heartbeats/Abnahme/fire", nil, http.StatusOK)
+
+	waitFor(t, "run done", 20*time.Second, func() bool {
+		tasks, _ := s.backlog.ListByAgent(ctx, agent.ID, true)
+		for _, task := range tasks {
+			if task.Title == "Abnahme" && task.State == "done" {
+				return true
+			}
+		}
+		return false
+	})
+
+	var got string
+	if err := s.pool.QueryRow(ctx,
+		"SELECT last_work_sig FROM agent_heartbeats WHERE agent_id=$1 AND name='Abnahme'",
+		agent.ID).Scan(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got != "issue15!23@42" {
+		t.Fatalf("successful run must advance the handled watermark, got %q", got)
 	}
 }

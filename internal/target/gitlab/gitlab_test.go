@@ -1744,19 +1744,16 @@ func TestHasWorkKindReview(t *testing.T) {
 	reviewMRs, mrNotes = nil, nil
 	check(false)
 
-	// An MR assigned to me for review → work, regardless of its notes. This
-	// kind collapses to level detection (see mrReviewAssignedPending's doc
-	// comment): comment authorship can't tell "the author reworked it" from
-	// "I already reviewed it" apart under a shared identity, so unlike the
-	// old contract, `mine`/`author` no longer change the outcome — kept as
-	// unused local vars here only to document what used to matter.
-	_, _ = author, mine
+	// Keep the unused reviewer path on its existing edge-triggered behavior:
+	// fresh assignment and an author's response need review; my own last review
+	// rests. Shared identities must not silently turn this dormant path into a
+	// level-triggered loop before it is deliberately redesigned.
 	reviewMRs, mrNotes = []MergeRequest{mrIn}, nil
 	check(true)
 	reviewMRs, mrNotes = []MergeRequest{mrIn}, author
 	check(true)
 	reviewMRs, mrNotes = []MergeRequest{mrIn}, mine
-	check(true)
+	check(false)
 }
 
 // TestCheckoutGitBaseline secures the ground on which the sub-agent works in

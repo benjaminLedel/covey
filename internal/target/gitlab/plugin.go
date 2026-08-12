@@ -279,6 +279,19 @@ func workSig(waiting []string) string {
 	return strings.Join(sorted, ",")
 }
 
+// lastHumanNoteIsMine is retained only for the reviewer-assigned path. That
+// path is currently unused and must not be changed into level detection (and a
+// review loop) incidentally while the shared-identity author path is repaired.
+func lastHumanNoteIsMine(notes []Note, me string) bool {
+	for i := len(notes) - 1; i >= 0; i-- {
+		if notes[i].System {
+			continue
+		}
+		return notes[i].Author.Username == me
+	}
+	return false
+}
+
 // mrReviewPending checks whether one of the bot's open, self-opened merge
 // requests might be waiting for an answer.
 //
@@ -344,16 +357,11 @@ func mrReviewPending(ctx context.Context, gc *Client) ([]string, error) {
 // mrReviewPending; the shared account is now kept OFF the reviewer field
 // entirely, see ACCESS.md notes on ditscheridou).
 //
-// Kept for the day a per-role identity exists. Right now it collapses to the
-// same level detection as mrReviewPending, for the same reason: comment
-// authorship cannot disambiguate under a shared identity. That is a safe
-// default for the author loop but a real risk here if this kind is ever wired
-// up — a reviewer that already left feedback looks "pending" again next
-// interval with nothing new to review, and would re-review a settled MR every
-// cycle until the author pushes a new commit. Before enabling
-// nur-wenn: gitlab:review anywhere, that needs a firmer signal (e.g. comparing
-// the MR's head SHA against the SHA last reviewed) instead of this coarse
-// fallback.
+// Kept unchanged for the day a per-role identity exists. The shared account is
+// deliberately not assigned as reviewer today, so changing this dormant path
+// to level detection would only plant a review loop for future callers. Before
+// enabling nur-wenn: gitlab:review under a shared identity, it needs a durable
+// per-agent reviewed-head marker.
 func mrReviewAssignedPending(ctx context.Context, gc *Client) ([]string, error) {
 	me, err := gc.CurrentUser(ctx)
 	if err != nil {
@@ -365,8 +373,15 @@ func mrReviewAssignedPending(ctx context.Context, gc *Client) ([]string, error) 
 	}
 	var waiting []string
 	for _, m := range mrs {
-		if projectInScope(m.ProjectID, mrProjectPath(m)) {
-			waiting = append(waiting, fmt.Sprintf("mr%d!%d@%s", m.ProjectID, m.IID, m.UpdatedAt))
+		if !projectInScope(m.ProjectID, mrProjectPath(m)) {
+			continue
+		}
+		p, err := gc.ListMRNotes(ctx, m.ProjectID, m.IID, notesWindowInternal, 1)
+		if err != nil {
+			return nil, err
+		}
+		if !lastHumanNoteIsMine(p.Notes, me.Username) {
+			waiting = append(waiting, threadSig("mr", m.ProjectID, m.IID, p.Notes))
 		}
 	}
 	return waiting, nil
