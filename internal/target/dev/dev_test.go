@@ -379,3 +379,70 @@ func TestJobWithoutHomeStillStarts(t *testing.T) {
 		t.Fatalf("start: %+v", res)
 	}
 }
+
+// TestPromptDocForScopesHidesSubAgentWithoutScope pins the silent failure this
+// replaces: dev advertised the sub-agent action to every agent with dev access,
+// including the ones whose ACCESS.md granted only exec,processes. Those agents
+// wrote long, well-researched assignments, the scope check refused the call, and
+// the model reported the refusal as success and finished the task done — no
+// commit, no MR, no comment, the run lost. Observed twice on stocki-frontend#16.
+func TestPromptDocForScopesHidesSubAgentWithoutScope(t *testing.T) {
+	doc := (System{}).PromptDocForScopes([]string{"exec", "processes"})
+	if strings.Contains(doc, `agent {"cwd"`) {
+		t.Error("without the agent scope the sub-agent action must not be advertised")
+	}
+	// The rest has to survive — hiding one action must not cost the others.
+	for _, want := range []string{`exec {"cmd"`, `start {"name"`, `logs {"name"`, `list {}`} {
+		if !strings.Contains(doc, want) {
+			t.Errorf("the remaining actions must stay documented, %q missing", want)
+		}
+	}
+	if !strings.HasPrefix(doc, "Available dev actions") {
+		t.Error("the doc must keep its heading")
+	}
+}
+
+func TestPromptDocForScopesShowsSubAgentWithScope(t *testing.T) {
+	doc := (System{}).PromptDocForScopes([]string{"exec", "processes", "agent"})
+	if !strings.Contains(doc, `agent {"cwd"`) {
+		t.Fatal("with the agent scope the sub-agent action must be documented")
+	}
+	if doc != (System{}).PromptDoc() {
+		t.Error("the full scope list must produce the unchanged full doc")
+	}
+}
+
+// TestPromptDocForScopesFailsOpen: ScopedDocSystem requires that an empty scope
+// list answers the full doc — a missing entry must never silently take a
+// capability away from an agent.
+func TestPromptDocForScopesFailsOpen(t *testing.T) {
+	if got := (System{}).PromptDocForScopes(nil); got != (System{}).PromptDoc() {
+		t.Error("an empty scope list must fail open to the full doc")
+	}
+}
+
+// TestPromptDocAssemblesWithoutSeams: the doc is stitched from three constants
+// now, so a missing newline would glue two action descriptions together.
+func TestPromptDocAssemblesWithoutSeams(t *testing.T) {
+	if strings.Contains((System{}).PromptDoc(), "the same run.   exec") {
+		t.Error("the agent block and exec ran together — a newline is missing at the seam")
+	}
+	trimmed := (System{}).PromptDocForScopes([]string{"exec"})
+	if strings.Contains(trimmed, "in it:   exec") {
+		t.Error("heading and exec ran together in the trimmed doc")
+	}
+	if strings.Contains(trimmed, "sub-agent") {
+		t.Error("no stray sub-agent prose may survive the trim")
+	}
+}
+
+// TestDevImplementsScopedDocSystem: the interface is discovered by type
+// assertion in the store, so dropping the method would silently fall back to the
+// full doc and reintroduce the bug above.
+func TestDevImplementsScopedDocSystem(t *testing.T) {
+	if _, ok := any(System{}).(interface {
+		PromptDocForScopes([]string) string
+	}); !ok {
+		t.Fatal("dev must implement ScopedDocSystem")
+	}
+}
