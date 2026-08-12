@@ -1384,6 +1384,11 @@
       "nobody": "nobody",
       "noResume": "no resume",
       "noResumeHint": "This engine cannot continue a session. It cannot carry agents that wait for an answer (blocked).",
+      "fallback": "Fallback",
+      "fallbackHint": "Steps in when every credential here is exhausted (session limit, cooldown) — instead of waiting, the agent keeps working on this second workplace, even on a different engine.",
+      "fallbackNone": "— none —",
+      "fallbackIs": "Fallback: {{name}}",
+      "fallbackNoOthers": "No second workplace created yet.",
       "kindLabel": "Kind",
       "kind": {
         "api_key": "API key",

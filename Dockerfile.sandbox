@@ -148,6 +148,15 @@ ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
 # in glibc ab Debian bookworm eingebaut — kein locales-Paket nötig.
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 RUN npm install -g @anthropic-ai/claude-code
+# The Codex CLI alongside it — needed for any agent actually assigned to a
+# "codex" runtime, and for the fallback path (spec/18): a runtime can name
+# another as its fallback for when its own credentials are all exhausted, and
+# that fallback can be a different engine entirely (an OpenAI-backed runtime
+# standing in while the Claude Code subscription seat sits in its session
+# limit). Without the binary here, a fallback wake would pick the credential
+# correctly and then fail at exec — a worse failure than the exhaustion it was
+# meant to route around.
+RUN npm install -g @openai/codex
 # Erst NACH der Runtime-Installation: npm-Pakete, die der AGENT global
 # installiert, gehören ins Home. Das Standard-Prefix /usr/local gehört root, der
 # Container läuft als agent — `npm i -g` scheitert dort mit EACCES. Ein Prefix im

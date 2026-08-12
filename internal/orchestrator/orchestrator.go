@@ -274,6 +274,13 @@ type session struct {
 	// from the API puts into cooldown.
 	credRuntime uuid.UUID
 	credOrd     int
+	// credEngine/credModel: which engine and model this waking phase actually
+	// runs — the fallback runtime's, not agent.Runtime/agent.Model, when the
+	// agent's assigned runtime was exhausted and a fallback picked up the work
+	// instead. Empty when the engine needed no credential (the mock); the
+	// InjectConfig site falls back to the agent's own fields in that case.
+	credEngine string
+	credModel  string
 }
 
 // Run starts the dispatch loop: cheap, permanent, no LLM (spec/03).
@@ -854,6 +861,7 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 		return nil
 	}
 	s.credRuntime, s.credOrd = cred.RuntimeID, cred.Ord
+	s.credEngine, s.credModel = cred.Engine, cred.Model
 
 	o.setStatus(ctx, agent, nil, agents.StatusTriggered)
 
@@ -1256,16 +1264,70 @@ func (o *Orchestrator) llmCredentialFor(ctx context.Context, agent agents.Agent)
 	if o.Obs != nil {
 		sig.Usage = o.Obs.CredentialUsage
 	}
-	p, err := o.Runtimes.Pick(ctx, agent.OrgID, agent.ID, *agent.RuntimeID, sig)
+	runtimeID := *agent.RuntimeID
+	p, err := o.Runtimes.Pick(ctx, agent.OrgID, agent.ID, runtimeID, sig)
+	if errors.Is(err, runtimes.ErrExhausted) {
+		if fb, ferr := o.fallbackCredential(ctx, agent, runtimeID, sig); ferr == nil {
+			return fb, nil
+		}
+		// No fallback configured, or it is exhausted too: surface the ORIGINAL
+		// exhaustion — its free_at and its log line refer to the runtime the
+		// agent is actually assigned to, not to a downstream contract nobody
+		// asked about.
+		return llmCredential{}, err
+	}
 	if err != nil {
 		return llmCredential{}, err
 	}
 	if p.Ord < 0 {
 		return llmCredential{}, errNoRuntime // an engine that needs none (the mock)
 	}
+	return o.resolveCredential(ctx, agent, p)
+}
+
+// fallbackCredential tries the runtime the exhausted one declares as its
+// fallback (spec/18): a second contract, possibly a different engine
+// entirely, that an agent's work continues on instead of waiting out a
+// session limit or cooldown. Follows exactly one hop — a fallback whose own
+// fallback also needs trying is a chain to fix in the runtime configuration,
+// not a depth to guess at runtime.
+func (o *Orchestrator) fallbackCredential(ctx context.Context, agent agents.Agent, exhaustedID uuid.UUID, sig runtimes.Signals) (llmCredential, error) {
+	primary, err := o.Runtimes.Get(ctx, agent.OrgID, exhaustedID)
+	if err != nil || primary.FallbackRuntimeID == nil {
+		return llmCredential{}, runtimes.ErrExhausted
+	}
+	fallbackID := *primary.FallbackRuntimeID
+	p, err := o.Runtimes.Pick(ctx, agent.OrgID, agent.ID, fallbackID, sig)
+	if err != nil {
+		return llmCredential{}, err
+	}
+	if p.Ord < 0 {
+		return llmCredential{}, errNoRuntime
+	}
+	cred, err := o.resolveCredential(ctx, agent, p)
+	if err != nil {
+		return llmCredential{}, err
+	}
+	o.Log.Warn("wake continues on fallback runtime — the assigned one is exhausted",
+		"agent", agent.Slug, "exhausted_runtime", exhaustedID,
+		"fallback_runtime", fallbackID, "fallback_engine", cred.Engine)
+	return cred, nil
+}
+
+// resolveCredential fills in the engine and model that go with whichever
+// runtime Pick actually answered from. That is NOT necessarily the agent's own
+// agent.Runtime/agent.Model — on a fallback wake it is the fallback runtime's,
+// and sending agent.Runtime into the sandbox in that case would boot the
+// wrong engine's CLI on the fallback's credential.
+func (o *Orchestrator) resolveCredential(ctx context.Context, agent agents.Agent, p runtimes.Picked) (llmCredential, error) {
+	rt, err := o.Runtimes.Get(ctx, agent.OrgID, p.RuntimeID)
+	if err != nil {
+		return llmCredential{}, err
+	}
 	// TrimSpace catches copy-and-paste whitespace/newlines.
 	return llmCredential{Token: strings.TrimSpace(p.Value), EnvVar: p.EnvVar, Path: p.Path,
-		RuntimeID: p.RuntimeID, Ord: p.Ord, Label: p.Label}, nil
+		RuntimeID: p.RuntimeID, Ord: p.Ord, Label: p.Label,
+		Engine: rt.Engine, Model: rt.Model}, nil
 }
 
 // errNoRuntime: nothing to broker — either the agent has no runtime assigned or
@@ -1434,6 +1496,12 @@ type llmCredential struct {
 	RuntimeID uuid.UUID
 	Ord       int
 	Label     string
+	// Engine and Model belong to the runtime this credential actually came
+	// from — the agent's assigned one normally, a configured fallback on an
+	// exhaustion wake. Both empty for an engine that needs no credential (the
+	// mock); callers fall back to agent.Runtime/agent.Model in that case.
+	Engine string
+	Model  string
 }
 
 // pushAnthropicKey hands the already picked credential to the daemon. Never
@@ -1731,10 +1799,20 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	if maxTurns <= 0 {
 		maxTurns = agents.DefaultMaxTurns
 	}
+	// Normally identical to agent.Runtime/agent.Model. They diverge exactly
+	// when this waking phase runs on a fallback runtime (s.credEngine set by
+	// runAgent) — then the sandbox has to boot the FALLBACK's CLI, not the
+	// agent's assigned one, or the credential handed to it belongs to an
+	// engine it never starts.
+	effRuntime, effModel := agent.Runtime, agent.Model
+	if s.credEngine != "" {
+		effRuntime = s.credEngine
+		effModel = s.credModel
+	}
 	if err := o.sendMsg(ctx, link, daemon.TypeInjectConfig, daemon.InjectConfig{
 		SystemPrompt: compiled,
-		Runtime:      agent.Runtime,
-		Model:        agent.Model,
+		Runtime:      effRuntime,
+		Model:        effModel,
 		Effort:       agent.Effort,
 		AllowedTools: o.RuntimeTools,
 		MaxTurns:     maxTurns,

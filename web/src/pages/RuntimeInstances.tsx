@@ -68,6 +68,7 @@ export default function RuntimeInstances({ canEdit }: { canEdit: boolean }) {
         <RuntimeCard
           key={rt.id}
           rt={rt}
+          all={list.data ?? []}
           engine={engineList.find((e) => e.name === rt.engine)}
           agents={agents.data ?? []}
           secrets={secrets.data ?? []}
@@ -124,12 +125,14 @@ export default function RuntimeInstances({ canEdit }: { canEdit: boolean }) {
 
 function RuntimeCard({
   rt,
+  all,
   engine,
   agents,
   secrets,
   canEdit,
 }: {
   rt: RuntimeInstance;
+  all: RuntimeInstance[];
   engine?: RuntimeInfo;
   agents: Agent[];
   secrets: SecretPreview[];
@@ -218,6 +221,54 @@ function RuntimeCard({
           </span>
         ))}
       </div>
+
+      <FallbackRow rt={rt} all={all} canEdit={canEdit} />
+    </div>
+  );
+}
+
+// Der Arbeitsplatz, der einspringt, wenn hier jede Kapazität erschöpft ist —
+// eigene Zeile statt eine weitere Badge in der Kopfzeile, weil es eine
+// Einstellung ist, keine Beobachtung wie Modell oder Resume-Fähigkeit.
+function FallbackRow({ rt, all, canEdit }: { rt: RuntimeInstance; all: RuntimeInstance[]; canEdit: boolean }) {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const path = `/runtime-instances/${rt.id}/fallback`;
+  const options = all.filter((o) => o.id !== rt.id);
+
+  const setFallback = useMutation({
+    mutationFn: (fallbackRuntimeId: string | null) =>
+      patch<{ ok: boolean }>(path, { fallback_runtime_id: fallbackRuntimeId }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["runtime-instances"] }),
+  });
+
+  const current = all.find((o) => o.id === rt.fallback_runtime_id);
+
+  if (!canEdit) {
+    return current ? (
+      <p className="muted text-xs mt-2 mb-0">{t("runtimes.instances.fallbackIs", { name: current.display_name })}</p>
+    ) : null;
+  }
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap mt-2 text-xs">
+      <span className="muted" title={t("runtimes.instances.fallbackHint")}>
+        {t("runtimes.instances.fallback")}
+      </span>
+      <select
+        aria-label={t("runtimes.instances.fallback")}
+        value={rt.fallback_runtime_id ?? ""}
+        disabled={setFallback.isPending || options.length === 0}
+        onChange={(e) => setFallback.mutate(e.target.value || null)}
+      >
+        <option value="">{t("runtimes.instances.fallbackNone")}</option>
+        {options.map((o) => (
+          <option key={o.id} value={o.id}>
+            {o.display_name}
+          </option>
+        ))}
+      </select>
+      {options.length === 0 && <span className="muted">{t("runtimes.instances.fallbackNoOthers")}</span>}
     </div>
   );
 }

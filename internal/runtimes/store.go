@@ -63,7 +63,8 @@ func (s *Store) Delete(ctx context.Context, orgID, id uuid.UUID) error {
 }
 
 func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Runtime, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, org_id, engine, display_name, model, created_at, updated_at
+	rows, err := s.pool.Query(ctx, `SELECT id, org_id, engine, display_name, model,
+			fallback_runtime_id, created_at, updated_at
 		FROM runtimes WHERE org_id=$1 ORDER BY display_name`, orgID)
 	if err != nil {
 		return nil, err
@@ -73,7 +74,7 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Runtime, error) {
 	for rows.Next() {
 		var r Runtime
 		if err := rows.Scan(&r.ID, &r.OrgID, &r.Engine, &r.DisplayName, &r.Model,
-			&r.CreatedAt, &r.UpdatedAt); err != nil {
+			&r.FallbackRuntimeID, &r.CreatedAt, &r.UpdatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, r)
@@ -91,9 +92,11 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Runtime, error) {
 
 func (s *Store) Get(ctx context.Context, orgID, id uuid.UUID) (Runtime, error) {
 	var r Runtime
-	err := s.pool.QueryRow(ctx, `SELECT id, org_id, engine, display_name, model, created_at, updated_at
+	err := s.pool.QueryRow(ctx, `SELECT id, org_id, engine, display_name, model,
+			fallback_runtime_id, created_at, updated_at
 		FROM runtimes WHERE org_id=$1 AND id=$2`, orgID, id).
-		Scan(&r.ID, &r.OrgID, &r.Engine, &r.DisplayName, &r.Model, &r.CreatedAt, &r.UpdatedAt)
+		Scan(&r.ID, &r.OrgID, &r.Engine, &r.DisplayName, &r.Model,
+			&r.FallbackRuntimeID, &r.CreatedAt, &r.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Runtime{}, ErrNotFound
 	}
@@ -102,6 +105,36 @@ func (s *Store) Get(ctx context.Context, orgID, id uuid.UUID) (Runtime, error) {
 	}
 	r.Credentials, err = s.credentials(ctx, r.ID)
 	return r, err
+}
+
+// SetFallback declares which runtime to try next when every credential of
+// runtimeID is exhausted. fallbackID=nil clears it (exhaustion goes back to
+// waiting). Both runtimes must belong to the same org — a fallback across
+// organizations would be a channel between them, the same reasoning that binds
+// every runtime and credential to one org_id already.
+func (s *Store) SetFallback(ctx context.Context, orgID, runtimeID uuid.UUID, fallbackID *uuid.UUID) error {
+	if fallbackID != nil {
+		var otherOrg uuid.UUID
+		err := s.pool.QueryRow(ctx, `SELECT org_id FROM runtimes WHERE id=$1`, *fallbackID).Scan(&otherOrg)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if otherOrg != orgID {
+			return ErrNotFound
+		}
+	}
+	tag, err := s.pool.Exec(ctx, `UPDATE runtimes SET fallback_runtime_id=$3, updated_at=now()
+		WHERE org_id=$1 AND id=$2`, orgID, runtimeID, fallbackID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (s *Store) credentials(ctx context.Context, runtimeID uuid.UUID) ([]Credential, error) {

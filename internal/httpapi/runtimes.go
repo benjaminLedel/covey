@@ -165,6 +165,35 @@ func (s *Server) handleUpdateRuntime(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// handleSetRuntimeFallback declares the runtime to try next when every
+// credential of this one is exhausted — a second contract, possibly a
+// different engine, that keeps an agent working through a session limit or
+// cooldown instead of waiting it out. fallback_runtime_id=null clears it.
+func (s *Server) handleSetRuntimeFallback(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var in struct {
+		FallbackRuntimeID *uuid.UUID `json:"fallback_runtime_id"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid request")
+		return
+	}
+	if in.FallbackRuntimeID != nil && *in.FallbackRuntimeID == id {
+		writeErr(w, http.StatusBadRequest, "a runtime cannot be its own fallback")
+		return
+	}
+	if err := s.Runtimes.SetFallback(r.Context(), p.OrgID, id, in.FallbackRuntimeID); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 func (s *Server) handleDeleteRuntime(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	id, err := parseID(r)
