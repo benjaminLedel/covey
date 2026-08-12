@@ -420,10 +420,13 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/users", s.rbac(adminOnly, s.handleCreateUser))
 	mux.Handle("PATCH /api/v1/users/{id}", s.rbac(adminOnly, s.handleUpdateUser))
 	mux.Handle("DELETE /api/v1/users/{id}", s.rbac(adminOnly, s.handleDeleteUser))
-	mux.Handle("GET /api/v1/orgs", s.rbac(adminOnly, s.handleListOrgs))
-	mux.Handle("POST /api/v1/orgs", s.rbac(adminOnly, s.handleCreateOrg))
-	mux.Handle("PATCH /api/v1/orgs/{id}", s.rbac(adminOnly, s.handleUpdateOrg))
-	mux.Handle("DELETE /api/v1/orgs/{id}", s.rbac(adminOnly, s.handleDeleteOrg))
+	// Die Mandanten gehören der Instanz, nicht einer Organisation: system_admin
+	// statt platform_admin (FR-003, Befund F). Die alten Adressen unter /orgs
+	// gibt es nicht mehr — sie waren für jede Organisation erreichbar.
+	mux.Handle("GET /api/v1/platform/orgs", s.platformAdmin(s.handleListOrgs))
+	mux.Handle("POST /api/v1/platform/orgs", s.platformAdmin(s.handleCreateOrg))
+	mux.Handle("PATCH /api/v1/platform/orgs/{id}", s.platformAdmin(s.handleUpdateOrg))
+	mux.Handle("DELETE /api/v1/platform/orgs/{id}", s.platformAdmin(s.handleDeleteOrg))
 
 	// Live updates.
 	mux.Handle("GET /api/v1/events", s.auth(s.handleSSE))
@@ -579,6 +582,35 @@ func (s *Server) rbac(roles []string, next http.HandlerFunc) http.Handler {
 			}
 		}
 		writeErr(w, http.StatusForbidden, "role "+p.Role+" has no rights here")
+	})
+}
+
+// platformAdmin guards the instance level — everything that concerns not one
+// organisation but the installation: the tenant list, the system settings, the
+// waitlist codes.
+//
+// It hangs off auth and deliberately NOT off rbac. Two reasons, and both
+// matter:
+//
+// The org roles answer "what may this person do INSIDE their organisation".
+// platform_admin is one of them, and every organisation hands it out to
+// itself — using it here would mean the first self-registered tenant could
+// delete all the others (FR-003, finding F). The instance level therefore sits
+// on the account, where no organisation can reach it.
+//
+// And it must not require an organisation: whoever administers the
+// installation is not necessarily a member of any of its tenants. rbac would
+// turn that into a 409 "no_organization" — for the very person who is supposed
+// to fix it.
+func (s *Server) platformAdmin(next http.HandlerFunc) http.Handler {
+	return s.auth(func(w http.ResponseWriter, r *http.Request) {
+		if principalFrom(r).PlatformRole != accounts.RoleSystemAdmin {
+			// 404 and not 403: whether this installation has an administration
+			// at all is nobody's business who is not part of it.
+			writeErr(w, http.StatusNotFound, "not found")
+			return
+		}
+		next(w, r)
 	})
 }
 

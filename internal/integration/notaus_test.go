@@ -107,7 +107,8 @@ func TestNotausRollenUndOrgGrenze(t *testing.T) {
 
 	// Org boundary: one organization's emergency stop leaves the other alone.
 	admin := login(t, s, "admin@test.local", "admin-passwort")
-	admin.expect(http.MethodPost, "/api/v1/orgs", map[string]any{
+	s.alsSystemadmin(t)
+	admin.expect(http.MethodPost, "/api/v1/platform/orgs", map[string]any{
 		"name": "Nachbar-AG", "admin_email": "nachbar@test.local",
 		"admin_name": "Nachbar-Admin", "admin_password": "nachbar-passwort",
 	}, http.StatusCreated)

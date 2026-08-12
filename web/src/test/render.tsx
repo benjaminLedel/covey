@@ -44,12 +44,16 @@ export function useGerman() {
   i18n.changeLanguage("de");
 }
 
-export const testPrincipal = (role = "platform_admin"): Principal => ({
+export const testPrincipal = (role = "platform_admin", platformRole = "user"): Principal => ({
   ID: "11111111-1111-1111-1111-111111111111",
   OrgID: "22222222-2222-2222-2222-222222222222",
   Email: "test@covey.local",
   DisplayName: "Test Admin",
   Role: role,
+  AccountID: "33333333-3333-3333-3333-333333333333",
+  // Voreinstellung ist bewusst "user": die Instanz-Ebene ist die Ausnahme,
+  // nicht der Normalfall — ein Test, der sie braucht, sagt es (FR-003).
+  PlatformRole: platformRole,
 });
 
 // mockFetch beantwortet Anfragen nach Pfadmuster. Der Test sagt, was der

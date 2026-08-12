@@ -6,7 +6,16 @@ export type Principal = {
   Email: string;
   DisplayName: string;
   Role: string;
+  /* Das Konto hinter der Anmeldung — eine Person, über Organisationen hinweg. */
+  AccountID: string;
+  /* Die Instanz-Ebene: "user" oder "system_admin". Ausdrücklich KEINE
+     Organisations-Rolle — platform_admin vergibt jede Organisation an sich
+     selbst, das hier niemand (FR-003, Befund F). */
+  PlatformRole: string;
 };
+
+/** Verwaltet diese Person die Installation selbst? */
+export const istSystemAdmin = (me: Principal) => me.PlatformRole === "system_admin";
 
 export type Agent = {
   id: string;

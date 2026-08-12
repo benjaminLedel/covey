@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"covey/internal/accounts"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -136,8 +137,12 @@ func TestAuditSpurRollenUndOrgGrenze(t *testing.T) {
 		login(t, s, email, "passwort-1234").expect(http.MethodGet, "/api/v1/audit", nil, http.StatusForbidden)
 	}
 
-	// Another organization, another trail.
-	admin.expect(http.MethodPost, "/api/v1/orgs", map[string]any{
+	// Another organization, another trail. Angelegt wird sie auf der
+	// Instanz-Ebene — eine Organisation legt keine zweite an (FR-003, F).
+	if err := accounts.New(s.pool).SetPlatformRole(t.Context(), "admin@test.local", accounts.RoleSystemAdmin); err != nil {
+		t.Fatal(err)
+	}
+	admin.expect(http.MethodPost, "/api/v1/platform/orgs", map[string]any{
 		"name": "Spur-Nachbar", "admin_email": "spurnachbar@test.local",
 		"admin_name": "Nachbar", "admin_password": "nachbar-passwort",
 	}, http.StatusCreated)

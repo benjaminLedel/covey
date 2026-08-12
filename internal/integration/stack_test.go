@@ -377,3 +377,15 @@ func (s *stack) mitglied(t *testing.T, email, name, rolle, passwort string) uuid
 	}
 	return id
 }
+
+// alsSystemadmin erhebt den Stack-Admin auf die Instanz-Ebene. Nötig überall
+// dort, wo ein Test eine ZWEITE Organisation braucht, um Isolation zu prüfen:
+// Mandanten anzulegen ist seit P2 keine Frage der Organisations-Rolle mehr
+// (FR-003, Befund F).
+func (s *stack) alsSystemadmin(t *testing.T) {
+	t.Helper()
+	if err := accounts.New(s.pool).SetPlatformRole(context.Background(),
+		"admin@test.local", accounts.RoleSystemAdmin); err != nil {
+		t.Fatal(err)
+	}
+}

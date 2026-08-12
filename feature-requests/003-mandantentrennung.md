@@ -66,7 +66,7 @@ The gaps below are the exceptions, not the rule.
 | C | `dream-actions/{id}/undo` has no organisation check | cross-tenant write | small |
 | D | `skills.Assign` does not check the agent's organisation | cross-tenant write | tiny |
 | E | Egress template assignment does not check the template's organisation | cross-tenant read + guard-rail widening | tiny |
-| F | Every `platform_admin` administers every tenant | privilege boundary | see FR-002 |
+| F | Every `platform_admin` administers every tenant | privilege boundary | **behoben** |
 | G | All sandboxes share one Docker network | data-plane isolation | large |
 
 ### A — the live event bus knows no organisation
@@ -170,6 +170,13 @@ org_id=$4)`.
 **Fix.** The same `EXISTS` here, and the organisation in the compile join.
 
 ### F — every platform_admin administers every tenant
+
+> **Behoben** (P2): die Mandanten-Routen liegen unter `/api/v1/platform/orgs`
+> und hängen an `accounts.platform_role = system_admin`
+> (`internal/httpapi/server.go`, `platformAdmin`). Vergeben wird die Ebene nur
+> über `covey system-admin add <mail>` — ein Endpunkt dafür wäre aus einer
+> Organisation heraus erreichbar und damit genau die Grenze, die die Rolle
+> ziehen soll.
 
 `GET/POST/PATCH/DELETE /api/v1/orgs` are guarded by `adminOnly`, i.e. by an
 **org** role that every organisation hands out itself (`server.go:403-406`).

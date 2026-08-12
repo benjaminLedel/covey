@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, buildInfo, post, type Approval, type Principal, type SetupState } from "./api";
+import { api, buildInfo, istSystemAdmin, post, type Approval, type Principal, type SetupState } from "./api";
 import i18n, { gespeicherteSprache, istVorgerendert, merkeSprache } from "./i18n";
 import HelpDrawer from "./components/HelpDrawer";
 import ThemeSwitch from "./components/ThemeSwitch";
@@ -429,7 +429,14 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
               {showPlatform && (
                 <div className="nav-group">
                   <NavItem to="/users" icon="user" label={t("nav.users")} />
-                  <NavItem to="/orgs" icon="box" label={t("nav.organizations")} />
+                  {/* Die Mandantenverwaltung gehört der Instanz, nicht der
+                      Organisation: sie erscheint nur für den Systemadmin.
+                      Vorher stand sie hier für jeden platform_admin — also für
+                      eine Rolle, die jede Organisation an sich selbst vergibt
+                      (FR-003, Befund F). */}
+                  {istSystemAdmin(me) && (
+                    <NavItem to="/orgs" icon="box" label={t("nav.organizations")} />
+                  )}
                 </div>
               )}
             </>
@@ -502,7 +509,13 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
             <Route path="/guardrails" element={<Guardrails me={me} />} />
             <Route path="/secrets" element={<Secrets me={me} />} />
             <Route path="/users" element={<Users me={me} />} />
-            <Route path="/orgs" element={<Organizations me={me} />} />
+            {/* Auch als Adresse, nicht nur als Menüpunkt: wer /orgs von Hand
+                aufruft, ohne die Instanz zu verwalten, gehört auf die
+                Startseite und nicht auf eine Seite voller 404er. */}
+            <Route
+              path="/orgs"
+              element={istSystemAdmin(me) ? <Organizations me={me} /> : <Navigate to="/" replace />}
+            />
             <Route path="/runtimes" element={<Runtimes me={me} />} />
             <Route path="/requests" element={<Requests me={me} />} />
             <Route path="/audit" element={<Audit />} />

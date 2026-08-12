@@ -85,7 +85,8 @@ func TestTargetActivation(t *testing.T) {
 
 	// Opt-in semantics: a fresh organization starts without enabled target
 	// systems — built-ins are on only after an explicit activation.
-	admin.expect(http.MethodPost, "/api/v1/orgs", map[string]any{
+	s.alsSystemadmin(t)
+	admin.expect(http.MethodPost, "/api/v1/platform/orgs", map[string]any{
 		"name": "Frisch-Org", "admin_email": "frisch@test.local",
 		"admin_name": "Frisch-Admin", "admin_password": "frisch-passwort",
 	}, http.StatusCreated)

@@ -110,6 +110,8 @@ func main() {
 		err = runSettings(ctx, cfg, os.Args[2:], log)
 	case "waitlist":
 		err = runWaitlist(ctx, cfg, os.Args[2:])
+	case "system-admin":
+		err = runSystemAdmin(ctx, cfg, os.Args[2:])
 	case "genkey":
 		var key string
 		if key, err = secbuiltin.GenerateMasterKey(); err == nil {
@@ -136,6 +138,7 @@ func usage() {
   covey config lint       check agent configs for known pitfalls (changes nothing)
   covey settings [k v]    show the instance's settings, or set one (e.g. signup.mode waitlist)
   covey waitlist          list waitlist codes | new [-label L] [-uses N] [-days D] | revoke <hash>
+  covey system-admin      list | add <email> | remove <email> — the instance level, not an org role
   covey genkey            generate a new COVEY_MASTER_KEY
   covey version           version, commit and build time of this binary
 
@@ -361,6 +364,64 @@ func runSettings(ctx context.Context, cfg config.Config, args []string, log *slo
 	default:
 		return errors.New("usage: covey settings [<key> <value>]")
 	}
+}
+
+// runSystemAdmin manages the instance level.
+//
+// Deliberately only here and not over HTTP: system_admin is what protects the
+// organisations from one another (FR-003, finding F). An endpoint that grants
+// it would be reachable from inside an organisation — which is exactly the
+// boundary this role exists to draw. Whoever administers the installation has
+// a terminal on it.
+func runSystemAdmin(ctx context.Context, cfg config.Config, args []string) error {
+	pool, err := db.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	store := accounts.New(pool)
+
+	befehl := "list"
+	if len(args) > 0 {
+		befehl = args[0]
+	}
+	switch befehl {
+	case "list":
+		rows, err := pool.Query(ctx,
+			`SELECT email FROM accounts WHERE platform_role='system_admin' ORDER BY email`)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		leer := true
+		for rows.Next() {
+			var email string
+			if err := rows.Scan(&email); err != nil {
+				return err
+			}
+			fmt.Println(email)
+			leer = false
+		}
+		if leer {
+			fmt.Println("no system administrator — nobody can administer this installation")
+		}
+		return rows.Err()
+
+	case "add", "remove":
+		if len(args) != 2 {
+			return fmt.Errorf("usage: covey system-admin %s <email>", befehl)
+		}
+		rolle := accounts.RoleSystemAdmin
+		if befehl == "remove" {
+			rolle = accounts.RoleUser
+		}
+		if err := store.SetPlatformRole(ctx, args[1], rolle); err != nil {
+			return err
+		}
+		fmt.Printf("%s: %s\n", args[1], rolle)
+		return nil
+	}
+	return fmt.Errorf("unknown: covey system-admin %s (list|add|remove)", befehl)
 }
 
 // runWaitlist manages the codes with which the instance opens in stages.

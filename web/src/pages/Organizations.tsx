@@ -8,7 +8,7 @@ export default function Organizations({ me }: { me: Principal }) {
   const qc = useQueryClient();
   const orgs = useQuery({
     queryKey: ["orgs"],
-    queryFn: () => api<Organization[]>("/orgs"),
+    queryFn: () => api<Organization[]>("/platform/orgs"),
     retry: false,
   });
 
@@ -162,7 +162,7 @@ function CreateOrg({ onDone }: { onDone: () => void }) {
   const [adminPassword, setAdminPassword] = useState("");
   const mut = useMutation({
     mutationFn: () =>
-      post("/orgs", { name, admin_email: adminEmail, admin_name: adminName, admin_password: adminPassword }),
+      post("/platform/orgs", { name, admin_email: adminEmail, admin_name: adminName, admin_password: adminPassword }),
     onSuccess: () => {
       setName("");
       setAdminEmail("");
@@ -213,14 +213,14 @@ function OrgRow({ org, isOwn }: { org: Organization; isOwn: boolean }) {
   const invalidate = () => qc.invalidateQueries({ queryKey: ["orgs"] });
 
   const rename = useMutation({
-    mutationFn: () => patch(`/orgs/${org.id}`, { name }),
+    mutationFn: () => patch(`/platform/orgs/${org.id}`, { name }),
     onSuccess: () => {
       setEditing(false);
       invalidate();
     },
   });
   const remove = useMutation({
-    mutationFn: () => del(`/orgs/${org.id}`),
+    mutationFn: () => del(`/platform/orgs/${org.id}`),
     onSuccess: invalidate,
   });
   const error = rename.error ?? remove.error;
