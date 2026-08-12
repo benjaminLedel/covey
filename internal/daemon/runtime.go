@@ -78,6 +78,7 @@ type RunSpec struct {
 	SystemPrompt  string
 	MemoryContext string
 	Model         string // desired LLM; empty = the runtime's default
+	Effort        string // reasoning effort (low/medium/high/xhigh/max); empty = the runtime's default
 	AllowedTools  []string
 	// Skills says whether skills were materialized into the home for this run
 	// (skillslocal.go). Only then does the Skill tool belong in the loading

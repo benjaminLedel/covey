@@ -14,6 +14,7 @@ export type Agent = {
   display_name: string;
   runtime: string;
   model: string;
+  effort: string; // "" = Runtime-Default, sonst low|medium|high|xhigh|max
   max_turns: number;
   recording_level: string; // "" = erbt Org-Boden, sonst minimal|standard|full
   warm_sandbox: boolean; // hält die Sandbox zwischen Wach-Phasen live (opt-in)

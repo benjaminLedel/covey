@@ -523,6 +523,7 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 		Body:            task.Body,
 		SystemPrompt:    cfg.SystemPrompt,
 		Model:           cfg.Model,
+		Effort:          cfg.Effort,
 		MemoryContext:   task.MemoryContext,
 		AllowedTools:    cfg.AllowedTools,
 		MaxTurns:        cfg.MaxTurns,

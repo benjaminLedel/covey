@@ -41,6 +41,7 @@ type bundleAgent struct {
 	DisplayName     string  `json:"display_name"`
 	Runtime         string  `json:"runtime"`
 	Model           string  `json:"model,omitempty"`
+	Effort          string  `json:"effort,omitempty"`
 	MaxTurns        int     `json:"max_turns,omitempty"`
 	BudgetUSD       float64 `json:"budget_usd,omitempty"`
 	SupervisorEmail string  `json:"supervisor_email,omitempty"`
@@ -151,7 +152,7 @@ func (s *Server) buildBundle(ctx context.Context, orgID, agentID uuid.UUID, incl
 		Kind: bundleKind, Version: bundleVersion,
 		Agent: bundleAgent{
 			Slug: a.Slug, DisplayName: a.DisplayName, Runtime: a.Runtime,
-			Model: a.Model, MaxTurns: a.MaxTurns, BudgetUSD: a.BudgetUSD,
+			Model: a.Model, Effort: a.Effort, MaxTurns: a.MaxTurns, BudgetUSD: a.BudgetUSD,
 			WebhookEnabled: a.WebhookToken != nil,
 			WarmSandbox:    a.WarmSandbox,
 		},
@@ -610,6 +611,12 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 	s.attachDefaultRuntime(ctx, p.OrgID, a)
 	if b.Agent.Model != "" {
 		if err := s.Registry.SetModel(ctx, a.ID, b.Agent.Model); err != nil {
+			mapErr(w, err)
+			return
+		}
+	}
+	if b.Agent.Effort != "" {
+		if err := s.Registry.SetEffort(ctx, a.ID, b.Agent.Effort); err != nil {
 			mapErr(w, err)
 			return
 		}

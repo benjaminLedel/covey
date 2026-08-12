@@ -734,6 +734,37 @@ func (s *Server) handleSetModel(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
+// validEfforts are the levels Claude Code's --effort accepts (plus "" for
+// runtime default) — checked here so a typo fails fast with a clear message
+// instead of silently falling through to the runtime's own default at the
+// next wake.
+var validEfforts = map[string]bool{"": true, "low": true, "medium": true, "high": true, "xhigh": true, "max": true}
+
+func (s *Server) handleSetEffort(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var in struct {
+		Effort string `json:"effort"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "effort missing")
+		return
+	}
+	effort := strings.TrimSpace(in.Effort)
+	if !validEfforts[effort] {
+		writeErr(w, http.StatusBadRequest, "effort must be one of low, medium, high, xhigh, max (or empty for the runtime default)")
+		return
+	}
+	if err := s.Registry.SetEffort(r.Context(), id, effort); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // handleSetRecordingLevel sets the agent override of the recording depth
 // (spec/06). Empty = back to inheriting the org floor. Takes effect at the next
 // action event; the effective level stays max(org floor, override).

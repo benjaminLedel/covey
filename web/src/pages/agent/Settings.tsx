@@ -126,6 +126,10 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
     mutationFn: (model: string) => patch(`/agents/${agent.id}/model`, { model }),
     onSuccess: invalidate,
   });
+  const setEffort = useMutation({
+    mutationFn: (effort: string) => patch(`/agents/${agent.id}/effort`, { effort }),
+    onSuccess: invalidate,
+  });
   const setMaxTurns = useMutation({
     mutationFn: (maxTurns: number) => patch(`/agents/${agent.id}/max-turns`, { max_turns: maxTurns }),
     onSuccess: invalidate,
@@ -151,7 +155,7 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
   });
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const anyError = [setName, setSlug, setRuntime, setModel, setMaxTurns, setRecordingLevel, setBudget].find(
+  const anyError = [setName, setSlug, setRuntime, setModel, setEffort, setMaxTurns, setRecordingLevel, setBudget].find(
     (m) => m.isError,
   );
 
@@ -260,6 +264,25 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
           className="mono"
         />
         <span className="muted text-xs">{t("agent.settings.modelHint")}</span>
+      </div>
+      <div style={row}>
+        <span className="text-sm">{t("agent.settings.effort")}</span>
+        <select
+          key={`effort:${agent.effort}`}
+          defaultValue={agent.effort || ""}
+          disabled={!editable || setEffort.isPending}
+          onChange={(e) => {
+            if (e.target.value !== (agent.effort || "")) setEffort.mutate(e.target.value);
+          }}
+        >
+          <option value="">{t("agent.settings.effortDefault")}</option>
+          <option value="low">low</option>
+          <option value="medium">medium</option>
+          <option value="high">high</option>
+          <option value="xhigh">xhigh</option>
+          <option value="max">max</option>
+        </select>
+        <span className="muted text-xs">{t("agent.settings.effortHint")}</span>
       </div>
       <div style={row}>
         <span className="text-sm">{t("agent.settings.maxTurns")}</span>
