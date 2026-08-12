@@ -131,6 +131,32 @@ type SignedWorkChecker interface {
 	HasWorkSigned(ctx context.Context, cred Credential, kind string) (bool, string, error)
 }
 
+// SignatureWriter says whether one of the system's OWN actions can move the
+// work signature — the question the control plane has to answer after a run
+// before it may write the state it now sees into the watermark.
+//
+// The background is a race the signature alone cannot resolve. The signature is
+// remembered at dispatch, i.e. BEFORE the run; a run that comments changes it
+// itself, so the control plane has to advance it afterwards, otherwise the
+// agent's own comment wakes it again. But "the state after the run" also
+// contains everything that arrived from outside DURING the run — under a shared
+// target-system identity (no bot account per role) authorship cannot tell the
+// two apart, and a foreign comment silently absorbed into the watermark is a
+// piece of work nobody is ever woken for again.
+//
+// This interface narrows the race to the cases where the agent really wrote:
+// did the run execute no signature-changing action at all, then every change
+// since the dispatch comes from outside and the watermark must stay where it
+// is. The subject is the one from ActionSubject (e.g. "gitlab:comment_external"),
+// because that is what the recording carries.
+//
+// Systems without this interface keep the old behaviour: after a successful run
+// the watermark is advanced unconditionally.
+type SignatureWriter interface {
+	SignedWorkChecker
+	WritesWorkSignature(subject string) bool
+}
+
 // workdirKey carries the sandbox working directory through the context to
 // Execute. Actions that materialize files in the sandbox (e.g. gitlab
 // checkout) unpack them there — the daemon sets the value, because only it

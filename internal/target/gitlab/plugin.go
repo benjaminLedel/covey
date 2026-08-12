@@ -180,6 +180,42 @@ func (System) HasWorkSigned(ctx context.Context, cred target.Credential, kind st
 	return len(waiting) > 0, workSig(waiting), nil
 }
 
+// sigWritingActions are the actions whose execution can move the signature of
+// HasWorkSigned. That signature is built from the newest note id per thread
+// (threadSig) plus the set of threads in scope, so everything that writes a
+// note — including the system notes GitLab itself appends on assign, label,
+// approval, push and merge — belongs in here, and only genuine reads stay out.
+//
+// The names are the ones from ActionSubject without the "gitlab:" prefix, hence
+// comment_internal/comment_external for the two forms of `comment`.
+//
+// A NEW WRITING ACTION HAS TO BE ADDED HERE. If one is missing, the control
+// plane takes the agent's own note for foreign activity and wakes it once more
+// for its own comment; the run then finds nothing to do and stays silent, so
+// the second wake settles the state — noisy, not endless.
+var sigWritingActions = map[string]bool{
+	"comment_internal":     true,
+	"comment_external":     true,
+	"comment_mr":           true,
+	"create_issue":         true,
+	"create_merge_request": true,
+	"commit":               true,
+	"set_state":            true,
+	"assign":               true,
+	"set_labels":           true,
+	"set_reviewer":         true,
+	"approve_mr":           true,
+	"merge_mr":             true,
+	"escalate":             true,
+}
+
+// WritesWorkSignature (target.SignatureWriter) answers whether an executed
+// action of this system can have changed the work signature — see the interface
+// for what the control plane concludes from a "no".
+func (System) WritesWorkSignature(subject string) bool {
+	return sigWritingActions[strings.TrimPrefix(subject, "gitlab:")]
+}
+
 // issueMaxNotesChecks caps the comment check of issueWorkPending: the check
 // runs in every heartbeat interval and must not run away with the number of
 // open issues. Whoever has more open issues than that gets woken — the call

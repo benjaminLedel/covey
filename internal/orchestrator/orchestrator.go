@@ -660,15 +660,42 @@ func (o *Orchestrator) rememberWorkSignature(ctx context.Context, agentID uuid.U
 // the run; without this refresh an agent's own issue/MR comment changes the
 // note id and immediately wakes the same heartbeat again. Empty signatures
 // remain fail-open and therefore never overwrite a usable watermark.
-func (o *Orchestrator) refreshWorkSignature(ctx context.Context, agentID, orgID uuid.UUID, name string) {
+//
+// The state after the run, however, also contains what arrived from OUTSIDE
+// while the run was going on, and authorship cannot tell the two apart under a
+// shared identity (that is the whole reason the level check exists). Whatever
+// is written into the watermark here is thereby marked as handled — a foreign
+// comment caught in it wakes nobody again. The check therefore only advances
+// when the run has actually executed a signature-writing action
+// (target.SignatureWriter): without one, every change comes from outside and
+// the watermark has to stay where it is, so the next tick fires for it.
+//
+// What remains is the narrow case of a foreign comment landing on exactly the
+// thread the agent commented on itself, in exactly that window. Only the ids of
+// the notes written by the agent itself could separate that — the recording
+// carries the action, not the id of the note it produced (see
+// spec/03-lifecycle-scheduling.md).
+//
+// The check runs synchronously in the completion path, after the task is
+// already finished: the watermark has to be settled before the next tick can
+// read it. It costs one work check — and only for runs that wrote something at
+// all; a silent run does not even get that far.
+func (o *Orchestrator) refreshWorkSignature(ctx context.Context, agentID, orgID uuid.UUID, name string, since time.Time) {
 	var condition string
 	if err := o.Pool.QueryRow(ctx,
 		"SELECT only_if FROM agent_heartbeats WHERE agent_id=$1 AND name=$2",
 		agentID, name).Scan(&condition); err != nil {
-		o.Log.Warn("refresh heartbeat signature: heartbeat not readable", "agent", agentID, "name", name, "err", err)
+		// Also the normal case of a heartbeat removed or renamed while its run
+		// was going: then there is no watermark left to maintain.
+		o.Log.Debug("refresh heartbeat signature: heartbeat no longer present", "agent", agentID, "name", name, "err", err)
 		return
 	}
 	if strings.TrimSpace(condition) == "" {
+		return
+	}
+	if !o.runWroteSignature(ctx, agentID, condition, since) {
+		o.Log.Info("heartbeat watermark kept: the run wrote nothing itself",
+			"agent", agentID, "name", name, "system", condition)
 		return
 	}
 	has, sig := o.heartbeatHasWork(ctx, agentID, orgID, condition)
@@ -677,6 +704,37 @@ func (o *Orchestrator) refreshWorkSignature(ctx context.Context, agentID, orgID 
 	} else if sig != "" {
 		o.rememberWorkSignature(ctx, agentID, name, sig)
 	}
+}
+
+// runWroteSignature answers whether the run since `since` executed an action of
+// its own that can have moved the work signature.
+//
+// Fail-open in the sense of the old behaviour: a system without
+// target.SignatureWriter, an unreadable recording — in both cases the answer is
+// yes, and the watermark is advanced as before. The stricter answer belongs to
+// the systems that can give it.
+func (o *Orchestrator) runWroteSignature(ctx context.Context, agentID uuid.UUID, condition string, since time.Time) bool {
+	system, _, _ := strings.Cut(condition, ":")
+	sys, ok := target.Get(system)
+	if !ok {
+		return true
+	}
+	writer, ok := sys.(target.SignatureWriter)
+	if !ok {
+		return true
+	}
+	subjects, err := o.Obs.ActionSubjectsSince(ctx, agentID, since)
+	if err != nil {
+		o.Log.Warn("heartbeat watermark: actions of the run not readable — advancing anyway",
+			"agent", agentID, "system", system, "err", err)
+		return true
+	}
+	for _, s := range subjects {
+		if writer.WritesWorkSignature(s) {
+			return true
+		}
+	}
+	return false
 }
 
 // EnsureRunning starts an agent session if none is running (idempotent).
@@ -1947,17 +2005,34 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		if t, err := o.Backlog.Get(ctx, taskID); err == nil {
 			heartbeatRun := t.Origin == "heartbeat"
 			if !heartbeatRun && strings.HasPrefix(t.Origin, originContinuation+":") {
-				if n, ancestorErr := o.Backlog.AncestorsWithOrigin(ctx, taskID, "heartbeat"); ancestorErr == nil {
-					heartbeatRun = n > 0
-				} else {
-					o.Log.Warn("heartbeat ancestry not determinable", "task", taskID, "err", ancestorErr)
+				n, ancestorErr := o.Backlog.AncestorsWithOrigin(ctx, taskID, "heartbeat")
+				if ancestorErr != nil {
+					// Whether the chain descends from a heartbeat is not
+					// determinable: treat it as one. Both branches then merely
+					// touch the watermark of a heartbeat with this task's title
+					// — releasing wakes it once too often, keeping it silences
+					// work that is lying there. Erring towards the former.
+					o.Log.Warn("heartbeat ancestry not determinable — treating the run as a heartbeat run",
+						"task", taskID, "err", ancestorErr)
 				}
+				heartbeatRun = ancestorErr != nil || n > 0
 			}
 			if heartbeatRun {
 				if state == backlog.StateFailed || d.Status == "escalated" {
 					o.releaseWorkSignature(ctx, agent.ID, t.Title)
 				} else {
-					o.refreshWorkSignature(ctx, agent.ID, agent.OrgID, t.Title)
+					// The beginning of the whole chain, not of this segment: the
+					// refresh asks what the RUN wrote itself, and a continuation
+					// carries on what an earlier task started. Unreadable (zero
+					// time) means "look at everything" — fail-open towards the
+					// previous behaviour of advancing unconditionally.
+					since, chainErr := o.Backlog.ChainStart(ctx, taskID)
+					if chainErr != nil {
+						o.Log.Warn("start of the run not determinable — watermark over the full history",
+							"task", taskID, "err", chainErr)
+						since = time.Time{}
+					}
+					o.refreshWorkSignature(ctx, agent.ID, agent.OrgID, t.Title, since)
 				}
 			}
 		}

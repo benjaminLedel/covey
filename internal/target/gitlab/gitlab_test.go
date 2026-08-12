@@ -1556,6 +1556,41 @@ func TestActionSubject(t *testing.T) {
 	}
 }
 
+// The watermark of a heartbeat is only advanced past a run when the run wrote
+// something itself (target.SignatureWriter) — otherwise the control plane would
+// mark foreign activity that arrived during the run as handled. So this list
+// decides whether a piece of feedback is picked up or gets lost.
+func TestWritesWorkSignature(t *testing.T) {
+	sys := System{}
+	// Everything that produces a note — including the system notes GitLab
+	// appends itself on assign, label, approval, push and merge.
+	for _, subject := range []string{
+		"gitlab:comment_internal", "gitlab:comment_external", "gitlab:comment_mr",
+		"gitlab:create_issue", "gitlab:create_merge_request", "gitlab:commit",
+		"gitlab:set_state", "gitlab:assign", "gitlab:set_labels",
+		"gitlab:set_reviewer", "gitlab:approve_mr", "gitlab:merge_mr", "gitlab:escalate",
+	} {
+		if !sys.WritesWorkSignature(subject) {
+			t.Errorf("%s writes in the target system and must count", subject)
+		}
+	}
+	// Reads change nothing — a run consisting only of these leaves the
+	// watermark where it is, so that a comment arriving meanwhile still wakes.
+	for _, subject := range []string{
+		"gitlab:list_issues", "gitlab:get_issue", "gitlab:list_mr_notes",
+		"gitlab:get_merge_request", "gitlab:read_file", "gitlab:checkout",
+		"gitlab:list_pipelines", "gitlab:get_job_log", "gitlab:get_note",
+	} {
+		if sys.WritesWorkSignature(subject) {
+			t.Errorf("%s only reads and must not advance the watermark", subject)
+		}
+	}
+	// An action of another system says nothing about this signature.
+	if sys.WritesWorkSignature("zammad:reply_external") {
+		t.Error("a foreign system's action must not count")
+	}
+}
+
 func TestAssignAction(t *testing.T) {
 	var gotPath, gotMethod, gotQuery string
 	var gotBody map[string]any

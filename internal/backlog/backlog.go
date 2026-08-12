@@ -211,6 +211,28 @@ func (s *Store) AncestorsWithOrigin(ctx context.Context, id uuid.UUID, originPre
 	return n, err
 }
 
+// ChainStart is the moment the chain a task belongs to began: the created_at of
+// its oldest ancestor.
+//
+// The heartbeat watermark asks with it "what has this run done itself" — and a
+// run is the whole chain, not its last segment: a continuation carries on where
+// the turn limit cut off, and the comment written before it belongs to the same
+// run. Anchoring on the heartbeat's last_fired_at instead would be wrong, since
+// the schedule ticks on (and moves that timestamp) while a long run is still
+// going.
+func (s *Store) ChainStart(ctx context.Context, id uuid.UUID) (time.Time, error) {
+	var start time.Time
+	err := s.pool.QueryRow(ctx, `
+		WITH RECURSIVE chain AS (
+			SELECT id, parent_task_id, created_at FROM backlog_tasks WHERE id=$1
+			UNION ALL
+			SELECT t.id, t.parent_task_id, t.created_at
+			FROM backlog_tasks t JOIN chain c ON t.id = c.parent_task_id
+		)
+		SELECT MIN(created_at) FROM chain`, id).Scan(&start)
+	return start, err
+}
+
 // CountChildren counts the tasks that emerged directly from a task — the width
 // of the decomposition.
 func (s *Store) CountChildren(ctx context.Context, parentID uuid.UUID) (int, error) {
