@@ -3,6 +3,7 @@ package config
 
 import (
 	"fmt"
+	"net/netip"
 	"net/url"
 	"os"
 	"strconv"
@@ -34,6 +35,20 @@ type Config struct {
 	// configured reverse proxy. Set it only when the proxy does not pass the
 	// origin through.
 	SiteURL string
+	// TrustedProxies are the addresses whose X-Forwarded-For may be believed —
+	// COVEY_TRUSTED_PROXIES, comma-separated as CIDR or single address,
+	// "private" as shorthand for loopback and the private ranges (the usual
+	// case: a proxy in the same docker network, whose address is assigned
+	// dynamically).
+	//
+	// Empty (the default) means: trust nobody, the peer address counts. That is
+	// right for an instance reachable directly — the header is written by the
+	// sender, so a spoofed one would let every attacker pick their own
+	// rate-limit bucket. Behind a proxy it is wrong in the other direction:
+	// every request then carries the proxy's address, and one shared bucket
+	// throttles everybody at once (internal/httpapi/ratelimit.go).
+	TrustedProxies []netip.Prefix
+
 	// CookieSecure sets the Secure flag on the session cookie (delivered over
 	// HTTPS only). Default: derived automatically from the PublicURL scheme
 	// (https → true), overridable via COVEY_COOKIE_SECURE.
@@ -170,6 +185,11 @@ func FromEnv() (Config, error) {
 	}
 	// Secure cookie on by default as soon as the public URL is HTTPS.
 	c.CookieSecure = getenvBool("COVEY_COOKIE_SECURE", strings.HasPrefix(c.PublicURL, "https://"))
+	proxies, err := parseTrustedProxies(os.Getenv("COVEY_TRUSTED_PROXIES"))
+	if err != nil {
+		return c, err
+	}
+	c.TrustedProxies = proxies
 	if c.IdentityProvider != "builtin" {
 		return c, fmt.Errorf("identity provider %q: only 'builtin' is implemented in the MVP", c.IdentityProvider)
 	}
@@ -310,6 +330,46 @@ func splitList(raw string) []string {
 		}
 	}
 	return out
+}
+
+// privateRanges are what "private" stands for: loopback, the RFC-1918 ranges,
+// the link-local ones and the IPv6 unique-local block. A reverse proxy sitting
+// in front of Covey lives in exactly one of them — in a docker network with an
+// address nobody chose, which is why naming it by hand is no help.
+var privateRanges = []string{
+	"127.0.0.0/8", "::1/128",
+	"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
+	"169.254.0.0/16", "fe80::/10", "fc00::/7",
+}
+
+// parseTrustedProxies reads COVEY_TRUSTED_PROXIES. A single address counts as
+// its own /32 resp. /128, so an operator can name the proxy without having to
+// think about prefix lengths.
+//
+// A malformed entry is an error and not a skipped line: whoever names a proxy
+// wants its header believed, and silently ignoring the entry would leave the
+// installation with a limit that throttles everybody — visible only in
+// production, and looking exactly like a limit set too low.
+func parseTrustedProxies(raw string) ([]netip.Prefix, error) {
+	var out []netip.Prefix
+	for _, entry := range splitList(raw) {
+		if strings.EqualFold(entry, "private") {
+			for _, r := range privateRanges {
+				out = append(out, netip.MustParsePrefix(r))
+			}
+			continue
+		}
+		if p, err := netip.ParsePrefix(entry); err == nil {
+			out = append(out, p.Masked())
+			continue
+		}
+		addr, err := netip.ParseAddr(entry)
+		if err != nil {
+			return nil, fmt.Errorf("COVEY_TRUSTED_PROXIES: %q is neither an address nor a CIDR nor \"private\"", entry)
+		}
+		out = append(out, netip.PrefixFrom(addr.Unmap(), addr.Unmap().BitLen()))
+	}
+	return out, nil
 }
 
 func getenvDuration(key string, fallback time.Duration) time.Duration {

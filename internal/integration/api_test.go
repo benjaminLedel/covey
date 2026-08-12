@@ -2,14 +2,11 @@ package integration
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
 
 	"github.com/google/uuid"
-
-	identbuiltin "covey/internal/identity/builtin"
 )
 
 // apiClient is a logged-in HTTP client (session cookie).
@@ -81,14 +78,9 @@ func (c *apiClient) expectList(method, path string, body any, wantStatus int) []
 
 func TestAPIAndRBAC(t *testing.T) {
 	s := newStack(t)
-	ctx := context.Background()
 
 	// Second user with a read-only role (auditor).
-	hash, _ := identbuiltin.HashPassword("auditor-passwort")
-	if _, err := s.pool.Exec(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
-		VALUES ($1,$2,'auditor@test.local','Auditor',$3,'auditor')`, uuid.New(), s.orgID, hash); err != nil {
-		t.Fatal(err)
-	}
+	s.mitglied(t, "auditor@test.local", "Auditor", "auditor", "auditor-passwort")
 
 	// Health without auth.
 	for _, path := range []string{"/healthz", "/readyz"} {
@@ -217,7 +209,6 @@ func TestAPIAndRBAC(t *testing.T) {
 // stock phrases are rejected, write access only for manage roles.
 func TestMemoryAdministration(t *testing.T) {
 	s := newStack(t)
-	ctx := context.Background()
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 
 	created := admin.expect(http.MethodPost, "/api/v1/agents",
@@ -258,11 +249,7 @@ func TestMemoryAdministration(t *testing.T) {
 	}
 
 	// A read-only role may read, but not write or delete.
-	hash, _ := identbuiltin.HashPassword("auditor-passwort")
-	if _, err := s.pool.Exec(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
-		VALUES ($1,$2,'auditor@test.local','Auditor',$3,'auditor')`, uuid.New(), s.orgID, hash); err != nil {
-		t.Fatal(err)
-	}
+	s.mitglied(t, "auditor@test.local", "Auditor", "auditor", "auditor-passwort")
 	auditor := login(t, s, "auditor@test.local", "auditor-passwort")
 	auditor.expect(http.MethodPost, "/api/v1/agents/"+agentID+"/memories",
 		map[string]string{"content": "Auditor darf das nicht"}, http.StatusForbidden)

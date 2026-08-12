@@ -122,7 +122,7 @@ func (s *Server) handleListSessions(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie("covey_session"); err == nil {
 		cur = hashToken(cookie.Value)
 	}
-	offen, err := s.sessions().List(r.Context(), p.ID)
+	offen, err := s.sessions().List(r.Context(), p.AccountID)
 	if err != nil {
 		mapErr(w, err)
 		return
@@ -145,7 +145,7 @@ func (s *Server) handleRevokeOtherSessions(w http.ResponseWriter, r *http.Reques
 	if cookie, err := r.Cookie("covey_session"); err == nil {
 		cur = hashToken(cookie.Value)
 	}
-	n, err := s.sessions().DeleteOthers(r.Context(), p.ID, cur)
+	n, err := s.sessions().DeleteOthers(r.Context(), p.AccountID, cur)
 	if err != nil {
 		mapErr(w, err)
 		return

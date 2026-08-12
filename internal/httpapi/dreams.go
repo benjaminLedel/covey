@@ -114,7 +114,7 @@ func (s *Server) handleUndoDreamAction(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	if err := s.Dreams.Undo(r.Context(), actionID); err != nil {
+	if err := s.Dreams.Undo(r.Context(), principalFrom(r).OrgID, actionID); err != nil {
 		mapErr(w, err)
 		return
 	}

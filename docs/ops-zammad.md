@@ -88,6 +88,11 @@ otherwise Zammad cannot deliver the webhook.
      (`<agent-slug>` = the slug of the responsible agent in Covey; the ticket is
      assigned to the agent through the URL — see section 3.2. The agent ID, the
      UUID from the agent page's URL, is accepted as an alternative.)
+
+     > On an installation with **several organisations**, use the agent id. A
+     > slug is unique only within its organisation, and Covey refuses to deliver
+     > an ambiguous one with a 404 rather than guessing which `support` was
+     > meant.
    - HMAC signature token: **the same value** as `COVEY_ZAMMAD_WEBHOOK_SECRET`.
    - Payload: the standard payload is fine; it has to contain `ticket` and
      `article` as top-level objects. Important: `article.sender` has to arrive

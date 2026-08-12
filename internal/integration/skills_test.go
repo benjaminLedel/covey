@@ -14,7 +14,6 @@ import (
 
 	"covey/examples"
 	"covey/internal/backlog"
-	identbuiltin "covey/internal/identity/builtin"
 )
 
 // skillView covers all three response shapes: the library list (without files),
@@ -84,13 +83,8 @@ func skillFiles(files ...[2]string) []map[string]string {
 // validation and the role permissions.
 func TestSkillsAPI(t *testing.T) {
 	s := newStack(t)
-	ctx := context.Background()
 
-	hash, _ := identbuiltin.HashPassword("auditor-passwort")
-	if _, err := s.pool.Exec(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
-		VALUES ($1,$2,'skill-auditor@test.local','Auditor',$3,'auditor')`, uuid.New(), s.orgID, hash); err != nil {
-		t.Fatal(err)
-	}
+	s.mitglied(t, "skill-auditor@test.local", "Auditor", "auditor", "auditor-passwort")
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 	auditor := login(t, s, "skill-auditor@test.local", "auditor-passwort")
 

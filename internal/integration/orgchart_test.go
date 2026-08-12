@@ -123,7 +123,8 @@ func TestOrgChart(t *testing.T) {
 
 	// Org scoping: a human from a foreign organization is not a valid supervisor
 	// — neither for agents nor for humans.
-	admin.expect(http.MethodPost, "/api/v1/orgs", map[string]string{
+	s.alsSystemadmin(t)
+	admin.expect(http.MethodPost, "/api/v1/platform/orgs", map[string]string{
 		"name": "Fremde Org", "admin_email": "chef@fremd.local", "admin_name": "Chef",
 		"admin_password": "chef-passwort",
 	}, http.StatusCreated)

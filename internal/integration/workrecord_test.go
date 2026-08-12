@@ -11,7 +11,6 @@ import (
 
 	"covey/internal/agents"
 	"covey/internal/backlog"
-	identbuiltin "covey/internal/identity/builtin"
 )
 
 // TestArbeitsakteZaehltWasPassiertIst: die Akte ist eine Abfrage über das, was
@@ -140,13 +139,8 @@ func TestArbeitsakteZeigtHaengendeAufgaben(t *testing.T) {
 // Funktion in jedem Betrieb mit Betriebsrat unbenutzbar macht (spec/21).
 func TestArbeitsakteFolgtDenRecordings(t *testing.T) {
 	s := newStack(t)
-	ctx := context.Background()
 	for _, rolle := range []string{"controlling", "auditor"} {
-		hash, _ := identbuiltin.HashPassword(rolle + "-passwort")
-		if _, err := s.pool.Exec(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
-			VALUES ($1,$2,$3,$4,$5,$6)`, uuid.New(), s.orgID, rolle+"@test.local", rolle, hash, rolle); err != nil {
-			t.Fatal(err)
-		}
+		s.mitglied(t, rolle+"@test.local", rolle, rolle, rolle+"-passwort")
 	}
 	agent := s.newSupportAgent("kollege")
 	pfad := "/api/v1/agents/" + agent.ID.String() + "/work-record"

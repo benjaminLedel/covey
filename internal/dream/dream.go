@@ -209,14 +209,25 @@ func (s *Store) List(ctx context.Context, agentID uuid.UUID, limit int) ([]Dream
 
 // Undo reverts a single action. Only renames are reversible — separating
 // merged pages again would mean guessing the content.
-func (s *Store) Undo(ctx context.Context, actionID uuid.UUID) error {
+// Undo nimmt eine Traum-Aktion zurueck. Die Organisation steht im Argument und
+// nicht bloss im Aufrufer: die Aktion haengt ueber dream → agent an einer
+// Organisation, und ohne den Vergleich konnte jede manage-Rolle jeder
+// Organisation eine Wiki-Seite einer fremden umbenennen (FR-003, Befund C).
+//
+// Sie steht in der ABFRAGE und nicht als Prüfung davor, weil eine fremde
+// Aktion so gar nicht erst gefunden wird — "nicht gefunden" ist auch die
+// richtige Auskunft: dass es sie anderswo gibt, geht den Fragenden nichts an.
+func (s *Store) Undo(ctx context.Context, orgID, actionID uuid.UUID) error {
 	var kind, slug, before string
 	var agentID uuid.UUID
 	var undone *time.Time
 	err := s.pool.QueryRow(ctx,
 		`SELECT a.kind, a.page_slug, a.before, a.undone_at, d.agent_id
-		 FROM dream_actions a JOIN dreams d ON d.id = a.dream_id WHERE a.id=$1`,
-		actionID).Scan(&kind, &slug, &before, &undone, &agentID)
+		 FROM dream_actions a
+		   JOIN dreams d ON d.id = a.dream_id
+		   JOIN agents ag ON ag.id = d.agent_id
+		 WHERE a.id=$1 AND ag.org_id=$2`,
+		actionID, orgID).Scan(&kind, &slug, &before, &undone, &agentID)
 	if err != nil {
 		return err
 	}

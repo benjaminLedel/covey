@@ -788,7 +788,7 @@ func (o *Orchestrator) setStatus(ctx context.Context, agent agents.Agent, taskID
 	}
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, taskID, observability.KindLifecycle,
 		map[string]string{"status": status})
-	o.events.Publish(Event{Type: "agent_status", AgentID: agent.ID.String(), Data: map[string]string{"status": status}})
+	o.events.Publish(Event{Type: "agent_status", AgentID: agent.ID.String(), OrgID: agent.OrgID, Data: map[string]string{"status": status}})
 }
 
 // runAgent is one complete waking phase: sandbox up, work through the tasks
@@ -933,11 +933,11 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 				// dropped out from under the agent, that says nothing about
 				// whether the work itself was going fine.
 				o.requeueAfterDaemonLoss(context.WithoutCancel(ctx), task)
-				o.publishTask(task.ID, agent.ID)
+				o.publishTask(task.ID, agent)
 				return err
 			}
 			_, _ = o.Backlog.Complete(context.WithoutCancel(ctx), task.ID, backlog.StateFailed, "", err.Error())
-			o.publishTask(task.ID, agent.ID)
+			o.publishTask(task.ID, agent)
 			return err
 		}
 	}
@@ -1581,15 +1581,16 @@ func (o *Orchestrator) agentTeamSection(ctx context.Context, self agents.Agent) 
 	return agents.TeamAgentsSection(colleagues)
 }
 
-func (o *Orchestrator) publishTask(taskID, agentID uuid.UUID) {
-	o.events.Publish(Event{Type: "task", AgentID: agentID.String(), Data: map[string]string{"task_id": taskID.String()}})
+func (o *Orchestrator) publishTask(taskID uuid.UUID, agent agents.Agent) {
+	o.events.Publish(Event{Type: "task", AgentID: agent.ID.String(), OrgID: agent.OrgID,
+		Data: map[string]string{"task_id": taskID.String()}})
 }
 
 // processTask drives a task through triage → working → done/blocked/failed.
 func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link DaemonLink, task backlog.Task, s *session) error {
 	taskID := task.ID
 	o.setStatus(ctx, agent, &taskID, agents.StatusTriage)
-	o.publishTask(taskID, agent.ID)
+	o.publishTask(taskID, agent)
 
 	// Triage: check the wiki (spec/05) and compile the config (M2). Relevant
 	// pages (vector hits) plus the compact index of the whole wiki.
@@ -1861,7 +1862,7 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 			payload = o.storeActionArtifact(ctx, agent, taskID, payload)
 		}
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, kind, payload)
-		o.events.Publish(Event{Type: "recording", AgentID: agent.ID.String(),
+		o.events.Publish(Event{Type: "recording", AgentID: agent.ID.String(), OrgID: agent.OrgID,
 			Data: map[string]any{"task_id": taskID.String(), "kind": kind}})
 		return false, nil
 
@@ -1969,7 +1970,7 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		}
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
 			map[string]string{"status": "blocked", "correlation_key": b.CorrelationKey, "question": b.Question})
-		o.publishTask(taskID, agent.ID)
+		o.publishTask(taskID, agent)
 		return true, nil
 
 	case daemon.TypeTaskDone:
@@ -2051,7 +2052,7 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		}
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
 			map[string]string{"status": "task_" + d.Status})
-		o.publishTask(taskID, agent.ID)
+		o.publishTask(taskID, agent)
 		return true, nil
 
 	case daemon.TypeSetStage:
@@ -2073,7 +2074,7 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		}
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &target, observability.KindLifecycle,
 			map[string]string{"status": "stage", "stage": stage.Name})
-		o.publishTask(target, agent.ID)
+		o.publishTask(target, agent)
 		return false, nil
 
 	case daemon.TypeNote:
@@ -2104,7 +2105,7 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		}
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &target, observability.KindLifecycle,
 			map[string]string{"status": "note", "scope": n.Scope})
-		o.publishTask(target, agent.ID)
+		o.publishTask(target, agent)
 		return false, nil
 
 	default:
@@ -2175,7 +2176,7 @@ func (o *Orchestrator) handleIncomplete(ctx context.Context, agent agents.Agent,
 		o.releaseWorkSignature(ctx, agent.ID, task.Title)
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
 			map[string]string{"status": "task_escalated", "reason": "max_turns", "continuations": strconv.Itoa(depth)})
-		o.publishTask(taskID, agent.ID)
+		o.publishTask(taskID, agent)
 		return nil
 	}
 
@@ -2200,7 +2201,7 @@ func (o *Orchestrator) handleIncomplete(ctx context.Context, agent agents.Agent,
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
 		map[string]string{"status": "task_continued", "reason": "max_turns",
 			"continuation_task": child.ID.String(), "continuations": strconv.Itoa(depth + 1)})
-	o.publishTask(taskID, agent.ID)
+	o.publishTask(taskID, agent)
 	return nil
 }
 
@@ -2400,7 +2401,7 @@ func (o *Orchestrator) createAgentTask(ctx context.Context, agent agents.Agent, 
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
 		map[string]string{"status": "task_created", "created_task": created.ID.String(),
 			"target_agent": targetAgent.Slug, "title": title})
-	o.publishTask(created.ID, targetAgent.ID)
+	o.publishTask(created.ID, targetAgent)
 	if targetAgent.ID != agent.ID {
 		o.EnsureRunning(targetAgent.ID) // delegation wakes the colleague
 	}
@@ -2641,7 +2642,7 @@ func (o *Orchestrator) decideAction(ctx context.Context, agent agents.Agent, tas
 			if !allowed {
 				_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindGuardrail,
 					map[string]any{"rule": "tool_not_assigned", "action": req.Action, "decision": "denied"})
-				o.events.Publish(Event{Type: "guardrail", AgentID: agent.ID.String(),
+				o.events.Publish(Event{Type: "guardrail", AgentID: agent.ID.String(), OrgID: agent.OrgID,
 					Data: map[string]string{"action": req.Action, "decision": "denied"}})
 				return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied",
 					Reason: "tool " + tool + " is not assigned to this agent"}
@@ -2659,7 +2660,7 @@ func (o *Orchestrator) decideAction(ctx context.Context, agent agents.Agent, tas
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindGuardrail,
 			map[string]any{"rule": verdict.Rule.RuleType, "pattern": verdict.Rule.Pattern,
 				"action": req.Action, "decision": "denied"})
-		o.events.Publish(Event{Type: "guardrail", AgentID: agent.ID.String(),
+		o.events.Publish(Event{Type: "guardrail", AgentID: agent.ID.String(), OrgID: agent.OrgID,
 			Data: map[string]string{"action": req.Action, "decision": "denied"}})
 		return daemon.ApprovalDecision{RequestID: req.RequestID, Status: "denied",
 			Reason: "forbidden by guard rail " + verdict.Rule.Pattern}
@@ -2738,7 +2739,7 @@ func (o *Orchestrator) approvalGate(ctx context.Context, agent agents.Agent, tas
 	}
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindApproval,
 		map[string]any{"action": action, "decision": "pending", "approval_id": appr.ID.String()})
-	o.events.Publish(Event{Type: "approval", AgentID: agent.ID.String(),
+	o.events.Publish(Event{Type: "approval", AgentID: agent.ID.String(), OrgID: agent.OrgID,
 		Data: map[string]string{"approval_id": appr.ID.String(), "action": action}})
 	return gateVerdict{ApprovalID: appr.ID.String(), CorrelationKey: "approval:" + appr.ID.String()}
 }
@@ -2781,7 +2782,8 @@ func (o *Orchestrator) Kill(ctx context.Context, agentID uuid.UUID) error {
 	if agent, err := o.Registry.Get(ctx, agentID); err == nil {
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindLifecycle,
 			map[string]string{"status": "killed"})
-		o.events.Publish(Event{Type: "agent_status", AgentID: agentID.String(), Data: map[string]string{"status": "killed"}})
+		o.events.Publish(Event{Type: "agent_status", AgentID: agentID.String(), OrgID: agent.OrgID,
+			Data: map[string]string{"status": "killed"}})
 	}
 	return nil
 }
@@ -2888,7 +2890,7 @@ func (o *Orchestrator) HandleWebhook(ctx context.Context, agent agents.Agent, so
 	if task, err := o.Backlog.CorrelateWake(ctx, ev.CorrelationKey, ev.ResumeInput); err == nil {
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &task.ID, observability.KindLifecycle,
 			map[string]string{"status": "wake_on_correlation", "correlation_key": ev.CorrelationKey})
-		o.publishTask(task.ID, agent.ID)
+		o.publishTask(task.ID, agent)
 		return "correlated", nil
 	} else if !errors.Is(err, backlog.ErrNotFound) {
 		return "", err
@@ -2900,7 +2902,7 @@ func (o *Orchestrator) HandleWebhook(ctx context.Context, agent agents.Agent, so
 	if err != nil {
 		return "", err
 	}
-	o.publishTask(task.ID, agent.ID)
+	o.publishTask(task.ID, agent)
 	return "created", nil
 }
 
@@ -2927,6 +2929,6 @@ func (o *Orchestrator) HandleAgentTrigger(ctx context.Context, agent agents.Agen
 	if err != nil {
 		return "", err
 	}
-	o.publishTask(task.ID, agent.ID)
+	o.publishTask(task.ID, agent)
 	return "created", nil
 }

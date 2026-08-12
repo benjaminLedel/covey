@@ -13,12 +13,14 @@ import (
 	"io/fs"
 	"log/slog"
 	"net/http"
+	"net/netip"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"covey/internal/accounts"
 	"covey/internal/agents"
 	"covey/internal/audit"
 	"covey/internal/backlog"
@@ -34,9 +36,11 @@ import (
 	reqlogstore "covey/internal/reqlog/store"
 	"covey/internal/runtimes"
 	"covey/internal/secrets"
+	"covey/internal/settings"
 	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
 	"covey/internal/templates"
+	"covey/internal/waitlist"
 )
 
 type Server struct {
@@ -52,6 +56,14 @@ type Server struct {
 	Dreams   *dream.Store
 	Org      *org.Store
 	Targets  *targetstore.Store
+	// Settings are the instance's own switches (internal/settings).
+	// nil = the defaults apply, which for signup.mode means: closed.
+	Settings *settings.Store
+	// Accounts and Waitlist carry self-registration (FR-002). nil = the public
+	// sign-up endpoints answer 404 — an instance that cannot register anybody
+	// does not advertise the attempt.
+	Accounts *accounts.Store
+	Waitlist *waitlist.Store
 	// Skills are the agents' capabilities (library + agent-owned).
 	// nil = feature switched off; the skill routes then answer with 503
 	// (the same meaning as orchestrator.Options.Skills == nil).
@@ -103,6 +115,11 @@ type Server struct {
 	SiteURL string
 	// CookieSecure sets the Secure flag on the session cookie (HTTPS only).
 	CookieSecure bool
+	// TrustedProxies are the addresses whose X-Forwarded-For is believed —
+	// empty (the default) means: none, the peer address counts. It decides who
+	// a rate limit and an audit entry are attributed to (clientIP in
+	// ratelimit.go, COVEY_TRUSTED_PROXIES in the config).
+	TrustedProxies []netip.Prefix
 
 	// BaseCtx is the server's lifecycle. Background work that is meant to
 	// outlive a request (an agent's night run, say) hangs off it instead of
@@ -114,6 +131,7 @@ type Server struct {
 	// loginLimiter slows brute force on /auth/login, webhookLimiter the
 	// unauthenticated webhook endpoints (both initialized lazily in Handler).
 	loginLimiter   *loginLimiter
+	signupLimiter  *webhookLimiter
 	webhookLimiter *webhookLimiter
 
 	// seo is the map of the public website from dist/seo.json
@@ -125,6 +143,9 @@ type Server struct {
 func (s *Server) Handler() http.Handler {
 	if s.loginLimiter == nil {
 		s.loginLimiter = newLoginLimiter()
+	}
+	if s.signupLimiter == nil {
+		s.signupLimiter = newSignupLimiter()
 	}
 	if s.webhookLimiter == nil {
 		s.webhookLimiter = newWebhookLimiter()
@@ -151,6 +172,11 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/version", s.auth(func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, buildinfo.Get())
 	}))
+
+	// The public website's own question, without a session: does this
+	// installation accept registrations (public.go).
+	mux.HandleFunc("GET /api/v1/public/signup-state", s.handleSignupState)
+	mux.HandleFunc("POST /api/v1/public/signup", s.handleSignup)
 
 	// Auth.
 	mux.HandleFunc("POST /api/v1/auth/login", s.handleLogin)
@@ -426,10 +452,13 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/users", s.rbac(adminOnly, s.handleCreateUser))
 	mux.Handle("PATCH /api/v1/users/{id}", s.rbac(adminOnly, s.handleUpdateUser))
 	mux.Handle("DELETE /api/v1/users/{id}", s.rbac(adminOnly, s.handleDeleteUser))
-	mux.Handle("GET /api/v1/orgs", s.rbac(adminOnly, s.handleListOrgs))
-	mux.Handle("POST /api/v1/orgs", s.rbac(adminOnly, s.handleCreateOrg))
-	mux.Handle("PATCH /api/v1/orgs/{id}", s.rbac(adminOnly, s.handleUpdateOrg))
-	mux.Handle("DELETE /api/v1/orgs/{id}", s.rbac(adminOnly, s.handleDeleteOrg))
+	// Die Mandanten gehören der Instanz, nicht einer Organisation: system_admin
+	// statt platform_admin (FR-003, Befund F). Die alten Adressen unter /orgs
+	// gibt es nicht mehr — sie waren für jede Organisation erreichbar.
+	mux.Handle("GET /api/v1/platform/orgs", s.platformAdmin(s.handleListOrgs))
+	mux.Handle("POST /api/v1/platform/orgs", s.platformAdmin(s.handleCreateOrg))
+	mux.Handle("PATCH /api/v1/platform/orgs/{id}", s.platformAdmin(s.handleUpdateOrg))
+	mux.Handle("DELETE /api/v1/platform/orgs/{id}", s.platformAdmin(s.handleDeleteOrg))
 
 	// Live updates.
 	mux.Handle("GET /api/v1/events", s.auth(s.handleSSE))
@@ -565,6 +594,19 @@ func (s *Server) auth(next http.HandlerFunc) http.Handler {
 func (s *Server) rbac(roles []string, next http.HandlerFunc) http.Handler {
 	return s.auth(func(w http.ResponseWriter, r *http.Request) {
 		p := principalFrom(r)
+		// Signed in, but no seat: since accounts were split off from
+		// memberships (FR-002), an account can exist before its organisation
+		// does. That is not a lack of RIGHTS but a lack of CONTEXT, and it
+		// needs an answer of its own — otherwise the interface reads the 403
+		// as "wrong password", throws the session away and sends whoever just
+		// registered back to the login form they came from.
+		if !p.HasOrg() {
+			writeJSON(w, http.StatusConflict, map[string]string{
+				"error": "no_organization",
+				"hint":  "this account does not belong to an organisation yet",
+			})
+			return
+		}
 		for _, role := range roles {
 			if p.Role == role {
 				next(w, r)
@@ -572,6 +614,35 @@ func (s *Server) rbac(roles []string, next http.HandlerFunc) http.Handler {
 			}
 		}
 		writeErr(w, http.StatusForbidden, "role "+p.Role+" has no rights here")
+	})
+}
+
+// platformAdmin guards the instance level — everything that concerns not one
+// organisation but the installation: the tenant list, the system settings, the
+// waitlist codes.
+//
+// It hangs off auth and deliberately NOT off rbac. Two reasons, and both
+// matter:
+//
+// The org roles answer "what may this person do INSIDE their organisation".
+// platform_admin is one of them, and every organisation hands it out to
+// itself — using it here would mean the first self-registered tenant could
+// delete all the others (FR-003, finding F). The instance level therefore sits
+// on the account, where no organisation can reach it.
+//
+// And it must not require an organisation: whoever administers the
+// installation is not necessarily a member of any of its tenants. rbac would
+// turn that into a 409 "no_organization" — for the very person who is supposed
+// to fix it.
+func (s *Server) platformAdmin(next http.HandlerFunc) http.Handler {
+	return s.auth(func(w http.ResponseWriter, r *http.Request) {
+		if principalFrom(r).PlatformRole != accounts.RoleSystemAdmin {
+			// 404 and not 403: whether this installation has an administration
+			// at all is nobody's business who is not part of it.
+			writeErr(w, http.StatusNotFound, "not found")
+			return
+		}
+		next(w, r)
 	})
 }
 
@@ -672,7 +743,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := time.Now()
-	key := loginKey(r, in.Email)
+	key := s.loginKey(r, in.Email)
 	if s.loginLimiter.blocked(key, now) {
 		writeErr(w, http.StatusTooManyRequests, "too many failed attempts — please try again later")
 		return
@@ -687,7 +758,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	buf := make([]byte, 32)
 	rand.Read(buf)
 	token := hex.EncodeToString(buf)
-	if err := s.sessions().Create(r.Context(), hashToken(token), p.ID, time.Now().Add(s.SessionTTL)); err != nil {
+	if err := s.sessions().Create(r.Context(), hashToken(token), p.AccountID, p.ID, time.Now().Add(s.SessionTTL)); err != nil {
 		mapErr(w, err)
 		return
 	}

@@ -51,7 +51,7 @@ func (s *Server) mitAuditSpur(next http.Handler) http.Handler {
 		actor := p.ID
 		eintrag := audit.Eintrag{
 			OrgID: p.OrgID, ActorID: &actor, ActorEmail: p.Email, ActorRole: p.Role,
-			Method: r.Method, Path: r.URL.Path, Status: rec.status, ClientIP: clientIP(r),
+			Method: r.Method, Path: r.URL.Path, Status: rec.status, ClientIP: s.clientIP(r),
 		}
 		// Best effort: the action has happened; letting it fail after the fact
 		// because logging is stuck does not improve the situation. The error does

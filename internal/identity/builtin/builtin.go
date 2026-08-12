@@ -82,24 +82,62 @@ func (p *Provider) VerifyAgentToken(ctx context.Context, token, audience string)
 	return uuid.Parse(claims.Subject)
 }
 
+// AuthenticateHuman checks the credentials against the ACCOUNT and then
+// resolves the seat this login starts from.
+//
+// Two steps, because they answer two questions: "is this the right password?"
+// belongs to the account, "which organisation am I working in?" to the
+// membership. An account without a membership authenticates successfully and
+// gets a principal without an organisation — that is not an error but the
+// state a self-registration produces.
 func (p *Provider) AuthenticateHuman(ctx context.Context, creds identity.Credentials) (identity.Principal, error) {
 	var pr identity.Principal
 	var hash string
-	err := p.pool.QueryRow(ctx, `SELECT id, org_id, email, display_name, role, password_hash
-		FROM humans WHERE email=$1`, strings.ToLower(creds.Email)).
-		Scan(&pr.ID, &pr.OrgID, &pr.Email, &pr.DisplayName, &pr.Role, &hash)
+	err := p.pool.QueryRow(ctx, `SELECT id, email, display_name, password_hash, platform_role
+		FROM accounts WHERE email=$1`, strings.ToLower(strings.TrimSpace(creds.Email))).
+		Scan(&pr.AccountID, &pr.Email, &pr.DisplayName, &hash, &pr.PlatformRole)
 	if errors.Is(err, pgx.ErrNoRows) {
 		// Dummy comparison against a timing oracle (user enumeration).
 		_ = VerifyPassword(creds.Password, mustHash("covey-dummy"))
-		return pr, ErrInvalidCredentials
+		return identity.Principal{}, ErrInvalidCredentials
 	}
 	if err != nil {
-		return pr, err
+		return identity.Principal{}, err
 	}
 	if !VerifyPassword(creds.Password, hash) {
-		return pr, ErrInvalidCredentials
+		return identity.Principal{}, ErrInvalidCredentials
+	}
+
+	// The seat to start from. With several it is the oldest — a deliberate,
+	// reproducible choice rather than whatever the database happens to return
+	// first; switching is a decision of its own (org switcher, P5).
+	if err := p.pool.QueryRow(ctx, `SELECT id, org_id, role FROM humans
+		WHERE account_id=$1 ORDER BY created_at LIMIT 1`, pr.AccountID).
+		Scan(&pr.ID, &pr.OrgID, &pr.Role); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return identity.Principal{}, err
 	}
 	return pr, nil
+}
+
+// Memberships lists the seats of an account — the organisations this login
+// works in.
+func (p *Provider) Memberships(ctx context.Context, accountID uuid.UUID) ([]identity.Membership, error) {
+	rows, err := p.pool.Query(ctx, `SELECT h.id, h.org_id, o.name, h.role
+		FROM humans h JOIN organizations o ON o.id = h.org_id
+		WHERE h.account_id=$1 ORDER BY h.created_at`, accountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []identity.Membership
+	for rows.Next() {
+		var m identity.Membership
+		if err := rows.Scan(&m.HumanID, &m.OrgID, &m.OrgName, &m.Role); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
 }
 
 // --- Argon2id password hashing (PHC string format) ---

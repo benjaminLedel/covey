@@ -19,7 +19,10 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
 
-	ch, cancel := s.Orch.Events().Subscribe()
+	// Die Verbindung gehört einer Organisation — sie bekommt nur deren
+	// Ereignisse (FR-003, Befund A). Ein Konto ohne Mitgliedschaft abonniert
+	// die leere UUID und hört damit nichts, statt alles.
+	ch, cancel := s.Orch.Events().Subscribe(principalFrom(r).OrgID)
 	defer cancel()
 
 	keepalive := time.NewTicker(20 * time.Second)

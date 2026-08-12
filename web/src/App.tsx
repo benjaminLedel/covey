@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, buildInfo, inbox, post, type Principal, type SetupState } from "./api";
+import { api, buildInfo, inbox, istSystemAdmin, post, type Principal, type SetupState } from "./api";
 import i18n, { gespeicherteSprache, istVorgerendert, merkeSprache } from "./i18n";
 import HelpDrawer from "./components/HelpDrawer";
 import ThemeSwitch from "./components/ThemeSwitch";
 import PublicSite from "./public/PublicSite";
+import NoOrganization from "./pages/NoOrganization";
 import Dashboard from "./pages/Dashboard";
 import AgentPage from "./pages/Agent";
 import Inbox from "./pages/Inbox";
@@ -56,6 +57,10 @@ function useLiveEvents(enabled: boolean) {
    allen anderen Pfaden bleibt es beim bisherigen Verhalten. */
 const prerendered = istVorgerendert();
 
+/* Die leere UUID ist die Antwort des Servers auf "noch keine Organisation" —
+   Principal.OrgID ist ein Wert, kein Zeiger, und hat deshalb keinen NULL. */
+const LEERE_UUID = "00000000-0000-0000-0000-000000000000";
+
 export default function App() {
   const me = useQuery({
     queryKey: ["me"],
@@ -68,6 +73,12 @@ export default function App() {
     return prerendered ? <PublicSite onLogin={() => me.refetch()} /> : null;
   }
   if (me.isError) return <PublicSite onLogin={() => me.refetch()} />;
+  /* Angemeldet, aber ohne Sitz: seit die Anmeldung am Konto hängt (FR-002),
+     kann ein Konto existieren, bevor eine Organisation es kennt. Die Shell
+     liefe dort in lauter 409er, deshalb kommt sie gar nicht erst dran. */
+  if (me.data!.OrgID === LEERE_UUID) {
+    return <NoOrganization me={me.data!} onLogout={() => me.refetch()} />;
+  }
   return <Shell me={me.data!} onLogout={() => me.refetch()} />;
 }
 
@@ -423,7 +434,14 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
               {showPlatform && (
                 <div className="nav-group">
                   <NavItem to="/users" icon="user" label={t("nav.users")} />
-                  <NavItem to="/orgs" icon="box" label={t("nav.organizations")} />
+                  {/* Die Mandantenverwaltung gehört der Instanz, nicht der
+                      Organisation: sie erscheint nur für den Systemadmin.
+                      Vorher stand sie hier für jeden platform_admin — also für
+                      eine Rolle, die jede Organisation an sich selbst vergibt
+                      (FR-003, Befund F). */}
+                  {istSystemAdmin(me) && (
+                    <NavItem to="/orgs" icon="box" label={t("nav.organizations")} />
+                  )}
                 </div>
               )}
             </>
@@ -499,7 +517,13 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
             <Route path="/guardrails" element={<Guardrails me={me} />} />
             <Route path="/secrets" element={<Secrets me={me} />} />
             <Route path="/users" element={<Users me={me} />} />
-            <Route path="/orgs" element={<Organizations me={me} />} />
+            {/* Auch als Adresse, nicht nur als Menüpunkt: wer /orgs von Hand
+                aufruft, ohne die Instanz zu verwalten, gehört auf die
+                Startseite und nicht auf eine Seite voller 404er. */}
+            <Route
+              path="/orgs"
+              element={istSystemAdmin(me) ? <Organizations me={me} /> : <Navigate to="/" replace />}
+            />
             <Route path="/runtimes" element={<Runtimes me={me} />} />
             <Route path="/requests" element={<Requests me={me} />} />
             <Route path="/audit" element={<Audit />} />

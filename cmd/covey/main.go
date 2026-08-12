@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"flag"
 	"fmt"
 	"log/slog"
 	"net"
@@ -21,6 +22,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/term"
 
+	"covey/internal/accounts"
 	"covey/internal/agents"
 	"covey/internal/audit"
 	"covey/internal/backlog"
@@ -41,9 +43,11 @@ import (
 	reqlogstore "covey/internal/reqlog/store"
 	"covey/internal/runtimes"
 	secbuiltin "covey/internal/secrets/builtin"
+	"covey/internal/settings"
 	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
 	"covey/internal/templates"
+	"covey/internal/waitlist"
 	"covey/migrations"
 	"covey/web"
 
@@ -102,6 +106,14 @@ func main() {
 		err = runEgressProxy(ctx, cfg, log)
 	case "config":
 		err = runConfigLint(ctx, cfg, os.Args[2:])
+	case "settings":
+		err = runSettings(ctx, cfg, os.Args[2:], log)
+	case "waitlist":
+		err = runWaitlist(ctx, cfg, os.Args[2:])
+	case "system-admin":
+		err = runSystemAdmin(ctx, cfg, os.Args[2:])
+	case "doctor":
+		err = runDoctor(ctx, cfg)
 	case "genkey":
 		var key string
 		if key, err = secbuiltin.GenerateMasterKey(); err == nil {
@@ -126,6 +138,10 @@ func usage() {
   covey serve             start API + orchestrator + admin UI
   covey egress-proxy      egress allowlist proxy (network isolation mode, in the container)
   covey config lint       check agent configs for known pitfalls (changes nothing)
+  covey settings [k v]    show the instance's settings, or set one (e.g. signup.mode waitlist)
+  covey waitlist          list waitlist codes | new [-label L] [-uses N] [-days D] | revoke <hash>
+  covey system-admin      list | add <email> | remove <email> — the instance level, not an org role
+  covey doctor            check this installation BEFORE an upgrade (changes nothing)
   covey genkey            generate a new COVEY_MASTER_KEY
   covey version           version, commit and build time of this binary
 
@@ -213,9 +229,22 @@ func runBootstrap(ctx context.Context, cfg config.Config, log *slog.Logger) erro
 				return err
 			}
 			adminID = uuid.New()
-			if _, err := pool.Exec(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
-				VALUES ($1,$2,$3,'Platform Admin',$4,'platform_admin')`,
-				adminID, orgID, adminEmail, hash); err != nil {
+			// The login sits on the account (P1); the seat points at it. A
+			// bootstrap that created only the seat would leave an admin who
+			// cannot sign in — and that is exactly the situation bootstrap
+			// exists to prevent.
+			accountID := uuid.New()
+			if _, err := pool.Exec(ctx, `INSERT INTO accounts (id, email, password_hash, display_name, email_verified_at, platform_role)
+				VALUES ($1,$2,$3,'Platform Admin',now(),'system_admin')
+				ON CONFLICT (email) DO NOTHING`, accountID, adminEmail, hash); err != nil {
+				return err
+			}
+			if err := pool.QueryRow(ctx, `SELECT id FROM accounts WHERE email=$1`, adminEmail).Scan(&accountID); err != nil {
+				return err
+			}
+			if _, err := pool.Exec(ctx, `INSERT INTO humans (id, org_id, account_id, email, display_name, password_hash, role)
+				VALUES ($1,$2,$3,$4,'Platform Admin',$5,'platform_admin')`,
+				adminID, orgID, accountID, adminEmail, hash); err != nil {
 				return err
 			}
 			log.Info("admin created", "email", adminEmail)
@@ -299,6 +328,275 @@ func runBootstrap(ctx context.Context, cfg config.Config, log *slog.Logger) erro
 // self-service reset). The password never comes from argv (process list!) but
 // from the terminal without echo or as a single line from stdin. All of the
 // user's running sessions are invalidated.
+// runSettings shows the instance's settings and changes one of them. The same
+// switches the System page will offer later (FR-002) — the command exists
+// because the first of them has to be flippable before there is a page, and
+// because an installation that has locked itself out of its own interface
+// still has a terminal.
+//
+// Validation is not repeated here: it sits in the store, so the CLI cannot
+// permit what the API refuses.
+func runSettings(ctx context.Context, cfg config.Config, args []string, log *slog.Logger) error {
+	pool, err := db.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	store := settings.New(pool)
+
+	switch len(args) {
+	case 0:
+		werte, err := store.All(ctx)
+		if err != nil {
+			return err
+		}
+		for _, k := range settings.Keys() {
+			markierung := ""
+			if werte[k] == settings.Defaults[k] {
+				markierung = "   (default)"
+			}
+			fmt.Printf("%-20s %s%s\n", k, werte[k], markierung)
+		}
+		return nil
+	case 2:
+		if err := store.Set(ctx, args[0], args[1], nil); err != nil {
+			return err
+		}
+		log.Info("setting changed", "key", args[0], "value", args[1])
+		return nil
+	default:
+		return errors.New("usage: covey settings [<key> <value>]")
+	}
+}
+
+// runDoctor checks an installation before an upgrade — and changes nothing.
+//
+// The reason it exists: migrations run at the start of `covey serve`, and two
+// of them refuse to guess (0059). A refusal is the right answer — merging two
+// people into one login would hand one of them the other's access — but on an
+// instance that deploys automatically it arrives as "the service does not come
+// up", at a moment when nobody is looking for a database question. This
+// command asks it beforehand.
+func runDoctor(ctx context.Context, cfg config.Config) error {
+	pool, err := db.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+
+	var probleme int
+	melde := func(schwere, text string) {
+		fmt.Printf("%-8s %s\n", schwere, text)
+		if schwere == "BLOCKS" {
+			probleme++
+		}
+	}
+
+	// 1. Adressen, die sich nur in der Schreibweise unterscheiden. In humans
+	//    zwei Zeilen, in accounts ein Login — also ein Mensch mit dem Zugang
+	//    eines anderen.
+	rows, err := pool.Query(ctx, `SELECT lower(email), count(*) FROM humans
+		GROUP BY lower(email) HAVING count(*) > 1`)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var email string
+			var n int
+			if err := rows.Scan(&email, &n); err == nil {
+				melde("BLOCKS", fmt.Sprintf("%s exists %dx in humans (different spellings) — deduplicate before upgrading", email, n))
+			}
+		}
+	}
+
+	// 2. Ein selbstregistriertes Konto auf der Adresse eines bestehenden Sitzes.
+	//
+	// Welche Frage hier richtig ist, haengt vom Stand der Datenbank ab, und das
+	// ist keine Feinheit: VOR 0059 gibt es humans.account_id nicht, eine
+	// Abfrage darauf laeuft in einen Fehler — und ein verschluckter Fehler ist
+	// hier schlimmer als keine Pruefung, weil er wie eine bestandene aussieht.
+	// NACH 0059 traegt jeder Sitz ein Konto mit derselben Adresse, dann waere
+	// die unbedingte Abfrage lauter Fehlalarm.
+	var verknuepft bool
+	if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM information_schema.columns
+		WHERE table_name='humans' AND column_name='account_id')`).Scan(&verknuepft); err != nil {
+		return err
+	}
+	abfrage := `SELECT a.email FROM accounts a JOIN humans h ON lower(h.email) = a.email`
+	if verknuepft {
+		abfrage += ` WHERE h.account_id IS NULL`
+	}
+	krows, err := pool.Query(ctx, abfrage)
+	if err != nil {
+		// accounts gibt es erst ab 0058 — auf einer aelteren Datenbank ist die
+		// Frage gegenstandslos, nicht unbeantwortet.
+		melde("note", "no accounts table yet — this installation is older than the sign-up work")
+	} else {
+		defer krows.Close()
+		for krows.Next() {
+			var email string
+			if err := krows.Scan(&email); err == nil {
+				melde("BLOCKS", email+" has a self-registered account AND an existing seat — check and delete the account")
+			}
+		}
+	}
+
+	// 3. Wer verwaltet die Instanz? Nach dem Upgrade haengt die
+	//    Mandantenverwaltung daran.
+	var admins, orgs int
+	_ = pool.QueryRow(ctx, `SELECT count(*) FROM accounts WHERE platform_role='system_admin'`).Scan(&admins)
+	_ = pool.QueryRow(ctx, `SELECT count(*) FROM organizations`).Scan(&orgs)
+	switch {
+	case admins > 0:
+		melde("ok", fmt.Sprintf("%d system administrator(s)", admins))
+	case orgs == 1:
+		melde("note", "no system administrator yet — the upgrade appoints the platform_admin of the single organisation")
+	default:
+		melde("WARN", fmt.Sprintf("no system administrator, and %d organisations — nobody could administer the instance; use `covey system-admin add <email>`", orgs))
+	}
+
+	if probleme == 0 {
+		fmt.Println("\nNothing in the way of an upgrade.")
+		return nil
+	}
+	return fmt.Errorf("%d finding(s) block the upgrade — see above", probleme)
+}
+
+// runSystemAdmin manages the instance level.
+//
+// Deliberately only here and not over HTTP: system_admin is what protects the
+// organisations from one another (FR-003, finding F). An endpoint that grants
+// it would be reachable from inside an organisation — which is exactly the
+// boundary this role exists to draw. Whoever administers the installation has
+// a terminal on it.
+func runSystemAdmin(ctx context.Context, cfg config.Config, args []string) error {
+	pool, err := db.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	store := accounts.New(pool)
+
+	befehl := "list"
+	if len(args) > 0 {
+		befehl = args[0]
+	}
+	switch befehl {
+	case "list":
+		rows, err := pool.Query(ctx,
+			`SELECT email FROM accounts WHERE platform_role='system_admin' ORDER BY email`)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		leer := true
+		for rows.Next() {
+			var email string
+			if err := rows.Scan(&email); err != nil {
+				return err
+			}
+			fmt.Println(email)
+			leer = false
+		}
+		if leer {
+			fmt.Println("no system administrator — nobody can administer this installation")
+		}
+		return rows.Err()
+
+	case "add", "remove":
+		if len(args) != 2 {
+			return fmt.Errorf("usage: covey system-admin %s <email>", befehl)
+		}
+		rolle := accounts.RoleSystemAdmin
+		if befehl == "remove" {
+			rolle = accounts.RoleUser
+		}
+		if err := store.SetPlatformRole(ctx, args[1], rolle); err != nil {
+			return err
+		}
+		fmt.Printf("%s: %s\n", args[1], rolle)
+		return nil
+	}
+	return fmt.Errorf("unknown: covey system-admin %s (list|add|remove)", befehl)
+}
+
+// runWaitlist manages the codes with which the instance opens in stages.
+//
+// The plaintext is printed exactly once, here — stored is only its hash, as
+// for the session tokens. Whoever loses a code gets a new one; that is the
+// price of a database dump containing no valid codes.
+func runWaitlist(ctx context.Context, cfg config.Config, args []string) error {
+	pool, err := db.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	store := waitlist.New(pool)
+
+	befehl := "list"
+	if len(args) > 0 {
+		befehl = args[0]
+		args = args[1:]
+	}
+
+	switch befehl {
+	case "list":
+		codes, err := store.List(ctx)
+		if err != nil {
+			return err
+		}
+		if len(codes) == 0 {
+			fmt.Println("no codes yet — create one with `covey waitlist new`")
+			return nil
+		}
+		for _, c := range codes {
+			zustand := "open"
+			switch {
+			case c.RevokedAt != nil:
+				zustand = "revoked"
+			case !c.Open():
+				zustand = "used up/expired"
+			}
+			fmt.Printf("%s  %-20s %d/%d  %-16s %s\n",
+				c.Hash[:12], c.Label, c.UsedCount, c.MaxUses, zustand,
+				c.CreatedAt.Format("2006-01-02"))
+		}
+		return nil
+
+	case "new":
+		fs := flag.NewFlagSet("waitlist new", flag.ContinueOnError)
+		label := fs.String("label", "", "note, e.g. the occasion the code is for")
+		uses := fs.Int("uses", 1, "how often the code may be redeemed")
+		days := fs.Int("days", 0, "validity in days (0 = unlimited)")
+		email := fs.String("email", "", "restrict to an address or a domain (@firma.de)")
+		if err := fs.Parse(args); err != nil {
+			return err
+		}
+		opt := waitlist.Options{Label: *label, MaxUses: *uses, EmailPattern: *email}
+		if *days > 0 {
+			bis := time.Now().AddDate(0, 0, *days)
+			opt.ExpiresAt = &bis
+		}
+		code, err := store.Create(ctx, opt)
+		if err != nil {
+			return err
+		}
+		fmt.Println(code)
+		fmt.Fprintln(os.Stderr, "\nWrite it down — only its hash is stored, it cannot be shown again.")
+		return nil
+
+	case "revoke":
+		if len(args) != 1 {
+			return errors.New("usage: covey waitlist revoke <hash prefix>")
+		}
+		if err := store.Revoke(ctx, args[0]); err != nil {
+			return err
+		}
+		fmt.Println("revoked")
+		return nil
+	}
+	return fmt.Errorf("unknown: covey waitlist %s (list|new|revoke)", befehl)
+}
+
 func runPasswd(ctx context.Context, cfg config.Config, args []string, log *slog.Logger) error {
 	if len(args) != 1 {
 		return errors.New("usage: covey passwd <email>")
@@ -319,18 +617,21 @@ func runPasswd(ctx context.Context, cfg config.Config, args []string, log *slog.
 	}
 	defer pool.Close()
 
+	// The emergency reset works on the ACCOUNT: that is where the password
+	// lives, and whoever is locked out is locked out as a person, not as the
+	// occupant of one seat.
 	var id uuid.UUID
-	if err := pool.QueryRow(ctx, "SELECT id FROM humans WHERE email=$1", email).Scan(&id); err != nil {
-		return fmt.Errorf("no user with e-mail %q", email)
+	if err := pool.QueryRow(ctx, "SELECT id FROM accounts WHERE email=$1", email).Scan(&id); err != nil {
+		return fmt.Errorf("no account with e-mail %q", email)
 	}
 	hash, err := identbuiltin.HashPassword(pw)
 	if err != nil {
 		return err
 	}
-	if _, err := pool.Exec(ctx, "UPDATE humans SET password_hash=$1 WHERE id=$2", hash, id); err != nil {
+	if _, err := pool.Exec(ctx, "UPDATE accounts SET password_hash=$1 WHERE id=$2", hash, id); err != nil {
 		return err
 	}
-	if _, err := pool.Exec(ctx, "DELETE FROM http_sessions WHERE human_id=$1", id); err != nil {
+	if _, err := pool.Exec(ctx, "DELETE FROM http_sessions WHERE account_id=$1", id); err != nil {
 		return err
 	}
 	log.Info("password set anew, all sessions invalidated", "email", email)
@@ -737,12 +1038,14 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Pool:    pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Runtimes: runtimeStore, Identity: idp, Memory: mem, Dreams: dreams,
 		Org: org.NewStore(pool), Targets: targets, Templates: templateStore,
+		Settings: settings.New(pool), Accounts: accounts.New(pool), Waitlist: waitlist.New(pool),
 		Skills: skillStore,
 		Orch:   orch, WebFS: dist, Log: log,
 		WebhookSecrets: cfg.WebhookSecrets,
 		SessionTTL:     cfg.SessionTTL,
 		SiteURL:        cfg.SiteURL,
 		CookieSecure:   cfg.CookieSecure,
+		TrustedProxies: cfg.TrustedProxies,
 		EgressStore:    egressStore,
 		EgressEnforced: egressEnforced,
 		EgressDefaults: egressBaseAllow(cfg),

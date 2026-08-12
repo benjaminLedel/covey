@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { post } from "../api";
+import { usePublicLang } from "./lang";
+import { pathOf } from "./seo";
+import { useSignupState } from "./signupState";
 
 const DEMO_EMAIL = "admin@covey.local";
 const DEMO_PASSWORD = "covey-admin";
@@ -21,6 +25,10 @@ export default function LoginCard({ onLogin }: { onLogin: () => void }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [isLocal, setIsLocal] = useState(false);
+  const lang = usePublicLang();
+  /* Der Verweis auf die Registrierung erscheint nur, wenn diese Installation
+     sie überhaupt annimmt — sonst führte er zu einem „geschlossen" (FR-002). */
+  const { state: signupState } = useSignupState();
 
   useEffect(() => setIsLocal(localHost()), []);
 
@@ -85,6 +93,12 @@ export default function LoginCard({ onLogin }: { onLogin: () => void }) {
             {t("login.demoLogin")}
           </button>
         </>
+      )}
+      {signupState.mode !== "off" && (
+        <p className="login-alt">
+          {t("public.signup.noAccount")}{" "}
+          <Link to={pathOf("registrieren", lang)}>{t("public.signup.title")}</Link>
+        </p>
       )}
     </form>
   );

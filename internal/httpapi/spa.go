@@ -168,12 +168,15 @@ func setzeSchutzHeader(w http.ResponseWriter) {
 	h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
 }
 
-// findWebhookAgent resolves the address part of a webhook URL (MVP: one
-// organisation). What is meant is the slug; the agent ID is accepted as a
-// substitute because it appears in the agent's UI URL and is easily copied
-// instead of the slug when setting up a target system. Both address the same
-// agent unambiguously — the slug takes precedence in case a slug looks like a
-// UUID.
+// findWebhookAgent resolves the address part of a webhook URL. Meant is the
+// slug; the agent id is accepted as a substitute because it appears in the
+// agent's UI URL and is easily copied instead of the slug when setting up a
+// target system.
+//
+// The id is the address that always works: it is unique instance-wide,
+// whereas a slug is unique only within its organisation. Where a slug is
+// ambiguous, FindBySlug refuses and the caller gets a 404 that says so — the
+// id then remains the way through (FR-003, finding B).
 func (s *Server) findWebhookAgent(r *http.Request, ref string) (agents.Agent, error) {
 	if a, err := s.Registry.FindBySlug(r.Context(), ref); err == nil {
 		return a, nil

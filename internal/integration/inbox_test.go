@@ -6,10 +6,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/google/uuid"
-
 	"covey/internal/agents"
-	identbuiltin "covey/internal/identity/builtin"
 )
 
 // inboxPage ist die Antwort des Posteingangs, so weit der Test sie liest.
@@ -96,12 +93,7 @@ func TestPosteingangSortiertNachDringlichkeit(t *testing.T) {
 func TestPosteingangControllingSiehtKeineArbeitsakte(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
-	hash, _ := identbuiltin.HashPassword("controlling-passwort")
-	if _, err := s.pool.Exec(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
-		VALUES ($1,$2,'controlling@test.local','Controlling',$3,'controlling')`,
-		uuid.New(), s.orgID, hash); err != nil {
-		t.Fatal(err)
-	}
+	s.mitglied(t, "controlling@test.local", "Controlling", "controlling", "controlling-passwort")
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 	controlling := login(t, s, "controlling@test.local", "controlling-passwort")
 	ziel := s.newSupportAgent("kollege")

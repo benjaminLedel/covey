@@ -6,10 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/uuid"
-
 	"covey/internal/agents"
-	identbuiltin "covey/internal/identity/builtin"
 )
 
 // vorschlag legt einen Vorschlag an, wie ihn später die Aktion
@@ -108,12 +105,7 @@ func TestVorschlagLiegtUndLaeuftNicht(t *testing.T) {
 // Zugriffsentscheidung zu dem, der zuerst geklickt hat.
 func TestVorschlagAufAccessBrauchtSecurity(t *testing.T) {
 	s := newStack(t)
-	ctx := context.Background()
-	hash, _ := identbuiltin.HashPassword("owner-passwort")
-	if _, err := s.pool.Exec(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
-		VALUES ($1,$2,'owner@test.local','Teamleiter',$3,'agent_owner')`, uuid.New(), s.orgID, hash); err != nil {
-		t.Fatal(err)
-	}
+	s.mitglied(t, "owner@test.local", "Teamleiter", "agent_owner", "owner-passwort")
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 	owner := login(t, s, "owner@test.local", "owner-passwort")
 	ziel := s.newSupportAgent("kollege")

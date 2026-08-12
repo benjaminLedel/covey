@@ -92,7 +92,8 @@ func TestOnboardingChecklist(t *testing.T) {
 
 	// Another organization, another list: one's progress must not tick the
 	// other's items.
-	admin.expect(http.MethodPost, "/api/v1/orgs", map[string]any{
+	s.alsSystemadmin(t)
+	admin.expect(http.MethodPost, "/api/v1/platform/orgs", map[string]any{
 		"name": "Zweit-Org", "admin_email": "zweit@test.local",
 		"admin_name": "Zweit-Admin", "admin_password": "zweit-passwort",
 	}, http.StatusCreated)

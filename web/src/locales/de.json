@@ -321,6 +321,34 @@
       "title": "Diese Seite gibt es nicht",
       "text": "Die Adresse führt ins Leere — vermutlich ein Tippfehler oder ein Link, der älter ist als die Seite.",
       "home": "Zur Startseite"
+    },
+    "signup": {
+      "title": "Registrieren",
+      "subtitle": "Ihre KI-Belegschaft, professionell geführt.",
+      "code": "Wartelisten-Code",
+      "codeHint": "Covey öffnet schrittweise. Der Code steht in der Einladung, mit der Sie hierher gekommen sind.",
+      "name": "Name",
+      "email": "E-Mail",
+      "password": "Passwort",
+      "passwordHint": "Mindestens {{min}} Zeichen.",
+      "submit": "Konto anlegen",
+      "submitting": "Konto wird angelegt…",
+      "error": "Die Registrierung hat nicht geklappt. Bitte prüfen Sie den Code und die E-Mail-Adresse.",
+      "noAccount": "Noch kein Konto?",
+      "haveAccount": "Sie haben schon ein Konto?",
+      "signIn": "Anmelden",
+      "closed": {
+        "title": "Registrierung geschlossen",
+        "text": "Diese Installation nimmt zurzeit keine neuen Konten an. Wenn Sie hier arbeiten sollen, legt Ihre Administration das Konto an."
+      },
+      "done": {
+        "title": "Fast geschafft",
+        "text": "Wir haben eine Bestätigung an {{email}} geschickt. Der Link darin schaltet das Konto frei — danach treten Sie einer Organisation bei oder gründen Ihre eigene."
+      },
+      "created": {
+        "title": "Konto angelegt",
+        "text": "{{email}} ist registriert — Sie können sich jetzt anmelden. Einer Organisation beitreten oder eine eigene gründen folgt als nächster Schritt."
+      }
     }
   },
   "nav": {
@@ -520,6 +548,11 @@
     "error": "Anmeldung fehlgeschlagen — E-Mail oder Passwort falsch.",
     "localOnly": "nur lokal",
     "demoLogin": "Demo-Login (Admin)"
+  },
+  "noOrg": {
+    "title": "Noch keine Organisation",
+    "text": "{{email}} ist angemeldet, gehört aber zu keiner Organisation. Beitreten oder eine eigene gründen kommt als nächster Schritt; bis dahin kann hier niemand für Sie etwas freischalten außer der Administration Ihrer Organisation.",
+    "signOut": "Abmelden"
   },
   "landing": {
     "pitch": "Covey behandelt KI-Agenten wie Mitarbeiter: eigene Identität, isolierte Sandbox, gebrokerte Zugänge und ein Platz im Org-Chart. Sie stellen ein, weisen Aufgaben zu und behalten die Kontrolle — über einen Agenten oder die gesamte Belegschaft.",

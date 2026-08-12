@@ -1,15 +1,13 @@
 package integration
 
 import (
-	"context"
+	"covey/internal/accounts"
 	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/google/uuid"
-
-	identbuiltin "covey/internal/identity/builtin"
 )
 
 type auditEintrag struct {
@@ -118,7 +116,6 @@ func TestAuditSpurHaeltVerwaltungshandlungenFest(t *testing.T) {
 // The trail is org-scoped, and only those it concerns may read it.
 func TestAuditSpurRollenUndOrgGrenze(t *testing.T) {
 	s := newStack(t)
-	ctx := context.Background()
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 	admin.expect(http.MethodPost, "/api/v1/agents",
 		map[string]string{"slug": "spur-agent", "display_name": "Spur", "runtime": "mock"}, http.StatusCreated)
@@ -129,11 +126,7 @@ func TestAuditSpurRollenUndOrgGrenze(t *testing.T) {
 		"besitzer@test.local": "agent_owner",
 		"kosten@test.local":   "controlling",
 	} {
-		hash, _ := identbuiltin.HashPassword("passwort-1234")
-		if _, err := s.pool.Exec(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
-			VALUES ($1,$2,$3,$4,$5,$6)`, uuid.New(), s.orgID, email, rolle, hash, rolle); err != nil {
-			t.Fatal(err)
-		}
+		s.mitglied(t, email, rolle, rolle, "passwort-1234")
 	}
 	// May read: auditor and security (and the admin above).
 	for _, email := range []string{"pruefer@test.local", "sicher@test.local"} {
@@ -144,8 +137,12 @@ func TestAuditSpurRollenUndOrgGrenze(t *testing.T) {
 		login(t, s, email, "passwort-1234").expect(http.MethodGet, "/api/v1/audit", nil, http.StatusForbidden)
 	}
 
-	// Another organization, another trail.
-	admin.expect(http.MethodPost, "/api/v1/orgs", map[string]any{
+	// Another organization, another trail. Angelegt wird sie auf der
+	// Instanz-Ebene — eine Organisation legt keine zweite an (FR-003, F).
+	if err := accounts.New(s.pool).SetPlatformRole(t.Context(), "admin@test.local", accounts.RoleSystemAdmin); err != nil {
+		t.Fatal(err)
+	}
+	admin.expect(http.MethodPost, "/api/v1/platform/orgs", map[string]any{
 		"name": "Spur-Nachbar", "admin_email": "spurnachbar@test.local",
 		"admin_name": "Nachbar", "admin_password": "nachbar-passwort",
 	}, http.StatusCreated)

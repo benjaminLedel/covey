@@ -12,3 +12,5 @@ Numbering is consecutive, `NNN-short-title.md`.
 | No. | Title | Status |
 |---|---|---|
 | [FR-001](001-ki-config-assistent.md) | An AI assistant for adapting agents (the config copilot) | Implemented |
+| [FR-002](002-plattform-registrierung.md) | Covey as a platform: self-registration with a waitlist code | Proposed |
+| [FR-003](003-mandantentrennung.md) | Strict separation of organisations (prerequisite for FR-002) | Proposed |

@@ -164,19 +164,54 @@ func (s *Store) GetHuman(ctx context.Context, orgID, id uuid.UUID) (Human, error
 	return h, err
 }
 
+// CreateHuman creates a seat — and the login that goes with it, if the person
+// does not already have one.
+//
+// The second case is what makes multi-organisation membership work in
+// practice: whoever an admin adds by an address that already has an account
+// gets a SEAT in this organisation, not a second login. Their existing
+// password stays valid and the one supplied here is ignored — an admin of
+// organisation B must not be able to set the password of somebody who works in
+// organisation A. That is why the password is not an update but only a
+// fallback for a login that does not exist yet.
 func (s *Store) CreateHuman(ctx context.Context, orgID uuid.UUID, email, displayName, role, passwordHash string, profile Profile) (Human, error) {
 	profile.Identities = NormalizeIdentities(profile.Identities)
 	profile.Custom = NormalizeCustom(profile.Custom)
+	email = strings.ToLower(strings.TrimSpace(email))
 	h := Human{ID: uuid.New(), OrgID: orgID, Email: email, DisplayName: displayName, Role: role, Profile: profile}
-	err := s.pool.QueryRow(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role,
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Human{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	var accountID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM accounts WHERE email=$1`, email).Scan(&accountID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// The address counts as confirmed: it comes from an administrator, not
+		// from a self-registration nobody has checked.
+		accountID = uuid.New()
+		if _, err := tx.Exec(ctx, `INSERT INTO accounts (id, email, password_hash, display_name, email_verified_at)
+			VALUES ($1,$2,$3,$4,now())`, accountID, email, passwordHash, displayName); err != nil {
+			return Human{}, err
+		}
+	} else if err != nil {
+		return Human{}, err
+	}
+
+	err = tx.QueryRow(ctx, `INSERT INTO humans (id, org_id, account_id, email, display_name, password_hash, role,
 			job_title, identities, phone, responsibilities, custom)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING created_at`,
-		h.ID, orgID, email, displayName, passwordHash, role,
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING created_at`,
+		h.ID, orgID, accountID, email, displayName, passwordHash, role,
 		profile.JobTitle, profile.Identities, profile.Phone, profile.Responsibilities, profile.Custom).Scan(&h.CreatedAt)
 	if isUniqueViolation(err) {
 		return Human{}, ErrEmailTaken
 	}
-	return h, err
+	if err != nil {
+		return Human{}, err
+	}
+	return h, tx.Commit(ctx)
 }
 
 // UpdateHuman changes name, role and/or password. On a password change all of
@@ -251,10 +286,19 @@ func (s *Store) UpdateHuman(ctx context.Context, orgID, id uuid.UUID, upd HumanU
 		return Human{}, err
 	}
 	if upd.PasswordHash != nil {
-		if _, err := tx.Exec(ctx, `UPDATE humans SET password_hash=$1 WHERE id=$2`, *upd.PasswordHash, id); err != nil {
+		// The password sits on the account, not on the seat — it is one
+		// password for one person, no matter how many organisations they work
+		// in. And for the same reason every session of that ACCOUNT ends, not
+		// just those of this seat: whoever changes their password wants to be
+		// signed out everywhere, including the browser they are worried about.
+		var accountID uuid.UUID
+		if err := tx.QueryRow(ctx, `SELECT account_id FROM humans WHERE id=$1`, id).Scan(&accountID); err != nil {
 			return Human{}, err
 		}
-		if _, err := tx.Exec(ctx, `DELETE FROM http_sessions WHERE human_id=$1`, id); err != nil {
+		if _, err := tx.Exec(ctx, `UPDATE accounts SET password_hash=$1 WHERE id=$2`, *upd.PasswordHash, accountID); err != nil {
+			return Human{}, err
+		}
+		if _, err := tx.Exec(ctx, `DELETE FROM http_sessions WHERE account_id=$1`, accountID); err != nil {
 			return Human{}, err
 		}
 	}
@@ -372,9 +416,25 @@ func (s *Store) CreateOrg(ctx context.Context, name, adminEmail, adminName, admi
 		o.ID, name).Scan(&o.CreatedAt); err != nil {
 		return Organization{}, err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO humans (id, org_id, email, display_name, password_hash, role)
-		VALUES ($1,$2,$3,$4,$5,'platform_admin')`,
-		uuid.New(), o.ID, adminEmail, adminName, adminPasswordHash)
+	// The admin's login: an existing account keeps its password (the person
+	// already works somewhere and simply gains a seat), otherwise one is
+	// created — see CreateHuman for why the supplied password is only ever a
+	// fallback and never an update.
+	adminEmail = strings.ToLower(strings.TrimSpace(adminEmail))
+	var accountID uuid.UUID
+	err = tx.QueryRow(ctx, `SELECT id FROM accounts WHERE email=$1`, adminEmail).Scan(&accountID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		accountID = uuid.New()
+		if _, err := tx.Exec(ctx, `INSERT INTO accounts (id, email, password_hash, display_name, email_verified_at)
+			VALUES ($1,$2,$3,$4,now())`, accountID, adminEmail, adminPasswordHash, adminName); err != nil {
+			return Organization{}, err
+		}
+	} else if err != nil {
+		return Organization{}, err
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO humans (id, org_id, account_id, email, display_name, password_hash, role)
+		VALUES ($1,$2,$3,$4,$5,$6,'platform_admin')`,
+		uuid.New(), o.ID, accountID, adminEmail, adminName, adminPasswordHash)
 	if isUniqueViolation(err) {
 		return Organization{}, ErrEmailTaken
 	}

@@ -415,7 +415,24 @@ func (s *Store) Delete(ctx context.Context, orgID, id uuid.UUID) error {
 
 // Assign links a library skill to an agent. Agent-owned skills cannot be
 // linked — they already belong to someone.
+// Assign verknuepft eine Bibliotheks-Faehigkeit mit einem Agenten. Geprueft
+// werden BEIDE Seiten gegen die Organisation — die Faehigkeit und der Agent.
+//
+// Vorher stand hier nur die erste Haelfte, und die zweite fehlte: eine eigene
+// Faehigkeit liess sich damit einem FREMDEN Agenten anhaengen. Eine Faehigkeit
+// ist eine Handlungsanweisung, die in seinen Prompt geht — das waere Text, den
+// eine Organisation in den Agenten einer anderen schreibt (FR-003, Befund D).
+// Das Muster stammt von secrets.Assign, das es seit jeher richtig macht.
 func (s *Store) Assign(ctx context.Context, orgID, skillID, agentID uuid.UUID) error {
+	var agentGehoert bool
+	if err := s.pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM agents WHERE id=$1 AND org_id=$2)`,
+		agentID, orgID).Scan(&agentGehoert); err != nil {
+		return err
+	}
+	if !agentGehoert {
+		return ErrNotFound
+	}
 	var isLibrary bool
 	err := s.pool.QueryRow(ctx, `SELECT agent_id IS NULL FROM skills WHERE org_id=$1 AND id=$2`,
 		orgID, skillID).Scan(&isLibrary)

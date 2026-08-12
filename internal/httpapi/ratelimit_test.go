@@ -1,6 +1,9 @@
 package httpapi
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"net/netip"
 	"testing"
 	"time"
 )
@@ -104,5 +107,94 @@ func TestWebhookLimiterRaeumtAuf(t *testing.T) {
 	l.mu.Unlock()
 	if groesse > 10000 {
 		t.Errorf("map grows without bound: %d entries", groesse)
+	}
+}
+
+// clientIP decides whom a rate limit counts against — and that decision is
+// what an attacker attacks first: whoever may write their own address picks
+// their own bucket, and whoever hides behind a proxy shares one with everybody.
+func TestClientIPHinterProxy(t *testing.T) {
+	privat := func(t *testing.T) []netip.Prefix {
+		t.Helper()
+		var out []netip.Prefix
+		for _, r := range []string{"127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12"} {
+			out = append(out, netip.MustParsePrefix(r))
+		}
+		return out
+	}
+	anfrage := func(peer, xff string) *http.Request {
+		r := httptest.NewRequest(http.MethodPost, "/api/v1/public/signup", nil)
+		r.RemoteAddr = peer
+		if xff != "" {
+			r.Header.Set("X-Forwarded-For", xff)
+		}
+		return r
+	}
+
+	faelle := []struct {
+		name    string
+		proxies []netip.Prefix
+		peer    string
+		xff     string
+		want    string
+	}{
+		{
+			// Without configured proxies the header stays what it is: a claim
+			// by whoever sent the request.
+			name: "unconfigured: header ignored",
+			peer: "203.0.113.9:51000", xff: "1.2.3.4", want: "203.0.113.9",
+		},
+		{
+			name:    "proxy in front: the client counts",
+			proxies: privat(t),
+			peer:    "10.0.0.2:8080", xff: "198.51.100.7", want: "198.51.100.7",
+		},
+		{
+			// The attack: an invented entry travels along, but the proxy
+			// appends the address it actually saw — and that is the rightmost.
+			name:    "spoofed prefix does not help",
+			proxies: privat(t),
+			peer:    "10.0.0.2:8080", xff: "1.2.3.4, 198.51.100.7", want: "198.51.100.7",
+		},
+		{
+			name:    "chain of two own proxies",
+			proxies: privat(t),
+			peer:    "10.0.0.2:8080", xff: "198.51.100.7, 172.16.0.9", want: "198.51.100.7",
+		},
+		{
+			// A configured proxy that says nothing: nothing to derive, and the
+			// peer is the honest answer.
+			name:    "proxy without a header",
+			proxies: privat(t),
+			peer:    "10.0.0.2:8080", xff: "", want: "10.0.0.2",
+		},
+		{
+			// The header comes from someone who is not a proxy of ours — then
+			// it is a claim like any other.
+			name:    "foreign peer with a header",
+			proxies: privat(t),
+			peer:    "203.0.113.9:51000", xff: "10.0.0.5", want: "203.0.113.9",
+		},
+		{
+			// Unreadable entry: from there leftwards nothing is established.
+			name:    "garbage in the chain",
+			proxies: privat(t),
+			peer:    "10.0.0.2:8080", xff: "198.51.100.7, kaputt", want: "10.0.0.2",
+		},
+		{
+			// ::ffff:10.0.0.2 is 10.0.0.2 — an IPv6 socket in front of an IPv4
+			// proxy must not fall out of the configured range.
+			name:    "IPv4-mapped proxy",
+			proxies: privat(t),
+			peer:    "[::ffff:10.0.0.2]:8080", xff: "198.51.100.7", want: "198.51.100.7",
+		},
+	}
+	for _, f := range faelle {
+		t.Run(f.name, func(t *testing.T) {
+			s := &Server{TrustedProxies: f.proxies}
+			if got := s.clientIP(anfrage(f.peer, f.xff)); got != f.want {
+				t.Fatalf("clientIP = %q, want %q", got, f.want)
+			}
+		})
 	}
 }

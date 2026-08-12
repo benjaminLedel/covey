@@ -171,6 +171,31 @@ through and `http://` or an internal name would otherwise land in the sitemap.
 In short: `COVEY_PUBLIC_URL` points **inward** (to the sandboxes),
 `COVEY_SITE_URL` points **outward** (to visitors and third-party systems).
 
+### `COVEY_TRUSTED_PROXIES` — who a request comes from
+
+Behind a reverse proxy every request arrives from the same address: the proxy's.
+Whatever is counted per client then lands in one shared bucket — the sign-up
+limit throttles the whole installation at once, the login limit loses its
+per-address half, and the audit log records the proxy as the actor of every
+administrative action.
+
+`COVEY_TRUSTED_PROXIES` names the addresses whose `X-Forwarded-For` may be
+believed: comma-separated, as a CIDR (`10.0.0.0/8`) or a single address
+(`10.0.0.2`), and `private` as shorthand for loopback plus the private ranges —
+the usual case, because a proxy in the same docker network gets its address
+assigned rather than chosen.
+
+```
+COVEY_TRUSTED_PROXIES=private
+```
+
+**Leaving it empty is the safe default**, and it is the right setting for an
+instance reachable directly: the header is written by whoever sends the request,
+so believing it unconditionally would let every attacker pick their own bucket.
+Configured, the server reads the chain from the right — the proxy appends the
+peer it actually saw, so an invented `X-Forwarded-For: 1.2.3.4` ends up to the
+left of the real address and is passed over.
+
 The registry login runs automatically through the built-in `$CI_REGISTRY_*`.
 
 ### 3. The first push to main

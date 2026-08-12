@@ -2127,6 +2127,27 @@ kbd {
   font-size: 19px;
   margin-bottom: 18px;
 }
+/* Erläuterung unter einem Eingabefeld — dort, wo eine Beschriftung allein die
+   Frage nicht beantwortet (Wartelisten-Code, Mindestlänge des Passworts). */
+.field-hint {
+  margin-top: 6px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+/* Der Verweis am Fuß einer Karte auf den jeweils anderen Weg: von der
+   Registrierung zur Anmeldung und zurück. */
+.login-alt {
+  margin-top: 16px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+.login-alt a {
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 .landing-cta {
   margin-top: 28px;
   display: flex;
