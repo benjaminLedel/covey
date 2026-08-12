@@ -2,11 +2,15 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+
+	"covey/examples"
 	"covey/internal/agents"
 	"covey/internal/backlog"
 )
@@ -308,5 +312,70 @@ func TestReviewPromptFolgtDemScope(t *testing.T) {
 	if p := prompt(ohne); strings.Contains(p, "covey/work_record") ||
 		strings.Contains(p, "covey/create_agent") {
 		t.Fatal("ohne Scope steht keines von beidem im Prompt")
+	}
+}
+
+// TestBetriebsingenieurBundle nimmt das ausgelieferte Bundle den Weg, den ein
+// Mensch es nehmen lässt: Import über die API, und danach muss es das können,
+// wofür es gebaut ist.
+//
+// Der Test steht hier und nicht bei den Vorlagen, weil er das Zusammenspiel
+// prüft und nicht die Datei: der Scope in der ACCESS.md schaltet genau die drei
+// Aktionen frei, der Prompt-Abschnitt folgt ihm, und der Review-Zyklus ist
+// wöchentlich — jede dieser drei Eigenschaften ist anderswo entschieden und
+// hier zusammen sichtbar.
+func TestBetriebsingenieurBundle(t *testing.T) {
+	s := newStack(t)
+	admin := login(t, s, "admin@test.local", "admin-passwort")
+	reviewAgent(t, s, "kollege", "")
+
+	var bundle json.RawMessage
+	for _, b := range examples.Builtins() {
+		if b.Key == "builtin:improvement-engineer" {
+			bundle = b.Bundle
+		}
+	}
+	if bundle == nil {
+		t.Fatal("das ausgelieferte Bundle des Betriebsingenieurs fehlt")
+	}
+	imported := admin.expect(http.MethodPost, "/api/v1/agents/import?slug=betrieb",
+		bundle, http.StatusCreated)
+	id := imported["agent"].(map[string]any)["id"].(string)
+	// Das Bundle liefert claude-code aus; der Test hat keine Engine dafuer.
+	admin.expect(http.MethodPatch, "/api/v1/agents/"+id+"/runtime",
+		map[string]any{"runtime": "mock"}, http.StatusOK)
+
+	// Ein Import erzeugt einen Entwurf — auch dieser. Eingestellt wird von
+	// einem Menschen (spec/20).
+	admin.expect(http.MethodPost, "/api/v1/agents/"+id+"/hire", nil, http.StatusOK)
+
+	// Der Takt: woechentlich, ein Auftrag je Zyklus und nicht einer je Kollege.
+	hbs := admin.expectList(http.MethodGet, "/api/v1/agents/"+id+"/heartbeats", nil, http.StatusOK)
+	var zyklus map[string]any
+	for _, hb := range hbs {
+		if hb["source"] == "config" {
+			zyklus = hb
+		}
+	}
+	if zyklus == nil {
+		t.Fatalf("der Review-Zyklus fehlt: %v", hbs)
+	}
+	if zyklus["every_seconds"].(float64) != 7*24*3600 {
+		t.Fatalf("der Zyklus ist woechentlich: %v", zyklus["every_seconds"])
+	}
+
+	agent, err := s.registry.Get(context.Background(), uuid.MustParse(id))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Und er kann, wofuer er gebaut ist: lesen und vorschlagen.
+	if task, msg := laufLassen(t, s, agent, "Akte lesen",
+		`[mock:action covey/work_record {"agent":"kollege"}]`); task.State != backlog.StateDone {
+		t.Fatalf("das Bundle muss die Arbeitsakte lesen koennen: %v %s", task.State, msg)
+	}
+	// Aber nicht entwerfen — der Scope traegt die andere Haelfte nicht.
+	if _, msg := laufLassen(t, s, agent, "Entwerfen versuchen",
+		`[mock:action covey/create_agent {"display_name":"X","slug":"x","runtime":"mock"}]`); !strings.Contains(msg, "agents:write") {
+		t.Fatalf("das Bundle darf nicht entwerfen koennen: %s", msg)
 	}
 }

@@ -19,6 +19,7 @@ optional.
 
 | Bundle | Slug | Role |
 |---|---|---|
+| `improvement-engineer.bundle.json` | `covey-betrieb` | Improvement engineer: read a colleague's **work record** (`covey/work_record`), tell apart the three causes an agent underdelivers for — its configuration, its assignment, or the platform underneath it — and propose a config change as a stored, inactive version a human accepts (`covey/propose_agent_config`). Weekly, one task per cycle. |
 | `coding-agent.bundle.json` | `covey-dev` | Developer: pick up issues **assigned to it** (`nur-wenn: gitlab:issues:assigned`), verify bugs against the code, have fixes developed, open merge requests and live the review loop. |
 | `qa-agent.bundle.json` | `covey-qa` | QA/test: accept others' merge requests end to end as the reviewer — set the project up once per project and keep it, operate the application in the browser, support states and defects with screenshots, run the test suite as a job that outlives the run, and close a green acceptance with `approve_mr` + `merge_mr`. |
 | `delivery-lead.bundle.json` | `covey-lead` | Delivery lead: drive a GitLab milestone to its deadline — make tickets implementable (acceptance criteria, affected code locations), keep dependent tickets in order, dispatch work to the developers within a WIP limit, report the state, escalate open subject-matter questions to the human. |

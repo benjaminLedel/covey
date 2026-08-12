@@ -51,6 +51,7 @@ func TestBuiltinsLoad(t *testing.T) {
 func TestBuiltinIDsStable(t *testing.T) {
 	want := map[string]string{
 		"builtin:people-department":         "",
+		"builtin:improvement-engineer":      "",
 		"builtin:coding-agent":              "",
 		"builtin:qa-agent":                  "",
 		"builtin:delivery-lead":             "",
