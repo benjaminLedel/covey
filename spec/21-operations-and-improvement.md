@@ -53,7 +53,12 @@ So the default is a **work record the control plane assembles**: facts it record
 | Standing findings | the config lint | what the mechanical rules already say about this config |
 | Stuck | `blocked` tasks without resumption | the failure mode nobody sees, because nothing errors |
 
-None of this is free text produced by the agent or by a target system — with **one honest exception**: task titles, which frequently come from the wake source and can therefore carry a ticket subject. It is one line per task rather than a thread, and the record cannot be read without it, so it stays and is named here rather than discovered later.
+None of this is free text produced by the agent or by a target system — with **two honest exceptions**, both a single line rather than a thread:
+
+- **Task titles**, which frequently come from the wake source and can therefore carry a ticket subject.
+- **The question a stuck task is waiting on**, which the reviewed agent wrote itself in its `covey/block` directive and which routinely quotes what it is waiting for — a customer's reply, a ticket. Without it the section that matters most degrades to "something is blocked": *"waiting for an event"* is an observation, *"waiting on whether the customer comes back"* is a finding.
+
+Both stay, because the record cannot be read without them, and both are named here rather than discovered later. What keeps them from being an instruction to the reader is not a parser but the shape of the role: the improvement engineer is told in its prompt that this text is quotation, and its output does not run — a human signs every proposal. A record that promised "facts only" while carrying two free-text fields would be believed at exactly the point where it should be checked.
 
 **Who may read it** is decided here rather than inherited, which is what [`17-kpis.md`](17-kpis.md) asks for when it says performance data per agent is more sensitive than a cost total. The record follows **the recordings, not the cost figures**: `platform_admin`, `security`, the agent's own owner, and `auditor` reading. Costs are visible more widely because a total says what was spent; a work record says how somebody worked, and "whoever may see the bill may see this" is the answer that would make it unusable in any organisation with a works council. The same boundary then covers the indicators that `17` left open, because reading them out of the record is the same act as reading the record.
 

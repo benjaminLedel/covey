@@ -11,11 +11,25 @@
 // gerichtet; und ein Monat Recordings passt zu keinem vernünftigen Preis in ein
 // Kontextfenster.
 //
-// Also: Fakten. Was gezählt wurde, nicht was gesagt wurde. Mit EINER ehrlichen
-// Ausnahme — den Aufgabentiteln. Die kommen häufig aus der Weck-Quelle und
-// können damit einen Ticket-Betreff tragen. Es ist eine Zeile je Aufgabe statt
-// eines Verlaufs, und ohne sie ist die Akte nicht lesbar; deshalb bleibt sie
-// drin und wird hier benannt statt später entdeckt.
+// Also: Fakten. Was gezählt wurde, nicht was gesagt wurde. Mit ZWEI ehrlichen
+// Ausnahmen, und beide sind eine Zeile statt eines Verlaufs:
+//
+//   - Die AUFGABENTITEL. Die kommen häufig aus der Weck-Quelle und können damit
+//     einen Ticket-Betreff tragen.
+//   - Die FRAGE einer hängenden Aufgabe (StuckTask.Question). Die schreibt der
+//     beurteilte Agent selbst in seiner covey/block-Direktive, und er zitiert
+//     darin regelmäßig, worauf er wartet — also auch Text aus einem Zielsystem.
+//
+// Beide bleiben drin, weil die Akte ohne sie nicht lesbar ist: „wartet auf ein
+// Ereignis" ist eine Beobachtung, „wartet darauf, ob der Kunde zurückkommt" ist
+// ein Befund. Und beide werden HIER benannt statt später entdeckt — eine Akte,
+// die „nur Fakten" verspricht und zwei Freitext-Felder führt, wird genau an der
+// Stelle geglaubt, an der man sie prüfen müsste.
+//
+// Der Rest der Absicherung liegt nicht hier: dass dieser Text den Leser nicht
+// steuert, steht als Anweisung in ReviewDoc (internal/agents/compile.go) — und
+// dahinter die Zusage, die das Ganze trägt, nämlich dass ein Vorschlag nicht
+// läuft, sondern von einem Menschen unterschrieben wird.
 //
 // Das Paket steht bewusst neben httpapi und nicht darin: dieselbe Akte liest
 // später der Betriebsingenieur über covey/work_record, und der sitzt im
@@ -35,8 +49,9 @@ import (
 	"covey/internal/observability"
 )
 
-// Record ist die Akte. Acht Abschnitte, jeder aus einer benannten Quelle —
-// keiner davon ist Freitext eines Agenten oder eines Zielsystems.
+// Record ist die Akte. Acht Abschnitte, jeder aus einer benannten Quelle. Nur
+// zwei Felder darin sind Freitext: Aufgabentitel und StuckTask.Question — siehe
+// den Paketkopf, dort stehen sie mit ihrer Herkunft.
 type Record struct {
 	AgentID     uuid.UUID `json:"agent_id"`
 	Slug        string    `json:"slug"`
@@ -137,8 +152,10 @@ type StuckTask struct {
 	ID             uuid.UUID `json:"id"`
 	Title          string    `json:"title"`
 	CorrelationKey string    `json:"correlation_key"`
-	Question       string    `json:"question,omitempty"`
-	BlockedSince   time.Time `json:"blocked_since"`
+	// Question ist der Text des Agenten selbst aus seiner covey/block-Direktive
+	// — eines der beiden Freitext-Felder der Akte (Paketkopf).
+	Question     string    `json:"question,omitempty"`
+	BlockedSince time.Time `json:"blocked_since"`
 }
 
 // maxTaskLines begrenzt die Zeilen-Liste. Was darüber liegt, steht in den
