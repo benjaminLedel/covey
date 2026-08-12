@@ -106,6 +106,10 @@ type SystemAccess struct {
 
 var ErrNotFound = errors.New("agent not found")
 
+// ErrAmbiguousSlug: this slug exists in more than one organisation, so an
+// address that carries only the slug does not name an agent.
+var ErrAmbiguousSlug = errors.New("this slug exists in several organisations")
+
 type Registry struct {
 	pool *pgxpool.Pool
 	// SystemHeartbeats are platform-wide default heartbeats (source='system' in
@@ -206,9 +210,45 @@ func (r *Registry) ConfigHistory(ctx context.Context, agentID uuid.UUID) ([]Conf
 // organisation — for paths where the organisation is not yet established (the
 // webhook endpoint carries only the slug in the URL). Slugs are globally unique
 // enough for this purpose; on ambiguity the oldest one wins.
+// FindBySlug resolves a slug ACROSS organisations — the webhook address knows
+// no tenant, because the target system that calls it has no account.
+//
+// It therefore refuses as soon as the slug is not unique instance-wide.
+// Before, it took the oldest agent (`ORDER BY created_at LIMIT 1`), and that
+// was a misdelivery waiting for a second tenant: slugs are unique only PER
+// organisation (`UNIQUE (org_id, slug)`), and the names a second company picks
+// are the ones the first picked — support, qa, dev. The ticket of organisation
+// B would have been worked on in organisation A's sandbox and answered with
+// its credentials (FR-003, finding B).
+//
+// The way out of the ambiguity is the address, not the resolution: the agent
+// id and the trigger token are unique instance-wide.
 func (r *Registry) FindBySlug(ctx context.Context, slug string) (Agent, error) {
-	return scanAgent(r.pool.QueryRow(ctx,
-		"SELECT "+agentCols+" FROM agents WHERE slug=$1 ORDER BY created_at LIMIT 1", slug))
+	rows, err := r.pool.Query(ctx,
+		"SELECT "+agentCols+" FROM agents WHERE slug=$1 ORDER BY created_at LIMIT 2", slug)
+	if err != nil {
+		return Agent{}, err
+	}
+	defer rows.Close()
+	var gefunden []Agent
+	for rows.Next() {
+		a, err := scanAgent(rows)
+		if err != nil {
+			return Agent{}, err
+		}
+		gefunden = append(gefunden, a)
+	}
+	if err := rows.Err(); err != nil {
+		return Agent{}, err
+	}
+	switch len(gefunden) {
+	case 0:
+		return Agent{}, ErrNotFound
+	case 1:
+		return gefunden[0], nil
+	default:
+		return Agent{}, ErrAmbiguousSlug
+	}
 }
 
 func (r *Registry) GetBySlug(ctx context.Context, orgID uuid.UUID, slug string) (Agent, error) {

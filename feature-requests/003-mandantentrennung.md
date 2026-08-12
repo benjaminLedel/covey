@@ -57,15 +57,23 @@ than invent:
 
 The gaps below are the exceptions, not the rule.
 
+## Stand
+
+**A–F sind behoben** (Commits `e3e5339`, und der hier beschriebene Durchgang);
+die Tests dazu stehen in `internal/integration/isolation_test.go` und
+`platform_test.go` — jeder versucht genau das, was vorher ging. Offen bleibt
+**G**, das gemeinsame Docker-Netz, und die drei strukturellen Punkte weiter
+unten.
+
 ## Findings
 
 | # | Finding | Class | Effort |
 |---|---|---|---|
-| A | The SSE event bus broadcasts every event to every tenant | cross-tenant read, continuous | small |
-| B | Webhooks resolve the agent by slug **across organisations** | misrouting of real work | medium |
-| C | `dream-actions/{id}/undo` has no organisation check | cross-tenant write | small |
-| D | `skills.Assign` does not check the agent's organisation | cross-tenant write | tiny |
-| E | Egress template assignment does not check the template's organisation | cross-tenant read + guard-rail widening | tiny |
+| A | The SSE event bus broadcasts every event to every tenant | cross-tenant read, continuous | **behoben** |
+| B | Webhooks resolve the agent by slug **across organisations** | misrouting of real work | **behoben** |
+| C | `dream-actions/{id}/undo` has no organisation check | cross-tenant write | **behoben** |
+| D | `skills.Assign` does not check the agent's organisation | cross-tenant write | **behoben** |
+| E | Egress template assignment does not check the template's organisation | cross-tenant read + guard-rail widening | **behoben** |
 | F | Every `platform_admin` administers every tenant | privilege boundary | **behoben** |
 | G | All sandboxes share one Docker network | data-plane isolation | large |
 
