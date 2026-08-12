@@ -461,9 +461,12 @@ func TestReviewLandetAufDemProfil(t *testing.T) {
 //
 // Ein Agent, der nur Issues SCHREIBEN darf, meldet Symptome. Mit Lesezugriff
 // auf den Quelltext wird aus demselben Befund eine Diagnose — aber nur, wenn er
-// den Stand liest, der auch laeuft. Der Test haelt beides fest: dass die
+// den Stand liest, der auch laeuft. Der Test haelt drei Dinge fest: dass die
 // Adresse aus der Konfiguration der Organisation kommt und nicht aus dem
-// Modell, und dass der Prompt auf den laufenden Commit zeigt.
+// Modell, dass der Prompt auf den laufenden Commit zeigt, und dass der
+// Abschnitt eine ZWEITE Bedingung hat — das Zielsystem muss in der ACCESS.md
+// des Agenten stehen. Ohne sie laese er im Prompt „check it out" und liefe beim
+// Checkout in die Abweisung des Brokers: Faehigkeit durch Andeutung.
 func TestPlattformRepoStehtImPrompt(t *testing.T) {
 	s := newStack(t)
 	admin := login(t, s, "admin@test.local", "admin-passwort")
@@ -491,6 +494,22 @@ func TestPlattformRepoStehtImPrompt(t *testing.T) {
 
 	admin.expect(http.MethodPatch, "/api/v1/org/platform-repo",
 		map[string]any{"system": "gitlab", "project": "covey/covey"}, http.StatusOK)
+
+	// Das Stammdatum allein reicht NICHT. Der Betriebsingenieur hat GitLab
+	// nicht in seiner ACCESS.md, also stuende im Prompt ein Repository, das der
+	// Broker ihm gleich darauf verweigert.
+	if p := prompt(betrieb); strings.Contains(p, "The platform you run on") {
+		t.Fatal("ohne Zugang in der ACCESS.md gehoert der Abschnitt nicht in den Prompt")
+	}
+
+	// Die zweite Haelfte der Einrichtung: derselbe Zugang wie fuer jedes andere
+	// Repository auch, als gewoehnliche Zeile in der ACCESS.md.
+	if _, err := s.registry.SaveConfig(context.Background(), betrieb.ID, map[string]string{
+		"SOUL.md":   "# betrieb\n\n## Rolle\nTest.",
+		"ACCESS.md": "- system: covey scope: agents:review\n- system: gitlab",
+	}, &s.adminID); err != nil {
+		t.Fatal(err)
+	}
 
 	p := prompt(betrieb)
 	if !strings.Contains(p, "The platform you run on") || !strings.Contains(p, "covey/covey") {

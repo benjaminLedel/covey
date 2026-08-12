@@ -1273,7 +1273,7 @@
       "project": "Projekt",
       "none": "— keines —",
       "projectPlaceholder": "z. B. 42 oder gruppe/covey",
-      "hint": "Wo Covey selbst liegt: dort liest der Betriebsingenieur den Quelltext (auf den laufenden Commit gepinnt) und meldet dorthin seine Fehlerberichte. Nur angeschlossene Zielsysteme; leer lassen schaltet beides ab."
+      "hint": "Wo Covey selbst liegt: dort liest der Betriebsingenieur den Quelltext (auf den laufenden Commit gepinnt) und meldet dorthin seine Fehlerberichte. Nur angeschlossene Zielsysteme; leer lassen schaltet beides ab. Zweite Hälfte der Einrichtung: dasselbe Zielsystem muss in der ACCESS.md des Betriebsingenieurs stehen — ohne diese Zeile bleibt der Abschnitt aus seinem Prompt."
     }
   },
   "orgs": {

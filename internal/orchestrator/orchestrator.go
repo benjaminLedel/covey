@@ -1550,11 +1550,17 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	// the agent's current ACCESS.md, not the state at the time the config was
 	// compiled.
 	var actionTools []daemon.ActionTool
+	// Welche Zielsysteme dieser Agent wirklich erreicht — DocsForAgent ist auf
+	// beiden Seiten fail-closed (von der Organisation aktiviert UND in der
+	// ACCESS.md des Agenten). Der Plattform-Repo-Abschnitt weiter unten haengt
+	// daran.
+	grantedSystems := map[string]bool{}
 	if o.Targets != nil {
 		if docs, err := o.Targets.DocsForAgent(ctx, agent.OrgID, agent.ID); err == nil {
 			texts := make([]string, 0, len(docs))
 			for _, d := range docs {
 				texts = append(texts, d.Doc)
+				grantedSystems[d.System] = true
 				actionTools = append(actionTools, daemon.ActionTool{Name: d.System, Description: d.Doc})
 			}
 			if section := agents.TargetDocs(texts); section != "" {
@@ -1578,13 +1584,28 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	if mayReview {
 		compiled += "\n\n" + agents.ReviewDoc
 		// Die dritte Schicht: der eigene Quelltext, auf den laufenden Commit
-		// gepinnt (spec/21). Nur wenn die Organisation ihn eingerichtet hat —
-		// wo er liegt, entscheidet sie und nicht der Agent, und ohne Eintrag
-		// steht davon nichts im Prompt.
+		// gepinnt (spec/21). Drei Bedingungen, und die dritte ist die, die beim
+		// ersten Bau fehlte:
+		//
+		//  1. Die Organisation hat das Repository eingerichtet — wo es liegt,
+		//     entscheidet sie und nicht der Agent.
+		//  2. Der Agent darf begutachten (mayReview, siehe oben).
+		//  3. Er hat dieses Zielsystem WIRKLICH in seiner ACCESS.md.
+		//
+		// Ohne (3) stuende im Prompt „you may READ it — check it out and search
+		// it like any other repository", und der Broker wiese den Checkout
+		// gleich darauf ab: Faehigkeit durch Andeutung, dieselbe, die der
+		// Abschnitt darueber fuer das Entwerfen ausdruecklich vermeidet. Das
+		// Stammdatum allein ist die halbe Einrichtung — die andere Haelfte ist
+		// eine Zeile in der ACCESS.md des Betriebsingenieurs.
+		//
+		// Der Scope INNERHALB des Systems bleibt Sache dieser Zeile: welche
+		// Aktionen sie traegt, steht ohnehin im Zielsystem-Abschnitt des
+		// Prompts, der schon auf die Scopes des Agenten zugeschnitten ist.
 		var repoSystem, repoProject string
 		if err := o.Pool.QueryRow(ctx,
 			"SELECT platform_repo_system, platform_repo_project FROM organizations WHERE id=$1",
-			agent.OrgID).Scan(&repoSystem, &repoProject); err == nil {
+			agent.OrgID).Scan(&repoSystem, &repoProject); err == nil && grantedSystems[repoSystem] {
 			if section := agents.PlatformRepoDoc(repoSystem, repoProject,
 				buildinfo.Get().Commit); section != "" {
 				compiled += "\n\n" + section

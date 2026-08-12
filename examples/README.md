@@ -137,3 +137,19 @@ fixed schedule, `täglich: 06:00`, not on a `nur-wenn` edge) — but a separate
 GitLab token is still the better choice, so that the security tickets are
 attributable and the second heartbeat (`nur-wenn: gitlab:issues:assigned`) only
 sees what really belongs to it.
+
+Additionally for the **improvement engineer** only:
+
+- Its `ACCESS.md` carries one line, `- system: covey scope: agents:review`, and
+  that is everything it needs to read colleagues and propose configurations.
+  Nothing else has to be set up for the review cycle.
+- **Reading the platform's own source is two settings, and both are needed.**
+  Under *Organisation → Source of this platform* enter the target system and the
+  project Covey itself lives in — and add **that same system to the agent's
+  `ACCESS.md`**, scoped to reading the code and filing issues. The master datum
+  alone is half the setup: without the access line the section stays out of the
+  agent's prompt entirely, because an agent that reads it may check out and then
+  runs into the broker's refusal.
+- The system is deliberately not in the bundle: an instance on GitLab and one on
+  GitHub need different lines, and a bundle that guessed would be wrong for half
+  its readers.
