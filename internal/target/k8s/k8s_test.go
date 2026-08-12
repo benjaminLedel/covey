@@ -216,3 +216,49 @@ func TestPromptDocNamesTheGitOpsRule(t *testing.T) {
 		}
 	}
 }
+
+func TestPromptDocForScopesReadOnlyHidesLogsAndWrites(t *testing.T) {
+	doc := (System{}).PromptDocForScopes([]string{"read"})
+	for _, phrase := range []string{"pods {", "events {", "list {", "get {", "merge request"} {
+		if !strings.Contains(doc, phrase) {
+			t.Errorf("read-only prompt doc must include %q", phrase)
+		}
+	}
+	for _, phrase := range []string{"logs {", "restart {", "delete_pod {"} {
+		if strings.Contains(doc, phrase) {
+			t.Errorf("read-only prompt doc must hide %q", phrase)
+		}
+	}
+}
+
+func TestPromptDocForScopesAddsOnlyGrantedCapabilities(t *testing.T) {
+	logsDoc := (System{}).PromptDocForScopes([]string{"read", "logs"})
+	if !strings.Contains(logsDoc, "logs {") {
+		t.Fatal("logs scope must add the logs action")
+	}
+	for _, phrase := range []string{"restart {", "delete_pod {"} {
+		if strings.Contains(logsDoc, phrase) {
+			t.Errorf("logs scope must not add write action %q", phrase)
+		}
+	}
+
+	writeDoc := (System{}).PromptDocForScopes([]string{"read", "write"})
+	for _, phrase := range []string{"restart {", "delete_pod {"} {
+		if !strings.Contains(writeDoc, phrase) {
+			t.Errorf("write scope must add %q", phrase)
+		}
+	}
+	if strings.Contains(writeDoc, "logs {") {
+		t.Error("write scope alone must not add the logs action")
+	}
+}
+
+func TestPromptDocForScopesEmptyAndFullStayCompatible(t *testing.T) {
+	full := (System{}).PromptDoc()
+	if got := (System{}).PromptDocForScopes(nil); got != full {
+		t.Fatal("an empty scope list must fail open to the full prompt doc")
+	}
+	if got := (System{}).PromptDocForScopes([]string{"read", "logs", "write"}); got != full {
+		t.Fatal("all scopes must produce the unchanged full prompt doc")
+	}
+}
