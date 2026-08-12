@@ -2,7 +2,11 @@ package k8s
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/json"
+	"encoding/pem"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -89,6 +93,61 @@ func TestNewClientRefusesUnverifiedTLS(t *testing.T) {
 	}
 	if _, err := newClient("https://c:6443/", "tok", ""); err != nil {
 		t.Errorf("a valid endpoint must be accepted: %v", err)
+	}
+}
+
+// TestNewClientRequiresAnUnambiguousOrigin catches URL forms that can change
+// how a later fixed Kubernetes API path is interpreted. k8s_url authorizes one
+// API origin, not credentials, a preselected resource path, or URL metadata.
+func TestNewClientRequiresAnUnambiguousOrigin(t *testing.T) {
+	for _, raw := range []string{
+		"https:///api/v1",
+		"https://user@example.test",
+		"https://example.test/prefix",
+		"https://example.test?target=other",
+		"https://example.test#fragment",
+	} {
+		t.Run(raw, func(t *testing.T) {
+			if _, err := newClient(raw, "tok", ""); err == nil {
+				t.Fatalf("ambiguous k8s_url %q must be refused", raw)
+			}
+		})
+	}
+}
+
+// TestClientRefusesCrossOriginRedirect ensures the ServiceAccount token can be
+// used only against the configured API origin. Redirects within that origin
+// remain available for normal HTTP canonicalization, but a different origin
+// is never contacted.
+func TestClientRefusesCrossOriginRedirect(t *testing.T) {
+	var destinationRequests int
+	destination := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		destinationRequests++
+		w.Write([]byte(`{"items":[]}`))
+	}))
+	defer destination.Close()
+
+	origin := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, destination.URL+r.URL.Path, http.StatusTemporaryRedirect)
+	}))
+	defer origin.Close()
+
+	var caPEM strings.Builder
+	for _, cert := range []*x509.Certificate{origin.Certificate(), destination.Certificate()} {
+		if err := pem.Encode(&caPEM, &pem.Block{Type: "CERTIFICATE", Bytes: cert.Raw}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	c, err := newClient(origin.URL, "service-account-token", caPEM.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.do(context.Background(), http.MethodGet, "/api/v1/namespaces", nil, nil); err == nil ||
+		!strings.Contains(err.Error(), "redirect") {
+		t.Fatalf("cross-origin redirect must be refused explicitly, got %v", err)
+	}
+	if destinationRequests != 0 {
+		t.Fatalf("cross-origin destination was contacted %d time(s)", destinationRequests)
 	}
 }
 

@@ -18,7 +18,7 @@ import (
 // client-go: that library pulls in a third of Kubernetes for what is a plain
 // JSON API behind a bearer token, and the actions here need a dozen paths.
 type client struct {
-	base  string
+	base  *url.URL
 	token string
 	hc    *http.Client
 }
@@ -34,17 +34,21 @@ const requestTimeout = 30 * time.Second
 // waiting to happen, and the token it would hand over is the one that reads
 // every namespace. An operator with a self-signed cluster CA has to supply it.
 func newClient(base, token, caPEM string) (*client, error) {
-	base = strings.TrimRight(strings.TrimSpace(base), "/")
+	base = strings.TrimSpace(base)
 	if base == "" {
 		return nil, fmt.Errorf("k8s_url is missing — the API server endpoint (e.g. https://cluster.example:6443)")
 	}
 	u, err := url.Parse(base)
-	if err != nil || u.Scheme != "https" {
-		return nil, fmt.Errorf("k8s_url must be an https URL, got %q", base)
+	if err != nil || u.Scheme != "https" || u.Host == "" || u.Hostname() == "" || u.Opaque != "" {
+		return nil, fmt.Errorf("k8s_url must be an absolute https origin, got %q", base)
+	}
+	if u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.RawPath != "" || u.ForceQuery || u.Path != "" && u.Path != "/" {
+		return nil, fmt.Errorf("k8s_url must contain only the API server origin (no credentials, path, query, or fragment), got %q", base)
 	}
 	if strings.TrimSpace(token) == "" {
 		return nil, fmt.Errorf("k8s_token is missing — a ServiceAccount token")
 	}
+	u.Path = ""
 
 	tr := &http.Transport{}
 	if pem := strings.TrimSpace(caPEM); pem != "" {
@@ -54,7 +58,27 @@ func newClient(base, token, caPEM string) (*client, error) {
 		}
 		tr.TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
 	}
-	return &client{base: base, token: token, hc: &http.Client{Transport: tr}}, nil
+	hc := &http.Client{Transport: tr}
+	hc.CheckRedirect = func(req *http.Request, _ []*http.Request) error {
+		if !sameOrigin(u, req.URL) {
+			return fmt.Errorf("refusing redirect from Kubernetes API origin %s to %s", u.Host, req.URL.Host)
+		}
+		return nil
+	}
+	return &client{base: u, token: token, hc: hc}, nil
+}
+
+func sameOrigin(a, b *url.URL) bool {
+	return strings.EqualFold(a.Scheme, b.Scheme) && strings.EqualFold(originHost(a), originHost(b))
+}
+
+func originHost(u *url.URL) string {
+	host := strings.ToLower(u.Hostname())
+	port := u.Port()
+	if port == "" && strings.EqualFold(u.Scheme, "https") {
+		port = "443"
+	}
+	return host + ":" + port
 }
 
 // do performs one API call. A non-2xx answer comes back as an error carrying
@@ -64,15 +88,17 @@ func (c *client) do(ctx context.Context, method, path string, query url.Values, 
 	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 
-	full := c.base + path
-	if len(query) > 0 {
-		full += "?" + query.Encode()
+	if !strings.HasPrefix(path, "/") || strings.ContainsAny(path, "?#") {
+		return nil, fmt.Errorf("invalid Kubernetes API path %q", path)
 	}
+	requestURL := *c.base
+	requestURL.Path = path
+	requestURL.RawQuery = query.Encode()
 	var rdr io.Reader
 	if body != nil {
 		rdr = bytes.NewReader(body)
 	}
-	req, err := http.NewRequestWithContext(ctx, method, full, rdr)
+	req, err := http.NewRequestWithContext(ctx, method, requestURL.String(), rdr)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
@@ -84,7 +110,7 @@ func (c *client) do(ctx context.Context, method, path string, query url.Values, 
 
 	resp, err := c.hc.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("api server unreachable (%s): %w", c.base, err)
+		return nil, fmt.Errorf("api server unreachable (%s): %w", c.base.String(), err)
 	}
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
