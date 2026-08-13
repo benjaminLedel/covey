@@ -3,17 +3,24 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 )
 
-// newTestProxy builds an actionProxy backed by a Client whose secret cache is
-// pre-populated — substituteSecrets then resolves entirely from RAM, no
-// WebSocket round-trip needed (mirrors how Client.secret() itself short-
-// circuits once a secret has been granted once, see credential()/secret()).
+// newTestProxy builds an actionProxy whose fetchSecret is a stub over a fixed
+// map — substituteSecrets then resolves without any WebSocket round-trip.
+// Production wiring (startActionProxy) points fetchSecret at the real,
+// uncached Client.secret instead.
 func newTestProxy(secrets map[string]InjectSecret) *actionProxy {
 	return &actionProxy{
 		taskID: "task-1",
-		client: &Client{secrets: secrets, pending: map[string]chan Message{}},
+		fetchSecret: func(_ context.Context, key, _ string) (InjectSecret, error) {
+			sec, ok := secrets[key]
+			if !ok || !sec.Granted {
+				return InjectSecret{}, fmt.Errorf("secret %q not granted", key)
+			}
+			return sec, nil
+		},
 	}
 }
 

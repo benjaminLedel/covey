@@ -43,8 +43,8 @@ type Client struct {
 
 	mu           sync.Mutex
 	cfg          InjectConfig
-	creds        map[string]InjectCredentials // system → brokered credential (RAM only)
-	secrets      map[string]InjectSecret      // key → brokered custom secret (RAM only)
+	creds        map[string]InjectCredentials // system → brokered credential (RAM cache, bounded by its own TTLSecs)
+	credsFetched map[string]time.Time         // system → when creds[system] was fetched
 	targets      map[string]target.System     // system → brokered manifest plugin (RAM only)
 	pending      map[string]chan Message      // request_id → response channel
 	subAgentDirs map[string]bool              // directories with a running sub-agent
@@ -58,16 +58,16 @@ var ErrKilled = errors.New("kill-switch")
 
 func NewClient(wsURL, token, agentID, homeDir string, log *slog.Logger) *Client {
 	return &Client{
-		wsURL:    wsURL,
-		token:    token,
-		agentID:  agentID,
-		homeDir:  homeDir,
-		runtimes: newRuntimes(),
-		creds:    map[string]InjectCredentials{},
-		secrets:  map[string]InjectSecret{},
-		targets:  map[string]target.System{},
-		pending:  map[string]chan Message{},
-		log:      log,
+		wsURL:        wsURL,
+		token:        token,
+		agentID:      agentID,
+		homeDir:      homeDir,
+		runtimes:     newRuntimes(),
+		creds:        map[string]InjectCredentials{},
+		credsFetched: map[string]time.Time{},
+		targets:      map[string]target.System{},
+		pending:      map[string]chan Message{},
+		log:          log,
 	}
 }
 
@@ -293,10 +293,15 @@ func (c *Client) route(requestID string, msg Message) {
 	}
 }
 
-// credential fetches a brokered credential (RAM cache per connection).
+// credential fetches a brokered credential (RAM cache per connection, bounded
+// by the TTLSecs the control plane granted it with). A cache with no expiry
+// would keep serving a rotated-away token for as long as the sandbox's warm
+// daemon connection lives — hours, in practice — so a cached entry is only
+// reused while it is still within its own TTL; once that elapses, the next
+// call goes back to the control plane and picks up whatever is current.
 func (c *Client) credential(ctx context.Context, system, taskID string) (InjectCredentials, error) {
 	c.mu.Lock()
-	if cred, ok := c.creds[system]; ok && cred.Granted {
+	if cred, ok := c.creds[system]; ok && cred.Granted && c.credFresh(system) {
 		c.mu.Unlock()
 		return cred, nil
 	}
@@ -319,22 +324,32 @@ func (c *Client) credential(ctx context.Context, system, taskID string) (InjectC
 	}
 	c.mu.Lock()
 	c.creds[system] = cred
+	c.credsFetched[system] = time.Now()
 	c.mu.Unlock()
 	return cred, nil
 }
 
-// secret fetches a custom, agent-scoped secret by key (RAM cache per
-// connection) for the {{secret:<key>}} placeholder substitution in action
-// params. Unlike credential this is not keyed by target system — the key is
-// whatever name the secret was stored under.
-func (c *Client) secret(ctx context.Context, key, taskID string) (InjectSecret, error) {
-	c.mu.Lock()
-	if sec, ok := c.secrets[key]; ok && sec.Granted {
-		c.mu.Unlock()
-		return sec, nil
+// credFresh reports whether the cached credential for system is still within
+// its TTL. Called with c.mu held. A credential granted without a TTL (0)
+// never counts as fresh — cache it, still, but always confirm on next use.
+func (c *Client) credFresh(system string) bool {
+	ttl := c.creds[system].TTLSecs
+	if ttl <= 0 {
+		return false
 	}
-	c.mu.Unlock()
+	fetched, ok := c.credsFetched[system]
+	return ok && time.Since(fetched) < time.Duration(ttl)*time.Second
+}
 
+// secret fetches a custom, agent-scoped secret by key for the
+// {{secret:<key>}} placeholder substitution in action params (spec/04: this
+// resolves per action). Deliberately UNCACHED — the daemon connection, and
+// with it a RAM cache, can live for hours on a warm sandbox across many
+// heartbeat runs, while a rotated secret (e.g. a login password fixed after
+// an incident) needs to take effect on the very next action, not the next
+// sandbox restart. Unlike credential this is not keyed by target system — the
+// key is whatever name the secret was stored under.
+func (c *Client) secret(ctx context.Context, key, taskID string) (InjectSecret, error) {
 	reqID := uuid.NewString()
 	reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -350,9 +365,6 @@ func (c *Client) secret(ctx context.Context, key, taskID string) (InjectSecret, 
 	if !sec.Granted {
 		return sec, fmt.Errorf("secret %q denied: %s", key, sec.Reason)
 	}
-	c.mu.Lock()
-	c.secrets[key] = sec
-	c.mu.Unlock()
 	return sec, nil
 }
 
