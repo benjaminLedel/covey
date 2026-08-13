@@ -68,3 +68,37 @@ func (s *Server) lintSkills() agents.SkillLookup {
 		return out, nil
 	}
 }
+
+// handleOrgLint: GET /platform/lint — the same rules over the whole
+// organisation, which is the question after an upgrade: which of my agents need
+// catching up.
+//
+// After a platform change every installation gets the new platform contract
+// automatically (the system prompt is compiled at dispatch time), but the agent
+// config stays as a human wrote it. `covey config lint` answered that at a
+// shell; whoever operates this instance through a browser had no way to ask.
+type agentFindings struct {
+	AgentID  uuid.UUID        `json:"agent_id"`
+	Slug     string           `json:"slug"`
+	Findings []agents.Finding `json:"findings"`
+}
+
+func (s *Server) handleOrgLint(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	subjects, err := agents.LintSubjects(r.Context(), s.Pool, p.OrgID, s.lintSkills())
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	out := []agentFindings{}
+	for _, sub := range subjects {
+		found := agents.Lint(sub.Subject)
+		if len(found) == 0 {
+			// Only what needs a change. A list in which everything is fine for
+			// most rows is one nobody reads to the end.
+			continue
+		}
+		out = append(out, agentFindings{AgentID: sub.AgentID, Slug: sub.Slug, Findings: found})
+	}
+	writeJSON(w, http.StatusOK, out)
+}

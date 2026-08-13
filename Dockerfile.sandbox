@@ -1,6 +1,13 @@
-# Sandbox-Image für den docker-SandboxProvider: coveyd + Claude-Code-Runtime.
+# Sandbox-Image, Profil `base`: coveyd + Claude-Code-Runtime und das Werkzeug,
+# das jeder Agent braucht — Support, Mail, QA, Recherche.
 # Bauen: `make sandbox-image`. Die Control Plane startet daraus pro Wake einen
 # Container; das persistente Agenten-Home wird nach /home/agent gemountet.
+#
+# Was hier NICHT drin ist, steht in Dockerfile.sandbox.dev: PHP, JDK, fvm, uv
+# und die native Build-Toolchain. Der Schnitt geht bewusst nicht an Sprachen
+# entlang, sondern an Rollen — ein Entwickler-Agent arbeitet legitim an einem
+# PHP- UND einem Flutter-Projekt, und ein Mail-Agent an keinem von beiden
+# (spec/16-runner.md, „Sandbox images per agent").
 FROM golang:1.26 AS build
 # Herkunft des Binaries (internal/buildinfo) — `coveyd version` im Container
 # beantwortet, welcher Stand im Sandbox-Image liegt. Werte reicht der Aufrufer
@@ -31,105 +38,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Damit chromedp den Browser ohne Rätselraten findet.
 ENV COVEY_BROWSER_CHROME_PATH=/usr/bin/chromium
 
-# Build-Toolchain für npm-Pakete mit nativem Anteil. node:26-slim bringt weder
-# make noch g++ noch python3 mit — und genau die drei sucht node-gyp, sobald ein
-# Projekt ein Paket wie node-sass, sharp oder bcrypt zieht. Der Agent sieht dann
-# ein `npm install`, das mitten im Baum abbricht, kann als Nicht-Root nichts
-# nachinstallieren und baut sich stattdessen einen Ersatz-Harness mit Stubs.
-# ~250 MB, die jeder Agent mitträgt; das ist der Preis dafür, dass „Abhängigkeiten
-# installieren" der erste Schritt bleibt und nicht die erste Sackgasse.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential python3 \
-    && rm -rf /var/lib/apt/lists/*
-# PHP 8.2 + Composer für Agenten, die an PHP-Projekten arbeiten (Laravel).
-# Die Version ist nicht beliebig: Debian trixie liefert 8.4, die CI der
-# Zielprojekte fährt 8.2 — ein Agent, der gegen eine andere Minor-Version baut
-# und testet, meldet grün und die Pipeline wird rot. Deshalb die Pakete von
-# packages.sury.org, wo 8.2 weiter gepflegt wird. Extensions: zip/gd/ldap wie in
-# der Projekt-CI, dazu die von composer.json geforderten (dom/json/openssl/pdo)
-# und pdo_sqlite, weil PHPUnit dort gegen eine In-Memory-SQLite läuft. Dazu
-# pgsql (Projekte, deren Testdatenbank Postgres ist) und pcov: ohne einen
-# Coverage-Treiber bricht jedes `phpunit --coverage-*` mit „No code coverage
-# driver available" ab — der Agent liest das als kaputte Suite und fängt an, die
-# Testumgebung zu reparieren, die nie kaputt war. pcov statt xdebug, weil xdebug
-# jeden Testlauf um ein Vielfaches verlangsamt und sonst nichts beiträgt.
-# Als Nicht-Root kann der Agent nichts nachinstallieren — was hier fehlt, fehlt
-# ihm zur Laufzeit.
-# Nebenwirkung von sury, die man kennen muss: Die Quelle bringt eigene Rebuilds
-# einiger Systembibliotheken mit, und php8.2-gd zieht deren libgd3 anstelle der
-# Debian-Fassung. Das ist bei sury unvermeidbar (die Abhängigkeit ist so gebaut),
-# aber es heißt: Ein Drittanbieter-Repo liefert hier mehr als nur PHP. Deshalb
-# fliegt die Quellendatei im selben Layer wieder raus — das Image soll keine
-# aktive Fremdquelle tragen, und apt braucht der Agent ohnehin nie.
-RUN curl -fsSL https://packages.sury.org/php/apt.gpg -o /usr/share/keyrings/sury-php.gpg \
-    && echo "deb [signed-by=/usr/share/keyrings/sury-php.gpg] https://packages.sury.org/php/ trixie main" \
-         > /etc/apt/sources.list.d/sury-php.list \
-    && apt-get update && apt-get install -y --no-install-recommends \
-         php8.2-cli php8.2-xml php8.2-mbstring php8.2-curl php8.2-zip php8.2-gd \
-         php8.2-ldap php8.2-sqlite3 php8.2-mysql php8.2-bcmath php8.2-intl composer \
-         php8.2-pgsql php8.2-pcov \
-    && rm -f /etc/apt/sources.list.d/sury-php.list \
-    && rm -rf /var/lib/apt/lists/*
-
-# JDK für Kotlin/Java-Projekte. Bewusst nur EINE Version: `gradlew` braucht nur
-# eine JVM zum Starten und lädt sein Gradle selbst; ein Projekt, das ein anderes
-# JDK verlangt, holt es sich über Gradles Toolchain-Provisioning oder SDKMAN ins
-# Home. Jede weitere JDK-Version hier kostet ~200 MB für alle Agenten.
-# JAVA_HOME wird gesetzt, weil `gradlew` zwar mit `java` aus dem PATH auskommt,
-# Toolchain-Erkennung und Android-Tooling aber die Variable lesen. Der Pfad trägt
-# die Debian-Architektur im Namen, deshalb abgeleitet statt hart notiert.
-RUN set -eux; \
-    apt-get update; \
-    apt-get install -y --no-install-recommends openjdk-21-jdk-headless; \
-    rm -rf /var/lib/apt/lists/*; \
-    ln -s "/usr/lib/jvm/java-21-openjdk-$(dpkg --print-architecture)" /opt/java
-ENV JAVA_HOME=/opt/java
-
-# Versionsmanager für Toolchains, deren VERSION am Projekt hängt statt am Agenten.
-# Sie gehören ins Image, ihre SDKs NICHT: Die Control Plane mountet das
-# persistente Home über /home/agent (sandbox_docker.go) — was hier nach
-# /home/agent installiert würde, wäre zur Laufzeit maskiert und unsichtbar.
-# Also: Binary in den Systempfad, Cache ins Home. Weil das Home persistent ist,
-# lädt jeder Agent ein SDK genau einmal und findet es bei jedem weiteren Lauf
-# wieder.
-#   fvm → Flutter/Dart, Version aus dem Projekt (.fvmrc), SDKs unter ~/fvm
-#   uv  → Python, Version aus .python-version, Interpreter unter ~/.local/share/uv
-# fvm liegt als Baum unter /opt/fvm statt als einzelnes Binary: Der Einstieg ist
-# ein Shell-Launcher, der src/dart und src/fvm.snapshot NEBEN sich erwartet. Er
-# löst dafür Symlinks auf (readlink -f), deshalb genügt der Link im Systempfad.
-# Versionen sind auf den Release-Tag gepinnt; das ist kein Inhalts-Pin (Assets
-# eines Tags sind ersetzbar), hält aber Rebuilds über Monate stabil — dasselbe
-# Niveau wie beim npm-Paket der Runtime weiter unten. Die Architektur ist NICHT
-# gepinnt: Das Image wird je nach Host auf amd64 oder arm64 gebaut.
-ARG FVM_VERSION=4.1.2
-ARG UV_VERSION=0.12.1
-RUN set -eux; \
-    case "$(dpkg --print-architecture)" in \
-        amd64) fvm_arch=x64;   uv_arch=x86_64  ;; \
-        arm64) fvm_arch=arm64; uv_arch=aarch64 ;; \
-        *) echo "nicht unterstützte Architektur: $(dpkg --print-architecture)" >&2; exit 1 ;; \
-    esac; \
-    tmp="$(mktemp -d)"; \
-    curl -fsSL -o "$tmp/fvm.tar.gz" \
-        "https://github.com/leoafarias/fvm/releases/download/${FVM_VERSION}/fvm-${FVM_VERSION}-linux-${fvm_arch}.tar.gz"; \
-    tar -xzf "$tmp/fvm.tar.gz" -C "$tmp"; \
-    rm -rf /opt/fvm; \
-    mv "$tmp/fvm" /opt/fvm; \
-    ln -s /opt/fvm/fvm /usr/local/bin/fvm; \
-    curl -fsSL -o "$tmp/uv.tar.gz" \
-        "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/uv-${uv_arch}-unknown-linux-gnu.tar.gz"; \
-    tar -xzf "$tmp/uv.tar.gz" -C "$tmp"; \
-    install -m 0755 "$tmp/uv-${uv_arch}-unknown-linux-gnu/uv" /usr/local/bin/uv; \
-    install -m 0755 "$tmp/uv-${uv_arch}-unknown-linux-gnu/uvx" /usr/local/bin/uvx; \
-    rm -rf "$tmp"; \
-    fvm --version; uv --version
-# Was diese Manager ins Home legen, liegt nicht im Standard-PATH: uv installiert
-# Werkzeuge nach ~/.local/bin, fvm verlinkt das aktive SDK nach ~/fvm/default.
-# Der übliche Ausweg — der Installer ergänzt die .bashrc — greift hier nicht, weil
-# das gemountete Home die Shell-Dateien aus dem Image maskiert. Also fest in den
-# PATH, sonst findet der Agent, was er selbst installiert hat, nicht wieder.
-ENV PATH=/home/agent/.npm-global/bin:/home/agent/.local/bin:/home/agent/fvm/default/bin:${PATH}
-
 # Browser-Testrunner auf das vorhandene chromium zeigen. Playwright und
 # Puppeteer laden sonst beim ersten Lauf ihren eigenen Browser aus einem CDN —
 # das steht in keiner Egress-Allowlist und läuft fail-closed ins Leere, während
@@ -156,6 +64,10 @@ RUN npm install -g @anthropic-ai/claude-code
 # stünde sie vor dem Befehl darüber, läge die Runtime selbst im Home — und wäre
 # zur Laufzeit vom gemounteten Home maskiert, also weg.
 ENV NPM_CONFIG_PREFIX=/home/agent/.npm-global
+# Was der Agent sich selbst ins Home installiert, liegt nicht im Standard-PATH.
+# Der übliche Ausweg — der Installer ergänzt die .bashrc — greift hier nicht,
+# weil das gemountete Home die Shell-Dateien aus dem Image maskiert.
+ENV PATH=/home/agent/.npm-global/bin:/home/agent/.local/bin:${PATH}
 
 # Nicht-root: Claude Code verweigert --dangerously-skip-permissions als root,
 # und die Sandbox soll auch im Container kein Root-Prozess sein.

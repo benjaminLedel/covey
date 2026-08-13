@@ -300,6 +300,8 @@ export const APP_ROUTE_PREFIXES = [
   "/platform",
   "/profile",
   "/requests",
+  "/diagnostics",
+  "/runners",
   "/runtimes",
   "/secrets",
   "/setup",

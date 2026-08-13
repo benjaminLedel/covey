@@ -96,6 +96,20 @@ jobs:
             rm -rf "$work"
           done
 
+          # covey-runner für dieselben Plattformen wie covey: Er läuft auf einem
+          # fremden Host, und welches System das ist, entscheidet nicht diese
+          # Zeile. install.sh bietet ihn als Komponente an (--runner) und bildet
+          # den Archivnamen aus dem Binärnamen — ohne diesen Block läuft der
+          # Installer in einen 404 für ein Programm, das er anbietet.
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
+            os="${target%/*}"; arch="${target#*/}"
+            work="$(mktemp -d)"
+            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
+              go build -trimpath -ldflags "$ldflags" -o "$work/covey-runner" ./cmd/covey-runner
+            tar -czf "dist/covey-runner_${VERSION}_${os}_${arch}.tar.gz" -C "$work" covey-runner
+            rm -rf "$work"
+          done
+
           # coveyd nur für Linux: Es läuft nur im Sandbox-Container, und der ist
           # immer Linux. Beigelegt für alle, die ein eigenes Sandbox-Image bauen
           # wollen, ohne die Go-Toolchain dafür zu brauchen — Dockerfile.sandbox

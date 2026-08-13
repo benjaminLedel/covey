@@ -26,6 +26,12 @@ export type Agent = {
   effort: string; // "" = Runtime-Default, sonst low|medium|high|xhigh|max
   max_turns: number;
   recording_level: string; // "" = erbt Org-Boden, sonst minimal|standard|full
+  // Der Arbeitsplatz: Profilname (base, dev) oder ein eigenes Image;
+  // leer = Voreinstellung der Instanz (spec/16).
+  sandbox_image: string;
+  // Welche Fähigkeiten der Host haben muss (arm64, gpu, ein Runner im Netz des
+  // Zielsystems). Leer = jeder Runner der Organisation (spec/16).
+  runner_tags?: string[];
   warm_sandbox: boolean; // hält die Sandbox zwischen Wach-Phasen live (opt-in)
   status: string;
   supervisor_id?: string;
@@ -1092,6 +1098,10 @@ export type FileEntry = {
 };
 
 export type FileListing = {
+  // read_only: das Home wird aus dem letzten Snapshot gelesen, weil sein Runner
+  // nicht verbunden ist (spec/16). Schreiben ist dann abgelehnt.
+  read_only?: boolean;
+  read_only_reason?: string;
   path: string;
   /** false = das Home wurde noch nie angelegt (Agent nie geweckt). */
   exists: boolean;

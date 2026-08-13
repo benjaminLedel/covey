@@ -376,7 +376,10 @@
     "setupPage": "Einrichtung",
     "inbox": "Posteingang",
     "administrationSection": "Verwaltung",
-    "administration": "Administration"
+    "administration": "Administration",
+    "approvals": "Freigaben",
+    "runners": "Runner",
+    "diagnostics": "Diagnose"
   },
   "costs": {
     "title": "Kosten & Token",
@@ -483,7 +486,8 @@
     "agent_owner": "Agent-Owner",
     "security": "Security",
     "auditor": "Auditor",
-    "controlling": "Controlling"
+    "controlling": "Controlling",
+    "platform_admin": "Plattform-Admin"
   },
   "onboarding": {
     "title": "Erste Schritte",
@@ -679,7 +683,9 @@
     "employedHint": "eingestellt und im Dienst",
     "reject": "Ablehnen",
     "rejectTitle": "{{name}} ablehnen?",
-    "rejectLead": "Der Entwurf wird verworfen. Er hat nie gearbeitet — es gibt keinen Lauf und keine Kosten. Die Ausschreibung, aus der er hervorging, bleibt als Aufgabe stehen."
+    "rejectLead": "Der Entwurf wird verworfen. Er hat nie gearbeitet — es gibt keinen Lauf und keine Kosten. Die Ausschreibung, aus der er hervorging, bleibt als Aufgabe stehen.",
+    "storeLevel": "Home-Store: {{size}} · {{snapshots}} Snapshots von {{agents}} Agenten",
+    "storeBackup": "braucht Backup wie die Datenbank"
   },
   "agent": {
     "notFound": "Agent nicht gefunden.",
@@ -1055,7 +1061,19 @@
       "deleteYes": "Ja, endgültig löschen",
       "cancel": "Abbrechen",
       "rollDice": "Zufälligen Namen würfeln",
-      "subGeneral": "Allgemein"
+      "subGeneral": "Allgemein",
+      "sandboxImage": "Arbeitsplatz",
+      "sandboxImageDefault": "Voreinstellung der Instanz",
+      "sandboxImageOwn": "Eigenes Image …",
+      "sandboxImageHint": "Das Image, in dem dieser Agent arbeitet. Ein Profil ist eine Vereinigung von Toolchains, kein Sprachschnitt: ein Entwickler-Agent arbeitet an PHP- und Flutter-Projekten, ein Mail-Agent an keinem von beiden. Gilt ab dem nächsten Kaltstart; eine laufende oder warm geparkte Sandbox behält ihr Image.",
+      "filesReadOnly": "Nur lesbar — aus dem letzten Snapshot",
+      "runnerTags": "Host-Anforderungen",
+      "runnerTagsHint": "Tags, die der Runner tragen muss, damit dieser Agent dort laufen darf — etwa arm64 oder ein Host im Netz des Zielsystems. Leer heißt: jeder Runner der Organisation. Ein Runner darf mehr tragen, als verlangt wird; fehlt eine geforderte Fähigkeit, wartet der Agent und die Meldung nennt das Tag.",
+      "sandboxProfile": {
+        "base": "base — Node, git, chromium, ripgrep",
+        "dev": "dev — zusätzlich PHP, JDK, fvm, uv"
+      },
+      "sandboxImageMissing": "Das Image {{image}} liegt auf keinem Runner dieser Organisation — bis es gebaut ist, scheitert jedes Aufwachen. Einmalig: {{build}}"
     },
     "skills": {
       "desc": "Was dieser Agent an Fähigkeiten hat — eigene plus die ihm aus der Bibliothek verlinkten. Genau diese Liste landet vor jedem Lauf in seinem Home; von jedem Eintrag steht dauerhaft nur die Beschreibung im Kontext.",
@@ -1141,11 +1159,39 @@
       "fromTask": "aus dem Lauf",
       "reviewsMore": "{{count}} ältere anzeigen",
       "reviewsFewer": "Nur die neueste"
+    },
+    "home": {
+      "title": "Home-Store",
+      "disabled": "Der Home-Store ist abgeschaltet (COVEY_HOME_STORE=false). Ohne ihn gibt es keine Snapshots, kein Zurückrollen — und ein verlorenes Home ist nicht wiederherstellbar.",
+      "noSnapshot": "Noch kein Snapshot — der erste entsteht, wenn der Agent das nächste Mal wirklich einschläft.",
+      "size": "{{total}} groß, davon {{exclusive}}, die nur dieser Agent hält",
+      "lastSync": "Letzter Sync {{when}} · {{blocks}} Blöcke, {{bytes}} übertragen, {{seconds}} s",
+      "runner": "Arbeitskopie zuletzt auf: {{runner}}",
+      "backupNow": "Jetzt sichern",
+      "history": "Snapshots",
+      "restore": "Wiederherstellen",
+      "confirmRestore": "Home auf den Stand vom {{when}} zurücksetzen? Der aktuelle Inhalt der Arbeitskopie wird dabei überschrieben.",
+      "reason": {
+        "job": "nach dem Lauf",
+        "manual": "von Hand",
+        "file-browser": "Dateibrowser",
+        "restore": "nach dem Zurückrollen"
+      },
+      "sizeHint": "Der Rest steckt in Inhalten, die andere Agenten auch halten — Toolchains, Caches, Checkouts. Ihn zu verlieren kostet Zeit; den exklusiven Teil zu verlieren kostet Arbeit.",
+      "snapshots_one": "{{count}} Snapshot, vom {{since}}",
+      "snapshots_other": "{{count}} Snapshots, ältester vom {{since}}",
+      "files_one": "{{count}} Datei",
+      "files_other": "{{count}} Dateien"
     }
   },
   "approvals": {
     "approve": "Freigeben",
-    "deny": "Ablehnen"
+    "deny": "Ablehnen",
+    "title": "Freigaben",
+    "pending": "{{count}} ausstehend",
+    "noPending": "Nichts wartet auf Freigabe.",
+    "requested": "angefragt {{date}}",
+    "decided": "Entschieden"
   },
   "inbox": {
     "title": "Posteingang",
@@ -2019,5 +2065,67 @@
     "codeExpired": "abgelaufen",
     "codeUsedUp": "aufgebraucht",
     "revoke": "Zurückziehen"
+  },
+  "runners": {
+    "title": "Runner",
+    "intro": "Wo die Sandboxen laufen. Jede Sandbox startet über das Runner-Protokoll — auf einer Einzelmaschine über einen Runner, den die Control Plane selbst betreibt.",
+    "colHost": "Host",
+    "colState": "Zustand",
+    "colTags": "Tags & Images",
+    "colLoad": "Läuft",
+    "colDisk": "Platte",
+    "colVersion": "Version",
+    "builtin": "Dieser Host (eingebaut)",
+    "builtinHint": "Tritt ab, sobald diese Organisation einen eigenen Runner registriert.",
+    "connected": "verbunden",
+    "offline": "offline",
+    "offlineHint": "Offline ist nicht „kein Runner“: Die Agenten warten, statt auf den Control-Plane-Host zurückzuwandern.",
+    "outdated": "veraltetes Protokoll",
+    "decommission": "Abbauen",
+    "confirmDelete": "Diesen Runner abbauen? Er nimmt nur seine lokale Arbeitskopie mit — alles Wesentliche liegt im Home-Store.",
+    "addTitle": "Host hinzufügen",
+    "addHint": "Der Runner braucht Docker und einen Weg nach draußen. Keine Datenbank, keine Speicher-Zugangsdaten — er spricht ausschließlich das Runner-Protokoll. Das Installationsskript kommt von dieser Instanz und bringt die dazu passende Version mit.",
+    "newToken": "Registrierungs-Token erzeugen",
+    "tokenOnce": "Einmal im Klartext. Auf dem neuen Host ausführen:",
+    "storeTitle": "Home-Store",
+    "storeHint": "Nach jedem Job wandert das Home als Ganzes hier hinein. Braucht Backup wie die Datenbank — 99 % davon wären nur ein erneuter Download, der Rest existiert nirgendwo sonst.",
+    "storeSize": "{{size}} belegt · {{snapshots}} Snapshots von {{agents}} Agenten",
+    "keepPerAgent": "Snapshots je Agent (0 = unbegrenzt)",
+    "maxAgeDays": "Höchstalter in Tagen (0 = unbegrenzt)",
+    "alwaysKeepLast": "Der jüngste Snapshot jedes Agenten bleibt immer — eine Aufbewahrung, die einem Agenten sein letztes Home nimmt, wäre ein Löschbefehl auf Umwegen.",
+    "previewCleanup": "Vorschau",
+    "runCleanup": "Jetzt aufräumen",
+    "confirmCleanup": "Aufräumen ausführen? Die vorgemerkten Snapshots werden entfernt.",
+    "cleanupPreview": "Es würden {{snapshots}} Snapshots und {{blocks}} Blöcke wegfallen — {{freed}} werden frei.",
+    "cleanupDone": "{{snapshots}} Snapshots und {{blocks}} Blöcke entfernt, {{freed}} frei geworden.",
+    "free": "{{size}} frei",
+    "copy": "Kopieren",
+    "copied": "Kopiert",
+    "lastSeen": "zuletzt gesehen {{when}}",
+    "agoJustNow": "gerade eben",
+    "storeDedup": "Die Homes wiegen zusammen {{logical}} — der Speicher hält sie {{factor}}× kleiner, weil gleiche Inhalte nur einmal liegen.",
+    "storeNoDedupYet": "Die Homes wiegen zusammen {{logical}} — sie teilen bisher kaum Inhalte. Der Speicher spart, sobald zwei Agenten dieselben Toolchains halten.",
+    "sandboxes_one": "{{count}} Sandbox",
+    "sandboxes_other": "{{count}} Sandboxen",
+    "agoMinutes_one": "vor 1 min",
+    "agoMinutes_other": "vor {{count}} min",
+    "agoHours_one": "vor 1 h",
+    "agoHours_other": "vor {{count}} h",
+    "agoDays_one": "vor 1 Tag",
+    "agoDays_other": "vor {{count}} Tagen"
+  },
+  "diagnostics": {
+    "title": "Diagnose",
+    "intro": "Was ein Neustart auf dieser Installation anträfe, und welche Agenten-Konfigurationen nachziehen müssen. Beides liest nur — es ändert nichts.",
+    "stateTitle": "Zustand der Installation",
+    "stateHint": "Dieselben Prüfungen wie `covey doctor`: Migrationen, Sandbox-Images, Home-Store, Egress, Runner. Vor einem Upgrade die schnellste Antwort auf „was fehlt hier noch“.",
+    "markBlocking": "hindert Agenten am Arbeiten",
+    "markNote": "Hinweis",
+    "markOk": "in Ordnung",
+    "lintTitle": "Agenten-Konfigurationen",
+    "lintHint": "Nach einer Plattform-Änderung bekommt jede Installation den neuen Plattform-Vertrag automatisch — die Konfiguration eines Agenten bleibt aber, wie ein Mensch sie geschrieben hat. Hier steht, welche nachziehen sollten.",
+    "lintClean": "Nichts zu tun — keine Konfiguration fällt auf.",
+    "blocking_one": "{{count}} Punkt hindert Agenten am Arbeiten.",
+    "blocking_other": "{{count}} Punkte hindern Agenten am Arbeiten."
   }
 }

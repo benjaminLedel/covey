@@ -381,6 +381,13 @@ export function AgentFiles({ agent, canWrite }: { agent: Agent; canWrite: boolea
             {(listing.error as Error).message}
           </p>
         )}
+        {/* Aus dem Snapshot gelesen, weil der Runner nicht verbunden ist: das
+            gehört vor den Upload-Versuch, nicht in die Fehlermeldung danach. */}
+        {listing.data?.read_only && (
+          <p className="muted text-xs" style={{ padding: "10px 14px" }} title={listing.data.read_only_reason}>
+            {t("agent.settings.filesReadOnly")}
+          </p>
+        )}
         {listing.data && listing.data.entries.length === 0 && (
           <p className="muted text-sm" style={{ padding: "18px 14px" }}>
             {listing.data.exists || dir !== ""
