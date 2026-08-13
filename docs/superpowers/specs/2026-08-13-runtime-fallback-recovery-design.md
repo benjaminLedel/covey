@@ -51,7 +51,7 @@ cooldown fails, the task remains terminal rather than retrying without a guard.
 ### Feature integration
 
 The existing `feat/runtime-fallback` commit is applied to current `main` before
-the recovery changes. Migration 0050, the runtime fallback API/UI, Codex sandbox
+the recovery changes. Migration 0063, the runtime fallback API/UI, Codex sandbox
 dependency, and effective engine/model injection remain intact.
 
 ## Testing

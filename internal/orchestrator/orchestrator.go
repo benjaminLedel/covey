@@ -2089,7 +2089,7 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 			}
 			_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
 				map[string]string{"status": "task_runtime_fallback_retry", "reason": "provider_limit"})
-			o.publishTask(taskID, agent.ID)
+			o.publishTask(taskID, agent)
 			return true, errRetryOnRuntimeFallback
 		}
 		if d.Status == statusIncomplete {
