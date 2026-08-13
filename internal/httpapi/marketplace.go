@@ -30,6 +30,10 @@ type marketplaceEntry struct {
 	Homepage    string `json:"homepage"`
 	License     string `json:"license"`
 	Deprecated  string `json:"deprecated,omitempty"`
+	// Icon ist das eingebettete Signet (data:-URI) — vom Katalog geliefert,
+	// hier auf die erlaubten Formen geprüft. Was nicht durchkommt, fehlt
+	// einfach; die Karte fällt dann auf ihr Kategorie-Symbol zurück.
+	Icon string `json:"icon,omitempty"`
 	// Version ist die neueste veröffentlichte Version (leer bei builtin).
 	Version string `json:"version,omitempty"`
 	Notes   string `json:"notes,omitempty"`
@@ -109,7 +113,7 @@ func (s *Server) handleMarketplace(w http.ResponseWriter, r *http.Request) {
 			Name: e.Name, Label: e.Label, Description: e.Description,
 			Category: e.Category, Kind: e.Kind, Publisher: e.Publisher,
 			Homepage: e.Homepage, License: e.License, Deprecated: e.Deprecated,
-			BuiltinSince: e.BuiltinSince,
+			BuiltinSince: e.BuiltinSince, Icon: e.SafeIcon(),
 		}
 		if v, ok := e.Latest(); ok {
 			entry.Version, entry.Notes = v.Version, v.Notes

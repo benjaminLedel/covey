@@ -727,6 +727,10 @@ export type MarketplaceEntry = {
   homepage: string;
   license: string;
   deprecated?: string;
+  // Das Signet, eingebettet als data:-URI. Nie eine Adresse auf einem fremden
+  // Server: ein Bild von dort wäre ein Zählpixel, das bei jedem Aufruf der
+  // Store-Seite feuert. Die API lässt nur data:image/svg+xml|png|webp durch.
+  icon?: string;
   version?: string;
   notes?: string;
   // Ab dieser Covey-Fassung mitgeliefert — aktivieren statt installieren.

@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 )
 
 const artifact = `{"name":"redmine","webhook":{"id_field":"issue.id"},` +
@@ -172,13 +173,104 @@ func TestStaleCatalogueSurvivesAFailedRefresh(t *testing.T) {
 	c.mu.Unlock()
 	fail.Store(true)
 
-	cat, _, err := c.Catalog(context.Background())
+	// Stale but present: it comes back IMMEDIATELY. Nobody opening the store
+	// waits on a server somewhere on the internet.
+	cat, _, _ := c.Catalog(context.Background())
 	if cat == nil || len(cat.Plugins) != 1 {
 		t.Fatal("an unreachable catalogue must not empty the store page")
 	}
-	if err == nil {
-		t.Error("…and it must not look healthy either — the error belongs alongside the stale copy")
+
+	// The refresh happens behind the page — and when it fails, the failure has
+	// to surface, or stale data would quietly look current.
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		c.mu.Lock()
+		lastErr, refreshing := c.lastErr, c.refreshing
+		c.mu.Unlock()
+		if lastErr != nil {
+			break
+		}
+		if !refreshing && time.Now().After(deadline) {
+			t.Fatal("the failed refresh never surfaced — stale data would look healthy")
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the background refresh did not finish in time")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
+
+	_, _, err := c.Catalog(context.Background())
+	if err == nil {
+		t.Error("the error belongs alongside the stale copy on the next call")
+	}
+}
+
+// TestPersistentCacheSurvivesARestart: a fresh process must not have to ask a
+// foreign host before it can show anything — and if that host is down at that
+// exact moment, the store page shows what the instance has known for weeks
+// instead of nothing at all.
+func TestPersistentCacheSurvivesARestart(t *testing.T) {
+	store := &memCache{}
+	body := `{"schema":1,"plugins":[{"name":"redmine","kind":"custom"}]}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, body)
+	}))
+	c := New(srv.URL)
+	c.HTTP, c.Store = srv.Client(), store
+	if _, _, err := c.Catalog(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(store.body) == 0 {
+		t.Fatal("a fetched catalogue should end up in the persistent cache")
+	}
+
+	// The process restarts and the foreign host is gone.
+	srv.Close()
+	fresh := New(srv.URL)
+	fresh.HTTP, fresh.Store = srv.Client(), store
+	cat, at, _ := fresh.Catalog(context.Background())
+	if cat == nil || len(cat.Plugins) != 1 {
+		t.Fatal("the last good catalogue should come back from the store")
+	}
+	if at.IsZero() {
+		t.Error("its age has to come back with it — that is what makes it honest")
+	}
+}
+
+func TestSafeIconLetsOnlyEmbeddedImagesThrough(t *testing.T) {
+	ok := "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4="
+	for name, tc := range map[string]struct {
+		icon string
+		want string
+	}{
+		"embedded svg":      {ok, ok},
+		"embedded png":      {"data:image/png;base64,iVBORw0KGgo=", "data:image/png;base64,iVBORw0KGgo="},
+		"none":              {"", ""},
+		"remote url":        {"https://cdn.example.com/logo.png", ""},
+		"protocol relative": {"//cdn.example.com/logo.png", ""},
+		"javascript":        {"javascript:alert(1)", ""},
+		"html data uri":     {"data:text/html;base64,PHNjcmlwdD4=", ""},
+		"oversized":         {"data:image/png;base64," + strings.Repeat("A", maxIcon), ""},
+	} {
+		if got := (Entry{Icon: tc.icon}).SafeIcon(); got != tc.want {
+			t.Errorf("%s: SafeIcon() = %q, want %q", name, got, tc.want)
+		}
+	}
+}
+
+// memCache is a Cache in memory, for tests that need no database.
+type memCache struct {
+	body    []byte
+	fetched time.Time
+}
+
+func (m *memCache) Load(_ context.Context, _ string) ([]byte, time.Time, error) {
+	return m.body, m.fetched, nil
+}
+
+func (m *memCache) Save(_ context.Context, _ string, body []byte, at time.Time) error {
+	m.body, m.fetched = body, at
+	return nil
 }
 
 func TestDisabledWithoutAURL(t *testing.T) {

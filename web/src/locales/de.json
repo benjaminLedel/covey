@@ -2039,6 +2039,9 @@
     "taken": "Name bereits vergeben",
     "takenHint": "Unter diesem Namen läuft hier schon ein Plugin, das nicht aus diesem Katalog stammt.",
     "source2": "Quelle",
-    "arrivesDisabled": "Kommt abgeschaltet an — Zugangsdaten und Aktivierung bleiben ein eigener Schritt."
+    "arrivesDisabled": "Kommt abgeschaltet an — Zugangsdaten und Aktivierung bleiben ein eigener Schritt.",
+    "remove": "Deinstallieren",
+    "removeTitle": "{{name}} deinstallieren?",
+    "removeBody": "Das Plugin wird aus dieser Organisation entfernt. Der Katalog-Eintrag bleibt, du kannst es jederzeit wieder installieren. Gespeicherte Zugangsdaten bleiben ebenfalls stehen — die gehören dem Zielsystem, nicht dem Plugin."
   }
 }

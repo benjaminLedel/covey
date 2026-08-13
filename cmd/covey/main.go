@@ -1049,8 +1049,15 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Pool:    pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Runtimes: runtimeStore, Identity: idp, Memory: mem, Dreams: dreams,
 		Org: org.NewStore(pool), Targets: targets, Templates: templateStore,
-		Marketplace: marketplace.New(cfg.MarketplaceURL),
-		Settings:    settings.New(pool), Accounts: accounts.New(pool), Waitlist: waitlist.New(pool),
+		Marketplace: func() *marketplace.Client {
+			m := marketplace.New(cfg.MarketplaceURL)
+			// Der Katalog ueberlebt damit den Neustart: die erste Store-Seite
+			// nach dem Start wartet nicht auf einen fremden Server, und faellt
+			// der gerade aus, zeigt sie den letzten gueltigen Stand statt nichts.
+			m.Store, m.Log = marketplace.NewPgCache(pool), log
+			return m
+		}(),
+		Settings: settings.New(pool), Accounts: accounts.New(pool), Waitlist: waitlist.New(pool),
 		Skills: skillStore,
 		Orch:   orch, WebFS: dist, Log: log,
 		WebhookSecrets: cfg.WebhookSecrets,

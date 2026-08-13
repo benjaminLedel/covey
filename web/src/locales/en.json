@@ -2039,6 +2039,9 @@
     "taken": "name already taken",
     "takenHint": "A plugin of that name already runs here and did not come from this catalogue.",
     "source2": "Source",
-    "arrivesDisabled": "Arrives disabled — credentials and activation stay a separate step."
+    "arrivesDisabled": "Arrives disabled — credentials and activation stay a separate step.",
+    "remove": "Uninstall",
+    "removeTitle": "Uninstall {{name}}?",
+    "removeBody": "The plugin is removed from this organisation. Its catalogue entry stays, so you can install it again at any time. Stored credentials stay too — they belong to the target system, not to the plugin."
   }
 }

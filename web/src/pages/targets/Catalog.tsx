@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, post, type MarketplaceEntry, type MarketplaceView } from "../../api";
+import { api, del, post, type MarketplaceEntry, type MarketplaceView } from "../../api";
 import { TargetIcon } from "../../components/TargetIcon";
+import { ConfirmDialog } from "../../components/Modal";
 
 // Dieselben Bezeichnungen wie im Store — eine Art heisst nicht an zwei
 // Stellen verschieden.
@@ -41,6 +42,17 @@ export function CatalogTab({ canEdit, query }: { canEdit: boolean; query: string
   const market = useQuery({
     queryKey: ["marketplace"],
     queryFn: () => api<MarketplaceView>("/marketplace"),
+  });
+
+  const [confirmRemove, setConfirmRemove] = useState<MarketplaceEntry | null>(null);
+
+  const remove = useMutation({
+    mutationFn: (name: string) => del(`/targets/${name}`),
+    onSuccess: () => {
+      setConfirmRemove(null);
+      qc.invalidateQueries({ queryKey: ["marketplace"] });
+      qc.invalidateQueries({ queryKey: ["targets"] });
+    },
   });
 
   const install = useMutation({
@@ -112,12 +124,28 @@ export function CatalogTab({ canEdit, query }: { canEdit: boolean; query: string
             busy={install.isPending && install.variables === e.name}
             error={failed[e.name]}
             onInstall={() => install.mutate(e.name)}
+            onRemove={() => setConfirmRemove(e)}
           />
         ))}
       </div>
 
       {entries.length === 0 && !market.isLoading && (
         <p className="muted text-sm">{t("catalog.empty")}</p>
+      )}
+
+      {/* Deinstallieren nimmt das Plugin aus DIESER Organisation — der Eintrag
+          im Katalog bleibt, und die Zugangsdaten bleiben auch: die gehören dem
+          Zielsystem, nicht dem Plugin. */}
+      {confirmRemove && (
+        <ConfirmDialog
+          title={t("catalog.removeTitle", { name: confirmRemove.label || confirmRemove.name })}
+          confirmLabel={t("catalog.remove")}
+          pending={remove.isPending}
+          onConfirm={() => remove.mutate(confirmRemove.name)}
+          onClose={() => setConfirmRemove(null)}
+        >
+          <p className="text-sm">{t("catalog.removeBody")}</p>
+        </ConfirmDialog>
       )}
     </div>
   );
@@ -129,12 +157,14 @@ function CatalogCard({
   busy,
   error,
   onInstall,
+  onRemove,
 }: {
   entry: MarketplaceEntry;
   canEdit: boolean;
   busy: boolean;
   error?: string;
   onInstall: () => void;
+  onRemove: () => void;
 }) {
   const { t } = useTranslation();
   const builtin = e.kind === "builtin";
@@ -142,8 +172,16 @@ function CatalogCard({
   return (
     <article className="card tgt-card">
       <div className="tgt-head">
-        <span className={`tgt-mark k-${e.kind}`} aria-hidden="true">
-          <TargetIcon name={e.name} kind={e.kind} category={e.category} size={17} />
+        <span className={`tgt-mark${e.icon ? " brand" : ` k-${e.kind}`}`} aria-hidden="true">
+          {/* Das Signet kommt eingebettet aus dem Katalog (data:-URI, von der
+              API auf erlaubte Bildformen geprüft). Fehlt es oder taugt es
+              nicht, zeichnet TargetIcon das Kategorie-Symbol — eine Karte ohne
+              Bild gibt es nicht. */}
+          {e.icon ? (
+            <img src={e.icon} alt="" width={17} height={17} style={{ display: "block" }} />
+          ) : (
+            <TargetIcon name={e.name} kind={e.kind} category={e.category} size={17} />
+          )}
         </span>
         <div className="tgt-id">
           <div className="tgt-name" title={e.label || e.name}>
@@ -197,6 +235,12 @@ function CatalogCard({
           <a className="btn sm" href={e.homepage} target="_blank" rel="noreferrer noopener">
             {t("catalog.source2")}
           </a>
+        )}
+
+        {e.installed && canEdit && (
+          <button className="btn sm danger" onClick={onRemove}>
+            {t("catalog.remove")}
+          </button>
         )}
       </div>
 

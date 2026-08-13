@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -74,16 +75,23 @@ type Catalog struct {
 // be newer than the instance reading it, and a field this build does not know
 // is not a reason to refuse the whole file.
 type Entry struct {
-	Name        string    `json:"name"`
-	Label       string    `json:"label"`
-	Description string    `json:"description"`
-	Category    string    `json:"category"`
-	Kind        string    `json:"kind"` // custom | mcp | builtin
-	Publisher   string    `json:"publisher"`
-	Homepage    string    `json:"homepage"`
-	License     string    `json:"license"`
-	Deprecated  string    `json:"deprecated,omitempty"`
-	Versions    []Version `json:"versions,omitempty"`
+	Name        string `json:"name"`
+	Label       string `json:"label"`
+	Description string `json:"description"`
+	Category    string `json:"category"`
+	Kind        string `json:"kind"` // custom | mcp | builtin
+	Publisher   string `json:"publisher"`
+	Homepage    string `json:"homepage"`
+	License     string `json:"license"`
+	Deprecated  string `json:"deprecated,omitempty"`
+	// Icon is the plugin's mark, EMBEDDED as a data: URI — never a link to a
+	// picture on somebody's server. A remote image would fire a request to a
+	// foreign host for everyone who opens the store page: a counting pixel
+	// nobody asked for, and one more host to hold the page hostage when it is
+	// slow. Embedded, the catalogue is still one file that either arrives or
+	// does not. See SafeIcon for what is accepted.
+	Icon     string    `json:"icon,omitempty"`
+	Versions []Version `json:"versions,omitempty"`
 	// BuiltinSince: kind=builtin only — the release this plugin ships in.
 	// Those are activated, not installed.
 	BuiltinSince string `json:"builtin_since,omitempty"`
@@ -96,6 +104,39 @@ type Version struct {
 	SHA256          string `json:"sha256"`
 	CoveyMinVersion string `json:"covey_min_version,omitempty"`
 	Notes           string `json:"notes,omitempty"`
+}
+
+// maxIcon caps an embedded mark. A logo is a few hundred bytes of vector or a
+// small bitmap; anything past this is not a mark, and it would ride along in
+// every catalogue response.
+const maxIcon = 32 << 10
+
+// iconPrefixes are the only things an icon may be. The value goes into an
+// <img src> in someone's browser, so this is a security boundary, not a
+// formatting preference: without it a catalogue could hand out `javascript:`
+// or a tracking URL and the store page would dutifully load it.
+//
+// SVG is allowed because it is drawn in an <img>, where scripts do not run.
+var iconPrefixes = []string{
+	"data:image/svg+xml;base64,",
+	"data:image/png;base64,",
+	"data:image/webp;base64,",
+}
+
+// SafeIcon returns the entry's icon if it is one we are willing to put in front
+// of a person, and "" otherwise. Silently dropping is right here: a malformed
+// mark is a cosmetic defect in somebody else's file, not a reason to refuse
+// the plugin — the fallback symbol is perfectly good.
+func (e Entry) SafeIcon() string {
+	if len(e.Icon) == 0 || len(e.Icon) > maxIcon {
+		return ""
+	}
+	for _, p := range iconPrefixes {
+		if strings.HasPrefix(e.Icon, p) {
+			return e.Icon
+		}
+	}
+	return ""
 }
 
 // Latest is the newest published version — the first entry, because the
@@ -122,10 +163,19 @@ func (e Entry) Find(version string) (Version, bool) {
 type Client struct {
 	URL  string
 	HTTP *http.Client
+	// Store keeps the last good catalogue across restarts (optional).
+	Store Cache
+	// Log receives background refresh failures. Optional; without it a failed
+	// refresh is only visible through lastErr on the next call.
+	Log *slog.Logger
 
 	mu      sync.Mutex
 	cached  *Catalog
 	fetched time.Time
+	// refreshing guards the background refresh: a store page opened by five
+	// people must produce one request to the foreign host, not five.
+	refreshing bool
+	loaded     bool
 	// lastErr is the failure of the most recent attempt while a cached
 	// catalogue is still being served — so the store can say "this is from
 	// 11:04 and the last refresh failed" instead of quietly showing stale data
@@ -149,21 +199,119 @@ func (c *Client) Catalog(ctx context.Context) (*Catalog, time.Time, error) {
 	if !c.Enabled() {
 		return nil, time.Time{}, ErrDisabled
 	}
+	c.loadStored(ctx)
+
 	c.mu.Lock()
-	defer c.mu.Unlock()
-	if c.cached != nil && time.Since(c.fetched) < cacheTTL {
-		return c.cached, c.fetched, nil
+	cached, fetched, lastErr := c.cached, c.fetched, c.lastErr
+	fresh := cached != nil && time.Since(fetched) < cacheTTL
+	c.mu.Unlock()
+
+	if fresh {
+		return cached, fetched, nil
 	}
-	cat, err := c.fetchCatalog(ctx)
+	// Stale but present: hand it over NOW and refresh behind the page. Nobody
+	// opening the store should wait on a server somewhere on the internet, and
+	// a catalogue that is fifteen minutes old is not wrong — it is fifteen
+	// minutes old, which is what the timestamp next to it says.
+	if cached != nil {
+		c.refreshInBackground()
+		return cached, fetched, lastErr
+	}
+
+	// Nothing at all: this one has to wait.
+	cat, body, err := c.fetchCatalog(ctx)
 	if err != nil {
+		c.mu.Lock()
 		c.lastErr = err
-		if c.cached != nil {
-			return c.cached, c.fetched, err
-		}
+		c.mu.Unlock()
 		return nil, time.Time{}, err
 	}
-	c.cached, c.fetched, c.lastErr = cat, time.Now(), nil
-	return cat, c.fetched, nil
+	return c.adopt(ctx, cat, body), c.fetched, nil
+}
+
+// adopt takes a freshly fetched catalogue into the cache (memory and store).
+func (c *Client) adopt(ctx context.Context, cat *Catalog, body []byte) *Catalog {
+	now := time.Now()
+	c.mu.Lock()
+	c.cached, c.fetched, c.lastErr = cat, now, nil
+	c.mu.Unlock()
+	if c.Store != nil {
+		// Deliberately not ctx: the request that triggered this may be done by
+		// now, and losing the cache write because the browser disconnected
+		// would be a silly way to keep waking a foreign host.
+		saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if err := c.Store.Save(saveCtx, c.URL, body, now); err != nil && c.Log != nil {
+			c.Log.Warn("marketplace: catalogue not cached", "err", err)
+		}
+	}
+	return cat
+}
+
+// loadStored fills the memory cache from the persistent one, once per process.
+func (c *Client) loadStored(ctx context.Context) {
+	c.mu.Lock()
+	if c.loaded || c.Store == nil {
+		c.loaded = true
+		c.mu.Unlock()
+		return
+	}
+	c.loaded = true
+	c.mu.Unlock()
+
+	body, at, err := c.Store.Load(ctx, c.URL)
+	if err != nil || len(body) == 0 {
+		if err != nil && c.Log != nil {
+			c.Log.Warn("marketplace: cached catalogue not readable", "err", err)
+		}
+		return
+	}
+	cat, err := parseCatalog(body)
+	if err != nil {
+		// A cached catalogue this build can no longer read (an older schema,
+		// say) is not an error to report — it is simply not usable, and the
+		// next fetch replaces it.
+		return
+	}
+	c.mu.Lock()
+	if c.cached == nil {
+		c.cached, c.fetched = cat, at
+	}
+	c.mu.Unlock()
+}
+
+// refreshInBackground refreshes the catalogue without holding anybody up. At
+// most one refresh runs at a time.
+func (c *Client) refreshInBackground() {
+	c.mu.Lock()
+	if c.refreshing {
+		c.mu.Unlock()
+		return
+	}
+	c.refreshing = true
+	c.mu.Unlock()
+
+	go func() {
+		defer func() {
+			c.mu.Lock()
+			c.refreshing = false
+			c.mu.Unlock()
+		}()
+		ctx, cancel := context.WithTimeout(context.Background(), fetchTimeout)
+		defer cancel()
+		cat, body, err := c.fetchCatalog(ctx)
+		if err != nil {
+			c.mu.Lock()
+			c.lastErr = err
+			c.mu.Unlock()
+			if c.Log != nil {
+				c.Log.Warn("marketplace: catalogue refresh failed — serving the last good copy",
+					"url", c.URL, "err", err)
+			}
+			return
+		}
+		c.adopt(ctx, cat, body)
+	}()
 }
 
 // Entry looks one plugin up in the catalogue.
@@ -180,11 +328,21 @@ func (c *Client) Entry(ctx context.Context, name string) (Entry, error) {
 	return Entry{}, fmt.Errorf("%w: %s", ErrNotFound, name)
 }
 
-func (c *Client) fetchCatalog(ctx context.Context) (*Catalog, error) {
+// fetchCatalog gets the catalogue and returns it along with the raw bytes, so
+// the caller can put exactly what was read into the persistent cache.
+func (c *Client) fetchCatalog(ctx context.Context) (*Catalog, []byte, error) {
 	body, err := c.get(ctx, c.URL, maxCatalog)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	cat, err := parseCatalog(body)
+	if err != nil {
+		return nil, nil, err
+	}
+	return cat, body, nil
+}
+
+func parseCatalog(body []byte) (*Catalog, error) {
 	var cat Catalog
 	if err := json.Unmarshal(body, &cat); err != nil {
 		return nil, fmt.Errorf("marketplace: catalogue is not valid JSON: %w", err)
