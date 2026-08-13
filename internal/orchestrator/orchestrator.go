@@ -759,13 +759,21 @@ func (o *Orchestrator) EnsureRunning(agentID uuid.UUID) {
 	o.mu.Unlock()
 
 	go func() {
-		defer func() {
-			o.mu.Lock()
-			delete(o.sessions, agentID)
-			o.mu.Unlock()
-			cancel()
-		}()
-		if err := o.runAgent(ctx, agentID, s); err != nil && !errors.Is(err, context.Canceled) {
+		err := o.runAgent(ctx, agentID, s)
+		o.mu.Lock()
+		delete(o.sessions, agentID)
+		o.mu.Unlock()
+		cancel()
+
+		// A provider limit ends the current waking phase because its runtime and
+		// credential are fixed for that whole phase. Only after removing the old
+		// session may the next one select capacity again and enter the configured
+		// fallback. Calling EnsureRunning before the delete would be a no-op.
+		if errors.Is(err, errRetryOnRuntimeFallback) {
+			o.EnsureRunning(agentID)
+			return
+		}
+		if err != nil && !errors.Is(err, context.Canceled) {
 			o.Log.Error("agent-session", "agent", agentID, "err", err)
 		}
 	}()
@@ -934,6 +942,9 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 			}
 			if errors.Is(err, errBudgetExceeded) {
 				return nil // task has already been reopened, agent is paused
+			}
+			if errors.Is(err, errRetryOnRuntimeFallback) {
+				return err // task is open; a fresh phase must choose another runtime
 			}
 			if errors.Is(err, errDaemonConnection) {
 				// The link is dead either way — no point trying to claim another
@@ -1336,6 +1347,12 @@ func (o *Orchestrator) resolveCredential(ctx context.Context, agent agents.Agent
 // one, Claude Code does not (engineNeedsCredential).
 var errNoRuntime = errors.New("no LLM credential to broker")
 
+// errRetryOnRuntimeFallback is control flow, not a task failure. The provider
+// rejected the current phase's capacity and the task has already been reopened;
+// the session owner tears this phase down and starts a new one so credential and
+// engine selection run again.
+var errRetryOnRuntimeFallback = errors.New("retry task on runtime fallback")
+
 // engineNeedsCredential: does a run without a brokered credential stand a
 // chance? Read from the engine's declaration, never from a list here — that
 // list is exactly what made a second provider impossible to add (spec/18).
@@ -1461,25 +1478,26 @@ func rejectionCooldown(errText string) (time.Duration, string) {
 	return 0, ""
 }
 
-func (o *Orchestrator) noteCredentialRejection(ctx context.Context, agent agents.Agent, s *session, errText string) {
+func (o *Orchestrator) noteCredentialRejection(ctx context.Context, agent agents.Agent, s *session, errText string) string {
 	if s == nil || s.credRuntime == uuid.Nil || o.Runtimes == nil {
-		return
+		return ""
 	}
 	until, reason := rejectionCooldown(errText)
 	if until == 0 {
-		return
+		return ""
 	}
 	if err := o.Runtimes.Cooldown(ctx, s.credRuntime, s.credOrd,
 		time.Now().Add(until), reason); err != nil {
 		o.Log.Warn("credential could not be parked",
 			"runtime", s.credRuntime, "ord", s.credOrd, "err", err)
-		return
+		return ""
 	}
 	o.Log.Warn("credential rejected — value parked",
 		"agent", agent.Slug, "runtime", s.credRuntime, "ord", s.credOrd, "until", until)
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
 		map[string]any{"system": "anthropic", "granted": false, "reason": "rejected",
 			"runtime": s.credRuntime, "ord": s.credOrd, "cooldown_secs": int(until.Seconds())})
+	return reason
 }
 
 // llmCredential is the credential of one waking phase plus its origin: which
@@ -2059,7 +2077,21 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		// The hard signal: the API itself rejected the credential. That beats
 		// every estimate the limit makes — park the value before the next run
 		// walks into the same wall.
-		o.noteCredentialRejection(ctx, agent, s, d.Error)
+		rejectionReason := o.noteCredentialRejection(ctx, agent, s, d.Error)
+		if d.Status == "failed" && rejectionReason == runtimes.ReasonLimit {
+			// Capacity failed, not the assignment. Keep the SAME task open, but
+			// force a new waking phase: engine and credential are intentionally
+			// stable within a phase, so retrying in this loop would start Claude
+			// again instead of selecting the configured Codex fallback.
+			if _, err := o.Backlog.Reopen(ctx, taskID,
+				"provider limit reached — retrying with newly selected runtime capacity"); err != nil {
+				return true, err
+			}
+			_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
+				map[string]string{"status": "task_runtime_fallback_retry", "reason": "provider_limit"})
+			o.publishTask(taskID, agent.ID)
+			return true, errRetryOnRuntimeFallback
+		}
 		if d.Status == statusIncomplete {
 			return true, o.handleIncomplete(ctx, agent, taskID, d)
 		}

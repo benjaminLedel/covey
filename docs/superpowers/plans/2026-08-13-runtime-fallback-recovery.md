@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make a Claude provider-limit failure retry the same work once on the configured Codex fallback, even when the primary runtime contains a credential whose secret was deleted.
+**Goal:** Make a Claude provider-limit failure continue the same work on the configured Codex fallback, even when the primary runtime contains a credential whose secret was deleted.
 
-**Architecture:** The capacity layer converts missing credential references into unavailable capacity while preserving all other errors. The orchestrator converts only `ReasonLimit` task failures into one explicit child retry, so the next wake enters the existing single-hop runtime fallback selector.
+**Architecture:** The capacity layer converts missing credential references into unavailable capacity while preserving all other errors. The orchestrator reopens only `ReasonLimit` task failures, terminates the fixed-runtime waking phase, and starts a fresh phase that enters the existing single-hop runtime fallback selector.
 
 **Tech Stack:** Go 1.26, PostgreSQL/pgx, existing Covey runtime and backlog stores, standard `testing` package.
 
@@ -12,7 +12,7 @@
 
 - Follow a red-green-refactor cycle for every behavior change.
 - Retry only provider capacity limits classified as `runtimes.ReasonLimit`.
-- Permit at most one automatic runtime-fallback retry per task chain.
+- Persist the limiting credential's cooldown before reopening the task.
 - Preserve existing handling for authentication, ordinary failures, incomplete runs, and escalations.
 - Do not expose or log secret values.
 
@@ -76,26 +76,26 @@ Run: `go test ./internal/runtimes -count=1`
 
 Expected: PASS.
 
-### Task 3: Requeue a provider-limit failure exactly once
+### Task 3: Requeue a provider-limit failure in a fresh waking phase
 
 **Files:**
 - Modify: `internal/orchestrator/orchestrator.go`
-- Test: `internal/orchestrator/credential_test.go` or a focused new orchestrator test file.
+- Test: `internal/integration/runtime_fallback_test.go`.
 
 **Interfaces:**
-- Consumes: `rejectionCooldown(errorText)`, `Backlog.CreateChild`, and `backlog.Task.Origin`.
-- Produces: `runtime-fallback:<parent-task-id>` child origin and an explicit failed-attempt result.
+- Consumes: `rejectionCooldown(errorText)`, `Backlog.Reopen`, and `Orchestrator.EnsureRunning`.
+- Produces: a reopened task and a fresh session that selects the fallback runtime.
 
 - [ ] **Step 1: Write a failing limit-retry test**
 
-Drive `task_done` with `Status: "failed"` and a weekly-limit error. Assert the
-parent is failed with a retry reference and one open child preserves title,
-body, and priority.
+Register test primary/fallback runtimes, drive the primary to a weekly-limit
+error, and assert the original task completes on the fallback with exactly one
+run on each engine.
 
-- [ ] **Step 2: Write a failing loop-guard test**
+- [ ] **Step 2: Write a failing non-limit boundary test**
 
-Use a task whose origin begins `runtime-fallback:` and the same error. Assert no
-second child is created.
+Return an ordinary runtime failure from the primary. Assert the task remains
+failed and the fallback engine is never invoked.
 
 - [ ] **Step 3: Verify both tests fail correctly**
 
@@ -105,8 +105,9 @@ Expected: FAIL because provider limits are currently terminal task failures.
 
 - [ ] **Step 4: Implement the minimal retry helper**
 
-Classify the error once, park the credential, and create one child before the
-normal terminal completion path. Keep non-limit behavior unchanged.
+Classify the error once, require a persisted limit cooldown, reopen the same
+task, end the current waking phase, remove its active-session entry, and start a
+fresh phase. Keep non-limit behavior unchanged.
 
 - [ ] **Step 5: Verify focused tests pass**
 
@@ -125,7 +126,7 @@ Expected: PASS.
 
 - [ ] **Step 1: Format and statically check**
 
-Run: `gofmt -w internal/runtimes/pick.go internal/runtimes/pick_test.go internal/orchestrator/orchestrator.go internal/orchestrator/runtime_fallback_test.go`
+Run: `gofmt -w internal/runtimes/pick.go internal/integration/runtimes_test.go internal/orchestrator/orchestrator.go internal/integration/runtime_fallback_test.go`
 
 Run: `go vet ./...`
 

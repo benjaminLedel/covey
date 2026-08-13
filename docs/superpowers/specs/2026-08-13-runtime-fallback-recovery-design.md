@@ -30,21 +30,23 @@ database failures or malformed engine configuration.
 ### Limit recovery
 
 When `task_done` reports an error classified by `rejectionCooldown` as
-`runtimes.ReasonLimit`, the orchestrator parks the credential and keeps the work
-retryable instead of completing it as a terminal task failure. It creates one
-child task carrying the same title, body, priority, and a dedicated
-`runtime-fallback` origin, then completes the failed attempt with an explicit
-reference to that retry. The next wake selects capacity again; because the
-primary credential is now parked or unavailable, the configured fallback is
-eligible and its engine/model are injected into the sandbox.
+`runtimes.ReasonLimit`, the orchestrator parks the credential and reopens the
+same task instead of completing it as a terminal task failure. It then ends the
+current waking phase and starts a new one. This boundary is essential because
+engine and credential are intentionally fixed within a phase; retrying inside
+the existing task loop would start Claude again. The new phase selects capacity
+again, sees the primary as unavailable, and injects the configured fallback's
+engine/model into the sandbox.
 
 Only provider-capacity limits take this path. Authentication errors, ordinary
 runtime failures, turn-limit continuations, escalations, and business failures
 retain their existing behavior.
 
-To prevent loops, a task whose origin already starts with `runtime-fallback:`
-is not automatically retried again. A failure on the fallback is terminal and
-visible.
+There is no active retry loop: every successfully classified limit parks the
+credential that produced it before reopening the task. If the fallback also
+hits a limit, both runtimes are exhausted and the ordinary capacity path leaves
+the open task waiting until one becomes usable again. If persisting the
+cooldown fails, the task remains terminal rather than retrying without a guard.
 
 ### Feature integration
 
@@ -58,8 +60,9 @@ dependency, and effective engine/model injection remain intact.
   usable credential is selected.
 - A runtime selection test proves all missing/parked capacity yields
   `ErrExhausted`, enabling fallback rather than returning `secret not found`.
-- Orchestrator tests prove a provider limit creates exactly one retry task and
-  that a retry-origin task is not retried recursively.
+- An end-to-end orchestrator test proves the same task moves from a limiting
+  primary engine to the configured fallback in a fresh waking phase.
+- A boundary test proves an ordinary runtime failure remains terminal.
 - Existing runtime, orchestrator, HTTP API, integration, and full Go tests must
   remain green.
 
