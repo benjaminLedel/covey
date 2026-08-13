@@ -26,7 +26,7 @@ Entwicklungs-Workflow: `make dev-db && make bootstrap && make run` (siehe README
 
 - **Spec und Runbooks sind auf Englisch.** `spec/` und `docs/` richten sich an alle, die Covey von GitHub installieren und betreiben — schreibe dort englisch, im Ton der bestehenden Dokumente (nüchtern, präzise, keine Marketing-Sprache). Dateinamen ebenfalls englisch (`spec/01-architecture.md`, `docs/ops-zammad.md`).
 - **Nicht übersetzt werden Zeichenketten, die aus dem Programm kommen:** Fehlermeldungen, Log-Zeilen, UI-Labels und Config-Syntax, die ein Parser liest (die `HEARTBEAT.md`-Schlüssel `alle:`/`täglich:`/`nur-wenn:`/`titel:`/`aufgabe:`). Sie stehen im Original, mit Erklärung daneben — eine übersetzte Fehlermeldung dokumentiert etwas, das so nie erscheint.
-- **Commit-Messages und Code-Kommentare bleiben deutsch**, im Stil der bestehenden Historie.
+- **Commit-Messages und Code-Kommentare sind englisch.** Das Repo liegt öffentlich auf GitHub, Dritte schreiben Plugins dagegen und lesen den Code — eine deutsche Historie schließt sie aus. Der *Ton* bleibt wie gehabt: eine Zeile, die sagt, was sich ändert und warum, nicht was angefasst wurde. Bestehende deutsche Kommentare werden nicht auf einen Schlag übersetzt; wer eine Stelle anfasst, zieht sie mit.
 - **README:** `README.md` ist **englisch** — die Visitenkarte für Dritte. Die deutsche Fassung liegt daneben in `README.de.md`. Beide beim Ändern gleichziehen; sie sind Übersetzungen voneinander, keine getrennten Dokumente.
 - **Die Oberfläche ist zweisprachig** (`web/src/locales/de.json`, `en.json`) — neue UI-Texte immer in beiden Dateien pflegen.
 - Spec-Dokumente verlinken sich gegenseitig relativ (`[`04-…`](04-identity-secrets.md)`). Diese Verlinkung beim Ändern konsistent halten.
@@ -91,5 +91,5 @@ Begründung: ein Binary → `go.mod` in der Wurzel, `web/` + `migrations/` als G
 ## Git
 
 - Branch `main`. **Zwei Remotes, und gepusht wird immer auf beide:** `origin` (GitLab, `gitlab.lapco.legal` — hier laufen Pipeline und Deploy) und `github` (`benjaminLedel/covey` — die öffentliche Fassung, von der Dritte Covey installieren). Ein Branch nur auf einem der beiden lässt die zwei Historien auseinanderlaufen; „push" heißt ohne weitere Angabe `git push origin <branch> && git push github <branch>`.
-- **Regelmäßig committen:** abgeschlossene, zusammengehörige Arbeitsschritte (Feature fertig, Tests grün) als eigenen Commit festhalten — nicht alles in einem Riesen-Commit sammeln. Commit-Messages auf Deutsch, im Stil der bestehenden Historie.
+- **Regelmäßig committen:** abgeschlossene, zusammengehörige Arbeitsschritte (Feature fertig, Tests grün) als eigenen Commit festhalten — nicht alles in einem Riesen-Commit sammeln. Commit-Messages auf **Englisch** (siehe „Sprache & Konventionen"). Branch-Namen ebenfalls englisch.
 - Nicht auf `main` committen ohne Rückfrage — vorher Branch anlegen. Push weiterhin nur auf ausdrückliche Bitte.
