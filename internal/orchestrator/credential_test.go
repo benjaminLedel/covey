@@ -28,9 +28,9 @@ func TestRejectionCooldown(t *testing.T) {
 		{"revoked subscription token", `The stored subscription token is rejected ("Invalid bearer token")`, cooldownRejected, runtimes.ReasonError},
 		{"expired token", `claude exit: OAuth token has expired`, cooldownRejected, runtimes.ReasonError},
 		{"authentication error", `{"type":"authentication_error","message":"invalid x-api-key"}`, cooldownRejected, runtimes.ReasonError},
-		{"rate limit, snake case", `{"type":"rate_limit_error"}`, cooldownRateLimit, runtimes.ReasonError},
-		{"rate limit, prose", `Rate limit exceeded — try again later`, cooldownRateLimit, runtimes.ReasonError},
-		{"rate limit, status code", `API error 429`, cooldownRateLimit, runtimes.ReasonError},
+		{"rate limit, snake case", `{"type":"rate_limit_error"}`, cooldownRateLimit, runtimes.ReasonLimit},
+		{"rate limit, prose", `Rate limit exceeded — try again later`, cooldownRateLimit, runtimes.ReasonLimit},
+		{"rate limit, status code", `API error 429`, cooldownRateLimit, runtimes.ReasonLimit},
 
 		// The subscription case, taken verbatim from a failed run on the live
 		// instance. It carries no "rate limit" anywhere, which is exactly why
@@ -41,7 +41,7 @@ func TestRejectionCooldown(t *testing.T) {
 		{"weekly limit", "You've hit your weekly limit · resets Aug 9 at 6:59am", cooldownSeatWindow, runtimes.ReasonLimit},
 		{"model limit", "You've hit your Opus limit", cooldownSeatWindow, runtimes.ReasonLimit},
 		// Casing is the provider's business, not ours.
-		{"lower case rate limit", "the request hit a rate limit", cooldownRateLimit, runtimes.ReasonError},
+		{"lower case rate limit", "the request hit a rate limit", cooldownRateLimit, runtimes.ReasonLimit},
 
 		// Everything else is NOT a credential problem. A run that failed on the
 		// task must not park a working token — that would take a value out of

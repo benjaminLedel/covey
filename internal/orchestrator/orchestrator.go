@@ -1473,7 +1473,7 @@ func rejectionCooldown(errText string) (time.Duration, string) {
 
 	// A rate limit on the API side.
 	case has("rate_limit", "rate limit", "429"):
-		return cooldownRateLimit, runtimes.ReasonError
+		return cooldownRateLimit, runtimes.ReasonLimit
 	}
 	return 0, ""
 }

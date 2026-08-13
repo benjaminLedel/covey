@@ -29,14 +29,14 @@ database failures or malformed engine configuration.
 
 ### Limit recovery
 
-When `task_done` reports an error classified by `rejectionCooldown` as
-`runtimes.ReasonLimit`, the orchestrator parks the credential and reopens the
-same task instead of completing it as a terminal task failure. It then ends the
-current waking phase and starts a new one. This boundary is essential because
-engine and credential are intentionally fixed within a phase; retrying inside
-the existing task loop would start Claude again. The new phase selects capacity
-again, sees the primary as unavailable, and injects the configured fallback's
-engine/model into the sandbox.
+When `task_done` reports a subscription-window or API rate-limit error,
+`rejectionCooldown` classifies it as `runtimes.ReasonLimit`; the orchestrator
+parks the credential and reopens the same task instead of completing it as a
+terminal task failure. It then ends the current waking phase and starts a new
+one. This boundary is essential because engine and credential are intentionally
+fixed within a phase; retrying inside the existing task loop would start Claude
+again. The new phase selects capacity again, sees the primary as unavailable,
+and injects the configured fallback's engine/model into the sandbox.
 
 Only provider-capacity limits take this path. Authentication errors, ordinary
 runtime failures, turn-limit continuations, escalations, and business failures
@@ -62,6 +62,8 @@ dependency, and effective engine/model injection remain intact.
   `ErrExhausted`, enabling fallback rather than returning `secret not found`.
 - An end-to-end orchestrator test proves the same task moves from a limiting
   primary engine to the configured fallback in a fresh waking phase.
+- A second end-to-end case proves a generic provider/API 429 takes the same
+  recovery path while retaining its shorter cooldown.
 - A boundary test proves an ordinary runtime failure remains terminal.
 - Existing runtime, orchestrator, HTTP API, integration, and full Go tests must
   remain green.

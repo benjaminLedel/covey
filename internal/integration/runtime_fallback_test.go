@@ -33,6 +33,9 @@ func (testLimitPrimaryRuntime) Run(_ context.Context, spec daemon.RunSpec,
 	if strings.Contains(spec.Body, "ordinary failure") {
 		return daemon.RunResult{Status: "failed", Error: "ordinary failure"}, nil
 	}
+	if strings.Contains(spec.Body, "provider 429") {
+		return daemon.RunResult{Status: "failed", Error: "API error 429: rate limit exceeded"}, nil
+	}
 	return daemon.RunResult{
 		Status: "failed",
 		Error:  "You've hit your weekly limit · resets Aug 17, 9pm (UTC)",
@@ -76,6 +79,19 @@ func init() {
 // API-key reference must not block selection, and the same task completes on
 // the configured fallback engine instead of remaining failed.
 func TestProviderLimitRetriesTaskOnConfiguredRuntimeFallback(t *testing.T) {
+	testRuntimeFallbackRecovery(t, "do the work", runtimes.ReasonLimit)
+}
+
+// TestProviderRateLimitRetriesTaskOnConfiguredRuntimeFallback protects the
+// generic API-capacity case as well as subscription-window exhaustion. A 429
+// must not become a terminal task failure merely because it has a shorter
+// cooldown than a weekly seat limit.
+func TestProviderRateLimitRetriesTaskOnConfiguredRuntimeFallback(t *testing.T) {
+	testRuntimeFallbackRecovery(t, "provider 429", runtimes.ReasonLimit)
+}
+
+func testRuntimeFallbackRecovery(t *testing.T, body, wantReason string) {
+	t.Helper()
 	testLimitPrimaryRuns.Store(0)
 	testLimitFallbackRuns.Store(0)
 	s := newStack(t)
@@ -118,7 +134,7 @@ func TestProviderLimitRetriesTaskOnConfiguredRuntimeFallback(t *testing.T) {
 		t.Fatal(err)
 	}
 	task, err := s.backlog.Create(ctx, s.orgID, agent.ID,
-		"Continue after provider limit", "do the work", "manual", 4)
+		"Continue after provider limit", body, "manual", 4)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +160,7 @@ func TestProviderLimitRetriesTaskOnConfiguredRuntimeFallback(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(primaryState.Credentials) != 2 ||
-		primaryState.Credentials[1].CooldownReason != runtimes.ReasonLimit {
+		primaryState.Credentials[1].CooldownReason != wantReason {
 		t.Fatalf("primary limit was not persisted: %+v", primaryState.Credentials)
 	}
 }
