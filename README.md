@@ -75,7 +75,7 @@ Everything but the third line takes seconds. That one builds the container an ag
 | 🧑‍💼 **Agents with an identity** | Their own sandbox, their own home directory, their own credentials — and a place on the org chart next to the humans. |
 | 🧑‍🎓 **Hiring instead of a form** | Describe what a new colleague should do; the org's own People department — an agent — turns that into a complete configuration and asks back when the brief is too thin. What comes out is a **draft**: it exists, it can be looked at and changed, and it does not work until a human hires it. |
 | 📥 **Backlog & wake sources** | Tasks as first-class objects; agents wake on a webhook, a heartbeat or a nudge, then go back to sleep. |
-| 🔌 **Target systems as plugins** | Zammad, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, email (IMAP/SMTP), headless browser, MCP — each driven by a manifest, no special case in the core. |
+| 🔌 **Target systems as plugins** | Zammad, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, email (IMAP/SMTP), headless browser, MCP — none of them in this repository. Plugins are their own modules against a [public SDK](https://github.com/benjaminLedel/covey-plugin-sdk); the ones Covey ships with sit in the [plugin pack](https://github.com/benjaminLedel/covey-plugin-pack), and anybody else's plugin is built exactly the same way. |
 | 🛡️ **Guard rails & approvals** | Enforced centrally, outside the runtime, fail-closed. Critical actions go to a human first. |
 | 🔑 **Secrets broker** | No long-lived secrets inside the sandbox — access is brokered at runtime, short-lived and scoped. |
 | 🧩 **Skills** | Procedures an agent loads only when they apply: the description stays in context, the instructions and any extra files are read on demand. Kept in an org-wide library, linked per agent — a delivery lead run that finds nothing to do no longer pays for five playbooks. |
@@ -247,7 +247,7 @@ All runbooks are in English.
 | [`docs/`](docs/) | Operations and integration runbooks |
 | `cmd/covey/` | Control-plane binary: `serve`, `migrate`, `bootstrap`, `passwd`, `genkey` |
 | `cmd/coveyd/` | Sandbox daemon (speaks the daemon protocol, bootstraps the runtime) |
-| `internal/` | Orchestrator, agents, backlog, identity/secrets, guard rails, observability, memory, egress, org, templates, target plugins (`target/`), HTTP API |
+| `internal/` | Orchestrator, agents, backlog, identity/secrets, guard rails, observability, memory, egress, org, templates, the plugin machinery (`target/`: manifest engine, wasm runtime, MCP, per-org activation), HTTP API |
 | `migrations/` | Versioned SQL migrations (embedded via `//go:embed`) |
 | `web/` | React/Vite/Tailwind admin UI (`dist/` gets embedded) |
 | `skills/covey-agent/` | Claude Code skill for building and updating Covey agents |

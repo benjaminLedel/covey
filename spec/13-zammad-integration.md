@@ -2,7 +2,7 @@
 
 Makes the "one target system" from M5 in [`11-mvp-plan.md`](11-mvp-plan.md) concrete as **Zammad** (an open-source helpdesk, self-hostable, REST/JSON API, triggers + webhooks). Zammad touches three MVP milestones: the event wake (M3), event correlation (M4) and broker + API actions (M5).
 
-Architecturally Zammad is the **first compiled target-system plugin** (`internal/target/zammad`, pulled in by blank import — see [`10-architecture-stack.md`](10-architecture-stack.md), "Target systems as plugins"): Covey can be built lean without Zammad, and further target systems arrive as further plugins or as uploaded JSON manifests without touching this core.
+Architecturally Zammad is the **first compiled target-system plugin** (`github.com/benjaminLedel/covey-plugin-pack/zammad`). It does not live in Covey's repository: like every plugin it is an ordinary Go package against the public SDK, in the plugin pack, pulled in by blank import — see [`10-architecture-stack.md`](10-architecture-stack.md), "Target systems as plugins". Covey can be built lean without Zammad, and further target systems arrive as further plugins, as uploaded JSON manifests or as WebAssembly modules without touching the core.
 
 It fits well because Zammad is widespread in German-speaking countries and, like Covey, self-hostable — both run on the same infrastructure.
 

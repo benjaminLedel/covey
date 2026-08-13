@@ -1,6 +1,6 @@
 # Operations: connecting Covey to a GitLab
 
-A practical runbook for the target system **GitLab** (`internal/target/gitlab`).
+A practical runbook for the target system **GitLab** (`github.com/benjaminLedel/covey-plugin-pack/gitlab`).
 Structure and data flow follow the Zammad adapter
 ([`ops-zammad.md`](ops-zammad.md)) — the unit of work here is the
 **issue** instead of the ticket.

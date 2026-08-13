@@ -1,6 +1,6 @@
 # Operations: connecting Covey to GitHub
 
-A practical runbook for the target system **GitHub** (`internal/target/github`).
+A practical runbook for the target system **GitHub** (`github.com/benjaminLedel/covey-plugin-pack/github`).
 Structure and data flow follow the GitLab adapter
 ([`ops-gitlab.md`](ops-gitlab.md)); the unit of work is the **issue**, and the
 merge request is called a **pull request** here.
