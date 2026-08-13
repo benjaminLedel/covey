@@ -126,7 +126,10 @@ func (c *Codex) Run(ctx context.Context, spec RunSpec, onEvent func(kind string,
 		return res, nil
 	}
 
-	args := []string{"exec", "--json"}
+	// Covey agent homes are valid workspaces even when the current task does
+	// not involve a checked-out repository. The sandbox container is the trust
+	// boundary; without this flag Codex exits before processing the prompt.
+	args := []string{"exec", "--json", "--skip-git-repo-check"}
 	if spec.Model != "" {
 		args = append(args, "--model", spec.Model)
 	}
