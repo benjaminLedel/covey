@@ -11,7 +11,7 @@ func TestCodexIsRegistered(t *testing.T) {
 		t.Fatalf("credentials: %+v", d.Credentials)
 	}
 	api, _ := d.Credential(CredAPIKey)
-	if api.EnvVar != "CODEX_API_KEY" || api.Path != "" {
+	if api.EnvVar != "OPENAI_API_KEY" || api.Path != "" {
 		t.Fatalf("the API key is an environment variable: %+v", api)
 	}
 	sub, _ := d.Credential(CredSubscription)

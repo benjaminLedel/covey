@@ -40,3 +40,29 @@ func TestCodexAdapterAllowsNonGitAgentHomes(t *testing.T) {
 		t.Fatalf("Codex must accept non-Git agent homes, args were:\n%s", args)
 	}
 }
+
+func TestCodexAdapterPassesOpenAIAPIKey(t *testing.T) {
+	home := t.TempDir()
+	bin := filepath.Join(home, "codex")
+	script := "#!/bin/sh\nprintf '%s' \"$OPENAI_API_KEY\" > \"$HOME/key.txt\"\n" +
+		"printf '%s\\n' '{\"type\":\"turn.completed\",\"text\":\"done\"}'\n"
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	credential, _ := Describe("codex")
+	api, _ := credential.Credential(CredAPIKey)
+	_, err := (&Codex{Binary: bin}).Run(context.Background(), RunSpec{
+		Body: "finish", HomeDir: home, WorkDir: home,
+		Env: []string{"HOME=" + home, api.EnvVar + "=test-key"},
+	}, func(string, json.RawMessage) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(home, "key.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "test-key" {
+		t.Fatalf("Codex did not receive OPENAI_API_KEY, got %q", got)
+	}
+}

@@ -49,7 +49,7 @@ func init() {
 			// The API key is an environment variable and explicitly supported
 			// only in `codex exec` — exactly the injection point Covey uses.
 			{Kind: CredAPIKey, Label: "API key",
-				Secret: "openai_api_key", EnvVar: "CODEX_API_KEY"},
+				Secret: "openai_api_key", EnvVar: "OPENAI_API_KEY"},
 			// The ChatGPT plan login is a FILE. This is the case that broke the
 			// assumption "a brokered credential is an environment variable",
 			// and the reason an engine declares its delivery form at all.

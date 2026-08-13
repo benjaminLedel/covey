@@ -14,7 +14,7 @@ That is the same shape the daemon already consumes: one JSON object per line, fo
 
 Two credential kinds, and they arrive **in different shapes**:
 
-- **API key** — `CODEX_API_KEY`, an environment variable, and explicitly supported *only* in `codex exec`. Exactly the injection point Covey already uses.
+- **API key** — `OPENAI_API_KEY`, an environment variable consumed by the Codex CLI. Exactly the injection point Covey already uses.
 - **ChatGPT plan** — the account login lives in a file (`~/.codex/auth.json`). The documentation describes using it in CI as an advanced pattern rather than a supported default.
 
 This breaks an assumption that was invisible while there was one engine: that a brokered LLM credential is always **an environment variable**. For a pool of ChatGPT subscription seats it would be a *file in the agent home* instead, written before the run and removed after it.
