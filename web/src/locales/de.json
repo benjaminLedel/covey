@@ -1574,7 +1574,8 @@
       "copy": "Kopieren",
       "optional": "optional",
       "stored": "hinterlegt"
-    }
+    },
+    "tabCatalog": "Katalog"
   },
   "egress": {
     "title": "Egress",
@@ -2019,5 +2020,25 @@
     "codeExpired": "abgelaufen",
     "codeUsedUp": "aufgebraucht",
     "revoke": "Zurückziehen"
+  },
+  "catalog": {
+    "loading": "Katalog wird geladen …",
+    "disabled": "Für diese Instanz ist kein Plugin-Katalog eingerichtet.",
+    "disabledHint": "Der Betreiber legt mit COVEY_MARKETPLACE_URL fest, aus welchem Katalog installiert werden darf — eine eigene Datei geht genauso, auch aus dem internen Netz. Ohne Katalog bleibt der Store, was er ist: die mitgelieferten Plugins und das, was von Hand hochgeladen wurde.",
+    "source": "Katalog:",
+    "fetched": "geholt um {{time}}",
+    "stale": "Der Katalog war zuletzt nicht erreichbar — angezeigt wird der letzte gültige Stand.",
+    "empty": "Keine Einträge zu dieser Suche.",
+    "by": "von",
+    "since": "ab Covey {{v}}",
+    "shipped": "mitgeliefert — im Store aktivieren",
+    "install": "Installieren",
+    "installing": "wird installiert …",
+    "installed": "installiert (v{{v}})",
+    "update": "Auf v{{v}} aktualisieren",
+    "taken": "Name bereits vergeben",
+    "takenHint": "Unter diesem Namen läuft hier schon ein Plugin, das nicht aus diesem Katalog stammt.",
+    "source2": "Quelle",
+    "arrivesDisabled": "Kommt abgeschaltet an — Zugangsdaten und Aktivierung bleiben ein eigener Schritt."
   }
 }

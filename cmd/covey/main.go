@@ -35,6 +35,7 @@ import (
 	"covey/internal/httpapi"
 	identbuiltin "covey/internal/identity/builtin"
 	"covey/internal/llm"
+	"covey/internal/marketplace"
 	"covey/internal/memory"
 	"covey/internal/observability"
 	"covey/internal/orchestrator"
@@ -1048,7 +1049,8 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Pool:    pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Runtimes: runtimeStore, Identity: idp, Memory: mem, Dreams: dreams,
 		Org: org.NewStore(pool), Targets: targets, Templates: templateStore,
-		Settings: settings.New(pool), Accounts: accounts.New(pool), Waitlist: waitlist.New(pool),
+		Marketplace: marketplace.New(cfg.MarketplaceURL),
+		Settings:    settings.New(pool), Accounts: accounts.New(pool), Waitlist: waitlist.New(pool),
 		Skills: skillStore,
 		Orch:   orch, WebFS: dist, Log: log,
 		WebhookSecrets: cfg.WebhookSecrets,

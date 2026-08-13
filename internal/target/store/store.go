@@ -47,6 +47,13 @@ type Plugin struct {
 	// SetupDoc is the setup guide for the UI: for built-ins from the plugin
 	// descriptor, for manifest/MCP plugins generated generically.
 	SetupDoc string `json:"setup_doc,omitempty"`
+	// Source is the catalogue this plugin was installed from; empty = uploaded
+	// by hand. With SourceVersion and SourceDigest it answers the three
+	// questions a row could not answer before: from where, which version, and
+	// which digest was verified.
+	Source        string `json:"source,omitempty"`
+	SourceVersion string `json:"source_version,omitempty"`
+	SourceDigest  string `json:"source_digest,omitempty"`
 }
 
 // List merges the compiled registry with the organization's DB rows.
@@ -55,7 +62,8 @@ type Plugin struct {
 // put on their previous state by migration 0020.)
 func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT name, kind, enabled, manifest, updated_at FROM target_plugins WHERE org_id=$1`, orgID)
+		`SELECT name, kind, enabled, manifest, updated_at, source, source_version, source_digest
+		 FROM target_plugins WHERE org_id=$1`, orgID)
 	if err != nil {
 		return nil, err
 	}
@@ -64,10 +72,12 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 	for rows.Next() {
 		var p Plugin
 		var manifest []byte
-		if err := rows.Scan(&p.Name, &p.Kind, &p.Enabled, &manifest, &p.UpdatedAt); err != nil {
+		var source, version, digest *string
+		if err := rows.Scan(&p.Name, &p.Kind, &p.Enabled, &manifest, &p.UpdatedAt, &source, &version, &digest); err != nil {
 			return nil, err
 		}
 		p.Manifest = manifest
+		p.Source, p.SourceVersion, p.SourceDigest = deref(source), deref(version), deref(digest)
 		stored[p.Name] = p
 	}
 	if rows.Err() != nil {
@@ -118,6 +128,14 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 		out = append(out, p)
 	}
 	return out, nil
+}
+
+// deref reads a nullable text column as a string; NULL becomes "".
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 // customSetupDoc is the generic setup guide of a manifest plugin — the webhook
@@ -196,6 +214,60 @@ func (s *Store) PutManifest(ctx context.Context, orgID uuid.UUID, raw []byte) (t
 		ON CONFLICT (org_id, name) DO UPDATE SET kind='custom', manifest=$3, updated_at=now()`,
 		orgID, m.Name, norm)
 	return m, err
+}
+
+// PutFromCatalog stores a plugin installed from a marketplace catalogue
+// (spec/22) — the same row the manual upload writes, plus where it came from.
+//
+// Two things differ from PutManifest deliberately:
+//
+// It arrives DISABLED. An upload is an admin describing a system they are
+// setting up; an install is a file from the internet, and the step that grants
+// it credentials should be a separate decision from the step that fetched it.
+// On an update the existing state is kept — a running plugin must not switch
+// itself off because a new version arrived.
+//
+// And it records its provenance. Without source/version/digest there is no
+// update path (nobody knows what is installed), no origin for the operator to
+// audit, and no way to find the installations of a withdrawn entry.
+//
+// The digest is verified BEFORE this is called (marketplace.Client.Artifact);
+// what is stored here is the digest that was checked, not a promise.
+func (s *Store) PutFromCatalog(ctx context.Context, orgID uuid.UUID, kind string, raw []byte, source, version, digest string) (string, error) {
+	var name string
+	var norm []byte
+	switch kind {
+	case "mcp":
+		c, err := mcp.ParseConfig(raw)
+		if err != nil {
+			return "", err
+		}
+		name = c.Name
+		if norm, err = json.Marshal(c); err != nil {
+			return "", err
+		}
+	case "custom":
+		m, err := target.ParseManifest(raw)
+		if err != nil {
+			return "", err
+		}
+		name = m.Name
+		if norm, err = json.Marshal(m); err != nil {
+			return "", err
+		}
+	default:
+		return "", fmt.Errorf("kind %q cannot be installed — only custom and mcp", kind)
+	}
+	if _, ok := target.Get(name); ok {
+		return "", fmt.Errorf("name %q is taken by a built-in plugin", name)
+	}
+	_, err := s.pool.Exec(ctx,
+		`INSERT INTO target_plugins (org_id, name, kind, enabled, manifest, source, source_version, source_digest)
+		 VALUES ($1,$2,$3,FALSE,$4,$5,$6,$7)
+		 ON CONFLICT (org_id, name) DO UPDATE SET
+		   kind=$3, manifest=$4, source=$5, source_version=$6, source_digest=$7, updated_at=now()`,
+		orgID, name, kind, norm, source, version, digest)
+	return name, err
 }
 
 // DeleteManifest removes a custom plugin. Built-ins can only be disabled, not

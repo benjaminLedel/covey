@@ -124,10 +124,13 @@ type stack struct {
 	dreams    *dream.Store
 	orch      *orchestrator.Orchestrator
 	http      *httptest.Server
-	orgID     uuid.UUID
-	adminID   uuid.UUID
-	homeBase  string
-	cancel    context.CancelFunc
+	// srv is the HTTP server itself, so a test can equip it with something the
+	// basic stack deliberately leaves out — a plugin catalogue, for instance.
+	srv      *httpapi.Server
+	orgID    uuid.UUID
+	adminID  uuid.UUID
+	homeBase string
+	cancel   context.CancelFunc
 }
 
 const webhookSecret = "test-webhook-secret"
@@ -224,6 +227,7 @@ func newStack(t *testing.T) *stack {
 		WebhookSecrets: map[string]string{"zammad": webhookSecret},
 		SessionTTL:     time.Hour,
 	}
+	s.srv = srv
 	s.http = httptest.NewServer(srv.Handler())
 	t.Cleanup(s.http.Close)
 	s.orch.PublicWSURL = strings.Replace(s.http.URL, "http", "ws", 1) + "/api/daemon/ws"

@@ -147,7 +147,26 @@ type Config struct {
 	// tool does not exist for the run at all. MCP tools (the action proxy) are
 	// not affected; they reach the run through their own route.
 	RuntimeTools []string
+
+	// MarketplaceURL is the plugin catalogue the store offers target systems
+	// from (COVEY_MARKETPLACE_URL, spec/22). One plain GET of one JSON file —
+	// no API, no token, no clone — so the same setting works against GitHub
+	// raw, GitLab raw, an internal web server or a file:// path.
+	//
+	// This is deliberately an instance setting and not an organization one: an
+	// organization installs from what it is offered, the operator decides what
+	// that is.
+	//
+	// Empty switches the marketplace off; the store then shows what it always
+	// did — the compiled built-ins and whatever was uploaded by hand.
+	MarketplaceURL string
 }
+
+// DefaultMarketplaceURL is the official catalogue (spec/22). It is a default,
+// not a fixture: whoever points COVEY_MARKETPLACE_URL somewhere else gets that
+// catalogue and nothing from here, which is also how internal, non-public
+// plugins are distributed inside a company.
+const DefaultMarketplaceURL = "https://raw.githubusercontent.com/benjaminLedel/covey-plugins/main/catalog.json"
 
 func FromEnv() (Config, error) {
 	c := Config{
@@ -173,6 +192,7 @@ func FromEnv() (Config, error) {
 		EgressProxyAddr:  getenv("COVEY_EGRESS_PROXY_ADDR", ":8888"),
 		WikiCleanup:      strings.TrimSpace(os.Getenv("COVEY_WIKI_CLEANUP")),
 		RuntimeTools:     splitList(os.Getenv("COVEY_RUNTIME_TOOLS")),
+		MarketplaceURL:   getenv("COVEY_MARKETPLACE_URL", DefaultMarketplaceURL),
 
 		EmbeddingProvider: getenv("COVEY_EMBEDDING_PROVIDER", "builtin"),
 		EmbeddingModel:    strings.TrimSpace(os.Getenv("COVEY_EMBEDDING_MODEL")),

@@ -706,6 +706,46 @@ export type TargetPlugin = {
   // genau diese an, statt jemanden ein Wort tippen zu lassen, das dann still
   // ignoriert wird. Leer bei Manifest-/MCP-Plugins.
   scopes?: string[];
+  // Woher das Plugin kam, wenn es aus einem Katalog installiert wurde
+  // (spec/22). Leer = von Hand hochgeladen oder mitgeliefert.
+  source?: string;
+  source_version?: string;
+  source_digest?: string;
+};
+
+// Ein Eintrag im Plugin-Katalog (GET /marketplace). Der Katalog liegt hinter
+// einer konfigurierbaren URL; was hier steht, ist der Eintrag plus das, was nur
+// diese Instanz weiß — ob er installiert ist und ob eine andere Version
+// bereitliegt.
+export type MarketplaceEntry = {
+  name: string;
+  label: string;
+  description: string;
+  category?: string;
+  kind: "builtin" | "custom" | "mcp";
+  publisher: string;
+  homepage: string;
+  license: string;
+  deprecated?: string;
+  version?: string;
+  notes?: string;
+  // Ab dieser Covey-Fassung mitgeliefert — aktivieren statt installieren.
+  builtin_since?: string;
+  installed: boolean;
+  installed_version?: string;
+  update_available: boolean;
+  // Der Name ist hier schon belegt, aber nicht aus diesem Katalog.
+  installed_elsewhere?: boolean;
+};
+
+export type MarketplaceView = {
+  enabled: boolean;
+  source?: string;
+  fetched_at?: string;
+  entries: MarketplaceEntry[];
+  // Steht NEBEN den Einträgen, nicht statt ihrer: ein nicht erreichbarer
+  // Katalog leert die Seite nicht, sieht aber auch nicht gesund aus.
+  error?: string;
 };
 
 // Ein Zielsystem aus der Sicht eines Agenten (GET /agents/{id}/systems):

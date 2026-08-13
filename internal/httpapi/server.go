@@ -29,6 +29,7 @@ import (
 	"covey/internal/egress"
 	"covey/internal/guardrails"
 	"covey/internal/identity"
+	"covey/internal/marketplace"
 	"covey/internal/memory"
 	"covey/internal/observability"
 	"covey/internal/orchestrator"
@@ -56,6 +57,9 @@ type Server struct {
 	Dreams   *dream.Store
 	Org      *org.Store
 	Targets  *targetstore.Store
+	// Marketplace is the plugin catalogue the store offers installs from
+	// (spec/22). nil / empty URL = no catalogue configured.
+	Marketplace *marketplace.Client
 	// Settings are the instance's own switches (internal/settings).
 	// nil = the defaults apply, which for signup.mode means: closed.
 	Settings *settings.Store
@@ -311,6 +315,8 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/runtime-instances/{id}/credentials/{ord}", s.rbac(securityRoles, s.handlePatchRuntimeCredential))
 	mux.Handle("DELETE /api/v1/runtime-instances/{id}/credentials/{ord}", s.rbac(securityRoles, s.handleDeleteRuntimeCredential))
 	mux.Handle("POST /api/v1/agents/{id}/runtime-instance", s.agentScoped(manage, s.handleAssignRuntime))
+	mux.Handle("GET /api/v1/marketplace", s.rbac(anyRole, s.handleMarketplace))
+	mux.Handle("POST /api/v1/marketplace/{name}/install", s.rbac(securityRoles, s.handleMarketplaceInstall))
 	mux.Handle("GET /api/v1/targets", s.rbac(anyRole, s.handleListTargets))
 	mux.Handle("POST /api/v1/targets", s.rbac(securityRoles, s.handleUploadTarget))
 	mux.Handle("POST /api/v1/targets/mcp", s.rbac(securityRoles, s.handleCreateMCP))

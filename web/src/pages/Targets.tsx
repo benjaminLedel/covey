@@ -5,6 +5,7 @@ import { api, del, patch, post, type MCPTool, type Principal, type TargetPlugin 
 import { ConfirmDialog, Modal } from "../components/Modal";
 import { TargetIcon, hasBrandMark } from "../components/TargetIcon";
 import { TargetSetupWizard } from "./targets/SetupWizard";
+import { CatalogTab } from "./targets/Catalog";
 
 const kindKey: Record<TargetPlugin["kind"], string> = {
   builtin: "targets.kindBuiltin",
@@ -59,7 +60,7 @@ const exampleManifest = `{
 const catOrder = ["ticketing", "code", "communication", "files", "web", "dev", "other"];
 const catLabelKey = (c: string) => (catOrder.includes(c) ? `targets.cat.${c}` : "targets.cat.other");
 
-type Tab = "store" | "active";
+type Tab = "store" | "active" | "catalog";
 
 export default function Targets({ me }: { me: Principal }) {
   const { t } = useTranslation();
@@ -151,7 +152,7 @@ export default function Targets({ me }: { me: Principal }) {
       </p>
 
       <nav className="subnav" role="tablist" aria-label={t("targets.title")}>
-        {(["store", "active"] as Tab[]).map((tb) => (
+        {(["store", "active", "catalog"] as Tab[]).map((tb) => (
           <button
             key={tb}
             role="tab"
@@ -161,12 +162,14 @@ export default function Targets({ me }: { me: Principal }) {
           >
             {tb === "store"
               ? t("targets.tabStore")
-              : t("targets.tabActive", { count: activeCount })}
+              : tb === "active"
+                ? t("targets.tabActive", { count: activeCount })
+                : t("targets.tabCatalog")}
           </button>
         ))}
       </nav>
 
-      {list.length > 0 && (
+      {(list.length > 0 || tab === "catalog") && (
         <div className="tgt-bar">
           <input
             className="tgt-search"
@@ -197,14 +200,19 @@ export default function Targets({ me }: { me: Principal }) {
               ))}
             </div>
           )}
-          <span className="muted text-xs ml-auto">
-            {t("targets.summary", { total: list.length, active: activeCount })}
-          </span>
+          {tab !== "catalog" && (
+            <span className="muted text-xs ml-auto">
+              {t("targets.summary", { total: list.length, active: activeCount })}
+            </span>
+          )}
         </div>
       )}
 
-      <div className="tgt-grid">
-        {shown.map((p) => (
+      {tab === "catalog" && <CatalogTab canEdit={canEdit} query={query} />}
+
+      {tab !== "catalog" && (
+        <div className="tgt-grid">
+          {shown.map((p) => (
           <TargetCard
             key={p.name}
             plugin={p}
@@ -215,10 +223,11 @@ export default function Targets({ me }: { me: Principal }) {
             onSetup={() => setWizard(p.name)}
             onToggle={() => toggle.mutate({ name: p.name, enabled: !p.enabled })}
           />
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
       {wizard && <TargetSetupWizard name={wizard} onClose={() => setWizard(null)} />}
-      {list.length > 0 && shown.length === 0 && (
+      {tab !== "catalog" && list.length > 0 && shown.length === 0 && (
         <p className="muted text-sm">
           {tab === "active" && !query ? (
             <>
@@ -232,7 +241,7 @@ export default function Targets({ me }: { me: Principal }) {
           )}
         </p>
       )}
-      {list.length === 0 && !targets.isLoading && (
+      {tab !== "catalog" && list.length === 0 && !targets.isLoading && (
         <p className="muted">{t("targets.noTargets")}</p>
       )}
 

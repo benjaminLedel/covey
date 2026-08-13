@@ -1574,7 +1574,8 @@
       "copy": "Copy",
       "optional": "optional",
       "stored": "stored"
-    }
+    },
+    "tabCatalog": "Catalogue"
   },
   "egress": {
     "title": "Egress",
@@ -2019,5 +2020,25 @@
     "codeExpired": "expired",
     "codeUsedUp": "used up",
     "revoke": "Revoke"
+  },
+  "catalog": {
+    "loading": "Loading the catalogue …",
+    "disabled": "No plugin catalogue is configured for this instance.",
+    "disabledHint": "The operator decides with COVEY_MARKETPLACE_URL which catalogue may be installed from — a file of your own works just as well, including one on an internal network. Without a catalogue the store stays what it is: the plugins that ship with Covey and whatever was uploaded by hand.",
+    "source": "Catalogue:",
+    "fetched": "fetched at {{time}}",
+    "stale": "The catalogue was unreachable on the last attempt — showing the last good copy.",
+    "empty": "Nothing matches this search.",
+    "by": "by",
+    "since": "from Covey {{v}}",
+    "shipped": "ships with Covey — activate it in the store",
+    "install": "Install",
+    "installing": "installing …",
+    "installed": "installed (v{{v}})",
+    "update": "Update to v{{v}}",
+    "taken": "name already taken",
+    "takenHint": "A plugin of that name already runs here and did not come from this catalogue.",
+    "source2": "Source",
+    "arrivesDisabled": "Arrives disabled — credentials and activation stay a separate step."
   }
 }
