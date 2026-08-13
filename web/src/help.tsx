@@ -89,7 +89,7 @@ const deTopics: HelpTopic[] = [
         </dl>
         <p>
           <b>Notaus (Flotte)</b> stoppt alle Agenten der Organisation sofort und verhindert jedes
-          Wecken, bis der Notaus gelöst wird. Sichtbar für Plattform-Admin und Security.
+          Wecken, bis der Notaus gelöst wird. Sichtbar für Org-Admin und Security.
         </p>
       </>
     ),
@@ -107,7 +107,7 @@ const deTopics: HelpTopic[] = [
         <ul>
           <li>
             <b>Zuordnen:</b> direkt im Org-Chart per Drag &amp; Drop — Menschen wie Agenten unter einen
-            Vorgesetzten oder in eine Abteilung ziehen (Plattform-Admin und Agent-Owner).
+            Vorgesetzten oder in eine Abteilung ziehen (Org-Admin und Agent-Owner).
           </li>
           <li>
             Agenten ohne Vorgesetzten erscheinen unterhalb des Baums, bis sie zugeordnet sind.
@@ -244,7 +244,7 @@ const deTopics: HelpTopic[] = [
           <b>Wer annehmen darf, hängt an den Dateien.</b> Ein Vorschlag zu <Term>SOUL.md</Term> oder{" "}
           <Term>PLAYBOOKS.md</Term> gehört dem Verwalter des Agenten. Fasst er{" "}
           <Term>ACCESS.md</Term> oder <Term>EGRESS.md</Term> an, weitet er einen Zugang — dann
-          entscheidet <Term>platform_admin</Term> oder <Term>security</Term>, wie überall sonst.
+          entscheidet <Term>org_admin</Term> oder <Term>security</Term>, wie überall sonst.
         </p>
         <p>
           Ein Vorschlag ist ein Diff gegen eine Basis. Wurde dieselbe Datei zwischenzeitlich von
@@ -307,7 +307,7 @@ const deTopics: HelpTopic[] = [
             <Term>zammad_url</Term> / <Term>zammad_token</Term>.
           </li>
         </ul>
-        <p>Bearbeiten dürfen Plattform-Admin und Security.</p>
+        <p>Bearbeiten dürfen Org-Admin und Security.</p>
       </>
     ),
   },
@@ -382,7 +382,7 @@ const deTopics: HelpTopic[] = [
       <>
         <p>Der Zugriff folgt Rollen (RBAC), Einheit ist die Organisation:</p>
         <dl>
-          <dt><b>Plattform-Admin</b></dt>
+          <dt><b>Org-Admin</b></dt>
           <dd>Alles — inklusive Benutzer- und Organisationsverwaltung.</dd>
           <dt><b>Agent-Owner</b></dt>
           <dd>Agenten anlegen, konfigurieren, wecken, stoppen; Aufgaben ins Backlog geben.</dd>
@@ -471,7 +471,7 @@ const enTopics: HelpTopic[] = [
         </dl>
         <p>
           <b>Kill Switch (Fleet)</b> stops all agents in the organization immediately and prevents
-          any wake-up until released. Visible to Platform Admins and Security roles.
+          any wake-up until released. Visible to Org Admins and Security roles.
         </p>
       </>
     ),
@@ -488,11 +488,11 @@ const enTopics: HelpTopic[] = [
         </p>
         <ul>
           <li>
-            <b>Assign agents:</b> on the agent page via "reports to" (Platform Admin and Agent
+            <b>Assign agents:</b> on the agent page via "reports to" (Org Admin and Agent
             Owner).
           </li>
           <li>
-            <b>Assign people:</b> in user management (Platform Admin only).
+            <b>Assign people:</b> in user management (Org Admin only).
           </li>
           <li>
             Agents without a supervisor appear below the tree until assigned.
@@ -627,7 +627,7 @@ const enTopics: HelpTopic[] = [
           <b>Who may accept depends on the files.</b> A proposal to <Term>SOUL.md</Term> or{" "}
           <Term>PLAYBOOKS.md</Term> belongs to whoever manages the agent. If it touches{" "}
           <Term>ACCESS.md</Term> or <Term>EGRESS.md</Term> it widens an access — then{" "}
-          <Term>platform_admin</Term> or <Term>security</Term> decides, as everywhere else.
+          <Term>org_admin</Term> or <Term>security</Term> decides, as everywhere else.
         </p>
         <p>
           A proposal is a diff against a base. If the same file was edited by hand in the meantime,
@@ -690,7 +690,7 @@ const enTopics: HelpTopic[] = [
             e.g. <Term>zammad_url</Term> / <Term>zammad_token</Term>.
           </li>
         </ul>
-        <p>Platform Admins and Security roles may edit secrets.</p>
+        <p>Org Admins and Security roles may edit secrets.</p>
       </>
     ),
   },
@@ -765,7 +765,7 @@ const enTopics: HelpTopic[] = [
       <>
         <p>Access follows roles (RBAC), the unit is the organization:</p>
         <dl>
-          <dt><b>Platform Admin</b></dt>
+          <dt><b>Org Admin</b></dt>
           <dd>Everything — including user and organization management.</dd>
           <dt><b>Agent Owner</b></dt>
           <dd>Create, configure, wake, and stop agents; add tasks to the backlog.</dd>

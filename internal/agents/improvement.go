@@ -245,7 +245,7 @@ func (r *Registry) DecideImprovement(ctx context.Context, id uuid.UUID, status s
 // --- Die reine Rechnerei: mergen, vergleichen, Konflikte finden ---
 
 // RestrictedConfigFiles sind die Dateien, deren Schreibweg spec/02 bei
-// platform_admin/security reserviert: ACCESS.md und EGRESS.md sind die
+// org_admin/security reserviert: ACCESS.md und EGRESS.md sind die
 // Textansicht auf Zustand, den sonst nur diese Rollen ändern dürfen. Ein
 // Vorschlag erbt diese Grenze, statt sie zu umgehen — ein Review-Dialog, der
 // alles durchlässt, weil der VORSCHLAG harmlos war, verschöbe die

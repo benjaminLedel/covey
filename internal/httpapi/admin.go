@@ -11,16 +11,16 @@ import (
 	"covey/internal/org"
 )
 
-// Admin endpoints: user and tenant management, platform_admin only.
+// Admin endpoints: user and tenant management, org_admin only.
 // Password hashing is builtin-specific (Argon2id) — once OIDC is built out the
 // external provider manages the logins and these endpoints shrink.
 
 var validRoles = map[string]bool{
-	identity.RolePlatformAdmin: true,
-	identity.RoleAgentOwner:    true,
-	identity.RoleSecurity:      true,
-	identity.RoleAuditor:       true,
-	identity.RoleControlling:   true,
+	identity.RoleOrgAdmin:    true,
+	identity.RoleAgentOwner:  true,
+	identity.RoleSecurity:    true,
+	identity.RoleAuditor:     true,
+	identity.RoleControlling: true,
 }
 
 const minPasswordLen = 8
@@ -58,6 +58,10 @@ func (s *Server) handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "email and display_name are required")
 		return
 	}
+	// A caller written against the API before migration 0061 still sends
+	// "org_admin". That is the same role under its old name, not an
+	// unknown one — accept it and store the current name.
+	in.Role = identity.NormalizeRole(in.Role)
 	if !validRoles[in.Role] {
 		writeErr(w, http.StatusBadRequest, "unknown role "+in.Role)
 		return
@@ -97,6 +101,10 @@ func (s *Server) handleUpdateUser(w http.ResponseWriter, r *http.Request) {
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "invalid request")
 		return
+	}
+	if in.Role != nil {
+		normalized := identity.NormalizeRole(*in.Role)
+		in.Role = &normalized
 	}
 	upd := org.HumanUpdate{DisplayName: in.DisplayName, Role: in.Role}
 	in.profilePatch.apply(&upd)

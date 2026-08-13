@@ -68,7 +68,7 @@ const basisRouten = {
   "/api/v1/assist/status": { available: false },
 };
 
-function zeigeAgent(route: string, role = "platform_admin") {
+function zeigeAgent(route: string, role = "org_admin") {
   const netz = mockFetch(basisRouten);
   const r = renderWithProviders(<AgentPage me={testPrincipal(role)} />, {
     route,

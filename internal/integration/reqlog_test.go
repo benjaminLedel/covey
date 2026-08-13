@@ -116,7 +116,7 @@ func TestRequestLogTeams(t *testing.T) {
 		t.Fatalf("outgoing request: status=%d duration=%d", out.Status, out.DurationMS)
 	}
 
-	// 3) Visible through the platform API (role platform_admin).
+	// 3) Visible through the platform API (role org_admin).
 	c := login(t, s, "admin@test.local", "admin-passwort")
 	resp = c.do(http.MethodGet, "/api/v1/platform/requests?system=teams&limit=50", nil)
 	defer resp.Body.Close()

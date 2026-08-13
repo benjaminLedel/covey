@@ -142,7 +142,7 @@ type agentBundle struct {
 
 // canReadSecretKeys: the same boundary as the secrets endpoints (securityRoles).
 func canReadSecretKeys(role string) bool {
-	return role == identity.RolePlatformAdmin || role == identity.RoleSecurity
+	return role == identity.RoleOrgAdmin || role == identity.RoleSecurity
 }
 
 // buildBundle assembles the agentBundle for an agent. includeSecrets controls
@@ -559,7 +559,7 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 	// RBAC as at the individual endpoints: guard rails, egress and tool
 	// allowlists are only changed by security roles — being contained in the
 	// bundle means 403 for other roles, not silent skipping.
-	canSecurity := p.Role == identity.RolePlatformAdmin || p.Role == identity.RoleSecurity
+	canSecurity := p.Role == identity.RoleOrgAdmin || p.Role == identity.RoleSecurity
 	if !canSecurity {
 		var restricted []string
 		if len(b.Guardrails) > 0 {
@@ -576,7 +576,7 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if len(restricted) > 0 {
-			writeErr(w, http.StatusForbidden, "bundle contains "+strings.Join(restricted, ", ")+" — import only with platform_admin or security")
+			writeErr(w, http.StatusForbidden, "bundle contains "+strings.Join(restricted, ", ")+" — import only with org_admin or security")
 			return
 		}
 	}
@@ -771,7 +771,7 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 	// does not exist here as a warning — values never travel in the bundle.
 	if b.Secrets != nil {
 		if !canReadSecretKeys(p.Role) {
-			warnings = append(warnings, "assigning secrets requires platform_admin or security — skipped")
+			warnings = append(warnings, "assigning secrets requires org_admin or security — skipped")
 		} else {
 			keys, err := s.Secrets.Keys(ctx, p.OrgID)
 			if err != nil {

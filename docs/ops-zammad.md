@@ -217,7 +217,7 @@ otherwise a blocked agent never wakes up again.
 >   reusable **templates** and shows the global monitoring; the
 >   **assignment per agent** (templates + own hosts) sits under
 >   *Settings → Egress* on the agent page. It takes effect within ~15 s, with no
->   restart. Rights: `security` or `platform_admin`.
+>   restart. Rights: `security` or `org_admin`.
 > - **By ENV/Compose** (applies to ALL agents, not deletable in the UI):
 >   ```bash
 >   COVEY_SANDBOX_PROVIDER=docker

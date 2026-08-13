@@ -49,7 +49,7 @@ Reckon with ~30 minutes if you have the necessary roles.
 | Create the Azure bot resource + app registration | **Application Administrator** (or Cloud Application Administrator) in Entra ID **and** *Contributor* on an Azure subscription/resource group |
 | Upload (sideload) a custom Teams app | A user whose **Teams setup policy** allows "Upload custom apps" — enabled by the **Teams administrator** |
 | Publish/approve the app org-wide | **Teams Administrator** (Teams Admin Center → *Teams apps → Manage apps*) |
-| Configure Covey (secrets, target system, env) | Covey **platform_admin**/**security** + the **agent owner** |
+| Configure Covey (secrets, target system, env) | Covey **org_admin**/**security** + the **agent owner** |
 
 > **Important — no Graph, no admin consent for the MVP.** For pure
 > sending/receiving **including file attachments in 1:1 chats** the bot needs

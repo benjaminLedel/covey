@@ -27,7 +27,7 @@ import (
 
 // errNeedsSecurityRole: the principal wants to change something via text edit
 // that only security roles may change through the UI (tools, egress).
-var errNeedsSecurityRole = errors.New("only platform_admin or security may change tool assignment and egress")
+var errNeedsSecurityRole = errors.New("only org_admin or security may change tool assignment and egress")
 
 // overlayLiveFiles macht aus einer gespeicherten Config-Version den Stand, der
 // WIRKLICH LÄUFT: ACCESS.md und EGRESS.md werden aus den Stores gerendert und

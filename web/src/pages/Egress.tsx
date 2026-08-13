@@ -14,7 +14,7 @@ import { ConfirmDialog, Modal } from "../components/Modal";
 // Egress-Reiter der Agenten-Seite; der Proxy erzwingt die effektive Allowlist
 // fail-closed.
 export default function Egress({ me }: { me: Principal }) {
-  const canEdit = me.Role === "platform_admin" || me.Role === "security";
+  const canEdit = me.Role === "org_admin" || me.Role === "security";
   return (
     <Routes>
       <Route index element={<Overview canEdit={canEdit} />} />

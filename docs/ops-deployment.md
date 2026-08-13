@@ -258,7 +258,7 @@ describes it keeps working.
 ### Emergency password reset
 
 You change your own password in the UI (account settings); other people's are
-reset by the platform admin through the user page. If the **admin themselves**
+reset by the org admin through the user page. If the **admin themselves**
 is locked out, `covey passwd` directly on the host helps — it sets the password
 anew in the DB and invalidates all the user's running sessions:
 

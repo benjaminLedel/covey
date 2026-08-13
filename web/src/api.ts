@@ -9,7 +9,7 @@ export type Principal = {
   /* Das Konto hinter der Anmeldung — eine Person, über Organisationen hinweg. */
   AccountID: string;
   /* Die Instanz-Ebene: "user" oder "system_admin". Ausdrücklich KEINE
-     Organisations-Rolle — platform_admin vergibt jede Organisation an sich
+     Organisations-Rolle — org_admin vergibt jede Organisation an sich
      selbst, das hier niemand (FR-003, Befund F). */
   PlatformRole: string;
 };
@@ -189,7 +189,7 @@ export type ImprovementItem = {
   // Dateien, die seit der Basis von jemand anderem geändert wurden. Solange
   // die Liste nicht leer ist, wird der Vorschlag nicht angenommen.
   conflicts?: string[];
-  // Fasst ACCESS.md oder EGRESS.md an — dann entscheidet platform_admin oder
+  // Fasst ACCESS.md oder EGRESS.md an — dann entscheidet org_admin oder
   // security, nicht der Teamleiter, dem der Agent gehört (spec/02).
   needs_security: boolean;
   diff?: { file: string; before: string; after: string }[];
@@ -1090,9 +1090,9 @@ export const configAssist = (agentId: string, messages: AssistMessage[], files: 
 /* Die Rollen in Anzeigereihenfolge. Die Beschriftung steht NICHT hier, sondern
    in den Sprachdateien unter role.<rolle> — eine Liste deutscher Beschriftungen
    an dieser Stelle war der Grund, warum die englische Oberfläche
-   "Plattform-Admin" anzeigte. */
+   "Plattform-Admin" anzeigte — heute heißt die oberste Org-Rolle org_admin. */
 export const ROLES = [
-  "platform_admin",
+  "org_admin",
   "agent_owner",
   "security",
   "auditor",

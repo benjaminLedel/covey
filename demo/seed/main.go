@@ -298,7 +298,7 @@ func run(ctx context.Context, dbURL string, force bool) error {
 	if _, err := pool.Exec(ctx, `DELETE FROM agents WHERE org_id=$1`, orgID); err != nil {
 		return err
 	}
-	if _, err := pool.Exec(ctx, `DELETE FROM humans WHERE org_id=$1 AND role<>'platform_admin'`, orgID); err != nil {
+	if _, err := pool.Exec(ctx, `DELETE FROM humans WHERE org_id=$1 AND role<>'org_admin'`, orgID); err != nil {
 		return err
 	}
 	if _, err := pool.Exec(ctx, `DELETE FROM departments WHERE org_id=$1`, orgID); err != nil {
@@ -326,9 +326,9 @@ func run(ctx context.Context, dbURL string, force bool) error {
 	// Der Bootstrap-Admin wird zur Chefin — ein Org-Chart, in dem oben
 	// "Platform Admin" steht, sieht aus wie eine Testinstallation.
 	var adminID uuid.UUID
-	if err := pool.QueryRow(ctx, `SELECT id FROM humans WHERE org_id=$1 AND role='platform_admin'
+	if err := pool.QueryRow(ctx, `SELECT id FROM humans WHERE org_id=$1 AND role='org_admin'
 		ORDER BY created_at LIMIT 1`, orgID).Scan(&adminID); err != nil {
-		return fmt.Errorf("kein Plattform-Admin gefunden: %w", err)
+		return fmt.Errorf("kein Org-Admin gefunden: %w", err)
 	}
 	if _, err := pool.Exec(ctx, `UPDATE humans SET display_name='Mara Lindqvist', job_title='Head of Operations',
 		responsibilities='Runs the agent workforce: who gets hired, who gets which access, and what it may cost.'

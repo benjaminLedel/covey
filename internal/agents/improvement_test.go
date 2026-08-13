@@ -41,7 +41,7 @@ func TestChangedFilesIgnoriertUnveraendertes(t *testing.T) {
 }
 
 // TestRestrictedChangesErbtDieRollengrenze: ACCESS.md und EGRESS.md sind die
-// Textansicht auf Zustand, dessen Schreibweg bei platform_admin/security liegt
+// Textansicht auf Zustand, dessen Schreibweg bei org_admin/security liegt
 // (spec/02). Ein Vorschlag, der sie anfasst, erbt diese Grenze.
 //
 // Der zweite Fall ist der wichtige: eine zusätzliche `scope:`-Zeile schaltet

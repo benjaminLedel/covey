@@ -8,7 +8,7 @@ import { Modal } from "../components/Modal";
 export default function Templates({ me }: { me: Principal }) {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
-  const canManage = me.Role === "platform_admin" || me.Role === "agent_owner";
+  const canManage = me.Role === "org_admin" || me.Role === "agent_owner";
 
   const templates = useQuery({
     queryKey: ["templates", i18n.language],

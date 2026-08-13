@@ -477,7 +477,7 @@
     "denied": "denied"
   },
   "role": {
-    "platform_admin": "Platform Admin",
+    "org_admin": "Org Admin",
     "agent_owner": "Agent Owner",
     "security": "Security",
     "auditor": "Auditor",
@@ -1196,7 +1196,7 @@
     "done": "Done",
     "reject": "Reject",
     "blockedConflict": "The configuration has changed since this proposal was written — it has to be rewritten or discarded.",
-    "blockedSecurity": "This proposal changes ACCESS.md or EGRESS.md. Only platform_admin or security may accept it.",
+    "blockedSecurity": "This proposal changes ACCESS.md or EGRESS.md. Only org_admin or security may accept it.",
     "appliedAs": "Applied as version {{v}}"
   },
   "guardrails": {
@@ -1605,7 +1605,7 @@
     "assignedToAgents": "{{count}} agents",
     "noTemplates": "No templates yet",
     "noTemplatesHint": "No templates yet — create the first one with \"New template\".",
-    "noTemplatesAdmin": "No templates yet (creating requires role platform_admin or security).",
+    "noTemplatesAdmin": "No templates yet (creating requires role org_admin or security).",
     "noHosts": "no hosts yet",
     "moreHosts": "+{{count}} more",
     "catalog": "Catalog",
@@ -1730,7 +1730,7 @@
   "users": {
     "title": "Users",
     "subtitle": "People & roles of this organization (RBAC)",
-    "desc": "Roles take effect immediately on active sessions. A password reset logs the user out everywhere. The last platform admin of an organization cannot be deleted or demoted.",
+    "desc": "Roles take effect immediately on active sessions. A password reset logs the user out everywhere. The last org admin of an organization cannot be deleted or demoted.",
     "noAccess": "Your role ({{role}}) does not have access to user management.",
     "email": "Email",
     "name": "Name",

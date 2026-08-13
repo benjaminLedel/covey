@@ -77,7 +77,7 @@ func TestAuditSpurHaeltVerwaltungshandlungenFest(t *testing.T) {
 
 	// The actor is recorded along with it — a trail without names answers nothing.
 	for _, e := range spur {
-		if e.ActorEmail != "admin@test.local" || e.ActorRole != "platform_admin" {
+		if e.ActorEmail != "admin@test.local" || e.ActorRole != "org_admin" {
 			t.Errorf("entry without an actor: %+v", e)
 		}
 	}

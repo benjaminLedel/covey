@@ -189,10 +189,10 @@ func (s *Server) Handler() http.Handler {
 
 	// Agents & backlog. All roles may read (role-scoped views in the MVP: same
 	// data, different write rights).
-	anyRole := []string{identity.RolePlatformAdmin, identity.RoleAgentOwner,
+	anyRole := []string{identity.RoleOrgAdmin, identity.RoleAgentOwner,
 		identity.RoleSecurity, identity.RoleAuditor, identity.RoleControlling}
-	manage := []string{identity.RolePlatformAdmin, identity.RoleAgentOwner}
-	securityRoles := []string{identity.RolePlatformAdmin, identity.RoleSecurity}
+	manage := []string{identity.RoleOrgAdmin, identity.RoleAgentOwner}
+	securityRoles := []string{identity.RoleOrgAdmin, identity.RoleSecurity}
 
 	// Setup: the credential first, then the company, then the People department
 	// (setup.go, spec/20). Everything here is also reachable by hand — the setup
@@ -206,7 +206,7 @@ func (s *Server) Handler() http.Handler {
 	// The audit trail may be read by those it concerns: platform admin,
 	// security and auditor. Agent owner and controlling may not — they appear
 	// in it themselves.
-	mux.Handle("GET /api/v1/audit", s.rbac([]string{identity.RolePlatformAdmin,
+	mux.Handle("GET /api/v1/audit", s.rbac([]string{identity.RoleOrgAdmin,
 		identity.RoleSecurity, identity.RoleAuditor}, s.handleAuditLog))
 	mux.Handle("GET /api/v1/onboarding", s.rbac(anyRole, s.handleOnboarding))
 	mux.Handle("GET /api/v1/agents", s.rbac(anyRole, s.handleListAgents))
@@ -297,9 +297,9 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/org/chart", s.rbac(anyRole, s.handleOrgChart))
 	mux.Handle("GET /api/v1/org/humans/{id}", s.rbac(anyRole, s.handleGetHuman))
 	mux.Handle("GET /api/v1/org/profile-fields", s.rbac(anyRole, s.handleListProfileFields))
-	mux.Handle("POST /api/v1/org/profile-fields", s.rbac([]string{identity.RolePlatformAdmin}, s.handleCreateProfileField))
-	mux.Handle("PATCH /api/v1/org/profile-fields/{id}", s.rbac([]string{identity.RolePlatformAdmin}, s.handleRenameProfileField))
-	mux.Handle("DELETE /api/v1/org/profile-fields/{id}", s.rbac([]string{identity.RolePlatformAdmin}, s.handleDeleteProfileField))
+	mux.Handle("POST /api/v1/org/profile-fields", s.rbac([]string{identity.RoleOrgAdmin}, s.handleCreateProfileField))
+	mux.Handle("PATCH /api/v1/org/profile-fields/{id}", s.rbac([]string{identity.RoleOrgAdmin}, s.handleRenameProfileField))
+	mux.Handle("DELETE /api/v1/org/profile-fields/{id}", s.rbac([]string{identity.RoleOrgAdmin}, s.handleDeleteProfileField))
 	mux.Handle("GET /api/v1/runtimes", s.rbac(anyRole, s.handleListRuntimes))
 	// The configured workplaces: engine + capacity, assignable (spec/18).
 	mux.Handle("GET /api/v1/runtime-instances", s.rbac(anyRole, s.handleListRuntimeInstances))
@@ -446,14 +446,14 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("DELETE /api/v1/templates/{id}", s.rbac(manage, s.handleDeleteTemplate))
 	mux.Handle("POST /api/v1/templates/{id}/instantiate", s.rbac(manage, s.handleInstantiateTemplate))
 
-	// Administration: user and tenant management (platform_admin only).
-	adminOnly := []string{identity.RolePlatformAdmin}
+	// Administration: user and tenant management (org_admin only).
+	adminOnly := []string{identity.RoleOrgAdmin}
 	mux.Handle("GET /api/v1/users", s.rbac(adminOnly, s.handleListUsers))
 	mux.Handle("POST /api/v1/users", s.rbac(adminOnly, s.handleCreateUser))
 	mux.Handle("PATCH /api/v1/users/{id}", s.rbac(adminOnly, s.handleUpdateUser))
 	mux.Handle("DELETE /api/v1/users/{id}", s.rbac(adminOnly, s.handleDeleteUser))
 	// Die Mandanten gehören der Instanz, nicht einer Organisation: system_admin
-	// statt platform_admin (FR-003, Befund F). Die alten Adressen unter /orgs
+	// statt org_admin (FR-003, Befund F). Die alten Adressen unter /orgs
 	// gibt es nicht mehr — sie waren für jede Organisation erreichbar.
 	mux.Handle("GET /api/v1/platform/orgs", s.platformAdmin(s.handleListOrgs))
 	mux.Handle("POST /api/v1/platform/orgs", s.platformAdmin(s.handleCreateOrg))
@@ -625,7 +625,7 @@ func (s *Server) rbac(roles []string, next http.HandlerFunc) http.Handler {
 // matter:
 //
 // The org roles answer "what may this person do INSIDE their organisation".
-// platform_admin is one of them, and every organisation hands it out to
+// org_admin is one of them, and every organisation hands it out to
 // itself — using it here would mean the first self-registered tenant could
 // delete all the others (FR-003, finding F). The instance level therefore sits
 // on the account, where no organisation can reach it.

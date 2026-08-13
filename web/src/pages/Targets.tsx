@@ -77,7 +77,7 @@ export default function Targets({ me }: { me: Principal }) {
     queryFn: () => api<TargetPlugin[] | null>("/targets"),
   });
 
-  const canEdit = me.Role === "platform_admin" || me.Role === "security";
+  const canEdit = me.Role === "org_admin" || me.Role === "security";
   const invalidate = () => qc.invalidateQueries({ queryKey: ["targets"] });
 
   const toggle = useMutation({

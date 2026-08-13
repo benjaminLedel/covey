@@ -76,7 +76,7 @@ The recording says **what** an agent did — which action with which parameters 
 
 Distinction from the recording, deliberately as a separate table: the request log is **diagnostics, not an audit trail**. It has its own short retention window (`COVEY_REQUEST_LOG_RETENTION`, default 72 h, plus a hard row cap), it does not bloat the agent timeline, and it can be switched off entirely (`COVEY_REQUEST_LOG=false`). Writing happens asynchronously through a buffered channel — a request path never waits on diagnostics; if the buffer fills up, entries are dropped and counted.
 
-Credentials do not belong in it: headers are not stored at all (that is where the bearer sits), suspicious query parameters and body fields (`token`, `secret`, `password`, `client_secret`, …) are replaced, bodies truncated at 8 KiB. Whoever also wants to keep the payloads (chat messages, ticket texts) out of the diagnostics table sets `COVEY_REQUEST_LOG_BODIES=false` — then only metadata remains. The view is reserved for the roles `platform_admin` and `security`.
+Credentials do not belong in it: headers are not stored at all (that is where the bearer sits), suspicious query parameters and body fields (`token`, `secret`, `password`, `client_secret`, …) are replaced, bodies truncated at 8 KiB. Whoever also wants to keep the payloads (chat messages, ticket texts) out of the diagnostics table sets `COVEY_REQUEST_LOG_BODIES=false` — then only metadata remains. The view is reserved for the roles `org_admin` and `security`.
 
 ## Approval gates
 

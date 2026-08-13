@@ -477,7 +477,7 @@
     "denied": "abgelehnt"
   },
   "role": {
-    "platform_admin": "Plattform-Admin",
+    "org_admin": "Org-Admin",
     "agent_owner": "Agent-Owner",
     "security": "Security",
     "auditor": "Auditor",
@@ -1196,7 +1196,7 @@
     "done": "Erledigt",
     "reject": "Ablehnen",
     "blockedConflict": "Die Konfiguration hat sich seit diesem Vorschlag geändert — er muss neu geschrieben oder verworfen werden.",
-    "blockedSecurity": "Dieser Vorschlag ändert ACCESS.md oder EGRESS.md. Nur platform_admin oder security dürfen ihn annehmen.",
+    "blockedSecurity": "Dieser Vorschlag ändert ACCESS.md oder EGRESS.md. Nur org_admin oder security dürfen ihn annehmen.",
     "appliedAs": "Übernommen als Version {{v}}"
   },
   "guardrails": {
@@ -1605,7 +1605,7 @@
     "assignedToAgents": "{{count}} Agenten",
     "noTemplates": "Noch keine Templates",
     "noTemplatesHint": "Noch keine Templates — lege mit „Neues Template“ das erste an.",
-    "noTemplatesAdmin": "Noch keine Templates (Anlegen erfordert Rolle platform_admin oder security).",
+    "noTemplatesAdmin": "Noch keine Templates (Anlegen erfordert Rolle org_admin oder security).",
     "noHosts": "noch keine Hosts",
     "moreHosts": "+{{count}} weitere",
     "catalog": "Katalog",
@@ -1730,7 +1730,7 @@
   "users": {
     "title": "Benutzer",
     "subtitle": "Menschen & Rollen dieser Organisation (RBAC)",
-    "desc": "Rollen wirken sofort auf laufende Sessions. Ein Passwort-Reset meldet den Nutzer überall ab. Der letzte Plattform-Admin einer Organisation kann weder gelöscht noch herabgestuft werden.",
+    "desc": "Rollen wirken sofort auf laufende Sessions. Ein Passwort-Reset meldet den Nutzer überall ab. Der letzte Org-Admin einer Organisation kann weder gelöscht noch herabgestuft werden.",
     "noAccess": "Ihre Rolle ({{role}}) hat auf die Benutzerverwaltung keinen Zugriff.",
     "email": "E-Mail",
     "name": "Name",

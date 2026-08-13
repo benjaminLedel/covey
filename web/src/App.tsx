@@ -411,21 +411,21 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
           <NavItem to="/guardrails" icon="shield" label={t("nav.guardrails")} />
           <NavItem to="/egress" icon="globe" label={t("nav.egress")} />
           {/* Das Request-Log liest nur, wer es auch abrufen darf (die API
-              laesst platform_admin und security durch) — sonst zeigte das
+              laesst org_admin und security durch) — sonst zeigte das
               Menue einen Weg, der in einer 403 endet. Vorher stand es im
               Admin-Block und blieb Security damit verborgen. */}
-          {/* Die Audit-Spur geht die an, die sie prüfen: Plattform-Admin,
+          {/* Die Audit-Spur geht die an, die sie prüfen: Org-Admin,
               Security, Auditor. Agent-Owner und Controlling stehen selbst
               darin. */}
-          {["platform_admin", "security", "auditor"].includes(me.Role) && (
+          {["org_admin", "security", "auditor"].includes(me.Role) && (
             <NavItem to="/audit" icon="clipboard" label={t("nav.audit")} />
           )}
-          {(me.Role === "platform_admin" || me.Role === "security") && (
+          {(me.Role === "org_admin" || me.Role === "security") && (
             <NavItem to="/requests" icon="exchange" label={t("nav.requests")} />
           )}
         </div>
         <div className="mt-auto">
-          {me.Role === "platform_admin" && (
+          {me.Role === "org_admin" && (
             <>
               <button className={`nav-sec toggle ${showPlatform ? "open" : ""}`} onClick={togglePlatform} disabled={inPlatform}>
                 {t("nav.platform")}
@@ -436,7 +436,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
                   <NavItem to="/users" icon="user" label={t("nav.users")} />
                   {/* Die Mandantenverwaltung gehört der Instanz, nicht der
                       Organisation: sie erscheint nur für den Systemadmin.
-                      Vorher stand sie hier für jeden platform_admin — also für
+                      Vorher stand sie hier für jeden org_admin — also für
                       eine Rolle, die jede Organisation an sich selbst vergibt
                       (FR-003, Befund F). */}
                   {istSystemAdmin(me) && (

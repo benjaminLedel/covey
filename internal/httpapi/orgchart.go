@@ -67,7 +67,7 @@ func (s *Server) handleGetHuman(w http.ResponseWriter, r *http.Request) {
 
 // --- Configurable profile fields (spec/09) ---
 // Readable for all roles (the profile editor needs the definitions), managed by
-// the platform_admin under "Organizations".
+// the org_admin under "Organizations".
 
 func (s *Server) handleListProfileFields(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)

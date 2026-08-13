@@ -13,7 +13,7 @@ import (
 
 // P2: die Instanz-Ebene (FR-003, Befund F).
 //
-// Die Mandantenverwaltung hing bis hierher an platform_admin — einer Rolle,
+// Die Mandantenverwaltung hing bis hierher an org_admin — einer Rolle,
 // die JEDE Organisation an sich selbst vergibt. Auf einer Instanz mit mehreren
 // Mandanten hiess das: der erste Selbstregistrierte kann die anderen löschen.
 // Diese Tests halten fest, dass die Grenze jetzt woanders verläuft.
@@ -22,7 +22,7 @@ func TestMandantenverwaltungNurFuerSystemadmin(t *testing.T) {
 	s := newStack(t)
 	ctx := context.Background()
 
-	// Der Admin des Stacks ist platform_admin seiner Organisation — und sonst
+	// Der Admin des Stacks ist org_admin seiner Organisation — und sonst
 	// nichts. Für ihn gibt es die Verwaltung der Instanz nicht.
 	admin := login(t, s, "admin@test.local", "admin-passwort")
 	for _, fall := range []struct {
@@ -36,7 +36,7 @@ func TestMandantenverwaltungNurFuerSystemadmin(t *testing.T) {
 		// 404 statt 403: ob es diese Verwaltung überhaupt gibt, geht niemanden
 		// etwas an, der nicht dazugehört.
 		if resp.StatusCode != http.StatusNotFound {
-			t.Errorf("%s %s als platform_admin ergibt %d, erwartet 404",
+			t.Errorf("%s %s als org_admin ergibt %d, erwartet 404",
 				fall.methode, fall.pfad, resp.StatusCode)
 		}
 	}

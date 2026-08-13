@@ -66,7 +66,9 @@ func (st sessionStore) Principal(ctx context.Context, tokenHash string) (identit
 		return identity.Principal{}, err
 	}
 	if humanID != nil {
-		p.ID, p.OrgID, p.Role = *humanID, *orgID, *role
+		// NormalizeRole: a database that still carries the pre-0061 name gives
+		// the same principal as one that does not.
+		p.ID, p.OrgID, p.Role = *humanID, *orgID, identity.NormalizeRole(*role)
 	}
 	return p, nil
 }

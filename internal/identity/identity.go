@@ -73,11 +73,31 @@ type Provider interface {
 	AuthenticateHuman(ctx context.Context, creds Credentials) (Principal, error)
 }
 
-// Human roles (RBAC, spec/09-enterprise-model.md).
+// Human roles (RBAC, spec/09-enterprise-model.md). They belong to the SEAT —
+// the row in humans that ties an account to an organisation — and every
+// organisation hands them out itself. The instance level is PlatformRole and
+// lives on the account; the two must not be confused, which is why the top org
+// role is called org_admin and not, as until migration 0061, platform_admin.
 const (
-	RolePlatformAdmin = "platform_admin"
-	RoleAgentOwner    = "agent_owner"
-	RoleSecurity      = "security"
-	RoleAuditor       = "auditor"
-	RoleControlling   = "controlling"
+	RoleOrgAdmin    = "org_admin"
+	RoleAgentOwner  = "agent_owner"
+	RoleSecurity    = "security"
+	RoleAuditor     = "auditor"
+	RoleControlling = "controlling"
 )
+
+// LegacyRoleOrgAdmin is what RoleOrgAdmin was called before migration 0061.
+// Rows carrying it are rewritten by that migration; the name stays here for
+// the two edges the migration does not reach — an API client that still sends
+// the old value, and a database somebody upgraded halfway.
+const LegacyRoleOrgAdmin = "platform_admin"
+
+// NormalizeRole maps the legacy name onto the current one. Call it at every
+// edge where a role arrives from outside — the database, a request body, the
+// CLI — so that no comparison further in has to know both names.
+func NormalizeRole(role string) string {
+	if role == LegacyRoleOrgAdmin {
+		return RoleOrgAdmin
+	}
+	return role
+}

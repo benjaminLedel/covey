@@ -116,6 +116,7 @@ func (p *Provider) AuthenticateHuman(ctx context.Context, creds identity.Credent
 		Scan(&pr.ID, &pr.OrgID, &pr.Role); err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return identity.Principal{}, err
 	}
+	pr.Role = identity.NormalizeRole(pr.Role)
 	return pr, nil
 }
 
@@ -135,6 +136,7 @@ func (p *Provider) Memberships(ctx context.Context, accountID uuid.UUID) ([]iden
 		if err := rows.Scan(&m.HumanID, &m.OrgID, &m.OrgName, &m.Role); err != nil {
 			return nil, err
 		}
+		m.Role = identity.NormalizeRole(m.Role)
 		out = append(out, m)
 	}
 	return out, rows.Err()
