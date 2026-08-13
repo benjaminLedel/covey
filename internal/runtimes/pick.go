@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"covey/internal/daemon"
+	"covey/internal/secrets"
 )
 
 // Pick chooses the credential an agent runs on for one waking phase.
@@ -101,10 +102,6 @@ func (s *Store) Pick(ctx context.Context, orgID, agentID, runtimeID uuid.UUID, s
 		}
 		healthy = append(healthy, c)
 	}
-	if len(healthy) == 0 {
-		return Picked{}, &Exhausted{Runtime: rt.DisplayName, Until: freeAt}
-	}
-
 	resolve := func(c Credential) (Picked, error) {
 		cred, ok := d.Credential(c.Kind)
 		if !ok {
@@ -116,6 +113,29 @@ func (s *Store) Pick(ctx context.Context, orgID, agentID, runtimeID uuid.UUID, s
 		}
 		return Picked{RuntimeID: rt.ID, Ord: c.Ord, Kind: c.Kind, Label: c.Label,
 			Value: value, EnvVar: cred.EnvVar, Path: cred.Path}, nil
+	}
+	// A runtime credential is capacity policy pointing at secret storage. The
+	// secret may have been deleted after the capacity row was created; that
+	// makes this candidate unavailable, not the whole runtime unreadable. Only
+	// the canonical not-found error is skipped — decryption and database errors
+	// still abort selection because treating either as exhaustion would hide an
+	// operational fault behind a fallback.
+	resolved := make(map[int]Picked, len(healthy))
+	available := healthy[:0]
+	for _, c := range healthy {
+		p, err := resolve(c)
+		if errors.Is(err, secrets.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			return Picked{}, err
+		}
+		resolved[c.Ord] = p
+		available = append(available, c)
+	}
+	healthy = available
+	if len(healthy) == 0 {
+		return Picked{}, &Exhausted{Runtime: rt.DisplayName, Until: freeAt}
 	}
 	find := func(ord int) (Credential, bool) {
 		for _, c := range healthy {
@@ -129,7 +149,7 @@ func (s *Store) Pick(ctx context.Context, orgID, agentID, runtimeID uuid.UUID, s
 	// A single credential is the common case; there is no choice to record, so
 	// nothing is written on what is otherwise a read path.
 	if len(rt.Credentials) == 1 {
-		return resolve(healthy[0])
+		return resolved[healthy[0].Ord], nil
 	}
 
 	bound, home, err := s.binding(ctx, runtimeID, agentID)
@@ -145,11 +165,11 @@ func (s *Store) Pick(ctx context.Context, orgID, agentID, runtimeID uuid.UUID, s
 				if err := s.bind(ctx, runtimeID, agentID, c.Ord, nil, ReasonReturn); err != nil {
 					return Picked{}, err
 				}
-				return resolve(c)
+				return resolved[c.Ord], nil
 			}
 		}
 		if c, ok := find(*bound); ok {
-			return resolve(c)
+			return resolved[c.Ord], nil
 		}
 	}
 
@@ -179,7 +199,7 @@ func (s *Store) Pick(ctx context.Context, orgID, agentID, runtimeID uuid.UUID, s
 	if err := s.bind(ctx, runtimeID, agentID, best.Ord, newHome, reason); err != nil {
 		return Picked{}, err
 	}
-	return resolve(best)
+	return resolved[best.Ord], nil
 }
 
 // bestOf applies rules 2 and 3: the cheapest class that still has healthy
