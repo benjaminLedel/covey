@@ -376,7 +376,11 @@ func (s *Sys) Execute(ctx context.Context, action string, params json.RawMessage
 		}
 		reqBody = bytes.NewReader(raw)
 	}
-	req, err := http.NewRequestWithContext(ctx, a.Method, strings.TrimRight(cred.BaseURL, "/")+path, reqBody)
+	full, err := resolve(cred.BaseURL, path)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, a.Method, full, reqBody)
 	if err != nil {
 		return nil, err
 	}
@@ -611,7 +615,11 @@ func pollSignature(items []any, field string) string {
 // PLANE makes on its own: no agent is involved, so no path parameters are
 // substituted and nothing from a run can steer them.
 func (s *Sys) get(ctx context.Context, path string, cred target.Credential) (any, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(cred.BaseURL, "/")+path, nil)
+	full, err := resolve(cred.BaseURL, path)
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, full, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -693,6 +701,42 @@ func jsonEqual(a, b json.RawMessage) bool {
 	ar, _ := json.Marshal(av)
 	br, _ := json.Marshal(bv)
 	return bytes.Equal(ar, br)
+}
+
+// resolve joins the brokered base URL and an action path, and then CHECKS that
+// the result is still on the brokered host.
+//
+// The protection existed before this: an action path has to start with "/", and
+// every substituted parameter is escaped and refused if it carries a dot
+// segment or a control character. But it was IMPLIED by those rules rather than
+// verified, and an invariant that holds only as long as three separate checks
+// stay correct is one nobody can rely on. The agent supplies those parameters,
+// and by our own threat model (spec/04) the agent is not a trustworthy source.
+//
+// So the question is asked directly: does the URL we are about to call still
+// point at the system the organization pointed us at? Concatenation, not
+// url.ResolveReference — a base URL commonly carries a path prefix
+// ("https://helpdesk.example/api/v1"), and resolving a rooted reference against
+// it would silently drop that prefix.
+func resolve(base, path string) (string, error) {
+	b, err := url.Parse(strings.TrimRight(base, "/"))
+	if err != nil || b.Host == "" {
+		return "", fmt.Errorf("base URL %q is not usable", base)
+	}
+	switch b.Scheme {
+	case "http", "https":
+	default:
+		return "", fmt.Errorf("base URL %q: scheme %q is not supported", base, b.Scheme)
+	}
+	full := strings.TrimRight(base, "/") + path
+	u, err := url.Parse(full)
+	if err != nil {
+		return "", fmt.Errorf("request URL is not usable: %w", err)
+	}
+	if u.Scheme != b.Scheme || u.Host != b.Host {
+		return "", fmt.Errorf("refusing a request that would leave %s (for %s)", b.Host, u.Host)
+	}
+	return u.String(), nil
 }
 
 // checkPathParam rejects values that would change the MEANING of a path

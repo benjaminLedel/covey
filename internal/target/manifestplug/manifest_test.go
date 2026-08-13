@@ -9,6 +9,7 @@ import (
 	"github.com/benjaminLedel/covey-plugin-sdk/target"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -174,5 +175,54 @@ func TestManifestExecute(t *testing.T) {
 	}
 	if _, err := sys.Execute(context.Background(), "kaboom", []byte(`{}`), cred); err == nil {
 		t.Fatal("an unknown action must be an error")
+	}
+}
+
+// TestResolveKeepsTheRequestOnTheBrokeredHost: the invariant the whole engine
+// rests on. A manifest plugin may reach the system its organisation pointed it
+// at, and nothing else — that is what makes it safe to install one written by a
+// stranger.
+func TestResolveKeepsTheRequestOnTheBrokeredHost(t *testing.T) {
+	const base = "https://helpdesk.example/api/v1"
+
+	// The ordinary case, including the base URL's path prefix — dropping that
+	// would break every real deployment.
+	got, err := resolve(base, "/tickets/7")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != "https://helpdesk.example/api/v1/tickets/7" {
+		t.Errorf("resolve = %q — the base path prefix has to survive", got)
+	}
+
+	// Whatever the path says, the request stays on the brokered host. Note
+	// what is NOT claimed here: that these are refused. They are DEFANGED —
+	// appended to the base they simply become an odd path on the same server,
+	// which is the safe outcome and the one the concatenation gives for free.
+	// (ParseManifest refuses paths that do not start with "/" anyway, so none
+	// of these can reach a live plugin in the first place; this pins down what
+	// happens if that ever changes.)
+	for name, path := range map[string]string{
+		"absolute url":       "https://evil.example/steal",
+		"protocol relative":  "//evil.example/steal",
+		"scheme switch":      "http://evil.example/steal",
+		"credentials in url": "https://user@evil.example/steal",
+	} {
+		got, err := resolve(base, path)
+		if err != nil {
+			continue // refusing is fine too
+		}
+		u, perr := url.Parse(got)
+		if perr != nil {
+			t.Errorf("%s: %q produced an unparsable URL %q", name, path, got)
+			continue
+		}
+		if u.Host != "helpdesk.example" || u.Scheme != "https" {
+			t.Errorf("%s: %q left the brokered host: %q", name, path, got)
+		}
+	}
+
+	if _, err := resolve("not a url", "/x"); err == nil {
+		t.Error("an unusable base URL has to be refused, not guessed at")
 	}
 }

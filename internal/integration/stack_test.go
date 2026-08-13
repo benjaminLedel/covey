@@ -51,11 +51,11 @@ import (
 	// Zielsystem aktiviert — und weil target/store Zeilen fuer Plugins
 	// verwirft, die dieses Binary nicht einkompiliert hat. Ohne den Import
 	// waere die Aktivierung in newStack eine Zeile ohne Wirkung.
-	_ "github.com/benjaminLedel/covey-plugin-pack/gitlab"
 	_ "covey/internal/target/mcp"
+	"covey/migrations"
+	_ "github.com/benjaminLedel/covey-plugin-pack/gitlab"
 	_ "github.com/benjaminLedel/covey-plugin-pack/nextcloud"
 	_ "github.com/benjaminLedel/covey-plugin-pack/sharepoint"
-	"covey/migrations"
 
 	_ "github.com/benjaminLedel/covey-plugin-pack/teams"
 	_ "github.com/benjaminLedel/covey-plugin-pack/zammad"
