@@ -552,6 +552,51 @@ export type Organization = {
   created_at: string;
 };
 
+/** Ein Sitz, wie ihn die Instanz-Verwaltung sieht: in welcher Organisation,
+ *  in welcher Rolle. */
+export type Seat = {
+  org_id: string;
+  org_name: string;
+  role: string;
+};
+
+/** Eine Anmeldung dieser Installation. Die Ebene `platform_role` gehört der
+ *  Instanz, die Rollen in `seats` gehören je einer Organisation — das ist
+ *  derselbe Unterschied wie zwischen Principal.PlatformRole und Principal.Role. */
+export type Account = {
+  id: string;
+  email: string;
+  display_name: string;
+  email_verified_at?: string;
+  platform_role: string;
+  created_at: string;
+  last_login_at?: string;
+  seats: Seat[];
+};
+
+/** Ein Schalter der Installation samt seines Vorgabewerts. Der Vorgabewert
+ *  kommt mit, damit die Oberfläche "unverändert" zeigen kann, ohne eine zweite
+ *  Kopie derselben Tabelle zu führen. */
+export type Setting = {
+  key: string;
+  value: string;
+  default: string;
+};
+
+/** Ein Wartelisten-Code — ohne Klartext, den gibt es nur im Moment der
+ *  Erzeugung. */
+export type WaitlistCode = {
+  hash: string;
+  label: string;
+  max_uses: number;
+  used_count: number;
+  expires_at?: string;
+  org_id?: string;
+  email_pattern?: string;
+  created_at: string;
+  revoked_at?: string;
+};
+
 export type SetupStep = {
   text: string;
   items?: string[];

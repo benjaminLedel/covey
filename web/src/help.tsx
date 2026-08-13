@@ -377,7 +377,7 @@ const deTopics: HelpTopic[] = [
   {
     id: "rollen",
     title: "Benutzer & Rollen",
-    match: (p) => p.startsWith("/users") || p.startsWith("/orgs"),
+    match: (p) => p.startsWith("/administration") || p.startsWith("/platform"),
     body: (
       <>
         <p>Der Zugriff folgt Rollen (RBAC), Einheit ist die Organisation:</p>
@@ -760,7 +760,7 @@ const enTopics: HelpTopic[] = [
   {
     id: "rollen",
     title: "Users & Roles",
-    match: (p) => p.startsWith("/users") || p.startsWith("/orgs"),
+    match: (p) => p.startsWith("/administration") || p.startsWith("/platform"),
     body: (
       <>
         <p>Access follows roles (RBAC), the unit is the organization:</p>
