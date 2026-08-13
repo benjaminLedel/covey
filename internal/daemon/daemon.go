@@ -551,7 +551,7 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 		// The action proxy as an MCP server: with it the runtime calls a target
 		// action as a typed tool instead of assembling a curl in the shell
 		// (actionmcp.go). Empty = the shell route as before.
-		MCPConfig: proxy.mcpConfig(),
+		MCPConfig: proxy.mcpConfig(cfg.Runtime == "codex"),
 	}
 	// Materialize the wiki working copy into the home (spec/05) so the agent can
 	// read and edit it with ordinary file tools.

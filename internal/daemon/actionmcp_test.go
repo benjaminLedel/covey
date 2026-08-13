@@ -3,6 +3,7 @@ package daemon
 import (
 	"bytes"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -106,14 +107,25 @@ func TestActionMCPCallNeedsAction(t *testing.T) {
 // handshake would take all target actions with it.
 func TestActionMCPConfigIsOptIn(t *testing.T) {
 	p := testProxy()
-	if cfg := p.mcpConfig(); cfg != "" {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	p.ln = ln
+	if cfg := p.mcpConfig(false); cfg != "" {
 		t.Fatalf("without COVEY_ACTION_MCP no MCP server is offered: %q", cfg)
+	}
+	wantURL := "http://127.0.0.1:" + p.Port() + "/mcp"
+	forced := p.mcpConfig(true)
+	if !strings.Contains(forced, `"covey"`) || !strings.Contains(forced, wantURL) {
+		t.Fatalf("Codex must receive the task-local action MCP server %q: %s", wantURL, forced)
 	}
 	t.Setenv("COVEY_ACTION_MCP", "1")
 	// Without a listener there is no port — the tool list alone does not make a
 	// config either.
 	empty := &actionProxy{}
-	if cfg := empty.mcpConfig(); cfg != "" {
+	if cfg := empty.mcpConfig(false); cfg != "" {
 		t.Fatalf("without tools no MCP server: %q", cfg)
 	}
 }
