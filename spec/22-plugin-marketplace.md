@@ -155,6 +155,8 @@ What makes that tolerable is what the module *cannot* do:
 
 So a hostile module can misbehave *within the system its organization already pointed it at* — the same blast radius a manifest has, where the guard rails and the action subjects apply — and it cannot exfiltrate a token, because it has none and no way out.
 
+**Reviewing a binary is not possible, so it is rebuilt instead.** A manifest can be reviewed — the pull request shows the whole file and the diff is the behaviour. A module cannot: the entry pins a digest over compiled code, and the source in the linked repository has no proven connection to it. A wasm entry therefore carries a `build` block (repository, ref, Go version), and the index's CI checks the source out, builds it with `-trimpath` and refuses the entry unless the result is byte-identical. Go's wasm output is reproducible under those conditions — verified across paths and machines; without `-trimpath` the build path lands in the binary and it is not. Authors start from [covey-plugin-template](https://github.com/benjaminLedel/covey-plugin-template), which ships that build and checks its own reproducibility on every push.
+
 **What is still refused: native code.** Go plugins (`.so`) are not distributed and will not be. They demand the exact same toolchain, the exact same version of every shared dependency and the same platform (ending the single static binary), and they run *inside* the control plane's process, next to the master key. That is not a rule about caution, it is what a shared object is.
 
 ## What still belongs in the binary

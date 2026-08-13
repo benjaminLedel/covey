@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,6 +10,7 @@ import (
 
 	"covey/internal/target"
 	"covey/internal/target/mcp"
+	"covey/internal/target/wasmplug"
 )
 
 // runPlugin implements `covey plugin lint <file>…` — the check an author runs
@@ -51,6 +53,28 @@ func lintFile(path string) error {
 		return err
 	}
 	switch kindOf(raw) {
+	case "wasm":
+		// The check IS loading it: compile the module and ask it what it is.
+		// A module that does not compile, or will not name itself, is not a
+		// plugin — and an author should learn that here rather than from an
+		// operator whose install failed.
+		m, err := wasmplug.Compile(context.Background(), raw)
+		if err != nil {
+			return err
+		}
+		defer m.Close(context.Background())
+		d := m.Describe()
+		names := make([]string, 0, len(d.Actions))
+		for _, a := range d.Actions {
+			names = append(names, a.Name)
+		}
+		sort.Strings(names)
+		fmt.Printf("%s: ok — wasm plugin %q (%s), %d action(s): %s\n",
+			path, d.Name, category(d.Category), len(names), strings.Join(names, ", "))
+		for _, note := range wasmNotes(d, len(raw)) {
+			fmt.Printf("%s: note — %s\n", path, note)
+		}
+		return nil
 	case "mcp":
 		c, err := mcp.ParseConfig(raw)
 		if err != nil {
@@ -116,11 +140,43 @@ func manifestNotes(m target.Manifest, sys *target.ManifestSystem) []string {
 	return notes
 }
 
-// kindOf decides whether a file is an MCP configuration or a manifest. An MCP
-// config names an endpoint and has no actions; a manifest is the other way
-// round. Deciding by shape rather than by a flag keeps the file the single
-// source of truth about what it is.
+// wasmNotes are the things a compiled plugin is giving up, or should think
+// about. Not errors — a plugin without a poll is a legitimate plugin.
+func wasmNotes(d wasmplug.Description, size int) []string {
+	var notes []string
+	if !d.Probe {
+		notes = append(notes, `no probe declared — the store cannot offer a connection test, so "saved" and "works" stay two different things until an agent runs`)
+	}
+	if !d.Poll {
+		notes = append(notes, "no poll declared — nur-wenn: on this system cannot be answered and every heartbeat fires (fail-open)")
+	}
+	if len(d.Scopes) == 0 {
+		notes = append(notes, "no scopes declared — ACCESS.md accepts any word for this system and none of them narrows anything")
+	}
+	var undocumented int
+	for _, a := range d.Actions {
+		if a.Doc == "" {
+			undocumented++
+		}
+	}
+	if undocumented > 0 {
+		notes = append(notes, fmt.Sprintf("%d action(s) without a doc line — an agent reads this on every turn and has nothing else to go on", undocumented))
+	}
+	if size > 4<<20 {
+		notes = append(notes, fmt.Sprintf("the module is %d KiB — Go carries its runtime into wasm; TinyGo produces roughly a tenth, which every instance holds in memory and ships to every sandbox", size/1024))
+	}
+	return notes
+}
+
+// kindOf decides what a file is: a wasm module announces itself in its magic
+// bytes, an MCP config names an endpoint and has no actions, a manifest is the
+// other way round. Deciding by shape rather than by a flag keeps the file the
+// single source of truth about what it is.
 func kindOf(raw []byte) string {
+	// A wasm module announces itself in its first four bytes.
+	if len(raw) >= 4 && string(raw[:4]) == "\x00asm" {
+		return "wasm"
+	}
 	var probe struct {
 		URL     string          `json:"url"`
 		Actions json.RawMessage `json:"actions"`
