@@ -101,7 +101,9 @@ That is what turns "the plugin may live in a third-party repository" from a risk
 3. CI validates: the entry against the schema; the name against the plugin naming rules and against the rest of the catalogue; then it fetches the artefact, checks the digest and runs `covey plugin lint` on it.
 4. Merge. CI assembles `catalog.json` from the entry files and publishes it.
 
-`covey plugin lint` belongs **in the binary**, not in the index repository's pipeline. Two reasons: the check is `ParseManifest`, which is already fail-closed (`DisallowUnknownFields`, method allowlist, path form) — a wrapper around an existing call, not new logic. And an author has to be able to run the same check before opening a pull request; a lint that only exists inside somebody else's CI is a lint you find out about too late.
+`covey plugin lint` belongs **in the binary**, not in the index repository's pipeline. Two reasons: the check is `ParseManifest`, which is already fail-closed (`DisallowUnknownFields`, method allowlist, path form) — a wrapper around an existing call, not new logic. And an author has to be able to run the same check before opening a pull request; a lint that only exists inside somebody else's CI is a lint you find out about too late. It needs no database, no master key and no network, so it runs in a CI container that has nothing but the binary and the file.
+
+Alongside the errors it reports what a plugin is **giving up**: a manifest without `probe` gets no connection test, one without `poll` cannot answer `nur-wenn:`, one without `scopes` accepts any word in `ACCESS.md` and narrows nothing. None of these is a rejection — a plugin that only wakes by webhook is a legitimate plugin — but the author should learn it from a lint rather than from an operator months later.
 
 One file per plugin, rather than one hand-edited `catalog.json`: `CODEOWNERS` can then be written per publisher, two publishers releasing on the same day do not conflict, and a pull request's diff shows exactly one plugin. Readers never see the split — they get the one generated file.
 
@@ -127,6 +129,8 @@ The split follows the two administrative areas that already exist — the instan
 - **Organisation administration** installs from what is offered into its own organisation, activates plugins and stores the credentials. Exactly the rights the manual upload has today.
 
 ## What a catalogue plugin can and cannot do
+
+A catalogue plugin is **not a second-class citizen**, and that was a precondition for opening the catalogue at all. A manifest declares the same optional capabilities a compiled plugin implements — connection test, work polling with a signature, scope vocabulary, per-action doc lines (see [`10-architecture-stack.md`](10-architecture-stack.md)). Had they stayed missing, every plugin a stranger wrote would have arrived without a connection test and without heartbeat gating, and the catalogue would have distributed a worse kind of plugin by construction.
 
 **Manifest plugins are narrow by construction.** `ParseManifest` requires every action path to start with `/`, relative to the base URL — a manifest **cannot name a host**. The host comes from the organisation's brokered `<name>_url`. So a hostile entry in a catalogue cannot redirect a brokered token to a server of its choosing; at worst it calls unintended endpoints *within the agreed target system*, where the guard rails and the action subjects apply. This is the reason the marketplace can be opened to strangers at all.
 

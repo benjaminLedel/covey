@@ -76,6 +76,15 @@ func main() {
 	// version runs before the config: "which build is this?" has to give an
 	// answer even when the environment is incomplete.
 	switch os.Args[1] {
+	// plugin lint runs before the config as well: it checks a file, and a file
+	// can be checked on a machine that has no database, no master key and no
+	// business having either — a catalogue's CI container, for instance.
+	case "plugin":
+		if err := runPlugin(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
 	case "version", "--version", "-v":
 		fmt.Println("covey " + buildinfo.String())
 		// Covey is a network service under AGPL-3.0: whoever offers a modified
@@ -138,6 +147,7 @@ func usage() {
   covey serve             start API + orchestrator + admin UI
   covey egress-proxy      egress allowlist proxy (network isolation mode, in the container)
   covey config lint       check agent configs for known pitfalls (changes nothing)
+  covey plugin lint <f>   check a target-system plugin file (manifest or MCP config)
   covey settings [k v]    show the instance's settings, or set one (e.g. signup.mode waitlist)
   covey waitlist          list waitlist codes | new [-label L] [-uses N] [-days D] | revoke <hash>
   covey system-admin      list | add <email> | remove <email> — the instance level, not an org role

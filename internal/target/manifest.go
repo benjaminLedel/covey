@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -43,8 +44,63 @@ type Manifest struct {
 	// Key = action name.
 	Actions map[string]ManifestAction `json:"actions"`
 
-	// PromptDoc describes the actions for the agent's system prompt.
+	// PromptDoc describes the actions for the agent's system prompt. With
+	// per-action doc lines (ManifestAction.Doc) it becomes the preamble in front
+	// of them; on its own it is the whole doc.
 	PromptDoc string `json:"prompt_doc,omitempty"`
+
+	// Probe is the read-only call that shows whether the stored credentials
+	// actually work, and as whom (target.Prober). Without it the plugin offers
+	// no connection test — "saved" and "works" then stay two different things
+	// until an agent runs.
+	Probe *ManifestProbe `json:"probe,omitempty"`
+
+	// Poll declares how the control plane checks up front whether there is any
+	// work at all (target.WorkChecker) — what makes `nur-wenn: <system>` in
+	// HEARTBEAT.md gate anything for a manifest plugin. Key = the sub-scope
+	// after the colon (`nur-wenn: <system>:<kind>`); the entry under "" applies
+	// without one.
+	//
+	// Without this block every nur-wenn: on the system fires unconditionally
+	// (fail-open) — the plugin cannot answer the question, and an unanswerable
+	// condition must not leave work lying around.
+	Poll map[string]ManifestPoll `json:"poll,omitempty"`
+
+	// Scopes is the vocabulary of access levels this plugin understands in
+	// ACCESS.md (`- system: redmine scope: read,comment`). Declaring it means
+	// the setup assistant offers exactly these words instead of letting somebody
+	// type one that is then silently ignored.
+	Scopes []string `json:"scopes,omitempty"`
+}
+
+// ManifestProbe is one cheap, read-only GET. Read-only by contract — a probe
+// that changed something in the foreign system would be a poor kind of test.
+type ManifestProbe struct {
+	// Path relative to the base URL, e.g. "/users/me".
+	Path string `json:"path"`
+	// IdentityField is the dotted path to the identity the target system
+	// reports back (e.g. "login", "user.name"). Displayed as is, so it should
+	// be short and recognisable. Empty = the probe only shows that the call
+	// worked.
+	IdentityField string `json:"identity_field,omitempty"`
+}
+
+// ManifestPoll is one GET whose result answers "is there work?".
+type ManifestPoll struct {
+	// Path relative to the base URL, e.g. "/issues?assignee=me&state=open".
+	Path string `json:"path"`
+	// ItemsField is the dotted path to the array of open items. Empty = the
+	// response itself is the array. There is work when the array is not empty.
+	ItemsField string `json:"items_field,omitempty"`
+	// SignatureField is a per-item field that changes when the item does (an
+	// id, an updated_at, the id of the last comment). From it the control plane
+	// forms the work signature (target.SignedWorkChecker): the heartbeat then
+	// fires once per piece of news instead of on every tick for as long as the
+	// state persists.
+	//
+	// Empty = no signature; the condition then fires on every level, as a plain
+	// WorkChecker does.
+	SignatureField string `json:"signature_field,omitempty"`
 }
 
 type ManifestAuth struct {
@@ -85,6 +141,18 @@ type ManifestAction struct {
 	// SubjectWhen allows param-dependent subjects (e.g. internal=false).
 	Subject     string                `json:"subject,omitempty"`
 	SubjectWhen []ManifestSubjectRule `json:"subject_when,omitempty"`
+
+	// Doc is the action's line in the agent's system prompt ("reply to a
+	// ticket; params: id, body"). Once any action carries one, the prompt doc is
+	// composed from these lines instead of from the bare action names — and only
+	// then can it be narrowed to an agent's scopes, because free text cannot be
+	// cut down without knowing what belongs to what.
+	Doc string `json:"doc,omitempty"`
+
+	// Scope is the access level from Manifest.Scopes this action belongs to.
+	// An agent without it does not get the action's line in its prompt doc.
+	// Empty = the action belongs to every scope.
+	Scope string `json:"scope,omitempty"`
 }
 
 type ManifestSubjectRule struct {
@@ -110,6 +178,16 @@ func ParseManifest(raw []byte) (Manifest, error) {
 	if len(m.Actions) == 0 {
 		return m, fmt.Errorf("manifest: at least one action is required")
 	}
+	scopes := map[string]bool{}
+	for _, s := range m.Scopes {
+		if s == "" {
+			return m, fmt.Errorf("manifest: scopes must not contain an empty entry")
+		}
+		if scopes[s] {
+			return m, fmt.Errorf("manifest: scope %q listed twice", s)
+		}
+		scopes[s] = true
+	}
 	for name, a := range m.Actions {
 		switch a.Method {
 		case http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
@@ -118,6 +196,24 @@ func ParseManifest(raw []byte) (Manifest, error) {
 		}
 		if !strings.HasPrefix(a.Path, "/") {
 			return m, fmt.Errorf("manifest: action %q: path must start with /", name)
+		}
+		// A scope nobody declared would silently take the action out of every
+		// agent's doc — the exact failure the declared vocabulary exists to
+		// prevent.
+		if a.Scope != "" && !scopes[a.Scope] {
+			return m, fmt.Errorf("manifest: action %q: scope %q is not declared in scopes", name, a.Scope)
+		}
+	}
+	if m.Probe != nil && !strings.HasPrefix(m.Probe.Path, "/") {
+		return m, fmt.Errorf("manifest: probe.path must start with /")
+	}
+	for kind, p := range m.Poll {
+		where := "poll"
+		if kind != "" {
+			where = fmt.Sprintf("poll %q", kind)
+		}
+		if !strings.HasPrefix(p.Path, "/") {
+			return m, fmt.Errorf("manifest: %s: path must start with /", where)
 		}
 	}
 	switch m.Webhook.Signature {
@@ -282,15 +378,7 @@ func (s *ManifestSystem) Execute(ctx context.Context, action string, params json
 	if err != nil {
 		return nil, err
 	}
-	hdr := s.M.Auth.Header
-	if hdr == "" {
-		hdr = "Authorization"
-	}
-	format := s.M.Auth.Format
-	if format == "" {
-		format = "Bearer {token}"
-	}
-	req.Header.Set(hdr, strings.ReplaceAll(format, "{token}", cred.Token))
+	s.setAuth(req, cred)
 	if reqBody != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
@@ -321,15 +409,246 @@ func (s *ManifestSystem) Execute(ctx context.Context, action string, params json
 	return out, nil
 }
 
-func (s *ManifestSystem) PromptDoc() string {
-	if s.M.PromptDoc != "" {
-		return s.M.PromptDoc
+func (s *ManifestSystem) PromptDoc() string { return s.doc(nil, false) }
+
+// PromptDocForScopes (target.ScopedDocSystem) narrows the doc to the scopes an
+// agent was granted in ACCESS.md.
+//
+// It can only narrow what is structured. A manifest whose prompt_doc is a block
+// of free text stays whole no matter what the scopes say — there is no way to
+// tell which sentence belongs to which action. Per-action doc lines are what
+// make the narrowing possible; without them this is a full doc with extra steps.
+// Fail-open in both directions: no scopes recorded, or no action declaring one,
+// and the agent gets everything.
+func (s *ManifestSystem) PromptDocForScopes(scopes []string) string {
+	if len(scopes) == 0 || !s.scoped() {
+		return s.doc(nil, false)
 	}
+	granted := make(map[string]bool, len(scopes))
+	for _, sc := range scopes {
+		granted[sc] = true
+	}
+	return s.doc(granted, true)
+}
+
+// scoped: does any action belong to a scope at all?
+func (s *ManifestSystem) scoped() bool {
+	for _, a := range s.M.Actions {
+		if a.Scope != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// doc renders the prompt documentation. With granted != nil only the actions
+// whose scope the agent holds are rendered (an action without a scope belongs to
+// everybody).
+func (s *ManifestSystem) doc(granted map[string]bool, narrow bool) string {
 	names := make([]string, 0, len(s.M.Actions))
-	for name := range s.M.Actions {
+	described := false
+	for name, a := range s.M.Actions {
+		if narrow && a.Scope != "" && !granted[a.Scope] {
+			continue
+		}
 		names = append(names, name)
+		if a.Doc != "" {
+			described = true
+		}
 	}
-	return fmt.Sprintf("Available %s actions: %s.", s.M.Name, strings.Join(names, ", "))
+	sort.Strings(names)
+
+	// Free text without per-action lines: hand it over as it stands.
+	if !described {
+		if s.M.PromptDoc != "" {
+			return s.M.PromptDoc
+		}
+		if len(names) == 0 {
+			return fmt.Sprintf("No %s actions are available to you.", s.M.Name)
+		}
+		return fmt.Sprintf("Available %s actions: %s.", s.M.Name, strings.Join(names, ", "))
+	}
+
+	var b strings.Builder
+	if s.M.PromptDoc != "" {
+		b.WriteString(s.M.PromptDoc)
+		b.WriteString("\n\n")
+	}
+	if len(names) == 0 {
+		b.WriteString(fmt.Sprintf("No %s actions are available to you.", s.M.Name))
+		return b.String()
+	}
+	b.WriteString(fmt.Sprintf("Available %s actions:\n", s.M.Name))
+	for _, name := range names {
+		if d := s.M.Actions[name].Doc; d != "" {
+			fmt.Fprintf(&b, "- %s: %s\n", name, d)
+		} else {
+			fmt.Fprintf(&b, "- %s\n", name)
+		}
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// Supports (target.CapabilityReporter) reports the optional capabilities this
+// manifest actually declares. A manifest system's Go type carries the methods
+// either way — only the file says whether they mean anything.
+func (s *ManifestSystem) Supports(capability string) bool {
+	switch capability {
+	case CapProbe:
+		return s.M.Probe != nil
+	case CapPoll:
+		return len(s.M.Poll) > 0
+	default:
+		return true
+	}
+}
+
+// Probe (target.Prober) runs the declared read-only call and reports the
+// identity the target system answers with.
+func (s *ManifestSystem) Probe(ctx context.Context, cred Credential) (string, error) {
+	if s.M.Probe == nil {
+		return "", fmt.Errorf("%s declares no probe", s.M.Name)
+	}
+	body, err := s.get(ctx, s.M.Probe.Path, cred)
+	if err != nil {
+		return "", err
+	}
+	if s.M.Probe.IdentityField == "" {
+		return "ok", nil
+	}
+	if id := jsonPath(body, s.M.Probe.IdentityField); id != "" {
+		return id, nil
+	}
+	// The call worked — the field is the plugin's problem, not the
+	// credential's, and reporting a failure here would blame the wrong thing.
+	return "ok", nil
+}
+
+// HasWork (target.WorkChecker) checks the declared poll without a sub-scope.
+func (s *ManifestSystem) HasWork(ctx context.Context, cred Credential) (bool, error) {
+	has, _, err := s.HasWorkSigned(ctx, cred, "")
+	return has, err
+}
+
+// HasWorkKind (target.KindWorkChecker) checks the poll of one sub-scope.
+func (s *ManifestSystem) HasWorkKind(ctx context.Context, cred Credential, kind string) (bool, error) {
+	has, _, err := s.HasWorkSigned(ctx, cred, kind)
+	return has, err
+}
+
+// HasWorkSigned (target.SignedWorkChecker) additionally returns the signature of
+// the work found, so the same piece of news wakes the agent once rather than on
+// every tick until it acts.
+func (s *ManifestSystem) HasWorkSigned(ctx context.Context, cred Credential, kind string) (bool, string, error) {
+	p, ok := s.M.Poll[kind]
+	if !ok {
+		// An unknown sub-scope must not report LESS than the plain check
+		// (fail-open) — so fall back to the entry without one.
+		if p, ok = s.M.Poll[""]; !ok {
+			return true, "", nil
+		}
+	}
+	body, err := s.get(ctx, p.Path, cred)
+	if err != nil {
+		return false, "", err
+	}
+	items := pollItems(body, p.ItemsField)
+	if len(items) == 0 {
+		return false, "", nil
+	}
+	return true, pollSignature(items, p.SignatureField), nil
+}
+
+// pollItems reads the array of open items out of a poll response.
+func pollItems(body any, field string) []any {
+	cur := body
+	if field != "" {
+		for _, part := range strings.Split(field, ".") {
+			obj, ok := cur.(map[string]any)
+			if !ok {
+				return nil
+			}
+			if cur, ok = obj[part]; !ok {
+				return nil
+			}
+		}
+	}
+	items, _ := cur.([]any)
+	return items
+}
+
+// pollSignature describes WHAT the check responded to — a short, stable string
+// that changes when the work does. Sorted, so the order the target system
+// happens to answer in does not by itself look like news; hashed once it grows
+// long, because the signature is stored per heartbeat and only ever compared,
+// never read.
+func pollSignature(items []any, field string) string {
+	if field == "" {
+		return ""
+	}
+	parts := make([]string, 0, len(items))
+	for _, it := range items {
+		if v := jsonPath(it, field); v != "" {
+			parts = append(parts, v)
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	sort.Strings(parts)
+	joined := strings.Join(parts, ",")
+	if len(joined) <= 200 {
+		return joined
+	}
+	sum := sha256.Sum256([]byte(joined))
+	return fmt.Sprintf("%d@%s", len(parts), hex.EncodeToString(sum[:8]))
+}
+
+// get performs one authenticated GET and returns the parsed JSON body — the
+// shared plumbing behind probe and poll. Both are read-only calls the CONTROL
+// PLANE makes on its own: no agent is involved, so no path parameters are
+// substituted and nothing from a run can steer them.
+func (s *ManifestSystem) get(ctx context.Context, path string, cred Credential) (any, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(cred.BaseURL, "/")+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	s.setAuth(req, cred)
+	httpc := s.HTTP
+	if httpc == nil {
+		httpc = reqlog.Client(s.M.Name, 15*time.Second)
+	}
+	resp, err := httpc.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("%s GET %s: HTTP %d: %.300s", s.M.Name, path, resp.StatusCode, data)
+	}
+	var out any
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil, fmt.Errorf("%s GET %s: response is not JSON", s.M.Name, path)
+	}
+	return out, nil
+}
+
+// setAuth writes the brokered token into the request the way the manifest
+// declares.
+func (s *ManifestSystem) setAuth(req *http.Request, cred Credential) {
+	hdr := s.M.Auth.Header
+	if hdr == "" {
+		hdr = "Authorization"
+	}
+	format := s.M.Auth.Format
+	if format == "" {
+		format = "Bearer {token}"
+	}
+	req.Header.Set(hdr, strings.ReplaceAll(format, "{token}", cred.Token))
 }
 
 // jsonPath reads a dotted path ("ticket.id") out of an unmarshalled JSON value

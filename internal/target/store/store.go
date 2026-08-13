@@ -96,6 +96,11 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 				if m.Category != "" {
 					p.Category = m.Category
 				}
+				// A manifest declares its scope vocabulary in the file rather
+				// than in a Descriptor; without this the store would offer none
+				// for catalogue plugins and every word in ACCESS.md would be a
+				// guess.
+				p.Scopes = m.Scopes
 			}
 			p.SetupDoc = customSetupDoc(p.Name)
 		case "mcp":
@@ -228,6 +233,38 @@ func (s *Store) System(ctx context.Context, orgID uuid.UUID, name string) (targe
 	if !enabled {
 		return nil, fmt.Errorf("%w: %s is disabled", ErrNotFound, name)
 	}
+	return build(name, kind, manifest)
+}
+
+// Definition resolves a target system REGARDLESS of whether it is activated.
+// The setup assistant needs it: it has to show what a plugin can do — take a
+// webhook, test its connection — before anybody switches it on, and a
+// fail-closed lookup answers "not activated" to exactly the question the
+// assistant is there to help with.
+//
+// Everything on the runtime path (broker, action proxy, dispatch) uses System
+// instead, which stays fail-closed.
+func (s *Store) Definition(ctx context.Context, orgID uuid.UUID, name string) (target.System, error) {
+	var kind string
+	var manifest []byte
+	err := s.pool.QueryRow(ctx, `SELECT kind, manifest FROM target_plugins
+		WHERE org_id=$1 AND name=$2`, orgID, name).Scan(&kind, &manifest)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		// No row at all: a built-in that nobody has touched yet still exists as
+		// a plugin — it is only not activated.
+		if sys, ok := target.Get(name); ok {
+			return sys, nil
+		}
+		return nil, ErrNotFound
+	case err != nil:
+		return nil, err
+	}
+	return build(name, kind, manifest)
+}
+
+// build turns a stored row into the target system it describes.
+func build(name, kind string, manifest []byte) (target.System, error) {
 	switch kind {
 	case "builtin":
 		if sys, ok := target.Get(name); ok {

@@ -345,6 +345,58 @@ type Prober interface {
 	Probe(ctx context.Context, cred Credential) (string, error)
 }
 
+// Optional capabilities a plugin may carry. A COMPILED plugin says so through
+// its method set — it either has Probe or it does not, and a type assertion is
+// the whole check. A plugin whose behaviour lives in DATA (a manifest) cannot:
+// its Go type is the same generic engine either way, so the method is always
+// there and the assertion always succeeds.
+//
+// That difference matters at the call sites. "Can this system be probed?"
+// decides whether the UI offers a connection test at all, and a manifest
+// without a probe block would grow a button that can only fail. So a
+// data-driven plugin reports its capabilities explicitly, and the call sites ask
+// through the helpers below instead of asserting directly.
+const (
+	CapProbe = "probe"
+	CapPoll  = "poll"
+)
+
+// CapabilityReporter is implemented by plugins whose optional capabilities are
+// declared in data rather than in their method set (see above). A plugin
+// without it is taken at its method set — the compiled case.
+type CapabilityReporter interface {
+	Supports(capability string) bool
+}
+
+// supports answers whether sys carries a capability: the method set has to have
+// it, and a data-driven plugin has to confirm it.
+func supports(sys System, capability string) bool {
+	if r, ok := sys.(CapabilityReporter); ok {
+		return r.Supports(capability)
+	}
+	return true
+}
+
+// Probes returns the system's Prober if it really can probe. Use this instead
+// of a bare type assertion on Prober.
+func Probes(sys System) (Prober, bool) {
+	p, ok := sys.(Prober)
+	if !ok || !supports(sys, CapProbe) {
+		return nil, false
+	}
+	return p, true
+}
+
+// WorkChecks returns the system's WorkChecker if it really can check for work up
+// front. Use this instead of a bare type assertion on WorkChecker.
+func WorkChecks(sys System) (WorkChecker, bool) {
+	c, ok := sys.(WorkChecker)
+	if !ok || !supports(sys, CapPoll) {
+		return nil, false
+	}
+	return c, true
+}
+
 // Categories for the target system store. Purely for placement in the UI —
 // behavior never depends on them.
 const (

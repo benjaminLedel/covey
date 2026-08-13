@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
@@ -84,11 +85,14 @@ func (s *Server) handleTargetSetup(w http.ResponseWriter, r *http.Request) {
 	}
 	var found bool
 	var state setupState
+	var kind string
+	var definition json.RawMessage
 	for _, pl := range list {
 		if pl.Name != name {
 			continue
 		}
 		found = true
+		kind, definition = pl.Kind, pl.Manifest
 		state = setupState{
 			Name:     pl.Name,
 			Label:    pl.Label,
@@ -105,6 +109,14 @@ func (s *Server) handleTargetSetup(w http.ResponseWriter, r *http.Request) {
 	// bleiben die Felder leer, und der Assistent zeigt entsprechend weniger.
 	plugin, _ := target.Describe(name)
 	state.Scopes = plugin.Scopes
+	// Ein Manifest-Plugin hat keinen Descriptor, aber sein Scope-Vokabular
+	// steht in der Datei — sonst böte der Assistent für Katalog-Plugins gar
+	// keine Scopes an und jedes Wort in ACCESS.md wäre geraten.
+	if len(state.Scopes) == 0 && kind == "custom" {
+		if m, err := target.ParseManifest(definition); err == nil {
+			state.Scopes = m.Scopes
+		}
+	}
 
 	// Welche Zugangsdaten das Plugin braucht, steht in seinen Flags — die
 	// Namenskonvention <system>_url/<system>_token ist dieselbe, die der
@@ -137,7 +149,11 @@ func (s *Server) handleTargetSetup(w http.ResponseWriter, r *http.Request) {
 	// Webhook: Ob ein Plugin welche annimmt, steht nicht in einer Liste,
 	// sondern in dem, was es implementiert (target.Webhooker). Deshalb wird
 	// hier gefragt und nicht nachgeschlagen.
-	if sys, ok := target.Get(name); ok {
+	// Definition statt target.Get: ein Manifest-Plugin steht nicht in der
+	// kompilierten Registry, kann aber genauso einen Webhook annehmen und seine
+	// Verbindung testen — es sagt das nur in seiner Datei statt in seinem
+	// Methodensatz. target.Probes fragt beides zusammen.
+	if sys, err := s.Targets.Definition(r.Context(), p.OrgID, name); err == nil {
 		if _, isHook := sys.(target.Webhooker); isHook {
 			env := "COVEY_" + strings.ToUpper(name) + "_WEBHOOK_SECRET"
 			state.Webhook = setupWebhook{
@@ -147,7 +163,7 @@ func (s *Server) handleTargetSetup(w http.ResponseWriter, r *http.Request) {
 				SecretSet: s.WebhookSecrets[name] != "",
 			}
 		}
-		_, state.Probe = sys.(target.Prober)
+		_, state.Probe = target.Probes(sys)
 	}
 
 	// Wer hat das System schon? Die Antwort steht in der ACCESS.md der
@@ -202,12 +218,12 @@ func (s *Server) handleTargetProbe(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	name := r.PathValue("name")
 
-	sys, ok := target.Get(name)
-	if !ok {
+	sys, err := s.Targets.Definition(r.Context(), p.OrgID, name)
+	if err != nil {
 		writeErr(w, http.StatusNotFound, "unknown target system")
 		return
 	}
-	prober, ok := sys.(target.Prober)
+	prober, ok := target.Probes(sys)
 	if !ok {
 		writeErr(w, http.StatusBadRequest, "this target system cannot test its connection")
 		return
