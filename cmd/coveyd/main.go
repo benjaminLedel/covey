@@ -23,6 +23,7 @@ import (
 	_ "covey/internal/target/email"
 	_ "covey/internal/target/github"
 	_ "covey/internal/target/gitlab"
+	_ "covey/internal/target/k8s"
 	_ "covey/internal/target/nextcloud"
 	_ "covey/internal/target/sharepoint"
 	_ "covey/internal/target/teams"
