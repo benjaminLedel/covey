@@ -45,6 +45,7 @@ The guiding metaphor from which the whole architecture follows: the platform is 
 | [`19-codex-adapter.md`](19-codex-adapter.md) | Second engine (planned): `codex exec`, credential as a file vs. an environment variable, tokens without a price, no utilisation source |
 | [`20-hiring-and-setup.md`](20-hiring-and-setup.md) | Setup (the credential first, the company description as org master data) and hiring: the People department as an agent, the `covey` self-service actions, the draft state |
 | [`21-operations-and-improvement.md`](21-operations-and-improvement.md) | Why a workforce underperforms — config, assignment or the platform itself: the work record as recorded evidence, config changes as proposals a human accepts, issues against Covey's own repository |
+| [`22-plugin-marketplace.md`](22-plugin-marketplace.md) | Target systems from a catalogue: the index repository next to third-party plugin repositories, one catalogue file behind one configurable URL, the digest as the trust anchor, publishing by pull request |
 
 ## Design principles
 
@@ -75,6 +76,7 @@ The guiding metaphor from which the whole architecture follows: the platform is 
 - **Secrets broker** — The service that issues agents short-lived, scoped access tokens for target systems.
 - **Supervisor agent** — An optional agent that reviews other agents' activity and flags anomalies.
 - **Enforcement point** — A place where the platform sits in the data flow anyway (broker, egress, tool layer) and where guard rails are enforced technically.
+- **Plugin catalogue (marketplace)** — A JSON file behind a configurable URL listing installable target-system plugins. Its entries point at artefacts hosted anywhere and pin them by digest; publishing means a pull request against the index repository the catalogue is generated from. See [`22-plugin-marketplace.md`](22-plugin-marketplace.md).
 - **Organisation / tenant** — The unit a Covey instance is operated for. All agents, roles, guard rails, budgets and audits are org-scoped.
 - **Human role** — A person with defined rights on the platform (e.g. org admin, agent owner, security/compliance, auditor, controlling). Governed by RBAC, authenticated via SSO.
 - **Agent owner** — The person (usually a department's team lead) accountable for a particular agent: its config, its backlog priority, its approvals.

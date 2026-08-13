@@ -164,6 +164,8 @@ Both kinds are **enabled per organisation** (table `target_plugins`); activation
 
 Credentials follow the convention `<system>_token`/`<system>_url` in the SecretStore.
 
+Where the runtime-installable kinds come *from* is a separate question, and it is answered outside the binary: a **catalogue behind a configurable URL**, maintained as an index repository whose entries point at plugins hosted anywhere and pin them by digest. Installing from it writes the same `target_plugins` row the manual upload writes — the marketplace is a new source, not a new runtime path. See [`22-plugin-marketplace.md`](22-plugin-marketplace.md).
+
 ## Delivery: one binary (frontend embedded)
 
 The frontend is **embedded into the Go binary** — no separate static hosting, no nginx in front:
