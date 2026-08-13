@@ -44,21 +44,21 @@ import (
 	"covey/internal/templates"
 	"covey/internal/waitlist"
 
-	_ "covey/internal/target/browser"
-	_ "covey/internal/target/dev"
-	_ "covey/internal/target/email"
+	_ "github.com/benjaminLedel/covey-plugin-pack/browser"
+	_ "github.com/benjaminLedel/covey-plugin-pack/dev"
+	_ "github.com/benjaminLedel/covey-plugin-pack/email"
 	// gitlab ist im Testbinary registriert, weil die Organisation es als
 	// Zielsystem aktiviert — und weil target/store Zeilen fuer Plugins
 	// verwirft, die dieses Binary nicht einkompiliert hat. Ohne den Import
 	// waere die Aktivierung in newStack eine Zeile ohne Wirkung.
-	_ "covey/internal/target/gitlab"
+	_ "github.com/benjaminLedel/covey-plugin-pack/gitlab"
 	_ "covey/internal/target/mcp"
-	_ "covey/internal/target/nextcloud"
-	_ "covey/internal/target/sharepoint"
+	_ "github.com/benjaminLedel/covey-plugin-pack/nextcloud"
+	_ "github.com/benjaminLedel/covey-plugin-pack/sharepoint"
 	"covey/migrations"
 
-	_ "covey/internal/target/teams"
-	_ "covey/internal/target/zammad"
+	_ "github.com/benjaminLedel/covey-plugin-pack/teams"
+	_ "github.com/benjaminLedel/covey-plugin-pack/zammad"
 )
 
 const adminDBURL = "postgres://covey:covey@localhost:5433/covey?sslmode=disable"

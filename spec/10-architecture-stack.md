@@ -117,7 +117,8 @@ covey/
     backlog/          backlog store, state transitions
     identity/         IdentityProvider — builtin/ + oidc/
     secrets/          SecretStore — builtin/ + vault/
-    target/           target-system plugins — registry + manifest engine, zammad/ + …
+    target/           the plugin machinery only: manifestplug/, wasmplug/, mcp/, store/
+                      (no plugin code — that lives in covey-plugin-pack)
     guardrails/       policy engine, enforcement points
     observability/    recording, cost, alerts
     http/             API/BFF handlers, RBAC middleware
@@ -151,9 +152,13 @@ Which implementation is loaded is decided by the config at start (`identity.prov
 
 ### Target systems as plugins
 
-**Target systems** (Zammad, GitLab, …) follow the same pattern as the runtimes: a self-registering plugin registry instead of hardcoded lists. `internal/target` defines the interface (`System`: webhook verification/parsing, action execution, guard-rail subjects, prompt documentation); every target system is a subpackage that registers itself in `init()`. There are two kinds of plugin:
+**Target systems** (Zammad, GitLab, …) follow the same pattern as the runtimes: a self-registering plugin registry instead of hardcoded lists. The interface lives in a module of its own — [`github.com/benjaminLedel/covey-plugin-sdk`](https://github.com/benjaminLedel/covey-plugin-sdk), package `target` — and every plugin is a package that registers itself in `init()`.
 
-- **Compiled built-ins** (`internal/target/zammad`, …): pulled in by blank import in `cmd/covey` and `cmd/coveyd`. Whoever wants to ship Covey **lean** leaves the import out — the rest of the system stays unchanged. Necessary for everything that goes beyond simple REST calls (OAuth flows, special protocols).
+**No plugin code lives in this repository.** The plugins Covey ships with are an ordinary Go module of their own ([`github.com/benjaminLedel/covey-plugin-pack`](https://github.com/benjaminLedel/covey-plugin-pack)), which the binaries blank-import. That is not tidiness: it puts anybody else's plugin on exactly the same footing as ours — same SDK, same registry, same build, no privileged "compiled in" tier. The dependency graph stays acyclic (Covey → SDK, pack → SDK, Covey → pack), and a plugin author depends on a dependency-free contract rather than on Postgres, chromedp and a wasm runtime.
+
+There are four kinds of plugin:
+
+- **Compiled plugins** (`github.com/benjaminLedel/covey-plugin-pack/zammad`, …): pulled in by blank import in `cmd/covey` and `cmd/coveyd`. Whoever wants to ship Covey **lean** leaves the import out — the rest of the system stays unchanged. Necessary for everything that goes beyond simple REST calls (OAuth flows, special protocols).
 - **Manifest plugins** (kind=`custom`): an admin uploads a **JSON plugin file** at runtime (UI "Target systems" or `POST /api/v1/targets`) declaring webhook mapping, actions (method + path with `{param}` placeholders) and auth headers. A generic REST engine interprets the manifest — no recompilation, no deploy. The daemon fetches manifests through the daemon protocol (`request_target`/`inject_target`), only for enabled systems.
 
   Beyond the actions, a manifest declares the same optional capabilities a compiled plugin implements: `probe` (one read-only GET plus the field the identity is read from → the connection test in the store), `poll` (one GET per sub-scope plus the field that carries the work signature → `nur-wenn:` in `HEARTBEAT.md` gates on it), `scopes` (the vocabulary `ACCESS.md` may use for this system) and per-action `scope`/`doc` lines (which is what lets the prompt doc be narrowed to an agent's scopes — free text cannot be cut at a guess). Without a block, the capability is simply absent and the platform falls open where it always did: no probe means no connection test, no poll means every heartbeat fires.

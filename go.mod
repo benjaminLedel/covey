@@ -5,14 +5,16 @@ go 1.26.5
 require (
 	github.com/coder/websocket v1.8.15
 	github.com/emersion/go-imap/v2 v2.0.0-beta.8
-	github.com/emersion/go-message v0.18.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.10.0
 	golang.org/x/crypto v0.54.0
 )
 
+require github.com/emersion/go-message v0.18.2 // indirect
+
 require (
+	github.com/benjaminLedel/covey-plugin-pack v0.2.0
 	github.com/benjaminLedel/covey-plugin-sdk v0.1.0
 	github.com/chromedp/cdproto v0.0.0-20260714215040-dc233986426f
 	github.com/chromedp/chromedp v0.16.0

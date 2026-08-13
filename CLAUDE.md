@@ -47,6 +47,20 @@ Entwicklungs-Workflow: `make dev-db && make bootstrap && make run` (siehe README
 - **Migrationen:** versionierte SQL unter `migrations/` (up/down), eingebettet via `//go:embed`, ausgeführt per `covey migrate up` mit `pg_advisory_lock`. Bestehende Migrationen nie editieren — immer neue anlegen.
 - **„Batteries included, but swappable":** zwei Ports tragen das Muster — `IdentityProvider` (builtin JWT/Argon2id ↔ `oidc`) und `SecretStore` (builtin AES-GCM ↔ `vault`). Interface vor Implementierung ziehen, auch wenn nur `builtin` existiert.
 
+## Die drei Repos neben covey
+
+Plugin-Code liegt **nicht** in diesem Repo. Drei eigene Module tragen ihn, und die Trennung ist Absicht: ein Dritter soll genau dieselben Mittel haben wie wir, ohne privilegierten „ist einkompiliert"-Rang.
+
+| Repo | Modul | Inhalt |
+|---|---|---|
+| [covey-plugin-sdk](https://github.com/benjaminLedel/covey-plugin-sdk) | `github.com/benjaminLedel/covey-plugin-sdk` | der Vertrag: `target.System`, Registry, `Descriptor`, Credential, Sandbox-Helfer, HTTP-Client. **Ohne Abhängigkeiten** — ein Plugin-Autor zieht sich nicht covey ans Bein. |
+| [covey-plugin-pack](https://github.com/benjaminLedel/covey-plugin-pack) | `github.com/benjaminLedel/covey-plugin-pack` | die zehn mitgelieferten Plugins als gewöhnlicher Go-Code, plus die Manifest-Plugins |
+| [covey-plugins](https://github.com/benjaminLedel/covey-plugins) | — | der Katalog: Einträge, die auf Artefakte irgendwo zeigen, per Digest festgenagelt |
+
+Der Abhängigkeitsgraph ist zyklenfrei: covey → SDK, Pack → SDK, covey → Pack (für den Standard-Build). **Nichts hängt an covey.**
+
+Wer ein Plugin ändert, arbeitet also im Pack, nicht hier. Wer den Vertrag ändert (neues Interface, neuer Helfer), ändert das SDK — und muss daran denken, dass fremde Plugins dagegen bauen: Ergänzungen ja, Umbenennungen nur mit neuer Hauptversion.
+
 ## Wo der Code liegen soll
 
 Single-Binary-Go-Projekt mit **`go.mod` im Repo-Wurzelverzeichnis** — der Code liegt **neben `spec/`**, nicht in einem Unterordner. Frontend und Migrationen werden via `//go:embed` mitkompiliert und müssen deshalb im selben Modulbaum liegen. Layout aus `spec/10-architecture-stack.md`:
@@ -60,7 +74,9 @@ covey/                    ← Repo-Wurzel = Go-Modul-Wurzel (go.mod hier)
     backlog/              Backlog-Store, Zustandsübergänge
     identity/             IdentityProvider — builtin/ (JWT/Argon2id) + oidc/
     secrets/              SecretStore — builtin/ (AES-GCM) + vault/
-    target/               Zielsystem-Plugins — Registry + Manifest-Engine, zammad/ als erstes Built-in
+    target/               NUR die Plugin-Maschinerie: manifestplug/ (JSON-Engine), wasmplug/
+                          (WebAssembly-Laufzeit), mcp/, store/ (Aktivierung pro Org).
+                          KEIN Plugin-Code — der wohnt im Pack, siehe unten.
     guardrails/           Policy-Engine, Enforcement-Punkte
     observability/        Recording, Cost, Alerts
     http/                 API/BFF-Handler, RBAC-Middleware

@@ -41,6 +41,7 @@ import (
 	"covey/internal/orchestrator"
 	"covey/internal/org"
 	"covey/internal/reqlog"
+
 	reqlogstore "covey/internal/reqlog/store"
 	"covey/internal/runtimes"
 	secbuiltin "covey/internal/secrets/builtin"
@@ -54,16 +55,16 @@ import (
 
 	// Compiled-in target system plugins: blank import = shipped. Whoever wants
 	// to build Covey without a system removes its line — the rest stays as it is.
-	_ "covey/internal/target/browser"
-	_ "covey/internal/target/dev"
-	_ "covey/internal/target/email"
-	_ "covey/internal/target/github"
-	_ "covey/internal/target/gitlab"
-	_ "covey/internal/target/nextcloud"
-	_ "covey/internal/target/sharepoint"
-	_ "covey/internal/target/teams"
-	_ "covey/internal/target/vulndb"
-	_ "covey/internal/target/zammad"
+	_ "github.com/benjaminLedel/covey-plugin-pack/browser"
+	_ "github.com/benjaminLedel/covey-plugin-pack/dev"
+	_ "github.com/benjaminLedel/covey-plugin-pack/email"
+	_ "github.com/benjaminLedel/covey-plugin-pack/github"
+	_ "github.com/benjaminLedel/covey-plugin-pack/gitlab"
+	_ "github.com/benjaminLedel/covey-plugin-pack/nextcloud"
+	_ "github.com/benjaminLedel/covey-plugin-pack/sharepoint"
+	_ "github.com/benjaminLedel/covey-plugin-pack/teams"
+	_ "github.com/benjaminLedel/covey-plugin-pack/vulndb"
+	_ "github.com/benjaminLedel/covey-plugin-pack/zammad"
 )
 
 func main() {
