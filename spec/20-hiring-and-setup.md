@@ -30,7 +30,7 @@ Skipping is safe in both directions. Skip card 1 and cards 2 and 3 still work: t
 
 ## The company description is master data, not a prompt
 
-The description from card 2 hangs on the **organisation**, next to its name (the `organizations` table carries a name and a kill switch today and nothing else). It is editable afterwards under *Organisations*, like every other piece of org master data ([`09-enterprise-model.md`](09-enterprise-model.md)).
+The description from card 2 hangs on the **organisation**, next to its name (the `organizations` table carries a name and a kill switch today and nothing else). It is editable afterwards on the org chart and under *Administration → Profile*, like every other piece of org master data ([`09-enterprise-model.md`](09-enterprise-model.md)).
 
 That placement is the whole point. The obvious implementation — a text box that feeds one generation call and is then gone — would answer the question once. As master data the same three sentences answer it in four places:
 

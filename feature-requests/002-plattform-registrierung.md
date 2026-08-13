@@ -569,6 +569,15 @@ table stays in the environment.
 Each step is releasable on its own and leaves the single-tenant installation
 working.
 
+> **Stand.** P1 and P2 are built. Of P3 and P4 the stores and the public sign-up
+> exist (`internal/settings`, `internal/waitlist`, `internal/accounts`), and
+> since the two administration panels they have a surface as well: the switches
+> and the codes are administered under *Platform* (`/api/v1/platform/settings`,
+> `/api/v1/platform/waitlist-codes`, `…/accounts`). What is still missing from
+> P3 is the **mailer** — no SMTP, therefore no confirmation and no password
+> reset, which is why registration marks addresses as verified straight away.
+> P5 (joining, org switcher) and P6 (quotas) are open.
+
 - **P1 — accounts and sessions.** Migrations 0052/0053, backfill, identity and
   session refactor, org-less principal. *Nothing user-visible changes.*
   Acceptance: the integration suite (`make test-integration`) is green, login,

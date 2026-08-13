@@ -65,6 +65,15 @@ die Tests dazu stehen in `internal/integration/isolation_test.go` und
 **G**, das gemeinsame Docker-Netz, und die drei strukturellen Punkte weiter
 unten.
 
+Nachgezogen wurde inzwischen auch das **Wort**: die oberste Organisations-Rolle
+heißt seit Migration 0061 `org_admin`. Befund F hatte die Rechte getrennt, aber
+beide Ebenen weiter „Plattform" genannt — eine Oberfläche, die „Plattform-Admin"
+zeigt für eine Rolle, die jede Organisation an sich selbst vergibt, lädt genau
+die Verwechslung wieder ein, die der Befund ausgeräumt hat. „Plattform" gehört
+jetzt der Instanz, „org" der Organisation, und die zwei Verwaltungsbereiche
+(*Administration* je Organisation, *Plattform* je Installation) machen die
+Trennung sichtbar statt nur wirksam (`spec/09-enterprise-model.md`).
+
 ## Findings
 
 | # | Finding | Class | Effort |
