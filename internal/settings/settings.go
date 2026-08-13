@@ -129,6 +129,9 @@ func Keys() []string {
 
 // Set stores a value. Validation happens HERE and not in the handler, so that
 // the CLI and the API cannot disagree about what a valid value is.
+//
+// `by` is an ACCOUNT id since migration 0062 — the instance level does not
+// require a seat, so a human id could not always be supplied.
 func (s *Store) Set(ctx context.Context, key, value string, by *uuid.UUID) error {
 	if _, ok := Defaults[key]; !ok {
 		return fmt.Errorf("%w: %s", ErrUnknownKey, key)

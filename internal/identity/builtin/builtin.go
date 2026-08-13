@@ -117,6 +117,16 @@ func (p *Provider) AuthenticateHuman(ctx context.Context, creds identity.Credent
 		return identity.Principal{}, err
 	}
 	pr.Role = identity.NormalizeRole(pr.Role)
+
+	// accounts.last_login_at exists since migration 0058 and was written by
+	// nobody — a column that is always empty answers the one question the
+	// account list is for ("is this login still in use?") with a shrug.
+	// Deliberately best-effort: a failed bookkeeping write must not turn a
+	// correct password into a failed login.
+	if _, err := p.pool.Exec(ctx, `UPDATE accounts SET last_login_at=now() WHERE id=$1`,
+		pr.AccountID); err != nil {
+		return pr, nil //nolint:nilerr // see above: sign-in wins over bookkeeping
+	}
 	return pr, nil
 }
 

@@ -459,6 +459,15 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /api/v1/platform/orgs", s.platformAdmin(s.handleCreateOrg))
 	mux.Handle("PATCH /api/v1/platform/orgs/{id}", s.platformAdmin(s.handleUpdateOrg))
 	mux.Handle("DELETE /api/v1/platform/orgs/{id}", s.platformAdmin(s.handleDeleteOrg))
+	// Der Rest der Instanz-Verwaltung: die Anmeldungen selbst, die Schalter
+	// der Installation und die Wartelisten-Codes (internal/httpapi/platform.go).
+	mux.Handle("GET /api/v1/platform/accounts", s.platformAdmin(s.handleListAccounts))
+	mux.Handle("PATCH /api/v1/platform/accounts/{id}", s.platformAdmin(s.handleSetAccountPlatformRole))
+	mux.Handle("GET /api/v1/platform/settings", s.platformAdmin(s.handleListSettings))
+	mux.Handle("PUT /api/v1/platform/settings/{key}", s.platformAdmin(s.handleSetSetting))
+	mux.Handle("GET /api/v1/platform/waitlist-codes", s.platformAdmin(s.handleListWaitlistCodes))
+	mux.Handle("POST /api/v1/platform/waitlist-codes", s.platformAdmin(s.handleCreateWaitlistCode))
+	mux.Handle("DELETE /api/v1/platform/waitlist-codes/{hash}", s.platformAdmin(s.handleRevokeWaitlistCode))
 
 	// Live updates.
 	mux.Handle("GET /api/v1/events", s.auth(s.handleSSE))
@@ -542,11 +551,11 @@ func mapErr(w http.ResponseWriter, err error) {
 	case errors.Is(err, agents.ErrNotFound), errors.Is(err, backlog.ErrNotFound),
 		errors.Is(err, observability.ErrNotFound), errors.Is(err, secrets.ErrNotFound),
 		errors.Is(err, org.ErrNotFound), errors.Is(err, org.ErrDeptNotFound),
-		errors.Is(err, pgx.ErrNoRows):
+		errors.Is(err, accounts.ErrNotFound), errors.Is(err, pgx.ErrNoRows):
 		writeErr(w, http.StatusNotFound, "not found")
 	case errors.Is(err, backlog.ErrInvalidTransition),
 		errors.Is(err, org.ErrLastAdmin), errors.Is(err, org.ErrEmailTaken),
-		errors.Is(err, org.ErrManagerCycle):
+		errors.Is(err, accounts.ErrLastSystemAdmin), errors.Is(err, org.ErrManagerCycle):
 		writeErr(w, http.StatusConflict, err.Error())
 	default:
 		writeErr(w, http.StatusInternalServerError, err.Error())
