@@ -3,7 +3,7 @@ package gitlab
 import (
 	"context"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // Probe reads the bot user behind the token. `/user` is GitLab's cheapest

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 	"covey/internal/target/email"
 )
 

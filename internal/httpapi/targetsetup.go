@@ -10,7 +10,8 @@ import (
 	"github.com/google/uuid"
 
 	"covey/internal/agents"
-	"covey/internal/target"
+	"covey/internal/target/manifestplug"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // Einrichtung eines Zielsystems — der Zustand, den der Assistent führt.
@@ -113,7 +114,7 @@ func (s *Server) handleTargetSetup(w http.ResponseWriter, r *http.Request) {
 	// steht in der Datei — sonst böte der Assistent für Katalog-Plugins gar
 	// keine Scopes an und jedes Wort in ACCESS.md wäre geraten.
 	if len(state.Scopes) == 0 && kind == "custom" {
-		if m, err := target.ParseManifest(definition); err == nil {
+		if m, err := manifestplug.Parse(definition); err == nil {
 			state.Scopes = m.Scopes
 		}
 	}

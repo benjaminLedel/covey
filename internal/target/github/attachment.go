@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"covey/internal/reqlog"
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // maxAttachmentBytes caps a single downloaded attachment — a screenshot is

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // fakeMCP is a minimal MCP server over streamable HTTP: initialize,

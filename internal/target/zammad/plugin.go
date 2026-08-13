@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // System binds Zammad as a target-system plugin to the target registry:

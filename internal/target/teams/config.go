@@ -4,7 +4,7 @@ import (
 	"os"
 	"strings"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // Operational configuration of the Teams plugin from ENV (12-factor, like the

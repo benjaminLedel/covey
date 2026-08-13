@@ -17,7 +17,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // serveNotes answers a notes request the way GitLab does: sort=desc delivers

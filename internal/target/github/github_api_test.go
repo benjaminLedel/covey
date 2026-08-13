@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // routes maps "METHOD /path" onto its answer. Anything NOT routed fails the

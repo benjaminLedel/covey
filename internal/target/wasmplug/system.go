@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"covey/internal/reqlog"
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // System makes a compiled module a target system like any other. That is the

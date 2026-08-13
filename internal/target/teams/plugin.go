@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // System binds Microsoft Teams into the target registry as a target-system

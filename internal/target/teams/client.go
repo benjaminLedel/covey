@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"covey/internal/reqlog"
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // Client talks to the Bot Connector REST service with a short-lived access

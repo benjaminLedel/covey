@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // DownloadUploadResult is the answer of the download_upload action: where the

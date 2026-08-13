@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // System binds GitLab in as a target-system plugin to the target registry: the

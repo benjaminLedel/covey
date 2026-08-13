@@ -16,9 +16,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"covey/internal/target"
+	"covey/internal/target/manifestplug"
 	"covey/internal/target/mcp"
 	"covey/internal/target/wasmplug"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 var ErrNotFound = errors.New("target system not found")
@@ -104,7 +105,7 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 		switch p.Kind {
 		case "custom":
 			p.Category = target.CategoryOther
-			if m, err := target.ParseManifest(p.Manifest); err == nil {
+			if m, err := manifestplug.Parse(p.Manifest); err == nil {
 				p.Label, p.Description = m.Label, m.Description
 				if p.Label == "" {
 					p.Label = m.Name
@@ -214,8 +215,8 @@ func (s *Store) SetEnabled(ctx context.Context, orgID uuid.UUID, name string, en
 
 // PutManifest validates and stores an uploaded manifest plugin. The name of a
 // compiled built-in is off limits — no silent shadowing.
-func (s *Store) PutManifest(ctx context.Context, orgID uuid.UUID, raw []byte) (target.Manifest, error) {
-	m, err := target.ParseManifest(raw)
+func (s *Store) PutManifest(ctx context.Context, orgID uuid.UUID, raw []byte) (manifestplug.Manifest, error) {
+	m, err := manifestplug.Parse(raw)
 	if err != nil {
 		return m, err
 	}
@@ -273,7 +274,7 @@ func (s *Store) PutFromCatalog(ctx context.Context, orgID uuid.UUID, kind string
 			return "", err
 		}
 	case "custom":
-		m, err := target.ParseManifest(raw)
+		m, err := manifestplug.Parse(raw)
 		if err != nil {
 			return "", err
 		}
@@ -384,11 +385,11 @@ func build(name, kind string, manifest []byte) (target.System, error) {
 		}
 		return sys, nil
 	default:
-		m, err := target.ParseManifest(manifest)
+		m, err := manifestplug.Parse(manifest)
 		if err != nil {
 			return nil, fmt.Errorf("stored manifest %s: %w", name, err)
 		}
-		return target.NewManifestSystem(m), nil
+		return manifestplug.New(m), nil
 	}
 }
 
@@ -497,21 +498,21 @@ func (s *Store) BrokeredDefinition(ctx context.Context, orgID uuid.UUID, name st
 
 // Manifest returns the stored manifest of an activated custom plugin (for the
 // daemon, which needs it for execution).
-func (s *Store) Manifest(ctx context.Context, orgID uuid.UUID, name string) (target.Manifest, error) {
+func (s *Store) Manifest(ctx context.Context, orgID uuid.UUID, name string) (manifestplug.Manifest, error) {
 	var enabled bool
 	var manifest []byte
 	err := s.pool.QueryRow(ctx, `SELECT enabled, manifest FROM target_plugins
 		WHERE org_id=$1 AND name=$2 AND kind='custom'`, orgID, name).Scan(&enabled, &manifest)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return target.Manifest{}, ErrNotFound
+		return manifestplug.Manifest{}, ErrNotFound
 	}
 	if err != nil {
-		return target.Manifest{}, err
+		return manifestplug.Manifest{}, err
 	}
 	if !enabled {
-		return target.Manifest{}, fmt.Errorf("%w: %s is disabled", ErrNotFound, name)
+		return manifestplug.Manifest{}, fmt.Errorf("%w: %s is disabled", ErrNotFound, name)
 	}
-	return target.ParseManifest(manifest)
+	return manifestplug.Parse(manifest)
 }
 
 // SystemDoc is the prompt doc of a target system together with its name: what
@@ -571,8 +572,8 @@ func (s *Store) DocsForAgent(ctx context.Context, orgID, agentID uuid.UUID) ([]S
 		case "builtin":
 			enabledBuiltin[name] = true
 		case "custom":
-			if m, err := target.ParseManifest(manifest); err == nil {
-				docs = append(docs, SystemDoc{System: name, Doc: target.NewManifestSystem(m).PromptDoc()})
+			if m, err := manifestplug.Parse(manifest); err == nil {
+				docs = append(docs, SystemDoc{System: name, Doc: manifestplug.New(m).PromptDoc()})
 			}
 		case "mcp":
 			if c, err := mcp.ParseConfig(manifest); err == nil {

@@ -3,7 +3,7 @@ package github
 import (
 	"context"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // Probe reads the account behind the token. `/user` costs one read against the

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 func execute(t *testing.T, workdir, action, params string) any {

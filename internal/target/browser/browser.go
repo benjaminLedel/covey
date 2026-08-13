@@ -24,7 +24,7 @@ import (
 
 	"github.com/chromedp/chromedp"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // shotCounter hands out consecutive default screenshot names per process.

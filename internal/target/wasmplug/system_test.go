@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // system compiles the fixture and puts a fake target system behind it, so the

@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // Probe answers the only question that matters after storing a token: does it

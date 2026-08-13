@@ -14,7 +14,7 @@ import (
 	"testing"
 
 	"covey/internal/marketplace"
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // buildDemoWasm compiles the fixture plugin the way a publisher would: ordinary

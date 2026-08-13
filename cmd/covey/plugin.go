@@ -8,9 +8,10 @@ import (
 	"sort"
 	"strings"
 
-	"covey/internal/target"
+	"covey/internal/target/manifestplug"
 	"covey/internal/target/mcp"
 	"covey/internal/target/wasmplug"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // runPlugin implements `covey plugin lint <file>…` — the check an author runs
@@ -88,11 +89,11 @@ func lintFile(path string) error {
 		fmt.Printf("%s: note — installing this opens the egress to %s\n", path, c.URL)
 		return nil
 	default:
-		m, err := target.ParseManifest(raw)
+		m, err := manifestplug.Parse(raw)
 		if err != nil {
 			return err
 		}
-		sys := target.NewManifestSystem(m)
+		sys := manifestplug.New(m)
 		actions := make([]string, 0, len(m.Actions))
 		for name := range m.Actions {
 			actions = append(actions, name)
@@ -111,7 +112,7 @@ func lintFile(path string) error {
 // something: a capability it could declare and does not. They are printed, not
 // failed on — a plugin without a webhook is a legitimate plugin, it just wakes
 // differently.
-func manifestNotes(m target.Manifest, sys *target.ManifestSystem) []string {
+func manifestNotes(m manifestplug.Manifest, sys *manifestplug.Sys) []string {
 	var notes []string
 	if !sys.Supports(target.CapProbe) {
 		notes = append(notes, `no probe: — the store cannot offer a connection test, so "saved" and "works" stay two different things until an agent runs`)

@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // Das Plugin muss sich selbst in die Registry eintragen — und mit den

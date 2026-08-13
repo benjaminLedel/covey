@@ -1,7 +1,8 @@
-package target
+package manifestplug
 
 import (
 	"context"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -28,9 +29,9 @@ const capManifest = `{
   }
 }`
 
-func capSystem(t *testing.T, body func(path string) string) (*ManifestSystem, *httptest.Server) {
+func capSystem(t *testing.T, body func(path string) string) (*Sys, *httptest.Server) {
 	t.Helper()
-	m, err := ParseManifest([]byte(capManifest))
+	m, err := Parse([]byte(capManifest))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,17 +43,17 @@ func capSystem(t *testing.T, body func(path string) string) (*ManifestSystem, *h
 		w.Write([]byte(body(r.URL.RequestURI())))
 	}))
 	t.Cleanup(srv.Close)
-	sys := NewManifestSystem(m)
+	sys := New(m)
 	sys.HTTP = srv.Client()
 	return sys, srv
 }
 
 func TestManifestCapabilitiesAreDeclaredNotAssumed(t *testing.T) {
-	full, err := ParseManifest([]byte(capManifest))
+	full, err := Parse([]byte(capManifest))
 	if err != nil {
 		t.Fatal(err)
 	}
-	bare, err := ParseManifest([]byte(demoManifest))
+	bare, err := Parse([]byte(demoManifest))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,12 +63,12 @@ func TestManifestCapabilitiesAreDeclaredNotAssumed(t *testing.T) {
 		cap  string
 		want bool
 	}{
-		{"probe declared", full, CapProbe, true},
-		{"poll declared", full, CapPoll, true},
-		{"probe absent", bare, CapProbe, false},
-		{"poll absent", bare, CapPoll, false},
+		{"probe declared", full, target.CapProbe, true},
+		{"poll declared", full, target.CapPoll, true},
+		{"probe absent", bare, target.CapProbe, false},
+		{"poll absent", bare, target.CapPoll, false},
 	} {
-		sys := NewManifestSystem(tc.m)
+		sys := New(tc.m)
 		if got := sys.Supports(tc.cap); got != tc.want {
 			t.Errorf("%s: Supports(%q) = %v, want %v", tc.name, tc.cap, got, tc.want)
 		}
@@ -76,27 +77,27 @@ func TestManifestCapabilitiesAreDeclaredNotAssumed(t *testing.T) {
 	// The whole point of the capability report: the method set alone would say
 	// yes for every manifest, and the store would grow a probe button that can
 	// only fail.
-	var bareSys System = NewManifestSystem(bare)
-	if _, ok := bareSys.(Prober); !ok {
-		t.Fatal("the manifest engine should carry the Prober method either way")
+	var bareSys target.System = New(bare)
+	if _, ok := bareSys.(target.Prober); !ok {
+		t.Fatal("the manifest engine should carry the target.Prober method either way")
 	}
-	if _, ok := Probes(NewManifestSystem(bare)); ok {
-		t.Error("Probes() must say no for a manifest without a probe block")
+	if _, ok := target.Probes(New(bare)); ok {
+		t.Error("target.Probes() must say no for a manifest without a probe block")
 	}
-	if _, ok := Probes(NewManifestSystem(full)); !ok {
-		t.Error("Probes() must say yes for a manifest with a probe block")
+	if _, ok := target.Probes(New(full)); !ok {
+		t.Error("target.Probes() must say yes for a manifest with a probe block")
 	}
-	if _, ok := WorkChecks(NewManifestSystem(bare)); ok {
-		t.Error("WorkChecks() must say no for a manifest without a poll block")
+	if _, ok := target.WorkChecks(New(bare)); ok {
+		t.Error("target.WorkChecks() must say no for a manifest without a poll block")
 	}
-	if _, ok := WorkChecks(NewManifestSystem(full)); !ok {
-		t.Error("WorkChecks() must say yes for a manifest with a poll block")
+	if _, ok := target.WorkChecks(New(full)); !ok {
+		t.Error("target.WorkChecks() must say yes for a manifest with a poll block")
 	}
 }
 
 func TestManifestProbe(t *testing.T) {
 	sys, srv := capSystem(t, func(string) string { return `{"user":{"login":"bot@example"}}` })
-	who, err := sys.Probe(context.Background(), Credential{BaseURL: srv.URL, Token: "tok"})
+	who, err := sys.Probe(context.Background(), target.Credential{BaseURL: srv.URL, Token: "tok"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,14 +109,14 @@ func TestManifestProbe(t *testing.T) {
 	// not the credential's — blaming the credential would send an operator
 	// looking in the wrong place.
 	sys2, srv2 := capSystem(t, func(string) string { return `{"user":{}}` })
-	who, err = sys2.Probe(context.Background(), Credential{BaseURL: srv2.URL, Token: "tok"})
+	who, err = sys2.Probe(context.Background(), target.Credential{BaseURL: srv2.URL, Token: "tok"})
 	if err != nil || who != "ok" {
 		t.Errorf("probe without the field = (%q, %v), want (ok, nil)", who, err)
 	}
 }
 
 func TestManifestProbeReportsHTTPFailure(t *testing.T) {
-	m, err := ParseManifest([]byte(capManifest))
+	m, err := Parse([]byte(capManifest))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,9 +124,9 @@ func TestManifestProbeReportsHTTPFailure(t *testing.T) {
 		http.Error(w, `{"error":"bad token"}`, http.StatusUnauthorized)
 	}))
 	defer srv.Close()
-	sys := NewManifestSystem(m)
+	sys := New(m)
 	sys.HTTP = srv.Client()
-	if _, err := sys.Probe(context.Background(), Credential{BaseURL: srv.URL, Token: "tok"}); err == nil {
+	if _, err := sys.Probe(context.Background(), target.Credential{BaseURL: srv.URL, Token: "tok"}); err == nil {
 		t.Fatal("a 401 must reach the operator as an error")
 	} else if !strings.Contains(err.Error(), "401") {
 		t.Errorf("error should name the status: %v", err)
@@ -142,7 +143,7 @@ func TestManifestPoll(t *testing.T) {
 		}
 		return `{}`
 	})
-	cred := Credential{BaseURL: srv.URL, Token: "tok"}
+	cred := target.Credential{BaseURL: srv.URL, Token: "tok"}
 
 	has, sig, err := sys.HasWorkSigned(context.Background(), cred, "")
 	if err != nil {
@@ -176,7 +177,7 @@ func TestManifestPollUnknownKindFallsBackToTheGeneralCheck(t *testing.T) {
 		}
 		return `{"items":[]}`
 	})
-	has, _, err := sys.HasWorkSigned(context.Background(), Credential{BaseURL: srv.URL, Token: "tok"}, "typo")
+	has, _, err := sys.HasWorkSigned(context.Background(), target.Credential{BaseURL: srv.URL, Token: "tok"}, "typo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -186,22 +187,22 @@ func TestManifestPollUnknownKindFallsBackToTheGeneralCheck(t *testing.T) {
 }
 
 func TestManifestPollWithoutABlockNeverStarves(t *testing.T) {
-	m, err := ParseManifest([]byte(demoManifest))
+	m, err := Parse([]byte(demoManifest))
 	if err != nil {
 		t.Fatal(err)
 	}
-	has, _, err := NewManifestSystem(m).HasWorkSigned(context.Background(), Credential{}, "")
+	has, _, err := New(m).HasWorkSigned(context.Background(), target.Credential{}, "")
 	if err != nil || !has {
 		t.Errorf("a manifest without poll must answer fail-open: (%v, %v)", has, err)
 	}
 }
 
 func TestManifestPromptDocNarrowsToScopes(t *testing.T) {
-	m, err := ParseManifest([]byte(capManifest))
+	m, err := Parse([]byte(capManifest))
 	if err != nil {
 		t.Fatal(err)
 	}
-	sys := NewManifestSystem(m)
+	sys := New(m)
 
 	full := sys.PromptDoc()
 	for _, want := range []string{"get_issue", "comment", "whoami"} {
@@ -224,7 +225,7 @@ func TestManifestPromptDocNarrowsToScopes(t *testing.T) {
 	}
 
 	// Fail-open: no scopes recorded means the full doc, per the
-	// ScopedDocSystem contract.
+	// target.ScopedDocSystem contract.
 	if sys.PromptDocForScopes(nil) != full {
 		t.Error("an empty scope list must yield the full doc")
 	}
@@ -234,17 +235,17 @@ func TestManifestFreeTextDocIsNotNarrowed(t *testing.T) {
 	// demoManifest carries prompt_doc as free text and no per-action lines:
 	// there is no way to tell which sentence belongs to which action, so the
 	// doc stays whole rather than being cut at a guess.
-	m, err := ParseManifest([]byte(demoManifest))
+	m, err := Parse([]byte(demoManifest))
 	if err != nil {
 		t.Fatal(err)
 	}
-	sys := NewManifestSystem(m)
+	sys := New(m)
 	if got := sys.PromptDocForScopes([]string{"read"}); got != m.PromptDoc {
 		t.Errorf("free text should stay whole, got:\n%s", got)
 	}
 }
 
-func TestParseManifestValidatesTheNewBlocks(t *testing.T) {
+func TestParseValidatesTheNewBlocks(t *testing.T) {
 	base := `"name":"x1","webhook":{"id_field":"id"},"actions":{"a":{"method":"GET","path":"/x"%s}}`
 	cases := map[string]string{
 		"scope not declared":  `{` + strings.Replace(base, "%s", `,"scope":"read"`, 1) + `}`,
@@ -254,12 +255,12 @@ func TestParseManifestValidatesTheNewBlocks(t *testing.T) {
 		"poll path relative":  `{` + strings.Replace(base, "%s", "", 1) + `,"poll":{"":{"path":"issues"}}}`,
 	}
 	for name, raw := range cases {
-		if _, err := ParseManifest([]byte(raw)); err == nil {
+		if _, err := Parse([]byte(raw)); err == nil {
 			t.Errorf("%s: error expected", name)
 		}
 	}
 	ok := `{` + strings.Replace(base, "%s", `,"scope":"read"`, 1) + `,"scopes":["read"],"probe":{"path":"/me"},"poll":{"":{"path":"/issues"}}}`
-	if _, err := ParseManifest([]byte(ok)); err != nil {
+	if _, err := Parse([]byte(ok)); err != nil {
 		t.Fatalf("valid manifest rejected: %v", err)
 	}
 }

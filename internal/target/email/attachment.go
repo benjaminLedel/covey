@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // AttachmentResult is the answer of the get_attachment action: where the

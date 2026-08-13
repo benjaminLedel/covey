@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // TestGitChangesSince secures the core of the report: it is measured against the

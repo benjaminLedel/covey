@@ -14,7 +14,7 @@ import (
 
 	"covey/internal/buildinfo"
 	"covey/internal/daemon"
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 
 	// Compiled-in target system plugins: blank import = shipped (analogous to
 	// cmd/covey). Manifest plugins arrive at runtime over the protocol.

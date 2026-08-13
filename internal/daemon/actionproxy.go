@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"covey/internal/reqlog"
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // actionProxy is the sandbox's local tool layer: the runtime talks to it and

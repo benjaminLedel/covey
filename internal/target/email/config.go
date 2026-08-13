@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // Configuration of the email plugin from the brokered secret pair. The broker

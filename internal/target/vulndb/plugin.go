@@ -20,7 +20,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // System bindet die Schwachstellen-Datenbanken an die Target-Registry.

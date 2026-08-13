@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"strings"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // preserveDirs survive a repeated checkout (they are not wiped away together

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // DownloadResult is the answer of the download_attachment action: where the

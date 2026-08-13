@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"covey/internal/agents"
-	"covey/internal/target"
 	targetstore "covey/internal/target/store"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // handleTargetWebhook is the event-router entrance for target systems

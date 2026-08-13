@@ -12,7 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // System binds the dev plugin to the target registry: the sandbox's local

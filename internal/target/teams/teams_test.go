@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 
 	"github.com/golang-jwt/jwt/v5"
 )

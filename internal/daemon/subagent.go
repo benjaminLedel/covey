@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // A sub-run is a nested runtime run that starts INSIDE the project checkout

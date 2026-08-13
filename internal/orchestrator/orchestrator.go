@@ -37,8 +37,8 @@ import (
 	"covey/internal/runtimes"
 	"covey/internal/secrets"
 	"covey/internal/skills"
-	"covey/internal/target"
 	targetstore "covey/internal/target/store"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // DaemonLink abstracts the bidirectional connection to a sandbox daemon. The

@@ -1,4 +1,4 @@
-package target
+package manifestplug
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -36,14 +37,14 @@ const demoManifest = `{
 
 func mustManifest(t *testing.T) Manifest {
 	t.Helper()
-	m, err := ParseManifest([]byte(demoManifest))
+	m, err := Parse([]byte(demoManifest))
 	if err != nil {
 		t.Fatal(err)
 	}
 	return m
 }
 
-func TestParseManifestValidation(t *testing.T) {
+func TestParseValidation(t *testing.T) {
 	cases := map[string]string{
 		"no json":            `{`,
 		"name missing":       `{"actions":{"a":{"method":"GET","path":"/x"}},"webhook":{"id_field":"id"}}`,
@@ -56,17 +57,17 @@ func TestParseManifestValidation(t *testing.T) {
 		"unknown field":      `{"name":"x1","webhook":{"id_field":"id"},"actions":{"a":{"method":"GET","path":"/x"}},"extra":true}`,
 	}
 	for name, raw := range cases {
-		if _, err := ParseManifest([]byte(raw)); err == nil {
+		if _, err := Parse([]byte(raw)); err == nil {
 			t.Errorf("%s: error expected", name)
 		}
 	}
-	if _, err := ParseManifest([]byte(demoManifest)); err != nil {
+	if _, err := Parse([]byte(demoManifest)); err != nil {
 		t.Fatalf("valid manifest rejected: %v", err)
 	}
 }
 
 func TestManifestWebhook(t *testing.T) {
-	sys := NewManifestSystem(mustManifest(t))
+	sys := New(mustManifest(t))
 
 	payload := []byte(`{"issue":{"id":7,"title":"Drucker brennt"},"comment":{"id":3,"text":"Hilfe!","author_type":"customer"}}`)
 	ev, err := sys.ParseWebhook(payload)
@@ -95,7 +96,7 @@ func TestManifestWebhook(t *testing.T) {
 }
 
 func TestManifestVerifyWebhook(t *testing.T) {
-	sys := NewManifestSystem(mustManifest(t))
+	sys := New(mustManifest(t))
 	body := []byte(`{"issue":{"id":1}}`)
 	mac := hmac.New(sha256.New, []byte("s3cret"))
 	mac.Write(body)
@@ -117,7 +118,7 @@ func TestManifestVerifyWebhook(t *testing.T) {
 }
 
 func TestManifestActionSubject(t *testing.T) {
-	sys := NewManifestSystem(mustManifest(t))
+	sys := New(mustManifest(t))
 	if got := sys.ActionSubject("get_issue", []byte(`{}`)); got != "helpdesk:get_issue" {
 		t.Fatalf("wrong default subject: %s", got)
 	}
@@ -145,8 +146,8 @@ func TestManifestExecute(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	sys := NewManifestSystem(mustManifest(t))
-	cred := Credential{BaseURL: srv.URL, Token: "tok-123"}
+	sys := New(mustManifest(t))
+	cred := target.Credential{BaseURL: srv.URL, Token: "tok-123"}
 
 	if _, err := sys.Execute(context.Background(), "get_issue", []byte(`{"issue_id":7}`), cred); err != nil {
 		t.Fatal(err)

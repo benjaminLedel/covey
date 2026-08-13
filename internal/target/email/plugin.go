@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // System binds a mail account (IMAP/SMTP) into the target registry as a target

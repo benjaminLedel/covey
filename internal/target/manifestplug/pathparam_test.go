@@ -1,8 +1,9 @@
-package target
+package manifestplug
 
 import (
 	"context"
 	"encoding/json"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -27,8 +28,8 @@ func TestManifestPfadParameterBrichtNichtAus(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	sys := NewManifestSystem(mustManifest(t))
-	cred := Credential{BaseURL: srv.URL, Token: "tok-123"}
+	sys := New(mustManifest(t))
+	cred := target.Credential{BaseURL: srv.URL, Token: "tok-123"}
 
 	t.Run("Traversal landet nicht im Pfad", func(t *testing.T) {
 		gotRaw = ""

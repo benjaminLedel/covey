@@ -1,4 +1,4 @@
-package target
+package manifestplug
 
 import (
 	"bytes"
@@ -18,10 +18,12 @@ import (
 	"time"
 
 	"covey/internal/reqlog"
+
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // Manifest is a declarative target system plugin: a JSON file an admin uploads
-// instead of compiling Go code. A generic REST engine (ManifestSystem)
+// instead of compiling Go code. A generic REST engine (Sys)
 // interprets it — that way API-key-based REST systems can be connected without
 // shipping a new Covey build. For anything beyond that (OAuth flows, special
 // protocols) the way remains a compiled built-in plugin.
@@ -99,7 +101,7 @@ type ManifestPoll struct {
 	// state persists.
 	//
 	// Empty = no signature; the condition then fires on every level, as a plain
-	// WorkChecker does.
+	// target.WorkChecker does.
 	SignatureField string `json:"signature_field,omitempty"`
 }
 
@@ -163,9 +165,9 @@ type ManifestSubjectRule struct {
 
 var manifestNameRe = regexp.MustCompile(`^[a-z][a-z0-9_-]{1,31}$`)
 
-// ParseManifest validates an uploaded plugin file fail-closed: better a clear
+// Parse validates an uploaded plugin file fail-closed: better a clear
 // error at upload time than silent misbehavior at runtime.
-func ParseManifest(raw []byte) (Manifest, error) {
+func Parse(raw []byte) (Manifest, error) {
 	dec := json.NewDecoder(bytes.NewReader(raw))
 	dec.DisallowUnknownFields()
 	var m Manifest
@@ -227,21 +229,21 @@ func ParseManifest(raw []byte) (Manifest, error) {
 	return m, nil
 }
 
-// ManifestSystem interprets a manifest as a target.System — the same interface
+// Sys interprets a manifest as a target.System — the same interface
 // as a compiled plugin, all enforcement points (guard-rails, broker, recording)
 // apply identically.
-type ManifestSystem struct {
+type Sys struct {
 	M    Manifest
 	HTTP *http.Client
 }
 
-func NewManifestSystem(m Manifest) *ManifestSystem {
-	return &ManifestSystem{M: m, HTTP: reqlog.Client(m.Name, 15*time.Second)}
+func New(m Manifest) *Sys {
+	return &Sys{M: m, HTTP: reqlog.Client(m.Name, 15*time.Second)}
 }
 
-func (s *ManifestSystem) Name() string { return s.M.Name }
+func (s *Sys) Name() string { return s.M.Name }
 
-func (s *ManifestSystem) VerifyWebhook(secret string, body []byte, header http.Header) bool {
+func (s *Sys) VerifyWebhook(secret string, body []byte, header http.Header) bool {
 	if s.M.Webhook.Signature == "" || secret == "" {
 		return true
 	}
@@ -271,14 +273,14 @@ func (s *ManifestSystem) VerifyWebhook(secret string, body []byte, header http.H
 	return hmac.Equal([]byte(hex.EncodeToString(mac)), []byte(got))
 }
 
-func (s *ManifestSystem) ParseWebhook(body []byte) (WebhookEvent, error) {
+func (s *Sys) ParseWebhook(body []byte) (target.WebhookEvent, error) {
 	var payload any
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return WebhookEvent{}, fmt.Errorf("webhook payload: %w", err)
+		return target.WebhookEvent{}, fmt.Errorf("webhook payload: %w", err)
 	}
 	id := jsonPath(payload, s.M.Webhook.IDField)
 	if id == "" {
-		return WebhookEvent{}, fmt.Errorf("webhook payload: %s missing", s.M.Webhook.IDField)
+		return target.WebhookEvent{}, fmt.Errorf("webhook payload: %s missing", s.M.Webhook.IDField)
 	}
 	eventID := jsonPath(payload, s.M.Webhook.EventIDField)
 	title := jsonPath(payload, s.M.Webhook.TitleField)
@@ -299,7 +301,7 @@ func (s *ManifestSystem) ParseWebhook(body []byte) (WebhookEvent, error) {
 		label = s.M.Name
 	}
 	correlation := fmt.Sprintf("%s:%s", s.M.Name, id)
-	return WebhookEvent{
+	return target.WebhookEvent{
 		DedupKey:       fmt.Sprintf("%s:%s:%s", s.M.Name, id, eventID),
 		CorrelationKey: correlation,
 		Title:          fmt.Sprintf("%s: %s", label, title),
@@ -310,7 +312,7 @@ func (s *ManifestSystem) ParseWebhook(body []byte) (WebhookEvent, error) {
 	}, nil
 }
 
-func (s *ManifestSystem) ActionSubject(action string, params json.RawMessage) string {
+func (s *Sys) ActionSubject(action string, params json.RawMessage) string {
 	a, ok := s.M.Actions[action]
 	if !ok {
 		return s.M.Name + ":" + action
@@ -328,7 +330,7 @@ func (s *ManifestSystem) ActionSubject(action string, params json.RawMessage) st
 	return s.M.Name + ":" + action
 }
 
-func (s *ManifestSystem) Execute(ctx context.Context, action string, params json.RawMessage, cred Credential) (any, error) {
+func (s *Sys) Execute(ctx context.Context, action string, params json.RawMessage, cred target.Credential) (any, error) {
 	a, ok := s.M.Actions[action]
 	if !ok {
 		return nil, fmt.Errorf("unknown action %q", action)
@@ -409,7 +411,7 @@ func (s *ManifestSystem) Execute(ctx context.Context, action string, params json
 	return out, nil
 }
 
-func (s *ManifestSystem) PromptDoc() string { return s.doc(nil, false) }
+func (s *Sys) PromptDoc() string { return s.doc(nil, false) }
 
 // PromptDocForScopes (target.ScopedDocSystem) narrows the doc to the scopes an
 // agent was granted in ACCESS.md.
@@ -420,7 +422,7 @@ func (s *ManifestSystem) PromptDoc() string { return s.doc(nil, false) }
 // make the narrowing possible; without them this is a full doc with extra steps.
 // Fail-open in both directions: no scopes recorded, or no action declaring one,
 // and the agent gets everything.
-func (s *ManifestSystem) PromptDocForScopes(scopes []string) string {
+func (s *Sys) PromptDocForScopes(scopes []string) string {
 	if len(scopes) == 0 || !s.scoped() {
 		return s.doc(nil, false)
 	}
@@ -432,7 +434,7 @@ func (s *ManifestSystem) PromptDocForScopes(scopes []string) string {
 }
 
 // scoped: does any action belong to a scope at all?
-func (s *ManifestSystem) scoped() bool {
+func (s *Sys) scoped() bool {
 	for _, a := range s.M.Actions {
 		if a.Scope != "" {
 			return true
@@ -444,7 +446,7 @@ func (s *ManifestSystem) scoped() bool {
 // doc renders the prompt documentation. With granted != nil only the actions
 // whose scope the agent holds are rendered (an action without a scope belongs to
 // everybody).
-func (s *ManifestSystem) doc(granted map[string]bool, narrow bool) string {
+func (s *Sys) doc(granted map[string]bool, narrow bool) string {
 	names := make([]string, 0, len(s.M.Actions))
 	described := false
 	for name, a := range s.M.Actions {
@@ -492,11 +494,11 @@ func (s *ManifestSystem) doc(granted map[string]bool, narrow bool) string {
 // Supports (target.CapabilityReporter) reports the optional capabilities this
 // manifest actually declares. A manifest system's Go type carries the methods
 // either way — only the file says whether they mean anything.
-func (s *ManifestSystem) Supports(capability string) bool {
+func (s *Sys) Supports(capability string) bool {
 	switch capability {
-	case CapProbe:
+	case target.CapProbe:
 		return s.M.Probe != nil
-	case CapPoll:
+	case target.CapPoll:
 		return len(s.M.Poll) > 0
 	default:
 		return true
@@ -505,7 +507,7 @@ func (s *ManifestSystem) Supports(capability string) bool {
 
 // Probe (target.Prober) runs the declared read-only call and reports the
 // identity the target system answers with.
-func (s *ManifestSystem) Probe(ctx context.Context, cred Credential) (string, error) {
+func (s *Sys) Probe(ctx context.Context, cred target.Credential) (string, error) {
 	if s.M.Probe == nil {
 		return "", fmt.Errorf("%s declares no probe", s.M.Name)
 	}
@@ -525,13 +527,13 @@ func (s *ManifestSystem) Probe(ctx context.Context, cred Credential) (string, er
 }
 
 // HasWork (target.WorkChecker) checks the declared poll without a sub-scope.
-func (s *ManifestSystem) HasWork(ctx context.Context, cred Credential) (bool, error) {
+func (s *Sys) HasWork(ctx context.Context, cred target.Credential) (bool, error) {
 	has, _, err := s.HasWorkSigned(ctx, cred, "")
 	return has, err
 }
 
 // HasWorkKind (target.KindWorkChecker) checks the poll of one sub-scope.
-func (s *ManifestSystem) HasWorkKind(ctx context.Context, cred Credential, kind string) (bool, error) {
+func (s *Sys) HasWorkKind(ctx context.Context, cred target.Credential, kind string) (bool, error) {
 	has, _, err := s.HasWorkSigned(ctx, cred, kind)
 	return has, err
 }
@@ -539,7 +541,7 @@ func (s *ManifestSystem) HasWorkKind(ctx context.Context, cred Credential, kind 
 // HasWorkSigned (target.SignedWorkChecker) additionally returns the signature of
 // the work found, so the same piece of news wakes the agent once rather than on
 // every tick until it acts.
-func (s *ManifestSystem) HasWorkSigned(ctx context.Context, cred Credential, kind string) (bool, string, error) {
+func (s *Sys) HasWorkSigned(ctx context.Context, cred target.Credential, kind string) (bool, string, error) {
 	p, ok := s.M.Poll[kind]
 	if !ok {
 		// An unknown sub-scope must not report LESS than the plain check
@@ -608,7 +610,7 @@ func pollSignature(items []any, field string) string {
 // shared plumbing behind probe and poll. Both are read-only calls the CONTROL
 // PLANE makes on its own: no agent is involved, so no path parameters are
 // substituted and nothing from a run can steer them.
-func (s *ManifestSystem) get(ctx context.Context, path string, cred Credential) (any, error) {
+func (s *Sys) get(ctx context.Context, path string, cred target.Credential) (any, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(cred.BaseURL, "/")+path, nil)
 	if err != nil {
 		return nil, err
@@ -639,7 +641,7 @@ func (s *ManifestSystem) get(ctx context.Context, path string, cred Credential) 
 
 // setAuth writes the brokered token into the request the way the manifest
 // declares.
-func (s *ManifestSystem) setAuth(req *http.Request, cred Credential) {
+func (s *Sys) setAuth(req *http.Request, cred target.Credential) {
 	hdr := s.M.Auth.Header
 	if hdr == "" {
 		hdr = "Authorization"

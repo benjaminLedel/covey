@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"covey/internal/marketplace"
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // Der Marktplatz: der Katalog, den die Instanz liest, und das Installieren

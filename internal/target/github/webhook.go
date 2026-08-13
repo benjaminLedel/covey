@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // The webhook intake. GitHub is the first code target system in Covey that has

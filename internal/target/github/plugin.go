@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // System binds GitHub in as a target-system plugin to the target registry: the

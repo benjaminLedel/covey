@@ -17,7 +17,7 @@ import (
 	"strings"
 	"testing"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // newTestClient points a client at a test server. The explicit /api/v3 is the
