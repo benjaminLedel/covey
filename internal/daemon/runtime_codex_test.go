@@ -41,6 +41,33 @@ func TestCodexAdapterAllowsNonGitAgentHomes(t *testing.T) {
 	}
 }
 
+// Covey already runs Codex inside its per-agent Docker sandbox. Leaving the
+// CLI's inner approval/sandbox layer active in a headless run cancels MCP tool
+// calls because no user is present to approve them.
+func TestCodexAdapterUsesOuterSandboxForHeadlessTools(t *testing.T) {
+	home := t.TempDir()
+	bin := filepath.Join(home, "codex")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$HOME/args.txt\"\n" +
+		"printf '%s\\n' '{\"type\":\"turn.completed\",\"text\":\"done\"}'\n"
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_, err := (&Codex{Binary: bin}).Run(context.Background(), RunSpec{
+		Body: "use a tool", HomeDir: home, WorkDir: home,
+		Env: []string{"HOME=" + home},
+	}, func(string, json.RawMessage) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(home, "args.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "--dangerously-bypass-approvals-and-sandbox") {
+		t.Fatalf("headless Codex must rely on Covey's outer sandbox, args were:\n%s", raw)
+	}
+}
+
 func TestCodexAdapterPassesOpenAIAPIKey(t *testing.T) {
 	home := t.TempDir()
 	bin := filepath.Join(home, "codex")

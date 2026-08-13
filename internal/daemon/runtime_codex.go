@@ -131,7 +131,8 @@ func (c *Codex) Run(ctx context.Context, spec RunSpec, onEvent func(kind string,
 	// Covey agent homes are valid workspaces even when the current task does
 	// not involve a checked-out repository. The sandbox container is the trust
 	// boundary; without this flag Codex exits before processing the prompt.
-	args := []string{"exec", "--json", "--skip-git-repo-check"}
+	args := []string{"exec", "--json", "--skip-git-repo-check",
+		"--dangerously-bypass-approvals-and-sandbox"}
 	if spec.MCPConfig != "" {
 		mcpArgs, err := codexMCPArgs(spec.MCPConfig)
 		if err != nil {

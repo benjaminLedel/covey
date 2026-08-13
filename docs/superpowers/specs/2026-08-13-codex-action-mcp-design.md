@@ -20,6 +20,8 @@ The daemon will offer the existing action MCP automatically when the selected ru
 
 Only the task-local loopback URL is transferred. No host Codex configuration, external MCP server, header, or secret is inherited.
 
+The Codex CLI runs with its documented bypass for automation that is already externally sandboxed. Without it, a headless MCP call is cancelled because nobody can answer an approval prompt. Covey's per-agent Docker container remains the execution sandbox, and all target actions still pass through the action proxy.
+
 If a non-empty MCP document is malformed, lacks the `covey` server, uses an unsupported transport, or has an invalid URL, the Codex run fails clearly before starting the CLI. It must not silently run without tools.
 
 ## Security boundaries
