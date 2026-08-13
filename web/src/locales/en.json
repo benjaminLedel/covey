@@ -1575,7 +1575,8 @@
       "stored": "stored"
     },
     "tabAvailable": "Available",
-    "toAvailable": "To the available ones"
+    "toAvailable": "To the available ones",
+    "kindWasm": "Code (wasm)"
   },
   "egress": {
     "title": "Egress",

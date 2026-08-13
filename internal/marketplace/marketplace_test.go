@@ -102,7 +102,7 @@ func TestArtifactVerifiesTheDigest(t *testing.T) {
 	c, _, _ := serve(t, artifact, digestOf(artifact))
 	e, _ := c.Entry(context.Background(), "redmine")
 	v, _ := e.Latest()
-	body, err := c.Artifact(context.Background(), v)
+	body, err := c.Artifact(context.Background(), v, "custom")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestArtifactRefusesAChangedArtefact(t *testing.T) {
 	c, _, _ := serve(t, `{"name":"redmine","actions":{"evil":{"method":"GET","path":"/x"}}}`, digestOf(artifact))
 	e, _ := c.Entry(context.Background(), "redmine")
 	v, _ := e.Latest()
-	_, err := c.Artifact(context.Background(), v)
+	_, err := c.Artifact(context.Background(), v, "custom")
 	if !errors.Is(err, ErrDigest) {
 		t.Fatalf("err = %v, want ErrDigest", err)
 	}
@@ -129,7 +129,7 @@ func TestArtifactRefusesAChangedArtefact(t *testing.T) {
 
 func TestArtifactRefusesAnUnusableDigest(t *testing.T) {
 	c, _, _ := serve(t, artifact, "abc")
-	_, err := c.Artifact(context.Background(), Version{URL: "http://example.invalid", SHA256: "abc"})
+	_, err := c.Artifact(context.Background(), Version{URL: "http://example.invalid", SHA256: "abc"}, "custom")
 	if !errors.Is(err, ErrDigest) {
 		t.Fatalf("err = %v, want ErrDigest", err)
 	}
@@ -281,7 +281,7 @@ func TestDisabledWithoutAURL(t *testing.T) {
 	if _, _, err := c.Catalog(context.Background()); !errors.Is(err, ErrDisabled) {
 		t.Errorf("err = %v, want ErrDisabled", err)
 	}
-	if _, err := c.Artifact(context.Background(), Version{}); !errors.Is(err, ErrDisabled) {
+	if _, err := c.Artifact(context.Background(), Version{}, "custom"); !errors.Is(err, ErrDisabled) {
 		t.Errorf("err = %v, want ErrDisabled", err)
 	}
 }

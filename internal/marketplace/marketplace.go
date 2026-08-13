@@ -42,9 +42,14 @@ const SchemaVersion = 1
 const (
 	// maxCatalog caps the catalogue; it is a list of descriptions.
 	maxCatalog = 8 << 20
-	// maxArtifact caps a single plugin file. A manifest is a description of a
+	// maxArtifact caps a JSON plugin file. A manifest is a description of a
 	// REST API, not a payload — anything larger is not the thing we asked for.
-	maxArtifact  = 1 << 20
+	maxArtifact = 1 << 20
+	// maxModule caps a wasm plugin. Compiled code is legitimately larger: a Go
+	// module carries its runtime and lands around 3–4 MB (TinyGo an order of
+	// magnitude less). Still a ceiling, because the module is held in memory,
+	// stored in a row and shipped to every sandbox that uses it.
+	maxModule    = 16 << 20
 	fetchTimeout = 20 * time.Second
 	// cacheTTL: how long a fetched catalogue is served without asking again.
 	// The catalogue changes when somebody merges a pull request somewhere else
@@ -362,14 +367,18 @@ func parseCatalog(body []byte) (*Catalog, error) {
 // deleted. None of that can change what gets installed, because a changed
 // artefact no longer matches its digest and fails loudly instead of quietly
 // becoming something else.
-func (c *Client) Artifact(ctx context.Context, v Version) ([]byte, error) {
+func (c *Client) Artifact(ctx context.Context, v Version, kind string) ([]byte, error) {
 	if !c.Enabled() {
 		return nil, ErrDisabled
 	}
 	if len(v.SHA256) != 64 {
 		return nil, fmt.Errorf("%w: entry pins no usable digest", ErrDigest)
 	}
-	body, err := c.get(ctx, v.URL, maxArtifact)
+	limit := int64(maxArtifact)
+	if kind == "wasm" {
+		limit = maxModule
+	}
+	body, err := c.get(ctx, v.URL, limit)
 	if err != nil {
 		return nil, err
 	}

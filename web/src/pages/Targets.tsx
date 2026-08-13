@@ -11,6 +11,7 @@ const kindKey: Record<TargetPlugin["kind"], string> = {
   builtin: "targets.kindBuiltin",
   custom: "targets.kindCustom",
   mcp: "targets.kindMcp",
+  wasm: "targets.kindWasm",
 };
 
 // Kachelchen vor dem Namen: Logo bzw. Kategorie-Symbol des Zielsystems.

@@ -694,7 +694,7 @@ export type TargetPlugin = {
   name: string;
   label: string;
   description: string;
-  kind: "builtin" | "custom" | "mcp";
+  kind: "builtin" | "custom" | "mcp" | "wasm";
   // Kategorie fürs Store-Filter — vom Plugin selbst deklariert (siehe
   // internal/target: CategoryTicketing …), leer/unbekannt = "other".
   category?: string;
@@ -722,7 +722,7 @@ export type MarketplaceEntry = {
   label: string;
   description: string;
   category?: string;
-  kind: "builtin" | "custom" | "mcp";
+  kind: "builtin" | "custom" | "mcp" | "wasm";
   publisher: string;
   homepage: string;
   license: string;

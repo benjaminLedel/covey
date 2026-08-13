@@ -1575,7 +1575,8 @@
       "stored": "hinterlegt"
     },
     "tabAvailable": "Vorhanden",
-    "toAvailable": "Zu den vorhandenen"
+    "toAvailable": "Zu den vorhandenen",
+    "kindWasm": "Code (wasm)"
   },
   "egress": {
     "title": "Egress",

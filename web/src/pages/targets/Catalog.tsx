@@ -11,6 +11,7 @@ const kindKey: Record<MarketplaceEntry["kind"], string> = {
   builtin: "targets.kindBuiltin",
   custom: "targets.kindCustom",
   mcp: "targets.kindMcp",
+  wasm: "targets.kindWasm",
 };
 
 // Der Plugin-Katalog: Zielsysteme, die nicht mitgeliefert werden, sondern aus

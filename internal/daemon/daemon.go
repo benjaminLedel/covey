@@ -19,6 +19,7 @@ import (
 
 	"covey/internal/target"
 	"covey/internal/target/mcp"
+	"covey/internal/target/wasmplug"
 )
 
 // Client is the daemon side of the protocol: it connects to the control plane,
@@ -388,6 +389,16 @@ func (c *Client) manifestSystem(ctx context.Context, system string) (target.Syst
 			return nil, false
 		}
 		sys = mcp.NewSystem(cfg)
+	case "wasm":
+		// Compiled once per session and cached below with the others: the
+		// module is machine code after this, and every action instantiates it
+		// afresh rather than recompiling.
+		w, err := wasmplug.Unpack(ctx, inj.Manifest)
+		if err != nil {
+			c.log.Warn("brokered wasm plugin unusable", "system", system, "err", err)
+			return nil, false
+		}
+		sys = w
 	default:
 		m, err := target.ParseManifest(inj.Manifest)
 		if err != nil {

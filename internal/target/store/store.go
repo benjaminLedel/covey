@@ -18,6 +18,7 @@ import (
 
 	"covey/internal/target"
 	"covey/internal/target/mcp"
+	"covey/internal/target/wasmplug"
 )
 
 var ErrNotFound = errors.New("target system not found")
@@ -113,6 +114,18 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 				p.Scopes = m.Scopes
 			}
 			p.SetupDoc = customSetupDoc(p.Name)
+		case "wasm":
+			p.Category = target.CategoryOther
+			if d, ok := wasmplug.StoredDescription(p.Manifest); ok {
+				p.Label, p.Description, p.Scopes = d.Label, d.Description, d.Scopes
+				if p.Label == "" {
+					p.Label = d.Name
+				}
+				if d.Category != "" {
+					p.Category = d.Category
+				}
+			}
+			p.SetupDoc = customSetupDoc(p.Name)
 		case "mcp":
 			p.Category = target.CategoryOther
 			if c, err := mcp.ParseConfig(p.Manifest); err == nil {
@@ -184,7 +197,7 @@ func (s *Store) SetEnabled(ctx context.Context, orgID uuid.UUID, name string, en
 		return err
 	}
 	tag, err := s.pool.Exec(ctx, `UPDATE target_plugins SET enabled=$3, updated_at=now()
-		WHERE org_id=$1 AND name=$2 AND kind IN ('custom','mcp')`, orgID, name, enabled)
+		WHERE org_id=$1 AND name=$2 AND kind IN ('custom','mcp','wasm')`, orgID, name, enabled)
 	if err != nil {
 		return err
 	}
@@ -237,6 +250,14 @@ func (s *Store) PutFromCatalog(ctx context.Context, orgID uuid.UUID, kind string
 	var name string
 	var norm []byte
 	switch kind {
+	case "wasm":
+		// Pack compiles the module and asks it what it is — a module that does
+		// not compile, or will not name itself, never reaches the database.
+		packed, desc, err := wasmplug.Pack(ctx, raw)
+		if err != nil {
+			return "", err
+		}
+		name, norm = desc.Name, packed
 	case "mcp":
 		c, err := mcp.ParseConfig(raw)
 		if err != nil {
@@ -256,7 +277,7 @@ func (s *Store) PutFromCatalog(ctx context.Context, orgID uuid.UUID, kind string
 			return "", err
 		}
 	default:
-		return "", fmt.Errorf("kind %q cannot be installed — only custom and mcp", kind)
+		return "", fmt.Errorf("kind %q cannot be installed — only custom, mcp and wasm", kind)
 	}
 	if _, ok := target.Get(name); ok {
 		return "", fmt.Errorf("name %q is taken by a built-in plugin", name)
@@ -274,7 +295,7 @@ func (s *Store) PutFromCatalog(ctx context.Context, orgID uuid.UUID, kind string
 // deleted.
 func (s *Store) DeleteManifest(ctx context.Context, orgID uuid.UUID, name string) error {
 	tag, err := s.pool.Exec(ctx,
-		`DELETE FROM target_plugins WHERE org_id=$1 AND name=$2 AND kind IN ('custom','mcp')`, orgID, name)
+		`DELETE FROM target_plugins WHERE org_id=$1 AND name=$2 AND kind IN ('custom','mcp','wasm')`, orgID, name)
 	if err != nil {
 		return err
 	}
@@ -349,6 +370,14 @@ func build(name, kind string, manifest []byte) (target.System, error) {
 			return nil, fmt.Errorf("stored mcp config %s: %w", name, err)
 		}
 		return mcp.NewSystem(c), nil
+	case "wasm":
+		// Compiling costs seconds, so this is the one place that pays it: the
+		// control plane resolves a system per probe or poll, not per turn.
+		sys, err := wasmplug.Unpack(context.Background(), manifest)
+		if err != nil {
+			return nil, fmt.Errorf("stored wasm plugin %s: %w", name, err)
+		}
+		return sys, nil
 	default:
 		m, err := target.ParseManifest(manifest)
 		if err != nil {
@@ -448,7 +477,7 @@ func (s *Store) BrokeredDefinition(ctx context.Context, orgID uuid.UUID, name st
 	var enabled bool
 	var manifest []byte
 	err = s.pool.QueryRow(ctx, `SELECT kind, enabled, manifest FROM target_plugins
-		WHERE org_id=$1 AND name=$2 AND kind IN ('custom','mcp')`, orgID, name).Scan(&kind, &enabled, &manifest)
+		WHERE org_id=$1 AND name=$2 AND kind IN ('custom','mcp','wasm')`, orgID, name).Scan(&kind, &enabled, &manifest)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", nil, ErrNotFound
 	}

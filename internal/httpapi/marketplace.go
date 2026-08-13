@@ -187,7 +187,7 @@ func (s *Server) handleMarketplaceInstall(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	raw, err := s.Marketplace.Artifact(r.Context(), version)
+	raw, err := s.Marketplace.Artifact(r.Context(), version, entry.Kind)
 	if err != nil {
 		// Der Digest-Fehler ist der einzige, der hier wirklich zählt: das
 		// Artefakt ist nicht mehr das, worauf der Eintrag zeigt. Er gehört

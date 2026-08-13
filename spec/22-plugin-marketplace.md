@@ -1,14 +1,15 @@
 # 22 — The plugin marketplace (target systems from a catalogue)
 
-Covey connects target systems as **plugins** ([`10-architecture-stack.md`](10-architecture-stack.md), [`13-zammad-integration.md`](13-zammad-integration.md)). Three kinds satisfy the same `target.System` interface, and they differ in exactly one respect that matters here — whether they are code or data:
+Covey connects target systems as **plugins** ([`10-architecture-stack.md`](10-architecture-stack.md), [`13-zammad-integration.md`](13-zammad-integration.md)). Four kinds satisfy the same `target.System` interface, and they differ in what the artefact is and whether installing it needs a rebuild:
 
 | Kind | Artefact | Installable at runtime |
 |---|---|---|
 | `builtin` | a Go subpackage, linked in by blank import | no, needs a build |
 | `custom` | a JSON manifest, interpreted by a generic REST engine | **yes** |
 | `mcp` | the configuration of a reachable MCP server | **yes** |
+| `wasm` | a WebAssembly module — real code, compiled from Go or anything else | **yes** |
 
-Two of the three are data. An organisation can already upload them today and switch them on per organisation; they land as a row in `target_plugins`. What is missing is not the mechanism but the **distribution**: somebody who has written a manifest for their helpdesk has nowhere to put it, and somebody looking for one has nowhere to look.
+Three of the four need no rebuild. An organisation can already upload them today and switch them on per organisation; they land as a row in `target_plugins`. What is missing is not the mechanism but the **distribution**: somebody who has written a manifest for their helpdesk has nowhere to put it, and somebody looking for one has nowhere to look.
 
 The marketplace closes that gap, and it does so without becoming a piece of infrastructure. It is a **catalogue behind a URL** — plus the observation that this makes the marketplace a new *source* for a row that already exists. Activation, `ACCESS.md`, the broker, the guard rails and the recording sit downstream of that row and stay untouched. No new runtime path arises; that is the property the whole design is built to preserve.
 
@@ -81,7 +82,7 @@ The instance fetches it periodically, caches the last good copy and keeps servin
 | Field | Why it is there |
 |---|---|
 | `name` | the plugin's identity — the same name `ACCESS.md`, the secrets (`<name>_token`, `<name>_url`) and the guard-rail subjects use. Unique across the catalogue, and it must match the `name` inside the artefact. |
-| `kind` | `custom`, `mcp` or `builtin` (see below). Decides what the artefact is and which row the installation writes. |
+| `kind` | `custom`, `mcp`, `wasm` or `builtin` (see below). Decides what the artefact is and which row the installation writes. |
 | `category` | places the plugin in the store, from the constants in `internal/target/target.go`. |
 | `publisher`, `homepage`, `license` | who is behind it and where to look — a plugin whose origin cannot be checked has no business being installed. |
 | `versions[]` | append-only. A published version is never edited, only superseded. |
@@ -138,7 +139,23 @@ A catalogue plugin is **not a second-class citizen**, and that was a preconditio
 
 **MCP entries are the exception**: an MCP configuration names its endpoint. Those entries have to display the host prominently in the store, and installing one has to run through the egress allowlist ([`06-observability-control.md`](06-observability-control.md)) rather than around it.
 
-**No executable code.** The catalogue distributes data — manifests and MCP configurations — and nothing else. No Go plugins as binaries, no WASM. Data-only means the marketplace adds a new source to an existing attack surface instead of opening a new one, and that trade is worth more than the flexibility it costs.
+**Code, but sandboxed.** A plugin may be real code, not only a description — a manifest's reach should not become the product's reach. What it may not be is code that runs unconfined.
+
+Concretely, the catalogue distributes three things: manifests, MCP configurations, and **WebAssembly modules** (`kind: "wasm"`). An author writes ordinary Go and compiles it with `GOOS=wasip1 GOARCH=wasm`; the module is one artefact with one digest, pinned like everything else, and it runs the same on every platform.
+
+What makes that tolerable is what the module *cannot* do:
+
+| | |
+|---|---|
+| Network | none. No sockets exist in the sandbox; it asks the host to make a request. |
+| Filesystem | none mounted. |
+| Credentials | **it never sees one.** It names a *path*; the host adds the base URL and the brokered token, and refuses any attempt to set the auth header itself. |
+| Host | it cannot name one. Absolute URLs and `//host` paths are refused, exactly as in a manifest. |
+| Resources | 64 MiB of linear memory, 60 s per invocation, at most 64 requests per action, a fresh instance per call so nothing carries between agents. |
+
+So a hostile module can misbehave *within the system its organization already pointed it at* — the same blast radius a manifest has, where the guard rails and the action subjects apply — and it cannot exfiltrate a token, because it has none and no way out.
+
+**What is still refused: native code.** Go plugins (`.so`) are not distributed and will not be. They demand the exact same toolchain, the exact same version of every shared dependency and the same platform (ending the single static binary), and they run *inside* the control plane's process, next to the master key. That is not a rule about caution, it is what a shared object is.
 
 ## What still belongs in the binary
 
@@ -149,7 +166,7 @@ The catalogue is where a target system goes by default. Compiling one in is the 
 | A protocol that is not JSON over HTTP | `email` (IMAP/SMTP), `nextcloud`, `sharepoint` (WebDAV/Graph) |
 | An auth flow beyond a static header | `teams` (OAuth2 + inbound JWT verification), `sharepoint` (Entra client credentials) |
 | Materialising files into the sandbox, or running work there | `gitlab`, `github` (checkout, uploads, sub-agent runs), `browser`, `dev` |
-| Real computation, not a call | `vulndb` (lock-file parsing, version ordering, merging three sources) |
+| Real computation, not a call | `vulndb` (lock-file parsing, version ordering, merging three sources) — though this is the one reason a **wasm** plugin now also covers, so a new system of this shape belongs in the catalogue rather than in the binary |
 
 Which leaves exactly one: **`zammad` could be a manifest today** — plain REST with a token header, an HMAC webhook, and since the engine learned `probe:` there is nothing left it needs code for. It stays compiled anyway, because moving it would make every running installation reinstall it from a catalogue for no gain, and it is the reference system the rest of the spec points at.
 
