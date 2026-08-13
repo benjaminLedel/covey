@@ -93,6 +93,18 @@ type Description struct {
 	// never sees the token — it says where the HOST should put it. Empty =
 	// "Authorization: Bearer {token}", the same default a manifest has.
 	Auth AuthDesc `json:"auth,omitempty"`
+	// Hosts are additional hosts this plugin needs to reach, beyond the one
+	// brokered base URL — an OAuth token endpoint, a second API, a public
+	// vulnerability database. They are declared, not requested at runtime, so
+	// that an operator sees them BEFORE installing rather than in a log
+	// afterwards.
+	//
+	// Two things do not follow from declaring a host. The organization's egress
+	// allowlist still decides whether the request leaves at all. And the
+	// brokered credential is NEVER sent to a declared host — it belongs to the
+	// system the organization pointed the plugin at, and a token that travels
+	// to a second host is a token that leaked.
+	Hosts []string `json:"hosts,omitempty"`
 	// Probe/Poll say whether the module answers those ops at all. A module
 	// that does not must not be offered a connection test it can only fail.
 	Probe bool `json:"probe,omitempty"`

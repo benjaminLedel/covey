@@ -204,14 +204,40 @@ func (s *System) HasWorkSigned(ctx context.Context, cred target.Credential, kind
 // host; the host adds the base URL and the token; and headers the module sets
 // cannot overwrite the authentication. A plugin can therefore reach exactly the
 // system the organization pointed it at, and nothing else.
-func (s *System) fetcher(cred target.Credential) Fetcher {
+func (s *System) fetcher(cred target.Credential) Fetcher { return s.fetch(cred, false) }
+
+// fetcherAllowingHTTP exists for tests, whose declared host is a local server
+// on plain http. Nothing outside a test may call it — a declared host on the
+// open network has to be https.
+func (s *System) fetcherAllowingHTTP(cred target.Credential) Fetcher { return s.fetch(cred, true) }
+
+func (s *System) fetch(cred target.Credential, allowHTTP bool) Fetcher {
 	return func(ctx context.Context, req FetchRequest) FetchResponse {
-		path := req.Path
-		if !strings.HasPrefix(path, "/") {
-			return FetchResponse{Error: fmt.Sprintf("path %q must start with /", path)}
-		}
-		if strings.Contains(path, "://") || strings.HasPrefix(path, "//") {
+		// A path is relative to the brokered system; an absolute URL is only
+		// allowed to a host the module DECLARED, and never carries the
+		// credential.
+		path, foreign := req.Path, ""
+		switch {
+		// "//host/x" first: it also starts with "/", and taking it for a
+		// relative path is exactly the confusion this check exists to stop.
+		case strings.HasPrefix(path, "//"):
 			return FetchResponse{Error: "a plugin cannot name a host"}
+		case strings.HasPrefix(path, "/"):
+		case strings.Contains(path, "://"):
+			u, err := url.Parse(path)
+			if err != nil || u.Host == "" {
+				return FetchResponse{Error: "a plugin cannot name a host"}
+			}
+			if u.Scheme != "https" && !allowHTTP {
+				return FetchResponse{Error: "a declared host has to be reached over https"}
+			}
+			if !s.declared(u.Host) {
+				return FetchResponse{Error: fmt.Sprintf(
+					"host %q is not declared by this plugin — declare it in Describe so an operator sees it before installing", u.Host)}
+			}
+			foreign = u.Host
+		default:
+			return FetchResponse{Error: fmt.Sprintf("path %q must start with /", path)}
 		}
 		method := strings.ToUpper(req.Method)
 		switch method {
@@ -222,7 +248,10 @@ func (s *System) fetcher(cred target.Credential) Fetcher {
 			return FetchResponse{Error: "method " + method + " is not allowed"}
 		}
 
-		full := strings.TrimRight(cred.BaseURL, "/") + path
+		full := path
+		if foreign == "" {
+			full = strings.TrimRight(cred.BaseURL, "/") + path
+		}
 		if len(req.Query) > 0 {
 			q := url.Values{}
 			for k, v := range req.Query {
@@ -255,7 +284,10 @@ func (s *System) fetcher(cred target.Credential) Fetcher {
 		if body != nil && hreq.Header.Get("Content-Type") == "" {
 			hreq.Header.Set("Content-Type", "application/json")
 		}
-		if cred.Token != "" {
+		// The credential belongs to the brokered system. A declared host is
+		// somebody else, and a token that travels to somebody else is a token
+		// that leaked.
+		if cred.Token != "" && foreign == "" {
 			format := s.desc.Auth.Format
 			if format == "" {
 				format = "Bearer {token}"
@@ -284,6 +316,18 @@ func (s *System) fetcher(cred target.Credential) Fetcher {
 		}
 		return out
 	}
+}
+
+// declared: did the module say it needs this host? Compared case-insensitively
+// and exactly — no wildcards, because "*.example.com" is a good way to end up
+// somewhere nobody reviewed.
+func (s *System) declared(host string) bool {
+	for _, h := range s.desc.Hosts {
+		if strings.EqualFold(strings.TrimSpace(h), host) {
+			return true
+		}
+	}
+	return false
 }
 
 func authHeader(a AuthDesc) string {

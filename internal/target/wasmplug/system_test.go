@@ -174,3 +174,62 @@ func TestPluginErrorsReachTheAgentAsErrors(t *testing.T) {
 		t.Fatalf("err = %v", err)
 	}
 }
+
+func TestDeclaredHostsAreReachableWithoutTheCredential(t *testing.T) {
+	// A plugin that needs a second host — an OAuth token endpoint, a public
+	// database — declares it, so an operator sees it before installing rather
+	// than in a log afterwards. What the second host must never see is the
+	// credential: it belongs to the system the organisation pointed the plugin
+	// at, and a token that travels elsewhere is a token that leaked.
+	mod, err := Compile(context.Background(), demoModule(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mod.Close(context.Background())
+	sys := NewSystem(mod)
+	sys.desc.Hosts = []string{"api.osv.dev"}
+
+	f := sys.fetcher(target.Credential{BaseURL: "https://tracker.example", Token: "s3cret"})
+
+	// Not declared → refused, and the message says what to do about it.
+	resp := f(context.Background(), FetchRequest{Method: "GET", Path: "https://evil.example.com/steal"})
+	if resp.Error == "" || !strings.Contains(resp.Error, "not declared") {
+		t.Errorf("an undeclared host has to be refused: %+v", resp)
+	}
+	// http, even when declared, is refused: a token is not involved, but the
+	// answer would still be somebody else's to write.
+	sys.desc.Hosts = append(sys.desc.Hosts, "plain.example.com")
+	resp = f(context.Background(), FetchRequest{Method: "GET", Path: "http://plain.example.com/x"})
+	if resp.Error == "" || !strings.Contains(resp.Error, "https") {
+		t.Errorf("http to a declared host has to be refused: %+v", resp)
+	}
+}
+
+func TestDeclaredHostGetsNoToken(t *testing.T) {
+	var gotAuth string
+	foreign := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+		w.Write([]byte(`{}`))
+	}))
+	defer foreign.Close()
+
+	mod, err := Compile(context.Background(), demoModule(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer mod.Close(context.Background())
+	sys := NewSystem(mod)
+	sys.HTTP = foreign.Client()
+	// httptest serves plain http, so the https rule is relaxed for this test
+	// only — what is under test here is the credential, not the scheme.
+	host := strings.TrimPrefix(foreign.URL, "http://")
+	sys.desc.Hosts = []string{host}
+	f := sys.fetcherAllowingHTTP(target.Credential{BaseURL: "https://tracker.example", Token: "s3cret"})
+	resp := f(context.Background(), FetchRequest{Method: "GET", Path: foreign.URL + "/anything"})
+	if resp.Error != "" {
+		t.Fatalf("declared host should be reachable: %s", resp.Error)
+	}
+	if gotAuth != "" {
+		t.Errorf("the brokered token reached a declared host: %q", gotAuth)
+	}
+}

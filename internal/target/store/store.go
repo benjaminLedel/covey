@@ -52,9 +52,14 @@ type Plugin struct {
 	// by hand. With SourceVersion and SourceDigest it answers the three
 	// questions a row could not answer before: from where, which version, and
 	// which digest was verified.
-	Source        string `json:"source,omitempty"`
-	SourceVersion string `json:"source_version,omitempty"`
-	SourceDigest  string `json:"source_digest,omitempty"`
+	// Hosts are the extra hosts a compiled plugin declared it needs, beyond the
+	// brokered base URL. They belong in front of a person BEFORE the install,
+	// not in a log after it — and they still have to pass the organization's
+	// egress allowlist.
+	Hosts         []string `json:"hosts,omitempty"`
+	Source        string   `json:"source,omitempty"`
+	SourceVersion string   `json:"source_version,omitempty"`
+	SourceDigest  string   `json:"source_digest,omitempty"`
 }
 
 // List merges the compiled registry with the organization's DB rows.
@@ -117,7 +122,7 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 		case "wasm":
 			p.Category = target.CategoryOther
 			if d, ok := wasmplug.StoredDescription(p.Manifest); ok {
-				p.Label, p.Description, p.Scopes = d.Label, d.Description, d.Scopes
+				p.Label, p.Description, p.Scopes, p.Hosts = d.Label, d.Description, d.Scopes, d.Hosts
 				if p.Label == "" {
 					p.Label = d.Name
 				}
