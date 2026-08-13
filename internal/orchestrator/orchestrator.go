@@ -293,7 +293,15 @@ func (o *Orchestrator) Run(ctx context.Context) error {
 	o.baseCtx = ctx
 	o.mu.Unlock()
 
-	// Startup reconcile: orphaned in_progress tasks (sandbox gone with the last
+	// Startup reconcile: provider-owned ephemeral resources may have survived a
+	// crash before Sandbox.Stop. Clean those before tasks can start new compute.
+	if reconciler, ok := o.Provider.(DataPlaneReconciler); ok {
+		if err := reconciler.Reconcile(ctx); err != nil {
+			o.Log.Warn("startup reconcile: data-plane cleanup failed", "err", err)
+		}
+	}
+
+	// Orphaned in_progress tasks (sandbox gone with the last
 	// process) back to open, otherwise they would hang forever after a
 	// crash/deploy. Has to run before the first tick so they are picked up again
 	// right away.
@@ -976,9 +984,20 @@ func (o *Orchestrator) wake(ctx context.Context, agent agents.Agent) (DaemonLink
 		}
 	}
 
+	// Docker-in-sandbox is opt-in per agent (ACCESS.md: system: dev, scope
+	// incl. "docker") — fail closed on a lookup error, same as a missing
+	// grant: the provider must never guess an agent into a wider capability.
+	enableDocker := false
+	if ok, err := o.Registry.HasAccess(ctx, agent.ID, "dev", "docker"); err != nil {
+		o.Log.Warn("checking dev:docker access failed — starting without Docker", "agent", agent.ID, "err", err)
+	} else {
+		enableDocker = ok
+	}
+
 	sandbox, err := o.Provider.Start(ctx, SandboxSpec{
-		AgentID:     agent.ID,
-		EgressToken: egressToken,
+		AgentID:      agent.ID,
+		EgressToken:  egressToken,
+		EnableDocker: enableDocker,
 		Env: map[string]string{
 			"COVEY_WS_URL":       o.PublicWSURL,
 			"COVEY_DAEMON_TOKEN": tok.Value,

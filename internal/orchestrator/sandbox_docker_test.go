@@ -106,6 +106,175 @@ func TestDockerProviderStart(t *testing.T) {
 	}
 }
 
+// TestDockerProviderStartWithDocker checks the Docker-in-Docker wiring for an
+// agent with EnableDocker set: a sidecar comes up, the sandbox is attached to
+// its private network and told where to find it, and Stop tears both down.
+func TestDockerProviderStartWithDocker(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	fake := filepath.Join(dir, "docker")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" >> " + argsFile + "\necho containerid\n"
+	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	agentID := uuid.New()
+	p := &DockerProvider{Image: "covey-sandbox:test", DataDir: dir, DockerBin: fake}
+	sb, err := p.Start(context.Background(), SandboxSpec{
+		AgentID:      agentID,
+		EnableDocker: true,
+		Env:          map[string]string{"COVEY_AGENT_ID": agentID.String()},
+	})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+
+	raw, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(raw)
+	dindContainer := dindContainerName(agentID.String())
+	dindNet := dindNetworkName(agentID.String())
+	for _, want := range []string{
+		"--privileged",
+		dindContainer,
+		dindNet,
+		"--network-alias\ndind",
+		DindImage,
+		"DOCKER_HOST=tcp://dind:2375",
+		"network\nconnect\n" + dindNet,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("docker invocations do not contain %q:\n%s", want, got)
+		}
+	}
+	// The sidecar must get the SAME home mount as the sandbox — otherwise a
+	// bind mount in a compose file the agent runs resolves against the
+	// sidecar's own, empty filesystem instead of the checkout the agent
+	// actually put there (the real failure this closes: a compose service
+	// couldn't find its bind-mounted script). Both the sandbox's own `run`
+	// and the sidecar's `run` must carry it, so the mount line has to appear
+	// twice, not once.
+	homeMount := "-v\n" + filepath.Join(dir, "homes", agentID.String()) + ":" + sandboxHome
+	if n := strings.Count(got, homeMount); n != 2 {
+		t.Errorf("home mount %q must appear twice (sandbox + sidecar), appeared %d times:\n%s", homeMount, n, got)
+	}
+
+	if err := os.WriteFile(argsFile, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := sb.Stop(context.Background()); err != nil {
+		t.Errorf("Stop: %v", err)
+	}
+	stopArgs, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{dindContainer, dindNet} {
+		if !strings.Contains(string(stopArgs), want) {
+			t.Errorf("Stop did not tear down %q:\n%s", want, string(stopArgs))
+		}
+	}
+}
+
+// TestDockerProviderStartWithDockerHardIsolation proves the two network
+// boundaries around the unauthenticated privileged daemon: its API network is
+// internal and per-agent, and its proxy route is also per-agent. The daemon
+// must never join the shared sandbox egress network where another agent could
+// reach port 2375.
+func TestDockerProviderStartWithDockerHardIsolation(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	fake := filepath.Join(dir, "docker")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" >> " + argsFile + "\necho containerid\n"
+	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	agentID := uuid.New()
+	p := &DockerProvider{
+		Image: "covey-sandbox:test", DataDir: dir, DockerBin: fake,
+		EgressIsolation: "network", EgressProxyImage: "covey-egress:test",
+	}
+	sb, err := p.Start(context.Background(), SandboxSpec{AgentID: agentID, EnableDocker: true})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	t.Cleanup(func() { _ = sb.Stop(context.Background()) })
+
+	raw, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(raw)
+	dindContainer := dindContainerName(agentID.String())
+	dindNet := dindNetworkName(agentID.String())
+	proxyNet := dindProxyNetworkName(agentID.String())
+	for _, want := range []string{
+		"network\ncreate\n--internal\n" + dindNet,
+		"network\ncreate\n--internal\n" + proxyNet,
+		"network\nconnect\n--alias\n" + egressProxyAlias + "\n" + proxyNet + "\n" + egressProxyName,
+		"network\nconnect\n" + proxyNet + "\n" + dindContainer,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("hard-isolation wiring does not contain %q:\n%s", want, got)
+		}
+	}
+	if forbidden := "network\nconnect\n" + egressNetwork + "\n" + dindContainer; strings.Contains(got, forbidden) {
+		t.Fatalf("privileged daemon joined the shared sandbox network:\n%s", got)
+	}
+}
+
+// TestDockerProviderReconcileDindOrphans protects startup cleanup after a
+// control-plane crash, when normal Sandbox.Stop never ran.
+func TestDockerProviderReconcileDindOrphans(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+	fake := filepath.Join(dir, "docker")
+	script := `#!/bin/sh
+printf '%s\n' "$@" >> ` + argsFile + `
+if [ "$1" = "ps" ]; then
+  printf '%s\n' covey-dind-agent-a covey-dind-agent-b
+fi
+if [ "$1" = "network" ] && [ "$2" = "ls" ]; then
+  printf '%s\n' covey-dind-net-agent-a covey-dind-proxy-net-agent-a
+fi
+`
+	if err := os.WriteFile(fake, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	p := &DockerProvider{DockerBin: fake}
+	if err := p.Reconcile(context.Background()); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	raw, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(raw)
+	for _, want := range []string{
+		"rm\n-f\ncovey-dind-agent-a",
+		"rm\n-f\ncovey-dind-agent-b",
+		"network\nrm\ncovey-dind-net-agent-a",
+		"network\nrm\ncovey-dind-proxy-net-agent-a",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("startup cleanup does not contain %q:\n%s", want, got)
+		}
+	}
+}
+
 // TestDockerProviderCheck: the self-check has to name the two ways a fresh
 // installation fails — and stay silent when nothing is in the way. Both
 // answers matter equally: a check that cries wolf gets ignored, and one that

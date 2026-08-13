@@ -26,6 +26,12 @@ type SandboxSpec struct {
 	// as this agent to the egress proxy (Proxy-Authorization). Empty = no
 	// egress enforcement for this sandbox.
 	EgressToken string
+	// EnableDocker grants this sandbox a real Docker daemon (a Docker-in-Docker
+	// sidecar, not the host socket — the sandbox never gets host-level
+	// container control). Opt-in per agent via ACCESS.md (system: dev, scope
+	// incl. "docker"); the caller resolves that and sets this field, the
+	// provider does not know about ACCESS.md itself.
+	EnableDocker bool
 }
 
 type Sandbox interface {
@@ -43,6 +49,13 @@ type Sandbox interface {
 // message names its own remedy.
 type DataPlaneChecker interface {
 	Check(ctx context.Context) []string
+}
+
+// DataPlaneReconciler is the optional startup cleanup port of a provider.
+// Compute is ephemeral, so provider-owned resources left behind by a crashed
+// control plane must not survive indefinitely.
+type DataPlaneReconciler interface {
+	Reconcile(ctx context.Context) error
 }
 
 // FileAccess is the optional second port of a SandboxProvider: the route to an

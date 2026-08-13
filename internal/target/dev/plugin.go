@@ -26,7 +26,7 @@ func init() {
 		Description:   "The agent's own computer: run shell commands in the sandbox (exec), manage long-running processes (start/stop/logs/list) — dev servers, databases, headless Chrome — and hand the actual programming work to a sub-agent inside the project checkout (agent). The sub-agent works with the project's own Claude Code harness (CLAUDE.md, .claude/agents, skills, commands) and reaches no target systems while doing so. Runs entirely in the sandbox daemon; needs no secrets.",
 		Kind:          "builtin",
 		Category:      target.CategoryDev,
-		Scopes:        []string{"exec", "processes", "agent"},
+		Scopes:        []string{"exec", "processes", "agent", "docker"},
 		System:        System{},
 		NoCredentials: true,
 		SetupDoc: `1. Activate the plugin here — no secrets are needed, all actions run
@@ -37,6 +37,26 @@ func init() {
 
 3. If the agent is to install packages or load a browser, release the
    necessary hosts via the egress templates (npm, PyPI, Go, …).
+
+4. Add "docker" to the scope list (system: dev scope: exec,processes,docker)
+   to give the agent a real, isolated Docker daemon — a Docker-in-Docker
+   sidecar started alongside its sandbox (sandbox_docker.go), never the
+   host's own socket. Needed for agents that have to run a project's own
+   "docker compose" stack rather than a single process (e.g. QA verifying a
+   branch against its own full local environment instead of a shared staging
+   deployment that only ever runs main). The sidecar's own image pulls go
+   through the same egress allowlist as the rest of the sandbox — release the
+   registries it needs (Container registries template, plus whatever the
+   compose stack pulls from) the same way as any other egress.
+
+   WARNING: this scope starts a privileged sidecar and therefore changes the
+   sandbox's trust model; it is not equivalent to exec/processes. In hard
+   network isolation the daemon can reach only its per-agent proxy network,
+   and workloads inside it have no direct internet route. A compose workload
+   that needs allowed HTTP(S) egress must receive the proxy variables itself.
+   In cooperative proxy mode nested workloads can choose not to use those
+   variables, just as ordinary sandbox processes can; use hard network
+   isolation where the allowlist must be enforceable rather than advisory.
 
 Note: processes started with start live until the end of the agent's waking
 phase — they are terminated when the sandbox goes to sleep.
@@ -248,5 +268,22 @@ func (System) PromptDoc() string {
    5. Pull findings from logs, at the end stop everything you started.
    The PROCESSES only live until the end of your waking phase — the platform clears them away when you
    fall asleep; start a dev server anew in a new waking phase instead of relying on an old one. What
-   survives is the RECORD of a job: its log and its exit code stay readable with logs/list.`
+   survives is the RECORD of a job: its log and its exit code stay readable with logs/list.
+
+   REAL DOCKER (only if your ACCESS.md grants "dev" scope "docker" — check DOCKER_HOST with
+   exec {"cmd":"echo $DOCKER_HOST"} if unsure; empty means you do not have it): "docker" and
+   "docker compose" work as normal shell commands via exec/start — not against the host, against
+   your OWN Docker-in-Docker sidecar, so containers you start there are yours alone and gone when
+   your sandbox sleeps. This is for running a project's real docker-compose stack — e.g. verifying a
+   specific branch/MR end-to-end against its OWN backend+database+auth instead of a shared staging
+   deployment that only ever reflects main and can therefore never show a branch's actual behavior.
+   Typical shape: checkout the branch (gitlab:checkout or equivalent), clone whatever sibling repos
+   the stack's own README asks for (also via checkout, into the right relative path), read that
+   README for the real compose/start commands instead of guessing, start {"name":"stack","cmd":"docker compose up -d"},
+   wait for it to become healthy (the project's own wait/health script, or repeated
+   exec {"cmd":"docker compose ps"}), run your actual verification against localhost, then
+   exec {"cmd":"docker compose down -v"} to tear it down. The daemon's image pulls use the configured
+   proxy. In hard network isolation nested workloads have no direct internet route; pass HTTP_PROXY,
+   HTTPS_PROXY and NO_PROXY into services that need allowed egress. In cooperative mode those variables
+   are advisory and a workload can bypass them — do not treat that mode as an enforceable workload allowlist.`
 }
