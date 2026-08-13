@@ -19,8 +19,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 )
 
@@ -130,6 +132,14 @@ func (c *Codex) Run(ctx context.Context, spec RunSpec, onEvent func(kind string,
 	// not involve a checked-out repository. The sandbox container is the trust
 	// boundary; without this flag Codex exits before processing the prompt.
 	args := []string{"exec", "--json", "--skip-git-repo-check"}
+	if spec.MCPConfig != "" {
+		mcpArgs, err := codexMCPArgs(spec.MCPConfig)
+		if err != nil {
+			res.Error = "codex MCP config: " + err.Error()
+			return res, nil
+		}
+		args = append(args, mcpArgs...)
+	}
 	if spec.Model != "" {
 		args = append(args, "--model", spec.Model)
 	}
@@ -211,4 +221,38 @@ func (c *Codex) Run(ctx context.Context, spec RunSpec, onEvent func(kind string,
 	res.Result = lastText
 	applyStatus(&res, lastText)
 	return res, nil
+}
+
+// codexMCPArgs translates the runtime-neutral MCP document into Codex's
+// invocation-local TOML override. Covey creates this document itself for the
+// task-local action proxy; accepting only that exact loopback shape keeps host
+// MCP configuration and external servers out of the sandbox run.
+func codexMCPArgs(raw string) ([]string, error) {
+	var cfg struct {
+		Servers map[string]struct {
+			Type string `json:"type"`
+			URL  string `json:"url"`
+		} `json:"mcpServers"`
+	}
+	if err := json.Unmarshal([]byte(raw), &cfg); err != nil {
+		return nil, fmt.Errorf("invalid JSON: %w", err)
+	}
+	server, ok := cfg.Servers["covey"]
+	if !ok {
+		return nil, fmt.Errorf("server covey is missing")
+	}
+	if server.Type != "http" {
+		return nil, fmt.Errorf("server covey uses unsupported transport %q", server.Type)
+	}
+	u, err := url.Parse(server.URL)
+	if err != nil {
+		return nil, fmt.Errorf("server covey URL: %w", err)
+	}
+	port, err := strconv.Atoi(u.Port())
+	if err != nil || port < 1 || port > 65535 || u.Scheme != "http" ||
+		u.Hostname() != "127.0.0.1" || u.Path != "/mcp" || u.User != nil ||
+		u.RawQuery != "" || u.Fragment != "" {
+		return nil, fmt.Errorf("server covey URL must be task-local http://127.0.0.1:<port>/mcp")
+	}
+	return []string{"-c", "mcp_servers.covey.url=" + strconv.Quote(u.String())}, nil
 }

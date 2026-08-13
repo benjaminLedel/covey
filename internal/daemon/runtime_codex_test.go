@@ -66,3 +66,83 @@ func TestCodexAdapterPassesOpenAIAPIKey(t *testing.T) {
 		t.Fatalf("Codex did not receive OPENAI_API_KEY, got %q", got)
 	}
 }
+
+func TestCodexAdapterPassesCoveyMCPServer(t *testing.T) {
+	home := t.TempDir()
+	bin := filepath.Join(home, "codex")
+	script := "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$HOME/args.txt\"\n" +
+		"printf '%s\\n' '{\"type\":\"turn.completed\",\"text\":\"done\"}'\n"
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_, err := (&Codex{Binary: bin}).Run(context.Background(), RunSpec{
+		Body: "finish", HomeDir: home, WorkDir: home,
+		Env:       []string{"HOME=" + home},
+		MCPConfig: `{"mcpServers":{"covey":{"type":"http","url":"http://127.0.0.1:4567/mcp"}}}`,
+	}, func(string, json.RawMessage) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(home, "args.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	want := `mcp_servers.covey.url="http://127.0.0.1:4567/mcp"`
+	found := false
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == "-c" && args[i+1] == want {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("Codex did not receive the Covey MCP server %q, args were:\n%s", want, raw)
+	}
+}
+
+func TestCodexAdapterRejectsMalformedMCPConfig(t *testing.T) {
+	home := t.TempDir()
+	bin := filepath.Join(home, "codex")
+	script := "#!/bin/sh\ntouch \"$HOME/started\"\n" +
+		"printf '%s\\n' '{\"type\":\"turn.completed\",\"text\":\"done\"}'\n"
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	res, err := (&Codex{Binary: bin}).Run(context.Background(), RunSpec{
+		Body: "finish", HomeDir: home, WorkDir: home,
+		Env: []string{"HOME=" + home}, MCPConfig: `{broken`,
+	}, func(string, json.RawMessage) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Status != "failed" || !strings.Contains(res.Error, "MCP") {
+		t.Fatalf("malformed MCP config must fail clearly, got %+v", res)
+	}
+	if _, err := os.Stat(filepath.Join(home, "started")); !os.IsNotExist(err) {
+		t.Fatalf("Codex started despite malformed MCP config, stat error: %v", err)
+	}
+}
+
+func TestCodexAdapterRejectsExternalMCPServer(t *testing.T) {
+	home := t.TempDir()
+	bin := filepath.Join(home, "codex")
+	script := "#!/bin/sh\ntouch \"$HOME/started\"\n"
+	if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	res, err := (&Codex{Binary: bin}).Run(context.Background(), RunSpec{
+		Body: "finish", HomeDir: home, WorkDir: home,
+		Env:       []string{"HOME=" + home},
+		MCPConfig: `{"mcpServers":{"covey":{"type":"http","url":"https://example.com/mcp"}}}`,
+	}, func(string, json.RawMessage) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Status != "failed" || !strings.Contains(res.Error, "task-local") {
+		t.Fatalf("external MCP server must be rejected clearly, got %+v", res)
+	}
+	if _, err := os.Stat(filepath.Join(home, "started")); !os.IsNotExist(err) {
+		t.Fatalf("Codex started with an external MCP server, stat error: %v", err)
+	}
+}
