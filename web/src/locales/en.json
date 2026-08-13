@@ -374,7 +374,9 @@
     "requests": "Requests",
     "skills": "Skills",
     "setupPage": "Setup",
-    "inbox": "Inbox"
+    "inbox": "Inbox",
+    "administrationSection": "Administration",
+    "administration": "Organization"
   },
   "costs": {
     "title": "Cost & Tokens",
@@ -477,7 +479,7 @@
     "denied": "denied"
   },
   "role": {
-    "platform_admin": "Platform Admin",
+    "org_admin": "Org Admin",
     "agent_owner": "Agent Owner",
     "security": "Security",
     "auditor": "Auditor",
@@ -1196,7 +1198,7 @@
     "done": "Done",
     "reject": "Reject",
     "blockedConflict": "The configuration has changed since this proposal was written — it has to be rewritten or discarded.",
-    "blockedSecurity": "This proposal changes ACCESS.md or EGRESS.md. Only platform_admin or security may accept it.",
+    "blockedSecurity": "This proposal changes ACCESS.md or EGRESS.md. Only org_admin or security may accept it.",
     "appliedAs": "Applied as version {{v}}"
   },
   "guardrails": {
@@ -1605,7 +1607,7 @@
     "assignedToAgents": "{{count}} agents",
     "noTemplates": "No templates yet",
     "noTemplatesHint": "No templates yet — create the first one with \"New template\".",
-    "noTemplatesAdmin": "No templates yet (creating requires role platform_admin or security).",
+    "noTemplatesAdmin": "No templates yet (creating requires role org_admin or security).",
     "noHosts": "no hosts yet",
     "moreHosts": "+{{count}} more",
     "catalog": "Catalog",
@@ -1730,7 +1732,7 @@
   "users": {
     "title": "Users",
     "subtitle": "People & roles of this organization (RBAC)",
-    "desc": "Roles take effect immediately on active sessions. A password reset logs the user out everywhere. The last platform admin of an organization cannot be deleted or demoted.",
+    "desc": "Roles take effect immediately on active sessions. A password reset logs the user out everywhere. The last org admin of an organization cannot be deleted or demoted.",
     "noAccess": "Your role ({{role}}) does not have access to user management.",
     "email": "Email",
     "name": "Name",
@@ -1947,5 +1949,75 @@
     "draftsHint": "Look them through and hire them — until then none of them works.",
     "noDrafts": "The task finished, but no draft came out of it. The report is in the People department’s backlog.",
     "failed": "The brief failed."
+  },
+  "administration": {
+    "title": "Administration",
+    "subtitle": "This organization",
+    "tabProfile": "Profile",
+    "tabMembers": "Members & roles",
+    "tabUsage": "Usage",
+    "tabAudit": "Audit",
+    "profileDesc": "This organization's master data. Description and platform repository also sit on the org chart — same store, second way in.",
+    "usageDesc": "What this organization uses. The quotas these numbers will one day be checked against do not exist yet.",
+    "members": "Members",
+    "agents": "Agents",
+    "agentsActive": "of them busy",
+    "cost30d": "Cost (30 days)"
+  },
+  "platform": {
+    "title": "Platform",
+    "subtitle": "This installation",
+    "tabOrgs": "Organizations",
+    "tabAccounts": "Accounts",
+    "tabSettings": "Settings",
+    "tabWaitlist": "Waitlist",
+    "accountsDesc": "Every login of this installation. The level on the right belongs to the instance; the roles below it belong to one organization each and are handed out there.",
+    "noAccounts": "No accounts yet.",
+    "you": "— you",
+    "unverified": "unverified",
+    "noSeat": "in no organization",
+    "lastLogin": "last seen {{date}}",
+    "neverSignedIn": "never signed in",
+    "roleUser": "User",
+    "roleSystemAdmin": "System admin",
+    "settingsDesc": "The switches of this installation. They apply to every tenant and take effect immediately — signup.mode decides whether this instance accepts anybody at all.",
+    "save": "Save",
+    "unchanged": "default",
+    "default": "default: {{value}}",
+    "setting": {
+      "signup.mode": "Does this installation accept self-registration?",
+      "signup.org_quota": "How many organizations one account may create.",
+      "site.name": "What this installation calls itself — on the sign-up page and in its mails."
+    },
+    "choice": {
+      "signup.mode": {
+        "off": "closed",
+        "waitlist": "code required",
+        "open": "open"
+      }
+    },
+    "waitlistDesc": "Codes that let somebody create an account while signup.mode is set to “code required”. Only the hash is stored — the plaintext exists exactly once, at creation.",
+    "noCodes": "No codes yet.",
+    "codeLabel": "Occasion",
+    "codeLabelPlaceholder": "Conference X, pilot customer Y",
+    "codeMaxUses": "Uses",
+    "codeExpires": "Valid until",
+    "codeOrg": "Joins",
+    "codeOrgNone": "found their own organization",
+    "codePattern": "E-mail pattern",
+    "createCode": "Create code",
+    "codeCreated": "New code:",
+    "codeOnce": "Write it down now — it is not shown anywhere again.",
+    "copy": "Copy",
+    "dismiss": "Got it",
+    "codeNoLabel": "no occasion",
+    "codeUses": "{{used}} of {{max}} used",
+    "codeUntil": "until {{date}}",
+    "codeJoins": "joins {{org}}",
+    "codeOpen": "open",
+    "codeRevoked": "revoked",
+    "codeExpired": "expired",
+    "codeUsedUp": "used up",
+    "revoke": "Revoke"
   }
 }

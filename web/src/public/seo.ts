@@ -285,6 +285,7 @@ export function altPath(pathname: string, lang: Lang): string {
    Tippfehler, der eine ehrliche 404 verdient. Deckungsgleich mit den Routen in
    App.tsx — App.test.tsx hält beides zusammen. */
 export const APP_ROUTE_PREFIXES = [
+  "/administration",
   "/agents",
   "/approvals",
   "/audit",
@@ -296,6 +297,7 @@ export const APP_ROUTE_PREFIXES = [
   "/org",
   "/orgs",
   "/people",
+  "/platform",
   "/profile",
   "/requests",
   "/runtimes",

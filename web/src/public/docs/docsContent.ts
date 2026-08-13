@@ -1197,7 +1197,7 @@ Ein Agent ist ein eigenständiges Subjekt, kein Prozess unter einem Sammelkonto.
 
 ## Menschen und Rollen
 
-Auf derselben Organisation arbeiten Menschen mit verschiedenen Rollen: Plattform-Admin, Agenten-Eigentümer, Betrachter, Revision. Wer welche Agenten sieht, wer Secrets hinterlegen darf, wer Freigaben erteilen kann — das entscheidet die Rolle, und jede administrative Handlung steht im Audit-Trail.
+Auf derselben Organisation arbeiten Menschen mit verschiedenen Rollen: Org-Admin, Agenten-Eigentümer, Betrachter, Revision. Wer welche Agenten sieht, wer Secrets hinterlegen darf, wer Freigaben erteilen kann — das entscheidet die Rolle, und jede administrative Handlung steht im Audit-Trail.
 
 Angemeldet wird eingebaut über JWT und Argon2id. Wer ein Unternehmens-Login will, hängt einen OIDC-Anbieter an dieselbe Schnittstelle — Keycloak, Entra, was im Haus steht.
 

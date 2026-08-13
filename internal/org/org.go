@@ -1,7 +1,7 @@
 // Package org manages the tenants (organizations) and the humans within them
 // (RBAC, spec/09). The organization is Covey's unit — this store carries the
 // admin side: create/change/remove users, manage tenants. Protective rules (the
-// last platform_admin stays) are enforced here, not in the UI.
+// last org_admin stays) are enforced here, not in the UI.
 package org
 
 import (
@@ -14,14 +14,16 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"covey/internal/identity"
 )
 
 var (
 	ErrNotFound   = errors.New("not found")
 	ErrEmailTaken = errors.New("e-mail is already taken")
-	// ErrLastAdmin guards against lockout: the last platform_admin of an
+	// ErrLastAdmin guards against lockout: the last org_admin of an
 	// organization can neither be deleted nor demoted.
-	ErrLastAdmin = errors.New("the last platform_admin of the organization cannot be removed")
+	ErrLastAdmin = errors.New("the last org_admin of the organization cannot be removed")
 	// ErrManagerCycle keeps the org chart acyclic: nobody can (transitively)
 	// report to themselves.
 	ErrManagerCycle = errors.New("manager relation would form a cycle")
@@ -237,7 +239,7 @@ func (s *Store) UpdateHuman(ctx context.Context, orgID, id uuid.UUID, upd HumanU
 		return Human{}, err
 	}
 
-	if upd.Role != nil && h.Role == "platform_admin" && *upd.Role != "platform_admin" {
+	if upd.Role != nil && h.Role == identity.RoleOrgAdmin && *upd.Role != identity.RoleOrgAdmin {
 		if err := ensureOtherAdmin(ctx, tx, orgID, id); err != nil {
 			return Human{}, err
 		}
@@ -320,7 +322,7 @@ func (s *Store) DeleteHuman(ctx context.Context, orgID, id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	if role == "platform_admin" {
+	if role == identity.RoleOrgAdmin {
 		if err := ensureOtherAdmin(ctx, tx, orgID, id); err != nil {
 			return err
 		}
@@ -368,7 +370,7 @@ func ensureNoManagerCycle(ctx context.Context, tx pgx.Tx, orgID, id, managerID u
 func ensureOtherAdmin(ctx context.Context, tx pgx.Tx, orgID, exceptID uuid.UUID) error {
 	var n int
 	if err := tx.QueryRow(ctx, `SELECT count(*) FROM humans
-		WHERE org_id=$1 AND role='platform_admin' AND id<>$2`, orgID, exceptID).Scan(&n); err != nil {
+		WHERE org_id=$1 AND role='org_admin' AND id<>$2`, orgID, exceptID).Scan(&n); err != nil {
 		return err
 	}
 	if n == 0 {
@@ -379,7 +381,7 @@ func ensureOtherAdmin(ctx context.Context, tx pgx.Tx, orgID, exceptID uuid.UUID)
 
 // --- Organizations (tenants) ---
 
-// ListOrgs returns all tenants of the installation. In the MVP platform_admin
+// ListOrgs returns all tenants of the installation. In the MVP org_admin
 // is at the same time the operator role of the deployment instance — a
 // dedicated super-admin level only follows with the OIDC build-out.
 func (s *Store) ListOrgs(ctx context.Context) ([]Organization, error) {
@@ -402,7 +404,7 @@ func (s *Store) ListOrgs(ctx context.Context) ([]Organization, error) {
 	return list, rows.Err()
 }
 
-// CreateOrg creates a tenant together with an initial platform_admin — an
+// CreateOrg creates a tenant together with an initial org_admin — an
 // organization without an admin would be unreachable.
 func (s *Store) CreateOrg(ctx context.Context, name, adminEmail, adminName, adminPasswordHash string) (Organization, error) {
 	tx, err := s.pool.Begin(ctx)
@@ -433,7 +435,7 @@ func (s *Store) CreateOrg(ctx context.Context, name, adminEmail, adminName, admi
 		return Organization{}, err
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO humans (id, org_id, account_id, email, display_name, password_hash, role)
-		VALUES ($1,$2,$3,$4,$5,$6,'platform_admin')`,
+		VALUES ($1,$2,$3,$4,$5,$6,'org_admin')`,
 		uuid.New(), o.ID, accountID, adminEmail, adminName, adminPasswordHash)
 	if isUniqueViolation(err) {
 		return Organization{}, ErrEmailTaken

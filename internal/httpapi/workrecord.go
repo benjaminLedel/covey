@@ -11,7 +11,7 @@ package httpapi
 //
 // WER SIE LESEN DARF, ist hier entschieden und nicht geerbt. spec/17 sagt,
 // Leistungsdaten je Agent sind empfindlicher als eine Kostensumme; die Akte
-// folgt deshalb den RECORDINGS, nicht den Kostenzahlen: platform_admin,
+// folgt deshalb den RECORDINGS, nicht den Kostenzahlen: org_admin,
 // security, der Verwalter des Agenten und der Auditor lesend. Controlling
 // fehlt. „Wer die Rechnung sehen darf, darf auch das sehen" wäre die Antwort,
 // die die Funktion in jedem Betrieb mit Betriebsrat unbenutzbar macht.
@@ -27,7 +27,7 @@ import (
 // einzelnen Agenten — sie aus der Akte zu lesen ist dieselbe Handlung wie die
 // Akte zu lesen (spec/21, und damit die offene Frage aus spec/17).
 func workRecordRoles() []string {
-	return []string{identity.RolePlatformAdmin, identity.RoleAgentOwner,
+	return []string{identity.RoleOrgAdmin, identity.RoleAgentOwner,
 		identity.RoleSecurity, identity.RoleAuditor}
 }
 

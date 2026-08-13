@@ -12,7 +12,7 @@ import { ConfirmDialog } from "../components/Modal";
 export default function Requests({ me }: { me: Principal }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const canClear = me.Role === "platform_admin" || me.Role === "security";
+  const canClear = me.Role === "org_admin" || me.Role === "security";
 
   const [direction, setDirection] = useState("");
   const [system, setSystem] = useState("");

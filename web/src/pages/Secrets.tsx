@@ -13,7 +13,7 @@ import {
   type SecretPreview,
 } from "../api";
 
-const canEdit = (role: string) => role === "platform_admin" || role === "security";
+const canEdit = (role: string) => role === "org_admin" || role === "security";
 
 export default function Secrets({ me }: { me: Principal }) {
   const { t } = useTranslation();

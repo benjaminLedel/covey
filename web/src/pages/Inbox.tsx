@@ -309,7 +309,7 @@ function ItemCard({
   const darfAnnehmen =
     darfEntscheiden &&
     !konflikt &&
-    (!item.needs_security || me.Role === "platform_admin" || me.Role === "security");
+    (!item.needs_security || me.Role === "org_admin" || me.Role === "security");
 
   return (
     <div className="card mb-2">

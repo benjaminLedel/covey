@@ -66,7 +66,7 @@ type DragItem =
  * Personalabteilung und im Systemprompt des Config-Assistenten. Deshalb steht
  * er hier, wo man ihn beim Lesen des Org-Charts sowieso vor Augen hat — und
  * nicht in der Mandantenverwaltung, in die die meisten nie kommen. */
-function CompanyDescription() {
+export function CompanyDescription() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const own = useQuery({ queryKey: ["own-org"], queryFn: () => api<Organization>("/org") });
@@ -140,7 +140,7 @@ function CompanyDescription() {
  * Welt mitliest. Deshalb steht das hier bei den Stammdaten und nicht in einem
  * Prompt. Leer heißt: die dritte Schicht gibt es nicht, und im Prompt steht
  * davon auch nichts. */
-function PlatformRepo() {
+export function PlatformRepo() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const own = useQuery({ queryKey: ["own-org"], queryFn: () => api<Organization>("/org") });

@@ -21,11 +21,18 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"covey/internal/identity"
 )
 
 var (
 	ErrNotFound   = errors.New("account not found")
 	ErrEmailTaken = errors.New("this e-mail address is already registered")
+	// ErrLastSystemAdmin guards the instance against the same lockout that
+	// org.ErrLastAdmin guards an organisation against: the last account that
+	// can administer the installation must not demote itself out of existence.
+	// The way back would be shell access to the server.
+	ErrLastSystemAdmin = errors.New("the last system administrator of the installation cannot be demoted")
 )
 
 // Platform roles — the instance level, deliberately not an org role.
@@ -140,9 +147,118 @@ func (s *Store) ByEmail(ctx context.Context, email string) (Account, error) {
 	return a, err
 }
 
-// SetPlatformRole raises or lowers the instance level. Deliberately without an
-// HTTP route: system_admin is not something an organisation may hand to
-// itself.
+// Seat is one membership as the instance administration sees it: which
+// organisation, in which role. Deliberately without the seat's own id — the
+// platform view lists who works where, it does not edit foreign organisations.
+type Seat struct {
+	OrgID   uuid.UUID `json:"org_id"`
+	OrgName string    `json:"org_name"`
+	Role    string    `json:"role"`
+}
+
+// Listed is an account plus the seats hanging off it — the answer to "who can
+// sign in to this installation, and where do they work".
+type Listed struct {
+	Account
+	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
+	Seats       []Seat     `json:"seats"`
+}
+
+// List returns every account of the installation, oldest first, each with its
+// memberships. One query and one join rather than N+1: the list is short today
+// and must not become the reason the page is slow when it is not.
+func (s *Store) List(ctx context.Context) ([]Listed, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT a.id, a.email, a.display_name, a.email_verified_at, a.platform_role,
+		        a.created_at, a.last_login_at,
+		        h.org_id, o.name, h.role
+		 FROM accounts a
+		 LEFT JOIN humans h ON h.account_id = a.id
+		 LEFT JOIN organizations o ON o.id = h.org_id
+		 ORDER BY a.created_at, o.name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []Listed
+	byID := map[uuid.UUID]int{}
+	for rows.Next() {
+		var a Listed
+		var orgID *uuid.UUID
+		var orgName, role *string
+		if err := rows.Scan(&a.ID, &a.Email, &a.DisplayName, &a.VerifiedAt, &a.PlatformRole,
+			&a.CreatedAt, &a.LastLoginAt, &orgID, &orgName, &role); err != nil {
+			return nil, err
+		}
+		i, seen := byID[a.ID]
+		if !seen {
+			a.Seats = []Seat{}
+			out = append(out, a)
+			i = len(out) - 1
+			byID[a.ID] = i
+		}
+		if orgID != nil {
+			out[i].Seats = append(out[i].Seats, Seat{
+				OrgID: *orgID, OrgName: derefOr(orgName, ""), Role: identity.NormalizeRole(derefOr(role, "")),
+			})
+		}
+	}
+	return out, rows.Err()
+}
+
+func derefOr(s *string, fallback string) string {
+	if s == nil {
+		return fallback
+	}
+	return *s
+}
+
+// SetPlatformRoleByID is SetPlatformRole addressed by id — what the platform
+// administration works with, where an account is a row in a list and not an
+// address somebody types.
+//
+// Unlike the CLI path it refuses the last demotion: `covey system-admin remove`
+// runs on the server, where whoever runs it can undo it. A click in the browser
+// cannot be undone from the browser.
+func (s *Store) SetPlatformRoleByID(ctx context.Context, id uuid.UUID, role string) error {
+	if role != RoleUser && role != RoleSystemAdmin {
+		return errors.New("role must be user or system_admin")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	var current string
+	err = tx.QueryRow(ctx, `SELECT platform_role FROM accounts WHERE id=$1 FOR UPDATE`, id).Scan(&current)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if current == RoleSystemAdmin && role == RoleUser {
+		var others int
+		if err := tx.QueryRow(ctx,
+			`SELECT count(*) FROM accounts WHERE platform_role=$1 AND id<>$2`,
+			RoleSystemAdmin, id).Scan(&others); err != nil {
+			return err
+		}
+		if others == 0 {
+			return ErrLastSystemAdmin
+		}
+	}
+	if _, err := tx.Exec(ctx, `UPDATE accounts SET platform_role=$2 WHERE id=$1`, id, role); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// SetPlatformRole raises or lowers the instance level, addressed by e-mail —
+// the CLI path (`covey system-admin`). The route into the product is
+// SetPlatformRoleByID.
 func (s *Store) SetPlatformRole(ctx context.Context, email, role string) error {
 	if role != RoleUser && role != RoleSystemAdmin {
 		return errors.New("role must be user or system_admin")

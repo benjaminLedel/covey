@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { api, type Principal, type RuntimeInfo, type SetupStep } from "../api";
 import RuntimeInstances from "./RuntimeInstances";
 
-const canEdit = (role: string) => role === "platform_admin" || role === "security";
+const canEdit = (role: string) => role === "org_admin" || role === "security";
 
 function renderText(text: string) {
   return text.split(/(`[^`]+`)/g).map((part, i) =>

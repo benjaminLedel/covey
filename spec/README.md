@@ -76,7 +76,7 @@ The guiding metaphor from which the whole architecture follows: the platform is 
 - **Supervisor agent** — An optional agent that reviews other agents' activity and flags anomalies.
 - **Enforcement point** — A place where the platform sits in the data flow anyway (broker, egress, tool layer) and where guard rails are enforced technically.
 - **Organisation / tenant** — The unit a Covey instance is operated for. All agents, roles, guard rails, budgets and audits are org-scoped.
-- **Human role** — A person with defined rights on the platform (e.g. platform admin, agent owner, security/compliance, auditor, controlling). Governed by RBAC, authenticated via SSO.
+- **Human role** — A person with defined rights on the platform (e.g. org admin, agent owner, security/compliance, auditor, controlling). Governed by RBAC, authenticated via SSO.
 - **Agent owner** — The person (usually a department's team lead) accountable for a particular agent: its config, its backlog priority, its approvals.
 - **Draft** — An agent that has been created but not yet hired: it has a config, a name and a place, but it is not dispatched, has no heartbeat, no sandbox and no cost. It becomes an employee when a person hires it. See [`20-hiring-and-setup.md`](20-hiring-and-setup.md).
 - **People department** — The org-owned agent whose job is hiring other agents: it turns a person's description of a job into a complete agent config and drafts the agent. Config as code instead of a hardcoded generation call — the same principle as the memory curator. See [`20-hiring-and-setup.md`](20-hiring-and-setup.md).

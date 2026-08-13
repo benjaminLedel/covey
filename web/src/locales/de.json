@@ -374,7 +374,9 @@
     "requests": "Requests",
     "skills": "Skills",
     "setupPage": "Einrichtung",
-    "inbox": "Posteingang"
+    "inbox": "Posteingang",
+    "administrationSection": "Verwaltung",
+    "administration": "Administration"
   },
   "costs": {
     "title": "Kosten & Token",
@@ -477,7 +479,7 @@
     "denied": "abgelehnt"
   },
   "role": {
-    "platform_admin": "Plattform-Admin",
+    "org_admin": "Org-Admin",
     "agent_owner": "Agent-Owner",
     "security": "Security",
     "auditor": "Auditor",
@@ -1196,7 +1198,7 @@
     "done": "Erledigt",
     "reject": "Ablehnen",
     "blockedConflict": "Die Konfiguration hat sich seit diesem Vorschlag geändert — er muss neu geschrieben oder verworfen werden.",
-    "blockedSecurity": "Dieser Vorschlag ändert ACCESS.md oder EGRESS.md. Nur platform_admin oder security dürfen ihn annehmen.",
+    "blockedSecurity": "Dieser Vorschlag ändert ACCESS.md oder EGRESS.md. Nur org_admin oder security dürfen ihn annehmen.",
     "appliedAs": "Übernommen als Version {{v}}"
   },
   "guardrails": {
@@ -1605,7 +1607,7 @@
     "assignedToAgents": "{{count}} Agenten",
     "noTemplates": "Noch keine Templates",
     "noTemplatesHint": "Noch keine Templates — lege mit „Neues Template“ das erste an.",
-    "noTemplatesAdmin": "Noch keine Templates (Anlegen erfordert Rolle platform_admin oder security).",
+    "noTemplatesAdmin": "Noch keine Templates (Anlegen erfordert Rolle org_admin oder security).",
     "noHosts": "noch keine Hosts",
     "moreHosts": "+{{count}} weitere",
     "catalog": "Katalog",
@@ -1730,7 +1732,7 @@
   "users": {
     "title": "Benutzer",
     "subtitle": "Menschen & Rollen dieser Organisation (RBAC)",
-    "desc": "Rollen wirken sofort auf laufende Sessions. Ein Passwort-Reset meldet den Nutzer überall ab. Der letzte Plattform-Admin einer Organisation kann weder gelöscht noch herabgestuft werden.",
+    "desc": "Rollen wirken sofort auf laufende Sessions. Ein Passwort-Reset meldet den Nutzer überall ab. Der letzte Org-Admin einer Organisation kann weder gelöscht noch herabgestuft werden.",
     "noAccess": "Ihre Rolle ({{role}}) hat auf die Benutzerverwaltung keinen Zugriff.",
     "email": "E-Mail",
     "name": "Name",
@@ -1947,5 +1949,75 @@
     "draftsHint": "Durchsehen und einstellen — vorher arbeitet keiner von ihnen.",
     "noDrafts": "Die Aufgabe ist fertig, es ist aber kein Entwurf entstanden. Der Bericht steht im Backlog der Personalabteilung.",
     "failed": "Die Ausschreibung ist fehlgeschlagen."
+  },
+  "administration": {
+    "title": "Administration",
+    "subtitle": "Diese Organisation",
+    "tabProfile": "Profil",
+    "tabMembers": "Mitglieder & Rollen",
+    "tabUsage": "Verbrauch",
+    "tabAudit": "Audit",
+    "profileDesc": "Die Stammdaten dieser Organisation. Beschreibung und Plattform-Repository stehen auch am Organigramm — es ist derselbe Speicher, nur der zweite Weg dorthin.",
+    "usageDesc": "Was diese Organisation beansprucht. Kontingente, gegen die diese Zahlen einmal geprüft werden, gibt es noch nicht.",
+    "members": "Mitglieder",
+    "agents": "Agenten",
+    "agentsActive": "davon beschäftigt",
+    "cost30d": "Kosten (30 Tage)"
+  },
+  "platform": {
+    "title": "Plattform",
+    "subtitle": "Diese Installation",
+    "tabOrgs": "Organisationen",
+    "tabAccounts": "Konten",
+    "tabSettings": "Einstellungen",
+    "tabWaitlist": "Warteliste",
+    "accountsDesc": "Jede Anmeldung dieser Installation. Die Ebene rechts gilt für die Instanz; die Rollen darunter gehören je einer Organisation und werden dort vergeben.",
+    "noAccounts": "Noch keine Konten.",
+    "you": "— Sie",
+    "unverified": "unbestätigt",
+    "noSeat": "in keiner Organisation",
+    "lastLogin": "zuletzt {{date}}",
+    "neverSignedIn": "nie angemeldet",
+    "roleUser": "Nutzer",
+    "roleSystemAdmin": "System-Admin",
+    "settingsDesc": "Die Schalter dieser Installation. Sie gelten für alle Mandanten und wirken sofort — signup.mode entscheidet, ob diese Instanz überhaupt jemanden aufnimmt.",
+    "save": "Speichern",
+    "unchanged": "Vorgabe",
+    "default": "Vorgabe: {{value}}",
+    "setting": {
+      "signup.mode": "Nimmt diese Installation Selbstregistrierungen an?",
+      "signup.org_quota": "Wie viele Organisationen ein Konto gründen darf.",
+      "site.name": "Wie sich diese Installation nennt — auf der Registrierungsseite und in ihren Mails."
+    },
+    "choice": {
+      "signup.mode": {
+        "off": "geschlossen",
+        "waitlist": "nur mit Code",
+        "open": "offen"
+      }
+    },
+    "waitlistDesc": "Codes, mit denen jemand ein Konto anlegen darf, solange signup.mode auf „nur mit Code“ steht. Abgelegt wird nur der Hash — den Klartext gibt es genau einmal, im Moment der Erzeugung.",
+    "noCodes": "Noch keine Codes.",
+    "codeLabel": "Anlass",
+    "codeLabelPlaceholder": "Konferenz X, Pilotkunde Y",
+    "codeMaxUses": "Nutzungen",
+    "codeExpires": "Gültig bis",
+    "codeOrg": "Beitritt zu",
+    "codeOrgNone": "eigene Organisation gründen",
+    "codePattern": "E-Mail-Muster",
+    "createCode": "Code erzeugen",
+    "codeCreated": "Neuer Code:",
+    "codeOnce": "Notieren Sie ihn jetzt — er steht nirgends noch einmal.",
+    "copy": "Kopieren",
+    "dismiss": "Verstanden",
+    "codeNoLabel": "ohne Anlass",
+    "codeUses": "{{used}} von {{max}} genutzt",
+    "codeUntil": "bis {{date}}",
+    "codeJoins": "führt in {{org}}",
+    "codeOpen": "offen",
+    "codeRevoked": "zurückgezogen",
+    "codeExpired": "abgelaufen",
+    "codeUsedUp": "aufgebraucht",
+    "revoke": "Zurückziehen"
   }
 }

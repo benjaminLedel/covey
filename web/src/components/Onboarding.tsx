@@ -32,7 +32,7 @@ const DISMISS_KEY = "covey.onboarding.dismissed";
 
 export function Onboarding({ me }: { me: Principal }) {
   const { t } = useTranslation();
-  const mayAct = me.Role === "platform_admin" || me.Role === "agent_owner";
+  const mayAct = me.Role === "org_admin" || me.Role === "agent_owner";
   const [dismissed, setDismissed] = useState(
     () => localStorage.getItem(DISMISS_KEY) === "1",
   );

@@ -22,7 +22,7 @@ export default function PersonPage({ me }: { me: Principal }) {
   const reports = humans.filter((r) => r.manager_id === h.id);
   const ownAgents = agents.filter((a) => a.supervisor_id === h.id);
 
-  const isAdmin = me.Role === "platform_admin";
+  const isAdmin = me.Role === "org_admin";
   const isSelf = h.id === me.ID;
 
   return (

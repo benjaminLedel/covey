@@ -12,7 +12,10 @@ import { api, type AuditEntry } from "../api";
 //
 // Bewusst ohne Request-Inhalte: In ihnen stünden Secret-Werte. Festgehalten
 // ist, wer wann was angefasst hat.
-export default function Audit() {
+/** `embedded` lässt den eigenen Seitenkopf weg — das Administrations-Panel
+ *  bringt seinen eigenen mit. Die Zahl der Einträge bleibt: sie ist keine
+ *  Überschrift, sondern das Ergebnis der Abfrage. */
+export default function Audit({ embedded }: { embedded?: boolean }) {
   const { t } = useTranslation();
   const [nurFehlschlaege, setNurFehlschlaege] = useState(false);
   const [suche, setSuche] = useState("");
@@ -33,7 +36,7 @@ export default function Audit() {
   return (
     <div>
       <div className="flex items-center gap-3 mb-1 flex-wrap">
-        <h1 className="text-[22px]">{t("audit.title")}</h1>
+        {!embedded && <h1 className="text-[22px]">{t("audit.title")}</h1>}
         {/* Waehrend die Abfrage laeuft, stand hier „0 Eintraege" — bei einer
             Audit-Spur die denkbar schlechteste Falschaussage: ihr Fehlen sieht
             aus wie „nichts ist passiert". */}

@@ -10,8 +10,8 @@ import { Modal, ConfirmDialog } from "../components/Modal";
 import { Onboarding } from "../components/Onboarding";
 import { HireDialog } from "../components/HireDialog";
 
-const canManage = (role: string) => role === "platform_admin" || role === "agent_owner";
-const canSecurity = (role: string) => role === "platform_admin" || role === "security";
+const canManage = (role: string) => role === "org_admin" || role === "agent_owner";
+const canSecurity = (role: string) => role === "org_admin" || role === "security";
 
 export default function Dashboard({ me }: { me: Principal }) {
   const { t } = useTranslation();

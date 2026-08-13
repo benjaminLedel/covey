@@ -14,8 +14,8 @@ import Inbox from "./pages/Inbox";
 import Guardrails from "./pages/Guardrails";
 import Secrets from "./pages/Secrets";
 import Skills from "./pages/Skills";
-import Users from "./pages/Users";
-import Organizations from "./pages/Organizations";
+import Administration from "./pages/Administration";
+import Platform from "./pages/Platform";
 import Org from "./pages/Org";
 import PersonPage from "./pages/Person";
 import Runtimes from "./pages/Runtimes";
@@ -299,9 +299,9 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
     if (i18n.language !== gewaehlt) void i18n.changeLanguage(gewaehlt);
   }, []);
 
-  // Plattform-Administration ist selten gebraucht — standardmäßig eingeklappt,
-  // Zustand wird gemerkt; auf einer Plattform-Seite ist die Gruppe immer offen.
-  const inPlatform = ["/users", "/orgs"].some((p) => location.pathname.startsWith(p));
+  // Verwaltung ist selten gebraucht — standardmäßig eingeklappt, Zustand wird
+  // gemerkt; auf einer Verwaltungsseite ist die Gruppe immer offen.
+  const inPlatform = ["/administration", "/platform"].some((p) => location.pathname.startsWith(p));
   const [platformOpen, setPlatformOpen] = useState(() => localStorage.getItem("covey.nav.platform") === "1");
   const togglePlatform = () => {
     const next = !platformOpen;
@@ -411,36 +411,39 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
           <NavItem to="/guardrails" icon="shield" label={t("nav.guardrails")} />
           <NavItem to="/egress" icon="globe" label={t("nav.egress")} />
           {/* Das Request-Log liest nur, wer es auch abrufen darf (die API
-              laesst platform_admin und security durch) — sonst zeigte das
+              laesst org_admin und security durch) — sonst zeigte das
               Menue einen Weg, der in einer 403 endet. Vorher stand es im
               Admin-Block und blieb Security damit verborgen. */}
-          {/* Die Audit-Spur geht die an, die sie prüfen: Plattform-Admin,
+          {/* Die Audit-Spur geht die an, die sie prüfen: Org-Admin,
               Security, Auditor. Agent-Owner und Controlling stehen selbst
               darin. */}
-          {["platform_admin", "security", "auditor"].includes(me.Role) && (
+          {["org_admin", "security", "auditor"].includes(me.Role) && (
             <NavItem to="/audit" icon="clipboard" label={t("nav.audit")} />
           )}
-          {(me.Role === "platform_admin" || me.Role === "security") && (
+          {(me.Role === "org_admin" || me.Role === "security") && (
             <NavItem to="/requests" icon="exchange" label={t("nav.requests")} />
           )}
         </div>
         <div className="mt-auto">
-          {me.Role === "platform_admin" && (
+          {/* Zwei Bereiche, zwei Reichweiten — und zwei verschiedene Ebenen,
+              die sie öffnen. Die Administration verwaltet DIESE Organisation
+              und gehört deshalb der Rolle, die die Organisation selbst
+              vergibt. Die Plattform verwaltet die Installation und hängt am
+              Konto, wo keine Organisation sie sich selbst geben kann
+              (FR-003, Befund F). */}
+          {(me.Role === "org_admin" || istSystemAdmin(me)) && (
             <>
               <button className={`nav-sec toggle ${showPlatform ? "open" : ""}`} onClick={togglePlatform} disabled={inPlatform}>
-                {t("nav.platform")}
+                {t("nav.administrationSection")}
                 <NavIcon name="chevron" />
               </button>
               {showPlatform && (
                 <div className="nav-group">
-                  <NavItem to="/users" icon="user" label={t("nav.users")} />
-                  {/* Die Mandantenverwaltung gehört der Instanz, nicht der
-                      Organisation: sie erscheint nur für den Systemadmin.
-                      Vorher stand sie hier für jeden platform_admin — also für
-                      eine Rolle, die jede Organisation an sich selbst vergibt
-                      (FR-003, Befund F). */}
+                  {me.Role === "org_admin" && (
+                    <NavItem to="/administration" icon="user" label={t("nav.administration")} />
+                  )}
                   {istSystemAdmin(me) && (
-                    <NavItem to="/orgs" icon="box" label={t("nav.organizations")} />
+                    <NavItem to="/platform" icon="box" label={t("nav.platform")} />
                   )}
                 </div>
               )}
@@ -516,14 +519,22 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
             <Route path="/improvements" element={<Navigate to="/inbox" replace />} />
             <Route path="/guardrails" element={<Guardrails me={me} />} />
             <Route path="/secrets" element={<Secrets me={me} />} />
-            <Route path="/users" element={<Users me={me} />} />
-            {/* Auch als Adresse, nicht nur als Menüpunkt: wer /orgs von Hand
-                aufruft, ohne die Instanz zu verwalten, gehört auf die
-                Startseite und nicht auf eine Seite voller 404er. */}
+            {/* Die zwei Verwaltungsbereiche. Sie unterscheiden sich nicht im
+                Umfang, sondern in der Reichweite: /administration verwaltet die
+                Organisation, in der diese Sitzung gerade arbeitet,
+                /platform die Installation mit allen ihren Mandanten. */}
             <Route
-              path="/orgs"
-              element={istSystemAdmin(me) ? <Organizations me={me} /> : <Navigate to="/" replace />}
+              path="/administration/*"
+              element={me.Role === "org_admin" ? <Administration me={me} /> : <Navigate to="/" replace />}
             />
+            <Route
+              path="/platform/*"
+              element={istSystemAdmin(me) ? <Platform me={me} /> : <Navigate to="/" replace />}
+            />
+            {/* Die alten Adressen bleiben gültig — verlinkt und gebookmarkt
+                wurde beides. */}
+            <Route path="/users" element={<Navigate to="/administration/members" replace />} />
+            <Route path="/orgs" element={<Navigate to="/platform" replace />} />
             <Route path="/runtimes" element={<Runtimes me={me} />} />
             <Route path="/requests" element={<Requests me={me} />} />
             <Route path="/audit" element={<Audit />} />

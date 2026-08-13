@@ -55,7 +55,10 @@ type Options struct {
 	ExpiresAt    *time.Time
 	OrgID        *uuid.UUID
 	EmailPattern string
-	CreatedBy    *uuid.UUID
+	// CreatedBy is an ACCOUNT id since migration 0062: whoever hands out codes
+	// administers the installation and need not sit in one of its
+	// organisations.
+	CreatedBy *uuid.UUID
 }
 
 // Create draws a code, stores its hash and returns the plaintext — once.

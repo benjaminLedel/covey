@@ -5,7 +5,10 @@ import { useTranslation } from "react-i18next";
 import { api, del, patch, post, ROLES, type Human, type Principal } from "../api";
 import { Avatar, PersonLink } from "../components/person";
 
-export default function Users({ me }: { me: Principal }) {
+/** `embedded` lässt den eigenen Seitenkopf weg — im Administrations-Panel
+ *  steht darüber schon einer, und zwei Überschriften übereinander sind eine zu
+ *  viel. */
+export default function Users({ me, embedded }: { me: Principal; embedded?: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const users = useQuery({
@@ -17,7 +20,7 @@ export default function Users({ me }: { me: Principal }) {
   if (users.isError) {
     return (
       <div>
-        <h1 className="text-[22px] mb-3">{t("users.title")}</h1>
+        {!embedded && <h1 className="text-[22px] mb-3">{t("users.title")}</h1>}
         <p className="muted">{t("users.noAccess", { role: me.Role })}</p>
       </div>
     );
@@ -25,10 +28,12 @@ export default function Users({ me }: { me: Principal }) {
 
   return (
     <div>
-      <div className="flex items-baseline gap-3 mb-2">
-        <h1 className="text-[22px]">{t("users.title")}</h1>
-        <span className="muted">{t("users.subtitle")}</span>
-      </div>
+      {!embedded && (
+        <div className="flex items-baseline gap-3 mb-2">
+          <h1 className="text-[22px]">{t("users.title")}</h1>
+          <span className="muted">{t("users.subtitle")}</span>
+        </div>
+      )}
       <p className="muted text-xs mb-4" style={{ maxWidth: 640 }}>
         {t("users.desc")}
       </p>

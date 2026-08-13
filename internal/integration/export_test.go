@@ -304,7 +304,7 @@ func TestBundleSkills(t *testing.T) {
 		map[string]string{"slug": "rbac-ziel", "display_name": "RBAC-Ziel", "runtime": "mock"}, http.StatusCreated)
 	uid := unberührt["id"].(string)
 
-	// Tool allowlists are changed only by platform_admin/security — for the
+	// Tool allowlists are changed only by org_admin/security — for the
 	// agent_owner the same bundle is a 403.
 	mitTools := map[string]any{}
 	json.Unmarshal(rawBundle, &mitTools)

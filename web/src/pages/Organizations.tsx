@@ -2,7 +2,13 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, del, patch, post, type Organization, type Principal, type ProfileField } from "../api";
+import PlatformHeader from "./platform/Header";
 
+// Die Mandantenliste — Startseite des Plattform-Panels (Platform.tsx).
+//
+// Die Profilfelder standen hier einmal darunter. Sie sind aber Stammdaten EINER
+// Organisation und keine Sache der Instanz; sie stehen jetzt im
+// Administrations-Panel unter "Profil".
 export default function Organizations({ me }: { me: Principal }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
@@ -23,26 +29,20 @@ export default function Organizations({ me }: { me: Principal }) {
 
   return (
     <div>
-      <div className="flex items-baseline gap-3 mb-2">
-        <h1 className="text-[22px]">{t("orgs.title")}</h1>
-        <span className="muted">{t("orgs.subtitle")}</span>
-      </div>
-      <p className="muted text-xs mb-4" style={{ maxWidth: 640 }}>
-        {t("orgs.desc")}
-      </p>
+      <PlatformHeader />
+      <p className="muted text-xs mb-4" style={{ maxWidth: 640 }}>{t("orgs.desc")}</p>
 
       <CreateOrg onDone={() => qc.invalidateQueries({ queryKey: ["orgs"] })} />
 
       {(orgs.data ?? []).map((o) => (
         <OrgRow key={o.id} org={o} isOwn={o.id === me.OrgID} />
       ))}
-
-      <ProfileFieldsSettings />
     </div>
   );
 }
 
-function ProfileFieldsSettings() {
+/** Die Profilfelder einer Organisation — eingebunden vom Administrations-Panel. */
+export function ProfileFieldsSettings() {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const fields = useQuery({

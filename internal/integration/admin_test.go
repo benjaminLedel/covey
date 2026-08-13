@@ -8,7 +8,7 @@ import (
 )
 
 // TestUserAndOrgAdmin covers user and tenant administration: CRUD, RBAC
-// (platform_admin only), last-admin protection, session revocation on password
+// (org_admin only), last-admin protection, session revocation on password
 // reset and the protection of one's own organization.
 func TestUserAndOrgAdmin(t *testing.T) {
 	s := newStack(t)
@@ -49,12 +49,20 @@ func TestUserAndOrgAdmin(t *testing.T) {
 	owner.expect(http.MethodGet, "/api/v1/users", nil, http.StatusForbidden)
 	// Die Mandantenverwaltung ist keine Frage der Organisations-Rolle mehr:
 	// sie liegt auf der Instanz-Ebene und antwortet allen anderen mit 404
-	// (FR-003, Befund F). Auch dem platform_admin — siehe platform_test.go.
+	// (FR-003, Befund F). Auch dem org_admin — siehe platform_test.go.
 	owner.expect(http.MethodGet, "/api/v1/platform/orgs", nil, http.StatusNotFound)
 
 	// A role change takes effect immediately (auth reads the role fresh per request).
+	// Deliberately sent under the pre-0061 name: an API client written against
+	// the old vocabulary must keep working, and it must produce the new role —
+	// not a second, unknown one.
 	admin.expect(http.MethodPatch, "/api/v1/users/"+ownerID, map[string]string{"role": "platform_admin"}, http.StatusOK)
 	owner.expect(http.MethodGet, "/api/v1/users", nil, http.StatusOK)
+	if me := owner.expect(http.MethodGet, "/api/v1/auth/me", nil, http.StatusOK); me["Role"] != "org_admin" {
+		t.Fatalf("legacy role name platform_admin should arrive as org_admin, got %v", me["Role"])
+	}
+
+	admin.expect(http.MethodPatch, "/api/v1/users/"+ownerID, map[string]string{"role": "org_admin"}, http.StatusOK)
 
 	// Last-admin protection: with two admins the demotion works, afterwards no longer.
 	admin.expect(http.MethodPatch, "/api/v1/users/"+ownerID, map[string]string{"role": "auditor"}, http.StatusOK)

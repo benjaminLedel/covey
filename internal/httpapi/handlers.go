@@ -178,7 +178,7 @@ func (s *Server) prepareConfigWrite(w http.ResponseWriter, r *http.Request, id u
 	}
 	// Write-through into the UI stores (tools, egress) — validate and check
 	// RBAC first, so that a faulty file never produces a version.
-	canSecurity := p.Role == identity.RolePlatformAdmin || p.Role == identity.RoleSecurity
+	canSecurity := p.Role == identity.RoleOrgAdmin || p.Role == identity.RoleSecurity
 	apply, err := s.prepareConfigApply(r.Context(), p.OrgID, id, files, canSecurity)
 	if err != nil {
 		if errors.Is(err, errNeedsSecurityRole) {

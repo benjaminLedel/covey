@@ -100,7 +100,7 @@ func TestVorschlagLiegtUndLaeuftNicht(t *testing.T) {
 
 // TestVorschlagAufAccessBrauchtSecurity: die Tiefe entscheidet, wer annehmen
 // darf. ACCESS.md und EGRESS.md sind die Textansicht auf Zustand, dessen
-// Schreibweg bei platform_admin/security liegt (spec/02) — ein Review-Dialog,
+// Schreibweg bei org_admin/security liegt (spec/02) — ein Review-Dialog,
 // der alles durchlässt, weil der Vorschlag harmlos aussah, verschöbe die
 // Zugriffsentscheidung zu dem, der zuerst geklickt hat.
 func TestVorschlagAufAccessBrauchtSecurity(t *testing.T) {

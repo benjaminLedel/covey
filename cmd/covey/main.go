@@ -215,13 +215,13 @@ func runBootstrap(ctx context.Context, cfg config.Config, log *slog.Logger) erro
 	var adminID uuid.UUID
 	err = pool.QueryRow(ctx, "SELECT id FROM humans WHERE email=$1", adminEmail).Scan(&adminID)
 	if err != nil {
-		// No human with the bootstrap e-mail. If a platform admin already
+		// No human with the bootstrap e-mail. If an org admin already
 		// exists (renamed or created under a different address), NO new one is
 		// created — otherwise every deploy would resurrect an admin that was
 		// deleted or changed in the UI. A new one is created only when the
-		// organization has no platform admin at all (fresh installation or
+		// organization has no org admin at all (fresh installation or
 		// lockout recovery).
-		err = pool.QueryRow(ctx, `SELECT id, email FROM humans WHERE org_id=$1 AND role='platform_admin'
+		err = pool.QueryRow(ctx, `SELECT id, email FROM humans WHERE org_id=$1 AND role='org_admin'
 			ORDER BY created_at LIMIT 1`, orgID).Scan(&adminID, &adminEmail)
 		if err != nil {
 			hash, err := identbuiltin.HashPassword(adminPass)
@@ -243,7 +243,7 @@ func runBootstrap(ctx context.Context, cfg config.Config, log *slog.Logger) erro
 				return err
 			}
 			if _, err := pool.Exec(ctx, `INSERT INTO humans (id, org_id, account_id, email, display_name, password_hash, role)
-				VALUES ($1,$2,$3,$4,'Platform Admin',$5,'platform_admin')`,
+				VALUES ($1,$2,$3,$4,'Platform Admin',$5,'org_admin')`,
 				adminID, orgID, accountID, adminEmail, hash); err != nil {
 				return err
 			}
@@ -324,7 +324,7 @@ func runBootstrap(ctx context.Context, cfg config.Config, log *slog.Logger) erro
 }
 
 // runPasswd sets a user's password anew — the emergency route when even the
-// platform admin is locked out (the builtin provider deliberately has no
+// org admin is locked out (the builtin provider deliberately has no
 // self-service reset). The password never comes from argv (process list!) but
 // from the terminal without echo or as a single line from stdin. All of the
 // user's running sessions are invalidated.
@@ -449,7 +449,7 @@ func runDoctor(ctx context.Context, cfg config.Config) error {
 	case admins > 0:
 		melde("ok", fmt.Sprintf("%d system administrator(s)", admins))
 	case orgs == 1:
-		melde("note", "no system administrator yet — the upgrade appoints the platform_admin of the single organisation")
+		melde("note", "no system administrator yet — the upgrade appoints the org_admin of the single organisation")
 	default:
 		melde("WARN", fmt.Sprintf("no system administrator, and %d organisations — nobody could administer the instance; use `covey system-admin add <email>`", orgs))
 	}
@@ -713,7 +713,7 @@ common jobs (coding, QA, research, log triage) are in examples/.`,
    yours, and it is what makes the second run better than the first.`,
 		"ORG.md": `# Organization
 
-Supervisor: the platform admin (human). Ask there when a task is unclear.`,
+Supervisor: the org admin (human). Ask there when a task is unclear.`,
 	}
 }
 

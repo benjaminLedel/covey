@@ -13,7 +13,7 @@ import {
   type RecordingEvent,
 } from "../api";
 
-const canEdit = (role: string) => role === "platform_admin" || role === "security";
+const canEdit = (role: string) => role === "org_admin" || role === "security";
 
 /* Vorschläge, keine Liste: das Muster ist frei, und was hier steht, ist das,
    was jemand am häufigsten meint. `covey:*` deckt die Meta-Aktionen ab — das,

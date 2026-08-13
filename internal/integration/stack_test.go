@@ -255,7 +255,7 @@ func newStack(t *testing.T) *stack {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO humans (id, org_id, account_id, email, display_name, password_hash, role)
-		VALUES ($1,$2,$3,'admin@test.local','Admin',$4,'platform_admin')`,
+		VALUES ($1,$2,$3,'admin@test.local','Admin',$4,'org_admin')`,
 		s.adminID, s.orgID, accountID, hash); err != nil {
 		t.Fatal(err)
 	}

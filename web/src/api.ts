@@ -9,7 +9,7 @@ export type Principal = {
   /* Das Konto hinter der Anmeldung — eine Person, über Organisationen hinweg. */
   AccountID: string;
   /* Die Instanz-Ebene: "user" oder "system_admin". Ausdrücklich KEINE
-     Organisations-Rolle — platform_admin vergibt jede Organisation an sich
+     Organisations-Rolle — org_admin vergibt jede Organisation an sich
      selbst, das hier niemand (FR-003, Befund F). */
   PlatformRole: string;
 };
@@ -189,7 +189,7 @@ export type ImprovementItem = {
   // Dateien, die seit der Basis von jemand anderem geändert wurden. Solange
   // die Liste nicht leer ist, wird der Vorschlag nicht angenommen.
   conflicts?: string[];
-  // Fasst ACCESS.md oder EGRESS.md an — dann entscheidet platform_admin oder
+  // Fasst ACCESS.md oder EGRESS.md an — dann entscheidet org_admin oder
   // security, nicht der Teamleiter, dem der Agent gehört (spec/02).
   needs_security: boolean;
   diff?: { file: string; before: string; after: string }[];
@@ -550,6 +550,51 @@ export type Organization = {
   human_count: number;
   agent_count: number;
   created_at: string;
+};
+
+/** Ein Sitz, wie ihn die Instanz-Verwaltung sieht: in welcher Organisation,
+ *  in welcher Rolle. */
+export type Seat = {
+  org_id: string;
+  org_name: string;
+  role: string;
+};
+
+/** Eine Anmeldung dieser Installation. Die Ebene `platform_role` gehört der
+ *  Instanz, die Rollen in `seats` gehören je einer Organisation — das ist
+ *  derselbe Unterschied wie zwischen Principal.PlatformRole und Principal.Role. */
+export type Account = {
+  id: string;
+  email: string;
+  display_name: string;
+  email_verified_at?: string;
+  platform_role: string;
+  created_at: string;
+  last_login_at?: string;
+  seats: Seat[];
+};
+
+/** Ein Schalter der Installation samt seines Vorgabewerts. Der Vorgabewert
+ *  kommt mit, damit die Oberfläche "unverändert" zeigen kann, ohne eine zweite
+ *  Kopie derselben Tabelle zu führen. */
+export type Setting = {
+  key: string;
+  value: string;
+  default: string;
+};
+
+/** Ein Wartelisten-Code — ohne Klartext, den gibt es nur im Moment der
+ *  Erzeugung. */
+export type WaitlistCode = {
+  hash: string;
+  label: string;
+  max_uses: number;
+  used_count: number;
+  expires_at?: string;
+  org_id?: string;
+  email_pattern?: string;
+  created_at: string;
+  revoked_at?: string;
 };
 
 export type SetupStep = {
@@ -1090,9 +1135,9 @@ export const configAssist = (agentId: string, messages: AssistMessage[], files: 
 /* Die Rollen in Anzeigereihenfolge. Die Beschriftung steht NICHT hier, sondern
    in den Sprachdateien unter role.<rolle> — eine Liste deutscher Beschriftungen
    an dieser Stelle war der Grund, warum die englische Oberfläche
-   "Plattform-Admin" anzeigte. */
+   "Plattform-Admin" anzeigte — heute heißt die oberste Org-Rolle org_admin. */
 export const ROLES = [
-  "platform_admin",
+  "org_admin",
   "agent_owner",
   "security",
   "auditor",

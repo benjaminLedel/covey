@@ -60,7 +60,7 @@ type improvementView struct {
 	Conflicts []string `json:"conflicts,omitempty"`
 	// NeedsSecurity: der Vorschlag fasst ACCESS.md oder EGRESS.md an. Dann
 	// entscheidet nicht der Teamleiter, dem der Agent gehört, sondern
-	// platform_admin/security (spec/02, spec/21).
+	// org_admin/security (spec/02, spec/21).
 	NeedsSecurity bool       `json:"needs_security"`
 	Diff          []fileDiff `json:"diff,omitempty"`
 }
@@ -69,7 +69,7 @@ type improvementView struct {
 // Kostenblatt sagt, was ausgegeben wurde, ein Vorschlag sagt, wie jemand
 // gearbeitet hat — dieselbe Grenze, die spec/21 für die Arbeitsakte zieht.
 func improvementReadRoles() []string {
-	return []string{identity.RolePlatformAdmin, identity.RoleAgentOwner,
+	return []string{identity.RoleOrgAdmin, identity.RoleAgentOwner,
 		identity.RoleSecurity, identity.RoleAuditor}
 }
 
@@ -273,10 +273,10 @@ func (s *Server) handleDecideImprovement(w http.ResponseWriter, r *http.Request)
 	// EGRESS.md ändert, weitet den Zugang eines Kollegen. Das entscheidet
 	// nicht, wer zuerst geklickt hat.
 	if restricted := agents.RestrictedChanges(cur.Files, item.Files); len(restricted) > 0 {
-		if p.Role != identity.RolePlatformAdmin && p.Role != identity.RoleSecurity {
+		if p.Role != identity.RoleOrgAdmin && p.Role != identity.RoleSecurity {
 			writeErr(w, http.StatusForbidden,
 				"this proposal changes "+strings.Join(restricted, " and ")+
-					" — only platform_admin or security may accept it")
+					" — only org_admin or security may accept it")
 			return
 		}
 	}

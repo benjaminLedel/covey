@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { api, del, post, put, type Agent, type Principal, type Skill } from "../api";
 import { SkillEditor, type SkillDraft } from "../components/SkillEditor";
 
-const canEdit = (role: string) => role === "platform_admin" || role === "agent_owner";
+const canEdit = (role: string) => role === "org_admin" || role === "agent_owner";
 
 // Die Org-Bibliothek: Fähigkeiten, die jeder Agent bekommen KANN, aber nur nach
 // ausdrücklicher Verlinkung bekommt. Deshalb steht an jedem Eintrag, wer ihn

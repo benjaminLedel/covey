@@ -84,7 +84,7 @@ func TestEinKontoZweiOrganisationen(t *testing.T) {
 	if me["OrgID"] != s.orgID.String() {
 		t.Errorf("angemeldet in %v, erwartet die ältere Organisation %v", me["OrgID"], s.orgID)
 	}
-	if me["Role"] != "platform_admin" {
+	if me["Role"] != "org_admin" {
 		t.Errorf("Rolle = %v — die Rolle hängt am Sitz, nicht am Konto", me["Role"])
 	}
 
