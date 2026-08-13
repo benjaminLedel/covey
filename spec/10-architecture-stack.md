@@ -168,6 +168,8 @@ Both kinds are **enabled per organisation** (table `target_plugins`); activation
 
 Credentials follow the convention `<system>_token`/`<system>_url` in the SecretStore.
 
+**Compiled is the exception, not the default.** A target system belongs in the catalogue unless it needs something a manifest cannot express — a protocol that is not JSON over HTTP, an auth flow beyond a static header, files materialised into the sandbox, or real computation. The four reasons and where today's built-ins fall are in [`22-plugin-marketplace.md`](22-plugin-marketplace.md); the point of the rule is that every compiled plugin is code in everyone's binary, used or not, and a release they have to wait for when it changes.
+
 Where the runtime-installable kinds come *from* is a separate question, and it is answered outside the binary: a **catalogue behind a configurable URL**, maintained as an index repository whose entries point at plugins hosted anywhere and pin them by digest. Installing from it writes the same `target_plugins` row the manual upload writes — the marketplace is a new source, not a new runtime path. See [`22-plugin-marketplace.md`](22-plugin-marketplace.md).
 
 ## Delivery: one binary (frontend embedded)

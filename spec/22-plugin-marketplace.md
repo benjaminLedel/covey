@@ -140,6 +140,25 @@ A catalogue plugin is **not a second-class citizen**, and that was a preconditio
 
 **No executable code.** The catalogue distributes data — manifests and MCP configurations — and nothing else. No Go plugins as binaries, no WASM. Data-only means the marketplace adds a new source to an existing attack surface instead of opening a new one, and that trade is worth more than the flexibility it costs.
 
+## What still belongs in the binary
+
+The catalogue is where a target system goes by default. Compiling one in is the exception, and it needs a reason from this list — each of them is something a manifest genuinely cannot express:
+
+| Reason | Which of today's built-ins |
+|---|---|
+| A protocol that is not JSON over HTTP | `email` (IMAP/SMTP), `nextcloud`, `sharepoint` (WebDAV/Graph) |
+| An auth flow beyond a static header | `teams` (OAuth2 + inbound JWT verification), `sharepoint` (Entra client credentials) |
+| Materialising files into the sandbox, or running work there | `gitlab`, `github` (checkout, uploads, sub-agent runs), `browser`, `dev` |
+| Real computation, not a call | `vulndb` (lock-file parsing, version ordering, merging three sources) |
+
+Which leaves exactly one: **`zammad` could be a manifest today** — plain REST with a token header, an HMAC webhook, and since the engine learned `probe:` there is nothing left it needs code for. It stays compiled anyway, because moving it would make every running installation reinstall it from a catalogue for no gain, and it is the reference system the rest of the spec points at.
+
+So the rule for anything new:
+
+> A target system is a **catalogue plugin** unless it needs one of the four reasons above. "It would be nice to ship it" is not one of them — every compiled plugin is code in everyone's binary, whether they use the system or not, and a release they have to wait for when it changes.
+
+The list also says what would let more of it move out later. Give the manifest engine a declarative OAuth2 client-credentials block, and `teams` and `sharepoint` stop needing code for their auth; give it a way to declare "put this response body in the sandbox as a file", and the file systems follow. Neither is planned — they are named here so the next person can see that the boundary is drawn by the engine's reach, not by taste.
+
 ## Built-ins in the catalogue
 
 A compiled plugin cannot be installed at runtime, but it should still be *findable* — somebody looking for "Zammad" should not have to know which of the three kinds it happens to be. Entries with `kind: "builtin"` therefore appear in the catalogue as **"ships with Covey ≥ X — activate instead of install"**, with the store showing the activation switch rather than an install button. Their contribution path is a pull request against Covey's own repository, not against the index.

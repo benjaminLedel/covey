@@ -1484,8 +1484,8 @@
   },
   "targets": {
     "title": "Zielsysteme",
-    "subtitle": "Plugins — eingebaut oder als Manifest hochgeladen",
-    "desc": "Zielsysteme sind Plugins: Eingebaute werden mitkompiliert, eigene REST-Systeme binden Sie ohne Deploy als JSON-Manifest an.",
+    "subtitle": "Was Ihre Agenten bedienen — aus dem Store, selbst angebunden oder mitgeliefert",
+    "desc": "Zielsysteme sind Plugins. Die meisten holen Sie aus dem Store: ein Katalog, aus dem installiert wird, ohne Deploy und ohne neue Covey-Fassung. Mitgeliefert ist nur, was echten Code braucht — Protokolle jenseits von REST, OAuth-Flüsse, Arbeit in der Sandbox. Ein eigenes REST-System binden Sie als JSON-Manifest an.",
     "noAccess": "Ihre Rolle ({{role}}) kann Zielsysteme ansehen, aber nicht verwalten.",
     "noTargets": "Keine Zielsysteme registriert — dieses Binary wurde ohne Built-in-Plugins gebaut.",
     "search": "Suchen…",
@@ -1505,7 +1505,6 @@
     "summary": "{{total}} Plugins · {{active}} aktiv",
     "noMatch": "Kein Zielsystem passt zu Suche und Filter.",
     "noneActive": "Noch kein Zielsystem aktiviert.",
-    "toStore": "Zum Store",
     "details": "Details",
     "about": "Beschreibung",
     "close": "Schließen",
@@ -1575,7 +1574,8 @@
       "optional": "optional",
       "stored": "hinterlegt"
     },
-    "tabCatalog": "Katalog"
+    "tabAvailable": "Vorhanden",
+    "toAvailable": "Zu den vorhandenen"
   },
   "egress": {
     "title": "Egress",
@@ -2023,15 +2023,15 @@
   },
   "catalog": {
     "loading": "Katalog wird geladen …",
-    "disabled": "Für diese Instanz ist kein Plugin-Katalog eingerichtet.",
-    "disabledHint": "Der Betreiber legt mit COVEY_MARKETPLACE_URL fest, aus welchem Katalog installiert werden darf — eine eigene Datei geht genauso, auch aus dem internen Netz. Ohne Katalog bleibt der Store, was er ist: die mitgelieferten Plugins und das, was von Hand hochgeladen wurde.",
+    "disabled": "Für diese Instanz ist kein Store eingerichtet.",
+    "disabledHint": "Der Betreiber legt mit COVEY_MARKETPLACE_URL fest, aus welchem Katalog installiert werden darf — eine eigene Datei geht genauso, auch aus dem internen Netz. Ohne Store bleibt das, was die Instanz schon hat: die mitgelieferten Plugins und das, was von Hand hochgeladen wurde.",
     "source": "Katalog:",
     "fetched": "geholt um {{time}}",
     "stale": "Der Katalog war zuletzt nicht erreichbar — angezeigt wird der letzte gültige Stand.",
     "empty": "Keine Einträge zu dieser Suche.",
     "by": "von",
     "since": "ab Covey {{v}}",
-    "shipped": "mitgeliefert — im Store aktivieren",
+    "shipped": "mitgeliefert — unter „Vorhanden“ aktivieren",
     "install": "Installieren",
     "installing": "wird installiert …",
     "installed": "installiert (v{{v}})",

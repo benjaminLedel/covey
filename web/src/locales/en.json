@@ -1484,8 +1484,8 @@
   },
   "targets": {
     "title": "Target Systems",
-    "subtitle": "Plugins — built-in or uploaded as manifest",
-    "desc": "Target systems are plugins: built-ins are compiled in, custom REST systems can be connected without a deploy via JSON manifest.",
+    "subtitle": "What your agents work in — from the store, connected yourself, or shipped with Covey",
+    "desc": "Target systems are plugins. Most of them you get from the store: a catalogue you install from, without a deploy and without a new Covey release. Only what genuinely needs code ships compiled in — protocols beyond REST, OAuth flows, work inside the sandbox. A REST system of your own you connect as a JSON manifest.",
     "noAccess": "Your role ({{role}}) can view target systems but not manage them.",
     "noTargets": "No target systems registered — this binary was built without built-in plugins.",
     "search": "Search…",
@@ -1505,7 +1505,6 @@
     "summary": "{{total}} plugins · {{active}} active",
     "noMatch": "No target system matches search and filter.",
     "noneActive": "No target system activated yet.",
-    "toStore": "Go to store",
     "details": "Details",
     "about": "Description",
     "close": "Close",
@@ -1575,7 +1574,8 @@
       "optional": "optional",
       "stored": "stored"
     },
-    "tabCatalog": "Catalogue"
+    "tabAvailable": "Available",
+    "toAvailable": "To the available ones"
   },
   "egress": {
     "title": "Egress",
@@ -2023,15 +2023,15 @@
   },
   "catalog": {
     "loading": "Loading the catalogue …",
-    "disabled": "No plugin catalogue is configured for this instance.",
-    "disabledHint": "The operator decides with COVEY_MARKETPLACE_URL which catalogue may be installed from — a file of your own works just as well, including one on an internal network. Without a catalogue the store stays what it is: the plugins that ship with Covey and whatever was uploaded by hand.",
+    "disabled": "No store is configured for this instance.",
+    "disabledHint": "The operator decides with COVEY_MARKETPLACE_URL which catalogue may be installed from — a file of your own works just as well, including one on an internal network. Without a store you keep what the instance already has: the plugins that ship with Covey and whatever was uploaded by hand.",
     "source": "Catalogue:",
     "fetched": "fetched at {{time}}",
     "stale": "The catalogue was unreachable on the last attempt — showing the last good copy.",
     "empty": "Nothing matches this search.",
     "by": "by",
     "since": "from Covey {{v}}",
-    "shipped": "ships with Covey — activate it in the store",
+    "shipped": "ships with Covey — activate it under “Available”",
     "install": "Install",
     "installing": "installing …",
     "installed": "installed (v{{v}})",
