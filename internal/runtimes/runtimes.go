@@ -59,11 +59,11 @@ func (l Limit) Active() bool { return l.WindowSecs > 0 && l.Amount > 0 }
 
 // Runtime is a configured workplace.
 type Runtime struct {
-	ID          uuid.UUID    `json:"id"`
-	OrgID       uuid.UUID    `json:"org_id"`
-	Engine      string       `json:"engine"`
-	DisplayName string       `json:"display_name"`
-	Model       string       `json:"model"`
+	ID          uuid.UUID `json:"id"`
+	OrgID       uuid.UUID `json:"org_id"`
+	Engine      string    `json:"engine"`
+	DisplayName string    `json:"display_name"`
+	Model       string    `json:"model"`
 	// FallbackRuntimeID: the contract to try when every credential of THIS
 	// runtime is exhausted (session limit, cooldown) — e.g. an OpenAI-backed
 	// runtime standing in while the Claude Code subscription seat is in its
