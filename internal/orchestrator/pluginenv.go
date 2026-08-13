@@ -1,59 +1,35 @@
 package orchestrator
 
-import "os"
+import (
+	"os"
+	"strings"
+
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
+)
 
 // Operational plugin configuration lives in the control plane's environment
 // (12-factor), but the target plugins that read it run in the SANDBOX — the
 // action proxy executes them in coveyd, not here. An unset variable there is
-// not a stricter default: the intake allowlists read "empty = no restriction"
-// and the size limits fall back to their built-in maximum. So a variable that
-// never reaches the sandbox does not merely lose effect, it inverts into the
-// widest possible setting, silently.
+// not a stricter default: the intake allowlists read "empty = no restriction",
+// and a size limit falls back to its own built-in default. So a variable that
+// never reaches the sandbox does not merely lose effect; for an allowlist it
+// inverts into the widest possible setting, silently.
 //
 // That is how COVEY_GITLAB_INTAKE_PROJECTS came to be set on the control plane
 // and enforced only in the wake-up gate (HasWork, which does run here) while
 // list_issues/list_projects in the sandbox saw every project the shared token
 // could reach — observed in this installation as agents of one product
-// triaging and commenting on the backlog of an unrelated one.
+// triaging the backlog of an unrelated one.
 //
-// pluginEnvPassthrough is therefore an explicit allowlist rather than "copy
-// everything COVEY_*": the connection variables below must not be overwritable
-// from the outside, and a few settings belong to the image rather than to
-// policy (see pluginEnvExcluded).
-var pluginEnvPassthrough = []string{
-	// Intake scope — which items may reach an agent at all.
-	"COVEY_GITLAB_INTAKE_PROJECTS",
-	"COVEY_GITHUB_INTAKE_REPOS",
-	"COVEY_ZAMMAD_INTAKE_GROUPS",
-	"COVEY_EMAIL_INTAKE_ADDRESSES",
-	"COVEY_TEAMS_INTAKE_TENANTS",
-	// Outbound scope — where an agent may write to.
-	"COVEY_EMAIL_SEND_DOMAINS",
-	"COVEY_ZAMMAD_REPLY_TYPE",
-	// Identity of the shared bot account, for the plugins' own author checks.
-	"COVEY_GITHUB_BOT_LOGINS",
-	// Resource ceilings. Unset does not mean "unlimited" — each falls back to
-	// its own built-in default — but it does mean the operator's configured
-	// value has no effect where the work happens. That cuts both ways: a limit
-	// RAISED for a project with large artefacts silently stays at the default,
-	// and one LOWERED for safety silently stays at the default too.
-	"COVEY_GITLAB_CHECKOUT_MAX_MB",
-	"COVEY_GITHUB_CHECKOUT_MAX_MB",
-	"COVEY_NEXTCLOUD_UPLOAD_MAX_MB",
-	"COVEY_SHAREPOINT_UPLOAD_MAX_MB",
-	"COVEY_CHECKOUT_KEEP",
-	// Attachment ceilings, same reasoning: both fall back to 25 MB in the
-	// sandbox, so an installation that set anything else never got it.
-	"COVEY_EMAIL_ATTACHMENT_MAX_MB",
-	"COVEY_TEAMS_ATTACHMENT_MAX_MB",
-	"COVEY_BROWSER_TIMEOUT_SECS",
-	// Endpoints the control plane owns.
-	"COVEY_TEAMS_TOKEN_URL",
-	"COVEY_IOS_BRIDGE_URL",
-}
+// WHICH variables travel is not decided here. Each plugin declares what it
+// reads (target.Descriptor.Env) and this collects the declarations from the
+// registry. A hand-maintained list in Covey was the first fix, and it was
+// wrong in a way that would have kept costing: it described code living in
+// another repository, it had already missed two entries when it was written,
+// and it could never have covered a plugin somebody else wrote.
 
-// pluginEnvExcluded documents what deliberately does NOT travel, so the next
-// reader does not "complete" the list above:
+// pluginEnvExcluded documents what deliberately does NOT travel even when a
+// plugin declares it:
 //
 //   - COVEY_BROWSER_CHROME_PATH — the path is a property of the sandbox image
 //     (Dockerfile.sandbox sets it to /usr/bin/chromium). The control plane's
@@ -61,22 +37,62 @@ var pluginEnvPassthrough = []string{
 //   - COVEY_BROWSER_HEADFUL — a headful browser needs a display the sandbox
 //     container does not have.
 //
-// Both stay with the image on purpose.
-var pluginEnvExcluded = []string{
-	"COVEY_BROWSER_CHROME_PATH",
-	"COVEY_BROWSER_HEADFUL",
+// Both stay with the image on purpose, and the exclusion wins over any
+// declaration.
+var pluginEnvExcluded = map[string]bool{
+	"COVEY_BROWSER_CHROME_PATH": true,
+	"COVEY_BROWSER_HEADFUL":     true,
 }
 
-// pluginEnv collects the pass-through variables that are actually set here.
-// Absent stays absent — an empty string is a meaningful value for some of
-// these ("no restriction"), so writing one in would change behaviour rather
+// pluginEnvShared are the variables the SDK itself reads on a plugin's behalf,
+// so they belong to no single plugin's namespace and cannot be declared by one.
+// Kept short on purpose: every entry here is a small piece of the old problem
+// coming back.
+var pluginEnvShared = []string{
+	// Read by target.PruneOldCheckouts, for any plugin that checks out a repo.
+	"COVEY_CHECKOUT_KEEP",
+}
+
+// pluginEnv collects what the registered plugins declared, plus the SDK's own
+// shared variables.
+//
+// Two rules make it safe to honour a declaration written by somebody else:
+//
+// A plugin may only name variables in its OWN namespace (COVEY_<NAME>_…).
+// Fail-closed — an entry outside it is dropped rather than trusted, so no
+// plugin, however careless or hostile, can have COVEY_MASTER_KEY or
+// COVEY_DATABASE_URL carried into a sandbox by declaring it.
+//
+// And absent stays absent. An empty string is a meaningful value for several
+// of these ("no restriction"), so writing one in would change behaviour rather
 // than preserve it.
 func pluginEnv() map[string]string {
-	out := make(map[string]string, len(pluginEnvPassthrough))
-	for _, k := range pluginEnvPassthrough {
-		if v, ok := os.LookupEnv(k); ok {
-			out[k] = v
+	out := map[string]string{}
+	add := func(key string) {
+		if pluginEnvExcluded[key] {
+			return
+		}
+		if v, ok := os.LookupEnv(key); ok {
+			out[key] = v
 		}
 	}
+	for _, d := range target.All() {
+		prefix := pluginEnvPrefix(d.Name)
+		for _, key := range d.Env {
+			if !strings.HasPrefix(key, prefix) {
+				continue // outside the plugin's namespace — see above
+			}
+			add(key)
+		}
+	}
+	for _, key := range pluginEnvShared {
+		add(key)
+	}
 	return out
+}
+
+// pluginEnvPrefix is the namespace a plugin may declare in: "gitlab" →
+// "COVEY_GITLAB_", "my-tracker" → "COVEY_MY_TRACKER_".
+func pluginEnvPrefix(name string) string {
+	return "COVEY_" + strings.ToUpper(strings.ReplaceAll(name, "-", "_")) + "_"
 }
