@@ -1,0 +1,38 @@
+{
+  "schema": 1,
+  "workplaces": [
+    {
+      "name": "base",
+      "label": "base",
+      "description": "Node, git, chromium, ripgrep \u2014 enough for support, mail, QA and research agents.",
+      "images": [
+        {
+          "covey_version": "main",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:59d560c239929e03b0c406cea1108f8b099c6a26d03e7f04a7b6788474dfe3ec",
+          "tag": "base-latest",
+          "platforms": [
+            "linux/amd64",
+            "linux/arm64"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "dev",
+      "label": "dev",
+      "description": "Everything from base plus PHP, JDK, fvm, uv and the node-gyp toolchain.",
+      "images": [
+        {
+          "covey_version": "main",
+          "ref": "ghcr.io/benjaminledel/covey-sandbox@sha256:45484aa5ac12a7effb03f9344b10811f56fdb57c6f2f496b35963dad3c403307",
+          "tag": "dev-latest",
+          "platforms": [
+            "linux/amd64",
+            "linux/arm64"
+          ]
+        }
+      ]
+    }
+  ],
+  "generated_at": "2026-08-14T15:13:05Z"
+}
