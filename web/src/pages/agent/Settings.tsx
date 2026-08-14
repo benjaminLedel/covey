@@ -219,7 +219,9 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
         onSaved={invalidate}
       />
     </div>
-    <div className="card" style={{ maxWidth: 760, padding: "6px 18px 14px" }}>
+    <div className="card mb-4" style={{ maxWidth: 760, padding: "14px 18px 4px" }}>
+      <div className="text-sm font-medium mb-1">{t("agent.settings.group.identity")}</div>
+      <p className="muted text-xs mt-0 mb-2">{t("agent.settings.group.identityHint")}</p>
       <div style={row}>
         <span className="text-sm">{t("agent.settings.name")}</span>
         <span className="flex items-center gap-2">
@@ -249,7 +251,7 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
           {isDoctor ? t("agent.settings.fixedIdentity") : t("agent.settings.nameHint")}
         </span>
       </div>
-      <div style={row}>
+      <div style={{ ...row, borderBottom: "none" }}>
         <span className="text-sm">{t("agent.settings.slug")}</span>
         <span className="flex items-center gap-2">
           <input
@@ -274,6 +276,10 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
               : t("agent.settings.slugHint")}
         </span>
       </div>
+    </div>
+    <div className="card mb-4" style={{ maxWidth: 760, padding: "14px 18px 4px" }}>
+      <div className="text-sm font-medium mb-1">{t("agent.settings.group.thinking")}</div>
+      <p className="muted text-xs mt-0 mb-2">{t("agent.settings.group.thinkingHint")}</p>
       <div style={row}>
         <span className="text-sm">{t("agent.settings.runtime")}</span>
         <select
@@ -328,7 +334,7 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
           <span className="muted text-xs">{t("agent.settings.effortHint")}</span>
         </div>
       )}
-      <div style={row}>
+      <div style={{ ...row, borderBottom: "none" }}>
         <span className="text-sm">{t("agent.settings.maxTurns")}</span>
         <input
           key={`turns:${agent.max_turns}`}
@@ -346,23 +352,10 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
         />
         <span className="muted text-xs">{t("agent.settings.maxTurnsHint")}</span>
       </div>
-      <div style={row}>
-        <span className="text-sm">{t("agent.settings.recordingLevel")}</span>
-        <select
-          key={`reclvl:${agent.recording_level}`}
-          defaultValue={agent.recording_level || ""}
-          disabled={!editable || setRecordingLevel.isPending}
-          onChange={(e) => {
-            if (e.target.value !== (agent.recording_level || "")) setRecordingLevel.mutate(e.target.value);
-          }}
-        >
-          <option value="">{t("agent.settings.recordingInherit")}</option>
-          <option value="minimal">{t("agent.settings.recordingMinimal")}</option>
-          <option value="standard">{t("agent.settings.recordingStandard")}</option>
-          <option value="full">{t("agent.settings.recordingFull")}</option>
-        </select>
-        <span className="muted text-xs">{t("agent.settings.recordingHint")}</span>
-      </div>
+    </div>
+    <div className="card mb-4" style={{ maxWidth: 760, padding: "14px 18px 4px" }}>
+      <div className="text-sm font-medium mb-1">{t("agent.settings.group.workplace")}</div>
+      <p className="muted text-xs mt-0 mb-2">{t("agent.settings.group.workplaceHint")}</p>
       <div style={row}>
         <span className="text-sm">{t("agent.settings.sandboxImage")}</span>
         {/* Ein eigenes Image der Organisation ist ein gültiger Wert (spec/16),
@@ -458,7 +451,7 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
         />
         <span className="muted text-xs">{t("agent.settings.runnerTagsHint")}</span>
       </div>
-      <div style={row}>
+      <div style={{ ...row, borderBottom: "none" }}>
         <span className="text-sm">{t("agent.settings.warmSandbox")}</span>
         <label className="flex items-center gap-2 text-sm">
           <input
@@ -470,6 +463,27 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
           {agent.warm_sandbox ? t("agent.settings.warmOn") : t("agent.settings.warmOff")}
         </label>
         <span className="muted text-xs">{t("agent.settings.warmHint")}</span>
+      </div>
+    </div>
+    <div className="card mb-4" style={{ maxWidth: 760, padding: "14px 18px 4px" }}>
+      <div className="text-sm font-medium mb-1">{t("agent.settings.group.oversight")}</div>
+      <p className="muted text-xs mt-0 mb-2">{t("agent.settings.group.oversightHint")}</p>
+      <div style={row}>
+        <span className="text-sm">{t("agent.settings.recordingLevel")}</span>
+        <select
+          key={`reclvl:${agent.recording_level}`}
+          defaultValue={agent.recording_level || ""}
+          disabled={!editable || setRecordingLevel.isPending}
+          onChange={(e) => {
+            if (e.target.value !== (agent.recording_level || "")) setRecordingLevel.mutate(e.target.value);
+          }}
+        >
+          <option value="">{t("agent.settings.recordingInherit")}</option>
+          <option value="minimal">{t("agent.settings.recordingMinimal")}</option>
+          <option value="standard">{t("agent.settings.recordingStandard")}</option>
+          <option value="full">{t("agent.settings.recordingFull")}</option>
+        </select>
+        <span className="muted text-xs">{t("agent.settings.recordingHint")}</span>
       </div>
       <div style={row}>
         <span className="text-sm">{t("agent.settings.budget")}</span>
