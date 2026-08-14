@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"covey/internal/sandbox"
 )
 
 type Config struct {
@@ -63,8 +65,53 @@ type Config struct {
 	SandboxProvider string
 	// DataDir holds the persistent sandbox homes (docker provider).
 	DataDir string
-	// SandboxImage is the container image of the docker provider (Dockerfile.sandbox).
+	// SandboxImage is the image of the default profile and at the same time the
+	// default for agents that name no workplace of their own. Derived from
+	// SandboxImages — not read separately.
 	SandboxImage string
+	// HomeStore switches the central home store on (default on): after every
+	// job an agent's home goes into it as a whole and is materialised from it
+	// on wake (spec/16). Off = homes stay directories on the runner, without
+	// snapshots, without rollback — and unrecoverable when lost.
+	//
+	// The store holds what the runner also has on disk. With a single agent
+	// that is close to a doubling; from the second developer agent onwards the
+	// deduplication of the toolchain caches turns it into a saving.
+	HomeStore bool
+	// BlobStore selects where the home store's blocks live: "builtin" (a
+	// directory next to data/homes — the default, and no extra operational
+	// surface) or "s3" (an S3-compatible object store, when durability,
+	// replication or separation from the control plane's disk is wanted).
+	//
+	// S3-compatible and not "AWS S3": the protocol is the common denominator of
+	// Hetzner Object Storage, Garage, MinIO, Ceph RadosGW and SeaweedFS.
+	BlobStore string
+	// S3Endpoint/S3Bucket/S3Prefix and the credentials apply with
+	// COVEY_BLOB_STORE=s3.
+	S3Endpoint  string
+	S3Bucket    string
+	S3Prefix    string
+	S3Region    string
+	S3AccessKey string
+	S3SecretKey string
+	// S3PathStyle addresses the bucket in the path instead of in the host name.
+	// On by default: it is what the self-hosted servers speak without a
+	// wildcard certificate, and those are what this is mostly pointed at.
+	S3PathStyle bool
+	// HomeExcludes are paths left out of the sync (comma-separated). Their role
+	// is a cost question, not a prerequisite for correctness: the default is
+	// empty, and without configuration everything is synced. Only demonstrably
+	// derivable paths belong here (analysis caches such as .dartServer).
+	HomeExcludes []string
+	// SandboxImages maps every profile of the catalogue (internal/sandbox) to
+	// the image this instance uses for it — the default from the catalogue, or
+	// the override from COVEY_SANDBOX_IMAGE_<PROFILE>. The image hangs off the
+	// agent (spec/16): a mail agent no longer carries a developer agent's JVM.
+	//
+	// It is a map and no longer a field per profile, because a field per
+	// profile is a list that has to be extended in four places — which is the
+	// reason the catalogue exists.
+	SandboxImages map[string]string
 	// WebhookSecrets verify signatures of incoming target-system webhooks:
 	// COVEY_<SYSTEM>_WEBHOOK_SECRET → entry under the lowercased system name
 	// (e.g. COVEY_ZAMMAD_WEBHOOK_SECRET → "zammad").
@@ -77,7 +124,12 @@ type Config struct {
 	// costs an LLM call, and whoever does not want that should be able to turn
 	// it off without stripping the feature from the binary.
 	DreamAt string
-	// SessionTTL for human logins.
+	// SessionTTL for human logins (COVEY_SESSION_TTL, default 7 days). The
+	// session slides: every request in the second half of that window pushes
+	// the end back, so only an UNUSED session runs out. A fixed, short lifetime
+	// bought nothing here — it logged people out in the middle of their work,
+	// and what protects an unattended browser is the screen lock, not an hour
+	// count in the control plane.
 	SessionTTL time.Duration
 	// DaemonTokenTTL for the short-lived sandbox daemon JWTs.
 	DaemonTokenTTL time.Duration
@@ -101,6 +153,14 @@ type Config struct {
 	// EgressProxyAddr is the bind address of the standalone egress proxy
 	// (subcommand `covey egress-proxy`, a container in network mode).
 	EgressProxyAddr string
+	// ControlURL is the control plane's address as seen by the standalone
+	// egress proxy, and RunnerToken is the token of the runner it belongs to.
+	// Together they replace the database URL the proxy used to be given: it is
+	// an enforcement point, not a database client, and on a remote runner the
+	// old construction would mean handing the Postgres credentials to every
+	// host that runs sandboxes (spec/16, "Trust boundary").
+	ControlURL  string
+	RunnerToken string
 	// RequestLog enables the request log (on by default): the HTTP requests at
 	// the platform's edges — incoming webhooks and outgoing target-system
 	// calls — end up in the request_log table and can be inspected under
@@ -179,17 +239,29 @@ func FromEnv() (Config, error) {
 		SecretStore:      getenv("COVEY_SECRET_STORE", "builtin"),
 		SandboxProvider:  getenv("COVEY_SANDBOX_PROVIDER", "docker"),
 		DataDir:          getenv("COVEY_DATA_DIR", "./data"),
-		SandboxImage:     getenv("COVEY_SANDBOX_IMAGE", "covey-sandbox:latest"),
+		SandboxImages:    sandboxImages(),
+		HomeStore:        getenvBool("COVEY_HOME_STORE", true),
+		HomeExcludes:     splitList(os.Getenv("COVEY_HOME_EXCLUDES")),
+		BlobStore:        getenv("COVEY_BLOB_STORE", "builtin"),
+		S3Endpoint:       getenv("COVEY_S3_ENDPOINT", ""),
+		S3Bucket:         getenv("COVEY_S3_BUCKET", ""),
+		S3Prefix:         getenv("COVEY_S3_PREFIX", ""),
+		S3Region:         getenv("COVEY_S3_REGION", ""),
+		S3AccessKey:      getenv("COVEY_S3_ACCESS_KEY", ""),
+		S3SecretKey:      getenv("COVEY_S3_SECRET_KEY", ""),
+		S3PathStyle:      getenvBool("COVEY_S3_PATH_STYLE", true),
 		WebhookSecrets:   webhookSecretsFromEnv(),
 		TickInterval:     getenvDuration("COVEY_TICK_INTERVAL", 30*time.Second),
 		DreamAt:          getenv("COVEY_DREAM_AT", "03:00"),
-		SessionTTL:       getenvDuration("COVEY_SESSION_TTL", 12*time.Hour),
+		SessionTTL:       getenvDuration("COVEY_SESSION_TTL", 7*24*time.Hour),
 		DaemonTokenTTL:   getenvDuration("COVEY_DAEMON_TOKEN_TTL", 15*time.Minute),
 		BoardRetention:   getenvDuration("COVEY_BOARD_RETENTION", 24*time.Hour),
 		EgressEnforce:    getenvBool("COVEY_EGRESS_ENFORCE", false),
 		EgressAllow:      splitList(os.Getenv("COVEY_EGRESS_ALLOW")),
 		EgressIsolation:  getenv("COVEY_EGRESS_ISOLATION", "proxy"),
 		EgressProxyAddr:  getenv("COVEY_EGRESS_PROXY_ADDR", ":8888"),
+		ControlURL:       getenv("COVEY_CONTROL_URL", ""),
+		RunnerToken:      getenv("COVEY_RUNNER_TOKEN", ""),
 		WikiCleanup:      strings.TrimSpace(os.Getenv("COVEY_WIKI_CLEANUP")),
 		RuntimeTools:     splitList(os.Getenv("COVEY_RUNTIME_TOOLS")),
 		MarketplaceURL:   getenv("COVEY_MARKETPLACE_URL", DefaultMarketplaceURL),
@@ -203,6 +275,9 @@ func FromEnv() (Config, error) {
 		RequestLogBodies:    getenvBool("COVEY_REQUEST_LOG_BODIES", true),
 		RequestLogRetention: getenvDuration("COVEY_REQUEST_LOG_RETENTION", 72*time.Hour),
 	}
+	// The default image is the default profile's — one value, derived, so that
+	// "the instance default" and "the base profile" cannot drift apart.
+	c.SandboxImage = c.SandboxImages[sandbox.DefaultName()]
 	// Secure cookie on by default as soon as the public URL is HTTPS.
 	c.CookieSecure = getenvBool("COVEY_COOKIE_SECURE", strings.HasPrefix(c.PublicURL, "https://"))
 	proxies, err := parseTrustedProxies(os.Getenv("COVEY_TRUSTED_PROXIES"))
@@ -404,4 +479,23 @@ func getenvDuration(key string, fallback time.Duration) time.Duration {
 		return time.Duration(secs) * time.Second
 	}
 	return fallback
+}
+
+// sandboxImages reads the image of every profile in the catalogue from the
+// environment. COVEY_SANDBOX_IMAGE stays valid for the default profile: it is
+// the name from before the split, it is documented, and it is set in existing
+// installations — an upgrade must not silently drop a configured image.
+func sandboxImages() map[string]string {
+	overrides := map[string]string{}
+	for _, p := range sandbox.All() {
+		if v := strings.TrimSpace(os.Getenv(sandbox.EnvVar(p.Name))); v != "" {
+			overrides[p.Name] = v
+		}
+	}
+	if v := strings.TrimSpace(os.Getenv("COVEY_SANDBOX_IMAGE")); v != "" {
+		if _, set := overrides[sandbox.DefaultName()]; !set {
+			overrides[sandbox.DefaultName()] = v
+		}
+	}
+	return sandbox.Images(overrides)
 }

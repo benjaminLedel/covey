@@ -69,6 +69,17 @@ type Agent struct {
 	// (spec/06); empty = inherits the org floor. It only ever tightens (max with
 	// the floor), enforced in the control plane.
 	RecordingLevel string `json:"recording_level"`
+	// SandboxImage is the workplace this agent runs in: either a profile name
+	// (`base`, `dev`) or an image reference of its own. Empty = the instance
+	// default. The image hangs off the agent and not off the instance (D11) —
+	// a mail agent should not carry a developer agent's JVM, and on a runner
+	// the image is at the same time a statement of capacity: it reports which
+	// ones it holds and gets only matching agents (spec/16).
+	SandboxImage string `json:"sandbox_image"`
+	// RunnerTags are the capabilities this agent needs of its host: arm64, gpu,
+	// a runner inside the target system's network. Empty = any runner of the
+	// organisation (spec/16, "Scheduling").
+	RunnerTags []string `json:"runner_tags,omitempty"`
 	// WarmSandbox keeps this agent's sandbox alive between waking phases
 	// (opt-in): dev servers and caches survive, the next run starts without a
 	// cold build-up. Default false → ephemeral like everyone else (spec/01).
@@ -126,13 +137,13 @@ type Registry struct {
 
 func NewRegistry(pool *pgxpool.Pool) *Registry { return &Registry{pool: pool} }
 
-const agentCols = "id, org_id, slug, display_name, runtime, model, effort, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, runtime_id, webhook_token, COALESCE(recording_level,''), warm_sandbox, hired_at, created_at, updated_at"
+const agentCols = "id, org_id, slug, display_name, runtime, model, effort, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, runtime_id, webhook_token, COALESCE(recording_level,''), sandbox_image, runner_tags, warm_sandbox, hired_at, created_at, updated_at"
 
 func scanAgent(row pgx.Row) (Agent, error) {
 	var a Agent
 	err := row.Scan(&a.ID, &a.OrgID, &a.Slug, &a.DisplayName, &a.Runtime, &a.Model, &a.Effort, &a.MaxTurns, &a.Status,
 		&a.OwnerID, &a.SupervisorID, &a.DepartmentID, &a.JobTitle, &a.Identities, &a.Phone, &a.Responsibilities, &a.Custom,
-		&a.Killed, &a.BudgetUSD, &a.RuntimeID, &a.WebhookToken, &a.RecordingLevel, &a.WarmSandbox, &a.HiredAt, &a.CreatedAt, &a.UpdatedAt)
+		&a.Killed, &a.BudgetUSD, &a.RuntimeID, &a.WebhookToken, &a.RecordingLevel, &a.SandboxImage, &a.RunnerTags, &a.WarmSandbox, &a.HiredAt, &a.CreatedAt, &a.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, ErrNotFound
 	}
@@ -394,6 +405,80 @@ func (r *Registry) SetMaxTurns(ctx context.Context, id uuid.UUID, maxTurns int) 
 // max(org floor, override) — enforced on the control plane side.
 func (r *Registry) SetRecordingLevel(ctx context.Context, id uuid.UUID, level string) error {
 	tag, err := r.pool.Exec(ctx, "UPDATE agents SET recording_level=NULLIF($2,''), updated_at=now() WHERE id=$1", id, level)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+// SandboxImagesInUse counts the agents per configured workplace — the basis for
+// the startup check "is the image these agents need actually there?". Drafts
+// count too: they are hired at some point, and then the image has to exist.
+func (r *Registry) SandboxImagesInUse(ctx context.Context) (map[string]int, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT sandbox_image, count(*) FROM agents WHERE NOT killed GROUP BY sandbox_image`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var image string
+		var n int
+		if err := rows.Scan(&image, &n); err != nil {
+			return nil, err
+		}
+		out[image] = n
+	}
+	return out, rows.Err()
+}
+
+// SandboxImagesInUseForOrg is the same count for one organisation — what the
+// workplace list in the interface shows. The instance-wide figure belongs to
+// the doctor, which asks for the host; whoever is looking at their own
+// organisation must not be told how many agents the neighbours run.
+func (r *Registry) SandboxImagesInUseForOrg(ctx context.Context, orgID uuid.UUID) (map[string]int, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT sandbox_image, count(*) FROM agents WHERE NOT killed AND org_id=$1 GROUP BY sandbox_image`, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var image string
+		var n int
+		if err := rows.Scan(&image, &n); err != nil {
+			return nil, err
+		}
+		out[image] = n
+	}
+	return out, rows.Err()
+}
+
+// SetSandboxImage sets the agent's workplace: a profile name (`base`, `dev`),
+// an image reference of its own, or empty for the instance default. Takes
+// effect at the next cold start — a running or warm-parked sandbox keeps the
+// image it was started with.
+func (r *Registry) SetSandboxImage(ctx context.Context, id uuid.UUID, image string) error {
+	tag, err := r.pool.Exec(ctx, "UPDATE agents SET sandbox_image=$2, updated_at=now() WHERE id=$1",
+		id, strings.TrimSpace(image))
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+// SetRunnerTags sets the capabilities an agent needs of its host. Empty = any
+// runner of the organisation. Takes effect at the next cold start.
+func (r *Registry) SetRunnerTags(ctx context.Context, id uuid.UUID, tags []string) error {
+	clean := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		if tag = strings.TrimSpace(tag); tag != "" {
+			clean = append(clean, tag)
+		}
+	}
+	tag, err := r.pool.Exec(ctx, "UPDATE agents SET runner_tags=$2, updated_at=now() WHERE id=$1", id, clean)
 	if err == nil && tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}

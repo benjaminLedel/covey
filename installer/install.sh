@@ -74,7 +74,7 @@ main() {
     [ -n "$available" ] || fail "release ${version} contains nothing for ${platform}"
 
     [ -n "$choice" ] || choice="$(choose "$available")"
-    chosen="$(resolve "$choice" "$available")"
+    chosen="$(resolve "$choice" "$available" "$version" "$platform")"
 
     for component in $chosen; do
         install_component "$component" "$version" "$platform" "$base_url" "$tmp" "$bin_dir"
@@ -225,8 +225,12 @@ choose() {
     esac
 }
 
+# A missing component is almost never a typo but a version: the runner did not
+# exist in earlier releases, and a server from back then does not offer one. So
+# the message does not stop at the finding — whoever reads it wants to go on,
+# and there are exactly two ways.
 resolve() {
-    wanted="$1"; available="$2"
+    wanted="$1"; available="$2"; v="$3"; plat="$4"
     if [ "$wanted" = "all" ]; then
         printf '%s' "$available"
         return
@@ -236,7 +240,13 @@ resolve() {
         printf '%s' "$wanted"
         return
     done
-    fail "'${wanted}' is not part of this release for this platform (present: ${available})"
+    target="build"
+    [ "$wanted" = "runner" ] && target="runner"
+    fail "release ${v} carries no '${wanted}' for ${plat} — only: ${available}.
+Releases before the runner do not have one. Two ways on:
+  - a newer release:  install.sh --${wanted} --version <newer tag>
+  - from source, which yields exactly the version this server speaks:
+      git clone https://github.com/${REPO} && cd covey && make ${target}"
 }
 
 install_component() {

@@ -24,7 +24,7 @@ A runtime carries:
 - the **model** it uses, because that is a property of the contract and not of the agent (a subscription seat can afford the large model where a metered key cannot),
 - its **limits**, in the sense given below.
 
-A runtime belongs to **exactly one organisation**. It carries credentials, and a credential reaching across tenants would be a channel between them — the same reason a runner serves exactly one Covey instance ([`16-runner.md`](16-runner.md)). It is not only policy: the built-in secret store binds every ciphertext to its organisation through the AES-GCM AAD ([`04-identity-secrets.md`](04-identity-secrets.md)), so a shared credential would not decrypt for the second tenant in the first place. The schema follows the storage rather than fighting it.
+A runtime belongs to **exactly one organisation**. It carries credentials, and a credential reaching across tenants would be a channel between them — the same reason a runner serves exactly one Covey instance and, within it, exactly one organisation ([`16-runner.md`](16-runner.md)). It is not only policy: the built-in secret store binds every ciphertext to its organisation through the AES-GCM AAD ([`04-identity-secrets.md`](04-identity-secrets.md)), so a shared credential would not decrypt for the second tenant in the first place. The schema follows the storage rather than fighting it.
 
 The price is worth stating: a group with one provider contract and three subsidiary tenants deposits that credential three times, and its seats cannot be pooled across them. That is a **billing** problem, not a credential problem — costs can be rolled up across organisations later without any tenant ever holding another's secret, and that is the cheaper direction to solve it from.
 

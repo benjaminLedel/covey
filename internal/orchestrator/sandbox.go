@@ -20,8 +20,21 @@ type SandboxProvider interface {
 
 type SandboxSpec struct {
 	AgentID uuid.UUID
-	HomeDir string
-	Env     map[string]string // COVEY_WS_URL, COVEY_DAEMON_TOKEN, …
+	// OrgID is the agent's organisation. It decides which runner carries this
+	// sandbox — and with it which egress segment it hangs in: a runner serves
+	// exactly one organisation (spec/16), so two tenants never share an
+	// internal network.
+	OrgID uuid.UUID
+	// Image is the agent's workplace: a profile name (`base`, `dev`), an image
+	// reference of its own, or empty for the provider's default. The provider
+	// resolves it — only it knows what a profile is called in its world.
+	Image string
+	// RunnerTags are the capabilities the agent needs of its host. The provider
+	// decides what to do with them — for the docker provider on one machine,
+	// nothing.
+	RunnerTags []string
+	HomeDir    string
+	Env        map[string]string // COVEY_WS_URL, COVEY_DAEMON_TOKEN, …
 	// EgressToken is the per-sandbox token the sandbox uses to identify itself
 	// as this agent to the egress proxy (Proxy-Authorization). Empty = no
 	// egress enforcement for this sandbox.
@@ -54,17 +67,14 @@ type DataPlaneChecker interface {
 // Access deliberately does *not* go through the daemon protocol: the home is
 // there even while the sandbox sleeps — and asleep is the normal state.
 type FileAccess interface {
-	// AgentHome returns an agent's home. It need not exist: an agent that was
-	// never woken does not have one yet.
-	AgentHome(agentID uuid.UUID) (Home, error)
-}
-
-// Home describes an agent's persistent home on the host.
-type Home struct {
-	// Path is the directory that appears as /home/agent inside the sandbox.
-	Path string
-	// UID/GID is the owner inside the sandbox; -1 = do not set.
-	UID, GID int
+	// AgentFiles opens an agent's home as a file tree. It need not exist: an
+	// agent that was never woken does not have one yet, and the listing is then
+	// empty rather than an error.
+	//
+	// A tree and no longer a path: with a runner on another host the home is
+	// not on this machine, and when that host is offline the last snapshot is
+	// what can still be read. The caller sees one interface.
+	AgentFiles(agentID uuid.UUID) (sandboxfs.Tree, error)
 }
 
 // ErrNoFileAccess: the configured provider knows no reachable home.
@@ -72,14 +82,10 @@ var ErrNoFileAccess = errors.New("file access: the sandbox provider has no reach
 
 // AgentFiles opens an agent's home as a file tree (spec/02: the workplace). If
 // the provider lacks the FileAccess port, ErrNoFileAccess is returned.
-func (o *Orchestrator) AgentFiles(agentID uuid.UUID) (*sandboxfs.FS, error) {
+func (o *Orchestrator) AgentFiles(agentID uuid.UUID) (sandboxfs.Tree, error) {
 	fa, ok := o.Provider.(FileAccess)
 	if !ok {
 		return nil, ErrNoFileAccess
 	}
-	home, err := fa.AgentHome(agentID)
-	if err != nil {
-		return nil, err
-	}
-	return sandboxfs.New(home.Path, home.UID, home.GID)
+	return fa.AgentFiles(agentID)
 }

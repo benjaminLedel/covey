@@ -110,7 +110,7 @@ One file per plugin, rather than one hand-edited `catalog.json`: `CODEOWNERS` ca
 
 ## Installing: what happens in the instance
 
-*Built.* `internal/marketplace` fetches and caches the catalogue and verifies artefacts; `GET /api/v1/marketplace` and `POST /api/v1/marketplace/{name}/install` serve the store's catalogue tab; migration 0063 carries the provenance columns.
+*Built.* `internal/marketplace` fetches and caches the catalogue and verifies artefacts; `GET /api/v1/marketplace` and `POST /api/v1/marketplace/{name}/install` serve the store's catalogue tab; migration 0069 carries the provenance columns.
 
 The store shows the catalogue next to the built-ins. Installing writes precisely the row that the manual upload writes today — `kind`, `manifest`, `enabled=false` — plus the provenance of what was installed:
 

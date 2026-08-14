@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"covey/internal/agents"
 	"covey/internal/identity"
 	identbuiltin "covey/internal/identity/builtin"
 	"covey/internal/org"
@@ -282,6 +283,10 @@ func (s *Server) handleSetOwnOrgDescription(w http.ResponseWriter, r *http.Reque
 // Issues dorthin schreibt, wo die Welt mitliest; eine Instanz, die in ihr
 // eigenes GitLab meldet, behaelt sie im Haus. Das entscheidet die
 // Organisation, einmal, und nicht ein Modell je Lauf.
+//
+// Drei Zustaende, seit die Voreinstellung da ist (agents.PlatformRepo):
+// leer = das Projekt, aus dem dieses Programm stammt; ein Zielsystem plus
+// Projekt = das eigene Repository; agents.RepoOff = gar nicht.
 func (s *Server) handleSetPlatformRepo(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	var in struct {
@@ -294,6 +299,16 @@ func (s *Server) handleSetPlatformRepo(w http.ResponseWriter, r *http.Request) {
 	}
 	system := strings.ToLower(strings.TrimSpace(in.System))
 	project := strings.TrimSpace(in.Project)
+	// "Aus" traegt kein Projekt — und braucht auch keine Pruefung gegen die
+	// angeschlossenen Zielsysteme, weil es keins benennt.
+	if system == agents.RepoOff {
+		if err := s.Org.SetPlatformRepo(r.Context(), p.OrgID, system, ""); err != nil {
+			mapErr(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+		return
+	}
 	// Beides oder nichts: ein System ohne Projekt ist eine halbe Adresse, und
 	// eine halbe Adresse im Prompt ist schlimmer als keine.
 	if (system == "") != (project == "") {

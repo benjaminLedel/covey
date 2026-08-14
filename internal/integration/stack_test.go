@@ -8,6 +8,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha1"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http/httptest"
@@ -29,6 +30,7 @@ import (
 	"covey/internal/dream"
 	"covey/internal/egress"
 	"covey/internal/guardrails"
+	"covey/internal/homestore"
 	"covey/internal/httpapi"
 	identbuiltin "covey/internal/identity/builtin"
 	"covey/internal/memory"
@@ -36,7 +38,10 @@ import (
 	"covey/internal/orchestrator"
 	"covey/internal/org"
 	reqlogstore "covey/internal/reqlog/store"
+	"covey/internal/runner"
+	runnerstore "covey/internal/runner/store"
 	"covey/internal/runtimes"
+	"covey/internal/sandboxfs"
 	secbuiltin "covey/internal/secrets/builtin"
 	"covey/internal/settings"
 	"covey/internal/skills"
@@ -84,11 +89,11 @@ func (p *inprocProvider) Start(ctx context.Context, spec orchestrator.SandboxSpe
 	return &inprocSandbox{cancel: cancel, done: done}, nil
 }
 
-// AgentHome satisfies orchestrator.FileAccess: in-process too, the home lives on
-// disk. Without it the file browser (spec/02) could not be checked in the
+// AgentFiles satisfies orchestrator.FileAccess: in-process too, the home lives
+// on disk. Without it the file browser (spec/02) could not be checked in the
 // vertical slice — it hangs on exactly this port.
-func (p *inprocProvider) AgentHome(agentID uuid.UUID) (orchestrator.Home, error) {
-	return orchestrator.Home{Path: p.homeBase + "/" + agentID.String(), UID: -1, GID: -1}, nil
+func (p *inprocProvider) AgentFiles(agentID uuid.UUID) (sandboxfs.Tree, error) {
+	return sandboxfs.New(p.homeBase+"/"+agentID.String(), -1, -1)
 }
 
 type inprocSandbox struct {
@@ -117,25 +122,67 @@ type stack struct {
 	mem       *memory.Store
 	targets   *targetstore.Store
 	egress    *egress.Store
+	runners   *runnerstore.Store
 	skills    *skills.Store
 	reqlog    *reqlogstore.Store
 	templates *templates.Store
 	audit     *audit.Store
 	dreams    *dream.Store
 	orch      *orchestrator.Orchestrator
-	http      *httptest.Server
 	// srv is the HTTP server itself, so a test can equip it with something the
 	// basic stack deliberately leaves out — a plugin catalogue, for instance.
-	srv      *httpapi.Server
-	orgID    uuid.UUID
-	adminID  uuid.UUID
-	homeBase string
-	cancel   context.CancelFunc
+	srv        *httpapi.Server
+	stopRunner context.CancelFunc
+	http       *httptest.Server
+	orgID      uuid.UUID
+	adminID    uuid.UUID
+	homeBase   string
+	cancel     context.CancelFunc
 }
+
+// setRunnerPool hands the pool and the home store to the HTTP server, so that
+// a remote runner can connect and reach its blocks. Done after the fact
+// because the pool only comes into being with the provider.
+func (s *stack) setRunnerPool(pool *runner.Pool, blobs homestore.BlobStore) {
+	s.srv.RunnerPool = pool
+	s.srv.Blobs = blobs
+}
+
+// cancelRunner cuts the connection to the built-in runner — a host that is
+// down, a maintenance window. What the tests want to know is what remains
+// answerable then.
+func (s *stack) cancelRunner() {
+	if s.stopRunner != nil {
+		s.stopRunner()
+	}
+}
+
+// errorsAs is errors.As, in a spelling the tests can pass a **T to without
+// importing errors everywhere.
+func errorsAs(err error, target any) bool { return errors.As(err, target) }
 
 const webhookSecret = "test-webhook-secret"
 
+// stackOpts lets a test replace the pieces of the data plane. Empty = the
+// normal stack: in-process daemon, mock runtime.
+type stackOpts struct {
+	// provider replaces the sandbox provider. Used by the runner tests, which
+	// want the real pool in front of a fake docker instead of the shortcut.
+	provider func(homeBase string, log *slog.Logger) orchestrator.SandboxProvider
+	// readyTimeout shortens the wait for the daemon. A test that checks
+	// something is reported INSTEAD of waited out must not itself wait it out.
+	readyTimeout time.Duration
+	// afterOrch runs once the orchestrator exists — for wiring that points
+	// back at it (the runner reporting a dead sandbox, say).
+	afterOrch func(*orchestrator.Orchestrator)
+}
+
 func newStack(t *testing.T) *stack {
+	t.Helper()
+	return newStackWith(t, stackOpts{})
+}
+
+func newStackWith(t *testing.T, opts stackOpts) *stack {
 	t.Helper()
 	ctx := context.Background()
 
@@ -185,6 +232,7 @@ func newStack(t *testing.T) *stack {
 
 	s.targets = targetstore.NewStore(pool)
 	s.egress = egress.NewStore(pool)
+	s.runners = runnerstore.NewStore(pool)
 	s.skills = skills.NewStore(pool)
 	// Request log as in production, but without reqlog.SetDefault: the sink is
 	// process-wide, and stacks running in parallel would push their entries at
@@ -199,18 +247,30 @@ func newStack(t *testing.T) *stack {
 	s.dreams = dream.NewStore(pool, s.mem, log)
 	s.homeBase = t.TempDir()
 
+	var provider orchestrator.SandboxProvider = &inprocProvider{homeBase: s.homeBase, log: log}
+	if opts.provider != nil {
+		provider = opts.provider(s.homeBase, log)
+	}
+	readyTimeout := 10 * time.Second
+	if opts.readyTimeout > 0 {
+		readyTimeout = opts.readyTimeout
+	}
+
 	s.orch = orchestrator.New(orchestrator.Options{
 		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
 		Rails: s.rails, Secrets: secretStore, Runtimes: s.runtimes, Identity: idp, Memory: s.mem,
 		Targets:        s.targets,
 		Skills:         s.skills,
 		ReqLog:         s.reqlog,
-		Provider:       &inprocProvider{homeBase: s.homeBase, log: log},
+		Provider:       provider,
 		DaemonTokenTTL: 5 * time.Minute,
 		TickInterval:   300 * time.Millisecond,
-		ReadyTimeout:   10 * time.Second,
+		ReadyTimeout:   readyTimeout,
 		Log:            log,
 	})
+	if opts.afterOrch != nil {
+		opts.afterOrch(s.orch)
+	}
 
 	srv := &httpapi.Server{
 		Pool: pool, Registry: s.registry, Backlog: s.backlog, Obs: s.obs,
@@ -222,6 +282,7 @@ func newStack(t *testing.T) *stack {
 		Templates: s.templates, Dreams: s.dreams, Audit: s.audit,
 		Skills:      s.skills,
 		EgressStore: s.egress,
+		Runners:     s.runners,
 		ReqLog:      s.reqlog,
 		Orch:        s.orch, Log: log,
 		WebhookSecrets: map[string]string{"zammad": webhookSecret},

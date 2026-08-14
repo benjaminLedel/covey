@@ -33,7 +33,8 @@ Zugängen, Backlog und Vorgesetztem. Und mit den Werkzeugen, sie zu überwachen.
 git clone https://github.com/benjaminLedel/covey.git && cd covey
 cp .env.example .env
 echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env   # 32-Byte-Schlüssel
-docker build -f Dockerfile.sandbox -t covey-sandbox:latest .   # der Arbeitsplatz der Agenten, einmalig
+docker pull ghcr.io/benjaminledel/covey-sandbox:base-latest    # der Arbeitsplatz der Agenten, fertig gebaut
+docker tag ghcr.io/benjaminledel/covey-sandbox:base-latest covey-sandbox:latest
 docker compose up -d --build                              # Postgres + Covey starten
 ```
 
@@ -41,7 +42,7 @@ Dann **[http://localhost:8494](http://localhost:8494)** öffnen — Login `admin
 
 Das mitgelieferte [`docker-compose.yml`](docker-compose.yml) bringt Postgres (pgvector) und das covey-Binary mit eingebetteter Admin-UI; `bootstrap` legt Organisation, Admin, einen Demo-Agenten und dessen Arbeitsplatz an, Migrationen laufen automatisch.
 
-Alles außer der dritten Zeile dauert Sekunden. Sie baut den Container, in dem ein Agent arbeitet ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, eine Node- und Java-Toolchain) und braucht ein paar Minuten — man kann sie zum Umsehen auch weglassen: die Plattform startet ohne sie und sagt beim Start und auf der Agenten-Übersicht, dass der erste Lauf scheitern wird, solange sie fehlt.
+Die dritte Zeile holt den Container, in dem ein Agent arbeitet ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, git, ripgrep — das Profil `base`); gebaut und veröffentlicht von [der Pipeline des Projekts](.github/workflows/sandbox-images.yml), für amd64 und arm64. `make sandbox-image` baut ihn stattdessen hier, wenn ein fremdes Image nicht in Frage kommt. Entwickler-Agenten wollen darauf das Profil `dev` (`docker pull …:dev-latest`, oder `make sandbox-image-dev`: zusätzlich PHP, JDK und die Versionsmanager `fvm`/`uv`); es wird je Agent gesetzt — man kann sie zum Umsehen auch weglassen: die Plattform startet ohne sie und sagt beim Start und auf der Agenten-Übersicht, dass der erste Lauf scheitern wird, solange sie fehlt.
 
 *Lieber das blanke Binary?* [`install.sh`](#installation) holt es aus dem [neuesten Release](https://github.com/benjaminLedel/covey/releases/latest) und prüft die Checksumme. *Lieber erst schauen?* Die laufende Instanz steht unter **[covey.work](https://covey.work)**. Vollständige Anleitung inkl. erstem Agenten und Produktions-Checkliste: [`docs/quickstart-docker.md`](docs/quickstart-docker.md).
 
@@ -187,7 +188,7 @@ make bootstrap    # Frontend + Binaries bauen, migrieren, Org/Admin/Agent anlege
 make run          # covey serve auf http://localhost:8494
 ```
 
-**Sandbox-Isolation.** Die Control Plane startet Sandboxen als Container (**docker-Provider**, Default) — echte Isolation auf Container-Ebene. Vor dem ersten Start `make sandbox-image` bauen ([`Dockerfile.sandbox`](Dockerfile.sandbox): coveyd + Claude Code + chromium für das `browser`-Plugin, dazu PHP, JDK und die Versionsmanager `fvm`/`uv` für Entwickler-Agenten). Das persistente Agenten-Home wird als Volume gemountet; der Container erbt nichts von der Host-Umgebung. Image überschreibbar via `COVEY_SANDBOX_IMAGE`. Die Regel beim Erweitern: **Version → Home, Toolchain → Image** — SDK-Versionen zieht sich der Agent nach dem Pin im Projekt-Repo selbst ins persistente Home ([`docs/ops-deployment.md`](docs/ops-deployment.md)).
+**Sandbox-Isolation.** Die Control Plane startet Sandboxen als Container (**docker-Provider**, Default) — echte Isolation auf Container-Ebene. Vor dem ersten Start die Images bauen: `make sandbox-image` für das Profil `base` ([`Dockerfile.sandbox`](Dockerfile.sandbox): coveyd + Claude Code + chromium für das `browser`-Plugin) und `make sandbox-image-dev` für `dev` ([`Dockerfile.sandbox.dev`](Dockerfile.sandbox.dev): zusätzlich PHP, JDK und die Versionsmanager `fvm`/`uv`). **Das Image hängt am Agenten**, nicht an der Instanz: ein Support- oder Mail-Agent läuft auf `base` und trägt nicht länger die JVM des Entwickler-Agenten mit; das Profil wird je Agent in der Oberfläche gesetzt, und ein eigenes Image ist dort ein gültiger Wert. `COVEY_SANDBOX_IMAGE` / `COVEY_SANDBOX_IMAGE_DEV` überschreiben, worauf die beiden Profile zeigen; das erste bleibt zugleich die Voreinstellung für Agenten ohne eigene Angabe. Die Regel beim Erweitern: **Version → Home, Toolchain → Image** — SDK-Versionen zieht sich der Agent nach dem Pin im Projekt-Repo selbst ins persistente Home ([`docs/ops-deployment.md`](docs/ops-deployment.md)).
 
 **Anmeldung.** `admin@covey.local` / `covey-admin`, überschreibbar via `COVEY_ADMIN_EMAIL` / `COVEY_ADMIN_PASSWORD` beim Bootstrap.
 
@@ -228,6 +229,8 @@ Spezifikation und Runbooks sind auf **Englisch** — sie richten sich an alle, d
 | Dokument | Inhalt |
 |---|---|
 | [`docs/quickstart-docker.md`](docs/quickstart-docker.md) | Compose-Setup, erster Agent, Produktions-Checkliste |
+| [`docs/upgrade.md`](docs/upgrade.md) | Upgrades, die mehr als einen Neustart brauchen — was vorher zu bauen und zu sichern ist |
+| [`docs/ops-runner.md`](docs/ops-runner.md) | Runner: Sandboxen auf mehr als einem Host, der Home-Store, harte Egress-Isolation |
 | [`docs/ops-deployment.md`](docs/ops-deployment.md) | CI-Pipeline, Auto-Deploy auf einen Zielhost |
 | [`docs/ops-zammad.md`](docs/ops-zammad.md) | Zammad anbinden: API-Token, Webhook + Trigger, kundensichtbare Antworten |
 | [`docs/ops-github.md`](docs/ops-github.md) | GitHub: Issues, Pull Requests, Actions, Checkout in der Sandbox |

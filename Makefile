@@ -12,7 +12,7 @@ LDFLAGS := -X covey/internal/buildinfo.version=$(VERSION) \
            -X covey/internal/buildinfo.commit=$(COMMIT) \
            -X covey/internal/buildinfo.date=$(DATE)
 
-.PHONY: build web test test-integration run bootstrap dev-db sandbox-image egress-image clean skill-sync
+.PHONY: build web test test-integration run bootstrap dev-db sandbox-image sandbox-image-dev sandbox-images sandbox-images-pull upgrade runner egress-image clean skill-sync
 
 # npm ci instead of npm install — deliberately: it installs exactly the lockfile
 # and never rewrites it. npm install on macOS throws the Linux/wasm branches
@@ -47,10 +47,51 @@ run: build
 # The sandbox image agents work in (coveyd + Claude Code + chromium). Needed
 # before the first wake, not before the first start: `covey serve` comes up
 # without it and says at startup that it is missing.
+#
+# Two profiles (spec/16): `base` carries what every agent needs, `dev` adds the
+# toolchains of a developer agent (PHP, JDK, fvm, uv, node-gyp). The image hangs
+# off the agent — a mail agent no longer carries a JVM.
 sandbox-image:
 	docker build -f Dockerfile.sandbox \
 		--build-arg VERSION=$(VERSION) --build-arg COMMIT=$(COMMIT) --build-arg DATE=$(DATE) \
 		-t covey-sandbox:latest .
+
+sandbox-image-dev: sandbox-image
+	docker build -f Dockerfile.sandbox.dev \
+		--build-arg BASE_IMAGE=covey-sandbox:latest \
+		-t covey-sandbox-dev:latest .
+
+# Both profiles at once — what an installation that has developer agents needs.
+sandbox-images: sandbox-image-dev
+
+# The same two images, but pulled instead of built: GitHub builds and publishes
+# them on every push and every release (.github/workflows/sandbox-images.yml).
+# Minutes instead of a multi-gigabyte build, and the only way that works at all
+# where there is no checkout — a container installation sets
+# COVEY_SANDBOX_IMAGE / COVEY_SANDBOX_IMAGE_DEV to these references instead.
+#
+# SANDBOX_TAG picks the state: `latest` follows main, a release tag (v0.4.0)
+# fetches the images built for that release. Take the one your binary is.
+SANDBOX_PKG ?= ghcr.io/benjaminledel/covey-sandbox
+SANDBOX_TAG ?= latest
+sandbox-images-pull:
+	docker pull $(SANDBOX_PKG):base-$(SANDBOX_TAG)
+	docker pull $(SANDBOX_PKG):dev-$(SANDBOX_TAG)
+	docker tag $(SANDBOX_PKG):base-$(SANDBOX_TAG) covey-sandbox:latest
+	docker tag $(SANDBOX_PKG):dev-$(SANDBOX_TAG) covey-sandbox-dev:latest
+	@echo "Both workplaces now sit under the names the instance looks for."
+
+# What an upgrade needs: the new binaries and both sandbox profiles. Afterwards
+# `covey doctor` says whether anything is still in the way on THIS installation.
+upgrade: build sandbox-images
+	@echo
+	@echo "Built. Now:  covey doctor   (says what a restart would run into here)" 
+
+# The standalone runner (spec/16). Its own artefact on purpose: on a runner host
+# `serve`, `migrate` and `bootstrap` should not exist at all, and "no database
+# access" reads badly when the database code is compiled in beside it.
+runner:
+	$(GO) build -ldflags "$(LDFLAGS)" -o covey-runner ./cmd/covey-runner
 
 # Egress proxy image for COVEY_EGRESS_ISOLATION=network (hard network isolation).
 egress-image:
@@ -65,5 +106,5 @@ test-integration:
 	$(GO) test ./internal/integration/ -v
 
 clean:
-	rm -f covey coveyd
+	rm -f covey coveyd covey-runner
 	rm -rf data web/dist

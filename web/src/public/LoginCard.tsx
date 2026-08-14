@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
 import { post } from "../api";
 import { usePublicLang } from "./lang";
@@ -29,6 +29,11 @@ export default function LoginCard({ onLogin }: { onLogin: () => void }) {
   /* Der Verweis auf die Registrierung erscheint nur, wenn diese Installation
      sie überhaupt annimmt — sonst führte er zu einem „geschlossen" (FR-002). */
   const { state: signupState } = useSignupState();
+  /* ?weiter= setzt nur die Weiterleitung aus der Oberfläche (App.tsx), wenn
+     eine Sitzung abgelaufen ist. Ohne einen Satz dazu sieht es aus, als hätte
+     die Anwendung einen zufällig hinausgeworfen. */
+  const { search } = useLocation();
+  const abgelaufen = new URLSearchParams(search).has("weiter");
 
   useEffect(() => setIsLocal(localHost()), []);
 
@@ -53,6 +58,11 @@ export default function LoginCard({ onLogin }: { onLogin: () => void }) {
   return (
     <form onSubmit={submit} className="login-card login-rise" style={{ animationDelay: "0.24s" }}>
       <h2 className="login-card-title">{t("login.title")}</h2>
+      {abgelaufen && !error && (
+        <p className="login-note" role="status">
+          {t("login.expired")}
+        </p>
+      )}
       <label htmlFor="email">{t("login.email")}</label>
       <input
         id="email"

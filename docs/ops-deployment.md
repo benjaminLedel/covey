@@ -24,8 +24,11 @@ The pipeline (`.gitlab-ci.yml`) has three stages: `test → build → deploy`.
      `$DEPLOY_DIR/docker-compose.yml` (default `/opt/covey`),
    - creates, on the **first** deploy, a one-off `.env` with a random
      master key + passwords (never touched again afterwards),
-   - sets `COVEY_IMAGE` to `…/covey:$CI_COMMIT_SHORT_SHA`, pulls the
-     sandbox image onto the host and pins it via `COVEY_SANDBOX_IMAGE`,
+   - sets `COVEY_IMAGE` to `…/covey:$CI_COMMIT_SHORT_SHA`, pulls **both**
+     sandbox images onto the host and pins them via `COVEY_SANDBOX_IMAGE`
+     (profile `base`) and `COVEY_SANDBOX_IMAGE_DEV` (profile `dev`) — the
+     workplace hangs off the agent since the split, and an instance whose
+     agents are on `dev` fails every wake without that second image,
    - `docker compose pull && docker compose up -d`.
 
 ### Sandbox isolation in the deployment
@@ -404,3 +407,8 @@ The setup is deliberately lean. For real operation, additionally (cf.
 - **Egress:** `COVEY_EGRESS_ENFORCE=true` (the docker sandbox provider is
   already active) so that sandboxes reach only allowlist hosts.
 - Replace the admin password from the generated `.env` with one of your own.
+- **Session lifetime:** `COVEY_SESSION_TTL` (default `168h`, i.e. seven days).
+  The session slides — every request in the second half of that window pushes
+  the end back, so only an *unused* session runs out. Installations on shared
+  machines can shorten it (`COVEY_SESSION_TTL=8h`); what protects an unattended
+  browser is still the screen lock, not the hour count.

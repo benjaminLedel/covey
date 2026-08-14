@@ -51,26 +51,43 @@ func (st sessionStore) Create(ctx context.Context, tokenHash string, accountID, 
 // then carries the account with an empty organisation. An INNER JOIN would
 // make such a session look like no session at all — and whoever just
 // registered would be thrown back to the login form.
-func (st sessionStore) Principal(ctx context.Context, tokenHash string) (identity.Principal, error) {
+// It also returns when the session runs out: the caller extends it while it is
+// being used (see Renew) instead of throwing whoever works with it out mid-task
+// at a fixed point in time.
+func (st sessionStore) Principal(ctx context.Context, tokenHash string) (identity.Principal, time.Time, error) {
 	var p identity.Principal
 	var humanID, orgID *uuid.UUID
 	var role *string
+	var expires time.Time
 	err := st.pool.QueryRow(ctx, `SELECT a.id, a.email, a.display_name, a.platform_role,
-			h.id, h.org_id, h.role
+			h.id, h.org_id, h.role, s.expires_at
 		FROM http_sessions s
 		JOIN accounts a ON a.id = s.account_id
 		LEFT JOIN humans h ON h.id = s.human_id
 		WHERE s.token_hash = $1 AND s.expires_at > now()`, tokenHash).
-		Scan(&p.AccountID, &p.Email, &p.DisplayName, &p.PlatformRole, &humanID, &orgID, &role)
+		Scan(&p.AccountID, &p.Email, &p.DisplayName, &p.PlatformRole, &humanID, &orgID, &role, &expires)
 	if err != nil {
-		return identity.Principal{}, err
+		return identity.Principal{}, time.Time{}, err
 	}
 	if humanID != nil {
 		// NormalizeRole: a database that still carries the pre-0061 name gives
 		// the same principal as one that does not.
 		p.ID, p.OrgID, p.Role = *humanID, *orgID, identity.NormalizeRole(*role)
 	}
-	return p, nil
+	return p, expires, nil
+}
+
+// Renew pushes the end of a session back — the sliding session. Without it the
+// lifetime counts from the sign-in, and somebody who works in Covey all day is
+// thrown out in the middle of it; with it, only an unused session expires.
+//
+// The condition on expires_at keeps this from resurrecting a session that has
+// run out in the meantime: renewal extends what is valid, it does not revive.
+func (st sessionStore) Renew(ctx context.Context, tokenHash string, expires time.Time) error {
+	_, err := st.pool.Exec(ctx,
+		"UPDATE http_sessions SET expires_at=$2 WHERE token_hash=$1 AND expires_at > now()",
+		tokenHash, expires)
+	return err
 }
 
 // Delete ends a single session (sign-out).

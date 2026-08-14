@@ -26,6 +26,12 @@ export type Agent = {
   effort: string; // "" = Runtime-Default, sonst low|medium|high|xhigh|max
   max_turns: number;
   recording_level: string; // "" = erbt Org-Boden, sonst minimal|standard|full
+  // Der Arbeitsplatz: Profilname (base, dev) oder ein eigenes Image;
+  // leer = Voreinstellung der Instanz (spec/16).
+  sandbox_image: string;
+  // Welche Fähigkeiten der Host haben muss (arm64, gpu, ein Runner im Netz des
+  // Zielsystems). Leer = jeder Runner der Organisation (spec/16).
+  runner_tags?: string[];
   warm_sandbox: boolean; // hält die Sandbox zwischen Wach-Phasen live (opt-in)
   status: string;
   supervisor_id?: string;
@@ -1040,6 +1046,12 @@ export type BuildInfo = {
   // Öffentliche Quelle dieses Binaries (AGPL-3.0). Kommt vom Server, damit ein
   // Fork seine eigene Adresse zeigt statt der des Ursprungs.
   source: string;
+  // Dieselbe Adresse als Zielsystem-Adresse: die Voreinstellung, an die Covey
+  // Doctor meldet, solange die Organisation kein eigenes Repository nennt
+  // (spec/21). Leer, wenn die Quelle auf keinem Plugin liegt, das auschecken
+  // kann — dann gibt es keine Voreinstellung.
+  source_system?: string;
+  source_project?: string;
 };
 
 export const buildInfo = () => api<BuildInfo>("/version");
@@ -1079,6 +1091,18 @@ export class ApiError extends Error {
   }
 }
 
+/* Was passieren soll, wenn der Server eine Anfrage mit 401 abweist: die
+   Sitzung ist abgelaufen (oder anderswo beendet worden). Das ist kein Fehler
+   EINER Seite, sondern das Ende der ganzen Oberfläche — deshalb hängt die
+   Reaktion nicht an der aufrufenden Komponente, sondern hier an einer Stelle.
+   App.tsx meldet sich an und schaltet auf die Anmeldung um. Ohne das blieb die
+   Hülle stehen und füllte sich mit Fehlermeldungen. */
+let abgelaufenMelden: (() => void) | null = null;
+
+export function setUnauthorizedHandler(fn: (() => void) | null) {
+  abgelaufenMelden = fn;
+}
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   // Bei FormData setzt der Browser den Content-Type selbst — samt der
   // multipart-Grenze, die wir gar nicht kennen. Ihn zu überschreiben machte
@@ -1089,6 +1113,11 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
   if (!res.ok) {
+    /* Die Endpunkte unter /auth/ sind ausgenommen: dort ist die 401 die
+       normale Antwort ("nicht angemeldet", "falsches Passwort") und wird von
+       der Anmeldung selbst behandelt — ein globaler Abbruch würde die
+       Anmeldemaske gegen sich selbst richten. */
+    if (res.status === 401 && !path.startsWith("/auth/")) abgelaufenMelden?.();
     let msg = res.statusText;
     try {
       const body = await res.json();
@@ -1136,6 +1165,10 @@ export type FileEntry = {
 };
 
 export type FileListing = {
+  // read_only: das Home wird aus dem letzten Snapshot gelesen, weil sein Runner
+  // nicht verbunden ist (spec/16). Schreiben ist dann abgelehnt.
+  read_only?: boolean;
+  read_only_reason?: string;
   path: string;
   /** false = das Home wurde noch nie angelegt (Agent nie geweckt). */
   exists: boolean;

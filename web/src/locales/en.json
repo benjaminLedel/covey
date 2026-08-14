@@ -376,7 +376,10 @@
     "setupPage": "Setup",
     "inbox": "Inbox",
     "administrationSection": "Administration",
-    "administration": "Organization"
+    "administration": "Organization",
+    "approvals": "Approvals",
+    "runners": "Runners",
+    "diagnostics": "Diagnostics"
   },
   "costs": {
     "title": "Cost & Tokens",
@@ -483,7 +486,8 @@
     "agent_owner": "Agent Owner",
     "security": "Security",
     "auditor": "Auditor",
-    "controlling": "Controlling"
+    "controlling": "Controlling",
+    "platform_admin": "Platform Admin"
   },
   "onboarding": {
     "title": "First steps",
@@ -548,6 +552,7 @@
     "submit": "Sign in",
     "submitting": "Signing in…",
     "error": "Login failed — email or password incorrect.",
+    "expired": "Your session has expired. After signing in you will continue where you left off.",
     "localOnly": "local only",
     "demoLogin": "Demo Login (Admin)"
   },
@@ -679,7 +684,9 @@
     "employedHint": "hired and on duty",
     "reject": "Reject",
     "rejectTitle": "Reject {{name}}?",
-    "rejectLead": "The draft is discarded. It never worked — there is no run and no cost. The brief it came out of stays as a task."
+    "rejectLead": "The draft is discarded. It never worked — there is no run and no cost. The brief it came out of stays as a task.",
+    "storeLevel": "Home store: {{size}} · {{snapshots}} snapshots of {{agents}} agents",
+    "storeBackup": "needs backup like the database"
   },
   "agent": {
     "notFound": "Agent not found.",
@@ -1055,7 +1062,19 @@
       "deleteYes": "Yes, delete permanently",
       "cancel": "Cancel",
       "rollDice": "Roll random name",
-      "subGeneral": "General"
+      "subGeneral": "General",
+      "sandboxImage": "Workplace",
+      "sandboxImageDefault": "Instance default",
+      "sandboxImageOwn": "Own image …",
+      "sandboxImageHint": "The image this agent works in. A profile is a union of toolchains, not a cut along languages: a developer agent works on PHP and Flutter projects, a mail agent on neither. Takes effect at the next cold start; a running or warm-parked sandbox keeps its image.",
+      "filesReadOnly": "Read-only — from the last snapshot",
+      "runnerTags": "Host requirements",
+      "runnerTagsHint": "Tags a runner has to carry for this agent to run there — arm64, say, or a host inside the target system's network. Empty means any runner of the organisation. A runner may carry more than is asked of it; if a required capability is missing the agent waits and the message names the tag.",
+      "sandboxProfile": {
+        "base": "base — Node, git, chromium, ripgrep",
+        "dev": "dev — plus PHP, JDK, fvm, uv"
+      },
+      "sandboxImageMissing": "The image {{image}} is on no runner of this organisation — until it is built, every wake fails. Once: {{build}}"
     },
     "skills": {
       "desc": "The capabilities this agent has — its own plus those linked from the library. Exactly this list is written into its home before every run; of each entry, only the description stays in context permanently.",
@@ -1141,11 +1160,39 @@
       "fromTask": "from the run",
       "reviewsMore": "Show {{count}} older",
       "reviewsFewer": "Newest only"
+    },
+    "home": {
+      "title": "Home store",
+      "disabled": "The home store is switched off (COVEY_HOME_STORE=false). Without it there are no snapshots, no rollback — and a lost home is unrecoverable.",
+      "noSnapshot": "No snapshot yet — the first one appears when the agent next really falls asleep.",
+      "size": "{{total}} in size, of which {{exclusive}} only this agent holds",
+      "lastSync": "Last sync {{when}} · {{blocks}} blocks, {{bytes}} transferred, {{seconds}} s",
+      "runner": "Working copy last on: {{runner}}",
+      "backupNow": "Back up now",
+      "history": "Snapshots",
+      "restore": "Restore",
+      "confirmRestore": "Reset the home to its state of {{when}}? The current content of the working copy is overwritten.",
+      "reason": {
+        "job": "after the run",
+        "manual": "by hand",
+        "file-browser": "file browser",
+        "restore": "after the rollback"
+      },
+      "sizeHint": "The rest is content other agents hold too — toolchains, caches, checkouts. Losing that costs time; losing the exclusive part costs work.",
+      "snapshots_one": "{{count}} snapshot, from {{since}}",
+      "snapshots_other": "{{count}} snapshots, the oldest from {{since}}",
+      "files_one": "{{count}} file",
+      "files_other": "{{count}} files"
     }
   },
   "approvals": {
     "approve": "Approve",
-    "deny": "Deny"
+    "deny": "Deny",
+    "title": "Approvals",
+    "pending": "{{count}} pending",
+    "noPending": "Nothing waiting for approval.",
+    "requested": "requested {{date}}",
+    "decided": "Decided"
   },
   "inbox": {
     "title": "Inbox",
@@ -1313,7 +1360,15 @@
       "project": "Project",
       "none": "— none —",
       "projectPlaceholder": "e.g. 42 or group/covey",
-      "hint": "Where Covey itself lives: Covey Doctor reads the source there (pinned to the running commit) and files its bug reports there. Enabled target systems only; leaving it empty switches both off. Second half of the setup: the same target system has to be in Covey Doctor's ACCESS.md — without that line the section stays out of its prompt."
+      "hint": "Where Covey itself lives: Covey Doctor reads the source there (pinned to the running version) and files its bug reports there. The default is the project this platform comes from; whoever wants to keep findings in-house enters an enabled target system of their own.",
+      "stateOk": "In effect: Covey Doctor has access there and gets the section in its prompt —",
+      "stateNoAccess": "Not in effect yet: {{system}} is not in Covey Doctor's ACCESS.md. Without that line the section stays out of its prompt, and the broker refuses the checkout. Add it at",
+      "stateDisabled": "Not in effect: {{system}} is not enabled for this organization. Enable it under",
+      "stateUnknownSystem": "Not in effect: the target system \"{{system}}\" does not exist here (any more).",
+      "isDefault": "default: the project this platform comes from",
+      "defaultOption": "Default ({{project}})",
+      "offOption": "— not at all —",
+      "stateOff": "Switched off: Covey Doctor neither reads this platform's source nor files anything there."
     }
   },
   "orgs": {
@@ -2044,5 +2099,67 @@
     "remove": "Uninstall",
     "removeTitle": "Uninstall {{name}}?",
     "removeBody": "The plugin is removed from this organisation. Its catalogue entry stays, so you can install it again at any time. Stored credentials stay too — they belong to the target system, not to the plugin."
+  },
+  "runners": {
+    "title": "Runners",
+    "intro": "Where the sandboxes run. Every sandbox starts through the runner protocol — on a single machine through one the control plane runs itself.",
+    "colHost": "Host",
+    "colState": "State",
+    "colTags": "Tags & images",
+    "colLoad": "Running",
+    "colDisk": "Disk",
+    "colVersion": "Version",
+    "builtin": "This host (built-in)",
+    "builtinHint": "Stands down as soon as this organisation registers a runner of its own.",
+    "connected": "connected",
+    "offline": "offline",
+    "offlineHint": "Offline is not “no runner”: the agents wait rather than moving back onto the control plane's host.",
+    "outdated": "outdated protocol",
+    "decommission": "Decommission",
+    "confirmDelete": "Decommission this runner? It takes only its local working copy with it — everything that matters is in the home store.",
+    "addTitle": "Add a host",
+    "addHint": "The runner needs Docker and a way out. No database, no store credentials — it speaks exclusively the runner protocol. The installation script comes from this instance and brings the matching version with it.",
+    "newToken": "Create a registration token",
+    "tokenOnce": "Shown once. On the new host, run:",
+    "storeTitle": "Home store",
+    "storeHint": "After every job a home goes in here as a whole. Needs backup like the database — 99 % of it would only have to be downloaded again, the rest exists nowhere else.",
+    "storeSize": "{{size}} occupied · {{snapshots}} snapshots of {{agents}} agents",
+    "keepPerAgent": "Snapshots per agent (0 = no limit)",
+    "maxAgeDays": "Maximum age in days (0 = no limit)",
+    "alwaysKeepLast": "Every agent's most recent snapshot always stays — a retention that takes an agent's last home away would be a delete command by a detour.",
+    "previewCleanup": "Preview",
+    "runCleanup": "Clean up now",
+    "confirmCleanup": "Run the cleanup? The snapshots it named will be removed.",
+    "cleanupPreview": "{{snapshots}} snapshots and {{blocks}} blocks would fall away — {{freed}} would be freed.",
+    "cleanupDone": "Removed {{snapshots}} snapshots and {{blocks}} blocks, {{freed}} freed.",
+    "free": "{{size}} free",
+    "copy": "Copy",
+    "copied": "Copied",
+    "lastSeen": "last seen {{when}}",
+    "agoJustNow": "just now",
+    "storeDedup": "The homes weigh {{logical}} together — the store holds them {{factor}}× smaller, because identical content is stored once.",
+    "storeNoDedupYet": "The homes weigh {{logical}} together — they share little so far. The store starts saving as soon as two agents hold the same toolchains.",
+    "sandboxes_one": "{{count}} sandbox",
+    "sandboxes_other": "{{count}} sandboxes",
+    "agoMinutes_one": "1 min ago",
+    "agoMinutes_other": "{{count}} min ago",
+    "agoHours_one": "1 h ago",
+    "agoHours_other": "{{count}} h ago",
+    "agoDays_one": "1 day ago",
+    "agoDays_other": "{{count}} days ago"
+  },
+  "diagnostics": {
+    "title": "Diagnostics",
+    "intro": "What a restart would run into on this installation, and which agent configurations need catching up. Both only read — nothing is changed.",
+    "stateTitle": "State of the installation",
+    "stateHint": "The same checks as `covey doctor`: migrations, sandbox images, home store, egress, runners. Before an upgrade, the fastest answer to “what is still missing here”.",
+    "markBlocking": "keeps agents from working",
+    "markNote": "note",
+    "markOk": "fine",
+    "lintTitle": "Agent configurations",
+    "lintHint": "After a platform change every installation gets the new platform contract automatically — but an agent's configuration stays as a human wrote it. This is which ones should catch up.",
+    "lintClean": "Nothing to do — no configuration stands out.",
+    "blocking_one": "{{count}} item keeps agents from working.",
+    "blocking_other": "{{count}} items keep agents from working."
   }
 }

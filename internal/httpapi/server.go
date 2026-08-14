@@ -25,9 +25,11 @@ import (
 	"covey/internal/audit"
 	"covey/internal/backlog"
 	"covey/internal/buildinfo"
+	"covey/internal/config"
 	"covey/internal/dream"
 	"covey/internal/egress"
 	"covey/internal/guardrails"
+	"covey/internal/homestore"
 	"covey/internal/identity"
 	"covey/internal/marketplace"
 	"covey/internal/memory"
@@ -35,6 +37,8 @@ import (
 	"covey/internal/orchestrator"
 	"covey/internal/org"
 	reqlogstore "covey/internal/reqlog/store"
+	"covey/internal/runner"
+	runnerstore "covey/internal/runner/store"
 	"covey/internal/runtimes"
 	"covey/internal/secrets"
 	"covey/internal/settings"
@@ -84,6 +88,25 @@ type Server struct {
 	EgressStore    *egress.Store
 	EgressEnforced bool
 	EgressDefaults []string
+
+	// Config is the process configuration — read by the platform diagnostics,
+	// which answer what a restart would run into here (images, store, egress).
+	// nil = the question is left unasked rather than answered by guessing.
+	Config *config.Config
+
+	// Runners are the execution nodes (spec/16). They authenticate with their
+	// own token against /api/runner/v1/… — the only interface they have to the
+	// platform. nil = the runner API answers 503 (tests).
+	Runners *runnerstore.Store
+	// RunnerPool is the control plane's side of the protocol: a foreign runner
+	// that connects is taken into it. nil = only the built-in one (tests).
+	RunnerPool *runner.Pool
+	// Blobs is the home store. A remote runner reaches its blocks through the
+	// runner API — it never gets the store's credentials (spec/16).
+	Blobs homestore.BlobStore
+	// storeSizes caches the store's fill level per organisation — walking the
+	// block directory is a disk pass, and the dashboard asks on every visit.
+	storeSizes storeSizeCache
 
 	Templates *templates.Store
 
@@ -275,6 +298,36 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("PATCH /api/v1/agents/{id}/max-turns", s.agentScoped(manage, s.handleSetMaxTurns))
 	mux.Handle("PATCH /api/v1/agents/{id}/recording-level", s.agentScoped(manage, s.handleSetRecordingLevel))
 	mux.Handle("PATCH /api/v1/agents/{id}/warm-sandbox", s.agentScoped(manage, s.handleSetWarmSandbox))
+	mux.Handle("PATCH /api/v1/agents/{id}/sandbox-image", s.agentScoped(manage, s.handleSetSandboxImage))
+	mux.Handle("PATCH /api/v1/agents/{id}/runner-tags", s.agentScoped(manage, s.handleSetRunnerTags))
+
+	// Runners (spec/16). Reading is for everyone who may look at the platform;
+	// adding and decommissioning a host is a management act.
+	mux.Handle("GET /api/v1/runners", s.rbac(anyRole, s.handleListRunners))
+	// The workplaces from the catalogue (spec/16) — readable for everyone who
+	// may look at an agent, because that is where they are chosen.
+	mux.Handle("GET /api/v1/workplaces", s.rbac(anyRole, s.handleListWorkplaces))
+	mux.Handle("POST /api/v1/runners/registration-tokens", s.rbac(manage, s.handleCreateRegistrationToken))
+	mux.Handle("DELETE /api/v1/runners/{id}", s.rbac(manage, s.handleDeleteRunner))
+
+	// The home store (spec/16, "Interface"). A store that grows quietly and
+	// whose content nobody can see is an operational risk — you notice it when
+	// the disk is full.
+	mux.Handle("GET /api/v1/agents/{id}/home", s.agentScoped(append(manage, identity.RoleSecurity), s.handleAgentHome))
+	mux.Handle("GET /api/v1/agents/{id}/home/snapshots", s.agentScoped(append(manage, identity.RoleSecurity), s.handleListSnapshots))
+	mux.Handle("POST /api/v1/agents/{id}/home/snapshots", s.agentScoped(manage, s.handleBackupNow))
+	mux.Handle("POST /api/v1/agents/{id}/home/restore", s.agentScoped(manage, s.handleRestoreSnapshot))
+	// Platform diagnostics: what a restart would run into, and which agent
+	// configs need catching up after an upgrade. Both existed only as
+	// subcommands, which is to say: only for whoever has a shell on the host.
+	// identity.RolePlatformAdmin, which this line used to name, is what
+	// RoleOrgAdmin was called before migration 0061 — so the rename, not a
+	// change of who may ask.
+	mux.Handle("GET /api/v1/platform/doctor", s.rbac([]string{identity.RoleOrgAdmin}, s.handleDoctor))
+	mux.Handle("GET /api/v1/platform/lint", s.rbac(append(manage, identity.RoleSecurity), s.handleOrgLint))
+	mux.Handle("GET /api/v1/platform/home-store", s.rbac(anyRole, s.handleGetStore))
+	mux.Handle("PATCH /api/v1/platform/home-store", s.rbac(manage, s.handleSetRetention))
+	mux.Handle("POST /api/v1/platform/home-store/cleanup", s.rbac(manage, s.handleCleanupStore))
 	mux.Handle("GET /api/v1/org/recording-level", s.rbac(anyRole, s.handleGetOrgRecording))
 	mux.Handle("PATCH /api/v1/org/recording-level", s.rbac(securityRoles, s.handleSetOrgRecording))
 	mux.Handle("PATCH /api/v1/agents/{id}/supervisor", s.agentScoped(manage, s.handleSetSupervisor))
@@ -491,6 +544,24 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /api/trigger/{token}", s.logIncoming(s.handleAgentTrigger))
 	mux.HandleFunc("GET /api/daemon/ws", s.handleDaemonWS)
 
+	// The runner API (spec/16): a runner's only interface to the platform,
+	// authenticated with its own token and scoped to its organisation. Its
+	// first user is the egress proxy, which used to read its allowlist from
+	// Postgres itself.
+	mux.Handle("GET /api/runner/v1/egress/allowlist", s.runnerAuth(s.handleRunnerAllowlist))
+	mux.Handle("POST /api/runner/v1/egress/decisions", s.runnerAuth(s.handleRunnerDecisions))
+	mux.Handle("GET /api/runner/ws", s.runnerAuth(s.handleRunnerWS))
+	mux.Handle("GET /api/runner/v1/whoami", s.runnerAuth(s.handleRunnerWhoami))
+	// Registration carries its own authentication: whoever registers has
+	// nothing to log in with, and the registration token names the
+	// organisation the runner will belong to.
+	mux.HandleFunc("POST /api/runner/v1/register", s.handleRunnerRegister)
+	// The home store for a remote runner. One path, three methods: is the block
+	// there, give it to me, take it.
+	for _, method := range []string{"HEAD", "GET", "PUT"} {
+		mux.Handle(method+" /api/runner/v1/blocks/{hash}", s.runnerAuth(s.handleRunnerBlock))
+	}
+
 	// This instance's installation script — deliberately without a login:
 	// whoever fetches it has nothing yet to log in with. It ships its own
 	// version along, so that a runner installed through it matches the server
@@ -591,10 +662,21 @@ func (s *Server) auth(next http.HandlerFunc) http.Handler {
 			writeErr(w, http.StatusUnauthorized, "not signed in")
 			return
 		}
-		p, err := s.sessions().Principal(r.Context(), hashToken(cookie.Value))
+		p, expires, err := s.sessions().Principal(r.Context(), hashToken(cookie.Value))
 		if err != nil {
 			writeErr(w, http.StatusUnauthorized, "session expired")
 			return
+		}
+		// Sliding session: whoever is working here keeps their session. The
+		// renewal only happens in the second half of the lifetime — otherwise
+		// every request would write to the database, and an interface that
+		// polls does a few of those per minute.
+		if time.Until(expires) < s.SessionTTL/2 {
+			if err := s.sessions().Renew(r.Context(), hashToken(cookie.Value), time.Now().Add(s.SessionTTL)); err == nil {
+				// The cookie carries the same lifetime: a session extended only
+				// in the database would still be dropped by the browser.
+				s.setSessionCookie(w, cookie.Value, int(s.SessionTTL.Seconds()))
+			}
 		}
 		// Report the actor back to the audit middleware on top of that: it sits
 		// further out and does not see the context we create here.
@@ -777,22 +859,29 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	// SameSite=Strict instead of Lax: Covey is an administration tool you
-	// navigate into — there are no deep links from foreign pages that would
-	// need any consideration. Lax sends the cookie along on every top-level
-	// navigation from outside; Strict does not, and thereby takes the whole
-	// class of attacks that begin with a click on a foreign link out of play.
-	http.SetCookie(w, &http.Cookie{Name: "covey_session", Value: token, Path: "/",
-		HttpOnly: true, Secure: s.CookieSecure, SameSite: http.SameSiteStrictMode, MaxAge: int(s.SessionTTL.Seconds())})
+	s.setSessionCookie(w, token, int(s.SessionTTL.Seconds()))
 	writeJSON(w, http.StatusOK, p)
+}
+
+// setSessionCookie writes the session cookie — at sign-in, at every renewal and
+// (with maxAge -1) at sign-out. One place, because the flags belong together:
+// three copies of them are three chances to lose one.
+//
+// SameSite=Strict instead of Lax: Covey is an administration tool you navigate
+// into — there are no deep links from foreign pages that would need any
+// consideration. Lax sends the cookie along on every top-level navigation from
+// outside; Strict does not, and thereby takes the whole class of attacks that
+// begin with a click on a foreign link out of play.
+func (s *Server) setSessionCookie(w http.ResponseWriter, token string, maxAge int) {
+	http.SetCookie(w, &http.Cookie{Name: "covey_session", Value: token, Path: "/",
+		HttpOnly: true, Secure: s.CookieSecure, SameSite: http.SameSiteStrictMode, MaxAge: maxAge})
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie("covey_session"); err == nil {
 		_ = s.sessions().Delete(r.Context(), hashToken(cookie.Value))
 	}
-	http.SetCookie(w, &http.Cookie{Name: "covey_session", Value: "", Path: "/",
-		HttpOnly: true, Secure: s.CookieSecure, SameSite: http.SameSiteStrictMode, MaxAge: -1})
+	s.setSessionCookie(w, "", -1)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 

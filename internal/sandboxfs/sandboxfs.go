@@ -196,6 +196,13 @@ type Listing struct {
 	Exists    bool    `json:"exists"`
 	Truncated bool    `json:"truncated"`
 	Entries   []Entry `json:"entries"`
+	// ReadOnly says this home is being read from its last snapshot because its
+	// runner is not connected. Named in the listing and not only when a write
+	// fails: whoever is about to upload something should learn that beforehand,
+	// not from an error afterwards.
+	ReadOnly bool `json:"read_only,omitempty"`
+	// ReadOnlyReason is the sentence the interface shows for it.
+	ReadOnlyReason string `json:"read_only_reason,omitempty"`
 }
 
 // File is the content of a file for viewing in the browser.
@@ -383,14 +390,14 @@ func (f *FS) Read(rel string) (File, error) {
 }
 
 // Open returns the file for download — unchanged, at full length.
-func (f *FS) Open(rel string) (io.ReadCloser, os.FileInfo, error) {
+func (f *FS) Open(rel string) (io.ReadCloser, FileInfo, error) {
 	c, err := clean(rel)
 	if err != nil {
-		return nil, nil, err
+		return nil, FileInfo{}, err
 	}
 	root, err := f.openRoot()
 	if err != nil {
-		return nil, nil, mapEscape(err)
+		return nil, FileInfo{}, mapEscape(err)
 	}
 	// The root may be closed right after opening: the returned file descriptor
 	// stands on its own, the caller reads through it afterwards.
@@ -398,19 +405,21 @@ func (f *FS) Open(rel string) (io.ReadCloser, os.FileInfo, error) {
 
 	info, err := root.Stat(forRoot(c))
 	if errors.Is(err, os.ErrNotExist) {
-		return nil, nil, ErrNotFound
+		return nil, FileInfo{}, ErrNotFound
 	}
 	if err != nil {
-		return nil, nil, mapEscape(err)
+		return nil, FileInfo{}, mapEscape(err)
 	}
 	if info.IsDir() {
-		return nil, nil, ErrIsDir
+		return nil, FileInfo{}, ErrIsDir
 	}
 	fh, err := root.Open(forRoot(c))
 	if err != nil {
-		return nil, nil, mapEscape(err)
+		return nil, FileInfo{}, mapEscape(err)
 	}
-	return fh, info, nil
+	return fh, FileInfo{
+		Name: info.Name(), Size: info.Size(), ModTime: info.ModTime().UTC().Format(time.RFC3339),
+	}, nil
 }
 
 // ZipPlan is the fully measured bulk archive: what goes in, how much it is and
@@ -423,6 +432,10 @@ type ZipPlan struct {
 	// Files/Bytes is the extent: files and uncompressed total size.
 	Files int
 	Bytes int64
+	// Paths is what was selected. Carried along so that a plan survives the
+	// journey to a runner and back: over the link the two passes happen on
+	// different machines, and the second one plans afresh from exactly this.
+	Paths []string
 	items []zipItem
 }
 
@@ -446,7 +459,7 @@ type zipItem struct {
 // selects "notes" gets an archive with a folder "notes" inside it and not its
 // spilled-out individual parts.
 func (f *FS) PlanZip(rels []string) (ZipPlan, error) {
-	var plan ZipPlan
+	plan := ZipPlan{Paths: append([]string(nil), rels...)}
 	seen := map[string]bool{}
 
 	root, err := f.openRoot()

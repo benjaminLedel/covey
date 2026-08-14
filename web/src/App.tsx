@@ -2,8 +2,18 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NavLink, Navigate, Route, Routes, useLocation } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, buildInfo, inbox, istSystemAdmin, post, type Principal, type SetupState } from "./api";
+import {
+  api,
+  buildInfo,
+  inbox,
+  istSystemAdmin,
+  post,
+  setUnauthorizedHandler,
+  type Principal,
+  type SetupState,
+} from "./api";
 import i18n, { gespeicherteSprache, istVorgerendert, merkeSprache } from "./i18n";
+import { APP_ROUTE_PREFIXES, LANGS, pathOf } from "./public/seo";
 import HelpDrawer from "./components/HelpDrawer";
 import ThemeSwitch from "./components/ThemeSwitch";
 import PublicSite from "./public/PublicSite";
@@ -22,6 +32,8 @@ import Runtimes from "./pages/Runtimes";
 import Targets from "./pages/Targets";
 import Egress from "./pages/Egress";
 import Requests from "./pages/Requests";
+import Runners from "./pages/Runners";
+import Diagnostics from "./pages/Diagnostics";
 import Audit from "./pages/Audit";
 import Templates from "./pages/Templates";
 import Setup from "./pages/Setup";
@@ -46,6 +58,13 @@ function useLiveEvents(enabled: boolean) {
     for (const t of ["agent_status", "task", "recording", "approval", "guardrail"]) {
       es.addEventListener(t, invalidate);
     }
+    /* Reißt der Ereignisstrom ab, kann das zweierlei heißen: der Server wurde
+       neu gestartet (dann verbindet der Browser von selbst neu) — oder die
+       Sitzung ist abgelaufen und der Endpunkt antwortet mit 401. Welches von
+       beidem, sagt ein EventSource nicht. Deshalb fragt die Oberfläche nach:
+       /auth/me beantwortet es, und eine abgelaufene Sitzung landet dort in
+       der 401, ohne dass jemand erst klicken muss. */
+    es.onerror = () => void qc.refetchQueries({ queryKey: ["me"] });
     return () => es.close();
   }, [enabled, qc]);
 }
@@ -61,24 +80,95 @@ const prerendered = istVorgerendert();
    Principal.OrgID ist ein Wert, kein Zeiger, und hat deshalb keinen NULL. */
 const LEERE_UUID = "00000000-0000-0000-0000-000000000000";
 
+/* Nicht (mehr) angemeldet. Die öffentliche Website steht unter ihren eigenen
+   Adressen — eine Adresse der Oberfläche (/agents/…, /inbox, …) kennt sie
+   nicht und beantwortete sie mit „Seite nicht gefunden". Genau das passierte
+   bisher, wenn eine Sitzung ablief: wer neu lud, landete auf einer 404 statt
+   auf der Anmeldung.
+
+   Deshalb hier die Weiterleitung — mit dem Ziel im Gepäck (?weiter=), damit
+   die Anmeldung dorthin zurückführt, wo jemand unterbrochen wurde. */
+function Abgemeldet({ onLogin, ausDerOberflaeche = false }: { onLogin: () => void; ausDerOberflaeche?: boolean }) {
+  const { pathname, search } = useLocation();
+  /* Wer gerade noch angemeldet war, gehört immer auf die Anmeldung — auch von
+     „/" aus. Die Adresse der Übersicht ist zugleich die der öffentlichen
+     Startseite; ohne diese Unterscheidung landete jemand, dem die Sitzung
+     unter den Händen wegläuft, auf der Werbeseite statt am Anmeldeformular.
+     Beim ersten Aufruf entscheidet dagegen der Pfad: dort ist „/" wirklich
+     die Startseite. */
+  const schonAufDerAnmeldung = LANGS.some((l) => pathOf("anmelden", l) === pathname);
+  const zurAnmeldung =
+    !schonAufDerAnmeldung &&
+    (ausDerOberflaeche ||
+      APP_ROUTE_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/")));
+  if (zurAnmeldung) {
+    /* Die Sprache der Anmeldeseite folgt der Oberfläche, aus der jemand
+       herausgefallen ist (Shell-Voreinstellung: englisch) — nicht dem Pfad,
+       der bei App-Adressen gar keine Sprache trägt. */
+    const lang = gespeicherteSprache() === "de" ? "de" : "en";
+    const ziel = `${pathOf("anmelden", lang)}?weiter=${encodeURIComponent(pathname + search)}`;
+    return <Navigate to={ziel} replace />;
+  }
+  return <PublicSite onLogin={onLogin} />;
+}
+
+/* Ein sicheres ?weiter=: nur ein Pfad dieser Installation. „//host" wäre für
+   den Browser eine fremde Adresse — ein offener Weiterleiter in der
+   Anmeldung ist eine der ältesten Phishing-Hilfen. */
+function weiterZiel(search: string): string | null {
+  const ziel = new URLSearchParams(search).get("weiter");
+  if (!ziel || !ziel.startsWith("/") || ziel.startsWith("//")) return null;
+  return ziel;
+}
+
 export default function App() {
+  const qc = useQueryClient();
+  const location = useLocation();
+  /* Abgelaufen heißt: der Server hat eine Anfrage der laufenden Sitzung mit
+     401 abgewiesen. Ohne diesen Zustand blieb die Hülle stehen und füllte
+     sich mit Fehlern — die ["me"]-Abfrage lief ja nicht neu und wusste von
+     nichts. */
+  const [abgelaufen, setAbgelaufen] = useState(false);
   const me = useQuery({
     queryKey: ["me"],
     queryFn: () => api<Principal>("/auth/me"),
     retry: false,
+    /* Der häufigste Fall ist der Tab, der über Nacht offen bleibt: beim
+       Zurückkommen soll die Oberfläche die Sitzung prüfen, statt beim ersten
+       Klick in eine 401 zu laufen. */
+    refetchOnWindowFocus: true,
   });
-  useLiveEvents(me.isSuccess);
 
+  useEffect(() => {
+    setUnauthorizedHandler(() => setAbgelaufen(true));
+    return () => setUnauthorizedHandler(null);
+  }, []);
+
+  const anmelden = () => {
+    /* Die Daten der beendeten Sitzung verwerfen — sonst zeigte die Oberfläche
+       nach einer Anmeldung als jemand anderes für einen Moment noch die
+       Listen der vorigen. */
+    qc.clear();
+    setAbgelaufen(false);
+    void me.refetch();
+  };
+
+  useLiveEvents(me.isSuccess && !abgelaufen);
+
+  if (abgelaufen) return <Abgemeldet onLogin={anmelden} ausDerOberflaeche />;
   if (me.isLoading) {
-    return prerendered ? <PublicSite onLogin={() => me.refetch()} /> : null;
+    return prerendered ? <PublicSite onLogin={anmelden} /> : null;
   }
-  if (me.isError) return <PublicSite onLogin={() => me.refetch()} />;
+  if (me.isError) return <Abgemeldet onLogin={anmelden} />;
   /* Angemeldet, aber ohne Sitz: seit die Anmeldung am Konto hängt (FR-002),
      kann ein Konto existieren, bevor eine Organisation es kennt. Die Shell
      liefe dort in lauter 409er, deshalb kommt sie gar nicht erst dran. */
   if (me.data!.OrgID === LEERE_UUID) {
     return <NoOrganization me={me.data!} onLogout={() => me.refetch()} />;
   }
+  /* Wieder angemeldet: zurück an die Stelle, an der die Sitzung abriss. */
+  const weiter = weiterZiel(location.search);
+  if (weiter) return <Navigate to={weiter} replace />;
   return <Shell me={me.data!} onLogout={() => me.refetch()} />;
 }
 
@@ -138,6 +228,21 @@ const icons: Record<string, React.JSX.Element> = {
       <rect x="7" y="7" width="10" height="10" rx="1.5" />
       <rect x="10" y="10" width="4" height="4" />
       <path d="M10 3v3M14 3v3M10 18v3M14 18v3M3 10h3M3 14h3M18 10h3M18 14h3" />
+    </>
+  ),
+  stethoscope: (
+    <>
+      <path d="M6 3v5a5 5 0 0 0 10 0V3" />
+      <path d="M4 3h3M15 3h3" />
+      <path d="M11 13v3a4 4 0 0 0 8 0v-1" />
+      <circle cx="19" cy="10" r="2" />
+    </>
+  ),
+  server: (
+    <>
+      <rect x="3" y="4" width="18" height="7" rx="1.5" />
+      <rect x="3" y="13" width="18" height="7" rx="1.5" />
+      <path d="M7 7.5h.01M7 16.5h.01" />
     </>
   ),
   plug: (
@@ -405,6 +510,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
           <NavItem to="/skills" icon="book" label={t("nav.skills")} />
           <NavItem to="/templates" icon="copy" label={t("nav.templates")} />
           <NavItem to="/runtimes" icon="cpu" label={t("nav.runtimes")} />
+          <NavItem to="/runners" icon="server" label={t("nav.runners")} />
         </div>
         <div className="nav-sec">{t("nav.control")}</div>
         <div className="nav-group">
@@ -422,6 +528,9 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
           )}
           {(me.Role === "org_admin" || me.Role === "security") && (
             <NavItem to="/requests" icon="exchange" label={t("nav.requests")} />
+          )}
+          {(me.Role === "platform_admin" || me.Role === "security" || me.Role === "agent_owner") && (
+            <NavItem to="/diagnostics" icon="stethoscope" label={t("nav.diagnostics")} />
           )}
         </div>
         <div className="mt-auto">
@@ -537,6 +646,8 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
             <Route path="/orgs" element={<Navigate to="/platform" replace />} />
             <Route path="/runtimes" element={<Runtimes me={me} />} />
             <Route path="/requests" element={<Requests me={me} />} />
+            <Route path="/runners" element={<Runners me={me} />} />
+            <Route path="/diagnostics" element={<Diagnostics me={me} />} />
             <Route path="/audit" element={<Audit />} />
             <Route path="/targets" element={<Targets me={me} />} />
             <Route path="/egress/*" element={<Egress me={me} />} />

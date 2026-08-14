@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 // Node-Typen auskommt (tsc -b prüft die Tests mit).
 import appQuelltext from "../App.tsx?raw";
 import { DOC_PAGES } from "./docs/docsContent";
+import { seoTags } from "./Head";
 import {
   APP_ROUTE_PREFIXES,
   LANGS,
@@ -12,6 +13,7 @@ import {
   descriptionFromMarkdown,
   matchRoute,
   pathOf,
+  plainText,
 } from "./seo";
 
 describe("Routen-Tabelle", () => {
@@ -69,10 +71,69 @@ describe("Description aus Markdown", () => {
     expect(descriptionFromMarkdown(md)).toBe("Ein wichtiger Satz mit Link und Code.");
   });
 
+  it("lässt Unterstriche in Namen stehen", () => {
+    // Pauschales Entfernen machte aus COVEY_PUBLIC_URL ein COVEYPUBLICURL —
+    // ein Name, den es nicht gibt, im Text, den jemand aus dem Suchergebnis
+    // abschreibt.
+    expect(plainText("`COVEY_PUBLIC_URL` zeigt nach innen.")).toBe(
+      "COVEY_PUBLIC_URL zeigt nach innen.",
+    );
+    expect(plainText("Ein _betontes_ Wort.")).toBe("Ein betontes Wort.");
+  });
+
   it("kürzt an der Wortgrenze", () => {
     const lang = descriptionFromMarkdown("wort ".repeat(60), 40);
     expect(lang.length).toBeLessThanOrEqual(42);
     expect(lang.endsWith("…")).toBe(true);
+  });
+});
+
+/* Strukturierte Daten sind eine Zusage an eine Maschine, die nicht nachfragt:
+   Was nicht ihrem Schema entspricht, fällt still aus den Rich-Suchergebnissen —
+   sichtbar erst Wochen später in der Search Console. Deshalb prüft das hier
+   die Regeln, an denen es schon einmal gescheitert ist. */
+describe("Strukturierte Daten", () => {
+  const ldOf = (pfad: string, lang: (typeof LANGS)[number]) => {
+    const route = matchRoute(pfad)!.route;
+    const tag = seoTags(route, lang, "https://covey.test").find(
+      (t) => t.tag === "script" && t.attrs.type === "application/ld+json",
+    );
+    return tag && "text" in tag ? JSON.parse(tag.text) : null;
+  };
+
+  it("gibt jeder Brotkrume außer der letzten eine Adresse", () => {
+    /* Genau daran scheiterte es: Der Abschnitt einer Docs-Seite stand als
+       mittlere Stufe ohne `item` — für Google „Feld item fehlt", und die
+       ganze BreadcrumbList war damit ungültig. */
+    for (const route of PUBLIC_ROUTES.filter((r) => r.id.startsWith("docs-"))) {
+      for (const lang of LANGS) {
+        const ld = ldOf(route.path[lang], lang);
+        const crumbs = ld["@graph"].find(
+          (n: { "@type": string }) => n["@type"] === "BreadcrumbList",
+        ).itemListElement;
+        expect(crumbs.length, `Brotkrumen ${route.id}/${lang}`).toBeGreaterThan(1);
+        for (const c of crumbs) {
+          expect(c.item, `Krume ${c.position} auf ${route.path[lang]}`).toBeTruthy();
+        }
+        // Die Positionen laufen lückenlos von 1 an.
+        expect(crumbs.map((c: { position: number }) => c.position)).toEqual(
+          crumbs.map((_: unknown, i: number) => i + 1),
+        );
+      }
+    }
+  });
+
+  it("schreibt Text statt Markdown in die FAQ-Antworten", () => {
+    for (const route of PUBLIC_ROUTES.filter((r) => r.faq)) {
+      for (const lang of LANGS) {
+        const faq = ldOf(route.path[lang], lang)["@graph"].find(
+          (n: { "@type": string }) => n["@type"] === "FAQPage",
+        );
+        for (const frage of faq.mainEntity) {
+          expect(frage.acceptedAnswer.text, `Antwort auf ${route.path[lang]}`).not.toMatch(/[`*]/);
+        }
+      }
+    }
   });
 });
 

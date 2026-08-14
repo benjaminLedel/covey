@@ -108,9 +108,9 @@ func (s *Server) handleDownloadFile(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rc.Close()
 
-	name := info.Name()
+	name := info.Name
 	w.Header().Set("Content-Type", "application/octet-stream")
-	w.Header().Set("Content-Length", fmt.Sprint(info.Size()))
+	w.Header().Set("Content-Length", fmt.Sprint(info.Size))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Disposition",
 		mime.FormatMediaType("attachment", map[string]string{"filename": name}))
@@ -177,13 +177,13 @@ func (s *Server) handlePreviewFile(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rc.Close()
 
-	ctype := sandboxfs.InlineType(info.Name())
+	ctype := sandboxfs.InlineType(info.Name)
 	if ctype == "" {
 		writeErr(w, http.StatusUnsupportedMediaType, "this file type is not served inline")
 		return
 	}
 	w.Header().Set("Content-Type", ctype)
-	w.Header().Set("Content-Length", fmt.Sprint(info.Size()))
+	w.Header().Set("Content-Length", fmt.Sprint(info.Size))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	// `default-src 'none'` forbids the response any subresource load — that
 	// holds for all types. Plus `sandbox`, which locks it into an origin without
@@ -202,7 +202,7 @@ func (s *Server) handlePreviewFile(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Security-Policy", csp)
 	w.Header().Set("Content-Disposition",
-		mime.FormatMediaType("inline", map[string]string{"filename": info.Name()}))
+		mime.FormatMediaType("inline", map[string]string{"filename": info.Name}))
 	// Do not cache: the file can change under the same path at any time — the
 	// agent keeps working, after all.
 	w.Header().Set("Cache-Control", "private, no-cache")
@@ -341,7 +341,7 @@ func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
 
 // agentFS resolves the agent from the URL, checks the organisation and opens
 // its home. On every failure the response has already been written.
-func (s *Server) agentFS(w http.ResponseWriter, r *http.Request) (*sandboxfs.FS, uuid.UUID, bool) {
+func (s *Server) agentFS(w http.ResponseWriter, r *http.Request) (sandboxfs.Tree, uuid.UUID, bool) {
 	// The agent comes checked out of agentScoped — ID and organisation have
 	// already been reconciled there.
 	id := agentFrom(r).ID
@@ -402,6 +402,14 @@ func writeFSErr(w http.ResponseWriter, err error) {
 		writeErr(w, http.StatusRequestEntityTooLarge,
 			fmt.Sprintf("too many files (max. %d per archive)", sandboxfs.MaxZipFiles))
 	default:
+		// A home that is only being read from its last snapshot says so with
+		// its own status: 409, because the request is not wrong — it has come
+		// at a moment when the home cannot be written to.
+		var readOnly *sandboxfs.ReadOnlyError
+		if errors.As(err, &readOnly) {
+			writeErr(w, http.StatusConflict, readOnly.Reason)
+			return
+		}
 		mapErr(w, err)
 	}
 }

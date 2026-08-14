@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -32,6 +33,7 @@ import (
 	"covey/internal/dream"
 	"covey/internal/egress"
 	"covey/internal/guardrails"
+	"covey/internal/homestore"
 	"covey/internal/httpapi"
 	identbuiltin "covey/internal/identity/builtin"
 	"covey/internal/llm"
@@ -43,6 +45,8 @@ import (
 	"covey/internal/reqlog"
 
 	reqlogstore "covey/internal/reqlog/store"
+	"covey/internal/runner"
+	runnerstore "covey/internal/runner/store"
 	"covey/internal/runtimes"
 	secbuiltin "covey/internal/secrets/builtin"
 	"covey/internal/settings"
@@ -125,7 +129,7 @@ func main() {
 	case "system-admin":
 		err = runSystemAdmin(ctx, cfg, os.Args[2:])
 	case "doctor":
-		err = runDoctor(ctx, cfg)
+		err = runDoctor(ctx, cfg, os.Args[2:])
 	case "genkey":
 		var key string
 		if key, err = secbuiltin.GenerateMasterKey(); err == nil {
@@ -154,7 +158,7 @@ func usage() {
   covey settings [k v]    show the instance's settings, or set one (e.g. signup.mode waitlist)
   covey waitlist          list waitlist codes | new [-label L] [-uses N] [-days D] | revoke <hash>
   covey system-admin      list | add <email> | remove <email> — the instance level, not an org role
-  covey doctor            check this installation BEFORE an upgrade (changes nothing)
+  covey doctor            what a restart or upgrade would run into here (changes nothing)
   covey genkey            generate a new COVEY_MASTER_KEY
   covey version           version, commit and build time of this binary
 
@@ -380,98 +384,6 @@ func runSettings(ctx context.Context, cfg config.Config, args []string, log *slo
 	default:
 		return errors.New("usage: covey settings [<key> <value>]")
 	}
-}
-
-// runDoctor checks an installation before an upgrade — and changes nothing.
-//
-// The reason it exists: migrations run at the start of `covey serve`, and two
-// of them refuse to guess (0059). A refusal is the right answer — merging two
-// people into one login would hand one of them the other's access — but on an
-// instance that deploys automatically it arrives as "the service does not come
-// up", at a moment when nobody is looking for a database question. This
-// command asks it beforehand.
-func runDoctor(ctx context.Context, cfg config.Config) error {
-	pool, err := db.Connect(ctx, cfg.DatabaseURL)
-	if err != nil {
-		return err
-	}
-	defer pool.Close()
-
-	var probleme int
-	melde := func(schwere, text string) {
-		fmt.Printf("%-8s %s\n", schwere, text)
-		if schwere == "BLOCKS" {
-			probleme++
-		}
-	}
-
-	// 1. Adressen, die sich nur in der Schreibweise unterscheiden. In humans
-	//    zwei Zeilen, in accounts ein Login — also ein Mensch mit dem Zugang
-	//    eines anderen.
-	rows, err := pool.Query(ctx, `SELECT lower(email), count(*) FROM humans
-		GROUP BY lower(email) HAVING count(*) > 1`)
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var email string
-			var n int
-			if err := rows.Scan(&email, &n); err == nil {
-				melde("BLOCKS", fmt.Sprintf("%s exists %dx in humans (different spellings) — deduplicate before upgrading", email, n))
-			}
-		}
-	}
-
-	// 2. Ein selbstregistriertes Konto auf der Adresse eines bestehenden Sitzes.
-	//
-	// Welche Frage hier richtig ist, haengt vom Stand der Datenbank ab, und das
-	// ist keine Feinheit: VOR 0059 gibt es humans.account_id nicht, eine
-	// Abfrage darauf laeuft in einen Fehler — und ein verschluckter Fehler ist
-	// hier schlimmer als keine Pruefung, weil er wie eine bestandene aussieht.
-	// NACH 0059 traegt jeder Sitz ein Konto mit derselben Adresse, dann waere
-	// die unbedingte Abfrage lauter Fehlalarm.
-	var verknuepft bool
-	if err := pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM information_schema.columns
-		WHERE table_name='humans' AND column_name='account_id')`).Scan(&verknuepft); err != nil {
-		return err
-	}
-	abfrage := `SELECT a.email FROM accounts a JOIN humans h ON lower(h.email) = a.email`
-	if verknuepft {
-		abfrage += ` WHERE h.account_id IS NULL`
-	}
-	krows, err := pool.Query(ctx, abfrage)
-	if err != nil {
-		// accounts gibt es erst ab 0058 — auf einer aelteren Datenbank ist die
-		// Frage gegenstandslos, nicht unbeantwortet.
-		melde("note", "no accounts table yet — this installation is older than the sign-up work")
-	} else {
-		defer krows.Close()
-		for krows.Next() {
-			var email string
-			if err := krows.Scan(&email); err == nil {
-				melde("BLOCKS", email+" has a self-registered account AND an existing seat — check and delete the account")
-			}
-		}
-	}
-
-	// 3. Wer verwaltet die Instanz? Nach dem Upgrade haengt die
-	//    Mandantenverwaltung daran.
-	var admins, orgs int
-	_ = pool.QueryRow(ctx, `SELECT count(*) FROM accounts WHERE platform_role='system_admin'`).Scan(&admins)
-	_ = pool.QueryRow(ctx, `SELECT count(*) FROM organizations`).Scan(&orgs)
-	switch {
-	case admins > 0:
-		melde("ok", fmt.Sprintf("%d system administrator(s)", admins))
-	case orgs == 1:
-		melde("note", "no system administrator yet — the upgrade appoints the org_admin of the single organisation")
-	default:
-		melde("WARN", fmt.Sprintf("no system administrator, and %d organisations — nobody could administer the instance; use `covey system-admin add <email>`", orgs))
-	}
-
-	if probleme == 0 {
-		fmt.Println("\nNothing in the way of an upgrade.")
-		return nil
-	}
-	return fmt.Errorf("%d finding(s) block the upgrade — see above", probleme)
 }
 
 // runSystemAdmin manages the instance level.
@@ -747,18 +659,57 @@ func egressBaseAllow(cfg config.Config) []string {
 	return append([]string{}, cfg.EgressAllow...)
 }
 
-// rewriteDBForContainer bends a loopback DB URL onto host.docker.internal so
-// the egress proxy container reaches the Postgres instance on the host.
-// Non-loopback hosts (a real DB deployment) stay untouched.
-func rewriteDBForContainer(dsn string) string {
-	u, err := url.Parse(dsn)
+// openBlobStore builds the home store's backend — a port following the pattern
+// of IdentityProvider and SecretStore (spec/10, "batteries included, but
+// swappable"). The default is deliberately the directory: for an installation
+// on one machine an object store is unnecessary operational surface, and the
+// promise "one binary + Postgres" should not quietly become "one binary +
+// Postgres + MinIO".
+func openBlobStore(ctx context.Context, cfg config.Config, log *slog.Logger) (homestore.BlobStore, string, error) {
+	switch strings.ToLower(strings.TrimSpace(cfg.BlobStore)) {
+	case "", "builtin":
+		dir, err := homestore.NewDir(filepath.Join(cfg.DataDir, "blocks"))
+		if err != nil {
+			return nil, "", err
+		}
+		return dir, dir.Root(), nil
+	case "s3":
+		store, err := homestore.NewS3(cfg.S3Endpoint, cfg.S3Bucket, cfg.S3Prefix, homestore.Credentials{
+			AccessKey: cfg.S3AccessKey, SecretKey: cfg.S3SecretKey, Region: cfg.S3Region,
+		}, cfg.S3PathStyle)
+		if err != nil {
+			return nil, "", err
+		}
+		// Asked at startup: a wrong key or a missing bucket should say so here
+		// and not at the first agent's falling asleep, where the message would
+		// arrive inside the recording of a task that has long since run.
+		checkCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+		defer cancel()
+		if err := store.Check(checkCtx); err != nil {
+			// A warning and not an abort: everything that is not a run works
+			// meanwhile, and an object store that comes back in two minutes is
+			// a normal case.
+			log.Warn("object store not usable — homes cannot be synced until it is", "err", err)
+		}
+		return store, cfg.S3Endpoint + "/" + cfg.S3Bucket, nil
+	default:
+		return nil, "", fmt.Errorf("COVEY_BLOB_STORE %q: only 'builtin' and 's3' are implemented", cfg.BlobStore)
+	}
+}
+
+// rewriteLoopbackForContainer bends a loopback URL onto host.docker.internal so
+// that a container reaches the service on the host — the control plane for the
+// egress proxy, say. Non-loopback hosts (a real deployment address) stay
+// untouched.
+func rewriteLoopbackForContainer(raw string) string {
+	u, err := url.Parse(raw)
 	if err != nil {
-		return dsn
+		return raw
 	}
 	switch u.Hostname() {
 	case "localhost", "127.0.0.1", "::1":
 	default:
-		return dsn
+		return raw
 	}
 	host := "host.docker.internal"
 	if port := u.Port(); port != "" {
@@ -770,30 +721,26 @@ func rewriteDBForContainer(dsn string) string {
 
 // runEgressProxy runs the egress allowlist proxy as a standalone process
 // (network isolation mode: it runs in the proxy container as the isolated
-// sandbox's only way out). The allowlist comes from DB + ENV + code default and
-// is reloaded periodically so UI changes take effect without a restart.
+// sandbox's only way out). The allowlist comes from the control plane + ENV +
+// code default and is reloaded periodically so UI changes take effect without
+// a restart.
+//
+// It asks the control plane and no longer the database. On a remote runner the
+// old construction would mean distributing the Postgres credentials to every
+// host that runs sandboxes — the proxy is an enforcement point, not a database
+// client (spec/16, "Trust boundary").
 func runEgressProxy(ctx context.Context, cfg config.Config, log *slog.Logger) error {
-	// The DB may not be reachable yet at startup: in network mode the internal
-	// network is attached to the bridge network only AFTER the container has
-	// started. Retry until then — the process stays alive (container
-	// "running") so that `docker network connect` has something to work with.
-	var store *egress.Store
-	for store == nil {
-		pool, err := db.Connect(ctx, cfg.DatabaseURL)
-		if err != nil {
-			log.Warn("egress-proxy: DB not reachable yet, retrying", "err", err)
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(3 * time.Second):
-			}
-			continue
-		}
-		defer pool.Close()
-		store = egress.NewStore(pool)
+	if cfg.ControlURL == "" || cfg.RunnerToken == "" {
+		return fmt.Errorf("egress-proxy: COVEY_CONTROL_URL and COVEY_RUNNER_TOKEN are required — " +
+			"the proxy fetches its allowlist from the control plane")
 	}
 
-	resolver := egress.NewDBResolver(ctx, store, egressBaseAllow(cfg), 15*time.Second, log)
+	// No reachability check at startup: in network mode the container is
+	// attached to the bridge network only AFTER it has started, so the control
+	// plane is unreachable for the first moments. The resolver retries by
+	// itself on every request, and until then it answers fail-closed — which is
+	// the correct answer for a proxy whose allowlist it does not know.
+	resolver := egress.NewAPIResolver(ctx, cfg.ControlURL, cfg.RunnerToken, egressBaseAllow(cfg), 15*time.Second, log)
 	proxy := egress.New(resolver, log)
 	addr, err := proxy.Start(cfg.EgressProxyAddr)
 	if err != nil {
@@ -918,6 +865,13 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		return err
 	}
 
+	runnerStore := runnerstore.NewStore(pool)
+	snapshotStore := runnerStore
+	// The built-in runner: one per organisation, created by the platform
+	// itself. At this stage it is only the identity the egress proxy
+	// authenticates with; it becomes an execution node in stage 2 (spec/16).
+	builtinRunners := runnerstore.NewBuiltinTokens(runnerStore)
+
 	registry := agents.NewRegistry(pool)
 	// Platform-wide wiki cleanup heartbeat (COVEY_WIKI_CLEANUP): the control
 	// plane periodically files a backlog task for every agent in which it tends
@@ -960,38 +914,180 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	// Egress enforcement can only be enforced with real network isolation (docker).
 	egressEnforced := cfg.EgressEnforce && cfg.SandboxProvider == "docker"
 
-	var provider orchestrator.SandboxProvider
-	switch cfg.SandboxProvider {
-	case "docker":
-		dp := &orchestrator.DockerProvider{Image: cfg.SandboxImage, DataDir: cfg.DataDir}
+	if cfg.SandboxProvider != "docker" {
+		return fmt.Errorf("sandbox provider %q: only 'docker' is implemented", cfg.SandboxProvider)
+	}
+
+	// The data plane runs through the runner protocol — including here, where
+	// the runner sits in this very process (spec/16). That is not a detour: it
+	// is what keeps the path to a foreign host from being a second
+	// implementation that only whoever operates two machines ever exercises.
+	runnerPool := runner.NewPool(log)
+	runnerPool.DefaultImage = cfg.SandboxImage
+	// The profiles from the catalogue (spec/16). An agent's value that names
+	// none of them is taken as an image reference of its own.
+	runnerPool.Profiles = cfg.SandboxImages
+	runnerPool.AgentImages = registry.SandboxImagesInUse
+	runnerPool.HomeExcludes = cfg.HomeExcludes
+	// "Last seen" only means something if it moves while a runner is there.
+	// Best effort: a missing timestamp is a display flaw, not a reason to do
+	// anything about the connection it describes.
+	runnerPool.Heard = func(runnerID uuid.UUID) {
+		if err := runnerStore.Seen(context.WithoutCancel(ctx), runnerID); err != nil {
+			log.Debug("runner heartbeat not recorded", "runner", runnerID, "err", err)
+		}
+	}
+
+	// The home store: after every job the home goes into it as a whole and is
+	// materialised from it on wake (spec/16). It makes the home replaceable —
+	// and only then is a runner switch not data loss. It pays off before a
+	// second host exists: two developer agents on one machine hold the same
+	// 4 GB of toolchain twice today, and a deleted home is unrecoverable.
+	//
+	// It requires backup like the database. 99 % of it would only have to be
+	// downloaded again, but the rest exists nowhere else — it is a cache in its
+	// function, not in its need for protection.
+	// What the file browser needs about an agent: whose organisation it is,
+	// where its home last lay, and which snapshot it was last synced to. The
+	// last two are what make a home readable when its runner is not connected.
+	runnerPool.HomeInfo = func(ctx context.Context, agentID uuid.UUID) (uuid.UUID, uuid.UUID, string, error) {
+		agent, err := registry.Get(ctx, agentID)
+		if err != nil {
+			return uuid.Nil, uuid.Nil, "", err
+		}
+		snap, err := runnerStore.LatestSnapshot(ctx, agentID)
+		if err != nil {
+			// Not fatal: without a snapshot the connected runner is still the
+			// answer, and that is the normal case anyway.
+			log.Warn("last snapshot not readable", "agent", agentID, "err", err)
+		}
+		last := uuid.Nil
+		if snap.RunnerID != nil {
+			last = *snap.RunnerID
+		}
+		return agent.OrgID, last, snap.ManifestHash, nil
+	}
+
+	var blobs homestore.BlobStore
+	if cfg.HomeStore {
+		store, where, err := openBlobStore(ctx, cfg, log)
+		if err != nil {
+			return err
+		}
+		blobs = store
+		runnerPool.Blobs = store
+		runnerPool.LatestSnapshot = func(ctx context.Context, agentID uuid.UUID) (string, error) {
+			snap, err := snapshotStore.LatestSnapshot(ctx, agentID)
+			return snap.ManifestHash, err
+		}
+		runnerPool.SnapshotTaken = func(ctx context.Context, agentID, runnerID uuid.UUID, res runner.HomeSynced) error {
+			agent, err := registry.Get(ctx, agentID)
+			if err != nil {
+				return err
+			}
+			_, err = snapshotStore.RecordSnapshotTimed(ctx, agent.OrgID, agentID, &runnerID,
+				res.ManifestHash, res.TotalSize, res.Blocks, res.BytesUp, res.DurationMS, res.Reason)
+			return err
+		}
+		log.Info("home store active", "blocks", where,
+			"note", "needs backup like the database — 48 MB of a typical home exist nowhere else")
+	} else {
+		log.Warn("home store switched off (COVEY_HOME_STORE=false) — " +
+			"a lost home is unrecoverable, and an agent cannot move to another runner")
+	}
+
+	var proxyURL string
+	if egressEnforced && cfg.EgressIsolation != "network" {
+		// Cooperative: proxy inside the control plane process, container via HTTP_PROXY.
+		url, closeProxy, err := startEgressProxy(ctx, cfg, egressStore, log)
+		if err != nil {
+			return err
+		}
+		defer closeProxy()
+		proxyURL = url
+	}
+
+	// One built-in runner per organisation, created on first use — an
+	// organisation that comes into being while the process runs gets its own
+	// too. Each carries its own egress segment: a runner serves exactly one
+	// tenant, and `--internal` cuts the way out, not the way sideways.
+	runnerPool.EnsureLocal = func(ctx context.Context, orgID uuid.UUID) error {
+		// An organisation has the built-in runner exactly as long as it has no
+		// registered one. Whoever adds a runner has said that compute leaves
+		// this machine; a control plane that kept quietly running sandboxes on
+		// the side has not been told that (spec/16).
+		//
+		// Counted are REGISTERED runners, not connected ones: a maintenance
+		// window on the only runner must not silently move the whole workforce
+		// back onto the control plane's host.
+		if remote, err := runnerStore.HasRemote(ctx, orgID); err != nil {
+			return err
+		} else if remote {
+			return fmt.Errorf("organisation %s has its own runner — the built-in one has stood down", orgID)
+		}
+		runnerID, runnerToken, err := builtinRunners.For(ctx, orgID)
+		if err != nil {
+			return err
+		}
+		docker := &runner.Docker{
+			RunnerID: runnerID,
+			Image:    cfg.SandboxImage,
+			DataDir:  cfg.DataDir,
+		}
 		if egressEnforced {
 			switch cfg.EgressIsolation {
 			case "network":
 				// Hard isolation: sandbox without internet, the proxy container
-				// as its only way out. The proxy reads the allowlist from the DB
-				// itself (live reload by polling) — hence no host-side reload.
-				dp.EgressIsolation = "network"
-				dp.EgressProxyImage = "covey-egress:latest"
-				dp.EgressProxyEnv = map[string]string{
-					"COVEY_DATABASE_URL":      rewriteDBForContainer(cfg.DatabaseURL),
+				// as its only way out. The proxy fetches the allowlist from the
+				// control plane and no longer from Postgres — it is an
+				// enforcement point, not a database client.
+				docker.EgressIsolation = "network"
+				docker.EgressProxyImage = "covey-egress:latest"
+				docker.EgressRunnerToken = runnerToken
+				docker.EgressProxyEnv = map[string]string{
+					"COVEY_CONTROL_URL":       rewriteLoopbackForContainer(cfg.PublicURL),
 					"COVEY_EGRESS_ALLOW":      strings.Join(append(append([]string{}, cfg.EgressAllow...), "host.docker.internal"), ","),
 					"COVEY_EGRESS_PROXY_ADDR": ":8888",
 				}
-				log.Info("egress enforcement: hard network isolation active", "proxy-image", dp.EgressProxyImage)
 			default:
-				// Cooperative: proxy inside the control plane process, container via HTTP_PROXY.
-				proxyURL, closeProxy, err := startEgressProxy(ctx, cfg, egressStore, log)
-				if err != nil {
-					return err
-				}
-				defer closeProxy()
-				dp.EgressProxyURL = proxyURL
+				docker.EgressProxyURL = proxyURL
 			}
 		}
-		provider = dp
-	default:
-		return fmt.Errorf("sandbox provider %q: only 'docker' is implemented", cfg.SandboxProvider)
+		node := runner.NewNode(runnerID, orgID, docker, log)
+		node.Blobs = blobs
+		return runnerPool.AttachLocal(ctx, node)
 	}
+
+	if egressEnforced && cfg.EgressIsolation == "network" {
+		log.Info("egress enforcement: hard network isolation active", "proxy-image", "covey-egress:latest")
+	}
+
+	// Clear away the egress objects of earlier versions: the segment carries
+	// the runner's identity now, so the instance-wide ones are left behind at
+	// an upgrade. In the binary rather than in an upgrade guide — a step that
+	// has to be read and typed is one that is skipped.
+	runner.PruneLegacyEgress(ctx, "", log)
+
+	// Bring the existing organisations' runners up at startup rather than at
+	// the first wake: the self-check below is meant to say what is in the way
+	// BEFORE an agent runs into it, and it can only ask a runner that is there.
+	orgs, err := org.NewStore(pool).ListOrgs(ctx)
+	if err != nil {
+		return err
+	}
+	for _, o := range orgs {
+		if remote, err := runnerStore.HasRemote(ctx, o.ID); err == nil && remote {
+			log.Info("organisation has its own runner — the built-in one stays down", "org", o.ID)
+			continue
+		}
+		if err := runnerPool.EnsureLocal(ctx, o.ID); err != nil {
+			// Not an abort: an organisation whose runner does not come up is a
+			// problem for its agents, not for the instance. The self-check
+			// below says so, and everything that is not a run keeps working.
+			log.Warn("built-in runner did not come up", "org", o.ID, "err", err)
+		}
+	}
+	provider := orchestrator.SandboxProvider(runnerPool)
 
 	// Ask the data plane at startup whether it could start a sandbox at all.
 	// Without this the answer arrives at the first wake, inside the recording of
@@ -1040,6 +1136,10 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		RuntimeTools:   cfg.RuntimeTools,
 		Log:            log,
 	})
+	// A sandbox that dies is reported by the runner instead of being inferred
+	// from a ReadyTimeout minutes later — that is what watching the container
+	// buys (spec/16).
+	runnerPool.SandboxDied = orch.SandboxDied
 
 	dist, err := web.Dist()
 	if err != nil {
@@ -1070,6 +1170,10 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		EgressStore:    egressStore,
 		EgressEnforced: egressEnforced,
 		EgressDefaults: egressBaseAllow(cfg),
+		Config:         &cfg,
+		Runners:        runnerStore,
+		RunnerPool:     runnerPool,
+		Blobs:          blobs,
 		ReqLog:         reqLog,
 		DataPlane:      dataPlane,
 	}
@@ -1128,6 +1232,11 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
 		httpServer.Shutdown(shutdownCtx)
+		// Whatever the file browser has changed and not yet synced goes in now.
+		// A settling period that is still running would otherwise fire into a
+		// connection that is already gone, and the change would live only in the
+		// working copy — which is exactly the case this is meant to prevent.
+		runnerPool.FlushHomes(shutdownCtx)
 	}()
 
 	log.Info("covey serve", "addr", cfg.ListenAddr, "public", cfg.PublicURL, "build", buildinfo.String())

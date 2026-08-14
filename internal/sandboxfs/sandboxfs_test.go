@@ -274,8 +274,8 @@ func TestOpenReturnsFullFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer rc.Close()
-	if info.Size() != int64(len(content)) {
-		t.Errorf("size %d, expected %d", info.Size(), len(content))
+	if info.Size != int64(len(content)) {
+		t.Errorf("size %d, expected %d", info.Size, len(content))
 	}
 	buf := make([]byte, 16)
 	if n, err := rc.Read(buf); err != nil || n == 0 {

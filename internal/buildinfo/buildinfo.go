@@ -17,6 +17,7 @@ package buildinfo
 
 import (
 	"fmt"
+	"regexp"
 	"runtime"
 	"runtime/debug"
 	"strings"
@@ -54,6 +55,13 @@ type Info struct {
 	// so that the UI does not hardcode it — a fork thus shows its own address,
 	// not the origin's.
 	Source string `json:"source"`
+	// SourceSystem/SourceProject are the same address as a target-system
+	// address (SourceRepo): the default Covey Doctor reports to as long as the
+	// organisation has not named a repository of its own. The interface shows
+	// it where that setting sits, instead of leaving "not set up" standing over
+	// something that is set up.
+	SourceSystem  string `json:"source_system,omitempty"`
+	SourceProject string `json:"source_project,omitempty"`
 }
 
 // Get returns the binary's provenance (determined once, then cached).
@@ -85,6 +93,7 @@ var Get = sync.OnceValue(func() Info {
 	if i.Version == "" {
 		i.Version = "dev"
 	}
+	i.SourceSystem, i.SourceProject = SourceRepo()
 	return i
 })
 
@@ -113,3 +122,53 @@ func (i Info) String() string {
 
 // String is the short rendering of the running binary — for log lines.
 func String() string { return Get().String() }
+
+// SourceRepo derives from SourceURL which target-system plugin the source lives
+// on and under which project — the address Covey Doctor reads and files its
+// issues at when an organisation has not named one of its own (spec/21).
+//
+// Derived, not configured a second time: the program knows where it comes from,
+// and a fork that changes SourceURL takes its own tracker along instead of the
+// origin's. Empty when the address is not one of the plugins that can check out
+// a repository — then there is no default, and the organisation names one or
+// the layer does not exist.
+func SourceRepo() (system, project string) {
+	url := strings.TrimSuffix(strings.TrimSpace(SourceURL), ".git")
+	for host, plugin := range map[string]string{"github.com": "github", "gitlab.com": "gitlab"} {
+		for _, prefix := range []string{"https://" + host + "/", "http://" + host + "/", host + "/"} {
+			if rest, ok := strings.CutPrefix(url, prefix); ok {
+				rest = strings.Trim(rest, "/")
+				// Exactly group/project — a deeper path is a page inside the
+				// repository, not the address of one.
+				if rest != "" && strings.Count(rest, "/") >= 1 {
+					return plugin, rest
+				}
+			}
+		}
+	}
+	return "", ""
+}
+
+// Ref is the anchor of a report: what tells the reader which state of this
+// instance they are looking at.
+//
+// The tag when this build sits exactly on one — that is the statement a
+// maintainer can act on ("v0.4.0 is affected"). Otherwise `git describe` yields
+// something like "v0.4.0-56-gea0485c": a name the repository does not know and
+// that would run into nothing as a ref. Then the commit, which it does know.
+//
+// isTag tells the caller which of the two they are holding, so the prompt can
+// call it by its name instead of saying "ref" and leaving the rest open.
+func Ref() (ref string, isTag bool) {
+	i := Get()
+	// A clean tag: no commits behind it (describe's -N-g<hash>), no dirty tree,
+	// and not "dev" for want of provenance.
+	if v := i.Version; v != "" && v != "dev" && !i.Dirty && !describeSuffix.MatchString(v) {
+		return v, true
+	}
+	return i.Commit, false
+}
+
+// -<commits>-g<hash> at the end, `git describe`'s mark for "behind the tag" —
+// with the optional -dirty the Makefile appends.
+var describeSuffix = regexp.MustCompile(`-\d+-g[0-9a-f]{7,}(-dirty)?$`)
