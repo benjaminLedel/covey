@@ -3,6 +3,8 @@ package agents
 import (
 	"sort"
 	"strings"
+
+	"covey/internal/buildinfo"
 )
 
 // Order in which the config files are compiled into the system prompt.
@@ -563,6 +565,33 @@ func splitCSV(s string) []string {
 	return out
 }
 
+// RepoOff is the target system that switches the third layer off: the
+// organisation wants neither the source nor the issues.
+//
+// It needs a value of its own since the default arrived: "empty" used to mean
+// "off", and now it means "the project this program comes from". A setting
+// whose only "off" is "do not grant the access" would be one you have to
+// arrange somewhere else — and the setting is the place where somebody looks.
+const RepoOff = "-"
+
+// PlatformRepo resolves what an organisation has stored into the address that
+// actually applies: its own repository, the platform's own project as the
+// default (buildinfo.SourceRepo), or nothing at all.
+//
+// The default is derived and not configured: the program knows where its source
+// lives — that is what buildinfo.SourceURL is, and the AGPL has it in the
+// footer anyway. A fork changes the constant and takes its own tracker along.
+func PlatformRepo(system, project string) (string, string) {
+	system, project = strings.TrimSpace(system), strings.TrimSpace(project)
+	if system == RepoOff {
+		return "", ""
+	}
+	if system != "" && project != "" {
+		return system, project
+	}
+	return buildinfo.SourceRepo()
+}
+
 // PlatformRepoDoc is the third layer: the platform's own source (spec/21).
 //
 // An agent that may only WRITE issues reports symptoms. Give it the source to
@@ -571,21 +600,30 @@ func splitCSV(s string) []string {
 // partial result". The evidence for the first half is in the work record; the
 // second half needs the code, and nobody else in the organisation holds both.
 //
-// Pinned to the RUNNING commit, and that is the point of the section: an agent
+// Pinned to the RUNNING state, and that is the point of the section: an agent
 // reading the default branch reports against code this instance does not
 // execute — half of those findings are already fixed and the other half are not
 // there yet, and both kinds cost a maintainer the same read.
-func PlatformRepoDoc(system, project, commit string) string {
+//
+// The anchor is the release tag where this build sits exactly on one, otherwise
+// the commit (buildinfo.Ref). The tag is the more useful of the two for whoever
+// reads the report: it says which shipped version is affected, not just which
+// line of history.
+func PlatformRepoDoc(system, project, ref string, refIsTag bool) string {
 	if strings.TrimSpace(system) == "" || strings.TrimSpace(project) == "" {
 		return ""
 	}
-	ref := strings.TrimSpace(commit)
+	ref = strings.TrimSpace(ref)
 	pinned := "`ref: " + ref + "` — the commit this instance is running"
+	if refIsTag {
+		pinned = "`ref: " + ref + "` — the release this instance is running, " +
+			"and the version every report names"
+	}
 	if ref == "" {
 		// Ohne Provenance (Build ohne -ldflags) gibt es keinen Anker. Dann
 		// ehrlich sagen, dass die Zuordnung fehlt, statt den Default-Branch als
 		// „den laufenden Stand" auszugeben.
-		pinned = "the default branch — this instance carries no commit information, " +
+		pinned = "the default branch — this instance carries no version information, " +
 			"so say in every report which state you read"
 	}
 	return `## The platform you run on

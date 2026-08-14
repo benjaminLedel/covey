@@ -161,7 +161,14 @@ The most valuable finding it makes is the one it cannot fix by editing a config:
 
 Nothing needs building for it: the `gitlab` and `github` plugins can `create_issue`, and the repository already keeps `feature-requests/` for exactly this genre. What it needs is a decision and a discipline.
 
-**The decision is which repository, and it is an organisation's to make.** An instance running against the public GitHub mirror would have an agent filing issues where the world reads them; an instance filing into its own GitLab keeps them in the house. The default is the internal one, and the target is configuration rather than something the agent chooses.
+**The decision is which repository, and it is an organisation's to make — but it is not a question the platform has to ask.** Covey knows where its own source lives: `buildinfo.SourceURL` is the address the AGPL puts in the footer anyway, and read as a target-system address (`buildinfo.SourceRepo`) it is the **default**: the project this instance was built from, on the plugin that can check it out. A fork changes the constant and takes its own tracker along instead of the origin's.
+
+Two things stay the organisation's, and both are one setting (`organizations.platform_repo_*`, org master data, never a model's choice per run):
+
+- **Somewhere else.** An instance that files into its own GitLab keeps its findings in the house — an enabled target system plus a project, and that address wins over the default.
+- **Not at all.** `agents.RepoOff` (`-`) switches the layer off: no source, no issues. It needed a value of its own once the default arrived, because "nothing stored" had until then meant "off" and now means "the project this platform comes from".
+
+The default is deliberately the **upstream** project and not the internal one: an instance that reports nowhere reports nothing, and the tracker the finding belongs in is the one the code is maintained in. What keeps this from quietly publishing internals is not the setting but the gate below it — the section only exists when Covey Doctor holds that target system in its `ACCESS.md`, and granting the platform's own repository to the agent is a decision somebody makes, not a default that happens.
 
 **The discipline is that an issue costs a human's attention**, and an agent that files one per review turns the tracker into noise. Three rules, all of them prompt-level because they are judgement and not safety: it files when the same limit hit **more than one agent**, it looks for an existing issue first, and it names the evidence — which agents, which runs, what it cost. A report that says "the turn limit is too low" is worthless; one that says "eleven runs across three agents ended at the limit, $340, and in nine of them the work was nearly done" is a specification.
 
@@ -174,8 +181,8 @@ This is the point where the department's name earns itself. The three causes are
 Four things it needs, and none of them is new machinery:
 
 - **Read access, in the ordinary way.** An `ACCESS.md` entry on the same target system the issues go to, scoped to reading the code and searching issues. The checkout mechanism is the existing one, and the working copy counts against the agent's checkout budget like any other ([`internal/target/repos.go`](../internal/target/repos.go) — five kept per agent by default, least recently used dropped).
-- **Pinned to the commit the instance is running.** `internal/buildinfo` carries version and commit, and the startup log and the interface's footer already show them. An agent reading `main` reports against code this instance does not execute — half of those findings are already fixed and the other half are not there yet, and both kinds cost a maintainer the same read. The running commit is the anchor, and it is available without asking anybody.
-- **The same repository the issues go to**, from the same configuration. An organisation on the internal GitLab reads the internal GitLab.
+- **Pinned to the state the instance is running.** `internal/buildinfo` carries version and commit, and the startup log and the interface's footer already show them. An agent reading `main` reports against code this instance does not execute — half of those findings are already fixed and the other half are not there yet, and both kinds cost a maintainer the same read. The anchor is available without asking anybody: `buildinfo.Ref` gives the **release tag** where this build sits exactly on one, otherwise the commit. The tag is the more useful of the two for whoever reads the report — it says which shipped version is affected, not just which line of history — and it has to be exact: `git describe` names every state behind a tag `v0.4.0-56-gea0485c`, and that is not a ref the repository knows.
+- **The same repository the issues go to**, from the same setting. An organisation on the internal GitLab reads the internal GitLab; without a setting, both halves are the project this platform comes from.
 - **A boundary: it reports, it does not fix.** Read access plus a language model invites the patch, and the patch is somebody else's job — the coding agent that already exists as a template (`examples/coding-agent.bundle.json`) picks the issue up. That is the org chart doing what an org chart is for, and it keeps this agent's output what it has been throughout: a proposal for a human, in the tracker where such proposals are decided.
 
 **One risk, named rather than left to be worked out.** An agent reading the control plane's source sees how the guard rails are implemented. That is not a new exposure: guard rails are enforced *outside* the runtime, at the broker, the egress and the tool layer ([`06-observability-control.md`](06-observability-control.md)), the security model has never rested on an agent not knowing how they work, and the source is public on GitHub in any case. What would be a genuine change is write access to that repository — which is why this entry is read-only and the issue is the only thing it produces.
@@ -209,7 +216,7 @@ Each slice is worth shipping on its own:
    guard rails outside the runtime puts this outside the input field.
 6. **The review on the employee profile** — history, dated, linked to the task it came out of.
 7. **The colleague channel** — the `PLAYBOOKS.md` section for the rest of the population.
-8. **The platform's own repository** — read access pinned to the running commit, the issue target as configuration, and the discipline in the playbook. Read before write: the checkout alone already sharpens every finding the earlier slices produce, and it is the half that needs no tracker.
+8. **The platform's own repository** — read access pinned to the running release (tag, else commit), the issue target defaulting to the project this platform comes from and overridable per organisation, and the discipline in the playbook. Read before write: the checkout alone already sharpens every finding the earlier slices produce, and it is the half that needs no tracker.
 
 ## Open points
 

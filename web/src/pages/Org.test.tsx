@@ -31,9 +31,23 @@ const system = (access: boolean, enabled = true) => [
   { name: "gitlab", label: "GitLab", kind: "builtin", enabled, access },
 ];
 
+/* Die Voreinstellung kommt vom Server (buildinfo), nicht aus der Oberfläche —
+   ein Fork trägt damit sein eigenes Projekt. */
+const build = {
+  version: "v0.4.0",
+  commit: "abc1234",
+  built_at: "",
+  dirty: false,
+  go: "",
+  source: "https://github.com/benjaminLedel/covey",
+  source_system: "github",
+  source_project: "benjaminLedel/covey",
+};
+
 const routen = (mitDoctor: boolean, access: boolean, enabled = true) => ({
   "/api/v1/org/chart": chart(mitDoctor),
   "/api/v1/org": org,
+  "/api/v1/version": build,
   "/api/v1/targets": [{ name: "gitlab", label: "GitLab", enabled: true }],
   [`/api/v1/agents/${DOCTOR}/systems`]: system(access, enabled),
 });
@@ -88,6 +102,38 @@ describe("Quelltext dieser Plattform", () => {
     mockFetch(routen(true, true, false));
     renderWithProviders(<PlatformRepo nurMitDoctor />);
 
-    expect(await screen.findByText(/nicht mehr freigeschaltet/)).toBeInTheDocument();
+    expect(await screen.findByText(/nicht freigeschaltet/)).toBeInTheDocument();
+  });
+
+  it("zeigt ohne eigenes Repository das Projekt, aus dem die Plattform stammt", async () => {
+    /* Die Karte fragte nach etwas, das die Plattform über sich selbst weiß:
+       Ihr Quelltext liegt da, wo sie herkommt (buildinfo.SourceURL). Ohne
+       Eintrag steht deshalb die Voreinstellung da — nicht „nicht
+       eingerichtet". */
+    mockFetch({
+      ...routen(true, true),
+      "/api/v1/org": { ...org, platform_repo_system: "", platform_repo_project: "" },
+      [`/api/v1/agents/${DOCTOR}/systems`]: [
+        { name: "github", label: "GitHub", kind: "builtin", enabled: true, access: true },
+      ],
+    });
+    renderWithProviders(<PlatformRepo nurMitDoctor />);
+
+    expect(await screen.findByText("benjaminLedel/covey")).toBeInTheDocument();
+    expect(screen.getByText(/Voreinstellung/)).toBeInTheDocument();
+    // Und der Zustand prüft gegen das voreingestellte System, nicht gegen ein
+    // gespeichertes: hier hat Covey Doctor Zugang zu github.
+    expect(await screen.findByText(/^Wirkt:/)).toBeInTheDocument();
+  });
+
+  it("lässt sich ganz abschalten", async () => {
+    mockFetch({
+      ...routen(true, true),
+      "/api/v1/org": { ...org, platform_repo_system: "-", platform_repo_project: "" },
+    });
+    renderWithProviders(<PlatformRepo nurMitDoctor />);
+
+    expect(await screen.findByText(/Abgeschaltet/)).toBeInTheDocument();
+    expect(screen.queryByText(/Wirkt/)).not.toBeInTheDocument();
   });
 });

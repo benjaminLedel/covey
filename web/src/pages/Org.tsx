@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import {
-  api, patch, isDraft,
+  api, patch, isDraft, buildInfo,
   createDepartment, renameDepartment, deleteDepartment, setDepartmentColor,
   setAgentDepartment, setAgentSupervisor,
   setHumanDepartment, setHumanManager,
@@ -186,7 +186,8 @@ function RepoZugang({
   if (!eintrag.enabled) {
     return (
       <p className="warn-text text-xs" style={{ maxWidth: 640 }}>
-        {t("org.repo.stateDisabled", { system: eintrag.label || eintrag.name })}
+        {t("org.repo.stateDisabled", { system: eintrag.label || eintrag.name })}{" "}
+        <Link to="/targets">{t("nav.targets")}</Link>
       </p>
     );
   }
@@ -205,10 +206,19 @@ function RepoZugang({
   );
 }
 
+/* „Aus" — dasselbe Zeichen wie agents.RepoOff im Backend. Es brauchte einen
+   eigenen Wert, seit es die Voreinstellung gibt: „leer" hieß früher „gar
+   nicht" und heißt jetzt „das Projekt, aus dem dieses Programm stammt". */
+const REPO_AUS = "-";
+
 export function PlatformRepo({ nurMitDoctor = false }: { nurMitDoctor?: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const own = useQuery({ queryKey: ["own-org"], queryFn: () => api<Organization>("/org") });
+  /* Woher dieses Programm kommt — die Voreinstellung. Sie steht nicht in der
+     Oberfläche, sondern kommt vom Server (buildinfo), damit ein Fork sein
+     eigenes Projekt trägt und nicht das des Ursprungs. */
+  const build = useQuery({ queryKey: ["build"], queryFn: buildInfo, staleTime: Infinity });
   const targets = useQuery({
     queryKey: ["targets"],
     queryFn: () => api<{ name: string; label: string; enabled: boolean }[] | null>("/targets"),
@@ -230,7 +240,13 @@ export function PlatformRepo({ nurMitDoctor = false }: { nurMitDoctor?: boolean 
   const [error, setError] = useState("");
 
   const save = useMutation({
-    mutationFn: () => patch<{ ok: boolean }>("/org/platform-repo", { system, project }),
+    /* Voreinstellung und „aus" tragen kein Projekt — was im Feld stand, bevor
+       jemand das Zielsystem gewechselt hat, wird nicht mitgespeichert. */
+    mutationFn: () =>
+      patch<{ ok: boolean }>("/org/platform-repo", {
+        system,
+        project: system === "" || system === REPO_AUS ? "" : project,
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["own-org"] });
       setEditing(false);
@@ -242,7 +258,21 @@ export function PlatformRepo({ nurMitDoctor = false }: { nurMitDoctor?: boolean 
   /* Am Organigramm ohne Covey Doctor: keine Karte. Wer ihn einstellt, findet
      sie mit ihm vor — in den Stammdaten steht sie ohnehin. */
   if (!own.data || (nurMitDoctor && !doctor)) return null;
-  const gesetzt = own.data.platform_repo_system && own.data.platform_repo_project;
+
+  /* Dieselbe Auflösung wie im Backend (agents.PlatformRepo): eigenes
+     Repository, sonst das Projekt dieser Plattform, außer es ist abgeschaltet.
+     Zwei Stellen, eine Regel — die Karte soll zeigen, was gilt, nicht was
+     gespeichert ist. */
+  const eigenes = own.data.platform_repo_system && own.data.platform_repo_project;
+  const aus = own.data.platform_repo_system === REPO_AUS;
+  const gilt = aus
+    ? null
+    : eigenes
+      ? { system: own.data.platform_repo_system!, project: own.data.platform_repo_project! }
+      : build.data?.source_system && build.data.source_project
+        ? { system: build.data.source_system, project: build.data.source_project }
+        : null;
+
   // Nur angeschlossene Zielsysteme: eine Adresse auf einem System ohne
   // Credential liefe erst beim Checkout ins Leere.
   const wahl = (targets.data ?? []).filter((x) => x.enabled);
@@ -259,28 +289,25 @@ export function PlatformRepo({ nurMitDoctor = false }: { nurMitDoctor?: boolean 
         <h2 className="text-sm" style={{ fontWeight: 600 }}>{t("org.repo.title")}</h2>
         {!editing && (
           <button className="btn sm ml-auto" style={{ border: "none" }} onClick={start}>
-            {gesetzt ? t("org.company.edit") : t("org.company.add")}
+            {t("org.company.edit")}
           </button>
         )}
       </div>
       {!editing && (
         <>
-          <p className={`text-xs ${gesetzt ? "" : "muted"}`} style={{ maxWidth: 640 }}>
-            {gesetzt ? (
+          <p className={`text-xs ${gilt ? "" : "muted"}`} style={{ maxWidth: 640 }}>
+            {gilt ? (
               <>
-                <span className="mono">{own.data.platform_repo_system}</span>{" · "}
-                <span className="mono">{own.data.platform_repo_project}</span>
+                <span className="mono">{gilt.system}</span>{" · "}
+                <span className="mono">{gilt.project}</span>
+                {!eigenes && <span className="muted">{" — " + t("org.repo.isDefault")}</span>}
               </>
             ) : (
-              t("org.repo.empty")
+              t(aus ? "org.repo.stateOff" : "org.repo.empty")
             )}
           </p>
-          {gesetzt && doctor && (
-            <RepoZugang
-              doctor={doctor}
-              system={own.data.platform_repo_system!}
-              systeme={systeme.data}
-            />
+          {gilt && doctor && (
+            <RepoZugang doctor={doctor} system={gilt.system} systeme={systeme.data} />
           )}
         </>
       )}
@@ -290,21 +317,33 @@ export function PlatformRepo({ nurMitDoctor = false }: { nurMitDoctor?: boolean 
             <div>
               <label>{t("org.repo.system")}</label>
               <select value={system} onChange={(e) => setSystem(e.target.value)}>
-                <option value="">{t("org.repo.none")}</option>
+                {/* Die Voreinstellung steht als erste Wahl und mit Namen da —
+                    „— keines —" beschrieb einen Zustand, den es nicht mehr
+                    gibt. */}
+                <option value="">
+                  {build.data?.source_project
+                    ? t("org.repo.defaultOption", { project: build.data.source_project })
+                    : t("org.repo.none")}
+                </option>
                 {wahl.map((x) => (
                   <option key={x.name} value={x.name}>{x.label || x.name}</option>
                 ))}
+                <option value={REPO_AUS}>{t("org.repo.offOption")}</option>
               </select>
             </div>
-            <div className="flex-1 min-w-52">
-              <label>{t("org.repo.project")}</label>
-              <input
-                className="mono"
-                value={project}
-                onChange={(e) => setProject(e.target.value)}
-                placeholder={t("org.repo.projectPlaceholder")}
-              />
-            </div>
+            {/* Ein Projekt gehört nur zu einem selbst gewählten Zielsystem: die
+                Voreinstellung bringt ihres mit, „aus" braucht keins. */}
+            {system !== "" && system !== REPO_AUS && (
+              <div className="flex-1 min-w-52">
+                <label>{t("org.repo.project")}</label>
+                <input
+                  className="mono"
+                  value={project}
+                  onChange={(e) => setProject(e.target.value)}
+                  placeholder={t("org.repo.projectPlaceholder")}
+                />
+              </div>
+            )}
           </div>
           <div className="muted text-xs" style={{ margin: "3px 0 6px" }}>{t("org.repo.hint")}</div>
           {error && <div className="danger-text text-xs mb-2">{error}</div>}

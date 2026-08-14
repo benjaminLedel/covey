@@ -1360,11 +1360,15 @@
       "project": "Project",
       "none": "— none —",
       "projectPlaceholder": "e.g. 42 or group/covey",
-      "hint": "Where Covey itself lives: Covey Doctor reads the source there (pinned to the running commit) and files its bug reports there. Enabled target systems only; leaving it empty switches both off.",
+      "hint": "Where Covey itself lives: Covey Doctor reads the source there (pinned to the running version) and files its bug reports there. The default is the project this platform comes from; whoever wants to keep findings in-house enters an enabled target system of their own.",
       "stateOk": "In effect: Covey Doctor has access there and gets the section in its prompt —",
       "stateNoAccess": "Not in effect yet: {{system}} is not in Covey Doctor's ACCESS.md. Without that line the section stays out of its prompt, and the broker refuses the checkout. Add it at",
-      "stateDisabled": "Not in effect: {{system}} is no longer enabled for this organization.",
-      "stateUnknownSystem": "Not in effect: the target system \"{{system}}\" does not exist here (any more)."
+      "stateDisabled": "Not in effect: {{system}} is not enabled for this organization. Enable it under",
+      "stateUnknownSystem": "Not in effect: the target system \"{{system}}\" does not exist here (any more).",
+      "isDefault": "default: the project this platform comes from",
+      "defaultOption": "Default ({{project}})",
+      "offOption": "— not at all —",
+      "stateOff": "Switched off: Covey Doctor neither reads this platform's source nor files anything there."
     }
   },
   "orgs": {

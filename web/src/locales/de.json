@@ -1360,11 +1360,15 @@
       "project": "Projekt",
       "none": "— keines —",
       "projectPlaceholder": "z. B. 42 oder gruppe/covey",
-      "hint": "Wo Covey selbst liegt: dort liest Covey Doctor den Quelltext (auf den laufenden Commit gepinnt) und meldet dorthin seine Fehlerberichte. Nur angeschlossene Zielsysteme; leer lassen schaltet beides ab.",
+      "hint": "Wo Covey selbst liegt: dort liest Covey Doctor den Quelltext (auf die laufende Fassung gepinnt) und meldet dorthin seine Fehlerberichte. Voreingestellt ist das Projekt, aus dem diese Plattform stammt; wer seine Befunde im Haus behalten will, trägt ein eigenes angeschlossenes Zielsystem ein.",
       "stateOk": "Wirkt: Covey Doctor hat dort Zugang und bekommt den Abschnitt in seinen Prompt —",
       "stateNoAccess": "Wirkt noch nicht: {{system}} steht nicht in der ACCESS.md von Covey Doctor. Ohne diese Zeile bleibt der Abschnitt aus seinem Prompt, und den Checkout weist der Broker ab. Zu ergänzen bei",
-      "stateDisabled": "Wirkt nicht: {{system}} ist für diese Organisation nicht mehr freigeschaltet.",
-      "stateUnknownSystem": "Wirkt nicht: das Zielsystem „{{system}}“ gibt es hier nicht (mehr)."
+      "stateDisabled": "Wirkt nicht: {{system}} ist für diese Organisation nicht freigeschaltet. Freizuschalten unter",
+      "stateUnknownSystem": "Wirkt nicht: das Zielsystem „{{system}}“ gibt es hier nicht (mehr).",
+      "isDefault": "Voreinstellung: das Projekt, aus dem diese Plattform stammt",
+      "defaultOption": "Voreinstellung ({{project}})",
+      "offOption": "— gar nicht —",
+      "stateOff": "Abgeschaltet: Covey Doctor liest den Quelltext dieser Plattform nicht und meldet nichts dorthin."
     }
   },
   "orgs": {

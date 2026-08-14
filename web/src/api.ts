@@ -1002,6 +1002,12 @@ export type BuildInfo = {
   // Öffentliche Quelle dieses Binaries (AGPL-3.0). Kommt vom Server, damit ein
   // Fork seine eigene Adresse zeigt statt der des Ursprungs.
   source: string;
+  // Dieselbe Adresse als Zielsystem-Adresse: die Voreinstellung, an die Covey
+  // Doctor meldet, solange die Organisation kein eigenes Repository nennt
+  // (spec/21). Leer, wenn die Quelle auf keinem Plugin liegt, das auschecken
+  // kann — dann gibt es keine Voreinstellung.
+  source_system?: string;
+  source_project?: string;
 };
 
 export const buildInfo = () => api<BuildInfo>("/version");

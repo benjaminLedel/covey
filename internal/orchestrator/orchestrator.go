@@ -1715,12 +1715,16 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	mayReview := o.mayReviewAgents(ctx, agent)
 	if mayReview {
 		compiled += "\n\n" + agents.ReviewDoc
-		// Die dritte Schicht: der eigene Quelltext, auf den laufenden Commit
-		// gepinnt (spec/21). Drei Bedingungen, und die dritte ist die, die beim
-		// ersten Bau fehlte:
+		// Die dritte Schicht: der eigene Quelltext, gepinnt auf den Stand, den
+		// diese Instanz laeuft (spec/21). Drei Bedingungen, und die dritte ist
+		// die, die beim ersten Bau fehlte:
 		//
-		//  1. Die Organisation hat das Repository eingerichtet — wo es liegt,
-		//     entscheidet sie und nicht der Agent.
+		//  1. Es gibt eine Adresse. Voreinstellung ist das Projekt, aus dem
+		//     dieses Programm stammt (buildinfo.SourceRepo) — die Plattform
+		//     weiss, wo ihr Quelltext liegt, und hat nie danach fragen muessen.
+		//     Eine Organisation, die ihre Befunde im Haus behalten will, traegt
+		//     ihr eigenes Repository ein; wer die Schicht gar nicht will, setzt
+		//     das Zielsystem auf "-" (repoAus).
 		//  2. Der Agent darf begutachten (mayReview, siehe oben).
 		//  3. Er hat dieses Zielsystem WIRKLICH in seiner ACCESS.md.
 		//
@@ -1737,10 +1741,13 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 		var repoSystem, repoProject string
 		if err := o.Pool.QueryRow(ctx,
 			"SELECT platform_repo_system, platform_repo_project FROM organizations WHERE id=$1",
-			agent.OrgID).Scan(&repoSystem, &repoProject); err == nil && grantedSystems[repoSystem] {
-			if section := agents.PlatformRepoDoc(repoSystem, repoProject,
-				buildinfo.Get().Commit); section != "" {
-				compiled += "\n\n" + section
+			agent.OrgID).Scan(&repoSystem, &repoProject); err == nil {
+			repoSystem, repoProject = agents.PlatformRepo(repoSystem, repoProject)
+			if grantedSystems[repoSystem] {
+				ref, istTag := buildinfo.Ref()
+				if section := agents.PlatformRepoDoc(repoSystem, repoProject, ref, istTag); section != "" {
+					compiled += "\n\n" + section
+				}
 			}
 		}
 	}
