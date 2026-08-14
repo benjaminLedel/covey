@@ -31,8 +31,6 @@ export type PublicRoute = {
   indexable: boolean;
   /** Gewicht in der Sitemap. */
   priority: number;
-  /** Abschnitt im Docs-Baum — die mittlere Stufe der Brotkrumen. */
-  section?: Localized;
   /* Kanonische Adresse, wenn sie nicht die eigene ist.
      Genau ein Fall bisher: /docs zeigt denselben Inhalt wie die erste
      Docs-Seite (Docs.tsx fällt ohne Slug auf FIRST_DOC zurück). Zwei
@@ -179,6 +177,24 @@ export const NOT_FOUND_ROUTE: PublicRoute = {
   priority: 0,
 };
 
+/* Markdown-Auszeichnung aus einem Text nehmen — für alles, was im Kopf einer
+   Seite landet (Description, FAQ-Antworten): dort steht Text, kein Markdown,
+   und Backticks und Sternchen erschienen sonst genau so im Suchergebnis.
+
+   Sternchen und Unterstriche fallen nur dort weg, wo sie ein Wort einrahmen.
+   Pauschal entfernt wurde aus `COVEY_PUBLIC_URL` ein „COVEYPUBLICURL" — ein
+   Name, den es nicht gibt, und ausgerechnet in dem Text, den jemand aus dem
+   Suchergebnis abschreibt. */
+export function plainText(md: string): string {
+  return md
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1") // Links → Linktext
+    .replace(/`/g, "")
+    .replace(/\*{1,2}([^*]+)\*{1,2}/g, "$1")
+    .replace(/(^|[\s(])_([^_]+)_(?=[\s.,;:!?)]|$)/g, "$1$2")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /* Aus einem Markdown-Body die erste Fließtext-Zeile als Description ziehen —
    ohne Überschrift, ohne Auszeichnung, auf Snippet-Länge gekürzt. */
 export function descriptionFromMarkdown(md: string, max = 160): string {
@@ -187,11 +203,7 @@ export function descriptionFromMarkdown(md: string, max = 160): string {
     .map((l) => l.trim())
     .find((l) => l.length > 0 && !l.startsWith("#") && !l.startsWith(">"));
   if (!line) return "";
-  const plain = line
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1") // Links → Linktext
-    .replace(/[*_`]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
+  const plain = plainText(line);
   if (plain.length <= max) return plain;
   const cut = plain.slice(0, max);
   return cut.slice(0, cut.lastIndexOf(" ")).replace(/[,;:—-]$/, "") + " …";
@@ -221,7 +233,6 @@ const DOCS: PublicRoute[] = DOC_SECTIONS.flatMap((sec) =>
     },
     indexable: true,
     priority: 0.6,
-    section: sec.title,
     faq: p.faq,
   })),
 );

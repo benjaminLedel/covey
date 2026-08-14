@@ -11,7 +11,7 @@
 
 import { useEffect } from "react";
 import { useLocation } from "react-router";
-import { LANGS, NOT_FOUND_ROUTE, matchRoute, type Lang, type PublicRoute } from "./seo";
+import { LANGS, NOT_FOUND_ROUTE, matchRoute, plainText, type Lang, type PublicRoute } from "./seo";
 import { langFromPath } from "../i18n";
 
 /** Platzhalter im vorgerenderten HTML; der Server setzt die echte Origin ein. */
@@ -79,18 +79,25 @@ function jsonLd(route: PublicRoute, lang: Lang, origin: string): object | null {
         url: `${origin}${route.path[lang]}`,
         publisher: { "@id": `${origin}/#organization` },
       },
-      // Brotkrumen: Docs → Abschnitt → Seite. Der Abschnitt hat keine eigene
-      // Adresse — die Docs-Navigation ist eine Gliederung, keine Seitenfolge —,
-      // deshalb trägt seine Stufe nur einen Namen. Das ist erlaubt und
-      // ehrlicher, als eine URL zu erfinden, die auf nichts zeigt.
+      /* Brotkrumen: Docs → Seite. Der Abschnitt stand hier einmal als
+         mittlere Stufe mit bloßem Namen — die Docs-Navigation ist eine
+         Gliederung, und ein Abschnitt hat keine eigene Adresse. Google
+         verlangt `item` aber für JEDE Stufe außer der letzten und erklärte die
+         Auszeichnung deshalb für ungültig ("Feld item fehlt", Search Console
+         13.08.26); die ganze BreadcrumbList fiel damit aus den
+         Rich-Suchergebnissen.
+
+         Die Stufe fällt weg, statt eine Adresse für sie zu erfinden: Ein Link
+         auf die erste Seite des Abschnitts wäre auf ebendieser Seite ein
+         Krumen, der auf sich selbst zeigt, und der Abschnitt bleibt ohnehin
+         das, was er ist — eine Überschrift in der Navigation, kein Ort. */
       {
         "@type": "BreadcrumbList",
         itemListElement: [
           { "@type": "ListItem", position: 1, name: "Docs", item: `${origin}${docsPath}` },
-          ...(route.section ? [{ "@type": "ListItem", position: 2, name: route.section[lang] }] : []),
           {
             "@type": "ListItem",
-            position: route.section ? 3 : 2,
+            position: 2,
             name: route.title[lang].replace(/ — Covey Docs$/, ""),
             item: `${origin}${route.path[lang]}`,
           },
@@ -118,17 +125,6 @@ function jsonLd(route: PublicRoute, lang: Lang, origin: string): object | null {
   }
 
   return null;
-}
-
-/* Markdown-Auszeichnung aus einer Antwort nehmen. In den strukturierten Daten
-   steht Text, kein Markdown: Backticks und Sternchen würden im Suchergebnis
-   genau so erscheinen, wie sie hier stehen. */
-function plainText(md: string): string {
-  return md
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
-    .replace(/[*_`]/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
 /** Alle Kopf-Elemente einer Seite. origin ohne abschließenden Schrägstrich. */
