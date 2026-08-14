@@ -52,9 +52,17 @@ jobs:
     needs: frontend
     steps:
       - uses: actions/checkout@v4
+      # check-latest: sonst nimmt setup-go die auf dem Runner-Image
+      # vorinstallierte Fassung, sobald sie zur Reihe "1.26" passt — und die ist
+      # nach jedem Patch-Release eine hinterher. Der Lauf faellt dann an etwas,
+      # das nicht im Quelltext steht: govulncheck meldet die Standard-Library
+      # des Build-Toolchains (go1.26.5 → fuenf Befunde, alle "Fixed in
+      # go1.26.6"). Die golang:1.26-Images der GitLab-Seite holen den neuesten
+      # Patch von sich aus; hier muss man es sagen.
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
+          check-latest: true
           cache: true
       - uses: actions/download-artifact@v4
         with:
@@ -72,9 +80,12 @@ jobs:
     needs: frontend
     steps:
       - uses: actions/checkout@v4
+      # check-latest wie oben — hier trägt es die Last: govulncheck prüft die
+      # Standard-Library des Toolchains mit, mit dem dieser Job baut.
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
+          check-latest: true
           cache: true
       - uses: actions/download-artifact@v4
         with:
