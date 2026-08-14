@@ -36,7 +36,8 @@ type AgentFindings = {
 
 export default function Diagnostics({ me }: { me: Principal }) {
   const { t } = useTranslation();
-  const isAdmin = me.Role === "platform_admin";
+  // org_admin: der alte Name platform_admin ist seit 0061 keiner mehr.
+  const isAdmin = me.Role === "org_admin";
 
   const doctor = useQuery({
     queryKey: ["platform-doctor"],

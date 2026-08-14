@@ -527,7 +527,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
           {(me.Role === "org_admin" || me.Role === "security") && (
             <NavItem to="/requests" icon="exchange" label={t("nav.requests")} />
           )}
-          {(me.Role === "platform_admin" || me.Role === "security" || me.Role === "agent_owner") && (
+          {(me.Role === "org_admin" || me.Role === "security" || me.Role === "agent_owner") && (
             <NavItem to="/diagnostics" icon="stethoscope" label={t("nav.diagnostics")} />
           )}
         </div>

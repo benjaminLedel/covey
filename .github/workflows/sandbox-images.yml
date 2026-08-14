@@ -245,16 +245,28 @@ jobs:
         run: |
           set -eu
           image=$(echo "$REGISTRY/$GITHUB_REPOSITORY-sandbox" | tr 'A-Z' 'a-z')
+          # Zwei Namen für denselben Stand, und sie sind NICHT dasselbe:
+          #
+          #   version  die Covey-Fassung, unter der eine Instanz ihren Eintrag
+          #            sucht — der Release-Tag, sonst "main"
+          #            (sandbox.CatalogVersion()).
+          #   imgtag   der Tag, unter dem das Image veröffentlicht wurde — der
+          #            Release-Tag, sonst "latest" (siehe base-manifest oben).
+          #
+          # Sie gleichzusetzen hat diesen Job im ersten Lauf zerlegt: Er suchte
+          # `base-main`, und das gibt es nicht.
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then
             version="$GITHUB_REF_NAME"
+            imgtag="$GITHUB_REF_NAME"
           else
             version="main"
+            imgtag="latest"
           fi
 
           # Der Digest der Manifest-LISTE, nicht der einer Architektur: Ein
           # Host, der ihn zieht, bekommt die Architektur, auf der er steht.
-          base_digest=$(docker buildx imagetools inspect "${image}:base-${version}" --format '{{ .Manifest.Digest }}')
-          dev_digest=$(docker buildx imagetools inspect "${image}:dev-${version}" --format '{{ .Manifest.Digest }}')
+          base_digest=$(docker buildx imagetools inspect "${image}:base-${imgtag}" --format '{{ .Manifest.Digest }}')
+          dev_digest=$(docker buildx imagetools inspect "${image}:dev-${imgtag}" --format '{{ .Manifest.Digest }}')
 
           # Ein eigenes Verzeichnis: Dieser Branch hat mit dem Quelltext nichts
           # zu tun, und ein Checkout, in dem beides liegt, verwechselt das früher
@@ -272,9 +284,9 @@ jobs:
           # Bestehende Einträge anderer Fassungen bleiben stehen: Eine
           # Installation auf v0.4.0 muss ihren Eintrag noch finden, nachdem
           # v0.5.0 erschienen ist.
-          python3 - "$version" "$image" "$base_digest" "$dev_digest" <<'PY'
+          python3 - "$version" "$imgtag" "$image" "$base_digest" "$dev_digest" <<'PY'
           import json, sys, datetime
-          version, image, base_digest, dev_digest = sys.argv[1:5]
+          version, imgtag, image, base_digest, dev_digest = sys.argv[1:6]
           pfad = "sandbox-catalog.json"
           try:
               with open(pfad) as f:
@@ -295,7 +307,7 @@ jobs:
               e["description"] = beschreibung[name]
               images = [i for i in e.get("images", []) if i.get("covey_version") != version]
               images.append({"covey_version": version, "ref": f"{image}@{digest}",
-                             "tag": f"{name}-{version}",
+                             "tag": f"{name}-{imgtag}",
                              "platforms": ["linux/amd64", "linux/arm64"]})
               e["images"] = sorted(images, key=lambda i: i["covey_version"] != "main")
           cat["schema"] = 1

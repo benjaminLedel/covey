@@ -69,7 +69,12 @@ export function formatBytes(n: number): string {
 export default function Runners({ me, embedded = false }: { me: Principal; embedded?: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const manage = me.Role === "platform_admin" || me.Role === "agent_owner";
+  /* Dieselben Rollen wie im Server (httpapi: manage). Hier stand
+     "platform_admin" — die oberste Org-Rolle heisst seit Migration 0061
+     org_admin, und weil sie niemand mehr traegt, war die Antwort immer nein:
+     Die Karte zum Registrieren eines Runners war damit fuer alle weg, auch
+     fuer die, die den Endpunkt dahinter benutzen duerfen. */
+  const manage = me.Role === "org_admin" || me.Role === "agent_owner";
   const [token, setToken] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [cleanup, setCleanup] = useState<CleanupView | null>(null);
