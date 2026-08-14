@@ -404,3 +404,8 @@ The setup is deliberately lean. For real operation, additionally (cf.
 - **Egress:** `COVEY_EGRESS_ENFORCE=true` (the docker sandbox provider is
   already active) so that sandboxes reach only allowlist hosts.
 - Replace the admin password from the generated `.env` with one of your own.
+- **Session lifetime:** `COVEY_SESSION_TTL` (default `168h`, i.e. seven days).
+  The session slides — every request in the second half of that window pushes
+  the end back, so only an *unused* session runs out. Installations on shared
+  machines can shorten it (`COVEY_SESSION_TTL=8h`); what protects an unattended
+  browser is still the screen lock, not the hour count.

@@ -124,7 +124,12 @@ type Config struct {
 	// costs an LLM call, and whoever does not want that should be able to turn
 	// it off without stripping the feature from the binary.
 	DreamAt string
-	// SessionTTL for human logins.
+	// SessionTTL for human logins (COVEY_SESSION_TTL, default 7 days). The
+	// session slides: every request in the second half of that window pushes
+	// the end back, so only an UNUSED session runs out. A fixed, short lifetime
+	// bought nothing here — it logged people out in the middle of their work,
+	// and what protects an unattended browser is the screen lock, not an hour
+	// count in the control plane.
 	SessionTTL time.Duration
 	// DaemonTokenTTL for the short-lived sandbox daemon JWTs.
 	DaemonTokenTTL time.Duration
@@ -229,7 +234,7 @@ func FromEnv() (Config, error) {
 		WebhookSecrets:   webhookSecretsFromEnv(),
 		TickInterval:     getenvDuration("COVEY_TICK_INTERVAL", 30*time.Second),
 		DreamAt:          getenv("COVEY_DREAM_AT", "03:00"),
-		SessionTTL:       getenvDuration("COVEY_SESSION_TTL", 12*time.Hour),
+		SessionTTL:       getenvDuration("COVEY_SESSION_TTL", 7*24*time.Hour),
 		DaemonTokenTTL:   getenvDuration("COVEY_DAEMON_TOKEN_TTL", 15*time.Minute),
 		BoardRetention:   getenvDuration("COVEY_BOARD_RETENTION", 24*time.Hour),
 		EgressEnforce:    getenvBool("COVEY_EGRESS_ENFORCE", false),

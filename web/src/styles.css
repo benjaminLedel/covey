@@ -2175,6 +2175,21 @@ kbd {
   font-size: 19px;
   margin-bottom: 18px;
 }
+/* Der Hinweis über den Feldern, wenn jemand nicht von sich aus hier steht,
+   sondern aus einer abgelaufenen Sitzung heraus. Kein Fehler — deshalb der
+   ruhige Ton statt der roten Zeile darunter. */
+.login-note {
+  margin: -8px 0 16px;
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-1);
+  font-size: 12.5px;
+  line-height: 1.45;
+  /* Nicht --text-muted: dieser Satz sagt etwas, und in Grau der Stufe „Hinweis
+     am Rand" las er sich wie ein Platzhalter im Feld darunter. */
+  color: var(--text-secondary);
+}
 /* Erläuterung unter einem Eingabefeld — dort, wo eine Beschriftung allein die
    Frage nicht beantwortet (Wartelisten-Code, Mindestlänge des Passworts). */
 .field-hint {

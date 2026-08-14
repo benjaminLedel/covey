@@ -1041,6 +1041,18 @@ export class ApiError extends Error {
   }
 }
 
+/* Was passieren soll, wenn der Server eine Anfrage mit 401 abweist: die
+   Sitzung ist abgelaufen (oder anderswo beendet worden). Das ist kein Fehler
+   EINER Seite, sondern das Ende der ganzen Oberfläche — deshalb hängt die
+   Reaktion nicht an der aufrufenden Komponente, sondern hier an einer Stelle.
+   App.tsx meldet sich an und schaltet auf die Anmeldung um. Ohne das blieb die
+   Hülle stehen und füllte sich mit Fehlermeldungen. */
+let abgelaufenMelden: (() => void) | null = null;
+
+export function setUnauthorizedHandler(fn: (() => void) | null) {
+  abgelaufenMelden = fn;
+}
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   // Bei FormData setzt der Browser den Content-Type selbst — samt der
   // multipart-Grenze, die wir gar nicht kennen. Ihn zu überschreiben machte
@@ -1051,6 +1063,11 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
   });
   if (!res.ok) {
+    /* Die Endpunkte unter /auth/ sind ausgenommen: dort ist die 401 die
+       normale Antwort ("nicht angemeldet", "falsches Passwort") und wird von
+       der Anmeldung selbst behandelt — ein globaler Abbruch würde die
+       Anmeldemaske gegen sich selbst richten. */
+    if (res.status === 401 && !path.startsWith("/auth/")) abgelaufenMelden?.();
     let msg = res.statusText;
     try {
       const body = await res.json();

@@ -552,6 +552,7 @@
     "submit": "Anmelden",
     "submitting": "Anmelden…",
     "error": "Anmeldung fehlgeschlagen — E-Mail oder Passwort falsch.",
+    "expired": "Ihre Sitzung ist abgelaufen. Nach der Anmeldung geht es dort weiter, wo Sie waren.",
     "localOnly": "nur lokal",
     "demoLogin": "Demo-Login (Admin)"
   },

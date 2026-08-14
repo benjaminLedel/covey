@@ -656,10 +656,21 @@ func (s *Server) auth(next http.HandlerFunc) http.Handler {
 			writeErr(w, http.StatusUnauthorized, "not signed in")
 			return
 		}
-		p, err := s.sessions().Principal(r.Context(), hashToken(cookie.Value))
+		p, expires, err := s.sessions().Principal(r.Context(), hashToken(cookie.Value))
 		if err != nil {
 			writeErr(w, http.StatusUnauthorized, "session expired")
 			return
+		}
+		// Sliding session: whoever is working here keeps their session. The
+		// renewal only happens in the second half of the lifetime — otherwise
+		// every request would write to the database, and an interface that
+		// polls does a few of those per minute.
+		if time.Until(expires) < s.SessionTTL/2 {
+			if err := s.sessions().Renew(r.Context(), hashToken(cookie.Value), time.Now().Add(s.SessionTTL)); err == nil {
+				// The cookie carries the same lifetime: a session extended only
+				// in the database would still be dropped by the browser.
+				s.setSessionCookie(w, cookie.Value, int(s.SessionTTL.Seconds()))
+			}
 		}
 		// Report the actor back to the audit middleware on top of that: it sits
 		// further out and does not see the context we create here.
@@ -842,22 +853,29 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	// SameSite=Strict instead of Lax: Covey is an administration tool you
-	// navigate into — there are no deep links from foreign pages that would
-	// need any consideration. Lax sends the cookie along on every top-level
-	// navigation from outside; Strict does not, and thereby takes the whole
-	// class of attacks that begin with a click on a foreign link out of play.
-	http.SetCookie(w, &http.Cookie{Name: "covey_session", Value: token, Path: "/",
-		HttpOnly: true, Secure: s.CookieSecure, SameSite: http.SameSiteStrictMode, MaxAge: int(s.SessionTTL.Seconds())})
+	s.setSessionCookie(w, token, int(s.SessionTTL.Seconds()))
 	writeJSON(w, http.StatusOK, p)
+}
+
+// setSessionCookie writes the session cookie — at sign-in, at every renewal and
+// (with maxAge -1) at sign-out. One place, because the flags belong together:
+// three copies of them are three chances to lose one.
+//
+// SameSite=Strict instead of Lax: Covey is an administration tool you navigate
+// into — there are no deep links from foreign pages that would need any
+// consideration. Lax sends the cookie along on every top-level navigation from
+// outside; Strict does not, and thereby takes the whole class of attacks that
+// begin with a click on a foreign link out of play.
+func (s *Server) setSessionCookie(w http.ResponseWriter, token string, maxAge int) {
+	http.SetCookie(w, &http.Cookie{Name: "covey_session", Value: token, Path: "/",
+		HttpOnly: true, Secure: s.CookieSecure, SameSite: http.SameSiteStrictMode, MaxAge: maxAge})
 }
 
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie("covey_session"); err == nil {
 		_ = s.sessions().Delete(r.Context(), hashToken(cookie.Value))
 	}
-	http.SetCookie(w, &http.Cookie{Name: "covey_session", Value: "", Path: "/",
-		HttpOnly: true, Secure: s.CookieSecure, SameSite: http.SameSiteStrictMode, MaxAge: -1})
+	s.setSessionCookie(w, "", -1)
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 

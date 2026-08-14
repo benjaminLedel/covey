@@ -552,6 +552,7 @@
     "submit": "Sign in",
     "submitting": "Signing in…",
     "error": "Login failed — email or password incorrect.",
+    "expired": "Your session has expired. After signing in you will continue where you left off.",
     "localOnly": "local only",
     "demoLogin": "Demo Login (Admin)"
   },
