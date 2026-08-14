@@ -10,6 +10,7 @@ import {
   del,
   type Agent,
   type RuntimeInfo,
+  type Workplace,
 } from "../../api";
 import ProfileForm from "../../components/ProfileForm";
 import { rollAgentName } from "../../names";
@@ -168,7 +169,6 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
     agent.sandbox_image === "" ||
     !workplaces.isSuccess ||
     profiles.some((p) => p.name === agent.sandbox_image);
-  const [ownImage, setOwnImage] = useState(!knownProfile);
   const setBudget = useMutation({
     mutationFn: (budgetUSD: number) => post(`/agents/${agent.id}/budget`, { budget_usd: budgetUSD }),
     onSuccess: invalidate,
@@ -219,7 +219,9 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
         onSaved={invalidate}
       />
     </div>
-    <div className="card" style={{ maxWidth: 760, padding: "6px 18px 14px" }}>
+    <div className="card mb-4" style={{ maxWidth: 760, padding: "14px 18px 4px" }}>
+      <div className="text-sm font-medium mb-1">{t("agent.settings.group.identity")}</div>
+      <p className="muted text-xs mt-0 mb-2">{t("agent.settings.group.identityHint")}</p>
       <div style={row}>
         <span className="text-sm">{t("agent.settings.name")}</span>
         <span className="flex items-center gap-2">
@@ -249,7 +251,7 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
           {isDoctor ? t("agent.settings.fixedIdentity") : t("agent.settings.nameHint")}
         </span>
       </div>
-      <div style={row}>
+      <div style={{ ...row, borderBottom: "none" }}>
         <span className="text-sm">{t("agent.settings.slug")}</span>
         <span className="flex items-center gap-2">
           <input
@@ -274,6 +276,10 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
               : t("agent.settings.slugHint")}
         </span>
       </div>
+    </div>
+    <div className="card mb-4" style={{ maxWidth: 760, padding: "14px 18px 4px" }}>
+      <div className="text-sm font-medium mb-1">{t("agent.settings.group.thinking")}</div>
+      <p className="muted text-xs mt-0 mb-2">{t("agent.settings.group.thinkingHint")}</p>
       <div style={row}>
         <span className="text-sm">{t("agent.settings.runtime")}</span>
         <select
@@ -328,7 +334,7 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
           <span className="muted text-xs">{t("agent.settings.effortHint")}</span>
         </div>
       )}
-      <div style={row}>
+      <div style={{ ...row, borderBottom: "none" }}>
         <span className="text-sm">{t("agent.settings.maxTurns")}</span>
         <input
           key={`turns:${agent.max_turns}`}
@@ -346,23 +352,10 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
         />
         <span className="muted text-xs">{t("agent.settings.maxTurnsHint")}</span>
       </div>
-      <div style={row}>
-        <span className="text-sm">{t("agent.settings.recordingLevel")}</span>
-        <select
-          key={`reclvl:${agent.recording_level}`}
-          defaultValue={agent.recording_level || ""}
-          disabled={!editable || setRecordingLevel.isPending}
-          onChange={(e) => {
-            if (e.target.value !== (agent.recording_level || "")) setRecordingLevel.mutate(e.target.value);
-          }}
-        >
-          <option value="">{t("agent.settings.recordingInherit")}</option>
-          <option value="minimal">{t("agent.settings.recordingMinimal")}</option>
-          <option value="standard">{t("agent.settings.recordingStandard")}</option>
-          <option value="full">{t("agent.settings.recordingFull")}</option>
-        </select>
-        <span className="muted text-xs">{t("agent.settings.recordingHint")}</span>
-      </div>
+    </div>
+    <div className="card mb-4" style={{ maxWidth: 760, padding: "14px 18px 4px" }}>
+      <div className="text-sm font-medium mb-1">{t("agent.settings.group.workplace")}</div>
+      <p className="muted text-xs mt-0 mb-2">{t("agent.settings.group.workplaceHint")}</p>
       <div style={row}>
         <span className="text-sm">{t("agent.settings.sandboxImage")}</span>
         {/* Ein eigenes Image der Organisation ist ein gültiger Wert (spec/16),
@@ -376,11 +369,9 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
               etwas anderes behauptet als der Datenstand, und ein Feld, das in
               diesem Moment eine Änderung annähme, schriebe sie auch weg. */}
           <select
-            value={ownImage ? "custom" : agent.sandbox_image}
+            value={agent.sandbox_image}
             disabled={!editable || setSandboxImage.isPending || !workplaces.isSuccess}
             onChange={(e) => {
-              setOwnImage(e.target.value === "custom");
-              if (e.target.value === "custom") return;
               if (e.target.value !== agent.sandbox_image) setSandboxImage.mutate(e.target.value);
             }}
           >
@@ -390,21 +381,14 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
                 {profileLabel(t, p)}
               </option>
             ))}
-            <option value="custom">{t("agent.settings.sandboxImageOwn")}</option>
+            {/* Ein Wert, den die Liste nicht kennt: ein eigenes Image von
+                früher, als es hier noch ein Textfeld gab. Er bleibt wählbar,
+                solange er gesetzt ist — sonst schriebe das Feld ihn beim
+                nächsten Blick still weg. */}
+            {!knownProfile && agent.sandbox_image !== "" && (
+              <option value={agent.sandbox_image}>{agent.sandbox_image}</option>
+            )}
           </select>
-          {ownImage && (
-            <input
-              key={`sbimgown:${agent.sandbox_image}`}
-              defaultValue={knownProfile ? "" : agent.sandbox_image}
-              placeholder="registry.example.com/team/sandbox:tag"
-              disabled={!editable || setSandboxImage.isPending}
-              onBlur={(e) => {
-                if (e.target.value.trim() !== agent.sandbox_image) setSandboxImage.mutate(e.target.value);
-              }}
-              onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-              className="mono"
-            />
-          )}
         </div>
         {/* Das Raster hat drei Zellen je Zeile — Warnung und Erklärung teilen
             sich deshalb die dritte, statt die Zeile umbrechen zu lassen. */}
@@ -415,9 +399,36 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
           {(() => {
             const chosen = profiles.find((p) => p.name === (agent.sandbox_image || defaultProfile(profiles)));
             if (!chosen || chosen.available !== false) return null;
+            /* Ein Image aus dem Katalog fehlt nicht, es liegt nur noch nicht
+               hier: Es ist veröffentlicht und auf den Digest gepinnt, also
+               zieht der Runner es beim ersten Wecken. Zum Bauen zu raten wäre
+               ein Rat, den man nicht braucht — und auf einer
+               Container-Installation einer, den man nicht befolgen kann. */
+            if (chosen.source === "catalog") {
+              return <span className="muted">{t("agent.settings.sandboxImagePulls")}</span>;
+            }
             return (
               <span className="warn-text">
                 {t("agent.settings.sandboxImageMissing", { image: chosen.image, build: chosen.build })}
+              </span>
+            );
+          })()}
+          {/* Welches Image der gewählte Arbeitsplatz tatsächlich ist, und
+              woher die Adresse kommt. Beim Katalog ist sie auf den Digest
+              gepinnt und darum lang — sie steht trotzdem da: sie ist das
+              Einzige, woran man sieht, dass zwei Instanzen dasselbe starten. */}
+          {(() => {
+            const chosen = profiles.find((p) => p.name === (agent.sandbox_image || defaultProfile(profiles)));
+            if (!chosen?.image) return null;
+            return (
+              <span className="muted">
+                {/* Der Tag ist der lesbare Name; der Digest, der tatsächlich
+                    startet, steht im title — sechzig Zeichen gehören nicht in
+                    eine Zeile, die man im Vorbeigehen liest. */}
+                <span className="mono" title={chosen.image}>
+                  {chosen.tag || chosen.image}
+                </span>
+                {chosen.source && " — " + t(`agent.settings.sandboxImageSource.${chosen.source}`)}
               </span>
             );
           })()}
@@ -440,7 +451,7 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
         />
         <span className="muted text-xs">{t("agent.settings.runnerTagsHint")}</span>
       </div>
-      <div style={row}>
+      <div style={{ ...row, borderBottom: "none" }}>
         <span className="text-sm">{t("agent.settings.warmSandbox")}</span>
         <label className="flex items-center gap-2 text-sm">
           <input
@@ -452,6 +463,27 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
           {agent.warm_sandbox ? t("agent.settings.warmOn") : t("agent.settings.warmOff")}
         </label>
         <span className="muted text-xs">{t("agent.settings.warmHint")}</span>
+      </div>
+    </div>
+    <div className="card mb-4" style={{ maxWidth: 760, padding: "14px 18px 4px" }}>
+      <div className="text-sm font-medium mb-1">{t("agent.settings.group.oversight")}</div>
+      <p className="muted text-xs mt-0 mb-2">{t("agent.settings.group.oversightHint")}</p>
+      <div style={row}>
+        <span className="text-sm">{t("agent.settings.recordingLevel")}</span>
+        <select
+          key={`reclvl:${agent.recording_level}`}
+          defaultValue={agent.recording_level || ""}
+          disabled={!editable || setRecordingLevel.isPending}
+          onChange={(e) => {
+            if (e.target.value !== (agent.recording_level || "")) setRecordingLevel.mutate(e.target.value);
+          }}
+        >
+          <option value="">{t("agent.settings.recordingInherit")}</option>
+          <option value="minimal">{t("agent.settings.recordingMinimal")}</option>
+          <option value="standard">{t("agent.settings.recordingStandard")}</option>
+          <option value="full">{t("agent.settings.recordingFull")}</option>
+        </select>
+        <span className="muted text-xs">{t("agent.settings.recordingHint")}</span>
       </div>
       <div style={row}>
         <span className="text-sm">{t("agent.settings.budget")}</span>
@@ -520,21 +552,6 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
     </>
   );
 }
-
-// Workplace ist ein Profil aus dem Katalog des Servers (spec/16).
-type Workplace = {
-  name: string;
-  label: string;
-  description: string;
-  image: string;
-  build: string;
-  dockerfile: string;
-  default?: boolean;
-  // available fehlt, wenn niemand gefragt werden konnte — das ist etwas
-  // anderes als „nicht da" und darf nicht so aussehen.
-  available?: boolean;
-  in_use: number;
-};
 
 function defaultProfile(profiles: Workplace[]): string {
   return profiles.find((p) => p.default)?.name ?? "";

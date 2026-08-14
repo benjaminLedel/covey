@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 type heartbeatSignatureTestSystem struct{}

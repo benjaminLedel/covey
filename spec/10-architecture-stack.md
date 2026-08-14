@@ -117,7 +117,8 @@ covey/
     backlog/          backlog store, state transitions
     identity/         IdentityProvider — builtin/ + oidc/
     secrets/          SecretStore — builtin/ + vault/
-    target/           target-system plugins — registry + manifest engine, zammad/ + …
+    target/           the plugin machinery only: manifestplug/, wasmplug/, mcp/, store/
+                      (no plugin code — that lives in covey-plugin-pack)
     guardrails/       policy engine, enforcement points
     observability/    recording, cost, alerts
     http/             API/BFF handlers, RBAC middleware
@@ -151,10 +152,18 @@ Which implementation is loaded is decided by the config at start (`identity.prov
 
 ### Target systems as plugins
 
-**Target systems** (Zammad, GitLab, …) follow the same pattern as the runtimes: a self-registering plugin registry instead of hardcoded lists. `internal/target` defines the interface (`System`: webhook verification/parsing, action execution, guard-rail subjects, prompt documentation); every target system is a subpackage that registers itself in `init()`. There are two kinds of plugin:
+**Target systems** (Zammad, GitLab, …) follow the same pattern as the runtimes: a self-registering plugin registry instead of hardcoded lists. The interface lives in a module of its own — [`github.com/benjaminLedel/covey-plugin-sdk`](https://github.com/benjaminLedel/covey-plugin-sdk), package `target` — and every plugin is a package that registers itself in `init()`.
 
-- **Compiled built-ins** (`internal/target/zammad`, …): pulled in by blank import in `cmd/covey` and `cmd/coveyd`. Whoever wants to ship Covey **lean** leaves the import out — the rest of the system stays unchanged. Necessary for everything that goes beyond simple REST calls (OAuth flows, special protocols).
+**No plugin code lives in this repository.** The plugins Covey ships with are an ordinary Go module of their own ([`github.com/benjaminLedel/covey-plugin-pack`](https://github.com/benjaminLedel/covey-plugin-pack)), which the binaries blank-import. That is not tidiness: it puts anybody else's plugin on exactly the same footing as ours — same SDK, same registry, same build, no privileged "compiled in" tier. The dependency graph stays acyclic (Covey → SDK, pack → SDK, Covey → pack), and a plugin author depends on a dependency-free contract rather than on Postgres, chromedp and a wasm runtime.
+
+There are four kinds of plugin:
+
+- **Compiled plugins** (`github.com/benjaminLedel/covey-plugin-pack/zammad`, …): pulled in by blank import in `cmd/covey` and `cmd/coveyd`. Whoever wants to ship Covey **lean** leaves the import out — the rest of the system stays unchanged. Necessary for everything that goes beyond simple REST calls (OAuth flows, special protocols).
 - **Manifest plugins** (kind=`custom`): an admin uploads a **JSON plugin file** at runtime (UI "Target systems" or `POST /api/v1/targets`) declaring webhook mapping, actions (method + path with `{param}` placeholders) and auth headers. A generic REST engine interprets the manifest — no recompilation, no deploy. The daemon fetches manifests through the daemon protocol (`request_target`/`inject_target`), only for enabled systems.
+
+  Beyond the actions, a manifest declares the same optional capabilities a compiled plugin implements: `probe` (one read-only GET plus the field the identity is read from → the connection test in the store), `poll` (one GET per sub-scope plus the field that carries the work signature → `nur-wenn:` in `HEARTBEAT.md` gates on it), `scopes` (the vocabulary `ACCESS.md` may use for this system) and per-action `scope`/`doc` lines (which is what lets the prompt doc be narrowed to an agent's scopes — free text cannot be cut at a guess). Without a block, the capability is simply absent and the platform falls open where it always did: no probe means no connection test, no poll means every heartbeat fires.
+
+  This is the difference between a manifest plugin and a compiled one, and it is worth naming: a compiled plugin declares its capabilities through its **method set**, a manifest through its **file**. A type assertion cannot tell the two apart — the engine's Go type carries every method either way — so a data-driven plugin reports what it actually has (`target.CapabilityReporter`), and the call sites ask through `target.Probes`/`target.WorkChecks` rather than asserting.
 
 In the UI both kinds (plus connected MCP servers, kind=`mcp`) appear as a **store**: a catalogue of all registered and uploaded plugins with search, category filter and activation directly on the card, next to a view of the active systems. The category (`ticketing`, `code`, `communication`, `files`, `web`, `dev`, `other`) is declared by the plugin itself — in the `Descriptor` or in the manifest field `category`; the UI derives its filters from the categories that occur and keeps no list of its own. Behaviour never depends on the category, it is pure classification.
 
@@ -163,6 +172,10 @@ Both kinds are **enabled per organisation** (table `target_plugins`); activation
 **Prompt documentation needs the agent's grant on top of that.** A system's action list reaches an agent's system prompt only if the organisation has enabled it *and* the agent has a line for it in `ACCESS.md` — the same table the secrets broker asks. The organisation's activation alone used to decide, so every agent carried the instructions for every enabled system around, including the ones whose credentials the broker refuses it. That is wrong twice over: it invites the agent to attempt something that cannot work, and the docs sit in the context of every turn — the built-in ones come to around 11,000 tokens in total, GitLab and GitHub about 4,000 each. Least privilege and prompt economy point the same way here.
 
 Credentials follow the convention `<system>_token`/`<system>_url` in the SecretStore.
+
+**Compiled is the exception, not the default.** A target system belongs in the catalogue unless it needs something a manifest cannot express — a protocol that is not JSON over HTTP, an auth flow beyond a static header, files materialised into the sandbox, or real computation. The four reasons and where today's built-ins fall are in [`22-plugin-marketplace.md`](22-plugin-marketplace.md); the point of the rule is that every compiled plugin is code in everyone's binary, used or not, and a release they have to wait for when it changes.
+
+Where the runtime-installable kinds come *from* is a separate question, and it is answered outside the binary: a **catalogue behind a configurable URL**, maintained as an index repository whose entries point at plugins hosted anywhere and pin them by digest. Installing from it writes the same `target_plugins` row the manual upload writes — the marketplace is a new source, not a new runtime path. See [`22-plugin-marketplace.md`](22-plugin-marketplace.md).
 
 ## Delivery: one binary (frontend embedded)
 

@@ -211,7 +211,7 @@ func TestImageForResolvesProfilesAndOwnImages(t *testing.T) {
 	}
 	for _, f := range faelle {
 		t.Run(f.name, func(t *testing.T) {
-			if got := p.imageFor(f.want); got != f.expected {
+			if got := p.imageFor(t.Context(), uuid.Nil, f.want); got != f.expected {
 				t.Errorf("imageFor(%q) = %q, expected %q", f.want, got, f.expected)
 			}
 		})
@@ -221,7 +221,7 @@ func TestImageForResolvesProfilesAndOwnImages(t *testing.T) {
 	// instance without COVEY_SANDBOX_IMAGE_DEV would otherwise start every dev
 	// agent in an empty image name.
 	leer := &Pool{DefaultImage: "covey-sandbox:latest", Profiles: map[string]string{"dev": ""}}
-	if got := leer.imageFor("dev"); got != "dev" {
+	if got := leer.imageFor(t.Context(), uuid.Nil, "dev"); got != "dev" {
 		t.Errorf("an unconfigured profile stays the literal value, got %q", got)
 	}
 }

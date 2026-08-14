@@ -40,7 +40,7 @@ docker compose up -d --build                              # start Postgres + Cov
 
 Then open **[http://localhost:8494](http://localhost:8494)** — log in with `admin@covey.local` / `covey-admin`. The **setup** asks three questions, each one skippable: the engine and its credential (checked before it is stored), three sentences on what your company does, and whether you want a **People department** — an agent whose job is drafting the others. After that, *New agent → brief* is the shortest way to your first colleague: describe in a few sentences what they should do, and the People department writes the configuration. A **first steps** checklist on the agent overview reads your organisation's actual state, ticks itself off and disappears once you are done.
 
-The bundled [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector) and the covey binary with its embedded admin UI; `bootstrap` creates the organisation, the admin, a demo agent and its workplace, and migrations run automatically.
+The bundled [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector) and the covey binary with its embedded admin UI; `bootstrap` creates the organisation, the admin, a demo agent and its seat, and migrations run automatically.
 
 The third line fetches the container an agent works inside ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, git, ripgrep — the `base` profile), built and published by [the project's own pipeline](.github/workflows/sandbox-images.yml) for amd64 and arm64; `make sandbox-image` builds it here instead if you would rather not pull a foreign image. Developer agents want the `dev` profile on top of it (`docker pull …:dev-latest`, or `make sandbox-image-dev`: plus PHP, a JDK and the version managers `fvm`/`uv`); it is set per agent — you can skip it to look around first: the platform starts without it and says at startup, and on the agent overview, that the first wake will fail until it exists.
 
@@ -76,7 +76,7 @@ The third line fetches the container an agent works inside ([`Dockerfile.sandbox
 | 🧑‍💼 **Agents with an identity** | Their own sandbox, their own home directory, their own credentials — and a place on the org chart next to the humans. |
 | 🧑‍🎓 **Hiring instead of a form** | Describe what a new colleague should do; the org's own People department — an agent — turns that into a complete configuration and asks back when the brief is too thin. What comes out is a **draft**: it exists, it can be looked at and changed, and it does not work until a human hires it. |
 | 📥 **Backlog & wake sources** | Tasks as first-class objects; agents wake on a webhook, a heartbeat or a nudge, then go back to sleep. |
-| 🔌 **Target systems as plugins** | Zammad, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, email (IMAP/SMTP), headless browser, MCP — each driven by a manifest, no special case in the core. |
+| 🔌 **Target systems as plugins** | Zammad, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, email (IMAP/SMTP), headless browser, MCP — none of them in this repository. Plugins are their own modules against a [public SDK](https://github.com/benjaminLedel/covey-plugin-sdk); the ones Covey ships with sit in the [plugin pack](https://github.com/benjaminLedel/covey-plugin-pack), and anybody else's plugin is built exactly the same way. |
 | 🛡️ **Guard rails & approvals** | Enforced centrally, outside the runtime, fail-closed. Critical actions go to a human first. |
 | 🔑 **Secrets broker** | No long-lived secrets inside the sandbox — access is brokered at runtime, short-lived and scoped. |
 | 🧩 **Skills** | Procedures an agent loads only when they apply: the description stays in context, the instructions and any extra files are read on demand. Kept in an org-wide library, linked per agent — a delivery lead run that finds nothing to do no longer pays for five playbooks. |
@@ -250,7 +250,7 @@ All runbooks are in English.
 | [`docs/`](docs/) | Operations and integration runbooks |
 | `cmd/covey/` | Control-plane binary: `serve`, `migrate`, `bootstrap`, `passwd`, `genkey` |
 | `cmd/coveyd/` | Sandbox daemon (speaks the daemon protocol, bootstraps the runtime) |
-| `internal/` | Orchestrator, agents, backlog, identity/secrets, guard rails, observability, memory, egress, org, templates, target plugins (`target/`), HTTP API |
+| `internal/` | Orchestrator, agents, backlog, identity/secrets, guard rails, observability, memory, egress, org, templates, the plugin machinery (`target/`: manifest engine, wasm runtime, MCP, per-org activation), HTTP API |
 | `migrations/` | Versioned SQL migrations (embedded via `//go:embed`) |
 | `web/` | React/Vite/Tailwind admin UI (`dist/` gets embedded) |
 | `skills/covey-agent/` | Claude Code skill for building and updating Covey agents |

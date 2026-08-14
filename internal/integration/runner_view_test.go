@@ -512,9 +512,11 @@ func TestWorkplacesComeFromTheCatalogue(t *testing.T) {
 	ctx := context.Background()
 	c := login(t, s, "admin@test.local", "admin-passwort")
 
+	// Was die Instanz ausdruecklich benannt hat — die eine der drei Quellen,
+	// die ein Mensch gesetzt hat, und deshalb die, die gewinnt (spec/16).
 	s.srv.Config = &config.Config{
-		SandboxImage:  "covey-sandbox:test",
-		SandboxImages: map[string]string{"base": "covey-sandbox:test", "dev": "eigenes-dev:2026"},
+		SandboxImage:    "covey-sandbox:test",
+		SandboxImageEnv: map[string]string{"base": "covey-sandbox:test", "dev": "eigenes-dev:2026"},
 	}
 	agent := s.newSupportAgent("workplace-agent")
 	if _, err := s.pool.Exec(ctx, "UPDATE agents SET sandbox_image='dev' WHERE id=$1", agent.ID); err != nil {
@@ -525,9 +527,13 @@ func TestWorkplacesComeFromTheCatalogue(t *testing.T) {
 		Name      string `json:"name"`
 		Image     string `json:"image"`
 		Build     string `json:"build"`
+		Source    string `json:"source"`
 		Default   bool   `json:"default"`
 		Available *bool  `json:"available"`
-		InUse     int    `json:"in_use"`
+		Agents    []struct {
+			ID          string `json:"id"`
+			DisplayName string `json:"display_name"`
+		} `json:"agents"`
 	}
 	resp := c.do(http.MethodGet, "/api/v1/workplaces", nil)
 	if resp.StatusCode != http.StatusOK {
@@ -553,11 +559,19 @@ func TestWorkplacesComeFromTheCatalogue(t *testing.T) {
 	if list[dev].Image != "eigenes-dev:2026" {
 		t.Errorf("the instance's image did not come through: %q", list[dev].Image)
 	}
+	// Und woher es kommt, steht dabei: sonst muesste jemand zwischen
+	// Umgebung, Katalog und Voreinstellung raten, wenn ein Image nicht das
+	// ist, was er erwartet hat.
+	if list[dev].Source != "env" {
+		t.Errorf("dev source = %q, expected env", list[dev].Source)
+	}
 	if list[dev].Build == "" {
 		t.Error("a profile without a build command leaves whoever reads it looking")
 	}
-	if list[dev].InUse != 1 {
-		t.Errorf("dev: %d agents, expected 1", list[dev].InUse)
+	// Benannt statt gezählt: Wer einen Arbeitsplatz ändern oder löschen will,
+	// fragt nicht nach der Anzahl, sondern danach, wen es angeht.
+	if len(list[dev].Agents) != 1 {
+		t.Errorf("dev: %d agents, expected 1", len(list[dev].Agents))
 	}
 	// Nobody could be asked here — and that is not the same as "not there".
 	// Shown as unavailable, the interface would advise a build that has already

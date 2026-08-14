@@ -49,21 +49,21 @@ import (
 	"covey/internal/templates"
 	"covey/internal/waitlist"
 
-	_ "covey/internal/target/browser"
-	_ "covey/internal/target/dev"
-	_ "covey/internal/target/email"
+	_ "github.com/benjaminLedel/covey-plugin-pack/browser"
+	_ "github.com/benjaminLedel/covey-plugin-pack/dev"
+	_ "github.com/benjaminLedel/covey-plugin-pack/email"
 	// gitlab ist im Testbinary registriert, weil die Organisation es als
 	// Zielsystem aktiviert — und weil target/store Zeilen fuer Plugins
 	// verwirft, die dieses Binary nicht einkompiliert hat. Ohne den Import
 	// waere die Aktivierung in newStack eine Zeile ohne Wirkung.
-	_ "covey/internal/target/gitlab"
 	_ "covey/internal/target/mcp"
-	_ "covey/internal/target/nextcloud"
-	_ "covey/internal/target/sharepoint"
 	"covey/migrations"
+	_ "github.com/benjaminLedel/covey-plugin-pack/gitlab"
+	_ "github.com/benjaminLedel/covey-plugin-pack/nextcloud"
+	_ "github.com/benjaminLedel/covey-plugin-pack/sharepoint"
 
-	_ "covey/internal/target/teams"
-	_ "covey/internal/target/zammad"
+	_ "github.com/benjaminLedel/covey-plugin-pack/teams"
+	_ "github.com/benjaminLedel/covey-plugin-pack/zammad"
 )
 
 const adminDBURL = "postgres://covey:covey@localhost:5433/covey?sslmode=disable"
@@ -111,24 +111,26 @@ func (s *inprocSandbox) Stop(ctx context.Context) error {
 }
 
 type stack struct {
-	t          *testing.T
-	pool       *pgxpool.Pool
-	registry   *agents.Registry
-	backlog    *backlog.Store
-	obs        *observability.Store
-	rails      *guardrails.Store
-	secrets    *secbuiltin.Store
-	runtimes   *runtimes.Store
-	mem        *memory.Store
-	targets    *targetstore.Store
-	egress     *egress.Store
-	runners    *runnerstore.Store
-	skills     *skills.Store
-	reqlog     *reqlogstore.Store
-	templates  *templates.Store
-	audit      *audit.Store
-	dreams     *dream.Store
-	orch       *orchestrator.Orchestrator
+	t         *testing.T
+	pool      *pgxpool.Pool
+	registry  *agents.Registry
+	backlog   *backlog.Store
+	obs       *observability.Store
+	rails     *guardrails.Store
+	secrets   *secbuiltin.Store
+	runtimes  *runtimes.Store
+	mem       *memory.Store
+	targets   *targetstore.Store
+	egress    *egress.Store
+	runners   *runnerstore.Store
+	skills    *skills.Store
+	reqlog    *reqlogstore.Store
+	templates *templates.Store
+	audit     *audit.Store
+	dreams    *dream.Store
+	orch      *orchestrator.Orchestrator
+	// srv is the HTTP server itself, so a test can equip it with something the
+	// basic stack deliberately leaves out — a plugin catalogue, for instance.
 	srv        *httpapi.Server
 	stopRunner context.CancelFunc
 	http       *httptest.Server

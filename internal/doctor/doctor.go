@@ -189,6 +189,16 @@ func (d *doctor) checkImages(ctx context.Context, pool *pgxpool.Pool) {
 			d.ok("image "+image, fmt.Sprintf("present, %d agent(s)", byImage[image]))
 			continue
 		}
+		// Ein veröffentlichtes Image ist kein Hindernis: Der Host zieht es beim
+		// ersten Wecken. Es steht trotzdem hier, weil `covey doctor` vor einem
+		// Neustart gelesen wird und „der erste Lauf dauert länger und braucht
+		// Netz" eine Auskunft ist, die man dann haben will.
+		if sandbox.Pullable(image) {
+			d.problem("image "+image,
+				fmt.Sprintf("not on this host yet, %d agent(s) work in it", byImage[image]),
+				"the runner pulls it on the first wake; `docker pull "+image+"` does it now", false)
+			continue
+		}
 		target := sandbox.BuildHint(profiles, image)
 		if target == "" {
 			// Somebody's own image: this repository has no command that would

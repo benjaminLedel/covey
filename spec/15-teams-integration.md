@@ -2,7 +2,7 @@
 
 Connects **Microsoft Teams** as a target system so that agents can **receive and send** messages there — the chat becomes the channel between human and agent, analogous to the helpdesk in [`13-zammad-integration.md`](13-zammad-integration.md). Teams is the second webhook-driven target system (after Zammad) and the first with **OAuth2/JWT** instead of a long-lived API token.
 
-Architecturally Teams is a **compiled target-system plugin** (`internal/target/teams`, pulled in by blank import — see [`10-architecture-stack.md`](10-architecture-stack.md), "Target systems as plugins"): the same `System`/`Webhooker` interface as Zammad, the same event router, the same dedup/correlation mechanics. Only the auth surface is new.
+Architecturally Teams is a **compiled target-system plugin** (`github.com/benjaminLedel/covey-plugin-pack/teams`, in the plugin pack rather than in Covey's repository, pulled in by blank import — see [`10-architecture-stack.md`](10-architecture-stack.md), "Target systems as plugins"): the same `System`/`Webhooker` interface as Zammad, the same event router, the same dedup/correlation mechanics. Only the auth surface is new.
 
 ## The route: Azure Bot Framework
 

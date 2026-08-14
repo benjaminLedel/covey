@@ -37,7 +37,10 @@ function Steps({ steps }: { steps: SetupStep[] }) {
   );
 }
 
-export default function Runtimes({ me }: { me: Principal }) {
+/* embedded: die Seite steht unter einem Reiter, der die Überschrift schon
+   trägt (siehe Infrastructure.tsx). Zwei Überschriften übereinander sagen
+   nicht doppelt so viel. */
+export default function Runtimes({ me, embedded = false }: { me: Principal; embedded?: boolean }) {
   const { t } = useTranslation();
   const [openInfo, setOpenInfo] = useState<string | null>(null);
   const runtimes = useQuery({
@@ -49,10 +52,12 @@ export default function Runtimes({ me }: { me: Principal }) {
 
   return (
     <div>
-      <div className="flex items-baseline gap-3 mb-2">
-        <h1 className="text-[22px]">{t("runtimes.title")}</h1>
-        <span className="muted">{t("runtimes.subtitle")}</span>
-      </div>
+      {!embedded && (
+        <div className="flex items-baseline gap-3 mb-2">
+          <h1 className="text-[22px]">{t("runtimes.title")}</h1>
+          <span className="muted">{t("runtimes.subtitle")}</span>
+        </div>
+      )}
       <p className="muted text-xs mb-5" style={{ maxWidth: 640 }}>
         {t("runtimes.desc")}
       </p>

@@ -5,11 +5,13 @@ import { api, del, patch, post, type MCPTool, type Principal, type TargetPlugin 
 import { ConfirmDialog, Modal } from "../components/Modal";
 import { TargetIcon, hasBrandMark } from "../components/TargetIcon";
 import { TargetSetupWizard } from "./targets/SetupWizard";
+import { CatalogTab } from "./targets/Catalog";
 
 const kindKey: Record<TargetPlugin["kind"], string> = {
   builtin: "targets.kindBuiltin",
   custom: "targets.kindCustom",
   mcp: "targets.kindMcp",
+  wasm: "targets.kindWasm",
 };
 
 // Kachelchen vor dem Namen: Logo bzw. Kategorie-Symbol des Zielsystems.
@@ -59,12 +61,15 @@ const exampleManifest = `{
 const catOrder = ["ticketing", "code", "communication", "files", "web", "dev", "other"];
 const catLabelKey = (c: string) => (catOrder.includes(c) ? `targets.cat.${c}` : "targets.cat.other");
 
-type Tab = "store" | "active";
+// "available" = was diese Instanz hat (aktivierbar), "active" = eingeschaltet,
+// "store" = der Katalog, aus dem installiert wird. Der Store ist die Auslage,
+// nicht das Regal — deshalb traegt der Katalog den Namen.
+type Tab = "available" | "active" | "store";
 
 export default function Targets({ me }: { me: Principal }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<Tab>("store");
+  const [tab, setTab] = useState<Tab>("available");
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState("all");
   const [detail, setDetail] = useState<string | null>(null);
@@ -117,10 +122,10 @@ export default function Targets({ me }: { me: Principal }) {
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     return list
-      .filter((p) => tab === "store" || p.enabled)
+      .filter((p) => tab === "available" || p.enabled)
       .filter(
         (p) =>
-          tab !== "store" ||
+          tab !== "available" ||
           cat === "all" ||
           (p.category && catOrder.includes(p.category) ? p.category : "other") === cat,
       )
@@ -151,7 +156,7 @@ export default function Targets({ me }: { me: Principal }) {
       </p>
 
       <nav className="subnav" role="tablist" aria-label={t("targets.title")}>
-        {(["store", "active"] as Tab[]).map((tb) => (
+        {(["available", "active", "store"] as Tab[]).map((tb) => (
           <button
             key={tb}
             role="tab"
@@ -159,14 +164,16 @@ export default function Targets({ me }: { me: Principal }) {
             className={tab === tb ? "active" : ""}
             onClick={() => setTab(tb)}
           >
-            {tb === "store"
-              ? t("targets.tabStore")
-              : t("targets.tabActive", { count: activeCount })}
+            {tb === "available"
+              ? t("targets.tabAvailable")
+              : tb === "active"
+                ? t("targets.tabActive", { count: activeCount })
+                : t("targets.tabStore")}
           </button>
         ))}
       </nav>
 
-      {list.length > 0 && (
+      {(list.length > 0 || tab === "store") && (
         <div className="tgt-bar">
           <input
             className="tgt-search"
@@ -176,7 +183,7 @@ export default function Targets({ me }: { me: Principal }) {
             onChange={(e) => setQuery(e.target.value)}
             aria-label={t("targets.search")}
           />
-          {tab === "store" && (
+          {tab === "available" && (
             <div className="tgt-cats" role="group" aria-label={t("targets.filterLabel")}>
               <button
                 className={`tgt-cat${cat === "all" ? " active" : ""}`}
@@ -197,34 +204,39 @@ export default function Targets({ me }: { me: Principal }) {
               ))}
             </div>
           )}
-          <span className="muted text-xs ml-auto">
-            {t("targets.summary", { total: list.length, active: activeCount })}
-          </span>
+          {tab !== "store" && (
+            <span className="muted text-xs ml-auto">
+              {t("targets.summary", { total: list.length, active: activeCount })}
+            </span>
+          )}
         </div>
       )}
 
-      <div className="tgt-grid">
-        {shown.map((p) => (
+      {tab === "store" && <CatalogTab canEdit={canEdit} query={query} />}
+
+      {tab !== "store" && (
+        <div className="tgt-grid">
+          {shown.map((p) => (
           <TargetCard
             key={p.name}
             plugin={p}
             canEdit={canEdit}
-            store={tab === "store"}
             busy={toggle.isPending}
             onDetails={() => setDetail(p.name)}
             onSetup={() => setWizard(p.name)}
             onToggle={() => toggle.mutate({ name: p.name, enabled: !p.enabled })}
           />
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
       {wizard && <TargetSetupWizard name={wizard} onClose={() => setWizard(null)} />}
-      {list.length > 0 && shown.length === 0 && (
+      {tab !== "store" && list.length > 0 && shown.length === 0 && (
         <p className="muted text-sm">
           {tab === "active" && !query ? (
             <>
               {t("targets.noneActive")}{" "}
-              <button className="btn sm ml-2" onClick={() => setTab("store")}>
-                {t("targets.toStore")}
+              <button className="btn sm ml-2" onClick={() => setTab("available")}>
+                {t("targets.toAvailable")}
               </button>
             </>
           ) : (
@@ -232,11 +244,11 @@ export default function Targets({ me }: { me: Principal }) {
           )}
         </p>
       )}
-      {list.length === 0 && !targets.isLoading && (
+      {tab !== "store" && list.length === 0 && !targets.isLoading && (
         <p className="muted">{t("targets.noTargets")}</p>
       )}
 
-      {canEdit && tab === "store" && (
+      {canEdit && tab === "available" && (
         <div className="tgt-connect card">
           <div>
             <h2 className="text-base font-medium">{t("targets.ownTarget")}</h2>
@@ -290,7 +302,6 @@ export default function Targets({ me }: { me: Principal }) {
 function TargetCard({
   plugin: p,
   canEdit,
-  store,
   busy,
   onDetails,
   onSetup,
@@ -298,7 +309,6 @@ function TargetCard({
 }: {
   plugin: TargetPlugin;
   canEdit: boolean;
-  store: boolean;
   busy: boolean;
   onDetails: () => void;
   onSetup: () => void;

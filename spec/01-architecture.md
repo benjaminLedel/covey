@@ -62,7 +62,7 @@ The central architectural principle. Claude Code, OpenHands, Harness & co. have 
 
 Instead: the platform manages the **sandbox**, not the framework. A slim **daemon** speaking a uniform protocol runs inside the sandbox. The daemon bootstraps the concrete runtime — one thin **adapter** per runtime. As long as the adapter can start the runtime, feed it a task and pick up its events/outputs, the framework is swappable.
 
-> **Engine and runtime.** What this section calls a runtime is the **engine**: the framework plus its adapter, code that ships with the binary. Once an organisation holds several LLM credentials, a second meaning is needed alongside it — the **runtime** as a configured workplace (an engine plus the capacity to run it), which is what an agent is actually assigned to. The seam described here does not change; everything commercial sits above it. See [`18-runtimes-capacity.md`](18-runtimes-capacity.md).
+> **Engine and runtime.** What this section calls a runtime is the **engine**: the framework plus its adapter, code that ships with the binary. Once an organisation holds several LLM credentials, a second meaning is needed alongside it — the **runtime** as a configured seat (an engine plus the capacity to run it), which is what an agent is actually assigned to. The seam described here does not change; everything commercial sits above it. See [`18-runtimes-capacity.md`](18-runtimes-capacity.md).
 
 ```
 Daemon ── adapter(claude-code)  → `claude -p` headless, streams stream-json events (see 12)

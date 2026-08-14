@@ -383,6 +383,45 @@ Two consequences follow, and they are what a third profile is worth:
 
 An image that no profile knows is somebody's own, and about those the repository knows nothing. It says so rather than naming a `make` target that would build something else.
 
+### An image of your own is registered, not typed
+
+The third row of the table — "org-owned: anything" — used to be a **free-text field on the agent**: type a reference, done. It cost three things, and none of them showed up until later:
+
+- **It was invisible.** An image that lives in a field on one agent appears in no overview. "Which images of our own do we actually run?" meant opening every agent.
+- **It was undescribed.** A registry reference does not say what is inside it. The next agent got the same string typed again, and whether the two meant the same thing was known only to whoever typed them.
+- **A typo failed late.** Not at the keyboard, but at the next wake, in the recording of a run.
+
+An own workplace is therefore **created once** (`org_workplaces`: name, label, description, image) and chosen afterwards like any published profile. The agent carries a *name* in both cases — which image is behind it stays one decision in one place, and that is the property the catalogue was introduced for in the first place.
+
+Two rules where the two sources meet:
+
+- **A catalogue name is taken**, even for an organisation that has never used it. Otherwise `dev` would mean two things and which one applied would depend on the order of a loop.
+- **Deleting is refused while agents work in it.** They would be left pointing at a name that resolves to nothing, and would find out at the next wake. The overview therefore names the agents per workplace rather than counting them: whoever is about to change or delete one wants to know whom it concerns.
+
+### Where the image itself comes from
+
+The catalogue in the code says *which* profiles exist. It cannot say what a profile's image **is** on a given installation, and for a while it pretended to: the compiled default was `covey-sandbox-dev:latest`, a name that exists only on a machine that has built it. Every container installation therefore had to be told where its own workplace lived, through `COVEY_SANDBOX_IMAGE_<PROFILE>` — and an upgrade that moved existing agents onto a new profile broke every instance that had not been told, with an error whose remedy (`make sandbox-image-dev`) it could not run.
+
+The image is therefore **published, and listed in a catalogue of its own** — the same shape the plugin marketplace has ([`22-plugin-marketplace.md`](22-plugin-marketplace.md)): one JSON file behind one URL, fetched with a cache, deciding nothing on its own.
+
+```json
+{ "schema": 1, "generated_at": "…", "workplaces": [
+  { "name": "dev", "label": "dev", "description": "…", "images": [
+    { "covey_version": "main",   "ref": "ghcr.io/…/covey-sandbox@sha256:…" },
+    { "covey_version": "v0.4.0", "ref": "ghcr.io/…/covey-sandbox@sha256:…" }
+  ]}]}
+```
+
+Three properties carry it, and each answers something that went wrong without it:
+
+- **Pinned by digest, per Covey version.** The image carries the `coveyd` that speaks to this control plane, so "which image" is not a question about the newest one but about *this build*. A tag would be a moving target; the digest is not, and docker refuses a mismatch without anybody here writing a check — the same hinge the marketplace's `sha256` is.
+- **Written by the side that builds.** The images and the catalogue come from the same pipeline ([`.github/workflows/sandbox-images.yml`](../.github/workflows/sandbox-images.yml)), because the digests exist nowhere else at that moment. Entries for older versions stay: an installation on `v0.4.0` still finds its own after `v0.5.0` is published.
+- **Three sources, in one order.** `COVEY_SANDBOX_IMAGE_<PROFILE>` beats the catalogue beats the compiled default. Whoever names an image on their own host has the last word — a remote file that could overrule it would decide what runs on somebody else's machine. An air-gapped installation sets the variable, points `COVEY_SANDBOX_CATALOG_URL` at a `file://` path, or leaves both alone; none of the three is a special case in the code.
+
+The catalogue URL defaults to what the project publishes and is derived from the source address (`buildinfo.SourceRepo`), so a fork that builds its own images serves its own catalogue without a line changed. The fetching itself is not a second mechanism: `marketplace.Feed` holds the part that is not about plugins — one GET, the cache that survives a restart, the stale copy served immediately while the refresh runs behind it, and the error reported *next to* that copy rather than instead of it.
+
+What this removes is the class of failure, not one instance of it: a fresh installation needs no image name, an upgrade needs no second build, and "the image is missing" stops being a thing an operator has to fix by hand — the host pulls what the catalogue names.
+
 ## Trust boundary
 
 With `start_sandbox` a runner receives an agent's `COVEY_DAEMON_TOKEN` and egress token in order to inject them into the container. It **can** therefore impersonate every agent it hosts. That is the same trust level as a CI runner that sees job tokens — but it has to be said out loud:

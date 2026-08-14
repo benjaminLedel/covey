@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"covey/internal/target"
-	"covey/internal/target/email"
+	"github.com/benjaminLedel/covey-plugin-pack/email"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // TestRoundtripWithEmailPlugin keeps the double honest: the complete demo

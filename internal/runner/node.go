@@ -158,6 +158,24 @@ func (n *Node) handle(ctx context.Context, t Transport, msg Message) {
 		go n.homeOp(context.WithoutCancel(ctx), t, msg.ID, op)
 	case TypeCapacity:
 		n.reply(ctx, t, msg.ID, TypeCapacityReport, n.capacity())
+	case TypePullImage:
+		req, err := decode[PullImage](msg)
+		if err != nil {
+			n.reply(ctx, t, msg.ID, TypePullResult, PullResult{Err: err.Error()})
+			return
+		}
+		// In seinem eigenen Goroutine und ohne das Abbruch-Signal der
+		// Verbindung: Ein Image sind mehrere Gigabyte, und ein Runner, der
+		// währenddessen keine Sandbox mehr startet, hätte das Warten nur
+		// verschoben.
+		go func(req PullImage) {
+			out, err := n.Docker.Pull(context.WithoutCancel(ctx), req.Image)
+			res := PullResult{Image: req.Image}
+			if err != nil {
+				res.Err = firstLine(out, err)
+			}
+			n.reply(context.WithoutCancel(ctx), t, msg.ID, TypePullResult, res)
+		}(req)
 	case TypeCheck:
 		req, err := decode[Check](msg)
 		if err != nil {

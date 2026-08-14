@@ -28,11 +28,10 @@ import Administration from "./pages/Administration";
 import Platform from "./pages/Platform";
 import Org from "./pages/Org";
 import PersonPage from "./pages/Person";
-import Runtimes from "./pages/Runtimes";
 import Targets from "./pages/Targets";
 import Egress from "./pages/Egress";
 import Requests from "./pages/Requests";
-import Runners from "./pages/Runners";
+import Infrastructure from "./pages/Infrastructure";
 import Diagnostics from "./pages/Diagnostics";
 import Audit from "./pages/Audit";
 import Templates from "./pages/Templates";
@@ -509,8 +508,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
           <NavItem to="/targets" icon="plug" label={t("nav.targets")} />
           <NavItem to="/skills" icon="book" label={t("nav.skills")} />
           <NavItem to="/templates" icon="copy" label={t("nav.templates")} />
-          <NavItem to="/runtimes" icon="cpu" label={t("nav.runtimes")} />
-          <NavItem to="/runners" icon="server" label={t("nav.runners")} />
+          <NavItem to="/infrastructure" icon="server" label={t("nav.infrastructure")} />
         </div>
         <div className="nav-sec">{t("nav.control")}</div>
         <div className="nav-group">
@@ -644,9 +642,14 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
                 wurde beides. */}
             <Route path="/users" element={<Navigate to="/administration/members" replace />} />
             <Route path="/orgs" element={<Navigate to="/platform" replace />} />
-            <Route path="/runtimes" element={<Runtimes me={me} />} />
+            <Route path="/infrastructure/*" element={<Infrastructure me={me} />} />
+            {/* Die alten Adressen bleiben gültig: verlinkt und gebookmarkt
+                wurde alles drei, und ein Lesezeichen, das ins Leere führt, ist
+                die schlechteste Art, eine Umstrukturierung zu bemerken. */}
+            <Route path="/runtimes" element={<Navigate to="/infrastructure" replace />} />
+            <Route path="/workplaces" element={<Navigate to="/infrastructure/workplaces" replace />} />
             <Route path="/requests" element={<Requests me={me} />} />
-            <Route path="/runners" element={<Runners me={me} />} />
+            <Route path="/runners" element={<Navigate to="/infrastructure/runners" replace />} />
             <Route path="/diagnostics" element={<Diagnostics me={me} />} />
             <Route path="/audit" element={<Audit />} />
             <Route path="/targets" element={<Targets me={me} />} />

@@ -14,21 +14,21 @@ import (
 
 	"covey/internal/buildinfo"
 	"covey/internal/daemon"
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 
 	// Compiled-in target system plugins: blank import = shipped (analogous to
 	// cmd/covey). Manifest plugins arrive at runtime over the protocol.
-	_ "covey/internal/target/browser"
-	_ "covey/internal/target/dev"
-	_ "covey/internal/target/email"
-	_ "covey/internal/target/github"
-	_ "covey/internal/target/gitlab"
-	_ "covey/internal/target/k8s"
-	_ "covey/internal/target/nextcloud"
-	_ "covey/internal/target/sharepoint"
-	_ "covey/internal/target/teams"
-	_ "covey/internal/target/vulndb"
-	_ "covey/internal/target/zammad"
+	_ "github.com/benjaminLedel/covey-plugin-pack/browser"
+	_ "github.com/benjaminLedel/covey-plugin-pack/dev"
+	_ "github.com/benjaminLedel/covey-plugin-pack/email"
+	_ "github.com/benjaminLedel/covey-plugin-pack/github"
+	_ "github.com/benjaminLedel/covey-plugin-pack/gitlab"
+	_ "github.com/benjaminLedel/covey-plugin-pack/k8s"
+	_ "github.com/benjaminLedel/covey-plugin-pack/nextcloud"
+	_ "github.com/benjaminLedel/covey-plugin-pack/sharepoint"
+	_ "github.com/benjaminLedel/covey-plugin-pack/teams"
+	_ "github.com/benjaminLedel/covey-plugin-pack/vulndb"
+	_ "github.com/benjaminLedel/covey-plugin-pack/zammad"
 )
 
 func main() {

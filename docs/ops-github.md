@@ -1,6 +1,6 @@
 # Operations: connecting Covey to GitHub
 
-A practical runbook for the target system **GitHub** (`internal/target/github`).
+A practical runbook for the target system **GitHub** (`github.com/benjaminLedel/covey-plugin-pack/github`).
 Structure and data flow follow the GitLab adapter
 ([`ops-gitlab.md`](ops-gitlab.md)); the unit of work is the **issue**, and the
 merge request is called a **pull request** here.
@@ -312,7 +312,7 @@ Sequence and security model:
   After every checkout the least recently used ones fall away; five survive
   (`COVEY_CHECKOUT_KEEP`, `0` switches the cleanup off). Which ones went is in
   the checkout result, because the agent may be holding a path from an earlier
-  run. How full the sandbox is is on the agent's **Workplace** tab.
+  run. How full the sandbox is is on the agent's **Files** tab.
 
 **Large repos:** GitHub's archive endpoint, unlike GitLab's, **cannot** be
 narrowed to a subdirectory. If a repo blows the limit, work without a checkout:

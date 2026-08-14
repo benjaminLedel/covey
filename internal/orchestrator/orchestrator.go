@@ -37,8 +37,8 @@ import (
 	"covey/internal/runtimes"
 	"covey/internal/secrets"
 	"covey/internal/skills"
-	"covey/internal/target"
 	targetstore "covey/internal/target/store"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // DaemonLink abstracts the bidirectional connection to a sandbox daemon. The
@@ -561,14 +561,31 @@ func (o *Orchestrator) fireHeartbeats(ctx context.Context) {
 // Returns: (work present, signature of the backlog). The signature is empty if
 // the plugin does not supply one — the heartbeat then fires at every level, as
 // it did before.
+// system resolves an activated target system for the organization — compiled,
+// manifest or MCP. Without a store (tests) the compiled registry has to do.
+func (o *Orchestrator) system(ctx context.Context, orgID uuid.UUID, name string) (target.System, error) {
+	if o.Targets != nil {
+		return o.Targets.System(ctx, orgID, name)
+	}
+	sys, ok := target.Get(name)
+	if !ok {
+		return nil, fmt.Errorf("unknown target system %q", name)
+	}
+	return sys, nil
+}
+
 func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid.UUID, condition string) (bool, string) {
 	system, kind, _ := strings.Cut(condition, ":")
-	sys, ok := target.Get(system)
-	if !ok {
-		o.Log.Warn("nur-wenn: unknown target system — firing anyway", "system", system)
+	// Über den Store, nicht über die kompilierte Registry: ein Manifest-Plugin
+	// steht dort nicht, kann die Frage aber beantworten, wenn seine Datei einen
+	// poll:-Block hat. Vorher fiel jedes nur-wenn: auf ein Katalog-Plugin in den
+	// Fail-open-Zweig und der Heartbeat feuerte immer.
+	sys, err := o.system(ctx, orgID, system)
+	if err != nil {
+		o.Log.Warn("nur-wenn: unknown target system — firing anyway", "system", system, "err", err)
 		return true, ""
 	}
-	checker, ok := sys.(target.WorkChecker)
+	checker, ok := target.WorkChecks(sys)
 	if !ok {
 		o.Log.Warn("nur-wenn: target system cannot check for work up front — firing anyway", "system", system)
 		return true, ""
@@ -598,7 +615,6 @@ func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid
 	var (
 		has bool
 		sig string
-		err error
 	)
 	switch c := checker.(type) {
 	case target.SignedWorkChecker:

@@ -16,8 +16,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"covey/internal/target"
+	"covey/internal/target/manifestplug"
 	"covey/internal/target/mcp"
+	"covey/internal/target/wasmplug"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 var ErrNotFound = errors.New("target system not found")
@@ -47,6 +49,18 @@ type Plugin struct {
 	// SetupDoc is the setup guide for the UI: for built-ins from the plugin
 	// descriptor, for manifest/MCP plugins generated generically.
 	SetupDoc string `json:"setup_doc,omitempty"`
+	// Source is the catalogue this plugin was installed from; empty = uploaded
+	// by hand. With SourceVersion and SourceDigest it answers the three
+	// questions a row could not answer before: from where, which version, and
+	// which digest was verified.
+	// Hosts are the extra hosts a compiled plugin declared it needs, beyond the
+	// brokered base URL. They belong in front of a person BEFORE the install,
+	// not in a log after it — and they still have to pass the organization's
+	// egress allowlist.
+	Hosts         []string `json:"hosts,omitempty"`
+	Source        string   `json:"source,omitempty"`
+	SourceVersion string   `json:"source_version,omitempty"`
+	SourceDigest  string   `json:"source_digest,omitempty"`
 }
 
 // List merges the compiled registry with the organization's DB rows.
@@ -55,7 +69,8 @@ type Plugin struct {
 // put on their previous state by migration 0020.)
 func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT name, kind, enabled, manifest, updated_at FROM target_plugins WHERE org_id=$1`, orgID)
+		`SELECT name, kind, enabled, manifest, updated_at, source, source_version, source_digest
+		 FROM target_plugins WHERE org_id=$1`, orgID)
 	if err != nil {
 		return nil, err
 	}
@@ -64,10 +79,12 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 	for rows.Next() {
 		var p Plugin
 		var manifest []byte
-		if err := rows.Scan(&p.Name, &p.Kind, &p.Enabled, &manifest, &p.UpdatedAt); err != nil {
+		var source, version, digest *string
+		if err := rows.Scan(&p.Name, &p.Kind, &p.Enabled, &manifest, &p.UpdatedAt, &source, &version, &digest); err != nil {
 			return nil, err
 		}
 		p.Manifest = manifest
+		p.Source, p.SourceVersion, p.SourceDigest = deref(source), deref(version), deref(digest)
 		stored[p.Name] = p
 	}
 	if rows.Err() != nil {
@@ -88,13 +105,30 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 		switch p.Kind {
 		case "custom":
 			p.Category = target.CategoryOther
-			if m, err := target.ParseManifest(p.Manifest); err == nil {
+			if m, err := manifestplug.Parse(p.Manifest); err == nil {
 				p.Label, p.Description = m.Label, m.Description
 				if p.Label == "" {
 					p.Label = m.Name
 				}
 				if m.Category != "" {
 					p.Category = m.Category
+				}
+				// A manifest declares its scope vocabulary in the file rather
+				// than in a Descriptor; without this the store would offer none
+				// for catalogue plugins and every word in ACCESS.md would be a
+				// guess.
+				p.Scopes = m.Scopes
+			}
+			p.SetupDoc = customSetupDoc(p.Name)
+		case "wasm":
+			p.Category = target.CategoryOther
+			if d, ok := wasmplug.StoredDescription(p.Manifest); ok {
+				p.Label, p.Description, p.Scopes, p.Hosts = d.Label, d.Description, d.Scopes, d.Hosts
+				if p.Label == "" {
+					p.Label = d.Name
+				}
+				if d.Category != "" {
+					p.Category = d.Category
 				}
 			}
 			p.SetupDoc = customSetupDoc(p.Name)
@@ -113,6 +147,14 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 		out = append(out, p)
 	}
 	return out, nil
+}
+
+// deref reads a nullable text column as a string; NULL becomes "".
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 // customSetupDoc is the generic setup guide of a manifest plugin — the webhook
@@ -161,7 +203,7 @@ func (s *Store) SetEnabled(ctx context.Context, orgID uuid.UUID, name string, en
 		return err
 	}
 	tag, err := s.pool.Exec(ctx, `UPDATE target_plugins SET enabled=$3, updated_at=now()
-		WHERE org_id=$1 AND name=$2 AND kind IN ('custom','mcp')`, orgID, name, enabled)
+		WHERE org_id=$1 AND name=$2 AND kind IN ('custom','mcp','wasm')`, orgID, name, enabled)
 	if err != nil {
 		return err
 	}
@@ -173,8 +215,8 @@ func (s *Store) SetEnabled(ctx context.Context, orgID uuid.UUID, name string, en
 
 // PutManifest validates and stores an uploaded manifest plugin. The name of a
 // compiled built-in is off limits — no silent shadowing.
-func (s *Store) PutManifest(ctx context.Context, orgID uuid.UUID, raw []byte) (target.Manifest, error) {
-	m, err := target.ParseManifest(raw)
+func (s *Store) PutManifest(ctx context.Context, orgID uuid.UUID, raw []byte) (manifestplug.Manifest, error) {
+	m, err := manifestplug.Parse(raw)
 	if err != nil {
 		return m, err
 	}
@@ -193,11 +235,73 @@ func (s *Store) PutManifest(ctx context.Context, orgID uuid.UUID, raw []byte) (t
 	return m, err
 }
 
+// PutFromCatalog stores a plugin installed from a marketplace catalogue
+// (spec/22) — the same row the manual upload writes, plus where it came from.
+//
+// Two things differ from PutManifest deliberately:
+//
+// It arrives DISABLED. An upload is an admin describing a system they are
+// setting up; an install is a file from the internet, and the step that grants
+// it credentials should be a separate decision from the step that fetched it.
+// On an update the existing state is kept — a running plugin must not switch
+// itself off because a new version arrived.
+//
+// And it records its provenance. Without source/version/digest there is no
+// update path (nobody knows what is installed), no origin for the operator to
+// audit, and no way to find the installations of a withdrawn entry.
+//
+// The digest is verified BEFORE this is called (marketplace.Client.Artifact);
+// what is stored here is the digest that was checked, not a promise.
+func (s *Store) PutFromCatalog(ctx context.Context, orgID uuid.UUID, kind string, raw []byte, source, version, digest string) (string, error) {
+	var name string
+	var norm []byte
+	switch kind {
+	case "wasm":
+		// Pack compiles the module and asks it what it is — a module that does
+		// not compile, or will not name itself, never reaches the database.
+		packed, desc, err := wasmplug.Pack(ctx, raw)
+		if err != nil {
+			return "", err
+		}
+		name, norm = desc.Name, packed
+	case "mcp":
+		c, err := mcp.ParseConfig(raw)
+		if err != nil {
+			return "", err
+		}
+		name = c.Name
+		if norm, err = json.Marshal(c); err != nil {
+			return "", err
+		}
+	case "custom":
+		m, err := manifestplug.Parse(raw)
+		if err != nil {
+			return "", err
+		}
+		name = m.Name
+		if norm, err = json.Marshal(m); err != nil {
+			return "", err
+		}
+	default:
+		return "", fmt.Errorf("kind %q cannot be installed — only custom, mcp and wasm", kind)
+	}
+	if _, ok := target.Get(name); ok {
+		return "", fmt.Errorf("name %q is taken by a built-in plugin", name)
+	}
+	_, err := s.pool.Exec(ctx,
+		`INSERT INTO target_plugins (org_id, name, kind, enabled, manifest, source, source_version, source_digest)
+		 VALUES ($1,$2,$3,FALSE,$4,$5,$6,$7)
+		 ON CONFLICT (org_id, name) DO UPDATE SET
+		   kind=$3, manifest=$4, source=$5, source_version=$6, source_digest=$7, updated_at=now()`,
+		orgID, name, kind, norm, source, version, digest)
+	return name, err
+}
+
 // DeleteManifest removes a custom plugin. Built-ins can only be disabled, not
 // deleted.
 func (s *Store) DeleteManifest(ctx context.Context, orgID uuid.UUID, name string) error {
 	tag, err := s.pool.Exec(ctx,
-		`DELETE FROM target_plugins WHERE org_id=$1 AND name=$2 AND kind IN ('custom','mcp')`, orgID, name)
+		`DELETE FROM target_plugins WHERE org_id=$1 AND name=$2 AND kind IN ('custom','mcp','wasm')`, orgID, name)
 	if err != nil {
 		return err
 	}
@@ -228,6 +332,38 @@ func (s *Store) System(ctx context.Context, orgID uuid.UUID, name string) (targe
 	if !enabled {
 		return nil, fmt.Errorf("%w: %s is disabled", ErrNotFound, name)
 	}
+	return build(name, kind, manifest)
+}
+
+// Definition resolves a target system REGARDLESS of whether it is activated.
+// The setup assistant needs it: it has to show what a plugin can do — take a
+// webhook, test its connection — before anybody switches it on, and a
+// fail-closed lookup answers "not activated" to exactly the question the
+// assistant is there to help with.
+//
+// Everything on the runtime path (broker, action proxy, dispatch) uses System
+// instead, which stays fail-closed.
+func (s *Store) Definition(ctx context.Context, orgID uuid.UUID, name string) (target.System, error) {
+	var kind string
+	var manifest []byte
+	err := s.pool.QueryRow(ctx, `SELECT kind, manifest FROM target_plugins
+		WHERE org_id=$1 AND name=$2`, orgID, name).Scan(&kind, &manifest)
+	switch {
+	case errors.Is(err, pgx.ErrNoRows):
+		// No row at all: a built-in that nobody has touched yet still exists as
+		// a plugin — it is only not activated.
+		if sys, ok := target.Get(name); ok {
+			return sys, nil
+		}
+		return nil, ErrNotFound
+	case err != nil:
+		return nil, err
+	}
+	return build(name, kind, manifest)
+}
+
+// build turns a stored row into the target system it describes.
+func build(name, kind string, manifest []byte) (target.System, error) {
 	switch kind {
 	case "builtin":
 		if sys, ok := target.Get(name); ok {
@@ -240,12 +376,20 @@ func (s *Store) System(ctx context.Context, orgID uuid.UUID, name string) (targe
 			return nil, fmt.Errorf("stored mcp config %s: %w", name, err)
 		}
 		return mcp.NewSystem(c), nil
+	case "wasm":
+		// Compiling costs seconds, so this is the one place that pays it: the
+		// control plane resolves a system per probe or poll, not per turn.
+		sys, err := wasmplug.Unpack(context.Background(), manifest)
+		if err != nil {
+			return nil, fmt.Errorf("stored wasm plugin %s: %w", name, err)
+		}
+		return sys, nil
 	default:
-		m, err := target.ParseManifest(manifest)
+		m, err := manifestplug.Parse(manifest)
 		if err != nil {
 			return nil, fmt.Errorf("stored manifest %s: %w", name, err)
 		}
-		return target.NewManifestSystem(m), nil
+		return manifestplug.New(m), nil
 	}
 }
 
@@ -339,7 +483,7 @@ func (s *Store) BrokeredDefinition(ctx context.Context, orgID uuid.UUID, name st
 	var enabled bool
 	var manifest []byte
 	err = s.pool.QueryRow(ctx, `SELECT kind, enabled, manifest FROM target_plugins
-		WHERE org_id=$1 AND name=$2 AND kind IN ('custom','mcp')`, orgID, name).Scan(&kind, &enabled, &manifest)
+		WHERE org_id=$1 AND name=$2 AND kind IN ('custom','mcp','wasm')`, orgID, name).Scan(&kind, &enabled, &manifest)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return "", nil, ErrNotFound
 	}
@@ -354,21 +498,21 @@ func (s *Store) BrokeredDefinition(ctx context.Context, orgID uuid.UUID, name st
 
 // Manifest returns the stored manifest of an activated custom plugin (for the
 // daemon, which needs it for execution).
-func (s *Store) Manifest(ctx context.Context, orgID uuid.UUID, name string) (target.Manifest, error) {
+func (s *Store) Manifest(ctx context.Context, orgID uuid.UUID, name string) (manifestplug.Manifest, error) {
 	var enabled bool
 	var manifest []byte
 	err := s.pool.QueryRow(ctx, `SELECT enabled, manifest FROM target_plugins
 		WHERE org_id=$1 AND name=$2 AND kind='custom'`, orgID, name).Scan(&enabled, &manifest)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return target.Manifest{}, ErrNotFound
+		return manifestplug.Manifest{}, ErrNotFound
 	}
 	if err != nil {
-		return target.Manifest{}, err
+		return manifestplug.Manifest{}, err
 	}
 	if !enabled {
-		return target.Manifest{}, fmt.Errorf("%w: %s is disabled", ErrNotFound, name)
+		return manifestplug.Manifest{}, fmt.Errorf("%w: %s is disabled", ErrNotFound, name)
 	}
-	return target.ParseManifest(manifest)
+	return manifestplug.Parse(manifest)
 }
 
 // SystemDoc is the prompt doc of a target system together with its name: what
@@ -428,8 +572,8 @@ func (s *Store) DocsForAgent(ctx context.Context, orgID, agentID uuid.UUID) ([]S
 		case "builtin":
 			enabledBuiltin[name] = true
 		case "custom":
-			if m, err := target.ParseManifest(manifest); err == nil {
-				docs = append(docs, SystemDoc{System: name, Doc: target.NewManifestSystem(m).PromptDoc()})
+			if m, err := manifestplug.Parse(manifest); err == nil {
+				docs = append(docs, SystemDoc{System: name, Doc: manifestplug.New(m).PromptDoc()})
 			}
 		case "mcp":
 			if c, err := mcp.ParseConfig(manifest); err == nil {

@@ -1,4 +1,4 @@
-# 18 — Runtimes & capacity (engines, workplaces, credential pools)
+# 18 — Runtimes & capacity (engines, seats, credential pools)
 
 An organisation running a workforce of agents does not hold *one* LLM credential. It holds several subscription seats, one or two API keys, and before long credentials from more than one provider. Every one of them is a commercial arrangement with its own ceiling, its own price and its own semantics — and every agent has to sit on exactly one of them at a time.
 
@@ -9,7 +9,7 @@ This document describes how that is modelled: what a runtime *is* once there is 
 Today "runtime" names two things at once, and as soon as an organisation holds several contracts the two drift apart. They are separated here:
 
 - An **engine** is the code that drives the LLM loop: Claude Code, Codex, OpenHands. It is a plugin, it registers itself, it ships with the binary. There is one of each.
-- A **runtime** is a *configured workplace*: an engine plus the capacity to run it — credential, model choice, limits. It is data, it lives in the database, it has a name a human chose ("Claude subscription Ben", "Claude API production", "Codex team"), and it is what an agent is assigned to.
+- A **runtime** is a *configured seat*: an engine plus the capacity to run it — credential, model choice, limits. It is data, it lives in the database, it has a name a human chose ("Claude subscription Ben", "Claude API production", "Codex team"), and it is what an agent is assigned to.
 
 The distinction is not bookkeeping. "Which engine" is a technical property that follows from the work; "which contract does this agent work on" is a commercial and governance decision, made by a person, and one that has to be visible in the org chart. Collapsing them into one string forces the credential to be found by convention — which is exactly what stops working the moment a second provider or a second subscription appears.
 
@@ -28,7 +28,7 @@ A runtime belongs to **exactly one organisation**. It carries credentials, and a
 
 The price is worth stating: a group with one provider contract and three subsidiary tenants deposits that credential three times, and its seats cannot be pooled across them. That is a **billing** problem, not a credential problem — costs can be rolled up across organisations later without any tenant ever holding another's secret, and that is the cheaper direction to solve it from.
 
-Several credentials under one runtime are not redundancy, they are its size. An organisation with three subscription seats has one runtime with three values, not three runtimes — the seats are substitutable for the same work, and whoever administers them wants to think about "our Claude subscriptions" and not about three separate workplaces that happen to be interchangeable.
+Several credentials under one runtime are not redundancy, they are its size. An organisation with three subscription seats has one runtime with three values, not three runtimes — the seats are substitutable for the same work, and whoever administers them wants to think about "our Claude subscriptions" and not about three separate seats that happen to be interchangeable.
 
 This is also why the pool hangs off the runtime and not off the secret's *name*. Two credentials of the same provider can live under different names (`claude_code_oauth_token` and `anthropic_api_key`) and still belong to the same pot; a pot cut along key names cannot express "use the subscriptions first, then the API key", because those halves are called different things.
 

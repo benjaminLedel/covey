@@ -156,13 +156,16 @@ func TestDockerCheck(t *testing.T) {
 		t.Fatalf("the catalogue has to carry an unhinted profile image: %v", problems)
 	}
 
-	// A foreign image gets no make target — it would build something else.
-	// Guessing here used to be a `strings.Contains` on the image name, and it
-	// advised wrongly exactly where somebody had configured their own image.
+	// An image from a registry is not a problem at all: it is not absent, it is
+	// merely not here yet, and `docker run` fetches it on the first wake.
+	// Reporting it would tell a fresh installation it is broken — and the only
+	// advice available for it would be a build it neither needs nor, in a
+	// container, can run. (That it is not there yet is said where it belongs:
+	// at the choice of workplace, which reports per image.)
 	p = &Docker{Image: "registry.example.com/team/sandbox:2026-08", DockerBin: fakeDocker(t, "image")}
 	problems, _ = p.Check(context.Background(), Check{})
-	if len(problems) != 1 || strings.Contains(problems[0], "make sandbox-image") {
-		t.Fatalf("a foreign image must not be advised with a make target: %v", problems)
+	if len(problems) != 0 {
+		t.Fatalf("a published image is fetched, not built: %v", problems)
 	}
 
 	// The images to ask about come from the control plane: it knows the

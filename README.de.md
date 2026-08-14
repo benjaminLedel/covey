@@ -40,7 +40,7 @@ docker compose up -d --build                              # Postgres + Covey sta
 
 Dann **[http://localhost:8494](http://localhost:8494)** öffnen — Login `admin@covey.local` / `covey-admin`. Die **Einrichtung** stellt drei Fragen, jede überspringbar: die Engine und ihr Zugang (geprüft, bevor er gespeichert wird), drei Sätze darüber, was Ihr Unternehmen macht, und ob Sie eine **Personalabteilung** wollen — einen Agenten, dessen Aufgabe es ist, die anderen zu entwerfen. Danach ist *Neuer Agent → Ausschreibung* der kürzeste Weg zur ersten Kollegin: in ein paar Sätzen beschreiben, was sie tun soll, und die Personalabteilung schreibt die Konfiguration. Eine Checkliste **Erste Schritte** auf der Agenten-Übersicht liest den tatsächlichen Zustand der Organisation, hakt sich selbst ab und verschwindet, wenn alles erledigt ist.
 
-Das mitgelieferte [`docker-compose.yml`](docker-compose.yml) bringt Postgres (pgvector) und das covey-Binary mit eingebetteter Admin-UI; `bootstrap` legt Organisation, Admin, einen Demo-Agenten und dessen Arbeitsplatz an, Migrationen laufen automatisch.
+Das mitgelieferte [`docker-compose.yml`](docker-compose.yml) bringt Postgres (pgvector) und das covey-Binary mit eingebetteter Admin-UI; `bootstrap` legt Organisation, Admin, einen Demo-Agenten und dessen Platz an, Migrationen laufen automatisch.
 
 Die dritte Zeile holt den Container, in dem ein Agent arbeitet ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, git, ripgrep — das Profil `base`); gebaut und veröffentlicht von [der Pipeline des Projekts](.github/workflows/sandbox-images.yml), für amd64 und arm64. `make sandbox-image` baut ihn stattdessen hier, wenn ein fremdes Image nicht in Frage kommt. Entwickler-Agenten wollen darauf das Profil `dev` (`docker pull …:dev-latest`, oder `make sandbox-image-dev`: zusätzlich PHP, JDK und die Versionsmanager `fvm`/`uv`); es wird je Agent gesetzt — man kann sie zum Umsehen auch weglassen: die Plattform startet ohne sie und sagt beim Start und auf der Agenten-Übersicht, dass der erste Lauf scheitern wird, solange sie fehlt.
 
@@ -76,7 +76,7 @@ Die dritte Zeile holt den Container, in dem ein Agent arbeitet ([`Dockerfile.san
 | 🧑‍💼 **Agenten mit Identität** | Eigene Sandbox, eigenes Home, eigene Zugänge — und ein Platz im Org-Chart neben den Menschen. |
 | 🧑‍🎓 **Einstellen statt Formular** | Beschreiben, was eine neue Kollegin tun soll; die eigene Personalabteilung — ein Agent — macht daraus eine vollständige Konfiguration und fragt nach, wenn die Ausschreibung zu dünn ist. Heraus kommt ein **Entwurf**: angelegt, ansehbar, änderbar — und er arbeitet erst, wenn ein Mensch ihn einstellt. |
 | 📥 **Backlog & Wake-Quellen** | Aufgaben als First-Class-Objekte; Agenten wachen per Webhook, Heartbeat oder Zuruf auf und schlafen danach wieder. |
-| 🔌 **Zielsysteme als Plugins** | Zammad, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, E-Mail (IMAP/SMTP), headless Browser, MCP — jedes über ein Manifest, kein Sonderweg im Kern. |
+| 🔌 **Zielsysteme als Plugins** | Zammad, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, E-Mail (IMAP/SMTP), headless Browser, MCP — keines davon in diesem Repo. Plugins sind eigene Module gegen ein [öffentliches SDK](https://github.com/benjaminLedel/covey-plugin-sdk); die mitgelieferten liegen im [Plugin-Pack](https://github.com/benjaminLedel/covey-plugin-pack), und ein fremdes Plugin wird genauso gebaut. |
 | 🛡️ **Guard-Rails & Freigaben** | Zentral erzwungen, außerhalb der Runtime, fail-closed. Kritische Aktionen gehen an einen Menschen. |
 | 🔑 **Secrets-Broker** | Keine langlebigen Secrets in der Sandbox — Zugriff wird zur Laufzeit gebrokert, kurzlebig und gescopt. |
 | 🧩 **Skills** | Prozeduren, die ein Agent nur lädt, wenn sie greifen: Die Beschreibung steht im Kontext, Anleitung und Zusatzdateien werden bei Bedarf gelesen. Org-weite Bibliothek, je Agent verlinkt — ein Lead-Lauf, der nichts zu tun findet, zahlt nicht mehr fünf Playbooks. |
@@ -250,7 +250,7 @@ Spezifikation und Runbooks sind auf **Englisch** — sie richten sich an alle, d
 | [`docs/`](docs/) | Betriebs- und Anbindungs-Runbooks |
 | `cmd/covey/` | Control-Plane-Binary: `serve`, `migrate`, `bootstrap`, `passwd`, `genkey` |
 | `cmd/coveyd/` | Sandbox-Daemon (spricht das Daemon-Protokoll, bootstrappt die Runtime) |
-| `internal/` | Orchestrator, Agents, Backlog, Identity/Secrets, Guard-Rails, Observability, Memory, Egress, Org, Vorlagen, Zielsystem-Plugins (`target/`), HTTP-API |
+| `internal/` | Orchestrator, Agents, Backlog, Identity/Secrets, Guard-Rails, Observability, Memory, Egress, Org, Vorlagen, die Plugin-Maschinerie (`target/`: Manifest-Engine, wasm-Laufzeit, MCP, Aktivierung pro Org), HTTP-API |
 | `migrations/` | Versionierte SQL-Migrationen (via `//go:embed` ins Binary gebacken) |
 | `web/` | React/Vite/Tailwind-Admin-UI (`dist/` wird eingebettet) |
 | `skills/covey-agent/` | Claude-Code-Skill zum Bauen und Aktualisieren von Covey-Agenten |

@@ -60,7 +60,7 @@ conversation:
 | Every authenticated request has an `OrgID`. | `identity.Principal`, `principalFrom`, all handlers | yes — kept deliberately |
 | `platform_admin` is simultaneously the instance operator. | `internal/org/org.go:330` (comment), `server.go:403` | no — split off |
 | Humans are created by an admin, never by themselves. | `internal/httpapi/admin.go` | no — plus self-registration |
-| The control plane never sends e-mail. SMTP exists only as an agent target plugin. | `internal/target/email/` | no — needs a mailer |
+| The control plane never sends e-mail. SMTP exists only as an agent target plugin. | `github.com/benjaminLedel/covey-plugin-pack/email/` | no — needs a mailer |
 | Every instance-level setting is an environment variable, read once at start. | `internal/config/config.go` | no — the ones an admin operates move into `system_settings` |
 | Tenant isolation on the read/write paths is enforced by middleware. | `agentScoped` / `taskScoped` / `stageScoped` / `pageScoped`, `server.go:552-627` | mostly — seven gaps, see [`003`](003-mandantentrennung.md) |
 | All sandboxes are Docker containers on the control-plane host; runners ([`16-runner.md`](../spec/16-runner.md)) are spec, not code. | `cmd/covey/main.go:649-688` | **this is the gating risk**, see *Capacity and abuse* |
@@ -362,7 +362,7 @@ host is not evidence, a delivered message is.
 ### `internal/mail` — the control plane learns to send
 
 The RFC-5322 builder and the PLAIN/STARTTLS delivery already exist, but as part
-of an agent target plugin (`internal/target/email/smtp.go`). Extract the message
+of an agent target plugin (`github.com/benjaminLedel/covey-plugin-pack/email/smtp.go`). Extract the message
 builder and the sender into `internal/mail` with a small `Sender` port
 (`builtin` SMTP; `log` for development, which writes the link into the log
 instead of sending); the target plugin then uses the same builder, so there is

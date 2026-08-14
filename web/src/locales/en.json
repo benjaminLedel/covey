@@ -65,7 +65,7 @@
         },
         "runtimes": {
           "t": "Runtimes as contracts",
-          "d": "A runtime is a named workplace: an engine plus the capacity to run it. Hold several subscription seats or API keys and you put them underneath — the platform spreads agents across them, dodges rate limits, and books the cost against the contract that carried it."
+          "d": "A runtime is a named seat: an engine plus the capacity to run it. Hold several subscription seats or API keys and they sit on one seat — used up in the order written down."
         },
         "sandbox": {
           "t": "Isolated sandboxes",
@@ -291,7 +291,7 @@
       "lead": "Real views from the control plane — workforce, structure, work, memory and cost.",
       "agents": {
         "t": "The workforce",
-        "d": "Every agent with its state, runtime and role — above them the applications still waiting to be hired."
+        "d": "Every agent with its state, engine and role — above them the applications still waiting to be hired."
       },
       "org": {
         "t": "Org chart",
@@ -365,7 +365,6 @@
     "platform": "Platform",
     "users": "Users",
     "organizations": "Organizations",
-    "runtimes": "Runtimes",
     "help": "Help (?)",
     "logout": "Sign out",
     "userMenu": "User menu",
@@ -378,8 +377,8 @@
     "administrationSection": "Administration",
     "administration": "Organization",
     "approvals": "Approvals",
-    "runners": "Runners",
-    "diagnostics": "Diagnostics"
+    "diagnostics": "Diagnostics",
+    "infrastructure": "Infrastructure"
   },
   "costs": {
     "title": "Cost & Tokens",
@@ -505,7 +504,7 @@
       },
       "agent": {
         "title": "Create an agent",
-        "hint": "Name, slug, runtime — that is all it takes to start.",
+        "hint": "Name, slug, engine — that is all it takes to start.",
         "action": "Create an agent"
       },
       "config": {
@@ -650,7 +649,7 @@
     "importedWith": "Imported: {{name}} — with notes:",
     "openAgent": "Open agent",
     "invalidJson": "File is not a valid JSON bundle.",
-    "selectRuntime": "Runtime",
+    "selectRuntime": "Engine",
     "slug": "Slug",
     "budget": "Budget",
     "guided": {
@@ -707,7 +706,7 @@
       "config": "Config",
       "settings": "Settings",
       "skills": "Skills",
-      "files": "Workspace",
+      "files": "Files",
       "toolsSkills": "Tools & Skills",
       "dreams": "Dreams",
       "record": "Work record"
@@ -1026,14 +1025,14 @@
       "slug": "Slug",
       "slugError": "Slug already taken",
       "slugHint": "Lowercase letters, digits, hyphens only. Must be unique.",
-      "runtime": "Runtime",
-      "runtimeHint": "Takes effect on the next task dispatch. Runtime setup: see the Runtimes page.",
+      "runtime": "Engine",
+      "runtimeHint": "Takes effect on the next task dispatch. Per-engine setup: Infrastructure → Engines.",
       "model": "Model",
-      "modelPlaceholder": "empty = runtime default",
+      "modelPlaceholder": "empty = engine default",
       "modelHint": "Model ID or alias, e.g. claude-opus-4-8 or sonnet.",
       "fixedIdentity": "Fixed: the operations engineer is called \"Covey Doctor\" on every instance. The name belongs to the platform, so that an agent with these permissions stays recognisable as one everywhere.",
       "effort": "Reasoning effort",
-      "effortDefault": "empty = runtime default",
+      "effortDefault": "empty = engine default",
       "effortHint": "Independent of the model — how hard it thinks per turn. The engine decides which levels exist; engines without this control do not show the row.",
       "maxTurns": "Max turns per run",
       "maxTurnsPlaceholder": "0 = default (30)",
@@ -1065,7 +1064,6 @@
       "subGeneral": "General",
       "sandboxImage": "Workplace",
       "sandboxImageDefault": "Instance default",
-      "sandboxImageOwn": "Own image …",
       "sandboxImageHint": "The image this agent works in. A profile is a union of toolchains, not a cut along languages: a developer agent works on PHP and Flutter projects, a mail agent on neither. Takes effect at the next cold start; a running or warm-parked sandbox keeps its image.",
       "filesReadOnly": "Read-only — from the last snapshot",
       "runnerTags": "Host requirements",
@@ -1074,7 +1072,23 @@
         "base": "base — Node, git, chromium, ripgrep",
         "dev": "dev — plus PHP, JDK, fvm, uv"
       },
-      "sandboxImageMissing": "The image {{image}} is on no runner of this organisation — until it is built, every wake fails. Once: {{build}}"
+      "sandboxImageMissing": "The image {{image}} is on no runner of this organisation — until it is built, every wake fails. Once: {{build}}",
+      "sandboxImageSource": {
+        "catalog": "from the published catalogue, pinned by digest",
+        "env": "set by this instance (COVEY_SANDBOX_IMAGE_…)",
+        "builtin": "default — built locally"
+      },
+      "sandboxImagePulls": "Not on the runner yet — it pulls the image on the first wake.",
+      "group": {
+        "identity": "Who it is",
+        "identityHint": "Name and slug. The slug appears in prompts, logs and addresses — it stays.",
+        "thinking": "What it thinks with",
+        "thinkingHint": "Engine, model and how hard it thinks per turn. What stands here decides the quality and the cost of every run.",
+        "workplace": "What it works in, and where",
+        "workplaceHint": "The sandbox image and what the host it starts on has to carry. Workplaces themselves are created under Infrastructure.",
+        "oversight": "Oversight",
+        "oversightHint": "How deeply it is recorded, what it may spend, and what to export when in doubt."
+      }
     },
     "skills": {
       "desc": "The capabilities this agent has — its own plus those linked from the library. Exactly this list is written into its home before every run; of each entry, only the description stays in context permanently.",
@@ -1414,25 +1428,25 @@
     "readOnlyHint": "Other people's profiles are managed by an admin under \"Users\"."
   },
   "runtimes": {
-    "title": "Runtimes",
+    "title": "Engines",
     "subtitle": "plugins registered in the daemon",
-    "desc": "Runtimes are the swappable seam between the control plane and the sandbox — self-describing plugins in code. The ⓘ per runtime shows setup instructions step by step. Which runtime (and model) an agent uses can be changed on the agent page under the Settings tab.",
+    "desc": "Engines are the swappable seam between the control plane and the sandbox — self-describing plugins in code. The ⓘ per engine shows setup instructions step by step. Which engine (and model) an agent uses can be changed on the agent page under the Settings tab.",
     "showInfo": "Show setup",
     "needsCredential": "● needs credential (Secrets)",
     "noCredential": "● no credentials needed",
     "setup": "Setup — {{label}}",
     "instances": {
-      "title": "Workplaces",
+      "title": "Seats",
       "subtitle": "an engine plus the capacity to run it",
-      "desc": "A workplace is a contract: which engine, on whose credential, with which model. For the simple case there is nothing to do here — deposit a token under Secrets, create an agent, and the workplace appears by itself. The page starts to matter with the second credential: several under one workplace are used up in the order written down, the paid-for seats first, then whatever costs per token.",
-      "none": "No workplaces created yet.",
-      "add": "Create workplace",
+      "desc": "A seat is a contract: which engine, on whose credential, with which model. For the simple case there is nothing to do here — deposit a token under Secrets, create an agent, and the seat appears by itself. The page starts to matter with the second credential: several under one seat are used up in the order written down, the paid-for seats first, then whatever costs per token.",
+      "none": "No seats created yet.",
+      "add": "Create seat",
       "create": "Create",
       "engine": "Engine",
       "name": "Name",
       "namePlaceholder": "e.g. Claude subscription team",
-      "deleteConfirm": "Really delete the workplace “{{name}}”? Assigned agents lose their assignment.",
-      "noCapacity": "No capacity configured — nobody can work on this workplace.",
+      "deleteConfirm": "Really delete the seat “{{name}}”? Assigned agents lose their assignment.",
+      "noCapacity": "No capacity configured — nobody can work on this seat.",
       "addCredential": "Add capacity",
       "removeCredentialConfirm": "Really remove this capacity?",
       "worksHere": "works here:",
@@ -1539,8 +1553,8 @@
   },
   "targets": {
     "title": "Target Systems",
-    "subtitle": "Plugins — built-in or uploaded as manifest",
-    "desc": "Target systems are plugins: built-ins are compiled in, custom REST systems can be connected without a deploy via JSON manifest.",
+    "subtitle": "What your agents work in — from the store, connected yourself, or shipped with Covey",
+    "desc": "Target systems are plugins. Most of them you get from the store: a catalogue you install from, without a deploy and without a new Covey release. Only what genuinely needs code ships compiled in — protocols beyond REST, OAuth flows, work inside the sandbox. A REST system of your own you connect as a JSON manifest.",
     "noAccess": "Your role ({{role}}) can view target systems but not manage them.",
     "noTargets": "No target systems registered — this binary was built without built-in plugins.",
     "search": "Search…",
@@ -1560,7 +1574,6 @@
     "summary": "{{total}} plugins · {{active}} active",
     "noMatch": "No target system matches search and filter.",
     "noneActive": "No target system activated yet.",
-    "toStore": "Go to store",
     "details": "Details",
     "about": "Description",
     "close": "Close",
@@ -1629,7 +1642,10 @@
       "copy": "Copy",
       "optional": "optional",
       "stored": "stored"
-    }
+    },
+    "tabAvailable": "Available",
+    "toAvailable": "To the available ones",
+    "kindWasm": "Code (wasm)"
   },
   "egress": {
     "title": "Egress",
@@ -2075,6 +2091,29 @@
     "codeUsedUp": "used up",
     "revoke": "Revoke"
   },
+  "catalog": {
+    "loading": "Loading the catalogue …",
+    "disabled": "No store is configured for this instance.",
+    "disabledHint": "The operator decides with COVEY_MARKETPLACE_URL which catalogue may be installed from — a file of your own works just as well, including one on an internal network. Without a store you keep what the instance already has: the plugins that ship with Covey and whatever was uploaded by hand.",
+    "source": "Catalogue:",
+    "fetched": "fetched at {{time}}",
+    "stale": "The catalogue was unreachable on the last attempt — showing the last good copy.",
+    "empty": "Nothing matches this search.",
+    "by": "by",
+    "since": "from Covey {{v}}",
+    "shipped": "ships with Covey — activate it under “Available”",
+    "install": "Install",
+    "installing": "installing …",
+    "installed": "installed (v{{v}})",
+    "update": "Update to v{{v}}",
+    "taken": "name already taken",
+    "takenHint": "A plugin of that name already runs here and did not come from this catalogue.",
+    "source2": "Source",
+    "arrivesDisabled": "Arrives disabled — credentials and activation stay a separate step.",
+    "remove": "Uninstall",
+    "removeTitle": "Uninstall {{name}}?",
+    "removeBody": "The plugin is removed from this organisation. Its catalogue entry stays, so you can install it again at any time. Stored credentials stay too — they belong to the target system, not to the plugin."
+  },
   "runners": {
     "title": "Runners",
     "intro": "Where the sandboxes run. Every sandbox starts through the runner protocol — on a single machine through one the control plane runs itself.",
@@ -2136,5 +2175,45 @@
     "lintClean": "Nothing to do — no configuration stands out.",
     "blocking_one": "{{count}} item keeps agents from working.",
     "blocking_other": "{{count}} items keep agents from working."
+  },
+  "workplaces": {
+    "title": "Workplaces",
+    "subtitle": "the images agents work in",
+    "desc": "A workplace is the image a sandbox starts from — tooling, not configuration. Which image that is comes from the published catalogue for this Covey version; override it per profile if you want. The workplace itself is chosen per agent under Settings.",
+    "loadError": "The workplaces could not be loaded.",
+    "default": "default",
+    "present": "ready here",
+    "absent": "not here yet",
+    "image": "Image:",
+    "pull": "Fetch now",
+    "pulling": "fetching …",
+    "pulled": "Fetched — the next run starts without the wait.",
+    "pullHint": "Several gigabytes. Otherwise the runner fetches it on the first wake, and the first agent waits for it.",
+    "buildHint": "No registry can deliver a self-built image: run `{{build}}` once on the host where the sandboxes start.",
+    "source": {
+      "catalog": "from the published catalogue, pinned by digest",
+      "env": "set by this instance (COVEY_SANDBOX_IMAGE_…)",
+      "builtin": "default — built locally"
+    },
+    "worksHere": "works here:",
+    "nobody": "nobody",
+    "delete": "Delete",
+    "deleteTitle": "Delete workplace “{{name}}”?",
+    "deleteBody": "The entry disappears from the choice. The image itself stays where it is — what is deleted is only that this organisation gave it a name.",
+    "add": "Add a workplace of your own",
+    "create": "Create",
+    "fieldName": "Name (what you pick on the agent)",
+    "fieldLabel": "Label",
+    "fieldDescription": "What is it for?",
+    "fieldDescriptionHint": "e.g. Flutter toolchain plus the in-house certificate",
+    "fieldImage": "Image",
+    "ownHint": "Images of your own are added here and chosen on the agent afterwards — that way they appear in an overview, carry a description, and a typo shows up at once instead of at the first wake."
+  },
+  "infra": {
+    "title": "Infrastructure",
+    "subtitle": "what an agent thinks with, works in, and runs on",
+    "tabRuntimes": "Engines",
+    "tabWorkplaces": "Workplaces",
+    "tabRunners": "Runners"
   }
 }

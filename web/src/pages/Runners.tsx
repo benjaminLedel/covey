@@ -65,7 +65,8 @@ export function formatBytes(n: number): string {
   return `${v.toFixed(v >= 100 || i === 0 ? 0 : 1)} ${units[i]}`;
 }
 
-export default function Runners({ me }: { me: Principal }) {
+/* embedded: siehe Runtimes — der Reiter trägt die Überschrift. */
+export default function Runners({ me, embedded = false }: { me: Principal; embedded?: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const manage = me.Role === "platform_admin" || me.Role === "agent_owner";
@@ -113,7 +114,7 @@ export default function Runners({ me }: { me: Principal }) {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[22px]">{t("runners.title")}</h1>
+        {!embedded && <h1 className="text-[22px]">{t("runners.title")}</h1>}
         <p className="muted text-sm">{t("runners.intro")}</p>
       </div>
 

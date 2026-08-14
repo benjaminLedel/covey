@@ -237,7 +237,7 @@ COVEY_TEAMS_ATTACHMENT_MAX_MB=25                  # size limit per attachment (1
 
 ## 3. Which messages does the agent take up?
 
-`ShouldWake` in `internal/target/teams/webhook.go` decides:
+`ShouldWake` in `github.com/benjaminLedel/covey-plugin-pack/teams/webhook.go` decides:
 
 1. **A genuine user message:** `type == "message"`, with a sender and text. That
    way the bot's *own reply* does not trigger a new wake cycle.

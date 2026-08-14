@@ -132,7 +132,7 @@ For "only tickets of the group *Support L1*" a trigger condition suffices.
 
 If a webhook reaches Covey, the adapter decides whether a task comes out of it.
 Two criteria, both of which must apply (`ShouldWake` in
-`internal/target/zammad/webhook.go`):
+`github.com/benjaminLedel/covey-plugin-pack/zammad/webhook.go`):
 
 1. **A customer message:** `article.sender == "Customer"` and not internal. That
    way the agent's *own reply* does not trigger a new wake cycle.

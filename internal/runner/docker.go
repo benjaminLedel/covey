@@ -307,6 +307,16 @@ func (p *Docker) Check(ctx context.Context, req Check) ([]string, map[string]boo
 		if err == nil {
 			continue
 		}
+		// Ein veröffentlichtes Image ist nicht abwesend, es liegt nur noch
+		// nicht hier: `docker run` holt es beim ersten Wecken selbst. Das als
+		// „Data Plane nicht bereit" zu melden, sagt einer frischen
+		// Installation, sie sei kaputt — und riete ihr zu einem Bau, den sie
+		// nicht braucht und in einem Container nicht ausführen kann. Dass es
+		// noch nicht da ist, steht ohnehin an der Auswahl des Arbeitsplatzes
+		// (Workplaces meldet es je Image).
+		if sandbox.Pullable(image) {
+			continue
+		}
 		problems = append(problems, fmt.Sprintf(
 			"sandbox image %q is missing — %s (%s)",
 			image, buildHint(hints, image), firstLine(string(out), err)))
@@ -576,4 +586,17 @@ func PruneLegacyEgress(ctx context.Context, dockerBin string, log *slog.Logger) 
 	if err := exec.CommandContext(ctx, dockerBin, "network", "rm", legacyEgressNetwork).Run(); err == nil {
 		log.Info("internal egress network of an earlier version removed", "network", legacyEgressNetwork)
 	}
+}
+
+// Pull fetches an image onto this host. It is what `docker run` would do by
+// itself at the first wake — done deliberately, so that the wait happens while
+// somebody is looking instead of in front of the first agent of the day.
+//
+// No timeout of its own: several gigabytes over a slow line legitimately take
+// their time, and the caller's context is the one that decides. The output is
+// handed back on failure because the reason lives in it — no credentials for a
+// private registry, a typo in the reference, no route to the host.
+func (p *Docker) Pull(ctx context.Context, image string) (string, error) {
+	out, err := exec.CommandContext(ctx, p.docker(), "pull", image).CombinedOutput()
+	return string(out), err
 }

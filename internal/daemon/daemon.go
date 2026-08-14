@@ -17,8 +17,10 @@ import (
 	"github.com/coder/websocket"
 	"github.com/google/uuid"
 
-	"covey/internal/target"
+	"covey/internal/target/manifestplug"
 	"covey/internal/target/mcp"
+	"covey/internal/target/wasmplug"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // Client is the daemon side of the protocol: it connects to the control plane,
@@ -400,13 +402,23 @@ func (c *Client) manifestSystem(ctx context.Context, system string) (target.Syst
 			return nil, false
 		}
 		sys = mcp.NewSystem(cfg)
+	case "wasm":
+		// Compiled once per session and cached below with the others: the
+		// module is machine code after this, and every action instantiates it
+		// afresh rather than recompiling.
+		w, err := wasmplug.Unpack(ctx, inj.Manifest)
+		if err != nil {
+			c.log.Warn("brokered wasm plugin unusable", "system", system, "err", err)
+			return nil, false
+		}
+		sys = w
 	default:
-		m, err := target.ParseManifest(inj.Manifest)
+		m, err := manifestplug.Parse(inj.Manifest)
 		if err != nil {
 			c.log.Warn("brokered manifest unreadable", "system", system, "err", err)
 			return nil, false
 		}
-		sys = target.NewManifestSystem(m)
+		sys = manifestplug.New(m)
 	}
 	c.mu.Lock()
 	c.targets[system] = sys

@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"covey/internal/reqlog"
-	"covey/internal/target"
+	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
 // Config is the persisted definition of a connected MCP server. The endpoint

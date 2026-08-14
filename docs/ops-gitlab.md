@@ -1,6 +1,6 @@
 # Operations: connecting Covey to a GitLab
 
-A practical runbook for the target system **GitLab** (`internal/target/gitlab`).
+A practical runbook for the target system **GitLab** (`github.com/benjaminLedel/covey-plugin-pack/gitlab`).
 Structure and data flow follow the Zammad adapter
 ([`ops-zammad.md`](ops-zammad.md)) — the unit of work here is the
 **issue** instead of the ticket.
@@ -503,7 +503,7 @@ Sequence and security model:
   (`COVEY_CHECKOUT_KEEP`, `0` switches the cleanup off). Which ones went is in
   the checkout result, because the agent may be holding a path from an earlier
   run. How full the sandbox is, and which working copies are eating it, is on
-  the agent's **Workplace** tab.
+  the agent's **Files** tab.
 - Protections: path traversal is refused, symlinks are skipped, and the unpacked
   size is limited (default 512 MB, `COVEY_GITLAB_CHECKOUT_MAX_MB`).
 - Guard-rail subjects: `gitlab:checkout`, `gitlab:list_tree`,

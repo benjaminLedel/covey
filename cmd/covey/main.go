@@ -37,37 +37,41 @@ import (
 	"covey/internal/httpapi"
 	identbuiltin "covey/internal/identity/builtin"
 	"covey/internal/llm"
+	"covey/internal/marketplace"
 	"covey/internal/memory"
 	"covey/internal/observability"
 	"covey/internal/orchestrator"
 	"covey/internal/org"
 	"covey/internal/reqlog"
+
 	reqlogstore "covey/internal/reqlog/store"
 	"covey/internal/runner"
 	runnerstore "covey/internal/runner/store"
 	"covey/internal/runtimes"
+	"covey/internal/sandbox"
 	secbuiltin "covey/internal/secrets/builtin"
 	"covey/internal/settings"
 	"covey/internal/skills"
 	targetstore "covey/internal/target/store"
 	"covey/internal/templates"
 	"covey/internal/waitlist"
+	orgworkplaces "covey/internal/workplaces"
 	"covey/migrations"
 	"covey/web"
 
 	// Compiled-in target system plugins: blank import = shipped. Whoever wants
 	// to build Covey without a system removes its line — the rest stays as it is.
-	_ "covey/internal/target/browser"
-	_ "covey/internal/target/dev"
-	_ "covey/internal/target/email"
-	_ "covey/internal/target/github"
-	_ "covey/internal/target/gitlab"
-	_ "covey/internal/target/k8s"
-	_ "covey/internal/target/nextcloud"
-	_ "covey/internal/target/sharepoint"
-	_ "covey/internal/target/teams"
-	_ "covey/internal/target/vulndb"
-	_ "covey/internal/target/zammad"
+	_ "github.com/benjaminLedel/covey-plugin-pack/browser"
+	_ "github.com/benjaminLedel/covey-plugin-pack/dev"
+	_ "github.com/benjaminLedel/covey-plugin-pack/email"
+	_ "github.com/benjaminLedel/covey-plugin-pack/github"
+	_ "github.com/benjaminLedel/covey-plugin-pack/gitlab"
+	_ "github.com/benjaminLedel/covey-plugin-pack/k8s"
+	_ "github.com/benjaminLedel/covey-plugin-pack/nextcloud"
+	_ "github.com/benjaminLedel/covey-plugin-pack/sharepoint"
+	_ "github.com/benjaminLedel/covey-plugin-pack/teams"
+	_ "github.com/benjaminLedel/covey-plugin-pack/vulndb"
+	_ "github.com/benjaminLedel/covey-plugin-pack/zammad"
 )
 
 func main() {
@@ -81,6 +85,15 @@ func main() {
 	// version runs before the config: "which build is this?" has to give an
 	// answer even when the environment is incomplete.
 	switch os.Args[1] {
+	// plugin lint runs before the config as well: it checks a file, and a file
+	// can be checked on a machine that has no database, no master key and no
+	// business having either — a catalogue's CI container, for instance.
+	case "plugin":
+		if err := runPlugin(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
 	case "version", "--version", "-v":
 		fmt.Println("covey " + buildinfo.String())
 		// Covey is a network service under AGPL-3.0: whoever offers a modified
@@ -143,6 +156,7 @@ func usage() {
   covey serve             start API + orchestrator + admin UI
   covey egress-proxy      egress allowlist proxy (network isolation mode, in the container)
   covey config lint       check agent configs for known pitfalls (changes nothing)
+  covey plugin lint <f>   check a target-system plugin file (manifest or MCP config)
   covey settings [k v]    show the instance's settings, or set one (e.g. signup.mode waitlist)
   covey waitlist          list waitlist codes | new [-label L] [-uses N] [-days D] | revoke <hash>
   covey system-admin      list | add <email> | remove <email> — the instance level, not an org role
@@ -899,6 +913,12 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	auditStore := audit.NewStore(pool)
 	skillStore := skills.NewStore(pool)
 
+	// Die veroeffentlichten Arbeitsplaetze (spec/16): welches Image zu welcher
+	// Covey-Fassung gehoert, gepinnt auf den Digest. Mit demselben Cache wie
+	// der Plugin-Katalog — der Stand ueberlebt den Neustart, und faellt der
+	// Server dahinter aus, gilt der letzte gueltige weiter.
+	workplaces := sandbox.NewSource(cfg.SandboxCatalogURL, marketplace.NewPgCache(pool), log)
+
 	// Egress enforcement can only be enforced with real network isolation (docker).
 	egressEnforced := cfg.EgressEnforce && cfg.SandboxProvider == "docker"
 
@@ -914,7 +934,34 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	runnerPool.DefaultImage = cfg.SandboxImage
 	// The profiles from the catalogue (spec/16). An agent's value that names
 	// none of them is taken as an image reference of its own.
+	//
+	// Three sources, in this order: what the environment names, what the
+	// published catalogue holds for THIS Covey version (pinned by digest), and
+	// the compiled default. The pool resolves that itself, because the middle
+	// one can change while the process runs — a release is published and the
+	// next wake takes the image built for it.
 	runnerPool.Profiles = cfg.SandboxImages
+	runnerPool.EnvImages = cfg.SandboxImageEnv
+	runnerPool.Catalog = workplaces
+	// Und die Arbeitsplätze, die eine Organisation selbst mitgebracht hat: Ein
+	// Agent trägt auch dort nur einen Namen, und aufgelöst wird er hier.
+	orgWorkplaces := orgworkplaces.New(pool)
+	runnerPool.OrgImages = func(ctx context.Context, orgID uuid.UUID) map[string]string {
+		m, err := orgWorkplaces.Images(ctx, orgID)
+		if err != nil {
+			log.Warn("eigene Arbeitsplätze nicht lesbar", "err", err)
+			return nil
+		}
+		return m
+	}
+	runnerPool.AllOrgImages = func(ctx context.Context) map[string]string {
+		m, err := orgworkplaces.AllImages(ctx, pool)
+		if err != nil {
+			log.Warn("eigene Arbeitsplätze nicht lesbar", "err", err)
+			return nil
+		}
+		return m
+	}
 	runnerPool.AgentImages = registry.SandboxImagesInUse
 	runnerPool.HomeExcludes = cfg.HomeExcludes
 	// "Last seen" only means something if it moves while a runner is there.
@@ -1139,6 +1186,15 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		Pool:    pool, Registry: registry, Backlog: backlogStore, Obs: obs,
 		Rails: rails, Secrets: secretStore, Runtimes: runtimeStore, Identity: idp, Memory: mem, Dreams: dreams,
 		Org: org.NewStore(pool), Targets: targets, Templates: templateStore,
+		Marketplace: func() *marketplace.Client {
+			m := marketplace.New(cfg.MarketplaceURL)
+			// Der Katalog ueberlebt damit den Neustart: die erste Store-Seite
+			// nach dem Start wartet nicht auf einen fremden Server, und faellt
+			// der gerade aus, zeigt sie den letzten gueltigen Stand statt nichts.
+			m.Store, m.Log = marketplace.NewPgCache(pool), log
+			return m
+		}(),
+		Workplaces: workplaces, OrgWorkplaces: orgWorkplaces,
 		Settings: settings.New(pool), Accounts: accounts.New(pool), Waitlist: waitlist.New(pool),
 		Skills: skillStore,
 		Orch:   orch, WebFS: dist, Log: log,

@@ -65,7 +65,7 @@
         },
         "runtimes": {
           "t": "Runtimes als Verträge",
-          "d": "Eine Runtime ist ein benannter Arbeitsplatz: Engine plus die Kapazität, sie zu betreiben. Wer mehrere Abo-Sitze oder API-Schlüssel hält, hinterlegt sie darunter — die Plattform verteilt die Agenten darauf, weicht bei Rate-Limits aus und bucht die Kosten auf den Vertrag, der sie getragen hat."
+          "d": "Eine Runtime ist ein benannter Platz: Engine plus die Kapazität, sie zu betreiben. Wer mehrere Abo-Sitze oder API-Keys hält, hinterlegt sie an einem Platz — verbraucht wird in der notierten Reihenfolge."
         },
         "sandbox": {
           "t": "Isolierte Sandboxen",
@@ -291,7 +291,7 @@
       "lead": "Echte Ansichten aus der Control Plane — Belegschaft, Struktur, Arbeit, Gedächtnis und Kosten.",
       "agents": {
         "t": "Die Belegschaft",
-        "d": "Alle Agenten mit Status, Runtime und Rolle — darüber die Bewerbungen, die noch auf ihre Einstellung warten."
+        "d": "Alle Agenten mit Status, Engine und Rolle — darüber die Bewerbungen, die noch auf ihre Einstellung warten."
       },
       "org": {
         "t": "Org-Chart",
@@ -365,7 +365,6 @@
     "platform": "Plattform",
     "users": "Benutzer",
     "organizations": "Organisationen",
-    "runtimes": "Runtimes",
     "help": "Hilfe (Taste ?)",
     "logout": "Abmelden",
     "userMenu": "Benutzermenü",
@@ -378,8 +377,8 @@
     "administrationSection": "Verwaltung",
     "administration": "Administration",
     "approvals": "Freigaben",
-    "runners": "Runner",
-    "diagnostics": "Diagnose"
+    "diagnostics": "Diagnose",
+    "infrastructure": "Infrastruktur"
   },
   "costs": {
     "title": "Kosten & Token",
@@ -505,7 +504,7 @@
       },
       "agent": {
         "title": "Agenten anlegen",
-        "hint": "Name, Kürzel, Runtime — mehr braucht es nicht, um anzufangen.",
+        "hint": "Name, Kürzel, Engine — mehr braucht es nicht, um anzufangen.",
         "action": "Agenten anlegen"
       },
       "config": {
@@ -650,7 +649,7 @@
     "importedWith": "Importiert: {{name}} — mit Hinweisen:",
     "openAgent": "Agent öffnen",
     "invalidJson": "Datei ist kein gültiges JSON-Bundle.",
-    "selectRuntime": "Runtime",
+    "selectRuntime": "Engine",
     "slug": "Slug",
     "budget": "Budget",
     "guided": {
@@ -707,7 +706,7 @@
       "config": "Config",
       "settings": "Einstellungen",
       "skills": "Skills",
-      "files": "Arbeitsplatz",
+      "files": "Dateien",
       "toolsSkills": "Tools & Skills",
       "dreams": "Träume",
       "record": "Arbeitsakte"
@@ -1026,14 +1025,14 @@
       "slug": "Slug",
       "slugError": "Slug bereits vergeben",
       "slugHint": "Nur Kleinbuchstaben, Ziffern, Bindestriche. Muss eindeutig sein.",
-      "runtime": "Runtime",
-      "runtimeHint": "Greift beim nächsten Task-Dispatch. Einrichtung je Runtime: Seite „Runtimes“.",
+      "runtime": "Engine",
+      "runtimeHint": "Greift beim nächsten Task-Dispatch. Einrichtung je Engine: Infrastruktur → Engines.",
       "model": "Modell",
-      "modelPlaceholder": "leer = Runtime-Default",
+      "modelPlaceholder": "leer = Engine-Default",
       "modelHint": "Modell-ID oder Alias, z. B. claude-opus-4-8 oder sonnet.",
       "fixedIdentity": "Fest vergeben: Covey Doctor heißt auf jeder Instanz „Covey Doctor“. Der Name gehört zur Plattform, damit ein Agent mit diesen Rechten überall als solcher erkennbar bleibt.",
       "effort": "Denkaufwand",
-      "effortDefault": "leer = Runtime-Default",
+      "effortDefault": "leer = Engine-Default",
       "effortHint": "Unabhängig vom Modell — wie gründlich pro Turn gedacht wird. Welche Stufen es gibt, sagt die Engine; Engines ohne diesen Regler zeigen die Zeile nicht.",
       "maxTurns": "Max. Turns je Lauf",
       "maxTurnsPlaceholder": "0 = Default (30)",
@@ -1065,7 +1064,6 @@
       "subGeneral": "Allgemein",
       "sandboxImage": "Arbeitsplatz",
       "sandboxImageDefault": "Voreinstellung der Instanz",
-      "sandboxImageOwn": "Eigenes Image …",
       "sandboxImageHint": "Das Image, in dem dieser Agent arbeitet. Ein Profil ist eine Vereinigung von Toolchains, kein Sprachschnitt: ein Entwickler-Agent arbeitet an PHP- und Flutter-Projekten, ein Mail-Agent an keinem von beiden. Gilt ab dem nächsten Kaltstart; eine laufende oder warm geparkte Sandbox behält ihr Image.",
       "filesReadOnly": "Nur lesbar — aus dem letzten Snapshot",
       "runnerTags": "Host-Anforderungen",
@@ -1074,7 +1072,23 @@
         "base": "base — Node, git, chromium, ripgrep",
         "dev": "dev — zusätzlich PHP, JDK, fvm, uv"
       },
-      "sandboxImageMissing": "Das Image {{image}} liegt auf keinem Runner dieser Organisation — bis es gebaut ist, scheitert jedes Aufwachen. Einmalig: {{build}}"
+      "sandboxImageMissing": "Das Image {{image}} liegt auf keinem Runner dieser Organisation — bis es gebaut ist, scheitert jedes Aufwachen. Einmalig: {{build}}",
+      "sandboxImageSource": {
+        "catalog": "aus dem veröffentlichten Katalog, auf den Digest gepinnt",
+        "env": "von dieser Instanz gesetzt (COVEY_SANDBOX_IMAGE_…)",
+        "builtin": "Voreinstellung — lokal gebaut"
+      },
+      "sandboxImagePulls": "Liegt noch nicht auf dem Runner — er zieht es beim ersten Wecken selbst.",
+      "group": {
+        "identity": "Wer er ist",
+        "identityHint": "Name und Kürzel. Das Kürzel steht in Prompts, Logs und Adressen — es bleibt.",
+        "thinking": "Womit er denkt",
+        "thinkingHint": "Engine, Modell und wie gründlich pro Turn. Was hier steht, entscheidet über Qualität und Kosten jedes Laufs.",
+        "workplace": "Worin und wo er arbeitet",
+        "workplaceHint": "Das Image der Sandbox und die Anforderungen an den Host, auf dem sie startet. Angelegt werden Arbeitsplätze unter Infrastruktur.",
+        "oversight": "Aufsicht",
+        "oversightHint": "Wie tief mitgeschrieben wird, was er ausgeben darf, und was man im Zweifel exportiert."
+      }
     },
     "skills": {
       "desc": "Was dieser Agent an Fähigkeiten hat — eigene plus die ihm aus der Bibliothek verlinkten. Genau diese Liste landet vor jedem Lauf in seinem Home; von jedem Eintrag steht dauerhaft nur die Beschreibung im Kontext.",
@@ -1414,25 +1428,25 @@
     "readOnlyHint": "Profile anderer Personen pflegt ein Admin unter „Benutzer“."
   },
   "runtimes": {
-    "title": "Runtimes",
+    "title": "Engines",
     "subtitle": "im Daemon registrierte Plugins",
-    "desc": "Runtimes sind die austauschbare Naht zwischen Control Plane und Sandbox — im Code selbstbeschreibende Plugins. Das ⓘ je Runtime zeigt die Einrichtung Schritt für Schritt. Welche Runtime (und welches Modell) ein Agent nutzt, stellen Sie auf der Agenten-Seite im Reiter Einstellungen um.",
+    "desc": "Engines sind die austauschbare Naht zwischen Control Plane und Sandbox — im Code selbstbeschreibende Plugins. Das ⓘ je Engine zeigt die Einrichtung Schritt für Schritt. Welche Engine (und welches Modell) ein Agent benutzt, steht auf der Agenten-Seite unter „Einstellungen“.",
     "showInfo": "Einrichtung anzeigen",
     "needsCredential": "● braucht Credential (Secrets)",
     "noCredential": "● keine Credentials",
     "setup": "Einrichtung — {{label}}",
     "instances": {
-      "title": "Arbeitsplätze",
+      "title": "Plätze",
       "subtitle": "Engine plus die Kapazität, sie zu betreiben",
-      "desc": "Ein Arbeitsplatz ist ein Vertrag: welche Engine, auf wessen Credential, mit welchem Modell. Für den einfachen Fall musst du hier nichts tun — wer ein Token unter Secrets hinterlegt und einen Agenten anlegt, bekommt den Arbeitsplatz automatisch. Interessant wird die Seite ab dem zweiten Credential: mehrere Werte darunter werden in der aufgeschriebenen Reihenfolge verbraucht, erst die bezahlten Sitze, dann was pro Token kostet.",
-      "none": "Noch keine Arbeitsplätze angelegt.",
-      "add": "Arbeitsplatz anlegen",
+      "desc": "Ein Platz ist ein Vertrag: welche Engine, auf wessen Credential, mit welchem Modell. Für den einfachen Fall musst du hier nichts tun — wer ein Token unter Secrets hinterlegt und einen Agenten anlegt, bekommt den Platz von selbst. Wichtig wird die Seite mit dem zweiten Credential: Mehrere auf einem Platz werden in der notierten Reihenfolge verbraucht, die bezahlten Sitze zuerst, danach das, was pro Token kostet.",
+      "none": "Noch keine Plätze angelegt.",
+      "add": "Platz anlegen",
       "create": "Anlegen",
       "engine": "Engine",
       "name": "Bezeichnung",
       "namePlaceholder": "z. B. Claude Abo Team",
-      "deleteConfirm": "Arbeitsplatz „{{name}}“ wirklich löschen? Zugewiesene Agenten verlieren ihre Zuordnung.",
-      "noCapacity": "Keine Kapazität hinterlegt — auf diesem Arbeitsplatz kann niemand arbeiten.",
+      "deleteConfirm": "Platz „{{name}}“ wirklich löschen? Zugewiesene Agenten verlieren ihre Zuordnung.",
+      "noCapacity": "Keine Kapazität hinterlegt — auf diesem Platz kann niemand arbeiten.",
       "addCredential": "Kapazität hinzufügen",
       "removeCredentialConfirm": "Diese Kapazität wirklich entfernen?",
       "worksHere": "arbeitet hier:",
@@ -1539,8 +1553,8 @@
   },
   "targets": {
     "title": "Zielsysteme",
-    "subtitle": "Plugins — eingebaut oder als Manifest hochgeladen",
-    "desc": "Zielsysteme sind Plugins: Eingebaute werden mitkompiliert, eigene REST-Systeme binden Sie ohne Deploy als JSON-Manifest an.",
+    "subtitle": "Was Ihre Agenten bedienen — aus dem Store, selbst angebunden oder mitgeliefert",
+    "desc": "Zielsysteme sind Plugins. Die meisten holen Sie aus dem Store: ein Katalog, aus dem installiert wird, ohne Deploy und ohne neue Covey-Fassung. Mitgeliefert ist nur, was echten Code braucht — Protokolle jenseits von REST, OAuth-Flüsse, Arbeit in der Sandbox. Ein eigenes REST-System binden Sie als JSON-Manifest an.",
     "noAccess": "Ihre Rolle ({{role}}) kann Zielsysteme ansehen, aber nicht verwalten.",
     "noTargets": "Keine Zielsysteme registriert — dieses Binary wurde ohne Built-in-Plugins gebaut.",
     "search": "Suchen…",
@@ -1560,7 +1574,6 @@
     "summary": "{{total}} Plugins · {{active}} aktiv",
     "noMatch": "Kein Zielsystem passt zu Suche und Filter.",
     "noneActive": "Noch kein Zielsystem aktiviert.",
-    "toStore": "Zum Store",
     "details": "Details",
     "about": "Beschreibung",
     "close": "Schließen",
@@ -1629,7 +1642,10 @@
       "copy": "Kopieren",
       "optional": "optional",
       "stored": "hinterlegt"
-    }
+    },
+    "tabAvailable": "Vorhanden",
+    "toAvailable": "Zu den vorhandenen",
+    "kindWasm": "Code (wasm)"
   },
   "egress": {
     "title": "Egress",
@@ -2075,6 +2091,29 @@
     "codeUsedUp": "aufgebraucht",
     "revoke": "Zurückziehen"
   },
+  "catalog": {
+    "loading": "Katalog wird geladen …",
+    "disabled": "Für diese Instanz ist kein Store eingerichtet.",
+    "disabledHint": "Der Betreiber legt mit COVEY_MARKETPLACE_URL fest, aus welchem Katalog installiert werden darf — eine eigene Datei geht genauso, auch aus dem internen Netz. Ohne Store bleibt das, was die Instanz schon hat: die mitgelieferten Plugins und das, was von Hand hochgeladen wurde.",
+    "source": "Katalog:",
+    "fetched": "geholt um {{time}}",
+    "stale": "Der Katalog war zuletzt nicht erreichbar — angezeigt wird der letzte gültige Stand.",
+    "empty": "Keine Einträge zu dieser Suche.",
+    "by": "von",
+    "since": "ab Covey {{v}}",
+    "shipped": "mitgeliefert — unter „Vorhanden“ aktivieren",
+    "install": "Installieren",
+    "installing": "wird installiert …",
+    "installed": "installiert (v{{v}})",
+    "update": "Auf v{{v}} aktualisieren",
+    "taken": "Name bereits vergeben",
+    "takenHint": "Unter diesem Namen läuft hier schon ein Plugin, das nicht aus diesem Katalog stammt.",
+    "source2": "Quelle",
+    "arrivesDisabled": "Kommt abgeschaltet an — Zugangsdaten und Aktivierung bleiben ein eigener Schritt.",
+    "remove": "Deinstallieren",
+    "removeTitle": "{{name}} deinstallieren?",
+    "removeBody": "Das Plugin wird aus dieser Organisation entfernt. Der Katalog-Eintrag bleibt, du kannst es jederzeit wieder installieren. Gespeicherte Zugangsdaten bleiben ebenfalls stehen — die gehören dem Zielsystem, nicht dem Plugin."
+  },
   "runners": {
     "title": "Runner",
     "intro": "Wo die Sandboxen laufen. Jede Sandbox startet über das Runner-Protokoll — auf einer Einzelmaschine über einen Runner, den die Control Plane selbst betreibt.",
@@ -2136,5 +2175,45 @@
     "lintClean": "Nichts zu tun — keine Konfiguration fällt auf.",
     "blocking_one": "{{count}} Punkt hindert Agenten am Arbeiten.",
     "blocking_other": "{{count}} Punkte hindern Agenten am Arbeiten."
+  },
+  "workplaces": {
+    "title": "Arbeitsplätze",
+    "subtitle": "die Images, in denen Agenten arbeiten",
+    "desc": "Ein Arbeitsplatz ist das Image, in dem eine Sandbox startet — Werkzeug, keine Konfiguration. Welches Image dahinter liegt, sagt der veröffentlichte Katalog dieser Covey-Fassung; wer will, überschreibt es je Profil. Gewählt wird der Arbeitsplatz je Agent unter Einstellungen.",
+    "loadError": "Arbeitsplätze konnten nicht geladen werden.",
+    "default": "Voreinstellung",
+    "present": "liegt bereit",
+    "absent": "noch nicht hier",
+    "image": "Image:",
+    "pull": "Jetzt holen",
+    "pulling": "wird geholt …",
+    "pulled": "Geholt — der nächste Lauf startet ohne Wartezeit.",
+    "pullHint": "Mehrere Gigabyte. Sonst holt der Runner es beim ersten Wecken — dann wartet der erste Agent darauf.",
+    "buildHint": "Ein selbst gebautes Image kann keine Registry liefern: einmal `{{build}}` auf dem Host, auf dem die Sandboxen starten.",
+    "source": {
+      "catalog": "aus dem veröffentlichten Katalog, auf den Digest gepinnt",
+      "env": "von dieser Instanz gesetzt (COVEY_SANDBOX_IMAGE_…)",
+      "builtin": "Voreinstellung — lokal gebaut"
+    },
+    "worksHere": "hier arbeiten:",
+    "nobody": "niemand",
+    "delete": "Löschen",
+    "deleteTitle": "Arbeitsplatz „{{name}}“ löschen?",
+    "deleteBody": "Der Eintrag verschwindet aus der Auswahl. Das Image selbst bleibt, wo es liegt — gelöscht wird nur, dass diese Organisation ihm einen Namen gegeben hat.",
+    "add": "Eigenen Arbeitsplatz anlegen",
+    "create": "Anlegen",
+    "fieldName": "Name (wird am Agenten gewählt)",
+    "fieldLabel": "Bezeichnung",
+    "fieldDescription": "Wofür ist er da?",
+    "fieldDescriptionHint": "z. B. Flutter-Toolchain plus internes Zertifikat",
+    "fieldImage": "Image",
+    "ownHint": "Eigene Images werden hier angelegt und danach am Agenten ausgewählt — so stehen sie in einer Übersicht, tragen eine Beschreibung und ein Tippfehler fällt sofort auf statt beim ersten Wecken."
+  },
+  "infra": {
+    "title": "Infrastruktur",
+    "subtitle": "womit, worin und wo ein Agent arbeitet",
+    "tabRuntimes": "Engines",
+    "tabWorkplaces": "Arbeitsplätze",
+    "tabRunners": "Runner"
   }
 }

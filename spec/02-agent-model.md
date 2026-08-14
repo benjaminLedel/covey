@@ -42,9 +42,9 @@ The "employee's PC": an isolated sandbox with a **persistent home directory** th
 
 The persistent home covers files — **not** episodic memory across tasks. There is a separate memory layer for that (see [`05-memory.md`](05-memory.md)).
 
-### The workplace in the web interface
+### The home in the web interface
 
-The home is open in the web interface as a **file browser** (the *Workspace* tab on the agent): look through it, open things, edit text files, upload and download, create folders, rename, delete. That makes "what is actually lying around at this agent?" a question for the UI rather than for a shell on the host — and the way to hand an agent material (a template, a price list, a data set) no longer leads through a target system as a detour.
+The home is open in the web interface as a **file browser** (the *Files* tab on the agent): look through it, open things, edit text files, upload and download, create folders, rename, delete. That makes "what is actually lying around at this agent?" a question for the UI rather than for a shell on the host — and the way to hand an agent material (a template, a price list, a data set) no longer leads through a target system as a detour.
 
 **Whole folders, in both directions.** In: several files at once, via dialog or drag & drop — including a complete folder whose structure is preserved (the browser does not deliver a file tree here but entries the UI walks itself). Out: selected entries and whole folders as a **ZIP**, streamed rather than staged. The size is measured beforehand — "too large" has to be an error, not an archive that breaks off mid-download without showing it.
 

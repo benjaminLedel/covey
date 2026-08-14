@@ -41,10 +41,11 @@ The guiding metaphor from which the whole architecture follows: the platform is 
 | [`15-teams-integration.md`](15-teams-integration.md) | Target system Microsoft Teams (Azure Bot Framework): wake via messaging endpoint (JWT-verified), bot connector actions, OAuth2 broker, `blocked`↔conversation, correlation via `conversation.id` |
 | [`16-runner.md`](16-runner.md) | Distributed data plane: the built-in runner as the default, registered runners modelled on GitLab, runner protocol, central home store (content-addressed, deduplicated), per-agent sandbox images, trust boundary |
 | [`17-kpis.md`](17-kpis.md) | Performance indicators: KPIs as counting rules over recorded evidence, `KPIS.md` per agent, unit cost and productive share against the cost figures |
-| [`18-runtimes-capacity.md`](18-runtimes-capacity.md) | Runtimes as contracts: engine vs. configured workplace, credential pools per provider, merit order, reported utilisation, what a cost figure means |
+| [`18-runtimes-capacity.md`](18-runtimes-capacity.md) | Runtimes as contracts: engine vs. configured seat, credential pools per provider, merit order, reported utilisation, what a cost figure means |
 | [`19-codex-adapter.md`](19-codex-adapter.md) | Second engine (planned): `codex exec`, credential as a file vs. an environment variable, tokens without a price, no utilisation source |
 | [`20-hiring-and-setup.md`](20-hiring-and-setup.md) | Setup (the credential first, the company description as org master data) and hiring: the People department as an agent, the `covey` self-service actions, the draft state |
 | [`21-operations-and-improvement.md`](21-operations-and-improvement.md) | Why a workforce underperforms — config, assignment or the platform itself: the work record as recorded evidence, config changes as proposals a human accepts, issues against Covey's own repository |
+| [`22-plugin-marketplace.md`](22-plugin-marketplace.md) | Target systems from a catalogue: the index repository next to third-party plugin repositories, one catalogue file behind one configurable URL, the digest as the trust anchor, publishing by pull request |
 
 ## Design principles
 
@@ -64,7 +65,9 @@ The guiding metaphor from which the whole architecture follows: the platform is 
 - **Agent** — A configured, persistent entity with an identity, a sandbox, credentials and a backlog. The counterpart to the employee. An email address of its own is optional, not mandatory.
 - **Guard rail** — A centrally defined, platform-enforced limit on agent behaviour (e.g. an egress rule, a forbidden system/tool, a mandatory approval). It takes effect outside the runtime and cannot be circumvented by the agent.
 - **Engine** — The agent framework that runs the actual LLM loop (OpenHands, Harness, Claude Code …). A self-registering plugin, shipped with the binary, swappable. There is one of each.
-- **Runtime** — A configured workplace: an engine plus the capacity to run it — credential(s), model, limits. Data, not code; it has a name a person chose ("Claude subscription Ben"), and an agent is assigned to it. See [`18-runtimes-capacity.md`](18-runtimes-capacity.md).
+- **Runtime** — A configured seat: an engine plus the capacity to run it — credential(s), model, limits. Data, not code; it has a name a person chose ("Claude subscription Ben"), and an agent is assigned to it. See [`18-runtimes-capacity.md`](18-runtimes-capacity.md).
+- **Seat** — What an agent occupies on a runtime, and what the interface calls the runtime it is assigned to. Deliberately not "workplace": that word belongs to the sandbox side (below), and one word for two things is one word too few — a reader who meets it twice takes them for the same thing.
+- **Workplace** — The image an agent's sandbox starts from (`base`, `dev`, or one of your own). It hangs off the agent, not off the instance, and comes from a published catalogue pinned by digest. See [`16-runner.md`](16-runner.md).
 - **Capacity** — What a runtime can do before it runs out. Two kinds that pull in opposite directions: **quota** (a subscription seat, paid for regardless — unused quota is wasted money) and **metered** (an API key, billed per use — every token costs).
 - **Daemon** — The slim process inside the sandbox that speaks the uniform platform protocol and bootstraps the runtime.
 - **Control plane** — The central service: scheduler, identity broker, backlog store, observability. Knows the state of every agent.
@@ -75,6 +78,7 @@ The guiding metaphor from which the whole architecture follows: the platform is 
 - **Secrets broker** — The service that issues agents short-lived, scoped access tokens for target systems.
 - **Supervisor agent** — An optional agent that reviews other agents' activity and flags anomalies.
 - **Enforcement point** — A place where the platform sits in the data flow anyway (broker, egress, tool layer) and where guard rails are enforced technically.
+- **Plugin catalogue (marketplace)** — A JSON file behind a configurable URL listing installable target-system plugins. Its entries point at artefacts hosted anywhere and pin them by digest; publishing means a pull request against the index repository the catalogue is generated from. See [`22-plugin-marketplace.md`](22-plugin-marketplace.md).
 - **Organisation / tenant** — The unit a Covey instance is operated for. All agents, roles, guard rails, budgets and audits are org-scoped.
 - **Human role** — A person with defined rights on the platform (e.g. org admin, agent owner, security/compliance, auditor, controlling). Governed by RBAC, authenticated via SSO.
 - **Agent owner** — The person (usually a department's team lead) accountable for a particular agent: its config, its backlog priority, its approvals.
