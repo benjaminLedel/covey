@@ -331,12 +331,12 @@ func (s *Server) handleAssignRuntime(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// attachDefaultRuntime puts a fresh agent on its engine's workplace, creating
-// that workplace from the deposited credentials if it does not exist yet.
+// attachDefaultRuntime puts a fresh agent on its engine's seat, creating
+// that seat from the deposited credentials if it does not exist yet.
 //
-// Best effort throughout: an agent without a workplace is configurable and
+// Best effort throughout: an agent without a seat is configurable and
 // fixable, an agent that could not be created is not. What must not happen is
-// silence — without a workplace every run fails on a missing credential, and
+// silence — without a seat every run fails on a missing credential, and
 // the reason has to be findable in the log rather than in the code.
 func (s *Server) attachDefaultRuntime(ctx context.Context, orgID uuid.UUID, a agents.Agent) {
 	if s.Runtimes == nil || a.Runtime == "" {
@@ -344,22 +344,22 @@ func (s *Server) attachDefaultRuntime(ctx context.Context, orgID uuid.UUID, a ag
 	}
 	rt, err := s.Runtimes.EnsureDefault(ctx, orgID, a.Runtime)
 	if err != nil {
-		s.Log.Warn("workplace could not be set up — the agent has no capacity yet",
+		s.Log.Warn("seat could not be set up — the agent has no capacity yet",
 			"agent", a.Slug, "engine", a.Runtime, "err", err)
 		return
 	}
 	if err := s.Runtimes.Assign(ctx, orgID, a.ID, rt.ID); err != nil {
-		s.Log.Warn("agent could not be assigned to a workplace",
+		s.Log.Warn("agent could not be assigned to a seat",
 			"agent", a.Slug, "runtime", rt.ID, "err", err)
 	}
 }
 
 // syncDefaultRuntime attaches a newly deposited LLM credential to its engine's
-// workplace.
+// seat.
 //
 // The documented order is credential first, agent second — then creating the
 // agent picks the secret up. Whoever does it the other way round, or adds a
-// second seat later, would otherwise be left with a workplace that has no
+// second seat later, would otherwise be left with a seat that has no
 // capacity and no hint as to why.
 func (s *Server) syncDefaultRuntime(ctx context.Context, orgID uuid.UUID, key string) {
 	if s.Runtimes == nil {
@@ -371,7 +371,7 @@ func (s *Server) syncDefaultRuntime(ctx context.Context, orgID uuid.UUID, key st
 				continue
 			}
 			if _, err := s.Runtimes.EnsureDefault(ctx, orgID, d.Name); err != nil {
-				s.Log.Warn("workplace could not take up the credential",
+				s.Log.Warn("seat could not take up the credential",
 					"engine", d.Name, "secret", key, "err", err)
 			}
 			return

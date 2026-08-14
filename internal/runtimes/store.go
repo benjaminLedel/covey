@@ -353,7 +353,7 @@ func CanCarryBlocking(engine string) bool {
 //
 // This exists so that the SIMPLE case needs no extra step. Whoever installs
 // Covey deposits one token and creates one agent; being told to also create a
-// workplace and hang the token on it would be three steps for what is one
+// seat and hang the token on it would be three steps for what is one
 // decision — and the contract model only starts paying off with the second
 // credential. The first one it should carry silently.
 //
@@ -410,7 +410,7 @@ func (s *Store) EnsureDefault(ctx context.Context, orgID uuid.UUID, engine strin
 		}
 	}
 
-	// And whoever has no workplace at all moves in here. An agent without an
+	// And whoever has no seat at all moves in here. An agent without an
 	// assignment reaches no credential (spec/18) and fails every run at the
 	// login — with the token sitting right there under Secrets. That is not a
 	// decision anybody made, it is a gap, and the default is the only sensible

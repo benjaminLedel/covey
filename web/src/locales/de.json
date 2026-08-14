@@ -65,7 +65,7 @@
         },
         "runtimes": {
           "t": "Runtimes als Verträge",
-          "d": "Eine Runtime ist ein benannter Arbeitsplatz: Engine plus die Kapazität, sie zu betreiben. Wer mehrere Abo-Sitze oder API-Schlüssel hält, hinterlegt sie darunter — die Plattform verteilt die Agenten darauf, weicht bei Rate-Limits aus und bucht die Kosten auf den Vertrag, der sie getragen hat."
+          "d": "Eine Runtime ist ein benannter Platz: Engine plus die Kapazität, sie zu betreiben. Wer mehrere Abo-Sitze oder API-Keys hält, hinterlegt sie an einem Platz — verbraucht wird in der notierten Reihenfolge."
         },
         "sandbox": {
           "t": "Isolierte Sandboxen",
@@ -708,7 +708,7 @@
       "config": "Config",
       "settings": "Einstellungen",
       "skills": "Skills",
-      "files": "Arbeitsplatz",
+      "files": "Dateien",
       "toolsSkills": "Tools & Skills",
       "dreams": "Träume",
       "record": "Arbeitsakte"
@@ -1429,17 +1429,17 @@
     "noCredential": "● keine Credentials",
     "setup": "Einrichtung — {{label}}",
     "instances": {
-      "title": "Arbeitsplätze",
+      "title": "Plätze",
       "subtitle": "Engine plus die Kapazität, sie zu betreiben",
-      "desc": "Ein Arbeitsplatz ist ein Vertrag: welche Engine, auf wessen Credential, mit welchem Modell. Für den einfachen Fall musst du hier nichts tun — wer ein Token unter Secrets hinterlegt und einen Agenten anlegt, bekommt den Arbeitsplatz automatisch. Interessant wird die Seite ab dem zweiten Credential: mehrere Werte darunter werden in der aufgeschriebenen Reihenfolge verbraucht, erst die bezahlten Sitze, dann was pro Token kostet.",
-      "none": "Noch keine Arbeitsplätze angelegt.",
-      "add": "Arbeitsplatz anlegen",
+      "desc": "Ein Platz ist ein Vertrag: welche Engine, auf wessen Credential, mit welchem Modell. Für den einfachen Fall musst du hier nichts tun — wer ein Token unter Secrets hinterlegt und einen Agenten anlegt, bekommt den Platz von selbst. Wichtig wird die Seite mit dem zweiten Credential: Mehrere auf einem Platz werden in der notierten Reihenfolge verbraucht, die bezahlten Sitze zuerst, danach das, was pro Token kostet.",
+      "none": "Noch keine Plätze angelegt.",
+      "add": "Platz anlegen",
       "create": "Anlegen",
       "engine": "Engine",
       "name": "Bezeichnung",
       "namePlaceholder": "z. B. Claude Abo Team",
-      "deleteConfirm": "Arbeitsplatz „{{name}}“ wirklich löschen? Zugewiesene Agenten verlieren ihre Zuordnung.",
-      "noCapacity": "Keine Kapazität hinterlegt — auf diesem Arbeitsplatz kann niemand arbeiten.",
+      "deleteConfirm": "Platz „{{name}}“ wirklich löschen? Zugewiesene Agenten verlieren ihre Zuordnung.",
+      "noCapacity": "Keine Kapazität hinterlegt — auf diesem Platz kann niemand arbeiten.",
       "addCredential": "Kapazität hinzufügen",
       "removeCredentialConfirm": "Diese Kapazität wirklich entfernen?",
       "worksHere": "arbeitet hier:",

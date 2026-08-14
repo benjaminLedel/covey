@@ -84,7 +84,7 @@ describe("Reiter der Agenten-Seite", () => {
     zeigeAgent(`/agents/${AGENT_ID}`);
     await screen.findByRole("heading", { name: "Test-Agent" });
 
-    const erwartet = ["Backlog", "Recording", "Gedächtnis", "Arbeitsplatz", "Tools & Skills", "Einstellungen"];
+    const erwartet = ["Backlog", "Recording", "Gedächtnis", "Dateien", "Tools & Skills", "Einstellungen"];
     for (const label of erwartet) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
@@ -106,22 +106,22 @@ describe("Reiter der Agenten-Seite", () => {
     expect(screen.getByRole("tab", { name: "Skills" })).toBeInTheDocument();
   });
 
-  it("holt den Arbeitsplatz erst, wenn sein Reiter offen ist", async () => {
+  it("holt die Dateien erst, wenn ihr Reiter offen ist", async () => {
     const nutzer = userEvent.setup();
     const { netz } = zeigeAgent(`/agents/${AGENT_ID}`);
     await screen.findByRole("heading", { name: "Test-Agent" });
     expect(netz.calls.some((c) => c.includes("/files"))).toBe(false);
 
-    await nutzer.click(screen.getByRole("button", { name: "Arbeitsplatz" }));
+    await nutzer.click(screen.getByRole("button", { name: "Dateien" }));
     await waitFor(() => expect(netz.calls.some((c) => c.includes("/files"))).toBe(true));
   });
 });
 
 describe("Rollen", () => {
-  it("verbirgt den Arbeitsplatz vor Rollen ohne Zugriff", async () => {
+  it("verbirgt die Dateien vor Rollen ohne Zugriff", async () => {
     zeigeAgent(`/agents/${AGENT_ID}`, "auditor");
     await screen.findByRole("heading", { name: "Test-Agent" });
-    expect(screen.queryByRole("button", { name: "Arbeitsplatz" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Dateien" })).not.toBeInTheDocument();
     // Die übrigen Reiter bleiben.
     expect(screen.getByRole("button", { name: "Backlog" })).toBeInTheDocument();
   });
@@ -129,7 +129,7 @@ describe("Rollen", () => {
   it("zeigt ihn Security", async () => {
     zeigeAgent(`/agents/${AGENT_ID}`, "security");
     await screen.findByRole("heading", { name: "Test-Agent" });
-    expect(screen.getByRole("button", { name: "Arbeitsplatz" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Dateien" })).toBeInTheDocument();
   });
 });
 
@@ -177,9 +177,9 @@ describe("Unbekannte und englische Reiter-Namen", () => {
   });
 
   // Die englischen Namen der deutschen Slugs: wer „workspace" oder „settings"
-  // tippt, meint den Arbeitsplatz bzw. die Einstellungen.
+  // tippt, meint die Dateien bzw. die Einstellungen.
   for (const englisch of ["workspace", "files"]) {
-    it(`?tab=${englisch} oeffnet den Arbeitsplatz`, async () => {
+    it(`?tab=${englisch} oeffnet die Dateien`, async () => {
       const { netz } = zeigeAgent(`/agents/${AGENT_ID}?tab=${englisch}`);
       await screen.findByRole("heading", { name: "Test-Agent" });
       await waitFor(() => expect(netz.calls.some((c) => c.includes("/files"))).toBe(true));

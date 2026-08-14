@@ -503,7 +503,7 @@ Sequence and security model:
   (`COVEY_CHECKOUT_KEEP`, `0` switches the cleanup off). Which ones went is in
   the checkout result, because the agent may be holding a path from an earlier
   run. How full the sandbox is, and which working copies are eating it, is on
-  the agent's **Workplace** tab.
+  the agent's **Files** tab.
 - Protections: path traversal is refused, symlinks are skipped, and the unpacked
   size is limited (default 512 MB, `COVEY_GITLAB_CHECKOUT_MAX_MB`).
 - Guard-rail subjects: `gitlab:checkout`, `gitlab:list_tree`,

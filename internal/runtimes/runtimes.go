@@ -57,7 +57,7 @@ type Limit struct {
 
 func (l Limit) Active() bool { return l.WindowSecs > 0 && l.Amount > 0 }
 
-// Runtime is a configured workplace.
+// Runtime is a configured seat: an engine plus the capacity to run it.
 type Runtime struct {
 	ID          uuid.UUID    `json:"id"`
 	OrgID       uuid.UUID    `json:"org_id"`

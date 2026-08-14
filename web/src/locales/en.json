@@ -65,7 +65,7 @@
         },
         "runtimes": {
           "t": "Runtimes as contracts",
-          "d": "A runtime is a named workplace: an engine plus the capacity to run it. Hold several subscription seats or API keys and you put them underneath — the platform spreads agents across them, dodges rate limits, and books the cost against the contract that carried it."
+          "d": "A runtime is a named seat: an engine plus the capacity to run it. Hold several subscription seats or API keys and they sit on one seat — used up in the order written down."
         },
         "sandbox": {
           "t": "Isolated sandboxes",
@@ -708,7 +708,7 @@
       "config": "Config",
       "settings": "Settings",
       "skills": "Skills",
-      "files": "Workspace",
+      "files": "Files",
       "toolsSkills": "Tools & Skills",
       "dreams": "Dreams",
       "record": "Work record"
@@ -1429,17 +1429,17 @@
     "noCredential": "● no credentials needed",
     "setup": "Setup — {{label}}",
     "instances": {
-      "title": "Workplaces",
+      "title": "Seats",
       "subtitle": "an engine plus the capacity to run it",
-      "desc": "A workplace is a contract: which engine, on whose credential, with which model. For the simple case there is nothing to do here — deposit a token under Secrets, create an agent, and the workplace appears by itself. The page starts to matter with the second credential: several under one workplace are used up in the order written down, the paid-for seats first, then whatever costs per token.",
-      "none": "No workplaces created yet.",
-      "add": "Create workplace",
+      "desc": "A seat is a contract: which engine, on whose credential, with which model. For the simple case there is nothing to do here — deposit a token under Secrets, create an agent, and the seat appears by itself. The page starts to matter with the second credential: several under one seat are used up in the order written down, the paid-for seats first, then whatever costs per token.",
+      "none": "No seats created yet.",
+      "add": "Create seat",
       "create": "Create",
       "engine": "Engine",
       "name": "Name",
       "namePlaceholder": "e.g. Claude subscription team",
-      "deleteConfirm": "Really delete the workplace “{{name}}”? Assigned agents lose their assignment.",
-      "noCapacity": "No capacity configured — nobody can work on this workplace.",
+      "deleteConfirm": "Really delete the seat “{{name}}”? Assigned agents lose their assignment.",
+      "noCapacity": "No capacity configured — nobody can work on this seat.",
       "addCredential": "Add capacity",
       "removeCredentialConfirm": "Really remove this capacity?",
       "worksHere": "works here:",

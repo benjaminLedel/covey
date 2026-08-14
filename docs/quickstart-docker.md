@@ -44,7 +44,7 @@ That's it. `docker compose` starts three things:
 | Service | Job |
 |---|---|
 | `db` | PostgreSQL with `pgvector` (persistent in the volume `covey-db`) |
-| `bootstrap` | Creates the organisation, the admin login, a demo agent and its workplace once, then the container exits (idempotent) |
+| `bootstrap` | Creates the organisation, the admin login, a demo agent and its seat once, then the container exits (idempotent) |
 | `covey` | The control plane: API + orchestrator + the embedded admin UI on port **8494**. Migrations run automatically at start |
 
 ### Why step 3 is a step of its own
@@ -92,7 +92,7 @@ of which may be skipped:
    credential for it — for Claude Code an API key or a subscription token
    (generate the latter once with `claude setup-token`); for Codex an API key or
    the contents of `~/.codex/auth.json`. The value is checked against the
-   provider before it is stored, and the workplace (runtime) is created around
+   provider before it is stored, and the seat (runtime) is created around
    it. Without this every task fails with "Not logged in", because the sandbox
    has its own empty `HOME`.
 2. **What your company does.** Three to five sentences. They stay on the
@@ -128,7 +128,7 @@ and changed, and it does not work until you hire it. Drafts sit in their own
 access, supervisor and budget first, and rejecting discards the draft — nothing
 ran, so there is nothing to clean up.
 
-After logging in a **demo agent** already exists, with a workplace and a board —
+After logging in a **demo agent** already exists, with a seat and a board —
 hired, so it works as soon as the credential from step 1 is there.
 
 The demo agent has **no target system** on purpose — it works on the task text
