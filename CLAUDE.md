@@ -1,111 +1,117 @@
 # CLAUDE.md
 
-Orientierung für Claude Code in diesem Repository.
+Orientation for Claude Code in this repository.
 
-## Was ist Covey
+## What Covey is
 
-Enterprise-Plattform, die **KI-Agenten wie Mitarbeiter** behandelt: Identität, isolierte Sandbox, gebrokerte Zugänge, Backlog, Org-Chart, zentrale Governance. Einheit ist die **Organisation**, nicht der einzelne Nutzer. Leitmetapher: die **IT- und HR-Abteilung für KI-Agenten**.
+An enterprise platform that treats **AI agents like employees**: an identity, an isolated sandbox, brokered access, a backlog, a place in the org chart, central governance. The unit is the **organisation**, not the individual user. The guiding metaphor: the **IT and HR department for AI agents**.
 
-## Aktueller Zustand
+## Where it stands
 
-**Deutlich über den MVP hinaus.** Der MVP-Durchstich (M0–M7 aus `spec/11-mvp-plan.md`) steht längst; darauf aufgesetzt sind u. a. Org-Chart & Abteilungen, Mitarbeiter-Profile, weitere Zielsystem-Plugins (GitHub, GitLab, E-Mail/IMAP, MCP), Docker-Sandboxen, Egress-Kontrolle, ein QA-Agent-Bundle und das **Wiki-Gedächtnis** (verlinkte Markdown-Seiten + pgvector-Index statt flacher Schnipsel, spec/05). „M0–M7" markiert also die Grundlinie, nicht den aktuellen Umfang. Das Repo enthält:
+**Well past the MVP.** The vertical slice (M0–M7 from `spec/11-mvp-plan.md`) has long been in place; on top of it sit the org chart and departments, employee profiles, further target-system plugins (GitHub, GitLab, email/IMAP, MCP), docker sandboxes, egress control, a QA agent bundle, the **wiki memory** (linked markdown pages plus a pgvector index instead of flat snippets, `spec/05`), the **runner** (the data plane leaves the control plane's machine, `spec/16`) and the **plugin marketplace** (`spec/22`). "M0–M7" marks the baseline, not the current scope. The repository holds:
 
-- `spec/` — die vollständige Spezifikation (16 Dokumente, **englisch**). Einstieg: `spec/README.md`.
-- Den Code gemäß dem Layout aus `spec/10-architecture-stack.md`: `cmd/covey` (Control Plane), `cmd/coveyd` (Sandbox-Daemon), `internal/…`, `web/` (React-SPA, eingebettet), `migrations/` (eingebettet).
-- `internal/integration/` — die Abnahme-Checkliste aus `spec/11-mvp-plan.md` als Integrationstest-Suite (echtes Postgres auf Port 5433, In-Process-Daemon über echten WebSocket, Mock-Runtime, Fake-Zammad).
-- `demo/fakezammad/` — Zammad-Double für lokale Demos.
-- `mockup/covey-ui-mockup.html` — statischer HTML-Mockup; die React-UI übernimmt seine Design-Sprache (CSS-Variablen, Inter/Lora).
-- `.claude/skills/covey-agent/` — Claude-Code-Skill zum **Bauen/Designen/Aktualisieren von Covey-Agenten**: erzeugt ein `covey.agent-config`-Bundle nach den Repo-Konventionen (SOUL/PLAYBOOKS/ACCESS/HEARTBEAT, Loop-Schutz, warm_sandbox) und legt den Agenten optional per API an. Einstieg: die `SKILL.md` dort.
-- `praesentationen/*.pptx` — Pitch-/Investor-Material (nicht editieren, sofern nicht ausdrücklich gewünscht).
+- `spec/` — the full specification (22 documents, **English**). Start at `spec/README.md`.
+- The code, laid out as in `spec/10-architecture-stack.md`: `cmd/covey` (control plane), `cmd/coveyd` (sandbox daemon), `cmd/covey-runner` (the remote runner), `internal/…`, `web/` (React SPA, embedded), `migrations/` (embedded).
+- `internal/integration/` — the acceptance checklist from `spec/11-mvp-plan.md` as an integration test suite (a real Postgres on port 5433, an in-process daemon over a real WebSocket, a mock runtime, a fake Zammad).
+- `demo/fakezammad/` — a Zammad double for local demos.
+- `mockup/covey-ui-mockup.html` — a static HTML mockup; the React UI takes its design language from it (CSS variables, Inter/Lora).
+- `.claude/skills/covey-agent/` — a Claude Code skill for **building, designing and updating Covey agents**: it produces a `covey.agent-config` bundle following the repo's conventions (SOUL/PLAYBOOKS/ACCESS/HEARTBEAT, loop protection, `warm_sandbox`) and optionally creates the agent through the API. Start at its `SKILL.md`.
+- `praesentationen/*.pptx` — pitch and investor material (do not edit unless asked to).
 
-Entwicklungs-Workflow: `make dev-db && make bootstrap && make run` (siehe README). Tests: `make test`, Integrationstests: `make test-integration` (brauchen die Dev-DB; sie skippen, wenn Port 5433 nicht erreichbar ist). Vor dem Go-Build muss `web/dist` existieren (`cd web && npm run build`) — `//go:embed` zieht es ins Binary.
+Development workflow: `make dev-db && make bootstrap && make run` (see the README). Tests: `make test`; integration tests: `make test-integration` (they need the dev database and skip when port 5433 is unreachable). `web/dist` has to exist before the Go build (`cd web && npm run build`) — `//go:embed` pulls it into the binary.
 
-**Server nach Änderungen neu bauen und durchstarten.** `go build ./...` ist nur ein Kompilier-Check — es schreibt das `./covey`-Binary *nicht* neu. Damit Änderungen (Backend wie Web-UI) live sind: `make build` (baut `web/dist` + `covey` + `coveyd`), dann den laufenden `covey serve`-Prozess beenden (`pgrep -fl "covey serve"`) und via `make run` bzw. `COVEY_MASTER_KEY=$(cat .covey.key) ./covey serve` neu starten. Die Data Plane läuft über den **docker-Provider** (Default); nach coveyd-relevanten Änderungen `make sandbox-image` neu bauen, damit die Sandbox das neue Binary + chromium hat. Migrationen laufen beim `serve`-Start automatisch (Auto-Migrate mit advisory lock).
+**Rebuild and restart the server after a change.** `go build ./...` is a compile check only — it does *not* rewrite the `./covey` binary. To make a change live (backend or web UI): `make build` (builds `web/dist` + `covey` + `coveyd`), then stop the running `covey serve` process (`pgrep -fl "covey serve"`) and start it again via `make run` or `COVEY_MASTER_KEY=$(cat .covey.key) ./covey serve`. The data plane runs through the **docker provider** (the default); after a change that touches coveyd, the sandbox image needs rebuilding (`make sandbox-image`) or fetching (`make sandbox-images-pull`, which pulls the published images) so that the sandbox carries the new binary. Migrations run automatically at `serve` (auto-migrate behind an advisory lock).
 
-## Sprache & Konventionen
+## Language and conventions
 
-- **Spec und Runbooks sind auf Englisch.** `spec/` und `docs/` richten sich an alle, die Covey von GitHub installieren und betreiben — schreibe dort englisch, im Ton der bestehenden Dokumente (nüchtern, präzise, keine Marketing-Sprache). Dateinamen ebenfalls englisch (`spec/01-architecture.md`, `docs/ops-zammad.md`).
-- **Nicht übersetzt werden Zeichenketten, die aus dem Programm kommen:** Fehlermeldungen, Log-Zeilen, UI-Labels und Config-Syntax, die ein Parser liest (die `HEARTBEAT.md`-Schlüssel `alle:`/`täglich:`/`nur-wenn:`/`titel:`/`aufgabe:`). Sie stehen im Original, mit Erklärung daneben — eine übersetzte Fehlermeldung dokumentiert etwas, das so nie erscheint.
-- **Commit-Messages und Code-Kommentare sind englisch.** Das Repo liegt öffentlich auf GitHub, Dritte schreiben Plugins dagegen und lesen den Code — eine deutsche Historie schließt sie aus. Der *Ton* bleibt wie gehabt: eine Zeile, die sagt, was sich ändert und warum, nicht was angefasst wurde. Bestehende deutsche Kommentare werden nicht auf einen Schlag übersetzt; wer eine Stelle anfasst, zieht sie mit.
-- **README:** `README.md` ist **englisch** — die Visitenkarte für Dritte. Die deutsche Fassung liegt daneben in `README.de.md`. Beide beim Ändern gleichziehen; sie sind Übersetzungen voneinander, keine getrennten Dokumente.
-- **Die Oberfläche ist zweisprachig** (`web/src/locales/de.json`, `en.json`) — neue UI-Texte immer in beiden Dateien pflegen.
-- Spec-Dokumente verlinken sich gegenseitig relativ (`[`04-…`](04-identity-secrets.md)`). Diese Verlinkung beim Ändern konsistent halten.
-- Jede Datei in `spec/` hat einen klaren Zuständigkeitsbereich (siehe Tabelle in `spec/README.md`) — Inhalt in die richtige Datei schreiben, nicht duplizieren.
+- **Everything in this repository is English.** `spec/`, `docs/`, `README.md`, commit messages, code comments, branch names, file names. The repo is public on GitHub, third parties install Covey from it, write plugins against it and read the code — a German history and German comments shut them out. The *tone* stays as it was: sober, precise, no marketing language; a sentence says what changes and why, not what was touched.
+- **Strings that come out of the program are not translated:** error messages, log lines, UI labels and config syntax a parser reads (the `HEARTBEAT.md` keys `alle:`/`täglich:`/`nur-wenn:`/`titel:`/`aufgabe:`). They stand verbatim, with an explanation beside them — a translated error message documents something that never appears.
+- **Existing German comments are not translated in one sweep**; whoever touches a place brings it along.
+- **README:** `README.md` is the English calling card. The German version sits beside it in `README.de.md`. Keep both in step when changing one — they are translations of each other, not separate documents.
+- **The interface is bilingual** (`web/src/locales/de.json`, `en.json`) — always maintain new UI text in both files.
+- Spec documents link each other relatively (``[`04-…`](04-identity-secrets.md)``). Keep that linking consistent when changing things.
+- Every file in `spec/` has one clear area of responsibility (see the table in `spec/README.md`) — write content into the right file rather than duplicating it.
 
-## Kernarchitektur (zum schnellen Nachschlagen)
+## Core architecture (for quick reference)
 
-- **Control Plane** (zustandsführend, immer aktiv): Scheduler/Dispatcher, Agent-Registry & Org-Chart, Backlog-Store, Identitäts- & Secrets-Broker, Guard-Rail-/Policy-Engine, Observability, Config-Sync.
-- **Data Plane**: isolierte, ephemere Sandboxen mit persistentem `/home`. „Dumm und ersetzbar" — geht eine Sandbox verloren, wird sie aus Config + Home neu gebaut.
-- **Daemon-Protokoll**: bidirektional (WebSocket/gRPC) zwischen Control Plane und Sandbox-Daemon. Stabile Naht — Runtimes ändern sich, das Protokoll bleibt. Nachrichten in `spec/01-architecture.md`.
-- **Runtime-Adapter**: dünn, übersetzen zwischen Daemon-Protokoll und Runtime-Spezifika. Erster Adapter: Claude Code headless via `claude -p` (`spec/12-claude-code-adapter.md`).
+- **Control plane** (stateful, always on): scheduler/dispatcher, agent registry and org chart, backlog store, identity and secrets broker, guard-rail/policy engine, observability, config sync.
+- **Data plane**: isolated, ephemeral sandboxes with a persistent `/home`. "Dumb and replaceable" — if a sandbox is lost it is rebuilt from config plus home.
+- **Runner protocol**: every sandbox starts through it, including on a single machine, where the control plane runs a built-in runner itself (`spec/16`). That is what keeps the path to a remote host from being a second implementation.
+- **Daemon protocol**: bidirectional (WebSocket/gRPC) between control plane and sandbox daemon. A stable seam — runtimes change, the protocol stays. Messages in `spec/01-architecture.md`.
+- **Runtime adapters**: thin, translating between the daemon protocol and a runtime's specifics. The first one: Claude Code headless via `claude -p` (`spec/12-claude-code-adapter.md`).
 
-## Geplanter Stack (Referenz)
+## The stack
 
-- **Backend:** ein Go-Binary (Tendenz Go, endgültige Sprachwahl offen — D10). API/BFF + Orchestration-Core, ein Prozess, sauber getrennt.
-- **Frontend:** React-SPA + Tailwind + shadcn/ui + TanStack Query, WebSocket/SSE, **ins Binary eingebettet** (`//go:embed`).
-- **Postgres als Anker:** State, Backlog, RBAC, Queue (`SELECT … FOR UPDATE SKIP LOCKED`), Pub/Sub (`LISTEN/NOTIFY`), Memory (`pgvector`), AES-GCM-Secret-Spalten.
-- **Migrationen:** versionierte SQL unter `migrations/` (up/down), eingebettet via `//go:embed`, ausgeführt per `covey migrate up` mit `pg_advisory_lock`. Bestehende Migrationen nie editieren — immer neue anlegen.
-- **„Batteries included, but swappable":** zwei Ports tragen das Muster — `IdentityProvider` (builtin JWT/Argon2id ↔ `oidc`) und `SecretStore` (builtin AES-GCM ↔ `vault`). Interface vor Implementierung ziehen, auch wenn nur `builtin` existiert.
+- **Backend:** one Go binary. API/BFF plus orchestration core, one process, cleanly separated inside.
+- **Frontend:** React SPA + Tailwind + shadcn/ui + TanStack Query, WebSocket/SSE, **embedded into the binary** (`//go:embed`).
+- **Postgres as the anchor:** state, backlog, RBAC, queue (`SELECT … FOR UPDATE SKIP LOCKED`), pub/sub (`LISTEN/NOTIFY`), memory (`pgvector`), AES-GCM secret columns.
+- **Migrations:** versioned SQL under `migrations/` (up/down), embedded via `//go:embed`, run by `covey migrate up` behind a `pg_advisory_lock`. Never edit an existing migration — always add a new one. Numbers are consumed in order; when two branches take the same number, the test in `internal/db` says so and the newer branch renumbers.
+- **"Batteries included, but swappable":** two ports carry the pattern — `IdentityProvider` (builtin JWT/Argon2id ↔ `oidc`) and `SecretStore` (builtin AES-GCM ↔ `vault`). Draw the interface before the implementation, even while only `builtin` exists.
+- **A catalogue behind a URL** is the shape two things share: the plugin marketplace (`spec/22`) and the workplaces an agent's sandbox starts from (`spec/16`). One JSON file, fetched with a cache, pinned by digest, deciding nothing on its own — `marketplace.Feed` holds the mechanism, and a third catalogue should use it rather than bring its own.
 
-## Die drei Repos neben covey
+## The three repositories beside covey
 
-Plugin-Code liegt **nicht** in diesem Repo. Drei eigene Module tragen ihn, und die Trennung ist Absicht: ein Dritter soll genau dieselben Mittel haben wie wir, ohne privilegierten „ist einkompiliert"-Rang.
+Plugin code does **not** live in this repository. Three modules of their own carry it, and the separation is deliberate: a third party should have exactly the means we have, with no privileged "compiled in" tier.
 
-| Repo | Modul | Inhalt |
+| Repo | Module | Contents |
 |---|---|---|
-| [covey-plugin-sdk](https://github.com/benjaminLedel/covey-plugin-sdk) | `github.com/benjaminLedel/covey-plugin-sdk` | der Vertrag: `target.System`, Registry, `Descriptor`, Credential, Sandbox-Helfer, HTTP-Client. **Ohne Abhängigkeiten** — ein Plugin-Autor zieht sich nicht covey ans Bein. |
-| [covey-plugin-pack](https://github.com/benjaminLedel/covey-plugin-pack) | `github.com/benjaminLedel/covey-plugin-pack` | die zehn mitgelieferten Plugins als gewöhnlicher Go-Code, plus die Manifest-Plugins |
-| [covey-plugins](https://github.com/benjaminLedel/covey-plugins) | — | der Katalog: Einträge, die auf Artefakte irgendwo zeigen, per Digest festgenagelt |
+| [covey-plugin-sdk](https://github.com/benjaminLedel/covey-plugin-sdk) | `github.com/benjaminLedel/covey-plugin-sdk` | the contract: `target.System`, registry, `Descriptor`, credentials, sandbox helpers, HTTP client. **No dependencies** — a plugin author does not drag covey along. |
+| [covey-plugin-pack](https://github.com/benjaminLedel/covey-plugin-pack) | `github.com/benjaminLedel/covey-plugin-pack` | the ten shipped plugins as ordinary Go code, plus the manifest plugins |
+| [covey-plugins](https://github.com/benjaminLedel/covey-plugins) | — | the catalogue: entries pointing at artefacts hosted anywhere, pinned by digest |
 
-Der Abhängigkeitsgraph ist zyklenfrei: covey → SDK, Pack → SDK, covey → Pack (für den Standard-Build). **Nichts hängt an covey.**
+The dependency graph is acyclic: covey → SDK, pack → SDK, covey → pack (for the default build). **Nothing depends on covey.**
 
-Wer ein Plugin ändert, arbeitet also im Pack, nicht hier. Wer den Vertrag ändert (neues Interface, neuer Helfer), ändert das SDK — und muss daran denken, dass fremde Plugins dagegen bauen: Ergänzungen ja, Umbenennungen nur mit neuer Hauptversion.
+So whoever changes a plugin works in the pack, not here. Whoever changes the contract (a new interface, a new helper) changes the SDK — and has to remember that foreign plugins build against it: additions yes, renames only with a new major version.
 
-## Wo der Code liegen soll
+## Where the code goes
 
-Single-Binary-Go-Projekt mit **`go.mod` im Repo-Wurzelverzeichnis** — der Code liegt **neben `spec/`**, nicht in einem Unterordner. Frontend und Migrationen werden via `//go:embed` mitkompiliert und müssen deshalb im selben Modulbaum liegen. Layout aus `spec/10-architecture-stack.md`:
+A single-binary Go project with **`go.mod` at the repository root** — the code sits **beside `spec/`**, not in a subfolder. Frontend and migrations are compiled in via `//go:embed` and therefore have to live in the same module tree. Layout from `spec/10-architecture-stack.md`:
 
 ```
-covey/                    ← Repo-Wurzel = Go-Modul-Wurzel (go.mod hier)
-  cmd/covey/              main.go — Wiring, Flags, Subcommands (serve, migrate, bootstrap)
+covey/                    ← repo root = Go module root (go.mod here)
+  cmd/covey/              main.go — wiring, flags, subcommands (serve, migrate, bootstrap, doctor)
+  cmd/coveyd/             the sandbox daemon: protocol client + runtime adapters
+  cmd/covey-runner/       the remote runner: speaks the runner protocol, no database access
   internal/
-    orchestrator/         Dispatcher, State-Machine, Daemon-Verbindungen (Control-Plane-Seite)
-    agents/               Registry, Config-Kompilierung (SOUL.md → Prompt)
-    backlog/              Backlog-Store, Zustandsübergänge
+    orchestrator/         dispatcher, state machine, daemon connections (control-plane side)
+    agents/               registry, config compilation (SOUL.md → prompt)
+    backlog/              backlog store, state transitions
     identity/             IdentityProvider — builtin/ (JWT/Argon2id) + oidc/
     secrets/              SecretStore — builtin/ (AES-GCM) + vault/
-    target/               NUR die Plugin-Maschinerie: manifestplug/ (JSON-Engine), wasmplug/
-                          (WebAssembly-Laufzeit), mcp/, store/ (Aktivierung pro Org).
-                          KEIN Plugin-Code — der wohnt im Pack, siehe unten.
-    guardrails/           Policy-Engine, Enforcement-Punkte
-    observability/        Recording, Cost, Alerts
-    http/                 API/BFF-Handler, RBAC-Middleware
-  web/                    React/Vite-Frontend (dist/ via //go:embed eingebettet)
-  migrations/             SQL-Migrationen (up/down, via //go:embed eingebettet)
+    runner/               the pool (control-plane side), the node (runner side), the protocol
+    sandbox/              the workplace catalogue: profiles, published images, resolution
+    marketplace/          catalogue fetching with cache (Feed) — shared with sandbox/
+    target/               ONLY the plugin machinery: manifestplug/ (JSON engine), wasmplug/
+                          (WebAssembly runtime), mcp/, store/ (activation per org).
+                          NO plugin code — that lives in the pack, see above.
+    guardrails/           policy engine, enforcement points
+    observability/        recording, cost, alerts
+    httpapi/              API/BFF handlers, RBAC middleware
+  web/                    React/Vite frontend (dist/ embedded via //go:embed)
+  migrations/             SQL migrations (up/down, embedded via //go:embed)
   go.mod
-  ─────────────────────── (existierend, bleibt daneben)
+  ─────────────────────── (existing, stays beside it)
   spec/  mockup/  praesentationen/
 ```
 
-Begründung: ein Binary → `go.mod` in der Wurzel, `web/` + `migrations/` als Geschwister von `cmd/` (sonst greift `//go:embed` nicht). `internal/` hält die Pakete privat. Bei den Pluggable-Ports (`identity/`, `secrets/`) steht das Interface im Paket-Wurzel, die Implementierungen in Unterpackages — „Interface vor Implementierung".
+The reasoning: one binary → `go.mod` at the root, `web/` and `migrations/` as siblings of `cmd/` (otherwise `//go:embed` does not reach them). `internal/` keeps the packages private. For the pluggable ports (`identity/`, `secrets/`) the interface sits in the package root and the implementations in subpackages — "interface before implementation".
 
-**Offen / im Layout der Spec noch nicht vorgesehen:** Der **Sandbox-Daemon** (läuft *in* der Sandbox, spricht das Daemon-Protokoll, bootstrappt die Runtime) ist ein zweites, kleines Binary — voraussichtlich `cmd/coveyd/` mit `internal/daemon/` (Protokoll-Client + Runtime-Adapter). Das `orchestrator/`-Paket ist nur die Control-Plane-Seite dieser Verbindung.
+## When something new is built
 
-## Wenn mit dem Bau begonnen wird
+- **The thinnest vertical slice first** (end to end rather than layer by layer), `builtin` everywhere, exactly one of everything.
+- **Take the risky part early.** That was M1 (sandbox/daemon/runtime) and M4 (the `blocked` loop plus event correlation, with a design spike before the build); the rule generalises.
+- The MVP's definition of done is the acceptance checklist at the end of `spec/11-mvp-plan.md`.
 
-- **Dünnster vertikaler Durchstich zuerst** (end-to-end statt Layer für Layer), `builtin` überall, genau eins von allem (ein Agenten-Typ Support, eine Runtime Claude Code, ein Zielsystem Zammad, seriell).
-- **Zwei Risiko-Meilensteine früh:** M1 (Sandbox/Daemon/Runtime) und M4 (`blocked`-Loop + Event-Korrelation, mit Design-Spike zu D1 *vor* dem Bau).
-- Definition of Done des MVP = die Abnahme-Checkliste am Ende von `spec/11-mvp-plan.md`.
+## Guard rails (from the design principles)
 
-## Leitplanken (aus den Designprinzipien)
-
-- **Niemals langlebige Secrets in die Sandbox** — Zugriff zur Laufzeit brokern, kurzlebig, gescopt.
-- **Guard-Rails zentral erzwingen**, außerhalb der Runtime, fail-closed — nicht dem Agenten-Prompt überlassen.
-- **Krypto-Primitive ja, Krypto-Protokolle nein:** JWTs signieren / AES-GCM / Argon2id mit bewährten Libs; keinen eigenen OAuth/OIDC-Server nachbauen — das übernimmt der externe Provider.
-- **Config-as-Code:** Agentenverhalten (`SOUL.md`) versioniert, Änderung via PR/Review, nicht via Deploy.
+- **Never put long-lived secrets into the sandbox** — broker access at runtime, short-lived and scoped.
+- **Enforce guard rails centrally**, outside the runtime, fail-closed — never leave them to the agent's prompt.
+- **Crypto primitives yes, crypto protocols no:** sign JWTs / AES-GCM / Argon2id with proven libraries; do not rebuild an OAuth/OIDC server — that is the external provider's job.
+- **Config as code:** agent behaviour (`SOUL.md`) is versioned, changed by PR and review, not by deploy.
+- **A check that can never be satisfied is furniture.** Whatever the platform reports has to be able to end — by being fixed, or by somebody recording that they have taken the obligation. Two weeks of a permanent "!" and the finding beside it goes unread as well.
 
 ## Git
 
-- Branch `main`. **Zwei Remotes, und gepusht wird immer auf beide:** `origin` (GitLab, `gitlab.lapco.legal` — hier laufen Pipeline und Deploy) und `github` (`benjaminLedel/covey` — die öffentliche Fassung, von der Dritte Covey installieren). Ein Branch nur auf einem der beiden lässt die zwei Historien auseinanderlaufen; „push" heißt ohne weitere Angabe `git push origin <branch> && git push github <branch>`.
-- **Regelmäßig committen:** abgeschlossene, zusammengehörige Arbeitsschritte (Feature fertig, Tests grün) als eigenen Commit festhalten — nicht alles in einem Riesen-Commit sammeln. Commit-Messages auf **Englisch** (siehe „Sprache & Konventionen"). Branch-Namen ebenfalls englisch.
-- Nicht auf `main` committen ohne Rückfrage — vorher Branch anlegen. Push weiterhin nur auf ausdrückliche Bitte.
+- Branch `main`. **Two remotes, and both get every push:** `origin` (GitLab, `gitlab.lapco.legal` — pipeline and deploy run here) and `github` (`benjaminLedel/covey` — the public version third parties install Covey from). A branch on only one of them lets the two histories drift apart; "push" without further qualification means `git push origin <branch> && git push github <branch>`.
+- **Commit regularly:** hold a finished, coherent step (a feature done, tests green) as its own commit — do not collect everything into one huge one.
+- Do not commit to `main` without asking — create a branch first. Push only when explicitly asked.
