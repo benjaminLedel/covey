@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { NavLink, Route, Routes } from "react-router";
 import { api, type Agent, type Human, type OrgCostReport, type Organization, type Principal } from "../api";
 import Audit from "./Audit";
+import Diagnostics from "./Diagnostics";
 import { CompanyDescription, PlatformRepo } from "./Org";
 import { ProfileFieldsSettings } from "./Organizations";
 import Users from "./Users";
@@ -23,6 +24,7 @@ export default function Administration({ me }: { me: Principal }) {
       <Route path="members" element={<Members me={me} />} />
       <Route path="usage" element={<Usage />} />
       <Route path="audit" element={<AuditTab />} />
+      <Route path="diagnostics" element={<DiagnosticsTab me={me} />} />
     </Routes>
   );
 }
@@ -48,6 +50,9 @@ function Header() {
         </NavLink>
         <NavLink to="/administration/audit" className={({ isActive }) => (isActive ? "active" : "")}>
           {t("administration.tabAudit")}
+        </NavLink>
+        <NavLink to="/administration/diagnostics" className={({ isActive }) => (isActive ? "active" : "")}>
+          {t("administration.tabDiagnostics")}
         </NavLink>
       </nav>
     </>
@@ -81,6 +86,20 @@ function Members({ me }: { me: Principal }) {
     <div>
       <Header />
       <Users me={me} embedded />
+    </div>
+  );
+}
+
+/* Die Diagnose fragt, was ein Neustart hier anträfe und welche Agenten-Configs
+   nach einem Upgrade nachziehen müssen. Beides beantwortet org_admin — dieselbe
+   Rolle, die dieses Panel öffnet, und deshalb steht es hier auch. In der
+   Hauptnavigation bleibt es zusätzlich: Wer nach einem Upgrade nachsieht, sucht
+   es dort, wo er im Alltag entlanggeht (dasselbe Muster wie beim Audit). */
+function DiagnosticsTab({ me }: { me: Principal }) {
+  return (
+    <div>
+      <Header />
+      <Diagnostics me={me} embedded />
     </div>
   );
 }

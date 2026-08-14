@@ -2033,7 +2033,8 @@
     "members": "Members",
     "agents": "Agents",
     "agentsActive": "of them busy",
-    "cost30d": "Cost (30 days)"
+    "cost30d": "Cost (30 days)",
+    "tabDiagnostics": "Diagnostics"
   },
   "platform": {
     "title": "Platform",

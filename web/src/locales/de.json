@@ -2033,7 +2033,8 @@
     "members": "Mitglieder",
     "agents": "Agenten",
     "agentsActive": "davon beschäftigt",
-    "cost30d": "Kosten (30 Tage)"
+    "cost30d": "Kosten (30 Tage)",
+    "tabDiagnostics": "Diagnose"
   },
   "platform": {
     "title": "Plattform",

@@ -34,7 +34,9 @@ type AgentFindings = {
   findings: LintFinding[];
 };
 
-export default function Diagnostics({ me }: { me: Principal }) {
+/* embedded: unter dem Reiter der Verwaltung trägt die Seite ihre Überschrift
+   nicht selbst — dieselbe Regel wie beim Audit. */
+export default function Diagnostics({ me, embedded = false }: { me: Principal; embedded?: boolean }) {
   const { t } = useTranslation();
   // org_admin: der alte Name platform_admin ist seit 0061 keiner mehr.
   const isAdmin = me.Role === "org_admin";
@@ -52,7 +54,7 @@ export default function Diagnostics({ me }: { me: Principal }) {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-[22px]">{t("diagnostics.title")}</h1>
+        {!embedded && <h1 className="text-[22px]">{t("diagnostics.title")}</h1>}
         <p className="muted text-sm">{t("diagnostics.intro")}</p>
       </div>
 
