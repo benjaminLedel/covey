@@ -1074,7 +1074,13 @@
         "base": "base — Node, git, chromium, ripgrep",
         "dev": "dev — zusätzlich PHP, JDK, fvm, uv"
       },
-      "sandboxImageMissing": "Das Image {{image}} liegt auf keinem Runner dieser Organisation — bis es gebaut ist, scheitert jedes Aufwachen. Einmalig: {{build}}"
+      "sandboxImageMissing": "Das Image {{image}} liegt auf keinem Runner dieser Organisation — bis es gebaut ist, scheitert jedes Aufwachen. Einmalig: {{build}}",
+      "sandboxImageSource": {
+        "catalog": "aus dem veröffentlichten Katalog, auf den Digest gepinnt",
+        "env": "von dieser Instanz gesetzt (COVEY_SANDBOX_IMAGE_…)",
+        "builtin": "Voreinstellung — lokal gebaut"
+      },
+      "sandboxImagePulls": "Liegt noch nicht auf dem Runner — er zieht es beim ersten Wecken selbst."
     },
     "skills": {
       "desc": "Was dieser Agent an Fähigkeiten hat — eigene plus die ihm aus der Bibliothek verlinkten. Genau diese Liste landet vor jedem Lauf in seinem Home; von jedem Eintrag steht dauerhaft nur die Beschreibung im Kontext.",

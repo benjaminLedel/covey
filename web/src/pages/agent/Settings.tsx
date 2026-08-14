@@ -415,9 +415,31 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
           {(() => {
             const chosen = profiles.find((p) => p.name === (agent.sandbox_image || defaultProfile(profiles)));
             if (!chosen || chosen.available !== false) return null;
+            /* Ein Image aus dem Katalog fehlt nicht, es liegt nur noch nicht
+               hier: Es ist veröffentlicht und auf den Digest gepinnt, also
+               zieht der Runner es beim ersten Wecken. Zum Bauen zu raten wäre
+               ein Rat, den man nicht braucht — und auf einer
+               Container-Installation einer, den man nicht befolgen kann. */
+            if (chosen.source === "catalog") {
+              return <span className="muted">{t("agent.settings.sandboxImagePulls")}</span>;
+            }
             return (
               <span className="warn-text">
                 {t("agent.settings.sandboxImageMissing", { image: chosen.image, build: chosen.build })}
+              </span>
+            );
+          })()}
+          {/* Welches Image der gewählte Arbeitsplatz tatsächlich ist, und
+              woher die Adresse kommt. Beim Katalog ist sie auf den Digest
+              gepinnt und darum lang — sie steht trotzdem da: sie ist das
+              Einzige, woran man sieht, dass zwei Instanzen dasselbe starten. */}
+          {(() => {
+            const chosen = profiles.find((p) => p.name === (agent.sandbox_image || defaultProfile(profiles)));
+            if (!chosen?.image) return null;
+            return (
+              <span className="muted">
+                <span className="mono">{chosen.image}</span>
+                {chosen.source && " — " + t(`agent.settings.sandboxImageSource.${chosen.source}`)}
               </span>
             );
           })()}
@@ -534,6 +556,11 @@ type Workplace = {
   // anderes als „nicht da" und darf nicht so aussehen.
   available?: boolean;
   in_use: number;
+  /* Woher die Adresse stammt: aus dem veröffentlichten Katalog, aus einer
+     Umgebungsvariable dieser Instanz, oder aus der kompilierten
+     Voreinstellung (spec/16). Ohne diese Angabe müsste jemand zwischen drei
+     Quellen raten, wenn ein Image nicht das ist, was er erwartet hat. */
+  source?: "catalog" | "env" | "builtin";
 };
 
 function defaultProfile(profiles: Workplace[]): string {

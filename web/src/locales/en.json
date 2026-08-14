@@ -1074,7 +1074,13 @@
         "base": "base — Node, git, chromium, ripgrep",
         "dev": "dev — plus PHP, JDK, fvm, uv"
       },
-      "sandboxImageMissing": "The image {{image}} is on no runner of this organisation — until it is built, every wake fails. Once: {{build}}"
+      "sandboxImageMissing": "The image {{image}} is on no runner of this organisation — until it is built, every wake fails. Once: {{build}}",
+      "sandboxImageSource": {
+        "catalog": "from the published catalogue, pinned by digest",
+        "env": "set by this instance (COVEY_SANDBOX_IMAGE_…)",
+        "builtin": "default — built locally"
+      },
+      "sandboxImagePulls": "Not on the runner yet — it pulls the image on the first wake."
     },
     "skills": {
       "desc": "The capabilities this agent has — its own plus those linked from the library. Exactly this list is written into its home before every run; of each entry, only the description stays in context permanently.",
