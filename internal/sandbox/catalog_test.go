@@ -84,3 +84,26 @@ func TestVoreingestellteKatalogAdresse(t *testing.T) {
 		t.Fatalf("DefaultCatalogURL() = %q", got)
 	}
 }
+
+// Der Unterschied, an dem jeder Rat haengt: Ein Name ohne Registry existiert
+// nur auf der Maschine, die ihn gebaut hat — dort heisst „nicht da" bauen. Eine
+// veroeffentlichte Adresse holt `docker run` selbst.
+func TestPullable(t *testing.T) {
+	ziehbar := []string{
+		"ghcr.io/benjaminledel/covey-sandbox@sha256:abc",
+		"ghcr.io/benjaminledel/covey-sandbox:dev-latest",
+		"registry.example.com:5000/team/sandbox:1",
+		"localhost:5000/eigenes:1",
+	}
+	for _, ref := range ziehbar {
+		if !Pullable(ref) {
+			t.Errorf("Pullable(%q) = false", ref)
+		}
+	}
+	lokal := []string{"covey-sandbox:latest", "covey-sandbox-dev:latest", "", "postgres:16"}
+	for _, ref := range lokal {
+		if Pullable(ref) {
+			t.Errorf("Pullable(%q) = true — dann verschwindet der Bau-Hinweis", ref)
+		}
+	}
+}

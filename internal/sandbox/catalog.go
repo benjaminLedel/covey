@@ -176,6 +176,39 @@ func Resolve(env, catalogue map[string]string) map[string]string {
 	return out
 }
 
+// Pullable answers whether a reference names a registry — whether a host that
+// does not have this image can simply get it.
+//
+// The distinction matters wherever "the image is not here" is turned into
+// advice. `covey-sandbox:latest` is a name that exists only on a machine that
+// built it: not there means build it. A published reference is a different
+// case entirely — `docker run` fetches it on its own, so the honest answer is
+// "the first wake takes longer", not a build command that a container
+// installation cannot even run.
+//
+// The rule is docker's own: the first path segment is a registry when it
+// carries a dot or a port, or is localhost. Everything else is a name on
+// Docker Hub or, without a slash, a purely local tag — and Hub images we treat
+// as pullable too, because they are.
+func Pullable(ref string) bool {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return false
+	}
+	name, _, _ := strings.Cut(ref, "@") // Digest ab
+	first, rest, hatSlash := strings.Cut(name, "/")
+	if !hatSlash {
+		// Kein Schrägstrich: ein lokaler Name (covey-sandbox:latest) oder ein
+		// offizielles Hub-Image (postgres:16). Der Unterschied ist von außen
+		// nicht zu sehen, und die vorsichtige Antwort ist die richtige: Wer
+		// hier "ziehbar" sagt, verschluckt den Bau-Hinweis für genau den Fall,
+		// für den er gedacht ist.
+		return false
+	}
+	_ = rest
+	return strings.Contains(first, ".") || strings.Contains(first, ":") || first == "localhost"
+}
+
 func parseCatalog(body []byte) (*Catalog, error) {
 	var cat Catalog
 	if err := json.Unmarshal(body, &cat); err != nil {

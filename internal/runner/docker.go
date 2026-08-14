@@ -307,6 +307,16 @@ func (p *Docker) Check(ctx context.Context, req Check) ([]string, map[string]boo
 		if err == nil {
 			continue
 		}
+		// Ein veröffentlichtes Image ist nicht abwesend, es liegt nur noch
+		// nicht hier: `docker run` holt es beim ersten Wecken selbst. Das als
+		// „Data Plane nicht bereit" zu melden, sagt einer frischen
+		// Installation, sie sei kaputt — und riete ihr zu einem Bau, den sie
+		// nicht braucht und in einem Container nicht ausführen kann. Dass es
+		// noch nicht da ist, steht ohnehin an der Auswahl des Arbeitsplatzes
+		// (Workplaces meldet es je Image).
+		if sandbox.Pullable(image) {
+			continue
+		}
 		problems = append(problems, fmt.Sprintf(
 			"sandbox image %q is missing — %s (%s)",
 			image, buildHint(hints, image), firstLine(string(out), err)))
