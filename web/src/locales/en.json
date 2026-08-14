@@ -379,7 +379,8 @@
     "administration": "Organization",
     "approvals": "Approvals",
     "runners": "Runners",
-    "diagnostics": "Diagnostics"
+    "diagnostics": "Diagnostics",
+    "workplaces": "Workplaces"
   },
   "costs": {
     "title": "Cost & Tokens",
@@ -2167,5 +2168,27 @@
     "lintClean": "Nothing to do — no configuration stands out.",
     "blocking_one": "{{count}} item keeps agents from working.",
     "blocking_other": "{{count}} items keep agents from working."
+  },
+  "workplaces": {
+    "title": "Workplaces",
+    "subtitle": "the images agents work in",
+    "desc": "A workplace is the image a sandbox starts from — tooling, not configuration. Which image that is comes from the published catalogue for this Covey version; override it per profile if you want. The workplace itself is chosen per agent under Settings.",
+    "loadError": "The workplaces could not be loaded.",
+    "default": "default",
+    "present": "ready here",
+    "absent": "not here yet",
+    "inUse_one": "{{count}} agent works in it",
+    "inUse_other": "{{count}} agents work in it",
+    "image": "Image:",
+    "pull": "Fetch now",
+    "pulling": "fetching …",
+    "pulled": "Fetched — the next run starts without the wait.",
+    "pullHint": "Several gigabytes. Otherwise the runner fetches it on the first wake, and the first agent waits for it.",
+    "buildHint": "No registry can deliver a self-built image: run `{{build}}` once on the host where the sandboxes start.",
+    "source": {
+      "catalog": "from the published catalogue, pinned by digest",
+      "env": "set by this instance (COVEY_SANDBOX_IMAGE_…)",
+      "builtin": "default — built locally"
+    }
   }
 }

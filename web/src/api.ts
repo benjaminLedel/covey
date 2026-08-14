@@ -1199,6 +1199,32 @@ export type FileContent = {
   content: string;
 };
 
+// Ein Arbeitsplatz aus dem Katalog des Servers (spec/16): das Image, in dem ein
+// Agent arbeitet, plus das, was nur die Instanz dazu weiß — welches Image dahinter
+// liegt, woher die Adresse stammt und ob sie schon auf einem Runner liegt.
+export type Workplace = {
+  name: string;
+  label: string;
+  description: string;
+  /** Die Adresse, die tatsächlich gestartet wird; aus dem Katalog auf den Digest gepinnt. */
+  image: string;
+  /** Der Name, unter dem dasselbe Image veröffentlicht wurde ("base-v0.4.0"). */
+  tag?: string;
+  platforms?: string[];
+  build: string;
+  dockerfile: string;
+  default?: boolean;
+  // available fehlt, wenn niemand gefragt werden konnte — das ist etwas
+  // anderes als „nicht da" und darf nicht so aussehen.
+  available?: boolean;
+  in_use: number;
+  /* Woher die Adresse stammt: aus dem veröffentlichten Katalog, aus einer
+     Umgebungsvariable dieser Instanz, oder aus der kompilierten
+     Voreinstellung. Ohne diese Angabe müsste jemand zwischen drei Quellen
+     raten, wenn ein Image nicht das ist, was er erwartet hat. */
+  source?: "catalog" | "env" | "builtin";
+};
+
 // KI-Assistent zum Anpassen von Agenten (Config-Copilot, FR-001).
 export type AssistMessage = { role: "user" | "assistant"; content: string };
 export type AssistProposal = { file: string; content: string };

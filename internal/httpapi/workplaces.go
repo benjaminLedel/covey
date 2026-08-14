@@ -24,6 +24,12 @@ type workplaceView struct {
 	// image is not what they expected — without it they would have to guess
 	// between three places.
 	Source string `json:"source,omitempty"`
+	// Tag is the name the image was published under ("base-v0.4.0"). The
+	// reference in Image is pinned by digest and therefore unreadable; this is
+	// the same image in the form a human compares with a release note.
+	Tag string `json:"tag,omitempty"`
+	// Platforms is what the published manifest carries.
+	Platforms []string `json:"platforms,omitempty"`
 	// Available: the image lies on at least one runner of this organisation.
 	// Nil = nobody could be asked (no runner connected, or none answered) —
 	// which is something different from "not there" and must not be shown as
@@ -45,8 +51,13 @@ func (s *Server) handleListWorkplaces(w http.ResponseWriter, r *http.Request) {
 	if s.Config != nil {
 		env = s.Config.SandboxImageEnv
 	}
+	var eintraege map[string]sandbox.CatalogImage
 	if s.Workplaces != nil {
-		catalogue = s.Workplaces.Images(r.Context())
+		eintraege = s.Workplaces.Resolved(r.Context())
+		catalogue = map[string]string{}
+		for name, img := range eintraege {
+			catalogue[name] = img.Ref
+		}
 	}
 	images := sandbox.Resolve(env, catalogue)
 
@@ -70,6 +81,9 @@ func (s *Server) handleListWorkplaces(w http.ResponseWriter, r *http.Request) {
 			prof.Image = img
 		}
 		view := workplaceView{Profile: prof, Source: quelle, InUse: inUse[prof.Name]}
+		if img, ok := eintraege[prof.Name]; ok && quelle == "catalog" {
+			view.Tag, view.Platforms = img.Tag, img.Platforms
+		}
 		if prof.Default {
 			// An agent without a choice works here, and that is the majority of
 			// them — otherwise the default would look unused.
@@ -81,4 +95,33 @@ func (s *Server) handleListWorkplaces(w http.ResponseWriter, r *http.Request) {
 		out = append(out, view)
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// handlePullWorkplace fetches a workplace's image onto the organisation's
+// runners now, instead of leaving it to the first wake.
+//
+// Nothing about this changes configuration — it procures what the instance
+// would start anyway. What it buys is that the wait is visible: several
+// gigabytes in front of the first agent of the day look like a hanging wake,
+// and this is the same download with somebody watching it.
+func (s *Server) handlePullWorkplace(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	name := r.PathValue("name")
+	if _, ok := sandbox.Get(name); !ok {
+		writeErr(w, http.StatusNotFound, "no such workplace")
+		return
+	}
+	if s.RunnerPool == nil {
+		writeErr(w, http.StatusServiceUnavailable, "no runner pool")
+		return
+	}
+	image, problems, err := s.RunnerPool.PullWorkplace(r.Context(), p.OrgID, name)
+	if err != nil {
+		writeErr(w, http.StatusConflict, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"image":    image,
+		"problems": problems,
+	})
 }

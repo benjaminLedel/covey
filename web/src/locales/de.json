@@ -379,7 +379,8 @@
     "administration": "Administration",
     "approvals": "Freigaben",
     "runners": "Runner",
-    "diagnostics": "Diagnose"
+    "diagnostics": "Diagnose",
+    "workplaces": "Arbeitsplätze"
   },
   "costs": {
     "title": "Kosten & Token",
@@ -2167,5 +2168,27 @@
     "lintClean": "Nichts zu tun — keine Konfiguration fällt auf.",
     "blocking_one": "{{count}} Punkt hindert Agenten am Arbeiten.",
     "blocking_other": "{{count}} Punkte hindern Agenten am Arbeiten."
+  },
+  "workplaces": {
+    "title": "Arbeitsplätze",
+    "subtitle": "die Images, in denen Agenten arbeiten",
+    "desc": "Ein Arbeitsplatz ist das Image, in dem eine Sandbox startet — Werkzeug, keine Konfiguration. Welches Image dahinter liegt, sagt der veröffentlichte Katalog dieser Covey-Fassung; wer will, überschreibt es je Profil. Gewählt wird der Arbeitsplatz je Agent unter Einstellungen.",
+    "loadError": "Arbeitsplätze konnten nicht geladen werden.",
+    "default": "Voreinstellung",
+    "present": "liegt bereit",
+    "absent": "noch nicht hier",
+    "inUse_one": "{{count}} Agent arbeitet darin",
+    "inUse_other": "{{count}} Agenten arbeiten darin",
+    "image": "Image:",
+    "pull": "Jetzt holen",
+    "pulling": "wird geholt …",
+    "pulled": "Geholt — der nächste Lauf startet ohne Wartezeit.",
+    "pullHint": "Mehrere Gigabyte. Sonst holt der Runner es beim ersten Wecken — dann wartet der erste Agent darauf.",
+    "buildHint": "Ein selbst gebautes Image kann keine Registry liefern: einmal `{{build}}` auf dem Host, auf dem die Sandboxen starten.",
+    "source": {
+      "catalog": "aus dem veröffentlichten Katalog, auf den Digest gepinnt",
+      "env": "von dieser Instanz gesetzt (COVEY_SANDBOX_IMAGE_…)",
+      "builtin": "Voreinstellung — lokal gebaut"
+    }
   }
 }

@@ -56,6 +56,12 @@ const (
 	// disk. The basis for scheduling and for the warning before the disk runs
 	// short — not after.
 	TypeCapacity = "capacity"
+	// TypePullImage tells the runner to fetch a workplace image NOW instead of
+	// at the first wake. `docker run` would pull it by itself — but then the
+	// first agent of the day waits several gigabytes long for it, and from the
+	// outside that looks like a hanging wake, not like a download. Asked for
+	// deliberately, it happens while somebody is looking.
+	TypePullImage = "pull_image"
 )
 
 // Runner → control plane.
@@ -72,6 +78,7 @@ const (
 	TypeHomeSynced     = "home_synced"
 	TypeHomeResult     = "home_result"
 	TypeCapacityReport = "capacity_report"
+	TypePullResult     = "pull_result"
 	// TypeHeartbeat is the sign of life. It is not decoration: a TCP connection
 	// can be dead without either side noticing — a NAT that dropped the entry,
 	// a network partition, a laptop that closed. The pool would then keep
@@ -279,6 +286,17 @@ type Check struct {
 }
 
 // CheckResult lists what stands in the way. Empty = nothing does.
+// PullImage is the request: one image, on this runner.
+type PullImage struct {
+	Image string `json:"image"`
+}
+
+// PullResult reports what came of it. Err empty = the image now lies here.
+type PullResult struct {
+	Image string `json:"image"`
+	Err   string `json:"err,omitempty"`
+}
+
 type CheckResult struct {
 	Problems []string `json:"problems,omitempty"`
 	// Present answers Check.Report: image → is it here.

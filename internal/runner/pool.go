@@ -937,3 +937,50 @@ func (p *Pool) Workplaces(ctx context.Context, orgID uuid.UUID) map[string]bool 
 	}
 	return out
 }
+
+// PullWorkplace fetches a profile's image onto every runner of the
+// organisation — the deliberate version of what the first wake would do anyway.
+//
+// It waits: a caller who asks for this wants to know whether it worked, and an
+// answer that only says "started" would push the actual outcome into a place
+// where nobody looks. The timeout is generous for the same reason a sandbox
+// image is generous in size.
+//
+// The result names every runner that failed. Partial success is a real state
+// with several runners and must not be rounded to "done" — an agent scheduled
+// onto the one that failed would wait for a download nobody expects.
+func (p *Pool) PullWorkplace(ctx context.Context, orgID uuid.UUID, profile string) (image string, problems []string, err error) {
+	image = p.imageFor(ctx, profile)
+	if strings.TrimSpace(image) == "" {
+		return "", nil, fmt.Errorf("no image for workplace %q", profile)
+	}
+
+	p.mu.Lock()
+	var conns []*conn
+	for _, c := range p.conns {
+		if c.orgID == orgID {
+			conns = append(conns, c)
+		}
+	}
+	p.mu.Unlock()
+	if len(conns) == 0 {
+		return image, nil, errNoneInOrg
+	}
+
+	for _, c := range conns {
+		answer, err := c.ask(ctx, TypePullImage, PullImage{Image: image}, 30*time.Minute)
+		if err != nil {
+			problems = append(problems, fmt.Sprintf("runner %s: %v", short(c.runnerID), err))
+			continue
+		}
+		res, err := decode[PullResult](answer)
+		if err != nil {
+			problems = append(problems, fmt.Sprintf("runner %s: %v", short(c.runnerID), err))
+			continue
+		}
+		if res.Err != "" {
+			problems = append(problems, fmt.Sprintf("runner %s: %s", short(c.runnerID), res.Err))
+		}
+	}
+	return image, problems, nil
+}

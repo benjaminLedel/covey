@@ -312,6 +312,10 @@ func (s *Server) Handler() http.Handler {
 	// The workplaces from the catalogue (spec/16) — readable for everyone who
 	// may look at an agent, because that is where they are chosen.
 	mux.Handle("GET /api/v1/workplaces", s.rbac(anyRole, s.handleListWorkplaces))
+	// Das Image herholen, bevor der erste Agent darauf wartet. Wer Agenten
+	// verwaltet, darf das — es beschafft, was die Instanz ohnehin startet, und
+	// aendert an keiner Konfiguration etwas.
+	mux.Handle("POST /api/v1/workplaces/{name}/pull", s.rbac(manage, s.handlePullWorkplace))
 	mux.Handle("POST /api/v1/runners/registration-tokens", s.rbac(manage, s.handleCreateRegistrationToken))
 	mux.Handle("DELETE /api/v1/runners/{id}", s.rbac(manage, s.handleDeleteRunner))
 

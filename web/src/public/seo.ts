@@ -320,4 +320,5 @@ export const APP_ROUTE_PREFIXES = [
   "/targets",
   "/templates",
   "/users",
+  "/workplaces",
 ];

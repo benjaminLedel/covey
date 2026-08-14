@@ -74,8 +74,20 @@ type CatalogImage struct {
 	// CoveyVersion is the release tag ("v0.4.0") or RollingVersion.
 	CoveyVersion string `json:"covey_version"`
 	// Ref is the image, pinned by digest: ghcr.io/…/covey-sandbox@sha256:…
-	// A tag would be a moving target, and a moving target is not a pin.
+	// A tag would be a moving target, and a moving target is not a pin. This is
+	// what gets STARTED.
 	Ref string `json:"ref"`
+	// Tag is the same image under the name it was published as
+	// ("base-v0.4.0"). This is what gets SHOWN.
+	//
+	// Both, because they answer different questions and neither answers the
+	// other's. A digest says "exactly this, on every host, forever" — and it
+	// says it in sixty-four characters nobody reads. A tag says which image
+	// this is, in a form a human can compare with a release note. Showing only
+	// the digest turned every screen it appeared on into noise; pinning only
+	// the tag would give away the one property that makes the catalogue worth
+	// having.
+	Tag string `json:"tag,omitempty"`
 	// Platforms is what the manifest carries (linux/amd64, linux/arm64) —
 	// display, not a decision: the daemon picks its own architecture.
 	Platforms []string `json:"platforms,omitempty"`
@@ -137,6 +149,23 @@ func (s *Source) Images(ctx context.Context) map[string]string {
 	for _, e := range cat.Workplaces {
 		if img, ok := e.Find(version); ok && strings.TrimSpace(img.Ref) != "" {
 			out[e.Name] = img.Ref
+		}
+	}
+	return out
+}
+
+// Resolved is Images with the whole entry instead of only the reference — what
+// a view needs that wants to show the tag and say which platforms it carries.
+func (s *Source) Resolved(ctx context.Context) map[string]CatalogImage {
+	cat, _, _ := s.Catalog(ctx)
+	if cat == nil {
+		return nil
+	}
+	version := CatalogVersion()
+	out := map[string]CatalogImage{}
+	for _, e := range cat.Workplaces {
+		if img, ok := e.Find(version); ok && strings.TrimSpace(img.Ref) != "" {
+			out[e.Name] = img
 		}
 	}
 	return out

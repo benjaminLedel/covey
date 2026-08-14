@@ -10,6 +10,7 @@ import {
   del,
   type Agent,
   type RuntimeInfo,
+  type Workplace,
 } from "../../api";
 import ProfileForm from "../../components/ProfileForm";
 import { rollAgentName } from "../../names";
@@ -438,7 +439,12 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
             if (!chosen?.image) return null;
             return (
               <span className="muted">
-                <span className="mono">{chosen.image}</span>
+                {/* Der Tag ist der lesbare Name; der Digest, der tatsächlich
+                    startet, steht im title — sechzig Zeichen gehören nicht in
+                    eine Zeile, die man im Vorbeigehen liest. */}
+                <span className="mono" title={chosen.image}>
+                  {chosen.tag || chosen.image}
+                </span>
                 {chosen.source && " — " + t(`agent.settings.sandboxImageSource.${chosen.source}`)}
               </span>
             );
@@ -542,26 +548,6 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
     </>
   );
 }
-
-// Workplace ist ein Profil aus dem Katalog des Servers (spec/16).
-type Workplace = {
-  name: string;
-  label: string;
-  description: string;
-  image: string;
-  build: string;
-  dockerfile: string;
-  default?: boolean;
-  // available fehlt, wenn niemand gefragt werden konnte — das ist etwas
-  // anderes als „nicht da" und darf nicht so aussehen.
-  available?: boolean;
-  in_use: number;
-  /* Woher die Adresse stammt: aus dem veröffentlichten Katalog, aus einer
-     Umgebungsvariable dieser Instanz, oder aus der kompilierten
-     Voreinstellung (spec/16). Ohne diese Angabe müsste jemand zwischen drei
-     Quellen raten, wenn ein Image nicht das ist, was er erwartet hat. */
-  source?: "catalog" | "env" | "builtin";
-};
 
 function defaultProfile(profiles: Workplace[]): string {
   return profiles.find((p) => p.default)?.name ?? "";

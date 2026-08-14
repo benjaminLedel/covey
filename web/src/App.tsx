@@ -33,6 +33,7 @@ import Targets from "./pages/Targets";
 import Egress from "./pages/Egress";
 import Requests from "./pages/Requests";
 import Runners from "./pages/Runners";
+import Workplaces from "./pages/Workplaces";
 import Diagnostics from "./pages/Diagnostics";
 import Audit from "./pages/Audit";
 import Templates from "./pages/Templates";
@@ -511,6 +512,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
           <NavItem to="/templates" icon="copy" label={t("nav.templates")} />
           <NavItem to="/runtimes" icon="cpu" label={t("nav.runtimes")} />
           <NavItem to="/runners" icon="server" label={t("nav.runners")} />
+          <NavItem to="/workplaces" icon="box" label={t("nav.workplaces")} />
         </div>
         <div className="nav-sec">{t("nav.control")}</div>
         <div className="nav-group">
@@ -647,6 +649,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
             <Route path="/runtimes" element={<Runtimes me={me} />} />
             <Route path="/requests" element={<Requests me={me} />} />
             <Route path="/runners" element={<Runners me={me} />} />
+            <Route path="/workplaces" element={<Workplaces me={me} />} />
             <Route path="/diagnostics" element={<Diagnostics me={me} />} />
             <Route path="/audit" element={<Audit />} />
             <Route path="/targets" element={<Targets me={me} />} />

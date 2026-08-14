@@ -295,6 +295,7 @@ jobs:
               e["description"] = beschreibung[name]
               images = [i for i in e.get("images", []) if i.get("covey_version") != version]
               images.append({"covey_version": version, "ref": f"{image}@{digest}",
+                             "tag": f"{name}-{version}",
                              "platforms": ["linux/amd64", "linux/arm64"]})
               e["images"] = sorted(images, key=lambda i: i["covey_version"] != "main")
           cat["schema"] = 1
