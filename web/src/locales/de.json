@@ -380,7 +380,7 @@
     "approvals": "Freigaben",
     "runners": "Runner",
     "diagnostics": "Diagnose",
-    "workplaces": "Arbeitsplätze"
+    "infrastructure": "Infrastruktur"
   },
   "costs": {
     "title": "Kosten & Token",
@@ -2190,5 +2190,12 @@
       "env": "von dieser Instanz gesetzt (COVEY_SANDBOX_IMAGE_…)",
       "builtin": "Voreinstellung — lokal gebaut"
     }
+  },
+  "infra": {
+    "title": "Infrastruktur",
+    "subtitle": "womit, worin und wo ein Agent arbeitet",
+    "tabRuntimes": "Engines",
+    "tabWorkplaces": "Arbeitsplätze",
+    "tabRunners": "Runner"
   }
 }

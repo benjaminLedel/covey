@@ -112,7 +112,8 @@ function Zeile({ w, me }: { w: Workplace; me: Principal }) {
   );
 }
 
-export default function Workplaces({ me }: { me: Principal }) {
+/* embedded: siehe Runtimes — der Reiter trägt die Überschrift. */
+export default function Workplaces({ me, embedded = false }: { me: Principal; embedded?: boolean }) {
   const { t } = useTranslation();
   const list = useQuery({
     queryKey: ["workplaces"],
@@ -121,10 +122,12 @@ export default function Workplaces({ me }: { me: Principal }) {
 
   return (
     <div>
-      <div className="flex items-baseline gap-3 mb-2">
-        <h1 className="text-[22px]">{t("workplaces.title")}</h1>
-        <span className="muted">{t("workplaces.subtitle")}</span>
-      </div>
+      {!embedded && (
+        <div className="flex items-baseline gap-3 mb-2">
+          <h1 className="text-[22px]">{t("workplaces.title")}</h1>
+          <span className="muted">{t("workplaces.subtitle")}</span>
+        </div>
+      )}
       <p className="muted text-xs mb-4" style={{ maxWidth: 720 }}>
         {t("workplaces.desc")}
       </p>
