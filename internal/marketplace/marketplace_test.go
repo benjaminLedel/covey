@@ -168,9 +168,10 @@ func TestStaleCatalogueSurvivesAFailedRefresh(t *testing.T) {
 	}
 
 	// Force the cache to expire, then break the server.
-	c.mu.Lock()
-	c.fetched = c.fetched.Add(-2 * cacheTTL)
-	c.mu.Unlock()
+	f := c.catalog()
+	f.mu.Lock()
+	f.fetched = f.fetched.Add(-2 * cacheTTL)
+	f.mu.Unlock()
 	fail.Store(true)
 
 	// Stale but present: it comes back IMMEDIATELY. Nobody opening the store
@@ -184,9 +185,9 @@ func TestStaleCatalogueSurvivesAFailedRefresh(t *testing.T) {
 	// to surface, or stale data would quietly look current.
 	deadline := time.Now().Add(3 * time.Second)
 	for {
-		c.mu.Lock()
-		lastErr, refreshing := c.lastErr, c.refreshing
-		c.mu.Unlock()
+		f.mu.Lock()
+		lastErr, refreshing := f.lastErr, f.refreshing
+		f.mu.Unlock()
 		if lastErr != nil {
 			break
 		}

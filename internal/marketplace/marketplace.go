@@ -22,12 +22,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -171,21 +167,26 @@ type Client struct {
 	// Store keeps the last good catalogue across restarts (optional).
 	Store Cache
 	// Log receives background refresh failures. Optional; without it a failed
-	// refresh is only visible through lastErr on the next call.
+	// refresh is only visible through the error the next call carries.
 	Log *slog.Logger
 
-	mu      sync.Mutex
-	cached  *Catalog
-	fetched time.Time
-	// refreshing guards the background refresh: a store page opened by five
-	// people must produce one request to the foreign host, not five.
-	refreshing bool
-	loaded     bool
-	// lastErr is the failure of the most recent attempt while a cached
-	// catalogue is still being served — so the store can say "this is from
-	// 11:04 and the last refresh failed" instead of quietly showing stale data
-	// as if it were current.
-	lastErr error
+	// feed does the fetching, the caching and the stale handling — the part
+	// that is not about plugins and is therefore shared with the workplace
+	// catalogue (spec/16). Created on first use so that a Client stays usable
+	// as a plain struct literal, which is how the tests build it.
+	once sync.Once
+	feed *Feed[Catalog]
+}
+
+// catalog returns the feed, wired from the fields the caller set.
+func (c *Client) catalog() *Feed[Catalog] {
+	c.once.Do(func() {
+		c.feed = &Feed[Catalog]{
+			URL: c.URL, HTTP: c.HTTP, Store: c.Store, Log: c.Log,
+			Parse: parseCatalog, Name: "marketplace",
+		}
+	})
+	return c.feed
 }
 
 func New(catalogURL string) *Client {
@@ -201,122 +202,7 @@ func (c *Client) Enabled() bool { return c != nil && strings.TrimSpace(c.URL) !=
 // not instead of it: an unreachable catalogue must not make a store page empty,
 // and it must not look healthy either.
 func (c *Client) Catalog(ctx context.Context) (*Catalog, time.Time, error) {
-	if !c.Enabled() {
-		return nil, time.Time{}, ErrDisabled
-	}
-	c.loadStored(ctx)
-
-	c.mu.Lock()
-	cached, fetched, lastErr := c.cached, c.fetched, c.lastErr
-	fresh := cached != nil && time.Since(fetched) < cacheTTL
-	c.mu.Unlock()
-
-	if fresh {
-		return cached, fetched, nil
-	}
-	// Stale but present: hand it over NOW and refresh behind the page. Nobody
-	// opening the store should wait on a server somewhere on the internet, and
-	// a catalogue that is fifteen minutes old is not wrong — it is fifteen
-	// minutes old, which is what the timestamp next to it says.
-	if cached != nil {
-		c.refreshInBackground()
-		return cached, fetched, lastErr
-	}
-
-	// Nothing at all: this one has to wait.
-	cat, body, err := c.fetchCatalog(ctx)
-	if err != nil {
-		c.mu.Lock()
-		c.lastErr = err
-		c.mu.Unlock()
-		return nil, time.Time{}, err
-	}
-	return c.adopt(ctx, cat, body), c.fetched, nil
-}
-
-// adopt takes a freshly fetched catalogue into the cache (memory and store).
-func (c *Client) adopt(ctx context.Context, cat *Catalog, body []byte) *Catalog {
-	now := time.Now()
-	c.mu.Lock()
-	c.cached, c.fetched, c.lastErr = cat, now, nil
-	c.mu.Unlock()
-	if c.Store != nil {
-		// Deliberately not ctx: the request that triggered this may be done by
-		// now, and losing the cache write because the browser disconnected
-		// would be a silly way to keep waking a foreign host.
-		saveCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancel()
-		if err := c.Store.Save(saveCtx, c.URL, body, now); err != nil && c.Log != nil {
-			c.Log.Warn("marketplace: catalogue not cached", "err", err)
-		}
-	}
-	return cat
-}
-
-// loadStored fills the memory cache from the persistent one, once per process.
-func (c *Client) loadStored(ctx context.Context) {
-	c.mu.Lock()
-	if c.loaded || c.Store == nil {
-		c.loaded = true
-		c.mu.Unlock()
-		return
-	}
-	c.loaded = true
-	c.mu.Unlock()
-
-	body, at, err := c.Store.Load(ctx, c.URL)
-	if err != nil || len(body) == 0 {
-		if err != nil && c.Log != nil {
-			c.Log.Warn("marketplace: cached catalogue not readable", "err", err)
-		}
-		return
-	}
-	cat, err := parseCatalog(body)
-	if err != nil {
-		// A cached catalogue this build can no longer read (an older schema,
-		// say) is not an error to report — it is simply not usable, and the
-		// next fetch replaces it.
-		return
-	}
-	c.mu.Lock()
-	if c.cached == nil {
-		c.cached, c.fetched = cat, at
-	}
-	c.mu.Unlock()
-}
-
-// refreshInBackground refreshes the catalogue without holding anybody up. At
-// most one refresh runs at a time.
-func (c *Client) refreshInBackground() {
-	c.mu.Lock()
-	if c.refreshing {
-		c.mu.Unlock()
-		return
-	}
-	c.refreshing = true
-	c.mu.Unlock()
-
-	go func() {
-		defer func() {
-			c.mu.Lock()
-			c.refreshing = false
-			c.mu.Unlock()
-		}()
-		ctx, cancel := context.WithTimeout(context.Background(), fetchTimeout)
-		defer cancel()
-		cat, body, err := c.fetchCatalog(ctx)
-		if err != nil {
-			c.mu.Lock()
-			c.lastErr = err
-			c.mu.Unlock()
-			if c.Log != nil {
-				c.Log.Warn("marketplace: catalogue refresh failed — serving the last good copy",
-					"url", c.URL, "err", err)
-			}
-			return
-		}
-		c.adopt(ctx, cat, body)
-	}()
+	return c.catalog().Get(ctx)
 }
 
 // Entry looks one plugin up in the catalogue.
@@ -331,20 +217,6 @@ func (c *Client) Entry(ctx context.Context, name string) (Entry, error) {
 		}
 	}
 	return Entry{}, fmt.Errorf("%w: %s", ErrNotFound, name)
-}
-
-// fetchCatalog gets the catalogue and returns it along with the raw bytes, so
-// the caller can put exactly what was read into the persistent cache.
-func (c *Client) fetchCatalog(ctx context.Context) (*Catalog, []byte, error) {
-	body, err := c.get(ctx, c.URL, maxCatalog)
-	if err != nil {
-		return nil, nil, err
-	}
-	cat, err := parseCatalog(body)
-	if err != nil {
-		return nil, nil, err
-	}
-	return cat, body, nil
 }
 
 func parseCatalog(body []byte) (*Catalog, error) {
@@ -378,7 +250,7 @@ func (c *Client) Artifact(ctx context.Context, v Version, kind string) ([]byte, 
 	if kind == "wasm" {
 		limit = maxModule
 	}
-	body, err := c.get(ctx, v.URL, limit)
+	body, err := fetchBytes(ctx, c.HTTP, v.URL, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -389,56 +261,5 @@ func (c *Client) Artifact(ctx context.Context, v Version, kind string) ([]byte, 
 	return body, nil
 }
 
-// get performs one plain GET, or reads a file for a file:// URL — the
 // air-gapped case, where the catalogue is a mirror on disk rather than
 // something on the network.
-func (c *Client) get(ctx context.Context, raw string, limit int64) ([]byte, error) {
-	u, err := url.Parse(raw)
-	if err != nil {
-		return nil, fmt.Errorf("marketplace: %q is not a URL: %w", raw, err)
-	}
-	switch u.Scheme {
-	case "file":
-		path := u.Path
-		if u.Host != "" { // file://./relative — tolerate it rather than read nothing
-			path = filepath.Join(u.Host, u.Path)
-		}
-		body, err := os.ReadFile(path)
-		if err != nil {
-			return nil, fmt.Errorf("marketplace: %w", err)
-		}
-		if int64(len(body)) > limit {
-			return nil, fmt.Errorf("marketplace: %s is larger than %d bytes", raw, limit)
-		}
-		return body, nil
-	case "http", "https":
-	default:
-		return nil, fmt.Errorf("marketplace: scheme %q is not supported (http, https, file)", u.Scheme)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, raw, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Accept", "application/json")
-	httpc := c.HTTP
-	if httpc == nil {
-		httpc = &http.Client{Timeout: fetchTimeout}
-	}
-	resp, err := httpc.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("marketplace: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("marketplace: GET %s: HTTP %d", raw, resp.StatusCode)
-	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
-	if err != nil {
-		return nil, fmt.Errorf("marketplace: %w", err)
-	}
-	if int64(len(body)) > limit {
-		return nil, fmt.Errorf("marketplace: %s is larger than %d bytes", raw, limit)
-	}
-	return body, nil
-}
