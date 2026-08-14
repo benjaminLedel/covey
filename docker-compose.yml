@@ -40,6 +40,11 @@ x-covey-base: &covey-base
     COVEY_ADMIN_EMAIL: ${COVEY_ADMIN_EMAIL:-admin@covey.local}
     COVEY_ADMIN_PASSWORD: ${COVEY_ADMIN_PASSWORD:-covey-admin}
     COVEY_SANDBOX_IMAGE: ${COVEY_SANDBOX_IMAGE:-covey-sandbox:latest}
+    # The second workplace (profile `dev`). Existing agents were put there by
+    # the upgrade, because the image from before the split carried exactly what
+    # `dev` adds. Whoever still has that old image points this at it instead of
+    # building a second one.
+    COVEY_SANDBOX_IMAGE_DEV: ${COVEY_SANDBOX_IMAGE_DEV:-covey-sandbox-dev:latest}
   volumes:
     - ${PWD}/data:${PWD}/data
 

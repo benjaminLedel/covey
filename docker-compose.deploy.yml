@@ -37,6 +37,16 @@ x-covey-base: &covey-base
     COVEY_ADMIN_PASSWORD: ${COVEY_ADMIN_PASSWORD:?in .env setzen}
     COVEY_SANDBOX_PROVIDER: docker
     COVEY_SANDBOX_IMAGE: ${COVEY_SANDBOX_IMAGE:-covey-sandbox:latest}
+    # Der zweite Arbeitsplatz (Profil `dev`: PHP, JDK, fvm, uv obendrauf). Seit
+    # der Aufteilung in zwei Profile braucht ihn jede Installation, die
+    # Entwickler-Agenten hat — die Migration hat Bestandsagenten genau dorthin
+    # gesetzt, weil das Image VOR der Aufteilung all das trug.
+    #
+    # Ohne diese Zeile sucht der Host `covey-sandbox-dev:latest`, das eine
+    # Container-Installation nirgends her hat, und jedes Wecken scheitert am
+    # Start der Sandbox. Wer noch das alte, ungeteilte Image liegen hat, zeigt
+    # hier darauf — es IST der dev-Arbeitsplatz.
+    COVEY_SANDBOX_IMAGE_DEV: ${COVEY_SANDBOX_IMAGE_DEV:-covey-sandbox-dev:latest}
     # Wiki-Pflege (spec/05): legt jedem Agenten täglich einen Aufräum-Task an
     # (Duplikate zusammenführen, tote [[Verweise]] korrigieren). Der zentrale
     # Konsolidierungs-Pass arbeitet rein über Embedding-Ähnlichkeit und fasst

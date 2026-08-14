@@ -193,11 +193,21 @@ func (d *doctor) checkImages(ctx context.Context, pool *pgxpool.Pool) {
 		if target == "" {
 			// Somebody's own image: this repository has no command that would
 			// build it, and naming one anyway would send the reader in circles.
-			target = "docker pull " + image
+			d.problem("image "+image,
+				fmt.Sprintf("missing, %d agent(s) work in it", byImage[image]),
+				"docker pull "+image, true)
+			continue
+		}
+		// Two routes, because there are two kinds of installation. Whoever runs
+		// Covey as a container has no checkout and cannot run a make target —
+		// for them the answer is the variable, and after an upgrade that is the
+		// more common case, not the rarer one.
+		remedy := "build it: " + target
+		if env := sandbox.EnvVarFor(profiles, image); env != "" {
+			remedy += "; without a checkout set " + env + " to an image you have and restart"
 		}
 		d.problem("image "+image,
-			fmt.Sprintf("missing, %d agent(s) work in it", byImage[image]),
-			"build it: "+target, true)
+			fmt.Sprintf("missing, %d agent(s) work in it", byImage[image]), remedy, true)
 	}
 }
 

@@ -255,6 +255,63 @@ build-sandbox-image:
         PUSH_IMAGE: "false"
     - if: '$CI_COMMIT_BRANCH || $CI_COMMIT_TAG'
 
+# Der zweite Arbeitsplatz (Profil `dev`: PHP, JDK, fvm, uv auf dem base-Image).
+#
+# Seit der Aufteilung in zwei Profile ist er kein Extra mehr, sondern das, worin
+# Bestandsagenten laufen: Die Migration hat sie auf `dev` gesetzt, weil das
+# Image VOR der Aufteilung genau diese Werkzeuge trug. Eine Pipeline, die nur
+# base baut, liefert damit eine Instanz aus, in der jedes Wecken am fehlenden
+# Image scheitert — genau das ist nach dem Runner-Upgrade passiert.
+build-sandbox-dev-image:
+  stage: build
+  image: docker:27
+  services:
+    - docker:27-dind
+  needs:
+    - build-sandbox-image
+  variables:
+    DOCKER_BUILDKIT: "1"
+    DOCKER_TLS_CERTDIR: ""
+    DOCKER_HOST: tcp://docker:2375
+    PUSH_IMAGE: "true"
+  before_script:
+    - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+  script:
+    # Auf MRs steht das base-Image dieses Laufs nicht in der Registry (dort wird
+    # nur gebaut, nicht gepusht) — dann traegt der letzte main-Stand den Bau.
+    - |
+      if docker pull "$CI_REGISTRY_IMAGE/sandbox:$CI_COMMIT_SHORT_SHA"; then
+        BASE="$CI_REGISTRY_IMAGE/sandbox:$CI_COMMIT_SHORT_SHA"
+      else
+        docker pull "$CI_REGISTRY_IMAGE/sandbox:latest"
+        BASE="$CI_REGISTRY_IMAGE/sandbox:latest"
+      fi
+      echo "Baue dev auf $BASE"
+      docker pull "$CI_REGISTRY_IMAGE/sandbox-dev:latest" || true
+      docker build \
+        --cache-from "$CI_REGISTRY_IMAGE/sandbox-dev:latest" \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        --build-arg "BASE_IMAGE=$BASE" \
+        --file Dockerfile.sandbox.dev \
+        --tag "$CI_REGISTRY_IMAGE/sandbox-dev:$CI_COMMIT_SHORT_SHA" \
+        .
+    - |
+      if [ "$PUSH_IMAGE" != "true" ]; then
+        echo "MR-Pipeline: dev-Sandbox-Image nur gebaut, nicht gepusht."
+        exit 0
+      fi
+    - docker push "$CI_REGISTRY_IMAGE/sandbox-dev:$CI_COMMIT_SHORT_SHA"
+    - |
+      if [ "$CI_COMMIT_BRANCH" = "$CI_DEFAULT_BRANCH" ]; then
+        docker tag "$CI_REGISTRY_IMAGE/sandbox-dev:$CI_COMMIT_SHORT_SHA" "$CI_REGISTRY_IMAGE/sandbox-dev:latest"
+        docker push "$CI_REGISTRY_IMAGE/sandbox-dev:latest"
+      fi
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      variables:
+        PUSH_IMAGE: "false"
+    - if: '$CI_COMMIT_BRANCH || $CI_COMMIT_TAG'
+
 # Rollt das gerade gebaute Image auf dem Zielhost aus. Voraussetzung: ein
 # GitLab-Runner mit Executor `shell` läuft AUF dem Zielhost und ist mit dem Tag
 # `covey-deploy` registriert; Docker + Compose-Plugin sind dort installiert.
@@ -270,6 +327,7 @@ deploy:
   needs:
     - build-image
     - build-sandbox-image
+    - build-sandbox-dev-image
   variables:
     DEPLOY_DIR: /opt/covey
     GIT_STRATEGY: fetch
@@ -313,19 +371,25 @@ deploy:
     # `docker run` aus dem covey-Container heraus hat keine Registry-Credentials,
     # darf also nie selbst pullen müssen.
     - export COVEY_SANDBOX_IMAGE="$CI_REGISTRY_IMAGE/sandbox:$CI_COMMIT_SHORT_SHA"
+    # Und derselbe Weg fuer den zweiten Arbeitsplatz. Ohne ihn suchte der Host
+    # `covey-sandbox-dev:latest` und faende nichts — Bestandsagenten stehen seit
+    # dem Runner-Upgrade auf dem Profil `dev`.
+    - export COVEY_SANDBOX_IMAGE_DEV="$CI_REGISTRY_IMAGE/sandbox-dev:$CI_COMMIT_SHORT_SHA"
     # Reicht das schonende Aufräumen nicht (etwa weil die Platte allein durch die
     # Deploys von heute vollgelaufen ist), einmal hart aufräumen und erneut
     # ziehen. `prune -a` nimmt dann auch das bisherige Sandbox-Image mit — das
     # ist verschmerzbar, weil direkt danach das neue kommt, und allemal besser
     # als ein Deploy, der gar nicht durchgeht.
     - |
-      if ! docker pull "$COVEY_SANDBOX_IMAGE"; then
-        echo "Pull fehlgeschlagen — räume alle ungenutzten Images weg und versuche erneut."
-        docker image prune -af || true
-        docker system df || true
-        docker pull "$COVEY_SANDBOX_IMAGE"
-      fi
-    - echo "Deploye $COVEY_IMAGE (Sandbox $COVEY_SANDBOX_IMAGE) nach $DEPLOY_DIR"
+      for img in "$COVEY_SANDBOX_IMAGE" "$COVEY_SANDBOX_IMAGE_DEV"; do
+        if ! docker pull "$img"; then
+          echo "Pull von $img fehlgeschlagen — räume alle ungenutzten Images weg und versuche erneut."
+          docker image prune -af || true
+          docker system df || true
+          docker pull "$img"
+        fi
+      done
+    - echo "Deploye $COVEY_IMAGE (Sandbox $COVEY_SANDBOX_IMAGE, dev $COVEY_SANDBOX_IMAGE_DEV) nach $DEPLOY_DIR"
     - cd "$DEPLOY_DIR"
     # Die aktuellen Image-Tags zusätzlich in der .env persistieren: nur so
     # funktionieren manuelle Compose-Befehle auf dem Host (z. B.
@@ -333,7 +397,7 @@ deploy:
     # Die Secrets in der .env bleiben unberührt; beim CI-Lauf selbst gewinnt
     # weiterhin die Shell-Umgebung über die .env-Interpolation.
     - |
-      for var in COVEY_IMAGE COVEY_SANDBOX_IMAGE; do
+      for var in COVEY_IMAGE COVEY_SANDBOX_IMAGE COVEY_SANDBOX_IMAGE_DEV; do
         val=$(printenv "$var")
         if grep -q "^$var=" .env; then
           sed -i "s|^$var=.*|$var=$val|" .env

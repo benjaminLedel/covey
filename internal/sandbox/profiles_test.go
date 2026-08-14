@@ -64,6 +64,27 @@ func TestBuildHintOnlyForOwnImages(t *testing.T) {
 	}
 }
 
+// Die andere Haelfte der Antwort. Eine Installation als Container hat kein
+// Repository und kann kein `make` ausfuehren — fuer sie ist die Variable der
+// ganze Weg, und ohne sie las die Meldung wie eine Anweisung ins Leere.
+func TestEnvVarForImage(t *testing.T) {
+	dev, _ := Get("dev")
+	if got := EnvVarFor(nil, dev.Image); got != "COVEY_SANDBOX_IMAGE_DEV" {
+		t.Errorf("EnvVarFor(%q) = %q", dev.Image, got)
+	}
+	// Auch fuer ein umbenanntes Image: gemeldet wird das umbenannte, und die
+	// Variable ist trotzdem die des Profils.
+	if got := EnvVarFor(map[string]string{"dev": "our-dev:1"}, "our-dev:1"); got != "COVEY_SANDBOX_IMAGE_DEV" {
+		t.Errorf("EnvVarFor(umbenannt) = %q", got)
+	}
+	// Ein fremdes Image gehoert zu keinem Profil — dort gibt es nichts zu
+	// ueberschreiben, und eine Variable zu nennen behauptete einen Regler, der
+	// nicht passt.
+	if got := EnvVarFor(nil, "registry.example.com/team/sandbox:2026-08"); got != "" {
+		t.Errorf("fremdes Image darf keine Variable nennen: %q", got)
+	}
+}
+
 func TestEnvVarNames(t *testing.T) {
 	if got := EnvVar("dev"); got != "COVEY_SANDBOX_IMAGE_DEV" {
 		t.Errorf("EnvVar(dev) = %q", got)

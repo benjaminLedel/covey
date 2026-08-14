@@ -59,6 +59,24 @@ Without it every wake fails with *sandbox image "covey-sandbox-dev:latest" is
 missing*. `covey doctor` names it before the restart, with how many agents are
 waiting on it; the startup check and the agent overview say it afterwards.
 
+**Running Covey as a container?** Then there is no checkout and no `make`, and
+the image has to come from somewhere else. Two ways, both a line in the
+deployment's `.env`:
+
+```bash
+# a) the image you already have. The one from before the split carried PHP, JDK,
+#    fvm and uv — it IS the dev workplace, whatever it is tagged.
+COVEY_SANDBOX_IMAGE_DEV=covey-sandbox:latest
+
+# b) the image your registry builds (the deploy pipeline pushes it next to the
+#    base one and pins it; this is what an instance deployed from CI gets)
+COVEY_SANDBOX_IMAGE_DEV=registry.example.com/covey/sandbox-dev:<tag>
+```
+
+`docker compose up -d` afterwards. The variable exists for every profile —
+`COVEY_SANDBOX_IMAGE_<PROFILE>` — and the startup check names the one that fits
+the missing image.
+
 Afterwards, move the agents that do not need a toolchain to `base` (agent →
 settings → *workplace*). That is what the split is for: a mail agent should not
 carry a JVM. It is a decision per agent and not one a migration makes.

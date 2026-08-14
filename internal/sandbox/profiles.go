@@ -150,6 +150,22 @@ func BuildHint(overrides map[string]string, image string) string {
 	return ""
 }
 
+// EnvVarFor is BuildHint's other half: which variable assigns THIS image's
+// profile a different image. An installation without a checkout cannot run a
+// make target, and for it that variable is the whole answer.
+//
+// Empty for an image that belongs to no profile — there is nothing to override
+// there, and naming a variable would suggest a knob that does not fit.
+func EnvVarFor(overrides map[string]string, image string) string {
+	image = strings.TrimSpace(image)
+	for name, ref := range Images(overrides) {
+		if ref == image {
+			return EnvVar(name)
+		}
+	}
+	return ""
+}
+
 // KnownImages lists the images of all profiles, sorted — the set the interface
 // asks a runner about to say which workplaces are ready here.
 func KnownImages(overrides map[string]string) []string {

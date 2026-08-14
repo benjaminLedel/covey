@@ -24,8 +24,11 @@ The pipeline (`.gitlab-ci.yml`) has three stages: `test → build → deploy`.
      `$DEPLOY_DIR/docker-compose.yml` (default `/opt/covey`),
    - creates, on the **first** deploy, a one-off `.env` with a random
      master key + passwords (never touched again afterwards),
-   - sets `COVEY_IMAGE` to `…/covey:$CI_COMMIT_SHORT_SHA`, pulls the
-     sandbox image onto the host and pins it via `COVEY_SANDBOX_IMAGE`,
+   - sets `COVEY_IMAGE` to `…/covey:$CI_COMMIT_SHORT_SHA`, pulls **both**
+     sandbox images onto the host and pins them via `COVEY_SANDBOX_IMAGE`
+     (profile `base`) and `COVEY_SANDBOX_IMAGE_DEV` (profile `dev`) — the
+     workplace hangs off the agent since the split, and an instance whose
+     agents are on `dev` fails every wake without that second image,
    - `docker compose pull && docker compose up -d`.
 
 ### Sandbox isolation in the deployment
