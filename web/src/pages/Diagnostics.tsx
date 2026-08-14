@@ -1,7 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, type Principal } from "../api";
+import { api, post, type Principal } from "../api";
 
 // Plattform-Diagnose: was ein Neustart hier anträfe, und welche Agenten-Configs
 // nach einem Upgrade nachziehen müssen.
@@ -40,6 +40,18 @@ export default function Diagnostics({ me, embedded = false }: { me: Principal; e
   const { t } = useTranslation();
   // org_admin: der alte Name platform_admin ist seit 0061 keiner mehr.
   const isAdmin = me.Role === "org_admin";
+
+  const qc = useQueryClient();
+  /* Die eine Zeile, die die Plattform nicht selbst erledigen kann: Ob der
+     Blockspeicher in der Sicherung liegt, sieht sie nicht — sie kann nur
+     festhalten, dass jemand die Pflicht übernommen hat. Ohne diesen Schritt
+     stünde der Hinweis für immer da, und ein Hinweis ohne Ende wird nicht mehr
+     gelesen — auch der daneben nicht. */
+  const bestaetigen = useMutation({
+    mutationFn: (confirmed: boolean) =>
+      post<{ confirmed_at: string }>("/platform/doctor/home-store-backup", { confirmed }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["platform-doctor"] }),
+  });
 
   const doctor = useQuery({
     queryKey: ["platform-doctor"],
@@ -93,6 +105,18 @@ export default function Diagnostics({ me, embedded = false }: { me: Principal; e
                       <td>
                         <div>{f.detail}</div>
                         {f.remedy && <div className="muted text-xs">→ {f.remedy}</div>}
+                        {f.what === "home store" && (
+                          <button
+                            className="btn sm"
+                            style={{ marginTop: 6 }}
+                            disabled={bestaetigen.isPending}
+                            onClick={() => bestaetigen.mutate(f.ok !== true)}
+                          >
+                            {f.ok
+                              ? t("diagnostics.backupWithdraw")
+                              : t("diagnostics.backupConfirm")}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}

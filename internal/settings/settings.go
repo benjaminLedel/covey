@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -33,6 +34,15 @@ const (
 	// SiteName: what this installation calls itself on the sign-up page and
 	// later in the mails it sends.
 	SiteName = "site.name"
+	// HomeStoreBackup: the date on which somebody confirmed that the block
+	// store is in this installation's backup. Empty = nobody has yet.
+	//
+	// A setting that records a promise instead of enforcing one, and that is
+	// the point: the platform cannot look into somebody's backup, but the
+	// obligation it added (spec/16 — of a 7 GB home, 48 MB exist nowhere else)
+	// has to be able to END. A check that stands on "!" forever is furniture
+	// after two weeks, and then the finding next to it is not read either.
+	HomeStoreBackup = "homestore.backup_confirmed"
 )
 
 // The modes of signup.mode.
@@ -51,9 +61,10 @@ const (
 // public registration form on somebody's internal instance would be an
 // incident, not a feature.
 var Defaults = map[string]string{
-	SignupMode:     ModeOff,
-	SignupOrgQuota: "1",
-	SiteName:       "Covey",
+	SignupMode:      ModeOff,
+	SignupOrgQuota:  "1",
+	SiteName:        "Covey",
+	HomeStoreBackup: "",
 }
 
 var (
@@ -165,6 +176,17 @@ func validate(key, value string) error {
 	case SiteName:
 		if value == "" {
 			return fmt.Errorf("%w: %s must not be empty", ErrInvalid, key)
+		}
+		return nil
+	case HomeStoreBackup:
+		// A date, or empty for "withdrawn". Deliberately not a boolean: what
+		// makes the confirmation worth anything is WHEN it was given — a tick
+		// from two years ago says something different from one from Tuesday.
+		if value == "" {
+			return nil
+		}
+		if _, err := time.Parse(time.RFC3339, value); err != nil {
+			return fmt.Errorf("%w: %s must be an RFC3339 timestamp", ErrInvalid, key)
 		}
 		return nil
 	}

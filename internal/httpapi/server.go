@@ -341,6 +341,11 @@ func (s *Server) Handler() http.Handler {
 	// RoleOrgAdmin was called before migration 0061 — so the rename, not a
 	// change of who may ask.
 	mux.Handle("GET /api/v1/platform/doctor", s.rbac([]string{identity.RoleOrgAdmin}, s.handleDoctor))
+	// Die Bestaetigung, dass der Blockspeicher in der Sicherung liegt. Nicht
+	// pruefbar, nur festzuhalten — und genau deshalb ein eigener Schritt, den
+	// ein Mensch geht (siehe handleConfirmHomeStoreBackup).
+	mux.Handle("POST /api/v1/platform/doctor/home-store-backup",
+		s.rbac([]string{identity.RoleOrgAdmin}, s.handleConfirmHomeStoreBackup))
 	mux.Handle("GET /api/v1/platform/lint", s.rbac(append(manage, identity.RoleSecurity), s.handleOrgLint))
 	mux.Handle("GET /api/v1/platform/home-store", s.rbac(anyRole, s.handleGetStore))
 	mux.Handle("PATCH /api/v1/platform/home-store", s.rbac(manage, s.handleSetRetention))

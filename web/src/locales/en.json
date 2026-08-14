@@ -2174,7 +2174,9 @@
     "lintHint": "After a platform change every installation gets the new platform contract automatically — but an agent's configuration stays as a human wrote it. This is which ones should catch up.",
     "lintClean": "Nothing to do — no configuration stands out.",
     "blocking_one": "{{count}} item keeps agents from working.",
-    "blocking_other": "{{count}} items keep agents from working."
+    "blocking_other": "{{count}} items keep agents from working.",
+    "backupConfirm": "It is in our backup",
+    "backupWithdraw": "Withdraw the confirmation"
   },
   "workplaces": {
     "title": "Workplaces",

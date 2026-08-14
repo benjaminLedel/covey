@@ -29,6 +29,7 @@ import (
 	"covey/internal/homestore"
 	runnerstore "covey/internal/runner/store"
 	"covey/internal/sandbox"
+	"covey/internal/settings"
 	"covey/migrations"
 )
 
@@ -239,8 +240,25 @@ func (d *doctor) checkHomeStore(ctx context.Context, pool *pgxpool.Pool) {
 		} else {
 			detail += ", still empty"
 		}
-		d.problem("home store", detail,
-			"this directory needs backup like the database — of a 7 GB home, 48 MB exist nowhere else", false)
+		// Bestätigt oder nicht — das ist der Unterschied zwischen einem
+		// Hinweis, der endet, und einem, der zum Möbel wird. Prüfen kann die
+		// Plattform es nicht: In ein fremdes Backup sieht sie nicht hinein. Sie
+		// kann nur festhalten, dass jemand die Pflicht übernommen hat, und
+		// wann.
+		var bestaetigt string
+		_ = pool.QueryRow(ctx,
+			`SELECT value FROM system_settings WHERE key=$1`, settings.HomeStoreBackup).Scan(&bestaetigt)
+		if bestaetigt != "" {
+			wann := bestaetigt
+			if ts, err := time.Parse(time.RFC3339, bestaetigt); err == nil {
+				wann = ts.Format("2006-01-02")
+			}
+			d.ok("home store", detail+" — in the backup, confirmed "+wann)
+		} else {
+			d.problem("home store", detail,
+				"this directory needs backup like the database — of a 7 GB home, 48 MB exist nowhere else. "+
+					"Confirm it under Administration → Diagnostics once it is in yours; the check is then done.", false)
+		}
 	case "s3":
 		store, err := homestore.NewS3(d.cfg.S3Endpoint, d.cfg.S3Bucket, d.cfg.S3Prefix, homestore.Credentials{
 			AccessKey: d.cfg.S3AccessKey, SecretKey: d.cfg.S3SecretKey, Region: d.cfg.S3Region,

@@ -2174,7 +2174,9 @@
     "lintHint": "Nach einer Plattform-Änderung bekommt jede Installation den neuen Plattform-Vertrag automatisch — die Konfiguration eines Agenten bleibt aber, wie ein Mensch sie geschrieben hat. Hier steht, welche nachziehen sollten.",
     "lintClean": "Nichts zu tun — keine Konfiguration fällt auf.",
     "blocking_one": "{{count}} Punkt hindert Agenten am Arbeiten.",
-    "blocking_other": "{{count}} Punkte hindern Agenten am Arbeiten."
+    "blocking_other": "{{count}} Punkte hindern Agenten am Arbeiten.",
+    "backupConfirm": "Liegt in unserer Sicherung",
+    "backupWithdraw": "Bestätigung zurücknehmen"
   },
   "workplaces": {
     "title": "Arbeitsplätze",
