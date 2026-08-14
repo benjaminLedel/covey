@@ -405,6 +405,42 @@ deploy:
           echo "$var=$val" >> .env
         fi
       done
+    # Sicherung, BEVOR hochgefahren wird — denn `up -d` lässt die Migrationen
+    # laufen, und das ist der eine Moment, in dem man eine gewollt hätte.
+    #
+    # Zwei Dinge, und beide sind nötig: Die Datenbank kennt die Manifeste der
+    # Home-Schnappschüsse, die Blöcke unter data/blocks kennen ihren Inhalt. Wer
+    # nur eines sichert, hat nach einem Plattenschaden entweder ein Verzeichnis
+    # ohne Zuordnung oder eine Zuordnung ohne Inhalt. Gemessen an einem echten
+    # Entwickler-Home: 7 GB, davon 48 MB, die es sonst nirgends gibt (spec/16).
+    #
+    # Best effort und ausdrücklich nicht blockierend: Ein Deploy, der an seiner
+    # eigenen Sicherung scheitert, lässt eine Instanz auf einem Stand stehen,
+    # den niemand wollte. Was schiefging, steht im Job-Log.
+    - |
+      set +e
+      backups="$DEPLOY_DIR/backups"
+      mkdir -p "$backups"
+      stamp=$(date -u +%Y%m%d-%H%M%S)
+      if docker compose ps db --status running 2>/dev/null | grep -q db; then
+        echo "Sichere Datenbank nach $backups/db-$stamp.sql.gz"
+        docker compose exec -T db pg_dump -U covey covey | gzip > "$backups/db-$stamp.sql.gz" \
+          || echo "WARNUNG: Datenbank-Dump fehlgeschlagen — Deploy läuft weiter."
+      else
+        echo "Kein laufender db-Container — erster Deploy, nichts zu sichern."
+      fi
+      blocks="${COVEY_DATA_DIR:-/opt/covey/data}/blocks"
+      if [ -d "$blocks" ]; then
+        echo "Sichere Blockspeicher ($(du -sh "$blocks" | cut -f1)) nach $backups/blocks-$stamp.tar.gz"
+        tar -czf "$backups/blocks-$stamp.tar.gz" -C "$(dirname "$blocks")" blocks \
+          || echo "WARNUNG: Blocksicherung fehlgeschlagen — Deploy läuft weiter."
+      fi
+      # Drei Stände je Art. Mehr wäre eine Aufbewahrung, die sich niemand
+      # ausgesucht hat, auf einer Platte, die auch die Sandbox-Images trägt.
+      ls -1t "$backups"/db-*.sql.gz 2>/dev/null | tail -n +4 | xargs -r rm -f
+      ls -1t "$backups"/blocks-*.tar.gz 2>/dev/null | tail -n +4 | xargs -r rm -f
+      df -h "$backups" | tail -1
+      set -e
     # COVEY_IMAGE kommt aus der Shell-Umgebung (überschreibt .env-Interpolation),
     # alle Secrets liest Compose automatisch aus der .env im Ordner.
     - docker compose pull

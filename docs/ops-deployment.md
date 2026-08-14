@@ -395,6 +395,38 @@ Two views answer that, both under **Costs**:
 
 ---
 
+## What to back up
+
+Two things, and both are needed. The database holds the *manifests* of every
+home snapshot; `data/blocks` holds their *content*. Back up one without the
+other and you are left with a directory nothing points at, or an index of
+things that are gone.
+
+The share that matters is smaller than it looks and impossible to reconstruct:
+measured on a real developer home of 7 GB, **48 MB existed nowhere else** — the
+agent's own notes, extracted code and interim results, scattered across the home
+([`spec/16`](../spec/16-runner.md)). The rest is toolchain caches and checkouts,
+which download again. `covey doctor` and Administration → Diagnostics name the
+directory and say this out loud, because it is the one operational obligation
+the platform added that nobody would guess.
+
+```bash
+docker compose exec -T db pg_dump -U covey covey | gzip > db.sql.gz
+tar -czf blocks.tar.gz -C /opt/covey/data blocks
+```
+
+**The deploy takes both by itself**, into `$DEPLOY_DIR/backups`, right before
+`docker compose up -d` — which is the moment the migrations run, and the one
+moment somebody would want a backup. Three of each are kept; the job never
+fails on a failed backup, because a deploy that stops halfway leaves an
+instance in a state nobody chose. What went wrong stands in the job log.
+
+That is a pre-upgrade snapshot on the same host, not a backup strategy: it
+survives a bad migration, not a dead disk. Whoever operates this instance still
+copies both off the machine, or points the block store at an object store
+(`COVEY_BLOB_STORE=s3`) whose bucket is backed up — then the blocks are no
+longer on this disk at all, and `covey doctor` says so instead of warning.
+
 ## Before real production use
 
 The setup is deliberately lean. For real operation, additionally (cf.
