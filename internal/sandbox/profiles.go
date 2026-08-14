@@ -19,6 +19,8 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"covey/internal/buildinfo"
 )
 
 // Profile is a workplace: an image, and what one needs to know about it.
@@ -145,6 +147,52 @@ func BuildHint(overrides map[string]string, image string) string {
 		}
 		if p, ok := Get(name); ok {
 			return p.Build
+		}
+	}
+	return ""
+}
+
+// PublicImage is where this profile's image lies ALREADY BUILT: the package
+// the project publishes on every push and every release
+// (.github/workflows/sandbox-images.yml). One package, the variants as a tag
+// prefix.
+//
+// It exists so that "how do I get this image?" has an answer that is not a
+// multi-gigabyte build on somebody's own machine — and a container
+// installation has no repository to run that build from in the first place.
+//
+// The tag follows the running binary, not the newest state: the image carries
+// the coveyd that speaks to THIS control plane. A release pulls its release, an
+// untagged build the rolling one, which is exactly what the workflow publishes.
+//
+// Derived from the source address (buildinfo.SourceRepo) rather than written
+// out: a fork that publishes its own images is then already right, and one
+// that publishes none says so at the same place it says everything else about
+// its origin. Empty when the source is not on GitHub — there is no package then
+// and naming one would send somebody to an address that answers nothing.
+func PublicImage(profile string) string {
+	system, project := buildinfo.SourceRepo()
+	if system != "github" || project == "" {
+		return ""
+	}
+	if _, ok := Get(profile); !ok {
+		return ""
+	}
+	tag := profile + "-latest"
+	if ref, istTag := buildinfo.Ref(); istTag && ref != "" {
+		tag = profile + "-" + ref
+	}
+	return "ghcr.io/" + strings.ToLower(project) + "-sandbox:" + tag
+}
+
+// PublicImageFor answers PublicImage for an image reference instead of a
+// profile name — the shape a caller needs who is holding a missing image and
+// not a catalogue entry.
+func PublicImageFor(overrides map[string]string, image string) string {
+	image = strings.TrimSpace(image)
+	for name, ref := range Images(overrides) {
+		if ref == image {
+			return PublicImage(name)
 		}
 	}
 	return ""

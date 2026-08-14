@@ -33,7 +33,8 @@ Zugängen, Backlog und Vorgesetztem. Und mit den Werkzeugen, sie zu überwachen.
 git clone https://github.com/benjaminLedel/covey.git && cd covey
 cp .env.example .env
 echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env   # 32-Byte-Schlüssel
-docker build -f Dockerfile.sandbox -t covey-sandbox:latest .   # der Arbeitsplatz der Agenten, einmalig
+docker pull ghcr.io/benjaminledel/covey-sandbox:base-latest    # der Arbeitsplatz der Agenten, fertig gebaut
+docker tag ghcr.io/benjaminledel/covey-sandbox:base-latest covey-sandbox:latest
 docker compose up -d --build                              # Postgres + Covey starten
 ```
 
@@ -41,7 +42,7 @@ Dann **[http://localhost:8494](http://localhost:8494)** öffnen — Login `admin
 
 Das mitgelieferte [`docker-compose.yml`](docker-compose.yml) bringt Postgres (pgvector) und das covey-Binary mit eingebetteter Admin-UI; `bootstrap` legt Organisation, Admin, einen Demo-Agenten und dessen Arbeitsplatz an, Migrationen laufen automatisch.
 
-Alles außer der dritten Zeile dauert Sekunden. Sie baut den Container, in dem ein Agent arbeitet ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, git, ripgrep — das Profil `base`) und braucht ein paar Minuten. Entwickler-Agenten wollen darauf das Profil `dev` (`make sandbox-image-dev`: zusätzlich PHP, JDK und die Versionsmanager `fvm`/`uv`); es wird je Agent gesetzt — man kann sie zum Umsehen auch weglassen: die Plattform startet ohne sie und sagt beim Start und auf der Agenten-Übersicht, dass der erste Lauf scheitern wird, solange sie fehlt.
+Die dritte Zeile holt den Container, in dem ein Agent arbeitet ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, git, ripgrep — das Profil `base`); gebaut und veröffentlicht von [der Pipeline des Projekts](.github/workflows/sandbox-images.yml), für amd64 und arm64. `make sandbox-image` baut ihn stattdessen hier, wenn ein fremdes Image nicht in Frage kommt. Entwickler-Agenten wollen darauf das Profil `dev` (`docker pull …:dev-latest`, oder `make sandbox-image-dev`: zusätzlich PHP, JDK und die Versionsmanager `fvm`/`uv`); es wird je Agent gesetzt — man kann sie zum Umsehen auch weglassen: die Plattform startet ohne sie und sagt beim Start und auf der Agenten-Übersicht, dass der erste Lauf scheitern wird, solange sie fehlt.
 
 *Lieber das blanke Binary?* [`install.sh`](#installation) holt es aus dem [neuesten Release](https://github.com/benjaminLedel/covey/releases/latest) und prüft die Checksumme. *Lieber erst schauen?* Die laufende Instanz steht unter **[covey.work](https://covey.work)**. Vollständige Anleitung inkl. erstem Agenten und Produktions-Checkliste: [`docs/quickstart-docker.md`](docs/quickstart-docker.md).
 

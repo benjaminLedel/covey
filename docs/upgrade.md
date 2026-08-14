@@ -52,8 +52,14 @@ agent's toolchain out from under it. But `covey-sandbox:latest` now builds the
 *lean* base image, so the image your agents are pointed at does not exist yet:
 
 ```bash
-make sandbox-images     # builds both: base, then dev on top of it
+make sandbox-images-pull   # pulls both from the published package (minutes)
+make sandbox-images        # or builds them here: base, then dev on top of it
 ```
+
+The project publishes both workplaces as one package on every push and every
+release — `ghcr.io/benjaminledel/covey-sandbox`, the variants as a tag prefix
+(`base-latest`, `dev-latest`, `base-v0.4.0`, …). Take the tag your binary is:
+the image carries the `coveyd` that talks to this control plane.
 
 Without it every wake fails with *sandbox image "covey-sandbox-dev:latest" is
 missing*. `covey doctor` names it before the restart, with how many agents are
@@ -64,12 +70,16 @@ the image has to come from somewhere else. Two ways, both a line in the
 deployment's `.env`:
 
 ```bash
-# a) the image you already have. The one from before the split carried PHP, JDK,
+# a) the published image — nothing to build, the host pulls it on the first wake
+COVEY_SANDBOX_IMAGE=ghcr.io/benjaminledel/covey-sandbox:base-latest
+COVEY_SANDBOX_IMAGE_DEV=ghcr.io/benjaminledel/covey-sandbox:dev-latest
+
+# b) the image you already have. The one from before the split carried PHP, JDK,
 #    fvm and uv — it IS the dev workplace, whatever it is tagged.
 COVEY_SANDBOX_IMAGE_DEV=covey-sandbox:latest
 
-# b) the image your registry builds (the deploy pipeline pushes it next to the
-#    base one and pins it; this is what an instance deployed from CI gets)
+# c) your own registry (the deploy pipeline pushes both images there and pins
+#    them; this is what an instance deployed from CI gets)
 COVEY_SANDBOX_IMAGE_DEV=registry.example.com/covey/sandbox-dev:<tag>
 ```
 

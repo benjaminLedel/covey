@@ -1,0 +1,213 @@
+# Die Sandbox-Images, öffentlich gebaut und veröffentlicht.
+#
+# Warum hier und nicht in der GitLab-Seite: Die interne Pipeline baut sie in
+# eine private Registry, an die kein Dritter kommt. Wer Covey von GitHub
+# installiert, stand bis hierher vor einem `make sandbox-images` — zwei Images
+# mit chromium, JDK und PHP, mehrere Gigabyte Bauzeit auf der eigenen Maschine,
+# und beim Upgrade wieder. Eine Container-Installation hat dafür nicht einmal
+# ein Repository. Betriebswerkzeug gehört ins Produkt, und ein fertiges Image
+# ist hier das Produkt.
+#
+# EIN Package, die Varianten als Tag-Präfix (`base-…`, `dev-…`) statt zwei
+# Packages: Sie werden zusammen gebaut, zusammen versioniert und zusammen
+# gezogen — und eine Sichtbarkeit, die man einmal auf öffentlich stellt, ist
+# eine weniger, die man vergessen kann.
+#
+# Zwei Architekturen auf je eigenem Runner statt per QEMU: Die Images
+# installieren chromium, ein JDK und PHP über apt. Emuliert dauert das Stunden;
+# GitHub stellt für öffentliche Repositories arm64-Runner bereit.
+name: Sandbox images
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  # Stufe 1: base je Architektur, gepusht per DIGEST und ohne Tag. Der Tag
+  # entsteht erst in der Manifest-Stufe — sonst überschriebe die zweite
+  # Architektur die erste, statt sich zu ihr zu gesellen.
+  base:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # für `git describe`, siehe unten
+      - id: meta
+        run: |
+          set -eu
+          echo "image=$(echo "$REGISTRY/$GITHUB_REPOSITORY-sandbox" | tr 'A-Z' 'a-z')" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            echo "version=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=$(git describe --tags --always 2>/dev/null || echo dev)" >> "$GITHUB_OUTPUT"
+          fi
+          echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.sandbox
+          platforms: ${{ matrix.platform }}
+          # Die Herkunft des coveyd im Image — `coveyd version` beantwortet
+          # damit im Container, welcher Stand darin liegt.
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
+            COMMIT=${{ github.sha }}
+            DATE=${{ steps.meta.outputs.date }}
+          # Der Cache liegt an der Registry und nicht am Runner: Der nächste
+          # Lauf zieht die Layer, die sich nicht geändert haben, statt chromium
+          # noch einmal zu installieren.
+          cache-from: type=registry,ref=${{ steps.meta.outputs.image }}:base-cache-${{ matrix.arch }}
+          cache-to: type=registry,ref=${{ steps.meta.outputs.image }}:base-cache-${{ matrix.arch }},mode=max
+          outputs: type=image,name=${{ steps.meta.outputs.image }},push-by-digest=true,name-canonical=true,push=true
+      - name: Digest ablegen
+        run: |
+          set -eu
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digests-base-${{ matrix.arch }}
+          path: /tmp/digests/*
+          retention-days: 1
+
+  base-manifest:
+    needs: base
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.push.outputs.ref }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: digests-base-*
+          merge-multiple: true
+          path: /tmp/digests
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: push
+        run: |
+          set -eu
+          image=$(echo "$REGISTRY/$GITHUB_REPOSITORY-sandbox" | tr 'A-Z' 'a-z')
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            tags="base-$GITHUB_REF_NAME base-latest"
+          else
+            tags="base-latest base-$(echo "$GITHUB_SHA" | cut -c1-12)"
+          fi
+          args=""
+          for d in /tmp/digests/*; do args="$args ${image}@sha256:$(basename "$d")"; done
+          for t in $tags; do
+            # shellcheck disable=SC2086
+            docker buildx imagetools create --tag "${image}:${t}" $args
+          done
+          echo "ref=${image}:base-latest" >> "$GITHUB_OUTPUT"
+          docker buildx imagetools inspect "${image}:base-latest"
+
+  # Stufe 2: dev auf dem gerade veröffentlichten base. Der Tag genügt als
+  # BASE_IMAGE — die Registry liefert jedem Runner die Architektur, auf der er
+  # steht, und so baut arm64 auf arm64 und amd64 auf amd64.
+  dev:
+    needs: base-manifest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            platform: linux/amd64
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: meta
+        run: echo "image=$(echo "$REGISTRY/$GITHUB_REPOSITORY-sandbox" | tr 'A-Z' 'a-z')" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.sandbox.dev
+          platforms: ${{ matrix.platform }}
+          build-args: |
+            BASE_IMAGE=${{ needs.base-manifest.outputs.ref }}
+          cache-from: type=registry,ref=${{ steps.meta.outputs.image }}:dev-cache-${{ matrix.arch }}
+          cache-to: type=registry,ref=${{ steps.meta.outputs.image }}:dev-cache-${{ matrix.arch }},mode=max
+          outputs: type=image,name=${{ steps.meta.outputs.image }},push-by-digest=true,name-canonical=true,push=true
+      - name: Digest ablegen
+        run: |
+          set -eu
+          mkdir -p /tmp/digests
+          touch "/tmp/digests/${DIGEST#sha256:}"
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: digests-dev-${{ matrix.arch }}
+          path: /tmp/digests/*
+          retention-days: 1
+
+  dev-manifest:
+    needs: dev
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: digests-dev-*
+          merge-multiple: true
+          path: /tmp/digests
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: |
+          set -eu
+          image=$(echo "$REGISTRY/$GITHUB_REPOSITORY-sandbox" | tr 'A-Z' 'a-z')
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            tags="dev-$GITHUB_REF_NAME dev-latest"
+          else
+            tags="dev-latest dev-$(echo "$GITHUB_SHA" | cut -c1-12)"
+          fi
+          args=""
+          for d in /tmp/digests/*; do args="$args ${image}@sha256:$(basename "$d")"; done
+          for t in $tags; do
+            # shellcheck disable=SC2086
+            docker buildx imagetools create --tag "${image}:${t}" $args
+          done
+          docker buildx imagetools inspect "${image}:dev-latest"

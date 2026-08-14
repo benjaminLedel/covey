@@ -64,6 +64,33 @@ func TestBuildHintOnlyForOwnImages(t *testing.T) {
 	}
 }
 
+// Das fertige Image. Es ist die Antwort auf „woher nehme ich das?", die keine
+// Maschine mit mehreren Gigabyte Bauzeit voraussetzt — und die einzige, die
+// eine Container-Installation ueberhaupt ausfuehren kann.
+//
+// Die Adresse muss zu dem passen, was der Workflow veroeffentlicht
+// (.github/workflows/sandbox-images.yml): ein Package, Varianten als
+// Tag-Praefix. Zwei Stellen, eine Namensregel — deshalb steht sie hier fest.
+func TestPublicImage(t *testing.T) {
+	if got := PublicImage("dev"); got != "ghcr.io/benjaminledel/covey-sandbox:dev-latest" {
+		t.Fatalf("PublicImage(dev) = %q", got)
+	}
+	if got := PublicImage("base"); got != "ghcr.io/benjaminledel/covey-sandbox:base-latest" {
+		t.Fatalf("PublicImage(base) = %q", got)
+	}
+	// Kein Profil, keine Adresse — eine erfundene waere schlimmer als keine.
+	if got := PublicImage("gibt-es-nicht"); got != "" {
+		t.Fatalf("unbekanntes Profil: %q", got)
+	}
+	// Ueber die Image-Referenz gefragt, auch wenn die Instanz sie umbenannt hat.
+	if got := PublicImageFor(map[string]string{"dev": "our-dev:1"}, "our-dev:1"); got == "" {
+		t.Fatal("PublicImageFor findet das umbenannte Profil nicht")
+	}
+	if got := PublicImageFor(nil, "registry.example.com/team/sandbox:2026-08"); got != "" {
+		t.Fatalf("fremdes Image darf keine Adresse bekommen: %q", got)
+	}
+}
+
 // Die andere Haelfte der Antwort. Eine Installation als Container hat kein
 // Repository und kann kein `make` ausfuehren — fuer sie ist die Variable der
 // ganze Weg, und ohne sie las die Meldung wie eine Anweisung ins Leere.

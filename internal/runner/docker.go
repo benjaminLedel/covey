@@ -367,10 +367,13 @@ func buildHint(hints map[string]string, image string) string {
 		// Zwei Wege, weil es zwei Installationsarten gibt — und die zweite las
 		// bis hierher eine Anweisung, die sie nicht ausfuehren kann: Wer Covey
 		// als Container betreibt, hat kein Repository und damit kein `make`.
-		// Fuer sie ist die Antwort ein Image, das sie schon hat oder ziehen
-		// kann, plus die Variable, die es dem Profil zuweist. Das ist beim
-		// Upgrade der haeufigere Fall, nicht der seltenere: Das Image VOR der
-		// Aufteilung trug alles, was heute `dev` ausmacht.
+		// Fuer sie steht das fertige Image bereit, und die Variable weist es
+		// dem Profil zu. Der Bau bleibt zuerst genannt, weil er auch ohne Netz
+		// und ohne Vertrauen in eine fremde Registry auskommt.
+		if env, ready := sandbox.EnvVarFor(nil, image), sandbox.PublicImageFor(nil, image); env != "" && ready != "" {
+			return "build it once: `" + hint + "` — or take the published image: `" +
+				env + "=" + ready + "`, then restart"
+		}
 		if env := sandbox.EnvVarFor(nil, image); env != "" {
 			return "build it once: `" + hint + "`; without a checkout (container install) set `" +
 				env + "` to an image you have and restart"

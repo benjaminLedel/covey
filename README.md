@@ -33,7 +33,8 @@ credentials, a backlog and a manager. Plus the tooling to supervise them.
 git clone https://github.com/benjaminLedel/covey.git && cd covey
 cp .env.example .env
 echo "COVEY_MASTER_KEY=$(openssl rand -hex 32)" >> .env   # 32-byte key
-docker build -f Dockerfile.sandbox -t covey-sandbox:latest .   # the agents' workplace, once
+docker pull ghcr.io/benjaminledel/covey-sandbox:base-latest    # the agents' workplace, prebuilt
+docker tag ghcr.io/benjaminledel/covey-sandbox:base-latest covey-sandbox:latest
 docker compose up -d --build                              # start Postgres + Covey
 ```
 
@@ -41,7 +42,7 @@ Then open **[http://localhost:8494](http://localhost:8494)** — log in with `ad
 
 The bundled [`docker-compose.yml`](docker-compose.yml) brings Postgres (pgvector) and the covey binary with its embedded admin UI; `bootstrap` creates the organisation, the admin, a demo agent and its workplace, and migrations run automatically.
 
-Everything but the third line takes seconds. That one builds the container an agent works inside ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, git, ripgrep — the `base` profile) and takes a few minutes. Developer agents want the `dev` profile on top of it (`make sandbox-image-dev`: plus PHP, a JDK and the version managers `fvm`/`uv`); it is set per agent — you can skip it to look around first: the platform starts without it and says at startup, and on the agent overview, that the first wake will fail until it exists.
+The third line fetches the container an agent works inside ([`Dockerfile.sandbox`](Dockerfile.sandbox): Claude Code, chromium, git, ripgrep — the `base` profile), built and published by [the project's own pipeline](.github/workflows/sandbox-images.yml) for amd64 and arm64; `make sandbox-image` builds it here instead if you would rather not pull a foreign image. Developer agents want the `dev` profile on top of it (`docker pull …:dev-latest`, or `make sandbox-image-dev`: plus PHP, a JDK and the version managers `fvm`/`uv`); it is set per agent — you can skip it to look around first: the platform starts without it and says at startup, and on the agent overview, that the first wake will fail until it exists.
 
 *Rather have the plain binary?* [`install.sh`](#install) fetches it from the [latest release](https://github.com/benjaminLedel/covey/releases/latest) and verifies its checksum. *Rather look before you install?* The running instance is at **[covey.work](https://covey.work)**. Full walkthrough including your first agent and a production checklist: [`docs/quickstart-docker.md`](docs/quickstart-docker.md).
 
