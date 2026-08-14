@@ -32,7 +32,6 @@ import Targets from "./pages/Targets";
 import Egress from "./pages/Egress";
 import Requests from "./pages/Requests";
 import Infrastructure from "./pages/Infrastructure";
-import Diagnostics from "./pages/Diagnostics";
 import Audit from "./pages/Audit";
 import Templates from "./pages/Templates";
 import Setup from "./pages/Setup";
@@ -527,9 +526,7 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
           {(me.Role === "org_admin" || me.Role === "security") && (
             <NavItem to="/requests" icon="exchange" label={t("nav.requests")} />
           )}
-          {(me.Role === "org_admin" || me.Role === "security" || me.Role === "agent_owner") && (
-            <NavItem to="/diagnostics" icon="stethoscope" label={t("nav.diagnostics")} />
-          )}
+
         </div>
         <div className="mt-auto">
           {/* Zwei Bereiche, zwei Reichweiten — und zwei verschiedene Ebenen,
@@ -650,7 +647,11 @@ function Shell({ me, onLogout }: { me: Principal; onLogout: () => void }) {
             <Route path="/workplaces" element={<Navigate to="/infrastructure/workplaces" replace />} />
             <Route path="/requests" element={<Requests me={me} />} />
             <Route path="/runners" element={<Navigate to="/infrastructure/runners" replace />} />
-            <Route path="/diagnostics" element={<Diagnostics me={me} />} />
+            {/* Die Diagnose steht in der Verwaltung (Reiter „Diagnose"). Die
+                alte Adresse bleibt gültig: Sie ist in Runbooks verlinkt, und
+                ein totes Lesezeichen ist die schlechteste Art, eine
+                Umstrukturierung zu bemerken. */}
+            <Route path="/diagnostics" element={<Navigate to="/administration/diagnostics" replace />} />
             <Route path="/audit" element={<Audit />} />
             <Route path="/targets" element={<Targets me={me} />} />
             <Route path="/egress/*" element={<Egress me={me} />} />
