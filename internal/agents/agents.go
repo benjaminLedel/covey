@@ -433,6 +433,40 @@ func (r *Registry) SandboxImagesInUse(ctx context.Context) (map[string]int, erro
 	return out, rows.Err()
 }
 
+// AgentsPerWorkplace names the agents per workplace instead of counting them —
+// the difference between "3 agents" and "which three".
+//
+// The count answered a question nobody has. Whoever looks at a workplace wants
+// to know whom it concerns before they change or delete it, and the name is the
+// only form of that answer that survives being read out loud.
+func (r *Registry) AgentsPerWorkplace(ctx context.Context, orgID uuid.UUID) (map[string][]AgentRef, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT sandbox_image, id, slug, display_name FROM agents
+		  WHERE NOT killed AND org_id=$1 ORDER BY display_name`, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string][]AgentRef{}
+	for rows.Next() {
+		var image string
+		var a AgentRef
+		if err := rows.Scan(&image, &a.ID, &a.Slug, &a.DisplayName); err != nil {
+			return nil, err
+		}
+		out[image] = append(out[image], a)
+	}
+	return out, rows.Err()
+}
+
+// AgentRef is an agent in a list that is about something else — enough to name
+// it and to link to it.
+type AgentRef struct {
+	ID          uuid.UUID `json:"id"`
+	Slug        string    `json:"slug"`
+	DisplayName string    `json:"display_name"`
+}
+
 // SandboxImagesInUseForOrg is the same count for one organisation — what the
 // workplace list in the interface shows. The instance-wide figure belongs to
 // the doctor, which asks for the host; whoever is looking at their own

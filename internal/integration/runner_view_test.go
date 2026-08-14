@@ -530,7 +530,10 @@ func TestWorkplacesComeFromTheCatalogue(t *testing.T) {
 		Source    string `json:"source"`
 		Default   bool   `json:"default"`
 		Available *bool  `json:"available"`
-		InUse     int    `json:"in_use"`
+		Agents    []struct {
+			ID          string `json:"id"`
+			DisplayName string `json:"display_name"`
+		} `json:"agents"`
 	}
 	resp := c.do(http.MethodGet, "/api/v1/workplaces", nil)
 	if resp.StatusCode != http.StatusOK {
@@ -565,8 +568,10 @@ func TestWorkplacesComeFromTheCatalogue(t *testing.T) {
 	if list[dev].Build == "" {
 		t.Error("a profile without a build command leaves whoever reads it looking")
 	}
-	if list[dev].InUse != 1 {
-		t.Errorf("dev: %d agents, expected 1", list[dev].InUse)
+	// Benannt statt gezählt: Wer einen Arbeitsplatz ändern oder löschen will,
+	// fragt nicht nach der Anzahl, sondern danach, wen es angeht.
+	if len(list[dev].Agents) != 1 {
+		t.Errorf("dev: %d agents, expected 1", len(list[dev].Agents))
 	}
 	// Nobody could be asked here — and that is not the same as "not there".
 	// Shown as unavailable, the interface would advise a build that has already

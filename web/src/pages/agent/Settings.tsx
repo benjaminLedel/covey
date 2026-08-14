@@ -169,7 +169,6 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
     agent.sandbox_image === "" ||
     !workplaces.isSuccess ||
     profiles.some((p) => p.name === agent.sandbox_image);
-  const [ownImage, setOwnImage] = useState(!knownProfile);
   const setBudget = useMutation({
     mutationFn: (budgetUSD: number) => post(`/agents/${agent.id}/budget`, { budget_usd: budgetUSD }),
     onSuccess: invalidate,
@@ -377,11 +376,9 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
               etwas anderes behauptet als der Datenstand, und ein Feld, das in
               diesem Moment eine Änderung annähme, schriebe sie auch weg. */}
           <select
-            value={ownImage ? "custom" : agent.sandbox_image}
+            value={agent.sandbox_image}
             disabled={!editable || setSandboxImage.isPending || !workplaces.isSuccess}
             onChange={(e) => {
-              setOwnImage(e.target.value === "custom");
-              if (e.target.value === "custom") return;
               if (e.target.value !== agent.sandbox_image) setSandboxImage.mutate(e.target.value);
             }}
           >
@@ -391,21 +388,14 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
                 {profileLabel(t, p)}
               </option>
             ))}
-            <option value="custom">{t("agent.settings.sandboxImageOwn")}</option>
+            {/* Ein Wert, den die Liste nicht kennt: ein eigenes Image von
+                früher, als es hier noch ein Textfeld gab. Er bleibt wählbar,
+                solange er gesetzt ist — sonst schriebe das Feld ihn beim
+                nächsten Blick still weg. */}
+            {!knownProfile && agent.sandbox_image !== "" && (
+              <option value={agent.sandbox_image}>{agent.sandbox_image}</option>
+            )}
           </select>
-          {ownImage && (
-            <input
-              key={`sbimgown:${agent.sandbox_image}`}
-              defaultValue={knownProfile ? "" : agent.sandbox_image}
-              placeholder="registry.example.com/team/sandbox:tag"
-              disabled={!editable || setSandboxImage.isPending}
-              onBlur={(e) => {
-                if (e.target.value.trim() !== agent.sandbox_image) setSandboxImage.mutate(e.target.value);
-              }}
-              onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-              className="mono"
-            />
-          )}
         </div>
         {/* Das Raster hat drei Zellen je Zeile — Warnung und Erklärung teilen
             sich deshalb die dritte, statt die Zeile umbrechen zu lassen. */}

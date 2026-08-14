@@ -1066,7 +1066,6 @@
       "subGeneral": "Allgemein",
       "sandboxImage": "Arbeitsplatz",
       "sandboxImageDefault": "Voreinstellung der Instanz",
-      "sandboxImageOwn": "Eigenes Image …",
       "sandboxImageHint": "Das Image, in dem dieser Agent arbeitet. Ein Profil ist eine Vereinigung von Toolchains, kein Sprachschnitt: ein Entwickler-Agent arbeitet an PHP- und Flutter-Projekten, ein Mail-Agent an keinem von beiden. Gilt ab dem nächsten Kaltstart; eine laufende oder warm geparkte Sandbox behält ihr Image.",
       "filesReadOnly": "Nur lesbar — aus dem letzten Snapshot",
       "runnerTags": "Host-Anforderungen",
@@ -2177,8 +2176,6 @@
     "default": "Voreinstellung",
     "present": "liegt bereit",
     "absent": "noch nicht hier",
-    "inUse_one": "{{count}} Agent arbeitet darin",
-    "inUse_other": "{{count}} Agenten arbeiten darin",
     "image": "Image:",
     "pull": "Jetzt holen",
     "pulling": "wird geholt …",
@@ -2189,7 +2186,20 @@
       "catalog": "aus dem veröffentlichten Katalog, auf den Digest gepinnt",
       "env": "von dieser Instanz gesetzt (COVEY_SANDBOX_IMAGE_…)",
       "builtin": "Voreinstellung — lokal gebaut"
-    }
+    },
+    "worksHere": "hier arbeiten:",
+    "nobody": "niemand",
+    "delete": "Löschen",
+    "deleteTitle": "Arbeitsplatz „{{name}}“ löschen?",
+    "deleteBody": "Der Eintrag verschwindet aus der Auswahl. Das Image selbst bleibt, wo es liegt — gelöscht wird nur, dass diese Organisation ihm einen Namen gegeben hat.",
+    "add": "Eigenen Arbeitsplatz anlegen",
+    "create": "Anlegen",
+    "fieldName": "Name (wird am Agenten gewählt)",
+    "fieldLabel": "Bezeichnung",
+    "fieldDescription": "Wofür ist er da?",
+    "fieldDescriptionHint": "z. B. Flutter-Toolchain plus internes Zertifikat",
+    "fieldImage": "Image",
+    "ownHint": "Eigene Images werden hier angelegt und danach am Agenten ausgewählt — so stehen sie in einer Übersicht, tragen eine Beschreibung und ein Tippfehler fällt sofort auf statt beim ersten Wecken."
   },
   "infra": {
     "title": "Infrastruktur",

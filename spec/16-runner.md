@@ -383,6 +383,21 @@ Two consequences follow, and they are what a third profile is worth:
 
 An image that no profile knows is somebody's own, and about those the repository knows nothing. It says so rather than naming a `make` target that would build something else.
 
+### An image of your own is registered, not typed
+
+The third row of the table — "org-owned: anything" — used to be a **free-text field on the agent**: type a reference, done. It cost three things, and none of them showed up until later:
+
+- **It was invisible.** An image that lives in a field on one agent appears in no overview. "Which images of our own do we actually run?" meant opening every agent.
+- **It was undescribed.** A registry reference does not say what is inside it. The next agent got the same string typed again, and whether the two meant the same thing was known only to whoever typed them.
+- **A typo failed late.** Not at the keyboard, but at the next wake, in the recording of a run.
+
+An own workplace is therefore **created once** (`org_workplaces`: name, label, description, image) and chosen afterwards like any published profile. The agent carries a *name* in both cases — which image is behind it stays one decision in one place, and that is the property the catalogue was introduced for in the first place.
+
+Two rules where the two sources meet:
+
+- **A catalogue name is taken**, even for an organisation that has never used it. Otherwise `dev` would mean two things and which one applied would depend on the order of a loop.
+- **Deleting is refused while agents work in it.** They would be left pointing at a name that resolves to nothing, and would find out at the next wake. The overview therefore names the agents per workplace rather than counting them: whoever is about to change or delete one wants to know whom it concerns.
+
 ### Where the image itself comes from
 
 The catalogue in the code says *which* profiles exist. It cannot say what a profile's image **is** on a given installation, and for a while it pretended to: the compiled default was `covey-sandbox-dev:latest`, a name that exists only on a machine that has built it. Every container installation therefore had to be told where its own workplace lived, through `COVEY_SANDBOX_IMAGE_<PROFILE>` — and an upgrade that moved existing agents onto a new profile broke every instance that had not been told, with an error whose remedy (`make sandbox-image-dev`) it could not run.

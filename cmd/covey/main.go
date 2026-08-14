@@ -55,6 +55,7 @@ import (
 	targetstore "covey/internal/target/store"
 	"covey/internal/templates"
 	"covey/internal/waitlist"
+	orgworkplaces "covey/internal/workplaces"
 	"covey/migrations"
 	"covey/web"
 
@@ -942,6 +943,25 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	runnerPool.Profiles = cfg.SandboxImages
 	runnerPool.EnvImages = cfg.SandboxImageEnv
 	runnerPool.Catalog = workplaces
+	// Und die Arbeitsplätze, die eine Organisation selbst mitgebracht hat: Ein
+	// Agent trägt auch dort nur einen Namen, und aufgelöst wird er hier.
+	orgWorkplaces := orgworkplaces.New(pool)
+	runnerPool.OrgImages = func(ctx context.Context, orgID uuid.UUID) map[string]string {
+		m, err := orgWorkplaces.Images(ctx, orgID)
+		if err != nil {
+			log.Warn("eigene Arbeitsplätze nicht lesbar", "err", err)
+			return nil
+		}
+		return m
+	}
+	runnerPool.AllOrgImages = func(ctx context.Context) map[string]string {
+		m, err := orgworkplaces.AllImages(ctx, pool)
+		if err != nil {
+			log.Warn("eigene Arbeitsplätze nicht lesbar", "err", err)
+			return nil
+		}
+		return m
+	}
 	runnerPool.AgentImages = registry.SandboxImagesInUse
 	runnerPool.HomeExcludes = cfg.HomeExcludes
 	// "Last seen" only means something if it moves while a runner is there.
@@ -1174,8 +1194,8 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			m.Store, m.Log = marketplace.NewPgCache(pool), log
 			return m
 		}(),
-		Workplaces: workplaces,
-		Settings:   settings.New(pool), Accounts: accounts.New(pool), Waitlist: waitlist.New(pool),
+		Workplaces: workplaces, OrgWorkplaces: orgWorkplaces,
+		Settings: settings.New(pool), Accounts: accounts.New(pool), Waitlist: waitlist.New(pool),
 		Skills: skillStore,
 		Orch:   orch, WebFS: dist, Log: log,
 		WebhookSecrets: cfg.WebhookSecrets,

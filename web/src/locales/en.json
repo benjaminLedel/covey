@@ -1066,7 +1066,6 @@
       "subGeneral": "General",
       "sandboxImage": "Workplace",
       "sandboxImageDefault": "Instance default",
-      "sandboxImageOwn": "Own image …",
       "sandboxImageHint": "The image this agent works in. A profile is a union of toolchains, not a cut along languages: a developer agent works on PHP and Flutter projects, a mail agent on neither. Takes effect at the next cold start; a running or warm-parked sandbox keeps its image.",
       "filesReadOnly": "Read-only — from the last snapshot",
       "runnerTags": "Host requirements",
@@ -2177,8 +2176,6 @@
     "default": "default",
     "present": "ready here",
     "absent": "not here yet",
-    "inUse_one": "{{count}} agent works in it",
-    "inUse_other": "{{count}} agents work in it",
     "image": "Image:",
     "pull": "Fetch now",
     "pulling": "fetching …",
@@ -2189,7 +2186,20 @@
       "catalog": "from the published catalogue, pinned by digest",
       "env": "set by this instance (COVEY_SANDBOX_IMAGE_…)",
       "builtin": "default — built locally"
-    }
+    },
+    "worksHere": "works here:",
+    "nobody": "nobody",
+    "delete": "Delete",
+    "deleteTitle": "Delete workplace “{{name}}”?",
+    "deleteBody": "The entry disappears from the choice. The image itself stays where it is — what is deleted is only that this organisation gave it a name.",
+    "add": "Add a workplace of your own",
+    "create": "Create",
+    "fieldName": "Name (what you pick on the agent)",
+    "fieldLabel": "Label",
+    "fieldDescription": "What is it for?",
+    "fieldDescriptionHint": "e.g. Flutter toolchain plus the in-house certificate",
+    "fieldImage": "Image",
+    "ownHint": "Images of your own are added here and chosen on the agent afterwards — that way they appear in an overview, carry a description, and a typo shows up at once instead of at the first wake."
   },
   "infra": {
     "title": "Infrastructure",

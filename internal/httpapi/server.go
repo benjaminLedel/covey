@@ -47,6 +47,7 @@ import (
 	targetstore "covey/internal/target/store"
 	"covey/internal/templates"
 	"covey/internal/waitlist"
+	"covey/internal/workplaces"
 )
 
 type Server struct {
@@ -69,6 +70,9 @@ type Server struct {
 	// belongs to which Covey version. nil = none configured; then the
 	// compiled defaults and the environment stand.
 	Workplaces *sandbox.Source
+	// OrgWorkplaces are the workplaces an organisation brought along itself —
+	// an image of its own under a name of its own (spec/16).
+	OrgWorkplaces *workplaces.Store
 	// Settings are the instance's own switches (internal/settings).
 	// nil = the defaults apply, which for signup.mode means: closed.
 	Settings *settings.Store
@@ -316,6 +320,10 @@ func (s *Server) Handler() http.Handler {
 	// verwaltet, darf das — es beschafft, was die Instanz ohnehin startet, und
 	// aendert an keiner Konfiguration etwas.
 	mux.Handle("POST /api/v1/workplaces/{name}/pull", s.rbac(manage, s.handlePullWorkplace))
+	// Ein eigenes Image anmelden — einmal, mit Namen und Beschreibung, statt
+	// als freier Text an jedem Agenten (spec/16).
+	mux.Handle("POST /api/v1/workplaces", s.rbac(manage, s.handleCreateWorkplace))
+	mux.Handle("DELETE /api/v1/workplaces/{name}", s.rbac(manage, s.handleDeleteWorkplace))
 	mux.Handle("POST /api/v1/runners/registration-tokens", s.rbac(manage, s.handleCreateRegistrationToken))
 	mux.Handle("DELETE /api/v1/runners/{id}", s.rbac(manage, s.handleDeleteRunner))
 

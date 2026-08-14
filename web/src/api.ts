@@ -1223,7 +1223,15 @@ export type Workplace = {
      Voreinstellung. Ohne diese Angabe müsste jemand zwischen drei Quellen
      raten, wenn ein Image nicht das ist, was er erwartet hat. */
   source?: "catalog" | "env" | "builtin";
+  /** Aus dem Katalog des Projekts oder von dieser Organisation mitgebracht. */
+  kind?: "catalog" | "own";
+  /** Wer hier arbeitet — benannt, nicht gezählt. */
+  agents?: { id: string; slug: string; display_name: string }[];
 };
+
+export const createWorkplace = (w: { name: string; label: string; description: string; image: string }) =>
+  post<Workplace>("/workplaces", w);
+export const deleteWorkplace = (name: string) => del<{ ok: boolean }>(`/workplaces/${name}`);
 
 // KI-Assistent zum Anpassen von Agenten (Config-Copilot, FR-001).
 export type AssistMessage = { role: "user" | "assistant"; content: string };

@@ -35,6 +35,16 @@ type Pool struct {
 	// belongs to which Covey version, pinned by digest. Optional — without it
 	// Profiles stands, which is the state before the catalogue existed.
 	Catalog *sandbox.Source
+	// OrgImages resolves the workplaces an organisation brought along itself:
+	// name → image (spec/16). nil = none, then only the catalogue's names
+	// resolve and anything else stays a literal image reference.
+	OrgImages func(ctx context.Context, orgID uuid.UUID) map[string]string
+	// AllOrgImages is the same across all organisations — for the readiness
+	// check, which asks about the host and not about a tenant. Two
+	// organisations may use the same name for different images; for a question
+	// that only asks "does this image exist here" that is harmless, and the
+	// alternative would be to ask the same host once per tenant.
+	AllOrgImages func(ctx context.Context) map[string]string
 	// EnvImages are the instance's explicit overrides
 	// (COVEY_SANDBOX_IMAGE_<PROFILE>). They beat the catalogue: whoever named
 	// an image on their own host has the last word, and a remote file must not
@@ -504,13 +514,28 @@ func holdsImage(has []string, wanted string) bool {
 // imageFor resolves an agent's workplace. One rule, in this order: nothing
 // named → the instance default; a known profile → its image; anything else →
 // taken literally.
-func (p *Pool) imageFor(ctx context.Context, want string) string {
+func (p *Pool) imageFor(ctx context.Context, orgID uuid.UUID, want string) string {
 	want = strings.TrimSpace(want)
 	if want == "" {
 		return p.DefaultImage
 	}
 	if img, ok := p.profiles(ctx)[want]; ok && img != "" {
 		return img
+	}
+	// Ein Arbeitsplatz dieser Organisation. Nach dem Katalog gefragt, weil ein
+	// veroeffentlichter Name nicht ueberschrieben werden kann — welcher
+	// gemeint ist, darf nicht davon abhaengen, wer zuerst nachsieht.
+	if orgID != uuid.Nil && p.OrgImages != nil {
+		if img, ok := p.OrgImages(ctx, orgID)[want]; ok && img != "" {
+			return img
+		}
+	}
+	// Instanzweit gefragt (Bereitschaftspruefung): dann ohne Mandant, aber die
+	// Namen sind dieselben.
+	if orgID == uuid.Nil && p.AllOrgImages != nil {
+		if img, ok := p.AllOrgImages(ctx)[want]; ok && img != "" {
+			return img
+		}
 	}
 	return want
 }
@@ -614,7 +639,7 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 	// win, and the file would be gone without anyone having deleted it.
 	p.flushHome(ctx, spec.AgentID)
 
-	want := need{orgID: spec.OrgID, image: p.imageFor(ctx, spec.Image), tags: spec.RunnerTags}
+	want := need{orgID: spec.OrgID, image: p.imageFor(ctx, spec.OrgID, spec.Image), tags: spec.RunnerTags}
 	c, err := p.pick(want)
 	if errors.Is(err, errNoneInOrg) && p.EnsureLocal != nil {
 		c, err = p.ensureAndPick(ctx, want)
@@ -643,12 +668,12 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 	answer, err := c.ask(ctx, TypeStartSandbox, StartSandbox{
 		AgentID:     spec.AgentID,
 		OrgID:       spec.OrgID,
-		Image:       p.imageFor(ctx, spec.Image),
+		Image:       p.imageFor(ctx, spec.OrgID, spec.Image),
 		HomeDir:     spec.HomeDir,
 		Env:         spec.Env,
 		EgressToken: spec.EgressToken,
 		Snapshot:    snapshot,
-		ImageHint:   p.imageHints(ctx)[p.imageFor(ctx, spec.Image)],
+		ImageHint:   p.imageHints(ctx)[p.imageFor(ctx, spec.OrgID, spec.Image)],
 	}, timeout)
 	if err != nil {
 		return nil, err
@@ -864,7 +889,7 @@ func (p *Pool) wantedImages(ctx context.Context) []string {
 	seen := map[string]bool{}
 	var out []string
 	for want := range inUse {
-		image := p.imageFor(ctx, want)
+		image := p.imageFor(ctx, uuid.Nil, want)
 		if image == "" || seen[image] {
 			continue
 		}
@@ -900,18 +925,27 @@ func (p *Pool) imageHints(ctx context.Context) map[string]string {
 // least one that could take the agent — anything else would call a workplace
 // unavailable that works.
 func (p *Pool) Workplaces(ctx context.Context, orgID uuid.UUID) map[string]bool {
-	seen := map[string]bool{}
 	var report []string
 	for _, prof := range sandbox.All() {
-		image := p.imageFor(ctx, prof.Name)
-		if image == "" || seen[image] {
+		report = append(report, p.imageFor(ctx, orgID, prof.Name))
+	}
+	return p.WorkplaceImages(ctx, orgID, report)
+}
+
+// WorkplaceImages asks about exactly these images. The caller decides which —
+// since an organisation may bring workplaces of its own (spec/16), the list is
+// no longer derivable from the compiled catalogue alone.
+func (p *Pool) WorkplaceImages(ctx context.Context, orgID uuid.UUID, images []string) map[string]bool {
+	seen := map[string]bool{}
+	var report []string
+	for _, image := range images {
+		if strings.TrimSpace(image) == "" || seen[image] {
 			continue
 		}
 		seen[image] = true
 		report = append(report, image)
 	}
 	sort.Strings(report)
-
 	p.mu.Lock()
 	var conns []*conn
 	for _, c := range p.conns {
@@ -950,7 +984,7 @@ func (p *Pool) Workplaces(ctx context.Context, orgID uuid.UUID) map[string]bool 
 // with several runners and must not be rounded to "done" — an agent scheduled
 // onto the one that failed would wait for a download nobody expects.
 func (p *Pool) PullWorkplace(ctx context.Context, orgID uuid.UUID, profile string) (image string, problems []string, err error) {
-	image = p.imageFor(ctx, profile)
+	image = p.imageFor(ctx, orgID, profile)
 	if strings.TrimSpace(image) == "" {
 		return "", nil, fmt.Errorf("no image for workplace %q", profile)
 	}

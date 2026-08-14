@@ -1,6 +1,16 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
-import { api, post, type Principal, type Workplace } from "../api";
+import {
+  api,
+  post,
+  createWorkplace,
+  deleteWorkplace,
+  type Principal,
+  type Workplace,
+} from "../api";
+import { ConfirmDialog } from "../components/Modal";
 
 /* Die Arbeitsplätze — dieselbe Ansicht, die es für Zielsysteme gibt, für das
    andere Ding, das eine Organisation anschließt: das Image, in dem ein Agent
@@ -25,6 +35,11 @@ function kurzerDigest(image: string): string {
 function Zeile({ w, me }: { w: Workplace; me: Principal }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
+  const [confirm, setConfirm] = useState(false);
+  const loeschen = useMutation({
+    mutationFn: () => deleteWorkplace(w.name),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["workplaces"] }),
+  });
   const holen = useMutation({
     mutationFn: () => post<{ image: string; problems?: string[] }>(`/workplaces/${w.name}/pull`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["workplaces"] }),
@@ -45,7 +60,19 @@ function Zeile({ w, me }: { w: Workplace; me: Principal }) {
         {w.available === true && <span className="pill ok">{t("workplaces.present")}</span>}
         {w.available === false && <span className="pill">{t("workplaces.absent")}</span>}
         <span className="muted text-xs ml-auto">
-          {t("workplaces.inUse", { count: w.in_use })}
+          {w.agents?.length ? (
+            <>
+              {t("workplaces.worksHere")}{" "}
+              {w.agents.map((a, i) => (
+                <span key={a.id}>
+                  {i > 0 && ", "}
+                  <Link to={`/agents/${a.id}`}>{a.display_name}</Link>
+                </span>
+              ))}
+            </>
+          ) : (
+            t("workplaces.nobody")
+          )}
         </span>
       </div>
 
@@ -108,6 +135,34 @@ function Zeile({ w, me }: { w: Workplace; me: Principal }) {
           {p}
         </p>
       ))}
+      {w.kind === "own" && darfHolen(me.Role) && (
+        <>
+          <button
+            className="btn sm danger mt-3"
+            onClick={() => setConfirm(true)}
+            disabled={loeschen.isPending}
+          >
+            {t("workplaces.delete")}
+          </button>
+          {loeschen.isError && (
+            <p className="danger-text text-xs mt-2">{(loeschen.error as Error).message}</p>
+          )}
+          {confirm && (
+            <ConfirmDialog
+              title={t("workplaces.deleteTitle", { name: w.label || w.name })}
+              confirmLabel={t("workplaces.delete")}
+              pending={loeschen.isPending}
+              onClose={() => setConfirm(false)}
+              onConfirm={() => {
+                setConfirm(false);
+                loeschen.mutate();
+              }}
+            >
+              {t("workplaces.deleteBody")}
+            </ConfirmDialog>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -136,6 +191,93 @@ export default function Workplaces({ me, embedded = false }: { me: Principal; em
       {(list.data ?? []).map((w) => (
         <Zeile key={w.name} w={w} me={me} />
       ))}
+
+      {darfHolen(me.Role) && <Anlegen />}
     </div>
+  );
+}
+
+/* Ein eigenes Image anmelden. Es steht hier und nicht als freies Textfeld am
+   Agenten: Dort war es unsichtbar (in keiner Übersicht), unbeschrieben (eine
+   Registry-Adresse sagt nicht, wozu sie da ist) und ein Tippfehler fiel erst
+   beim Wecken auf. Einmal angelegt, wird es danach ausgewählt wie jedes
+   andere. */
+function Anlegen() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const [offen, setOffen] = useState(false);
+  const [name, setName] = useState("");
+  const [label, setLabel] = useState("");
+  const [beschreibung, setBeschreibung] = useState("");
+  const [image, setImage] = useState("");
+
+  const anlegen = useMutation({
+    mutationFn: () => createWorkplace({ name, label, description: beschreibung, image }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["workplaces"] });
+      setOffen(false);
+      setName("");
+      setLabel("");
+      setBeschreibung("");
+      setImage("");
+    },
+  });
+
+  if (!offen) {
+    return (
+      <button className="btn sm" onClick={() => setOffen(true)}>
+        {t("workplaces.add")}
+      </button>
+    );
+  }
+  return (
+    <form
+      className="card"
+      style={{ maxWidth: 640 }}
+      onSubmit={(e) => {
+        e.preventDefault();
+        anlegen.mutate();
+      }}
+    >
+      <h2 className="text-sm mb-2" style={{ fontWeight: 600 }}>
+        {t("workplaces.add")}
+      </h2>
+      <label>{t("workplaces.fieldName")}</label>
+      <input
+        className="mono mb-2"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="dev-flutter"
+        required
+      />
+      <label>{t("workplaces.fieldLabel")}</label>
+      <input className="mb-2" value={label} onChange={(e) => setLabel(e.target.value)} />
+      <label>{t("workplaces.fieldDescription")}</label>
+      <input
+        className="mb-2"
+        value={beschreibung}
+        onChange={(e) => setBeschreibung(e.target.value)}
+        placeholder={t("workplaces.fieldDescriptionHint")}
+      />
+      <label>{t("workplaces.fieldImage")}</label>
+      <input
+        className="mono mb-2"
+        value={image}
+        onChange={(e) => setImage(e.target.value)}
+        placeholder="registry.example.com/team/sandbox:2026-08"
+        required
+      />
+      {anlegen.isError && (
+        <p className="danger-text text-xs mb-2">{(anlegen.error as Error).message}</p>
+      )}
+      <div className="flex gap-2">
+        <button className="btn sm primary" type="submit" disabled={anlegen.isPending}>
+          {t("workplaces.create")}
+        </button>
+        <button className="btn sm" type="button" onClick={() => setOffen(false)}>
+          {t("modal.cancel")}
+        </button>
+      </div>
+    </form>
   );
 }
