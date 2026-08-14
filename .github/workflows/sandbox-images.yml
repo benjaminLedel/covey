@@ -211,3 +211,108 @@ jobs:
             docker buildx imagetools create --tag "${image}:${t}" $args
           done
           docker buildx imagetools inspect "${image}:dev-latest"
+
+  # Der Katalog: welches Image zu welcher Covey-Fassung gehört, gepinnt auf den
+  # Digest (spec/16). Er entsteht HIER, weil nur diese Seite die Digests kennt —
+  # eine Instanz soll nicht raten und nicht konfiguriert werden müssen.
+  #
+  # Auf einem eigenen Branch statt in main: Die Datei ändert sich bei jedem
+  # Bau, und ein Bot, der dafür in den Hauptzweig committet, macht dessen
+  # Historie unlesbar. `catalog` ist ein verwaister Branch — kein Quelltext,
+  # eine Datei, ausgeliefert über raw.githubusercontent.
+  # Der Katalog: welches Image zu welcher Covey-Fassung gehört, gepinnt auf den
+  # Digest (spec/16). Er entsteht HIER, weil nur diese Seite die Digests kennt —
+  # eine Instanz soll nicht raten und nicht konfiguriert werden müssen.
+  #
+  # Auf einem eigenen Branch statt in main: Die Datei ändert sich bei jedem
+  # Bau, und ein Bot, der dafür in den Hauptzweig committet, macht dessen
+  # Historie unlesbar. `catalog` trägt keinen Quelltext, nur diese eine Datei,
+  # ausgeliefert über raw.githubusercontent.
+  catalog:
+    needs: [base-manifest, dev-manifest]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Katalog schreiben
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          image=$(echo "$REGISTRY/$GITHUB_REPOSITORY-sandbox" | tr 'A-Z' 'a-z')
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            version="$GITHUB_REF_NAME"
+          else
+            version="main"
+          fi
+
+          # Der Digest der Manifest-LISTE, nicht der einer Architektur: Ein
+          # Host, der ihn zieht, bekommt die Architektur, auf der er steht.
+          base_digest=$(docker buildx imagetools inspect "${image}:base-${version}" --format '{{ .Manifest.Digest }}')
+          dev_digest=$(docker buildx imagetools inspect "${image}:dev-${version}" --format '{{ .Manifest.Digest }}')
+
+          # Ein eigenes Verzeichnis: Dieser Branch hat mit dem Quelltext nichts
+          # zu tun, und ein Checkout, in dem beides liegt, verwechselt das früher
+          # oder später.
+          work=$(mktemp -d)
+          cd "$work"
+          git init -q
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          if git fetch -q --depth=1 origin catalog 2>/dev/null; then
+            git checkout -q -b catalog FETCH_HEAD
+          else
+            git checkout -q -b catalog
+          fi
+
+          # Bestehende Einträge anderer Fassungen bleiben stehen: Eine
+          # Installation auf v0.4.0 muss ihren Eintrag noch finden, nachdem
+          # v0.5.0 erschienen ist.
+          python3 - "$version" "$image" "$base_digest" "$dev_digest" <<'PY'
+          import json, sys, datetime
+          version, image, base_digest, dev_digest = sys.argv[1:5]
+          pfad = "sandbox-catalog.json"
+          try:
+              with open(pfad) as f:
+                  cat = json.load(f)
+          except FileNotFoundError:
+              cat = {"schema": 1, "workplaces": []}
+
+          beschreibung = {
+              "base": "Node, git, chromium, ripgrep — enough for support, mail, QA and research agents.",
+              "dev": "Everything from base plus PHP, JDK, fvm, uv and the node-gyp toolchain.",
+          }
+          digests = {"base": base_digest, "dev": dev_digest}
+
+          eintraege = {e["name"]: e for e in cat.get("workplaces", [])}
+          for name, digest in digests.items():
+              e = eintraege.setdefault(name, {"name": name, "label": name,
+                                              "description": beschreibung[name], "images": []})
+              e["description"] = beschreibung[name]
+              images = [i for i in e.get("images", []) if i.get("covey_version") != version]
+              images.append({"covey_version": version, "ref": f"{image}@{digest}",
+                             "platforms": ["linux/amd64", "linux/arm64"]})
+              e["images"] = sorted(images, key=lambda i: i["covey_version"] != "main")
+          cat["schema"] = 1
+          cat["generated_at"] = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+          cat["workplaces"] = [eintraege[n] for n in ("base", "dev") if n in eintraege]
+          with open(pfad, "w") as f:
+              json.dump(cat, f, indent=2)
+              f.write("\n")
+          PY
+
+          git config user.name "covey-ci"
+          git config user.email "ci@covey.invalid"
+          git add sandbox-catalog.json
+          if git diff --cached --quiet; then
+            echo "Nichts zu committen — die Digests sind unverändert."
+            exit 0
+          fi
+          git commit -q -m "catalog: $version — base $base_digest, dev $dev_digest"
+          git push -q origin catalog
+          echo "Katalog veröffentlicht:"
+          cat sandbox-catalog.json

@@ -48,6 +48,7 @@ import (
 	"covey/internal/runner"
 	runnerstore "covey/internal/runner/store"
 	"covey/internal/runtimes"
+	"covey/internal/sandbox"
 	secbuiltin "covey/internal/secrets/builtin"
 	"covey/internal/settings"
 	"covey/internal/skills"
@@ -911,6 +912,12 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	auditStore := audit.NewStore(pool)
 	skillStore := skills.NewStore(pool)
 
+	// Die veroeffentlichten Arbeitsplaetze (spec/16): welches Image zu welcher
+	// Covey-Fassung gehoert, gepinnt auf den Digest. Mit demselben Cache wie
+	// der Plugin-Katalog — der Stand ueberlebt den Neustart, und faellt der
+	// Server dahinter aus, gilt der letzte gueltige weiter.
+	workplaces := sandbox.NewSource(cfg.SandboxCatalogURL, marketplace.NewPgCache(pool), log)
+
 	// Egress enforcement can only be enforced with real network isolation (docker).
 	egressEnforced := cfg.EgressEnforce && cfg.SandboxProvider == "docker"
 
@@ -926,7 +933,15 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	runnerPool.DefaultImage = cfg.SandboxImage
 	// The profiles from the catalogue (spec/16). An agent's value that names
 	// none of them is taken as an image reference of its own.
+	//
+	// Three sources, in this order: what the environment names, what the
+	// published catalogue holds for THIS Covey version (pinned by digest), and
+	// the compiled default. The pool resolves that itself, because the middle
+	// one can change while the process runs — a release is published and the
+	// next wake takes the image built for it.
 	runnerPool.Profiles = cfg.SandboxImages
+	runnerPool.EnvImages = cfg.SandboxImageEnv
+	runnerPool.Catalog = workplaces
 	runnerPool.AgentImages = registry.SandboxImagesInUse
 	runnerPool.HomeExcludes = cfg.HomeExcludes
 	// "Last seen" only means something if it moves while a runner is there.
@@ -1159,7 +1174,8 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			m.Store, m.Log = marketplace.NewPgCache(pool), log
 			return m
 		}(),
-		Settings: settings.New(pool), Accounts: accounts.New(pool), Waitlist: waitlist.New(pool),
+		Workplaces: workplaces,
+		Settings:   settings.New(pool), Accounts: accounts.New(pool), Waitlist: waitlist.New(pool),
 		Skills: skillStore,
 		Orch:   orch, WebFS: dist, Log: log,
 		WebhookSecrets: cfg.WebhookSecrets,

@@ -31,6 +31,22 @@ type Pool struct {
 	// an image reference — the "org-owned: anything" row of the profile table.
 	DefaultImage string
 	Profiles     map[string]string
+	// Catalog is the published workplace catalogue (spec/16): which image
+	// belongs to which Covey version, pinned by digest. Optional — without it
+	// Profiles stands, which is the state before the catalogue existed.
+	Catalog *sandbox.Source
+	// EnvImages are the instance's explicit overrides
+	// (COVEY_SANDBOX_IMAGE_<PROFILE>). They beat the catalogue: whoever named
+	// an image on their own host has the last word, and a remote file must not
+	// overrule it.
+	EnvImages map[string]string
+
+	// profMu guards the resolved map. It is recomputed rather than held,
+	// because the catalogue behind it can change while the process runs — a
+	// release is published and the next wake takes the image built for it.
+	profMu  sync.RWMutex
+	profMap map[string]string
+	profAt  time.Time
 	// AgentImages reports which workplaces the agents are configured for
 	// (value → number of agents); the self-check asks the runners about
 	// exactly those. nil = unknown, then only the default is asked about.
@@ -488,15 +504,43 @@ func holdsImage(has []string, wanted string) bool {
 // imageFor resolves an agent's workplace. One rule, in this order: nothing
 // named → the instance default; a known profile → its image; anything else →
 // taken literally.
-func (p *Pool) imageFor(want string) string {
+func (p *Pool) imageFor(ctx context.Context, want string) string {
 	want = strings.TrimSpace(want)
 	if want == "" {
 		return p.DefaultImage
 	}
-	if img, ok := p.Profiles[want]; ok && img != "" {
+	if img, ok := p.profiles(ctx)[want]; ok && img != "" {
 		return img
 	}
 	return want
+}
+
+// profiles is what the profile names resolve to on this installation:
+// environment over catalogue over compiled default (sandbox.Resolve).
+//
+// Recomputed at most once a minute — the catalogue underneath keeps its own,
+// much longer cache, so this is a cheap map assembly and not a request.
+func (p *Pool) profiles(ctx context.Context) map[string]string {
+	if p.Catalog == nil && p.EnvImages == nil {
+		// Nothing to layer: whatever was wired in stands. This is also what
+		// the tests build, and they should not need a catalogue.
+		return p.Profiles
+	}
+	p.profMu.RLock()
+	m, at := p.profMap, p.profAt
+	p.profMu.RUnlock()
+	if m != nil && time.Since(at) < time.Minute {
+		return m
+	}
+	var fromCatalog map[string]string
+	if p.Catalog != nil {
+		fromCatalog = p.Catalog.Images(ctx)
+	}
+	eff := sandbox.Resolve(p.EnvImages, fromCatalog)
+	p.profMu.Lock()
+	p.profMap, p.profAt = eff, time.Now()
+	p.profMu.Unlock()
+	return eff
 }
 
 // need describes what a sandbox requires of its runner.
@@ -570,7 +614,7 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 	// win, and the file would be gone without anyone having deleted it.
 	p.flushHome(ctx, spec.AgentID)
 
-	want := need{orgID: spec.OrgID, image: p.imageFor(spec.Image), tags: spec.RunnerTags}
+	want := need{orgID: spec.OrgID, image: p.imageFor(ctx, spec.Image), tags: spec.RunnerTags}
 	c, err := p.pick(want)
 	if errors.Is(err, errNoneInOrg) && p.EnsureLocal != nil {
 		c, err = p.ensureAndPick(ctx, want)
@@ -599,12 +643,12 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 	answer, err := c.ask(ctx, TypeStartSandbox, StartSandbox{
 		AgentID:     spec.AgentID,
 		OrgID:       spec.OrgID,
-		Image:       p.imageFor(spec.Image),
+		Image:       p.imageFor(ctx, spec.Image),
 		HomeDir:     spec.HomeDir,
 		Env:         spec.Env,
 		EgressToken: spec.EgressToken,
 		Snapshot:    snapshot,
-		ImageHint:   p.imageHints()[p.imageFor(spec.Image)],
+		ImageHint:   p.imageHints(ctx)[p.imageFor(ctx, spec.Image)],
 	}, timeout)
 	if err != nil {
 		return nil, err
@@ -785,7 +829,7 @@ func (p *Pool) Check(ctx context.Context) []string {
 	images := p.wantedImages(ctx)
 	var problems []string
 	for _, c := range conns {
-		answer, err := c.ask(ctx, TypeCheck, Check{Images: images, Hints: p.imageHints()}, 30*time.Second)
+		answer, err := c.ask(ctx, TypeCheck, Check{Images: images, Hints: p.imageHints(ctx)}, 30*time.Second)
 		if err != nil {
 			problems = append(problems, fmt.Sprintf("runner %s does not answer: %v", short(c.runnerID), err))
 			continue
@@ -820,7 +864,7 @@ func (p *Pool) wantedImages(ctx context.Context) []string {
 	seen := map[string]bool{}
 	var out []string
 	for want := range inUse {
-		image := p.imageFor(want)
+		image := p.imageFor(ctx, want)
 		if image == "" || seen[image] {
 			continue
 		}
@@ -834,9 +878,9 @@ func (p *Pool) wantedImages(ctx context.Context) []string {
 // imageHints maps image → how one obtains it. It belongs on this side: the
 // runner sees a reference, the catalogue and the instance's overrides are
 // known here (spec/16).
-func (p *Pool) imageHints() map[string]string {
+func (p *Pool) imageHints(ctx context.Context) map[string]string {
 	out := map[string]string{}
-	for name, image := range p.Profiles {
+	for name, image := range p.profiles(ctx) {
 		if image == "" {
 			continue
 		}
@@ -859,7 +903,7 @@ func (p *Pool) Workplaces(ctx context.Context, orgID uuid.UUID) map[string]bool 
 	seen := map[string]bool{}
 	var report []string
 	for _, prof := range sandbox.All() {
-		image := p.imageFor(prof.Name)
+		image := p.imageFor(ctx, prof.Name)
 		if image == "" || seen[image] {
 			continue
 		}

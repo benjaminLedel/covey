@@ -40,6 +40,7 @@ import (
 	"covey/internal/runner"
 	runnerstore "covey/internal/runner/store"
 	"covey/internal/runtimes"
+	"covey/internal/sandbox"
 	"covey/internal/secrets"
 	"covey/internal/settings"
 	"covey/internal/skills"
@@ -64,6 +65,10 @@ type Server struct {
 	// Marketplace is the plugin catalogue the store offers installs from
 	// (spec/22). nil / empty URL = no catalogue configured.
 	Marketplace *marketplace.Client
+	// Workplaces is the published workplace catalogue (spec/16) — which image
+	// belongs to which Covey version. nil = none configured; then the
+	// compiled defaults and the environment stand.
+	Workplaces *sandbox.Source
 	// Settings are the instance's own switches (internal/settings).
 	// nil = the defaults apply, which for signup.mode means: closed.
 	Settings *settings.Store

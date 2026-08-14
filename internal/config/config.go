@@ -112,6 +112,14 @@ type Config struct {
 	// profile is a list that has to be extended in four places — which is the
 	// reason the catalogue exists.
 	SandboxImages map[string]string
+	// SandboxImageEnv are only the explicit overrides from the environment.
+	// They are what wins over the catalogue (spec/16) — the rest of
+	// SandboxImages is default, and a default must not beat a published one.
+	SandboxImageEnv map[string]string
+	// SandboxCatalogURL is where the published workplaces are listed: which
+	// image belongs to which Covey version, pinned by digest. Empty switches
+	// the catalogue off; then the compiled defaults and the environment stand.
+	SandboxCatalogURL string
 	// WebhookSecrets verify signatures of incoming target-system webhooks:
 	// COVEY_<SYSTEM>_WEBHOOK_SECRET → entry under the lowercased system name
 	// (e.g. COVEY_ZAMMAD_WEBHOOK_SECRET → "zammad").
@@ -230,41 +238,42 @@ const DefaultMarketplaceURL = "https://raw.githubusercontent.com/benjaminLedel/c
 
 func FromEnv() (Config, error) {
 	c := Config{
-		DatabaseURL:      getenv("COVEY_DATABASE_URL", "postgres://covey:covey@localhost:5433/covey?sslmode=disable"),
-		ListenAddr:       getenv("COVEY_LISTEN_ADDR", ":8494"),
-		PublicURL:        getenv("COVEY_PUBLIC_URL", "http://localhost:8494"),
-		SiteURL:          os.Getenv("COVEY_SITE_URL"),
-		MasterKeyHex:     os.Getenv("COVEY_MASTER_KEY"),
-		IdentityProvider: getenv("COVEY_IDENTITY_PROVIDER", "builtin"),
-		SecretStore:      getenv("COVEY_SECRET_STORE", "builtin"),
-		SandboxProvider:  getenv("COVEY_SANDBOX_PROVIDER", "docker"),
-		DataDir:          getenv("COVEY_DATA_DIR", "./data"),
-		SandboxImages:    sandboxImages(),
-		HomeStore:        getenvBool("COVEY_HOME_STORE", true),
-		HomeExcludes:     splitList(os.Getenv("COVEY_HOME_EXCLUDES")),
-		BlobStore:        getenv("COVEY_BLOB_STORE", "builtin"),
-		S3Endpoint:       getenv("COVEY_S3_ENDPOINT", ""),
-		S3Bucket:         getenv("COVEY_S3_BUCKET", ""),
-		S3Prefix:         getenv("COVEY_S3_PREFIX", ""),
-		S3Region:         getenv("COVEY_S3_REGION", ""),
-		S3AccessKey:      getenv("COVEY_S3_ACCESS_KEY", ""),
-		S3SecretKey:      getenv("COVEY_S3_SECRET_KEY", ""),
-		S3PathStyle:      getenvBool("COVEY_S3_PATH_STYLE", true),
-		WebhookSecrets:   webhookSecretsFromEnv(),
-		TickInterval:     getenvDuration("COVEY_TICK_INTERVAL", 30*time.Second),
-		DreamAt:          getenv("COVEY_DREAM_AT", "03:00"),
-		SessionTTL:       getenvDuration("COVEY_SESSION_TTL", 7*24*time.Hour),
-		DaemonTokenTTL:   getenvDuration("COVEY_DAEMON_TOKEN_TTL", 15*time.Minute),
-		BoardRetention:   getenvDuration("COVEY_BOARD_RETENTION", 24*time.Hour),
-		EgressEnforce:    getenvBool("COVEY_EGRESS_ENFORCE", false),
-		EgressAllow:      splitList(os.Getenv("COVEY_EGRESS_ALLOW")),
-		EgressIsolation:  getenv("COVEY_EGRESS_ISOLATION", "proxy"),
-		EgressProxyAddr:  getenv("COVEY_EGRESS_PROXY_ADDR", ":8888"),
-		ControlURL:       getenv("COVEY_CONTROL_URL", ""),
-		RunnerToken:      getenv("COVEY_RUNNER_TOKEN", ""),
-		WikiCleanup:      strings.TrimSpace(os.Getenv("COVEY_WIKI_CLEANUP")),
-		RuntimeTools:     splitList(os.Getenv("COVEY_RUNTIME_TOOLS")),
-		MarketplaceURL:   getenv("COVEY_MARKETPLACE_URL", DefaultMarketplaceURL),
+		DatabaseURL:       getenv("COVEY_DATABASE_URL", "postgres://covey:covey@localhost:5433/covey?sslmode=disable"),
+		ListenAddr:        getenv("COVEY_LISTEN_ADDR", ":8494"),
+		PublicURL:         getenv("COVEY_PUBLIC_URL", "http://localhost:8494"),
+		SiteURL:           os.Getenv("COVEY_SITE_URL"),
+		MasterKeyHex:      os.Getenv("COVEY_MASTER_KEY"),
+		IdentityProvider:  getenv("COVEY_IDENTITY_PROVIDER", "builtin"),
+		SecretStore:       getenv("COVEY_SECRET_STORE", "builtin"),
+		SandboxProvider:   getenv("COVEY_SANDBOX_PROVIDER", "docker"),
+		DataDir:           getenv("COVEY_DATA_DIR", "./data"),
+		SandboxImageEnv:   sandboxImageEnv(),
+		SandboxCatalogURL: getenv("COVEY_SANDBOX_CATALOG_URL", sandbox.DefaultCatalogURL()),
+		HomeStore:         getenvBool("COVEY_HOME_STORE", true),
+		HomeExcludes:      splitList(os.Getenv("COVEY_HOME_EXCLUDES")),
+		BlobStore:         getenv("COVEY_BLOB_STORE", "builtin"),
+		S3Endpoint:        getenv("COVEY_S3_ENDPOINT", ""),
+		S3Bucket:          getenv("COVEY_S3_BUCKET", ""),
+		S3Prefix:          getenv("COVEY_S3_PREFIX", ""),
+		S3Region:          getenv("COVEY_S3_REGION", ""),
+		S3AccessKey:       getenv("COVEY_S3_ACCESS_KEY", ""),
+		S3SecretKey:       getenv("COVEY_S3_SECRET_KEY", ""),
+		S3PathStyle:       getenvBool("COVEY_S3_PATH_STYLE", true),
+		WebhookSecrets:    webhookSecretsFromEnv(),
+		TickInterval:      getenvDuration("COVEY_TICK_INTERVAL", 30*time.Second),
+		DreamAt:           getenv("COVEY_DREAM_AT", "03:00"),
+		SessionTTL:        getenvDuration("COVEY_SESSION_TTL", 7*24*time.Hour),
+		DaemonTokenTTL:    getenvDuration("COVEY_DAEMON_TOKEN_TTL", 15*time.Minute),
+		BoardRetention:    getenvDuration("COVEY_BOARD_RETENTION", 24*time.Hour),
+		EgressEnforce:     getenvBool("COVEY_EGRESS_ENFORCE", false),
+		EgressAllow:       splitList(os.Getenv("COVEY_EGRESS_ALLOW")),
+		EgressIsolation:   getenv("COVEY_EGRESS_ISOLATION", "proxy"),
+		EgressProxyAddr:   getenv("COVEY_EGRESS_PROXY_ADDR", ":8888"),
+		ControlURL:        getenv("COVEY_CONTROL_URL", ""),
+		RunnerToken:       getenv("COVEY_RUNNER_TOKEN", ""),
+		WikiCleanup:       strings.TrimSpace(os.Getenv("COVEY_WIKI_CLEANUP")),
+		RuntimeTools:      splitList(os.Getenv("COVEY_RUNTIME_TOOLS")),
+		MarketplaceURL:    getenv("COVEY_MARKETPLACE_URL", DefaultMarketplaceURL),
 
 		EmbeddingProvider: getenv("COVEY_EMBEDDING_PROVIDER", "builtin"),
 		EmbeddingModel:    strings.TrimSpace(os.Getenv("COVEY_EMBEDDING_MODEL")),
@@ -275,6 +284,11 @@ func FromEnv() (Config, error) {
 		RequestLogBodies:    getenvBool("COVEY_REQUEST_LOG_BODIES", true),
 		RequestLogRetention: getenvDuration("COVEY_REQUEST_LOG_RETENTION", 72*time.Hour),
 	}
+	// The resolved map without the catalogue: the compiled defaults plus what
+	// the environment says. Whoever asks before the catalogue has been read —
+	// the doctor at the shell, the startup check — gets this, and the pool
+	// layers the published images on top at runtime.
+	c.SandboxImages = sandbox.Resolve(c.SandboxImageEnv, nil)
 	// The default image is the default profile's — one value, derived, so that
 	// "the instance default" and "the base profile" cannot drift apart.
 	c.SandboxImage = c.SandboxImages[sandbox.DefaultName()]
@@ -481,11 +495,16 @@ func getenvDuration(key string, fallback time.Duration) time.Duration {
 	return fallback
 }
 
-// sandboxImages reads the image of every profile in the catalogue from the
+// sandboxImageEnv reads the image of every profile in the catalogue from the
 // environment. COVEY_SANDBOX_IMAGE stays valid for the default profile: it is
 // the name from before the split, it is documented, and it is set in existing
 // installations — an upgrade must not silently drop a configured image.
-func sandboxImages() map[string]string {
+//
+// Only the OVERRIDES, not the resolved map: since the workplace catalogue
+// exists (spec/16), what a profile resolves to depends on a file that may
+// change while the process runs, and something read once at startup cannot say
+// it. What an operator has set is fixed at startup — that is this.
+func sandboxImageEnv() map[string]string {
 	overrides := map[string]string{}
 	for _, p := range sandbox.All() {
 		if v := strings.TrimSpace(os.Getenv(sandbox.EnvVar(p.Name))); v != "" {
@@ -497,5 +516,5 @@ func sandboxImages() map[string]string {
 			overrides[sandbox.DefaultName()] = v
 		}
 	}
-	return sandbox.Images(overrides)
+	return overrides
 }

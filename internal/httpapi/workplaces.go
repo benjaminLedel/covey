@@ -18,6 +18,12 @@ import (
 
 type workplaceView struct {
 	sandbox.Profile
+	// Source says where the image reference comes from: "catalog" (published
+	// for this Covey version), "env" (this instance named it) or "builtin"
+	// (the compiled default). It answers the question an operator asks when an
+	// image is not what they expected — without it they would have to guess
+	// between three places.
+	Source string `json:"source,omitempty"`
 	// Available: the image lies on at least one runner of this organisation.
 	// Nil = nobody could be asked (no runner connected, or none answered) —
 	// which is something different from "not there" and must not be shown as
@@ -31,10 +37,18 @@ func (s *Server) handleListWorkplaces(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	profiles := sandbox.All()
 
-	images := map[string]string{}
+	// Dieselbe Reihenfolge, die auch die Sandbox startet: Umgebung, dann der
+	// veroeffentlichte Katalog, dann die kompilierte Voreinstellung. Die
+	// Ansicht soll zeigen, was gilt — nicht, was in einer der drei Quellen
+	// steht.
+	var env, catalogue map[string]string
 	if s.Config != nil {
-		images = s.Config.SandboxImages
+		env = s.Config.SandboxImageEnv
 	}
+	if s.Workplaces != nil {
+		catalogue = s.Workplaces.Images(r.Context())
+	}
+	images := sandbox.Resolve(env, catalogue)
 
 	var present map[string]bool
 	if s.RunnerPool != nil {
@@ -45,10 +59,17 @@ func (s *Server) handleListWorkplaces(w http.ResponseWriter, r *http.Request) {
 
 	out := make([]workplaceView, 0, len(profiles))
 	for _, prof := range profiles {
+		quelle := "builtin"
+		if img := catalogue[prof.Name]; img != "" {
+			quelle = "catalog"
+		}
+		if img := env[prof.Name]; img != "" {
+			quelle = "env"
+		}
 		if img := images[prof.Name]; img != "" {
 			prof.Image = img
 		}
-		view := workplaceView{Profile: prof, InUse: inUse[prof.Name]}
+		view := workplaceView{Profile: prof, Source: quelle, InUse: inUse[prof.Name]}
 		if prof.Default {
 			// An agent without a choice works here, and that is the majority of
 			// them — otherwise the default would look unused.
