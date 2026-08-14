@@ -8,7 +8,7 @@ import {
   setAgentDepartment, setAgentSupervisor,
   setHumanDepartment, setHumanManager,
   addDepartmentLead, removeDepartmentLead,
-  type Agent, type Human, type OrgChart, type Department, type DeptLead,
+  type Agent, type AgentSystem, type Human, type OrgChart, type Department, type DeptLead,
   type Organization,
 } from "../api";
 import { Avatar } from "../components/person";
@@ -139,14 +139,90 @@ export function CompanyDescription() {
  * GitHub-Spiegel hätte sonst einen Agenten, der Issues dorthin schreibt, wo die
  * Welt mitliest. Deshalb steht das hier bei den Stammdaten und nicht in einem
  * Prompt. Leer heißt: die dritte Schicht gibt es nicht, und im Prompt steht
- * davon auch nichts. */
-export function PlatformRepo() {
+ * davon auch nichts.
+ *
+ * Zwei Dinge haben der Karte gefehlt, und beide machten sie zu einer
+ * Einstellung, die man dort nicht erwartet, wo sie steht:
+ *
+ * Am Organigramm stand sie auch auf Instanzen ohne Covey Doctor — ein Formular
+ * für einen Agenten, den es nicht gibt, zwischen den Menschen und Abteilungen,
+ * die es gibt. Dort hängt sie jetzt an ihm (nurMitDoctor): Sie ist da
+ * Zusammenhang zu einem Kollegen, den man im Chart sieht. In den Stammdaten der
+ * Verwaltung bleibt sie immer stehen — das ist die Fläche für Einstellungen,
+ * auch für die noch ungenutzten.
+ *
+ * Und sie war die halbe Einrichtung: ohne eine Zeile in der ACCESS.md von Covey
+ * Doctor bleibt der Abschnitt aus seinem Prompt, und davon stand nichts auf der
+ * Karte, sondern im Kleingedruckten des Formulars. Wer speicherte, sah nicht,
+ * ob es gewirkt hat. Jetzt steht der Zustand da, wo das Ergebnis steht
+ * (RepoZugang). */
+
+/* Ob die Einstellung überhaupt wirkt — gelesen aus derselben Quelle, aus der
+   der Prompt entsteht: `access` ist die Zeile in der ACCESS.md von Covey
+   Doctor, `enabled` die Freigabe des Plugins für die Organisation. */
+function RepoZugang({
+  doctor,
+  system,
+  systeme,
+}: {
+  doctor: Agent;
+  system: string;
+  systeme?: AgentSystem[] | null;
+}) {
+  const { t } = useTranslation();
+  if (!systeme) return null; // noch nicht geladen — lieber nichts als eine Vermutung
+  const eintrag = systeme.find((s) => s.name === system);
+  const zumAgenten = (
+    <Link to={`/agents/${doctor.id}?tab=config`}>{doctor.display_name}</Link>
+  );
+
+  if (!eintrag) {
+    return (
+      <p className="warn-text text-xs" style={{ maxWidth: 640 }}>
+        {t("org.repo.stateUnknownSystem", { system })}
+      </p>
+    );
+  }
+  if (!eintrag.enabled) {
+    return (
+      <p className="warn-text text-xs" style={{ maxWidth: 640 }}>
+        {t("org.repo.stateDisabled", { system: eintrag.label || eintrag.name })}
+      </p>
+    );
+  }
+  if (!eintrag.access) {
+    return (
+      <p className="warn-text text-xs" style={{ maxWidth: 640 }}>
+        {t("org.repo.stateNoAccess", { system: eintrag.label || eintrag.name })}{" "}
+        {zumAgenten}
+      </p>
+    );
+  }
+  return (
+    <p className="muted text-xs" style={{ maxWidth: 640 }}>
+      {t("org.repo.stateOk")} {zumAgenten}
+    </p>
+  );
+}
+
+export function PlatformRepo({ nurMitDoctor = false }: { nurMitDoctor?: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const own = useQuery({ queryKey: ["own-org"], queryFn: () => api<Organization>("/org") });
   const targets = useQuery({
     queryKey: ["targets"],
     queryFn: () => api<{ name: string; label: string; enabled: boolean }[] | null>("/targets"),
+  });
+  /* Derselbe Schlüssel wie auf der Seite ringsum: die Abfrage läuft nicht ein
+     zweites Mal, die Karte liest nur mit. */
+  const chart = useQuery({ queryKey: ["orgchart"], queryFn: () => api<OrgChart>("/org/chart") });
+  const doctor = (chart.data?.agents ?? []).find((a) => a.slug === "covey-doctor");
+  /* Was Covey Doctor an Zugängen HAT — dieselbe Quelle, aus der sein Prompt
+     entsteht (access = eine Zeile in seiner ACCESS.md). */
+  const systeme = useQuery({
+    queryKey: ["agent-systems", doctor?.id],
+    queryFn: () => api<AgentSystem[] | null>(`/agents/${doctor!.id}/systems`),
+    enabled: !!doctor,
   });
   const [editing, setEditing] = useState(false);
   const [system, setSystem] = useState("");
@@ -163,7 +239,9 @@ export function PlatformRepo() {
     onError: (e: Error) => setError(e.message),
   });
 
-  if (!own.data) return null;
+  /* Am Organigramm ohne Covey Doctor: keine Karte. Wer ihn einstellt, findet
+     sie mit ihm vor — in den Stammdaten steht sie ohnehin. */
+  if (!own.data || (nurMitDoctor && !doctor)) return null;
   const gesetzt = own.data.platform_repo_system && own.data.platform_repo_project;
   // Nur angeschlossene Zielsysteme: eine Adresse auf einem System ohne
   // Credential liefe erst beim Checkout ins Leere.
@@ -186,16 +264,25 @@ export function PlatformRepo() {
         )}
       </div>
       {!editing && (
-        <p className={`text-xs ${gesetzt ? "" : "muted"}`} style={{ maxWidth: 640 }}>
-          {gesetzt ? (
-            <>
-              <span className="mono">{own.data.platform_repo_system}</span>{" · "}
-              <span className="mono">{own.data.platform_repo_project}</span>
-            </>
-          ) : (
-            t("org.repo.empty")
+        <>
+          <p className={`text-xs ${gesetzt ? "" : "muted"}`} style={{ maxWidth: 640 }}>
+            {gesetzt ? (
+              <>
+                <span className="mono">{own.data.platform_repo_system}</span>{" · "}
+                <span className="mono">{own.data.platform_repo_project}</span>
+              </>
+            ) : (
+              t("org.repo.empty")
+            )}
+          </p>
+          {gesetzt && doctor && (
+            <RepoZugang
+              doctor={doctor}
+              system={own.data.platform_repo_system!}
+              systeme={systeme.data}
+            />
           )}
-        </p>
+        </>
       )}
       {editing && (
         <form onSubmit={(e) => { e.preventDefault(); save.mutate(); }} style={{ maxWidth: 640 }}>
@@ -281,9 +368,17 @@ export default function Org() {
     setDragging(null);
   };
 
-  if (chart.isLoading) return null;
   if (chart.isError) return <p className="danger-text">{t("org.loadError")}</p>;
-  const { humans, agents, departments } = chart.data!;
+  /* Nicht isLoading: das ist nur der ERSTE Ladevorgang. Zwischen einem
+     fehlgeschlagenen Versuch und dem Wiederholungsversuch steht die Abfrage auf
+     „pending, aber gerade nicht unterwegs" — isLoading false, isError noch
+     false, data undefined. Das Ausrufezeichen dahinter hat die Seite in genau
+     diesem Moment zerlegt: eine 401 auf /org/chart (abgelaufene Sitzung), und
+     statt der Anmeldung kam eine weisse Seite, weil React den Baum bei der
+     Ausnahme abwirft. Auf die Daten prüfen, nicht auf einen Zustand, der sie
+     bloß meistens mitbringt. */
+  if (!chart.data) return null;
+  const { humans, agents, departments } = chart.data;
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["orgchart"] });
 
@@ -298,7 +393,7 @@ export default function Org() {
       </p>
 
       <CompanyDescription />
-      <PlatformRepo />
+      <PlatformRepo nurMitDoctor />
 
       {/* Legende + Aktionsleiste */}
       <div className="org-legend">
