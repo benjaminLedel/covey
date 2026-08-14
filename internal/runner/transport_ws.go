@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -81,9 +82,23 @@ func Dial(ctx context.Context, controlURL, token string) (Transport, error) {
 		HTTPHeader: http.Header{"Authorization": {"Bearer " + token}},
 	})
 	if err != nil {
-		if resp != nil && resp.StatusCode == http.StatusUnauthorized {
-			return nil, errors.New("the control plane refuses this runner token — " +
-				"registered against another instance, or revoked there")
+		if resp != nil {
+			switch resp.StatusCode {
+			case http.StatusUnauthorized:
+				return nil, errors.New("the control plane refuses this runner token — " +
+					"registered against another instance, or revoked there")
+			case http.StatusUpgradeRequired:
+				// 426 means the request arrived WITHOUT the upgrade headers.
+				// The runner sent them — so something in between dropped them,
+				// and that is a reverse proxy nine times out of ten. Saying
+				// "expected status 101, got 426" is true and useless: it sends
+				// somebody looking at the runner, and the runner is fine.
+				return nil, fmt.Errorf("%s answered 426 to the WebSocket handshake — "+
+					"a proxy in front of the instance is not forwarding the upgrade. "+
+					"For nginx: proxy_http_version 1.1 plus `proxy_set_header Upgrade $http_upgrade` "+
+					"and `proxy_set_header Connection $connection_upgrade` on this location "+
+					"(see docs/ops-runner.md)", wsURL)
+			}
 		}
 		return nil, err
 	}

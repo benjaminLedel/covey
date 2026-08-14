@@ -215,6 +215,45 @@ It is renewed once per control-plane start: the built-in runner's token is
 rolled at every start, and a leftover container would carry the old one and —
 fail-closed, correctly — block everything.
 
+## Behind a reverse proxy
+
+The runner dials **out** — one WebSocket to `/api/runner/ws`, held open. That is
+what makes a remote host practical: it needs no inbound reachability, only a way
+out. But the connection is an HTTP **upgrade**, and a proxy that does not
+forward it turns the runner into a host that registers and then never connects.
+
+The symptom is unambiguous once you know it: registration succeeds (that is
+plain HTTP), and the connection fails with **426**. The 426 comes from Covey
+itself — the request reached it without the upgrade headers, so something in
+between dropped them.
+
+For nginx, two lines are usually missing:
+
+```nginx
+map $http_upgrade $connection_upgrade { default upgrade; '' close; }   # once, in http { }
+
+location / {
+    proxy_pass http://127.0.0.1:8494;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade    $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_set_header Host       $host;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_read_timeout 3600s;   # the connection is long-lived by design
+}
+```
+
+`proxy_read_timeout` matters as much as the upgrade itself: a runner that is
+idle for a while is not a runner that is gone, and a proxy that closes the
+connection after 60 seconds produces a host that reconnects all day for no
+reason. Traefik and Caddy forward the upgrade by themselves; there the timeout
+is the only thing to check.
+
+This concerns the **remote** runner only. The sandbox daemon connects to
+`COVEY_WS_URL`, which points inward at the control plane and normally does not
+pass a proxy at all.
+
 ## When nothing runs
 
 The message says which of the three it is, because they call for different
@@ -225,6 +264,7 @@ things:
 | *this organisation has no runner* | the built-in one is switched off and none is registered |
 | *no runner holds this image* | build the image on the runner, or change the agent's profile |
 | *every runner is offline* | the host is down or cannot reach the control plane |
+| *426 to the WebSocket handshake* | a proxy in front of the instance is not forwarding the upgrade — see above |
 
 There is deliberately **no fallback** onto the built-in runner when a
 registered one does not fit: that would restore the mixed pool through the back
