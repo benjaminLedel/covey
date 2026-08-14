@@ -291,7 +291,7 @@
       "lead": "Real views from the control plane — workforce, structure, work, memory and cost.",
       "agents": {
         "t": "The workforce",
-        "d": "Every agent with its state, runtime and role — above them the applications still waiting to be hired."
+        "d": "Every agent with its state, engine and role — above them the applications still waiting to be hired."
       },
       "org": {
         "t": "Org chart",
@@ -365,7 +365,6 @@
     "platform": "Platform",
     "users": "Users",
     "organizations": "Organizations",
-    "runtimes": "Runtimes",
     "help": "Help (?)",
     "logout": "Sign out",
     "userMenu": "User menu",
@@ -378,7 +377,6 @@
     "administrationSection": "Administration",
     "administration": "Organization",
     "approvals": "Approvals",
-    "runners": "Runners",
     "diagnostics": "Diagnostics",
     "infrastructure": "Infrastructure"
   },
@@ -506,7 +504,7 @@
       },
       "agent": {
         "title": "Create an agent",
-        "hint": "Name, slug, runtime — that is all it takes to start.",
+        "hint": "Name, slug, engine — that is all it takes to start.",
         "action": "Create an agent"
       },
       "config": {
@@ -651,7 +649,7 @@
     "importedWith": "Imported: {{name}} — with notes:",
     "openAgent": "Open agent",
     "invalidJson": "File is not a valid JSON bundle.",
-    "selectRuntime": "Runtime",
+    "selectRuntime": "Engine",
     "slug": "Slug",
     "budget": "Budget",
     "guided": {
@@ -1027,14 +1025,14 @@
       "slug": "Slug",
       "slugError": "Slug already taken",
       "slugHint": "Lowercase letters, digits, hyphens only. Must be unique.",
-      "runtime": "Runtime",
-      "runtimeHint": "Takes effect on the next task dispatch. Runtime setup: see the Runtimes page.",
+      "runtime": "Engine",
+      "runtimeHint": "Takes effect on the next task dispatch. Per-engine setup: Infrastructure → Engines.",
       "model": "Model",
-      "modelPlaceholder": "empty = runtime default",
+      "modelPlaceholder": "empty = engine default",
       "modelHint": "Model ID or alias, e.g. claude-opus-4-8 or sonnet.",
       "fixedIdentity": "Fixed: the operations engineer is called \"Covey Doctor\" on every instance. The name belongs to the platform, so that an agent with these permissions stays recognisable as one everywhere.",
       "effort": "Reasoning effort",
-      "effortDefault": "empty = runtime default",
+      "effortDefault": "empty = engine default",
       "effortHint": "Independent of the model — how hard it thinks per turn. The engine decides which levels exist; engines without this control do not show the row.",
       "maxTurns": "Max turns per run",
       "maxTurnsPlaceholder": "0 = default (30)",
@@ -1420,9 +1418,9 @@
     "readOnlyHint": "Other people's profiles are managed by an admin under \"Users\"."
   },
   "runtimes": {
-    "title": "Runtimes",
+    "title": "Engines",
     "subtitle": "plugins registered in the daemon",
-    "desc": "Runtimes are the swappable seam between the control plane and the sandbox — self-describing plugins in code. The ⓘ per runtime shows setup instructions step by step. Which runtime (and model) an agent uses can be changed on the agent page under the Settings tab.",
+    "desc": "Engines are the swappable seam between the control plane and the sandbox — self-describing plugins in code. The ⓘ per engine shows setup instructions step by step. Which engine (and model) an agent uses can be changed on the agent page under the Settings tab.",
     "showInfo": "Show setup",
     "needsCredential": "● needs credential (Secrets)",
     "noCredential": "● no credentials needed",

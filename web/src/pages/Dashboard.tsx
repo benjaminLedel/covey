@@ -228,7 +228,7 @@ function AgentCard({
         )}
       </div>
       <div className="secondary text-xs">
-        Runtime: <span className="mono">{agent.runtime}</span>
+        Engine: <span className="mono">{agent.runtime}</span>
         {agent.budget_usd > 0 && <> · {t("dashboard.budget")} {agent.budget_usd.toFixed(2)} $</>}
       </div>
       {draft && (onHire || onReject) && (
@@ -467,7 +467,7 @@ function TemplateStep({ onBack, onDone }: { onBack: () => void; onDone: (a: Agen
                   <div style={{ fontWeight: 500, fontSize: 14 }}>{tpl.name}</div>
                   {tpl.description && <div className="muted text-xs" style={{ marginTop: 2 }}>{tpl.description}</div>}
                   <div className="muted text-xs" style={{ marginTop: 4 }}>
-                    Runtime: <span className="mono">{bundle?.agent?.runtime ?? "—"}</span>
+                    Engine: <span className="mono">{bundle?.agent?.runtime ?? "—"}</span>
                   </div>
                 </div>
                 <span className="muted" style={{ fontSize: 18 }}>›</span>

@@ -123,7 +123,7 @@ function TemplateCard({
             <div className="muted text-xs" style={{ marginTop: 2 }}>{template.description}</div>
           )}
           <div className="muted text-xs" style={{ marginTop: 6 }}>
-            Runtime: <span className="mono">{runtime}</span>
+            Engine: <span className="mono">{runtime}</span>
             {model && <> · {t("templates.modelLabel")} <span className="mono">{model}</span></>}
             {template.builtin ? (
               <> · {t("templates.builtinSource")}</>

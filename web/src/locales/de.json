@@ -291,7 +291,7 @@
       "lead": "Echte Ansichten aus der Control Plane — Belegschaft, Struktur, Arbeit, Gedächtnis und Kosten.",
       "agents": {
         "t": "Die Belegschaft",
-        "d": "Alle Agenten mit Status, Runtime und Rolle — darüber die Bewerbungen, die noch auf ihre Einstellung warten."
+        "d": "Alle Agenten mit Status, Engine und Rolle — darüber die Bewerbungen, die noch auf ihre Einstellung warten."
       },
       "org": {
         "t": "Org-Chart",
@@ -365,7 +365,6 @@
     "platform": "Plattform",
     "users": "Benutzer",
     "organizations": "Organisationen",
-    "runtimes": "Runtimes",
     "help": "Hilfe (Taste ?)",
     "logout": "Abmelden",
     "userMenu": "Benutzermenü",
@@ -378,7 +377,6 @@
     "administrationSection": "Verwaltung",
     "administration": "Administration",
     "approvals": "Freigaben",
-    "runners": "Runner",
     "diagnostics": "Diagnose",
     "infrastructure": "Infrastruktur"
   },
@@ -506,7 +504,7 @@
       },
       "agent": {
         "title": "Agenten anlegen",
-        "hint": "Name, Kürzel, Runtime — mehr braucht es nicht, um anzufangen.",
+        "hint": "Name, Kürzel, Engine — mehr braucht es nicht, um anzufangen.",
         "action": "Agenten anlegen"
       },
       "config": {
@@ -651,7 +649,7 @@
     "importedWith": "Importiert: {{name}} — mit Hinweisen:",
     "openAgent": "Agent öffnen",
     "invalidJson": "Datei ist kein gültiges JSON-Bundle.",
-    "selectRuntime": "Runtime",
+    "selectRuntime": "Engine",
     "slug": "Slug",
     "budget": "Budget",
     "guided": {
@@ -1027,14 +1025,14 @@
       "slug": "Slug",
       "slugError": "Slug bereits vergeben",
       "slugHint": "Nur Kleinbuchstaben, Ziffern, Bindestriche. Muss eindeutig sein.",
-      "runtime": "Runtime",
-      "runtimeHint": "Greift beim nächsten Task-Dispatch. Einrichtung je Runtime: Seite „Runtimes“.",
+      "runtime": "Engine",
+      "runtimeHint": "Greift beim nächsten Task-Dispatch. Einrichtung je Engine: Infrastruktur → Engines.",
       "model": "Modell",
-      "modelPlaceholder": "leer = Runtime-Default",
+      "modelPlaceholder": "leer = Engine-Default",
       "modelHint": "Modell-ID oder Alias, z. B. claude-opus-4-8 oder sonnet.",
       "fixedIdentity": "Fest vergeben: Covey Doctor heißt auf jeder Instanz „Covey Doctor“. Der Name gehört zur Plattform, damit ein Agent mit diesen Rechten überall als solcher erkennbar bleibt.",
       "effort": "Denkaufwand",
-      "effortDefault": "leer = Runtime-Default",
+      "effortDefault": "leer = Engine-Default",
       "effortHint": "Unabhängig vom Modell — wie gründlich pro Turn gedacht wird. Welche Stufen es gibt, sagt die Engine; Engines ohne diesen Regler zeigen die Zeile nicht.",
       "maxTurns": "Max. Turns je Lauf",
       "maxTurnsPlaceholder": "0 = Default (30)",
@@ -1420,9 +1418,9 @@
     "readOnlyHint": "Profile anderer Personen pflegt ein Admin unter „Benutzer“."
   },
   "runtimes": {
-    "title": "Runtimes",
+    "title": "Engines",
     "subtitle": "im Daemon registrierte Plugins",
-    "desc": "Runtimes sind die austauschbare Naht zwischen Control Plane und Sandbox — im Code selbstbeschreibende Plugins. Das ⓘ je Runtime zeigt die Einrichtung Schritt für Schritt. Welche Runtime (und welches Modell) ein Agent nutzt, stellen Sie auf der Agenten-Seite im Reiter Einstellungen um.",
+    "desc": "Engines sind die austauschbare Naht zwischen Control Plane und Sandbox — im Code selbstbeschreibende Plugins. Das ⓘ je Engine zeigt die Einrichtung Schritt für Schritt. Welche Engine (und welches Modell) ein Agent benutzt, steht auf der Agenten-Seite unter „Einstellungen“.",
     "showInfo": "Einrichtung anzeigen",
     "needsCredential": "● braucht Credential (Secrets)",
     "noCredential": "● keine Credentials",
