@@ -431,9 +431,34 @@ deploy:
       fi
       blocks="${COVEY_DATA_DIR:-/opt/covey/data}/blocks"
       if [ -d "$blocks" ]; then
-        echo "Sichere Blockspeicher ($(du -sh "$blocks" | cut -f1)) nach $backups/blocks-$stamp.tar.gz"
-        tar -czf "$backups/blocks-$stamp.tar.gz" -C "$(dirname "$blocks")" blocks \
+        # The block store belongs to root and is mode 700; this job runs as the
+        # shell runner's own user and cannot read a single file in it. Tarring
+        # from here produced a 45-byte archive with no entries — one that
+        # rotated along with the others and looked like a backup in the listing
+        # until somebody needed it (pipeline 871).
+        #
+        # So a throwaway container reads it as root and writes to stdout, which
+        # this shell redirects — that keeps the file owned by the runner, like
+        # the database dump beside it. The sandbox image is ours and was pulled
+        # a few lines above, so nothing extra is fetched for this.
+        #
+        # --entrypoint and --user are both load-bearing: the image starts coveyd,
+        # which would take `tar` for its own argument, and it runs unprivileged,
+        # which reads a 700 directory no better than the runner does.
+        echo "Sichere Blockspeicher nach $backups/blocks-$stamp.tar.gz"
+        docker run --rm --user 0:0 --entrypoint tar \
+          -v "$blocks:/blocks:ro" "$COVEY_SANDBOX_IMAGE" \
+          -czf - -C / blocks > "$backups/blocks-$stamp.tar.gz" \
           || echo "WARNUNG: Blocksicherung fehlgeschlagen — Deploy läuft weiter."
+        # An empty backup is worse than none: it takes a retention slot, looks
+        # right in the listing and fails only when it is needed. Whatever went
+        # wrong, what must not remain is a file that claims to be a backup.
+        if ! tar -tzf "$backups/blocks-$stamp.tar.gz" 2>/dev/null | head -1 | grep -q .; then
+          echo "FEHLER: Blocksicherung ist leer oder unlesbar — wird entfernt, damit sie niemand für eine Sicherung hält."
+          rm -f "$backups/blocks-$stamp.tar.gz"
+        else
+          echo "Blocksicherung: $(du -h "$backups/blocks-$stamp.tar.gz" | cut -f1)"
+        fi
       fi
       # Drei Stände je Art. Mehr wäre eine Aufbewahrung, die sich niemand
       # ausgesucht hat, auf einer Platte, die auch die Sandbox-Images trägt.
