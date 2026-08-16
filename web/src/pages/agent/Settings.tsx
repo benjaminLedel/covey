@@ -140,6 +140,11 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
     mutationFn: (level: string) => patch(`/agents/${agent.id}/recording-level`, { level }),
     onSuccess: invalidate,
   });
+  const setRecordingRetention = useMutation({
+    mutationFn: (retention_days: number | null) =>
+      patch(`/agents/${agent.id}/recording-retention`, { retention_days }),
+    onSuccess: invalidate,
+  });
   const setWarmSandbox = useMutation({
     mutationFn: (warm: boolean) => patch(`/agents/${agent.id}/warm-sandbox`, { warm }),
     onSuccess: invalidate,
@@ -484,6 +489,25 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
           <option value="full">{t("agent.settings.recordingFull")}</option>
         </select>
         <span className="muted text-xs">{t("agent.settings.recordingHint")}</span>
+      </div>
+      <div style={row}>
+        <span className="text-sm">{t("agent.settings.recordingRetention")}</span>
+        <input
+          key={`recret:${agent.recording_retention_days ?? ""}`}
+          type="number"
+          min={0}
+          placeholder={t("agent.settings.recordingInherit")}
+          defaultValue={agent.recording_retention_days ?? ""}
+          className="mono"
+          style={{ width: 90 }}
+          disabled={!editable || setRecordingRetention.isPending}
+          onBlur={(e) => {
+            const roh = e.target.value.trim();
+            const wert = roh === "" ? null : Number(roh);
+            if (wert !== (agent.recording_retention_days ?? null)) setRecordingRetention.mutate(wert);
+          }}
+        />
+        <span className="muted text-xs">{t("agent.settings.recordingRetentionHint")}</span>
       </div>
       <div style={row}>
         <span className="text-sm">{t("agent.settings.budget")}</span>

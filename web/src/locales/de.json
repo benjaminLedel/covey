@@ -1087,7 +1087,9 @@
         "workplaceHint": "Das Image der Sandbox und die Anforderungen an den Host, auf dem sie startet. Angelegt werden Arbeitsplätze unter Infrastruktur.",
         "oversight": "Aufsicht",
         "oversightHint": "Wie tief mitgeschrieben wird, was er ausgeben darf, und was man im Zweifel exportiert."
-      }
+      },
+      "recordingRetention": "Verlauf aufbewahren (Tage)",
+      "recordingRetentionHint": "Leer = wie die Organisation. Eine Zahl verlängert nur; kürzer als die Organisation geht nicht. 0 = unbegrenzt."
     },
     "skills": {
       "desc": "Was dieser Agent an Fähigkeiten hat — eigene plus die ihm aus der Bibliothek verlinkten. Genau diese Liste landet vor jedem Lauf in seinem Home; von jedem Eintrag steht dauerhaft nur die Beschreibung im Kontext.",
@@ -1379,6 +1381,14 @@
       "defaultOption": "Voreinstellung ({{project}})",
       "offOption": "— gar nicht —",
       "stateOff": "Abgeschaltet: Covey Doctor liest den Quelltext dieser Plattform nicht und meldet nichts dorthin."
+    },
+    "recording": {
+      "title": "Aufzeichnung",
+      "hint": "Wie tief mitgeschrieben wird, und wie lange der wörtliche Verlauf eines Laufs bleibt. Beides gilt org-weit; ein Agent darf nur tiefer aufzeichnen und nur länger aufbewahren, nie weniger.",
+      "level": "Tiefe",
+      "retention": "Verlauf aufbewahren (Tage)",
+      "retentionHint": "0 = unbegrenzt",
+      "keeps": "Nur der wörtliche Verlauf verfällt. Was eine Aktion, eine Freigabe oder eine Zugangsanfrage festgehalten hat, bleibt — darauf stehen die Prüfspur und jede Kennzahl."
     }
   },
   "orgs": {

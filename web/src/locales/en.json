@@ -1087,7 +1087,9 @@
         "workplaceHint": "The sandbox image and what the host it starts on has to carry. Workplaces themselves are created under Infrastructure.",
         "oversight": "Oversight",
         "oversightHint": "How deeply it is recorded, what it may spend, and what to export when in doubt."
-      }
+      },
+      "recordingRetention": "Keep the transcript (days)",
+      "recordingRetentionHint": "Empty = as the organisation. A number only extends it; shorter than the organisation is not possible. 0 = forever."
     },
     "skills": {
       "desc": "The capabilities this agent has — its own plus those linked from the library. Exactly this list is written into its home before every run; of each entry, only the description stays in context permanently.",
@@ -1379,6 +1381,14 @@
       "defaultOption": "Default ({{project}})",
       "offOption": "— not at all —",
       "stateOff": "Switched off: Covey Doctor neither reads this platform's source nor files anything there."
+    },
+    "recording": {
+      "title": "Recording",
+      "hint": "How deeply work is written down, and how long the verbatim course of a run is kept. Both apply organisation-wide; an agent may only record more deeply and keep longer, never less.",
+      "level": "Depth",
+      "retention": "Keep the transcript (days)",
+      "retentionHint": "0 = forever",
+      "keeps": "Only the verbatim transcript expires. What an action, an approval or a credential request recorded stays — the audit trail and every indicator rest on it."
     }
   },
   "orgs": {

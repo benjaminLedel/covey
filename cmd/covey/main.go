@@ -1265,6 +1265,32 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			}
 		}
 	}()
+	// Recording retention: the verbatim runs whose time is up (spec/06). Only
+	// those — what an action, an approval or a credential request recorded stays,
+	// because that is the audit trail and the basis of every indicator.
+	//
+	// On the same six hours as the neighbours above. A retention measured in
+	// days does not need a finer interval; what it needs is to run at all,
+	// without anybody remembering it.
+	go func() {
+		t := time.NewTicker(6 * time.Hour)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				n, err := obs.CleanupRecordings(ctx)
+				if err != nil {
+					log.Warn("recording retention failed", "err", err)
+					continue
+				}
+				if n > 0 {
+					log.Info("expired recordings removed", "deleted", n)
+				}
+			}
+		}
+	}()
 	// Home store retention. Without this the rules on the organisation are a
 	// setting that nothing enforces: they apply when an admin presses the
 	// button in Administration → Runners, and on an installation where nobody

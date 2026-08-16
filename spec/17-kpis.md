@@ -45,7 +45,7 @@ No new instrumentation is needed for the first version. Three tables already car
 | `backlog_tasks` | `state` (`done`/`failed`/`cancelled`), `origin`, timestamps | throughput: tasks completed, and where they came from |
 | `cost_entries` | `usd` per task and agent | the other side of the ratio |
 
-Two properties make this a sound basis rather than a convenience: the action events are written **per task**, so every countable event has a cost attached to it; and `recording_events` has **no retention** (unlike the request log), so a KPI defined today can be counted backwards over the entire history.
+Two properties make this a sound basis rather than a convenience: the action events are written **per task**, so every countable event has a cost attached to it; and the action events have **no retention** (unlike the request log, and unlike the verbatim run underneath them, [`06`](06-observability-control.md)), so a KPI defined today can be counted backwards over the entire history.
 
 Examples that fall out without any new plumbing: *tickets resolved* (`zammad:reply_external`, `zammad:close_ticket`), *code reviews* (`gitlab:comment_mr`, `gitlab:approve_mr`), *bug reports filed* (`gitlab:create_issue`), *merges* (`gitlab:merge_mr`), *mails answered* (`email:reply`), *wiki pages written* (`covey:remember`).
 
@@ -206,7 +206,7 @@ Exactly **one** place outside it: the **employee profile**, where the cost bar a
 
 That puts the load on `recording_events`. The existing indexes (`agent_id, id` and `task_id, id`) do not carry an aggregation over kind, action and period — they are built for paging through one recording. The report needs `(agent_id, (payload->>'action'), created_at)`, partial on `kind = 'action'`: no indicator ever asks for anything else, and the action events are the smaller part of the table, so the index stays small enough to sit in cache.
 
-**As an expression index, not a generated column.** `ADD COLUMN … GENERATED` rewrites the whole table and locks it while it does; on a table that only ever grows (no retention — the entire history of the indicators rests on that) it would be a maintenance window for a column nobody reads.
+**As an expression index, not a generated column.** `ADD COLUMN … GENERATED` rewrites the whole table and locks it while it does; on a table this size it would be a maintenance window for a column nobody reads. The table does lose its expired verbatim runs ([`06`](06-observability-control.md)), but never an action event — the entire history of the indicators rests on that.
 
 Not `CONCURRENTLY`, though: the migrator runs each migration inside a transaction, where it is not permitted. That is acceptable here because migrations run at `covey serve` start, when no agent is working and nobody is waiting to write an event — it would not be acceptable for a migration applied to a live system.
 
@@ -215,7 +215,7 @@ If the scans do become expensive at some point, the answer is a **daily roll-up*
 Two invariants this rests on, worth writing down because both are quiet today and would be expensive to discover later:
 
 - **Every cost entry hangs off a task.** `cost_entries.task_id` is nullable, but there is exactly one caller of `AddCost` (`orchestrator.go`) and it always passes one. If costs without a task ever get booked — a maintenance action, a system run — they silently leave the denominator and every unit cost drops. That is a thing to notice at the moment it is introduced, not afterwards from a suspiciously good price.
-- **`recording_events` has no retention.** The whole approach depends on it. If one is ever introduced, the roll-up has to exist *first*, or the history of every indicator disappears with the events.
+- **The action events have no retention.** The whole approach depends on it. A retention *was* introduced meanwhile ([`06`](06-observability-control.md)) — but only for the verbatim run underneath them, which no indicator reads. That was deliberate and it is the line to hold: the day an action event becomes deletable, the roll-up has to exist **first**, or the history of every indicator disappears with them. A retention that catches `kind = 'action'` is therefore not a setting but a breaking change.
 
 Who may see the figures is decided deliberately, not inherited: performance data per agent is more sensitive than a cost total, and "whoever may see costs may see this" is an answer, but it should be a chosen one.
 

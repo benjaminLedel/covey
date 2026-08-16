@@ -936,7 +936,57 @@ func (s *Server) handleGetOrgRecording(w http.ResponseWriter, r *http.Request) {
 		mapErr(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{"level": level})
+	tage, err := s.Obs.OrgRecordingRetention(r.Context(), p.OrgID)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	// Both recording settings in one answer: the page that shows them asks once.
+	writeJSON(w, http.StatusOK, map[string]any{"level": level, "retention_days": tage})
+}
+
+// handleSetOrgRecordingRetention sets how long the verbatim run is kept
+// (spec/06). Days, 0 = forever. Only the transcript expires — what an action,
+// an approval or a credential request recorded stays, which is why this sits
+// under the security roles like the depth beside it and not under manage.
+func (s *Server) handleSetOrgRecordingRetention(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	var in struct {
+		Days int `json:"retention_days"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "retention_days missing")
+		return
+	}
+	if err := s.Obs.SetOrgRecordingRetention(r.Context(), p.OrgID, in.Days); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// handleSetRecordingRetention sets an agent's override; null = back to
+// inheriting the organisation. The value only ever EXTENDS what the
+// organisation keeps — a smaller number is stored and simply has no effect,
+// see agents.SetRecordingRetention.
+func (s *Server) handleSetRecordingRetention(w http.ResponseWriter, r *http.Request) {
+	id, err := parseID(r)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var in struct {
+		Days *int `json:"retention_days"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "retention_days missing")
+		return
+	}
+	if err := s.Registry.SetRecordingRetention(r.Context(), id, in.Days); err != nil {
+		mapErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 func (s *Server) handleSetOrgRecording(w http.ResponseWriter, r *http.Request) {

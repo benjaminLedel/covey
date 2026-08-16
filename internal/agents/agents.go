@@ -69,6 +69,11 @@ type Agent struct {
 	// (spec/06); empty = inherits the org floor. It only ever tightens (max with
 	// the floor), enforced in the control plane.
 	RecordingLevel string `json:"recording_level"`
+	// RecordingRetentionDays is the optional agent override of how long the
+	// verbatim run is kept (spec/06); nil = inherits the organisation. It only
+	// ever EXTENDS: an agent may keep longer than the organisation requires,
+	// never shorter. 0 = forever.
+	RecordingRetentionDays *int `json:"recording_retention_days,omitempty"`
 	// SandboxImage is the workplace this agent runs in: either a profile name
 	// (`base`, `dev`) or an image reference of its own. Empty = the instance
 	// default. The image hangs off the agent and not off the instance (D11) —
@@ -137,13 +142,13 @@ type Registry struct {
 
 func NewRegistry(pool *pgxpool.Pool) *Registry { return &Registry{pool: pool} }
 
-const agentCols = "id, org_id, slug, display_name, runtime, model, effort, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, runtime_id, webhook_token, COALESCE(recording_level,''), sandbox_image, runner_tags, warm_sandbox, hired_at, created_at, updated_at"
+const agentCols = "id, org_id, slug, display_name, runtime, model, effort, max_turns, status, owner_id, supervisor_id, department_id, job_title, identities, phone, responsibilities, custom, killed, budget_usd, runtime_id, webhook_token, COALESCE(recording_level,''), recording_retention_days, sandbox_image, runner_tags, warm_sandbox, hired_at, created_at, updated_at"
 
 func scanAgent(row pgx.Row) (Agent, error) {
 	var a Agent
 	err := row.Scan(&a.ID, &a.OrgID, &a.Slug, &a.DisplayName, &a.Runtime, &a.Model, &a.Effort, &a.MaxTurns, &a.Status,
 		&a.OwnerID, &a.SupervisorID, &a.DepartmentID, &a.JobTitle, &a.Identities, &a.Phone, &a.Responsibilities, &a.Custom,
-		&a.Killed, &a.BudgetUSD, &a.RuntimeID, &a.WebhookToken, &a.RecordingLevel, &a.SandboxImage, &a.RunnerTags, &a.WarmSandbox, &a.HiredAt, &a.CreatedAt, &a.UpdatedAt)
+		&a.Killed, &a.BudgetUSD, &a.RuntimeID, &a.WebhookToken, &a.RecordingLevel, &a.RecordingRetentionDays, &a.SandboxImage, &a.RunnerTags, &a.WarmSandbox, &a.HiredAt, &a.CreatedAt, &a.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return a, ErrNotFound
 	}
@@ -405,6 +410,29 @@ func (r *Registry) SetMaxTurns(ctx context.Context, id uuid.UUID, maxTurns int) 
 // max(org floor, override) — enforced on the control plane side.
 func (r *Registry) SetRecordingLevel(ctx context.Context, id uuid.UUID, level string) error {
 	tag, err := r.pool.Exec(ctx, "UPDATE agents SET recording_level=NULLIF($2,''), updated_at=now() WHERE id=$1", id, level)
+	if err == nil && tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return err
+}
+
+// SetRecordingRetention sets the agent override of how long the verbatim run is
+// kept (spec/06); nil = back to inheriting the organisation (NULL).
+//
+// The effective value is the organisation's, EXTENDED by this one — never
+// shortened. That is enforced where the deletion happens (observability), not
+// here, because it is a statement about the pair and not about this value: an
+// agent set to 30 days under an organisation that keeps 365 still keeps 365.
+// Storing the smaller number is therefore allowed and simply has no effect,
+// which is the honest behaviour — silently rewriting somebody's input to 365
+// would hide the rule instead of applying it.
+func (r *Registry) SetRecordingRetention(ctx context.Context, id uuid.UUID, tage *int) error {
+	if tage != nil && *tage < 0 {
+		null := 0
+		tage = &null
+	}
+	tag, err := r.pool.Exec(ctx,
+		"UPDATE agents SET recording_retention_days=$2, updated_at=now() WHERE id=$1", id, tage)
 	if err == nil && tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
