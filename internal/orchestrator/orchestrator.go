@@ -280,6 +280,13 @@ type session struct {
 	// from the API puts into cooldown.
 	credRuntime uuid.UUID
 	credOrd     int
+	// credEngine/credModel: which engine and model this waking phase actually
+	// runs — the fallback runtime's, not agent.Runtime/agent.Model, when the
+	// agent's assigned runtime was exhausted and a fallback picked up the work
+	// instead. Empty when the engine needed no credential (the mock); the
+	// InjectConfig site falls back to the agent's own fields in that case.
+	credEngine string
+	credModel  string
 }
 
 // Run starts the dispatch loop: cheap, permanent, no LLM (spec/03).
@@ -774,13 +781,21 @@ func (o *Orchestrator) EnsureRunning(agentID uuid.UUID) {
 	o.mu.Unlock()
 
 	go func() {
-		defer func() {
-			o.mu.Lock()
-			delete(o.sessions, agentID)
-			o.mu.Unlock()
-			cancel()
-		}()
-		if err := o.runAgent(ctx, agentID, s); err != nil && !errors.Is(err, context.Canceled) {
+		err := o.runAgent(ctx, agentID, s)
+		o.mu.Lock()
+		delete(o.sessions, agentID)
+		o.mu.Unlock()
+		cancel()
+
+		// A provider limit ends the current waking phase because its runtime and
+		// credential are fixed for that whole phase. Only after removing the old
+		// session may the next one select capacity again and enter the configured
+		// fallback. Calling EnsureRunning before the delete would be a no-op.
+		if errors.Is(err, errRetryOnRuntimeFallback) {
+			o.EnsureRunning(agentID)
+			return
+		}
+		if err != nil && !errors.Is(err, context.Canceled) {
 			o.Log.Error("agent-session", "agent", agentID, "err", err)
 		}
 	}()
@@ -893,6 +908,7 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 		return nil
 	}
 	s.credRuntime, s.credOrd = cred.RuntimeID, cred.Ord
+	s.credEngine, s.credModel = cred.Engine, cred.Model
 
 	o.setStatus(ctx, agent, nil, agents.StatusTriggered)
 
@@ -973,6 +989,9 @@ func (o *Orchestrator) runAgent(ctx context.Context, agentID uuid.UUID, s *sessi
 			}
 			if errors.Is(err, errBudgetExceeded) {
 				return nil // task has already been reopened, agent is paused
+			}
+			if errors.Is(err, errRetryOnRuntimeFallback) {
+				return err // task is open; a fresh phase must choose another runtime
 			}
 			if errors.Is(err, errDaemonConnection) {
 				// The link is dead either way — no point trying to claim another
@@ -1321,16 +1340,70 @@ func (o *Orchestrator) llmCredentialFor(ctx context.Context, agent agents.Agent)
 	if o.Obs != nil {
 		sig.Usage = o.Obs.CredentialUsage
 	}
-	p, err := o.Runtimes.Pick(ctx, agent.OrgID, agent.ID, *agent.RuntimeID, sig)
+	runtimeID := *agent.RuntimeID
+	p, err := o.Runtimes.Pick(ctx, agent.OrgID, agent.ID, runtimeID, sig)
+	if errors.Is(err, runtimes.ErrExhausted) {
+		if fb, ferr := o.fallbackCredential(ctx, agent, runtimeID, sig); ferr == nil {
+			return fb, nil
+		}
+		// No fallback configured, or it is exhausted too: surface the ORIGINAL
+		// exhaustion — its free_at and its log line refer to the runtime the
+		// agent is actually assigned to, not to a downstream contract nobody
+		// asked about.
+		return llmCredential{}, err
+	}
 	if err != nil {
 		return llmCredential{}, err
 	}
 	if p.Ord < 0 {
 		return llmCredential{}, errNoRuntime // an engine that needs none (the mock)
 	}
+	return o.resolveCredential(ctx, agent, p)
+}
+
+// fallbackCredential tries the runtime the exhausted one declares as its
+// fallback (spec/18): a second contract, possibly a different engine
+// entirely, that an agent's work continues on instead of waiting out a
+// session limit or cooldown. Follows exactly one hop — a fallback whose own
+// fallback also needs trying is a chain to fix in the runtime configuration,
+// not a depth to guess at runtime.
+func (o *Orchestrator) fallbackCredential(ctx context.Context, agent agents.Agent, exhaustedID uuid.UUID, sig runtimes.Signals) (llmCredential, error) {
+	primary, err := o.Runtimes.Get(ctx, agent.OrgID, exhaustedID)
+	if err != nil || primary.FallbackRuntimeID == nil {
+		return llmCredential{}, runtimes.ErrExhausted
+	}
+	fallbackID := *primary.FallbackRuntimeID
+	p, err := o.Runtimes.Pick(ctx, agent.OrgID, agent.ID, fallbackID, sig)
+	if err != nil {
+		return llmCredential{}, err
+	}
+	if p.Ord < 0 {
+		return llmCredential{}, errNoRuntime
+	}
+	cred, err := o.resolveCredential(ctx, agent, p)
+	if err != nil {
+		return llmCredential{}, err
+	}
+	o.Log.Warn("wake continues on fallback runtime — the assigned one is exhausted",
+		"agent", agent.Slug, "exhausted_runtime", exhaustedID,
+		"fallback_runtime", fallbackID, "fallback_engine", cred.Engine)
+	return cred, nil
+}
+
+// resolveCredential fills in the engine and model that go with whichever
+// runtime Pick actually answered from. That is NOT necessarily the agent's own
+// agent.Runtime/agent.Model — on a fallback wake it is the fallback runtime's,
+// and sending agent.Runtime into the sandbox in that case would boot the
+// wrong engine's CLI on the fallback's credential.
+func (o *Orchestrator) resolveCredential(ctx context.Context, agent agents.Agent, p runtimes.Picked) (llmCredential, error) {
+	rt, err := o.Runtimes.Get(ctx, agent.OrgID, p.RuntimeID)
+	if err != nil {
+		return llmCredential{}, err
+	}
 	// TrimSpace catches copy-and-paste whitespace/newlines.
 	return llmCredential{Token: strings.TrimSpace(p.Value), EnvVar: p.EnvVar, Path: p.Path,
-		RuntimeID: p.RuntimeID, Ord: p.Ord, Label: p.Label}, nil
+		RuntimeID: p.RuntimeID, Ord: p.Ord, Label: p.Label,
+		Engine: rt.Engine, Model: rt.Model}, nil
 }
 
 // errNoRuntime: nothing to broker — either the agent has no runtime assigned or
@@ -1338,6 +1411,12 @@ func (o *Orchestrator) llmCredentialFor(ctx context.Context, agent agents.Agent)
 // engine, and only the engine knows: the mock in the test suite works without
 // one, Claude Code does not (engineNeedsCredential).
 var errNoRuntime = errors.New("no LLM credential to broker")
+
+// errRetryOnRuntimeFallback is control flow, not a task failure. The provider
+// rejected the current phase's capacity and the task has already been reopened;
+// the session owner tears this phase down and starts a new one so credential and
+// engine selection run again.
+var errRetryOnRuntimeFallback = errors.New("retry task on runtime fallback")
 
 // engineNeedsCredential: does a run without a brokered credential stand a
 // chance? Read from the engine's declaration, never from a list here — that
@@ -1459,30 +1538,31 @@ func rejectionCooldown(errText string) (time.Duration, string) {
 
 	// A rate limit on the API side.
 	case has("rate_limit", "rate limit", "429"):
-		return cooldownRateLimit, runtimes.ReasonError
+		return cooldownRateLimit, runtimes.ReasonLimit
 	}
 	return 0, ""
 }
 
-func (o *Orchestrator) noteCredentialRejection(ctx context.Context, agent agents.Agent, s *session, errText string) {
+func (o *Orchestrator) noteCredentialRejection(ctx context.Context, agent agents.Agent, s *session, errText string) string {
 	if s == nil || s.credRuntime == uuid.Nil || o.Runtimes == nil {
-		return
+		return ""
 	}
 	until, reason := rejectionCooldown(errText)
 	if until == 0 {
-		return
+		return ""
 	}
 	if err := o.Runtimes.Cooldown(ctx, s.credRuntime, s.credOrd,
 		time.Now().Add(until), reason); err != nil {
 		o.Log.Warn("credential could not be parked",
 			"runtime", s.credRuntime, "ord", s.credOrd, "err", err)
-		return
+		return ""
 	}
 	o.Log.Warn("credential rejected — value parked",
 		"agent", agent.Slug, "runtime", s.credRuntime, "ord", s.credOrd, "until", until)
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
 		map[string]any{"system": "anthropic", "granted": false, "reason": "rejected",
 			"runtime": s.credRuntime, "ord": s.credOrd, "cooldown_secs": int(until.Seconds())})
+	return reason
 }
 
 // llmCredential is the credential of one waking phase plus its origin: which
@@ -1499,6 +1579,12 @@ type llmCredential struct {
 	RuntimeID uuid.UUID
 	Ord       int
 	Label     string
+	// Engine and Model belong to the runtime this credential actually came
+	// from — the agent's assigned one normally, a configured fallback on an
+	// exhaustion wake. Both empty for an engine that needs no credential (the
+	// mock); callers fall back to agent.Runtime/agent.Model in that case.
+	Engine string
+	Model  string
 }
 
 // pushAnthropicKey hands the already picked credential to the daemon. Never
@@ -1803,10 +1889,20 @@ func (o *Orchestrator) processTask(ctx context.Context, agent agents.Agent, link
 	if maxTurns <= 0 {
 		maxTurns = agents.DefaultMaxTurns
 	}
+	// Normally identical to agent.Runtime/agent.Model. They diverge exactly
+	// when this waking phase runs on a fallback runtime (s.credEngine set by
+	// runAgent) — then the sandbox has to boot the FALLBACK's CLI, not the
+	// agent's assigned one, or the credential handed to it belongs to an
+	// engine it never starts.
+	effRuntime, effModel := agent.Runtime, agent.Model
+	if s.credEngine != "" {
+		effRuntime = s.credEngine
+		effModel = s.credModel
+	}
 	if err := o.sendMsg(ctx, link, daemon.TypeInjectConfig, daemon.InjectConfig{
 		SystemPrompt: compiled,
-		Runtime:      agent.Runtime,
-		Model:        agent.Model,
+		Runtime:      effRuntime,
+		Model:        effModel,
 		Effort:       agent.Effort,
 		AllowedTools: o.RuntimeTools,
 		MaxTurns:     maxTurns,
@@ -2053,7 +2149,21 @@ func (o *Orchestrator) handleDaemonMessage(ctx context.Context, agent agents.Age
 		// The hard signal: the API itself rejected the credential. That beats
 		// every estimate the limit makes — park the value before the next run
 		// walks into the same wall.
-		o.noteCredentialRejection(ctx, agent, s, d.Error)
+		rejectionReason := o.noteCredentialRejection(ctx, agent, s, d.Error)
+		if d.Status == "failed" && rejectionReason == runtimes.ReasonLimit {
+			// Capacity failed, not the assignment. Keep the SAME task open, but
+			// force a new waking phase: engine and credential are intentionally
+			// stable within a phase, so retrying in this loop would start Claude
+			// again instead of selecting the configured Codex fallback.
+			if _, err := o.Backlog.Reopen(ctx, taskID,
+				"provider limit reached — retrying with newly selected runtime capacity"); err != nil {
+				return true, err
+			}
+			_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, &taskID, observability.KindLifecycle,
+				map[string]string{"status": "task_runtime_fallback_retry", "reason": "provider_limit"})
+			o.publishTask(taskID, agent)
+			return true, errRetryOnRuntimeFallback
+		}
 		if d.Status == statusIncomplete {
 			return true, o.handleIncomplete(ctx, agent, taskID, d)
 		}

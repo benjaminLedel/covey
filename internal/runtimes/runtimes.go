@@ -59,14 +59,19 @@ func (l Limit) Active() bool { return l.WindowSecs > 0 && l.Amount > 0 }
 
 // Runtime is a configured seat: an engine plus the capacity to run it.
 type Runtime struct {
-	ID          uuid.UUID    `json:"id"`
-	OrgID       uuid.UUID    `json:"org_id"`
-	Engine      string       `json:"engine"`
-	DisplayName string       `json:"display_name"`
-	Model       string       `json:"model"`
-	CreatedAt   time.Time    `json:"created_at"`
-	UpdatedAt   time.Time    `json:"updated_at"`
-	Credentials []Credential `json:"credentials"`
+	ID          uuid.UUID `json:"id"`
+	OrgID       uuid.UUID `json:"org_id"`
+	Engine      string    `json:"engine"`
+	DisplayName string    `json:"display_name"`
+	Model       string    `json:"model"`
+	// FallbackRuntimeID: the contract to try when every credential of THIS
+	// runtime is exhausted (session limit, cooldown) — e.g. an OpenAI-backed
+	// runtime standing in while the Claude Code subscription seat is in its
+	// limit window. NULL is the default: exhaustion means waiting, as before.
+	FallbackRuntimeID *uuid.UUID   `json:"fallback_runtime_id,omitempty"`
+	CreatedAt         time.Time    `json:"created_at"`
+	UpdatedAt         time.Time    `json:"updated_at"`
+	Credentials       []Credential `json:"credentials"`
 }
 
 // Credential is one unit of capacity. Ord is its place in the merit order.

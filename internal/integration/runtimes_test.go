@@ -116,6 +116,59 @@ func TestRuntimeMeritOrder(t *testing.T) {
 	}
 }
 
+// TestRuntimeSkipsCredentialWhoseSecretWasDeleted catches the production
+// failure where runtime_credentials outlived the secret row. A stale paid-for
+// seat must not abort selection before usable metered capacity can cover it.
+func TestRuntimeSkipsCredentialWhoseSecretWasDeleted(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+
+	rt, err := s.runtimes.Create(ctx, s.orgID, "claude-code", "Claude Mixed", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale := s.seat(t, rt.ID, daemon.CredSubscription,
+		"claude_code_oauth_token", "deleted-seat", "deleted")
+	usable := s.seat(t, rt.ID, daemon.CredAPIKey,
+		"anthropic_api_key", "usable-api-key", "usable")
+	if err := s.secrets.Delete(ctx, s.orgID, "claude_code_oauth_token"); err != nil {
+		t.Fatal(err)
+	}
+
+	alice := s.newSupportAgent("alice-missing-secret")
+	got, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, noUsage)
+	if err != nil {
+		t.Fatalf("a deleted credential reference must be skipped: %v", err)
+	}
+	if got.Ord != usable || got.Ord == stale || got.Value != "usable-api-key" {
+		t.Fatalf("expected usable ord %d, got %+v", usable, got)
+	}
+}
+
+// TestRuntimeWithOnlyDeletedSecretsIsExhausted pins the signal consumed by the
+// cross-engine fallback. Returning secrets.ErrNotFound here bypasses fallback;
+// ErrExhausted is the capacity-layer statement that another runtime may try.
+func TestRuntimeWithOnlyDeletedSecretsIsExhausted(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+
+	rt, err := s.runtimes.Create(ctx, s.orgID, "claude-code", "Claude Stale", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.seat(t, rt.ID, daemon.CredSubscription,
+		"claude_code_oauth_token", "deleted-seat", "deleted")
+	if err := s.secrets.Delete(ctx, s.orgID, "claude_code_oauth_token"); err != nil {
+		t.Fatal(err)
+	}
+
+	alice := s.newSupportAgent("alice-all-missing")
+	_, err = s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, noUsage)
+	if !errors.Is(err, runtimes.ErrExhausted) {
+		t.Fatalf("all deleted references must exhaust the runtime, got %v", err)
+	}
+}
+
 // TestRuntimeDodgesAndReturns: a parked credential pushes the agent onto
 // another — and once its home seat is healthy again it goes back, instead of
 // the runtime redistributing at every choice.

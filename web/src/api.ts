@@ -661,6 +661,9 @@ export type RuntimeInstance = {
   /** Ob die Engine eine Sitzung fortsetzen kann. Ohne das trägt sie keinen
    *  Agenten, der auf eine Antwort wartet. */
   can_carry_blocking: boolean;
+  /** Der Arbeitsplatz, der einspringt, wenn hier jede Kapazität erschöpft ist
+   *  (spec/18) — fehlt, solange niemand einen Fallback eingetragen hat. */
+  fallback_runtime_id?: string;
 };
 
 /** ord IST die Merit Order: erst die bezahlten Sitze, dann metered Kapazität. */

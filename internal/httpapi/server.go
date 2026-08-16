@@ -385,6 +385,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /api/v1/runtime-instances", s.rbac(anyRole, s.handleListRuntimeInstances))
 	mux.Handle("POST /api/v1/runtime-instances", s.rbac(securityRoles, s.handleCreateRuntime))
 	mux.Handle("PUT /api/v1/runtime-instances/{id}", s.rbac(securityRoles, s.handleUpdateRuntime))
+	mux.Handle("PATCH /api/v1/runtime-instances/{id}/fallback", s.rbac(securityRoles, s.handleSetRuntimeFallback))
 	mux.Handle("DELETE /api/v1/runtime-instances/{id}", s.rbac(securityRoles, s.handleDeleteRuntime))
 	mux.Handle("POST /api/v1/runtime-instances/{id}/credentials", s.rbac(securityRoles, s.handleAddRuntimeCredential))
 	mux.Handle("POST /api/v1/runtime-instances/{id}/credentials/order", s.rbac(securityRoles, s.handleReorderRuntimeCredentials))

@@ -1459,6 +1459,11 @@
       "nobody": "niemand",
       "noResume": "kein Resume",
       "noResumeHint": "Diese Engine kann keine Sitzung fortsetzen. Agenten, die auf eine Antwort warten (blocked), kann sie nicht tragen.",
+      "fallback": "Fallback",
+      "fallbackHint": "Springt ein, wenn hier jede Kapazität erschöpft ist (Session-Limit, Cooldown) — statt zu warten, arbeitet der Agent auf diesem zweiten Arbeitsplatz weiter, auch mit einer anderen Engine.",
+      "fallbackNone": "— keiner —",
+      "fallbackIs": "Fallback: {{name}}",
+      "fallbackNoOthers": "Noch kein zweiter Arbeitsplatz angelegt.",
       "kindLabel": "Art",
       "kind": {
         "api_key": "API-Key",

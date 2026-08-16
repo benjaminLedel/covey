@@ -180,8 +180,8 @@ func mcpText(text string, isErr bool) map[string]any {
 // mcpConfig is the --mcp-config document for the runtime. Empty when there is
 // nothing to offer — then the runtime starts without an MCP server rather than
 // with an empty one.
-func (p *actionProxy) mcpConfig() string {
-	if !actionMCPEnabled() || len(p.tools) == 0 {
+func (p *actionProxy) mcpConfig(force bool) string {
+	if (!force && !actionMCPEnabled()) || len(p.tools) == 0 {
 		return ""
 	}
 	cfg := map[string]any{"mcpServers": map[string]any{
