@@ -317,20 +317,10 @@ func (s *Server) handleSetRetention(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// CleanupView is what a cleanup would do, or has done.
-//
-// FreedBytes names the space ACTUALLY freed and not the sum of the snapshot
-// sizes. During cleanup a block goes only when no remaining snapshot
-// references it — that is the price of deduplication, and the reason why
-// "delete this snapshot" does not free space linearly. Any other number would
-// be one that is never right.
-type CleanupView struct {
-	Snapshots     int   `json:"snapshots"`
-	BlocksRemoved int   `json:"blocks_removed"`
-	FreedBytes    int64 `json:"freed_bytes"`
-	Preview       bool  `json:"preview"`
-}
-
+// The cleanup itself lives in the runner store (CleanupOrg), because the CLI
+// and the periodic pass need exactly the same steps in exactly the same order.
+// A second copy here is how the button and the timer start to disagree about
+// what "cleaned up" means.
 func (s *Server) handleCleanupStore(w http.ResponseWriter, r *http.Request) {
 	if s.Blobs == nil || s.Runners == nil {
 		writeErr(w, http.StatusServiceUnavailable, "the home store is switched off")
@@ -339,51 +329,10 @@ func (s *Server) handleCleanupStore(w http.ResponseWriter, r *http.Request) {
 	p := principalFrom(r)
 	preview := r.URL.Query().Get("preview") != "false"
 
-	ret, err := s.Runners.RetentionFor(r.Context(), p.OrgID)
+	out, err := s.Runners.CleanupOrg(r.Context(), s.Blobs, p.OrgID, preview)
 	if err != nil {
 		mapErr(w, err)
 		return
-	}
-	caught, err := s.Runners.SnapshotsCaughtBy(r.Context(), p.OrgID, ret)
-	if err != nil {
-		mapErr(w, err)
-		return
-	}
-	out := CleanupView{Snapshots: len(caught), Preview: preview}
-	if len(caught) == 0 {
-		writeJSON(w, http.StatusOK, out)
-		return
-	}
-
-	ids := make([]uuid.UUID, 0, len(caught))
-	for _, snap := range caught {
-		ids = append(ids, snap.ID)
-	}
-	surviving, err := s.Runners.ManifestsExcept(r.Context(), p.OrgID, ids)
-	if err != nil {
-		mapErr(w, err)
-		return
-	}
-	sweep, err := homestore.Plan(r.Context(), s.Blobs, p.OrgID, surviving)
-	if err != nil {
-		mapErr(w, err)
-		return
-	}
-	out.BlocksRemoved, out.FreedBytes = sweep.Blocks, sweep.Bytes
-	if preview {
-		writeJSON(w, http.StatusOK, out)
-		return
-	}
-
-	if _, err := s.Runners.ApplyRetention(r.Context(), p.OrgID, ret); err != nil {
-		mapErr(w, err)
-		return
-	}
-	if _, err := homestore.Sweep(r.Context(), s.Blobs, p.OrgID, surviving); err != nil {
-		// The rows are gone, the blocks are not — the store is then bigger than
-		// it need be, which is annoying and not dangerous. The next cleanup
-		// catches them.
-		s.Log.Warn("sweeping the home store failed", "org", p.OrgID, "err", err)
 	}
 	writeJSON(w, http.StatusOK, out)
 }
