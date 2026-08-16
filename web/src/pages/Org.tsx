@@ -211,6 +211,72 @@ function RepoZugang({
    nicht" und heißt jetzt „das Projekt, aus dem dieses Programm stammt". */
 const REPO_AUS = "-";
 
+// Die Aufzeichnung: wie tief mitgeschrieben wird, und wie lange der wörtliche
+// Verlauf bleibt (spec/06). Beides org-weit, beides am Agenten überschreibbar —
+// die Tiefe nur nach oben, die Frist nur nach länger. Ein Agent, der seine
+// eigene Spur kürzen könnte, wäre genau die Lücke, die eine org-weite
+// Einstellung schließen soll.
+export function RecordingSettings() {
+  const { t } = useTranslation();
+  const qc = useQueryClient();
+  const rec = useQuery({
+    queryKey: ["org-recording"],
+    queryFn: () => api<{ level: string; retention_days: number }>("/org/recording-level"),
+  });
+
+  const setLevel = useMutation({
+    mutationFn: (level: string) => patch<{ ok: boolean }>("/org/recording-level", { level }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["org-recording"] }),
+  });
+  const setRetention = useMutation({
+    mutationFn: (retention_days: number) =>
+      patch<{ ok: boolean }>("/org/recording-retention", { retention_days }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["org-recording"] }),
+  });
+
+  if (!rec.data) return null;
+
+  return (
+    <div className="card mb-4">
+      <h2 className="text-sm mb-1" style={{ fontWeight: 600 }}>{t("org.recording.title")}</h2>
+      <p className="muted text-xs mt-0 mb-2" style={{ maxWidth: 640 }}>{t("org.recording.hint")}</p>
+
+      <div className="flex items-center gap-3 flex-wrap mb-2">
+        <span className="text-sm">{t("org.recording.level")}</span>
+        <select
+          key={`orglvl:${rec.data.level}`}
+          defaultValue={rec.data.level}
+          disabled={setLevel.isPending}
+          onChange={(e) => setLevel.mutate(e.target.value)}
+        >
+          <option value="minimal">{t("agent.settings.recordingMinimal")}</option>
+          <option value="standard">{t("agent.settings.recordingStandard")}</option>
+          <option value="full">{t("agent.settings.recordingFull")}</option>
+        </select>
+      </div>
+
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-sm">{t("org.recording.retention")}</span>
+        <input
+          key={`orgret:${rec.data.retention_days}`}
+          type="number"
+          min={0}
+          defaultValue={rec.data.retention_days}
+          className="mono"
+          style={{ width: 90 }}
+          disabled={setRetention.isPending}
+          onBlur={(e) => {
+            const v = Number(e.target.value);
+            if (v !== rec.data!.retention_days) setRetention.mutate(v);
+          }}
+        />
+        <span className="muted text-xs">{t("org.recording.retentionHint")}</span>
+      </div>
+      <p className="muted text-xs">{t("org.recording.keeps")}</p>
+    </div>
+  );
+}
+
 export function PlatformRepo({ nurMitDoctor = false }: { nurMitDoctor?: boolean }) {
   const { t } = useTranslation();
   const qc = useQueryClient();

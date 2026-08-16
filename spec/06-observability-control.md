@@ -67,6 +67,21 @@ Recording is the basis for audit, debugging, cost analysis and the supervisor ev
 
 **Sub-runs stay distinguishable.** When an agent hands work to a sub-agent in the project checkout ([`12-claude-code-adapter.md`](12-claude-code-adapter.md)), that work lands under the same agent and task ID in the same recording — otherwise it would be neither billable nor auditable. So that you can nevertheless see **who** did what, those lines carry a marker with an identifier for the run, and the timeline collapses everything under one identifier into a single folded block: a header with the checkout, the assignment, the status and key figures (tool calls, turns, duration, cost), and the sub-agent's turns when expanded. Without that bracket its work would stand indistinguishably among the commissioning agent's own.
 
+### How long the verbatim record is kept
+
+The raw run — every line of the model's stream, every tool result in full — is what makes the recording big. Measured on one installation: 206,000 of 262,000 events and 376 of 384 MB, all of it the verbatim course of runs, most of which nobody will read again. The events **around** it are tiny by comparison: which action was performed, which credential was asked for, what was approved, when an agent woke.
+
+So the verbatim course has a retention and the rest does not:
+
+- **Org-wide setting, default one year.** How long the verbatim run is kept.
+- **Per agent, overridable upwards only.** An agent may keep longer than the organisation requires, never shorter — the same direction as the recording depth above, and for the same reason: an agent that could shorten its own trail is the gap the org-wide floor exists to close.
+- **`0` means keep forever.** Deliberately spelled out here, because the number reads like "keep nothing".
+- **Enforced by itself**, periodically. A retention that depends on somebody pressing a button is one that does not run on the installation whose disk is filling.
+
+**What is never removed** is what an action, an approval, a credential request or a lifecycle change recorded. Those are the audit trail and the basis of every indicator ([`17-kpis.md`](17-kpis.md)), they are a fraction of the volume, and a KPI defined today still counts backwards over the entire history. What goes is the transcript underneath them.
+
+A deleted transcript is visible as such. The timeline says the run happened, what it did and what it cost, and that the verbatim record has expired — not an empty view that reads like an agent which did nothing.
+
 ## Request log (diagnosing the target-system connection)
 
 The recording says **what** an agent did — which action with which parameters and whether it worked. When connecting a target system the more pressing question, however, is **what went over the wire**: the bot connector call to Teams including its answer, the incoming webhook that failed the signature check. That is exactly what the **request log** captures (table `request_log`, view *Platform → Requests*):

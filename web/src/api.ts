@@ -25,7 +25,11 @@ export type Agent = {
   model: string;
   effort: string; // "" = Runtime-Default, sonst low|medium|high|xhigh|max
   max_turns: number;
-  recording_level: string; // "" = erbt Org-Boden, sonst minimal|standard|full
+  recording_level: string; // "" = inherits the org floor, otherwise minimal|standard|full
+  // How long this agent's verbatim run is kept (spec/06). null/undefined =
+  // inherits the organisation; a number only ever EXTENDS it, never shortens.
+  // 0 = keep forever.
+  recording_retention_days?: number | null;
   // Der Arbeitsplatz: Profilname (base, dev) oder ein eigenes Image;
   // leer = Voreinstellung der Instanz (spec/16).
   sandbox_image: string;
