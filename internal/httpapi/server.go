@@ -603,7 +603,7 @@ func (s *Server) Handler() http.Handler {
 	// that forgets them is exactly the gap nobody goes looking for. Handlers
 	// with ideas of their own (the file preview sets a stricter CSP) simply
 	// override them afterwards.
-	return s.mitSchutzHeadern(s.mitAuditSpur(mux))
+	return s.mitSchutzHeadern(mitKompression(s.mitAuditSpur(mux)))
 }
 
 // mitSchutzHeadern sets the security headers before every response.

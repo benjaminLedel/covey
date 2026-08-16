@@ -398,22 +398,49 @@ func (s *Store) Events(ctx context.Context, agentID uuid.UUID, taskID *uuid.UUID
 	if limit <= 0 || limit > 1000 {
 		limit = 500
 	}
+	// Which ids answer the question is decided first, and on its own. That
+	// separation is the whole point.
+	//
+	// Asked in one statement, the planner walks the primary key backwards and
+	// filters by agent on the way. It picks that because it assumes an agent's
+	// rows are spread evenly across the ids — cheap for one that worked a minute
+	// ago, because its rows sit at the very end. For one that has been idle it
+	// discards every foreign row in between: measured on an installation with
+	// 262,000 events, 34,784 rows thrown away, 7,658 buffers, 16 ms instead of
+	// 1. That is why a log opens instantly for one agent and slowly for the
+	// next, and the gap widens with every event anybody writes.
+	//
+	// Ordering by (agent_id, id) does not help: with agent_id pinned to one
+	// value the planner recognises the leading column as redundant and drops it.
+	// Selecting only the id does help, because then idx_recording_agent covers
+	// the question completely and the primary key does not. MATERIALIZED keeps
+	// the planner from folding the two halves back together. Same plan, same
+	// rows, 1 ms — and the scan starts where the answer is instead of where the
+	// table ends.
+	const spalten = `e.id, e.org_id, e.agent_id, e.task_id, e.kind, e.payload, e.created_at`
+
+	// The scope is one equality rather than the previous "$2 IS NULL OR
+	// task_id = $2": that OR is not a range the planner can start from, and it
+	// ruled out the task index for exactly the same reason.
+	wo := `WHERE agent_id = $1 AND id > $2`
+	args := []any{agentID, afterID, limit}
+	if taskID != nil {
+		wo = `WHERE task_id = $1 AND agent_id = $4 AND id > $2`
+		args = []any{*taskID, afterID, limit, agentID}
+	}
 	// Without an after cursor the most recent happenings are what matters: the
 	// last N events, sorted chronologically. With a cursor (live follow) still
 	// forwards from the known ID.
-	query := `SELECT id, org_id, agent_id, task_id, kind, payload, created_at
-		FROM recording_events
-		WHERE agent_id=$1 AND ($2::uuid IS NULL OR task_id=$2) AND id > $3
-		ORDER BY id LIMIT $4`
-	if afterID <= 0 {
-		query = `SELECT id, org_id, agent_id, task_id, kind, payload, created_at FROM (
-			SELECT id, org_id, agent_id, task_id, kind, payload, created_at
-			FROM recording_events
-			WHERE agent_id=$1 AND ($2::uuid IS NULL OR task_id=$2) AND id > $3
-			ORDER BY id DESC LIMIT $4
-		) sub ORDER BY id`
+	richtung := "DESC"
+	if afterID > 0 {
+		richtung = "ASC"
 	}
-	rows, err := s.pool.Query(ctx, query, agentID, taskID, afterID, limit)
+	query := `WITH treffer AS MATERIALIZED (
+			SELECT id FROM recording_events ` + wo + `
+			ORDER BY id ` + richtung + ` LIMIT $3
+		)
+		SELECT ` + spalten + ` FROM recording_events e JOIN treffer USING (id) ORDER BY e.id`
+	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
