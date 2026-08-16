@@ -210,7 +210,7 @@ What makes this practical is the store's construction — **content-addressed an
 - Content is addressed by its hash. The same content means **one** block, across all agents and all snapshots of **one organisation** — the block namespace is keyed by `(org_id, hash)` and the boundary is structural, not a filter someone has to remember. A namespace shared across tenants would be an existence oracle over hashes: whoever may ask whether a block is already there learns whether somebody else holds that exact content.
 - After the job only the **new** blocks travel upwards. A typical run changes megabytes in a 7 GB home.
 - On wake only the **missing** blocks come down; what the runner already has locally stays put.
-- One snapshot per job. History and rollback ("the home from the day before yesterday") fall out as a by-product.
+- **One snapshot per agent**, replaced by every sync. The store answers "where is this home now", not "where was it on Thursday". A history would fall out of the construction for free, and is deliberately not kept: the purpose is that a lost runner costs time instead of work, and for that exactly one state is needed. What a kept history would additionally buy — winding a home back after an agent wrecked it — is covered by the backup on the host, and paying for it with a second concept in the product is not worth it.
 
 The effect on the measured figures is the actual point: the 4 GB of toolchain caches sit centrally **once**, not once per agent — deduplicated precisely because they are identical everywhere. And the 48 MB of unique work are backed up along with it, **without anyone having had to note anywhere that it exists**.
 
@@ -252,8 +252,8 @@ Worth naming honestly, because it is not free:
 - **The first sync** of a grown developer home is a full pass — 7 GB. Deltas after that.
 - **The sleep path gets longer.** The sync runs at real falling-asleep, not when a warm sandbox is parked — the warm session ([`03-lifecycle-scheduling.md`](03-lifecycle-scheduling.md)) stays untouched by it.
 - **Storage for blocks.** Postgres is the wrong place for GB-sized binary data (see below).
-- **Space next to the working copy.** The store holds what the runner also has on disk. With a *single* agent that is close to a doubling; from the second developer agent onwards the dedup of the 4 GB of toolchain caches turns it into a saving. `COVEY_HOME_STORE=off` exists for the smallest installations — then homes stay as they are today: directories, without snapshots, without rollback, and unrecoverable when lost.
-- **Cleaning up.** Snapshots accumulate; without retention the store grows unbounded. Operable in the interface, not only through an environment variable — see "Interface".
+- **Space next to the working copy.** The store holds what the runner also has on disk. With a *single* agent that is close to a doubling; from the second developer agent onwards the dedup of the 4 GB of toolchain caches turns it into a saving. `COVEY_HOME_STORE=off` exists for the smallest installations — then homes stay as they are today: directories, without snapshots, and unrecoverable when lost.
+- **Cleaning up.** Keeping one snapshot does not make this smaller, it makes it constant: every sync replaces the previous manifest, and the blocks only that one still referenced become garbage on the spot. Without a sweep the store therefore grows with every single job — not with the history somebody chose to keep. It has to run by itself; a cleanup that depends on somebody pressing a button is one that happens on the installations that need it least — see "Cleaning up" under "Interface".
 
 ### Where the blocks live
 
@@ -475,24 +475,25 @@ On the agent page, next to the existing file browser:
 |---|---|
 | The home's size, of which **occupied after dedup** | The difference is the actual statement: a 7.1 GB home, but perhaps 200 MB that only this agent holds |
 | Last sync: time, duration, blocks transferred | Whether the sync runs at all, and whether it is expensive |
-| Number of snapshots and their time span | What the retention currently leaves |
+| When the home was last written | Whether the one state is current, and how old it is |
 | The current or last-used runner | Where the working copy sits warm |
 | The largest directories | Answers "why is this home so big?" without shell access — and reveals candidates for an exclusion |
 
-Plus the snapshot list with two actions: **restore** (an earlier state becomes the current one — the rollback capability that falls out of the construction anyway) and **back up now** (force a sync, e.g. before maintenance).
+Plus one action: **back up now** (force a sync, e.g. before maintenance). There is no list to pick from and no restore, because there is nothing to pick: the snapshot is the state the next wake materialises, and the sync replaces it. What is offered here is the last write, not a choice between several.
 
-Restoring is a modifying action on someone else's work and therefore needs the same treatment as other interventions: only with the appropriate role, with confirmation, and as an audit event ([`06-observability-control.md`](06-observability-control.md)). It is furthermore only permitted while the agent is **not** running — otherwise the running sandbox writes into a home that changes underneath it.
+The rollback that a kept history would allow lives one level down, in the backup of the block store on the host, and belongs to whoever operates the installation rather than to whoever clicks in it. That is a deliberate trade and it has a price worth naming: **an agent that wrecks its own home and then falls asleep has overwritten the only state Covey holds.** Whoever cannot accept that operates the block store as a backed-up directory — or points it at an object store whose bucket is.
 
-### Retention
+### Cleaning up
 
-An org-wide setting, with a button rather than only a variable:
+No rules to configure, because there is nothing to weigh up: what no manifest references any more is gone.
 
-- **Keep snapshots per agent:** the last *N* (default 10).
-- **Maximum age:** remove snapshots older than *X* days (default 30).
-- **Always keep:** every agent's most recent snapshot — even if both rules would catch it. A retention that takes an agent's last home away is a delete command by a detour.
-- **Clean up now** as an explicit button, with a preview: what would fall away, how much space would be freed.
+- **By itself**, periodically, for every organisation. A cleanup that only runs when an admin presses a button does not run on the installation whose store is quietly filling the disk — and that is the only one it was for.
+- **By hand** besides: a button with a preview, and the same pass as a subcommand for the machine where nobody wants to open a browser.
+- **Never the last state.** An agent's current snapshot is what its next wake materialises. Removing it is a delete command by a detour.
 
-During cleanup a block is only removed when **no** remaining snapshot references it any more — that is the price of deduplication and the reason why "delete this snapshot" does not free space linearly. The preview therefore names the space actually freed, not the sum of the snapshot sizes; anything else would be a number that is never right.
+A block goes only when **no** manifest references it any more — that is the price of deduplication, and the reason a preview has to name the space actually freed rather than the size of what is being removed. Anything else would be a number that is never right.
+
+The figure this produces is larger than it sounds. With one state per agent, each sync leaves the previous manifest's exclusive blocks behind, so the garbage is proportional to how often agents work — not to what anybody chose to keep.
 
 The store's fill level additionally belongs on the dashboard: total size, growth, and a warning before the disk runs short — not after.
 
@@ -520,7 +521,7 @@ Every stage is useful in itself and can be accepted individually:
 | 4 | The remote runner: the WebSocket transport, `register` including a configuration file, the protocol handshake and version, `covey-runner` as a third binary plus its release artefacts (a binary per architecture, a Docker image, a systemd unit); and with it the built-in runner standing down | Sandboxes run on a second host — and only there |
 | 5 | `home_op` — the file browser over the runner link, reading from the snapshot while a runner is offline, and the sync of what the browser writes | The file browser works remotely too, does not fail when a host does, and no longer loses an upload when the agent moves |
 | 6 | Tags, capacity, a runner view in the UI | Operability from more than two runners onwards |
-| 7 | Interface: home info, snapshot list, retention setting and button, fill level on the dashboard | The store is visible and operable instead of growing quietly |
+| 7 | Interface: home info, the periodic cleanup plus a button and a subcommand for it, fill level on the dashboard | The store is visible and operable instead of growing quietly |
 | 8 | The `BlobStore` backend `s3` (the port exists from stage 3, `builtin` suffices up to here) | Durability and replication when the control plane's disk is not enough |
 
 Stages 0 and 1 are independent of the runner and should run first — each is an improvement on the current state in its own right. Stage 0 because it otherwise becomes a security hole as soon as a runner runs remotely, and because the shared internal segment is one already. Stage 1 because the image capability would otherwise have to be retrofitted in stage 2.

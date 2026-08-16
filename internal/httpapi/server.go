@@ -331,9 +331,9 @@ func (s *Server) Handler() http.Handler {
 	// whose content nobody can see is an operational risk — you notice it when
 	// the disk is full.
 	mux.Handle("GET /api/v1/agents/{id}/home", s.agentScoped(append(manage, identity.RoleSecurity), s.handleAgentHome))
-	mux.Handle("GET /api/v1/agents/{id}/home/snapshots", s.agentScoped(append(manage, identity.RoleSecurity), s.handleListSnapshots))
+	// One state per agent, so there is nothing to list and nothing to pick from
+	// (spec/16). What remains is forcing the sync that writes it.
 	mux.Handle("POST /api/v1/agents/{id}/home/snapshots", s.agentScoped(manage, s.handleBackupNow))
-	mux.Handle("POST /api/v1/agents/{id}/home/restore", s.agentScoped(manage, s.handleRestoreSnapshot))
 	// Platform diagnostics: what a restart would run into, and which agent
 	// configs need catching up after an upgrade. Both existed only as
 	// subcommands, which is to say: only for whoever has a shell on the host.
@@ -348,7 +348,6 @@ func (s *Server) Handler() http.Handler {
 		s.rbac([]string{identity.RoleOrgAdmin}, s.handleConfirmHomeStoreBackup))
 	mux.Handle("GET /api/v1/platform/lint", s.rbac(append(manage, identity.RoleSecurity), s.handleOrgLint))
 	mux.Handle("GET /api/v1/platform/home-store", s.rbac(anyRole, s.handleGetStore))
-	mux.Handle("PATCH /api/v1/platform/home-store", s.rbac(manage, s.handleSetRetention))
 	mux.Handle("POST /api/v1/platform/home-store/cleanup", s.rbac(manage, s.handleCleanupStore))
 	mux.Handle("GET /api/v1/org/recording-level", s.rbac(anyRole, s.handleGetOrgRecording))
 	mux.Handle("PATCH /api/v1/org/recording-level", s.rbac(securityRoles, s.handleSetOrgRecording))

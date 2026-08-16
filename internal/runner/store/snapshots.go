@@ -44,6 +44,12 @@ func (s *Store) RecordSnapshot(ctx context.Context, orgID, agentID uuid.UUID, ru
 }
 
 // RecordSnapshotTimed files a completed sync together with what it cost.
+//
+// It replaces the agent's state rather than appending to a history: there is
+// exactly one row per agent, and the database holds that promise (spec/16).
+// The blocks the previous manifest alone referenced become garbage at this
+// moment — which is why the sweep is not an occasional tidy-up here but the
+// thing that keeps the store from growing with every single job.
 func (s *Store) RecordSnapshotTimed(ctx context.Context, orgID, agentID uuid.UUID, runnerID *uuid.UUID,
 	manifestHash string, totalSize int64, blocksUp int, bytesUp int64, durationMS int, reason string) (Snapshot, error) {
 	if reason == "" {
@@ -51,7 +57,13 @@ func (s *Store) RecordSnapshotTimed(ctx context.Context, orgID, agentID uuid.UUI
 	}
 	snap, err := scanSnapshot(s.pool.QueryRow(ctx, `
 		INSERT INTO home_snapshots (id, org_id, agent_id, runner_id, manifest_hash, total_size, blocks_up, bytes_up, duration_ms, reason)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING `+snapshotCols,
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+		ON CONFLICT (agent_id) DO UPDATE SET
+			runner_id = EXCLUDED.runner_id, manifest_hash = EXCLUDED.manifest_hash,
+			total_size = EXCLUDED.total_size, blocks_up = EXCLUDED.blocks_up,
+			bytes_up = EXCLUDED.bytes_up, duration_ms = EXCLUDED.duration_ms,
+			reason = EXCLUDED.reason, created_at = now()
+		RETURNING `+snapshotCols,
 		uuid.New(), orgID, agentID, runnerID, manifestHash, totalSize, blocksUp, bytesUp, durationMS, reason))
 	if err != nil {
 		return Snapshot{}, err
@@ -77,79 +89,12 @@ func (s *Store) LatestSnapshot(ctx context.Context, agentID uuid.UUID) (Snapshot
 	return snap, err
 }
 
-// ListSnapshots returns an agent's snapshots, newest first.
-func (s *Store) ListSnapshots(ctx context.Context, agentID uuid.UUID, limit int) ([]Snapshot, error) {
-	if limit <= 0 || limit > 200 {
-		limit = 50
-	}
-	rows, err := s.pool.Query(ctx,
-		`SELECT `+snapshotCols+` FROM home_snapshots WHERE agent_id = $1 ORDER BY created_at DESC LIMIT $2`,
-		agentID, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []Snapshot
-	for rows.Next() {
-		snap, err := scanSnapshot(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, snap)
-	}
-	return out, rows.Err()
-}
-
-// Retention is the org-wide rule for how many snapshots survive.
-type Retention struct {
-	// KeepPerAgent: the last N per agent. 0 = no limit by count.
-	KeepPerAgent int
-	// MaxAge: remove snapshots older than this. 0 = no limit by age.
-	MaxAge time.Duration
-}
-
-// ApplyRetention removes the snapshot ROWS the rules catch and returns how
-// many went. It frees no space by itself: a block belongs to no single
-// snapshot, so the sweep over the surviving manifests decides that
-// (homestore.Sweep).
-//
-// Always kept: every agent's most recent snapshot, even when both rules would
-// catch it. A retention that takes an agent's last home away is a delete
-// command by a detour.
-func (s *Store) ApplyRetention(ctx context.Context, orgID uuid.UUID, r Retention) (int64, error) {
-	keep := r.KeepPerAgent
-	if keep < 1 {
-		keep = 1 // the most recent one always survives
-	}
-	var maxAge any
-	if r.MaxAge > 0 {
-		maxAge = time.Now().Add(-r.MaxAge)
-	}
-	tag, err := s.pool.Exec(ctx, `
-		WITH ranked AS (
-			SELECT id, created_at,
-			       row_number() OVER (PARTITION BY agent_id ORDER BY created_at DESC) AS rang
-			  FROM home_snapshots WHERE org_id = $1
-		)
-		DELETE FROM home_snapshots WHERE id IN (
-			SELECT id FROM ranked
-			 WHERE rang > 1
-			   AND (rang > $2 OR ($3::timestamptz IS NOT NULL AND created_at < $3::timestamptz))
-		)`, orgID, keep, maxAge)
-	if err != nil {
-		return 0, err
-	}
-	return tag.RowsAffected(), nil
-}
-
 // HomeSummary is what the agent page shows about a home. The interesting figure
 // is not the size but the difference: a 7 GB home, of which perhaps 200 MB only
 // this agent holds (spec/16, "Interface").
 type HomeSummary struct {
-	// Snapshots and the span they cover — what the retention currently leaves.
-	Snapshots int        `json:"snapshots"`
-	Oldest    *time.Time `json:"oldest,omitempty"`
-	// Latest is the state the next wake materialises.
+	// Latest is the one state there is — what the next wake materialises.
+	// Absent means the agent has never synced, not that a history ran out.
 	Latest *Snapshot `json:"latest,omitempty"`
 	// RunnerName/RunnerKind describe where the working copy sits warm.
 	RunnerName string `json:"runner_name,omitempty"`
@@ -160,18 +105,12 @@ type HomeSummary struct {
 // need the store, and this is the part the database can answer.
 func (s *Store) HomeSummaryFor(ctx context.Context, agentID uuid.UUID) (HomeSummary, error) {
 	var out HomeSummary
-	err := s.pool.QueryRow(ctx,
-		`SELECT count(*), min(created_at) FROM home_snapshots WHERE agent_id = $1`, agentID).
-		Scan(&out.Snapshots, &out.Oldest)
-	if err != nil {
-		return out, err
-	}
-	if out.Snapshots == 0 {
-		return out, nil
-	}
 	latest, err := s.LatestSnapshot(ctx, agentID)
 	if err != nil {
 		return out, err
+	}
+	if latest.ManifestHash == "" {
+		return out, nil
 	}
 	out.Latest = &latest
 	if latest.RunnerID != nil {
@@ -192,66 +131,6 @@ func (s *Store) GetSnapshot(ctx context.Context, orgID, id uuid.UUID) (Snapshot,
 		return Snapshot{}, ErrNotFound
 	}
 	return snap, err
-}
-
-// Retention rules of an organisation.
-func (s *Store) RetentionFor(ctx context.Context, orgID uuid.UUID) (Retention, error) {
-	var keep, days int
-	err := s.pool.QueryRow(ctx,
-		`SELECT home_retention_keep, home_retention_days FROM organizations WHERE id = $1`, orgID).
-		Scan(&keep, &days)
-	return Retention{KeepPerAgent: keep, MaxAge: time.Duration(days) * 24 * time.Hour}, err
-}
-
-// SetRetention writes them.
-func (s *Store) SetRetention(ctx context.Context, orgID uuid.UUID, keep, days int) error {
-	if keep < 0 {
-		keep = 0
-	}
-	if days < 0 {
-		days = 0
-	}
-	_, err := s.pool.Exec(ctx,
-		`UPDATE organizations SET home_retention_keep = $2, home_retention_days = $3 WHERE id = $1`,
-		orgID, keep, days)
-	return err
-}
-
-// SnapshotsCaughtBy names the snapshots the rules would remove — the basis of
-// the preview. Nothing is deleted; the same statement as ApplyRetention, read
-// instead of executed.
-func (s *Store) SnapshotsCaughtBy(ctx context.Context, orgID uuid.UUID, r Retention) ([]Snapshot, error) {
-	keep := r.KeepPerAgent
-	if keep < 1 {
-		keep = 1
-	}
-	var maxAge any
-	if r.MaxAge > 0 {
-		maxAge = time.Now().Add(-r.MaxAge)
-	}
-	rows, err := s.pool.Query(ctx, `
-		WITH ranked AS (
-			SELECT `+snapshotCols+`, org_id,
-			       row_number() OVER (PARTITION BY agent_id ORDER BY created_at DESC) AS rang
-			  FROM home_snapshots WHERE org_id = $1
-		)
-		SELECT `+snapshotCols+` FROM ranked
-		 WHERE rang > 1
-		   AND (rang > $2 OR ($3::timestamptz IS NOT NULL AND created_at < $3::timestamptz))
-		 ORDER BY created_at`, orgID, keep, maxAge)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []Snapshot
-	for rows.Next() {
-		snap, err := scanSnapshot(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, snap)
-	}
-	return out, rows.Err()
 }
 
 // ManifestsExcept are the manifest hashes of an organisation that survive when

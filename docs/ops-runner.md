@@ -182,20 +182,25 @@ an empty bucket and the snapshots stay in the database while their content is
 gone — copy the block directory over first, or accept that every home is
 rebuilt from scratch on its next wake.
 
-Snapshots accumulate. Retention is set per organisation under **Runners** — the
-last *N* per agent and a maximum age, with every agent's most recent snapshot
-always kept. *Preview* measures what a cleanup would free before anything
-happens.
+There is **one snapshot per agent**, replaced by every sync. There is nothing to
+configure about that and nothing to choose from: the store answers "where is
+this home now", not "where was it on Thursday".
 
-That number is the space **actually** freed and not the sum of the snapshot
-sizes: a block belongs to no single snapshot, so removing one frees only what
-nothing else references. Any other figure would be one that is never right.
+That is what makes the cleanup a permanent job rather than an occasional tidy-up.
+Every sync replaces a manifest, and the blocks only that one still referenced are
+garbage from that moment — so the store grows with how often the agents work,
+not with a history somebody kept. The same goes for a deleted agent, whose row
+went with it and whose blocks stayed. Measured on one installation: 151,898 of
+152,178 blocks were unreferenced, 9.3 of 9.8 GB.
 
-The rules are enforced **without anybody pressing anything**: the control plane
-runs the same pass every six hours, for every organisation. That matters because
-the store also grows in ways no retention rule describes — a deleted agent takes
-its snapshot rows with it and leaves its blocks behind — and an installation
-whose admin never opens the page is exactly the one that runs out of disk.
+So the control plane sweeps **by itself**, every six hours, for every
+organisation. An installation whose admin never opens the page is exactly the one
+that runs out of disk.
+
+*Preview* measures what a cleanup would free before anything happens. That number
+is the space **actually** freed and not the size of what is removed: a block
+belongs to no single home, so it goes only when nothing references it. Any other
+figure would be one that is never right.
 
 Whoever needs the space now, or has no browser at hand, runs the same pass from
 the command line. It reports per organisation and deletes nothing without
@@ -210,9 +215,14 @@ Per agent, next to the file browser, the **home store** panel shows how big the
 home is, how much of it only that agent holds (the figure that says whether a
 loss costs time or work), what the last sync cost, and the largest directories —
 which is also where you find the candidates for `COVEY_HOME_EXCLUDES`. *Back up
-now* forces a sync; a snapshot in the list can be restored, but only while the
-agent is asleep — otherwise the running sandbox would write into a home that
-changes underneath it.
+now* forces a sync — before a maintenance window, or simply because somebody
+wants the current state safe.
+
+There is no restore, because there is nothing to pick from. The way back after
+an agent has wrecked its own home and synced that state is the backup of the
+block directory on the host — the one the deploy writes before it brings the new
+version up. That is a deliberate trade, and it puts weight on that backup: check
+that it exists and is not empty.
 
 The store's fill level is on the dashboard, so it is seen before the disk runs
 short rather than after.

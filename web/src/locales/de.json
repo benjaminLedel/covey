@@ -1182,9 +1182,6 @@
       "lastSync": "Letzter Sync {{when}} · {{blocks}} Blöcke, {{bytes}} übertragen, {{seconds}} s",
       "runner": "Arbeitskopie zuletzt auf: {{runner}}",
       "backupNow": "Jetzt sichern",
-      "history": "Snapshots",
-      "restore": "Wiederherstellen",
-      "confirmRestore": "Home auf den Stand vom {{when}} zurücksetzen? Der aktuelle Inhalt der Arbeitskopie wird dabei überschrieben.",
       "reason": {
         "job": "nach dem Lauf",
         "manual": "von Hand",
@@ -2137,15 +2134,12 @@
     "tokenOnce": "Einmal im Klartext. Auf dem neuen Host ausführen:",
     "storeTitle": "Home-Store",
     "storeHint": "Nach jedem Job wandert das Home als Ganzes hier hinein. Braucht Backup wie die Datenbank — 99 % davon wären nur ein erneuter Download, der Rest existiert nirgendwo sonst.",
-    "storeSize": "{{size}} belegt · {{snapshots}} Snapshots von {{agents}} Agenten",
-    "keepPerAgent": "Snapshots je Agent (0 = unbegrenzt)",
-    "maxAgeDays": "Höchstalter in Tagen (0 = unbegrenzt)",
-    "alwaysKeepLast": "Der jüngste Snapshot jedes Agenten bleibt immer — eine Aufbewahrung, die einem Agenten sein letztes Home nimmt, wäre ein Löschbefehl auf Umwegen.",
+    "storeSize": "{{size}} belegt · Homes von {{agents}} Agenten",
     "previewCleanup": "Vorschau",
     "runCleanup": "Jetzt aufräumen",
     "confirmCleanup": "Aufräumen ausführen? Die vorgemerkten Snapshots werden entfernt.",
-    "cleanupPreview": "Es würden {{snapshots}} Snapshots und {{blocks}} Blöcke wegfallen — {{freed}} werden frei.",
-    "cleanupDone": "{{snapshots}} Snapshots und {{blocks}} Blöcke entfernt, {{freed}} frei geworden.",
+    "cleanupPreview": "Es würden {{blocks}} Blöcke wegfallen — {{freed}} werden frei.",
+    "cleanupDone": "{{blocks}} Blöcke entfernt, {{freed}} frei geworden.",
     "free": "{{size}} frei",
     "copy": "Kopieren",
     "copied": "Kopiert",
@@ -2160,7 +2154,8 @@
     "agoHours_one": "vor 1 h",
     "agoHours_other": "vor {{count}} h",
     "agoDays_one": "vor 1 Tag",
-    "agoDays_other": "vor {{count}} Tagen"
+    "agoDays_other": "vor {{count}} Tagen",
+    "cleanupAutomatic": "Aufgeräumt wird ohnehin alle sechs Stunden von selbst. Der Knopf ist für den Moment, in dem der Platz jetzt gebraucht wird — der aktuelle Stand jedes Agenten bleibt dabei immer."
   },
   "diagnostics": {
     "title": "Diagnose",

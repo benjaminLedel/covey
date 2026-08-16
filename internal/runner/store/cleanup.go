@@ -12,45 +12,35 @@ import (
 // Preview, what it would have done.
 //
 // FreedBytes comes from the plan, not from the sweep: the sweep counts blocks,
-// and only the plan measures them. The two sets are the same except for a
-// snapshot recorded while the pass was running, which is why the figure is
-// what the pass set out to free rather than a receipt.
+// and only the plan measures them. The two sets are the same except for a sync
+// that landed while the pass was running, which is why the figure is what the
+// pass set out to free rather than a receipt.
 type Cleanup struct {
-	Snapshots     int   `json:"snapshots"`
 	BlocksRemoved int   `json:"blocks_removed"`
 	FreedBytes    int64 `json:"freed_bytes"`
 	Preview       bool  `json:"preview"`
 }
 
-// CleanupOrg enforces an organisation's retention rules and then sweeps every
-// block no surviving manifest references any more. With preview nothing is
-// deleted and the figures say what a real pass would free.
+// CleanupOrg sweeps every block that no agent's current manifest references any
+// more. With preview nothing is deleted and the figures say what a real pass
+// would free.
 //
-// The sweep runs even when retention catches no row. Blocks fall out of use by
-// more than an expiring snapshot: a deleted agent takes its rows with it
-// through ON DELETE CASCADE, an aborted sync leaves behind what it had already
-// uploaded. A cleanup that returns early on "nothing caught" can never reclaim
-// any of that, and the store grows in a way no retention setting explains.
+// There is nothing to weigh up here and therefore nothing to configure. With
+// one state per agent (spec/16) each sync replaces a manifest, and the blocks
+// only that one still referenced are garbage from that moment. So are those of
+// a deleted agent, whose row went with it through ON DELETE CASCADE, and those
+// of a sync that broke off after uploading. All three look the same from here:
+// unreferenced.
+//
+// Which is why this has to run on a timer rather than on a button. The garbage
+// is proportional to how often agents work, not to anything anyone chose.
 func (s *Store) CleanupOrg(ctx context.Context, blobs homestore.BlobStore, orgID uuid.UUID, preview bool) (Cleanup, error) {
-	ret, err := s.RetentionFor(ctx, orgID)
-	if err != nil {
-		return Cleanup{}, err
-	}
-	caught, err := s.SnapshotsCaughtBy(ctx, orgID, ret)
-	if err != nil {
-		return Cleanup{}, err
-	}
-	out := Cleanup{Snapshots: len(caught), Preview: preview}
-
-	ids := make([]uuid.UUID, 0, len(caught))
-	for _, snap := range caught {
-		ids = append(ids, snap.ID)
-	}
-	surviving, err := s.ManifestsExcept(ctx, orgID, ids)
+	out := Cleanup{Preview: preview}
+	live, err := s.Manifests(ctx, orgID)
 	if err != nil {
 		return out, err
 	}
-	plan, err := homestore.Plan(ctx, blobs, orgID, surviving)
+	plan, err := homestore.Plan(ctx, blobs, orgID, live)
 	if err != nil {
 		return out, err
 	}
@@ -59,16 +49,11 @@ func (s *Store) CleanupOrg(ctx context.Context, blobs homestore.BlobStore, orgID
 		return out, nil
 	}
 
-	if len(ids) > 0 {
-		if _, err := s.ApplyRetention(ctx, orgID, ret); err != nil {
-			return out, err
-		}
-	}
-	// Read the surviving manifests again, AFTER the rows are gone. A sync that
-	// recorded a snapshot while we were planning is in the database but not in
-	// the list we planned with — sweeping against the older list would delete
-	// the blocks it had just uploaded and leave its row pointing at nothing.
-	live, err := s.Manifests(ctx, orgID)
+	// Read the manifests again rather than sweeping against the list the plan
+	// used: a sync that landed in between is in the database but not in that
+	// list, and sweeping against the older one would delete the blocks it had
+	// just uploaded and leave its row pointing at nothing.
+	live, err = s.Manifests(ctx, orgID)
 	if err != nil {
 		return out, err
 	}

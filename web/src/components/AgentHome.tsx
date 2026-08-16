@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, post, type Agent } from "../api";
@@ -11,8 +10,6 @@ import { fmtBytes } from "../format";
 
 type HomeView = {
   enabled: boolean;
-  snapshots: number;
-  oldest?: string;
   latest?: Snapshot;
   runner_name?: string;
   runner_kind?: string;
@@ -35,30 +32,14 @@ type Snapshot = {
 export function AgentHome({ agent, canWrite }: { agent: Agent; canWrite: boolean }) {
   const { t, i18n } = useTranslation();
   const qc = useQueryClient();
-  const [busy, setBusy] = useState<string | null>(null);
 
   const home = useQuery({
     queryKey: ["agent-home", agent.id],
     queryFn: () => api<HomeView>(`/agents/${agent.id}/home`),
   });
-  const snapshots = useQuery({
-    queryKey: ["agent-snapshots", agent.id],
-    queryFn: () => api<Snapshot[]>(`/agents/${agent.id}/home/snapshots`),
-    enabled: !!home.data?.enabled,
-  });
-
-  const invalidate = () => {
-    qc.invalidateQueries({ queryKey: ["agent-home", agent.id] });
-    qc.invalidateQueries({ queryKey: ["agent-snapshots", agent.id] });
-  };
   const backup = useMutation({
     mutationFn: () => post(`/agents/${agent.id}/home/snapshots`, {}),
-    onSuccess: invalidate,
-  });
-  const restore = useMutation({
-    mutationFn: (snapshot: string) => post(`/agents/${agent.id}/home/restore`, { snapshot }),
-    onSuccess: invalidate,
-    onSettled: () => setBusy(null),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["agent-home", agent.id] }),
   });
 
   if (!home.data) return null;
@@ -97,12 +78,6 @@ export function AgentHome({ agent, canWrite }: { agent: Agent; canWrite: boolean
                 blocks: latest.blocks_up,
                 bytes: fmtBytes(latest.bytes_up),
                 seconds: (latest.duration_ms / 1000).toFixed(1),
-              })}
-            </div>
-            <div className="muted">
-              {t("agent.home.snapshots", {
-                count: home.data.snapshots,
-                since: home.data.oldest ? fmtDate(home.data.oldest) : "—",
               })}
             </div>
             {home.data.runner_kind && (
@@ -148,45 +123,6 @@ export function AgentHome({ agent, canWrite }: { agent: Agent; canWrite: boolean
         </div>
       )}
 
-      {snapshots.data && snapshots.data.length > 0 && (
-        <details>
-          <summary className="text-xs">{t("agent.home.history")}</summary>
-          <table className="tbl text-xs" style={{ marginTop: 6 }}>
-            <tbody>
-              {snapshots.data.map((snap) => (
-                <tr key={snap.id}>
-                  <td>{fmtDate(snap.created_at)}</td>
-                  <td className="muted">{t(`agent.home.reason.${snap.reason}`, snap.reason)}</td>
-                  <td className="text-right">{fmtBytes(snap.total_size)}</td>
-                  <td className="text-right">
-                    {/* Wiederherstellen ist ein verändernder Eingriff in
-                        fremde Arbeit: nur mit Rolle, nur mit Bestätigung, und
-                        nur solange der Agent nicht läuft — sonst schriebe die
-                        laufende Sandbox in ein Home, das sich unter ihr ändert.
-                        Die letzte Bedingung prüft der Server. */}
-                    {canWrite && snap.id !== latest?.id && (
-                      <button
-                        className="btn-ghost text-xs"
-                        disabled={busy === snap.id}
-                        onClick={() => {
-                          if (!confirm(t("agent.home.confirmRestore", { when: fmtDate(snap.created_at) }))) return;
-                          setBusy(snap.id);
-                          restore.mutate(snap.id);
-                        }}
-                      >
-                        {t("agent.home.restore")}
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {restore.isError && (
-            <p className="danger-text text-xs">{(restore.error as Error).message}</p>
-          )}
-        </details>
-      )}
     </div>
   );
 }

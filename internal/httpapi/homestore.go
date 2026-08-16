@@ -9,7 +9,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"covey/internal/agents"
 	"covey/internal/homestore"
 	"covey/internal/runner"
 	runnerstore "covey/internal/runner/store"
@@ -100,27 +99,6 @@ func (s *Server) sharedBlocks(ctx context.Context, orgID, agentID uuid.UUID) map
 	return shared
 }
 
-func (s *Server) handleListSnapshots(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, "invalid id")
-		return
-	}
-	if s.Runners == nil {
-		writeJSON(w, http.StatusOK, []runnerstore.Snapshot{})
-		return
-	}
-	list, err := s.Runners.ListSnapshots(r.Context(), id, 100)
-	if err != nil {
-		mapErr(w, err)
-		return
-	}
-	if list == nil {
-		list = []runnerstore.Snapshot{}
-	}
-	writeJSON(w, http.StatusOK, list)
-}
-
 // handleBackupNow forces a sync — before a maintenance window, or simply
 // because somebody wants the current state safe.
 func (s *Server) handleBackupNow(w http.ResponseWriter, r *http.Request) {
@@ -147,70 +125,6 @@ func (s *Server) handleBackupNow(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
-// handleRestoreSnapshot makes an earlier state the current one — the rollback
-// that falls out of the construction anyway.
-//
-// A modifying action on somebody else's work, so it gets the same treatment as
-// other interventions: the appropriate role, an audit event, and only while the
-// agent is NOT running — otherwise the running sandbox writes into a home that
-// changes underneath it.
-func (s *Server) handleRestoreSnapshot(w http.ResponseWriter, r *http.Request) {
-	id, err := parseID(r)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, "invalid id")
-		return
-	}
-	var in struct {
-		Snapshot string `json:"snapshot"`
-	}
-	if err := readJSON(r, &in); err != nil || in.Snapshot == "" {
-		writeErr(w, http.StatusBadRequest, "snapshot missing")
-		return
-	}
-	if s.RunnerPool == nil {
-		writeErr(w, http.StatusServiceUnavailable, "no runner pool")
-		return
-	}
-	p := principalFrom(r)
-
-	agent, err := s.Registry.Get(r.Context(), id)
-	if err != nil {
-		mapErr(w, err)
-		return
-	}
-	if agent.Status != agents.StatusSleeping {
-		writeErr(w, http.StatusConflict,
-			"the agent is working — a home may only be restored while it is asleep")
-		return
-	}
-
-	snapID, err := uuid.Parse(in.Snapshot)
-	if err != nil {
-		writeErr(w, http.StatusBadRequest, "snapshot: no valid ID")
-		return
-	}
-	snap, err := s.Runners.GetSnapshot(r.Context(), p.OrgID, snapID)
-	if err != nil {
-		mapErr(w, err)
-		return
-	}
-	if snap.AgentID != id {
-		writeErr(w, http.StatusNotFound, "snapshot not found")
-		return
-	}
-	if err := s.RunnerPool.Restore(r.Context(), id, p.OrgID, snap.ManifestHash); err != nil {
-		if errors.Is(err, runner.ErrNoRunner) {
-			writeErr(w, http.StatusConflict,
-				"the runner holding this home is not connected — nothing can be restored right now")
-			return
-		}
-		mapErr(w, err)
-		return
-	}
-	s.recordFileOp(r, id, "home_restore", snap.CreatedAt.Format(time.RFC3339), snap.TotalSize)
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
-}
-
 // --- The store as a whole ---
 
 // StoreView is the fill level for the dashboard: total size, growth, and a
@@ -227,10 +141,10 @@ type StoreView struct {
 	// nobody can see. With it, one line says what it is doing.
 	Bytes        int64 `json:"bytes"`
 	LogicalBytes int64 `json:"logical_bytes"`
-	Snapshots    int   `json:"snapshots"`
-	Agents       int   `json:"agents"`
-	KeepPerAgent int   `json:"keep_per_agent"`
-	MaxAgeDays   int   `json:"max_age_days"`
+	// Agents is how many of them have a home in the store. There is no snapshot
+	// count beside it any more: with one state per agent the two would be the
+	// same number printed twice.
+	Agents int `json:"agents"`
 }
 
 // storeSizeCache: walking the block directory is a disk pass, and the
@@ -280,41 +194,12 @@ func (s *Server) handleGetStore(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, view)
 		return
 	}
-	if ret, err := s.Runners.RetentionFor(r.Context(), p.OrgID); err == nil {
-		view.KeepPerAgent = ret.KeepPerAgent
-		view.MaxAgeDays = int(ret.MaxAge / (24 * time.Hour))
-	}
-	_ = s.Pool.QueryRow(r.Context(),
-		`SELECT count(*), count(DISTINCT agent_id) FROM home_snapshots WHERE org_id = $1`, p.OrgID).
-		Scan(&view.Snapshots, &view.Agents)
-	// The CURRENT homes, not the sum over all snapshots: an agent's ten
-	// snapshots are ten versions of one home, and adding them up would produce
-	// a figure that says nothing about anything.
 	_ = s.Pool.QueryRow(r.Context(), `
-		SELECT COALESCE(SUM(total_size), 0) FROM (
-			SELECT DISTINCT ON (agent_id) total_size
-			  FROM home_snapshots WHERE org_id = $1
-			 ORDER BY agent_id, created_at DESC
-		) aktuell`, p.OrgID).Scan(&view.LogicalBytes)
+		SELECT count(*), COALESCE(SUM(total_size), 0)
+		  FROM home_snapshots WHERE org_id = $1`, p.OrgID).
+		Scan(&view.Agents, &view.LogicalBytes)
 	view.Bytes = s.storeSize(r.Context(), p.OrgID)
 	writeJSON(w, http.StatusOK, view)
-}
-
-func (s *Server) handleSetRetention(w http.ResponseWriter, r *http.Request) {
-	var in struct {
-		KeepPerAgent int `json:"keep_per_agent"`
-		MaxAgeDays   int `json:"max_age_days"`
-	}
-	if err := readJSON(r, &in); err != nil {
-		writeErr(w, http.StatusBadRequest, "keep_per_agent/max_age_days missing")
-		return
-	}
-	p := principalFrom(r)
-	if err := s.Runners.SetRetention(r.Context(), p.OrgID, in.KeepPerAgent, in.MaxAgeDays); err != nil {
-		mapErr(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 // The cleanup itself lives in the runner store (CleanupOrg), because the CLI

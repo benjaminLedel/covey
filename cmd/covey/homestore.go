@@ -67,8 +67,7 @@ func runHomeStore(ctx context.Context, cfg config.Config, args []string, log *sl
 		}
 		blocks += res.BlocksRemoved
 		freed += res.FreedBytes
-		fmt.Printf("  %s  snapshots %-4d blocks %-6d %s\n",
-			id, res.Snapshots, res.BlocksRemoved, storeBytes(res.FreedBytes))
+		fmt.Printf("  %s  blocks %-8d %s\n", id, res.BlocksRemoved, storeBytes(res.FreedBytes))
 	}
 	verb := "would free"
 	if apply {
