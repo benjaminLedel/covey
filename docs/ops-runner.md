@@ -191,6 +191,21 @@ That number is the space **actually** freed and not the sum of the snapshot
 sizes: a block belongs to no single snapshot, so removing one frees only what
 nothing else references. Any other figure would be one that is never right.
 
+The rules are enforced **without anybody pressing anything**: the control plane
+runs the same pass every six hours, for every organisation. That matters because
+the store also grows in ways no retention rule describes — a deleted agent takes
+its snapshot rows with it and leaves its blocks behind — and an installation
+whose admin never opens the page is exactly the one that runs out of disk.
+
+Whoever needs the space now, or has no browser at hand, runs the same pass from
+the command line. It reports per organisation and deletes nothing without
+`--apply`:
+
+```bash
+covey home-store cleanup            # preview: what would be freed
+covey home-store cleanup --apply    # and now for real
+```
+
 Per agent, next to the file browser, the **home store** panel shows how big the
 home is, how much of it only that agent holds (the figure that says whether a
 loss costs time or work), what the last sync cost, and the largest directories —

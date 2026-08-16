@@ -132,6 +132,8 @@ func main() {
 		err = runSystemAdmin(ctx, cfg, os.Args[2:])
 	case "doctor":
 		err = runDoctor(ctx, cfg, os.Args[2:])
+	case "home-store":
+		err = runHomeStore(ctx, cfg, os.Args[2:], log)
 	case "genkey":
 		var key string
 		if key, err = secbuiltin.GenerateMasterKey(); err == nil {
@@ -161,6 +163,7 @@ func usage() {
   covey waitlist          list waitlist codes | new [-label L] [-uses N] [-days D] | revoke <hash>
   covey system-admin      list | add <email> | remove <email> — the instance level, not an org role
   covey doctor            what a restart or upgrade would run into here (changes nothing)
+  covey home-store cleanup [--apply]   retention + sweep over every org's home store
   covey genkey            generate a new COVEY_MASTER_KEY
   covey version           version, commit and build time of this binary
 
@@ -1262,6 +1265,48 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 			}
 		}
 	}()
+	// Home store retention. Without this the rules on the organisation are a
+	// setting that nothing enforces: they apply when an admin presses the
+	// button in Administration → Runners, and on an installation where nobody
+	// does, the store grows until a deploy dies on a full disk — which is
+	// exactly what spec/16 asks to be spared ("a warning before the disk runs
+	// short, not after"). Six hours, like the egress log above: often enough
+	// that nothing piles up, rare enough that a sweep rarely meets a sync.
+	//
+	// Whoever needs the space now does not wait for the tick:
+	// `covey home-store cleanup --apply` runs the same pass.
+	if blobs != nil {
+		go func() {
+			t := time.NewTicker(6 * time.Hour)
+			defer t.Stop()
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-t.C:
+					orgs, err := runnerStore.OrgIDs(ctx)
+					if err != nil {
+						log.Warn("home store cleanup: organisations unreadable", "err", err)
+						continue
+					}
+					for _, id := range orgs {
+						res, err := runnerStore.CleanupOrg(ctx, blobs, id, false)
+						if err != nil {
+							// One organisation's store being unreadable must not
+							// stop the others: the next one may be the one that
+							// is actually filling the disk.
+							log.Warn("home store cleanup failed", "org", id, "err", err)
+							continue
+						}
+						if res.Snapshots > 0 || res.BlocksRemoved > 0 {
+							log.Info("home store cleaned up", "org", id,
+								"snapshots", res.Snapshots, "blocks", res.BlocksRemoved)
+						}
+					}
+				}
+			}
+		}()
+	}
 	go func() {
 		<-ctx.Done()
 		// Graceful shutdown: finish running requests, close the daemons.

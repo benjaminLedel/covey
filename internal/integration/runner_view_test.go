@@ -350,6 +350,60 @@ func TestCleanupFreesOnlyWhatNothingElseNeeds(t *testing.T) {
 	}
 }
 
+// A deleted agent takes its snapshot rows with it (ON DELETE CASCADE) and
+// leaves its blocks behind. Retention then has nothing left to catch — and a
+// cleanup that stopped there could never reclaim them: the store would keep
+// growing with no setting that explains it, until a deploy dies on a full
+// disk. This is the case the periodic pass exists for.
+func TestCleanupReclaimsWhatADeletedAgentLeftBehind(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	ctx := context.Background()
+	s, pool, _, blobs, _ := filesStack(t, dir)
+	agent := s.newSupportAgent("wegwerf-agent")
+
+	tree, err := s.orch.AgentFiles(agent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tree.Write("gross.bin", strings.NewReader(strings.Repeat("y", 80_000))); err != nil {
+		t.Fatal(err)
+	}
+	pool.FlushHomes(ctx)
+
+	before, err := blobs.List(ctx, s.orgID)
+	if err != nil || len(before) == 0 {
+		t.Fatalf("the snapshot left no blocks behind: %d, %v", len(before), err)
+	}
+
+	if err := s.registry.Delete(ctx, s.orgID, agent.ID); err != nil {
+		t.Fatal(err)
+	}
+	if left, err := s.runners.ListSnapshots(ctx, agent.ID, 10); err != nil || len(left) != 0 {
+		t.Fatalf("the rows should have gone with the agent: %d, %v", len(left), err)
+	}
+
+	res, err := s.runners.CleanupOrg(ctx, blobs, s.orgID, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Snapshots != 0 {
+		t.Fatalf("retention cannot catch what is already gone: %d", res.Snapshots)
+	}
+	if res.BlocksRemoved == 0 {
+		t.Error("the orphaned blocks stayed behind — the sweep never ran")
+	}
+	after, err := blobs.List(ctx, s.orgID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(after) >= len(before) {
+		t.Errorf("nothing was reclaimed: %d blocks before, %d after", len(before), len(after))
+	}
+}
+
 // The store's fill level belongs on the dashboard — a warning before the disk
 // runs short, not after.
 func TestStoreViewReportsTheFillLevel(t *testing.T) {
