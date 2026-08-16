@@ -1182,9 +1182,6 @@
       "lastSync": "Last sync {{when}} · {{blocks}} blocks, {{bytes}} transferred, {{seconds}} s",
       "runner": "Working copy last on: {{runner}}",
       "backupNow": "Back up now",
-      "history": "Snapshots",
-      "restore": "Restore",
-      "confirmRestore": "Reset the home to its state of {{when}}? The current content of the working copy is overwritten.",
       "reason": {
         "job": "after the run",
         "manual": "by hand",
@@ -2137,15 +2134,12 @@
     "tokenOnce": "Shown once. On the new host, run:",
     "storeTitle": "Home store",
     "storeHint": "After every job a home goes in here as a whole. Needs backup like the database — 99 % of it would only have to be downloaded again, the rest exists nowhere else.",
-    "storeSize": "{{size}} occupied · {{snapshots}} snapshots of {{agents}} agents",
-    "keepPerAgent": "Snapshots per agent (0 = no limit)",
-    "maxAgeDays": "Maximum age in days (0 = no limit)",
-    "alwaysKeepLast": "Every agent's most recent snapshot always stays — a retention that takes an agent's last home away would be a delete command by a detour.",
+    "storeSize": "{{size}} occupied · homes of {{agents}} agents",
     "previewCleanup": "Preview",
     "runCleanup": "Clean up now",
     "confirmCleanup": "Run the cleanup? The snapshots it named will be removed.",
-    "cleanupPreview": "{{snapshots}} snapshots and {{blocks}} blocks would fall away — {{freed}} would be freed.",
-    "cleanupDone": "Removed {{snapshots}} snapshots and {{blocks}} blocks, {{freed}} freed.",
+    "cleanupPreview": "{{blocks}} blocks would fall away — {{freed}} would be freed.",
+    "cleanupDone": "Removed {{blocks}} blocks, {{freed}} freed.",
     "free": "{{size}} free",
     "copy": "Copy",
     "copied": "Copied",
@@ -2160,7 +2154,8 @@
     "agoHours_one": "1 h ago",
     "agoHours_other": "{{count}} h ago",
     "agoDays_one": "1 day ago",
-    "agoDays_other": "{{count}} days ago"
+    "agoDays_other": "{{count}} days ago",
+    "cleanupAutomatic": "The cleanup runs by itself every six hours anyway. The button is for the moment the space is needed now — every agent’s current state always stays."
   },
   "diagnostics": {
     "title": "Diagnostics",

@@ -1298,9 +1298,9 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 							log.Warn("home store cleanup failed", "org", id, "err", err)
 							continue
 						}
-						if res.Snapshots > 0 || res.BlocksRemoved > 0 {
+						if res.BlocksRemoved > 0 {
 							log.Info("home store cleaned up", "org", id,
-								"snapshots", res.Snapshots, "blocks", res.BlocksRemoved)
+								"blocks", res.BlocksRemoved, "bytes", res.FreedBytes)
 						}
 					}
 				}

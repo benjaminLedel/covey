@@ -128,7 +128,6 @@ func TestHomeViewNamesWhatOnlyThisAgentHolds(t *testing.T) {
 
 	var view struct {
 		Enabled        bool  `json:"enabled"`
-		Snapshots      int   `json:"snapshots"`
 		TotalBytes     int64 `json:"total_bytes"`
 		ExclusiveBytes int64 `json:"exclusive_bytes"`
 		TopDirs        []struct {
@@ -146,7 +145,7 @@ func TestHomeViewNamesWhatOnlyThisAgentHolds(t *testing.T) {
 	}
 	resp.Body.Close()
 
-	if !view.Enabled || view.Snapshots == 0 || view.Latest == nil {
+	if !view.Enabled || view.Latest == nil {
 		t.Fatalf("the home view is empty: %+v", view)
 	}
 	if view.TotalBytes < int64(len(shared)+len(own)) {
@@ -175,10 +174,11 @@ func TestHomeViewNamesWhatOnlyThisAgentHolds(t *testing.T) {
 	}
 }
 
-// Backing up on demand and rolling back — the rollback falls out of the
-// construction anyway. Restoring is a modifying action on somebody else's work,
-// so it is only allowed while the agent is asleep.
-func TestBackupAndRestoreThroughTheInterface(t *testing.T) {
+// Backing up on demand, and the promise that goes with it: there is exactly one
+// state per agent, so a second backup replaces the first rather than adding to
+// it (spec/16). The database holds that promise; this checks that the path
+// through the interface honours it too.
+func TestBackupNowReplacesTheOneState(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("the fake binary is a shell script")
 	}
@@ -210,44 +210,29 @@ func TestBackupAndRestoreThroughTheInterface(t *testing.T) {
 		t.Errorf("the snapshot has to say what asked for it: %q", first.Reason)
 	}
 
-	// The work goes on, and a second state follows.
+	// The work goes on, and the next sync replaces that state.
 	if _, err := tree.Write("bericht.md", strings.NewReader("zweite Fassung")); err != nil {
 		t.Fatal(err)
 	}
 	pool.FlushHomes(ctx)
 
-	// Rolling back to the first state.
-	resp = c.do(http.MethodPost, "/api/v1/agents/"+agent.ID.String()+"/home/restore",
-		map[string]string{"snapshot": first.ID.String()})
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("restore: %s", resp.Status)
-	}
-	home := filepath.Join(dir, "work", "homes", agent.ID.String(), "bericht.md")
-	got, err := os.ReadFile(home)
-	if err != nil || string(got) != "erste Fassung" {
-		t.Fatalf("the rollback did not reach the working copy: %q, %v", got, err)
-	}
-	// And it holds: the restored state became the current one, so the next
-	// wake does not materialise the newer snapshot over it.
 	latest, err := s.runners.LatestSnapshot(ctx, agent.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if latest.ManifestHash != first.ManifestHash {
-		t.Errorf("after a rollback the restored state has to be the current one")
+	if latest.ManifestHash == first.ManifestHash {
+		t.Error("the second sync did not become the agent's state")
 	}
-
-	// While the agent is working, restoring is refused — otherwise the running
-	// sandbox writes into a home that changes underneath it.
-	if err := s.registry.SetStatus(ctx, agent.ID, "working"); err != nil {
+	// The decisive part, and the reason the constraint sits in the database: one
+	// row, not two. A second one would leave the sweep guessing which of them is
+	// the home.
+	var rows int
+	if err := s.pool.QueryRow(ctx,
+		`SELECT count(*) FROM home_snapshots WHERE agent_id = $1`, agent.ID).Scan(&rows); err != nil {
 		t.Fatal(err)
 	}
-	resp = c.do(http.MethodPost, "/api/v1/agents/"+agent.ID.String()+"/home/restore",
-		map[string]string{"snapshot": first.ID.String()})
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusConflict {
-		t.Errorf("restoring a running agent's home has to be refused, got %s", resp.Status)
+	if rows != 1 {
+		t.Errorf("exactly one state per agent, found %d", rows)
 	}
 }
 
@@ -283,31 +268,33 @@ func TestCleanupFreesOnlyWhatNothingElseNeeds(t *testing.T) {
 	}
 	pool.FlushHomes(ctx)
 
-	list, err := s.runners.ListSnapshots(ctx, agent.ID, 10)
-	if err != nil || len(list) < 3 {
-		t.Fatalf("three snapshots expected: %d, %v", len(list), err)
+	// Three syncs, one state: each replaced the one before it, and the blocks
+	// only the middle one held became garbage the moment it was replaced.
+	var rows int
+	if err := s.pool.QueryRow(ctx,
+		`SELECT count(*) FROM home_snapshots WHERE agent_id = $1`, agent.ID).Scan(&rows); err != nil {
+		t.Fatal(err)
+	}
+	if rows != 1 {
+		t.Fatalf("exactly one state per agent, found %d", rows)
 	}
 
-	// Keep only the most recent one.
-	resp := c.do(http.MethodPatch, "/api/v1/platform/home-store",
-		map[string]int{"keep_per_agent": 1, "max_age_days": 0})
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("retention: %s", resp.Status)
+	alleBloecke, err := blobs.List(ctx, s.orgID)
+	if err != nil {
+		t.Fatal(err)
 	}
 
 	var preview struct {
-		Snapshots     int   `json:"snapshots"`
 		BlocksRemoved int   `json:"blocks_removed"`
 		FreedBytes    int64 `json:"freed_bytes"`
 		Preview       bool  `json:"preview"`
 	}
-	resp = c.do(http.MethodPost, "/api/v1/platform/home-store/cleanup?preview=true", map[string]any{})
+	resp := c.do(http.MethodPost, "/api/v1/platform/home-store/cleanup?preview=true", map[string]any{})
 	if err := json.NewDecoder(resp.Body).Decode(&preview); err != nil {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
-	if !preview.Preview || preview.Snapshots != len(list)-1 {
+	if !preview.Preview || preview.BlocksRemoved == 0 {
 		t.Fatalf("the preview has to name what would fall away: %+v", preview)
 	}
 	// The 50 kB that only the middle snapshot holds are freed; the file that
@@ -317,8 +304,8 @@ func TestCleanupFreesOnlyWhatNothingElseNeeds(t *testing.T) {
 	}
 
 	// And nothing has happened yet.
-	if again, _ := s.runners.ListSnapshots(ctx, agent.ID, 10); len(again) != len(list) {
-		t.Fatal("a preview must not delete anything")
+	if before, err := blobs.List(ctx, s.orgID); err != nil || len(before) != len(alleBloecke) {
+		t.Fatalf("a preview must not delete anything: %d, %v", len(before), err)
 	}
 
 	resp = c.do(http.MethodPost, "/api/v1/platform/home-store/cleanup?preview=false", map[string]any{})
@@ -326,18 +313,22 @@ func TestCleanupFreesOnlyWhatNothingElseNeeds(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("cleanup: %s", resp.Status)
 	}
-	after, err := s.runners.ListSnapshots(ctx, agent.ID, 10)
+	after, err := blobs.List(ctx, s.orgID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(after) != 1 {
-		t.Errorf("the most recent snapshot has to survive, and only it: %d", len(after))
+	if len(after) >= len(alleBloecke) {
+		t.Errorf("nothing was swept: %d blocks before, %d after", len(alleBloecke), len(after))
 	}
 
 	// The decisive part: the surviving snapshot is still complete. A cleanup
 	// that swept away a block another snapshot still needed would show up
 	// exactly here — and nowhere else until somebody needed the home.
-	m, err := homestore.Load(ctx, blobs, s.orgID, after[0].ManifestHash)
+	surviving, err := s.runners.LatestSnapshot(ctx, agent.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := homestore.Load(ctx, blobs, s.orgID, surviving.ManifestHash)
 	if err != nil {
 		t.Fatalf("the surviving snapshot is unreadable: %v", err)
 	}
@@ -381,16 +372,13 @@ func TestCleanupReclaimsWhatADeletedAgentLeftBehind(t *testing.T) {
 	if err := s.registry.Delete(ctx, s.orgID, agent.ID); err != nil {
 		t.Fatal(err)
 	}
-	if left, err := s.runners.ListSnapshots(ctx, agent.ID, 10); err != nil || len(left) != 0 {
-		t.Fatalf("the rows should have gone with the agent: %d, %v", len(left), err)
+	if left, err := s.runners.LatestSnapshot(ctx, agent.ID); err != nil || left.ManifestHash != "" {
+		t.Fatalf("the row should have gone with the agent: %q, %v", left.ManifestHash, err)
 	}
 
 	res, err := s.runners.CleanupOrg(ctx, blobs, s.orgID, false)
 	if err != nil {
 		t.Fatal(err)
-	}
-	if res.Snapshots != 0 {
-		t.Fatalf("retention cannot catch what is already gone: %d", res.Snapshots)
 	}
 	if res.BlocksRemoved == 0 {
 		t.Error("the orphaned blocks stayed behind — the sweep never ran")
@@ -426,12 +414,9 @@ func TestStoreViewReportsTheFillLevel(t *testing.T) {
 	pool.FlushHomes(ctx)
 
 	var view struct {
-		Enabled      bool  `json:"enabled"`
-		Bytes        int64 `json:"bytes"`
-		Snapshots    int   `json:"snapshots"`
-		Agents       int   `json:"agents"`
-		KeepPerAgent int   `json:"keep_per_agent"`
-		MaxAgeDays   int   `json:"max_age_days"`
+		Enabled bool  `json:"enabled"`
+		Bytes   int64 `json:"bytes"`
+		Agents  int   `json:"agents"`
 	}
 	resp := c.do(http.MethodGet, "/api/v1/platform/home-store", nil)
 	if err := json.NewDecoder(resp.Body).Decode(&view); err != nil {
@@ -445,12 +430,10 @@ func TestStoreViewReportsTheFillLevel(t *testing.T) {
 	if view.Bytes < 30_000 {
 		t.Errorf("the fill level is too small: %d", view.Bytes)
 	}
-	if view.Snapshots == 0 || view.Agents == 0 {
-		t.Errorf("snapshots/agents missing: %+v", view)
-	}
-	// The defaults from the migration, so the page shows a rule and not zeroes.
-	if view.KeepPerAgent != 10 || view.MaxAgeDays != 30 {
-		t.Errorf("the retention defaults are wrong: %+v", view)
+	// One row per agent, so this count is both at once: how many agents have a
+	// home in the store, and how many states it holds.
+	if view.Agents == 0 {
+		t.Errorf("no agent with a home: %+v", view)
 	}
 }
 

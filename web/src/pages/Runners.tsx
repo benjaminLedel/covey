@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, post, patch, del, type Principal } from "../api";
+import { api, post, del, type Principal } from "../api";
 
 // Die Runner-Ansicht (spec/16, Stufe 5). Ab dem dritten Runner ist sie das,
 // was den Betrieb bedienbar macht: welche Hosts es gibt, welcher gerade traegt,
@@ -40,10 +40,7 @@ type StoreView = {
   enabled: boolean;
   bytes: number;
   logical_bytes: number;
-  snapshots: number;
   agents: number;
-  keep_per_agent: number;
-  max_age_days: number;
 };
 
 type CleanupView = {
@@ -99,11 +96,6 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
   const removeRunner = useMutation({
     mutationFn: (id: string) => del(`/runners/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["runners"] }),
-  });
-  const setRetention = useMutation({
-    mutationFn: (v: { keep_per_agent: number; max_age_days: number }) =>
-      patch("/platform/home-store", v),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["home-store"] }),
   });
   const runCleanup = useMutation({
     mutationFn: (preview: boolean) =>
@@ -260,14 +252,13 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
           <div className="text-sm" style={{ marginTop: 4 }}>
             {t("runners.storeSize", {
               size: formatBytes(store.data.bytes),
-              snapshots: store.data.snapshots,
               agents: store.data.agents,
             })}
           </div>
-          {/* Der Vergleich ist die Erklaerung: die Homes wiegen zusammen ein
-              Vielfaches dessen, was der Speicher belegt, weil die Toolchain-
-              Caches auf jedem Entwickler-Home byteweise dieselben sind und
-              deshalb einmal liegen. Ohne diese Zeile ist der Store ein
+          {/* The comparison is the explanation: the homes together weigh a
+              multiple of what the store occupies, because the toolchain caches
+              are byte-for-byte identical on every developer home and therefore
+              lie there once. Without this line the store is a
               Verzeichnis, das aus unsichtbaren Gruenden waechst. */}
           {store.data.logical_bytes > 0 && store.data.bytes > 0 && (
             <div className="text-sm">
@@ -285,38 +276,6 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
           )}
 
           <div className="flex items-center gap-4 flex-wrap" style={{ marginTop: 4 }}>
-            <label className="text-xs">
-              {t("runners.keepPerAgent")}{" "}
-              <input
-                type="number"
-                min={0}
-                defaultValue={store.data.keep_per_agent}
-                className="mono"
-                style={{ width: 70 }}
-                onBlur={(e) =>
-                  setRetention.mutate({
-                    keep_per_agent: Number(e.target.value),
-                    max_age_days: store.data!.max_age_days,
-                  })
-                }
-              />
-            </label>
-            <label className="text-xs">
-              {t("runners.maxAgeDays")}{" "}
-              <input
-                type="number"
-                min={0}
-                defaultValue={store.data.max_age_days}
-                className="mono"
-                style={{ width: 70 }}
-                onBlur={(e) =>
-                  setRetention.mutate({
-                    keep_per_agent: store.data!.keep_per_agent,
-                    max_age_days: Number(e.target.value),
-                  })
-                }
-              />
-            </label>
             {manage && (
               <>
                 <button className="btn-ghost text-xs" onClick={() => runCleanup.mutate(true)}>
@@ -324,7 +283,7 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
                 </button>
                 <button
                   className="btn text-xs"
-                  disabled={!cleanup || cleanup.preview === false || cleanup.snapshots === 0}
+                  disabled={!cleanup || cleanup.preview === false || cleanup.blocks_removed === 0}
                   onClick={() => {
                     if (confirm(t("runners.confirmCleanup"))) runCleanup.mutate(false);
                   }}
@@ -335,24 +294,22 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
             )}
           </div>
           {cleanup && (
-            /* Genannt wird der tatsaechlich frei werdende Platz, nicht die
-               Summe der Snapshot-Groessen: ein Block gehoert keinem einzelnen
-               Snapshot. Alles andere waere eine Zahl, die nie stimmt. */
+            /* What is named is the space actually freed, not the size of what
+               is being removed: a block belongs to no single home. Anything
+               else would be a number that is never right. */
             <p className="text-xs">
               {cleanup.preview
                 ? t("runners.cleanupPreview", {
-                    snapshots: cleanup.snapshots,
                     blocks: cleanup.blocks_removed,
                     freed: formatBytes(cleanup.freed_bytes),
                   })
                 : t("runners.cleanupDone", {
-                    snapshots: cleanup.snapshots,
                     blocks: cleanup.blocks_removed,
                     freed: formatBytes(cleanup.freed_bytes),
                   })}
             </p>
           )}
-          <p className="muted text-xs">{t("runners.alwaysKeepLast")}</p>
+          <p className="muted text-xs">{t("runners.cleanupAutomatic")}</p>
         </div>
       )}
     </div>
