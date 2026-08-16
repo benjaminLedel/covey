@@ -35,6 +35,21 @@ workflow:
     - if: '$CI_COMMIT_BRANCH'
     - if: '$CI_COMMIT_TAG'
 
+# The rule above only bites when the merge request already exists at push time.
+# Push first and open the merge request a minute later -- which is the normal
+# order -- and both pipelines run. The branch one then sits in the queue, the
+# merge request is merged with its source branch removed, and ten minutes later
+# a runner picks up a job whose ref is gone:
+#
+#     fatal: couldn't find remote ref refs/heads/<branch>
+#
+# Four red pipelines in one afternoon that way, none of them about the code.
+# interruptible lets GitLab cancel a superseded pipeline instead of running it
+# into a deleted branch. It needs "auto-cancel redundant pipelines" switched on
+# in the project settings; the flag alone does nothing.
+default:
+  interruptible: true
+
 stages:
   - test
   - build
@@ -322,6 +337,12 @@ build-sandbox-dev-image:
 #                      geschrieben; danach dort pflegen)
 deploy:
   stage: deploy
+  # Explicitly NOT interruptible, against the default above. This job stops the
+  # containers, writes the backup and runs the migrations; cancelled halfway it
+  # leaves an instance in a state nobody chose. GitLab also only cancels a
+  # pipeline while every running job in it is interruptible -- so this one line
+  # protects the whole deploy stage once it has started.
+  interruptible: false
   tags:
     - covey-deploy
   needs:
