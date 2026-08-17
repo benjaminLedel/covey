@@ -414,9 +414,12 @@ func TestStoreViewReportsTheFillLevel(t *testing.T) {
 	pool.FlushHomes(ctx)
 
 	var view struct {
-		Enabled bool  `json:"enabled"`
-		Bytes   int64 `json:"bytes"`
-		Agents  int   `json:"agents"`
+		Enabled          bool  `json:"enabled"`
+		Bytes            int64 `json:"bytes"`
+		Agents           int   `json:"agents"`
+		LargestHomeBytes int64 `json:"largest_home_bytes"`
+		TotalBytes       int64 `json:"total_bytes"`
+		FreeBytes        int64 `json:"free_bytes"`
 	}
 	resp := c.do(http.MethodGet, "/api/v1/platform/home-store", nil)
 	if err := json.NewDecoder(resp.Body).Decode(&view); err != nil {
@@ -434,6 +437,24 @@ func TestStoreViewReportsTheFillLevel(t *testing.T) {
 	// home in the store, and how many states it holds.
 	if view.Agents == 0 {
 		t.Errorf("no agent with a home: %+v", view)
+	}
+	// The figures the warning is built on. Without free space there is nothing
+	// to warn before — the dashboard would be back to a permanent notice that
+	// states a size and asks for nothing, which is the thing it stopped being.
+	if view.TotalBytes <= 0 || view.FreeBytes <= 0 {
+		t.Errorf("the file system the blocks lie on has to be measurable: %+v", view)
+	}
+	if view.FreeBytes >= view.TotalBytes {
+		t.Errorf("free cannot exceed total: %+v", view)
+	}
+	// The largest single home decides whether the next sync still lands — a
+	// percentage does not, because 90%% of 2 TB and 90%% of 40 GB are different
+	// answers to the same question.
+	if view.LargestHomeBytes < 30_000 {
+		t.Errorf("the largest home has to be the one just written: %+v", view)
+	}
+	if view.LargestHomeBytes > view.Bytes+view.LargestHomeBytes {
+		t.Errorf("nonsensical largest home: %+v", view)
 	}
 }
 

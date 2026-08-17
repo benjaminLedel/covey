@@ -145,6 +145,17 @@ type StoreView struct {
 	// count beside it any more: with one state per agent the two would be the
 	// same number printed twice.
 	Agents int `json:"agents"`
+	// LargestHomeBytes is the biggest single home. It is what decides whether
+	// the store is in trouble, far better than a percentage does: on a 2 TB
+	// volume "90 % full" is 200 GB of room, and on a 40 GB one it is four. What
+	// matters is whether the next sync still lands, and the largest home is the
+	// closest honest answer to that.
+	LargestHomeBytes int64 `json:"largest_home_bytes"`
+	// TotalBytes/FreeBytes describe the file system the blocks lie on. Zero from
+	// an object store: the blocks are then not on a disk of ours, and a figure
+	// would belong to a machine that no longer holds them.
+	TotalBytes int64 `json:"total_bytes"`
+	FreeBytes  int64 `json:"free_bytes"`
 }
 
 // storeSizeCache: walking the block directory is a disk pass, and the
@@ -195,9 +206,12 @@ func (s *Server) handleGetStore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = s.Pool.QueryRow(r.Context(), `
-		SELECT count(*), COALESCE(SUM(total_size), 0)
+		SELECT count(*), COALESCE(SUM(total_size), 0), COALESCE(MAX(total_size), 0)
 		  FROM home_snapshots WHERE org_id = $1`, p.OrgID).
-		Scan(&view.Agents, &view.LogicalBytes)
+		Scan(&view.Agents, &view.LogicalBytes, &view.LargestHomeBytes)
+	if raum, ok := s.Blobs.(interface{ Space() (int64, int64) }); ok {
+		view.TotalBytes, view.FreeBytes = raum.Space()
+	}
 	view.Bytes = s.storeSize(r.Context(), p.OrgID)
 	writeJSON(w, http.StatusOK, view)
 }
