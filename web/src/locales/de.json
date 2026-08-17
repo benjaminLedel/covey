@@ -683,8 +683,9 @@
     "reject": "Ablehnen",
     "rejectTitle": "{{name}} ablehnen?",
     "rejectLead": "Der Entwurf wird verworfen. Er hat nie gearbeitet — es gibt keinen Lauf und keine Kosten. Die Ausschreibung, aus der er hervorging, bleibt als Aufgabe stehen.",
-    "storeLevel": "Home-Store: {{size}} · {{snapshots}} Snapshots von {{agents}} Agenten",
-    "storeBackup": "braucht Backup wie die Datenbank"
+    "storeFull": "Der Home-Store hat nur noch {{free}} frei — das größte Home ist {{largest}} und passt nicht mehr hinein. Die nächste Sicherung eines Agenten schlägt fehl.",
+    "storeTight": "Im Home-Store sind noch {{free}} frei, das größte Home ist {{largest}}. Das reicht für etwa eine weitere Sicherung.",
+    "storeAction": "Aufräumen"
   },
   "agent": {
     "notFound": "Agent nicht gefunden.",

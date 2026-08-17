@@ -683,8 +683,9 @@
     "reject": "Reject",
     "rejectTitle": "Reject {{name}}?",
     "rejectLead": "The draft is discarded. It never worked — there is no run and no cost. The brief it came out of stays as a task.",
-    "storeLevel": "Home store: {{size}} · {{snapshots}} snapshots of {{agents}} agents",
-    "storeBackup": "needs backup like the database"
+    "storeFull": "The home store has only {{free}} left — the largest home is {{largest}} and no longer fits. The next sync of an agent will fail.",
+    "storeTight": "{{free}} left in the home store, and the largest home is {{largest}}. Room for about one more.",
+    "storeAction": "Clean up"
   },
   "agent": {
     "notFound": "Agent not found.",

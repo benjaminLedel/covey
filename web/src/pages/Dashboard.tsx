@@ -679,27 +679,53 @@ function BackLink({ onBack, label }: { onBack: () => void; label?: string }) {
   );
 }
 
-// StoreLevel zeigt, was der Home-Store belegt, und wird laut, bevor der Platz
-// knapp wird. Die Zahl kommt aus einem Verzeichnis-Durchlauf mit kurzem Cache:
-// sie bewegt sich in Gigabyte über Stunden, nicht in Bytes über Sekunden.
+// StoreLevel wird laut, bevor der Platz knapp wird — und schweigt sonst. Eine
+// Zeile, die bei jedem Besuch dasteht und nie etwas verlangt, ist Möbelstück:
+// nach zwei Wochen liest man sie nicht mehr, und die Warnung daneben auch nicht.
+// Deshalb ist der Füllstand ohne Anlass unter Administration → Runner zu Hause,
+// dort, wo der Aufräumen-Knopf steht.
+//
+// Das Kriterium ist bewusst keine Prozentzahl. "90 % voll" sind auf 2 TB noch
+// 200 GB und auf 40 GB noch vier — die Zahl sagt nichts darüber, ob es reicht.
+// Die ehrliche Frage ist, ob der nächste Sync landen kann, und das größte Home
+// ist die beste Annäherung daran.
 function StoreLevel() {
   const { t } = useTranslation();
   const store = useQuery({
     queryKey: ["home-store"],
-    queryFn: () => api<{ enabled: boolean; bytes: number; snapshots: number; agents: number }>("/platform/home-store"),
+    queryFn: () =>
+      api<{
+        enabled: boolean;
+        bytes: number;
+        agents: number;
+        largest_home_bytes: number;
+        total_bytes: number;
+        free_bytes: number;
+      }>("/platform/home-store"),
   });
-  if (!store.data?.enabled || store.data.snapshots === 0) return null;
+  const d = store.data;
+  // Kein Objektspeicher-Fall (total_bytes = 0: die Blöcke liegen dann nicht auf
+  // unserer Platte) und kein Fall ohne ein einziges Home.
+  if (!d?.enabled || d.total_bytes <= 0 || d.largest_home_bytes <= 0) return null;
+
+  const eng = d.free_bytes < d.largest_home_bytes;
+  const knapp = d.free_bytes < d.largest_home_bytes * 2;
+  if (!eng && !knapp) return null;
+
   return (
-    <Link to="/runners" className="card mb-4 no-underline" style={{ padding: "10px 16px", display: "block" }}>
-      <span className="text-sm">
-        {t("dashboard.storeLevel", {
-          size: fmtBytes(store.data.bytes),
-          snapshots: store.data.snapshots,
-          agents: store.data.agents,
+    <Link
+      to="/runners"
+      className="card mb-4 no-underline"
+      style={{ padding: "10px 16px", display: "block", borderColor: eng ? "var(--border-danger)" : undefined }}
+    >
+      <span className={`text-sm ${eng ? "danger-text" : ""}`}>
+        {t(eng ? "dashboard.storeFull" : "dashboard.storeTight", {
+          free: fmtBytes(d.free_bytes),
+          largest: fmtBytes(d.largest_home_bytes),
         })}
       </span>
       <span className="muted text-xs" style={{ marginLeft: 8 }}>
-        {t("dashboard.storeBackup")}
+        {t("dashboard.storeAction")}
       </span>
     </Link>
   );
