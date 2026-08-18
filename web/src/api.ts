@@ -22,6 +22,11 @@ export type Agent = {
   slug: string;
   display_name: string;
   runtime: string;
+  /** runtime_id: der Sitz, auf dem der Agent wirklich arbeitet. Fehlt =
+   *  keiner zugewiesen. Getrennt von `runtime` (der ENGINE), und genau darum
+   *  können die beiden auseinanderlaufen — wer sie gleichsetzt, zeigt einen
+   *  Zustand an, den es so nicht gibt. */
+  runtime_id?: string;
   model: string;
   effort: string; // "" = Runtime-Default, sonst low|medium|high|xhigh|max
   max_turns: number;

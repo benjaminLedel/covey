@@ -746,12 +746,55 @@ func (s *Server) handleSetRuntime(w http.ResponseWriter, r *http.Request) {
 	// sie stünde sonst weiter im Profil, ohne dass sie noch jemand liest.
 	// Zurück auf den Default der neuen Engine, still, aber nicht heimlich: das
 	// Feld zeigt danach sichtbar „leer = Runtime-Default".
-	if a, err := s.Registry.Get(r.Context(), id); err == nil && !daemon.AcceptsEffort(in.Runtime, a.Effort) {
+	a, getErr := s.Registry.Get(r.Context(), id)
+	if getErr == nil && !daemon.AcceptsEffort(in.Runtime, a.Effort) {
 		if err := s.Registry.SetEffort(r.Context(), id, ""); err != nil {
 			s.Log.Warn("effort reset on runtime change", "agent", id, "err", err)
 		}
 	}
+	// Dasselbe für das Modell, und aus demselben Grund: `claude-sonnet-5` ist
+	// kein Modell, das ein Gateway routen muss. Wer die Engine wechselt, nimmt
+	// die Modellwahl nur mit, wenn die neue Engine sie kennt.
+	if getErr == nil && !daemon.AcceptsModel(in.Runtime, a.Model) {
+		if err := s.Registry.SetModel(r.Context(), id, ""); err != nil {
+			s.Log.Warn("model reset on runtime change", "agent", id, "err", err)
+		}
+	}
+	// Und der SITZ, der von den dreien am meisten wiegt: er trägt die
+	// Zugangsdaten. Blieb er stehen, bekam der Agent den Zugang einer FREMDEN
+	// Engine gebrokert — unter deren Variable, mit deren Secret — und die neue
+	// Engine meldete „nicht angemeldet", was auf das Token zeigt statt auf die
+	// Zuweisung.
+	//
+	// Umgezogen wird nur, wenn der Sitz wirklich nicht mehr passt. Wer bewusst
+	// auf dem zweiten Sitz derselben Engine sitzt, bleibt dort — sonst würde
+	// jedes Speichern der Engine eine Wahl zurücknehmen, die jemand getroffen
+	// hat. Und weil die Prüfung am Sitz hängt und nicht daran, ob sich der Wert
+	// geändert hat, repariert ein erneutes Speichern einen Agenten, der schon
+	// im falschen Sitz sitzt.
+	if getErr == nil {
+		s.reseatOnEngineChange(r.Context(), principalFrom(r).OrgID, a, in.Runtime)
+	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// reseatOnEngineChange moves an agent onto a seat of its engine, if the one it
+// has does not belong there. Best effort: an organisation without a seat for
+// the new engine keeps an unassigned agent, which the interface already shows
+// as missing capacity — better than an assignment that looks right and brokers
+// the wrong token.
+func (s *Server) reseatOnEngineChange(ctx context.Context, orgID uuid.UUID, a agents.Agent, engine string) {
+	if s.Runtimes == nil {
+		return
+	}
+	if a.RuntimeID != nil {
+		seat, err := s.Runtimes.Get(ctx, orgID, *a.RuntimeID)
+		if err == nil && seat.Engine == engine {
+			return // the seat already belongs to this engine — leave the choice alone
+		}
+	}
+	a.Runtime = engine
+	s.attachDefaultRuntime(ctx, orgID, a)
 }
 
 // handleSetModel pins an agent's LLM (claude-opus-4-8, for example). An empty

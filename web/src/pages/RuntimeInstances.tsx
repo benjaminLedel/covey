@@ -141,11 +141,27 @@ function RuntimeCard({
   const path = `/runtime-instances/${rt.id}`;
 
   const remove = useMutation({ mutationFn: () => del(path), onSuccess: invalidate });
+  const moveHere = useMutation({
+    mutationFn: (agentID: string) => post(`/agents/${agentID}/runtime-instance`, { runtime_id: rt.id }),
+    onSuccess: () => {
+      invalidate();
+      qc.invalidateQueries({ queryKey: ["agents"] });
+    },
+  });
   const [addingCred, setAddingCred] = useState(false);
 
   const name = (id: string) => agents.find((a) => a.id === id)?.display_name ?? id.slice(0, 8);
   const seats = (ord: number) => rt.bindings.filter((b) => b.ord === ord);
-  const assigned = agents.filter((a) => a.runtime === rt.engine);
+  /* Wer hier WIRKLICH sitzt — aus der Zuweisung, nicht aus der Engine
+     abgeleitet. Die alte Ableitung (`a.runtime === rt.engine`) zeigte den
+     gewollten Zustand statt des gespeicherten: ein Agent, dessen Engine
+     gewechselt wurde, während sein Sitz stehen blieb, erschien hier als
+     eingerichtet — und bekam beim Lauf den Zugang der fremden Engine. */
+  const assigned = agents.filter((a) => a.runtime_id === rt.id);
+  /* Und die Gegenprobe, die es vorher nicht gab: Agenten, die diese Engine
+     fahren, aber woanders sitzen. Das ist genau der Zustand, den die alte
+     Liste stillschweigend als in Ordnung ausgab. */
+  const stray = agents.filter((a) => a.runtime === rt.engine && a.runtime_id !== rt.id);
 
   return (
     <div className="card mb-3" style={{ padding: "13px 16px" }}>
@@ -218,6 +234,26 @@ function RuntimeCard({
           </span>
         ))}
       </div>
+
+      {/* Der Widerspruch bekommt eine Zeile und einen Knopf, statt unsichtbar
+          zu bleiben: hier fährt jemand diese Engine, sitzt aber auf einem
+          fremden Sitz — und bekommt damit dessen Zugangsdaten. */}
+      {stray.length > 0 && (
+        <div className="flex items-center gap-2 flex-wrap mt-2 text-xs">
+          <span className="badge st-blocked">{t("runtimes.instances.strayLabel")}</span>
+          {stray.map((a) => (
+            <button
+              key={a.id}
+              className="btn sm"
+              disabled={moveHere.isPending}
+              title={t("runtimes.instances.strayHint", { name: a.display_name })}
+              onClick={() => moveHere.mutate(a.id)}
+            >
+              {t("runtimes.instances.moveHere", { name: a.display_name })}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

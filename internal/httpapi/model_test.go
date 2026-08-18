@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"covey/internal/daemon"
+	"covey/internal/runtimes"
 )
 
 // The model is validated against the ENGINE, not against a list in this layer.
@@ -65,5 +66,27 @@ func TestEducaDefaultsToTheModelWithTheMostContext(t *testing.T) {
 	// runtime's own default is the right answer.
 	if got := daemon.DefaultModel("claude-code"); got != "" {
 		t.Errorf("claude-code must leave the choice to its runtime, got %q", got)
+	}
+}
+
+// The seat carries the credentials of ITS engine. An agent whose engine and
+// seat disagree therefore does not get a bad error message — it gets somebody
+// else's token, under somebody else's variable, and the engine at the far end
+// reports "not logged in". Which points at the credential, where nothing is
+// wrong.
+//
+// This is not hypothetical: it happened on the live instance the first time an
+// agent was switched to a second engine (educa-ai) while its seat stayed on
+// claude-code. Three places have to hold, and each is tested where it lives:
+// the assignment refuses it (here), the engine change moves the seat with it
+// (handlers), and the pick fails closed rather than brokering the wrong value
+// (internal/runtimes).
+func TestWrongEngineMessageNamesBothSides(t *testing.T) {
+	err := &runtimes.WrongEngine{Runtime: "Internal Inference", Seat: "claude-code", Agent: "educa-ai"}
+	msg := err.Error()
+	for _, want := range []string{"educa-ai", "claude-code", "Internal Inference"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("the message has to name %q, so the reader looks at the seat and not at the token: %s", want, msg)
+		}
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -55,12 +56,12 @@ func TestRuntimeStickiness(t *testing.T) {
 
 	alice, bob := s.newSupportAgent("alice"), s.newSupportAgent("bob")
 
-	first, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, noUsage)
+	first, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, "", noUsage)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for i := 0; i < 5; i++ {
-		again, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, noUsage)
+		again, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, "", noUsage)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -74,7 +75,7 @@ func TestRuntimeStickiness(t *testing.T) {
 
 	// The second agent lands on the other seat: among like capacity the load is
 	// spread, and the emptiest is the one nobody is sitting on.
-	other, err := s.runtimes.Pick(ctx, s.orgID, bob.ID, rt.ID, noUsage)
+	other, err := s.runtimes.Pick(ctx, s.orgID, bob.ID, rt.ID, "", noUsage)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +105,7 @@ func TestRuntimeMeritOrder(t *testing.T) {
 	subOrd := s.seat(t, rt.ID, daemon.CredSubscription, "claude_code_oauth_token", "sk-ant-oat-seat", "Abo")
 
 	alice := s.newSupportAgent("alice")
-	got, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, noUsage)
+	got, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, "", noUsage)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,7 +129,7 @@ func TestRuntimeDodgesAndReturns(t *testing.T) {
 	s.seat(t, rt.ID, daemon.CredSubscription, "claude_code_oauth_token", "sitz-b", "B")
 	alice := s.newSupportAgent("alice")
 
-	home, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, noUsage)
+	home, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, "", noUsage)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +137,7 @@ func TestRuntimeDodgesAndReturns(t *testing.T) {
 	if err := s.runtimes.Cooldown(ctx, rt.ID, home.Ord, time.Now().Add(time.Hour), runtimes.ReasonError); err != nil {
 		t.Fatal(err)
 	}
-	dodged, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, noUsage)
+	dodged, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, "", noUsage)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +154,7 @@ func TestRuntimeDodgesAndReturns(t *testing.T) {
 	if err := s.runtimes.Cooldown(ctx, rt.ID, home.Ord, time.Time{}, ""); err != nil {
 		t.Fatal(err)
 	}
-	back, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, noUsage)
+	back, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, "", noUsage)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +182,7 @@ func TestRuntimeLimitAndExhaustion(t *testing.T) {
 	alice := s.newSupportAgent("alice")
 	usage := runtimes.Signals{Usage: s.obs.CredentialUsage}
 
-	first, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, usage)
+	first, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, "", usage)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +191,7 @@ func TestRuntimeLimitAndExhaustion(t *testing.T) {
 		"claude-opus-5", rt.ID, first.Ord); err != nil {
 		t.Fatal(err)
 	}
-	second, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, usage)
+	second, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, "", usage)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,7 +203,7 @@ func TestRuntimeLimitAndExhaustion(t *testing.T) {
 		"claude-opus-5", rt.ID, second.Ord); err != nil {
 		t.Fatal(err)
 	}
-	_, err = s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, usage)
+	_, err = s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, "", usage)
 	if !errors.Is(err, runtimes.ErrExhausted) {
 		t.Fatalf("an exhausted runtime has to say so: %v", err)
 	}
@@ -213,7 +214,7 @@ func TestRuntimeLimitAndExhaustion(t *testing.T) {
 
 	// Without a limit check the same runtime is usable again — that is what
 	// distinguishes the soft signal from the hard one.
-	if _, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, noUsage); err != nil {
+	if _, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, "", noUsage); err != nil {
 		t.Fatalf("without a limit check the runtime has to deliver: %v", err)
 	}
 }
@@ -263,7 +264,7 @@ func TestRuntimeRemoveCredentialDropsSeats(t *testing.T) {
 	s.seat(t, rt.ID, daemon.CredSubscription, "claude_code_oauth_token", "sitz-b", "B")
 	alice := s.newSupportAgent("alice")
 
-	seat, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, noUsage)
+	seat, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, "", noUsage)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -273,7 +274,7 @@ func TestRuntimeRemoveCredentialDropsSeats(t *testing.T) {
 	if b, _ := s.runtimes.Bindings(ctx, rt.ID); len(b) != 0 {
 		t.Fatalf("the seat of removed capacity has to go with it: %+v", b)
 	}
-	next, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, noUsage)
+	next, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, "", noUsage)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -323,7 +324,7 @@ func TestRuntimeSkipsSeatTheProviderReportsFull(t *testing.T) {
 
 	// Pin alice to the seat that is about to be reported as full, so the test
 	// checks a MOVE and not a lucky first choice.
-	if got, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, noUsage); err != nil || got.Ord != full {
+	if got, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, "", noUsage); err != nil || got.Ord != full {
 		// The distribution picks the emptiest; if it chose the other one,
 		// swap the roles so the test still asserts what it means to.
 		full, free = free, full
@@ -338,7 +339,7 @@ func TestRuntimeSkipsSeatTheProviderReportsFull(t *testing.T) {
 		}
 		return 3, true
 	}}
-	got, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, reported)
+	got, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, "", reported)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -349,7 +350,7 @@ func TestRuntimeSkipsSeatTheProviderReportsFull(t *testing.T) {
 	// Both full: the runtime refuses, so the wake is postponed instead of a run
 	// being burnt on a certain failure.
 	bothFull := runtimes.Signals{Reported: func(uuid.UUID, int) (float64, bool) { return 100, true }}
-	if _, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, bothFull); !errors.Is(err, runtimes.ErrExhausted) {
+	if _, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, "", bothFull); !errors.Is(err, runtimes.ErrExhausted) {
 		t.Fatalf("with every seat full the runtime has to refuse: %v", err)
 	}
 
@@ -357,7 +358,7 @@ func TestRuntimeSkipsSeatTheProviderReportsFull(t *testing.T) {
 	// that has since reset would lose us the seat for nothing. The orchestrator
 	// withholds those, so here it simply reports nothing.
 	unknown := runtimes.Signals{Reported: func(uuid.UUID, int) (float64, bool) { return 0, false }}
-	if _, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, unknown); err != nil {
+	if _, err := s.runtimes.Pick(ctx, s.orgID, alice.ID, rt.ID, "", unknown); err != nil {
 		t.Fatalf("without a usable figure the runtime has to deliver: %v", err)
 	}
 }
@@ -405,7 +406,7 @@ func TestFreshSetupNeedsNoWorkplaceStep(t *testing.T) {
 	}
 
 	// And the decisive one: a credential can actually be picked for it.
-	p, err := s.runtimes.Pick(ctx, s.orgID, agentID, list[0].ID, noUsage)
+	p, err := s.runtimes.Pick(ctx, s.orgID, agentID, list[0].ID, "", noUsage)
 	if err != nil {
 		t.Fatalf("the agent has to reach a credential: %v", err)
 	}
@@ -485,7 +486,7 @@ func TestAgentWithoutWorkplaceIsTakenIn(t *testing.T) {
 	if got.RuntimeID == nil || *got.RuntimeID != list[0].ID {
 		t.Fatalf("the agent standing there without a workplace has to be taken in: %+v", got.RuntimeID)
 	}
-	if _, err := s.runtimes.Pick(ctx, s.orgID, agent.ID, list[0].ID, noUsage); err != nil {
+	if _, err := s.runtimes.Pick(ctx, s.orgID, agent.ID, list[0].ID, "", noUsage); err != nil {
 		t.Fatalf("and reach a credential: %v", err)
 	}
 }
@@ -519,5 +520,134 @@ func TestDeliberateAssignmentSurvives(t *testing.T) {
 	}
 	if got.RuntimeID == nil || *got.RuntimeID != special.ID {
 		t.Fatalf("the chosen contract has to stand: %+v", got.RuntimeID)
+	}
+}
+
+// TestASeatOfAnotherEngineIsRefusedRatherThanBrokered: the seat carries the
+// credentials of ITS engine, so an agent whose engine and seat disagree does
+// not get a bad error — it gets somebody else's token, under somebody else's
+// variable. The engine at the far end then reports "not logged in", which
+// points at the credential, where nothing is wrong.
+//
+// Found on the live instance: an agent switched to a second engine kept its
+// Claude Code seat and was handed a Claude Code subscription token for an
+// educa-ai run. Fail closed, and name both sides.
+func TestASeatOfAnotherEngineIsRefusedRatherThanBrokered(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+
+	rt, err := s.runtimes.Create(ctx, s.orgID, "claude-code", "Claude Team", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.seat(t, rt.ID, daemon.CredSubscription, "claude_code_oauth_token", "abo-token", "Abo A")
+	agent := s.newSupportAgent("wanderer")
+
+	// On its own engine the seat serves, as before.
+	if _, err := s.runtimes.Pick(ctx, s.orgID, agent.ID, rt.ID, "claude-code", noUsage); err != nil {
+		t.Fatalf("the matching engine has to be served: %v", err)
+	}
+
+	// On another engine it must not — and above all it must not hand over the
+	// value it holds.
+	p, err := s.runtimes.Pick(ctx, s.orgID, agent.ID, rt.ID, "educa-ai", noUsage)
+	if err == nil {
+		t.Fatal("a seat of another engine must not be brokered")
+	}
+	if p.Value != "" {
+		t.Fatal("the credential must not leave the store on a refused pick")
+	}
+	var wrong *runtimes.WrongEngine
+	if !errors.As(err, &wrong) {
+		t.Fatalf("the caller has to be able to tell this apart from a missing credential: %T %v", err, err)
+	}
+	for _, want := range []string{"educa-ai", "claude-code"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the message has to name %q so the reader looks at the seat: %v", want, err)
+		}
+	}
+
+	// An empty claim stays permissive: callers that do not know an engine
+	// (tools, older code paths) are not broken by the check.
+	if _, err := s.runtimes.Pick(ctx, s.orgID, agent.ID, rt.ID, "", noUsage); err != nil {
+		t.Fatalf("without a claim the pick has to work as before: %v", err)
+	}
+}
+
+// TestTheSeatFollowsTheEngine: an agent's engine and its seat are two fields,
+// and they can drift. Changing the engine already resets the reasoning-effort
+// level for the same reason ("a level of the old engine that nobody reads any
+// more"), but the seat weighed more and stayed put — and the seat is what
+// carries the credentials.
+//
+// Both halves of the rule are here: the change takes the seat with it, and an
+// assignment that would recreate the mismatch is refused where somebody is
+// looking rather than at the next wake.
+func TestTheSeatFollowsTheEngine(t *testing.T) {
+	s := newStack(t)
+	ctx := context.Background()
+	c := login(t, s, "admin@test.local", "admin-passwort")
+
+	claude, err := s.runtimes.Create(ctx, s.orgID, "claude-code", "Claude Team", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.seat(t, claude.ID, daemon.CredSubscription, "claude_code_oauth_token", "abo-token", "Abo A")
+	educa, err := s.runtimes.Create(ctx, s.orgID, "educa-ai", "Internal Inference", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.seat(t, educa.ID, daemon.CredAPIKey, "educa_api_token", "educa-token", "Covey Key")
+
+	// newSupportAgent runs on the mock; the first engine change is already the
+	// first half of the rule — it has to put the agent on a Claude Code seat.
+	agent := s.newSupportAgent("umsteiger")
+	c.expect(http.MethodPatch, "/api/v1/agents/"+agent.ID.String()+"/runtime",
+		map[string]string{"runtime": "claude-code"}, http.StatusOK)
+
+	seatOf := func() uuid.UUID {
+		t.Helper()
+		a, err := s.registry.Get(ctx, agent.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a.RuntimeID == nil {
+			t.Fatal("the agent has no seat")
+		}
+		return *a.RuntimeID
+	}
+	if got := seatOf(); got != claude.ID {
+		t.Fatalf("the engine change has to seat the agent on the Claude Code seat, got %s", got)
+	}
+
+	// The engine changes — and the seat has to come along, or the next wake
+	// brokers a Claude Code subscription token into an educa run.
+	c.expect(http.MethodPatch, "/api/v1/agents/"+agent.ID.String()+"/runtime",
+		map[string]string{"runtime": "educa-ai"}, http.StatusOK)
+	if got := seatOf(); got != educa.ID {
+		t.Fatalf("the seat has to follow the engine: agent sits on %s, expected the educa seat %s", got, educa.ID)
+	}
+
+	// And the mismatch cannot be re-created by hand.
+	c.expect(http.MethodPost, "/api/v1/agents/"+agent.ID.String()+"/runtime-instance",
+		map[string]string{"runtime_id": claude.ID.String()}, http.StatusBadRequest)
+	if got := seatOf(); got != educa.ID {
+		t.Fatalf("a refused assignment must not move the agent: %s", got)
+	}
+
+	// A deliberate choice within the SAME engine survives, so that saving the
+	// engine does not undo somebody's decision. A second educa seat, chosen by
+	// hand, stays chosen.
+	second, err := s.runtimes.Create(ctx, s.orgID, "educa-ai", "Internal Inference 2", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.seat(t, second.ID, daemon.CredAPIKey, "educa_api_token", "educa-token-2", "Covey Key 2")
+	c.expect(http.MethodPost, "/api/v1/agents/"+agent.ID.String()+"/runtime-instance",
+		map[string]string{"runtime_id": second.ID.String()}, http.StatusOK)
+	c.expect(http.MethodPatch, "/api/v1/agents/"+agent.ID.String()+"/runtime",
+		map[string]string{"runtime": "educa-ai"}, http.StatusOK)
+	if got := seatOf(); got != second.ID {
+		t.Fatalf("a seat of the right engine must not be taken away: %s, expected %s", got, second.ID)
 	}
 }
