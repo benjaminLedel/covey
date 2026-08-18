@@ -46,6 +46,7 @@ The guiding metaphor from which the whole architecture follows: the platform is 
 | [`20-hiring-and-setup.md`](20-hiring-and-setup.md) | Setup (the credential first, the company description as org master data) and hiring: the People department as an agent, the `covey` self-service actions, the draft state |
 | [`21-operations-and-improvement.md`](21-operations-and-improvement.md) | Why a workforce underperforms — config, assignment or the platform itself: the work record as recorded evidence, config changes as proposals a human accepts, issues against Covey's own repository |
 | [`22-plugin-marketplace.md`](22-plugin-marketplace.md) | Target systems from a catalogue: the index repository next to third-party plugin repositories, one catalogue file behind one configurable URL, the digest as the trust anchor, publishing by pull request |
+| [`23-educa-adapter.md`](23-educa-adapter.md) | Third engine: educa AI Core as a GATEWAY — the Claude Code harness on an Anthropic-compatible endpoint, two contracts on one token, why the harness's price is not inherited and no utilisation is reported |
 
 ## Design principles
 

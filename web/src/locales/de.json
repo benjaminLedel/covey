@@ -138,6 +138,10 @@
           "t": "Codex (OpenAI)",
           "d": "Als zweite Engine registriert, mit beiden Zugangsformen: der API-Schlüssel als Umgebungsvariable, der ChatGPT-Login als Datei, die nur für die Dauer des Laufs existiert. Der Lauf selbst ist noch nicht gegen das Binary geprüft — und solange er das nicht ist, steht hier „in Vorbereitung“ und nicht „unterstützt“."
         },
+        "educa-ai": {
+          "t": "educa AI",
+          "d": "Die dritte Engine — und die erste vor einem Gateway statt vor einem Anbieter: educa AI Core bedient neben der OpenAI- auch die Anthropic-Schnittstelle, also fährt Covey dort den bereits belegten Claude-Code-Harness auf dem educa-Endpunkt. Ein Token, zwei Vertragsformen (abgerechnet oder Kontingent). Der Geldbetrag des Harness wird bewusst nicht übernommen — er bepreist einen fremden Vertrag; die Tokens bleiben, sie sind gemessen. Der Lauf ist noch nicht gegen eine echte Instanz geprüft."
+        },
         "own": {
           "t": "Weitere Engines",
           "d": "Eine Engine ist ein selbstregistrierendes Plugin: eine Datei, die deklariert, welches Secret sie braucht und in welcher Form es ankommt, ob sie eine Sitzung fortsetzen kann und wo sie Skills sucht. Was sie deklariert, prüft die Plattform beim Zuweisen — der Orchestrator bekommt für die nächste Engine keine Sonderfälle."
