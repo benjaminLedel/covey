@@ -89,3 +89,56 @@ func TestTheWatcherSurvivesTheConnectionButNotTheNode(t *testing.T) {
 		return syscall.Kill(pid, 0) != nil
 	})
 }
+
+// Close is final, not a drain. A start that arrives after it must be refused —
+// serving it would enter a sandbox behind Close's back and spawn a watcher
+// nothing can cancel any more, which is the orphaned `docker wait` this whole
+// mechanism exists to prevent.
+//
+// The window is not theoretical: t.Cleanup(node.Close) runs while node.Run is
+// still live in its goroutine, so every test that ends during a start is in it.
+func TestAStartAfterCloseIsRefusedRatherThanWatched(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	orgID, runnerID := uuid.New(), uuid.New()
+	node := NewNode(runnerID, orgID, &Docker{
+		RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: dir,
+		DockerBin: fakeDockerBin(t, dir, "nothing"),
+	}, quietLog())
+
+	control, nodeEnd := NewInProc()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	done := make(chan error, 1)
+	go func() { done <- node.Run(ctx, nodeEnd) }()
+
+	if _, err := control.Receive(ctx); err != nil { // registered
+		t.Fatalf("registration: %v", err)
+	}
+
+	node.Close()
+
+	start, err := encode(TypeStartSandbox, "1", StartSandbox{AgentID: uuid.New(), OrgID: orgID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := control.Send(ctx, start); err != nil {
+		t.Fatalf("start: %v", err)
+	}
+
+	msg, err := control.Receive(ctx)
+	if err != nil {
+		t.Fatalf("answer: %v", err)
+	}
+	if msg.Type != TypeSandboxFailed {
+		t.Fatalf("a start after Close has to be refused, got %s", msg.Type)
+	}
+
+	// And no watcher was left behind: the fake docker deposits its pid only
+	// when a `wait` child actually runs.
+	if _, err := os.Stat(filepath.Join(dir, "waitpid")); err == nil {
+		t.Fatal("a watcher was started after Close — that is the leak this fixes")
+	}
+}

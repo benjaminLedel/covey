@@ -44,7 +44,10 @@ if [ "$1" = "wait" ]; then
     # polls on at 20 Hz forever is a fork bomb nothing on the host can trace
     # back to a test. The temp directory goes with the test, so its absence is
     # the one signal that always arrives.
-    [ -d ` + dir + ` ] || exit 0
+    # Quoted, and exiting NON-zero: an unquoted path with a space makes
+    # the test fail, and an exit 0 would then be read as a container that
+    # ended by itself - a reported death for a sandbox that is running fine.
+    [ -d '` + dir + `' ] || exit 1
     sleep 0.05
   done
   cat ` + filepath.Join(dir, "exit") + `

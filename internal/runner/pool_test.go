@@ -37,7 +37,10 @@ if [ "$1" = "wait" ]; then
   while [ ! -f ` + filepath.Join(dir, "stopped") + ` ]; do
     # See fakeDocker in internal/integration: if the test binary is killed,
     # nothing else stops this loop, and it polls on forever.
-    [ -d ` + dir + ` ] || exit 0
+    # Quoted, and exiting NON-zero: an unquoted path with a space makes
+    # the test fail, and an exit 0 would then be read as a container that
+    # ended by itself - a reported death for a sandbox that is running fine.
+    [ -d '` + dir + `' ] || exit 1
     sleep 0.05
   done
   cat ` + filepath.Join(dir, "stopped") + `
