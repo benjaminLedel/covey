@@ -125,6 +125,23 @@ type RunResult struct {
 	Model               string
 }
 
+// Measured reports whether a run brought back anything worth booking.
+//
+// The question is deliberately "is ANY of the numbers non-zero" rather than "is
+// there money or input", which is what the guard around the cost message used
+// to ask — and that threw away a whole engine's consumption. An engine in front
+// of a gateway reports no dollar figure by design (spec/23), and educa's
+// endpoint loses the input side while streaming; what it does report correctly
+// is the OUTPUT, and those tokens went down with a message that was never sent.
+// The seat then showed "0 tokens" for runs that had plainly happened.
+//
+// Cost and consumption are two different statements. A run without a price is
+// honest; a run without any figure at all, that did happen, is a gap in the
+// record.
+func (r RunResult) Measured() bool {
+	return r.CostUSD > 0 || r.TotalInputTokens() > 0 || r.OutputTokens > 0
+}
+
 // TotalInputTokens is the input side as a human means it: everything the model
 // read this run, cached or not.
 func (r RunResult) TotalInputTokens() int64 {

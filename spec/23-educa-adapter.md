@@ -119,6 +119,8 @@ It is **not** worked around here. A guessed input count would be indistinguishab
 
 The fix belongs to the endpoint — `message_start` should carry the prompt's `input_tokens`, as the non-streaming path already does.
 
+It also uncovered a gap on our side, and that one is ours to fix. The daemon sent its cost message only `if res.CostUSD > 0 || res.TotalInputTokens() > 0` — money, or the input side. An engine that has neither by design meets both conditions as false, so **no message was sent at all** and the output tokens it did report were dropped with it. On the live instance a completed run left a seat reading `0 tokens`. The guard now asks the honest question — is any of the measured numbers non-zero (`RunResult.Measured`) — because cost and consumption are two different statements: a run without a price is honest, a run without any figure at all is a gap in the record.
+
 ## Open points
 
 - **Does the thinking budget reach the backend?** `/v1/messages` accepts a `thinking` field without complaint, and `gpt-oss-120b` returns `thinking` content — but it does so without the field as well, so the effect has not been isolated. The levels stay declared: the flag is the harness's, it passes through, and the worst case is a control without effect on a backend that has none.

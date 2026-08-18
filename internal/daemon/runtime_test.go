@@ -139,3 +139,30 @@ func TestBuiltinToolsEmptyStaysNil(t *testing.T) {
 		t.Fatalf("expected nil, got %v", got)
 	}
 }
+
+// A run that happened has to leave a figure, even when it has no price. The
+// guard around the cost message used to ask for money OR input tokens, and an
+// engine that reports neither — a gateway prices nothing by design, and educa's
+// endpoint loses the input side while streaming (spec/23) — had its whole
+// consumption dropped: the output tokens it DID report went down with a message
+// that was never sent, and the seat showed "0 tokens" for work that plainly
+// happened.
+func TestARunWithoutAPriceStillCounts(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		res  RunResult
+		want bool
+	}{
+		{"nothing at all", RunResult{}, false},
+		{"money only", RunResult{CostUSD: 0.42}, true},
+		{"fresh input only", RunResult{InputTokens: 61}, true},
+		{"cache read only", RunResult{CacheReadTokens: 2_341_568}, true},
+		{"cache write only", RunResult{CacheCreationTokens: 58_843}, true},
+		// The case this exists for: no price, no input, output measured.
+		{"output only — the gateway case", RunResult{OutputTokens: 944}, true},
+	} {
+		if got := tc.res.Measured(); got != tc.want {
+			t.Errorf("%s: Measured() = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
