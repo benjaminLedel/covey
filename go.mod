@@ -15,7 +15,7 @@ require github.com/emersion/go-message v0.18.2 // indirect
 
 require (
 	github.com/benjaminLedel/covey-plugin-pack v0.4.0
-	github.com/benjaminLedel/covey-plugin-sdk v0.2.0
+	github.com/benjaminLedel/covey-plugin-sdk v0.3.0
 	github.com/chromedp/cdproto v0.0.0-20260714215040-dc233986426f
 	github.com/chromedp/chromedp v0.16.0
 	github.com/chromedp/sysutil v1.1.0 // indirect

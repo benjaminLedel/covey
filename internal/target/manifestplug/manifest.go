@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"covey/internal/reqlog"
+	"covey/internal/target/trust"
 	"covey/internal/target/webhooksig"
 	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
@@ -362,9 +363,9 @@ func (s *Sys) Execute(ctx context.Context, action string, params json.RawMessage
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	httpc := s.HTTP
-	if httpc == nil {
-		httpc = reqlog.Client(s.M.Name, 15*time.Second)
+	httpc, err := s.client(cred)
+	if err != nil {
+		return nil, err
 	}
 	resp, err := httpc.Do(req)
 	if err != nil {
@@ -597,9 +598,9 @@ func (s *Sys) get(ctx context.Context, path string, cred target.Credential) (any
 		return nil, err
 	}
 	s.setAuth(req, cred)
-	httpc := s.HTTP
-	if httpc == nil {
-		httpc = reqlog.Client(s.M.Name, 15*time.Second)
+	httpc, err := s.client(cred)
+	if err != nil {
+		return nil, err
 	}
 	resp, err := httpc.Do(req)
 	if err != nil {
@@ -618,6 +619,20 @@ func (s *Sys) get(ctx context.Context, path string, cred target.Credential) (any
 		return nil, fmt.Errorf("%s GET %s: response is not JSON", s.M.Name, path)
 	}
 	return out, nil
+}
+
+// client is the HTTP client for one call. It is per credential and not per
+// plugin because the trust anchor is: a target system behind a company CA
+// brokers its certificate along with the token (<system>_ca), and the manifest
+// engine dials for a plugin that cannot dial for itself.
+func (s *Sys) client(cred target.Credential) (*http.Client, error) {
+	if cred.CA == "" {
+		if s.HTTP != nil {
+			return s.HTTP, nil
+		}
+		return reqlog.Client(s.M.Name, 15*time.Second), nil
+	}
+	return trust.Client(s.M.Name, 15*time.Second, cred.CA)
 }
 
 // setAuth writes the brokered token into the request the way the manifest

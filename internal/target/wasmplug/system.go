@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"covey/internal/reqlog"
+	"covey/internal/target/trust"
 	"covey/internal/target/webhooksig"
 	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
@@ -100,7 +101,7 @@ func (s *System) ParseWebhook(body []byte) (target.WebhookEvent, error) {
 	if s.desc.Webhook == nil {
 		return target.WebhookEvent{}, fmt.Errorf("%s: no webhook entrance", s.desc.Name)
 	}
-	out, err := s.mod.Invoke(context.Background(), Invocation{Op: "webhook", Body: body}, s.fetcher(target.Credential{}))
+	out, err := s.mod.Invoke(context.Background(), Invocation{Op: "webhook", Body: body}, Host{Fetch: s.fetcher(target.Credential{})})
 	if err != nil {
 		return target.WebhookEvent{}, err
 	}
@@ -135,7 +136,15 @@ func (s *System) ActionSubject(action string, _ json.RawMessage) string {
 }
 
 func (s *System) Execute(ctx context.Context, action string, params json.RawMessage, cred target.Credential) (any, error) {
-	out, err := s.mod.Invoke(ctx, Invocation{Op: "execute", Action: action, Params: params}, s.fetcher(cred))
+	// The workspace exists only here: an action runs in the sandbox, where the
+	// daemon put the checkout into the context. Probe and poll are the control
+	// plane's own calls and have none — a module asking there is told so
+	// instead of being handed a directory that happens to be lying around.
+	host := Host{Fetch: s.fetcher(cred)}
+	if dir := target.Workdir(ctx); dir != "" && s.desc.Workdir {
+		host.ReadFile = workdirReader(dir)
+	}
+	out, err := s.mod.Invoke(ctx, Invocation{Op: "execute", Action: action, Params: params}, host)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +180,7 @@ func (s *System) PromptDocForScopes(scopes []string) string {
 	// No fetcher: documentation is not something a plugin needs a target system
 	// for, and a doc that depended on a live system would be missing whenever
 	// that system is down.
-	if out, err := s.mod.Invoke(ctx, Invocation{Op: "prompt_doc", Scopes: scopes}, nil); err == nil && out.Error == "" {
+	if out, err := s.mod.Invoke(ctx, Invocation{Op: "prompt_doc", Scopes: scopes}, Host{}); err == nil && out.Error == "" {
 		var text string
 		if json.Unmarshal(out.Result, &text) == nil && text != "" {
 			doc = text
@@ -214,7 +223,7 @@ func (s *System) fallbackDoc(scopes []string) string {
 // Probe (target.Prober) asks the module to make one read-only call and report
 // whose credential this is.
 func (s *System) Probe(ctx context.Context, cred target.Credential) (string, error) {
-	out, err := s.mod.Invoke(ctx, Invocation{Op: "probe"}, s.fetcher(cred))
+	out, err := s.mod.Invoke(ctx, Invocation{Op: "probe"}, Host{Fetch: s.fetcher(cred)})
 	if err != nil {
 		return "", err
 	}
@@ -244,7 +253,7 @@ func (s *System) HasWorkSigned(ctx context.Context, cred target.Credential, kind
 	if !s.desc.Poll {
 		return true, "", nil // fail-open, as everywhere else on this path
 	}
-	out, err := s.mod.Invoke(ctx, Invocation{Op: "poll", Kind: kind}, s.fetcher(cred))
+	out, err := s.mod.Invoke(ctx, Invocation{Op: "poll", Kind: kind}, Host{Fetch: s.fetcher(cred)})
 	if err != nil {
 		return false, "", err
 	}
@@ -272,7 +281,22 @@ func (s *System) fetcher(cred target.Credential) Fetcher { return s.fetch(cred, 
 func (s *System) fetcherAllowingHTTP(cred target.Credential) Fetcher { return s.fetch(cred, true) }
 
 func (s *System) fetch(cred target.Credential, allowHTTP bool) Fetcher {
+	// Two clients, and which one is used depends on where the request goes.
+	// The brokered CA belongs to the system the organization pointed the plugin
+	// at; a declared foreign host (a public advisory database, an OAuth
+	// endpoint) is signed by somebody else, and forcing a company CA on it
+	// would break exactly the calls that are least of its business.
+	//
+	// Built once per invocation rather than per request: parsing a certificate
+	// for every fetch is work nobody asked for.
+	brokered, caErr := trust.Client(s.desc.Name, 30*time.Second, cred.CA)
+	if s.HTTP != nil {
+		brokered, caErr = s.HTTP, nil
+	}
 	return func(ctx context.Context, req FetchRequest) FetchResponse {
+		if caErr != nil {
+			return FetchResponse{Error: caErr.Error()}
+		}
 		// A path is relative to the brokered system; an absolute URL is only
 		// allowed to a host the module DECLARED, and never carries the
 		// credential.
@@ -355,8 +379,10 @@ func (s *System) fetch(cred target.Credential, allowHTTP bool) Fetcher {
 			hreq.Header.Set(authHeader(s.desc.Auth), strings.ReplaceAll(format, "{token}", cred.Token))
 		}
 
-		httpc := s.HTTP
-		if httpc == nil {
+		httpc := brokered
+		if foreign != "" && s.HTTP == nil {
+			// Somebody else's host: the ordinary trust store, and never the
+			// credential (that is refused above).
 			httpc = reqlog.Client(s.desc.Name, 30*time.Second)
 		}
 		resp, err := httpc.Do(hreq)

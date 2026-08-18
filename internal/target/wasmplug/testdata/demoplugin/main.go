@@ -68,6 +68,9 @@ func main() {
 			"scopes":      []string{"read", "write"},
 			"probe":       true,
 			"poll":        true,
+			// Declared, so an operator sees before installing that this module
+			// reads out of the agent's checkout.
+			"workdir": true,
 			// The webhook entrance. The module says only how the host is to
 			// check the signature — it never sees the secret.
 			"webhook": map[string]any{"signature": "hmac-sha256"},
@@ -76,6 +79,7 @@ func main() {
 				{"name": "comment", "doc": "write a comment; params: id, body", "scope": "write",
 					"subject": "comment_external"},
 				{"name": "shout", "doc": "uppercase a string locally; params: text", "scope": "read"},
+				{"name": "read_lock", "doc": "read a declared dependency file; params: path", "scope": "read"},
 			},
 		}})
 	case "probe":
@@ -163,10 +167,20 @@ func execute(inv invocation) {
 		ID   int    `json:"id"`
 		Body string `json:"body"`
 		Text string `json:"text"`
+		Path string `json:"path"`
 	}
 	json.Unmarshal(inv.Params, &p)
 
 	switch inv.Action {
+	case "read_lock":
+		// The case the workspace read exists for: judge what a project
+		// declares, without the plugin having a filesystem of its own.
+		resp := readFile(p.Path)
+		if resp.Error != "" {
+			fail(resp.Error)
+			return
+		}
+		result(map[string]any{"path": p.Path, "bytes": len(resp.Text), "text": resp.Text})
 	case "shout":
 		// Real computation, no call: the thing a manifest cannot do.
 		result(strings.ToUpper(p.Text))
@@ -200,6 +214,26 @@ func fetch(req fetchReq) fetchResp {
 	var resp fetchResp
 	if err := json.Unmarshal(line, &resp); err != nil {
 		return fetchResp{Error: "host answer is not JSON: " + err.Error()}
+	}
+	return resp
+}
+
+type readFileResp struct {
+	Text  string `json:"text"`
+	Error string `json:"error"`
+}
+
+// readFile asks the host for one file out of the workspace. Same shape as
+// fetch: the module names what it wants, the host decides whether it gets it.
+func readFile(path string) readFileResp {
+	emit(map[string]any{"read_file": map[string]any{"path": path}})
+	line, err := in.ReadBytes('\n')
+	if err != nil && len(line) == 0 {
+		return readFileResp{Error: "host closed the connection"}
+	}
+	var resp readFileResp
+	if err := json.Unmarshal(line, &resp); err != nil {
+		return readFileResp{Error: "host answer is not JSON: " + err.Error()}
 	}
 	return resp
 }

@@ -54,6 +54,11 @@ type Message struct {
 	Result json.RawMessage `json:"result,omitempty"`
 	// Error ends the invocation with a failure the agent gets to see.
 	Error string `json:"error,omitempty"`
+	// ReadFile asks the host for a file out of the agent's workspace. The
+	// module names a relative path and gets text back — it has no filesystem
+	// of its own and cannot leave the workspace, because the host resolves the
+	// path inside it (os.Root) rather than trusting what it was handed.
+	ReadFile *ReadFileRequest `json:"read_file,omitempty"`
 	// Describe answers op=describe.
 	Describe *Description `json:"describe,omitempty"`
 	// Event answers op=webhook: what the payload means for the backlog.
@@ -81,6 +86,29 @@ type WebhookEvent struct {
 	// CorrelateOnly: wake a blocked task if there is one, but never create a
 	// new one — an event nobody waits for is not work.
 	CorrelateOnly bool `json:"correlate_only,omitempty"`
+}
+
+// ReadFileRequest names one file, relative to the agent's workspace. What is
+// absent again says the most: no absolute path, no way up and out, no
+// directory listing. A module that wants to know which lock file a project has
+// tries the three names it knows — that is a question with three answers, not a
+// reason to hand out the tree.
+type ReadFileRequest struct {
+	Path string `json:"path"`
+}
+
+// ReadFileResponse is what the host writes back to stdin after a ReadFile.
+//
+// Text, not bytes: this exists so a plugin can read what a project DECLARES —
+// lock files, manifests, configuration — and all of that is text. A binary
+// would have to be base64'd through a JSON line at twice its size, and the one
+// plugin that wanted it would be doing something better done with a fetch.
+type ReadFileResponse struct {
+	Text string `json:"text,omitempty"`
+	// Error is set when the file is missing, too large, outside the workspace,
+	// or not text. "Missing" is a normal answer, not a failure: it is how a
+	// module finds out which of three lock files a project actually has.
+	Error string `json:"error,omitempty"`
 }
 
 // FetchRequest is a request the module wants made on its behalf. Note what is
@@ -138,6 +166,12 @@ type Description struct {
 	// that does not must not be offered a connection test it can only fail.
 	Probe bool `json:"probe,omitempty"`
 	Poll  bool `json:"poll,omitempty"`
+	// Workdir declares that the module reads files from the agent's workspace.
+	// Declared, not asked for at runtime — the same rule as Hosts, and for the
+	// same reason: an operator decides before installing, not from a log
+	// afterwards. Without it a read_file is refused, and outside a sandbox
+	// (control plane, probe, poll) there is no workspace to read from at all.
+	Workdir bool `json:"workdir,omitempty"`
 	// Webhook declares that the module answers op=webhook, and how the host is
 	// to check the signature before it does. Absent = no webhook entrance: the
 	// router answers 404 and the setup shows no webhook step, rather than

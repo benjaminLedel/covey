@@ -57,10 +57,14 @@ type Plugin struct {
 	// brokered base URL. They belong in front of a person BEFORE the install,
 	// not in a log after it — and they still have to pass the organization's
 	// egress allowlist.
-	Hosts         []string `json:"hosts,omitempty"`
-	Source        string   `json:"source,omitempty"`
-	SourceVersion string   `json:"source_version,omitempty"`
-	SourceDigest  string   `json:"source_digest,omitempty"`
+	Hosts []string `json:"hosts,omitempty"`
+	// Workdir: this plugin reads files out of the agent's checkout. Declared
+	// the same way and shown for the same reason as Hosts — it is a privilege,
+	// and a privilege one only learns about afterwards was never granted.
+	Workdir       bool   `json:"workdir,omitempty"`
+	Source        string `json:"source,omitempty"`
+	SourceVersion string `json:"source_version,omitempty"`
+	SourceDigest  string `json:"source_digest,omitempty"`
 }
 
 // List merges the compiled registry with the organization's DB rows.
@@ -124,6 +128,7 @@ func (s *Store) List(ctx context.Context, orgID uuid.UUID) ([]Plugin, error) {
 			p.Category = target.CategoryOther
 			if d, ok := wasmplug.StoredDescription(p.Manifest); ok {
 				p.Label, p.Description, p.Scopes, p.Hosts = d.Label, d.Description, d.Scopes, d.Hosts
+				p.Workdir = d.Workdir
 				if p.Label == "" {
 					p.Label = d.Name
 				}

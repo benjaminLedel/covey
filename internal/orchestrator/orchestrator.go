@@ -602,7 +602,8 @@ func (o *Orchestrator) heartbeatHasWork(ctx context.Context, agentID, orgID uuid
 			o.Log.Warn("nur-wenn: secret missing — firing anyway", "system", system, "err", err)
 			return true, ""
 		}
-		cred = target.Credential{BaseURL: baseURL, Token: token}
+		ca, _ := o.Secrets.Resolve(ctx, orgID, agentID, system+"_ca")
+		cred = target.Credential{BaseURL: baseURL, Token: token, CA: ca}
 	}
 	cctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
@@ -2616,11 +2617,12 @@ func (o *Orchestrator) brokerCredential(ctx context.Context, agent agents.Agent,
 	if d, ok := target.Describe(req.System); ok && d.CredentialsOptional {
 		token, _ := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_token")
 		baseURL, _ := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_url")
+		ca := o.brokerCA(ctx, agent, req.System)
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
 			map[string]any{"system": req.System, "granted": true, "optional": true,
 				"authenticated": token != "", "ttl_secs": int(o.DaemonTokenTTL.Seconds())})
 		return daemon.InjectCredentials{RequestID: req.RequestID, System: req.System,
-			Granted: true, Token: token, BaseURL: baseURL, TTLSecs: int(o.DaemonTokenTTL.Seconds())}
+			Granted: true, Token: token, BaseURL: baseURL, CA: ca, TTLSecs: int(o.DaemonTokenTTL.Seconds())}
 	}
 	// MCP servers carry their endpoint in the config; auth is optional. A
 	// missing token therefore does NOT deny — the server may be reachable
@@ -2628,11 +2630,12 @@ func (o *Orchestrator) brokerCredential(ctx context.Context, agent agents.Agent,
 	if kind == "mcp" {
 		token, _ := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_token")
 		baseURL, _ := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_url")
+		ca := o.brokerCA(ctx, agent, req.System)
 		_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
 			map[string]any{"system": req.System, "granted": true, "kind": "mcp",
 				"ttl_secs": int(o.DaemonTokenTTL.Seconds())})
 		return daemon.InjectCredentials{RequestID: req.RequestID, System: req.System,
-			Granted: true, Token: token, BaseURL: baseURL, TTLSecs: int(o.DaemonTokenTTL.Seconds())}
+			Granted: true, Token: token, BaseURL: baseURL, CA: ca, TTLSecs: int(o.DaemonTokenTTL.Seconds())}
 	}
 	token, err := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, req.System+"_token")
 	if err != nil {
@@ -2652,7 +2655,25 @@ func (o *Orchestrator) brokerCredential(ctx context.Context, agent agents.Agent,
 	_ = o.Obs.Record(ctx, agent.OrgID, agent.ID, nil, observability.KindCredential,
 		map[string]any{"system": req.System, "granted": true, "ttl_secs": int(o.DaemonTokenTTL.Seconds())})
 	return daemon.InjectCredentials{RequestID: req.RequestID, System: req.System,
-		Granted: true, Token: token, BaseURL: baseURL, TTLSecs: int(o.DaemonTokenTTL.Seconds())}
+		Granted: true, Token: token, BaseURL: baseURL, CA: o.brokerCA(ctx, agent, req.System),
+		TTLSecs: int(o.DaemonTokenTTL.Seconds())}
+}
+
+// brokerCA resolves the optional trust anchor of a target system,
+// <system>_ca. Optional in the strict sense: almost every endpoint is signed by
+// a public authority, and a missing secret is the normal case rather than a
+// failure — only an internal API server behind a company CA needs one, and
+// then its absence shows up as the TLS error it is.
+//
+// It travels with the credential, not as an action parameter. A parameter goes
+// through the model's call, the guard-rail subject and the recording of every
+// single action; a certificate has no business in any of the three, and a
+// plugin kind that cannot dial for itself (wasm, manifest) could never use one
+// there anyway — the host builds the trust store, so the host has to be the one
+// that gets it.
+func (o *Orchestrator) brokerCA(ctx context.Context, agent agents.Agent, system string) string {
+	ca, _ := o.Secrets.Resolve(ctx, agent.OrgID, agent.ID, system+"_ca")
+	return ca
 }
 
 // brokerSecret resolves one custom, agent-scoped secret for the
