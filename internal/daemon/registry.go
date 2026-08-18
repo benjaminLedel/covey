@@ -70,6 +70,22 @@ type RuntimeCapabilities struct {
 	// `.claude/skills`); empty means the engine knows no skills, and then none
 	// are written rather than being written where nothing reads them.
 	SkillsDir string `json:"skills_dir,omitempty"`
+	// Models are the model ids this engine is known to carry. Empty means the
+	// engine takes whatever it is given — which is right for an engine sitting
+	// in front of ONE provider, whose model list is the provider's to publish
+	// and ours to pass through.
+	//
+	// It is not right in front of a gateway. There the list is the instance's,
+	// it contains ids no harness has ever heard of, and being listed is not the
+	// same as running: educa serves a model that answers 500 on every request
+	// (spec/23). So an engine that knows which ids it actually carries names
+	// them, and everything else is refused where it is entered rather than at
+	// the first run.
+	//
+	// A non-empty list also means the engine has NO DEFAULT: the empty model is
+	// refused with it. That is one rule instead of two flags — whoever names
+	// their models is saying that picking one is part of the setup.
+	Models []string `json:"models,omitempty"`
 	// EffortLevels are the reasoning-effort levels this engine accepts, in
 	// ascending order. The names are the engine's own — Claude Code spells them
 	// low/medium/high/xhigh/max, another engine spells them differently, and a
@@ -94,6 +110,42 @@ func (d RuntimeDescriptor) AcceptsEffort(level string) bool {
 		}
 	}
 	return false
+}
+
+// AcceptsModel reports whether a model id is valid for this engine. An engine
+// without a declared list accepts anything, the empty id included — that is the
+// unchanged behaviour of the engines in front of a single provider.
+func (d RuntimeDescriptor) AcceptsModel(model string) bool {
+	if len(d.Capabilities.Models) == 0 {
+		return true
+	}
+	for _, m := range d.Capabilities.Models {
+		if m == model {
+			return true
+		}
+	}
+	return false
+}
+
+// Models returns the model ids an engine declares — by name, so the control
+// plane can validate without knowing the engine. Empty means "not declared",
+// which is not the same as "none".
+func Models(runtime string) []string {
+	d, ok := runtimeRegistry[runtime]
+	if !ok {
+		return nil
+	}
+	return d.Capabilities.Models
+}
+
+// AcceptsModel is the registry-level lookup behind the HTTP validation. An
+// unknown engine accepts only the empty id (fail-closed), as with effort.
+func AcceptsModel(runtime, model string) bool {
+	d, ok := runtimeRegistry[runtime]
+	if !ok {
+		return model == ""
+	}
+	return d.AcceptsModel(model)
 }
 
 // EffortLevels returns the levels an engine accepts — by name, so the control

@@ -1034,6 +1034,8 @@
       "model": "Model",
       "modelPlaceholder": "empty = engine default",
       "modelHint": "Model ID or alias, e.g. claude-opus-4-8 or sonnet.",
+      "modelPick": "Pick a model …",
+      "modelHintFixed": "This engine carries a fixed list of models and has no default — one of them has to be chosen.",
       "fixedIdentity": "Fixed: the operations engineer is called \"Covey Doctor\" on every instance. The name belongs to the platform, so that an agent with these permissions stays recognisable as one everywhere.",
       "effort": "Reasoning effort",
       "effortDefault": "empty = engine default",

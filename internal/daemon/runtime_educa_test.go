@@ -86,7 +86,7 @@ EOF`)
 
 	res, err := e.Run(context.Background(), RunSpec{
 		TaskID: "t1", Title: "Aufgabe", Body: "Text",
-		Model:   "some-educa-model",
+		Model:   "gpt-oss-120b",
 		HomeDir: dir,
 		Env:     []string{"ANTHROPIC_AUTH_TOKEN=brokered", "ANTHROPIC_API_KEY=leftover"},
 	}, func(string, json.RawMessage) {})
@@ -118,13 +118,13 @@ EOF`)
 func TestEducaDoesNotInheritTheHarnessPrice(t *testing.T) {
 	bin, dir := fakeClaudeWithEnv(t, `
 cat <<'EOF'
-{"type":"assistant","message":{"model":"some-educa-model"}}
+{"type":"assistant","message":{"model":"gpt-oss-120b"}}
 {"type":"result","subtype":"success","session_id":"s1","result":"fertig","total_cost_usd":4.20,"usage":{"input_tokens":100,"output_tokens":50,"cache_read_input_tokens":900}}
 EOF`)
 	e := newTestEduca(bin)
 
 	res, err := e.Run(context.Background(), RunSpec{
-		TaskID: "t1", Body: "Text", Model: "some-educa-model", HomeDir: dir,
+		TaskID: "t1", Body: "Text", Model: "gpt-oss-120b", HomeDir: dir,
 	}, func(string, json.RawMessage) {})
 	if err != nil {
 		t.Fatal(err)
@@ -154,21 +154,57 @@ func TestEducaPricesFromItsOwnListWhenThereIsOne(t *testing.T) {
 	}
 }
 
-// No model, no run — and the message has to name the fix.
-func TestEducaRefusesToRunWithoutAModel(t *testing.T) {
+// The engine carries the ids that were put to work, and nothing else. Being
+// listed by the instance is not the same as running: one of educa's listed
+// models answers 500 on every request, another cannot hold the prompt.
+func TestEducaCarriesOnlyTheModelsThatWereExercised(t *testing.T) {
+	d, ok := Describe("educa-ai")
+	if !ok {
+		t.Fatal("educa-ai is not registered")
+	}
+	for _, want := range []string{"gpt-oss-120b", "gemma-4-26B-A4B-it", "gemma-4-E4B-it"} {
+		if !d.AcceptsModel(want) {
+			t.Errorf("%s solved the trial task and has to be selectable", want)
+		}
+	}
+	for _, refuse := range []string{"Qwen-AgentWorld-35B-A3B", "EuroLLM-9B-Instruct", "claude-opus-4-8"} {
+		if d.AcceptsModel(refuse) {
+			t.Errorf("%s must not be offered", refuse)
+		}
+	}
+	// A declared list means the engine has no default either.
+	if d.AcceptsModel("") {
+		t.Error("educa-ai has no default model — the empty id has to be refused")
+	}
+	// The engines in front of a single provider stay unrestricted: their model
+	// list is the provider's to publish, and pinning it here would age badly.
+	for _, engine := range []string{"claude-code", "codex"} {
+		e, _ := Describe(engine)
+		if !e.AcceptsModel("") || !e.AcceptsModel("whatever-the-provider-ships-next") {
+			t.Errorf("%s declares no models and must accept anything", engine)
+		}
+	}
+}
+
+// No model, no run — the second door behind the validation, and the message has
+// to name the fix rather than the symptom.
+func TestEducaRefusesToRunWithAModelItDoesNotCarry(t *testing.T) {
 	bin, dir := fakeClaudeWithEnv(t, `echo '{"type":"result","result":"should not happen"}'`)
 	e := newTestEduca(bin)
 
-	res, err := e.Run(context.Background(), RunSpec{TaskID: "t1", Body: "Text", HomeDir: dir},
-		func(string, json.RawMessage) {})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if res.Status != "failed" || !strings.Contains(res.Error, "/v1/models") {
-		t.Fatalf("the refusal has to name where the ids come from: %+v", res)
-	}
-	if _, err := os.Stat(filepath.Join(dir, "args.txt")); err == nil {
-		t.Fatal("the harness must not be started at all")
+	for _, model := range []string{"", "EuroLLM-9B-Instruct"} {
+		res, err := e.Run(context.Background(),
+			RunSpec{TaskID: "t1", Body: "Text", Model: model, HomeDir: dir},
+			func(string, json.RawMessage) {})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if res.Status != "failed" || !strings.Contains(res.Error, "gpt-oss-120b") {
+			t.Fatalf("model %q: the refusal has to name what the engine does carry: %+v", model, res)
+		}
+		if _, err := os.Stat(filepath.Join(dir, "args.txt")); err == nil {
+			t.Fatalf("model %q: the harness must not be started at all", model)
+		}
 	}
 }
 

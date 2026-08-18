@@ -46,7 +46,7 @@ func TestEducaLive(t *testing.T) {
 			"Then close with exactly this line:\n" +
 			`COVEY_STATUS: {"status":"done","result":"bereit"}`,
 		SystemPrompt: "You are a Covey agent under test. Be terse.",
-		Model: model,
+		Model:        model,
 		// Declared levels are only worth as much as a run that carries one:
 		// COVEY_EDUCA_EFFORT=high exercises the flag against the gateway.
 		Effort:       strings.TrimSpace(os.Getenv("COVEY_EDUCA_EFFORT")),

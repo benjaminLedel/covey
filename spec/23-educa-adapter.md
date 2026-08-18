@@ -71,12 +71,33 @@ Against `https://api.educaai.de`, engine `educa-ai`, models `gemma-4-26B-A4B-it`
 | `--effort` | passes through, the run is unaffected |
 | the dollar figure | correctly **not** inherited: `cost=0`, the tokens stay |
 | a rejected token | produces this engine's own wording, not Anthropic's advice |
+| a real multi-step task | **solved** on all three carried models — see below |
 
 Two properties of the instance are worth knowing before an agent is assigned:
 
-**It serves open-weight models over vLLM**, not Claude models — at the time of writing `gemma-4-26B-A4B-it`, `gemma-4-E4B-it`, `gpt-oss-120b`, `EuroLLM-9B-Instruct` and an embedding model. The harness logs `unrecognized_model` and runs anyway. `Qwen-AgentWorld-35B-A3B` is listed by `/v1/models` but answers `500` — a listed model is not a running one, which is the reason the setup step points at the instance rather than at a table in this document.
+**It serves open-weight models over vLLM**, not Claude models — at the time of writing `gemma-4-26B-A4B-it`, `gemma-4-E4B-it`, `gpt-oss-120b`, `EuroLLM-9B-Instruct` and an embedding model. The harness logs `unrecognized_model` and runs anyway. Which of them an agent may be put on is not a matter of taste; see below.
 
 **`gpt-oss-120b` reports `stop_reason: "end_turn"` on a response that contains a `tool_use` block**, where the Anthropic contract says `"tool_use"`; `gemma-4-26B` gets it right. It does not break the harness — which evidently acts on the presence of the block — but anything else reading `stop_reason` would be misled.
+
+## The models the engine carries
+
+An instance's `/v1/models` is a listing, not a promise. Two of educa's entries would look like a working choice in a dropdown built from it and are not:
+
+- **`Qwen-AgentWorld-35B-A3B`** answers `500` on every request — a listed model is not a running one.
+- **`EuroLLM-9B-Instruct`** has a `max_model_len` of **2048** tokens while Covey's protocol prompt alone is some 9 KB. It cannot hold the prompt, let alone the task; the trial run ended after seven minutes with ten output tokens and nothing done. That is not a quality judgement, it is arithmetic.
+
+So the engine **declares** the ids it carries, and they are the ones that did the work. The trial was the platform's real prompt (`agents.ProtocolInstructions`), the default tool scope, and a genuinely multi-step task: a failing check, a bug in the code under it, a fix, a re-run to prove it — with a hostile assertion afterwards, because deleting the test is the cheapest way to make it pass.
+
+| model | trial | duration |
+|---|---|---|
+| `gpt-oss-120b` | **fixed**, `done` | 9 s |
+| `gemma-4-26B-A4B-it` | **fixed**, `done`, clearest report | 12 s |
+| `gemma-4-E4B-it` | **fixed**, `done`, more turns | 36 s |
+| `EuroLLM-9B-Instruct` | failed, 10 output tokens | 7 min |
+
+`RuntimeCapabilities.Models` is the mechanism, and it follows `EffortLevels` exactly: the list belongs to the engine plugin, the control plane validates against it without knowing the engine, and an engine that declares nothing accepts anything — which is right in front of a single provider, whose model list is the provider's to publish and ours to pass through. A **non-empty list also means the engine has no default**, so the empty id is refused with the rest. One rule instead of two flags: whoever names their models is saying that picking one is part of the setup.
+
+It is enforced where the model is entered (the agent's model, the runtime row, an imported bundle) and once more in the engine itself — the second door, for rows that predate the declaration.
 
 ## The measured defect: the input side is lost while streaming
 

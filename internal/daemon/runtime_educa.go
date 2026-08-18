@@ -53,6 +53,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -139,6 +140,20 @@ func init() {
 				Secret: "educa_seat_token", EnvVar: "ANTHROPIC_AUTH_TOKEN"},
 		},
 		Capabilities: RuntimeCapabilities{
+			// The ids that were put to work, not the ones the instance lists.
+			// Each of these solved a real multi-step task through the harness —
+			// read the code, find the bug, fix it, re-run the check
+			// (runtime_educa_task_test.go). Two of the instance's listed models
+			// are deliberately absent: Qwen-AgentWorld-35B-A3B answers 500 on
+			// every request, and EuroLLM-9B-Instruct has a 2048-token context
+			// while Covey's protocol prompt alone is some 9 KB — it cannot hold
+			// the prompt, let alone the task. Both would look like a working
+			// choice in a dropdown built from /v1/models.
+			Models: []string{
+				"gpt-oss-120b",
+				"gemma-4-26B-A4B-it",
+				"gemma-4-E4B-it",
+			},
 			// Resume is a property of the HARNESS, not of the endpoint: Claude
 			// Code keeps the session under the agent home and replays it on
 			// --resume. Swapping the model provider does not touch that, so the
@@ -167,17 +182,16 @@ func init() {
 				},
 			},
 			{
-				Text: "Create a `Runtime` with the engine `educa-ai`, add the credential and set a MODEL. " +
-					"An instance serves its own ids, so ask it rather than guessing — " +
-					"`curl -H 'Authorization: Bearer <token>' https://api.educaai.de/v1/models`. " +
-					"Verified against the hosted instance:",
+				Text: "Create a `Runtime` with the engine `educa-ai`, add the credential and pick a MODEL — " +
+					"the engine has no default. Each of these solved a real multi-step task through the harness:",
 				Items: []string{
-					"`gemma-4-26B-A4B-it` — runs, uses tools, resumes",
-					"`gpt-oss-120b` — likewise, the larger of the two",
+					"`gpt-oss-120b` — the fastest of the three in the trial",
+					"`gemma-4-26B-A4B-it` — likewise, and the clearest in its reporting",
+					"`gemma-4-E4B-it` — the small one; it gets there, it needs more turns",
 				},
 			},
 			{
-				Text: "Allow the endpoint in the egress allowlist — without it the sandbox reaches no model:",
+				Text:  "Allow the endpoint in the egress allowlist — without it the sandbox reaches no model:",
 				Items: []string{"`api.educaai.de` (or the host of your own instance)"},
 			},
 			{Text: "Set this agent's runtime to the new one. The control plane brokers the token per waking phase, short-lived."},
@@ -224,16 +238,19 @@ func (e *Educa) educaEnv() []string {
 // things that differ at a gateway: the endpoint, the required model, and the
 // refusal to inherit a price.
 func (e *Educa) Run(ctx context.Context, spec RunSpec, onEvent func(kind string, payload json.RawMessage)) (RunResult, error) {
-	if strings.TrimSpace(spec.Model) == "" {
-		// Fail closed, and with the sentence that fixes it. The harness would
-		// otherwise fall back to ITS default model name, which is an Anthropic
-		// id the gateway need not route — the run would then die on the first
-		// request with the provider's error text, which reads like a Covey bug.
+	if d, ok := Describe(e.Name()); ok && !d.AcceptsModel(strings.TrimSpace(spec.Model)) {
+		// The second door. The first is the validation where the model is
+		// entered; this one catches everything that got past it — an imported
+		// bundle, a row from before the engine declared its models. Fail closed
+		// and with the sentence that fixes it: without a model the harness falls
+		// back to ITS default, an Anthropic id the gateway need not route, and
+		// the run dies on the first request with an error that reads like a
+		// Covey bug.
 		return RunResult{
 			Status: "failed",
-			Error: "engine educa-ai runs without a default model: set the model on the runtime. " +
-				"The available ids come from the instance itself — " +
-				"`curl -H 'Authorization: Bearer <token>' " + e.BaseURL + "/v1/models`.",
+			Error: "engine educa-ai has no default model and does not carry " +
+				strconv.Quote(spec.Model) + ": set one of " +
+				strings.Join(d.Capabilities.Models, ", ") + " on the runtime.",
 		}, nil
 	}
 

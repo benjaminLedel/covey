@@ -538,6 +538,15 @@ func (s *Server) handleImportAgent(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "agent.effort: "+msg)
 		return
 	}
+	// The same for the model, and for the same reason: an agent imported onto
+	// an engine that cannot route its model is configured, visible and unable
+	// to run — better refused here, where the bundle is in front of somebody,
+	// than at the first dispatch.
+	b.Agent.Model = strings.TrimSpace(b.Agent.Model)
+	if msg := checkModel(importRuntime, b.Agent.Model); msg != "" {
+		writeErr(w, http.StatusBadRequest, "agent.model: "+msg)
+		return
+	}
 	// Placeholder ID for the validation only — the agent does not exist yet.
 	probeID := uuid.New()
 	for _, g := range b.Guardrails {

@@ -6,6 +6,7 @@ import (
 	"context"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -135,6 +136,16 @@ func (s *Server) handleCreateRuntime(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "unknown engine: "+in.Engine)
 		return
 	}
+	// The row's model is a display default rather than what a run uses (that is
+	// the agent's, see handleSetModel) — but a badge naming a model the engine
+	// cannot route is a wrong signpost, and it is free to refuse here.
+	in.Model = strings.TrimSpace(in.Model)
+	if in.Model != "" {
+		if msg := checkModel(in.Engine, in.Model); msg != "" {
+			writeErr(w, http.StatusBadRequest, msg)
+			return
+		}
+	}
 	rt, err := s.Runtimes.Create(r.Context(), p.OrgID, in.Engine, in.DisplayName, in.Model)
 	if err != nil {
 		mapErr(w, err)
@@ -157,6 +168,18 @@ func (s *Server) handleUpdateRuntime(w http.ResponseWriter, r *http.Request) {
 	if err := readJSON(r, &in); err != nil || in.DisplayName == "" {
 		writeErr(w, http.StatusBadRequest, "display_name is required")
 		return
+	}
+	in.Model = strings.TrimSpace(in.Model)
+	if in.Model != "" {
+		rt, err := s.Runtimes.Get(r.Context(), p.OrgID, id)
+		if err != nil {
+			mapErr(w, err)
+			return
+		}
+		if msg := checkModel(rt.Engine, in.Model); msg != "" {
+			writeErr(w, http.StatusBadRequest, msg)
+			return
+		}
 	}
 	if err := s.Runtimes.Update(r.Context(), p.OrgID, id, in.DisplayName, in.Model); err != nil {
 		mapErr(w, err)

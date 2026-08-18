@@ -197,6 +197,13 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
   // Runtime-Liste noch lädt, zeigen wir die Zeile nur, wenn der Agent bereits
   // eine Stufe gesetzt hat — sonst blitzt sie auf und verschwindet wieder.
   const effortLevels = rtList.find((rt) => rt.name === agent.runtime)?.capabilities.effort_levels ?? [];
+  /* Modelle, die die Engine wirklich fährt. Leer heißt NICHT „keine", sondern
+     „nicht deklariert" — vor einem einzelnen Anbieter gehört die Liste dem
+     Anbieter, und dann bleibt es das Freitextfeld wie bisher. Deklariert eine
+     Engine ihre Ids (ein Gateway tut das), wird daraus eine Auswahl: ein
+     Freitextfeld böte dort Modelle an, die die Instanz zwar listet, aber nicht
+     fährt — und es gibt keinen Default, auf den man zurückfallen könnte. */
+  const models = rtList.find((rt) => rt.name === agent.runtime)?.capabilities.models ?? [];
   // Covey Doctor heisst ueberall gleich: Name und Slug gehoeren der
   // Plattform, nicht der Organisation. Die Sperre steht im Server (409) — hier
   // steht sie nur sichtbar davor, damit niemand gegen ein Feld tippt, dessen
@@ -304,19 +311,42 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
       </div>
       <div style={row}>
         <span className="text-sm">{t("agent.settings.model")}</span>
-        <input
-          key={`model:${agent.model}`}
-          defaultValue={agent.model}
-          placeholder={t("agent.settings.modelPlaceholder")}
-          disabled={!editable || setModel.isPending}
-          onBlur={(e) => {
-            const v = e.target.value.trim();
-            if (v !== agent.model) setModel.mutate(v);
-          }}
-          onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-          className="mono"
-        />
-        <span className="muted text-xs">{t("agent.settings.modelHint")}</span>
+        {models.length > 0 ? (
+          <select
+            key={`model:${agent.model}`}
+            defaultValue={agent.model || ""}
+            disabled={!editable || setModel.isPending}
+            onChange={(e) => {
+              if (e.target.value !== (agent.model || "")) setModel.mutate(e.target.value);
+            }}
+            className="mono"
+          >
+            {/* Ohne Default keine leere Auswahl, die aussieht wie eine gültige:
+                steht noch nichts, muss der Platzhalter zum Wählen auffordern. */}
+            {!agent.model && <option value="">{t("agent.settings.modelPick")}</option>}
+            {models.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            key={`model:${agent.model}`}
+            defaultValue={agent.model}
+            placeholder={t("agent.settings.modelPlaceholder")}
+            disabled={!editable || setModel.isPending}
+            onBlur={(e) => {
+              const v = e.target.value.trim();
+              if (v !== agent.model) setModel.mutate(v);
+            }}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+            className="mono"
+          />
+        )}
+        <span className="muted text-xs">
+          {models.length > 0 ? t("agent.settings.modelHintFixed") : t("agent.settings.modelHint")}
+        </span>
       </div>
       {showEffort && (
         <div style={row}>
