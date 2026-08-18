@@ -168,15 +168,37 @@ The catalogue is where a target system goes by default. Compiling one in is the 
 | A protocol that is not JSON over HTTP | `email` (IMAP/SMTP), `nextcloud`, `sharepoint` (WebDAV/Graph) |
 | An auth flow beyond a static header | `teams` (OAuth2 + inbound JWT verification), `sharepoint` (Entra client credentials) |
 | Materialising files into the sandbox, or running work there | `gitlab`, `github` (checkout, uploads, sub-agent runs), `browser`, `dev` |
-| Real computation, not a call | `vulndb` (lock-file parsing, version ordering, merging three sources) — though this is the one reason a **wasm** plugin now also covers, so a new system of this shape belongs in the catalogue rather than in the binary |
+| Real computation, not a call | `vulndb` (lock-file parsing, version ordering, merging three sources), `k8s` (projecting the API server's objects down to what a human actually reads) — though this is the one reason a **wasm** plugin now also covers, so a system of this shape belongs in the catalogue rather than in the binary |
 
-Which leaves exactly one: **`zammad` could be a manifest today** — plain REST with a token header, an HMAC webhook, and since the engine learned `probe:` there is nothing left it needs code for. It stays compiled anyway, because moving it would make every running installation reinstall it from a catalogue for no gain, and it is the reference system the rest of the spec points at.
+That leaves three whose **logic** does not need the binary — and each of them is held there by one capability the engine does not have. The distinction matters: they are not compiled in because somebody preferred it, and the three lines below are the whole reason, each one a piece of work that can be done.
+
+| Plugin | What holds it in the binary | Where the capability is missing |
+|---|---|---|
+| `zammad` | its centre is the webhook: HMAC verification, dedup key, correlation key, the wake decision | the wasm protocol has ops `execute`, `probe`, `poll`, `prompt_doc`, `describe` — and no webhook. A manifest can do webhooks but not zammad's actions: `reply` needs constant body fields (`type`, `content_type`), `set_state` a computed `pending_time`, `escalate` two calls, and the intake groups are an allowlist where `ignore_when` only compares one value |
+| `k8s` | the cluster CA. It arrives as an action parameter and becomes the TLS trust store of the request | in wasm the **host** makes the request, and neither `FetchRequest` nor `target.Credential` has anywhere to put a CA |
+| `vulndb` | `scan_lockfile` reads the lock file out of the agent's checkout | a module has no filesystem, and the protocol has no op for "read this file from the workdir" |
+
+So the honest statement is not "these three could leave today". It is: three engine capabilities — a webhook op, a workdir read, a per-target CA — stand between them and the catalogue, and until one of them exists the plugin it blocks stays compiled. Whoever adds one should move the plugin behind it in the same breath, or the capability is furniture.
+
+When a move does happen the order is not negotiable: the entry has to be in the catalogue *before* the import leaves the binary, or an instance loses a working target system on upgrade. Whoever upgrades across the release that drops one installs it from the store afterwards, with the credentials it already had — the plugin row and its secrets survive, only the code arrives from somewhere else. The release note says which one it is.
 
 So the rule for anything new:
 
 > A target system is a **catalogue plugin** unless it needs one of the four reasons above. "It would be nice to ship it" is not one of them — every compiled plugin is code in everyone's binary, whether they use the system or not, and a release they have to wait for when it changes.
 
 The list also says what would let more of it move out later. Give the manifest engine a declarative OAuth2 client-credentials block, and `teams` and `sharepoint` stop needing code for their auth; give it a way to declare "put this response body in the sandbox as a file", and the file systems follow. Neither is planned — they are named here so the next person can see that the boundary is drawn by the engine's reach, not by taste.
+
+## A build without the pack
+
+Everything above is about which plugins *exist* in the binary. Whoever wants none of them does not have to edit the source for it: the blank imports sit behind the **`nopack` build tag** (`cmd/covey/plugins_bundled.go`, `cmd/coveyd/plugins_bundled.go`).
+
+```
+make build-nopack        # or: go build -tags nopack ./cmd/covey
+```
+
+Such a binary registers no target system of its own and takes every one of them from the catalogue — about 3 MB smaller, and above all with nothing left that has to wait for a Covey release when it changes. Finer than the tag, one line in that file is one plugin: delete it and the rest stays as it is. Both binaries need the same list — the control plane brokers the access, the daemon executes it, so a plugin missing on one side is missing on both.
+
+The tag changes nothing about manifest, wasm and MCP plugins: those arrive at runtime, and an installation that has them keeps them.
 
 ## Built-ins in the catalogue
 

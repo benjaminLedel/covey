@@ -58,20 +58,6 @@ import (
 	orgworkplaces "covey/internal/workplaces"
 	"covey/migrations"
 	"covey/web"
-
-	// Compiled-in target system plugins: blank import = shipped. Whoever wants
-	// to build Covey without a system removes its line — the rest stays as it is.
-	_ "github.com/benjaminLedel/covey-plugin-pack/browser"
-	_ "github.com/benjaminLedel/covey-plugin-pack/dev"
-	_ "github.com/benjaminLedel/covey-plugin-pack/email"
-	_ "github.com/benjaminLedel/covey-plugin-pack/github"
-	_ "github.com/benjaminLedel/covey-plugin-pack/gitlab"
-	_ "github.com/benjaminLedel/covey-plugin-pack/k8s"
-	_ "github.com/benjaminLedel/covey-plugin-pack/nextcloud"
-	_ "github.com/benjaminLedel/covey-plugin-pack/sharepoint"
-	_ "github.com/benjaminLedel/covey-plugin-pack/teams"
-	_ "github.com/benjaminLedel/covey-plugin-pack/vulndb"
-	_ "github.com/benjaminLedel/covey-plugin-pack/zammad"
 )
 
 func main() {
