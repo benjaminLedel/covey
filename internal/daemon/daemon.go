@@ -599,7 +599,7 @@ func (c *Client) runTask(ctx context.Context, task AssignTask) {
 		res.Status = "failed"
 		res.Error = err.Error()
 	}
-	if res.CostUSD > 0 || res.TotalInputTokens() > 0 {
+	if res.Measured() {
 		_ = c.send(TypeCost, Cost{TaskID: task.TaskID, USD: res.CostUSD,
 			InputTokens: res.InputTokens, OutputTokens: res.OutputTokens,
 			CacheReadTokens: res.CacheReadTokens, CacheCreationTokens: res.CacheCreationTokens,
