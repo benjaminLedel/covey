@@ -172,9 +172,14 @@ func TestEducaCarriesOnlyTheModelsThatWereExercised(t *testing.T) {
 			t.Errorf("%s must not be offered", refuse)
 		}
 	}
-	// A declared list means the engine has no default either.
-	if d.AcceptsModel("") {
-		t.Error("educa-ai has no default model — the empty id has to be refused")
+	// Empty means "the engine's default", and the default is the first entry —
+	// the same convention the credential list carries, where order is precedence.
+	if !d.AcceptsModel("") {
+		t.Error("the empty id means the engine's default and has to pass")
+	}
+	if d.DefaultModel() != "gemma-4-26B-A4B-it" {
+		t.Errorf("default = %q — it is the one with 262144 tokens of context and "+
+			"correct tool-call semantics, not the fastest in one trial", d.DefaultModel())
 	}
 	// The engines in front of a single provider stay unrestricted: their model
 	// list is the provider's to publish, and pinning it here would age badly.
@@ -192,19 +197,45 @@ func TestEducaRefusesToRunWithAModelItDoesNotCarry(t *testing.T) {
 	bin, dir := fakeClaudeWithEnv(t, `echo '{"type":"result","result":"should not happen"}'`)
 	e := newTestEduca(bin)
 
-	for _, model := range []string{"", "EuroLLM-9B-Instruct"} {
-		res, err := e.Run(context.Background(),
-			RunSpec{TaskID: "t1", Body: "Text", Model: model, HomeDir: dir},
-			func(string, json.RawMessage) {})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if res.Status != "failed" || !strings.Contains(res.Error, "gpt-oss-120b") {
-			t.Fatalf("model %q: the refusal has to name what the engine does carry: %+v", model, res)
-		}
-		if _, err := os.Stat(filepath.Join(dir, "args.txt")); err == nil {
-			t.Fatalf("model %q: the harness must not be started at all", model)
-		}
+	res, err := e.Run(context.Background(),
+		RunSpec{TaskID: "t1", Body: "Text", Model: "EuroLLM-9B-Instruct", HomeDir: dir},
+		func(string, json.RawMessage) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Status != "failed" || !strings.Contains(res.Error, "gemma-4-26B-A4B-it") {
+		t.Fatalf("the refusal has to name what the engine does carry: %+v", res)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "args.txt")); err == nil {
+		t.Fatal("the harness must not be started at all")
+	}
+}
+
+// An unset model is not an error but the default — and the engine substitutes
+// it ITSELF. Left empty, the harness would send its own provider's id, which
+// the gateway need not route.
+func TestEducaSubstitutesItsDefaultForAnUnsetModel(t *testing.T) {
+	bin, dir := fakeClaudeWithEnv(t, `
+cat <<'EOF'
+{"type":"result","subtype":"success","session_id":"s1","result":"fertig"}
+EOF`)
+	e := newTestEduca(bin)
+
+	res, err := e.Run(context.Background(),
+		RunSpec{TaskID: "t1", Body: "Text", HomeDir: dir},
+		func(string, json.RawMessage) {})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Status != "done" {
+		t.Fatalf("an unset model has to run on the default: %+v", res)
+	}
+	args, err := os.ReadFile(filepath.Join(dir, "args.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(args), "gemma-4-26B-A4B-it") {
+		t.Fatalf("the engine has to pass its own default to the harness:\n%s", args)
 	}
 }
 

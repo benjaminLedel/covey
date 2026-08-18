@@ -82,9 +82,15 @@ type RuntimeCapabilities struct {
 	// them, and everything else is refused where it is entered rather than at
 	// the first run.
 	//
-	// A non-empty list also means the engine has NO DEFAULT: the empty model is
-	// refused with it. That is one rule instead of two flags — whoever names
-	// their models is saying that picking one is part of the setup.
+	// THE FIRST ENTRY IS THE DEFAULT — the same convention the credential list
+	// above already carries, where order is precedence. One field instead of
+	// two, and a default that cannot name a model outside the list.
+	//
+	// A default is not the same permissiveness the empty model used to have.
+	// What made an unset model dangerous here was the HARNESS's default, an id
+	// of its own provider that the gateway need not route; an id the engine
+	// substitutes itself is one it declared. So the empty model is allowed
+	// again, and unknown ids stay refused.
 	Models []string `json:"models,omitempty"`
 	// EffortLevels are the reasoning-effort levels this engine accepts, in
 	// ascending order. The names are the engine's own — Claude Code spells them
@@ -112,11 +118,22 @@ func (d RuntimeDescriptor) AcceptsEffort(level string) bool {
 	return false
 }
 
-// AcceptsModel reports whether a model id is valid for this engine. An engine
-// without a declared list accepts anything, the empty id included — that is the
+// DefaultModel is the id an engine falls back to when none is configured. Empty
+// means the engine has no list and therefore no say — then the runtime's own
+// default applies, which is the right answer in front of a single provider.
+func (d RuntimeDescriptor) DefaultModel() string {
+	if len(d.Capabilities.Models) == 0 {
+		return ""
+	}
+	return d.Capabilities.Models[0]
+}
+
+// AcceptsModel reports whether a model id is valid for this engine. The empty
+// id always passes: it means "the engine's default", as with the effort level.
+// An engine without a declared list accepts anything on top of that — the
 // unchanged behaviour of the engines in front of a single provider.
 func (d RuntimeDescriptor) AcceptsModel(model string) bool {
-	if len(d.Capabilities.Models) == 0 {
+	if len(d.Capabilities.Models) == 0 || model == "" {
 		return true
 	}
 	for _, m := range d.Capabilities.Models {
@@ -136,6 +153,16 @@ func Models(runtime string) []string {
 		return nil
 	}
 	return d.Capabilities.Models
+}
+
+// DefaultModel is the registry-level lookup: which id an engine substitutes for
+// an unset model. Empty means it substitutes nothing.
+func DefaultModel(runtime string) string {
+	d, ok := runtimeRegistry[runtime]
+	if !ok {
+		return ""
+	}
+	return d.DefaultModel()
 }
 
 // AcceptsModel is the registry-level lookup behind the HTTP validation. An

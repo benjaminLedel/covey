@@ -321,9 +321,10 @@ function AgentSettingsGeneral({ agent, editable }: { agent: Agent; editable: boo
             }}
             className="mono"
           >
-            {/* Ohne Default keine leere Auswahl, die aussieht wie eine gültige:
-                steht noch nichts, muss der Platzhalter zum Wählen auffordern. */}
-            {!agent.model && <option value="">{t("agent.settings.modelPick")}</option>}
+            {/* Der erste Eintrag IST der Default — die leere Auswahl ist damit
+                keine Lücke, sondern eine Aussage: „was die Engine selbst
+                nimmt". Sie steht deshalb oben und nennt das Modell mit. */}
+            <option value="">{t("agent.settings.modelDefault", { model: models[0] })}</option>
             {models.map((m) => (
               <option key={m} value={m}>
                 {m}

@@ -72,6 +72,7 @@ Against `https://api.educaai.de`, engine `educa-ai`, models `gemma-4-26B-A4B-it`
 | the dollar figure | correctly **not** inherited: `cost=0`, the tokens stay |
 | a rejected token | produces this engine's own wording, not Anthropic's advice |
 | a real multi-step task | **solved** on all three carried models — see below |
+| an agent with no model set | runs on the engine's default — solved the same task in 8 s |
 
 Two properties of the instance are worth knowing before an agent is assigned:
 
@@ -95,7 +96,13 @@ So the engine **declares** the ids it carries, and they are the ones that did th
 | `gemma-4-E4B-it` | **fixed**, `done`, more turns | 36 s |
 | `EuroLLM-9B-Instruct` | failed, 10 output tokens | 7 min |
 
-`RuntimeCapabilities.Models` is the mechanism, and it follows `EffortLevels` exactly: the list belongs to the engine plugin, the control plane validates against it without knowing the engine, and an engine that declares nothing accepts anything — which is right in front of a single provider, whose model list is the provider's to publish and ours to pass through. A **non-empty list also means the engine has no default**, so the empty id is refused with the rest. One rule instead of two flags: whoever names their models is saying that picking one is part of the setup.
+`RuntimeCapabilities.Models` is the mechanism, and it follows `EffortLevels` exactly: the list belongs to the engine plugin, the control plane validates against it without knowing the engine, and an engine that declares nothing accepts anything — which is right in front of a single provider, whose model list is the provider's to publish and ours to pass through.
+
+**The first entry is the default** — the same convention the credential list already carries, where order is precedence. One field instead of two, and a default that cannot name a model outside the list.
+
+The default is `gemma-4-26B-A4B-it`, and the reason is not that it was fastest — three seconds on one bug fix rank nothing. It has **262144 tokens of context** against the others' 131072, which is what an agent run actually spends: a 9 KB protocol prompt, the SOUL, wiki context, tool output, and a session that keeps growing across `--resume`. And it reports `stop_reason: "tool_use"` where `gpt-oss-120b` reports `"end_turn"` on a response carrying a `tool_use` block; that works today only because the harness reads the block rather than the field, and a default should not rest on a tolerance. What the order does **not** claim is which model is cleverer — one fixed median is no capability benchmark, and `gpt-oss-120b` is the first thing to try when a task needs harder reasoning.
+
+An unset model was briefly refused here, and that was one step too far. What made it dangerous was the HARNESS's default — an id of its own provider that the gateway need not route. An id the *engine* substitutes is one it declared, so the empty model means "the engine's default", as the empty effort level already did, and only unknown ids stay refused.
 
 It is enforced where the model is entered (the agent's model, the runtime row, an imported bundle) and once more in the engine itself — the second door, for rows that predate the declaration.
 

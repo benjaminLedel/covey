@@ -34,10 +34,10 @@ func TestEducaLiveRealisticTask(t *testing.T) {
 	if token == "" {
 		t.Skip("COVEY_EDUCA_TOKEN is not set — the live test needs a real credential")
 	}
+	// Deliberately NOT defaulted here: unset means unset, and then the run has
+	// to land on the engine's own default. That is the setting most agents will
+	// actually have.
 	model := strings.TrimSpace(os.Getenv("COVEY_EDUCA_MODEL"))
-	if model == "" {
-		model = "gpt-oss-120b"
-	}
 	py, err := exec.LookPath("python3")
 	if err != nil {
 		t.Skip("python3 is not available — the trial task needs it")

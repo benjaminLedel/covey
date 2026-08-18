@@ -25,7 +25,7 @@ func TestCheckModelAsksTheEngine(t *testing.T) {
 		{"educa-ai", "EuroLLM-9B-Instruct", false},     // 2048 tokens of context — cannot hold the prompt
 		{"educa-ai", "Qwen-AgentWorld-35B-A3B", false}, // listed by /v1/models, answers 500
 		{"educa-ai", "claude-opus-4-8", false},         // another engine's model
-		{"educa-ai", "", false},                        // a declared list means: no default
+		{"educa-ai", "", true},                         // empty = the engine's default
 		{"nope", "", true},
 		{"nope", "anything", false}, // unknown engine: fail-closed
 	} {
@@ -37,22 +37,33 @@ func TestCheckModelAsksTheEngine(t *testing.T) {
 }
 
 // A message with foreign ids sends the reader in the wrong direction — it has
-// to name what THIS engine carries.
+// to name what THIS engine carries, and the way out through the default.
 func TestCheckModelNamesTheEnginesModels(t *testing.T) {
-	for _, model := range []string{"", "EuroLLM-9B-Instruct"} {
-		msg := checkModel("educa-ai", model)
-		if msg == "" {
-			t.Fatalf("model %q should be refused", model)
-		}
-		for _, m := range daemon.Models("educa-ai") {
-			if !strings.Contains(msg, m) {
-				t.Errorf("model %q: the message has to name %q: %s", model, m, msg)
-			}
+	msg := checkModel("educa-ai", "EuroLLM-9B-Instruct")
+	if msg == "" {
+		t.Fatal("a model the engine does not carry has to be refused")
+	}
+	for _, m := range daemon.Models("educa-ai") {
+		if !strings.Contains(msg, m) {
+			t.Errorf("the message has to name %q: %s", m, msg)
 		}
 	}
-	// The empty id gets its own sentence: nothing is wrong with the value, the
-	// engine simply has no default to fall back on.
-	if msg := checkModel("educa-ai", ""); !strings.Contains(msg, "no default model") {
-		t.Errorf("the empty id needs its own wording: %s", msg)
+	if !strings.Contains(msg, "empty for its default") {
+		t.Errorf("the message has to offer the default as the way out: %s", msg)
+	}
+}
+
+// The default is the first entry, and it is a declaration rather than an
+// accident of ordering: whoever reorders the list changes what every agent
+// without an explicit model runs on.
+func TestEducaDefaultsToTheModelWithTheMostContext(t *testing.T) {
+	if got := daemon.DefaultModel("educa-ai"); got != "gemma-4-26B-A4B-it" {
+		t.Errorf("default model = %q — the default carries twice the context of the others "+
+			"and reports tool calls correctly", got)
+	}
+	// An engine in front of a single provider substitutes nothing: there the
+	// runtime's own default is the right answer.
+	if got := daemon.DefaultModel("claude-code"); got != "" {
+		t.Errorf("claude-code must leave the choice to its runtime, got %q", got)
 	}
 }

@@ -149,9 +149,23 @@ func init() {
 			// while Covey's protocol prompt alone is some 9 KB — it cannot hold
 			// the prompt, let alone the task. Both would look like a working
 			// choice in a dropdown built from /v1/models.
+			// First is the default, and it is not the fastest of the three —
+			// three seconds on one bug fix rank nothing. It is the one with
+			// 262144 tokens of context against the others' 131072, which is
+			// what an agent run actually spends (a 9 KB protocol prompt, the
+			// SOUL, wiki context, tool output, and a session that keeps growing
+			// across --resume), and the one that reports `stop_reason:
+			// "tool_use"` where gpt-oss-120b reports "end_turn" on a response
+			// carrying a tool_use block. The latter works today only because
+			// the harness reads the block rather than the field; a default
+			// should not rest on that.
+			//
+			// What this order does NOT claim is which model is cleverer. One
+			// fixed median is no capability benchmark — if agents start failing
+			// on hard reasoning, gpt-oss-120b is the first thing to try.
 			Models: []string{
-				"gpt-oss-120b",
 				"gemma-4-26B-A4B-it",
+				"gpt-oss-120b",
 				"gemma-4-E4B-it",
 			},
 			// Resume is a property of the HARNESS, not of the endpoint: Claude
@@ -182,11 +196,12 @@ func init() {
 				},
 			},
 			{
-				Text: "Create a `Runtime` with the engine `educa-ai`, add the credential and pick a MODEL — " +
-					"the engine has no default. Each of these solved a real multi-step task through the harness:",
+				Text: "Create a `Runtime` with the engine `educa-ai` and add the credential. " +
+					"The model can stay unset — each of these solved a real multi-step task " +
+					"through the harness, and the first is what an agent gets by default:",
 				Items: []string{
-					"`gpt-oss-120b` — the fastest of the three in the trial",
-					"`gemma-4-26B-A4B-it` — likewise, and the clearest in its reporting",
+					"`gemma-4-26B-A4B-it` — the default: twice the context of the others, and correct tool-call semantics",
+					"`gpt-oss-120b` — the fastest in the trial; try it when a task needs harder reasoning",
 					"`gemma-4-E4B-it` — the small one; it gets there, it needs more turns",
 				},
 			},
@@ -238,19 +253,23 @@ func (e *Educa) educaEnv() []string {
 // things that differ at a gateway: the endpoint, the required model, and the
 // refusal to inherit a price.
 func (e *Educa) Run(ctx context.Context, spec RunSpec, onEvent func(kind string, payload json.RawMessage)) (RunResult, error) {
-	if d, ok := Describe(e.Name()); ok && !d.AcceptsModel(strings.TrimSpace(spec.Model)) {
+	d, known := Describe(e.Name())
+	spec.Model = strings.TrimSpace(spec.Model)
+	switch {
+	case spec.Model == "":
+		// Never leave it empty. The harness would fall back to ITS default, an
+		// id of its own provider that the gateway need not route, and the run
+		// would die on the first request with an error that reads like a Covey
+		// bug. The engine's own default is an id it declared.
+		spec.Model = d.DefaultModel()
+	case known && !d.AcceptsModel(spec.Model):
 		// The second door. The first is the validation where the model is
-		// entered; this one catches everything that got past it — an imported
-		// bundle, a row from before the engine declared its models. Fail closed
-		// and with the sentence that fixes it: without a model the harness falls
-		// back to ITS default, an Anthropic id the gateway need not route, and
-		// the run dies on the first request with an error that reads like a
-		// Covey bug.
+		// entered; this one catches what got past it — an imported bundle, a
+		// row from before the engine declared its models.
 		return RunResult{
 			Status: "failed",
-			Error: "engine educa-ai has no default model and does not carry " +
-				strconv.Quote(spec.Model) + ": set one of " +
-				strings.Join(d.Capabilities.Models, ", ") + " on the runtime.",
+			Error: "engine educa-ai does not carry the model " + strconv.Quote(spec.Model) +
+				": set one of " + strings.Join(d.Capabilities.Models, ", ") + " on the agent.",
 		}, nil
 	}
 

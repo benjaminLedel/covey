@@ -794,10 +794,9 @@ func (s *Server) handleSetModel(w http.ResponseWriter, r *http.Request) {
 //
 // An engine that declares no ids accepts anything — in front of a single
 // provider the model list is the provider's to publish and ours to pass
-// through, and pinning it here would age badly. An engine that DOES declare
-// them has no default either, so the empty id is refused with the rest: it
-// would send the harness off with a model name the engine cannot route
-// (spec/23).
+// through, and pinning it here would age badly. Empty always passes: it means
+// "the engine's default", which for a declaring engine is the first id of its
+// list and for the others is the runtime's own (spec/23).
 func checkModel(runtime, model string) string {
 	if daemon.AcceptsModel(runtime, model) {
 		return ""
@@ -808,10 +807,8 @@ func checkModel(runtime, model string) string {
 		// actually broken rather than blaming the model.
 		return "unknown runtime " + runtime + " — assign the agent to a known engine first"
 	}
-	if model == "" {
-		return "runtime " + runtime + " has no default model — pick one of " + strings.Join(models, ", ")
-	}
-	return "model must be one of " + strings.Join(models, ", ") + " for the runtime " + runtime
+	return "model must be one of " + strings.Join(models, ", ") +
+		" for the runtime " + runtime + " (or empty for its default, " + models[0] + ")"
 }
 
 // checkEffort validates a reasoning-effort level against the ENGINE the agent
