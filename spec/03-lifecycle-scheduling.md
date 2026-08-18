@@ -152,6 +152,7 @@ The backlog is **not a transient queue** but a persistent, inspectable object in
 
 - **Retry:** `failed → open` and `cancelled → open` are permitted transitions — a failed or discarded task can be **rescheduled** manually (result/error are cleared, the history stays in the transitions, the agent is woken). `done` stays final.
 - **Archive instead of delete:** terminal tasks (`done`/`failed`/`cancelled`) can be **archived** individually or in bulk ("Clean up") (`archived_at`). Archived means: hidden from the active backlog but fully preserved — history and recording references stay valid, and the UI shows the archive on request. Active tasks (`open`/`in_progress`/`blocked`) are deliberately not archivable.
+- **Search instead of scrolling:** the board shows the tasks by column, and per column only the newest handful — deeper columns are unfolded on demand ("Show N older"). What lies further back is reached by the **backlog search** (`GET /agents/{id}/backlog?q=`): it matches title, description and what a run left behind (result/error), and it searches **archive and active board together**. That is the whole point — one searches for precisely what the board no longer shows; a search stopping at the board's edge would only find what is already in front of one. Hits come as a flat list (the column is written onto the card), newest first, capped at 50 — a search is a look, not an export.
 
 **A lost sandbox is not a failed task — but not an infinite retry either.**
 

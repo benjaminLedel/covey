@@ -262,7 +262,16 @@ func (s *Server) handleBacklog(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid id")
 		return
 	}
-	tasks, err := s.Backlog.ListByAgent(r.Context(), id, r.URL.Query().Get("archived") == "1")
+	// ?q= searches instead of listing — title, body and what the run left
+	// behind, the archive included. Whoever searches is looking for a task that
+	// is no longer on the board; a search that stopped at the board's edge would
+	// only ever find what one can already see. Without q: the board as before.
+	var tasks []backlog.Task
+	if q := strings.TrimSpace(r.URL.Query().Get("q")); q != "" {
+		tasks, err = s.Backlog.SearchByAgent(r.Context(), id, q, backlog.SearchMaxResults)
+	} else {
+		tasks, err = s.Backlog.ListByAgent(r.Context(), id, r.URL.Query().Get("archived") == "1")
+	}
 	if err != nil {
 		mapErr(w, err)
 		return
