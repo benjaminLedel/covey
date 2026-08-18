@@ -36,6 +36,14 @@ type Node struct {
 
 	mu      sync.Mutex
 	running map[uuid.UUID]*sandboxProc
+	// closed marks the node as finished. Without it Close would only EMPTY the
+	// map, and a start already on its way would enter its sandbox behind it —
+	// with a watcher nothing cancels any more, which is exactly the orphaned
+	// `docker wait` Close exists to prevent. The production callers cannot hit
+	// that window (Run returns synchronously before its defer fires), the
+	// tests can: t.Cleanup(node.Close) runs while node.Run is still live in its
+	// goroutine.
+	closed bool
 }
 
 // sandboxProc is a running sandbox as this node sees it.
@@ -240,6 +248,19 @@ func (n *Node) start(ctx context.Context, t Transport, id string, spec StartSand
 	watchCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	proc := &sandboxProc{container: container, cancel: cancel}
 	n.mu.Lock()
+	if n.closed {
+		// The node ended while this start was on its way. Take the watcher back
+		// before it exists rather than leaving it to nobody, and say so — a
+		// sandbox that was started but is watched by no one is worse than one
+		// that was refused.
+		n.mu.Unlock()
+		cancel()
+		n.reply(ctx, t, id, TypeSandboxFailed, SandboxResult{
+			AgentID: spec.AgentID,
+			Err:     "the runner node ended while the sandbox was starting",
+		})
+		return
+	}
 	if old := n.running[spec.AgentID]; old != nil {
 		old.cancel()
 	}
@@ -302,6 +323,36 @@ func (n *Node) stop(ctx context.Context, t Transport, id string, agentID uuid.UU
 		res.Err = err.Error()
 	}
 	n.reply(ctx, t, id, TypeSandboxStopped, res)
+}
+
+// Close ends every watcher this node still holds. A watcher deliberately
+// outlives the call that started it — that is what turns a crash into a
+// reported fact rather than a guess — but it must not outlive the node
+// itself: what it blocks in is a `docker wait` child process, and a node that
+// disappears without cancelling it leaves that process behind for good. It
+// then polls a container that will never exist, forever, and nothing on the
+// host still knows what it belongs to.
+//
+// Not called when a connection drops: RunNode reconnects, and a sandbox that
+// dies in between is precisely the death worth reporting. Only the owner of
+// the node's lifetime closes it.
+//
+// It is final, not just a drain: a start that arrives afterwards is refused
+// rather than served, because serving it would create the very watcher this
+// method just took away.
+func (n *Node) Close() {
+	n.mu.Lock()
+	n.closed = true
+	procs := make([]*sandboxProc, 0, len(n.running))
+	for agentID, proc := range n.running {
+		procs = append(procs, proc)
+		delete(n.running, agentID)
+	}
+	n.mu.Unlock()
+	// Outside the lock: cancel wakes the watcher, which takes the lock itself.
+	for _, proc := range procs {
+		proc.cancel()
+	}
 }
 
 func (n *Node) reply(ctx context.Context, t Transport, id, msgType string, payload any) {

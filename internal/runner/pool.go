@@ -271,6 +271,9 @@ func (p *Pool) detach(c *conn) {
 func (p *Pool) AttachLocal(ctx context.Context, node *Node) error {
 	control, nodeEnd := NewInProc()
 	go func() {
+		// The built-in runner does not reconnect: this one call is its whole
+		// life, so its watchers end with it.
+		defer node.Close()
 		if err := node.Run(ctx, nodeEnd); err != nil && ctx.Err() == nil {
 			p.Log.Error("built-in runner ended", "err", err)
 		}
