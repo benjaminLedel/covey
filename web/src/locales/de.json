@@ -157,6 +157,10 @@
           "t": "Zammad",
           "d": "Tickets sichten, beantworten, Status setzen, eskalieren. Ein Trigger weckt den Agenten, sobald ein Kunde antwortet — er wartet nicht, er wird geholt."
         },
+        "salesforce": {
+          "t": "Salesforce",
+          "d": "Service-Cloud-Fälle als Arbeitsvorrat: einen Fall mit seiner ganzen Konversation lesen, die offenen finden, nachschlagen, wie dieselbe Frage vorher beantwortet wurde, und antworten — als interne Notiz, als im Portal sichtbarer Kommentar oder als echte Mail an den Kunden. Anhänge in beide Richtungen, Status und Eskalation inbegriffen. Der Heartbeat kehrt durch; ein Flow kann zusätzlich einen Webhook schicken."
+        },
         "github": {
           "t": "GitHub",
           "d": "Issues und Pull Requests als Arbeitsvorrat: Quellcode auschecken, Fix auf einem Feature-Branch, Pull Request mit QA-Agent als Reviewer — Review-Loop und rote Actions-Läufe eingeschlossen. Der Webhook weckt, der Heartbeat sichtet."

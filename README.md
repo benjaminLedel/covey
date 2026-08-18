@@ -76,7 +76,7 @@ The third line fetches the container an agent works inside ([`Dockerfile.sandbox
 | 🧑‍💼 **Agents with an identity** | Their own sandbox, their own home directory, their own credentials — and a place on the org chart next to the humans. |
 | 🧑‍🎓 **Hiring instead of a form** | Describe what a new colleague should do; the org's own People department — an agent — turns that into a complete configuration and asks back when the brief is too thin. What comes out is a **draft**: it exists, it can be looked at and changed, and it does not work until a human hires it. |
 | 📥 **Backlog & wake sources** | Tasks as first-class objects; agents wake on a webhook, a heartbeat or a nudge, then go back to sleep. |
-| 🔌 **Target systems as plugins** | Zammad, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, email (IMAP/SMTP), headless browser, MCP — none of them in this repository. Plugins are their own modules against a [public SDK](https://github.com/benjaminLedel/covey-plugin-sdk); the ones Covey ships with sit in the [plugin pack](https://github.com/benjaminLedel/covey-plugin-pack), and anybody else's plugin is built exactly the same way. |
+| 🔌 **Target systems as plugins** | Zammad, Salesforce, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, email (IMAP/SMTP), headless browser, MCP — none of them in this repository. Plugins are their own modules against a [public SDK](https://github.com/benjaminLedel/covey-plugin-sdk); the ones Covey ships with sit in the [plugin pack](https://github.com/benjaminLedel/covey-plugin-pack), and anybody else's plugin is built exactly the same way. |
 | 🛡️ **Guard rails & approvals** | Enforced centrally, outside the runtime, fail-closed. Critical actions go to a human first. |
 | 🔑 **Secrets broker** | No long-lived secrets inside the sandbox — access is brokered at runtime, short-lived and scoped. |
 | 🧩 **Skills** | Procedures an agent loads only when they apply: the description stays in context, the instructions and any extra files are read on demand. Kept in an org-wide library, linked per agent — a delivery lead run that finds nothing to do no longer pays for five playbooks. |
@@ -125,7 +125,7 @@ flowchart LR
     end
 
     CP <-->|daemon protocol| DP
-    CP --> TS["Targets: Zammad · GitHub · GitLab · Teams · SharePoint · Nextcloud · Email · Browser · MCP"]
+    CP --> TS["Targets: Zammad · Salesforce · GitHub · GitLab · Teams · SharePoint · Nextcloud · Email · Browser · MCP"]
     CP --- DB[("PostgreSQL + pgvector")]
 ```
 
@@ -287,7 +287,7 @@ All runbooks are in English.
 
 ## Status
 
-**Well beyond the MVP.** The end-to-end path from [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md) (M0–M7) is in place; built on top of it are the org chart & departments, employee profiles, further target plugins (GitHub, GitLab, Teams, SharePoint, Nextcloud, email, browser, MCP), Docker sandboxes, egress control, agent templates and the wiki memory. The acceptance checklist runs as an integration test suite (`internal/integration/`).
+**Well beyond the MVP.** The end-to-end path from [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md) (M0–M7) is in place; built on top of it are the org chart & departments, employee profiles, further target plugins (Salesforce, GitHub, GitLab, Teams, SharePoint, Nextcloud, email, browser, MCP), Docker sandboxes, egress control, agent templates and the wiki memory. The acceptance checklist runs as an integration test suite (`internal/integration/`).
 
 ## Contributing
 

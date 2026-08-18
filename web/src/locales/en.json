@@ -157,6 +157,10 @@
           "t": "Zammad",
           "d": "Read tickets, reply, set state, escalate. A trigger wakes the agent the moment a customer answers — it doesn't wait around, it gets fetched."
         },
+        "salesforce": {
+          "t": "Salesforce",
+          "d": "Service Cloud cases as the work queue: read a case with its whole conversation, find the ones waiting for an answer, look up how the same question was answered before, and reply — as an internal note, a portal-visible comment or a real mail to the customer. Attachments in both directions, status and escalation included. The heartbeat sweeps; a flow can post a webhook on top."
+        },
         "github": {
           "t": "GitHub",
           "d": "Issues and pull requests as the work queue: source checked out, a fix on a feature branch, a pull request with a QA agent as reviewer — review loop and red Actions runs included. The webhook wakes, the heartbeat sweeps."
