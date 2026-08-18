@@ -140,7 +140,7 @@
         },
         "educa-ai": {
           "t": "educa AI",
-          "d": "The third engine — and the first in front of a gateway rather than a provider: educa AI Core serves the Anthropic interface alongside the OpenAI one, so Covey drives the already verified Claude Code harness against the educa endpoint. One token, two contract forms (metered or quota). The harness's dollar figure is deliberately not inherited — it prices somebody else's contract; the token counts stay, they are measured. The run is not yet verified against a live instance."
+          "d": "The third engine — and the first in front of a gateway rather than a provider: educa AI Core serves the Anthropic interface alongside the OpenAI one, so Covey drives the already verified Claude Code harness against the educa endpoint. Checked against the hosted instance: the run carries, tools are executed, a session can be resumed. One token, two contract forms (metered or quota). The harness's dollar figure is deliberately not inherited — it prices somebody else's contract; the token counts stay, they are measured."
         },
         "own": {
           "t": "Further engines",

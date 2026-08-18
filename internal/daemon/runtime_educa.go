@@ -33,9 +33,20 @@
 //     token's id, neither of which the sandbox has. The platform therefore falls
 //     back to its own estimate, as with Codex.
 //
-// STATUS: the declaration is complete, the RUN is not verified against a live
-// educa instance — that needs a token. Everything unverified is stated as such
-// rather than smoothed over; nothing here rests on an invented flag or field.
+// STATUS: VERIFIED against the hosted instance (runtime_educa_live_test.go,
+// which skips without a token). Measured, not reasoned about: the harness
+// completes a run, executes tools, and `--resume` carries a session's context
+// across a second run — the edge the whole `blocked` mechanism hangs off
+// (spec/03). `--effort` passes through without breaking the run.
+//
+// One defect was measured and is NOT worked around here, because a workaround
+// would hide it: the gateway loses the INPUT tokens in its streaming path. The
+// same request answers `input_tokens: 61` non-streaming and `0` in
+// `message_start`, and its `message_delta` carries no input field at all — so a
+// run books its output side and reports nothing for the input. The harness
+// always streams, so this is the normal case, not an edge one. It belongs to
+// the endpoint and is fixed there; until it is, the platform sees a fraction of
+// what a run read (spec/23).
 package daemon
 
 import (
@@ -107,7 +118,8 @@ func init() {
 		Name:  "educa-ai",
 		Label: "educa AI",
 		Description: "educa AI Core through its Anthropic-compatible endpoint, driven by the Claude Code harness. " +
-			"Needs a bearer token under Secrets and a model id from the instance's `GET /v1/models`.",
+			"Runs, uses tools and resumes sessions. Needs a bearer token under Secrets and a model id " +
+			"from the instance's `GET /v1/models` — the engine has no default of its own.",
 		Credentials: []RuntimeCredential{
 			// Both forms are the SAME kind of value — one opaque bearer token —
 			// and both reach the run through the same variable. What differs is
@@ -156,8 +168,13 @@ func init() {
 			},
 			{
 				Text: "Create a `Runtime` with the engine `educa-ai`, add the credential and set a MODEL. " +
-					"The engine has no default of its own — the ids come from the instance:",
-				Items: []string{"`curl -H 'Authorization: Bearer <token>' https://api.educaai.de/v1/models`"},
+					"An instance serves its own ids, so ask it rather than guessing — " +
+					"`curl -H 'Authorization: Bearer <token>' https://api.educaai.de/v1/models`. " +
+					"Verified against the hosted instance:",
+				Items: []string{
+					"`gemma-4-26B-A4B-it` — runs, uses tools, resumes",
+					"`gpt-oss-120b` — likewise, the larger of the two",
+				},
 			},
 			{
 				Text: "Allow the endpoint in the egress allowlist — without it the sandbox reaches no model:",
@@ -230,6 +247,12 @@ func (e *Educa) Run(ctx context.Context, spec RunSpec, onEvent func(kind string,
 	// The harness's dollar figure prices the wrong contract (see the package
 	// comment). Drop it first, then let this engine's own list speak — empty
 	// today, so the run keeps its measured tokens and carries no amount.
+	//
+	// A second reason to leave the list empty for now, and it is the stronger
+	// one: the gateway drops the input tokens while streaming, so a price
+	// entered today would be applied to the output side alone. That is not a
+	// cheap run, it is a mismeasured one — and a figure computed from half the
+	// tokens looks exactly like a figure computed from all of them.
 	res.CostUSD = 0
 	if usd, ok := PriceRun(e, res.Model, res.InputTokens, res.OutputTokens,
 		res.CacheReadTokens, res.CacheCreationTokens); ok {

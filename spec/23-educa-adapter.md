@@ -4,7 +4,7 @@ The third engine, and the first that does not sit in front of a *provider* but i
 
 That second dialect is what makes the engine cheap to build honestly. An API is not a harness: an agent that edits files, runs a shell, resumes a session and closes with a `COVEY_STATUS` line needs one, and Covey already has a verified harness that speaks exactly that dialect. So `educa-ai` is **Claude Code with its base URL pointed at educa** ([`12-claude-code-adapter.md`](12-claude-code-adapter.md)), not a second agent loop.
 
-Status: **declared, run unverified against a live instance.** What is written here as fact comes from the instance's own OpenAPI document (`GET /spec`); what has not been measured is marked as such.
+Status: **verified against the hosted instance.** The harness completes a run, executes tools and resumes a session across a second run; `--effort` passes through. The measurements are in `internal/daemon/runtime_educa_live_test.go`, which skips without a token. One defect was measured and is named below rather than worked around.
 
 ## Why this is an engine at all
 
@@ -59,15 +59,43 @@ The adapter sets `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` so the harness's s
 
 The default endpoint is the hosted one. Another instance is reached with `COVEY_EDUCA_BASE_URL` in the sandbox's environment — the same override idiom the other engines use for their binary. Per-organisation endpoints would need the endpoint to become a runtime field; that is the generalisation named above, and it is not worth a migration for one gateway.
 
-## Open points, to be measured against a live instance
+## What was measured
 
-Unverified, and not to be inferred:
+Against `https://api.educaai.de`, engine `educa-ai`, models `gemma-4-26B-A4B-it` and `gpt-oss-120b`:
 
-- **Does the harness run against `/v1/messages` end to end** — streaming, `tools`, tool results, the system prompt — or does it use a header or field the gateway drops?
-- **Does `usage` come back** on the gateway's responses? Without it the run has no token counts and the platform's estimate has nothing to estimate from.
-- **Is `--resume` unaffected?** The session lives in the agent home and is replayed by the harness, so it should be; it is declared `true` on that reasoning and has to be confirmed.
-- **Does the thinking budget survive** the pass-through, i.e. does `--effort` reach the backend? The request schema forwards unknown fields, which makes it likely and not certain.
-- **Which model ids** the instance serves, and whether any of them is a sensible default worth naming in the setup text.
+| | result |
+|---|---|
+| the harness runs | **yes** — `status=done`, the `COVEY_STATUS` line parsed, a session id returned |
+| tools are executed | **yes** — the agent read a file through the tool and reported its contents |
+| `--resume` carries the session | **yes** — same session id, the context of the first run present in the second |
+| `--effort` | passes through, the run is unaffected |
+| the dollar figure | correctly **not** inherited: `cost=0`, the tokens stay |
+| a rejected token | produces this engine's own wording, not Anthropic's advice |
+
+Two properties of the instance are worth knowing before an agent is assigned:
+
+**It serves open-weight models over vLLM**, not Claude models — at the time of writing `gemma-4-26B-A4B-it`, `gemma-4-E4B-it`, `gpt-oss-120b`, `EuroLLM-9B-Instruct` and an embedding model. The harness logs `unrecognized_model` and runs anyway. `Qwen-AgentWorld-35B-A3B` is listed by `/v1/models` but answers `500` — a listed model is not a running one, which is the reason the setup step points at the instance rather than at a table in this document.
+
+**`gpt-oss-120b` reports `stop_reason: "end_turn"` on a response that contains a `tool_use` block**, where the Anthropic contract says `"tool_use"`; `gemma-4-26B` gets it right. It does not break the harness — which evidently acts on the presence of the block — but anything else reading `stop_reason` would be misled.
+
+## The measured defect: the input side is lost while streaming
+
+The same request answers
+
+- non-streaming: `usage: {"input_tokens": 61, "output_tokens": 40}`
+- streaming: `message_start` with `"input_tokens": 0`, and a `message_delta` carrying `{"output_tokens": 40}` and **no input field at all**.
+
+The harness always streams, so this is the normal case rather than an edge one: a run books its output tokens and reports nothing for the input. Since a prompt is the larger half of almost every agent run, the platform sees a fraction of what its agents read.
+
+It is **not** worked around here. A guessed input count would be indistinguishable from a measured one, and the estimate that feeds the capacity limits ([`18-runtimes-capacity.md`](18-runtimes-capacity.md)) would then run on a number nobody can check. It also settles the price list: entering rates today would apply them to half the tokens, which is not a cheap run but a mismeasured one.
+
+The fix belongs to the endpoint — `message_start` should carry the prompt's `input_tokens`, as the non-streaming path already does.
+
+## Open points
+
+- **Does the thinking budget reach the backend?** `/v1/messages` accepts a `thinking` field without complaint, and `gpt-oss-120b` returns `thinking` content — but it does so without the field as well, so the effect has not been isolated. The levels stay declared: the flag is the harness's, it passes through, and the worst case is a control without effect on a backend that has none.
+- **Prompt caching.** Neither cache reads nor cache writes appear in the gateway's usage. Whether vLLM's prefix caching happens behind it and simply is not reported, or does not happen, decides how expensive a long agent session is here.
+- **Per-organisation endpoints.** Today the endpoint is one variable for the whole installation; an org running its own educa alongside the hosted one would need it on the runtime row.
 
 ---
 
