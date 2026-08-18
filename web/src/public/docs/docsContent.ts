@@ -205,7 +205,7 @@ Der Dienst, der Zugänge zur Laufzeit ausstellt, kurzlebig und gescopt. Langlebi
 
 ## Zielsystem
 
-Ein angebundenes Fremdsystem — Zammad, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, E-Mail, ein Headless-Browser, ein MCP-Server. Jedes ist ein Plugin mit einem Manifest; der Kern kennt keine Sonderfälle. Aktionen laufen über einen Proxy, damit Guard-Rails und Aufzeichnung greifen.
+Ein angebundenes Fremdsystem — Zammad, Salesforce, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, E-Mail, ein Headless-Browser, ein MCP-Server. Jedes ist ein Plugin mit einem Manifest; der Kern kennt keine Sonderfälle. Aktionen laufen über einen Proxy, damit Guard-Rails und Aufzeichnung greifen.
 
 ## Wiki-Gedächtnis
 
@@ -262,7 +262,7 @@ The service that issues access at runtime, short-lived and scoped. Long-lived se
 
 ## Target system
 
-A connected foreign system — Zammad, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, email, a headless browser, an MCP server. Each is a plugin with a manifest; the core knows no special cases. Actions go through a proxy so guard-rails and recording apply.
+A connected foreign system — Zammad, Salesforce, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, email, a headless browser, an MCP server. Each is a plugin with a manifest; the core knows no special cases. Actions go through a proxy so guard-rails and recording apply.
 
 ## Wiki memory
 
@@ -1427,8 +1427,8 @@ A run has an upper bound on steps (\`max_turns\`). When it is reached the run ab
         slug: { de: "zielsysteme", en: "target-systems" },
         title: { de: "Zielsysteme & Plugins", en: "Target systems & plugins" },
         description: {
-          de: "Zammad, GitHub, GitLab, Teams, SharePoint, Nextcloud, E-Mail, Browser und MCP: Wie Covey Agenten über Manifest-Plugins an Fremdsysteme anbindet.",
-          en: "Zammad, GitHub, GitLab, Teams, SharePoint, Nextcloud, email, browser and MCP: how Covey connects agents to foreign systems through manifest plugins.",
+          de: "Zammad, Salesforce, GitHub, GitLab, Teams, SharePoint, Nextcloud, E-Mail, Browser und MCP: Wie Covey Agenten über Manifest-Plugins an Fremdsysteme anbindet.",
+          en: "Zammad, Salesforce, GitHub, GitLab, Teams, SharePoint, Nextcloud, email, browser and MCP: how Covey connects agents to foreign systems through manifest plugins.",
         },
         body: {
           de: `# Zielsysteme & Plugins
