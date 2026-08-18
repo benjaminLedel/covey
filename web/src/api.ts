@@ -635,7 +635,11 @@ export type RuntimeInfo = {
   /** effort_levels: die Denkaufwand-Stufen dieser Engine, aufsteigend.
    *  Fehlt/leer = die Engine kennt den Regler nicht — dann wird er auch nicht
    *  angeboten. */
-  capabilities: { resume: boolean; skills_dir?: string; effort_levels?: string[] };
+  /** models: die Modell-Ids, die diese Engine wirklich fährt. Fehlt das Feld,
+   *  ist es NICHT deklariert (Engine vor einem einzelnen Anbieter) — dann bleibt
+   *  das Modell ein Freitext. Ist es da, ist es zugleich die Aussage, dass die
+   *  Engine keinen Default hat. */
+  capabilities: { resume: boolean; skills_dir?: string; effort_levels?: string[]; models?: string[] };
   setup: SetupStep[];
 };
 

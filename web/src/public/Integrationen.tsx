@@ -20,6 +20,7 @@ type Engine = { name: string; tag: "ready" | "planned" | "seam" };
 const ENGINES: Engine[] = [
   { name: "claude-code", tag: "ready" },
   { name: "codex", tag: "planned" },
+  { name: "educa-ai", tag: "ready" },
   { name: "own", tag: "seam" },
 ];
 

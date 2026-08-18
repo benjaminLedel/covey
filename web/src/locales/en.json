@@ -138,6 +138,10 @@
           "t": "Codex (OpenAI)",
           "d": "Registered as the second engine, with both credential forms: the API key as an environment variable, the ChatGPT login as a file that exists only for the duration of the run. The run itself is not yet verified against the binary — and until it is, this says “planned” rather than “supported”."
         },
+        "educa-ai": {
+          "t": "educa AI",
+          "d": "The third engine — and the first in front of a gateway rather than a provider: educa AI Core serves the Anthropic interface alongside the OpenAI one, so Covey drives the already verified Claude Code harness against the educa endpoint. Checked against the hosted instance: the run carries, tools are executed, a session can be resumed. One token, two contract forms (metered or quota). The harness's dollar figure is deliberately not inherited — it prices somebody else's contract; the token counts stay, they are measured."
+        },
         "own": {
           "t": "Further engines",
           "d": "An engine is a self-registering plugin: one file declaring which secret it needs and in what form it arrives, whether it can resume a session, and where it looks for skills. What it declares is checked when an agent is assigned — the orchestrator gets no special cases for the next engine."
@@ -1030,6 +1034,8 @@
       "model": "Model",
       "modelPlaceholder": "empty = engine default",
       "modelHint": "Model ID or alias, e.g. claude-opus-4-8 or sonnet.",
+      "modelDefault": "Engine default ({{model}})",
+      "modelHintFixed": "This engine carries a fixed list of models. Left unset, it uses its own default.",
       "fixedIdentity": "Fixed: the operations engineer is called \"Covey Doctor\" on every instance. The name belongs to the platform, so that an agent with these permissions stays recognisable as one everywhere.",
       "effort": "Reasoning effort",
       "effortDefault": "empty = engine default",

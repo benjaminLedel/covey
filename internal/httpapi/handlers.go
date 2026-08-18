@@ -771,11 +771,44 @@ func (s *Server) handleSetModel(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "model missing")
 		return
 	}
-	if err := s.Registry.SetModel(r.Context(), id, strings.TrimSpace(in.Model)); err != nil {
+	a, err := s.Registry.Get(r.Context(), id)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	model := strings.TrimSpace(in.Model)
+	if msg := checkModel(a.Runtime, model); msg != "" {
+		writeErr(w, http.StatusBadRequest, msg)
+		return
+	}
+	if err := s.Registry.SetModel(r.Context(), id, model); err != nil {
 		mapErr(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// checkModel validates a model id against the ENGINE the agent runs on, and
+// returns the message for a 400 (empty = fine). The same rule as checkEffort,
+// for the same reason: the ids belong to the runtime plugin, not to this layer.
+//
+// An engine that declares no ids accepts anything — in front of a single
+// provider the model list is the provider's to publish and ours to pass
+// through, and pinning it here would age badly. Empty always passes: it means
+// "the engine's default", which for a declaring engine is the first id of its
+// list and for the others is the runtime's own (spec/23).
+func checkModel(runtime, model string) string {
+	if daemon.AcceptsModel(runtime, model) {
+		return ""
+	}
+	models := daemon.Models(runtime)
+	if len(models) == 0 {
+		// Unknown engine: fail-closed above, and the message says which knob is
+		// actually broken rather than blaming the model.
+		return "unknown runtime " + runtime + " — assign the agent to a known engine first"
+	}
+	return "model must be one of " + strings.Join(models, ", ") +
+		" for the runtime " + runtime + " (or empty for its default, " + models[0] + ")"
 }
 
 // checkEffort validates a reasoning-effort level against the ENGINE the agent

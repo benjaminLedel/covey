@@ -10,7 +10,7 @@ An enterprise platform that treats **AI agents like employees**: an identity, an
 
 **Well past the MVP.** The vertical slice (M0–M7 from `spec/11-mvp-plan.md`) has long been in place; on top of it sit the org chart and departments, employee profiles, further target-system plugins (GitHub, GitLab, email/IMAP, MCP), docker sandboxes, egress control, a QA agent bundle, the **wiki memory** (linked markdown pages plus a pgvector index instead of flat snippets, `spec/05`), the **runner** (the data plane leaves the control plane's machine, `spec/16`) and the **plugin marketplace** (`spec/22`). "M0–M7" marks the baseline, not the current scope. The repository holds:
 
-- `spec/` — the full specification (22 documents, **English**). Start at `spec/README.md`.
+- `spec/` — the full specification (23 documents, **English**). Start at `spec/README.md`.
 - The code, laid out as in `spec/10-architecture-stack.md`: `cmd/covey` (control plane), `cmd/coveyd` (sandbox daemon), `cmd/covey-runner` (the remote runner), `internal/…`, `web/` (React SPA, embedded), `migrations/` (embedded).
 - `internal/integration/` — the acceptance checklist from `spec/11-mvp-plan.md` as an integration test suite (a real Postgres on port 5433, an in-process daemon over a real WebSocket, a mock runtime, a fake Zammad).
 - `demo/fakezammad/` — a Zammad double for local demos.

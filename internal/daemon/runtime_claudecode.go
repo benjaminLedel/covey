@@ -19,6 +19,14 @@ type ClaudeCode struct {
 	// Binary is the CLI path; default "claude", overridable via the ENV var
 	// COVEY_CLAUDE_BIN (that is how we test the adapter against a fake binary).
 	Binary string
+	// CredentialHint rewrites a credential failure into the terms of the ENGINE
+	// that uses this harness. Nil = Anthropic's own wording below, which is what
+	// claude-code needs. An engine that drives the same binary against another
+	// endpoint sets its own (educa-ai, spec/23): telling somebody to run
+	// `claude setup-token` is wrong advice when the token comes from a gateway,
+	// and wrong advice costs more time than none. Returning "" leaves the raw
+	// text standing.
+	CredentialHint func(raw string) string
 }
 
 func NewClaudeCode() *ClaudeCode {
@@ -335,6 +343,14 @@ func (c *ClaudeCode) Run(ctx context.Context, spec RunSpec, onEvent func(kind st
 		return res, nil
 	}
 	if res.Status == "failed" {
+		if c.CredentialHint != nil {
+			// The engine on top of this harness words its own credential
+			// failures; the Anthropic-specific rewrites below do not apply to it.
+			if hint := c.CredentialHint(res.Error); hint != "" {
+				res.Error = hint
+			}
+			return res, nil
+		}
 		// "Not logged in · Please run /login" means: no credential arrived in the
 		// sandbox. Untranslated this reads like a Covey login problem — hence the
 		// actionable hint here.
