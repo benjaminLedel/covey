@@ -29,7 +29,8 @@ import (
 // fakeDocker writes a docker stand-in. It never starts a daemon — which is the
 // point here: the sandbox comes up and nothing connects, exactly the situation
 // a crash produces. `wait` blocks until the file `exit` appears and then
-// reports that code, so the test decides when the container dies.
+// reports that code, so the test decides when the container dies — or until
+// the temp directory is gone, so that no test can leave it spinning.
 func fakeDocker(t *testing.T, dir string) string {
 	t.Helper()
 	path := filepath.Join(dir, "docker")
@@ -37,7 +38,15 @@ func fakeDocker(t *testing.T, dir string) string {
 printf '%s ' "$@" >> ` + filepath.Join(dir, "args") + `
 printf '\n' >> ` + filepath.Join(dir, "args") + `
 if [ "$1" = "wait" ]; then
-  while [ ! -f ` + filepath.Join(dir, "exit") + ` ]; do sleep 0.05; done
+  while [ ! -f ` + filepath.Join(dir, "exit") + ` ]; do
+    # The last line of defence against a stray sandbox watcher. Go cannot kill
+    # this child if the test binary itself is killed, and a wait that then
+    # polls on at 20 Hz forever is a fork bomb nothing on the host can trace
+    # back to a test. The temp directory goes with the test, so its absence is
+    # the one signal that always arrives.
+    [ -d ` + dir + ` ] || exit 0
+    sleep 0.05
+  done
   cat ` + filepath.Join(dir, "exit") + `
   exit 0
 fi
@@ -81,6 +90,7 @@ func TestDeadSandboxEndsTheWakeInsteadOfTimingOut(t *testing.T) {
 	node := runner.NewNode(runnerID, s.orgID, &runner.Docker{
 		RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: dir, DockerBin: dockerBin,
 	}, slog.Default())
+	t.Cleanup(node.Close)
 	if err := pool.AttachLocal(ctx, node); err != nil {
 		t.Fatalf("built-in runner: %v", err)
 	}
@@ -183,6 +193,7 @@ func TestHomeSurvivesTheLossOfItsRunnerWorkingCopy(t *testing.T) {
 		RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: homes, DockerBin: dockerBin,
 	}, slog.Default())
 	node.Blobs = blobs
+	t.Cleanup(node.Close)
 	if err := pool.AttachLocal(ctx, node); err != nil {
 		t.Fatal(err)
 	}

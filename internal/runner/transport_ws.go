@@ -113,6 +113,10 @@ func RunNode(ctx context.Context, node *Node, controlURL, token string, backoff 
 	if backoff <= 0 {
 		backoff = 5 * time.Second
 	}
+	// This loop is the node's lifetime — it ends only when ctx does. Whatever
+	// is still being watched then has no one left to report to, and its
+	// `docker wait` would outlive the process that started it.
+	defer node.Close()
 	for {
 		t, err := Dial(ctx, controlURL, token)
 		if err == nil {

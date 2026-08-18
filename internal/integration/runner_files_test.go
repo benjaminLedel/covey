@@ -80,6 +80,9 @@ func filesStack(t *testing.T, dir string) (*stack, *runner.Pool, *runner.Node, h
 	node.Blobs = blobs
 	runnerCtx, stopRunner := context.WithCancel(ctx)
 	t.Cleanup(stopRunner)
+	// Cancelling the runner context does not reach the sandbox watchers —
+	// they are detached from it on purpose. Only the node ends them.
+	t.Cleanup(node.Close)
 	s.stopRunner = stopRunner
 	if err := pool.AttachLocal(runnerCtx, node); err != nil {
 		t.Fatal(err)

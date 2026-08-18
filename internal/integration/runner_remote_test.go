@@ -113,6 +113,7 @@ func TestRemoteRunnerRegistersAndCarriesSandboxes(t *testing.T) {
 		DataDir: homes, DockerBin: fakeDocker(t, dir),
 	}, slog.Default())
 	node.Tags = []string{"arm64"}
+	t.Cleanup(node.Close)
 	node.Blobs = homestore.NewHTTPStore(s.http.URL, reg.Token)
 
 	runCtx, cancel := context.WithCancel(ctx)

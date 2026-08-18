@@ -22,7 +22,9 @@ func quietLog() *slog.Logger {
 
 // fakeDockerBin writes a docker stand-in that records its arguments and can be
 // told to fail for one subcommand. `wait` blocks until the file `stopped`
-// appears — that is how a container that is still running is modelled.
+// appears — that is how a container that is still running is modelled — and
+// deposits its pid in `waitpid`, so a test can ask whether the watcher's child
+// process really ended.
 func fakeDockerBin(t *testing.T, dir string, failOn string) string {
 	t.Helper()
 	path := filepath.Join(dir, "docker")
@@ -31,7 +33,13 @@ printf '%s ' "$@" >> ` + filepath.Join(dir, "args") + `
 printf '\n' >> ` + filepath.Join(dir, "args") + `
 if [ "$1" = "` + failOn + `" ]; then echo 'boom' >&2; exit 1; fi
 if [ "$1" = "wait" ]; then
-  while [ ! -f ` + filepath.Join(dir, "stopped") + ` ]; do sleep 0.05; done
+  printf '%s' "$$" > ` + filepath.Join(dir, "waitpid") + `
+  while [ ! -f ` + filepath.Join(dir, "stopped") + ` ]; do
+    # See fakeDocker in internal/integration: if the test binary is killed,
+    # nothing else stops this loop, and it polls on forever.
+    [ -d ` + dir + ` ] || exit 0
+    sleep 0.05
+  done
   cat ` + filepath.Join(dir, "stopped") + `
   exit 0
 fi
@@ -59,6 +67,7 @@ func newLocalPool(t *testing.T, dir, dockerBin string, orgID uuid.UUID) (*Pool, 
 	node := NewNode(runnerID, orgID, &Docker{
 		RunnerID: runnerID, Image: "covey-sandbox:test", DataDir: dir, DockerBin: dockerBin,
 	}, quietLog())
+	t.Cleanup(node.Close)
 	if err := p.AttachLocal(ctx, node); err != nil {
 		t.Fatalf("built-in runner: %v", err)
 	}

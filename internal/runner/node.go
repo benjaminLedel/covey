@@ -304,6 +304,31 @@ func (n *Node) stop(ctx context.Context, t Transport, id string, agentID uuid.UU
 	n.reply(ctx, t, id, TypeSandboxStopped, res)
 }
 
+// Close ends every watcher this node still holds. A watcher deliberately
+// outlives the call that started it — that is what turns a crash into a
+// reported fact rather than a guess — but it must not outlive the node
+// itself: what it blocks in is a `docker wait` child process, and a node that
+// disappears without cancelling it leaves that process behind for good. It
+// then polls a container that will never exist, forever, and nothing on the
+// host still knows what it belongs to.
+//
+// Not called when a connection drops: RunNode reconnects, and a sandbox that
+// dies in between is precisely the death worth reporting. Only the owner of
+// the node's lifetime closes it.
+func (n *Node) Close() {
+	n.mu.Lock()
+	procs := make([]*sandboxProc, 0, len(n.running))
+	for agentID, proc := range n.running {
+		procs = append(procs, proc)
+		delete(n.running, agentID)
+	}
+	n.mu.Unlock()
+	// Outside the lock: cancel wakes the watcher, which takes the lock itself.
+	for _, proc := range procs {
+		proc.cancel()
+	}
+}
+
 func (n *Node) reply(ctx context.Context, t Transport, id, msgType string, payload any) {
 	msg, err := encode(msgType, id, payload)
 	if err != nil {
