@@ -66,8 +66,16 @@ func TestModuleDescribesItself(t *testing.T) {
 	if !d.Probe || !d.Poll {
 		t.Error("the module says it can probe and poll — that has to arrive")
 	}
-	if len(d.Actions) != 3 {
-		t.Fatalf("actions = %d, want 3", len(d.Actions))
+	// The two capabilities a module cannot take for itself: an operator has to
+	// be able to read both off the description before installing.
+	if d.Webhook == nil || d.Webhook.Signature != "hmac-sha256" {
+		t.Errorf("the declared webhook has to arrive: %+v", d.Webhook)
+	}
+	if !d.Workdir {
+		t.Error("the module declares that it reads the checkout — that has to arrive")
+	}
+	if len(d.Actions) != 4 {
+		t.Fatalf("actions = %d, want 4", len(d.Actions))
 	}
 	for _, a := range d.Actions {
 		if a.Name == "comment" && a.Subject != "comment_external" {
@@ -81,7 +89,7 @@ func TestExecuteWithoutAnyRequest(t *testing.T) {
 	m := compile(t)
 	out, err := m.Invoke(context.Background(), Invocation{
 		Op: "execute", Action: "shout", Params: json.RawMessage(`{"text":"quiet"}`),
-	}, nil)
+	}, Host{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +109,7 @@ func TestFetchGoesThroughTheHost(t *testing.T) {
 	}
 	out, err := m.Invoke(context.Background(), Invocation{
 		Op: "execute", Action: "get_issue", Params: json.RawMessage(`{"id":7}`),
-	}, fetch)
+	}, Host{Fetch: fetch})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,10 +127,10 @@ func TestTheModuleNeverGetsACredential(t *testing.T) {
 	// cannot send a token anywhere, because it never has one.
 	m := compile(t)
 	var seen FetchRequest
-	_, err := m.Invoke(context.Background(), Invocation{Op: "probe"}, func(_ context.Context, req FetchRequest) FetchResponse {
+	_, err := m.Invoke(context.Background(), Invocation{Op: "probe"}, Host{Fetch: func(_ context.Context, req FetchRequest) FetchResponse {
 		seen = req
 		return FetchResponse{Status: 200, Body: json.RawMessage(`{"login":"bot@example"}`)}
-	})
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,9 +146,9 @@ func TestTheModuleNeverGetsACredential(t *testing.T) {
 
 func TestProbeReportsTheIdentity(t *testing.T) {
 	m := compile(t)
-	out, err := m.Invoke(context.Background(), Invocation{Op: "probe"}, func(context.Context, FetchRequest) FetchResponse {
+	out, err := m.Invoke(context.Background(), Invocation{Op: "probe"}, Host{Fetch: func(context.Context, FetchRequest) FetchResponse {
 		return FetchResponse{Status: 200, Body: json.RawMessage(`{"login":"bot@example"}`)}
-	})
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,9 +163,9 @@ func TestProbeFailureIsThePluginsOwn(t *testing.T) {
 	// A plugin that decides the credential does not work says so through the
 	// protocol; that is not a runtime failure and must not read like one.
 	m := compile(t)
-	out, err := m.Invoke(context.Background(), Invocation{Op: "probe"}, func(context.Context, FetchRequest) FetchResponse {
+	out, err := m.Invoke(context.Background(), Invocation{Op: "probe"}, Host{Fetch: func(context.Context, FetchRequest) FetchResponse {
 		return FetchResponse{Status: 401}
-	})
+	}})
 	if err != nil {
 		t.Fatalf("a refused credential is the plugin's answer, not a crash: %v", err)
 	}
@@ -168,10 +176,10 @@ func TestProbeFailureIsThePluginsOwn(t *testing.T) {
 
 func TestPollReturnsWorkAndSignature(t *testing.T) {
 	m := compile(t)
-	out, err := m.Invoke(context.Background(), Invocation{Op: "poll"}, func(context.Context, FetchRequest) FetchResponse {
+	out, err := m.Invoke(context.Background(), Invocation{Op: "poll"}, Host{Fetch: func(context.Context, FetchRequest) FetchResponse {
 		return FetchResponse{Status: 200, Body: json.RawMessage(
 			`[{"id":3,"updated_at":"a"},{"id":9,"updated_at":"b"}]`)}
-	})
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,11 +192,11 @@ func TestPollReturnsWorkAndSignature(t *testing.T) {
 
 func TestPromptDocNarrowsToScopes(t *testing.T) {
 	m := compile(t)
-	read, err := m.Invoke(context.Background(), Invocation{Op: "prompt_doc", Scopes: []string{"read"}}, nil)
+	read, err := m.Invoke(context.Background(), Invocation{Op: "prompt_doc", Scopes: []string{"read"}}, Host{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	write, err := m.Invoke(context.Background(), Invocation{Op: "prompt_doc", Scopes: []string{"read", "write"}}, nil)
+	write, err := m.Invoke(context.Background(), Invocation{Op: "prompt_doc", Scopes: []string{"read", "write"}}, Host{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +215,7 @@ func TestInstancesDoNotShareState(t *testing.T) {
 	for i := 0; i < 3; i++ {
 		out, err := m.Invoke(context.Background(), Invocation{
 			Op: "execute", Action: "shout", Params: json.RawMessage(`{"text":"a"}`),
-		}, nil)
+		}, Host{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -221,7 +229,7 @@ func TestInstancesDoNotShareState(t *testing.T) {
 
 func TestUnknownActionIsThePluginsError(t *testing.T) {
 	m := compile(t)
-	out, err := m.Invoke(context.Background(), Invocation{Op: "execute", Action: "nope"}, nil)
+	out, err := m.Invoke(context.Background(), Invocation{Op: "execute", Action: "nope"}, Host{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -98,9 +98,9 @@ func (m *Module) describe(ctx context.Context) (Description, error) {
 	// describe involves no target system, so it gets a fetcher that refuses:
 	// a module asking for credentials before anybody granted any is a module
 	// doing something it should not.
-	out, err := m.Invoke(ctx, Invocation{Op: "describe"}, func(context.Context, FetchRequest) FetchResponse {
+	out, err := m.Invoke(ctx, Invocation{Op: "describe"}, Host{Fetch: func(context.Context, FetchRequest) FetchResponse {
 		return FetchResponse{Error: "no target system is available while describing"}
-	})
+	}})
 	if err != nil {
 		return Description{}, err
 	}
@@ -113,7 +113,19 @@ func (m *Module) describe(ctx context.Context) (Description, error) {
 // Invoke runs one invocation to its end and returns the terminating message
 // (result or error). fetch performs the module's requests; it may be nil, in
 // which case every request is refused.
-func (m *Module) Invoke(ctx context.Context, in Invocation, fetch Fetcher) (Message, error) {
+// Host is everything a module may ask of the world during one invocation. A
+// struct rather than a growing parameter list, because every field in here is a
+// capability: what is nil is not available, and "this module had no workspace"
+// is exactly the sentence somebody debugging wants to be able to read.
+type Host struct {
+	// Fetch performs a request against the brokered target system.
+	Fetch Fetcher
+	// ReadFile serves a file out of the agent's workspace. nil = there is
+	// none, or the module never declared that it reads any.
+	ReadFile FileReader
+}
+
+func (m *Module) Invoke(ctx context.Context, in Invocation, host Host) (Message, error) {
 	m.mu.Lock()
 	closed := m.closed
 	m.mu.Unlock()
@@ -162,7 +174,7 @@ func (m *Module) Invoke(ctx context.Context, in Invocation, fetch Fetcher) (Mess
 
 	reader := bufio.NewReaderSize(guestStdout, 64<<10)
 	var final Message
-	var fetches int
+	var fetches, reads int
 	var protoErr error
 
 	for {
@@ -186,12 +198,24 @@ func (m *Module) Invoke(ctx context.Context, in Invocation, fetch Fetcher) (Mess
 				break
 			}
 			resp := FetchResponse{Error: "no target system available"}
-			if fetch != nil {
-				resp = fetch(ctx, *msg.Fetch)
+			if host.Fetch != nil {
+				resp = host.Fetch(ctx, *msg.Fetch)
 			}
-			answer, _ := json.Marshal(resp)
-			if _, err := guestStdin.Write(append(answer, '\n')); err != nil {
-				protoErr = fmt.Errorf("wasm: module stopped reading: %w", err)
+			if err := answer(guestStdin, resp); err != nil {
+				protoErr = err
+			}
+		case msg.ReadFile != nil:
+			reads++
+			if reads > maxReads {
+				protoErr = fmt.Errorf("wasm: module read more than %d files in one action", maxReads)
+				break
+			}
+			resp := ReadFileResponse{Error: "read_file: this plugin has no workspace — it did not declare one, or the action runs outside a sandbox"}
+			if host.ReadFile != nil {
+				resp = host.ReadFile(ctx, *msg.ReadFile)
+			}
+			if err := answer(guestStdin, resp); err != nil {
+				protoErr = err
 			}
 		case msg.Log != "":
 			// Diagnostics are collected, not forwarded: they belong to the
@@ -201,7 +225,7 @@ func (m *Module) Invoke(ctx context.Context, in Invocation, fetch Fetcher) (Mess
 		default:
 			final = msg
 		}
-		if protoErr != nil || final.Result != nil || final.Error != "" || final.Describe != nil {
+		if protoErr != nil || answered(final) {
 			break
 		}
 	}
@@ -215,7 +239,7 @@ func (m *Module) Invoke(ctx context.Context, in Invocation, fetch Fetcher) (Mess
 	if final.Error != "" {
 		return final, nil // the plugin's own, deliberate failure
 	}
-	if final.Result == nil && final.Describe == nil {
+	if !answered(final) {
 		if execErr != nil {
 			return Message{}, fmt.Errorf("wasm: %w%s", execErr, tail(stderr.String()))
 		}
@@ -225,6 +249,22 @@ func (m *Module) Invoke(ctx context.Context, in Invocation, fetch Fetcher) (Mess
 		return Message{}, fmt.Errorf("wasm: module ended without an answer%s", tail(stderr.String()))
 	}
 	return final, nil
+}
+
+// answer writes one host reply onto the module's stdin.
+func answer(w io.Writer, v any) error {
+	raw, _ := json.Marshal(v)
+	if _, err := w.Write(append(raw, '\n')); err != nil {
+		return fmt.Errorf("wasm: module stopped reading: %w", err)
+	}
+	return nil
+}
+
+// answered reports whether a message ends the invocation. Every terminal kind
+// belongs in here — a new op that returns a new kind of message and forgets
+// this line looks to the host exactly like a module that died silently.
+func answered(m Message) bool {
+	return m.Result != nil || m.Error != "" || m.Describe != nil || m.Event != nil
 }
 
 // readLine reads one protocol line with a cap, so a module that never writes a

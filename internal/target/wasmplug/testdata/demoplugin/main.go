@@ -26,6 +26,7 @@ type invocation struct {
 	Params json.RawMessage `json:"params"`
 	Kind   string          `json:"kind"`
 	Scopes []string        `json:"scopes"`
+	Body   json.RawMessage `json:"body"`
 }
 
 type fetchReq struct {
@@ -67,11 +68,18 @@ func main() {
 			"scopes":      []string{"read", "write"},
 			"probe":       true,
 			"poll":        true,
+			// Declared, so an operator sees before installing that this module
+			// reads out of the agent's checkout.
+			"workdir": true,
+			// The webhook entrance. The module says only how the host is to
+			// check the signature — it never sees the secret.
+			"webhook": map[string]any{"signature": "hmac-sha256"},
 			"actions": []map[string]any{
 				{"name": "get_issue", "doc": "read one issue; params: id", "scope": "read"},
 				{"name": "comment", "doc": "write a comment; params: id, body", "scope": "write",
 					"subject": "comment_external"},
 				{"name": "shout", "doc": "uppercase a string locally; params: text", "scope": "read"},
+				{"name": "read_lock", "doc": "read a declared dependency file; params: path", "scope": "read"},
 			},
 		}})
 	case "probe":
@@ -107,6 +115,8 @@ func main() {
 		emit(map[string]any{"result": map[string]any{
 			"has_work": len(items) > 0, "signature": strings.Join(sig, ","),
 		}})
+	case "webhook":
+		webhook(inv.Body)
 	case "prompt_doc":
 		doc := "Demo actions: get_issue, shout"
 		for _, s := range inv.Scopes {
@@ -122,15 +132,55 @@ func main() {
 	}
 }
 
+// webhook turns a verified payload into a backlog event. This is the half a
+// manifest cannot do: whether something is news or the echo of the agent's own
+// comment is a decision, not a field.
+func webhook(body []byte) {
+	var p struct {
+		Issue struct {
+			ID    int    `json:"id"`
+			Title string `json:"title"`
+		} `json:"issue"`
+		Comment struct {
+			ID     int    `json:"id"`
+			Body   string `json:"body"`
+			Author string `json:"author"`
+		} `json:"comment"`
+	}
+	if err := json.Unmarshal(body, &p); err != nil {
+		fail("payload is not JSON: " + err.Error())
+		return
+	}
+	emit(map[string]any{"event": map[string]any{
+		"dedup_key":       fmt.Sprintf("demo:comment:%d", p.Comment.ID),
+		"correlation_key": fmt.Sprintf("demo:issue:%d", p.Issue.ID),
+		"title":           "Demo issue #" + fmt.Sprint(p.Issue.ID) + ": " + p.Issue.Title,
+		"task_body":       "New comment on issue " + fmt.Sprint(p.Issue.ID) + ":\n" + p.Comment.Body,
+		"resume_input":    p.Comment.Body,
+		// The agent's own comment is registered for dedup and wakes nobody.
+		"wake": p.Comment.Author != "covey-agent",
+	}})
+}
+
 func execute(inv invocation) {
 	var p struct {
 		ID   int    `json:"id"`
 		Body string `json:"body"`
 		Text string `json:"text"`
+		Path string `json:"path"`
 	}
 	json.Unmarshal(inv.Params, &p)
 
 	switch inv.Action {
+	case "read_lock":
+		// The case the workspace read exists for: judge what a project
+		// declares, without the plugin having a filesystem of its own.
+		resp := readFile(p.Path)
+		if resp.Error != "" {
+			fail(resp.Error)
+			return
+		}
+		result(map[string]any{"path": p.Path, "bytes": len(resp.Text), "text": resp.Text})
 	case "shout":
 		// Real computation, no call: the thing a manifest cannot do.
 		result(strings.ToUpper(p.Text))
@@ -164,6 +214,26 @@ func fetch(req fetchReq) fetchResp {
 	var resp fetchResp
 	if err := json.Unmarshal(line, &resp); err != nil {
 		return fetchResp{Error: "host answer is not JSON: " + err.Error()}
+	}
+	return resp
+}
+
+type readFileResp struct {
+	Text  string `json:"text"`
+	Error string `json:"error"`
+}
+
+// readFile asks the host for one file out of the workspace. Same shape as
+// fetch: the module names what it wants, the host decides whether it gets it.
+func readFile(path string) readFileResp {
+	emit(map[string]any{"read_file": map[string]any{"path": path}})
+	line, err := in.ReadBytes('\n')
+	if err != nil && len(line) == 0 {
+		return readFileResp{Error: "host closed the connection"}
+	}
+	var resp readFileResp
+	if err := json.Unmarshal(line, &resp); err != nil {
+		return readFileResp{Error: "host answer is not JSON: " + err.Error()}
 	}
 	return resp
 }

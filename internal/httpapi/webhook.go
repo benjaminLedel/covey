@@ -12,6 +12,7 @@ import (
 
 	"covey/internal/agents"
 	targetstore "covey/internal/target/store"
+	"covey/internal/target/wasmplug"
 	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
@@ -63,7 +64,15 @@ func (s *Server) handleTargetWebhook(w http.ResponseWriter, r *http.Request) {
 	// Webhooks are an optional target-system capability (target.Webhooker) —
 	// systems that ingest purely by polling/heartbeat (e.g. GitLab) have no
 	// webhook entrance; fail-closed with a 404.
+	//
+	// For a compiled plugin the method set is the answer. A data-driven one
+	// (manifest, wasm) carries every method in its Go type whether or not it
+	// does anything, so it has to be asked as well — otherwise every wasm
+	// module would grow a webhook door that leads to an error message.
 	hook, ok := sys.(target.Webhooker)
+	if r, reports := sys.(target.CapabilityReporter); ok && reports {
+		ok = r.Supports(wasmplug.CapWebhook)
+	}
 	if !ok {
 		writeErr(w, http.StatusNotFound, "target system "+systemName+" has no webhook entrance (ingest via polling/heartbeat)")
 		return

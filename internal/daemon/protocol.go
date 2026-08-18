@@ -109,6 +109,11 @@ type InjectCredentials struct {
 	Reason    string `json:"reason,omitempty"`
 	Token     string `json:"token,omitempty"`
 	BaseURL   string `json:"base_url,omitempty"`
+	// CA is the PEM certificate that signs the target system's endpoint, from
+	// the optional secret <system>_ca. It travels with the credential and not
+	// as an action parameter: a trust anchor belongs beside the token, not in
+	// the recording of every single call (see target.Credential).
+	CA string `json:"ca,omitempty"`
 	// Path delivers the value as a FILE at this path in the agent home instead
 	// of as an environment variable — the form some engines require for their
 	// subscription login (spec/19). Written for the run, removed after it.

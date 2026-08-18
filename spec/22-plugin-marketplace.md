@@ -148,12 +148,22 @@ What makes that tolerable is what the module *cannot* do:
 | | |
 |---|---|
 | Network | none. No sockets exist in the sandbox; it asks the host to make a request. |
-| Filesystem | none mounted. |
+| Filesystem | none mounted. A module that declares `workdir` may ask the host for **one named file at a time** out of the agent's checkout — confined by `os.Root`, so `..`, an absolute path and a symlink out of the tree all fail at the syscall; text only, 16 MiB per file, 64 files per action, and no way to list a directory. |
 | Credentials | **it never sees one.** It names a *path*; the host adds the base URL and the brokered token, and refuses any attempt to set the auth header itself. |
 | Host | it cannot name one. Absolute URLs and `//host` paths are refused, exactly as in a manifest. |
 | Resources | 64 MiB of linear memory, 60 s per invocation, at most 64 requests per action, a fresh instance per call so nothing carries between agents. |
 
 So a hostile module can misbehave *within the system its organization already pointed it at* — the same blast radius a manifest has, where the guard rails and the action subjects apply — and it cannot exfiltrate a token, because it has none and no way out.
+
+**A module may be an event source.** Beside `execute`, `probe`, `poll` and `prompt_doc` the protocol has the op **`webhook`**: the module receives the inbound payload and answers with the event it makes of it — correlation key, dedup key, the task's title and body, and whether this wakes anybody at all. That last decision is the reason the op exists. Whether an event is news or the echo of the agent's own reply is a judgement, and a manifest, which can only compare one field against one value, has to approximate it.
+
+The signature check does **not** move with it. Verifying an HMAC needs the shared secret, and the whole point of the sandbox is that a module never holds a credential — one that were handed the secret in order to check with it could also carry it away. So the module declares only the algorithm and the header (`webhook: {"signature": "hmac-sha256"}` in its `describe`), the host checks (`internal/target/webhooksig`, the same implementation the manifest engine uses), and what reaches the module is a payload already proven to come from the target system. A module that declares no webhook has no entrance: the router answers 404 and the setup shows no webhook step, rather than offering a door that leads nowhere.
+
+**A module may read what a project declares.** Beside the request there is a second thing it can ask the host for: a file out of the agent's workspace (`read_file`). It exists for the class of plugin that answers a question about a checkout rather than about a remote system — judging declared dependencies means reading the lock file the project actually has. Without it that whole class could only ever be compiled in.
+
+The module names a relative path and gets text back. It never learns where the workspace is, and the confinement is not a check on the string but `os.Root`: the host opens the workspace and resolves inside it, so every way out fails at the syscall rather than at a comparison somebody has to keep right. A missing file is a normal answer — that is how a module finds out which of three lock files a project has, without being handed the tree. Outside a sandbox there is no workspace at all: the control plane's own calls (probe, poll) say so instead of offering whatever directory the process happens to sit in.
+
+**A module may reach a system behind a company CA.** Where an endpoint is not signed by a public authority, the trust anchor is brokered with the credential (`<system>_ca`, see [`10-architecture-stack.md`](10-architecture-stack.md)) and the host builds the trust store from it — for wasm and manifest alike, because neither dials for itself. It applies to the brokered system only: a declared foreign host is signed by somebody else, and forcing a company CA onto it would break exactly the calls that are least of its business.
 
 **Reviewing a binary is not possible, so it is rebuilt instead.** A manifest can be reviewed — the pull request shows the whole file and the diff is the behaviour. A module cannot: the entry pins a digest over compiled code, and the source in the linked repository has no proven connection to it. A wasm entry therefore carries a `build` block (repository, ref, Go version), and the index's CI checks the source out, builds it with `-trimpath` and refuses the entry unless the result is byte-identical. Go's wasm output is reproducible under those conditions — verified across paths and machines; without `-trimpath` the build path lands in the binary and it is not. Authors start from [covey-plugin-template](https://github.com/benjaminLedel/covey-plugin-template), which ships that build and checks its own reproducibility on every push.
 
@@ -168,15 +178,37 @@ The catalogue is where a target system goes by default. Compiling one in is the 
 | A protocol that is not JSON over HTTP | `email` (IMAP/SMTP), `nextcloud`, `sharepoint` (WebDAV/Graph) |
 | An auth flow beyond a static header | `teams` (OAuth2 + inbound JWT verification), `sharepoint` (Entra client credentials) |
 | Materialising files into the sandbox, or running work there | `gitlab`, `github` (checkout, uploads, sub-agent runs), `browser`, `dev` |
-| Real computation, not a call | `vulndb` (lock-file parsing, version ordering, merging three sources) — though this is the one reason a **wasm** plugin now also covers, so a new system of this shape belongs in the catalogue rather than in the binary |
+| Real computation, not a call | `vulndb` (lock-file parsing, version ordering, merging three sources), `k8s` (projecting the API server's objects down to what a human actually reads) — though this is the one reason a **wasm** plugin now also covers, so a system of this shape belongs in the catalogue rather than in the binary |
 
-Which leaves exactly one: **`zammad` could be a manifest today** — plain REST with a token header, an HMAC webhook, and since the engine learned `probe:` there is nothing left it needs code for. It stays compiled anyway, because moving it would make every running installation reinstall it from a catalogue for no gain, and it is the reference system the rest of the spec points at.
+That leaves three whose **logic** does not need the binary — and each of them is held there by one capability the engine does not have. The distinction matters: they are not compiled in because somebody preferred it, and the three lines below are the whole reason, each one a piece of work that can be done.
+
+| Plugin | What holds it in the binary | Where the capability is missing |
+|---|---|---|
+| `zammad` | its centre is the webhook: HMAC verification, dedup key, correlation key, the wake decision | **cleared.** The wasm protocol now has the `webhook` op (see above); the manifest route stays closed — `reply` needs constant body fields (`type`, `content_type`), `set_state` a computed `pending_time`, `escalate` two calls, and the intake groups are an allowlist where `ignore_when` only compares one value. What is left is writing the module and its catalogue entry |
+| `k8s` | the cluster CA. It arrived as an action parameter and became the TLS trust store of the request | **cleared.** `target.Credential.CA` is brokered from `<system>_ca` and the host builds the trust store from it. Beside enabling the move this fixes something that was wrong anyway: a certificate travelled through the model's call, the guard-rail subject and the recording of every single action |
+| `vulndb` | `scan_lockfile` reads the lock file out of the agent's checkout | **cleared.** The `read_file` request serves it, confined to the workspace |
+
+**All three capabilities are built.** What stands between these plugins and the catalogue is no longer the engine's reach but the work itself: a module per plugin in the pack, a reproducible build, an entry pinned by digest — and only then the import leaves the binary. The rule that came with the capabilities still holds and is now the debt: a capability whose plugin never moves is furniture, and these three exist to be used.
+
+When a move does happen the order is not negotiable: the entry has to be in the catalogue *before* the import leaves the binary, or an instance loses a working target system on upgrade. Whoever upgrades across the release that drops one installs it from the store afterwards, with the credentials it already had — the plugin row and its secrets survive, only the code arrives from somewhere else. The release note says which one it is.
 
 So the rule for anything new:
 
 > A target system is a **catalogue plugin** unless it needs one of the four reasons above. "It would be nice to ship it" is not one of them — every compiled plugin is code in everyone's binary, whether they use the system or not, and a release they have to wait for when it changes.
 
 The list also says what would let more of it move out later. Give the manifest engine a declarative OAuth2 client-credentials block, and `teams` and `sharepoint` stop needing code for their auth; give it a way to declare "put this response body in the sandbox as a file", and the file systems follow. Neither is planned — they are named here so the next person can see that the boundary is drawn by the engine's reach, not by taste.
+
+## A build without the pack
+
+Everything above is about which plugins *exist* in the binary. Whoever wants none of them does not have to edit the source for it: the blank imports sit behind the **`nopack` build tag** (`cmd/covey/plugins_bundled.go`, `cmd/coveyd/plugins_bundled.go`).
+
+```
+make build-nopack        # or: go build -tags nopack ./cmd/covey
+```
+
+Such a binary registers no target system of its own and takes every one of them from the catalogue — about 3 MB smaller, and above all with nothing left that has to wait for a Covey release when it changes. Finer than the tag, one line in that file is one plugin: delete it and the rest stays as it is. Both binaries need the same list — the control plane brokers the access, the daemon executes it, so a plugin missing on one side is missing on both.
+
+The tag changes nothing about manifest, wasm and MCP plugins: those arrive at runtime, and an installation that has them keeps them.
 
 ## Built-ins in the catalogue
 

@@ -154,6 +154,21 @@ func wasmNotes(d wasmplug.Description, size int) []string {
 	if len(d.Scopes) == 0 {
 		notes = append(notes, "no scopes declared — ACCESS.md accepts any word for this system and none of them narrows anything")
 	}
+	// A workspace read is a privilege, not a feature — it is named whether or
+	// not the plugin has one, because "this reads your checkout" is the kind of
+	// sentence somebody wants before installing rather than after.
+	if d.Workdir {
+		notes = append(notes, "declares workdir — this plugin reads files out of the agent's checkout (confined to it, text only, 16 MiB per file)")
+	}
+	// A webhook is worth naming in both directions. Without one, work only ever
+	// arrives on a schedule; with one, an operator has a setup step to do and a
+	// signature to configure, and finding that out after installing is finding
+	// it out late.
+	if d.Webhook == nil {
+		notes = append(notes, "no webhook declared — events can only reach this system by poll or heartbeat, never as they happen")
+	} else if d.Webhook.Signature == "" {
+		notes = append(notes, "the webhook declares no signature — anyone who knows the URL can create tasks for this agent")
+	}
 	var undocumented int
 	for _, a := range d.Actions {
 		if a.Doc == "" {

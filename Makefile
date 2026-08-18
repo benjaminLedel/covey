@@ -12,7 +12,7 @@ LDFLAGS := -X covey/internal/buildinfo.version=$(VERSION) \
            -X covey/internal/buildinfo.commit=$(COMMIT) \
            -X covey/internal/buildinfo.date=$(DATE)
 
-.PHONY: build web test test-integration run bootstrap dev-db sandbox-image sandbox-image-dev sandbox-images sandbox-images-pull upgrade runner egress-image clean skill-sync
+.PHONY: build build-nopack web test test-integration run bootstrap dev-db sandbox-image sandbox-image-dev sandbox-images sandbox-images-pull upgrade runner egress-image clean skill-sync
 
 # npm ci instead of npm install — deliberately: it installs exactly the lockfile
 # and never rewrites it. npm install on macOS throws the Linux/wasm branches
@@ -30,6 +30,14 @@ skill-sync:
 build: web skill-sync
 	$(GO) build -ldflags "$(LDFLAGS)" -o covey ./cmd/covey
 	$(GO) build -ldflags "$(LDFLAGS)" -o coveyd ./cmd/coveyd
+
+# The same build without the bundled plugin pack (spec/22). The binary then
+# carries no target system of its own and takes them from the catalogue —
+# roughly 3 MB smaller, and above all nothing to wait for a release over. For
+# an instance that uses none of the compiled systems, or only catalogue ones.
+build-nopack: web skill-sync
+	$(GO) build -tags nopack -ldflags "$(LDFLAGS)" -o covey ./cmd/covey
+	$(GO) build -tags nopack -ldflags "$(LDFLAGS)" -o coveyd ./cmd/coveyd
 
 # Postgres with pgvector for development and tests (port 5433).
 dev-db:

@@ -2,9 +2,16 @@ package wasmplug
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -231,5 +238,167 @@ func TestDeclaredHostGetsNoToken(t *testing.T) {
 	}
 	if gotAuth != "" {
 		t.Errorf("the brokered token reached a declared host: %q", gotAuth)
+	}
+}
+
+// A webhook is the capability that decided which plugins could leave the binary
+// (spec/22): without it zammad and everything shaped like it stays compiled,
+// because turning an inbound payload into a task is a decision and not a field
+// lookup. The test walks the whole door: the host checks the signature with the
+// secret, the module never sees it, and what comes back is a target.WebhookEvent
+// like any compiled plugin's.
+func TestWebhookIsVerifiedByTheHostAndParsedByTheModule(t *testing.T) {
+	sys, _ := system(t, func(w http.ResponseWriter, r *http.Request) {})
+	var s target.System = sys
+	hook, ok := s.(target.Webhooker)
+	if !ok {
+		t.Fatal("a module that declares a webhook has to be a target.Webhooker")
+	}
+	if !sys.Supports(CapWebhook) {
+		t.Fatal("the module declared a webhook — Supports has to agree")
+	}
+
+	body := []byte(`{"issue":{"id":42,"title":"Login broken"},"comment":{"id":7,"body":"still broken","author":"customer"}}`)
+	const secret = "s3cret"
+
+	// The wrong signature does not get in. This is the half the module must not
+	// do, and cannot: it never receives the secret.
+	if hook.VerifyWebhook(secret, body, http.Header{"X-Hub-Signature": []string{"sha256=deadbeef"}}) {
+		t.Fatal("a wrong signature must not verify")
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(body)
+	good := http.Header{"X-Hub-Signature": []string{"sha256=" + hex.EncodeToString(mac.Sum(nil))}}
+	if !hook.VerifyWebhook(secret, body, good) {
+		t.Fatal("the correct signature has to verify")
+	}
+
+	ev, err := hook.ParseWebhook(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ev.CorrelationKey != "demo:issue:42" {
+		t.Errorf("correlation key = %q — a blocked task hangs off it", ev.CorrelationKey)
+	}
+	if ev.DedupKey != "demo:comment:7" {
+		t.Errorf("dedup key = %q — the target system's retry depends on it", ev.DedupKey)
+	}
+	if !strings.Contains(ev.TaskBody, "still broken") {
+		t.Errorf("task body = %q — the person reading the backlog needs the text", ev.TaskBody)
+	}
+	if !ev.Wake {
+		t.Error("a customer's comment is news and has to wake")
+	}
+
+	// The echo of the agent's own comment: recorded, but nobody is woken. That
+	// decision is exactly what a manifest cannot express.
+	echo := []byte(`{"issue":{"id":42,"title":"Login broken"},"comment":{"id":8,"body":"we are looking into it","author":"covey-agent"}}`)
+	ev, err = hook.ParseWebhook(echo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ev.Wake {
+		t.Error("the agent's own echo must not wake it again")
+	}
+	if ev.DedupKey == "" {
+		t.Error("an event that does not wake still has to be recorded for dedup")
+	}
+}
+
+// A module without a webhook block is not a webhook entrance. Both locks have
+// to hold: the capability report the router asks, and the verification itself.
+func TestModuleWithoutWebhookIsNoEntrance(t *testing.T) {
+	sys := NewSystem(&Module{desc: Description{Name: "quiet"}})
+	if sys.Supports(CapWebhook) {
+		t.Fatal("a module that declared no webhook must not report one")
+	}
+	if sys.VerifyWebhook("secret", []byte("{}"), http.Header{}) {
+		t.Fatal("without a declared webhook the verification has to fail closed")
+	}
+	if _, err := sys.ParseWebhook([]byte("{}")); err == nil {
+		t.Fatal("parsing without a declared webhook has to be an error")
+	}
+}
+
+// Reading out of the agent's workspace is the second capability that decides
+// whether a plugin can come from the catalogue at all (spec/22): a plugin that
+// judges what a project declares has to be able to read the file that declares
+// it. The confinement is the whole point, so the test spends most of its length
+// trying to get out of the directory.
+func TestWorkdirReadIsConfinedToTheWorkspace(t *testing.T) {
+	sys, _ := system(t, func(w http.ResponseWriter, r *http.Request) {})
+
+	work := t.TempDir()
+	if err := os.WriteFile(filepath.Join(work, "package-lock.json"), []byte(`{"name":"app","lockfileVersion":3}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The thing that must stay unreachable: a file beside the workspace, the
+	// shape of every secret an agent's home directory has.
+	outside := filepath.Join(filepath.Dir(work), "secret.env")
+	if err := os.WriteFile(outside, []byte("COVEY_MASTER_KEY=deadbeef"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Remove(outside) })
+	if err := os.Symlink(outside, filepath.Join(work, "link-out")); err != nil {
+		t.Fatal(err)
+	}
+	ctx := target.WithWorkdir(context.Background(), work)
+
+	read := func(path string) (any, error) {
+		return sys.Execute(ctx, "read_lock", json.RawMessage(`{"path":`+strconv.Quote(path)+`}`), target.Credential{})
+	}
+
+	got, err := read("package-lock.json")
+	if err != nil {
+		t.Fatalf("the declared file has to be readable: %v", err)
+	}
+	if !strings.Contains(fmt.Sprint(got), "lockfileVersion") {
+		t.Errorf("the module got %v — the file's content has to arrive", got)
+	}
+
+	// Everything below is a way out of the directory, and every one of them has
+	// to end as an error rather than as content.
+	for _, escape := range []string{
+		"../secret.env",
+		"../../etc/passwd",
+		"/etc/passwd",
+		"link-out",             // a symlink pointing out of the tree
+		"./../" + "secret.env", // the same thing written differently
+	} {
+		out, err := read(escape)
+		if err == nil {
+			t.Errorf("%q was answered with %v — a module must not leave its workspace", escape, out)
+		}
+		if err != nil && strings.Contains(err.Error(), "MASTER_KEY") {
+			t.Fatalf("%q leaked the file's content in the error: %v", escape, err)
+		}
+	}
+
+	// A missing file is a normal answer, not a breakdown: it is how a module
+	// finds out which of three lock files a project has.
+	if _, err := read("composer.lock"); err == nil || !strings.Contains(err.Error(), "does not exist") {
+		t.Errorf("a missing file has to say so plainly, got %v", err)
+	}
+
+	// A module that never declared a workspace does not get one, however the
+	// action is invoked.
+	sys.desc.Workdir = false
+	if _, err := read("package-lock.json"); err == nil {
+		t.Error("without a declared workdir the read has to be refused")
+	}
+}
+
+// Outside a sandbox there is no workspace at all — the control plane's own
+// calls (probe, poll) have none, and a module asking there is told so rather
+// than handed whatever directory the process happens to sit in.
+func TestNoWorkspaceOutsideTheSandbox(t *testing.T) {
+	sys, _ := system(t, func(w http.ResponseWriter, r *http.Request) {})
+	_, err := sys.Execute(context.Background(), "read_lock",
+		json.RawMessage(`{"path":"package-lock.json"}`), target.Credential{})
+	if err == nil {
+		t.Fatal("without a workdir in the context the read has to fail")
+	}
+	if !strings.Contains(err.Error(), "workspace") {
+		t.Errorf("the error should name what is missing, got %v", err)
 	}
 }

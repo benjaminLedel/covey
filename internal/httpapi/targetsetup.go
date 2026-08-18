@@ -243,7 +243,11 @@ func (s *Server) handleTargetProbe(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, probeResult{Error: "no " + name + "_url stored"})
 			return
 		}
-		cred = target.Credential{BaseURL: base, Token: token}
+		// The connection test uses the same trust anchor the runs will: a
+		// probe that trusts more than the action does would report a health
+		// the agent never gets to see.
+		ca, _ := s.orgSecret(r.Context(), p.OrgID, name+"_ca")
+		cred = target.Credential{BaseURL: base, Token: token, CA: ca}
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 15*time.Second)
