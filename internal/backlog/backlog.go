@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -271,6 +272,47 @@ func (s *Store) ListByAgent(ctx context.Context, agentID uuid.UUID, includeArchi
 	}
 	rows, err := s.pool.Query(ctx, "SELECT "+taskCols+` FROM backlog_tasks WHERE agent_id=$1`+filter+`
 		ORDER BY (state IN ('done','failed','cancelled')), priority, created_at`, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Task
+	for rows.Next() {
+		t, err := scanTask(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// SearchMaxResults caps what a search hands out. A search is a look, not an
+// export: whoever needs everything takes the archive view.
+const SearchMaxResults = 50
+
+// likeEscaper defuses the wildcards of LIKE. Without it a '%' typed into the
+// search field would fetch the whole backlog and an '_' would quietly match
+// more than it says — the field takes text, not a pattern.
+var likeEscaper = strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`)
+
+// SearchByAgent finds an agent's tasks by their text: title, body, and what a
+// run left behind (result, error). It searches the archive along with the
+// active board — deliberately, because whoever searches is looking for
+// something that is no longer in front of them; a search that stopped at the
+// board's edge would find precisely the tasks one could already see.
+//
+// Newest first: an older task is found by its words, ordered by its date.
+func (s *Store) SearchByAgent(ctx context.Context, agentID uuid.UUID, q string, limit int) ([]Task, error) {
+	if limit <= 0 || limit > SearchMaxResults {
+		limit = SearchMaxResults
+	}
+	pattern := "%" + likeEscaper.Replace(q) + "%"
+	rows, err := s.pool.Query(ctx, "SELECT "+taskCols+` FROM backlog_tasks
+		WHERE agent_id=$1 AND (title ILIKE $2 ESCAPE '\' OR body ILIKE $2 ESCAPE '\'
+			OR coalesce(result,'') ILIKE $2 ESCAPE '\' OR coalesce(error,'') ILIKE $2 ESCAPE '\')
+		ORDER BY created_at DESC
+		LIMIT $3`, agentID, pattern, limit)
 	if err != nil {
 		return nil, err
 	}

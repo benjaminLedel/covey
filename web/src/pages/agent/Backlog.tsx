@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import i18n from "../../i18n";
@@ -23,13 +23,28 @@ export function Backlog({
   onShowRecording: (taskId: string, title: string) => void;
 }) {
   const { t } = useTranslation();
-  const qc = useQueryClient();
   const [showArchive, setShowArchive] = useState(false);
   const tasks = useQuery({
     queryKey: ["backlog", agentId, showArchive],
     queryFn: () => api<Task[]>(`/agents/${agentId}/backlog${showArchive ? "?archived=1" : ""}`),
   });
-  const invalBacklog = () => qc.invalidateQueries({ queryKey: ["backlog", agentId] });
+  const invalBacklog = useInvalidateBacklog(agentId);
+  // Search (debounced, then the backend's ?q=). It replaces the board with a
+  // flat list of hits: a search runs across the columns and across the archive,
+  // and both of those are exactly what the board does not show.
+  const [query, setQuery] = useState("");
+  const [debounced, setDebounced] = useState("");
+  useEffect(() => {
+    const h = setTimeout(() => setDebounced(query.trim()), 250);
+    return () => clearTimeout(h);
+  }, [query]);
+  const searching = debounced.length > 0;
+  const search = useQuery({
+    queryKey: ["backlog-search", agentId, debounced],
+    queryFn: () => api<Task[]>(`/agents/${agentId}/backlog?q=${encodeURIComponent(debounced)}`),
+    enabled: searching,
+  });
+  const hits = search.data ?? [];
   const cleanup = useMutation({
     mutationFn: () => post<{ archived: number }>(`/agents/${agentId}/backlog/cleanup`),
     onSuccess: invalBacklog,
@@ -44,7 +59,7 @@ export function Backlog({
     onSuccess: () => {
       setTitle("");
       setBody("");
-      qc.invalidateQueries({ queryKey: ["backlog", agentId] });
+      invalBacklog();
     },
   });
 
@@ -55,10 +70,20 @@ export function Backlog({
   const move = useMutation({
     mutationFn: ({ taskId, stageId }: { taskId: string; stageId: string | null }) =>
       post(`/tasks/${taskId}/stage`, { stage_id: stageId }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["backlog", agentId] }),
+    onSuccess: invalBacklog,
   });
   const [dragTask, setDragTask] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  // Columns show the newest COLUMN_LIMIT cards; whoever wants the older ones
+  // unfolds the column. Per column, because one deep column should not push
+  // every other one long.
+  const [unfolded, setUnfolded] = useState<Set<string>>(new Set());
+  const toggleUnfold = (key: string) =>
+    setUnfolded((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(key)) next.add(key);
+      return next;
+    });
 
   const stageList = stages.data ?? [];
   const known = new Set(stageList.map((s) => s.id));
@@ -108,14 +133,21 @@ export function Backlog({
       {tasks.data && stages.data && (
         <>
           <div className="flex items-center gap-2 mb-3">
-            <span className="muted text-xs">
-              {stageList.length === 0
-                ? t("agent.backlog.noStages")
-                : canManage
-                  ? t("agent.backlog.stagesInfo")
-                  : t("agent.backlog.stagesReadonly")}
-            </span>
-            <button className="btn sm" style={{ marginLeft: "auto" }} onClick={() => setShowArchive((v) => !v)}>
+            <input
+              type="search"
+              className="bl-search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("agent.backlog.searchPlaceholder")}
+              title={t("agent.backlog.searchHint")}
+            />
+            <button
+              className="btn sm"
+              style={{ marginLeft: "auto" }}
+              disabled={searching}
+              title={searching ? t("agent.backlog.searchHint") : undefined}
+              onClick={() => setShowArchive((v) => !v)}
+            >
               {showArchive ? t("agent.backlog.hideArchive") : t("agent.backlog.showArchive")}
             </button>
             {canManage && (
@@ -135,9 +167,29 @@ export function Backlog({
             )}
           </div>
 
+          {!searching && (
+            <p className="muted text-xs mb-3">
+              {stageList.length === 0
+                ? t("agent.backlog.noStages")
+                : canManage
+                  ? t("agent.backlog.stagesInfo")
+                  : t("agent.backlog.stagesReadonly")}
+            </p>
+          )}
+
           {editing && canManage && <StageEditor agentId={agentId} stages={stageList} />}
 
-          {columns.length === 0 ? (
+          {searching ? (
+            <SearchResults
+              agentId={agentId}
+              canManage={canManage}
+              query={debounced}
+              hits={hits}
+              pending={search.isPending}
+              stageName={(tk) => stageList.find((st) => st.id === tk.stage_id)?.name}
+              onShowRecording={onShowRecording}
+            />
+          ) : columns.length === 0 ? (
             <p className="muted">{t("agent.backlog.empty")}</p>
           ) : (
             <div className="kanban" style={{ ["--kcols" as string]: columns.length }}>
@@ -145,7 +197,9 @@ export function Backlog({
                 const all = (tasks.data ?? [])
                   .filter((tk) => inStage(tk, col.id))
                   .sort((a, b) => b.created_at.localeCompare(a.created_at));
-                const items = all.slice(0, COLUMN_LIMIT);
+                const key = col.id ?? "__none";
+                const open = unfolded.has(key);
+                const items = open ? all : all.slice(0, COLUMN_LIMIT);
                 const hidden = all.length - items.length;
                 return (
                   <div
@@ -174,7 +228,14 @@ export function Backlog({
                     ))}
                     {all.length === 0 && <div className="kc-empty">—</div>}
                     {hidden > 0 && (
-                      <div className="kc-empty">{t("agent.backlog.hiddenOlder", { count: hidden })}</div>
+                      <button className="btn sm kc-more" onClick={() => toggleUnfold(key)}>
+                        {t("agent.backlog.showOlder", { count: hidden })}
+                      </button>
+                    )}
+                    {open && all.length > COLUMN_LIMIT && (
+                      <button className="btn sm kc-more" onClick={() => toggleUnfold(key)}>
+                        {t("agent.backlog.showFewer")}
+                      </button>
                     )}
                   </div>
                 );
@@ -183,6 +244,61 @@ export function Backlog({
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// useInvalidateBacklog refreshes both views of the backlog: the board and the
+// search. Whatever a card does — archive, discard, reschedule — has to arrive in
+// the list the user is currently looking at, and during a search that is the
+// list of hits.
+function useInvalidateBacklog(agentId: string) {
+  const qc = useQueryClient();
+  return () => {
+    qc.invalidateQueries({ queryKey: ["backlog", agentId] });
+    qc.invalidateQueries({ queryKey: ["backlog-search", agentId] });
+  };
+}
+
+// SearchResults shows the hits as one flat list rather than as a board. A hit
+// may come from any column and from the archive, so the column it sits in is
+// written onto the card — otherwise the found task would have lost its place.
+function SearchResults({
+  agentId,
+  canManage,
+  query,
+  hits,
+  pending,
+  stageName,
+  onShowRecording,
+}: {
+  agentId: string;
+  canManage: boolean;
+  query: string;
+  hits: Task[];
+  pending: boolean;
+  stageName: (task: Task) => string | undefined;
+  onShowRecording: (taskId: string, title: string) => void;
+}) {
+  const { t } = useTranslation();
+  if (pending) return <p className="muted">{t("agent.backlog.searching")}</p>;
+  if (hits.length === 0) return <p className="muted">{t("agent.backlog.searchEmpty", { q: query })}</p>;
+  return (
+    <div className="bl-results">
+      <div className="muted text-xs mb-2">
+        {t("agent.backlog.searchResults", { count: hits.length })}
+        {hits.length >= SEARCH_LIMIT ? ` · ${t("agent.backlog.searchCapped", { n: SEARCH_LIMIT })}` : ""}
+      </div>
+      {hits.map((tk) => (
+        <TaskCard
+          key={tk.id}
+          task={tk}
+          agentId={agentId}
+          canManage={canManage}
+          stageName={stageName(tk)}
+          onShowRecording={onShowRecording}
+        />
+      ))}
     </div>
   );
 }
@@ -323,10 +439,15 @@ const terminalStates = ["done", "failed", "cancelled"];
 
 const COLUMN_LIMIT = 7;
 
+// SEARCH_LIMIT mirrors backlog.SearchMaxResults — only so that the list can say
+// when it is showing the cap rather than the whole truth.
+const SEARCH_LIMIT = 50;
+
 function TaskCard({
   task,
   agentId,
   canManage,
+  stageName,
   onShowRecording,
   onDragStart,
   onDragEnd,
@@ -334,14 +455,14 @@ function TaskCard({
   task: Task;
   agentId: string;
   canManage: boolean;
+  stageName?: string;
   onShowRecording: (taskId: string, title: string) => void;
   onDragStart?: () => void;
   onDragEnd?: () => void;
 }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
-  const qc = useQueryClient();
-  const invalBacklog = () => qc.invalidateQueries({ queryKey: ["backlog", agentId] });
+  const invalBacklog = useInvalidateBacklog(agentId);
   const notes = useQuery({
     queryKey: ["task-notes", task.id],
     queryFn: () => api<TaskNote[]>(`/tasks/${task.id}/notes`),
@@ -361,6 +482,9 @@ function TaskCard({
   });
   const archived = !!task.archived_at;
   const terminal = terminalStates.includes(task.state);
+  // Draggable only where there is somewhere to drop it: the search list has no
+  // columns, and a grab cursor that leads nowhere is a lie.
+  const draggable = canManage && !archived && !!onDragStart;
   const subtitle =
     task.state === "blocked"
       ? task.correlation_key
@@ -369,8 +493,8 @@ function TaskCard({
       : relTime(task.updated_at);
   return (
     <div
-      className={`kc${open ? " expanded" : ""}${canManage && !archived ? " draggable" : ""}`}
-      draggable={canManage && !archived}
+      className={`kc${open ? " expanded" : ""}${draggable ? " draggable" : ""}`}
+      draggable={draggable}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={() => setOpen((v) => !v)}
@@ -384,6 +508,7 @@ function TaskCard({
       </div>
       <div className="t">
         {subtitle} · {originLabel(task.origin)}
+        {stageName && <> · {stageName}</>}
         {task.cost_usd !== undefined && (
           <>
             {" · "}

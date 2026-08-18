@@ -1532,6 +1532,14 @@ kbd {
 .kc .kc-detail { margin-top: 9px; padding-top: 9px; border-top: 0.5px solid var(--border); font-size: 12px; }
 .kc .kc-detail p { margin: 0 0 5px; }
 .kanban .kc-empty { color: var(--text-muted); font-size: 12px; padding: 2px 0; }
+.kcol .kc-more { width: 100%; margin-bottom: 8px; color: var(--text-secondary); }
+/* Suche über dem Board: schmal wie die Knöpfe daneben, damit die Zeile eine
+   Zeile bleibt. Die Trefferliste ist bewusst einspaltig — ein Treffer kommt aus
+   irgendeiner Spalte, ein Raster würde eine Ordnung behaupten, die es nicht
+   gibt. */
+.bl-search { width: 220px; padding: 5px 10px; font-size: 12.5px; }
+.bl-results { max-width: 720px; }
+.bl-results .kc-empty { color: var(--text-muted); font-size: 12px; padding: 2px 0; }
 .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 @media (max-width: 900px) { .kanban { grid-template-columns: repeat(var(--kcols, 4), minmax(200px, 1fr)); } }
 
