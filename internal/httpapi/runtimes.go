@@ -347,6 +347,19 @@ func (s *Server) handleAssignRuntime(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid runtime_id")
 		return
 	}
+	// A seat carries the credentials of ITS engine. Assigning an agent to a seat
+	// of another engine does not produce a wrong error later, it produces a
+	// wrong TOKEN: the secret and the environment variable come from the seat's
+	// descriptor. Refused here, where somebody is looking, rather than at the
+	// next wake, where the message would point at the credential.
+	if a, err := s.Registry.Get(r.Context(), agentID); err == nil && a.Runtime != "" {
+		if seat, err := s.Runtimes.Get(r.Context(), p.OrgID, rtID); err == nil && seat.Engine != a.Runtime {
+			writeErr(w, http.StatusBadRequest,
+				"the seat "+seat.DisplayName+" belongs to engine "+seat.Engine+
+					", the agent runs on "+a.Runtime+" — change the agent's engine or pick a seat of "+a.Runtime)
+			return
+		}
+	}
 	if err := s.Runtimes.Assign(r.Context(), p.OrgID, agentID, rtID); err != nil {
 		mapErr(w, err)
 		return

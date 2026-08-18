@@ -26,6 +26,25 @@ var ErrNotFound = errors.New("runtime not found")
 // caller postpones the work rather than failing it.
 var ErrExhausted = errors.New("no credential of this runtime is free")
 
+// WrongEngine: the agent sits on a seat of another engine. Its own error rather
+// than a generic one, because the fix is neither the token nor the engine but
+// the ASSIGNMENT — and the message has to say which two things disagree, or the
+// reader looks for the fault in the credential.
+//
+// It exists at all because the two can drift: an agent carries the name of its
+// engine and, separately, the seat it works on. Whoever changes one without the
+// other produces exactly this state.
+type WrongEngine struct {
+	Runtime string // the seat's display name
+	Seat    string // the engine of the seat
+	Agent   string // the engine of the agent
+}
+
+func (e *WrongEngine) Error() string {
+	return fmt.Sprintf("the agent runs on engine %q but sits on the seat %q, which belongs to engine %q — "+
+		"move it to a seat of %q", e.Agent, e.Runtime, e.Seat, e.Agent)
+}
+
 // Exhausted carries the moment the runtime frees up again — the earliest
 // cooldown across its credentials. Zero means unknown.
 type Exhausted struct {

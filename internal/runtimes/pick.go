@@ -33,10 +33,24 @@ import (
 //     one wins — at equal load, the one fewest agents sit on.
 //
 // Both signals are optional; with neither, only cooldowns apply.
-func (s *Store) Pick(ctx context.Context, orgID, agentID, runtimeID uuid.UUID, sig Signals) (Picked, error) {
+func (s *Store) Pick(ctx context.Context, orgID, agentID, runtimeID uuid.UUID, engine string, sig Signals) (Picked, error) {
 	rt, err := s.Get(ctx, orgID, runtimeID)
 	if err != nil {
 		return Picked{}, err
+	}
+	// The seat has to belong to the SAME engine the agent runs on. It is
+	// checked here because here is where the engine of the seat is resolved —
+	// and what happens without the check is not a wrong error message but a
+	// wrong CREDENTIAL: the descriptor of the seat's engine names the secret
+	// and the variable, so an agent on educa-ai sitting on a Claude Code seat
+	// gets a Claude Code subscription token, delivered under Claude Code's
+	// variable. The engine at the far end then finds nothing it can use and
+	// reports "not logged in", which points at the token instead of at the
+	// seat — a whole evening in the wrong place.
+	//
+	// Empty engine = no claim, for callers that do not know one (tests, tools).
+	if engine != "" && rt.Engine != engine {
+		return Picked{}, &WrongEngine{Runtime: rt.DisplayName, Seat: rt.Engine, Agent: engine}
 	}
 	d, ok := daemon.Describe(rt.Engine)
 	if !ok {

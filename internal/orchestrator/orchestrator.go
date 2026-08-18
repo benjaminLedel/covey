@@ -1321,7 +1321,7 @@ func (o *Orchestrator) llmCredentialFor(ctx context.Context, agent agents.Agent)
 	if o.Obs != nil {
 		sig.Usage = o.Obs.CredentialUsage
 	}
-	p, err := o.Runtimes.Pick(ctx, agent.OrgID, agent.ID, *agent.RuntimeID, sig)
+	p, err := o.Runtimes.Pick(ctx, agent.OrgID, agent.ID, *agent.RuntimeID, agent.Runtime, sig)
 	if err != nil {
 		return llmCredential{}, err
 	}
