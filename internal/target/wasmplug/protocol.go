@@ -25,9 +25,9 @@ import "encoding/json"
 
 // Invocation is what the host writes to the module's stdin, as one JSON line.
 type Invocation struct {
-	// Op is what the host wants: "execute", "prompt_doc", "probe", "poll" or
-	// "describe". A module answers "describe" without any credentials being
-	// involved — that is how its capabilities are discovered.
+	// Op is what the host wants: "execute", "prompt_doc", "probe", "poll",
+	// "webhook" or "describe". A module answers "describe" without any
+	// credentials being involved — that is how its capabilities are discovered.
 	Op string `json:"op"`
 	// Action and Params apply to op=execute.
 	Action string          `json:"action,omitempty"`
@@ -36,6 +36,10 @@ type Invocation struct {
 	Kind string `json:"kind,omitempty"`
 	// Scopes are the agent's access levels, for op=prompt_doc.
 	Scopes []string `json:"scopes,omitempty"`
+	// Body is the webhook payload for op=webhook. It arrives ALREADY VERIFIED:
+	// the host has checked the signature, because doing so needs the shared
+	// secret and a module never sees one (see internal/target/webhooksig).
+	Body json.RawMessage `json:"body,omitempty"`
 }
 
 // Message is one line the module writes to stdout. Exactly one field is set.
@@ -52,6 +56,31 @@ type Message struct {
 	Error string `json:"error,omitempty"`
 	// Describe answers op=describe.
 	Describe *Description `json:"describe,omitempty"`
+	// Event answers op=webhook: what the payload means for the backlog.
+	Event *WebhookEvent `json:"event,omitempty"`
+}
+
+// WebhookEvent is what a module makes of an inbound payload — the same decision
+// a compiled plugin's ParseWebhook returns, and the reason webhooks belong in a
+// module at all: which ticket this is about, whether it is news or the agent's
+// own echo, and the sentences a person will read in the backlog. None of that
+// is a field lookup, which is why the manifest engine can only approximate it.
+type WebhookEvent struct {
+	// DedupKey makes a retry by the target system idempotent.
+	DedupKey string `json:"dedup_key,omitempty"`
+	// CorrelationKey wakes a blocked task ("zammad:ticket:42").
+	CorrelationKey string `json:"correlation_key,omitempty"`
+	// Title/TaskBody describe the new task, should nothing correlate.
+	Title    string `json:"title,omitempty"`
+	TaskBody string `json:"task_body,omitempty"`
+	// ResumeInput is what a correlated task resumes with.
+	ResumeInput string `json:"resume_input,omitempty"`
+	// Wake false: the event is recorded for dedup but wakes nobody — the echo
+	// of the agent's own reply is the case this exists for.
+	Wake bool `json:"wake,omitempty"`
+	// CorrelateOnly: wake a blocked task if there is one, but never create a
+	// new one — an event nobody waits for is not work.
+	CorrelateOnly bool `json:"correlate_only,omitempty"`
 }
 
 // FetchRequest is a request the module wants made on its behalf. Note what is
@@ -109,6 +138,22 @@ type Description struct {
 	// that does not must not be offered a connection test it can only fail.
 	Probe bool `json:"probe,omitempty"`
 	Poll  bool `json:"poll,omitempty"`
+	// Webhook declares that the module answers op=webhook, and how the host is
+	// to check the signature before it does. Absent = no webhook entrance: the
+	// router answers 404 and the setup shows no webhook step, rather than
+	// offering a door that leads nowhere.
+	Webhook *WebhookDesc `json:"webhook,omitempty"`
+}
+
+// WebhookDesc is the module's half of webhook handling: the algorithm and the
+// header, nothing else. The check itself is the host's, because it needs the
+// shared secret — a module that were handed the secret in order to verify with
+// it could also carry it away.
+type WebhookDesc struct {
+	// Signature: "hmac-sha1" | "hmac-sha256" | "" (the system signs nothing).
+	Signature string `json:"signature,omitempty"`
+	// SignatureHeader carries it (default "X-Hub-Signature").
+	SignatureHeader string `json:"signature_header,omitempty"`
 }
 
 // AuthDesc mirrors the manifest's auth block: which header carries the token

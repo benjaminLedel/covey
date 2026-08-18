@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"covey/internal/reqlog"
+	"covey/internal/target/webhooksig"
 	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
@@ -48,6 +49,12 @@ func (s *System) Close(ctx context.Context) error {
 	return s.mod.Close(ctx)
 }
 
+// CapWebhook is the capability name for "this plugin has a webhook entrance".
+// It belongs beside target.CapProbe/CapPoll in the SDK and moves there with the
+// next version of it; until then it lives where it is asked, and the vocabulary
+// stays one string either way.
+const CapWebhook = "webhook"
+
 // Supports (target.CapabilityReporter): a compiled plugin carries every method
 // in its Go type just as the manifest engine does, so what it can actually do
 // has to come from what it said about itself.
@@ -57,9 +64,62 @@ func (s *System) Supports(capability string) bool {
 		return s.desc.Probe
 	case target.CapPoll:
 		return s.desc.Poll
+	case CapWebhook:
+		return s.desc.Webhook != nil
 	default:
 		return true
 	}
+}
+
+// VerifyWebhook checks the signature — in the HOST, with the shared secret the
+// module never gets to see. The module said only which algorithm and which
+// header (see webhooksig); everything beyond that is the platform's job.
+//
+// A module that declared no webhook is not a webhook entrance, and the check
+// fails closed rather than waving a payload through to a plugin that has no
+// idea what to do with it. The router asks Supports(CapWebhook) first, so this
+// is the second lock on the same door.
+func (s *System) VerifyWebhook(secret string, body []byte, header http.Header) bool {
+	if s.desc.Webhook == nil {
+		return false
+	}
+	return webhooksig.Verify(s.desc.Webhook.Signature, s.desc.Webhook.SignatureHeader, secret, body, header)
+}
+
+// ParseWebhook hands the verified payload to the module and takes back what it
+// makes of it. This is the step that cannot be a field lookup: whether an event
+// is news or the agent's own echo, which ticket it correlates to, and what a
+// person will read in the backlog are decisions, and a decision needs code.
+//
+// No credential is involved and no fetch is expected — the payload arrived from
+// outside and everything needed is in it. A module that asks for a fetch here
+// gets one all the same (the host adds base URL and token as ever), because
+// enriching an event with a second call is legitimate; it is just not the
+// common case.
+func (s *System) ParseWebhook(body []byte) (target.WebhookEvent, error) {
+	if s.desc.Webhook == nil {
+		return target.WebhookEvent{}, fmt.Errorf("%s: no webhook entrance", s.desc.Name)
+	}
+	out, err := s.mod.Invoke(context.Background(), Invocation{Op: "webhook", Body: body}, s.fetcher(target.Credential{}))
+	if err != nil {
+		return target.WebhookEvent{}, err
+	}
+	if out.Error != "" {
+		return target.WebhookEvent{}, fmt.Errorf("%s: %s", s.desc.Name, out.Error)
+	}
+	if out.Event == nil {
+		return target.WebhookEvent{}, fmt.Errorf("%s: the module returned no event", s.desc.Name)
+	}
+	e := out.Event
+	return target.WebhookEvent{
+		DedupKey:       e.DedupKey,
+		CorrelationKey: e.CorrelationKey,
+		Title:          e.Title,
+		TaskBody:       e.TaskBody,
+		ResumeInput:    e.ResumeInput,
+		Wake:           e.Wake,
+		CorrelateOnly:  e.CorrelateOnly,
+	}, nil
 }
 
 // ActionSubject maps an action onto its guard-rail subject. The module may name

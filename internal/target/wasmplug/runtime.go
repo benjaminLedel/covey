@@ -201,7 +201,7 @@ func (m *Module) Invoke(ctx context.Context, in Invocation, fetch Fetcher) (Mess
 		default:
 			final = msg
 		}
-		if protoErr != nil || final.Result != nil || final.Error != "" || final.Describe != nil {
+		if protoErr != nil || answered(final) {
 			break
 		}
 	}
@@ -215,7 +215,7 @@ func (m *Module) Invoke(ctx context.Context, in Invocation, fetch Fetcher) (Mess
 	if final.Error != "" {
 		return final, nil // the plugin's own, deliberate failure
 	}
-	if final.Result == nil && final.Describe == nil {
+	if !answered(final) {
 		if execErr != nil {
 			return Message{}, fmt.Errorf("wasm: %w%s", execErr, tail(stderr.String()))
 		}
@@ -225,6 +225,13 @@ func (m *Module) Invoke(ctx context.Context, in Invocation, fetch Fetcher) (Mess
 		return Message{}, fmt.Errorf("wasm: module ended without an answer%s", tail(stderr.String()))
 	}
 	return final, nil
+}
+
+// answered reports whether a message ends the invocation. Every terminal kind
+// belongs in here — a new op that returns a new kind of message and forgets
+// this line looks to the host exactly like a module that died silently.
+func answered(m Message) bool {
+	return m.Result != nil || m.Error != "" || m.Describe != nil || m.Event != nil
 }
 
 // readLine reads one protocol line with a cap, so a module that never writes a

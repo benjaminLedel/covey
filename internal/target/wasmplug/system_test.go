@@ -2,6 +2,9 @@ package wasmplug
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -231,5 +234,84 @@ func TestDeclaredHostGetsNoToken(t *testing.T) {
 	}
 	if gotAuth != "" {
 		t.Errorf("the brokered token reached a declared host: %q", gotAuth)
+	}
+}
+
+// A webhook is the capability that decided which plugins could leave the binary
+// (spec/22): without it zammad and everything shaped like it stays compiled,
+// because turning an inbound payload into a task is a decision and not a field
+// lookup. The test walks the whole door: the host checks the signature with the
+// secret, the module never sees it, and what comes back is a target.WebhookEvent
+// like any compiled plugin's.
+func TestWebhookIsVerifiedByTheHostAndParsedByTheModule(t *testing.T) {
+	sys, _ := system(t, func(w http.ResponseWriter, r *http.Request) {})
+	var s target.System = sys
+	hook, ok := s.(target.Webhooker)
+	if !ok {
+		t.Fatal("a module that declares a webhook has to be a target.Webhooker")
+	}
+	if !sys.Supports(CapWebhook) {
+		t.Fatal("the module declared a webhook — Supports has to agree")
+	}
+
+	body := []byte(`{"issue":{"id":42,"title":"Login broken"},"comment":{"id":7,"body":"still broken","author":"customer"}}`)
+	const secret = "s3cret"
+
+	// The wrong signature does not get in. This is the half the module must not
+	// do, and cannot: it never receives the secret.
+	if hook.VerifyWebhook(secret, body, http.Header{"X-Hub-Signature": []string{"sha256=deadbeef"}}) {
+		t.Fatal("a wrong signature must not verify")
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(body)
+	good := http.Header{"X-Hub-Signature": []string{"sha256=" + hex.EncodeToString(mac.Sum(nil))}}
+	if !hook.VerifyWebhook(secret, body, good) {
+		t.Fatal("the correct signature has to verify")
+	}
+
+	ev, err := hook.ParseWebhook(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ev.CorrelationKey != "demo:issue:42" {
+		t.Errorf("correlation key = %q — a blocked task hangs off it", ev.CorrelationKey)
+	}
+	if ev.DedupKey != "demo:comment:7" {
+		t.Errorf("dedup key = %q — the target system's retry depends on it", ev.DedupKey)
+	}
+	if !strings.Contains(ev.TaskBody, "still broken") {
+		t.Errorf("task body = %q — the person reading the backlog needs the text", ev.TaskBody)
+	}
+	if !ev.Wake {
+		t.Error("a customer's comment is news and has to wake")
+	}
+
+	// The echo of the agent's own comment: recorded, but nobody is woken. That
+	// decision is exactly what a manifest cannot express.
+	echo := []byte(`{"issue":{"id":42,"title":"Login broken"},"comment":{"id":8,"body":"we are looking into it","author":"covey-agent"}}`)
+	ev, err = hook.ParseWebhook(echo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ev.Wake {
+		t.Error("the agent's own echo must not wake it again")
+	}
+	if ev.DedupKey == "" {
+		t.Error("an event that does not wake still has to be recorded for dedup")
+	}
+}
+
+// A module without a webhook block is not a webhook entrance. Both locks have
+// to hold: the capability report the router asks, and the verification itself.
+func TestModuleWithoutWebhookIsNoEntrance(t *testing.T) {
+	sys := NewSystem(&Module{desc: Description{Name: "quiet"}})
+	if sys.Supports(CapWebhook) {
+		t.Fatal("a module that declared no webhook must not report one")
+	}
+	if sys.VerifyWebhook("secret", []byte("{}"), http.Header{}) {
+		t.Fatal("without a declared webhook the verification has to fail closed")
+	}
+	if _, err := sys.ParseWebhook([]byte("{}")); err == nil {
+		t.Fatal("parsing without a declared webhook has to be an error")
 	}
 }

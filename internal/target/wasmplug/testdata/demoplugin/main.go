@@ -26,6 +26,7 @@ type invocation struct {
 	Params json.RawMessage `json:"params"`
 	Kind   string          `json:"kind"`
 	Scopes []string        `json:"scopes"`
+	Body   json.RawMessage `json:"body"`
 }
 
 type fetchReq struct {
@@ -67,6 +68,9 @@ func main() {
 			"scopes":      []string{"read", "write"},
 			"probe":       true,
 			"poll":        true,
+			// The webhook entrance. The module says only how the host is to
+			// check the signature — it never sees the secret.
+			"webhook": map[string]any{"signature": "hmac-sha256"},
 			"actions": []map[string]any{
 				{"name": "get_issue", "doc": "read one issue; params: id", "scope": "read"},
 				{"name": "comment", "doc": "write a comment; params: id, body", "scope": "write",
@@ -107,6 +111,8 @@ func main() {
 		emit(map[string]any{"result": map[string]any{
 			"has_work": len(items) > 0, "signature": strings.Join(sig, ","),
 		}})
+	case "webhook":
+		webhook(inv.Body)
 	case "prompt_doc":
 		doc := "Demo actions: get_issue, shout"
 		for _, s := range inv.Scopes {
@@ -120,6 +126,36 @@ func main() {
 	default:
 		fail("unknown op " + inv.Op)
 	}
+}
+
+// webhook turns a verified payload into a backlog event. This is the half a
+// manifest cannot do: whether something is news or the echo of the agent's own
+// comment is a decision, not a field.
+func webhook(body []byte) {
+	var p struct {
+		Issue struct {
+			ID    int    `json:"id"`
+			Title string `json:"title"`
+		} `json:"issue"`
+		Comment struct {
+			ID     int    `json:"id"`
+			Body   string `json:"body"`
+			Author string `json:"author"`
+		} `json:"comment"`
+	}
+	if err := json.Unmarshal(body, &p); err != nil {
+		fail("payload is not JSON: " + err.Error())
+		return
+	}
+	emit(map[string]any{"event": map[string]any{
+		"dedup_key":       fmt.Sprintf("demo:comment:%d", p.Comment.ID),
+		"correlation_key": fmt.Sprintf("demo:issue:%d", p.Issue.ID),
+		"title":           "Demo issue #" + fmt.Sprint(p.Issue.ID) + ": " + p.Issue.Title,
+		"task_body":       "New comment on issue " + fmt.Sprint(p.Issue.ID) + ":\n" + p.Comment.Body,
+		"resume_input":    p.Comment.Body,
+		// The agent's own comment is registered for dedup and wakes nobody.
+		"wake": p.Comment.Author != "covey-agent",
+	}})
 }
 
 func execute(inv invocation) {

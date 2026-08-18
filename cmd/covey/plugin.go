@@ -154,6 +154,15 @@ func wasmNotes(d wasmplug.Description, size int) []string {
 	if len(d.Scopes) == 0 {
 		notes = append(notes, "no scopes declared — ACCESS.md accepts any word for this system and none of them narrows anything")
 	}
+	// A webhook is worth naming in both directions. Without one, work only ever
+	// arrives on a schedule; with one, an operator has a setup step to do and a
+	// signature to configure, and finding that out after installing is finding
+	// it out late.
+	if d.Webhook == nil {
+		notes = append(notes, "no webhook declared — events can only reach this system by poll or heartbeat, never as they happen")
+	} else if d.Webhook.Signature == "" {
+		notes = append(notes, "the webhook declares no signature — anyone who knows the URL can create tasks for this agent")
+	}
 	var undocumented int
 	for _, a := range d.Actions {
 		if a.Doc == "" {

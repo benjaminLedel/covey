@@ -3,8 +3,6 @@ package manifestplug
 import (
 	"bytes"
 	"context"
-	"crypto/hmac"
-	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -18,7 +16,7 @@ import (
 	"time"
 
 	"covey/internal/reqlog"
-
+	"covey/internal/target/webhooksig"
 	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
 
@@ -218,9 +216,7 @@ func Parse(raw []byte) (Manifest, error) {
 			return m, fmt.Errorf("manifest: %s: path must start with /", where)
 		}
 	}
-	switch m.Webhook.Signature {
-	case "", "hmac-sha1", "hmac-sha256":
-	default:
+	if !webhooksig.Known(m.Webhook.Signature) {
 		return m, fmt.Errorf("manifest: webhook.signature %q unknown (hmac-sha1|hmac-sha256)", m.Webhook.Signature)
 	}
 	if m.Webhook.IDField == "" {
@@ -243,34 +239,11 @@ func New(m Manifest) *Sys {
 
 func (s *Sys) Name() string { return s.M.Name }
 
+// VerifyWebhook hands the check to the host's one implementation
+// (internal/target/webhooksig) — the manifest says only which algorithm and
+// which header, never getting near the secret itself.
 func (s *Sys) VerifyWebhook(secret string, body []byte, header http.Header) bool {
-	if s.M.Webhook.Signature == "" || secret == "" {
-		return true
-	}
-	hdr := s.M.Webhook.SignatureHeader
-	if hdr == "" {
-		hdr = "X-Hub-Signature"
-	}
-	sig := header.Get(hdr)
-	var prefix string
-	var mac []byte
-	switch s.M.Webhook.Signature {
-	case "hmac-sha1":
-		prefix = "sha1="
-		h := hmac.New(sha1.New, []byte(secret))
-		h.Write(body)
-		mac = h.Sum(nil)
-	case "hmac-sha256":
-		prefix = "sha256="
-		h := hmac.New(sha256.New, []byte(secret))
-		h.Write(body)
-		mac = h.Sum(nil)
-	}
-	got, ok := strings.CutPrefix(sig, prefix)
-	if !ok {
-		return false
-	}
-	return hmac.Equal([]byte(hex.EncodeToString(mac)), []byte(got))
+	return webhooksig.Verify(s.M.Webhook.Signature, s.M.Webhook.SignatureHeader, secret, body, header)
 }
 
 func (s *Sys) ParseWebhook(body []byte) (target.WebhookEvent, error) {
