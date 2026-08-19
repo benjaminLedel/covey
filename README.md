@@ -76,7 +76,7 @@ The third line fetches the container an agent works inside ([`Dockerfile.sandbox
 | 🧑‍💼 **Agents with an identity** | Their own sandbox, their own home directory, their own credentials — and a place on the org chart next to the humans. |
 | 🧑‍🎓 **Hiring instead of a form** | Describe what a new colleague should do; the org's own People department — an agent — turns that into a complete configuration and asks back when the brief is too thin. What comes out is a **draft**: it exists, it can be looked at and changed, and it does not work until a human hires it. |
 | 📥 **Backlog & wake sources** | Tasks as first-class objects; agents wake on a webhook, a heartbeat or a nudge, then go back to sleep. |
-| 🔌 **Target systems as plugins** | Zammad, Salesforce, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, email (IMAP/SMTP), headless browser, MCP — none of them in this repository. Plugins are their own modules against a [public SDK](https://github.com/benjaminLedel/covey-plugin-sdk); the ones Covey ships with sit in the [plugin pack](https://github.com/benjaminLedel/covey-plugin-pack), and anybody else's plugin is built exactly the same way. |
+| 🔌 **Target systems as plugins** | Zammad, Salesforce, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, Kubernetes, email (IMAP/SMTP), headless browser, MCP — none of them in this repository. Plugins are their own modules against a [public SDK](https://github.com/benjaminLedel/covey-plugin-sdk); the ones Covey ships with sit in the [plugin pack](https://github.com/benjaminLedel/covey-plugin-pack), and the rest are installed from the [catalogue](https://github.com/benjaminLedel/covey-plugins) at runtime. Anybody else's plugin is built exactly the same way — Zammad, Kubernetes and the vulnerability databases are compiled WebAssembly from that same catalogue, on no better footing than yours. |
 | 🛡️ **Guard rails & approvals** | Enforced centrally, outside the runtime, fail-closed. Critical actions go to a human first. |
 | 🔑 **Secrets broker** | No long-lived secrets inside the sandbox — access is brokered at runtime, short-lived and scoped. |
 | 🧩 **Skills** | Procedures an agent loads only when they apply: the description stays in context, the instructions and any extra files are read on demand. Kept in an org-wide library, linked per agent — a delivery lead run that finds nothing to do no longer pays for five playbooks. |
@@ -125,7 +125,7 @@ flowchart LR
     end
 
     CP <-->|daemon protocol| DP
-    CP --> TS["Targets: Zammad · Salesforce · GitHub · GitLab · Teams · SharePoint · Nextcloud · Email · Browser · MCP"]
+    CP --> TS["Targets: Zammad · Salesforce · GitHub · GitLab · Teams · SharePoint · Nextcloud · Kubernetes · Email · Browser · MCP"]
     CP --- DB[("PostgreSQL + pgvector")]
 ```
 
@@ -241,6 +241,7 @@ All runbooks are in English.
 | [`docs/ops-nextcloud.md`](docs/ops-nextcloud.md) | Nextcloud files via WebDAV |
 | [`docs/ops-browser.md`](docs/ops-browser.md) | Headless Chrome: driving web UIs, screenshots into the recording |
 | [`docs/ops-vulndb.md`](docs/ops-vulndb.md) | Known vulnerabilities in package dependencies (npm, Composer, Dart/Flutter) |
+| [`docs/ops-k8s.md`](docs/ops-k8s.md) | Reading a Kubernetes cluster: ServiceAccount, token, cluster CA |
 
 ## Repository layout
 
