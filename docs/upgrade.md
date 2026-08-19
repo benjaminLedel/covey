@@ -31,6 +31,80 @@ covey doctor     # what is still in the way here
 
 ---
 
+## To 0.6.0 — three plugins move to the catalogue
+
+`zammad`, `vulndb` and `k8s` are no longer compiled into the binary. They are
+WebAssembly modules in the [plugin catalogue](https://github.com/benjaminLedel/covey-plugins)
+now, on the same footing as anybody else's plugin.
+
+**If you use none of the three, there is nothing to do.** The other nine target
+systems are unchanged.
+
+### 1. Install the ones you use — the agents keep their access
+
+Store → Catalogue → *the plugin* → Install. Do it once per installation, after
+the upgrade.
+
+What survives the move on its own: the plugin row, its enablement per
+organisation, the stored secrets, and every agent's `ACCESS.md`. Only the code
+now arrives from the catalogue. An agent whose `ACCESS.md` names `zammad` finds
+it again as soon as the module is installed, with the credentials it always had.
+
+Between the upgrade and that install, an agent that needs one of the three
+cannot use it. Do the install in the same maintenance window rather than the
+next one.
+
+> Installing needs the catalogue to be reachable. An air-gapped installation
+> should fetch the three `.wasm` files from the
+> [pack's v0.7.0 release](https://github.com/benjaminLedel/covey-plugin-pack/releases/tag/v0.7.0)
+> beforehand and install them from file — the digests are in the release notes,
+> and Covey checks them either way.
+
+### 2. Two settings are gone, and one of them silently
+
+| Was | Now |
+|---|---|
+| `COVEY_ZAMMAD_REPLY_TYPE=web` | the `reply_type` parameter on the `reply` action |
+| `COVEY_ZAMMAD_INTAKE_GROUPS="Support L1"` | a **group condition on the Zammad trigger** ([`ops-zammad.md`](ops-zammad.md)) |
+| `vulndb_token` (an NVD API key) | nothing. NVD answers at its anonymous rate limit |
+
+The middle one is the one to act on. A module gets no process environment, so an
+allowlist that used to be honoured is not merely ignored — **every group's
+tickets now arrive**. If you relied on it, put the condition in the trigger
+before the upgrade, not after: the filter belongs there anyway, because a
+trigger that does not fire costs nothing while a webhook Covey discards has
+already been sent, signed and verified.
+
+`vulndb_token` is dead configuration and can be deleted. It used to raise NVD's
+limit from 5 requests per 30 seconds to 50; a module is never handed the
+credential for a host it merely declared, and all six of vulndb's sources are
+declared ones. `advisory` reports a rate-limited NVD as a note beside an
+otherwise complete result, the same as any source that does not answer.
+
+### 3. Kubernetes: the cluster CA moves out of the action
+
+`k8s` used to take the certificate as an action parameter,
+`{{secret:k8s_ca}}` in `ca_pem`. That parameter is gone. Store the certificate
+as the secret **`k8s_ca`** and Covey builds the trust store from it.
+
+This is a fix as much as a move: a certificate passed per action travelled
+through the model's context, the guard-rail subject and the recording of every
+single call.
+
+### 4. Rolling back
+
+Going back to 0.5.x restores the three as compiled plugins, so nothing is lost —
+the installed modules simply stop being reached, because a compiled plugin and a
+stored one share a name and the compiled one wins. Uninstall them from the store
+if you intend to stay on 0.5.x, or the store will show a plugin that is present
+and not the one being used.
+
+An 0.5.x instance cannot install the modules in the first place: the catalogue
+entries declare `covey_min_version: 0.6.0` and the install is refused with that
+sentence.
+
+---
+
 ## To the runner release (`spec/16`)
 
 Six migrations (0051–0056), a split sandbox image, and a new store next to the
