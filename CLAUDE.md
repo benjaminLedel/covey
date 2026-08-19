@@ -56,7 +56,7 @@ Plugin code does **not** live in this repository. Three modules of their own car
 | Repo | Module | Contents |
 |---|---|---|
 | [covey-plugin-sdk](https://github.com/benjaminLedel/covey-plugin-sdk) | `github.com/benjaminLedel/covey-plugin-sdk` | the contract: `target.System`, registry, `Descriptor`, credentials, sandbox helpers, HTTP client. **No dependencies** — a plugin author does not drag covey along. |
-| [covey-plugin-pack](https://github.com/benjaminLedel/covey-plugin-pack) | `github.com/benjaminLedel/covey-plugin-pack` | the ten shipped plugins as ordinary Go code, plus the manifest plugins |
+| [covey-plugin-pack](https://github.com/benjaminLedel/covey-plugin-pack) | `github.com/benjaminLedel/covey-plugin-pack` | the plugins Covey ships with as ordinary Go code, the three that moved to the catalogue as wasm modules under wasm/, plus the manifest plugins |
 | [covey-plugins](https://github.com/benjaminLedel/covey-plugins) | — | the catalogue: entries pointing at artefacts hosted anywhere, pinned by digest |
 
 The dependency graph is acyclic: covey → SDK, pack → SDK, covey → pack (for the default build). **Nothing depends on covey.**

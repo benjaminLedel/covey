@@ -150,7 +150,8 @@
       "tag": {
         "webhook": "Woken by webhook",
         "poll": "Polled by heartbeat",
-        "nosecret": "No credentials needed"
+        "nosecret": "No credentials needed",
+        "readonly": "Read-only"
       },
       "sys": {
         "zammad": {
@@ -196,6 +197,10 @@
         "vulndb": {
           "t": "Vulnerability databases",
           "d": "Known vulnerabilities in the declared dependencies: a lock file goes in, findings with advisory ID, severity and the fix version for exactly this version branch come out. npm, Composer, Dart/Flutter."
+        },
+        "k8s": {
+          "t": "Kubernetes",
+          "d": "Look at a cluster without changing it: pod states and restarts, the log of the container that crashed, events, workloads, Ingresses, RBAC and NetworkPolicies. Secrets stay unreadable, and the desired state keeps coming from your infrastructure repository."
         }
       },
       "extendLead": "Two ways to get there without waiting for a release — both in the UI, neither needs a deploy.",

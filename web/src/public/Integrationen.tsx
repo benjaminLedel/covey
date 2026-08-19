@@ -9,7 +9,7 @@ import { EngineIcon } from "../components/EngineIcon";
    internal/daemon/ (Engines) und internal/target/ (Zielsysteme) und müssen
    beim Anlegen eines neuen Plugins mitgepflegt werden. */
 
-type Item = { name: string; category: string; tag: "webhook" | "poll" | "nosecret" };
+type Item = { name: string; category: string; tag: "webhook" | "poll" | "nosecret" | "readonly" };
 
 /* Die Engines stehen zuerst, weil sie die grundlegendere Frage beantworten:
    ohne Vertrag mit einem Anbieter läuft kein Agent, egal wie viele Zielsysteme
@@ -49,6 +49,7 @@ const GROUPS: { g: string; items: Item[] }[] = [
       { name: "browser", category: "web", tag: "nosecret" },
       { name: "dev", category: "dev", tag: "nosecret" },
       { name: "vulndb", category: "dev", tag: "nosecret" },
+      { name: "k8s", category: "dev", tag: "readonly" },
     ],
   },
 ];

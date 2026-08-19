@@ -180,23 +180,23 @@ The catalogue is where a target system goes by default. Compiling one in is the 
 | Reason | Which of today's built-ins |
 |---|---|
 | A protocol that is not JSON over HTTP | `email` (IMAP/SMTP), `nextcloud`, `sharepoint` (WebDAV/Graph) |
-| An auth flow beyond a static header | `teams` (OAuth2 + inbound JWT verification), `sharepoint` (Entra client credentials) |
+| An auth flow beyond a static header | `teams` (OAuth2 + inbound JWT verification), `sharepoint` (Entra client credentials), `salesforce` (OAuth client credentials, with a SOAP login where no connected app can be had) |
 | Materialising files into the sandbox, or running work there | `gitlab`, `github` (checkout, uploads, sub-agent runs), `browser`, `dev` |
-| Real computation, not a call | `vulndb` (lock-file parsing, version ordering, merging three sources), `k8s` (projecting the API server's objects down to what a human actually reads) — though this is the one reason a **wasm** plugin now also covers, so a system of this shape belongs in the catalogue rather than in the binary |
+| Real computation, not a call | **nobody, any more.** This was `vulndb` and `k8s`, and it is the one reason a wasm module covers as well as a compiled plugin — so both left, and a new system of this shape belongs in the catalogue |
 
-That leaves three whose **logic** does not need the binary — and each of them is held there by one capability the engine does not have. The distinction matters: they are not compiled in because somebody preferred it, and the three lines below are the whole reason, each one a piece of work that can be done.
+That left three whose **logic** did not need the binary, each held there by one capability the engine lacked. **All three have moved** — `zammad`, `vulndb` and `k8s` are wasm entries in the catalogue as of Covey 0.6.0, and the table below is kept as the record of what it took, because the next person to move a plugin will meet the same shape of problem.
 
-| Plugin | What holds it in the binary | Where the capability is missing |
+| Plugin | What held it in the binary | What cleared it |
 |---|---|---|
-| `zammad` | its centre is the webhook: HMAC verification, dedup key, correlation key, the wake decision | **cleared.** The wasm protocol now has the `webhook` op (see above); the manifest route stays closed — `reply` needs constant body fields (`type`, `content_type`), `set_state` a computed `pending_time`, `escalate` two calls, and the intake groups are an allowlist where `ignore_when` only compares one value. What is left is writing the module and its catalogue entry |
-| `k8s` | the cluster CA. It arrived as an action parameter and became the TLS trust store of the request | **cleared.** `target.Credential.CA` is brokered from `<system>_ca` and the host builds the trust store from it. Beside enabling the move this fixes something that was wrong anyway: a certificate travelled through the model's call, the guard-rail subject and the recording of every single action |
-| `vulndb` | `scan_lockfile` reads the lock file out of the agent's checkout | **cleared.** The `read_file` request serves it, confined to the workspace |
+| `zammad` | its centre is the webhook: HMAC verification, dedup key, correlation key, the wake decision | the `webhook` op. The manifest route stays closed — `reply` needs constant body fields, `set_state` a computed `pending_time`, `escalate` two calls |
+| `vulndb` | `scan_lockfile` reads the lock file out of the agent's checkout | the `read_file` request, confined by `os.Root` on the host side — stricter than the string check the plugin used to do for itself |
+| `k8s` | the cluster CA, which arrived as an ACTION PARAMETER and so travelled through the model's context, the guard-rail subject and every recording | `target.Credential.CA`, brokered from `k8s_ca` |
 
-**A fourth turned up while the first three were being used**, and it is the reason this list is written as work rather than as a plan: a module ran on wazero's frozen clock, which `k8s restart` and `zammad set_state` both need and neither would have failed loudly without. It is granted now (see above). Whoever moves the next plugin should expect the same — the blockers that are written down are the ones somebody already hit.
+Two capabilities turned up in the doing rather than in the planning, and both are the reason this section is written as history instead of intent. A module ran on wazero's frozen clock, which `k8s restart` and `zammad set_state` both need and neither would have failed loudly without. And the host followed a redirect anywhere, a property the compiled Kubernetes client refused with a test — moving the dialling to the host would have moved the property nowhere. Expect the same: the blockers that are written down are the ones somebody already hit.
 
-**All four capabilities are built.** What stands between these plugins and the catalogue is no longer the engine's reach but the work itself: a module per plugin in the pack, a reproducible build, an entry pinned by digest — and only then the import leaves the binary. The rule that came with the capabilities still holds and is now the debt: a capability whose plugin never moves is furniture, and these three exist to be used.
+Three things got smaller in the move, and saying so is part of the record. `vulndb_token` no longer raises the NVD rate limit, because a module is never handed a credential for a host it merely declared. `COVEY_ZAMMAD_INTAKE_GROUPS` is gone — the filter belongs in the Zammad trigger, where the request is never made rather than discarded after it arrives. `COVEY_ZAMMAD_REPLY_TYPE` became a parameter on `reply`.
 
-When a move does happen the order is not negotiable: the entry has to be in the catalogue *before* the import leaves the binary, or an instance loses a working target system on upgrade. Whoever upgrades across the release that drops one installs it from the store afterwards, with the credentials it already had — the plugin row and its secrets survive, only the code arrives from somewhere else. The release note says which one it is.
+The order was not negotiable and is worth repeating for the next one: the entry has to be in the catalogue *before* the import leaves the binary, or an instance loses a working target system on upgrade. It also has to be **unusable** until then — an entry an older instance can install is not inert, because the store lists a compiled plugin and a stored one under the same name and the compiled one wins. That is what `covey_min_version` is for, and it was a field nobody read until these three needed it.
 
 So the rule for anything new:
 

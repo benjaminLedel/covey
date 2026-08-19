@@ -35,6 +35,13 @@ Two directions, two auth routes:
 
 ## 2. Step-by-step instructions
 
+> **Installing it.** As of 0.6.0 this is a **catalogue plugin**, not a compiled
+> one — Store → Catalogue → Zammad → Install. Covey verifies the digest the
+> catalogue pins before storing the module. Upgrading across 0.6.0 with the
+> plugin already in use: the plugin row and its secrets survive, only the code
+> now arrives from the catalogue, so install it once afterwards and the agents
+> keep their access.
+
 ### 2.1 In Zammad: create an API token + rights
 
 1. Create an **agent role** with least-privilege rights: `ticket.agent`
@@ -73,10 +80,12 @@ In addition the agent has to be allowed to access `zammad` according to its
 ```bash
 COVEY_PUBLIC_URL=https://covey.example.com        # reachable from Zammad, NOT localhost
 COVEY_ZAMMAD_WEBHOOK_SECRET=<long-random-secret>
-# optional, see sections 3 and 4:
-COVEY_ZAMMAD_INTAKE_GROUPS="Support L1"
-COVEY_ZAMMAD_REPLY_TYPE=email
 ```
+
+> **Changed in 0.6.0.** `COVEY_ZAMMAD_INTAKE_GROUPS` and
+> `COVEY_ZAMMAD_REPLY_TYPE` are gone. Zammad is a catalogue plugin now, and a
+> WebAssembly module gets no process environment — see sections 3 and 4 for
+> where each of them went.
 
 `COVEY_PUBLIC_URL` has to be publicly (or, for Zammad, network-) resolvable,
 otherwise Zammad cannot deliver the webhook.
@@ -136,14 +145,16 @@ Two criteria, both of which must apply (`ShouldWake` in
 
 1. **A customer message:** `article.sender == "Customer"` and not internal. That
    way the agent's *own reply* does not trigger a new wake cycle.
-2. **A group allowlist** (new, configurable):
+2. **A group allowlist — set it in the Zammad trigger, not in Covey.**
 
-   ```bash
-   COVEY_ZAMMAD_INTAKE_GROUPS="Support L1, Complaints"
-   ```
+   `COVEY_ZAMMAD_INTAKE_GROUPS` is gone as of 0.6.0, and it is not replaced by a
+   plugin setting. A Zammad trigger has had a condition on the group all along:
+   add **Group is «Support L1»** to the trigger's conditions and only those
+   tickets are delivered at all.
 
-   If the variable is set, only a ticket from one of these groups is taken up
-   (case-insensitively). Empty/unset → no restriction
+   That is the better place for it and always was. The env var applied the same
+   filter one step too late — after Zammad had built and sent the request, and
+   after Covey had verified its signature, only to discard it.
    (backwards-compatible). Prerequisite: the webhook payload contains
    `ticket.group` as a name.
 
@@ -170,12 +181,16 @@ The adapter distinguishes:
   goes out as mail to the customer.
 
 > Important: an external *note* would be visible in the ticket but would
-> trigger **no mail**. That is why the default for external replies is `email`.
-> For web/chat-based instances switch the type:
+> trigger **no mail** — the failure where the agent believes it answered and the
+> customer never heard. That is why the default for external replies is `email`.
+> For a web or chat instance the agent names the type per answer:
 >
-> ```bash
-> COVEY_ZAMMAD_REPLY_TYPE=web
+> ```json
+> {"ticket_id": 42, "body": "…", "internal": false, "reply_type": "web"}
 > ```
+>
+> `COVEY_ZAMMAD_REPLY_TYPE` is gone as of 0.6.0. It was always a per-answer
+> decision wearing the clothes of an installation-wide one.
 
 ---
 
@@ -198,8 +213,6 @@ otherwise a blocked agent never wakes up again.
 |---|---|---|
 | `COVEY_PUBLIC_URL` | `http://localhost:8494` | The base URL at which Zammad reaches the webhook |
 | `COVEY_ZAMMAD_WEBHOOK_SECRET` | *(empty = signature check off)* | The HMAC-SHA1 secret, identical to the Zammad webhook token |
-| `COVEY_ZAMMAD_INTAKE_GROUPS` | *(empty = all)* | An allowlist of the groups whose tickets are taken up |
-| `COVEY_ZAMMAD_REPLY_TYPE` | `email` | The article type of external replies (`email`/`web`) |
 | `COVEY_DAEMON_TOKEN_TTL` | `15m` | The TTL of the credential passed into the sandbox |
 | `COVEY_EGRESS_ENFORCE` | `false` | Switch on the egress allowlist proxy (only the `docker` provider) |
 | `COVEY_EGRESS_ALLOW` | *(empty)* | Additional permitted egress hosts, e.g. the Zammad host (`*.suffix` allowed) |

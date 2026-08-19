@@ -6,9 +6,9 @@ this project has installed have a known vulnerability, and which version fixes
 it?** Covered ecosystems: **npm**, **Packagist** (Composer/PHP) and **Pub**
 (Dart/Flutter).
 
-> Short version: enable the plugin, unlock it in `ACCESS.md`, import the egress
-> template "Vulnerability databases". No secret needed — an NVD API key only
-> raises a rate limit.
+> Short version: install the plugin from the catalogue, unlock it in
+> `ACCESS.md`, import the egress template "Vulnerability databases". No secret
+> needed, and as of 0.6.0 none is used.
 
 ---
 
@@ -51,6 +51,13 @@ pairs yourself and send them through `query_batch`.
 
 ## 3. Setup
 
+> **Installing it.** As of 0.6.0 this is a **catalogue plugin**, not a compiled
+> one — Store → Catalogue → Vulnerability databases → Install. Covey verifies the digest the
+> catalogue pins before storing the module. Upgrading across 0.6.0 with the
+> plugin already in use: the plugin row and its secrets survive, only the code
+> now arrives from the catalogue, so install it once afterwards and the agents
+> keep their access.
+
 1. Enable the plugin in the org (no secrets).
 2. In the agent's `ACCESS.md`:
    ```
@@ -62,12 +69,23 @@ pairs yourself and send them through `query_batch`.
    note about the missing host. The template contains:
    `api.osv.dev`, `osv.dev`, `api.github.com`, `services.nvd.nist.gov`,
    `registry.npmjs.org`, `packagist.org`, `repo.packagist.org`, `pub.dev`.
-4. **Optional — the rate limit.** Only NVD limits noticeably: 5 requests per
-   30 seconds anonymously, 50 with a key. Request one at
-   <https://nvd.nist.gov/developers/request-an-api-key>, store it under Secrets
-   and assign it to the agent as `vulndb_token`. Everything else stays public;
-   the GitHub Advisory Database allows 60 requests per hour without a token,
-   which is enough for the handful of findings of a scan.
+4. **There is nothing else to configure.** All four sources are public and the
+   plugin holds no credential at all.
+
+   > **Changed in 0.6.0.** `vulndb_token` no longer has an effect. It used to
+   > raise the NVD limit from 5 requests per 30 seconds to 50; NVD now always
+   > answers at the anonymous limit.
+   >
+   > The reason is structural rather than an oversight. `vulndb` became a
+   > WebAssembly module, and a module is never handed the brokered credential
+   > for a host it merely *declared* — the token belongs to the system an
+   > organisation pointed the plugin at, and this plugin points at nobody. A
+   > token that travels to a declared host is a token that leaked, so the rule
+   > is worth more than the rate limit.
+   >
+   > What it costs: `advisory` may report `nvd: … HTTP 429` as a note beside an
+   > otherwise complete result, the same as any source that does not answer. A
+   > stored `vulndb_token` is now dead configuration and can be deleted.
 
 A ready-made agent that uses all of this:
 [`examples/dependency-security-agent.bundle.json`](../examples/README.md).
@@ -103,9 +121,9 @@ yet.
 
 ## 6. Security model
 
-- **No secret required, none in the sandbox.** The plugin is registered as
-  `CredentialsOptional`: it works without a key, and a stored `vulndb_token`
-  comes from the broker per call.
+- **No secret at all.** Not "optional" any more: the module holds no credential
+  and cannot be given one, because every source it reaches is a declared host
+  rather than a brokered system. There is nothing here to leak.
 - **Guard rails per action:** the subjects `vulndb:scan_lockfile`,
   `vulndb:query`, `vulndb:query_batch`, `vulndb:advisory`,
   `vulndb:latest_version`. All are read-only; the separation exists for
@@ -121,7 +139,7 @@ yet.
 | Symptom | Cause | Remedy |
 |---|---|---|
 | "… not reachable … egress allowlist" | The host is missing from the allowlist | import/assign the template "Vulnerability databases" |
-| "rate limit reached (HTTP 429)" | NVD at the anonymous limit | store an NVD key as `vulndb_token`, or query fewer CVEs per run |
+| "rate limit reached (HTTP 429)" | NVD at the anonymous limit | query fewer CVEs per run and space the runs out — a key is no longer possible, see section 3 |
 | "unknown lock file" | yarn/pnpm or an unsupported ecosystem | extract the pairs and use `query_batch` |
 | Findings without `fixed`, but with `fixed_candidates` | The version could not be compared to the branches | name the candidates in the ticket instead of picking one |
 | An empty result with `notes` | Something could not be checked | report it as a gap, never as an all-clear |

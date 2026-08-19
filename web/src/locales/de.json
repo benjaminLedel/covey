@@ -150,7 +150,8 @@
       "tag": {
         "webhook": "Webhook weckt",
         "poll": "Heartbeat sichtet",
-        "nosecret": "Ohne Zugangsdaten"
+        "nosecret": "Ohne Zugangsdaten",
+        "readonly": "Nur lesend"
       },
       "sys": {
         "zammad": {
@@ -196,6 +197,10 @@
         "vulndb": {
           "t": "Schwachstellen-Datenbanken",
           "d": "Bekannte Schwachstellen in den deklarierten Abhängigkeiten: rein geht eine Lockdatei, raus kommen Befunde mit Advisory-ID, Schwere und der Fix-Version für genau diesen Versionszweig. npm, Composer, Dart/Flutter."
+        },
+        "k8s": {
+          "t": "Kubernetes",
+          "d": "In einen Cluster sehen, ohne ihn zu ändern: Pod-Zustände und Neustarts, das Log des abgestürzten Containers, Events, Workloads, Ingresses, RBAC und NetworkPolicies. Secrets bleiben unlesbar, und der Soll-Zustand kommt weiter aus dem Infrastruktur-Repository."
         }
       },
       "extendLead": "Zwei Wege, ohne auf ein Release zu warten — beide in der Oberfläche, ohne Deploy.",
