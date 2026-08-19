@@ -3,9 +3,11 @@ package httpapi
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
+	"covey/internal/buildinfo"
 	"covey/internal/marketplace"
 	"github.com/benjaminLedel/covey-plugin-sdk/target"
 )
@@ -184,6 +186,24 @@ func (s *Server) handleMarketplaceInstall(w http.ResponseWriter, r *http.Request
 	}
 	if !ok {
 		writeErr(w, http.StatusBadRequest, "the catalogue lists no version of "+name)
+		return
+	}
+
+	// The catalogue may say which Covey this artefact needs, and a version that
+	// says so has to be believed. It matters in one window in particular: an
+	// entry appears BEFORE the release that drops the matching built-in, so
+	// that nobody upgrades into a missing target system — and in that window an
+	// older instance can see a plugin it cannot run. Installing it there does
+	// not fail cleanly, because the store lists a compiled plugin and a stored
+	// one under the same name and the compiled one wins.
+	//
+	// An unknown running version (a dev build, a source checkout) is allowed
+	// through: refusing would make it impossible to test an entry before the
+	// release it names exists.
+	if ok, known := marketplace.MeetsMinVersion(buildinfo.Get().Version, version.CoveyMinVersion); !ok && known {
+		writeErr(w, http.StatusConflict, fmt.Sprintf(
+			"%s %s needs Covey %s or newer, and this is %s — upgrade first, or install an older version of the plugin",
+			name, version.Version, version.CoveyMinVersion, buildinfo.Get().Version))
 		return
 	}
 
