@@ -152,7 +152,23 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -eu
-          gh release create "${GITHUB_REF_NAME}" dist/* \
-            --title "${GITHUB_REF_NAME}" \
-            --generate-notes \
-            --verify-tag
+          # Das Release kann schon da sein: Wer einen Tag schiebt und die
+          # Beschreibung von Hand schreibt, ist schneller als dieser Lauf — er
+          # baut vorher zehn Archive. Vorher scheiterte der Schritt dann an
+          # "already exists", und das Release blieb OHNE Artefakte stehen. Das
+          # ist der schlechtere von zwei Fehlern: ein rotes Häkchen sieht man,
+          # ein Release ohne Archive nicht — installer/install.sh lädt genau
+          # diese Dateien und läuft sonst in einen 404.
+          #
+          # Also: existiert es, bekommt es die Archive und behält seinen Text.
+          # Eine von Hand geschriebene Beschreibung ist mehr wert als die
+          # generierte, und dieser Lauf weiß nicht, welche davorstand.
+          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            echo "Release ${GITHUB_REF_NAME} existiert — hänge die Artefakte an."
+            gh release upload "${GITHUB_REF_NAME}" dist/* --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" dist/* \
+              --title "${GITHUB_REF_NAME}" \
+              --generate-notes \
+              --verify-tag
+          fi
