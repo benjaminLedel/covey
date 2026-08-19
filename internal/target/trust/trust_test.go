@@ -100,3 +100,59 @@ func TestUnreadableCAIsRefused(t *testing.T) {
 		t.Errorf("the error should name the secret to fix, got %v", err)
 	}
 }
+
+// The property the compiled Kubernetes plugin carried, and its test with it.
+// When the plugin became a module the dialling moved to the host; without this
+// the property would have moved nowhere.
+func TestClientRefusesCrossOriginRedirect(t *testing.T) {
+	elsewhere := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Write([]byte(`{"secret":"this should never be read"}`))
+	}))
+	defer elsewhere.Close()
+
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, elsewhere.URL+"/anything", http.StatusFound)
+	}))
+	defer api.Close()
+
+	c, err := Client("k8s", 5*time.Second, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := c.Get(api.URL + "/api/v1/namespaces")
+	if err == nil {
+		resp.Body.Close()
+		t.Fatal("the redirect was followed off the origin the plugin was pointed at")
+	}
+	if !strings.Contains(err.Error(), "refusing redirect") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+// An ordinary redirect inside the same origin is not the thing being stopped —
+// an API server that adds a trailing slash must keep working.
+func TestClientFollowsRedirectWithinTheOrigin(t *testing.T) {
+	var hits int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		if r.URL.Path == "/a" {
+			http.Redirect(w, r, "/b", http.StatusFound)
+			return
+		}
+		w.Write([]byte(`ok`))
+	}))
+	defer srv.Close()
+
+	c, err := Client("k8s", 5*time.Second, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := c.Get(srv.URL + "/a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 || hits != 2 {
+		t.Fatalf("status %d after %d requests — an in-origin redirect has to be followed", resp.StatusCode, hits)
+	}
+}
