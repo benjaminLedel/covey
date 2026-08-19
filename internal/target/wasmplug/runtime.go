@@ -154,6 +154,22 @@ func (m *Module) Invoke(ctx context.Context, in Invocation, host Host) (Message,
 			WithStdin(hostToGuest).
 			WithStdout(hostFromGuest).
 			WithStderr(&stderr).
+			// A module may know what time it is. wazero's default is a clock
+			// frozen at 2022-01-01, which is the right default for a runtime
+			// that wants reproducible execution and the wrong one here: a
+			// plugin that cannot read the wall clock cannot write a timestamp,
+			// and the failure is silent rather than loud. The rollout restart
+			// is the case that proves it — it bumps an annotation that HAS to
+			// differ from the last one, so a frozen clock turns the second
+			// call into a no-op that reports success.
+			//
+			// It grants nothing else. The module still has no socket, no
+			// filesystem and no credential, and the wall time of a machine it
+			// cannot reach is not a secret. What it does NOT get is a
+			// filesystem clock or a random source — neither has a use that
+			// this class of plugin has asked for.
+			WithSysWalltime().
+			WithSysNanotime().
 			WithName(""). // anonymous: several instances may run at once
 			WithStartFunctions("_start")
 		mod, err := m.runtime.InstantiateModule(ctx, m.compiled, cfg)
