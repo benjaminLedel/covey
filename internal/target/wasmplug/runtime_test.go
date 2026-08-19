@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 )
 
 var (
@@ -241,5 +242,46 @@ func TestUnknownActionIsThePluginsError(t *testing.T) {
 func TestRubbishIsNotAModule(t *testing.T) {
 	if _, err := Compile(context.Background(), []byte("this is not wasm")); err == nil {
 		t.Fatal("anything that is not a module has to be refused at compile time")
+	}
+}
+
+// TestModuleHasARealClock pins a grant that is easy to lose by accident.
+//
+// wazero's default walltime is frozen at 2022-01-01, and nothing about a module
+// misbehaves when it is — which is what makes it dangerous. A plugin that
+// stamps a value somebody else compares against the last one (the rollout
+// restart's annotation is the case in hand) silently stops working: the second
+// call writes the same stamp, the target system sees no change, and the action
+// reports success. So the assertion is not "the clock is plausible" but "the
+// clock is not the frozen one".
+func TestModuleHasARealClock(t *testing.T) {
+	m, err := Compile(context.Background(), demoModule(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer m.Close(context.Background())
+
+	msg, err := m.Invoke(context.Background(), Invocation{Op: "execute", Action: "now"}, Host{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if msg.Error != "" {
+		t.Fatalf("module: %s", msg.Error)
+	}
+	var stamp string
+	if err := json.Unmarshal(msg.Result, &stamp); err != nil {
+		t.Fatal(err)
+	}
+	got, err := time.Parse(time.RFC3339, stamp)
+	if err != nil {
+		t.Fatalf("not a timestamp: %q", stamp)
+	}
+	// The frozen default, exactly. Naming it is worth more than a range check:
+	// whoever removes WithSysWalltime gets told what they removed.
+	if got.Year() <= 2022 {
+		t.Fatalf("the module read %s — that is wazero's frozen clock, so WithSysWalltime is gone", stamp)
+	}
+	if d := time.Since(got); d < -time.Hour || d > time.Hour {
+		t.Errorf("the module read %s, which is %v away from the host's clock", stamp, d)
 	}
 }

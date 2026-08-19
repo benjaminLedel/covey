@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 type invocation struct {
@@ -184,6 +185,12 @@ func execute(inv invocation) {
 	case "shout":
 		// Real computation, no call: the thing a manifest cannot do.
 		result(strings.ToUpper(p.Text))
+	case "now":
+		// The clock, so a test can prove the module has one. wazero's default
+		// is frozen at 2022-01-01; the host grants the real one deliberately
+		// (see the ModuleConfig in runtime.go), and a plugin that writes a
+		// timestamp somebody else reads depends on that grant.
+		result(time.Now().UTC().Format(time.RFC3339))
 	case "get_issue":
 		resp := fetch(fetchReq{Method: "GET", Path: fmt.Sprintf("/issues/%d", p.ID)})
 		if resp.Error != "" {
