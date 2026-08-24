@@ -83,14 +83,17 @@ special cases, checklists, templates, reference tables.
 
 ## Target-system catalogue
 
-Registered built-in systems (as of this repo): `gitlab`, `email`, `dev`, `browser`, `teams`,
-`zammad`, `sharepoint`, `mcp`. **Authoritative** are the `SetupDoc()`/`PromptDoc()` in the
-respective `internal/target/<name>/plugin.go` — the exact scopes and actions are there.
+Registered built-in systems (as of this repo): `gitlab`, `github`, `jira`, `email`, `dev`,
+`browser`, `teams`, `zammad`, `salesforce`, `sharepoint`, `nextcloud`, `mcp`. **Authoritative**
+are the `SetupDoc()`/`PromptDoc()` of the plugin — they live in the plugin pack
+(`covey-plugin-pack/<name>/plugin.go`), not in this repository, and the exact scopes and actions
+are there.
 Frequently used:
 
 | System | Scopes (ACCESS) | What for / core actions |
 |---|---|---|
 | `gitlab` | `read,write,comment` | Issues/MRs: list_issues (including `milestone`), get_issue, checkout, read_file, create_issue, comment, list_notes, assign, set_labels, set_state, commit, create_merge_request, comment_mr, approve_mr, upload, download_upload |
+| `jira` | `read,write,comment` | The board beside the repository: search_issues (JQL), get_issue, list_comments, list_transitions, transition (by transition OR status name), assign, comment, update_issue (custom fields by their name), create_issue, link_issues, log_work, list_attachments, download_attachment, attach_file. Cloud and Data Center from one credential; give a developer agent `jira` AND `gitlab`/`github` — Jira holds the ticket, not the code, and the issue key in front of every commit message is what ties them together |
 | `email` | `read,write` | IMAP/SMTP: list_unread, get_message, reply, mark_seen, get_attachment (the attachment into the sandbox, then the read tool/vision) |
 | `dev` | `exec,processes` | The sandbox shell: exec, start/stop/logs/list (bring a dev server up) |
 | `browser` | `navigate,content,screenshot,click,type` | Headless Chrome; CSS + `:has-text("…")`; screenshot with `highlight`+`label` |

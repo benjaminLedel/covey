@@ -32,6 +32,7 @@ const GROUPS: { g: string; items: Item[] }[] = [
       { name: "salesforce", category: "ticketing", tag: "poll" },
       { name: "github", category: "code", tag: "webhook" },
       { name: "gitlab", category: "code", tag: "poll" },
+      { name: "jira", category: "ticketing", tag: "webhook" },
       { name: "email", category: "communication", tag: "poll" },
       { name: "teams", category: "communication", tag: "webhook" },
     ],

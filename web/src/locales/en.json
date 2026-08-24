@@ -170,6 +170,10 @@
           "t": "GitLab",
           "d": "Issues as the work queue, source checked out, a fix on a feature branch, a merge request to the supervisor — and the review loop afterwards, red CI included."
         },
+        "jira": {
+          "t": "Jira",
+          "d": "The board a company actually plans on — Cloud and Data Center alike. Find work by JQL, read a ticket with its thread and its screenshots, take it on, move it through its workflow, keep it honest with labels, story points and sub-tasks. The code stays in GitLab or GitHub; the issue key ties the two together, which is why the agent puts it in front of every commit message."
+        },
         "email": {
           "t": "Email (IMAP/SMTP)",
           "d": "A mailbox of the agent's own: triage the inbox, reply, file things away. For everything that arrives without a portal and without an API."

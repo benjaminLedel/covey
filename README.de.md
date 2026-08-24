@@ -76,7 +76,7 @@ Die dritte Zeile holt den Container, in dem ein Agent arbeitet ([`Dockerfile.san
 | 🧑‍💼 **Agenten mit Identität** | Eigene Sandbox, eigenes Home, eigene Zugänge — und ein Platz im Org-Chart neben den Menschen. |
 | 🧑‍🎓 **Einstellen statt Formular** | Beschreiben, was eine neue Kollegin tun soll; die eigene Personalabteilung — ein Agent — macht daraus eine vollständige Konfiguration und fragt nach, wenn die Ausschreibung zu dünn ist. Heraus kommt ein **Entwurf**: angelegt, ansehbar, änderbar — und er arbeitet erst, wenn ein Mensch ihn einstellt. |
 | 📥 **Backlog & Wake-Quellen** | Aufgaben als First-Class-Objekte; Agenten wachen per Webhook, Heartbeat oder Zuruf auf und schlafen danach wieder. |
-| 🔌 **Zielsysteme als Plugins** | Zammad, Salesforce, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, Kubernetes, E-Mail (IMAP/SMTP), headless Browser, MCP — keines davon in diesem Repo. Plugins sind eigene Module gegen ein [öffentliches SDK](https://github.com/benjaminLedel/covey-plugin-sdk); die mitgelieferten liegen im [Plugin-Pack](https://github.com/benjaminLedel/covey-plugin-pack), der Rest wird zur Laufzeit aus dem [Katalog](https://github.com/benjaminLedel/covey-plugins) installiert. Ein fremdes Plugin wird genauso gebaut — Zammad, Kubernetes und die Schwachstellen-Datenbanken sind kompiliertes WebAssembly aus demselben Katalog und stehen um nichts besser da als Ihres. |
+| 🔌 **Zielsysteme als Plugins** | Zammad, Salesforce, Jira, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, Kubernetes, E-Mail (IMAP/SMTP), headless Browser, MCP — keines davon in diesem Repo. Plugins sind eigene Module gegen ein [öffentliches SDK](https://github.com/benjaminLedel/covey-plugin-sdk); die mitgelieferten liegen im [Plugin-Pack](https://github.com/benjaminLedel/covey-plugin-pack), der Rest wird zur Laufzeit aus dem [Katalog](https://github.com/benjaminLedel/covey-plugins) installiert. Ein fremdes Plugin wird genauso gebaut — Zammad, Kubernetes und die Schwachstellen-Datenbanken sind kompiliertes WebAssembly aus demselben Katalog und stehen um nichts besser da als Ihres. |
 | 🛡️ **Guard-Rails & Freigaben** | Zentral erzwungen, außerhalb der Runtime, fail-closed. Kritische Aktionen gehen an einen Menschen. |
 | 🔑 **Secrets-Broker** | Keine langlebigen Secrets in der Sandbox — Zugriff wird zur Laufzeit gebrokert, kurzlebig und gescopt. |
 | 🧩 **Skills** | Prozeduren, die ein Agent nur lädt, wenn sie greifen: Die Beschreibung steht im Kontext, Anleitung und Zusatzdateien werden bei Bedarf gelesen. Org-weite Bibliothek, je Agent verlinkt — ein Lead-Lauf, der nichts zu tun findet, zahlt nicht mehr fünf Playbooks. |
@@ -125,7 +125,7 @@ flowchart LR
     end
 
     CP <-->|Daemon-Protokoll| DP
-    CP --> TS["Zielsysteme: Zammad · Salesforce · GitHub · GitLab · Teams · SharePoint · Nextcloud · Kubernetes · E-Mail · Browser · MCP"]
+    CP --> TS["Zielsysteme: Zammad · Salesforce · Jira · GitHub · GitLab · Teams · SharePoint · Nextcloud · Kubernetes · E-Mail · Browser · MCP"]
     CP --- DB[("PostgreSQL + pgvector")]
 ```
 
@@ -288,7 +288,7 @@ Spezifikation und Runbooks sind auf **Englisch** — sie richten sich an alle, d
 
 ## Status
 
-**Deutlich über den MVP hinaus.** Der Durchstich aus [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md) (M0–M7) steht; darauf aufgesetzt sind Org-Chart & Abteilungen, Mitarbeiter-Profile, weitere Zielsystem-Plugins (Salesforce, GitHub, GitLab, Teams, SharePoint, Nextcloud, E-Mail, Browser, MCP), Docker-Sandboxen, Egress-Kontrolle, Agenten-Vorlagen und das Wiki-Gedächtnis. Die Abnahme-Checkliste läuft als Integrationstest-Suite (`internal/integration/`).
+**Deutlich über den MVP hinaus.** Der Durchstich aus [`spec/11-mvp-plan.md`](spec/11-mvp-plan.md) (M0–M7) steht; darauf aufgesetzt sind Org-Chart & Abteilungen, Mitarbeiter-Profile, weitere Zielsystem-Plugins (Salesforce, Jira, GitHub, GitLab, Teams, SharePoint, Nextcloud, E-Mail, Browser, MCP), Docker-Sandboxen, Egress-Kontrolle, Agenten-Vorlagen und das Wiki-Gedächtnis. Die Abnahme-Checkliste läuft als Integrationstest-Suite (`internal/integration/`).
 
 ## Mitwirken
 

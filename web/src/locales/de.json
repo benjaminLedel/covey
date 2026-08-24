@@ -170,6 +170,10 @@
           "t": "GitLab",
           "d": "Issues als Arbeitsvorrat, Quellcode auschecken, Fix auf einem Feature-Branch, Merge Request an den Vorgesetzten — und den Review-Loop danach leben, rote CI eingeschlossen."
         },
+        "jira": {
+          "t": "Jira",
+          "d": "Das Board, auf dem eine Firma wirklich plant — Cloud wie Data Center. Arbeit per JQL finden, ein Ticket mit seinem Verlauf und seinen Screenshots lesen, es übernehmen, durch seinen Workflow bewegen und mit Labels, Story Points und Unteraufgaben ehrlich halten. Der Code bleibt in GitLab oder GitHub; der Issue-Key verbindet beides — deshalb stellt der Agent ihn jeder Commit-Nachricht voran."
+        },
         "email": {
           "t": "E-Mail (IMAP/SMTP)",
           "d": "Ein eigenes Postfach für den Agenten: Posteingang sichten, antworten, ablegen. Für alles, was ohne Portal und ohne API hereinkommt."
