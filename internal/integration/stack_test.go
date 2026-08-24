@@ -50,6 +50,7 @@ import (
 	"covey/internal/waitlist"
 
 	_ "github.com/benjaminLedel/covey-plugin-pack/browser"
+	_ "github.com/benjaminLedel/covey-plugin-pack/confluence"
 	_ "github.com/benjaminLedel/covey-plugin-pack/dev"
 	_ "github.com/benjaminLedel/covey-plugin-pack/email"
 	// gitlab ist im Testbinary registriert, weil die Organisation es als

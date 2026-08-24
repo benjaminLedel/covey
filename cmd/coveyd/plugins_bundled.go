@@ -8,6 +8,7 @@ package main
 // runtime over the protocol and are unaffected by it.
 import (
 	_ "github.com/benjaminLedel/covey-plugin-pack/browser"
+	_ "github.com/benjaminLedel/covey-plugin-pack/confluence"
 	_ "github.com/benjaminLedel/covey-plugin-pack/dev"
 	_ "github.com/benjaminLedel/covey-plugin-pack/email"
 	_ "github.com/benjaminLedel/covey-plugin-pack/github"

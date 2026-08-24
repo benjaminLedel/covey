@@ -151,7 +151,8 @@
         "webhook": "Woken by webhook",
         "poll": "Polled by heartbeat",
         "nosecret": "No credentials needed",
-        "readonly": "Read-only"
+        "readonly": "Read-only",
+        "ondemand": "Used while working"
       },
       "sys": {
         "zammad": {
@@ -181,6 +182,10 @@
         "teams": {
           "t": "Microsoft Teams",
           "d": "A chat channel via the Azure Bot Service: receive and send messages, with every inbound call cryptographically verified."
+        },
+        "confluence": {
+          "t": "Confluence",
+          "d": "The documentation the ticket and the code hang off — Cloud and Data Center alike. Find a page by words or by CQL, read it as Markdown, append a section to it, comment, label, attach. It wakes nobody: an agent comes here while it is working on something else, and writes when that work is done."
         },
         "nextcloud": {
           "t": "Nextcloud",
