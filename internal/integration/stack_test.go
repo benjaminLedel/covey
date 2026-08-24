@@ -59,6 +59,7 @@ import (
 	_ "covey/internal/target/mcp"
 	"covey/migrations"
 	_ "github.com/benjaminLedel/covey-plugin-pack/gitlab"
+	_ "github.com/benjaminLedel/covey-plugin-pack/jira"
 	_ "github.com/benjaminLedel/covey-plugin-pack/nextcloud"
 	_ "github.com/benjaminLedel/covey-plugin-pack/sharepoint"
 
@@ -285,7 +286,7 @@ func newStackWith(t *testing.T, opts stackOpts) *stack {
 		Runners:     s.runners,
 		ReqLog:      s.reqlog,
 		Orch:        s.orch, Log: log,
-		WebhookSecrets: map[string]string{"zammad": webhookSecret},
+		WebhookSecrets: map[string]string{"zammad": webhookSecret, "jira": webhookSecret},
 		SessionTTL:     time.Hour,
 	}
 	s.srv = srv

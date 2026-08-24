@@ -207,8 +207,10 @@ the agent at all, and it does so in Jira, where the person who owns the board
 can see and change it — better than any filter on this end.
 
 The secret makes Jira sign the body (HMAC-SHA256, `X-Hub-Signature`), and Covey
-checks it. Store the same value as the agent's webhook secret in Covey. An empty
-secret switches the check off — for local tests, and only there.
+checks it. The same value goes into `COVEY_JIRA_WEBHOOK_SECRET` on the control
+plane. An empty secret switches the check off — for local tests, and only
+there. An automation rule that assembles the call itself may send the signature
+as `X-Covey-Signature` instead; both headers are accepted.
 
 Set `COVEY_JIRA_BOT_ACCOUNT` (section 8) as well. Without it the agent's own
 comment comes back through the webhook and wakes it to read its own sentence:
@@ -391,6 +393,7 @@ the agent's Markdown is stored as Markdown (Jira renders wiki markup there, so
 | `COVEY_JIRA_INTAKE_PROJECTS` | *(empty)* | allowlist of project keys that may become work at all — applies to the heartbeat pre-check and the webhook intake. Empty = every project. Installation-wide; the per-agent wall is `project=` in `jira_url`. |
 | `COVEY_JIRA_BOT_ACCOUNT` | *(empty)* | the agent's own account (name, mail or `accountId`). An event this account caused is registered but wakes nobody. Unset, every event wakes — fail-open, because a missed question from a human is the more expensive mistake. |
 | `COVEY_JIRA_ATTACHMENT_MAX_MB` | `25` | per file, in both directions (1…1024). |
+| `COVEY_JIRA_WEBHOOK_SECRET` | *(empty)* | the shared secret for the webhook signature. Empty = the check is off. Read on the **control plane**, not in the sandbox — the intake never reaches the plugin's action side. |
 
 These are read **in the sandbox**, where the action proxy runs the plugin, and
 Covey carries them there because the plugin declares them.
