@@ -235,6 +235,8 @@ Spezifikation und Runbooks sind auf **Englisch** — sie richten sich an alle, d
 | [`docs/ops-zammad.md`](docs/ops-zammad.md) | Zammad anbinden: API-Token, Webhook + Trigger, kundensichtbare Antworten |
 | [`docs/ops-github.md`](docs/ops-github.md) | GitHub: Issues, Pull Requests, Actions, Checkout in der Sandbox |
 | [`docs/ops-gitlab.md`](docs/ops-gitlab.md) | GitLab: Issues, Merge Requests, Checkout in der Sandbox |
+| [`docs/ops-jira.md`](docs/ops-jira.md) | Jira: das Ticket neben dem Repository — Cloud und Data Center, der Workflow, das Heartbeat-Gate |
+| [`docs/ops-confluence.md`](docs/ops-confluence.md) | Confluence: die Dokumentation als Kontext und als Ablage — Anhängen, Versionen, warum es keinen Intake gibt |
 | [`docs/ops-email.md`](docs/ops-email.md) | E-Mail-Postfach als Wake-Quelle (IMAP/SMTP) |
 | [`docs/ops-teams.md`](docs/ops-teams.md) | Microsoft Teams als Kanal zwischen Mensch und Agent |
 | [`docs/ops-sharepoint.md`](docs/ops-sharepoint.md) | SharePoint/Teams-Dateien via Microsoft Graph |

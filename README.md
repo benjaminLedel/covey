@@ -235,6 +235,8 @@ All runbooks are in English.
 | [`docs/ops-zammad.md`](docs/ops-zammad.md) | Connecting Zammad: API token, webhook + trigger, customer-visible replies |
 | [`docs/ops-github.md`](docs/ops-github.md) | GitHub: issues, pull requests, Actions, checkout inside the sandbox |
 | [`docs/ops-gitlab.md`](docs/ops-gitlab.md) | GitLab: issues, merge requests, checkout inside the sandbox |
+| [`docs/ops-jira.md`](docs/ops-jira.md) | Jira: the ticket beside the repository — Cloud and Data Center, the workflow, the heartbeat gate |
+| [`docs/ops-confluence.md`](docs/ops-confluence.md) | Confluence: the documentation as context and as a place to write results — appending, versions, why there is no intake |
 | [`docs/ops-email.md`](docs/ops-email.md) | An email mailbox as a wake source (IMAP/SMTP) |
 | [`docs/ops-teams.md`](docs/ops-teams.md) | Microsoft Teams as the channel between human and agent |
 | [`docs/ops-sharepoint.md`](docs/ops-sharepoint.md) | SharePoint / Teams files via Microsoft Graph |
