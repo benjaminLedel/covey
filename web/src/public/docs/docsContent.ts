@@ -205,7 +205,7 @@ Der Dienst, der Zugänge zur Laufzeit ausstellt, kurzlebig und gescopt. Langlebi
 
 ## Zielsystem
 
-Ein angebundenes Fremdsystem — Zammad, Salesforce, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, E-Mail, ein Headless-Browser, ein MCP-Server. Jedes ist ein Plugin mit einem Manifest; der Kern kennt keine Sonderfälle. Aktionen laufen über einen Proxy, damit Guard-Rails und Aufzeichnung greifen.
+Ein angebundenes Fremdsystem — Zammad, Salesforce, Jira, Confluence, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, E-Mail, ein Headless-Browser, ein MCP-Server. Jedes ist ein Plugin — kompiliert, als Manifest, als WebAssembly-Modul oder als MCP-Server; der Kern kennt keine Sonderfälle. Aktionen laufen über einen Proxy, damit Guard-Rails und Aufzeichnung greifen.
 
 ## Wiki-Gedächtnis
 
@@ -262,7 +262,7 @@ The service that issues access at runtime, short-lived and scoped. Long-lived se
 
 ## Target system
 
-A connected foreign system — Zammad, Salesforce, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, email, a headless browser, an MCP server. Each is a plugin with a manifest; the core knows no special cases. Actions go through a proxy so guard-rails and recording apply.
+A connected foreign system — Zammad, Salesforce, Jira, Confluence, GitHub, GitLab, Microsoft Teams, SharePoint, Nextcloud, email, a headless browser, an MCP server. Each is a plugin — compiled, a manifest, a WebAssembly module or an MCP server; the core knows no special cases. Actions go through a proxy so guard-rails and recording apply.
 
 ## Wiki memory
 
@@ -1427,18 +1427,21 @@ A run has an upper bound on steps (\`max_turns\`). When it is reached the run ab
         slug: { de: "zielsysteme", en: "target-systems" },
         title: { de: "Zielsysteme & Plugins", en: "Target systems & plugins" },
         description: {
-          de: "Zammad, Salesforce, GitHub, GitLab, Teams, SharePoint, Nextcloud, E-Mail, Browser und MCP: Wie Covey Agenten über Manifest-Plugins an Fremdsysteme anbindet.",
-          en: "Zammad, Salesforce, GitHub, GitLab, Teams, SharePoint, Nextcloud, email, browser and MCP: how Covey connects agents to foreign systems through manifest plugins.",
+          de: "Zammad, Salesforce, Jira, Confluence, GitHub, GitLab, Teams, SharePoint, Nextcloud, E-Mail, Browser und MCP: Wie Covey Agenten über Plugins an Fremdsysteme anbindet.",
+          en: "Zammad, Salesforce, Jira, Confluence, GitHub, GitLab, Teams, SharePoint, Nextcloud, email, browser and MCP: how Covey connects agents to foreign systems through plugins.",
         },
         body: {
           de: `# Zielsysteme & Plugins
 
-Ein Agent wird nützlich, wenn er in den Systemen arbeitet, in denen ohnehin gearbeitet wird. In Covey ist jedes davon ein **Plugin mit Manifest**: Es beschreibt seine Aktionen, seine Scopes und seine Weckereignisse, und der Kern kennt keine Sonderfälle.
+Ein Agent wird nützlich, wenn er in den Systemen arbeitet, in denen ohnehin gearbeitet wird. In Covey ist jedes davon ein **Plugin**: Es beschreibt seine Aktionen, seine Scopes und seine Weckereignisse, und der Kern kennt keine Sonderfälle.
 
 ## Was mitgeliefert wird
 
 - **Zammad** — Tickets sichten, intern notieren, nach außen antworten; Webhook als Weckquelle
+- **Salesforce Service Cloud** — Fälle mit ihrer ganzen Konversation, Antwort als Notiz, Portal-Kommentar oder Mail
 - **GitHub** und **GitLab** — Issues, Pull- und Merge-Requests, Pipelines, Checkout in der Sandbox
+- **Jira** — das Ticket neben dem Repository: per JQL suchen, übernehmen, durch den Workflow bewegen; Cloud und Data Center
+- **Confluence** — die Dokumentation, an der beides hängt: Seiten als Markdown lesen und schreiben. Weckt niemanden — der Agent kommt her, während er an etwas anderem arbeitet
 - **E-Mail (IMAP/SMTP)** — ein Postfach als Weckquelle, Antworten im Thread
 - **Microsoft Teams** — Chat als Kanal zwischen Mensch und Agent
 - **SharePoint** über Microsoft Graph und **Nextcloud** über WebDAV — Dateien
@@ -1469,7 +1472,7 @@ Die Werte dahinter — URL, Token — liegen bei der Organisation, nicht beim Ag
 
 ## Ein eigenes System anbinden
 
-Zwei Wege. Für die schnelle Anbindung genügt ein **MCP-Server** — der Agent bekommt dessen Werkzeuge, ohne dass an Covey etwas geändert wird. Für eine echte Integration mit Weckereignissen, Scopes und Aktionen im Recording schreibt man ein Plugin mit Manifest; die mitgelieferten sind die Vorlage dafür.
+Vier Wege, je nachdem, wie weit die Anbindung tragen soll. Am schnellsten ist ein **MCP-Server** — der Agent bekommt dessen Werkzeuge, ohne dass an Covey etwas geändert wird. Ein **Manifest** beschreibt eine REST-API als JSON-Datei und wird zur Laufzeit installiert, ohne Neubau. Ein **WebAssembly-Modul** bringt eigene Logik mit und kommt ebenfalls aus dem Katalog. Und ein **kompiliertes Plugin** in Go ist der Weg, wenn die Integration übersetzen muss, was das Fremdsystem speichert — Jira und Confluence tun genau das mit ihren Dokumentformaten. Alle vier bedienen dieselbe Schnittstelle; die mitgelieferten liegen im Plugin-Pack und sind die Vorlage.
 
 ## Weiter
 
@@ -1478,12 +1481,15 @@ Zwei Wege. Für die schnelle Anbindung genügt ein **MCP-Server** — der Agent 
 - [Backlog & Lifecycle](/docs/backlog-lifecycle) — was ein Weckereignis auslöst`,
           en: `# Target systems & plugins
 
-An agent becomes useful when it works in the systems where the work already happens. In Covey each of them is a **plugin with a manifest**: it declares its actions, its scopes and its wake events, and the core knows no special cases.
+An agent becomes useful when it works in the systems where the work already happens. In Covey each of them is a **plugin**: it declares its actions, its scopes and its wake events, and the core knows no special cases.
 
 ## What ships with it
 
 - **Zammad** — triage tickets, add internal notes, reply externally; webhook as a wake source
+- **Salesforce Service Cloud** — cases with their whole conversation; reply as a note, a portal comment or a mail
 - **GitHub** and **GitLab** — issues, pull and merge requests, pipelines, checkout inside the sandbox
+- **Jira** — the ticket beside the repository: search by JQL, take it on, move it through its workflow; Cloud and Data Center
+- **Confluence** — the documentation both of them hang off: pages read and written as Markdown. Wakes nobody — an agent comes here while it works on something else
 - **Email (IMAP/SMTP)** — a mailbox as a wake source, replies in-thread
 - **Microsoft Teams** — chat as the channel between human and agent
 - **SharePoint** via Microsoft Graph and **Nextcloud** via WebDAV — files
@@ -1514,7 +1520,7 @@ The values behind them — URL, token — belong to the organisation, not to the
 
 ## Connecting your own system
 
-Two routes. For a quick connection an **MCP server** is enough — the agent gets its tools without anything in Covey changing. For a real integration with wake events, scopes and actions in the recording, you write a plugin with a manifest; the ones that ship are the template.
+Four routes, depending on how far the connection has to carry. The quickest is an **MCP server** — the agent gets its tools without anything in Covey changing. A **manifest** describes a REST API as a JSON file and installs at runtime, with no rebuild. A **WebAssembly module** brings logic of its own and comes from the catalogue too. And a **compiled plugin** in Go is the route when the integration has to translate what the foreign system stores — Jira and Confluence do exactly that with their document formats. All four serve the same interface; the ones that ship sit in the plugin pack and are the template.
 
 ## Next
 
@@ -1526,7 +1532,7 @@ Two routes. For a quick connection an **MCP server** is enough — the agent get
           de: [
             {
               q: "Kann ich ein System anbinden, für das es kein Plugin gibt?",
-              a: "Ja — am schnellsten über einen MCP-Server, dessen Werkzeuge der Agent dann nutzen kann. Wer Weckereignisse, Scopes und Aktionen im Recording braucht, schreibt ein Plugin mit Manifest; die mitgelieferten sind die Vorlage.",
+              a: "Ja — am schnellsten über einen MCP-Server, dessen Werkzeuge der Agent dann nutzen kann. Wer Weckereignisse, Scopes und Aktionen im Recording braucht, schreibt ein Plugin: als Manifest (JSON, ohne Neubau installierbar), als WebAssembly-Modul oder kompiliert in Go. Die mitgelieferten liegen im Plugin-Pack und sind die Vorlage.",
             },
             {
               q: "Braucht jedes Zielsystem einen Webhook?",
@@ -1540,7 +1546,7 @@ Two routes. For a quick connection an **MCP server** is enough — the agent get
           en: [
             {
               q: "Can I connect a system that has no plugin?",
-              a: "Yes — fastest through an MCP server, whose tools the agent can then use. If you need wake events, scopes and actions in the recording, write a plugin with a manifest; the ones that ship are the template.",
+              a: "Yes — fastest through an MCP server, whose tools the agent can then use. If you need wake events, scopes and actions in the recording, write a plugin: as a manifest (JSON, installable with no rebuild), as a WebAssembly module, or compiled in Go. The ones that ship sit in the plugin pack and are the template.",
             },
             {
               q: "Does every target system need a webhook?",
