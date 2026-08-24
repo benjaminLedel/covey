@@ -83,7 +83,7 @@ special cases, checklists, templates, reference tables.
 
 ## Target-system catalogue
 
-Registered built-in systems (as of this repo): `gitlab`, `github`, `jira`, `email`, `dev`,
+Registered built-in systems (as of this repo): `gitlab`, `github`, `jira`, `confluence`, `email`, `dev`,
 `browser`, `teams`, `zammad`, `salesforce`, `sharepoint`, `nextcloud`, `mcp`. **Authoritative**
 are the `SetupDoc()`/`PromptDoc()` of the plugin — they live in the plugin pack
 (`covey-plugin-pack/<name>/plugin.go`), not in this repository, and the exact scopes and actions
@@ -94,6 +94,7 @@ Frequently used:
 |---|---|---|
 | `gitlab` | `read,write,comment` | Issues/MRs: list_issues (including `milestone`), get_issue, checkout, read_file, create_issue, comment, list_notes, assign, set_labels, set_state, commit, create_merge_request, comment_mr, approve_mr, upload, download_upload |
 | `jira` | `read,write,comment` | The board beside the repository: search_issues (JQL), get_issue, list_comments, list_transitions, transition (by transition OR status name), assign, comment, update_issue (custom fields by their name), create_issue, link_issues, log_work, list_attachments, download_attachment, attach_file. Cloud and Data Center from one credential; give a developer agent `jira` AND `gitlab`/`github` — Jira holds the ticket, not the code, and the issue key in front of every commit message is what ties them together |
+| `confluence` | `read,write,comment` | The company's documentation: search (words or CQL), get_page (by id or title), list_children, list_comments, list_attachments, download_attachment, append_to_page, update_page, create_page, comment, add_labels, attach_file. Pages arrive and leave as Markdown. NOT a source of work — no heartbeat entry belongs to it; pair it with `jira` or `gitlab` |
 | `email` | `read,write` | IMAP/SMTP: list_unread, get_message, reply, mark_seen, get_attachment (the attachment into the sandbox, then the read tool/vision) |
 | `dev` | `exec,processes` | The sandbox shell: exec, start/stop/logs/list (bring a dev server up) |
 | `browser` | `navigate,content,screenshot,click,type` | Headless Chrome; CSS + `:has-text("…")`; screenshot with `highlight`+`label` |

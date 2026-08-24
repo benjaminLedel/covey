@@ -9,7 +9,7 @@ import { EngineIcon } from "../components/EngineIcon";
    internal/daemon/ (Engines) und internal/target/ (Zielsysteme) und müssen
    beim Anlegen eines neuen Plugins mitgepflegt werden. */
 
-type Item = { name: string; category: string; tag: "webhook" | "poll" | "nosecret" | "readonly" };
+type Item = { name: string; category: string; tag: "webhook" | "poll" | "nosecret" | "readonly" | "ondemand" };
 
 /* Die Engines stehen zuerst, weil sie die grundlegendere Frage beantworten:
    ohne Vertrag mit einem Anbieter läuft kein Agent, egal wie viele Zielsysteme
@@ -40,6 +40,7 @@ const GROUPS: { g: string; items: Item[] }[] = [
   {
     g: "files",
     items: [
+      { name: "confluence", category: "files", tag: "ondemand" },
       { name: "nextcloud", category: "files", tag: "poll" },
       { name: "sharepoint", category: "files", tag: "poll" },
     ],

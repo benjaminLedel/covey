@@ -151,7 +151,8 @@
         "webhook": "Webhook weckt",
         "poll": "Heartbeat sichtet",
         "nosecret": "Ohne Zugangsdaten",
-        "readonly": "Nur lesend"
+        "readonly": "Nur lesend",
+        "ondemand": "Wird bei der Arbeit benutzt"
       },
       "sys": {
         "zammad": {
@@ -181,6 +182,10 @@
         "teams": {
           "t": "Microsoft Teams",
           "d": "Ein Chat-Kanal über den Azure Bot Service: Nachrichten empfangen und senden, jeder eingehende Aufruf kryptografisch geprüft."
+        },
+        "confluence": {
+          "t": "Confluence",
+          "d": "Die Dokumentation, an der Ticket und Code hängen — Cloud wie Data Center. Eine Seite über Stichworte oder CQL finden, als Markdown lesen, einen Abschnitt anhängen, kommentieren, mit Labels versehen, Dateien anhängen. Es weckt niemanden: Der Agent kommt hierher, während er an etwas anderem arbeitet, und schreibt, wenn diese Arbeit fertig ist."
         },
         "nextcloud": {
           "t": "Nextcloud",

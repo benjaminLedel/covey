@@ -17,6 +17,7 @@ package main
 // Finer than the tag: delete a single line here. The rest stays as it is.
 import (
 	_ "github.com/benjaminLedel/covey-plugin-pack/browser"
+	_ "github.com/benjaminLedel/covey-plugin-pack/confluence"
 	_ "github.com/benjaminLedel/covey-plugin-pack/dev"
 	_ "github.com/benjaminLedel/covey-plugin-pack/email"
 	_ "github.com/benjaminLedel/covey-plugin-pack/github"
