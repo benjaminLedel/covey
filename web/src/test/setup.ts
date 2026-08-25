@@ -1,7 +1,17 @@
 // Gemeinsame Vorbereitung aller Frontend-Tests.
 import "@testing-library/jest-dom/vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
+
+// Die Voreinstellung von findBy* ist 1000 ms, und das ist keine Aussage über
+// die Oberfläche, sondern über die Maschine: Auf dem Entwicklungsrechner reicht
+// es, auf dem CI-Runner mit vierzehn Dateien parallel nicht. Ein Test, der dort
+// scheitert und hier grün ist, kostet mehr Zeit als er misst — und wer ihn dann
+// „nur einmal wiederholt", hat sich die Prüfung abgewöhnt.
+//
+// Fünf Sekunden statt einer: Eine Oberfläche, die dann noch nichts gerendert
+// hat, ist kaputt, und das soll der Test weiterhin sagen.
+configure({ asyncUtilTimeout: 5000 });
 
 // localStorage: Node bringt inzwischen eine eigene, halbfertige Fassung mit,
 // die die von jsdom hier verdeckt — beim ersten Import von i18n.ts schlägt
