@@ -258,6 +258,53 @@ func TestTheFallbackStillRespectsTags(t *testing.T) {
 	}
 }
 
+// Tags and images belonged to the host's configuration file: changing them
+// meant editing a file on the machine and restarting the runner. Assigned from
+// the interface they have to apply to the connection that is standing right
+// now — "why is it not taking anything, I gave it the tag" is the question the
+// assignment exists to answer.
+func TestAssignedCapabilitiesApplyToARunningConnection(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	org := uuid.New()
+	p, _ := newLocalPool(t, dir, fakeDockerBin(t, dir, "nothing"), org)
+
+	var id uuid.UUID
+	p.mu.Lock()
+	for _, c := range p.conns {
+		c.reportedTags, c.tags = []string{"arm64"}, []string{"arm64"}
+		c.reportedImages, c.images = []string{"covey-sandbox:latest"}, []string{"covey-sandbox:latest"}
+		id = c.runnerID
+	}
+	p.mu.Unlock()
+
+	// A tag is added, not replaced: the host does not stop being arm64 because
+	// somebody labelled it "build".
+	p.SetCapabilities(id, []string{"build"}, nil, false)
+	if _, err := p.pick(need{orgID: org, tags: []string{"arm64", "build"}}); err != nil {
+		t.Fatalf("both tags should be carried: %v", err)
+	}
+	// The reported claim still applies while nothing is decided.
+	if _, err := p.pick(need{orgID: org, image: "registry.example.com/team/dev:1"}); err == nil {
+		t.Fatal("an undecided runner keeps its own claim")
+	}
+	// The decision "no claim" is what takes back what a registration invented.
+	p.SetCapabilities(id, []string{"build"}, []string{}, true)
+	if _, err := p.pick(need{orgID: org, image: "registry.example.com/team/dev:1"}); err != nil {
+		t.Fatalf("without a claim every workplace belongs to it: %v", err)
+	}
+	// And a decision with content is a wall again.
+	p.SetCapabilities(id, nil, []string{"covey-sandbox:latest"}, true)
+	if _, err := p.pick(need{orgID: org, image: "registry.example.com/team/dev:1"}); err == nil {
+		t.Fatal("an assigned claim excludes what is not in it")
+	}
+	if _, err := p.pick(need{orgID: org, tags: []string{"build"}}); err == nil {
+		t.Fatal("tags that were taken back must not keep matching")
+	}
+}
+
 // The image hangs off the agent (spec/16). One column carries both a profile
 // name and an image of an organisation's own, so the resolution is the whole
 // rule — and if it is wrong, an agent silently works in a foreign workplace:

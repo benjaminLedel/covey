@@ -234,6 +234,62 @@ func (s *Server) handleRunnerWhoami(w http.ResponseWriter, _ *http.Request, rn r
 // handleListRunners shows an organisation's runners. The built-in one is in
 // there too — visible so that the model is comprehensible, but it has no token
 // to revoke and no delete button: it exists, or the rule says it does not.
+// handleUpdateRunner assigns tags and images to a runner from the interface.
+// Both used to come out of the host's config.toml, sent once at connect:
+// changing them meant editing a file on the machine and restarting the runner,
+// and no operator could see why an agent was not being served.
+//
+// tags are additive to what the host reports about itself; images replace the
+// reported claim, and an empty list is the decision "no claim" — this host
+// provides every workplace and fetches what it does not have, which is what
+// docker run does anyway.
+func (s *Server) handleUpdateRunner(w http.ResponseWriter, r *http.Request) {
+	p := principalFrom(r)
+	id, err := uuid.Parse(r.PathValue("id"))
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+	var in struct {
+		Tags   []string  `json:"tags"`
+		Images *[]string `json:"images"`
+	}
+	if err := readJSON(r, &in); err != nil {
+		writeErr(w, http.StatusBadRequest, "body not readable")
+		return
+	}
+	var images []string
+	if in.Images != nil {
+		images = *in.Images
+		if images == nil {
+			images = []string{}
+		}
+	}
+	rn, err := s.Runners.SetCapabilities(r.Context(), p.OrgID, id, clean(in.Tags), images)
+	if err != nil {
+		mapErr(w, err)
+		return
+	}
+	// A connected runner learns it now and not at the next reconnect: "why is
+	// it not taking anything, I gave it the tag" is the question this exists
+	// to answer.
+	if s.RunnerPool != nil {
+		s.RunnerPool.SetCapabilities(id, rn.ExtraTags, rn.AssignedImages, rn.ImagesDecided)
+	}
+	writeJSON(w, http.StatusOK, rn)
+}
+
+// clean drops what a text field leaves behind: empty entries and stray blanks.
+func clean(in []string) []string {
+	out := make([]string, 0, len(in))
+	for _, v := range in {
+		if v = strings.TrimSpace(v); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
 // handleRunnerHealth answers what stands between this organisation's runners
 // and a running sandbox. The check existed before this — it ran at startup into
 // the log and inside the onboarding view, which disappears as soon as the five

@@ -58,12 +58,33 @@ rather than a failure at wake time.
 
 `register` writes `/etc/covey-runner/config.toml` (overridable with
 `--config`): the server address, the runner token, the working directory, and
-the tags and images this host holds. Both are capability statements —
-`--tag arm64` says what this host is, `--image` says which workplaces it can
-provide, and the scheduler assigns only agents that fit both. An agent asks for
-tags through `PATCH /api/v1/agents/{id}/runner-tags`; empty is the normal case
-and means any runner of the organisation. The token is what this host acts for its
-organisation with — the file is written `0600` and belongs treated as such.
+what the host says about itself — `--tag arm64` says what it **is**, `--image`
+which workplaces it provides. The token is what this host acts for its
+organisation with; the file is written `0600` and belongs treated as such.
+
+**Both are editable in the runner view, and that is the normal way.** They were
+properties of this file for a while, sent once at connect, and changing them
+meant editing it on the machine and restarting the runner — a capability
+statement that can only be corrected by an SSH session is one that stays wrong.
+`PATCH /api/v1/runners/{id}` carries the same thing, and a connected runner
+learns it immediately rather than at the next reconnect.
+
+The two halves behave differently on purpose:
+
+- **Tags are added** to what the host reports. A machine does not stop being
+  `arm64` because somebody labelled it `build`.
+- **Images replace** the reported claim, and an **empty list is a decision**:
+  no claim, this host provides every workplace and fetches what it does not
+  have — which is what `docker run` does anyway. That difference is the only
+  way to take back a claim a registration invented: `register` used to write
+  `covey-sandbox:latest` when no `--image` was given, a sentence about a host
+  that had just been installed and held nothing at all, and it excluded that
+  host from every other workplace. It writes no claim now.
+
+An agent asks for tags through **Host requirements** in its settings
+(`PATCH /api/v1/agents/{id}/runner-tags`); empty is the normal case and means
+any runner of the organisation. A tag is a requirement, not a preference: if
+nobody carries it, the agent waits and the message names the tag.
 
 `register` checks the connection before it reports success — the WebSocket, not
 just the HTTP call that created the runner. If that fails, the registration

@@ -1035,6 +1035,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	// organisation that comes into being while the process runs gets its own
 	// too. Each carries its own egress segment: a runner serves exactly one
 	// tenant, and `--internal` cuts the way out, not the way sideways.
+	runnerPool.Capabilities = runnerStore.Capabilities
 	runnerPool.EnsureLocal = func(ctx context.Context, orgID uuid.UUID) error {
 		// An organisation has the built-in runner exactly as long as it has no
 		// registered one. Whoever adds a runner has said that compute leaves
