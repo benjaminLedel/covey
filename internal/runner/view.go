@@ -27,7 +27,7 @@ type Live struct {
 	// does not land there.
 	ReportedTags   []string `json:"reported_tags,omitempty"`
 	ReportedImages []string `json:"reported_images,omitempty"`
-	Sandboxes int       `json:"sandboxes"`
+	Sandboxes      int      `json:"sandboxes"`
 	// Outdated: it speaks an older protocol than this control plane. Named
 	// rather than merely tolerated — version drift between separately delivered
 	// parts is a thing you want to see before it becomes a symptom.
