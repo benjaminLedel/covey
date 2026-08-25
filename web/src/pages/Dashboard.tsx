@@ -197,8 +197,12 @@ export default function Dashboard({ me }: { me: Principal }) {
       {/* Die Suche steht mittig und in eigener Zeile: sie ist das, was jemand
           auf dieser Seite ab einem Dutzend Agenten zuerst tut, und in der
           Kopfzeile zwischen Zählung und Knöpfen war sie geduldet, nicht
-          gestaltet. */}
-      {all.length > 3 && (
+          gestaltet.
+          Sie war kurz an eine Mindestzahl geknüpft — „über drei Karten ist eine
+          Suche Möblierung". Das war falsch: Wer sie beim zweiten Agenten nicht
+          findet, hält sie für kaputt, nicht für überflüssig. Ein Bedienelement,
+          das ab einer Zahl auftaucht, macht die Oberfläche unvorhersagbar. */}
+      {all.length > 0 && (
         <div className="flex flex-col items-center gap-2 mb-5">
           <div className="agent-search">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
