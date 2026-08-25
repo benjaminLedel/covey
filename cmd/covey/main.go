@@ -1036,7 +1036,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	// too. Each carries its own egress segment: a runner serves exactly one
 	// tenant, and `--internal` cuts the way out, not the way sideways.
 	runnerPool.Capabilities = runnerStore.Capabilities
-	runnerPool.EnsureLocal = func(ctx context.Context, orgID uuid.UUID) error {
+	runnerPool.EnsureLocal = func(callCtx context.Context, orgID uuid.UUID) error {
 		// This used to refuse as soon as the organisation had a registered
 		// runner: whoever adds one has said that compute leaves this machine.
 		// The rule was right about the intent and wrong about the consequence —
@@ -1051,14 +1051,14 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		// compute off this machine come what may sets COVEY_BUILTIN_RUNNER=off
 		// — said once, deliberately, instead of following from the existence of
 		// another host.
-		remote, err := runnerStore.HasRemote(ctx, orgID)
+		remote, err := runnerStore.HasRemote(callCtx, orgID)
 		if err != nil {
 			return err
 		}
 		if !runner.BuiltinAllowed(cfg.BuiltinRunner, remote) {
 			return fmt.Errorf("organisation %s has its own runner and COVEY_BUILTIN_RUNNER=off — no sandbox runs on the control plane", orgID)
 		}
-		runnerID, runnerToken, err := builtinRunners.For(ctx, orgID)
+		runnerID, runnerToken, err := builtinRunners.For(callCtx, orgID)
 		if err != nil {
 			return err
 		}
@@ -1088,6 +1088,13 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 		}
 		node := runner.NewNode(runnerID, orgID, docker, log)
 		node.Blobs = blobs
+		// The runner gets the PROCESS's context, not the wake's. AttachLocal
+		// binds the node's life to what it is given, and while this was only
+		// ever called at startup that made no difference. Since it is also
+		// asked during a wake, the difference is the whole thing: bound to the
+		// caller, the built-in runner came up for one run and was gone a minute
+		// later — visible as an "offline" row in the runner view, and one
+		// sandbox start per wake instead of a host that is simply there.
 		return runnerPool.AttachLocal(ctx, node)
 	}
 

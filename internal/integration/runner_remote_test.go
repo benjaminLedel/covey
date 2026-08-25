@@ -120,8 +120,12 @@ func TestARegisteredRunnerThatDoesNotFitLeavesTheOrganisationWorking(t *testing.
 	// The wiring from cmd/covey, in one place: may the control plane carry
 	// this itself, and if so, bring its runner up.
 	mode := "auto"
-	pool.EnsureLocal = func(ctx context.Context, orgID uuid.UUID) error {
-		remote, err := s.runners.HasRemote(ctx, orgID)
+	// callCtx is the wake's, ctx is the process's — and the difference is the
+	// point: AttachLocal binds the runner's life to what it is given. Bound to
+	// the wake, the built-in one came up for a single run and was gone a minute
+	// later; the runner view showed it offline and every wake started another.
+	pool.EnsureLocal = func(callCtx context.Context, orgID uuid.UUID) error {
+		remote, err := s.runners.HasRemote(callCtx, orgID)
 		if err != nil {
 			return err
 		}
@@ -149,6 +153,18 @@ func TestARegisteredRunnerThatDoesNotFitLeavesTheOrganisationWorking(t *testing.
 		t.Fatal(err)
 	}
 
+	// And it stays. A host that exists for the length of one wake is not a
+	// host: it stands as "offline" in the runner view between runs, and every
+	// wake pays for starting it again.
+	var connected int
+	for _, l := range pool.LiveFor(s.orgID) {
+		if l.Connected {
+			connected++
+		}
+	}
+	if connected != 2 {
+		t.Errorf("both runners should be connected after the wake, %d are", connected)
+	}
 	_ = mode
 }
 

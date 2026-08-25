@@ -2210,7 +2210,8 @@
     "imagesPlaceholder": "empty = all",
     "imagesHint": "Comma-separated. Replaces the host's own claim. Empty means no restriction — this host provides every workplace and fetches the image if it is missing.",
     "reported": "The host reports: {{tags}} · {{images}}",
-    "imagesNone": "no image claim"
+    "imagesNone": "no image claim",
+    "nameHint": "This host's name in the overview — free to choose and changeable at any time. Empty shows the description from the registration."
   },
   "diagnostics": {
     "title": "Diagnostics",

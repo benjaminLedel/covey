@@ -113,8 +113,8 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
   // Images anstelle seines Anspruchs. Leer heisst hier bewusst etwas — "kein
   // Anspruch, holt sich jeden Arbeitsplatz selbst".
   const setCaps = useMutation({
-    mutationFn: (v: { id: string; tags: string[]; images: string[] }) =>
-      patch(`/runners/${v.id}`, { tags: v.tags, images: v.images }),
+    mutationFn: (v: { id: string; tags?: string[]; images?: string[]; name?: string }) =>
+      patch(`/runners/${v.id}`, v.id ? { tags: v.tags, images: v.images, name: v.name } : {}),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["runners"] }),
   });
   const removeRunner = useMutation({
@@ -170,7 +170,21 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
               {list.map((r) => (
                 <tr key={r.id}>
                   <td>
-                    <div>{r.kind === "builtin" ? t("runners.builtin") : r.name || r.description || r.id.slice(0, 8)}</div>
+                    {manage ? (
+                      <input
+                        className="text-sm"
+                        key={`name:${r.id}:${r.name ?? ""}`}
+                        defaultValue={r.name ?? ""}
+                        placeholder={r.kind === "builtin" ? t("runners.builtin") : r.description || r.id.slice(0, 8)}
+                        title={t("runners.nameHint")}
+                        onBlur={(e) => {
+                          const name = e.target.value.trim();
+                          if (name !== (r.name ?? "")) setCaps.mutate({ id: r.id, name });
+                        }}
+                      />
+                    ) : (
+                      <div>{r.name || (r.kind === "builtin" ? t("runners.builtin") : r.description || r.id.slice(0, 8))}</div>
+                    )}
                     {r.kind === "builtin" && (
                       <div className="muted text-xs">{t("runners.builtinHint")}</div>
                     )}

@@ -2210,7 +2210,8 @@
     "imagesPlaceholder": "leer = alle",
     "imagesHint": "Kommagetrennt. Ersetzt den Anspruch des Hosts. Leer heißt: keine Einschränkung — dieser Host stellt jeden Arbeitsplatz bereit und holt sich das Image, wenn es fehlt.",
     "reported": "Der Host meldet: {{tags}} · {{images}}",
-    "imagesNone": "kein Image-Anspruch"
+    "imagesNone": "kein Image-Anspruch",
+    "nameHint": "Name dieses Hosts in der Übersicht — frei wählbar und jederzeit änderbar. Leer zeigt die Beschreibung aus der Registrierung."
   },
   "diagnostics": {
     "title": "Diagnose",

@@ -101,20 +101,42 @@ func scan(row pgx.Row) (Runner, error) {
 	return r, err
 }
 
-// SetCapabilities is the interface's half of what a runner can do: the tags an
-// operator adds to it and the workplaces it is to provide. Both were properties
-// of the host's configuration file until now, sent once at connect — changing
-// them meant editing a file on the machine and restarting the runner.
-//
-// images == nil hands the decision back to the runner's own claim; a non-nil
-// empty slice is the decision "no claim".
-func (s *Store) SetCapabilities(ctx context.Context, orgID, id uuid.UUID, extraTags []string, images []string) (Runner, error) {
-	if extraTags == nil {
-		extraTags = []string{}
+// Patch is what the interface may change about a runner. Every field is a
+// pointer because "not sent" and "set to empty" are different answers, and for
+// the images the difference is the whole feature: nil = the runner's own claim
+// applies, a pointer to an empty slice = the decision "no claim at all".
+type Patch struct {
+	ExtraTags   *[]string
+	Images      *[]string
+	Name        *string
+	Description *string
+}
+
+// Update writes what an operator decided about a host. Tags and images were
+// properties of the machine's configuration file until now, sent once at
+// connect — changing them meant editing a file there and restarting the runner.
+// The name was not changeable at all: a host registered as "Build host
+// Frankfurt" carried that string until somebody deleted and re-registered it.
+func (s *Store) Update(ctx context.Context, orgID, id uuid.UUID, p Patch) (Runner, error) {
+	var extraTags, images any
+	if p.ExtraTags != nil {
+		tags := *p.ExtraTags
+		if tags == nil {
+			tags = []string{}
+		}
+		extraTags = tags
+	}
+	if p.Images != nil {
+		images = *p.Images
 	}
 	r, err := scan(s.pool.QueryRow(ctx,
-		`UPDATE runners SET extra_tags = $3, assigned_images = $4
-		 WHERE id = $1 AND org_id = $2 RETURNING `+columns, id, orgID, extraTags, images))
+		`UPDATE runners SET
+		     extra_tags      = coalesce($3, extra_tags),
+		     assigned_images = CASE WHEN $4::boolean THEN $5 ELSE assigned_images END,
+		     name            = coalesce($6, name),
+		     description     = coalesce($7, description)
+		 WHERE id = $1 AND org_id = $2 RETURNING `+columns,
+		id, orgID, extraTags, p.Images != nil, images, p.Name, p.Description))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Runner{}, ErrNotFound
 	}

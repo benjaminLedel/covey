@@ -251,21 +251,25 @@ func (s *Server) handleUpdateRunner(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Tags   []string  `json:"tags"`
-		Images *[]string `json:"images"`
+		Tags        *[]string `json:"tags"`
+		Images      *[]string `json:"images"`
+		Name        *string   `json:"name"`
+		Description *string   `json:"description"`
 	}
 	if err := readJSON(r, &in); err != nil {
 		writeErr(w, http.StatusBadRequest, "body not readable")
 		return
 	}
-	var images []string
-	if in.Images != nil {
-		images = *in.Images
-		if images == nil {
-			images = []string{}
-		}
+	patch := runnerstore.Patch{Name: trimmed(in.Name), Description: trimmed(in.Description)}
+	if in.Tags != nil {
+		tags := clean(*in.Tags)
+		patch.ExtraTags = &tags
 	}
-	rn, err := s.Runners.SetCapabilities(r.Context(), p.OrgID, id, clean(in.Tags), images)
+	if in.Images != nil {
+		images := clean(*in.Images)
+		patch.Images = &images
+	}
+	rn, err := s.Runners.Update(r.Context(), p.OrgID, id, patch)
 	if err != nil {
 		mapErr(w, err)
 		return
@@ -277,6 +281,16 @@ func (s *Server) handleUpdateRunner(w http.ResponseWriter, r *http.Request) {
 		s.RunnerPool.SetCapabilities(id, rn.ExtraTags, rn.AssignedImages, rn.ImagesDecided)
 	}
 	writeJSON(w, http.StatusOK, rn)
+}
+
+// trimmed passes a name through without the blanks a text field collects. nil
+// stays nil: not sent is not the same as emptied.
+func trimmed(v *string) *string {
+	if v == nil {
+		return nil
+	}
+	out := strings.TrimSpace(*v)
+	return &out
 }
 
 // clean drops what a text field leaves behind: empty entries and stray blanks.

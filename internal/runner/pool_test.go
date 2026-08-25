@@ -195,6 +195,38 @@ func TestPoolNeverAssignsAcrossOrganisations(t *testing.T) {
 	}
 }
 
+// AttachLocal binds the built-in runner's life to the context it is given, and
+// nothing else says so. While EnsureLocal was only called at startup that was
+// harmless — since it is also asked during a wake, handing it the wake's
+// context makes a host that exists for one run: offline in the runner view
+// between runs, and started again by every wake. The test states the property
+// so the next caller can read what it is choosing.
+func TestTheBuiltInRunnerLivesAsLongAsItsContext(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake binary is a shell script")
+	}
+	dir := t.TempDir()
+	org := uuid.New()
+	p := NewPool(quietLog())
+	life, end := context.WithCancel(context.Background())
+	id := uuid.New()
+	if err := p.AttachLocal(life, NewNode(id, org, &Docker{
+		RunnerID: id, Image: "covey-sandbox:test", DataDir: dir, DockerBin: fakeDockerBin(t, dir, "nothing"),
+	}, quietLog())); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.pick(need{orgID: org}); err != nil {
+		t.Fatalf("the runner should be there: %v", err)
+	}
+	end()
+	// It goes with its context — which is why the context has to be the
+	// process's and not a request's.
+	waitUntil(t, 3*time.Second, func() bool {
+		_, err := p.pick(need{orgID: org})
+		return err != nil
+	})
+}
+
 // The regression that cost covey.work its data plane: a remote runner joined,
 // the control plane restarted, and the organisation had a runner that does not
 // hold the workplace its agents use. Every wake then failed with "no runner
