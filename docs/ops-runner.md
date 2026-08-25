@@ -75,17 +75,39 @@ the control plane closes the connection, and the runner shows as **offline**
 rather than as a host that is there but hears nothing — the state in which every
 wake would sit out its timeout before failing.
 
-As a service:
+As a service — and this is not an optional finish. A runner started by hand
+runs in the shell it was started from; the SSH session ends and the host shows
+as **offline**, the state in which its agents wait rather than fail. So the
+binary does it itself:
+
+```
+covey-runner install-service        # writes the unit, enables and starts it
+covey-runner remove-service         # undoes it, registration and config stay
+```
+
+On a systemd host, run as root, `register` already does it — the registration
+ends with a running service rather than with a command to type. `--no-service`
+leaves it out. `install-service` takes `--config` (a configuration elsewhere),
+`--user` (a user of its own; it is added to the `docker` group, which is
+practically the same power with a name in front of it), `--no-start` and
+`--print`.
+
+`--print` is the way out for a host without systemd: it writes the unit and
+changes nothing, so the text can be adapted for another init system. That is
+also what the command does on its own when it finds no systemd — a runner on a
+machine that runs something else needs the text, not a refusal.
 
 ```ini
 [Unit]
 Description=Covey runner
 After=network-online.target docker.service
+Wants=network-online.target
 
 [Service]
-ExecStart=/usr/local/bin/covey-runner run
+ExecStart=/usr/local/bin/covey-runner run --config /etc/covey-runner/config.toml
 Restart=always
 RestartSec=5
+TimeoutStopSec=60
 
 [Install]
 WantedBy=multi-user.target

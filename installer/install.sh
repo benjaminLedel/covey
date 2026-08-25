@@ -328,7 +328,10 @@ The runner still has to register with a Covey instance. The token for that
 is issued by the runner view of the interface:
 
   covey-runner register --url https://covey.example --token <registration-token>
-  covey-runner run
+
+On a systemd host, run as root, that also installs and starts the service —
+a runner that only runs in an open shell reports offline after the logout.
+Otherwise: covey-runner run, or covey-runner install-service afterwards.
 
 EOF
                 ;;
