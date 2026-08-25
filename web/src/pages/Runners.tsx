@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, post, patch, del, type Principal } from "../api";
+import { Link } from "react-router";
+import { api, post, del, type Principal } from "../api";
 
 // Die Runner-Ansicht (spec/16, Stufe 5). Ab dem dritten Runner ist sie das,
 // was den Betrieb bedienbar macht: welche Hosts es gibt, welcher gerade traegt,
@@ -108,15 +109,6 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
     mutationFn: () => post<{ token: string }>("/runners/registration-tokens", {}),
     onSuccess: (r) => setToken(r.token),
   });
-  // Faehigkeiten kommen jetzt aus der Oberflaeche statt aus der config.toml
-  // des Hosts: Tags zusaetzlich zu dem, was der Runner ueber sich meldet,
-  // Images anstelle seines Anspruchs. Leer heisst hier bewusst etwas — "kein
-  // Anspruch, holt sich jeden Arbeitsplatz selbst".
-  const setCaps = useMutation({
-    mutationFn: (v: { id: string; tags?: string[]; images?: string[]; name?: string }) =>
-      patch(`/runners/${v.id}`, v.id ? { tags: v.tags, images: v.images, name: v.name } : {}),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["runners"] }),
-  });
   const removeRunner = useMutation({
     mutationFn: (id: string) => del(`/runners/${id}`),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["runners"] }),
@@ -170,21 +162,9 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
               {list.map((r) => (
                 <tr key={r.id}>
                   <td>
-                    {manage ? (
-                      <input
-                        className="text-sm"
-                        key={`name:${r.id}:${r.name ?? ""}`}
-                        defaultValue={r.name ?? ""}
-                        placeholder={r.kind === "builtin" ? t("runners.builtin") : r.description || r.id.slice(0, 8)}
-                        title={t("runners.nameHint")}
-                        onBlur={(e) => {
-                          const name = e.target.value.trim();
-                          if (name !== (r.name ?? "")) setCaps.mutate({ id: r.id, name });
-                        }}
-                      />
-                    ) : (
-                      <div>{r.name || (r.kind === "builtin" ? t("runners.builtin") : r.description || r.id.slice(0, 8))}</div>
-                    )}
+                    <Link to={`/infrastructure/runners/${r.id}`}>
+                      {r.name || (r.kind === "builtin" ? t("runners.builtin") : r.description || r.id.slice(0, 8))}
+                    </Link>
                     {r.kind === "builtin" && (
                       <div className="muted text-xs">{t("runners.builtinHint")}</div>
                     )}
@@ -218,52 +198,10 @@ export default function Runners({ me, embedded = false }: { me: Principal; embed
                     )}
                   </td>
                   <td className="text-xs">
-                    {manage ? (
-                      <div className="flex flex-col gap-1">
-                        <label className="muted text-xs">{t("runners.tagsLabel")}</label>
-                        <input
-                          className="text-xs"
-                          key={`tags:${r.id}:${(r.extra_tags ?? []).join(",")}`}
-                          defaultValue={(r.extra_tags ?? []).join(", ")}
-                          placeholder={t("runners.tagsPlaceholder")}
-                          title={t("runners.tagsHint")}
-                          onBlur={(e) => {
-                            const tags = e.target.value.split(",").map((x) => x.trim()).filter(Boolean);
-                            if (tags.join(",") !== (r.extra_tags ?? []).join(","))
-                              setCaps.mutate({ id: r.id, tags, images: r.assigned_images ?? [] });
-                          }}
-                        />
-                        <label className="muted text-xs">{t("runners.imagesLabel")}</label>
-                        <input
-                          className="text-xs mono"
-                          key={`imgs:${r.id}:${(r.assigned_images ?? []).join(",")}`}
-                          defaultValue={(r.assigned_images ?? []).join(", ")}
-                          placeholder={t("runners.imagesPlaceholder")}
-                          title={t("runners.imagesHint")}
-                          onBlur={(e) => {
-                            const images = e.target.value.split(",").map((x) => x.trim()).filter(Boolean);
-                            if (images.join(",") !== (r.assigned_images ?? []).join(","))
-                              setCaps.mutate({ id: r.id, tags: r.extra_tags ?? [], images });
-                          }}
-                        />
-                        {/* Was der Host selbst meldet, steht daneben — sonst
-                            sieht niemand, warum ein Agent trotz leerem Feld
-                            nicht dort landet. */}
-                        <div className="muted text-xs">
-                          {t("runners.reported", {
-                            tags: (r.live?.reported_tags ?? r.tags ?? []).join(", ") || "—",
-                            images: (r.live?.reported_images ?? []).join(", ") || t("runners.imagesNone"),
-                          })}
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        {(r.live?.tags ?? r.tags ?? []).join(", ") || <span className="muted">—</span>}
-                        {r.live?.images?.length ? (
-                          <div className="muted mono">{r.live.images.join(", ")}</div>
-                        ) : null}
-                      </>
-                    )}
+                    {(r.live?.tags ?? r.tags ?? []).join(", ") || <span className="muted">—</span>}
+                    {r.live?.images?.length ? (
+                      <div className="muted mono">{r.live.images.join(", ")}</div>
+                    ) : null}
                   </td>
                   <td>{r.live ? t("runners.sandboxes", { count: r.capacity?.sandboxes ?? r.live.sandboxes }) : "—"}</td>
                   <td>

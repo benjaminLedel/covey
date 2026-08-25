@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { NavLink, Route, Routes } from "react-router";
 import type { Principal } from "../api";
 import Runners from "./Runners";
+import RunnerDetail from "./RunnerDetail";
 import Runtimes from "./Runtimes";
 import Workplaces from "./Workplaces";
 
@@ -25,6 +26,9 @@ export default function Infrastructure({ me }: { me: Principal }) {
       <Route index element={<Tab me={me} which="runtimes" />} />
       <Route path="workplaces" element={<Tab me={me} which="workplaces" />} />
       <Route path="runners" element={<Tab me={me} which="runners" />} />
+      {/* Der Host selbst hat eine eigene Seite: was er kann, ist eine
+          Entscheidung mit Begründung, und die passt nicht in eine Spalte. */}
+      <Route path="runners/:id" element={<RunnerDetail me={me} />} />
     </Routes>
   );
 }

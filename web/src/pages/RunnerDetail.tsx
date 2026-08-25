@@ -1,0 +1,246 @@
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
+import { Link, useNavigate, useParams } from "react-router";
+import { api, patch, del, type Principal } from "../api";
+
+/* Die Detailseite eines Hosts.
+ *
+ * Die Felder standen vorher in der Tabellenzeile, und das war der falsche Ort:
+ * Was ein Runner kann, ist eine Entscheidung mit Begründung — ein Tag schließt
+ * Agenten aus, eine Arbeitsplatz-Liste sagt etwas über Kosten. Beides braucht
+ * einen Satz daneben, und ein Satz passt nicht in eine Spalte neben Auslastung
+ * und Plattenplatz.
+ *
+ * Die Übersicht bleibt die Übersicht: welche Hosts es gibt, welcher trägt, wo
+ * der Platz knapp wird. Wer etwas ändern will, klickt auf den Namen. */
+
+type RunnerView = {
+  id: string;
+  kind: "builtin" | "remote";
+  name: string;
+  description?: string;
+  tags?: string[];
+  extra_tags?: string[];
+  assigned_images?: string[];
+  images_decided?: boolean;
+  version?: string;
+  arch?: string;
+  protocol?: number;
+  last_seen_at?: string;
+  created_at: string;
+  live?: {
+    connected: boolean;
+    version?: string;
+    arch?: string;
+    tags?: string[];
+    images?: string[];
+    reported_tags?: string[];
+    reported_images?: string[];
+    sandboxes: number;
+    outdated: boolean;
+  };
+  capacity?: { sandboxes: number; total_bytes: number; free_bytes: number; work_dir?: string };
+};
+
+const list = (v?: string[]) => (v ?? []).join(", ");
+const parse = (v: string) =>
+  v
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+
+export default function RunnerDetail({ me }: { me: Principal }) {
+  const { t } = useTranslation();
+  const { id = "" } = useParams();
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const manage = me.Role === "org_admin" || me.Role === "agent_owner";
+
+  const runners = useQuery({
+    queryKey: ["runners"],
+    queryFn: () => api<RunnerView[]>("/runners"),
+    refetchInterval: 10_000,
+  });
+  const r = (runners.data ?? []).find((x) => x.id === id);
+
+  const [error, setError] = useState("");
+  const save = useMutation({
+    mutationFn: (body: Record<string, unknown>) => patch(`/runners/${id}`, body),
+    onSuccess: () => {
+      setError("");
+      qc.invalidateQueries({ queryKey: ["runners"] });
+    },
+    onError: (e) => setError(String((e as Error)?.message)),
+  });
+  const remove = useMutation({
+    mutationFn: () => del(`/runners/${id}`),
+    onSuccess: () => navigate("/infrastructure/runners"),
+  });
+
+  if (runners.isLoading) return <p className="muted text-sm">{t("common.loading")}</p>;
+  if (!r) return <p className="muted text-sm">{t("runners.detail.gone")}</p>;
+
+  const connected = !!r.live?.connected;
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <Link to="/infrastructure/runners" className="muted text-sm">
+          ← {t("runners.detail.back")}
+        </Link>
+        <div className="flex items-baseline gap-3 mt-1">
+          <h1 className="text-[22px]">
+            {r.name || (r.kind === "builtin" ? t("runners.builtin") : r.description || r.id.slice(0, 8))}
+          </h1>
+          <span className={connected ? "pill ok" : "pill mut"}>
+            {connected ? t("runners.connected") : t("runners.offline")}
+          </span>
+          {r.live?.outdated && <span className="pill err">{t("runners.outdated")}</span>}
+        </div>
+        <p className="muted text-sm mono">{r.id}</p>
+      </div>
+
+      {error && <div className="card danger-text text-sm">{error}</div>}
+
+      <div className="card flex flex-col gap-3">
+        <div>
+          <div className="font-medium">{t("runners.detail.identity")}</div>
+          <p className="muted text-sm">{t("runners.detail.identityHint")}</p>
+        </div>
+        <Field
+          label={t("runners.detail.name")}
+          value={r.name ?? ""}
+          placeholder={r.kind === "builtin" ? t("runners.builtin") : r.description || r.id.slice(0, 8)}
+          disabled={!manage}
+          onSave={(v) => save.mutate({ name: v })}
+        />
+        <Field
+          label={t("runners.detail.description")}
+          value={r.description ?? ""}
+          placeholder={t("runners.detail.descriptionPlaceholder")}
+          disabled={!manage}
+          onSave={(v) => save.mutate({ description: v })}
+        />
+      </div>
+
+      <div className="card flex flex-col gap-3">
+        <div>
+          <div className="font-medium">{t("runners.detail.steering")}</div>
+          <p className="muted text-sm">{t("runners.detail.steeringHint")}</p>
+        </div>
+        <Field
+          label={t("runners.tagsLabel")}
+          value={list(r.extra_tags)}
+          placeholder={t("runners.tagsPlaceholder")}
+          disabled={!manage}
+          onSave={(v) => save.mutate({ tags: parse(v) })}
+        />
+        <Reported label={t("runners.detail.reportedTags")} value={list(r.live?.reported_tags ?? r.tags)} />
+        <Reported label={t("runners.detail.effectiveTags")} value={list(r.live?.tags ?? r.tags)} />
+      </div>
+
+      <div className="card flex flex-col gap-3">
+        <div>
+          <div className="font-medium">{t("runners.imagesLabel")}</div>
+          <p className="muted text-sm">{t("runners.detail.imagesHint")}</p>
+        </div>
+        <Field
+          label={t("runners.detail.assignedImages")}
+          value={list(r.assigned_images)}
+          placeholder={t("runners.imagesPlaceholder")}
+          disabled={!manage}
+          onSave={(v) => save.mutate({ images: parse(v) })}
+          mono
+        />
+        <Reported
+          label={t("runners.detail.reportedImages")}
+          value={list(r.live?.reported_images) || t("runners.imagesNone")}
+        />
+      </div>
+
+      <div className="card flex flex-col gap-2">
+        <div className="font-medium">{t("runners.detail.state")}</div>
+        <Row label={t("runners.colVersion")} value={r.live?.version || r.version || "—"} />
+        <Row label={t("runners.detail.arch")} value={r.live?.arch || r.arch || "—"} />
+        <Row label={t("runners.detail.protocol")} value={r.protocol ? String(r.protocol) : "—"} />
+        <Row
+          label={t("runners.detail.sandboxes")}
+          value={String(r.capacity?.sandboxes ?? r.live?.sandboxes ?? 0)}
+        />
+        <Row label={t("runners.detail.workDir")} value={r.capacity?.work_dir || "—"} />
+        <Row label={t("runners.detail.lastSeen")} value={r.last_seen_at?.replace("T", " ").slice(0, 19) || "—"} />
+      </div>
+
+      {manage && r.kind === "remote" && (
+        <div className="card flex flex-col gap-2">
+          <div className="font-medium">{t("runners.detail.removeTitle")}</div>
+          <p className="muted text-sm">{t("runners.detail.removeHint")}</p>
+          <div>
+            <button
+              className="btn-ghost danger-text text-sm"
+              onClick={() => {
+                if (confirm(t("runners.confirmDelete"))) remove.mutate();
+              }}
+            >
+              {t("runners.detail.remove")}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* Ein Feld, das beim Verlassen speichert — dieselbe Mechanik wie in den
+ * Agenten-Einstellungen, damit niemand einen Speichern-Knopf sucht, den es an
+ * der anderen Stelle nicht gibt. */
+function Field({
+  label,
+  value,
+  placeholder,
+  disabled,
+  mono,
+  onSave,
+}: {
+  label: string;
+  value: string;
+  placeholder?: string;
+  disabled?: boolean;
+  mono?: boolean;
+  onSave: (v: string) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-sm">{label}</span>
+      <input
+        className={mono ? "mono" : undefined}
+        key={`${label}:${value}`}
+        defaultValue={value}
+        placeholder={placeholder}
+        disabled={disabled}
+        onBlur={(e) => {
+          const next = e.target.value.trim();
+          if (next !== value) onSave(next);
+        }}
+      />
+    </label>
+  );
+}
+
+function Reported({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="muted text-sm">{label}</span>
+      <span className="text-sm mono">{value || "—"}</span>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between text-sm">
+      <span className="muted">{label}</span>
+      <span className="mono">{value}</span>
+    </div>
+  );
+}

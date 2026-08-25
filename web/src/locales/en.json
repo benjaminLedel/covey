@@ -2211,7 +2211,32 @@
     "imagesHint": "Comma-separated. Replaces the list the host reports. It is a statement about cost, not a boundary: the scheduler prefers a host that already holds the image but sends the work to one without it too — a missing image is fetched. Only tags steer.",
     "reported": "The host reports: {{tags}} · {{images}}",
     "imagesNone": "no image claim",
-    "nameHint": "This host's name in the overview — free to choose and changeable at any time. Empty shows the description from the registration."
+    "nameHint": "This host's name in the overview — free to choose and changeable at any time. Empty shows the description from the registration.",
+    "detail": {
+      "back": "Back to the overview",
+      "gone": "This runner is gone.",
+      "identity": "Name",
+      "identityHint": "What this host is called in the overview. Free to choose and changeable at any time — empty shows the description from the registration.",
+      "name": "Name",
+      "description": "Description",
+      "descriptionPlaceholder": "e.g. build host Frankfurt, 64 GB, GPU",
+      "steering": "Steering: tags",
+      "steeringHint": "Tags are the only thing that excludes a host. A tag says what the machine IS — arm64, gpu, inside the target system's network — and an agent runs here only if all of its host requirements are carried. What you enter here is added to what the host reports about itself.",
+      "reportedTags": "The host reports",
+      "effectiveTags": "Effective (reported + assigned)",
+      "imagesHint": "A statement about cost, not a boundary: the scheduler prefers a host that already holds the image but sends the work to one without it too — a host fetches what it is missing. Empty means no statement. Only a private registry needs a one-time docker login there.",
+      "assignedImages": "Assigned",
+      "reportedImages": "The host reports",
+      "state": "State",
+      "arch": "Architecture",
+      "protocol": "Protocol",
+      "sandboxes": "Running sandboxes",
+      "workDir": "Working directory",
+      "lastSeen": "Last seen",
+      "removeTitle": "Remove runner",
+      "removeHint": "The registration is deleted and its token invalidated. The working copies on the host stay behind; everything that matters is in the home store.",
+      "remove": "Delete registration"
+    }
   },
   "diagnostics": {
     "title": "Diagnostics",
