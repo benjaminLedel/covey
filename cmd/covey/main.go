@@ -1045,6 +1045,7 @@ func runServe(ctx context.Context, cfg config.Config, log *slog.Logger) error {
 	// organisation that comes into being while the process runs gets its own
 	// too. Each carries its own egress segment: a runner serves exactly one
 	// tenant, and `--internal` cuts the way out, not the way sideways.
+	runnerPool.StartTimeout = cfg.SandboxStartTimeout
 	runnerPool.Capabilities = runnerStore.Capabilities
 	// How a host is called right now — for the line in the recording that says
 	// where a run happened.

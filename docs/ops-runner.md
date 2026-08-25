@@ -110,6 +110,19 @@ just the HTTP call that created the runner. If that fails, the registration
 still stands and the configuration is written; fix the connection and start it
 with `covey-runner run`.
 
+**The first start on a new host is a download.** `docker run` fetches the
+workplace image if it is missing, and those are several gigabytes — so one
+sandbox start may legitimately take minutes. The bound for it is
+`COVEY_SANDBOX_START_TIMEOUT` on the control plane, **60 minutes** by default.
+That sounds enormous until you separate the two things it is not about: a
+runner that is *dead* is caught by the heartbeat below (three missed beats,
+about 90 seconds) no matter what a start is waiting for. This bound is about
+slowness alone, and on covey.work two minutes turned the first wake on a fresh
+host into `did not answer start_sandbox: context deadline exceeded` while the
+pull was still running. Whoever wants it tighter sets the variable; the button
+on the runner page (*fetch images in advance*) makes the wait happen while
+somebody is watching instead.
+
 Once running, the runner reports in every 30 seconds. After three missed beats
 the control plane closes the connection, and the runner shows as **offline**
 rather than as a host that is there but hears nothing — the state in which every

@@ -502,6 +502,26 @@ func TestTheDefaultWorkplaceIsTheBaseProfile(t *testing.T) {
 	}
 }
 
+// Der Zeitausfall begrenzt einen LANGSAMEN Start, nicht einen toten Runner —
+// für den ist der Herzschlag zuständig. Deshalb ist die Vorgabe großzügig: Der
+// erste Start auf einem Host ohne das Image ist ein Download von mehreren
+// Gigabyte, und auf covey.work scheiterte er an zwei Minuten.
+func TestTheStartTimeoutIsGenerousByDefaultAndSettable(t *testing.T) {
+	if defaultStartTimeout < 30*time.Minute {
+		t.Errorf("defaultStartTimeout = %s — zu knapp für einen Kaltstart mit Pull", defaultStartTimeout)
+	}
+	// Und die Instanz darf ihn setzen: 0 heißt „nimm die Vorgabe", damit es
+	// nicht zwei Zahlen gibt, die auseinanderlaufen können.
+	p := &Pool{}
+	if got := p.startTimeout(); got != defaultStartTimeout {
+		t.Errorf("ohne Wert = %s, erwartet die Vorgabe", got)
+	}
+	p.StartTimeout = 5 * time.Minute
+	if got := p.startTimeout(); got != 5*time.Minute {
+		t.Errorf("gesetzt = %s, erwartet 5m", got)
+	}
+}
+
 func TestProtocolMismatchIsRefusedWithAReason(t *testing.T) {
 	p := NewPool(quietLog())
 	control, node := NewInProc()

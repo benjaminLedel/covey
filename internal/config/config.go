@@ -116,6 +116,11 @@ type Config struct {
 	// They are what wins over the catalogue (spec/16) — the rest of
 	// SandboxImages is default, and a default must not beat a published one.
 	SandboxImageEnv map[string]string
+	// SandboxStartTimeout bounds one sandbox start. Generous by default (see
+	// runner.defaultStartTimeout): the first start on a host without the image
+	// is a multi-gigabyte pull, and a runner that is dead is caught by the
+	// heartbeat within 90 seconds anyway. 0 = the built-in default.
+	SandboxStartTimeout time.Duration
 	// SandboxCatalogURL is where the published workplaces are listed: which
 	// image belongs to which Covey version, pinned by digest. Empty switches
 	// the catalogue off; then the compiled defaults and the environment stand.
@@ -261,32 +266,35 @@ func FromEnv() (Config, error) {
 		DataDir:           getenv("COVEY_DATA_DIR", "./data"),
 		SandboxImageEnv:   sandboxImageEnv(),
 		SandboxCatalogURL: getenv("COVEY_SANDBOX_CATALOG_URL", sandbox.DefaultCatalogURL()),
-		HomeStore:         getenvBool("COVEY_HOME_STORE", true),
-		HomeExcludes:      splitList(os.Getenv("COVEY_HOME_EXCLUDES")),
-		BlobStore:         getenv("COVEY_BLOB_STORE", "builtin"),
-		S3Endpoint:        getenv("COVEY_S3_ENDPOINT", ""),
-		S3Bucket:          getenv("COVEY_S3_BUCKET", ""),
-		S3Prefix:          getenv("COVEY_S3_PREFIX", ""),
-		S3Region:          getenv("COVEY_S3_REGION", ""),
-		S3AccessKey:       getenv("COVEY_S3_ACCESS_KEY", ""),
-		S3SecretKey:       getenv("COVEY_S3_SECRET_KEY", ""),
-		S3PathStyle:       getenvBool("COVEY_S3_PATH_STYLE", true),
-		WebhookSecrets:    webhookSecretsFromEnv(),
-		TickInterval:      getenvDuration("COVEY_TICK_INTERVAL", 30*time.Second),
-		DreamAt:           getenv("COVEY_DREAM_AT", "03:00"),
-		SessionTTL:        getenvDuration("COVEY_SESSION_TTL", 7*24*time.Hour),
-		DaemonTokenTTL:    getenvDuration("COVEY_DAEMON_TOKEN_TTL", 15*time.Minute),
-		BoardRetention:    getenvDuration("COVEY_BOARD_RETENTION", 24*time.Hour),
-		EgressEnforce:     getenvBool("COVEY_EGRESS_ENFORCE", false),
-		EgressAllow:       splitList(os.Getenv("COVEY_EGRESS_ALLOW")),
-		BuiltinRunner:     getenv("COVEY_BUILTIN_RUNNER", "auto"),
-		EgressIsolation:   getenv("COVEY_EGRESS_ISOLATION", "proxy"),
-		EgressProxyAddr:   getenv("COVEY_EGRESS_PROXY_ADDR", ":8888"),
-		ControlURL:        getenv("COVEY_CONTROL_URL", ""),
-		RunnerToken:       getenv("COVEY_RUNNER_TOKEN", ""),
-		WikiCleanup:       strings.TrimSpace(os.Getenv("COVEY_WIKI_CLEANUP")),
-		RuntimeTools:      splitList(os.Getenv("COVEY_RUNTIME_TOOLS")),
-		MarketplaceURL:    getenv("COVEY_MARKETPLACE_URL", DefaultMarketplaceURL),
+		// 0 lässt dem Pool seine eigene Vorgabe — eine zweite Zahl hier wäre
+		// eine zweite Wahrheit, und genau die hat heute zweimal zugebissen.
+		SandboxStartTimeout: getenvDuration("COVEY_SANDBOX_START_TIMEOUT", 0),
+		HomeStore:           getenvBool("COVEY_HOME_STORE", true),
+		HomeExcludes:        splitList(os.Getenv("COVEY_HOME_EXCLUDES")),
+		BlobStore:           getenv("COVEY_BLOB_STORE", "builtin"),
+		S3Endpoint:          getenv("COVEY_S3_ENDPOINT", ""),
+		S3Bucket:            getenv("COVEY_S3_BUCKET", ""),
+		S3Prefix:            getenv("COVEY_S3_PREFIX", ""),
+		S3Region:            getenv("COVEY_S3_REGION", ""),
+		S3AccessKey:         getenv("COVEY_S3_ACCESS_KEY", ""),
+		S3SecretKey:         getenv("COVEY_S3_SECRET_KEY", ""),
+		S3PathStyle:         getenvBool("COVEY_S3_PATH_STYLE", true),
+		WebhookSecrets:      webhookSecretsFromEnv(),
+		TickInterval:        getenvDuration("COVEY_TICK_INTERVAL", 30*time.Second),
+		DreamAt:             getenv("COVEY_DREAM_AT", "03:00"),
+		SessionTTL:          getenvDuration("COVEY_SESSION_TTL", 7*24*time.Hour),
+		DaemonTokenTTL:      getenvDuration("COVEY_DAEMON_TOKEN_TTL", 15*time.Minute),
+		BoardRetention:      getenvDuration("COVEY_BOARD_RETENTION", 24*time.Hour),
+		EgressEnforce:       getenvBool("COVEY_EGRESS_ENFORCE", false),
+		EgressAllow:         splitList(os.Getenv("COVEY_EGRESS_ALLOW")),
+		BuiltinRunner:       getenv("COVEY_BUILTIN_RUNNER", "auto"),
+		EgressIsolation:     getenv("COVEY_EGRESS_ISOLATION", "proxy"),
+		EgressProxyAddr:     getenv("COVEY_EGRESS_PROXY_ADDR", ":8888"),
+		ControlURL:          getenv("COVEY_CONTROL_URL", ""),
+		RunnerToken:         getenv("COVEY_RUNNER_TOKEN", ""),
+		WikiCleanup:         strings.TrimSpace(os.Getenv("COVEY_WIKI_CLEANUP")),
+		RuntimeTools:        splitList(os.Getenv("COVEY_RUNTIME_TOOLS")),
+		MarketplaceURL:      getenv("COVEY_MARKETPLACE_URL", DefaultMarketplaceURL),
 
 		EmbeddingProvider: getenv("COVEY_EMBEDDING_PROVIDER", "builtin"),
 		EmbeddingModel:    strings.TrimSpace(os.Getenv("COVEY_EMBEDDING_MODEL")),

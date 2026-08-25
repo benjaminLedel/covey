@@ -121,6 +121,9 @@ type Pool struct {
 	// failed. Without it a runner that has gone quiet would hold the wake
 	// until the orchestrator's ReadyTimeout — and the message would then blame
 	// the daemon for something the runner never did.
+	//
+	// 0 = defaultStartTimeout. The instance sets it through
+	// COVEY_SANDBOX_START_TIMEOUT.
 	StartTimeout time.Duration
 
 	mu    sync.Mutex
@@ -194,7 +197,19 @@ var ErrNoRunner = errors.New("no runner available")
 // mixed pool is named in the log instead of happening quietly.
 var errNoneInOrg = fmt.Errorf("%w: this organisation has no connected runner", ErrNoRunner)
 
-const defaultStartTimeout = 2 * time.Minute
+// defaultStartTimeout is generous on purpose, and the reason is what a start
+// actually does on a host that does not have the image yet: `docker run` pulls
+// it, and a workplace image is several gigabytes. Two minutes were enough while
+// the deploy pre-pulled every image onto the one machine it knew. On a runner
+// of its own the first start after every new image is a download, and it failed
+// with "did not answer start_sandbox: context deadline exceeded" — measured on
+// covey.work, where the pull alone took just under three minutes.
+//
+// A runner that is genuinely DEAD is not caught by this at all: the heartbeat
+// is (three missed beats, ~90 seconds), and it closes the connection
+// regardless of what a start is waiting for. So this bound is about slowness,
+// not about liveness — and slowness deserves the hour.
+const defaultStartTimeout = 60 * time.Minute
 
 func NewPool(log *slog.Logger) *Pool {
 	if log == nil {
@@ -685,6 +700,15 @@ func (p *Pool) profiles(ctx context.Context) map[string]string {
 	return eff
 }
 
+// startTimeout is the bound for one start: what the instance set, otherwise the
+// default. One place, so the two cannot drift.
+func (p *Pool) startTimeout() time.Duration {
+	if p.StartTimeout > 0 {
+		return p.StartTimeout
+	}
+	return defaultStartTimeout
+}
+
 // need describes what a sandbox requires of its runner.
 type need struct {
 	orgID uuid.UUID
@@ -818,10 +842,7 @@ func (p *Pool) Start(ctx context.Context, spec orchestrator.SandboxSpec) (orches
 	if err != nil {
 		return nil, err
 	}
-	timeout := p.StartTimeout
-	if timeout <= 0 {
-		timeout = defaultStartTimeout
-	}
+	timeout := p.startTimeout()
 	// Which state the home is brought to. A failure here is not fatal: the
 	// working copy on the runner is then what applies — slower or older, but
 	// an agent that cannot start at all because a lookup failed would be the
