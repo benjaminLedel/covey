@@ -30,6 +30,12 @@ One plugin, two deployments. Which one is spoken to is inferred from the
 | Search endpoint | `POST /search/jql` | `POST /search` |
 | The assignee field | `accountId` | `name` |
 
+The assignee row is the one that used to bite: neither value is what a person
+writes, and neither is what stands on the ticket. The plugin therefore resolves
+a display name, a mail address or a login against the site's own user search
+before it assigns — an accountId is passed through untouched, and an ambiguous
+name comes back as an error naming the candidates rather than a guess.
+
 A pair with a colon is Cloud, a single value is a personal access token. An
 installation where that inference is wrong writes it out:
 
@@ -346,6 +352,11 @@ list_attachments {"issue_key":"ACME-17"}
 download_attachment {"attachment_id":"10412"}
 ```
 
+On Cloud the content link redirects to `api.media.atlassian.com`, so that host
+belongs in the agent's egress allowlist beside the site itself — without it the
+download dies in the proxy, and what the agent reports is that it cannot see the
+picture.
+
 The file lands under `<workdir>/attachments/`, and the result carries the hint
 that makes the agent open it with the Read tool — which for an image means
 vision, not a guess from the surrounding text.
@@ -408,6 +419,7 @@ Covey carries them there because the plugin declares them.
 | A comment appears as `{"type":"doc"…}` in Jira | a Cloud site addressed as Data Center | add `api=3` (and check the token shape) |
 | `HTTP 410` on a search | a Cloud site addressed as v2 — `/rest/api/2/search` is gone there | `api=3` |
 | `HTTP 404` on every call | `jira_url` carries `/rest/api/…` or a trailing path | the site URL only (the plugin cuts a `/rest/` path, but not a context path that is really there) |
+| `assign`: several users match | two people on the site carry that name | take the accountId from the error message |
 | `"…" is not a transition available` | the workflow does not offer that move **from the current status** | `list_transitions`, then the name it reports |
 | `Field 'resolution' cannot be set` | the transition screen does not carry the field | leave `resolution` out |
 | Agent wakes every interval and does nothing | `nur-wenn:` missing, or the sub-scope too wide | `nur-wenn: jira:assigned` |
